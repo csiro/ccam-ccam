@@ -1541,6 +1541,8 @@ if( myid==0 .or. local ) then
           call attrib(idnc,dimj,jsize,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
           lname = 'Clear sky LW at ground'
           call attrib(idnc,dimj,jsize,'rgc_ave',lname,'W m-2',-500.,1000.,0,-1)  ! -1 = long
+          lname = 'Clear sky downwelling LW radiation'
+          call attrib(idnc,dimj,jsize,'rgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
           lname = 'TOA Incident Shortwave Radiation'
           call attrib(idnc,dimj,jsize,'sint_ave',lname,'W m-2',0.,1600.,0,-1) ! -1 = long
           lname = 'TOA Outgoing Shortwave Radiation'
@@ -1555,6 +1557,8 @@ if( myid==0 .or. local ) then
           call attrib(idnc,dimj,jsize,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
           lname = 'Clear sky SW at ground (+ve down)'
           call attrib(idnc,dimj,jsize,'sgc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+          lname = 'Clear sky downwelling SW radiation'
+          call attrib(idnc,dimj,jsize,'sgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
           lname = 'Sunshine hours per day'
           call attrib(idnc,dimj,jsize,'sunhours',lname,'hrs',0.,24.,1,cptype) ! daily
           lname = 'Direct normal irradiance'
@@ -2809,6 +2813,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt(rgdn_ave,'rgdn_ave',idnc,iarch,local,lave)
       call histwrt(rgn_ave,'rgn_ave',idnc,iarch,local,lave)
       call histwrt(rgc_ave,'rgc_ave',idnc,iarch,local,lave)
+      call histwrt(rgdc_ave,'rgdc_ave',idnc,iarch,local,lave)
       call histwrt(sint_ave,'sint_ave',idnc,iarch,local,lave)
       call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lave)
       call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lave)
@@ -2816,6 +2821,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt(sgdn_ave,'sgdndir_ave',idnc,iarch,local,lave)
       call histwrt(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
       call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lave)
+      call histwrt(sgdc_ave,'sgdc_ave',idnc,iarch,local,lave)
       call histwrt(sunhours,'sunhours',idnc,iarch,local,lday)
       call histwrt(dni_ave,'dni',idnc,iarch,local,lave)
     end if
@@ -3863,24 +3869,24 @@ if ( first ) then
       lname = 'TOA Outgoing Shortwave Radiation'
       call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)          ! -1 = long
       lname = 'Clear sky SW out at TOA'
-      call attrib(fncid,sdim,ssize,'soc_ave',lname,'W m-2',0.,1000.,iattdaily,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'soc_ave',lname,'W m-2',0.,900.,iattdaily,-1)  ! -1 = long
       lname = 'Clear sky SW at ground (+ve down)'
-      call attrib(fncid,sdim,ssize,'sgc_ave',lname,'W m-2',0.,1000.,iattdaily,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'sgc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long
       lname = 'Surface Downwelling Clear-Sky Shortwave Radiation'
-      call attrib(fncid,sdim,ssize,'sgdc_ave',lname,'W m-2',0.,1000.,iattdaily,-1) ! -1 = long      
+      call attrib(fncid,sdim,ssize,'sgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1) ! -1 = long      
       lname = 'Clear sky LW at TOA'
       call attrib(fncid,sdim,ssize,'rtc_ave',lname,'W m-2',0.,800.,iattdaily,-1)   ! -1 = long
       lname = 'Clear sky LW at ground'
-      call attrib(fncid,sdim,ssize,'rgc_ave',lname,'W m-2',0.,800.,iattdaily,-1)   ! -1 = long
+      call attrib(fncid,sdim,ssize,'rgc_ave',lname,'W m-2',-500.,1000.,iattdaily,-1)   ! -1 = long
       lname = 'Surface Downwelling Clear-Sky Longwave Radiation'
-      call attrib(fncid,sdim,ssize,'rgdc_ave',lname,'W m-2',0.,800.,iattdaily,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'rgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long
       if ( rescrn>0 ) then
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(fncid,sdim,ssize,'wsgsmax',lname,'m s-1',0.,350.,iattdaily,1)
         lname = 'Convective Available Potential Energy'
-        call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,35.,0,1)
+        call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,4000.,0,1)
         lname = 'Convective Inhibition'
-        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',0.,35.,0,1)
+        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',0.,4000.,0,1)
       end if
       lname = 'x-component wind stress'
       call attrib(fncid,sdim,ssize,'taux',lname,'N m-2',-50.,50.,iatt6hr,1)

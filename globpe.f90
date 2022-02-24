@@ -3790,7 +3790,6 @@ clh_ave(:)           = 0.
 dni_ave(:)           = 0.
 
 ! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
-!evap(:)             = 0.  
 evspsbl(:)           = 0.  ! converted to mm/day in outcdf
 sbl(:)               = 0.  ! converted to mm/day in outcdf
 precip(:)            = 0.  ! converted to mm/day in outcdf
