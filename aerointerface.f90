@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -166,12 +166,29 @@ do tile = 1,ntiles
   clcon(is:ie,:) = lclcon    
 end do
 !$omp end do nowait    
-    
+
+#ifdef _OPENMP    
 !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
 !$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
 !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
 !$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
 !$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
+#else
+!$acc parallel loop copy(xtg,duste,dustdd,dustwd,dust_burden)                                 &
+!$acc   copy(dmsso2o,so2so4o,bc_burden,oc_burden,dms_burden)                                  &
+!$acc   copy(so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd)        &
+!$acc   copy(so4dd,bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                 &
+!$acc   copyin(zoxidant_g,xtosav,emissfield,erod,ppfprec,ppfmelt,ppfsnow,ppfsubl,pplambs)     &
+!$acc   copyin(ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,ppfevap,clcon,rhoa)    &
+!$acc   copyin(wetfac,isoilm,pblh,ps,tss,u10,ustar,zo,land,fracice,sigmf,cldcon,cdtq)         &
+!$acc   copyin(zdayfac,kbsav,vso2,dustden,dustreff,saltden,saltreff,sig,condc,snowd,taudar)   &
+!$acc   copyin(fg,eg,t,qg,qlg,qfg,stratcloud,dsig,ktsav,isoilm_in)                            &
+!$acc   copyout(so4t)                                                                         &
+!$acc   private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg)                                      &
+!$acc   private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr)   &
+!$acc   private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd)    &
+!$acc   private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
+#endif
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -275,34 +292,36 @@ do tile = 1,ntiles
   dustdd(is:ie,:)      = ldustdd
   dustwd(is:ie,:)      = ldustwd
   dust_burden(is:ie,:) = ldust_burden
-  
-#ifndef GPU  
-  if ( diag .and. mydiag_t ) then
-    write(6,*) "tdiag ",t(idjd,:)
-    write(6,*) "qgdiag ",qg(idjd,:)
-    write(6,*) "qlgdiag ",qlg(idjd,:)
-    write(6,*) "qfgdiag ",qfg(idjd,:)
-    write(6,*) "u10diag ",u10(idjd)
-    write(6,*) "pblhdiag ",pblh(idjd)
-    write(6,*) "fracicediag ",fracice(idjd)
-    write(6,*) "DMSdiag ",xtg(idjd,:,1)
-    write(6,*) "SO2diag ",xtg(idjd,:,2)
-    write(6,*) "SO4diag ",xtg(idjd,:,3)
-    write(6,*) "BCphobdiag ",xtg(idjd,:,4)
-    write(6,*) "BCphildiag ",xtg(idjd,:,5)
-    write(6,*) "OCphobdiag ",xtg(idjd,:,6)
-    write(6,*) "OCphildiag ",xtg(idjd,:,7)
-    write(6,*) "dust0.8diag ",xtg(idjd,:,8)
-    write(6,*) "dust1.0diag ",xtg(idjd,:,9)
-    write(6,*) "dust2.0diag ",xtg(idjd,:,10)
-    write(6,*) "dust4.0diag ",xtg(idjd,:,11)
-    write(6,*) "saltfilmdiag ",xtg(idjd,:,12)
-    write(6,*) "saltjetdiag  ",xtg(idjd,:,13)
-  end if
-#endif
-  
+    
 end do
+#ifdef _OPENMP
 !$omp end do nowait
+#else
+!$acc end parallel loop
+#endif
+
+if ( diag .and. mydiag ) then
+  write(6,*) "tdiag ",t(idjd,:)
+  write(6,*) "qgdiag ",qg(idjd,:)
+  write(6,*) "qlgdiag ",qlg(idjd,:)
+  write(6,*) "qfgdiag ",qfg(idjd,:)
+  write(6,*) "u10diag ",u10(idjd)
+  write(6,*) "pblhdiag ",pblh(idjd)
+  write(6,*) "fracicediag ",fracice(idjd)
+  write(6,*) "DMSdiag ",xtg(idjd,:,1)
+  write(6,*) "SO2diag ",xtg(idjd,:,2)
+  write(6,*) "SO4diag ",xtg(idjd,:,3)
+  write(6,*) "BCphobdiag ",xtg(idjd,:,4)
+  write(6,*) "BCphildiag ",xtg(idjd,:,5)
+  write(6,*) "OCphobdiag ",xtg(idjd,:,6)
+  write(6,*) "OCphildiag ",xtg(idjd,:,7)
+  write(6,*) "dust0.8diag ",xtg(idjd,:,8)
+  write(6,*) "dust1.0diag ",xtg(idjd,:,9)
+  write(6,*) "dust2.0diag ",xtg(idjd,:,10)
+  write(6,*) "dust4.0diag ",xtg(idjd,:,11)
+  write(6,*) "saltfilmdiag ",xtg(idjd,:,12)
+  write(6,*) "saltjetdiag  ",xtg(idjd,:,13)
+end if
 
 return
 end subroutine aerocalc
