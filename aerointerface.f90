@@ -174,20 +174,20 @@ end do
 !$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
 !$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
 #else
-!$acc parallel loop copy(xtg,duste,dustdd,dustwd,dust_burden)                                 &
-!$acc   copy(dmsso2o,so2so4o,bc_burden,oc_burden,dms_burden)                                  &
-!$acc   copy(so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd)        &
-!$acc   copy(so4dd,bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                 &
-!$acc   copyin(zoxidant_g,xtosav,emissfield,erod,ppfprec,ppfmelt,ppfsnow,ppfsubl,pplambs)     &
-!$acc   copyin(ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,ppfevap,clcon,rhoa)    &
-!$acc   copyin(wetfac,isoilm,pblh,ps,tss,u10,ustar,zo,land,fracice,sigmf,cldcon,cdtq)         &
-!$acc   copyin(zdayfac,kbsav,vso2,dustden,dustreff,saltden,saltreff,sig,condc,snowd,taudar)   &
-!$acc   copyin(fg,eg,t,qg,qlg,qfg,stratcloud,dsig,ktsav,isoilm_in)                            &
-!$acc   copyout(so4t)                                                                         &
-!$acc   private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg)                                      &
-!$acc   private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr)   &
-!$acc   private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd)    &
-!$acc   private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
+!!$acc parallel loop copy(xtg,duste,dustdd,dustwd,dust_burden)                                 &
+!!$acc   copy(dmsso2o,so2so4o,bc_burden,oc_burden,dms_burden)                                  &
+!!$acc   copy(so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd)        &
+!!$acc   copy(so4dd,bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                 &
+!!$acc   copyin(zoxidant_g,xtosav,emissfield,erod,ppfprec,ppfmelt,ppfsnow,ppfsubl,pplambs)     &
+!!$acc   copyin(ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,ppfevap,clcon,rhoa)    &
+!!$acc   copyin(wetfac,isoilm,pblh,ps,tss,u10,ustar,zo,land,fracice,sigmf,cldcon,cdtq)         &
+!!$acc   copyin(zdayfac,kbsav,vso2,dustden,dustreff,saltden,saltreff,sig,condc,snowd,taudar)   &
+!!$acc   copyin(fg,eg,t,qg,qlg,qfg,stratcloud,dsig,ktsav,isoilm_in)                            &
+!!$acc   copyout(so4t)                                                                         &
+!!$acc   private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg)                                      &
+!!$acc   private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr)   &
+!!$acc   private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd)    &
+!!$acc   private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
 #endif
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -297,7 +297,7 @@ end do
 #ifdef _OPENMP
 !$omp end do nowait
 #else
-!$acc end parallel loop
+!!$acc end parallel loop
 #endif
 
 if ( diag .and. mydiag ) then

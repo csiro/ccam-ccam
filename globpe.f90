@@ -2687,11 +2687,11 @@ if ( myid==0 ) then
 #ifdef _OPENMP
   write(6,*) 'Using OpenMP with number of threads      = ',maxthreads
 #ifdef GPU
-  write(6,*) 'Using OpenMP with number of GPUs         = ',ngpus
+  write(6,*) 'Using OpenMP with GPUs per node          = ',ngpus
 #endif
 #else
 #ifdef _OPENACC
-  write(6,*) 'Using OpenACC with number of GPUs        = ',ngpus  
+  write(6,*) 'Using OpenACC with GPUs per node         = ',ngpus  
 #endif
 #endif
   write(6,*) 'Reading namelist from ',trim(nmlfile)
@@ -4686,7 +4686,7 @@ if ( any(psl(js:je)/=psl(js:je)) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(psl(js:je)<-1.6) .or. any(psl(js:je)>0.4) ) then
+if ( any(psl(js:je)<-1.6) .or. any(psl(js:je)>0.5) ) then
   write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
   posmin(1:1) = minloc(psl(js:je))
@@ -4727,7 +4727,7 @@ if ( abs(iaero)>=2 ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
-  if ( any(xtg(js:je,1:kl,1:naero)<-1.e-8) .or. any(xtg(js:je,1:kl,1:naero)>1.e-3) ) then
+  if ( any(xtg(js:je,1:kl,1:naero)<-1.e-8) .or. any(xtg(js:je,1:kl,1:naero)>2.e-3) ) then
     write(6,*) "ERROR: Out-of-range detected in xtg on myid=",myid," at ",trim(message)
     write(6,*) "minval,maxval ",minval(xtg(js:je,1:kl,1:naero)),maxval(xtg(js:je,1:kl,1:naero))
     posmin3 = minloc(xtg(js:je,1:kl,1:naero))

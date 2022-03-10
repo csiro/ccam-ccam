@@ -84,18 +84,18 @@ contains
       implicit none 
       real, dimension(:,:), intent(in)  :: array
       complex, dimension(:), intent(inout) :: local_sum
-      real, dimension(size(array,2)) :: e, t1, t2 
+      real :: e, t1, t2 
       real, dimension(size(array,2),size(array,1)) :: array_t
       integer :: i, n
       
       array_t(:,:) = transpose(array)
 
-      do i = 1,size(array,1)
-         do n = 1,size(array,2)
-            t1(n) = array_t(n,i) + real(local_sum(n))
-            e(n) = t1(n) - array_t(n,i) 
-            t2(n) = ((real(local_sum(n)) - e(n)) + (array_t(n,i) - (t1(n) - e(n))))  + aimag(local_sum(n))
-            local_sum(n) = cmplx(t1(n) + t2(n), t2(n) - ((t1(n) + t2(n)) - t1(n)))
+      do i = 1,size(array_t,2)
+         do n = 1,size(array_t,1)
+            t1 = array_t(n,i) + real(local_sum(n))
+            e = t1 - array_t(n,i) 
+            t2 = ((real(local_sum(n)) - e) + (array_t(n,i) - (t1 - e)))  + aimag(local_sum(n))
+            local_sum(n) = cmplx(t1 + t2, t2 - ((t1 + t2) - t1))
          end do
       end do
       

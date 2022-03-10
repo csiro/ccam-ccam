@@ -140,8 +140,9 @@ module cc_mpi
              ccmpi_filegather, ccmpi_filedistribute, procarray,             &
              ccmpi_filewininit, ccmpi_filewinfinalize,                      &
              ccmpi_filewinfinalize_exit
+   public :: ccmpi_remap  
 #ifdef usempi3
-   public :: ccmpi_allocshdata, ccmpi_allocshdatar8, ccmpi_remap
+   public :: ccmpi_allocshdata, ccmpi_allocshdatar8
    public :: ccmpi_shepoch, ccmpi_freeshdata
 #endif
    

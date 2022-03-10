@@ -1200,7 +1200,7 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'sigmf',lname,'none',0.,3.25,0,cptype)
     end if
     lname ='Scaled Log Surface pressure'
-    call attrib(idnc,dimj,jsize,'psf',lname,'none',-1.3,0.2,0,cptype)
+    call attrib(idnc,dimj,jsize,'psf',lname,'none',-1.4,0.5,0,cptype)
     lname ='Sea Level Pressure'
     call attrib(idnc,dimj,jsize,'pmsl',lname,'hPa',800.,1200.,0,cptype)
     if ( save_land .or. save_ocean ) then
@@ -3806,7 +3806,7 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'sgdndir_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1=long 
     end if
     lname = 'Scaled Log Surface pressure'
-    call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
+    call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.4,0.5,0,1)
     lname = 'Screen mixing ratio'
     call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg kg-1',0.,0.06,0,1)
     lname = 'Total Cloud Fraction'
@@ -4664,7 +4664,7 @@ if ( first ) then
     lname='Convective Precipitation'
     call attrib(fncid,sdim,ssize,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname = 'Scaled Log Surface pressure'
-    call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.3,0.2,0,1)
+    call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.4,0.5,0,1)
 
     ! end definition mode
     call ccnf_enddef(fncid)

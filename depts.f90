@@ -204,8 +204,6 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
  
-call start_log(p2_begin)
- 
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(3) schedule(static),               &
@@ -261,8 +259,6 @@ call start_log(p2_begin)
   !$acc end parallel loop
 #endif
 
-call end_log(p2_end)
-            
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
@@ -302,8 +298,6 @@ else     ! if(intsch==1)then
   end do              ! ii
   
   call intssync_send(3)
-
-call start_log(p2_begin)
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -360,8 +354,6 @@ call start_log(p2_begin)
   !$acc end parallel loop
 #endif
 
-call end_log(p2_end)
-  
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
@@ -423,8 +415,6 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
-call start_log(p2_begin)
-
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(3) schedule(static),               &
@@ -480,8 +470,6 @@ call start_log(p2_begin)
   !$acc end parallel loop
 #endif
 
-call end_log(p2_end)
-            
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
@@ -522,8 +510,6 @@ else     ! if(intsch==1)then
   end do              ! ii
 
   call intssync_send(3)
-
-call start_log(p2_begin)
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -580,8 +566,6 @@ call start_log(p2_begin)
 #else
   !$acc end parallel loop
 #endif
-
-call end_log(p2_end)
 
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -641,8 +625,6 @@ real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
 real(kind=8) alf,alfonsch  ! 6/11/07 esp for 200m
 real(kind=8) dxx,dxy,dyx,dyy
 real(kind=8) den
-
-call start_log(p1_begin)
 
 ! if necessary, transform (x3d, y3d, z3d) to equivalent
 ! coordinates (xstr, ystr, zstr) on regular gnomonic panels
@@ -768,8 +750,6 @@ end do
 !$acc end parallel loop
 !$acc update self(xg,yg,nface)
 #endif
-
-call end_log(p1_end)
 
 return
 end subroutine toij5

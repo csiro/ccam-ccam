@@ -118,6 +118,35 @@ INT8FLAG = -fdefault-int-8
 DEBUGFLAG = -g -Wall -Wextra -fbounds-check
 endif
 
+#NVFORTRAN
+ifeq ($(NVFORTRAN),yes)
+#NVFORTRAN
+ifeq ($(NVFORTRAN),yes)
+MPIFC = nvfortran
+MPIF77 = nvfortran
+FC = mpifort
+FCSCM = nvfortran
+CC = pgcc
+NCFLAG = -I $(NETCDF_ROOT)/include/GNU -Dncclib
+LIBS = -L $(NETCDF_ROOT)/lib/GNU -lnetcdf
+FHOST = -O4 -fast -tp=host
+MPIFLAG =
+MPISPECIAL =
+FFLAGS = $(FHOST) -Dpgi -traceback $(MPIFLAG) $(NCFLAG)
+FFLAGS += -Minfo=accel -acc -ta=tesla:cc70 -DGPU
+FOVERRIDE =
+ZMM =
+IPFLAG =
+IPOFLAG =
+VTHRESH =
+PPFLAG90 = -cpp
+PPFLAG77 = -cpp
+PPFLAG90F = -cpp
+REAL8FLAG = -r8
+INT8FLAG = -i8
+DEBUGFLAG =
+endif
+
 #PGFORTRAN
 ifeq ($(PGI),yes)
 MPIFC = pgfortran
