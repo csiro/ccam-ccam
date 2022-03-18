@@ -144,10 +144,10 @@ else
 end if
 
 #ifdef GPU
-!$omp target data map(to:sx,xx4,yy4) map(alloc:xg,yg,nface)
+!$omp target data map(to:sx)
 #endif
-!$acc data create(sx,xx4,yy4,xg,yg,nface)
-!$acc update device(sx,xx4,yy4)
+!$acc data create(sx)
+!$acc update device(sx)
 
 ! convert to grid point numbering
 call toij5(x3d,y3d,z3d)
@@ -203,11 +203,11 @@ if ( intsch==1 ) then
   end do            ! ii loop
 
   call intssync_send(3)
- 
+  
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(3) schedule(static),               &
-  !$omp map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg,n),                               &
+  !$omp map(from:s,xg,yg,nface) private(nn,k,iq,idel,xxg,jdel,yyg,n),                   &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #else
@@ -216,7 +216,7 @@ if ( intsch==1 ) then
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-  !$acc parallel loop collapse(3) copyout(s) present(xg,yg,nface,sx)
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface) copyout(s) present(sx)
 #endif
   do nn = 1,3
     do k = 1,kl
@@ -258,7 +258,7 @@ if ( intsch==1 ) then
 #else
   !$acc end parallel loop
 #endif
-
+            
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
@@ -302,7 +302,7 @@ else     ! if(intsch==1)then
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(3) schedule(static),               &
-  !$omp map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg,n),                               &
+  !$omp map(from:s,xg,yg,nface) private(nn,k,iq,idel,xxg,jdel,yyg,n),                   &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #else
@@ -311,7 +311,7 @@ else     ! if(intsch==1)then
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-  !$acc parallel loop collapse(3) copyout(s) present(xg,yg,nface,sx)
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface) copyout(s) present(sx)
 #endif
   do nn = 1,3
     do k = 1,kl
@@ -353,7 +353,7 @@ else     ! if(intsch==1)then
 #else
   !$acc end parallel loop
 #endif
-
+  
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
@@ -418,7 +418,7 @@ if ( intsch==1 ) then
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(3) schedule(static),               &
-  !$omp map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg,n),                               &
+  !$omp map(from:s,xg,yg,nface) private(nn,k,iq,idel,xxg,jdel,yyg,n),                   &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #else
@@ -427,7 +427,7 @@ if ( intsch==1 ) then
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-  !$acc parallel loop collapse(3) copyout(s) present(xg,yg,nface,sx)
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface) copyout(s) present(sx)
 #endif
   do nn = 1,3
     do k = 1,kl
@@ -469,7 +469,7 @@ if ( intsch==1 ) then
 #else
   !$acc end parallel loop
 #endif
-
+            
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
@@ -514,7 +514,7 @@ else     ! if(intsch==1)then
 #ifdef _OPENMP
 #ifdef GPU
   !$omp target teams distribute parallel do collapse(3) schedule(static),               &
-  !$omp map(from:s) private(nn,k,iq,idel,xxg,jdel,yyg,n),                               &
+  !$omp map(from:s,xg,yg,nface) private(nn,k,iq,idel,xxg,jdel,yyg,n),                   &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #else
@@ -523,7 +523,7 @@ else     ! if(intsch==1)then
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-  !$acc parallel loop collapse(3) copyout(s) present(xg,yg,nface,sx)
+  !$acc parallel loop collapse(3) copyin(xg,yg,nface) copyout(s) present(sx)
 #endif
   do nn = 1,3
     do k = 1,kl
@@ -621,29 +621,21 @@ integer k, iq, loop, i, j, is, js
 real ri,rj
 real xstr,ystr,zstr
 real denxyz,xd,yd,zd
-real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
 real(kind=8) alf,alfonsch  ! 6/11/07 esp for 200m
 real(kind=8) dxx,dxy,dyx,dyy
+real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
 real(kind=8) den
+logical xytest, xztest, yztest
 
 ! if necessary, transform (x3d, y3d, z3d) to equivalent
 ! coordinates (xstr, ystr, zstr) on regular gnomonic panels
 alf      = (1._8-real(schmidt,8)**2)/(1._8+real(schmidt,8)**2)
 alfonsch = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more accurate
 
-#ifdef _OPENMP
-#ifdef GPU
-!$omp target teams distribute parallel do collapse(2) schedule(static),             &
-!$omp map(to:x3d,y3d,z3d) private(k,iq,den),                                        &
-!$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),  &
-!$omp private(is,js,dxx,dyx,dxy,dyy)
-#else
+#ifndef GPU
 !$omp parallel do schedule(static) private(k,iq,den),                               &
 !$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),  &
 !$omp private(is,js,dxx,dyx,dxy,dyy)
-#endif
-#else
-!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d) present(xg,yg,nface,xx4,yy4)
 #endif
 do k = 1,kl
   do iq = 1,ifull    
@@ -662,23 +654,26 @@ do k = 1,kl
     yd = ystr/denxyz
     zd = zstr/denxyz
 
-    if ( abs(xstr-denxyz)<1.e-8 ) then
+    xytest = abs(xd)>abs(yd)
+    xztest = abs(xd)>abs(zd)
+    yztest = abs(yd)>abs(zd)
+    if ( xytest .and. xztest .and. xd>0. ) then
       nface(iq,k)    =0
       xg(iq,k) =       yd
       yg(iq,k) =       zd
-    else if ( abs(xstr+denxyz)<1.e-8 ) then
+    else if ( xytest .and. xztest ) then
       nface(iq,k)    =3
       xg(iq,k) =     -zd
       yg(iq,k) =     -yd
-    else if ( abs(ystr-denxyz)<1.e-8 ) then
+    else if ( yztest .and. yd>0. ) then
       nface(iq,k)    =2
       xg(iq,k) =     -zd
       yg(iq,k) =     -xd
-    else if ( abs(ystr+denxyz)<1.e-8 ) then
+    else if ( yztest ) then
       nface(iq,k)    =5
       xg(iq,k) =      xd
       yg(iq,k) =      zd
-    else if ( abs(zstr-denxyz)<1.e-8 ) then
+    else if ( zd>0. ) then
       nface(iq,k)    =1
       xg(iq,k) =      yd
       yg(iq,k) =     -xd
@@ -727,8 +722,8 @@ do k = 1,kl
       dxy = yy4(i+is,j) - yy4(i,j)
       dyy = yy4(i,j+js) - yy4(i,j)       
       den = dxx*dyy - dyx*dxy
-      ri = real(i) + real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/den)
-      rj = real(j) + real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/den)        
+      ri = real(i) + real(is)*real(((xg(iq,k)-xx4(i,j))*dyy-(yg(iq,k)-yy4(i,j))*dyx)/real(den,8))
+      rj = real(j) + real(js)*real(((yg(iq,k)-yy4(i,j))*dxx-(xg(iq,k)-xx4(i,j))*dxy)/real(den,8))        
       ri = min( ri, 1.+1.99999*real(2*il_g) )
       ri = max( ri, 1.+0.00001*real(2*il_g) )
       rj = min( rj, 1.+1.99999*real(2*il_g) )
@@ -739,16 +734,8 @@ do k = 1,kl
     yg(iq,k) = 0.25*(rj+3.) - 0.5  ! -.5 for stag  
   end do
 end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target data map(from:xg,yg,nface)
-#else
+#ifndef GPU
 !$omp end parallel do
-#endif
-#else
-!$acc end parallel loop
-!$acc update self(xg,yg,nface)
 #endif
 
 return

@@ -335,7 +335,7 @@ do k = 1,wlev
 end do
 #ifdef _OPENMP
 #ifdef GPU
-!$omp end target teams distibute parallel do nowait
+!$omp end target teams distribute parallel do
 !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
 #endif
 #else
@@ -349,7 +349,7 @@ do k = 1,wlev
 end do
 #ifdef _OPENMP
 #ifdef GPU
-!$omp end target teams distibute parallel do nowait
+!$omp end target teams distribute parallel do
 !$omp target exit data map(from:work)
 #endif
 #else

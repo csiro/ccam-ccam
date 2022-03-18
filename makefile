@@ -120,8 +120,6 @@ endif
 
 #NVFORTRAN
 ifeq ($(NVFORTRAN),yes)
-#NVFORTRAN
-ifeq ($(NVFORTRAN),yes)
 MPIFC = nvfortran
 MPIF77 = nvfortran
 FC = mpifort
