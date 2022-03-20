@@ -131,7 +131,10 @@ FHOST = -O4 -fast -tp=host
 MPIFLAG =
 MPISPECIAL =
 FFLAGS = $(FHOST) -Dpgi -traceback $(MPIFLAG) $(NCFLAG)
-FFLAGS += -Minfo=accel -acc -ta=tesla:cc70 -DGPU
+ifeq ($(GPU),yes)
+FFLAGS += -Minfo=accel -acc -gpu=deepcopy,cc80 -DGPU
+#-ta=tesla:cc70
+endif
 FOVERRIDE =
 ZMM =
 IPFLAG =
@@ -156,12 +159,13 @@ FHOST = -O3 -tp=haswell -fast
 #FHOST = -g
 MPIFLAG +=  
 MPISPECIAL =
-FFLAGS = $(FHOST) -Dpgi -DGPU -traceback $(MPIFLAG) $(NCFLAG)
-#FFLAGS = $(FHOST) -Dpgi -D_GPU -traceback $(MPIFLAG) $(NCFLAG)
+FFLAGS = $(FHOST) -Dpgi -traceback $(MPIFLAG) $(NCFLAG)
+ifeq ($(GPU),yes)
 #FFLAGS += -Minfo=accel -acc -ta=host
 #FFLAGS += -Minfo=accel -acc -ta=multicore
 #FFLAGS += -Minfo=accel -acc -ta=nvidia:cc60
-FFLAGS += -Minfo=accel -acc -ta=tesla:cc60
+FFLAGS += -Minfo=accel -acc -ta=tesla:cc60 -DGPU
+endif
 FOVERRIDE =
 ZMM =
 IPFLAG =

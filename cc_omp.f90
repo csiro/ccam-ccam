@@ -62,8 +62,10 @@ module cc_omp
       maxthreads = omp_get_max_threads()
 #ifdef GPU
       ngpus = omp_get_num_devices()
-      call omp_set_default_device(mod(myid,ngpus))
-      gpuid = omp_get_default_device()
+      if ( ngpus > 0 ) then
+         call omp_set_default_device(mod(myid,ngpus))
+         gpuid = omp_get_default_device()
+      end if   
 #endif
 #endif      
 
