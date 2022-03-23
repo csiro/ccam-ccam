@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -215,11 +215,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     write(6,*) 'giving mtimeb = ',mtimeb
   end if
 
-! ensure qb big enough, but not too big in top levels (from Sept '04)
-  !qb(1:ifull,:) = max(qb(1:ifull,:), 0.)
-
-  
-! following is useful if troublesome data is read in
+  ! following is useful if troublesome data is read in
   if ( mod(ktau,nmaxpr)==0 .or. ktau==2 .or. diag ) then
     if ( myid==0 ) then
       write(6,*) 'following max/min values printed from nestin'
@@ -1280,9 +1276,7 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef GPU
-  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#else
+#ifndef GPU
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
 #endif
@@ -1307,9 +1301,7 @@ do ipass = 0,2
       end do
     end do
   end do
-#ifdef GPU
-  !$omp end parallel do
-#else
+#ifndef GPU
   !$omp end do nowait
 #endif
     
@@ -1341,9 +1333,7 @@ do ipass = 0,2
   !$acc end parallel loop
 #endif
 
-#ifdef GPU
-  !$omp parallel do schedule(static) private(j,n,ibase)
-#else
+#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
 #endif
   do j = 1,jpan
@@ -1352,9 +1342,7 @@ do ipass = 0,2
       ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = ff_l(:,n,j)
     end do
   end do
-#ifdef GPU
-  !$omp end parallel do
-#else
+#ifndef GPU
   !$omp end do nowait
   !$omp end parallel
 #endif
@@ -1420,9 +1408,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifdef GPU
-!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#else
+#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
 #endif
@@ -1447,9 +1433,7 @@ do j = 1,ipan
     end do
   end do
 end do
-#ifdef GPU
-!$omp end parallel do
-#else
+#ifndef GPU
 !$omp end do nowait
 #endif
   
@@ -1538,9 +1522,7 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef GPU
-  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#else
+#ifndef GPU
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
 #endif
@@ -1565,9 +1547,7 @@ do ipass = 0,2
       end do
     end do
   end do
-#ifdef GPU
-  !$omp end parallel do
-#else
+#ifndef GPU
   !$omp end do nowait
 #endif
   
@@ -1599,9 +1579,7 @@ do ipass = 0,2
   !$acc end parallel loop
 #endif
 
-#ifdef GPU
-  !$omp parallel do schedule(static) private(j,n,ibase)
-#else
+#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
 #endif
   do j = 1,ipan
@@ -1610,9 +1588,7 @@ do ipass = 0,2
       ff(ibase:ibase+klt*ipan*jpan:ipan*jpan,ipass) = ff_l(:,n,j)
     end do
   end do
-#ifdef GPU
-  !$omp end parallel do
-#else
+#ifndef GPU
   !$omp end do nowait
   !$omp end parallel
 #endif
@@ -1677,9 +1653,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifdef GPU
-!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#else
+#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
 #endif
@@ -1705,9 +1679,7 @@ do j = 1,jpan
     end do
   end do
 end do
-#ifdef GPU
-!$omp end parallel do
-#else
+#ifndef GPU
 !$omp end do nowait
 #endif
   
@@ -2644,9 +2616,7 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef GPU
-  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#else
+#ifndef GPU
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
 #endif
@@ -2672,9 +2642,7 @@ do ipass = 0,2
       end do
     end do
   end do
-#ifdef GPU
-  !$omp end parallel do
-#else
+#ifndef GPU
   !$omp end do nowait  
 #endif
     
@@ -2706,9 +2674,7 @@ do ipass = 0,2
   !$acc end parallel loop
 #endif
 
-#ifdef GPU
-  !$omp parallel do schedule(static) private(j,n,ibase)
-#else
+#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
 #endif
   do j = 1,jpan
@@ -2717,9 +2683,7 @@ do ipass = 0,2
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = yy_l(:,n,j)
     end do
   end do
-#ifdef GPU
-  !$omp end parallel do
-#else
+#ifndef GPU
   !$omp end do nowait
   !$omp end parallel
 #endif
@@ -2784,9 +2748,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifdef GPU
-!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#else
+#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
 #endif
@@ -2812,9 +2774,7 @@ do j = 1,ipan
     end do
   end do
 end do
-#ifdef GPU
-!$omp end parallel do
-#else
+#ifndef GPU
 !$omp end do nowait
 #endif
   
@@ -2899,9 +2859,7 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifdef GPU  
-  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#else
+#ifndef GPU  
   !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
 #endif
@@ -2926,9 +2884,7 @@ do ipass = 0,2
       end do
     end do
   end do
-#ifdef GPU
-  !$omp end parallel do
-#else
+#ifndef GPU
   !$omp end do nowait
 #endif
     
@@ -2960,9 +2916,7 @@ do ipass = 0,2
   !$acc end parallel loop
 #endif
 
-#ifdef GPU
-  !$omp parallel do schedule(static) private(j,n,ibase)
-#else
+#ifndef GPU
   !$omp do schedule(static) private(j,n,ibase)
 #endif
   do j = 1,ipan
@@ -2971,9 +2925,7 @@ do ipass = 0,2
       yy(ibase:ibase+kd*ipan*jpan:ipan*jpan,ipass) = yy_l(:,n,j)
     end do
   end do
-#ifdef GPU
-  !$omp end parallel do
-#else
+#ifndef GPU
   !$omp end do nowait
   !$omp end parallel
 #endif
@@ -3038,9 +2990,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifdef GPU
-!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#else
+#ifndef GPU
 !$omp parallel
 !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
 #endif
@@ -3066,9 +3016,7 @@ do j = 1,jpan
     end do
   end do
 end do
-#ifdef GPU
-!$omp end parallel do
-#else
+#ifndef GPU
 !$omp end do nowait
 #endif
   

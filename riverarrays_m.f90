@@ -37,25 +37,23 @@ logical, dimension(:), allocatable, save :: outflowmask
 
 contains
 
-subroutine riverarrays_init(ifull,iextra,nriver)
+subroutine riverarrays_init(ifull,iextra)
 
 implicit none
 
-integer, intent(in) :: ifull, iextra, nriver
+integer, intent(in) :: ifull, iextra
 
-if ( abs(nriver)>0 ) then
-  allocate( watbdy(ifull+iextra) )
-  allocate( outflowmask(ifull) )
-  allocate( river_vel(ifull), river_dx(ifull) )
-  allocate( river_discharge(ifull) )
-  allocate( river_outdir(ifull) )
-  watbdy(1:ifull+iextra) = 0.
-  outflowmask(1:ifull) = .false.
-  river_vel(1:ifull) = 0.
-  river_dx(1:ifull) = 1.e-9
-  river_discharge(1:ifull) = 0.
-  river_outdir(1:ifull) = -1
-end if
+allocate( watbdy(ifull+iextra) )
+allocate( outflowmask(ifull) )
+allocate( river_vel(ifull), river_dx(ifull) )
+allocate( river_discharge(ifull) )
+allocate( river_outdir(ifull) )
+watbdy(1:ifull+iextra) = 0.
+outflowmask(1:ifull) = .false.
+river_vel(1:ifull) = 0.
+river_dx(1:ifull) = 1.e-9
+river_discharge(1:ifull) = 0.
+river_outdir(1:ifull) = -1
   
 return
 end subroutine riverarrays_init
@@ -64,13 +62,11 @@ subroutine riverarrays_end
 
 implicit none
 
-if ( allocated( watbdy ) ) then
-  deallocate( watbdy )
-  deallocate( outflowmask )
-  deallocate( river_vel, river_dx )
-  deallocate( river_discharge )
-  deallocate ( river_outdir )
-end if
+deallocate( watbdy )
+deallocate( outflowmask )
+deallocate( river_vel, river_dx )
+deallocate( river_discharge )
+deallocate ( river_outdir )
 
 return
 end subroutine riverarrays_end

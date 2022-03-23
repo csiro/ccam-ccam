@@ -49,8 +49,10 @@ module cc_acc
      devicetype = acc_get_device_type()
      ngpus = acc_get_num_devices(devicetype)
 
-     call acc_set_device_num(mod(myid,ngpus),devicetype)
-     gpuid = acc_get_device_num(devicetype)
+     if ( ngpus > 0 ) then
+        call acc_set_device_num(mod(myid,ngpus),devicetype)
+        gpuid = acc_get_device_num(devicetype)
+     end if   
 #endif
 #endif
 

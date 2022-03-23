@@ -35,7 +35,7 @@ public io_in,io_out,io_rest
 public nwt,nrun,nextout,m_fly,nsemble,tbave,tbave10
 public nurban,nmr,nmlo,ktopdav,nud_sst,nud_sss,kbotmlo,ktopmlo
 public mloalpha,nud_ouv,nud_sfh,kblock,rescrn,knh,iaero
-public nud_aero,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo,nriver
+public nud_aero,mbd_maxscale,mbd_maxgrid,mbd_maxscale_mlo
 public leap,nbarewet,nsigmf,qg_fix
 public qgmin, zo_clearing
 public av_vmod, vmodmin, snmin, tss_sh, charnock, chn10, zobgin
@@ -68,7 +68,7 @@ integer, save :: io_in=1, io_out=1, io_rest=1
 integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tbave=1, tbave10=1
 integer, save :: nurban=0, nmr=0, nmlo=0, ktopdav=0, nud_sst=0, nud_sss=0, kbotmlo=-1000, ktopmlo=1
 integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, iaero=0
-integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000, nriver=0
+integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000
 integer, save :: leap=0, nbarewet=0, nsigmf=1, qg_fix=2
 integer, save :: procmode=0, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0

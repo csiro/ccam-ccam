@@ -30,7 +30,6 @@
 ! nmlo>0 and mlo<=9   KPP ocean mixing
 ! nmlo>9              Use external PCOM ocean model
 ! nurban>0            Use urban scheme
-! nriver=1            Use river routing (automatically enabled for abs(nmlo)>1)
     
 module sflux_m
 
@@ -353,9 +352,7 @@ do tile = 1,ntiles
   ! ----------------------------------------------------------------------
   
   ! Update runoff for river routing
-  if ( abs(nriver)==1 ) then
-    watbdy(is:ie) = watbdy(is:ie) + runoff(is:ie) - oldrunoff(is:ie) ! runoff in mm
-  end if
+  watbdy(is:ie) = watbdy(is:ie) + runoff(is:ie) - oldrunoff(is:ie) ! runoff in mm
   
   !! correct longwave radiation due to change in tss
   !if ( odcalc ) then
@@ -821,12 +818,10 @@ if(mydiag.and.nmaxpr==1)then                                                    
   end if ! sicedep(iq)>0.                                                                        ! sice
 endif    ! (mydiag.and.nmaxpr==1)                                                                ! sice
 
-if ( abs(nriver)==1 ) then
-  where ( .not.land(1:ifull) )
-    river_inflow(1:ifull) = watbdy(1:ifull)  
-    watbdy(1:ifull) = 0. ! water enters ocean and is removed from rivers
-  end where
-end if  
+where ( .not.land(1:ifull) )
+  river_inflow(1:ifull) = watbdy(1:ifull)  
+  watbdy(1:ifull) = 0. ! water enters ocean and is removed from rivers
+end where
 
 return
 end subroutine sflux_sea
@@ -858,20 +853,12 @@ use work3_m                        ! Mk3 land-surface diagnostic arrays
 implicit none
 
 integer tile, is, ie, k
-real, dimension(imax) :: lwatbdy
-logical, dimension(imax) :: loutflowmask
 
-!$omp do schedule(static) private(is,ie,k),                                         &
-!$omp private(lwatbdy,loutflowmask)
+!$omp do schedule(static) private(is,ie,k)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
-  if ( nriver/=0 ) then
-    lwatbdy      = watbdy(is:ie)
-    loutflowmask = outflowmask(is:ie)
-  end if
-  
   call sflux_mlo_work(ri(is:ie),srcp,vmag(is:ie),ri_max,bprm,chs,ztv,chnsea,rho(is:ie),azmin(is:ie),     &
                       uav(is:ie),vav(is:ie),                                                             &
                       ps(is:ie),t(is:ie,1),qg(is:ie,1),sgdn(is:ie),sgsave(is:ie),rgsave(is:ie),          &
@@ -880,14 +867,10 @@ do tile = 1,ntiles
                       dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),ice_g(tile),                          &
                       tpan(is:ie),epan(is:ie),condx(is:ie),                                              &
                       conds(is:ie),condg(is:ie),fg(is:ie),eg(is:ie),evspsbl(is:ie),sbl(is:ie),           &
-                      epot(is:ie),tss(is:ie),cduv(is:ie),cdtq(is:ie),lwatbdy,loutflowmask,land(is:ie),   &
-                      fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),qsttg(is:ie),    &
-                      vmod(is:ie),zo(is:ie),wetfac(is:ie),                                               &
+                      epot(is:ie),tss(is:ie),cduv(is:ie),cdtq(is:ie),watbdy(is:ie),outflowmask(is:ie),   &
+                      land(is:ie),fracice(is:ie),sicedep(is:ie),snowd(is:ie),sno(is:ie),grpl(is:ie),     &
+                      qsttg(is:ie),vmod(is:ie),zo(is:ie),wetfac(is:ie),                                  &
                       zoh(is:ie),zoq(is:ie),theta(is:ie),ga(is:ie),turb_g(tile))
-  
-  if ( nriver/=0 ) then
-    watbdy(is:ie) = lwatbdy
-  end if
   
   do k = 1,ms 
     call mloexport("temp",tgg(is:ie,k),k,0,water_g(tile),depth_g(tile)) 

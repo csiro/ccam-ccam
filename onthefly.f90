@@ -59,7 +59,7 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 real, dimension(:), allocatable, save :: gosig_in             ! input ocean levels
-real, dimension(:,:,:), allocatable, save :: sx             ! working array for interpolation
+real, dimension(:,:,:), allocatable, save :: sx               ! working array for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
 
@@ -1571,9 +1571,7 @@ if ( nested/=1 .and. nested/=3 ) then
   
   !------------------------------------------------------------------
   ! Read river data
-  if ( abs(nriver)==1 ) then
-    call gethist1('swater',watbdy)
-  end if
+  call gethist1('swater',watbdy)
 
   !------------------------------------------------------------------
   ! Read soil moisture

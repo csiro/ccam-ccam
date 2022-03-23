@@ -162,7 +162,7 @@ integer opt, nopt
 integer, save :: iarch_nudge = 0
 integer nud_ql, nud_qf
 integer tblock
-integer o3_time_interpolate, calcinloop ! depreciated
+integer o3_time_interpolate, calcinloop, nriver ! depreciated
 real, dimension(1000) :: press_in
 real press_surf, gridres, soil_albedo_vis, soil_albedo_nir, vlai_in
 real es
@@ -440,7 +440,6 @@ nperavg = nwt
 schmidt = gridres*real(il_g)/(90.*112.)
 write(6,*) "gridres,schmidt ",gridres,schmidt
 
-nriver=0
 if ( abs(nmlo)>=2 ) then
   write(6,*) "ERROR: Cannot use dynamical MLO with nmlo ",nmlo
   stop -1
@@ -465,7 +464,7 @@ call nsibd_init(ifull,nsib,cable_climate)
 call pbl_init(ifull)
 call prec_init(ifull)
 call raddiag_init(ifull,kl)
-call riverarrays_init(ifull,iextra,nriver)
+call riverarrays_init(ifull,iextra)
 call savuvt_init(ifull,kl)
 call screen_init(ifull)
 call sigs_init(kl)

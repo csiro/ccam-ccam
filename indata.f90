@@ -285,11 +285,6 @@ if ( myid==0 ) then
     dumc(3*kl+7) = real(lncveg_numsoil)
   end if
   
-  if ( ((nmlo/=0.and.abs(nmlo)<=9).or.nriver/=0) .and. bathfile==" " ) then
-    write(6,*) "ERROR: bathfile has not been specified"
-    call ccmpi_abort(-1)
-  end if    
-  
   ! test netcdf for MLO input
   dumc(3*kl+2) = 0.      ! lncbath 
   dumc(3*kl+3) = 0.      ! lncriver
@@ -662,12 +657,10 @@ end if
 !------------------------------------------------------------------
 ! LOAD RIVER DATA
 river_acc(:) = 0
-if ( abs(nriver)==1 ) then
-  if ( lncbath==1 .and. lncriver==1 ) then
-    if ( myid==0 ) write(6,*) 'Reading river data'
-    call surfread(duma(:,1),'riveracc',netcdfid=ncidbath)
-    river_acc(:) = nint(duma(:,1))
-  end if
+if ( lncbath==1 .and. lncriver==1 ) then
+  if ( myid==0 ) write(6,*) 'Reading river data'
+  call surfread(duma(:,1),'riveracc',netcdfid=ncidbath)
+  river_acc(:) = nint(duma(:,1))
 end if
 
 
@@ -873,14 +866,9 @@ end if   ! if nmlo/=0 .and. abd(nmlo)<=9
 
 
 !-----------------------------------------------------------------
-! INITIALISE RIVER ROUTING (nriver)
-! nriver=0 no river routing
-! nriver=1 river routing
-! nmlo=2 or nmlo=3 implies nriver=1
-if ( abs(nriver)==1 ) then
-  if ( myid==0 ) write(6,*) 'Initialise river routing'
-  call rvrinit(river_acc)
-end if
+! INITIALISE RIVER ROUTING
+if ( myid==0 ) write(6,*) 'Initialise river routing'
+call rvrinit(river_acc)
 
 
 !-----------------------------------------------------------------

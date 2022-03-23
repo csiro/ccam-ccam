@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -307,14 +307,14 @@ real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,wlev), intent(inout) :: work
 real, dimension(ifull+iextra,wlev) :: ans
-real base
+real base, xfact_iwu, yfact_isv
 
 async_counter = mod(async_counter+1, async_length)
 
 #ifdef _OPENMP
 #ifdef GPU
 !$omp target enter data map(to:work) map(alloc:ans)
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,base)
+!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
 #endif
 #else
 !$acc enter data create(work,ans) async(async_counter)
@@ -323,13 +323,15 @@ async_counter = mod(async_counter+1, async_length)
 #endif
 do k = 1,wlev
    do iq = 1,ifull
-     base = emi(iq)+xfact(iq,k)+xfact(iwu(iq),k)  &
-                   +yfact(iq,k)+yfact(isv(iq),k)  
+     xfact_iwu = xfact(iwu(iq),k)
+     yfact_isv = yfact(isv(iq),k)
+     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                   +yfact(iq,k)+yfact_isv
      ans(iq,k) = ( emi(iq)*work(iq,k) +               &
                    xfact(iq,k)*work(ie(iq),k) +       &
-                   xfact(iwu(iq),k)*work(iw(iq),k) +  &
+                   xfact_iwu*work(iw(iq),k) +         &
                    yfact(iq,k)*work(in(iq),k) +       &
-                   yfact(isv(iq),k)*work(is(iq),k) )  &
+                   yfact_isv*work(is(iq),k) )         &
                 / base
   end do
 end do

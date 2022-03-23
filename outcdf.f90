@@ -621,7 +621,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nmlo',nmlo)
     call ccnf_put_attg(idnc,'nrad',nrad)
     call ccnf_put_attg(idnc,'nritch_t',nritch_t)
-    call ccnf_put_attg(idnc,'nriver',nriver)
     call ccnf_put_attg(idnc,'nsemble',nsemble)
     call ccnf_put_attg(idnc,'nsib',nsib)
     call ccnf_put_attg(idnc,'nsigmf',nsigmf)
@@ -1180,12 +1179,10 @@ if( myid==0 .or. local ) then
       lname = 'Water bathymetry'
       call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,32500.,0,cptype)
     end if
-    if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
-      lname = 'x-component river '
-      call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
-      lname = 'y-component river '
-      call attrib(idnc,dimk,ksize,'vriver',lname,'m s-1',-6.5,6.5,0,cptype)
-    end if
+    lname = 'x-component river '
+    call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
+    lname = 'y-component river '
+    call attrib(idnc,dimk,ksize,'vriver',lname,'m s-1',-6.5,6.5,0,cptype)
 
 !   For time varying surface fields
     if ( save_land ) then
@@ -1278,12 +1275,10 @@ if( myid==0 .or. local ) then
       end if
     end if
     
-    if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
-      lname = 'River water depth'
-      call attrib(idnc,dimj,jsize,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
-      lname = 'River discharge'
-      call attrib(idnc,dimj,jsize,'sdischarge',lname,'m3 s-1',0.,6.5E3,0,-1) ! -1 = long
-    end if
+    lname = 'River water depth'
+    call attrib(idnc,dimj,jsize,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
+    lname = 'River discharge'
+    call attrib(idnc,dimj,jsize,'sdischarge',lname,'m3 s-1',0.,6.5E3,0,-1) ! -1 = long
 
     if ( itype==-1 ) then
       lname = 'Soil moisture 1'
@@ -2506,11 +2501,9 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
-  if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
-    call rivervector(tmpry(:,1),tmpry(:,2))
-    call histwrt(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
-    call histwrt(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
-  end if
+  call rivervector(tmpry(:,1),tmpry(:,2))
+  call histwrt(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
+  call histwrt(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
 endif ! (ktau==0.or.itype==-1) 
 
 !**************************************************************
@@ -2621,10 +2614,8 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   end if
 end if
 
-if ( nriver==-1 .or. (nriver==1.and.itype==-1) ) then
-  call histwrt(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
-  call histwrt(river_discharge(1:ifull),'sdischarge',idnc,iarch,local,.true.)
-end if
+call histwrt(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
+call histwrt(river_discharge(1:ifull),'sdischarge',idnc,iarch,local,.true.)
 
 ! SOIL --------------------------------------------------------
 if ( itype==-1 ) then

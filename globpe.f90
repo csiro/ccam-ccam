@@ -461,15 +461,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! START RIVER ROUTING
   ! ***********************************************************************
     
-  ! nriver = 0   No transport of surface water
-  ! nriver = 1   River routing (-1=write to history file)
-    
-  if ( abs(nriver)==1 ) then  
-    call START_LOG(river_begin)
-    call rvrrouter
-    call END_LOG(river_end)
-  end if
+  call START_LOG(river_begin)
+  call rvrrouter
+  call END_LOG(river_end)
 
+  
     
   ! ***********************************************************************
   ! START OCEAN DYNAMICS
@@ -1413,7 +1409,7 @@ integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 integer o3_time_interpolate        ! depreciated namelist options
 integer kmlo, calcinloop           ! depreciated namelist options
-integer fnproc_bcast_max           ! depreciated namelist options
+integer fnproc_bcast_max, nriver   ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -1459,14 +1455,15 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     tblock,tbave,localhist,unlimitedhist,synchist,m_fly,          &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
-    rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,nriver,           &
+    rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
     always_mspeca,ntvd,tbave10,                                   &
     procmode,compression,hp_output,                               & ! file io
     maxtilesize,                                                  & ! OMP
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
-    npa,npb,cgmap_offset,cgmap_scale,procformat,fnproc_bcast_max    ! depreciated
+    npa,npb,cgmap_offset,cgmap_scale,procformat,fnproc_bcast_max, & ! depreciated
+    nriver                                                          ! depreciated
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
@@ -1547,6 +1544,7 @@ namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 ! some defaults to avoid confusion
 tblock = 0
 kmlo = 0
+calcinloop = 0
 ateb_ac_copmax = 0.
 ateb_ac_smooth = 0.
 zimax = 0.
@@ -1617,7 +1615,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(119) ) 
+allocate( dumr(33), dumi(118) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1758,22 +1756,21 @@ if ( myid==0 ) then
   dumi(101) = knh
   dumi(102) = kblock
   dumi(103) = nud_aero
-  dumi(104) = nriver
-  dumi(105) = atebnmlfile
-  dumi(106) = nud_period
-  dumi(107) = procmode
-  dumi(108) = compression
-  dumi(109) = nmr
-  dumi(110) = maxtilesize
-  dumi(111) = mfix_t
-  dumi(112) = ensemble_mode
-  dumi(113) = ensemble_period
-  dumi(114) = hp_output
-  dumi(115) = intsch_mode
-  dumi(116) = qg_fix
-  if ( always_mspeca ) dumi(117) = 1
-  dumi(118) = ntvd
-  dumi(119) = tbave10  
+  dumi(104) = atebnmlfile
+  dumi(105) = nud_period
+  dumi(106) = procmode
+  dumi(107) = compression
+  dumi(108) = nmr
+  dumi(109) = maxtilesize
+  dumi(110) = mfix_t
+  dumi(111) = ensemble_mode
+  dumi(112) = ensemble_period
+  dumi(113) = hp_output
+  dumi(114) = intsch_mode
+  dumi(115) = qg_fix
+  if ( always_mspeca ) dumi(116) = 1
+  dumi(117) = ntvd
+  dumi(118) = tbave10  
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1913,22 +1910,21 @@ ol                = dumi(100)
 knh               = dumi(101)
 kblock            = dumi(102)
 nud_aero          = dumi(103)
-nriver            = dumi(104)
-atebnmlfile       = dumi(105)
-nud_period        = dumi(106)
-procmode          = dumi(107)
-compression       = dumi(108)
-nmr               = dumi(109)
-maxtilesize       = dumi(110)
-mfix_t            = dumi(111)
-ensemble_mode     = dumi(112)
-ensemble_period   = dumi(113)
-hp_output         = dumi(114)
-intsch_mode       = dumi(115)
-qg_fix            = dumi(116)
-always_mspeca     = dumi(117)==1
-ntvd              = dumi(118)
-tbave10           = dumi(119)
+atebnmlfile       = dumi(104)
+nud_period        = dumi(105)
+procmode          = dumi(106)
+compression       = dumi(107)
+nmr               = dumi(108)
+maxtilesize       = dumi(109)
+mfix_t            = dumi(110)
+ensemble_mode     = dumi(111)
+ensemble_period   = dumi(112)
+hp_output         = dumi(113)
+intsch_mode       = dumi(114)
+qg_fix            = dumi(115)
+always_mspeca     = dumi(116)==1
+ntvd              = dumi(117)
+tbave10           = dumi(118)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2564,8 +2560,6 @@ end if
 wlev     = ol                   ! set nmlo and nmlodynamics ocean levels
 mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
-if ( nmlo>=2 ) nriver = 1       ! turn on rivers for dynamic ocean model (no output in history file)
-if ( nmlo<=-2 ) nriver = -1     ! turn on rivers for dynamic ocean model (output in history file)
 
 
 !--------------------------------------------------------------
@@ -2663,7 +2657,7 @@ npan = max(1, (npanels+1)/nproc)   ! number of panels on this process
 iextra = (4*(il+jl)+24)*npan + 4   ! size of halo for MPI message passing
 ! nrows_rad is a subgrid decomposition for older radiation routines
 nrows_rad = max( min( maxtilesize/il, jl ), 1 ) 
-do while( mod(jl, nrows_rad)/=0 )
+do while( mod(jl, nrows_rad) /= 0 )
   nrows_rad = nrows_rad - 1
 end do
 
@@ -2894,8 +2888,8 @@ if ( myid==0 ) then
   write(6,*)' usetide mlojacobi alphavis_seaice alphanir_seaice'
   write(6,'(2i8,2f8.4)') usetide,mlojacobi,alphavis_seaice,alphanir_seaice
   write(6,*)'River options:'
-  write(6,*)' nriver rivermd basinmd rivercoeff'
-  write(6,'(3i8,g9.2)') nriver,rivermd,basinmd,rivercoeff
+  write(6,*)' rivermd basinmd rivercoeff'
+  write(6,'(2i8,g9.2)') rivermd,basinmd,rivercoeff
   write(6,*)'Nudging options:'
   write(6,*)' nbd    nud_p  nud_q  nud_t  nud_uv nud_hrs nudu_hrs kbotdav  kbotu'
   write(6,'(i5,3i7,7i8)') nbd,nud_p,nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,kbotdav,kbotu
@@ -3085,7 +3079,7 @@ call pbl_init(ifull)
 call permsurf_init(ifull)
 call prec_init(ifull)
 call raddiag_init(ifull,kl)
-call riverarrays_init(ifull,iextra,nriver)
+call riverarrays_init(ifull,iextra)
 call savuvt_init(ifull,kl)
 call savuv1_init(ifull,kl)
 call sbar_init(ifull,kl)
