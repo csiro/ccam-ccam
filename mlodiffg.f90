@@ -294,7 +294,6 @@ end subroutine mlodiffusion_work
 
 subroutine mlodiffcalc(work,xfact,yfact,emi)    
 
-use cc_acc, only : async_length
 use indices_m
 use mlo
 use newmpar_m
@@ -302,6 +301,7 @@ use newmpar_m
 implicit none
 
 integer k, iq
+integer, parameter :: async_length = 2
 integer, save :: async_counter = -1
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
