@@ -238,6 +238,7 @@ end subroutine vadvtvd
 ! Subroutine to perform generic TVD advection
 subroutine vadv_work(tarr,nvadh_pass,nits)
 
+use cc_acc, only : async_length
 use newmpar_m
 use parmvert_m
 use sigs_m
@@ -247,7 +248,6 @@ implicit none
       
 integer, dimension(ifull), intent(in) :: nits, nvadh_pass
 integer i, k, iq, kp, kx
-integer, parameter :: async_length = 2
 integer, save :: async_counter = -1
 real, dimension(:,:), intent(inout) :: tarr
 real rat, phitvd, fluxhi, fluxlo

@@ -1345,6 +1345,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,mlo_timeave_length
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
+use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
@@ -1420,7 +1421,7 @@ real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
 real zimax                          ! depreciated namelist options
-logical procformat
+logical procformat                  ! depreciated namelist options
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
 character(len=60) comm, comment
@@ -1459,7 +1460,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
     always_mspeca,ntvd,tbave10,                                   &
     procmode,compression,hp_output,                               & ! file io
-    maxtilesize,                                                  & ! OMP
+    maxtilesize,async_length,                                     & ! OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
     npa,npb,cgmap_offset,cgmap_scale,procformat,fnproc_bcast_max, & ! depreciated
@@ -1549,6 +1550,7 @@ ateb_ac_copmax = 0.
 ateb_ac_smooth = 0.
 zimax = 0.
 tkecduv = 0.
+procformat = .true.
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
@@ -1615,7 +1617,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(118) ) 
+allocate( dumr(33), dumi(119) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1771,6 +1773,7 @@ if ( myid==0 ) then
   if ( always_mspeca ) dumi(116) = 1
   dumi(117) = ntvd
   dumi(118) = tbave10  
+  dumi(119) = async_length
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1925,6 +1928,7 @@ qg_fix            = dumi(115)
 always_mspeca     = dumi(116)==1
 ntvd              = dumi(117)
 tbave10           = dumi(118)
+async_length      = dumi(119)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)

@@ -1246,6 +1246,7 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
+real, dimension(klt,ipan*jpan) :: qt_t
 real, dimension(il_g*ipan*(klt+1)*3) :: dd    ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(klt+1,ipan,jpan) :: ff_l
@@ -1314,7 +1315,7 @@ do ipass = 0,2
   !$omp do schedule(static) private(j,n,nn)
 #endif
 #else
-  !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
+  !$acc parallel loop collapse(2) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
   !$acc   copyout(ff_l) private(j,n,nn)
 #endif
   do j = 1,jpan
@@ -1441,19 +1442,19 @@ end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,at_t) &
-!$omp  map(from:qt) private(j,n,nn,local_sum)
+!$omp  map(from:qt_t) private(j,n,nn,local_sum)
 #else
 !$omp do schedule(static) private(j,n,nn,local_sum)
 #endif
 #else
-!$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
-!$acc   copyout(qt) private(j,n,nn,local_sum)
+!$acc parallel loop collapse(2) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
+!$acc   copyout(qt_t) private(j,n,nn,local_sum)
 #endif
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
     local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1)
-    qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
+    qt_t(1:klt,j+ipan*(n-1)) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
 end do
 #ifdef _OPENMP
@@ -1466,6 +1467,8 @@ end do
 #else
 !$acc end parallel loop
 #endif
+
+qt = transpose(qt_t)
 
 call END_LOG(nestcalc_end)
 
@@ -1492,6 +1495,7 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
+real, dimension(klt,ipan*jpan) :: qt_t
 real, dimension(il_g) :: at, asum
 real, dimension(4*il_g) :: ra
 real, dimension(il_g*jpan*(klt+1)*3) :: dd
@@ -1560,7 +1564,7 @@ do ipass = 0,2
   !$omp do schedule(static) private(j,n,nn)
 #endif
 #else
-  !$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
+  !$acc parallel loop collapse(2) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_t(:,1:me,1:ipan)) &
   !$acc   copyout(ff_l) private(j,n,nn)
 #endif
   do j = 1,ipan
@@ -1687,19 +1691,19 @@ end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,at_t) &
-!$omp  map(from:qt) private(j,n,nn,local_sum)
+!$omp  map(from:qt_t) private(j,n,nn,local_sum)
 #else
 !$omp do schedule(static) private(j,n,nn,local_sum)
 #endif
 #else
-!$acc parallel loop collapse(2) copyin(me,os,cq,klt,kltp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
-!$acc   copyout(qt) private(j,n,nn,local_sum)
+!$acc parallel loop collapse(2) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_t(:,1:me,1:jpan)) &
+!$acc   copyout(qt_t) private(j,n,nn,local_sum)
 #endif
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
     local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),at_t(:,:,j),me,kltp1)
-    qt(n + ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(kltp1)
+    qt_t(1:klt,n+ipan*(j-1)) = local_sum(1:klt)/local_sum(kltp1)
   end do
 end do
 #ifdef _OPENMP
@@ -1712,6 +1716,8 @@ end do
 #else
 !$acc end parallel loop
 #endif
+
+qt = transpose(qt_t)
 
 call END_LOG(nestcalc_end)
 
@@ -2589,6 +2595,7 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
+real, dimension(kd,ipan*jpan) :: qp_t
 real, dimension(il_g) :: ap, asum      
 real, dimension(4*il_g) :: rr
 real, dimension(il_g*ipan*(kd+1)*3) :: zz
@@ -2655,7 +2662,7 @@ do ipass = 0,2
   !$omp do schedule(static) private(j,n,nn)
 #endif
 #else
-  !$acc parallel loop independent collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
+  !$acc parallel loop independent collapse(2) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
   !$acc   copyout(yy_l) private(j,n,nn)
 #endif
   do j = 1,jpan
@@ -2787,14 +2794,14 @@ end do
 !$omp do schedule(static) private(j,n,nn,local_sum)
 #endif
 #else
-!$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
+!$acc parallel loop collapse(2) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
 !$acc   copyout(qp) private(j,n,nn,local_sum)
 #endif
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
     local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1)
-    qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)
+    qp_t(1:kd,j+ipan*(n-1)) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)
   end do
 end do
 #ifdef _OPENMP
@@ -2807,6 +2814,8 @@ end do
 #else
 !$acc end parallel loop
 #endif
+
+qp = transpose(qp_t)
 
 call END_LOG(nestcalc_end)
       
@@ -2832,6 +2841,7 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
+real, dimension(kd,ipan*jpan) :: qp_t
 real, dimension(il_g) :: ap, asum      
 real, dimension(4*il_g) :: rr
 real, dimension(il_g*jpan*(kd+1)*3) :: zz
@@ -2897,7 +2907,7 @@ do ipass = 0,2
   !$omp do schedule(static) private(j,n,nn)
 #endif
 #else
-  !$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,ipass,xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
+  !$acc parallel loop collapse(2) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_t(:,1:me,1:ipan)) &
   !$acc   copyout(yy_l) private(j,n,nn)
 #endif
   do j = 1,ipan
@@ -3029,14 +3039,14 @@ end do
 !$omp do schedule(static) private(j,n,nn,local_sum)
 #endif
 #else
-!$acc parallel loop collapse(2) copyin(me,os,cq,kd,kdp1,xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
+!$acc parallel loop collapse(2) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_t(:,1:me,1:jpan)) &
 !$acc   copyout(qp) private(j,n,nn,local_sum)
 #endif
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
     local_sum = drpdr_fast(nn,cq,xa(1:me,j),ya(1:me,j),za(1:me,j),ap_t(:,:,j),me,kdp1)
-    qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)  
+    qp_t(1:kd,n+ipan*(j-1)) = local_sum(1:kd)/max(local_sum(kdp1), 1.e-8)  
   end do  
 end do
 #ifdef _OPENMP
@@ -3049,6 +3059,8 @@ end do
 #else
 !$acc end parallel loop
 #endif
+
+qp = transpose(qp_t)
 
 call END_LOG(nestcalc_end)
       

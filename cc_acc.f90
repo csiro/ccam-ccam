@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -31,6 +31,7 @@ module cc_acc
    private
 
    integer, save, private :: gpuid = -1
+   integer, save, public :: async_length = 2
 
    public ::  ccacc_init
 

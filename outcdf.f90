@@ -184,6 +184,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,omaxl,mlo_timeave_length
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
+use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use ozoneread                              ! Ozone input routines
