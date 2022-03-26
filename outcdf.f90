@@ -3837,20 +3837,20 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1)   ! -1 = long
       lname = 'Avg potential evaporation'
       call attrib(fncid,sdim,ssize,'epot_ave',lname,'W m-2',-1000.,10.e3,0,1)
-      !lname = 'Soil Frozen Water Content'
-      !call attrib(fncid,sdim,ssize,'mrfso',lname,'kg m-2',0.,6500.,iatt6hr,-1)     ! -1 = long
-      !lname = 'Frozen Water Content in Upper Portion of Soil Column'
-      !call attrib(fncid,sdim,ssize,'mrfsos',lname,'kg m-2',0.,6500.,iatt6hr,-1)    ! -1 = long
+      lname = 'Soil Frozen Water Content'
+      call attrib(fncid,sdim,ssize,'mrfso',lname,'kg m-2',0.,6500.,iatt6hr,-1)     ! -1 = long
+      lname = 'Frozen Water Content in Upper Portion of Soil Column'
+      call attrib(fncid,sdim,ssize,'mrfsos',lname,'kg m-2',0.,6500.,0,-1)          ! -1 = long
       lname = 'Evaporation'
       call attrib(fncid,sdim,ssize,'evspsbl',lname,'mm day-1',0.,1300.,0,-1)       ! -1 = long
       lname = 'Surface runoff'
       call attrib(fncid,sdim,ssize,'mrros',lname,'mm day-1',0.,1300.,iatt6hr,-1)   ! -1 = long
       lname = 'Runoff' ! mrro after pcc2hist
       call attrib(fncid,sdim,ssize,'runoff',lname,'mm day-1',0.,1300.,iatt6hr,-1)  ! -1 = long
-      !lname = 'Total Soil Moisture Content'
-      !call attrib(fncid,sdim,ssize,'mrso',lname,'kg m-2',0.,6500.,iatt6hr,-1)      ! -1 = long
-      !lname = 'Moisture in Upper Portion of Soil Column'
-      !call attrib(fncid,sdim,ssize,'mrsos',lname,'kg m-2',0.,6500.,iatt6hr,-1)     ! -1 = long
+      lname = 'Total Soil Moisture Content'
+      call attrib(fncid,sdim,ssize,'mrso',lname,'kg m-2',0.,6500.,iatt6hr,-1)      ! -1 = long
+      lname = 'Moisture in Upper Portion of Soil Column'
+      call attrib(fncid,sdim,ssize,'mrsos',lname,'kg m-2',0.,6500.,0,-1)           ! -1 = long
       lname = 'Snow melt' 
       call attrib(fncid,sdim,ssize,'snm',lname,'mm day-1',0.,1300.,iatt6hr,-1)     ! -1 = long
       lname = 'TOA Outgoing Longwave Radiation'
@@ -4203,16 +4203,16 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,12),"sgn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,13),"rgn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,14),"epot_ave",fncid,fiarch,local,.true.)
-    !outdata = 0.
-    !do k = 1,ms
-    !  outdata = outdata + wbice(:,k)*zse(k)*330.  
-    !end do    
-    !call histwrt(outdata,"mrfso",fncid,fiarch,local,l6hr)
-    !outdata = 0.
-    !do k = 1,ms
-    !  outdata = outdata + wbice(:,k)*shallow_zse(k)*330.  
-    !end do    
-    !call histwrt(outdata,"mrfsos",fncid,fiarch,local,l6hr)
+    outdata = 0.
+    do k = 1,ms
+      outdata = outdata + wbice(:,k)*zse(k)*330.  
+    end do    
+    call histwrt(outdata,"mrfso",fncid,fiarch,local,l6hr)
+    outdata = 0.
+    do k = 1,ms
+      outdata = outdata + wbice(:,k)*shallow_zse(k)*330.  
+    end do    
+    call histwrt(outdata,"mrfsos",fncid,fiarch,local,.true.)
     outdata = evspsbl - runoff_old(:,1) + runoff_store(:,1)
     runoff_old(:,1) = evspsbl
     runoff_store(:,1) = 0.
@@ -4225,16 +4225,16 @@ if ( mod(ktau,tbave)==0 ) then
     runoff_old(:,3) = runoff
     if ( l6hr ) runoff_store(:,3) = 0.
     call histwrt(outdata,"runoff",fncid,fiarch,local,l6hr)
-    !outdata = 0.
-    !do k = 1,ms
-    !  outdata = outdata + wb(:,k)*zse(k)*1000.  
-    !end do    
-    !call histwrt(outdata,"mrso",fncid,fiarch,local,l6hr)
-    !outdata = 0.
-    !do k = 1,ms
-    !  outdata = outdata + wb(:,k)*shallow_zse(k)*1000.  
-    !end do    
-    !call histwrt(outdata,"mrsos",fncid,fiarch,local,l6hr)   
+    outdata = 0.
+    do k = 1,ms
+      outdata = outdata + wb(:,k)*zse(k)*1000.  
+    end do    
+    call histwrt(outdata,"mrso",fncid,fiarch,local,l6hr)
+    outdata = 0.
+    do k = 1,ms
+      outdata = outdata + wb(:,k)*shallow_zse(k)*1000.  
+    end do    
+    call histwrt(outdata,"mrsos",fncid,fiarch,local,.true.)   
     outdata = snowmelt - runoff_old(:,4) + runoff_store(:,4)
     runoff_old(:,4) = snowmelt
     if ( l6hr ) runoff_store(:,4) = 0.
