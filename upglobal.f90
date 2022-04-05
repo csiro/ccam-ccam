@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -59,7 +59,9 @@ integer ii, intsch, iq, jj, k, kk
 integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits, nvadh_pass
-real, dimension(ifull+iextra,kl) :: uc, vc, wc, dd
+real, dimension(ifull+iextra,kl,4) :: bb
+real, dimension(ifull+iextra,kl,3) :: uvw
+real, dimension(ifull+iextra,kl) :: dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
 real, dimension(ifull) :: sdmx, tempry
@@ -193,14 +195,12 @@ if ( mup/=0 ) then
   call bounds(tx,nrows=2)
 end if    ! mup/=0
 do k = 1,kl
-  uc(1:ifull,k) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
-  vc(1:ifull,k) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
-  wc(1:ifull,k) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
+  uvw(1:ifull,k,1) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
+  uvw(1:ifull,k,2) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
+  uvw(1:ifull,k,3) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
 end do
 if ( mup/=0 ) then
-  call bounds(uc,nrows=2)
-  call bounds(vc,nrows=2)
-  call bounds(wc,nrows=2)
+  call bounds(uvw,nrows=2)
 end if
 if ( mspec==1 .and. mup/=0 ) then
   if ( ldr/=0 ) then
@@ -233,12 +233,12 @@ call END_LOG(ints_end)
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-  call ints(pslx,intsch,nface,xg,yg,1)
+  call ints(pslx,1,intsch,nface,xg,yg,1)
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    call ints(h_nh,intsch,nface,xg,yg,1)
+    call ints(h_nh,1,intsch,nface,xg,yg,1)
   end if ! nh/=0
-  call ints(tx,intsch,nface,xg,yg,3)
+  call ints(tx,1,intsch,nface,xg,yg,3)
 end if    ! mup/=0
 
 do k = 1,kl
@@ -253,10 +253,10 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"('aa#',9f8.4)") ((aa(ii+jj*il),ii=idjd-1,idjd+1),jj=-1,1)
   write (6,"('dd1#',9f8.4)") ((dd(ii+jj*il,1),ii=idjd-1,idjd+1),jj=-1,1)
   write (6,"('dd_a',9f8.4)") dd(idjd,:)
- write (6,"('nface',18i4)") nface(idjd,:)
+  write (6,"('nface',18i4)") nface(idjd,:)
   write (6,"('xg',9f8.4)") xg(idjd,:)
   write (6,"('yg',9f8.4)") yg(idjd,:)
- write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
+  write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
   idjdd=max(5+2*il,min(idjd,ifull-4-2*il))  ! for following prints
   write (6,"(39f8.4)") ((pslx(ii+jj*il,nlv),ii=idjdd-4,idjdd+4),jj=2,-2,-1)
 ! uc(1:ifull,1)=-pslx(1:ifull,1)*dsig(1) 
@@ -288,27 +288,25 @@ end if
 if ( diag ) then
   if ( mydiag ) then
     write(6,*) 'uc,vc,wc before advection'
-    write (6,'(a,18e20.10)') 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
+    write (6,'(a,18e20.10)') 'uc,vc,wc ',uvw(idjd,nlv,1),uvw(idjd,nlv,2),uvw(idjd,nlv,3)
   end if
-  call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('uc  ',uvw(:,:,1),ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('vc  ',uvw(:,:,2),ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('wc  ',uvw(:,:,3),ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('xg  ',xg,ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
   if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
 end if
 
 if ( mup/=0 ) then
-  call ints(uc,intsch,nface,xg,yg,2)
-  call ints(vc,intsch,nface,xg,yg,2)
-  call ints(wc,intsch,nface,xg,yg,2)
+  call ints(uvw,3,intsch,nface,xg,yg,2)
 end if
 
 if ( diag ) then
   if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
-  call printa('uc  ',uc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('vc  ',vc,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('wc  ',wc,ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('uc  ',uvw(:,:,1),ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('vc  ',uvw(:,:,2),ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('wc  ',uvw(:,:,3),ktau,nlv,ia,ib,ja,jb,0.,1.)
 end if
 
 ! rotate wind vector to arrival point
@@ -334,11 +332,11 @@ do k = 1,kl
       vec3x = real(x3d(iq,k) - vecdot*x(iq))
       vec3y = real(y3d(iq,k) - vecdot*y(iq))
       vec3z = real(z3d(iq,k) - vecdot*z(iq))
-      vdot1 = (vec1x*uc(iq,k) + vec1y*vc(iq,k) + vec1z*wc(iq,k))/denb
-      vdot2 = (vec2x*uc(iq,k) + vec2y*vc(iq,k) + vec2z*wc(iq,k))/denb
-      uc(iq,k) = vdot1*vec1x + vdot2*vec3x
-      vc(iq,k) = vdot1*vec1y + vdot2*vec3y
-      wc(iq,k) = vdot1*vec1z + vdot2*vec3z
+      vdot1 = (vec1x*uvw(iq,k,1) + vec1y*uvw(iq,k,2) + vec1z*uvw(iq,k,3))/denb
+      vdot2 = (vec2x*uvw(iq,k,1) + vec2y*uvw(iq,k,2) + vec2z*uvw(iq,k,3))/denb
+      uvw(iq,k,1) = vdot1*vec1x + vdot2*vec3x
+      uvw(iq,k,2) = vdot1*vec1y + vdot2*vec3y
+      uvw(iq,k,3) = vdot1*vec1z + vdot2*vec3z
     end if ! (denb>1.e-4)
   end do   ! iq
 end do     ! k
@@ -346,8 +344,8 @@ end do     ! k
 ! convert back to conformal-cubic velocity components (unstaggered)
 ! globpea: this can be sped up later
 do k = 1,kl
-  ux(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) + ay(1:ifull)*vc(1:ifull,k) + az(1:ifull)*wc(1:ifull,k)
-  vx(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) + by(1:ifull)*vc(1:ifull,k) + bz(1:ifull)*wc(1:ifull,k)
+  ux(1:ifull,k) = ax(1:ifull)*uvw(1:ifull,k,1) + ay(1:ifull)*uvw(1:ifull,k,2) + az(1:ifull)*uvw(1:ifull,k,3)
+  vx(1:ifull,k) = bx(1:ifull)*uvw(1:ifull,k,1) + by(1:ifull)*uvw(1:ifull,k,2) + bz(1:ifull)*uvw(1:ifull,k,3)
 end do   ! k loop
 
 if ( diag .and. k==nlv ) then
@@ -358,12 +356,17 @@ end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( ldr/=0 ) then
-    call ints(qg,intsch,nface,xg,yg,4)
-    call ints(qlg,intsch,nface,xg,yg,4)
-    call ints(qfg,intsch,nface,xg,yg,4)
-    call ints(stratcloud,intsch,nface,xg,yg,4)
+    bb(:,:,1) = qg(:,:)
+    bb(:,:,2) = qlg(:,:)
+    bb(:,:,3) = qfg(:,:)
+    bb(:,:,4) = stratcloud(:,:)
+    call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,4)
+    qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
+    qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
+    qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
+    stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
   else
-    call ints(qg,intsch,nface,xg,yg,3)
+    call ints(qg,1,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
   if ( ngas>0 .or. nextout>=4 ) then
     if ( nmaxpr==1 .and. mydiag ) then
@@ -375,9 +378,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     end if
     if ( ngas>0 ) then
-      do nstart = 1, ngas
-        call ints(tr(:,:,nstart),intsch,nface,xg,yg,5)
-      end do
+      call ints(tr,ngas,intsch,nface,xg,yg,5)
     end if
     if ( nmaxpr==1 .and. mydiag ) then
       write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
@@ -386,13 +387,14 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     endif
   endif  ! (ngas>0.or.nextout>=4)
   if ( nvmix==6 .or. nvmix==9 ) then
-    call ints(tke,intsch,nface,xg,yg,4)
-    call ints(eps,intsch,nface,xg,yg,4)
+    bb(:,:,1) = tke(:,:)
+    bb(:,:,2) = eps(:,:)
+    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,4)
+    tke(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
+    eps(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
   endif                 ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 ) then
-    do nstart = 1,naero
-      call ints(xtg(:,:,nstart),intsch,nface,xg,yg,5)
-    end do
+    call ints(xtg,naero,intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1
 

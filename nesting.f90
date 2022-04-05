@@ -3437,7 +3437,7 @@ ans = ans + iday
 end function iabsdate
 
 pure function drpdr_fast(nn,cq,xa,ya,za,at,ilen,kx) result(out_sum)
-!$acc routine vector
+!$acc routine gang
 
 implicit none
 

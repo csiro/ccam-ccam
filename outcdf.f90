@@ -4048,6 +4048,8 @@ if ( first ) then
     
   end if ! myid==0 .or. local ..else if ( localhist ) ..
   
+  fiarch = ktau/tbave
+  
   if ( surf_cordex>=1 ) then
     call histwrt(zs,'zht',fncid,fiarch,local,.true.)
     outdata(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
@@ -4121,7 +4123,6 @@ if ( mod(ktau,tbave)==0 ) then
     if ( myid==0 ) then
       write(6,*) "write CORDEX output"
     end if
-    fiarch = ktau/tbave
     tpnt = real(ktau,8)*(real(dt,8)/60._8)
     call ccnf_put_vara(fncid,'time',fiarch,tpnt)
     call ccnf_put_vara(fncid,'kdate',fiarch,kdate)
@@ -4765,6 +4766,8 @@ end if
 freqstore(1:ifull,1) = freqstore(1:ifull,1) + condx*(86400./dt/real(tbave10))
 freqstore(1:ifull,2) = freqstore(1:ifull,2) + condc*(86400./dt/real(tbave10))
 
+fiarch = ktau/tbave10
+
 ! write data to file
 if ( mod(ktau,tbave10)==0 ) then
     
@@ -4772,7 +4775,6 @@ if ( mod(ktau,tbave10)==0 ) then
     if ( myid==0 ) then
       write(6,*) "write sub-hourly output"
     end if
-    fiarch = ktau/tbave10
     tpnt = real(ktau,8)*(real(dt,8)/60._8)
     call ccnf_put_vara(fncid,'time',fiarch,tpnt)
     call ccnf_put_vara(fncid,'kdate',fiarch,kdate)

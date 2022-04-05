@@ -713,9 +713,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
   end do
   ! Horizontal advection for U, V, W
-  call mlob2ints_bs(cou(:,:,1),nface,xg,yg,wtr,.false.)
-  call mlob2ints_bs(cou(:,:,2),nface,xg,yg,wtr,.false.)
-  call mlob2ints_bs(cou(:,:,3),nface,xg,yg,wtr,.false.)
+  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,.false.)
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
   ! Convert (U,V,W) back to conformal cubic coordinates
@@ -732,11 +730,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     workdata2(1:ifull,ii) = ns(1:ifull,ii)
     ns(1:ifull,ii) = ns(1:ifull,ii) - 34.72
   end do
-  call mlob2ints_bs(nt,nface,xg,yg,wtr,.false.)
+  cou(1:ifull,1:wlev,1) = nt(1:ifull,1:wlev)
+  cou(1:ifull,1:wlev,2) = mps(1:ifull,1:wlev)
+  call mlob2ints_bs(cou(:,:,1:2),nface,xg,yg,wtr,.false.)
   call mlob2ints_bs(ns,nface,xg,yg,wtr,.true.)
-  call mlob2ints_bs(mps,nface,xg,yg,wtr,.false.)
   do ii = 1,wlev
-    nt(1:ifull,ii) = max( nt(1:ifull,ii), -wrtemp )
+    nt(1:ifull,ii) = max( cou(1:ifull,ii,1), -wrtemp )
+    mps(1:ifull,ii) = cou(1:ifull,ii,2)
     ! MJT notes - only advect salinity for salt water
     ns(1:ifull,ii) = ns(1:ifull,ii) + 34.72
     where ( workdata2(1:ifull,ii)<2. )
