@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -2521,6 +2521,7 @@ end do
 select case(tiedtke_form)
   case(1) ! Original GFDL-AM4
     do k = 1,kl
+      hlrvap = (hl+fice(:,k)*hlf)/rvap
       dqsdT = qs(:,k)*hlrvap/(t(:,k)**2)
       gamma = (hlcp+fice(:,k)*hlfcp)*dqsdT    
       omega = press(:,k)*dpsldt(:,k)
