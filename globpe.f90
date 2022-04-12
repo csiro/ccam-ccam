@@ -1337,12 +1337,12 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,factchseaice,minwater,mxd,mindep    &
     ,alphavis_seaice,alphanir_seaice     &
     ,otaumode,mlosigma,wlev,oclosure     &
-    ,pdl,pdu,nsteps,k_mode,eps_mode      &
+    ,pdl,pdu,k_mode,eps_mode             &
     ,limitL,fixedce3,nops                &
     ,nopb,fixedstabfunc,omink => mink    &
     ,omineps => mineps,mlovlevels        &
     ,usepice,ominl,omaxl                 &
-    ,mlo_timeave_length
+    ,mlo_timeave_length,kemaxdt
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
@@ -1534,9 +1534,9 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
     kmlo,mlontvd,                                                 &
-    pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,nops,nopb,     & ! k-e
+    pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
-    mlo_timeave_length,                                           &
+    mlo_timeave_length,kemaxdt,                                   &
     rivermd,basinmd,rivercoeff,                                   & ! River
     mlomfix,calcinloop                                              ! Depreciated
 ! tracer namelist
@@ -2417,7 +2417,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31) 
 deallocate( dumr, dumi )
-allocate( dumr(18), dumi(21) )
+allocate( dumr(19), dumi(20) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2445,6 +2445,7 @@ if ( myid==0 ) then
   dumr(16) = ominl
   dumr(17) = omaxl
   dumr(18) = mlo_timeave_length
+  dumr(19) = kemaxdt
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2455,17 +2456,16 @@ if ( myid==0 ) then
   dumi(8)  = usepice
   dumi(9)  = mlosigma
   dumi(10) = oclosure
-  dumi(11) = nsteps
-  dumi(12) = k_mode
-  dumi(13) = eps_mode
-  dumi(14) = limitL
-  dumi(15) = fixedce3
-  dumi(16) = nops
-  dumi(17) = nopb
-  dumi(18) = fixedstabfunc
-  dumi(19) = mlomfix
-  dumi(20) = nodrift
-  dumi(21) = mlontvd
+  dumi(11) = k_mode
+  dumi(12) = eps_mode
+  dumi(13) = limitL
+  dumi(14) = fixedce3
+  dumi(15) = nops
+  dumi(16) = nopb
+  dumi(17) = fixedstabfunc
+  dumi(18) = mlomfix
+  dumi(19) = nodrift
+  dumi(20) = mlontvd
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2487,6 +2487,7 @@ ocndelphi          = dumr(15)
 ominl              = dumr(16)
 omaxl              = dumr(17)
 mlo_timeave_length = dumr(18)
+kemaxdt            = dumr(19)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 
@@ -2497,20 +2498,16 @@ mlojacobi          = dumi(7)
 usepice            = dumi(8)
 mlosigma           = dumi(9)
 oclosure           = dumi(10)
-nsteps             = dumi(11)
-k_mode             = dumi(12)
-eps_mode           = dumi(13)
-limitL             = dumi(14)
-fixedce3           = dumi(15)
-nops               = dumi(16)
-nopb               = dumi(17)
-fixedstabfunc      = dumi(18)
-mlomfix            = dumi(19)
-nodrift            = dumi(20)
-mlontvd            = dumi(21)
-if ( oclosure==0 ) then
-  nsteps = 1
-end if
+k_mode             = dumi(11)
+eps_mode           = dumi(12)
+limitL             = dumi(13)
+fixedce3           = dumi(14)
+nops               = dumi(15)
+nopb               = dumi(16)
+fixedstabfunc      = dumi(17)
+mlomfix            = dumi(18)
+nodrift            = dumi(19)
+mlontvd            = dumi(20)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0

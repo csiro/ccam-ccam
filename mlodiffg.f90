@@ -118,7 +118,13 @@ end if
 
 ! Define diffusion scale and grid spacing
 hdif = dt*(ocnsmag/pi)**2
-emi = dd(1:ifull)/em(1:ifull)
+if ( mlosigma>=0 .and. mlosigma<=3 ) then
+  ! sigma levels  
+  emi = dd(1:ifull)/em(1:ifull)
+else
+  ! z* levels  
+  emi = 1./em(1:ifull)
+end if
 
 ! calculate shear from EMA
 call mlo_ema(dt,"uvw")
@@ -309,7 +315,7 @@ real, dimension(ifull+iextra,wlev), intent(inout) :: work
 real, dimension(ifull+iextra,wlev) :: ans
 real base, xfact_iwu, yfact_isv
 
-async_counter = mod(async_counter+1, async_length)
+async_counter = mod(async_counter+1, async_length)+1
 
 #ifdef _OPENMP
 #ifdef GPU

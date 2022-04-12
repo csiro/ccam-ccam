@@ -62,8 +62,8 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mlosurf,mlonewice,mlo_ema,minsfc,minsal,maxsal,icemax
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
-public oclosure,pdl,pdu,nsteps,usepice,minicemass,cdbot,cp0,ominl,omaxl
-public mlo_timeave_length
+public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl
+public mlo_timeave_length,kemaxdt
 
 #ifdef CCAM
 public water_g,ice_g
@@ -217,15 +217,15 @@ integer, save :: otaumode  = 0            ! momentum coupling (0=Explicit, 1=Imp
 integer, save :: mlosigma  = 0            ! vertical levels (0=sig-cubic, 1=sig-quad, 2=sig-gotm, 3=sig-linear, 4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
 integer, save :: oclosure  = 0            ! 0=kpp, 1=k-eps
 integer, save :: usepice   = 0            ! include ice in surface pressure (0=without ice, 1=with ice)
-real, save :: pdu    = 2.7                ! Zoom factor near the surface for mlosigma==gotm
-real, save :: pdl    = 0.0                ! Zoom factor near the bottom for mlosigma==gotm
+real, save :: pdu    = 2.7                ! zoom factor near the surface for mlosigma==gotm
+real, save :: pdl    = 0.0                ! zoom factor near the bottom for mlosigma==gotm
+real, save :: kemaxdt = 120.              ! max time-step for k-e coupling
 
 ! kpp parameters
 integer, parameter :: incradbf  = 1       ! include shortwave in buoyancy forcing
 integer, parameter :: incradgam = 1       ! include shortwave in non-local term
 
 ! k-eps parameters
-integer, save :: nsteps        = 1        ! Number of sub-steps to couple k-eps equations
 integer, save :: k_mode        = 2        ! 0=fully explicit k, 1=implicit k, 2=implicit k & pb
 integer, save :: eps_mode      = 2        ! 0=fully explicit eps, 1=implicit eps, 2=implicit eps & pb
 integer, save :: limitL        = 1        ! 0=no length scale limit, 1=limit length scale
@@ -233,25 +233,25 @@ integer, save :: fixedce3      = 0        ! 0=dynamic ce3, 1=fixed ce3
 integer, save :: nops          = 0        ! 0=calculate shear production, 1=no shear production
 integer, save :: nopb          = 0        ! 0=calculate buoyancy production, 1=no buoyancy production
 integer, save :: fixedstabfunc = 0        ! 0=dynamic stability functions, 1=fixed stability functions
-real, save :: mink   = 1.e-8              ! Minimum k
-real, save :: mineps = 1.e-11             ! Minimum eps
-real, save :: ominl  = 1.e-2              ! Minimum L
-real, save :: omaxl  = 1.e3               ! Maximum L
+real, save :: mink   = 1.e-8              ! minimum k
+real, save :: mineps = 1.e-11             ! minimum eps
+real, save :: ominl  = 1.e-2              ! minimum L
+real, save :: omaxl  = 1.e3               ! maximum L
 
 ! model parameters
-real, save :: mxd      = 5002.18          ! Max depth (m)
-real, save :: mindep   = 1.               ! Thickness of first layer (m)
-real, save :: minwater = 10.              ! Minimum water depth (m)
-real, parameter :: ric     = 0.3          ! Critical Ri for diagnosing mixed layer depth
-real, parameter :: epsilon = 0.1          ! Ratio of surface layer and mixed layer thickness
-real, parameter :: minsfc  = 5.           ! Minimum thickness to average surface layer properties (m)
-real, parameter :: minsal  = 28.          ! Minimum non-zero salinity for error checking (PSU)
-real, parameter :: maxsal  = 50.          ! Maximum salinity used in density and melting point calculations (PSU)
+real, save :: mxd      = 5002.18          ! max depth (m)
+real, save :: mindep   = 1.               ! thickness of first layer (m)
+real, save :: minwater = 10.              ! minimum water depth (m)
+real, parameter :: ric     = 0.3          ! critical Ri for diagnosing mixed layer depth
+real, parameter :: epsilon = 0.1          ! ratio of surface layer and mixed layer thickness
+real, parameter :: minsfc  = 5.           ! minimum thickness to average surface layer properties (m)
+real, parameter :: minsal  = 28.          ! minimum non-zero salinity for error checking (PSU)
+real, parameter :: maxsal  = 50.          ! maximum salinity used in density and melting point calculations (PSU)
 real, parameter :: mu_1    = 23.          ! VIS depth (m) - Type I
 real, parameter :: mu_2    = 0.35         ! NIR depth (m) - Type I
-real, parameter :: fluxwgt = 0.7          ! Time filter for flux calculations
-real, parameter :: wrtemp  = 290.         ! Water reference temperature (K)
-real, parameter :: wrtrho  = 1030.        ! Water reference density (kg m^-3)
+real, parameter :: fluxwgt = 0.7          ! time filter for flux calculations
+real, parameter :: wrtemp  = 290.         ! water reference temperature (K)
+real, parameter :: wrtrho  = 1030.        ! water reference density (kg m^-3)
 ! physical parameters
 real, parameter :: vkar    = 0.4          ! von Karman constant
 real, parameter :: lv      = 2.501e6      ! Latent heat of vaporisation (J kg^-1)
@@ -3030,7 +3030,7 @@ real :: dtt
 real :: minL
 real :: umag, zrough
 
-integer :: ii,step,iqw
+integer :: ii,step,iqw,nsteps
 
 real, parameter :: ce1 = 1.44        !eps production coefficient
 real, parameter :: ce2 = 1.92        !eps sink coefficient
@@ -3146,6 +3146,7 @@ call interpolate_hl_r8(km,fdepth_hl,km_hl)
 call interpolate_hl_r8(ks,fdepth_hl,ks_hl)
 
 !coupling loop
+nsteps = int(dt/real(kemaxdt+0.01,8)) + 1
 dtt = dt/real(nsteps,8)
 do step = 1,nsteps
 
