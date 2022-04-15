@@ -3571,6 +3571,8 @@ else
 end if
 fsize = ssize - 1 ! size of fixed variables
 
+fiarch = ktau/tbave
+
 ! allocate arrays and open new file
 if ( first ) then
   if ( myid==0 ) then
@@ -4048,8 +4050,6 @@ if ( first ) then
     deallocate(procoffset)
     
   end if ! myid==0 .or. local ..else if ( localhist ) ..
-  
-  fiarch = ktau/tbave
   
   if ( surf_cordex>=1 ) then
     call histwrt(zs,'zht',fncid,fiarch,local,.true.)
