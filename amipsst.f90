@@ -163,11 +163,18 @@ idjd_g = id + (jd-1)*il_g
 iyr = kdate/10000
 imo = (kdate-10000*iyr)/100
 iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
-mdays = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
-if ( leap>=1 ) then
+if ( leap==0 ) then ! 365 day calendar
+  mdays = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
+else if ( leap==1 ) then ! 365/366 day calendar
+  mdays = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
   if ( mod(iyr,4)==0 ) mdays(2) = 29
   if ( mod(iyr,100)==0 ) mdays(2) = 28
   if ( mod(iyr,400)==0 ) mdays(2) = 29
+else if ( leap==2 ) then ! 360 day calendar
+  mdays = (/ 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 /)  
+else
+  write(6,*) "ERROR: Invalid leap = ",leap
+  call ccmpi_abort(-1)
 end if
 do while ( iday>mdays(imo) )
   iday = iday - mdays(imo)
@@ -175,7 +182,7 @@ do while ( iday>mdays(imo) )
   if ( imo>12 ) then
     imo = 1
     iyr = iyr + 1
-    if ( leap>=1 ) then
+    if ( leap==1 ) then
       if ( mod(iyr,4)==0 ) mdays(2) = 29
       if ( mod(iyr,100)==0 ) mdays(2) = 28
       if ( mod(iyr,400)==0 ) mdays(2) = 29
@@ -661,7 +668,7 @@ integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14
       
 integer, intent(in) :: iyr, imo, idjd_g
-integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_in
+integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_file
 integer varid, iarchx, maxarchi, iernc, lsmid, varid_time
 integer kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
@@ -719,13 +726,14 @@ if ( amip_mode==1 ) then
     rlat_in    = ahead(7)
     schmidt_in = ahead(8)
   endif  ! (schmidtx<=0..or.schmidtx>1.)  
-  call ccnf_get_attg(ncidx,'leap',leap_in,tst) ! old style
-  if ( tst ) leap_in = 0                       ! old style
-  call ccnf_inq_varid(ncidx,'time',varid_time)
-  call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr)
-  if ( ierr==0 ) then
-    if ( trim(calendarstring)=="standard" ) leap_in = 1
-  end if  
+  call ccnf_get_attg(ncidx,'leap',leap_file,tst) ! old method
+  if ( tst ) leap_file = 0                       ! old method
+  call ccnf_inq_varid(ncidx,'time',varid_time)                       ! new method
+  call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr) ! new method
+  if ( ierr==0 ) then                                                ! new method
+    if ( trim(calendarstring)=="standard" ) leap_file = 1            ! new method
+    if ( trim(calendarstring)=="360_day" ) leap_file = 2             ! new method
+  end if                                                             ! new method
   call ccnf_inq_dimlen(ncidx,'time',maxarchi)
          
   interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &
@@ -734,7 +742,7 @@ if ( amip_mode==1 ) then
   
   if ( interpolate ) then
     write(6,*) "Interpolation is required for AMIPSST"
-    write(6,*) "leap_in = ",leap_in
+    write(6,*) "leap_file = ",leap_file
     
     allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
     allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
@@ -800,7 +808,7 @@ if ( amip_mode==1 ) then
     ktime_r = ktime_rsav
     call ccnf_get_vara(ncidx,varid_time,iarchx,timer_r)
     mtimer_r = nint(timer_r,8)
-    call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_in)
+    call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_file)
     iyear  = kdate_r/10000
     imonth = (kdate_r-iyear*10000)/100
     ltest  = iyr_m/=iyear .or. imo_m/=imonth
@@ -1260,7 +1268,7 @@ integer kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
 integer, save :: iarchx = 0
 integer, save :: maxarchi = -1
-integer, save :: leap_in = 0
+integer, save :: leap_file = 0
 integer, dimension(3) :: spos, npos
 #ifdef i8r8
 integer, dimension(nihead) :: nahead
@@ -1321,14 +1329,39 @@ if ( mod(ktau,nperday)==0 ) then
         rlat_in    = ahead(7)
         schmidt_in = ahead(8)
       end if  ! (schmidtx<=0..or.schmidtx>1.)  
-      call ccnf_get_attg(ncidx,'leap',leap_in,tst)
-      if ( tst ) leap_in = 0
-      call ccnf_inq_varid(ncidx,'time',varid_time)
-      call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr)
-      if ( ierr==0 ) then
-        if ( trim(calendarstring)=="standard" ) leap_in = 1
-      end if        
+      call ccnf_get_attg(ncidx,'leap',leap_file,tst) ! old method
+      if ( tst ) leap_file = 0                       ! old method
+      call ccnf_inq_varid(ncidx,'time',varid_time)                        ! new method
+      call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr)  ! new method
+      if ( ierr==0 ) then                                                 ! new method
+        if ( trim(calendarstring)=="standard" ) leap_file = 1             ! new method
+        if ( trim(calendarstring)=="360_day" ) leap_file = 2              ! new method
+      end if                                                              ! new method
       call ccnf_inq_dimlen(ncidx,'time',maxarchi)
+      
+      if ( leap==0 .or. leap==1 ) then
+        if ( leap_file==2 ) then
+          write(6,*) "ERROR: mismatch between amipsst file and CCAM calendar"
+          write(6,*) "amipsst (leap_file=2) implies 360_day calendar"
+          if ( leap==0 ) then
+            write(6,*) "CCAM (leap==0) implies 365 day calendar"
+          else if ( leap==1 ) then
+            write(6,*) "CCAM (leap=1) implies standard calendar"
+          end if
+          call ccmpi_abort(-1)
+        end if
+      else if ( leap==2 ) then
+        if ( leap_file==0 .or. leap_file==1 ) then
+          write(6,*) "ERROR: mismatch between amipsst file and CCAM calendar"
+          if ( leap_file==0 ) then
+            write(6,*) "amipsst (leap_file==0) implies 365 day calendar"
+          else if ( leap_file==1 ) then
+            write(6,*) "amipsst (leap_file==1) implies standard calendar"
+          end if
+          write(6,*) "CCAM (leap=2) implies 360_day calendar"
+          call ccmpi_abort(-1)
+        end if    
+      end if  
          
       interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &
            abs(schmidt-schmidt_in)>0.0002 )
@@ -1418,7 +1451,7 @@ if ( mod(ktau,nperday)==0 ) then
       ktime_r = ktime_rsav
       call ccnf_get_vara(ncidx,varid_time,iarchx,timer_r)
       mtimer_r = nint(timer_r,8)
-      call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_in)
+      call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_file)
       iyear  = kdate_r/10000
       imonth = (kdate_r-iyear*10000)/100
       iday   = kdate_r - 10000*iyear - 100*imonth

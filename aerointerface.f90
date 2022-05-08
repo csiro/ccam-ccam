@@ -112,9 +112,9 @@ logical, dimension(imax) :: locean
 
 ! update prescribed oxidant fields
 if ( oxidant_update ) then
-!$omp do schedule(static) private(is,ie),                       &
-!$omp private(loxidantnow,lzoxidant),                           &
-!$omp private(dhr,ttx,j,tt,smins,fjd,r1,dlt,alp,slag,coszro)
+  !$omp do schedule(static) private(is,ie),                       &
+  !$omp private(loxidantnow,lzoxidant),                           &
+  !$omp private(dhr,ttx,j,tt,smins,fjd,r1,dlt,alp,slag,coszro)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
@@ -130,31 +130,32 @@ if ( oxidant_update ) then
     zdayfac(is:ie) = 0.
     do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
       smins = int(real(tt-1)*dt/60.) + mins
-      fjd = float(mod( smins, 525600 ))/1440.  ! 525600 = 1440*365
+      fjd = real(smins)/1440.
       call solargh(fjd,bpyear,r1,dlt,alp,slag)
       call zenith(fjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar(is:ie))
       where ( taudar(is:ie)>0.5 )
         zdayfac(is:ie) = zdayfac(is:ie) + 1.
       end where
     end do
+    ! taudar is for current timestep - used to indicate sunlit
     where ( zdayfac(is:ie)>0.5 )
       zdayfac(is:ie) = real(ttx)/zdayfac(is:ie)
     end where
   end do
-!$omp end do nowait
+  !$omp end do nowait
 else
-!$omp do schedule(static) private(is,ie),                       &
-!$omp private(dhr,fjd,coszro,r1,dlt,alp,slag)
+  !$omp do schedule(static) private(is,ie),                       &
+  !$omp private(dhr,fjd,coszro,r1,dlt,alp,slag)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
     dhr = dt/3600.  
-    fjd = float(mod( mins, 525600 ))/1440.  ! 525600 = 1440*365
+    fjd = real(mins)/1440.
     call solargh(fjd,bpyear,r1,dlt,alp,slag)
     call zenith(fjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar(is:ie))
     ! taudar is for current timestep - used to indicate sunlit
   end do
-!$omp end do nowait
+  !$omp end do nowait
 end if
     
 ! estimate convective cloud fraction from leoncld.f

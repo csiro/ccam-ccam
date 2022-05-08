@@ -5148,6 +5148,8 @@ write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') i
 call ccnf_put_att(idnc,idnt,'units',grdtim)
 if ( leap==0 ) then
   call ccnf_put_att(idnc,idnt,'calendar','noleap')
+else if ( leap==2 ) then
+  call ccnf_put_att(idnc,idnt,'calendar','360_day')  
 end if
 
 lname ='Scaled Log Surface pressure'

@@ -1720,7 +1720,7 @@ implicit none
 integer, intent(inout) :: kdate_r,ktime_r
 integer(kind=8), intent(inout) :: mtimer_r
 integer, intent(in), optional :: allleap
-integer(kind=8), dimension(12) :: mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)
+integer(kind=8), dimension(12) :: mdays
 integer leap_l
 integer(kind=8) iyr,imo,iday,ihr,imins
 integer(kind=8) mtimerh,mtimerm
@@ -1752,11 +1752,18 @@ if ( myid==0 .and. .not.quiet ) then
   write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,int(mtimer_r)
 end if
 
-mdays(2)=28_8
-if ( leap_l==1 ) then
+if ( leap==0 ) then ! 365 day calendar
+  mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)  
+else if ( leap==1 ) then ! 365/366 day calendar  
+  mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)
   if ( mod(iyr,4_8)==0   ) mdays(2)=29_8
   if ( mod(iyr,100_8)==0 ) mdays(2)=28_8
   if ( mod(iyr,400_8)==0 ) mdays(2)=29_8
+else if ( leap==2 ) then ! 360 day calendar
+  mdays(:)=30_8  
+else
+  write(6,*) "ERROR: Unknown option for leap = ",leap
+  call ccmpi_abort(-1)
 end if
 do while ( mtimer_r>minsday*mdays(imo) )
   mtimer_r=mtimer_r-minsday*mdays(imo)
@@ -1962,10 +1969,8 @@ implicit none
 
 integer, intent(out) :: jyear,jmonth,jday,jhour,jmin ! start date of run
 integer, intent(out) :: mins                         ! elapsed time from start of year
-integer mstart
+integer mstart, n1
 integer, dimension(12) :: ndoy
-! days from beginning of year (1st Jan is 0)
-integer, dimension(12), parameter :: odoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /) 
 logical, intent(in), optional :: allleap ! force use of leap days even if leap=0
 logical lleap
 
@@ -1986,14 +1991,23 @@ if ( jmonth<1 .or. jmonth>12 ) then
   call ccmpi_abort(-1)
 end if 
 
-ndoy(:) = odoy(:)
-if ( leap==1 .or. lleap ) then
-  if ( mod(jyear,4)  ==0 ) ndoy(3:12)=odoy(3:12)+1
-  if ( mod(jyear,100)==0 ) ndoy(3:12)=odoy(3:12)
-  if ( mod(jyear,400)==0 ) ndoy(3:12)=odoy(3:12)+1
-end if
+if ( lleap .or. leap==1 ) then ! 365/366 day calendar
+  ndoy(:) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)  
+  if ( mod(jyear,4)  ==0 ) n1 = 1
+  if ( mod(jyear,100)==0 ) n1 = 0
+  if ( mod(jyear,400)==0 ) n1 = 1
+  ndoy(3:12)=ndoy(3:12)+n1
+else if ( leap==0 ) then ! 365 day calendar
+  ndoy(:) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)  
+else if ( leap==2 ) then ! 360 day calendar  
+  ndoy(:) = (/ 0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330 /)
+else
+  write(6,*) "ERROR: Unknown option for leap = ",leap
+  call ccmpi_abort(-1)
+end if  
 
 mstart = 1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
+
 ! mtimer contains number of minutes since the start of the run.
 mins = mtimer + mstart
 
@@ -2716,11 +2730,6 @@ ncount = (/ il, jl, ll, vnode_nproc, 1 /)
 
 call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
 
-!if ( any( var_g/=var_g ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw4lpr8 ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
-
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
@@ -2784,11 +2793,6 @@ allocate( globvar(1:ifull_g,1:ll), ipack(1:ifull_g,1:ll) )
 call ccmpi_gatherr8(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
 start = (/ 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, ll, 1 /)
-
-!if ( any( globvar/=globvar ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw4ar8 ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
 
 !     find variable index
 lidnc = idnc
@@ -3015,11 +3019,6 @@ call ccmpi_gather(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
 
-!if ( any( globvar/=globvar ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw5a ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
-
 !     find variable index
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -3161,11 +3160,6 @@ allocate( globvar(1:ifull_g,1:kk,1:ll), ipack(1:ifull_g,1:kk,1:ll) )
 call ccmpi_gatherr8(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
 start = (/ 1, 1, 1, 1, iarch /)
 ncount = (/ il_g, jl_g, kk, ll, 1 /)
-
-!if ( any( globvar/=globvar ) ) then
-!  write(6,*) "ERROR: NaN detected in write for fw5ar8 ",trim(sname)
-!  call ccmpi_abort(-1)
-!end if
 
 !     find variable index
 lidnc = idnc

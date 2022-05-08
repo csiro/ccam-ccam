@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -675,11 +675,18 @@ m2=0
 ! need it.
 iyr=kdate/10000
 month=(kdate-10000*iyr)/100
-mdays=(/31,31,28,31,30,31,30,31,31,30,31,30,31,31/)
-if (leap>=1) then
+if ( leap==0 ) then ! 365 day calendar
+  mdays=(/31,31,28,31,30,31,30,31,31,30,31,30,31,31/)    
+else if ( leap==1 ) then ! 365/366 day calendar
+  mdays=(/31,31,28,31,30,31,30,31,31,30,31,30,31,31/)
   if (mod(iyr,4)==0) mdays(2)=29
   if (mod(iyr,100)==0) mdays(2)=28
   if (mod(iyr,400)==0) mdays(2)=29
+else if ( leap==2 ) then ! 360 day calendar
+  mdays=(/30,30,30,30,30,30,30,30,30,30,30,30,30,30/)  
+else
+  write(6,*) "ERROR: Unknown option for leap = ",leap
+  call ccmpi_abort(-1)
 end if
 
 do igas=1,numtracer

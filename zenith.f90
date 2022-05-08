@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -40,7 +40,9 @@ module zenith_m
 
 contains
 
-   subroutine solargh(day,bpyear,r,dlt,alp,slag)
+   subroutine solargh(day_of_year,bpyear,r,dlt,alp,slag)
+   
+   use parm_m, only : leap ! Model configuration
 !
 !  subroutine solar is called by march and computes the radius
 !    vector, the declination and right ascension of the sun, the
@@ -59,22 +61,29 @@ contains
 !--------------
       implicit none
 !
-      real, intent(in)  :: day       ! day of year
-      real, intent(in)  :: bpyear    ! Years before present
-      real, intent(out) :: r         ! radius vector (distance to sun in a. u.)
-      real, intent(out) :: dlt       ! declination of sun
-      real, intent(out) :: alp       ! right ascension of sun
-      real, intent(out) :: slag      ! apparent sun lag angle 
-                                     ! (west of mean sun is plus)
+      real, intent(in)  :: day_of_year ! day of year
+      real, intent(in)  :: bpyear      ! Years before present
+      real, intent(out) :: r           ! radius vector (distance to sun in a. u.)
+      real, intent(out) :: dlt         ! declination of sun
+      real, intent(out) :: alp         ! right ascension of sun
+      real, intent(out) :: slag        ! apparent sun lag angle 
+                                       ! (west of mean sun is plus)
       real :: ec, peril, oblqty
       real :: sind, ecsq, angin, sni, cyear, crate, sma, en, sunper
       real :: craten, cosphi, beta, peri, velngm, el, elt, rlam
+      real :: day
 !
 !     set fundamental astronomical parameters
       if ( abs(bpyear)<1.e-20 ) then
          ec  = 0.016724
          peril  = 102.04
          oblqty  = 23.446
+      else if ( abs(bpyear-1000.)<1.e-20 ) then
+         print *,"ec, peril and oblqty are not defined for bpyear=1000."
+         stop
+         !ec = 
+         !peril =
+         !oblqty =
       else if ( abs(bpyear-6000.)<1.e-20 ) then
          ec  = 0.018682
          peril  =   0.87
@@ -91,9 +100,17 @@ contains
       ecsq = ec**2
       angin  = radian * oblqty
       sni    = sin(angin)
-!
+
 !   tropical or calendar year in mean solar days is cyear
-      cyear = 365.0
+      if ( leap==0 ) then ! 365 day calendar
+        cyear = 365.
+      else if ( leap==1 ) then ! 365/366 day calendar
+        cyear = 365. ! repeat extra day
+      else if ( leap==2 ) then ! 360 day calendar
+        cyear = 360.
+      end if
+      day = mod( day_of_year, cyear )
+        
 !
 !   crate is mean daily angular motion of planet in degrees with
 !   respect to equinox

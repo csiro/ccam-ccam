@@ -519,8 +519,17 @@ dtr8 = real(dt, 8)
 dhr = dt/3600.
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 ! calculate zenith angle
-fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
-idoy = int(fjd)
+fjd = real(mins)/1440.
+if ( leap==0 ) then ! 365 day calendar
+  idoy = int(fjd)
+else if ( leap==1 ) then ! 365/366 day calendar
+  idoy = mod(int(fjd),365)
+else if ( leap==2 ) then ! 360 day calendar
+  idoy = int(fjd*365./360.) ! CABLE expects standard calendar  
+else    
+  write(6,*) "ERROR: Unknown option for leap = ",leap
+  stop
+end if
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro2,taudar2)
 
@@ -1544,16 +1553,17 @@ end subroutine POPdriver
 subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,ssnow,veg, &
                         climate_save,npercasa,ktau)
 
-use parm_m, only : dt, nperhr
+use parm_m, only : dt, nperhr, leap
 
 implicit none
 
 integer, intent(in) :: idoy, imonth, npercasa, ktau
-integer d, y, nsd
+integer d, y, nsd, eom
 integer, dimension(13), intent(in) :: ndoy
 real(kind=8), dimension(mp) :: mtemp_last
 real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq, tmp
 real(kind=8), dimension(mp) :: frec0, f1, f2
+logical cdnh, cdsh
 type(canopy_type), intent(in) :: canopy
 type(climate_type), intent(inout) :: climate
 type(met_type), intent(in) :: met
@@ -1659,7 +1669,7 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
 
   climate%dtemp = climate%dtemp/real(npercasa,8)
   climate%dmoist = climate%dmoist/real(npercasa,8)
-
+  
   ! In midwinter, reset GDD counter for summergreen phenology  
   where ( (rad%latitude>=0._8.and.idoy==COLDEST_DAY_NHEMISPHERE) .or. &
           (rad%latitude<0._8.and.idoy==COLDEST_DAY_SHEMISPHERE) )
@@ -1762,7 +1772,14 @@ if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
   end where
   
   ! check if end of month
-  if ( idoy==ndoy(imonth+1) ) then
+  if ( leap==0 ) then
+    eom = ndoy(imonth+1)
+  else if ( leap==1 ) then
+    eom = ndoy(imonth+1)
+  else
+    eom = imonth*30
+  end if
+  if ( idoy==eom ) then
 
     ! Update mean temperature for the last 12 months
     ! atemp_mean_new = atemp_mean_old * (11/12) + mtemp * (1/12)

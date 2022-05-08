@@ -154,7 +154,7 @@ include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile, k, iq, nt
 integer :: idjd_t
-real, dimension(imax,kl) :: lxtg
+real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
@@ -422,11 +422,9 @@ do tile = 1,ntiles
   
   ! Aerosols
   if ( abs(iaero)>=2 ) then
-    do nt = 1,naero
-      lxtg = xtg(is:ie,:,nt)    
-      call trim(lat,lct,lxtg,imax,kl)
-      xtg(is:ie,:,nt) = lxtg
-    end do
+    lxtg = xtg(is:ie,:,1:naero)
+    call trim2(lat,lct,lxtg,imax,kl,naero)
+    xtg(is:ie,:,1:naero) = lxtg
   end if ! (abs(iaero)>=2)    
 
 #ifndef scm
@@ -1789,7 +1787,8 @@ endif  !  (nlocal==5)
 return
 end subroutine pbldif
 
-subroutine trim(a,c,rhs,imax,kl)
+pure subroutine trim(a,c,rhs,imax,kl)
+!$acc routine vector
 
 implicit none
 
@@ -1807,9 +1806,9 @@ real temp, b
 
 ! the Thomas algorithm is used
 do iq = 1,imax
-  b=1.-a(iq,1)-c(iq,1)
-  e(iq,1)=c(iq,1)/b
-  g(iq,1)=rhs(iq,1)/b
+  b=1./(1.-a(iq,1)-c(iq,1))
+  e(iq,1)=c(iq,1)*b
+  g(iq,1)=rhs(iq,1)*b
 end do
 do k = 2,kl-1
   do iq = 1,imax
@@ -1833,6 +1832,67 @@ end do
 
 return
 end subroutine trim
+
+subroutine trim2(a,c,rhs,imax,kl,ndim)
+
+use tkeeps, only : pcrthomas
+
+implicit none
+
+integer, intent(in) :: imax, kl, ndim
+integer k, iq, n
+integer kblock, nthreads
+real, dimension(imax,kl), intent(in) :: a, c
+real, dimension(imax,kl,ndim), intent(inout) :: rhs
+#ifdef GPU
+real, dimension(imax,kl,ndim) :: oldrhs
+real, dimension(imax,2:kl) :: aa
+real, dimension(imax,kl) :: bb
+real, dimension(imax,kl-1) :: cc
+#endif
+
+! this routine solves the system
+!   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
+!   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
+!   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
+
+#ifdef GPU
+oldrhs = rhs
+aa(:,2:kl) = a(:,2:kl)
+bb = 1. - a(:,:) - c(:,:)
+cc(:,1:kl-1) = c(:,1:kl-1)
+
+! PCR-Thomas
+do k = int(sqrt(real(kl))),kl
+  if ( mod(kl,k)==0 ) then
+    kblock = k
+    exit
+  end if
+end do
+nthreads = kl/kblock
+call pcrthomas(rhs,aa,bb,cc,oldrhs,imax,kl,ndim,nthreads)
+
+!! PCR for GPUs
+!call pcr(rhs,aa,bb,cc,oldrhs,imax,kl,ndim)
+
+!! Thomas
+!!$acc parallel loop copyin(a,c) copy(rhs)
+!do n = 1,ndim
+!  call trim(a,c,rhs(:,:,n),imax,kl)
+!end do
+!$acc end parallel loop
+
+#else
+
+! Thomas
+do n = 1,ndim
+  call trim(a,c,rhs(:,:,n),imax,kl)
+end do
+
+#endif
+
+return
+end subroutine trim2
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                         &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &
@@ -1896,12 +1956,10 @@ end do      ! k loop
 ! calculate height on full levels (neglect surface height)
 zg(:,1) = bet(1)*t(:,1)/grav
 zh(:,1) = t(:,1)*delh(1)
-do k = 2,kl-1
+do k = 2,kl
   zg(:,k) = zg(:,k-1) + (bet(k)*t(:,k)+betm(k)*t(:,k-1))/grav
   zh(:,k) = zh(:,k-1) + t(:,k)*delh(k)
 end do ! k  loop
-zg(:,kl) = zg(:,kl-1) + (bet(kl)*t(:,kl)+betm(kl)*t(:,kl-1))/grav
-zh(:,kl) = zh(:,kl-1) + t(:,kl)*delh(kl)
        
 ! near surface air density (see sflux.f and cable_ccam2.f90)
 rhos(:) = ps(:)/(rdry*tss(:))

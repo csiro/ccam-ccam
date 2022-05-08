@@ -486,30 +486,6 @@ subroutine cable_unpack_r8_2_r8_tile(indata,outdata,inb)
 end subroutine cable_unpack_r8_2_r8_tile
 #endif
 
-!subroutine pop_pack_r8_2_dp_tile(indata,outdata,inb)
-!  use newmpar_m, only : ifull
-!  use TypeDef, only : dp
-!
-!  implicit none
-!
-!  real(kind=8), dimension(ifull), intent(in) :: indata
-!  real(kind=dp), dimension(:), intent(inout) :: outdata
-!  integer, intent(in) :: inb
-!  integer :: nb, is, ie, js, je, tile
-!
-!  nb = inb
-!  do tile = 1,ntiles
-!    is = tdata(tile)%pind(nb,1)
-!    ie = tdata(tile)%pind(nb,2)
-!    if ( is<=ie ) then
-!      js=1+(tile-1)*imax
-!      je=tile*imax
-!      outdata(is:ie) =  pack(real(indata(js:je),dp),tdata(tile)%pmap(:,nb))
-!    end if  
-!  end do
-!
-!end subroutine pop_pack_r8_2_dp_tile
-
 subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
 

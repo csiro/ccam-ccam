@@ -223,7 +223,7 @@ if ( intsch==1 ) then
     !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-    async_counter = mod(nn-1, async_length)  
+    async_counter = mod(nn-1, async_length)+1 
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface)            &
     !$acc   async(async_counter)
 #endif
@@ -331,7 +331,7 @@ else     ! if(intsch==1)then
     !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-    async_counter = mod(nn-1, async_length)  
+    async_counter = mod(nn-1, async_length)+1
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface)            &
     !$acc   async(async_counter)
 #endif
@@ -459,7 +459,7 @@ if ( intsch==1 ) then
     !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-    async_counter = mod(nn-1, async_length)  
+    async_counter = mod(nn-1, async_length)+1 
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface)            &
     !$acc   async(async_counter)
 #endif
@@ -567,7 +567,7 @@ else     ! if(intsch==1)then
     !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
-    async_counter = mod(nn-1, async_length)  
+    async_counter = mod(nn-1, async_length)+1  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface)            &
     !$acc   async(async_counter)
 #endif

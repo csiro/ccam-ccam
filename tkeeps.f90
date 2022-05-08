@@ -44,7 +44,7 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,shear
+public tkeinit,tkemix,tkeend,tke,eps,shear,pcrthomas
 public cm0,ce0,ce1,ce2,ce3,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min,mfbeta
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
@@ -121,6 +121,15 @@ real, parameter :: cc1 = 0.3
 ! Time averaging
 real, save :: tke_timeave_length = 0. ! Time period for averaging source terms (Ps, Pb, Pt) in seconds
                                       ! 0 indicates alpha=2/3
+
+interface solve_sherman_morrison
+  module procedure solve_sherman_morrison_1, solve_sherman_morrison_2
+  module procedure solve_sherman_morrison_3
+end interface
+
+interface thomas
+  module procedure thomas1, thomas2
+end interface
 
 contains
 
@@ -1241,7 +1250,8 @@ real, dimension(imax,kl), intent(in) :: mflx, tke, eps
 real, dimension(imax,kl), intent(in) :: idzm
 real, dimension(imax,kl-1), intent(in) :: fzzh, idzp, dz_hl
 real, dimension(imax,kl) :: km_a, kmo_a
-real, dimension(imax,kl) :: bb_a, cc_a, dd_a, rr, tt_a
+real, dimension(imax,kl) :: bb_a, cc_a, rr
+real, dimension(imax,kl,4) :: dd_a, tt_a
 real, dimension(imax,2:kl) :: qq, aa_a
 real, dimension(imax), intent(in) :: cd_water, cdh_water, cdbot_water, wt0rad_o, wt0melt_o
 real, dimension(imax,wlev), intent(in) :: deptho_dz
@@ -1250,10 +1260,12 @@ real, dimension(imax,wlev), intent(in) :: rad_o
 real, dimension(imax) :: wt0eg_o
 real, dimension(imax,wlev), intent(inout) :: w_t, w_s, w_u, w_v
 real, dimension(imax,wlev) :: km_o, ks_o, rhs_o
-real, dimension(imax,wlev) :: bb_o, cc_o, dd_o
+real, dimension(imax,wlev) :: bb_o, cc_o
 real, dimension(imax,2:wlev) :: aa_o
+real, dimension(imax,wlev,2) :: dd_o
 real, dimension(imax,wlev) :: gammas_o
-real, dimension(imax,1) :: bb_i, dd_i, tt_i
+real, dimension(imax) :: bb_i
+real, dimension(imax,2) :: dd_i
 real, dimension(imax), intent(inout) :: fg, eg, ustar
 real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv, ps
 real, dimension(imax), intent(in) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o
@@ -1350,72 +1362,72 @@ f_ia(:) = 0.
 f_io(:) = 0.
 f_oi(:) = 0.
 
+!------------------------------------------------------------------------------
 
 ! thetal, thetao - coupled ----
 t1 = rhos(:)*cdh_water*cp
 ! k=1 is top of atmosphere and k=kl is bottom of atmosphere
 bb_a(:,1) = 1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
-dd_a(:,1) = thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)   &
-                              +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+dd_a(:,1,1) = thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)   &
+                                +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
 do k = 2,kl-1
   kn = kl - k + 1  
-  bb_a(:,k) = 1.-qq(:,kn)-rr(:,kn)+ddts*(mflx(:,kn)*fzzh(:,kn-1)*idzm(:,kn)             &
+  bb_a(:,k) = 1.-qq(:,kn)-rr(:,kn)+ddts*(mflx(:,kn)*fzzh(:,kn-1)*idzm(:,kn)               &
                                         -mflx(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn))
-  dd_a(:,k) = thetal(:,kn)+ddts*(mflx(:,kn-1)*tlup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn) &
-                                +mflx(:,kn)*tlup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)          &
-                                -mflx(:,kn)*tlup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)       &
-                                -mflx(:,kn+1)*tlup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
+  dd_a(:,k,1) = thetal(:,kn)+ddts*(mflx(:,kn-1)*tlup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn) &
+                                  +mflx(:,kn)*tlup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)          &
+                                  -mflx(:,kn)*tlup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)       &
+                                  -mflx(:,kn+1)*tlup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
 end do
 bb_a(:,kl) = 1.-rr(:,1)-ddts*mflx(:,1)*(1.-fzzh(:,1))*idzp(:,1)
-dd_a(:,kl) = thetal(:,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)             &
-                              +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))
+dd_a(:,kl,1) = thetal(:,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)             &
+                                +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))
 where ( land(1:imax) )
   wt0_a = fg/(rhos*cp)  ! theta flux    
-  dd_a(:,kl) = dd_a(:,kl)+ddts*rhos*wt0_a/(rhoa1(:)*dz_fl1(:))
+  dd_a(:,kl,1) = dd_a(:,kl,1)+ddts*rhos*wt0_a/(rhoa1(:)*dz_fl1(:))
 elsewhere
   bb_a(:,kl) = bb_a(:,kl)+ddts*t1(:)*(1.-fracice(:))/cp/(rhoa1(:)*dz_fl1(:)) 
-  dd_a(:,kl) = dd_a(:,kl)-ddts*t1(:)*(1.-fracice(:))/cp*sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp/(rhoa1(:)*dz_fl1(:))
-  dd_a(:,kl) = dd_a(:,kl)+ddts*t1(:)*(1.-fracice(:))*wrtemp/cp/(rhoa1(:)*dz_fl1(:))
-  dd_a(:,kl) = dd_a(:,kl)+ddts*(fracice*icefg_a/cp)/(rhoa1(:)*dz_fl1(:))
+  dd_a(:,kl,1) = dd_a(:,kl,1)-ddts*t1(:)*(1.-fracice(:))/cp*sigkap(1)                     &
+                    *(lv*qlg(:,1)+ls*qfg(:,1))/cp/(rhoa1(:)*dz_fl1(:))
+  dd_a(:,kl,1) = dd_a(:,kl,1)+ddts*t1(:)*(1.-fracice(:))*wrtemp/cp/(rhoa1(:)*dz_fl1(:))
+  dd_a(:,kl,1) = dd_a(:,kl,1)+ddts*(fracice*icefg_a/cp)/(rhoa1(:)*dz_fl1(:))
 end where  
 
 bb_o(:,1) = 1. - cc_o(:,1)
-dd_o(:,1) = w_t(:,1) + ddts*rhs_o(:,1)
+dd_o(:,1,1) = w_t(:,1) + ddts*rhs_o(:,1)
 where ( deptho_dz(:,1)>1.e-4 )
-  dd_o(:,1) = dd_o(:,1) - ddts*rad_o(:,1)/deptho_dz(:,1)
+  dd_o(:,1,1) = dd_o(:,1,1) - ddts*rad_o(:,1)/deptho_dz(:,1)
 end where
 do k = 2,wlev-1
   bb_o(:,k) = 1. - aa_o(:,k) - cc_o(:,k)
-  dd_o(:,k) = w_t(:,k) + ddts*rhs_o(:,k)
+  dd_o(:,k,1) = w_t(:,k) + ddts*rhs_o(:,k)
   where ( deptho_dz(:,k)>1.e-4 )
-    dd_o(:,k) = dd_o(:,k) - ddts*rad_o(:,k)/deptho_dz(:,k)
+    dd_o(:,k,1) = dd_o(:,k,1) - ddts*rad_o(:,k)/deptho_dz(:,k)
   end where
 end do
 bb_o(:,wlev) = 1. - aa_o(:,wlev)
-dd_o(:,wlev) = w_t(:,wlev) + ddts*rhs_o(:,wlev)
+dd_o(:,wlev,1) = w_t(:,wlev) + ddts*rhs_o(:,wlev)
 where ( deptho_dz(:,wlev)>1.e-4 )
-  dd_o(:,wlev) = dd_o(:,wlev) - ddts*rad_o(:,wlev)/deptho_dz(:,wlev)
+  dd_o(:,wlev,1) = dd_o(:,wlev,1) - ddts*rad_o(:,wlev)/deptho_dz(:,wlev)
 end where
 where ( .not.land(1:imax) )
   bb_o(:,1) = bb_o(:,1) + ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0*deptho_dz(:,1))
-  dd_o(:,1) = dd_o(:,1) - ddts*t1(:)*(1.-fracice(:))*wrtemp/(wrtrho*cp0*deptho_dz(:,1))
-  dd_o(:,1) = dd_o(:,1) - ddts*(wt0rad_o+wt0melt_o+wt0eg_o)/deptho_dz(:,1)
-  dd_o(:,1) = dd_o(:,1) + ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0)*sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp/deptho_dz(:,1)
-  dd_o(:,1) = dd_o(:,1) - ddts*wt0fb_o/deptho_dz(:,1)
+  dd_o(:,1,1) = dd_o(:,1,1) - ddts*t1(:)*(1.-fracice(:))*wrtemp/(wrtrho*cp0*deptho_dz(:,1))
+  dd_o(:,1,1) = dd_o(:,1,1) - ddts*(wt0rad_o+wt0melt_o+wt0eg_o)/deptho_dz(:,1)
+  dd_o(:,1,1) = dd_o(:,1,1) + ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0)*sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp/deptho_dz(:,1)
+  dd_o(:,1,1) = dd_o(:,1,1) - ddts*wt0fb_o/deptho_dz(:,1)
 end where  
 where ( .not.land(1:imax) )
   f_ao(:) = -ddts*t1(:)*(1.-fracice(:))/cp/(rhoa1(:)*dz_fl1(:))
   f_oa(:) = -ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0*deptho_dz(:,1))
 end where  
-call solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a,tt_a,  &
-                            aa_o,bb_o,cc_o,dd_o,w_t,   &
-                            bb_i,dd_i,tt_i,            &
-                            f_ao,f_oa,f_ai,f_ia,       &
-                            f_oi,f_io,                 &
-                            1,imax,kl,wlev) 
+call solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a(:,:,1),tt_a(:,:,1),  &
+                            aa_o,bb_o,cc_o,dd_o(:,:,1),w_t,          &
+                            f_ao,f_oa,                               &
+                            imax,kl,wlev) 
 do k = 1,kl
   kn = kl - k + 1
-  thetal(:,k) = tt_a(:,kn)
+  thetal(:,k) = tt_a(:,kn,1)
 end do
 
 ! Derive sensible heat flux for water gridpoints
@@ -1435,8 +1447,9 @@ wthlflux(:,2:kl)=-kmo_a(:,1:kl-1)*(thetal(:,2:kl)-thetal(:,1:kl-1))/dz_hl(:,1:kl
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
 #endif
 
+!------------------------------------------------------------------------------
 
-! set-up decoupled atmosphere and ocean matrices
+! set-up decoupled atmosphere matrices
 
 bb_a(:,1) = 1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
 cc_a(:,1) = qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
@@ -1450,6 +1463,93 @@ do k = 2,kl-1
 end do
 aa_a(:,kl) = rr(:,1)-ddts*mflx(:,2)*fzzh(:,1)*idzp(:,1)
 bb_a(:,kl) = 1.-rr(:,1)-ddts*mflx(:,1)*(1.-fzzh(:,1))*idzp(:,1)
+
+
+! Note that vertical interpolation is linear so that qtot can be
+! decomposed into qv, ql and qf.
+
+! qv (part of qtot) - atmosphere
+dd_a(:,1,1)=qvg(:,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
+                           +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+do k = 2,kl-1
+  kn = kl - k + 1
+  dd_a(:,k,1)=qvg(:,kn)+ddts*(mflx(:,kn-1)*qvup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
+                             +mflx(:,kn)*qvup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
+                             -mflx(:,kn)*qvup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
+                             -mflx(:,kn+1)*qvup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
+end do
+dd_a(:,kl,1)=qvg(:,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
+                           +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                   &
+                     +ddts*rhos*wq0_a/(rhoa1(:)*dz_fl1(:))
+
+! ql (part of qtot) - atmosphere
+dd_a(:,1,2)=qlg(:,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
+                           +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+do k = 2,kl-1
+  kn = kl - k + 1
+  dd_a(:,k,2)=qlg(:,kn)+ddts*(mflx(:,kn-1)*qlup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
+                             +mflx(:,kn)*qlup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
+                             -mflx(:,kn)*qlup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
+                             -mflx(:,kn+1)*qlup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
+end do
+dd_a(:,kl,2)=qlg(:,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
+                           +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
+
+! qf (part of qtot) - atmosphere
+dd_a(:,1,3)=qfg(:,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
+                           +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+do k = 2,kl-1
+  kn = kl - k + 1
+  dd_a(:,k,3)=qfg(:,kn)+ddts*(mflx(:,kn-1)*qfup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
+                             +mflx(:,kn)*qfup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
+                             -mflx(:,kn)*qfup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
+                             -mflx(:,kn+1)*qfup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
+end do
+dd_a(:,kl,3)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
+                           +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
+
+! stratcloud - atmosphere
+dd_a(:,1,4)=stratcloud(:,kl)+ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
+                                  +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+do k = 2,kl-1
+  kn = kl - k + 1
+  dd_a(:,k,4)=stratcloud(:,kn)+ddts*(mflx(:,kn-1)*cfup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
+                                    +mflx(:,kn)*cfup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
+                                    -mflx(:,kn)*cfup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
+                                    -mflx(:,kn+1)*cfup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
+end do
+dd_a(:,kl,4)=stratcloud(:,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
+                                  +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
+
+call thomas(tt_a(:,:,1:4),aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl,1:4),   &
+            imax,kl,4)
+
+do k = 1,kl
+  kn = kl - k + 1  
+  qvg(:,k) = tt_a(:,kn,1)
+  qlg(:,k) = tt_a(:,kn,2)
+  qfg(:,k) = tt_a(:,kn,3)
+  stratcloud(:,k) = min( max( tt_a(:,kn,4), 0. ), 1. )
+end do
+
+#ifdef scm
+wqvflux(:,1)=wq0_a(:)
+wqvflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qvg(:,2:kl)-qvg(:,1:kl-1))/dz_hl(:,1:kl-1)         &
+                +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))   &
+                +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
+wqlflux(:,1)=0.
+wqlflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qlg(:,2:kl)-qlg(:,1:kl-1))/dz_hl(:,1:kl-1)         &
+                +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))   &
+                +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
+wqfflux(:,1)=0.
+wqfflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qfg(:,2:kl)-qfg(:,1:kl-1))/dz_hl(:,1:kl-1)                &
+                +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))          &
+                +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
+#endif
+
+!------------------------------------------------------------------------------
+
+! set-up decoupled ocean matrices
 
 where ( deptho_dz(:,2)*deptho_dz(:,1)>1.e-4 )
   cc_o(:,1) = -ddts*ks_o(:,2)/(deptho_dz_hl(:,2)*deptho_dz(:,1))
@@ -1470,120 +1570,25 @@ end where
 bb_o(:,wlev) = 1. - aa_o(:,wlev)
 
 
-! Note that vertical interpolation is linear so that qtot can be
-! decomposed into qv, ql and qf.
-
-! qv (part of qtot) - atmosphere
-dd_a(:,1)=qvg(:,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
-                         +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-do k = 2,kl-1
-  kn = kl - k + 1
-  dd_a(:,k)=qvg(:,kn)+ddts*(mflx(:,kn-1)*qvup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
-                           +mflx(:,kn)*qvup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
-                           -mflx(:,kn)*qvup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
-                           -mflx(:,kn+1)*qvup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
-end do
-dd_a(:,kl)=qvg(:,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
-                         +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                   &
-                   +ddts*rhos*wq0_a/(rhoa1(:)*dz_fl1(:))
-call thomas(tt_a,aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl),imax,kl)
-do k = 1,kl
-  kn = kl - k + 1  
-  qvg(:,k) = tt_a(:,kn)
-end do
-
-#ifdef scm
-wqvflux(:,1)=wq0_a(:)
-wqvflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qvg(:,2:kl)-qvg(:,1:kl-1))/dz_hl(:,1:kl-1)         &
-                +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))   &
-                +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
-#endif
-
-! ql (part of qtot) - atmosphere
-dd_a(:,1)=qlg(:,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
-                         +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-do k = 2,kl-1
-  kn = kl - k + 1
-  dd_a(:,k)=qlg(:,kn)+ddts*(mflx(:,kn-1)*qlup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
-                           +mflx(:,kn)*qlup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
-                           -mflx(:,kn)*qlup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
-                           -mflx(:,kn+1)*qlup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
-end do
-dd_a(:,kl)=qlg(:,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
-                         +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
-call thomas(tt_a,aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl),imax,kl)
-do k = 1,kl
-  kn = kl - k + 1  
-  qlg(:,k) = tt_a(:,kn)
-end do
-
-#ifdef scm
-wqlflux(:,1)=0.
-wqlflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qlg(:,2:kl)-qlg(:,1:kl-1))/dz_hl(:,1:kl-1)         &
-                +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))   &
-                +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
-#endif
-
-! qf (part of qtot) - atmosphere
-dd_a(:,1)=qfg(:,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
-                         +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-do k = 2,kl-1
-  kn = kl - k + 1
-  dd_a(:,k)=qfg(:,kn)+ddts*(mflx(:,kn-1)*qfup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
-                           +mflx(:,kn)*qfup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
-                           -mflx(:,kn)*qfup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
-                           -mflx(:,kn+1)*qfup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
-end do
-dd_a(:,kl)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
-                         +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
-call thomas(tt_a,aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl),imax,kl)
-do k = 1,kl
-  kn = kl - k + 1  
-  qfg(:,k) = tt_a(:,kn)
-end do
-
-#ifdef scm
-wqfflux(:,1)=0.
-wqfflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qfg(:,2:kl)-qfg(:,1:kl-1))/dz_hl(:,1:kl-1)                &
-                +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))          &
-                +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
-#endif
-
-! stratcloud - atmosphere
-dd_a(:,1)=stratcloud(:,kl)+ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
-                                +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-do k = 2,kl-1
-  kn = kl - k + 1
-  dd_a(:,k)=stratcloud(:,kn)+ddts*(mflx(:,kn-1)*cfup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
-                                  +mflx(:,kn)*cfup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
-                                  -mflx(:,kn)*cfup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
-                                  -mflx(:,kn+1)*cfup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
-end do
-dd_a(:,kl)=stratcloud(:,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
-                                +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
-call thomas(tt_a,aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl),imax,kl)
-do k = 1,kl
-  kn = kl - k + 1  
-  stratcloud(:,k) = min( max( tt_a(:,kn), 0. ), 1. )
-end do
-
 ! sal - ocean
 fulldeptho = 0.
 targetdeptho = min( minsfc, sum( deptho_dz, dim=2 ) )
 do k = 1,wlev
-  dd_o(:,k) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o
+  dd_o(:,k,1) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o
   where ( deptho_dz(:,k)>1.e-4 )
     deltazo = max( min( deptho_dz(:,k), targetdeptho-fulldeptho ), 0. )
     fulldeptho = fulldeptho + deltazo
-    dd_o(:,k) = dd_o(:,k) - ddts*ws0subsurf_o*deltazo/max(deptho_dz(:,k)*targetdeptho,1.e-4)
+    dd_o(:,k,1) = dd_o(:,k,1) - ddts*ws0subsurf_o*deltazo/max(deptho_dz(:,k)*targetdeptho,1.e-4)
   end where
 end do
 where ( .not.land(1:imax) )
-  dd_o(:,1) = dd_o(:,1) - ddts*ws0_o/deptho_dz(:,1)
+  dd_o(:,1,1) = dd_o(:,1,1) - ddts*ws0_o/deptho_dz(:,1)
 end where
-call thomas(w_s,aa_o(:,2:wlev),bb_o(:,1:wlev),cc_o(:,1:wlev-1),dd_o(:,1:wlev),imax,wlev)
+call thomas(w_s,aa_o(:,2:wlev),bb_o(:,1:wlev),cc_o(:,1:wlev-1),dd_o(:,1:wlev,1),imax,wlev)
 
-! momentum ----
+!------------------------------------------------------------------------------
+
+! momentum for atmosphere, ocean and sea-ice ----
 
 t1 = rhos(:)*cd_water
 t3 = rhos(:)*cd_ice
@@ -1633,9 +1638,9 @@ do iq = 1,imax
   end if
 end do
 
-bb_i(:,1) = 1.
+bb_i(:) = 1.
 where ( .not.land(1:imax) )
-  bb_i(:,1) = 1. + ddts*(t3(:)+t4(:))/imass
+  bb_i(:) = 1. + ddts*(t3(:)+t4(:))/imass
 end where
 
 where ( .not.land(1:imax) )
@@ -1647,55 +1652,38 @@ where ( .not.land(1:imax) )
   f_io(:) = -ddts*t4(:)/imass
 end where  
 
-! ua, uo - coupled ----
+! ua, uo, ui - coupled ----
+! va, vo, vi - coupled ----
 ! k=1 is top of atmosphere and k=kl is bottom of atmosphere
 do k = 1,kl
   kn = kl - k + 1  
-  dd_a(:,k) = ua(:,kn)
+  dd_a(:,k,1) = ua(:,kn)
+  dd_a(:,k,2) = va(:,kn)
 end do
 do k = 1,wlev
-  dd_o(:,k) = w_u(:,k)
+  dd_o(:,k,1) = w_u(:,k)
+  dd_o(:,k,2) = w_v(:,k)
 end do
 dd_i(:,1) = 0.
+dd_i(:,2) = 0.
 where ( .not.land(1:imax) )
   dd_i(:,1) = i_u(:)
+  dd_i(:,2) = i_v(:)
 end where
-call solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a,tt_a,  &
-                            aa_o,bb_o,cc_o,dd_o,w_u,   &
-                            bb_i,dd_i,tt_i,            &
-                            f_ao,f_oa,f_ai,f_ia,       &
-                            f_oi,f_io,                 &
-                            2,imax,kl,wlev) 
+call solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a(:,:,1),dd_a(:,:,2),  &
+                            tt_a(:,:,1),tt_a(:,:,2),                 &
+                            aa_o,bb_o,cc_o,dd_o(:,:,1),dd_o(:,:,2),  &
+                            w_u,w_v,                                 &
+                            bb_i,dd_i(:,1),dd_i(:,2),                &
+                            i_u,i_v,                                 &
+                            f_ao,f_oa,f_ai,f_ia,                     &
+                            f_oi,f_io,                               &
+                            imax,kl,wlev) 
 do k = 1,kl
   kn = kl - k + 1
-  ua(:,k) = tt_a(:,kn)
+  ua(:,k) = tt_a(:,kn,1)
+  va(:,k) = tt_a(:,kn,2)
 end do
-i_u(:) = tt_i(:,1)
-
-! va, vo - coupled ----
-! k=1 is top of atmosphere and k=kl is bottom of atmosphere
-do k = 1,kl
-  kn = kl - k + 1  
-  dd_a(:,k) = va(:,kn)
-end do
-do k = 1,wlev
-  dd_o(:,k) = w_v(:,k)
-end do
-dd_i(:,1) = 0.
-where ( .not.land(1:imax) )
-  dd_i(:,1) = i_v(:)
-end where
-call solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a,tt_a,  &
-                            aa_o,bb_o,cc_o,dd_o,w_v,   &
-                            bb_i,dd_i,tt_i,            &
-                            f_ao,f_oa,f_ai,f_ia,       &
-                            f_oi,f_io,                 &
-                            2,imax,kl,wlev) 
-do k = 1,kl
-  kn = kl - k + 1
-  va(:,k) = tt_a(:,kn)
-end do
-i_v(:) = tt_i(:,1)
 
 ! update surface momentum flux
 where ( land(1:imax) )
@@ -1733,16 +1721,40 @@ end subroutine update_coupled
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Solve Sherman-Morrison formula
 
-subroutine solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a,tt_a, &
-                                  aa_o,bb_o,cc_o,dd_o,tt_o, &
-                                  bb_i,dd_i,tt_i,           &
-                                  f_ao,f_oa,f_ai,f_ia,      &
-                                  f_oi,f_io,                &
-                                  aoi_mode,imax,kl,wlev)
+subroutine solve_sherman_morrison_1(aa_a,bb_a,cc_a,dd_a,tt_a, &
+                                    imax,kl)
 
 implicit none
 
-integer, intent(in) :: imax, kl, wlev, aoi_mode
+integer, intent(in) :: imax, kl
+integer k
+real, dimension(imax,2:kl), intent(in) :: aa_a
+real, dimension(imax,kl), intent(in) :: bb_a, dd_a
+real, dimension(imax,kl-1), intent(in) :: cc_a
+real, dimension(imax,kl), intent(out) :: tt_a
+
+! Atmosphere only or Ocean only simple tridiagonal matrix
+
+! Original coupling matrix (inverted levels)
+! [ bb_a cc_a                               ] [ t_a ]   [ dd_a ]
+! [ aa_a bb_a cc_a                          ] [ t_a ]   [ dd_a ]
+! [      .... .... ....                     ] [ ... ]   [ .... ]
+! [           aa_a bb_a                     ] [ t_a ]   [ dd_a ]
+
+! pure tridiagonal matrix
+call thomas(tt_a(:,1:kl),aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl),imax,kl)
+
+return
+end subroutine solve_sherman_morrison_1
+
+subroutine solve_sherman_morrison_2(aa_a,bb_a,cc_a,dd_a,tt_a, &
+                                    aa_o,bb_o,cc_o,dd_o,tt_o, &
+                                    f_ao,f_oa,                &
+                                    imax,kl,wlev)
+
+implicit none
+
+integer, intent(in) :: imax, kl, wlev
 integer k
 real, dimension(imax,2:kl), intent(in) :: aa_a
 real, dimension(imax,kl), intent(in) :: bb_a, dd_a
@@ -1752,35 +1764,100 @@ real, dimension(imax,2:wlev), intent(in) :: aa_o
 real, dimension(imax,wlev), intent(in) :: bb_o, dd_o
 real, dimension(imax,wlev-1), intent(in) :: cc_o
 real, dimension(imax,wlev), intent(out) :: tt_o
-real, dimension(imax,1), intent(in) :: bb_i, dd_i
-real, dimension(imax,1), intent(out) :: tt_i
-real, dimension(imax,2:kl+wlev+1) :: aad
-real, dimension(imax,kl+wlev+1) :: bbd, ddd
-real, dimension(imax,kl+wlev) :: ccd
-real, dimension(imax,kl+wlev+1) :: uu, vv, yy, qq
-real, dimension(imax,kl+wlev+1) :: xx
-real, dimension(imax), intent(in) :: f_ao, f_oa, f_ai, f_ia, f_oi, f_io
-real, dimension(imax) :: t1, t2
+real, dimension(imax,2:kl+wlev) :: aad
+real, dimension(imax,kl+wlev) :: bbd, ddd
+real, dimension(imax,kl+wlev-1) :: ccd
+real, dimension(imax,kl+wlev) :: xx
+real, dimension(imax), intent(in) :: f_ao, f_oa
+
+! Atmosphere and ocean (no sea-ice) large tridiagonal matrix
 
 ! Original coupling matrix (inverted levels)
-! [ bb_a cc_a                                                   ] [ t_a ]   [ dd_a ]
-! [ aa_a bb_a cc_a                                              ] [ t_a ]   [ dd_a ]
-! [      .... .... ....                                         ] [ ... ]   [ .... ]
-! [           aa_a bb_a f_ai                f_ao                ] [ t_a ]   [ dd_a ]
-! [                f_ia bb_i cc_i                               ] [ t_i ]   [ dd_i ]
-! [                     aa_i bb_i cc_i                          ] [ t_i ]   [ dd_i ]
-! [                          .... .... ....                     ] [ ... ] = [ .... ]
-! [                               aa_i bb_i f_io                ] [ t_i ]   [ dd_i ]
-! [                f_oa                f_oi bb_o cc_o           ] [ t_o ]   [ dd_o ]
-! [                                         aa_o bb_o cc_o      ] [ t_o ]   [ dd_o ]
-! [                                              .... .... .... ] [ ... ]   [ .... ]
-! [                                                   aa_o bb_o ] [ t_o ]   [ dd_o ]
+! [ bb_a cc_a                               ] [ t_a ]   [ dd_a ]
+! [ aa_a bb_a cc_a                          ] [ t_a ]   [ dd_a ]
+! [      .... .... ....                     ] [ ... ]   [ .... ]
+! [           aa_a bb_a f_ao                ] [ t_a ]   [ dd_a ]
+! [                f_oa bb_o cc_o           ] [ t_o ]   [ dd_i ]
+! [                     aa_o bb_o cc_o      ] [ t_o ]   [ dd_i ]
+! [                          .... .... .... ] [ ... ] = [ .... ]
+! [                               aa_o bb_o ] [ t_o ]   [ dd_o ]
 
-! u^T = [ .. -bb_a ..  f_oa      .. ]   
-! v^T = [ .. 1     .. -f_ao/bb_a .. ]
+! Construct A
+bbd(:,1) = bb_a(:,1)
+ccd(:,1) = cc_a(:,1)
+ddd(:,1) = dd_a(:,1)
+do k = 2,kl-1
+  aad(:,k) = aa_a(:,k)
+  bbd(:,k) = bb_a(:,k)
+  ccd(:,k) = cc_a(:,k)
+  ddd(:,k) = dd_a(:,k)
+end do
+aad(:,kl) = aa_a(:,kl)
+bbd(:,kl) = bb_a(:,kl)
+ccd(:,kl) = f_ao
+ddd(:,kl) = dd_a(:,kl)
+aad(:,kl+1) = f_oa
+bbd(:,kl+1) = bb_o(:,1)
+ccd(:,kl+1) = cc_o(:,1)
+ddd(:,kl+1) = dd_o(:,1)
+do k = 2,wlev-1
+  aad(:,kl+k) = aa_o(:,k)
+  bbd(:,kl+k) = bb_o(:,k)
+  ccd(:,kl+k) = cc_o(:,k)
+  ddd(:,kl+k) = dd_o(:,k)
+end do
+aad(:,kl+wlev) = aa_o(:,wlev)
+bbd(:,kl+wlev) = bb_o(:,wlev)
+ddd(:,kl+wlev) = dd_o(:,wlev)
 
+! pure tridiagonal matrix for atmosphere and ocean (no sea-ice)
+call thomas(xx(:,1:kl+wlev),aad(:,2:kl+wlev),bbd(:,1:kl+wlev),ccd(:,1:kl+wlev-1),ddd(:,1:kl+wlev),imax,kl+wlev)
 
-! Improved version (scalar)
+! Unpack solution
+do k = 1,kl
+  tt_a(:,k) = xx(:,k)
+end do
+do k = 1,wlev
+  tt_o(:,k) = xx(:,kl+k)
+end do
+
+return
+end subroutine solve_sherman_morrison_2
+
+subroutine solve_sherman_morrison_3(aa_a,bb_a,cc_a,dd_au,dd_av, &
+                                    tt_au,tt_av,                &
+                                    aa_o,bb_o,cc_o,dd_ou,dd_ov, &
+                                    tt_ou,tt_ov,                &
+                                    bb_i,dd_iu,dd_iv,           &
+                                    tt_iu,tt_iv,                &
+                                    f_ao,f_oa,f_ai,f_ia,        &
+                                    f_oi,f_io,                  &
+                                    imax,kl,wlev)
+
+implicit none
+
+integer, intent(in) :: imax, kl, wlev
+integer k
+real, dimension(imax,2:kl), intent(in) :: aa_a
+real, dimension(imax,kl), intent(in) :: bb_a, dd_au, dd_av
+real, dimension(imax,kl-1), intent(in) :: cc_a
+real, dimension(imax,kl), intent(out) :: tt_au, tt_av
+real, dimension(imax,2:wlev), intent(in) :: aa_o
+real, dimension(imax,wlev), intent(in) :: bb_o, dd_ou, dd_ov
+real, dimension(imax,wlev-1), intent(in) :: cc_o
+real, dimension(imax,wlev), intent(out) :: tt_ou, tt_ov
+real, dimension(imax), intent(in) :: bb_i, dd_iu, dd_iv
+real, dimension(imax), intent(out) :: tt_iu, tt_iv
+real, dimension(imax,2:kl+wlev+1) :: aad
+real, dimension(imax,kl+wlev+1) :: bbd
+real, dimension(imax,kl+wlev) :: ccd
+real, dimension(imax,kl+wlev+1,3) :: ddd
+real, dimension(imax,kl+wlev+1) :: uu, vv
+real, dimension(imax,kl+wlev+1,3) :: yy
+real, dimension(imax), intent(in) :: f_ao, f_oa, f_ai, f_ia, f_oi, f_io
+real, dimension(imax) :: t1, t2, t3
+
+! Original coupling matrix (inverted levels)
 ! [ bb_a cc_a                                                   ] [ t_a ]   [ dd_a ]
 ! [ aa_a bb_a cc_a                                              ] [ t_a ]   [ dd_a ]
 ! [      .... .... ....                                         ] [ ... ]   [ .... ]
@@ -1823,34 +1900,41 @@ real, dimension(imax) :: t1, t2
 ! Construct A'
 bbd(:,1) = bb_a(:,1)
 ccd(:,1) = cc_a(:,1)
-ddd(:,1) = dd_a(:,1)
+ddd(:,1,1) = dd_au(:,1)
+ddd(:,1,2) = dd_av(:,1)
 do k = 2,kl-1
   aad(:,k) = aa_a(:,k)
   bbd(:,k) = bb_a(:,k)
   ccd(:,k) = cc_a(:,k)
-  ddd(:,k) = dd_a(:,k)
+  ddd(:,k,1) = dd_au(:,k)
+  ddd(:,k,2) = dd_av(:,k)
 end do
 aad(:,kl) = aa_a(:,kl)
 bbd(:,kl) = bb_a(:,kl)  + f_ai*f_ia ! due to u v^T matrix
 ccd(:,kl) = f_ao        + f_ai*f_io ! due to u v^T matrix
-ddd(:,kl) = dd_a(:,kl)
+ddd(:,kl,1) = dd_au(:,kl)
+ddd(:,kl,2) = dd_av(:,kl)
 aad(:,kl+1) = f_oa      + f_oi*f_ia ! due to u v^T matrix
 bbd(:,kl+1) = bb_o(:,1) + f_oi*f_io ! due to u v^T matrix
 ccd(:,kl+1) = cc_o(:,1)
-ddd(:,kl+1) = dd_o(:,1)
+ddd(:,kl+1,1) = dd_ou(:,1)
+ddd(:,kl+1,2) = dd_ov(:,1)
 do k = 2,wlev-1
   aad(:,kl+k) = aa_o(:,k)
   bbd(:,kl+k) = bb_o(:,k)
   ccd(:,kl+k) = cc_o(:,k)
-  ddd(:,kl+k) = dd_o(:,k)
+  ddd(:,kl+k,1) = dd_ou(:,k)
+  ddd(:,kl+k,2) = dd_ov(:,k)
 end do
 aad(:,kl+wlev) = aa_o(:,wlev)
 bbd(:,kl+wlev) = bb_o(:,wlev)
 ccd(:,kl+wlev) = 0.
-ddd(:,kl+wlev) = dd_o(:,wlev)
+ddd(:,kl+wlev,1) = dd_ou(:,wlev)
+ddd(:,kl+wlev,2) = dd_ov(:,wlev)
 aad(:,kl+wlev+1) = 0.
-bbd(:,kl+wlev+1) = bb_i(:,1) + 1. ! note +1. due to u v^T matrix
-ddd(:,kl+wlev+1) = dd_i(:,1)
+bbd(:,kl+wlev+1) = bb_i(:) + 1. ! note +1. due to u v^T matrix
+ddd(:,kl+wlev+1,1) = dd_iu(:)
+ddd(:,kl+wlev+1,2) = dd_iv(:)
 
 ! Construct u and v
 uu(:,:) = 0.
@@ -1861,45 +1945,37 @@ vv(:,:) = 0.
 vv(:,kl) = -f_ia
 vv(:,kl+1) = -f_io
 vv(:,kl+wlev+1) = 1.
+ddd(:,:,3) = uu(:,:)
 
-select case(aoi_mode)
-  case(0)
-    ! pure tridiagonal matrix for atmosphere only
-    xx(:,:) = 0.  
-    call thomas(xx(:,1:kl),aad(:,2:kl),bbd(:,1:kl),ccd(:,1:kl-1),ddd(:,1:kl),imax,kl)
-  case(1)
-    ! pure tridiagonal matrix for atmosphere and ocean (no sea-ice)
-    xx(:,:) = 0.
-    call thomas(xx(:,1:kl+wlev),aad(:,2:kl+wlev),bbd(:,1:kl+wlev),ccd(:,1:kl+wlev-1),ddd(:,1:kl+wlev),imax,kl+wlev)
-  case default
-    ! Solve A' y = d  and  A' q = u for combined atmosphere, ocean and sea-ice
-    call thomas(yy(:,1:kl+wlev+1),aad(:,2:kl+wlev+1),bbd(:,1:kl+wlev+1),ccd(:,1:kl+wlev),ddd(:,1:kl+wlev+1),imax,kl+wlev+1)
-    call thomas(qq(:,1:kl+wlev+1),aad(:,2:kl+wlev+1),bbd(:,1:kl+wlev+1),ccd(:,1:kl+wlev),uu(:,1:kl+wlev+1),imax,kl+wlev+1)
-    ! Solve for x = y - {(v^t y)/(1 + (v^t q))} q
-    t1(:) = vv(:,kl)*yy(:,kl) + vv(:,kl+1)*yy(:,kl+1) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1)
-    t2(:) = vv(:,kl)*qq(:,kl) + vv(:,kl+1)*qq(:,kl+1) + vv(:,kl+wlev+1)*qq(:,kl+wlev+1)
-    do k = 1,kl+wlev+1
-      xx(:,k) = yy(:,k) - qq(:,k)*t1(:)/(1.+t2(:))
-    end do  
-end select
+! Solve A' y = d  and  A' q = u for combined atmosphere, ocean and sea-ice
+call thomas(yy(:,1:kl+wlev+1,1:3),aad(:,2:kl+wlev+1),bbd(:,1:kl+wlev+1),ccd(:,1:kl+wlev),ddd(:,1:kl+wlev+1,1:3),imax,kl+wlev+1,3)
+
+! Solve for x = y - {(v^t y)/(1 + (v^t q))} q
+t1(:) = vv(:,kl)*yy(:,kl,1) + vv(:,kl+1)*yy(:,kl+1,1) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1,1)
+t2(:) = vv(:,kl)*yy(:,kl,2) + vv(:,kl+1)*yy(:,kl+1,2) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1,2)
+t3(:) = vv(:,kl)*yy(:,kl,3) + vv(:,kl+1)*yy(:,kl+1,3) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1,3)
 
 ! Unpack solution
 do k = 1,kl
-  tt_a(:,k) = xx(:,k)
+  tt_au(:,k) = yy(:,k,1) - yy(:,k,3)*t1(:)/(1.+t3(:))
+  tt_av(:,k) = yy(:,k,2) - yy(:,k,3)*t2(:)/(1.+t3(:))
 end do
 do k = 1,wlev
-  tt_o(:,k) = xx(:,kl+k)
+  tt_ou(:,k) = yy(:,kl+k,1) - yy(:,kl+k,3)*t1(:)/(1.+t3(:))
+  tt_ov(:,k) = yy(:,kl+k,2) - yy(:,kl+k,3)*t2(:)/(1.+t3(:))
 end do
-tt_i(:,1) = xx(:,kl+wlev+1)
+tt_iu(:) = yy(:,kl+wlev+1,1) - yy(:,kl+wlev+1,3)*t1(:)/(1.+t3(:))
+tt_iv(:) = yy(:,kl+wlev+1,2) - yy(:,kl+wlev+1,3)*t2(:)/(1.+t3(:))
 
 return
-end subroutine solve_sherman_morrison
+end subroutine solve_sherman_morrison_3
 #endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)
 
-pure subroutine thomas(outdat,aai,bbi,cci,ddi,imax,klin)
+pure subroutine thomas1(outdat,aai,bbi,cci,ddi,imax,klin)
+!$acc routine vector
 
 implicit none
 
@@ -1912,27 +1988,331 @@ real, dimension(imax,klin) :: cc,dd
 real :: n_s
 integer k, iq
 
-cc(:,1)=cci(:,1)/bbi(:,1)
-dd(:,1)=ddi(:,1)/bbi(:,1)
+do iq = 1,imax
+  cc(iq,1) = cci(iq,1)/bbi(iq,1)
+  dd(iq,1) = ddi(iq,1)/bbi(iq,1)
+end do
 
-do k=2,klin-1
+do k = 2,klin-1
   do iq = 1,imax
-    n_s=bbi(iq,k)-cc(iq,k-1)*aai(iq,k)
-    cc(iq,k)=cci(iq,k)/n_s
-    dd(iq,k)=(ddi(iq,k)-dd(iq,k-1)*aai(iq,k))/n_s
+    n_s = 1./(bbi(iq,k)-cc(iq,k-1)*aai(iq,k))
+    cc(iq,k) = cci(iq,k)*n_s
+    dd(iq,k) = (ddi(iq,k)-dd(iq,k-1)*aai(iq,k))*n_s
   end do
 end do
 do iq = 1,imax
-  n_s=bbi(iq,klin)-cc(iq,klin-1)*aai(iq,klin)
-  dd(iq,klin)=(ddi(iq,klin)-dd(iq,klin-1)*aai(iq,klin))/n_s
-  outdat(iq,klin)=dd(iq,klin)
+  n_s = 1./(bbi(iq,klin)-cc(iq,klin-1)*aai(iq,klin))
+  outdat(iq,klin) = (ddi(iq,klin)-dd(iq,klin-1)*aai(iq,klin))*n_s
 end do
-do k=klin-1,1,-1
-  outdat(:,k)=dd(:,k)-cc(:,k)*outdat(:,k+1)
+do k = klin-1,1,-1
+  outdat(:,k) = dd(:,k)-cc(:,k)*outdat(:,k+1)
 end do
 
 return
-end subroutine thomas
+end subroutine thomas1
+
+pure subroutine thomas2(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
+
+implicit none
+
+integer, intent(in) :: imax, klin, ndim
+real, dimension(imax,2:klin), intent(in) :: aai
+real, dimension(imax,klin), intent(in) :: bbi
+real, dimension(imax,klin-1), intent(in) :: cci
+real, dimension(imax,klin,ndim), intent(in) :: ddi
+real, dimension(imax,klin,ndim), intent(out) :: outdat
+integer k, iq, n
+integer kblock, nthreads
+
+#ifdef GPU
+
+! PCR-Thomas for GPUs
+do k = int(sqrt(real(klin))),klin
+  if ( mod(klin,k) == 0 ) then
+    kblock = k
+    exit
+  end if
+end do
+nthreads = klin/kblock
+call pcrthomas(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
+        
+!! PCR for GPUs
+!call pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
+
+!! Thomas
+!!$acc parallel loop copyin(aai,bbi,cci,ddi) copyout(outdat)
+!do n = 1,ndim
+!  call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
+!end do
+!$acc end parallel loop
+
+#else
+
+! Thomas
+do n = 1,ndim
+  call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
+end do
+
+#endif
+
+return
+end subroutine thomas2
+
+pure subroutine pcrthomas(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
+
+implicit none
+
+integer, intent(in) :: imax, klin, ndim, nthreads
+integer n, k, kk, iq, thread, kblock
+integer ks, ke, ts, te
+integer async_counter
+integer, parameter :: async_length = 3
+real, dimension(imax,2:klin), intent(in) :: aai
+real, dimension(imax,klin), intent(in) :: bbi
+real, dimension(imax,klin-1), intent(in) :: cci
+real, dimension(imax,klin,ndim), intent(in) :: ddi
+real, dimension(imax,klin,ndim), intent(out) :: outdat
+real, dimension(imax,klin) :: aaj, ccj
+real, dimension(imax,klin,ndim) :: aa, cc, dd
+real, dimension(imax,2*nthreads,ndim) :: thomas_aa, thomas_cc, thomas_dd
+real, dimension(imax,2*nthreads,ndim) :: ccx, ddx, outdatx
+real rr, n_s
+
+kblock = klin/nthreads
+
+aaj(:,1) = 0.
+ccj(:,klin) = 0.
+aaj(:,2:klin) = aai(:,2:klin)
+ccj(:,1:klin-1) = cci(:,1:klin-1)
+
+!$acc data create(aa,cc,dd,aaj,bbi,ccj,thomas_aa,thomas_cc,thomas_dd,outdatx)
+!$acc update device(aaj,bbi,ccj)
+
+! hybrid-forward
+do n = 1,ndim
+  async_counter = mod( n-1, async_length) + 1
+  
+  !$acc parallel loop present(aa,cc,dd,aaj,bbi,ccj) copyin(ddi(:,:,n)) async(async_counter)
+  do kk = 1,klin,kblock ! threads
+    do iq = 1,imax
+      aa(iq,kk,n) = aaj(iq,kk)/bbi(iq,kk)  
+      cc(iq,kk,n) = ccj(iq,kk)/bbi(iq,kk)
+      dd(iq,kk,n) = ddi(iq,kk,n)/bbi(iq,kk)
+      aa(iq,kk+1,n) = aaj(iq,kk+1)/bbi(iq,kk+1)  
+      cc(iq,kk+1,n) = ccj(iq,kk+1)/bbi(iq,kk+1)
+      dd(iq,kk+1,n) = ddi(iq,kk+1,n)/bbi(iq,kk+1)
+    end do
+    do k = kk+2,kk+kblock-1
+      do iq = 1,imax
+        rr = 1./(bbi(iq,k)-aaj(iq,k)*cc(iq,k-1,n))
+        dd(iq,k,n) = rr*(ddi(iq,k,n)-aaj(iq,k)*dd(iq,k-1,n))
+        aa(iq,k,n) = -rr*aaj(iq,k)*aa(iq,k-1,n)
+        cc(iq,k,n) = rr*ccj(iq,k)
+      end do
+    end do
+    do k = kk+kblock-3,kk+1,-1
+      do iq = 1,imax
+        dd(iq,k,n) = dd(iq,k,n) - cc(iq,k,n)*dd(iq,k+1,n)
+        aa(iq,k,n) = aa(iq,k,n) - cc(iq,k,n)*aa(iq,k+1,n)
+        cc(iq,k,n) = -cc(iq,k,n)*cc(iq,k+1,n)
+      end do
+    end do
+    do iq = 1,imax
+      rr = 1./(1.-cc(iq,kk,n)*aa(iq,kk+1,n))
+      dd(iq,kk,n) = rr*(dd(iq,kk,n)-cc(iq,kk,n)*dd(iq,kk+1,n))
+      aa(iq,kk,n) = rr*aa(iq,kk,n)
+      cc(iq,kk,n) = -rr*cc(iq,kk,n)*cc(iq,kk+1,n)
+    end do  
+  end do ! kk = 1,klin,kblock ! threads
+  !$acc end parallel loop
+
+  ! thomas-pack
+  !$acc parallel loop present(aa,cc,dd,thomas_aa,thomas_cc,thomas_dd) async(async_counter)
+  do thread = 1,nthreads
+    ks = (thread-1)*kblock + 1
+    ke = thread*kblock
+    ts = thread*2 - 1
+    te = thread*2
+    do iq = 1,imax
+      thomas_aa(iq,ts,n) = aa(iq,ks,n)
+      thomas_aa(iq,te,n) = aa(iq,ke,n)
+      thomas_cc(iq,ts,n) = cc(iq,ks,n)
+      thomas_cc(iq,te,n) = cc(iq,ke,n)
+      thomas_dd(iq,ts,n) = dd(iq,ks,n)
+      thomas_dd(iq,te,n) = dd(iq,ke,n)
+    end do
+  end do
+  !$acc end parallel loop
+  
+end do    
+!$acc wait
+
+! thomas-solve
+!$acc parallel loop present(thomas_aa,thomas_cc,thomas_dd,outdatx) create(ccx,ddx)
+do n = 1,ndim
+  do iq = 1,imax  
+    ccx(iq,1,n) = thomas_cc(iq,1,n)
+    ddx(iq,1,n) = thomas_dd(iq,1,n)
+  end do 
+  do thread = 2,2*nthreads-1
+    do iq = 1,imax
+      n_s = 1./(1. - ccx(iq,thread-1,n)*thomas_aa(iq,thread,n))
+      ccx(iq,thread,n) = thomas_cc(iq,thread,n)*n_s
+      ddx(iq,thread,n) = (thomas_dd(iq,thread,n)-ddx(iq,thread-1,n)*thomas_aa(iq,thread,n))*n_s
+    end do
+  end do
+  do iq = 1,imax
+    n_s = 1./(1. - ccx(iq,2*nthreads-1,n)*thomas_aa(iq,2*nthreads,n))
+    outdatx(iq,2*nthreads,n) = (thomas_dd(iq,2*nthreads,n)-ddx(iq,2*nthreads-1,n)*thomas_aa(iq,2*nthreads,n))*n_s
+  end do
+  do thread = 2*nthreads-1,1,-1
+    do iq = 1,imax  
+      outdatx(iq,thread,n) = ddx(iq,thread,n) - ccx(iq,thread,n)*outdatx(iq,thread+1,n)
+    end do  
+  end do  
+end do
+!$acc end parallel loop
+
+do n = 1,ndim
+  async_counter = mod( n-1, async_length ) + 1  
+
+  ! hybrid-backward
+  !$acc parallel loop present(aa,cc,dd,outdatx) copyout(outdat(:,:,n)) async(async_counter)
+  do kk = 1,klin,kblock ! threads
+    ks = kk
+    ke = kk + kblock - 1
+    ts = ((ks-1)/kblock)*2 + 1
+    te = (ke/kblock)*2
+    do iq = 1,imax
+      outdat(iq,ks,n) = outdatx(iq,ts,n)
+      outdat(iq,ke,n) = outdatx(iq,te,n)
+    end do
+    do k = ks+1,ke-1 
+      do iq = 1,imax
+        outdat(iq,k,n) = dd(iq,k,n) - aa(iq,k,n)*outdatx(iq,ts,n) - cc(iq,k,n)*outdatx(iq,te,n)
+      end do
+    end do
+  end do
+  !$acc end parallel loop
+
+end do
+!$acc wait
+
+!$acc end data
+
+return
+end subroutine pcrthomas
+
+pure subroutine pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
+
+implicit none
+
+integer, intent(in) :: imax, klin, ndim
+integer n, k, iq, p, s, pmax, klow, khigh
+integer async_counter
+integer, parameter :: async_length = 3
+real, dimension(imax,2:klin), intent(in) :: aai
+real, dimension(imax,klin), intent(in) :: bbi
+real, dimension(imax,klin-1), intent(in) :: cci
+real, dimension(imax,klin,ndim), intent(in) :: ddi
+real, dimension(imax,klin,ndim), intent(out) :: outdat
+real, dimension(imax,0:klin+1) :: aa, cc, dd
+real, dimension(imax,klin) :: new_aa, new_cc, new_dd
+real rr
+
+pmax = 1
+do while ( 2**pmax < klin )
+  pmax = pmax + 1
+end do
+
+!$acc data create(aai,bbi,cci)
+!$acc update device(aai,bbi,cci)
+
+do n = 1,ndim
+
+  async_counter = mod( n-1, async_length ) + 1
+
+  !$acc enter data create(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
+
+  !$acc parallel loop collapse(2) present(aa,cc,dd) async(async_counter)
+  do k = 0,klin+1
+    do iq = 1,imax
+      aa(iq,k) = 0.
+      cc(iq,k) = 0.
+      dd(iq,k) = 0.
+    end do
+  end do
+  !$acc end parallel loop
+
+  !$acc parallel loop collapse(2) present(aa,aai,bbi) async(async_counter)
+  do k = 2,klin
+    do iq = 1,imax
+      aa(iq,k) = aai(iq,k)/bbi(iq,k)
+    end do
+  end do  
+  !$acc end parallel loop
+
+  !$acc parallel loop collapse(2) present(cc,cci,bbi) async(async_counter)
+  do k = 1,klin-1
+    do iq = 1,imax
+      cc(iq,k) = cci(iq,k)/bbi(iq,k)
+    end do
+  end do  
+  !$acc end parallel loop
+
+  !$acc parallel loop collapse(2) present(dd,bbi) copyin(ddi(:,:,n)) async(async_counter)
+  do k = 1,klin
+    do iq = 1,imax  
+      dd(iq,k) = ddi(iq,k,n)/bbi(iq,k)
+    end do
+  end do 
+  !$acc end parallel loop
+
+  do p = 1,pmax  
+    s = 2**(p-1)
+
+    !$acc parallel loop collapse(2) present(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
+    do k = 1,klin
+      do iq = 1,imax
+        klow = max(k-s,0)
+        khigh = min(k+s,klin+1)
+        rr = 1./(1.-aa(iq,k)*cc(iq,klow)-cc(iq,k)*aa(iq,khigh))
+        new_aa(iq,k) = -rr*(aa(iq,k)*aa(iq,klow))
+        new_cc(iq,k) = -rr*(cc(iq,k)*cc(iq,khigh))
+        new_dd(iq,k) = rr*(dd(iq,k)-aa(iq,k)*dd(iq,klow)-cc(iq,k)*dd(iq,khigh))
+      end do
+    end do
+    !$acc end parallel loop
+  
+    !$acc parallel loop collapse(2) present(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
+    do k = 1,klin
+      do iq = 1,imax  
+        aa(iq,k) = new_aa(iq,k)
+        cc(iq,k) = new_cc(iq,k)
+        dd(iq,k) = new_dd(iq,k)
+      end do
+    end do
+    !$acc end parallel loop
+  
+  end do ! p = 1,pmax
+
+  !$acc parallel loop collapse(2) present(new_dd) copyout(outdat(:,:,n)) async(async_counter)
+  do k = 1,klin
+    do iq = 1,imax
+      outdat(iq,k,n) = new_dd(iq,k)
+    end do
+  end do
+  !$acc end parallel loop
+
+  !$acc exit data delete(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
+
+end do ! n = 1,ndim
+
+!$acc wait
+!$acc end data
+
+return
+end subroutine pcr
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio

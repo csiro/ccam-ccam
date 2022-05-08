@@ -1307,7 +1307,7 @@ do ipass = 0,2
 #endif
     
   ! start convolution
-  async_counter = mod(ipass,async_length)
+  async_counter = mod(ipass,async_length)+1
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -1550,7 +1550,7 @@ do ipass = 0,2
 #endif
   
   ! start convolution
-  async_counter = mod(ipass,async_length)
+  async_counter = mod(ipass,async_length)+1
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -2643,7 +2643,7 @@ do ipass = 0,2
 #endif
     
   ! start convolution
-  async_counter = mod(ipass,async_length)
+  async_counter = mod(ipass,async_length)+1
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -2883,7 +2883,7 @@ do ipass = 0,2
 #endif
     
   ! start convolution
-  async_counter = mod(ipass,async_length)
+  async_counter = mod(ipass,async_length)+1
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -3407,8 +3407,6 @@ integer newdate_r, diffyear
 integer, dimension(0:13) :: mdays
 integer ans
 
-mdays = (/0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
-
 iyear  = kdate_r/10000
 iyear0 = kdate/10000                ! year of kdate
 newdate_r = kdate_r - 10000*iyear
@@ -3420,12 +3418,17 @@ iday = newdate_r
 diffyear = iyear - iyear0
 months = diffyear*12 + month - 1  
 
-if ( leap==1 ) then
+if ( leap==0 ) then ! 365 day calendar
+  mdays = (/0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
+else if ( leap==1 ) then ! 365/366 day calendar  
+  mdays = (/0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
   nl = 0
   if ( mod(iyear0,4)==0 ) nl = 1
   if ( mod(iyear0,100)==0 ) nl = 0
   if ( mod(iyear0,400)==0 ) nl = 1
   mdays(2:13) = mdays(2:13) + nl
+else if ( leap==2 ) then ! 360 day calendar
+  mdays = (/0,30,60,90,120,150,180,210,240,270,300,330,360,390/)  
 end if
 
 ! Accumulate days month by month, up to last completed month

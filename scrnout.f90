@@ -604,6 +604,7 @@ cinl(:) = 0.
 ! Following code is based on Bryan (NCAR) citing
 ! Bolton 1980 MWR p1046 and Bryan and Fritsch 2004 MWR p2421
 
+ktop = 1
 do k = 1,kl
   if ( 1.e5*sig(k)>1.e4 ) ktop = k
 end do

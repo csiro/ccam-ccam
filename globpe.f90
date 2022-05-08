@@ -230,7 +230,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   timer    = real(ktau)*dtin/3600.                     ! timer now only used to give timeg
   timeg    = mod( timer+hourst, 24. )                  ! UTC time for tracers
   mtimer   = mtimer_in + nint(real(ktau)*dtin/60.)     ! to allow dt < 1 minute
-  mins_gmt = mod( mtimer+60*ktime/100, 24*60 )         ! for radiation
+  mins_gmt = mod( mtimer+60*ktime/100, 1440 )          ! for radiation
   call getzinp(jyear,jmonth,jday,jhour,jmin,mins)      ! define mins as time since start of the year
   diag = ( ktau>=abs(ndi) .and. ktau<=ndi2 )           ! set diagnostic printout flag
   if ( ndi<0 ) then
@@ -2740,7 +2740,7 @@ if ( mbd/=0 ) then
   mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
   if ( mbd<mbd_min .and. mbd/=0 ) then
     if ( myid==0 ) then
-      write(6,*) "Adjusting mbd to satisfy mbd_maxgrid = ",mbd_maxgrid
+      write(6,*) "Increasing mbd to satisfy mbd_maxgrid = ",mbd_maxgrid
       write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
     end if
     mbd = mbd_min
@@ -2784,7 +2784,7 @@ if ( wgcoeff<0. ) then
   ! Wichers et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
   wgcoeff = sqrt(max(0.,-2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
   if ( myid==0 ) then
-    write(6,*) "Adjusting wgcoeff for wgcoeff,wg_prob = ",wgcoeff,wg_prob
+    write(6,*) "Adjusting wgcoeff = ",wgcoeff
   end if
 end if
 

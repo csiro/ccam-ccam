@@ -118,7 +118,7 @@ odcalc = mod(ktau,kountr)==0 .or. (ktau==1.and.((.not.lrestart_radiation).or.alw
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
+fjd = real(mins)/1440.
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 

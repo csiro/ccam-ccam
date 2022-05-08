@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -722,29 +722,42 @@ real, intent(in),  dimension(npts) :: ps  ! Surface pressure
 real, intent(out), dimension(npts,kl) :: qo3  ! Ozone mixing ratio
 ! Day no of middle of month
 real, dimension(12) :: monmid
-real, parameter, dimension(12) :: oldmid = (/ 15.5, 45.0, 74.5, 105.0, 135.5, 166.0, 196.5, 227.5, 258.0, 288.5, 319.0, 349.5 /)
 real, dimension(kg) :: oz    ! Column for this date and lat.
 real, dimension(lg) :: ozcol ! Integrated column
 real, dimension(kl+1) :: qo3p
 integer :: k1, jyear
 integer :: j, m1, m2, j1, j2, k
 real, dimension(kl+1) :: prh ! Half level pressure
-real :: fac1, fac2, tfac1, tfac2, date, theta
+real :: fac1, fac2, tfac1, tfac2, date, theta, n2
+real :: janday, decday
 
-monmid=oldmid
-if ( leap==1 ) then
+if ( leap==0 ) then ! 365 day calendar
+  monmid = (/ 15.5, 45.0, 74.5, 105.0, 135.5, 166.0, 196.5, 227.5, 258.0, 288.5, 319.0, 349.5 /)  
+  janday = 31.
+  decday = 31.
+else if ( leap==1 ) then ! 365/366 day calendar
+  monmid = (/ 15.5, 45.0, 74.5, 105.0, 135.5, 166.0, 196.5, 227.5, 258.0, 288.5, 319.0, 349.5 /)  
   jyear =kdate/10000
   if ( mod(jyear,4)==0 ) then
-    monmid(2)=oldmid(2)+0.5
-    monmid(3:12)=oldmid(3:12)+1.
+    n2 = 1.
   end if
   if ( mod(jyear,100)==0 ) then
-    monmid(2:12)=oldmid(2:12)
+    n2 = 0.
   end if
   if ( mod(jyear,400)==0 ) then
-    monmid(2)=oldmid(2)+0.5
-    monmid(3:12)=oldmid(3:12)+1.
-  end if
+    n2 = 1.
+  end if  
+  monmid(2)=monmid(2)+0.5*n2
+  monmid(3:12)=monmid(3:12)+n2
+  janday = 31.
+  decday = 31.
+else if ( leap==2 ) then ! 360 day calendar
+  monmid = (/ 15., 45., 75., 105., 135., 165., 195., 225., 255., 285., 315., 345. /)  
+  janday = 30.
+  decday = 30.
+else
+  write(6,*) "ERROR: Invalid option for leap = ",leap
+  stop
 end if
 
 ! Time interpolation factors
@@ -752,13 +765,13 @@ date = real(modulo(mins,nint(monmid(12)+15.5)*1440)) / 1440.0
 if ( date <= monmid(1) ) then ! First half of Jan
   m1 = 12
   m2 = 1
-  tfac1 = (monmid(1) - date)/31.0
-  tfac2 = 1.0 - tfac1
+  tfac1 = (monmid(1) - date)/janday
+  tfac2 = 1. - tfac1
 else if ( date >= monmid(12) ) then
   m1 = 12
   m2 = 1
-  tfac2 = (date - monmid(12))/31.0
-  tfac1 = 1 - tfac2
+  tfac2 = (date - monmid(12))/decday
+  tfac1 = 1. - tfac2
 else
 ! Search for bracketing dates, i such that monmid(i) >= date
   do m2=2,12
@@ -766,7 +779,7 @@ else
   end do
   m1 = m2 - 1
   tfac1 = ( monmid(m2) - date ) / ( monmid(m2) - monmid(m1) )
-  tfac2 = 1.0 - tfac1
+  tfac2 = 1. - tfac1
 end if
 
 do j=1,npts
@@ -776,20 +789,20 @@ do j=1,npts
   if ( theta <= glat(1) ) then
     j1 = 1
     j2 = 1
-    fac1 = 1.0
-    fac2 = 0.0
+    fac1 = 1.
+    fac2 = 0.
   else if ( theta >= glat(jg) ) then
     j1 = jg
     j2 = jg
-    fac1 = 1.0
-    fac2 = 0.0
+    fac1 = 1.
+    fac2 = 0.
   else
 !   Input data isn't exactly equally spaced, so search to find the spanning
 !   latitudes. Want to find first j such that glat(j) >= theta
     j2 = 1 + count ( glat < theta )
     j1 = j2 - 1
     fac1 = ( glat(j2) - theta ) / ( glat(j2) - glat(j1) )
-    fac2 = 1.0 - fac1
+    fac2 = 1. - fac1
   end if
 
 ! Now interpolate in latitude and time.
@@ -812,7 +825,7 @@ do j=1,npts
   prh = sigh * ps(j)*0.01 ! Input PS in Pa
 
   qo3p = 0.
-  qo3p(kl+1) = 0.0      ! TOA
+  qo3p(kl+1) = 0.       ! TOA
   do k=kl,1,-1          ! Start at the top model level
 
 !   Find largest k1 such that gpri(k1) <= prh(k)

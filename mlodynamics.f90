@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -51,13 +51,13 @@ real, dimension(:), allocatable, save :: bu, bv, cu, cv
 integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode     = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: nxtrrho     = 1       ! Estimate rho at t+1 (0=off, 1=on)
-integer, save      :: mlojacobi   = 1       ! density gradient method (0=off, 1=non-local spline, 6,7=AC2003)
+integer, save      :: mlojacobi   = 7       ! density gradient method (0=off, 1=non-local spline, 6,7=AC2003)
 integer, save      :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
-integer, save      :: mlomfix     = 1       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
+integer, save      :: mlomfix     = 2       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
-real, save      :: ocneps         = 0.1     ! semi-implicit off-centring term
+real, save      :: ocneps         = 0.2     ! semi-implicit off-centring term
 real, parameter :: maxicefrac     = 0.999   ! maximum ice fraction
 real, parameter :: tol            = 5.E-4   ! Tolerance for SOR solver (water)
 real, parameter :: itol           = 1.E1    ! Tolerance for SOR solver (ice)
@@ -381,23 +381,32 @@ where ( wtr(1:ifull,1) )
   snowd(1:ifull)   = ndsn(1:ifull)*1000.
 end where  
 
-! estimate tidal forcing (assumes leap days)
+! estimate tidal forcing
 if ( usetide==1 ) then
-  call getzinp(jyear,jmonth,jday,jhour,jmin,mins,allleap=.true.)
-  jstart = 0
-  if ( jyear>1900 ) then
-    do tyear = 1900,jyear-1
-      call mloleap(tyear,lleap)
-      if ( lleap ) jstart = jstart + 1
-      jstart = jstart + 365
-    end do
-  else if ( jyear<1900 ) then
-    do tyear = 1899,jyear,-1
-      call mloleap(tyear,lleap)
-      if ( lleap ) jstart = jstart - 1
-      jstart = jstart - 365
-    end do
-  end if
+  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
+  if ( leap==0 ) then ! 365 day calendar
+    jstart = 365*(jyear-1900)  
+  else if ( leap==1 ) then ! 365/366 day calendar
+    jstart = 0
+    if ( jyear>1900 ) then
+      do tyear = 1900,jyear-1
+        call mloleap(tyear,lleap)
+        if ( lleap ) jstart = jstart + 1
+        jstart = jstart + 365
+      end do
+    else if ( jyear<1900 ) then
+      do tyear = 1899,jyear,-1
+        call mloleap(tyear,lleap)
+        if ( lleap ) jstart = jstart - 1
+        jstart = jstart - 365
+      end do
+    end if
+  else if ( leap==2 ) then ! 360 day calendar  
+    jstart = 360*(jyear-1900)
+  else
+    write(6,*) "ERROR: Unknown option leap = ",leap
+    call ccmpi_abort(-1)
+  end if    
   mins = mins + 720 ! base time is 12Z 31 Dec 1899
   call mlotide(tide,rlongg,rlatt,mins,jstart)
 end if
@@ -1793,6 +1802,7 @@ end subroutine zstar2
 
 pure subroutine mlotide(eta,slon,slat,mtimer,jstart)
 
+use parm_m, only : leap
 use newmpar_m
 
 implicit none
@@ -1833,30 +1843,36 @@ bb(4)=0.693
 !wb(3)=1.378797
 !wb(4)=1.458423
 
-stime=real(mtimer)/1440.+real(jstart) ! solar time (days)
-ctime=stime/36525. ! century (relative to 12Z 31 Dec 1899)
+stime = real(mtimer)/1440. + real(jstart) ! solar time (days)
+if ( leap==0 ) then
+  ctime = stime/36500. ! century (relative to 12Z 31 Dec 1899)
+else if ( leap==1 ) then
+  ctime = stime/36525. ! century (relative to 12Z 31 Dec 1899)
+else if ( leap==2 ) then
+  ctime = stime/36000.  
+end if
 
-mn=270.43659+481276.89057*ctime+0.00198*ctime*ctime+0.000002*ctime*ctime*ctime ! moon
-sn=279.69668+36000.76892*ctime+0.00030*ctime*ctime                             ! sun
-pn=334.32956+4069.03404*ctime-0.01032*ctime*ctime-0.00001*ctime*ctime*ctime    ! lunar perigee
-mn=mn*pi/180.
-sn=sn*pi/180.
-pn=pn*pi/180.
-stime=(stime-real(int(stime)))*2.*pi ! solar time (rad)
-ltime=stime+sn-mn                    ! lunar time (rad)
+mn = 270.43659+481276.89057*ctime+0.00198*ctime*ctime+0.000002*ctime*ctime*ctime ! moon
+sn = 279.69668+36000.76892*ctime+0.00030*ctime*ctime                             ! sun
+pn = 334.32956+4069.03404*ctime-0.01032*ctime*ctime-0.00001*ctime*ctime*ctime    ! lunar perigee
+mn = mn*pi/180.
+sn = sn*pi/180.
+pn = pn*pi/180.
+stime = (stime-real(int(stime)))*2.*pi ! solar time (rad)
+ltime = stime+sn-mn                    ! lunar time (rad)
 ! 360*stime=360*ltime-9.3+12.2*day
 
-coslat=cos(slat)**2
-sinlat=sin(2.*slat)
+coslat = cos(slat)**2
+sinlat = sin(2.*slat)
 
-eta=ba(1)*aa(1)*sinlat*cos(ltime+mn-slon)          &    ! K1 (note sign change)
-   -ba(2)*aa(2)*sinlat*cos(ltime-mn-slon)          &    ! O1
-   -ba(3)*aa(3)*sinlat*cos(stime-sn-slon)          &    ! P1
-   -ba(4)*aa(4)*sinlat*cos(ltime+pn-slon)          &    ! Q1
-   -bb(1)*ab(1)*coslat*cos(2.*ltime-2.*slon)       &    ! M2
-   -bb(2)*ab(2)*coslat*cos(2.*stime-2.*slon)       &    ! S2
-   -bb(3)*ab(3)*coslat*cos(2.*ltime-mn+pn-2.*slon) &    ! N2
-   -bb(4)*ab(4)*coslat*cos(2.*stime+2.*sn-2.*slon)      ! K2
+eta = ba(1)*aa(1)*sinlat*cos(ltime+mn-slon)          &    ! K1 (note sign change)
+     -ba(2)*aa(2)*sinlat*cos(ltime-mn-slon)          &    ! O1
+     -ba(3)*aa(3)*sinlat*cos(stime-sn-slon)          &    ! P1
+     -ba(4)*aa(4)*sinlat*cos(ltime+pn-slon)          &    ! Q1
+     -bb(1)*ab(1)*coslat*cos(2.*ltime-2.*slon)       &    ! M2
+     -bb(2)*ab(2)*coslat*cos(2.*stime-2.*slon)       &    ! S2
+     -bb(3)*ab(3)*coslat*cos(2.*ltime-mn+pn-2.*slon) &    ! N2
+     -bb(4)*ab(4)*coslat*cos(2.*stime+2.*sn-2.*slon)      ! K2
 
 !sinlon=sin(2.*slon)
 !coslon=cos(2.*slon)
@@ -1873,6 +1889,8 @@ end subroutine mlotide
 ! test for leap year
 
 pure subroutine mloleap(tyear,ttest)
+
+use parm_m, only : leap
 
 implicit none
 

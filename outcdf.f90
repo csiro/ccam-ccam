@@ -455,6 +455,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_att(idnc,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(idnc,idnt,'calendar','noleap')
+    else if ( leap==1 ) then
+      call ccnf_put_att(idnc,idnt,'calendar','360_day')  
     end if
 
     ! create the attributes of the header record of the file
@@ -3666,6 +3668,8 @@ if ( first ) then
     call ccnf_put_att(fncid,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(fncid,idnt,'calendar','noleap')
+    else
+      call ccnf_put_att(fncid,idnt,'calendar','360_day')  
     end if
     call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)
     call ccnf_def_var(fncid,'ktime','int',1,adim(d4:d4),idktime)
@@ -4546,6 +4550,8 @@ if ( first ) then
     call ccnf_put_att(fncid,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(fncid,idnt,'calendar','noleap')
+    else if ( leap==2 ) then
+      call ccnf_put_att(fncid,idnt,'calendar','360_day')  
     end if
     call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)
     call ccnf_def_var(fncid,'ktime','int',1,adim(d4:d4),idktime)

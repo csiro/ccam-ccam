@@ -1739,8 +1739,8 @@ if (nspecial==48.or.nspecial==49) then
     jdf = jg - nd*il_g
     if ( fproc(ig,jdf,nd)==myid ) then
       iqg = ig + (jg-1)*il_g  
-      call indv_mpi(iqg,i,j,n)
-      iq = indp(i,j,n)
+      call indv_mpi(iqg,ii,jj,nn)
+      iq = indp(ii,jj,nn)
       rhoa = ps(iq)*sig(k)/(rdry*t(iq,k))
       dz = -rdry*dsig(k)*t(iq,k)/(grav*sig(k)) !m
       dxy = (ds/em(iq))**2 ! m2
@@ -2307,19 +2307,19 @@ if(nstn>0)then
                 // ' isoil iveg zs(m) alb  wb3  wet3 vlai  zo   he'
   end if
   !call ccmpi_barrier(comm_world)
-  do nn=1,nstn
-    call latltoij(slon(nn),slat(nn),rlong0,rlat0,schmidt,ri,rj,nface,xx4,yy4,il_g)
+  do n = 1,nstn
+    call latltoij(slon(n),slat(n),rlong0,rlat0,schmidt,ri,rj,nface,xx4,yy4,il_g)
     ! These are global indices
     ig=nint(ri)
     jg=nint(rj) + nface*il_g
-    mystn(nn) = fproc(ig,nint(rj),nface) == myid
-    if ( mystn(nn) ) then
+    mystn(n) = fproc(ig,nint(rj),nface) == myid
+    if ( mystn(n) ) then
       iqg = ig + (jg-1)*il_g
       deli = nint(ri) - ri
       delj = nint(rj) - rj
       ! Local indices on this processor
-      call indv_mpi(iqg,ii,jj,n)
-      iq = ii + (jj-1)*ipan + (n-1)*ipan*jpan
+      call indv_mpi(iqg,ii,jj,nn)
+      iq = ii + (jj-1)*ipan + (nn-1)*ipan*jpan
       if(.not.land(iq))then
         ! simple search for neighbouring land point 
         ! N.B. does not search over panel/processor bndries
@@ -2356,13 +2356,13 @@ if(nstn>0)then
           endif
         end if
       endif              ! (.not.land(iq))
-      istn(nn) = ii
-      jstn(nn) = jj+(n-1)*jpan
-      iq = istn(nn) + (jstn(nn)-1)*ipan
+      istn(n) = ii
+      jstn(n) = jj+(n-1)*jpan
+      iq = istn(n) + (jstn(n)-1)*ipan
       iveg = ivegt(iq)
       isoil = isoilm(iq)
       wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-      !write(6,98)iunp(nn),istn(nn),jstn(nn),iq,slon(nn),slat(nn),   &
+      !write(6,98)iunp(n),istn(n),jstn(n),iq,slon(n),slat(n),        &
       !           land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,       &
       !           isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),  &
       !           wb(iq,3),wet3,vlai(iq),zolnd(iq),he(iq),           &
@@ -2371,7 +2371,7 @@ if(nstn>0)then
 !98  format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,4f5.2,f7.1,i4)
     ! Put a barrier here to force stations to be printed in the right order
     !call ccmpi_barrier(comm_world)
-  enddo  ! nn=1,nstn
+  enddo  ! n=1,nstn
 endif     !  (nstn>0)
 
 
