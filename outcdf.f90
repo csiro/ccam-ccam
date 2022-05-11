@@ -1608,6 +1608,8 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'oc_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column seasalt optical depth VIS'
         call attrib(idnc,dimj,jsize,'ssalt_vis',lname,'none',0.,13.,0,cptype)
+        lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
+        call attrib(idnc,dimj,jsize,'od550aer',lname,'1',0.,13.,0,cptype)        
       end if  
       if ( nextout>=1 .and. save_aerosols .and. itype/=-1 ) then
         do k = 1,ndust
@@ -2850,6 +2852,8 @@ if ( abs(iaero)>=2 .and. nrad==5 ) then
     call histwrt(opticaldepth(:,5,1),'bc_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,6,1),'oc_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,7,1),'ssalt_vis',idnc,iarch,local,lwrite)
+    aa=sum(opticaldepth(:,1:7,1),dim=2)
+    call histwrt(aa,'od550aer',idnc,iarch,local,lwrite)
   end if
   if ( nextout>=1 .and. save_aerosols .and. itype/=-1 ) then
     do k = 1,ndust
@@ -3463,6 +3467,7 @@ end subroutine openhist
       
 subroutine freqfile_cordex
 
+use aerointerface                     ! Aerosol interface
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cc_omp, only : ntiles, imax       ! CC OpenMP routines
@@ -3499,7 +3504,7 @@ implicit none
 include 'kuocom.h'                    ! Convection parameters
 include 'version.h'                   ! Model version data
 
-integer, parameter :: freqvars = 29  ! number of variables to average
+integer, parameter :: freqvars = 30  ! number of variables to average
 integer, parameter :: runoffvars = 4 ! number of runoff variables
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
@@ -3914,6 +3919,8 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'sunhours',lname,'hrs',0.,24.,iattdaily,1)
       lname = 'Surface roughness'
       call attrib(fncid,sdim,ssize,'zolnd',lname,'m',0.,65.,iattdaily,-1) ! -1=long
+      lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
+      call attrib(fncid,sdim,ssize,'od550aer',lname,'1',0.,13.,iattdaily,1)
       
       do k = 1,cordex_levels
         press_level = cordex_level_data(k)
@@ -4102,6 +4109,7 @@ freqstore(1:ifull,28) = freqstore(1:ifull,28) + cloudlo/real(tbave)
 where ( sgdn(1:ifull)>120. )
   freqstore(1:ifull,29) = freqstore(1:ifull,29) + 24./real(tbave)
 end where  
+freqstore(1:ifull,30) = freqstore(1:ifull,30) + sum(opticaldepth(:,1:7,1),dim=2)/real(nperday)
 
 shallow_zse(:) = 0.
 shallow_sum = 0.
@@ -4290,6 +4298,7 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(fracice,"fracice",fncid,fiarch,local,l6hr)
     call histwrt(sunhours,'sunhours',fncid,fiarch,local,lday) 
     call histwrt(zo,'zolnd',fncid,fiarch,local,lday)  
+    call histwrt(freqstore(:,30),'od550aer',fncid,fiarch,local,lday)
  
     do j = 1,cordex_levels
       press_level = cordex_level_data(j)

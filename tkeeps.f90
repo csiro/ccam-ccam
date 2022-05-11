@@ -2044,7 +2044,7 @@ call pcrthomas(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
 !do n = 1,ndim
 !  call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
 !end do
-!$acc end parallel loop
+!!$acc end parallel loop
 
 #else
 
