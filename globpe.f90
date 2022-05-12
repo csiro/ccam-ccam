@@ -3852,6 +3852,8 @@ end if
 if ( output_windmax/=0 ) then
   u_max = 0.
   v_max = 0.
+  u10m_max = 0.
+  v10m_max = 0.
 end if
 
 return
@@ -4053,6 +4055,11 @@ if ( output_windmax/=0 ) then
       v_max(1:ifull,k) = v(1:ifull,k)
     end where
   end do
+  spare1 = u(1:ifull,1)**2 + v(1:ifull,1)**2
+  where ( u10(:)**2 > u10m_max(:)**2 + v10m_max(:)**2 )
+    u10m_max(:) = u10(:)*u(1:ifull,1)/max(.001,sqrt(spare1(1:ifull)))
+    v10m_max(:) = u10(:)*v(1:ifull,1)/max(.001,sqrt(spare1(1:ifull)))
+  end where
 end if
 
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
