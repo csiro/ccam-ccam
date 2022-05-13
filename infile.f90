@@ -1992,7 +1992,8 @@ if ( jmonth<1 .or. jmonth>12 ) then
 end if 
 
 if ( lleap .or. leap==1 ) then ! 365/366 day calendar
-  ndoy(:) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)  
+  ndoy(:) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)
+  n1 = 0
   if ( mod(jyear,4)  ==0 ) n1 = 1
   if ( mod(jyear,100)==0 ) n1 = 0
   if ( mod(jyear,400)==0 ) n1 = 1
@@ -2016,7 +2017,7 @@ end subroutine getzinp
 
 !--------------------------------------------------------------------
 ! DEFINE ATTRIBUTES
-subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,daily,itype)
+subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,time_freq,itype)
 
 use cc_mpi
 use newmpar_m
@@ -2025,7 +2026,7 @@ use parm_m
 implicit none
 
 integer, intent(in) :: cdfid, itype, ndim
-integer, intent(in) :: daily
+integer, intent(in) :: time_freq
 integer, dimension(ndim), intent(in) :: dim
 integer ier
 integer(kind=4) vtype, idv, lcdfid, lsize, lcompression
@@ -2110,10 +2111,10 @@ else
 endif
 ier = nf90_put_att(lcdfid,idv,'FORTRAN_format','G11.4')
 call ncmsg("FORTRAN_format",ier)
-if ( daily==1 ) then
+if ( time_freq==1 ) then
   ier = nf90_put_att(lcdfid,idv,'valid_time','daily')
   call ncmsg("valid_time",ier)
-else if ( daily==2 ) then
+else if ( time_freq==2 ) then
   ier = nf90_put_att(lcdfid,idv,'valid_time','6hr')
   call ncmsg("valid_time",ier)
 endif

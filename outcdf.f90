@@ -1345,9 +1345,9 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'rhmaxscr',lname,'%',0.,200.,1,cptype)
       lname = 'Minimum screen relative humidity'
       call attrib(idnc,dimj,jsize,'rhminscr',lname,'%',0.,200.,1,cptype)
-      lname = 'x-component max 10m wind'
+      lname = 'x-component max 10m wind (daily)'
       call attrib(idnc,dimj,jsize,'u10max',lname,'m s-1',-99.,99.,1,cptype)
-      lname = 'y-component max 10m wind'
+      lname = 'y-component max 10m wind (daily)'
       call attrib(idnc,dimj,jsize,'v10max',lname,'m s-1',-99.,99.,1,cptype)
       lname = 'x-component max level_1 wind'
       call attrib(idnc,dimj,jsize,'u1max',lname,'m s-1',-99.,99.,1,cptype)
@@ -2090,17 +2090,16 @@ if( myid==0 .or. local ) then
       end if
     end if
     
-    ! MAX WINDS
+    ! MAX WINDS (sub-daily)
     if ( output_windmax/=0 ) then
       lname = 'x-component wind max'
       call attrib(idnc,dima,asize,'u_max',lname,'m s-1',-150.,150.,0,cptype)
       lname = 'y-component wind max'
       call attrib(idnc,dima,asize,'v_max',lname,'m s-1',-150.,150.,0,cptype)        
-      lname = 'x-component max 10m wind'
+      lname = 'x-component max 10m wind (sub-daily)'
       call attrib(idnc,dima,asize,'u10m_max',lname,'m s-1',-150.,150.,0,cptype)
-      lname = 'y-component max 10m wind'
-      call attrib(idnc,dima,asize,'v10m_max',lname,'m s-1',-150.,150.,0,cptype)        
-      
+      lname = 'y-component max 10m wind (sub-daily)'
+      call attrib(idnc,dima,asize,'v10m_max',lname,'m s-1',-150.,150.,0,cptype)
     end if
     
     ! RESTART ---------------------------------------------------
@@ -3841,10 +3840,16 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'tminscr',lname,'K',100.,425.,iattdaily,1) ! daily
       lname = 'Daily Maximum Hourly Precipitation Rate'
       call attrib(fncid,sdim,ssize,'prhmax',lname,'kg m-2 s-1',0.,2600.,iattdaily,-1) ! daily and -1=long
-      lname = 'x-component max 10m wind'
+      lname = 'x-component max 10m wind (daily)'
       call attrib(fncid,sdim,ssize,'u10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
-      lname = 'y-component max 10m wind'
+      lname = 'y-component max 10m wind (daily)'
       call attrib(fncid,sdim,ssize,'v10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
+      if ( output_windmax==1 ) then
+        lname = 'x-component max 10m wind (sub-daily)'
+        call attrib(fncid,sdim,ssize,'u10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
+        lname = 'y-component max 10m wind (sub-daily)'
+        call attrib(fncid,sdim,ssize,'v10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
+      end if  
       lname = 'Surface Downwelling Longwave Radiation'
       call attrib(fncid,sdim,ssize,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1)   ! -1 = long
       lname = 'Surface Upward Latent Heat Flux'
@@ -3880,7 +3885,7 @@ if ( first ) then
       lname = 'TOA Outgoing Shortwave Radiation'
       call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)          ! -1 = long
       lname = 'Clear sky SW out at TOA'
-      call attrib(fncid,sdim,ssize,'soc_ave',lname,'W m-2',0.,900.,iattdaily,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'soc_ave',lname,'W m-2',0.,900.,iattdaily,-1)   ! -1 = long
       lname = 'Clear sky SW at ground (+ve down)'
       call attrib(fncid,sdim,ssize,'sgc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long
       lname = 'Surface Downwelling Clear-Sky Shortwave Radiation'
@@ -4218,6 +4223,10 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(tminscr,'tminscr',fncid,fiarch,local,lday)
     call histwrt(u10max,'u10max',fncid,fiarch,local,lday)
     call histwrt(v10max,'v10max',fncid,fiarch,local,lday)
+    if ( output_windmax==1 ) then
+      call histwrt(u10m_max,'u10m_max',fncid,fiarch,local,.true.)
+      call histwrt(v10m_max,'v10m_max',fncid,fiarch,local,.true.)
+    end if  
     call histwrt(prhmax,'prhmax',fncid,fiarch,local,lday)    
     call histwrt(freqstore(:,9),"rgdn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,10),"eg_ave",fncid,fiarch,local,.true.)

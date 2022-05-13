@@ -1880,7 +1880,7 @@ call pcrthomas(rhs,aa,bb,cc,oldrhs,imax,kl,ndim,nthreads)
 !do n = 1,ndim
 !  call trim(a,c,rhs(:,:,n),imax,kl)
 !end do
-!$acc end parallel loop
+!!$acc end parallel loop
 
 #else
 
