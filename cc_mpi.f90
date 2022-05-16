@@ -429,6 +429,7 @@ module cc_mpi
    integer, public, save :: sfluxland_begin, sfluxland_end
    integer, public, save :: sfluxurban_begin, sfluxurban_end
    integer, public, save :: vertmix_begin, vertmix_end
+   integer, public, save :: vert_tr_begin, vert_tr_end
    integer, public, save :: aerosol_begin, aerosol_end
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gatherfile_begin, gatherfile_end
@@ -479,7 +480,7 @@ module cc_mpi
    integer, public, save :: p4_begin, p4_end
    integer, public, save :: p5_begin, p5_end
    integer, public, save :: p6_begin, p6_end
-   integer, parameter :: nevents = 90
+   integer, parameter :: nevents = 91
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
    character(len=15), dimension(nevents), save :: event_name
@@ -2440,7 +2441,7 @@ contains
 
       real, intent(in), dimension(ifull) :: array
       real, intent(out) :: delpos, delneg
-      integer(kind=4) :: ierr, lcomm
+      integer(kind=4) :: ierr, lcomm, k
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -2452,7 +2453,7 @@ contains
       local_sum(1:2) = cmplx(0., 0.)
       tmparr(1:ifull,1) = max(0., array(1:ifull)*wts(1:ifull))
       tmparr(1:ifull,2) = min(0., array(1:ifull)*wts(1:ifull))
-      call drpdr_local_v(tmparr(:,1:2), local_sum(1:2))
+      call drpdr_local_v(tmparr,local_sum)
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
       call START_LOG(allreducepn_begin)
@@ -2478,7 +2479,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
       complex, dimension(2) :: local_sum, global_sum
-      complex, dimension(2*size(array,2)) :: local_sum_t
+      complex, dimension(2*size(array,2)) :: local_sum_k
       real, dimension(ifull,2*size(array,2)) :: tmparr
        
       kx = size(array,2)   
@@ -2486,12 +2487,12 @@ contains
          tmparr(1:ifull,k) = max(0., abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
          tmparr(1:ifull,k+kx) = min(0., abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
       end do ! k loop
-      local_sum_t(1:2*kx) = cmplx(0., 0.)
-      call drpdr_local_v(tmparr, local_sum_t)
+      local_sum_k(1:2*kx) = cmplx(0., 0.)
+      call drpdr_local_v(tmparr,local_sum_k)
       local_sum(1:2) = cmplx(0., 0.)
       do k = 1,kx
-         call drpdr(local_sum_t(k:k), local_sum(1), 1, ltype)
-         call drpdr(local_sum_t(k+kx:k+kx), local_sum(2), 1, ltype)
+         call drpdr(local_sum_k(k:k),local_sum(1:1),1,ltype)
+         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,ltype)
       end do
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
@@ -2518,7 +2519,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
       complex, dimension(2) :: local_sum, global_sum
-      complex, dimension(2*size(array,2)) :: local_sum_t
+      complex, dimension(2*size(array,2)) :: local_sum_k
       real, dimension(ifull,2*size(array,2)) :: tmparr
        
       kx = size(array,2)   
@@ -2526,12 +2527,12 @@ contains
          tmparr(1:ifull,k) = max(0., abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
          tmparr(1:ifull,k+kx) = min(0., abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
       end do ! k loop
-      local_sum_t(1:2*kx) = cmplx(0., 0.)
-      call drpdr_local_v(tmparr, local_sum_t)
+      local_sum_k(1:2*kx) = cmplx(0., 0.)
+      call drpdr_local_v(tmparr,local_sum_k)
       local_sum(1:2) = cmplx(0., 0.)
       do k = 1,kx
-         call drpdr(local_sum_t(k:k), local_sum(1), 1, ltype)
-         call drpdr(local_sum_t(k+kx:k+kx), local_sum(2), 1, ltype)
+         call drpdr(local_sum_k(k:k),local_sum(1:1),1,ltype)
+         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,ltype)
       end do
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
@@ -2550,7 +2551,7 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
-      integer :: i, k, kx, ntr
+      integer :: i, k, kx, ntr, async_counter
       integer(kind=4) :: ierr, mnum, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -2558,23 +2559,24 @@ contains
       integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
-      complex, dimension(2*size(array,2)) :: local_sum_t
+      complex, dimension(2*size(array,2),size(array,3)) :: local_sum_ki
       real, dimension(ifull,2*size(array,2)) :: tmparr
 
       kx  = size(array,2)
       ntr = size(array,3)
+      local_sum_ki(1:2*kx,1:ntr) = cmplx(0., 0.)
       do i = 1,ntr
          do k = 1,kx
             tmparr(1:ifull,k) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
             tmparr(1:ifull,k+kx) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
          end do ! k loop
-         local_sum_t(1:2*kx) = cmplx(0.,0.)
-         call drpdr_local_v(tmparr, local_sum_t)
-         local_sum(i) = cmplx(0.,0.)
-         local_sum(i+ntr) = cmplx(0.,0.)
+         call drpdr_local_v(tmparr,local_sum_ki(:,i))
+      end do
+      local_sum(1:2*ntr) = cmplx(0.,0.)      
+      do i = 1,ntr
          do k = 1,kx
-            call drpdr(local_sum_t(k:k), local_sum(i:i), 1, ltype) 
-            call drpdr(local_sum_t(k+kx:k+kx), local_sum(i+ntr:i+ntr), 1, ltype) 
+            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1,ltype)
+            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1,ltype)
          end do
       end do
       mnum = 2*ntr
@@ -2595,7 +2597,7 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
-      integer :: i, k, kx, ntr
+      integer :: i, k, kx, ntr, async_counter
       integer(kind=4) :: ierr, mnum, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -2603,18 +2605,25 @@ contains
       integer(kind=4), parameter :: ltype = MPI_COMPLEX
 #endif   
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
-      real, dimension(ifull) :: tmparr
+      complex, dimension(2*size(array,2),size(array,3)) :: local_sum_ki
+      real, dimension(ifull,2*size(array,2)) :: tmparr
 
       kx  = size(array,2)
       ntr = size(array,3)
+      local_sum_ki(1:2*kx,1:ntr) = cmplx(0., 0.)
+      do i = 1,ntr
+         do k = 1,kx
+            tmparr(1:ifull,k) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull,k+kx) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
+         end do ! k loop
+         call drpdr_local_v(tmparr,local_sum_ki(:,i))
+      end do
       local_sum(1:2*ntr) = cmplx(0.,0.)
       do i = 1,ntr
          do k = 1,kx
-            tmparr(1:ifull) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
-            call drpdr_local(tmparr, local_sum(i))
-            tmparr(1:ifull) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
-            call drpdr_local(tmparr, local_sum(i+ntr))
-         end do ! k loop
+            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1,ltype)
+            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1,ltype)
+         end do
       end do
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
@@ -6652,6 +6661,7 @@ contains
       call add_event(sfluxurban_begin,    sfluxurban_end,    "Sflux_urban")
       call add_event(aerosol_begin,       aerosol_end,       "Aerosol")
       call add_event(vertmix_begin,       vertmix_end,       "Vertmix")
+      call add_event(vert_tr_begin,       vert_tr_end,       "Vert_tracer")
       call add_event(precon_begin,        precon_end,        "Precon")
       call add_event(mgsetup_begin,       mgsetup_end,       "MG_Setup")
       call add_event(mgfine_begin,        mgfine_end,        "MG_Fine")

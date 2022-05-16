@@ -153,8 +153,8 @@ implicit none
 include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile, k, iq, nt
-integer :: idjd_t
-real, dimension(imax,kl,naero) :: lxtg
+integer :: idjd_t, async_counter
+real, dimension(imax,kl,naero,ntiles) :: xtg_save
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
@@ -379,56 +379,121 @@ select case(nvmix)
 
 end select
 
-!$omp do schedule(static) private(is,ie,iq,k,nt),   &
-!$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-!$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
-!$omp private(lxtg,lrkmsave,rong,rlogs1,rlogs2),    &
-!$omp private(rlogh1,rlog12,tmnht,dz,gt) 
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  idjd_t = mod(idjd-1,imax)+1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+!$omp master  
+call start_log(vert_tr_begin)  
+!$omp end master
+  
+! Aerosols
+if ( abs(iaero)>=2 ) then
+  !$omp do schedule(static) private(is,ie,iq,k,nt),   &
+  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+  !$omp private(lrkmsave,rong,rlogs1,rlogs2),         &
+  !$omp private(rlogh1,rlog12,tmnht,dz,gt) 
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    idjd_t = mod(idjd-1,imax)+1
+    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-  lt       = t(is:ie,:)
-  lrkmsave = rkmsave(is:ie,:)
+    xtg_save(:,:,:,tile) = xtg(is:ie,:,:)
+    lt       = t(is:ie,:)
+    lrkmsave = rkmsave(is:ie,:)
   
-  ! tracers
-  rong = rdry/grav
-  lat(:,1) = 0.
-  lct(:,kl) = 0.
-  rlogs1=log(sig(1))
-  rlogs2=log(sig(2))
-  rlogh1=log(sigmh(2))
-  rlog12=1./(rlogs1-rlogs2)
-  do iq = 1,imax
-    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
-    dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-    gt = lrkmsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
-    lat(iq,2) = -gt/dsig(2)  
-    lct(iq,1) = -gt/dsig(1)
-  end do
-  do k = 2,kl-1
+    ! tracers
+    rong = rdry/grav
+    lat(:,1) = 0.
+    lct(:,kl) = 0.
+    rlogs1=log(sig(1))
+    rlogs2=log(sig(2))
+    rlogh1=log(sigmh(2))
+    rlog12=1./(rlogs1-rlogs2)
     do iq = 1,imax
-      ! Calculate half level heights and temperatures
-      ! n.b. an approximate zh (in m) is quite adequate for this routine
-      tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-      dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-      gt = lrkmsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
-      lat(iq,k+1) = -gt/dsig(k+1)  
-      lct(iq,k) = -gt/dsig(k)
+      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+      dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+      gt = lrkmsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
+      lat(iq,2) = -gt/dsig(2)  
+      lct(iq,1) = -gt/dsig(1)
     end do
-  end do
+    do k = 2,kl-1
+      do iq = 1,imax
+        ! Calculate half level heights and temperatures
+        ! n.b. an approximate zh (in m) is quite adequate for this routine
+        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+        dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+        gt = lrkmsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
+        lat(iq,k+1) = -gt/dsig(k+1)  
+        lct(iq,k) = -gt/dsig(k)
+      end do
+    end do
   
-  ! Aerosols
-  if ( abs(iaero)>=2 ) then
-    lxtg = xtg(is:ie,:,1:naero)
-    call trim2(lat,lct,lxtg,imax,kl,naero)
-    xtg(is:ie,:,1:naero) = lxtg
-  end if ! (abs(iaero)>=2)    
+    async_counter = mod(tile,2) + 1
+    !$acc parallel loop copyin(lat,lct) copy(xtg_save(:,:,:,tile)) async(async_counter)
+    do nt = 1,naero
+      call trim(lat,lct,xtg_save(:,:,nt,tile),imax,kl)
+    end do  
+    !$acc end parallel loop
+  
+  end do ! tile = 1,ntiles
+  !$omp end do nowait
+  !$acc wait
+
+  !$omp do schedule(static) private(is,ie,tile),      &
+  !$omp private(idjd_t,mydiag_t) 
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    idjd_t = mod(idjd-1,imax)+1
+    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+
+    xtg(is:ie,:,:) = xtg_save(:,:,:,tile) 
+
+  end do ! tile = 1,ntiles
+  !$omp end do nowait
+end if ! (abs(iaero)>=2)    
 
 #ifndef scm
-  if ( ngas>0 ) then 
+if ( ngas>0 ) then 
+  !$omp do schedule(static) private(is,ie,iq,k,nt),   &
+  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+  !$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
+  !$omp private(lrkmsave,rong,rlogs1,rlogs2),         &
+  !$omp private(rlogh1,rlog12,tmnht,dz,gt) 
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    idjd_t = mod(idjd-1,imax)+1
+    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+
+    lt       = t(is:ie,:)
+    lrkmsave = rkmsave(is:ie,:)
+  
+    ! tracers
+    rong = rdry/grav
+    lat(:,1) = 0.
+    lct(:,kl) = 0.
+    rlogs1=log(sig(1))
+    rlogs2=log(sig(2))
+    rlogh1=log(sigmh(2))
+    rlog12=1./(rlogs1-rlogs2)
+    do iq = 1,imax
+      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+      dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+      gt = lrkmsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
+      lat(iq,2) = -gt/dsig(2)  
+      lct(iq,1) = -gt/dsig(1)
+    end do
+    do k = 2,kl-1
+      do iq = 1,imax
+        ! Calculate half level heights and temperatures
+        ! n.b. an approximate zh (in m) is quite adequate for this routine
+        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+        dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+        gt = lrkmsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
+        lat(iq,k+1) = -gt/dsig(k+1)  
+        lct(iq,k) = -gt/dsig(k)
+      end do
+    end do
+  
     ltr      = tr(is:ie,:,:)
     lco2em   = co2em(is:ie,:)
     loh      = oh(is:ie,:)
@@ -439,11 +504,15 @@ do tile = 1,ntiles
     call tracervmix(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),             &
                     frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
     tr(is:ie,:,:) = ltr
-  end if
-#endif
   
-end do ! tile = 1,ntiles
-!$omp end do nowait
+  end do ! tile = 1,ntiles
+  !$omp end do nowait
+end if
+#endif
+
+!$omp master
+call end_log(vert_tr_end)
+!$omp end master
    
 return
 end subroutine vertmix
@@ -1832,67 +1901,6 @@ end do
 
 return
 end subroutine trim
-
-subroutine trim2(a,c,rhs,imax,kl,ndim)
-
-use tkeeps, only : pcrthomas
-
-implicit none
-
-integer, intent(in) :: imax, kl, ndim
-integer k, iq, n
-integer kblock, nthreads
-real, dimension(imax,kl), intent(in) :: a, c
-real, dimension(imax,kl,ndim), intent(inout) :: rhs
-#ifdef GPU
-real, dimension(imax,kl,ndim) :: oldrhs
-real, dimension(imax,2:kl) :: aa
-real, dimension(imax,kl) :: bb
-real, dimension(imax,kl-1) :: cc
-#endif
-
-! this routine solves the system
-!   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
-!   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
-!   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
-
-#ifdef GPU
-oldrhs = rhs
-aa(:,2:kl) = a(:,2:kl)
-bb = 1. - a(:,:) - c(:,:)
-cc(:,1:kl-1) = c(:,1:kl-1)
-
-! PCR-Thomas
-do k = int(sqrt(real(kl))),kl
-  if ( mod(kl,k)==0 ) then
-    kblock = k
-    exit
-  end if
-end do
-nthreads = kl/kblock
-call pcrthomas(rhs,aa,bb,cc,oldrhs,imax,kl,ndim,nthreads)
-
-!! PCR for GPUs
-!call pcr(rhs,aa,bb,cc,oldrhs,imax,kl,ndim)
-
-!! Thomas
-!!$acc parallel loop copyin(a,c) copy(rhs)
-!do n = 1,ndim
-!  call trim(a,c,rhs(:,:,n),imax,kl)
-!end do
-!!$acc end parallel loop
-
-#else
-
-! Thomas
-do n = 1,ndim
-  call trim(a,c,rhs(:,:,n),imax,kl)
-end do
-
-#endif
-
-return
-end subroutine trim2
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                         &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &

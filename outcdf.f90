@@ -1933,6 +1933,13 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,vname,lname,'none',0.,1.3,0,cptype)
       end do  
     end if
+    
+    if ( output_windmax/=0 ) then
+      lname = 'x-component max 10m wind (sub-daily)'
+      call attrib(idnc,dimj,jsize,'u10m_max',lname,'m s-1',-150.,150.,0,cptype)
+      lname = 'y-component max 10m wind (sub-daily)'
+      call attrib(idnc,dimj,jsize,'v10m_max',lname,'m s-1',-150.,150.,0,cptype)
+    end if
         
     ! STANDARD 3D VARIABLES -------------------------------------
     if ( itype/=-1 ) then
@@ -3162,6 +3169,12 @@ if ( nurban/=0 .and. itype==-1 ) then
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
   end do  
 end if
+
+if ( output_windmax/=0 ) then
+  call histwrt(u10m_max,'u10m_max',idnc,iarch,local,.true.)
+  call histwrt(v10m_max,'v10m_max',idnc,iarch,local,.true.)    
+end if
+
 
 ! **************************************************************
 ! WRITE 4D VARIABLES (3D + Time)

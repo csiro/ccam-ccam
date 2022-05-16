@@ -44,7 +44,7 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,shear,pcrthomas
+public tkeinit,tkemix,tkeend,tke,eps,shear
 public cm0,ce0,ce1,ce2,ce3,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min,mfbeta
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
@@ -1975,7 +1975,6 @@ end subroutine solve_sherman_morrison_3
 ! Tri-diagonal solver (array version)
 
 pure subroutine thomas1(outdat,aai,bbi,cci,ddi,imax,klin)
-!$acc routine vector
 
 implicit none
 
@@ -2024,17 +2023,17 @@ real, dimension(imax,klin,ndim), intent(out) :: outdat
 integer k, iq, n
 integer kblock, nthreads
 
-#ifdef GPU
+!#ifdef GPU
 
-! PCR-Thomas for GPUs
-do k = int(sqrt(real(klin))),klin
-  if ( mod(klin,k) == 0 ) then
-    kblock = k
-    exit
-  end if
-end do
-nthreads = klin/kblock
-call pcrthomas(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
+!! SPIKE for GPUs
+!do k = int(sqrt(real(klin))),klin
+!  if ( mod(klin,k) == 0 ) then
+!    kblock = k
+!    exit
+!  end if
+!end do
+!nthreads = klin/kblock
+!call spike(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
         
 !! PCR for GPUs
 !call pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
@@ -2046,19 +2045,19 @@ call pcrthomas(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
 !end do
 !!$acc end parallel loop
 
-#else
+!#else
 
 ! Thomas
 do n = 1,ndim
   call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
 end do
 
-#endif
+!#endif
 
 return
 end subroutine thomas2
 
-pure subroutine pcrthomas(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
+pure subroutine spike(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
 
 implicit none
 
@@ -2201,7 +2200,7 @@ end do
 !$acc end data
 
 return
-end subroutine pcrthomas
+end subroutine spike
 
 pure subroutine pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
 
