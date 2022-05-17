@@ -2103,10 +2103,6 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'u_max',lname,'m s-1',-150.,150.,0,cptype)
       lname = 'y-component wind max'
       call attrib(idnc,dima,asize,'v_max',lname,'m s-1',-150.,150.,0,cptype)        
-      lname = 'x-component max 10m wind (sub-daily)'
-      call attrib(idnc,dima,asize,'u10m_max',lname,'m s-1',-150.,150.,0,cptype)
-      lname = 'y-component max 10m wind (sub-daily)'
-      call attrib(idnc,dima,asize,'v10m_max',lname,'m s-1',-150.,150.,0,cptype)
     end if
     
     ! RESTART ---------------------------------------------------
@@ -3382,8 +3378,6 @@ end if
 if ( output_windmax/=0 ) then
   call histwrt(u_max,'u_max',idnc,iarch,local,.true.)
   call histwrt(v_max,'v_max',idnc,iarch,local,.true.)  
-  call histwrt(u10m_max,'u10m_max',idnc,iarch,local,.true.)
-  call histwrt(v10m_max,'v10m_max',idnc,iarch,local,.true.)    
 end if
 
 !**************************************************************

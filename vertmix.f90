@@ -153,8 +153,8 @@ implicit none
 include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile, k, iq, nt
-integer :: idjd_t, async_counter
-real, dimension(imax,kl,naero,ntiles) :: xtg_save
+integer :: idjd_t
+real, dimension(imax,kl) :: lxtg
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
@@ -384,116 +384,57 @@ call start_log(vert_tr_begin)
 !$omp end master
   
 ! Aerosols
-if ( abs(iaero)>=2 ) then
-  !$omp do schedule(static) private(is,ie,iq,k,nt),   &
-  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-  !$omp private(lrkmsave,rong,rlogs1,rlogs2),         &
-  !$omp private(rlogh1,rlog12,tmnht,dz,gt) 
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    idjd_t = mod(idjd-1,imax)+1
-    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+!$omp do schedule(static) private(is,ie,iq,k,nt),   &
+!$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+!$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
+!$omp private(lxtg,lrkmsave,rong,rlogs1,rlogs2),    &
+!$omp private(rlogh1,rlog12,tmnht,dz,gt) 
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  idjd_t = mod(idjd-1,imax)+1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-    xtg_save(:,:,:,tile) = xtg(is:ie,:,:)
-    lt       = t(is:ie,:)
-    lrkmsave = rkmsave(is:ie,:)
+  lt       = t(is:ie,:)
+  lrkmsave = rkmsave(is:ie,:)
   
-    ! tracers
-    rong = rdry/grav
-    lat(:,1) = 0.
-    lct(:,kl) = 0.
-    rlogs1=log(sig(1))
-    rlogs2=log(sig(2))
-    rlogh1=log(sigmh(2))
-    rlog12=1./(rlogs1-rlogs2)
+  ! tracers
+  rong = rdry/grav
+  lat(:,1) = 0.
+  lct(:,kl) = 0.
+  rlogs1=log(sig(1))
+  rlogs2=log(sig(2))
+  rlogh1=log(sigmh(2))
+  rlog12=1./(rlogs1-rlogs2)
+  do iq = 1,imax
+    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+    dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+    gt = lrkmsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
+    lat(iq,2) = -gt/dsig(2)  
+    lct(iq,1) = -gt/dsig(1)
+  end do
+  do k = 2,kl-1
     do iq = 1,imax
-      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
-      dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-      gt = lrkmsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
-      lat(iq,2) = -gt/dsig(2)  
-      lct(iq,1) = -gt/dsig(1)
+      ! Calculate half level heights and temperatures
+      ! n.b. an approximate zh (in m) is quite adequate for this routine
+      tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+      dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+      gt = lrkmsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
+      lat(iq,k+1) = -gt/dsig(k+1)  
+      lct(iq,k) = -gt/dsig(k)
     end do
-    do k = 2,kl-1
-      do iq = 1,imax
-        ! Calculate half level heights and temperatures
-        ! n.b. an approximate zh (in m) is quite adequate for this routine
-        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-        dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-        gt = lrkmsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
-        lat(iq,k+1) = -gt/dsig(k+1)  
-        lct(iq,k) = -gt/dsig(k)
-      end do
-    end do
+  end do
   
-    async_counter = mod(tile,2) + 1
-    !$acc parallel loop copyin(lat,lct) copy(xtg_save(:,:,:,tile)) async(async_counter)
+  if ( abs(iaero)>=2 ) then
     do nt = 1,naero
-      call trim(lat,lct,xtg_save(:,:,nt,tile),imax,kl)
+      lxtg = xtg(is:ie,:,nt)
+      call trim(lat,lct,lxtg,imax,kl)
+      xtg(is:ie,:,nt) = lxtg
     end do  
-    !$acc end parallel loop
+  end if  
   
-  end do ! tile = 1,ntiles
-  !$omp end do nowait
-  !$acc wait
-
-  !$omp do schedule(static) private(is,ie,tile),      &
-  !$omp private(idjd_t,mydiag_t) 
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    idjd_t = mod(idjd-1,imax)+1
-    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-
-    xtg(is:ie,:,:) = xtg_save(:,:,:,tile) 
-
-  end do ! tile = 1,ntiles
-  !$omp end do nowait
-end if ! (abs(iaero)>=2)    
-
 #ifndef scm
-if ( ngas>0 ) then 
-  !$omp do schedule(static) private(is,ie,iq,k,nt),   &
-  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-  !$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
-  !$omp private(lrkmsave,rong,rlogs1,rlogs2),         &
-  !$omp private(rlogh1,rlog12,tmnht,dz,gt) 
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    idjd_t = mod(idjd-1,imax)+1
-    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-
-    lt       = t(is:ie,:)
-    lrkmsave = rkmsave(is:ie,:)
-  
-    ! tracers
-    rong = rdry/grav
-    lat(:,1) = 0.
-    lct(:,kl) = 0.
-    rlogs1=log(sig(1))
-    rlogs2=log(sig(2))
-    rlogh1=log(sigmh(2))
-    rlog12=1./(rlogs1-rlogs2)
-    do iq = 1,imax
-      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
-      dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-      gt = lrkmsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
-      lat(iq,2) = -gt/dsig(2)  
-      lct(iq,1) = -gt/dsig(1)
-    end do
-    do k = 2,kl-1
-      do iq = 1,imax
-        ! Calculate half level heights and temperatures
-        ! n.b. an approximate zh (in m) is quite adequate for this routine
-        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-        dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-        gt = lrkmsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
-        lat(iq,k+1) = -gt/dsig(k+1)  
-        lct(iq,k) = -gt/dsig(k)
-      end do
-    end do
-  
+  if ( ngas>0 ) then   
     ltr      = tr(is:ie,:,:)
     lco2em   = co2em(is:ie,:)
     loh      = oh(is:ie,:)
@@ -504,11 +445,12 @@ if ( ngas>0 ) then
     call tracervmix(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),             &
                     frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
     tr(is:ie,:,:) = ltr
-  
-  end do ! tile = 1,ntiles
-  !$omp end do nowait
-end if
+
+  end if
 #endif
+  
+end do ! tile = 1,ntiles
+!$omp end do nowait
 
 !$omp master
 call end_log(vert_tr_end)
