@@ -3839,7 +3839,14 @@ if ( first ) then
       call cordex_name(lname,"y-component ",height_level,"m wind")
       call cordex_name(vname,"va",height_level,"m")
       call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
-    end do  
+    end do
+    height_level = height_level_data(1)
+    call cordex_name(lname,"Air temperature at ",height_level,"m")
+    call cordex_name(vname,"ta",height_level,"m")
+    call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,400.,0,1)
+    call cordex_name(lname,"Specific Humidity at ",height_level,"m")
+    call cordex_name(vname,"hus",height_level,"m")
+    call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,0,1)
     if ( surf_cordex>=1 ) then
       lname = 'Daily Maximum Near-Surface Air Temperature'  
       call attrib(fncid,sdim,ssize,'tmaxscr',lname,'K',100.,425.,iattdaily,1) ! daily
@@ -3851,7 +3858,7 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'u10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
       lname = 'y-component max 10m wind (daily)'
       call attrib(fncid,sdim,ssize,'v10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
-      if ( output_windmax==1 ) then
+      if ( output_windmax/=0 ) then
         lname = 'x-component max 10m wind (sub-daily)'
         call attrib(fncid,sdim,ssize,'u10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
         lname = 'y-component max 10m wind (sub-daily)'
@@ -4225,12 +4232,33 @@ if ( mod(ktau,tbave)==0 ) then
     call cordex_name(vname,"va",height_level,"m")
     call histwrt(va_level,vname,fncid,fiarch,local,.true.)  
   end do  
+  height_level = height_level_data(1)  
+  do iq = 1,ifull
+    phi_local(1) = bet(1)*t(iq,1)
+    do k = 2,kl
+      phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+    end do
+    do k = 1,kl-1
+      if ( phi_local(k)/grav<real(height_level) ) then
+        n = k
+      else
+        exit
+      end if
+    end do
+    xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+    ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+    hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+  end do	
+  call cordex_name(vname,"ta",height_level,"m")
+  call histwrt(ta_level,vname,fncid,fiarch,local,.true.)
+  call cordex_name(vname,"hus",height_level,"m")
+  call histwrt(hus_level,vname,fncid,fiarch,local,.true.)  
   if ( surf_cordex>=1 ) then
     call histwrt(tmaxscr,'tmaxscr',fncid,fiarch,local,lday)
     call histwrt(tminscr,'tminscr',fncid,fiarch,local,lday)
     call histwrt(u10max,'u10max',fncid,fiarch,local,lday)
     call histwrt(v10max,'v10max',fncid,fiarch,local,lday)
-    if ( output_windmax==1 ) then
+    if ( output_windmax/=0 ) then
       call histwrt(u10m_max,'u10m_max',fncid,fiarch,local,.true.)
       call histwrt(v10m_max,'v10m_max',fncid,fiarch,local,.true.)
     end if  
