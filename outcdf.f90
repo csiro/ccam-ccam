@@ -3518,7 +3518,7 @@ implicit none
 include 'kuocom.h'                    ! Convection parameters
 include 'version.h'                   ! Model version data
 
-integer, parameter :: freqvars = 30  ! number of variables to average
+integer, parameter :: freqvars = 31  ! number of variables to average
 integer, parameter :: runoffvars = 4 ! number of runoff variables
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
@@ -3559,6 +3559,7 @@ real(kind=8) tpnt
 real, parameter :: shallow_max = 0.1 ! shallow soil depth (10cm)
 logical, save :: first = .true.
 logical local, lday, l6hr
+logical cordex_core, cordex_tier1, cordex_tier2
 character(len=1024) ffile
 character(len=40) lname, vname
 character(len=33) grdtim
@@ -3593,6 +3594,28 @@ end if
 fsize = ssize - 1 ! size of fixed variables
 
 fiarch = ktau/tbave
+
+select case ( surf_cordex )
+  case(0)
+    cordex_core = .false.
+    cordex_tier1 = .false.
+    cordex_tier2 = .false.
+  case(1)
+    cordex_core = .true.
+    cordex_tier1 = .true.
+    cordex_tier2 = .true.
+  case(2)
+    cordex_core = .true.
+    cordex_tier1 = .true.
+    cordex_tier2 = .false.
+  case(3)
+    cordex_core = .true.
+    cordex_tier1 = .false.
+    cordex_tier2 = .false.
+  case default
+    write(6,*) "ERROR: Invalid option for surf_cordex ",surf_cordex
+    call ccmpi_abort(-1)
+end select
 
 ! allocate arrays and open new file
 if ( first ) then
@@ -3789,10 +3812,12 @@ if ( first ) then
       sdim(1:2) = adim(1:2)
       sdim(3)   = adim(4)
     end if
-    if ( surf_cordex>=1 ) then
+    if ( cordex_core ) then
       lname = 'Surface geopotential'
       call attrib(fncid,sdim(1:fsize),fsize,'zht',lname,'m-2 s-2',-1000.,90.e3,0,-1)
       lname = 'Soil type'
+    end if
+    if ( cordex_tier2 ) then
       call attrib(fncid,sdim(1:fsize),fsize,'soilt',lname,'none',-650.,650.,0,1)
       lname = 'Capacity of Soil to Store Water'
       call attrib(fncid,sdim(1:fsize),fsize,'mrsofc',lname,'kg m-2',0.,6500.,0,1)
@@ -3819,7 +3844,7 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
     lname ='Surface Downwelling Shortwave Radiation'
     call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1)      ! -1=long 
-    if ( surf_cordex>=1 ) then
+    if ( cordex_tier1 ) then
       lname ='Surface Direct Downwelling Shortwave Radiation'
       call attrib(fncid,sdim,ssize,'sgdndir_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1=long 
     end if
@@ -3831,41 +3856,56 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
     lname = 'Direct normal irradiance'
     call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)           ! -1=long
-    do j = 1,height_levels  
-      height_level = height_level_data(j)
-      call cordex_name(lname,"x-component ",height_level,"m wind")
-      call cordex_name(vname,"ua",height_level,"m")
-      call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
-      call cordex_name(lname,"y-component ",height_level,"m wind")
-      call cordex_name(vname,"va",height_level,"m")
-      call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
-    end do
-    height_level = height_level_data(1)
-    call cordex_name(lname,"Air temperature at ",height_level,"m")
-    call cordex_name(vname,"ta",height_level,"m")
-    call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,400.,0,1)
-    call cordex_name(lname,"Specific Humidity at ",height_level,"m")
-    call cordex_name(vname,"hus",height_level,"m")
-    call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,0,1)
-    if ( surf_cordex>=1 ) then
+    if ( cordex_tier1 ) then
+      do j = 1,3 ! 50m, 100m, 150m  
+        height_level = height_level_data(j)
+        call cordex_name(lname,"x-component ",height_level,"m wind")
+        call cordex_name(vname,"ua",height_level,"m")
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        call cordex_name(lname,"y-component ",height_level,"m wind")
+        call cordex_name(vname,"va",height_level,"m")
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+      end do
+    end if
+    if ( cordex_tier2 ) then
+      do j = 4,height_levels ! 200m, 250m, 300m  
+        height_level = height_level_data(j)
+        call cordex_name(lname,"x-component ",height_level,"m wind")
+        call cordex_name(vname,"ua",height_level,"m")
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        call cordex_name(lname,"y-component ",height_level,"m wind")
+        call cordex_name(vname,"va",height_level,"m")
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+      end do
+    end if
+    if ( cordex_tier1 ) then
+      height_level = height_level_data(1)
+      call cordex_name(lname,"Air temperature at ",height_level,"m")
+      call cordex_name(vname,"ta",height_level,"m")
+      call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,400.,0,1)
+      call cordex_name(lname,"Specific Humidity at ",height_level,"m")
+      call cordex_name(vname,"hus",height_level,"m")
+      call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,0,1)
+    end if  
+    if ( cordex_core ) then
       lname = 'Daily Maximum Near-Surface Air Temperature'  
       call attrib(fncid,sdim,ssize,'tmaxscr',lname,'K',100.,425.,iattdaily,1) ! daily
       lname = 'Daily Minimum Near-Surface Air Temperature'
       call attrib(fncid,sdim,ssize,'tminscr',lname,'K',100.,425.,iattdaily,1) ! daily
+    end if
+    if ( cordex_tier1 ) then
       lname = 'Daily Maximum Hourly Precipitation Rate'
       call attrib(fncid,sdim,ssize,'prhmax',lname,'kg m-2 s-1',0.,2600.,iattdaily,-1) ! daily and -1=long
       lname = 'x-component max 10m wind (daily)'
       call attrib(fncid,sdim,ssize,'u10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
       lname = 'y-component max 10m wind (daily)'
       call attrib(fncid,sdim,ssize,'v10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
-      if ( output_windmax/=0 ) then
-        lname = 'x-component max 10m wind (sub-daily)'
-        call attrib(fncid,sdim,ssize,'u10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
-        lname = 'y-component max 10m wind (sub-daily)'
-        call attrib(fncid,sdim,ssize,'v10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
-      end if  
+    end if  
+    if ( cordex_core ) then
       lname = 'Surface Downwelling Longwave Radiation'
       call attrib(fncid,sdim,ssize,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1)   ! -1 = long
+    end if
+    if ( cordex_tier1 ) then
       lname = 'Surface Upward Latent Heat Flux'
       call attrib(fncid,sdim,ssize,'eg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
       lname = 'Surface Upward Sensible Heat Flux'
@@ -3874,8 +3914,12 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1)   ! -1 = long
       lname = 'LW net at ground (+ve up)'
       call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1)   ! -1 = long
+    end if  
+    if ( cordex_tier2 ) then
       lname = 'Avg potential evaporation'
       call attrib(fncid,sdim,ssize,'epot_ave',lname,'W m-2',-1000.,10.e3,0,1)
+    end if
+    if ( cordex_tier1 ) then
       lname = 'Soil Frozen Water Content'
       call attrib(fncid,sdim,ssize,'mrfso',lname,'kg m-2',0.,6500.,iatt6hr,-1)     ! -1 = long
       lname = 'Frozen Water Content in Upper Portion of Soil Column'
@@ -3898,6 +3942,22 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'sint_ave',lname,'W m-2',0.,1600.,0,-1)         ! -1 = long
       lname = 'TOA Outgoing Shortwave Radiation'
       call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)          ! -1 = long
+    end if 
+    if ( cordex_tier2 ) then
+      lname = 'High Level Cloud Fraction'
+      call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,0,1)
+      lname = 'Mid Level Cloud Fraction'
+      call attrib(fncid,sdim,ssize,'clm',lname,'frac',0.,1.,0,1)
+      lname = 'Low Level Cloud Fraction'
+      call attrib(fncid,sdim,ssize,'cll',lname,'frac',0.,1.,0,1)
+    end if
+    if ( cordex_tier1 ) then
+      lname = 'x-component wind stress'
+      call attrib(fncid,sdim,ssize,'taux',lname,'N m-2',-50.,50.,0,1)
+      lname = 'y-component wind stress'
+      call attrib(fncid,sdim,ssize,'tauy',lname,'N m-2',-50.,50.,0,1)
+    end if
+    if ( cordex_tier2 ) then
       lname = 'Clear sky SW out at TOA'
       call attrib(fncid,sdim,ssize,'soc_ave',lname,'W m-2',0.,900.,iattdaily,-1)   ! -1 = long
       lname = 'Clear sky SW at ground (+ve down)'
@@ -3909,7 +3969,7 @@ if ( first ) then
       lname = 'Clear sky LW at ground'
       call attrib(fncid,sdim,ssize,'rgc_ave',lname,'W m-2',-500.,1000.,iattdaily,-1)   ! -1 = long
       lname = 'Surface Downwelling Clear-Sky Longwave Radiation'
-      call attrib(fncid,sdim,ssize,'rgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long
+      call attrib(fncid,sdim,ssize,'rgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long  
       if ( rescrn>0 ) then
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(fncid,sdim,ssize,'wsgsmax',lname,'m s-1',0.,350.,iattdaily,1)
@@ -3918,10 +3978,8 @@ if ( first ) then
         lname = 'Convective Inhibition'
         call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',0.,4000.,0,1)
       end if
-      lname = 'x-component wind stress'
-      call attrib(fncid,sdim,ssize,'taux',lname,'N m-2',-50.,50.,iatt6hr,1)
-      lname = 'y-component wind stress'
-      call attrib(fncid,sdim,ssize,'tauy',lname,'N m-2',-50.,50.,iatt6hr,1)
+    end if  
+    if ( cordex_tier1 ) then
       lname = 'Surface Temperature'
       call attrib(fncid,sdim,ssize,'tsu',lname,'K',100.,425.,0,1)
       lname = 'Height of Boundary Layer'
@@ -3932,24 +3990,23 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'clwvi',lname,'kg m-2',0.,130.,0,-1)        ! -1 = long
       lname = 'Ice Water Path'
       call attrib(fncid,sdim,ssize,'clivi',lname,'kg m-2',0.,130.,0,-1)        ! -1 = long
-      lname = 'High Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,0,1)
-      lname = 'Mid Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'clm',lname,'frac',0.,1.,0,1)
-      lname = 'Low Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'cll',lname,'frac',0.,1.,0,1)
       lname = 'Snow Depth' ! liquid water
       call attrib(fncid,sdim,ssize,'snd',lname,'mm',0.,6500.,iatt6hr,-1)       ! -1 = long
+    end if
+    if ( cordex_tier1 ) then
       lname = 'Sea ice fraction'
-      call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,iatt6hr,1)
+      call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,iattdaily,1)
       lname = 'Sunshine hours per day'
       call attrib(fncid,sdim,ssize,'sunhours',lname,'hrs',0.,24.,iattdaily,1)
+    end if
+    if ( cordex_tier2 ) then
       lname = 'Surface roughness'
       call attrib(fncid,sdim,ssize,'zolnd',lname,'m',0.,65.,iattdaily,-1) ! -1=long
       lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
       call attrib(fncid,sdim,ssize,'od550aer',lname,'1',0.,13.,iattdaily,1)
-      
-      do k = 1,cordex_levels
+    end if
+    if ( cordex_tier1 ) then
+      do k = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
         press_level = cordex_level_data(k)
         call cordex_name(lname,"x-component ",press_level,"hPa wind")
         call cordex_name(vname,"ua",press_level)
@@ -3970,7 +4027,32 @@ if ( first ) then
         call cordex_name(vname,"wa",press_level)
         call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
       end do 
-      
+    end if
+    if ( cordex_tier2 ) then
+      do k = 11,cordex_levels ! 150, 100, 75, 50, 30, 20, 10
+        press_level = cordex_level_data(k)
+        call cordex_name(lname,"x-component ",press_level,"hPa wind")
+        call cordex_name(vname,"ua",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        call cordex_name(lname,"y-component ",press_level,"hPa wind")
+        call cordex_name(vname,"va",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        lname = 'Air Temperature'     
+        call cordex_name(vname,"ta",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,425.,iatt6hr,1)
+        lname = 'Specific Humidity'
+        call cordex_name(vname,"hus",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,iatt6hr,1)
+        lname = 'Geopotential Height'
+        call cordex_name(vname,"zg",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m',0.,130000.,iatt6hr,1)
+        lname = 'Upward Air Velocity'
+        call cordex_name(vname,"wa",press_level)
+        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+      end do 
+    end if
+    
+    if ( cordex_tier1 ) then   
       do k = 1,ms
         call cordex_name(vname,"tgg",k)  
         call cordex_name(lname,"Soil temperature lev ",k)
@@ -3982,9 +4064,15 @@ if ( first ) then
         call cordex_name(lname,"Frozen Water Content of Soil Layer ",k)
         call attrib(fncid,sdim,ssize,trim(vname),lname,'kg m-2',0.,6500.,iatt6hr,1)  
       end do    
-      
     end if    
 
+    if ( output_windmax/=0 ) then
+      lname = 'x-component max 10m wind (sub-daily)'
+      call attrib(fncid,sdim,ssize,'u10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
+      lname = 'y-component max 10m wind (sub-daily)'
+      call attrib(fncid,sdim,ssize,'v10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
+    end if
+    
     ! end definition mode
     call ccnf_enddef(fncid)
     if ( local ) then
@@ -4089,10 +4177,12 @@ if ( first ) then
     
   end if ! myid==0 .or. local ..else if ( localhist ) ..
   
-  if ( surf_cordex>=1 ) then
+  if ( cordex_core ) then
     call histwrt(zs,'zht',fncid,fiarch,local,.true.)
     outdata(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
     call histwrt(outdata,'soilt',fncid,fiarch,local,.true.) ! also defines land-sea mask
+  end if
+  if ( cordex_tier2 ) then
     outdata(:) = sfc(isoilm)*sum(zse)*1000.
     call histwrt(outdata,'mrsofc',fncid,fiarch,local,.true.)
     call histwrt(sigmu,'sigmu',fncid,fiarch,local,.true.)
@@ -4121,22 +4211,27 @@ freqstore(1:ifull,14) = freqstore(1:ifull,14) + epot/real(tbave)
 freqstore(1:ifull,15) = freqstore(1:ifull,15) + rt/real(tbave)
 freqstore(1:ifull,16) = freqstore(1:ifull,16) + sint/real(tbave)
 freqstore(1:ifull,17) = freqstore(1:ifull,17) + sout/real(tbave)
-freqstore(1:ifull,18) = freqstore(1:ifull,18) + soutclr/real(nperday)
-freqstore(1:ifull,19) = freqstore(1:ifull,19) + sgclr/real(nperday)
-freqstore(1:ifull,20) = freqstore(1:ifull,20) + sgdclr/real(nperday)
-freqstore(1:ifull,21) = freqstore(1:ifull,21) + rtclr/real(nperday)
-freqstore(1:ifull,22) = freqstore(1:ifull,22) + rgclr/real(nperday)
-freqstore(1:ifull,23) = freqstore(1:ifull,23) + rgdclr/real(nperday)
+freqstore(1:ifull,18) = freqstore(1:ifull,18) + cloudhi/real(tbave)
+freqstore(1:ifull,19) = freqstore(1:ifull,19) + cloudmi/real(tbave)
+freqstore(1:ifull,20) = freqstore(1:ifull,20) + cloudlo/real(tbave)
+freqstore(1:ifull,21) = freqstore(1:ifull,21) + taux/real(tbave)
+freqstore(1:ifull,22) = freqstore(1:ifull,22) + tauy/real(tbave)
 
-freqstore(1:ifull,24) = freqstore(1:ifull,24) + taux/real(nper6hr)
-freqstore(1:ifull,25) = freqstore(1:ifull,25) + tauy/real(nper6hr)
-freqstore(1:ifull,26) = freqstore(1:ifull,26) + cloudhi/real(tbave)
-freqstore(1:ifull,27) = freqstore(1:ifull,27) + cloudmi/real(tbave)
-freqstore(1:ifull,28) = freqstore(1:ifull,28) + cloudlo/real(tbave)
-where ( sgdn(1:ifull)>120. )
-  freqstore(1:ifull,29) = freqstore(1:ifull,29) + 24./real(tbave)
-end where  
-freqstore(1:ifull,30) = freqstore(1:ifull,30) + sum(opticaldepth(:,1:7,1),dim=2)/real(nperday)
+freqstore(1:ifull,23) = freqstore(1:ifull,23) + soutclr/real(nperday)
+freqstore(1:ifull,24) = freqstore(1:ifull,24) + sgclr/real(nperday)
+freqstore(1:ifull,25) = freqstore(1:ifull,25) + sgdclr/real(nperday)
+freqstore(1:ifull,26) = freqstore(1:ifull,26) + rtclr/real(nperday)
+freqstore(1:ifull,27) = freqstore(1:ifull,27) + rgclr/real(nperday)
+freqstore(1:ifull,28) = freqstore(1:ifull,28) + rgdclr/real(nperday)
+freqstore(1:ifull,29) = freqstore(1:ifull,29) + sum(opticaldepth(:,1:7,1),dim=2) &
+                                               /real(nperday)
+
+umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
+where ( u10**2 > freqstore(1:ifull,30)**2 + freqstore(1:ifull,31)**2 )
+  freqstore(1:ifull,30) = u10(:)*u(1:ifull,1)/max(0.001,umag)
+  freqstore(1:ifull,31) = u10(:)*v(1:ifull,1)/max(0.001,umag)
+end where
+
 
 shallow_zse(:) = 0.
 shallow_sum = 0.
@@ -4186,31 +4281,65 @@ if ( mod(ktau,tbave)==0 ) then
   outdata = pmsl/100.
   call histwrt(outdata,"pmsl",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,5),"sgdn_ave",fncid,fiarch,local,.true.)
-  if ( surf_cordex>=1 ) then
+  if ( cordex_tier1 ) then
     call histwrt(freqstore(:,6),"sgdndir_ave",fncid,fiarch,local,.true.)
   end if  
   call histwrt(psl,"psf",fncid,fiarch,local,.true.)
   call histwrt(qgscrn,"qgscrn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,7),"cld",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,8),"dni",fncid,fiarch,local,.true.)
-  do iq = 1,ifull
-    phi_local(1) = bet(1)*t(iq,1)
-    do k = 2,kl
-      phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
-    end do
-    do k = 1,kl-1
-      if ( phi_local(k)/grav<100. ) then
-        n = k
-      else
-        exit
-      end if
-    end do
-    xx = (100.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-    ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-    va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-  end do	
-  do j = 1,height_levels  
-    height_level = height_level_data(j)  
+  if ( cordex_tier1 ) then
+    do j = 1,3  ! 50m, 100m, 150m
+      height_level = height_level_data(j)  
+      do iq = 1,ifull
+        phi_local(1) = bet(1)*t(iq,1)
+        do k = 2,kl
+          phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+        end do
+        do k = 1,kl-1
+          if ( phi_local(k)/grav<real(height_level) ) then
+            n = k
+          else
+            exit
+          end if
+        end do
+        xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+        ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+        va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+      end do	
+      call cordex_name(vname,"ua",height_level,"m")
+      call histwrt(ua_level,vname,fncid,fiarch,local,.true.)
+      call cordex_name(vname,"va",height_level,"m")
+      call histwrt(va_level,vname,fncid,fiarch,local,.true.)  
+    end do 
+  end if
+  if ( cordex_tier2 ) then
+    do j = 4,height_levels ! 200m, 250m, 300m 
+      height_level = height_level_data(j)  
+      do iq = 1,ifull
+        phi_local(1) = bet(1)*t(iq,1)
+        do k = 2,kl
+          phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
+        end do
+        do k = 1,kl-1
+          if ( phi_local(k)/grav<real(height_level) ) then
+            n = k
+          else
+            exit
+          end if
+        end do
+        xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
+        ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+        va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+      end do	
+      call cordex_name(vname,"ua",height_level,"m")
+      call histwrt(ua_level,vname,fncid,fiarch,local,.true.)
+      call cordex_name(vname,"va",height_level,"m")
+      call histwrt(va_level,vname,fncid,fiarch,local,.true.)  
+    end do  
+  end if
+  if ( cordex_tier1 ) then
+    height_level = height_level_data(1)  
     do iq = 1,ifull
       phi_local(1) = bet(1)*t(iq,1)
       do k = 2,kl
@@ -4224,51 +4353,36 @@ if ( mod(ktau,tbave)==0 ) then
         end if
       end do
       xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+      hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
     end do	
-    call cordex_name(vname,"ua",height_level,"m")
-    call histwrt(ua_level,vname,fncid,fiarch,local,.true.)
-    call cordex_name(vname,"va",height_level,"m")
-    call histwrt(va_level,vname,fncid,fiarch,local,.true.)  
-  end do  
-  height_level = height_level_data(1)  
-  do iq = 1,ifull
-    phi_local(1) = bet(1)*t(iq,1)
-    do k = 2,kl
-      phi_local(k) = phi_local(k-1) + bet(k)*t(iq,k) + betm(k)*t(iq,k-1)
-    end do
-    do k = 1,kl-1
-      if ( phi_local(k)/grav<real(height_level) ) then
-        n = k
-      else
-        exit
-      end if
-    end do
-    xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
-    ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-    hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-  end do	
-  call cordex_name(vname,"ta",height_level,"m")
-  call histwrt(ta_level,vname,fncid,fiarch,local,.true.)
-  call cordex_name(vname,"hus",height_level,"m")
-  call histwrt(hus_level,vname,fncid,fiarch,local,.true.)  
-  if ( surf_cordex>=1 ) then
+    call cordex_name(vname,"ta",height_level,"m")
+    call histwrt(ta_level,vname,fncid,fiarch,local,.true.)
+    call cordex_name(vname,"hus",height_level,"m")
+    call histwrt(hus_level,vname,fncid,fiarch,local,.true.)
+  end if  
+  if ( cordex_core ) then
     call histwrt(tmaxscr,'tmaxscr',fncid,fiarch,local,lday)
     call histwrt(tminscr,'tminscr',fncid,fiarch,local,lday)
+  end if
+  if ( cordex_tier1 ) then
+    call histwrt(prhmax,'prhmax',fncid,fiarch,local,lday)    
     call histwrt(u10max,'u10max',fncid,fiarch,local,lday)
     call histwrt(v10max,'v10max',fncid,fiarch,local,lday)
-    if ( output_windmax/=0 ) then
-      call histwrt(u10m_max,'u10m_max',fncid,fiarch,local,.true.)
-      call histwrt(v10m_max,'v10m_max',fncid,fiarch,local,.true.)
-    end if  
-    call histwrt(prhmax,'prhmax',fncid,fiarch,local,lday)    
+  end if  
+  if ( cordex_core ) then
     call histwrt(freqstore(:,9),"rgdn_ave",fncid,fiarch,local,.true.)
+  end if
+  if ( cordex_tier1 ) then
     call histwrt(freqstore(:,10),"eg_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,11),"fg_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,12),"sgn_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,13),"rgn_ave",fncid,fiarch,local,.true.)
+  end if
+  if ( cordex_tier2 ) then
     call histwrt(freqstore(:,14),"epot_ave",fncid,fiarch,local,.true.)
+  end if  
+  if ( cordex_tier1 ) then
     outdata = 0.
     do k = 1,ms
       outdata = outdata + wbice(:,k)*zse(k)*330.  
@@ -4308,21 +4422,30 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,15),"rtu_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,16),"sint_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,17),"sot_ave",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,18),"soc_ave",fncid,fiarch,local,lday)
-    call histwrt(freqstore(:,19),"sgc_ave",fncid,fiarch,local,lday)
-    call histwrt(freqstore(:,20),"sgdc_ave",fncid,fiarch,local,lday)    
-    call histwrt(freqstore(:,21),"rtc_ave",fncid,fiarch,local,lday)
-    call histwrt(freqstore(:,22),"rgc_ave",fncid,fiarch,local,lday)
-    call histwrt(freqstore(:,23),"rgdc_ave",fncid,fiarch,local,lday)
-    if ( lday ) freqstore(:,18:23) = 0.
+  end if
+  if ( cordex_tier2 ) then
+    call histwrt(freqstore(:,18),"clh",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,19),"clm",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,20),"cll",fncid,fiarch,local,.true.)
+  end if
+  if ( cordex_tier1 ) then
+    call histwrt(freqstore(:,21),"taux",fncid,fiarch,local,.true.)
+    call histwrt(freqstore(:,22),"tauy",fncid,fiarch,local,.true.)
+  end if
+  if ( cordex_tier2 ) then
+    call histwrt(freqstore(:,23),"soc_ave",fncid,fiarch,local,lday)
+    call histwrt(freqstore(:,24),"sgc_ave",fncid,fiarch,local,lday)
+    call histwrt(freqstore(:,25),"sgdc_ave",fncid,fiarch,local,lday)    
+    call histwrt(freqstore(:,26),"rtc_ave",fncid,fiarch,local,lday)
+    call histwrt(freqstore(:,27),"rgc_ave",fncid,fiarch,local,lday)
+    call histwrt(freqstore(:,28),"rgdc_ave",fncid,fiarch,local,lday)
     if ( rescrn>0 ) then
       call histwrt(wsgsmax,'wsgsmax',fncid,fiarch,local,lday)
       call histwrt(cape_d,'CAPE',fncid,fiarch,local,.true.)
       call histwrt(cin_d,'CIN',fncid,fiarch,local,.true.)
-    end if  
-    call histwrt(freqstore(:,24),"taux",fncid,fiarch,local,l6hr)
-    call histwrt(freqstore(:,25),"tauy",fncid,fiarch,local,l6hr)
-    if ( l6hr ) freqstore(:,24:25) = 0.
+    end if
+  end if
+  if ( cordex_tier1 ) then
     call histwrt(tss,"tsu",fncid,fiarch,local,.true.)
     call histwrt(pblh,"pblh",fncid,fiarch,local,.true.)
     outdata = 0.
@@ -4344,15 +4467,17 @@ if ( mod(ktau,tbave)==0 ) then
     outdata = outdata*ps(1:ifull)/grav
     call histwrt(outdata,"clivi",fncid,fiarch,local,.true.)
     call histwrt(snowd,"snd",fncid,fiarch,local,l6hr)
-    call histwrt(freqstore(:,26),"clh",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,27),"clm",fncid,fiarch,local,.true.)
-    call histwrt(freqstore(:,28),"cll",fncid,fiarch,local,.true.)
-    call histwrt(fracice,"fracice",fncid,fiarch,local,l6hr)
+  end if
+  if ( cordex_tier1 ) then
+    call histwrt(fracice,"fracice",fncid,fiarch,local,lday)
     call histwrt(sunhours,'sunhours',fncid,fiarch,local,lday) 
+  end if
+  if ( cordex_tier2 ) then
     call histwrt(zo,'zolnd',fncid,fiarch,local,lday)  
-    call histwrt(freqstore(:,30),'od550aer',fncid,fiarch,local,lday)
- 
-    do j = 1,cordex_levels
+    call histwrt(freqstore(:,29),'od550aer',fncid,fiarch,local,lday)
+  end if
+  if ( cordex_tier1 ) then
+    do j = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
       press_level = cordex_level_data(j)
       do iq = 1,ifull
         n = 1
@@ -4389,7 +4514,48 @@ if ( mod(ktau,tbave)==0 ) then
       call cordex_name(vname,"wa",press_level)
       call histwrt(wa_level,trim(vname),fncid,fiarch,local,l6hr) 
     end do  
+  end if
+  if ( cordex_tier1 ) then
+    do j = 11,cordex_levels ! 150, 100, 75, 50, 30, 20, 10
+      press_level = cordex_level_data(j)
+      do iq = 1,ifull
+        n = 1
+        do k = 1,kl-1
+          if ( ps(iq)*sig(k)>real(press_level)*100. ) then
+            n = k
+          else
+            exit
+          end if
+        end do   
+        xx = (real(press_level)*100. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+        ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+        va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+        ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+        hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
+        hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+        zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
+        zg_level(iq) = zg_level(iq)/grav
+        sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
+        wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx)
+        wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*psl(iq)) * &
+                       ( wa_level(iq) - sig_level*dpsdt(iq)/864. ) ! convert dpsdt to Pa/s
+      end do
+      call cordex_name(vname,"ua",press_level)
+      call histwrt(ua_level,trim(vname),fncid,fiarch,local,l6hr) 
+      call cordex_name(vname,"va",press_level)
+      call histwrt(va_level,trim(vname),fncid,fiarch,local,l6hr) 
+      call cordex_name(vname,"ta",press_level)
+      call histwrt(ta_level,trim(vname),fncid,fiarch,local,l6hr) 
+      call cordex_name(vname,"hus",press_level)
+      call histwrt(hus_level,trim(vname),fncid,fiarch,local,l6hr) 
+      call cordex_name(vname,"zg",press_level)
+      call histwrt(zg_level,trim(vname),fncid,fiarch,local,l6hr) 
+      call cordex_name(vname,"wa",press_level)
+      call histwrt(wa_level,trim(vname),fncid,fiarch,local,l6hr) 
+    end do  
+  end if  
     
+  if ( cordex_tier1 ) then
     do k = 1,ms
       call cordex_name(vname,"tgg",k)  
       call histwrt(outdata,vname,fncid,fiarch,local,l6hr)
@@ -4400,12 +4566,17 @@ if ( mod(ktau,tbave)==0 ) then
       call cordex_name(vname,"mrfsol",k)  
       call histwrt(outdata,vname,fncid,fiarch,local,l6hr)
     end do
-    
+  end if
+
+  if ( output_windmax/=0 ) then
+    call histwrt(freqstore(1:ifull,30),'u10m_max',fncid,fiarch,local,.true.)
+    call histwrt(freqstore(1:ifull,31),'v10m_max',fncid,fiarch,local,.true.)
   end if
   
-  freqstore(:,1:17) = 0.
-  freqstore(:,26:freqvars) = 0.
-
+  freqstore(:,1:22) = 0.
+  if ( lday ) freqstore(:,23:29) = 0.
+  freqstore(:,30:freqvars) = 0.
+  
 end if
 
 if ( mod(ktau,nperavg)==0 ) then
