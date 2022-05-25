@@ -1460,7 +1460,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
     always_mspeca,ntvd,tbave10,                                   &
     procmode,compression,hp_output,                               & ! file io
-    maxtilesize,async_length,                                     & ! OMP & ACC
+    maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
     npa,npb,cgmap_offset,cgmap_scale,procformat,fnproc_bcast_max, & ! depreciated
@@ -1617,7 +1617,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(119) ) 
+allocate( dumr(33), dumi(120) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1774,6 +1774,7 @@ if ( myid==0 ) then
   dumi(117) = ntvd
   dumi(118) = tbave10  
   dumi(119) = async_length
+  dumi(120) = nagg
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1929,6 +1930,7 @@ always_mspeca     = dumi(116)==1
 ntvd              = dumi(117)
 tbave10           = dumi(118)
 async_length      = dumi(119)
+nagg              = dumi(120)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2531,6 +2533,7 @@ deallocate( dumi )
 if ( myid==0 ) then
   close(99)
 end if
+
 if ( dt<=0. ) then
   write(6,*) "ERROR: dt must be greather than zero"
   call ccmpi_abort(-1)
@@ -2542,6 +2545,12 @@ end if
 if ( nvmix==9 .and. nmlo==0 ) then
   write(6,*) "ERROR: nvmix=9 requires nmlo/=0"
   call ccmpi_abort(-1)
+end if
+if ( nagg < 3 ) then
+  if ( myid==0 ) then
+    write(6,*) "WARN: Minimum nagg is increased to 3"
+  end if
+  nagg = 3
 end if
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour

@@ -2202,116 +2202,100 @@ end do
 return
 end subroutine spike
 
-pure subroutine pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
+pure subroutine pcr(outdat,aaj,bbj,ccj,ddj,imax,klin,ndim)
 
 implicit none
 
 integer, intent(in) :: imax, klin, ndim
-integer n, k, iq, p, s, pmax, klow, khigh
+integer pmax, n, iq
 integer async_counter
 integer, parameter :: async_length = 3
-real, dimension(imax,2:klin), intent(in) :: aai
-real, dimension(imax,klin), intent(in) :: bbi
-real, dimension(imax,klin-1), intent(in) :: cci
-real, dimension(imax,klin,ndim), intent(in) :: ddi
+real, dimension(imax,2:klin), intent(in) :: aaj
+real, dimension(imax,klin), intent(in) :: bbj
+real, dimension(imax,klin-1), intent(in) :: ccj
+real, dimension(imax,klin,ndim), intent(in) :: ddj
 real, dimension(imax,klin,ndim), intent(out) :: outdat
-real, dimension(imax,0:klin+1) :: aa, cc, dd
-real, dimension(imax,klin) :: new_aa, new_cc, new_dd
-real rr
+real, dimension(klin,imax) :: aai, bbi, cci
+real, dimension(klin,imax,ndim) :: ddi
+real, dimension(1:klin,imax,ndim) :: odati
 
 pmax = 1
 do while ( 2**pmax < klin )
   pmax = pmax + 1
 end do
 
-!$acc data create(aai,bbi,cci)
-!$acc update device(aai,bbi,cci)
+aai(1,:) = 0.
+cci(klin-1,:) = 0.
+
+aai(2:klin,1:imax) = transpose( aaj(1:imax,2:klin) )
+bbi(1:klin,1:imax) = transpose( bbj(1:imax,1:klin) )
+cci(1:klin-1,1:imax) = transpose( ccj(1:imax,1:klin-1) )
+do n = 1,ndim
+  ddi(1:klin,1:imax,n) = transpose( ddj(1:imax,1:klin,n) )
+end do
+
+!$acc parallel loop collapse(2) copyin(aai,bbi,cci,ddi) copyout(outdati)
+do n = 1,ndim
+  do iq = 1,imax
+    call pcr_work(odati(:,iq,n),aai(:,iq),bbi(:,iq),cci(:,iq),ddi(:,iq,n),klin,pmax)
+  end do
+end do
+!$acc end parallel loop
 
 do n = 1,ndim
-
-  async_counter = mod( n-1, async_length ) + 1
-
-  !$acc enter data create(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
-
-  !$acc parallel loop collapse(2) present(aa,cc,dd) async(async_counter)
-  do k = 0,klin+1
-    do iq = 1,imax
-      aa(iq,k) = 0.
-      cc(iq,k) = 0.
-      dd(iq,k) = 0.
-    end do
-  end do
-  !$acc end parallel loop
-
-  !$acc parallel loop collapse(2) present(aa,aai,bbi) async(async_counter)
-  do k = 2,klin
-    do iq = 1,imax
-      aa(iq,k) = aai(iq,k)/bbi(iq,k)
-    end do
-  end do  
-  !$acc end parallel loop
-
-  !$acc parallel loop collapse(2) present(cc,cci,bbi) async(async_counter)
-  do k = 1,klin-1
-    do iq = 1,imax
-      cc(iq,k) = cci(iq,k)/bbi(iq,k)
-    end do
-  end do  
-  !$acc end parallel loop
-
-  !$acc parallel loop collapse(2) present(dd,bbi) copyin(ddi(:,:,n)) async(async_counter)
-  do k = 1,klin
-    do iq = 1,imax  
-      dd(iq,k) = ddi(iq,k,n)/bbi(iq,k)
-    end do
-  end do 
-  !$acc end parallel loop
-
-  do p = 1,pmax  
-    s = 2**(p-1)
-
-    !$acc parallel loop collapse(2) present(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
-    do k = 1,klin
-      do iq = 1,imax
-        klow = max(k-s,0)
-        khigh = min(k+s,klin+1)
-        rr = 1./(1.-aa(iq,k)*cc(iq,klow)-cc(iq,k)*aa(iq,khigh))
-        new_aa(iq,k) = -rr*(aa(iq,k)*aa(iq,klow))
-        new_cc(iq,k) = -rr*(cc(iq,k)*cc(iq,khigh))
-        new_dd(iq,k) = rr*(dd(iq,k)-aa(iq,k)*dd(iq,klow)-cc(iq,k)*dd(iq,khigh))
-      end do
-    end do
-    !$acc end parallel loop
-  
-    !$acc parallel loop collapse(2) present(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
-    do k = 1,klin
-      do iq = 1,imax  
-        aa(iq,k) = new_aa(iq,k)
-        cc(iq,k) = new_cc(iq,k)
-        dd(iq,k) = new_dd(iq,k)
-      end do
-    end do
-    !$acc end parallel loop
-  
-  end do ! p = 1,pmax
-
-  !$acc parallel loop collapse(2) present(new_dd) copyout(outdat(:,:,n)) async(async_counter)
-  do k = 1,klin
-    do iq = 1,imax
-      outdat(iq,k,n) = new_dd(iq,k)
-    end do
-  end do
-  !$acc end parallel loop
-
-  !$acc exit data delete(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
-
-end do ! n = 1,ndim
-
-!$acc wait
-!$acc end data
+  outdat(1:imax,1:klin,n) = transpose( odati(1:klin,1:imax,n) )
+end do
 
 return
 end subroutine pcr
+
+pure subroutine pcr_work(outdat,aai,bbi,cci,ddi,klin,pmax)
+!$acc routine seq
+
+implicit none
+
+integer, intent(in) :: klin, pmax
+integer k, p, s, klow, khigh
+real, dimension(klin), intent(in) :: aai, bbi, cci, ddi
+real, dimension(0:klin+1) :: aa, cc, dd
+real, dimension(klin), intent(out) :: outdat
+real, dimension(klin) :: new_aa, new_cc
+real rr
+
+aa(0) = 0.
+cc(0) = 0.
+dd(0) = 0.
+do k = 1,klin
+  aa(k) = aai(k)/bbi(k)
+  cc(k) = cci(k)/bbi(k)
+  dd(k) = ddi(k)/bbi(k)
+end do
+aa(klin+1) = 0.
+cc(klin+1) = 0.
+dd(klin+1) = 0.
+
+do p = 1,pmax  
+  s = 2**(p-1)
+
+  do k = 1,klin
+    klow = max(k-s,0)
+    khigh = min(k+s,klin+1)
+    rr = 1./(1.-aa(k)*cc(klow)-cc(k)*aa(khigh))
+    new_aa(k) = -rr*(aa(k)*aa(klow))
+    new_cc(k) = -rr*(cc(k)*cc(khigh))
+    outdat(k) = rr*(dd(k)-aa(k)*dd(klow)-cc(k)*dd(khigh))
+  end do
+  
+  do k = 1,klin
+    aa(k) = new_aa(k)
+    cc(k) = new_cc(k)
+    dd(k) = outdat(k)
+  end do
+  
+end do ! p = 1,pmax
+
+return
+end subroutine pcr_work
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio

@@ -1781,7 +1781,7 @@ end do
 #else
 
 ! CPU version
-!$omp do collape(2) schedule(static) private(j,n,nn,local_sum)
+!$omp do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1

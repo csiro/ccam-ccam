@@ -157,7 +157,9 @@ if ( intsch==1 ) then
       call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel
+      !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),              &
+      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
+      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,nn,np)
 #endif
       do nn = 1,nlen
          np = nn - 1 + nstart  
@@ -166,10 +168,6 @@ if ( intsch==1 ) then
         !$omp target teams distribute parallel do collapse(2) schedule(static),          &
         !$omp map(to:sx(:,:,:,:,nn)) map(from:s(:,:,np)) private(k,iq,idel,xxg,jdel,yyg) &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#else
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
         !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
@@ -209,15 +207,13 @@ if ( intsch==1 ) then
 #ifdef _OPENMP
 #ifdef GPU
         !$omp end target teams distribute parallel do
-#else
-        !$omp end do nowait
 #endif
 #else
         !$acc end parallel loop
 #endif
       end do           ! nn loop
 #ifndef GPU
-      !$omp end parallel
+      !$omp end parallel do
 #endif  
       !$acc wait
     
@@ -265,7 +261,9 @@ if ( intsch==1 ) then
       call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel
+      !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),              &
+      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
+      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,nn,np)
 #endif
       do nn = 1,nlen
         np = nn - 1 + nstart  
@@ -274,10 +272,6 @@ if ( intsch==1 ) then
         !$omp target teams distribute parallel do collapse(2) schedule(static)           &
         !$omp map(to:sx(:,:,:,:,nn)) map(from:s(:,:,np)) private(k,iq,idel,xxg,jdel,yyg) &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#else
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
         !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
@@ -322,15 +316,13 @@ if ( intsch==1 ) then
 #ifdef _OPENMP
 #ifdef GPU
         !$omp end target teams distribute parallel do
-#else
-        !$omp end do nowait
 #endif
 #else
         !$acc end parallel loop
 #endif
       end do          ! nn loop  
 #ifndef GPU
-      !$omp end parallel
+      !$omp end parallel do
 #endif
       !$acc wait
 
@@ -429,7 +421,9 @@ else     ! if(intsch==1)then
       call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel
+      !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),              &
+      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
+      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,nn,np)
 #endif
       do nn = 1,nlen
         np = nn - 1 + nstart   
@@ -438,10 +432,6 @@ else     ! if(intsch==1)then
         !$omp target teams distribute parallel do collapse(2) schedule(static)           &
         !$omp map(to:sx(:,:,:,:,nn)) map(from:s(:,:,np)) private(k,iq,idel,xxg,jdel,yyg) &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#else
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
         !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
@@ -482,15 +472,13 @@ else     ! if(intsch==1)then
 #ifdef _OPENMP
 #ifdef GPU
         !$omp end target teams distribute parallel do
-#else
-        !$omp end do nowait
 #endif
 #else
         !$acc end parallel loop
 #endif
       end do           ! nn loop  
 #ifndef GPU
-      !$omp end parallel
+      !$omp end parallel do
 #endif
       !$acc wait
     
@@ -538,7 +526,9 @@ else     ! if(intsch==1)then
       call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel
+      !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),              &
+      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
+      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,nn,np)
 #endif
       do nn = 1,nlen
         np = nn - 1 + nstart  
@@ -547,10 +537,6 @@ else     ! if(intsch==1)then
         !$omp target teams distribute parallel do collapse(2) schedule(static)           &
         !$omp map(to:sx(:,:,:,:,nn)) map(from:s(:,:,np)) private(k,iq,idel,xxg,jdel,yyg) &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#else
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
         !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
 #else
@@ -596,15 +582,13 @@ else     ! if(intsch==1)then
 #ifdef _OPENMP
 #ifdef GPU
         !$omp end target teams distribute parallel do
-#else
-        !$omp end do nowait
 #endif
 #else
         !$acc end parallel loop
 #endif
       end do           ! nn loop  
 #ifndef GPU
-      !$omp end parallel
+      !$omp end parallel do
 #endif
       !$acc wait
     
@@ -690,16 +674,7 @@ end do
 
 call intssync_send
 
-#ifdef _OPENMP
-#ifdef GPU
-    !$omp target teams distribute parallel do collapse(2) schedule(static),           &
-    !$omp map(to:sx) map(from:s) private(k,iq,idel,xxg,jdel,yyg,n)
-#else
-    !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
-#endif
-#else
-    !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
-#endif
+!$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
@@ -714,15 +689,7 @@ do k = 1,kl
             + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
-#ifdef _OPENMP
-#ifdef GPU
-    !$omp end target teams distribute parallel do
-#else
-    !$omp end parallel do
-#endif
-#else
-    !$acc end parallel loop
-#endif
+!$omp end parallel do
 
 call intssync_recv(s)
 
