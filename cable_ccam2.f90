@@ -136,7 +136,7 @@ public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
-public smrf_switch, strf_switch, cable_gw_model
+public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 
 ! CABLE biophysical options
@@ -149,6 +149,7 @@ integer, save :: smrf_switch     = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 
 integer, save :: strf_switch     = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),
                                               ! 5 DAMM (Soil Temp Respiration Function)
 integer, save :: cable_gw_model  = 0          ! 0 off, 1 GW_Hydro
+integer, save :: cable_roughness = 0          ! 0 defailt, 1 new
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai         = 0          ! 0 prescribed, 1 prognostic LAI
@@ -2581,7 +2582,12 @@ if ( mp_global>0 ) then
   cable_user%run_diag_level = "NONE"
   cable_user%consistency_check = .false.
   cable_user%logworker = .false.
-  cable_user%l_new_roughness_soil = .false.
+  select case ( cable_roughness )
+    case(1)
+      cable_user%l_new_roughness_soil = .true.
+    case default  
+      cable_user%l_new_roughness_soil = .false.
+  end select
   cable_user%l_rev_corr = .true.
   cable_user%gw_model = cable_gw_model==1
   cable_user%soil_thermal_fix = .true.

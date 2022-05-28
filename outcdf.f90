@@ -170,7 +170,7 @@ use cable_ccam, only : proglai           & ! CABLE
     ,cable_climate,POP_NPATCH            &
     ,POP_NCOHORT,ccycle                  &
     ,smrf_switch,strf_switch,POP_AGEMAX  &
-    ,cable_gw_model
+    ,cable_gw_model,cable_roughness
 use cc_mpi                                 ! CC MPI routines
 use dates_m                                ! Date data
 use filnames_m                             ! Filenames
@@ -841,6 +841,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'cable_climate',cable_climate)
     call ccnf_put_attg(idnc,'cable_gw_model',cable_gw_model)
     call ccnf_put_attg(idnc,'cable_litter',cable_litter)
+    call ccnf_put_attg(idnc,'cable_roughness',cable_roughness)
     call ccnf_put_attg(idnc,'cable_pop',cable_pop)    
     call ccnf_put_attg(idnc,'ccycle',ccycle)
     call ccnf_put_attg(idnc,'fwsoil_switch',fwsoil_switch)

@@ -113,7 +113,7 @@ implicit none
 integer jyear, jmonth, jday, jhour, jmin
 
 ! True for full radiation calculation
-odcalc = mod(ktau-1,kountr)==0 .or. (ktau==1.and.((.not.lrestart_radiation).or.always_mspeca))
+odcalc = mod(ktau,kountr)==0 .or. (ktau==1.and.((.not.lrestart_radiation).or.always_mspeca))
 
 ! astronomy ---------------------------------------------------------
 ! Set up number of minutes from beginning of year
