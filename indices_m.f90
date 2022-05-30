@@ -106,8 +106,8 @@ real, dimension(0:,0:,1:), intent(out) :: data_out
 ipan = il
 jpan = jl/npan
 
+data_out(1:ipan,1:jpan,1:npan) = reshape( data_in(1:ifull), (/ ipan, jpan, npan /) )
 do n = 1,npan
-  data_out(1:ipan,1:jpan,n) = reshape( data_in(1:ifull), (/ ipan, jpan /) )
   do j = 1,jpan
     iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
     data_out(0,j,n) = data_in(iw(iq))
