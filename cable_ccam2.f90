@@ -131,7 +131,7 @@ use sli_main_mod
 implicit none
 
 private
-public sib4
+public sib4, cable_version
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle
@@ -140,6 +140,10 @@ public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 
 ! CABLE biophysical options
+real, save :: cable_version = 6608. ! version id for input data
+                                    ! 6608 includes update to ice albedo
+                                    ! 3939 had fixes for soil albedo
+
 integer, save :: soil_struc      = 0          ! 0 default, 1 SLI soil model
 integer, save :: fwsoil_switch   = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
 integer, save :: cable_litter    = 0          ! 0 off, 1 on
@@ -4499,7 +4503,6 @@ real cablever
 real, intent(out) :: cableformat
 character(len=47) header  
 character(len=7) vname
-real, parameter :: cableversion = 3939. ! version id for input data
 logical tst
 
 cableformat=0.
@@ -4526,9 +4529,9 @@ if ( lncveg==1 ) then
     write(6,*) "Regenerate land-use data with up-to-date version of igbpveg"
     call ccmpi_abort(-1)
   end if
-  if (abs(cablever-cableversion)>1.e-20) then
+  if (abs(cablever-cable_version)>1.e-20) then
     write(6,*) "Wrong version of CABLE data"
-    write(6,*) "Expecting ",cableversion
+    write(6,*) "Expecting ",cable_version
     write(6,*) "Found     ",cablever
     write(6,*) "Please upgrade igbpveg to fix this error"
     call ccmpi_abort(-1)

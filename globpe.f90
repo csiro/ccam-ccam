@@ -1307,7 +1307,8 @@ use cable_ccam, only : proglai           & ! CABLE
     ,fwsoil_switch,cable_litter          &
     ,gs_switch,cable_climate,ccycle      &
     ,smrf_switch,strf_switch             &
-    ,cable_gw_model,cable_roughness
+    ,cable_gw_model,cable_roughness      &
+    ,cable_version
 use carbpools_m, only : carbpools_init     ! Carbon pools
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
@@ -1514,7 +1515,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL s
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
-    cable_gw_model,cable_roughness,                               &
+    cable_gw_model,cable_roughness,cable_version,                 &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
     ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
@@ -2297,7 +2298,7 @@ stabmeth           = dumi(2)
 tkemeth            = dumi(3)
 ngwd               = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr(23), dumi(32) )
+allocate( dumr(24), dumi(32) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2330,6 +2331,7 @@ if ( myid==0 ) then
   dumr(21) = ateb_ac_deltat
   dumr(22) = ateb_acfactor
   dumr(23) = siburbanfrac
+  dumr(24) = cable_version
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2388,6 +2390,7 @@ ateb_ac_coolcap   = dumr(20)
 ateb_ac_deltat    = dumr(21)
 ateb_acfactor     = dumr(22)
 siburbanfrac      = dumr(23) 
+cable_version     = dumr(24)
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
