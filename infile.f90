@@ -1992,7 +1992,8 @@ if ( jmonth<1 .or. jmonth>12 ) then
 end if 
 
 if ( lleap .or. leap==1 ) then ! 365/366 day calendar
-  ndoy(:) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)  
+  ndoy(:) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)
+  n1 = 0
   if ( mod(jyear,4)  ==0 ) n1 = 1
   if ( mod(jyear,100)==0 ) n1 = 0
   if ( mod(jyear,400)==0 ) n1 = 1

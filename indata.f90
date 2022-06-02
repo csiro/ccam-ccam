@@ -2193,6 +2193,12 @@ select case ( nkuo )
     call convjlm_init
 end select
 
+#ifdef COSPP
+!----------------------------------------------------------------
+!if ( ncosp>0 ) then
+!  call sonny_cosp_init
+!end if
+#endif
   
 !-----------------------------------------------------------------
 ! UPDATE RADIATION

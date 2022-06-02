@@ -229,7 +229,7 @@ if ( intsch==1 ) then
       !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
       !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #else
-      !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                      &
+      !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                               &
       !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
       !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #endif
@@ -397,7 +397,7 @@ else     ! if(intsch==1)then
       !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
       !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #else
-      !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                      &
+      !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                               &
       !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4),  &
       !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
 #endif

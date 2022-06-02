@@ -52,7 +52,7 @@
 module leoncld_mod
 
 private
-public leoncld
+public leoncld_work
 public rhow, rhoice, um, Dva, rKa
 public ti, tice, aa, bb
 public Ec, Aurate
@@ -100,149 +100,6 @@ real, parameter :: bice=0.68  !Constant in Platt optical depth for ice (SI units
 
 contains
     
-subroutine leoncld
-
-use aerointerface                 ! Aerosol interface
-use arrays_m                      ! Atmosphere dyamics prognostic arrays
-use cc_mpi, only : mydiag         ! CC MPI routines
-use cc_omp                        ! CC OpenMP routines
-use cfrac_m                       ! Cloud fraction
-use cloudmod                      ! Prognostic cloud fraction
-use const_phys                    ! Physical constants
-use kuocomb_m                     ! JLM convection
-use liqwpar_m                     ! Cloud water mixing ratios
-use map_m                         ! Grid map arrays
-use morepbl_m                     ! Additional boundary layer diagnostics
-use newmpar_m                     ! Grid parameters
-use nharrs_m                      ! Non-hydrostatic atmosphere arrays 
-use parm_m, only : idjd, iaero
-                                  ! Model configuration
-use prec_m                        ! Precipitation
-use sigs_m                        ! Atmosphere sigma levels
-use soil_m                        ! Soil and surface data
-use work3f_m                      ! Grid work arrays
-use vvel_m                        ! Additional vertical velocity
-
-implicit none
-
-include 'kuocom.h'                ! Convection parameters
-
-integer tile, is, ie, k
-integer idjd_t
-real, dimension(imax,kl) :: lcfrac, lgfrac, lppfevap, lppfmelt, lppfprec, lppfsnow
-real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
-real, dimension(imax,kl) :: lppqfsedice, lpprfreeze, lpprscav, lqccon, lqfg, lqfrad
-real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfrac, lt
-real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
-real, dimension(imax,kl) :: lrkmsave, lrkhsave
-real, dimension(ifull,kl) :: clcon, cdrop
-logical mydiag_t
-
-!$omp do schedule(static) private(is,ie),                                             &
-!$omp private(k,lrhoa,lcdrop,lclcon)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-
-  ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
-  do k = 1,kl
-    lrhoa(1:imax,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))  
-  end do
-  call aerodrop(is,lcdrop,lrhoa,outconv=.true.)
-  cdrop(is:ie,1:kl) = lcdrop(1:imax,1:kl)
-
-  ! Calculate convective cloud fraction
-  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
-  clcon(is:ie,1:kl) = lclcon(1:imax,1:kl)
-end do
-!$omp end do nowait
-
-!$omp do schedule(static) private(is,ie),                                             &
-!$omp private(lcfrac,lgfrac,lrfrac,lsfrac),                                           &
-!$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
-!$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
-!$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
-!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),          &
-!$omp private(idjd_t,mydiag_t)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  
-  idjd_t = mod(idjd-1,imax) + 1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-  
-  lcfrac   = cfrac(is:ie,:)
-  lgfrac   = gfrac(is:ie,:)
-  lrfrac   = rfrac(is:ie,:)
-  lsfrac   = sfrac(is:ie,:)
-  lqg      = qg(is:ie,:)
-  lqgrg    = qgrg(is:ie,:)
-  lqlg     = qlg(is:ie,:)
-  lqfg     = qfg(is:ie,:)
-  lqrg     = qrg(is:ie,:)
-  lqsng    = qsng(is:ie,:)
-  lqlrad   = qlrad(is:ie,:)
-  lqfrad   = qfrad(is:ie,:)  
-  lt       = t(is:ie,:)
-  ldpsldt  = dpsldt(is:ie,:)
-  lclcon   = clcon(is:ie,:)
-  lcdrop   = cdrop(is:ie,:)
-  lstratcloud = stratcloud(is:ie,:)
-  if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) ) then
-    lnettend    = nettend(is:ie,:)
-    lrkmsave    = rkmsave(is:ie,:)
-    lrkhsave    = rkhsave(is:ie,:)
-  end if
-
-  call leoncld_work(lcfrac,condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,                           &
-                    kbsav(is:ie),ktsav(is:ie),land(is:ie),                                          &
-                    lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,           &
-                    lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
-                    ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-                    ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),pblh(is:ie),idjd_t,        &
-                    mydiag_t,ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,              &
-                    vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,imax,kl)
-
-  cfrac(is:ie,:) = lcfrac
-  gfrac(is:ie,:) = lgfrac
-  rfrac(is:ie,:) = lrfrac
-  sfrac(is:ie,:) = lsfrac
-  qccon(is:ie,:) = lqccon
-  qg(is:ie,:)    = lqg
-  qlg(is:ie,:)   = lqlg
-  qfg(is:ie,:)   = lqfg
-  qrg(is:ie,:)   = lqrg
-  qsng(is:ie,:)  = lqsng
-  qgrg(is:ie,:)  = lqgrg
-  qlrad(is:ie,:) = lqlrad
-  qfrad(is:ie,:) = lqfrad
-  t(is:ie,:)     = lt
-  stratcloud(is:ie,:) = lstratcloud
-  if ( abs(iaero)>=2 ) then
-    ppfevap(is:ie,:)    = lppfevap
-    ppfmelt(is:ie,:)    = lppfmelt
-    ppfprec(is:ie,:)    = lppfprec
-    ppfsnow(is:ie,:)    = lppfsnow
-    ppfstayice(is:ie,:) = lppfstayice
-    ppfstayliq(is:ie,:) = lppfstayliq
-    ppfsubl(is:ie,:)    = lppfsubl
-    pplambs(is:ie,:)    = lpplambs
-    ppmaccr(is:ie,:)    = lppmaccr
-    ppmrate(is:ie,:)    = lppmrate
-    ppqfsedice(is:ie,:) = lppqfsedice
-    pprfreeze(is:ie,:)  = lpprfreeze
-    pprscav(is:ie,:)    = lpprscav
-  end if
-  if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) ) then
-    nettend(is:ie,:)    = lnettend
-  end if
-  
-end do
-!$omp end do nowait
-
-return
-end subroutine leoncld
-
 ! This subroutine is the interface for the LDR cloud microphysics
 subroutine leoncld_work(cfrac,condg,conds,condx,gfrac,kbsav,ktsav,land,                 &
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfstayice,ppfstayliq,ppfsubl,  &
@@ -2319,6 +2176,8 @@ do n = 1,njumps
     cfrain(:,k) = cfrain(:,k) - cffluxout + cffluxin*(1.-fthruliq)
     rhor(:,k)   = rhor(:,k) - rhorout + rhorin*(1.-fthruliq)
     fluxrain(:) = max( rhorout*dz(:,k) + fluxrain*fthruliq, 0. )
+
+    !SONNY fluxrain_save(:,k) = fluxrain(:)
     where ( fluxrain<1.e-6 )
       rhor(:,k) = rhor(:,k) + fluxrain/dz(:,k)
       fluxrain = 0.

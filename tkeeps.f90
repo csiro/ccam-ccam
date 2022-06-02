@@ -2471,6 +2471,8 @@ real, dimension(:,:), intent(inout) :: ema
 imax = min( size(field,1), size(ema,1) )
 kx = size(field,2)
 
+! tke_timeave_length is in seconds.
+
 nstep = max( tke_timeave_length/dt, 1. ) ! this is a real value
 alpha = 2./(nstep + 1.) 
 

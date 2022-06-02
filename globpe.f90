@@ -31,6 +31,7 @@
     
 program globpe
 
+
 use aerointerface                          ! Aerosol interface
 use aerosolldr, only : naero,xtosav,xtg    ! LDR prognostic aerosols
 use amipsst_m                              ! AMIP SSTs
@@ -58,12 +59,13 @@ use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
 use kuocomb_m                              ! JLM convection
-use leoncld_mod, only : leoncld            ! Prognostic cloud condensate
+!use leoncld_mod, only : leoncld           ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo                                    ! Ocean physics and prognostic arrays
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
+use module_ctrl_microphysics               ! Microphysics driver   !#sonny
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
@@ -617,7 +619,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp master
   call START_LOG(cloud_begin)
   !$omp end master
-  call leoncld
+  !call leoncld
+  call ctrl_microphysics  !#sonny
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
