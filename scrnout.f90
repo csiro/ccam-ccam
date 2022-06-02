@@ -700,7 +700,7 @@ do k = kmax+1,ktop
   thv2(:) = th2(:)*(1.+1.61*qv2(:))/(1.+qv2(:)+ql2(:)+qi2(:))
   b2(:) = grav*( thv2(:)-thv(:,k) )/thv(:,k)
   dz(:) = -(cp/grav)*0.5*(thv(:,k)+thv(:,k-1))*(pil(:,k)-pil(:,k-1))
-	
+
   ! calculate contributions to CAPE and CIN
   where ( b2>=0. .and. b1<0. )
     ! first time entering positive region

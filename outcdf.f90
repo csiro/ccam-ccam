@@ -1592,6 +1592,10 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'wsgs',lname,'m s-1',0.,350.,0,cptype)
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(idnc,dimj,jsize,'wsgsmax',lname,'m s-1',0.,350.,1,cptype)
+        lname = 'Convective Available Potential Energy'
+        call attrib(idnc,dimj,jsize,'CAPE',lname,'J kg-1',0.,20000.,0,cptype)
+        lname = 'Convective Inhibition'
+        call attrib(idnc,dimj,jsize,'CIN',lname,'J kg-1',0.,20000.,0,cptype)        
       end if  
     end if  
     
@@ -2850,6 +2854,8 @@ if ( save_pbl .and. itype==1 ) then
   if ( rescrn>0 ) then  
     call histwrt(wsgs,'wsgs',idnc,iarch,local,.true.)  
     call histwrt(wsgsmax,'wsgsmax',idnc,iarch,local,lday)  
+    call histwrt(cape_d,'CAPE',idnc,iarch,local,.true.)
+    call histwrt(cin_d,'CIN',idnc,iarch,local,.true.)    
   end if  
 end if
 
@@ -3977,9 +3983,9 @@ if ( first ) then
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(fncid,sdim,ssize,'wsgsmax',lname,'m s-1',0.,350.,iattdaily,1)
         lname = 'Convective Available Potential Energy'
-        call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,4000.,0,1)
+        call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,20000.,0,1)
         lname = 'Convective Inhibition'
-        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',0.,4000.,0,1)
+        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',0.,20000.,0,1)
       end if
     end if  
     if ( cordex_tier1 ) then
@@ -4246,16 +4252,6 @@ end do
 
 ! write data to file
 if ( mod(ktau,tbave)==0 ) then
-    
-  if ( rescrn>0 ) then
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call capecalc(js,je)
-    end do
-    !$omp end do
-  end if
     
   if ( myid==0 .or. local ) then
     if ( myid==0 ) then

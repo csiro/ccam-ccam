@@ -883,6 +883,18 @@ do ktau = 1,ntau   ! ****** start of main time loop
     if ( n3hr>8 ) n3hr = 1
   endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
   
+  if ( rescrn>0 ) then
+    if ( mod(ktau,nwt)==0 .or. mod(ktau,tbave)==0 ) then
+      !$omp do schedule(static) private(js,je)
+      do tile = 1,ntiles
+        js = (tile-1)*imax + 1
+        je = tile*imax  
+        call capecalc(js,je)
+      end do
+      !$omp end do
+    end if
+  end if  
+  
   
   ! Turn off log before writing output
   call log_off

@@ -2313,7 +2313,7 @@ real, dimension (:,:,:), intent(out) :: co21diag
 !---------------------------------------------------------------------
 !    convert press and pflux to cgs.
 !---------------------------------------------------------------------
-      press_cgs(:,:,:) = 10.0*Atmos_input%press(:,:,:)
+      press_cgs(:,:,ksrad:kerad) = 10.0*Atmos_input%press(:,:,ksrad:kerad)
       pflux_cgs(:,:,:) = 10.0*Atmos_input%pflux(:,:,:)
 
 !---------------------------------------------------------------------
@@ -2497,7 +2497,7 @@ real, dimension (:,:,:), intent(out) :: co2990nbl, co2900nbl, co21070nbl
 !---------------------------------------------------------------------
 !    convert press and pflux to cgs.
 !---------------------------------------------------------------------
-      press_cgs(:,:,:) = 10.0*Atmos_input%press(:,:,:)
+      press_cgs(:,:,ksrad:kerad) = 10.0*Atmos_input%press(:,:,ksrad:kerad)
       pflux_cgs(:,:,:) = 10.0*Atmos_input%pflux(:,:,:)
 
 !---------------------------------------------------------------------
@@ -2704,7 +2704,7 @@ real, dimension (:,:),   intent(out) :: co21c, co21r
 !---------------------------------------------------------------------
 !    convert press and pflux to cgs.
 !---------------------------------------------------------------------
-      press_cgs(:,:,:) = 10.0*Atmos_input%press(:,:,:)
+      press_cgs(:,:,ksrad:kerad) = 10.0*Atmos_input%press(:,:,ksrad:kerad)
       pflux_cgs(:,:,:) = 10.0*Atmos_input%pflux(:,:,:)
 
 !---------------------------------------------------------------------
@@ -2902,7 +2902,7 @@ real, dimension (:,:),   intent(out) :: co2990c, co2990r, co2900c, co2900r, co21
 !---------------------------------------------------------------------
 !    convert press and pflux to cgs.
 !---------------------------------------------------------------------
-      press_cgs(:,:,:) = 10.0*Atmos_input%press(:,:,:)
+      press_cgs(:,:,ksrad:kerad) = 10.0*Atmos_input%press(:,:,ksrad:kerad)
       pflux_cgs(:,:,:) = 10.0*Atmos_input%pflux(:,:,:)
 
 !---------------------------------------------------------------------
