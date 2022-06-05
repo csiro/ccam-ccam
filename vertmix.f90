@@ -379,9 +379,6 @@ select case(nvmix)
 
 end select
 
-!$omp master  
-call start_log(vert_tr_begin)  
-!$omp end master
   
 ! Aerosols
 !$omp do schedule(static) private(is,ie,iq,k,nt),   &
@@ -452,9 +449,6 @@ do tile = 1,ntiles
 end do ! tile = 1,ntiles
 !$omp end do nowait
 
-!$omp master
-call end_log(vert_tr_end)
-!$omp end master
    
 return
 end subroutine vertmix

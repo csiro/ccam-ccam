@@ -2234,7 +2234,7 @@ do n = 1,ndim
   ddi(1:klin,1:imax,n) = transpose( ddj(1:imax,1:klin,n) )
 end do
 
-!$acc parallel loop collapse(2) copyin(aai,bbi,cci,ddi) copyout(outdati)
+!$acc parallel loop collapse(2) copyin(aai,bbi,cci,ddi) copyout(odati)
 do n = 1,ndim
   do iq = 1,imax
     call pcr_work(odati(:,iq,n),aai(:,iq),bbi(:,iq),cci(:,iq),ddi(:,iq,n),klin,pmax)

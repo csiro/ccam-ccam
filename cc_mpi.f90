@@ -429,7 +429,6 @@ module cc_mpi
    integer, public, save :: sfluxland_begin, sfluxland_end
    integer, public, save :: sfluxurban_begin, sfluxurban_end
    integer, public, save :: vertmix_begin, vertmix_end
-   integer, public, save :: vert_tr_begin, vert_tr_end
    integer, public, save :: aerosol_begin, aerosol_end
    integer, public, save :: maincalc_begin, maincalc_end
    integer, public, save :: gatherfile_begin, gatherfile_end
@@ -480,7 +479,7 @@ module cc_mpi
    integer, public, save :: p4_begin, p4_end
    integer, public, save :: p5_begin, p5_end
    integer, public, save :: p6_begin, p6_end
-   integer, parameter :: nevents = 91
+   integer, parameter :: nevents = 90
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
    character(len=15), dimension(nevents), save :: event_name
@@ -6661,7 +6660,6 @@ contains
       call add_event(sfluxurban_begin,    sfluxurban_end,    "Sflux_urban")
       call add_event(aerosol_begin,       aerosol_end,       "Aerosol")
       call add_event(vertmix_begin,       vertmix_end,       "Vertmix")
-      call add_event(vert_tr_begin,       vert_tr_end,       "Vert_tracer")
       call add_event(precon_begin,        precon_end,        "Precon")
       call add_event(mgsetup_begin,       mgsetup_end,       "MG_Setup")
       call add_event(mgfine_begin,        mgfine_end,        "MG_Fine")

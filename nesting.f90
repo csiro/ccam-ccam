@@ -2907,7 +2907,7 @@ end do
 !$acc end parallel loop
 #endif
 do j = 1,ipan
-  do k = 1,kd+1
+  do k = 1,kd
     do n = 1,jpan
       qp(j+ipan*(n-1),k) = qp_l(n,k,j)/max(qp_l(n,kd+1,j),1.e-8)
     end do

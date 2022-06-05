@@ -4529,9 +4529,10 @@ if ( lncveg==1 ) then
     write(6,*) "Regenerate land-use data with up-to-date version of igbpveg"
     call ccmpi_abort(-1)
   end if
-  if (abs(cablever-cable_version)>1.e-20) then
+  if (abs(cablever-cable_version)>1.e-20 .and. abs(cablever-6608.)>1.e-20 .and. &
+      abs(cablever-3939.)>1.e-20 ) then
     write(6,*) "Wrong version of CABLE data"
-    write(6,*) "Expecting ",cable_version
+    write(6,*) "Expecting 3939. or 6608. or ",cable_version
     write(6,*) "Found     ",cablever
     write(6,*) "Please upgrade igbpveg to fix this error"
     call ccmpi_abort(-1)
