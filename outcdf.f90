@@ -50,9 +50,10 @@ contains
 
 subroutine outfile(iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
       
-use cc_mpi         ! CC MPI routines
-use dates_m        ! Date data
-use parm_m         ! Model configuration
+use cc_mpi                    ! CC MPI routines
+use dates_m                   ! Date data
+use module_ctrl_microphysics  ! cloud microphysics driver
+use parm_m                    ! Model configuration
       
 implicit none
 
@@ -227,7 +228,7 @@ logical local
 character(len=*), intent(in) :: cdffile_in
 character(len=1024) cdffile
 character(len=33) grdtim
-
+integer :: n
 ! localhist=.true. indicates that the output will be written in parallel.
 
 ! local=.true. indicates that procformat mode is active where one 'node' captian will
@@ -957,6 +958,9 @@ use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic 
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
+use module_ctrl_microphysics, only : mr_ccice_o,     &
+                                     cloudsat_Ze_tot,&
+                                     ncolumns
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
@@ -1031,7 +1035,6 @@ logical, intent(in) :: local
 logical lwrite, lave, lday
 logical lwrite_0, lave_0, lday_0 ! includes the zeroth time-step when using restart
 logical l3hr
-
 ! flags to control output
 lwrite   = ktau>0
 lwrite_0 = lwrite.or.lrestart
@@ -2022,7 +2025,20 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K s-1',-50.,50.,0,cptype)
       end if
     end if
-        
+
+#ifdef COSPP
+    ! COSPP-------------I--------------------------------------------
+      call attrib(idnc,dima,asize,'mr_ccice_o','Check frozen water','kg kg-1',0.,.065,0,cptype)
+      if ( ncolumns>100 ) then
+        write(6,*) "ERROR: Make Sonny fix this code because the number of columns is too large"
+        call ccmpi_abort(-1)
+      end if
+      do n = 1,ncolumns
+        write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n
+        call attrib(idnc,dima,asize,trim(vname),'cloudsat reflectivity','dBZ',-30.,50.,0,cptype)
+      end do
+#endif
+
     ! TURBULENT MIXING ----------------------------------------------
     if ( nvmix==6 .or. nvmix==9 ) then
       if ( diaglevel_pbl>5 .or. itype==-1 ) then
@@ -3277,7 +3293,15 @@ if ( ldr/=0 ) then
     call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
   end if
 endif
-      
+     
+#ifdef COSPP
+! COSPP-------------I--------------------------------------------
+  call histwrt(mr_ccice_o,'mr_ccice_o',idnc,iarch,local,lwrite)
+  do n = 1,ncolumns
+    write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n
+    call histwrt(cloudsat_Ze_tot(:,:,n),trim(vname),idnc,iarch,local,lwrite)
+  enddo 
+#endif
 ! TURBULENT MIXING --------------------------------------------
 if ( nvmix==6 .or. nvmix==9 ) then
   if ( diaglevel_pbl>5 .or. itype==-1 ) then

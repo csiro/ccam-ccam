@@ -42,9 +42,15 @@ module module_ctrl_microphysics
 #endif
 
   implicit none
+ 
 
   private
   public ctrl_microphysics
+  public mr_ccice_o,cloudsat_Ze_tot,ncolumns
+
+  real, dimension(:,:), allocatable, save :: mr_ccice_o
+  real, dimension(:,:,:), allocatable, save :: cloudsat_Ze_tot
+  integer :: ncolumns=100
 
 #ifdef COSPP
 
@@ -57,7 +63,7 @@ module module_ctrl_microphysics
   ! Input namelist fields
   integer  ::                                  & !
     Npoints                   = 0,             & ! Number of gridpoints
-    Ncolumns                  = 100,           & ! Number of subcolumns
+    !Ncolumns                  = 100,           & ! Number of subcolumns
     Nlevels                   = 40,            & ! Number of model vertical levels
     Npoints_it                = 0,             & ! Number of gridpoints to be processed in one
                                                  ! iteration
@@ -139,6 +145,9 @@ module module_ctrl_microphysics
   character(len=64) :: &
     cloudsat_micro_scheme        ! Microphysical scheme used in cloudsat radar simulator
 
+  ! ====================================================================================================
+  ! LOGICAL INPUT of which we want to get the output
+  ! ====================================================================================================
   !note: if turn on, make sure Input is specified
   logical :: Lcfaddbze94=.true.,Ldbze94=.true.,                                        &     ! Cloudsat
            
@@ -161,13 +170,13 @@ module module_ctrl_microphysics
            Lclthinemis=.true.,Lclopaquemeanzse=.true.,Lclthinmeanzse=.true.,           &
            Lclzopaquecalipsose=.true.,                                                 &
            
-           LlidarBetaMol532gr=.true.,LcfadLidarsr532gr=.true.,Latb532gr=.true.,     &     ! GROUND LIDAR diagnostics
-           LclgrLidar532=.true.,LclhgrLidar532=.true.,LcllgrLidar532=.true.,        &
-           LclmgrLidar532=.true.,LcltgrLidar532=.true.,                              &
+           LlidarBetaMol532gr=.true.,LcfadLidarsr532gr=.true.,Latb532gr=.true.,        &     ! GROUND LIDAR diagnostics
+           LclgrLidar532=.true.,LclhgrLidar532=.true.,LcllgrLidar532=.true.,           &
+           LclmgrLidar532=.true.,LcltgrLidar532=.true.,                                &
            
-           LlidarBetaMol355=.true.,LcfadLidarsr355=.true.,Latb355=.true.,           &     ! ATLID diagnostics
-           Lclatlid=.true.,Lclhatlid=.true.,Lcllatlid=.true.,                       &
-           Lclmatlid=.true.,Lcltatlid=.true.,                                        &
+           LlidarBetaMol355=.true.,LcfadLidarsr355=.true.,Latb355=.true.,              &     ! ATLID diagnostics
+           Lclatlid=.true.,Lclhatlid=.true.,Lcllatlid=.true.,                          &
+           Lclmatlid=.true.,Lcltatlid=.true.,                                          &
            
            Lalbisccp=.false.,Lboxptopisccp=.false.,Lboxtauisccp=.false.,               &     !- ISCCP
            Lpctisccp=.false.,Lclisccp=.false.,Ltauisccp=.false.,                       &
@@ -180,14 +189,14 @@ module module_ctrl_microphysics
            
            Lfracout=.true.,LlidarBetaMol532=.true.,                                    &     !- These are provided for debugging or special purposes
            
-           Lcltmodis=.true.,Lclwmodis=.true.,Lclimodis=.true.,                      &     !- MODIS
-           Lclhmodis=.true.,Lclmmodis=.true.,Lcllmodis=.true.,                      &
-           Ltautmodis=.true.,Ltauwmodis=.true.,Ltauimodis=.true.,                    &
-           Ltautlogmodis=.true.,Ltauwlogmodis=.true.,Ltauilogmodis=.true.,          &
-           Lreffclwmodis=.true.,Lreffclimodis=.true.,Lpctmodis=.true.,              &
-           Llwpmodis=.true.,Liwpmodis=.true.,Lclmodis=.true.,                       &
+           Lcltmodis=.true.,Lclwmodis=.true.,Lclimodis=.true.,                         &     !- MODIS
+           Lclhmodis=.true.,Lclmmodis=.true.,Lcllmodis=.true.,                         &
+           Ltautmodis=.true.,Ltauwmodis=.true.,Ltauimodis=.true.,                      &
+           Ltautlogmodis=.true.,Ltauwlogmodis=.true.,Ltauilogmodis=.true.,             &
+           Lreffclwmodis=.true.,Lreffclimodis=.true.,Lpctmodis=.true.,                 &
+           Llwpmodis=.true.,Liwpmodis=.true.,Lclmodis=.true.,                          &
            
-           Ltbrttov=.false.,                                                            &     !- RTTOV
+           Ltbrttov=.false.,                                                           &     !- RTTOV
            
            Lptradarflag0=.true.,Lptradarflag1=.true.,Lptradarflag2=.true.,             &     ! -CLOUDSAT precipitation frequency/occurence diagnostics
            Lptradarflag3=.true.,Lptradarflag4=.true.,Lptradarflag5=.true.,             &
@@ -257,6 +266,7 @@ module module_ctrl_microphysics
     gamma_3 = (/-1., -1.,      2.0,      2.0, -1., -1.,      2.0,      2.0,      2.0/),&
     gamma_4 = (/-1., -1.,      6.0,      6.0, -1., -1.,      6.0,      6.0,      6.0/)
   ! ====================================================================================================
+
 #endif
 
 contains
@@ -275,6 +285,7 @@ contains
   use cfrac_m                       ! Cloud fraction
   use cloudmod                      ! Prognostic cloud fraction
   use const_phys                    ! Physical constants
+  use filnames_m
   use kuocomb_m                     ! JLM convection
   use latlong_m
   use leoncld_mod                   ! Leo cloud microphysics
@@ -283,7 +294,11 @@ contains
   use morepbl_m                     ! Additional boundary layer diagnostics
   use newmpar_m                     ! Grid parameters
   use nharrs_m                      ! Non-hydrostatic atmosphere arrays
-  use parm_m, only : idjd, iaero    ! Model configuration
+  !use outcdf
+  use parm_m, only : idjd,iaero,    & 
+                     iaero,         &
+                     irest,         &
+                     ktau, nwt      ! Model configuration
   use pbl_m
   use prec_m                        ! Precipitation
   use raddiag_m
@@ -298,7 +313,7 @@ contains
 
   include 'kuocom.h'                ! Convection parameters
 
-  integer :: tile, is, ie, k, ij
+  integer :: tile, is, ie, k, ij,n
   integer :: idjd_t
   real, dimension(imax,kl) :: lcfrac, lgfrac, lppfevap, lppfmelt, lppfprec, lppfsnow
   real, dimension(imax,kl) :: lppfstayice, lppfstayliq, lppfsubl, lpplambs, lppmaccr, lppmrate
@@ -321,8 +336,8 @@ contains
   real, dimension(1:kl)       :: delh ! , sigh !, sig
   real, dimension(imax,1:kl)  :: phalf
 
-
 #endif
+
 
   call interp_ncloud(ldr, ncloud, mp_physics)
   
@@ -439,13 +454,20 @@ contains
   !$omp end do nowait
 
 #ifdef COSPP
- 
+! WRITE DATA TO HISTORY AND RESTART FILES ---------------
+if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then 
   Npoints_it      = imax
   Npoints         = imax
   Nptsperit       = imax
   rttov_nChannels = 3.
   nLevels         = kl
   nColumns        = 100
+
+  if ( .not. allocated(mr_ccice_o) ) then
+    allocate( mr_ccice_o(ifull,kl) )
+    allocate( cloudsat_Ze_tot(ifull,kl,Ncolumns) )
+  end if
+
 
   !!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   !! Read in sample input data.
@@ -626,38 +648,45 @@ contains
       zlev_half(:,k)          = zlev_half(:,k-1)+ t(is:ie,k)*delh(k)                        
     end do
     
-    Te                        = 280 !t(is:ie,1:kl)                                ! Temperature                      (K)
+    Te                        = t(is:ie,1:kl)                                ! Temperature                      (K)
     qv                        = qg(is:ie,1:kl)/(1. + qg(is:ie,1:kl))         ! Specific humidity                (kg/kg)
-    rh                        = qv                                           ! Relative humidity (1)
+    !do k = 1,kl
+    !  qsatg(:) = qsat(p(:,k),Te,imax)             
+    !  rh(:,k) = (qg(:,k)+qlg(:,k)+qfg(:,k))/qsatg(:)                         ! Relative humidity (1)
+    !end do  
     
-!    print*, 'MINMAX half pressure', minval(ph(:,:)), maxval(ph(:,:))
-!    print*, 'MINMAX pressure     ', minval(p(:,:)), maxval(p(:,:))
-!    print*, 'MINMAX height       ', minval(zlev(:,:)), maxval(zlev(:,:))
-!    print*, 'MINMAX half height  ', minval(zlev_half(:,:)), maxval(zlev_half(:,:))
-!    print*, 'MINMAX temperature  ', minval(Te(:,:)), maxval(Te(:,:))
-!    print*, 'MINMAX qv           ', minval(qv(:,:)), maxval(qv(:,:))
-!    print*, 'MINMAX uwind        ', minval(u_wind(:)), maxval(u_wind(:))    
-!    print*, 'MINMAX vwind        ', minval(v_wind(:)), maxval(v_wind(:))
+    !print*, 'MINMAX half pressure', minval(ph(:,:)), maxval(ph(:,:))
+    !print*, 'MINMAX pressure     ', minval(p(:,:)), maxval(p(:,:))
+    !print*, 'MINMAX height       ', minval(zlev(:,:)), maxval(zlev(:,:))
+    !print*, 'MINMAX half height  ', minval(zlev_half(:,:)), maxval(zlev_half(:,:))
+    !print*, 'MINMAX temperature  ', minval(Te(:,:)), maxval(Te(:,:))
+    !print*, 'MINMAX qv           ', minval(qv(:,:)), maxval(qv(:,:))
+    !print*, 'MINMAX uwind        ', minval(u_wind(:)), maxval(u_wind(:))    
+    !print*, 'MINMAX vwind        ', minval(v_wind(:)), maxval(v_wind(:))
     
     tca                       = stratcloud(is:ie,1:kl)   ! Total column cloud fraction            (0-1)
     cca                       = 0.5                      ! Convective cloud fraction (1)
-    mr_lsliq                  = 2.5                      ! Mass mixing ratio for stratiform cloud liquid (kg/kg)
-    mr_lsice                  = 2.5                      ! Mass mixing ratio for stratiform cloud ice (kg/kg)
+    mr_lsliq                  = 0.0                      ! Mass mixing ratio for stratiform cloud liquid (kg/kg)
+    mr_lsice                  = 0.0                      ! Mass mixing ratio for stratiform cloud ice (kg/kg)
     mr_ccliq                  = qlg(is:ie,1:kl)          ! Mass mixing ratio for convective cloud liquid (kg/kg)
     mr_ccice                  = qfg(is:ie,1:kl)          ! Mass mixing ratio for convective cloud ice (kg/kg)
-    mr_ozone                  = 2.5                      ! Mass mixing ratio for ozone (kg/kg)
-    fl_lsrain                 = 2.5                      ! Precipitation flux (rain) for stratiform cloud (kg/m^2/s)
-    fl_lssnow                 = 2.5                      ! Precipitation flux (snow) for stratiform cloud (kg/m^2/s)
-    fl_lsgrpl                 = 2.5                      ! Precipitation flux (groupel) for stratiform cloud (kg/m^2/s)
-    fl_ccrain                 = 2.5                      ! Precipitation flux (rain) for convective cloud (kg/m^2/s)
-    fl_ccsnow                 = 2.5                      ! Precipitation flux (snow) for convective cloud (kg/m^2/s)
-    dtau_s                    = 20.0                     ! 0.67micron optical depth (stratiform cloud) (1)
-    dtau_c                    = 20.0                     ! 0.67micron optical depth (convective cloud) (1)
-    dem_s                     = 0.5                      ! 11micron emissivity (stratiform cloud)
-    dem_c                     = 0.5                      ! 11microm emissivity (convective cloud)
-    frac_out                  = 0.5                      ! Subcolumn cloud cover (0/1)
-    Reff                      = 20.0                     ! Subcolumn effective radius
+    mr_ozone                  = 0.0                      ! Mass mixing ratio for ozone (kg/kg)
+    fl_lsrain                 = 0.0                      ! Precipitation flux (rain) for stratiform cloud (kg/m^2/s)
+    fl_lssnow                 = 0.0                      ! Precipitation flux (snow) for stratiform cloud (kg/m^2/s)
+    fl_lsgrpl                 = 0.0                      ! Precipitation flux (groupel) for stratiform cloud (kg/m^2/s)
+    fl_ccrain                 = 0.0                      ! Precipitation flux (rain) for convective cloud (kg/m^2/s)
+    fl_ccsnow                 = 0.0                      ! Precipitation flux (snow) for convective cloud (kg/m^2/s)
+    dtau_s                    = 0.0                     ! 0.67micron optical depth (stratiform cloud) (1)
+    dtau_c                    = 0.0                     ! 0.67micron optical depth (convective cloud) (1)
+    dem_s                     = 0.0                      ! 11micron emissivity (stratiform cloud)
+    dem_c                     = 0.0                      ! 11microm emissivity (convective cloud)
+    frac_out                  = 0.0                      ! Subcolumn cloud cover (0/1)
+    Reff                      = 0.0                     ! Subcolumn effective radius
 
+
+    print*, 'MINMAX mr_ccice     ', minval(mr_ccice), maxval(mr_ccice)
+    print*, 'MINMAX qfg          ', minval(qfg), maxval(qfg)
+    print*, 'MINMAX qfg tile     ', minval(qfg(is:ie,:)), maxval(qfg(is:ie,:))
     !check units
     !year = kdate/10000
     !month = (kdate-year*10000)/100
@@ -759,9 +788,9 @@ contains
     !cospIN%tau_mol_calipso     = 5.
     !cospIN%tautot_S_liq        = 5.
     !cospIN%tautot_S_ice        = 5.    
-    cospIN%tau_067              = 4.
-    cospIN%ss_alb               = 0.5
-    cospIN%asym                 = 0.5
+    !cospIN%tau_067              = 4.
+    !cospIN%ss_alb               = 0.5
+    !cospIN%asym                 = 0.5
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! Call COSP
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -772,9 +801,20 @@ contains
       if (cosp_status(ij) .ne. '') print*,trim(cosp_status(ij))
     end do
 
-    print*, 'Checking array shape', shape(cospOUT%calipso_betaperp_tot)
+    !print*, 'Checking array shape', shape(cospOUT%cloudsat_Ze_tot)
+    !print*, 'cospOUT%cloudsat_Ze_tot', cospOUT%cloudsat_Ze_tot
+    !cospOUT%cloudsat_Ze_tot (Npoints,Ncolumns,Nlevels)
+
+    do n = 1,ncolumns
+      cloudsat_Ze_tot(is:ie,1:kl,n) = cospOUT%cloudsat_Ze_tot(:,n,:)
+    end do
+
+    mr_ccice_o(is:ie,1:kl) = mr_ccice(:,:)
+    print*, 'MINMAX mr_ccice_o     ', minval(mr_ccice_o), maxval(mr_ccice_o)
+    print*, 'MINMAX mr_ccice       ', minval(mr_ccice), maxval(mr_ccice) 
+    print*, 'MINMAX cloudsat_Ze_tot', minval(cloudsat_Ze_tot), maxval(cloudsat_Ze_tot)
   end do
-  ! Output
+
   ! all write_cosp2_output(Npoints, Ncolumns, Nlevels, zlev(1,Nlevels:1:-1), lon, lat, cospOUT, foutput)
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ! Free up memory
@@ -784,6 +824,7 @@ contains
   call destroy_cospIN(cospIN)
   call cosp_cleanUp()
 
+endif
 #else   
   write(6,*) "ERROR: CCAM must be compiled with -COSP "
   call ccmpi_abort(-1)

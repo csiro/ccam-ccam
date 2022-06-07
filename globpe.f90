@@ -2700,6 +2700,7 @@ if ( myid==0 ) then
   write(6,*) "Using face grid decomposition"
   write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
   write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
+  write(6,*) "ifull_g,ifull   ",ifull_g,ifull
   write(6,*) "nxp,nyp         ",nxp,nyp
 end if
 
