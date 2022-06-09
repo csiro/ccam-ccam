@@ -369,7 +369,7 @@ riverarrays_m.o savuvt_m.o scm.o scmarrays_m.o screen_m.o scrnout.o \
 seaesfrad.o sealw99.o sflux.o sigs_m.o soil_m.o soilsnow.o soilsnow_m.o soilv_m.o \
 stime_m.o tkeeps.o tracers_m.o vecsuv_m.o vegpar_m.o vertmix.o vvel_m.o work2_m.o \
 work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o mgcloud.o \
-getopt_m.o stacklimit.o
+getopt_m.o stacklimit.o module_ctrl_microphysics.o module_mp_sbu_ylin.o
 
 ifeq ($(SCM),yes)
 FC = $(FCSCM)
@@ -468,24 +468,8 @@ casa_variable.o: casa_variable.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
-estab.o: estab.f90
-	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
-helmsolve.o: helmsolve.f90
-	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
-ints.o: ints.f90
-	$(FC) -c $(FFLAGS) $(IPFLAG) $(ZMM) $(PPFLAG90) $<
-leoncld.o: leoncld.f90
-	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
-module_mp_sbu_ylin.o: module_mp_sbu_ylin.f90
-	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
-seaesfrad.o: seaesfrad.f90
-	$(FC) -c $(FFLAGS) $(VTHRESH) $(PPFLAG90) $<
 stacklimit.o: stacklimit.c
 	$(CC) -c stacklimit.c
-tkeeps.o: tkeeps.f90
-	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
-vertmix.o: vertmix.f90
-	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
@@ -580,7 +564,7 @@ indices_m.o : newmpar_m.o
 infile.o : cc_mpi.o dates_m.o netcdf_m.o newmpar_m.o parm_m.o parmgeom_m.o sigs_m.o
 ints.o : cc_acc.o cc_mpi.o indices_m.o newmpar_m.o parm_m.o parmhor_m.o
 latltoij.o : const_phys.o newmpar_m.o parm_m.o parmdyn_m.o utilities.o 
-leoncld.o : aerointerface.o aerosolldr.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o cloudmod.o const_phys.o kuocomb_m.o latlong_m.o liqwpar_m.o map_m.o mgcloud.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o prec_m.o sigs_m.o soil_m.o vvel_m.o work3f_m.o kuocom.h
+leoncld.o : const_phys.o estab.o mgcloud.o parm_m.o sigs_m.o 
 longwave_clouds.o : rad_utilities.o
 longwave_fluxes.o : rad_utilities.o
 longwave_tables.o : cc_mpi.o filnames_m.o longwave_params.o rad_utilities.o
@@ -594,7 +578,7 @@ mlodynamics.o : arrays_m.o bigxy4_m.o cc_mpi.o cc_omp.o const_phys.o helmsolve.o
 mloints.o : cc_acc.o cc_mpi.o indices_m.o mlo.o newmpar_m.o parm_m.o parmhor_m.o
 mlostag.o : cc_mpi.o indices_m.o mlo.o mlodynamicsarrays_m.o newmpar_m.o parm_m.o
 mlovadvtvd.o : cc_acc.o cc_mpi.o mlo.o newmpar_m.o
-module_ctrl_microphysics.o : leoncld.o
+module_ctrl_microphysics.o : aerointerface.o aerosolldr.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o cloudmod.o const_phys.o kuocomb_m.o latlong_m.o leoncld.o liqwpar_m.o map_m.o module_mp_sbu_ylin.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o pbl_m.o prec_m.o raddiag_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o vvel_m.o work3f_m.o kuocom.h
 nesting.o : aerosolldr.o arrays_m.o cc_acc.o cc_mpi.o cc_omp.o const_phys.o dates_m.o daviesnudge.o darcdf_m.o diag_m.o indices_m.o latlong_m.o liqwpar_m.o map_m.o mlo.o mlodynamicsarrays_m.o newmpar_m.o nharrs_m.o onthefly.o parm_m.o parmdyn_m.o parmgeom_m.o pbl_m.o savuvt_m.o savuv1_m.o sigs_m.o soil_m.o soilsnow_m.o stime_m.o vecsuv_m.o work3sav_m.o xyzinfo_m.o kuocom.h
 nonlin.o : aerosolldr.o arrays_m.o cc_mpi.o const_phys.o diag_m.o epst_m.o hs_phys.o indices_m.o latlong_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o nlin_m.o parm_m.o parmdyn_m.o savuvt_m.o sigs_m.o staguv.o tbar2d_m.o tkeeps.o tracers_m.o unn_m.o vadvtvd.o vecsuv_m.o vvel_m.o work3sav_m.o xarrs_m.o xyzinfo_m.o kuocom.h
 onthefly.o : aerointerface.o aerosolldr.o ateb.o cable_ccam2.o casa_variable.o carbpools_m.o cc_mpi.o const_phys.o darcdf_m.o diag_m.o extraout_m.o histave_m.o infile.o latlong_m.o latltoij.o mlo.o mlodynamics.o mlodynamicsarrays_m.o mlostag.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmdyn_m.o parmgeom_m.o prec_m.o raddiag_m.o riverarrays_m.o savuvt_m.o savuv1_m.o screen_m.o setxyz.o sigs_m.o soil_m.o soilv_m.o stime_m.o tkeeps.o tracers_m.o utilities.o vecsuv_m.o vvel_m.o workglob_m.o work2_m.o xarrs_m.o kuocom.h

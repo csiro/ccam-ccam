@@ -228,7 +228,6 @@ logical local
 character(len=*), intent(in) :: cdffile_in
 character(len=1024) cdffile
 character(len=33) grdtim
-integer :: n
 ! localhist=.true. indicates that the output will be written in parallel.
 
 ! local=.true. indicates that procformat mode is active where one 'node' captian will
@@ -4182,6 +4181,7 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(qgscrn,"qgscrn",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,7),"cld",fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,8),"dni",fncid,fiarch,local,.true.)
+  n = kl ! define n to make gfortran happy
   do iq = 1,ifull
     phi_local(1) = bet(1)*t(iq,1)
     do k = 2,kl
@@ -4197,7 +4197,7 @@ if ( mod(ktau,tbave)==0 ) then
     xx = (100.*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
     ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
     va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-  end do	
+  end do
   do j = 1,height_levels  
     height_level = height_level_data(j)  
     do iq = 1,ifull
@@ -4215,7 +4215,7 @@ if ( mod(ktau,tbave)==0 ) then
       xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
       ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
       va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-    end do	
+    end do
     call cordex_name(vname,"ua",height_level,"m")
     call histwrt(ua_level,vname,fncid,fiarch,local,.true.)
     call cordex_name(vname,"va",height_level,"m")
