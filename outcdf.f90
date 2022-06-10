@@ -1592,10 +1592,6 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'wsgs',lname,'m s-1',0.,350.,0,cptype)
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(idnc,dimj,jsize,'wsgsmax',lname,'m s-1',0.,350.,1,cptype)
-        lname = 'Convective Available Potential Energy'
-        call attrib(idnc,dimj,jsize,'CAPE',lname,'J kg-1',0.,20000.,0,cptype)
-        lname = 'Convective Inhibition'
-        call attrib(idnc,dimj,jsize,'CIN',lname,'J kg-1',0.,20000.,0,cptype)        
       end if  
     end if  
     
@@ -2854,8 +2850,6 @@ if ( save_pbl .and. itype==1 ) then
   if ( rescrn>0 ) then  
     call histwrt(wsgs,'wsgs',idnc,iarch,local,.true.)  
     call histwrt(wsgsmax,'wsgsmax',idnc,iarch,local,lday)  
-    call histwrt(cape_d,'CAPE',idnc,iarch,local,.true.)
-    call histwrt(cin_d,'CIN',idnc,iarch,local,.true.)    
   end if  
 end if
 

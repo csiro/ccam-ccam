@@ -794,8 +794,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call autoscrn(js,je)
     end do
     !$omp end do nowait
-    if ( mod(ktau,nwt)==0 .or. mod(ktau,tbave)==0 .or. &
-         ktau==ntau ) then
+    ! CAPE only needs to be calculated for cordex output
+    if ( mod(ktau,tbave)==0 ) then
       !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
