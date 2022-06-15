@@ -3656,9 +3656,9 @@ ra(:) = acos(max(min(ra(:), 1.), -1.))
 ra(:) = exp(-min((cq*ra(:))**2,50.))
 
 do i = 1,ilen
-  at_k = at(i,:)  
+  at_k(:) = at(i,:)  
   do k = 1,kx
-    at_t = ra(i)*at_k(k,i)
+    at_t = ra(i)*at_k(k)
     t1 = at_t + real(local_sum(k))
     e  = t1 - at_t
     t2 = ((real(local_sum(k)) - e) + (at_t - (t1 - e))) + aimag(local_sum(k))

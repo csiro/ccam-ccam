@@ -153,7 +153,7 @@ integer, save :: smrf_switch     = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 
 integer, save :: strf_switch     = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),
                                               ! 5 DAMM (Soil Temp Respiration Function)
 integer, save :: cable_gw_model  = 0          ! 0 off, 1 GW_Hydro
-integer, save :: cable_roughness = 0          ! 0 defailt, 1 new Eva, 2 Marcus patch
+integer, save :: cable_roughness = 0          ! 0 defailt, 1 new
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai         = 0          ! 0 prescribed, 1 prognostic LAI
@@ -604,9 +604,6 @@ met%ofsd         = met%fsd(:,1) + met%fsd(:,2)
 ssnow%owetfac    = ssnow%wetfac
 canopy%oldcansto = canopy%cansto
 call ruff_resist(veg,rough,ssnow,canopy)
-if ( cable_roughness==2 ) then
-  rough%z0m = max( rough%z0m, zobgin )
-end if
 call define_air(met,air)
 call init_radiation(met,rad,veg,canopy)
 call surface_albedo(ssnow,veg,met,rad,soil,canopy)
