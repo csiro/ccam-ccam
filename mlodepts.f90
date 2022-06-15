@@ -265,7 +265,7 @@ if ( intsch==1 ) then
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                     &
+  !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),         &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
 #else
@@ -368,7 +368,7 @@ else     ! if(intsch==1)then
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                     &
+  !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),         &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
 #else
@@ -490,7 +490,7 @@ if ( intsch==1 ) then
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                     &
+  !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),         &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
 #else
@@ -591,7 +591,7 @@ else     ! if(intsch==1)then
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                     &
+  !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),         &
   !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
 #else

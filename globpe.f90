@@ -795,14 +795,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
     !$omp end do nowait
     ! CAPE only needs to be calculated for cordex output
-    if ( mod(ktau,tbave)==0 ) then
+    if ( surfile/=' ' .and. mod(ktau,tbave)==0 ) then
       !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
         je = tile*imax  
         call capecalc(js,je)
       end do
-      !$omp end do
+      !$omp end do nowait
     end if    
   end if
   !$omp do schedule(static) private(js,je)

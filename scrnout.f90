@@ -585,16 +585,17 @@ real, dimension(imax,kl) :: pl, tl, pil, th, thv
 real, dimension(imax) :: th2, pil2, pl2, tl2, thv2, qv2, b2
 real, dimension(imax) :: narea, ql2, qi2, qt, capel, cinl
 real, dimension(imax) :: dz, frac, parea, dp, b1, qs
-real pl1, tl1, th1, qv1, ql1, qi1, thv1
-real tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf
-real rm, cpm, thlast, fliq, fice
+real, dimension(imax) :: pl1, tl1, th1, qv1, ql1, qi1, thv1
+real, dimension(imax) :: tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf
+real, dimension(imax) :: rm, cpm, thlast, fliq, fice
+real, dimension(imax) :: qsat_save
 !real, parameter :: pinc = 100. ! Pressure increment (Pa) - smaller is more accurate
 real, parameter :: pinc = 1000.
 real, parameter :: lv1 = 2501000. + (4190.-cpv)*273.15
 real, parameter :: lv2 = 4190. - cpv
 real, parameter :: ls1 = 2836017. + (2118.636-cpv)*273.15
 real, parameter :: ls2 = 2188.636 - cpv
-logical not_converged
+logical, dimension(imax) :: not_converged
 
 capel(:) = 0.
 cinl(:) = 0.
@@ -630,6 +631,8 @@ qi2(:) = 0.
 qt(:) = qv2(:)
 b2(:) = 0.
 narea(:) = 0.
+fliq(:) = 1.
+fice(:) = 0.
 
 ! start ascent of parcel
 do k = kmax+1,ktop
@@ -641,66 +644,72 @@ do k = kmax+1,ktop
   dp(:) = (pl(:,k-1)-pl(:,k))/real(nloop)  
   
   do n = 1,nloop
-  
-    do iq = 1,imax
-          
-      pl1 = pl2(iq)
-      tl1 = tl2(iq)
-      th1 = th2(iq)
-      qv1 = qv2(iq)
-      ql1 = ql2(iq)
-      qi1 = qi2(iq)
-      thv1 = thv2(iq)
+            
+    pl1(:) = pl2(:)
+    tl1(:) = tl2(:)
+    th1(:) = th2(:)
+    qv1(:) = qv2(:)
+    ql1(:) = ql2(:)
+    qi1(:) = qi2(:)
+    thv1(:) = thv2(:)
      
-      pl2(iq) = pl2(iq) - dp(iq)
-      pil2(iq) = (pl2(iq)/1.e5)**(rdry/cp)
-      thlast = th1
+    pl2(:) = pl2(:) - dp(:)
+    pil2(:) = (pl2(:)/1.e5)**(rdry/cp)
+    thlast(:) = th1(:)
       
-      icount = 0
-      not_converged = .true.
-      do while( not_converged .and. icount<51 )
-        icount = icount + 1
-        tl2(iq) = thlast*pil2(iq)
-        fliq = max(min((tl2(iq)-233.15)/(273.15-233.15),1.),0.)
-        fice = 1. - fliq
-        qv2(iq) = min( qt(iq), qsat(pl2(iq),tl2(iq)) )
-        qi2(iq) = max( fice*(qt(iq)-qv2(iq)), 0. )
-        ql2(iq) = max( qt(iq)-qv2(iq)-qi2(iq), 0. )
+    icount = 0
+    not_converged(:) = .true.
+    do while( any(not_converged(:)) .and. icount<51 )
+      icount = icount + 1
 
-        tbarl = 0.5*(tl1+tl2(iq))
-        qvbar = 0.5*(qv1+qv2(iq))
-        qlbar = 0.5*(ql1+ql2(iq))
-        qibar = 0.5*(qi1+qi2(iq))
+      where ( not_converged )
+        tl2(:) = thlast(:)*pil2(:)
+        fliq(:) = max(min((tl2(:)-233.15)/(273.15-233.15),1.),0.)
+        fice(:) = 1. - fliq(:)
+      end where
 
-        lhv = lv1 - lv2*tbarl
-        lhs = ls1 - ls2*tbarl
-        lhf = lhs - lhv
+      qsat_save(:) = qsat(pl2,tl2,imax)
 
-        rm = rdry + rvap*qvbar
-        cpm = cp + cpv*qvbar + 4190.*qlbar + 2118.636*qibar
-        th2(iq) = th1*exp(  lhv*(ql2(iq)-ql1)/(cpm*tbarl)    &
-                           +lhs*(qi2(iq)-qi1)/(cpm*tbarl)    &
-                           +(rm/cpm-rdry/cp)*alog(pl2(iq)/pl1) )
+      where ( not_converged )
+        qv2(:) = min( qt(:), qsat_save(:) )
+        qi2(:) = max( fice*(qt(:)-qv2(:)), 0. )
+        ql2(:) = max( qt(:)-qv2(:)-qi2(:), 0. )
 
-        if ( abs(th2(iq)-thlast)>0.0002 ) then
-          thlast=thlast+0.2*(th2(iq)-thlast)
-        else
-          not_converged = .false.
-        end if
-      end do ! do while not_converged
+        tbarl(:) = 0.5*(tl1(:)+tl2(:))
+        qvbar(:) = 0.5*(qv1(:)+qv2(:))
+        qlbar(:) = 0.5*(ql1(:)+ql2(:))
+        qibar(:) = 0.5*(qi1(:)+qi2(:))
 
-      ! pseudoadiabat
-      qt(iq)  = qv2(iq)
-      ql2(iq) = 0.
-      qi2(iq) = 0.
+        lhv(:) = lv1 - lv2*tbarl(:)
+        lhs(:) = ls1 - ls2*tbarl(:)
+        lhf(:) = lhs(:) - lhv(:)
 
-    end do   ! iq loop
+        rm(:) = rdry + rvap*qvbar(:)
+        cpm(:) = cp + cpv*qvbar(:) + 4190.*qlbar(:) + 2118.636*qibar(:)
+        th2(:) = th1(:)*exp( lhv(:)*(ql2(:)-ql1(:))/(cpm(:)*tbarl(:))    &
+                   +lhs(:)*(qi2(:)-qi1(:))/(cpm(:)*tbarl(:))             &
+                   +(rm(:)/cpm(:)-rdry/cp)*alog(pl2(:)/pl1(:)) )
+      end where
+
+      where ( abs(th2(:)-thlast(:))>0.0002 .and. not_converged )
+        thlast(:) = thlast(:) + 0.2*(th2(:)-thlast(:))
+      else where
+        not_converged(:) = .false.
+      end where
+
+    end do ! do while not_converged
+
+    ! pseudoadiabat
+    qt(:)  = qv2(:)
+    ql2(:) = 0.
+    qi2(:) = 0.
+
   end do     ! n loop  
 
   thv2(:) = th2(:)*(1.+1.61*qv2(:))/(1.+qv2(:)+ql2(:)+qi2(:))
   b2(:) = grav*( thv2(:)-thv(:,k) )/thv(:,k)
   dz(:) = -(cp/grav)*0.5*(thv(:,k)+thv(:,k-1))*(pil(:,k)-pil(:,k-1))
-
+	
   ! calculate contributions to CAPE and CIN
   where ( b2>=0. .and. b1<0. )
     ! first time entering positive region

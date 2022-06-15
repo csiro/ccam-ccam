@@ -3641,7 +3641,7 @@ integer i, k, ilen, kx
 real, intent(in) :: cq
 real, dimension(:), intent(in) :: xa, ya, za
 real, dimension(:,:), intent(in) :: at
-real, dimension(size(at,2),size(at,1)) :: at_transpose
+real, dimension(size(at,2)) :: at_k
 real, dimension(size(at,2)) :: out_sum
 real, dimension(size(xa)) :: ra
 real at_t, e, t1, t2
@@ -3654,11 +3654,11 @@ local_sum(1:kx) = (0.,0.)
 ra(:) = xa(nn)*xa(:) + ya(nn)*ya(:) + za(nn)*za(:)
 ra(:) = acos(max(min(ra(:), 1.), -1.))
 ra(:) = exp(-min((cq*ra(:))**2,50.))
-at_transpose = transpose(at)
 
 do i = 1,ilen
+  at_k = at(i,:)  
   do k = 1,kx
-    at_t = ra(i)*at_transpose(k,i)
+    at_t = ra(i)*at_k(k,i)
     t1 = at_t + real(local_sum(k))
     e  = t1 - at_t
     t2 = ((real(local_sum(k)) - e) + (at_t - (t1 - e))) + aimag(local_sum(k))

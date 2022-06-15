@@ -58,7 +58,8 @@ integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii, intsch, iq, jj, k, kk
 integer idjdd, nstart
 integer, save :: numunstab = 0
-integer, dimension(ifull) :: nits, nvadh_pass
+integer, dimension(ifull) :: nits
+real, dimension(ifull) :: nvadh_inv_pass
 real, dimension(ifull+iextra,kl,4) :: bb
 real, dimension(ifull+iextra,kl,3) :: uvw
 real, dimension(ifull+iextra,kl) :: dd
@@ -160,8 +161,8 @@ end do     ! k loop
 ! N.B. this moved one is doing vadv on just extra pslx terms    
 sdmx(:) = maxval(abs(sdot), 2)
 nits(:) = int(1.+sdmx(:)/2.)
-nvadh_pass(:) = 2*nits(:) ! use - for nvadu
-call vadvtvd(tx,ux,vx,nvadh_pass,nits)
+nvadh_inv_pass(:) = 0.5/real(nits(:)) ! use - for nvadu
+call vadvtvd(tx,ux,vx,nvadh_inv_pass,nits)
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv1'
   write (6,"('tx_a',9f8.2)")   tx(idjd,:)
@@ -408,7 +409,7 @@ do k = 2,kl
 end do  
 
 if ( mod(ktau, nmaxpr)==0 .and. mydiag ) then
-  write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nvadh_pass(idjd)
+  write(6,*) 'upglobal ktau,sdmx,nits,nvadh_pass ',ktau,sdmx(idjd),nits(idjd),nint(1./nvadh_inv_pass(idjd))
 endif
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal before vadv2'
@@ -418,7 +419,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write (6,"('qg_b',9f8.3)")   qg(idjd,:)
 endif
 
-call vadvtvd(tx,ux,vx,nvadh_pass,nits)
+call vadvtvd(tx,ux,vx,nvadh_inv_pass,nits)
 
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'

@@ -2023,10 +2023,9 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer mm, n, iq
+integer n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(ifull,m_fly) :: wrk
 real, dimension(pipan*pjpan*pnpan,size(filemap_req)) :: abuf
 
 call START_LOG(otf_ints1_begin)
@@ -2044,15 +2043,7 @@ if ( iotest ) then
     sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
   end do
 else
-  !$omp parallel do schedule(static) private(mm)
-  do mm = 1,m_fly     !  was 4, now may be 1
-    call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  end do
-  !$omp end parallel do
-  sout(1:ifull) = wrk(:,1)/real(m_fly)
-  do mm = 2,m_fly
-    sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly)
-  end do  
+  call intsb(sx(:,:,:),sout,nface4,xg4,yg4)
 end if
 
 call END_LOG(otf_ints1_end)
@@ -2069,10 +2060,9 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer mm, k, kx, kb, ke, kn, n, iq
+integer k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(ifull,m_fly) :: wrk
 real, dimension(pipan*pjpan*pnpan,size(filemap_req),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
@@ -2101,15 +2091,7 @@ do kb = 1,kx,kblock
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
       call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
       call sxpanelbounds(sx(:,:,:))
-      !$omp parallel do schedule(static) private(mm)
-      do mm = 1,m_fly     !  was 4, now may be 1
-        call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-      end do  
-      !$omp end parallel do
-      sout(1:ifull,k+kb-1) = wrk(:,1)/real(m_fly)
-      do mm = 2,m_fly
-        sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk(:,mm)/real(m_fly)
-      end do  
+      call intsb(sx(:,:,:),sout(:,k+kb-1),nface4,xg4,yg4)
     end do
   end if
 
@@ -2190,7 +2172,7 @@ end do       ! n loop
 return
 end subroutine sxpanelbounds
 
-subroutine intsb(sx_l,sout,nface_l,xg_l,yg_l)
+subroutine intsb(sx_l,sout,nface4,xg4,yg4)
       
 !     same as subr ints, but with sout passed back and no B-S      
 !     s is input; sout is output array
@@ -2204,44 +2186,56 @@ use parm_m                 ! Model configuration
 
 implicit none
 
-integer, dimension(ifull), intent(in) :: nface_l
-integer :: idel, jdel, n, iq
+integer, dimension(ifull,m_fly), intent(in) :: nface4
+integer :: idel, jdel, n, iq, mm
 real, dimension(ifull), intent(out) :: sout
-real, intent(in), dimension(ifull) :: xg_l, yg_l
+real, intent(in), dimension(ifull,m_fly) :: xg4, yg4
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
+real, dimension(ifull,m_fly) :: wrk
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
-do iq = 1,ifull   ! runs through list of target points
-  n = nface_l(iq)
-  idel = int(xg_l(iq))
-  xxg = xg_l(iq) - real(idel)
-  jdel = int(yg_l(iq))
-  yyg = yg_l(iq) - real(jdel)
-  ! bi-cubic
-  cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-  cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-  cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-  cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-  dmul_2 = (1.-xxg)
-  dmul_3 = xxg
-  emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-  emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-  emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-  emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-  cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
-             sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
-  cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
-             sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
-  rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
-  rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
-           sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
-  rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
-           sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
-  rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
-  sout(iq) = min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
-end do    ! iq loop
+!$omp parallel do schedule(static) private(mm,iq,n,idel,xxg,jdel,yyg),             &
+!$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),   &
+!$omp   private(emul_4,cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)
+do mm = 1,m_fly     !  was 4, now may be 1
+  do iq = 1,ifull   ! runs through list of target points
+    n = nface4(iq,mm)
+    idel = int(xg4(iq,mm))
+    xxg = xg4(iq,mm) - real(idel)
+    jdel = int(yg4(iq,mm))
+    yyg = yg4(iq,mm) - real(jdel)
+    ! bi-cubic
+    cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+    cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+    cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+    cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+    dmul_2 = (1.-xxg)
+    dmul_3 = xxg
+    emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+    emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+    emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+    emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+    cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+               sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+    cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+               sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+    rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
+    rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
+             sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
+    rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
+             sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
+    rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
+    wrk(iq,mm) = min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+  end do    ! iq loop
+end do      ! mm loop
+!$omp end parallel do
+
+sout(1:ifull) = wrk(:,1)/real(m_fly)
+do mm = 2,m_fly
+  sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly)
+end do  
 
 return
 end subroutine intsb
@@ -2295,6 +2289,7 @@ do while ( nrem>0 )
   call ccmpi_filebounds_send(c_io,comm_ip,corner=.true.)
   ! update body
   if ( ncount>0 ) then
+    !$omp parallel do collapse(3) schedule(static) private(ipf,n,j,i,cc,csum,ccount)
     do ipf = 1,mynproc
       do n = 1,pnpan
         do j = 2,pjpan-1
@@ -2343,6 +2338,7 @@ do while ( nrem>0 )
         end do
       end do
     end do
+    !$omp end parallel do
   end if 
   call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
   ! update perimeter
@@ -2541,6 +2537,7 @@ subroutine fill_cc4_3d(a_io,land_3d,fill_count)
 ! routine fills in interior of an array which has undefined points
 ! this version is distributed over processes with input files
 
+use cc_acc          ! CC OpenACC routines
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
 
@@ -2550,7 +2547,7 @@ real, dimension(:,:), intent(inout) :: a_io
 integer, intent(inout) :: fill_count
 integer j, n, k, kx
 integer cc, ipf, local_count
-integer i
+integer i, async_counter
 integer, dimension(size(a_io,2)) :: ncount, nrem
 real, parameter :: value=999.       ! missing value flag
 real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
@@ -2590,74 +2587,84 @@ do while ( any(nrem(:)>0) )
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
 #ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(5) schedule(static), &
-  !$omp map(a_io) map(to:c_io) private(k,ipf,n,j,i,cc,csum,ccount)
-#else
-  !$omp parallel do collapse(4) schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
+#ifndef GPU
+  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
 #endif
-#else
-  !$acc parallel loop collapse(5) copy(a_io) copyin(c_io)
 #endif
   do k = 1,kx
-    do ipf = 1,mynproc
-      do n = 1,pnpan
-        do j = 2,pjpan-1
-          do i = 2,pipan-1
-            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
-              csum = 0.
-              ccount = 0.
-              if ( abs(c_io(i-1,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j-1,n,ipf,k)
-                ccount = ccount + 1.
+    if ( ncount(k)>0 ) then
+#ifdef _OPENMP
+#ifdef GPU
+      !$omp target teams distribute parallel do collapse(4) schedule(static), &
+      !$omp map(a_io(:,k)) map(to:c_io(:,:,:,:,k)) private(k,ipf,n,j,i,cc,csum,ccount)
+#endif
+#else
+      async_counter = mod(k-1,async_length) + 1
+      !$acc parallel loop collapse(4) copy(a_io(:,k)) copyin(c_io(:,:,:,:,k)) async(async_counter)
+#endif
+      do ipf = 1,mynproc
+        do n = 1,pnpan
+          do j = 2,pjpan-1
+            do i = 2,pipan-1
+              cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+              if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
+                csum = 0.
+                ccount = 0.
+                if ( abs(c_io(i-1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i-1,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i-1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( ccount>0. ) then        
+                  a_io(cc+i,k) = csum/ccount
+                end if
               end if
-              if ( abs(c_io(i,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i,j-1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j-1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i-1,j,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i-1,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j+1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i,j+1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j+1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( ccount>0. ) then        
-                a_io(cc+i,k) = csum/ccount
-              end if
-            end if
+            end do
           end do
         end do
       end do
-    end do
-  end do
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp end target teams distribute parallel do
+      !$omp end target teams distribute parallel do
+#endif
 #else
+      !$acc end parallel loop
+#endif
+    end if
+  end do
+#ifdef _OPENMP
+#ifndef GPU
   !$omp end parallel do
 #endif
-#else
-  !$acc end parallel loop
 #endif
+  !$acc wait
   call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
   ! update halo
   do k = 1,kx
