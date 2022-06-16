@@ -35,6 +35,7 @@ public load_aerosolldr, aerocalc, aerodrop
 public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppfstayice, ppfstayliq, ppqfsedice, pprscav, pprfreeze
 public opticaldepth, updateoxidant, oxidant_timer
+public aerosol_u10
 
 integer, save :: ilon, ilat, ilev
 integer, save :: oxidant_timer = -9999
@@ -50,6 +51,8 @@ real, dimension(:,:), allocatable, save :: ppfstayice, ppfstayliq              !
 real, dimension(:), allocatable, save :: rlev
 real, dimension(:), allocatable, save :: zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
+
+integer, save :: aerosol_u10 = 0 ! update for 10m winds (0 = diagnostic, 1 = recalculate)
 
 contains
 
@@ -104,7 +107,7 @@ real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,15) :: lemissfield
 real, dimension(imax) :: coszro, wg
 real, dimension(ifull,kl) :: clcon
-real, dimension(ifull) :: taudar, cldcon
+real, dimension(ifull) :: taudar, cldcon, u10_l
 real dhr, fjd, r1, dlt, alp, slag
 logical, intent(in) :: oxidant_update
 logical mydiag_t
@@ -158,7 +161,7 @@ else
   !$omp end do nowait
 end if
     
-! estimate convective cloud fraction from leoncld.f
+! estimate convective cloud fraction from leoncld.f90
 !$omp do schedule(static) private(is,ie,lclcon)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -167,6 +170,25 @@ do tile = 1,ntiles
   clcon(is:ie,:) = lclcon    
 end do
 !$omp end do nowait    
+
+! update 10m wind speed (avoids impact of diagnostic output)
+if ( aerosol_u10==0 ) then
+  !$omp do schedule(static) private(is,ie)
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    u10_l(is:ie) = u10(is:ie)
+  end do
+  !$omp end do nowait
+else
+  !$omp do schedule(static) private(is,ie)
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    call update_u10m(is,ie,u10_l(is:ie))
+  end do
+  !$omp end do nowait
+end if
 
 #ifdef _OPENMP    
 !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
@@ -181,7 +203,7 @@ end do
 !!$acc   copy(so4dd,bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                 &
 !!$acc   copyin(zoxidant_g,xtosav,emissfield,erod,ppfprec,ppfmelt,ppfsnow,ppfsubl,pplambs)     &
 !!$acc   copyin(ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,ppfevap,clcon,rhoa)    &
-!!$acc   copyin(wetfac,isoilm,pblh,ps,tss,u10,ustar,zo,land,fracice,sigmf,cldcon,cdtq)         &
+!!$acc   copyin(wetfac,isoilm,pblh,ps,tss,u10_l,ustar,zo,land,fracice,sigmf,cldcon,cdtq)       &
 !!$acc   copyin(zdayfac,kbsav,vso2,dustden,dustreff,saltden,saltreff,sig,condc,snowd,taudar)   &
 !!$acc   copyin(fg,eg,t,qg,qlg,qfg,stratcloud,dsig,ktsav,isoilm_in)                            &
 !!$acc   copyout(so4t)                                                                         &
@@ -250,18 +272,11 @@ do tile = 1,ntiles
   wg(:) = min( max( wetfac(is:ie), 0. ), 1. )
   
   locean = isoilm_in(is:ie) == 0 ! excludes lakes
-
-
-  ! MJT notes - We have an option to update the aerosols before the vertical mixing
-  ! or after the vertical mixing.  Updating aerosols before the vertical mixing
-  ! ensures that we can split the convective and non-convective aerosol
-  ! concentrations.  However, updating aerosols after vertical mixing provides a
-  ! better estimate of u10 and pblh.
-
+  
   ! update prognostic aerosols
   call aldrcalc(dt,sig,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),         &
                 lt,condc(is:ie),snowd(is:ie),taudar(is:ie),fg(is:ie),  &
-                eg(is:ie),u10(is:ie),ustar(is:ie),zo(is:ie),           &
+                eg(is:ie),u10_l(is:ie),ustar(is:ie),zo(is:ie),         &
                 land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg, &
                 lstratcloud,lclcon,cldcon(is:ie),pccw,rhoa,            &
                 cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,                &
@@ -286,7 +301,7 @@ do tile = 1,ntiles
   so4t(is:ie) = 0.
   do k = 1,kl
     so4t(is:ie) = so4t(is:ie) + 3.e3*lxtg(:,k,3)*rhoa(:,k)*dz(:,k)
-  enddo
+  end do
    
   xtg(is:ie,:,:)       = lxtg
   duste(is:ie,:)       = lduste

@@ -1264,6 +1264,7 @@ end subroutine stationa
 ! INITIALISE CCAM
 subroutine globpe_init
 
+use aerointerface                          ! Aerosol interface
 use aerosolldr, only : naero,ch_dust     & ! LDR prognostic aerosols
     ,zvolcemi,aeroindir,so4mtn,carbmtn   &
     ,saltsmallmtn,saltlargemtn
@@ -1482,7 +1483,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
-    saltlargemtn,                                                 &
+    saltlargemtn,aerosol_u10,                                     &
     o3_vert_interpolate,                                          & ! ozone
     o3_time_interpolate                                             ! depreciated
 ! file namelist
@@ -1954,7 +1955,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(10), dumi(10) )
+allocate( dumr(10), dumi(11) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -1979,6 +1980,7 @@ if ( myid==0 ) then
   dumi(8)  = aeroindir
   dumi(9)  = o3_vert_interpolate
   if ( do_co2_10um ) dumi(10) = 1
+  dumi(11) = aerosol_u10  
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2006,6 +2008,7 @@ seasaltradmethod    = dumi(7)
 aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 do_co2_10um         = dumi(10)==1
+aerosol_u10         = dumi(11)
 deallocate( dumr, dumi )
 allocate( dumi(24) )
 dumi = 0

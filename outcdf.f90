@@ -120,6 +120,7 @@ end subroutine outfile
 ! CONFIGURE DIMENSIONS FOR OUTPUT NETCDF FILES
 subroutine cdfout(itype,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
 
+use aerointerface                          ! Aerosol interface 
 use aerosolldr                             ! LDR prognostic aerosols
 use ateb, only :                         & ! Urban
      ateb_resmeth=>resmeth               &
@@ -669,6 +670,7 @@ if ( myid==0 .or. local ) then
 
     ! radiation and aerosol
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
+    call ccnf_put_attg(idnc,'aerosol_u10',aerosol_u10)    
     call ccnf_put_attg(idnc,'bpyear',bpyear)
     call ccnf_put_attg(idnc,'carbmtn',carbmtn)
     call ccnf_put_attg(idnc,'carbonradmethod',carbonradmethod)

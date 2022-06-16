@@ -328,7 +328,7 @@ real, dimension(imax) :: esatb,qsatb,umagn
 real, dimension(imax) :: pq0,pq1
 real, intent(in) :: sig
 real scrp
-integer, parameter ::  nc     = 5
+integer, parameter ::  nc     = 5 ! number of iterations
 real, parameter    ::  vkar   = 0.4
 real, parameter    ::  a_1    = 1.
 real, parameter    ::  b_1    = 2./3.
@@ -436,15 +436,21 @@ integralq(1:imax)   = max(integralq(1:imax), 1.e-10)
 integralm(1:imax)   = max(integralm(1:imax), 1.e-10)
 integralm10(1:imax) = max(integralm10(1:imax), 1.e-10)
 
+! 2m air temperature
 tscrn(1:imax)  = temp(1:imax) - tstar(1:imax)*integralh(1:imax)/vkar
+! 2m mixing ratio
 esatb(1:imax)  = establ(tscrn(1:imax),imax)
 qscrn(1:imax)  = mixr(1:imax) - qstar(1:imax)*integralq(1:imax)/vkar
 qscrn(1:imax)  = max(qscrn(1:imax), qgmin)
+! 2m relative humidity
 qsatb(1:imax)  = 0.622*esatb(1:imax)/(ps(1:imax)-esatb(1:imax))
 rhscrn(1:imax) = 100.*min(qscrn(1:imax)/qsatb(1:imax), 1.)
+! 2m wind speed
 uscrn(1:imax)  = max(umagn(1:imax)-ustar(1:imax)*integralm(1:imax)/vkar, 0.)
+! 10m wind speed
 u10(1:imax)    = max(umagn(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
-u10gs_var(1:imax)   = max(ugs_var(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
+! wind gust
+u10gs_var(1:imax) = max(ugs_var(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
 
 return
 end subroutine screencalc
@@ -528,7 +534,7 @@ call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u1
                 qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
-cduv(is:ie) = ustar(is:ie)**2/umag(is:ie)
+cduv(is:ie) = ustar(is:ie)**2/max(umag(is:ie),vmodmin)
 taux(is:ie) = rho(is:ie)*cduv(is:ie)*au(is:ie)
 tauy(is:ie) = rho(is:ie)*cduv(is:ie)*av(is:ie)
 
@@ -562,6 +568,72 @@ call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn
 
 return
 end subroutine autoscrn
+    
+! This version provides a local update for use with physical parameterisations    
+subroutine update_u10m(is,ie,u10m)
+      
+use arrays_m, only : t, u, v, qg, ps
+use cc_omp, only : imax
+use const_phys, only : grav
+use estab
+use mlo
+use morepbl_m, only : ugs_var
+use newmpar_m
+use parm_m
+use pbl_m, only : tss
+use sigs_m, only : bet, sig
+use soilsnow_m, only : fracice
+use work2_m, only : zo, zoh, zoq, wetfac
+      
+implicit none
+      
+integer, intent(in) :: is, ie
+integer :: tile
+real, dimension(imax), intent(out) :: u10m
+real, dimension(is:ie) :: umag, zminx, smixr
+real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
+real, dimension(is:ie) :: au, av, es, rho
+real, dimension(is:ie) :: cduv, qsttg, qgscrn, tscrn
+real, dimension(is:ie) :: rhscrn, uscrn, u10, u10gs_var
+real, dimension(is:ie) :: ustar, tstar, qstar, thetavstar
+    
+tile = ie/imax
+
+zminx(is:ie) = bet(1)*t(is:ie,1)/grav
+zminx(is:ie) = max( zminx(is:ie), 5. )
+if ( nmlo/=0 ) then
+  iu(is:ie) = 0.
+  iv(is:ie) = 0.
+  ou(is:ie) = 0.
+  ov(is:ie) = 0.
+  call mloexport("u",ou(is:ie),1,0,water_g(tile),depth_g(tile))
+  call mloexport("v",ov(is:ie),1,0,water_g(tile),depth_g(tile))
+  call mloexpice("u",iu(is:ie),0,ice_g(tile),depth_g(tile))
+  call mloexpice("v",iv(is:ie),0,ice_g(tile),depth_g(tile))
+  ou(is:ie) = (1.-fracice(is:ie))*ou(is:ie) + fracice(is:ie)*iu(is:ie)
+  ov(is:ie) = (1.-fracice(is:ie))*ov(is:ie) + fracice(is:ie)*iv(is:ie)
+else
+  ou(is:ie) = 0.
+  ov(is:ie) = 0.
+end if
+au(is:ie)   = u(is:ie,1) - ou(is:ie)
+av(is:ie)   = v(is:ie,1) - ov(is:ie)
+umag(is:ie) = max( sqrt(au(is:ie)*au(is:ie)+av(is:ie)*av(is:ie)), vmodmin )
+es(is:ie) = establ(tss(is:ie),imax)
+qsttg(is:ie)  = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
+smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
+
+call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),   &
+                u10gs_var(is:ie),ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),  &
+                zo(is:ie),zoh(is:ie),zoq(is:ie),tss(is:ie),t(is:ie,1),smixr(is:ie),         &
+                qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+
+atu(is:ie) = au(is:ie)*u10(is:ie)/umag(is:ie) + ou(is:ie)
+atv(is:ie) = av(is:ie)*u10(is:ie)/umag(is:ie) + ov(is:ie)      
+u10m(:)    = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
+
+return
+end subroutine update_u10m    
 
 ! Calculate CAPE and CIN
 ! This differs from the value used in convection, but is comparable with
