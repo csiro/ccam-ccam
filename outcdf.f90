@@ -957,8 +957,11 @@ use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic 
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
-use module_ctrl_microphysics, only : mr_ccice_o,     &
+use module_ctrl_microphysics, only : cltcalipso_o,   &
+                                     mr_ccice_o,     &
                                      cloudsat_Ze_tot,&
+                                     caso_ice, &
+                                     caso_liq, &
                                      ncolumns
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
@@ -2027,6 +2030,22 @@ if( myid==0 .or. local ) then
 
 #ifdef COSPP
     ! COSPP-------------I--------------------------------------------
+      do n = 1,4
+        write(vname,'(A,I3.3)') "cltcalipso_o_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Total Cloud Fraction','none',0.,100.,0,cptype)
+      end do
+
+      do n=1,4
+        write(vname,'(A,I3.3)') "caso_ice_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Ice Cloud Fraction','none',0.,100.,0,cptype)
+      end do
+
+      do n=1,4
+        write(vname,'(A,I3.3)') "caso_liq_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Liq Cloud Fraction','none',0.,100.,0,cptype)
+      end do
+
+      !call attrib(idnc,dimj,jsize,'cltcalipso_o','CALIPSO Total Cloud Fraction','none',0.,1.,0,cptype)
       call attrib(idnc,dima,asize,'mr_ccice_o','Check frozen water','kg kg-1',0.,.065,0,cptype)
       if ( ncolumns>100 ) then
         write(6,*) "ERROR: Make Sonny fix this code because the number of columns is too large"
@@ -2034,7 +2053,7 @@ if( myid==0 .or. local ) then
       end if
       do n = 1,ncolumns
         write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n
-        call attrib(idnc,dima,asize,trim(vname),'cloudsat reflectivity','dBZ',-30.,50.,0,cptype)
+        call attrib(idnc,dima,asize,trim(vname),'cloudsat reflectivity','dBZ',-100.,80.,0,cptype)
       end do
 #endif
 
@@ -3295,6 +3314,22 @@ endif
      
 #ifdef COSPP
 ! COSPP-------------I--------------------------------------------
+  do n = 1,4
+    write(vname,'(A,I3.3)') "cltcalipso_o_",n
+    call histwrt(cltcalipso_o(:,n),trim(vname),idnc,iarch,local,lwrite)
+  end do
+
+  do n = 1,4
+    write(vname,'(A,I3.3)') "caso_ice_",n
+    call histwrt(caso_ice(:,n),trim(vname),idnc,iarch,local,lwrite)
+  end do
+
+  do n = 1,4
+    write(vname,'(A,I3.3)') "caso_liq_",n
+    call histwrt(caso_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
+  end do
+
+  !call histwrt(cltcalipso_o,'cltcalipso_o',idnc,iarch,local,lwrite)
   call histwrt(mr_ccice_o,'mr_ccice_o',idnc,iarch,local,lwrite)
   do n = 1,ncolumns
     write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n

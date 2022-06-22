@@ -46,8 +46,13 @@ module module_ctrl_microphysics
  
   private
   public ctrl_microphysics
-  public mr_ccice_o,cloudsat_Ze_tot,ncolumns
+  public cltcalipso_o,mr_ccice_o,cloudsat_Ze_tot,ncolumns
+  public caso_ice, caso_liq
+  !public mr_ccice_o,cloudsat_Ze_tot,ncolumns
 
+  real, dimension(:,:), allocatable, save :: cltcalipso_o
+  real, dimension(:,:), allocatable, save :: caso_ice, caso_liq
+  !real, dimension(:), allocatable, save :: cltcalipso_o
   real, dimension(:,:), allocatable, save :: mr_ccice_o
   real, dimension(:,:,:), allocatable, save :: cloudsat_Ze_tot
   integer, save :: ncolumns=100
@@ -132,7 +137,7 @@ module module_ctrl_microphysics
     dem_c,dem_c_inv             ! 11microm emissivity (convective cloud)
   real(wp),dimension(:,:,:),allocatable,save,target :: &
     frac_out,                 & ! Subcolumn cloud cover (0/1)
-    Reff, Reff_inv              ! Subcolumn effective radius
+    Reff,Reff2, Reff_inv              ! Subcolumn effective radius
 
   integer,dimension(RTTOV_MAX_CHANNELS), save :: rttov_Channels               ! RTTOV: Channel numbers
   real(wp),dimension(RTTOV_MAX_CHANNELS),save :: rttov_Surfem                 ! RTTOV: Surface emissivity
@@ -270,7 +275,8 @@ contains
   use leoncld_mod                   ! Leo cloud microphysics
   use liqwpar_m                     ! Cloud water mixing ratios
   use map_m                         ! Grid map arrays
-  use module_mp_sbu_ylin
+  use module_aux_rad_cosp           ! ...
+  use module_mp_sbu_ylin            ! Lin 2022 Scheme
   use morepbl_m                     ! Additional boundary layer diagnostics
   use newmpar_m                     ! Grid parameters
   use nharrs_m                      ! Non-hydrostatic atmosphere arrays
@@ -364,37 +370,101 @@ contains
   real, dimension(1:kl)       :: delh ! , sigh !, sig
   real, dimension(imax,1:kl)  :: phalf
   real, dimension(imax,kl)    :: qsatg    !Saturation mixing ratio
+  real, dimension(imax,kl) :: r_cfrac, r_qlrad, r_qfrad, r_prf, r_t
+  real, dimension(imax,kl) :: r_cdrop
+  real(kind=8), dimension(imax,kl) :: Rdrop, Rice, conl, coni
+  real, dimension(imax,kl,N_HYDRO) :: Reff_imax
 #endif
+
+  !----------------------------------------------------------------------------
+  ! Prepare inputs for cloud microphysics
+
+  !$omp do schedule(static) private(is,ie),                                             &
+  !$omp private(k,lrhoa,lcdrop,lclcon)
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
+    do k = 1,kl
+      lrhoa(1:imax,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))
+    end do
+    call aerodrop(is,lcdrop,lrhoa,outconv=.TRUE.)
+    cdrop(is:ie,1:kl) = lcdrop(1:imax,1:kl)
+
+    ! Calculate convective cloud fraction
+    call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
+    clcon(is:ie,1:kl) = lclcon(1:imax,1:kl)
+  end do
+  !$omp end do nowait
+
+  !----------------------------------------------------------------------------
+  ! Update cloud fraction
+
+  !$omp do schedule(static) private(is,ie),                                             &
+  !$omp private(lcfrac),                                                                &
+  !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt),                                 &
+  !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),          &
+  !$omp private(idjd_t,mydiag_t)
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+
+    idjd_t = mod(idjd-1,imax) + 1
+    mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
+
+    lcfrac   = cfrac(is:ie,:)
+    lqg      = qg(is:ie,:)
+    lqlg     = qlg(is:ie,:)
+    lqfg     = qfg(is:ie,:)
+    lqlrad   = qlrad(is:ie,:)
+    lqfrad   = qfrad(is:ie,:)
+    lt       = t(is:ie,:)
+    ldpsldt  = dpsldt(is:ie,:)
+    lclcon   = clcon(is:ie,:)
+    lcdrop   = cdrop(is:ie,:)
+    lstratcloud = stratcloud(is:ie,:)
+    if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
+      lnettend    = nettend(is:ie,:)
+      lrkmsave    = rkmsave(is:ie,:)
+      lrkhsave    = rkhsave(is:ie,:)
+    end if
+
+    call update_cloud_fraction(lcfrac,kbsav(is:ie),ktsav(is:ie),land(is:ie),                    &
+                ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                                &
+                ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),pblh(is:ie),idjd_t,        &
+                mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,                      &
+                vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,imax,kl)
+
+    cfrac(is:ie,:) = lcfrac
+    qccon(is:ie,:) = lqccon
+    qg(is:ie,:)    = lqg
+    qlg(is:ie,:)   = lqlg
+    qfg(is:ie,:)   = lqfg
+    qlrad(is:ie,:) = lqlrad
+    qfrad(is:ie,:) = lqfrad
+    t(is:ie,:)     = lt
+    stratcloud(is:ie,:) = lstratcloud
+    if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. ncloud==110 ) then
+      nettend(is:ie,:)    = lnettend
+    end if
+  end do
+  !$omp end do nowait
+
+
+
+  !----------------------------------------------------------------------------
+  ! Update cloud condensate
 
   select case ( interp_ncloud(ldr,ncloud) )
     case("LEON")
   
       !$omp do schedule(static) private(is,ie),                                             &
-      !$omp private(k,lrhoa,lcdrop,lclcon)
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-
-        ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
-        do k = 1,kl
-          lrhoa(1:imax,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))
-        end do
-        call aerodrop(is,lcdrop,lrhoa,outconv=.TRUE.)
-        cdrop(is:ie,1:kl) = lcdrop(1:imax,1:kl)
-
-        ! Calculate convective cloud fraction
-        call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
-        clcon(is:ie,1:kl) = lclcon(1:imax,1:kl)
-      end do
-      !$omp end do nowait
-
-      !$omp do schedule(static) private(is,ie),                                             &
-      !$omp private(lcfrac,lgfrac,lrfrac,lsfrac),                                           &
+      !$omp private(lgfrac,lrfrac,lsfrac),                                                  &
       !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl),  &
       !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
-      !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
-      !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),          &
-      !$omp private(idjd_t,mydiag_t,mp_physics)
+      !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                                     &
+      !$omp private(lstratcloud,lclcon,lcdrop),                                             &
+      !$omp private(idjd_t,mydiag_t)
       do tile = 1,ntiles
         is = (tile-1)*imax + 1
         ie = tile*imax
@@ -402,7 +472,6 @@ contains
         idjd_t = mod(idjd-1,imax) + 1
         mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
-        lcfrac   = cfrac(is:ie,:)
         lgfrac   = gfrac(is:ie,:)
         lrfrac   = rfrac(is:ie,:)
         lsfrac   = sfrac(is:ie,:)
@@ -412,41 +481,27 @@ contains
         lqfg     = qfg(is:ie,:)
         lqrg     = qrg(is:ie,:)
         lqsng    = qsng(is:ie,:)
-        lqlrad   = qlrad(is:ie,:)
-        lqfrad   = qfrad(is:ie,:)
         lt       = t(is:ie,:)
-        ldpsldt  = dpsldt(is:ie,:)
-        lclcon   = clcon(is:ie,:)
         lcdrop   = cdrop(is:ie,:)
         lstratcloud = stratcloud(is:ie,:)
-        if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) ) then
-          lnettend    = nettend(is:ie,:)
-          lrkmsave    = rkmsave(is:ie,:)
-          lrkhsave    = rkhsave(is:ie,:)
-        end if
 
-        call leoncld_work(lcfrac,condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,                 &
-                kbsav(is:ie),ktsav(is:ie),land(is:ie),                                          &
+        call leoncld_work(condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,ktsav(is:ie),           &
                 lppfevap,lppfmelt,lppfprec,lppfsnow,lppfstayice,lppfstayliq,lppfsubl,           &
                 lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
-                ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lrfrac,lsfrac,lt, &
-                ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),pblh(is:ie),idjd_t,        &
-                mydiag_t,ncloud,nclddia,nevapls,ldr,rcrit_l,rcrit_s,rcm,cld_decay,              &
-                vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,imax,kl)
+                ps(is:ie),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt,                      &
+                lstratcloud,lcdrop,idjd_t,                                                      &
+                mydiag_t,ncloud,nevapls,ldr,rcm,                                                &
+                imax,kl)
 
-        cfrac(is:ie,:) = lcfrac
         gfrac(is:ie,:) = lgfrac
         rfrac(is:ie,:) = lrfrac
         sfrac(is:ie,:) = lsfrac
-        qccon(is:ie,:) = lqccon
         qg(is:ie,:)    = lqg
         qlg(is:ie,:)   = lqlg
         qfg(is:ie,:)   = lqfg
         qrg(is:ie,:)   = lqrg
         qsng(is:ie,:)  = lqsng
         qgrg(is:ie,:)  = lqgrg
-        qlrad(is:ie,:) = lqlrad
-        qfrad(is:ie,:) = lqfrad
         t(is:ie,:)     = lt
         stratcloud(is:ie,:) = lstratcloud
         if ( abs(iaero)>=2 ) then
@@ -464,21 +519,20 @@ contains
           pprfreeze(is:ie,:)  = lpprfreeze
           pprscav(is:ie,:)    = lpprscav
         end if
-        if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) ) then
-          nettend(is:ie,:)    = lnettend
-        end if
       end do
       !$omp end do nowait
 
     case("LIN")
 
-      write(6,*) "LIN microphysics ",ncloud
+      if ( myid==0 ) then
+        write(6,*) "LIN microphysics ",ncloud
+      end if  
       
       !check to ensure again if W is in used somewhere
       !check if Ri only calc here
-      ccn0 = 10      
+      ccn0 = 250     
       riz  = 0
-      !dt=dt !dt_in 
+      dt=dt !dt_in 
       rhoe_s=1.29
       do tile = 1, ntiles
         is = (tile-1)*imax + 1
@@ -514,18 +568,18 @@ contains
             ! all arrays are imax below this line
 
             prf_temp(k) = ps_imax(i)*sig(k)
-            prf(k)      = 0.01*prf_temp(k)    !ps is SI units
-            rhoa(i,k)   = prf_temp(k)/(rdry*t_imax(i,k))             ! air density
+            prf(k)      = 0.01*prf_temp(k)                        !ps is SI units
+            rhoa(i,k)   = prf_temp(k)/(rdry*t_imax(i,k))          ! air density
             dz(i,k)     = -rdry*dsig(k)*t_imax(i,k)/(grav*sig(k)) ! level thickness in metres
             dz(i,k)     = min( max(dz(i,k), 1.), 2.e4 )
 
-            rhoz(k)  = rhoa(i,k)        !rho(i,k)
-            orhoz(k) = 1./rhoz(k)
-            prez(k)  = sig(k)*ps_imax(i)     !ps(i,k) !p(i,k)
+            rhoz(k)     = rhoa(i,k)        !rho(i,k)
+            orhoz(k)    = 1./rhoz(k)
+            prez(k)     = sig(k)*ps_imax(i)     !ps(i,k) !p(i,k)
             ! sqrhoz(k)=sqrt(rhoe_s*orhoz(k))
             ! no density dependence of fall speed as Note #5, you can turn it on to increase fall speed at low pressure.
             sqrhoz(k)   = 1.0
-            tothz(k)    = ((sig(k)*ps(iq))/1000.)**(287./1004.)    !pii(i,k)
+            tothz(k)    = ((sig(k)*ps_imax(i))/1000.)**(rdry/cp)    !pii(i,k)
 
             zlevv(i,1)   = bet(1)*t_imax(i,1)/grav
             do m=2,kl
@@ -542,7 +596,21 @@ contains
           pptrain=0.
           pptsnow=0.
           pptice =0.
-          
+          if (myid == 0 .and. tile == 1) then        
+            print*, '================= START input to LIN 2022 =================================='
+            print*, 'qvz      :', minval(qvz), maxval(qvz)
+            print*, 'qlz      :', minval(qlz), maxval(qlz)
+            print*, 'qrz      :', minval(qrz), maxval(qrz)
+            print*, 'qiz      :', minval(qiz), maxval(qiz)
+            print*, 'qsz      :', minval(qsz), maxval(qsz)
+            print*, 'thz      :', minval(thz), maxval(thz)
+            print*, 't_imax   :', minval(t_imax), maxval(t_imax)
+            print*, 'ps_imax  :', minval(ps_imax), maxval(ps_imax)
+            print*, 'rhoa     :', minval(rhoa), maxval(rhoa)
+            print*, 'tothz    :', minval(tothz), maxval(tothz) 
+            print*, 'zlevv    :', minval(zlevv), maxval(zlevv)
+            print*, '================= END input to LIN 2022 ===================================='
+          end if
           CALL clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,           &
                          thz, tothz, rhoz, orhoz, sqrhoz,          &
                          prez, zz, dzw, ht(i),                     &
@@ -551,6 +619,33 @@ contains
                          pptrain, pptsnow, pptice,                 &
                          kts, kte, i, j, riz                       &
                         ,ncz, nrz, niz, nsz)
+          if (myid == 0 .and. tile == 1) then
+          print*, '================= START output of LIN 2022 =================================='
+          print*, 'qvz      :', minval(qvz), maxval(qvz)
+          print*, 'qlz      :', minval(qlz), maxval(qlz)
+          print*, 'qrz      :', minval(qrz), maxval(qrz)
+          print*, 'qiz      :', minval(qiz), maxval(qiz)
+          print*, 'qsz      :', minval(qsz), maxval(qsz)
+          print*, 'thz      :', minval(thz), maxval(thz)
+          print*, 't_imax   :', minval(t_imax), maxval(t_imax)
+          print*, 'ps_imax  :', minval(ps_imax), maxval(ps_imax)
+          print*, 'rhoa     :', minval(rhoa), maxval(rhoa)
+          print*, 'tothz    :', minval(tothz), maxval(tothz)
+          print*, 'zlevv    :', minval(zlevv), maxval(zlevv)
+          print*, 'riz      :', minval(riz), maxval(riz) 
+          print*, 'precrz   :', minval(precrz), maxval(precrz)
+          print*, 'preciz   :', minval(preciz), maxval(preciz)
+          print*, 'precsz   :', minval(precsz), maxval(precsz)
+          print*, 'EFFC1D   :', minval(EFFC1D), maxval(EFFC1D)
+          print*, 'EFFI1D   :', minval(EFFI1D), maxval(EFFI1D) 
+          print*, 'EFFS1D   :', minval(EFFS1D), maxval(EFFS1D)
+          print*, 'EFFR1D   :', minval(EFFR1D), maxval(EFFR1D)
+          print*, 'ncz      :', minval(ncz), maxval(ncz)
+          print*, 'nrz      :', minval(nrz), maxval(nrz)
+          print*, 'niz      :', minval(niz), maxval(niz)
+          print*, 'nsz      :', minval(nsz), maxval(nsz)
+          print*, '================= END output of LIN 2022 ===================================='
+          end if
           ! Precipitation from cloud microphysics -- only for one time step
           ! unit is transferred from m to mm
           rain(i)= pptrain
@@ -584,46 +679,52 @@ contains
           end do !k loop
         end do   !i lopp
 
-     !   do iq = its,ite
-     !     i = iq - its + 1
-     !
-     !     cfrac(iq,:) = lcfrac(i,:)   ! total cloud area fraction (strat + convective cloud) for radiation
-     !     gfrac(iq,:) = lgfrac   ! graupel area fraction
-     ! rfrac(is:ie,:) = lrfrac   ! rain area fraction
-     ! sfrac(is:ie,:) = lsfrac   ! snow area fraction
-     ! qccon(is:ie,:) = lqccon   ! convective cloud fraction
-     !   qg(is:ie,:)    = lqg    ! qv mixing ratio
-     !   qlg(is:ie,:)   = lqlg   ! ql mixing ratio
-     !   qfg(is:ie,:)   = lqfg   ! qf mixing ratio (ice)
-     !   qrg(is:ie,:)   = lqrg   ! qr mixing ratio (rain)
-     !   qsng(is:ie,:)  = lqsng  ! qs mixing ratio (snow)
-     !   qgrg(is:ie,:)  = lqgrg  ! qg mixing ration (graupel)
-     !   qlrad(is:ie,:) = lqlrad ! ql mixing ratio (for radiation) = ql
-     !   qfrad(is:ie,:) = lqfrad ! qf mixing ratio (for radiation) = qf
-     !   t(is:ie,:)     = lt     ! air temperature 
-     !   stratcloud(is:ie,:) = lstratcloud ! stratiform cloud fraction (no covective cloud)
-     !   if ( abs(iaero)>=2 ) then
-     !     ppfevap(is:ie,:)    = lppfevap    ! ice evaporation for aerosols
-     !     ppfmelt(is:ie,:)    = lppfmelt    ! ice melting for aerosols
-     !     ppfprec(is:ie,:)    = lppfprec    ! ice precipitation
-     !     ppfsnow(is:ie,:)    = lppfsnow    ! snow precpitation
-     !     ppfstayice(is:ie,:) = lppfstayice ! ice remaining in layer
-     !     ppfstayliq(is:ie,:) = lppfstayliq ! liq remaining in layer
-     !     ppfsubl(is:ie,:)    = lppfsubl    ! ice sublimation
-     !     pplambs(is:ie,:)    = lpplambs    ! lambda
-     !     ppmaccr(is:ie,:)    = lppmaccr    ! accretion
-     !     ppmrate(is:ie,:)    = lppmrate    ! ?
-     !     ppqfsedice(is:ie,:) = lppqfsedice ! ?
-     !     pprfreeze(is:ie,:)  = lpprfreeze  ! freezing of rain
-     !     pprscav(is:ie,:)    = lpprscav    ! ?
-     !   end if
-     !   if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) ) then
-     !     nettend(is:ie,:)    = lnettend    ! Change in temperature for prognostic cloud fraction
-     !   end if
+        do iq = its,ite
+          i = iq - its + 1
+     
+          !cfrac(iq,:)    = 0.  !lcfrac(i,:)   ! total cloud area fraction (strat + convective cloud) for radiation
+          gfrac(iq,:)    = 0.  !lgfrac   ! graupel area fraction
+          rfrac(is:ie,:) = 0.  !lrfrac   ! rain area fraction
+          sfrac(is:ie,:) = 0.  !lsfrac   ! snow area fraction
+          !qccon(is:ie,:) = 0.  !lqccon   ! convective cloud fraction
+          qg(is:ie,:)    = qv_lin !lqg    ! qv mixing ratio
+          qlg(is:ie,:)   = ql !lqlg   ! ql mixing ratio
+          qfg(is:ie,:)   = qi !lqfg   ! qf mixing ratio (ice)
+          qrg(is:ie,:)   = qr !lqrg   ! qr mixing ratio (rain)
+          qsng(is:ie,:)  = qs !lqsng  ! qs mixing ratio (snow)
+          qgrg(is:ie,:)  = 0.  !lqgrg  ! qg mixing ration (graupel)
+          !qlrad(is:ie,:) = 0.5 !lqlrad ! ql mixing ratio (for radiation) = ql
+          !qfrad(is:ie,:) = 0.5 !lqfrad ! qf mixing ratio (for radiation) = qf
 
+          ! t and stratcloud should be updated
+          !t(is:ie,:)     = 273.0 !th !lt     ! air temperature 
+          !stratcloud(is:ie,:) = 0. !lstratcloud ! stratiform cloud fraction (no covective cloud)
+          if ( abs(iaero)>=2 ) then
+            ppfevap(is:ie,:)    = 0. !lppfevap    ! ice evaporation for aerosols
+            ppfmelt(is:ie,:)    = 0. !lppfmelt    ! ice melting for aerosols
+            ppfprec(is:ie,:)    = 0. !lppfprec    ! ice precipitation
+            ppfsnow(is:ie,:)    = 0. !lppfsnow    ! snow precpitation
+            ppfstayice(is:ie,:) = 0. !lppfstayice ! ice remaining in layer
+            ppfstayliq(is:ie,:) = 0. !lppfstayliq ! liq remaining in layer
+            ppfsubl(is:ie,:)    = 0. !lppfsubl    ! ice sublimation
+            pplambs(is:ie,:)    = 0. !lpplambs    ! lambda
+            ppmaccr(is:ie,:)    = 0. !lppmaccr    ! accretion
+            ppmrate(is:ie,:)    = 0. !lppmrate    ! ?
+            ppqfsedice(is:ie,:) = 0. !lppqfsedice ! ?
+            pprfreeze(is:ie,:)  = 0. !lpprfreeze  ! freezing of rain
+            pprscav(is:ie,:)    = 0. !lpprscav    ! ?
+          end if
+          !if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) ) then
+          !  nettend(is:ie,:)    = 0.5 !lnettend    ! Change in temperature for prognostic cloud fraction
+          !end if
+        end do
       end do     !tile loop
-      write(6,*) "DONE LIN microphysics ",ncloud
-    
+      if ( myid==0 ) then
+        write(6,*) "DONE LIN microphysics ",ncloud
+      end if 
+      if ( any(t_imax < 100. .or. t_imax > 400.)) then
+        call ccmpi_abort(-1) 
+      end if
     case default
       write(6,*) "ERROR: unknown mp_physics option "
       call ccmpi_abort(-1)
@@ -663,6 +764,7 @@ if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
            frac_out(Npoints,Ncolumns,Nlevels),surfelev(Npoints))
    allocate(zlev_inv(Npoints,Nlevels),Te_inv(Npoints,Nlevels),qv_inv(Npoints,Nlevels),   &
            p_inv(Npoints,Nlevels),ph_inv(Npoints,Nlevels),zlev_half_inv(Npoints,Nlevels))
+   allocate(Reff2(Npoints,Nlevels,N_HYDRO))
    allocate(tca_inv(Npoints,Nlevels),                                                            &
            cca_inv(Npoints,Nlevels),mr_lsliq_inv(Npoints,Nlevels),mr_lsice_inv(Npoints,Nlevels), &
            mr_ccliq_inv(Npoints,Nlevels),mr_ccice_inv(Npoints,Nlevels),                          &
@@ -675,6 +777,10 @@ if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
 
   ! Check allocation of OUTPUT vars
   if ( .not. allocated(mr_ccice_o) ) then
+    allocate( cltcalipso_o(ifull,4) )
+    allocate( caso_ice(ifull,4 ) )
+    allocate( caso_liq(ifull,4 ) )
+    !allocate( cltcalipso_o(ifull) )
     allocate( mr_ccice_o(ifull,kl) )
     allocate( cloudsat_Ze_tot(ifull,kl,Ncolumns) )
   end if
@@ -897,27 +1003,66 @@ if (myid==0 ) then
     !CALL RANDOM_NUMBER(dtau_c   )
     !CALL RANDOM_NUMBER(dem_s    )
     !CALL RANDOM_NUMBER(dem_c    )
-    CALL RANDOM_NUMBER(frac_out )
-    CALL RANDOM_NUMBER(Reff     )
+    !CALL RANDOM_NUMBER(frac_out )
+    CALL RANDOM_NUMBER(Reff2     )
+    !CALL RANDOM_NUMBER(Reff     )
 
     tca           = stratcloud(is:ie,1:kl)  ! Total column cloud fraction            (0-1)
     cca           = 0. ! cca       * 0.02                     ! Convective cloud fraction (1)
-    mr_lsliq      = qlg(is:ie,1:kl) ! mr_lsliq * 8.34089937E-04          ! Mass mixing ratio for stratiform cloud liquid (kg/kg)
-    mr_lsice      = qfg(is:ie,1:kl) ! mr_lsice * 5.00684895E-04          ! Mass mixing ratio for stratiform cloud ice (kg/kg)
-    mr_ccliq      = 0. ! mr_ccliq  * 6.04796187E-05          ! qlg(is:ie,1:kl)          ! Mass mixing ratio for convective cloud liquid (kg/kg)
-    mr_ccice      = 0. ! mr_ccice  * 3.71518508E-05          ! qfg(is:ie,1:kl)          ! Mass mixing ratio for convective cloud ice (kg/kg)
+    mr_lsliq      = qlg(is:ie,1:kl) ! mr_lsliq * 8.34089937E-04    ! Mass mixing ratio for stratiform cloud liquid (kg/kg)
+    mr_lsice      = qfg(is:ie,1:kl) ! mr_lsice * 5.00684895E-04    ! Mass mixing ratio for stratiform cloud ice (kg/kg)
+    mr_ccliq      = 0. ! mr_ccliq  * 6.04796187E-05                ! Mass mixing ratio for convective cloud liquid (kg/kg)
+    mr_ccice      = 0. ! mr_ccice  * 3.71518508E-05                ! Mass mixing ratio for convective cloud ice (kg/kg)
     mr_ozone      = 0. ! mr_ozone  * 5.12523911E-06          ! Mass mixing ratio for ozone (kg/kg)
     fl_lsrain     = 0. ! fl_lsrain * 1.26546761E-03          ! Precipitation flux (rain) for stratiform cloud (kg/m^2/s)
     fl_lssnow     = 0. ! fl_lssnow * 4.88236808E-04          ! Precipitation flux (snow) for stratiform cloud (kg/m^2/s)
     fl_lsgrpl     = 0. ! fl_lsgrpl * 0                       ! Precipitation flux (groupel) for stratiform cloud (kg/m^2/s)
     fl_ccrain     = 0. ! fl_ccrain * 2.15046201E-03          ! Precipitation flux (rain) for convective cloud (kg/m^2/s)
     fl_ccsnow     = 0. ! fl_ccsnow * 0                       ! Precipitation flux (snow) for convective cloud (kg/m^2/s)
-    dtau_s        = 0. !  dtau_s    * 100.0                   ! 0.67micron optical depth (stratiform cloud) (1)
+    dtau_s        = 0. ! dtau_s    * 100.0                   ! 0.67micron optical depth (stratiform cloud) (1)
     dtau_c        = 0. ! dtau_c    * 0.0                     ! 0.67micron optical depth (convective cloud) (1)
-    dem_s         = 0. ! dem_s     * 1.0                     ! 11micron emissivity (stratiform cloud)
+    dem_s         = 1. ! dem_s     * 1.0                     ! 11micron emissivity (stratiform cloud)
     dem_c         = 0. ! dem_c     * 0.0                     ! 11microm emissivity (convective cloud)
-    frac_out      = frac_out                     ! Subcolumn cloud cover (0/1)
-    Reff          = Reff      * 2.24404340E-03          ! Subcolumn effective radius
+    
+    do n = 1,ncolumns
+      frac_out(:,n,:)  = cfrac(is:ie,1:kl)                     ! Subcolumn cloud cover (0/1)
+    end do
+    !print*, 'frac_out: ', minval(frac_out), maxval(frac_out)
+
+    r_cfrac = cfrac(is:ie,1:kl)
+    r_qlrad = qlrad(is:ie,1:kl)
+    r_qfrad = qfrad(is:ie,1:kl)
+    !r_prf   = r_prf(is:ie,1:kl)
+    !r_t     = r_t(is:ie,1:kl)
+    r_cdrop = cdrop(is:ie,1:kl)
+    call cloud3(Rdrop,Rice,conl,coni,r_cfrac,r_qlrad,r_qfrad,p,Te,r_cdrop,imax,kl)
+   
+    !print*, 'Rdrop values: ', minval(Rdrop) ! 33.20
+    !print*, 'Rice values: ', maxval(Rice)   ! 100.59
+    its = is
+    ite = ie
+    kts = 1
+    kte = kl
+    do iq = its, ite
+      i = iq - its + 1 ! i must be smaller than 97
+      do k = kts, kte
+        Reff(i,k,1) = Rdrop(i,k)/2000000.   ! Large-scale (stratiform) liquid
+        Reff(i,k,2) = Rice(i,k)/2000000.    ! Large-scale (stratiform) ice
+        Reff(i,k,3) = 0.0                   ! Large-scale (stratiform) rain    !Reff2(i,k,3) * 2.24404340E-03
+        Reff(i,k,4) = 0.0                                    ! Large-scale (stratiform) snow
+        Reff(i,k,5) = 0.0                                    ! Convective liquid
+        Reff(i,k,6) = 0.0                                    ! Convective ice
+        Reff(i,k,7) = 0.0                                    ! Convective rain
+        Reff(i,k,8) = 0.0                                    ! Convective snow
+        Reff(i,k,9) = 0.0                                    ! Large-scale (stratiform) groupel
+      end do
+      !print*, 'Rdrop values: ', minval(Rdrop), maxval(Rdrop)
+      !print*, 'Rice values : ', minval(Rice), maxval(Rice)
+    end do
+
+    !print*, 'Rdrop values: ', minval(Reff(:,:,1)), maxval(Reff(:,:,1))
+    !print*, 'Rice values: ', minval(Reff(:,:,1)), maxval(Reff(:,:,2))
+    !Reff          = Reff      * 2.24404340E-03          ! Subcolumn effective radius
     seaice        = fracice(is:ie)         ! Sea-ice fraction                       (0-1)
 
 #ifdef sonny_debug    
@@ -1001,6 +1146,7 @@ if (myid==0 ) then
     cospIN%Npoints          = imax
     cospIN%Ncolumns         = 100
     cospIN%Nlevels          = kl
+    cospIN%frac_out         = frac_out
     cospstateIN%Npoints     = imax
     cospstateIN%Nlevels     = kl
     cospstateIN%Ncolumns    = 100
@@ -1075,6 +1221,18 @@ if (myid==0 ) then
       cloudsat_Ze_tot(is:ie,1:kl,n) = cospOUT%cloudsat_Ze_tot(:,n,:)
     end do
 
+    !Npoints,  & ! Number of gridpoints
+    !Ncolumns, & ! Number of subcolumns
+    !Nlevels,  & ! Number of vertical levels
+    !Ncat,     & ! Number of cloud layer types
+    !Nphase      ! Number of cloud layer phase types
+                 ! [ice,liquid,undefined,false ice,false liquid,Percent of ice]
+
+    do n=1,4
+      caso_ice(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,1)
+      caso_liq(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,2)
+    end do
+
     cnttt = 0
     do kkk=1,ncolumns
       do jjj=1,kl
@@ -1085,11 +1243,15 @@ if (myid==0 ) then
         end do
       end do
     end do
+    do n=1,4
+      cltcalipso_o(is:ie,n) = cospOUT%calipso_cldlayer(:,n)
+    end do
 
-    mr_ccice_o(is:ie,1:kl) = mr_ccice(:,:)
+    !cltcalipso_o(is:ie) = cospOUT%calipso_cldlayer(:,1)
+    mr_ccice_o(is:ie,1:kl)  = mr_ccice(:,:)
     
     
-  end do ! for each tile  
+  end do !for each tile  
   print*, 'Number of cloudsat_Ze_tot > 0 is ', cnttt,count(cloudsat_ze_tot>0.)
   print*, 'cloudsat_Ze_tot: ', minval(cloudsat_Ze_tot), maxval(cloudsat_Ze_tot)
 
@@ -1123,7 +1285,7 @@ endif
     select case(ncloud)
       case(0,2,3,4,10,12,13,20,21,22)
         mp_physics = "LEON"
-      case(100,102,103,104,112,113,120,121,122)
+      case(100,110,120)
         mp_physics = "LIN"
       end select
   end if

@@ -66,6 +66,7 @@ use mlo                                    ! Ocean physics and prognostic arrays
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use module_ctrl_microphysics               ! Microphysics driver   !#sonny
+use module_aux_rad_cosp
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
