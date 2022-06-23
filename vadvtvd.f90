@@ -168,6 +168,46 @@ end if          ! if(mspec==1)
 !$omp section
 #endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
+  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    call vadv_work(nc,nvadh_pass,nits)
+    nc = max(nc, 0.)
+  end if      ! if(ldr.ne.0)
+end if          ! if(mspec==1)
+
+#ifndef GPU
+!$omp section
+#endif
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
+  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    call vadv_work(nr,nvadh_pass,nits)
+    nr = max(nr, 0.)
+  end if      ! if(ldr.ne.0)
+end if          ! if(mspec==1)
+
+#ifndef GPU
+!$omp section
+#endif
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
+  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    call vadv_work(ni,nvadh_pass,nits)
+    ni = max(ni, 0.)
+  end if      ! if(ldr.ne.0)
+end if          ! if(mspec==1)
+
+#ifndef GPU
+!$omp section
+#endif
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
+  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    call vadv_work(ns,nvadh_pass,nits)
+    ns = max(ns, 0.)
+  end if      ! if(ldr.ne.0)
+end if          ! if(mspec==1)
+
+#ifndef GPU
+!$omp section
+#endif
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
     call vadv_work(stratcloud,nvadh_pass,nits)
   end if      ! if(ldr.ne.0)

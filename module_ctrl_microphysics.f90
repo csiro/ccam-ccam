@@ -268,20 +268,22 @@ contains
   use cfrac_m                       ! Cloud fraction
   use cloudmod                      ! Prognostic cloud fraction
   use const_phys                    ! Physical constants
-  use estab, only : qsat
+  use estab
   use filnames_m
   use kuocomb_m                     ! JLM convection
   use latlong_m
   use leoncld_mod                   ! Leo cloud microphysics
   use liqwpar_m                     ! Cloud water mixing ratios
   use map_m                         ! Grid map arrays
+  use mgcloud_m , only : mg_2cond
   use module_aux_rad_cosp           ! ...
   use module_mp_sbu_ylin            ! Lin 2022 Scheme
   use morepbl_m                     ! Additional boundary layer diagnostics
   use newmpar_m                     ! Grid parameters
   use nharrs_m                      ! Non-hydrostatic atmosphere arrays
   !use outcdf
-  use parm_m, only : idjd,iaero,    & 
+  use parm_m, only : dt,            &
+                     idjd,iaero,    & 
                      iaero,         &
                      irest,         &
                      ktau, nwt      ! Model configuration
@@ -327,7 +329,7 @@ contains
   real, dimension(imax)    :: SNOWNC,SNOWNCV
   real, dimension(imax,kl) :: th,qv_lin,qi,ql,qs,qr
   real, dimension(imax,kl) :: Ri3D
-  real, dimension(imax,kl) :: nc,nr,ni,ns,nn
+  real, dimension(imax,kl) :: nn !nc,nr,ni,ns,nn
   ! intent(out)
   real, dimension(imax,kl) :: precr,preci,precs,eradc,eradi,erads,eradr
   ! local variables
@@ -337,7 +339,7 @@ contains
                               prez,zz,precrz,preciz,precsz,EFFC1D,EFFI1D,EFFS1D,   &
                               EFFR1D,dzw
   real, dimension(kl)      :: riz
-  real                     :: dt, pptice, pptrain, pptsnow, pptgraul, rhoe_s
+  real                     :: pptice, pptrain, pptsnow, pptgraul, rhoe_s
   integer                  :: i,j,m,iq    !,k
   real, dimension(kl)      ::ncz,nrz,niz,nsz,nnz
   real, dimension(imax,kl) :: t_imax
@@ -360,7 +362,8 @@ contains
   !real, dimension(ims:ime,kms:kme,jms:jme):: lamio,lamro,lamso,n0io,n0ro,n0so
   !====================================================================================================
   real, dimension(imax,kl)    :: rhoa,dz
-  real, dimension(kl)         :: prf_temp,prf 
+  real, dimension(imax,kl)    :: prf
+  real, dimension(imax)       :: prf_temp 
 
 #ifdef COSPP
   ! for CCAM
@@ -377,7 +380,7 @@ contains
 #endif
 
   !----------------------------------------------------------------------------
-  ! Prepare inputs for cloud microphysics
+  ! Prepare inputs for /loud microphysics
 
   !$omp do schedule(static) private(is,ie),                                             &
   !$omp private(k,lrhoa,lcdrop,lclcon)
@@ -531,9 +534,10 @@ contains
       !check to ensure again if W is in used somewhere
       !check if Ri only calc here
       ccn0 = 250     
-      riz  = 0
+      !riz  = 0
       dt=dt !dt_in 
       rhoe_s=1.29
+      !t_imax = -300.
       do tile = 1, ntiles
         is = (tile-1)*imax + 1
         ie = tile*imax
@@ -551,6 +555,12 @@ contains
           ! i is for imax arrays
           i = iq - its + 1 ! i>=1 and i<=imax
 
+          zlevv(i,1)   = bet(1)*t(iq,1)/grav + zs(iq)/grav
+          do m=2,kl
+            zlevv(i,m)   = zlevv(i,m-1) + (bet(m)*t(iq,m)+betm(m)*t(iq,m-1))/grav
+          end do
+          ht(i) = zs(iq)/grav
+
           !!- write data from 3-D to 1-D
           do k = kts, kte
 
@@ -560,55 +570,52 @@ contains
             qrz(k)   = qrg(iq,k)          !qr(iq,k)
             qiz(k)   = qfg(iq,k)          !qi(iq,k)
             qsz(k)   = qsng(iq,k)         !qs(iq,k)
-            thz(k)   = t(iq,k) / (((sig(k)*ps(iq))/1000.)**(rdry/cp))           !th(i,k)
             t_imax(i,k) = t(iq,k)
             ps_imax(i) = ps(iq)
 
             ! ----------------
             ! all arrays are imax below this line
 
-            prf_temp(k) = ps_imax(i)*sig(k)
-            prf(k)      = 0.01*prf_temp(k)                        !ps is SI units
-            rhoa(i,k)   = prf_temp(k)/(rdry*t_imax(i,k))          ! air density
+            prf_temp(i) = ps_imax(i)*sig(k)
+            prf(i,k)    = 0.01*prf_temp(i)                        ! ps is SI units
+            rhoa(i,k)   = prf_temp(i)/(rdry*t_imax(i,k))          ! air density
             dz(i,k)     = -rdry*dsig(k)*t_imax(i,k)/(grav*sig(k)) ! level thickness in metres
             dz(i,k)     = min( max(dz(i,k), 1.), 2.e4 )
-
+            tothz(k)    = (prf(i,k)/1000.)**(rdry/cp)    !pii(i,k)
+            !thz(k)      = t_imax(i,k) * (1000. / prf(i,k))**(rdry/cp)           !th(i,k)
+            thz(k)      = t_imax(i,k) / tothz(k)
             rhoz(k)     = rhoa(i,k)        !rho(i,k)
             orhoz(k)    = 1./rhoz(k)
             prez(k)     = sig(k)*ps_imax(i)     !ps(i,k) !p(i,k)
             ! sqrhoz(k)=sqrt(rhoe_s*orhoz(k))
             ! no density dependence of fall speed as Note #5, you can turn it on to increase fall speed at low pressure.
             sqrhoz(k)   = 1.0
-            tothz(k)    = ((sig(k)*ps_imax(i))/1000.)**(rdry/cp)    !pii(i,k)
+            tothz(k)    = (prf(i,k)/1000.)**(rdry/cp)    !pii(i,k)
 
-            zlevv(i,1)   = bet(1)*t_imax(i,1)/grav
-            do m=2,kl
-              zlevv(i,m)   = zlevv(i,m-1) + (bet(m)*t_imax(i,m)+betm(m)*t_imax(i,m-1))/grav
-            end do
-            
             zz(k)       = zlevv(i,k)          !z(i,k)
             dzw(k)      = dz(i,k)  !dz8w(i,k)
-            ncz(k)      = 0.0      !nc(i,k)
-            nrz(k)      = 0.0      !nr(i,k)
-            niz(k)      = 0.0      !ni(i,k)
-            nsz(k)      = 0.0      !ns(i,k)
-          end do
+            ncz(k)      = nc(iq,k)
+            nrz(k)      = nr(iq,k)
+            niz(k)      = ni(iq,k)
+            nsz(k)      = ns(iq,k)
+          end do ! k loop
+
           pptrain=0.
           pptsnow=0.
           pptice =0.
-          if (myid == 0 .and. tile == 1) then        
+          if (myid == 0 .and. tile==1 ) then        
             print*, '================= START input to LIN 2022 =================================='
-            print*, 'qvz      :', minval(qvz), maxval(qvz)
-            print*, 'qlz      :', minval(qlz), maxval(qlz)
-            print*, 'qrz      :', minval(qrz), maxval(qrz)
-            print*, 'qiz      :', minval(qiz), maxval(qiz)
-            print*, 'qsz      :', minval(qsz), maxval(qsz)
-            print*, 'thz      :', minval(thz), maxval(thz)
-            print*, 't_imax   :', minval(t_imax), maxval(t_imax)
-            print*, 'ps_imax  :', minval(ps_imax), maxval(ps_imax)
-            print*, 'rhoa     :', minval(rhoa), maxval(rhoa)
-            print*, 'tothz    :', minval(tothz), maxval(tothz) 
-            print*, 'zlevv    :', minval(zlevv), maxval(zlevv)
+            print*, 'qvz      :', minval(qvz(:)), maxval(qvz(:))
+            print*, 'qlz      :', minval(qlz(:)), maxval(qlz(:))
+            print*, 'qrz      :', minval(qrz(:)), maxval(qrz(:))
+            print*, 'qiz      :', minval(qiz(:)), maxval(qiz(:))
+            print*, 'qsz      :', minval(qsz(:)), maxval(qsz(:))
+            print*, 'thz      :', minval(thz(:)), maxval(thz(:))
+            print*, 't_imax   :', minval(t_imax(i,:)), maxval(t_imax(i,:))
+            print*, 'ps_imax  :', ps_imax(i)
+            print*, 'rhoa     :', minval(rhoa(i,:)), maxval(rhoa(i,:))
+            print*, 'tothz    :', minval(tothz(:)), maxval(tothz(:)) 
+            print*, 'zlevv    :', minval(zlevv(i,:)), maxval(zlevv(i,:))
             print*, '================= END input to LIN 2022 ===================================='
           end if
           CALL clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,           &
@@ -619,31 +626,31 @@ contains
                          pptrain, pptsnow, pptice,                 &
                          kts, kte, i, j, riz                       &
                         ,ncz, nrz, niz, nsz)
-          if (myid == 0 .and. tile == 1) then
+          if (myid == 0 .and. tile==1 ) then
           print*, '================= START output of LIN 2022 =================================='
-          print*, 'qvz      :', minval(qvz), maxval(qvz)
-          print*, 'qlz      :', minval(qlz), maxval(qlz)
-          print*, 'qrz      :', minval(qrz), maxval(qrz)
-          print*, 'qiz      :', minval(qiz), maxval(qiz)
-          print*, 'qsz      :', minval(qsz), maxval(qsz)
-          print*, 'thz      :', minval(thz), maxval(thz)
-          print*, 't_imax   :', minval(t_imax), maxval(t_imax)
-          print*, 'ps_imax  :', minval(ps_imax), maxval(ps_imax)
-          print*, 'rhoa     :', minval(rhoa), maxval(rhoa)
-          print*, 'tothz    :', minval(tothz), maxval(tothz)
-          print*, 'zlevv    :', minval(zlevv), maxval(zlevv)
-          print*, 'riz      :', minval(riz), maxval(riz) 
-          print*, 'precrz   :', minval(precrz), maxval(precrz)
-          print*, 'preciz   :', minval(preciz), maxval(preciz)
-          print*, 'precsz   :', minval(precsz), maxval(precsz)
-          print*, 'EFFC1D   :', minval(EFFC1D), maxval(EFFC1D)
-          print*, 'EFFI1D   :', minval(EFFI1D), maxval(EFFI1D) 
-          print*, 'EFFS1D   :', minval(EFFS1D), maxval(EFFS1D)
-          print*, 'EFFR1D   :', minval(EFFR1D), maxval(EFFR1D)
-          print*, 'ncz      :', minval(ncz), maxval(ncz)
-          print*, 'nrz      :', minval(nrz), maxval(nrz)
-          print*, 'niz      :', minval(niz), maxval(niz)
-          print*, 'nsz      :', minval(nsz), maxval(nsz)
+          print*, 'qvz      :', minval(qvz(:)), maxval(qvz(:))
+          print*, 'qlz      :', minval(qlz(:)), maxval(qlz(:))
+          print*, 'qrz      :', minval(qrz(:)), maxval(qrz(:))
+          print*, 'qiz      :', minval(qiz(:)), maxval(qiz(:))
+          print*, 'qsz      :', minval(qsz(:)), maxval(qsz(:))
+          print*, 'thz      :', minval(thz(:)), maxval(thz(:))
+          print*, 't_imax   :', minval(t_imax(i,:)), maxval(t_imax(i,:))
+          print*, 'ps_imax  :', ps_imax(i)
+          print*, 'rhoa     :', minval(rhoa(i,:)), maxval(rhoa(i,:))
+          print*, 'tothz    :', minval(tothz(:)), maxval(tothz(:))
+          print*, 'zlevv    :', minval(zlevv(i,:)), maxval(zlevv(i,:))
+          print*, 'riz      :', minval(riz(:)), maxval(riz(:)) 
+          print*, 'precrz   :', minval(precrz(:)),maxval(precrz(:))
+          print*, 'preciz   :', minval(preciz(:)),maxval(preciz(:))
+          print*, 'precsz   :', minval(precsz(:)),maxval(precsz(:))
+          print*, 'EFFC1D   :', minval(EFFC1D(:)), maxval(EFFC1D(:))
+          print*, 'EFFI1D   :', minval(EFFI1D(:)), maxval(EFFI1D(:)) 
+          print*, 'EFFS1D   :', minval(EFFS1D(:)), maxval(EFFS1D(:))
+          print*, 'EFFR1D   :', minval(EFFR1D(:)), maxval(EFFR1D(:))
+          print*, 'ncz      :', minval(ncz(:)), maxval(ncz(:))
+          print*, 'nrz      :', minval(nrz(:)), maxval(nrz(:))
+          print*, 'niz      :', minval(niz(:)), maxval(niz(:))
+          print*, 'nsz      :', minval(nsz(:)), maxval(nsz(:))
           print*, '================= END output of LIN 2022 ===================================='
           end if
           ! Precipitation from cloud microphysics -- only for one time step
@@ -660,14 +667,16 @@ contains
             qv_lin(i,k)=qvz(k)
             ql(i,k)=qlz(k)
             qr(i,k)=qrz(k)
-            th(i,k)=thz(k)
             qi(i,k)=qiz(k)
             qs(i,k)=qsz(k)
-            ri3d(i,k)=riz(k)
-            nc(i,k)=ncz(k)
-            nr(i,k)=nrz(k)
-            ni(i,k)=niz(k)
-            ns(i,k)=nsz(k)    !zdc 20220116
+
+            !prf_temp(i) = ps_imax(i)*sig(k)
+            !prf(i,k)    = 0.01*prf_temp(i)                        ! ps is SI units
+            th(i,k)=thz(k) * tothz(k)
+            if ( th(i,k) < 0. ) then
+              print *,"ERROR: air temperature th  ",th(i,k),thz(k),tothz(k)
+              call ccmpi_abort(-1)
+            end if
             precr(i,k)=precrz(k)
             preci(i,k)=preciz(k)
             precs(i,k)=precsz(k)
@@ -677,47 +686,60 @@ contains
             erads(i,k) = EFFS1D(k)
             eradr(i,k) = EFFR1D(k)
           end do !k loop
-        end do   !i lopp
+        end do   !i loop
 
         do iq = its,ite
           i = iq - its + 1
-     
-          !cfrac(iq,:)    = 0.  !lcfrac(i,:)   ! total cloud area fraction (strat + convective cloud) for radiation
-          gfrac(iq,:)    = 0.  !lgfrac   ! graupel area fraction
-          rfrac(is:ie,:) = 0.  !lrfrac   ! rain area fraction
-          sfrac(is:ie,:) = 0.  !lsfrac   ! snow area fraction
-          !qccon(is:ie,:) = 0.  !lqccon   ! convective cloud fraction
-          qg(is:ie,:)    = qv_lin !lqg    ! qv mixing ratio
-          qlg(is:ie,:)   = ql !lqlg   ! ql mixing ratio
-          qfg(is:ie,:)   = qi !lqfg   ! qf mixing ratio (ice)
-          qrg(is:ie,:)   = qr !lqrg   ! qr mixing ratio (rain)
-          qsng(is:ie,:)  = qs !lqsng  ! qs mixing ratio (snow)
-          qgrg(is:ie,:)  = 0.  !lqgrg  ! qg mixing ration (graupel)
-          !qlrad(is:ie,:) = 0.5 !lqlrad ! ql mixing ratio (for radiation) = ql
-          !qfrad(is:ie,:) = 0.5 !lqfrad ! qf mixing ratio (for radiation) = qf
+          do k = kts, kte
+            t(iq,k) = th(i,k) 
+            gfrac(iq,k) = 0.  !lgfrac   ! graupel area fraction
+            if ( qr(i,k)>0. ) then
+              rfrac(iq,k) = 1.  !lrfrac   ! rain area fraction
+            else
+              rfrac(iq,k) = 0.
+            end if
+            if ( qs(i,k)>0. ) then
+              sfrac(iq,k) = 1.
+            else
+              sfrac(iq,k) = 0.
+            end if
+            qg(iq,k)    = qv_lin(i,k) !lqg    ! qv mixing ratio
+            qlg(iq,k)   = ql(i,k)     !lqlg   ! ql mixing ratio
+            qfg(iq,k)   = qi(i,k)     !lqfg   ! qf mixing ratio (ice)
+            qrg(iq,k)   = qr(i,k)     !lqrg   ! qr mixing ratio (rain)
+            qsng(iq,k)  = qs(i,k)     !lqsng  ! qs mixing ratio (snow)
+            qgrg(iq,k)  = qs(i,k)     !lqgrg  ! qg mixing ration (graupel)
+            stratcloud(iq,k) = cfrac(iq,k)
 
-          ! t and stratcloud should be updated
-          !t(is:ie,:)     = 273.0 !th !lt     ! air temperature 
-          !stratcloud(is:ie,:) = 0. !lstratcloud ! stratiform cloud fraction (no covective cloud)
-          if ( abs(iaero)>=2 ) then
-            ppfevap(is:ie,:)    = 0. !lppfevap    ! ice evaporation for aerosols
-            ppfmelt(is:ie,:)    = 0. !lppfmelt    ! ice melting for aerosols
-            ppfprec(is:ie,:)    = 0. !lppfprec    ! ice precipitation
-            ppfsnow(is:ie,:)    = 0. !lppfsnow    ! snow precpitation
-            ppfstayice(is:ie,:) = 0. !lppfstayice ! ice remaining in layer
-            ppfstayliq(is:ie,:) = 0. !lppfstayliq ! liq remaining in layer
-            ppfsubl(is:ie,:)    = 0. !lppfsubl    ! ice sublimation
-            pplambs(is:ie,:)    = 0. !lpplambs    ! lambda
-            ppmaccr(is:ie,:)    = 0. !lppmaccr    ! accretion
-            ppmrate(is:ie,:)    = 0. !lppmrate    ! ?
-            ppqfsedice(is:ie,:) = 0. !lppqfsedice ! ?
-            pprfreeze(is:ie,:)  = 0. !lpprfreeze  ! freezing of rain
-            pprscav(is:ie,:)    = 0. !lpprscav    ! ?
-          end if
-          !if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) ) then
-          !  nettend(is:ie,:)    = 0.5 !lnettend    ! Change in temperature for prognostic cloud fraction
-          !end if
-        end do
+            ri3d(iq,k)=riz(k)
+            nc(iq,k)=ncz(k)
+            nr(iq,k)=nrz(k)
+            ni(iq,k)=niz(k)
+            ns(iq,k)=nsz(k)    !zdc 20220116
+
+            if ( abs(iaero)>=2 ) then
+              ppfevap(iq,k)    = 0. !lppfevap    ! ice evaporation for aerosols
+              ppfmelt(iq,k)    = 0. !lppfmelt    ! ice melting for aerosols
+              ppfprec(iq,k)    = 0. !lppfprec    ! ice precipitation
+              ppfsnow(iq,k)    = 0. !lppfsnow    ! snow precpitation
+              ppfstayice(iq,k) = 0. !lppfstayice ! ice remaining in layer
+              ppfstayliq(iq,k) = 0. !lppfstayliq ! liq remaining in layer
+              ppfsubl(iq,k)    = 0. !lppfsubl    ! ice sublimation
+              pplambs(iq,k)    = 0. !lpplambs    ! lambda
+              ppmaccr(iq,k)    = 0. !lppmaccr    ! accretion
+              ppmrate(iq,k)    = 0. !lppmrate    ! ?
+              ppqfsedice(iq,k) = 0. !lppqfsedice ! ?
+              pprfreeze(iq,k)  = 0. !lpprfreeze  ! freezing of rain
+              pprscav(iq,k)    = 0. !lpprscav    ! ?
+            end if
+          end do !k loop
+
+          condx(iq) = condx(iq) + pptrain + pptsnow + pptice
+          conds(iq) = conds(iq) + pptsnow + pptice
+          !condg(iq) = condg(iq) + 0. ! for graupel
+          precip(iq) = precip(iq) + pptrain + pptsnow + pptice
+
+        end do   !iq loop
       end do     !tile loop
       if ( myid==0 ) then
         write(6,*) "DONE LIN microphysics ",ncloud
@@ -1021,7 +1043,7 @@ if (myid==0 ) then
     fl_ccsnow     = 0. ! fl_ccsnow * 0                       ! Precipitation flux (snow) for convective cloud (kg/m^2/s)
     dtau_s        = 0. ! dtau_s    * 100.0                   ! 0.67micron optical depth (stratiform cloud) (1)
     dtau_c        = 0. ! dtau_c    * 0.0                     ! 0.67micron optical depth (convective cloud) (1)
-    dem_s         = 1. ! dem_s     * 1.0                     ! 11micron emissivity (stratiform cloud)
+    dem_s         = 0. ! dem_s     * 1.0                     ! 11micron emissivity (stratiform cloud)
     dem_c         = 0. ! dem_c     * 0.0                     ! 11microm emissivity (convective cloud)
     
     do n = 1,ncolumns
