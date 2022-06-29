@@ -112,6 +112,7 @@ use const_phys                    ! Physical constants
 use kuocomb_m                     ! JLM convection
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
+use module_aux_rad                ! Additional cloud and radiation routines
 use morepbl_m                     ! Additional boundary layer diagnostics
 use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays 
@@ -136,6 +137,11 @@ real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqlrad, lqrg, lqsng, lrfrac, lsfra
 real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
 real, dimension(imax,kl) :: lrkmsave, lrkhsave
 real, dimension(ifull,kl) :: clcon, cdrop
+real, dimension(ifull,kl) :: cloud_tau, cloud_emiss
+real, dimension(imax) :: lwp, iwp, tau_ice, k_liq, k_ice
+real, dimension(imax,4) :: tau_liq
+real, dimension(imax,kl) :: rdrop, rice, lpress
+real(kind=8), dimension(imax,kl) :: lrdrop, lrice, lconl, lconi
 logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),                                             &
@@ -154,6 +160,7 @@ do tile = 1,ntiles
   ! Calculate convective cloud fraction
   call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
   clcon(is:ie,1:kl) = lclcon(1:imax,1:kl)
+  
 end do
 !$omp end do nowait
 
@@ -163,7 +170,8 @@ end do
 !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),            &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqgrg,lqlg,lqlrad,lqrg,lqsng,lt),                &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),          &
-!$omp private(idjd_t,mydiag_t)
+!$omp private(lwp,iwp,tau_liq,tau_ice,k_liq,k_ice,rdrop,rice,lpress,lrdrop,lrice),    &
+!$omp private(lconl,lconi,idjd_t,mydiag_t)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -236,10 +244,40 @@ do tile = 1,ntiles
   if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) ) then
     nettend(is:ie,:)    = lnettend
   end if
-  
-end do
-!$omp end do nowait
 
+  ! Estimate cloud droplet size
+  do k = 1,kl
+    lpress(:,k) = ps(is:ie)*sig(k)
+  end do  
+  call cloud3(lrdrop,lrice,lconl,lconi,lcfrac,lqlrad,lqfrad,lpress,lt,lcdrop,imax,kl)
+  rdrop = real(lrdrop)
+  rice = real(lrice)
+  
+  ! cloud optical depth and emissivity ----------------------------
+  ! Bands based on Slingo
+  !            BAND               SLINGO                 EBERT AND CURRY
+  !
+  !             1               0.25-0.69                0.25 - 0.7
+  !             2               0.69-1.19                0.7 - 1.3
+  !             3               1.19-2.38                1.3 - 2.5
+  !             4               2.38-4.00                2.5 - 3.5    
+  do k = 1,kl
+    lwp(:) = -dsig(k)*lqlrad(:,k)*ps(is:ie)/grav
+    iwp(:) = -dsig(k)*lqfrad(:,k)*ps(is:ie)/grav
+    tau_liq(:,1) = lwp(:)*1000.*(0.02817 + (1.305/rdrop(:,k)))
+    tau_liq(:,2) = lwp(:)*1000.*(0.02682 + (1.346/rdrop(:,k)))
+    tau_liq(:,3) = lwp(:)*1000.*(0.02264 + (1.454/rdrop(:,k)))
+    tau_liq(:,4) = lwp(:)*1000.*(0.01281 + (1.641/rdrop(:,k)))
+    tau_ice(:) = iwp(:)*1000.*(0.003448 + (2.431/rice(:,k)))
+    cloud_tau(is:ie,k) = sum(tau_liq,dim=2)/4. + tau_ice ! 4 bands
+    k_liq(:) = 140.
+    k_ice(:) = 4.83591 + 1758.511/rice(:,k)
+    cloud_emiss(is:ie,k) = 1. - exp(-(k_liq(:)*lwp(:) + k_ice(:)*iwp(:)))
+  end do  
+
+end do
+!$omp end do nowait  
+  
 return
 end subroutine leoncld
 

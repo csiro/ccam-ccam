@@ -2129,14 +2129,16 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sstb(:,ka)
       call mloexport("temp",old,k,0)
-      old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
+      !old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
+      old = old + max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old )
       call mloimport("temp",old,k,0)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sstb(:,ka)
         call mloexport("temp",old,k,0)
-        old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
+        !old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
+        old = old + max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old )
         call mloimport("temp",old,k,0)
       end do
     end if
@@ -3232,7 +3234,8 @@ if (nud_sst/=0) then
     ka=min(k,wl)
     old=new(:,ka)
     call mloexport("temp",old,k,0)
-    old=old*(1.-wgt)+max(new(:,ka),275.16-wrtemp)*wgt
+    !old=old*(1.-wgt)+max(new(:,ka),275.16-wrtemp)*wgt
+    old=old*(1.-wgt)+max(new(:,ka),271.16-wrtemp)*wgt
     call mloimport("temp",old,k,0)
   end do
 end if

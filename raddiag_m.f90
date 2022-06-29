@@ -36,9 +36,8 @@ public soutclr,rtclr,rgclr,sgclr
 public rgdclr, sgdclr
 public sgdn_amp, dni_amp, sw_tend_amp, sint_amp, sout_amp
 public soutclr_amp, sgclr_amp, sgn_amp, sgdndir_amp
-public sgdclr_amp
+public sw_tend, lw_tend, sgdclr_amp
 public raddiag_init,raddiag_end
-public sw_tend, lw_tend
 
 real, dimension(:), allocatable, save :: sint_ave,sot_ave,soc_ave,sgn_ave
 real, dimension(:), allocatable, save :: sgdn_ave,rgdn_ave,sgdn,rgdn,rgn

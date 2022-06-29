@@ -493,20 +493,17 @@ tile = ie/imax
 
 zminx(is:ie) = bet(1)*t(is:ie,1)/grav
 zminx(is:ie) = max( zminx(is:ie), 5. )
+iu(is:ie) = 0.
+iv(is:ie) = 0.
+ou(is:ie) = 0.
+ov(is:ie) = 0.
 if ( nmlo/=0 ) then
-  iu(is:ie) = 0.
-  iv(is:ie) = 0.
-  ou(is:ie) = 0.
-  ov(is:ie) = 0.
   call mloexport("u",ou(is:ie),1,0,water_g(tile),depth_g(tile))
   call mloexport("v",ov(is:ie),1,0,water_g(tile),depth_g(tile))
   call mloexpice("u",iu(is:ie),0,ice_g(tile),depth_g(tile))
   call mloexpice("v",iv(is:ie),0,ice_g(tile),depth_g(tile))
   ou(is:ie) = (1.-fracice(is:ie))*ou(is:ie) + fracice(is:ie)*iu(is:ie)
   ov(is:ie) = (1.-fracice(is:ie))*ov(is:ie) + fracice(is:ie)*iv(is:ie)
-else
-  ou(is:ie) = 0.
-  ov(is:ie) = 0.
 end if
 au(is:ie)   = u(is:ie,1) - ou(is:ie)
 av(is:ie)   = v(is:ie,1) - ov(is:ie)
@@ -526,6 +523,13 @@ if ( zo_clearing>0. ) then
     new_zoh(is:ie) = min( 0.1*zo_clearing, zoh(is:ie) )
     new_zoq(is:ie) = min( 0.1*zo_clearing, zoq(is:ie) )
   end where  
+end if
+if ( rescrn==2 ) then
+  where ( land(is:ie) )
+    new_zo(is:ie) = max( zo(is:ie), zobgin )
+    new_zoh(is:ie) = max( zoh(is:ie), zobgin/7.4 )
+    new_zoq(is:ie) = max( zoq(is:ie), zobgin/7.4 )
+  end where
 end if
 
 call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),               &

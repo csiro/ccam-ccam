@@ -90,6 +90,7 @@ use timeseries, only : write_ts            ! Tracer time series
 use tracermodule, only : tracer_mass     & ! Tracer routines
    ,interp_tracerflux
 use tracers_m                              ! Tracer data
+use trvmix                                 ! Tracer mixing routines
 use uvbar_m                                ! Saved dynamic arrays
 use vertmix_m                              ! Boundary layer turbulent mixing
 use vvel_m                                 ! Additional vertical velocity
@@ -714,28 +715,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp master
   call END_LOG(sfluxnet_end)
   !$omp end master
-
-
-  ! AEROSOLS --------------------------------------------------------------
-  ! MJT notes - aerosols called before vertical mixing so that convective
-  ! and strat cloud can be separated in a way that is consistent with
-  ! cloud microphysics
-  !$omp master
-  call START_LOG(aerosol_begin)
-  !$omp end master
-  if ( abs(iaero)>=2 ) then
-    call aerocalc(oxidant_update,mins)
-  end if
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax  
-    call nantest("after aerosols",js,je)
-  end do  
-  !$omp end do nowait
-  !$omp master
-  call END_LOG(aerosol_end)
-  !$omp end master
     
     
   ! VERTICAL MIXING ------------------------------------------------------
@@ -776,7 +755,32 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call END_LOG(vertmix_end)
   !$omp end master
 
+  
+  ! AEROSOLS --------------------------------------------------------------
+  !$omp master
+  call START_LOG(aerosol_begin)
+  !$omp end master
+  if ( abs(iaero)>=2 ) then
+    call aerocalc(oxidant_update,mins)
+  end if
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call nantest("after aerosols",js,je)
+  end do  
+  !$omp end do nowait
+  !$omp master
+  call END_LOG(aerosol_end)
+  !$omp end master
+  
+  
+  ! TRACERS ---------------------------------------------------------------
+  if ( ngas>0 ) then
+    call tracervmix  
+  end if
 
+  
   ! MISC (PARALLEL) -------------------------------------------------------
   ! Update diagnostics for consistancy in history file
   !$omp do schedule(static) private(js,je)
@@ -1348,6 +1352,7 @@ use map_m                                  ! Grid map arrays
 use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,factchseaice,minwater,mxd,mindep    &
     ,alphavis_seaice,alphanir_seaice     &
+    ,alphavis_seasnw,alphanir_seasnw     &
     ,otaumode,mlosigma,wlev,oclosure     &
     ,pdl,pdu,k_mode,eps_mode             &
     ,limitL,fixedce3,nops                &
@@ -1358,6 +1363,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
+use module_aux_rad                         ! Additional cloud and radiation routines
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
@@ -1500,7 +1506,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
-    surf_cordex,surf_windfarm,output_windmax,                     &
+    surf_cordex,surf_windfarm,output_windmax,cordex_fix,          &
     vegprev,vegnext,vegnext2                                        ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
@@ -1545,7 +1551,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
-    kmlo,mlontvd,                                                 &
+    kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,                 &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2010,7 +2016,7 @@ o3_vert_interpolate = dumi(9)
 do_co2_10um         = dumi(10)==1
 aerosol_u10         = dumi(11)
 deallocate( dumr, dumi )
-allocate( dumi(24) )
+allocate( dumi(25) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -2038,6 +2044,7 @@ if ( myid==0 ) then
   dumi(22) = surf_cordex
   dumi(23) = surf_windfarm
   dumi(24) = output_windmax
+  dumi(25) = cordex_fix
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -2101,6 +2108,7 @@ diaglevel_pop       = dumi(21)
 surf_cordex         = dumi(22)
 surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
+cordex_fix          = dumi(25)
 deallocate( dumi )
 allocate( dumr(34), dumi(23) )
 dumr = 0.
@@ -2437,7 +2445,7 @@ ateb_lwintmeth    = dumi(30)
 ateb_infilmeth    = dumi(31)
 cable_roughness   = dumi(32)
 deallocate( dumr, dumi )
-allocate( dumr(19), dumi(20) )
+allocate( dumr(21), dumi(20) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2466,6 +2474,8 @@ if ( myid==0 ) then
   dumr(17) = omaxl
   dumr(18) = mlo_timeave_length
   dumr(19) = kemaxdt
+  dumr(20) = alphavis_seasnw
+  dumr(21) = alphanir_seasnw
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2508,6 +2518,8 @@ ominl              = dumr(16)
 omaxl              = dumr(17)
 mlo_timeave_length = dumr(18)
 kemaxdt            = dumr(19)
+alphavis_seasnw    = dumr(20)
+alphanir_seasnw    = dumr(21)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 
@@ -2588,7 +2600,9 @@ end if
 wlev     = ol                   ! set nmlo and nmlodynamics ocean levels
 mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
-
+! Update radiation sea-ice albedo to match MLO albedo values
+seaice_albvis = alphavis_seaice
+seaice_albnir = alphanir_seaice
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID

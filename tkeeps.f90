@@ -220,14 +220,15 @@ real, dimension(imax,2:kl) :: qq
 real, dimension(imax,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(imax,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(imax,kl-1) :: fzzh
-real, dimension(imax) :: wt0,wq0,wtv0,wdash_sq,l_on_kz
+real, dimension(imax) :: wt0,wq0,wtv0
 real, dimension(imax) :: wstar,z_on_l,phim
-real, dimension(imax) :: pres, temp
+real, dimension(imax) :: pres
 real, dimension(imax) :: ustar, fg_ave
 real, dimension(imax) :: zi_save, zturb, cgmap
-real, dimension(imax) :: templ, fice, al, dqsdt, qc, qt, lx
+real, dimension(imax) :: templ, fice, qc, qt
 real, dimension(kl) :: sigkap
 real tff, cm12, cm34, ddts
+real temp, lx, dqsdt, al, wdash_sq, l_on_kz
 logical, dimension(imax) :: mask
 
 #ifdef CCAM
@@ -340,7 +341,7 @@ do kcount = 1,mcount
   
   ! Update momentum flux
   ustar = sqrt(cduv*sqrt(ua(:,1)**2+va(:,1)**2))  
-  wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)   
+  wstar = max(grav*zi*max(wtv0,0.)/thetav(:,1),1.e-10)**(1./3.)   
   
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density
@@ -463,25 +464,26 @@ do kcount = 1,mcount
     
     ! account for saturation  
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
-    temp(:) = theta(:,k)/sigkap(k)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
     fice = min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8), 1. )
     call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
-    lx(:) = lv + lf*fice(:)
-    dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
-    al(:) = cp/(cp+lx(:)*dqsdt(:))
-    qc(:) = max( al(:)*(qt(:) - qsat(:,k)), qc(:) )
-    where ( temp(:)>=tice )
-      qfg(:,k) = max( fice(:)*qc(:), 0. )  
-      qlg(:,k) = max( qc(:) - qfg(:,k), 0. )
-    end where
-   
-    qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )
-    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
-    where ( qlg(:,k)+qfg(:,k)>1.E-12 )
-      stratcloud(:,k) = max( stratcloud(:,k), 1.E-8 )
-    end where
+    do iq = 1,imax
+      lx = lv + lf*fice(iq)
+      dqsdt = qsat(iq,k)*lx/(rv*templ(iq)**2)
+      al = cp/(cp+lx*dqsdt)
+      qc(iq) = max( al*(qt(iq) - qsat(iq,k)), qc(iq) )
+      temp = theta(iq,k)/sigkap(k)
+      if ( temp>=tice ) then
+        qfg(iq,k) = max( fice(iq)*qc(iq), 0. )  
+        qlg(iq,k) = max( qc(iq) - qfg(iq,k), 0. )
+      end if
+      qvg(iq,k) = max( qt(iq) - qfg(iq,k) - qlg(iq,k), 0. )
+      theta(iq,k) = thetal(iq,k) + sigkap(k)*(lv*qlg(iq,k)+ls*qfg(iq,k))/cp
+      if ( qlg(iq,k)+qfg(iq,k)>1.E-12 ) then
+        stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
+      end if
+    end do
   end do  
 
 #ifdef CCAM
@@ -495,15 +497,17 @@ end do ! kcount loop
 
 ! variance for wind gusts
 ! (from TAPM)
-wdash_sq = (1.2*ustar)**2   ! Hurley
-!l_on_kz = cm34*tke(1:imax,1)**(3./2.)/eps(1:imax,1)/(vkar*zz(:,1))
-!wdash_sq = ((2./3.)*tke(1:imax,1) + tke(1:imax,1)/(cs1*eps(1:imax,1))*( &
-!            (2.-cs2-cw2*l_on_kz)*pps(:,1)                               &
-!          + (2.-cs3-cw3*l_on_kz)*ppb(:,1)                               &
-!          - (2./3.)*eps(1:imax,1) ) )                                   &
-!          / (1.+(cw1/cs1)*l_on_kz)
-ugs_var = tke(1:imax,1) - 0.5*wdash_sq ! = (cm12-0.5*1.2)*ustar**2 + ce3*wstar**2
-!usg_var = (2.185*ustar)**2 ! Wichers et al (2008)
+do iq = 1,imax
+  wdash_sq = (1.2*ustar(iq))**2   ! Hurley
+  !l_on_kz = cm34*tke(iq,1)**(3./2.)/eps(iq,1)/(vkar*zz(iq,1))
+  !wdash_sq = ((2./3.)*tke(iq,1) + tke(iq,1)/(cs1*eps(iq,1))*( &
+  !            (2.-cs2-cw2*l_on_kz)*pps(iq,1)                  &
+  !          + (2.-cs3-cw3*l_on_kz)*ppb(iq,1)                  &
+  !          - (2./3.)*eps(iq,1) ) )                           &
+  !          / (1.+(cw1/cs1)*l_on_kz)
+  ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq ! = (cm12-0.5*1.2)*ustar(iq)**2 + ce3*wstar(iq)**2
+  !usg_var(iq) = (2.185*ustar(iq))**2 ! Wichers et al (2008)
+end do
 
 
 #ifdef CCAM
@@ -2038,13 +2042,6 @@ integer kblock, nthreads
 !! PCR for GPUs
 !call pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
 
-!! Thomas
-!!$acc parallel loop copyin(aai,bbi,cci,ddi) copyout(outdat)
-!do n = 1,ndim
-!  call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
-!end do
-!!$acc end parallel loop
-
 !#else
 
 ! Thomas
@@ -2250,7 +2247,7 @@ return
 end subroutine pcr
 
 pure subroutine pcr_work(outdat,aai,bbi,cci,ddi,klin,pmax)
-!$acc routine seq
+!$acc routine vector
 
 implicit none
 
@@ -2274,9 +2271,9 @@ aa(klin+1) = 0.
 cc(klin+1) = 0.
 dd(klin+1) = 0.
 
-do p = 1,pmax  
-  s = 2**(p-1)
+do p = 1,pmax,2
 
+  s = 2**(p-1)
   do k = 1,klin
     klow = max(k-s,0)
     khigh = min(k+s,klin+1)
@@ -2285,14 +2282,24 @@ do p = 1,pmax
     new_cc(k) = -rr*(cc(k)*cc(khigh))
     outdat(k) = rr*(dd(k)-aa(k)*dd(klow)-cc(k)*dd(khigh))
   end do
-  
+
+  s = 2**p
   do k = 1,klin
-    aa(k) = new_aa(k)
-    cc(k) = new_cc(k)
-    dd(k) = outdat(k)
+    klow = max(k-s,0)
+    khigh = min(k+s,klin+1)
+    rr = 1./(1.-new_aa(k)*new_cc(klow)-new_cc(k)*new_aa(khigh))
+    aa(k) = -rr*(new_aa(k)*new_aa(klow))
+    cc(k) = -rr*(new_cc(k)*new_cc(khigh))
+    dd(k) = rr*(outdat(k)-new_aa(k)*outdat(klow)-new_cc(k)*outdat(khigh))
   end do
   
 end do ! p = 1,pmax
+
+if ( mod(p,2)==0 ) then
+  do k = 1,klin
+    outdat(k) = dd(k)
+  end do
+end if
 
 return
 end subroutine pcr_work

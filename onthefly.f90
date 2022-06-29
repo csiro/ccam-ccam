@@ -460,10 +460,14 @@ iop_test = iotest .and. ptest
 
 if ( iotest ) then
   io_in = 1   ! no interpolation
-  if ( myid==0 ) write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
+  if ( myid==0 ) then
+    write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
+  end if  
 else
   io_in = -1  ! interpolation
-  if ( myid==0 ) write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
+  if ( myid==0 ) then
+    write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
+  end if  
 end if
 if ( iotest .and. .not.iop_test ) then
   ! this is a special case, such as when the number of processes changes during an experiment  
@@ -915,10 +919,10 @@ end if ! (tss_test) ..else..
 ! Read ocean data for nudging (sea-ice is read below)
 ! read when nested=0 or nested=1.and.nud/=0 or nested=2 .or nested=4
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
-  ! defalt values
-  ocndwn(1:ifull,2) = 0.                ! surface height
+  ! defalt values for surface height
+  ocndwn(1:ifull,2) = 0.
   if ( mlo_found ) then
-    ! water surface height
+    ! read water surface height
     if ( (nested/=1.or.nud_sfh/=0) .and. ok>0 ) then
       call fillhist1('ocheight',ocndwn(:,2),land_a,fill_land)
       where ( land(1:ifull) )

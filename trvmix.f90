@@ -26,9 +26,94 @@ public tracervmix
 
 contains
     
+subroutine tracervmix
+
+use arrays_m                        ! Atmosphere dyamics prognostic arrays
+use carbpools_m                     ! Carbon pools
+use cc_mpi                          ! CC MPI routines
+use cc_omp                          ! CC OpenMP routines
+use const_phys                      ! Physical constants
+use morepbl_m                       ! Additional boundary layer diagnostics
+use newmpar_m                       ! Grid parameters
+use parm_m, only : idjd, dt         ! Model configuration
+use pbl_m                           ! Boundary layer arrays
+use sigs_m                          ! Atmosphere sigma levels
+use tracermodule                    ! Tracer routines
+use tracers_m                       ! Tracer data
+
+implicit none
+
+integer tile, is, ie, idjd_t
+integer iq, k
+real, dimension(imax,numtracer) :: lco2em
+real, dimension(imax,kl,ntrac) :: ltr
+real, dimension(imax,kl) :: loh, lstrloss, ljmcf
+real, dimension(imax,kl) :: lt
+real, dimension(imax,kl) :: lat, lct
+real, dimension(imax,kl) :: lrkhsave
+real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
+logical mydiag_t
+
+!$omp do schedule(static) private(is,ie,iq,k,nt),   &
+!$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+!$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
+!$omp private(lrkhsave,rong,rlogs1,rlogs2),         &
+!$omp private(rlogh1,rlog12,tmnht,dz,gt) 
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  idjd_t = mod(idjd-1,imax)+1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+
+  lt       = t(is:ie,:)
+  lrkhsave = rkhsave(is:ie,:)
+  
+  rong = rdry/grav
+  lat(:,1) = 0.
+  lct(:,kl) = 0.
+  rlogs1=log(sig(1))
+  rlogs2=log(sig(2))
+  rlogh1=log(sigmh(2))
+  rlog12=1./(rlogs1-rlogs2)
+  do iq = 1,imax
+    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+    dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+    gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
+    lat(iq,2) = -gt/dsig(2)  
+    lct(iq,1) = -gt/dsig(1)
+  end do
+  do k = 2,kl-1
+    do iq = 1,imax
+      ! Calculate half level heights and temperatures
+      ! n.b. an approximate zh (in m) is quite adequate for this routine
+      tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+      dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+      gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
+      lat(iq,k+1) = -gt/dsig(k+1)  
+      lct(iq,k) = -gt/dsig(k)
+    end do
+  end do
+  
+  ltr      = tr(is:ie,:,:)
+  lco2em   = co2em(is:ie,:)
+  loh      = oh(is:ie,:)
+  lstrloss = strloss(is:ie,:)
+  ljmcf    = jmcf(is:ie,:)
+  lt       = t(is:ie,:)
+  ! Tracers
+  call tracervmix_work(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),             &
+                       frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
+  tr(is:ie,:,:) = ltr
+
+end do ! tile = 1,ntiles
+!$omp end do nowait
+
+return
+end subroutine tracervmix
+    
 ! ***************************************************************************
 ! Tracer emission, deposition, settling and turbulent mixing routines
-subroutine tracervmix(at,ct,t,ps,cdtq,tr,fnee,fpn,frp,frs,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
+subroutine tracervmix_work(at,ct,t,ps,cdtq,tr,fnee,fpn,frp,frs,co2em,oh,strloss,jmcf,mcfdep,tile,imax)
 
 use const_phys
 use diag_m
@@ -117,7 +202,7 @@ do igas=1,ngas
 end do
 
 return
-end subroutine tracervmix
+end subroutine tracervmix_work
 
 ! ***************************************************************************
 !     this routine put the correct tracer surface flux into trsrc

@@ -83,6 +83,7 @@ use soil_m                                  ! Soil and surface data
 use soilsnow_m                              ! Soil, snow and surface data
 use soilv_m                                 ! Soil parameters
 use vegpar_m                                ! Vegetation arrays
+use vertmix_m                               ! Boundary layer turbulent mixing
 use work2_m                                 ! Diagnostic arrays
 use zenith_m                                ! Astronomy routines
 
@@ -93,6 +94,7 @@ include 'kuocom.h'                          ! Convection parameters
 integer, intent(in) :: mins
 integer tile, is, ie, idjd_t
 integer k, j, tt, ttx, kinv, smins
+integer iq, nt
 real, dimension(imax,ilev) :: loxidantnow
 real, dimension(imax,kl,naero) :: lxtg, lxtosav
 real, dimension(imax,kl,4) :: lzoxidant
@@ -102,13 +104,17 @@ real, dimension(imax,kl) :: lppmrate, lppmaccr, lppfstayice, lppqfsedice
 real, dimension(imax,kl) :: lpprscav, lpprfreeze, lppfevap
 real, dimension(imax,kl) :: lclcon
 real, dimension(imax,kl) :: dz, rhoa, pccw
+real, dimension(imax,kl) :: lxt
 real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
 real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,15) :: lemissfield
 real, dimension(imax) :: coszro, wg
 real, dimension(ifull,kl) :: clcon
 real, dimension(ifull) :: taudar, cldcon, u10_l
+real, dimension(imax,kl) :: lrkhsave
+real, dimension(imax,kl) :: lat, lct
 real dhr, fjd, r1, dlt, alp, slag
+real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical, intent(in) :: oxidant_update
 logical mydiag_t
 logical, dimension(imax) :: locean
@@ -316,6 +322,56 @@ end do
 !!$acc end parallel loop
 #endif
 
+! Aerosols
+!$omp do schedule(static) private(is,ie,iq,k,nt),   &
+!$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+!$omp private(lxt,lrkhsave,rong,rlogs1,rlogs2),    &
+!$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  idjd_t = mod(idjd-1,imax)+1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+
+  lt       = t(is:ie,:)
+  lrkhsave = rkhsave(is:ie,:)
+  
+  rong = rdry/grav
+  lat(:,1) = 0.
+  lct(:,kl) = 0.
+  rlogs1=log(sig(1))
+  rlogs2=log(sig(2))
+  rlogh1=log(sigmh(2))
+  rlog12=1./(rlogs1-rlogs2)
+  do iq = 1,imax
+    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+    dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+    gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
+    lat(iq,2) = -gt/dsig(2)  
+    lct(iq,1) = -gt/dsig(1)
+  end do
+  do k = 2,kl-1
+    do iq = 1,imax
+      ! Calculate half level heights and temperatures
+      ! n.b. an approximate zh (in m) is quite adequate for this routine
+      tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+      dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+      gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
+      lat(iq,k+1) = -gt/dsig(k+1)  
+      lct(iq,k) = -gt/dsig(k)
+    end do
+  end do
+  
+  do nt = 1,naero
+    lxt = xtg(is:ie,:,nt)
+    call trimmix(lat,lct,lxt,imax,kl)
+    xtg(is:ie,:,nt) = lxt
+  end do  
+  
+end do ! tile = 1,ntiles
+!$omp end do nowait
+
+#ifndef GPU
 if ( diag .and. mydiag ) then
   write(6,*) "tdiag ",t(idjd,:)
   write(6,*) "qgdiag ",qg(idjd,:)
@@ -338,6 +394,7 @@ if ( diag .and. mydiag ) then
   write(6,*) "saltfilmdiag ",xtg(idjd,:,12)
   write(6,*) "saltjetdiag  ",xtg(idjd,:,13)
 end if
+#endif
 
 return
 end subroutine aerocalc

@@ -2236,6 +2236,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>4 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 if ( vtype==nf90_short ) then
   if ( all(var_g>9.8E36) ) then
     ipack_g(:,:) = missval
@@ -2295,6 +2300,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>3 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 3 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36) ) then
     ipack = missval
@@ -2377,6 +2387,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>4 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 if ( vtype==nf90_short ) then
   if ( all(var_g>9.8E36_8) ) then
     ipack_g(:,:) = missval
@@ -2436,6 +2451,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>3 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 3 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36_8) ) then
     ipack = missval
@@ -2593,6 +2613,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>5 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 
 if ( vtype==nf90_short ) then
   if ( all(var>9.8e36) ) then
@@ -2658,6 +2683,12 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
+if ( ndims>4 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
+
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36) )then
     ipack = missval
@@ -2735,6 +2766,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>5 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 
 if ( vtype==nf90_short ) then
   if ( all(var>9.8e36_8) ) then
@@ -2800,6 +2836,12 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
+if ( ndims>4 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
+
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36_8) )then
     ipack = missval
@@ -2958,6 +3000,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>6 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 6 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 
 if ( vtype==nf90_short ) then
   if ( all(var_g>9.8e36) ) then
@@ -3025,6 +3072,12 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
+if ( ndims>5 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
+
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36) )then
     ipack = missval
@@ -3099,6 +3152,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>6 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 6 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 
 if ( vtype==nf90_short ) then
   if ( all(var>9.8e36_8) ) then
@@ -3167,6 +3225,12 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
+if ( ndims>5 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
+
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36_8) )then
     ipack = missval

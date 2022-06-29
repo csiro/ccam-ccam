@@ -68,6 +68,7 @@ public mlo_timeave_length,kemaxdt
 #ifdef CCAM
 public water_g,ice_g
 public alphavis_seaice, alphanir_seaice
+public alphavis_seasnw, alphanir_seasnw
 public dgwater_g,dgice_g,dgscrn_g
 public depth_g
 public waterdata,icedata
@@ -269,6 +270,8 @@ real, parameter :: salwt = 34.72          ! reference water salinity (PSU)
 ! ice parameters
 real, save      :: alphavis_seaice = 0.85 ! visible seaice albedo
 real, save      :: alphanir_seaice = 0.45 ! near-IR seaice albedo
+real, save      :: alphavis_seasnw = 0.95 ! visible seaice albedo
+real, save      :: alphanir_seasnw = 0.65 ! near-IR seaice albedo
 real, save      :: zoseaice     = 0.0005  ! roughnes length for sea-ice (m)
 real, save      :: factchseaice = 1.      ! =sqrt(zo/zoh) for sea-ice
 real, parameter :: himin        = 0.1     ! minimum ice thickness for multiple layers (m)
@@ -1981,17 +1984,18 @@ do tile = 1,ntiles
       ie = kfinish
         
       !pond(ib:ie)=max(1.+.008*min(ice(tile)%tsurf(ib:ie)-273.16,0.),0.)
-      pond(ib:ie)=0.
       !snow(ib:ie)=min(max(ice(tile)%snowd(ib:ie)/0.05,0.),1.)
       snow(ib:ie)=0.
 
       watervis(ib:ie)=.05/(coszro(jstart:jfinish)+0.15)
       waternir(ib:ie)=.05/(coszro(jstart:jfinish)+0.15)
       ! need to factor snow age into albedo
-      icevis(ib:ie)=(alphavis_seaice*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie)) &
-          +(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
-      icenir(ib:ie)=(alphanir_seaice*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie)) &
-          +(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
+      !icevis(ib:ie)=(alphavis_seaice*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie)) &
+      !    +(alphavis_seasnw*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
+      !icenir(ib:ie)=(alphanir_seaice*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie)) &
+      !    +(alphanir_seasnw*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
+      icevis(ib:ie)=alphavis_seaice*(1.-snow(ib:ie))+alphavis_seasnw*snow(ib:ie)
+      icenir(ib:ie)=alphanir_seaice*(1.-snow(ib:ie))+alphanir_seasnw*snow(ib:ie)
 
       where ( depth_g(tile)%dz(ib:ie,1)>=1.e-4 )
         ovisalb(jstart:jfinish)=icevis(ib:ie)*ice_g(tile)%fracice(ib:ie)               &
@@ -2052,7 +2056,6 @@ do tile = 1,ntiles
       ie = kfinish
 
       !pond(ib:ie)=max(1.+.008*min(ice(tile)%tsurf(ib:ie)-273.16,0.),0.)
-      pond(ib:ie)=0.
       !snow(ib:ie)=min(max(ice(tile)%snowd(ib:ie)/0.05,0.),1.)
       snow(ib:ie)=0.
 
@@ -2068,11 +2071,13 @@ do tile = 1,ntiles
         dgwater_g(tile)%nirdiralb(ib:ie)=dgwater_g(tile)%visdiralb(ib:ie)
         dgwater_g(tile)%nirdifalb(ib:ie)=0.06
         ! need to factor snow age into albedo
-        dgice_g(tile)%visdiralb(ib:ie)=(alphavis_seaice*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie)) &
-                      +(0.95*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
+        !dgice_g(tile)%visdiralb(ib:ie)=(alphavis_seaice*(1.-pond(ib:ie))+0.75*pond(ib:ie))*(1.-snow(ib:ie)) &
+        !              +(alphavis_seasnw*(1.-pond(ib:ie))+0.85*pond(ib:ie))*snow(ib:ie)
+        dgice_g(tile)%visdiralb(ib:ie)=alphavis_seaice*(1.-snow(ib:ie))+alphavis_seasnw*snow(ib:ie)
         dgice_g(tile)%visdifalb(ib:ie)=dgice_g(tile)%visdiralb(ib:ie)
-        dgice_g(tile)%nirdiralb(ib:ie)=(alphanir_seaice*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie)) &
-                      +(0.65*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
+        !dgice_g(tile)%nirdiralb(ib:ie)=(alphanir_seaice*(1.-pond(ib:ie))+0.35*pond(ib:ie))*(1.-snow(ib:ie)) &
+        !              +(alphanir_seasnw*(1.-pond(ib:ie))+0.55*pond(ib:ie))*snow(ib:ie)
+        dgice_g(tile)%nirdiralb(ib:ie)=alphanir_seaice*(1.-snow(ib:ie))+alphanir_seasnw*snow(ib:ie)
         dgice_g(tile)%nirdifalb(ib:ie)=dgice_g(tile)%nirdiralb(ib:ie)
       
         ovisdir(jstart:jfinish)=ice_g(tile)%fracice(ib:ie)*dgice_g(tile)%visdiralb(ib:ie) &
@@ -3078,23 +3083,17 @@ end do
 
 !boundary conditions
 k(:,1   ) = (d_ustar(:   )/cu0)**2
-where ( depth%dz(:,1   )>1.e-4 )
-  eps(:,1   ) = (cu0)**3*k(:,1   )**1.5/(vkar*(0.5*depth%dz(:,1   )+dgwater%zo(:)))
-end where
+eps(:,1   ) = min((cu0)**3*k(:,1   )**1.5,1.e9)/(vkar*(0.5*max(depth%dz(:,1   ),1.e-4)+dgwater%zo(:)))
 do iqw = 1,imax
   ii = water%ibot(iqw)
   umag = sqrt(water%u(iqw,ii)**2+water%v(iqw,ii)**2) 
-  zrough = 0.5*depth%dz(iqw,ii)/exp(vkar/sqrt(cdbot))
+  zrough = 0.5*max(depth%dz(iqw,ii),1.e-4)/exp(vkar/sqrt(cdbot))
   if ( ii==1 ) then
     k(iqw,1) = 0.5*( k(iqw,1) + (sqrt(cdbot)*umag/cu0)**2 )
-    if ( depth%dz(iqw,1)>=1.e-4 ) then
-      eps(iqw,1) = 0.5*( eps(iqw,1) + (cu0)**3*k(iqw,1)**1.5/(vkar*(0.5*depth%dz(iqw,1)+zrough)) )      
-    end if
+    eps(iqw,1) = 0.5*( eps(iqw,1) + min((cu0)**3*max(k(iqw,1),1.e-9)**1.5,1.e9)/(vkar*(0.5*max(depth%dz(iqw,1),1.e-4)+zrough)) )      
   else
     k(iqw,ii) = (sqrt(cdbot)*umag/cu0)**2
-    if ( depth%dz(iqw,ii)>=1.e-4 ) then
-      eps(iqw,ii) = (cu0)**3*k(iqw,ii)**1.5/(vkar*(0.5*depth%dz(iqw,ii)+zrough))
-    end if  
+    eps(iqw,ii) = min((cu0)**3*max(k(iqw,ii),1.e-8)**1.5,1.e9)/(vkar*(0.5*max(depth%dz(iqw,ii),1.e-4)+zrough))
   end if
 end do  
 k = max( k, mink )

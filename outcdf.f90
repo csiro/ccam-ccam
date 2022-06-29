@@ -182,11 +182,13 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice        &
     ,factchseaice,otaumode               &
     ,alphavis_seaice,alphanir_seaice     &
+    ,alphavis_seasnw,alphanir_seasnw     &
     ,mlosigma,oclosure,usepice,ominl     &
     ,omaxl,mlo_timeave_length,kemaxdt
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
+use module_aux_rad                         ! Additional cloud and radiation routines
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use ozoneread                              ! Ozone input routines
@@ -569,6 +571,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ch_dust',ch_dust)
     call ccnf_put_attg(idnc,'charnock',charnock)
     call ccnf_put_attg(idnc,'chn10',chn10)
+    call ccnf_put_attg(idnc,'cordex_fix',cordex_fix)
     call ccnf_put_attg(idnc,'divdamp',divdamp)
     call ccnf_put_attg(idnc,'ensemble_mode',ensemble_mode)
     call ccnf_put_attg(idnc,'ensemble_period',ensemble_period)
@@ -858,8 +861,10 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'soil_struc',soil_struc)
     
     ! ocean
-    call ccnf_put_attg(idnc,'alphavis_seaice',alphavis_seaice)
     call ccnf_put_attg(idnc,'alphanir_seaice',alphanir_seaice)
+    call ccnf_put_attg(idnc,'alphanir_seasnw',alphanir_seasnw)        
+    call ccnf_put_attg(idnc,'alphavis_seaice',alphavis_seaice)    
+    call ccnf_put_attg(idnc,'alphavis_seasnw',alphavis_seasnw)    
     call ccnf_put_attg(idnc,'basinmd',basinmd)
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'kemaxdt',kemaxdt)
@@ -3948,14 +3953,21 @@ if ( first ) then
       lname = 'TOA Outgoing Shortwave Radiation'
       call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)          ! -1 = long
     end if 
-    if ( cordex_tier2 ) then
+    if ( cordex_tier2 .and. cordex_fix==0 ) then
       lname = 'High Level Cloud Fraction'
       call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,0,1)
       lname = 'Mid Level Cloud Fraction'
       call attrib(fncid,sdim,ssize,'clm',lname,'frac',0.,1.,0,1)
       lname = 'Low Level Cloud Fraction'
       call attrib(fncid,sdim,ssize,'cll',lname,'frac',0.,1.,0,1)
-    end if
+    else if ( cordex_tier2 ) then
+      lname = 'High Level Cloud Fraction'
+      call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,iatt6hr,1)
+      lname = 'Mid Level Cloud Fraction'
+      call attrib(fncid,sdim,ssize,'clm',lname,'frac',0.,1.,iatt6hr,1)
+      lname = 'Low Level Cloud Fraction'
+      call attrib(fncid,sdim,ssize,'cll',lname,'frac',0.,1.,iatt6hr,1)
+    end if   
     if ( cordex_tier1 ) then
       lname = 'x-component wind stress'
       call attrib(fncid,sdim,ssize,'taux',lname,'N m-2',-50.,50.,0,1)
@@ -4418,10 +4430,14 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(:,16),"sint_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,17),"sot_ave",fncid,fiarch,local,.true.)
   end if
-  if ( cordex_tier2 ) then
+  if ( cordex_tier2 .and. cordex_fix==0 ) then
     call histwrt(freqstore(:,18),"clh",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,19),"clm",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,20),"cll",fncid,fiarch,local,.true.)
+  else if ( cordex_tier2 ) then
+    call histwrt(freqstore(:,18),"clh",fncid,fiarch,l6hr,.true.)
+    call histwrt(freqstore(:,19),"clm",fncid,fiarch,l6hr,.true.)
+    call histwrt(freqstore(:,20),"cll",fncid,fiarch,l6hr,.true.)
   end if
   if ( cordex_tier1 ) then
     call histwrt(freqstore(:,21),"taux",fncid,fiarch,local,.true.)
@@ -4568,7 +4584,13 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(1:ifull,31),'v10m_max',fncid,fiarch,local,.true.)
   end if
   
-  freqstore(:,1:22) = 0.
+  freqstore(:,1:17) = 0.
+  if ( cordex_fix==0 ) then
+    freqstore(:,18:20) = 0.
+  else if ( l6hr ) then
+    freqstore(:,18:20) = 0.  
+  end if
+  freqstore(:,21:22) = 0.
   if ( lday ) freqstore(:,23:29) = 0.
   freqstore(:,30:freqvars) = 0.
   
