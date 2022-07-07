@@ -672,6 +672,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'zo_clearing',zo_clearing)
 
     ! radiation and aerosol
+    call ccnf_put_attg(idnc,'aero_split',aero_split)
     call ccnf_put_attg(idnc,'aeroindir',aeroindir)
     call ccnf_put_attg(idnc,'aerosol_u10',aerosol_u10)    
     call ccnf_put_attg(idnc,'bpyear',bpyear)

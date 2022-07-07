@@ -35,7 +35,7 @@ public load_aerosolldr, aerocalc, aerodrop
 public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppfstayice, ppfstayliq, ppqfsedice, pprscav, pprfreeze
 public opticaldepth, updateoxidant, oxidant_timer
-public aerosol_u10
+public aerosol_u10, naerofamilies, aero_split
 
 integer, save :: ilon, ilat, ilev
 integer, save :: oxidant_timer = -9999
@@ -52,11 +52,12 @@ real, dimension(:), allocatable, save :: rlev
 real, dimension(:), allocatable, save :: zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
+integer, save :: aero_split  = 0 ! Method of time-split (0 = before mixing, 1 = after mixing)
 integer, save :: aerosol_u10 = 0 ! update for 10m winds (0 = diagnostic, 1 = recalculate)
 
 contains
 
-subroutine aerocalc(oxidant_update,mins)
+subroutine aerocalc(oxidant_update,mins,aero_update)
 
 use aerosolldr                              ! LDR prognostic aerosols
 use arrays_m                                ! Atmosphere dyamics prognostic arrays
@@ -91,7 +92,7 @@ implicit none
 
 include 'kuocom.h'                          ! Convection parameters
 
-integer, intent(in) :: mins
+integer, intent(in) :: mins, aero_update
 integer tile, is, ie, idjd_t
 integer k, j, tt, ttx, kinv, smins
 integer iq, nt
@@ -119,258 +120,266 @@ logical, intent(in) :: oxidant_update
 logical mydiag_t
 logical, dimension(imax) :: locean
 
-! update prescribed oxidant fields
-if ( oxidant_update ) then
-  !$omp do schedule(static) private(is,ie),                       &
-  !$omp private(loxidantnow,lzoxidant),                           &
-  !$omp private(dhr,ttx,j,tt,smins,fjd,r1,dlt,alp,slag,coszro)
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    do j = 1,4
-      loxidantnow(:,1:ilev)  = oxidantnow_g(is:ie,1:ilev,j)
-      ! note levels are inverted by fieldinterpolate
-      call fieldinterpolate(lzoxidant(:,:,j),loxidantnow,rlev,imax,kl,ilev,sig,ps(is:ie),interpmeth=0)
-      zoxidant_g(is:ie,:,j) = lzoxidant(:,:,j)
-    end do
-    ! estimate day length (presumably to preturb day-time OH levels)
-    ttx = nint(86400./dt)
-    dhr = dt/3600.
-    zdayfac(is:ie) = 0.
-    do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
-      smins = int(real(tt-1)*dt/60.) + mins
-      fjd = real(smins)/1440.
-      call solargh(fjd,bpyear,r1,dlt,alp,slag)
-      call zenith(fjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar(is:ie))
-      where ( taudar(is:ie)>0.5 )
-        zdayfac(is:ie) = zdayfac(is:ie) + 1.
+if ( (aero_update==0.and.aero_split==0) .or. &
+     (aero_update==1.and.aero_split==1) ) then
+  ! update prescribed oxidant fields
+  if ( oxidant_update ) then
+    !$omp do schedule(static) private(is,ie),                       &
+    !$omp private(loxidantnow,lzoxidant),                           &
+    !$omp private(dhr,ttx,j,tt,smins,fjd,r1,dlt,alp,slag,coszro)
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      do j = 1,4
+        loxidantnow(:,1:ilev)  = oxidantnow_g(is:ie,1:ilev,j)
+        ! note levels are inverted by fieldinterpolate
+        call fieldinterpolate(lzoxidant(:,:,j),loxidantnow,rlev,imax,kl,ilev,sig,ps(is:ie),interpmeth=0)
+        zoxidant_g(is:ie,:,j) = lzoxidant(:,:,j)
+      end do
+      ! estimate day length (presumably to preturb day-time OH levels)
+      ttx = nint(86400./dt)
+      dhr = dt/3600.
+      zdayfac(is:ie) = 0.
+      do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
+        smins = int(real(tt-1)*dt/60.) + mins
+        fjd = real(smins)/1440.
+        call solargh(fjd,bpyear,r1,dlt,alp,slag)
+        call zenith(fjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar(is:ie))
+        where ( taudar(is:ie)>0.5 )
+          zdayfac(is:ie) = zdayfac(is:ie) + 1.
+        end where
+      end do
+      ! taudar is for current timestep - used to indicate sunlit
+      where ( zdayfac(is:ie)>0.5 )
+        zdayfac(is:ie) = real(ttx)/zdayfac(is:ie)
       end where
     end do
-    ! taudar is for current timestep - used to indicate sunlit
-    where ( zdayfac(is:ie)>0.5 )
-      zdayfac(is:ie) = real(ttx)/zdayfac(is:ie)
-    end where
-  end do
-  !$omp end do nowait
-else
-  !$omp do schedule(static) private(is,ie),                       &
-  !$omp private(dhr,fjd,coszro,r1,dlt,alp,slag)
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    dhr = dt/3600.  
-    fjd = real(mins)/1440.
-    call solargh(fjd,bpyear,r1,dlt,alp,slag)
-    call zenith(fjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar(is:ie))
-    ! taudar is for current timestep - used to indicate sunlit
-  end do
-  !$omp end do nowait
-end if
+    !$omp end do nowait
+  else
+    !$omp do schedule(static) private(is,ie),                       &
+    !$omp private(dhr,fjd,coszro,r1,dlt,alp,slag)
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      dhr = dt/3600.  
+      fjd = real(mins)/1440.
+      call solargh(fjd,bpyear,r1,dlt,alp,slag)
+      call zenith(fjd,r1,dlt,slag,rlatt(is:ie),rlongg(is:ie),dhr,imax,coszro,taudar(is:ie))
+      ! taudar is for current timestep - used to indicate sunlit
+    end do
+    !$omp end do nowait
+  end if
     
-! estimate convective cloud fraction from leoncld.f90
-!$omp do schedule(static) private(is,ie,lclcon)
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),cldcon=cldcon(is:ie))
-  clcon(is:ie,:) = lclcon    
-end do
-!$omp end do nowait    
+  ! estimate convective cloud fraction from leoncld.f90
+  !$omp do schedule(static) private(is,ie,lclcon)
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),cldcon=cldcon(is:ie))
+    clcon(is:ie,:) = lclcon    
+  end do
+  !$omp end do nowait    
 
-! update 10m wind speed (avoids impact of diagnostic output)
-if ( aerosol_u10==0 ) then
-  !$omp do schedule(static) private(is,ie)
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    u10_l(is:ie) = u10(is:ie)
-  end do
-  !$omp end do nowait
-else
-  !$omp do schedule(static) private(is,ie)
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    call update_u10m(is,ie,u10_l(is:ie))
-  end do
-  !$omp end do nowait
-end if
+  ! update 10m wind speed (avoids impact of diagnostic output)
+  if ( aerosol_u10==0 ) then
+    !$omp do schedule(static) private(is,ie)
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      u10_l(is:ie) = u10(is:ie)
+    end do
+    !$omp end do nowait
+  else
+    !$omp do schedule(static) private(is,ie)
+    do tile = 1,ntiles
+      is = (tile-1)*imax + 1
+      ie = tile*imax
+      call update_u10m(is,ie,u10_l(is:ie))
+    end do
+    !$omp end do nowait
+  end if
 
 #ifdef _OPENMP    
-!$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
-!$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
-!$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
-!$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
-!$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
+  !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                              &
+  !$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                                &
+  !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr),             &
+  !$omp private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
+  !$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
 #else
-!!$acc parallel loop copy(xtg,duste,dustdd,dustwd,dust_burden)                                 &
-!!$acc   copy(dmsso2o,so2so4o,bc_burden,oc_burden,dms_burden)                                  &
-!!$acc   copy(so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd)        &
-!!$acc   copy(so4dd,bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                 &
-!!$acc   copyin(zoxidant_g,xtosav,emissfield,erod,ppfprec,ppfmelt,ppfsnow,ppfsubl,pplambs)     &
-!!$acc   copyin(ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,ppfevap,clcon,rhoa)    &
-!!$acc   copyin(wetfac,isoilm,pblh,ps,tss,u10_l,ustar,zo,land,fracice,sigmf,cldcon,cdtq)       &
-!!$acc   copyin(zdayfac,kbsav,vso2,dustden,dustreff,saltden,saltreff,sig,condc,snowd,taudar)   &
-!!$acc   copyin(fg,eg,t,qg,qlg,qfg,stratcloud,dsig,ktsav,isoilm_in)                            &
-!!$acc   copyout(so4t)                                                                         &
-!!$acc   private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg)                                      &
-!!$acc   private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr)   &
-!!$acc   private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd)    &
-!!$acc   private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
+  !!$acc parallel loop copy(xtg,duste,dustdd,dustwd,dust_burden)                                 &
+  !!$acc   copy(dmsso2o,so2so4o,bc_burden,oc_burden,dms_burden)                                  &
+  !!$acc   copy(so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd)        &
+  !!$acc   copy(so4dd,bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                 &
+  !!$acc   copyin(zoxidant_g,xtosav,emissfield,erod,ppfprec,ppfmelt,ppfsnow,ppfsubl,pplambs)     &
+  !!$acc   copyin(ppmrate,ppmaccr,ppfstayice,ppqfsedice,pprscav,pprfreeze,ppfevap,clcon,rhoa)    &
+  !!$acc   copyin(wetfac,isoilm,pblh,ps,tss,u10_l,ustar,zo,land,fracice,sigmf,cldcon,cdtq)       &
+  !!$acc   copyin(zdayfac,kbsav,vso2,dustden,dustreff,saltden,saltreff,sig,condc,snowd,taudar)   &
+  !!$acc   copyin(fg,eg,t,qg,qlg,qfg,stratcloud,dsig,ktsav,isoilm_in)                            &
+  !!$acc   copyout(so4t)                                                                         &
+  !!$acc   private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg)                                      &
+  !!$acc   private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr)   &
+  !!$acc   private(lppfstayice,lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd)    &
+  !!$acc   private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
 #endif
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
   
-  idjd_t = mod(idjd-1,imax)+1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag 
+    idjd_t = mod(idjd-1,imax)+1
+    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag 
 
-  lzoxidant(:,:,1:4) = zoxidant_g(is:ie,:,1:4)
-  lxtg               = xtg(is:ie,:,:)
-  lxtosav            = xtosav(is:ie,:,:)
-  lduste             = duste(is:ie,:)
-  ldustdd            = dustdd(is:ie,:)
-  ldustwd            = dustwd(is:ie,:)
-  ldust_burden       = dust_burden(is:ie,:)
-  lemissfield        = emissfield(is:ie,:)
-  lerod              = erod(is:ie,:)
-  lt                 = t(is:ie,:)
-  lqg                = qg(is:ie,:)
-  lqlg               = qlg(is:ie,:)
-  lqfg               = qfg(is:ie,:)
-  lstratcloud        = stratcloud(is:ie,:)
-  lppfprec           = ppfprec(is:ie,:)
-  lppfmelt           = ppfmelt(is:ie,:)
-  lppfsnow           = ppfsnow(is:ie,:)
-  lppfsubl           = ppfsubl(is:ie,:)
-  lpplambs           = pplambs(is:ie,:)
-  lppmrate           = ppmrate(is:ie,:)
-  lppmaccr           = ppmaccr(is:ie,:)
-  lppfstayice        = ppfstayice(is:ie,:)
-  lppqfsedice        = ppqfsedice(is:ie,:)
-  lpprscav           = pprscav(is:ie,:)
-  lpprfreeze         = pprfreeze(is:ie,:)
-  lppfevap           = ppfevap(is:ie,:)
-  lclcon             = clcon(is:ie,:)
+    lzoxidant(:,:,1:4) = zoxidant_g(is:ie,:,1:4)
+    lxtg               = xtg(is:ie,:,:)
+    lxtosav            = xtosav(is:ie,:,:)
+    lduste             = duste(is:ie,:)
+    ldustdd            = dustdd(is:ie,:)
+    ldustwd            = dustwd(is:ie,:)
+    ldust_burden       = dust_burden(is:ie,:)
+    lemissfield        = emissfield(is:ie,:)
+    lerod              = erod(is:ie,:)
+    lt                 = t(is:ie,:)
+    lqg                = qg(is:ie,:)
+    lqlg               = qlg(is:ie,:)
+    lqfg               = qfg(is:ie,:)
+    lstratcloud        = stratcloud(is:ie,:)
+    lppfprec           = ppfprec(is:ie,:)
+    lppfmelt           = ppfmelt(is:ie,:)
+    lppfsnow           = ppfsnow(is:ie,:)
+    lppfsubl           = ppfsubl(is:ie,:)
+    lpplambs           = pplambs(is:ie,:)
+    lppmrate           = ppmrate(is:ie,:)
+    lppmaccr           = ppmaccr(is:ie,:)
+    lppfstayice        = ppfstayice(is:ie,:)
+    lppqfsedice        = ppqfsedice(is:ie,:)
+    lpprscav           = pprscav(is:ie,:)
+    lpprfreeze         = pprfreeze(is:ie,:)
+    lppfevap           = ppfevap(is:ie,:)
+    lclcon             = clcon(is:ie,:)
 
-  !zg(:,1) = bet(1)*lt(:,1)/grav
-  !do k = 2,kl
-  !  zg(:,k) = zg(:,k-1) + (bet(k)*lt(:,k)+betm(k)*lt(:,k-1))/grav ! height above surface in meters
-  !end do
-  do k = 1,kl
-    dz(:,k) = -rdry*dsig(k)*lt(:,k)/(grav*sig(k))
-    dz(:,k) = min( max( dz(:,k), 1. ), 2.e4 )
-    rhoa(:,k) = ps(is:ie)*sig(k)/(rdry*lt(:,k)) ! density of air (kg/m**3)
-  end do
-
-  pccw(:,:) = 0.
-  do k = 1,kl
-    kinv = kl + 1 - k  
-    ! MJT notes - Assume rain for JLM convection
-    !where ( k>kbsav(is:ie) .and. k<=ktsav(is:ie) .and. lt(:,k)>ticeu )
-    !  pccw(:,kl+1-k) = 0.
-    where ( k>kbsav(is:ie) .and. k<=ktsav(is:ie) )
-      pccw(:,kinv) = wlc/rhoa(:,k)
-    end where
-  end do
-
-  ! Water converage at surface
-  wg(:) = min( max( wetfac(is:ie), 0. ), 1. )
-  
-  locean = isoilm_in(is:ie) == 0 ! excludes lakes
-  
-  ! update prognostic aerosols
-  call aldrcalc(dt,sig,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),         &
-                lt,condc(is:ie),snowd(is:ie),taudar(is:ie),fg(is:ie),  &
-                eg(is:ie),u10_l(is:ie),ustar(is:ie),zo(is:ie),         &
-                land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg, &
-                lstratcloud,lclcon,cldcon(is:ie),pccw,rhoa,            &
-                cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,                &
-                lppfsubl,lpplambs,lppmrate,lppmaccr,lppfstayice,       &
-                lppqfsedice,lpprscav,lpprfreeze,lppfevap,              &
-                zdayfac(is:ie),kbsav(is:ie),lxtg,lduste,ldustdd,       &
-                lxtosav,dmsso2o(is:ie),so2so4o(is:ie),                 &
-                ldust_burden,bc_burden(is:ie),oc_burden(is:ie),        &
-                dms_burden(is:ie),so2_burden(is:ie),so4_burden(is:ie), &
-                lerod,lzoxidant,so2wd(is:ie),so4wd(is:ie),             &
-                bcwd(is:ie),ocwd(is:ie),ldustwd,lemissfield,           &
-                vso2(is:ie),dmse(is:ie),so2e(is:ie),so4e(is:ie),       &
-                bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),       &
-                bcdd(is:ie),ocdd(is:ie),salte(is:ie),saltdd(is:ie),    &
-                saltwd(is:ie),salt_burden(is:ie),dustden,dustreff,     &
-                saltden,saltreff,locean,imax,kl)
-
-  ! MJT notes - passing dustden, dustreff, saltden and saltref due to issues with pgi compiler
-  
-  ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
-  ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
-  so4t(is:ie) = 0.
-  do k = 1,kl
-    so4t(is:ie) = so4t(is:ie) + 3.e3*lxtg(:,k,3)*rhoa(:,k)*dz(:,k)
-  end do
-   
-  xtg(is:ie,:,:)       = lxtg
-  duste(is:ie,:)       = lduste
-  dustdd(is:ie,:)      = ldustdd
-  dustwd(is:ie,:)      = ldustwd
-  dust_burden(is:ie,:) = ldust_burden
-    
-end do
-#ifdef _OPENMP
-!$omp end do nowait
-#else
-!!$acc end parallel loop
-#endif
-
-! Aerosols
-!$omp do schedule(static) private(is,ie,iq,k,nt),   &
-!$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-!$omp private(lxt,lrkhsave,rong,rlogs1,rlogs2),    &
-!$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  idjd_t = mod(idjd-1,imax)+1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-
-  lt       = t(is:ie,:)
-  lrkhsave = rkhsave(is:ie,:)
-  
-  rong = rdry/grav
-  lat(:,1) = 0.
-  lct(:,kl) = 0.
-  rlogs1=log(sig(1))
-  rlogs2=log(sig(2))
-  rlogh1=log(sigmh(2))
-  rlog12=1./(rlogs1-rlogs2)
-  do iq = 1,imax
-    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
-    dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-    gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
-    lat(iq,2) = -gt/dsig(2)  
-    lct(iq,1) = -gt/dsig(1)
-  end do
-  do k = 2,kl-1
-    do iq = 1,imax
-      ! Calculate half level heights and temperatures
-      ! n.b. an approximate zh (in m) is quite adequate for this routine
-      tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-      dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-      gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
-      lat(iq,k+1) = -gt/dsig(k+1)  
-      lct(iq,k) = -gt/dsig(k)
+    !zg(:,1) = bet(1)*lt(:,1)/grav
+    !do k = 2,kl
+    !  zg(:,k) = zg(:,k-1) + (bet(k)*lt(:,k)+betm(k)*lt(:,k-1))/grav ! height above surface in meters
+    !end do
+    do k = 1,kl
+      dz(:,k) = -rdry*dsig(k)*lt(:,k)/(grav*sig(k))
+      dz(:,k) = min( max( dz(:,k), 1. ), 2.e4 )
+      rhoa(:,k) = ps(is:ie)*sig(k)/(rdry*lt(:,k)) ! density of air (kg/m**3)
     end do
-  end do
-  
-  do nt = 1,naero
-    lxt = xtg(is:ie,:,nt)
-    call trimmix(lat,lct,lxt,imax,kl)
-    xtg(is:ie,:,nt) = lxt
-  end do  
-  
-end do ! tile = 1,ntiles
-!$omp end do nowait
 
+    pccw(:,:) = 0.
+    do k = 1,kl
+      kinv = kl + 1 - k  
+      ! MJT notes - Assume rain for JLM convection
+      !where ( k>kbsav(is:ie) .and. k<=ktsav(is:ie) .and. lt(:,k)>ticeu )
+      !  pccw(:,kl+1-k) = 0.
+      where ( k>kbsav(is:ie) .and. k<=ktsav(is:ie) )
+        pccw(:,kinv) = wlc/rhoa(:,k)
+      end where
+    end do
+
+    ! Water converage at surface
+    wg(:) = min( max( wetfac(is:ie), 0. ), 1. )
+  
+    locean = isoilm_in(is:ie) == 0 ! excludes lakes
+  
+    ! update prognostic aerosols
+    call aldrcalc(dt,sig,dz,wg,pblh(is:ie),ps(is:ie),tss(is:ie),         &
+                  lt,condc(is:ie),snowd(is:ie),taudar(is:ie),fg(is:ie),  &
+                  eg(is:ie),u10_l(is:ie),ustar(is:ie),zo(is:ie),         &
+                  land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg, &
+                  lstratcloud,lclcon,cldcon(is:ie),pccw,rhoa,            &
+                  cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,                &
+                  lppfsubl,lpplambs,lppmrate,lppmaccr,lppfstayice,       &
+                  lppqfsedice,lpprscav,lpprfreeze,lppfevap,              &
+                  zdayfac(is:ie),kbsav(is:ie),lxtg,lduste,ldustdd,       &
+                  lxtosav,dmsso2o(is:ie),so2so4o(is:ie),                 &
+                  ldust_burden,bc_burden(is:ie),oc_burden(is:ie),        &
+                  dms_burden(is:ie),so2_burden(is:ie),so4_burden(is:ie), &
+                  lerod,lzoxidant,so2wd(is:ie),so4wd(is:ie),             &
+                  bcwd(is:ie),ocwd(is:ie),ldustwd,lemissfield,           &
+                  vso2(is:ie),dmse(is:ie),so2e(is:ie),so4e(is:ie),       &
+                  bce(is:ie),oce(is:ie),so2dd(is:ie),so4dd(is:ie),       &
+                  bcdd(is:ie),ocdd(is:ie),salte(is:ie),saltdd(is:ie),    &
+                  saltwd(is:ie),salt_burden(is:ie),dustden,dustreff,     &
+                  saltden,saltreff,locean,imax,kl)
+
+    ! MJT notes - passing dustden, dustreff, saltden and saltref due to issues with pgi compiler
+  
+    ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
+    ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
+    so4t(is:ie) = 0.
+    do k = 1,kl
+      so4t(is:ie) = so4t(is:ie) + 3.e3*lxtg(:,k,3)*rhoa(:,k)*dz(:,k)
+    end do
+   
+    xtg(is:ie,:,:)       = lxtg
+    duste(is:ie,:)       = lduste
+    dustdd(is:ie,:)      = ldustdd
+    dustwd(is:ie,:)      = ldustwd
+    dust_burden(is:ie,:) = ldust_burden
+    
+  end do
+#ifdef _OPENMP
+  !$omp end do nowait
+#else
+  !!$acc end parallel loop
+#endif
+
+end if
+     
+if ( aero_update==1 ) then     
+
+  ! Aerosol mixing
+  !$omp do schedule(static) private(is,ie,iq,k,nt),   &
+  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+  !$omp private(lxt,lrkhsave,rong,rlogs1,rlogs2),    &
+  !$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    idjd_t = mod(idjd-1,imax)+1
+    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+
+    lt       = t(is:ie,:)
+    lrkhsave = rkhsave(is:ie,:)
+  
+    rong = rdry/grav
+    lat(:,1) = 0.
+    lct(:,kl) = 0.
+    rlogs1=log(sig(1))
+    rlogs2=log(sig(2))
+    rlogh1=log(sigmh(2))
+    rlog12=1./(rlogs1-rlogs2)
+    do iq = 1,imax
+      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+      dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+      gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
+      lat(iq,2) = -gt/dsig(2)  
+      lct(iq,1) = -gt/dsig(1)
+    end do
+    do k = 2,kl-1
+      do iq = 1,imax
+        ! Calculate half level heights and temperatures
+        ! n.b. an approximate zh (in m) is quite adequate for this routine
+        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+        dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+        gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
+        lat(iq,k+1) = -gt/dsig(k+1)  
+        lct(iq,k) = -gt/dsig(k)
+      end do
+    end do
+  
+    do nt = 1,naero
+      lxt = xtg(is:ie,:,nt)
+      call trimmix(lat,lct,lxt,imax,kl)
+      xtg(is:ie,:,nt) = lxt
+    end do  
+  
+  end do ! tile = 1,ntiles
+  !$omp end do nowait
+
+end if
+  
 #ifndef GPU
 if ( diag .and. mydiag ) then
   write(6,*) "tdiag ",t(idjd,:)

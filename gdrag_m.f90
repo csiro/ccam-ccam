@@ -107,7 +107,7 @@ do tile = 1,ntiles
   lu = u(is:ie,:)
   lv = v(is:ie,:)
   
-  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t,imax,kl)
+  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
@@ -126,7 +126,8 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag,imax,kl)
+subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)
+!$acc routine vector
 
 use const_phys
 use parm_m, only : vmodmin, sigbot_gwd, fc2, dt, alphaj, ngwd
@@ -135,21 +136,24 @@ use sigs_m
 implicit none
 
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
-integer, intent(in) :: idjd, imax, kl
-integer iq, k
-real, dimension(imax,kl), intent(in)    :: t
-real, dimension(imax,kl), intent(inout) :: u, v
-real, dimension(imax,kl) :: uu,fni,bvnf
-real, dimension(imax,kl) :: theta_full
-real, dimension(imax,kl) :: dtheta_dz_kmh
-real, dimension(imax), intent(in) :: tss, he
-real, dimension(imax) :: dzi, uux, xxx, froude2_inv
-real, dimension(imax) :: temp,fnii
-real, dimension(imax) :: bvng ! to be depreciated
-real, dimension(imax) :: apuw,apvw,alambda,wmag
-real, dimension(kl) :: dsk,sigk
+integer, intent(in) :: idjd
+integer iq, k, imax, kl
+real, dimension(:,:), intent(in)    :: t
+real, dimension(size(t,1),size(t,2)), intent(inout) :: u, v
+real, dimension(size(t,1),size(t,2)) :: uu,fni,bvnf
+real, dimension(size(t,1),size(t,2)) :: theta_full
+real, dimension(size(t,1),size(t,2)) :: dtheta_dz_kmh
+real, dimension(size(t,1)), intent(in) :: tss, he
+real, dimension(size(t,1)) :: dzi, uux, xxx, froude2_inv
+real, dimension(size(t,1)) :: temp,fnii
+real, dimension(size(t,1)) :: bvng ! to be depreciated
+real, dimension(size(t,1)) :: apuw,apvw,alambda,wmag
+real, dimension(size(t,2)) :: dsk,sigk
 real dzx
 logical, intent(in) :: mydiag
+
+imax = size(t,1)
+kl = size(t,2)
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)
@@ -248,6 +252,7 @@ do k = kbot,kl
   v(:,k) = v(:,k) - apvw(:)*xxx(:)*dt
 end do     ! k loop
 
+#ifndef GPU
 if ( ntest==1 .and. mydiag ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
@@ -268,6 +273,7 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
   end do
 end if
+#endif
 
 return
 end subroutine gwdrag_work

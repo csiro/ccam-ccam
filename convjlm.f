@@ -305,7 +305,7 @@
       !----------------------------------------------------------------
 
       end subroutine convjlm_init
-      
+
       subroutine convjlm
       
       use arrays_m   
@@ -415,7 +415,7 @@
       
       return
       end subroutine convjlm     ! jlm convective scheme
-
+      
       subroutine convjlm_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
@@ -440,11 +440,9 @@
       use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
      &                       naero,convscav,itracsa,nsalt
       use cc_mpi, only : ccmpi_abort
-!      use cc_omp, only : ntiles
       use const_phys
       use diag_m, only : maxmin
       use estab      
-!      use newmpar_m
       use parm_m, only : ktau,dt,nmaxpr,diag,ds,iaero,qgmin
       use parmdyn_m
       use sigs_m

@@ -253,9 +253,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! NESTING ---------------------------------------------------------------
   if ( nbd/=0 ) then
-    ! Newtonian relaxiati
+    ! Newtonian relaxiation
     call START_LOG(nestin_begin)
-    call nantest("before nesting",1,ifull)  
+    call nantest("before nesting",1,ifull)
     call nestin
     call nantest("after nesting",1,ifull)
     call END_LOG(nestin_end)
@@ -552,17 +552,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
     if ( abs(iaero)>=2 ) then
       xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
     end if
-    js = (tile-1)*imax + 1
-    je = tile*imax
     call nantest("start of physics",js,je)
   end do  
   !$omp end do nowait
-
+  
   
   ! GWDRAG ----------------------------------------------------------------
-  !$omp master
   call START_LOG(gwdrag_begin)
-  !$omp end master
   if ( ngwd<0 ) then
     call gwdrag  ! <0 for split - only one now allowed
   end if
@@ -573,15 +569,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after gravity wave drag",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   call END_LOG(gwdrag_end)
-  !$omp end master
 
-  
+ 
   ! CONVECTION ------------------------------------------------------------
-  !$omp master
   call START_LOG(convection_begin)
-  !$omp end master
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -609,15 +601,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after convection",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   call END_LOG(convection_end)
-  !$omp end master
 
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
-  !$omp master
   call START_LOG(cloud_begin)
-  !$omp end master
   call leoncld
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
@@ -627,15 +615,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after cloud microphysics",js,je) 
   end do  
   !$omp end do nowait
-  !$omp master    
   call END_LOG(cloud_end)
-  !$omp end master
-    
-    
+
+
   ! RADIATION -------------------------------------------------------------
-  !$omp master
   call START_LOG(radnet_begin)
-  !$omp end master
   if ( ncloud>=4 .and. ncloud<=13 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -680,22 +664,18 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after radiation",js,je)    
   end do
   !$omp end do nowait
-  !$omp master
   call END_LOG(radnet_end)
-  !$omp end master
 
     
   ! HELD & SUAREZ ---------------------------------------------------------
   if ( nhstest==2 ) then
     call hs_phys
   end if
-
-    
+  
+  
   ! SURFACE FLUXES ---------------------------------------------
   ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
-  !$omp master
   call START_LOG(sfluxnet_begin)
-  !$omp end master
   if ( diag .and. ntiles==1 ) then
     call maxmin(u,'#u',ktau,1.,kl)
     call maxmin(v,'#v',ktau,1.,kl)
@@ -712,23 +692,38 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after surface fluxes",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   call END_LOG(sfluxnet_end)
-  !$omp end master
-    
+
+  
+  ! AEROSOLS --------------------------------------------------------------
+  ! Old time-split with aero_split=0
+  call START_LOG(aerosol_begin)
+  if ( abs(iaero)>=2 ) then
+    call aerocalc(oxidant_update,mins,0)
+  end if
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call nantest("after aerosols",js,je)
+  end do  
+  !$omp end do nowait
+  call END_LOG(aerosol_end)
+
     
   ! VERTICAL MIXING ------------------------------------------------------
-  !$omp master
+  ! (not including aerosols or tracers)
   call START_LOG(vertmix_begin)
   if ( nmaxpr==1 ) then
     if ( mydiag .and. ntiles==1 ) then
+      !$omp master
       write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+      !$omp end master
     end if
   end if
-  !$omp end master
   if ( ntsur>=1 ) then
     call vertmix
-  endif  ! (ntsur>=1)
+  end if  ! (ntsur>=1)
   if ( ncloud>=4 .and. ncloud<=13 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -746,22 +741,22 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after PBL mixing",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   if ( nmaxpr==1 ) then
     if ( mydiag .and. ntiles==1 ) then
+      !$omp master
       write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+      !$omp end master
     end if
   end if
   call END_LOG(vertmix_end)
-  !$omp end master
 
   
   ! AEROSOLS --------------------------------------------------------------
-  !$omp master
+  ! New time-split with aero_split=1
+  ! Includes turbulent mixing
   call START_LOG(aerosol_begin)
-  !$omp end master
   if ( abs(iaero)>=2 ) then
-    call aerocalc(oxidant_update,mins)
+    call aerocalc(oxidant_update,mins,1)
   end if
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
@@ -770,12 +765,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after aerosols",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   call END_LOG(aerosol_end)
-  !$omp end master
-  
+
   
   ! TRACERS ---------------------------------------------------------------
+  ! Turbulent mixing
   if ( ngas>0 ) then
     call tracervmix  
   end if
@@ -824,7 +818,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   end do  
   !$omp end do nowait
-  
+
   !$omp end parallel
 
 
@@ -835,8 +829,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if
 
   call END_LOG(phys_end)
-    
-    
+
+
 #ifdef csircoupled
   ! ***********************************************************************
   ! VCOM DIFFUSION
@@ -1067,7 +1061,7 @@ nullify(x_g, y_g, z_g)
 call ccmpi_finalize
 
 end
-
+    
     
 !--------------------------------------------------------------
 ! END OF CCAM LOG    
@@ -1083,7 +1077,7 @@ write(6,*) "====================================================================
 return
 end subroutine finishbanner
     
-
+    
 !--------------------------------------------------------------
 ! PREPARE SPECIAL TRACER ARRAYS
 ! sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
@@ -1489,7 +1483,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
-    saltlargemtn,aerosol_u10,                                     &
+    saltlargemtn,aerosol_u10,aero_split,                          &
     o3_vert_interpolate,                                          & ! ozone
     o3_time_interpolate                                             ! depreciated
 ! file namelist
@@ -1961,7 +1955,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(10), dumi(11) )
+allocate( dumr(10), dumi(12) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -1987,6 +1981,7 @@ if ( myid==0 ) then
   dumi(9)  = o3_vert_interpolate
   if ( do_co2_10um ) dumi(10) = 1
   dumi(11) = aerosol_u10  
+  dumi(12) = aero_split
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2015,6 +2010,7 @@ aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 do_co2_10um         = dumi(10)==1
 aerosol_u10         = dumi(11)
+aero_split          = dumi(12)
 deallocate( dumr, dumi )
 allocate( dumi(25) )
 dumi = 0
@@ -3670,7 +3666,7 @@ real, dimension(js:je) :: qtot, tliq
 if ( qg_fix<=0 ) return
 
 do k = 1,kl
-  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. )
+  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), qgmin )
   tliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
   
   qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
@@ -3679,7 +3675,7 @@ do k = 1,kl
   qsng(js:je,k)  = max( qsng(js:je,k), 0. )
   qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
   
-  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
+  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), qgmin )
   t(js:je,k)  = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
   where ( qlg(js:je,k)+qfg(js:je,k)>1.E-8 )
     stratcloud(js:je,k) = max( stratcloud(js:je,k), 1.E-8 )
@@ -4796,4 +4792,6 @@ end if
 
 return
 end subroutine nantest
+
+
 

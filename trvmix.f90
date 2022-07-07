@@ -54,7 +54,7 @@ real, dimension(imax,kl) :: lrkhsave
 real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical mydiag_t
 
-!$omp do schedule(static) private(is,ie,iq,k,nt),   &
+!$omp do schedule(static) private(is,ie,iq,k),      &
 !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
 !$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
 !$omp private(lrkhsave,rong,rlogs1,rlogs2),         &
