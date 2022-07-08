@@ -7175,6 +7175,10 @@ contains
       integer(kind=4), parameter :: ltype = MPI_LOGICAL
       logical, dimension(:), intent(in) :: ldat
       logical, dimension(:), intent(out) :: gdat
+#ifdef i8r8
+      logical(kind=4), dimension(size(ldat)) :: ldat_l
+      logical(kind=4), dimension(size(gdat)) :: gdat_l
+#endif
       character(len=*), intent(in) :: op
 
       lhost = host
@@ -7192,7 +7196,13 @@ contains
       end select
       
       call START_LOG(reduce_begin)
+#ifdef i8r8
+      ldat_l = ldat
+      call MPI_Reduce(ldat_l, gdat_l, lsize, ltype, lop, lhost, lcomm, ierr )
+      gdat = gdat_l
+#else
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
+#endif
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_reduce2l
@@ -7500,17 +7510,21 @@ contains
    
    end subroutine ccmpi_allreduce2c
    
-   subroutine ccmpi_allreduce2l(ldat,gdat,op,comm)
+   subroutine ccmpi_allreduce2l(ldat_in,gdat_out,op,comm)
    
       integer, intent(in) :: comm
       integer(kind=4) :: lop, lcomm, ierr, lsize
       integer(kind=4), parameter :: ltype = MPI_LOGICAL
-      logical, dimension(:), intent(in) :: ldat
-      logical, dimension(:), intent(out) :: gdat
+      logical, dimension(:), intent(in) :: ldat_in
+      logical, dimension(:), intent(out) :: gdat_out
+#ifdef i8r8
+      logical(kind=4), dimension(size(ldat_in)) :: ldat
+      logical(kind=4), dimension(size(gdat_out)) :: gdat
+#endif
       character(len=*), intent(in) :: op
 
       lcomm = comm
-      lsize = size(ldat)
+      lsize = size(ldat_in)
       
       select case( op )
          case( "or" )
@@ -7523,7 +7537,13 @@ contains
       end select
       
       call START_LOG(allreduce_begin)
+#ifdef i8r8
+      ldat = ldat_in
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
+      gdat_out = gdat
+#else
+      call MPI_AllReduce(ldat_in, gdat_out, lsize, ltype, lop, lcomm, ierr )
+#endif
       call END_LOG(allreduce_end)
    
    end subroutine ccmpi_allreduce2l
@@ -7997,12 +8017,22 @@ contains
       integer(kind=4) :: lsize, lhost, lcomm, lerr
       logical, dimension(:,:), intent(out) :: gdat
       logical, dimension(:), intent(in) :: ldat
+#ifdef i8r8
+      logical(kind=4), dimension(size(gdat,1),size(gdat,2)) :: gdat_l
+      logical(kind=4), dimension(size(ldat)) :: ldat_l
+#endif
 
       lcomm = comm
       lhost = host
       lsize = size(ldat)
       call START_LOG(gather_begin)
+#ifdef i8r8
+      ldat_l = ldat
+      call MPI_Gather(ldat_l,lsize,MPI_LOGICAL,gdat_l,lsize,MPI_LOGICAL,lhost,lcomm,lerr)
+      gdat = gdat_l
+#else
       call MPI_Gather(ldat,lsize,MPI_LOGICAL,gdat,lsize,MPI_LOGICAL,lhost,lcomm,lerr)
+#endif
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx23l
@@ -8241,15 +8271,23 @@ contains
       integer, intent(in) :: comm
       integer(kind=4) :: lsize, lcomm, lerr
       logical, dimension(:), intent(inout) :: gdat
-      logical, dimension(size(gdat)) :: rdat
+      logical(kind=4), dimension(size(gdat)) :: rdat
+#ifdef i8r8
+      logical(kind=4), dimension(size(gdat)) :: qdat
+#endif
       
       lcomm = comm
       lsize = size(gdat)/nproc
       call START_LOG(alltoall_begin)
+#ifdef i8r8
+      qdat = gdat
+      call MPI_AlltoAll( qdat, lsize, MPI_LOGICAL, rdat, lsize, MPI_LOGICAL, lcomm, lerr )
+#else
       call MPI_AlltoAll( gdat, lsize, MPI_LOGICAL, rdat, lsize, MPI_LOGICAL, lcomm, lerr )
-      call END_LOG(alltoall_end)
+#endif
       gdat = rdat
-   
+      call END_LOG(alltoall_end)
+      
    end subroutine ccmpi_alltoall2l
    
    subroutine ccmpi_commsplit(commout,comm,colour,rank)
@@ -10033,7 +10071,7 @@ contains
       ! across processes.  Some implentations of MPI_Alltoallv also can employ synchronisation as they
       ! are optimsied for most sendcounts and recvcounts are non-zero.  Splitting communicators and using
       ! MPI_Bcast could work, but is expensive to initialise.  
-          
+         
       !     Set up the buffers to recv
       nreq = 0
       do w = 1,size(filemap_recv)
@@ -10044,7 +10082,7 @@ contains
          call MPI_IRecv( bbuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
       end do
       rreq = nreq
-      
+ 
       !     Set up the buffers to send
       do w = 1,size(filemap_send)
          ipf = filemap_smod(w)
@@ -10141,7 +10179,7 @@ contains
       nlen = pipan*pjpan*pnpan
       lsize = nlen*kx
       lcomm = comm_world
-          
+
       !     Set up the buffers to recv
       nreq = 0
       do w = 1,size(filemap_recv)
@@ -10164,7 +10202,7 @@ contains
          nreq  = nreq + 1
          call MPI_ISend( cbuf(:,:,ipf+1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )  
       end do
-      
+
       ! Unpack incomming messages
       rcount = rreq
       do while ( rcount > 0 )
@@ -10190,7 +10228,7 @@ contains
             end do
          end do
       end do
-      
+
       sreq = nreq - rreq
       if ( sreq > 0 ) then
          call START_LOG(mpiwaitmapfile_begin)
@@ -10220,12 +10258,12 @@ contains
             end do  
          end do
       end do  
-      
+
       call START_LOG(mpiwaitmapfile_begin) 
       lcomm = comm_node
       call MPI_Barrier( lcomm, ierr )
       call END_LOG(mpiwaitmapfile_end)
-      
+
    end subroutine ccmpi_filewinget3
    
    subroutine ccmpi_filewinunpack(sout,abuf)

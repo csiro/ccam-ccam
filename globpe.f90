@@ -3645,6 +3645,8 @@ end subroutine proctest_face
     
 !--------------------------------------------------------------------
 ! Fix water vapour mixing ratio
+!--------------------------------------------------------------------
+! Fix water vapour mixing ratio
 subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays

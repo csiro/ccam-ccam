@@ -68,6 +68,7 @@ end interface
 
 interface pop_pack
   module procedure pop_pack_r8_2_r8_tile, pop_pack_i4_2_i4_tile
+  module procedure pop_pack_i4_2_i8_tile
 end interface
 
 interface pop_unpack
@@ -531,6 +532,29 @@ subroutine pop_pack_i4_2_i4_tile(indata,outdata,inb)
   end do
 
 end subroutine pop_pack_i4_2_i4_tile
+
+subroutine pop_pack_i4_2_i8_tile(indata,outdata,inb)
+  use newmpar_m, only : ifull
+
+  implicit none
+
+  integer, dimension(ifull), intent(in) :: indata
+  integer(kind=8), dimension(:), intent(inout) :: outdata
+  integer, intent(in) :: inb
+  integer :: nb, is, ie, js, je, tile
+
+  nb = inb
+  do tile = 1,ntiles
+    is = tdata(tile)%pind(nb,1)
+    ie = tdata(tile)%pind(nb,2)
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(is:ie) =  pack(indata(js:je),tdata(tile)%pmap(:,nb))
+    end if  
+  end do
+
+end subroutine pop_pack_i4_2_i8_tile
 
 !subroutine pop_unpack_dp_2_r8_tile(indata,outdata,inb)
 !  use newmpar_m, only : ifull
