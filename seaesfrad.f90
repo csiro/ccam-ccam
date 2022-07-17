@@ -131,7 +131,6 @@ end subroutine seaesfrad_settime
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! CCAM interface with GFDL SEA-ESF radiation
 !
-
 subroutine seaesfrad(koundiag)
 
 use aerointerface                                   ! Aerosol interface
@@ -176,6 +175,7 @@ real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumtss
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam
+!real, dimension(imax) :: sgn_save, alb
 real, dimension(imax) :: sgn
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
@@ -235,7 +235,7 @@ do iq_tile = 1,ifull,imax
   dhr = dt/3600.
   call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro2,taudar2)
   call atebccangle(istart,imax,coszro2,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt,sin(dlt))
-
+  
   ! Set-up albedo
   ! Land albedo ---------------------------------------------------
   if ( nsib==6 .or. nsib==7 ) then
@@ -290,7 +290,7 @@ do iq_tile = 1,ifull,imax
   call atebalb1(istart,imax,cuvrf_dif,0,split=2) ! diffuse
   call atebalb1(istart,imax,cirrf_dif,0,split=2) ! diffuse
    
-  ! Call radiation --------------------------------------------------
+ ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
 
     ! Average the zenith angle over the time (hours) between radiation
@@ -418,7 +418,7 @@ do iq_tile = 1,ifull,imax
           Aerosol_props%ivol(:,:,:) = 0 ! no mixing of bc with so4
         !end if
     end select
-
+      
     ! define droplet size distribution ------------------------------
     call aerodrop(istart,cd2,rhoa)
     
@@ -686,28 +686,28 @@ do iq_tile = 1,ifull,imax
     end do
     
 #ifdef seaesfdebug
-    if ( any(Sw_output(mythread)%hsw(:,1,:,1)/=Sw_output(mythread)%hsw(:,1,:,1)) ) then
+    if ( any(sw_tend(istart:iend,1:kl)/=sw_tend(istart:iend,1:kl)) ) then
       write(6,*) "ERROR: NaN detected in hsw for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
     end if
-    if ( any(Sw_output(mythread)%hsw(:,1,:,1)>8640000.) .or. any(Sw_output(mythread)%hsw(:,1,:,1)<-8640000.) ) then
+    if ( any(sw_tend(istart:iend,1:kl)>100./dt) .or. any(sw_tend(istart:iend,1:kl)<-100./dt) ) then
       write(6,*) "ERROR: hsw is out-of-range in seaesfrad on myid=",myid  
-      write(6,*) "minval,maxval ",minval(Sw_output(mythread)%hsw(:,1,:,1)),maxval(Sw_output(mythread)%hsw(:,1,:,1))
-      write(6,*) "minloc,maxloc ",minloc(Sw_output(mythread)%hsw(:,1,:,1)),maxloc(Sw_output(mythread)%hsw(:,1,:,1))
+      write(6,*) "minval,maxval ",minval(sw_tend(istart:iend,1:kl)),maxval(sw_tend(istart:iend,1:kl))
+      write(6,*) "minloc,maxloc ",minloc(sw_tend(istart:iend,1:kl)),maxloc(sw_tend(istart:iend,1:kl))
       call ccmpi_abort(-1)
     end if
-    if ( any(Lw_output(mythread)%heatra(:,1,:)/=Lw_output(mythread)%heatra(:,1,:)) ) then
+    if ( any(lw_tend(istart:iend,1:kl)/=lw_tend(istart:iend,1:kl)) ) then
       write(6,*) "ERROR: NaN detected in heatra for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
     end if
-    if ( any(Lw_output(mythread)%heatra(:,1,:)>8640000.) .or. any(Lw_output(mythread)%heatra(:,1,:)<-8640000.) ) then
+    if ( any(lw_tend(istart:iend,1:kl)>100./dt) .or. any(lw_tend(istart:iend,1:kl)<-100./dt) ) then
       write(6,*) "ERROR: heatra is out-of-range in seaesfrad on myid=",myid  
-      write(6,*) "minval,maxval ",minval(Lw_output(mythread)%heatra(:,1,:)),maxval(Lw_output(mythread)%heatra(:,1,:))
-      write(6,*) "minloc,maxloc ",minloc(Lw_output(mythread)%heatra(:,1,:)),maxloc(Lw_output(mythread)%heatra(:,1,:))
+      write(6,*) "minval,maxval ",minval(lw_tend(istart:iend,1:kl)),maxval(lw_tend(istart:iend,1:kl))
+      write(6,*) "minloc,maxloc ",minloc(lw_tend(istart:iend,1:kl)),maxloc(lw_tend(istart:iend,1:kl))
       call ccmpi_abort(-1)
     end if
 #endif
-
+    
     ! aerosol optical depths ----------------------------------------
     if ( do_aerosol_forcing ) then
       opticaldepth(istart:iend,:,:) = 0.
