@@ -2427,7 +2427,7 @@ contains
 #ifdef usempi3
       call ccmpi_freeshdata(nodepack_win)
 #else
-      deallocate( nodepack )
+      deallocate( nodepack)
 #endif
       nullify( nodepack )
    
@@ -8619,6 +8619,7 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 
+      ! merge length
       if ( mg(g)%merge_len <= 1 ) return
 
       if ( present(klim) ) then
@@ -8641,13 +8642,7 @@ contains
       integer :: nrow, ncol
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
-      integer :: rcount, jproc, w
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4) :: lw, itag = 25, lrreq, ldone
-      integer(kind=4), dimension(nmax-1) :: lireq, donelist
-#ifdef pgi
-      integer(kind=4), dimension(MPI_STATUS_SIZE,nmax-1) :: status
-#endif      
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -8663,75 +8658,38 @@ contains
       ncol    = msg_len/nrow                ! number of points along a col per processor
       nrm1    = nrow - 1
       hoz_len = msg_len*npanx
-      ilen    = (hoz_len+1)*kx
+      ilen = (hoz_len+1)*kx
 
       ! pack contiguous buffer
       tdat(1:hoz_len*kx) = reshape( vdat(1:hoz_len,1:kx), (/ hoz_len*kx /) )
       tdat(hoz_len*kx+1:ilen) = dsolmax(1:kx)
 
-      call START_LOG(gathermg_begin)
       lcomm = mg(g)%comm_merge
+      call START_LOG(gathermg_begin)
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )      
+      call END_LOG(gathermg_end)
+
+      ! unpack buffers (nmax is zero unless this is the host processor)
       if ( nmax > 0 ) then
-         ! recv proc 
-         ! copy proc 0 
-         do k = 1,kx
-            do n = 1,npanx
-               do j = 1,ncol
-                  iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
-                  iqq = (j-1)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
-                  vdat(iq+1:iq+nrow,k) = tdat(iqq+1:iqq+nrow)
-               end do
-            end do
-         end do
-         tdat_g(hoz_len*kx+1:ilen,1) = tdat(hoz_len*kx+1:ilen)
-         ! recv procs 1,nmax-1
-         do w = 1,nmax-1
-            lw = w
-            call MPI_IRecv( tdat_g(:,w+1), ilen, ltype, lw, itag, lcomm, lireq(w), ierr )
-         end do
-         ! unpack recv buffers
-         lrreq = nmax - 1
-         rcount = lrreq
-         do while ( rcount > 0 )
-#ifdef pgi
-            call MPI_Waitsome( lrreq, lireq, ldone, donelist, status, ierr )
-#else
-            call MPI_Waitsome( lrreq, lireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-#endif
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               yproc = donelist(jproc) + 1
-               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-               is = (ir-1)*nrow + 1
-               js = (ic-1)*ncol + 1
-               do k = 1,kx
-                  do n = 1,npanx
-                     do j = js,js+ncol-1
-                        iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
-                        iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
-                        vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
-                     end do
+         ! general case
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+            is = (ir-1)*nrow + 1
+            js = (ic-1)*ncol + 1
+            do k = 1,kx
+               do n = 1,npanx
+                  do j = js,js+ncol-1
+                     iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
+                     iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
+                     vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
                   end do
                end do
-            end do
-         end do   
-      else
-         ! send proc 
-         call MPI_ISend( tdat, ilen, ltype, 0_4, itag, lcomm, lireq(1), ierr )
-#ifdef pgi
-         call MPI_Wait( lireq(1), status(:,1), ierr )
-#else
-         call MPI_Wait( lireq(1), MPI_STATUS_IGNORE, ierr )
-#endif
-      end if
-      call END_LOG(gathermg_end)            
-
-      ! update maximum value
-      if ( nmax > 0 ) then
+            end do   
+         end do
          dsolmax(1:kx) = maxval( tdat_g(hoz_len*kx+1:ilen,1:nmax), dim=2 )
       end if
-        
+  
    return
    end subroutine mgcollectreduce_work
 
@@ -8766,13 +8724,7 @@ contains
       integer :: nrow, ncol
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
-      integer :: rcount, jproc, w
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4) :: lw, itag = 26, lrreq, ldone
-      integer(kind=4), dimension(nmax-1) :: lireq, donelist
-#ifdef pgi
-      integer(kind=4), dimension(MPI_STATUS_SIZE,nmax-1) :: status
-#endif      
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -8792,62 +8744,29 @@ contains
       ! pack contiguous buffer
       tdat(1:ilen) = reshape( vdat(1:hoz_len,1:kx), (/ hoz_len*kx /) )
 
-      call START_LOG(gathermg_begin)
       lcomm = mg(g)%comm_merge
+      call START_LOG(gathermg_begin)
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
+      call END_LOG(gathermg_end)
+
+      ! unpack buffers (nmax is zero unless this is the host processor)
       if ( nmax > 0 ) then
-         ! recv proc 
-         ! copy proc 0 
-         do k = 1,kx
-            do n = 1,npanx
-               do j = 1,ncol
-                  iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
-                  iqq = (j-1)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
-                  vdat(iq+1:iq+nrow,k) = tdat(iqq+1:iqq+nrow)
-               end do
-            end do
-         end do
-         ! recv procs 1,nmax-1
-         do w = 1,nmax-1
-            lw = w
-            call MPI_IRecv( tdat_g(:,w+1), ilen, ltype, lw, itag, lcomm, lireq(w), ierr )
-         end do
-         ! unpack recv buffers
-         lrreq = nmax - 1
-         rcount = lrreq
-         do while ( rcount > 0 )
-#ifdef pgi
-            call MPI_Waitsome( lrreq, lireq, ldone, donelist, status, ierr )
-#else
-            call MPI_Waitsome( lrreq, lireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-#endif
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               yproc = donelist(jproc) + 1
-               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-               is = (ir-1)*nrow + 1
-               js = (ic-1)*ncol + 1
-               do k = 1,kx
-                  do n = 1,npanx
-                     do j = js,js+ncol-1
-                        iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
-                        iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
-                        vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
-                     end do
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+            is = (ir-1)*nrow + 1
+            js = (ic-1)*ncol + 1
+            do k = 1,kx
+               do n = 1,npanx
+                  do j = js,js+ncol-1
+                     iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
+                     iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
+                     vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
                   end do
                end do
-            end do
-         end do   
-      else
-         ! send proc 
-         call MPI_ISend( tdat, ilen, ltype, 0_4, itag, lcomm, lireq(1), ierr )
-#ifdef pgi
-         call MPI_Wait( lireq(1), status(:,1), ierr )
-#else
-         call MPI_Wait( lireq(1), MPI_STATUS_IGNORE, ierr )
-#endif
+            end do   
+         end do
       end if
-      call END_LOG(gathermg_end)
 
    return
    end subroutine mgcollect_work
@@ -8884,13 +8803,7 @@ contains
       integer :: nrow, ncol
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
-      integer :: rcount, jproc, w
       integer(kind=4) :: ierr, ilen, lcomm
-      integer(kind=4) :: lw, itag = 25, lrreq, ldone
-      integer(kind=4), dimension(nmax-1) :: lireq, donelist
-#ifdef pgi
-      integer(kind=4), dimension(MPI_STATUS_SIZE,nmax-1) :: status
-#endif      
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -8912,66 +8825,28 @@ contains
       tdat(1:hoz_len*kx) = reshape( vdat(1:hoz_len,1:kx), (/ hoz_len*kx /) )
       tdat(hoz_len*kx+1:ilen) = reshape( smaxmin(1:kx,1:2), (/ kx*2 /) )
 
-      call START_LOG(gathermg_begin)
       lcomm = mg(g)%comm_merge
-      if ( nmax > 0 ) then
-         ! recv proc 
-         ! copy proc 0 
-         do k = 1,kx
-            do n = 1,npanx
-               do j = 1,ncol
-                  iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
-                  iqq = (j-1)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
-                  vdat(iq+1:iq+nrow,k) = tdat(iqq+1:iqq+nrow)
-               end do
-            end do
-         end do
-         tdat_g(hoz_len*kx+1:ilen,1) = tdat(hoz_len*kx+1:ilen)
-         ! recv procs 1,nmax-1
-         do w = 1,nmax-1
-            lw = w
-            call MPI_IRecv( tdat_g(:,w+1), ilen, ltype, lw, itag, lcomm, lireq(w), ierr )
-         end do
-         ! unpack recv buffers
-         lrreq = nmax - 1
-         rcount = lrreq
-         do while ( rcount > 0 )
-#ifdef pgi
-            call MPI_Waitsome( lrreq, lireq, ldone, donelist, status, ierr )
-#else
-            call MPI_Waitsome( lrreq, lireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-#endif
-            rcount = rcount - ldone
-            do jproc = 1,ldone
-               yproc = donelist(jproc) + 1
-               ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
-               ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
-               is = (ir-1)*nrow + 1
-               js = (ic-1)*ncol + 1
-               do k = 1,kx
-                  do n = 1,npanx
-                     do j = js,js+ncol-1
-                        iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
-                        iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
-                        vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
-                     end do
-                  end do
-               end do
-            end do
-         end do   
-      else
-         ! send proc 
-         call MPI_ISend( tdat, ilen, ltype, 0_4, itag, lcomm, lireq(1), ierr )
-#ifdef pgi
-         call MPI_Wait( lireq(1), status(:,1), ierr )
-#else
-         call MPI_Wait( lireq(1), MPI_STATUS_IGNORE, ierr )
-#endif
-      end if
+      call START_LOG(gathermg_begin)
+      call MPI_Gather( tdat, ilen, ltype, tdat_g, ilen, ltype, 0_4, lcomm, ierr )
       call END_LOG(gathermg_end)
 
-      ! update maximum and minimum value
+      ! unpack buffers (nmax is zero unless this is the host processor)
       if ( nmax > 0 ) then
+         do yproc = 1,nmax
+            ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
+            ic = (yproc-1)/mg(g)%merge_row + 1      ! index for proc col
+            is = (ir-1)*nrow + 1
+            js = (ic-1)*ncol + 1
+            do k = 1,kx
+               do n = 1,npanx
+                  do j = js,js+ncol-1
+                     iq = (j-1)*ipanx + (n-1)*ipanx*jpanx
+                     iqq = 1 - is + (j-js)*nrow + (n-1)*nrow*ncol + (k-1)*nrow*ncol*npanx
+                     vdat(iq+is:iq+is+nrow-1,k) = tdat_g(iqq+is:iqq+is+nrow-1,yproc)
+                  end do
+               end do
+            end do   
+         end do
          smaxmin(1:kx,1) = maxval( tdat_g(hoz_len*kx+1:(hoz_len+1)*kx,1:nmax), dim=2 )
          smaxmin(1:kx,2) = minval( tdat_g((hoz_len+1)*kx+1:ilen,1:nmax), dim=2 )
       end if   
