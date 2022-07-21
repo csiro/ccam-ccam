@@ -100,6 +100,7 @@
 /mlostag.f90 -text
 /mlovadvtvd.f90 -text
 /module_aux_rad.f90 -text
+/module_ctrl_microphysics.f90 -text
 /morepbl_m.f90 -text
 /mpif_m.f90 -text
 /nesting.f90 -text

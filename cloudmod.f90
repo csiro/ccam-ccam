@@ -730,6 +730,7 @@ end if
 return
 end subroutine newcloud
 
+
 subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rcrit, &
                      dpsldt,nettend,stratcloud,tiedtke_form, &
                      rkmsave,rkhsave,imax,kl)
@@ -905,7 +906,7 @@ end do
 
 return
 end subroutine progcloud
-    
+
 subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,cldcon)
 
 use parm_m           ! Model configuration

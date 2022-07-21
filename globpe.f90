@@ -1358,6 +1358,7 @@ use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use module_aux_rad                         ! Additional cloud and radiation routines
+use module_ctrl_microphysics               ! Interface for cloud microphysics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
@@ -1512,7 +1513,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
-    vdeposition_mode,tiedtke_form
+    vdeposition_mode,tiedtke_form,cloud_aerosol_mode
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -2106,7 +2107,7 @@ surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
 cordex_fix          = dumi(25)
 deallocate( dumi )
-allocate( dumr(34), dumi(23) )
+allocate( dumr(34), dumi(24) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2168,6 +2169,7 @@ if ( myid==0 ) then
   dumi(21) = nevapls
   dumi(22) = vdeposition_mode
   dumi(23) = tiedtke_form
+  dumi(24) = cloud_aerosol_mode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2228,6 +2230,7 @@ nmr              = dumi(20)
 nevapls          = dumi(21)
 vdeposition_mode = dumi(22)
 tiedtke_form     = dumi(23)
+cloud_aerosol_mode = dumi(24)
 deallocate( dumr, dumi )
 allocate( dumr(32), dumi(4) )
 dumr = 0.

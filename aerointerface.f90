@@ -32,7 +32,7 @@ implicit none
 
 private
 public load_aerosolldr, aerocalc, aerodrop
-public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, ppmrate
+public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppqfsedice, pprscav, pprfreeze
 public opticaldepth, updateoxidant, oxidant_timer
 public aerosol_u10, naerofamilies, aero_split
@@ -44,7 +44,7 @@ integer, parameter :: updateoxidant = 1440   ! update prescribed oxidant fields 
 real, dimension(:,:,:), allocatable, save :: oxidantnow_g
 real, dimension(:,:,:), allocatable, save :: opticaldepth
 real, dimension(:,:), allocatable, save :: ppfprec, ppfmelt, ppfsnow           ! data saved from LDR cloud scheme
-real, dimension(:,:), allocatable, save :: ppfevap, ppfsubl, ppmrate           ! data saved from LDR cloud scheme
+real, dimension(:,:), allocatable, save :: ppfevap, ppfsubl, pplambs, ppmrate  ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: ppmaccr, ppqfsedice, pprscav        ! data saved from LDR cloud scheme
 real, dimension(:,:), allocatable, save :: pprfreeze                           ! data saved from LDR cloud scheme
 real, dimension(:), allocatable, save :: rlev
@@ -99,7 +99,7 @@ real, dimension(imax,ilev) :: loxidantnow
 real, dimension(imax,kl,naero) :: lxtg, lxtosav
 real, dimension(imax,kl,4) :: lzoxidant
 real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lstratcloud
-real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfsubl
+real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfsubl, lpplambs
 real, dimension(imax,kl) :: lppmrate, lppmaccr, lppqfsedice
 real, dimension(imax,kl) :: lpprscav, lpprfreeze, lppfevap
 real, dimension(imax,kl) :: lclcon
@@ -119,7 +119,8 @@ logical, intent(in) :: oxidant_update
 logical mydiag_t
 logical, dimension(imax) :: locean
 
-if ( aero_update==aero_split ) then
+if ( (aero_update==0.and.aero_split==0) .or. &
+     (aero_update==1.and.aero_split==1) ) then
   ! update prescribed oxidant fields
   if ( oxidant_update ) then
     !$omp do schedule(static) private(is,ie),                       &
@@ -198,24 +199,24 @@ if ( aero_update==aero_split ) then
   end if
 
 #ifdef _OPENMP    
-  !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                             &
-  !$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                               &
-  !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lppmrate,lppmaccr),     &
-  !$omp private(lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),         &
+  !$omp do schedule(static) private(is,ie,idjd_t,mydiag_t),                                  &
+  !$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                    &
+  !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr), &
+  !$omp private(lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
   !$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
 #else
   !!$acc parallel loop copy(xtg,duste,dustdd,dustwd,dust_burden)                                 &
   !!$acc   copy(dmsso2o,so2so4o,bc_burden,oc_burden,dms_burden)                                  &
   !!$acc   copy(so2_burden,so4_burden,so2wd,so4wd,bcwd,ocwd,dmse,so2e,so4e,bce,oce,so2dd)        &
   !!$acc   copy(so4dd,bcdd,ocdd,salte,saltdd,saltwd,salt_burden)                                 &
-  !!$acc   copyin(zoxidant_g,xtosav,emissfield,erod,ppfprec,ppfmelt,ppfsnow,ppfsubl)             &
+  !!$acc   copyin(zoxidant_g,xtosav,emissfield,erod,ppfprec,ppfmelt,ppfsnow,ppfsubl,pplambs)     &
   !!$acc   copyin(ppmrate,ppmaccr,ppqfsedice,pprscav,pprfreeze,ppfevap,clcon,rhoa)               &
   !!$acc   copyin(wetfac,isoilm,pblh,ps,tss,u10_l,ustar,zo,land,fracice,sigmf,cldcon,cdtq)       &
   !!$acc   copyin(zdayfac,kbsav,vso2,dustden,dustreff,saltden,saltreff,sig,condc,snowd,taudar)   &
   !!$acc   copyin(fg,eg,t,qg,qlg,qfg,stratcloud,dsig,ktsav,isoilm_in)                            &
   !!$acc   copyout(so4t)                                                                         &
   !!$acc   private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg)                                      &
-  !!$acc   private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lppmrate,lppmaccr)            &
+  !!$acc   private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr)   &
   !!$acc   private(lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd)                &
   !!$acc   private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
 #endif
@@ -244,6 +245,7 @@ if ( aero_update==aero_split ) then
     lppfmelt           = ppfmelt(is:ie,:)
     lppfsnow           = ppfsnow(is:ie,:)
     lppfsubl           = ppfsubl(is:ie,:)
+    lpplambs           = pplambs(is:ie,:)
     lppmrate           = ppmrate(is:ie,:)
     lppmaccr           = ppmaccr(is:ie,:)
     lppqfsedice        = ppqfsedice(is:ie,:)
@@ -285,7 +287,7 @@ if ( aero_update==aero_split ) then
                   land(is:ie),fracice(is:ie),sigmf(is:ie),lqg,lqlg,lqfg, &
                   lstratcloud,lclcon,cldcon(is:ie),pccw,rhoa,            &
                   cdtq(is:ie),lppfprec,lppfmelt,lppfsnow,                &
-                  lppfsubl,lppmrate,lppmaccr,                            &
+                  lppfsubl,lpplambs,lppmrate,lppmaccr,                   &
                   lppqfsedice,lpprscav,lpprfreeze,lppfevap,              &
                   zdayfac(is:ie),kbsav(is:ie),lxtg,lduste,ldustdd,       &
                   lxtosav,dmsso2o(is:ie),so2so4o(is:ie),                 &
@@ -500,7 +502,7 @@ if ( myid==0 ) write(6,*) "-->Allocate interface arrays"
 allocate( ppfprec(ifull,kl), ppfmelt(ifull,kl) )
 allocate( ppfsnow(ifull,kl) )
 allocate( ppfevap(ifull,kl), ppfsubl(ifull,kl) )
-allocate( ppmrate(ifull,kl) )
+allocate( pplambs(ifull,kl), ppmrate(ifull,kl) )
 allocate( ppmaccr(ifull,kl) )
 allocate( ppqfsedice(ifull,kl), pprscav(ifull,kl), pprfreeze(ifull,kl) )
 allocate( zdayfac(ifull) )
@@ -510,6 +512,7 @@ ppfmelt = 0.
 ppfsnow = 0.
 ppfevap = 0.
 ppfsubl = 0.
+pplambs = 0.
 ppmrate = 0.
 ppmaccr = 0.
 ppqfsedice = 0.

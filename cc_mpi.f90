@@ -2054,10 +2054,10 @@ contains
          end do   
       end do   
       
-      !call START_LOG(mpiwaitmap_begin) 
-      !lcomm = comm_node
-      !call MPI_Barrier( lcomm, ierr )
-      !call END_LOG(mpiwaitmap_end)
+      call START_LOG(mpiwaitmap_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmap_end)
    
    end subroutine ccmpi_gathermap_recv2
 
@@ -2154,10 +2154,10 @@ contains
          end do   
       end do 
 
-      !call START_LOG(mpiwaitmap_begin) 
-      !lcomm = comm_node
-      !call MPI_Barrier( lcomm, ierr )
-      !call END_LOG(mpiwaitmap_end)
+      call START_LOG(mpiwaitmap_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpiwaitmap_end)
       
    end subroutine ccmpi_gathermap_recv3
     

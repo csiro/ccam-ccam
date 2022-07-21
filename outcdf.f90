@@ -189,6 +189,7 @@ use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use module_aux_rad                         ! Additional cloud and radiation routines
+use module_ctrl_microphysics               ! Interface for cloud microphysics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use ozoneread                              ! Ozone input routines
@@ -718,6 +719,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'cldh_sea',cldh_sea)
     call ccnf_put_attg(idnc,'cldl_sea',cldl_sea)
     call ccnf_put_attg(idnc,'cldm_sea',cldm_sea)
+    call ccnf_put_attg(idnc,'cloud_aerosol_mode',cloud_aerosol_mode)
     call ccnf_put_attg(idnc,'convfact',convfact)
     call ccnf_put_attg(idnc,'convtime',convtime)
     call ccnf_put_attg(idnc,'detrain',detrain)
