@@ -1752,14 +1752,14 @@ if ( myid==0 .and. .not.quiet ) then
   write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,int(mtimer_r)
 end if
 
-if ( leap==0 ) then ! 365 day calendar
+if ( leap_l==0 ) then ! 365 day calendar
   mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)  
-else if ( leap==1 ) then ! 365/366 day calendar  
+else if ( leap_l==1 ) then ! 365/366 day calendar  
   mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)
   if ( mod(iyr,4_8)==0   ) mdays(2)=29_8
   if ( mod(iyr,100_8)==0 ) mdays(2)=28_8
   if ( mod(iyr,400_8)==0 ) mdays(2)=29_8
-else if ( leap==2 ) then ! 360 day calendar
+else if ( leap_l==2 ) then ! 360 day calendar
   mdays(:)=30_8  
 else
   write(6,*) "ERROR: Unknown option for leap = ",leap

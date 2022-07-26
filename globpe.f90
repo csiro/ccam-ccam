@@ -66,7 +66,7 @@ use mlo                                    ! Ocean physics and prognostic arrays
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use module_ctrl_microphysics               ! Microphysics driver   !#sonny
-use module_aux_rad_cosp
+use module_aux_rad
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
@@ -728,7 +728,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call START_LOG(aerosol_begin)
   !$omp end master
   if ( abs(iaero)>=2 ) then
-    call aerocalc(oxidant_update,mins)
+    call aerocalc(oxidant_update,mins,0)
   end if
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
@@ -779,6 +779,22 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if
   call END_LOG(vertmix_end)
   !$omp end master
+
+  ! AEROSOLS --------------------------------------------------------------
+  ! New time-split with aero_split=1
+  ! Includes turbulent mixing
+  call START_LOG(aerosol_begin)
+  if ( abs(iaero)>=2 ) then
+    call aerocalc(oxidant_update,mins,1)
+  end if
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call nantest("after aerosols",js,je)
+  end do
+  !$omp end do nowait
+  call END_LOG(aerosol_end)
 
 
   ! MISC (PARALLEL) -------------------------------------------------------
@@ -1337,6 +1353,7 @@ use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
+use module_mp_sbu_ylin, only : qi0         ! 2 moment scheme
 use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,factchseaice,minwater,mxd,mindep    &
     ,alphavis_seaice,alphanir_seaice     &
@@ -1504,7 +1521,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
-    vdeposition_mode,tiedtke_form
+    vdeposition_mode,tiedtke_form,qi0
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -2090,7 +2107,7 @@ surf_cordex         = dumi(22)
 surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
 deallocate( dumi )
-allocate( dumr(34), dumi(23) )
+allocate( dumr(35), dumi(23) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2129,6 +2146,7 @@ if ( myid==0 ) then
   dumr(32) = rcrit_l
   dumr(33) = rcrit_s
   dumr(34) = cld_decay
+  dumr(35) = qi0
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -2189,6 +2207,7 @@ rcm              = dumr(31)
 rcrit_l          = dumr(32)
 rcrit_s          = dumr(33)
 cld_decay        = dumr(34)
+qi0              = dumr(35)
 iterconv         = dumi(1) 
 ksc              = dumi(2)
 kscmom           = dumi(3)

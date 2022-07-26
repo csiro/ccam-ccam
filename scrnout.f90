@@ -328,7 +328,7 @@ real, dimension(imax) :: esatb,qsatb,umagn
 real, dimension(imax) :: pq0,pq1
 real, intent(in) :: sig
 real scrp
-integer, parameter ::  nc     = 5
+integer, parameter ::  nc     = 5 ! number of iterations
 real, parameter    ::  vkar   = 0.4
 real, parameter    ::  a_1    = 1.
 real, parameter    ::  b_1    = 2./3.
@@ -436,15 +436,21 @@ integralq(1:imax)   = max(integralq(1:imax), 1.e-10)
 integralm(1:imax)   = max(integralm(1:imax), 1.e-10)
 integralm10(1:imax) = max(integralm10(1:imax), 1.e-10)
 
+! 2m air temperature
 tscrn(1:imax)  = temp(1:imax) - tstar(1:imax)*integralh(1:imax)/vkar
+! 2m mixing ratio
 esatb(1:imax)  = establ(tscrn(1:imax),imax)
 qscrn(1:imax)  = mixr(1:imax) - qstar(1:imax)*integralq(1:imax)/vkar
 qscrn(1:imax)  = max(qscrn(1:imax), qgmin)
+! 2m relative humidity
 qsatb(1:imax)  = 0.622*esatb(1:imax)/(ps(1:imax)-esatb(1:imax))
 rhscrn(1:imax) = 100.*min(qscrn(1:imax)/qsatb(1:imax), 1.)
+! 2m wind speed
 uscrn(1:imax)  = max(umagn(1:imax)-ustar(1:imax)*integralm(1:imax)/vkar, 0.)
+! 10m wind speed
 u10(1:imax)    = max(umagn(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
-u10gs_var(1:imax)   = max(ugs_var(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
+! wind gust
+u10gs_var(1:imax) = max(ugs_var(1:imax)-ustar(1:imax)*integralm10(1:imax)/vkar, 0.)
 
 return
 end subroutine screencalc
@@ -487,20 +493,17 @@ tile = ie/imax
 
 zminx(is:ie) = bet(1)*t(is:ie,1)/grav
 zminx(is:ie) = max( zminx(is:ie), 5. )
+iu(is:ie) = 0.
+iv(is:ie) = 0.
+ou(is:ie) = 0.
+ov(is:ie) = 0.
 if ( nmlo/=0 ) then
-  iu(is:ie) = 0.
-  iv(is:ie) = 0.
-  ou(is:ie) = 0.
-  ov(is:ie) = 0.
   call mloexport("u",ou(is:ie),1,0,water_g(tile),depth_g(tile))
   call mloexport("v",ov(is:ie),1,0,water_g(tile),depth_g(tile))
   call mloexpice("u",iu(is:ie),0,ice_g(tile),depth_g(tile))
   call mloexpice("v",iv(is:ie),0,ice_g(tile),depth_g(tile))
   ou(is:ie) = (1.-fracice(is:ie))*ou(is:ie) + fracice(is:ie)*iu(is:ie)
   ov(is:ie) = (1.-fracice(is:ie))*ov(is:ie) + fracice(is:ie)*iv(is:ie)
-else
-  ou(is:ie) = 0.
-  ov(is:ie) = 0.
 end if
 au(is:ie)   = u(is:ie,1) - ou(is:ie)
 av(is:ie)   = v(is:ie,1) - ov(is:ie)
@@ -521,6 +524,13 @@ if ( zo_clearing>0. ) then
     new_zoq(is:ie) = min( 0.1*zo_clearing, zoq(is:ie) )
   end where  
 end if
+if ( rescrn==2 ) then
+  where ( land(is:ie) )
+    new_zo(is:ie) = max( zo(is:ie), zobgin )
+    new_zoh(is:ie) = max( zoh(is:ie), zobgin/7.4 )
+    new_zoq(is:ie) = max( zoq(is:ie), zobgin/7.4 )
+  end where
+end if
 
 call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),               &
                 u10gs_var(is:ie),ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),              &
@@ -528,7 +538,7 @@ call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u1
                 qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 rho(is:ie) = ps(is:ie)/(rdry*tss(is:ie))
-cduv(is:ie) = ustar(is:ie)**2/umag(is:ie)
+cduv(is:ie) = ustar(is:ie)**2/max(umag(is:ie),vmodmin)
 taux(is:ie) = rho(is:ie)*cduv(is:ie)*au(is:ie)
 tauy(is:ie) = rho(is:ie)*cduv(is:ie)*av(is:ie)
 
@@ -562,6 +572,72 @@ call screencalc(ie-is+1,u_qgscrn(is:ie),u_rhscrn(is:ie),urban_tas(is:ie),u_uscrn
 
 return
 end subroutine autoscrn
+    
+! This version provides a local update for use with physical parameterisations    
+subroutine update_u10m(is,ie,u10m)
+      
+use arrays_m, only : t, u, v, qg, ps
+use cc_omp, only : imax
+use const_phys, only : grav
+use estab
+use mlo
+use morepbl_m, only : ugs_var
+use newmpar_m
+use parm_m
+use pbl_m, only : tss
+use sigs_m, only : bet, sig
+use soilsnow_m, only : fracice
+use work2_m, only : zo, zoh, zoq, wetfac
+      
+implicit none
+      
+integer, intent(in) :: is, ie
+integer :: tile
+real, dimension(imax), intent(out) :: u10m
+real, dimension(is:ie) :: umag, zminx, smixr
+real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
+real, dimension(is:ie) :: au, av, es, rho
+real, dimension(is:ie) :: cduv, qsttg, qgscrn, tscrn
+real, dimension(is:ie) :: rhscrn, uscrn, u10, u10gs_var
+real, dimension(is:ie) :: ustar, tstar, qstar, thetavstar
+    
+tile = ie/imax
+
+zminx(is:ie) = bet(1)*t(is:ie,1)/grav
+zminx(is:ie) = max( zminx(is:ie), 5. )
+if ( nmlo/=0 ) then
+  iu(is:ie) = 0.
+  iv(is:ie) = 0.
+  ou(is:ie) = 0.
+  ov(is:ie) = 0.
+  call mloexport("u",ou(is:ie),1,0,water_g(tile),depth_g(tile))
+  call mloexport("v",ov(is:ie),1,0,water_g(tile),depth_g(tile))
+  call mloexpice("u",iu(is:ie),0,ice_g(tile),depth_g(tile))
+  call mloexpice("v",iv(is:ie),0,ice_g(tile),depth_g(tile))
+  ou(is:ie) = (1.-fracice(is:ie))*ou(is:ie) + fracice(is:ie)*iu(is:ie)
+  ov(is:ie) = (1.-fracice(is:ie))*ov(is:ie) + fracice(is:ie)*iv(is:ie)
+else
+  ou(is:ie) = 0.
+  ov(is:ie) = 0.
+end if
+au(is:ie)   = u(is:ie,1) - ou(is:ie)
+av(is:ie)   = v(is:ie,1) - ov(is:ie)
+umag(is:ie) = max( sqrt(au(is:ie)*au(is:ie)+av(is:ie)*av(is:ie)), vmodmin )
+es(is:ie) = establ(tss(is:ie),imax)
+qsttg(is:ie)  = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
+smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
+
+call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),   &
+                u10gs_var(is:ie),ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),  &
+                zo(is:ie),zoh(is:ie),zoq(is:ie),tss(is:ie),t(is:ie,1),smixr(is:ie),         &
+                qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+
+atu(is:ie) = au(is:ie)*u10(is:ie)/umag(is:ie) + ou(is:ie)
+atv(is:ie) = av(is:ie)*u10(is:ie)/umag(is:ie) + ov(is:ie)      
+u10m(:)    = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
+
+return
+end subroutine update_u10m    
 
 ! Calculate CAPE and CIN
 ! This differs from the value used in convection, but is comparable with
@@ -585,16 +661,17 @@ real, dimension(imax,kl) :: pl, tl, pil, th, thv
 real, dimension(imax) :: th2, pil2, pl2, tl2, thv2, qv2, b2
 real, dimension(imax) :: narea, ql2, qi2, qt, capel, cinl
 real, dimension(imax) :: dz, frac, parea, dp, b1, qs
-real pl1, tl1, th1, qv1, ql1, qi1, thv1
-real tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf
-real rm, cpm, thlast, fliq, fice
+real, dimension(imax) :: pl1, tl1, th1, qv1, ql1, qi1, thv1
+real, dimension(imax) :: tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf
+real, dimension(imax) :: rm, cpm, thlast, fliq, fice
+real, dimension(imax) :: qsat_save
 !real, parameter :: pinc = 100. ! Pressure increment (Pa) - smaller is more accurate
 real, parameter :: pinc = 1000.
 real, parameter :: lv1 = 2501000. + (4190.-cpv)*273.15
 real, parameter :: lv2 = 4190. - cpv
 real, parameter :: ls1 = 2836017. + (2118.636-cpv)*273.15
 real, parameter :: ls2 = 2188.636 - cpv
-logical not_converged
+logical, dimension(imax) :: not_converged
 
 capel(:) = 0.
 cinl(:) = 0.
@@ -630,6 +707,8 @@ qi2(:) = 0.
 qt(:) = qv2(:)
 b2(:) = 0.
 narea(:) = 0.
+fliq(:) = 1.
+fice(:) = 0.
 
 ! start ascent of parcel
 do k = kmax+1,ktop
@@ -641,60 +720,66 @@ do k = kmax+1,ktop
   dp(:) = (pl(:,k-1)-pl(:,k))/real(nloop)  
   
   do n = 1,nloop
-  
-    do iq = 1,imax
-          
-      pl1 = pl2(iq)
-      tl1 = tl2(iq)
-      th1 = th2(iq)
-      qv1 = qv2(iq)
-      ql1 = ql2(iq)
-      qi1 = qi2(iq)
-      thv1 = thv2(iq)
+            
+    pl1(:) = pl2(:)
+    tl1(:) = tl2(:)
+    th1(:) = th2(:)
+    qv1(:) = qv2(:)
+    ql1(:) = ql2(:)
+    qi1(:) = qi2(:)
+    thv1(:) = thv2(:)
      
-      pl2(iq) = pl2(iq) - dp(iq)
-      pil2(iq) = (pl2(iq)/1.e5)**(rdry/cp)
-      thlast = th1
+    pl2(:) = pl2(:) - dp(:)
+    pil2(:) = (pl2(:)/1.e5)**(rdry/cp)
+    thlast(:) = th1(:)
       
-      icount = 0
-      not_converged = .true.
-      do while( not_converged .and. icount<51 )
-        icount = icount + 1
-        tl2(iq) = thlast*pil2(iq)
-        fliq = max(min((tl2(iq)-233.15)/(273.15-233.15),1.),0.)
-        fice = 1. - fliq
-        qv2(iq) = min( qt(iq), qsat(pl2(iq),tl2(iq)) )
-        qi2(iq) = max( fice*(qt(iq)-qv2(iq)), 0. )
-        ql2(iq) = max( qt(iq)-qv2(iq)-qi2(iq), 0. )
+    icount = 0
+    not_converged(:) = .true.
+    do while( any(not_converged(:)) .and. icount<51 )
+      icount = icount + 1
 
-        tbarl = 0.5*(tl1+tl2(iq))
-        qvbar = 0.5*(qv1+qv2(iq))
-        qlbar = 0.5*(ql1+ql2(iq))
-        qibar = 0.5*(qi1+qi2(iq))
+      where ( not_converged )
+        tl2(:) = thlast(:)*pil2(:)
+        fliq(:) = max(min((tl2(:)-233.15)/(273.15-233.15),1.),0.)
+        fice(:) = 1. - fliq(:)
+      end where
 
-        lhv = lv1 - lv2*tbarl
-        lhs = ls1 - ls2*tbarl
-        lhf = lhs - lhv
+      qsat_save(:) = qsat(pl2,tl2,imax)
 
-        rm = rdry + rvap*qvbar
-        cpm = cp + cpv*qvbar + 4190.*qlbar + 2118.636*qibar
-        th2(iq) = th1*exp(  lhv*(ql2(iq)-ql1)/(cpm*tbarl)    &
-                           +lhs*(qi2(iq)-qi1)/(cpm*tbarl)    &
-                           +(rm/cpm-rdry/cp)*alog(pl2(iq)/pl1) )
+      where ( not_converged )
+        qv2(:) = min( qt(:), qsat_save(:) )
+        qi2(:) = max( fice*(qt(:)-qv2(:)), 0. )
+        ql2(:) = max( qt(:)-qv2(:)-qi2(:), 0. )
 
-        if ( abs(th2(iq)-thlast)>0.0002 ) then
-          thlast=thlast+0.2*(th2(iq)-thlast)
-        else
-          not_converged = .false.
-        end if
-      end do ! do while not_converged
+        tbarl(:) = 0.5*(tl1(:)+tl2(:))
+        qvbar(:) = 0.5*(qv1(:)+qv2(:))
+        qlbar(:) = 0.5*(ql1(:)+ql2(:))
+        qibar(:) = 0.5*(qi1(:)+qi2(:))
 
-      ! pseudoadiabat
-      qt(iq)  = qv2(iq)
-      ql2(iq) = 0.
-      qi2(iq) = 0.
+        lhv(:) = lv1 - lv2*tbarl(:)
+        lhs(:) = ls1 - ls2*tbarl(:)
+        lhf(:) = lhs(:) - lhv(:)
 
-    end do   ! iq loop
+        rm(:) = rdry + rvap*qvbar(:)
+        cpm(:) = cp + cpv*qvbar(:) + 4190.*qlbar(:) + 2118.636*qibar(:)
+        th2(:) = th1(:)*exp( lhv(:)*(ql2(:)-ql1(:))/(cpm(:)*tbarl(:))    &
+                   +lhs(:)*(qi2(:)-qi1(:))/(cpm(:)*tbarl(:))             &
+                   +(rm(:)/cpm(:)-rdry/cp)*alog(pl2(:)/pl1(:)) )
+      end where
+
+      where ( abs(th2(:)-thlast(:))>0.0002 .and. not_converged )
+        thlast(:) = thlast(:) + 0.2*(th2(:)-thlast(:))
+      else where
+        not_converged(:) = .false.
+      end where
+
+    end do ! do while not_converged
+
+    ! pseudoadiabat
+    qt(:)  = qv2(:)
+    ql2(:) = 0.
+    qi2(:) = 0.
+
   end do     ! n loop  
 
   thv2(:) = th2(:)*(1.+1.61*qv2(:))/(1.+qv2(:)+ql2(:)+qi2(:))

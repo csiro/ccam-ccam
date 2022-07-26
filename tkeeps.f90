@@ -340,7 +340,7 @@ do kcount = 1,mcount
   
   ! Update momentum flux
   ustar = sqrt(cduv*sqrt(ua(:,1)**2+va(:,1)**2))  
-  wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)   
+  wstar = max(grav*zi*max(wtv0,0.)/thetav(:,1),1.e-10)**(1./3.)   
   
   ! Calculate non-local mass-flux terms for theta_l and qtot
   ! Plume rise equations currently assume that the air density

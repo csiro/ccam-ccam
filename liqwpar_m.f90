@@ -45,8 +45,8 @@ integer, intent(in) :: ifull,iextra,kl
 allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
 allocate(qrg(ifull,kl),qsng(ifull,kl))
 allocate(qgrg(ifull,kl))
-
-allocate(nc(ifull,kl),nr(ifull,kl),ni(ifull,kl),ns(ifull,kl))
+!rain, snow, graupel only fall vertically
+allocate(nr(ifull,kl),ni(ifull+iextra,kl),ns(ifull,kl))
 
 qlg=0.
 qfg=0.
@@ -54,7 +54,6 @@ qrg=0.
 qsng=0.
 qgrg=0.
 
-nc=0.
 nr=0.
 ni=0.
 ns=0.
@@ -69,7 +68,7 @@ implicit none
 deallocate(qlg,qfg)
 deallocate(qrg,qsng)
 deallocate(qgrg)
-
+deallocate(nr,ni,ns)
 return
 end subroutine liqwpar_end
 

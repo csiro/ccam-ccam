@@ -560,6 +560,15 @@ end if
 !------------------------------------------------------------------------
 ! Cloud water conservation
 if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    do k = 1,kl
+      ni(1:ifull,k) = max( ni(1:ifull,k), 0. )
+    end do
+    call massfix(mfix_qg,1,ni,nisav,ps,ps_sav,.false.) ! to conserve moisture
+    do k = 1,kl
+      ni(1:ifull,k) = max( ni(1:ifull,k), 0. )
+    end do
+  end if                                                   ! sny turn off ni advection 15072022
   do k = 1,kl
     stratcloud(1:ifull,k) = min( max( stratcloud(1:ifull,k), 0. ), 1. )
     qg(1:ifull,k) = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )

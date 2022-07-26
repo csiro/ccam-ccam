@@ -90,6 +90,11 @@ do k = 1,kl
   qgsav(1:ifull,k) = qg(1:ifull,k)      ! for qg  conservation in adjust5
 end do  
 if ( ldr/=0 ) then
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    do k = 1,kl
+      nisav(1:ifull,k)  = ni(1:ifull,k)
+    end do
+  end if
   do k = 1,kl  
     qfgsav(1:ifull,k)  = qfg(1:ifull,k)
     qlgsav(1:ifull,k)  = qlg(1:ifull,k)

@@ -24,13 +24,13 @@ module work3sav_m
 implicit none
 
 private
-public tsav, qgsav, qfgsav, qlgsav, trsav
+public tsav, qgsav, qfgsav, qlgsav, trsav, nisav
 public work3sav_init, work3sav_end
 
 real, dimension(:,:), allocatable, save :: tsav
 real, dimension(:,:), allocatable, save :: qgsav, qfgsav, qlgsav
 real, dimension(:,:,:), allocatable, save :: trsav
-
+real, dimension(:,:), allocatable, save :: nisav
 contains
 
 subroutine work3sav_init(ifull,kl,ngas)
@@ -45,6 +45,8 @@ if ( ngas>0 ) then
   allocate( trsav(ifull,kl,ngas) )
 end if
 
+allocate( nisav(ifull,kl) )
+
 return
 end subroutine work3sav_init
 
@@ -57,6 +59,8 @@ deallocate( qgsav, qfgsav, qlgsav )
 if ( allocated(trsav) ) then
   deallocate( trsav )
 end if
+
+deallocate(nisav)
 
 return
 end subroutine work3sav_end

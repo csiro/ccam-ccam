@@ -455,7 +455,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_att(idnc,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(idnc,idnt,'calendar','noleap')
-    else if ( leap==1 ) then
+    else if ( leap==2 ) then
       call ccnf_put_att(idnc,idnt,'calendar','360_day')  
     end if
 
@@ -2003,6 +2003,9 @@ if( myid==0 .or. local ) then
     
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
+      call attrib(idnc,dima,asize,'nr','Rain number concentration','kg-1',0.,1.E10,0,-1)
+      call attrib(idnc,dima,asize,'ni','Ice number concentration','kg-1',0.,1.E10,0,-1)
+      call attrib(idnc,dima,asize,'ns','Snow number concentration','kg-1',0.,1.E10,0,-1)
       call attrib(idnc,dima,asize,'qfg','Frozen water','kg kg-1',0.,.065,0,cptype)
       call attrib(idnc,dima,asize,'qlg','Liquid water','kg kg-1',0.,.065,0,cptype)
       if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
@@ -3287,6 +3290,9 @@ end if
 
 ! MICROPHYSICS ------------------------------------------------
 if ( ldr/=0 ) then
+  call histwrt(nr,'nr',idnc,iarch,local,.true.)
+  call histwrt(ni,'ni',idnc,iarch,local,.true.)
+  call histwrt(ns,'ns',idnc,iarch,local,.true.)
   call histwrt(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt(qlg,'qlg',idnc,iarch,local,.true.)
   if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
@@ -3726,7 +3732,7 @@ if ( first ) then
     call ccnf_put_att(fncid,idnt,'units',grdtim)
     if ( leap==0 ) then
       call ccnf_put_att(fncid,idnt,'calendar','noleap')
-    else
+    else if ( leap==2 ) then
       call ccnf_put_att(fncid,idnt,'calendar','360_day')  
     end if
     call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)

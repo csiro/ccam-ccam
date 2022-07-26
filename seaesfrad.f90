@@ -145,7 +145,7 @@ use estab                                           ! Liquid saturation function
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
 use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
-use module_aux_rad_cosp
+use module_aux_rad
 use newmpar_m                                       ! Grid parameters
 use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                                         ! Land-surface arrays

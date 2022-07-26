@@ -46,7 +46,7 @@ implicit none
 
 private
 
-public vertmix,vertmix_init
+public vertmix,vertmix_init,trimmix
 
 integer, save :: kscbase=-1, ksctop=-1
 
@@ -175,6 +175,7 @@ real, dimension(imax,kl,ntrac) :: ltr
 real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 #endif
 real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
+real, dimension(imax,kl) :: lni
 
 if ( nmlo/=0 .and. nvmix/=9 ) then
   !$omp do schedule(static) private(is,ie), &
@@ -420,12 +421,12 @@ do tile = 1,ntiles
     end do
   end do
   
-  ! Aerosols
-  if ( abs(iaero)>=2 ) then
-    lxtg = xtg(is:ie,:,1:naero)
-    call trim2(lat,lct,lxtg,imax,kl,naero)
-    xtg(is:ie,:,1:naero) = lxtg
-  end if ! (abs(iaero)>=2)    
+  ! microphysics
+  if ( ncloud==100 ) then
+    lni = ni(is:ie,:)
+    call trimmix(lat,lct,lni,imax,kl)
+    ni(is:ie,:) = max(lni,0.)
+  end if                                ! turn of ni advection  ! sny 15072022
 
 #ifndef scm
   if ( ngas>0 ) then 
@@ -1228,7 +1229,7 @@ end if      ! (ntest==2)
 ! Temperature
 if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
 rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:imax)
-call trim(at,ct,rhs,imax,kl)   ! for t
+call trimmix(at,ct,rhs,imax,kl)   ! for t
 if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
 do k = 1,kl
   t(1:imax,k) = rhs(:,k)/sigkap(k)
@@ -1259,7 +1260,7 @@ end do
 rhs = qg(1:imax,:)
 rhs(:,1) = rhs(:,1) - (conflux/hl)*eg/ps(1:imax)
 ! could add extra sfce moisture flux term for crank-nicholson
-call trim(at,ct,rhs,imax,kl)    ! for qg
+call trimmix(at,ct,rhs,imax,kl)    ! for qg
 qg(1:imax,:) = rhs
 if ( diag .and. mydiag ) then
   write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
@@ -1278,13 +1279,13 @@ end do
 ! Cloud microphysics terms
 if ( ldr/=0 ) then
   ! now do qfg
-  call trim(at,ct,qfg,imax,kl)
+  call trimmix(at,ct,qfg,imax,kl)
   ! now do qlg
-  call trim(at,ct,qlg,imax,kl)
+  call trimmix(at,ct,qlg,imax,kl)
   ! now do cfrac
-  call trim(at,ct,cfrac,imax,kl)
+  call trimmix(at,ct,cfrac,imax,kl)
   ! now do stratcloud
-  call trim(at,ct,stratcloud,imax,kl)
+  call trimmix(at,ct,stratcloud,imax,kl)
 end if    ! (ldr/=0)
 
 !--------------------------------------------------------------
@@ -1303,7 +1304,7 @@ if ( ( diag .or. ntest==2 ) .and. mydiag ) then
 end if      ! (ntest==2)
 
 ! first do u
-call trim(au,cu,u,imax,kl)
+call trimmix(au,cu,u,imax,kl)
   
 #ifdef scm
 uw_flux(:,1) = -cduv(:)*u(1:imax,1)
@@ -1313,7 +1314,7 @@ end do
 #endif
   
 ! now do v; with properly unstaggered au,cu
-call trim(au,cu,v,imax,kl)    ! note now that au, cu unstaggered globpea
+call trimmix(au,cu,v,imax,kl)    ! note now that au, cu unstaggered globpea
 
 #ifdef scm
 vw_flux(:,1) = -cduv(:)*v(1:imax,1)
@@ -1787,7 +1788,7 @@ endif  !  (nlocal==5)
 return
 end subroutine pbldif
 
-pure subroutine trim(a,c,rhs,imax,kl)
+pure subroutine trimmix(a,c,rhs,imax,kl)
 !$acc routine vector
 
 implicit none
@@ -1831,68 +1832,7 @@ do k = kl-1,1,-1
 end do
 
 return
-end subroutine trim
-
-subroutine trim2(a,c,rhs,imax,kl,ndim)
-
-use tkeeps, only : pcrthomas
-
-implicit none
-
-integer, intent(in) :: imax, kl, ndim
-integer k, iq, n
-integer kblock, nthreads
-real, dimension(imax,kl), intent(in) :: a, c
-real, dimension(imax,kl,ndim), intent(inout) :: rhs
-#ifdef GPU
-real, dimension(imax,kl,ndim) :: oldrhs
-real, dimension(imax,2:kl) :: aa
-real, dimension(imax,kl) :: bb
-real, dimension(imax,kl-1) :: cc
-#endif
-
-! this routine solves the system
-!   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
-!   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
-!   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
-
-#ifdef GPU
-oldrhs = rhs
-aa(:,2:kl) = a(:,2:kl)
-bb = 1. - a(:,:) - c(:,:)
-cc(:,1:kl-1) = c(:,1:kl-1)
-
-! PCR-Thomas
-do k = int(sqrt(real(kl))),kl
-  if ( mod(kl,k)==0 ) then
-    kblock = k
-    exit
-  end if
-end do
-nthreads = kl/kblock
-call pcrthomas(rhs,aa,bb,cc,oldrhs,imax,kl,ndim,nthreads)
-
-!! PCR for GPUs
-!call pcr(rhs,aa,bb,cc,oldrhs,imax,kl,ndim)
-
-!! Thomas
-!!$acc parallel loop copyin(a,c) copy(rhs)
-!do n = 1,ndim
-!  call trim(a,c,rhs(:,:,n),imax,kl)
-!end do
-!$acc end parallel loop
-
-#else
-
-! Thomas
-do n = 1,ndim
-  call trim(a,c,rhs(:,:,n),imax,kl)
-end do
-
-#endif
-
-return
-end subroutine trim2
+end subroutine trimmix
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                         &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &
