@@ -479,9 +479,9 @@ vertmix.o: vertmix.f90
 	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 version.h: FORCE
 	rm -f brokenver tmpver
-	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
-	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
-	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
+	echo "      character(len=*), parameter :: version ='CCAM '" > brokenver
+	echo "      character(len=*), parameter :: version ='CCAM `git log | head -3 | tail -1`' " > tmpver
+	cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
 FORCE:
 
 
