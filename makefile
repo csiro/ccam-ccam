@@ -480,7 +480,7 @@ vertmix.o: vertmix.f90
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "      character(len=*), parameter :: version ='CCAM '" > brokenver
-	echo "      character(len=*), parameter :: version ='CCAM `git log | head -3 | tail -1`' " > tmpver
+	echo "      character(len=*), parameter :: version ='CCAM `git log | head -3 | tail -1`" "`git log | head -1`' " > tmpver
 	cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
 FORCE:
 
