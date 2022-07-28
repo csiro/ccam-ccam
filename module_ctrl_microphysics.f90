@@ -47,19 +47,19 @@ module module_ctrl_microphysics
   private
   public ctrl_microphysics
   public cltcalipso_o,mr_ccice_o,cloudsat_Ze_tot,ncolumns
+
   public caso_ice, caso_liq
-  public cloud_aerosol_mode
+  public cloud_aerosol_mode, process_rate_mode
   !public mr_ccice_o,cloudsat_Ze_tot,ncolumns
 
   real, dimension(:,:), allocatable, save :: cltcalipso_o
   real, dimension(:,:), allocatable, save :: caso_ice, caso_liq
-  !real, dimension(:), allocatable, save :: cltcalipso_o
   real, dimension(:,:), allocatable, save :: mr_ccice_o
   real, dimension(:,:,:), allocatable, save :: cloudsat_Ze_tot
   integer, save :: ncolumns=20
 
   integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
-
+  integer, save :: process_rate_mode = 0      ! process rate for cloud microphysics (0=off)
 #ifdef COSPP
 
   ! ====================================================================================================
@@ -351,7 +351,22 @@ contains
   real(kind=8), dimension(kl) :: qvz,qlz,qrz,qiz,qsz,thz,tothz,rhoz,orhoz,sqrhoz
   real(kind=8), dimension(kl) :: zfluxr,zfluxi,zfluxs,zfluxg,zfluxm,&
                                  zfluxf,zfevap,zfsubl,zfauto,zfcoll,&
-                                 zfaccr,zvi,zvs,zvg                              ! for aerosol scheme
+                                 zfaccr,zvi,zvs,zvg                         !for aerosol scheme
+  real(kind=8), dimension(kl) :: zpsnow,zpsaut,zpsfw,zpsfi,zpraci,  &       !process rate to understand cloud microphysics
+                                 zpiacr,zpsaci,zpsacw,zpsdep,       &
+                                 zpssub,zpracs,zpsacr,zpsmlt,       &
+                                 zpsmltevp,zprain,zpraut,zpracw,    &
+                                 zprevp,zpgfr,zpvapor,zpclw,        &
+                                 zpladj,zpcli,zpimlt,zpihom,        &
+                                 zpidw,zpiadj,zqschg
+  real, dimension(imax,kl) ::  zzpsnow,zzpsaut,zzpsfw,zzpsfi,zzpraci, &   !process rate to understand cloud microphysics
+                               zzpiacr,zzpsaci,zzpsacw,zzpsdep,       &
+                               zzpssub,zzpracs,zzpsacr,zzpsmlt,       &
+                               zzpsmltevp,zzprain,zzpraut,zzpracw,    &
+                               zzprevp,zzpgfr,zzpvapor,zzpclw,        &
+                               zzpladj,zzpcli,zzpimlt,zzpihom,        &
+                               zzpidw,zzpiadj,zzqschg
+
   real(kind=8), dimension(kl) :: prez,zz,dzw,precrz,preciz,precsz
   real(kind=8), dimension(kl) :: EFFC1D,EFFI1D,EFFS1D,EFFR1D
   real(kind=8), dimension(kl) :: riz
@@ -362,22 +377,6 @@ contains
   real(kind=8), dimension(kl) :: ncz,nrz,niz,nsz
   real, dimension(imax,kl) :: t_imax
   real, dimension(imax)    :: ps_imax
-  !real, dimension(ims:ime,kms:kme,jms:jme):: psnowo,psauto,psfwo,psfio,pracio,   &
-  !                                           piacro,psacio,psacwo,psdepo,pssubo, &
-  !                                           pracso,psacro,psmlto,psmltevpo,     &
-  !                                           praino,prauto,pracwo,prevpo,pvaporo,&
-  !                                           pclwo,pladjo,pclio,pimlto,pihomo,   & 
-  !                                           pidwo,piadjo,pgfro,qschgo,praciso
-  !real, dimension(kts:kte) :: psnow,psaut,psfw,psfi,praci,piacr,psaci,psacw,psdep,pssub,  &
-  !                            pracs,psacr,psmlt,psmltevp,prain,praut,pracw,prevp,pvapor,  &
-  !                            pclw,pladj,pcli,pimlt,pihom,pidw,piadj,pgfr,qschg,pracis
-  !real, dimension(kts:kte) ::  qisten, qrsten, qssten
-  !real, dimension(kts:kte) ::  nisten, nrsten, nssten
-  !real, dimension(ims:ime,kms:kme,jms:jme ):: qisteno,qrsteno,qssteno,nisteno,nrsteno,nssteno
-  !real, dimension(kts:kte) ::  vtr, vts, vti
-  !real, dimension(ims:ime,kms:kme,jms:jme ):: vtro,vtso,vtio
-  !real, dimension(kts:kte) ::  lami,  lamr,  lams,n0i,n0r,n0s
-  !real, dimension(ims:ime,kms:kme,jms:jme):: lamio,lamro,lamso,n0io,n0ro,n0so
   !====================================================================================================
   
   real, dimension(imax,kl)    :: prf
@@ -709,8 +708,15 @@ contains
                            ncz, nrz, niz, nsz,                & 
                            zfluxr,zfluxi,zfluxs,zfluxg,zfluxm,&
                            zfluxf,zfevap,zfsubl,zfauto,zfcoll,&
-                           zfaccr,zvi,zvs,zvg)                  ! aerosol scheme
-          end do
+                           zfaccr,zvi,zvs,zvg,                & !aerosol scheme
+                           zpsnow,zpsaut,zpsfw,zpsfi,zpraci,  & !process rate to understand cloud microphysics
+                           zpiacr,zpsaci,zpsacw,zpsdep,       &
+                           zpssub,zpracs,zpsacr,zpsmlt,       &
+                           zpsmltevp,zprain,zpraut,zpracw,    &
+                           zprevp,zpgfr,zpvapor,zpclw,        &
+                           zpladj,zpcli,zpimlt,zpihom,        &
+                           zpidw,zpiadj,zqschg)
+          end do 
 #ifdef sonny_debug          
           if (myid == 0 .and. tile==1 ) then
           print*, '================= START output of LIN 2022 =================================='
@@ -763,32 +769,19 @@ contains
             !nc(i,k)=ncz(k)
             nnr(i,k)=nrz(k)
             nni(i,k)=niz(k)
-            nns(i,k)=nsz(k)    !zdc 20220116
-
-            if ( thz(k) < 0.) then
-              print*, thz(k), i, k
-            end if
-
-            !prf_temp(i) = ps_imax(i)*sig(k)
-            !prf(i,k)    = 0.01*prf_temp(i)                        ! ps is SI unit
+            nns(i,k)=nsz(k)                   !zdc 20220116
             th(i,k)=real( thz(k) * tothz(k) )
-            if ( th(i,k) > 10000.) then
-              print*, th(i,k), thz(k), tothz(k), i, k
-            end if
-            if ( th(i,k) < 0. ) then
-              print *,"ERROR: air temperature th  ",th(i,k),thz(k),tothz(k)
-              call ccmpi_abort(-1)
-            end if
+            
             precr(i,k)=real(precrz(k))
             preci(i,k)=real(preciz(k))
             precs(i,k)=real(precsz(k))
 
-            eradc(i,k) = real(EFFC1D(k)) ! BAW ADD FOR WRF-COSP zdc
+            eradc(i,k) = real(EFFC1D(k))      ! BAW ADD FOR WRF-COSP zdc
             eradi(i,k) = real(EFFI1D(k))
             erads(i,k) = real(EFFS1D(k))
             eradr(i,k) = real(EFFR1D(k))
 
-            fluxr(i,k) = zfluxr(k)
+            fluxr(i,k) = zfluxr(k)            ! flux for aerosol calculation
             fluxm(i,k) = zfluxm(k)
             fluxf(i,k) = zfluxf(k)
             fluxi(i,k) = zfluxi(k)
@@ -802,14 +795,40 @@ contains
             vi(i,k) = zvi(k)
             vs(i,k) = zvs(k)
             vg(i,k) = zvg(k)
+
+            if (process_rate_mode > 0) then 
+              zzpsnow(i,k)   = real(zpsnow(k))   !process rate to understand cloud microphysics
+              zzpsaut(i,k)   = real(zpsaut(k))
+              zzpsfw(i,k)    = real(zpsfw(k))
+              zzpsfi(i,k)    = real(zpsfi(k))
+              zzpraci(i,k)   = real(zpraci(k))
+              zzpiacr(i,k)   = real(zpiacr(k))
+              zzpsaci(i,k)   = real(zpsaci(k))
+              zzpsacw(i,k)   = real(zpsacw(k))
+              zzpsdep(i,k)   = real(zpsdep(k))
+              zzpssub(i,k)   = real(zpssub(k))
+              zzpracs(i,k)   = real(zpracs(k))
+              zzpsacr(i,k)   = real(zpsacr(k))
+              zzpsmlt(i,k)   = real(zpsmlt(k))
+              zzpsmltevp(i,k)= real(zpsmltevp(k))
+              zzprain(i,k)   = real(zprain(k))
+              zzpraut(i,k)   = real(zpraut(k))
+              zzpracw(i,k)   = real(zpracw(k))
+              zzprevp(i,k)   = real(zprevp(k))
+              zzpgfr(i,k)    = real(zpgfr(k))
+              zzpvapor(i,k)  = real(zpvapor(k))
+              zzpclw(i,k)    = real(zpclw(k))
+              zzpladj(i,k)   = real(zpladj(k))
+              zzpcli(i,k)    = real(zpcli(k))
+              zzpimlt(i,k)   = real(zpimlt(k))
+              zzpihom(i,k)   = real(zpihom(k))
+              zzpidw(i,k)    = real(zpidw(k))
+              zzpiadj(i,k)   = real(zpiadj(k))
+              zzqschg(i,k)   = real(zqschg(k)) 
+            end if
           end do !k loop
         !end do   !i loop
   
-        !if (myid == 0) then
-          !print*, minval(thz), maxval(thz)
-          !print*, minval(tothz), maxval(tothz)
-          !print*, minval(th), maxval(th)
-        !end if
         !do iq = its,ite
           !i = iq - its + 1
           do k = kts, kte
@@ -841,22 +860,36 @@ contains
             ni(iq,k)=nni(i,k)
             ns(iq,k)=nns(i,k)    !zdc 20220116
 
-            !if ( abs(iaero)>=2 ) then
-            !  ppfevap(iq,k)    = 0. !lppfevap    ! evaporation of rainfall                  (kg/kg)
-            !  ppfmelt(iq,k)    = 0. !lppfmelt    ! ice melting for aerosol
-            !  ppfprec(iq,k)    = 0. !lppfprec    ! ice precipitation
-            !  ppfsnow(iq,k)    = 0. !lppfsnow    ! snow precpitation
-            !  ppfstayice(iq,k) = 0. !lppfstayice ! ice remaining in layer
-            !  ppfstayliq(iq,k) = 0. !lppfstayliq ! liq remaining in layer
-            !  ppfsubl(iq,k)    = 0. !lppfsubl    ! sublimation of snowfall                  (kg/kg)
-            !  pplambs(iq,k)    = 0. !lpplambs    ! lambda
-            !  ppmaccr(iq,k)    = 0. !lppmaccr    ! accretion by snow of cloud liquid water  (kg/kg)
-            !  ppmrate(iq,k)    = 0. !lppmrate    ! autoconversion of cloud liquid water +
-            !                                     ! collection by rain of cloud liquid water (kg/kg)
-            !  ppqfsedice(iq,k) = 0. !lppqfsedice ! ?
-            !  pprfreeze(iq,k)  = 0. !lpprfreeze  ! freezing of rain
-            !  pprscav(iq,k)    = 0. !lpprscav    ! ?
-            !end if
+            if (process_rate_mode > 0) then
+              psnow(iq,k)   = zzpsnow(i,k)   !process rate to understand cloud microphysics
+              psaut(iq,k)   = zzpsaut(i,k)
+              psfw(iq,k)    = zzpsfw(i,k)
+              psfi(iq,k)    = zzpsfi(i,k)
+              praci(iq,k)   = zzpraci(i,k)
+              piacr(iq,k)   = zzpiacr(i,k)
+              psaci(iq,k)   = zzpsaci(i,k)
+              psacw(iq,k)   = zzpsacw(i,k)
+              psdep(iq,k)   = zzpsdep(i,k)
+              pssub(iq,k)   = zzpssub(i,k)
+              pracs(iq,k)   = zzpracs(i,k)
+              psacr(iq,k)   = zzpsacr(i,k)
+              psmlt(iq,k)   = zzpsmlt(i,k)
+              psmltevp(iq,k)= zzpsmltevp(i,k)
+              prain(iq,k)   = zzprain(i,k)
+              praut(iq,k)   = zzpraut(i,k)
+              pracw(iq,k)   = zzpracw(i,k)
+              prevp(iq,k)   = zzprevp(i,k)
+              pgfr(iq,k)    = zzpgfr(i,k)
+              pvapor(iq,k)  = zzpvapor(i,k)
+              pclw(iq,k)    = zzpclw(i,k)
+              pladj(iq,k)   = zzpladj(i,k)
+              pcli(iq,k)    = zzpcli(i,k)
+              pimlt(iq,k)   = zzpimlt(i,k)
+              pihom(iq,k)   = zzpihom(i,k)
+              pidw(iq,k)    = zzpidw(i,k)
+              piadj(iq,k)   = zzpiadj(i,k)
+              qschg(iq,k)   = zzqschg(i,k)
+            end if
           end do !k loop
 
           condx(iq) = condx(iq) + real( pptrain + pptsnow + pptice )
@@ -867,10 +900,6 @@ contains
         end do   !iq loop
       end do     !tile loop
      
-      !print*, minval(t), maxval(t)
-      !print*, minval(th), maxval(th)
-
-
       !if ( myid==0 ) then
       !  write(6,*) "Waiting before 2nd LIN barrier"
       !endif

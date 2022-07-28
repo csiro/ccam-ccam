@@ -28,19 +28,33 @@ public qlg,qfg ! cloud liquid water, cloud frozen water
 public qrg,qsng,qgrg ! rain, snow, graupel
 public liqwpar_init,liqwpar_end
 public nc,nr,ni,ns
+public psnow,psaut,psfw,psfi,praci, &
+       piacr,psaci,psacw,psdep,     &
+       pssub,pracs,psacr,psmlt,     &
+       psmltevp,prain,praut,pracw,  &
+       prevp,pgfr,pvapor,pclw,      &
+       pladj,pcli,pimlt,pihom,      &
+       pidw,piadj,qschg
 
 real, dimension(:,:), allocatable, save :: qlg,qfg
 real, dimension(:,:), allocatable, save :: qrg,qsng
 real, dimension(:,:), allocatable, save :: qgrg
 real, dimension(:,:), allocatable, save :: nc,nr,ni,ns
+real, dimension(:,:), allocatable, save :: psnow,psaut,psfw,psfi,praci, &
+                                           piacr,psaci,psacw,psdep,     &
+                                           pssub,pracs,psacr,psmlt,     &
+                                           psmltevp,prain,praut,pracw,  &
+                                           prevp,pgfr,pvapor,pclw,      &
+                                           pladj,pcli,pimlt,pihom,      &
+                                           pidw,piadj,qschg
 
 contains
 
-subroutine liqwpar_init(ifull,iextra,kl)
+subroutine liqwpar_init(ifull,iextra,kl,process_rate_mode)
 
 implicit none
 
-integer, intent(in) :: ifull,iextra,kl
+integer, intent(in) :: ifull,iextra,kl,process_rate_mode
 
 allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
 allocate(qrg(ifull,kl),qsng(ifull,kl))
@@ -57,6 +71,44 @@ qgrg=0.
 nr=0.
 ni=0.
 ns=0.
+
+if (process_rate_mode > 0) then
+  allocate(psnow(ifull,kl),psaut(ifull,kl),psfw(ifull,kl),psfi(ifull,kl),praci(ifull,kl),&
+           piacr(ifull,kl),psaci(ifull,kl),psacw(ifull,kl),psdep(ifull,kl)              ,&
+           pssub(ifull,kl),pracs(ifull,kl),psacr(ifull,kl),psmlt(ifull,kl)              ,&
+           psmltevp(ifull,kl),prain(ifull,kl),praut(ifull,kl),pracw(ifull,kl)           ,&
+           prevp(ifull,kl),pgfr(ifull,kl),pvapor(ifull,kl),pclw(ifull,kl)               ,&
+           pladj(ifull,kl),pcli(ifull,kl),pimlt(ifull,kl),pihom(ifull,kl)               ,&
+           pidw(ifull,kl),piadj(ifull,kl),qschg(ifull,kl))
+  psnow = 0.
+  psaut = 0.
+  psfw  = 0.
+  psfi  = 0.
+  praci = 0.
+  piacr = 0.
+  psaci = 0.
+  psacw = 0.
+  psdep = 0.
+  pssub = 0.
+  pracs = 0.
+  psacr = 0.
+  psmlt = 0.
+  psmltevp = 0.
+  prain = 0.
+  praut = 0.
+  pracw = 0.
+  prevp = 0.
+  pgfr  = 0.
+  pvapor= 0.
+  pclw  = 0.
+  pladj = 0.
+  pcli  = 0.
+  pimlt = 0.
+  pihom = 0.
+  pidw  = 0.
+  piadj = 0.
+  qschg = 0.
+end if
 
 return
 end subroutine liqwpar_init

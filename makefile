@@ -474,9 +474,9 @@ stacklimit.o: stacklimit.c
 	$(CC) -c stacklimit.c
 version.h: FORCE
 	rm -f brokenver tmpver
-	echo "      character(len=*), parameter :: version ='CCAM r'" > brokenver
-	echo "      character(len=*), parameter :: version ='CCAM r`svnversion .`'" > tmpver
-	grep exported tmpver || grep Unversioned tmpver || cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
+	echo "      character(len=*), parameter :: version ='CCAM '" > brokenver
+	echo "      character(len=*), parameter :: version ='CCAM `git log | head -3 | tail -1`" "`git log | head -1`'" > tmpver
+	cmp tmpver brokenver || cmp tmpver version.h || mv tmpver version.h
 FORCE:
 
 
@@ -612,5 +612,5 @@ upglobal.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o const_phys.o diag_m.o ep
 usage_m.o: cc_mpi.o
 utilities.o : const_phys.o
 vadvtvd.o : aerosolldr.o arrays_m.o cc_acc.o cc_mpi.o cc_omp.o cfrac_m.o diag_m.o liqwpar_m.o map_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o parmvert_m.o sigs_m.o tkeeps.o tracers_m.o vvel_m.o xarrs_m.o kuocom.h
-vertmix.o : arrays_m.o cc_acc.o cc_mpi.o cc_omp.o carbpools_m.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o mlo.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o pbl_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o work2_m.o kuocom.h
+vertmix.o : arrays_m.o cc_acc.o cc_mpi.o cc_omp.o carbpools_m.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o mlo.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o pbl_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o trvmix.o work2_m.o kuocom.h
 zenith.o : parm_m.o

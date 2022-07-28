@@ -1353,7 +1353,7 @@ use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
-use module_mp_sbu_ylin, only : qi0         ! 2 moment scheme
+!use module_mp_sbu_ylin, only : qi0         ! 2 moment scheme
 use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,factchseaice,minwater,mxd,mindep    &
     ,alphavis_seaice,alphanir_seaice     &
@@ -1368,6 +1368,8 @@ use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use morepbl_m                              ! Additional boundary layer diagnostics
+use module_ctrl_microphysics, &            ! Microphysics driver
+      only : process_rate_mode
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use nlin_m                                 ! Atmosphere non-linear dynamics
@@ -1521,7 +1523,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
-    vdeposition_mode,tiedtke_form,qi0
+    vdeposition_mode,tiedtke_form,process_rate_mode !,qi0 sny
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -2107,7 +2109,7 @@ surf_cordex         = dumi(22)
 surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
 deallocate( dumi )
-allocate( dumr(35), dumi(23) )
+allocate( dumr(34), dumi(24) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2146,7 +2148,7 @@ if ( myid==0 ) then
   dumr(32) = rcrit_l
   dumr(33) = rcrit_s
   dumr(34) = cld_decay
-  dumr(35) = qi0
+  !dumr(35) = qi0
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -2170,6 +2172,7 @@ if ( myid==0 ) then
   dumi(21) = nevapls
   dumi(22) = vdeposition_mode
   dumi(23) = tiedtke_form
+  dumi(24) = process_rate_mode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2207,7 +2210,7 @@ rcm              = dumr(31)
 rcrit_l          = dumr(32)
 rcrit_s          = dumr(33)
 cld_decay        = dumr(34)
-qi0              = dumr(35)
+!qi0              = dumr(35)
 iterconv         = dumi(1) 
 ksc              = dumi(2)
 kscmom           = dumi(3)
@@ -2231,6 +2234,7 @@ nmr              = dumi(20)
 nevapls          = dumi(21)
 vdeposition_mode = dumi(22)
 tiedtke_form     = dumi(23)
+process_rate_mode = dumi(24)
 deallocate( dumr, dumi )
 allocate( dumr(32), dumi(4) )
 dumr = 0.
@@ -3094,7 +3098,7 @@ call extraout_init(ifull,nextout)
 call gdrag_init(ifull)
 call histave_init(ifull,kl,ms,ccycle,output_windmax)
 call kuocomb_init(ifull,kl)
-call liqwpar_init(ifull,iextra,kl)
+call liqwpar_init(ifull,iextra,kl,process_rate_mode)
 call morepbl_init(ifull,kl)
 call nharrs_init(ifull,iextra,kl)
 call nlin_init(ifull,kl)
