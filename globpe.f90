@@ -141,9 +141,10 @@ end if
 
 
 !--------------------------------------------------------------
-! INITALISE MPI and OpenMP ROUTINES
+! INITALISE MPI ROUTINES
 ! CCAM has been optimised around MPI for parallel processing, although
 ! CCAM does support OMP parallel threads for its physical parameterisations
+! CCAM also supports GPU accelerators for some functions with either OpenMP or OpenACC
 call ccmpi_init
 
 ! Start banner
@@ -2703,6 +2704,8 @@ do while( mod(jl, nrows_rad) /= 0 )
 end do
 
 #ifdef usempi3
+! since processes might have been remapped, then use node_myid
+! to determine GPU assigned to each process
 call ccomp_init(node_myid,ngpus)
 call ccacc_init(node_myid,ngpus)
 #else
@@ -2711,7 +2714,8 @@ call ccacc_init(myid,ngpus)
 #endif
 
 if ( myid==0 ) then
-  write(6,'(a20," running for nproc    = ",i12)') version,nproc
+  write(6,'(" ",A)') trim(version)
+  write(6,*) "Running for nproc                        = ",nproc
   write(6,*) 'Using defaults for nversion              = ',nversion
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
@@ -2724,20 +2728,17 @@ if ( myid==0 ) then
 #ifdef GPU
   write(6,*) 'Using OpenMP with GPUs per node          = ',ngpus
 #endif
-#else
+#endif
 #ifdef _OPENACC
   write(6,*) 'Using OpenACC with GPUs per node         = ',ngpus  
 #endif
-#endif
   write(6,*) 'Reading namelist from ',trim(nmlfile)
-  write(6,*) 'ilx,jlx              ',ilx,jlx
   write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
   write(6,*) 'kl,ol                ',kl,ol
   write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
-  write(6,*) "Using face grid decomposition"
-  write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
-  write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
-  write(6,*) "nxp,nyp         ",nxp,nyp
+  write(6,*) 'Using ntiles and imax of ',ntiles,ifull/ntiles
+  write(6,*) 'il_g,jl_g,il,jl ',il_g,jl_g,il,jl
+  write(6,*) 'nxp,nyp         ',nxp,nyp
 end if
 
 ! some default values for unspecified parameters
@@ -2811,18 +2812,18 @@ end if
 ! number of vertical levels in spectral nudging for MPI.
 if ( kblock<0 ) then
   kblock = max(kl, ol) ! must occur before indata
-end if
-if ( myid==0 ) then
-  write(6,*) "Using vertical kblock = ",kblock
+  if ( myid==0 ) then
+    write(6,*) "Adjusting vertical kblock = ",kblock
+  end if  
 end if
 if ( wgcoeff<0. ) then
-  if ( nvmix==6 .and. nvmix==7 ) then  
+  if ( nvmix==6 .or. nvmix==7 ) then  
     tscale = max( max( tke_timeave_length, dt ), wg_tau )
   else
     tscale = max( dt, wg_tau )  
   end if
   ! Wichers et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
-  wgcoeff = sqrt(max(0.,-2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
+  wgcoeff = sqrt(max(0.,2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
   if ( myid==0 ) then
     write(6,*) "Adjusting wgcoeff = ",wgcoeff
   end if
