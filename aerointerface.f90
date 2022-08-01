@@ -119,8 +119,7 @@ logical, intent(in) :: oxidant_update
 logical mydiag_t
 logical, dimension(imax) :: locean
 
-if ( (aero_update==0.and.aero_split==0) .or. &
-     (aero_update==1.and.aero_split==1) ) then
+if ( (aero_update==aero_split) ) then
   ! update prescribed oxidant fields
   if ( oxidant_update ) then
     !$omp do schedule(static) private(is,ie),                       &

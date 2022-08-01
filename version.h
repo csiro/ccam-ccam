@@ -1,1 +1,1 @@
-      character(len=*), parameter :: version ='CCAM Date:   Wed Jul 27 12:24:41 2022 +1000 commit 87491f3baba2898454c8352d070c4df98a6ce070' 
+      character(len=*), parameter :: version ='CCAM Date:   Fri Jul 29 10:04:35 2022 +1000 commit 3be8048055aea1e500d069a380965591639dffd0' 

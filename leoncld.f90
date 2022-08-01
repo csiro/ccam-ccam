@@ -53,17 +53,40 @@
     
 module leoncld_mod
 
+implicit none
+
 private
 public leoncld_work
-public rhow, rhoice, um, Dva, rKa
-public ti, tice, aa, bb
-public Ec, Aurate
-public rhosno, Eac
-public Nor, rk2, rho0, Ecol
-public wlc, wls, ticon
+public rhow, rhoice
 public aice, bice
 
 real, parameter :: maxlintime = 120. ! time-step for Lin et al 83 cloud microphysics
+
+! Physical constants
+real, parameter :: rhow=1000.  !Density of water
+real, parameter :: rhoice=917. !Density of ice
+real, parameter :: um=1.717e-5 !Dynamic viscosity of air (at 0 deg. C)
+real, parameter :: Dva=2.21    !Diffusivity of qv in air (0 deg. and 1 Pa)
+real, parameter :: rKa=2.4e-2  !Thermal conductivity of air (0 deg)
+
+! Tunable parameters for qcloud scheme
+real, parameter :: ti = -40.               ! Min T for liquid water clouds in Celsius
+real, parameter :: tice=273.15+ti          !Convert ti to Kelvin
+
+! The following are used in the Manton-Cotton rain parameterization
+real, parameter :: Ec=0.55                    !Mean collection efficiency for cloud drops
+real, parameter :: Aurate=0.104*9.80616*Ec/um !Part of rate constant
+
+! Parameters related to snow
+real, parameter :: rhosno=100. !Assumed density of snow in kg/m^3
+real, parameter :: Eac=0.7     !Mean collection efficiency of ql by snow
+
+! Parameters related to rain
+real, parameter :: Ecol=0.7  !Mean collection efficiency of ql by rain
+
+! Parameters related to cloud radiative properties
+real, parameter :: aice=1.016 !Constant in Platt optical depth for ice (SI units)
+real, parameter :: bice=0.68  !Constant in Platt optical depth for ice (SI units)
 
 
 contains
@@ -129,11 +152,9 @@ logical, intent(in) :: mydiag
 
 integer, dimension(imax) :: kbase,ktop  !Bottom and top of convective cloud 
 real, dimension(imax,kl) :: prf      !Pressure on full levels (hPa)
-real, dimension(imax,kl) :: dprf     !Pressure thickness (hPa)
 real, dimension(imax,kl) :: rhoa     !Air density (kg/m3)
 real, dimension(imax,kl) :: dz       !Layer thickness (m)
 real, dimension(imax,kl) :: ccov     !Cloud cover (may differ from cloud frac if vertically subgrid)
-real, dimension(imax,kl) :: qsatg    !Saturation mixing ratio
 real, dimension(imax,kl) :: qcl      !Vapour mixing ratio inside convective cloud
 real, dimension(imax,kl) :: qenv     !Vapour mixing ratio outside convective cloud
 real, dimension(imax,kl) :: tenv     !Temperature outside convective cloud
@@ -153,9 +174,7 @@ real invdt
 do k = 1,kl
   prf_temp(:) = ps*sig(k)
   prf(:,k)    = 0.01*prf_temp    !ps is SI units
-  dprf(:,k)   = -0.01*ps*dsig(k) !dsig is -ve
   rhoa(:,k)   = prf_temp/(rdry*t(:,k))             ! air density
-  qsatg(:,k)  = qsat(prf_temp,t(:,k),imax)         ! saturated mixing ratio
   dz(:,k)     = -rdry*dsig(k)*t(:,k)/(grav*sig(k)) ! level thickness in metres 
   dz(:,k)     = min( max(dz(:,k), 1.), 2.e4 )
 end do
@@ -164,7 +183,6 @@ end do
 precs(:) = 0. ! rain
 preci(:) = 0. ! snow
 precg(:) = 0. ! graupel
-
 
 
 !     Calculate precipitation and related processes
