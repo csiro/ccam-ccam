@@ -112,7 +112,7 @@ real, dimension(11) :: rdum
 logical, save :: firstcall = .true.
 logical ltest, first
 character(len=80) datestring
-character(len=80) versionstring
+character(len=120) versionstring
 
 call START_LOG(onthefly_begin)
 
