@@ -314,6 +314,8 @@ contains
   real, dimension(imax,kl) :: lrkmsave, lrkhsave
   real, dimension(imax,kl) :: lfluxr, lfluxm, lfluxf, lfluxi, lfluxs, lfluxg
   real, dimension(imax,kl) :: lqevap, lqsubl, lqauto, lqcoll, lqaccr, lqaccf
+  real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
+  real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
   real, dimension(imax,kl) :: lvi, lvs, lvg
   real, dimension(imax,kl) :: lplambs, lqfsedice, lprscav
   real, dimension(ifull,kl) :: clcon, cdrop
@@ -513,13 +515,13 @@ contains
         lcdrop   = cdrop(is:ie,:)
         lstratcloud = stratcloud(is:ie,:)
 
-        call leoncld_work(condg(is:ie),conds(is:ie),condx(is:ie),precip(is:ie),lgfrac,  &
-              ktsav(is:ie),ps(is:ie),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt, &
-              lstratcloud,lcdrop,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg,           &
-              lqevap,lqsubl,lqauto,lqcoll,lqaccr,lqaccf,lvi,lvs,lvg,                  &
-              lplambs,lqfsedice,lprscav,                                              &
+        call leoncld_work(condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,ktsav(is:ie),         &
+              lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,                                   &
+              lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
+              ps(is:ie),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt,                      &
+              lstratcloud,lcdrop,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg,lqevap,lqsubl,     &
+              lqauto,lqcoll,lqaccr,lvi,lvs,lvg,                                               &
               idjd_t,mydiag_t,ncloud,nevapls,ldr,rcm,imax,kl)
-
         gfrac(is:ie,:) = lgfrac
         rfrac(is:ie,:) = lrfrac
         sfrac(is:ie,:) = lsfrac

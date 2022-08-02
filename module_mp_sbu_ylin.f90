@@ -21,7 +21,7 @@ MODULE module_mp_sbu_ylin
 !..Parameters user might change based on their need
     REAL, PARAMETER, PRIVATE :: RH = 1.0
     REAL, PARAMETER, PRIVATE :: xnor = 8.0e6
-    REAL, PARAMETER, PRIVATE :: Nt_c = 250.E6
+    REAL, PARAMETER, PRIVATE :: Nt_c = 250.E6 
 !..Water vapor and air gas constants at constant pressure
     REAL, PARAMETER, PRIVATE :: Rvapor = 461.5
     REAL, PARAMETER, PRIVATE :: oRv    = 1./Rvapor
@@ -73,7 +73,7 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
                       zpladj,zpcli,zpimlt,zpihom,       &
                       zpidw,zpiadj,zqschg)          
 !-----------------------------------------------------------------------
-      IMPLICIT NONE
+    IMPLICIT NONE
 !-----------------------------------------------------------------------
 !  This program handles the vertical 1-D cloud micphysics
 !-----------------------------------------------------------------------
@@ -122,7 +122,7 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
 !
 !----------------------------------------------------------------------
 
-    INTEGER, INTENT(IN   )               :: kts, kte , i, j
+    INTEGER, INTENT(IN   )            :: kts, kte , i, j
     integer :: cnt_sny 
     
     REAL,    DIMENSION( kts:kte ),                                   &
@@ -134,18 +134,17 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
                                          prez, zz, dzw
 
 !zdc 20220116
-     REAL,    DIMENSION( kts:kte ), INTENT(OUT)               ::      &
-                                       precrz, preciz, precsz    
-     REAL,    DIMENSION( kts:kte ), INTENT(OUT)               ::      &
-                                       EFFC1D, EFFI1D, EFFS1D, EFFR1D
-
-     REAL, DIMENSION( kts:kte), INTENT(OUT)                   ::      &
+    REAL,    DIMENSION( kts:kte ), INTENT(OUT)               ::      &
+                                      precrz, preciz, precsz    
+    REAL,    DIMENSION( kts:kte ), INTENT(OUT)               ::      &
+                                      EFFC1D, EFFI1D, EFFS1D, EFFR1D
+    REAL, DIMENSION( kts:kte), INTENT(OUT)                   ::      &
                                        fluxr,fluxi,fluxs,fluxg,fluxm, &
                                        fluxf,fevap,fsubl,fauto,fcoll, &
                                        faccr
-     REAL, DIMENSION( kts:kte), INTENT(OUT)                   ::      &
+    REAL, DIMENSION( kts:kte), INTENT(OUT)                   ::      &
                                        vi, vs, vg        
-     REAL, DIMENSION( kts:kte), INTENT(OUT)                   ::      &
+    REAL, DIMENSION( kts:kte), INTENT(OUT)                   ::      &
                                     zpsnow,zpsaut,zpsfw,zpsfi,zpraci, & !process rate to understand cloud microphysics
                                     zpiacr,zpsaci,zpsacw,zpsdep,      &
                                     zpssub,zpracs,zpsacr,zpsmlt,      &
@@ -196,21 +195,20 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
 
     REAL, DIMENSION( kts:kte ):: ab_s,ab_r,ab_riming,lamc 
     REAL, DIMENSION( kts:kte ):: cap_s       !---- capacitance of snow
-    
+   
     REAL, PARAMETER :: vf1s = 0.65, vf2s = 0.44, vf1r =0.78 , vf2r = 0.31 
     
     REAL, PARAMETER :: am_c1=0.004, am_c2= 6e-5,    am_c3=0.15
     REAL, PARAMETER :: bm_c1=1.85,  bm_c2= 0.003,   bm_c3=1.25
     REAL, PARAMETER :: aa_c1=1.28,  aa_c2= -0.012,  aa_c3=-0.6
     REAL, PARAMETER :: ba_c1=1.5,   ba_c2= 0.0075,  ba_c3=0.5
-    
+   
     REAL, PARAMETER :: best_a=1.08 ,  best_b = 0.499
     REAL, DIMENSION(kts:kte):: am_s,bm_s,av_s,bv_s,Ri,N0_s,tmp_ss,lams  
     REAL, DIMENSION(kts:kte):: aa_s,ba_s,tmp_sa  
     REAL, PARAMETER :: mu_s=0.,mu_i=0.,mu_r=0.
-    
+   
     REAL :: tc0, disp, Dc_liu, eta, mu_c, R6c      !--- for Liu's autoconversion
-
 ! Adding variable Riz, which will duplicate Ri but be a copy passed upward
 
     REAL, DIMENSION(kts:kte) :: Riz
@@ -231,7 +229,6 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
     
     REAL                          :: qvmin=1.e-20
     REAL                          :: temc1,save1,save2,xni50mx
-
 ! for terminal velocity flux
 
     INTEGER                       :: min_q, max_q, max_ri_k, k
@@ -244,7 +241,7 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
           INTENT(INOUT)           ::  ncz,niz,nrz,nsz
     REAL, DIMENSION( kts:kte )    ::  nczodt, nizodt, nrzodt, nszodt
     REAL, DIMENSION( kts:kte )    ::  npsaut, npraci, npiacr, npsaci,    &
-                                      npsacw, npssub, npsdep, npsacr,    &
+                                     npsacw, npssub, npsdep, npsacr,    &
                                       npgfr,  npsmlt, npsmltevp,npraut,  &   
                                       npracw, nprevp, nihom,  nimlt,     &
                                       nsagg,  npraut_r
@@ -426,18 +423,17 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
       nsagg(k)    =0.
       npraut_r(k)   = 0.0
 
-       n0_i(k)=0. 
-       n0_s(k)=0. 
-       n0_r(k)=0. 
-       n0_c(k)=0.
-       lamc(k)=0.
-       lami(k)=0. 
-       xlambdar(k)=0. 
-       xlambdas(k)=0. 
-
-       vtr(k)   =0.
-       vts(k)   =0.
-       vtiold(k) =0.
+      n0_i(k)=0. 
+      n0_s(k)=0. 
+      n0_r(k)=0. 
+      n0_c(k)=0.
+      lamc(k)=0.
+      lami(k)=0. 
+      xlambdar(k)=0. 
+      xlambdas(k)=0. 
+      vtr(k)   =0.
+      vts(k)   =0.
+      vtiold(k) =0.
       nvtr(k)   =0.
       nvts(k)   =0.
 
@@ -1029,7 +1025,6 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
                 tmp1=save1*gambp3*olambdar(k)**bp3
                 praci(k)=qizodt(k)*( 1.0-exp(-tmp1*dtb) )
                 npraci(k)=niz(k)*tmp1
-                npraci(k)=0.
 
 !c
 !c (5) RAIN ACCRETION BY CLOUD ICE (Piacr): Lin (26)
@@ -1117,7 +1112,6 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
                 tmp2=tmpb*tmpb*olambdar(k)*(5.0*tmpb+2.0*tmpc+0.5*tmpa)
                 tmp3=tmp1*rhosnow*tmp2
                 pracs(k)=amin1( tmp3,qszodt(k) )
-                pracs(k)=0.0
 !c
 !c (10) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
 !c
@@ -1865,7 +1859,7 @@ END SUBROUTINE clphy1d_ylin
 ! (2) the percentage of cloud liquid and cloud ice will
 !      be fixed during the saturation calculation
 !---------------------------------------------------------------------
-!
+
 
      INTEGER, INTENT(IN   )             :: kts, kte, k
 

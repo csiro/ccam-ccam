@@ -2698,7 +2698,8 @@ call ccacc_init(myid,ngpus)
 #endif
 
 if ( myid==0 ) then
-  write(6,'(a20," running for nproc    = ",i12)') version,nproc
+  write(6,*) "CCAM: ",trim(version)      
+  write(6,*) "Running for nproc                        = ",nproc
   write(6,*) 'Using defaults for nversion              = ',nversion
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
