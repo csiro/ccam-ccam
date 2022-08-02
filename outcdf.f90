@@ -4022,8 +4022,10 @@ if ( first ) then
     if ( cordex_tier2 ) then
       lname = 'Surface roughness'
       call attrib(fncid,sdim,ssize,'zolnd',lname,'m',0.,65.,iattdaily,-1) ! -1=long
-      lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
-      call attrib(fncid,sdim,ssize,'od550aer',lname,'1',0.,13.,iattdaily,1)
+      if ( abs(iaero)>=2 ) then
+        lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
+        call attrib(fncid,sdim,ssize,'od550aer',lname,'1',0.,13.,iattdaily,1)
+      end if  
     end if
     if ( cordex_tier1 ) then
       do k = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
@@ -4243,8 +4245,10 @@ freqstore(1:ifull,25) = freqstore(1:ifull,25) + sgdclr/real(nperday)
 freqstore(1:ifull,26) = freqstore(1:ifull,26) + rtclr/real(nperday)
 freqstore(1:ifull,27) = freqstore(1:ifull,27) + rgclr/real(nperday)
 freqstore(1:ifull,28) = freqstore(1:ifull,28) + rgdclr/real(nperday)
-freqstore(1:ifull,29) = freqstore(1:ifull,29) + sum(opticaldepth(:,1:7,1),dim=2) &
-                                               /real(nperday)
+if ( abs(iaero)>=2 ) then
+  freqstore(1:ifull,29) = freqstore(1:ifull,29) + sum(opticaldepth(:,1:7,1),dim=2) &
+                                                 /real(nperday)
+end if
 
 umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
 where ( u10**2 > freqstore(1:ifull,30)**2 + freqstore(1:ifull,31)**2 )
@@ -4316,7 +4320,7 @@ if ( mod(ktau,tbave)==0 ) then
         xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
         ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
         va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-      end do	
+      end do
       call cordex_name(vname,"ua",height_level,"m")
       call histwrt(ua_level,vname,fncid,fiarch,local,.true.)
       call cordex_name(vname,"va",height_level,"m")
@@ -4365,7 +4369,7 @@ if ( mod(ktau,tbave)==0 ) then
       xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
       ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
       hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-    end do	
+      end do
     call cordex_name(vname,"ta",height_level,"m")
     call histwrt(ta_level,vname,fncid,fiarch,local,.true.)
     call cordex_name(vname,"hus",height_level,"m")
@@ -4488,7 +4492,9 @@ if ( mod(ktau,tbave)==0 ) then
   end if
   if ( cordex_tier2 ) then
     call histwrt(zo,'zolnd',fncid,fiarch,local,lday)  
-    call histwrt(freqstore(:,29),'od550aer',fncid,fiarch,local,lday)
+    if ( abs(iaero)>=2 ) then
+      call histwrt(freqstore(:,29),'od550aer',fncid,fiarch,local,lday)
+    end if  
   end if
   if ( cordex_tier1 ) then
     do j = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200

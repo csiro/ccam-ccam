@@ -5552,6 +5552,7 @@ type(facetdata),   intent(inout) :: room
 type(pdiagdata),   intent(inout) :: pd
 
 ! local variables
+integer iqu
 real, dimension(ufull) :: ac_heat_on,ac_cool_on
 real, dimension(ufull) :: rm,rf,we,ww,sl,im1,im2,infl
 real, dimension(ufull) :: ac_coeff,d_ac_cool,d_ac_heat,ac_load
@@ -5701,42 +5702,46 @@ if ( l==ncyits ) then
   ! if explicit calculations are causing internal skin temperature oscillations, then
   ! run taylor expansion estimate of future skin/air temp to reduce temperature gradient
 
-  if ( (any(abs(roof%nodetemp(:,nl)-slab%nodetemp(:,nl))>10.)) .or.  & 
-       (any(abs(walle%nodetemp(:,nl)-wallw%nodetemp(:,nl))>10.)) ) then
+  do iqu = 1,ufull
 
-    if ( diag>=1 ) write(6,*) "WARNING: Oscillation detected, using Taylor expansion to stabilise"
+    if ( (abs(roof%nodetemp(iqu,nl)-slab%nodetemp(iqu,nl))>10.) .or.  & 
+         (abs(walle%nodetemp(iqu,nl)-wallw%nodetemp(iqu,nl))>10.) ) then
+
+      if ( diag>=1 ) write(6,*) "WARNING: Oscillation detected, using Taylor expansion to stabilise"
     
-    call calc_ggint(fp_slab%depth(:,nl),fp_slab%volcp(:,nl),fp_slab%lambda(:,nl),   &
-                    cvcoeff_slab,slab%nodetemp(:,nl),iskintemp(:,1),iroomtemp,   &
-                    ggint_slab,ddt,ufull)
-    call calc_ggint(fp_wall%depth(:,nl),fp_wall%volcp(:,nl),fp_wall%lambda(:,nl),   &
-                    cvcoeff_wallw,wallw%nodetemp(:,nl),iskintemp(:,2),iroomtemp, &
-                    ggint_wallw,ddt,ufull)
-    call calc_ggint(fp_roof%depth(:,nl),fp_roof%volcp(:,nl),fp_roof%lambda(:,nl),   &
-                    cvcoeff_roof,roof%nodetemp(:,nl),iskintemp(:,3),iroomtemp,   &
-                    ggint_roof,ddt,ufull)
-    call calc_ggint(fp_wall%depth(:,nl),fp_wall%volcp(:,nl),fp_wall%lambda(:,nl),   &
-                    cvcoeff_walle,walle%nodetemp(:,nl),iskintemp(:,4),iroomtemp, &
-                    ggint_walle,ddt,ufull)
+       call calc_ggint(fp_slab%depth(iqu,nl),fp_slab%volcp(iqu,nl),fp_slab%lambda(iqu,nl),   &
+                       cvcoeff_slab(iqu),slab%nodetemp(iqu,nl),iskintemp(iqu,1),iroomtemp(iqu),   &
+                       ggint_slab(iqu),ddt,1)
+       call calc_ggint(fp_wall%depth(iqu,nl),fp_wall%volcp(iqu,nl),fp_wall%lambda(iqu,nl),   &
+                       cvcoeff_wallw(iqu),wallw%nodetemp(iqu,nl),iskintemp(iqu,2),iroomtemp(iqu), &
+                       ggint_wallw(iqu),ddt,1)
+       call calc_ggint(fp_roof%depth(iqu,nl),fp_roof%volcp(iqu,nl),fp_roof%lambda(iqu,nl),   &
+                       cvcoeff_roof(iqu),roof%nodetemp(iqu,nl),iskintemp(iqu,3),iroomtemp(iqu),   &
+                       ggint_roof(iqu),ddt,1)
+       call calc_ggint(fp_wall%depth(iqu,nl),fp_wall%volcp(iqu,nl),fp_wall%lambda(iqu,nl),   &
+                       cvcoeff_walle(iqu),walle%nodetemp(iqu,nl),iskintemp(iqu,4),iroomtemp(iqu), &
+                       ggint_walle(iqu),ddt,1)
 
-    if (intmassmeth/=0) then
-      call calc_ggint(fp_intm%depth(:,1),fp_intm%volcp(:,1),fp_intm%lambda(:,1),  &
-                      cvcoeff_intm1,intm%nodetemp(:,0),dummy,iroomtemp,              &
-                      ggext_intm,ddt,ufull)
-      ggext_intm = -1.*ggext_intm
+       if (intmassmeth/=0) then
+         call calc_ggint(fp_intm%depth(iqu,1),fp_intm%volcp(iqu,1),fp_intm%lambda(iqu,1),  &
+                         cvcoeff_intm1(iqu),intm%nodetemp(iqu,0),dummy(iqu),iroomtemp(iqu),              &
+                        ggext_intm(iqu),ddt,1)
+         ggext_intm(iqu) = -1.*ggext_intm(iqu)
 
-      call calc_ggint(fp_intm%depth(:,nl),fp_intm%volcp(:,nl),fp_intm%lambda(:,nl),  &
-                      cvcoeff_intm2,intm%nodetemp(:,nl),dummy,iroomtemp,              &
-                      ggint_intm,ddt,ufull)
+        call calc_ggint(fp_intm%depth(iqu,nl),fp_intm%volcp(iqu,nl),fp_intm%lambda(iqu,nl),  &
+                        cvcoeff_intm2(iqu),intm%nodetemp(iqu,nl),dummy(iqu),iroomtemp(iqu),              &
+                        ggint_intm(iqu),ddt,1)
+      end if
+
+      ! for taylor expansion, close energy budget with residual into slab
+      ggint_slab(iqu) = (aircp*int_airden(iqu)*fp%bldheight(iqu)/ddt)*(iroomtemp(iqu)-room%nodetemp(iqu,1))  &
+                 - (ggint_walle(iqu) + ggint_wallw(iqu))*fp%bldheight(iqu)/fp%bldwidth(iqu)                &
+                 - ggint_roof(iqu) - fp%intmassn(iqu)*(-ggext_intm(iqu) + ggint_intm(iqu))                  &
+                 - int_infilflux(iqu) - d_ac_inside(iqu) - d_intgains_bld(iqu)
+
     end if
 
-    ! for taylor expansion, close energy budget with residual into slab
-    ggint_slab = (aircp*int_airden*fp%bldheight/ddt)*(iroomtemp-room%nodetemp(:,1))  &
-               - (ggint_walle + ggint_wallw)*fp%bldheight/fp%bldwidth                &
-               - ggint_roof - fp%intmassn*(-ggext_intm + ggint_intm)                  &
-               - int_infilflux - d_ac_inside - d_intgains_bld
-
-  end if
+  end do  
 
 end if    
 
@@ -6771,10 +6776,10 @@ do j = 1,ufull
   if ( radtot(j)>energytol ) write(6,*) "error: radiation energy non-closure: ", radtot(j)
 end do
 
-rgint_slab  = real(radnet(:,1))
-rgint_wallw = real(radnet(:,2))
-rgint_roof  = real(radnet(:,3))
-rgint_walle = real(radnet(:,4))
+rgint_slab  = radnet(:,1)
+rgint_wallw = radnet(:,2)
+rgint_roof  = radnet(:,3)
+rgint_walle = radnet(:,4)
 
 return
 end subroutine internal_lwflux
