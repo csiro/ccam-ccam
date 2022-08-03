@@ -303,7 +303,7 @@ endif
 # CABLE, MLO, aTEB, etc
 FFLAGS += -DCCAM
 
-# use COSP
+# COSP
 ifeq ($(COSPP),yes)
 FFLAGS += -DCOSPP -I $(VPATH) 
 LIBS += -lcosp -lsubcol -L $(VPATH)  

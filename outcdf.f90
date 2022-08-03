@@ -957,12 +957,14 @@ use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic 
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
+#ifdef COSPP
 use module_ctrl_microphysics, only : cltcalipso_o,   &
                                      mr_ccice_o,     &
                                      cloudsat_Ze_tot,&
                                      caso_ice, &
                                      caso_liq, &
                                      ncolumns
+#endif
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
@@ -1099,7 +1101,7 @@ if( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'expdesc',expdesc)
 
 !   Model version
-    call ccnf_put_attg(idnc,'version',version)
+    call ccnf_put_attg(idnc,'version',trim(version))
 
 !   Grid decomposition
     if ( local ) then
@@ -3871,7 +3873,7 @@ if ( first ) then
     nahead(54)=nt_adv
     call ccnf_put_attg(fncid,'real_header',ahead)
     call ccnf_put_attg(fncid,'int_header',nahead)
-    call ccnf_put_attg(fncid,'version',version)        !   Model version
+    call ccnf_put_attg(fncid,'version',trim(version))        !   Model version
 
     ! Define global grid
     call ccnf_put_attg(fncid,'dt',dt)
@@ -4754,7 +4756,7 @@ if ( first ) then
     nahead(54)=nt_adv
     call ccnf_put_attg(fncid,'real_header',ahead)
     call ccnf_put_attg(fncid,'int_header',nahead)
-    call ccnf_put_attg(fncid,'version',version)        !   Model version
+    call ccnf_put_attg(fncid,'version',trim(version))        !   Model version
     
     call ccnf_put_attg(fncid,'dt',dt)
     call ccnf_put_attg(fncid,'il_g',il_g)
