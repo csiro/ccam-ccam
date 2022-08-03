@@ -667,6 +667,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'sigramplow',sigramplow)
     call ccnf_put_attg(idnc,'snmin',snmin)
     call ccnf_put_attg(idnc,'tbave',tbave)
+    call ccnf_put_attg(idnc,'tbave10',tbave10)
     call ccnf_put_attg(idnc,'tss_sh',tss_sh)
     call ccnf_put_attg(idnc,'vmodmin',vmodmin)
     call ccnf_put_attg(idnc,'zobgin',zobgin)
