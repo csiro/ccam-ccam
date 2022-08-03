@@ -35,6 +35,7 @@ contains
   use liqwpar_m                     ! Cloud water mixing ratios
   use map_m                         ! Grid map arrays
   use mgcloud_m , only : mg_2cond
+  use module_aux_cosp
   use module_aux_rad                ! ...
   use module_mp_sbu_ylin            ! Lin 2022 Scheme
   use morepbl_m                     ! Additional boundary layer diagnostics
@@ -157,6 +158,7 @@ contains
     end do
     call aerodrop(is,lcdrop,lrhoa,outconv=.TRUE.)
     cdrop(is:ie,1:kl) = lcdrop(1:imax,1:kl)
+    cdrop_aerosol(is:ie,1:kl) = lcdrop(1:imax,1:kl)
 
     ! Calculate convective cloud fraction
     call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
@@ -741,6 +743,10 @@ if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mod
   end do ! tile
   !$omp end do nowait
 end if   ! if abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)
+
+#ifdef COSPP
+  call cloud_simulator()
+#endif
 
   RETURN
   end subroutine ctrl_microphysics

@@ -28,6 +28,7 @@ public qlg,qfg ! cloud liquid water, cloud frozen water
 public qrg,qsng,qgrg ! rain, snow, graupel
 public liqwpar_init,liqwpar_end
 public nc,nr,ni,ns
+public cdrop_aerosol
 public psnow,psaut,psfw,psfi,praci, &
        piacr,psaci,psacw,psdep,     &
        pssub,pracs,psacr,psmlt,     &
@@ -40,6 +41,7 @@ real, dimension(:,:), allocatable, save :: qlg,qfg
 real, dimension(:,:), allocatable, save :: qrg,qsng
 real, dimension(:,:), allocatable, save :: qgrg
 real, dimension(:,:), allocatable, save :: nc,nr,ni,ns
+real, dimension(:,:), allocatable, save :: cdrop_aerosol
 real, dimension(:,:), allocatable, save :: psnow,psaut,psfw,psfi,praci, &
                                            piacr,psaci,psacw,psdep,     &
                                            pssub,pracs,psacr,psmlt,     &
@@ -61,6 +63,7 @@ allocate(qrg(ifull,kl),qsng(ifull,kl))
 allocate(qgrg(ifull,kl))
 !rain, snow, graupel only fall vertically
 allocate(nr(ifull,kl),ni(ifull+iextra,kl),ns(ifull,kl))
+allocate(cdrop_aerosol(ifull,kl))
 
 qlg=0.
 qfg=0.
@@ -71,6 +74,8 @@ qgrg=0.
 nr=0.
 ni=0.
 ns=0.
+
+cdrop_aerosol = 0.
 
 if (process_rate_mode > 0) then
   allocate(psnow(ifull,kl),psaut(ifull,kl),psfw(ifull,kl),psfi(ifull,kl),praci(ifull,kl),&
@@ -121,6 +126,18 @@ deallocate(qlg,qfg)
 deallocate(qrg,qsng)
 deallocate(qgrg)
 deallocate(nr,ni,ns)
+deallocate(cdrop_aerosol)
+
+if ( allocated(psnow) ) then
+  deallocate(psnow,psaut,psfw,psfi,praci,&
+           piacr,psaci,psacw,psdep              ,&
+           pssub,pracs,psacr,psmlt              ,&
+           psmltevp,prain,praut,pracw           ,&
+           prevp,pgfr,pvapor,pclw               ,&
+           pladj,pcli,pimlt,pihom               ,&
+           pidw,piadj,qschg)
+end if
+
 return
 end subroutine liqwpar_end
 

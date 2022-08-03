@@ -957,14 +957,14 @@ use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic 
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
-#ifdef COSPP
-use module_ctrl_microphysics, only : cltcalipso_o,   &
-                                     mr_ccice_o,     &
-                                     cloudsat_Ze_tot,&
-                                     caso_ice, &
-                                     caso_liq, &
-                                     ncolumns
-#endif
+use module_aux_cosp, only : cltcalipso_o,   &
+                            mr_ccice_o,     &
+                            cloudsat_Ze_tot,&
+                            caso_ice,       &
+                            caso_liq,       &
+                            ncolumns,       &
+                            cloud_simulator_ready
+use module_ctrl_microphysics 
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
@@ -2006,34 +2006,36 @@ if( myid==0 .or. local ) then
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
       ! process rate
-      call attrib(idnc,dima,asize,'psnow','sum all process for snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psaut','ice crystal aggregation to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psfw','BERGERON process to transfer cloud water to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psfi','BERGERON process to transfer cloud ice to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'praci','cloud ice accretion by rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'piacr','rain accretion by cloud ice','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psaci','ice crystal accretion by snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psacw','accretion of cloud water by snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psdep','deposition of snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pssub','sublimation of snow(T<0)','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pracs','accretion of snow by rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psacr','accretion of rain by snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psmlt','melting of snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'psmltevp','evaporation of melting snow(T>0)','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'prain','sum all process for rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'praut','autoconversion of rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pracw','accretion of cloud water by rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'prevp','evaporation of rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pgfr','feezing of rain to form graupel(added to PI)','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pvapor','sum all process for water vapor to determine qvz','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pclw','sum all process for cloud liquid to determine qlz','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pladj','saturation adjustment for ql','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pcli','sum all process for cloud ice to determine qiz','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pimlt','melting of ice crystal >0.','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pihom','homogeneous nucleation <-40','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'pidw','production of cloud ice by BERGERON process','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'piadj','saturation adjustment for qi','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-      call attrib(idnc,dima,asize,'qschg','equal psnow,unsure','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+      if (process_rate_mode > 0) then
+        call attrib(idnc,dima,asize,'psnow','sum all process for snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psaut','ice crystal aggregation to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psfw','BERGERON process to transfer cloud water to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psfi','BERGERON process to transfer cloud ice to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'praci','cloud ice accretion by rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'piacr','rain accretion by cloud ice','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psaci','ice crystal accretion by snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psacw','accretion of cloud water by snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psdep','deposition of snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pssub','sublimation of snow(T<0)','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pracs','accretion of snow by rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psacr','accretion of rain by snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psmlt','melting of snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'psmltevp','evaporation of melting snow(T>0)','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'prain','sum all process for rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'praut','autoconversion of rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pracw','accretion of cloud water by rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'prevp','evaporation of rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pgfr','feezing of rain to form graupel(added to PI)','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pvapor','sum all process for water vapor to determine qvz','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pclw','sum all process for cloud liquid to determine qlz','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pladj','saturation adjustment for ql','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pcli','sum all process for cloud ice to determine qiz','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pimlt','melting of ice crystal >0.','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pihom','homogeneous nucleation <-40','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pidw','production of cloud ice by BERGERON process','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'piadj','saturation adjustment for qi','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'qschg','equal psnow,unsure','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+      end if
       ! number concentration
       call attrib(idnc,dima,asize,'nr','Rain number concentration','kg-1',0.,1.E10,0,-1)
       call attrib(idnc,dima,asize,'ni','Ice number concentration','kg-1',0.,1.E10,0,-1)
@@ -3324,34 +3326,36 @@ end if
 ! MICROPHYSICS ------------------------------------------------
 if ( ldr/=0 ) then
   ! process rate
-  call histwrt(psnow,'psnow',idnc,iarch,local,.true.)
-  call histwrt(psaut,'psaut',idnc,iarch,local,.true.)
-  call histwrt(psfw,'psfw',idnc,iarch,local,.true.)
-  call histwrt(psfi,'psfi',idnc,iarch,local,.true.)
-  call histwrt(praci,'praci',idnc,iarch,local,.true.)
-  call histwrt(piacr,'piacr',idnc,iarch,local,.true.)
-  call histwrt(psaci,'psaci',idnc,iarch,local,.true.)
-  call histwrt(psacw,'psacw',idnc,iarch,local,.true.)
-  call histwrt(psdep,'psdep',idnc,iarch,local,.true.)
-  call histwrt(pssub,'pssub',idnc,iarch,local,.true.)
-  call histwrt(pracs,'pracs',idnc,iarch,local,.true.)
-  call histwrt(psacr,'psacr',idnc,iarch,local,.true.)
-  call histwrt(psmlt,'psmlt',idnc,iarch,local,.true.)
-  call histwrt(psmltevp,'psmltevp',idnc,iarch,local,.true.)
-  call histwrt(prain,'prain',idnc,iarch,local,.true.)
-  call histwrt(praut,'praut',idnc,iarch,local,.true.)
-  call histwrt(pracw,'pracw',idnc,iarch,local,.true.)
-  call histwrt(prevp,'prevp',idnc,iarch,local,.true.)
-  call histwrt(pgfr,'pgfr',idnc,iarch,local,.true.)
-  call histwrt(pvapor,'pvapor',idnc,iarch,local,.true.)
-  call histwrt(pclw,'pclw',idnc,iarch,local,.true.)
-  call histwrt(pladj,'pladj',idnc,iarch,local,.true.)
-  call histwrt(pcli,'pcli',idnc,iarch,local,.true.)
-  call histwrt(pimlt,'pimlt',idnc,iarch,local,.true.)
-  call histwrt(pihom,'pihom',idnc,iarch,local,.true.)
-  call histwrt(pidw,'pidw',idnc,iarch,local,.true.)
-  call histwrt(piadj,'piadj',idnc,iarch,local,.true.)
-  call histwrt(qschg,'qschg',idnc,iarch,local,.true.)
+  if (process_rate_mode > 0) then
+    call histwrt(psnow,'psnow',idnc,iarch,local,.true.)
+    call histwrt(psaut,'psaut',idnc,iarch,local,.true.)
+    call histwrt(psfw,'psfw',idnc,iarch,local,.true.)
+    call histwrt(psfi,'psfi',idnc,iarch,local,.true.)
+    call histwrt(praci,'praci',idnc,iarch,local,.true.)
+    call histwrt(piacr,'piacr',idnc,iarch,local,.true.)
+    call histwrt(psaci,'psaci',idnc,iarch,local,.true.)
+    call histwrt(psacw,'psacw',idnc,iarch,local,.true.)
+    call histwrt(psdep,'psdep',idnc,iarch,local,.true.)
+    call histwrt(pssub,'pssub',idnc,iarch,local,.true.)
+    call histwrt(pracs,'pracs',idnc,iarch,local,.true.)
+    call histwrt(psacr,'psacr',idnc,iarch,local,.true.)
+    call histwrt(psmlt,'psmlt',idnc,iarch,local,.true.)
+    call histwrt(psmltevp,'psmltevp',idnc,iarch,local,.true.)
+    call histwrt(prain,'prain',idnc,iarch,local,.true.)
+    call histwrt(praut,'praut',idnc,iarch,local,.true.)
+    call histwrt(pracw,'pracw',idnc,iarch,local,.true.)
+    call histwrt(prevp,'prevp',idnc,iarch,local,.true.)
+    call histwrt(pgfr,'pgfr',idnc,iarch,local,.true.)
+    call histwrt(pvapor,'pvapor',idnc,iarch,local,.true.)
+    call histwrt(pclw,'pclw',idnc,iarch,local,.true.)
+    call histwrt(pladj,'pladj',idnc,iarch,local,.true.)
+    call histwrt(pcli,'pcli',idnc,iarch,local,.true.)
+    call histwrt(pimlt,'pimlt',idnc,iarch,local,.true.)
+    call histwrt(pihom,'pihom',idnc,iarch,local,.true.)
+    call histwrt(pidw,'pidw',idnc,iarch,local,.true.)
+    call histwrt(piadj,'piadj',idnc,iarch,local,.true.)
+    call histwrt(qschg,'qschg',idnc,iarch,local,.true.)
+  end if
   ! number concentration
   call histwrt(nr,'nr',idnc,iarch,local,.true.)
   call histwrt(ni,'ni',idnc,iarch,local,.true.)
@@ -3384,27 +3388,29 @@ endif
      
 #ifdef COSPP
 ! COSPP-------------I--------------------------------------------
-  do n = 1,4
-    write(vname,'(A,I3.3)') "cltcalipso_o_",n
-    call histwrt(cltcalipso_o(:,n),trim(vname),idnc,iarch,local,lwrite)
-  end do
+  if ( cloud_simulator_ready ) then
+    do n = 1,4
+      write(vname,'(A,I3.3)') "cltcalipso_o_",n
+      call histwrt(cltcalipso_o(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
 
-  do n = 1,4
-    write(vname,'(A,I3.3)') "caso_ice_",n
-    call histwrt(caso_ice(:,n),trim(vname),idnc,iarch,local,lwrite)
-  end do
+    do n = 1,4
+      write(vname,'(A,I3.3)') "caso_ice_",n
+      call histwrt(caso_ice(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
 
-  do n = 1,4
-    write(vname,'(A,I3.3)') "caso_liq_",n
-    call histwrt(caso_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
-  end do
+    do n = 1,4
+      write(vname,'(A,I3.3)') "caso_liq_",n
+      call histwrt(caso_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
 
-  !call histwrt(cltcalipso_o,'cltcalipso_o',idnc,iarch,local,lwrite)
-  call histwrt(mr_ccice_o,'mr_ccice_o',idnc,iarch,local,lwrite)
-  do n = 1,ncolumns
-    write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n
-    call histwrt(cloudsat_Ze_tot(:,:,n),trim(vname),idnc,iarch,local,lwrite)
-  enddo 
+    !call histwrt(cltcalipso_o,'cltcalipso_o',idnc,iarch,local,lwrite)
+    call histwrt(mr_ccice_o,'mr_ccice_o',idnc,iarch,local,lwrite)
+    do n = 1,ncolumns
+      write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n
+      call histwrt(cloudsat_Ze_tot(:,:,n),trim(vname),idnc,iarch,local,lwrite)
+    enddo 
+  end if  
 #endif
 ! TURBULENT MIXING --------------------------------------------
 if ( nvmix==6 .or. nvmix==9 ) then
