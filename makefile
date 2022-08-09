@@ -118,6 +118,30 @@ INT8FLAG = -fdefault-int-8
 DEBUGFLAG = -g -Wall -Wextra -fbounds-check
 endif
 
+#SETONIX
+ifeq ($(SETONIX),yes)
+MPIFC = ftn
+MPIF77 = ftn
+FC = ftn
+FCSCM = ftn
+FHOST = -march=native
+MPIFLAG =
+MPISPECIAL =
+NCFLAG = -Dncclib
+FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch
+FOVERRIDE =
+ZMM =
+IPFLAG =
+IPOFLAG =
+VTHRESH =
+PPFLAG90 = -x f95-cpp-input
+PPFLAG77 = -x f77-cpp-input
+PPFLAG90F =
+REAL8FLAG = -fdefault-real-8
+INT8FLAG = -fdefault-int-8
+DEBUGFLAG = -g -Wall -Wextra -fbounds-check
+endif
+
 #NVFORTRAN
 ifeq ($(NVFORTRAN),yes)
 MPIFC = nvfortran

@@ -456,7 +456,7 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   iotest = iotest .and. (wlev==ok)
 end if
-iop_test = iotest .and. ptest
+! MJT notes - Do not combine iotest with ptest using AND
 
 if ( iotest ) then
   io_in = 1   ! no interpolation
