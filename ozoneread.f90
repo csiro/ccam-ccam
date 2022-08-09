@@ -437,12 +437,13 @@ else
   ozoneintp=1
 end if
       
-do iq = 1,imax
+select case ( ozoneintp )  
+  case(0)  
 
-  o3inp = fmth(iq,:)
+    do iq = 1,imax
 
-  select case ( ozoneintp )  
-    case(0)  
+      o3inp = fmth(iq,:)
+    
       !-----------------------------------------------------------
       ! Simple interpolation on pressure levels
       ! vertical interpolation (from LDR - Mk3.6)
@@ -468,17 +469,23 @@ do iq = 1,imax
         end if
       end do
 
-    case(1)
+    end do
+      
+  case(1)
       !-----------------------------------------------------------
       ! Approximate integral of ozone column
 
+    do iq = 1,imax
+
+      o3inp = fmth(iq,:)
+        
       ! pressure levels on CCAM grid
       prf=0.01*ps(iq)*sig
          
       mino3=minval(o3inp)
          
       ! calculate total column of ozone
-      o3sum=0.
+      o3sum(:)=0.
       o3sum(ilev)=o3inp(ilev)*0.5*sum(fpres(ilev-1:ilev))
       do m=ilev-1,2,-1
         if (o3inp(m)>1.E19) then
@@ -516,13 +523,14 @@ do iq = 1,imax
       end do
       outdat(iq,1)=2.*o3new(kl_l)/sum(prf(kl_l-1:kl_l))
       outdat(iq,:)=max(outdat(iq,:),mino3)
+
+    end do
       
-    case default
-      write(6,*) "ERROR: Unknown option ozoneintp ",ozoneintp
-      stop
+  case default
+    write(6,*) "ERROR: Unknown option ozoneintp ",ozoneintp
+    stop
       
-  end select
-end do
+end select
       
 return
 end subroutine fieldinterpolate

@@ -2836,7 +2836,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lave)
       call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lave)
       call histwrt(sgdn_ave,'sgdn_ave',idnc,iarch,local,lave)
-      call histwrt(sgdn_ave,'sgdndir_ave',idnc,iarch,local,lave)
+      call histwrt(sgdndir_ave,'sgdndir_ave',idnc,iarch,local,lave)
       call histwrt(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
       call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lave)
       call histwrt(sgdc_ave,'sgdc_ave',idnc,iarch,local,lave)

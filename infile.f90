@@ -1837,15 +1837,11 @@ end subroutine datefix
 ! Same as datefix, but for time with units of months
 subroutine datefix_month(kdate_r,mtimer_r)
 
-use cc_mpi
-use parm_m
-
 implicit none
 
 integer, intent(inout) :: kdate_r
 integer(kind=8), intent(inout) :: mtimer_r
 integer(kind=8) iyr,imo,iday
-integer(kind=8) mtimer
 
 iyr=int(kdate_r,8)/10000_8
 imo=(int(kdate_r,8)-10000_8*iyr)/100_8
@@ -1860,8 +1856,8 @@ do while ( mtimer_r>0_8 )
   end if
 end do
   
-kdate_r = int(iday + 100_8*(imo+100_8*iyr))
-mtimer = 0_8
+kdate_r = int(iday + 100_8*imo + 10000_8*iyr)
+mtimer_r = 0_8
   
 return
 end subroutine datefix_month
