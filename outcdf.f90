@@ -1037,7 +1037,7 @@ real, dimension(ifull,wlev,8) :: mlodwn
 real, dimension(ifull,3:6) :: ocndwn
 real scale_factor
 character(len=50) expdesc
-character(len=50) lname
+character(len=80) lname
 character(len=21) mnam, nnam
 character(len=20) vname
 character(len=3) trnum
@@ -3575,7 +3575,8 @@ logical, save :: first = .true.
 logical local, lday, l6hr
 logical cordex_core, cordex_tier1, cordex_tier2
 character(len=1024) ffile
-character(len=40) lname, vname
+character(len=80) lname
+character(len=40) vname
 character(len=33) grdtim
 character(len=20) timorg
 
@@ -4346,7 +4347,7 @@ if ( mod(ktau,tbave)==0 ) then
         xx = (real(height_level)*grav-phi_local(n))/(phi_local(n+1)-phi_local(n))
         ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
         va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-      end do	
+      end do
       call cordex_name(vname,"ua",height_level,"m")
       call histwrt(ua_level,vname,fncid,fiarch,local,.true.)
       call cordex_name(vname,"va",height_level,"m")
@@ -4672,9 +4673,9 @@ integer, dimension(1) :: gpdim
 integer, dimension(5) :: outdim
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
-integer i,j,k,n,iq,fiarch
+integer i,j,n,fiarch
 integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
-integer fsize, press_level, height_level
+integer fsize, press_level
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -4688,14 +4689,11 @@ real, dimension(:), allocatable :: xpnt
 real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(nrhead) :: ahead
-real, dimension(kl) :: phi_local
-real, dimension(ifull) :: ua_level, va_level
-real xx
 real(kind=8) tpnt
 logical, save :: first = .true.
 logical local
 character(len=1024) ffile
-character(len=40) lname, vname
+character(len=80) lname
 character(len=33) grdtim
 character(len=20) timorg
 

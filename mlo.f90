@@ -1962,7 +1962,7 @@ integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, dimension(ifin), intent(in) :: coszro
 real, dimension(ifin), intent(inout) :: ovisalb,oniralb
 real, dimension(imax) :: watervis,waternir,icevis,icenir
-real, dimension(imax) :: pond,snow
+real, dimension(imax) :: snow
 
 if (diag>=1) write(6,*) "Export MLO albedo data vis/nir"
 if (.not.mlo_active) return
@@ -2034,7 +2034,7 @@ integer ifinish,ib,ie
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, dimension(ifin), intent(in) :: coszro
 real, dimension(ifin), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
-real, dimension(imax) :: pond,snow
+real, dimension(imax) :: snow
 
 if (diag>=1) write(6,*) "Export MLO albedo vis/nir/dir/dif"
 if (.not.mlo_active) return
@@ -2416,8 +2416,8 @@ real, dimension(:), intent(in) :: ip_dic, ip_dsn
 real, dimension(:,:), intent(out) :: gamm
 
 gamm(1:ifull,1)=gammi
-gamm(1:ifull,2)=max(ip_dsn,0.)*cps
-gamm(1:ifull,3)=max(ip_dic,0.)*0.5*cpi
+gamm(1:ifull,2)=max(ip_dsn(1:ifull),0.)*cps
+gamm(1:ifull,3)=max(ip_dic(1:ifull),0.)*0.5*cpi
 
 return
 end subroutine mloexpgamm
@@ -2484,8 +2484,9 @@ if ( .not.mlo_active ) return
 if ( .not.depth%data_allocated ) return
 
 atm_rnd = precp - precs
+atm_snd = precs
 
-call mloeval_work(dt,zmin,zmins,sg,rg,atm_rnd,precs,uatm,vatm,            &
+call mloeval_work(dt,zmin,zmins,sg,rg,atm_rnd,atm_snd,uatm,vatm,          &
                    temp,qg,ps,                                            &
                    visnirratio,fbvis,fbnir,inflow,diag,                   &
                    calcprog,depth,dgice,dgscrn,dgwater,ice,water,turb)

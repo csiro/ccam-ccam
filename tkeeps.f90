@@ -209,14 +209,12 @@ real, dimension(imax), intent(in) :: cduv,ps,rhos,dx
 real, dimension(imax), intent(out) :: ustar_ave, ugs_var
 real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl) :: km, thetav, thetal, qsat
-real, dimension(imax,kl) :: rr
 real, dimension(imax,kl) :: rhoa,rhoahl
 real, dimension(imax,kl) :: tlup,qvup,qlup,qfup
 real, dimension(imax,kl) :: cfup,mflx
 real, dimension(imax,kl) :: pps,ppt,ppb
 real, dimension(imax,kl) :: idzm
 real, dimension(imax,kl-1) :: idzp
-real, dimension(imax,2:kl) :: qq
 real, dimension(imax,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(imax,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(imax,kl-1) :: fzzh
@@ -228,7 +226,7 @@ real, dimension(imax) :: zi_save, zturb, cgmap
 real, dimension(imax) :: templ, fice, qc, qt
 real, dimension(kl) :: sigkap
 real tff, cm12, cm34, ddts
-real temp, lx, dqsdt, al, wdash_sq, l_on_kz
+real temp, lx, dqsdt, al, wdash_sq
 logical, dimension(imax) :: mask
 
 #ifdef CCAM
@@ -920,7 +918,6 @@ subroutine update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
 implicit none
 
 integer, intent(in) :: imax, kl
-integer k
 real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, stratcloud, ua, va
 real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, cfup
 real, dimension(imax,kl), intent(in) :: mflx, tke, eps
@@ -1731,7 +1728,6 @@ subroutine solve_sherman_morrison_1(aa_a,bb_a,cc_a,dd_a,tt_a, &
 implicit none
 
 integer, intent(in) :: imax, kl
-integer k
 real, dimension(imax,2:kl), intent(in) :: aa_a
 real, dimension(imax,kl), intent(in) :: bb_a, dd_a
 real, dimension(imax,kl-1), intent(in) :: cc_a
@@ -2024,8 +2020,9 @@ real, dimension(imax,klin), intent(in) :: bbi
 real, dimension(imax,klin-1), intent(in) :: cci
 real, dimension(imax,klin,ndim), intent(in) :: ddi
 real, dimension(imax,klin,ndim), intent(out) :: outdat
-integer k, iq, n
-integer kblock, nthreads
+integer n
+!integer k, iq
+!integer kblock, nthreads
 
 !#ifdef GPU
 

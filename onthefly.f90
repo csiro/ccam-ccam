@@ -110,7 +110,7 @@ real, dimension(:), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(11) :: rdum
 logical, save :: firstcall = .true.
-logical ltest, first
+logical ltest
 character(len=80) datestring
 character(len=120) versionstring
 
@@ -3286,7 +3286,6 @@ implicit none
       
 integer, intent(inout) :: fill_count
 integer, intent(in) :: ifrac, fillmode
-integer ier
 real, intent(in) :: filldefault
 real, dimension(ifull) :: varout
 logical, dimension(fwsize), intent(in) :: mask_a
@@ -3537,7 +3536,7 @@ implicit none
       
 integer, intent(inout) :: fill_count
 integer, intent(in) :: ifrac, fillmode
-integer ier, k
+integer k
 real, intent(in) :: filldefault
 real, dimension(ifull,5) :: varout
 logical, dimension(fwsize), intent(in) :: mask_a
@@ -3587,8 +3586,7 @@ implicit none
 
 integer n, ipf
 integer mm, iq, idel, jdel
-integer ncount, w, colour
-integer sourceid, newid
+integer ncount, w
 integer ncount_a, ncount_b
 logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
