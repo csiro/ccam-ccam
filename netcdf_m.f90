@@ -3698,8 +3698,8 @@ integer function nf_get_var_int_d1(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip)), target :: c_ip
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip)), target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
@@ -3710,8 +3710,8 @@ integer function nf_get_var_int_d2(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
@@ -3722,8 +3722,8 @@ integer function nf_get_var_int_d3(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
@@ -3734,8 +3734,8 @@ integer function nf_get_var_int_d4(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4)), target :: c_ip
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4)), target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
@@ -3746,8 +3746,8 @@ integer function nf_get_var_int_d5(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
       target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
@@ -3759,8 +3759,8 @@ integer function nf_get_var_int_d6(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:,:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
       target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
@@ -3772,8 +3772,8 @@ integer function nf_get_var_double_d1(ncid,varid,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   real(kind=8), dimension(:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_DOUBLE), dimension(size(dp)), target :: c_dp
+  integer(C_INT) :: c_ncid, c_varid
+  real(C_DOUBLE), dimension(size(dp)), target :: c_dp
   c_ncid = ncid
   c_varid = varid - 1
   ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
@@ -6908,8 +6908,8 @@ integer function nf_put_var_real_d5(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   real(kind=4), dimension(:,:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5)), &
+  integer(C_INT) :: c_ncid, c_varid
+  real(C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5)), &
       target :: c_fp
   c_ncid = ncid
   c_varid = varid - 1
@@ -6921,8 +6921,8 @@ integer function nf_put_var_real_d6(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   real(kind=4), dimension(:,:,:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5),size(fp,6)), &
+  integer(C_INT) :: c_ncid, c_varid
+  real(C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5),size(fp,6)), &
       target :: c_fp
   c_ncid = ncid
   c_varid = varid - 1
@@ -6934,8 +6934,8 @@ integer function nf_put_var_int_d1(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip)), target :: c_ip
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip)), target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
   c_ip = ip
@@ -6946,8 +6946,8 @@ integer function nf_put_var_int_d2(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
   c_ip = ip
@@ -6958,32 +6958,32 @@ integer function nf_put_var_int_d3(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
   c_ip = ip
   ierr = nc_put_var_int(c_ncid,c_varid,C_LOC(c_ip))
 end function nf_put_var_int_d3
 
-integer function nf_put_var_int_d4(ncid,varid,fp) result(ierr)
+integer function nf_put_var_int_d4(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
-  integer(kind=4), dimension(:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4)), target :: c_fp
+  integer(kind=4), dimension(:,:,:,:), intent(in) :: ip
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4)), target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
-  c_fp = fp
-  ierr = nc_put_var_int(c_ncid,c_varid,C_LOC(c_fp))
+  c_ip = ip
+  ierr = nc_put_var_int(c_ncid,c_varid,C_LOC(c_ip))
 end function nf_put_var_int_d4
 
 integer function nf_put_var_int_d5(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
       target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1
@@ -6995,8 +6995,8 @@ integer function nf_put_var_int_d6(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer(kind=4), dimension(:,:,:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  real (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
+  integer(C_INT) :: c_ncid, c_varid
+  integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
       target :: c_ip
   c_ncid = ncid
   c_varid = varid - 1

@@ -129,6 +129,7 @@ MPIFLAG =
 MPISPECIAL =
 NCFLAG = -Dncclib
 FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch
+LIB = -lnetcdf
 FOVERRIDE =
 ZMM =
 IPFLAG =
