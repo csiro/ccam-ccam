@@ -49,6 +49,7 @@ public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
 public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
 public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
 public comm_ip
+public driving_model_id, driving_model_ensemble_number, driving_experiment_name
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
@@ -58,10 +59,12 @@ integer, save :: comm_ip
 integer, save :: pil_single = 48 ! grid size for single file decomposition
 logical, dimension(:), allocatable, save :: pfown
 logical, save :: ptest, pfall, resprocformat
-
 integer(kind=2), parameter :: minv = -32500
 integer(kind=2), parameter :: maxv =  32500
 integer(kind=2), parameter :: missval = -32501
+character(len=256), save :: driving_model_id = ' '
+character(len=256), save :: driving_model_ensemble_number = ' '
+character(len=256), save :: driving_experiment_name = ' '
 
 interface histrd
   module procedure histrd3r4, histrd4r4, histrd5r4

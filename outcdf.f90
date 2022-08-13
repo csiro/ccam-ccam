@@ -896,6 +896,17 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'zomode',zomode)
     call ccnf_put_attg(idnc,'zoseaice',zoseaice)
     
+    ! ensemble data
+    if ( driving_model_id /= ' ' ) then
+      call ccnf_put_attg(idnc,'driving_model_id',trim(driving_model_id))
+    end if
+    if ( driving_model_ensemble_number /= ' ' ) then
+      call ccnf_put_attg(idnc,'driving_model_ensemble_number',trim(driving_model_ensemble_number))
+    end if
+    if ( driving_experiment_name /= ' ' ) then
+      call ccnf_put_attg(idnc,'driving_experiment_name',trim(driving_experiment_name))
+    end if  
+    
   else
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
   endif ! ( iarch=1 ) ..else..
@@ -3814,11 +3825,24 @@ if ( first ) then
     call ccnf_put_attg(fncid,'ms',ms)
     call ccnf_put_attg(fncid,'ntrac',ntrac)
     
+    ! grid decomposition data
     if ( local ) then
       call ccnf_put_attg(fncid,'nproc',nproc)
       call ccnf_put_attg(fncid,'procmode',vnode_nproc)
       call ccnf_put_attg(fncid,'decomp','face')
     end if 
+    
+    ! ensemble data
+    if ( driving_model_id /= ' ' ) then
+      call ccnf_put_attg(fncid,'driving_model_id',trim(driving_model_id))
+    end if
+    if ( driving_model_ensemble_number /= ' ' ) then
+      call ccnf_put_attg(fncid,'driving_model_ensemble_number',trim(driving_model_ensemble_number))
+    end if
+    if ( driving_experiment_name /= ' ' ) then
+      call ccnf_put_attg(fncid,'driving_experiment_name',trim(driving_experiment_name))
+    end if 
+
     ! define variables
     if ( local ) then
       sdim(1:2) = adim(1:2) 
@@ -4895,11 +4919,24 @@ if ( first ) then
     call ccnf_put_attg(fncid,'ms',ms)
     call ccnf_put_attg(fncid,'ntrac',ntrac)
     
+    ! grid decomposition data
     if ( local ) then
       call ccnf_put_attg(fncid,'nproc',nproc)
       call ccnf_put_attg(fncid,'procmode',vnode_nproc)
       call ccnf_put_attg(fncid,'decomp','face')
     end if 
+    
+    ! ensemble data
+    if ( driving_model_id /= ' ' ) then
+      call ccnf_put_attg(fncid,'driving_model_id',trim(driving_model_id))
+    end if
+    if ( driving_model_ensemble_number /= ' ' ) then
+      call ccnf_put_attg(fncid,'driving_model_ensemble_number',trim(driving_model_ensemble_number))
+    end if
+    if ( driving_experiment_name /= ' ' ) then
+      call ccnf_put_attg(fncid,'driving_experiment_name',trim(driving_experiment_name))
+    end if 
+    
     ! define variables
     if ( local ) then
       sdim(1:2) = adim(1:2) 

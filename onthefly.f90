@@ -112,7 +112,7 @@ real, dimension(11) :: rdum
 logical, save :: firstcall = .true.
 logical ltest
 character(len=80) datestring
-character(len=120) versionstring
+character(len=120) :: versionstring = ' '
 
 call START_LOG(onthefly_begin)
 
@@ -263,6 +263,11 @@ if ( .not.pfall ) then
   rdum(10) = real(nsibx)
   rdum(11) = real(native_ccam)
   call ccmpi_bcast(rdum(1:11),0,comm_world)
+  if ( nested==1 ) then
+    call ccmpi_bcast(driving_model_id,0,comm_world)
+    call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
+    call ccmpi_bcast(driving_experiment_name,0,comm_world)
+  end if
   rlong0x     = rdum(1)
   rlat0x      = rdum(2)
   schmidtx    = rdum(3)
