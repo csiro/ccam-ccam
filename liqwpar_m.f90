@@ -29,6 +29,8 @@ public qrg,qsng,qgrg ! rain, snow, graupel
 public liqwpar_init,liqwpar_end
 public nc,nr,ni,ns
 public cdrop_aerosol
+public fluxr,fluxi,fluxs,fluxg
+public stras_rliq,stras_rice,stras_rrai,stras_rsno
 public psnow,psaut,psfw,psfi,praci, &
        piacr,psaci,psacw,psdep,     &
        pssub,pracs,psacr,psmlt,     &
@@ -42,6 +44,8 @@ real, dimension(:,:), allocatable, save :: qrg,qsng
 real, dimension(:,:), allocatable, save :: qgrg
 real, dimension(:,:), allocatable, save :: nc,nr,ni,ns
 real, dimension(:,:), allocatable, save :: cdrop_aerosol
+real, dimension(:,:), allocatable, save :: fluxr,fluxi,fluxs,fluxg
+real, dimension(:,:), allocatable, save :: stras_rliq,stras_rice,stras_rrai,stras_rsno
 real, dimension(:,:), allocatable, save :: psnow,psaut,psfw,psfi,praci, &
                                            piacr,psaci,psacw,psdep,     &
                                            pssub,pracs,psacr,psmlt,     &
@@ -64,6 +68,8 @@ allocate(qgrg(ifull,kl))
 !rain, snow, graupel only fall vertically
 allocate(nr(ifull,kl),ni(ifull+iextra,kl),ns(ifull,kl))
 allocate(cdrop_aerosol(ifull,kl))
+allocate(fluxr(ifull,kl),fluxi(ifull,kl),fluxs(ifull,kl),fluxg(ifull,kl))
+allocate(stras_rliq(ifull,kl),stras_rice(ifull,kl),stras_rrai(ifull,kl),stras_rsno(ifull,kl))
 
 qlg=0.
 qfg=0.
@@ -76,6 +82,16 @@ ni=0.
 ns=0.
 
 cdrop_aerosol = 0.
+
+fluxr = 0.
+fluxi = 0.
+fluxs = 0.
+fluxg = 0.
+
+stras_rliq = 0.
+stras_rice = 0.
+stras_rrai = 0.
+stras_rsno = 0.
 
 if (process_rate_mode > 0) then
   allocate(psnow(ifull,kl),psaut(ifull,kl),psfw(ifull,kl),psfi(ifull,kl),praci(ifull,kl),&
@@ -127,6 +143,8 @@ deallocate(qrg,qsng)
 deallocate(qgrg)
 deallocate(nr,ni,ns)
 deallocate(cdrop_aerosol)
+deallocate(fluxr,fluxi,fluxs,fluxg)
+deallocate(stras_rliq,stras_rice,stras_rrai,stras_rsno)
 
 if ( allocated(psnow) ) then
   deallocate(psnow,psaut,psfw,psfi,praci,&

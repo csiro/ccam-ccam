@@ -74,8 +74,13 @@ contains
   real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
   real, dimension(imax,kl) :: lvi, lvs, lvg
   real, dimension(imax,kl) :: lplambs, lqfsedice, lprscav
+  real, dimension(imax,kl) :: r_cfrac, r_qlrad, r_qfrad  
+  real, dimension(imax,kl) :: r_cdrop
+  real, dimension(imax,kl) :: ptemp,ttemp
+  real(kind=8), dimension(imax,kl) :: Rdrop, Rice
+  real(kind=8), dimension(imax,kl) :: conl, coni
   real, dimension(ifull,kl) :: clcon, cdrop
-  real, dimension(ifull,kl) :: fluxr, fluxm, fluxf, fluxi, fluxs, fluxg
+  real, dimension(ifull,kl) :: fluxm, fluxf !fluxr, fluxi, fluxs, fluxg
   real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
   real, dimension(ifull,kl) :: vi, vs, vg
   real, dimension(ifull,kl) :: dz, rhoa
@@ -269,6 +274,30 @@ contains
         qgrg(is:ie,:)  = lqgrg
         t(is:ie,:)     = lt
         stratcloud(is:ie,:) = lstratcloud
+        
+        ! output for cosp
+        r_cfrac = cfrac(is:ie,1:kl)
+        r_qlrad = qlrad(is:ie,1:kl)
+        r_qfrad = qfrad(is:ie,1:kl)
+        r_cdrop = cdrop_aerosol(is:ie,1:kl)
+        do k=1,kl
+          ptemp(:,k)= sig(k)*ps(is:ie)         
+        end do
+        ttemp       = t(is:ie,1:kl)
+        call cloud3(Rdrop,Rice,conl,coni,r_cfrac,r_qlrad,r_qfrad,ptemp,ttemp,r_cdrop,imax,kl)
+
+        its = is
+        ite = ie
+        kts = 1
+        kte = kl
+        do k = kts, kte
+          do iq = its, ite
+            i = iq - its + 1 ! i must be smaller than 97
+            stras_rliq(iq,k) = real(Rdrop(i,k))/1.E6
+            stras_rice(iq,k) = real(Rice(i,k))/1.E6
+          end do
+        end do
+
         fluxr(is:ie,:) = lfluxr/dt
         fluxm(is:ie,:) = lfluxm/dt
         fluxf(is:ie,:) = lfluxf/dt
@@ -507,32 +536,37 @@ contains
             !nc(i,k)=ncz(k)
             nnr(i,k)=nrz(k)
             nni(i,k)=niz(k)
-            nns(i,k)=nsz(k)                   !zdc 20220116
+            nns(i,k)=nsz(k)                       !zdc 20220116
             th(i,k)=real( thz(k) * tothz(k) )
             
             precr(i,k)=real(precrz(k))
             preci(i,k)=real(preciz(k))
             precs(i,k)=real(precsz(k))
 
-            eradc(i,k) = real(EFFC1D(k))      ! BAW ADD FOR WRF-COSP zdc
+            eradc(i,k) = real(EFFC1D(k))          ! BAW ADD FOR WRF-COSP zdc
             eradi(i,k) = real(EFFI1D(k))
             erads(i,k) = real(EFFS1D(k))
             eradr(i,k) = real(EFFR1D(k))
 
-            fluxr(i,k) = zfluxr(k)            ! flux for aerosol calculation
-            fluxm(i,k) = zfluxm(k)
-            fluxf(i,k) = zfluxf(k)
-            fluxi(i,k) = zfluxi(k)
-            fluxs(i,k) = zfluxs(k)
-            fluxg(i,k) = zfluxg(k)
-            fevap(i,k) = zfevap(k)
-            fsubl(i,k) = zfsubl(k)
-            fauto(i,k) = zfauto(k)
-            fcoll(i,k) = zfcoll(k)
-            faccr(i,k) = zfaccr(k)
-            vi(i,k) = zvi(k)
-            vs(i,k) = zvs(k)
-            vg(i,k) = zvg(k)
+            stras_rliq(iq,k) = eradc(i,k)         ! save efflective radius for cosp
+            stras_rice(iq,k) = eradi(i,k)
+            stras_rsno(iq,k) = erads(i,k) 
+            stras_rrai(iq,k) = eradr(i,k)
+
+            fluxr(iq,k) = zfluxr(k)               ! flux for aerosol calculation
+            fluxm(iq,k) = zfluxm(k)
+            fluxf(iq,k) = zfluxf(k)
+            fluxi(iq,k) = zfluxi(k)
+            fluxs(iq,k) = zfluxs(k)
+            fluxg(iq,k) = zfluxg(k)
+            fevap(iq,k) = zfevap(k)
+            fsubl(iq,k) = zfsubl(k)
+            fauto(iq,k) = zfauto(k)
+            fcoll(iq,k) = zfcoll(k)
+            faccr(iq,k) = zfaccr(k)
+            vi(iq,k) = zvi(k)
+            vs(iq,k) = zvs(k)
+            vg(iq,k) = zvg(k)
 
             if (process_rate_mode > 0) then 
               zzpsnow(i,k)   = real(zpsnow(k))   !process rate to understand cloud microphysics

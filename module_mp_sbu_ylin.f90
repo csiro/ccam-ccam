@@ -145,7 +145,7 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
     REAL, DIMENSION( kts:kte), INTENT(OUT)                   ::      &
                                        vi, vs, vg        
     REAL, DIMENSION( kts:kte), INTENT(OUT)                   ::      &
-                                    zpsnow,zpsaut,zpsfw,zpsfi,zpraci, & !process rate to understand cloud microphysics
+                                    zpsnow,zpsaut,zpsfw,zpsfi,zpraci, & !process rate to understand cloud microphysic
                                     zpiacr,zpsaci,zpsacw,zpsdep,      &
                                     zpssub,zpracs,zpsacr,zpsmlt,      &
                                     zpsmltevp,zprain,zpraut,zpracw,   &
@@ -256,6 +256,10 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
     real    ::lvap
     REAL, DIMENSION( kts:kte )    ::  nidep, midep
     real    ::mi0
+
+    vtrold=0.
+    vtsold=0.
+    vtiold=0.
 
     mu_c    = AMIN1(15., (1000.E6/Nt_c + 2.))
     R6c     = 10.0E-6      !---- 10 micron, threshold radius of cloud droplet
@@ -666,6 +670,12 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
             ! Zhao 2022 - Row 3 Table 2
             vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
                    ggamma(tmp_ss(k))*(olambdas(k)**bv_s(k))
+
+            if ( vtsold(k) > 20. ) then  ! sny
+              print*, 'vtsold', vtsold(k),vtsold(k)
+              stop
+            end if
+
             ! Zhao 2022 - Row 4 Table 2
             nvts(k)=sqrho(k)*av_s(k)*ggamma(bv_s(k)+1)*(olambdas(k)**bv_s(k))
     
@@ -904,6 +914,12 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
             olambdas(k)=1.0/xlambdas(k)
             vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
                    ggamma(tmp_ss(k))*(olambdas(k)**bv_s(k))
+
+            if ( vtsold(k) > 20. ) then  ! sny
+              print*, 'vtsold', vtsold(k), vtsold(k)
+              stop
+            end if
+
             nvts(k)=sqrho(k)*av_s(k)*ggamma(bv_s(k)+1)*(olambdas(k)**bv_s(k))
 
         else
@@ -1816,6 +1832,9 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
      zqschg(k)   = qschg(k)    ! = psnow / unsure   
    enddo
 
+
+   !print*, 'vtsold', minval(vtsold), maxval(vtsold)
+
    ! save process rate for aerisol scheme
    do k=kts,kte
      fluxi(k) = fluxice(k)                    ! - ice flux leaving layer k to k-1 (kg/m2/s)
@@ -1835,6 +1854,21 @@ SUBROUTINE clphy1d_ylin(dt, qvz, qlz, qrz, qiz, qsz,    &
      vs(k)    = vtsold(k)
      vg(k)    = 0.
    end do
+  
+!   if (minval(vi) /= 0. .or. minval(vs) /= 0. .or. minval(vg) /= 0. &
+!      .or. maxval(vi) /= 0. .or. maxval(vs) /= 0. .or. maxval(vg) /= 0.) then
+!     print*, 'vi', minval(vi), maxval(vi)
+!     print*, 'vs', minval(vs), maxval(vs)
+!     print*, 'vg', minval(vg), maxval(vg)
+!   end if
+
+!   if (minval(vi) < 0. .or. minval(vs) < 0. .or. minval(vg) < 0. &
+!      .or. maxval(vi) > 3. .or. maxval(vs) > 3. .or. maxval(vg) > 3.) then
+!     print*, 'vi', minval(vi), maxval(vi)
+!     print*, 'vs', minval(vs), maxval(vs)
+!     print*, 'vg', minval(vg), maxval(vg)
+!   end if
+
 END SUBROUTINE clphy1d_ylin
 
 

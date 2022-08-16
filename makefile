@@ -91,20 +91,22 @@ FHOST = -march=native -fopenmp
 MPIFLAG =
 #MPISPECIAL = -fallow-argument-mismatch
 MPISPECIAL =
-FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O2 -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
 ifeq ($(ZEN3),yes)
-FHOST =  -fstack-arrays -fallow-argument-mismatch -march=native -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
+#FHOST =  -fstack-arrays -march=native -fallow-argument-mismatch
+FHOST =  -fallow-argument-mismatch
 MPIFLAG = -Dusempi3
 MPISPECIAL = -fallow-argument-mismatch
-FFLAGS = -O3 -ftree-vectorize -fstack-arrays -fallow-argument-mismatch -march=native -lmvec -Dgfortran $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
-FOVERRIDE = 
-ZMM = 
-IPFLAG = 
+#FFLAGS = -O2 -ftree-vectorize -fstack-arrays -lmvec $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
+FFLAGS = -O2 $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FOVERRIDE =
+ZMM =
+IPFLAG =
 IPOFLAG =
 VTHRESH =
 endif
@@ -118,6 +120,7 @@ REAL8FLAG = -fdefault-real-8
 INT8FLAG = -fdefault-int-8
 DEBUGFLAG = -g -Wall -Wextra -fbounds-check
 endif
+
 
 #NVFORTRAN
 ifeq ($(NVFORTRAN),yes)
