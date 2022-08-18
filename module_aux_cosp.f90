@@ -43,13 +43,16 @@ module module_aux_cosp
  
   private
   public cloud_simulator
-  public cltcalipso_o,mr_ccice_o,cloudsat_Ze_tot,ncolumns
-  public caso_ice, caso_liq
+  public cltcalipso_o,cloudsat_Ze_tot,ncolumns
+  !mr_ccice_o
+  public Ccldphase_1o,Ccldphase_2o
+  !public caso_ice, caso_liq
   public cloud_simulator_ready
 
   real, dimension(:,:), allocatable, save :: cltcalipso_o
-  real, dimension(:,:), allocatable, save :: caso_ice, caso_liq
-  real, dimension(:,:), allocatable, save :: mr_ccice_o
+  real, dimension(:,:), allocatable, save :: Ccldphase_1o,Ccldphase_2o
+  !real, dimension(:,:), allocatable, save :: caso_ice, caso_liq
+  !real, dimension(:,:), allocatable, save :: mr_ccice_o
   real, dimension(:,:,:), allocatable, save :: cloudsat_Ze_tot
   integer, save :: ncolumns=20
   logical, save :: cloud_simulator_ready = .false.
@@ -361,12 +364,13 @@ if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
   end if
 
   ! Check allocation of OUTPUT vars
-  if ( .not. allocated(mr_ccice_o) ) then
+  if ( .not. allocated(cltcalipso_o) ) then
     allocate( cltcalipso_o(ifull,4) )
-    allocate( caso_ice(ifull,4 ) )
-    allocate( caso_liq(ifull,4 ) )
-    !allocate( cltcalipso_o(ifull) )
-    allocate( mr_ccice_o(ifull,kl) )
+    allocate( Ccldphase_1o(ifull,4) )
+    allocate( Ccldphase_2o(ifull,4) )
+    !allocate( caso_ice(ifull,4 ) )
+    !allocate( caso_liq(ifull,4 ) )
+    !allocate( mr_ccice_o(ifull,kl) )
     allocate( cloudsat_Ze_tot(ifull,kl,Ncolumns) )
   end if
 
@@ -786,37 +790,48 @@ if (myid==0 ) then
     do ij=1,size(cosp_status,1)
       if (cosp_status(ij) .ne. '') print*,trim(cosp_status(ij))
     end do
-     
+    ! SHAPE INFORMATION FOR OUTPUT VARIABLES
+    !Nphase               = 6     ! Number of cloud layer phase types
+                                  ! [ice,liquid,undefined,false ice,false liquid,Percent of ice]
+    !SR_BINS              = 15,   ! Number of bins (backscattering coefficient) in CALOPSO LIDAR simulator.
+    !CLOUDSAT_DBZE_BINS   = 15, & ! Number of dBZe bins in histogram (cfad)
+    !LIDAR_NCAT           = 4,  & ! Number of categories for cloudtop heights (high/mid/low/tot)
+
+    !1st OUTPUT........................................................................
+    !Ldbze94,        & ! CLOUDSAT radar reflectivity
+    !x%cloudsat_Ze_tot(Npoints,Ncolumns,Nlevels)
     do n = 1,ncolumns
       !cloudsat_Ze_tot(is:ie,1:kl,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
       cloudsat_Ze_tot(is:ie,kl:1:-1,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
     end do
-
-    !Nphase      ! Number of cloud layer phase types
-                 ! [ice,liquid,undefined,false ice,false liquid,Percent of ice]
-
-    do n=1,4
-      caso_ice(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,1)
-      caso_liq(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,2)
-    end do
-
-    cnttt = 0
-    do kkk=1,ncolumns
-      do jjj=1,kl
-        do iii=is,ie
-          if (cloudsat_Ze_tot(iii,jjj,kkk) > 0.0) then
-             cnttt = cnttt + 1
-          end if
-        end do
-      end do
-    end do
+    !2nd OUTPUT.........................................................................
+    !LcfadDbze94,      & ! CLOUDSAT radar reflectivity CFAD
+    !x%cloudsat_cfad_ze(Npoints,cloudsat_DBZE_BINS,Nlvgrid)
+    !
+    !
+    !3rd OUTPUT.........................................................................
+    !LcfadLidarsr532,  & ! CALIPSO scattering ratio CFAD
+    !x%calipso_cfad_sr(Npoints,SR_BINS,Nlvgrid)
+    !
+    !
+    !4rd OUTPUT.........................................................................
+    !calipso_lidarcldphase ! x%calipso_lidarcldphase(Npoints,Nlvgrid,6)
+    !do n=1,4
+    !  caso_ice(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,1)
+    !  caso_liq(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,2)
+    !end do
+    !5rd OUTPUT.........................................................................
+    !allocate(x%calipso_cldlayer(Npoints,LIDAR_NCAT))
     do n=1,4
       cltcalipso_o(is:ie,n) = cospOUT%calipso_cldlayer(:,n)
     end do
+    !6rd OUTPUT.........................................................................
+    !allocate(x%calipso_cldlayerphase(Npoints,LIDAR_NCAT,6))
+    do n=1,4
+      Ccldphase_1o(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,1)
+      Ccldphase_2o(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,2)
+    end do
 
-    mr_ccice_o(is:ie,1:kl)  = mr_ccice(:,:)
-    
-    
   end do !for each tile  
   !print*, '# cloudsat_Ze_tot > 0 : ', cnttt,count(cloudsat_ze_tot>0.)
   !print*, 'cloudsat_Ze_tot       : ', minval(cloudsat_Ze_tot), maxval(cloudsat_Ze_tot)

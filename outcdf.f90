@@ -957,12 +957,14 @@ use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic 
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
-use module_aux_cosp, only : cltcalipso_o,   &
-                            mr_ccice_o,     &
-                            cloudsat_Ze_tot,&
-                            caso_ice,       &
-                            caso_liq,       &
-                            ncolumns,       &
+use module_aux_cosp, only : cltcalipso_o,      &
+                            Ccldphase_1o,      &
+                            Ccldphase_2o,      &
+                            !mr_ccice_o,        &
+                            cloudsat_Ze_tot,   &
+                            !caso_ice,          &
+                            !caso_liq,          &
+                            ncolumns,          &
                             cloud_simulator_ready
 use module_ctrl_microphysics 
 use morepbl_m                                    ! Additional boundary layer diagnostics
@@ -2072,19 +2074,29 @@ if( myid==0 .or. local ) then
         write(vname,'(A,I3.3)') "cltcalipso_o_",n
         call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Total Cloud Fraction','none',0.,100.,0,cptype)
       end do
-
-      do n=1,4
-        write(vname,'(A,I3.3)') "caso_ice_",n
-        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Ice Cloud Fraction','none',0.,100.,0,cptype)
+      ! start calipso cloud phase output
+      do n = 1,4
+        write(vname,'(A,I3.3)') "Ccldphase_1o_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'Ccldphase_1o_','none',0.,100.,0,cptype)
       end do
-
-      do n=1,4
-        write(vname,'(A,I3.3)') "caso_liq_",n
-        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Liq Cloud Fraction','none',0.,100.,0,cptype)
+      do n = 1,4
+        write(vname,'(A,I3.3)') "Ccldphase_2o_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'Ccldphase_2o_','none',0.,100.,0,cptype)
       end do
+      ! end calipso cloud phase output
+        
+      !do n=1,4
+      !  write(vname,'(A,I3.3)') "caso_ice_",n
+      !  call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Ice Cloud Fraction','none',0.,100.,0,cptype)
+      !end do
+
+      !do n=1,4
+      !  write(vname,'(A,I3.3)') "caso_liq_",n
+      !  call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Liq Cloud Fraction','none',0.,100.,0,cptype)
+      !end do
 
       !call attrib(idnc,dimj,jsize,'cltcalipso_o','CALIPSO Total Cloud Fraction','none',0.,1.,0,cptype)
-      call attrib(idnc,dima,asize,'mr_ccice_o','Check frozen water','kg kg-1',0.,.065,0,cptype)
+      !call attrib(idnc,dima,asize,'mr_ccice_o','Check frozen water','kg kg-1',0.,.065,0,cptype)
       if ( ncolumns>100 ) then
         write(6,*) "ERROR: Make Sonny fix this code because the number of columns is too large"
         call ccmpi_abort(-1)
@@ -3393,19 +3405,29 @@ endif
       write(vname,'(A,I3.3)') "cltcalipso_o_",n
       call histwrt(cltcalipso_o(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
-
+    ! start calipso cloud phase output
     do n = 1,4
-      write(vname,'(A,I3.3)') "caso_ice_",n
-      call histwrt(caso_ice(:,n),trim(vname),idnc,iarch,local,lwrite)
+      write(vname,'(A,I3.3)') "Ccldphase_1o_",n
+      call histwrt(Ccldphase_1o(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
-
     do n = 1,4
-      write(vname,'(A,I3.3)') "caso_liq_",n
-      call histwrt(caso_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
+      write(vname,'(A,I3.3)') "Ccldphase_2o_",n
+      call histwrt(Ccldphase_2o(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
+    ! end calipso cloud phase output
+
+    !do n = 1,4
+    !  write(vname,'(A,I3.3)') "caso_ice_",n
+    !  call histwrt(caso_ice(:,n),trim(vname),idnc,iarch,local,lwrite)
+    !end do
+
+    !do n = 1,4
+    !  write(vname,'(A,I3.3)') "caso_liq_",n
+    !  call histwrt(caso_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
+    !end do
 
     !call histwrt(cltcalipso_o,'cltcalipso_o',idnc,iarch,local,lwrite)
-    call histwrt(mr_ccice_o,'mr_ccice_o',idnc,iarch,local,lwrite)
+    !call histwrt(mr_ccice_o,'mr_ccice_o',idnc,iarch,local,lwrite)
     do n = 1,ncolumns
       write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n
       call histwrt(cloudsat_Ze_tot(:,:,n),trim(vname),idnc,iarch,local,lwrite)
