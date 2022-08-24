@@ -43,17 +43,34 @@ module module_aux_cosp
  
   private
   public cloud_simulator
-  public cltcalipso_o,cloudsat_Ze_tot,ncolumns
-  !mr_ccice_o
-  public Ccldphase_1o,Ccldphase_2o
-  !public caso_ice, caso_liq
+  public clp_lmht
+  public cls_ze
+  public ncolumns
+  public clp_phse_ice,clp_phse_liq 
+  public clp_ice,clp_liq 
+  public cls_db_b01,cls_db_b02,cls_db_b03,cls_db_b04,cls_db_b05
+  public cls_db_b06,cls_db_b07,cls_db_b08,cls_db_b09,cls_db_b10
+  public cls_db_b11,cls_db_b12,cls_db_b13,cls_db_b14,cls_db_b15
+
+  public clp_sr_b01,clp_sr_b02,clp_sr_b03,clp_sr_b04,clp_sr_b05
+  public clp_sr_b06,clp_sr_b07,clp_sr_b08,clp_sr_b09,clp_sr_b10
+  public clp_sr_b11,clp_sr_b12,clp_sr_b13,clp_sr_b14,clp_sr_b15
+  
   public cloud_simulator_ready
 
-  real, dimension(:,:), allocatable, save :: cltcalipso_o
-  real, dimension(:,:), allocatable, save :: Ccldphase_1o,Ccldphase_2o
-  !real, dimension(:,:), allocatable, save :: caso_ice, caso_liq
-  !real, dimension(:,:), allocatable, save :: mr_ccice_o
-  real, dimension(:,:,:), allocatable, save :: cloudsat_Ze_tot
+  real, dimension(:,:), allocatable, save   :: clp_lmht 
+  real, dimension(:,:,:), allocatable, save :: cls_ze
+  real, dimension(:,:), allocatable, save   :: clp_phse_ice,clp_phse_liq 
+  real, dimension(:,:), allocatable, save   :: clp_ice,clp_liq 
+  real, dimension(:,:), allocatable, save   :: cls_db_b01,cls_db_b02,cls_db_b03,cls_db_b04
+  real, dimension(:,:), allocatable, save   :: cls_db_b05,cls_db_b06,cls_db_b07,cls_db_b08
+  real, dimension(:,:), allocatable, save   :: cls_db_b09,cls_db_b10,cls_db_b11,cls_db_b12
+  real, dimension(:,:), allocatable, save   :: cls_db_b13,cls_db_b14,cls_db_b15
+  real, dimension(:,:), allocatable, save   :: clp_sr_b01,clp_sr_b02,clp_sr_b03,clp_sr_b04
+  real, dimension(:,:), allocatable, save   :: clp_sr_b05,clp_sr_b06,clp_sr_b07,clp_sr_b08
+  real, dimension(:,:), allocatable, save   :: clp_sr_b09,clp_sr_b10,clp_sr_b11,clp_sr_b12
+  real, dimension(:,:), allocatable, save   :: clp_sr_b13,clp_sr_b14,clp_sr_b15
+
   integer, save :: ncolumns=20
   logical, save :: cloud_simulator_ready = .false.
 
@@ -364,14 +381,43 @@ if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
   end if
 
   ! Check allocation of OUTPUT vars
-  if ( .not. allocated(cltcalipso_o) ) then
-    allocate( cltcalipso_o(ifull,4) )
-    allocate( Ccldphase_1o(ifull,4) )
-    allocate( Ccldphase_2o(ifull,4) )
-    !allocate( caso_ice(ifull,4 ) )
-    !allocate( caso_liq(ifull,4 ) )
-    !allocate( mr_ccice_o(ifull,kl) )
-    allocate( cloudsat_Ze_tot(ifull,kl,Ncolumns) )
+  if ( .not. allocated(clp_lmht) ) then
+    allocate( clp_lmht(ifull,4) )
+    allocate( clp_phse_ice(ifull,4) )
+    allocate( clp_phse_liq(ifull,4) )
+    allocate( clp_ice(ifull,40 ) )
+    allocate( clp_liq(ifull,40 ) )
+    allocate( cls_ze(ifull,kl,Ncolumns) )
+    allocate( cls_db_b01(ifull,40) )
+    allocate( cls_db_b02(ifull,40) )
+    allocate( cls_db_b03(ifull,40) )
+    allocate( cls_db_b04(ifull,40) )
+    allocate( cls_db_b05(ifull,40) )
+    allocate( cls_db_b06(ifull,40) )
+    allocate( cls_db_b07(ifull,40) )
+    allocate( cls_db_b08(ifull,40) )
+    allocate( cls_db_b09(ifull,40) )
+    allocate( cls_db_b10(ifull,40) )
+    allocate( cls_db_b11(ifull,40) )
+    allocate( cls_db_b12(ifull,40) )
+    allocate( cls_db_b13(ifull,40) )
+    allocate( cls_db_b14(ifull,40) )
+    allocate( cls_db_b15(ifull,40) )
+    allocate( clp_sr_b01(ifull,40) )
+    allocate( clp_sr_b02(ifull,40) )
+    allocate( clp_sr_b03(ifull,40) )
+    allocate( clp_sr_b04(ifull,40) )
+    allocate( clp_sr_b05(ifull,40) )
+    allocate( clp_sr_b06(ifull,40) )
+    allocate( clp_sr_b07(ifull,40) )
+    allocate( clp_sr_b08(ifull,40) )
+    allocate( clp_sr_b09(ifull,40) )
+    allocate( clp_sr_b10(ifull,40) )
+    allocate( clp_sr_b11(ifull,40) )
+    allocate( clp_sr_b12(ifull,40) )
+    allocate( clp_sr_b13(ifull,40) )
+    allocate( clp_sr_b14(ifull,40) )
+    allocate( clp_sr_b15(ifull,40) )
   end if
 
   !====================================================================================================
@@ -801,37 +847,75 @@ if (myid==0 ) then
     !Ldbze94,        & ! CLOUDSAT radar reflectivity
     !x%cloudsat_Ze_tot(Npoints,Ncolumns,Nlevels)
     do n = 1,ncolumns
-      !cloudsat_Ze_tot(is:ie,1:kl,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
-      cloudsat_Ze_tot(is:ie,kl:1:-1,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
+      !cloudsat_Ze_tot(is:ie,kl:1:-1,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
+      cls_ze(is:ie,kl:1:-1,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
     end do
     !2nd OUTPUT.........................................................................
     !LcfadDbze94,      & ! CLOUDSAT radar reflectivity CFAD
+    ! in calipso, it is global map for each elevation, then each grid point is for specific reflectivity range
+    ! alt40 = 40 ; dbze = 15 ;  lat = 82 ; lon = 180 ; 
+    ! float cfadDbze94(time, dbze, alt40, lat, lon) ;
     !x%cloudsat_cfad_ze(Npoints,cloudsat_DBZE_BINS,Nlvgrid)
-    !
+    do n=1,40
+      cls_db_b01(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,1,n)
+      cls_db_b02(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,2,n)
+      cls_db_b03(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,3,n)
+      cls_db_b04(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,4,n)
+      cls_db_b05(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,5,n)
+      cls_db_b06(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,6,n)
+      cls_db_b07(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,7,n)
+      cls_db_b08(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,8,n)
+      cls_db_b09(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,9,n)
+      cls_db_b10(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,10,n)
+      cls_db_b11(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,11,n)
+      cls_db_b12(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,12,n)
+      cls_db_b13(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,13,n)
+      cls_db_b14(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,14,n)
+      cls_db_b15(is:ie,n) = cospOUT%cloudsat_cfad_ze(:,15,n)
+    end do
     !
     !3rd OUTPUT.........................................................................
     !LcfadLidarsr532,  & ! CALIPSO scattering ratio CFAD
     !x%calipso_cfad_sr(Npoints,SR_BINS,Nlvgrid)
-    !
-    !
+    do n=1,40
+      clp_sr_b01(is:ie,n) = cospOUT%calipso_cfad_sr(:,1,n)
+      clp_sr_b02(is:ie,n) = cospOUT%calipso_cfad_sr(:,2,n)
+      clp_sr_b03(is:ie,n) = cospOUT%calipso_cfad_sr(:,3,n)
+      clp_sr_b04(is:ie,n) = cospOUT%calipso_cfad_sr(:,4,n)
+      clp_sr_b05(is:ie,n) = cospOUT%calipso_cfad_sr(:,5,n)
+      clp_sr_b06(is:ie,n) = cospOUT%calipso_cfad_sr(:,6,n)
+      clp_sr_b07(is:ie,n) = cospOUT%calipso_cfad_sr(:,7,n)
+      clp_sr_b08(is:ie,n) = cospOUT%calipso_cfad_sr(:,8,n)
+      clp_sr_b09(is:ie,n) = cospOUT%calipso_cfad_sr(:,9,n)
+      clp_sr_b10(is:ie,n) = cospOUT%calipso_cfad_sr(:,10,n)
+      clp_sr_b11(is:ie,n) = cospOUT%calipso_cfad_sr(:,11,n)
+      clp_sr_b12(is:ie,n) = cospOUT%calipso_cfad_sr(:,12,n)
+      clp_sr_b13(is:ie,n) = cospOUT%calipso_cfad_sr(:,13,n)
+      clp_sr_b14(is:ie,n) = cospOUT%calipso_cfad_sr(:,14,n)
+      clp_sr_b15(is:ie,n) = cospOUT%calipso_cfad_sr(:,15,n)
+    end do
     !4rd OUTPUT.........................................................................
     !calipso_lidarcldphase ! x%calipso_lidarcldphase(Npoints,Nlvgrid,6)
-    !do n=1,4
-    !  caso_ice(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,1)
-    !  caso_liq(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,2)
-    !end do
+    do n=1,40
+      clp_ice(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,1)
+      clp_liq(is:ie,n) =  cospOUT%calipso_lidarcldphase(:,n,2)
+    end do
     !5rd OUTPUT.........................................................................
     !allocate(x%calipso_cldlayer(Npoints,LIDAR_NCAT))
     do n=1,4
-      cltcalipso_o(is:ie,n) = cospOUT%calipso_cldlayer(:,n)
+      !cltcalipso_o(is:ie,n) = cospOUT%calipso_cldlayer(:,n)
+      clp_lmht(is:ie,n) = cospOUT%calipso_cldlayer(:,n)
     end do
     !6rd OUTPUT.........................................................................
     !allocate(x%calipso_cldlayerphase(Npoints,LIDAR_NCAT,6))
     do n=1,4
-      Ccldphase_1o(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,1)
-      Ccldphase_2o(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,2)
+      !Ccldphase_1o(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,1)
+      !Ccldphase_2o(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,2)
+      clp_phse_ice(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,1)
+      clp_phse_liq(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,2)
     end do
-
+    ! 3D "lidar cloud phase temperature"
+    ! allocate(x%calipso_lidarcldtmp(Npoints,LIDAR_NTEMP,5))
   end do !for each tile  
   !print*, '# cloudsat_Ze_tot > 0 : ', cnttt,count(cloudsat_ze_tot>0.)
   !print*, 'cloudsat_Ze_tot       : ', minval(cloudsat_Ze_tot), maxval(cloudsat_Ze_tot)

@@ -957,14 +957,29 @@ use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic 
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
-use module_aux_cosp, only : cltcalipso_o,      &
-                            Ccldphase_1o,      &
-                            Ccldphase_2o,      &
-                            !mr_ccice_o,        &
-                            cloudsat_Ze_tot,   &
-                            !caso_ice,          &
-                            !caso_liq,          &
-                            ncolumns,          &
+use module_aux_cosp, only : clp_lmht,             &
+                            cls_ze,               &
+                            clp_phse_ice,         &
+                            clp_phse_liq,         &
+                            clp_ice,              &
+                            clp_liq,              &
+                            ncolumns,             &
+                            cls_db_b01,cls_db_b02,&
+                            cls_db_b03,cls_db_b04,&
+                            cls_db_b05,cls_db_b06,&
+                            cls_db_b07,cls_db_b08,&
+                            cls_db_b09,cls_db_b10,&
+                            cls_db_b11,cls_db_b12,&
+                            cls_db_b13,cls_db_b14,&
+                            cls_db_b15,           & 
+                            clp_sr_b01,clp_sr_b02,&
+                            clp_sr_b03,clp_sr_b04,&
+                            clp_sr_b05,clp_sr_b06,&
+                            clp_sr_b07,clp_sr_b08,&
+                            clp_sr_b09,clp_sr_b10,&
+                            clp_sr_b11,clp_sr_b12,&
+                            clp_sr_b13,clp_sr_b14,&
+                            clp_sr_b15,           &
                             cloud_simulator_ready
 use module_ctrl_microphysics 
 use morepbl_m                                    ! Additional boundary layer diagnostics
@@ -2071,40 +2086,164 @@ if( myid==0 .or. local ) then
 #ifdef COSPP
     ! COSPP-------------I--------------------------------------------
       do n = 1,4
-        write(vname,'(A,I3.3)') "cltcalipso_o_",n
+        write(vname,'(A,I3.3)') "clp_lmht_",n
         call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Total Cloud Fraction','none',0.,100.,0,cptype)
+      end do
+      do n = 1,ncolumns
+        write(vname,'(A,I3.3)') "cls_ze_",n
+        call attrib(idnc,dima,asize,trim(vname),'cloudsat reflectivity','dBZ',-100.,80.,0,cptype)
       end do
       ! start calipso cloud phase output
       do n = 1,4
-        write(vname,'(A,I3.3)') "Ccldphase_1o_",n
-        call attrib(idnc,dimj,jsize,trim(vname),'Ccldphase_1o_','none',0.,100.,0,cptype)
+        write(vname,'(A,I3.3)') "clp_phse_ice_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'clp_phse_ice_','none',0.,100.,0,cptype)
       end do
       do n = 1,4
-        write(vname,'(A,I3.3)') "Ccldphase_2o_",n
-        call attrib(idnc,dimj,jsize,trim(vname),'Ccldphase_2o_','none',0.,100.,0,cptype)
+        write(vname,'(A,I3.3)') "clp_phse_liq_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'clp_phse_liq_','none',0.,100.,0,cptype)
       end do
       ! end calipso cloud phase output
         
-      !do n=1,4
-      !  write(vname,'(A,I3.3)') "caso_ice_",n
-      !  call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Ice Cloud Fraction','none',0.,100.,0,cptype)
-      !end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_ice_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Ice Cloud Fraction','none',0.,100.,0,cptype)
+      end do
 
-      !do n=1,4
-      !  write(vname,'(A,I3.3)') "caso_liq_",n
-      !  call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Liq Cloud Fraction','none',0.,100.,0,cptype)
-      !end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_liq_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Liq Cloud Fraction','none',0.,100.,0,cptype)
+      end do
 
-      !call attrib(idnc,dimj,jsize,'cltcalipso_o','CALIPSO Total Cloud Fraction','none',0.,1.,0,cptype)
-      !call attrib(idnc,dima,asize,'mr_ccice_o','Check frozen water','kg kg-1',0.,.065,0,cptype)
+      ! output 15 bin size for CLOUDSAT radar refectivity 
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b01_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do      
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b02_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b03_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b04_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b05_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b06_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b07_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b08_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b09_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b10_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b11_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b12_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b13_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b14_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "cls_db_b15_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
+      end do
+     ! done output 15 bin size for CLOUDSAT radar refectivity
+
+     ! output 15 bin size for CALIPSO scattering ratio CFAD
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b01_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b02_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b03_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b04_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b05_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b06_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b07_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b08_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b09_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b10_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b11_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b12_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b13_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b14_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+      do n=1,40
+        write(vname,'(A,I3.3)') "clp_sr_b15_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
+      end do
+     ! done output 15 bin size for CALIPSO scattering ratio CFAD
+
       if ( ncolumns>100 ) then
         write(6,*) "ERROR: Make Sonny fix this code because the number of columns is too large"
         call ccmpi_abort(-1)
       end if
-      do n = 1,ncolumns
-        write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n
-        call attrib(idnc,dima,asize,trim(vname),'cloudsat reflectivity','dBZ',-100.,80.,0,cptype)
-      end do
 #endif
 
     ! TURBULENT MIXING ----------------------------------------------
@@ -3402,36 +3541,159 @@ endif
 ! COSPP-------------I--------------------------------------------
   if ( cloud_simulator_ready ) then
     do n = 1,4
-      write(vname,'(A,I3.3)') "cltcalipso_o_",n
-      call histwrt(cltcalipso_o(:,n),trim(vname),idnc,iarch,local,lwrite)
+      write(vname,'(A,I3.3)') "clp_lmht_",n
+      call histwrt(clp_lmht(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
+    do n = 1,ncolumns
+      write(vname,'(A,I3.3)') "cls_ze_",n
+      call histwrt(cls_ze(:,:,n),trim(vname),idnc,iarch,local,lwrite)
+    enddo
     ! start calipso cloud phase output
     do n = 1,4
-      write(vname,'(A,I3.3)') "Ccldphase_1o_",n
-      call histwrt(Ccldphase_1o(:,n),trim(vname),idnc,iarch,local,lwrite)
+      write(vname,'(A,I3.3)') "clp_phse_ice_",n
+      call histwrt(clp_phse_ice(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
     do n = 1,4
-      write(vname,'(A,I3.3)') "Ccldphase_2o_",n
-      call histwrt(Ccldphase_2o(:,n),trim(vname),idnc,iarch,local,lwrite)
+      write(vname,'(A,I3.3)') "clp_phse_liq_",n
+      call histwrt(clp_phse_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
     ! end calipso cloud phase output
 
-    !do n = 1,4
-    !  write(vname,'(A,I3.3)') "caso_ice_",n
-    !  call histwrt(caso_ice(:,n),trim(vname),idnc,iarch,local,lwrite)
-    !end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_ice_",n
+      call histwrt(clp_ice(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
 
-    !do n = 1,4
-    !  write(vname,'(A,I3.3)') "caso_liq_",n
-    !  call histwrt(caso_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
-    !end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_liq_",n
+      call histwrt(clp_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
 
-    !call histwrt(cltcalipso_o,'cltcalipso_o',idnc,iarch,local,lwrite)
-    !call histwrt(mr_ccice_o,'mr_ccice_o',idnc,iarch,local,lwrite)
-    do n = 1,ncolumns
-      write(vname,'(A,I3.3)') "cloudsat_Ze_tot_",n
-      call histwrt(cloudsat_Ze_tot(:,:,n),trim(vname),idnc,iarch,local,lwrite)
-    enddo 
+    ! output 15 bin size for CLOUDSAT radar refectivity
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b01_",n
+      call histwrt(cls_db_b01(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b02_",n
+      call histwrt(cls_db_b02(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b03_",n
+      call histwrt(cls_db_b03(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b04_",n
+      call histwrt(cls_db_b04(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b05_",n
+      call histwrt(cls_db_b05(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b06_",n
+      call histwrt(cls_db_b06(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b07_",n
+      call histwrt(cls_db_b07(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b08_",n
+      call histwrt(cls_db_b08(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b09_",n
+      call histwrt(cls_db_b09(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b10_",n
+      call histwrt(cls_db_b10(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b11_",n
+      call histwrt(cls_db_b11(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b12_",n
+      call histwrt(cls_db_b12(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b13_",n
+      call histwrt(cls_db_b13(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b14_",n
+      call histwrt(cls_db_b14(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "cls_db_b15_",n
+      call histwrt(cls_db_b15(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+   ! DONE output 15 bin size for CLOUDSAT radar refectivity
+
+   ! output 15 bin size for CALIPSO scattering ratio CFAD
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b01_",n
+      call histwrt(clp_sr_b01(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b02_",n
+      call histwrt(clp_sr_b02(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b03_",n
+      call histwrt(clp_sr_b03(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b04_",n
+      call histwrt(clp_sr_b04(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b05_",n
+      call histwrt(clp_sr_b05(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b06_",n
+      call histwrt(clp_sr_b06(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b07_",n
+      call histwrt(clp_sr_b07(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b08_",n
+      call histwrt(clp_sr_b08(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b09_",n
+      call histwrt(clp_sr_b09(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b10_",n
+      call histwrt(clp_sr_b10(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b11_",n
+      call histwrt(clp_sr_b11(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b12_",n
+      call histwrt(clp_sr_b12(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b13_",n
+      call histwrt(clp_sr_b13(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b14_",n
+      call histwrt(clp_sr_b14(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    do n = 1,40
+      write(vname,'(A,I3.3)') "clp_sr_b15_",n
+      call histwrt(clp_sr_b15(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+    ! DONE output 15 bin size for CALIPSO scattering ratio CFAD
   end if  
 #endif
 ! TURBULENT MIXING --------------------------------------------
