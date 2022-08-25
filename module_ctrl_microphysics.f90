@@ -72,6 +72,10 @@ contains
   real, dimension(imax,kl) :: lqevap, lqsubl, lqauto, lqcoll, lqaccr, lqaccf
   real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
   real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
+  real, dimension(imax,kl) :: ppleo_pcaut,ppleo_psaut,ppleo_pgaut,ppleo_pgmlt,ppleo_pgsub,ppleo_pgacw,&
+                              ppleo_pgacr,ppleo_pgaci,ppleo_pgacs,ppleo_psmlt,ppleo_pssub,ppleo_psacw,&
+                              ppleo_psacr,ppleo_psaci,ppleo_pimlt,ppleo_pisub,ppleo_piacw,ppleo_piacr,&
+                              ppleo_psure,ppleo_prevp,ppleo_pracc,ppleo_pracs,ppleo_praci
   real, dimension(imax,kl) :: lvi, lvs, lvg
   real, dimension(imax,kl) :: lplambs, lqfsedice, lprscav
   real, dimension(imax,kl) :: r_cfrac, r_qlrad, r_qfrad  
@@ -256,13 +260,70 @@ contains
         lcdrop   = cdrop(is:ie,:)
         lstratcloud = stratcloud(is:ie,:)
 
+        ! re-initialized the process rate vars for each time step
+        ppleo_pcaut = 0.
+        ppleo_psaut = 0.
+        ppleo_pgaut = 0.
+        ppleo_pgmlt = 0.
+        ppleo_pgsub = 0.
+        ppleo_pgacw = 0.
+        ppleo_pgacr = 0.
+        ppleo_pgaci = 0.
+        ppleo_pgacs = 0.
+        ppleo_psmlt = 0.
+        ppleo_pssub = 0.
+        ppleo_psacw = 0.
+        ppleo_psacr = 0.
+        ppleo_psaci = 0.
+        ppleo_pimlt = 0.
+        ppleo_pisub = 0.
+        ppleo_piacw = 0.
+        ppleo_piacr = 0.
+        ppleo_psure = 0.
+        ppleo_prevp = 0.
+        ppleo_pracc = 0.
+        ppleo_pracs = 0.
+        ppleo_praci = 0.
+
         call leoncld_work(condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,ktsav(is:ie),         &
               lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,                                   &
               lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
               ps(is:ie),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt,                      &
               lstratcloud,lcdrop,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg,lqevap,lqsubl,     &
               lqauto,lqcoll,lqaccr,lvi,lvs,lvg,                                               &
-              idjd_t,mydiag_t,ncloud,nevapls,ldr,rcm,imax,kl)
+              idjd_t,mydiag_t,ncloud,nevapls,ldr,rcm,imax,kl,                                 &
+              ppleo_pcaut,ppleo_psaut,ppleo_pgaut,ppleo_pgmlt,ppleo_pgsub,ppleo_pgacw,        &
+              ppleo_pgacr,ppleo_pgaci,ppleo_pgacs,ppleo_psmlt,ppleo_pssub,ppleo_psacw,        &
+              ppleo_psacr,ppleo_psaci,ppleo_pimlt,ppleo_pisub,ppleo_piacw,ppleo_piacr,        &
+              ppleo_psure,ppleo_prevp,ppleo_pracc,ppleo_pracs,ppleo_praci)
+
+        ! output LEO process rate
+        if (process_rate_mode == 1) then
+          leo_pcaut(is:ie,:) = ppleo_pcaut
+          leo_psaut(is:ie,:) = ppleo_psaut
+          leo_pgaut(is:ie,:) = ppleo_pgaut
+          leo_pgmlt(is:ie,:) = ppleo_pgmlt
+          leo_pgsub(is:ie,:) = ppleo_pgsub
+          leo_pgacw(is:ie,:) = ppleo_pgacw
+          leo_pgacr(is:ie,:) = ppleo_pgacr
+          leo_pgaci(is:ie,:) = ppleo_pgaci
+          leo_pgacs(is:ie,:) = ppleo_pgacs
+          leo_psmlt(is:ie,:) = ppleo_psmlt
+          leo_pssub(is:ie,:) = ppleo_pssub
+          leo_psacw(is:ie,:) = ppleo_psacw
+          leo_psacr(is:ie,:) = ppleo_psacr
+          leo_psaci(is:ie,:) = ppleo_psaci
+          leo_pimlt(is:ie,:) = ppleo_pimlt
+          leo_pisub(is:ie,:) = ppleo_pisub
+          leo_piacw(is:ie,:) = ppleo_piacw
+          leo_piacr(is:ie,:) = ppleo_piacr
+          leo_psure(is:ie,:) = ppleo_psure
+          leo_prevp(is:ie,:) = ppleo_prevp
+          leo_pracc(is:ie,:) = ppleo_pracc
+          leo_pracs(is:ie,:) = ppleo_pracs
+          leo_praci(is:ie,:) = ppleo_praci
+        end if
+
         gfrac(is:ie,:) = lgfrac
         rfrac(is:ie,:) = lrfrac
         sfrac(is:ie,:) = lsfrac
@@ -568,7 +629,7 @@ contains
             vs(iq,k) = zvs(k)
             vg(iq,k) = zvg(k)
 
-            if (process_rate_mode > 0) then 
+            if (process_rate_mode == 2) then 
               zzpsnow(i,k)   = real(zpsnow(k))   !process rate to understand cloud microphysics
               zzpsaut(i,k)   = real(zpsaut(k))
               zzpsfw(i,k)    = real(zpsfw(k))
@@ -632,7 +693,7 @@ contains
             ni(iq,k)=nni(i,k)
             ns(iq,k)=nns(i,k)    !zdc 20220116
 
-            if (process_rate_mode > 0) then
+            if (process_rate_mode == 2) then
               psnow(iq,k)   = zzpsnow(i,k)   !process rate to understand cloud microphysics
               psaut(iq,k)   = zzpsaut(i,k)
               psfw(iq,k)    = zzpsfw(i,k)

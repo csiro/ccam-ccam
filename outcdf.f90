@@ -2023,7 +2023,31 @@ if( myid==0 .or. local ) then
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
       ! process rate
-      if (process_rate_mode > 0) then
+      if (process_rate_mode == 1) then
+        call attrib(idnc,dima,asize,'leo_pcaut','Autoconversion to cloud water','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_psaut','Autoconversion of ice to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pgaut','Autoconversion of snow to graupel','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pgmlt','Melt falling graupel','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pgsub','Sublimation of graupel','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pgacw','Accretion of c/liquid by falling graupel','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pgacr','Accretion of rain by falling graupel','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pgaci','Accretion of cloud ice by falling graupel','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pgacs','Accretion of snow by falling graupel','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_psmlt','Melt falling snow due to rain accretion','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pssub','Sublimation of snow falling','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_psacw','Accretion of cloud liquid by falling snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_psacr','Accretion of rain by falling snow -->snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_psaci','Accretion of cloud ice by falling snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pimlt','Melt falling ice to form cloud water','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pisub','Sublimation of ice','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_piacw','Accretion of cloud liquid by falling ice','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_piacr','Accretion of rain by falling ice --> ice','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_psure','NOT SURE what process here','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_prevp','Evaporation of rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pracc','Collection of liquid cloud by rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_pracs','Accretion of cloud snow by rain','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'leo_praci','Accretion of c/ice by rain ->snow/grauple','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+      else if (process_rate_mode == 2) then
         call attrib(idnc,dima,asize,'psnow','sum all process for snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
         call attrib(idnc,dima,asize,'psaut','ice crystal aggregation to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
         call attrib(idnc,dima,asize,'psfw','BERGERON process to transfer cloud water to snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
@@ -3477,7 +3501,31 @@ end if
 ! MICROPHYSICS ------------------------------------------------
 if ( ldr/=0 ) then
   ! process rate
-  if (process_rate_mode > 0) then
+  if (process_rate_mode == 1) then
+    call histwrt(leo_pcaut,'leo_pcaut',idnc,iarch,local,.true.)
+    call histwrt(leo_psaut,'leo_psaut',idnc,iarch,local,.true.)
+    call histwrt(leo_pgaut,'leo_pgaut',idnc,iarch,local,.true.)
+    call histwrt(leo_pgmlt,'leo_pgmlt',idnc,iarch,local,.true.)
+    call histwrt(leo_pgsub,'leo_pgsub',idnc,iarch,local,.true.)
+    call histwrt(leo_pgacw,'leo_pgacw',idnc,iarch,local,.true.)
+    call histwrt(leo_pgacr,'leo_pgacr',idnc,iarch,local,.true.)
+    call histwrt(leo_pgaci,'leo_pgaci',idnc,iarch,local,.true.)
+    call histwrt(leo_pgacs,'leo_pgacs',idnc,iarch,local,.true.)
+    call histwrt(leo_psmlt,'leo_psmlt',idnc,iarch,local,.true.)
+    call histwrt(leo_pssub,'leo_pssub',idnc,iarch,local,.true.)
+    call histwrt(leo_psacw,'leo_psacw',idnc,iarch,local,.true.)
+    call histwrt(leo_psacr,'leo_psacr',idnc,iarch,local,.true.)
+    call histwrt(leo_psaci,'leo_psaci',idnc,iarch,local,.true.)
+    call histwrt(leo_pimlt,'leo_pimlt',idnc,iarch,local,.true.)
+    call histwrt(leo_pisub,'leo_pisub',idnc,iarch,local,.true.)
+    call histwrt(leo_piacw,'leo_piacw',idnc,iarch,local,.true.)
+    call histwrt(leo_piacr,'leo_piacr',idnc,iarch,local,.true.)
+    call histwrt(leo_psure,'leo_psure',idnc,iarch,local,.true.)
+    call histwrt(leo_prevp,'leo_prevp',idnc,iarch,local,.true.)
+    call histwrt(leo_pracc,'leo_pracc',idnc,iarch,local,.true.)
+    call histwrt(leo_pracs,'leo_pracs',idnc,iarch,local,.true.)
+    call histwrt(leo_praci,'leo_praci',idnc,iarch,local,.true.)
+  else if (process_rate_mode == 2) then
     call histwrt(psnow,'psnow',idnc,iarch,local,.true.)
     call histwrt(psaut,'psaut',idnc,iarch,local,.true.)
     call histwrt(psfw,'psfw',idnc,iarch,local,.true.)

@@ -98,7 +98,13 @@ subroutine leoncld_work(condg,conds,condx,gfrac,ktsav,                          
                         ps,qfg,qg,qgrg,qlg,qrg,qsng,rfrac,sfrac,t,                      &
                         stratcloud,cdrop,fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,qevap,     &
                         qsubl,qauto,qcoll,qaccr,vi,vs,vg,                               &
-                        idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+                        idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl,                     &
+                        ppleo_pcaut,ppleo_psaut,ppleo_pgaut,ppleo_pgmlt,                &
+                        ppleo_pgsub,ppleo_pgacw,ppleo_pgacr,ppleo_pgaci,                &
+                        ppleo_pgacs,ppleo_psmlt,ppleo_pssub,ppleo_psacw,                &
+                        ppleo_psacr,ppleo_psaci,ppleo_pimlt,ppleo_pisub,                &
+                        ppleo_piacw,ppleo_piacr,ppleo_psure,ppleo_prevp,                &
+                        ppleo_pracc,ppleo_pracs,ppleo_praci)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -146,6 +152,12 @@ real, dimension(imax), intent(inout) :: condg
 real, dimension(imax), intent(inout) :: conds
 real, dimension(imax), intent(inout) :: condx
 real, dimension(imax), intent(inout) :: precip
+real, dimension(imax,kl), intent(inout) :: ppleo_pcaut,ppleo_psaut,ppleo_pgaut,ppleo_pgmlt,&
+                                           ppleo_pgsub,ppleo_pgacw,ppleo_pgacr,ppleo_pgaci,&
+                                           ppleo_pgacs,ppleo_psmlt,ppleo_pssub,ppleo_psacw,&
+                                           ppleo_psacr,ppleo_psaci,ppleo_pimlt,ppleo_pisub,&
+                                           ppleo_piacw,ppleo_piacr,ppleo_psure,ppleo_prevp,&
+                                           ppleo_pracc,ppleo_pracs,ppleo_praci
 real, dimension(imax), intent(in) :: ps
 real, intent(in) :: rcm
 logical, intent(in) :: mydiag
@@ -189,11 +201,15 @@ precg(:) = 0. ! graupel
 if ( ncloud==21 .or. ncloud==22 ) then
   call mg_2cond
 else
-  call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                    &
-                   precs,qg,stratcloud,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
-                   qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
-                   fluxf,pqfsedice,pslopes,prscav,vi,vs,vg,                         &
-                   condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+  call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                                       &
+                   precs,qg,stratcloud,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,                      &
+                   qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,                              &
+                   fluxf,pqfsedice,pslopes,prscav,vi,vs,vg,                                            &
+                   condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl,                             &
+                   ppleo_pcaut,ppleo_psaut,ppleo_pgaut,ppleo_pgmlt,ppleo_pgsub,ppleo_pgacw,ppleo_pgacr,&
+                   ppleo_pgaci,ppleo_pgacs,ppleo_psmlt,ppleo_pssub,ppleo_psacw,ppleo_psacr,ppleo_psaci,&
+                   ppleo_pimlt,ppleo_pisub,ppleo_piacw,ppleo_piacr,ppleo_psure,ppleo_prevp,ppleo_pracc,&
+                   ppleo_pracs,ppleo_praci)
 end if
 
 
@@ -386,7 +402,11 @@ end subroutine leoncld_work
 subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,ttg,qlg,qfg,qrg,qsng,qgrg,precs,qtg,stratcloud,cfrain,    &
                        cfsnow,cfgraupel,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,            &
                        fluxi,fluxs,fluxg,fluxm,fluxf,pqfsedice,pslopes,prscav,vi,vs,vg,                   &
-                       condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+                       condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl,                            &
+                       pleo_pcaut,pleo_psaut,pleo_pgaut,pleo_pgmlt,pleo_pgsub,pleo_pgacw,pleo_pgacr,      &
+                       pleo_pgaci,pleo_pgacs,pleo_psmlt,pleo_pssub,pleo_psacw,pleo_psacr,pleo_psaci,      &
+                       pleo_pimlt,pleo_pisub,pleo_piacw,pleo_piacr,pleo_psure,pleo_prevp,pleo_pracc,      &
+                       pleo_pracs,pleo_praci)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -413,6 +433,12 @@ real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax,kl), intent(inout) :: cfrain
 real, dimension(imax,kl), intent(inout) :: cfsnow
 real, dimension(imax,kl), intent(inout) :: cfgraupel
+real, dimension(imax,kl), intent(inout) :: pleo_pcaut,pleo_psaut,pleo_pgaut,pleo_pgmlt,&
+                                           pleo_pgsub,pleo_pgacw,pleo_pgacr,pleo_pgaci,&
+                                           pleo_pgacs,pleo_psmlt,pleo_pssub,pleo_psacw,&
+                                           pleo_psacr,pleo_psaci,pleo_pimlt,pleo_pisub,&
+                                           pleo_piacw,pleo_piacr,pleo_psure,pleo_prevp,&
+                                           pleo_pracc,pleo_pracs,pleo_praci
 real, dimension(imax,kl), intent(out) :: qevap
 real, dimension(imax,kl), intent(out) :: qsubl
 real, dimension(imax,kl), intent(out) :: qauto
@@ -568,6 +594,7 @@ do k = 1,kl-1
         qauto(iq,k)      = qauto(iq,k) + dqls
         qlg(iq,k)        = qlg(iq,k)   - dqls
         fluxautorain(iq,k) = dqls*rhoa(iq,k)*dz(iq,k)
+        pleo_pcaut(iq,k) = pleo_pcaut(iq,k) + dqls / tdt            ! sny 01: autoconversion to cloud water 
       end if ! pcic>=qcrit
     end if   ! clfr>0.
   end do ! iq loop
@@ -588,6 +615,7 @@ if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
         cfautosnow(iq,k)   = cifr(iq,k)
         qfg(iq,k)          = qfg(iq,k) - dqfs
         fluxautosnow(iq,k) = dqfs*rhoa(iq,k)*dz(iq,k)
+        pleo_psaut(iq,k)   = pleo_psaut(iq,k) + dqfs / tdt         ! sny 02: autoconversion of ice to snow
       end if
     
       ! autoconversion of snow to graupel (from Lin et al 1983)
@@ -598,6 +626,7 @@ if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
         cfautograupel(iq,k)   = cfsnow(iq,k)
         qsng(iq,k)            = qsng(iq,k) - dqfs
         fluxautograupel(iq,k) = dqfs*rhoa(iq,k)*dz(iq,k)
+        pleo_pgaut(iq,k)   = pleo_pgaut(iq,k) + dqfs / tdt         ! sny 03: autoconversion of snow to graupel
       end if
 
     end do ! iq loop 
@@ -754,6 +783,7 @@ do n = 1,njumps
             cftmp             = mxclfrgraupel(iq) + rdclfrgraupel(iq) - mxclfrgraupel(iq)*rdclfrgraupel(iq)
             cfmelt(iq)        = max( cfmelt(iq), max(cgfra(iq)-cftmp,0.) )
             cgfra(iq)         = cftmp
+            pleo_pgmlt(iq,k)  = pleo_pgmlt(iq,k) + dqf             ! sny 04: Melt falling graupel                                 
           end if
         end do
         
@@ -779,6 +809,7 @@ do n = 1,njumps
             dttg            = -hlscp*dqs
             ttg(iq,k)       = ttg(iq,k) + dttg
             qsatg(iq,k)     = qsatg(iq,k) + gam1(iq)*dttg/hlscp
+            pleo_pgsub(iq,k)  = pleo_pgsub(iq,k) + dqs              ! sny 05: Sublimation of graupel 
           end if
         end do
         
@@ -802,6 +833,7 @@ do n = 1,njumps
             cftmp           = clfr(iq,k)*drl/rl
             clfr(iq,k)      = clfr(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
+            pleo_pgacw(iq,k)  = pleo_pgacw(iq,k) + dql                ! sny 06: Accretion of cloud liquid by falling graupel
           end if
         end do
         
@@ -827,6 +859,7 @@ do n = 1,njumps
             cftmp           = cfrain(iq,k)*drl/rn
             cfrain(iq,k)    = cfrain(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
+            pleo_pgacr(iq,k)  = pleo_pgacr(iq,k) + dql              ! sny 07: Accretion of rain by falling graupel
           end if
         end do 
         
@@ -846,6 +879,7 @@ do n = 1,njumps
             cftmp           = cifr(iq,k)*drf/rf
             cifr(iq,k)      = cifr(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
+            pleo_pgaci(iq,k)  = pleo_pgaci(iq,k) + dqf             ! sny 08:  Accretion of cloud ice by falling graupel
           end if
         end do
         
@@ -869,6 +903,7 @@ do n = 1,njumps
             cftmp           = cfsnow(iq,k)*drf/rs
             cfsnow(iq,k)    = cfsnow(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp )
+            pleo_pgacs(iq,k)  = pleo_pgacs(iq,k) + dqf             ! sny 09: Accretion of snow by falling graupel
           end if
         end do
        
@@ -930,7 +965,8 @@ do n = 1,njumps
             mxclfrsnow(iq) = mxclfrsnow(iq)*(1.-drf/rs)
             cftmp          = mxclfrsnow(iq) + rdclfrsnow(iq) - mxclfrsnow(iq)*rdclfrsnow(iq)
             cfmelt(iq)     = max( cfmelt(iq), max( csfra(iq)-cftmp, 0. ) )
-            csfra(iq)      = cftmp      
+            csfra(iq)      = cftmp     
+            pleo_psmlt(iq,k)  = pleo_psmlt(iq,k) / dqf         ! sny 10: Melt falling snow if > 0 deg C due to rain accretion
           end if
         end do 
         
@@ -957,6 +993,7 @@ do n = 1,njumps
             dttg         = -hlscp*dqs
             ttg(iq,k)    = ttg(iq,k) + dttg
             qsatg(iq,k)  = qsatg(iq,k) + gam1(iq)*dttg/hlscp
+            pleo_pssub(iq,k)  = pleo_pssub(iq,k) + dqs           ! sny 11: sublimation of snow falling from level k+1 into level k 
           end if
         end do   
         
@@ -979,6 +1016,7 @@ do n = 1,njumps
             cftmp        = clfr(iq,k)*drl/rl
             clfr(iq,k)   = clfr(iq,k) - cftmp
             mxclfrsnow(iq) = max( mxclfrsnow(iq), cftmp )
+            pleo_psacw(iq,k)  = pleo_psacw(iq,k) + dql           ! sny 12: Accretion of cloud liquid by falling snow
           end if
         end do 
         
@@ -1004,6 +1042,7 @@ do n = 1,njumps
             cftmp        = cfrain(iq,k)*drl/rn
             cfrain(iq,k) = cfrain(iq,k) - cftmp
             mxclfrsnow(iq) = max( mxclfrsnow(iq), cftmp )
+            pleo_psacr(iq,k)  = pleo_psacr(iq,k) + dql            ! sny 13:  Accretion of rain by falling snow to form snow
           end if
         end do
         
@@ -1026,6 +1065,7 @@ do n = 1,njumps
             cftmp        = cifr(iq,k)*drf/rf
             cifr(iq,k)   = cifr(iq,k) - cftmp
             mxclfrsnow(iq) = max( mxclfrsnow(iq), cftmp )
+            pleo_psaci(iq,k)  = pleo_psaci(iq,k) + dqf            ! sny 14: Accretion of cloud ice by falling snow
           end if
         end do
         
@@ -1126,6 +1166,7 @@ do n = 1,njumps
           cifra(iq)     = 0.
           rdclfrice(iq) = 0.
           mxclfrice(iq) = 0.
+          pleo_pimlt(iq,k)  = pleo_pimlt(iq,k) + qif          ! sny 15: Melt falling ice if > 0 deg C to form cloud water
         end if
       end do
       
@@ -1148,6 +1189,7 @@ do n = 1,njumps
           dttg         = -hlscp*dqs
           ttg(iq,k)    = ttg(iq,k) + dttg
           qsatg(iq,k)  = qsatg(iq,k) + gam1(iq)*dttg/hlscp
+          pleo_pisub(iq,k)  = pleo_pisub(iq,k) + dqs                         ! sny 16 sublimation of ice
         end if
       end do 
       
@@ -1172,6 +1214,7 @@ do n = 1,njumps
           cftmp       = clfr(iq,k)*drl/rl
           clfr(iq,k)  = clfr(iq,k) - cftmp
           mxclfrice(iq) = max( mxclfrice(iq), cftmp )
+          pleo_piacw(iq,k)  = pleo_piacw(iq,k) + dql                        ! sny 17: Accretion of cloud liquid by falling ice
         end if
       end do
       
@@ -1194,6 +1237,7 @@ do n = 1,njumps
             cftmp        = cfrain(iq,k)*drl/rn
             cfrain(iq,k) = cfrain(iq,k) - cftmp
             mxclfrice(iq) = max( mxclfrice(iq), cftmp )
+            pleo_piacr(iq,k)  = pleo_piacr(iq,k) + dql                     ! sny 18: Accretion of rain by falling ice to produce ice
           end if
         end do
       end if 
@@ -1271,6 +1315,7 @@ do n = 1,njumps
             cltmp           = mxclfrrain(iq) + rdclfrrain(iq) - mxclfrrain(iq)*rdclfrrain(iq)
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), max(crfra(iq)-cltmp, 0.) )
             crfra(iq)       = cltmp
+            pleo_psure(iq,k)  = pleo_psure(iq,k) + dql                ! sny 19: NOT SURE what process here
           end if
         end do
 
@@ -1299,6 +1344,7 @@ do n = 1,njumps
           ! vr2=11.3*Fr(iq)**(1./9.)/sqrt(rhoa(mg,k)) !Actual fall speed
           ! vr2=5./sqrt(rhoa(mg,k))               !Nominal fall speed
           evap(iq) = max( 0., min( evap(iq), satevap, clrevap(iq) ) )
+          pleo_prevp(iq,k)  = pleo_prevp(iq,k) + evap(iq)                  ! sny 20: Evaporation of rain 
         end if
       end do
       select case(nevapls)
@@ -1340,6 +1386,7 @@ do n = 1,njumps
           cltmp        = clfr(iq,k)*coll/rl
           clfr(iq,k)   = clfr(iq,k) - cltmp
           mxclfrrain(iq) = max( mxclfrrain(iq), cltmp )
+          pleo_pracc(iq,k)  = pleo_pracc(iq,k) + dql              ! sny 21: collection of liquid cloud by rain
         end if
       end do
       
@@ -1373,6 +1420,7 @@ do n = 1,njumps
             cftmp        = cfsnow(iq,k)*drf/rs
             cfsnow(iq,k) = cfsnow(iq,k) - cftmp
             mxclfrrain(iq) = max( mxclfrrain(iq), cftmp )
+            pleo_pracs(iq,k)  = pleo_pracs(iq,k) + dqf             ! sny 22: Accretion of cloud snow by rain
           end if
         end do
 
@@ -1417,6 +1465,7 @@ do n = 1,njumps
             cifr(iq,k)      = cifr(iq,k) - cftmp
             mxclfrgraupel(iq) = max( mxclfrgraupel(iq), cftmp*xwgt )
             mxclfrsnow(iq)    = max( mxclfrsnow(iq), cftmp*(1.-xwgt) )
+            pleo_praci(iq,k)  = pleo_praci(iq,k) + drf/rhoa(iq,k)       ! sny 23: Accretion of cloud ice by rain to produce snow or grauple
           end if
         end do
         
@@ -1556,6 +1605,30 @@ do n = 1,njumps
   
 end do   ! n
 
+! process rate: devide to total (large)time step
+pleo_pcaut = pleo_pcaut 
+pleo_psaut = pleo_psaut 
+pleo_pgaut = pleo_pgaut 
+pleo_pgmlt = pleo_pgmlt / tdt_in
+pleo_pgsub = pleo_pgsub / tdt_in
+pleo_pgacw = pleo_pgacw / tdt_in
+pleo_pgacr = pleo_pgacr / tdt_in
+pleo_pgaci = pleo_pgaci / tdt_in
+pleo_pgacs = pleo_pgacs / tdt_in
+pleo_psmlt = pleo_psmlt / tdt_in
+pleo_pssub = pleo_pssub / tdt_in
+pleo_psacw = pleo_psacw / tdt_in
+pleo_psacr = pleo_psacr / tdt_in
+pleo_psaci = pleo_psaci / tdt_in
+pleo_pimlt = pleo_pimlt / tdt_in
+pleo_pisub = pleo_pisub / tdt_in
+pleo_piacw = pleo_piacw / tdt_in
+pleo_piacr = pleo_piacr / tdt_in
+pleo_psure = pleo_psure / tdt_in
+pleo_prevp = pleo_prevp / tdt_in
+pleo_pracc = pleo_pracc / tdt_in
+pleo_pracs = pleo_pracs / tdt_in
+pleo_praci = pleo_praci / tdt_in
 
 ! store precip, snow and graupel
 precs(:) = precs + fluxr(:,1) + fluxi(:,1) + fluxs(:,1) + fluxg(:,1)
