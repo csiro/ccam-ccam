@@ -2265,9 +2265,6 @@ if( myid==0 .or. local ) then
     call ccnf_enddef(idnc)
 
     if ( local ) then
-#ifdef debugoutcdf
-      call ccmpi_barrier(comm_world)
-#endif
       if ( myid==0 ) write(6,*) '--> write coordinate data'
       ! procformat
       allocate(xpnt(il),xpnt2(il,vnode_nproc))
@@ -2320,9 +2317,6 @@ if( myid==0 .or. local ) then
     
     ! procformat
     if ( local ) then
-#ifdef debugoutcdf
-      call ccmpi_barrier(comm_world)
-#endif
       ! store local processor id in output file
       if ( myid==0 ) write(6,*) '--> write procformat data'
       allocate(vnode_dat(vnode_nproc))
@@ -2338,9 +2332,6 @@ if( myid==0 .or. local ) then
       end if
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
       deallocate(vnode_dat)
-#ifdef debugoutcdf
-      call ccmpi_barrier(comm_world)
-#endif
       ! store file id for a given processor number in output file number 000000
       ! store offset within a file for a given processor number in output file number 000000
       if ( myid==0 ) then
@@ -2357,9 +2348,6 @@ if( myid==0 .or. local ) then
         call ccnf_put_vara(idnc,idgpoff,(/1/),(/nproc/),procdata)  
       end if
       deallocate(procnode,procdata)
-#ifdef debugoutcdf
-      call ccmpi_barrier(comm_world)
-#endif
     end if
    
     call ccnf_put_vara(idnc,'ds',1,ds)
@@ -2442,9 +2430,6 @@ elseif ( localhist ) then
     
   if ( iarch==1 ) then  
 
-#ifdef debugoutcdf
-    call ccmpi_barrier(comm_world)
-#endif
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
       xpnt(i) = float(i + ioff)
@@ -2461,29 +2446,16 @@ elseif ( localhist ) then
     call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
     deallocate(ypnt,ypnt2)
   
-#ifdef debugoutcdf
-    call ccmpi_barrier(comm_world)
-#endif
     allocate(vnode_dat(vnode_nproc))
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
     deallocate(vnode_dat)
-#ifdef debugoutcdf
-    call ccmpi_barrier(comm_world)
-#endif
     allocate(procnode(2,1)) ! not used
     call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
     deallocate(procnode)
-#ifdef debugoutcdf
-    call ccmpi_barrier(comm_world)
-#endif    
     
   end if ! if iarchi==1
     
 end if ! myid == 0 .or. local ..else.. localhist ...
-
-#ifdef debugoutcdf
-call ccmpi_barrier(comm_world)
-#endif
 
 if ( myid==0 ) then
   if ( iout==19 ) then

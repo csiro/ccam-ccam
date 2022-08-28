@@ -5,9 +5,6 @@ CC = cc
 # Common compiler flags
 ifneq ($(CUSTOM),yes)
 NCFLAG = -I $(NETCDF_ROOT)/include
-ifeq ($(NCCLIB),yes)
-NCFLAG += -Dncclib
-endif
 ifeq ($(NOMPI3),yes)
 MPIFLAG =
 else
@@ -158,7 +155,7 @@ FHOST = -O4 -fast -tp=skylake-avx512
 endif
 MPIFLAG =
 MPISPECIAL =
-FFLAGS = $(FHOST) -Dpgi -traceback $(MPIFLAG) $(NCFLAG)
+FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(GPU),yes)
 FFLAGS += -Minfo=accel -acc -gpu=cc70,fastmath,flushz -DGPU
 #-ta=tesla:cc70
@@ -211,7 +208,7 @@ endif
 ifeq ($(CRAY),yes)
 FC = ftn
 FCSCM = ftn
-FFLAGS = -h noomp -h noacc -Dusenc_mod
+FFLAGS = -h noomp -h noacc
 FOVERRIDE =
 ZMM =
 IPFLAG =
@@ -306,17 +303,12 @@ endif
 
 # Testing - I/O and fpmodel
 ifeq ($(TEST),yes)
-FFLAGS += $(DEBUGFLAG) -Ddebugaero -Dseaesfdebug
+FFLAGS += $(DEBUGFLAG) -Ddebug
 endif
 
 # Build with 64 ints/reals
 ifeq ($(I8R8),yes)
 FFLAGS += $(REAL8FLAG) $(INT8FLAG) -Di8r8
-endif
-
-# Use NetCDF F90 interface
-ifeq ($(NCMOD),yes)
-FFLAGS += -Dusenc_mod
 endif
 
 # Use Netcdf3
@@ -335,6 +327,7 @@ outcdf.o radriv90.o scrnout.o setxyz.o sflux.o \
 soilsnow.o staguv.o upglobal.o eig.o updps.o vadvtvd.o \
 vertmix.o leoncld.o cloudmod.o latltoij.o module_aux_rad.o module_ctrl_microphysics.o \
 cldblk.o clddia.o clo89.o cloud.o cloud2.o co2_read.o e1e288.o \
+!$acc routine vector
 e3v88.o fst88.o hconst.o lwr88.o ozoneread.o spa88.o \
 swr99.o table.o zenith.o cc_acc.o cc_mpi.o cc_omp.o diag_m.o sumdd_m.o daviesnudge.o \
 utilities.o onthefly.o tracermodule.o timeseries.o \

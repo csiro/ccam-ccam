@@ -671,7 +671,7 @@ ssnow%wbice = max( ssnow%wbice, 0._8 )
 !          - (canopy%fevw + canopy%fevc + canopy%fes/ssnow%cls)*dtr8/air%rlam - delwb
 !write(6,*) "bal%wbal ",minval(bal%wbal),maxval(bal%wbal)
 
-#ifdef cabledebug
+#ifdef debug
 if ( any( canopy%fhv/=canopy%fhv ) ) then
   write(6,*) "ERROR: NaN found in canopy%fhv after CABLE"
   stop -1

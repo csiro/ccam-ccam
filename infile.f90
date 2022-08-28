@@ -28,13 +28,8 @@ module infile
 ! supplied in parallel and then makes this data avaliable to all processors for interpolation. The code can also identify
 ! restart files, in which case no additional message passing is required.
 
-#ifdef usenc_mod
-! use netcdf.mod interface
-use netcdf
-#else
 ! use netcdf.inc interface (default) or C interface (-Dncclib)
 use netcdf_m
-#endif
 
 implicit none
             
@@ -2050,10 +2045,6 @@ else
 end if
 lcdfid = cdfid
 ldim   = dim
-#ifdef usenc3
-ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
-call ncmsg("def_var - "//trim(name),ier)
-#else
 if ( localhist .and. ndim>3 ) then
   ! MJT notes - PR identified (/il, jl, kl,vnode_nproc, min(10, tlen)/) as optimal.
   ! However, here we simplify the code and PR reports that the performance is
@@ -2082,7 +2073,6 @@ else
   call ncmsg("def_var - "//trim(name),ier)
   ier = nf90_def_var_deflate(lcdfid, idv, 1_4, 1_4, lcompression)
 end if
-#endif
 lsize = len_trim(lname)
 ier = nf90_put_att(lcdfid,idv,'long_name',lname)
 call ncmsg("long_name",ier)
@@ -3306,11 +3296,7 @@ integer ncstatus
 integer(kind=4) :: lncid
 character(len=*), intent(in) :: fname
 
-#ifdef usenc3
-ncstatus = nf90_create(fname,nf90_64bit_offset,lncid)
-#else
 ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
-#endif
 ncid = lncid
 if ( ncstatus/=nf90_noerr ) then
   write(6,*) "ERROR: Cannot create fname = ",trim(fname)
@@ -3541,11 +3527,7 @@ end select
 
 lncid=ncid
 ldims=dims
-#ifdef usenc3
-ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
-#else
 ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=1_4)
-#endif
 vid=lvid
 call ncmsg("def_var - "//trim(vname),ncstatus)
 

@@ -127,7 +127,6 @@ end subroutine gwdrag
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
 subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)
-!$acc routine vector
 
 use const_phys
 use parm_m, only : vmodmin, sigbot_gwd, fc2, dt, alphaj, ngwd

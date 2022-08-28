@@ -28,6 +28,18 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
+
+! Allowed preprocessor directives:
+!   CCAM        - support CCAM (required)
+!   debug       - additional debugging checks
+!   scm         - single column mode
+!   i8r8        - double precision mode
+!   GPU         - target GPUs with OpenMP
+!   csircoupled - CSIR coupled model
+!   usempi3     - allow shared memory (preferred)
+!   stacklimit  - disable stacklimit
+!   vampir      - enable vampir profiling
+!   pgi         - special options for pgfortran
     
 program globpe
 
@@ -2822,7 +2834,7 @@ if ( wgcoeff<0. ) then
   else
     tscale = max( dt, wg_tau )  
   end if
-  ! Wichers et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
+  ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
   wgcoeff = sqrt(max(0.,2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
   if ( myid==0 ) then
     write(6,*) "Adjusting wgcoeff = ",wgcoeff

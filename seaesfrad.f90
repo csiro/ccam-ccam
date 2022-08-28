@@ -289,7 +289,7 @@ do iq_tile = 1,ifull,imax
   call atebalb1(istart,imax,cirrf_dir,0,split=1) ! direct
   call atebalb1(istart,imax,cuvrf_dif,0,split=2) ! diffuse
   call atebalb1(istart,imax,cirrf_dif,0,split=2) ! diffuse
-   
+ 
   ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
 
@@ -401,7 +401,8 @@ do iq_tile = 1,ifull,imax
             Aerosol(mythread)%aerosol(:,1,kr,11) = real(xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
           end do
         end if
-#ifdef seaesfdebug
+        
+#ifdef debug
         if ( any( Aerosol(mythread)%aerosol>2.e-4 ) ) then
           write(6,*) "WARN: seaesf detects high aerosol concentrations "
           write(6,*) "xtg,maxloc ",maxval(Aerosol(mythread)%aerosol),maxloc(Aerosol(mythread)%aerosol)
@@ -685,7 +686,7 @@ do iq_tile = 1,ifull,imax
       lw_tend(istart:iend,kl+1-k) = -real(Lw_output(mythread)%heatra(:,1,k)/86400._8)
     end do
     
-#ifdef seaesfdebug
+#ifdef debug
     if ( any(Sw_output(mythread)%hsw(:,1,:,1)/=Sw_output(mythread)%hsw(:,1,:,1)) ) then
       write(6,*) "ERROR: NaN detected in hsw for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
