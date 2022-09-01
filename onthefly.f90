@@ -185,11 +185,10 @@ if ( myid==0 .or. pfall ) then
     ktime_r = ktime_s
     if ( myid==0 ) then
       write(6,*) 'Reading climatology for iarch=1'
-      write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
     end if
   else  
     if ( myid==0 ) then
-      write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
+      write(6,*) 'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
     end if
     ltest = .true.       ! flag indicates that the date is not yet found
     iarchi = iarchi - 1  ! move time index back one step to check current position in file
@@ -551,22 +550,20 @@ if ( newfile .and. .not.iop_test ) then
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
   rotpole  = calc_rotpole(rlong0,rlat0)
-  if ( myid==0 ) then
+  if ( myid==0 .and. nmaxpr==1 ) then
     write(6,*)'m_fly,nord ',m_fly,3
     write(6,*)'kdate_r,ktime_r,ktau,ds',kdate_r,ktime_r,ktau,ds
     write(6,*)'rotpoles:'
     do i = 1,3
       write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpoles(i,j),j=1,3)
     enddo
-    if ( nmaxpr==1 ) then
-      write(6,*)'in onthefly rotpole:'
-      do i = 1,3
-        write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
-      enddo
-      write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
-      write(6,*)'before latltoij for id,jd: ',id,jd
-      write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
-    end if                ! (nmaxpr==1)
+    write(6,*)'in onthefly rotpole:'
+    do i = 1,3
+      write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
+    enddo
+    write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
+    write(6,*)'before latltoij for id,jd: ',id,jd
+    write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
   end if                  ! (myid==0)
 
   ! setup interpolation arrays
@@ -606,7 +603,7 @@ if ( newfile ) then
         call ccmpi_abort(-1)
       else
         call ccnf_get_vara(ncid,idv,1,kk,sigin)
-        if ( myid==0 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
+        if ( myid==0 .and. nmaxpr==1 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
       end if
     else
       sigin(:) = 1.       
@@ -814,7 +811,7 @@ if ( newfile ) then
       write(6,*) "CCAM requires zht or soilt or ocndepth in input file"
       call ccmpi_abort(-1)
     end if  
-    if ( myid==0 ) then
+    if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Land-sea mask using nemi = ",nemi
     end if
   end if  
@@ -822,7 +819,7 @@ if ( newfile ) then
   ! read urban data mask
   ! read urban mask for urban and initial conditions and interpolation
   if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iop_test ) then
-    if ( myid==0 ) then
+    if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Determine urban mask"
     end if  
     if ( urban1_found ) then
@@ -840,8 +837,6 @@ if ( newfile ) then
     end if
   end if  
     
-  if ( myid==0 ) write(6,*) "Finished reading invariant fields"
-  
 else
     
   ! use saved metadata  
@@ -881,6 +876,8 @@ if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
     call ccmpi_abort(-1)
   end if
 end if
+
+if ( myid==0 ) write(6,*) "Reading prognostic fields"
 
 !--------------------------------------------------------------------
 ! Read surface pressure
@@ -998,7 +995,7 @@ else
       ! neither sicedep nor fracice read in
       sicedep_a(1:fwsize) = 0.  ! Oct 08
       fracice_a(1:fwsize) = 0.
-      if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
+      if ( myid==0 .and. nmaxpr==1 ) write(6,*) 'pre-setting siced in onthefly from tss'
       where ( abs(tss_a(1:fwsize))<=271.6 ) ! for ERA-Interim
         sicedep_a(1:fwsize) = 1.  ! Oct 08  ! previously 271.2
         fracice_a(1:fwsize) = 1.
@@ -1473,7 +1470,7 @@ if ( nested/=1 .and. nested/=3 ) then
     nstagu      = ierc(5)
     nstagoff    = ierc(6)
     nstagoffmlo = ierc(7)
-    if ( myid==0 ) then
+    if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Continue staggering from"
       write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
       if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
@@ -1748,7 +1745,7 @@ if ( nested/=1 .and. nested/=3 ) then
       end do  
     else
       ! nested without urban data
-      if ( myid==0 ) then
+      if ( myid==0 .and. nmaxpr==1 ) then
         write(6,*) "Use tsu for urban data"  
       end if
       call gethist1("tsu",dum6)
@@ -3644,7 +3641,7 @@ end do
 
 ! Construct a map of files to be accessed by this process
 if ( myid==0 ) then
-  write(6,*) "--> Create map of files required by this process"
+  write(6,*) "-> Create map of files required by this process"
 end if
 ncount = count(lfile(0:fnproc-1))
 allocate( filemap_req(ncount), filemap_qmod(ncount) )
@@ -3659,7 +3656,7 @@ end do
 
 ! Construct a map of processes that need this file
 if ( myid==0 ) then
-  write(6,*) "--> Create map for communication between processes"  
+  write(6,*) "-> Create map for communication between processes"  
 end if
 allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
 allocate( tempmap_recv(nproc*fncount), tempmap_rmod(nproc*fncount) )
@@ -3713,13 +3710,13 @@ call ccmpi_filewininit(kblock)
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then
-  write(6,*) "--> Setup bounds function for processors reading input files"  
+  write(6,*) "-> Setup bounds function for processors reading input files"  
 end if
 call ccmpi_filebounds_setup(comm_ip)
 
 ! Distribute fields for vector rotation
 if ( myid==0 ) then
-  write(6,*) "--> Distribute vector rotation data to processors reading input files"
+  write(6,*) "-> Distribute vector rotation data to processors reading input files"
 end if
 allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
 allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
@@ -3742,7 +3739,7 @@ else if ( fwsize>0 ) then
 end if
 
 if ( myid==0 ) then
-  write(6,*) "--> Finished creating control data for input file data"
+  write(6,*) "-> Finished creating control data for input file data"
 end if
 
 return

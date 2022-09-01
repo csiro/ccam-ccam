@@ -327,7 +327,6 @@ outcdf.o radriv90.o scrnout.o setxyz.o sflux.o \
 soilsnow.o staguv.o upglobal.o eig.o updps.o vadvtvd.o \
 vertmix.o leoncld.o cloudmod.o latltoij.o module_aux_rad.o module_ctrl_microphysics.o \
 cldblk.o clddia.o clo89.o cloud.o cloud2.o co2_read.o e1e288.o \
-!$acc routine vector
 e3v88.o fst88.o hconst.o lwr88.o ozoneread.o spa88.o \
 swr99.o table.o zenith.o cc_acc.o cc_mpi.o cc_omp.o diag_m.o sumdd_m.o daviesnudge.o \
 utilities.o onthefly.o tracermodule.o timeseries.o \
@@ -571,7 +570,7 @@ depts.o : bigxy4_m.o cc_acc.o cc_mpi.o const_phys.o indices_m.o map_m.o newmpar_
 diag_m.o : cc_mpi.o newmpar_m.o parm_m.o sigs_m.o sumdd_m.o xyzinfo_m.o
 e1e288.o : kdacom_m.o newmpar_m.o radisw_m.o tabcom_m.o tfcom_m.o hcon.h rdparm.h
 e3v88.o : newmpar_m.o tabcom_m.o hcon.h rdparm.h
-eig.o : cc_mpi.o const_phys.o newmpar_m.o vecs_m.o
+eig.o : cc_mpi.o const_phys.o newmpar_m.o parm_m.o vecs_m.o
 ensemble.o : aerosolldr.o arrays_m.o cc_mpi.o dates_m.o filnames_m.o mlo.o newmpar_m.o onthefly.o outcdf.o parm_m.o pbl_m.o soil_m.o soilsnow_m.o xyzinfo_m.o
 esfsw_driver.o : esfsw_parameters.o rad_utilities.o
 esfsw_parameters.o : rad_utilities.o

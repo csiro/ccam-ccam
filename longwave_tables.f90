@@ -265,7 +265,7 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/h2o_ckd_widebds_hi12'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -292,7 +292,7 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
           if ( myid==0 ) then      
             filename = trim(cnsdir) // '/h2o_rsb_widebds_hi12'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -319,7 +319,7 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
           if ( myid==0 ) then   
             filename = trim(cnsdir) // '/h2o_BPS_widebds_hi12'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -490,7 +490,7 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
             if ( myid==0 ) then  
               filename = trim(cnsdir) // '/bandpar_h2o_ckdsea_12001400_hi12_data'
               open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-              write(6,*) "Reading ",trim(filename)
+              !write(6,*) "Reading ",trim(filename)
               if ( ierr/=0 ) then
                 write(6,*) "ERROR: Cannot read ",trim(filename)
                 call ccmpi_abort(-1)
@@ -528,7 +528,7 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
             if ( myid==0 ) then  
               filename = trim(cnsdir) // '/bandpar_h2o_ckdsea_12001400_hi12_data'
               open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-              write(6,*) "Reading ",trim(filename)
+              !write(6,*) "Reading ",trim(filename)
               if ( ierr/=0 ) then
                 write(6,*) "ERROR: Cannot read ",trim(filename)
                 call ccmpi_abort(-1)
@@ -604,7 +604,7 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/id2h2obdckd2p1'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -632,7 +632,7 @@ type (longwave_tables2_type), intent(inout) :: tab1a, tab2a, tab3a
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/id2h2obdfull'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)

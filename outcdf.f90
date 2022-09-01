@@ -5149,7 +5149,7 @@ conr = c/rdry
 if ( lev<0 ) then
   pos = minloc(abs(sig-0.9),sig>=0.9)
   lev = pos(1)
-  if ( myid==0 ) then
+  if ( myid==0 .and. nmaxpr==1 ) then
     write(6,*) "Reducing ps to MSLP with lev,sig ",lev,sig(lev) 
   end if
 end if

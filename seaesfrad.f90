@@ -1709,8 +1709,9 @@ do k = 1,kl-1
 end do
 
 if ( myid==0 ) then
-  write(6,*) "siglow,sigmid = ",siglow,sigmid
-  write(6,*) "nlow,nmid     = ",nlow,nmid
+  write(6,*) "Define diagnostic cloud levels"  
+  write(6,*) "-> siglow,sigmid = ",siglow,sigmid
+  write(6,*) "-> nlow,nmid     = ",nlow,nmid
 end if
 
 ! initialise VIS fraction of SW radiation
@@ -1733,6 +1734,7 @@ use aerosolldr
 use cc_mpi
 use filnames_m
 use infile
+use parm_m
 
 implicit none
 
@@ -2107,7 +2109,7 @@ if ( myid==0 ) then
     read( unit,* ) aeroasymm_in
     do noptical = 1,naermodels-4
       if ( trim(aerosol_optical_names(noptical))==trim(name_in) ) then
-        write(6,*) "Loading optical model for ",trim(name_in)
+        if ( nmaxpr==1 ) write(6,*) "Loading optical model for ",trim(name_in)
         optical_check(noptical) = .true.
         aeroextivl(:,noptical)   = aeroext_in
         aerossalbivl(:,noptical) = aerossalb_in

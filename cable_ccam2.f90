@@ -2461,7 +2461,7 @@ POP_HEIGHT_BINS = HEIGHT_BINS
 POP_NDISTURB = NDISTURB
 POP_AGEMAX = AGEMAX
 
-if ( myid==0 ) write(6,*) "Define CABLE and CASA CNP arrays"
+if ( myid==0 .and. nmaxpr==1 ) write(6,*) "-> Define CABLE and CASA CNP arrays"
 
 ! default values (i.e., no land)  
 ivegt = 0
@@ -2515,18 +2515,16 @@ kend_gl = 999
 ! if CABLE is present on this processor, then start allocating arrays
 ! Write messages here in case myid==0 has no land-points (mp_global==0)
 if ( myid==0 ) then
-  write(6,*) "Allocating CABLE and CASA CNP arrays"
-  if ( soil_struc==1 ) then 
-    write(6,*) "Using SLI soil model"
-  end if
+  if ( nmaxpr==1 ) write(6,*) "-> Allocating CABLE and CASA CNP arrays"
+  if ( soil_struc==1 ) write(6,*) "-> Using SLI soil model"
   if ( ccycle==0 ) then
-    write(6,*) "Using CABLE without carbon cycle"
+    write(6,*) "-> Using CABLE without carbon cycle"
   else if ( ccycle==1 ) then
-    write(6,*) "Using CASA C"
+    write(6,*) "-> Using CASA C"
   else if ( ccycle==2 ) then
-    write(6,*) "Using CASA CN"
+    write(6,*) "-> Using CASA CN"
   else
-    write(6,*) "Using CASA CNP"
+    write(6,*) "-> Using CASA CNP"
   end if
 end if
 
@@ -3148,7 +3146,7 @@ if ( myid==0 ) then
   end do  
 end if
   
-if (myid==0) write(6,*) "Finished defining CABLE and CASA CNP arrays"
+if ( myid==0 .and. nmaxpr==1 ) write(6,*) "Finished defining CABLE and CASA CNP arrays"
 
 return
 end subroutine cbmparm
@@ -3216,7 +3214,7 @@ call ccmpi_bcast(fflag,0,comm_world)
 
 if ( fflag == 1  ) then
   if ( myid == 0 ) then
-    write(6,*) "Using user defined CASA PFT parameter tables"
+    write(6,*) "-> Using user defined CASA PFT parameter tables"
     open(86,file=fcasapft,status='old',action='read',iostat=ierr)
   end if
   call ccmpi_bcast(ierr,0,comm_world)
@@ -3228,7 +3226,7 @@ if ( fflag == 1  ) then
   end if
 
   if ( myid == 0 ) then
-    write(6,*) "Reading ",trim(fcasapft)
+    write(6,*) "->  Reading ",trim(fcasapft)
 
     do i=1,3
       read(86,*)
@@ -4065,7 +4063,7 @@ if ( lncveg_numpft<1 ) then
     
   ! default biophysical parameter tables
   if ( myid==0 ) then
-    write(6,*) "Using default CABLE biophysical parameter tables"
+    write(6,*) "-> Using default CABLE biophysical parameter tables"
   end if
   lncveg_numpft = 18
   allocate( csiropft(lncveg_numpft), hc(lncveg_numpft), xfang(lncveg_numpft), leaf_w(lncveg_numpft), leaf_l(lncveg_numpft) )
@@ -4114,7 +4112,7 @@ else
 
   ! user defined biophysical parameter tables  
   if ( myid==0 ) then
-    write(6,*) "Using user defined CABLE biophysical parameter tables"
+    write(6,*) "-> Using user defined CABLE biophysical parameter tables"
   end if
   allocate( csiropft(lncveg_numpft), hc(lncveg_numpft), xfang(lncveg_numpft), leaf_w(lncveg_numpft), leaf_l(lncveg_numpft) )
   allocate( canst1(lncveg_numpft), shelrb(lncveg_numpft), extkn(lncveg_numpft), refl(lncveg_numpft,2), taul(lncveg_numpft,2) )
@@ -4273,7 +4271,7 @@ if ( mp_global>0 ) then
   if ( gs_switch==1 ) then
     if ( any( veg%g0<1.e-8 ) ) then
       if ( myid==0 ) then
-        write(6,*) "WARN: Replacing g0=0. with g0=0.01 for gs_switch=1"
+        write(6,*) "-> WARN: Replacing g0=0. with g0=0.01 for gs_switch=1"
       end if  
       where ( veg%g0<1.e-8 ) 
         veg%g0 = 0.01
@@ -4300,6 +4298,7 @@ use cc_mpi     ! CC MPI routines
 use darcdf_m   ! Netcdf data
 use infile     ! Input file routines
 use newmpar_m
+use parm_m, only : nmaxpr
 use soilv_m
 
 implicit none
@@ -4317,13 +4316,13 @@ if ( lncveg_numsoil<1 ) then
     
   ! default soil parameter tables
   if ( myid==0 ) then
-    write(6,*) "Using default CABLE soil parameter tables"
+    write(6,*) "-> Using default CABLE soil parameter tables"
   end if
 
   ! redefine rhos
   rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
 
-  if ( myid==0 ) then
+  if ( myid==0 .and. nmaxpr==1 ) then
     do isoil = 1,mxst
       write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
     end do
@@ -4333,7 +4332,7 @@ else
 
   ! user defined soil parameter tables  
   if ( myid==0 ) then
-    write(6,*) "Using user defined CABLE soil parameter tables"
+    write(6,*) "-> Using user defined CABLE soil parameter tables"
   end if
   if ( lncveg_numsoil > mxst ) then
     write(6,*) "ERROR: Number of soil types larger than maximum, mxst,numsoil:",mxst,lncveg_numsoil
@@ -4388,7 +4387,7 @@ else
     hsbh(isoil)  = hyds(isoil)*abs(sucs(isoil))*bch(isoil) !difsat*etasat
     ibp2(isoil)  = nint(bch(isoil))+2
     i2bp3(isoil) = 2*nint(bch(isoil))+3
-    if ( myid==0 ) then
+    if ( myid==0 .and. nmaxpr==1 ) then
       write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
     end if
   end do
@@ -8969,6 +8968,7 @@ subroutine casa_readphen(fphen,greenup,fall,phendoy1)
 use cc_mpi
 use infile
 use newmpar_m
+use parm_m
 
 implicit none
 
@@ -8990,16 +8990,16 @@ phendoy1(:,:) = 2
 ! MJT notes - if the CSIRO PFTs are redefined, then this phenology data will be mismatched
 
 if ( myid==0 ) then
-  write(6,*) "Reading CASA leaf phenology data"
+  write(6,*) "-> Reading CASA leaf phenology data ",trim(fphen)
   call ccnf_open(fphen,ncid,ierr)
   if ( ierr==0 ) then
     ncfile = .true.
-    write(6,*) "Found netcdf file ",trim(fphen)
+    if ( nmaxpr==1 ) write(6,*) "-> Found netcdf file ",trim(fphen)
   else
     call ccnf_open(fphen//'.nc',ncid,ierr)
     if ( ierr==0 ) then
       ncfile = .true.
-      write(6,*) "Found netcdf file ",trim(fphen)
+      if ( nmaxpr==1 ) write(6,*) "-> Found netcdf file ",trim(fphen)
     else  
       open(87,file=fphen,status='old',iostat=ierr)
       if ( ierr/=0 ) then

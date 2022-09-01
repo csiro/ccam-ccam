@@ -251,9 +251,11 @@ if ( myid==0 ) then
   read(28,*)(dumc(kl+k),k=1,kl)
   close(28) 
   ! dumc(1:kl)   = sig,   dumc(kl+1:2*kl) = sigmh, dumc(2*kl+1:3*kl) = tbar
-  write(6,*) 'kl,lapsbot,sig from eigenv file: ',kl,lapsbot,dumc(1:kl)
-  write(6,*) 'tbar: ',dumc(2*kl+1:3*kl)
-  write(6,*) 'bam:  ',bam
+  if ( nmaxpr==1 ) then
+    write(6,*) 'kl,lapsbot,sig from eigenv file: ',kl,lapsbot,dumc(1:kl)
+    write(6,*) 'tbar: ',dumc(2*kl+1:3*kl)
+    write(6,*) 'bam:  ',bam
+  end if  
   
   if ( vegfile==" " ) then
     write(6,*) "ERROR: vegfile has not been specified"
@@ -319,7 +321,7 @@ lncveg_numpft  = nint(dumc(3*kl+6))
 lncveg_numsoil = nint(dumc(3*kl+7))
 if ( myid==0 ) then
   write(6,*) "Testing for NetCDF surface files"
-  write(6,*) "lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
+  write(6,*) "-> lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
   write(6,*) "Processing vertical levels"
 end if
 
@@ -327,7 +329,7 @@ dsig(1:kl-1)   = sigmh(2:kl) - sigmh(1:kl-1)
 dsig(kl)       = -sigmh(kl)
 sumdsig        = sum(dsig(1:kl))
 tbardsig(1:kl) = 0.
-if ( myid==0 ) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*)'dsig,sumdsig ',dsig,sumdsig
 end if
 if ( isoth>=0 ) then
@@ -348,7 +350,7 @@ do k = 1,kl-1
   ratha(k) = (sigmh(k+1)-sig(k))/(sig(k+1)-sig(k))
   rathb(k) = (sig(k+1)-sigmh(k+1))/(sig(k+1)-sig(k))
 end do
-if ( myid==0 ) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*)'rata ',rata
   write(6,*)'ratb ',ratb
   write(6,*)'ratha ',ratha
@@ -378,12 +380,13 @@ endif
 
 ! Calculate eigenvectors
 if ( myid==0 ) then
-  write(6,*) 'bet  ',bet
-  write(6,*) 'betm ',betm
-  write(6,*) 'Calculating eigenvectors'
+  if ( nmaxpr==1 ) then  
+    write(6,*) 'bet  ',bet
+    write(6,*) 'betm ',betm
+  end if
 end if
 if ( nh==2 .and. lapsbot/=3 ) then
-  write(6,*) 'nh=2 needs lapsbot=3'
+  write(6,*) 'ERROR: nh=2 needs lapsbot=3'
   call ccmpi_abort(-1)
 end if
 if ( abs(epsp)<=1. ) then
@@ -744,7 +747,7 @@ if ( nurban/=0 ) then
   allocate( atebparm(ateb_len,36) )
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
-      write(6,*) "Using user defined UCLEM urban parameter tables with ateb_len=",ateb_len
+      write(6,*) "-> Using user defined UCLEM urban parameter tables with ateb_len=",ateb_len
       nstart(1) = 1
       ncount(1) = ateb_len
       call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(:,1))

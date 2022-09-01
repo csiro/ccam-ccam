@@ -393,7 +393,7 @@ use filnames_m
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/bandpar_h2o_ckd_560800'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -408,7 +408,7 @@ use filnames_m
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/bandpar_h2o_rsb_speccombwidebds_hi00'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -474,7 +474,7 @@ use filnames_m
         if ( myid==0 ) then  
           filename = trim(cnsdir) // '/o39001200_hi12_data'
           open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-          write(6,*) "Reading ",trim(filename)
+          !write(6,*) "Reading ",trim(filename)
           if ( ierr/=0 ) then
             write(6,*) "ERROR: Cannot read ",trim(filename)
             call ccmpi_abort(-1)
@@ -519,7 +519,7 @@ use filnames_m
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/bandpar_h2o_ckdsea_12001400_hi12_data'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -2524,7 +2524,7 @@ use filnames_m
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/h2ockd2.1_data'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -2556,7 +2556,7 @@ use filnames_m
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/h2omt_ckd2.5_data'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -3820,7 +3820,7 @@ use filnames_m
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/h2ockd2.1_corrdata'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -3837,7 +3837,7 @@ use filnames_m
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/h2ockd2.4_corrdata'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -6289,7 +6289,7 @@ use filnames_m
         if ( myid==0 ) then  
           filename = trim(cnsdir) // '/radfn_5-2995_100-490k'
           open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-          write(6,*) "Reading ",trim(filename)
+          !write(6,*) "Reading ",trim(filename)
           if ( ierr/=0 ) then
             write(6,*) "ERROR: Cannot read ",trim(filename)
             call ccmpi_abort(-1)

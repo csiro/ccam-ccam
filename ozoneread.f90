@@ -61,6 +61,7 @@ use cc_mpi
 use filnames_m
 use infile
 use newmpar_m
+use parm_m, only : nmaxpr
 
 implicit none
       
@@ -90,21 +91,19 @@ real, parameter :: sigtol = 1.e-3
 jyear = year_in
 jmonth = month_in
 if ( jyear>2099 ) then
-  if ( myid==0 ) then  
-    write(6,*) "Extending ozone from year 2099 for target ",jyear
-  end if  
+  if ( myid==0 ) write(6,*) "Extending ozone from year 2099 for target ",jyear
   jyear = 2099
 end if
       
 !--------------------------------------------------------------
 ! Read montly ozone data for interpolation
 if ( myid==0 ) then
-  write(6,*) "Reading ",trim(o3file)
+  write(6,*) "Reading ozone ",trim(o3file)
   call ccnf_open(o3file,ncid,ncstatus) ! test for netcdf
   if ( ncstatus==0 ) then
     call ccnf_inq_varid(ncid,'vmro3',valident,tst) ! test for CMIP6
     if ( .not.tst ) then
-      write(6,*) "Ozone in NetCDF format (CMIP6)"
+      if ( nmaxpr==1 ) write(6,*) "-> Ozone in NetCDF format (CMIP6)"
       call ccnf_inq_dimlen(ncid,'lon',ii)
       allocate( o3lon(ii) )
       call ccnf_inq_varid(ncid,'lon',valident)
@@ -123,9 +122,9 @@ if ( myid==0 ) then
       call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
       call ccnf_inq_dimlen(ncid,'time',tt)
       call ccnf_inq_varid(ncid,'time',valident)
-      write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
+      if ( nmaxpr==1 ) write(6,*) "-> Found ozone dimensions ",ii,jj,kk,tt
       allocate( o3dum(ii,jj,kk) )
-      write(6,*) "Requested date ",jyear,jmonth
+      if ( nmaxpr==1 ) write(6,*) "-> Requested date ",jyear,jmonth
       call ccnf_inq_dimlen(ncid,'time',maxarchi)
       call ccnf_inq_varid(ncid,'time',valident)
       call ccnf_get_att(ncid,valident,'units',datestring)
@@ -179,13 +178,13 @@ if ( myid==0 ) then
         write(6,*) "kdate_r = ",kdate_r
         call ccmpi_abort(-1)
       end if
-      write(6,*) "Found ozone data at index ",iarchi
+      if ( nmaxpr==1 ) write(6,*) "-> Found ozone data at index ",iarchi
       spos = 1
       npos(1) = ii
       npos(2) = jj
       npos(3) = kk
       npos(4) = 1
-      write(6,*) "Reading O3"
+      if ( nmaxpr==1 ) write(6,*) "-> Reading O3"
       call ccnf_inq_varid(ncid,'vmro3',valident,tst)
       spos(4) = iarchi
       call ccnf_get_vara(ncid,valident,spos,npos,o3dum)
@@ -194,14 +193,14 @@ if ( myid==0 ) then
       ! If we try to neglect these values in the
       ! vertical column integration, then block
       ! artifacts are apparent
-      write(6,*) "Fix missing values in ozone"
+      if ( nmaxpr==1 ) write(6,*) "-> Fix missing values in ozone"
       do k = kk-1,1,-1
         where ( o3dum(:,:,k)>1.E19 )
           o3dum(:,:,k) = o3dum(:,:,k+1)
         end where
       end do
     else  
-      write(6,*) "Ozone in NetCDF format (CMIP5)"
+      if ( nmaxpr==1 ) write(6,*) "-> Ozone in NetCDF format (CMIP5)"
       call ccnf_inq_dimlen(ncid,'lon',ii)
       allocate( o3lon(ii) )
       call ccnf_inq_varid(ncid,'lon',valident)
@@ -223,26 +222,25 @@ if ( myid==0 ) then
       call ccnf_get_att(ncid,valident,'units',cdate)
       npos(1) = 1
       call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),iti)
-      write(6,*) "Found ozone dimensions ",ii,jj,kk,tt
+      if ( nmaxpr==1 ) write(6,*) "-> Found ozone dimensions ",ii,jj,kk,tt
       allocate( o3dum(ii,jj,kk) )
       read(cdate(14:17),*) yy
       read(cdate(19:20),*) mm
       yy = yy + iti(1)/12
       mm = mm + mod(iti(1),12)
-      write(6,*) "Requested date ",jyear,jmonth
-      write(6,*) "Initial ozone date ",yy,mm
+      if ( nmaxpr==1 ) write(6,*) "-> Requested date ",jyear,jmonth
       nn = (jyear-yy)*12 + (jmonth-mm) + 1
       if ( nn<1 .or. nn>tt ) then
         write(6,*) "ERROR: Cannot find date in ozone data"
         call ccmpi_abort(-1)
       end if
-      write(6,*) "Found ozone data at index ",nn
+      if ( nmaxpr==1 ) write(6,*) "-> Found ozone data at index ",nn
       spos = 1
       npos(1) = ii
       npos(2) = jj
       npos(3) = kk
       npos(4) = 1
-      write(6,*) "Reading O3"
+      if ( nmaxpr==1 ) write(6,*) "-> Reading O3"
       call ccnf_inq_varid(ncid,'O3',valident)
       spos(4) = nn
       call ccnf_get_vara(ncid,valident,spos,npos,o3dum)
@@ -251,7 +249,7 @@ if ( myid==0 ) then
       ! If we try to neglect these values in the
       ! vertical column integration, then block
       ! artifacts are apparent
-      write(6,*) "Fix missing values in ozone"
+      if ( nmaxpr==1 ) write(6,*) "-> Fix missing values in ozone"
       do k = kk-1,1,-1
         where ( o3dum(:,:,k)>1.E19 )
           o3dum(:,:,k) = o3dum(:,:,k+1)
@@ -259,7 +257,7 @@ if ( myid==0 ) then
       end do
     end if   
   else
-    write(6,*) "Ozone in ASCII format (CMIP3)"
+    if ( nmaxpr==1 ) write(6,*) "-> Ozone in ASCII format (CMIP3)"
     ii = 0
     jj = 0
     kk = 0
@@ -294,7 +292,7 @@ if ( myid==0 ) then
     read(16,"(9f8.5)") ddo3n3
     close(16)
   end if
-  write(6,*) "Finished reading ozone data"
+  if ( nmaxpr==1 ) write(6,*) "-> Finished reading ozone data"
   dum(1) = ii
   dum(2) = jj
   dum(3) = kk
@@ -321,7 +319,7 @@ if ( ii>0 ) then
   o3lat(1:jj) = o3pack(ii+1:ii+jj)
   o3pres(1:kk) = o3pack(ii+jj+1:ii+jj+kk)
   deallocate ( o3pack )
-  if ( myid==0 ) write(6,*) "Interpolate ozone data to CC grid"
+  if ( myid==0 ) write(6,*) "-> Interpolate ozone data to CC grid"
   call o3regrid(o3mth,o3dum,o3lon,o3lat)
   deallocate( o3dum, o3lat, o3lon )
 else
@@ -336,7 +334,7 @@ else
   call resetd(dduo3n,ddo3n2,ddo3n3,ddo3n4,37*kl)
 end if
       
-if ( myid==0 ) write(6,*) "Finished processing ozone data"
+if ( myid==0 ) write(6,*) "-> Finished processing ozone data"
       
 return
 end subroutine o3_read

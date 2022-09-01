@@ -162,7 +162,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd3 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
     write(6,'(" done histrd3 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 
@@ -173,7 +173,7 @@ else
      allocate( globvar(6*pil_g**2) )
      globvar(:) = 0.
      call hr3p(iarchi,ier,name,.false.,globvar)
-     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+     if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
        vmax = maxval(globvar)
        vmin = minval(globvar)
        iq = id + (jd-1)*pil_g
@@ -206,6 +206,7 @@ end subroutine histrd3r4
 subroutine hr3p(iarchi,ier,name,qtest,var)
 
 use cc_mpi
+use parm_m, only : nmaxpr
       
 implicit none
 
@@ -232,7 +233,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 ) then
+      if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
     else
@@ -323,7 +324,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd3r8 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
     write(6,'(" done histrd3r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 else
@@ -332,7 +333,7 @@ else
     allocate( globvar(6*pil_g**2) )
     globvar(:) = 0.
     call hr3pr8(iarchi,ier,name,.false.,globvar)
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       iq = id+(jd-1)*pil_g
@@ -359,6 +360,7 @@ end subroutine histrd3r8
 subroutine hr3pr8(iarchi,ier,name,qtest,var)
 
 use cc_mpi
+use parm_m, only : nmaxpr
       
 implicit none
 
@@ -385,7 +387,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier=nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 ) then
+      if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
     else
@@ -478,7 +480,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd4 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
     write(6,'(" done histrd4 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 else 
@@ -487,7 +489,7 @@ else
     allocate( globvar(6*pil_g**2,kk) )
     globvar(:,:) = 0.
     call hr4p(iarchi,ier,name,kk,.false.,globvar)     
-    if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       iq = id+(jd-1)*pil_g
@@ -513,6 +515,7 @@ end subroutine histrd4r4
 subroutine hr4p(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
+use parm_m, only : nmaxpr
       
 implicit none
 
@@ -577,7 +580,7 @@ if ( mynproc>0 ) then
           ier = nf90_inq_varid(pncid(ipf),newname,idv)          
         end if
         if ( ier/=nf90_noerr ) then
-          if ( myid==0 .and. ipf==0 ) then
+          if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
             write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
           end if
           rvar(:,:) = 0. ! default value for missing field
@@ -667,7 +670,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd4r8 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
     write(6,'(" done histrd4r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 else
@@ -676,7 +679,7 @@ else
     allocate( globvar(6*pil_g**2,kk) )
     globvar(:,:) = 0._8
     call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
-    if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       iq = id+(jd-1)*pil_g
@@ -702,6 +705,7 @@ end subroutine histrd4r8
 subroutine hr4pr8(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
+use parm_m, only : nmaxpr
       
 implicit none
 
@@ -764,7 +768,7 @@ if ( mynproc>0 ) then
           ier = nf90_inq_varid(pncid(ipf),newname,idv)          
         end if
         if ( ier/=nf90_noerr ) then
-          if ( myid==0 .and. ipf==0 ) then
+          if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
             write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
           end if
           rvar(:,:) = 0._8 ! default value for missing field
@@ -847,7 +851,7 @@ ll = size(var,3)
 if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute
   call hr5p(iarchi,ier,name,kk,ll,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
     write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 else    
@@ -856,7 +860,7 @@ else
     allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0.
     call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       write(6,'(" done histrd5 ",a18,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
@@ -984,7 +988,7 @@ ll = size(var,3)
 if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute
   call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
     write(6,'(" done histrd5r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 else    
@@ -993,7 +997,7 @@ else
     allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0._8
     call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)     
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       write(6,'(" done histrd5r8 ",a16,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
@@ -1243,7 +1247,7 @@ if ( myid==0 ) then
       end do  
       fnproc = nxp_test**2*6
       if ( myid==0 ) then
-        write(6,*) "--> Decompose single file into sections = ",fnproc
+        write(6,*) "-> Decompose single file into sections = ",fnproc
       end if      
     end if  
     
@@ -1294,7 +1298,7 @@ if ( myid==0 ) then
       end if
     end if
 
-    write(6,*) "--> dmode,ptest,resprocformat ",dmode,ptest,resprocformat
+    write(6,*) "-> dmode,ptest,resprocformat ",dmode,ptest,resprocformat
     
   end if
 
@@ -1347,7 +1351,7 @@ if ( myid==0 ) then
     end if
   end if
   
-  write(6,*) "--> Broadcasting file metadata"
+  write(6,*) "-> Broadcasting file metadata"
 end if
 
 ! Broadcast file metadata
@@ -1368,7 +1372,7 @@ dmode         = idum(12)     ! file decomposition
 if ( ier/=nf90_noerr ) return
 
 if ( myid==0 ) then
-  write(6,*) "--> Opening data files"
+  write(6,*) "-> Opening data files"
 end if
 
 ! calculate number of files to be read on this processor
@@ -1407,8 +1411,8 @@ end if
 
 ! distribute comms
 if ( myid==0 ) then
-  write(6,*) "--> Splitting comms for distributing file data with fnresid ",fnresid
-  write(6,*) "--> Number of files to be read with mynproc ",mynproc
+  write(6,*) "-> Splitting comms for distributing file data with fnresid ",fnresid
+  write(6,*) "-> Number of files to be read with mynproc ",mynproc
 end if
 
 ! define comm group to read the residual files
@@ -1511,7 +1515,7 @@ end if
 
 allocate( dum_off(0:fnproc-1,1:13) )
 if ( myid==0 ) then
-  write(6,*) "--> Broadcast file coordinate data"
+  write(6,*) "-> Broadcast file coordinate data"
   dum_off(0:fnproc-1,1:6)  = pioff(0:fnproc-1,0:5)
   dum_off(0:fnproc-1,7:12) = pjoff(0:fnproc-1,0:5)
   dum_off(0:fnproc-1,13)   = pnoff(0:fnproc-1)
@@ -1553,7 +1557,7 @@ if ( .not.resprocformat ) then
 end if
 
 if ( myid==0 ) then
-  write(6,*) "--> Ready to read data from input file"
+  write(6,*) "-> Ready to read data from input file"
 end if
 
 return
@@ -2246,7 +2250,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt3 ",a20,i8,a7)') sname,iarch,"missing"
   else
@@ -2308,7 +2312,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt3 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2397,7 +2401,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt3r8 ",a20,i8,a7)') sname,iarch,"missing"
   else
@@ -2459,7 +2463,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt3r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2628,7 +2632,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt4 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2696,7 +2700,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -2781,7 +2785,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2849,7 +2853,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -3017,7 +3021,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt5 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -3087,7 +3091,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt5 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -3170,7 +3174,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt5r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -3240,7 +3244,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt5r8 ",a20,i4,a7)') sname,iarch,"missing"
   else

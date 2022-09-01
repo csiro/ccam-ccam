@@ -24,6 +24,7 @@ subroutine eig(sigin,sigmhin,tbarin,lapsbot,isoth,dtin,epspin,epshin,nsig,betin,
 use cc_mpi, only : myid
 use vecs_m, only : emat,einv,bam
 use newmpar_m
+use parm_m, only : nmaxpr
 implicit none
 integer, intent(in) :: nh,nsig,lapsbot,isoth
 integer :: nchng,k,l
@@ -50,11 +51,12 @@ leinv = real(einv,8)
 lbam = real(bam,8)
 ! lapsbot=1 gives zero lowest t lapse for phi calc
 if ( myid==0 ) then
-  write(6,*) 'this run configured with kl = ',kl
-  write(6,*) 'entering eig tbar,lapsbot: ',tbarin(1),lapsbot
-  write(6,*) '             isoth,dtin:   ',isoth,dtin
-  write(6,*) '             epsp,epsh:    ',epspin,epshin
-  write(6,*) '             nh:           ',nh
+  write(6,*) 'Calculating eigenvectors'  
+  write(6,*) '-> this run configured with kl = ',kl
+  write(6,*) '-> entering eig tbar,lapsbot: ',tbarin(1),lapsbot
+  write(6,*) '->              isoth,dtin:   ',isoth,dtin
+  write(6,*) '->              epsp,epsh:    ',epspin,epshin
+  write(6,*) '->              nh:           ',nh
 end if
 
 !     expect data from bottom up
@@ -66,13 +68,15 @@ if ( sig(1)<sig(kl) ) then
   sigmh(2:kl+1) = lbam(1:kl)
 endif  ! (sig(1)<sig(kl))
 if ( myid==0 ) then
-  write(6,*) 'final sig values: ',sig
-  write(6,*) 'final sigmh values: ',sigmh
+  if ( nmaxpr==1 ) then  
+    write(6,*) 'final sig values: ',sig
+    write(6,*) 'final sigmh values: ',sigmh
+  end if  
   open(28,file='eigenv.out')
 end if
 call eigs(isoth,tbar,dt,epsp,epsh,nh,sig,sigmh,bet,betm,lbam,lemat,leinv)
 if ( myid==0 ) then
-  write(6,*) 'about to write to 28 '
+  if ( nmaxpr==1 ) write(6,*) 'about to write to 28 '
   write(28,*)kl,lapsbot,isoth,nsig,'   kl,lapsbot,isoth,nsig'
   close(28)
 end if
@@ -96,7 +100,7 @@ do while ( nchng/=0 )
     end do
   end do
 end do
-if ( myid==0 ) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*)'eigenvectors re-ordered'
   write(6,*)'bam',(lbam(k),k=1,kl)
 end if
@@ -120,6 +124,7 @@ subroutine eigs(isoth,tbar,dt,epsp,epsh,nh,sig,sigmh,bet,betm,bam,emat,einv)
 use cc_mpi, only : myid
 use const_phys
 use newmpar_m
+use parm_m, only : nmaxpr
 
 implicit none
 
@@ -141,7 +146,7 @@ real(kind=8), dimension(kl,kl) :: aaa, cc
 do k = 1,kl
   dsig(k) = sigmh(k+1) - sigmh(k)
 enddo
-if ( myid==0 ) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) 'sigmh ',(sigmh(k),k=1,kl)
   write(6,*) 'dsig ',(dsig(k),k=1,kl)
 end if
@@ -168,7 +173,7 @@ do k = 1,kl
   !gmat(k,k) = factr*get(k)
 enddo
 
-if ( myid==0 ) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*)'dt,epsp,tbar ',dt,epsp,tbar(1)
   write(6,*)'bet ',bet
   !write(6,*) 'get ',get
@@ -207,7 +212,7 @@ cc(:,:) = aaa(:,:) - rdry*tbar(1)*ab(:,:)
       
 aaa(:,:) = cc(:,:)
 call eigenp(aaa,bam,evimag,emat,veci,indic)
-if ( myid==0 ) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*) 'bam',(bam(k),k=1,kl)
 end if
 call matinv(cc,sum1,0,dp,irror)
@@ -367,7 +372,7 @@ do i = 1,kl
 ! already been found from its conjugate.
       if(kon==0) then
         kon = 1
-        write(6,*) 'attempted call to comove'
+        write(6,*) 'ERROR: attempted call to comove'
         stop
       end if
       kon = 0

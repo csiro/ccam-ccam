@@ -29,7 +29,7 @@
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
 
-! Allowed preprocessor directives:
+! Preprocessor directives:
 !   CCAM        - support CCAM (required)
 !   debug       - additional debugging checks
 !   scm         - single column mode
@@ -39,7 +39,6 @@
 !   usempi3     - allow shared memory (preferred)
 !   stacklimit  - disable stacklimit
 !   vampir      - enable vampir profiling
-!   pgi         - special options for pgfortran
     
 program globpe
 
@@ -3170,7 +3169,7 @@ end if
 !--------------------------------------------------------------
 ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
 if ( mydiag ) then
-  write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,180./pi*rlongg(idjd),180./pi*rlatt(idjd)
+  write(6,"(' id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,180./pi*rlongg(idjd),180./pi*rlatt(idjd)
 end if
 call date_and_time(rundate)
 call date_and_time(time=timeval)
