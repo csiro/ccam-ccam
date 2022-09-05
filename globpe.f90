@@ -2604,6 +2604,8 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
+!$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj)
+
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
 

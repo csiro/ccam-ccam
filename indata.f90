@@ -398,6 +398,8 @@ end if
 zmin = -rdry*280.*log(sig(1))/grav
 if ( myid==0 ) write(6,*) 'zmin = ',zmin
 
+!$acc update device(sig,dsig)
+
 !--------------------------------------------------------------
 ! READ OROGRAPHY (io_in and nhstest)
 !     read in fresh zs, land-sea mask (land where +ve), variances

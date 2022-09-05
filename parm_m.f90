@@ -92,4 +92,6 @@ logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.
 
+!$acc declare create(vmodmin,sigbot_gwd,fc2,dt,alphaj)
+
 end module parm_m
