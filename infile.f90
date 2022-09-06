@@ -233,7 +233,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
+      if ( myid==0 .and. ipf==0 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
     else
@@ -387,7 +387,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier=nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
+      if ( myid==0 .and. ipf==0 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
     else
@@ -580,7 +580,7 @@ if ( mynproc>0 ) then
           ier = nf90_inq_varid(pncid(ipf),newname,idv)          
         end if
         if ( ier/=nf90_noerr ) then
-          if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
+          if ( myid==0 .and. ipf==0 ) then
             write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
           end if
           rvar(:,:) = 0. ! default value for missing field
@@ -768,7 +768,7 @@ if ( mynproc>0 ) then
           ier = nf90_inq_varid(pncid(ipf),newname,idv)          
         end if
         if ( ier/=nf90_noerr ) then
-          if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
+          if ( myid==0 .and. ipf==0 ) then
             write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
           end if
           rvar(:,:) = 0._8 ! default value for missing field
@@ -1619,6 +1619,7 @@ end subroutine histclose
 ! a greater number of vertical levels than the nested model.
 subroutine vertint(told,t,n,sigin)
 
+use cc_mpi, only : myid
 use sigs_m
 use newmpar_m
 use parm_m
@@ -1678,18 +1679,6 @@ if ( any(abs(sigin-sigin_save)>=0.0001) ) then
     endif  !  (sig(k)>=sigin(1)) ... ...
   enddo   !  k loop
 end if
-
-#ifdef debug
-if ( myid==0 ) then
-  write(6,*) 'in vertint kk,kl ',kk,kl
-  write(6,"('sigin',10f7.4)") (sigin(k),k=1,kk)
-  write(6,"('sig  ',10f7.4)") sig
-  write(6,*) 'ka ',ka
-  write(6,*) 'kb ',kb
-  write(6,"('wta',10f7.4)") wta
-  write(6,"('wtb',10f7.4)") wtb
-endif   !  (myid==0)
-#endif
 
 do k = 1,kl
   ! N.B. "a" denotes "above", "b" denotes "below"

@@ -88,13 +88,13 @@ dpoflag = .false.
 open(unit=130,file=tracerlist,form='formatted')
 read(130,*) header
 read(130,*) numtracer
-if (numtracer<1.or.numtracer>999) then
+if (numtracer<1.or.numtracer>9999) then
   write(6,*) "ERROR: Invalid number of tracers"
-  write(6,*) "numtracer should be between 1-999"
+  write(6,*) "numtracer should be between 1-9999"
   write(6,*) "numtracer = ",numtracer
   call ccmpi_abort(-1)
 end if
-ngas=numtracer
+ngas = numtracer
 allocate(tracname(numtracer),tractype(numtracer))
 allocate(tracinterp(numtracer),tracunit(numtracer))
 allocate(tracfile(numtracer),igashr(numtracer))

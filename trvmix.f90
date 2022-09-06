@@ -51,6 +51,7 @@ real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 real, dimension(imax,kl) :: lt
 real, dimension(imax,kl) :: lat, lct
 real, dimension(imax,kl) :: lrkhsave
+real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
 real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical mydiag_t
 
@@ -58,7 +59,8 @@ logical mydiag_t
 !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
 !$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
 !$omp private(lrkhsave,rong,rlogs1,rlogs2),         &
-!$omp private(rlogh1,rlog12,tmnht,dz,gt) 
+!$omp private(rlogh1,rlog12,tmnht,dz,gt,lfnee),     &
+!$omp private(lfpn,lfrp,lfrs,lmcfdep)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -94,15 +96,20 @@ do tile = 1,ntiles
     end do
   end do
   
-  ltr      = tr(is:ie,:,:)
-  lco2em   = co2em(is:ie,:)
-  loh      = oh(is:ie,:)
-  lstrloss = strloss(is:ie,:)
-  ljmcf    = jmcf(is:ie,:)
-  lt       = t(is:ie,:)
+  ltr = tr(is:ie,:,:)
+  if ( allocated(co2em) ) lco2em = co2em(is:ie,:)
+  if ( allocated(oh) ) loh = oh(is:ie,:)
+  if ( allocated(strloss) ) lstrloss = strloss(is:ie,:)
+  if ( allocated(jmcf) ) ljmcf = jmcf(is:ie,:)
+  if ( allocated(fnee) ) lfnee = fnee(is:ie)
+  if ( allocated(fpn) ) lfpn = fpn(is:ie)
+  if ( allocated(frp) ) lfrp = frp(is:ie)
+  if ( allocated(frs) ) lfrp = frs(is:ie)
+  if ( allocated(mcfdep) ) lmcfdep = mcfdep(is:ie)
+  lt = t(is:ie,:)
   ! Tracers
-  call tracervmix_work(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),             &
-                       frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
+  call tracervmix_work(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,lfnee,lfpn,       &
+                       lfrp,lfrs,lco2em,loh,lstrloss,ljmcf,lmcfdep,tile,imax)
   tr(is:ie,:,:) = ltr
 
 end do ! tile = 1,ntiles

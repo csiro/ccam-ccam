@@ -3873,7 +3873,7 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     mjpan = 2*mjpan
 
     if ( myid==0 ) then
-      write(6,*) "--> Multi-grid gather4 at level           ",g,mipan,mjpan
+      write(6,*) "-> Multi-grid gather4 at level           ",g,mipan,mjpan
     end if
 
     allocate( mg(1)%merge_list(4) )
@@ -3973,7 +3973,7 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     mypr = 1
 
     if ( myid==0 ) then
-      write(6,*) "--> Multi-grid gatherall at level         ",1,mipan,mjpan
+      write(6,*) "-> Multi-grid gatherall at level         ",1,mipan,mjpan
     end if
       
     ! find gather members
@@ -4039,7 +4039,7 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
       call ccmpi_abort(-1)
     end if
     if ( myid==0 ) then
-      write(6,*) "--> Multi-grid toplevel                   ",1,mipan,mjpan
+      write(6,*) "-> Multi-grid toplevel                   ",1,mipan,mjpan
     end if
     !if ( .not.uniform_decomp ) then
     mg(1)%npanx = 1  
@@ -4061,7 +4061,7 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     
 else
   if ( myid==0 ) then
-    write(6,*) "--> Multi-grid fine level                 ",1,mipan,mjpan
+    write(6,*) "-> Multi-grid fine level                 ",1,mipan,mjpan
   end if
   mg(1)%merge_pos = 1
 end if
@@ -4138,7 +4138,7 @@ do g = 2,mg_maxlevel
       mjpan = 2*mjpan
 
       if ( myid==0 ) then
-        write(6,*) "--> Multi-grid gather4 at level           ",g,mipan,mjpan
+        write(6,*) "-> Multi-grid gather4 at level           ",g,mipan,mjpan
       end if
 
       allocate( mg(g)%merge_list(4) )
@@ -4239,7 +4239,7 @@ do g = 2,mg_maxlevel
       mypr = 1
 
       if ( myid==0 ) then
-        write(6,*) "--> Multi-grid gatherall at level         ",g,mipan,mjpan
+        write(6,*) "-> Multi-grid gatherall at level         ",g,mipan,mjpan
       end if
       
       ! find gather members
@@ -4305,7 +4305,7 @@ do g = 2,mg_maxlevel
         call ccmpi_abort(-1)
       end if
       if ( myid==0 ) then
-        write(6,*) "--> Multi-grid toplevel                   ",g,mipan,mjpan
+        write(6,*) "-> Multi-grid toplevel                   ",g,mipan,mjpan
       end if
       !if ( .not.uniform_decomp ) then
       mg(g)%npanx = 1  
@@ -4327,7 +4327,7 @@ do g = 2,mg_maxlevel
   
   else
     if ( myid==0 ) then
-      write(6,*) "--> Multi-grid local subdivision at level ",g,mipan,mjpan
+      write(6,*) "-> Multi-grid local subdivision at level ",g,mipan,mjpan
     end if
     ! no messages sent, but we allocate this array for the
     ! coarse calculation below

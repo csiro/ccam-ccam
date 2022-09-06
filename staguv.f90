@@ -88,32 +88,6 @@ endif  ! (nstag==0)
 
 if ( nstag==3 ) then
   call boundsuv(uin,vin,stag=1) ! inv, innv, ieu, ieeu
-#ifdef debug  
-  if(ntest==1)then
-    write(6,*) 'staguv diags'
-    write (6,"(2x,4i8,6x,4i8)") (i,i=1,4),(i,i=1,4)
-    do j=93,96
-      write (6,"(i4,4f8.3,6x,4f8.3)") j,(u(i+(j-1)*il,4),i=1,4),(v(i+(j-1)*il,4),i=1,4)
-    enddo          
-    write (6,"(2x,4i8,6x,4i8)") (i,i=1,4),(i,i=1,4)
-    do j=189,192
-      write (6,"(i4,4f8.3,6x,4f8.3)") j,(u(i+(j-1)*il,4),i=1,4),(v(i+(j-1)*il,4),i=1,4)
-    enddo          
-    write (6,"(2x,4i8,6x,4i8)") (i,i=1,4),(i,i=1,4)
-    do j=285,288
-      write (6,"(i4,4f8.3,6x,4f8.3)") j,(u(i+(j-1)*il,4),i=1,4),(v(i+(j-1)*il,4),i=1,4)
-    enddo          
-    do j=95,288,96
-      do i=1,2
-        iq=i+(j-1)*il
-        write (6,"('i,j,uin(ieu),uin(ieeu) ',2i4,2f8.3)") i,j,uin(ieu(iq),4),uin(ieeu(iq),4) 
-        write (6,"('i,j,uin(iwu),uin(iwwu) ',2i4,2f8.3)") i,j,uin(iwu(iq),4),uin(iwwu(iq),4) 
-        write (6,"('i,j,vin(inv),vin(innv) ',2i4,2f8.3)") i,j,vin(inv(iq),4),vin(innv(iq),4) 
-        write (6,"('i,j,vin(isv),vin(issv) ',2i4,2f8.3)") i,j,vin(isv(iq),4),vin(issv(iq),4) 
-      enddo
-    enddo
-  endif  ! (ntest==1)
-#endif
          
   !$omp parallel
 

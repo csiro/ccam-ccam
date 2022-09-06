@@ -25,11 +25,11 @@ implicit none
 
 private
 public phi,phi_nh,h_nh
-public lrestart, lrestart_radiation, always_mspeca
+public lrestart, lrestart_radiation, lrestart_tracer, always_mspeca
 public nharrs_init,nharrs_end
 
 real, dimension(:,:), allocatable, save :: phi,phi_nh,h_nh
-logical, save :: lrestart, lrestart_radiation, always_mspeca
+logical, save :: lrestart, lrestart_radiation, lrestart_tracer, always_mspeca
 
 contains
 
@@ -40,10 +40,11 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(phi(ifull,kl),phi_nh(ifull,kl),h_nh(ifull+iextra,kl))
-phi=-999.
-phi_nh=0.
-lrestart=.false.
-lrestart_radiation=.false.
+phi = -999.
+phi_nh = 0.
+lrestart = .false.
+lrestart_radiation = .false.
+lrestart_tracer = .false.
 always_mspeca = .false.
 
 return

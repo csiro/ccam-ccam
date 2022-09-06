@@ -1458,9 +1458,6 @@ character(len=1024) vegprev, vegnext, vegnext2 ! depreciated namelist options
 #ifdef usempi3
 integer, dimension(3) :: shsize
 #endif
-#ifdef debug
-real, dimension(1) :: gtemparray
-#endif
 
 ! version namelist
 namelist/defaults/nversion
@@ -2555,6 +2552,7 @@ deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0
 if ( myid==0 ) then
+  rewind(99)
   read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
   if ( ierr/=0 ) then
     rewind(99)
@@ -4055,7 +4053,7 @@ do iq = 1,ifull
 end do
 
 if ( ngas>0 ) then
-  traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(:,:,1:ngas)
+        traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(1:ifull,:,1:ngas)
 end if
 
 if ( ccycle/=0 ) then

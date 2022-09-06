@@ -350,7 +350,7 @@ use mlostag                                    ! Ocean dynamics staggering
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use newmpar_m                                  ! Grid parameters
 use nharrs_m, only : phi_nh,lrestart,         &
-    lrestart_radiation                         ! Non-hydrostatic atmosphere arrays
+    lrestart_radiation, lrestart_tracer        ! Non-hydrostatic atmosphere arrays
 use nsibd_m, only : isoilm,isoilm_in,rsmin     ! Land-surface arrays
 use parm_m                                     ! Model configuration
 use parmdyn_m                                  ! Dynamics parmaters
@@ -389,7 +389,7 @@ integer idv, retopo_test
 integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
-integer, dimension(8+3*ms) :: ierc
+integer, dimension(9+3*ms) :: ierc
 integer, dimension(11), save :: iers
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
@@ -411,7 +411,7 @@ real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
 real, dimension(kk+ok+11) :: dumr
 character(len=20) vname
-character(len=3) trnum
+character(len=4) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
@@ -1306,18 +1306,18 @@ if ( nested/=1 .and. nested/=3 ) then
   if ( myid==0 .or. pfall ) then
     if ( ccycle/=0 ) then
       call ccnf_inq_varid(ncid,'nplant1',idv,tst)
-      if ( .not.tst ) ierc(8) = 1
+      if ( .not.tst ) ierc(9) = 1
     end if
     do k = 1,ms
       write(vname,'("tgg",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(8+k) = 1
+      if ( .not.tst ) ierc(9+k) = 1
       write(vname,'("wetfrac",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(8+ms+k) = 1
+      if ( .not.tst ) ierc(9+ms+k) = 1
       write(vname,'("wb",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(8+2*ms+k) = 1
+      if ( .not.tst ) ierc(9+2*ms+k) = 1
     end do
   end if
   
@@ -1351,19 +1351,19 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(4))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(5))
         end if
         call ccnf_inq_varid(ncid,'nstagu',idv,tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(5))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(6))
         end if
         call ccnf_inq_varid(ncid,'nstagoff',idv,tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(6))
+          call ccnf_get_vara(ncid,idv,iarchi,ierc(7))
         end if
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
@@ -1381,7 +1381,7 @@ if ( nested/=1 .and. nested/=3 ) then
             if ( tst ) then
               lrestart = .false.
             else
-              call ccnf_get_vara(ncid,idv,iarchi,ierc(7))
+              call ccnf_get_vara(ncid,idv,iarchi,ierc(8))
             end if
           else
             lrestart = .false.
@@ -1446,30 +1446,36 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( tst ) lrestart_radiation = .false. 
         call ccnf_inq_varid(ncid,'lw_tend',idv,tst)
         if ( tst ) lrestart_radiation = .false.
+        lrestart_tracer = .true.
+        call ccnf_inq_varid(ncid,'tr0001',idv,tst)
+        if ( tst ) lrestart_tracer = .false.
       else
         lrestart = .false.
         lrestart_radiation = .false.
+        lrestart_tracer = .false.
       end if ! kk=kl .and. iotest
-      ierc(1:3) = 0
+      ierc(1:4) = 0
       if ( lrestart ) ierc(1) = 1
       if ( lrestart_radiation ) ierc(2) = 1
+      if ( lrestart_tracer ) ierc(3) = 1
       call ccnf_inq_varid(ncid,'u10',idv,tst)
-      if ( .not.tst ) ierc(3) = 1
+      if ( .not.tst ) ierc(4) = 1
     end if ! myid==0 .or. pfall
   end if   ! nested==0  
     
   if ( .not.pfall ) then
-    call ccmpi_bcast(ierc(1:8+3*ms),0,comm_world)
+    call ccmpi_bcast(ierc(1:9+3*ms),0,comm_world)
   end if
   
   lrestart  = (ierc(1)==1)
   lrestart_radiation = (ierc(2)==1)
-  u10_found = (ierc(3)==1)
+  lrestart_tracer = (ierc(3)==1)  
+  u10_found = (ierc(4)==1)
   if ( lrestart ) then
-    nstag       = ierc(4)
-    nstagu      = ierc(5)
-    nstagoff    = ierc(6)
-    nstagoffmlo = ierc(7)
+    nstag       = ierc(5)
+    nstagu      = ierc(6)
+    nstagoff    = ierc(7)
+    nstagoffmlo = ierc(8)
     if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Continue staggering from"
       write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
@@ -1478,10 +1484,10 @@ if ( nested/=1 .and. nested/=3 ) then
       end if
     end if
   end if
-  carbon_found        = (ierc(8)==1)
-  tgg_found(1:ms)     = (ierc(9:8+ms)==1)
-  wetfrac_found(1:ms) = (ierc(9+ms:8+2*ms)==1)
-  wb_found(1:ms)      = (ierc(9+2*ms:8+3*ms)==1)
+  carbon_found        = (ierc(9)==1)
+  tgg_found(1:ms)     = (ierc(10:9+ms)==1)
+  wetfrac_found(1:ms) = (ierc(10+ms:9+2*ms)==1)
+  wb_found(1:ms)      = (ierc(10+2*ms:9+3*ms)==1)
         
   !------------------------------------------------------------------
   ! Read basic fields
@@ -1869,11 +1875,13 @@ if ( nested/=1 .and. nested/=3 ) then
 
   !------------------------------------------------------------------
   ! Tracer data
-  if ( nested==0 .and. ngas>0 ) then              
-    do igas = 1,ngas              
-      write(trnum,'(i3.3)') igas
-      call gethist4a('tr'//trnum,tr(:,:,igas),7)
-    end do
+  if ( nested==0 .and. ngas>0 ) then
+    if ( lrestart_tracer ) then  
+      do igas = 1,ngas              
+        write(trnum,'(i4.4)') igas
+        call gethist4a('tr'//trnum,tr(:,:,igas),7)
+      end do
+    end if  
   end if
   
   ! -----------------------------------------------------------------
@@ -2008,6 +2016,7 @@ ktime_s = ktime_r + 1
 
 if ( myid==0 .and. nested==0 ) then
   write(6,*) "Final lrestart, lrestart_radiation ",lrestart,lrestart_radiation
+  write(6,*) "      lrestart_tracer              ",lrestart_tracer
 end if
 
 return
@@ -2915,6 +2924,7 @@ end subroutine mslpx
       
 subroutine to_pslx(pmsl,psl,zss,t,siglev)
 
+use cc_mpi, only : mydiag  ! CC MPI routines
 use const_phys             ! Physical constants
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
@@ -2935,7 +2945,6 @@ psl(1:ifull)   = log(1.e-5*pmsl(1:ifull)) - dlnps(1:ifull)
 
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
-  write(6,*)'to_psl levk,sig(levk) ',levk,sig(levk)
   write(6,*)'zs,t_lev,psl,pmsl ',zss(idjd),t(idjd),psl(idjd),pmsl(idjd)
 end if
 #endif

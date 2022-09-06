@@ -317,17 +317,6 @@ xout = .25*(ri+3.) - .5  ! -.5 for stag; back to normal ri, rj defn
 yout = .25*(rj+3.) - .5  ! -.5 for stag
 !       expect xout, yout (at this point) to range between .5 and il+.5
 
-#ifdef debug
-if(ntest.eq.1.and.rlongin(1).gt.43.1.and.rlongin(1).lt.49.9)then
-  if(rlatin(1).gt.-24.2.and.rlatin(1).lt.-23.8)then
-    write(6,*) 'lat,long,x,y,z,den ',rlatin(1),rlongin(1),x(1),y(1),z(1),denxyz(1)
-    write(6,*) 'xx,yy,zz ',xx(1),yy(1),zz(1)
-    write(6,*) 'nf,xout,yout,ri,rj ',nf(1),xout(1),yout(1),ri(1),rj(1)
-    write(6,*) 'youtb ',yout(1)+nf(1)*ik
-  endif
-endif
-#endif
-
 return
 end subroutine latltoij_v
 

@@ -1051,7 +1051,7 @@ character(len=50) expdesc
 character(len=80) lname
 character(len=21) mnam, nnam
 character(len=20) vname
-character(len=3) trnum
+character(len=4) trnum
 logical, intent(in) :: local
 logical lwrite, lave, lday
 logical lwrite_0, lave_0, lday_0 ! includes the zeroth time-step when using restart
@@ -1178,7 +1178,7 @@ if( myid==0 .or. local ) then
       call ccnf_put_att(idnc,idv,'long_name',lname)     
     end if
 
-    if ( myid==0 ) write(6,*) '--> define attributes of variables with ',nextout
+    if ( myid==0 ) write(6,*) '-> define attributes of variables with ',nextout
 
     ! For time invariant surface fields
     lname = 'Surface geopotential'
@@ -2085,13 +2085,13 @@ if( myid==0 .or. local ) then
     if ( ngas>0 ) then
       if ( itype==-1 ) then ! restart
         do igas = 1,ngas
-          write(trnum,'(i3.3)') igas
+          write(trnum,'(i4.4)') igas
           lname = 'Tracer (inst.) '//trim(tracname(igas))
           call attrib(idnc,dima,asize,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
         end do ! igas loop
       else                  ! history
         do igas = 1,ngas
-          write(trnum,'(i3.3)') igas
+          write(trnum,'(i4.4)') igas
           lname = 'Tracer (average) '//trim(tracname(igas))
           call attrib(idnc,dima,asize,'trav'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
 !         rml 14/5/10 option to write out local time afternoon averages
@@ -2260,12 +2260,12 @@ if( myid==0 .or. local ) then
       call savetiledef(idnc,local,dimj,jsize,dimc,csize,itype)
     end if
       
-    if ( myid==0 ) write(6,*) '--> finished defining attributes'
+    if ( myid==0 ) write(6,*) '-> finished defining attributes'
     !   Leave define mode
     call ccnf_enddef(idnc)
 
     if ( local ) then
-      if ( myid==0 ) write(6,*) '--> write coordinate data'
+      if ( myid==0 ) write(6,*) '-> write coordinate data'
       ! procformat
       allocate(xpnt(il),xpnt2(il,vnode_nproc))
       do i = 1,ipan
@@ -2318,7 +2318,7 @@ if( myid==0 .or. local ) then
     ! procformat
     if ( local ) then
       ! store local processor id in output file
-      if ( myid==0 ) write(6,*) '--> write procformat data'
+      if ( myid==0 ) write(6,*) '-> write procformat data'
       allocate(vnode_dat(vnode_nproc))
       if ( procmode==1 ) then
          vnode_dat(:) = myid
@@ -2327,7 +2327,7 @@ if( myid==0 .or. local ) then
             call ccmpi_abort(-1)
          end if
       else
-         if ( myid==0 ) write(6,*) '--> gather virtual node ranks'  
+         if ( myid==0 ) write(6,*) '-> gather virtual node ranks'  
          call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       end if
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
@@ -2339,7 +2339,7 @@ if( myid==0 .or. local ) then
       else
         allocate( procnode(2,1), procdata(1) ) ! not used
       end if
-      if ( myid==0 ) write(6,*) '--> gather leader ranks'  
+      if ( myid==0 ) write(6,*) '-> gather leader ranks'  
       call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
         procdata(:) = procnode(1,:)  
@@ -2353,7 +2353,7 @@ if( myid==0 .or. local ) then
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
     
-    if ( myid==0 ) write(6,*) '--> write land tile data'
+    if ( myid==0 ) write(6,*) '-> write land tile data'
     
     if ( itype==-1 .or. diaglevel_pop>=9 ) then
       if ( cable_pop==1 ) then
@@ -3320,12 +3320,12 @@ end if
 if ( ngas>0 ) then
   if ( itype==-1 ) then ! restart
     do igas = 1,ngas
-      write(trnum,'(i3.3)') igas
+      write(trnum,'(i4.4)') igas
       call histwrt(tr(:,:,igas),'tr'//trnum,  idnc,iarch,local,.true.)
     enddo ! igas loop
   else                  ! history
     do igas = 1,ngas
-      write(trnum,'(i3.3)') igas
+      write(trnum,'(i4.4)') igas
       call histwrt(traver(:,:,igas),'trav'//trnum,idnc,iarch,local,lave)
       ! rml 14/5/10 option to write out local time afternoon average
       if ( writetrpm ) then

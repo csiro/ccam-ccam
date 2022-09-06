@@ -74,6 +74,7 @@ real, dimension(kl) :: factr
 real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d
 #ifdef debug
 integer, save :: num_hight = 0
+real, dimension(kl) :: diag_temp
 #endif
 
 call START_LOG(upglobal_begin)
@@ -145,7 +146,8 @@ if ( num_hight<100 ) then
   do iq = 1,ifull
     if ( tx(iq,kl)>264. ) then  !cb
       write(6,*) 'upglobal ktau,myid,iq,large_tx  ',ktau,myid,iq,tx(iq,kl)
-      write (6,"('sdot_iq',9f7.3/7x,9f7.3)") sdot(iq,1:kl)
+      diag_temp(1:kl) = sdot(iq,1:kl)
+      write (6,"('sdot_iq',9f7.3/7x,9f7.3)") diag_temp(1:kl)
       num_hight=num_hight+1
     end if
   end do
