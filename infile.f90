@@ -28,13 +28,8 @@ module infile
 ! supplied in parallel and then makes this data avaliable to all processors for interpolation. The code can also identify
 ! restart files, in which case no additional message passing is required.
 
-#ifdef usenc_mod
-! use netcdf.mod interface
-use netcdf
-#else
 ! use netcdf.inc interface (default) or C interface (-Dncclib)
 use netcdf_m
-#endif
 
 implicit none
             
@@ -49,6 +44,7 @@ public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
 public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
 public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
 public comm_ip
+public driving_model_id, driving_model_ensemble_number, driving_experiment_name
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
@@ -58,10 +54,12 @@ integer, save :: comm_ip
 integer, save :: pil_single = 48 ! grid size for single file decomposition
 logical, dimension(:), allocatable, save :: pfown
 logical, save :: ptest, pfall, resprocformat
-
 integer(kind=2), parameter :: minv = -32500
 integer(kind=2), parameter :: maxv =  32500
 integer(kind=2), parameter :: missval = -32501
+character(len=256), save :: driving_model_id = ' '
+character(len=256), save :: driving_model_ensemble_number = ' '
+character(len=256), save :: driving_experiment_name = ' '
 
 interface histrd
   module procedure histrd3r4, histrd4r4, histrd5r4
@@ -164,7 +162,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd3 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
     write(6,'(" done histrd3 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 
@@ -175,7 +173,7 @@ else
      allocate( globvar(6*pil_g**2) )
      globvar(:) = 0.
      call hr3p(iarchi,ier,name,.false.,globvar)
-     if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+     if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
        vmax = maxval(globvar)
        vmin = minval(globvar)
        iq = id + (jd-1)*pil_g
@@ -208,6 +206,7 @@ end subroutine histrd3r4
 subroutine hr3p(iarchi,ier,name,qtest,var)
 
 use cc_mpi
+use parm_m, only : nmaxpr
       
 implicit none
 
@@ -234,7 +233,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 ) then
+      if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
     else
@@ -325,7 +324,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd3r8 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
     write(6,'(" done histrd3r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 else
@@ -334,7 +333,7 @@ else
     allocate( globvar(6*pil_g**2) )
     globvar(:) = 0.
     call hr3pr8(iarchi,ier,name,.false.,globvar)
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       iq = id+(jd-1)*pil_g
@@ -361,6 +360,7 @@ end subroutine histrd3r8
 subroutine hr3pr8(iarchi,ier,name,qtest,var)
 
 use cc_mpi
+use parm_m, only : nmaxpr
       
 implicit none
 
@@ -387,7 +387,7 @@ if ( mynproc>0 ) then
     ! get variable idv
     ier=nf90_inq_varid(pncid(ipf),name,idv)
     if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 ) then
+      if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
         write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
       end if
     else
@@ -480,7 +480,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd4 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
     write(6,'(" done histrd4 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 else 
@@ -489,7 +489,7 @@ else
     allocate( globvar(6*pil_g**2,kk) )
     globvar(:,:) = 0.
     call hr4p(iarchi,ier,name,kk,.false.,globvar)     
-    if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       iq = id+(jd-1)*pil_g
@@ -515,6 +515,7 @@ end subroutine histrd4r4
 subroutine hr4p(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
+use parm_m, only : nmaxpr
       
 implicit none
 
@@ -579,7 +580,7 @@ if ( mynproc>0 ) then
           ier = nf90_inq_varid(pncid(ipf),newname,idv)          
         end if
         if ( ier/=nf90_noerr ) then
-          if ( myid==0 .and. ipf==0 ) then
+          if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
             write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
           end if
           rvar(:,:) = 0. ! default value for missing field
@@ -669,7 +670,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd4r8 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
     write(6,'(" done histrd4r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 else
@@ -678,7 +679,7 @@ else
     allocate( globvar(6*pil_g**2,kk) )
     globvar(:,:) = 0._8
     call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
-    if( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       iq = id+(jd-1)*pil_g
@@ -704,6 +705,7 @@ end subroutine histrd4r8
 subroutine hr4pr8(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
+use parm_m, only : nmaxpr
       
 implicit none
 
@@ -766,7 +768,7 @@ if ( mynproc>0 ) then
           ier = nf90_inq_varid(pncid(ipf),newname,idv)          
         end if
         if ( ier/=nf90_noerr ) then
-          if ( myid==0 .and. ipf==0 ) then
+          if ( myid==0 .and. ipf==0 .and. nmaxpr==1 ) then
             write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
           end if
           rvar(:,:) = 0._8 ! default value for missing field
@@ -849,7 +851,7 @@ ll = size(var,3)
 if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute
   call hr5p(iarchi,ier,name,kk,ll,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
     write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 else    
@@ -858,7 +860,7 @@ else
     allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0.
     call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       write(6,'(" done histrd5 ",a18,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
@@ -986,7 +988,7 @@ ll = size(var,3)
 if ( ifull==6*pil_g**2 .or. ptest ) then
   ! read local arrays without gather and distribute
   call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 ) then  
+  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
     write(6,'(" done histrd5r8 ",a46,i4,i3)') trim(name),ier,iarchi
   end if
 else    
@@ -995,7 +997,7 @@ else
     allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0._8
     call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)     
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 ) then
+    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
       vmax = maxval(globvar)
       vmin = minval(globvar)
       write(6,'(" done histrd5r8 ",a16,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
@@ -1245,7 +1247,7 @@ if ( myid==0 ) then
       end do  
       fnproc = nxp_test**2*6
       if ( myid==0 ) then
-        write(6,*) "--> Decompose single file into sections = ",fnproc
+        write(6,*) "-> Decompose single file into sections = ",fnproc
       end if      
     end if  
     
@@ -1296,7 +1298,7 @@ if ( myid==0 ) then
       end if
     end if
 
-    write(6,*) "--> dmode,ptest,resprocformat ",dmode,ptest,resprocformat
+    write(6,*) "-> dmode,ptest,resprocformat ",dmode,ptest,resprocformat
     
   end if
 
@@ -1349,7 +1351,7 @@ if ( myid==0 ) then
     end if
   end if
   
-  write(6,*) "--> Broadcasting file metadata"
+  write(6,*) "-> Broadcasting file metadata"
 end if
 
 ! Broadcast file metadata
@@ -1370,7 +1372,7 @@ dmode         = idum(12)     ! file decomposition
 if ( ier/=nf90_noerr ) return
 
 if ( myid==0 ) then
-  write(6,*) "--> Opening data files"
+  write(6,*) "-> Opening data files"
 end if
 
 ! calculate number of files to be read on this processor
@@ -1409,8 +1411,8 @@ end if
 
 ! distribute comms
 if ( myid==0 ) then
-  write(6,*) "--> Splitting comms for distributing file data with fnresid ",fnresid
-  write(6,*) "--> Number of files to be read with mynproc ",mynproc
+  write(6,*) "-> Splitting comms for distributing file data with fnresid ",fnresid
+  write(6,*) "-> Number of files to be read with mynproc ",mynproc
 end if
 
 ! define comm group to read the residual files
@@ -1513,7 +1515,7 @@ end if
 
 allocate( dum_off(0:fnproc-1,1:13) )
 if ( myid==0 ) then
-  write(6,*) "--> Broadcast file coordinate data"
+  write(6,*) "-> Broadcast file coordinate data"
   dum_off(0:fnproc-1,1:6)  = pioff(0:fnproc-1,0:5)
   dum_off(0:fnproc-1,7:12) = pjoff(0:fnproc-1,0:5)
   dum_off(0:fnproc-1,13)   = pnoff(0:fnproc-1)
@@ -1555,7 +1557,7 @@ if ( .not.resprocformat ) then
 end if
 
 if ( myid==0 ) then
-  write(6,*) "--> Ready to read data from input file"
+  write(6,*) "-> Ready to read data from input file"
 end if
 
 return
@@ -1762,7 +1764,7 @@ else if ( leap_l==1 ) then ! 365/366 day calendar
 else if ( leap_l==2 ) then ! 360 day calendar
   mdays(:)=30_8  
 else
-  write(6,*) "ERROR: Unknown option for leap = ",leap
+  write(6,*) "ERROR: Unknown option for leap = ",leap_l
   call ccmpi_abort(-1)
 end if
 do while ( mtimer_r>minsday*mdays(imo) )
@@ -1837,15 +1839,11 @@ end subroutine datefix
 ! Same as datefix, but for time with units of months
 subroutine datefix_month(kdate_r,mtimer_r)
 
-use cc_mpi
-use parm_m
-
 implicit none
 
 integer, intent(inout) :: kdate_r
 integer(kind=8), intent(inout) :: mtimer_r
 integer(kind=8) iyr,imo,iday
-integer(kind=8) mtimer
 
 iyr=int(kdate_r,8)/10000_8
 imo=(int(kdate_r,8)-10000_8*iyr)/100_8
@@ -1860,8 +1858,8 @@ do while ( mtimer_r>0_8 )
   end if
 end do
   
-kdate_r = int(iday + 100_8*(imo+100_8*iyr))
-mtimer = 0_8
+kdate_r = int(iday + 100_8*imo + 10000_8*iyr)
+mtimer_r = 0_8
   
 return
 end subroutine datefix_month
@@ -2017,7 +2015,7 @@ end subroutine getzinp
 
 !--------------------------------------------------------------------
 ! DEFINE ATTRIBUTES
-subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,daily,itype)
+subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,time_freq,itype)
 
 use cc_mpi
 use newmpar_m
@@ -2026,7 +2024,7 @@ use parm_m
 implicit none
 
 integer, intent(in) :: cdfid, itype, ndim
-integer, intent(in) :: daily
+integer, intent(in) :: time_freq
 integer, dimension(ndim), intent(in) :: dim
 integer ier
 integer(kind=4) vtype, idv, lcdfid, lsize, lcompression
@@ -2051,10 +2049,6 @@ else
 end if
 lcdfid = cdfid
 ldim   = dim
-#ifdef usenc3
-ier = nf90_def_var(lcdfid, name, vtype, ldim, idv)
-call ncmsg("def_var - "//trim(name),ier)
-#else
 if ( localhist .and. ndim>3 ) then
   ! MJT notes - PR identified (/il, jl, kl,vnode_nproc, min(10, tlen)/) as optimal.
   ! However, here we simplify the code and PR reports that the performance is
@@ -2083,7 +2077,6 @@ else
   call ncmsg("def_var - "//trim(name),ier)
   ier = nf90_def_var_deflate(lcdfid, idv, 1_4, 1_4, lcompression)
 end if
-#endif
 lsize = len_trim(lname)
 ier = nf90_put_att(lcdfid,idv,'long_name',lname)
 call ncmsg("long_name",ier)
@@ -2111,10 +2104,10 @@ else
 endif
 ier = nf90_put_att(lcdfid,idv,'FORTRAN_format','G11.4')
 call ncmsg("FORTRAN_format",ier)
-if ( daily==1 ) then
+if ( time_freq==1 ) then
   ier = nf90_put_att(lcdfid,idv,'valid_time','daily')
   call ncmsg("valid_time",ier)
-else if ( daily==2 ) then
+else if ( time_freq==2 ) then
   ier = nf90_put_att(lcdfid,idv,'valid_time','6hr')
   call ncmsg("valid_time",ier)
 endif
@@ -2236,6 +2229,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>4 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 if ( vtype==nf90_short ) then
   if ( all(var_g>9.8E36) ) then
     ipack_g(:,:) = missval
@@ -2252,7 +2250,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt3 ",a20,i8,a7)') sname,iarch,"missing"
   else
@@ -2295,6 +2293,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>3 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 3 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36) ) then
     ipack = missval
@@ -2309,7 +2312,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt3 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2377,6 +2380,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>4 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 if ( vtype==nf90_short ) then
   if ( all(var_g>9.8E36_8) ) then
     ipack_g(:,:) = missval
@@ -2393,7 +2401,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt3r8 ",a20,i8,a7)') sname,iarch,"missing"
   else
@@ -2436,6 +2444,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>3 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 3 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36_8) ) then
     ipack = missval
@@ -2450,7 +2463,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt3r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2593,6 +2606,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>5 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 
 if ( vtype==nf90_short ) then
   if ( all(var>9.8e36) ) then
@@ -2614,7 +2632,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt4 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2658,6 +2676,12 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
+if ( ndims>4 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
+
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36) )then
     ipack = missval
@@ -2676,7 +2700,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -2735,6 +2759,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>5 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 
 if ( vtype==nf90_short ) then
   if ( all(var>9.8e36_8) ) then
@@ -2756,7 +2785,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2800,6 +2829,12 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
+if ( ndims>4 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
+
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36_8) )then
     ipack = missval
@@ -2818,7 +2853,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -2958,6 +2993,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>6 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 6 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 
 if ( vtype==nf90_short ) then
   if ( all(var_g>9.8e36) ) then
@@ -2981,7 +3021,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt5 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -3025,6 +3065,12 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
+if ( ndims>5 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
+
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36) )then
     ipack = missval
@@ -3045,7 +3091,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
     write(6,'(" histwrt5 ",a7,i4,a7)') sname,iarch,"missing"
   else
@@ -3099,6 +3145,11 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+if ( ndims>6 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 6 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
 
 if ( vtype==nf90_short ) then
   if ( all(var>9.8e36_8) ) then
@@ -3123,7 +3174,7 @@ else
 end if
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 .and. myid==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
   if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt5r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -3167,6 +3218,12 @@ lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
 call ncmsg(sname,ier)
 ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
+if ( ndims>5 ) then
+  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
+  write(6,*) "but was created with ndims = ",ndims
+  call ccmpi_abort(-1)
+end if
+
 if ( vtype==nf90_short ) then
   if ( all(globvar>9.8e36_8) )then
     ipack = missval
@@ -3187,7 +3244,7 @@ else
 endif
 call ncmsg(sname,ier)
 
-if ( mod(ktau,nmaxpr)==0 ) then
+if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
   if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
     write(6,'(" histwrt5r8 ",a20,i4,a7)') sname,iarch,"missing"
   else
@@ -3243,11 +3300,7 @@ integer ncstatus
 integer(kind=4) :: lncid
 character(len=*), intent(in) :: fname
 
-#ifdef usenc3
-ncstatus = nf90_create(fname,nf90_64bit_offset,lncid)
-#else
 ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
-#endif
 ncid = lncid
 if ( ncstatus/=nf90_noerr ) then
   write(6,*) "ERROR: Cannot create fname = ",trim(fname)
@@ -3478,11 +3531,7 @@ end select
 
 lncid=ncid
 ldims=dims
-#ifdef usenc3
-ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid)
-#else
 ncstatus = nf90_def_var(lncid,vname,ltype,ldims,lvid,deflate_level=1_4)
-#endif
 vid=lvid
 call ncmsg("def_var - "//trim(vname),ncstatus)
 

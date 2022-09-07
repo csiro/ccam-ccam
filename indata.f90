@@ -140,7 +140,7 @@ real, dimension(ifull,5) :: duma
 real, dimension(ifull,6) :: ocndwn
 real, dimension(ifull,wlev,8) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
-real, dimension(ifull,kl,9) :: dumb
+real, dimension(ifull,kl,10) :: dumb
 real, dimension(ifull,ms,3) :: dumca
 real, dimension(ifull,3,3) :: dumi
 real, dimension(ifull,3) :: dums
@@ -251,9 +251,11 @@ if ( myid==0 ) then
   read(28,*)(dumc(kl+k),k=1,kl)
   close(28) 
   ! dumc(1:kl)   = sig,   dumc(kl+1:2*kl) = sigmh, dumc(2*kl+1:3*kl) = tbar
-  write(6,*) 'kl,lapsbot,sig from eigenv file: ',kl,lapsbot,dumc(1:kl)
-  write(6,*) 'tbar: ',dumc(2*kl+1:3*kl)
-  write(6,*) 'bam:  ',bam
+  if ( nmaxpr==1 ) then
+    write(6,*) 'kl,lapsbot,sig from eigenv file: ',kl,lapsbot,dumc(1:kl)
+    write(6,*) 'tbar: ',dumc(2*kl+1:3*kl)
+    write(6,*) 'bam:  ',bam
+  end if  
   
   if ( vegfile==" " ) then
     write(6,*) "ERROR: vegfile has not been specified"
@@ -319,7 +321,7 @@ lncveg_numpft  = nint(dumc(3*kl+6))
 lncveg_numsoil = nint(dumc(3*kl+7))
 if ( myid==0 ) then
   write(6,*) "Testing for NetCDF surface files"
-  write(6,*) "lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
+  write(6,*) "-> lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
   write(6,*) "Processing vertical levels"
 end if
 
@@ -327,7 +329,7 @@ dsig(1:kl-1)   = sigmh(2:kl) - sigmh(1:kl-1)
 dsig(kl)       = -sigmh(kl)
 sumdsig        = sum(dsig(1:kl))
 tbardsig(1:kl) = 0.
-if ( myid==0 ) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*)'dsig,sumdsig ',dsig,sumdsig
 end if
 if ( isoth>=0 ) then
@@ -348,7 +350,7 @@ do k = 1,kl-1
   ratha(k) = (sigmh(k+1)-sig(k))/(sig(k+1)-sig(k))
   rathb(k) = (sig(k+1)-sigmh(k+1))/(sig(k+1)-sig(k))
 end do
-if ( myid==0 ) then
+if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*)'rata ',rata
   write(6,*)'ratb ',ratb
   write(6,*)'ratha ',ratha
@@ -378,12 +380,13 @@ endif
 
 ! Calculate eigenvectors
 if ( myid==0 ) then
-  write(6,*) 'bet  ',bet
-  write(6,*) 'betm ',betm
-  write(6,*) 'Calculating eigenvectors'
+  if ( nmaxpr==1 ) then  
+    write(6,*) 'bet  ',bet
+    write(6,*) 'betm ',betm
+  end if
 end if
 if ( nh==2 .and. lapsbot/=3 ) then
-  write(6,*) 'nh=2 needs lapsbot=3'
+  write(6,*) 'ERROR: nh=2 needs lapsbot=3'
   call ccmpi_abort(-1)
 end if
 if ( abs(epsp)<=1. ) then
@@ -523,27 +526,27 @@ if ( nsib>=1 ) then
   end if
   ! special options for standard land surface scheme
   if ( nsib==3 ) then
-    if ( nspecial==35 ) then       ! test for Andy Cottrill
-      do iq=1,ifull
-        rlongd=rlongg(iq)*180./pi
-        rlatd=rlatt(iq)*180./pi
-        if(rlatd>-32..and.rlatd<-23.5)then
-          if(rlongd>145..and.rlongd<=150.)ivegt(iq)=4
-          if(rlongd>150..and.rlongd<154.)ivegt(iq)=2
-        endif
-      enddo
-    endif  ! (nspecial==35)
-    ! zap vegetation over SEQ for Andy
-    if ( nspecial==41 ) then
-      do iq=1,ifull
-        rlongd=rlongg(iq)*180./pi
-        rlatd=rlatt(iq)*180./pi
-        if(rlatd>-32. .and. rlatd<-23.5)then
-          if(rlongd>145. .and. rlongd<=152.)ivegt(iq)=4 
-          if(rlongd>152. .and. rlongd< 154.)ivegt(iq)=2 
-        endif
-      enddo
-    endif  ! (nspecial==41)
+    !if ( nspecial==35 ) then       ! test for Andy Cottrill
+    !  do iq=1,ifull
+    !    rlongd=rlongg(iq)*180./pi
+    !    rlatd=rlatt(iq)*180./pi
+    !    if(rlatd>-32..and.rlatd<-23.5)then
+    !      if(rlongd>145..and.rlongd<=150.)ivegt(iq)=4
+    !      if(rlongd>150..and.rlongd<154.)ivegt(iq)=2
+    !    endif
+    !  enddo
+    !endif  ! (nspecial==35)
+    !! zap vegetation over SEQ for Andy
+    !if ( nspecial==41 ) then
+    !  do iq=1,ifull
+    !    rlongd=rlongg(iq)*180./pi
+    !    rlatd=rlatt(iq)*180./pi
+    !    if(rlatd>-32. .and. rlatd<-23.5)then
+    !      if(rlongd>145. .and. rlongd<=152.)ivegt(iq)=4 
+    !      if(rlongd>152. .and. rlongd< 154.)ivegt(iq)=2 
+    !    endif
+    !  enddo
+    !endif  ! (nspecial==41)
     do iq=1,ifull
       ! check for littoral veg over Oz      
       rlongd=rlongg(iq)*180./pi
@@ -744,7 +747,7 @@ if ( nurban/=0 ) then
   allocate( atebparm(ateb_len,36) )
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
-      write(6,*) "Using user defined UCLEM urban parameter tables with ateb_len=",ateb_len
+      write(6,*) "-> Using user defined UCLEM urban parameter tables with ateb_len=",ateb_len
       nstart(1) = 1
       ncount(1) = ateb_len
       call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(:,1))
@@ -941,7 +944,7 @@ if ( io_in<4 ) then
   zss = zs(1:ifull)
   if ( abs(io_in)==1 ) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &
-                  qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsng,qgrg,     &
+                  qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsng,qgrg,ni,  &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
                   ocndwn,xtgdwn)
     ! UPDATE BIOSPHERE DATA (nsib)
@@ -1478,8 +1481,8 @@ if ( .not.lrestart ) then
       call onthefly(2,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),duma(:,4),    &
                     duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),            &
                     dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),dumb(:,:,6),   &
-                    dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),tggsn,smass,ssdn,     &
-                    ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+                    dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumb(:,:,10),tggsn,   &
+                    smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
       ! UPDATE BIOSPHERE DATA (nsib)
       if ( nsib==6 .or. nsib==7 ) then
         if ( myid==0 ) then
@@ -1548,8 +1551,8 @@ if ( .not.lrestart ) then
                   duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),          &
                   dumb(:,:,4),dumca(:,:,1),dumca(:,:,2),dumca(:,:,3),     &
                   dums(:,1),dumb(:,:,5),dumb(:,:,6),                      &
-                  dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumi(:,:,1),        &
-                  dumi(:,:,2),dumi(:,:,3),                                &
+                  dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumb(:,:,10),       &
+                  dumi(:,:,1),dumi(:,:,2),dumi(:,:,3),                    &
                   dums(:,2),dums(:,3),dumf,mlodwn,ocndwn,xtgdwn)
     call histclose
     if ( myid==0 ) then
@@ -2193,12 +2196,6 @@ select case ( nkuo )
     call convjlm_init
 end select
 
-#ifdef COSPP
-!----------------------------------------------------------------
-!if ( ncosp>0 ) then
-!  call sonny_cosp_init
-!end if
-#endif
   
 !-----------------------------------------------------------------
 ! UPDATE RADIATION
@@ -2217,6 +2214,19 @@ call sflux_init
 ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Importing MLO data'
+  if ( any( mlodwn(1:ifull,1:wlev,1)+wrtemp>400.) .and. .not.lrestart ) then
+    ! This may trigger if there is a change in land-sea mask with the same grid
+    ! e.g., patching Samoa
+    if ( myid==0 ) then
+      write(6,*) "WARN: Invalid ocean data detected.  Correcting data."
+    end if
+    where ( mlodwn(1:ifull,1:wlev,1)+wrtemp>400. )
+      mlodwn(1:ifull,1:wlev,1) = 288. - wrtemp
+      mlodwn(1:ifull,1:wlev,2) = 34.72
+      mlodwn(1:ifull,1:wlev,3) = 0.
+      mlodwn(1:ifull,1:wlev,4) = 0.
+    end where
+  end if
   mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
   micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
   if ( .not.lrestart ) then
@@ -2407,6 +2417,30 @@ if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) th
   io_in = io_nest                  ! Needs to be seen by all processors
   call histopen(ncid,mesonest,ier) ! open parallel mesonest files
   call ncmsg("mesonest",ier)       ! report error messages
+  if ( myid==0 ) then
+    call ccnf_get_attg(ncid,'driving_model_id',driving_model_id,ierr=ierr)
+    if ( ierr==0 ) then
+      write(6,*) "driving_model_id             : ",trim(driving_model_id)  
+    else     
+      driving_model_id = ' '
+    end if  
+    call ccnf_get_attg(ncid,'driving_model_ensemble_number',driving_model_ensemble_number,ierr=ierr)
+    if ( ierr==0 ) then
+      write(6,*) "driving_model_ensemble_number: ",trim(driving_model_ensemble_number)
+    else    
+      driving_model_ensemble_number = ' '
+    end if  
+    call ccnf_get_attg(ncid,'driving_experiment_name',driving_experiment_name,ierr=ierr)
+    if ( ierr==0 ) then
+      ! MJT notes - this should be checked against GHG forcing data  
+      write(6,*) "driving_experiment_name      : ",trim(driving_experiment_name)
+    else
+      driving_experiment_name = ' '
+    end if  
+  end if
+  call ccmpi_bcast(driving_model_id,0,comm_world)
+  call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
+  call ccmpi_bcast(driving_experiment_name,0,comm_world)  
   if ( myid==0 ) then
     write(6,*) '============================================================================'
   end if

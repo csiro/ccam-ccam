@@ -590,6 +590,7 @@ do k = 1,kl-1
         ql2      = ql1 - selfcoll
         ql       = clfr(iq,k)*ql2
         dqls     = max( qlg(iq,k)-ql, 0. )
+        !dqls     = 0.                                               ! sonny test 
         cfautorain(iq,k) = clfr(iq,k)
         qauto(iq,k)      = qauto(iq,k) + dqls
         qlg(iq,k)        = qlg(iq,k)   - dqls

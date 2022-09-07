@@ -315,7 +315,7 @@ real, dimension(ifull+iextra,wlev), intent(inout) :: work
 real, dimension(ifull+iextra,wlev) :: ans
 real base, xfact_iwu, yfact_isv
 
-async_counter = mod(async_counter+1, async_length)+1
+async_counter = mod(async_counter+1, async_length)
 
 #ifdef _OPENMP
 #ifdef GPU

@@ -28,9 +28,19 @@
 !     sign convention:
 !                      u+ve eastwards  (on the panel)
 !                      v+ve northwards (on the panel)
+
+! Preprocessor directives:
+!   CCAM        - support CCAM (required)
+!   debug       - additional debugging checks
+!   scm         - single column mode
+!   i8r8        - double precision mode
+!   GPU         - target GPUs with OpenMP
+!   csircoupled - CSIR coupled model
+!   usempi3     - allow shared memory (preferred)
+!   stacklimit  - disable stacklimit
+!   vampir      - enable vampir profiling
     
 program globpe
-
 
 use aerointerface                          ! Aerosol interface
 use aerosolldr, only : naero,xtosav,xtg    ! LDR prognostic aerosols
@@ -59,14 +69,12 @@ use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
 use kuocomb_m                              ! JLM convection
-!use leoncld_mod, only : leoncld           ! Prognostic cloud condensate
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo                                    ! Ocean physics and prognostic arrays
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
-use module_ctrl_microphysics               ! Microphysics driver   !#sonny
-use module_aux_rad
+use module_ctrl_microphysics               ! Interface for cloud microphysics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
@@ -93,6 +101,7 @@ use timeseries, only : write_ts            ! Tracer time series
 use tracermodule, only : tracer_mass     & ! Tracer routines
    ,interp_tracerflux
 use tracers_m                              ! Tracer data
+use trvmix                                 ! Tracer mixing routines
 use uvbar_m                                ! Saved dynamic arrays
 use vertmix_m                              ! Boundary layer turbulent mixing
 use vvel_m                                 ! Additional vertical velocity
@@ -143,9 +152,10 @@ end if
 
 
 !--------------------------------------------------------------
-! INITALISE MPI and OpenMP ROUTINES
+! INITALISE MPI ROUTINES
 ! CCAM has been optimised around MPI for parallel processing, although
 ! CCAM does support OMP parallel threads for its physical parameterisations
+! CCAM also supports GPU accelerators for some functions with either OpenMP or OpenACC
 call ccmpi_init
 
 ! Start banner
@@ -166,7 +176,6 @@ call setstacklimit(-1)
 call log_off
 call log_setup
 call globpe_init
-
 
 !--------------------------------------------------------------
 ! OPEN OUTPUT FILES AND SAVE INITAL CONDITIONS
@@ -217,7 +226,7 @@ nmaxprsav  = nmaxpr
 nwtsav     = nwt
 hourst     = real(nint(0.01*real(ktime))) + real(mod(ktime,100))/60. ! for tracers
 mtimer_in  = mtimer
- 
+
 
 !--------------------------------------------------------------
 ! BEGIN MAIN TIME LOOP
@@ -255,9 +264,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! NESTING ---------------------------------------------------------------
   if ( nbd/=0 ) then
-    ! Newtonian relaxiati
+    ! Newtonian relaxiation
     call START_LOG(nestin_begin)
-    call nantest("before nesting",1,ifull)  
+    call nantest("before nesting",1,ifull)
     call nestin
     call nantest("after nesting",1,ifull)
     call END_LOG(nestin_end)
@@ -554,17 +563,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
     if ( abs(iaero)>=2 ) then
       xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
     end if
-    js = (tile-1)*imax + 1
-    je = tile*imax
     call nantest("start of physics",js,je)
   end do  
   !$omp end do nowait
-
   
+
   ! GWDRAG ----------------------------------------------------------------
-  !$omp master
   call START_LOG(gwdrag_begin)
-  !$omp end master
   if ( ngwd<0 ) then
     call gwdrag  ! <0 for split - only one now allowed
   end if
@@ -575,15 +580,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after gravity wave drag",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   call END_LOG(gwdrag_end)
-  !$omp end master
 
-  
+ 
   ! CONVECTION ------------------------------------------------------------
-  !$omp master
   call START_LOG(convection_begin)
-  !$omp end master
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -611,17 +612,12 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after convection",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   call END_LOG(convection_end)
-  !$omp end master
 
-  
+
   ! CLOUD MICROPHYSICS ----------------------------------------------------
-  !$omp master
   call START_LOG(cloud_begin)
-  !$omp end master
-  !call leoncld
-  call ctrl_microphysics  !#sonny
+  call ctrl_microphysics
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -630,15 +626,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after cloud microphysics",js,je) 
   end do  
   !$omp end do nowait
-  !$omp master    
   call END_LOG(cloud_end)
-  !$omp end master
-    
-    
+
+
   ! RADIATION -------------------------------------------------------------
-  !$omp master
   call START_LOG(radnet_begin)
-  !$omp end master
   if ( ncloud>=4 .and. ncloud<=13 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -683,22 +675,18 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after radiation",js,je)    
   end do
   !$omp end do nowait
-  !$omp master
   call END_LOG(radnet_end)
-  !$omp end master
 
     
   ! HELD & SUAREZ ---------------------------------------------------------
   if ( nhstest==2 ) then
     call hs_phys
   end if
-
-    
+  
+  
   ! SURFACE FLUXES ---------------------------------------------
   ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
-  !$omp master
   call START_LOG(sfluxnet_begin)
-  !$omp end master
   if ( diag .and. ntiles==1 ) then
     call maxmin(u,'#u',ktau,1.,kl)
     call maxmin(v,'#v',ktau,1.,kl)
@@ -715,18 +703,12 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after surface fluxes",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   call END_LOG(sfluxnet_end)
-  !$omp end master
 
 
   ! AEROSOLS --------------------------------------------------------------
-  ! MJT notes - aerosols called before vertical mixing so that convective
-  ! and strat cloud can be separated in a way that is consistent with
-  ! cloud microphysics
-  !$omp master
+  ! Old time-split with aero_split=0
   call START_LOG(aerosol_begin)
-  !$omp end master
   if ( abs(iaero)>=2 ) then
     call aerocalc(oxidant_update,mins,0)
   end if
@@ -737,23 +719,22 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after aerosols",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   call END_LOG(aerosol_end)
-  !$omp end master
-    
+
     
   ! VERTICAL MIXING ------------------------------------------------------
-  !$omp master
+  ! (not including aerosols or tracers)
   call START_LOG(vertmix_begin)
   if ( nmaxpr==1 ) then
     if ( mydiag .and. ntiles==1 ) then
+      !$omp master
       write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+      !$omp end master
     end if
   end if
-  !$omp end master
   if ( ntsur>=1 ) then
     call vertmix
-  endif  ! (ntsur>=1)
+  end if  ! (ntsur>=1)
   if ( ncloud>=4 .and. ncloud<=13 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -771,15 +752,16 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after PBL mixing",js,je)
   end do  
   !$omp end do nowait
-  !$omp master
   if ( nmaxpr==1 ) then
     if ( mydiag .and. ntiles==1 ) then
+      !$omp master
       write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
+      !$omp end master
     end if
   end if
   call END_LOG(vertmix_end)
-  !$omp end master
 
+  
   ! AEROSOLS --------------------------------------------------------------
   ! New time-split with aero_split=1
   ! Includes turbulent mixing
@@ -790,13 +772,20 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
-    je = tile*imax
+    je = tile*imax  
     call nantest("after aerosols",js,je)
-  end do
+  end do  
   !$omp end do nowait
   call END_LOG(aerosol_end)
 
 
+  ! TRACERS ---------------------------------------------------------------
+  ! Turbulent mixing
+  if ( ngas>0 ) then
+    call tracervmix  
+  end if
+
+  
   ! MISC (PARALLEL) -------------------------------------------------------
   ! Update diagnostics for consistancy in history file
   !$omp do schedule(static) private(js,je)
@@ -814,6 +803,16 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call autoscrn(js,je)
     end do
     !$omp end do nowait
+    ! CAPE only needs to be calculated for cordex output
+    if ( surfile/=' ' .and. mod(ktau,tbave)==0 ) then
+      !$omp do schedule(static) private(js,je)
+      do tile = 1,ntiles
+        js = (tile-1)*imax + 1
+        je = tile*imax  
+        call capecalc(js,je)
+      end do
+      !$omp end do nowait
+    end if    
   end if
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
@@ -830,7 +829,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   end do  
   !$omp end do nowait
-  
+
   !$omp end parallel
 
 
@@ -841,8 +840,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if
 
   call END_LOG(phys_end)
-    
-    
+
+
 #ifdef csircoupled
   ! ***********************************************************************
   ! VCOM DIFFUSION
@@ -1073,7 +1072,7 @@ nullify(x_g, y_g, z_g)
 call ccmpi_finalize
 
 end
-
+    
     
 !--------------------------------------------------------------
 ! END OF CCAM LOG    
@@ -1089,7 +1088,7 @@ write(6,*) "====================================================================
 return
 end subroutine finishbanner
     
-
+    
 !--------------------------------------------------------------
 ! PREPARE SPECIAL TRACER ARRAYS
 ! sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
@@ -1274,6 +1273,7 @@ end subroutine stationa
 ! INITIALISE CCAM
 subroutine globpe_init
 
+use aerointerface                          ! Aerosol interface
 use aerosolldr, only : naero,ch_dust     & ! LDR prognostic aerosols
     ,zvolcemi,aeroindir,so4mtn,carbmtn   &
     ,saltsmallmtn,saltlargemtn
@@ -1327,7 +1327,8 @@ use cable_ccam, only : proglai           & ! CABLE
     ,fwsoil_switch,cable_litter          &
     ,gs_switch,cable_climate,ccycle      &
     ,smrf_switch,strf_switch             &
-    ,cable_gw_model
+    ,cable_gw_model,cable_roughness      &
+    ,cable_version
 use carbpools_m, only : carbpools_init     ! Carbon pools
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
@@ -1353,10 +1354,10 @@ use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
-!use module_mp_sbu_ylin, only : qi0         ! 2 moment scheme
 use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,factchseaice,minwater,mxd,mindep    &
     ,alphavis_seaice,alphanir_seaice     &
+    ,alphavis_seasnw,alphanir_seasnw     &
     ,otaumode,mlosigma,wlev,oclosure     &
     ,pdl,pdu,k_mode,eps_mode             &
     ,limitL,fixedce3,nops                &
@@ -1367,9 +1368,10 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
+use module_aux_rad                         ! Additional cloud and radiation routines
+use module_ctrl_microphysics, only : &
+    process_rate_mode,cloud_aerosol_mode   ! Interface for cloud microphysics
 use morepbl_m                              ! Additional boundary layer diagnostics
-use module_ctrl_microphysics, &            ! Microphysics driver
-      only : process_rate_mode
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use nlin_m                                 ! Atmosphere non-linear dynamics
@@ -1483,7 +1485,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
     always_mspeca,ntvd,tbave10,                                   &
     procmode,compression,hp_output,                               & ! file io
-    maxtilesize,async_length,                                     & ! OMP & ACC
+    maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
     npa,npb,cgmap_offset,cgmap_scale,procformat,fnproc_bcast_max, & ! depreciated
@@ -1494,7 +1496,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
-    saltlargemtn,                                                 &
+    saltlargemtn,aerosol_u10,aero_split,                          &
     o3_vert_interpolate,                                          & ! ozone
     o3_time_interpolate                                             ! depreciated
 ! file namelist
@@ -1511,7 +1513,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
-    surf_cordex,surf_windfarm,output_windmax,                     &
+    surf_cordex,surf_windfarm,output_windmax,cordex_fix,          &
     vegprev,vegnext,vegnext2                                        ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
@@ -1523,7 +1525,8 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
-    vdeposition_mode,tiedtke_form,process_rate_mode !,qi0 sny
+    vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
+    process_rate_mode
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -1537,7 +1540,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL s
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
-    cable_gw_model,                                               &
+    cable_gw_model,cable_roughness,cable_version,                 &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
     ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
@@ -1556,7 +1559,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
-    kmlo,mlontvd,                                                 &
+    kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,                 &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -1640,7 +1643,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(119) ) 
+allocate( dumr(33), dumi(120) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1797,6 +1800,7 @@ if ( myid==0 ) then
   dumi(117) = ntvd
   dumi(118) = tbave10  
   dumi(119) = async_length
+  dumi(120) = nagg
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1952,6 +1956,7 @@ always_mspeca     = dumi(116)==1
 ntvd              = dumi(117)
 tbave10           = dumi(118)
 async_length      = dumi(119)
+nagg              = dumi(120)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -1964,7 +1969,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(10), dumi(10) )
+allocate( dumr(10), dumi(12) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -1989,6 +1994,8 @@ if ( myid==0 ) then
   dumi(8)  = aeroindir
   dumi(9)  = o3_vert_interpolate
   if ( do_co2_10um ) dumi(10) = 1
+  dumi(11) = aerosol_u10  
+  dumi(12) = aero_split
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2016,8 +2023,10 @@ seasaltradmethod    = dumi(7)
 aeroindir           = dumi(8)
 o3_vert_interpolate = dumi(9)
 do_co2_10um         = dumi(10)==1
+aerosol_u10         = dumi(11)
+aero_split          = dumi(12)
 deallocate( dumr, dumi )
-allocate( dumi(24) )
+allocate( dumi(25) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -2045,6 +2054,7 @@ if ( myid==0 ) then
   dumi(22) = surf_cordex
   dumi(23) = surf_windfarm
   dumi(24) = output_windmax
+  dumi(25) = cordex_fix
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -2108,8 +2118,9 @@ diaglevel_pop       = dumi(21)
 surf_cordex         = dumi(22)
 surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
+cordex_fix          = dumi(25)
 deallocate( dumi )
-allocate( dumr(34), dumi(24) )
+allocate( dumr(34), dumi(25) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2148,7 +2159,6 @@ if ( myid==0 ) then
   dumr(32) = rcrit_l
   dumr(33) = rcrit_s
   dumr(34) = cld_decay
-  !dumr(35) = qi0
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -2172,7 +2182,8 @@ if ( myid==0 ) then
   dumi(21) = nevapls
   dumi(22) = vdeposition_mode
   dumi(23) = tiedtke_form
-  dumi(24) = process_rate_mode
+  dumi(24) = cloud_aerosol_mode
+  dumi(25) = process_rate_mode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2210,7 +2221,6 @@ rcm              = dumr(31)
 rcrit_l          = dumr(32)
 rcrit_s          = dumr(33)
 cld_decay        = dumr(34)
-!qi0              = dumr(35)
 iterconv         = dumi(1) 
 ksc              = dumi(2)
 kscmom           = dumi(3)
@@ -2234,7 +2244,8 @@ nmr              = dumi(20)
 nevapls          = dumi(21)
 vdeposition_mode = dumi(22)
 tiedtke_form     = dumi(23)
-process_rate_mode = dumi(24)
+cloud_aerosol_mode = dumi(24)
+process_rate_mode  = dumi(25)
 deallocate( dumr, dumi )
 allocate( dumr(32), dumi(4) )
 dumr = 0.
@@ -2322,7 +2333,7 @@ stabmeth           = dumi(2)
 tkemeth            = dumi(3)
 ngwd               = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr(23), dumi(31) )
+allocate( dumr(24), dumi(32) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2355,6 +2366,7 @@ if ( myid==0 ) then
   dumr(21) = ateb_ac_deltat
   dumr(22) = ateb_acfactor
   dumr(23) = siburbanfrac
+  dumr(24) = cable_version
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2386,6 +2398,7 @@ if ( myid==0 ) then
   dumi(29) = ateb_statsmeth
   dumi(30) = ateb_lwintmeth
   dumi(31) = ateb_infilmeth
+  dumi(32) = cable_roughness
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2412,6 +2425,7 @@ ateb_ac_coolcap   = dumr(20)
 ateb_ac_deltat    = dumr(21)
 ateb_acfactor     = dumr(22)
 siburbanfrac      = dumr(23) 
+cable_version     = dumr(24)
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
@@ -2442,9 +2456,10 @@ intmassmeth       = dumi(27) ! note switch to UCLEM parameter
 ateb_cvcoeffmeth  = dumi(28) 
 ateb_statsmeth    = dumi(29) 
 ateb_lwintmeth    = dumi(30) 
-ateb_infilmeth    = dumi(31) 
+ateb_infilmeth    = dumi(31)
+cable_roughness   = dumi(32)
 deallocate( dumr, dumi )
-allocate( dumr(19), dumi(20) )
+allocate( dumr(21), dumi(20) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2473,6 +2488,8 @@ if ( myid==0 ) then
   dumr(17) = omaxl
   dumr(18) = mlo_timeave_length
   dumr(19) = kemaxdt
+  dumr(20) = alphavis_seasnw
+  dumr(21) = alphanir_seasnw
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2515,6 +2532,8 @@ ominl              = dumr(16)
 omaxl              = dumr(17)
 mlo_timeave_length = dumr(18)
 kemaxdt            = dumr(19)
+alphavis_seasnw    = dumr(20)
+alphanir_seasnw    = dumr(21)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 
@@ -2558,6 +2577,7 @@ deallocate( dumi )
 if ( myid==0 ) then
   close(99)
 end if
+
 if ( dt<=0. ) then
   write(6,*) "ERROR: dt must be greather than zero"
   call ccmpi_abort(-1)
@@ -2569,6 +2589,12 @@ end if
 if ( nvmix==9 .and. nmlo==0 ) then
   write(6,*) "ERROR: nvmix=9 requires nmlo/=0"
   call ccmpi_abort(-1)
+end if
+if ( nagg < 3 ) then
+  if ( myid==0 ) then
+    write(6,*) "WARN: Minimum nagg is increased to 3"
+  end if
+  nagg = 3
 end if
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
@@ -2588,7 +2614,9 @@ end if
 wlev     = ol                   ! set nmlo and nmlodynamics ocean levels
 mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
-
+! Update radiation sea-ice albedo to match MLO albedo values
+seaice_albvis = alphavis_seaice
+seaice_albnir = alphanir_seaice
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -2690,6 +2718,8 @@ do while( mod(jl, nrows_rad) /= 0 )
 end do
 
 #ifdef usempi3
+! since processes might have been remapped, then use node_myid
+! to determine GPU assigned to each process
 call ccomp_init(node_myid,ngpus)
 call ccacc_init(node_myid,ngpus)
 #else
@@ -2698,7 +2728,7 @@ call ccacc_init(myid,ngpus)
 #endif
 
 if ( myid==0 ) then
-  write(6,*) "CCAM: ",trim(version)      
+  write(6,'(" ",A)') trim(version)
   write(6,*) "Running for nproc                        = ",nproc
   write(6,*) 'Using defaults for nversion              = ',nversion
 #ifdef usempi3
@@ -2712,21 +2742,17 @@ if ( myid==0 ) then
 #ifdef GPU
   write(6,*) 'Using OpenMP with GPUs per node          = ',ngpus
 #endif
-#else
+#endif
 #ifdef _OPENACC
   write(6,*) 'Using OpenACC with GPUs per node         = ',ngpus  
 #endif
-#endif
   write(6,*) 'Reading namelist from ',trim(nmlfile)
-  write(6,*) 'ilx,jlx              ',ilx,jlx
   write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
   write(6,*) 'kl,ol                ',kl,ol
   write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
-  write(6,*) "Using face grid decomposition"
-  write(6,*) "Using ntiles and imax of ",ntiles,ifull/ntiles
-  write(6,*) "il_g,jl_g,il,jl ",il_g,jl_g,il,jl
-  write(6,*) "ifull_g,ifull   ",ifull_g,ifull
-  write(6,*) "nxp,nyp         ",nxp,nyp
+  write(6,*) 'Using ntiles and imax of ',ntiles,ifull/ntiles
+  write(6,*) 'il_g,jl_g,il,jl ',il_g,jl_g,il,jl
+  write(6,*) 'nxp,nyp         ',nxp,nyp
 end if
 
 ! some default values for unspecified parameters
@@ -2800,18 +2826,18 @@ end if
 ! number of vertical levels in spectral nudging for MPI.
 if ( kblock<0 ) then
   kblock = max(kl, ol) ! must occur before indata
-end if
-if ( myid==0 ) then
-  write(6,*) "Using vertical kblock = ",kblock
+  if ( myid==0 ) then
+    write(6,*) "Adjusting vertical kblock = ",kblock
+  end if  
 end if
 if ( wgcoeff<0. ) then
-  if ( nvmix==6 .and. nvmix==7 ) then  
+  if ( nvmix==6 .or. nvmix==7 ) then  
     tscale = max( max( tke_timeave_length, dt ), wg_tau )
   else
     tscale = max( dt, wg_tau )  
   end if
-  ! Wichers et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
-  wgcoeff = sqrt(max(0.,-2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
+  ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
+  wgcoeff = sqrt(max(0.,2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
   if ( myid==0 ) then
     write(6,*) "Adjusting wgcoeff = ",wgcoeff
   end if
@@ -3146,7 +3172,7 @@ end if
 !--------------------------------------------------------------
 ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
 if ( mydiag ) then
-  write(6,"('id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,180./pi*rlongg(idjd),180./pi*rlatt(idjd)
+  write(6,"(' id,jd,rlongg,rlatt in degrees: ',2i4,2f8.2)") id,jd,180./pi*rlongg(idjd),180./pi*rlatt(idjd)
 end if
 call date_and_time(rundate)
 call date_and_time(time=timeval)
@@ -3637,6 +3663,8 @@ end subroutine proctest_face
     
 !--------------------------------------------------------------------
 ! Fix water vapour mixing ratio
+!--------------------------------------------------------------------
+! Fix water vapour mixing ratio
 subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -3658,7 +3686,7 @@ real, dimension(js:je) :: qtot, tliq
 if ( qg_fix<=0 ) return
 
 do k = 1,kl
-  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. )
+  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), qgmin )
   tliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
   
   qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
@@ -3667,7 +3695,7 @@ do k = 1,kl
   qsng(js:je,k)  = max( qsng(js:je,k), 0. )
   qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
   
-  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
+  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), qgmin )
   t(js:je,k)  = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
   where ( qlg(js:je,k)+qfg(js:je,k)>1.E-8 )
     stratcloud(js:je,k) = max( stratcloud(js:je,k), 1.E-8 )
@@ -3881,6 +3909,8 @@ end if
 if ( output_windmax/=0 ) then
   u_max = 0.
   v_max = 0.
+  u10m_max = 0.
+  v10m_max = 0.
 end if
 
 return
@@ -4082,6 +4112,11 @@ if ( output_windmax/=0 ) then
       v_max(1:ifull,k) = v(1:ifull,k)
     end where
   end do
+  spare1 = u(1:ifull,1)**2 + v(1:ifull,1)**2
+  where ( u10(:)**2 > u10m_max(:)**2 + v10m_max(:)**2 )
+    u10m_max(:) = u10(:)*u(1:ifull,1)/max(.001,sqrt(spare1(1:ifull)))
+    v10m_max(:) = u10(:)*v(1:ifull,1)/max(.001,sqrt(spare1(1:ifull)))
+  end where
 end if
 
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
@@ -4777,4 +4812,6 @@ end if
 
 return
 end subroutine nantest
+
+
 

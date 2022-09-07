@@ -205,12 +205,12 @@ call boundsuv(godsigu,godsigv)
 gosighu(:,1) = godsigu(1:ifull,1)
 gosighv(:,1) = godsigv(1:ifull,1)
 do ii = 2,wlev
-  gosighu(:,ii) = gosighu(:,ii-1) + godsigu(1:ifull,ii)
-  gosighv(:,ii) = gosighv(:,ii-1) + godsigv(1:ifull,ii)
+  gosighu(1:ifull,ii) = gosighu(1:ifull,ii-1) + godsigu(1:ifull,ii)
+  gosighv(1:ifull,ii) = gosighv(1:ifull,ii-1) + godsigv(1:ifull,ii)
 end do
 do ii = 1,wlev
-  gosighu(:,ii) = max(gosighu(:,ii),1.e-8/ddu)
-  gosighv(:,ii) = max(gosighv(:,ii),1.e-8/ddv)
+  gosighu(1:ifull,ii) = max(gosighu(1:ifull,ii),1.e-8/ddu(1:ifull))
+  gosighv(1:ifull,ii) = max(gosighv(1:ifull,ii),1.e-8/ddv(1:ifull))
 end do
 
 ! store correction for nodrift==1
@@ -404,6 +404,7 @@ if ( usetide==1 ) then
   else if ( leap==2 ) then ! 360 day calendar  
     jstart = 360*(jyear-1900)
   else
+    jstart = 0
     write(6,*) "ERROR: Unknown option leap = ",leap
     call ccmpi_abort(-1)
   end if    
@@ -519,10 +520,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   if ( abs(dt-dtsave)>1.e-20 ) then
     bb(1:ifull) = -ee(1:ifull,1)*(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(1:ifull))**2) ! unstaggered
     call bounds(bb,nehalf=.true.)
-    bu = 0.5*(bb(1:ifull)+bb(ie))*eeu(1:ifull,1)
-    bv = 0.5*(bb(1:ifull)+bb(in))*eev(1:ifull,1)
-    cu =  bu*(1.+ocneps)*0.5*dt*fu
-    cv = -bv*(1.+ocneps)*0.5*dt*fv
+    bu(1:ifull) = 0.5*(bb(1:ifull)+bb(ie))*eeu(1:ifull,1)
+    bv(1:ifull) = 0.5*(bb(1:ifull)+bb(in))*eev(1:ifull,1)
+    cu(1:ifull) =  bu(1:ifull)*(1.+ocneps)*0.5*dt*fu(1:ifull)
+    cv(1:ifull) = -bv(1:ifull)*(1.+ocneps)*0.5*dt*fv(1:ifull)
     dtsave = dt
   end if
   
@@ -1023,10 +1024,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))*eev(1:ifull,1)
   do ii = 1,wlev
     ! update currents (staggered)
-    lbu = 0.5*(cc(1:ifull,ii)+cc(ie,ii))*eeu(1:ifull,ii)
-    lbv = 0.5*(cc(1:ifull,ii)+cc(in,ii))*eev(1:ifull,ii)
-    lcu =  lbu*(1.+ocneps)*0.5*dt*fu
-    lcv = -lbv*(1.+ocneps)*0.5*dt*fv
+    lbu(1:ifull) = 0.5*(cc(1:ifull,ii)+cc(ie,ii))*eeu(1:ifull,ii)
+    lbv(1:ifull) = 0.5*(cc(1:ifull,ii)+cc(in,ii))*eev(1:ifull,ii)
+    lcu(1:ifull) =  lbu(1:ifull)*(1.+ocneps)*0.5*dt*fu(1:ifull)
+    lcv(1:ifull) = -lbv(1:ifull)*(1.+ocneps)*0.5*dt*fv(1:ifull)
     nu(1:ifull,ii) = kku(:,ii) + oou(:,ii)*oeu(1:ifull) + grav*lbu*detadxu + grav*lcu*detadyu
     nv(1:ifull,ii) = kkv(:,ii) + oov(:,ii)*oev(1:ifull) + grav*lbv*detadyv + grav*lcv*detadxv
   end do 
@@ -1850,6 +1851,8 @@ else if ( leap==1 ) then
   ctime = stime/36525. ! century (relative to 12Z 31 Dec 1899)
 else if ( leap==2 ) then
   ctime = stime/36000.  
+else
+  ctime = 0. ! error
 end if
 
 mn = 270.43659+481276.89057*ctime+0.00198*ctime*ctime+0.000002*ctime*ctime*ctime ! moon
@@ -1889,8 +1892,6 @@ end subroutine mlotide
 ! test for leap year
 
 pure subroutine mloleap(tyear,ttest)
-
-use parm_m, only : leap
 
 implicit none
 
@@ -2057,8 +2058,8 @@ call mgsor_init
 ! ocean
 
 ff = (1.+ocneps)*0.5*dt*f(1:ifull)
-ddddx = (ddu/emu(1:ifull)-ddu(iwu)/emu(iwu))*em(1:ifull)**2/ds
-ddddy = (ddv/emv(1:ifull)-ddv(isv)/emv(isv))*em(1:ifull)**2/ds
+ddddx(1:ifull) = (ddu(1:ifull)/emu(1:ifull)-ddu(iwu)/emu(iwu))*em(1:ifull)**2/ds
+ddddy(1:ifull) = (ddv(1:ifull)/emv(1:ifull)-ddv(isv)/emv(isv))*em(1:ifull)**2/ds
 
 !sum nu dz = sou + snu*etau + grav*bu*detadxu + grav*ff*bu*detadyu
 !sum nv dz = sov + snv*etav + grav*bv*detadyv - grav*ff*bv*detadxv

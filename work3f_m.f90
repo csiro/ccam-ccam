@@ -43,8 +43,12 @@ integer, intent(in) :: ifull,kl
 allocate(qccon(ifull,kl),qlrad(ifull,kl),qfrad(ifull,kl))
 allocate(nface(ifull,kl),xg(ifull,kl),yg(ifull,kl))
 
+qccon = 0.
 qlrad = 0.
 qfrad = 0.
+nface = 0
+xg = 0.
+yg = 0.
 
 return
 end subroutine work3f_init

@@ -115,9 +115,7 @@ end subroutine vertmix_init
 
 subroutine vertmix
 
-use aerosolldr                      ! LDR prognostic aerosols
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
-use carbpools_m                     ! Carbon pools
 use cc_mpi                          ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
 use cfrac_m                         ! Cloud fraction
@@ -132,7 +130,7 @@ use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                         ! Land-surface arrays
-use parm_m, only : idjd, nmlo, iaero, nvmix, ktau, dt
+use parm_m, only : idjd, nmlo, nvmix, ktau, dt
                                     ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
@@ -141,11 +139,6 @@ use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
 use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
-#ifndef scm
-use trvmix, only : tracervmix       ! Tracer mixing routines
-use tracermodule                    ! Tracer routines
-use tracers_m                       ! Tracer data
-#endif
 use work2_m                         ! Diagnostic arrays
 
 implicit none
@@ -154,7 +147,6 @@ include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile, k, iq, nt
 integer :: idjd_t
-real, dimension(imax,kl,naero) :: lxtg
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
@@ -169,10 +161,6 @@ logical :: mydiag_t
 real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
 real, dimension(imax,kl) :: lbuoyproduction, lshearproduction, ltotaltransport
 real, dimension(imax,kl-1) :: lmfsave
-#else
-real, dimension(imax,numtracer) :: lco2em
-real, dimension(imax,kl,ntrac) :: ltr
-real, dimension(imax,kl) :: loh, lstrloss, ljmcf
 #endif
 real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 real, dimension(imax,kl) :: lni
@@ -252,7 +240,7 @@ select case(nvmix)
                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,                          &
                        lbuoyproduction,lshearproduction,ltotaltransport,                      &
 #endif
-                       imax,kl,naero,tile)      
+                       imax,kl,tile)      
                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
@@ -379,12 +367,12 @@ select case(nvmix)
     !$omp end do nowait
 
 end select
-
+  
 !$omp do schedule(static) private(is,ie,iq,k,nt),   &
 !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
 !$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
 !$omp private(lxtg,lrkmsave,rong,rlogs1,rlogs2),    &
-!$omp private(rlogh1,rlog12,tmnht,dz,gt) 
+!$omp private(rlogh1,rlog12,tmnht,dz,gt)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -393,7 +381,7 @@ do tile = 1,ntiles
 
   lt       = t(is:ie,:)
   lrkmsave = rkmsave(is:ie,:)
-  
+
   ! tracers
   rong = rdry/grav
   lat(:,1) = 0.
@@ -403,10 +391,10 @@ do tile = 1,ntiles
   rlogh1=log(sigmh(2))
   rlog12=1./(rlogs1-rlogs2)
   do iq = 1,imax
-    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12
     dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
     gt = lrkmsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
-    lat(iq,2) = -gt/dsig(2)  
+    lat(iq,2) = -gt/dsig(2)
     lct(iq,1) = -gt/dsig(1)
   end do
   do k = 2,kl-1
@@ -416,11 +404,11 @@ do tile = 1,ntiles
       tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
       dz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
       gt = lrkmsave(iq,k)*dt*(sig(k+1)-sig(k))/(dz**2)
-      lat(iq,k+1) = -gt/dsig(k+1)  
+      lat(iq,k+1) = -gt/dsig(k+1)
       lct(iq,k) = -gt/dsig(k)
     end do
   end do
-  
+
   ! microphysics
   if ( ncloud==100 ) then
     lni = ni(is:ie,:)
@@ -428,24 +416,10 @@ do tile = 1,ntiles
     ni(is:ie,:) = max(lni,0.)
   end if                                ! turn of ni advection  ! sny 15072022
 
-#ifndef scm
-  if ( ngas>0 ) then 
-    ltr      = tr(is:ie,:,:)
-    lco2em   = co2em(is:ie,:)
-    loh      = oh(is:ie,:)
-    lstrloss = strloss(is:ie,:)
-    ljmcf    = jmcf(is:ie,:)
-    lt       = t(is:ie,:)
-    ! Tracers
-    call tracervmix(lat,lct,lt,ps(is:ie),cdtq(is:ie),ltr,fnee(is:ie),fpn(is:ie),             &
-                    frp(is:ie),frs(is:ie),lco2em,loh,lstrloss,ljmcf,mcfdep(is:ie),tile,imax)
-    tr(is:ie,:,:) = ltr
-  end if
-#endif
-  
 end do ! tile = 1,ntiles
 !$omp end do nowait
-   
+
+
 return
 end subroutine vertmix
 
@@ -460,7 +434,6 @@ subroutine vertmix_work(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratclou
 #endif
                         idjd,mydiag)
 
-use aerosolldr, only : naero        ! LDR prognostic aerosols
 use cc_mpi, only : comm_world,       &
     ccmpi_barrier,ccmpi_abort       ! CC MPI routines
 use cc_omp                          ! CC OpenMP routines
@@ -1841,7 +1814,7 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                 
                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,                         &
                        buoyproduction,shearproduction,totaltransport,                   &
 #endif
-                       imax,kl,naero,tile)
+                       imax,kl,tile)
 
 use const_phys                   ! Physical constants
 use parm_m, only : ds, nlocal, iaero, dt, qgmin, cqmix, nvmix
@@ -1851,7 +1824,7 @@ use tkeeps, only : tkemix, cm0   ! TKE-EPS boundary layer
 
 implicit none
 
-integer, intent(in) :: imax, kl, naero, tile
+integer, intent(in) :: imax, kl, tile
 integer k, nt, iq
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v

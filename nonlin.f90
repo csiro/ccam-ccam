@@ -88,7 +88,7 @@ end do
 ! *** following qgsav should be before first vadv call
 do k = 1,kl
   qgsav(1:ifull,k) = qg(1:ifull,k)      ! for qg  conservation in adjust5
-end do  
+end do 
 if ( ldr/=0 ) then
   if ( ncloud>=100 .and. ncloud<200 ) then
     do k = 1,kl

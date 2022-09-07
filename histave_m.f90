@@ -37,8 +37,7 @@ public fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 public cnpp_ave,cnbp_ave
 public anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban
 public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
-!public tgg_ave
-public u_max, v_max
+public u_max, v_max, u10m_max, v10m_max ! sub-daily maximums
 public histave_init,histave_end
 public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 
@@ -55,7 +54,8 @@ real, dimension(:), allocatable, save :: cnpp_ave,cnbp_ave
 real, dimension(:), allocatable, save :: anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban
 real, dimension(:), allocatable, save :: anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 real, dimension(:), allocatable, save :: fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
-real, dimension(:,:), allocatable, save :: u_max, v_max
+real, dimension(:,:), allocatable, save :: u_max, v_max     ! sub-daily maximums
+real, dimension(:), allocatable, save :: u10m_max, v10m_max ! sub-daily maximums
 !real, dimension(:,:), allocatable, save :: tgg_ave
 
 contains
@@ -147,8 +147,11 @@ end if
 
 if ( output_windmax/=0 ) then
   allocate( u_max(ifull,kl), v_max(ifull,kl) )
+  allocate( u10m_max(ifull), v10m_max(ifull) )
   u_max = 0.
   v_max = 0.
+  u10m_max = 0.
+  v10m_max = 0.
 end if
 
 return
@@ -182,6 +185,7 @@ end if
 
 if ( allocated(u_max) ) then
   deallocate(u_max,v_max)
+  deallocate(u10m_max,v10m_max)
 end if
 
 return

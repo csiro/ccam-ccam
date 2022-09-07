@@ -73,7 +73,7 @@ contains
 ! Main interface for input data that reads grid metadata
     
 subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
-                    qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+                    qlg,qrg,qsng,qgrg,ni,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
 use aerosolldr       ! LDR prognostic aerosols
 use cc_mpi           ! CC MPI routines
@@ -105,14 +105,15 @@ real, dimension(:,:), intent(out) :: wb, wbice, tgg
 real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: ocndwn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
+real, dimension(:,:), intent(out) :: ni
 real, dimension(:), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(:), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
 real, dimension(11) :: rdum
 logical, save :: firstcall = .true.
-logical ltest, first
+logical ltest
 character(len=80) datestring
-character(len=120) versionstring
+character(len=120) :: versionstring = ' '
 
 call START_LOG(onthefly_begin)
 
@@ -185,11 +186,10 @@ if ( myid==0 .or. pfall ) then
     ktime_r = ktime_s
     if ( myid==0 ) then
       write(6,*) 'Reading climatology for iarch=1'
-      write(6,*) '                   kdate_r,ktime_r =',kdate_r, ktime_r
     end if
   else  
     if ( myid==0 ) then
-      write(6,*)'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
+      write(6,*) 'Search for kdate_s,ktime_s >= ',kdate_s,ktime_s
     end if
     ltest = .true.       ! flag indicates that the date is not yet found
     iarchi = iarchi - 1  ! move time index back one step to check current position in file
@@ -263,6 +263,11 @@ if ( .not.pfall ) then
   rdum(10) = real(nsibx)
   rdum(11) = real(native_ccam)
   call ccmpi_bcast(rdum(1:11),0,comm_world)
+  if ( nested==1 ) then
+    call ccmpi_bcast(driving_model_id,0,comm_world)
+    call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
+    call ccmpi_bcast(driving_experiment_name,0,comm_world)
+  end if
   rlong0x     = rdum(1)
   rlat0x      = rdum(2)
   schmidtx    = rdum(3)
@@ -301,8 +306,8 @@ end if
 ! Note that if histrd fails to find a variable, it returns zero in
 ! the output array
 
-call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                   snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
+call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,  &
+                   snowd,qfg,qlg,qrg,qsng,qgrg,ni,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn, &
                    ocndwn,xtgdwn)
 
 if ( myid==0 ) write(6,*) "Leaving onthefly"
@@ -320,8 +325,8 @@ end subroutine onthefly
 ! scattered across processes, or multiple input files that are read
 ! by many processes.  In the case of restart files, then there is
 ! no need for message passing.
-subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                         snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
+subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,  &
+                         snowd,qfg,qlg,qrg,qsng,qgrg,ni,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn, &
                          ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
@@ -394,6 +399,7 @@ real, dimension(:,:), intent(out) :: ocndwn
 real, dimension(:,:), intent(out) :: wb, wbice, tgg
 real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
+real, dimension(:,:), intent(out) :: ni
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
@@ -456,14 +462,18 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   iotest = iotest .and. (wlev==ok)
 end if
-!iop_test = iotest .and. ptest
+! MJT notes - Do not combine iotest with ptest using AND
 
 if ( iotest ) then
   io_in = 1   ! no interpolation
-  if ( myid==0 ) write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
+  if ( myid==0 ) then
+    write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
+  end if  
 else
   io_in = -1  ! interpolation
-  if ( myid==0 ) write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
+  if ( myid==0 ) then
+    write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
+  end if  
 end if
 if ( iotest .and. .not.iop_test ) then
   ! this is a special case, such as when the number of processes changes during an experiment  
@@ -542,22 +552,20 @@ if ( newfile .and. .not.iop_test ) then
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
   rotpole  = calc_rotpole(rlong0,rlat0)
-  if ( myid==0 ) then
+  if ( myid==0 .and. nmaxpr==1 ) then
     write(6,*)'m_fly,nord ',m_fly,3
     write(6,*)'kdate_r,ktime_r,ktau,ds',kdate_r,ktime_r,ktau,ds
     write(6,*)'rotpoles:'
     do i = 1,3
       write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpoles(i,j),j=1,3)
     enddo
-    if ( nmaxpr==1 ) then
-      write(6,*)'in onthefly rotpole:'
-      do i = 1,3
-        write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
-      enddo
-      write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
-      write(6,*)'before latltoij for id,jd: ',id,jd
-      write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
-    end if                ! (nmaxpr==1)
+    write(6,*)'in onthefly rotpole:'
+    do i = 1,3
+      write(6,'(3x,2i1,5x,2i1,5x,2i1,5x,3f8.4)') (i,j,j=1,3),(rotpole(i,j),j=1,3)
+    enddo
+    write(6,*)'xx4,yy4 ',xx4(id,jd),yy4(id,jd)
+    write(6,*)'before latltoij for id,jd: ',id,jd
+    write(6,*)'rlong0x,rlat0x,schmidtx ',rlong0x,rlat0x,schmidtx
   end if                  ! (myid==0)
 
   ! setup interpolation arrays
@@ -597,7 +605,7 @@ if ( newfile ) then
         call ccmpi_abort(-1)
       else
         call ccnf_get_vara(ncid,idv,1,kk,sigin)
-        if ( myid==0 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
+        if ( myid==0 .and. nmaxpr==1 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
       end if
     else
       sigin(:) = 1.       
@@ -805,7 +813,7 @@ if ( newfile ) then
       write(6,*) "CCAM requires zht or soilt or ocndepth in input file"
       call ccmpi_abort(-1)
     end if  
-    if ( myid==0 ) then
+    if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Land-sea mask using nemi = ",nemi
     end if
   end if  
@@ -813,7 +821,7 @@ if ( newfile ) then
   ! read urban data mask
   ! read urban mask for urban and initial conditions and interpolation
   if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iop_test ) then
-    if ( myid==0 ) then
+    if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Determine urban mask"
     end if  
     if ( urban1_found ) then
@@ -831,8 +839,6 @@ if ( newfile ) then
     end if
   end if  
     
-  if ( myid==0 ) write(6,*) "Finished reading invariant fields"
-  
 else
     
   ! use saved metadata  
@@ -872,6 +878,8 @@ if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
     call ccmpi_abort(-1)
   end if
 end if
+
+if ( myid==0 ) write(6,*) "Reading prognostic fields"
 
 !--------------------------------------------------------------------
 ! Read surface pressure
@@ -915,10 +923,10 @@ end if ! (tss_test) ..else..
 ! Read ocean data for nudging (sea-ice is read below)
 ! read when nested=0 or nested=1.and.nud/=0 or nested=2 .or nested=4
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
-  ! defalt values
-  ocndwn(1:ifull,2) = 0.                ! surface height
+  ! defalt values for surface height
+  ocndwn(1:ifull,2) = 0.
   if ( mlo_found ) then
-    ! water surface height
+    ! read water surface height
     if ( (nested/=1.or.nud_sfh/=0) .and. ok>0 ) then
       call fillhist1('ocheight',ocndwn(:,2),land_a,fill_land)
       where ( land(1:ifull) )
@@ -989,7 +997,7 @@ else
       ! neither sicedep nor fracice read in
       sicedep_a(1:fwsize) = 0.  ! Oct 08
       fracice_a(1:fwsize) = 0.
-      if ( myid==0 ) write(6,*) 'pre-setting siced in onthefly from tss'
+      if ( myid==0 .and. nmaxpr==1 ) write(6,*) 'pre-setting siced in onthefly from tss'
       where ( abs(tss_a(1:fwsize))<=271.6 ) ! for ERA-Interim
         sicedep_a(1:fwsize) = 1.  ! Oct 08  ! previously 271.2
         fracice_a(1:fwsize) = 1.
@@ -1464,7 +1472,7 @@ if ( nested/=1 .and. nested/=3 ) then
     nstagu      = ierc(5)
     nstagoff    = ierc(6)
     nstagoffmlo = ierc(7)
-    if ( myid==0 ) then
+    if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Continue staggering from"
       write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
       if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
@@ -1739,7 +1747,7 @@ if ( nested/=1 .and. nested/=3 ) then
       end do  
     else
       ! nested without urban data
-      if ( myid==0 ) then
+      if ( myid==0 .and. nmaxpr==1 ) then
         write(6,*) "Use tsu for urban data"  
       end if
       call gethist1("tsu",dum6)
@@ -1814,6 +1822,11 @@ if ( nested/=1 .and. nested/=3 ) then
       qsng(1:ifull,1:kl) = max( qsng(1:ifull,1:kl), 0. )
       call gethist4a('qgrg',qgrg,5)           ! GRAUPEL
       qgrg(1:ifull,1:kl) = max( qgrg(1:ifull,1:kl), 0. )
+    end if
+    ni = 0.
+    if ( ncloud>=100 ) then
+      call gethist4a('ni',ni,5)               ! ICE NUMBER CONCENTRATION
+      ni(1:ifull,1:kl) = max( ni(1:ifull,1:kl), 0. )
     end if
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
     cfrac(1:ifull,1:kl) = max( cfrac(1:ifull,1:kl), 0. )
@@ -2023,10 +2036,9 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer mm, n, iq
+integer n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(ifull,m_fly) :: wrk
 real, dimension(pipan*pjpan*pnpan,size(filemap_req)) :: abuf
 
 call START_LOG(otf_ints1_begin)
@@ -2044,15 +2056,7 @@ if ( iotest ) then
     sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
   end do
 else
-  !$omp parallel do schedule(static) private(mm)
-  do mm = 1,m_fly     !  was 4, now may be 1
-    call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-  end do
-  !$omp end parallel do
-  sout(1:ifull) = wrk(:,1)/real(m_fly)
-  do mm = 2,m_fly
-    sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly)
-  end do  
+  call intsb(sx(:,:,:),sout,nface4,xg4,yg4)
 end if
 
 call END_LOG(otf_ints1_end)
@@ -2069,10 +2073,9 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer mm, k, kx, kb, ke, kn, n, iq
+integer k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(ifull,m_fly) :: wrk
 real, dimension(pipan*pjpan*pnpan,size(filemap_req),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
@@ -2101,15 +2104,7 @@ do kb = 1,kx,kblock
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
       call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
       call sxpanelbounds(sx(:,:,:))
-      !$omp parallel do schedule(static) private(mm)
-      do mm = 1,m_fly     !  was 4, now may be 1
-        call intsb(sx(:,:,:),wrk(:,mm),nface4(:,mm),xg4(:,mm),yg4(:,mm))
-      end do  
-      !$omp end parallel do
-      sout(1:ifull,k+kb-1) = wrk(:,1)/real(m_fly)
-      do mm = 2,m_fly
-        sout(1:ifull,k+kb-1) = sout(1:ifull,k+kb-1) + wrk(:,mm)/real(m_fly)
-      end do  
+      call intsb(sx(:,:,:),sout(:,k+kb-1),nface4,xg4,yg4)
     end do
   end if
 
@@ -2190,7 +2185,7 @@ end do       ! n loop
 return
 end subroutine sxpanelbounds
 
-subroutine intsb(sx_l,sout,nface_l,xg_l,yg_l)
+subroutine intsb(sx_l,sout,nface4,xg4,yg4)
       
 !     same as subr ints, but with sout passed back and no B-S      
 !     s is input; sout is output array
@@ -2204,44 +2199,56 @@ use parm_m                 ! Model configuration
 
 implicit none
 
-integer, dimension(ifull), intent(in) :: nface_l
-integer :: idel, jdel, n, iq
+integer, dimension(ifull,m_fly), intent(in) :: nface4
+integer :: idel, jdel, n, iq, mm
 real, dimension(ifull), intent(out) :: sout
-real, intent(in), dimension(ifull) :: xg_l, yg_l
+real, intent(in), dimension(ifull,m_fly) :: xg4, yg4
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
+real, dimension(ifull,m_fly) :: wrk
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
-do iq = 1,ifull   ! runs through list of target points
-  n = nface_l(iq)
-  idel = int(xg_l(iq))
-  xxg = xg_l(iq) - real(idel)
-  jdel = int(yg_l(iq))
-  yyg = yg_l(iq) - real(jdel)
-  ! bi-cubic
-  cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-  cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-  cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-  cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-  dmul_2 = (1.-xxg)
-  dmul_3 = xxg
-  emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-  emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-  emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-  emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-  cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
-             sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
-  cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
-             sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
-  rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
-  rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
-           sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
-  rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
-           sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
-  rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
-  sout(iq) = min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
-end do    ! iq loop
+!$omp parallel do schedule(static) private(mm,iq,n,idel,xxg,jdel,yyg),             &
+!$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),   &
+!$omp   private(emul_4,cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)
+do mm = 1,m_fly     !  was 4, now may be 1
+  do iq = 1,ifull   ! runs through list of target points
+    n = nface4(iq,mm)
+    idel = int(xg4(iq,mm))
+    xxg = xg4(iq,mm) - real(idel)
+    jdel = int(yg4(iq,mm))
+    yyg = yg4(iq,mm) - real(jdel)
+    ! bi-cubic
+    cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+    cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+    cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+    cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+    dmul_2 = (1.-xxg)
+    dmul_3 = xxg
+    emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+    emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+    emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+    emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+    cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+               sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+    cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+               sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+    rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
+    rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
+             sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
+    rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
+             sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
+    rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
+    wrk(iq,mm) = min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+  end do    ! iq loop
+end do      ! mm loop
+!$omp end parallel do
+
+sout(1:ifull) = wrk(:,1)/real(m_fly)
+do mm = 2,m_fly
+  sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly)
+end do  
 
 return
 end subroutine intsb
@@ -2295,6 +2302,7 @@ do while ( nrem>0 )
   call ccmpi_filebounds_send(c_io,comm_ip,corner=.true.)
   ! update body
   if ( ncount>0 ) then
+    !$omp parallel do collapse(3) schedule(static) private(ipf,n,j,i,cc,csum,ccount)
     do ipf = 1,mynproc
       do n = 1,pnpan
         do j = 2,pjpan-1
@@ -2343,6 +2351,7 @@ do while ( nrem>0 )
         end do
       end do
     end do
+    !$omp end parallel do
   end if 
   call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
   ! update perimeter
@@ -2541,6 +2550,7 @@ subroutine fill_cc4_3d(a_io,land_3d,fill_count)
 ! routine fills in interior of an array which has undefined points
 ! this version is distributed over processes with input files
 
+use cc_acc          ! CC OpenACC routines
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
 
@@ -2550,7 +2560,7 @@ real, dimension(:,:), intent(inout) :: a_io
 integer, intent(inout) :: fill_count
 integer j, n, k, kx
 integer cc, ipf, local_count
-integer i
+integer i, async_counter
 integer, dimension(size(a_io,2)) :: ncount, nrem
 real, parameter :: value=999.       ! missing value flag
 real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
@@ -2590,74 +2600,84 @@ do while ( any(nrem(:)>0) )
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
 #ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(5) schedule(static), &
-  !$omp map(a_io) map(to:c_io) private(k,ipf,n,j,i,cc,csum,ccount)
-#else
-  !$omp parallel do collapse(4) schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
+#ifndef GPU
+  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
 #endif
-#else
-  !$acc parallel loop collapse(5) copy(a_io) copyin(c_io)
 #endif
   do k = 1,kx
-    do ipf = 1,mynproc
-      do n = 1,pnpan
-        do j = 2,pjpan-1
-          do i = 2,pipan-1
-            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
-              csum = 0.
-              ccount = 0.
-              if ( abs(c_io(i-1,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j-1,n,ipf,k)
-                ccount = ccount + 1.
+    if ( ncount(k)>0 ) then
+#ifdef _OPENMP
+#ifdef GPU
+      !$omp target teams distribute parallel do collapse(4) schedule(static), &
+      !$omp map(a_io(:,k)) map(to:c_io(:,:,:,:,k)) private(k,ipf,n,j,i,cc,csum,ccount)
+#endif
+#else
+      async_counter = mod(k-1,async_length) + 1
+      !$acc parallel loop collapse(4) copy(a_io(:,k)) copyin(c_io(:,:,:,:,k)) async(async_counter)
+#endif
+      do ipf = 1,mynproc
+        do n = 1,pnpan
+          do j = 2,pjpan-1
+            do i = 2,pipan-1
+              cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+              if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
+                csum = 0.
+                ccount = 0.
+                if ( abs(c_io(i-1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i-1,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i-1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( ccount>0. ) then        
+                  a_io(cc+i,k) = csum/ccount
+                end if
               end if
-              if ( abs(c_io(i,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i,j-1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j-1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i-1,j,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i-1,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j+1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i,j+1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j+1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( ccount>0. ) then        
-                a_io(cc+i,k) = csum/ccount
-              end if
-            end if
+            end do
           end do
         end do
       end do
-    end do
-  end do
 #ifdef _OPENMP
 #ifdef GPU
-  !$omp end target teams distribute parallel do
+      !$omp end target teams distribute parallel do
+#endif
 #else
+      !$acc end parallel loop
+#endif
+    end if
+  end do
+#ifdef _OPENMP
+#ifndef GPU
   !$omp end parallel do
 #endif
-#else
-  !$acc end parallel loop
 #endif
+  !$acc wait
   call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
   ! update halo
   do k = 1,kx
@@ -3275,7 +3295,6 @@ implicit none
       
 integer, intent(inout) :: fill_count
 integer, intent(in) :: ifrac, fillmode
-integer ier
 real, intent(in) :: filldefault
 real, dimension(ifull) :: varout
 logical, dimension(fwsize), intent(in) :: mask_a
@@ -3526,7 +3545,7 @@ implicit none
       
 integer, intent(inout) :: fill_count
 integer, intent(in) :: ifrac, fillmode
-integer ier, k
+integer k
 real, intent(in) :: filldefault
 real, dimension(ifull,5) :: varout
 logical, dimension(fwsize), intent(in) :: mask_a
@@ -3576,8 +3595,7 @@ implicit none
 
 integer n, ipf
 integer mm, iq, idel, jdel
-integer ncount, w, colour
-integer sourceid, newid
+integer ncount, w
 integer ncount_a, ncount_b
 logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
@@ -3630,7 +3648,7 @@ end do
 
 ! Construct a map of files to be accessed by this process
 if ( myid==0 ) then
-  write(6,*) "--> Create map of files required by this process"
+  write(6,*) "-> Create map of files required by this process"
 end if
 ncount = count(lfile(0:fnproc-1))
 allocate( filemap_req(ncount), filemap_qmod(ncount) )
@@ -3645,7 +3663,7 @@ end do
 
 ! Construct a map of processes that need this file
 if ( myid==0 ) then
-  write(6,*) "--> Create map for communication between processes"  
+  write(6,*) "-> Create map for communication between processes"  
 end if
 allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
 allocate( tempmap_recv(nproc*fncount), tempmap_rmod(nproc*fncount) )
@@ -3699,13 +3717,13 @@ call ccmpi_filewininit(kblock)
 
 ! Define halo indices for ccmpi_filebounds
 if ( myid==0 ) then
-  write(6,*) "--> Setup bounds function for processors reading input files"  
+  write(6,*) "-> Setup bounds function for processors reading input files"  
 end if
 call ccmpi_filebounds_setup(comm_ip)
 
 ! Distribute fields for vector rotation
 if ( myid==0 ) then
-  write(6,*) "--> Distribute vector rotation data to processors reading input files"
+  write(6,*) "-> Distribute vector rotation data to processors reading input files"
 end if
 allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
 allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
@@ -3728,7 +3746,7 @@ else if ( fwsize>0 ) then
 end if
 
 if ( myid==0 ) then
-  write(6,*) "--> Finished creating control data for input file data"
+  write(6,*) "-> Finished creating control data for input file data"
 end if
 
 return

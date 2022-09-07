@@ -30,7 +30,7 @@ public vadvtvd
       
 contains
 
-subroutine vadvtvd(tarr,uarr,varr,nvadh_pass,nits)
+subroutine vadvtvd(tarr,uarr,varr,nvadh_inv_pass,nits)
 
 use aerosolldr
 use arrays_m
@@ -54,33 +54,34 @@ implicit none
 include 'kuocom.h'     ! also with kbsav,ktsav
 
 integer ntr,k
-integer, dimension(ifull) :: nvadh_pass, nits
+integer, dimension(ifull), intent(in) :: nits
 integer, save :: num = 0
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
+real, dimension(ifull), intent(in) :: nvadh_inv_pass
 
 call START_LOG(vadv_begin)
 
 if ( num==0 ) then
   num = 1
   if ( mydiag ) then
-    write(6,*) 'In vadvtvd nvadh_pass ',nvadh_pass(idjd)
+    write(6,*) 'In vadvtvd nvadh_pass ',nint(1./nvadh_inv_pass(idjd))
   end if
 end if
 
 #ifdef GPU
-!$omp target data map(to:sdot,ratha,rathb,nvadh_pass,nits)
+!$omp target data map(to:sdot,ratha,rathb,nvadh_inv_pass,nits)
 #else
 !$omp parallel
 !$omp sections
 #endif
-!$acc data create(sdot,rathb,ratha,nvadh_pass,nits)
-!$acc update device(sdot,rathb,ratha,nvadh_pass,nits)
+!$acc data create(sdot,rathb,ratha,nvadh_inv_pass,nits)
+!$acc update device(sdot,rathb,ratha,nvadh_inv_pass,nits)
 
 #ifndef GPU
 !$omp section
 #endif
 !     t
-call vadv_work(tarr,nvadh_pass,nits)
+call vadv_work(tarr,nvadh_inv_pass,nits)
 
 !       These diagnostics don't work with single input/output argument
 if( diag .and. mydiag )then
@@ -92,7 +93,7 @@ endif
 !$omp section
 #endif
 !     u
-call vadv_work(uarr,nvadh_pass,nits)
+call vadv_work(uarr,nvadh_inv_pass,nits)
 
 !       These diagnostics don't work with single input/output argument
 if( diag .and. mydiag )then
@@ -104,7 +105,7 @@ endif
 !$omp section
 #endif
 !     v
-call vadv_work(varr,nvadh_pass,nits)
+call vadv_work(varr,nvadh_inv_pass,nits)
 
 !       These diagnostics don't work with single input/output argument
 if( diag .and. mydiag )then
@@ -117,21 +118,21 @@ endif
 #endif
 !     h_nh
 if ( nh/=0 ) then
-  call vadv_work(h_nh,nvadh_pass,nits)
+  call vadv_work(h_nh,nvadh_inv_pass,nits)
 end if
 
 #ifndef GPU
 !$omp section
 #endif
 !     pslx
-call vadv_work(pslx,nvadh_pass,nits)
+call vadv_work(pslx,nvadh_inv_pass,nits)
 
 #ifndef GPU
 !$omp section
 #endif
 !      qg
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  call vadv_work(qg,nvadh_pass,nits)
+  call vadv_work(qg,nvadh_inv_pass,nits)
   if ( diag .and. mydiag ) then
     write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
     write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
@@ -143,7 +144,7 @@ end if          ! if(mspec==1)
 #endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
-    call vadv_work(qlg,nvadh_pass,nits)
+    call vadv_work(qlg,nvadh_inv_pass,nits)
     if ( diag .and. mydiag ) then
       write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
       write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
@@ -156,7 +157,7 @@ end if          ! if(mspec==1)
 #endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
-    call vadv_work(qfg,nvadh_pass,nits)
+    call vadv_work(qfg,nvadh_inv_pass,nits)
     if ( diag .and. mydiag ) then
       write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
       write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
@@ -169,17 +170,17 @@ end if          ! if(mspec==1)
 #endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
-    call vadv_work(ni,nvadh_pass,nits)
+    call vadv_work(ni,nvadh_inv_pass,nits)
     ni = max(ni, 0.)
   end if      ! if(ldr.ne.0)
-end if          ! if(mspec==1)                   ! turn off ni advecion !sny 15072022
+end if          ! if(mspec==1)
 
 #ifndef GPU
 !$omp section
 #endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
-    call vadv_work(stratcloud,nvadh_pass,nits)
+    call vadv_work(stratcloud,nvadh_inv_pass,nits)
   end if      ! if(ldr.ne.0)
 end if          ! if(mspec==1)
 
@@ -188,7 +189,7 @@ end if          ! if(mspec==1)
 #endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
-    call vadv_work(eps,nvadh_pass,nits)
+    call vadv_work(eps,nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
@@ -197,7 +198,7 @@ end if          ! if(mspec==1)
 #endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
-    call vadv_work(tke,nvadh_pass,nits)
+    call vadv_work(tke,nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
@@ -211,7 +212,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
     !$omp do schedule(static) private(ntr)
 #endif
     do ntr = 1,naero
-      call vadv_work(xtg(:,:,ntr),nvadh_pass,nits)
+      call vadv_work(xtg(:,:,ntr),nvadh_inv_pass,nits)
     end do
 #ifndef GPU
     !$omp end do nowait
@@ -223,7 +224,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
     !$omp do schedule(static) private(ntr)
 #endif
     do ntr = 1,ntrac
-      call vadv_work(tr(:,:,ntr),nvadh_pass,nits)
+      call vadv_work(tr(:,:,ntr),nvadh_inv_pass,nits)
     end do
 #ifndef GPU
     !$omp end do nowait
@@ -246,7 +247,7 @@ return
 end subroutine vadvtvd
       
 ! Subroutine to perform generic TVD advection
-subroutine vadv_work(tarr,nvadh_pass,nits)
+subroutine vadv_work(tarr,nvadh_inv_pass,nits)
 
 use cc_acc, only : async_length
 use newmpar_m
@@ -256,10 +257,11 @@ use vvel_m
       
 implicit none
       
-integer, dimension(ifull), intent(in) :: nits, nvadh_pass
+integer, dimension(ifull), intent(in) :: nits
 integer i, k, iq, kp, kx
 integer, save :: async_counter = -1
 real, dimension(:,:), intent(inout) :: tarr
+real, dimension(ifull), intent(in) :: nvadh_inv_pass
 real rat, phitvd, fluxhi, fluxlo
 real, dimension(ifull,0:kl) :: delt, fluxh
 
@@ -316,7 +318,7 @@ if ( ntvd==2 ) then ! MC
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
 #endif
 #else
-  !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
+  !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
 #endif
   do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
     do iq = 1,ifull      
@@ -326,7 +328,7 @@ if ( ntvd==2 ) then ! MC
       fluxlo = tarr(iq,kx)
       phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
       ! higher order scheme
-      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
     enddo
   enddo      ! k loop
@@ -343,12 +345,12 @@ if ( ntvd==2 ) then ! MC
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
 #endif
 #else
-  !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_pass) async(async_counter)
+  !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
 #endif
   do k = 1,kl
     do iq = 1,ifull
       tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
-                               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+                               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
     end do
   end do
 #ifdef _OPENMP
@@ -364,7 +366,7 @@ if ( ntvd==2 ) then ! MC
   !$omp target teams distribute parallel do schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
 #endif
 #else
-  !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
+  !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
 #endif
   do iq = 1,ifull 
     do i = 2,nits(iq)
@@ -378,12 +380,12 @@ if ( ntvd==2 ) then ! MC
         fluxlo = tarr(iq,kx)
         phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat
         ! higher order scheme
-        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
         fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
       end do ! k
       do k = 1,kl
         tarr(iq,k) = tarr(iq,k) &
-            + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+            + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
       end do
     end do   ! i
   end do     ! iq
@@ -450,7 +452,7 @@ else if ( ntvd==3 ) then ! Superbee
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
 #endif
 #else
-  !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_pass,fluxh) async(async_counter)
+  !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
 #endif
   do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
     do iq = 1,ifull      
@@ -460,7 +462,7 @@ else if ( ntvd==3 ) then ! Superbee
       fluxlo = tarr(iq,kx)
       phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
       ! higher order scheme
-      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+      fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
     enddo
   enddo      ! k loop
@@ -477,12 +479,12 @@ else if ( ntvd==3 ) then ! Superbee
   !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
 #endif
 #else
-  !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_pass) async(async_counter)
+  !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
 #endif
   do k = 1,kl
     do iq = 1,ifull
       tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
-                               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+                               +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
     end do
   end do
 #ifdef _OPENMP
@@ -498,7 +500,7 @@ else if ( ntvd==3 ) then ! Superbee
   !$omp target teams distribute parallel do schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
 #endif
 #else
-  !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_pass,fluxh) async(async_counter)
+  !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
 #endif
   do iq = 1,ifull 
     do i = 2,nits(iq)
@@ -512,12 +514,12 @@ else if ( ntvd==3 ) then ! Superbee
         fluxlo = tarr(iq,kx)
         phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
         ! higher order scheme
-        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)/real(nvadh_pass(iq))
+        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
         fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
       end do ! k
       do k = 1,kl
         tarr(iq,k) = tarr(iq,k) &
-            + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))/real(nvadh_pass(iq))
+            + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
       end do
     end do   ! i
   end do     ! iq

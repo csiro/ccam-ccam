@@ -44,7 +44,7 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,shear,pcrthomas
+public tkeinit,tkemix,tkeend,tke,eps,shear
 public cm0,ce0,ce1,ce2,ce3,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min,mfbeta
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
@@ -209,25 +209,24 @@ real, dimension(imax), intent(in) :: cduv,ps,rhos,dx
 real, dimension(imax), intent(out) :: ustar_ave, ugs_var
 real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl) :: km, thetav, thetal, qsat
-real, dimension(imax,kl) :: rr
 real, dimension(imax,kl) :: rhoa,rhoahl
 real, dimension(imax,kl) :: tlup,qvup,qlup,qfup
 real, dimension(imax,kl) :: cfup,mflx
 real, dimension(imax,kl) :: pps,ppt,ppb
 real, dimension(imax,kl) :: idzm
 real, dimension(imax,kl-1) :: idzp
-real, dimension(imax,2:kl) :: qq
 real, dimension(imax,kl)   :: dz_fl   ! dz_fl(k)=0.5*(zz(k+1)-zz(k-1))
 real, dimension(imax,kl-1) :: dz_hl   ! dz_hl(k)=zz(k+1)-zz(k)
 real, dimension(imax,kl-1) :: fzzh
-real, dimension(imax) :: wt0,wq0,wtv0,wdash_sq,l_on_kz
+real, dimension(imax) :: wt0,wq0,wtv0
 real, dimension(imax) :: wstar,z_on_l,phim
-real, dimension(imax) :: pres, temp
+real, dimension(imax) :: pres
 real, dimension(imax) :: ustar, fg_ave
 real, dimension(imax) :: zi_save, zturb, cgmap
-real, dimension(imax) :: templ, fice, al, dqsdt, qc, qt, lx
+real, dimension(imax) :: templ, fice, qc, qt
 real, dimension(kl) :: sigkap
 real tff, cm12, cm34, ddts
+real temp, lx, dqsdt, al, wdash_sq
 logical, dimension(imax) :: mask
 
 #ifdef CCAM
@@ -463,25 +462,26 @@ do kcount = 1,mcount
     
     ! account for saturation  
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
-    temp(:) = theta(:,k)/sigkap(k)
     templ(:) = thetal(:,k)/sigkap(k)
     pres(:) = ps(:)*sig(k)
     fice = min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8), 1. )
     call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
-    lx(:) = lv + lf*fice(:)
-    dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
-    al(:) = cp/(cp+lx(:)*dqsdt(:))
-    qc(:) = max( al(:)*(qt(:) - qsat(:,k)), qc(:) )
-    where ( temp(:)>=tice )
-      qfg(:,k) = max( fice(:)*qc(:), 0. )  
-      qlg(:,k) = max( qc(:) - qfg(:,k), 0. )
-    end where
-   
-    qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )
-    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
-    where ( qlg(:,k)+qfg(:,k)>1.E-12 )
-      stratcloud(:,k) = max( stratcloud(:,k), 1.E-8 )
-    end where
+    do iq = 1,imax
+      lx = lv + lf*fice(iq)
+      dqsdt = qsat(iq,k)*lx/(rv*templ(iq)**2)
+      al = cp/(cp+lx*dqsdt)
+      qc(iq) = max( al*(qt(iq) - qsat(iq,k)), qc(iq) )
+      temp = theta(iq,k)/sigkap(k)
+      if ( temp>=tice ) then
+        qfg(iq,k) = max( fice(iq)*qc(iq), 0. )  
+        qlg(iq,k) = max( qc(iq) - qfg(iq,k), 0. )
+      end if
+      qvg(iq,k) = max( qt(iq) - qfg(iq,k) - qlg(iq,k), 0. )
+      theta(iq,k) = thetal(iq,k) + sigkap(k)*(lv*qlg(iq,k)+ls*qfg(iq,k))/cp
+      if ( qlg(iq,k)+qfg(iq,k)>1.E-12 ) then
+        stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
+      end if
+    end do
   end do  
 
 #ifdef CCAM
@@ -495,15 +495,17 @@ end do ! kcount loop
 
 ! variance for wind gusts
 ! (from TAPM)
-wdash_sq = (1.2*ustar)**2   ! Hurley
-!l_on_kz = cm34*tke(1:imax,1)**(3./2.)/eps(1:imax,1)/(vkar*zz(:,1))
-!wdash_sq = ((2./3.)*tke(1:imax,1) + tke(1:imax,1)/(cs1*eps(1:imax,1))*( &
-!            (2.-cs2-cw2*l_on_kz)*pps(:,1)                               &
-!          + (2.-cs3-cw3*l_on_kz)*ppb(:,1)                               &
-!          - (2./3.)*eps(1:imax,1) ) )                                   &
-!          / (1.+(cw1/cs1)*l_on_kz)
-ugs_var = tke(1:imax,1) - 0.5*wdash_sq ! = (cm12-0.5*1.2)*ustar**2 + ce3*wstar**2
-!usg_var = (2.185*ustar)**2 ! Wichers et al (2008)
+do iq = 1,imax
+  wdash_sq = (1.2*ustar(iq))**2   ! Hurley
+  !l_on_kz = cm34*tke(iq,1)**(3./2.)/eps(iq,1)/(vkar*zz(iq,1))
+  !wdash_sq = ((2./3.)*tke(iq,1) + tke(iq,1)/(cs1*eps(iq,1))*( &
+  !            (2.-cs2-cw2*l_on_kz)*pps(iq,1)                  &
+  !          + (2.-cs3-cw3*l_on_kz)*ppb(iq,1)                  &
+  !          - (2./3.)*eps(iq,1) ) )                           &
+  !          / (1.+(cw1/cs1)*l_on_kz)
+  ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq ! = (cm12-0.5*1.2)*ustar(iq)**2 + ce3*wstar(iq)**2
+  !usg_var(iq) = (2.185*ustar(iq))**2 ! Wichers et al (2008)
+end do
 
 
 #ifdef CCAM
@@ -916,7 +918,6 @@ subroutine update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
 implicit none
 
 integer, intent(in) :: imax, kl
-integer k
 real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, stratcloud, ua, va
 real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, cfup
 real, dimension(imax,kl), intent(in) :: mflx, tke, eps
@@ -1727,7 +1728,6 @@ subroutine solve_sherman_morrison_1(aa_a,bb_a,cc_a,dd_a,tt_a, &
 implicit none
 
 integer, intent(in) :: imax, kl
-integer k
 real, dimension(imax,2:kl), intent(in) :: aa_a
 real, dimension(imax,kl), intent(in) :: bb_a, dd_a
 real, dimension(imax,kl-1), intent(in) :: cc_a
@@ -1975,7 +1975,6 @@ end subroutine solve_sherman_morrison_3
 ! Tri-diagonal solver (array version)
 
 pure subroutine thomas1(outdat,aai,bbi,cci,ddi,imax,klin)
-!$acc routine vector
 
 implicit none
 
@@ -2021,44 +2020,38 @@ real, dimension(imax,klin), intent(in) :: bbi
 real, dimension(imax,klin-1), intent(in) :: cci
 real, dimension(imax,klin,ndim), intent(in) :: ddi
 real, dimension(imax,klin,ndim), intent(out) :: outdat
-integer k, iq, n
-integer kblock, nthreads
+integer n
+!integer k, iq
+!integer kblock, nthreads
 
-#ifdef GPU
+!#ifdef GPU
 
-! PCR-Thomas for GPUs
-do k = int(sqrt(real(klin))),klin
-  if ( mod(klin,k) == 0 ) then
-    kblock = k
-    exit
-  end if
-end do
-nthreads = klin/kblock
-call pcrthomas(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
+!! SPIKE for GPUs
+!do k = int(sqrt(real(klin))),klin
+!  if ( mod(klin,k) == 0 ) then
+!    kblock = k
+!    exit
+!  end if
+!end do
+!nthreads = klin/kblock
+!call spike(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
         
 !! PCR for GPUs
 !call pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
 
-!! Thomas
-!!$acc parallel loop copyin(aai,bbi,cci,ddi) copyout(outdat)
-!do n = 1,ndim
-!  call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
-!end do
-!$acc end parallel loop
-
-#else
+!#else
 
 ! Thomas
 do n = 1,ndim
   call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
 end do
 
-#endif
+!#endif
 
 return
 end subroutine thomas2
 
-pure subroutine pcrthomas(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
+pure subroutine spike(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
 
 implicit none
 
@@ -2201,118 +2194,112 @@ end do
 !$acc end data
 
 return
-end subroutine pcrthomas
+end subroutine spike
 
-pure subroutine pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
+pure subroutine pcr(outdat,aaj,bbj,ccj,ddj,imax,klin,ndim)
 
 implicit none
 
 integer, intent(in) :: imax, klin, ndim
-integer n, k, iq, p, s, pmax, klow, khigh
+integer pmax, n, iq
 integer async_counter
 integer, parameter :: async_length = 3
-real, dimension(imax,2:klin), intent(in) :: aai
-real, dimension(imax,klin), intent(in) :: bbi
-real, dimension(imax,klin-1), intent(in) :: cci
-real, dimension(imax,klin,ndim), intent(in) :: ddi
+real, dimension(imax,2:klin), intent(in) :: aaj
+real, dimension(imax,klin), intent(in) :: bbj
+real, dimension(imax,klin-1), intent(in) :: ccj
+real, dimension(imax,klin,ndim), intent(in) :: ddj
 real, dimension(imax,klin,ndim), intent(out) :: outdat
-real, dimension(imax,0:klin+1) :: aa, cc, dd
-real, dimension(imax,klin) :: new_aa, new_cc, new_dd
-real rr
+real, dimension(klin,imax) :: aai, bbi, cci
+real, dimension(klin,imax,ndim) :: ddi
+real, dimension(1:klin,imax,ndim) :: odati
 
 pmax = 1
 do while ( 2**pmax < klin )
   pmax = pmax + 1
 end do
 
-!$acc data create(aai,bbi,cci)
-!$acc update device(aai,bbi,cci)
+aai(1,:) = 0.
+cci(klin-1,:) = 0.
+
+aai(2:klin,1:imax) = transpose( aaj(1:imax,2:klin) )
+bbi(1:klin,1:imax) = transpose( bbj(1:imax,1:klin) )
+cci(1:klin-1,1:imax) = transpose( ccj(1:imax,1:klin-1) )
+do n = 1,ndim
+  ddi(1:klin,1:imax,n) = transpose( ddj(1:imax,1:klin,n) )
+end do
+
+!$acc parallel loop collapse(2) copyin(aai,bbi,cci,ddi) copyout(odati)
+do n = 1,ndim
+  do iq = 1,imax
+    call pcr_work(odati(:,iq,n),aai(:,iq),bbi(:,iq),cci(:,iq),ddi(:,iq,n),klin,pmax)
+  end do
+end do
+!$acc end parallel loop
 
 do n = 1,ndim
-
-  async_counter = mod( n-1, async_length ) + 1
-
-  !$acc enter data create(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
-
-  !$acc parallel loop collapse(2) present(aa,cc,dd) async(async_counter)
-  do k = 0,klin+1
-    do iq = 1,imax
-      aa(iq,k) = 0.
-      cc(iq,k) = 0.
-      dd(iq,k) = 0.
-    end do
-  end do
-  !$acc end parallel loop
-
-  !$acc parallel loop collapse(2) present(aa,aai,bbi) async(async_counter)
-  do k = 2,klin
-    do iq = 1,imax
-      aa(iq,k) = aai(iq,k)/bbi(iq,k)
-    end do
-  end do  
-  !$acc end parallel loop
-
-  !$acc parallel loop collapse(2) present(cc,cci,bbi) async(async_counter)
-  do k = 1,klin-1
-    do iq = 1,imax
-      cc(iq,k) = cci(iq,k)/bbi(iq,k)
-    end do
-  end do  
-  !$acc end parallel loop
-
-  !$acc parallel loop collapse(2) present(dd,bbi) copyin(ddi(:,:,n)) async(async_counter)
-  do k = 1,klin
-    do iq = 1,imax  
-      dd(iq,k) = ddi(iq,k,n)/bbi(iq,k)
-    end do
-  end do 
-  !$acc end parallel loop
-
-  do p = 1,pmax  
-    s = 2**(p-1)
-
-    !$acc parallel loop collapse(2) present(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
-    do k = 1,klin
-      do iq = 1,imax
-        klow = max(k-s,0)
-        khigh = min(k+s,klin+1)
-        rr = 1./(1.-aa(iq,k)*cc(iq,klow)-cc(iq,k)*aa(iq,khigh))
-        new_aa(iq,k) = -rr*(aa(iq,k)*aa(iq,klow))
-        new_cc(iq,k) = -rr*(cc(iq,k)*cc(iq,khigh))
-        new_dd(iq,k) = rr*(dd(iq,k)-aa(iq,k)*dd(iq,klow)-cc(iq,k)*dd(iq,khigh))
-      end do
-    end do
-    !$acc end parallel loop
-  
-    !$acc parallel loop collapse(2) present(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
-    do k = 1,klin
-      do iq = 1,imax  
-        aa(iq,k) = new_aa(iq,k)
-        cc(iq,k) = new_cc(iq,k)
-        dd(iq,k) = new_dd(iq,k)
-      end do
-    end do
-    !$acc end parallel loop
-  
-  end do ! p = 1,pmax
-
-  !$acc parallel loop collapse(2) present(new_dd) copyout(outdat(:,:,n)) async(async_counter)
-  do k = 1,klin
-    do iq = 1,imax
-      outdat(iq,k,n) = new_dd(iq,k)
-    end do
-  end do
-  !$acc end parallel loop
-
-  !$acc exit data delete(aa,cc,dd,new_aa,new_cc,new_dd) async(async_counter)
-
-end do ! n = 1,ndim
-
-!$acc wait
-!$acc end data
+  outdat(1:imax,1:klin,n) = transpose( odati(1:klin,1:imax,n) )
+end do
 
 return
 end subroutine pcr
+
+pure subroutine pcr_work(outdat,aai,bbi,cci,ddi,klin,pmax)
+!$acc routine vector
+
+implicit none
+
+integer, intent(in) :: klin, pmax
+integer k, p, s, klow, khigh
+real, dimension(klin), intent(in) :: aai, bbi, cci, ddi
+real, dimension(0:klin+1) :: aa, cc, dd
+real, dimension(klin), intent(out) :: outdat
+real, dimension(klin) :: new_aa, new_cc
+real rr
+
+aa(0) = 0.
+cc(0) = 0.
+dd(0) = 0.
+do k = 1,klin
+  aa(k) = aai(k)/bbi(k)
+  cc(k) = cci(k)/bbi(k)
+  dd(k) = ddi(k)/bbi(k)
+end do
+aa(klin+1) = 0.
+cc(klin+1) = 0.
+dd(klin+1) = 0.
+
+do p = 1,pmax,2
+
+  s = 2**(p-1)
+  do k = 1,klin
+    klow = max(k-s,0)
+    khigh = min(k+s,klin+1)
+    rr = 1./(1.-aa(k)*cc(klow)-cc(k)*aa(khigh))
+    new_aa(k) = -rr*(aa(k)*aa(klow))
+    new_cc(k) = -rr*(cc(k)*cc(khigh))
+    outdat(k) = rr*(dd(k)-aa(k)*dd(klow)-cc(k)*dd(khigh))
+  end do
+
+  s = 2**p
+  do k = 1,klin
+    klow = max(k-s,0)
+    khigh = min(k+s,klin+1)
+    rr = 1./(1.-new_aa(k)*new_cc(klow)-new_cc(k)*new_aa(khigh))
+    aa(k) = -rr*(new_aa(k)*new_aa(klow))
+    cc(k) = -rr*(new_cc(k)*new_cc(khigh))
+    dd(k) = rr*(outdat(k)-new_aa(k)*outdat(klow)-new_cc(k)*outdat(khigh))
+  end do
+  
+end do ! p = 1,pmax
+
+if ( mod(p,2)==0 ) then
+  do k = 1,klin
+    outdat(k) = dd(k)
+  end do
+end if
+
+return
+end subroutine pcr_work
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio
@@ -2470,8 +2457,6 @@ real, dimension(:,:), intent(inout) :: ema
 
 imax = min( size(field,1), size(ema,1) )
 kx = size(field,2)
-
-! tke_timeave_length is in seconds.
 
 nstep = max( tke_timeave_length/dt, 1. ) ! this is a real value
 alpha = 2./(nstep + 1.) 

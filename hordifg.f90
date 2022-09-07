@@ -363,9 +363,6 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   call bounds(qlg)
   call bounds(qfg)
   call bounds(stratcloud)
-  if ( ncloud==100 ) then
-  call bounds(ni)
-  end if
 end if       ! (ldr/=0.and.nhorps==-4)
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call bounds(tke)
@@ -447,16 +444,6 @@ end if
 if ( nhorps==-4 .and. ldr/=0 ) then
   ! cloud fraction  
   call hordifgt_work(stratcloud,xfact,yfact,emi)  
-end if
-
-#ifndef GPU
-!$omp section
-#endif
-if ( ncloud==100 ) then
-  if ( nhorps==-4 .and. ldr/=0 ) then
-    ! ni ice number concentration
-    call hordifgt_work(ni,xfact,yfact,emi)
-  end if
 end if
 
 #ifndef GPU    
@@ -545,7 +532,7 @@ real, dimension(ifull+iextra,kl), intent(inout) :: work
 real, dimension(ifull+iextra,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
-async_counter = mod(async_counter+1, async_length)+1
+async_counter = mod(async_counter+1, async_length)
 
 #ifdef _OPENMP
 #ifdef GPU

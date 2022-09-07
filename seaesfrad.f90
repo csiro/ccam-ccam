@@ -41,13 +41,15 @@ use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_l
                               lwemiss_calc,lwem_form
 
 private
-public seaesfrad_settime, seaesfrad, seaesfrad_init, sw_resolution, sw_diff_streams, liqradmethod, iceradmethod
+public seaesfrad_settime, seaesfrad, seaesfrad_init, sw_resolution, sw_diff_streams
 public carbonradmethod, so4radmethod, dustradmethod, seasaltradmethod, lwem_form
 public csolar, linecatalog_form, continuum_form, do_co2_10um
+public seaice_albvis, seaice_albnir
 
-real, parameter :: rhow     = 1000.            ! Density of water (kg/m^3)
 real, save      :: csolar   = 1365.            ! Solar constant in W/m^2
 real, parameter :: ratco2mw = 1.519449738      ! conversion factor for CO2 diagnostic
+real, save      :: seaice_albvis = 0.85        ! VIS sea-ice bare albedo
+real, save      :: seaice_albnir = 0.45        ! NIR sea-ice bare albedo
 integer, parameter :: naermodels         = 218 ! number of aerosol optical models
 integer, parameter :: N_AEROSOL_BANDS_FR = 8
 integer, parameter :: N_AEROSOL_BANDS_CO = 1
@@ -145,7 +147,7 @@ use estab                                           ! Liquid saturation function
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
 use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
-use module_aux_rad
+use module_aux_rad                                  ! Additional cloud and radiation routines
 use newmpar_m                                       ! Grid parameters
 use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                                         ! Land-surface arrays
@@ -174,7 +176,6 @@ real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
 real, dimension(imax) :: dzrho, dumtss
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam
-!real, dimension(imax) :: sgn_save, alb
 real, dimension(imax) :: sgn
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
@@ -270,10 +271,10 @@ do iq_tile = 1,ifull,imax
       cuvrf_dif(1:imax) = 0.06
       cirrf_dir(1:imax) = cuvrf_dir(1:imax)
       cirrf_dif(1:imax) = 0.06
-      cuvrf_dir(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dir(1:imax)
-      cuvrf_dif(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dif(1:imax)
-      cirrf_dir(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dir(1:imax)
-      cirrf_dif(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dif(1:imax)
+      cuvrf_dir(1:imax) = seaice_albvis*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+      cuvrf_dif(1:imax) = seaice_albvis*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+      cirrf_dir(1:imax) = seaice_albnir*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dir(1:imax)
+      cirrf_dif(1:imax) = seaice_albnir*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dif(1:imax)
     end where
   elseif (abs(nmlo)<=9) then
     ! MLO albedo ----------------------------------------------------
@@ -288,7 +289,7 @@ do iq_tile = 1,ifull,imax
   call atebalb1(istart,imax,cirrf_dir,0,split=1) ! direct
   call atebalb1(istart,imax,cuvrf_dif,0,split=2) ! diffuse
   call atebalb1(istart,imax,cirrf_dif,0,split=2) ! diffuse
-   
+ 
   ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
 
@@ -322,10 +323,10 @@ do iq_tile = 1,ifull,imax
           cuvrf_dif(1:imax) = 0.06
           cirrf_dir(1:imax) = cuvrf_dir(1:imax)
           cirrf_dif(1:imax) = 0.06
-          cuvrf_dir(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dir(1:imax)
-          cuvrf_dif(1:imax) = 0.85*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dif(1:imax)
-          cirrf_dir(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dir(1:imax)
-          cirrf_dif(1:imax) = 0.45*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dif(1:imax)
+          cuvrf_dir(1:imax) = seaice_albvis*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dir(1:imax)
+          cuvrf_dif(1:imax) = seaice_albvis*fracice(istart:iend) + (1.-fracice(istart:iend))*cuvrf_dif(1:imax)
+          cirrf_dir(1:imax) = seaice_albnir*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dir(1:imax)
+          cirrf_dif(1:imax) = seaice_albnir*fracice(istart:iend) + (1.-fracice(istart:iend))*cirrf_dif(1:imax)
         end where
       end if
     end if ! always_mspeca
@@ -400,7 +401,8 @@ do iq_tile = 1,ifull,imax
             Aerosol(mythread)%aerosol(:,1,kr,11) = real(xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
           end do
         end if
-#ifdef seaesfdebug
+        
+#ifdef debug
         if ( any( Aerosol(mythread)%aerosol>2.e-4 ) ) then
           write(6,*) "WARN: seaesf detects high aerosol concentrations "
           write(6,*) "xtg,maxloc ",maxval(Aerosol(mythread)%aerosol),maxloc(Aerosol(mythread)%aerosol)
@@ -684,7 +686,7 @@ do iq_tile = 1,ifull,imax
       lw_tend(istart:iend,kl+1-k) = -real(Lw_output(mythread)%heatra(:,1,k)/86400._8)
     end do
     
-#ifdef seaesfdebug
+#ifdef debug
     if ( any(Sw_output(mythread)%hsw(:,1,:,1)/=Sw_output(mythread)%hsw(:,1,:,1)) ) then
       write(6,*) "ERROR: NaN detected in hsw for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
@@ -706,7 +708,7 @@ do iq_tile = 1,ifull,imax
       call ccmpi_abort(-1)
     end if
 #endif
-    
+
     ! aerosol optical depths ----------------------------------------
     if ( do_aerosol_forcing ) then
       opticaldepth(istart:iend,:,:) = 0.
@@ -1123,15 +1125,14 @@ else
   naerosol_optical = 0  
 end if 
 
-call swresf (is, ie, js, je, Atmos_input, Surface, Rad_gases,    &
-             Aerosol, Aerosol_props, Astro, Cldrad_props,        &
-             Cld_spec, include_volcanoes,                        &
-             Sw_output(1), Aerosol_diags, r,                     &
-             do_aerosol_forcing, naerosol_optical)
+call swresf(is, ie, js, je, Atmos_input, Surface, Rad_gases,    &
+            Aerosol, Aerosol_props, Astro, Cldrad_props,        &
+            Cld_spec, include_volcanoes,                        &
+            Sw_output(1), Aerosol_diags, r,                     &
+            do_aerosol_forcing, naerosol_optical)
 
 return
 end subroutine shortwave_driver
-
 
 subroutine calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,iq_tile)
 
@@ -1708,8 +1709,9 @@ do k = 1,kl-1
 end do
 
 if ( myid==0 ) then
-  write(6,*) "siglow,sigmid = ",siglow,sigmid
-  write(6,*) "nlow,nmid     = ",nlow,nmid
+  write(6,*) "Define diagnostic cloud levels"  
+  write(6,*) "-> siglow,sigmid = ",siglow,sigmid
+  write(6,*) "-> nlow,nmid     = ",nlow,nmid
 end if
 
 ! initialise VIS fraction of SW radiation
@@ -1732,6 +1734,7 @@ use aerosolldr
 use cc_mpi
 use filnames_m
 use infile
+use parm_m
 
 implicit none
 
@@ -2106,7 +2109,7 @@ if ( myid==0 ) then
     read( unit,* ) aeroasymm_in
     do noptical = 1,naermodels-4
       if ( trim(aerosol_optical_names(noptical))==trim(name_in) ) then
-        write(6,*) "Loading optical model for ",trim(name_in)
+        if ( nmaxpr==1 ) write(6,*) "Loading optical model for ",trim(name_in)
         optical_check(noptical) = .true.
         aeroextivl(:,noptical)   = aeroext_in
         aerossalbivl(:,noptical) = aerossalb_in

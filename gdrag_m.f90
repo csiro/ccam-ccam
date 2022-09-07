@@ -107,7 +107,7 @@ do tile = 1,ntiles
   lu = u(is:ie,:)
   lv = v(is:ie,:)
   
-  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t,imax,kl)
+  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t)
 
   u(is:ie,:) = lu
   v(is:ie,:) = lv
@@ -126,7 +126,7 @@ end subroutine gwdrag
 !       -ve value forces wave breaking at top level, even if fc2 condn not satisfied
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
-subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag,imax,kl)
+subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)
 
 use const_phys
 use parm_m, only : vmodmin, sigbot_gwd, fc2, dt, alphaj, ngwd
@@ -135,21 +135,23 @@ use sigs_m
 implicit none
 
 integer, parameter :: ntest = 0 ! ntest= 0 for diags off; ntest= 1 for diags on
-integer, intent(in) :: idjd, imax, kl
-integer iq, k
-real, dimension(imax,kl), intent(in)    :: t
-real, dimension(imax,kl), intent(inout) :: u, v
-real, dimension(imax,kl) :: uu,fni,bvnf
-real, dimension(imax,kl) :: theta_full
-real, dimension(imax,kl) :: dtheta_dz_kmh
-real, dimension(imax), intent(in) :: tss, he
-real, dimension(imax) :: dzi, uux, xxx, froude2_inv
-real, dimension(imax) :: temp,fnii
-real, dimension(imax) :: bvng ! to be depreciated
-real, dimension(imax) :: apuw,apvw,alambda,wmag
-real, dimension(kl) :: dsk,sigk
-real dzx
+integer, intent(in) :: idjd
+integer iq, k, imax, kl
+real, dimension(:,:), intent(in)    :: t
+real, dimension(size(t,1),size(t,2)), intent(inout) :: u, v
+real, dimension(size(t,1),size(t,2)) :: uu,fni,bvnf
+real, dimension(size(t,1),size(t,2)) :: theta_full
+real, dimension(size(t,1),size(t,2)) :: dtheta_dz_kmh
+real, dimension(size(t,1)), intent(in) :: tss, he
+real, dimension(size(t,1)) :: temp,fnii
+real, dimension(size(t,1)) :: bvng ! to be depreciated
+real, dimension(size(t,1)) :: apuw,apvw,alambda,wmag
+real, dimension(size(t,2)) :: dsk,sigk
+real dzx, dzi, froude2_inv, uux, xxx
 logical, intent(in) :: mydiag
+
+imax = size(t,1)
+kl = size(t,2)
 
 ! older values:  
 !   ngwd=-5  helim=800.  fc2=1.  sigbot_gw=0. alphaj=1.E-6 (almost equiv to 0.0075)
@@ -160,18 +162,25 @@ logical, intent(in) :: mydiag
 do k = 1,kl
   dsk(k) = -dsig(k)
   sigk(k) = sig(k)**(rdry/cp)
+end do
+
+do k = 1,kl
   ! put theta in theta_full()
   theta_full(:,k) = t(:,k)/sigk(k)                ! gwdrag
 end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
-dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)    
-dzi(:) = dzx/t(:,1)
-dtheta_dz_kmh(:,1) = (theta_full(:,1)-tss(:))*dzi(:)    
+dzx = .5*grav*(1.+sig(1))/((1.-sig(1))*rdry)
+do iq = 1,imax    
+  dzi = dzx/t(iq,1)
+  dtheta_dz_kmh(iq,1) = (theta_full(iq,1)-tss(iq))*dzi    
+end do
 do k = 2,kl
- dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)  
- dzi(:) = dzx/(t(:,k-1)+t(:,k)) 
- dtheta_dz_kmh(:,k) = (theta_full(:,k)-theta_full(:,k-1))*dzi(:)
+  dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)
+  do iq = 1,imax  
+    dzi = dzx/(t(iq,k-1)+t(iq,k)) 
+    dtheta_dz_kmh(iq,k) = (theta_full(iq,k)-theta_full(iq,k-1))*dzi
+  end do
 end do    ! k loop          
 
 !     form wmag at surface
@@ -210,8 +219,10 @@ end do    ! k loop
 
 do k = kbot,kl
   !       calc max(1-Fc**2/F**2,0) : put in fni()
-  froude2_inv(:) = sig(k)*temp(:)*uu(:,k)**3/(sigk(k)*bvnf(:,k)*theta_full(:,k))
-  fni(:,k) = max(0., 1.-abs(fc2)*froude2_inv(:))
+  do iq = 1,imax
+    froude2_inv = sig(k)*temp(iq)*uu(iq,k)**3/(sigk(k)*bvnf(iq,k)*theta_full(iq,k))
+    fni(iq,k) = max(0., 1.-abs(fc2)*froude2_inv)
+  end do
 end do    ! k loop
 if ( fc2<0. ) then
   fni(:,kl) = 1.
@@ -237,17 +248,20 @@ apuw(:) = alambda(:)*u(:,1)/wmag(:)
 apvw(:) = alambda(:)*v(:,1)/wmag(:)
 
 do k = kbot,kl
-  !**** form fni=alambda*max(--,0) and
-  !**** solve for uu at t+1 (implicit solution)
-  uux(:) = 2.*uu(:,k)/(1.+sqrt(1. + 4.*dt*alambda(:)*fni(:,k)*uu(:,k)))
-  !       N.B. 4.*dt*alambda(iq)*fni(iq,k)*uu(iq,k)) can be ~300
-  !**** form dv/dt due to gw-drag at each level
-  !**** = -alambda.v*/wmag.uu(t+1)**2.max(--,0)
-  xxx(:) = uux(:)*uux(:)*fni(:,k)
-  u(:,k) = u(:,k) - apuw(:)*xxx(:)*dt
-  v(:,k) = v(:,k) - apvw(:)*xxx(:)*dt
+  do iq = 1,imax
+    !**** form fni=alambda*max(--,0) and
+    !**** solve for uu at t+1 (implicit solution)
+    uux = 2.*uu(iq,k)/(1.+sqrt(1. + 4.*dt*alambda(iq)*fni(iq,k)*uu(iq,k)))
+    !       N.B. 4.*dt*alambda(iq)*fni(iq,k)*uu(iq,k)) can be ~300
+    !**** form dv/dt due to gw-drag at each level
+    !**** = -alambda.v*/wmag.uu(t+1)**2.max(--,0)
+    xxx = uux**2*fni(iq,k)
+    u(iq,k) = u(iq,k) - apuw(iq)*xxx*dt
+    v(iq,k) = v(iq,k) - apvw(iq)*xxx*dt
+  end do
 end do     ! k loop
 
+#ifndef GPU
 if ( ntest==1 .and. mydiag ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
@@ -268,6 +282,7 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
   end do
 end if
+#endif
 
 return
 end subroutine gwdrag_work

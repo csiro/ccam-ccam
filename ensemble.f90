@@ -95,7 +95,7 @@ real, dimension(ifull,kl) :: ee
 real, dimension(ifull,kl) :: u_pos, v_pos, t_pos
 real, dimension(ifull,kl) :: u_neg, v_neg, t_neg
 real, dimension(ifull,ms,3) :: dumg
-real, dimension(ifull,kl,5) :: dumv
+real, dimension(ifull,kl,6) :: dumv
 real, dimension(ifull,3,3) :: dums
 real, dimension(ifull,wlev,8) :: dumo
 real, dimension(ifull,kl,naero) :: dumr
@@ -120,6 +120,7 @@ if ( mtimer>mtimeb ) then
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
                     duma(:,1),dumv(:,:,1),dumv(:,:,2),            &
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
+                    dumv(:,:,6),                                  &
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
                     duma(:,2),duma(:,3),dumm,dumo,dumd,dumr)
       call retopo(pslb,zsb,zs,tb,qb)
@@ -162,6 +163,7 @@ if ( mtimer>mtimeb ) then
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
                     duma(:,1),dumv(:,:,1),dumv(:,:,2),            &
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
+                    dumv(:,:,6),                                  &
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
                     duma(:,2),duma(:,3),dumm,dumo,dumd,dumr)
     else
@@ -456,41 +458,41 @@ use parm_m
 implicit none
 
 integer, intent(in) :: kdate_r, kdate
-integer iyear,iyear0,month,iday
+integer iyear_r,iyear0,imonth_r,iday_r
 integer months,nl
 integer newdate_r, diffyear
-integer, dimension(0:13) :: mdays
+integer, dimension(-1:13) :: mdays
 integer ans
 
-iyear  = kdate_r/10000
+iyear_r  = kdate_r/10000
 iyear0 = kdate/10000                ! year of kdate
-newdate_r = kdate_r - 10000*iyear
-month = newdate_r/100
-newdate_r = newdate_r - 100*month
-iday = newdate_r
+newdate_r = kdate_r - 10000*iyear_r
+imonth_r = newdate_r/100
+newdate_r = newdate_r - 100*imonth_r
+iday_r = newdate_r
 
 ! calculate number of months since start of kdate year
-diffyear = iyear - iyear0
-months = diffyear*12 + month - 1  
+diffyear = iyear_r - iyear0
+months = diffyear*12 + imonth_r - 1  
 
 if ( leap==0 ) then ! 360 day calendar
-  mdays = (/0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
+  mdays = (/-31,0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
 else if ( leap==1 ) then ! 365/366 day calendar
-  mdays = (/0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
+  mdays = (/-31,0,31,59,90,120,151,181,212,243,273,304,334,365,396/)
   nl = 0
   if ( mod(iyear0,4)==0 ) nl = 1
   if ( mod(iyear0,100)==0 ) nl = 0
   if ( mod(iyear0,400)==0 ) nl = 1
   mdays(2:13) = mdays(2:13) + nl
 else if ( leap==2 ) then ! 360 day calendar  
-  mdays = (/0,30,60,90,120,150,180,210,240,270,300,330,360,390/)  
+  mdays = (/-30,0,30,60,90,120,150,180,210,240,270,300,330,360,390/)  
 end if
 
 ! Accumulate days month by month, up to last completed month
 ans = mdays(months)
 
 ! Add days from this current month
-ans = ans + iday
+ans = ans + iday_r
 
 end function iabsdate
 

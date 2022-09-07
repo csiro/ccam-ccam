@@ -226,8 +226,7 @@
       !--------------------------------------------------------
          
       end subroutine convjlm22_init
-      
-      
+
       subroutine convjlm22
       
       use arrays_m   
@@ -247,7 +246,7 @@
       use soil_m
       use tracers_m  ! ngas, nllp, ntrac
       use vvel_m
-      use work2_m   ! for wetfa!    JLM
+      use work2_m   ! for wetfac    JLM
 
       implicit none
 
@@ -340,8 +339,7 @@
 
       return
       end subroutine convjlm22     ! jlm convective scheme
-       
-      
+            
       subroutine convjlm22_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
@@ -361,11 +359,9 @@
       use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
      &                       naero,convscav,itracsa,nsalt
       use cc_mpi, only : ccmpi_abort
-!      use cc_omp, only : imax, ntiles
       use const_phys
       use diag_m, only : maxmin
       use estab      
-!      use newmpar_m
       use parm_m, only : ktau,dt,nmaxpr,diag,ds,iaero
       use parmdyn_m
       use sigs_m
@@ -1920,5 +1916,5 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 !      endif  ! (ntest==-1.and.nproc==1)  
       return
       end subroutine convjlm22_work
-      
+
       end module convjlm22_m

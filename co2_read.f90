@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -416,7 +416,6 @@ call ccnf_inq_dimlen(ncid,'time',maxarchi)
 call ccnf_inq_varid(ncid,'time',idvtime)
 call ccnf_get_att(ncid,idvtime,'units',datestring)
 call processdatestring(datestring,kdate_rsav,ktime_rsav)
-print*, "kdate_rsav", kdate_rsav
 ! fast read
 iarchi = 1
 kdate_r = kdate_rsav

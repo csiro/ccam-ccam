@@ -609,7 +609,7 @@ type(lw_table_type), intent(inout) :: Lw_tables
           if ( myid==0 ) then  
             filename = trim(cnsdir) // '/h2ocoeff_ckdsea_speccombwidebds_hi12'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -632,7 +632,7 @@ type(lw_table_type), intent(inout) :: Lw_tables
           if ( myid==0 ) then      
             filename = trim(cnsdir) // '/h2ocoeff_rsb_speccombwidebds_hi00'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
@@ -655,7 +655,7 @@ type(lw_table_type), intent(inout) :: Lw_tables
           if ( myid==0 ) then
             filename = trim(cnsdir) // '/h2ocoeff_BPS_speccombwidebds_hi12'
             open(11,file=trim(filename),form="formatted",status="old",iostat=ierr)
-            write(6,*) "Reading ",trim(filename)
+            !write(6,*) "Reading ",trim(filename)
             if ( ierr/=0 ) then
               write(6,*) "ERROR: Cannot read ",trim(filename)
               call ccmpi_abort(-1)
