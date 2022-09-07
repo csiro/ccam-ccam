@@ -315,7 +315,7 @@ if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mod
       ! liquid accertion rate (kg/kg/s)
       ppmaccr(is:ie,kl+1-k) = faccr(is:ie,k)/(rhoa(is:ie,k)*dz(is:ie,k))
       ! slope (lambda) for snow crystal size distribution (m**-1)
-      pplambs(is:ie,kl+1-k) = 1.6e3*10**(-0.023*(t(iq,k)-tfrz))          
+      pplambs(is:ie,kl+1-k) = 1.6e3*10**(-0.023*(t(is:ie,k)-tfrz))          
       ! Fraction rain scavenging rate in time-step
       do iq = is,ie
         fcol = rfrac(iq,k)
