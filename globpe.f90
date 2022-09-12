@@ -2605,6 +2605,7 @@ seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
 !$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj)
+!$acc update device(qgmin,iaero)
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -3083,6 +3084,7 @@ call ccmpi_bcastr8(y_g,0,comm_world)
 call ccmpi_bcastr8(z_g,0,comm_world)
 #endif
 call ccmpi_bcast(ds,0,comm_world)
+!$acc update device(ds)
 
 if ( myid==0 ) then
   write(6,*) "Calling ccmpi_setup"
@@ -3145,6 +3147,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
   call tkeinit(ifull,iextra,kl)
 end if
 call init_tracer
+!$acc update device(ngas,ntrac)
 call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
