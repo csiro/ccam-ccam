@@ -99,7 +99,7 @@ logical mydiag_t
 
 !$omp do schedule(static) private(is,ie),        &
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)
-!$acc parallel copy(u,v), copyin(t,tss,he)
+!$acc parallel present(u,v), present(t,tss,he)
 !$acc loop gang private(lt,lu,lv)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1

@@ -51,7 +51,7 @@ use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
-use gdrag_m, only : gwdrag                 ! Gravity wave drag
+use gdrag_m, only : gwdrag,he              ! Gravity wave drag
 use histave_m                              ! Time average arrays
 use hs_phys_m                              ! Held & Suarez
 use indata                                 ! Data initialisation
@@ -561,7 +561,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
   if ( ngwd<0 ) then
+!$acc data copy(u,v) copyin(t,tss,he)
     call gwdrag  ! <0 for split - only one now allowed
+!$acc end data
   end if
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
