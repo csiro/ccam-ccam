@@ -24,6 +24,7 @@
 
       private
       public convjlm, convjlm_init
+      public timeconv,alfin,entrainn
       
       integer, save :: k500,k600,k700,k900,k980,klon2,komega
 !$acc declare create(k500,k600,k700,k900,k980,klon2,komega)
@@ -359,11 +360,11 @@
 !$omp& private(ldpsldt,lt,lqg,lfluxtot),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
 !$omp& private(lqlg,lqfg,lcfrac,lu,lv,ltr,idjd_t,mydiag_t)
-!$acc parallel loop copy(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd),
-!$acc&  copy(bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav),
-!$acc&  copyin(dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn),
-!$acc&  copyin(em,sgsave),
-!$acc&  copyout(convpsav,cape,condc,condx,conds,condg)
+!$acc parallel loop present(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd),
+!$acc&  present(bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav),
+!$acc&  present(dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn),
+!$acc&  present(em,sgsave),
+!$acc&  present(convpsav,cape,condc,condx,conds,condg)
 !$acc&  private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv),
 !$acc&  private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd),
 !$acc&  private(ltr,lfluxtot)
