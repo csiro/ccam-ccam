@@ -5864,7 +5864,8 @@ contains
    subroutine intssync_send4(ntr)
       integer, intent(in) :: ntr
       integer :: iproc
-      integer(kind=4) :: itag=98, ierr, llen, lproc, lcomm
+      integer(kind=4), parameter :: itag=98
+      integer(kind=4) :: ierr, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -5942,6 +5943,10 @@ contains
       integer(kind=4), dimension(neighnum) :: donelist
 
       ntr = size(s,3)
+      if ( ntr > nagg ) then
+         write(6,*) "ERROR: Internal error in intssync_recv.  ntr > nagg"
+         call ccmpi_abort(-1)
+      end if
       
       ! Unpack incomming messages
       rcount = rreq

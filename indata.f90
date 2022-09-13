@@ -399,7 +399,7 @@ end if
 
 ! zmin here is approx height of the lowest level in the model
 zmin = -rdry*280.*log(sig(1))/grav
-if ( myid==0 ) write(6,*) 'zmin = ',zmin
+if ( myid==0 ) write(6,*) 'First model level height zmin = ',zmin
 
 !--------------------------------------------------------------
 ! READ OROGRAPHY (io_in and nhstest)
@@ -949,7 +949,6 @@ if ( io_in<4 ) then
                   ocndwn,xtgdwn)
     ! UPDATE BIOSPHERE DATA (nsib)
     if ( nsib==6 .or. nsib==7 ) then
-      if ( myid==0 ) write(6,*) 'Read CABLE and CASA initial conditions'
       call loadtile
     end if
   end if   ! (abs(io_in)==1)
@@ -2322,7 +2321,7 @@ if(nstn>0)then
     write(*,"(a)") ' lu istn jstn  iq   slon   slat land rlong  rlat' &
                 // ' isoil iveg zs(m) alb  wb3  wet3 vlai  zo   he'
   end if
-  !call ccmpi_barrier(comm_world)
+  call ccmpi_barrier(comm_world)
   do n = 1,nstn
     call latltoij(slon(n),slat(n),rlong0,rlat0,schmidt,ri,rj,nface,xx4,yy4,il_g)
     ! These are global indices
@@ -2378,15 +2377,15 @@ if(nstn>0)then
       iveg = ivegt(iq)
       isoil = isoilm(iq)
       wet3=(wb(iq,3)-swilt(isoil))/(sfc(isoil)-swilt(isoil))
-      !write(6,98)iunp(n),istn(n),jstn(n),iq,slon(n),slat(n),        &
-      !           land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,       &
-      !           isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),  &
-      !           wb(iq,3),wet3,vlai(iq),zolnd(iq),he(iq),           &
-      !           myid             
+      write(6,98)iunp(n),istn(n),jstn(n),iq,slon(n),slat(n),        &
+                 land(iq),rlongg(iq)*180/pi,rlatt(iq)*180/pi,       &
+                 isoilm(iq),ivegt(iq),zs(iq)/grav,albvisnir(iq,1),  &
+                 wb(iq,3),wet3,vlai(iq),zolnd(iq),he(iq),           &
+                 myid             
     end if               ! mystn
-!98  format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,4f5.2,f7.1,i4)
+98  format(i3,i4,i5,i6,2f7.2 ,l3,2f7.2, i3,i6,f7.1,f5.2,4f5.2,f7.1,i4)
     ! Put a barrier here to force stations to be printed in the right order
-    !call ccmpi_barrier(comm_world)
+    call ccmpi_barrier(comm_world)
   enddo  ! n=1,nstn
 endif     !  (nstn>0)
 

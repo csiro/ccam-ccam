@@ -129,7 +129,7 @@ if ( myid==0 .or. pfall ) then
   ! Locate new file and read grid metadata --------------------------
   if ( ncid/=ncidold ) then
     if ( myid==0 ) then
-      write(6,*) 'Reading new file metadata'
+      write(6,*) '-> Reading new file metadata'
     end if  
     iarchi = 1    ! default time index for input file
     maxarchi = 0  ! default number of timesteps in input file
@@ -170,10 +170,10 @@ if ( myid==0 .or. pfall ) then
     end if
     call ccnf_inq_dimlen(ncid,'time',maxarchi)
     if ( myid==0 ) then
-      write(6,*) "Found ik,jk,kk,ok ",ik,jk,kk,ok
-      write(6,*) "      maxarchi ",maxarchi
-      write(6,*) "      rlong0x,rlat0x,schmidtx ",rlong0x,rlat0x,schmidtx
-      write(6,*) "      native_ccam ",native_ccam
+      write(6,*) "-> Found ik,jk,kk,ok ",ik,jk,kk,ok
+      write(6,*) "->      maxarchi ",maxarchi
+      write(6,*) "->      rlong0x,rlat0x,schmidtx ",rlong0x,rlat0x,schmidtx
+      write(6,*) "->      native_ccam ",native_ccam
     end if
   end if
   
@@ -223,9 +223,6 @@ if ( myid==0 .or. pfall ) then
       if ( nested==1 .and. firstcall ) then
         ! move back to previous time-step  
         firstcall = .false.
-        if ( myid==0 ) then
-          write(6,*) 'Adjust search for firstcall'  
-        end if
         iarchi = max( iarchi-1, 1 )
         kdate_r = kdate_rsav
         ktime_r = ktime_rsav
@@ -455,7 +452,7 @@ end if
       
 ! Determine if interpolation is required
 iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
-         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and. &
+         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and.      &
          native_ccam==1
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   iotest = iotest .and. (wlev==ok)
@@ -464,20 +461,21 @@ end if
 
 if ( iotest ) then
   io_in = 1   ! no interpolation
-  if ( myid==0 ) then
-    write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
+  if ( .not.iop_test ) then
+    ! this is a special case, such as when the number of processes changes during an experiment  
+    if ( myid==0 ) then
+      write(6,*) "Redistribution is required with iotest,iop_test,io_in =",iotest, iop_test, io_in
+    end if
+  else    
+    if ( myid==0 ) then
+      write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
+    end if
   end if  
 else
   io_in = -1  ! interpolation
   if ( myid==0 ) then
     write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
   end if  
-end if
-if ( iotest .and. .not.iop_test ) then
-  ! this is a special case, such as when the number of processes changes during an experiment  
-  if ( myid==0 ) then
-    write(6,*) "Redistribution is required with iotest,iop_test =",iotest, iop_test
-  end if
 end if
   
 
@@ -689,14 +687,14 @@ if ( newfile ) then
       .not.(nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3)
   if ( myid==0 ) then
     if ( zht_needed ) then
-      write(6,*) "Surface height is required with zht_needed =",zht_needed
+      write(6,*) "-> Surface height is required with zht_needed     =",zht_needed
     else  
-      write(6,*) "Surface height is not required with zht_needed =",zht_needed
+      write(6,*) "-> Surface height is not required with zht_needed =",zht_needed
     end if
-    write(6,*) "nested,retopo_test                            =",nested,retopo_test
-    write(6,*) "soilt_found,mlo_found,mlo2_found,mloice_found =",soilt_found,mlo_found,mlo2_found,mloice_found
-    write(6,*) "zht_found,mixr_found,aero_found,urban1_found  =",zht_found,mixr_found,aero_found,urban1_found
-    write(6,*) "urban2_found,allowtrivialfill                 =",urban2_found,allowtrivialfill
+    write(6,*) "-> nested,retopo_test                               =",nested,retopo_test
+    write(6,*) "-> soilt_found,mlo_found,mlo2_found,mloice_found    =",soilt_found,mlo_found,mlo2_found,mloice_found
+    write(6,*) "-> zht_found,mixr_found,aero_found,urban1_found     =",zht_found,mixr_found,aero_found,urban1_found
+    write(6,*) "-> urban2_found,allowtrivialfill                    =",urban2_found,allowtrivialfill
     if ( zht_needed .and. .not.zht_found .and. .not.allowtrivialfill ) then
       write(6,*) "ERROR: Surface height is required but not found in input file"
       call ccmpi_abort(-1)
@@ -707,11 +705,11 @@ if ( newfile ) then
   tss_test = siced_found .and. fracice_found .and. iotest
   if ( myid==0 ) then
     if ( tss_test ) then
-      write(6,*) "Surface temperature does not require interpolation"
-      write(6,*) "tss_test,siced_found,fracice_found,iotest,iop_test =",tss_test,siced_found,fracice_found,iotest,iop_test
+      write(6,*) "-> Surface temperature does not require interpolation"
+      write(6,*) "-> tss_test,siced_found,fracice_found,iotest,iop_test =",tss_test,siced_found,fracice_found,iotest,iop_test
     else
-      write(6,*) "Surface temperature requires interpolation"
-      write(6,*) "tss_test,siced_found,fracice_found,iotest,iop_test =",tss_test,siced_found,fracice_found,iotest,iop_test
+      write(6,*) "-> Surface temperature requires interpolation"
+      write(6,*) "-> tss_test,siced_found,fracice_found,iotest,iop_test =",tss_test,siced_found,fracice_found,iotest,iop_test
     end if
   end if
   
@@ -812,7 +810,7 @@ if ( newfile ) then
       call ccmpi_abort(-1)
     end if  
     if ( myid==0 .and. nmaxpr==1 ) then
-      write(6,*) "Land-sea mask using nemi = ",nemi
+      write(6,*) "-> Land-sea mask using nemi = ",nemi
     end if
   end if  
   
@@ -820,7 +818,7 @@ if ( newfile ) then
   ! read urban mask for urban and initial conditions and interpolation
   if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iop_test ) then
     if ( myid==0 .and. nmaxpr==1 ) then
-      write(6,*) "Determine urban mask"
+      write(6,*) "-> Determine urban mask"
     end if  
     if ( urban1_found ) then
       call histrd(iarchi,ier,'t1_intmtgg1',ucc,6*ik*ik)  
@@ -2015,8 +2013,7 @@ kdate_s = kdate_r
 ktime_s = ktime_r + 1
 
 if ( myid==0 .and. nested==0 ) then
-  write(6,*) "Final lrestart, lrestart_radiation ",lrestart,lrestart_radiation
-  write(6,*) "      lrestart_tracer              ",lrestart_tracer
+  write(6,*) "Final lrestart, lrestart_radiation, lrestart_tracer = ",lrestart,lrestart_radiation,lrestart_tracer
 end if
 
 return

@@ -1739,8 +1739,8 @@ ihr=int(ktime_r,8)/100_8
 imins=int(ktime_r,8)-100_8*ihr
 if ( myid==0 .and. .not.quiet ) then
   write(6,*) 'entering datefix'
-  write(6,*) 'iyr,imo,iday:       ',iyr,imo,iday
-  write(6,*) 'ihr,imins,mtimer_r: ',ihr,imins,int(mtimer_r)
+  write(6,'(A,I6,I4,I4)') ' -> iyr,imo,iday:       ',iyr,imo,iday
+  write(6,'(A,I4,I4,I8)') ' -> ihr,imins,mtimer_r: ',ihr,imins,int(mtimer_r)
 end if
 
 if ( leap_l==0 ) then ! 365 day calendar

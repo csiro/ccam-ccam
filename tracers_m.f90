@@ -38,8 +38,8 @@ integer, dimension(:), allocatable, save :: npm
 real, dimension(:,:,:), allocatable, save :: tr,traver
 real, dimension(:,:,:), allocatable, save :: trpm
 real, dimension(:), allocatable, save :: acloss_g
-character(len=13), dimension(:), save, allocatable :: tracname
-character(len=13), dimension(:), save, allocatable :: tractype
+character(len=20), dimension(:), save, allocatable :: tracname
+character(len=20), dimension(:), save, allocatable :: tractype
 
 contains
 

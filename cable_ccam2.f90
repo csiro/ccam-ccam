@@ -4861,6 +4861,8 @@ logical defaultmode
 character(len=80) vname
 character(len=21) testname
 
+if ( myid==0 ) write(6,*) 'Read CABLE and CASA initial conditions'
+
 ! force CABLE to use generic input for all tiles
 ! if usedefault = defaultmode = .true.
 defaultmode = .false.
@@ -4922,11 +4924,11 @@ end if
   
 ! Cannot locate tile data, use diagnostic data instead
 if ( ierr/=0 ) then
-  if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise CABLE"
+  if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise CABLE"
   call defaulttile
 else
   ! Located CABLE tile data
-  if ( myid==0 ) write(6,*) "Use tiled data to initialise CABLE"
+  if ( myid==0 ) write(6,*) "-> Use tiled data to initialise CABLE"
   do n = 1,maxtile
     if ( ierr_svs /= 0 ) then
       old_sv = sv    
@@ -5033,7 +5035,7 @@ else
   end do
   if ( soil_struc==1 ) then
     if ( ierr_sli/=0 ) then
-      if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise SLI"
+      if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise SLI"
       call defaulttile_sli
     else    
       do n = 1,maxtile
@@ -5079,10 +5081,10 @@ else
   end if
   if ( ccycle/=0 ) then
     if ( ierr_casa/=0 ) then
-      if ( myid==0 ) write(6,*) "Use gridbox averaged data to initialise CASA-CNP"
+      if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise CASA-CNP"
       call defaulttile_casa
     else
-      if ( myid==0 ) write(6,*) "Use tiled data to initialise CASA-CNP"  
+      if ( myid==0 ) write(6,*) "-> Use tiled data to initialise CASA-CNP"  
       do n = 1,maxtile
         write(vname,'("t",I1.1,"_cplant")') n
         call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
@@ -5453,9 +5455,9 @@ else
   end if
   if ( cable_pop==1 ) then
     if ( ierr_pop/=0 ) then
-      if ( myid==0 ) write(6,*) "Use default data to initialise POP"
+      if ( myid==0 ) write(6,*) "-> Use default data to initialise POP"
     else
-      if ( myid==0 ) write(6,*) "Use tiled data to initialise POP"    
+      if ( myid==0 ) write(6,*) "-> Use tiled data to initialise POP"    
       allocate( datpatch(ifull,POP_NPATCH) )  
       allocate( datage(ifull,POP_AGEMAX) )  
       allocate( datpc(ifull,POP_NPATCH,POP_NCOHORT) )
@@ -6579,7 +6581,7 @@ integer, intent(in) :: itype
   
 if (myid==0.or.local) then
   if (myid==0) then
-    write(6,*) "--> define CABLE tile data"
+    write(6,*) "-> define CABLE tile data"
   end if
   if ( itype==-1 ) then !just for restart file
     do n = 1,maxtile

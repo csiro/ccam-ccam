@@ -41,7 +41,7 @@ real, dimension(:,:,:), save, allocatable :: co2emhr, co2em123
 real, dimension(:,:), save, allocatable :: co2hr, co2em
 real, dimension(:,:), save, allocatable :: tracdaytime
 real, dimension(:), save, allocatable :: tracival, trden, trreff, trdep
-character(len=13), dimension(:), save, allocatable :: tracunit
+character(len=20), dimension(:), save, allocatable :: tracunit
 character(len=50), dimension(:), save, allocatable :: tracfile
 character(len=80), save :: tracerlist=' '
 character(len=80), save :: sitefile=' '
@@ -61,7 +61,7 @@ contains
 
 ! ***************************************************************************
 subroutine init_tracer
-use cc_mpi, only : myid, ccmpi_abort
+use cc_mpi, only : myid, ccmpi_abort, ccmpi_bcast, comm_world
 use tracers_m
 use newmpar_m
 implicit none
@@ -85,15 +85,18 @@ methane = .false.
 mcf     = .false.
 dpoflag = .false.
 
-open(unit=130,file=tracerlist,form='formatted')
-read(130,*) header
-read(130,*) numtracer
-if (numtracer<1.or.numtracer>9999) then
-  write(6,*) "ERROR: Invalid number of tracers"
-  write(6,*) "numtracer should be between 1-9999"
-  write(6,*) "numtracer = ",numtracer
-  call ccmpi_abort(-1)
+if ( myid==0 ) then
+  open(unit=130,file=tracerlist,form='formatted')
+  read(130,*) header
+  read(130,*) numtracer
+  if (numtracer<1.or.numtracer>9999) then
+    write(6,*) "ERROR: Invalid number of tracers"
+    write(6,*) "numtracer should be between 1-9999"
+    write(6,*) "numtracer = ",numtracer
+    call ccmpi_abort(-1)
+  end if
 end if
+call ccmpi_bcast(numtracer,0,comm_world)
 ngas = numtracer
 allocate(tracname(numtracer),tractype(numtracer))
 allocate(tracinterp(numtracer),tracunit(numtracer))
@@ -102,9 +105,22 @@ allocate(tracival(numtracer))
 allocate(trden(numtracer),trreff(numtracer),trdep(numtracer))
 allocate(traclevel(numtracer))
 nhr = 0
-do nt=1,numtracer
-  !           name         inital value                 Emiss type   Emiss file   Density   Radius     Dry Dep?  Emiss levels
-  read(130,*) tracname(nt),tracival(nt),tracmin,tracmax,tractype(nt),tracfile(nt),trden(nt),trreff(nt),trdep(nt),traclevel(nt)
+if ( myid==0 ) then  
+  do nt = 1,numtracer
+    !           name         inital value                 Emiss type   Emiss file   Density   Radius     Dry Dep?  Emiss levels
+    read(130,*) tracname(nt),tracival(nt),tracmin,tracmax,tractype(nt),tracfile(nt),trden(nt),trreff(nt),trdep(nt),traclevel(nt)
+  end do
+  close(130)
+end if
+call ccmpi_bcast(tracival,0,comm_world)
+call ccmpi_bcast(trden,0,comm_world)
+call ccmpi_bcast(trreff,0,comm_world)
+call ccmpi_bcast(trdep,0,comm_world)
+call ccmpi_bcast(traclevel,0,comm_world)
+do nt = 1,numtracer  
+  call ccmpi_bcast(tracname(nt),0,comm_world)  
+  call ccmpi_bcast(tractype(nt),0,comm_world)
+  call ccmpi_bcast(tracfile(nt),0,comm_world)
   select case(tractype(nt))
    case ('monrep','month')
     tracinterp(nt)=1
@@ -125,22 +141,22 @@ do nt=1,numtracer
    case default
     tracinterp(nt)=0
   end select
-   if ( myid == 0 ) then
+  if ( myid == 0 ) then
     write(6,'(a7,i5,1x,a13,a13,a50,i3)') 'Tracer ',nt,tracname(nt),tractype(nt),tracfile(nt),tracinterp(nt)
   end if
 ! rml 16/2/10 addition for TC methane
   if (tracname(nt)(1:7)=='methane') methane = .true.
   if (tracname(nt)(1:3)=='mcf') mcf = .true.
 
-enddo
+end do
 
-if (nhr>0) then
+if ( nhr>0 ) then
   allocate(nghr(nhr))
 else
   deallocate(igashr)
 end if
 
-if (dpoflag) then
+if ( dpoflag ) then
   allocate(tracdaytime(numtracer,2))    
 end if
 
@@ -158,8 +174,6 @@ if (writetrpm) then
   trpm = 0.
   npm = 0
 end if
-
-close(130)
 
 return
 end subroutine init_tracer
@@ -180,7 +194,7 @@ implicit none
 integer nt,jyear,jmonth
 real, dimension(3) :: ajunk
 character(len=50) :: filename
-character(len=13) :: varname
+character(len=20) :: varname
 
 jyear=kdate/10000
 jmonth=(kdate-jyear*10000)/100
@@ -190,7 +204,7 @@ do nt=1,numtracer
     case (0)
 !           constant data
       if (.not.allocated(co2em123)) then
-        allocate(co2em123(il*jl,2:2,numtracer))
+        allocate(co2em123(il*jl,3,numtracer))
       end if
       if (.not.allocated(co2em)) then
         allocate(co2em(il*jl,numtracer))
@@ -239,45 +253,46 @@ if (mcf) then
   allocate(jmcf(il*jl,kl))
 !       use standard tracer flux file read call but pass through 
 !       with tracer 'ngas+1' - this will trigger MCF_loss as filename
-   call readrco2(ngas+1,jyear,jmonth,3,mcfdep123,ajunk)
-   filename='/short/r39/TCinput/Jmcf_cc48.nc'
-   varname = 'jmcf'
-   call readoh(jmonth,3,filename,varname,jmcf123)
- endif
- if (myid==0) then
-   write(6,*) 'Read input fluxes/rates etc OK'
- end if
+  call readrco2(ngas+1,jyear,jmonth,3,mcfdep123,ajunk)
+  filename='/short/r39/TCinput/Jmcf_cc48.nc'
+  varname = 'jmcf'
+  call readoh(jmonth,3,filename,varname,jmcf123)
+endif
+if (myid==0) then
+  write(6,*) 'Read input fluxes/rates etc OK'
+end if
 
- return
- end subroutine
+return
+end subroutine
 
 ! *************************************************************************
- subroutine readrco2(igas,iyr,imon,nflux,fluxin,co2time)
+subroutine readrco2(igas,iyr,imon,nflux,fluxin,co2time)
 !     rml 23/09/03 largely rewritten to use netcdf files
- use cc_mpi
- use infile
- use newmpar_m
- use parm_m
- use tracers_m
- implicit none
+use cc_mpi
+use infile
+use newmpar_m
+use parm_m
+use tracers_m
+
+implicit none
  
 !     nflux =3 for month interp case - last month, this month, next month
 !     nflux=31*24+2 for daily, hourly, 3 hourly case
  
- integer ncidfl,fluxid
- integer nregion,dayid
- integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
- integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid,ierr
- integer, dimension(3) :: start,ncount
- integer, dimension(:), allocatable :: fluxyr,fluxmon
- real timeinc, hr
- real, dimension(ifull,nflux) :: fluxin
- real, dimension(ifull_g,nflux) :: fluxin_g
- real, dimension(nflux) :: co2time
- real, dimension(2) :: dum
- real, dimension(:), allocatable :: fluxhr
- character(len=50) filename
- character(len=13) fluxtype,fluxname,fluxunit
+integer ncidfl,fluxid
+integer nregion,dayid
+integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
+integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid,ierr
+integer, dimension(3) :: start,ncount
+integer, dimension(:), allocatable :: fluxyr,fluxmon
+real timeinc, hr
+real, dimension(ifull,nflux) :: fluxin
+real, dimension(ifull_g,nflux) :: fluxin_g
+real, dimension(nflux) :: co2time
+real, dimension(2) :: dum
+real, dimension(:), allocatable :: fluxhr
+character(len=50) filename
+character(len=20) fluxtype,fluxname,fluxunit
 logical gridpts,tst
 
 n1=0
@@ -553,7 +568,7 @@ use newmpar_m
 use parm_m
 implicit none
 character(len=50) ohfile
-character(len=13) varname
+character(len=20) varname
 integer nfield,imon,ntime,ierr
 integer nprev,nnext,ncur,n,timx,gridid
 !     nflux =3 for month interp case - last month, this month, next month

@@ -105,7 +105,7 @@ if ( abs(iaero)>=2 ) then
 end if   ! abs(iaero)==2
 
 if ( ngas>0 ) then
-  do n = 1,naero
+  do n = 1,ngas
     do k = 1,kl  
       trsav(1:ifull,k,n) = tr(1:ifull,k,n) ! for tr conservation in adjust5
     end do

@@ -265,7 +265,7 @@ if ( myid==0 .or. local ) then
   if ( iarch==1 ) then
 
     ! Open new file  
-    if ( myid==0 ) write(6,'(" nccre of itype,cdffile=",i5," ",a80)') itype,cdffile
+    if ( myid==0 ) write(6,'(" create with itype,cdffile=",i5," ",a80)') itype,cdffile
     call ccnf_create(cdffile,idnc)
     ! Turn off the data filling
     call ccnf_nofill(idnc)
@@ -431,7 +431,7 @@ if ( myid==0 .or. local ) then
     end if
     call ccnf_put_att(idnc,idnt,'point_spacing','even')
     if ( myid==0 ) then
-      write(6,*) 'kdate,ktime,ktau=',kdate,ktime,ktau
+      write(6,*) '-> kdate,ktime,ktau=',kdate,ktime,ktau
     end if
     
     if ( itype==-1 .or. diaglevel_pop>=9 ) then
@@ -533,9 +533,9 @@ if ( myid==0 .or. local ) then
     ahead(12) = vmodmin
     ahead(13) = av_vmod
     ahead(14) = epsp
-    if ( myid==0 ) then
-      write(6,*) "nahead=",nahead
-      write(6,*) "ahead=",ahead
+    if ( myid==0 .and. nmaxpr==1 ) then
+      write(6,*) "-> nahead=",nahead
+      write(6,*) "-> ahead=",ahead
     end if
     call ccnf_put_attg(idnc,'int_header',nahead)   ! to be depreciated
     call ccnf_put_attg(idnc,'real_header',ahead)   ! to be depreciated
@@ -1111,7 +1111,7 @@ if( myid==0 .or. local ) then
 
 !   Create global attributes
 !   Model run number
-    if ( myid==0 ) write(6,*) 'nrun=',nrun
+    if ( myid==0 ) write(6,*) '-> nrun=',nrun
     call ccnf_put_attg(idnc,'nrun',nrun)
 
 !   Experiment description
@@ -1129,7 +1129,7 @@ if( myid==0 .or. local ) then
     endif           
 
 !   Sigma levels
-    if ( myid==0 ) write(6,*) 'sig=',sig
+    if ( myid==0 .and. nmaxpr==1 ) write(6,*) 'sig=',sig
     call ccnf_put_attg(idnc,'sigma',sig)
 
     lname = 'year-month-day at start of run'
@@ -1965,6 +1965,18 @@ if( myid==0 .or. local ) then
       lname = 'y-component max 10m wind (sub-daily)'
       call attrib(idnc,dimj,jsize,'v10m_max',lname,'m s-1',-150.,150.,0,cptype)
     end if
+    
+    ! TRACER --------------------------------------------------------
+    if ( ngas>0 ) then
+      if ( itype/=-1 ) then ! history
+        do igas = 1,ngas
+          write(trnum,'(i4.4)') igas
+          lname = 'Tracer (surface) '//trim(tracname(igas))
+          call attrib(idnc,dimj,jsize,'trsf'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+        end do ! igas loop
+      end if
+    end if   ! (ngas>0)
+
         
     ! STANDARD 3D VARIABLES -------------------------------------
     if ( itype/=-1 ) then
@@ -3167,6 +3179,16 @@ if ( output_windmax/=0 ) then
   call histwrt(u10m_max,'u10m_max',idnc,iarch,local,.true.)
   call histwrt(v10m_max,'v10m_max',idnc,iarch,local,.true.)    
 end if
+
+if ( ngas>0 ) then
+  if ( itype/=-1 ) then ! history
+    do igas = 1,ngas
+      write(trnum,'(i4.4)') igas
+      call histwrt(tr(:,1,igas),'trsf'//trnum,idnc,iarch,local,.true.)
+    enddo ! igas loop
+  end if
+endif  ! (ngas>0)
+
 
 
 ! **************************************************************
