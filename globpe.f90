@@ -558,21 +558,22 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
   
   
+!$acc data copy(u,v) copyin(t,tss,he)
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
   if ( ngwd<0 ) then
-!$acc data copy(u,v) copyin(t,tss,he)
     call gwdrag  ! <0 for split - only one now allowed
-!$acc end data
   end if
+  !$acc update self(u,v)
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    call nantest("after gravity wave drag",js,je)
+    call nantest_uv("after gravity wave drag",js,je)
   end do  
   !$omp end do nowait
   call END_LOG(gwdrag_end)
+!$acc end data
 
  
   ! CONVECTION ------------------------------------------------------------
@@ -4481,41 +4482,7 @@ if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
-  write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
-  posmin = minloc(u(js:je,1:kl))
-  posmax = maxloc(u(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
-  write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
-  posmin = minloc(v(js:je,1:kl))
-  posmax = maxloc(v(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
+call nantest_uv(message,js,je)
 
 if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
@@ -4807,4 +4774,56 @@ return
 end subroutine nantest
 
 
+subroutine nantest_uv(message,js,je)
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use cc_mpi                            ! CC MPI routines
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+
+implicit none
+
+integer, intent(in) :: js, je
+integer, dimension(2) :: posmin, posmax
+integer, dimension(3) :: posmin3, posmax3
+character(len=*), intent(in) :: message
+
+if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
+  write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
+  posmin = minloc(u(js:je,1:kl))
+  posmax = maxloc(u(js:je,1:kl))
+  posmin(1) = posmin(1) + js - 1
+  posmax(1) = posmax(1) + js - 1
+  posmin(1) = iq2iqg(posmin(1))
+  posmax(1) = iq2iqg(posmax(1))
+  write(6,*) "minloc,maxloc ",posmin,posmax
+  call ccmpi_abort(-1) 
+end if
+
+if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
+  write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
+  posmin = minloc(v(js:je,1:kl))
+  posmax = maxloc(v(js:je,1:kl))
+  posmin(1) = posmin(1) + js - 1
+  posmax(1) = posmax(1) + js - 1
+  posmin(1) = iq2iqg(posmin(1))
+  posmax(1) = iq2iqg(posmax(1))
+  write(6,*) "minloc,maxloc ",posmin,posmax
+  call ccmpi_abort(-1) 
+end if
+
+return
+end subroutine nantest_uv
 
