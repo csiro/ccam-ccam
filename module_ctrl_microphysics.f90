@@ -178,7 +178,7 @@ select case ( interp_ncloud(ldr,ncloud) )
   
     !$omp do schedule(static) private(is,ie),                                     &
     !$omp private(lgfrac,lrfrac,lsfrac),                                          &
-    !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnowlppfsubl),                   &
+    !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl),                  &
     !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),    &
     !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
     !$omp private(lstratcloud,lclcon,lcdrop),                                     &

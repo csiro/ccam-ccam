@@ -972,7 +972,7 @@ if ( nud_uv==3 ) then
   end do
 else if ( nud_uv>0 ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv3(klt,klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv3(klt,klt)          ! gather data onto global sparse array (1)
   call ccmpi_gathermap_send3(vbb(:,kln:klx))   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
   do ppass = pprocn,pprocx
@@ -982,7 +982,7 @@ else if ( nud_uv>0 ) then
     ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv3(klt,klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv3(klt,klt)          ! gather data onto global sparse array (1)
   call ccmpi_gathermap_send3(wbb(:,kln:klx))   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
   do ppass = pprocn,pprocx
@@ -3368,8 +3368,8 @@ do ppass = pprocn,pprocx
 end do
 
 ! Construct a map of processes that this process requires
-if ( myid==0 ) then
-  write(6,*) "--> Create map of processes required by this process"
+if ( myid==0 .and. nmaxpr==1 ) then
+  write(6,*) "-> Create map of processes required by this process"
 end if
 ncount = count(lproc)
 allocate(specmap_req(ncount))
@@ -3384,8 +3384,8 @@ end do
 ! Create create a list of processes receiving data (node aware)
 ! (use lproc_t for node communication as lproc will define memory
 !  allocated to sparse arrays below)
-if ( myid==0 ) then
-  write(6,*) "--> Create map of processes received by this process"
+if ( myid==0 .and. nmaxpr==1 ) then
+  write(6,*) "-> Create map of processes received by this process"
 end if
 call ccmpi_allreduce(lproc,lproc_t,"or",comm_node) ! collect required data for node on node_myid==0
 ! redistribute node messages across cores on the node
@@ -3410,8 +3410,8 @@ do iproc = 0,nproc-1
 end do
 
 ! Construct a map of processes that is required by this rank
-if ( myid==0 ) then
-  write(6,*) "--> Create map of processes sent by this process"
+if ( myid==0 .and. nmaxpr==1 ) then
+  write(6,*) "-> Create map of processes sent by this process"
 end if
 call ccmpi_alltoall(lproc_t,comm_world) ! global transpose
 ncount = count(lproc_t(0:nproc-1))
@@ -3476,8 +3476,8 @@ do ppass = pprocn,pprocx
   end select
 end do
 
-if ( myid==0 ) then
-  write(6,*) "--> Allocating buffers on each process"
+if ( myid==0 .and. nmaxpr==1 ) then
+  write(6,*) "-> Allocating buffers on each process"
 end if
 ncount = count(lproc)
 allocate(specmap_ext(ncount)) ! for allocating internal buffers on each process
