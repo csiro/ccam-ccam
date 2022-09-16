@@ -4474,7 +4474,9 @@ end if
 
 call nantest_t(message,js,je)
 
-call nantest_uv(message,js,je)
+call nantest_u(message,js,je)
+
+call nantest_v(message,js,je)
 
 call nantest_qg(message,js,je)
 
@@ -4721,7 +4723,9 @@ if ( js<1 .or. je>ifull ) then
   call ccmpi_abort(-1)
 end if
 
-call nantest_uv(message,js,je)
+call nantest_u(message,js,je)
+
+call nantest_v(message,js,je)
 
 return
 end subroutine nantest_gw
@@ -4749,7 +4753,9 @@ end if
 
 call nantest_t(message,js,je)
 
-call nantest_uv(message,js,je)
+call nantest_u(message,js,je)
+
+call nantest_v(message,js,je)
 
 call nantest_qg(message,js,je)
 
@@ -4799,7 +4805,7 @@ return
 end subroutine nantest_t
 
 
-subroutine nantest_uv(message,js,je)
+subroutine nantest_u(message,js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
@@ -4831,6 +4837,24 @@ if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
   call ccmpi_abort(-1) 
 end if
 
+return
+end subroutine nantest_u
+
+
+subroutine nantest_v(message,js,je)
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use cc_mpi                            ! CC MPI routines
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+
+implicit none
+
+integer, intent(in) :: js, je
+integer, dimension(2) :: posmin, posmax
+integer, dimension(3) :: posmin3, posmax3
+character(len=*), intent(in) :: message
+
 if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
   write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
@@ -4850,7 +4874,7 @@ if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
 end if
 
 return
-end subroutine nantest_uv
+end subroutine nantest_v
 
 
 subroutine nantest_qg(message,js,je)
