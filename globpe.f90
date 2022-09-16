@@ -571,13 +571,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call gwdrag  ! <0 for split - only one now allowed
   end if
   !$acc update self(u,v)
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    call nantest_gw("after gravity wave drag",js,je)
-  end do  
-  !$omp end do nowait
+  call nantest_gw
   call END_LOG(gwdrag_end)
 
  
@@ -4448,6 +4442,7 @@ subroutine nantest(message,js,je)
 use aerosolldr, only : xtg,naero      ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use cc_omp, only : ntiles,imax        ! CC OpenMP routines
 use cfrac_m                           ! Cloud fraction
 use extraout_m                        ! Additional diagnostics
 use liqwpar_m                         ! Cloud water mixing ratios
@@ -4464,6 +4459,7 @@ integer, intent(in) :: js, je
 integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
+real, dimension(imax,kl) :: lu, lv
 
 if ( qg_fix<=-1 ) return
 
@@ -4474,9 +4470,11 @@ end if
 
 call nantest_t(message,js,je)
 
-call nantest_u(message,js,je)
+lu = u(js:je,:)
+call nantest_u(message,lu,js)
 
-call nantest_v(message,js,je)
+lv = v(js:je,:)
+call nantest_v(message,lv,js)
 
 call nantest_qg(message,js,je)
 
@@ -4703,18 +4701,19 @@ return
 end subroutine nantest
 
 
-subroutine nantest_gw(message,js,je)
+subroutine nantest_gw
 
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use cc_omp, only : ntiles,imax        ! CC OpenMP routines
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 
 implicit none
 
-integer, intent(in) :: js, je
-integer, dimension(2) :: posmin, posmax
-integer, dimension(3) :: posmin3, posmax3
-character(len=*), intent(in) :: message
+integer :: tile, js, je
+character(len=*), parameter :: message = 'after gravity wave drag'
+real, dimension(imax,kl) :: lu, lv
 
 if ( qg_fix<=-1 ) return
 
@@ -4723,9 +4722,23 @@ if ( js<1 .or. je>ifull ) then
   call ccmpi_abort(-1)
 end if
 
-call nantest_u(message,js,je)
+!$omp do schedule(static) private(js,je) private(lu)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+  lu = u(js:je,:)
+  call nantest_u(message,lu,js)
+end do
+!$omp end do nowait
 
-call nantest_v(message,js,je)
+!$omp do schedule(static) private(js,je) private(lv)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+  lv = v(js:je,:)
+  call nantest_v(message,lv,js)
+end do
+!$omp end do nowait
 
 return
 end subroutine nantest_gw
@@ -4733,7 +4746,9 @@ end subroutine nantest_gw
 
 subroutine nantest_conv(message,js,je)
 
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use cc_omp, only : ntiles,imax        ! CC OpenMP routines
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 
@@ -4743,6 +4758,7 @@ integer, intent(in) :: js, je
 integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
+real, dimension(imax,kl) :: lu, lv
 
 if ( qg_fix<=-1 ) return
 
@@ -4753,9 +4769,11 @@ end if
 
 call nantest_t(message,js,je)
 
-call nantest_u(message,js,je)
+lu = u(js:je,:)
+call nantest_u(message,lu,js)
 
-call nantest_v(message,js,je)
+lv = v(js:je,:)
+call nantest_v(message,lv,js)
 
 call nantest_qg(message,js,je)
 
@@ -4773,6 +4791,7 @@ subroutine nantest_t(message,js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use cc_omp, only : ntiles,imax        ! CC OpenMP routines
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 
@@ -4805,30 +4824,31 @@ return
 end subroutine nantest_t
 
 
-subroutine nantest_u(message,js,je)
+subroutine nantest_u(message,u,js)
 
-use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use cc_omp, only : imax               ! CC OpenMP routines
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 
 implicit none
 
-integer, intent(in) :: js, je
+integer, intent(in) :: js
 integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
+real, dimension(imax,kl), intent(in) :: u
 
-if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
+if ( any(u/=u) ) then
   write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
+if ( any(u<-400.) .or. any(u>400.) ) then
   write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
-  posmin = minloc(u(js:je,1:kl))
-  posmax = maxloc(u(js:je,1:kl))
+  write(6,*) "minval,maxval ",minval(u),maxval(u)
+  posmin = minloc(u)
+  posmax = maxloc(u)
   posmin(1) = posmin(1) + js - 1
   posmax(1) = posmax(1) + js - 1
   posmin(1) = iq2iqg(posmin(1))
@@ -4841,30 +4861,31 @@ return
 end subroutine nantest_u
 
 
-subroutine nantest_v(message,js,je)
+subroutine nantest_v(message,v,js)
 
-use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
+use cc_omp, only : imax               ! CC OpenMP routines
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 
 implicit none
 
-integer, intent(in) :: js, je
+integer, intent(in) :: js
 integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
+real, dimension(imax,kl), intent(in) :: v
 
-if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
+if ( any(v/=v) ) then
   write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
+if ( any(v<-400.) .or. any(v>400.) ) then
   write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
-  posmin = minloc(v(js:je,1:kl))
-  posmax = maxloc(v(js:je,1:kl))
+  write(6,*) "minval,maxval ",minval(v),maxval(v)
+  posmin = minloc(v)
+  posmax = maxloc(v)
   posmin(1) = posmin(1) + js - 1
   posmax(1) = posmax(1) + js - 1
   posmin(1) = iq2iqg(posmin(1))
