@@ -575,7 +575,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    call nantest_uv("after gravity wave drag",js,je)
+    call nantest_gw("after gravity wave drag",js,je)
   end do  
   !$omp end do nowait
   call END_LOG(gwdrag_end)
@@ -608,12 +608,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     js = (tile-1)*imax + 1
     je = tile*imax
     call fixqg(js,je)
-    call nantest_t("after convection",js,je)
-    call nantest_uv("after convection",js,je)
-    call nantest_qg("after convection",js,je)
-    call nantest_qlg("after convection",js,je)
-    call nantest_qfg("after convection",js,je)
-    call nantest_xtg("after convection",js,je)
+    call nantest_conv("after convection",js,je)
   end do  
   !$omp end do nowait
   !$acc update device(qfg,qlg,qg,t)
@@ -4706,6 +4701,104 @@ return
 end subroutine nantest
 
 
+subroutine nantest_gw(message,js,je)
+
+use cc_mpi                            ! CC MPI routines
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+
+implicit none
+
+integer, intent(in) :: js, je
+integer, dimension(2) :: posmin, posmax
+integer, dimension(3) :: posmin3, posmax3
+character(len=*), intent(in) :: message
+
+if ( qg_fix<=-1 ) return
+
+if ( js<1 .or. je>ifull ) then
+  write(6,*) "ERROR: Invalid index for nantest - ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+call nantest_uv(message,js,je)
+
+return
+end subroutine nantest_gw
+
+
+subroutine nantest_conv(message,js,je)
+
+use cc_mpi                            ! CC MPI routines
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+
+implicit none
+
+integer, intent(in) :: js, je
+integer, dimension(2) :: posmin, posmax
+integer, dimension(3) :: posmin3, posmax3
+character(len=*), intent(in) :: message
+
+if ( qg_fix<=-1 ) return
+
+if ( js<1 .or. je>ifull ) then
+  write(6,*) "ERROR: Invalid index for nantest - ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+call nantest_t(message,js,je)
+
+call nantest_uv(message,js,je)
+
+call nantest_qg(message,js,je)
+
+call nantest_qlg(message,js,je)
+
+call nantest_qfg(message,js,je)
+
+call nantest_xtg(message,js,je)
+
+return
+end subroutine nantest_conv
+
+
+subroutine nantest_t(message,js,je)
+
+use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use cc_mpi                            ! CC MPI routines
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+
+implicit none
+
+integer, intent(in) :: js, je
+integer, dimension(2) :: posmin, posmax
+integer, dimension(3) :: posmin3, posmax3
+character(len=*), intent(in) :: message
+
+if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
+  write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
+  call ccmpi_abort(-1)
+end if
+
+if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
+  write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
+  write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
+  posmin = minloc(t(js:je,1:kl))
+  posmax = maxloc(t(js:je,1:kl))
+  posmin(1) = posmin(1) + js - 1
+  posmax(1) = posmax(1) + js - 1
+  posmin(1) = iq2iqg(posmin(1))
+  posmax(1) = iq2iqg(posmax(1))
+  write(6,*) "minloc,maxloc ",posmin,posmax
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine nantest_t
+
+
 subroutine nantest_uv(message,js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -4758,42 +4851,6 @@ end if
 
 return
 end subroutine nantest_uv
-
-
-subroutine nantest_t(message,js,je)
-
-use arrays_m                          ! Atmosphere dyamics prognostic arrays
-use cc_mpi                            ! CC MPI routines
-use newmpar_m                         ! Grid parameters
-use parm_m                            ! Model configuration
-
-implicit none
-
-integer, intent(in) :: js, je
-integer, dimension(2) :: posmin, posmax
-integer, dimension(3) :: posmin3, posmax3
-character(len=*), intent(in) :: message
-
-if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
-  write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
-  posmin = minloc(t(js:je,1:kl))
-  posmax = maxloc(t(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1)
-end if
-
-return
-end subroutine nantest_t
 
 
 subroutine nantest_qg(message,js,je)
