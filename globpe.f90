@@ -4460,6 +4460,7 @@ integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
 real, dimension(imax,kl) :: lu, lv
+integer :: err1, err2
 
 if ( qg_fix<=-1 ) return
 
@@ -4471,7 +4472,8 @@ end if
 call nantest_t(message,js,je)
 
 lu = u(js:je,:)
-call nantest_u(message,lu,js)
+call nantest_u(message,lu,err1,err2)
+call nancheck_u(message,lu,err1,err2)
 
 lv = v(js:je,:)
 call nantest_v(message,lv,js)
@@ -4711,25 +4713,25 @@ use parm_m                            ! Model configuration
 
 implicit none
 
-integer :: tile, js, je
+integer :: tile, js, je, err1, err2, lerr1, lerr2
 character(len=*), parameter :: message = 'after gravity wave drag'
 real, dimension(imax,kl) :: lu, lv
 
 if ( qg_fix<=-1 ) return
 
-if ( js<1 .or. je>ifull ) then
-  write(6,*) "ERROR: Invalid index for nantest - ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-!$omp do schedule(static) private(js,je) private(lu)
+!$omp do schedule(static) private(js,je) private(lu,lerr1,lerr2)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
   lu = u(js:je,:)
-  call nantest_u(message,lu,js)
+  call nantest_u(message,lu,lerr1,lerr2)
+!$omp atomic
+  err1 = lerr1
+!$omp atomic
+  err2 = lerr2
 end do
 !$omp end do nowait
+call nancheck_u(message,lu,err1,err2)
 
 !$omp do schedule(static) private(js,je) private(lv)
 do tile = 1,ntiles
@@ -4759,6 +4761,7 @@ integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
 real, dimension(imax,kl) :: lu, lv
+integer :: err1, err2
 
 if ( qg_fix<=-1 ) return
 
@@ -4770,7 +4773,8 @@ end if
 call nantest_t(message,js,je)
 
 lu = u(js:je,:)
-call nantest_u(message,lu,js)
+call nantest_u(message,lu,err1,err2)
+call nancheck_u(message,lu,err1,err2)
 
 lv = v(js:je,:)
 call nantest_v(message,lv,js)
@@ -4824,7 +4828,7 @@ return
 end subroutine nantest_t
 
 
-subroutine nantest_u(message,u,js)
+subroutine nantest_u(message,u,err1,err2)
 
 use cc_mpi                            ! CC MPI routines
 use cc_omp, only : imax               ! CC OpenMP routines
@@ -4833,32 +4837,58 @@ use parm_m                            ! Model configuration
 
 implicit none
 
-integer, intent(in) :: js
-integer, dimension(2) :: posmin, posmax
-integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
 real, dimension(imax,kl), intent(in) :: u
+logical, intent(out) :: err1, err2
+
+err1 = .false.
+err2 = .false.
 
 if ( any(u/=u) ) then
+  err1 = .true.
+  return
+end if
+
+if ( any(u<-400.) .or. any(u>400.) ) then
+  err2 = .true.
+  return
+end if
+
+return
+end subroutine nantest_u
+
+
+subroutine nancheck_u(message,u,err1,err2)
+
+use cc_mpi                            ! CC MPI routines
+use cc_omp, only : imax               ! CC OpenMP routines
+use newmpar_m                         ! Grid parameters
+use parm_m                            ! Model configuration
+
+implicit none
+
+character(len=*), intent(in) :: message
+real, dimension(imax,kl), intent(in) :: u
+logical, intent(in) :: err1, err2
+integer, dimension(2) :: posmin, posmax
+
+if ( err1 ) then
   write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
   call ccmpi_abort(-1)
 end if
 
-if ( any(u<-400.) .or. any(u>400.) ) then
+if ( err2 ) then
   write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
   write(6,*) "minval,maxval ",minval(u),maxval(u)
   posmin = minloc(u)
   posmax = maxloc(u)
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
   call ccmpi_abort(-1) 
 end if
-
 return
-end subroutine nantest_u
+end subroutine nancheck_u
 
 
 subroutine nantest_v(message,v,js)
