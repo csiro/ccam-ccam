@@ -109,12 +109,14 @@ use mlo, only : mlodiag,wlev,mxd,mindep  & ! Ocean physics and prognostic arrays
    ,factchseaice,minwater,mxd,mindep     &
    ,alphavis_seaice,alphanir_seaice      &
    ,otaumode,mlo_ema,mlosigma,oclosure   &
-   ,pdl,pdu,nsteps,k_mode,eps_mode       &
+   ,pdl,pdu,k_mode,eps_mode              &
    ,limitL,fixedce3,nops,nopb            &
    ,fixedstabfunc,omink => mink          &
    ,omineps => mineps,mlovlevels         &
    ,usepice,ominl,omaxl                  &
    ,mlo_timeave_length
+use module_aux_rad                         ! Additional cloud and radiation routines
+use module_ctrl_microphysics               ! Interface for cloud microphysics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m, only : nharrs_init         & ! Non-hydrostatic atmosphere arrays
@@ -243,7 +245,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
-    saltlargemtn,                                                 &
+    saltlargemtn,aerosol_u10,aero_split,                          &
     o3_vert_interpolate,                                          & ! ozone
     o3_time_interpolate                                             ! depreciated
 ! file namelist
@@ -291,7 +293,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 namelist/mlonml/zomode,zoseaice,                                  &
     factchseaice,minwater,mxd,mindep,otaumode,                    &
     alphavis_seaice,alphanir_seaice,mlosigma,                     &
-    pdl,pdu,nsteps,k_mode,eps_mode,limitL,fixedce3,calcinloop,    & ! k-e
+    pdl,pdu,k_mode,eps_mode,limitL,fixedce3,calcinloop,           & ! k-e
     nops,nopb,fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,   &
     mlo_timeave_length    
 
@@ -717,7 +719,7 @@ do spinup = spinup_start,1,-1
 
     ! AEROSOLS
     if ( abs(iaero)>=2 .and. .not.noaerosol ) then
-      call aerocalc(oxidant_update,mins)
+      call aerocalc(oxidant_update,mins,0)
     end if
     call nantest("after aerosols",1,ifull)
 
@@ -727,6 +729,12 @@ do spinup = spinup_start,1,-1
     endif  ! (ntsur>=1)
     call fixqg(1,ifull)
     call nantest("after PBL mixing",1,ifull)
+
+    ! AEROSOLS
+     if ( abs(iaero)>=2 .and. .not.noaerosol ) then
+      call aerocalc(oxidant_update,mins,1)
+    end if
+    call nantest("after aerosols",1,ifull)
   
     ! DIAGNOSTICS
     if ( rescrn > 0 ) then
@@ -4970,7 +4978,8 @@ use ateb, only : atebsaved, urbtemp, nfrac
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
                        cable_pop,POP_NPATCH,  &
                        POP_NCOHORT,           &
-                       cable_climate,ccycle
+                       cable_climate,ccycle,  &
+                       POP_AGEMAX
 use cfrac_m
 use dates_m
 use extraout_m
@@ -4997,18 +5006,17 @@ include 'kuocom.h'
 integer idnc, iarch, itype, i, k
 integer xdim, ydim, tdim
 integer zdim, msdim, ocdim
-integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim
+integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer ixp, iyp, idnt
 integer idlev, idms, idoc
 integer idcp, idc2p, idc91p, idc31p, idc20y, idc5d
 integer icy, icm, icd, ich, icmi, ics, idv
 integer asize, jsize, osize
-integer csize, c2size, c3size, c4size, c5size, c6size, c7size
 integer ifrac
+integer, dimension(2) :: csize
 integer, dimension(3) :: dimj
 integer, dimension(4) :: dima, dims, dimo
-integer, dimension(4) :: dimc, dimc3, dimc4, dimc5, dimc6, dimc7
-integer, dimension(5) :: dimc2
+integer, dimension(6,7) :: dimc
 real, dimension(:), allocatable, save :: cabledata
 real, dimension(ifull) :: aa
 real, dimension(ifull) :: ocndep, ocnheight
@@ -5034,6 +5042,7 @@ c91pdim = 0
 c31pdim = 0
 c20ydim = 0
 c5ddim = 0
+cadim = 0
 iarch = 1
 itype = -1
 local = .false.
@@ -5050,7 +5059,8 @@ if ( abs(nmlo)>0. .and. abs(nmlo)<=9 ) then
 end if
 if ( cable_pop==1 ) then
   call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
-  call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)  
+  call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)
+  call ccnf_def_dim(idnc,'cable_agemax',POP_AGEMAX,cadim)  
 end if
 if ( cable_climate==1 ) then
   call ccnf_def_dim(idnc,'cable_91days',91,c91pdim)
@@ -5063,43 +5073,22 @@ call ccnf_def_dimu(idnc,'time',tdim)
 dima(1:4) = (/ xdim, ydim, zdim, tdim /)
 dims(1:4) = (/ xdim, ydim, msdim, tdim /)
 dimo(1:4) = (/ xdim, ydim, ocdim, tdim /)
-dimc(1:4) = (/ xdim, ydim, cpdim, tdim /)
-dimc2(1:5) = (/ xdim, ydim, cpdim, c2pdim, tdim /)
-dimc3(1:4) = (/ xdim, ydim, c91pdim, tdim /)
-dimc4(1:4) = (/ xdim, ydim, c31pdim, tdim /)
-dimc5(1:4) = (/ xdim, ydim, c20ydim, tdim /)
-dimc6(1:4) = (/ xdim, ydim, c5ddim, tdim /)
-dimc7(1:4) = (/ xdim, ydim, c5ddim, tdim /)
+dimc(:,1) = (/ xdim, ydim, cpdim, tdim, 0, 0 /)
+dimc(:,2) = (/ xdim, ydim, cpdim, c2pdim, tdim, 0 /)
+dimc(:,3) = (/ xdim, ydim, c91pdim, tdim, 0, 0 /)
+dimc(:,4) = (/ xdim, ydim, c31pdim, tdim, 0, 0 /)
+dimc(:,5) = (/ xdim, ydim, c20ydim, tdim, 0, 0 /)
+dimc(:,6) = (/ xdim, ydim, c5ddim, tdim, 0, 0 /)
+dimc(:,7) = (/ xdim, ydim, cadim, tdim, 0, 0 /)
 
 dimj(1:2)  = dima(1:2)
 dimj(3)    = dima(4)
-dimc(1:4)  = dima(1:4)
-dimc(3)    = cpdim
-dimc2(1:2) = dima(1:2)
-dimc2(3)   = cpdim
-dimc2(4)   = c2pdim
-dimc2(5)   = dima(4)
-dimc3(1:4) = dima(1:4)
-dimc3(3)   = c91pdim
-dimc4(1:4) = dima(1:4)
-dimc4(3)   = c31pdim
-dimc5(1:4) = dima(1:4)
-dimc5(3)   = c20ydim
-dimc6(1:4) = dima(1:4)
-dimc6(3)   = c5ddim
-dimc7(1:4) = dima(1:4)
-dimc7(3)   = c5ddim
 
 asize = 4
 jsize = 3
 osize = 4
-csize = 4
-c2size = 5
-c3size = 4
-c4size = 4
-c5size = 4
-c6size = 4
-c7size = 4
+csize(1) = 4
+csize(2) = 5
 
 call ccnf_def_var(idnc,'longitude','float',2,dima(1:2),ixp)
 call ccnf_put_att(idnc,ixp,'point_spacing','even')
@@ -5126,14 +5115,14 @@ if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
 end if
 
 if ( cable_pop==1 ) then
-  call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3),idcp)  
-  call ccnf_def_var(idnc,'cable_cohort','float',1,dimc2(4:4),idc2p)  
+  call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3,1),idcp)  
+  call ccnf_def_var(idnc,'cable_cohort','float',1,dimc(4:4,2),idc2p)  
 end if
 if ( cable_climate==1 ) then
-  call ccnf_def_var(idnc,'cable_91days','float',1,dimc3(3:3),idc91p)
-  call ccnf_def_var(idnc,'cable_31days','float',1,dimc4(3:3),idc31p)
-  call ccnf_def_var(idnc,'cable_20years','float',1,dimc5(3:3),idc20y)
-  call ccnf_def_var(idnc,'cable_5days','float',1,dimc6(3:3),idc5d)
+  call ccnf_def_var(idnc,'cable_91days','float',1,dimc(3:3,3),idc91p)
+  call ccnf_def_var(idnc,'cable_31days','float',1,dimc(3:3,4),idc31p)
+  call ccnf_def_var(idnc,'cable_20years','float',1,dimc(3:3,5),idc20y)
+  call ccnf_def_var(idnc,'cable_5days','float',1,dimc(3:3,6),idc5d)
 end if
 
 call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
@@ -5388,7 +5377,7 @@ lname = 'Solar net at ground (+ve down)'
 call attrib(idnc,dimj,jsize,'sgsave',lname,'W/m2',-500.,2000.,0,itype)
 
 if ( nsib==6 .or. nsib==7 ) then
-  call savetiledef(idnc,local,dimj,jsize,dimc,dimc2,dimc3,dimc4,dimc5,dimc6,dimc7,csize,c2size,itype)
+  call savetiledef(idnc,local,dimj,jsize,dimc,csize,itype)
 end if
 
 call ccnf_enddef(idnc)
@@ -5748,6 +5737,7 @@ use aerosolldr, only :                   & ! LDR prognostic aerosols
     ,dmsso2o,so2so4o,salte,saltdd        &
     ,saltwd,salt_burden
 use cable_ccam, only : ccycle              ! CABLE
+use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
 use parm_m                                 ! Model configuration
@@ -5872,6 +5862,7 @@ end subroutine zero_nperavg
 subroutine zero_nperday
 
 use histave_m                              ! Time average arrays
+use morepbl_m                              ! Additional boundary layer diagnostics
 use parm_m                                 ! Model configuration
 use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
@@ -5966,7 +5957,7 @@ wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
 taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
 tauy_ave(1:ifull)          = tauy_ave(1:ifull) + tauy
-wsgsmax(1:ifull)           = max( wsgsmax(1:ifull, wsgs )
+wsgsmax(1:ifull)           = max( wsgsmax(1:ifull), wsgs )
 
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
