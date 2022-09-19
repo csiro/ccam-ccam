@@ -4731,7 +4731,7 @@ do tile = 1,ntiles
   err2 = lerr2
 end do
 !$omp end do nowait
-call nancheck_u(message,lu,err1,err2)
+call nancheck_u(message,u,err1,err2)
 
 !$omp do schedule(static) private(js,je) private(lv)
 do tile = 1,ntiles
