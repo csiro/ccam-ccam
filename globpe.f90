@@ -4460,7 +4460,7 @@ integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
 real, dimension(imax,kl) :: lu, lv
-integer :: err1, err2
+logical :: err1, err2
 
 if ( qg_fix<=-1 ) return
 
@@ -4472,12 +4472,12 @@ end if
 call nantest_t(message,js,je)
 
 lu = u(js:je,:)
-call nantest_u(message,lu,err1,err2)
-call nancheck_u(message,lu,err1,err2)
+call nantest_u(lu,imax,kl,err1,err2)
+call nancheck_u(message,lu,err1,err2,js)
 
 lv = v(js:je,:)
-call nantest_v(message,lv,err1,err2)
-call nancheck_v(message,lv,err1,err2)
+call nantest_v(lv,imax,kl,err1,err2)
+call nancheck_v(message,lv,err1,err2,js)
 
 call nantest_qg(message,js,je)
 
@@ -4714,45 +4714,82 @@ use parm_m                            ! Model configuration
 
 implicit none
 
-integer :: tile, js, je, err1, err2, lerr1, lerr2
+integer :: tile, js, je, lerr1, lerr2
 character(len=*), parameter :: message = 'after gravity wave drag'
 real, dimension(imax,kl) :: lu, lv
+#ifdef GPU
+logical :: err1, err2
+#endif
 
 if ( qg_fix<=-1 ) return
 
+#ifdef GPU
 err1 = .false.
 err2 = .false.
+#endif
 
 !$omp do schedule(static) private(js,je) private(lu,lerr1,lerr2)
+!!$acc data copy(err1,err2)
+!$acc parallel present(u) num_gangs(ntiles)
+!$acc loop gang private(lu)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
   lu = u(js:je,:)
-  call nantest_u(message,lu,lerr1,lerr2)
-!$omp atomic
-  err1 = err1 .or. lerr1
-!$omp atomic
-  err2 = err2 .or. lerr2
+  call nantest_u(lu,imax,kl,lerr1,lerr2)
+#ifdef GPU
+!$acc atomic write
+  err1 = lerr1
+!$acc end atomic
+!$acc atomic write
+  err2 = lerr2
+!$acc end atomic
+#else
+  call nancheck_u(message,lu,lerr1,lerr2,js)
+#endif
 end do
+!$acc end parallel
+!!$acc end data
 !$omp end do nowait
-call nancheck_u(message,u,err1,err2)
 
+return
+
+#ifdef GPU
+call nancheck_u(message,u,err1,err2,1)
+#endif
+
+#ifdef GPU
 err1 = .false.
 err2 = .false.
+#endif
 
 !$omp do schedule(static) private(js,je) private(lv,lerr1,lerr2)
+!$acc data copy(err1,err2,v)
+!$acc parallel present(v)
+!$acc loop private(lv)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
   lv = v(js:je,:)
-  call nantest_v(message,lv,lerr1,lerr2)
-!$omp atomic
-  err1 = err1 .or. lerr1
-!$omp atomic
-  err2 = err2 .or. lerr2
+  call nantest_v(lv,imax,kl,lerr1,lerr2)
+#ifdef GPU
+!$acc atomic write
+  err1 = lerr1
+!$acc end atomic
+!$acc atomic write
+  err2 = lerr2
+!$acc end atomic
+#else
+  call nancheck_v(message,lv,lerr1,lerr2,js)
+#endif
 end do
+!$acc end parallel
+!$acc end data
 !$omp end do nowait
-call nancheck_v(message,v,err1,err2)
+
+#ifdef GPU
+call nancheck_v(message,v,err1,err2,1)
+#endif
 
 return
 end subroutine nantest_gw
@@ -4773,7 +4810,7 @@ integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
 character(len=*), intent(in) :: message
 real, dimension(imax,kl) :: lu, lv
-integer :: err1, err2
+logical :: err1, err2
 
 if ( qg_fix<=-1 ) return
 
@@ -4785,12 +4822,12 @@ end if
 call nantest_t(message,js,je)
 
 lu = u(js:je,:)
-call nantest_u(message,lu,err1,err2)
-call nancheck_u(message,lu,err1,err2)
+call nantest_u(lu,imax,kl,err1,err2)
+call nancheck_u(message,lu,err1,err2,js)
 
 lv = v(js:je,:)
-call nantest_v(message,lv,err1,err2)
-call nancheck_v(message,lv,err1,err2)
+call nantest_v(lv,imax,kl,err1,err2)
+call nancheck_v(message,lv,err1,err2,js)
 
 call nantest_qg(message,js,je)
 
@@ -4841,37 +4878,52 @@ return
 end subroutine nantest_t
 
 
-subroutine nantest_u(message,u,err1,err2)
+subroutine nantest_u(u,imax,kl,err1,err2)
+!$acc routine vector
 
 use cc_mpi                            ! CC MPI routines
-use cc_omp, only : imax               ! CC OpenMP routines
-use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 
 implicit none
 
-character(len=*), intent(in) :: message
 real, dimension(imax,kl), intent(in) :: u
+integer, intent(in) :: imax, kl
 logical, intent(out) :: err1, err2
+integer :: i, k
+logical :: ret
 
 err1 = .false.
 err2 = .false.
 
+#if 1
+!$acc loop vector independent collapse(2) reduction(.or.:err1)
+  do k = 1,kl
+    do i = 1,imax
+      if ( u(i,k)/=u(i,k) ) then
+        err1 = err1 .or.  .true.
+        return
+      end if
+    end do
+  end do
+  return
+#else
 if ( any(u/=u) ) then
   err1 = .true.
   return
 end if
 
+!$acc loop vector
 if ( any(u<-400.) .or. any(u>400.) ) then
   err2 = .true.
   return
 end if
+#endif
 
 return
 end subroutine nantest_u
 
 
-subroutine nancheck_u(message,u,err1,err2)
+subroutine nancheck_u(message,u,err1,err2,js)
 
 use cc_mpi                            ! CC MPI routines
 use cc_omp, only : imax               ! CC OpenMP routines
@@ -4883,6 +4935,7 @@ implicit none
 character(len=*), intent(in) :: message
 real, dimension(imax,kl), intent(in) :: u
 logical, intent(in) :: err1, err2
+integer, intent(in) :: js
 integer, dimension(2) :: posmin, posmax
 
 if ( err1 ) then
@@ -4895,6 +4948,8 @@ if ( err2 ) then
   write(6,*) "minval,maxval ",minval(u),maxval(u)
   posmin = minloc(u)
   posmax = maxloc(u)
+  posmin(1) = posmin(1) + js - 1
+  posmax(1) = posmax(1) + js - 1
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
@@ -4904,17 +4959,16 @@ return
 end subroutine nancheck_u
 
 
-subroutine nantest_v(message,v,err1,err2)
+subroutine nantest_v(v,imax,kl,err1,err2)
+!$acc routine vector
 
 use cc_mpi                            ! CC MPI routines
-use cc_omp, only : imax               ! CC OpenMP routines
-use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 
 implicit none
 
-character(len=*), intent(in) :: message
 real, dimension(imax,kl), intent(in) :: v
+integer, intent(in) :: imax, kl
 logical, intent(out) :: err1, err2
 
 err1 = .false.
@@ -4934,7 +4988,7 @@ return
 end subroutine nantest_v
 
 
-subroutine nancheck_v(message,v,err1,err2)
+subroutine nancheck_v(message,v,err1,err2,js)
 
 use cc_mpi                            ! CC MPI routines
 use cc_omp, only : imax               ! CC OpenMP routines
@@ -4946,6 +5000,7 @@ implicit none
 character(len=*), intent(in) :: message
 real, dimension(imax,kl), intent(in) :: v
 logical, intent(in) :: err1, err2
+integer, intent(in) :: js
 integer, dimension(2) :: posmin, posmax
 
 if ( err1 ) then
@@ -4958,6 +5013,8 @@ if ( err2 ) then
   write(6,*) "minval,maxval ",minval(v),maxval(v)
   posmin = minloc(v)
   posmax = maxloc(v)
+  posmin(1) = posmin(1) + js - 1
+  posmax(1) = posmax(1) + js - 1
   posmin(1) = iq2iqg(posmin(1))
   posmax(1) = iq2iqg(posmax(1))
   write(6,*) "minloc,maxloc ",posmin,posmax
