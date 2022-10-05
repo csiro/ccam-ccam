@@ -558,16 +558,24 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do  
   !$omp end do nowait
   
+!$acc enter data create(u,v,t,tss,he)
+!$acc enter data create(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd, &
+!$acc bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
+!$acc dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn, &
+!$acc em,sgsave, &
+!$acc convpsav,cape,condc,condx,conds,condg)
   
-!$acc data copy(u,v,t) copyin(tss,he), &
-!$acc copy(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd), &
-!$acc copy(bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav), &
-!$acc copyin(dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn), &
-!$acc copyin(em,sgsave), &
-!$acc copyout(convpsav,cape,condc,condx,conds,condg)
+!$acc update device(u,v,t,tss,he) async(1)
+!$acc update device(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd, &
+!$acc bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
+!$acc dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn, &
+!$acc em,sgsave, &
+!$acc convpsav,cape,condc,condx,conds,condg) async(2)
+
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
   if ( ngwd<0 ) then
+!$acc wait(1)
     call gwdrag  ! <0 for split - only one now allowed
   end if
   !$acc update self(u,v)
@@ -594,6 +602,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     case(21,22)
       call convjlm22              ! split convjlm 
     case(23,24)
+!$acc wait(2)
       call convjlm                ! split convjlm 
   end select
   !$acc update self(u,v,t,qg,qlg,qfg,xtg)
@@ -608,7 +617,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$acc update device(qfg,qlg,qg,t)
   call END_LOG(convection_end)
 
-!$acc end data
+!$acc exit data delete(u,v,t,tss,he)
+
+!$acc exit data copyout(xtg,dustwd,so2wd,so4wd, &
+!$acc bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
+!$acc convpsav,cape,condc,condx,conds,condg)
+
+!$acc exit data delete(qg,qlg,qfg,dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn, &
+!$acc em,sgsave)
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
