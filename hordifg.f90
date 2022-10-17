@@ -55,6 +55,7 @@ use cfrac_m
 use const_phys
 use dpsdt_m
 use indices_m
+use kuocom_m
 use liqwpar_m
 use map_m
 use newmpar_m
@@ -70,8 +71,6 @@ use vecsuv_m
 use vvel_m
 
 implicit none
-
-include 'kuocom.h'
 
 real, dimension(ifull+iextra,kl,4) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc

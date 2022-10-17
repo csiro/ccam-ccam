@@ -47,6 +47,7 @@
       use extraout_m ! sintsave, etc
       use infile
       use kdacom_m, only : kdacom_init
+      use kuocom_m   ! Convection parameters
       use kuocomb_m
       use latlong_m
       use liqwpar_m  ! ifullw
@@ -81,7 +82,6 @@
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       integer ixin
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
-      include 'kuocom.h'     ! also with kbsav,ktsav
 !     For the radiation code
       include 'rdparm.h'   ! imax
       include 'hcon.h'

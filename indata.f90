@@ -72,6 +72,7 @@ use filnames_m                                   ! Filenames
 use gdrag_m                                      ! Gravity wave drag
 use indices_m                                    ! Grid index arrays
 use infile                                       ! Input file routines
+use kuocom_m                                     ! Convection parameters
 use latlong_m                                    ! Lat/lon coordinates
 use latltoij_m                                   ! Lat/Lon to cubic ij conversion
 use liqwpar_m                                    ! Cloud water mixing ratios
@@ -111,8 +112,6 @@ use vcom_ccam
 
 implicit none
       
-include 'kuocom.h'                               ! Convection parameters
-
 integer, parameter :: jlmsigmf = 1      ! 1 for jlm fixes to dean's data
 integer, parameter :: nfixwb   = 2      ! 0, 1 or 2; wb fixes with nrungcm=1
 integer, parameter :: klmax    = 1000   ! Maximum vertical levels
@@ -606,6 +605,7 @@ if ( nsib>=1 ) then
     endif  ! (nspecial<-10)	
   end if ! (nsib/=6.and.nsib/=7)
 end if   ! nsib>=1
+!$acc update device(land)
 
 
 !-----------------------------------------------------------------

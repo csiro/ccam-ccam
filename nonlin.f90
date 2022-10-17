@@ -28,6 +28,7 @@ use const_phys          ! Physical constants
 use diag_m              ! Diagnostic routines
 use epst_m              ! Off-centre terms
 use hs_phys_m           ! Held & Suarez
+use kuocom_m            ! Convection parameters
 use indices_m           ! Grid index arrays
 use latlong_m           ! Lat/lon coordinates
 use liqwpar_m           ! Cloud water mixing ratios
@@ -52,8 +53,6 @@ use xarrs_m             ! Saved dynamic arrays
 use xyzinfo_m           ! Grid coordinate arrays
 
 implicit none
-
-include 'kuocom.h'      ! Convection parameters
 
 integer iq, k, n
 integer, save :: num = 0

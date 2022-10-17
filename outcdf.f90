@@ -177,6 +177,7 @@ use cc_mpi                                 ! CC MPI routines
 use dates_m                                ! Date data
 use filnames_m                             ! Filenames
 use infile                                 ! Input file routines
+use kuocom_m                               ! Convection parameters
 use liqwpar_m                              ! Cloud water mixing ratios
 use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice        &
@@ -205,8 +206,6 @@ use tkeeps                                 ! TKE-EPS boundary layer
 use tracers_m                              ! Tracer data
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
@@ -973,6 +972,7 @@ use filnames_m                                   ! Filenames
 use gdrag_m                                      ! Gravity wave drag
 use histave_m                                    ! Time average arrays
 use infile                                       ! Input file routines
+use kuocom_m                                     ! Convection parameters
 use latlong_m                                    ! Lat/lon coordinates
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
@@ -1011,7 +1011,6 @@ use xarrs_m, only : pslx                         ! Saved dynamic arrays
 
 implicit none
 
-include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
 integer, intent(in) :: iarch, itype, iout
@@ -3517,6 +3516,7 @@ use extraout_m                        ! Additional diagnostics
 use filnames_m                        ! Filenames
 use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
+use kuocom_m                          ! Convection parameters
 use liqwpar_m                         ! Cloud water mixing ratios
 use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
@@ -3540,7 +3540,6 @@ use work2_m                           ! Diagnostic arrays
       
 implicit none
 
-include 'kuocom.h'                    ! Convection parameters
 include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 31  ! number of variables to average
@@ -4661,6 +4660,7 @@ use extraout_m                        ! Additional diagnostics
 use filnames_m                        ! Filenames
 use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
+use kuocom_m                          ! Convection parameters
 use liqwpar_m                         ! Cloud water mixing ratios
 use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
@@ -4682,7 +4682,6 @@ use tracers_m                         ! Tracer data
       
 implicit none
 
-include 'kuocom.h'                    ! Convection parameters
 include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 2  ! number of variables to average

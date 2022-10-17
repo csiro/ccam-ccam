@@ -32,6 +32,7 @@ use dpsdt_m                ! Vertical velocity
 use epst_m                 ! Off-centre terms
 use helmsolve              ! Implicit solver for Helmholtz equation
 use indices_m              ! Grid index arrays
+use kuocom_m               ! Convection parameters
 use liqwpar_m              ! Cloud water mixing ratios
 use map_m                  ! Grid map arrays
 use morepbl_m              ! Additional boundary layer diagnostics
@@ -54,8 +55,6 @@ use xarrs_m                ! Saved dynamic arrays
 use xyzinfo_m              ! Grid coordinate arrays
 
 implicit none
-
-include 'kuocom.h'         ! Convection parameters
 
 integer k, l, iq
 integer its

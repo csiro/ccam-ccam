@@ -99,6 +99,7 @@ use gdrag_m, only : gdrag_init,gwdrag    & ! Gravity wave drag
     ,gdrag_sbl
 use histave_m                              ! Time average arrays
 use infile                                 ! Input file routines
+use kuocom_m                               ! Convection parameters
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
 use leoncld_mod                            ! Prognostic cloud condensate
@@ -149,7 +150,6 @@ use work3f_m                               ! Grid work arrays
 
 implicit none
     
-include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
 integer io_nest, npa, npb, mstn
@@ -1844,6 +1844,7 @@ use cable_ccam
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use infile                                 ! Input file routines
+use kuocom_m                               ! Convection parameters
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -1858,8 +1859,6 @@ use tkeeps                                 ! TKE-EPS boundary layer
 use scmarrays_m
 
 implicit none
-
-include 'kuocom.h'
 
 integer, intent(inout) :: iarch_nudge
 integer, intent(in) :: nud_ql, nud_qf
@@ -4691,6 +4690,7 @@ use cc_mpi
 use cfrac_m
 use const_phys
 use extraout_m
+use kuocom_m
 use filnames_m, only : ifile
 use infile
 use liqwpar_m
@@ -4705,8 +4705,6 @@ use soilsnow_m
 use tkeeps, only : tke,eps
 
 implicit none
-
-include 'kuocom.h'
 
 integer iarchi, ncid, ier
 integer k,ifrac
@@ -4976,6 +4974,7 @@ use dates_m
 use extraout_m
 use filnames_m, only : restfile
 use infile
+use kuocom_m
 use latlong_m
 use liqwpar_m
 use mlo, only : wlev,mlosave,mlodiag, &          ! Ocean physics and prognostic arrays
@@ -4991,8 +4990,6 @@ use soilv_m
 use tkeeps, only : tke,eps,cm0,mintke,mineps
 
 implicit none
-
-include 'kuocom.h'
 
 integer idnc, iarch, itype, i, k
 integer xdim, ydim, tdim
@@ -6203,35 +6200,3 @@ end subroutine calculate_timeaverage
 ! 
 !return
 !end subroutine gabls_flux
-    
-!--------------------------------------------------------------
-! INTIAL PARAMETERS
-blockdata main_blockdata
-
-implicit none
-
-include 'kuocom.h'           ! Convection parameters
-
-! Vertical mixing options
-data ncvmix/0/
-! Cumulus convection options
-data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./
-data convfact/1.02/,convtime/.33/,shaltime/0./
-data alflnd/1.1/,alfsea/1.1/,fldown/.6/,iterconv/3/,ncvcloud/0/
-data nevapcc/0/,nevapls/-4/,nuvconv/0/
-data mbase/101/,mdelay/-1/,methprec/8/,nbase/-4/,detrain/.15/
-data entrain/.05/,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
-! Shallow convection options
-data ksc/-95/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/
-data tied_con/2./,tied_over/0./,tied_rh/.75/
-! Other moist physics options
-data acon/.2/,bcon/.07/,rcm/.92e-5/
-data rcrit_l/.75/,rcrit_s/.85/ 
-! Cloud options
-data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
-data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
-data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
-data ncloud/0/
-
-end
-

@@ -578,6 +578,7 @@ contains
       y(1:ifull) = dumr8(1:ifull,25)
       z(1:ifull) = dumr8(1:ifull,26)
       deallocate( dumr8 )
+!$acc update device(rlatt)
       
       ! Configure halos      
       call bounds_setup(dt)

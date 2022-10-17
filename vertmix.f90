@@ -58,6 +58,7 @@ use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
 use cfrac_m                         ! Cloud fraction
 use const_phys                      ! Physical constants
+use kuocom_m                        ! Convection parameters
 use liqwpar_m                       ! Cloud water mixing ratios
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
@@ -66,8 +67,6 @@ use sigs_m                          ! Atmosphere sigma levels
 use tkeeps                          ! TKE-EPS boundary layer
 
 implicit none
-
-include 'kuocom.h'                  ! Convection parameters
 
 integer k
 real, dimension(kl) :: sigkap
@@ -122,6 +121,7 @@ use cfrac_m                         ! Cloud fraction
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use extraout_m                      ! Additional diagnostics
+use kuocom_m                        ! Convection parameters
 use kuocomb_m                       ! JLM convection
 use liqwpar_m                       ! Cloud water mixing ratios
 use map_m                           ! Grid map arrays
@@ -142,8 +142,6 @@ use tkeeps                          ! TKE-EPS boundary layer
 use work2_m                         ! Diagnostic arrays
 
 implicit none
-
-include 'kuocom.h'                  ! Convection parameters
 
 integer :: is, ie, tile, k, iq, nt
 integer :: idjd_t
@@ -387,6 +385,7 @@ use cc_omp                          ! CC OpenMP routines
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use estab, only : establ            ! Liquid saturation function
+use kuocom_m                        ! Convection parameters
 use newmpar_m                       ! Grid parameters
 use parm_m, only : diag,ktau,        &
     nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
@@ -397,8 +396,6 @@ use soil_m, only : zmin             ! Soil and surface data
 
 implicit none
       
-include 'kuocom.h'                  ! Convection parameters
-
 integer, parameter :: ndvmod=0    ! 0 default, 1+ for dvmod tests
 integer, intent(in) :: idjd
 integer, dimension(imax), intent(in) :: kbsav, ktsav
@@ -1270,13 +1267,12 @@ subroutine pbldif(theta,rkm,rkh,uav,vav,                &
 use cc_mpi, only : mydiag, myid
 use cc_omp
 use const_phys
+use kuocom_m 
 use newmpar_m
 use parm_m
 use sigs_m     !sig,sigmh
 
 implicit none
-
-include 'kuocom.h'
 
 integer, parameter :: ntest=0
 integer, parameter :: nrkmin=1   ! 1 original (& from 0510); 2 new; 3 newer

@@ -80,6 +80,7 @@ real, dimension(:), allocatable, save :: so2_burden         ! Diagnostic - so2 b
 real, dimension(:), allocatable, save :: so4_burden         ! Diagnostic - so4 burden
 real, dimension(:), allocatable, save :: salt_burden        ! Diagnostic - salt burden
 
+!$acc declare create(xtg,xtosav)
 !!$acc declare create(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
 
 ! tracers
@@ -119,6 +120,7 @@ integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emis
 integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
 real, parameter :: zmin     = 1.e-10            ! Minimum concentration tolerance
 
+!$acc declare create(aeroindir)
 !!$acc declare create(enhanceu10)
 
 ! physical constants
@@ -147,6 +149,7 @@ real, save :: saltlargemtn = 1.1e14             ! Nillson et al. number mode rad
 !real, save :: saltsmallmtn = 3.79e17           ! Herzog number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
 !real, save :: saltlargemtn = 7.25e14           ! Herzog number mode radius = 0.35 um, sd=1.7, rho=2.165
 
+!$acc declare create(so4mtn,carbmtn,saltlargemtn,saltsmallmtn)
 !!$acc declare create(saltsmallmtn,saltlargemtn)
 
 ! Dust coefficients
@@ -2747,6 +2750,7 @@ end subroutine seasaltem
 ! cloud droplet concentration
 
 subroutine cldrop(istart,cdn,rhoa,convmode)
+!$acc routine vector
 
 implicit none
 

@@ -67,6 +67,7 @@ use cloudmod, only : convectivecloudfrac    ! Prognostic strat cloud
 use const_phys                              ! Physical constants
 use extraout_m                              ! Additional diagnostics
 use infile                                  ! Input file routines
+use kuocom_m                                ! Convection parameters
 use kuocomb_m                               ! JLM convection
 use latlong_m                               ! Lat/lon coordinates
 use liqwpar_m                               ! Cloud water mixing ratios
@@ -88,8 +89,6 @@ use work2_m                                 ! Diagnostic arrays
 use zenith_m                                ! Astronomy routines
 
 implicit none
-
-include 'kuocom.h'                          ! Convection parameters
 
 integer, intent(in) :: mins, aero_update
 integer tile, is, ie, idjd_t
@@ -408,18 +407,18 @@ end subroutine aerocalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate cloud droplet size
 subroutine aerodrop(istart,cdn,rhoa,outconv)
+!$acc routine vector
 
 use aerosolldr              ! LDR prognostic aerosols
 use const_phys              ! Physical constants
 use latlong_m, only : rlatt ! Lat/lon coordinates
-use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
 use soil_m, only : land     ! Soil and surface data
 
 implicit none
 
 integer, intent(in) :: istart
-integer k,indirmode,iend,imax
+integer k,indirmode,iend,imax,kl
 real, dimension(:,:), intent(out) :: cdn
 real, dimension(:,:), intent(in) :: rhoa
 real, parameter :: cdrops_nh=1.e8, cdropl_nh=3.e8 !Cloud droplet conc sea/land nh
@@ -429,6 +428,7 @@ logical, intent(in), optional :: outconv
 logical convmode
 
 imax = size(cdn,1)
+kl = size(cdn,2)
 
 convmode = .true.
 if ( present(outconv) ) then

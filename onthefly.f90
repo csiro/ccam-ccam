@@ -341,6 +341,7 @@ use extraout_m                                 ! Additional diagnostics
 use histave_m, only : cbas_ave,ctop_ave,      &     
     wb_ave,tscr_ave,rhscr_ave                  ! Time average arrays
 use infile                                     ! Input file routines
+use kuocom_m                                   ! Convection parameters
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
 use mlo, only : wlev,micdwn,mloregrid,wrtemp, &
@@ -379,8 +380,6 @@ use work2_m                                    ! Diagnostic arrays
 use xarrs_m, only : pslx                       ! Saved dynamic arrays
 
 implicit none
-
-include 'kuocom.h'                             ! Convection parameters
 
 real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid matching
 real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data

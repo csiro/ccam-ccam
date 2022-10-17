@@ -57,6 +57,7 @@ use hs_phys_m                              ! Held & Suarez
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
+use kuocom_m                               ! Convection parameters
 use kuocomb_m                              ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
@@ -105,8 +106,6 @@ use vcom_ccam                              ! CSIR (SA) ocean model
 
 implicit none
 
-include 'kuocom.h'                         ! Convection parameters
-      
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
 integer iq, i, j, k, nn, js, je, tile
@@ -557,6 +556,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("start of physics",js,je)
   end do  
   !$omp end do nowait
+!$acc update device(xtosav,xtg)
   
 !$acc enter data create(u,v,t,tss,he)
 !$acc enter data create(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd, &
@@ -1143,37 +1143,6 @@ end subroutine setllp
 
 
 !--------------------------------------------------------------
-! INTIAL PARAMETERS
-blockdata main_blockdata
-
-implicit none
-
-include 'kuocom.h'           ! Convection parameters
-
-! Vertical mixing options
-data ncvmix/0/
-! Cumulus convection options
-data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./
-data convfact/1.02/,convtime/.33/,shaltime/0./
-data alflnd/1.1/,alfsea/1.1/,fldown/.6/,iterconv/3/,ncvcloud/0/
-data nevapcc/0/,nevapls/-4/,nuvconv/0/
-data mbase/101/,mdelay/-1/,methprec/8/,nbase/-4/,detrain/.15/
-data entrain/.05/,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
-! Shallow convection options
-data ksc/-95/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/
-data tied_con/2./,tied_over/0./,tied_rh/.75/
-! Other moist physics options
-data acon/.2/,bcon/.07/,rcm/.92e-5/
-data rcrit_l/.75/,rcrit_s/.85/,cld_decay/7200./
-! Cloud options
-data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
-data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
-data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
-data ncloud/0/,vdeposition_mode/0/,tiedtke_form/0/
-
-end
-      
-!--------------------------------------------------------------
 ! WRITE STATION DATA
 subroutine stationa
 
@@ -1361,6 +1330,7 @@ use histave_m                              ! Time average arrays
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
+use kuocom_m                               ! Convection parameters
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
 use liqwpar_m                              ! Cloud water mixing ratios
@@ -1432,7 +1402,6 @@ use xyzinfo_m                              ! Grid coordinate arrays
 
 implicit none
 
-include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
 integer, dimension(:), allocatable, save :: dumi
@@ -2626,7 +2595,8 @@ seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
 !$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj)
-!$acc update device(qgmin,iaero)
+!$acc update device(qgmin,iaero,nmr,aeroindir,ldr)
+!$acc update device(acon,bcon,so4mtn,carbmtn,saltlargemtn,saltsmallmtn)
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -3447,6 +3417,7 @@ end subroutine globpe_init
 ! PREVIOUS VERSION DEFAULT PARAMETERS
 subroutine change_defaults(nversion)
 
+use kuocom_m                ! Convection parameters
 use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
 use parmdyn_m               ! Dynamics parmaters
@@ -3454,8 +3425,6 @@ use parmhor_m               ! Horizontal advection parameters
 use parmhdff_m              ! Horizontal diffusion parameters
 
 implicit none
-
-include 'kuocom.h'          ! Convection parameters
 
 integer, intent(in) :: nversion
 

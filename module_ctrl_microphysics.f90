@@ -45,6 +45,7 @@ use cloudmod                      ! Prognostic cloud fraction
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
 use filnames_m                    ! Filenames
+use kuocom_m                      ! Convection parameters
 use kuocomb_m                     ! JLM convection
 use latlong_m                     ! Lat/lon coordinates
 use leoncld_mod                   ! Prognostic cloud condensate
@@ -69,8 +70,6 @@ use vvel_m                        ! Additional vertical velocity
 
 implicit none
 
-include 'kuocom.h'                ! Convection parameters
-  
 integer :: tile, is, ie, k, ij, n, iq
 integer :: idjd_t
 real, dimension(imax,kl) :: lcfrac, lgfrac
@@ -95,6 +94,8 @@ logical :: mydiag_t
 ! Prepare inputs for /loud microphysics
 
 !$omp do schedule(static) private(is,ie,k,lrhoa,lcdrop,lclcon)
+!$acc parallel copyin(ps,sig,t,dsig,kbsav,ktsav) copyout(dz,rhoa,cdrop,clcon,condc)
+!$acc loop gang private(lrhoa,lcdrop,lclcon)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -114,6 +115,7 @@ do tile = 1,ntiles
   clcon(is:ie,:) = lclcon(:,:)
   
 end do
+!$acc end parallel
 !$omp end do nowait
 
 

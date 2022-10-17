@@ -908,12 +908,12 @@ return
 end subroutine progcloud
 
 subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,cldcon)
+!$acc routine vector
 
+use kuocom_m         ! Convection parameters
 use parm_m           ! Model configuration
 
 implicit none
-
-include 'kuocom.h'   ! Convection parameters
 
 integer k, kl
 real, dimension(:,:), intent(out) :: clcon
@@ -935,7 +935,7 @@ real, dimension(:), intent(in) :: condc
 kl = size(clcon,2)
 
 cldcon_temp = 0. ! for cray compiler
-call convectivecloudarea(cldcon_temp,ktsav,condc)
+call convectivecloudarea(cldcon_temp,ktsav,condc,kl)
 if ( present(cldcon) ) then
   cldcon = cldcon_temp
 end if
@@ -959,18 +959,18 @@ end do
 return
 end subroutine convectivecloudfrac
 
-pure subroutine convectivecloudarea(cldcon,ktsav,condc)
+pure subroutine convectivecloudarea(cldcon,ktsav,condc,kl)
+!$acc routine vector
 
-use newmpar_m        ! Grid parameters
+use kuocom_m         ! Convection parameters
 use parm_m           ! Model configuration
 
 implicit none
 
-include 'kuocom.h'   ! Convection parameters
-
 integer, dimension(:), intent(in) :: ktsav
 real, dimension(:), intent(in) :: condc
 real, dimension(:), intent(out) :: cldcon
+integer, intent(in) :: kl
 
 where ( ktsav<kl-1 )
   cldcon = min( acon+bcon*log(1.+condc*86400./dt), 0.8 ) !NCAR

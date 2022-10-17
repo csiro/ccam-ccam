@@ -574,6 +574,7 @@ use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use const_phys                   ! Physical constants
 use daviesnudge                  ! Far-field nudging
+use kuocom_m                     ! Convection parameters
 use liqwpar_m                    ! Cloud water mixing ratios
 use newmpar_m                    ! Grid parameters
 use nharrs_m                     ! Non-hydrostatic atmosphere arrays
@@ -588,8 +589,6 @@ use work3sav_m                   ! Water and tracer saved arrays
 use xyzinfo_m, only : x,y,z      ! Grid coordinate arrays
       
 implicit none
-
-include 'kuocom.h'               ! Convection parameters
 
 integer iq, k, ntr, kb, kln, klx, klt
 real, dimension(ifull), intent(inout) :: pslbb

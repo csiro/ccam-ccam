@@ -145,6 +145,7 @@ use const_phys                                      ! Physical constants
 use extraout_m                                      ! Additional diagnostics
 use estab                                           ! Liquid saturation function
 use infile                                          ! Input file routines
+use kuocom_m                                        ! Convection parameters
 use latlong_m                                       ! Lat/lon coordinates
 use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
 use module_aux_rad                                  ! Additional cloud and radiation routines
@@ -162,8 +163,6 @@ use work3f_m                                        ! Grid work arrays
 use zenith_m                                        ! Astronomy routines
 
 implicit none
-
-include 'kuocom.h'                                  ! Convection parameters
 
 integer, intent(inout) :: koundiag
 integer k
@@ -1204,6 +1203,7 @@ use cc_omp
 use co2_read_m
 use extraout_m
 use infile
+use kuocom_m
 use newmpar_m
 use ozoneread
 use parm_m
@@ -1213,8 +1213,6 @@ use sigs_m
 use zenith_m
 
 implicit none
-
-include 'kuocom.h'
 
 integer k, kr, mythread
 integer jyear, jmonth, jday, jhour, jmin, mins

@@ -37,6 +37,7 @@ use arrays_m
 use cc_mpi
 use cfrac_m, only : stratcloud
 use diag_m
+use kuocom_m
 use liqwpar_m  ! ifullw
 use map_m
 use newmpar_m
@@ -50,8 +51,6 @@ use vvel_m
 use xarrs_m
 
 implicit none
-
-include 'kuocom.h'     ! also with kbsav,ktsav
 
 integer ntr,k
 integer, dimension(ifull), intent(in) :: nits

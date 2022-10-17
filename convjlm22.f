@@ -39,6 +39,7 @@
       
       use cc_mpi, only : myid, ccmpi_abort, mydiag
       use const_phys
+      use kuocom_m   ! Convection parameters
       use map_m
       use newmpar_m, only : ifull, kl
       use parm_m
@@ -47,8 +48,6 @@
 
       implicit none
 
-      include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
-      
       integer iq,k,ntest,kb
       real summ,sumb
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
@@ -235,6 +234,7 @@
       use cc_omp
       use cfrac_m
       use extraout_m
+      use kuocom_m
       use kuocomb_m
       use liqwpar_m  ! ifullw
       use map_m
@@ -249,8 +249,6 @@
       use work2_m   ! for wetfac    JLM
 
       implicit none
-
-      include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
       integer :: tile, is, ie
       integer :: idjd_t

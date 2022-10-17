@@ -30,6 +30,7 @@ use diag_m                 ! Diagnostic routines
 use epst_m                 ! Off-centre terms
 use indices_m              ! Grid index arrays
 use liqwpar_m              ! Cloud water mixing ratios
+use kuocom_m               ! Convection parameters
 use map_m                  ! Grid map arrays
 use newmpar_m              ! Grid parameters
 use nharrs_m               ! Non-hydrostatic atmosphere arrays
@@ -51,8 +52,6 @@ use xarrs_m                ! Saved dynamic arrays
 use xyzinfo_m              ! Grid coordinate arrays
 
 implicit none
-
-include 'kuocom.h'         ! Convection parameters
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii, intsch, iq, jj, k, kk

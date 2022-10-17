@@ -23,6 +23,7 @@
       use arrays_m  ! for t
       use cc_mpi, only : myid
       use const_phys
+      use kuocom_m  ! Convection parameters
       use map_m
       use morepbl_m ! for condc
       use newmpar_m
@@ -41,7 +42,6 @@
 !     and jlm fix-ups for cloud fraction & cloud levels
 !     N.B. C-C uses imax loop, so may not have every diag. jd value here
 
-      include 'kuocom.h'    ! for sigcll,nclddia,nstab_cld,nrhcrit
 c     parameter (nclddia=0)   ! conversion of cld to cloudiness, 0 for original
 c     parameter (nclddia=5)   ! conversion of cld to cloudiness, 0 for original
 c     parameter (nstab_cld=0) ! 0 for original; 3 for stability-enhanced cll

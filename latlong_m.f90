@@ -30,6 +30,7 @@ public latlong_init,latlong_end
 
 real, dimension(:), allocatable, save :: rlatt_g,rlongg_g
 real, dimension(:), allocatable, save :: rlatt, rlongg
+!$acc declare create(rlatt)
 
 contains
 

@@ -34,6 +34,7 @@ real, dimension(:), allocatable, save :: albvisdif,albnirdif,albvisdir,albnirdir
 real, dimension(:), allocatable, save :: so4t
 real, save :: zoland,zmin
 logical, dimension(:), allocatable, save :: land
+!$acc declare create(land)
 
 contains
 
