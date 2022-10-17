@@ -2598,22 +2598,9 @@ do while ( any(nrem(:)>0) )
   call ccmpi_filebounds_send(c_io,comm_ip,corner=.true.)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-#ifdef _OPENMP
-#ifndef GPU
   !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
-#endif
-#endif
   do k = 1,kx
     if ( ncount(k)>0 ) then
-#ifdef _OPENMP
-#ifdef GPU
-      !$omp target teams distribute parallel do collapse(4) schedule(static), &
-      !$omp map(a_io(:,k)) map(to:c_io(:,:,:,:,k)) private(k,ipf,n,j,i,cc,csum,ccount)
-#endif
-#else
-      async_counter = mod(k-1,async_length) + 1
-      !$acc parallel loop collapse(4) copy(a_io(:,k)) copyin(c_io(:,:,:,:,k)) async(async_counter)
-#endif
       do ipf = 1,mynproc
         do n = 1,pnpan
           do j = 2,pjpan-1
@@ -2662,21 +2649,9 @@ do while ( any(nrem(:)>0) )
           end do
         end do
       end do
-#ifdef _OPENMP
-#ifdef GPU
-      !$omp end target teams distribute parallel do
-#endif
-#else
-      !$acc end parallel loop
-#endif
     end if
   end do
-#ifdef _OPENMP
-#ifndef GPU
   !$omp end parallel do
-#endif
-#endif
-  !$acc wait
   call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
   ! update halo
   do k = 1,kx

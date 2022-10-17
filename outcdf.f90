@@ -1002,7 +1002,7 @@ use soilv_m                                      ! Soil parameters
 use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &  ! TKE-EPS boundary layer
                    thetal_ema,qv_ema,ql_ema,  &
                    qf_ema,cf_ema,tke_ema
-use tracermodule, only : writetrpm               ! Tracer routines
+use tracermodule, only : writetrpm, co2em        ! Tracer routines
 use tracers_m                                    ! Tracer data
 use vegpar_m                                     ! Vegetation arrays
 use vvel_m                                       ! Additional vertical velocity
@@ -1973,6 +1973,8 @@ if( myid==0 .or. local ) then
           write(trnum,'(i4.4)') igas
           lname = 'Tracer (surface) '//trim(tracname(igas))
           call attrib(idnc,dimj,jsize,'trsf'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+          lname = 'Tracer emission '//trim(tracname(igas))
+          call attrib(idnc,dimj,jsize,'trem'//trnum,lname,'g m-2 s-1',0.,6.5E6,0,-1) ! -1 = long
         end do ! igas loop
       end if
     end if   ! (ngas>0)
@@ -3185,9 +3187,11 @@ if ( ngas>0 ) then
     do igas = 1,ngas
       write(trnum,'(i4.4)') igas
       call histwrt(tr(:,1,igas),'trsf'//trnum,idnc,iarch,local,.true.)
+      
+      call histwrt(co2em(:,igas),'trem'//trnum,idnc,iarch,local,.true.)
     enddo ! igas loop
   end if
-endif  ! (ngas>0)
+endif  ! (ngasc>0)
 
 
 
@@ -3343,7 +3347,7 @@ if ( ngas>0 ) then
   if ( itype==-1 ) then ! restart
     do igas = 1,ngas
       write(trnum,'(i4.4)') igas
-      call histwrt(tr(:,:,igas),'tr'//trnum,  idnc,iarch,local,.true.)
+      call histwrt(tr(:,:,igas),'tr'//trnum,idnc,iarch,local,.true.)
     enddo ! igas loop
   else                  ! history
     do igas = 1,ngas

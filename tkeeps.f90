@@ -933,6 +933,7 @@ real, dimension(kl), intent(in) :: sigkap
 real, intent(in) :: ddts
 
 #ifdef scm
+integer k
 real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
 real, dimension(imax,kl) :: wthlflux, wqlflux, wqfflux
 #endif
@@ -2021,180 +2022,17 @@ real, dimension(imax,klin-1), intent(in) :: cci
 real, dimension(imax,klin,ndim), intent(in) :: ddi
 real, dimension(imax,klin,ndim), intent(out) :: outdat
 integer n
-!integer k, iq
-!integer kblock, nthreads
-
-!#ifdef GPU
-
-!! SPIKE for GPUs
-!do k = int(sqrt(real(klin))),klin
-!  if ( mod(klin,k) == 0 ) then
-!    kblock = k
-!    exit
-!  end if
-!end do
-!nthreads = klin/kblock
-!call spike(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
         
 !! PCR for GPUs
 !call pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
-
-!#else
 
 ! Thomas
 do n = 1,ndim
   call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
 end do
 
-!#endif
-
 return
 end subroutine thomas2
-
-pure subroutine spike(outdat,aai,bbi,cci,ddi,imax,klin,ndim,nthreads)
-
-implicit none
-
-integer, intent(in) :: imax, klin, ndim, nthreads
-integer n, k, kk, iq, thread, kblock
-integer ks, ke, ts, te
-integer async_counter
-integer, parameter :: async_length = 3
-real, dimension(imax,2:klin), intent(in) :: aai
-real, dimension(imax,klin), intent(in) :: bbi
-real, dimension(imax,klin-1), intent(in) :: cci
-real, dimension(imax,klin,ndim), intent(in) :: ddi
-real, dimension(imax,klin,ndim), intent(out) :: outdat
-real, dimension(imax,klin) :: aaj, ccj
-real, dimension(imax,klin,ndim) :: aa, cc, dd
-real, dimension(imax,2*nthreads,ndim) :: thomas_aa, thomas_cc, thomas_dd
-real, dimension(imax,2*nthreads,ndim) :: ccx, ddx, outdatx
-real rr, n_s
-
-kblock = klin/nthreads
-
-aaj(:,1) = 0.
-ccj(:,klin) = 0.
-aaj(:,2:klin) = aai(:,2:klin)
-ccj(:,1:klin-1) = cci(:,1:klin-1)
-
-!$acc data create(aa,cc,dd,aaj,bbi,ccj,thomas_aa,thomas_cc,thomas_dd,outdatx)
-!$acc update device(aaj,bbi,ccj)
-
-! hybrid-forward
-do n = 1,ndim
-  async_counter = mod( n-1, async_length) + 1
-  
-  !$acc parallel loop present(aa,cc,dd,aaj,bbi,ccj) copyin(ddi(:,:,n)) async(async_counter)
-  do kk = 1,klin,kblock ! threads
-    do iq = 1,imax
-      aa(iq,kk,n) = aaj(iq,kk)/bbi(iq,kk)  
-      cc(iq,kk,n) = ccj(iq,kk)/bbi(iq,kk)
-      dd(iq,kk,n) = ddi(iq,kk,n)/bbi(iq,kk)
-      aa(iq,kk+1,n) = aaj(iq,kk+1)/bbi(iq,kk+1)  
-      cc(iq,kk+1,n) = ccj(iq,kk+1)/bbi(iq,kk+1)
-      dd(iq,kk+1,n) = ddi(iq,kk+1,n)/bbi(iq,kk+1)
-    end do
-    do k = kk+2,kk+kblock-1
-      do iq = 1,imax
-        rr = 1./(bbi(iq,k)-aaj(iq,k)*cc(iq,k-1,n))
-        dd(iq,k,n) = rr*(ddi(iq,k,n)-aaj(iq,k)*dd(iq,k-1,n))
-        aa(iq,k,n) = -rr*aaj(iq,k)*aa(iq,k-1,n)
-        cc(iq,k,n) = rr*ccj(iq,k)
-      end do
-    end do
-    do k = kk+kblock-3,kk+1,-1
-      do iq = 1,imax
-        dd(iq,k,n) = dd(iq,k,n) - cc(iq,k,n)*dd(iq,k+1,n)
-        aa(iq,k,n) = aa(iq,k,n) - cc(iq,k,n)*aa(iq,k+1,n)
-        cc(iq,k,n) = -cc(iq,k,n)*cc(iq,k+1,n)
-      end do
-    end do
-    do iq = 1,imax
-      rr = 1./(1.-cc(iq,kk,n)*aa(iq,kk+1,n))
-      dd(iq,kk,n) = rr*(dd(iq,kk,n)-cc(iq,kk,n)*dd(iq,kk+1,n))
-      aa(iq,kk,n) = rr*aa(iq,kk,n)
-      cc(iq,kk,n) = -rr*cc(iq,kk,n)*cc(iq,kk+1,n)
-    end do  
-  end do ! kk = 1,klin,kblock ! threads
-  !$acc end parallel loop
-
-  ! thomas-pack
-  !$acc parallel loop present(aa,cc,dd,thomas_aa,thomas_cc,thomas_dd) async(async_counter)
-  do thread = 1,nthreads
-    ks = (thread-1)*kblock + 1
-    ke = thread*kblock
-    ts = thread*2 - 1
-    te = thread*2
-    do iq = 1,imax
-      thomas_aa(iq,ts,n) = aa(iq,ks,n)
-      thomas_aa(iq,te,n) = aa(iq,ke,n)
-      thomas_cc(iq,ts,n) = cc(iq,ks,n)
-      thomas_cc(iq,te,n) = cc(iq,ke,n)
-      thomas_dd(iq,ts,n) = dd(iq,ks,n)
-      thomas_dd(iq,te,n) = dd(iq,ke,n)
-    end do
-  end do
-  !$acc end parallel loop
-  
-end do    
-!$acc wait
-
-! thomas-solve
-!$acc parallel loop present(thomas_aa,thomas_cc,thomas_dd,outdatx) create(ccx,ddx)
-do n = 1,ndim
-  do iq = 1,imax  
-    ccx(iq,1,n) = thomas_cc(iq,1,n)
-    ddx(iq,1,n) = thomas_dd(iq,1,n)
-  end do 
-  do thread = 2,2*nthreads-1
-    do iq = 1,imax
-      n_s = 1./(1. - ccx(iq,thread-1,n)*thomas_aa(iq,thread,n))
-      ccx(iq,thread,n) = thomas_cc(iq,thread,n)*n_s
-      ddx(iq,thread,n) = (thomas_dd(iq,thread,n)-ddx(iq,thread-1,n)*thomas_aa(iq,thread,n))*n_s
-    end do
-  end do
-  do iq = 1,imax
-    n_s = 1./(1. - ccx(iq,2*nthreads-1,n)*thomas_aa(iq,2*nthreads,n))
-    outdatx(iq,2*nthreads,n) = (thomas_dd(iq,2*nthreads,n)-ddx(iq,2*nthreads-1,n)*thomas_aa(iq,2*nthreads,n))*n_s
-  end do
-  do thread = 2*nthreads-1,1,-1
-    do iq = 1,imax  
-      outdatx(iq,thread,n) = ddx(iq,thread,n) - ccx(iq,thread,n)*outdatx(iq,thread+1,n)
-    end do  
-  end do  
-end do
-!$acc end parallel loop
-
-do n = 1,ndim
-  async_counter = mod( n-1, async_length ) + 1  
-
-  ! hybrid-backward
-  !$acc parallel loop present(aa,cc,dd,outdatx) copyout(outdat(:,:,n)) async(async_counter)
-  do kk = 1,klin,kblock ! threads
-    ks = kk
-    ke = kk + kblock - 1
-    ts = ((ks-1)/kblock)*2 + 1
-    te = (ke/kblock)*2
-    do iq = 1,imax
-      outdat(iq,ks,n) = outdatx(iq,ts,n)
-      outdat(iq,ke,n) = outdatx(iq,te,n)
-    end do
-    do k = ks+1,ke-1 
-      do iq = 1,imax
-        outdat(iq,k,n) = dd(iq,k,n) - aa(iq,k,n)*outdatx(iq,ts,n) - cc(iq,k,n)*outdatx(iq,te,n)
-      end do
-    end do
-  end do
-  !$acc end parallel loop
-
-end do
-!$acc wait
-
-!$acc end data
-
-return
-end subroutine spike
 
 pure subroutine pcr(outdat,aaj,bbj,ccj,ddj,imax,klin,ndim)
 
@@ -2228,13 +2066,13 @@ do n = 1,ndim
   ddi(1:klin,1:imax,n) = transpose( ddj(1:imax,1:klin,n) )
 end do
 
-!$acc parallel loop collapse(2) copyin(aai,bbi,cci,ddi) copyout(odati)
+!!$acc parallel loop collapse(2) copyin(aai,bbi,cci,ddi) copyout(odati)
 do n = 1,ndim
   do iq = 1,imax
     call pcr_work(odati(:,iq,n),aai(:,iq),bbi(:,iq),cci(:,iq),ddi(:,iq,n),klin,pmax)
   end do
 end do
-!$acc end parallel loop
+!!$acc end parallel loop
 
 do n = 1,ndim
   outdat(1:imax,1:klin,n) = transpose( odati(1:klin,1:imax,n) )
@@ -2244,7 +2082,7 @@ return
 end subroutine pcr
 
 pure subroutine pcr_work(outdat,aai,bbi,cci,ddi,klin,pmax)
-!$acc routine vector
+!!$acc routine vector
 
 implicit none
 
