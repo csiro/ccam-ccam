@@ -217,6 +217,7 @@ integer(kind=4), dimension(4) :: start, ncount
 integer(kind=4) :: idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan) :: rvar
+real(kind=8), dimension(pipan*pjpan*pnpan) :: dvar
 real, dimension(:,:), allocatable :: gvar 
 real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
@@ -250,8 +251,9 @@ if ( mynproc>0 ) then
       ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if (ier/=nf90_noerr) lsf=1.
       ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      ier=nf90_get_var(pncid(ipf),idv,dvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
+      rvar = real(dvar) ! for precision issues with netcdf (e.g., 1.e-40)
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf) + real(laddoff)
     end if ! ier
