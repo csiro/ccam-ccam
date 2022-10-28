@@ -95,6 +95,7 @@ real, dimension(ifull+iextra,wlev) :: w_ema
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
 real, dimension(ifull,wlev) :: workdata2
+real, dimension(ifull,wlev) :: xfact_iwu, yfact_isv
 real, dimension(ifull) :: dwdx, dwdy
 real base
 real dudx,dvdx,dudy,dvdy
@@ -218,21 +219,26 @@ call bounds(work_ss)
 
 ! perform diffusion
 
+do k = 1,wlev
+  xfact_iwu(1:ifull,k) = xfact(iwu,k)
+  yfact_isv(1:ifull,k) = yfact(isv,k)
+end do
+
 #ifdef GPU
-!$omp target data map(to:xfact,yfact,emi,iwu,isv,in,is,ie,iw)
+!$omp target data map(to:xfact,yfact,emi,xfact_iwu,yfact_isv)
 #else
 !$omp parallel
 !$omp sections
 #endif
-!$acc data create(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-!$acc update device(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
+!$acc data create(xfact,yfact,emi,xfact_iwu,yfact_isv)
+!$acc update device(xfact,yfact,emi,xfact_iwu,yfact_isv)
 
 #ifndef GPU    
 !$omp section
 #endif
 if ( mlodiff==0 ) then
   ! UX  
-  call mlodiffcalc(duma(:,:,1),xfact,yfact,emi)
+  call mlodiffcalc(duma(:,:,1),xfact,yfact,emi,xfact_iwu,yfact_isv)
 endif
 
 #ifndef GPU    
@@ -240,7 +246,7 @@ endif
 #endif
 if ( mlodiff==0 ) then
   ! VY  
-  call mlodiffcalc(duma(:,:,2),xfact,yfact,emi)
+  call mlodiffcalc(duma(:,:,2),xfact,yfact,emi,xfact_iwu,yfact_isv)
 endif
 
 #ifndef GPU    
@@ -248,20 +254,20 @@ endif
 #endif
 if ( mlodiff==0 ) then
   ! WZ  
-  call mlodiffcalc(duma(:,:,3),xfact,yfact,emi)
+  call mlodiffcalc(duma(:,:,3),xfact,yfact,emi,xfact_iwu,yfact_isv)
 endif
 
 #ifndef GPU    
 !$omp section
 #endif
 ! potential temperature
-call mlodiffcalc(work_tt,xfact,yfact,emi)
+call mlodiffcalc(work_tt,xfact,yfact,emi,xfact_iwu,yfact_isv)
 
 #ifndef GPU    
 !$omp section
 #endif
 ! salinity
-call mlodiffcalc(work_ss,xfact,yfact,emi)
+call mlodiffcalc(work_ss,xfact,yfact,emi,xfact_iwu,yfact_isv)
 
 #ifdef GPU
 !$omp end target data
@@ -298,72 +304,61 @@ call END_LOG(waterdiff_end)
 return
 end subroutine mlodiffusion_work
 
-subroutine mlodiffcalc(work,xfact,yfact,emi)    
+subroutine mlodiffcalc(work,xfact,yfact,emi,xfact_iwu,yfact_isv)    
 
 use cc_acc, only : async_length
+use cc_mpi, only : ipan, jpan
 use indices_m
 use mlo
 use newmpar_m
 
 implicit none
 
-integer k, iq
+integer k, iq, n, j, i
 integer, save :: async_counter = -1
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,wlev), intent(inout) :: work
-real, dimension(ifull+iextra,wlev) :: ans
-real base, xfact_iwu, yfact_isv
+real, dimension(ifull,wlev), intent(in) :: xfact_iwu, yfact_isv
+real, dimension(0:ipan+1,0:jpan+1,1:npan,1:wlev) :: u_work
+real base
 
 async_counter = mod(async_counter+1, async_length)
 
+do k = 1,wlev
+  call unpack_scalar(work(:,k),u_work(:,:,:,k))
+end do
+
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target enter data map(to:work) map(alloc:ans)
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
+!$omp target teams distribute parallel do collapse(4) schedule(static) private(k,n,j,i,iq,base)
 #endif
 #else
-!$acc enter data create(work,ans) async(async_counter)
-!$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,iwu,isv,in,is,ie,iw) async(async_counter)
+!$acc parallel loop collapse(4) copyin(u_work) copyout(work) present(xfact,yfact,emi,xfact_iwu,yfact_isv) async(async_counter)
 #endif
 do k = 1,wlev
-   do iq = 1,ifull
-     xfact_iwu = xfact(iwu(iq),k)
-     yfact_isv = yfact(isv(iq),k)
-     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                   +yfact(iq,k)+yfact_isv
-     ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                   xfact(iq,k)*work(ie(iq),k) +       &
-                   xfact_iwu*work(iw(iq),k) +         &
-                   yfact(iq,k)*work(in(iq),k) +       &
-                   yfact_isv*work(is(iq),k) )         &
-                / base
+  do n = 1,npan
+    do j = 1,jpan
+      do i = 1,ipan
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+        base = emi(iq)+xfact(iq,k)+xfact_iwu(iq,k)  &
+                      +yfact(iq,k)+yfact_isv(iq,k)
+        work(iq,k) = ( emi(iq)*u_work(i,j,n,k) +           &
+                       xfact(iq,k)*u_work(i+1,j,n,k) +     &
+                       xfact_iwu(iq,k)*u_work(i-1,j,n,k) + &
+                       yfact(iq,k)*u_work(i,j+1,n,k) +     &
+                       yfact_isv(iq,k)*u_work(i,j-1,n,k) )   &
+                     / base
+      end do  
+    end do    
   end do
 end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp end target teams distribute parallel do
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
 #endif
 #else
 !$acc end parallel loop
-!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
-#endif
-do k = 1,wlev
-   do iq = 1,ifull
-     work(iq,k) = ans(iq,k)
-  end do
-end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target exit data map(from:work)
-#endif
-#else
-!$acc end parallel loop
-!$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ans) async(async_counter)
 #endif
 
 return

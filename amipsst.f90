@@ -728,12 +728,17 @@ if ( amip_mode==1 ) then
   endif  ! (schmidtx<=0..or.schmidtx>1.)  
   call ccnf_get_attg(ncidx,'leap',leap_file,tst) ! old method
   if ( tst ) leap_file = 0                       ! old method
-  call ccnf_inq_varid(ncidx,'time',varid_time)                       ! new method
-  call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr) ! new method
-  if ( ierr==0 ) then                                                ! new method
-    if ( trim(calendarstring)=="standard" ) leap_file = 1            ! new method
-    if ( trim(calendarstring)=="360_day" ) leap_file = 2             ! new method
-  end if                                                             ! new method
+  call ccnf_inq_varid(ncidx,'time',varid_time)                            ! new method
+  call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr)      ! new method
+  if ( ierr==0 ) then                                                     ! new method
+    if ( trim(calendarstring)=="365_day" ) leap_file = 0                  ! new method
+    if ( trim(calendarstring)=="standard" ) leap_file = 1                 ! new method
+    if ( trim(calendarstring)=="360_day" ) leap_file = 2                  ! new method
+  else                                                                    ! new method 
+    write(6,*) "ERROR: calendar is not defined in AMIPSST file"           ! new method
+    write(6,*) "Please define calendar with standard, 365_day or 360_day" ! new method 
+    call ccmpi_abort(-1)                                                  ! new method 
+  end if                                                                  ! new method
   call ccnf_inq_dimlen(ncidx,'time',maxarchi)
          
   interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &
@@ -790,6 +795,7 @@ if ( amip_mode==1 ) then
     deallocate( lsmr_g )
   else
     write(6,*) "No interpolation is required for AMIPSST"
+    write(6,*) "leap_file = ",leap_file
     allocate( ssta_g(ifull_g,5) )
     ssta_g = 0.
   end if

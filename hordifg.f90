@@ -77,6 +77,7 @@ real, dimension(ifull+iextra,kl,4) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
+real, dimension(ifull,kl) :: xfact_iwu, yfact_isv
 real, dimension(ifull,kl) :: ww, dwdx, dwdy
 real, dimension(ifull) :: emi
 real, dimension(ifull,kl) :: zg
@@ -375,35 +376,40 @@ end if  ! (nhorps==-4.and.abs(iaero)>=2)
 
 ! perform diffusion
 
+do k = 1,kl
+  xfact_iwu(1:ifull,k) = xfact(iwu,k)
+  yfact_isv(1:ifull,k) = yfact(isv,k)
+end do
+
 #ifdef GPU
-!$omp target data map(to:xfact,yfact,emi,iwu,isv,in,is,ie,iw)
+!$omp target data map(to:xfact,yfact,emi,xfact_iwu,yfact_isv)
 #else
 !$omp parallel
 !$omp sections
 #endif
-!$acc data create(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-!$acc update device(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
+!$acc data create(xfact,yfact,emi,xfact_iwu,yfact_isv)
+!$acc update device(xfact,yfact,emi,xfact_iwu,yfact_isv)
 
 #ifndef GPU    
 !$omp section
 #endif
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   ! momentum U  
-  call hordifgt_work(uc,xfact,yfact,emi)    
+  call hordifgt_work(uc,xfact,yfact,emi,xfact_iwu,yfact_isv)    
 end if  
 #ifndef GPU    
 !$omp section
 #endif
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   ! momentum V  
-  call hordifgt_work(vc,xfact,yfact,emi)    
+  call hordifgt_work(vc,xfact,yfact,emi,xfact_iwu,yfact_isv)    
 end if  
 #ifndef GPU    
 !$omp section
 #endif
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   ! momentum W
-  call hordifgt_work(wc,xfact,yfact,emi)    
+  call hordifgt_work(wc,xfact,yfact,emi,xfact_iwu,yfact_isv)    
 end if  
 
 #ifndef GPU    
@@ -411,7 +417,7 @@ end if
 #endif
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   ! potential temperature
-  call hordifgt_work(t,xfact,yfact,emi)  
+  call hordifgt_work(t,xfact,yfact,emi,xfact_iwu,yfact_isv)  
 end if  
 
 #ifndef GPU    
@@ -419,7 +425,7 @@ end if
 #endif
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then  
   ! water vapour  
-  call hordifgt_work(qg,xfact,yfact,emi)  
+  call hordifgt_work(qg,xfact,yfact,emi,xfact_iwu,yfact_isv)  
 end if  
 
 #ifndef GPU    
@@ -427,7 +433,7 @@ end if
 #endif
 if ( nhorps==-4 .and. ldr/=0 ) then  
   ! cloud liquid water  
-  call hordifgt_work(qlg,xfact,yfact,emi)  
+  call hordifgt_work(qlg,xfact,yfact,emi,xfact_iwu,yfact_isv)  
 end if
 
 #ifndef GPU    
@@ -435,7 +441,7 @@ end if
 #endif
 if ( nhorps==-4 .and. ldr/=0 ) then
   ! cloud frozen water
-  call hordifgt_work(qfg,xfact,yfact,emi)  
+  call hordifgt_work(qfg,xfact,yfact,emi,xfact_iwu,yfact_isv)  
 end if
 
 #ifndef GPU    
@@ -443,7 +449,7 @@ end if
 #endif
 if ( nhorps==-4 .and. ldr/=0 ) then
   ! cloud fraction  
-  call hordifgt_work(stratcloud,xfact,yfact,emi)  
+  call hordifgt_work(stratcloud,xfact,yfact,emi,xfact_iwu,yfact_isv)  
 end if
 
 #ifndef GPU    
@@ -451,7 +457,7 @@ end if
 #endif
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   ! tke  
-  call hordifgt_work(tke,xfact,yfact,emi)  
+  call hordifgt_work(tke,xfact,yfact,emi,xfact_iwu,yfact_isv)  
 end if
 
 #ifndef GPU    
@@ -459,7 +465,7 @@ end if
 #endif
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   ! eps  
-  call hordifgt_work(eps,xfact,yfact,emi)  
+  call hordifgt_work(eps,xfact,yfact,emi,xfact_iwu,yfact_isv)  
 end if
 
 #ifndef GPU
@@ -472,7 +478,7 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   !$omp do schedule(static) private(ntr)
 #endif    
   do ntr = 1,naero
-    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)  
+    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi,xfact_iwu,yfact_isv)  
   end do
 #ifndef GPU    
   !$omp end do nowait
@@ -516,71 +522,60 @@ end if
 return
 end subroutine hordifgt
 
-subroutine hordifgt_work(work,xfact,yfact,emi)    
+subroutine hordifgt_work(work,xfact,yfact,emi,xfact_iwu,yfact_isv)    
 
 use cc_acc, only : async_length
+use cc_mpi, only : ipan, jpan
 use indices_m
 use newmpar_m
 
 implicit none
 
-integer k, iq
+integer k, iq, n, j, i
 integer, save :: async_counter = -1
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
+real, dimension(ifull,kl), intent(in) :: xfact_iwu, yfact_isv
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
-real, dimension(ifull+iextra,kl) :: ans
-real base, xfact_iwu, yfact_isv
+real, dimension(0:ipan+1,0:jpan+1,1:npan,1:kl) :: u_work
+real base
 
 async_counter = mod(async_counter+1, async_length)
 
+do k = 1,kl
+  call unpack_scalar(work(:,k),u_work(:,:,:,k))
+end do
+
 #ifdef _OPENMP
 #ifdef GPU
-!$omp target enter data map(to:work) map(alloc:ans)
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
+!$omp target teams distribute parallel do collapse(4) schedule(static) private(k,n,j,i,iq,base)
 #endif
 #else
-!$acc enter data create(work,ans) async(async_counter)
-!$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,iwu,isv,in,is,ie,iw) async(async_counter)
+!$acc parallel loop collapse(4) copyin(u_work) copyout(work) present(xfact,yfact,emi,xfact_iwu,yfact_isv) async(async_counter)
 #endif
 do k = 1,kl
-   do iq = 1,ifull
-     xfact_iwu = xfact(iwu(iq),k)
-     yfact_isv = yfact(isv(iq),k)
-     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                   +yfact(iq,k)+yfact_isv
-     ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                   xfact(iq,k)*work(ie(iq),k) +       &
-                   xfact_iwu*work(iw(iq),k) +         &
-                   yfact(iq,k)*work(in(iq),k) +       &
-                   yfact_isv*work(is(iq),k) )         &
-                / base
+  do n = 1,npan
+    do j = 1,jpan
+      do i = 1,ipan  
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+        base = emi(iq)+xfact(iq,k)+xfact_iwu(iq,k)  &
+                      +yfact(iq,k)+yfact_isv(iq,k)
+        work(iq,k) = ( emi(iq)*u_work(i,j,n,k) +              &
+                       xfact(iq,k)*u_work(i+1,j,n,k) +        &
+                       xfact_iwu(iq,k)*u_work(i-1,j,n,k) +    &
+                       yfact(iq,k)*u_work(i,j+1,n,k) +        &
+                       yfact_isv(iq,k)*u_work(i,j-1,n,k) )    &
+                     / base
+      end do  
+    end do    
   end do
 end do
 #ifdef _OPENMP
 #ifdef GPU
 !$omp end target teams distribute parallel do
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
 #endif
 #else
 !$acc end parallel loop
-!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
-#endif
-do k = 1,kl
-   do iq = 1,ifull
-     work(iq,k) = ans(iq,k)
-  end do
-end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target exit data map(from:work)
-#endif
-#else
-!$acc end parallel loop
-!$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ans) async(async_counter)
 #endif
 
 return

@@ -22,7 +22,6 @@
 subroutine depts1(x3d,y3d,z3d,intsch)  ! input ubar,vbar are unstaggered vels for level k
 
 use bigxy4_m
-use cc_acc
 use cc_mpi
 use const_phys
 use indices_m
@@ -39,7 +38,7 @@ implicit none
 
 integer, intent(in) :: intsch
 integer iq, k, idel, jdel, nn
-integer i, j, n, ii, async_counter
+integer i, j, n, ii
 real xxg, yyg
 real, dimension(ifull,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl,3) :: s
@@ -144,12 +143,6 @@ else
 
 end if
 
-!#ifdef GPU
-!!$omp target data map(to:sx)
-!#endif
-!!$acc data create(sx,xg,yg,nface)
-!!$acc update device(sx)
-
 ! convert to grid point numbering
 call toij5(x3d,y3d,z3d)
 
@@ -205,26 +198,10 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
-!#ifndef GPU
   !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg,n),     &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
-!#else
-!  !$acc update device(xg,yg,nface)
-!#endif
   do nn = 1,3
-!#ifdef _OPENMP
-!#ifdef GPU
-!    !$omp target teams distribute parallel do collapse(2) schedule(static),               &
-!    !$omp map(from:s(:,:,nn)) map(to:xg,yg,nface) private(k,iq,idel,xxg,jdel,yyg,n),      &
-!    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-!    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-!#endif
-!#else
-!    async_counter = mod(nn-1, async_length)+1 
-!    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface)            &
-!    !$acc   async(async_counter)
-!#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -254,19 +231,8 @@ if ( intsch==1 ) then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do   ! iq loop
     end do     ! k loop
-!#ifdef _OPENMP
-!#ifdef GPU
-!    !$omp end target teams distribute parallel do
-!#endif
-!#else
-!    !$acc end parallel loop
-!#endif
   end do       ! nn loop
-!#ifndef GPU
   !$omp end parallel do
-!#else
-!  !$acc wait
-!#endif
   
             
 !========================   end of intsch=1 section ====================
@@ -309,26 +275,10 @@ else     ! if(intsch==1)then
   
   call intssync_send(3)
 
-!#ifndef GPU
   !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg,n),     &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
-!#else
-!  !$acc update device(xg,yg,nface)
-!#endif
   do nn = 1,3  
-!#ifdef _OPENMP
-!#ifdef GPU
-!    !$omp target teams distribute parallel do collapse(2) schedule(static),               &
-!    !$omp map(from:s(:,:,nn)) map(to:xg,yg,nface) private(k,iq,idel,xxg,jdel,yyg,n),      &
-!    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-!    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-!#endif
-!#else
-!    async_counter = mod(nn-1, async_length)+1
-!    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface)            &
-!    !$acc   async(async_counter)
-!#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -358,19 +308,8 @@ else     ! if(intsch==1)then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! k loop
-!#ifdef _OPENMP
-!#ifdef GPU
-!    !$omp end target teams distribute parallel do
-!#endif
-!#else
-!    !$acc end parallel loop
-!#endif
   end do       ! nn loop
-!#ifndef GPU
   !$omp end parallel do
-!#else
-!  !$acc wait
-!#endif
   
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -433,26 +372,10 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
-!#ifndef GPU
   !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg,n),     &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
-!#else
-!  !$acc update device(xg,yg,nface)
-!#endif
   do nn = 1,3
-!#ifdef _OPENMP
-!#ifdef GPU
-!    !$omp target teams distribute parallel do collapse(2) schedule(static),               &
-!    !$omp map(from:s(:,:,nn)) map(to:xg,yg,nface) private(k,iq,idel,xxg,jdel,yyg,n),      &
-!    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-!    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-!#endif
-!#else
-!    async_counter = mod(nn-1, async_length)+1 
-!    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface)            &
-!    !$acc   async(async_counter)
-!#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -482,19 +405,8 @@ if ( intsch==1 ) then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do   ! iq loop
     end do     ! k loop
-!#ifdef _OPENMP
-!#ifdef GPU
-!    !$omp end target teams distribute parallel do
-!#endif
-!#else
-!    !$acc end parallel loop
-!#endif
   end do       ! nn loop
-!#ifndef GPU
   !$omp end parallel do
-!#else
-!  !$acc wait
-!#endif
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -537,26 +449,10 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-!#ifndef GPU
   !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg,n),     &
   !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
   !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
-!#else
-!  !$acc update device(xg,yg,nface)
-!#endif
   do nn = 1,3
-!#ifdef _OPENMP
-!#ifdef GPU
-!    !$omp target teams distribute parallel do collapse(2) schedule(static),               &
-!    !$omp map(from:s(:,:,nn)) map(to:xg,yg,nface) private(k,iq,idel,xxg,jdel,yyg,n),      &
-!    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-!    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-!#endif
-!#else
-!    async_counter = mod(nn-1, async_length)+1  
-!    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface)            &
-!    !$acc   async(async_counter)
-!#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
@@ -587,20 +483,9 @@ else     ! if(intsch==1)then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! k loop
-!#ifdef _OPENMP
-!#ifdef GPU
-!    !$omp end target teams distribute parallel do
-!#endif
-!#else
-!    !$acc end parallel loop
-!#endif
   end do       ! nn loop
-!#ifndef GPU
   !$omp end parallel do
-!#else
-!  !$acc wait
-!#endif
-
+  
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
@@ -622,11 +507,6 @@ end if
 
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
-
-!#ifdef GPU
-!!$omp end target data
-!#endif
-!!$acc end data
 
 call END_LOG(depts_end)
       
@@ -666,11 +546,9 @@ logical xytest, xztest, yztest
 alf      = (1._8-real(schmidt,8)**2)/(1._8+real(schmidt,8)**2)
 alfonsch = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more accurate
 
-#ifndef GPU
 !$omp parallel do schedule(static) private(k,iq,den),                               &
 !$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),  &
 !$omp private(is,js,dxx,dyx,dxy,dyy)
-#endif
 do k = 1,kl
   do iq = 1,ifull    
     den  = 1._8 - alf*z3d(iq,k)
@@ -762,9 +640,7 @@ do k = 1,kl
     yg(iq,k) = 0.25*(rj+3.) - 0.5  ! -.5 for stag  
   end do
 end do
-#ifndef GPU
 !$omp end parallel do
-#endif
 
 return
 end subroutine toij5
