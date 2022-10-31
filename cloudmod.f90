@@ -64,6 +64,7 @@ subroutine update_cloud_fraction(cfrac,kbsav,ktsav,land,                        
                     dpsldt,nettend,stratcloud,clcon,cdrop,em,pblh,idjd,mydiag,      &
                     ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
                     vdeposition_mode,tiedtke_form,rkmsave,rkhsave,imax,kl)
+!$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -260,6 +261,7 @@ do k = 1,kl
   end where
 end do
 
+#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -271,6 +273,7 @@ if ( nmaxpr==1 .and. mydiag ) then
   diag_temp(:) = qlg(idjd,:)
   write (6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
 endif
+#endif
 !if ( diag .and. ntiles==1 ) then
 !  call maxmin(t,' t',ktau,1.,kl)
 !  call maxmin(qg,'qv',ktau,1.e3,kl)
@@ -301,6 +304,7 @@ subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                     mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
                     cld_decay,vdeposition_mode,tiedtke_form,  &
                     rkmsave,rkhsave,imax,kl)
+!$acc routine vector
 
 ! This routine is part of the prognostic cloud water scheme
 
@@ -734,6 +738,7 @@ end subroutine newcloud
 subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rcrit, &
                      dpsldt,nettend,stratcloud,tiedtke_form, &
                      rkmsave,rkhsave,imax,kl)
+!$acc routine vector
 
 use const_phys                    ! Physical constants
 use parm_m, only : qgmin          ! Model configuration

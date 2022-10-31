@@ -95,6 +95,6 @@ real, save :: rcrit_l=.75                              ! rcrit_land for ldr newc
 real, save :: rcrit_s=.85                              ! rcrit_sea  for ldr newcloud                      [.85]
 real, save :: cld_decay=7200.                          ! time-decay factor for cirrus                     [7200.]
 
-!$acc declare create(acon,bcon,ldr)
+!$acc declare create(acon,bcon,ldr,nclddia,ncloud,rcm,rcrit_l,rcrit_s,cld_decay,vdeposition_mode,tiedtke_form)
 
 end module kuocom_m

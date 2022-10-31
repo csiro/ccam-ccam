@@ -127,6 +127,11 @@ end do
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt),                          &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),   &
 !$omp private(idjd_t,mydiag_t)
+!$acc parallel copy(cfrac,qg,qlg,qfg,qlrad,qfrad,t,stratcloud,nettend) &
+!$acc copyin(kbsav,ktsav,ps,em,pblh,dpsldt,dpsldt,clcon,cdrop,rkmsave,rkhsave) &
+!$acc copyout(qccon) present(land)
+!$acc loop gang private(lcfrac,lqg,lqlg,lqfg,lqlrad,lqfrad,lt,ldpsldt,lclcon) &
+!$acc private(lcdrop,lstratcloud,lnettend,lrkmsave,lrkhsave,lqccon)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -170,6 +175,7 @@ do tile = 1,ntiles
     nettend(is:ie,:) = lnettend
   end if
 end do
+!$acc end parallel
 !$omp end do nowait
 
 

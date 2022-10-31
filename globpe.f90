@@ -623,7 +623,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
 !$acc convpsav,cape,condc,condx,conds,condg)
 
-!$acc exit data delete(qg,qlg,qfg,dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn, &
+!$acc exit data delete(qg,qlg,qfg,dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,entrainn, &
 !$acc em,sgsave)
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
@@ -639,6 +639,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
   call END_LOG(cloud_end)
 
+!$acc exit data delete(land)
 
   ! RADIATION -------------------------------------------------------------
   call START_LOG(radnet_begin)
@@ -2595,7 +2596,8 @@ seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
 !$acc update device(vmodmin,sigbot_gwd,fc2,dt,alphaj)
-!$acc update device(qgmin,iaero,nmr,aeroindir,ldr)
+!$acc update device(qgmin,iaero,nmr,aeroindir,ldr,nmaxpr,nclddia,ncloud)
+!$acc update device(rcm,rcrit_l,rcrit_s,cld_decay,vdeposition_mode,tiedtke_form)
 !$acc update device(acon,bcon,so4mtn,carbmtn,saltlargemtn,saltsmallmtn)
 
 !--------------------------------------------------------------
