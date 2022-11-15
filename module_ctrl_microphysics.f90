@@ -191,6 +191,18 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
     !$omp private(lstratcloud,lclcon,lcdrop),                                     &
     !$omp private(idjd_t,mydiag_t)
+    !$acc parallel copy(condg,conds,condx,precip,gfrac,sfrac,qg,qgrg)             &
+    !$acc copy(qlg,qfg,qrg,qsng,t,stratcloud,rfrac)                               &
+    !$acc copyout(ppfevap,ppfmelt,ppfprec,ppfsnow)                                   &
+    !$acc copyout(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)       &
+    !$acc copyout(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto,fcoll,faccr) &
+    !$acc copyout(vi,vs,vg) &
+    !$acc copyin(cdrop,ktsav,ps)
+    !$acc loop gang private(lgfrac,lrfrac,lsfrac,lqg,lqgrg,lqlg,lqfg,lqrg,lqsng)   &
+    !$acc private(lt,lcdrop,lstratcloud,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg) &
+    !$acc private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi,lvs,lvg)                  &
+    !$acc private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,lpplambs,lppmaccr)  &
+    !$acc private(lppmrate,lppqfsedice,lpprfreeze,lpprscav)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -246,6 +258,13 @@ select case ( interp_ncloud(ldr,ncloud) )
       vg(is:ie,:) = lvg   
       ! backwards compatible data for aerosols
       if ( abs(iaero)>=2 ) then
+#ifdef GPU
+        call set_for_pgi_bug(ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs, &
+                             ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,    &
+                             lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,lpplambs, &
+                             lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav, &
+                             is,ie,ifull,imax,kl)
+#else
         ppfevap(is:ie,:)    = lppfevap
         ppfmelt(is:ie,:)    = lppfmelt
         ppfprec(is:ie,:)    = lppfprec
@@ -257,8 +276,11 @@ select case ( interp_ncloud(ldr,ncloud) )
         ppqfsedice(is:ie,:) = lppqfsedice
         pprfreeze(is:ie,:)  = lpprfreeze
         pprscav(is:ie,:)    = lpprscav
+#endif
       end if
+
     end do
+    !$acc end parallel
     !$omp end do nowait
 
   case("LIN")

@@ -57,6 +57,7 @@ implicit none
 
 private
 public leoncld_work
+public set_for_pgi_bug
 public rhow, rhoice
 public aice, bice
 
@@ -91,6 +92,58 @@ real, parameter :: bice=0.68  !Constant in Platt optical depth for ice (SI units
 
 contains
     
+! THis subroutine is to work around a compilation bug with pgi and gpu
+subroutine set_for_pgi_bug(ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs, &
+                             ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,    &
+                             lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,lpplambs, &
+                             lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav, &
+                             is,ie,ifull,imax,kl)
+!$acc routine vector
+
+implicit none
+
+integer, intent(in) :: is, ie, ifull, imax, kl
+
+real, dimension(ifull,kl), intent(inout) :: ppfevap
+real, dimension(ifull,kl), intent(inout) :: ppfmelt
+real, dimension(ifull,kl), intent(inout) :: ppfprec
+real, dimension(ifull,kl), intent(inout) :: ppfsnow
+real, dimension(ifull,kl), intent(inout) :: ppfsubl
+real, dimension(ifull,kl), intent(inout) :: pplambs
+real, dimension(ifull,kl), intent(inout) :: ppmaccr
+real, dimension(ifull,kl), intent(inout) :: ppmrate
+real, dimension(ifull,kl), intent(inout) :: ppqfsedice
+real, dimension(ifull,kl), intent(inout) :: pprfreeze
+real, dimension(ifull,kl), intent(inout) :: pprscav
+
+real, dimension(imax,kl), intent(in) :: lppfevap
+real, dimension(imax,kl), intent(in) :: lppfmelt
+real, dimension(imax,kl), intent(in) :: lppfprec
+real, dimension(imax,kl), intent(in) :: lppfsnow
+real, dimension(imax,kl), intent(in) :: lppfsubl
+real, dimension(imax,kl), intent(in) :: lpplambs
+real, dimension(imax,kl), intent(in) :: lppmaccr
+real, dimension(imax,kl), intent(in) :: lppmrate
+real, dimension(imax,kl), intent(in) :: lppqfsedice
+real, dimension(imax,kl), intent(in) :: lpprfreeze
+real, dimension(imax,kl), intent(in) :: lpprscav
+
+
+ppfevap(is:ie,:)    = lppfevap
+ppfmelt(is:ie,:)    = lppfmelt
+ppfprec(is:ie,:)    = lppfprec
+ppfsnow(is:ie,:)    = lppfsnow
+ppfsubl(is:ie,:)    = lppfsubl
+pplambs(is:ie,:)    = lpplambs
+ppmaccr(is:ie,:)    = lppmaccr
+ppmrate(is:ie,:)    = lppmrate
+ppqfsedice(is:ie,:) = lppqfsedice
+pprfreeze(is:ie,:)  = lpprfreeze
+pprscav(is:ie,:)    = lpprscav
+
+end subroutine set_for_pgi_bug
+
+
 ! This subroutine is the interface for the LDR cloud microphysics
 subroutine leoncld_work(condg,conds,condx,gfrac,ktsav,                                  &
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,                        &
@@ -99,6 +152,7 @@ subroutine leoncld_work(condg,conds,condx,gfrac,ktsav,                          
                         stratcloud,cdrop,fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,qevap,     &
                         qsubl,qauto,qcoll,qaccr,vi,vs,vg,                               &
                         idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+!$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -387,6 +441,7 @@ subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,ttg,qlg,qfg,qrg,qsng,qgrg,precs,
                        cfsnow,cfgraupel,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,            &
                        fluxi,fluxs,fluxg,fluxm,fluxf,pqfsedice,pslopes,prscav,vi,vs,vg,                   &
                        condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+!$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -1609,6 +1664,7 @@ do k = 1,kl
 end do  
 
 !      Adjust cloud fraction (and cloud cover) after precipitation
+#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'diags from newrain for idjd ',idjd
   diag_temp(:) = stratcloud(idjd,:)
@@ -1620,6 +1676,7 @@ if ( nmaxpr==1 .and. mydiag ) then
   diag_temp(:) = cfgraupel(idjd,:)
   write (6,"('cfgraupel ',9f8.3/6x,9f8.3)") diag_temp
 end if
+#endif
 
 
 #ifdef debug

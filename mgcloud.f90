@@ -45,6 +45,7 @@ return
 end subroutine mg_progcld
 
 subroutine mg_2cond
+!$acc routine vector
 
 write(6,*) "ERROR: mg_2cond is not supported"
 stop
