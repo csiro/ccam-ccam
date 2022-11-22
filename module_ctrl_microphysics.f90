@@ -93,8 +93,11 @@ logical :: mydiag_t
 !----------------------------------------------------------------------------
 ! Prepare inputs for /loud microphysics
 
-!$omp do schedule(static) private(is,ie,k,lrhoa,lcdrop,lclcon)
-!$acc parallel copyin(ps,sig,t,dsig,kbsav,ktsav) copyout(dz,rhoa,cdrop,clcon,condc)
+!$acc enter data create(dz,rhoa,cdrop,clcon)
+
+!$omp do schedule(static) private(lrhoa,lcdrop,lclcon)
+!$acc parallel present(sig,dsig,dz,rhoa,cdrop,clcon) &
+!$acc present(kbsav,ktsav,ps,t,condc)
 !$acc loop gang private(lrhoa,lcdrop,lclcon)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -118,18 +121,23 @@ end do
 !$acc end parallel
 !$omp end do nowait
 
-
 !----------------------------------------------------------------------------
 ! Update cloud fraction
+
+!$acc enter data create(qlrad,qfrad,stratcloud,nettend)
+!$acc enter data create(rkmsave,rkhsave)
+!$acc enter data create(qccon)
+!$acc update device(qlrad,qfrad,stratcloud,nettend)
+!$acc update device(rkmsave,rkhsave)
 
 !$omp do schedule(static) private(is,ie),                                      &
 !$omp private(lcfrac),                                                         &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt),                          &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),   &
 !$omp private(idjd_t,mydiag_t)
-!$acc parallel copy(cfrac,qg,qlg,qfg,qlrad,qfrad,t,stratcloud,nettend) &
-!$acc copyin(kbsav,ktsav,ps,em,pblh,dpsldt,dpsldt,clcon,cdrop,rkmsave,rkhsave) &
-!$acc copyout(qccon) present(land)
+!$acc parallel present(qlrad,qfrad,stratcloud,nettend) &
+!$acc present(rkmsave,rkhsave) present(em,dpsldt) &
+!$acc present(qccon) present(land,kbsav,ktsav,ps,pblh,qg,qlg,qfg,t,cdrop,clcon,cfrac)
 !$acc loop gang private(lcfrac,lqg,lqlg,lqfg,lqlrad,lqfrad,lt,ldpsldt,lclcon) &
 !$acc private(lcdrop,lstratcloud,lnettend,lrkmsave,lrkhsave,lqccon)
 do tile = 1,ntiles
@@ -178,6 +186,9 @@ end do
 !$acc end parallel
 !$omp end do nowait
 
+!$acc exit data copyout(qlrad,qfrad,stratcloud,nettend)
+!$acc exit data delete(rkmsave,rkhsave)
+!$acc exit data copyout(qccon)
 
 !----------------------------------------------------------------------------
 ! Update cloud condensate
@@ -191,13 +202,13 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
     !$omp private(lstratcloud,lclcon,lcdrop),                                     &
     !$omp private(idjd_t,mydiag_t)
-    !$acc parallel copy(condg,conds,condx,precip,gfrac,sfrac,qg,qgrg)             &
-    !$acc copy(qlg,qfg,qrg,qsng,t,stratcloud,rfrac)                               &
+    !$acc parallel copy(gfrac,sfrac,qgrg)             &
+    !$acc copy(qrg,qsng,stratcloud,rfrac)                               &
     !$acc copyout(ppfevap,ppfmelt,ppfprec,ppfsnow)                                   &
     !$acc copyout(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)       &
     !$acc copyout(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto,fcoll,faccr) &
-    !$acc copyout(vi,vs,vg) &
-    !$acc copyin(cdrop,ktsav,ps)
+    !$acc copyout(vi,vs,vg) present(dz,rhoa) &
+    !$acc present(ktsav,ps,qg,qlg,qfg,t,precip,condx,conds,condg,cdrop)
     !$acc loop gang private(lgfrac,lrfrac,lsfrac,lqg,lqgrg,lqlg,lqfg,lqrg,lqsng)   &
     !$acc private(lt,lcdrop,lstratcloud,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg) &
     !$acc private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi,lvs,lvg)                  &
@@ -296,6 +307,9 @@ select case ( interp_ncloud(ldr,ncloud) )
       
 end select
   
+!$acc update self(t,qfg)
+!$acc exit data copyout(dz,rhoa,cdrop,clcon)
+
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)  ) then
   !$omp do schedule(static) private(is,ie,iq,k,fcol,fr,qtot,xic,xsn,xgr,vave,alph)
