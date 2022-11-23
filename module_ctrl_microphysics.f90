@@ -303,8 +303,8 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$acc end parallel
     !$omp end do nowait
 
-!$acc exit data copyout(gfrac,sfrac,qgrg)
-!$acc exit data copyout(qrg,qsng,rfrac)
+!$acc exit data copyout(gfrac,sfrac)
+!$acc exit data copyout(qrg)
 
   case("LIN")
     if ( myid==0 ) then
@@ -319,13 +319,17 @@ select case ( interp_ncloud(ldr,ncloud) )
       
 end select
   
-!$acc update self(t,qfg)
-!$acc exit data copyout(dz,rhoa,cdrop,clcon)
+!$acc exit data copyout(cdrop,clcon)
 !$acc exit data copyout(stratcloud)
 
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)  ) then
   !$omp do schedule(static) private(is,ie,iq,k,fcol,fr,qtot,xic,xsn,xgr,vave,alph)
+  !$acc parallel present(ppfevap,ppfmelt,ppfprec,ppfsnow) &
+  !$acc present(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav) &
+  !$acc present(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto,fcoll) &
+  !$acc present(rhoa,dz,faccr,t,rfrac,qfg,qsng,qgrg,vi,vs,vg)
+  !$acc loop gang
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
@@ -335,7 +339,7 @@ if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mod
     ! fluxg - graupel flux leving layer k to k-1 (kg/m2/s)
     ! fluxr - rain flux leaving layer k to k-1 (kg/m2/s)
     ! fluxm - ice melting flux in layer k (kg/m2/s)
-    ! fluxf - liquid freezing flux in layer k (kg/m2/s)
+    ! f,luxf - liquid freezing flux in layer k (kg/m2/s)
     
     ! fevap - evaporation of rainfall flux (kg/m2/s)
     ! fsubl - sublimation of snow, ice and graupel flux (kg/m2/s)
@@ -391,12 +395,13 @@ if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mod
       end do  
     end do
   end do ! tile
+  !$acc end parallel
   !$omp end do nowait  
 end if   ! if abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)
   
 !$acc exit data delete(vi,vs,vg)
 !$acc exit data delete(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto,fcoll,faccr)
-!$acc exit data copyout(ppfevap,ppfmelt,ppfprec,ppfsnow)
+!$acc exit data copyout(ppfevap,ppfmelt,ppfprec,ppfsnow,rhoa,dz,rfrac,qsng,qgrg)
 !$acc exit data copyout(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
   
   !! Estimate cloud droplet size
