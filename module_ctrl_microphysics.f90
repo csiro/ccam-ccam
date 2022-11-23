@@ -94,6 +94,10 @@ logical :: mydiag_t
 ! Prepare inputs for /loud microphysics
 
 !$acc enter data create(dz,rhoa,cdrop,clcon)
+!$acc enter data create(vi,vs,vg)
+!$acc enter data create(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto,fcoll,faccr)
+!$acc enter data create(ppfevap,ppfmelt,ppfprec,ppfsnow)
+!$acc enter data create(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
 
 !$omp do schedule(static) private(lrhoa,lcdrop,lclcon)
 !$acc parallel present(sig,dsig,dz,rhoa,cdrop,clcon) &
@@ -186,7 +190,7 @@ end do
 !$acc end parallel
 !$omp end do nowait
 
-!$acc exit data copyout(qlrad,qfrad,stratcloud,nettend)
+!$acc exit data copyout(qlrad,qfrad,nettend)
 !$acc exit data delete(rkmsave,rkhsave)
 !$acc exit data copyout(qccon)
 
@@ -194,6 +198,11 @@ end do
 ! Update cloud condensate
 select case ( interp_ncloud(ldr,ncloud) )
   case("LEON")
+
+!$acc enter data create(gfrac,sfrac,qgrg)
+!$acc enter data create(qrg,qsng,rfrac)
+!$acc update device(gfrac,sfrac,qgrg)
+!$acc update device(qrg,qsng,rfrac)
   
     !$omp do schedule(static) private(is,ie),                                     &
     !$omp private(lgfrac,lrfrac,lsfrac),                                          &
@@ -202,12 +211,12 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
     !$omp private(lstratcloud,lclcon,lcdrop),                                     &
     !$omp private(idjd_t,mydiag_t)
-    !$acc parallel copy(gfrac,sfrac,qgrg)             &
-    !$acc copy(qrg,qsng,stratcloud,rfrac)                               &
-    !$acc copyout(ppfevap,ppfmelt,ppfprec,ppfsnow)                                   &
-    !$acc copyout(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)       &
-    !$acc copyout(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto,fcoll,faccr) &
-    !$acc copyout(vi,vs,vg) present(dz,rhoa) &
+    !$acc parallel present(gfrac,sfrac,qgrg)             &
+    !$acc present(qrg,qsng,stratcloud,rfrac) &
+    !$acc present(ppfevap,ppfmelt,ppfprec,ppfsnow)                                   &
+    !$acc present(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)       &
+    !$acc present(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto,fcoll,faccr) &
+    !$acc present(vi,vs,vg) present(dz,rhoa) &
     !$acc present(ktsav,ps,qg,qlg,qfg,t,precip,condx,conds,condg,cdrop)
     !$acc loop gang private(lgfrac,lrfrac,lsfrac,lqg,lqgrg,lqlg,lqfg,lqrg,lqsng)   &
     !$acc private(lt,lcdrop,lstratcloud,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg) &
@@ -294,6 +303,9 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$acc end parallel
     !$omp end do nowait
 
+!$acc exit data copyout(gfrac,sfrac,qgrg)
+!$acc exit data copyout(qrg,qsng,rfrac)
+
   case("LIN")
     if ( myid==0 ) then
       write(6,*) "LIN microphysics ",ncloud
@@ -309,6 +321,7 @@ end select
   
 !$acc update self(t,qfg)
 !$acc exit data copyout(dz,rhoa,cdrop,clcon)
+!$acc exit data copyout(stratcloud)
 
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)  ) then
@@ -381,6 +394,10 @@ if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mod
   !$omp end do nowait  
 end if   ! if abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)
   
+!$acc exit data delete(vi,vs,vg)
+!$acc exit data delete(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto,fcoll,faccr)
+!$acc exit data copyout(ppfevap,ppfmelt,ppfprec,ppfsnow)
+!$acc exit data copyout(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
   
   !! Estimate cloud droplet size
   !call cloud3(lrdrop,lrice,lconl,lconi,lcfrac,lqlrad,lqfrad,lpress,lt,lcdrop,imax,kl)
