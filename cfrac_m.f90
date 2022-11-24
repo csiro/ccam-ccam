@@ -42,6 +42,8 @@ real, dimension(:,:), allocatable, save :: sfrac,gfrac
 real, dimension(:,:), allocatable, save :: stratcloud
 real, dimension(:,:), allocatable, save :: nettend
 
+!$acc declare create(rfrac,sfrac,gfrac,stratcloud,nettend)
+
 contains
 
 subroutine cfrac_init(ifull,iextra,kl,ncloud)

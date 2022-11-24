@@ -32,6 +32,8 @@ real, dimension(:,:), allocatable, save :: qccon,qlrad,qfrad
 real, dimension(:,:), allocatable, save :: xg,yg
 integer, dimension(:,:), allocatable, save :: nface
 
+!$acc declare create(qccon,qlrad,qfrad)
+
 contains
 
 subroutine work3f_init(ifull,kl)

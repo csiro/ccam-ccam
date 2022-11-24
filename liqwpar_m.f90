@@ -32,6 +32,8 @@ real, dimension(:,:), allocatable, save :: qlg,qfg
 real, dimension(:,:), allocatable, save :: qrg,qsng
 real, dimension(:,:), allocatable, save :: qgrg
 
+!$acc declare create(qrg,qsng,qgrg)
+
 contains
 
 subroutine liqwpar_init(ifull,iextra,kl)

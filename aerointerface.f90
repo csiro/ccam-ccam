@@ -51,6 +51,9 @@ real, dimension(:), allocatable, save :: rlev
 real, dimension(:), allocatable, save :: zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
+!$acc declare create(ppfevap,ppfmelt,ppfprec,ppfsnow)
+!$acc declare create(ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
+
 integer, save :: aero_split  = 0 ! Method of time-split (0 = before mixing, 1 = after mixing)
 integer, save :: aerosol_u10 = 0 ! update for 10m winds (0 = diagnostic, 1 = recalculate)
 

@@ -572,6 +572,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc em,sgsave, &
 !$acc convpsav,cape,condc,condx,conds,condg) async(2)
 
+!$acc update device(ppfevap,ppfmelt,ppfprec,ppfsnow, &
+!$acc ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav, &
+!$acc qlrad,qfrad,stratcloud,nettend,rkmsave,rkhsave,qgrg, &
+!$acc gfrac,sfrac,rfrac,qrg,qsng) async(3)
+
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
   if ( ngwd<0 ) then
@@ -592,6 +597,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
   end do
   !$omp end do nowait
+!$acc wait(2)
   ! Select convection scheme
   select case ( nkuo )
     case(5)
@@ -602,7 +608,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     case(21,22)
       call convjlm22              ! split convjlm 
     case(23,24)
-!$acc wait(2)
       call convjlm                ! split convjlm 
   end select
   !$acc update self(u,v,t,qg,qlg,qfg,xtg)
@@ -627,6 +632,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
+!$acc wait(3)
   call ctrl_microphysics
 !$acc update self(t)
   !$omp do schedule(static) private(js,je)
@@ -638,6 +644,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do  
   !$omp end do nowait
   call END_LOG(cloud_end)
+
+!$acc update self(ppfevap,ppfmelt,ppfprec,ppfsnow, &
+!$acc ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav, &
+!$acc qlrad,qfrad,qccon,stratcloud,nettend,qgrg,qrg,qsng, &
+!$acc gfrac,sfrac,rfrac)
 
 !$acc exit data delete(land,kbsav,ktsav,ps,pblh,em,dpsldt)
 !$acc exit data copyout(qg,qlg,qfg,t,precip,condc,condx,conds,condg,cfrac)

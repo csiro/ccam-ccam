@@ -49,6 +49,8 @@ real, dimension(:), allocatable, save :: condc, condx, conds, condg, pblh, fg, e
 real, dimension(:), allocatable, save :: wsgsmax, wsgs, ugs_var
 real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
 
+!$acc declare create(rkmsave,rkhsave)
+
 #ifdef scm
 real, dimension(:,:), allocatable, save :: wth_flux, wq_flux, uw_flux, vw_flux
 real, dimension(:,:), allocatable, save :: mfsave
