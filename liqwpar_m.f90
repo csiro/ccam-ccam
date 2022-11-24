@@ -32,7 +32,7 @@ real, dimension(:,:), allocatable, save :: qlg,qfg
 real, dimension(:,:), allocatable, save :: qrg,qsng
 real, dimension(:,:), allocatable, save :: qgrg
 
-!$acc declare create(qrg,qsng,qgrg)
+!$acc declare create(qlg,qfg,qrg,qsng,qgrg)
 
 contains
 

@@ -30,7 +30,7 @@ public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 real, dimension(:), allocatable, save :: helo
 real, dimension(:), allocatable, save :: he
 integer, save :: kbot
-!$acc declare create(kbot)
+!$acc declare create(kbot,he)
 
 contains
 
