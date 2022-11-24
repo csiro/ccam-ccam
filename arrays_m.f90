@@ -32,6 +32,8 @@ real, dimension(:,:), allocatable, save :: t,u,v,qg
 real, dimension(:), allocatable, save :: psl
 real, dimension(:), allocatable, save :: ps, zs
 
+!$acc declare create(t,u,v,qg,ps)
+
 contains
 
 subroutine arrays_init(ifull,iextra,kl)

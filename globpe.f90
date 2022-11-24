@@ -558,10 +558,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
 !$acc update device(xtosav,xtg)
   
-!$acc enter data create(u,v,t,tss,he)
-!$acc enter data create(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd, &
+!$acc enter data create(tss,he)
+!$acc enter data create(qlg,qfg,xtg,dustwd,so2wd,so4wd, &
 !$acc bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
-!$acc dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn, &
+!$acc dpsldt,cfrac,alfin,pblh,fg,wetfac,land,entrainn, &
 !$acc em,sgsave, &
 !$acc convpsav,cape,condc,condx,conds,condg)
   
@@ -622,7 +622,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$acc update device(qfg,qlg,qg,t)
   call END_LOG(convection_end)
 
-!$acc exit data delete(u,v,tss,he)
+!$acc exit data delete(tss,he)
 
 !$acc exit data copyout(xtg,dustwd,so2wd,so4wd, &
 !$acc bcwd,ocwd,saltwd,tr,precc,timeconv, &
@@ -648,10 +648,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc update self(ppfevap,ppfmelt,ppfprec,ppfsnow, &
 !$acc ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav, &
 !$acc qlrad,qfrad,qccon,stratcloud,nettend,qgrg,qrg,qsng, &
-!$acc gfrac,sfrac,rfrac)
+!$acc gfrac,sfrac,rfrac,t,qg)
 
-!$acc exit data delete(land,kbsav,ktsav,ps,pblh,em,dpsldt)
-!$acc exit data copyout(qg,qlg,qfg,t,precip,condc,condx,conds,condg,cfrac)
+!$acc exit data delete(land,kbsav,ktsav,pblh,em,dpsldt)
+!$acc exit data copyout(qlg,qfg,precip,condc,condx,conds,condg,cfrac)
 
   ! RADIATION -------------------------------------------------------------
   call START_LOG(radnet_begin)
