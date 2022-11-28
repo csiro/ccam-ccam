@@ -42,7 +42,7 @@ real, dimension(:,:), allocatable, save :: sfrac,gfrac
 real, dimension(:,:), allocatable, save :: stratcloud
 real, dimension(:,:), allocatable, save :: nettend
 
-!$acc declare create(rfrac,sfrac,gfrac,stratcloud,nettend)
+!$acc declare create(rfrac,sfrac,gfrac,stratcloud,nettend,cfrac)
 
 contains
 

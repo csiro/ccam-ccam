@@ -29,6 +29,8 @@ public vvel_init,vvel_end
 
 real, dimension(:,:), allocatable, save :: sdot,dpsldt
 
+!$acc declare create(dpsldt)
+
 contains
 
 subroutine vvel_init(ifull,kl)

@@ -37,7 +37,7 @@
       real, dimension(:), allocatable, save ::  alfin
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
-!$acc declare create(upin,downex,detrarr)
+!$acc declare create(upin,downex,detrarr,timeconv,alfin,entrainn)
 
       contains
 
