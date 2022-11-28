@@ -558,15 +558,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
 !$acc update device(xtosav,xtg)
   
-!$acc enter data create(bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
-!$acc dpsldt,cfrac,alfin,pblh,fg,wetfac,land,entrainn, &
+!$acc enter data create(timeconv, &
+!$acc dpsldt,cfrac,alfin,pblh,fg,wetfac,entrainn, &
 !$acc em,sgsave, &
 !$acc convpsav,cape,condc,condx,conds,condg)
   
 !$acc update device(u,v,t,tss,he) async(1)
 !$acc update device(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd, &
 !$acc bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
-!$acc dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,land,entrainn, &
+!$acc dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,entrainn, &
 !$acc em,sgsave, &
 !$acc convpsav,cape,condc,condx,conds,condg) async(2)
 
@@ -620,8 +620,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$acc update device(qfg,qlg,qg,t)
   call END_LOG(convection_end)
 
-!$acc update self(xtg,dustwd,so2wd,so4wd)
-!$acc exit data copyout(bcwd,ocwd,saltwd,tr,precc,timeconv, &
+!$acc update self(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd,tr,precc)
+!$acc exit data copyout(precc,timeconv, &
 !$acc convpsav,cape)
 
 !$acc exit data delete(alfin,fg,wetfac,entrainn,sgsave)
@@ -644,10 +644,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc update self(ppfevap,ppfmelt,ppfprec,ppfsnow, &
 !$acc ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav, &
 !$acc qlrad,qfrad,qccon,stratcloud,nettend,qgrg,qrg,qsng, &
-!$acc gfrac,sfrac,rfrac,t,qg,qlg,qfg)
+!$acc gfrac,sfrac,rfrac,t,qg,qlg,qfg,kbsav,ktsav,precip)
 
-!$acc exit data delete(land,kbsav,ktsav,pblh,em,dpsldt)
-!$acc exit data copyout(precip,condc,condx,conds,condg,cfrac)
+!$acc exit data delete(pblh,em,dpsldt)
+!$acc exit data copyout(condc,condx,conds,condg,cfrac)
 
   ! RADIATION -------------------------------------------------------------
   call START_LOG(radnet_begin)

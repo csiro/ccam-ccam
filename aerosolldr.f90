@@ -80,7 +80,7 @@ real, dimension(:), allocatable, save :: so2_burden         ! Diagnostic - so2 b
 real, dimension(:), allocatable, save :: so4_burden         ! Diagnostic - so4 burden
 real, dimension(:), allocatable, save :: salt_burden        ! Diagnostic - salt burden
 
-!$acc declare create(xtg,xtosav,dustwd,so2wd,so4wd)
+!$acc declare create(xtg,xtosav,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd)
 !!$acc declare create(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
 
 ! tracers

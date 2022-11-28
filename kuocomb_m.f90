@@ -32,6 +32,8 @@ integer, dimension(:), allocatable, target, save :: kbsav, ktsav
 real, dimension(:,:), allocatable, save :: fluxtot
 real, dimension(:), allocatable, save :: convpsav
 
+!$acc declare create(kbsav,ktsav)
+
 contains
 
 subroutine kuocomb_init(ifull,kl)
