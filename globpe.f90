@@ -558,9 +558,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
 !$acc update device(xtosav,xtg)
   
-!$acc enter data create(wetfac, &
-!$acc em,sgsave,convpsav,cape)
-  
 !$acc update device(u,v,t,tss,he) async(1)
 !$acc update device(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd, &
 !$acc bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
@@ -618,10 +615,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$acc update device(qfg,qlg,qg,t)
   call END_LOG(convection_end)
 
-!$acc update self(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd,tr,precc,timeconv)
-!$acc exit data copyout(convpsav,cape)
+!$acc update self(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd,tr,precc,timeconv,convpsav,cape)
 
-!$acc exit data delete(wetfac,entrainn,sgsave)
+!$acc exit data delete(entrainn)
   
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
@@ -643,8 +639,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc qlrad,qfrad,qccon,stratcloud,nettend,qgrg,qrg,qsng, &
 !$acc gfrac,sfrac,rfrac,t,qg,qlg,qfg,kbsav,ktsav,precip,cfrac, &
 !$acc condc,condx,conds,condg)
-
-!$acc exit data delete(em)
 
   ! RADIATION -------------------------------------------------------------
   call START_LOG(radnet_begin)

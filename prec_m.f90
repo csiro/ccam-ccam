@@ -35,7 +35,7 @@ real, dimension(:), allocatable, save :: cape_d, cin_d
 real, dimension(:,:), allocatable, save :: rnd_3hr
 !real, dimension(:), allocatable, save :: evap
 
-!$acc declare create(precc,precip)
+!$acc declare create(precc,precip,cape)
 
 contains
 

@@ -34,6 +34,8 @@ real, dimension(:), allocatable, save :: theta
 real, dimension(:), allocatable, save :: vmod,dgdtg
 real, dimension(:), allocatable, save :: wetfac, zo
 
+!$acc declare create(wetfac)
+
 contains
 
 subroutine work2_init(ifull,nsib)

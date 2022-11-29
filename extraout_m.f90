@@ -40,6 +40,8 @@ real, dimension(:), allocatable, save :: swrsave,fbeamvis,fbeamnir
 real, dimension(:), allocatable, save :: sgsave, ustar
 real, dimension(:,:), allocatable, save :: u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
 
+!$acc declare create(sgsave)
+
 contains
 
 subroutine extraout_init(ifull,nextout)
