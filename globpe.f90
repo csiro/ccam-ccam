@@ -556,7 +556,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("start of physics",js,je)
   end do  
   !$omp end do nowait
-!$acc update device(xtosav)
   
 !$acc update device(u,v,t,tss,he) async(1)
 !$acc update device(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd, &
@@ -567,7 +566,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc stratcloud,qrg,qsng,qgrg) async(2)
 
 !$acc update device(qlrad,qfrad,nettend,rkmsave,rkhsave, &
-!$acc gfrac,sfrac,rfrac) async(3)
+!$acc gfrac,sfrac,rfrac,xtosav) async(3)
 
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
