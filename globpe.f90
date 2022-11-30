@@ -574,7 +574,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc wait(1)
     call gwdrag  ! <0 for split - only one now allowed
   end if
-  !$acc update self(u,v)
+!$acc update self(u,v)
   call nantest_gw
   call END_LOG(gwdrag_end)
 
@@ -601,7 +601,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     case(23,24)
       call convjlm                ! split convjlm 
   end select
-  !$acc update self(u,v,t,qg,qlg,qfg,xtg)
+!$acc update self(u,v,t,qg,qlg,qfg,xtg)
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -634,9 +634,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 !$acc update self(ppfevap,ppfmelt,ppfprec,ppfsnow, &
 !$acc ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav, &
-!$acc qlrad,qfrad,qccon,stratcloud,nettend,qgrg,qrg,qsng, &
-!$acc gfrac,sfrac,rfrac,t,qg,qlg,qfg,kbsav,ktsav,precip,cfrac, &
-!$acc condc,condx,conds,condg)
+!$acc qccon,stratcloud,nettend,kbsav,ktsav,precip,condc,condx,conds,condg)
 
   ! RADIATION -------------------------------------------------------------
   call START_LOG(radnet_begin)
