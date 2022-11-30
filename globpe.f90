@@ -566,9 +566,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc convpsav,cape,condc,condx,conds,condg,
 !$acc stratcloud,qrg,qsng,qgrg) async(2)
 
-!$acc update device(ppfevap,ppfmelt,ppfprec,ppfsnow, &
-!$acc ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav, &
-!$acc qlrad,qfrad,nettend,rkmsave,rkhsave, &
+!$acc update device(qlrad,qfrad,nettend,rkmsave,rkhsave, &
 !$acc gfrac,sfrac,rfrac) async(3)
 
   ! GWDRAG ----------------------------------------------------------------
