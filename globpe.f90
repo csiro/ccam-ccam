@@ -563,12 +563,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
 !$acc bcwd,ocwd,saltwd,tr,precc,precip,timeconv,kbsav,ktsav, &
 !$acc dpsldt,cfrac,alfin,ps,pblh,fg,wetfac,entrainn, &
 !$acc em,sgsave, &
-!$acc convpsav,cape,condc,condx,conds,condg) async(2)
+!$acc convpsav,cape,condc,condx,conds,condg,
+!$acc stratcloud,qrg,qsng,qgrg) async(2)
 
 !$acc update device(ppfevap,ppfmelt,ppfprec,ppfsnow, &
 !$acc ppfsubl,pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav, &
-!$acc qlrad,qfrad,stratcloud,nettend,rkmsave,rkhsave,qgrg, &
-!$acc gfrac,sfrac,rfrac,qrg,qsng) async(3)
+!$acc qlrad,qfrad,nettend,rkmsave,rkhsave, &
+!$acc gfrac,sfrac,rfrac) async(3)
 
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
@@ -612,13 +613,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest_conv("after convection",js,je)
   end do  
   !$omp end do nowait
-  !$acc update device(qfg,qlg,qg,t)
+  if ( qg_fix>0 )
+!$acc update device(qfg,qlg,qrg,qg,t,stratcloud,qsng,qgrg)
+  end if
   call END_LOG(convection_end)
 
 !$acc update self(xtg,fluxtot,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd,tr,precc,timeconv,convpsav,cape)
 
-!$acc exit data delete(entrainn)
-  
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
 !$acc wait(3)
