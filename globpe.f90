@@ -556,7 +556,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("start of physics",js,je)
   end do  
   !$omp end do nowait
-!$acc update device(xtosav,xtg)
+!$acc update device(xtosav)
   
 !$acc update device(u,v,t,tss,he) async(1)
 !$acc update device(qg,qlg,qfg,xtg,dustwd,so2wd,so4wd, &
@@ -615,7 +615,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$acc update device(qfg,qlg,qg,t)
   call END_LOG(convection_end)
 
-!$acc update self(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd,tr,precc,timeconv,convpsav,cape)
+!$acc update self(xtg,fluxtot,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd,tr,precc,timeconv,convpsav,cape)
 
 !$acc exit data delete(entrainn)
   

@@ -32,7 +32,7 @@ integer, dimension(:), allocatable, target, save :: kbsav, ktsav
 real, dimension(:,:), allocatable, save :: fluxtot
 real, dimension(:), allocatable, save :: convpsav
 
-!$acc declare create(kbsav,ktsav,convpsav)
+!$acc declare create(kbsav,ktsav,convpsav,fluxtot)
 
 contains
 
