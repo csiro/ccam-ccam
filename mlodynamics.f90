@@ -51,7 +51,7 @@ real, dimension(:), allocatable, save :: bu, bv, cu, cv
 integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode     = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: nxtrrho     = 1       ! Estimate rho at t+1 (0=off, 1=on)
-integer, save      :: mlojacobi   = 7       ! density gradient method (0=off, 1=non-local spline, 6,7=AC2003)
+integer, save      :: mlojacobi   = 7       ! density gradient method (0=off, 6,7=AC2003)
 integer, save      :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
 integer, save      :: mlomfix     = 2       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
@@ -127,6 +127,8 @@ do ii = 1,wlev
 end do  
 call boundsuv(eeu,eev,nrows=2)
 
+!$acc update device(eeu,eev)
+
 wtr = abs(ee-1.)<1.e-20
 
 ! Calculate staggered depth arrays
@@ -159,6 +161,8 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     end where
   end do      
 end if ! abs(nmlo)>=3.and.abs(nmlo)<=9
+
+!$acc update device(stwgt)
 
 ! vertical levels (using sigma notation)
 allocate(gosig(1:ifull+iextra,wlev),gosigh(1:ifull,wlev),godsig(1:ifull+iextra,wlev))
@@ -707,7 +711,7 @@ do mspec_mlo = mspeca_mlo,1,-1
                 water_u=uau,water_v=uav)
 
 
-  ! Calculate depature points
+  ! Calculate depature points for horizontal advection
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
 #ifdef GPU
@@ -736,13 +740,14 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Horizontal advection for T, S and continuity
   do ii = 1,wlev
-    ! MJT notes - only advect salinity for salt water
+    ! MJT notes - only advect salinity for salt water (filter out fresh water points for advection)
     workdata2(1:ifull,ii) = ns(1:ifull,ii)
     ns(1:ifull,ii) = ns(1:ifull,ii) - 34.72
   end do
   cou(1:ifull,1:wlev,1) = nt(1:ifull,1:wlev)
   cou(1:ifull,1:wlev,2) = mps(1:ifull,1:wlev)
-  call mlob2ints_bs(cou(:,:,1:2),nface,xg,yg,wtr,.false.)
+  call mlob2ints_bs(cou(:,:,1),nface,xg,yg,wtr,.false.)
+  call mlob2ints_bs(cou(:,:,2),nface,xg,yg,wtr,.false.)
   call mlob2ints_bs(ns,nface,xg,yg,wtr,.true.)
   do ii = 1,wlev
     nt(1:ifull,ii) = max( cou(1:ifull,ii,1), -wrtemp )
@@ -814,11 +819,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! ocean
   odum = eeu(1:ifull,1)/(1.+((1.+ocneps)*0.5*dt*fu(1:ifull))**2)
   do ii = 1,wlev
-    ccu(1:ifull,ii) = ttau(:,ii)*odum ! staggered
+    ccu(1:ifull,ii) = ttau(:,ii)*odum*eeu(1:ifull,ii) ! staggered
   end do
   odum = eev(1:ifull,1)/(1.+((1.+ocneps)*0.5*dt*fv(1:ifull))**2)
   do ii = 1,wlev
-    ccv(1:ifull,ii) = ttav(:,ii)*odum ! staggered
+    ccv(1:ifull,ii) = ttav(:,ii)*odum*eev(1:ifull,ii) ! staggered
   end do
   ! ice
   ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
@@ -1016,10 +1021,10 @@ do mspec_mlo = mspeca_mlo,1,-1
     tev(iq) = 0.5*( neta(ie(iq)) + neta(ine(iq)) )
     twv(iq) = 0.5*( neta(iw(iq)) + neta(inw(iq)) )
   end do  
-  detadxu = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
+  detadxu = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds*eeu(1:ifull,1)
   detadyu = 0.5*stwgt(1:ifull,1)*(tnu-tsu)*emu(1:ifull)/ds
   detadxv = 0.5*stwgt(1:ifull,1)*(tev-twv)*emv(1:ifull)/ds
-  detadyv = (neta(in)-neta(1:ifull))*emv(1:ifull)/ds 
+  detadyv = (neta(in)-neta(1:ifull))*emv(1:ifull)/ds*eev(1:ifull,1) 
   oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))*eeu(1:ifull,1)
   oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))*eev(1:ifull,1)
   do ii = 1,wlev
@@ -1098,6 +1103,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   nit(1:ifull,4) = data_c(1:ifull,8)*em(1:ifull)**2/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
 
   ! populate grid points that have no sea ice
+  nit(1:ifull,:) = min( nit(1:ifull,:), 399. )
   where ( nfracice(1:ifull)<1.E-4 .or. ndic(1:ifull)<1.E-4 )
     nfracice(1:ifull) = 0.
     ndic(1:ifull) = 0.
@@ -1309,7 +1315,14 @@ w_s = ns(1:ifull,:)
 call mlocheck("end of mlodynamics",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v, &
               ice_tsurf=nit(1:ifull,1),ice_u=niu(1:ifull),ice_v=niv(1:ifull))
 
-call mlodiffusion_work(w_u,w_v,w_t,w_s)
+if ( mlodiff>=0 .and. mlodiff<=9 ) then
+  call mlodiffusion_work(w_u,w_v,w_t,w_s)
+else if ( mlodiff>=10 .and. mlodiff<=19 ) then
+  call mlo_biharmonicdiff_work(w_u,w_v,w_t,w_s)
+else
+  write(6,*) "ERROR: Unknown mlodiff option ",mlodiff
+  call ccmpi_abort(-1)
+end if
 
 call mlocheck("after diffusion",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v)
 
@@ -1437,8 +1450,6 @@ if ( mlojacobi==0 ) then !off
   end do
 else
   select case( mlojacobi )
-    case(1,2) ! non-local - spline  
-      call seekdelta(na,dnadxu,dnadyu,dnadxv,dnadyv)
     case(6,7) ! z* - 2nd order
       call zstar2(na,dnadxu,dnadyu,dnadxv,dnadyv)  
     case default
@@ -1492,271 +1503,9 @@ end if
 return
 end subroutine tsjacobi
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate gradients using an interpolation method - spline
-
-subroutine seekdelta(rho,drhodxu,drhodyu,drhodxv,drhodyv)
-
-use indices_m
-use map_m
-use mlo, only : wlev
-use mlodynamicsarrays_m
-use newmpar_m
-use parm_m
-
-implicit none
-
-integer ii, jj, iq
-real, dimension(ifull,wlev) :: ddux,ddvy
-real, dimension(ifull,wlev) :: ddi,dde,ddw,ddn,dds,dden,ddes,ddne,ddnw
-real, dimension(ifull,wlev) :: ramp_a,ramp_c
-real, dimension(ifull+iextra,wlev) :: dd_i
-real, dimension(ifull,wlev,2) :: ri,re,rw,rn,rs,ren,res,rne,rnw
-real, dimension(ifull,wlev,2) :: ssi,sse,ssw,ssn,sss,ssen,sses,ssne,ssnw
-real, dimension(ifull,wlev,2) :: y2i,y2e,y2w,y2n,y2s,y2en,y2es,y2ne,y2nw
-real, dimension(ifull+iextra,wlev,2) :: y2_i
-real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
-real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
-
-! Here we calculate the slow contribution of the pressure gradient
-
-! dP/dx = g rhobar dneta/dx + g sigma D drhobar/dx + g sigma neta drhobar/dx
-!                   (fast)               (slow)          (mixed)
-
-! rhobar = int_0^sigma rho dsigma / sigma
-
-! MJT notes - this version fades out extrapolated gradients using ramp_a, etc.
-!
-! Idealy, we want to separate the neta contribution to drhobar/dx so that it
-! can be included in the implicit solution to neta.
-
-
-do ii = 1,wlev
-  dd_i(:,ii) = gosig(:,ii)*dd(:)
-  ddux(:,ii) = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))*ddu(1:ifull)
-  ddvy(:,ii) = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))*ddv(1:ifull)
-end do
-call mlospline(dd_i,rho,y2_i) ! cubic spline
-
-do jj = 1,2
-  do ii = 1,wlev
-    ssi(:,ii,jj)=rho(1:ifull,ii,jj)
-    ssn(:,ii,jj)=rho(in,ii,jj)
-    sse(:,ii,jj)=rho(ie,ii,jj)
-    y2i(:,ii,jj)=y2_i(1:ifull,ii,jj)
-    y2n(:,ii,jj)=y2_i(in,ii,jj)
-    y2e(:,ii,jj)=y2_i(ie,ii,jj)
-  end do
-end do  
-do ii = 1,wlev
-  ddi(:,ii)  =dd_i(1:ifull,ii)
-  ddn(:,ii)  =dd_i(in,ii)
-  dde(:,ii)  =dd_i(ie,ii)
-end do  
-
-do jj = 1,2
-  do ii = 1,wlev
-    do iq = 1,ifull  
-      sss(iq,ii,jj) =rho(is(iq),ii,jj)
-      ssen(iq,ii,jj)=rho(ien(iq),ii,jj)
-      sses(iq,ii,jj)=rho(ies(iq),ii,jj)
-      y2s(iq,ii,jj) =y2_i(is(iq),ii,jj)
-      y2en(iq,ii,jj)=y2_i(ien(iq),ii,jj)
-      y2es(iq,ii,jj)=y2_i(ies(iq),ii,jj)
-    end do  
-  end do
-end do  
-do ii = 1,wlev
-  do iq = 1,ifull
-    dds(iq,ii)   =dd_i(is(iq),ii)
-    dden(iq,ii)  =dd_i(ien(iq),ii)
-    ddes(iq,ii)  =dd_i(ies(iq),ii)
-  end do  
-end do  
-
-! process staggered u locations
-ramp_a(:,:) = 1.
-call seekval(ri,ssi,ddi,ddux,y2i,ramp_a)
-call seekval(re,sse,dde,ddux,y2e,ramp_a)
-do jj = 1,2
-  do ii = 1,wlev
-    drhodxu(:,ii,jj) = ramp_a(:,ii)*(re(:,ii,jj)-ri(:,ii,jj))*eeu(1:ifull,ii)*emu(1:ifull)/ds
-  end do
-end do
-ramp_c(:,:) = 1.
-call seekval(rn, ssn, ddn, ddux,y2n, ramp_c)
-call seekval(ren,ssen,dden,ddux,y2en,ramp_c)
-call seekval(rs, sss, dds, ddux,y2s, ramp_c)
-call seekval(res,sses,ddes,ddux,y2es,ramp_c)
-do jj = 1,2
-  do ii = 1,wlev
-    drhodyu(:,ii,jj) = ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,ii)*(rn(:,ii,jj)+ren(:,ii,jj) &
-                      -rs(:,ii,jj)-res(:,ii,jj))*emu(1:ifull)/ds)
-  end do
-end do
-
-do jj = 1,2
-  do ii = 1,wlev
-    do iq = 1,ifull  
-      ssw(iq,ii,jj) =rho(iw(iq),ii,jj)
-      ssne(iq,ii,jj)=rho(ine(iq),ii,jj)
-      ssnw(iq,ii,jj)=rho(inw(iq),ii,jj)
-      y2w(iq,ii,jj) =y2_i(iw(iq),ii,jj)
-      y2ne(iq,ii,jj)=y2_i(ine(iq),ii,jj)
-      y2nw(iq,ii,jj)=y2_i(inw(iq),ii,jj)
-    end do
-  end do
-end do 
-do ii = 1,wlev
-  do iq = 1,ifull  
-    ddw(iq,ii) =dd_i(iw(iq),ii)
-    ddne(iq,ii)=dd_i(ine(iq),ii)
-    ddnw(iq,ii)=dd_i(inw(iq),ii)
-  end do
-end do  
-
-! now process staggered v locations
-ramp_a(:,:) = 1.
-call seekval(ri,ssi,ddi,ddvy,y2i,ramp_a)
-call seekval(rn,ssn,ddn,ddvy,y2n,ramp_a)
-do jj = 1,2
-  do ii =1,wlev
-    drhodyv(:,ii,jj) = ramp_a(:,ii)*(rn(:,ii,jj)-ri(:,ii,jj))*eev(1:ifull,ii)*emv(1:ifull)/ds
-  end do
-end do
-ramp_c(:,:) = 1.
-call seekval(re, sse, dde, ddvy,y2e, ramp_c)
-call seekval(rne,ssne,ddne,ddvy,y2ne,ramp_c)
-call seekval(rw, ssw, ddw, ddvy,y2w, ramp_c)
-call seekval(rnw,ssnw,ddnw,ddvy,y2nw,ramp_c)
-do jj = 1,2
-  do ii = 1,wlev
-    drhodxv(:,ii,jj) = ramp_a(:,ii)*ramp_c(:,ii)*(0.25*stwgt(1:ifull,ii)*(re(:,ii,jj)+rne(:,ii,jj)   &
-                        -rw(:,ii,jj)-rnw(:,ii,jj))*emv(1:ifull)/ds)
-  end do
-end do
-
-return
-end subroutine seekdelta
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Interpolate to common depths - spline
-
-pure subroutine seekval(rout,ssin,ddin,ddseek,y2,ramp)
-
-use cc_mpi
-use mlo, only : wlev
-use newmpar_m
-
-implicit none
-
-integer iq, ii, jj, ii_min, ii_max
-integer, dimension(1) :: pos
-integer, dimension(ifull,wlev) :: sindx
-real, dimension(ifull,wlev), intent(in) :: ddseek
-real, dimension(ifull,wlev), intent(in) :: ddin
-real, dimension(ifull,wlev), intent(inout) :: ramp
-real, dimension(ifull,wlev,2), intent(in) :: ssin, y2
-real, dimension(ifull,wlev,2), intent(out) :: rout
-real, dimension(ifull,2) :: ssunpack1, ssunpack0, y2unpack1, y2unpack0
-real, dimension(ifull) :: ddunpack1, ddunpack0
-real, dimension(ifull) :: h, a, b, tempa, tempb, temph
-real, parameter :: dzramp = 0.01 ! extrapolation limit
-
-sindx(:,:) = wlev
-do iq = 1,ifull
-  ii = 2
-  do jj = 1,wlev
-    if ( ddseek(iq,jj)<ddin(iq,wlev-1) .and. ii<wlev ) then
-      pos = minloc( ddin(iq,ii:wlev-1), ddseek(iq,jj)<ddin(iq,ii:wlev-1) )
-      sindx(iq,jj) = pos(1) + ii - 1
-      ii = sindx(iq,jj)
-    else
-      exit
-    end if
-  end do
-end do
-  
-do  jj = 1,wlev
-  ! MJT notes - This calculation is slow
-  ii_min = minval( sindx(:,jj) )
-  ii_max = maxval( sindx(:,jj) )
-  do ii = ii_min,ii_max
-    where ( ii==sindx(:,jj) )
-      ddunpack1(:) = ddin(:,ii)
-      ddunpack0(:) = ddin(:,ii-1)
-      ssunpack1(:,1) = ssin(:,ii,1)
-      ssunpack1(:,2) = ssin(:,ii,2)
-      ssunpack0(:,1) = ssin(:,ii-1,1)
-      ssunpack0(:,2) = ssin(:,ii-1,2)
-      y2unpack1(:,1) = y2(:,ii,1)
-      y2unpack1(:,2) = y2(:,ii,2)
-      y2unpack0(:,1) = y2(:,ii-1,1)    
-      y2unpack0(:,2) = y2(:,ii-1,2)    
-    end where
-  end do
-
-  h(:) = max(ddunpack1(:)-ddunpack0(:), 1.e-8)
-  a(:) = (ddunpack1(:)-ddseek(:,jj))/h(:)
-  b(:) = 1. - a(:)
-  temph(:) = h(:)**2/6.
-  tempa(:) = (a(:)**3-a(:))*temph(:)
-  tempb(:) = (b(:)**3-b(:))*temph(:)
-  
-  rout(:,jj,1) = a(:)*ssunpack0(:,1)+b(:)*ssunpack1(:,1)            & ! linear interpolation
-                 +tempa(:)*y2unpack0(:,1)+tempb(:)*y2unpack1(:,1)     ! cubic spline terms
-  rout(:,jj,2) = a(:)*ssunpack0(:,2)+b(:)*ssunpack1(:,2)            & ! linear interpolation
-                 +tempa(:)*y2unpack0(:,2)+tempb(:)*y2unpack1(:,2)     ! cubic spline terms
-
-  ! fade out extrapolation
-  ramp(:,jj) = ramp(:,jj)*min(max((a(:)+dzramp)/dzramp,0.),1.)*min(max((b(:)+dzramp)/dzramp,0.),1.)
-end do
-
-return
-end subroutine seekval
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate coeff for cubic spline
-
-pure subroutine mlospline(x,y,y2)
-
-use mlo, only : wlev
-use newmpar_m
-
-implicit none
-
-integer ii, jj
-real, dimension(ifull+iextra,wlev), intent(in) :: x
-real, dimension(ifull+iextra,wlev,2), intent(in) :: y
-real, dimension(ifull+iextra,wlev,2), intent(out) :: y2
-real, dimension(ifull+iextra,wlev) :: u
-real, dimension(ifull+iextra,wlev) :: sig
-real, dimension(ifull+iextra) :: p
-
-do ii = 2,wlev-1
-  sig(:,ii) = (x(:,ii)-x(:,ii-1))/max(x(:,ii+1)-x(:,ii-1), 1.e-8)
-end do
-
-do jj = 1,2
-  y2(:,1,jj) = 0.
-  u(:,1) = 0.
-  do ii = 2,wlev-1
-    p(:) = sig(:,ii)*y2(:,ii-1,jj) + 2.
-    y2(:,ii,jj) = (sig(:,ii)-1.)/p(:)
-    u(:,ii) = (6.*((y(:,ii+1,jj)-y(:,ii,jj))/max(x(:,ii+1)-x(:,ii),1.e-8)-(y(:,ii,jj)-y(:,ii-1,jj)) &
-             /max(x(:,ii)-x(:,ii-1),1.e-8))/max(x(:,ii+1)-x(:,ii-1),1.e-8)-sig(:,ii)*u(:,ii-1))/p(:)
-  end do
-  y2(:,wlev,jj) = 0.    
-  do ii = wlev-1,1,-1
-    y2(:,ii,jj) = y2(:,ii,jj)*y2(:,ii+1,jj) + u(:,ii)
-  end do
-end do
-
-return
-end subroutine mlospline
-
 subroutine zstar2(rho,drhodxu,drhodyu,drhodxv,drhodyv)
 
+use cc_acc, only : async_length
 use indices_m
 use map_m
 use mlo, only : wlev
@@ -1767,6 +1516,7 @@ use parm_m
 implicit none
 
 integer ii, jj, iq
+integer async_counter
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
 real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
@@ -1777,8 +1527,15 @@ real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 ! rhobar = int_0^sigma rho dsigma / sigma
 
+#ifndef GPU
 !$omp parallel do collapse(2) schedule(static) private(jj,ii,iq)
+#endif
 do jj = 1,2
+#ifdef GPU
+  async_counter = mod(jj-1,async_length)
+  !$acc parallel loop collapse(2) copyin(rho(:,:,jj)) copyout(drhodxu(:,:,jj),drhodyu(:,:,jj),drhodyv(:,:,jj),drhodxv(:,:,jj)) &
+  !$acc   present(ie,in,is,iw,ien,ies,ine,inw,stwgt,emu,emv,eeu,eev) async(async_counter)
+#endif
   do ii = 1,wlev
     do iq = 1,ifull
       ! process staggered u locations  
@@ -1791,8 +1548,15 @@ do jj = 1,2
                                                      +rho(ine(iq),ii,jj)-rho(inw(iq),ii,jj))
     end do
   end do
+#ifdef GPU
+  !$acc end parallel loop
+#endif
 end do
+#ifndef GPU
 !$omp end parallel do
+#else
+!$acc wait
+#endif
 
 return
 end subroutine zstar2
@@ -2061,6 +1825,9 @@ ff = (1.+ocneps)*0.5*dt*f(1:ifull)
 ddddx(1:ifull) = (ddu(1:ifull)/emu(1:ifull)-ddu(iwu)/emu(iwu))*em(1:ifull)**2/ds
 ddddy(1:ifull) = (ddv(1:ifull)/emv(1:ifull)-ddv(isv)/emv(isv))*em(1:ifull)**2/ds
 
+ddddx(1:ifull) = ddddx(1:ifull)*ee(1:ifull,1)
+ddddy(1:ifull) = ddddy(1:ifull)*ee(1:ifull,1)
+
 !sum nu dz = sou + snu*etau + grav*bu*detadxu + grav*ff*bu*detadyu
 !sum nv dz = sov + snv*etav + grav*bv*detadyv - grav*ff*bv*detadxv
 
@@ -2095,6 +1862,9 @@ odiv_n = (sou(1:ifull)/emu(1:ifull)-sou(iwu)/emu(iwu)  &
          +sov(1:ifull)/emv(1:ifull)-sov(isv)/emv(isv)) &
          *em(1:ifull)**2/ds
 
+odiv_d = odiv_d*ee(1:ifull,1)
+odiv_n = odiv_n*ee(1:ifull,1)
+
 ! yy*neta*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + zz*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + hh*neta = rhs
 
 yyn(:) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb(in)/ds-0.5*bb4v(1:ifull)/emv(1:ifull)+0.5*snv(1:ifull)/emv(1:ifull))
@@ -2104,6 +1874,12 @@ yyw(:) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb(iw)/ds+0.5*bb3u(iwu)/emu(
 yy(:)  = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(-4.*bb(1:ifull)/ds                                               &
          -0.5*bb4v(1:ifull)/emv(1:ifull)+0.5*snv(1:ifull)/emv(1:ifull)+0.5*bb4v(isv)/emv(isv)-0.5*snv(isv)/emv(isv)  &
          -0.5*bb3u(1:ifull)/emu(1:ifull)+0.5*snu(1:ifull)/emu(1:ifull)+0.5*bb3u(iwu)/emu(iwu)-0.5*snu(iwu)/emu(iwu))
+
+yyn(:) = yyn(:)*eev(1:ifull,1)
+yys(:) = yys(:)*eev(isv,1)
+yye(:) = yye(:)*eeu(1:ifull,1)
+yyw(:) = yyw(:)*eeu(iwu,1)
+yy(:) = yy(:)*ee(1:ifull,1)
 
 zzn(:,1) = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(bb(in)*dd(1:ifull)/ds-0.5*bb4v(1:ifull)*dd(1:ifull)/emv(1:ifull) &
           +0.5*bb(1:ifull)*ddddy/emv(1:ifull)+0.5*bb(1:ifull)*ff*ddddx/emv(1:ifull)                                    &
@@ -2127,9 +1903,16 @@ zz(:,1)  = (1.+ocneps)*0.5*dt*grav*em(1:ifull)**2/ds*(-4.*bb(1:ifull)*dd(1:ifull
           +0.5*snv(1:ifull)*ddv(1:ifull)/emu(1:ifull)-0.5*snv(isv)*ddv(isv)/emv(isv)      &
           +0.5*snu(1:ifull)*ddu(1:ifull)/emv(1:ifull)-0.5*snu(iwu)*ddu(iwu)/emu(iwu))
 
+zzn(:,1) = zzn(:,1)*eev(1:ifull,1)
+zzs(:,1) = zzs(:,1)*eev(isv,1)
+zze(:,1) = zze(:,1)*eeu(1:ifull,1)
+zzw(:,1) = zzw(:,1)*eeu(iwu,1)
+zz(:,1) = zz(:,1)*ee(1:ifull,1)
+
 hh(:) = 1. + (1.+ocneps)*0.5*dt*odiv_n
 
 rhs(:,1) = xps(1:ifull) - (1.+ocneps)*0.5*dt*odiv_d
+rhs(:,1) = rhs(:,1)*ee(1:ifull,1)
 
 
 ! ice
@@ -2142,7 +1925,15 @@ zzw(:,2) = -ibb(iw)/ds - 0.5*ibb3u(iwu)/emu(iwu)
 zz(:,2)  = 4.*ibb(1:ifull)/ds                                        &
          + 0.5*ibb4v(1:ifull)/emv(1:ifull) - 0.5*ibb4v(isv)/emv(isv) &
          + 0.5*ibb3u(1:ifull)/emu(1:ifull) - 0.5*ibb3u(iwu)/emu(iwu)
+
+zzn(:,2) = zzn(:,2)*eev(1:ifull,1)
+zzs(:,2) = zzs(:,2)*eev(isv,1)
+zze(:,2) = zze(:,2)*eeu(1:ifull,1)
+zzw(:,2) = zzw(:,2)*eeu(iwu,1)
+zz(:,2) = zz(:,2)*ee(1:ifull,1)
+
 rhs(:,2) = min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu)+niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
+rhs(:,2) = rhs(:,2)*ee(1:ifull,1)
 
 ! Ensure that zero is a valid solution for ice free grid points
 where ( zz(:,2)>=0. )

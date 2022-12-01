@@ -356,6 +356,8 @@ if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*)'ratha ',ratha
   write(6,*)'rathb ',rathb
 end if
+
+!$acc update device(ratha,rathb)
    
 c = grav/stdlapse
 if ( lapsbot==1 ) then

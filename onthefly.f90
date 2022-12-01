@@ -743,7 +743,7 @@ if ( newfile ) then
           landlake_a = land_a
         end if
       end if
-    end if    
+    end if
   end if
   
   ! read soilt
@@ -1143,15 +1143,15 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     ! ocean salinity
     if ( (nested/=1.or.nud_sss/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
-        call fillhist4o('so',mlodwn(:,:,2),landlake_3d,fill_floorlake,ocndwn(:,1))  
+        call fillhist4o('so',mlodwn(:,:,2),land_3d,fill_floorlake,ocndwn(:,1))  
       else    
-        call fillhist4o('sal',mlodwn(:,:,2),landlake_3d,fill_floorlake,ocndwn(:,1))
+        call fillhist4o('sal',mlodwn(:,:,2),land_3d,fill_floorlake,ocndwn(:,1))
       end if  
-      do k = 1,wlev
-        where ( isoilm_in == -1 )
-          mlodwn(1:ifull,k,2) = 0. ! freshwater lakes
-        end where
-      end do  
+      !do k = 1,wlev
+      !  where ( isoilm_in == -1 )
+      !    mlodwn(1:ifull,k,2) = 0. ! freshwater lakes
+      !  end where
+      !end do  
       mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
     end if ! (nestesd/=1.or.nud_sss/=0) ..else..
     ! ocean currents

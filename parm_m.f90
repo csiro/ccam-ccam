@@ -43,7 +43,7 @@ public rlongdn, rlongdx, rlatdn, rlatdx, ds, dt, dtin, panfg, panzo
 public bpyear, helim, fc2, sigbot_gwd, alphaj, divdamp
 public sigramplow, sigramphigh, amxlsq, dvmodmin, siburbanfrac, cqmix
 public intsch_mode
-public diag, localhist, unlimitedhist, synchist, amipo3
+public diag, synchist, amipo3
 public save_aerosols, save_pbl, save_cloud, save_land, save_maxmin
 public save_ocean, save_radiation, save_urban, save_carbon, save_river
 public diaglevel_aerosols, diaglevel_pbl, diaglevel_cloud, diaglevel_land, diaglevel_maxmin
@@ -87,7 +87,7 @@ real, save :: sigramplow=0., sigramphigh=0., amxlsq=100., dvmodmin=1., siburbanf
 real, save :: ensemble_rsfactor=0.1
 real, save :: siglow=0.68, sigmid=0.44
 real, save :: wgcoeff=-1., wg_tau=3., wg_prob=0.5
-logical, save :: diag=.false., localhist=.false., unlimitedhist=.true., synchist=.false., amipo3=.false.
+logical, save :: diag=.false., synchist=.false., amipo3=.false.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.

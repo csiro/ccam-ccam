@@ -26,10 +26,6 @@
 ! itype=-1, iout=21  write ensemble file (uncompressed)
 ! hp_output=0        compressed history file
 ! hp_output=1        uncompressed history file
-! localhist=f        single file output 
-! localhist=t        parallel output for a group of processors (e.g., for a node)
-! unlimitedhist=f    fixed length time dimension (faster)
-! unlimitedhist=t    use unlimited record dimension for time
 
 ! Thanks to Paul Ryan for optimising netcdf routines.
     
@@ -233,15 +229,13 @@ character(len=*), intent(in) :: cdffile_in
 character(len=1024) cdffile
 character(len=33) grdtim
 
-! localhist=.true. indicates that the output will be written in parallel.
-
 ! local=.true. indicates that procformat mode is active where one 'node' captian will
 ! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
 ! they cannot be split across physical nodes.
 
 ! local=.true. if this process needs to write to a file
 
-local = localhist .and. vnode_myid==0
+local = vnode_myid==0
 
 ! File setup follows
 if ( itype==1 ) then  
@@ -297,18 +291,14 @@ if ( myid==0 .or. local ) then
          call ccnf_def_dim(idnc,'gprocessor',nproc,gpdim)
        end if
     end if
-    if ( unlimitedhist ) then
-      call ccnf_def_dimu(idnc,'time',tdim)
+    if ( itype==-1 ) then
+      tlen = 1 ! restart/ensemble
+    else if ( mod(ntau,nwt)==0 ) then
+      tlen = ntau/nwt + 1  ! nwt is a factor of ntau
     else
-      if ( itype==-1 ) then
-        tlen = 1 ! restart/ensemble
-      else if ( mod(ntau,nwt)==0 ) then
-        tlen = ntau/nwt + 1  ! nwt is a factor of ntau
-      else
-        tlen = ntau/nwt + 2  ! nwt is not a factor of ntau
-      end if
-      call ccnf_def_dim(idnc,'time',tlen,tdim)
+      tlen = ntau/nwt + 2  ! nwt is not a factor of ntau
     end if
+    call ccnf_def_dim(idnc,'time',tlen,tdim)
 
     ! Create additional dimensions for CABLE
     cpdim = 0
@@ -1019,7 +1009,6 @@ integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
 integer idum, cptype
-integer asize, osize, jsize, ksize, dproc, d4
 integer ifrac
 integer, dimension(2) :: csize
 integer, dimension(6), intent(in) :: idc
@@ -1082,26 +1071,12 @@ end if
 ! dimj is for 3-D (2 dimensions+time)
 ! dimk is for 2-D (2 dimension without time)
 ! dimc is for cable POP npatch (3 dimensions+time)
-if ( localhist ) then
-  dimj(1:2) = dima(1:2)
-  dimj(3:4) = dima(4:5)
-  dimk(1:2) = dima(1:2)
-  dimk(3)   = dima(4)
-  dproc = 4
-  d4 = 5
-else
-  dimj(1:2) = dima(1:2)
-  dimj(3)   = dima(4)
-  dimk(1:2) = dima(1:2)
-  dproc = -1
-  d4 = 4
-end if
-asize = d4
-osize = d4
-jsize = d4 - 1
-ksize = d4 - 2
-csize(1) = d4
-csize(2) = d4 + 1
+dimj(1:2) = dima(1:2)
+dimj(3:4) = dima(4:5)
+dimk(1:2) = dima(1:2)
+dimk(3)   = dima(4)
+csize(1) = 5
+csize(2) = 5 + 1
 
 
 if( myid==0 .or. local ) then
@@ -1133,27 +1108,27 @@ if( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'sigma',sig)
 
     lname = 'year-month-day at start of run'
-    call ccnf_def_var(idnc,'kdate','int',1,dima(d4:d4),idkdate)
+    call ccnf_def_var(idnc,'kdate','int',1,dima(5:5),idkdate)
     call ccnf_put_att(idnc,idkdate,'long_name',lname)
 
     lname = 'hour-minute at start of run'
-    call ccnf_def_var(idnc,'ktime','int',1,dima(d4:d4),idktime)
+    call ccnf_def_var(idnc,'ktime','int',1,dima(5:5),idktime)
     call ccnf_put_att(idnc,idktime,'long_name',lname)
 
     lname = 'timer (hrs)'
-    call ccnf_def_var(idnc,'timer','float',1,dima(d4:d4),idnter)
+    call ccnf_def_var(idnc,'timer','float',1,dima(5:5),idnter)
     call ccnf_put_att(idnc,idnter,'long_name',lname)
 
     lname = 'mtimer (mins)'
-    call ccnf_def_var(idnc,'mtimer','int',1,dima(d4:d4),idmtimer)
+    call ccnf_def_var(idnc,'mtimer','int',1,dima(5:5),idmtimer)
     call ccnf_put_att(idnc,idmtimer,'long_name',lname)
 
     lname = 'timeg (UTC)'
-    call ccnf_def_var(idnc,'timeg','float',1,dima(d4:d4),idnteg)
+    call ccnf_def_var(idnc,'timeg','float',1,dima(5:5),idnteg)
     call ccnf_put_att(idnc,idnteg,'long_name',lname)
 
     lname = 'number of time steps from start'
-    call ccnf_def_var(idnc,'ktau','int',1,dima(d4:d4),idktau)
+    call ccnf_def_var(idnc,'ktau','int',1,dima(5:5),idktau)
     call ccnf_put_att(idnc,idktau,'long_name',lname)
 
     lname = 'down'
@@ -1161,20 +1136,20 @@ if( myid==0 .or. local ) then
     call ccnf_put_att(idnc,idv,'positive',lname)
 
     lname = 'atm stag direction'
-    call ccnf_def_var(idnc,'nstag','int',1,dima(d4:d4),idv)
+    call ccnf_def_var(idnc,'nstag','int',1,dima(5:5),idv)
     call ccnf_put_att(idnc,idv,'long_name',lname)
 
     lname = 'atm unstag direction'
-    call ccnf_def_var(idnc,'nstagu','int',1,dima(d4:d4),idv)
+    call ccnf_def_var(idnc,'nstagu','int',1,dima(5:5),idv)
     call ccnf_put_att(idnc,idv,'long_name',lname)
 
     lname = 'atm stag offset'
-    call ccnf_def_var(idnc,'nstagoff','int',1,dima(d4:d4),idv)
+    call ccnf_def_var(idnc,'nstagoff','int',1,dima(5:5),idv)
     call ccnf_put_att(idnc,idv,'long_name',lname)
 
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'ocn stag offset'
-      call ccnf_def_var(idnc,'nstagoffmlo','int',1,dima(d4:d4),idv)
+      call ccnf_def_var(idnc,'nstagoffmlo','int',1,dima(5:5),idv)
       call ccnf_put_att(idnc,idv,'long_name',lname)     
     end if
 
@@ -1182,438 +1157,438 @@ if( myid==0 .or. local ) then
 
     ! For time invariant surface fields
     lname = 'Surface geopotential'
-    call attrib(idnc,dimk,ksize,'zht',lname,'m2 s-2',-1000.,90.e3,0,-1)
+    call attrib(idnc,dimk,3,'zht',lname,'m2 s-2',-1000.,90.e3,0,-1)
     lname = 'Std Dev of surface height'
-    call attrib(idnc,dimk,ksize,'he',lname,'m',0.,90.e3,0,-1)
+    call attrib(idnc,dimk,3,'he',lname,'m',0.,90.e3,0,-1)
     lname = 'Map factor'
-    call attrib(idnc,dimk,ksize,'map',lname,'none',.001,1500.,0,cptype)
+    call attrib(idnc,dimk,3,'map',lname,'none',.001,1500.,0,cptype)
     lname = 'Coriolis factor'
-    call attrib(idnc,dimk,ksize,'cor',lname,'s-1',-1.5e-4,1.5e-4,0,cptype)
+    call attrib(idnc,dimk,3,'cor',lname,'s-1',-1.5e-4,1.5e-4,0,cptype)
     if ( save_urban ) then
       lname = 'Urban fraction'
-      call attrib(idnc,dimk,ksize,'sigmu',lname,'none',0.,3.25,0,cptype)
+      call attrib(idnc,dimk,3,'sigmu',lname,'none',0.,3.25,0,cptype)
       lname = 'Urban type'
-      call attrib(idnc,dimk,ksize,'urbant',lname,'none',0.,650.,0,cptype)
+      call attrib(idnc,dimk,3,'urbant',lname,'none',0.,650.,0,cptype)
     end if
     lname = 'Soil type'
-    call attrib(idnc,dimk,ksize,'soilt',lname,'none',-650.,650.,0,cptype)
+    call attrib(idnc,dimk,3,'soilt',lname,'none',-650.,650.,0,cptype)
     if ( save_land ) then
       lname = 'Vegetation type'
-      call attrib(idnc,dimk,ksize,'vegt',lname,'none',0.,650.,0,cptype)
+      call attrib(idnc,dimk,3,'vegt',lname,'none',0.,650.,0,cptype)
       lname = 'Capacity of Soil to Store Water'
-      call attrib(idnc,dimk,ksize,'mrsofc',lname,'kg m-2',0.,6500.,0,cptype)
+      call attrib(idnc,dimk,3,'mrsofc',lname,'kg m-2',0.,6500.,0,cptype)
     end if
 
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'Water bathymetry'
-      call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,32500.,0,cptype)
+      call attrib(idnc,dimk,3,'ocndepth',lname,'m',0.,32500.,0,cptype)
     end if
     lname = 'x-component river '
-    call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
+    call attrib(idnc,dimk,3,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
     lname = 'y-component river '
-    call attrib(idnc,dimk,ksize,'vriver',lname,'m s-1',-6.5,6.5,0,cptype)
+    call attrib(idnc,dimk,3,'vriver',lname,'m s-1',-6.5,6.5,0,cptype)
 
 !   For time varying surface fields
     if ( save_land ) then
       if ( nsib==6 .or. nsib==7 ) then
         lname = 'Stomatal resistance'
-        call attrib(idnc,dimj,jsize,'rs',lname,'none',0.,1000.,0,cptype)
+        call attrib(idnc,dimj,4,'rs',lname,'none',0.,1000.,0,cptype)
       else
         lname = 'Minimum stomatal resistance'
-        call attrib(idnc,dimk,ksize,'rsmin',lname,'none',0.,1000.,0,cptype)
+        call attrib(idnc,dimk,3,'rsmin',lname,'none',0.,1000.,0,cptype)
       end if
       lname = 'Vegetation fraction'
-      call attrib(idnc,dimj,jsize,'sigmf',lname,'none',0.,3.25,0,cptype)
+      call attrib(idnc,dimj,4,'sigmf',lname,'none',0.,3.25,0,cptype)
     end if
     lname ='Scaled Log Surface pressure'
-    call attrib(idnc,dimj,jsize,'psf',lname,'none',-1.4,0.5,0,cptype)
+    call attrib(idnc,dimj,4,'psf',lname,'none',-1.4,0.5,0,cptype)
     lname ='Sea Level Pressure'
-    call attrib(idnc,dimj,jsize,'pmsl',lname,'hPa',800.,1200.,0,cptype)
+    call attrib(idnc,dimj,4,'pmsl',lname,'hPa',800.,1200.,0,cptype)
     if ( save_land .or. save_ocean ) then
       lname = 'Surface roughness'
-      call attrib(idnc,dimj,jsize,'zolnd',lname,'m',0.,65.,0,-1) ! -1=long
+      call attrib(idnc,dimj,4,'zolnd',lname,'m',0.,65.,0,-1) ! -1=long
     end if
     if ( save_land ) then
       lname = 'Leaf area index'
-      call attrib(idnc,dimj,jsize,'lai',lname,'none',0.,32.5,0,cptype)
+      call attrib(idnc,dimj,4,'lai',lname,'none',0.,32.5,0,cptype)
     end if
     lname = 'Surface Temperature'
-    call attrib(idnc,dimj,jsize,'tsu',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tsu',lname,'K',100.,425.,0,cptype)
     lname = 'Pan temperature'
-    call attrib(idnc,dimj,jsize,'tpan',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tpan',lname,'K',100.,425.,0,cptype)
     lname = 'Precipitation'
-    call attrib(idnc,dimj,jsize,'rnd',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
+    call attrib(idnc,dimj,4,'rnd',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
     lname = 'Convective Precipitation'
-    call attrib(idnc,dimj,jsize,'rnc',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
+    call attrib(idnc,dimj,4,'rnc',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
     lname = 'Snowfall Flux'
-    call attrib(idnc,dimj,jsize,'sno',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
+    call attrib(idnc,dimj,4,'sno',lname,'mm day-1',0.,1300.,0,-1)  ! -1=long
     lname = 'Graupelfall'
-    call attrib(idnc,dimj,jsize,'grpl',lname,'mm day-1',0.,1300.,0,-1) ! -1=long   
+    call attrib(idnc,dimj,4,'grpl',lname,'mm day-1',0.,1300.,0,-1) ! -1=long   
     if ( save_land ) then
       lname = 'Runoff' ! mrro after post-processing with pcc2hist
-      call attrib(idnc,dimj,jsize,'runoff',lname,'mm day-1',0.,1300.,0,-1) ! -1=long
+      call attrib(idnc,dimj,4,'runoff',lname,'mm day-1',0.,1300.,0,-1) ! -1=long
       lname = 'Surface Runoff'
-      call attrib(idnc,dimj,jsize,'mrros',lname,'mm day-1',0.,1300.,0,-1) ! -1=long
+      call attrib(idnc,dimj,4,'mrros',lname,'mm day-1',0.,1300.,0,-1) ! -1=long
       lname = 'Evaporation'
-      call attrib(idnc,dimj,jsize,'evspsbl',lname,'mm day-1',-1300.,1300.,0,-1)  ! -1 = long
+      call attrib(idnc,dimj,4,'evspsbl',lname,'mm day-1',-1300.,1300.,0,-1)  ! -1 = long
       lname = 'Sublimation'
-      call attrib(idnc,dimj,jsize,'sbl',lname,'mm day-1',-1300.,1300.,0,-1)  ! -1 = long
+      call attrib(idnc,dimj,4,'sbl',lname,'mm day-1',-1300.,1300.,0,-1)  ! -1 = long
     end if
     if ( save_land .or. save_ocean ) then
       lname = 'Surface albedo'
-      call attrib(idnc,dimj,jsize,'alb',lname,'none',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'alb',lname,'none',0.,1.,0,cptype)
     end if
     if ( save_land .and. diaglevel_land>5 ) then
       lname = 'Fraction of canopy that is wet'
-      call attrib(idnc,dimj,jsize,'fwet',lname,'none',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'fwet',lname,'none',0.,1.,0,cptype)
     end if
 
     lname = 'Snow Depth' ! liquid water
-    call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
+    call attrib(idnc,dimj,4,'snd',lname,'mm',0.,6500.,0,-1)  ! -1=long
     lname = 'Soil temperature lev 1'
-    call attrib(idnc,dimj,jsize,'tgg1',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tgg1',lname,'K',100.,425.,0,cptype)
     lname = 'Soil temperature lev 2'
-    call attrib(idnc,dimj,jsize,'tgg2',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tgg2',lname,'K',100.,425.,0,cptype)
     lname = 'Soil temperature lev 3'
-    call attrib(idnc,dimj,jsize,'tgg3',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tgg3',lname,'K',100.,425.,0,cptype)
     lname = 'Soil temperature lev 4'
-    call attrib(idnc,dimj,jsize,'tgg4',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tgg4',lname,'K',100.,425.,0,cptype)
     lname = 'Soil temperature lev 5'
-    call attrib(idnc,dimj,jsize,'tgg5',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tgg5',lname,'K',100.,425.,0,cptype)
     lname = 'Soil temperature lev 6'
-    call attrib(idnc,dimj,jsize,'tgg6',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tgg6',lname,'K',100.,425.,0,cptype)
  
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'water surface height'
-      call attrib(idnc,dimj,jsize,'ocheight',lname,'m',-130.,130.,0,cptype)  
+      call attrib(idnc,dimj,4,'ocheight',lname,'m',-130.,130.,0,cptype)  
       if ( itype==-1 ) then
         lname = 'Snow/Sea-ice temperature lev 1'
-        call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,'tggsn1',lname,'K',100.,425.,0,cptype)
         lname = 'Snow/Sea-ice temperature lev 2'
-        call attrib(idnc,dimj,jsize,'tggsn2',lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,'tggsn2',lname,'K',100.,425.,0,cptype)
         lname = 'Snow/Sea-ice temperature lev 3'
-        call attrib(idnc,dimj,jsize,'tggsn3',lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,'tggsn3',lname,'K',100.,425.,0,cptype)
         lname = 'Sea-ice temperature lev 4'
-        call attrib(idnc,dimj,jsize,'tggsn4',lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,'tggsn4',lname,'K',100.,425.,0,cptype)
         lname = 'Sea-ice heat store'
-        call attrib(idnc,dimj,jsize,'sto',lname,'J m-2',0.,1.3e10,0,cptype)
+        call attrib(idnc,dimj,4,'sto',lname,'J m-2',0.,1.3e10,0,cptype)
         lname = 'x-component sea-ice velocity'
-        call attrib(idnc,dimj,jsize,'uic',lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimj,4,'uic',lname,'m s-1',-65.,65.,0,cptype)
         lname = 'y-component sea-ice velocity'
-        call attrib(idnc,dimj,jsize,'vic',lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimj,4,'vic',lname,'m s-1',-65.,65.,0,cptype)
       end if
     end if
     
     lname = 'River water depth'
-    call attrib(idnc,dimj,jsize,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
+    call attrib(idnc,dimj,4,'swater',lname,'mm',0.,6.5E3,0,-1) ! -1 = long
     lname = 'River discharge'
-    call attrib(idnc,dimj,jsize,'sdischarge',lname,'m3 s-1',0.,6.5E3,0,-1) ! -1 = long
+    call attrib(idnc,dimj,4,'sdischarge',lname,'m3 s-1',0.,6.5E3,0,-1) ! -1 = long
 
     if ( itype==-1 ) then
       lname = 'Soil moisture 1'
-      call attrib(idnc,dimj,jsize,'wb1',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb1',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil moisture 2'
-      call attrib(idnc,dimj,jsize,'wb2',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb2',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil moisture 3'
-      call attrib(idnc,dimj,jsize,'wb3',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb3',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil moisture 4'
-      call attrib(idnc,dimj,jsize,'wb4',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb4',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil moisture 5'
-      call attrib(idnc,dimj,jsize,'wb5',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb5',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil moisture 6'
-      call attrib(idnc,dimj,jsize,'wb6',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb6',lname,'m3 m-3',0.,1.,0,cptype)
     else
       lname = 'Wetness fraction layer 1' ! 5. for frozen sand
-      call attrib(idnc,dimj,jsize,'wetfrac1',lname,'none',-6.5,6.5,0,cptype)
+      call attrib(idnc,dimj,4,'wetfrac1',lname,'none',-6.5,6.5,0,cptype)
       lname = 'Wetness fraction layer 2'
-      call attrib(idnc,dimj,jsize,'wetfrac2',lname,'none',-6.5,6.5,0,cptype)
+      call attrib(idnc,dimj,4,'wetfrac2',lname,'none',-6.5,6.5,0,cptype)
       lname = 'Wetness fraction layer 3'
-      call attrib(idnc,dimj,jsize,'wetfrac3',lname,'none',-6.5,6.5,0,cptype)
+      call attrib(idnc,dimj,4,'wetfrac3',lname,'none',-6.5,6.5,0,cptype)
       lname = 'Wetness fraction layer 4'
-      call attrib(idnc,dimj,jsize,'wetfrac4',lname,'none',-6.5,6.5,0,cptype)
+      call attrib(idnc,dimj,4,'wetfrac4',lname,'none',-6.5,6.5,0,cptype)
       lname = 'Wetness fraction layer 5'
-      call attrib(idnc,dimj,jsize,'wetfrac5',lname,'none',-6.5,6.5,0,cptype)
+      call attrib(idnc,dimj,4,'wetfrac5',lname,'none',-6.5,6.5,0,cptype)
       lname = 'Wetness fraction layer 6'
-      call attrib(idnc,dimj,jsize,'wetfrac6',lname,'none',-6.5,6.5,0,cptype)
+      call attrib(idnc,dimj,4,'wetfrac6',lname,'none',-6.5,6.5,0,cptype)
     end if
      
     ! Add wetfac to output for mbase=-19 option
     if ( save_land ) then
       lname = 'Surface wetness fraction'
-      call attrib(idnc,dimj,jsize,'wetfac',lname,'none',-6.5,6.5,0,cptype)
+      call attrib(idnc,dimj,4,'wetfac',lname,'none',-6.5,6.5,0,cptype)
     end if
 
     lname = 'Sea ice depth'
-    call attrib(idnc,dimj,jsize,'siced',lname,'m',0.,65.,0,-1)
+    call attrib(idnc,dimj,4,'siced',lname,'m',0.,65.,0,-1)
     lname = 'Sea ice fraction'
-    call attrib(idnc,dimj,jsize,'fracice',lname,'none',0.,1.,0,cptype)
+    call attrib(idnc,dimj,4,'fracice',lname,'none',0.,1.,0,cptype)
     lname = 'Near-Surface Wind Speed'
-    call attrib(idnc,dimj,jsize,'u10',lname,'m s-1',0.,130.,0,cptype)
+    call attrib(idnc,dimj,4,'u10',lname,'m s-1',0.,130.,0,cptype)
     if ( save_cloud ) then
       lname = 'Maximum CAPE'
-      call attrib(idnc,dimj,jsize,'cape_max',lname,'J kg-1',0.,20000.,0,cptype)
+      call attrib(idnc,dimj,4,'cape_max',lname,'J kg-1',0.,20000.,0,cptype)
       lname = 'Average CAPE'
-      call attrib(idnc,dimj,jsize,'cape_ave',lname,'J kg-1',0.,20000.,0,cptype)    
+      call attrib(idnc,dimj,4,'cape_ave',lname,'J kg-1',0.,20000.,0,cptype)    
     end if
     
     ! daily output (1=daily)
     if ( itype/=-1 .and. save_maxmin ) then
       lname = 'Maximum precip rate in a timestep'
-      call attrib(idnc,dimj,jsize,'maxrnd',lname,'mm day-1',0.,2600.,1,-1) ! -1=long
+      call attrib(idnc,dimj,4,'maxrnd',lname,'mm day-1',0.,2600.,1,-1) ! -1=long
       lname = 'Daily Maximum Hourly Precipitation Rate'
-      call attrib(idnc,dimj,jsize,'prhmax',lname,'kg m-2 s-1',0.,2600.,1,-1) ! -1=long
+      call attrib(idnc,dimj,4,'prhmax',lname,'kg m-2 s-1',0.,2600.,1,-1) ! -1=long
       lname = 'Daily Maximum Near-Surface Air Temperature'
-      call attrib(idnc,dimj,jsize,'tmaxscr',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'tmaxscr',lname,'K',100.,425.,1,cptype)
       lname = 'Daily Minimum Near-Surface Air Temperature'
-      call attrib(idnc,dimj,jsize,'tminscr',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'tminscr',lname,'K',100.,425.,1,cptype)
       lname = 'Maximum screen relative humidity'
-      call attrib(idnc,dimj,jsize,'rhmaxscr',lname,'%',0.,200.,1,cptype)
+      call attrib(idnc,dimj,4,'rhmaxscr',lname,'%',0.,200.,1,cptype)
       lname = 'Minimum screen relative humidity'
-      call attrib(idnc,dimj,jsize,'rhminscr',lname,'%',0.,200.,1,cptype)
+      call attrib(idnc,dimj,4,'rhminscr',lname,'%',0.,200.,1,cptype)
       lname = 'x-component max 10m wind (daily)'
-      call attrib(idnc,dimj,jsize,'u10max',lname,'m s-1',-99.,99.,1,cptype)
+      call attrib(idnc,dimj,4,'u10max',lname,'m s-1',-99.,99.,1,cptype)
       lname = 'y-component max 10m wind (daily)'
-      call attrib(idnc,dimj,jsize,'v10max',lname,'m s-1',-99.,99.,1,cptype)
+      call attrib(idnc,dimj,4,'v10max',lname,'m s-1',-99.,99.,1,cptype)
       lname = 'x-component max level_1 wind'
-      call attrib(idnc,dimj,jsize,'u1max',lname,'m s-1',-99.,99.,1,cptype)
+      call attrib(idnc,dimj,4,'u1max',lname,'m s-1',-99.,99.,1,cptype)
       lname = 'y-component max level_1 wind'
-      call attrib(idnc,dimj,jsize,'v1max',lname,'m s-1',-99.,99.,1,cptype)
+      call attrib(idnc,dimj,4,'v1max',lname,'m s-1',-99.,99.,1,cptype)
       lname = 'x-component max level_2 wind'
-      call attrib(idnc,dimj,jsize,'u2max',lname,'m s-1',-99.,99.,1,cptype)
+      call attrib(idnc,dimj,4,'u2max',lname,'m s-1',-99.,99.,1,cptype)
       lname = 'y-component max level_2 wind'
-      call attrib(idnc,dimj,jsize,'v2max',lname,'m s-1',-99.,99.,1,cptype)
+      call attrib(idnc,dimj,4,'v2max',lname,'m s-1',-99.,99.,1,cptype)
       if ( l3hr ) then
         lname = '3hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd03',lname,'mm',0.,1300.,1,cptype)
+        call attrib(idnc,dimj,4,'rnd03',lname,'mm',0.,1300.,1,cptype)
         lname = '6hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd06',lname,'mm',0.,1300.,1,cptype)
+        call attrib(idnc,dimj,4,'rnd06',lname,'mm',0.,1300.,1,cptype)
         lname = '9hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd09',lname,'mm',0.,1300.,1,cptype)
+        call attrib(idnc,dimj,4,'rnd09',lname,'mm',0.,1300.,1,cptype)
         lname = '12hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd12',lname,'mm',0.,1300.,1,cptype)
+        call attrib(idnc,dimj,4,'rnd12',lname,'mm',0.,1300.,1,cptype)
         lname = '15hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd15',lname,'mm',0.,1300.,1,cptype)
+        call attrib(idnc,dimj,4,'rnd15',lname,'mm',0.,1300.,1,cptype)
         lname = '18hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd18',lname,'mm',0.,1300.,1,cptype)
+        call attrib(idnc,dimj,4,'rnd18',lname,'mm',0.,1300.,1,cptype)
         lname = '21hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd21',lname,'mm',0.,1300.,1,cptype)
+        call attrib(idnc,dimj,4,'rnd21',lname,'mm',0.,1300.,1,cptype)
       end if
       lname = '24hr precipitation'
-      call attrib(idnc,dimj,jsize,'rnd24',lname,'mm',0.,1300.,1,cptype)
+      call attrib(idnc,dimj,4,'rnd24',lname,'mm',0.,1300.,1,cptype)
       if ( nextout>=2 .and. l3hr ) then  ! 6-hourly u10, v10, tscr, rh1
         mnam ='x-component 10m wind '
         nnam ='y-component 10m wind '
-        call attrib(idnc,dimj,jsize,'u10_06',mnam//'6hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'v10_06',nnam//'6hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'u10_12',mnam//'12hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'v10_12',nnam//'12hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'u10_18',mnam//'18hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'v10_18',nnam//'18hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'u10_24',mnam//'24hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'v10_24',nnam//'24hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'u10_06',mnam//'6hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'v10_06',nnam//'6hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'u10_12',mnam//'12hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'v10_12',nnam//'12hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'u10_18',mnam//'18hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'v10_18',nnam//'18hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'u10_24',mnam//'24hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'v10_24',nnam//'24hr','m s-1',-99.,99.,1,cptype)
         mnam ='tscrn 3-hrly'
         nnam ='rhum level_1 3-hrly'
-        call attrib(idnc,dimj,jsize,'tscr_06',mnam//'6hr', 'K',100.,425.,1,cptype)
-        call attrib(idnc,dimj,jsize,'tscr_12',mnam//'12hr','K',100.,425.,1,cptype)
-        call attrib(idnc,dimj,jsize,'tscr_18',mnam//'18hr','K',100.,425.,1,cptype)
-        call attrib(idnc,dimj,jsize,'tscr_24',mnam//'24hr','K',100.,425.,1,cptype)
-        call attrib(idnc,dimj,jsize,'rh1_06', nnam//'6hr', '%',-9.,200.,1,cptype)
-        call attrib(idnc,dimj,jsize,'rh1_12', nnam//'12hr','%',-9.,200.,1,cptype)
-        call attrib(idnc,dimj,jsize,'rh1_18', nnam//'18hr','%',-9.,200.,1,cptype)
-        call attrib(idnc,dimj,jsize,'rh1_24', nnam//'24hr','%',-9.,200.,1,cptype)
+        call attrib(idnc,dimj,4,'tscr_06',mnam//'6hr', 'K',100.,425.,1,cptype)
+        call attrib(idnc,dimj,4,'tscr_12',mnam//'12hr','K',100.,425.,1,cptype)
+        call attrib(idnc,dimj,4,'tscr_18',mnam//'18hr','K',100.,425.,1,cptype)
+        call attrib(idnc,dimj,4,'tscr_24',mnam//'24hr','K',100.,425.,1,cptype)
+        call attrib(idnc,dimj,4,'rh1_06', nnam//'6hr', '%',-9.,200.,1,cptype)
+        call attrib(idnc,dimj,4,'rh1_12', nnam//'12hr','%',-9.,200.,1,cptype)
+        call attrib(idnc,dimj,4,'rh1_18', nnam//'18hr','%',-9.,200.,1,cptype)
+        call attrib(idnc,dimj,4,'rh1_24', nnam//'24hr','%',-9.,200.,1,cptype)
       endif     ! (nextout>=2)
       if ( nextout>=3 .and. l3hr ) then  ! also 3-hourly u10, v10, tscr, rh1
-        call attrib(idnc,dimj,jsize,'tscr_03',mnam//'3hr', 'K',100.,425.,1,cptype)
-        call attrib(idnc,dimj,jsize,'tscr_09',mnam//'9hr', 'K',100.,425.,1,cptype)
-        call attrib(idnc,dimj,jsize,'tscr_15',mnam//'15hr','K',100.,425.,1,cptype)
-        call attrib(idnc,dimj,jsize,'tscr_21',mnam//'21hr','K',100.,425.,1,cptype)
-        call attrib(idnc,dimj,jsize,'rh1_03', nnam//'3hr', '%',-9.,200.,1,cptype)
-        call attrib(idnc,dimj,jsize,'rh1_09', nnam//'9hr', '%',-9.,200.,1,cptype)
-        call attrib(idnc,dimj,jsize,'rh1_15', nnam//'15hr','%',-9.,200.,1,cptype)
-        call attrib(idnc,dimj,jsize,'rh1_21', nnam//'21hr','%',-9.,200.,1,cptype)
+        call attrib(idnc,dimj,4,'tscr_03',mnam//'3hr', 'K',100.,425.,1,cptype)
+        call attrib(idnc,dimj,4,'tscr_09',mnam//'9hr', 'K',100.,425.,1,cptype)
+        call attrib(idnc,dimj,4,'tscr_15',mnam//'15hr','K',100.,425.,1,cptype)
+        call attrib(idnc,dimj,4,'tscr_21',mnam//'21hr','K',100.,425.,1,cptype)
+        call attrib(idnc,dimj,4,'rh1_03', nnam//'3hr', '%',-9.,200.,1,cptype)
+        call attrib(idnc,dimj,4,'rh1_09', nnam//'9hr', '%',-9.,200.,1,cptype)
+        call attrib(idnc,dimj,4,'rh1_15', nnam//'15hr','%',-9.,200.,1,cptype)
+        call attrib(idnc,dimj,4,'rh1_21', nnam//'21hr','%',-9.,200.,1,cptype)
         mnam ='x-component 10m wind '
         nnam ='y-component 10m wind '
-        call attrib(idnc,dimj,jsize,'u10_03',mnam//'3hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'v10_03',nnam//'3hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'u10_09',mnam//'9hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'v10_09',nnam//'9hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'u10_15',mnam//'15hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'v10_15',nnam//'15hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'u10_21',mnam//'21hr','m s-1',-99.,99.,1,cptype)
-        call attrib(idnc,dimj,jsize,'v10_21',nnam//'21hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'u10_03',mnam//'3hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'v10_03',nnam//'3hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'u10_09',mnam//'9hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'v10_09',nnam//'9hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'u10_15',mnam//'15hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'v10_15',nnam//'15hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'u10_21',mnam//'21hr','m s-1',-99.,99.,1,cptype)
+        call attrib(idnc,dimj,4,'v10_21',nnam//'21hr','m s-1',-99.,99.,1,cptype)
       endif     ! (nextout>=3)
     end if
     lname = 'Average screen temperature'
-    call attrib(idnc,dimj,jsize,'tscr_ave',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tscr_ave',lname,'K',100.,425.,0,cptype)
     lname = 'Average screen relative humidity'
-    call attrib(idnc,dimj,jsize,'rhscr_ave',lname,'%',0.,200.,0,cptype)
+    call attrib(idnc,dimj,4,'rhscr_ave',lname,'%',0.,200.,0,cptype)
     if ( save_cloud .or. itype==-1 ) then
       lname = 'Avg cloud base'
-      call attrib(idnc,dimj,jsize,'cbas_ave',lname,'sigma',0.,1.1,0,cptype)
+      call attrib(idnc,dimj,4,'cbas_ave',lname,'sigma',0.,1.1,0,cptype)
       lname = 'Avg cloud top'
-      call attrib(idnc,dimj,jsize,'ctop_ave',lname,'sigma',0.,1.1,0,cptype)
+      call attrib(idnc,dimj,4,'ctop_ave',lname,'sigma',0.,1.1,0,cptype)
     end if
     if ( itype/=-1 ) then  
       if ( save_land .or. save_ocean ) then
         lname = 'Avg dew flux'
-        call attrib(idnc,dimj,jsize,'dew_ave',lname,'W m-2',-100.,1000.,0,cptype)
+        call attrib(idnc,dimj,4,'dew_ave',lname,'W m-2',-100.,1000.,0,cptype)
         !lname = 'Avg evaporation (liquid)'
-        !call attrib(idnc,dimj,jsize,'evap',lname,'mm',-100.,100.,0,-1)         ! -1 = long
+        !call attrib(idnc,dimj,4,'evap',lname,'mm',-100.,100.,0,-1)         ! -1 = long
         lname = 'Avg potential "pan" evaporation'
-        call attrib(idnc,dimj,jsize,'epan_ave',lname,'W m-2',-1000.,10.e3,0,cptype)
+        call attrib(idnc,dimj,4,'epan_ave',lname,'W m-2',-1000.,10.e3,0,cptype)
         lname = 'Avg potential evaporation'
-        call attrib(idnc,dimj,jsize,'epot_ave',lname,'W m-2',-1000.,10.e3,0,cptype)
+        call attrib(idnc,dimj,4,'epot_ave',lname,'W m-2',-1000.,10.e3,0,cptype)
         lname = 'Surface Upward Latent Heat Flux'
-        call attrib(idnc,dimj,jsize,'eg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
+        call attrib(idnc,dimj,4,'eg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
         lname = 'Surface Upward Sensible Heat Flux'
-        call attrib(idnc,dimj,jsize,'fg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
+        call attrib(idnc,dimj,4,'fg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
         lname = 'Avg net radiation'
-        call attrib(idnc,dimj,jsize,'rnet_ave',lname,'none',-3000.,3000.,0,-1) ! -1 = long
+        call attrib(idnc,dimj,4,'rnet_ave',lname,'none',-3000.,3000.,0,-1) ! -1 = long
         lname = 'Avg flux into tgg1 layer'
-        call attrib(idnc,dimj,jsize,'ga_ave',lname,'W m-2',-1000.,1000.,0,-1)   ! -1 = long
+        call attrib(idnc,dimj,4,'ga_ave',lname,'W m-2',-1000.,1000.,0,-1)   ! -1 = long
       end if
       if ( save_radiation ) then
         lname = 'Avg ice water path'
-        call attrib(idnc,dimj,jsize,'iwp_ave',lname,'kg m-2',0.,6.,0,cptype)
+        call attrib(idnc,dimj,4,'iwp_ave',lname,'kg m-2',0.,6.,0,cptype)
         lname = 'Avg liquid water path'
-        call attrib(idnc,dimj,jsize,'lwp_ave',lname,'kg m-2',0.,6.,0,cptype)
+        call attrib(idnc,dimj,4,'lwp_ave',lname,'kg m-2',0.,6.,0,cptype)
       end if
     end if
     if ( save_cloud ) then
       lname = 'Low Level Cloud Fraction'
-      call attrib(idnc,dimj,jsize,'cll',lname,'frac',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'cll',lname,'frac',0.,1.,0,cptype)
       lname = 'Mid Level Cloud Fraction'
-      call attrib(idnc,dimj,jsize,'clm',lname,'frac',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'clm',lname,'frac',0.,1.,0,cptype)
       lname = 'High Level Cloud Fraction'
-      call attrib(idnc,dimj,jsize,'clh',lname,'frac',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'clh',lname,'frac',0.,1.,0,cptype)
       lname = 'Total Cloud Fraction'
-      call attrib(idnc,dimj,jsize,'cld',lname,'frac',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'cld',lname,'frac',0.,1.,0,cptype)
     end if
     if ( save_land .or. itype==-1 ) then
       lname = 'Avg soil moisture 1'
-      call attrib(idnc,dimj,jsize,'wb1_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb1_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil moisture 2'
-      call attrib(idnc,dimj,jsize,'wb2_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb2_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil moisture 3'
-      call attrib(idnc,dimj,jsize,'wb3_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb3_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil moisture 4'
-      call attrib(idnc,dimj,jsize,'wb4_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb4_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil moisture 5'
-      call attrib(idnc,dimj,jsize,'wb5_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb5_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil moisture 6'
-      call attrib(idnc,dimj,jsize,'wb6_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wb6_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil ice 1'
-      call attrib(idnc,dimj,jsize,'wbice1_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice1_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil ice 2'
-      call attrib(idnc,dimj,jsize,'wbice2_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice2_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil ice 3'
-      call attrib(idnc,dimj,jsize,'wbice3_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice3_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil ice 4'
-      call attrib(idnc,dimj,jsize,'wbice4_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice4_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil ice 5'
-      call attrib(idnc,dimj,jsize,'wbice5_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice5_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Avg soil ice 6'
-      call attrib(idnc,dimj,jsize,'wbice6_ave',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice6_ave',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Snow melt'
-      call attrib(idnc,dimj,jsize,'snm',lname,'mm day-1',0.,1300.,0,-1) ! -1 = long
+      call attrib(idnc,dimj,4,'snm',lname,'mm day-1',0.,1300.,0,-1) ! -1 = long
     end if
     if ( itype/=-1 ) then  
       if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
         lname = 'Mixed layer depth'
-        call attrib(idnc,dimj,jsize,'mixdepth',lname,'m',0.,1300.,0,cptype)
+        call attrib(idnc,dimj,4,'mixdepth',lname,'m',0.,1300.,0,cptype)
       end if
     end if
     lname = 'Near-Surface Air Temperature'
-    call attrib(idnc,dimj,jsize,'tscrn',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dimj,4,'tscrn',lname,'K',100.,425.,0,cptype)
     lname = 'Screen mixing ratio'
-    call attrib(idnc,dimj,jsize,'qgscrn',lname,'kg kg-1',0.,.06,0,cptype)
+    call attrib(idnc,dimj,4,'qgscrn',lname,'kg kg-1',0.,.06,0,cptype)
     if ( itype/=-1 ) then
       lname = 'Near-Surface Relative Humidity'
-      call attrib(idnc,dimj,jsize,'rhscrn',lname,'%',0.,200.,0,cptype)
+      call attrib(idnc,dimj,4,'rhscrn',lname,'%',0.,200.,0,cptype)
       lname = 'Screen level wind speed'
-      call attrib(idnc,dimj,jsize,'uscrn',lname,'m s-1',0.,65.,0,cptype)
+      call attrib(idnc,dimj,4,'uscrn',lname,'m s-1',0.,65.,0,cptype)
     end if  
     if ( itype/=-1 ) then
       if ( save_radiation ) then
         lname = 'Net radiation'
-        call attrib(idnc,dimj,jsize,'rnet',lname,'W m-2',-3000.,3000.,0,cptype)
+        call attrib(idnc,dimj,4,'rnet',lname,'W m-2',-3000.,3000.,0,cptype)
       end if
       if ( save_land .or. save_ocean ) then
         lname = 'Potential "pan" evaporation'
-        call attrib(idnc,dimj,jsize,'epan',lname,'W m-2',-1000.,10.e3,0,cptype)
+        call attrib(idnc,dimj,4,'epan',lname,'W m-2',-1000.,10.e3,0,cptype)
       end if
     end if
     if ( save_land .or. save_ocean .or. itype==-1 ) then
       lname = 'Latent heat flux'
-      call attrib(idnc,dimj,jsize,'eg',lname,'W m-2',-3000.,3000.,0,cptype)
+      call attrib(idnc,dimj,4,'eg',lname,'W m-2',-3000.,3000.,0,cptype)
       lname = 'Sensible heat flux'
-      call attrib(idnc,dimj,jsize,'fg',lname,'W m-2',-3000.,3000.,0,cptype)
+      call attrib(idnc,dimj,4,'fg',lname,'W m-2',-3000.,3000.,0,cptype)
       lname = 'x-component wind stress'
-      call attrib(idnc,dimj,jsize,'taux',lname,'N m-2',-50.,50.,0,cptype)
+      call attrib(idnc,dimj,4,'taux',lname,'N m-2',-50.,50.,0,cptype)
       lname = 'y-component wind stress'
-      call attrib(idnc,dimj,jsize,'tauy',lname,'N m-2',-50.,50.,0,cptype)
+      call attrib(idnc,dimj,4,'tauy',lname,'N m-2',-50.,50.,0,cptype)
     end if
     if ( itype/=-1 ) then
       if ( nextout>=1 ) then
         if ( save_radiation ) then
           lname = 'TOA Outgoing Longwave Radiation'
-          call attrib(idnc,dimj,jsize,'rtu_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'rtu_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
           lname = 'Clear sky LW at TOA'
-          call attrib(idnc,dimj,jsize,'rtc_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'rtc_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
           lname = 'Surface Downwelling Longwave Radiation'
-          call attrib(idnc,dimj,jsize,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1) ! -1 = long
           lname = 'LW net at ground (+ve up)'
-          call attrib(idnc,dimj,jsize,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
           lname = 'Clear sky LW at ground'
-          call attrib(idnc,dimj,jsize,'rgc_ave',lname,'W m-2',-500.,1000.,0,-1)  ! -1 = long
+          call attrib(idnc,dimj,4,'rgc_ave',lname,'W m-2',-500.,1000.,0,-1)  ! -1 = long
           lname = 'Clear sky downwelling LW radiation'
-          call attrib(idnc,dimj,jsize,'rgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'rgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
           lname = 'TOA Incident Shortwave Radiation'
-          call attrib(idnc,dimj,jsize,'sint_ave',lname,'W m-2',0.,1600.,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'sint_ave',lname,'W m-2',0.,1600.,0,-1) ! -1 = long
           lname = 'TOA Outgoing Shortwave Radiation'
-          call attrib(idnc,dimj,jsize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)  ! -1 = long
+          call attrib(idnc,dimj,4,'sot_ave',lname,'W m-2',0.,1000.,0,-1)  ! -1 = long
           lname = 'Clear sky SW out at TOA'
-          call attrib(idnc,dimj,jsize,'soc_ave',lname,'W m-2',0.,900.,0,-1)   ! -1 = long
+          call attrib(idnc,dimj,4,'soc_ave',lname,'W m-2',0.,900.,0,-1)   ! -1 = long
           lname = 'Surface Downwelling Shortwave Radiation'
-          call attrib(idnc,dimj,jsize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
           lname = 'Surface Direct Downwelling Shortwave Radiation'
-          call attrib(idnc,dimj,jsize,'sgdndir_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'sgdndir_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
           lname = 'Solar net at ground (+ve down)'
-          call attrib(idnc,dimj,jsize,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
           lname = 'Clear sky SW at ground (+ve down)'
-          call attrib(idnc,dimj,jsize,'sgc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'sgc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
           lname = 'Clear sky downwelling SW radiation'
-          call attrib(idnc,dimj,jsize,'sgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'sgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
           lname = 'Sunshine hours per day'
-          call attrib(idnc,dimj,jsize,'sunhours',lname,'hrs',0.,24.,1,cptype) ! daily
+          call attrib(idnc,dimj,4,'sunhours',lname,'hrs',0.,24.,1,cptype) ! daily
           lname = 'Direct normal irradiance'
-          call attrib(idnc,dimj,jsize,'dni',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'dni',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
         end if
         lname = 'Surface pressure tendency'
-        call attrib(idnc,dimj,jsize,'dpsdt',lname,'hPa day-1',-400.,400.,0,cptype)
+        call attrib(idnc,dimj,4,'dpsdt',lname,'hPa day-1',-400.,400.,0,cptype)
       endif     ! (nextout>=1)
     end if      ! itype/=-1
     if ( save_pbl .or. itype==-1 ) then
       lname = 'friction velocity'
-      call attrib(idnc,dimj,jsize,'ustar',lname,'m s-1',0.,10.,0,cptype)
+      call attrib(idnc,dimj,4,'ustar',lname,'m s-1',0.,10.,0,cptype)
       if ( rescrn>0 ) then
         lname = 'Flux temperature'
-        call attrib(idnc,dimj,jsize,'tstar',lname,'K',-65.,65.,0,cptype)   
+        call attrib(idnc,dimj,4,'tstar',lname,'K',-65.,65.,0,cptype)   
         lname = 'Flux water vapour'
-        call attrib(idnc,dimj,jsize,'qstar',lname,'kg kg-1',-0.0065,0.0065,0,cptype)  
+        call attrib(idnc,dimj,4,'qstar',lname,'kg kg-1',-0.0065,0.0065,0,cptype)  
         lname = 'Flux virtual potential temperature'
-        call attrib(idnc,dimj,jsize,'thetavstar',lname,'K',-65.,65.,0,cptype)
+        call attrib(idnc,dimj,4,'thetavstar',lname,'K',-65.,65.,0,cptype)
       end if  
     end if
     
     lname = 'Height of Boundary Layer'
-    call attrib(idnc,dimj,jsize,'pblh',lname,'m',0.,13000.,0,cptype)
+    call attrib(idnc,dimj,4,'pblh',lname,'m',0.,13000.,0,cptype)
     if ( save_pbl .and. itype==1 ) then
       if ( rescrn>0 ) then  
         lname = 'Near-Surface Wind Speed of Gust'
-        call attrib(idnc,dimj,jsize,'wsgs',lname,'m s-1',0.,350.,0,cptype)
+        call attrib(idnc,dimj,4,'wsgs',lname,'m s-1',0.,350.,0,cptype)
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
-        call attrib(idnc,dimj,jsize,'wsgsmax',lname,'m s-1',0.,350.,1,cptype)
+        call attrib(idnc,dimj,4,'wsgsmax',lname,'m s-1',0.,350.,1,cptype)
       end if  
     end if  
     
@@ -1621,91 +1596,91 @@ if( myid==0 .or. local ) then
     if ( abs(iaero)>=2 .and. nrad==5 ) then
       if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
         lname = 'Total column small dust optical depth VIS'
-        call attrib(idnc,dimj,jsize,'sdust_vis',lname,'none',0.,13.,0,cptype)
+        call attrib(idnc,dimj,4,'sdust_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column large dust optical depth VIS'
-        call attrib(idnc,dimj,jsize,'ldust_vis',lname,'none',0.,13.,0,cptype)
+        call attrib(idnc,dimj,4,'ldust_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column sulfate optical depth VIS'
-        call attrib(idnc,dimj,jsize,'so4_vis',lname,'none',0.,13.,0,cptype)
+        call attrib(idnc,dimj,4,'so4_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column aerosol optical depth VIS'
-        call attrib(idnc,dimj,jsize,'aero_vis',lname,'none',0.,13.,0,cptype)
+        call attrib(idnc,dimj,4,'aero_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column BC optical depth VIS'
-        call attrib(idnc,dimj,jsize,'bc_vis',lname,'none',0.,13.,0,cptype)
+        call attrib(idnc,dimj,4,'bc_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column OC optical depth VIS'
-        call attrib(idnc,dimj,jsize,'oc_vis',lname,'none',0.,13.,0,cptype)
+        call attrib(idnc,dimj,4,'oc_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column seasalt optical depth VIS'
-        call attrib(idnc,dimj,jsize,'ssalt_vis',lname,'none',0.,13.,0,cptype)
+        call attrib(idnc,dimj,4,'ssalt_vis',lname,'none',0.,13.,0,cptype)
         lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
-        call attrib(idnc,dimj,jsize,'od550aer',lname,'1',0.,13.,0,cptype)        
+        call attrib(idnc,dimj,4,'od550aer',lname,'1',0.,13.,0,cptype)        
       end if  
       if ( nextout>=1 .and. save_aerosols .and. itype/=-1 ) then
         do k = 1,ndust
           write(lname,'("Dust emissions bin ",I1.1)') k
           write(vname,'("dust",I1.1,"e_ave")') k
-          call attrib(idnc,dimj,jsize,vname,lname,'g m-2 yr-1',0.,13000.,0,cptype)  
+          call attrib(idnc,dimj,4,vname,lname,'g m-2 yr-1',0.,13000.,0,cptype)  
         end do
         do k = 1,ndust
           write(lname,'("Dust dry deposition bin ",I1.1)') k  
           write(vname,'("dust",I1.1,"dd_ave")') k
-          call attrib(idnc,dimj,jsize,vname,lname,'g m-2 yr-1',0.,13000.,0,cptype) 
+          call attrib(idnc,dimj,4,vname,lname,'g m-2 yr-1',0.,13000.,0,cptype) 
         end do  
         do k = 1,ndust
           write(lname,'("Dust wet deposition bin ",I1.1)') k
           write(vname,'("dust",I1.1,"wd_ave")') k
-          call attrib(idnc,dimj,jsize,vname,lname,'g m-2 yr-1',0.,13000.,0,cptype)
+          call attrib(idnc,dimj,4,vname,lname,'g m-2 yr-1',0.,13000.,0,cptype)
         end do
         do k = 1,ndust
           write(lname,'("Dust burden bin ",I1.1)') k
           write(vname,'("dust",I1.1,"b_ave")') k
-          call attrib(idnc,dimj,jsize,vname,lname,'mg m-2',0.,1300.,0,cptype)
+          call attrib(idnc,dimj,4,vname,lname,'mg m-2',0.,1300.,0,cptype)
         end do  
         lname = 'Black carbon emissions'
-        call attrib(idnc,dimj,jsize,'bce_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)  
+        call attrib(idnc,dimj,4,'bce_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)  
         lname = 'Black carbon dry deposition'
-        call attrib(idnc,dimj,jsize,'bcdd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype) 
+        call attrib(idnc,dimj,4,'bcdd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype) 
         lname = 'Black carbon wet deposition'
-        call attrib(idnc,dimj,jsize,'bcwd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)
+        call attrib(idnc,dimj,4,'bcwd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)
         lname = 'Black carbon burden'
-        call attrib(idnc,dimj,jsize,'bcb_ave',lname,'mg m-2',0.,130.,0,cptype)
+        call attrib(idnc,dimj,4,'bcb_ave',lname,'mg m-2',0.,130.,0,cptype)
         lname = 'Organic carbon emissions'
-        call attrib(idnc,dimj,jsize,'oce_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)  
+        call attrib(idnc,dimj,4,'oce_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)  
         lname = 'Organic carbon dry deposition'
-        call attrib(idnc,dimj,jsize,'ocdd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype) 
+        call attrib(idnc,dimj,4,'ocdd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype) 
         lname = 'Organic carbon wet deposition'
-        call attrib(idnc,dimj,jsize,'ocwd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)
+        call attrib(idnc,dimj,4,'ocwd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)
         lname = 'Organic carbon burden'
-        call attrib(idnc,dimj,jsize,'ocb_ave',lname,'mg m-2',0.,130.,0,cptype)
+        call attrib(idnc,dimj,4,'ocb_ave',lname,'mg m-2',0.,130.,0,cptype)
         lname = 'DMS emissions'
-        call attrib(idnc,dimj,jsize,'dmse_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype) 
+        call attrib(idnc,dimj,4,'dmse_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype) 
         lname = 'DMS to SO2 oxidation'
-        call attrib(idnc,dimj,jsize,'dmsso2_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype)
+        call attrib(idnc,dimj,4,'dmsso2_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype)
         lname = 'SO2 emissions'
-        call attrib(idnc,dimj,jsize,'so2e_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype) 
+        call attrib(idnc,dimj,4,'so2e_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype) 
         lname = 'SO2 to SO4 oxidation'
-        call attrib(idnc,dimj,jsize,'so2so4_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype)
+        call attrib(idnc,dimj,4,'so2so4_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype)
         lname = 'SO2 dry deposition'
-        call attrib(idnc,dimj,jsize,'so2dd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
+        call attrib(idnc,dimj,4,'so2dd_ave',lname,'gS/(m2 yr)',0.,390.,0,cptype)
         lname = 'SO2 wet deposition'
-        call attrib(idnc,dimj,jsize,'so2wd_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype)
+        call attrib(idnc,dimj,4,'so2wd_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype)
         lname = 'SO4 emissions'
-        call attrib(idnc,dimj,jsize,'so4e_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype)
+        call attrib(idnc,dimj,4,'so4e_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype)
         lname = 'SO4 dry deposition'
-        call attrib(idnc,dimj,jsize,'so4dd_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype) 
+        call attrib(idnc,dimj,4,'so4dd_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype) 
         lname = 'SO4 wet deposition'
-        call attrib(idnc,dimj,jsize,'so4wd_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype) 
+        call attrib(idnc,dimj,4,'so4wd_ave',lname,'gS m-2 yr-1',0.,390.,0,cptype) 
         lname = 'DMS burden'
-        call attrib(idnc,dimj,jsize,'dmsb_ave',lname,'mgS m-2',0.,13.,0,cptype) 
+        call attrib(idnc,dimj,4,'dmsb_ave',lname,'mgS m-2',0.,13.,0,cptype) 
         lname = 'SO2 burden'
-        call attrib(idnc,dimj,jsize,'so2b_ave',lname,'mgS m-2',0.,13.,0,cptype) 
+        call attrib(idnc,dimj,4,'so2b_ave',lname,'mgS m-2',0.,13.,0,cptype) 
         lname = 'SO4 burden'
-        call attrib(idnc,dimj,jsize,'so4b_ave',lname,'mgS m-2',0.,13.,0,cptype)
+        call attrib(idnc,dimj,4,'so4b_ave',lname,'mgS m-2',0.,13.,0,cptype)
         lname = 'Salt emissions'
-        call attrib(idnc,dimj,jsize,'salte_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)  
+        call attrib(idnc,dimj,4,'salte_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)  
         lname = 'Salt dry deposition'
-        call attrib(idnc,dimj,jsize,'saltdd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype) 
+        call attrib(idnc,dimj,4,'saltdd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype) 
         lname = 'Salt wet deposition'
-        call attrib(idnc,dimj,jsize,'saltwd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)
+        call attrib(idnc,dimj,4,'saltwd_ave',lname,'g m-2 yr-1',0.,390.,0,cptype)
         lname = 'Salt burden'
-        call attrib(idnc,dimj,jsize,'saltb_ave',lname,'mg m-2',0.,130.,0,cptype)        
+        call attrib(idnc,dimj,4,'saltb_ave',lname,'mg m-2',0.,130.,0,cptype)        
       end if  
     end if
 
@@ -1714,83 +1689,83 @@ if( myid==0 .or. local ) then
       if ( nextout>=1 .or. itype==-1 ) then
         if ( ccycle/=0 ) then
           lname = 'Carbon leaf pool'
-          call attrib(idnc,dimj,jsize,'cplant1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'cplant1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Nitrogen leaf pool'
-          call attrib(idnc,dimj,jsize,'nplant1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'nplant1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Phosphor leaf pool'
-          call attrib(idnc,dimj,jsize,'pplant1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'pplant1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Carbon wood pool'
-          call attrib(idnc,dimj,jsize,'cplant2',lname,'gC m-2',0.,65000.,1,cptype)
+          call attrib(idnc,dimj,4,'cplant2',lname,'gC m-2',0.,65000.,1,cptype)
           lname = 'Nitrogen wood pool'
-          call attrib(idnc,dimj,jsize,'nplant2',lname,'gC m-2',0.,65000.,1,cptype)
+          call attrib(idnc,dimj,4,'nplant2',lname,'gC m-2',0.,65000.,1,cptype)
           lname = 'Phosphor wood pool'
-          call attrib(idnc,dimj,jsize,'pplant2',lname,'gC m-2',0.,65000.,1,cptype)
+          call attrib(idnc,dimj,4,'pplant2',lname,'gC m-2',0.,65000.,1,cptype)
           lname = 'Carbon root pool'
-          call attrib(idnc,dimj,jsize,'cplant3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'cplant3',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Nitrogen root pool'
-          call attrib(idnc,dimj,jsize,'nplant3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'nplant3',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Phosphor root pool'
-          call attrib(idnc,dimj,jsize,'pplant3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'pplant3',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Carbon met pool'
-          call attrib(idnc,dimj,jsize,'clitter1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'clitter1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Nitrogen met pool'
-          call attrib(idnc,dimj,jsize,'nlitter1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'nlitter1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Phosphor met pool'
-          call attrib(idnc,dimj,jsize,'plitter1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'plitter1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Carbon str pool'
-          call attrib(idnc,dimj,jsize,'clitter2',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'clitter2',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Nitrogen str pool'
-          call attrib(idnc,dimj,jsize,'nlitter2',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'nlitter2',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Phosphor str pool'
-          call attrib(idnc,dimj,jsize,'plitter2',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'plitter2',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Carbon CWD pool'
-          call attrib(idnc,dimj,jsize,'clitter3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'clitter3',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Nitrogen CWD pool'
-          call attrib(idnc,dimj,jsize,'nlitter3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'nlitter3',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Phosphor CWD pool'
-          call attrib(idnc,dimj,jsize,'plitter3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'plitter3',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Carbon mic pool'
-          call attrib(idnc,dimj,jsize,'csoil1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'csoil1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Nitrogen mic pool'
-          call attrib(idnc,dimj,jsize,'nsoil1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'nsoil1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Phosphor mic pool'
-          call attrib(idnc,dimj,jsize,'psoil1',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'psoil1',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Carbon slow pool'
-          call attrib(idnc,dimj,jsize,'csoil2',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'csoil2',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Nitrogen slow pool'
-          call attrib(idnc,dimj,jsize,'nsoil2',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'nsoil2',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Phosphor slow pool'
-          call attrib(idnc,dimj,jsize,'psoil2',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'psoil2',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Carbon pass pool'
-          call attrib(idnc,dimj,jsize,'csoil3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'csoil3',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Nitrogen pass pool'
-          call attrib(idnc,dimj,jsize,'nsoil3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'nsoil3',lname,'gC m-2',0.,6500.,1,cptype)
           lname = 'Phosphor pass pool'
-          call attrib(idnc,dimj,jsize,'psoil3',lname,'gC m-2',0.,6500.,1,cptype)
+          call attrib(idnc,dimj,4,'psoil3',lname,'gC m-2',0.,6500.,1,cptype)
           !lname = 'Prognostic LAI'
-          !call attrib(idnc,dimj,jsize,'glai',lname,'none',0.,13.,0,cptype)
+          !call attrib(idnc,dimj,4,'glai',lname,'none',0.,13.,0,cptype)
           if ( save_carbon ) then
             lname = 'Avg Net Ecosystem Exchange'
-            call attrib(idnc,dimj,jsize,'fnee_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'fnee_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg Photosynthesis CO2 flux'
-            call attrib(idnc,dimj,jsize,'fpn_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'fpn_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg primary production of C by veg'
-            call attrib(idnc,dimj,jsize,'frday_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'frday_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg Plant respiration CO2 flux'
-            call attrib(idnc,dimj,jsize,'frp_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'frp_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg Plant wood respiration CO2 flux'
-            call attrib(idnc,dimj,jsize,'frpw_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'frpw_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg Plant root respiration CO2 flux'
-            call attrib(idnc,dimj,jsize,'frpr_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'frpr_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg Soil respiration CO2 flux'
-            call attrib(idnc,dimj,jsize,'frs_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'frs_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg Net Primary Production C by veg'
-            call attrib(idnc,dimj,jsize,'cnpp_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'cnpp_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             lname = 'Avg Net Biosphere Production'
-            call attrib(idnc,dimj,jsize,'cnbp_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
+            call attrib(idnc,dimj,4,'cnbp_ave',lname,'gC m-2 s-1',-3.25E-3,3.25E-3,0,cptype)
             if ( diaglevel_carbon > 0 ) then
               lname = 'Avg Dry Canopy Transpiration'
-              call attrib(idnc,dimj,jsize,'fevc_ave',lname,'W m-2',0.,1000.,0,cptype)
+              call attrib(idnc,dimj,4,'fevc_ave',lname,'W m-2',0.,1000.,0,cptype)
             end if
             ! GPP - Gross Primary Production C by veg (=-fpn+frday)
             ! AutoResp - Autotrophic Respiration (=frp+frday)
@@ -1799,14 +1774,14 @@ if( myid==0 .or. local ) then
             ! Plant Turnover
             if ( diaglevel_carbon > 0 ) then
               lname = 'Total Biomass Turnover'
-              call attrib(idnc,dimj,jsize,'cplant_turnover',lname,'gC m-2 s-1',0.,1.E-3,0,cptype)
+              call attrib(idnc,dimj,4,'cplant_turnover',lname,'gC m-2 s-1',0.,1.E-3,0,cptype)
             end if
             ! Plant Turnover Leaf
             ! Plant Turnover Fine Root
             ! Plant Turnover Wood
             if ( diaglevel_carbon > 0 ) then
               lname = 'Woody Biomass Turnover'
-              call attrib(idnc,dimj,jsize,'cplant2_turnover',lname,'gC m-2 s-1',0.,1.E-3,0,cptype)
+              call attrib(idnc,dimj,4,'cplant2_turnover',lname,'gC m-2 s-1',0.,1.E-3,0,cptype)
             end if
             ! Plant Turnover Wood Dist
             ! Plant Turnover Wood Crowding
@@ -1815,23 +1790,23 @@ if( myid==0 .or. local ) then
         end if
         if ( cable_climate==1 ) then
           lname = 'Climate ivegt'
-          call attrib(idnc,dimj,jsize,'climate_ivegt',lname,'none',0.,65.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_ivegt',lname,'none',0.,65.,1,cptype)
           lname = 'Climate biome'
-          call attrib(idnc,dimj,jsize,'climate_biome',lname,'none',0.,65.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_biome',lname,'none',0.,65.,1,cptype)
           lname = 'Climate average minimum annual temperature'
-          call attrib(idnc,dimj,jsize,'climate_min20',lname,'K',-130.,130.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_min20',lname,'K',-130.,130.,1,cptype)
           lname = 'Climate average maximum annual temperature'
-          call attrib(idnc,dimj,jsize,'climate_max20',lname,'K',-130.,130.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_max20',lname,'K',-130.,130.,1,cptype)
           lname = 'Climate average ratio of precip to PT evap'
-          call attrib(idnc,dimj,jsize,'climate_alpha20',lname,'none',0.,13.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_alpha20',lname,'none',0.,13.,1,cptype)
           lname = 'Climate annual growing degree days above -5C'
-          call attrib(idnc,dimj,jsize,'climate_agdd5',lname,'K',0.,13000.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_agdd5',lname,'K',0.,13000.,1,cptype)
           lname = 'Climate growing moisture days'
-          call attrib(idnc,dimj,jsize,'climate_gmd',lname,'none',0.,650.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_gmd',lname,'none',0.,650.,1,cptype)
           lname = 'Climate average minimum annual moisture'
-          call attrib(idnc,dimj,jsize,'climate_dmoist_min20',lname,'none',0.,13.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_dmoist_min20',lname,'none',0.,13.,1,cptype)
           lname = 'Climate average maximum annual moisture'
-          call attrib(idnc,dimj,jsize,'climate_dmoist_max20',lname,'none',0.,13.,1,cptype)
+          call attrib(idnc,dimj,4,'climate_dmoist_max20',lname,'none',0.,13.,1,cptype)
         end if
       end if
     end if
@@ -1839,50 +1814,50 @@ if( myid==0 .or. local ) then
     ! URBAN -----------------------------------------------------
     if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
       lname = 'Urban anthropogenic flux'
-      call attrib(idnc,dimj,jsize,'anth_ave',lname,'W m-2',0.,650.,0,cptype)
+      call attrib(idnc,dimj,4,'anth_ave',lname,'W m-2',0.,650.,0,cptype)
       lname = 'Urban electricity & gas flux'
-      call attrib(idnc,dimj,jsize,'anth_elecgas_ave',lname,'W m-2',0.,650.,0,cptype)
+      call attrib(idnc,dimj,4,'anth_elecgas_ave',lname,'W m-2',0.,650.,0,cptype)
       lname = 'Urban heating flux'
-      call attrib(idnc,dimj,jsize,'anth_heat_ave',lname,'W m-2',0.,650.,0,cptype)
+      call attrib(idnc,dimj,4,'anth_heat_ave',lname,'W m-2',0.,650.,0,cptype)
       lname = 'Urban cooling flux'
-      call attrib(idnc,dimj,jsize,'anth_cool_ave',lname,'W m-2',0.,650.,0,cptype)      
+      call attrib(idnc,dimj,4,'anth_cool_ave',lname,'W m-2',0.,650.,0,cptype)      
       lname = 'Urban surface temperature'
-      call attrib(idnc,dimj,jsize,'urbantas',lname,'K',100.,425.,0,cptype)
+      call attrib(idnc,dimj,4,'urbantas',lname,'K',100.,425.,0,cptype)
       lname = 'Maximum urban screen temperature'
-      call attrib(idnc,dimj,jsize,'urbantasmax',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'urbantasmax',lname,'K',100.,425.,1,cptype)
       lname = 'Minimum urban screen temperature'
-      call attrib(idnc,dimj,jsize,'urbantasmin',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'urbantasmin',lname,'K',100.,425.,1,cptype)
     end if    
     if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
       do k = 1,5  
         write(lname,'("Roof temperature lev ",I1.1)') k
         write(vname,'("rooftgg",I1.1)') k
-        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
       end do  
       do k = 1,5  
         write(lname,'("East wall temperature lev ",I1.1)') k
         write(vname,'("waletgg",I1.1)') k
-        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
       end do 
       do k = 1,5  
         write(lname,'("West wall temperature lev ",I1.1)') k
         write(vname,'("walwtgg",I1.1)') k
-        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
       end do 
       do k = 1,5  
         write(lname,'("Road temperature lev ",I1.1)') k
         write(vname,'("roadtgg",I1.1)') k
-        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
       end do 
       do k = 1,5  
         write(lname,'("Slab temperature lev ",I1.1)') k
         write(vname,'("slabtgg",I1.1)') k
-        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
       end do 
       do k = 1,5  
         write(lname,'("Interior mass temperature lev ",I1.1)') k
         write(vname,'("intmtgg",I1.1)') k
-        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
       end do 
     end if    
     if ( nurban/=0 .and. itype==-1 ) then
@@ -1890,80 +1865,80 @@ if( myid==0 .or. local ) then
         do k = 1,5  
           write(lname,'("Roof temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
         end do
         do k = 1,5
           write(lname,'("East wall temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
         end do  
         do k = 1,5
           write(lname,'("West wall temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
         end do 
         do k = 1,5
           write(lname,'("Road temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
         end do 
         do k = 1,5
           write(lname,'("Slab temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
         end do 
         do k = 1,5
           write(lname,'("Interior mass temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)
         end do 
         write(lname,'("Urban room temperature tile ",I1.1," lev 1")') ifrac
         write(vname,'("t",I1.1,"_roomtgg1")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)  
+        call attrib(idnc,dimj,4,vname,lname,'K',100.,425.,0,cptype)  
         write(lname,'("Urban canyon soil moisture",I1.1)') ifrac
         write(vname,'("t",I1.1,"_urbnsmc")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'m3 m-3',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'m3 m-3',0.,1.3,0,cptype)
         write(lname,'("Urban roof soil moisture",I1.1)') ifrac
         write(vname,'("t",I1.1,"_urbnsmr")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'m3 m-3',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'m3 m-3',0.,1.3,0,cptype)
         write(lname,'("Urban roof water",I1.1)') ifrac
         write(vname,'("t",I1.1,"_roofwtr")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'mm',0.,1.3,0,cptype)
         write(lname,'("Urban road water",I1.1)') ifrac
         write(vname,'("t",I1.1,"_roadwtr")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'mm',0.,1.3,0,cptype)
         write(lname,'("Urban canyon leaf water",I1.1)') ifrac
         write(vname,'("t",I1.1,"_urbwtrc")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'mm',0.,1.3,0,cptype)
         write(lname,'("Urban roof leaf water",I1.1)') ifrac
         write(vname,'("t",I1.1,"_urbwtrr")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'mm',0.,1.3,0,cptype)
         write(lname,'("Urban roof snow (liquid water)",I1.1)') ifrac
         write(vname,'("t",I1.1,"_roofsnd")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'mm',0.,1.3,0,cptype)
         write(lname,'("Urban road snow (liquid water)",I1.1)') ifrac
         write(vname,'("t",I1.1,"_roadsnd")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'mm',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'mm',0.,1.3,0,cptype)
         write(lname,'("Urban roof snow density",I1.1)') ifrac
         write(vname,'("t",I1.1,"_roofden")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'kg m-3',0.,650.,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'kg m-3',0.,650.,0,cptype)
         write(lname,'("Urban road snow density",I1.1)') ifrac
         write(vname,'("t",I1.1,"_roadden")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'kg m-3',0.,650.,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'kg m-3',0.,650.,0,cptype)
         write(lname,'("Urban roof snow albedo",I1.1)') ifrac
         write(vname,'("t",I1.1,"_roofsna")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'none',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'none',0.,1.3,0,cptype)
         write(lname,'("Urban road snow albedo",I1.1)') ifrac
         write(vname,'("t",I1.1,"_roadsna")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'none',0.,1.3,0,cptype)
+        call attrib(idnc,dimj,4,vname,lname,'none',0.,1.3,0,cptype)
       end do  
     end if
     
     if ( output_windmax/=0 ) then
       lname = 'x-component max 10m wind (sub-daily)'
-      call attrib(idnc,dimj,jsize,'u10m_max',lname,'m s-1',-150.,150.,0,cptype)
+      call attrib(idnc,dimj,4,'u10m_max',lname,'m s-1',-150.,150.,0,cptype)
       lname = 'y-component max 10m wind (sub-daily)'
-      call attrib(idnc,dimj,jsize,'v10m_max',lname,'m s-1',-150.,150.,0,cptype)
+      call attrib(idnc,dimj,4,'v10m_max',lname,'m s-1',-150.,150.,0,cptype)
     end if
     
     ! TRACER --------------------------------------------------------
@@ -1972,9 +1947,9 @@ if( myid==0 .or. local ) then
         do igas = 1,ngas
           write(trnum,'(i4.4)') igas
           lname = 'Tracer (surface) '//trim(tracname(igas))
-          call attrib(idnc,dimj,jsize,'trsf'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'trsf'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
           lname = 'Tracer emission '//trim(tracname(igas))
-          call attrib(idnc,dimj,jsize,'trem'//trnum,lname,'g m-2 s-1',0.,6.5E6,0,-1) ! -1 = long
+          call attrib(idnc,dimj,4,'trem'//trnum,lname,'g m-2 s-1',0.,6.5E6,0,-1) ! -1 = long
         end do ! igas loop
       end if
     end if   ! (ngas>0)
@@ -1984,115 +1959,117 @@ if( myid==0 .or. local ) then
     if ( itype/=-1 ) then
       if ( nextout>=4 .and. nllp==3 ) then   ! N.B. use nscrn=1 for hourly output
         lname = 'Delta latitude'
-        call attrib(idnc,dima,asize,'del_lat',lname,'deg',-60.,60.,1,cptype)
+        call attrib(idnc,dima,5,'del_lat',lname,'deg',-60.,60.,1,cptype)
         lname = 'Delta longitude'
-        call attrib(idnc,dima,asize,'del_lon',lname,'deg',-180.,180.,1,cptype)
+        call attrib(idnc,dima,5,'del_lon',lname,'deg',-180.,180.,1,cptype)
         lname = 'Delta pressure'
-        call attrib(idnc,dima,asize,'del_p',lname,'hPa',-900.,900.,1,cptype)
+        call attrib(idnc,dima,5,'del_p',lname,'hPa',-900.,900.,1,cptype)
       endif  ! (nextout>=4.and.nllp==3)
     end if
     lname = 'Air Temperature'
-    call attrib(idnc,dima,asize,'temp',lname,'K',100.,425.,0,cptype)
+    call attrib(idnc,dima,5,'temp',lname,'K',100.,425.,0,cptype)
     lname = 'Water mixing ratio'
-    call attrib(idnc,dima,asize,'mixr',lname,'kg kg-1',0.,.065,0,cptype)
+    call attrib(idnc,dima,5,'mixr',lname,'kg kg-1',0.,.065,0,cptype)
     lname = 'x-component wind'
-    call attrib(idnc,dima,asize,'u',lname,'m s-1',-150.,150.,0,cptype)
+    call attrib(idnc,dima,5,'u',lname,'m s-1',-150.,150.,0,cptype)
     lname = 'y-component wind'
-    call attrib(idnc,dima,asize,'v',lname,'m s-1',-150.,150.,0,cptype)
+    call attrib(idnc,dima,5,'v',lname,'m s-1',-150.,150.,0,cptype)
     lname = 'vertical velocity'
-    call attrib(idnc,dima,asize,'omega',lname,'Pa s-1',-65.,65.,0,cptype)
+    call attrib(idnc,dima,5,'omega',lname,'Pa s-1',-65.,65.,0,cptype)
     if ( save_cloud ) then
       lname = 'Convective heating'
-      call attrib(idnc,dima,asize,'convh_ave',lname,'K day-1',-10.,20.,0,cptype)
+      call attrib(idnc,dima,5,'convh_ave',lname,'K day-1',-10.,20.,0,cptype)
     end if
     
-    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
-      lname = "Ocean temperature"
-      call attrib(idnc,dimo,osize,"thetao",lname,'K',100.,425.,0,cptype)
-      lname = "Ocean salinity"
-      call attrib(idnc,dimo,osize,"so",lname,'PSU',0.,130.,0,cptype)
-      lname = "x-component current"
-      call attrib(idnc,dimo,osize,"uo",lname,'m s-1',-65.,65.,0,cptype)
-      lname = "y-component current"
-      call attrib(idnc,dimo,osize,"vo",lname,'m s-1',-65.,65.,0,cptype)
-      lname = "Ocean vertical velocity (+ve down)"
-      call attrib(idnc,dimo,osize,"wo",lname,'m s-1',-6.5,6.5,0,cptype)
-      if ( diaglevel_ocean>5 ) then
-        lname = "Ocean Eddy Viscosity"
-        call attrib(idnc,dimo,osize,"kmo",lname,'m2 s-1',0.,10.,0,cptype)
-        lname = "Ocean Eddy Diffusivity"
-        call attrib(idnc,dimo,osize,"kso",lname,'m2 s-1',0.,10.,0,cptype)
-      end if  
-      if ( oclosure==1 ) then
-        if (diaglevel_ocean>5 .or. itype==-1 ) then
-          lname = "Ocean Turbulent Kinetic Energy"
-          call attrib(idnc,dimo,osize,"tkeo",lname,'m2 s-2',0.,65.,0,cptype)
-          lname = "Ocean Eddy dissipation rate"
-          call attrib(idnc,dimo,osize,"epso",lname,'m2 s-3',0.,6.5,0,cptype)
-        end if
-        if ( itype==-1 ) then
-          lname = "x-component exponential weighted current"
-          call attrib(idnc,dimo,osize,"uo_ema",lname,'m s-1',-65.,65.,0,cptype)
-          lname = "y-component exponential weighted current"
-          call attrib(idnc,dimo,osize,"vo_ema",lname,'m s-1',-65.,65.,0,cptype)
-          lname = "exponential weighted vertical current"
-          call attrib(idnc,dimo,osize,"wo_ema",lname,'m s-1',-6.5,6.5,0,cptype)
-          lname = "Exponential weighted temp"
-          call attrib(idnc,dimo,osize,"temp_ema",lname,'K',100.,425.,0,cptype)
-          lname = "Exponential weighted sal"
-          call attrib(idnc,dimo,osize,"sal_ema",lname,'PSU',0.,130.,0,cptype)
+    if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+      if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
+        lname = "Ocean temperature"
+        call attrib(idnc,dimo,5,"thetao",lname,'K',100.,425.,0,cptype)
+        lname = "Ocean salinity"
+        call attrib(idnc,dimo,5,"so",lname,'PSU',0.,130.,0,cptype)
+        lname = "x-component current"
+        call attrib(idnc,dimo,5,"uo",lname,'m s-1',-65.,65.,0,cptype)
+        lname = "y-component current"
+        call attrib(idnc,dimo,5,"vo",lname,'m s-1',-65.,65.,0,cptype)
+        lname = "Ocean vertical velocity (+ve down)"
+        call attrib(idnc,dimo,5,"wo",lname,'m s-1',-6.5,6.5,0,cptype)
+        if ( diaglevel_ocean>5 ) then
+          lname = "Ocean Eddy Viscosity"
+          call attrib(idnc,dimo,5,"kmo",lname,'m2 s-1',0.,10.,0,cptype)
+          lname = "Ocean Eddy Diffusivity"
+          call attrib(idnc,dimo,5,"kso",lname,'m2 s-1',0.,10.,0,cptype)
+        end if  
+        if ( oclosure==1 ) then
+          if (diaglevel_ocean>5 .or. itype==-1 ) then
+            lname = "Ocean Turbulent Kinetic Energy"
+            call attrib(idnc,dimo,5,"tkeo",lname,'m2 s-2',0.,65.,0,cptype)
+            lname = "Ocean Eddy dissipation rate"
+            call attrib(idnc,dimo,5,"epso",lname,'m2 s-3',0.,6.5,0,cptype)
+          end if
+          if ( itype==-1 ) then
+            lname = "x-component exponential weighted current"
+            call attrib(idnc,dimo,5,"uo_ema",lname,'m s-1',-65.,65.,0,cptype)
+            lname = "y-component exponential weighted current"
+            call attrib(idnc,dimo,5,"vo_ema",lname,'m s-1',-65.,65.,0,cptype)
+            lname = "exponential weighted vertical current"
+            call attrib(idnc,dimo,5,"wo_ema",lname,'m s-1',-6.5,6.5,0,cptype)
+            lname = "Exponential weighted temp"
+            call attrib(idnc,dimo,5,"temp_ema",lname,'K',100.,425.,0,cptype)
+            lname = "Exponential weighted sal"
+            call attrib(idnc,dimo,5,"sal_ema",lname,'PSU',0.,130.,0,cptype)
+          end if  
         end if
       end if  
     end if
     
     ! CLOUD MICROPHYSICS --------------------------------------------
     if ( ldr/=0 ) then
-      call attrib(idnc,dima,asize,'qfg','Frozen water','kg kg-1',0.,.065,0,cptype)
-      call attrib(idnc,dima,asize,'qlg','Liquid water','kg kg-1',0.,.065,0,cptype)
+      call attrib(idnc,dima,5,'qfg','Frozen water','kg kg-1',0.,.065,0,cptype)
+      call attrib(idnc,dima,5,'qlg','Liquid water','kg kg-1',0.,.065,0,cptype)
       if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
-        call attrib(idnc,dima,asize,'qrg','Rain',      'kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,5,'qrg','Rain',      'kg kg-1',0.,.065,0,cptype)
       end if
       if ( ncloud>=3 .and. (itype==-1.or.diaglevel_cloud>5) ) then
-        call attrib(idnc,dima,asize,'qsng','Snow',     'kg kg-1',0.,.065,0,cptype)
-        call attrib(idnc,dima,asize,'qgrg','Graupel',  'kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,5,'qsng','Snow',     'kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,5,'qgrg','Graupel',  'kg kg-1',0.,.065,0,cptype)
       end if
-      call attrib(idnc,dima,asize,'cfrac','Cloud fraction',    'none',0.,1.,0,cptype)
+      call attrib(idnc,dima,5,'cfrac','Cloud fraction',    'none',0.,1.,0,cptype)
       if ( itype==-1 .or. diaglevel_cloud>5 ) then
-        call attrib(idnc,dima,asize,'stratcf','Strat cloud fraction','none',0.,1.,0,cptype)  
+        call attrib(idnc,dima,5,'stratcf','Strat cloud fraction','none',0.,1.,0,cptype)  
       end if
       if ( ncloud>=2 .and. (itype==-1.or.diaglevel_cloud>5) ) then
-        call attrib(idnc,dima,asize,'rfrac','Rain fraction',   'none',0.,1.,0,cptype)
+        call attrib(idnc,dima,5,'rfrac','Rain fraction',   'none',0.,1.,0,cptype)
       end if
       if ( ncloud>=3 .and. (itype==-1.or.diaglevel_cloud>5) ) then
-        call attrib(idnc,dima,asize,'sfrac','Snow fraction',   'none',0.,1.,0,cptype)
-        call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,0,cptype)
+        call attrib(idnc,dima,5,'sfrac','Snow fraction',   'none',0.,1.,0,cptype)
+        call attrib(idnc,dima,5,'gfrac','Graupel fraction','none',0.,1.,0,cptype)
       end if
       if ( (ncloud>=4.and.ncloud<=13) .and. (itype==-1.or.diaglevel_cloud>5) ) then
-        call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K s-1',-50.,50.,0,cptype)
+        call attrib(idnc,dima,5,'strat_nt','Strat net temp tendency','K s-1',-50.,50.,0,cptype)
       end if
     end if
         
     ! TURBULENT MIXING ----------------------------------------------
     if ( nvmix==6 .or. nvmix==9 ) then
       if ( diaglevel_pbl>5 .or. itype==-1 ) then
-        call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2 s-2',0.,65.,0,cptype)
-        call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2 s-3',0.,6.5,0,cptype)
+        call attrib(idnc,dima,5,'tke','Turbulent Kinetic Energy','m2 s-2',0.,65.,0,cptype)
+        call attrib(idnc,dima,5,'eps','Eddy dissipation rate','m2 s-3',0.,6.5,0,cptype)
       end if
       if ( itype==-1 ) then
-        call attrib(idnc,dima,asize,'u_ema','x-component exponentially weighted moving average wind','m s',-150.,150.,0,cptype)
-        call attrib(idnc,dima,asize,'v_ema','y-component exponentially weighted moving average wind','m s',-150.,150.,0,cptype)
-        call attrib(idnc,dima,asize,'w_ema','Exponentially weighted moving average vertical wind','m s',-150.,150.,0,cptype)
-        call attrib(idnc,dima,asize,'thetal_ema','Exponentially weighted moving average thetal','K',100.,425.,0,cptype)
-        call attrib(idnc,dima,asize,'qv_ema','Exponentially weighted moving average qv','kg kg-1',0.,.065,0,cptype)
-        call attrib(idnc,dima,asize,'ql_ema','Exponentially weighted moving average ql','kg kg-1',0.,.065,0,cptype)
-        call attrib(idnc,dima,asize,'qf_ema','Exponentially weighted moving average qf','kg kg-1',0.,.065,0,cptype)
-        call attrib(idnc,dima,asize,'cf_ema','Exponentially weighted moving average cf','m2 s-2',0.,65.,0,cptype)        
-        call attrib(idnc,dima,asize,'tke_ema','Exponentially weighted moving average te','frac',0.,1.,0,cptype)        
+        call attrib(idnc,dima,5,'u_ema','x-component exponentially weighted moving average wind','m s',-150.,150.,0,cptype)
+        call attrib(idnc,dima,5,'v_ema','y-component exponentially weighted moving average wind','m s',-150.,150.,0,cptype)
+        call attrib(idnc,dima,5,'w_ema','Exponentially weighted moving average vertical wind','m s',-150.,150.,0,cptype)
+        call attrib(idnc,dima,5,'thetal_ema','Exponentially weighted moving average thetal','K',100.,425.,0,cptype)
+        call attrib(idnc,dima,5,'qv_ema','Exponentially weighted moving average qv','kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,5,'ql_ema','Exponentially weighted moving average ql','kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,5,'qf_ema','Exponentially weighted moving average qf','kg kg-1',0.,.065,0,cptype)
+        call attrib(idnc,dima,5,'cf_ema','Exponentially weighted moving average cf','m2 s-2',0.,65.,0,cptype)        
+        call attrib(idnc,dima,5,'tke_ema','Exponentially weighted moving average te','frac',0.,1.,0,cptype)        
       end if    
     end if
     if ( itype==-1 ) then
-      call attrib(idnc,dima,asize,'rkm','Diffusion coefficient for momentum','m2 s-1',0.,1.,0,cptype)
-      call attrib(idnc,dima,asize,'rkh','Diffusion coefficient for heat','m2 s-1',0.,1.,0,cptype)
+      call attrib(idnc,dima,5,'rkm','Diffusion coefficient for momentum','m2 s-1',0.,1.,0,cptype)
+      call attrib(idnc,dima,5,'rkh','Diffusion coefficient for heat','m2 s-1',0.,1.,0,cptype)
     end if
 
     ! TRACER --------------------------------------------------------
@@ -2101,37 +2078,37 @@ if( myid==0 .or. local ) then
         do igas = 1,ngas
           write(trnum,'(i4.4)') igas
           lname = 'Tracer (inst.) '//trim(tracname(igas))
-          call attrib(idnc,dima,asize,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+          call attrib(idnc,dima,5,'tr'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
         end do ! igas loop
       else                  ! history
         do igas = 1,ngas
           write(trnum,'(i4.4)') igas
           lname = 'Tracer (average) '//trim(tracname(igas))
-          call attrib(idnc,dima,asize,'trav'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+          call attrib(idnc,dima,5,'trav'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
 !         rml 14/5/10 option to write out local time afternoon averages
-          if (writetrpm) call attrib(idnc,dima,asize,'trpm'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
+          if (writetrpm) call attrib(idnc,dima,5,'trpm'//trnum,lname,'ppm',0.,6.5E6,0,-1) ! -1 = long
         end do ! igas loop
       end if
     end if   ! (ngas>0)
 
     ! AEROSOL ---------------------------------------------------
     if ( abs(iaero)>=2 ) then  
-      call attrib(idnc,dima,asize,'dms','Dimethyl sulfide','kg kg-1',0.,6.5E-7,0,cptype)
-      call attrib(idnc,dima,asize,'so2','Sulfur dioxide','kg kg-1',0.,6.5E-7,0,cptype)
-      call attrib(idnc,dima,asize,'so4','Sulfate','kg kg-1',0.,6.5E-7,0,cptype)
-      call attrib(idnc,dima,asize,'bco','Black carbon hydrophobic','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'bci','Black carbon hydrophilic','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'oco','Organic aerosol hydrophobic','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'oci','Organic aerosol hydrophilic','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'dust1','Dust 0.1-1 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'dust2','Dust 1-2 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'dust3','Dust 2-3 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'dust4','Dust 3-6 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'salt1','Sea salt 0.1 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
-      call attrib(idnc,dima,asize,'salt2','Sea salt 0.5 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
-      if ( save_aerosols ) then
+      if ( save_aerosols ) then        
+        call attrib(idnc,dima,5,'dms','Dimethyl sulfide','kg kg-1',0.,6.5E-7,0,cptype)
+        call attrib(idnc,dima,5,'so2','Sulfur dioxide','kg kg-1',0.,6.5E-7,0,cptype)
+        call attrib(idnc,dima,5,'so4','Sulfate','kg kg-1',0.,6.5E-7,0,cptype)
+        call attrib(idnc,dima,5,'bco','Black carbon hydrophobic','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'bci','Black carbon hydrophilic','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'oco','Organic aerosol hydrophobic','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'oci','Organic aerosol hydrophilic','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'dust1','Dust 0.1-1 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'dust2','Dust 1-2 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'dust3','Dust 2-3 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'dust4','Dust 3-6 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'salt1','Sea salt 0.1 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
+        call attrib(idnc,dima,5,'salt2','Sea salt 0.5 micrometers','kg kg-1',0.,6.5E-6,0,cptype)
         if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then 
-          call attrib(idnc,dima,asize,'cdn','Cloud droplet concentration','m-3',1.E7,6.6E8,0,cptype)
+          call attrib(idnc,dima,5,'cdn','Cloud droplet concentration','m-3',1.E7,6.6E8,0,cptype)
         end if
       end if
     end if
@@ -2139,139 +2116,139 @@ if( myid==0 .or. local ) then
     ! MAX WINDS (sub-daily)
     if ( output_windmax/=0 ) then
       lname = 'x-component wind max'
-      call attrib(idnc,dima,asize,'u_max',lname,'m s-1',-150.,150.,0,cptype)
+      call attrib(idnc,dima,5,'u_max',lname,'m s-1',-150.,150.,0,cptype)
       lname = 'y-component wind max'
-      call attrib(idnc,dima,asize,'v_max',lname,'m s-1',-150.,150.,0,cptype)        
+      call attrib(idnc,dima,5,'v_max',lname,'m s-1',-150.,150.,0,cptype)        
     end if
     
     ! RESTART ---------------------------------------------------
     if ( itype==-1 ) then   ! extra stuff just written for restart file
       lname= 'Tendency of surface pressure'
-      call attrib(idnc,dima,asize,'dpsldt',lname,'s-1',-6.,6.,0,cptype)        
+      call attrib(idnc,dima,5,'dpsldt',lname,'s-1',-6.,6.,0,cptype)        
       lname= 'NHS adjustment to geopotential height'
-      call attrib(idnc,dima,asize,'zgnhs',lname,'m2 s-2',-6.E5,6.E5,0,cptype)     
+      call attrib(idnc,dima,5,'zgnhs',lname,'m2 s-2',-6.E5,6.E5,0,cptype)     
       lname= 'sdot: change in grid spacing per time step +.5'
-      call attrib(idnc,dima,asize,'sdot',lname,'ts-1',-3.,3.,0,cptype) 
+      call attrib(idnc,dima,5,'sdot',lname,'ts-1',-3.,3.,0,cptype) 
       lname= 'pslx: advective time rate of change of psl'
-      call attrib(idnc,dima,asize,'pslx',lname,'s-1',-1.E-3,1.E-3,0,cptype)
+      call attrib(idnc,dima,5,'pslx',lname,'s-1',-1.E-3,1.E-3,0,cptype)
       lname= 'savu'
-      call attrib(idnc,dima,asize,'savu',lname,'m s-1',-1.E2,1.E2,0,cptype)
+      call attrib(idnc,dima,5,'savu',lname,'m s-1',-1.E2,1.E2,0,cptype)
       lname= 'savv'
-      call attrib(idnc,dima,asize,'savv',lname,'m s-1',-1.E2,1.E2,0,cptype)
+      call attrib(idnc,dima,5,'savv',lname,'m s-1',-1.E2,1.E2,0,cptype)
       lname= 'savu1'
-      call attrib(idnc,dima,asize,'savu1',lname,'m s-1',-1.E2,1.E2,0,cptype)
+      call attrib(idnc,dima,5,'savu1',lname,'m s-1',-1.E2,1.E2,0,cptype)
       lname= 'savv1'
-      call attrib(idnc,dima,asize,'savv1',lname,'m s-1',-1.E2,1.E2,0,cptype)
+      call attrib(idnc,dima,5,'savv1',lname,'m s-1',-1.E2,1.E2,0,cptype)
       lname= 'savu2'
-      call attrib(idnc,dima,asize,'savu2',lname,'m s-1',-1.E2,1.E2,0,cptype)
+      call attrib(idnc,dima,5,'savu2',lname,'m s-1',-1.E2,1.E2,0,cptype)
       lname= 'savv2'
-      call attrib(idnc,dima,asize,'savv2',lname,'m s-1',-1.E2,1.E2,0,cptype)
+      call attrib(idnc,dima,5,'savv2',lname,'m s-1',-1.E2,1.E2,0,cptype)
       if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
         lname = "old1_uo"
-        call attrib(idnc,dimo,osize,"old1_uo",lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimo,5,"old1_uo",lname,'m s-1',-65.,65.,0,cptype)
         lname = "old1_vo"
-        call attrib(idnc,dimo,osize,"old1_vo",lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimo,5,"old1_vo",lname,'m s-1',-65.,65.,0,cptype)
         lname = "old2_uo"
-        call attrib(idnc,dimo,osize,"old2_uo",lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimo,5,"old2_uo",lname,'m s-1',-65.,65.,0,cptype)
         lname = "old2_vo"
-        call attrib(idnc,dimo,osize,"old2_vo",lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimo,5,"old2_vo",lname,'m s-1',-65.,65.,0,cptype)
         lname = 'ipice'
-        call attrib(idnc,dimj,jsize,'ipice',lname,'Pa',0.,1.E6,0,cptype)
+        call attrib(idnc,dimj,4,'ipice',lname,'Pa',0.,1.E6,0,cptype)
       end if
       if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
         lname = 'old1_uotop'
-        call attrib(idnc,dimj,jsize,'old1_uotop',lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimj,4,'old1_uotop',lname,'m s-1',-65.,65.,0,cptype)
         lname = 'old1_votop'
-        call attrib(idnc,dimj,jsize,'old1_votop',lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimj,4,'old1_votop',lname,'m s-1',-65.,65.,0,cptype)
         lname = 'old1_uobot'
-        call attrib(idnc,dimj,jsize,'old1_uobot',lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimj,4,'old1_uobot',lname,'m s-1',-65.,65.,0,cptype)
         lname = 'old1_vobot'
-        call attrib(idnc,dimj,jsize,'old1_vobot',lname,'m s-1',-65.,65.,0,cptype)
+        call attrib(idnc,dimj,4,'old1_vobot',lname,'m s-1',-65.,65.,0,cptype)
       end if
       lname = 'Soil ice lev 1'
-      call attrib(idnc,dimj,jsize,'wbice1',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice1',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil ice lev 2'
-      call attrib(idnc,dimj,jsize,'wbice2',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice2',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil ice lev 3'
-      call attrib(idnc,dimj,jsize,'wbice3',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice3',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil ice lev 4'
-      call attrib(idnc,dimj,jsize,'wbice4',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice4',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil ice lev 5'
-      call attrib(idnc,dimj,jsize,'wbice5',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice5',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil ice lev 6'
-      call attrib(idnc,dimj,jsize,'wbice6',lname,'m3 m-3',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'wbice6',lname,'m3 m-3',0.,1.,0,cptype)
       if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already defined above
         lname = 'Snow temperature lev 1'
-        call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,'tggsn1',lname,'K',100.,425.,0,cptype)
         lname = 'Snow temperature lev 2'
-        call attrib(idnc,dimj,jsize,'tggsn2',lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,'tggsn2',lname,'K',100.,425.,0,cptype)
         lname = 'Snow temperature lev 3'
-        call attrib(idnc,dimj,jsize,'tggsn3',lname,'K',100.,425.,0,cptype)
+        call attrib(idnc,dimj,4,'tggsn3',lname,'K',100.,425.,0,cptype)
       end if
       lname = 'Snow mass lev 1'
-      call attrib(idnc,dimj,jsize,'smass1',lname,'K',0.,425.,0,cptype)
+      call attrib(idnc,dimj,4,'smass1',lname,'K',0.,425.,0,cptype)
       lname = 'Snow mass lev 2'
-      call attrib(idnc,dimj,jsize,'smass2',lname,'K',0.,425.,0,cptype)
+      call attrib(idnc,dimj,4,'smass2',lname,'K',0.,425.,0,cptype)
       lname = 'Snow mass lev 3'
-      call attrib(idnc,dimj,jsize,'smass3',lname,'K',0.,425.,0,cptype)
+      call attrib(idnc,dimj,4,'smass3',lname,'K',0.,425.,0,cptype)
       lname = 'Snow density lev 1'
-      call attrib(idnc,dimj,jsize,'ssdn1',lname,'K',0.,425.,0,cptype)
+      call attrib(idnc,dimj,4,'ssdn1',lname,'K',0.,425.,0,cptype)
       lname = 'Snow density lev 2'
-      call attrib(idnc,dimj,jsize,'ssdn2',lname,'K',0.,425.,0,cptype)
+      call attrib(idnc,dimj,4,'ssdn2',lname,'K',0.,425.,0,cptype)
       lname = 'Snow density lev 3'
-      call attrib(idnc,dimj,jsize,'ssdn3',lname,'K',0.,425.,0,cptype)
+      call attrib(idnc,dimj,4,'ssdn3',lname,'K',0.,425.,0,cptype)
       lname = 'Snow age'
-      call attrib(idnc,dimj,jsize,'snage',lname,'none',0.,20.,0,cptype)   
+      call attrib(idnc,dimj,4,'snage',lname,'none',0.,20.,0,cptype)   
       lname = 'Snow flag'
-      call attrib(idnc,dimj,jsize,'sflag',lname,'none',0.,4.,0,cptype)
+      call attrib(idnc,dimj,4,'sflag',lname,'none',0.,4.,0,cptype)
       lname = 'sgsave'
-      call attrib(idnc,dimj,jsize,'sgsave',lname,'W m-2',-500.,2000.,0,cptype)
+      call attrib(idnc,dimj,4,'sgsave',lname,'W m-2',-500.,2000.,0,cptype)
       lname = 'rgsave'
-      call attrib(idnc,dimj,jsize,'rgsave',lname,'W m-2',-500.,2000.,0,cptype)
+      call attrib(idnc,dimj,4,'rgsave',lname,'W m-2',-500.,2000.,0,cptype)
       lname = 'TOA Outgoing Longwave Radiation'
-      call attrib(idnc,dimj,jsize,'rtu',lname,'W m-2',0.,800.,0,-1) ! -1 = long
+      call attrib(idnc,dimj,4,'rtu',lname,'W m-2',0.,800.,0,-1) ! -1 = long
       lname = 'Clear sky LW at TOA'
-      call attrib(idnc,dimj,jsize,'rtc',lname,'W m-2',0.,800.,0,cptype)
+      call attrib(idnc,dimj,4,'rtc',lname,'W m-2',0.,800.,0,cptype)
       lname = 'Surface Downwelling Longwave Radiation'
-      call attrib(idnc,dimj,jsize,'rgdn',lname,'W m-2',-500.,1.e3,0,-1) ! -1 = long
+      call attrib(idnc,dimj,4,'rgdn',lname,'W m-2',-500.,1.e3,0,-1) ! -1 = long
       lname = 'LW net at ground (+ve up)'
-      call attrib(idnc,dimj,jsize,'rgn',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
+      call attrib(idnc,dimj,4,'rgn',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
       lname = 'Clear sky LW at ground'
-      call attrib(idnc,dimj,jsize,'rgc',lname,'W m-2',-500.,1000.,0,cptype)
+      call attrib(idnc,dimj,4,'rgc',lname,'W m-2',-500.,1000.,0,cptype)
       lname = 'Solar in at TOA (AMP)'
-      call attrib(idnc,dimj,jsize,'sint_amp',lname,'W m-2',0.,1600.,0,-1) ! -1 = long
+      call attrib(idnc,dimj,4,'sint_amp',lname,'W m-2',0.,1600.,0,-1) ! -1 = long
       lname = 'Solar out at TOA (AMP)'
-      call attrib(idnc,dimj,jsize,'sout_amp',lname,'W m-2',0.,1000.,0,-1)  ! -1 = long
+      call attrib(idnc,dimj,4,'sout_amp',lname,'W m-2',0.,1000.,0,-1)  ! -1 = long
       lname = 'Clear sky SW out at TOA (AMP)'
-      call attrib(idnc,dimj,jsize,'soutclr_amp',lname,'W m-2',0.,900.,0,cptype)
+      call attrib(idnc,dimj,4,'soutclr_amp',lname,'W m-2',0.,900.,0,cptype)
       lname = 'Solar downwelling at ground (AMP)'
-      call attrib(idnc,dimj,jsize,'sgdn_amp',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+      call attrib(idnc,dimj,4,'sgdn_amp',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
       lname = 'Solar net at ground (+ve down) (AMP)'
-      call attrib(idnc,dimj,jsize,'sgn_amp',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+      call attrib(idnc,dimj,4,'sgn_amp',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
       lname = 'Clear sky SW at ground (+ve down) (AMP)'
-      call attrib(idnc,dimj,jsize,'sgclr_amp',lname,'W m-2',-500.,2000.,0,cptype)
+      call attrib(idnc,dimj,4,'sgclr_amp',lname,'W m-2',-500.,2000.,0,cptype)
       lname = 'Direct normal irradiance (AMP)'
-      call attrib(idnc,dimj,jsize,'dni_amp',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+      call attrib(idnc,dimj,4,'dni_amp',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
       lname = 'Fraction of direct VIS radiation'
-      call attrib(idnc,dimj,jsize,'fbeamvis',lname,'none',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'fbeamvis',lname,'none',0.,1.,0,cptype)
       lname = 'Fraction of direct NIR radiation'
-      call attrib(idnc,dimj,jsize,'fbeamnir',lname,'none',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'fbeamnir',lname,'none',0.,1.,0,cptype)
       lname = 'Fraction of VIS radiation'
-      call attrib(idnc,dimj,jsize,'swrsave',lname,'frac',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'swrsave',lname,'frac',0.,1.,0,cptype)
       lname = 'Low cloud'
-      call attrib(idnc,dimj,jsize,'cloudlo',lname,'frac',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'cloudlo',lname,'frac',0.,1.,0,cptype)
       lname = 'Mid cloud'
-      call attrib(idnc,dimj,jsize,'cloudmi',lname,'frac',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'cloudmi',lname,'frac',0.,1.,0,cptype)
       lname = 'Hi cloud'
-      call attrib(idnc,dimj,jsize,'cloudhi',lname,'frac',0.,1.,0,cptype)
+      call attrib(idnc,dimj,4,'cloudhi',lname,'frac',0.,1.,0,cptype)
       lname = 'SW tendency (AMP)'
-      call attrib(idnc,dima,asize,'sw_tend_amp',lname,'K s-1',-50.,50.,0,cptype)
+      call attrib(idnc,dima,5,'sw_tend_amp',lname,'K s-1',-50.,50.,0,cptype)
       lname = 'LW tendency'
-      call attrib(idnc,dima,asize,'lw_tend',lname,'K s-1',-50.,50.,0,cptype)
+      call attrib(idnc,dima,5,'lw_tend',lname,'K s-1',-50.,50.,0,cptype)
     endif  ! (itype==-1)
         
     if ( nsib==6 .or. nsib==7 ) then
-      call savetiledef(idnc,local,dimj,jsize,dimc,csize,itype)
+      call savetiledef(idnc,local,dimj,4,dimc,csize,itype)
     end if
       
     if ( myid==0 ) write(6,*) '-> finished defining attributes'
@@ -2333,7 +2310,7 @@ if( myid==0 .or. local ) then
     if ( local ) then
       ! store local processor id in output file
       if ( myid==0 ) write(6,*) '-> write procformat data'
-      allocate(vnode_dat(vnode_nproc))
+      allocate( vnode_dat(vnode_nproc) )
       if ( procmode==1 ) then
          vnode_dat(:) = myid
          if ( vnode_nproc/=1 ) then
@@ -2345,7 +2322,7 @@ if( myid==0 .or. local ) then
          call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       end if
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
-      deallocate(vnode_dat)
+      deallocate( vnode_dat )
       ! store file id for a given processor number in output file number 000000
       ! store offset within a file for a given processor number in output file number 000000
       if ( myid==0 ) then
@@ -2361,7 +2338,7 @@ if( myid==0 .or. local ) then
         procdata(:) = procnode(2,:)
         call ccnf_put_vara(idnc,idgpoff,(/1/),(/nproc/),procdata)  
       end if
-      deallocate(procnode,procdata)
+      deallocate( procnode, procdata )
     end if
    
     call ccnf_put_vara(idnc,'ds',1,ds)
@@ -2440,7 +2417,7 @@ if( myid==0 .or. local ) then
     write(6,*) 'timer,timeg=',timer,timeg
   end if
   
-elseif ( localhist ) then
+else
     
   if ( iarch==1 ) then  
 
@@ -2469,7 +2446,7 @@ elseif ( localhist ) then
     
   end if ! if iarchi==1
     
-end if ! myid == 0 .or. local ..else.. localhist ...
+end if ! myid == 0 .or. local ..else.. 
 
 if ( myid==0 ) then
   if ( iout==19 ) then
@@ -3235,7 +3212,7 @@ if ( save_cloud ) then
 end if
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
+  if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
     do k = 1,wlev
       where ( mlodwn(:,k,1)<100. .and. itype==1 )
         oo(:,k) = mlodwn(:,k,1) + wrtemp
@@ -3372,20 +3349,20 @@ endif  ! (ngasc>0)
 
 ! AEROSOLS ----------------------------------------------------
 if ( abs(iaero)>=2 ) then
-  call histwrt(xtg(:,:,1), 'dms',  idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,2), 'so2',  idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,3), 'so4',  idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,4), 'bco',  idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,5), 'bci',  idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,6), 'oco',  idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,7), 'oci',  idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,8), 'dust1',idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,12),'salt1',idnc,iarch,local,.true.)
-  call histwrt(xtg(:,:,13),'salt2',idnc,iarch,local,.true.)
-  if ( save_aerosols ) then
+  if ( save_aerosols ) then    
+    call histwrt(xtg(:,:,1), 'dms',  idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,2), 'so2',  idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,3), 'so4',  idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,4), 'bco',  idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,5), 'bci',  idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,6), 'oco',  idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,7), 'oci',  idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,8), 'dust1',idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,9), 'dust2',idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,10),'dust3',idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,11),'dust4',idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,12),'salt1',idnc,iarch,local,.true.)
+    call histwrt(xtg(:,:,13),'salt2',idnc,iarch,local,.true.)
     if ( iaero<=-2 .and. diaglevel_aerosols>5 ) then
       do k = 1,kl
         qtot(:)   = qg(1:ifull,k) + qlg(1:ifull,k) + qfg(1:ifull,k)
@@ -3557,8 +3534,8 @@ integer idms,js,je,tile
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,k,n,iq,fiarch
-integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
-integer fsize, press_level, height_level, iatt6hr, iattdaily
+integer idnp, idgpn, idgpo
+integer press_level, height_level, iatt6hr, iattdaily
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -3591,31 +3568,17 @@ character(len=20) timorg
 
 call START_LOG(outfile_begin)
 
-! localhist=.true. indicates that the output will be written in parallel.
-
-! localhist=.true. indicates that procformat mode is active where one 'node' captian will
+! lprocformat mode is where one 'node' captian will
 ! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
 ! they cannot be split across physical nodes.
 
 ! local=.true. if this process needs to write to a file
 
-local = localhist .and. vnode_myid==0
+local = vnode_myid==0
 lday  = mod(ktau,nperday)==0.or.ktau==ntau
 l6hr  = mod(ktau,nper6hr)==0.or.ktau==ntau
 iattdaily = 1 ! daily flag for valid_time attribute
 iatt6hr = 2   ! 6 hour flag for valid_time attribute
-if ( localhist ) then
-  dproc = 4
-  d4    = 5
-  asize = 5
-  ssize = 4
-else
-  dproc = -1
-  d4    = 4
-  asize = 4
-  ssize = 3
-end if
-fsize = ssize - 1 ! size of fixed variables
 
 fiarch = ktau/tbave
 
@@ -3671,23 +3634,19 @@ if ( first ) then
     call ccnf_def_dim(fncid,'lev',1,adim(3))
     call ccnf_def_dim(fncid,'zsoil',ms,msdim(1))
     if ( local ) then
-      call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(dproc)) 
+      call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(4)) 
       if ( myid==0 ) then
         call ccnf_def_dim(fncid,'gprocessor',nproc,gpdim(1)) 
       else
         gpdim(1)=0
       end if
     end if
-    if ( unlimitedhist ) then
-      call ccnf_def_dimu(fncid,'time',adim(d4))
-    else
-      tlen = ntau/tbave
-      call ccnf_def_dim(fncid,'time',tlen,adim(d4))  
-    end if
+    tlen = ntau/tbave
+    call ccnf_def_dim(fncid,'time',tlen,adim(5))  
     ! Define coords.
     if ( local ) then
       outdim(1) = adim(1)
-      outdim(2) = adim(dproc)
+      outdim(2) = adim(4)
       call ccnf_def_var(fncid,'longitude','float',2,outdim(1:2),ixp)        
     else
       call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
@@ -3696,7 +3655,7 @@ if ( first ) then
     call ccnf_put_att(fncid,ixp,'units','degrees_east')
     if ( local ) then
       outdim(1) = adim(2)
-      outdim(2) = adim(dproc)
+      outdim(2) = adim(4)
       call ccnf_def_var(fncid,'latitude','float',2,outdim(1:2),iyp)
     else
       call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
@@ -3711,13 +3670,13 @@ if ( first ) then
     call ccnf_put_att(fncid,idms,'point_spacing','uneven')
     call ccnf_put_att(fncid,idms,'units','m')    
     if ( local ) then
-      call ccnf_def_var(fncid,'processor','float',1,adim(dproc:dproc),idnp)  
+      call ccnf_def_var(fncid,'processor','float',1,adim(4:4),idnp)  
       if ( myid==0 ) then
         call ccnf_def_var(fncid,'gprocnode','int',1,gpdim(1:1),idgpn)
         call ccnf_def_var(fncid,'gprocoffset','int',1,gpdim(1:1),idgpo)
       end if
     end if
-    call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
+    call ccnf_def_var(fncid,'time','double',1,adim(5:5),idnt)
     call ccnf_put_att(fncid,idnt,'point_spacing','even')
     icy=kdate/10000
     icm=max(1,min(12,(kdate-icy*10000)/100))
@@ -3737,9 +3696,9 @@ if ( first ) then
     else if ( leap==2 ) then
       call ccnf_put_att(fncid,idnt,'calendar','360_day')  
     end if
-    call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)
-    call ccnf_def_var(fncid,'ktime','int',1,adim(d4:d4),idktime)
-    call ccnf_def_var(fncid,'mtimer','int',1,adim(d4:d4),idmtimer)
+    call ccnf_def_var(fncid,'kdate','int',1,adim(5:5),idkdate)
+    call ccnf_def_var(fncid,'ktime','int',1,adim(5:5),idktime)
+    call ccnf_def_var(fncid,'mtimer','int',1,adim(5:5),idmtimer)
     ! header data
     ahead(1)=ds
     ahead(2)=0.  !difknbd
@@ -3851,57 +3810,57 @@ if ( first ) then
     end if
     if ( cordex_core ) then
       lname = 'Surface geopotential'
-      call attrib(fncid,sdim(1:fsize),fsize,'zht',lname,'m-2 s-2',-1000.,90.e3,0,-1)
+      call attrib(fncid,sdim(1:3),3,'zht',lname,'m-2 s-2',-1000.,90.e3,0,-1)
       lname = 'Soil type'
     end if
     if ( cordex_tier2 ) then
-      call attrib(fncid,sdim(1:fsize),fsize,'soilt',lname,'none',-650.,650.,0,1)
+      call attrib(fncid,sdim(1:3),3,'soilt',lname,'none',-650.,650.,0,1)
       lname = 'Capacity of Soil to Store Water'
-      call attrib(fncid,sdim(1:fsize),fsize,'mrsofc',lname,'kg m-2',0.,6500.,0,1)
+      call attrib(fncid,sdim(1:3),3,'mrsofc',lname,'kg m-2',0.,6500.,0,1)
       lname = 'Urban fraction'
-      call attrib(fncid,sdim(1:fsize),fsize,'sigmu',lname,'none',0.,3.25,0,1)
+      call attrib(fncid,sdim(1:3),3,'sigmu',lname,'none',0.,3.25,0,1)
     end if  
     lname='x-component 10m wind'
-    call attrib(fncid,sdim,ssize,'uas',lname,'m s-1',-130.,130.,0,1)
+    call attrib(fncid,sdim,4,'uas',lname,'m s-1',-130.,130.,0,1)
     lname='y-component 10m wind'     
-    call attrib(fncid,sdim,ssize,'vas',lname,'m s-1',-130.,130.,0,1)
+    call attrib(fncid,sdim,4,'vas',lname,'m s-1',-130.,130.,0,1)
     lname='Near-Surface Air Temperature'     
-    call attrib(fncid,sdim,ssize,'tscrn',lname,'K',100.,425.,0,1)
+    call attrib(fncid,sdim,4,'tscrn',lname,'K',100.,425.,0,1)
     lname='Near-Surface Relative Humidity'     
-    call attrib(fncid,sdim,ssize,'rhscrn',lname,'%',0.,200.,0,1)
+    call attrib(fncid,sdim,4,'rhscrn',lname,'%',0.,200.,0,1)
     lname='Precipitation'
-    call attrib(fncid,sdim,ssize,'rnd',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
+    call attrib(fncid,sdim,4,'rnd',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname='Convective Precipitation'
-    call attrib(fncid,sdim,ssize,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
+    call attrib(fncid,sdim,4,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname='Snowfall Flux'
-    call attrib(fncid,sdim,ssize,'sno',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
+    call attrib(fncid,sdim,4,'sno',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname='Graupelfall'
-    call attrib(fncid,sdim,ssize,'grpl',lname,'mm day-1',0.,1300.,0,-1)         ! -1=long
+    call attrib(fncid,sdim,4,'grpl',lname,'mm day-1',0.,1300.,0,-1)         ! -1=long
     lname ='Sea Level Pressure'
-    call attrib(fncid,sdim,ssize,'pmsl',lname,'hPa',800.,1200.,0,1)    
+    call attrib(fncid,sdim,4,'pmsl',lname,'hPa',800.,1200.,0,1)    
     lname ='Surface Downwelling Shortwave Radiation'
-    call attrib(fncid,sdim,ssize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1)      ! -1=long 
+    call attrib(fncid,sdim,4,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1)      ! -1=long 
     if ( cordex_tier1 ) then
       lname ='Surface Direct Downwelling Shortwave Radiation'
-      call attrib(fncid,sdim,ssize,'sgdndir_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1=long 
+      call attrib(fncid,sdim,4,'sgdndir_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1=long 
     end if
     lname = 'Scaled Log Surface pressure'
-    call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.4,0.5,0,1)
+    call attrib(fncid,sdim,4,'psf',lname,'none',-1.4,0.5,0,1)
     lname = 'Screen mixing ratio'
-    call attrib(fncid,sdim,ssize,'qgscrn',lname,'kg kg-1',0.,0.06,0,1)
+    call attrib(fncid,sdim,4,'qgscrn',lname,'kg kg-1',0.,0.06,0,1)
     lname = 'Total Cloud Fraction'
-    call attrib(fncid,sdim,ssize,'cld',lname,'frac',0.,1.,0,1)
+    call attrib(fncid,sdim,4,'cld',lname,'frac',0.,1.,0,1)
     lname = 'Direct normal irradiance'
-    call attrib(fncid,sdim,ssize,'dni',lname,'W m-2',-500.,2.e3,0,-1)           ! -1=long
+    call attrib(fncid,sdim,4,'dni',lname,'W m-2',-500.,2.e3,0,-1)           ! -1=long
     if ( cordex_tier1 ) then
       do j = 1,3 ! 50m, 100m, 150m  
         height_level = height_level_data(j)
         call cordex_name(lname,"x-component ",height_level,"m wind")
         call cordex_name(vname,"ua",height_level,"m")
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,0,1)
         call cordex_name(lname,"y-component ",height_level,"m wind")
         call cordex_name(vname,"va",height_level,"m")
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,0,1)
       end do
     end if
     if ( cordex_tier2 ) then
@@ -3909,146 +3868,146 @@ if ( first ) then
         height_level = height_level_data(j)
         call cordex_name(lname,"x-component ",height_level,"m wind")
         call cordex_name(vname,"ua",height_level,"m")
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,0,1)
         call cordex_name(lname,"y-component ",height_level,"m wind")
         call cordex_name(vname,"va",height_level,"m")
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,0,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,0,1)
       end do
     end if
     if ( cordex_tier1 ) then
       height_level = height_level_data(1)
       call cordex_name(lname,"Air temperature at ",height_level,"m")
       call cordex_name(vname,"ta",height_level,"m")
-      call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,400.,0,1)
+      call attrib(fncid,sdim,4,trim(vname),lname,'K',100.,400.,0,1)
       call cordex_name(lname,"Specific Humidity at ",height_level,"m")
       call cordex_name(vname,"hus",height_level,"m")
-      call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,0,1)
+      call attrib(fncid,sdim,4,trim(vname),lname,'1',0.,0.06,0,1)
     end if  
     if ( cordex_core ) then
       lname = 'Daily Maximum Near-Surface Air Temperature'  
-      call attrib(fncid,sdim,ssize,'tmaxscr',lname,'K',100.,425.,iattdaily,1) ! daily
+      call attrib(fncid,sdim,4,'tmaxscr',lname,'K',100.,425.,iattdaily,1) ! daily
       lname = 'Daily Minimum Near-Surface Air Temperature'
-      call attrib(fncid,sdim,ssize,'tminscr',lname,'K',100.,425.,iattdaily,1) ! daily
+      call attrib(fncid,sdim,4,'tminscr',lname,'K',100.,425.,iattdaily,1) ! daily
     end if
     if ( cordex_tier1 ) then
       lname = 'Daily Maximum Hourly Precipitation Rate'
-      call attrib(fncid,sdim,ssize,'prhmax',lname,'kg m-2 s-1',0.,2600.,iattdaily,-1) ! daily and -1=long
+      call attrib(fncid,sdim,4,'prhmax',lname,'kg m-2 s-1',0.,2600.,iattdaily,-1) ! daily and -1=long
       lname = 'x-component max 10m wind (daily)'
-      call attrib(fncid,sdim,ssize,'u10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
+      call attrib(fncid,sdim,4,'u10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
       lname = 'y-component max 10m wind (daily)'
-      call attrib(fncid,sdim,ssize,'v10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
+      call attrib(fncid,sdim,4,'v10max',lname,'m s-1',-99.,99.,iattdaily,1) ! daily
     end if  
     if ( cordex_core ) then
       lname = 'Surface Downwelling Longwave Radiation'
-      call attrib(fncid,sdim,ssize,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1)   ! -1 = long
     end if
     if ( cordex_tier1 ) then
       lname = 'Surface Upward Latent Heat Flux'
-      call attrib(fncid,sdim,ssize,'eg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'eg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
       lname = 'Surface Upward Sensible Heat Flux'
-      call attrib(fncid,sdim,ssize,'fg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'fg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
       lname = 'Solar net at ground (+ve down)'
-      call attrib(fncid,sdim,ssize,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1)   ! -1 = long
       lname = 'LW net at ground (+ve up)'
-      call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1)   ! -1 = long
     end if  
     if ( cordex_tier2 ) then
       lname = 'Avg potential evaporation'
-      call attrib(fncid,sdim,ssize,'epot_ave',lname,'W m-2',-1000.,10.e3,0,1)
+      call attrib(fncid,sdim,4,'epot_ave',lname,'W m-2',-1000.,10.e3,0,1)
     end if
     if ( cordex_tier1 ) then
       lname = 'Soil Frozen Water Content'
-      call attrib(fncid,sdim,ssize,'mrfso',lname,'kg m-2',0.,6500.,iatt6hr,-1)     ! -1 = long
+      call attrib(fncid,sdim,4,'mrfso',lname,'kg m-2',0.,6500.,iatt6hr,-1)     ! -1 = long
       lname = 'Frozen Water Content in Upper Portion of Soil Column'
-      call attrib(fncid,sdim,ssize,'mrfsos',lname,'kg m-2',0.,6500.,0,-1)          ! -1 = long
+      call attrib(fncid,sdim,4,'mrfsos',lname,'kg m-2',0.,6500.,0,-1)          ! -1 = long
       lname = 'Evaporation'
-      call attrib(fncid,sdim,ssize,'evspsbl',lname,'mm day-1',0.,1300.,0,-1)       ! -1 = long
+      call attrib(fncid,sdim,4,'evspsbl',lname,'mm day-1',0.,1300.,0,-1)       ! -1 = long
       lname = 'Surface runoff'
-      call attrib(fncid,sdim,ssize,'mrros',lname,'mm day-1',0.,1300.,iatt6hr,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'mrros',lname,'mm day-1',0.,1300.,iatt6hr,-1)   ! -1 = long
       lname = 'Runoff' ! mrro after pcc2hist
-      call attrib(fncid,sdim,ssize,'runoff',lname,'mm day-1',0.,1300.,iatt6hr,-1)  ! -1 = long
+      call attrib(fncid,sdim,4,'runoff',lname,'mm day-1',0.,1300.,iatt6hr,-1)  ! -1 = long
       lname = 'Total Soil Moisture Content'
-      call attrib(fncid,sdim,ssize,'mrso',lname,'kg m-2',0.,6500.,iatt6hr,-1)      ! -1 = long
+      call attrib(fncid,sdim,4,'mrso',lname,'kg m-2',0.,6500.,iatt6hr,-1)      ! -1 = long
       lname = 'Moisture in Upper Portion of Soil Column'
-      call attrib(fncid,sdim,ssize,'mrsos',lname,'kg m-2',0.,6500.,0,-1)           ! -1 = long
+      call attrib(fncid,sdim,4,'mrsos',lname,'kg m-2',0.,6500.,0,-1)           ! -1 = long
       lname = 'Snow melt' 
-      call attrib(fncid,sdim,ssize,'snm',lname,'mm day-1',0.,1300.,iatt6hr,-1)     ! -1 = long
+      call attrib(fncid,sdim,4,'snm',lname,'mm day-1',0.,1300.,iatt6hr,-1)     ! -1 = long
       lname = 'TOA Outgoing Longwave Radiation'
-      call attrib(fncid,sdim,ssize,'rtu_ave',lname,'W m-2',0.,800.,0,-1)           ! -1 = long
+      call attrib(fncid,sdim,4,'rtu_ave',lname,'W m-2',0.,800.,0,-1)           ! -1 = long
       lname = 'TOA Incident Shortwave Radiation'
-      call attrib(fncid,sdim,ssize,'sint_ave',lname,'W m-2',0.,1600.,0,-1)         ! -1 = long
+      call attrib(fncid,sdim,4,'sint_ave',lname,'W m-2',0.,1600.,0,-1)         ! -1 = long
       lname = 'TOA Outgoing Shortwave Radiation'
-      call attrib(fncid,sdim,ssize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)          ! -1 = long
+      call attrib(fncid,sdim,4,'sot_ave',lname,'W m-2',0.,1000.,0,-1)          ! -1 = long
     end if 
     if ( cordex_tier2 .and. cordex_fix==0 ) then
       lname = 'High Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,0,1)
+      call attrib(fncid,sdim,4,'clh',lname,'frac',0.,1.,0,1)
       lname = 'Mid Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'clm',lname,'frac',0.,1.,0,1)
+      call attrib(fncid,sdim,4,'clm',lname,'frac',0.,1.,0,1)
       lname = 'Low Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'cll',lname,'frac',0.,1.,0,1)
+      call attrib(fncid,sdim,4,'cll',lname,'frac',0.,1.,0,1)
     else if ( cordex_tier2 ) then
       lname = 'High Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'clh',lname,'frac',0.,1.,iatt6hr,1)
+      call attrib(fncid,sdim,4,'clh',lname,'frac',0.,1.,iatt6hr,1)
       lname = 'Mid Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'clm',lname,'frac',0.,1.,iatt6hr,1)
+      call attrib(fncid,sdim,4,'clm',lname,'frac',0.,1.,iatt6hr,1)
       lname = 'Low Level Cloud Fraction'
-      call attrib(fncid,sdim,ssize,'cll',lname,'frac',0.,1.,iatt6hr,1)
+      call attrib(fncid,sdim,4,'cll',lname,'frac',0.,1.,iatt6hr,1)
     end if   
     if ( cordex_tier1 ) then
       lname = 'x-component wind stress'
-      call attrib(fncid,sdim,ssize,'taux',lname,'N m-2',-50.,50.,0,1)
+      call attrib(fncid,sdim,4,'taux',lname,'N m-2',-50.,50.,0,1)
       lname = 'y-component wind stress'
-      call attrib(fncid,sdim,ssize,'tauy',lname,'N m-2',-50.,50.,0,1)
+      call attrib(fncid,sdim,4,'tauy',lname,'N m-2',-50.,50.,0,1)
     end if
     if ( cordex_tier2 ) then
       lname = 'Clear sky SW out at TOA'
-      call attrib(fncid,sdim,ssize,'soc_ave',lname,'W m-2',0.,900.,iattdaily,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'soc_ave',lname,'W m-2',0.,900.,iattdaily,-1)   ! -1 = long
       lname = 'Clear sky SW at ground (+ve down)'
-      call attrib(fncid,sdim,ssize,'sgc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long
+      call attrib(fncid,sdim,4,'sgc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long
       lname = 'Surface Downwelling Clear-Sky Shortwave Radiation'
-      call attrib(fncid,sdim,ssize,'sgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1) ! -1 = long      
+      call attrib(fncid,sdim,4,'sgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1) ! -1 = long      
       lname = 'Clear sky LW at TOA'
-      call attrib(fncid,sdim,ssize,'rtc_ave',lname,'W m-2',0.,800.,iattdaily,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'rtc_ave',lname,'W m-2',0.,800.,iattdaily,-1)   ! -1 = long
       lname = 'Clear sky LW at ground'
-      call attrib(fncid,sdim,ssize,'rgc_ave',lname,'W m-2',-500.,1000.,iattdaily,-1)   ! -1 = long
+      call attrib(fncid,sdim,4,'rgc_ave',lname,'W m-2',-500.,1000.,iattdaily,-1)   ! -1 = long
       lname = 'Surface Downwelling Clear-Sky Longwave Radiation'
-      call attrib(fncid,sdim,ssize,'rgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long  
+      call attrib(fncid,sdim,4,'rgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long  
       if ( rescrn>0 ) then
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
-        call attrib(fncid,sdim,ssize,'wsgsmax',lname,'m s-1',0.,350.,iattdaily,1)
+        call attrib(fncid,sdim,4,'wsgsmax',lname,'m s-1',0.,350.,iattdaily,1)
         lname = 'Convective Available Potential Energy'
-        call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,20000.,0,1)
+        call attrib(fncid,sdim,4,'CAPE',lname,'J kg-1',0.,20000.,0,1)
         lname = 'Convective Inhibition'
-        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',0.,20000.,0,1)
+        call attrib(fncid,sdim,4,'CIN',lname,'J kg-1',0.,20000.,0,1)
       end if
     end if  
     if ( cordex_tier1 ) then
       lname = 'Surface Temperature'
-      call attrib(fncid,sdim,ssize,'tsu',lname,'K',100.,425.,0,1)
+      call attrib(fncid,sdim,4,'tsu',lname,'K',100.,425.,0,1)
       lname = 'Height of Boundary Layer'
-      call attrib(fncid,sdim,ssize,'pblh',lname,'m',0.,13000.,0,1)
+      call attrib(fncid,sdim,4,'pblh',lname,'m',0.,13000.,0,1)
       lname = 'Water Vapor Path'
-      call attrib(fncid,sdim,ssize,'prw',lname,'kg m-2',0.,130.,0,-1)          ! -1 = long
+      call attrib(fncid,sdim,4,'prw',lname,'kg m-2',0.,130.,0,-1)          ! -1 = long
       lname = 'Condensed Water Path'
-      call attrib(fncid,sdim,ssize,'clwvi',lname,'kg m-2',0.,130.,0,-1)        ! -1 = long
+      call attrib(fncid,sdim,4,'clwvi',lname,'kg m-2',0.,130.,0,-1)        ! -1 = long
       lname = 'Ice Water Path'
-      call attrib(fncid,sdim,ssize,'clivi',lname,'kg m-2',0.,130.,0,-1)        ! -1 = long
+      call attrib(fncid,sdim,4,'clivi',lname,'kg m-2',0.,130.,0,-1)        ! -1 = long
       lname = 'Snow Depth' ! liquid water
-      call attrib(fncid,sdim,ssize,'snd',lname,'mm',0.,6500.,iatt6hr,-1)       ! -1 = long
+      call attrib(fncid,sdim,4,'snd',lname,'mm',0.,6500.,iatt6hr,-1)       ! -1 = long
     end if
     if ( cordex_tier1 ) then
       lname = 'Sea ice fraction'
-      call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,iattdaily,1)
+      call attrib(fncid,sdim,4,'fracice',lname,'none',0.,1.,iattdaily,1)
       lname = 'Sunshine hours per day'
-      call attrib(fncid,sdim,ssize,'sunhours',lname,'hrs',0.,24.,iattdaily,1)
+      call attrib(fncid,sdim,4,'sunhours',lname,'hrs',0.,24.,iattdaily,1)
     end if
     if ( cordex_tier2 ) then
       lname = 'Surface roughness'
-      call attrib(fncid,sdim,ssize,'zolnd',lname,'m',0.,65.,iattdaily,-1) ! -1=long
+      call attrib(fncid,sdim,4,'zolnd',lname,'m',0.,65.,iattdaily,-1) ! -1=long
       if ( abs(iaero)>=2 ) then
         lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
-        call attrib(fncid,sdim,ssize,'od550aer',lname,'1',0.,13.,iattdaily,1)
+        call attrib(fncid,sdim,4,'od550aer',lname,'1',0.,13.,iattdaily,1)
       end if  
     end if
     if ( cordex_tier1 ) then
@@ -4056,22 +4015,22 @@ if ( first ) then
         press_level = cordex_level_data(k)
         call cordex_name(lname,"x-component ",press_level,"hPa wind")
         call cordex_name(vname,"ua",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
         call cordex_name(lname,"y-component ",press_level,"hPa wind")
         call cordex_name(vname,"va",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
         lname = 'Air Temperature'     
         call cordex_name(vname,"ta",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,425.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'K',100.,425.,iatt6hr,1)
         lname = 'Specific Humidity'
         call cordex_name(vname,"hus",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'1',0.,0.06,iatt6hr,1)
         lname = 'Geopotential Height'
         call cordex_name(vname,"zg",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m',0.,130000.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m',0.,130000.,iatt6hr,1)
         lname = 'Upward Air Velocity'
         call cordex_name(vname,"wa",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
       end do 
     end if
     if ( cordex_tier2 ) then
@@ -4079,22 +4038,22 @@ if ( first ) then
         press_level = cordex_level_data(k)
         call cordex_name(lname,"x-component ",press_level,"hPa wind")
         call cordex_name(vname,"ua",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
         call cordex_name(lname,"y-component ",press_level,"hPa wind")
         call cordex_name(vname,"va",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
         lname = 'Air Temperature'     
         call cordex_name(vname,"ta",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,425.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'K',100.,425.,iatt6hr,1)
         lname = 'Specific Humidity'
         call cordex_name(vname,"hus",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'1',0.,0.06,iatt6hr,1)
         lname = 'Geopotential Height'
         call cordex_name(vname,"zg",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m',0.,130000.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m',0.,130000.,iatt6hr,1)
         lname = 'Upward Air Velocity'
         call cordex_name(vname,"wa",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
       end do 
     end if
     
@@ -4102,21 +4061,21 @@ if ( first ) then
       do k = 1,ms
         call cordex_name(vname,"tgg",k)  
         call cordex_name(lname,"Soil temperature lev ",k)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,425.,iatt6hr,1)  
+        call attrib(fncid,sdim,4,trim(vname),lname,'K',100.,425.,iatt6hr,1)  
         call cordex_name(vname,"mrsol",k)  
         call cordex_name(lname,"Total Water Content of Soil Layer ",k)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'kg m-2',0.,6500.,iatt6hr,1)  
+        call attrib(fncid,sdim,4,trim(vname),lname,'kg m-2',0.,6500.,iatt6hr,1)  
         call cordex_name(vname,"mrfsol",k)  
         call cordex_name(lname,"Frozen Water Content of Soil Layer ",k)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'kg m-2',0.,6500.,iatt6hr,1)  
+        call attrib(fncid,sdim,4,trim(vname),lname,'kg m-2',0.,6500.,iatt6hr,1)  
       end do    
     end if    
 
     if ( output_windmax/=0 ) then
       lname = 'x-component max 10m wind (sub-daily)'
-      call attrib(fncid,sdim,ssize,'u10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
+      call attrib(fncid,sdim,4,'u10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
       lname = 'y-component max 10m wind (sub-daily)'
-      call attrib(fncid,sdim,ssize,'v10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
+      call attrib(fncid,sdim,4,'v10m_max',lname,'m s-1',-99.,99.,0,1) ! sub-daily
     end if
     
     ! end definition mode
@@ -4193,7 +4152,7 @@ if ( first ) then
       deallocate(procoffset)
     end if
     
-  else if ( localhist ) then
+  else
     
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
@@ -4221,7 +4180,7 @@ if ( first ) then
     call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
     deallocate(procoffset)
     
-  end if ! myid==0 .or. local ..else if ( localhist ) ..
+  end if ! myid==0 .or. local ..else..
   
   if ( cordex_core ) then
     call histwrt(zs,'zht',fncid,fiarch,local,.true.)
@@ -4696,8 +4655,8 @@ integer, dimension(5) :: outdim
 integer ixp,iyp,izp,tlen
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,n,fiarch
-integer dproc, d4, asize, ssize, idnp, idgpn, idgpo
-integer fsize, press_level
+integer idnp, idgpn, idgpo
+integer press_level
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -4721,27 +4680,13 @@ character(len=20) timorg
 
 call START_LOG(outfile_begin)
 
-! localhist=.true. indicates that the output will be written in parallel.
-
-! localhist=.true. indicates that procformat mode is active where one 'node' captian will
+! procformat mode is where one 'node' captian will
 ! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
 ! they cannot be split across physical nodes.
 
 ! local=.true. if this process needs to write to a file
 
-local = localhist .and. vnode_myid==0
-if ( localhist ) then
-  dproc = 4
-  d4    = 5
-  asize = 5
-  ssize = 4
-else
-  dproc = -1
-  d4    = 4
-  asize = 4
-  ssize = 3
-end if
-fsize = ssize - 1 ! size of fixed variables
+local = vnode_myid==0
 
 ! allocate arrays and open new file
 if ( first ) then
@@ -4769,23 +4714,19 @@ if ( first ) then
     endif
     call ccnf_def_dim(fncid,'lev',1,adim(3))
     if ( local ) then
-      call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(dproc)) 
+      call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(4)) 
       if ( myid==0 ) then
         call ccnf_def_dim(fncid,'gprocessor',nproc,gpdim(1)) 
       else
         gpdim(1)=0
       end if
     end if
-    if ( unlimitedhist ) then
-      call ccnf_def_dimu(fncid,'time',adim(d4))
-    else
-      tlen = ntau/tbave10
-      call ccnf_def_dim(fncid,'time',tlen,adim(d4))  
-    end if
+    tlen = ntau/tbave10
+    call ccnf_def_dim(fncid,'time',tlen,adim(5))  
     ! Define coords.
     if ( local ) then
       outdim(1) = adim(1)
-      outdim(2) = adim(dproc)
+      outdim(2) = adim(4)
       call ccnf_def_var(fncid,'longitude','float',2,outdim(1:2),ixp)        
     else
       call ccnf_def_var(fncid,'longitude','float',1,adim(1:1),ixp)
@@ -4794,7 +4735,7 @@ if ( first ) then
     call ccnf_put_att(fncid,ixp,'units','degrees_east')
     if ( local ) then
       outdim(1) = adim(2)
-      outdim(2) = adim(dproc)
+      outdim(2) = adim(4)
       call ccnf_def_var(fncid,'latitude','float',2,outdim(1:2),iyp)
     else
       call ccnf_def_var(fncid,'latitude','float',1,adim(2:2),iyp)
@@ -4806,13 +4747,13 @@ if ( first ) then
     call ccnf_put_att(fncid,izp,'point_spacing','uneven')
     call ccnf_put_att(fncid,izp,'units','sigma_level')
     if ( local ) then
-      call ccnf_def_var(fncid,'processor','float',1,adim(dproc:dproc),idnp)  
+      call ccnf_def_var(fncid,'processor','float',1,adim(4:4),idnp)  
       if ( myid==0 ) then
         call ccnf_def_var(fncid,'gprocnode','int',1,gpdim(1:1),idgpn)
         call ccnf_def_var(fncid,'gprocoffset','int',1,gpdim(1:1),idgpo)
       end if
     end if
-    call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
+    call ccnf_def_var(fncid,'time','double',1,adim(5:5),idnt)
     call ccnf_put_att(fncid,idnt,'point_spacing','even')
     icy=kdate/10000
     icm=max(1,min(12,(kdate-icy*10000)/100))
@@ -4832,9 +4773,9 @@ if ( first ) then
     else if ( leap==2 ) then
       call ccnf_put_att(fncid,idnt,'calendar','360_day')  
     end if
-    call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)
-    call ccnf_def_var(fncid,'ktime','int',1,adim(d4:d4),idktime)
-    call ccnf_def_var(fncid,'mtimer','int',1,adim(d4:d4),idmtimer)
+    call ccnf_def_var(fncid,'kdate','int',1,adim(5:5),idkdate)
+    call ccnf_def_var(fncid,'ktime','int',1,adim(5:5),idktime)
+    call ccnf_def_var(fncid,'mtimer','int',1,adim(5:5),idmtimer)
     ! header data
     ahead(1)=ds
     ahead(2)=0.  !difknbd
@@ -4944,19 +4885,19 @@ if ( first ) then
       sdim(3)   = adim(4)
     end if
     lname='x-component 10m wind'
-    call attrib(fncid,sdim,ssize,'uas',lname,'m s-1',-130.,130.,0,1)
+    call attrib(fncid,sdim,4,'uas',lname,'m s-1',-130.,130.,0,1)
     lname='y-component 10m wind'     
-    call attrib(fncid,sdim,ssize,'vas',lname,'m s-1',-130.,130.,0,1)
+    call attrib(fncid,sdim,4,'vas',lname,'m s-1',-130.,130.,0,1)
     lname='Near-Surface Air Temperature'     
-    call attrib(fncid,sdim,ssize,'tscrn',lname,'K',100.,425.,0,1)
+    call attrib(fncid,sdim,4,'tscrn',lname,'K',100.,425.,0,1)
     lname='Near-Surface Relative Humidity'     
-    call attrib(fncid,sdim,ssize,'rhscrn',lname,'%',0.,200.,0,1)
+    call attrib(fncid,sdim,4,'rhscrn',lname,'%',0.,200.,0,1)
     lname='Precipitation'
-    call attrib(fncid,sdim,ssize,'rnd',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
+    call attrib(fncid,sdim,4,'rnd',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname='Convective Precipitation'
-    call attrib(fncid,sdim,ssize,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
+    call attrib(fncid,sdim,4,'rnc',lname,'mm day-1',0.,1300.,0,-1)          ! -1=long
     lname = 'Scaled Log Surface pressure'
-    call attrib(fncid,sdim,ssize,'psf',lname,'none',-1.4,0.5,0,1)
+    call attrib(fncid,sdim,4,'psf',lname,'none',-1.4,0.5,0,1)
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -5026,7 +4967,7 @@ if ( first ) then
       deallocate(procoffset)
     end if
     
-  else if ( localhist ) then
+  else
     
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
@@ -5054,7 +4995,7 @@ if ( first ) then
     call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
     deallocate(procoffset)
     
-  end if ! myid==0 .or. local ..else if ( localhist ) ..
+  end if ! myid==0 .or. local ..else..
   
   first=.false.
   if ( myid==0 ) write(6,*) "Finished initialising sub hourly output"
@@ -5164,14 +5105,14 @@ implicit none
 
 integer, save :: lev = -1
 integer, dimension(1) :: pos
-real c, conr, con
+!real c, conr, con
 real, dimension(ifull), intent(out) :: pmsl
 real, dimension(ifull), intent(in) :: psl, zs
 real, dimension(ifull) :: phi1, tsurf, tav,  dlnps
 real, dimension(:,:), intent(in) :: t
       
-c = grav/stdlapse
-conr = c/rdry
+!c = grav/stdlapse
+!conr = c/rdry
 if ( lev<0 ) then
   pos = minloc(abs(sig-0.9),sig>=0.9)
   lev = pos(1)
@@ -5179,7 +5120,7 @@ if ( lev<0 ) then
     write(6,*) "Reducing ps to MSLP with lev,sig ",lev,sig(lev) 
   end if
 end if
-con = sig(lev)**(rdry/c)/c
+!con = sig(lev)**(rdry/c)/c
       
 phi1(:) = t(1:ifull,lev)*rdry*(1.-sig(lev))/sig(lev) ! phi of sig(lev) above sfce
 tsurf(:) = t(1:ifull,lev)+phi1(:)*stdlapse/grav

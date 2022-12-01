@@ -37,6 +37,7 @@ real, dimension(:), allocatable, save :: em, f
 real, dimension(:), pointer, save :: em_g
 integer, save :: em_g_win
 
+!$acc declare create(emu,emv)
 
 contains
 

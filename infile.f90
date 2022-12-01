@@ -24,7 +24,7 @@ module infile
 ! This module contains routines for reading netcdf files, vertical interpolation and some calendar functions.
 ! This module also contains the interface to the netcdf library.
       
-! This version of infile.f90 supports parallel localhist input files.  Multiple processors read as many input files as
+! This version of infile.f90 supports parallel input files.  Multiple processors read as many input files as
 ! supplied in parallel and then makes this data avaliable to all processors for interpolation. The code can also identify
 ! restart files, in which case no additional message passing is required.
 
@@ -253,7 +253,7 @@ if ( mynproc>0 ) then
       ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       ier=nf90_get_var(pncid(ipf),idv,dvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      rvar = real(dvar) ! for precision issues with netcdf (e.g., 1.e-40)
+      rvar = real( dvar ) ! for floating point issues (e.g. 1.e-40 )      
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf) + real(laddoff)
     end if ! ier
@@ -2040,7 +2040,7 @@ else
 end if
 lcdfid = cdfid
 ldim   = dim
-if ( localhist .and. ndim>3 ) then
+if ( ndim>3 ) then
   ! MJT notes - PR identified (/il, jl, kl,vnode_nproc, min(10, tlen)/) as optimal.
   ! However, here we simplify the code and PR reports that the performance is
   ! similar
@@ -2131,12 +2131,8 @@ end if
 
 if ( local ) then
   call fw3lp(wvar,sname,idnc,iarch)  
-else if ( localhist ) then
+else 
   call ccmpi_gatherx(var_t,wvar,0,comm_vnode)
-else if ( myid==0 ) then
-  call fw3a(wvar,sname,idnc,iarch)
-else
-  call ccmpi_gather(wvar)
 end if
 
 return
@@ -2168,12 +2164,8 @@ end if
 
 if ( local ) then
   call fw3lpr8(wvar,sname,idnc,iarch)  
-else if ( localhist ) then
-  call ccmpi_gatherxr8(var_t,wvar,0,comm_vnode)
-else if ( myid==0 ) then
-  call fw3ar8(wvar,sname,idnc,iarch)
 else
-  call ccmpi_gatherr8(wvar)
+  call ccmpi_gatherxr8(var_t,wvar,0,comm_vnode)
 end if
 
 return
@@ -2510,12 +2502,8 @@ endif
 
 if ( local ) then
   call hw4lp(wvar,sname,idnc,iarch)  
-else if ( localhist ) then
-  call ccmpi_gatherx(var_g,wvar,0,comm_vnode)
-else if ( myid==0 ) then
-  call hw4a(wvar,sname,idnc,iarch)
 else
-  call ccmpi_gather(wvar(1:ifull,1:ll))
+  call ccmpi_gatherx(var_g,wvar,0,comm_vnode)
 endif
 
 return
@@ -2548,12 +2536,8 @@ endif
 
 if ( local ) then
   call hw4lpr8(wvar,sname,idnc,iarch)  
-else if ( localhist ) then
-  call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
-else if ( myid==0 ) then
-  call hw4ar8(wvar,sname,idnc,iarch)
 else
-  call ccmpi_gatherr8(wvar(1:ifull,1:ll))
+  call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
 endif
 
 return
@@ -2895,12 +2879,8 @@ endif
 
 if ( local ) then
   call hw5lp(wvar,sname,idnc,iarch)  
-else if ( localhist ) then
-  call ccmpi_gatherx(var_g,var,0,comm_vnode)
-else if ( myid==0 ) then
-  call hw5a(wvar,sname,idnc,iarch)
 else
-  call ccmpi_gather(wvar(1:ifull,1:kk,1:ll))
+  call ccmpi_gatherx(var_g,var,0,comm_vnode)
 endif
 
 return
@@ -2934,12 +2914,8 @@ endif
 
 if ( local ) then
   call hw5lpr8(wvar,sname,idnc,iarch)  
-else if ( localhist ) then
-  call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
-else if ( myid==0 ) then
-  call hw5ar8(wvar,sname,idnc,iarch)
 else
-  call ccmpi_gatherr8(wvar(1:ifull,1:kk,1:ll))
+  call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
 endif
 
 return

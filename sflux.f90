@@ -51,7 +51,9 @@ real, dimension(:), allocatable :: oldrunoff,oldsnowmelt,oldevspsbl,oldsbl
 real, dimension(:), allocatable :: af,aft,ri
 real, dimension(:), allocatable :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(:), allocatable :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
+#ifdef csircoupled
 real, dimension(:), allocatable :: river_inflow
+#endif
 !real, dimension(:), allocatable :: tss_save
 
 #ifdef csircoupled
@@ -91,9 +93,9 @@ allocate( oldrunoff(ifull), oldsnowmelt(ifull), oldevspsbl(ifull), oldsbl(ifull)
 allocate( af(ifull), aft(ifull), ri(ifull) )
 allocate( fg_ocn(ifull), fg_ice(ifull), eg_ocn(ifull), eg_ice(ifull) )
 allocate( taux_ocn(ifull), taux_ice(ifull), tauy_ocn(ifull), tauy_ice(ifull) )
-allocate( river_inflow(ifull) )
 !allocate( tss_save(ifull) )
 #ifdef csircoupled
+allocate( river_inflow(ifull) )
 allocate( dumrg(ifull), dumx(ifull) )
 allocate( dumtaux_ocn(ifull), dumtauy_ocn(ifull) )
 allocate( dumtaux_ice(ifull), dumtauy_ice(ifull) )
@@ -819,7 +821,9 @@ if(mydiag.and.nmaxpr==1)then                                                    
 endif    ! (mydiag.and.nmaxpr==1)                                                                ! sice
 
 where ( .not.land(1:ifull) )
+#ifdef csircoupled
   river_inflow(1:ifull) = watbdy(1:ifull)  
+#endif
   watbdy(1:ifull) = 0. ! water enters ocean and is removed from rivers
 end where
 

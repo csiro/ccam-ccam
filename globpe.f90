@@ -1446,7 +1446,8 @@ real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
 real zimax                          ! depreciated namelist options
-logical procformat                  ! depreciated namelist options
+logical procformat, localhist       ! depreciated namelist options
+logical unlimitedhist               ! depreciated namelist options
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
 character(len=60) comm, comment
@@ -1639,7 +1640,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(120) ) 
+allocate( dumr(33), dumi(118) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1756,47 +1757,45 @@ if ( myid==0 ) then
   dumi(77)  = io_out
   dumi(78)  = io_rest
   dumi(79)  = tbave
-  if ( localhist) dumi(80) = 1
-  if ( unlimitedhist ) dumi(81) = 1
-  if ( synchist ) dumi(82) = 1
-  dumi(83)  = m_fly
-  dumi(84)  = nurban
-  dumi(85)  = ktopdav
-  dumi(86)  = mbd_mlo
-  dumi(87)  = mbd_maxscale_mlo
-  dumi(88)  = nud_sst
-  dumi(89)  = nud_sss
-  dumi(90)  = mfix_tr
-  dumi(91)  = mfix_aero
-  dumi(92)  = kbotmlo
-  dumi(93)  = ktopmlo
-  dumi(94)  = mloalpha
-  dumi(95)  = nud_ouv
-  dumi(96)  = nud_sfh
-  dumi(97)  = rescrn
-  dumi(98) = helmmeth
-  dumi(99) = nmlo
-  dumi(100) = ol
-  dumi(101) = knh
-  dumi(102) = kblock
-  dumi(103) = nud_aero
-  dumi(104) = atebnmlfile
-  dumi(105) = nud_period
-  dumi(106) = procmode
-  dumi(107) = compression
-  dumi(108) = nmr
-  dumi(109) = maxtilesize
-  dumi(110) = mfix_t
-  dumi(111) = ensemble_mode
-  dumi(112) = ensemble_period
-  dumi(113) = hp_output
-  dumi(114) = intsch_mode
-  dumi(115) = qg_fix
-  if ( always_mspeca ) dumi(116) = 1
-  dumi(117) = ntvd
-  dumi(118) = tbave10  
-  dumi(119) = async_length
-  dumi(120) = nagg
+  if ( synchist ) dumi(80) = 1
+  dumi(81)  = m_fly
+  dumi(82)  = nurban
+  dumi(83)  = ktopdav
+  dumi(84)  = mbd_mlo
+  dumi(85)  = mbd_maxscale_mlo
+  dumi(86)  = nud_sst
+  dumi(87)  = nud_sss
+  dumi(88)  = mfix_tr
+  dumi(89)  = mfix_aero
+  dumi(90)  = kbotmlo
+  dumi(91)  = ktopmlo
+  dumi(92)  = mloalpha
+  dumi(93)  = nud_ouv
+  dumi(94)  = nud_sfh
+  dumi(95)  = rescrn
+  dumi(96) = helmmeth
+  dumi(97) = nmlo
+  dumi(98) = ol
+  dumi(99) = knh
+  dumi(100) = kblock
+  dumi(101) = nud_aero
+  dumi(102) = atebnmlfile
+  dumi(103) = nud_period
+  dumi(104) = procmode
+  dumi(105) = compression
+  dumi(106) = nmr
+  dumi(107) = maxtilesize
+  dumi(108) = mfix_t
+  dumi(109) = ensemble_mode
+  dumi(110) = ensemble_period
+  dumi(111) = hp_output
+  dumi(112) = intsch_mode
+  dumi(113) = qg_fix
+  if ( always_mspeca ) dumi(114) = 1
+  dumi(115) = ntvd
+  dumi(116) = tbave10  
+  dumi(117) = async_length
+  dumi(118) = nagg
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1912,47 +1911,45 @@ io_nest           = dumi(76)
 io_out            = dumi(77)
 io_rest           = dumi(78)
 tbave             = dumi(79)
-localhist         = dumi(80)==1
-unlimitedhist     = dumi(81)==1
-synchist          = dumi(82)==1
-m_fly             = dumi(83)
-nurban            = dumi(84)
-ktopdav           = dumi(85)
-mbd_mlo           = dumi(86)
-mbd_maxscale_mlo  = dumi(87)
-nud_sst           = dumi(88)
-nud_sss           = dumi(89)
-mfix_tr           = dumi(90)
-mfix_aero         = dumi(91)
-kbotmlo           = dumi(92)
-ktopmlo           = dumi(93)
-mloalpha          = dumi(94)
-nud_ouv           = dumi(95)
-nud_sfh           = dumi(96)
-rescrn            = dumi(97)
-helmmeth          = dumi(98)
-nmlo              = dumi(99)
-ol                = dumi(100)
-knh               = dumi(101)
-kblock            = dumi(102)
-nud_aero          = dumi(103)
-atebnmlfile       = dumi(104)
-nud_period        = dumi(105)
-procmode          = dumi(106)
-compression       = dumi(107)
-nmr               = dumi(108)
-maxtilesize       = dumi(109)
-mfix_t            = dumi(110)
-ensemble_mode     = dumi(111)
-ensemble_period   = dumi(112)
-hp_output         = dumi(113)
-intsch_mode       = dumi(114)
-qg_fix            = dumi(115)
-always_mspeca     = dumi(116)==1
-ntvd              = dumi(117)
-tbave10           = dumi(118)
-async_length      = dumi(119)
-nagg              = dumi(120)
+synchist          = dumi(80)==1
+m_fly             = dumi(81)
+nurban            = dumi(82)
+ktopdav           = dumi(83)
+mbd_mlo           = dumi(84)
+mbd_maxscale_mlo  = dumi(85)
+nud_sst           = dumi(86)
+nud_sss           = dumi(87)
+mfix_tr           = dumi(88)
+mfix_aero         = dumi(89)
+kbotmlo           = dumi(90)
+ktopmlo           = dumi(91)
+mloalpha          = dumi(92)
+nud_ouv           = dumi(93)
+nud_sfh           = dumi(94)
+rescrn            = dumi(95)
+helmmeth          = dumi(96)
+nmlo              = dumi(97)
+ol                = dumi(98)
+knh               = dumi(99)
+kblock            = dumi(100)
+nud_aero          = dumi(101)
+atebnmlfile       = dumi(102)
+nud_period        = dumi(103)
+procmode          = dumi(104)
+compression       = dumi(105)
+nmr               = dumi(106)
+maxtilesize       = dumi(107)
+mfix_t            = dumi(108)
+ensemble_mode     = dumi(109)
+ensemble_period   = dumi(110)
+hp_output         = dumi(111)
+intsch_mode       = dumi(112)
+qg_fix            = dumi(113)
+always_mspeca     = dumi(114)==1
+ntvd              = dumi(115)
+tbave10           = dumi(116)
+async_length      = dumi(117)
+nagg              = dumi(118)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2552,7 +2549,7 @@ deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0
 if ( myid==0 ) then
-  rewind(99)
+  rewind(99)  
   read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
   if ( ierr/=0 ) then
     rewind(99)
@@ -3025,7 +3022,7 @@ end if
 
 ! This is the procformat IO system where a single output file is
 ! written per (virtual) node
-call ccmpi_procformat_init(localhist,procmode) 
+call ccmpi_procformat_init(procmode) 
 
 
 !--------------------------------------------------------------
@@ -3095,6 +3092,10 @@ if ( myid==0 ) then
   write(6,*) "Calling ccmpi_setup"
 end if
 call ccmpi_setup(id,jd,idjd,dt)
+
+!$acc update device(in,is,ie,iw,ine,ien,ies,inw)
+!$acc update device(iwu,isv)
+!$acc update device(emu,emv)
 
 !--------------------------------------------------------------
 ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
@@ -3199,7 +3200,7 @@ if ( kbotdav<0 ) then
     if ( sig(k)<=targetlev ) then
       kbotdav = k
       if ( myid==0 ) then
-        write(6,*) "Nesting kbotdav adjusted to ",kbotdav,"for sig ",sig(kbotdav)
+        write(6,*) "Nesting kbotdav adjusted to ",kbotdav," for sig ",sig(kbotdav)
       end if
       exit
     end if
@@ -3217,7 +3218,7 @@ else if ( ktopdav<0 ) then
     if ( sig(k)>=targetlev ) then
       ktopdav = k
       if ( myid == 0 ) then
-        write(6,*) "Nesting ktopdav adjusted to ",ktopdav,"for sig ",sig(ktopdav)
+        write(6,*) "Nesting ktopdav adjusted to ",ktopdav," for sig ",sig(ktopdav)
       end if
       exit
     end if
@@ -3244,7 +3245,7 @@ if ( nmlo/=0 .and. abs(nmlo)<9 ) then
       if ( gosig_in(k)<=targetlev ) then
         kbotmlo = k
         if ( myid==0 ) then
-          write(6,*) "Nesting kbotmlo adjusted to ",kbotmlo,"for sig ",gosig_in(kbotmlo)
+          write(6,*) "Nesting kbotmlo adjusted to ",kbotmlo," for sig ",gosig_in(kbotmlo)
         end if
         exit
       end if
@@ -3260,7 +3261,7 @@ if ( nmlo/=0 .and. abs(nmlo)<9 ) then
       if ( gosig_in(k)>=targetlev ) then
         ktopmlo = k
         if ( myid==0 ) then
-          write(6,*) "Nesting ktopmlo adjusted to ",ktopmlo,"for sig ",gosig_in(ktopmlo)
+          write(6,*) "Nesting ktopmlo adjusted to ",ktopmlo," for sig ",gosig_in(ktopmlo)
         end if
         exit
       end if
@@ -4053,7 +4054,7 @@ do iq = 1,ifull
 end do
 
 if ( ngas>0 ) then
-        traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(1:ifull,:,1:ngas)
+  traver(:,:,1:ngas) = traver(:,:,1:ngas) + tr(1:ifull,:,1:ngas)
 end if
 
 if ( ccycle/=0 ) then

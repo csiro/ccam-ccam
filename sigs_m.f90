@@ -30,6 +30,8 @@ public sigs_init,sigs_end
 real, dimension(:), allocatable, save :: sig,sigmh,dsig,rata,ratb,bet,tbar,tbardsig,betm,ratha,rathb
 real, save :: dtmax
 
+!$acc declare create(ratha,rathb)
+
 contains
 
 subroutine  sigs_init(kl)

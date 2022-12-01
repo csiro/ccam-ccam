@@ -381,8 +381,8 @@ end if  ! (nhorps==-4.and.abs(iaero)>=2)
 !$omp parallel
 !$omp sections
 #endif
-!$acc data create(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-!$acc update device(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
+!$acc data create(xfact,yfact,emi)
+!$acc update device(xfact,yfact,emi)
 
 #ifndef GPU    
 !$omp section
