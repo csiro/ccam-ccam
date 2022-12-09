@@ -519,16 +519,16 @@ new_tss(is:ie) = tss(is:ie)
 new_smixr(is:ie) = smixr(is:ie)
 if ( zo_clearing>0. ) then
   where ( land(is:ie) )  
-    new_zo(is:ie)  = min( zo_clearing, zo(is:ie) )
-    new_zoh(is:ie) = min( 0.1*zo_clearing, zoh(is:ie) )
-    new_zoq(is:ie) = min( 0.1*zo_clearing, zoq(is:ie) )
+    new_zo(is:ie)  = min( zo_clearing, new_zo(is:ie) )
+    new_zoh(is:ie) = min( 0.1*zo_clearing, new_zoh(is:ie) )
+    new_zoq(is:ie) = min( 0.1*zo_clearing, new_zoq(is:ie) )
   end where  
 end if
 if ( rescrn==2 ) then
   where ( land(is:ie) )
-    new_zo(is:ie) = max( zo(is:ie), zobgin )
-    new_zoh(is:ie) = max( zoh(is:ie), zobgin/7.4 )
-    new_zoq(is:ie) = max( zoq(is:ie), zobgin/7.4 )
+    new_zo(is:ie) = max( new_zo(is:ie), zobgin )
+    new_zoh(is:ie) = max( new_zoh(is:ie), zobgin/7.4 )
+    new_zoq(is:ie) = max( new_zoq(is:ie), zobgin/7.4 )
   end where
 end if
 

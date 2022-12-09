@@ -1329,7 +1329,7 @@ use cable_ccam, only : proglai           & ! CABLE
     ,gs_switch,cable_climate,ccycle      &
     ,smrf_switch,strf_switch             &
     ,cable_gw_model,cable_roughness      &
-    ,cable_version
+    ,cable_version,cable_potev
 use carbpools_m, only : carbpools_init     ! Carbon pools
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
@@ -1537,7 +1537,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL s
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
-    cable_gw_model,cable_roughness,cable_version,                 &
+    cable_gw_model,cable_roughness,cable_version,cable_potev,     &
     ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
     ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
@@ -2324,7 +2324,7 @@ stabmeth           = dumi(2)
 tkemeth            = dumi(3)
 ngwd               = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr(24), dumi(32) )
+allocate( dumr(24), dumi(33) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2390,6 +2390,7 @@ if ( myid==0 ) then
   dumi(30) = ateb_lwintmeth
   dumi(31) = ateb_infilmeth
   dumi(32) = cable_roughness
+  dumi(33) = cable_potev
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2449,6 +2450,7 @@ ateb_statsmeth    = dumi(29)
 ateb_lwintmeth    = dumi(30) 
 ateb_infilmeth    = dumi(31)
 cable_roughness   = dumi(32)
+cable_potev       = dumi(33)
 deallocate( dumr, dumi )
 allocate( dumr(21), dumi(20) )
 dumr = 0.

@@ -134,7 +134,7 @@ private
 public sib4, cable_version
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
-public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle
+public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch, cable_climate
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
@@ -154,6 +154,7 @@ integer, save :: strf_switch     = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 
                                               ! 5 DAMM (Soil Temp Respiration Function)
 integer, save :: cable_gw_model  = 0          ! 0 off, 1 GW_Hydro
 integer, save :: cable_roughness = 0          ! 0 defailt, 1 new
+integer, save :: cable_potev     = 1          ! 0 Penman Monteith, 1 Humidity Deficit
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai         = 0          ! 0 prescribed, 1 prognostic LAI
@@ -2576,8 +2577,12 @@ if ( mp_global>0 ) then
   allocate( dummy_unpack(mp_global) )
   
   ! Cable configuration
-  !cable_user%ssnow_POTEV = "P-M" ! Penman Monteith
-  cable_user%ssnow_POTEV = "HDM" ! default Humidity Deficit
+  select case( cable_potev )
+    case(0)
+      cable_user%ssnow_POTEV = "P-M" ! Penman Monteith
+    case default  
+      cable_user%ssnow_POTEV = "HDM" ! default Humidity Deficit
+  end select    
   cable_user%MetType = "defa"    ! only 4 characters for "default"
   cable_user%diag_soil_resp = "ON"
   cable_user%leaf_respiration = "ON"
