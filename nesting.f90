@@ -1623,12 +1623,7 @@ do ipass = 0,2
     end do
   end do
 #ifdef _OPENMP
-#ifdef GPU
   !$omp end target teams distribute parallel do
-#else
-  !$omp end do nowait
-  !$omp end parallel
-#endif
 #else
   !$acc end parallel loop
 #endif
