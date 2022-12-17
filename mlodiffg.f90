@@ -24,7 +24,7 @@ module mlodiffg
 implicit none
 
 private
-public mlodiffusion,mlodiffusion_work,mlo_biharmonicdiff_work
+public mlodiffusion,mlodiffusion_work
 public mlodiff,ocndelphi,ocnsmag
 
 integer, parameter :: nf          = 2       ! power for horizontal diffusion reduction factor
@@ -57,14 +57,7 @@ call mloexport3d(1,ss,0)
 call mloexport3d(2,u,0)
 call mloexport3d(3,v,0)
 
-if ( mlodiff>=0 .and. mlodiff<=9 ) then
-  call mlodiffusion_work(u,v,tt,ss)
-else if ( mlodiff>=10 .and. mlodiff<=19 ) then
-  call mlo_biharmonicdiff_work(u,v,tt,ss)  
-else
-  write(6,*) "ERROR: Unknown mlodiff option ",mlodiff
-  call ccmpi_abort(-1)
-end if
+call mlodiffusion_work(u,v,tt,ss)
 
 call mloimport3d(0,tt,0)
 call mloimport3d(1,ss,0)
@@ -186,15 +179,14 @@ call boundsuv(xfact,yfact,stag=-9)
 
 ! pre-process boundaries
 
-if ( mlodiff==0 ) then
+if ( mlodiff==0 .or. mlodiff==10 ) then
   ! Laplacian diffusion terms (closure #1)
   do k = 1,wlev
     duma(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
     duma(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
     duma(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
-  call bounds(duma(:,:,1:3))
-else if ( mlodiff==1 ) then
+else if ( mlodiff==1 .or. mlodiff==11 ) then
   ! no diffusion applied to momentum
 else
   write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
@@ -209,70 +201,27 @@ work_ss(1:ifull,:) = ss(1:ifull,:) - 34.72
 where( workdata2(1:ifull,:)<2. )
   work_ss(1:ifull,:) = 0.
 end where
-call bounds(work_tt)
-call bounds(work_ss)
 
 
 ! perform diffusion
 
-#ifdef GPU
-!$omp target data map(to:xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-#else
-!$omp parallel
-!$omp sections
-#endif
-!$acc data create(xfact,yfact,emi)
-!$acc update device(xfact,yfact,emi)
-
-#ifndef GPU    
-!$omp section
-#endif
-if ( mlodiff==0 ) then
+if ( mlodiff==0 .or. mlodiff==10 ) then
   ! UX  
   call mlodiffcalc(duma(:,:,1),xfact,yfact,emi)
-endif
-
-#ifndef GPU    
-!$omp section
-#endif
-if ( mlodiff==0 ) then
   ! VY  
   call mlodiffcalc(duma(:,:,2),xfact,yfact,emi)
-endif
-
-#ifndef GPU    
-!$omp section
-#endif
-if ( mlodiff==0 ) then
   ! WZ  
   call mlodiffcalc(duma(:,:,3),xfact,yfact,emi)
-endif
-
-#ifndef GPU    
-!$omp section
-#endif
+end if
 ! potential temperature
 call mlodiffcalc(work_tt,xfact,yfact,emi)
-
-#ifndef GPU    
-!$omp section
-#endif
 ! salinity
 call mlodiffcalc(work_ss,xfact,yfact,emi)
-
-#ifdef GPU
-!$omp end target data
-#else
-!$omp end sections
-!$omp end parallel
-#endif
-!$acc wait
-!$acc end data
 
 
 ! post-processing
 
-if ( mlodiff==0 ) then
+if ( mlodiff==0 .or. mlodiff==10 ) then
   do k = 1,wlev
     do iq = 1,ifull
       u(iq,k) = ax(iq)*duma(iq,k,1) + ay(iq)*duma(iq,k,2) + az(iq)*duma(iq,k,3)
@@ -297,271 +246,9 @@ end subroutine mlodiffusion_work
 
 subroutine mlodiffcalc(work,xfact,yfact,emi)    
 
-use cc_acc, only : async_length
-use indices_m
-use mlo
-use newmpar_m
-
-implicit none
-
-integer k, iq
-integer, save :: async_counter = -1
-real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
-real, dimension(ifull), intent(in) :: emi
-real, dimension(ifull+iextra,wlev), intent(inout) :: work
-real, dimension(ifull+iextra,wlev) :: ans
-real base, xfact_iwu, yfact_isv
-
-async_counter = mod(async_counter+1, async_length)
-
-#ifdef _OPENMP
-#ifdef GPU
-!$omp target enter data map(to:work) map(alloc:ans)
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
-#endif
-#else
-!$acc enter data create(work,ans) async(async_counter)
-!$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,iwu,isv,in,is,ie,iw) async(async_counter)
-#endif
-do k = 1,wlev
-   do iq = 1,ifull
-     xfact_iwu = xfact(iwu(iq),k)
-     yfact_isv = yfact(isv(iq),k)
-     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                   +yfact(iq,k)+yfact_isv
-     ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                   xfact(iq,k)*work(ie(iq),k) +       &
-                   xfact_iwu*work(iw(iq),k) +         &
-                   yfact(iq,k)*work(in(iq),k) +       &
-                   yfact_isv*work(is(iq),k) )         &
-                / base
-  end do
-end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
-#endif
-#else
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
-#endif
-do k = 1,wlev
-   do iq = 1,ifull
-     work(iq,k) = ans(iq,k)
-  end do
-end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target exit data map(from:work)
-#endif
-#else
-!$acc end parallel loop
-!$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ans) async(async_counter)
-#endif
-
-return
-end subroutine mlodiffcalc
-
-subroutine mlo_biharmonicdiff_work(u,v,tt,ss)
-
-use cc_mpi
-use const_phys
-use indices_m
-use map_m
-use mlo
-use mlodynamicsarrays_m
-use nharrs_m, only : lrestart
-use newmpar_m
-use parm_m
-use soil_m
-use vecsuv_m
-
-implicit none
-
-integer iq, k
-real hdif
-real, dimension(ifull+iextra,wlev,3) :: duma
-real, dimension(ifull+iextra,wlev) :: work_tt, work_ss
-real, dimension(ifull+iextra,wlev) :: uau,uav
-real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
-real, dimension(ifull+iextra,wlev) :: w_ema
-real, dimension(ifull+iextra,wlev+1) :: t_kh
-real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
-real, dimension(ifull,wlev) :: workdata2
-real, dimension(ifull) :: dwdx, dwdy, emi
-real base
-real dudx,dvdx,dudy,dvdy
-real nu,nv,nw
-real tx_fact, ty_fact
-
-call START_LOG(waterdiff_begin)
-
-xfact = 0.
-yfact = 0.
-
-if ( abs(nmlo)>=3 ) then
-  do k = 1,wlev  
-    uau(1:ifull,k) = (av_vmod*u(1:ifull,k)+(1.-av_vmod)*oldu1(1:ifull,k))*ee(1:ifull,k)
-    uav(1:ifull,k) = (av_vmod*v(1:ifull,k)+(1.-av_vmod)*oldv1(1:ifull,k))*ee(1:ifull,k)
-  end do  
-else
-  do k = 1,wlev  
-    uau(1:ifull,k) = u(1:ifull,k)*ee(1:ifull,k)
-    uav(1:ifull,k) = v(1:ifull,k)*ee(1:ifull,k)
-  end do
-end if
-
-! Define diffusion scale and grid spacing
-hdif = 0.125*(ocnsmag/pi)**2
-if ( mlosigma>=0 .and. mlosigma<=3 ) then
-  write(6,*) "ERROR: Unsupported option for mlosigma = ",mlodiff
-  call ccmpi_abort(-1)
-else
-  ! z* levels  
-  emi = 1./em(1:ifull)
-end if
-
-! calculate shear for EMA
-call mlo_ema(dt,"uvw")
-w_ema = 0.
-do k = 1,wlev
-  call mloexport("w_ema",w_ema(:,k),k,0)
-end do
-call bounds(w_ema)
-do k = 2,wlev-1
-  do iq = 1,ifull  
-    dwdx(iq) = 0.5*((w_ema(ie(iq),k)-w_ema(iq,k))*emu(iq)*eeu(iq,k) &
-                   +(w_ema(iq,k)-w_ema(iw(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
-    dwdy(iq) = 0.5*((w_ema(in(iq),k)-w_ema(iq,k))*emv(iq)*eev(iq,k) &
-                   +(w_ema(iq,k)-w_ema(is(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
-  end do  
-  call mloimport("dwdx",dwdx,k,0)  
-  call mloimport("dwdy",dwdy,k,0)  
-end do
-
-! calculate diffusion following Smagorinsky
-call boundsuv(uau,uav,allvec=.true.)
-do k = 1,wlev
-  do iq = 1,ifull
-    dudx = 0.5*((uau(ieu(iq),k)-uau(iq,k))*emu(iq)*eeu(iq,k)                &
-               +(uau(iq,k)-uau(iwu(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
-    dudy = 0.5*((uau(inu(iq),k)-uau(iq,k))*emv(iq)*eev(iq,k)                &
-               +(uau(iq,k)-uau(isu(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
-    dvdx = 0.5*((uav(iev(iq),k)-uav(iq,k))*emu(iq)*eeu(iq,k)                &
-               +(uav(iq,k)-uav(iwv(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
-    dvdy = 0.5*((uav(inv(iq),k)-uav(iq,k))*emv(iq)*eev(iq,k)                &
-               +(uav(iq,k)-uav(isv(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
-    t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi(iq)*ee(iq,k)
-  end do
-end do
-call bounds(t_kh(:,1:wlev),nehalf=.true.)
-
-
-! reduce diffusion errors where bathymetry gradients are steep
-if ( mlosigma>=0 .and. mlosigma<=3 ) then
-  write(6,*) "ERROR: Unsupported vertical coordinate mlosigma ",mlosigma
-  call ccmpi_abort(-1)
-else
-  ! z* levels
-  do k = 1,wlev
-    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*eeu(1:ifull,k)
-    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*eev(1:ifull,k)
-  end do
-end if
-call boundsuv(xfact,yfact,stag=-9)
-
-! Take sqrt as we apply the Laplican twice for Grad^4
-xfact = sqrt(xfact)
-yfact = sqrt(yfact)
-
-
-! pre-process boundaries
-
-if ( mlodiff==10 ) then
-  ! Laplacian diffusion terms (closure #1)
-  do k = 1,wlev
-    duma(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
-    duma(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
-    duma(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
-  end do
-else if ( mlodiff==11 ) then
-  ! no diffusion applied to momentum
-else
-  write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
-  call ccmpi_abort(-1)
-end if
-
-! Potential temperature and salinity
-! MJT notes - only apply salinity diffusion to salt water
-work_tt(1:ifull,:) = tt(1:ifull,:)
-workdata2(1:ifull,:) = ss(1:ifull,:)
-work_ss(1:ifull,:) = ss(1:ifull,:) - 34.72
-where( workdata2(1:ifull,:)<2. )
-  work_ss(1:ifull,:) = 0.
-end where
-
-
-! perform diffusion
-
-
-if ( mlodiff==10 ) then
-  ! UX  
-  call mlo_bh_diffcalc(duma(:,:,1),emi,xfact,yfact)
-endif
-
-
-if ( mlodiff==10 ) then
-  ! VY  
-  call mlo_bh_diffcalc(duma(:,:,2),emi,xfact,yfact)
-endif
-
-
-if ( mlodiff==10 ) then
-  ! WZ  
-  call mlo_bh_diffcalc(duma(:,:,3),emi,xfact,yfact)
-endif
-
-
-! potential temperature
-call mlo_bh_diffcalc(work_tt,emi,xfact,yfact)
-
-! salinity
-call mlo_bh_diffcalc(work_ss,emi,xfact,yfact)
-
-
-! post-processing
-
-if ( mlodiff==10 ) then
-  do k = 1,wlev
-    do iq = 1,ifull
-      u(iq,k) = ax(iq)*duma(iq,k,1) + ay(iq)*duma(iq,k,2) + az(iq)*duma(iq,k,3)
-      v(iq,k) = bx(iq)*duma(iq,k,1) + by(iq)*duma(iq,k,2) + bz(iq)*duma(iq,k,3)
-    end do
-  end do
-end if
-do k = 1,wlev
-  do iq = 1,ifull
-    tt(iq,k) = max(work_tt(iq,k), -wrtemp)
-    ss(iq,k) = work_ss(iq,k) + 34.72
-    if ( workdata2(iq,k)<2. ) then
-      ss(iq,k) = workdata2(iq,k)
-    end if  
-  end do
-end do
-
-call END_LOG(waterdiff_end)
-
-return
-end subroutine mlo_biharmonicdiff_work
-
-
-subroutine mlo_bh_diffcalc(work,emi,xfact,yfact)    
-
-use cc_mpi, only : bounds
+use cc_mpi, only : bounds_send, bounds_recv, maxcolour, iqx, &
+                   ifull_colour, ifull_colour_border,        &
+                   ccmpi_abort
 use indices_m
 use map_m
 use mlo
@@ -571,92 +258,181 @@ use parm_m, only : dt, ds
 
 implicit none
 
-integer k, iq
+integer k, iq, iqc, nc, its
+integer, parameter :: num_its = 3
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
-real, dimension(ifull+iextra,wlev), intent(inout) :: work
 real, dimension(ifull), intent(in) :: emi
+real, dimension(ifull+iextra,wlev), intent(inout) :: work
 real, dimension(ifull+iextra,wlev) :: ans
+real, dimension(ifull,wlev) :: work_save
 real, dimension(ifull,wlev) :: new
 real base, xfact_iwu, yfact_isv
 
-! Bi-Harmonic diffusion.  Semi-implicit version.
+if ( mlodiff>=0 .and. mlodiff<=9 ) then
 
-call bounds(work)
+  call bounds_send(work)
 
-! implicit
-!$omp parallel do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
-do k = 1,wlev
-   do iq = 1,ifull
-     xfact_iwu = xfact(iwu(iq),k)
-     yfact_isv = yfact(isv(iq),k)
-     base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-     ans(iq,k) = ( xfact(iq,k)*work(ie(iq),k) +    &
-                   xfact_iwu*work(iw(iq),k) +      &
-                   yfact(iq,k)*work(in(iq),k) +    &
-                   yfact_isv*work(is(iq),k) )      &
-                 / max(base,1.e-10)
+  ! update non-boundary grid points
+  ! here we use the coloured indices to identify interior and boundary points  
+  !$omp parallel do schedule(static) collapse(2) private(k,nc,iqc,iq,xfact_iwu,yfact_isv,base)
+  do k = 1,wlev
+    do nc = 1,maxcolour
+      do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
+        iq = iqx(iqc,nc)  
+        xfact_iwu = xfact(iwu(iq),k)
+        yfact_isv = yfact(isv(iq),k)
+        base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                      +yfact(iq,k)+yfact_isv
+        ans(iq,k) = ( emi(iq)*work(iq,k) +               &
+                      xfact(iq,k)*work(ie(iq),k) +       &
+                      xfact_iwu*work(iw(iq),k) +         &
+                      yfact(iq,k)*work(in(iq),k) +       &
+                      yfact_isv*work(is(iq),k) )         &
+                   / base
+      end do  
+    end do
   end do
-end do
-!$omp end parallel do
+  !$acc end parallel loop
 
-!! explicit
-!do k = 1,wlev
-!   do iq = 1,ifull
-!     xfact_iwu = xfact(iwu(iq),k)
-!     yfact_isv = yfact(isv(iq),k)
-!     base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-!     ans(iq,k) = ( -base*work(iq,k) +              &
-!                   xfact(iq,k)*work(ie(iq),k) +    &
-!                   xfact_iwu*work(iw(iq),k) +      &
-!                   yfact(iq,k)*work(in(iq),k) +    &
-!                   yfact_isv*work(is(iq),k) ) / emi(iq)
-!  end do
-!end do
+  call bounds_recv(work)
 
-call bounds(ans)
+  ! update boundary grid points
+  ! here we use the coloured indices to identify interior and boundary points  
+  !$omp parallel
+  !$omp do schedule(static) collapse(2) private(k,nc,iqc,iq,xfact_iwu,yfact_isv,base)
+  do k = 1,wlev
+    do nc = 1,maxcolour  
+      do iqc = 1,ifull_colour_border(nc)
+        iq = iqx(iqc,nc)  
+        xfact_iwu = xfact(iwu(iq),k)
+        yfact_isv = yfact(isv(iq),k)
+        base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                      +yfact(iq,k)+yfact_isv
+        ans(iq,k) = ( emi(iq)*work(iq,k) +               &
+                      xfact(iq,k)*work(ie(iq),k) +       &
+                      xfact_iwu*work(iw(iq),k) +         &
+                      yfact(iq,k)*work(in(iq),k) +       &
+                      yfact_isv*work(is(iq),k) )         &
+                   / base
+      end do  
+    end do
+  end do
+  !$omp end do nowait
 
-! implicit
-!$omp parallel do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
-do k = 1,wlev
-   do iq = 1,ifull
-     xfact_iwu = xfact(iwu(iq),k)
-     yfact_isv = yfact(isv(iq),k)
-     base = emi(iq) + dt*( xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv )
-     new(iq,k) = ( work(iq,k)*emi(iq) + dt*(          &
-                   xfact(iq,k)*ans(ie(iq),k) +        &
-                   xfact_iwu*ans(iw(iq),k) +          &
-                   yfact(iq,k)*ans(in(iq),k) +        &
-                   yfact_isv*ans(is(iq),k) ) ) / base
-   end do
-end do
-!$omp end parallel do nowait
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,wlev
+     do iq = 1,ifull
+       work(iq,k) = ans(iq,k)
+    end do
+  end do
+  !$omp end do 
+  !$omp end parallel
 
-!! explicit
-!do k = 1,wlev
-!   do iq = 1,ifull
-!     xfact_iwu = xfact(iwu(iq),k)
-!     yfact_isv = yfact(isv(iq),k)
-!     base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-!     new(iq,k) = ( work(iq,k)*emi(iq) + dt*(          &
-!                   -base*ans(iq,k) +                  &
-!                   xfact(iq,k)*ans(ie(iq),k) +        &
-!                   xfact_iwu*ans(iw(iq),k) +          &
-!                   yfact(iq,k)*ans(in(iq),k) +        &
-!                   yfact_isv*ans(is(iq),k) ) ) / emi(iq)
-!   end do
-!end do
+else if ( mlodiff>=10 .and. mlodiff<=19 ) then
 
-!$omp parallel do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
-do k = 1,wlev
-   do iq = 1,ifull 
-     if ( ee(iq,k)>0. ) then
-       work(iq,k) = new(iq,k)
-     end if  
-   end do
-end do
-!$omp end parallel do
+  ! Bi-Harmonic diffusion.  iterative version.
+
+  work_save(1:ifull,1:wlev) = work(1:ifull,1:wlev)  
+    
+  do its = 1,num_its  
+    
+    call bounds_send(work)
+
+    !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
+    do k = 1,wlev
+      do nc = 1,maxcolour  
+        do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
+          iq = iqx(iqc,nc)  
+          xfact_iwu = xfact(iwu(iq),k)
+          yfact_isv = yfact(isv(iq),k)
+          base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
+          ans(iq,k) = ( -base*work(iq,k) +              &
+                        xfact(iq,k)*work(ie(iq),k) +    &
+                        xfact_iwu*work(iw(iq),k) +      &
+                        yfact(iq,k)*work(in(iq),k) +    &
+                        yfact_isv*work(is(iq),k) ) / emi(iq)
+        end do  
+      end do
+    end do
+    !$omp end parallel do
+
+    call bounds_recv(work)
+
+    !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
+    do k = 1,wlev
+      do nc = 1,maxcolour  
+        do iqc = 1,ifull_colour_border(nc)
+          iq = iqx(iqc,nc)
+          xfact_iwu = xfact(iwu(iq),k)
+          yfact_isv = yfact(isv(iq),k)
+          base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
+          ans(iq,k) = ( -base*work(iq,k) +              &
+                        xfact(iq,k)*work(ie(iq),k) +    &
+                        xfact_iwu*work(iw(iq),k) +      &
+                        yfact(iq,k)*work(in(iq),k) +    &
+                        yfact_isv*work(is(iq),k) ) / emi(iq)
+        end do  
+      end do
+    end do
+    !$omp end parallel do
+
+    call bounds_send(ans)
+
+    !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
+    do k = 1,wlev
+      do nc = 1,maxcolour
+        do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
+          iq = iqx(iqc,nc)  
+          if ( ee(iq,k) > 0. ) then
+            xfact_iwu = xfact(iwu(iq),k)
+            yfact_isv = yfact(isv(iq),k)
+            base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
+            work(iq,k) = ( work_save(iq,k)*emi(iq) + dt*(     &
+                           -base*ans(iq,k) +                  &
+                           xfact(iq,k)*ans(ie(iq),k) +        &
+                           xfact_iwu*ans(iw(iq),k) +          &
+                           yfact(iq,k)*ans(in(iq),k) +        &
+                           yfact_isv*ans(is(iq),k) ) ) / emi(iq)
+          end if  
+        end do 
+      end do
+    end do
+    !$omp end parallel do
+
+    call bounds_recv(ans)
+
+    !$omp parallel
+    !$omp do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
+    do k = 1,wlev
+      do nc = 1,maxcolour  
+        do iqc = 1,ifull_colour_border(nc)
+          iq = iqx(iqc,nc)  
+          if ( ee(iq,k)>0. ) then
+            xfact_iwu = xfact(iwu(iq),k)
+            yfact_isv = yfact(isv(iq),k)
+            base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
+            work(iq,k) = ( work_save(iq,k)*emi(iq) + dt*(     &
+                           -base*ans(iq,k) +                  &
+                           xfact(iq,k)*ans(ie(iq),k) +        &
+                           xfact_iwu*ans(iw(iq),k) +          &
+                           yfact(iq,k)*ans(in(iq),k) +        &
+                           yfact_isv*ans(is(iq),k) ) ) / emi(iq)
+          end if  
+        end do  
+      end do
+    end do
+    !$omp end do
+
+    !$omp end parallel
+    
+  end do ! its  
+
+else
+  write(6,*) "ERROR: Unknown mlodiff option ",mlodiff
+  call ccmpi_abort(-1)
+end if
 
 return
-end subroutine mlo_bh_diffcalc
+end subroutine mlodiffcalc
 
 end module mlodiffg

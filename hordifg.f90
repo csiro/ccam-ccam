@@ -266,27 +266,27 @@ select case(nhorjlm)
     ! t_kh is kh at t points
     call boundsuv(uav,vav,allvec=.true.)
     do k = 1,kl
+      hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1  
       do iq = 1,ifull
-        hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
         dvdx = 0.5*(vav(iev(iq),k)-vav(iwv(iq),k))*em(iq)/ds
         dvdy = 0.5*(vav(inv(iq),k)-vav(isv(iq),k))*em(iq)/ds
         r1 = (dvdx+dudy)**2 + 0.5*dudx**2 + 0.5*dvdy**2
-        t_kh(iq,k)=sqrt(r1)*hdif*emi(iq)
+        t_kh(iq,k) = sqrt(r1)*hdif*emi(iq)
       end do
     end do
              
   case(1)
     ! jlm deformation scheme using 3D uc, vc, wc
     do k = 1,kl
+      hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  
       do iq = 1,ifull
-        hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
         cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
              (vc(ie(iq),k)-vc(iw(iq),k))**2 + (vc(in(iq),k)-vc(is(iq),k))**2 + &
              (wc(ie(iq),k)-wc(iw(iq),k))**2 + (wc(in(iq),k)-wc(is(iq),k))**2
         ! N.B. using double grid length
-        t_kh(iq,k)= .5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
+        t_kh(iq,k)= 0.5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     end do
 
@@ -302,7 +302,7 @@ select case(nhorjlm)
              .01*(dpsldt(in(iq),k)*ps(in(iq))-dpsldt(is(iq),k)*ps(is(iq)))**2 
         ! approx 1 Pa/s = .1 m/s     
         ! N.B. using double grid length
-        t_kh(iq,k)= .5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
+        t_kh(iq,k)= 0.5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     enddo
 
@@ -354,138 +354,52 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 )
   do k = 1,kl
     t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
   end do
-  call bounds(t)
 end if
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then
-  call bounds(qg)
-end if
-if ( nhorps==-4 .and. ldr/=0 ) then  
-  call bounds(qlg)
-  call bounds(qfg)
-  call bounds(stratcloud)
-end if       ! (ldr/=0.and.nhorps==-4)
-if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
-  call bounds(tke)
-  call bounds(eps)
-end if   ! (nvmix==6.or.nvmix==9)
-if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  call bounds(xtg)
-end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
 
 ! perform diffusion
 
-#ifdef GPU
-!$omp target data map(to:xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-#else
-!$omp parallel
-!$omp sections
-#endif
-!$acc data create(xfact,yfact,emi)
-!$acc update device(xfact,yfact,emi)
-
-#ifndef GPU    
-!$omp section
-#endif
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   ! momentum U  
   call hordifgt_work(uc,xfact,yfact,emi)    
-end if  
-#ifndef GPU    
-!$omp section
-#endif
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   ! momentum V  
   call hordifgt_work(vc,xfact,yfact,emi)    
-end if  
-#ifndef GPU    
-!$omp section
-#endif
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   ! momentum W
   call hordifgt_work(wc,xfact,yfact,emi)    
 end if  
 
-#ifndef GPU    
-!$omp section
-#endif
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   ! potential temperature
   call hordifgt_work(t,xfact,yfact,emi)  
 end if  
 
-#ifndef GPU    
-!$omp section
-#endif
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then  
   ! water vapour  
   call hordifgt_work(qg,xfact,yfact,emi)  
 end if  
 
-#ifndef GPU    
-!$omp section
-#endif
 if ( nhorps==-4 .and. ldr/=0 ) then  
   ! cloud liquid water  
   call hordifgt_work(qlg,xfact,yfact,emi)  
-end if
-
-#ifndef GPU    
-!$omp section
-#endif
-if ( nhorps==-4 .and. ldr/=0 ) then
   ! cloud frozen water
   call hordifgt_work(qfg,xfact,yfact,emi)  
-end if
-
-#ifndef GPU    
-!$omp section
-#endif
-if ( nhorps==-4 .and. ldr/=0 ) then
   ! cloud fraction  
   call hordifgt_work(stratcloud,xfact,yfact,emi)  
 end if
 
-#ifndef GPU    
-!$omp section
-#endif
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   ! tke  
   call hordifgt_work(tke,xfact,yfact,emi)  
-end if
-
-#ifndef GPU    
-!$omp section
-#endif
-if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   ! eps  
   call hordifgt_work(eps,xfact,yfact,emi)  
 end if
 
-#ifndef GPU
-!$omp end sections nowait
-#endif
-
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-#ifndef GPU
-  !$omp do schedule(static) private(ntr)
-#endif    
   do ntr = 1,naero
     call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)  
   end do
-#ifndef GPU    
-  !$omp end do nowait
-#endif
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
-
-#ifdef GPU
-!$omp end target data
-#else
-!$omp end parallel
-#endif
-!$acc wait
-!$acc end data
 
 ! post-processing
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
@@ -518,69 +432,77 @@ end subroutine hordifgt
 
 subroutine hordifgt_work(work,xfact,yfact,emi)    
 
-use cc_acc, only : async_length
+use cc_mpi, only : bounds_send, bounds_recv, maxcolour, iqx, &
+                   ifull_colour, ifull_colour_border
 use indices_m
 use newmpar_m
 
 implicit none
 
-integer k, iq
-integer, save :: async_counter = -1
+integer k, iq, iqc, nc
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
 real, dimension(ifull+iextra,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
-#ifdef _OPENMP
-#ifdef GPU
-!$omp target enter data map(to:work) map(alloc:ans)
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
-#endif
-#else
-async_counter = mod(async_counter+1, async_length)
-!$acc enter data create(work,ans) async(async_counter)
-!$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,iwu,isv,in,is,ie,iw) async(async_counter)
-#endif
+call bounds_send(work)
+
+! update non-boundary grid points
+! here we use the coloured indices to identify interior and boundary points  
+!$omp parallel do schedule(static) collapse(2) private(k,nc,iqc,iq,base,xfact_iwu,yfact_isv)
 do k = 1,kl
-   do iq = 1,ifull
-     xfact_iwu = xfact(iwu(iq),k)
-     yfact_isv = yfact(isv(iq),k)
-     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                   +yfact(iq,k)+yfact_isv
-     ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                   xfact(iq,k)*work(ie(iq),k) +       &
-                   xfact_iwu*work(iw(iq),k) +         &
-                   yfact(iq,k)*work(in(iq),k) +       &
-                   yfact_isv*work(is(iq),k) )         &
-                / base
+  do nc = 1,maxcolour  
+    do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
+      iq = iqx(iqc,nc)  
+      xfact_iwu = xfact(iwu(iq),k)
+      yfact_isv = yfact(isv(iq),k)
+      base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                    +yfact(iq,k)+yfact_isv
+      ans(iq,k) = ( emi(iq)*work(iq,k) +               &
+                    xfact(iq,k)*work(ie(iq),k) +       &
+                    xfact_iwu*work(iw(iq),k) +         &
+                    yfact(iq,k)*work(in(iq),k) +       &
+                    yfact_isv*work(is(iq),k) )         &
+                 / base
+    end do  
+  end do      
+end do
+!$omp end parallel do
+    
+call bounds_recv(work)
+
+! update boundary grid points
+! here we use the coloured indices to identify interior and boundary points  
+!$omp parallel
+!$omp do schedule(static) collapse(2) private(k,nc,iqc,iq,base,xfact_iwu,yfact_isv)
+do k = 1,kl
+  do nc = 1,maxcolour  
+    do iqc = 1,ifull_colour_border(nc)
+      iq = iqx(iqc,nc)  
+      xfact_iwu = xfact(iwu(iq),k)
+      yfact_isv = yfact(isv(iq),k)
+      base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                    +yfact(iq,k)+yfact_isv
+      ans(iq,k) = ( emi(iq)*work(iq,k) +               &
+                    xfact(iq,k)*work(ie(iq),k) +       &
+                    xfact_iwu*work(iw(iq),k) +         &
+                    yfact(iq,k)*work(in(iq),k) +       &
+                    yfact_isv*work(is(iq),k) )         &
+                 / base
+    end do  
   end do
 end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
-#endif
-#else
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
-#endif
+!$omp end do nowait
+
+!$omp do schedule(static) private(k,iq)
 do k = 1,kl
    do iq = 1,ifull
      work(iq,k) = ans(iq,k)
   end do
 end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target exit data map(from:work)
-#endif
-#else
-!$acc end parallel loop
-!$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ans) async(async_counter)
-#endif
+!$omp end do
+!$omp end parallel
 
 return
 end subroutine hordifgt_work

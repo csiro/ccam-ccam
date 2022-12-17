@@ -1315,14 +1315,7 @@ w_s = ns(1:ifull,:)
 call mlocheck("end of mlodynamics",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v, &
               ice_tsurf=nit(1:ifull,1),ice_u=niu(1:ifull),ice_v=niv(1:ifull))
 
-if ( mlodiff>=0 .and. mlodiff<=9 ) then
-  call mlodiffusion_work(w_u,w_v,w_t,w_s)
-else if ( mlodiff>=10 .and. mlodiff<=19 ) then
-  call mlo_biharmonicdiff_work(w_u,w_v,w_t,w_s)
-else
-  write(6,*) "ERROR: Unknown mlodiff option ",mlodiff
-  call ccmpi_abort(-1)
-end if
+call mlodiffusion_work(w_u,w_v,w_t,w_s)
 
 call mlocheck("after diffusion",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v)
 

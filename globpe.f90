@@ -2584,12 +2584,7 @@ if ( nvmix==9 .and. nmlo==0 ) then
   write(6,*) "ERROR: nvmix=9 requires nmlo/=0"
   call ccmpi_abort(-1)
 end if
-if ( nagg < 3 ) then
-  if ( myid==0 ) then
-    write(6,*) "WARN: Minimum nagg is increased to 3"
-  end if
-  nagg = 3
-end if
+nagg = max( nagg, 3 )
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
 nper6hr = nint(6.*3600./dt)            ! time-steps in six hours
@@ -2626,25 +2621,33 @@ if ( myid==0 ) then
     ! open topo file and check its dimensions
     ! here used to supply rlong0,rlat0,schmidt
     ! Remander of topo file is read in indata.f90
-    call ccnf_open(topofile,ncidtopo,ierr)
-    if ( ierr==0 ) then
-      ! Netcdf format
-      lnctopo = 1 ! flag indicating netcdf file
-      call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
-      call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
-      call ccnf_get_attg(ncidtopo,'lon0',rlong0)
-      call ccnf_get_attg(ncidtopo,'lat0',rlat0)
-      call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
-    else
-      ! ASCII format      
-      lnctopo = 0 ! flag indicating ASCII file
-      open(66,file=topofile,recl=2000,status='old',iostat=ierr)
-      if ( ierr /= 0 ) then
-        write(6,*) "Error opening topofile ",trim(topofile)
-        call ccmpi_abort(-1)
+    lnctopo = -1 ! flag indicating file not yet identified
+    ! NetCDF format
+    if ( lnctopo==-1 ) then
+      call ccnf_open(topofile,ncidtopo,ierr)
+      if ( ierr==0 ) then
+        lnctopo = 1 ! flag indicating netcdf file
+        call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
+        call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
+        call ccnf_get_attg(ncidtopo,'lon0',rlong0)
+        call ccnf_get_attg(ncidtopo,'lat0',rlat0)
+        call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
       end if
-      read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-    end if ! (ierr==0) ..else..
+    end if
+    ! ASCII format      
+    if ( lnctopo==-1 ) then
+      open(66,file=topofile,recl=2000,status='old',iostat=ierr)
+      if ( ierr==0 ) then
+        lnctopo = 0 ! flag indicating ASCII file  
+        read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+      end if  
+    end if
+    ! Failed to read topo file
+    if ( lnctopo==-1 ) then
+      write(6,*) "Error opening topofile ",trim(topofile)
+      call ccmpi_abort(-1)
+    end if
+    ! specify grid size based on topography file dimensions
     il_g = ilx        
   end if
   ! store grid dimensions for broadcast below
@@ -2687,9 +2690,10 @@ nsig    = nint(temparray(8))
 
 !--------------------------------------------------------------
 ! DEFINE newmpar VARIABLES AND DEFAULTS
-! CCAM supports face and uniform grid decomposition over processes
 ! Face decomposition reduces the number of MPI messages, but only works for factors or multiples
 ! of six processes.
+! Uniform decomposition has been depreciated due to performance issues (more MPI messages)
+! that provides misleading scaling results with increasing nproc.
 call reducenproc(npanels,il_g,nproc,new_nproc,nxp,nyp)
 call ccmpi_reinit(new_nproc) 
 
@@ -2777,8 +2781,7 @@ if ( mbd/=0 ) then
   mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale))
   if ( mbd<mbd_min .and. mbd/=0 ) then
     if ( myid==0 ) then
-      write(6,*) "Increasing mbd to satisfy mbd_maxscale ",mbd_maxscale
-      write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+      write(6,*) "Satisfy mbd_maxscale by increasing mbd = ",mbd_min
     end if
     mbd = mbd_min
   end if
@@ -2789,8 +2792,7 @@ if ( mbd/=0 ) then
   mbd_min = int(20.*real(il_g)/real(mbd_maxgrid))
   if ( mbd<mbd_min .and. mbd/=0 ) then
     if ( myid==0 ) then
-      write(6,*) "Increasing mbd to satisfy mbd_maxgrid = ",mbd_maxgrid
-      write(6,*) "Original mbd and final mbd = ",mbd,mbd_min
+      write(6,*) "Satisfy mbd_maxgrid by adjusting mbd = ",mbd_min
     end if
     mbd = mbd_min
   end if
@@ -2811,8 +2813,7 @@ if ( mbd_mlo/=0 ) then
   mbd_min = int(20.*112.*90.*schmidt/real(mbd_maxscale_mlo))
   if ( mbd_mlo<mbd_min ) then
     if ( myid==0 ) then
-      write(6,*) "Adjusting mbd_mlo to satisfy mbd_maxscale_mlo = ",mbd_maxscale_mlo
-      write(6,*) "Original mbd_mlo and final mbd_mlo = ",mbd_mlo,mbd_min
+      write(6,*) "Satisfy mbd_maxscale_mlo by adjusting mbd_mlo = ",mbd_min
     end if
     mbd_mlo = mbd_min
   end if
