@@ -118,7 +118,11 @@ else
 end if
 
 ! Define diffusion scale and grid spacing
-hdif = dt*(ocnsmag/pi)**2
+if ( mlodiff>=0 .and. mlodiff<=9 ) then
+  hdif = dt*(ocnsmag/pi)**2
+else if ( mlodiff>=10 .and. mlodiff<=19 ) then
+  hdif = 0.125*(ocnsmag/pi)**2  
+end if
 if ( mlosigma>=0 .and. mlosigma<=3 ) then
   write(6,*) "ERROR: Unsupported option for mlosigma = ",mlodiff
   call ccmpi_abort(-1)
@@ -174,8 +178,12 @@ else
     yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*eev(1:ifull,k)
   end do
 end if
+if ( mlodiff>=10 .and. mlodiff<=19 ) then
+  ! Take sqrt as we apply the Laplican twice for Grad^4  
+  xfact(1:ifull,1:wlev) = sqrt(xfact(1:ifull,1:wlev))
+  yfact(1:ifull,1:wlev) = sqrt(yfact(1:ifull,1:wlev))
+end if
 call boundsuv(xfact,yfact,stag=-9)
-
 
 ! pre-process boundaries
 
@@ -265,7 +273,6 @@ real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,wlev), intent(inout) :: work
 real, dimension(ifull+iextra,wlev) :: ans
 real, dimension(ifull,wlev) :: work_save
-real, dimension(ifull,wlev) :: new
 real base, xfact_iwu, yfact_isv
 
 if ( mlodiff>=0 .and. mlodiff<=9 ) then
@@ -335,7 +342,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
   work_save(1:ifull,1:wlev) = work(1:ifull,1:wlev)  
     
   do its = 1,num_its  
-    
+      
     call bounds_send(work)
 
     !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
@@ -350,7 +357,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
                         xfact(iq,k)*work(ie(iq),k) +    &
                         xfact_iwu*work(iw(iq),k) +      &
                         yfact(iq,k)*work(in(iq),k) +    &
-                        yfact_isv*work(is(iq),k) ) / emi(iq)
+                        yfact_isv*work(is(iq),k) ) / sqrt(emi(iq))
         end do  
       end do
     end do
@@ -370,7 +377,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
                         xfact(iq,k)*work(ie(iq),k) +    &
                         xfact_iwu*work(iw(iq),k) +      &
                         yfact(iq,k)*work(in(iq),k) +    &
-                        yfact_isv*work(is(iq),k) ) / emi(iq)
+                        yfact_isv*work(is(iq),k) ) / sqrt(emi(iq))
         end do  
       end do
     end do
@@ -387,12 +394,12 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
             xfact_iwu = xfact(iwu(iq),k)
             yfact_isv = yfact(isv(iq),k)
             base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-            work(iq,k) = ( work_save(iq,k)*emi(iq) + dt*(     &
+            work(iq,k) = work_save(iq,k) + dt*(               &
                            -base*ans(iq,k) +                  &
                            xfact(iq,k)*ans(ie(iq),k) +        &
                            xfact_iwu*ans(iw(iq),k) +          &
                            yfact(iq,k)*ans(in(iq),k) +        &
-                           yfact_isv*ans(is(iq),k) ) ) / emi(iq)
+                           yfact_isv*ans(is(iq),k) ) / sqrt(emi(iq))
           end if  
         end do 
       end do
@@ -411,18 +418,17 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
             xfact_iwu = xfact(iwu(iq),k)
             yfact_isv = yfact(isv(iq),k)
             base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-            work(iq,k) = ( work_save(iq,k)*emi(iq) + dt*(     &
+            work(iq,k) = work_save(iq,k) - dt*(               &
                            -base*ans(iq,k) +                  &
                            xfact(iq,k)*ans(ie(iq),k) +        &
                            xfact_iwu*ans(iw(iq),k) +          &
                            yfact(iq,k)*ans(in(iq),k) +        &
-                           yfact_isv*ans(is(iq),k) ) ) / emi(iq)
+                           yfact_isv*ans(is(iq),k) ) / sqrt(emi(iq))
           end if  
         end do  
       end do
     end do
     !$omp end do
-
     !$omp end parallel
     
   end do ! its  
