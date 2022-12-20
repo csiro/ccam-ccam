@@ -4386,37 +4386,41 @@ if ( mod(ktau,tbave)==0 ) then
       outdata = outdata + wbice(:,k)*zse(k)*330.  
     end do    
     call histwrt(outdata,"mrfso",fncid,fiarch,local,l6hr)
+    !--
     outdata = 0.
     do k = 1,ms
       outdata = outdata + wbice(:,k)*shallow_zse(k)*330.  
     end do    
     call histwrt(outdata,"mrfsos",fncid,fiarch,local,.true.)
-    outdata = evspsbl - runoff_old(:,1) + runoff_store(:,1)
+    !--
+    runoff_store(:,1) = evspsbl - runoff_old(:,1) + runoff_store(:,1)
     runoff_old(:,1) = evspsbl
-    runoff_store(:,1) = 0.
-    call histwrt(outdata,"evspsbl",fncid,fiarch,local,.true.)    
-    outdata = runoff_surface - runoff_old(:,2) + runoff_store(:,2)
+    call histwrt(runoff_store(:,1),"evspsbl",fncid,fiarch,local,.true.)    
+    !--
+    runoff_store(:,2) = runoff_surface - runoff_old(:,2) + runoff_store(:,2)
     runoff_old(:,2) = runoff_surface
-    if ( l6hr ) runoff_store(:,2) = 0.
-    call histwrt(outdata,"mrros",fncid,fiarch,local,l6hr)
-    outdata = runoff - runoff_old(:,3) + runoff_store(:,3)
+    call histwrt(runoff_store(:,2),"mrros",fncid,fiarch,local,l6hr)
+    !--
+    runoff_store(:,3) = runoff - runoff_old(:,3) + runoff_store(:,3)
     runoff_old(:,3) = runoff
-    if ( l6hr ) runoff_store(:,3) = 0.
-    call histwrt(outdata,"runoff",fncid,fiarch,local,l6hr)
+    call histwrt(runoff_store(:,3),"runoff",fncid,fiarch,local,l6hr)
+    !--
     outdata = 0.
     do k = 1,ms
       outdata = outdata + wb(:,k)*zse(k)*1000.  
     end do    
     call histwrt(outdata,"mrso",fncid,fiarch,local,l6hr)
+    !--
     outdata = 0.
     do k = 1,ms
       outdata = outdata + wb(:,k)*shallow_zse(k)*1000.  
     end do    
     call histwrt(outdata,"mrsos",fncid,fiarch,local,.true.)   
-    outdata = snowmelt - runoff_old(:,4) + runoff_store(:,4)
+    !--
+    runoff_store(:,4) = snowmelt - runoff_old(:,4) + runoff_store(:,4)
     runoff_old(:,4) = snowmelt
-    if ( l6hr ) runoff_store(:,4) = 0.
-    call histwrt(outdata,"snm",fncid,fiarch,local,l6hr)
+    call histwrt(runoff_store(:,4),"snm",fncid,fiarch,local,l6hr)
+    !--
     call histwrt(freqstore(:,15),"rtu_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,16),"sint_ave",fncid,fiarch,local,.true.)
     call histwrt(freqstore(:,17),"sot_ave",fncid,fiarch,local,.true.)
@@ -4587,13 +4591,15 @@ if ( mod(ktau,tbave)==0 ) then
   if ( lday ) freqstore(:,23:29) = 0.
   freqstore(:,30:freqvars) = 0.
   
+  runoff_store(:,1) = 0.
+  if ( l6hr ) then
+    runoff_store(:,2:4) = 0.
+  end if    
+  
 end if
 
+! reset reference data when CCAM standard output resets accumulation (e.g., runoff)
 if ( mod(ktau,nperavg)==0 ) then
-  runoff_store(:,1) = runoff_store(:,1) + evspsbl - runoff_old(:,1)
-  runoff_store(:,2) = runoff_store(:,2) + runoff_surface - runoff_old(:,2)
-  runoff_store(:,3) = runoff_store(:,3) + runoff - runoff_old(:,3)
-  runoff_store(:,4) = runoff_store(:,4) + snowmelt - runoff_old(:,4)
   runoff_old(:,:) = 0.
 end if
 
