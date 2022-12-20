@@ -299,7 +299,7 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
       end do  
     end do
   end do
-  !$acc end parallel loop
+  !$omp end parallel loop
 
   call bounds_recv(work)
 
