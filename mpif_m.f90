@@ -21,11 +21,13 @@
     
 module mpif_m
 
-public
-
 #ifdef usempimod
 use mpi
-#else
+#endif
+
+public
+
+#ifndef usempimod
 include 'mpif.h'
 #endif
 
