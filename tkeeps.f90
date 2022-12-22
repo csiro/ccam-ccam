@@ -123,7 +123,7 @@ real, save :: tke_timeave_length = 0. ! Time period for averaging source terms (
                                       ! 0 indicates alpha=2/3
 
 interface solve_sherman_morrison
-  module procedure solve_sherman_morrison_1, solve_sherman_morrison_2
+  module procedure solve_sherman_morrison_2
   module procedure solve_sherman_morrison_3
 end interface
 
@@ -356,7 +356,7 @@ do kcount = 1,mcount
                    zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,       &
                    zz,dz_hl,thetal,qvg,qlg,qfg,                  &
                    stratcloud,wt0,wq0,ps,ustar,                  &
-                   sig,sigkap,tke,eps,ua,va,imax,kl)
+                   sig,sigkap,tke,ua,va,imax,kl)
 
 #ifndef scm
     ! Turn off MF term if small grid spacing (mfbeta=0 implies MF is always non-zero)
@@ -403,15 +403,15 @@ do kcount = 1,mcount
 
 
   ! Update TKE and eps terms
-  call update_tkeeps(tke,eps,ppb,pps,ppt,qvg,qlg,qfg,stratcloud,thetal,         &
-                     ua,va,zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,  &
+  call update_tkeeps(tke,eps,ppb,pps,ppt,qvg,qlg,qfg,thetal,               &
+                     zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,   &
                      ql_ema,qf_ema,cf_ema,tke_ema,ddts,qgmin,cm34,imax,kl)
   
 #ifdef CCAM
   if ( mode==2 .or. mode==3 ) then
     call update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
                         tlup,qvup,qlup,qfup,cfup,fg,eg,rhos,    &
-                        ustar,cduv,ps,                          &
+                        ustar,cduv,                             &
                         tke,eps,mflx,fzzh,idzp,idzm,dz_hl,      &
                         rhoa(:,1),dz_fl(:,1),                   &
                         deptho_dz,deptho_dz_hl,                 &
@@ -430,7 +430,7 @@ do kcount = 1,mcount
                            tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
                            ustar,cduv,                          &
                            tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
-                           rhoa(:,1),dz_fl(:,1),sigkap,         &
+                           rhoa(:,1),dz_fl(:,1),                &
 #ifdef scm
                            wthflux,wqvflux,uwflux,vwflux,       &
 #endif
@@ -441,7 +441,7 @@ do kcount = 1,mcount
                          tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
                          ustar,cduv,                          &
                          tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
-                         rhoa(:,1),dz_fl(:,1),sigkap,         &
+                         rhoa(:,1),dz_fl(:,1),                &
 #ifdef scm
                          wthflux,wqvflux,uwflux,vwflux,       &
 #endif
@@ -507,7 +507,6 @@ do iq = 1,imax
   !usg_var(iq) = (2.185*ustar(iq))**2 ! Wichers et al (2008)
 end do
 
-
 #ifdef CCAM
 if ( mode==2 .or. mode==3 ) then
   call pack_coupled_uv(w_u,w_v,i_u,i_v,imax,tile)  
@@ -533,7 +532,7 @@ pure subroutine plumerise(mask,                                        &
                      zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,           &
                      zz,dz_hl,thetal,qvg,qlg,qfg,                      &
                      stratcloud,wt0,wq0,ps,ustar,                      &
-                     sig,sigkap,tke,eps,ua,va,imax,kl)
+                     sig,sigkap,tke,ua,va,imax,kl)
 
 integer, intent(in) :: imax, kl
 integer k, iq
@@ -542,7 +541,6 @@ real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, stratcloud
 real, dimension(imax,kl), intent(in) :: zz, thetal, ua, va 
 real, dimension(imax,kl), intent(in) :: dz_hl
 real, dimension(imax,kl), intent(inout) :: tke
-real, dimension(imax,kl), intent(in) :: eps
 real, dimension(imax), intent(in) :: wt0, wq0, ps, ustar
 real, dimension(kl), intent(in) :: sig, sigkap
 real, dimension(imax), intent(inout) :: zi, wstar
@@ -679,8 +677,8 @@ end subroutine plumerise
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update TKE and EPS
 
-subroutine update_tkeeps(tke,eps,ppb,pps,ppt,qvg,qlg,qfg,stratcloud,thetal,         &
-                         ua,va,zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,  &
+subroutine update_tkeeps(tke,eps,ppb,pps,ppt,qvg,qlg,qfg,thetal,                    &
+                         zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,        &
                          ql_ema,qf_ema,cf_ema,tke_ema,ddts,qgmin,cm34,imax,kl)
 
 implicit none
@@ -689,16 +687,15 @@ integer, intent(in) :: imax, kl
 integer k, iq
 real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(inout) :: ppb, pps, ppt
-real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, stratcloud
+real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg
 real, dimension(imax,kl), intent(in) :: thetal
-real, dimension(imax,kl), intent(in) :: ua, va
 real, dimension(imax,kl), intent(in) :: idzm
 real, dimension(imax,kl), intent(in) :: zzh, zz
 real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
 real, dimension(imax,kl), intent(inout) :: tke_ema
 real, dimension(imax,kl-1), intent(in) :: idzp
 real, dimension(imax,kl) :: qsatc, qgnc, thetalhl, quhl, qshl, qlhl, qfhl
-real, dimension(imax,kl) :: qthl, thetavhl, kmo, ua_hl, va_hl, qtot
+real, dimension(imax,kl) :: qthl, thetavhl, kmo, qtot
 real, dimension(imax,kl) :: dz_fl, theta, thetav, km
 real, dimension(imax,kl) :: rr, bb, cc, dd, ff
 real, dimension(imax,kl) :: theta_ema, thetav_ema, qtot_ema
@@ -909,7 +906,7 @@ subroutine update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
                              tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
                              ustar,cduv,                          &
                              tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
-                             rhoa1,dz_fl1,sigkap,                 &
+                             rhoa1,dz_fl1,                        &
 #ifdef scm
                              wthflux,wqvflux,uwflux,vwflux,       &
 #endif
@@ -929,7 +926,6 @@ real, dimension(imax,2:kl) :: qq, aa
 real, dimension(imax), intent(inout) :: fg, eg, ustar
 real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv
 real, dimension(imax) :: wt0, wq0
-real, dimension(kl), intent(in) :: sigkap
 real, intent(in) :: ddts
 
 #ifdef scm
@@ -1222,7 +1218,7 @@ end subroutine pack_coupled_uv
 
 subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
                           tlup,qvup,qlup,qfup,cfup,fg,eg,rhos,    &
-                          ustar,cduv,ps,                          &    
+                          ustar,cduv,                             &    
                           tke,eps,mflx,fzzh,idzp,idzm,dz_hl,      &
                           rhoa1,dz_fl1,                           &
                           deptho_dz,deptho_dz_hl,                 &
@@ -1239,7 +1235,7 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
 
 use mlo, only : wlev, mlo_updatekm, dgwater_g,                            &
                 mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
-                cdbot, wrtrho, ice_g, mlocheck, minsfc
+                wrtrho, ice_g, mlocheck, minsfc
                           
 implicit none
 
@@ -1269,7 +1265,7 @@ real, dimension(imax,wlev) :: gammas_o
 real, dimension(imax) :: bb_i
 real, dimension(imax,2) :: dd_i
 real, dimension(imax), intent(inout) :: fg, eg, ustar
-real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv, ps
+real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv
 real, dimension(imax), intent(in) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o
 real, dimension(imax), intent(in) :: fracice, imass, cd_ice, cdbot_ice
 real, dimension(imax) :: wt0_a, wq0_a, f_ao, f_oa, f_ai, f_ia, f_oi, f_io
@@ -1723,31 +1719,6 @@ end subroutine update_coupled
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Solve Sherman-Morrison formula
 
-subroutine solve_sherman_morrison_1(aa_a,bb_a,cc_a,dd_a,tt_a, &
-                                    imax,kl)
-
-implicit none
-
-integer, intent(in) :: imax, kl
-real, dimension(imax,2:kl), intent(in) :: aa_a
-real, dimension(imax,kl), intent(in) :: bb_a, dd_a
-real, dimension(imax,kl-1), intent(in) :: cc_a
-real, dimension(imax,kl), intent(out) :: tt_a
-
-! Atmosphere only or Ocean only simple tridiagonal matrix
-
-! Original coupling matrix (inverted levels)
-! [ bb_a cc_a                               ] [ t_a ]   [ dd_a ]
-! [ aa_a bb_a cc_a                          ] [ t_a ]   [ dd_a ]
-! [      .... .... ....                     ] [ ... ]   [ .... ]
-! [           aa_a bb_a                     ] [ t_a ]   [ dd_a ]
-
-! pure tridiagonal matrix
-call thomas(tt_a(:,1:kl),aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl),imax,kl)
-
-return
-end subroutine solve_sherman_morrison_1
-
 subroutine solve_sherman_morrison_2(aa_a,bb_a,cc_a,dd_a,tt_a, &
                                     aa_o,bb_o,cc_o,dd_o,tt_o, &
                                     f_ao,f_oa,                &
@@ -2034,110 +2005,110 @@ end do
 return
 end subroutine thomas2
 
-pure subroutine pcr(outdat,aaj,bbj,ccj,ddj,imax,klin,ndim)
-
-implicit none
-
-integer, intent(in) :: imax, klin, ndim
-integer pmax, n, iq
-integer async_counter
-integer, parameter :: async_length = 3
-real, dimension(imax,2:klin), intent(in) :: aaj
-real, dimension(imax,klin), intent(in) :: bbj
-real, dimension(imax,klin-1), intent(in) :: ccj
-real, dimension(imax,klin,ndim), intent(in) :: ddj
-real, dimension(imax,klin,ndim), intent(out) :: outdat
-real, dimension(klin,imax) :: aai, bbi, cci
-real, dimension(klin,imax,ndim) :: ddi
-real, dimension(1:klin,imax,ndim) :: odati
-
-pmax = 1
-do while ( 2**pmax < klin )
-  pmax = pmax + 1
-end do
-
-aai(1,:) = 0.
-cci(klin-1,:) = 0.
-
-aai(2:klin,1:imax) = transpose( aaj(1:imax,2:klin) )
-bbi(1:klin,1:imax) = transpose( bbj(1:imax,1:klin) )
-cci(1:klin-1,1:imax) = transpose( ccj(1:imax,1:klin-1) )
-do n = 1,ndim
-  ddi(1:klin,1:imax,n) = transpose( ddj(1:imax,1:klin,n) )
-end do
-
+!pure subroutine pcr(outdat,aaj,bbj,ccj,ddj,imax,klin,ndim)
+!
+!implicit none
+!
+!integer, intent(in) :: imax, klin, ndim
+!integer pmax, n, iq
+!integer async_counter
+!integer, parameter :: async_length = 3
+!real, dimension(imax,2:klin), intent(in) :: aaj
+!real, dimension(imax,klin), intent(in) :: bbj
+!real, dimension(imax,klin-1), intent(in) :: ccj
+!real, dimension(imax,klin,ndim), intent(in) :: ddj
+!real, dimension(imax,klin,ndim), intent(out) :: outdat
+!real, dimension(klin,imax) :: aai, bbi, cci
+!real, dimension(klin,imax,ndim) :: ddi
+!real, dimension(1:klin,imax,ndim) :: odati
+!
+!pmax = 1
+!do while ( 2**pmax < klin )
+!  pmax = pmax + 1
+!end do
+!
+!aai(1,:) = 0.
+!cci(klin-1,:) = 0.
+!
+!aai(2:klin,1:imax) = transpose( aaj(1:imax,2:klin) )
+!bbi(1:klin,1:imax) = transpose( bbj(1:imax,1:klin) )
+!cci(1:klin-1,1:imax) = transpose( ccj(1:imax,1:klin-1) )
+!do n = 1,ndim
+!  ddi(1:klin,1:imax,n) = transpose( ddj(1:imax,1:klin,n) )
+!end do
+!
 !!$acc parallel loop collapse(2) copyin(aai,bbi,cci,ddi) copyout(odati)
-do n = 1,ndim
-  do iq = 1,imax
-    call pcr_work(odati(:,iq,n),aai(:,iq),bbi(:,iq),cci(:,iq),ddi(:,iq,n),klin,pmax)
-  end do
-end do
+!do n = 1,ndim
+!  do iq = 1,imax
+!    call pcr_work(odati(:,iq,n),aai(:,iq),bbi(:,iq),cci(:,iq),ddi(:,iq,n),klin,pmax)
+!  end do
+!end do
 !!$acc end parallel loop
+!
+!do n = 1,ndim
+!  outdat(1:imax,1:klin,n) = transpose( odati(1:klin,1:imax,n) )
+!end do
+!
+!return
+!end subroutine pcr
 
-do n = 1,ndim
-  outdat(1:imax,1:klin,n) = transpose( odati(1:klin,1:imax,n) )
-end do
-
-return
-end subroutine pcr
-
-pure subroutine pcr_work(outdat,aai,bbi,cci,ddi,klin,pmax)
+!pure subroutine pcr_work(outdat,aai,bbi,cci,ddi,klin,pmax)
 !!$acc routine vector
-
-implicit none
-
-integer, intent(in) :: klin, pmax
-integer k, p, s, klow, khigh
-real, dimension(klin), intent(in) :: aai, bbi, cci, ddi
-real, dimension(0:klin+1) :: aa, cc, dd
-real, dimension(klin), intent(out) :: outdat
-real, dimension(klin) :: new_aa, new_cc
-real rr
-
-aa(0) = 0.
-cc(0) = 0.
-dd(0) = 0.
-do k = 1,klin
-  aa(k) = aai(k)/bbi(k)
-  cc(k) = cci(k)/bbi(k)
-  dd(k) = ddi(k)/bbi(k)
-end do
-aa(klin+1) = 0.
-cc(klin+1) = 0.
-dd(klin+1) = 0.
-
-do p = 1,pmax,2
-
-  s = 2**(p-1)
-  do k = 1,klin
-    klow = max(k-s,0)
-    khigh = min(k+s,klin+1)
-    rr = 1./(1.-aa(k)*cc(klow)-cc(k)*aa(khigh))
-    new_aa(k) = -rr*(aa(k)*aa(klow))
-    new_cc(k) = -rr*(cc(k)*cc(khigh))
-    outdat(k) = rr*(dd(k)-aa(k)*dd(klow)-cc(k)*dd(khigh))
-  end do
-
-  s = 2**p
-  do k = 1,klin
-    klow = max(k-s,0)
-    khigh = min(k+s,klin+1)
-    rr = 1./(1.-new_aa(k)*new_cc(klow)-new_cc(k)*new_aa(khigh))
-    aa(k) = -rr*(new_aa(k)*new_aa(klow))
-    cc(k) = -rr*(new_cc(k)*new_cc(khigh))
-    dd(k) = rr*(outdat(k)-new_aa(k)*outdat(klow)-new_cc(k)*outdat(khigh))
-  end do
-  
-end do ! p = 1,pmax
-
-if ( mod(p,2)==0 ) then
-  do k = 1,klin
-    outdat(k) = dd(k)
-  end do
-end if
-
-return
-end subroutine pcr_work
+!
+!implicit none
+!
+!integer, intent(in) :: klin, pmax
+!integer k, p, s, klow, khigh
+!real, dimension(klin), intent(in) :: aai, bbi, cci, ddi
+!real, dimension(0:klin+1) :: aa, cc, dd
+!real, dimension(klin), intent(out) :: outdat
+!real, dimension(klin) :: new_aa, new_cc
+!real rr
+!
+!aa(0) = 0.
+!cc(0) = 0.
+!dd(0) = 0.
+!do k = 1,klin
+!  aa(k) = aai(k)/bbi(k)
+!  cc(k) = cci(k)/bbi(k)
+!  dd(k) = ddi(k)/bbi(k)
+!end do
+!aa(klin+1) = 0.
+!cc(klin+1) = 0.
+!dd(klin+1) = 0.
+!
+!do p = 1,pmax,2
+!
+!  s = 2**(p-1)
+!  do k = 1,klin
+!    klow = max(k-s,0)
+!    khigh = min(k+s,klin+1)
+!    rr = 1./(1.-aa(k)*cc(klow)-cc(k)*aa(khigh))
+!    new_aa(k) = -rr*(aa(k)*aa(klow))
+!    new_cc(k) = -rr*(cc(k)*cc(khigh))
+!    outdat(k) = rr*(dd(k)-aa(k)*dd(klow)-cc(k)*dd(khigh))
+!  end do
+!
+!  s = 2**p
+!  do k = 1,klin
+!    klow = max(k-s,0)
+!    khigh = min(k+s,klin+1)
+!    rr = 1./(1.-new_aa(k)*new_cc(klow)-new_cc(k)*new_aa(khigh))
+!    aa(k) = -rr*(new_aa(k)*new_aa(klow))
+!    cc(k) = -rr*(new_cc(k)*new_cc(khigh))
+!    dd(k) = rr*(outdat(k)-new_aa(k)*outdat(klow)-new_cc(k)*outdat(khigh))
+!  end do
+!  
+!end do ! p = 1,pmax
+!
+!if ( mod(p,2)==0 ) then
+!  do k = 1,klin
+!    outdat(k) = dd(k)
+!  end do
+!end if
+!
+!return
+!end subroutine pcr_work
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio

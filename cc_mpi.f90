@@ -509,7 +509,7 @@ contains
       integer(kind=4) :: ierr, colour, rank, lcommin, lcommout
       integer, dimension(ifull) :: colourmask
       real, intent(in) :: dt
-      real, dimension(:,:), allocatable :: dum, dum_g
+      real, dimension(:,:), allocatable :: dum
       real, dimension(:,:), allocatable :: dumu, dumv
       real(kind=8), dimension(:,:), allocatable :: dumr8, dumr8_g
       logical(kind=4) :: ltrue
@@ -2413,7 +2413,7 @@ contains
 
       real, intent(in), dimension(ifull) :: array
       real, intent(out) :: delpos, delneg
-      integer(kind=4) :: ierr, lcomm, k
+      integer(kind=4) :: ierr, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
 #else
@@ -2523,7 +2523,7 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
-      integer :: i, k, kx, ntr, async_counter
+      integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -2569,7 +2569,7 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
-      integer :: i, k, kx, ntr, async_counter
+      integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
@@ -2615,7 +2615,7 @@ contains
       
       integer :: n, i, j, iq, iqq, mycol, ncount
       integer :: iproc, rproc, sproc
-      integer :: iqg, iql, iloc, jloc, nloc, icol
+      integer :: iqg, iql, icol
       integer :: iext, iextu, iextv
       integer, dimension(:), allocatable :: dumi
       integer, dimension(:,:), allocatable :: dums, dumr
@@ -2908,8 +2908,8 @@ contains
          end do ! n=1,npan
          
          if ( icol < maxcolour ) then
-            bnds(:)%rlenh_bg(icol+1) = bnds(:)%rlenh_fn(icol) + 1
-            bnds(:)%rlenh_fn(icol+1) = bnds(:)%rlenh_fn(icol)
+            bnds(:)%rlenh_bg(min(icol+1,maxcolour)) = bnds(:)%rlenh_fn(icol) + 1
+            bnds(:)%rlenh_fn(min(icol+1,maxcolour)) = bnds(:)%rlenh_fn(icol)
          end if
       
       end do ! icol=1,maxcolour
@@ -2971,8 +2971,8 @@ contains
          end do ! n=1,npan
 
          if ( icol < maxcolour ) then
-            bnds(:)%rlen_bg(icol+1) = bnds(:)%rlen_fn(icol) + 1
-            bnds(:)%rlen_fn(icol+1) = bnds(:)%rlen_fn(icol)
+            bnds(:)%rlen_bg(min(icol+1,maxcolour)) = bnds(:)%rlen_fn(icol) + 1
+            bnds(:)%rlen_fn(min(icol+1,maxcolour)) = bnds(:)%rlen_fn(icol)
          end if
          
       end do ! icol=1,maxcolour
@@ -3135,8 +3135,8 @@ contains
          end do
          
          if ( icol < maxcolour ) then
-            bnds(:)%rlenx_bg(icol+1) = bnds(:)%rlenx_fn(icol) + 1
-            bnds(:)%rlenx_fn(icol+1) = bnds(:)%rlenx_fn(icol)
+            bnds(:)%rlenx_bg(min(icol+1,maxcolour)) = bnds(:)%rlenx_fn(icol) + 1
+            bnds(:)%rlenx_fn(min(icol+1,maxcolour)) = bnds(:)%rlenx_fn(icol)
          end if
          
       end do ! icol=1,maxcolour
@@ -5098,7 +5098,7 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
-      integer :: iproc, kx, send_len, recv_len
+      integer :: iproc, kx
       integer :: rcount, jproc, mproc, iq, k
       integer, dimension(neighnum) :: rslen
       integer(kind=4) :: ierr, sreq, lproc
@@ -6214,7 +6214,6 @@ contains
       ! locates processor that owns a global grid point
       integer, intent(in) :: i, j, n
       integer :: fpout
-      integer :: ip, jp
 
       fpout = (i-1)/ipan + ((j-1)/jpan)*nxproc + n*nxproc*nyproc/npan
    
@@ -6290,7 +6289,6 @@ contains
       integer, intent(inout) :: iext
       type(bounds_info), dimension(0:), intent(inout) :: bnds
       integer :: rproc
-      integer :: iloc,jloc,nloc
 
       ! Which processor has this point
       rproc = qproc(iqq)
@@ -6311,7 +6309,7 @@ contains
 
    subroutine proc_setup(id,jd,idjd)
 !     Routine to set up offsets etc.
-      integer :: i, j, n, nd, jdf, idjd_g
+      integer :: nd, jdf, idjd_g
       integer, intent(in) :: id, jd
       integer, intent(out) :: idjd
       integer, dimension(0:npanels) :: ipoff, jpoff
@@ -6854,7 +6852,7 @@ contains
       logical, intent(in), optional :: skip
       real, dimension(ifull_g,size(var,2)) :: varg
       character(len=*), intent(in), optional :: fmt
-      integer :: k, kk
+      integer :: kk
       logical :: doskip
 
       doskip = .false.
@@ -6916,7 +6914,7 @@ contains
       real, dimension(:,:), intent(in) :: var
       real, dimension(ifull_g,size(var,2)) :: varg
       character(len=*), intent(in), optional :: fmt
-      integer :: k, kk
+      integer :: kk
 
       kk = size(var,2)
 
@@ -10004,8 +10002,8 @@ contains
 
    subroutine ccmpi_filewinget2(abuf,sinp)
    
-      integer :: w, ncount, nlen, cc, ipf
-      integer :: n, is, ie, ipin
+      integer :: w, nlen, cc, ipf
+      integer :: n
       integer :: rcount, jproc
       integer :: ip, no, ca, cb
 #ifdef i8r8
@@ -10104,9 +10102,9 @@ contains
    subroutine ccmpi_filewinget3(abuf,sinp)
    
       integer :: n, w, nlen, kx
-      integer :: cc, ipf, ipin
+      integer :: cc, ipf
       integer :: rcount, jproc
-      integer :: is, ie, k
+      integer :: k
       integer :: ip, no, ca, cb
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION

@@ -23,6 +23,10 @@ module mpif_m
 
 public
 
+#ifdef usempimod
+use mpi
+#else
 include 'mpif.h'
+#endif
 
 end module mpif_m

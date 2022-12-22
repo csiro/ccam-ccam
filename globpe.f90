@@ -119,7 +119,7 @@ include 'kuocom.h'                         ! Convection parameters
       
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
-integer iq, i, j, k, nn, js, je, tile
+integer iq, k, js, je, tile
 integer mins_gmt, mspeca, mtimer_in
 integer nlx, nmaxprsav, n3hr
 integer nwtsav, mtimer_sav

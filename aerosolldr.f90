@@ -733,7 +733,7 @@ logical, dimension(imax), intent(in) :: LOLAND      !Land flag
 ! Some diagnostics
 real, dimension(imax), intent(out) :: bbem
 
-integer jk,jt,iq
+integer jk,iq
 
 real, dimension(imax,15), intent(in) :: emissfield
 real, dimension(imax), intent(in) :: vso2
@@ -2003,7 +2003,6 @@ real zmelt,xmelt,zicscav,xicscav
 real xfreeze, zfreeze
 real ecols_k, rcoeff_k, zcollefs_k, zcollefr_k
 real ZDXTE, zxtp1
-logical lmask
 
 integer jk,i
 real pqtmst

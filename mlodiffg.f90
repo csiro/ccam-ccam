@@ -281,7 +281,7 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
 
   ! update non-boundary grid points
   ! here we use the coloured indices to identify interior and boundary points  
-  !$omp parallel do schedule(static) collapse(2) private(k,nc,iqc,iq,xfact_iwu,yfact_isv,base)
+  !$omp parallel do schedule(static) private(k,nc,iqc,iq,xfact_iwu,yfact_isv,base)
   do k = 1,wlev
     do nc = 1,maxcolour
       do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
@@ -299,14 +299,13 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
       end do  
     end do
   end do
-  !$omp end parallel loop
+  !$omp end parallel do
 
   call bounds_recv(work)
 
   ! update boundary grid points
   ! here we use the coloured indices to identify interior and boundary points  
-  !$omp parallel
-  !$omp do schedule(static) collapse(2) private(k,nc,iqc,iq,xfact_iwu,yfact_isv,base)
+  !$omp parallel do schedule(static) private(k,nc,iqc,iq,xfact_iwu,yfact_isv,base)
   do k = 1,wlev
     do nc = 1,maxcolour  
       do iqc = 1,ifull_colour_border(nc)
@@ -323,17 +322,11 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
                    / base
       end do  
     end do
-  end do
-  !$omp end do nowait
-
-  !$omp do schedule(static) private(k,iq)
-  do k = 1,wlev
      do iq = 1,ifull
        work(iq,k) = ans(iq,k)
     end do
   end do
-  !$omp end do 
-  !$omp end parallel
+  !$omp end parallel do 
 
 else if ( mlodiff>=10 .and. mlodiff<=19 ) then
 
@@ -408,8 +401,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
 
     call bounds_recv(ans)
 
-    !$omp parallel
-    !$omp do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
+    !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
     do k = 1,wlev
       do nc = 1,maxcolour  
         do iqc = 1,ifull_colour_border(nc)
@@ -428,8 +420,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
         end do  
       end do
     end do
-    !$omp end do
-    !$omp end parallel
+    !$omp end parallel do
     
   end do ! its  
 

@@ -215,7 +215,7 @@ type(turbdata), dimension(:), allocatable, save :: turb_g
 ! mode
 integer, save :: zomode    = 2            ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, save :: otaumode  = 0            ! momentum coupling (0=Explicit, 1=Implicit)
-integer, save :: mlosigma  = 0            ! vertical levels (0=sig-cubic, 1=sig-quad, 2=sig-gotm, 3=sig-linear, 4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
+integer, save :: mlosigma  = 6            ! vertical levels (4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
 integer, save :: oclosure  = 0            ! 0=kpp, 1=k-eps
 integer, save :: usepice   = 0            ! include ice in surface pressure (0=without ice, 1=with ice)
 real, save :: pdu    = 2.7                ! zoom factor near the surface for mlosigma==gotm
@@ -653,33 +653,33 @@ real dd, x, al, bt
 dd = min( mxd, max( mindep, depin ) )
 x = real(wlin)
 select case(mlosigma)
-  case(0) ! cubic
-    al = dd*(mindep*x/mxd-1.)/(x-x**3) ! sigma levels
-    bt = dd*(mindep*x**3/mxd-1.)/(x**3-x) 
-    do ii = 1,wlin+1
-      x = real(ii-1)
-      depth_hlout(ii) = al*x**3 + bt*x ! ii is for half level ii-0.5
-    end do
-    
-  case(1) ! quadratic
-    al = dd*(1.-mindep*x/mxd)/(x**2-x)   ! sigma levels 
-    bt = dd*(1.-mindep*x*x/mxd)/(x-x**2)
-    do ii = 1,wlin+1
-      x = real(ii-1)
-      depth_hlout(ii) = al*x**2 + bt*x   ! ii is for half leel ii-0.5
-    end do
-
-  case(2) !gotm dynamic
-    do ii = 1,wlin+1
-      x = real(ii-1)
-      depth_hlout(ii) = dd*(tanh((pdu+pdl)*x/wlin -pdu) + tanh(pdu))/(tanh(pdu)+tanh(pdl))
-    end do
-
-  case(3) !linear
-    do ii = 1,wlin+1
-      x = real(ii-1)
-      depth_hlout(ii) = x*dd/wlin
-    end do
+  !case(0) ! cubic
+  !  al = dd*(mindep*x/mxd-1.)/(x-x**3) ! sigma levels
+  !  bt = dd*(mindep*x**3/mxd-1.)/(x**3-x) 
+  !  do ii = 1,wlin+1
+  !    x = real(ii-1)
+  !    depth_hlout(ii) = al*x**3 + bt*x ! ii is for half level ii-0.5
+  !  end do
+  !  
+  !case(1) ! quadratic
+  !  al = dd*(1.-mindep*x/mxd)/(x**2-x)   ! sigma levels 
+  !  bt = dd*(1.-mindep*x*x/mxd)/(x-x**2)
+  !  do ii = 1,wlin+1
+  !    x = real(ii-1)
+  !    depth_hlout(ii) = al*x**2 + bt*x   ! ii is for half leel ii-0.5
+  !  end do
+  !
+  !case(2) !gotm dynamic
+  !  do ii = 1,wlin+1
+  !    x = real(ii-1)
+  !    depth_hlout(ii) = dd*(tanh((pdu+pdl)*x/wlin -pdu) + tanh(pdu))/(tanh(pdu)+tanh(pdl))
+  !  end do
+  !
+  !case(3) !linear
+  !  do ii = 1,wlin+1
+  !    x = real(ii-1)
+  !    depth_hlout(ii) = x*dd/wlin
+  !  end do
     
   case(4) ! Adcroft and Campin 2003 - cubic
     al = (mindep*x-mxd)/(x-x**3)     ! z* levels
@@ -758,9 +758,9 @@ if ( present(sigma) ) then
 end if
 
 select case(mlosigma)
-  case(0,1,2,3)
-    call vgrid(wlev,1000.,ans,ans_hl)
-    ans = ans/1000.
+  !case(0,1,2,3)
+  !  call vgrid(wlev,1000.,ans,ans_hl)
+  !  ans = ans/1000.
   case(4,5,6,7)
     call vgrid(wlev,mxd,ans,ans_hl)
     if ( usesigma ) then
@@ -2082,11 +2082,11 @@ do tile = 1,ntiles
       
         ovisdir(jstart:jfinish)=ice_g(tile)%fracice(ib:ie)*dgice_g(tile)%visdiralb(ib:ie) &
             +(1.-ice_g(tile)%fracice(ib:ie))*dgwater_g(tile)%visdiralb(ib:ie)
-         ovisdif(jstart:jfinish)=ice_g(tile)%fracice(ib:ie)*dgice_g(tile)%visdifalb(ib:ie)  &
+        ovisdif(jstart:jfinish)=ice_g(tile)%fracice(ib:ie)*dgice_g(tile)%visdifalb(ib:ie)  &
             +(1.-ice_g(tile)%fracice(ib:ie))*dgwater_g(tile)%visdifalb(ib:ie)
-         onirdir(jstart:jfinish)=ice_g(tile)%fracice(ib:ie)*dgice_g(tile)%nirdiralb(ib:ie)  &
+        onirdir(jstart:jfinish)=ice_g(tile)%fracice(ib:ie)*dgice_g(tile)%nirdiralb(ib:ie)  &
             +(1.-ice_g(tile)%fracice(ib:ie))*dgwater_g(tile)%nirdiralb(ib:ie)
-         onirdif(jstart:jfinish)=ice_g(tile)%fracice(ib:ie)*dgice_g(tile)%nirdifalb(ib:ie)  &
+        onirdif(jstart:jfinish)=ice_g(tile)%fracice(ib:ie)*dgice_g(tile)%nirdifalb(ib:ie)  &
             +(1.-ice_g(tile)%fracice(ib:ie))*dgwater_g(tile)%nirdifalb(ib:ie)
       end where
     
@@ -3195,7 +3195,7 @@ do step = 1,nsteps
         dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
       end where
     end do  
-  else if ( eps_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
+  else if ( eps_mode==1 ) then !quasi implicit for eps, Patanker (1980)
     do ii = 2,wlev-1
       where ( depth%dz(:,ii)>1.e-4 )  
         bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
@@ -3733,16 +3733,16 @@ end do
 
 ! Boundary conditions
 ! MJT notes - use wrtrho reference density for Boussinesq fluid approximation
-dgwater%wu0=-(1.-ice%fracice)*dgwater%taux/wrtrho
-dgwater%wv0=-(1.-ice%fracice)*dgwater%tauy/wrtrho
+dgwater%wu0 = -(1.-ice%fracice)*dgwater%taux/wrtrho
+dgwater%wv0 = -(1.-ice%fracice)*dgwater%tauy/wrtrho
 dgwater%wt0_eg = -(1.-ice%fracice)*(-dgwater%eg)/(wrtrho*cp0)
 dgwater%wt0_rad = -(1.-ice%fracice)*(atm_rg-sbconst*(water%temp(:,1)+wrtemp)**4)/(wrtrho*cp0)
 dgwater%wt0_melt = (1.-ice%fracice)*lf*atm_snd/(wrtrho*cp0) ! melting snow
-dgwater%wt0=-(1.-ice%fracice)*(-dgwater%fg)/(wrtrho*cp0) + dgwater%wt0_eg + dgwater%wt0_rad + dgwater%wt0_melt
-dgwater%ws0=(1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/wrtrho
-dgwater%ws0_subsurf=atm_inflow*water%sal(:,1)/wrtrho ! inflow under ice
+dgwater%wt0 = -(1.-ice%fracice)*(-dgwater%fg)/(wrtrho*cp0) + dgwater%wt0_eg + dgwater%wt0_rad + dgwater%wt0_melt
+dgwater%ws0 = (1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/wrtrho
+dgwater%ws0_subsurf = atm_inflow*water%sal(:,1)/wrtrho ! inflow under ice
 
-d_neta=d_neta+dt*(atm_inflow+(1.-ice%fracice)*(atm_rnd+atm_snd))/wrtrho
+d_neta = d_neta + dt*(atm_inflow+(1.-ice%fracice)*(atm_rnd+atm_snd))/wrtrho
 
 return
 end subroutine getwflux
@@ -3959,6 +3959,9 @@ real, parameter :: zcoh2 = 0.40
 real, parameter :: zcoq2 = 0.62
 
 if (diag>=1.and.ntiles==1) write(6,*) "Calculate ocean fluxes"
+
+! for gfortran
+fm = 0.
 
 dumwatertemp=max(water%temp(:,1)+wrtemp,271.)
 do iqw = 1,imax

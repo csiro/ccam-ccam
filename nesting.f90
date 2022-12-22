@@ -67,10 +67,6 @@ real, dimension(:,:), allocatable, save :: tb, ub, vb, qb, ocndep
 real, dimension(:,:,:), allocatable, save :: sssb, xtghostb
 real, dimension(:,:,:), allocatable, save :: sssa, xtghosta
 
-interface drpdr_fast
-  module procedure drpdr_fast_s, drpdr_fast_v
-end interface
-
 
 contains
 
@@ -802,15 +798,17 @@ real, dimension(ifull_g) :: xa, ya, za, sm ! large working array
 real, dimension(klt+1) :: local_sum
 real, intent(in) :: cq
 real, dimension(ifull_g,klt+1) :: tt_l
+#ifdef GPU
 real, dimension(ifull,klt+1) :: tbb_l
+#endif
 
 ! evaluate the 2D convolution
 call START_LOG(nestcalc_begin)
 
 kltp1 = klt + 1
-xa = x_g
-ya = y_g
-za = z_g
+xa = real(x_g)
+ya = real(y_g)
+za = real(z_g)
 
 ! discrete normalisation factor
 sm = 1./em_g**2
@@ -1265,7 +1263,6 @@ integer :: jpoff, ibase
 integer :: me, ns, ne, os, oe
 integer :: til, a, b, c, sn, sy, jj, nn
 integer :: ibeg, iend, kltp1
-integer :: async_counter
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
@@ -1276,7 +1273,10 @@ real, dimension(il_g) :: at, asum             ! subset of sparse array
 real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za         ! subset of shared array
 real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l         ! subset of sparse array
+#ifdef GPU
+integer :: async_counter
 real, dimension(jpan,klt+1,ipan) :: qt_l
+#endif
  
 ! matched for panels 1,2 and 3
       
@@ -1314,9 +1314,9 @@ do ipass = 0,2
       c = cstr(sy)
       ibeg = a*sn + b*jj + c
       iend = a*(sn+il_g-1) + b*jj + c
-      xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-      ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-      za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+      xa(sn:sn+il_g-1,j) = real(x_g(ibeg:iend:a))
+      ya(sn:sn+il_g-1,j) = real(y_g(ibeg:iend:a))
+      za(sn:sn+il_g-1,j) = real(z_g(ibeg:iend:a))
       asum = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
         call getglobalpack_v(at,ibeg,iend,k)
@@ -1452,9 +1452,9 @@ do j = 1,ipan
     c = cstr(sy)
     ibeg = a*sn + b*jj + c
     iend = a*(sn+il_g-1) + b*jj + c
-    xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-    ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-    za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+    xa(sn:sn+il_g-1,j) = real(x_g(ibeg:iend:a))
+    ya(sn:sn+il_g-1,j) = real(y_g(ibeg:iend:a))
+    za(sn:sn+il_g-1,j) = real(z_g(ibeg:iend:a))
     call getglobalpack_v(asum,ibeg,iend,0) 
     do k = 1,klt
       call getglobalpack_v(at,ibeg,iend,k) 
@@ -1537,19 +1537,20 @@ integer jpoff, ibase
 integer me, ns, ne, os, oe
 integer til, a, b, c, sn, sy, jj, nn
 integer ibeg, iend, kltp1
-integer async_counter
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
 real, dimension(il_g) :: at, asum
-real, dimension(4*il_g) :: ra
 real, dimension(il_g*jpan*(klt+1)*3) :: dd
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l
+#ifdef GPU
+integer async_counter
 real, dimension(ipan,klt+1,jpan) :: qt_l
+#endif
       
 ! matched for panels 0, 4 and 5
       
@@ -1586,9 +1587,9 @@ do ipass = 0,2
       c = cstr(sy)
       ibeg = a*sn + b*jj + c
       iend = a*(sn+il_g-1) + b*jj + c
-      xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-      ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-      za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+      xa(sn:sn+il_g-1,j) = real(x_g(ibeg:iend:a))
+      ya(sn:sn+il_g-1,j) = real(y_g(ibeg:iend:a))
+      za(sn:sn+il_g-1,j) = real(z_g(ibeg:iend:a))
       asum = 1./em_g(ibeg:iend:a)**2
       do k = 1,klt
         call getglobalpack_v(at,ibeg,iend,k) 
@@ -1724,9 +1725,9 @@ do j = 1,jpan
     c = cstr(sy)
     ibeg = a*sn + b*jj + c
     iend = a*(sn+il_g-1) + b*jj + c
-    xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-    ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-    za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+    xa(sn:sn+il_g-1,j) = real(x_g(ibeg:iend:a))
+    ya(sn:sn+il_g-1,j) = real(y_g(ibeg:iend:a))
+    za(sn:sn+il_g-1,j) = real(z_g(ibeg:iend:a))
     ! v version is faster for getglobalpack  
     call getglobalpack_v(asum,ibeg,iend,0)
     do k = 1,klt
@@ -2006,8 +2007,7 @@ real, dimension(ifull,wlev,2), intent(in) :: suvb
 real, dimension(ifull,1) :: diffh_l
 real, dimension(ifull,kblock) :: diff_l,diffs_l
 real, dimension(ifull,kblock) :: diffu_l,diffv_l
-real, dimension(ifull) :: dz
-real, dimension(ifull) :: old, timelt
+real, dimension(ifull) :: dz, old
 logical lblock
 logical, dimension(ifull,wlev) :: wtr
 real nudgewgt
@@ -2309,7 +2309,9 @@ real, dimension(ifull_g) :: xa, ya, za, sm
 real, dimension(kd+1) :: local_sum
 real cq
 real, dimension(ifull_g,kd+1) :: diff_g_l ! large common array
+#ifdef GPU
 real, dimension(ifull,kd+1) :: dd_l
+#endif
 
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
@@ -2681,19 +2683,20 @@ integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
 integer ibeg, iend, kdp1
-integer async_counter
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(il_g) :: ap, asum      
-real, dimension(4*il_g) :: rr
 real, dimension(il_g*ipan*(kd+1)*3) :: zz
 real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(4*il_g,kd+1,max(ipan,jpan)) :: ap_l
+#ifdef GPU
+integer async_counter
 real, dimension(jpan,kd+1,ipan) :: qp_l
+#endif
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
@@ -2727,9 +2730,9 @@ do ipass = 0,2
       c = cstr(sy)
       ibeg = a*sn + b*jj + c
       iend = a*(sn+il_g-1) + b*jj + c
-      xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-      ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-      za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+      xa(sn:sn+il_g-1,j) = real(x_g(ibeg:iend:a))
+      ya(sn:sn+il_g-1,j) = real(y_g(ibeg:iend:a))
+      za(sn:sn+il_g-1,j) = real(z_g(ibeg:iend:a))
       asum = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
         ! v version is faster for getglobalpack  
@@ -2864,9 +2867,9 @@ do j = 1,ipan
     c = cstr(sy)
     ibeg = a*sn + b*jj + c
     iend = a*(sn+il_g-1) + b*jj + c
-    xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-    ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-    za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+    xa(sn:sn+il_g-1,j) = real(x_g(ibeg:iend:a))
+    ya(sn:sn+il_g-1,j) = real(y_g(ibeg:iend:a))
+    za(sn:sn+il_g-1,j) = real(z_g(ibeg:iend:a))
     ! v version is faster for getglobalpack  
     call getglobalpack_v(asum,ibeg,iend,0) 
     do k = 1,kd
@@ -2947,19 +2950,20 @@ integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
 integer me, k, til, sn, sy, a, b, c, jj, nn
 integer ibeg, iend, kdp1
-integer async_counter
 integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
 real, dimension(il_g) :: ap, asum      
-real, dimension(4*il_g) :: rr
 real, dimension(il_g*jpan*(kd+1)*3) :: zz
 real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(4*il_g,kd+1,max(ipan,jpan)) :: ap_l
+#ifdef GPU
+integer async_counter
 real, dimension(ipan,kd+1,jpan) :: qp_l
+#endif
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
@@ -2993,9 +2997,9 @@ do ipass = 0,2
       c = cstr(sy)
       ibeg = a*sn + b*jj + c
       iend = a*(sn+il_g-1) + b*jj + c
-      xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-      ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-      za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+      xa(sn:sn+il_g-1,j) = real(x_g(ibeg:iend:a))
+      ya(sn:sn+il_g-1,j) = real(y_g(ibeg:iend:a))
+      za(sn:sn+il_g-1,j) = real(z_g(ibeg:iend:a))
       asum = 1./em_g(ibeg:iend:a)**2
       do k = 1,kd
         call getglobalpack_v(ap,ibeg,iend,k)           
@@ -3132,9 +3136,9 @@ do j = 1,jpan
     c = cstr(sy)
     ibeg = a*sn + b*jj + c
     iend = a*(sn+il_g-1) + b*jj + c
-    xa(sn:sn+il_g-1,j) = x_g(ibeg:iend:a)
-    ya(sn:sn+il_g-1,j) = y_g(ibeg:iend:a)
-    za(sn:sn+il_g-1,j) = z_g(ibeg:iend:a)
+    xa(sn:sn+il_g-1,j) = real(x_g(ibeg:iend:a))
+    ya(sn:sn+il_g-1,j) = real(y_g(ibeg:iend:a))
+    za(sn:sn+il_g-1,j) = real(z_g(ibeg:iend:a))
     ! v version is faster for getglobalpack  
     call getglobalpack_v(asum,ibeg,iend,0)
     do k = 1,kd
@@ -3214,11 +3218,11 @@ use parm_m                               ! Model configuration
 implicit none
 
 integer, intent(in) :: wl
-integer k,ka,i
+integer k, ka
 real, dimension(ifull), intent(in) :: sfh
 real, dimension(ifull,wlev), intent(in) :: new,sssb
 real, dimension(ifull,wlev,2), intent(in) :: suvb
-real, dimension(ifull) :: old, timelt
+real, dimension(ifull) :: old
 real wgt
       
 wgt=dt/real(nud_hrs*3600)
@@ -3595,8 +3599,11 @@ ans = ans + iday_r
 
 end function iabsdate
 
+
+#ifdef GPU
+
 ! GPU version
-pure function drpdr_fast_s(nn,cq,xa,ya,za,at) result(out_sum)
+pure function drpdr_fast(nn,cq,xa,ya,za,at) result(out_sum)
 !$acc routine seq
 
 implicit none
@@ -3627,10 +3634,12 @@ end do
 out_sum = real(local_sum)
 
 return
-end function drpdr_fast_s
+end function drpdr_fast
+
+#else
 
 ! CPU version
-pure function drpdr_fast_v(nn,cq,xa,ya,za,at) result(out_sum)
+pure function drpdr_fast(nn,cq,xa,ya,za,at) result(out_sum)
 
 implicit none
 
@@ -3667,6 +3676,9 @@ end do
 out_sum(1:kx) = real(local_sum(1:kx))
 
 return
-end function drpdr_fast_v
+end function drpdr_fast
     
+#endif
+
+
 end module nesting

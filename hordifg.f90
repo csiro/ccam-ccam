@@ -450,7 +450,7 @@ call bounds_send(work)
 
 ! update non-boundary grid points
 ! here we use the coloured indices to identify interior and boundary points  
-!$omp parallel do schedule(static) collapse(2) private(k,nc,iqc,iq,base,xfact_iwu,yfact_isv)
+!$omp parallel do schedule(static) private(k,nc,iqc,iq,base,xfact_iwu,yfact_isv)
 do k = 1,kl
   do nc = 1,maxcolour  
     do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
@@ -474,8 +474,7 @@ call bounds_recv(work)
 
 ! update boundary grid points
 ! here we use the coloured indices to identify interior and boundary points  
-!$omp parallel
-!$omp do schedule(static) collapse(2) private(k,nc,iqc,iq,base,xfact_iwu,yfact_isv)
+!$omp parallel do schedule(static) private(k,nc,iqc,iq,base,xfact_iwu,yfact_isv)
 do k = 1,kl
   do nc = 1,maxcolour  
     do iqc = 1,ifull_colour_border(nc)
@@ -492,17 +491,11 @@ do k = 1,kl
                  / base
     end do  
   end do
-end do
-!$omp end do nowait
-
-!$omp do schedule(static) private(k,iq)
-do k = 1,kl
-   do iq = 1,ifull
-     work(iq,k) = ans(iq,k)
+  do iq = 1,ifull
+    work(iq,k) = ans(iq,k)
   end do
 end do
-!$omp end do
-!$omp end parallel
+!$omp end parallel do
 
 return
 end subroutine hordifgt_work

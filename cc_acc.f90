@@ -30,11 +30,14 @@ module cc_acc
    implicit none
    private
 
-   integer, save, private :: gpuid = -1
    integer, save, public :: async_length = 2
+#ifdef _OPENACC
+   integer, save, private :: gpuid = -1
+#endif
 
    public ::  ccacc_init
 
+   
    contains
 
    subroutine ccacc_init(myid,ngpus)

@@ -1147,11 +1147,11 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
       else    
         call fillhist4o('sal',mlodwn(:,:,2),land_3d,fill_floorlake,ocndwn(:,1))
       end if  
-      !do k = 1,wlev
-      !  where ( isoilm_in == -1 )
-      !    mlodwn(1:ifull,k,2) = 0. ! freshwater lakes
-      !  end where
-      !end do  
+      do k = 1,wlev
+        where ( isoilm_in == -1 )
+          mlodwn(1:ifull,k,2) = 0. ! freshwater lakes
+        end where
+      end do  
       mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
     end if ! (nestesd/=1.or.nud_sss/=0) ..else..
     ! ocean currents
@@ -2559,7 +2559,7 @@ real, dimension(:,:), intent(inout) :: a_io
 integer, intent(inout) :: fill_count
 integer j, n, k, kx
 integer cc, ipf, local_count
-integer i, async_counter
+integer i
 integer, dimension(size(a_io,2)) :: ncount, nrem
 real, parameter :: value=999.       ! missing value flag
 real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
@@ -3356,7 +3356,7 @@ else
       write(6,*) "ERROR: Invalid choice of levkin in gethist4a - ",trim(vname)
       call ccmpi_abort(-1)
     end if
-    t_a_lev(:) = ucc(:,levkin)   ! store for psl calculation  
+    t_a_lev(1:fwsize) = ucc(1:fwsize,levkin)   ! store for psl calculation  
   end if
   call doints4(ucc, u_k)      
 end if ! iop_test

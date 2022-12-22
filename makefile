@@ -124,7 +124,7 @@ FCSCM = ftn
 FHOST = -march=native
 MPIFLAG =
 MPISPECIAL =
-NCFLAG = -Dncclib
+NCFLAG =
 FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -Dusempi3
 LIB = -lnetcdf
 FOVERRIDE =
@@ -147,7 +147,7 @@ MPIF77 = nvfortran
 FC = mpifort
 FCSCM = nvfortran
 CC = pgcc
-NCFLAG = -I $(NETCDF_ROOT)/include/GNU -Dncclib
+NCFLAG = -I $(NETCDF_ROOT)/include/GNU
 LIBS = -L $(NETCDF_ROOT)/lib/GNU -lnetcdf
 FHOST = -O4 -fast -tp=host
 ifeq ($(SKYLAKE),yes)

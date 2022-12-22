@@ -838,13 +838,11 @@ real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
 real, dimension(ifull_maxcolour,kl,maxcolour) :: rhelmc, rhsc
 real, dimension(ifull_maxcolour,maxcolour) :: zznc, zzec, zzwc, zzsc, zzc
-real, dimension(ifull_maxcolour) :: xdum
 real, dimension(mg_ifull_maxcolour,3,kl) :: helmc_c, rhsc_c
 real, dimension(mg_ifull_maxcolour,3) :: zznc_c, zzec_c, zzwc_c, zzsc_c
 real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
 real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
 real, dimension(mg_maxsize,2*kl) :: w
-real, dimension(mg_maxsize) :: v_n, v_e, v_w, v_s
 real, dimension(mg_minsize) :: vsavc
 real, dimension(2*kl,2) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g, savg, sdif, dsolmaxc, sdifc
@@ -1620,7 +1618,7 @@ implicit none
 integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, iq
 integer iq_a, iq_c
-integer nc, isc, iec, k
+integer nc, k
 real, intent(in) :: tol, itol
 real, intent(out) :: maxglobseta, maxglobip
 real bu, cu
@@ -2300,7 +2298,7 @@ do i = 1,itrend
       cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
         +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)     
-      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
          -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
     end do  
     
@@ -2331,7 +2329,7 @@ do i = 1,itrend
       cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
         +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)   
-      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
+      dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
          -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
     end do  
     
@@ -2396,7 +2394,7 @@ do itr = 2,itr_mgice
         cu = zznc(iq,nc)*dumc_n(iq,1) + zzsc(iq,nc)*dumc_s(iq,1) &
            + zzec(iq,nc)*dumc_e(iq,1) + zzwc(iq,nc)*dumc_w(iq,1) &
            - rhsc(iq,nc)   
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),           &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),        &
            -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
       end do
         
@@ -2428,7 +2426,7 @@ do itr = 2,itr_mgice
         cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)   &
           +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)   &
           -rhsc(iq,nc)
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),           &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),      &
            -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
       end do
         
@@ -2877,7 +2875,7 @@ do itr = 2,itr_mgice
         cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
           +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
           -rhsc(iq,nc)    
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
            -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
       end do  
 
@@ -2908,7 +2906,7 @@ do itr = 2,itr_mgice
         cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
           +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
           -rhsc(iq,nc)   
-        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),              &
+        dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
            -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
       end do
  

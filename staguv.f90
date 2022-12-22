@@ -57,9 +57,6 @@ real, dimension(:,:), intent(out) :: uout, vout
 real, dimension(ifull+iextra,size(u,2)) :: ua, va, ud, vd, uin, vin
 real, dimension(ifull,size(u,2)) :: ug, vg
 integer :: itn, kx, iq, k
-#ifdef debug
-integer, parameter :: ntest=0    ! usually 0, 1 for test prints
-#endif
 
 call START_LOG(stag_begin)
 
