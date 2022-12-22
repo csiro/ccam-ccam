@@ -125,7 +125,7 @@ FHOST = -march=native
 MPIFLAG =
 MPISPECIAL =
 NCFLAG =
-FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -Dusempi3
+FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -Dusempi3 -Dusempimod
 LIB = -lnetcdf
 FOVERRIDE =
 ZMM =
