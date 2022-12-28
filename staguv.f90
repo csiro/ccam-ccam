@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -98,9 +98,7 @@ if ( nstag==3 ) then
   end do
   !$omp end do
 
-  !$omp master
   call boundsuv(ud,vd,stag=-10) ! inv, ieu
-  !$omp end master
   !$omp barrier
   
   !$omp do schedule(static) private(k,iq)
@@ -115,9 +113,7 @@ if ( nstag==3 ) then
   !$omp end do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-    !$omp master
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    !$omp end master
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
@@ -127,9 +123,7 @@ if ( nstag==3 ) then
       end do
     end do
     !$omp end do
-    !$omp master
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    !$omp end master
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
@@ -140,9 +134,7 @@ if ( nstag==3 ) then
     end do
     !$omp end do
   end do                  ! itn=1,itnmax
-  !$omp master
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx
@@ -152,9 +144,7 @@ if ( nstag==3 ) then
     end do
   end do  
   !$omp end do
-  !$omp master
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx
@@ -182,9 +172,7 @@ else !if ( nstag==4 ) then
   !$omp end do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-    !$omp master
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    !$omp end master
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
@@ -194,9 +182,7 @@ else !if ( nstag==4 ) then
       end do
     end do
     !$omp end do
-    !$omp master
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    !$omp end master
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
@@ -207,9 +193,7 @@ else !if ( nstag==4 ) then
     end do  
     !$omp end do
   end do                 ! itn=1,itnmax
-  !$omp master
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx
@@ -219,9 +203,7 @@ else !if ( nstag==4 ) then
     end do
   end do  
   !$omp end do
-  !$omp master
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx
@@ -298,9 +280,7 @@ if ( nstagu==3 ) then
   end do  
   !$omp end do
 
-  !$omp master
   call boundsuv(ud,vd,stag=-9) ! isv, iwu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx
@@ -314,9 +294,7 @@ if ( nstagu==3 ) then
   !$omp end do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-    !$omp master  
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    !$omp end master
     !$omp barrier
     !$omp do schedule(static) private(k,iq)    
     do k = 1,kx
@@ -326,9 +304,7 @@ if ( nstagu==3 ) then
       end do
     end do
     !$omp end do
-    !$omp master
     call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-    !$omp end master
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
@@ -339,9 +315,7 @@ if ( nstagu==3 ) then
     end do
     !$omp end do
   end do                 ! itn=1,itnmax
-  !$omp master
   call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx
@@ -351,9 +325,7 @@ if ( nstagu==3 ) then
     end do
   end do  
   !$omp end do
-  !$omp master
   call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx
@@ -381,9 +353,7 @@ else !if ( nstagu==4 ) then
   !$omp end do
 
   do itn=1,itnmax-1        ! each loop is a double iteration
-    !$omp master  
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    !$omp end master
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
@@ -393,9 +363,7 @@ else !if ( nstagu==4 ) then
       end do
     end do  
     !$omp end do
-    !$omp master
     call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-    !$omp end master
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
@@ -406,9 +374,7 @@ else !if ( nstagu==4 ) then
     end do  
     !$omp end do
   enddo                  ! itn=1,itnmax
-  !$omp master
   call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx
@@ -418,9 +384,7 @@ else !if ( nstagu==4 ) then
     end do
   end do  
   !$omp end do
-  !$omp master
   call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
-  !$omp end master
   !$omp barrier
   !$omp do schedule(static) private(k,iq)
   do k = 1,kx

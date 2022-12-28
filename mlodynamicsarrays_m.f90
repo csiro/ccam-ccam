@@ -41,8 +41,6 @@ real, dimension(:,:), allocatable, save :: godsigu, godsigv, gosighu, gosighv
 real, dimension(:,:), allocatable, save :: oldu1, oldu2, oldv1, oldv2
 real, dimension(:), allocatable, save :: ipice
 
-!$acc declare create(eeu,eev,stwgt)
-
 contains
 
 subroutine mlodynamicsarrays_init(ifull,iextra,wlev)

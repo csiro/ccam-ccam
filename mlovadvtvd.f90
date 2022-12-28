@@ -74,40 +74,22 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
-#ifdef GPU
-!$omp target data map(to:its,dtnew,ww,depdum,dzdum)
-#else
 !$omp parallel sections
-#endif
 !$acc data create(its,dtnew,ww,depdum,dzdum)
 !$acc update device(its,dtnew,ww,depdum,dzdum)
 
-#ifndef GPU
 !$omp section
-#endif
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
-#ifndef GPU
 !$omp section
-#endif
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
-#ifndef GPU
 !$omp section
-#endif
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
-#ifndef GPU
 !$omp section
-#endif
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
-#ifndef GPU
 !$omp section
-#endif
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 
-#ifdef GPU
-!$omp end target data
-#else
 !$omp end parallel sections
-#endif
 !$acc wait
 !$acc end data
   
@@ -145,19 +127,10 @@ async_counter = mod( async_counter+1, async_length )
 
 if ( mlontvd==0 ) then ! MC
 
-#ifdef GPU
-  !$omp target enter data map(to:uu) map(alloc:delu,ff)
-#endif
   !$acc enter data create(uu,delu,ff) async(async_counter)
   !$acc update device(uu,dzdum) async(async_counter)
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
-#endif
-#else
   !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum) async(async_counter)
-#endif
   do ii = 1,wlev-1
     do iq = 1,ifull
       ff(iq,ii) = 0.  
@@ -168,37 +141,18 @@ if ( mlontvd==0 ) then ! MC
       end if    
     end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-  !$omp target teams distribute parallel do schedule(static) private(iq)
-#endif
-#else
   !$acc end parallel loop
   !$acc parallel loop present(ff,delu) async(async_counter)
-#endif
   do iq = 1,ifull
     ff(iq,0) = 0.
     ff(iq,wlev) = 0.
     delu(iq,0) = 0.
     delu(iq,wlev) = 0.
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
 ! TVD part
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
-#endif
-#else
   !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum) async(async_counter)
-#endif
   do ii = 1,wlev-1
     do iq = 1,ifull
       ! +ve ww is downwards to the ocean floor
@@ -216,15 +170,8 @@ if ( mlontvd==0 ) then ! MC
      !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
    end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
-#endif
-#else
   !$acc end parallel loop
   !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
-#endif
   do ii = 1,wlev
     do iq = 1,ifull
       if ( dzdum(iq,ii)>1.e-4 ) then  
@@ -233,21 +180,9 @@ if ( mlontvd==0 ) then ! MC
       end if   
     end do  
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
-#endif
-#else
   !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
-#endif
   do iq = 1,ifull
     do i = 2,its(iq)
       do ii=1,wlev-1
@@ -280,35 +215,17 @@ if ( mlontvd==0 ) then ! MC
       end do
     end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef GPU
-  !$omp target exit data map(from:uu)
-#endif
   !$acc update self(uu) async(async_counter)
   !$acc exit data delete(uu,delu,ff) async(async_counter)
 
 else if ( mlontvd==1 ) then ! Superbee
 
-#ifdef GPU
-  !$omp target enter data map(to:uu) map(alloc:delu,ff)
-#endif
   !$acc enter data create(uu,delu,ff) async(async_counter)
   !$acc update device(uu) async(async_counter)
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
-#endif
-#else
   !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum) async(async_counter)
-#endif
   do ii = 1,wlev-1
     do iq = 1,ifull
       ff(iq,ii) = 0.  
@@ -319,37 +236,18 @@ else if ( mlontvd==1 ) then ! Superbee
       end if    
     end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-  !$omp target teams distribute parallel do schedule(static) private(iq)
-#endif
-#else
   !$acc end parallel loop
   !$acc parallel loop present(ff,delu) async(async_counter)
-#endif
   do iq = 1,ifull
     ff(iq,0) = 0.
     ff(iq,wlev) = 0.
     delu(iq,0) = 0.
     delu(iq,wlev) = 0.
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-! TVD part
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq,kp,kx,rr,fl,cc,fh)
-#endif
-#else
+  ! TVD part
   !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum) async(async_counter)
-#endif
   do ii = 1,wlev-1
     do iq = 1,ifull
       ! +ve ww is downwards to the ocean floor
@@ -367,15 +265,8 @@ else if ( mlontvd==1 ) then ! Superbee
      !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
    end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(ii,iq)
-#endif
-#else
   !$acc end parallel loop
   !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
-#endif
   do ii = 1,wlev
     do iq = 1,ifull
       if ( dzdum(iq,ii)>1.e-4 ) then  
@@ -384,21 +275,9 @@ else if ( mlontvd==1 ) then ! Superbee
       end if   
     end do  
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do schedule(static) private(iq,i,ii,kp,kx,rr,fl,cc,fh)
-#endif
-#else
   !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
-#endif
   do iq = 1,ifull
     do i = 2,its(iq)
       do ii = 1,wlev-1
@@ -431,17 +310,8 @@ else if ( mlontvd==1 ) then ! Superbee
       end do
     end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef GPU
-  !$omp target exit data map(from:uu)
-#endif
   !$acc update self(uu) async(async_counter)
   !$acc exit data delete(uu,delu,ff) async(async_counter)
     

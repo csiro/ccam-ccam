@@ -129,6 +129,8 @@ if ( myid==0 ) then
       call ccnf_inq_varid(ncid,'time',valident)
       call ccnf_get_att(ncid,valident,'units',datestring)
       call processdatestring(datestring,kdate_rsav,ktime_rsav)
+      ltest = .true.
+      iarchi = 1
       if ( datestring(1:6)=='months' ) then
         ! fast read  
         iarchi = 1
@@ -148,6 +150,11 @@ if ( myid==0 ) then
           call datefix_month(kdate_r,mtimer)
           ltest = (kdate_r/100-jyear*100-jmonth)<0
         end do
+        if ( ltest ) then
+          write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
+          write(6,*) "kdate_r = ",kdate_r
+          call ccmpi_abort(-1)
+        end if
       elseif ( datestring(1:4)=="days" ) then
         ! fast read  
         iarchi = 1
@@ -169,13 +176,13 @@ if ( myid==0 ) then
           call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
           ltest = (kdate_r/100-jyear*100-jmonth)<0
         end do
+        if ( ltest ) then
+          write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
+          write(6,*) "kdate_r = ",kdate_r
+          call ccmpi_abort(-1)
+        end if
       else
         write(6,*) "ERROR: Unknown time unit in ",trim(o3file)
-        call ccmpi_abort(-1)
-      end if
-      if ( ltest ) then
-        write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
-        write(6,*) "kdate_r = ",kdate_r
         call ccmpi_abort(-1)
       end if
       if ( nmaxpr==1 ) write(6,*) "-> Found ozone data at index ",iarchi

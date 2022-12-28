@@ -626,9 +626,9 @@ qsttg(is:ie)  = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
 smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
 
 call screencalc(ie-is+1,qgscrn(is:ie),rhscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),   &
-                u10gs_var(is:ie),ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),  &
+                ustar(is:ie),tstar(is:ie),qstar(is:ie),thetavstar(is:ie),  &
                 zo(is:ie),zoh(is:ie),zoq(is:ie),tss(is:ie),t(is:ie,1),smixr(is:ie),         &
-                qg(is:ie,1),umag(is:ie),ugs_var(is:ie),ps(is:ie),zminx(is:ie),sig(1))
+                qg(is:ie,1),umag(is:ie),ps(is:ie),zminx(is:ie),sig(1))
 
 atu(is:ie) = au(is:ie)*u10(is:ie)/umag(is:ie) + ou(is:ie)
 atv(is:ie) = av(is:ie)*u10(is:ie)/umag(is:ie) + ov(is:ie)      

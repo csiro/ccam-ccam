@@ -669,7 +669,7 @@ do iq_tile = 1,ifull,imax
       sgdclr(istart:iend)  = real(Sw_output(mythread)%dfswcf(:,1,kl+1,1))    ! clear sky solar downwelling at surface
       rtclr(istart:iend)   = real(Lw_output(mythread)%flxnetcf(:,1,1))       ! clear sky longwave at top
       rgclr(istart:iend)   = real(Lw_output(mythread)%flxnetcf(:,1,kl+1))    ! clear sky longwave at surface
-      rgdclr(istart:iend)  = stefbo*tss(istart:iend)**4 - rgclr(istart:iend) ! clear sky  longwave downwelling at surface
+      rgdclr(istart:iend)  = stefbo*tss(istart:iend)**4 - rgclr(istart:iend) ! clear sky longwave downwelling at surface
     else
       soutclr(istart:iend) = 0.
       sgclr(istart:iend)   = 0.

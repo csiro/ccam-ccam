@@ -104,15 +104,11 @@ real, dimension(imax,kl) :: qsatg    !Saturation mixing ratio
 real, dimension(imax,kl) :: qcl      !Vapour mixing ratio inside convective cloud
 real, dimension(imax,kl) :: qenv     !Vapour mixing ratio outside convective cloud
 real, dimension(imax,kl) :: tenv     !Temperature outside convective cloud
-real, dimension(imax) :: precs       !Amount of stratiform precipitation in timestep (mm)
-real, dimension(imax) :: preci       !Amount of stratiform snowfall in timestep (mm)
-real, dimension(imax) :: precg       !Amount of stratiform graupel in timestep (mm)
 real, dimension(imax) :: wcon        !Convective cloud water content (in-cloud, prescribed)
 
-integer k, iq
+integer k
 real, dimension(imax) :: prf_temp, fl
 real, dimension(kl) :: diag_temp
-real invdt
 
 ! meterological fields
 do k = 1,kl
@@ -730,7 +726,7 @@ real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax,kl) :: xf
 real, dimension(imax) :: aa, bb, cc, a_dt, b_dt, cf1, cfeq, cfbar
 real, dimension(imax) :: qv, omega, hlrvap, dqsdT, gamma, dqs
-real, dimension(imax) :: delq, da
+real, dimension(imax) :: da
 real, intent(in) :: dt
 real, dimension(imax,kl) :: erosion_scale
 real, parameter :: erosion_scale_d = 1.e-6

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -111,8 +111,8 @@ use arrays_m                                      ! Atmosphere dyamics prognosti
 use cc_mpi                                        ! CC MPI routines
 use dates_m                                       ! Date data
 use latlong_m                                     ! Lat/lon coordinates
-use mlo, only : mloexport,mloexpmelt,wlev,      &
-                wrtemp,mloimport                  ! Ocean physics and prognostic arrays
+use mlo, only : mloexport,mloexpmelt,wrtemp,       &
+                mloimport                         ! Ocean physics and prognostic arrays
 use newmpar_m                                     ! Grid parameters
 use nharrs_m, only : lrestart                     ! Non-hydrostatic atmosphere arrays
 use parm_m                                        ! Model configuration
@@ -669,7 +669,7 @@ integer, parameter :: nrhead = 14
       
 integer, intent(in) :: iyr, imo, idjd_g
 integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_file
-integer varid, iarchx, maxarchi, iernc, lsmid, varid_time
+integer varid, iarchx, maxarchi, lsmid, varid_time
 integer kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
 integer iq, mm, k
@@ -806,7 +806,7 @@ if ( amip_mode==1 ) then
   else
     write(6,*) "No interpolation is required for AMIPSST"
     write(6,*) "leap_file = ",leap_file
-    allocate( ssta_g(ifull_g,5) )
+    allocate( ssta_g(ifull_g,5), ssta_l(0,0), lsma_g(0) )
     ssta_g = 0.
   end if
   
@@ -1031,9 +1031,8 @@ if ( amip_mode==1 ) then
   end if
 
   call ccnf_close(ncidx)
-  deallocate( ssta_g )
+  deallocate( ssta_g, ssta_l, lsma_g )
   if ( interpolate ) then
-    deallocate( ssta_l, lsma_g )
     deallocate( nface4, xg4, yg4 )
   end if  
   
@@ -1260,8 +1259,8 @@ use filnames_m                               ! Filenames
 use infile                                   ! Input file routines
 use latlong_m                                ! Lat/lon coordinates
 use latltoij_m                               ! Lat/Lon to cubic ij conversion
-use mlo, only : mloexport,mloexpmelt,wlev, &
-                wrtemp,mloimport             ! Ocean physics and prognostic arrays
+use mlo, only : mloexport,mloexpmelt,wrtemp, &
+                mloimport                    ! Ocean physics and prognostic arrays
 use newmpar_m                                ! Grid parameters
 use nharrs_m, only : lrestart                ! Non-hydrostatic atmosphere arrays
 use parm_m                                   ! Model configuration
@@ -1449,7 +1448,7 @@ if ( mod(ktau,nperday)==0 ) then
       ssta_g = 0.
       ssta_l = 0.
     else
-      allocate( ssta_g(ifull_g,1) )
+      allocate( ssta_g(ifull_g,1), ssta_l(0,0) )
       ssta_g = 0.
     end if
     
@@ -1535,11 +1534,7 @@ if ( mod(ktau,nperday)==0 ) then
 
     end if       
     
-    if ( interpolate ) then
-      deallocate( ssta_g, ssta_l )
-    else
-      deallocate( ssta_g )
-    end if         
+    deallocate( ssta_g, ssta_l )         
          
   else      
     

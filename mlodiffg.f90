@@ -89,7 +89,7 @@ implicit none
 integer iq, k
 real hdif
 real, dimension(ifull+iextra,wlev,3) :: duma
-real, dimension(ifull+iextra,wlev) :: work_tt, work_ss
+real, dimension(ifull+iextra,wlev,2) :: work
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
 real, dimension(ifull+iextra,wlev) :: w_ema
@@ -203,28 +203,31 @@ end if
 
 ! Potential temperature and salinity
 ! MJT notes - only apply salinity diffusion to salt water
-work_tt(1:ifull,:) = tt(1:ifull,:)
+work(1:ifull,:,1) = tt(1:ifull,:)
 workdata2(1:ifull,:) = ss(1:ifull,:)
-work_ss(1:ifull,:) = ss(1:ifull,:) - 34.72
+work(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 where( workdata2(1:ifull,:)<2. )
-  work_ss(1:ifull,:) = 0.
+  work(1:ifull,:,2) = 0.
 end where
 
 
 ! perform diffusion
 
+#ifdef GPU
+!$acc data create(xfact,yfact,emi)
+!$acc update device(xfact,yfact,emi)
+#endif
+
 if ( mlodiff==0 .or. mlodiff==10 ) then
-  ! UX  
-  call mlodiffcalc(duma(:,:,1),xfact,yfact,emi)
-  ! VY  
-  call mlodiffcalc(duma(:,:,2),xfact,yfact,emi)
-  ! WZ  
-  call mlodiffcalc(duma(:,:,3),xfact,yfact,emi)
+  ! UX, VX, WX
+  call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,3)
 end if
-! potential temperature
-call mlodiffcalc(work_tt,xfact,yfact,emi)
-! salinity
-call mlodiffcalc(work_ss,xfact,yfact,emi)
+! potential temperature and salinity
+call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,2)
+
+#ifdef GPU
+!$acc end data
+#endif
 
 
 ! post-processing
@@ -239,8 +242,8 @@ if ( mlodiff==0 .or. mlodiff==10 ) then
 end if
 do k = 1,wlev
   do iq = 1,ifull
-    tt(iq,k) = max(work_tt(iq,k), -wrtemp)
-    ss(iq,k) = work_ss(iq,k) + 34.72
+    tt(iq,k) = max(work(iq,k,1), -wrtemp)
+    ss(iq,k) = work(iq,k,2) + 34.72
     if ( workdata2(iq,k)<2. ) then
       ss(iq,k) = workdata2(iq,k)
     end if  
@@ -252,11 +255,12 @@ call END_LOG(waterdiff_end)
 return
 end subroutine mlodiffusion_work
 
-subroutine mlodiffcalc(work,xfact,yfact,emi)    
+subroutine mlodiffcalc(work,xfact,yfact,emi,ntr)    
 
+use cc_acc, only : async_length
 use cc_mpi, only : bounds_send, bounds_recv, maxcolour, iqx, &
                    ifull_colour, ifull_colour_border,        &
-                   ccmpi_abort
+                   ccmpi_abort, nagg
 use indices_m
 use map_m
 use mlo
@@ -266,163 +270,250 @@ use parm_m, only : dt, ds
 
 implicit none
 
+integer, intent(in) :: ntr
 integer k, iq, iqc, nc, its
+integer nstart, nend, nlen, nn, np
 integer, parameter :: num_its = 3
+integer async_counter
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
-real, dimension(ifull+iextra,wlev), intent(inout) :: work
-real, dimension(ifull+iextra,wlev) :: ans
-real, dimension(ifull,wlev) :: work_save
+real, dimension(ifull+iextra,wlev,ntr), intent(inout) :: work
+real, dimension(ifull+iextra,wlev,nagg) :: ans
+real, dimension(ifull,wlev,nagg) :: work_save
 real base, xfact_iwu, yfact_isv
 
 if ( mlodiff>=0 .and. mlodiff<=9 ) then
+    
+  do nstart = 1,ntr,nagg
+    nend = min(nstart + nagg - 1, ntr )
+    nlen = nend - nstart + 1  
+    
+    call bounds_send(work(:,:,nstart:nend))
 
-  call bounds_send(work)
+    ! update non-boundary grid points
+    ! here we use the coloured indices to identify interior and boundary points  
+#ifndef GPU
+    !$omp parallel
+#endif
+    do nn = 1,nlen
+      np = nn - 1 + nstart
+#ifndef GPU
+      !$omp do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
+#else
+      async_counter = mod(nn-1,async_length)
+      !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
+      !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)                            &  
+      !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
+#endif
+      do k = 1,wlev
+        do iq = 1,ifull
+          xfact_iwu = xfact(iwu(iq),k)
+          yfact_isv = yfact(isv(iq),k)
+          base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                        +yfact(iq,k)+yfact_isv
+          ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +               &
+                           xfact(iq,k)*work(ie(iq),k,np) +       &
+                           xfact_iwu*work(iw(iq),k,np) +         &
+                           yfact(iq,k)*work(in(iq),k,np) +       &
+                           yfact_isv*work(is(iq),k,np) )         &
+                        / base
+        end do  
+      end do
+#ifndef GPU
+      !$omp end do nowait
+#else
+      !$acc end parallel loop
+#endif
+    end do
+#ifndef GPU
+    !$omp end parallel
+#else
+    !$acc wait
+#endif
 
-  ! update non-boundary grid points
-  ! here we use the coloured indices to identify interior and boundary points  
-  !$omp parallel do schedule(static) private(k,nc,iqc,iq,xfact_iwu,yfact_isv,base)
-  do k = 1,wlev
-    do nc = 1,maxcolour
-      do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
-        iq = iqx(iqc,nc)  
-        xfact_iwu = xfact(iwu(iq),k)
-        yfact_isv = yfact(isv(iq),k)
-        base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                      +yfact(iq,k)+yfact_isv
-        ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                      xfact(iq,k)*work(ie(iq),k) +       &
-                      xfact_iwu*work(iw(iq),k) +         &
-                      yfact(iq,k)*work(in(iq),k) +       &
-                      yfact_isv*work(is(iq),k) )         &
-                   / base
+    call bounds_recv(work(:,:,nstart:nend))
+
+    ! update boundary grid points
+    ! here we use the coloured indices to identify interior and boundary points  
+    do nn = 1,nlen
+      np = nn - 1 + nstart
+      do k = 1,wlev
+        do nc = 1,maxcolour  
+          do iqc = 1,ifull_colour_border(nc)
+            iq = iqx(iqc,nc)  
+            xfact_iwu = xfact(iwu(iq),k)
+            yfact_isv = yfact(isv(iq),k)
+            base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                          +yfact(iq,k)+yfact_isv
+            ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +               &
+                             xfact(iq,k)*work(ie(iq),k,np) +       &
+                             xfact_iwu*work(iw(iq),k,np) +         &
+                             yfact(iq,k)*work(in(iq),k,np) +       &
+                             yfact_isv*work(is(iq),k,np) )         &
+                          / base
+          end do  
+        end do
+        do iq = 1,ifull
+          work(iq,k,np) = ans(iq,k,nn)
+        end do
       end do  
     end do
-  end do
-  !$omp end parallel do
 
-  call bounds_recv(work)
-
-  ! update boundary grid points
-  ! here we use the coloured indices to identify interior and boundary points  
-  !$omp parallel do schedule(static) private(k,nc,iqc,iq,xfact_iwu,yfact_isv,base)
-  do k = 1,wlev
-    do nc = 1,maxcolour  
-      do iqc = 1,ifull_colour_border(nc)
-        iq = iqx(iqc,nc)  
-        xfact_iwu = xfact(iwu(iq),k)
-        yfact_isv = yfact(isv(iq),k)
-        base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                      +yfact(iq,k)+yfact_isv
-        ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                      xfact(iq,k)*work(ie(iq),k) +       &
-                      xfact_iwu*work(iw(iq),k) +         &
-                      yfact(iq,k)*work(in(iq),k) +       &
-                      yfact_isv*work(is(iq),k) )         &
-                   / base
-      end do  
-    end do
-     do iq = 1,ifull
-       work(iq,k) = ans(iq,k)
-    end do
-  end do
-  !$omp end parallel do 
-
+  end do ! nstart
+    
 else if ( mlodiff>=10 .and. mlodiff<=19 ) then
 
   ! Bi-Harmonic diffusion.  iterative version.
 
-  work_save(1:ifull,1:wlev) = work(1:ifull,1:wlev)  
+#ifdef GPU
+  !$acc enter data create(work_save)   
+#endif
+  
+  do nstart = 1,ntr,nagg
+    nend = min(nstart + nagg - 1, ntr )
+    nlen = nend - nstart + 1
+
+    work_save(1:ifull,1:wlev,1:nlen) = work(1:ifull,1:wlev,nstart:nend)
+#ifdef GPU
+    !$acc update device(work_save)
+#endif
     
-  do its = 1,num_its  
+    do its = 1,num_its  
       
-    call bounds_send(work)
+      call bounds_send(work(:,:,nstart:nend))
 
-    !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
-    do k = 1,wlev
-      do nc = 1,maxcolour  
-        do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
-          iq = iqx(iqc,nc)  
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-          ans(iq,k) = ( -base*work(iq,k) +              &
-                        xfact(iq,k)*work(ie(iq),k) +    &
-                        xfact_iwu*work(iw(iq),k) +      &
-                        yfact(iq,k)*work(in(iq),k) +    &
-                        yfact_isv*work(is(iq),k) ) / sqrt(emi(iq))
-        end do  
-      end do
-    end do
-    !$omp end parallel do
-
-    call bounds_recv(work)
-
-    !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
-    do k = 1,wlev
-      do nc = 1,maxcolour  
-        do iqc = 1,ifull_colour_border(nc)
-          iq = iqx(iqc,nc)
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-          ans(iq,k) = ( -base*work(iq,k) +              &
-                        xfact(iq,k)*work(ie(iq),k) +    &
-                        xfact_iwu*work(iw(iq),k) +      &
-                        yfact(iq,k)*work(in(iq),k) +    &
-                        yfact_isv*work(is(iq),k) ) / sqrt(emi(iq))
-        end do  
-      end do
-    end do
-    !$omp end parallel do
-
-    call bounds_send(ans)
-
-    !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
-    do k = 1,wlev
-      do nc = 1,maxcolour
-        do iqc = ifull_colour_border(nc)+1,ifull_colour(nc)
-          iq = iqx(iqc,nc)  
-          if ( ee(iq,k) > 0. ) then
+#ifndef GPU
+      !$omp parallel
+#endif
+      do nn = 1,nlen
+        np = nn - 1 + nstart  
+#ifndef GPU
+        !$omp do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
+#else
+        async_counter = mod(nn-1,async_length)
+        !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
+        !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)                            &
+        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
+#endif
+        do k = 1,wlev
+          do iq = 1,ifull  
             xfact_iwu = xfact(iwu(iq),k)
             yfact_isv = yfact(isv(iq),k)
             base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-            work(iq,k) = work_save(iq,k) + dt*(               &
-                           -base*ans(iq,k) +                  &
-                           xfact(iq,k)*ans(ie(iq),k) +        &
-                           xfact_iwu*ans(iw(iq),k) +          &
-                           yfact(iq,k)*ans(in(iq),k) +        &
-                           yfact_isv*ans(is(iq),k) ) / sqrt(emi(iq))
-          end if  
-        end do 
+            ans(iq,k,nn) = ( -base*work(iq,k,np) +              &
+                             xfact(iq,k)*work(ie(iq),k,np) +    &
+                             xfact_iwu*work(iw(iq),k,np) +      &
+                             yfact(iq,k)*work(in(iq),k,np) +    &
+                             yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
+          end do   
+        end do
+#ifndef GPU
+        !$omp end do nowait
+#else
+        !$acc end parallel loop
+#endif
       end do
-    end do
-    !$omp end parallel do
+#ifndef GPU
+      !$omp end parallel
+#else
+      !$acc wait
+#endif
 
-    call bounds_recv(ans)
+      call bounds_recv(work(:,:,nstart:nend))
 
-    !$omp parallel do schedule(static) collapse(2) private(nc,iqc,iq,k,xfact_iwu,yfact_isv,base)
-    do k = 1,wlev
-      do nc = 1,maxcolour  
-        do iqc = 1,ifull_colour_border(nc)
-          iq = iqx(iqc,nc)  
-          if ( ee(iq,k)>0. ) then
+      do nn = 1,nlen
+        np = nn - 1 + nstart  
+        do k = 1,wlev
+          do nc = 1,maxcolour  
+            do iqc = 1,ifull_colour_border(nc)
+              iq = iqx(iqc,nc)
+              xfact_iwu = xfact(iwu(iq),k)
+              yfact_isv = yfact(isv(iq),k)
+              base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
+              ans(iq,k,nn) = ( -base*work(iq,k,np) +              &
+                               xfact(iq,k)*work(ie(iq),k,np) +    &
+                               xfact_iwu*work(iw(iq),k,np) +      &
+                               yfact(iq,k)*work(in(iq),k,np) +    &
+                               yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
+            end do  
+          end do
+        end do  
+      end do
+
+      call bounds_send(ans(:,:,1:nlen))
+
+#ifndef GPU
+      !$omp parallel
+#endif
+      do nn = 1,nlen
+        np = nn - 1 + nstart
+#ifndef GPU
+        !$omp do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
+#else
+        async_counter = mod(nn-1,async_length)  
+        !$acc parallel loop collapse(2) copyin(ans(:,:,nn)) copyout(work(1:ifull,:,np))  &
+        !$acc   present(work_save,xfact,yfact,emi,in,is,ie,iw,iwu,isv)                   &
+        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
+#endif        
+        do k = 1,wlev
+          do iq = 1,ifull  
             xfact_iwu = xfact(iwu(iq),k)
             yfact_isv = yfact(isv(iq),k)
             base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-            work(iq,k) = work_save(iq,k) - dt*(               &
-                           -base*ans(iq,k) +                  &
-                           xfact(iq,k)*ans(ie(iq),k) +        &
-                           xfact_iwu*ans(iw(iq),k) +          &
-                           yfact(iq,k)*ans(in(iq),k) +        &
-                           yfact_isv*ans(is(iq),k) ) / sqrt(emi(iq))
-          end if  
+            work(iq,k,np) = work_save(iq,k,nn) + dt*(               &
+                              -base*ans(iq,k,nn) +                  &
+                              xfact(iq,k)*ans(ie(iq),k,nn) +        &
+                              xfact_iwu*ans(iw(iq),k,nn) +          &
+                              yfact(iq,k)*ans(in(iq),k,nn) +        &
+                              yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
+          end do    
+        end do
+#ifndef GPU
+        !$omp end do nowait
+#else
+        !$acc end parallel loop
+#endif
+      end do
+#ifndef GPU
+      !$omp end parallel
+#else
+      !$acc wait
+#endif
+
+      call bounds_recv(ans(:,:,1:nlen))
+
+      do nn = 1,nlen
+        np = nn - 1 + nstart
+        do k = 1,wlev
+          do nc = 1,maxcolour  
+            do iqc = 1,ifull_colour_border(nc)
+              iq = iqx(iqc,nc)  
+              xfact_iwu = xfact(iwu(iq),k)
+              yfact_isv = yfact(isv(iq),k)
+              base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
+              work(iq,k,np) = work_save(iq,k,nn) - dt*(            &
+                             -base*ans(iq,k,nn) +                  &
+                             xfact(iq,k)*ans(ie(iq),k,nn) +        &
+                             xfact_iwu*ans(iw(iq),k,nn) +          &
+                             yfact(iq,k)*ans(in(iq),k,nn) +        &
+                             yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
+            end do  
+          end do  
+          do iq = 1,ifull
+            if ( ee(iq,k)<0.5 ) then
+              work(iq,k,np) = work_save(iq,k,nn)
+            end if
+          end do
         end do  
       end do
-    end do
-    !$omp end parallel do
     
-  end do ! its  
+    end do ! its
+    
+  end do   ! nstart  
+  
+#ifdef GPU
+  !$acc exit data delete(work_save)
+#endif
 
 else
   write(6,*) "ERROR: Unknown mlodiff option ",mlodiff

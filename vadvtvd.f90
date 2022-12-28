@@ -68,18 +68,12 @@ if ( num==0 ) then
   end if
 end if
 
-#ifdef GPU
-!$omp target data map(to:sdot,ratha,rathb,nvadh_inv_pass,nits)
-#else
 !$omp parallel
 !$omp sections
-#endif
-!$acc data create(sdot,rathb,ratha,nvadh_inv_pass,nits)
-!$acc update device(sdot,rathb,ratha,nvadh_inv_pass,nits)
+!$acc data create(sdot,nvadh_inv_pass,nits)
+!$acc update device(sdot,nvadh_inv_pass,nits)
 
-#ifndef GPU
 !$omp section
-#endif
 !     t
 call vadv_work(tarr,nvadh_inv_pass,nits)
 
@@ -89,9 +83,7 @@ if( diag .and. mydiag )then
   write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
 endif
 
-#ifndef GPU
 !$omp section
-#endif
 !     u
 call vadv_work(uarr,nvadh_inv_pass,nits)
 
@@ -101,9 +93,7 @@ if( diag .and. mydiag )then
   write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
 endif
 
-#ifndef GPU
 !$omp section
-#endif
 !     v
 call vadv_work(varr,nvadh_inv_pass,nits)
 
@@ -113,23 +103,17 @@ if( diag .and. mydiag )then
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
 endif
 
-#ifndef GPU
 !$omp section
-#endif
 !     h_nh
 if ( nh/=0 ) then
   call vadv_work(h_nh,nvadh_inv_pass,nits)
 end if
 
-#ifndef GPU
 !$omp section
-#endif
 !     pslx
 call vadv_work(pslx,nvadh_inv_pass,nits)
 
-#ifndef GPU
 !$omp section
-#endif
 !      qg
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   call vadv_work(qg,nvadh_inv_pass,nits)
@@ -139,9 +123,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   end if
 end if          ! if(mspec==1)
     
-#ifndef GPU
 !$omp section
-#endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
     call vadv_work(qlg,nvadh_inv_pass,nits)
@@ -152,9 +134,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   end if      ! if(ldr.ne.0)
 end if          ! if(mspec==1)
 
-#ifndef GPU
 !$omp section
-#endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
     call vadv_work(qfg,nvadh_inv_pass,nits)
@@ -165,69 +145,49 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   end if      ! if(ldr.ne.0)
 end if          ! if(mspec==1)
 
-#ifndef GPU
 !$omp section
-#endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 ) then
     call vadv_work(stratcloud,nvadh_inv_pass,nits)
   end if      ! if(ldr.ne.0)
 end if          ! if(mspec==1)
 
-#ifndef GPU
 !$omp section
-#endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
     call vadv_work(eps,nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
-#ifndef GPU
 !$omp section
-#endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
     call vadv_work(tke,nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
-#ifndef GPU
 !$omp end sections nowait
-#endif
 
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( abs(iaero)>=2 ) then
-#ifndef GPU
     !$omp do schedule(static) private(ntr)
-#endif
     do ntr = 1,naero
       call vadv_work(xtg(:,:,ntr),nvadh_inv_pass,nits)
     end do
-#ifndef GPU
     !$omp end do nowait
-#endif
   end if   ! abs(iaero)>=2
   
   if ( ngas>0 .or. nextout>=4 ) then
-#ifndef GPU
     !$omp do schedule(static) private(ntr)
-#endif
     do ntr = 1,ntrac
       call vadv_work(tr(:,:,ntr),nvadh_inv_pass,nits)
     end do
-#ifndef GPU
     !$omp end do nowait
-#endif
   end if        ! (nextout>=4)
   
 end if          ! if(mspec==1)
 
-#ifdef GPU
-!$omp end target data
-#else
 !$omp end parallel
-#endif
 !$acc wait
 !$acc end data
 
@@ -261,55 +221,27 @@ async_counter = mod(async_counter+1, async_length)
 
 if ( ntvd==2 ) then ! MC
 
-#ifdef GPU
-  !$omp target enter data map(to:tarr) map(alloc:delt,fluxh)
-#endif
   !$acc enter data create(tarr,delt,fluxh) async(async_counter)
   !$acc update device(tarr) async(async_counter)
 
   !     fluxh(k) is located at level k+.5
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
-#endif
-#else
   !$acc parallel loop collapse(2) present(delt,tarr) async(async_counter)
-#endif
   do k = 1,kl-1
     do iq = 1,ifull
       delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
     end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-  !$omp target teams distribute parallel do schedule(static) private(iq)
-#endif
-#else
   !$acc end parallel loop
   !$acc parallel loop present(fluxh,delt) async(async_counter)
-#endif
   do iq = 1,ifull
     fluxh(iq,0)  = 0.
     fluxh(iq,kl) = 0.
     delt(iq,kl)  = 0.     ! for T,u,v
     delt(iq,0)   = 0.
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
-#endif
-#else
   !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
-#endif
   do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
     do iq = 1,ifull      
       kp = nint(sign(1.,sdot(iq,k+1)))
@@ -322,42 +254,18 @@ if ( ntvd==2 ) then ! MC
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
     enddo
   enddo      ! k loop
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
-#endif
-#else
   !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
-#endif
   do k = 1,kl
     do iq = 1,ifull
       tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
                                +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
     end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
-#endif
-#else
   !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
-#endif
   do iq = 1,ifull 
     do i = 2,nits(iq)
       do k = 1,kl-1
@@ -379,71 +287,34 @@ if ( ntvd==2 ) then ! MC
       end do
     end do   ! i
   end do     ! iq
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef GPU
-  !$omp target exit data map(from:tarr)
-#endif
   !$acc update self(tarr) async(async_counter)
   !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
 
 else if ( ntvd==3 ) then ! Superbee
 
-#ifdef GPU
-  !$omp target enter data map(to:tarr) map(alloc:delt,fluxh)
-#endif
   !$acc enter data create(tarr,delt,fluxh) async(async_counter)
   !$acc update device(tarr) async(async_counter)
 
   !     fluxh(k) is located at level k+.5
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
-#endif
-#else
   !$acc parallel loop collapse(2) present(delt,tarr) async(async_counter)
-#endif
   do k = 1,kl-1
     do iq = 1,ifull
       delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
     end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-  !$omp target teams distribute parallel do schedule(static) private(iq)
-#endif
-#else
   !$acc end parallel loop
   !$acc parallel loop present(fluxh,delt) async(async_counter)
-#endif
   do iq = 1,ifull
     fluxh(iq,0)  = 0.
     fluxh(iq,kl) = 0.
     delt(iq,kl)  = 0.     ! for T,u,v
     delt(iq,0)   = 0.
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,kp,kx,rat,fluxlo,phitvd,fluxhi)
-#endif
-#else
   !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
-#endif
   do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
     do iq = 1,ifull      
       kp = nint(sign(1.,sdot(iq,k+1)))
@@ -456,42 +327,18 @@ else if ( ntvd==3 ) then ! Superbee
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
     enddo
   enddo      ! k loop
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
-#endif
-#else
   !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
-#endif
   do k = 1,kl
     do iq = 1,ifull
       tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
                                +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
     end do
   end do
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp target teams distribute parallel do schedule(static) private(iq,i,k,kp,kx,rat,fluxlo,phitvd,fluxhi)
-#endif
-#else
   !$acc parallel loop present(nits,delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
-#endif
   do iq = 1,ifull 
     do i = 2,nits(iq)
       do k = 1,kl-1
@@ -513,17 +360,8 @@ else if ( ntvd==3 ) then ! Superbee
       end do
     end do   ! i
   end do     ! iq
-#ifdef _OPENMP
-#ifdef GPU
-  !$omp end target teams distribute parallel do
-#endif
-#else
   !$acc end parallel loop
-#endif
 
-#ifdef GPU
-  !$omp target exit data map(from:tarr)
-#endif
   !$acc update self(tarr) async(async_counter)
   !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
     

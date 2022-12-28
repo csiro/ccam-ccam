@@ -78,7 +78,7 @@ do tile = 1,ntiles
   rlogh1=log(sigmh(2))
   rlog12=1./(rlogs1-rlogs2)
   do iq = 1,imax
-    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+    tmnht = (lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12
     dz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
     gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dz**2)
     lat(iq,2) = -gt/dsig(2)  
@@ -97,7 +97,7 @@ do tile = 1,ntiles
   end do
   
   ltr = tr(is:ie,:,:)
-  if ( allocated(co2em) ) lco2em = co2em(is:ie,:)
+  lco2em = co2em(is:ie,:)
   if ( allocated(oh) ) loh = oh(is:ie,:)
   if ( allocated(strloss) ) lstrloss = strloss(is:ie,:)
   if ( allocated(jmcf) ) ljmcf = jmcf(is:ie,:)
@@ -155,7 +155,6 @@ real molfact, radfact, co2fact, gasfact
 logical decay, methloss, mcfloss
 
 ! Setup
-!trfact = grav * dt / dsig(1)
 molfact = 1000.*fair_molm          ! factor for units in mol/m2/s
 co2fact = 1000.*fair_molm/fc_molm
 radfact = 1.293                    ! test factor for radon units in Bq/m2/s, conc in Bq/m3
@@ -240,7 +239,7 @@ trsrc = 0.
 select case(trim(tractype(igas)))
     
   case('online')
-    if (trim(tracname(igas)(1:3)).eq.'cbm') then
+    if (trim(tracname(igas)(1:3))=='cbm') then
       select case (trim(tracname(igas)))
         case('cbmnep'); trsrc(:,1) = fnee
         case('cbmpn');  trsrc(:,1) = fpn
@@ -310,7 +309,6 @@ real, dimension(imax), intent(in) :: vt, dz1
 real, dimension(imax) :: dep
 real, intent(in) :: fluxfact
 real drate
-!real, dimension(1) :: totloss_l, totloss
 logical, intent(in) :: decay, methloss, mcfloss
 real, dimension(imax,kl,ntrac), intent(in) :: tr
 real, dimension(imax,kl), intent(in) :: t
@@ -364,8 +362,8 @@ else
 endif
 
 ! implicit version due to potentially high transfer velocity relative to dz1
-temptr(:,1)   = tr(1:imax,1,igas)*drate*dep - fluxfact*grav*dt*trsrc(:,1)/(dsig(1)*ps(1:imax)) - loss(:,1)
-do k=2,kl
+temptr(:,1) = tr(1:imax,1,igas)*drate*dep - fluxfact*grav*dt*trsrc(:,1)/(dsig(1)*ps(1:imax)) - loss(:,1)
+do k = 2,kl
   temptr(:,k) = tr(1:imax,k,igas)*drate - fluxfact*grav*dt*trsrc(:,k)/(dsig(k)*ps(1:imax)) - loss(:,k)
 end do
 

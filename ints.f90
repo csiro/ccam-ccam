@@ -62,7 +62,7 @@ real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
 call START_LOG(ints_begin)
 
-! now call bounds before calling ints
+! bounds is called before calling ints
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -70,16 +70,13 @@ if ( intsch==1 ) then
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr )
     nlen = nend - nstart + 1
-    
-    ! this is intsb           EW interps done first
-    ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
-
-    sx(1:ipan,1:jpan,1:npan,1:kl,1:nlen) = reshape(s(1:ipan*jpan*npan,1:kl,nstart:nend), (/ipan,jpan,npan,kl,nlen/))
+        
     ! this is intsb           EW interps done first
     ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do nn = 1,nlen
-      np = nn - 1 + nstart  
+      np = nn - 1 + nstart
       do k = 1,kl
+        sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,np), (/ipan,jpan,npan/))
         do n = 1,npan
           do j = 1,jpan
             iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
@@ -97,8 +94,6 @@ if ( intsch==1 ) then
             sx(i,jpan+1,n,k,nn) = s(in(iq),k,np)
             sx(i,jpan+2,n,k,nn) = s(inn(iq),k,np)
           end do            ! i loop
-        end do
-        do n = 1,npan
           sx(-1,0,n,k,nn)          = s(lwws(n),k,np)
           sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),k,np)
           sx(0,-1,n,k,nn)          = s(lwss(n),k,np)
@@ -157,20 +152,15 @@ if ( intsch==1 ) then
       call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),  &
-      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,nn,np)
+      !$omp parallel
 #endif
       do nn = 1,nlen
-#ifdef _OPENMP
-#ifdef GPU
-        !$omp target teams distribute parallel do collapse(2) schedule(static),                   &
-        !$omp map(to:sx(:,:,:,:,nn)) map(from:s(:,:,nn-1+nstart)) private(k,iq,idel,xxg,jdel,yyg) &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)           &
+#ifndef GPU
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
         !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#endif
 #else
-        async_counter = mod(nn-1, async_length)+1
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
 #endif
@@ -203,18 +193,17 @@ if ( intsch==1 ) then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
-#ifdef _OPENMP
-#ifdef GPU
-        !$omp end target teams distribute parallel do
-#endif
+#ifndef GPU
+        !$omp end do nowait
 #else
         !$acc end parallel loop
 #endif
       end do           ! nn loop
 #ifndef GPU
-      !$omp end parallel do
-#endif  
+      !$omp end parallel
+#else
       !$acc wait
+#endif
     
     else              ! (nfield<mh_bs)
 
@@ -255,25 +244,21 @@ if ( intsch==1 ) then
           end do      ! iq loop
         end do        ! ii loop
       end do          ! nn loop
+      
       ! Send messages to other processors.  We then start the calculation for this processor while waiting for
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),  &
-      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,nn,np)
+      !$omp parallel
 #endif
       do nn = 1,nlen
-#ifdef _OPENMP
-#ifdef GPU
-        !$omp target teams distribute parallel do collapse(2) schedule(static)                    &
-        !$omp map(to:sx(:,:,:,:,nn)) map(from:s(:,:,nn-1+nstart)) private(k,iq,idel,xxg,jdel,yyg) &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)           &
+#ifndef GPU
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
         !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#endif
 #else
-        async_counter = mod(nn-1, async_length)+1
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
 #endif
@@ -311,18 +296,17 @@ if ( intsch==1 ) then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! k loop
-#ifdef _OPENMP
-#ifdef GPU
-        !$omp end target teams distribute parallel do
-#endif
+#ifndef GPU
+        !$omp end do nowait
 #else
         !$acc end parallel loop
 #endif
-      end do          ! nn loop  
+      end do           ! nn loop
 #ifndef GPU
-      !$omp end parallel do
-#endif
+      !$omp end parallel
+#else
       !$acc wait
+#endif
 
     end if            ! (nfield<mh_bs)  .. else ..
   
@@ -340,10 +324,10 @@ else     ! if(intsch==1)then
     nend = min(nstart + nagg - 1, ntr )
     nlen = nend - nstart + 1    
     
-    sx(1:ipan,1:jpan,1:npan,1:kl,1:nlen) = reshape(s(1:ipan*jpan*npan,1:kl,nstart:nend), (/ipan,jpan,npan,kl,nlen/))
     do nn = 1,nlen
-      np = nn - 1 + nstart  
+      np = nn - 1 + nstart
       do k = 1,kl
+        sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,np), (/ipan,jpan,npan/))
         do n = 1,npan
           do j = 1,jpan
             iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
@@ -361,8 +345,6 @@ else     ! if(intsch==1)then
             sx(i,jpan+1,n,k,nn) = s(in(iq),k,np)
             sx(i,jpan+2,n,k,nn) = s(inn(iq),k,np)
           end do            ! i loop
-        end do
-        do n = 1,npan
           sx(-1,0,n,k,nn)          = s(lsww(n),k,np)
           sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,np)
           sx(0,-1,n,k,nn)          = s(lssw(n),k,np)
@@ -419,20 +401,15 @@ else     ! if(intsch==1)then
       call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),  &
-      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,nn,np)
+      !$omp parallel
 #endif
       do nn = 1,nlen
-#ifdef _OPENMP
-#ifdef GPU
-        !$omp target teams distribute parallel do collapse(2) schedule(static)                    &
-        !$omp map(to:sx(:,:,:,:,nn)) map(from:s(:,:,nn-1+nstart)) private(k,iq,idel,xxg,jdel,yyg) &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)           &
+#ifndef GPU
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
         !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#endif
 #else
-        async_counter = mod(nn-1, async_length)+1
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
 #endif
@@ -466,18 +443,17 @@ else     ! if(intsch==1)then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
-#ifdef _OPENMP
-#ifdef GPU
-        !$omp end target teams distribute parallel do
-#endif
+#ifndef GPU
+        !$omp end do nowait
 #else
         !$acc end parallel loop
 #endif
-      end do           ! nn loop  
+      end do           ! nn loop
 #ifndef GPU
-      !$omp end parallel do
-#endif
+      !$omp end parallel
+#else
       !$acc wait
+#endif
     
     else                 ! (nfield<mh_bs)
 
@@ -523,20 +499,15 @@ else     ! if(intsch==1)then
       call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),  &
-      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,nn,np)
+      !$omp parallel
 #endif
       do nn = 1,nlen
-#ifdef _OPENMP
-#ifdef GPU
-        !$omp target teams distribute parallel do collapse(2) schedule(static)                    &
-        !$omp map(to:sx(:,:,:,:,nn)) map(from:s(:,:,nn-1+nstart)) private(k,iq,idel,xxg,jdel,yyg) &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)           &
+#ifndef GPU
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
         !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#endif
 #else
-        async_counter = mod(nn-1, async_length)+1
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
 #endif
@@ -574,18 +545,17 @@ else     ! if(intsch==1)then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do       ! iq loop
         end do         ! k loop
-#ifdef _OPENMP
-#ifdef GPU
-        !$omp end target teams distribute parallel do
-#endif
+#ifndef GPU
+        !$omp end do nowait
 #else
         !$acc end parallel loop
 #endif
-      end do           ! nn loop  
+      end do           ! nn loop
 #ifndef GPU
-      !$omp end parallel do
-#endif
+      !$omp end parallel
+#else
       !$acc wait
+#endif
     
     end if            ! (nfield<mh_bs)  .. else ..
 
@@ -627,11 +597,10 @@ real, dimension(ifull+iextra,kl), intent(inout) :: s
 
 call START_LOG(ints_begin)
 
-! now call bounds before calling ints_bl
-!call bounds(s,corner=.true.)
+! bounds is called before calling ints_bl
 
-sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl), (/ipan,jpan,npan,kl/))
 do k = 1,kl
+  sx(1:ipan,1:jpan,1:npan,k) = reshape(s(1:ipan*jpan*npan,k), (/ipan,jpan,npan/))  
   do n = 1,npan
     do j = 1,jpan
       sx(0,j,n,k)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k)
@@ -641,8 +610,6 @@ do k = 1,kl
       sx(i,0,n,k)      = s(is(i+(n-1)*ipan*jpan),k)
       sx(i,jpan+1,n,k) = s(in(i-ipan+n*ipan*jpan),k)
     end do               ! i loop
-  end do
-  do n = 1,npan
     sx(0,0,n,k)           = s(iws(1+(n-1)*ipan*jpan),k)
     sx(ipan+1,0,n,k)      = s(ies(ipan+(n-1)*ipan*jpan),k)
     sx(0,jpan+1,n,k)      = s(iwn(1-ipan+n*ipan*jpan),k)

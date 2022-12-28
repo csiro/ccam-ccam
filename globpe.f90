@@ -3096,9 +3096,8 @@ if ( myid==0 ) then
 end if
 call ccmpi_setup(id,jd,idjd,dt)
 
-!$acc update device(in,is,ie,iw,ine,ien,ies,inw)
+!$acc update device(in,is,ie,iw)
 !$acc update device(iwu,isv)
-!$acc update device(emu,emv)
 
 !--------------------------------------------------------------
 ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE

@@ -36,6 +36,7 @@ contains
 subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr)
 
 use bigxy4_m
+use cc_acc, only : async_length
 use cc_mpi
 use const_phys
 use indices_m
@@ -49,6 +50,7 @@ use xyzinfo_m
 implicit none
 
 integer iq,i,j,k,n,nn,idel,jdel,intsch,ii
+integer async_counter
 integer, dimension(ifull,wlev), intent(out) :: nface
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
 real, dimension(ifull,wlev), intent(out) :: xg,yg
@@ -211,10 +213,14 @@ else
 
 end if
 
+!$acc data create(xg,yg,nface,xx4,yy4,sx)
+!$acc update device(xx4,yy4,sx)
+
 ! convert to grid point numbering
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
 ! Share off processor departure points.
+!$acc update self(xg,yg,nface)
 call deptsync(nface,xg,yg)
 
 !======================== start of intsch=1 section ====================
@@ -256,10 +262,18 @@ if ( intsch==1 ) then
   
   call intssync_send(3)
 
-  !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),         &
-  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
+#ifndef GPU
+  !$omp parallel
+#endif
   do nn = 1,3  
+#ifndef GPU
+    !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                              &
+    !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#else
+    async_counter = mod(nn-1,async_length)  
+    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+#endif
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -289,8 +303,17 @@ if ( intsch==1 ) then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do     ! iq loop
     end do       ! k loop
+#ifndef GPU
+    !$omp end do nowait
+#else
+    !$acc end parallel loop
+#endif
   end do       ! nn loop
-  !$omp end parallel do
+#ifndef GPU
+  !$omp end parallel
+#else
+  !$acc wait
+#endif
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -332,10 +355,18 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-  !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),         &
-  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
-  do nn = 1,3    
+#ifndef GPU
+  !$omp parallel
+#endif
+  do nn = 1,3  
+#ifndef GPU
+    !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                              &
+    !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#else
+    async_counter = mod(nn-1,async_length)  
+    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+#endif
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -365,8 +396,17 @@ else     ! if(intsch==1)then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do
     end do
+#ifndef GPU
+    !$omp end do nowait
+#else
+    !$acc end parallel loop
+#endif
   end do       ! nn loop
-  !$omp end parallel do
+#ifndef GPU
+  !$omp end parallel
+#else
+  !$acc wait
+#endif
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -387,6 +427,7 @@ end do
 
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
+!$acc update self(xg,yg,nface)
 call deptsync(nface,xg,yg)
 
 !======================== start of intsch=1 section ====================
@@ -427,10 +468,18 @@ if ( intsch==1 ) then
   
   call intssync_send(3)
 
-  !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),         &
-  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
+#ifndef GPU
+  !$omp parallel
+#endif
   do nn = 1,3  
+#ifndef GPU
+    !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                              &
+    !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#else
+    async_counter = mod(nn-1,async_length)  
+    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+#endif
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -459,8 +508,17 @@ if ( intsch==1 ) then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do     ! iq loop
     end do       ! k loop
+#ifndef GPU
+    !$omp end do nowait
+#else
+    !$acc end parallel loop
+#endif
   end do       ! nn loop
-  !$omp end parallel do
+#ifndef GPU
+  !$omp end parallel
+#else
+  !$acc wait
+#endif
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -501,10 +559,18 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-  !$omp parallel do collapse(2) schedule(static) private(k,iq,idel,xxg,jdel,yyg),         &
-  !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-  !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,nn)
-  do nn = 1,3    
+#ifndef GPU
+  !$omp parallel
+#endif
+  do nn = 1,3  
+#ifndef GPU
+    !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                              &
+    !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
+    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
+#else
+    async_counter = mod(nn-1,async_length)  
+    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+#endif
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -534,8 +600,17 @@ else     ! if(intsch==1)then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do
     end do
+#ifndef GPU
+    !$omp end do nowait
+#else
+    !$acc end parallel loop
+#endif
   end do       ! nn loop
-  !$omp end parallel do
+#ifndef GPU
+  !$omp end parallel
+#else
+  !$acc wait
+#endif
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -556,7 +631,10 @@ end do
 
 call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 !     Share off processor departure points.
+!$acc update self(xg,yg,nface)
 call deptsync(nface,xg,yg)
+
+!$acc end data
 
 call END_LOG(waterdeps_end)
 
@@ -595,8 +673,12 @@ integer, parameter :: nmaploop = 3
 alf = (1._8-schmidt**2)/(1._8+schmidt**2)
 alfonsch = 2._8*schmidt/(1._8+schmidt**2)
 
+#ifndef GPU
 !$omp parallel do schedule(static) private(ii,iq,den,xstr,ystr,zstr),               &
 !$omp private(denxyz,xd,yd,zd,ri,rj,i,j,loop,is,js,dxx,dxy,dyx,dyy)
+#else
+!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d) present(xg,yg,nface,xx4,yy4)
+#endif
 do ii = 1,wlev
   do iq = 1,ifull
 
@@ -672,7 +754,11 @@ do ii = 1,wlev
 
   end do
 end do
+#ifndef GPU
 !$omp end parallel do
+#else
+!$acc end parallel loop
+#endif
 
 return
 end subroutine mlotoij5

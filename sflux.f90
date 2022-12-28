@@ -19,8 +19,11 @@
 
 !------------------------------------------------------------------------------
 
-! CCAM interface for surface flux routines. Includes standard land-surface scheme,
-! prescribed SSTs and sea-ice, CABLE interface, urban interface and MLO interface.
+! CCAM interface for surface flux routines. Includes:
+!   Land-surface: standard land-surface scheme, CABLE interface
+!   ocean/lakes: prescribed SSTs and sea-ice, MLO interface
+!   urban: UCLEM interface
+! Currently missing crops and wetlands.
       
 ! nsib=3              Standard land-surface scheme with SIB and Gratz data
 ! nsib=5              Standard land-surface scheme with MODIS data

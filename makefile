@@ -123,7 +123,8 @@ FC = ftn
 FCSCM = ftn
 FHOST = -march=native
 MPIFLAG =
-MPISPECIAL = -Dusempimod
+MPISPECIAL = -Dusempiinterface
+MPISPECIAL =
 NCFLAG =
 FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -Dusempi3
 LIB = -lnetcdf
@@ -635,6 +636,6 @@ updps.o : arrays_m.o cc_mpi.o const_phys.o diag_m.o indices_m.o map_m.o newmpar_
 upglobal.o : aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o const_phys.o diag_m.o epst_m.o indices_m.o liqwpar_m.o map_m.o newmpar_m.o nharrs_m.o nlin_m.o parm_m.o parmdyn_m.o parmhor_m.o sbar_m.o sigs_m.o staguv.o tkeeps.o tracers_m.o unn_m.o vadvtvd.o vecsuv_m.o vvel_m.o work3f_m.o xarrs_m.o xyzinfo_m.o kuocom.h
 usage_m.o: cc_mpi.o
 utilities.o : const_phys.o
-vadvtvd.o : aerosolldr.o arrays_m.o cc_acc.o cc_mpi.o cc_omp.o cfrac_m.o diag_m.o liqwpar_m.o map_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o parmvert_m.o sigs_m.o tkeeps.o tracers_m.o vvel_m.o xarrs_m.o kuocom.h
-vertmix.o : arrays_m.o cc_acc.o cc_mpi.o cc_omp.o carbpools_m.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o mlo.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o pbl_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o work2_m.o kuocom.h
+vadvtvd.o : aerosolldr.o arrays_m.o cc_acc.o cc_mpi.o cfrac_m.o diag_m.o liqwpar_m.o map_m.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o parmvert_m.o sigs_m.o tkeeps.o tracers_m.o vvel_m.o xarrs_m.o kuocom.h
+vertmix.o : arrays_m.o cc_mpi.o cc_omp.o carbpools_m.o cfrac_m.o const_phys.o diag_m.o estab.o extraout_m.o kuocomb_m.o liqwpar_m.o map_m.o mlo.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o pbl_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o work2_m.o kuocom.h
 zenith.o : parm_m.o

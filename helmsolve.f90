@@ -871,8 +871,6 @@ ng  = 0
 ng4 = 0
 klim = kl
 
-!$omp parallel
-!$omp do schedule(static) private(k)
 do k = 1,kl
   iv(ifull+1:ifull+iextra,k) = 0. ! for IBM compiler
   iv_new(:,k) = 0.                ! for IBM compiler
@@ -883,37 +881,34 @@ do k = 1,kl
   smaxmin_g(k+kl,1) = 0.
   smaxmin_g(k+kl,2) = 0. 
 end do
-!$omp end do nowait
-  
+
 ! pack colour arrays at fine level
 ! note that the packing reorders the calculation to update the border points first
-!$omp do schedule(static) private(k,nc)
+!$omp parallel
 do nc = 1,maxcolour
+  !$omp do schedule(static) private(k)  
   do k = 1,kl  
     rhelmc(1:ifull_colour(nc),k,nc) = ihelm(iqx(1:ifull_colour(nc),nc),k)
     rhsc(1:ifull_colour(nc),k,nc)   = jrhs(iqx(1:ifull_colour(nc),nc),k)
   end do
-end do
-!$omp end do nowait
-
-!$omp do schedule(static) private(nc)
-do nc = 1,maxcolour
+  !$omp end do nowait
+end do  
+!$omp end parallel
+do nc = 1,maxcolour  
   zznc(1:ifull_colour(nc),nc) = izzn(iqx(1:ifull_colour(nc),nc))
   zzwc(1:ifull_colour(nc),nc) = izzw(iqx(1:ifull_colour(nc),nc))
   zzec(1:ifull_colour(nc),nc) = izze(iqx(1:ifull_colour(nc),nc))
   zzsc(1:ifull_colour(nc),nc) = izzs(iqx(1:ifull_colour(nc),nc))
   zzc(1:ifull_colour(nc),nc) = izz(iqx(1:ifull_colour(nc),nc))
 end do
-!$omp end do
 
 ! solver assumes boundaries have been updated
-!$omp master
 call bounds(iv)
-!$omp end master
-!$omp barrier
 
 ! Before sending convegence testing data in smaxmin_g and ihelm weights, we perform one iteration of the solver
 ! that can be updated with the smaxmin_g and ihelm arrays
+
+!$omp parallel
 
 ! update on model grid using colours
 do i = 1,itrbgn
@@ -930,9 +925,7 @@ do i = 1,itrbgn
       end do  
     end do
     !$omp end do
-    !$omp master
     call bounds_colour_send(iv_new,nc)
-    !$omp end master
     ! calcuate interior points while waiting for halo to update
     !$omp do schedule(static) private(k,iq)
     do k = 1,kl
@@ -948,9 +941,7 @@ do i = 1,itrbgn
       end do  
     end do
     !$omp end do
-    !$omp master
     call bounds_colour_recv(iv,nc)
-    !$omp end master
     !$omp barrier
   end do ! nc (colour) loop
 end do   ! i (itr) loop
@@ -1191,9 +1182,7 @@ do i = 1,itrend
       end do  
     end do
     !$omp end do
-    !$omp master
     call bounds_colour_send(iv_new,nc)
-    !$omp end master
     ! calculate non-boundary grid points while waiting for the halo to be updated
     !$omp do schedule(static) private(k,iq)
     do k = 1,kl
@@ -1209,28 +1198,31 @@ do i = 1,itrend
       end do  
     end do
     !$omp end do
-    !$omp master
     call bounds_colour_recv(iv,nc)
-    !$omp end master
     !$omp barrier
   end do ! nc (colour) loop
 end do   ! i (itr) loop
 
-!$omp do schedule(static) private(k,nc,iq)
+!$omp end parallel
+
 do k = 1,kl
-  ! remove offsets
   savg(k) = 0.5*(smaxmin_g(k,1)+smaxmin_g(k,2))
   sdif(k) = smaxmin_g(k,1) - smaxmin_g(k,2)
   iv(:,k) = iv(:,k) - savg(k)
-  irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)
-  ! re-pack colour arrays at fine level to remove offsets
-  do nc = 1,maxcolour
+end do
+
+! re-pack colour arrays at fine level to remove offsets
+!$omp parallel
+do nc = 1,maxcolour
+  !$omp do schedule(static) private(k,iq)  
+  do k = 1,kl  
+    irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)  
     do iq = 1,ifull_colour(nc)  
       rhsc(iq,k,nc) = irhs(iqx(iq,nc),k)
     end do  
   end do
+  !$omp end do nowait
 end do ! k loop
-!$omp end do
 !$omp end parallel
 
 call END_LOG(mgsetup_end)
@@ -1252,7 +1244,7 @@ do itr = 2,itr_mg
     do k = 1,klim
       iv_old(1:ifull,k) = iv(1:ifull,k)
     end do  
-    !$omp end do nowait
+    !$omp end do
     
     do nc = 1,maxcolour
       ! MJT notes - We calculate the halo of the fine grid first, so that the message can
@@ -1271,9 +1263,7 @@ do itr = 2,itr_mg
         end do  
       end do
       !$omp end do
-      !$omp master
       call bounds_colour_send(iv_new,nc,klim=klim)
-      !$omp end master
       ! calculate non-boundary grid points while waiting for halo to update
       !$omp do schedule(static) private(k,iq)
       do k = 1,klim
@@ -1289,19 +1279,14 @@ do itr = 2,itr_mg
         end do  
       end do
       !$omp end do
-      !$omp master
       call bounds_colour_recv(iv,nc,klim=klim)
-      !$omp end master
       !$omp barrier
     end do ! nc (colour) loop
   end do   ! i (itr) loop
 
+  ! residual
   !$omp do schedule(static) private(k,iq)
   do k = 1,klim
-    ! test for convergence
-    dsolmax_g(k) = maxval(abs(iv(1:ifull,k)-iv_old(1:ifull,k))) ! cannot vectorise with -fp-precise
-  
-    ! residual
     do iq = 1,ifull
       w(iq,k)=-izzn(iq)*iv(in(iq),k)-izzw(iq)*iv(iw(iq),k) &
               -izze(iq)*iv(ie(iq),k)-izzs(iq)*iv(is(iq),k) &
@@ -1309,7 +1294,13 @@ do itr = 2,itr_mg
     end do
   end do
   !$omp end do
+
   !$omp end parallel
+
+  ! test for convergence
+  do k = 1,klim
+    dsolmax_g(k) = maxval(abs(iv(1:ifull,k)-iv_old(1:ifull,k))) ! cannot vectorise with -fp-precise
+  end do  
   
   ! For when the inital grid cannot be upscaled
   call mgcollect(1,w(:,1:klim),dsolmax_g(1:klim),klim=klim)
@@ -1541,9 +1532,7 @@ do itr = 2,itr_mg
         end do  
       end do
       !$omp end do
-      !$omp master
       call bounds_colour_send(iv_new,nc,klim=klim)
-      !$omp end master
       !$omp do schedule(static) private(k,iq)
       do k = 1,klim
         do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
@@ -1558,9 +1547,7 @@ do itr = 2,itr_mg
         end do  
       end do
       !$omp end do
-      !$omp master
       call bounds_colour_recv(iv,nc,klim=klim)
-      !$omp end master
       !$omp barrier
     end do ! nc (colour) loop
   end do   ! i (itr) loop
@@ -1684,8 +1671,6 @@ dsolmax = 0.
 dsolmax_g = 0.
 
 ! pack colour arrays
-!$omp parallel
-!$omp do schedule(static) private(nc)
 do nc = 1,maxcolour
   yyc(1:ifull_colour(nc),nc)      = iyy(iqx(1:ifull_colour(nc),nc))
   yync(1:ifull_colour(nc),nc)     = iyyn(iqx(1:ifull_colour(nc),nc))
@@ -1709,33 +1694,26 @@ do nc = 1,maxcolour
   eec(1:ifull_colour(nc),nc)      = ee(iqx(1:ifull_colour(nc),nc))
   ipmaxc(1:ifull_colour(nc),nc)   = ipmax(iqx(1:ifull_colour(nc),nc))
 end do
-!$omp end do nowait
 
 ! solver requires bounds to be updated
-!$omp master
 dumc(1:ifull,1) = neta(1:ifull)
 dumc(1:ifull,2) = ipice(1:ifull)
 call bounds(dumc(:,1:2))
-!$omp end master
-!$omp barrier
+
+!$omp parallel
 
 do i = 1,itrbgn
   do nc = 1,maxcolour
-
-    !$omp do schedule(static) private(k)
-    do k = 1,2    
-      dumc_n(1:ifull_colour(nc),k) = dumc(iqn(1:ifull_colour(nc),nc),k)
-      dumc_s(1:ifull_colour(nc),k) = dumc(iqs(1:ifull_colour(nc),nc),k)
-      dumc_e(1:ifull_colour(nc),k) = dumc(iqe(1:ifull_colour(nc),nc),k)
-      dumc_w(1:ifull_colour(nc),k) = dumc(iqw(1:ifull_colour(nc),nc),k)
-    end do  
-    !$omp end do
       
     ! update halo
     !$omp sections
     
     !$omp section
     ! ocean
+    dumc_n(1:ifull_colour(nc),1) = dumc(iqn(1:ifull_colour(nc),nc),1)
+    dumc_s(1:ifull_colour(nc),1) = dumc(iqs(1:ifull_colour(nc),nc),1)
+    dumc_e(1:ifull_colour(nc),1) = dumc(iqe(1:ifull_colour(nc),nc),1)
+    dumc_w(1:ifull_colour(nc),1) = dumc(iqw(1:ifull_colour(nc),nc),1)
     do iq = 1,ifull_colour_border(nc)
       bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
         +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
@@ -1749,6 +1727,10 @@ do i = 1,itrbgn
     
     !$omp section
     ! sea-ice (cavitating fluid)
+    dumc_n(1:ifull_colour(nc),2) = dumc(iqn(1:ifull_colour(nc),nc),2)
+    dumc_s(1:ifull_colour(nc),2) = dumc(iqs(1:ifull_colour(nc),nc),2)
+    dumc_e(1:ifull_colour(nc),2) = dumc(iqe(1:ifull_colour(nc),nc),2)
+    dumc_w(1:ifull_colour(nc),2) = dumc(iqw(1:ifull_colour(nc),nc),2)   
     do iq = 1,ifull_colour_border(nc)
       dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
          ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
@@ -1758,9 +1740,7 @@ do i = 1,itrbgn
     
     !$omp end sections
 
-    !$omp master
     call bounds_colour_send(dumc(:,1:2),nc)
-    !$omp end master
     
     ! update interior
     !$omp sections
@@ -1789,25 +1769,17 @@ do i = 1,itrbgn
     
     !$omp end sections
 
-    !$omp master
     call bounds_colour_recv(dumc(:,1:2),nc)
-    !$omp end master
     !$omp barrier
     
   end do
 end do
 
-! test for convergence
-!$omp master
-neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
-ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
-!$omp end master
-!$omp barrier
-
 !$omp sections
 
 !$omp section
 ! residual - ocean
+neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
 w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)           &
               +iyyn(1:ifull)*neta(in)+iyys(1:ifull)*neta(is)       &
               +iyye(1:ifull)*neta(ie)+iyyw(1:ifull)*neta(iw))      &
@@ -1816,7 +1788,6 @@ w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)           &
               +izze(1:ifull,1)*neta(ie)+izzw(1:ifull,1)*neta(iw))  &
              -ihh(1:ifull)*neta(1:ifull)+irhs(1:ifull,1))*ee(1:ifull)
 
-!$omp section
 ! upscale ocean fields
 w(1:ifull,2)  = iyy(1:ifull)
 w(1:ifull,3)  = iyyn(1:ifull)
@@ -1834,6 +1805,7 @@ w(1:ifull,12) = iyyn*neta(in) + iyys*neta(is)  &
 
 !$omp section
 ! residual - ice
+ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
 w(1:ifull,13) =(- izzn(1:ifull,2)*ipice(in) - izzs(1:ifull,2)*ipice(is)     &
                 - izze(1:ifull,2)*ipice(ie) - izzw(1:ifull,2)*ipice(iw)     &
                 - izz(1:ifull,2)*ipice(1:ifull) + irhs(1:ifull,2))*ee(1:ifull)
@@ -1841,7 +1813,6 @@ where ( ipice(1:ifull)>=ipmax(1:ifull) )
   w(1:ifull,13) = 0. ! improves convergence
 end where
 
-!$omp section
 ! update ice fields
 w(1:ifull,14) = izz(1:ifull,2)
 w(1:ifull,15) = izzn(1:ifull,2)
@@ -2276,21 +2247,16 @@ do i = 1,itrend
   
   ! post smoothing
   do nc = 1,maxcolour
-
-    !$omp do schedule(static) private(k)
-    do k = 1,2
-      dumc_n(1:ifull_colour(nc),k) = dumc(iqn(1:ifull_colour(nc),nc),k)
-      dumc_s(1:ifull_colour(nc),k) = dumc(iqs(1:ifull_colour(nc),nc),k)
-      dumc_e(1:ifull_colour(nc),k) = dumc(iqe(1:ifull_colour(nc),nc),k)
-      dumc_w(1:ifull_colour(nc),k) = dumc(iqw(1:ifull_colour(nc),nc),k)
-    end do  
-    !$omp end do
       
     ! update halo
     !$omp sections
   
     !$omp section
     ! ocean
+    dumc_n(1:ifull_colour(nc),1) = dumc(iqn(1:ifull_colour(nc),nc),1)
+    dumc_s(1:ifull_colour(nc),1) = dumc(iqs(1:ifull_colour(nc),nc),1)
+    dumc_e(1:ifull_colour(nc),1) = dumc(iqe(1:ifull_colour(nc),nc),1)
+    dumc_w(1:ifull_colour(nc),1) = dumc(iqw(1:ifull_colour(nc),nc),1)
     do iq = 1,ifull_colour_border(nc)
       bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
         +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
@@ -2304,6 +2270,10 @@ do i = 1,itrend
     
     !$omp section
     ! sea-ice (cavitating fluid)
+    dumc_n(1:ifull_colour(nc),2) = dumc(iqn(1:ifull_colour(nc),nc),2)
+    dumc_s(1:ifull_colour(nc),2) = dumc(iqs(1:ifull_colour(nc),nc),2)
+    dumc_e(1:ifull_colour(nc),2) = dumc(iqe(1:ifull_colour(nc),nc),2)
+    dumc_w(1:ifull_colour(nc),2) = dumc(iqw(1:ifull_colour(nc),nc),2)
     do iq = 1,ifull_colour_border(nc)
       dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
          ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
@@ -2313,9 +2283,7 @@ do i = 1,itrend
     
     !$omp end sections
 
-    !$omp master
     call bounds_colour_send(dumc(:,1:2),nc)
-    !$omp end master
     
     ! update interior
     !$omp sections
@@ -2344,9 +2312,7 @@ do i = 1,itrend
     
     !$omp end sections
 
-    !$omp master
     call bounds_colour_recv(dumc(:,1:2),nc)
-    !$omp end master
     !$omp barrier
     
   end do
@@ -2366,27 +2332,24 @@ do itr = 2,itr_mgice
   do i = 1,itrbgn
       
     ! store previous solution to test for convergence  
-    !$omp master
+    !$omp sections
+    !$omp section
     neta(1:ifull)  = dumc(1:ifull,1)
+    !$omp section
     ipice(1:ifull) = dumc(1:ifull,2)
-    !$omp end master
+    !$omp end sections
   
     do nc = 1,maxcolour
-
-      !$omp do schedule(static) private(k)
-      do k = 1,2
-        dumc_n(1:ifull_colour(nc),k) = dumc(iqn(1:ifull_colour(nc),nc),k)
-        dumc_s(1:ifull_colour(nc),k) = dumc(iqs(1:ifull_colour(nc),nc),k)
-        dumc_e(1:ifull_colour(nc),k) = dumc(iqe(1:ifull_colour(nc),nc),k)
-        dumc_w(1:ifull_colour(nc),k) = dumc(iqw(1:ifull_colour(nc),nc),k)
-      end do  
-      !$omp end do
       
       ! update halo
       !$omp sections
   
       !$omp section
       ! ocean
+      dumc_n(1:ifull_colour(nc),1) = dumc(iqn(1:ifull_colour(nc),nc),1)
+      dumc_s(1:ifull_colour(nc),1) = dumc(iqs(1:ifull_colour(nc),nc),1)
+      dumc_e(1:ifull_colour(nc),1) = dumc(iqe(1:ifull_colour(nc),nc),1)
+      dumc_w(1:ifull_colour(nc),1) = dumc(iqw(1:ifull_colour(nc),nc),1)
       do iq = 1,ifull_colour_border(nc)
         bu = yync(iq,nc)*dumc_n(iq,1) + yysc(iq,nc)*dumc_s(iq,1) &
            + yyec(iq,nc)*dumc_e(iq,1) + yywc(iq,nc)*dumc_w(iq,1) &
@@ -2400,6 +2363,10 @@ do itr = 2,itr_mgice
         
       !$omp section
       ! ice (cavitating fluid)
+      dumc_n(1:ifull_colour(nc),2) = dumc(iqn(1:ifull_colour(nc),nc),2)
+      dumc_s(1:ifull_colour(nc),2) = dumc(iqs(1:ifull_colour(nc),nc),2)
+      dumc_e(1:ifull_colour(nc),2) = dumc(iqe(1:ifull_colour(nc),nc),2)
+      dumc_w(1:ifull_colour(nc),2) = dumc(iqw(1:ifull_colour(nc),nc),2)
       do iq = 1,ifull_colour_border(nc)
         dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
            ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
@@ -2409,9 +2376,7 @@ do itr = 2,itr_mgice
       
       !$omp end sections
 
-      !$omp master
       call bounds_colour_send(dumc(:,1:2),nc)
-      !$omp end master
     
       ! update interior
 
@@ -2441,28 +2406,18 @@ do itr = 2,itr_mgice
       
       !$omp end sections
       
-      !$omp master
       call bounds_colour_recv(dumc(:,1:2),nc)
-      !$omp end master
       !$omp barrier
     
     end do
   end do
   
-  ! test for convergence
-  !$omp master
-  dsolmax_g = 0.
-  dsolmax_g(1)   = maxval( abs( dumc(1:ifull,1) - neta(1:ifull) ) )
-  dsolmax_g(2)   = maxval( abs( dumc(1:ifull,2) - ipice(1:ifull) ) )
-  neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
-  ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
-  !$omp end master
-  !$omp barrier
-
   !$omp sections
   
   !$omp section
   ! residual - ocean
+  dsolmax_g(1)   = maxval( abs( dumc(1:ifull,1) - neta(1:ifull) ) )
+  neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
   w(1:ifull,1)=(-neta(1:ifull)*(iyy(1:ifull)*neta(1:ifull)+iyyn(1:ifull)*neta(in)  &
                                                           +iyys(1:ifull)*neta(is)  &
                                                           +iyye(1:ifull)*neta(ie)  &
@@ -2472,20 +2427,20 @@ do itr = 2,itr_mgice
                 +izze(1:ifull,1)*neta(ie)+izzw(1:ifull,1)*neta(iw))                &
                -ihh(1:ifull)*neta(1:ifull)+irhs(1:ifull,1))*ee(1:ifull)
   
-  !$omp section
   w(1:ifull,2)  =  izz(1:ifull,1) +  iyy(1:ifull)*neta(1:ifull)
   w(1:ifull,3)  = izzn(1:ifull,1) + iyyn(1:ifull)*neta(1:ifull)
   w(1:ifull,4)  = izzs(1:ifull,1) + iyys(1:ifull)*neta(1:ifull)
   w(1:ifull,5)  = izze(1:ifull,1) + iyye(1:ifull)*neta(1:ifull)
   w(1:ifull,6)  = izzw(1:ifull,1) + iyyw(1:ifull)*neta(1:ifull)
   
-  !$omp section
   w(1:ifull,7)  = iyyn*neta(in) + iyys*neta(is)     &
                 + iyye*neta(ie) + iyyw*neta(iw)     &
                 + iyy*neta(1:ifull) + ihh
   
   !$omp section
   ! residual ice
+  dsolmax_g(2)   = maxval( abs( dumc(1:ifull,2) - ipice(1:ifull) ) )
+  ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
   w(1:ifull,8)  =(- izzn(1:ifull,2)*ipice(in) - izzs(1:ifull,2)*ipice(is)     &
                   - izze(1:ifull,2)*ipice(ie) - izzw(1:ifull,2)*ipice(iw)     &
                   - izz(1:ifull,2)*ipice(1:ifull) + irhs(1:ifull,2))*ee(1:ifull)
@@ -2853,21 +2808,16 @@ do itr = 2,itr_mgice
   
   do i = 1,itrend
     do nc = 1,maxcolour
-
-      !$omp do schedule(static) private(k)  
-      do k = 1,2
-        dumc_n(1:ifull_colour(nc),k) = dumc(iqn(1:ifull_colour(nc),nc),k)
-        dumc_s(1:ifull_colour(nc),k) = dumc(iqs(1:ifull_colour(nc),nc),k)
-        dumc_e(1:ifull_colour(nc),k) = dumc(iqe(1:ifull_colour(nc),nc),k)
-        dumc_w(1:ifull_colour(nc),k) = dumc(iqw(1:ifull_colour(nc),nc),k)
-      end do  
-      !$omp end do
       
       ! update halo
       !$omp sections
       
       !$omp section
       ! ocean
+      dumc_n(1:ifull_colour(nc),1) = dumc(iqn(1:ifull_colour(nc),nc),1)
+      dumc_s(1:ifull_colour(nc),1) = dumc(iqs(1:ifull_colour(nc),nc),1)
+      dumc_e(1:ifull_colour(nc),1) = dumc(iqe(1:ifull_colour(nc),nc),1)
+      dumc_w(1:ifull_colour(nc),1) = dumc(iqw(1:ifull_colour(nc),nc),1)
       do iq = 1,ifull_colour_border(nc)
         bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
           +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
@@ -2881,6 +2831,10 @@ do itr = 2,itr_mgice
 
       !$omp section
       ! ice (cavitating fluid)
+      dumc_n(1:ifull_colour(nc),2) = dumc(iqn(1:ifull_colour(nc),nc),2)
+      dumc_s(1:ifull_colour(nc),2) = dumc(iqs(1:ifull_colour(nc),nc),2)
+      dumc_e(1:ifull_colour(nc),2) = dumc(iqe(1:ifull_colour(nc),nc),2)
+      dumc_w(1:ifull_colour(nc),2) = dumc(iqw(1:ifull_colour(nc),nc),2)
       do iq = 1,ifull_colour_border(nc)
         dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
            ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
@@ -2890,9 +2844,7 @@ do itr = 2,itr_mgice
       
       !$omp end sections
       
-      !$omp master
       call bounds_colour_send(dumc,nc)
-      !$omp end master
     
       ! update interior
       !$omp sections
@@ -2921,9 +2873,7 @@ do itr = 2,itr_mgice
 
       !$omp end sections      
       
-      !$omp master
       call bounds_colour_recv(dumc,nc)
-      !$omp end master
       !$omp barrier
     
     end do

@@ -127,8 +127,6 @@ do ii = 1,wlev
 end do  
 call boundsuv(eeu,eev,nrows=2)
 
-!$acc update device(eeu,eev)
-
 wtr = abs(ee-1.)<1.e-20
 
 ! Calculate staggered depth arrays
@@ -161,8 +159,6 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     end where
   end do      
 end if ! abs(nmlo)>=3.and.abs(nmlo)<=9
-
-!$acc update device(stwgt)
 
 ! vertical levels (using sigma notation)
 allocate(gosig(1:ifull+iextra,wlev),gosigh(1:ifull,wlev),godsig(1:ifull+iextra,wlev))
@@ -715,10 +711,9 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
 #ifdef GPU
-  !$omp target data map(to:xg,yg,nface)
-#endif
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
+#endif
   
   ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii = 1,wlev
@@ -746,8 +741,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
   cou(1:ifull,1:wlev,1) = nt(1:ifull,1:wlev)
   cou(1:ifull,1:wlev,2) = mps(1:ifull,1:wlev)
-  call mlob2ints_bs(cou(:,:,1),nface,xg,yg,wtr,.false.)
-  call mlob2ints_bs(cou(:,:,2),nface,xg,yg,wtr,.false.)
+  call mlob2ints_bs(cou(:,:,1:2),nface,xg,yg,wtr,.false.)
   call mlob2ints_bs(ns,nface,xg,yg,wtr,.true.)
   do ii = 1,wlev
     nt(1:ifull,ii) = max( cou(1:ifull,ii,1), -wrtemp )
@@ -759,10 +753,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     end where  
   end do
 
-#ifdef GPU
-  !$omp end target data
-#endif
+#ifdef GPU  
   !$acc end data
+#endif
 
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
@@ -1449,7 +1442,6 @@ else
       write(6,*) "ERROR: unknown mlojacobi option ",mlojacobi
       stop
   end select
-  !$omp parallel do schedule(static) private(ii,iq,absu,bbsu,absv,bbsv)    
   do ii = 1,wlev
     do iq = 1,ifull
       absu = 0.5*(alpha(iq,ii)+alpha(ie(iq),ii))*eeu(iq,ii)
@@ -1463,7 +1455,6 @@ else
       drhobardyv(iq,ii) = -absv*dnadyv(iq,ii,1) + bbsv*dnadyv(iq,ii,2)
     end do
   end do
-  !$omp end parallel do
 
   ! integrate density gradient  
   drhobardxu(:,1) = drhobardxu(:,1)*godsigu(1:ifull,1)
@@ -1498,7 +1489,6 @@ end subroutine tsjacobi
 
 subroutine zstar2(rho,drhodxu,drhodyu,drhodxv,drhodyv)
 
-use cc_acc, only : async_length
 use indices_m
 use map_m
 use mlo, only : wlev
@@ -1509,7 +1499,6 @@ use parm_m
 implicit none
 
 integer ii, jj, iq
-integer async_counter
 real, dimension(ifull+iextra,wlev,2), intent (in) :: rho
 real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
@@ -1520,15 +1509,9 @@ real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 ! rhobar = int_0^sigma rho dsigma / sigma
 
-#ifndef GPU
-!$omp parallel do collapse(2) schedule(static) private(jj,ii,iq)
-#endif
+!$omp parallel
 do jj = 1,2
-#ifdef GPU
-  async_counter = mod(jj-1,async_length)
-  !$acc parallel loop collapse(2) copyin(rho(:,:,jj)) copyout(drhodxu(:,:,jj),drhodyu(:,:,jj),drhodyv(:,:,jj),drhodxv(:,:,jj)) &
-  !$acc   present(ie,in,is,iw,ien,ies,ine,inw,stwgt,emu,emv,eeu,eev) async(async_counter)
-#endif
+  !$omp do schedule(static) private(ii,iq)
   do ii = 1,wlev
     do iq = 1,ifull
       ! process staggered u locations  
@@ -1541,15 +1524,9 @@ do jj = 1,2
                                                      +rho(ine(iq),ii,jj)-rho(inw(iq),ii,jj))
     end do
   end do
-#ifdef GPU
-  !$acc end parallel loop
-#endif
+  !$omp end do nowait
 end do
-#ifndef GPU
-!$omp end parallel do
-#else
-!$acc wait
-#endif
+!$omp end parallel
 
 return
 end subroutine zstar2

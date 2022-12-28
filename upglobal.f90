@@ -229,17 +229,21 @@ call END_LOG(ints_end)
 
 
 #ifdef GPU
-!$omp target data map(to:xg,yg,nface)
-#endif
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
+#endif
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-  call ints(pslx,1,intsch,nface,xg,yg,1)
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    call ints(h_nh,1,intsch,nface,xg,yg,1)
+    bb(:,:,1) = pslx
+    bb(:,:,2) = h_nh
+    call ints(bb,2,intsch,nface,xg,yg,1)
+    pslx = bb(:,:,1)
+    h_nh = bb(:,:,2)
+  else
+    call ints(pslx,1,intsch,nface,xg,yg,1)    
   end if ! nh/=0
   call ints(tx,1,intsch,nface,xg,yg,3)
 end if    ! mup/=0
@@ -376,18 +380,18 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
       write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
       write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
-      write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-      write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-      write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
+      !write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
+      !write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
+      !write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     end if
     if ( ngas>0 ) then
       call ints(tr,ngas,intsch,nface,xg,yg,5)
     end if
-    if ( nmaxpr==1 .and. mydiag ) then
-      write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-      write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-      write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-    endif
+    !if ( nmaxpr==1 .and. mydiag ) then
+    !  write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
+    !  write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
+    !  write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
+    !endif
   endif  ! (ngas>0.or.nextout>=4)
   if ( nvmix==6 .or. nvmix==9 ) then
     bb(:,:,1) = tke(:,:)
@@ -402,9 +406,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
 end if     ! mspec==1
 
 #ifdef GPU
-!$omp end target data
-#endif
 !$acc end data
+#endif
 
 do k = 2,kl
   sdot(:,k) = sbar(:,k)

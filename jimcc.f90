@@ -118,6 +118,7 @@ allocate( xa(4*il+1,4*il+1), xb(4*il+1,4*il+1), xc(4*il+1,4*il+1) )
 np = 4*il + 1
 CALL INROT
 
+ngr = 1
 call rgrid(xa,xb,xc,ax4,ay4,az4,em4,np,ipanel,ngr)
 ! these are values on the sphere
 
@@ -140,7 +141,8 @@ do i=1,(np+1)/2
   xc(i,1)=max(-1.,xc(i,1)) ! for rounding errors
 enddo
 do j=1,(np+1)/2
- do i=j+1,(np+1/2)  ! rest of bottom LH corner
+ !do i=j+1,(np+1/2)  ! rest of bottom LH corner
+ do i=j+1,np        ! rest of bottom LH corner    
   xa(j,i)=xa(i,j)
   xb(j,i)=xc(i,j)
   xc(j,i)=xb(i,j)

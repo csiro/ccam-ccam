@@ -130,7 +130,7 @@ use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                         ! Land-surface arrays
-use parm_m, only : idjd, nmlo, nvmix, ktau, dt
+use parm_m, only : idjd, nmlo, nvmix
                                     ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
@@ -145,12 +145,11 @@ implicit none
 
 include 'kuocom.h'                  ! Convection parameters
 
-integer :: is, ie, tile, k, iq, nt
+integer :: is, ie, tile, k
 integer :: idjd_t
 real, dimension(imax,kl) :: lt, lqg, lqfg,  lqlg
 real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
-real, dimension(imax,kl) :: lat, lct
 real, dimension(imax,kl) :: lthetal_ema, lqv_ema, lql_ema, lqf_ema, lcf_ema
 real, dimension(imax,kl) :: ltke_ema
 real, dimension(imax,kl) :: lrkmsave, lrkhsave
@@ -162,11 +161,9 @@ real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux
 real, dimension(imax,kl) :: lbuoyproduction, lshearproduction, ltotaltransport
 real, dimension(imax,kl-1) :: lmfsave
 #endif
-real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 
 if ( nmlo/=0 .and. nvmix/=9 ) then
-  !$omp do schedule(static) private(is,ie), &
-  !$omp private(lou,lov,liu,liv)
+  !$omp do schedule(static) private(is,ie,lou,lov,liu,liv)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
@@ -390,8 +387,7 @@ use estab, only : establ            ! Liquid saturation function
 use newmpar_m                       ! Grid parameters
 use parm_m, only : diag,ktau,        &
     nvmix,dt,nlv,ia,ib,ja,jb,nmaxpr, &
-    iaero,nlocal,av_vmod,            &
-    amxlsq,dvmodmin                 ! Model configuration
+    nlocal,av_vmod,amxlsq,dvmodmin  ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : zmin             ! Soil and surface data
 
@@ -404,7 +400,7 @@ integer, intent(in) :: idjd
 integer, dimension(imax), intent(in) :: kbsav, ktsav
 integer, dimension(imax) :: kbase,ktop
 integer, parameter :: ntest = 0
-integer k, nt, iq
+integer k, iq
 real, parameter :: lambda=0.45               ! coefficients for Louis scheme
 real, parameter :: vkar4=0.4                 ! coefficients for Louis scheme
 real, parameter :: bprmj=5.                  ! coefficients for Louis scheme
@@ -426,7 +422,7 @@ real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax,kl) :: qs, betatt, betaqt, delthet, ri, rk_shal, thee
 real, dimension(imax,kl) :: thebas
 real, dimension(imax,kl-1) :: tmnht
-real, dimension(imax) :: dz, dzr, zg
+real, dimension(imax) :: dz, dzr
 real, dimension(imax) :: zhv, dvmod, dqtot, x, csq, sqmxl, fm, fh, theeb
 real, dimension(imax) :: sigsp
 real, dimension(kl) :: sighkap,sigkap,delons,delh
@@ -1763,15 +1759,15 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                 
                        imax,kl,tile)
 
 use const_phys                   ! Physical constants
-use parm_m, only : ds, nlocal, iaero, dt, qgmin, cqmix, nvmix
+use parm_m, only : ds, nlocal, dt, qgmin, cqmix, nvmix
                                  ! Model configuration
 use sigs_m                       ! Atmosphere sigma levels
-use tkeeps, only : tkemix, cm0   ! TKE-EPS boundary layer
+use tkeeps, only : tkemix        ! TKE-EPS boundary layer
 
 implicit none
 
 integer, intent(in) :: imax, kl, tile
-integer k, nt, iq
+integer k
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps

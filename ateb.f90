@@ -4446,7 +4446,6 @@ real, dimension(ufull,nl),  intent(in)    :: depth,volcp,lambda ! facet depth, h
 real, dimension(ufull,nl)         :: cap,res            ! layer capacitance & resistance
 real, dimension(ufull,0:nl)       :: ggA,ggB,ggC,ggD    ! tridiagonal matrices
 real ggX                                                ! tridiagonal coefficient
-real, dimension(ufull)            :: ans                ! tridiagonal solution
 #else
 real(kind=8), dimension(ufull,nl)         :: cap,res            ! layer capacitance & resistance
 real(kind=8), dimension(ufull,0:nl)       :: ggA,ggB,ggC,ggD    ! tridiagonal matrices
@@ -4717,10 +4716,10 @@ modrnd = max(a_rnd-d_evap/lv-max(maxvwatf*fp_vegrlai-leafwater,0.)/ddt,0.) ! rai
 ! soil moisture based on Kowalczyk et al 1994 eq 12
 ! note that since sigmaf=1, then there is no soil evaporation, only transpiration.
 ! Evaporation only occurs from water on leafs.
-surfwater = surfwater+ddt*(a_rnd-eg_surf/lv+snmelt)                                         ! surface
+surfwater = surfwater+ddt*(a_rnd-eg_surf/lv+snmelt)                                    ! surface
 soilwater = soilwater+ddt*(modrnd+snmelt*den/waterden-d_tran/lv)/(waterden*d_totdepth) ! soil
 oldleafwater = leafwater - ddt*d_evap/lv
-leafwater = leafwater+ddt*(a_rnd-d_evap/lv)                                                 ! leaf
+leafwater = leafwater+ddt*(a_rnd-d_evap/lv)                                            ! leaf
 leafwater = min(max(leafwater,0.),maxvwatf*fp_vegrlai)
 delintercept = leafwater - oldleafwater
 

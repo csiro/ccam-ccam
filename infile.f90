@@ -206,7 +206,6 @@ end subroutine histrd3r4
 subroutine hr3p(iarchi,ier,name,qtest,var)
 
 use cc_mpi
-use parm_m, only : nmaxpr
       
 implicit none
 
@@ -362,7 +361,6 @@ end subroutine histrd3r8
 subroutine hr3pr8(iarchi,ier,name,qtest,var)
 
 use cc_mpi
-use parm_m, only : nmaxpr
       
 implicit none
 
@@ -517,7 +515,6 @@ end subroutine histrd4r4
 subroutine hr4p(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
-use parm_m, only : nmaxpr
       
 implicit none
 
@@ -585,7 +582,6 @@ if ( mynproc>0 ) then
           if ( myid==0 .and. ipf==0 ) then
             write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
           end if
-          rvar(:,:) = 0. ! default value for missing field
           exit
         end if
         ! obtain scaling factors and offsets from attributes
@@ -707,7 +703,6 @@ end subroutine histrd4r8
 subroutine hr4pr8(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
-use parm_m, only : nmaxpr
       
 implicit none
 
@@ -729,6 +724,8 @@ ier = 0
 if ( mynproc>0 ) then
 
   do ipf = 0,mynproc-1
+      
+    rvar = 0. ! default for missing field  
     
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -773,7 +770,6 @@ if ( mynproc>0 ) then
           if ( myid==0 .and. ipf==0 ) then
             write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
           end if
-          rvar(:,:) = 0._8 ! default value for missing field
           exit
         end if
         ! obtain scaling factors and offsets from attributes
@@ -1621,7 +1617,6 @@ end subroutine histclose
 ! a greater number of vertical levels than the nested model.
 subroutine vertint(told,t,n,sigin)
 
-use cc_mpi, only : myid
 use sigs_m
 use newmpar_m
 use parm_m
@@ -1679,7 +1674,7 @@ if ( any(abs(sigin-sigin_save)>=0.0001) ) then
       ka(k) = kin
       wta(k) = (sigin(kin-1)-sig(k))/(sigin(kin-1)-sigin(kin))
     endif  !  (sig(k)>=sigin(1)) ... ...
-  enddo   !  k loop
+  end do   !  k loop
 end if
 
 do k = 1,kl
@@ -1687,16 +1682,21 @@ do k = 1,kl
   t(1:ifull,k) = wta(k)*told(:,ka(k)) + (1.-wta(k))*told(:,ka(k)-1)
 enddo    ! k loop
 
-if ( n==1 .and. klapse/=0 ) then  ! for T lapse correction
-  do k = 1,klapse
-    ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
-    t(1:ifull,k) = t(1:ifull,k) + (sig(k)-sigin(1))*6.5/.1
-  enddo    ! k loop
-else if ( n==2 ) then  ! for qg do a -ve fix
-  t(1:ifull,:) = max(t(1:ifull,:), qgmin)
-else if ( n==5 ) then  ! for qfg, qlg do a -ve fix
-  t(1:ifull,:) = max(t(1:ifull,:), 0.)
-endif
+select case(n)
+  case(1)
+    if ( klapse/=0 ) then  ! for T lapse correction
+      do k = 1,klapse
+        ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
+        t(1:ifull,k) = t(1:ifull,k) + (sig(k)-sigin(1))*6.5/.1
+      end do    ! k loop
+    end if
+  case(2)  
+    ! for qg do a -ve fix
+    t(1:ifull,:) = max(t(1:ifull,:), qgmin)
+  case(5)  
+    ! for qfg, qlg do a -ve fix
+    t(1:ifull,:) = max(t(1:ifull,:), 0.)
+end select    
       
 return
 end subroutine vertint
@@ -1811,8 +1811,8 @@ iday=mod(iday-1_8,mdays_save)+1_8
 iyr=iyr+(imo-1_8)/12_8
 imo=mod(imo-1_8,12_8)+1_8
 
-kdate_r=int(iday+100_8*(imo+100_8*iyr),8)
-ktime_r=int(ihr*100_8+imins,8)
+kdate_r=int(iday+100_8*(imo+100_8*iyr),4)
+ktime_r=int(ihr*100_8+imins,4)
 mtimer_r = 0.
 if ( diag .and. .not.quiet ) then
   write(6,*)'end datefix iyr,imo,iday,ihr,imins,mtimer_r: ', &
@@ -2244,84 +2244,6 @@ end if
 return
 end subroutine fw3lp
       
-! global(write) with single file
-subroutine fw3a(var,sname,idnc,iarch)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer :: ier, imn, imx, jmn, jmx, iq
-integer(kind=4) :: lidnc, mid, vtype, ndims
-integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(:), allocatable :: ipack
-real, dimension(ifull), intent(in) :: var
-real, dimension(:), allocatable :: globvar
-real :: varn, varx
-real(kind=4) :: laddoff, lscale_f
-character(len=*), intent(in) :: sname
-      
-allocate( globvar(ifull_g), ipack(ifull_g) )
-
-call ccmpi_gather(var(1:ifull), globvar(1:ifull_g))
-
-start = (/ 1, 1, iarch /)
-ncount = (/ il_g, jl_g, 1 /)
-
-!     find variable index
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
-if ( ndims>3 ) then
-  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 3 or less dimensions,"
-  write(6,*) "but was created with ndims = ",ndims
-  call ccmpi_abort(-1)
-end if
-if ( vtype==nf90_short ) then
-  if ( all(globvar>9.8e36) ) then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    ipack(:) = nint(max(min((globvar-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-  endif
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-  if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt3 ",a20,i4,a7)') sname,iarch,"missing"
-  else
-    varn = minval(globvar(:))
-    varx = maxval(globvar(:))
-    ! This should work ???? but sum trick is more portable???
-    ! iq = minloc(globvar,dim=1)
-    iq = sum(minloc(globvar(:)))
-    ! Convert this 1D index to 2D
-    imn = 1 + modulo(iq-1,il_g)
-    jmn = 1 + (iq-1)/il_g
-    iq = sum(maxloc(globvar(:)))
-    ! Convert this 1D index to 2D
-    imx = 1 + modulo(iq-1,il_g)
-    jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt3 ",a20,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
-                    sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
-                    globvar(id+(jd-1)*il_g)
-  end if
-end if
-
-deallocate( globvar, ipack )
-
-return
-end subroutine fw3a
-
 #ifndef i8r8
 ! procformat and local(write) (double precision version)
 subroutine fw3lpr8(var,sname,idnc,iarch)
@@ -2394,84 +2316,6 @@ end if
 
 return
 end subroutine fw3lpr8
-
-! global(write) with single file (double precision version)
-subroutine fw3ar8(var,sname,idnc,iarch)
-
-use cc_mpi               ! CC MPI routines
-use newmpar_m            ! Grid parameters
-use parm_m               ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer :: ier, imn, imx, jmn, jmx, iq
-integer(kind=4) :: lidnc, mid, vtype, ndims
-integer(kind=4), dimension(3) :: start, ncount
-integer(kind=2), dimension(:), allocatable :: ipack
-real(kind=8), dimension(ifull), intent(in) :: var
-real(kind=8), dimension(:), allocatable :: globvar
-real(kind=8) :: varn, varx
-real(kind=4) :: laddoff, lscale_f
-character(len=*), intent(in) :: sname
-      
-allocate( globvar(ifull_g), ipack(ifull_g) )
-
-call ccmpi_gatherr8(var(1:ifull), globvar(1:ifull_g))
-
-start = (/ 1, 1, iarch /)
-ncount = (/ il_g, jl_g, 1 /)
-
-!     find variable index
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
-if ( ndims>3 ) then
-  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 3 or less dimensions,"
-  write(6,*) "but was created with ndims = ",ndims
-  call ccmpi_abort(-1)
-end if
-if ( vtype==nf90_short ) then
-  if ( all(globvar>9.8e36_8) ) then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    ipack(:) = nint(max(min((globvar-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
-  endif
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-  if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt3r8 ",a20,i4,a7)') sname,iarch,"missing"
-  else
-    varn = minval(globvar(:))
-    varx = maxval(globvar(:))
-    ! This should work ???? but sum trick is more portable???
-    ! iq = minloc(globvar,dim=1)
-    iq = sum(minloc(globvar(:)))
-    ! Convert this 1D index to 2D
-    imn = 1 + modulo(iq-1,il_g)
-    jmn = 1 + (iq-1)/il_g
-    iq = sum(maxloc(globvar(:)))
-    ! Convert this 1D index to 2D
-    imx = 1 + modulo(iq-1,il_g)
-    jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt3r8 ",a20,i4,f12.4,2i4,f12.4,2i4,f12.4)') &
-                    sname,iarch,varn,imn,jmn,varx,imx,jmx,    &
-                    globvar(id+(jd-1)*il_g)
-  end if
-end if
-
-deallocate( globvar, ipack )
-
-return
-end subroutine fw3ar8
 #endif
 
 !--------------------------------------------------------------------
@@ -2618,84 +2462,6 @@ end if
 return
 end subroutine hw4lp           
 
-! global write with single file
-subroutine hw4a(var,sname,idnc,iarch)
-
-use cc_mpi              ! CC MPI routines
-use newmpar_m           ! Grid parameters
-use parm_m              ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer :: ier, imx, jmx, kmx, iq, k, ll
-integer, dimension(2) :: max_result
-integer(kind=4) :: mid, vtype, lidnc, ndims
-integer(kind=4), dimension(4) :: start, ncount
-integer(kind=2), dimension(:,:), allocatable :: ipack
-real :: varn, varx
-real, dimension(:,:), intent(in) :: var
-real, dimension(:,:), allocatable :: globvar
-real(kind=4) :: laddoff, lscale_f
-character(len=*), intent(in) :: sname
-      
-ll = size(var,2)
-allocate( globvar(1:ifull_g,1:ll), ipack(1:ifull_g,1:ll) )
-
-call ccmpi_gather(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
-start = (/ 1, 1, 1, iarch /)
-ncount = (/ il_g, jl_g, ll, 1 /)
-
-!     find variable index
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
-if ( ndims>4 ) then
-  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
-  write(6,*) "but was created with ndims = ",ndims
-  call ccmpi_abort(-1)
-end if
-
-if ( vtype==nf90_short ) then
-  if ( all(globvar>9.8e36) )then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do k = 1,ll
-      do iq = 1,ifull_g
-        ipack(iq,k) = nint(max(min((globvar(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-      end do
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-  if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt4 ",a7,i4,a7)') sname,iarch,"missing"
-  else
-    varn = minval(globvar)
-    varx = maxval(globvar)
-    max_result = maxloc(globvar)
-    kmx = max_result(2)
-    iq = max_result(1)
-    ! Convert this 1D index to 2D
-    imx = 1 + modulo(iq-1,il_g)
-    jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt4 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
-  end if
-end if
-
-deallocate( globvar, ipack )
-
-return
-end subroutine hw4a      
-
 #ifndef i8r8
 ! procformat and local(write)
 subroutine hw4lpr8(var,sname,idnc,iarch)
@@ -2770,84 +2536,6 @@ end if
 
 return
 end subroutine hw4lpr8        
-
-! global write with single file
-subroutine hw4ar8(var,sname,idnc,iarch)
-
-use cc_mpi              ! CC MPI routines
-use newmpar_m           ! Grid parameters
-use parm_m              ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer :: ier, imx, jmx, kmx, iq, k, ll
-integer, dimension(2) :: max_result
-integer(kind=4) mid, vtype, lidnc, ndims
-integer(kind=4), dimension(4) :: start, ncount
-integer(kind=2), dimension(:,:), allocatable :: ipack
-real(kind=8) :: varn, varx
-real(kind=8), dimension(:,:), intent(in) :: var
-real(kind=8), dimension(:,:), allocatable :: globvar
-real(kind=4) :: laddoff, lscale_f
-character(len=*), intent(in) :: sname
-      
-ll = size(var,2)
-allocate( globvar(1:ifull_g,1:ll), ipack(1:ifull_g,1:ll) )
-
-call ccmpi_gatherr8(var(1:ifull,1:ll), globvar(1:ifull_g,1:ll))
-start = (/ 1, 1, 1, iarch /)
-ncount = (/ il_g, jl_g, ll, 1 /)
-
-!     find variable index
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
-if ( ndims>4 ) then
-  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 4 or less dimensions,"
-  write(6,*) "but was created with ndims = ",ndims
-  call ccmpi_abort(-1)
-end if
-
-if ( vtype==nf90_short ) then
-  if ( all(globvar>9.8e36_8) )then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do k = 1,ll
-      do iq = 1,ifull_g
-        ipack(iq,k) = nint(max(min((globvar(iq,k)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
-      end do
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-  if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt4r8 ",a20,i4,a7)') sname,iarch,"missing"
-  else
-    varn = minval(globvar)
-    varx = maxval(globvar)
-    max_result = maxloc(globvar)
-    kmx = max_result(2)
-    iq = max_result(1)
-    ! Convert this 1D index to 2D
-    imx = 1 + modulo(iq-1,il_g)
-    jmx = 1 + (iq-1)/il_g
-    write(6,'(" histwrt4r8 ",a20,i4,2f12.4,3i4,f12.4)') sname,iarch,varn,varx,imx,jmx,kmx,globvar(id+(jd-1)*il_g,nlv)
-  end if
-end if
-
-deallocate( globvar, ipack )
-
-return
-end subroutine hw4ar8
 #endif
 
 !--------------------------------------------------------------------
@@ -2999,80 +2687,6 @@ end if
 return
 end subroutine hw5lp           
 
-! global write with single file
-subroutine hw5a(var,sname,idnc,iarch)
-
-use cc_mpi              ! CC MPI routines
-use newmpar_m           ! Grid parameters
-use parm_m              ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer :: ier, iq, k, kk, l, ll
-integer(kind=4) :: mid, vtype, lidnc, ndims
-integer(kind=4), dimension(5) :: start, ncount
-integer(kind=2), dimension(:,:,:), allocatable :: ipack
-real :: varn, varx
-real, dimension(:,:,:), intent(in) :: var
-real, dimension(:,:,:), allocatable :: globvar
-real(kind=4) :: laddoff, lscale_f
-character(len=*), intent(in) :: sname
-      
-kk = size(var,2)
-ll = size(var,3)
-allocate( globvar(1:ifull_g,1:kk,1:ll), ipack(1:ifull_g,1:kk,1:ll) )
-
-call ccmpi_gather(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
-start = (/ 1, 1, 1, 1, iarch /)
-ncount = (/ il_g, jl_g, kk, ll, 1 /)
-
-!     find variable index
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
-if ( ndims>5 ) then
-  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
-  write(6,*) "but was created with ndims = ",ndims
-  call ccmpi_abort(-1)
-end if
-
-if ( vtype==nf90_short ) then
-  if ( all(globvar>9.8e36) )then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do l = 1,ll
-      do k = 1,kk
-        do iq = 1,ifull_g
-          ipack(iq,k,l) = nint(max(min((globvar(iq,k,l)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
-        end do  
-      end do
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-  if ( any(abs(globvar-real(nf90_fill_float))<1.e-20) ) then
-    write(6,'(" histwrt5 ",a7,i4,a7)') sname,iarch,"missing"
-  else
-    varn = minval(globvar)
-    varx = maxval(globvar)
-    write(6,'(" histwrt5 ",a20,i4,2f12.4)') sname,iarch,varn,varx
-  end if
-end if
-
-deallocate( globvar, ipack )
-
-return
-end subroutine hw5a      
-
 #ifndef i8r8
 ! procformat and local(write)
 subroutine hw5lpr8(var,sname,idnc,iarch)
@@ -3151,80 +2765,6 @@ end if
 
 return
 end subroutine hw5lpr8    
-
-! global write with single file
-subroutine hw5ar8(var,sname,idnc,iarch)
-
-use cc_mpi              ! CC MPI routines
-use newmpar_m           ! Grid parameters
-use parm_m              ! Model configuration
-
-implicit none
-
-integer, intent(in) :: idnc, iarch
-integer :: ier, iq, k, kk, l, ll
-integer(kind=4) mid, vtype, lidnc, ndims
-integer(kind=4), dimension(5) :: start, ncount
-integer(kind=2), dimension(:,:,:), allocatable :: ipack
-real(kind=8) :: varn, varx
-real(kind=8), dimension(:,:,:), intent(in) :: var
-real(kind=8), dimension(:,:,:), allocatable :: globvar
-real(kind=4) :: laddoff, lscale_f
-character(len=*), intent(in) :: sname
-      
-kk = size(var,2)
-ll = size(var,3)
-allocate( globvar(1:ifull_g,1:kk,1:ll), ipack(1:ifull_g,1:kk,1:ll) )
-
-call ccmpi_gatherr8(var(1:ifull,1:kk,1:ll), globvar(1:ifull_g,1:kk,1:ll))
-start = (/ 1, 1, 1, 1, iarch /)
-ncount = (/ il_g, jl_g, kk, ll, 1 /)
-
-!     find variable index
-lidnc = idnc
-ier = nf90_inq_varid(lidnc,sname,mid)
-call ncmsg(sname,ier)
-ier = nf90_inquire_variable(lidnc, mid, xtype=vtype, ndims=ndims)
-if ( ndims>5 ) then
-  write(6,*) "ERROR: Variable ",trim(sname)," expected to have 5 or less dimensions,"
-  write(6,*) "but was created with ndims = ",ndims
-  call ccmpi_abort(-1)
-end if
-
-if ( vtype==nf90_short ) then
-  if ( all(globvar>9.8e36_8) )then
-    ipack = missval
-  else
-    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
-    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
-    do l = 1,ll
-      do k = 1,kk
-        do iq = 1,ifull_g
-          ipack(iq,k,l) = nint(max(min((globvar(iq,k,l)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
-        end do  
-      end do
-    end do
-  end if
-  ier = nf90_put_var(lidnc,mid,ipack,start=start(1:ndims),count=ncount(1:ndims))
-else
-  ier = nf90_put_var(lidnc,mid,globvar,start=start(1:ndims),count=ncount(1:ndims))
-endif
-call ncmsg(sname,ier)
-
-if ( mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-  if ( any(abs(globvar-real(nf90_fill_float,8))<1.e-20_8) ) then
-    write(6,'(" histwrt5r8 ",a20,i4,a7)') sname,iarch,"missing"
-  else
-    varn = minval(globvar)
-    varx = maxval(globvar)
-    write(6,'(" histwrt5r8 ",a20,i4,2f12.4)') sname,iarch,varn,varx
-  end if
-end if
-
-deallocate( globvar, ipack )
-
-return
-end subroutine hw5ar8
 #endif
 
 !--------------------------------------------------------------------
@@ -4049,8 +3589,8 @@ character(len=*), intent(in) :: aname
 character(len=*), intent(out) :: atext
 
 atext=''
-lncid=ncid
-lvid=vid
+lncid = ncid
+lvid = vid
 ncstatus = nf90_get_att(lncid,lvid,aname,atext)
 if (present(ierr)) then
   ierr=ncstatus
@@ -4077,8 +3617,8 @@ integer(kind=4) lncid, lvid
 character(len=*), intent(in) :: aname
 real, intent(out) :: vdat
 
-lncid=ncid
-lvid=vid
+lncid = ncid
+lvid = vid
 ncstatus = nf90_get_att(lncid,lvid,aname,vdat)
 if (present(ierr)) then
   ierr=ncstatus
@@ -4132,7 +3672,7 @@ integer(kind=4) lncid
 character(len=*), intent(in) :: aname
 real, dimension(:), intent(out) :: vdat
 
-lncid=ncid
+lncid = ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,vdat(:))
 if ( ncstatus/=nf90_noerr ) then  
   write(6,*) "ERROR: Cannot read ",aname  
@@ -4156,9 +3696,9 @@ integer(kind=4) :: lvdat
 logical, intent(out), optional :: tst
 character(len=*), intent(in) :: aname
 
-lncid=ncid
+lncid = ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,lvdat)
-vdat=lvdat
+vdat = lvdat
 if (present(tst)) then
   tst=ncstatus/=nf90_noerr
 else
@@ -4846,17 +4386,21 @@ real, dimension(:), allocatable :: glob2d
 real rlong0x, rlat0x, schmidtx, dsx
 logical tst
 
-ifull_l=size(dat)
+ifull_l = size(dat)
 allocate( glob2d(ifull_g) )
 
-iernc=0
+iernc = 0
+ncidx = 0
 if (present(filename)) then
   call ccnf_open(filename,ncidx,iernc)
 else if (present(netcdfid)) then
-  ncidx=netcdfid
+  ncidx = netcdfid
+else
+  write(6,*) "ERROR: call to surfreadglobal without filename or netcdfid"
+  call ccmpi_abort(-1)
 end if
 
-if (iernc==0) then ! Netcdf file
+if ( iernc==0 ) then ! Netcdf file
 
   call ccnf_inq_dimlen(ncidx,'longitude',ilx)
   call ccnf_inq_dimlen(ncidx,'latitude',jlx)

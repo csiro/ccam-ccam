@@ -504,7 +504,7 @@ subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
     if ( is<=ie ) then
       js=1+(tile-1)*imax
       je=tile*imax
-      outdata(is:ie) =  pack(real(indata(js:je),dp),tdata(tile)%pmap(:,nb))
+      outdata(is:ie) =  pack(real(indata(js:je),8),tdata(tile)%pmap(:,nb))
     end if  
   end do
 

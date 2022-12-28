@@ -423,7 +423,7 @@ do i = 1,kl
       d3 = a(j,k)
       d1 = d1+d3*vecr(k,i)
       if ( l/=0 ) then
-        d2 = d2 + d3*vecr(k,i-1)
+        d2 = d2 + d3*vecr(k,max(i-1,1))
       end if
     end do
     work(j) = d1/prfact(j)
@@ -450,9 +450,9 @@ do i = 1,kl
 
     kon = 1
     evr(i) = evr(i)*enorm
-    evr(i-1) = evr(i)
+    evr(max(i-1,1)) = evr(i)
     evi(i) = evi(i)*enorm
-    evi(i-1) =-evi(i)
+    evi(max(i-1,1)) =-evi(i)
     r = 0.0_8
     do j = 1,kl
       r1 = work(j)**2 + subdia(j)**2
@@ -468,8 +468,8 @@ do i = 1,kl
       d2 = subdia(j)
       vecr(j,i) = (d1*d3+d2*r1)/r
       veci(j,i) = (d2*d3-d1*r1)/r
-      vecr(j,i-1) = vecr(j,i)
-      veci(j,i-1) =-veci(j,i)
+      vecr(j,max(i-1,1)) = vecr(j,i)
+      veci(j,max(i-1,1)) =-veci(j,i)
     end do
   end if
 end do

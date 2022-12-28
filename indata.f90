@@ -2232,8 +2232,8 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
   if ( .not.lrestart ) then
     ocndwn(:,2) = min( max( ocndwn(:,2), -20.), 20. )
-    mlodwn(:,:,3) = min( max( mlodwn(:,:,3), -5.), 5. )
-    mlodwn(:,:,4) = min( max( mlodwn(:,:,4), -5.), 5. )
+    mlodwn(1:ifull,1:wlev,3) = min( max( mlodwn(1:ifull,1:wlev,3), -5.), 5. )
+    mlodwn(1:ifull,1:wlev,4) = min( max( mlodwn(1:ifull,1:wlev,4), -5.), 5. )
   end if
   where ( .not.land(1:ifull) )
     fracice(1:ifull) = micdwn(1:ifull,5)

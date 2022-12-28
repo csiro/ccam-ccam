@@ -208,7 +208,7 @@ integer, dimension(:), intent(out) :: nf
 integer loop, ig, jg, is, js, iq
 integer, parameter :: nmaploop=3
 #ifdef debug
-integer, parameter :: ntest=0, numtst=-1
+integer, parameter :: numtst=-1
 integer, save :: num=0
 #endif
 real, dimension(:), intent(in) :: rlongin, rlatin

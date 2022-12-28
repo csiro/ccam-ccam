@@ -2105,9 +2105,9 @@ do kb = 1,kx,kblock
       call sxpanelbounds(sx(:,:,:))
       call intsb(sx(:,:,:),sout(:,k+kb-1),nface4,xg4,yg4)
     end do
-  end if
+  end if ! iotest ..else..
 
-end do
+end do ! kb
 
 call END_LOG(otf_ints4_end)
 
@@ -2301,7 +2301,6 @@ do while ( nrem>0 )
   call ccmpi_filebounds_send(c_io,comm_ip,corner=.true.)
   ! update body
   if ( ncount>0 ) then
-    !$omp parallel do collapse(3) schedule(static) private(ipf,n,j,i,cc,csum,ccount)
     do ipf = 1,mynproc
       do n = 1,pnpan
         do j = 2,pjpan-1
@@ -2350,7 +2349,6 @@ do while ( nrem>0 )
         end do
       end do
     end do
-    !$omp end parallel do
   end if 
   call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
   ! update perimeter
