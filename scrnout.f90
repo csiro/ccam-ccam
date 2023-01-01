@@ -439,7 +439,7 @@ integralm10(1:imax) = max(integralm10(1:imax), 1.e-10)
 ! 2m air temperature
 tscrn(1:imax)  = temp(1:imax) - tstar(1:imax)*integralh(1:imax)/vkar
 ! 2m mixing ratio
-esatb(1:imax)  = establ(tscrn(1:imax),imax)
+esatb(1:imax)  = establ(tscrn(1:imax))
 qscrn(1:imax)  = mixr(1:imax) - qstar(1:imax)*integralq(1:imax)/vkar
 qscrn(1:imax)  = max(qscrn(1:imax), qgmin)
 ! 2m relative humidity
@@ -506,7 +506,7 @@ end if
 au(is:ie)   = u(is:ie,1) - ou(is:ie)
 av(is:ie)   = v(is:ie,1) - ov(is:ie)
 umag(is:ie) = max( sqrt(au(is:ie)*au(is:ie)+av(is:ie)*av(is:ie)), vmodmin )
-es(is:ie) = establ(tss(is:ie),imax)
+es(is:ie) = establ(tss(is:ie))
 qsttg(is:ie) = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
 smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
 
@@ -621,7 +621,7 @@ end if
 au(is:ie)   = u(is:ie,1) - ou(is:ie)
 av(is:ie)   = v(is:ie,1) - ov(is:ie)
 umag(is:ie) = max( sqrt(au(is:ie)*au(is:ie)+av(is:ie)*av(is:ie)), vmodmin )
-es(is:ie) = establ(tss(is:ie),imax)
+es(is:ie) = establ(tss(is:ie))
 qsttg(is:ie)  = 0.622*es(is:ie)/(ps(is:ie)-es(is:ie))
 smixr(is:ie) = wetfac(is:ie)*qsttg(is:ie) + (1.-wetfac(is:ie))*min( qsttg(is:ie), qg(is:ie,1) )
 
@@ -688,7 +688,7 @@ do k = 1,ktop
   pl(:,k) = ps(js:je)*sig(k)
   tl(:,k) = t(js:je,k)
   pil(:,k) = (pl(:,k)/1.e5)**(rdry/cp)
-  qs(:) = qsat(pl(:,k),tl(:,k),imax)
+  qs(:) = qsat(pl(:,k),tl(:,k))
   th(:,k) = tl(:,k)/pil(:,k)
   thv(:,k) = th(:,k)*(1.+1.61*qs(:))/(1.+qs(:))
 end do  
@@ -699,7 +699,7 @@ pil2(:) = pil(:,kmax)
 pl2(:) = pl(:,kmax)
 tl2(:) = tl(:,kmax)
 thv2(:) = thv(:,kmax)
-qv2(:) = qsat(pl(:,kmax),tl(:,kmax),imax)
+qv2(:) = qsat(pl(:,kmax),tl(:,kmax))
 ql2(:) = 0.
 qi2(:) = 0.
 qt(:) = qv2(:)
@@ -742,7 +742,7 @@ do k = kmax+1,ktop
         fice(:) = 1. - fliq(:)
       end where
 
-      qsat_save(:) = qsat(pl2,tl2,imax)
+      qsat_save(:) = qsat(pl2,tl2)
 
       where ( not_converged )
         qv2(:) = min( qt(:), qsat_save(:) )

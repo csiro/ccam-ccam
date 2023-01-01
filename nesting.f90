@@ -821,13 +821,8 @@ tt_l(:,klt+1) = sm(:)
 #ifdef GPU
 
 ! GPU version
-#ifdef _OPENMP
-!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,tt_l) map(from:tbb_l) &
-!$omp   private(iqg,iq,n,j)
-#else
 !$acc parallel loop collapse(2) copyin(cq,klt,kltp1,xa,ya,za,tt_l) &
 !$acc   copyout(tbb_l) private(iq,iqg,n,j)
-#endif
 do k = 1,klt+1
   do iq = 1,ifull
     n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
@@ -837,11 +832,7 @@ do k = 1,klt+1
     tbb_l(iq,k) = drpdr_fast(iqg,cq,xa,ya,za,tt_l(:,k))
   end do  
 end do
-#ifdef _OPENMP
-!$omp end target teams distribute parallel do
-#else
 !$acc end parallel loop
-#endif
 do k = 1,klt
   tbb(:,k) = tbb_l(:,k)/tbb_l(:,klt+1)
 end do
@@ -1295,13 +1286,15 @@ oe = ioff + ipan
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
+!$omp parallel
+#endif
 
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifndef GPU
-  !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
 #endif
   do j = 1,jpan
@@ -1333,14 +1326,9 @@ do ipass = 0,2
 
 #ifdef GPU
 
-#ifdef _OPENMP
-  !$omp target teams distribute parallel do collapse(3) schedule(static) map(to:xa,ya,za,at_l) &
-  !$omp  map(from:ff) private(j,n,nn,ibase,k)
-#else
-  async_counter = mod(ipass,async_length)+1
+  async_counter = mod(ipass,async_length)
   !$acc parallel loop collapse(3) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_l(1:me,:,1:jpan)) &
   !$acc   copyout(ff(:,ipass)) private(j,n,nn,ibase,k) async(async_counter)
-#endif
   do j = 1,jpan
     do k = 1,klt+1
       do n = 1,ipan
@@ -1350,11 +1338,7 @@ do ipass = 0,2
       end do  
     end do 
   end do 
-#ifdef _OPENMP  
-  !$omp end target teams distribute parallel do
-#else
   !$acc end parallel loop
-#endif
 
 #else
 
@@ -1369,14 +1353,15 @@ do ipass = 0,2
       end do  
     end do 
   end do 
-  !$omp end do nowait
-  !$omp end parallel
+  !$omp end do
 
 #endif
 
 end do ! ipass
 
-#ifdef GPU
+#ifndef GPU
+!$omp end parallel
+#else
 !$acc wait
 #endif
 
@@ -1471,13 +1456,8 @@ end do
 #ifdef GPU
 
 ! GPU version
-#ifdef _OPENMP
-!$omp target teams distribute parallel do collapse(3) schedule(static) map(to:xa,ya,za,at_l) &
-!$omp  map(from:qt_l) private(j,n,nn)
-#else
 !$acc parallel loop collapse(3) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_l(1:me,:,1:ipan)) &
 !$acc   copyout(qt_l) private(j,n,nn)
-#endif
 do j = 1,ipan
   do k = 1,klt+1  
     do n = 1,jpan
@@ -1486,11 +1466,7 @@ do j = 1,ipan
     end do  
   end do
 end do
-#ifdef _OPENMP
-!$omp end target teams distribute parallel do
-#else
 !$acc end parallel loop
-#endif
 do j = 1,ipan
   do k = 1,klt
     do n = 1,jpan
@@ -1510,7 +1486,7 @@ do j = 1,ipan
     qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
 end do
-!$omp end do nowait
+!$omp end do
 !$omp end parallel
 
 #endif
@@ -1569,12 +1545,15 @@ oe = joff + jpan
   
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
+!$omp parallel
+#endif
+
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifndef GPU
-  !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
 #endif
   do j = 1,ipan      
@@ -1607,14 +1586,9 @@ do ipass = 0,2
 #ifdef GPU
 
   ! GPU version
-#ifdef _OPENMP
-  !$omp target teams distribute parallel do collapse(3) schedule(static) map(to:xa,ya,za,at_l) &
-  !$omp  map(from:ff) private(j,n,nn,k)
-#else
-  async_counter = mod(ipass,async_length)+1
+  async_counter = mod(ipass,async_length)
   !$acc parallel loop collapse(3) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_l(1:me,:,1:ipan)) &
   !$acc   copyout(ff(:,ipass)) private(j,n,nn,k) async(async_counter)
-#endif
   do j = 1,ipan
     do k = 1,klt+1  
       do n = 1,jpan
@@ -1623,11 +1597,7 @@ do ipass = 0,2
       end do  
     end do
   end do
-#ifdef _OPENMP
-  !$omp end target teams distribute parallel do
-#else
   !$acc end parallel loop
-#endif
 
 #else
 
@@ -1642,14 +1612,15 @@ do ipass = 0,2
       end do  
     end do
   end do
-  !$omp end do nowait
-  !$omp end parallel
-  
+  !$omp end do
+
 #endif
 
 end do ! ipass
 
-#ifdef GPU
+#ifndef GPU
+!$omp end parallel
+#else
 !$acc wait
 #endif
 
@@ -1746,13 +1717,8 @@ end do
 #ifdef GPU
 
 ! GPU version
-#ifdef _OPENMP
-!$omp target teams distribute parallel do collapse(3) schedule(static) map(to:xa,ya,za,at_l) &
-!$omp  map(from:qt_l) private(j,n,nn)
-#else
 !$acc parallel loop collapse(3) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_l(1:me,:,1:jpan)) &
 !$acc   copyout(qt_l) private(j,n,nn)
-#endif
 do j = 1,jpan
   do k = 1,klt+1  
     do n = 1,ipan
@@ -1761,11 +1727,7 @@ do j = 1,jpan
     end do  
   end do
 end do
-#ifdef _OPENMP
-!$omp end target teams distribute parallel do
-#else
 !$acc end parallel loop
-#endif
 do j = 1,jpan
   do k = 1,klt
     do n = 1,ipan
@@ -1785,7 +1747,7 @@ do j = 1,jpan
     qt(n+ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
   end do
 end do
-!$omp end do nowait
+!$omp end do
 !$omp end parallel
 
 #endif
@@ -2332,13 +2294,8 @@ diff_g_l(:,kd+1) = sm(:)
 #ifdef GPU
 
 ! GPU version
-#ifdef _OPENMP
-!$omp target teams distribute parallel do collapse(2) schedule(static) map(to:xa,ya,za,diff_g_l) &
-!$omp  map(from:dd_l) private(iqq,iqqg,n,j)
-#else
 !$acc parallel loop collapse(2) copyin(cq,xa,ya,za,diff_g_l) &
 !$acc   copyout(dd_l) private(iqq,iqqg,n,j)
-#endif
 do k = 1,kd+1
   do iqq = 1,ifull
     n = 1 + (iqq-1)/(ipan*jpan)  ! In range 1 .. npan
@@ -2347,11 +2304,7 @@ do k = 1,kd+1
     dd_l(iqq,k) = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_l(:,k))
   end do  
 end do
-#ifdef _OPENMP
-!$omp end target teams distribute parallel do
-#else
 !$acc end parallel loop
-#endif
 do k = 1,kd
   do iqq = 1,ifull
     dd(iqq,k) = dd_l(iqq,k)/max(dd_l(iqq,kd+1),1.e-8)
@@ -2712,12 +2665,15 @@ oe = ioff + ipan
  
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
+!$omp parallel
+#endif
+
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 #ifndef GPU
-  !$omp parallel
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
 #endif
   do j = 1,jpan      
@@ -2750,14 +2706,9 @@ do ipass = 0,2
 
 #ifdef GPU
 
-#ifdef _OPENMP
-  !$omp target teams distribute parallel do collapse(3) schedule(static) map(to:xa,ya,za,ap_l) &
-  !$omp  map(from:yy) private(j,n,nn,k)
-#else
-  async_counter = mod(ipass,async_length)+1
+  async_counter = mod(ipass,async_length)
   !$acc parallel loop collapse(3) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_l(1:me,:,1:jpan)) &
   !$acc   copyout(yy(:,ipass)) private(j,n,nn,k) async(async_counter)
-#endif
   do j = 1,jpan
     do k = 1,kd+1  
       do n = 1,ipan
@@ -2766,11 +2717,7 @@ do ipass = 0,2
       end do  
     end do
   end do
-#ifdef _OPENMP  
-  !$omp end target teams distribute parallel do
-#else
   !$acc end parallel loop
-#endif
 
 #else
 
@@ -2784,14 +2731,15 @@ do ipass = 0,2
       end do  
     end do
   end do
-  !$omp end do nowait
-  !$omp end parallel
+  !$omp end do
 
 #endif
 
 end do ! ipass
 
-#ifdef GPU
+#ifndef GPU
+!$omp end parallel
+#else
 !$acc wait
 #endif
 
@@ -2886,13 +2834,8 @@ end do
 ! start convolution
 #ifdef GPU
 
-#ifdef _OPENMP
-!$omp target teams distribute parallel do collapse(3) schedule(static) map(to:xa,ya,za,ap_l) &
-!$omp  map(from:qp_l) private(j,n,nn)
-#else
 !$acc parallel loop collapse(3) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_l(1:me,:,1:ipan)) &
 !$acc   copyout(qp_l) private(j,n,nn)
-#endif
 do j = 1,ipan
   do k = 1,kd+1  
     do n = 1,jpan
@@ -2901,11 +2844,7 @@ do j = 1,ipan
     end do  
   end do
 end do
-#ifdef _OPENMP
-!$omp end target teams distribute parallel do
-#else
 !$acc end parallel loop
-#endif
 do j = 1,ipan
   do k = 1,kd
     do n = 1,jpan
@@ -2924,7 +2863,7 @@ do j = 1,ipan
     qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/max(local_sum(kd+1),1.e-8)
   end do
 end do
-!$omp end do nowait
+!$omp end do
 !$omp end parallel
 
 #endif
@@ -2979,12 +2918,15 @@ oe = joff + jpan
      
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
+!$omp parallel
+#endif
+
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU  
-  !$omp parallel
+#ifndef GPU
   !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
 #endif
   do j = 1,ipan      
@@ -3017,14 +2959,9 @@ do ipass = 0,2
 #ifdef GPU
 
 ! GPU version
-#ifdef _OPENMP
-  !$omp target teams distribute parallel do collapse(3) schedule(static) map(to:xa,ya,za,ap_l) &
-  !$omp  map(from:yy) private(j,n,nn,k)
-#else
-  async_counter = mod(ipass,async_length)+1
+  async_counter = mod(ipass,async_length)
   !$acc parallel loop collapse(3) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_l(1:me,:,1:ipan)) &
   !$acc   copyout(yy(:,ipass)) private(j,n,nn,k) async(async_counter)
-#endif
   do j = 1,ipan
     do k = 1,kd+1  
       do n = 1,jpan
@@ -3033,11 +2970,7 @@ do ipass = 0,2
       end do  
     end do    
   end do
-#ifdef _OPENMP
-  !$omp end target teams distribute parallel do
-#else
   !$acc end parallel loop
-#endif
 
 #else
 
@@ -3053,14 +2986,15 @@ do ipass = 0,2
       end do  
     end do    
   end do
-  !$omp end do nowait
-  !$omp end parallel
+  !$omp end do
 
 #endif
 
 end do ! ipass
 
-#ifdef GPU
+#ifndef GPU
+!$omp end parallel
+#else
 !$acc wait
 #endif
 
@@ -3156,13 +3090,8 @@ end do
 #ifdef GPU
 
 ! GPU version
-#ifdef _OPENMP
-!$omp target teams distribute parallel do collapse(3) schedule(static) map(to:xa,ya,za,ap_l) &
-!$omp  map(from:qp_l) private(j,n,nn)
-#else
 !$acc parallel loop collapse(3) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_l(1:me,:,1:jpan)) &
 !$acc   copyout(qp_l) private(j,n,nn)
-#endif
 do j = 1,jpan
   do k = 1,kd+1  
     do n = 1,ipan
@@ -3171,11 +3100,7 @@ do j = 1,jpan
     end do  
   end do  
 end do
-#ifdef _OPENMP
-!$omp end target teams distribute parallel do
-#else
 !$acc end parallel loop
-#endif
 do k = 1,kd
   do j = 1,jpan
     do n = 1,ipan
@@ -3195,7 +3120,7 @@ do j = 1,jpan
     qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/max(local_sum(kd+1), 1.e-8)  
   end do  
 end do
-!$omp end do nowait
+!$omp end do
 !$omp end parallel
 
 #endif

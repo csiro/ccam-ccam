@@ -2816,21 +2816,24 @@ end subroutine cldrop
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Aerosol scavenging fraction for convective clouds
 
-pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho,ntr,kx)
+pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
+!$acc routine vector
 
 implicit none
 
-integer, intent(in) :: ntr, kx
-real, dimension(kx), intent(out) :: fscav ! scavenging fraction
-real, dimension(kx), intent(in) :: xpkp1 ! cloud liquid water after precipitation
-real, dimension(kx), intent(in) :: xpold ! cloud liquid water before precipitation
-real, dimension(kx), intent(in) :: tt    ! parcel temperature
-real, dimension(kx), intent(in) :: xs    ! xtg(:,k,3) = so4
-real, dimension(kx), intent(in) :: rho   ! air density
-real, dimension(kx) :: f_so2,scav_eff
-real, dimension(kx) :: zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
-real, dimension(kx) :: zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
-logical, dimension(kx) :: bwkp1 
+integer ntr, iq, k
+real, dimension(:,:,:), intent(out) :: fscav ! scavenging fraction
+real, dimension(:,:), intent(in) :: xpkp1 ! cloud liquid water after precipitation
+real, dimension(:,:), intent(in) :: xpold ! cloud liquid water before precipitation
+real, dimension(:,:), intent(in) :: tt    ! parcel temperature
+real, dimension(:,:), intent(in) :: xs    ! xtg(:,k,3) = so4
+real, dimension(:,:), intent(in) :: rho   ! air density
+real, dimension(size(fscav,1),size(fscav,2)) :: work
+real f_so2,scav_eff
+real zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
+real zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
+real scav_effs
+logical, dimension(size(fscav,1),size(fscav,2)) :: bwkp1 
 
 ! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
 ! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
@@ -2839,47 +2842,58 @@ real, parameter, dimension(naero) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,0
 !real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/) ! ice
 
 !bwkp1(:) = tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
-bwkp1(:) = .true.        ! assume liquid for JLM convection
+bwkp1(:,:) = .true.        ! assume liquid for JLM convection
 
-if ( ntr==itracso2 ) then
-  !where ( bwkp1 )
-    ! CALCULATE THE SOLUBILITY OF SO2
-    ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
-    ZQTP1 = 1./tt - 1./298.
-    ZE2  =1.23*EXP(3020.*ZQTP1)
-    ZE3 = 1.2E-02*EXP(2010.*ZQTP1)
-    ZFAC = 1000./(max(xpold,1.E-20)*32.064)
-    ZSO4L = xs*ZFAC
-    ZSO4L = AMAX1(ZSO4L,0.)
-    ZSO2L = xs*ZFAC
-    ZSO2L = AMAX1(ZSO2L,0.)
-    ZZA = ZE2*8.2E-02*tt*max(xpold,1.E-20)*rho*1.E-03
-    ZZB = 2.5E-06+ZSO4L
-    ZZP = (ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
-    ZZQ = -ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
-    ZZP = 0.5*ZZP
-    ZZP2 = ZZP*ZZP
-    ZHP = -ZZP + SQRT(max(ZZP2-ZZQ,0.))
-    ZQHP = 1./ZHP
-    ZHENEFF = 1. + ZE3*ZQHP
-    P_SO2 = ZZA*ZHENEFF
-    F_SO2 = P_SO2/(1.+P_SO2)
-    F_SO2 = min(max(0.,F_SO2),1.)
-    scav_eff = f_so2
-  !elsewhere
-  !  scav_eff = scav_effi(ntr)
-  !end where
-else
-  !where ( bwkp1 )
-    scav_eff = scav_effl(ntr)
-  !elsewhere
-  !  scav_eff = scav_effi(ntr)
-  !end where
-end if
+work(:,:) = min(max(xpold(:,:)-xpkp1(:,:),0.)/max(xpold(:,:),1.E-20),1.)
 
-! Wet deposition scavenging fraction
-fscav(:) = scav_eff(:)*min(max(xpold(:)-xpkp1(:),0.)/max(xpold(:),1.E-20),1.)
-fscav(:) = min( fscav(:), 1. )
+do ntr = 1,naero
+
+  if ( ntr==itracso2 ) then
+    do k = 1,size(fscav,2)
+      do iq = 1,size(fscav,1)
+        !if ( bwkp1(iq,k) ) then
+          ! CALCULATE THE SOLUBILITY OF SO2
+          ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
+          ZQTP1 = 1./tt(iq,k) - 1./298.
+          ZE2  =1.23*EXP(3020.*ZQTP1)
+          ZE3 = 1.2E-02*EXP(2010.*ZQTP1)
+          ZFAC = 1000./(max(xpold(iq,k),1.E-20)*32.064)
+          ZSO4L = xs(iq,k)*ZFAC
+          ZSO4L = AMAX1(ZSO4L,0.)
+          ZSO2L = xs(iq,k)*ZFAC
+          ZSO2L = AMAX1(ZSO2L,0.)
+          ZZA = ZE2*8.2E-02*tt(iq,k)*max(xpold(iq,k),1.E-20)*rho(iq,k)*1.E-03
+          ZZB = 2.5E-06+ZSO4L
+          ZZP = (ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
+          ZZQ = -ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
+          ZZP = 0.5*ZZP
+          ZZP2 = ZZP*ZZP
+          ZHP = -ZZP + SQRT(max(ZZP2-ZZQ,0.))
+          ZQHP = 1./ZHP
+          ZHENEFF = 1. + ZE3*ZQHP
+          P_SO2 = ZZA*ZHENEFF
+          F_SO2 = P_SO2/(1.+P_SO2)
+          F_SO2 = min(max(0.,F_SO2),1.)
+          scav_eff = f_so2
+        !else
+        !  scav_eff = scav_effi(ntr)
+        !end if
+        ! Wet deposition scavenging fraction
+        fscav(iq,k,ntr) = scav_eff*work(iq,k)
+      end do
+    end do
+  else
+    !where ( bwkp1 )
+      ! Wet deposition scavenging fraction
+      fscav(:,:,ntr) = scav_effl(ntr)*work(:,:)
+    !elsewhere
+    !  fscav(:,:,ntr) = scav_effi(ntr)*work(:,:)
+    !end where
+  end if
+
+  fscav(:,:,ntr) = min( fscav(:,:,ntr), 1. )
+
+end do
 
 return
 end subroutine convscav

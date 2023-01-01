@@ -41,6 +41,8 @@ real, dimension(:), allocatable, save :: acloss_g
 character(len=20), dimension(:), save, allocatable :: tracname
 character(len=20), dimension(:), save, allocatable :: tractype
 
+!$acc declare create(ntrac,ngas)
+
 contains
 
 subroutine tracers_init(il,jl,kl,iextra)
@@ -57,6 +59,7 @@ tr(:,:,:)     = 0.
 traver(:,:,:) = 0.
 
 ! tracname and tractype are allocated in tracermodule.f90
+! MJT notes - OpenACC update for ntrac and ngas in globpe.f90
 
 return
 end subroutine tracers_init

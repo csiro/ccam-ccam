@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,7 +30,8 @@ public sigs_init,sigs_end
 real, dimension(:), allocatable, save :: sig,sigmh,dsig,rata,ratb,bet,tbar,tbardsig,betm,ratha,rathb
 real, save :: dtmax
 
-!$acc declare create(ratha,rathb)
+!$acc declare create(ratha,rathb,sig,dsig)
+!$acc declare create(sigmh,bet,betm)
 
 contains
 

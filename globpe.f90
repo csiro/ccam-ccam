@@ -43,7 +43,8 @@
 program globpe
 
 use aerointerface                          ! Aerosol interface
-use aerosolldr, only : naero,xtosav,xtg    ! LDR prognostic aerosols
+use aerosolldr, only : naero,xtosav,xtg, &
+    so2wd,so4wd,bcwd,ocwd,dustwd,saltwd    ! LDR prognostic aerosols
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
@@ -105,6 +106,7 @@ use trvmix                                 ! Tracer mixing routines
 use uvbar_m                                ! Saved dynamic arrays
 use vertmix_m                              ! Boundary layer turbulent mixing
 use vvel_m                                 ! Additional vertical velocity
+use work2_m                                ! Diagnostic arrays
 use work3f_m                               ! Grid work arrays
 use xarrs_m                                ! Saved dynamic arrays
 use xyzinfo_m                              ! Grid coordinate arrays
@@ -567,6 +569,34 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("start of physics",js,je)
   end do  
   !$omp end do nowait
+
+  
+#ifdef GPUPHYSICS
+  ! MJT notes - the physics OpenACC code requires a larger heapsize like
+  ! export PGI_ACC_CUDA_HEAPSIZE=268435456
+  !$acc data create(t,u,v,tss)                                     &
+  !$acc   create(kbsav,ktsav,condc,condx,conds,condg)              &
+  !$acc   create(dpsldt,cfrac,ps,pblh,fg,wetfac,land,em,sgsave)    &
+  !$acc   create(qg,qlg,qfg)                                       &
+  !$acc   create(precc,precip)                                     &
+  !$acc   create(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd)          &
+  !$acc   create(tr)                                               &
+  !$acc   create(cfrac,qlrad,qfrad,stratcloud,kbsav,ktsav,qccon)   &
+  !$acc   create(nettend,rkmsave,rkhsave)                          &
+  !$acc   create(ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs)  &
+  !$acc   create(ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
+  !$acc update device(t,u,v,tss) async(0)
+  !$acc wait(0)
+  !$acc update device(dpsldt,cfrac,ps,pblh,fg,wetfac,land,em,sgsave) async(0)
+  !$acc update device(qg,qlg,qfg) async(0)
+  !$acc update device(precc,precip) async(0)
+  if ( abs(iaero)>=2 ) then
+    !$acc update device(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd) async(0)
+  end if 
+  if ( ngas>0 ) then
+    !$acc update device(tr) async(0)  
+  end if
+#endif  
   
   
   ! GWDRAG ----------------------------------------------------------------
@@ -574,6 +604,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( ngwd<0 ) then
     call gwdrag  ! <0 for split - only one now allowed
   end if
+#ifndef GPUPHYSICS
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -581,30 +612,52 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after gravity wave drag",js,je)
   end do  
   !$omp end do nowait
+#endif
   call END_LOG(gwdrag_end)
 
- 
+
+#ifdef GPUPHYSICS
+  !updated u,v
+  !$acc wait(0)
+  !$acc update device(stratcloud) async(0)
+  if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
+    !$acc update device(nettend,rkmsave,rkhsave) async(0) 
+  end if
+#endif
+
+
   ! CONVECTION ------------------------------------------------------------
   call START_LOG(convection_begin)
+  ! t is unchanged since updating GPU
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) - t(js:je,1:kl)*real(nperday)/real(nperavg)        
+    do k = 1,kl  
+      do iq = js,je
+        convh_ave(iq,k) = convh_ave(iq,k) - t(iq,k)*real(nperday)/real(nperavg)
+      end do  
+    end do
   end do
   !$omp end do nowait
   ! Select convection scheme
   select case ( nkuo )
     case(5)
+#ifndef GPUPHYSICS   
       !$omp barrier  
       !$omp single  
       call betts(t,qg,tn,land,ps) ! not called these days
       !$omp end single
+#else
+      write(6,*) "ERROR: nkuo=5 is not supported for GPUs"
+      call ccmpi_abort(-1)
+#endif
     case(21,22)
       call convjlm22              ! split convjlm 
     case(23,24)
       call convjlm                ! split convjlm 
   end select
+#ifndef GPUPHYSICS    
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -613,22 +666,80 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after convection",js,je)
   end do  
   !$omp end do nowait
+#endif
   call END_LOG(convection_end)
 
   
+#ifdef GPUPHYSICS
+  !updated t,u,v,qg,qlg,qfg
+  !updated kbsav,ktsav,condc,condx,conds,condg
+  !updated precc,precip
+  !updated fluxtot,cape,convpsav
+  !updated xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd
+  !updated tr
+  !$acc wait(0)
+#endif
+
+
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
   call ctrl_microphysics
+#ifdef GPUPHYSICS
+  !$acc update self(t) ! for convh_ave calculation
+#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    convh_ave(js:je,1:kl) = convh_ave(js:je,1:kl) + t(js:je,1:kl)*real(nperday)/real(nperavg)    
+    do k = 1,kl  
+      do iq = js,je
+        convh_ave(iq,k) = convh_ave(iq,k) + t(iq,k)*real(nperday)/real(nperavg)
+      end do  
+    end do
+  end do  
+  !$omp end do nowait
+#ifndef GPU
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
     call nantest("after cloud microphysics",js,je) 
   end do  
   !$omp end do nowait
+#endif
   call END_LOG(cloud_end)
 
+  
+#ifdef GPUPHYSICS
+  !updated t,qg,qlg,qfg,stratcloud
+  !updated condg,conds,condx,precip
+  !updated cfrac,qlrad,qfrad,qccon
+  !updated ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs
+  !updated ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav
+  !$acc update self(u,v)
+  !$acc update self(kbsav,ktsav,condc,condx,conds,condg)
+  !$acc update self(t,qg,qlg,qfg)
+  !$acc update self(precc,precip)
+  !$acc update self(stratcloud)
+  !$acc update self(cfrac,qlrad,qfrad,qccon)
+  !$acc update self(ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs)
+  !$acc update self(ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
+  if ( abs(iaero)>=2 ) then
+    !$acc update self(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd)  
+  end if
+  if ( ngas>0 ) then
+    !$acc update self(tr)
+  end if   
+  !$acc end data
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call nantest("after GPU gdrag, convection & cloud",js,je)
+  end do  
+  !$omp end do nowait
+#endif
+  
 
   ! RADIATION -------------------------------------------------------------
   call START_LOG(radnet_begin)
@@ -896,7 +1007,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       u10_3hr(:,n3hr) = u10(:)*u(1:ifull,1)/spare1(:)
       v10_3hr(:,n3hr) = u10(:)*v(1:ifull,1)/spare1(:)
       tscr_3hr(:,n3hr) = tscrn(:)
-      spare1(:) = establ(t(1:ifull,1),ifull) ! spare1 = es
+      spare1(:) = establ(t(1:ifull,1)) ! spare1 = es
       rh1_3hr(1:ifull,n3hr) = 100.*qg(1:ifull,1)*(ps(1:ifull)*sig(1)-spare1(:))/(.622*spare1(:))
     end if    ! (nextout==2)
     n3hr = n3hr + 1
@@ -2607,6 +2718,10 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
+!$acc update device(alphaj,dt,fc2,vmodmin,sigbot_gwd)
+!$acc update device(qgmin,iaero)
+!$acc update device(nmr)
+
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
 
@@ -3096,6 +3211,7 @@ if ( myid==0 ) then
 end if
 call ccmpi_setup(id,jd,idjd,dt)
 
+!$acc update device(ds)
 !$acc update device(in,is,ie,iw)
 !$acc update device(iwu,isv)
 
@@ -3166,6 +3282,7 @@ end if
 ! Remaining arrays are allocated in indata.f90, since their
 ! dimension size requires additional input data (e.g, land-surface)
 
+!$acc update device(ntrac,ngas)
   
 !--------------------------------------------------------------
 ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
@@ -3741,8 +3858,8 @@ do k = 1,kl
     fice(js:je) = 0.
   end where
   pk(js:je) = ps(js:je)*sig(k)
-  qsi(js:je) = qsati(pk(js:je),tliq(js:je),ilen)
-  deles(js:je) = esdiffx(tliq(js:je),ilen)
+  qsi(js:je) = qsati(pk(js:je),tliq(js:je))
+  deles(js:je) = esdiffx(tliq(js:je))
   qsl(js:je) = qsi(js:je) + epsil*deles(js:je)/pk(js:je)
   qsw(js:je) = fice(js:je)*qsi(js:je) + (1.-fice(js:je))*qsl(js:je)
   hlrvap(js:je) = (hl+fice(js:je)*hlf)/rvap

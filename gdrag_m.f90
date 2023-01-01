@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,7 +29,8 @@ public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 
 real, dimension(:), allocatable, save :: helo
 real, dimension(:), allocatable, save :: he
-integer, save :: kbot
+integer, save :: kbot_gwd
+!$acc declare create(kbot_gwd,he)
 
 contains
 
@@ -57,13 +58,15 @@ implicit none
 integer, dimension(1) :: kpos
 
 ! set bottom level, above which permit wave breaking
-! set sigbot_gw<.5 to give kbot=1 and use bvng, very similar to older scheme
-kbot = 1
+! set sigbot_gw<.5 to give kbot_gwd=1 and use bvng, very similar to older scheme
+kbot_gwd = 1
 if ( sigbot_gwd>=.5 ) then
   kpos = minloc(abs(sig-sigbot_gwd)) ! finds k value closest to sigbot_gwd    
-  kbot = kpos(1) ! JLM
+  kbot_gwd = kpos(1) ! JLM
 end if
-if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot
+if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot_gwd
+!$acc update device(kbot_gwd,he)
+! MJT notes - he defined in indata.f90 before calling gdrag_sbl
 
 return
 end subroutine gdrag_sbl
@@ -89,36 +92,47 @@ use pbl_m
 
 implicit none
 
-integer tile, is, ie
+integer tile, js, je
 integer idjd_t
 real, dimension(imax,kl) :: lt, lu, lv
 logical mydiag_t
 
-!$omp do schedule(static) private(is,ie),        &
+#ifndef GPU
+!$omp do schedule(static) private(js,je),        &
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)
+#endif
+#ifdef GPUPHYSICS
+!$acc parallel loop present(t,u,v,tss,he) &
+!$acc   private(lt,lu,lv,js,je,idjd_t,mydiag_t)
+#endif
 do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
+  js = (tile-1)*imax + 1
+  je = tile*imax
   
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
   
-  lt = t(is:ie,:)
-  lu = u(is:ie,:)
-  lv = v(is:ie,:)
+  lt = t(js:je,:)
+  lu = u(js:je,:)
+  lv = v(js:je,:)
   
-  call gwdrag_work(lt,lu,lv,tss(is:ie),he(is:ie),idjd_t,mydiag_t)
+  call gwdrag_work(lt,lu,lv,tss(js:je),he(js:je),idjd_t,mydiag_t)
 
-  u(is:ie,:) = lu
-  v(is:ie,:) = lv
+  u(js:je,:) = lu
+  v(js:je,:) = lv
  
 end do
+#ifndef GPU
 !$omp end do nowait
+#endif
+#ifdef GPUPHYSICS
+!$acc end parallel loop
+#endif
 
 return
 end subroutine gwdrag
 
-!  this is vectorized jlm version with kbot generalization July 2015
+!  this is vectorized jlm version with kbot_gwd generalization July 2015
 !  Parameters and suggested values (jlm July 2015):
 !  ngwd  -20  (similar to Chouinard; previously we used weaker gwdrag with -5)
 !  helim 1600 limit of launching height (similar to Chouinard; previously we used weaker 800 m)
@@ -127,10 +141,11 @@ end subroutine gwdrag
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
 subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)
+!$acc routine vector
 
-use const_phys
+use const_phys, only : grav, rdry, cp
 use parm_m, only : vmodmin, sigbot_gwd, fc2, dt, alphaj, ngwd
-use sigs_m
+use sigs_m, only : sig, dsig
 
 implicit none
 
@@ -217,7 +232,7 @@ do k = 3,kl
   end where
 end do    ! k loop
 
-do k = kbot,kl
+do k = kbot_gwd,kl
   !       calc max(1-Fc**2/F**2,0) : put in fni()
   do iq = 1,imax
     froude2_inv = sig(k)*temp(iq)*uu(iq,k)**3/(sigk(k)*bvnf(iq,k)*theta_full(iq,k))
@@ -229,8 +244,8 @@ if ( fc2<0. ) then
 end if
 
 ! form integral of above*uu**2 from sig=sigbot_gwd to sig=0
-fnii(:) = -fni(:,kbot)*dsig(kbot)*uu(:,kbot)*uu(:,kbot)
-do k = kbot+1,kl
+fnii(:) = -fni(:,kbot_gwd)*dsig(kbot_gwd)*uu(:,kbot_gwd)*uu(:,kbot_gwd)
+do k = kbot_gwd+1,kl
   fnii(:) = fnii(:)-fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
 end do    ! k loop
 
@@ -239,15 +254,15 @@ end do    ! k loop
 !      if integral=0., reset to some +ve value
 !      form alambda=(g/p*).alpha.rhos.he.N*.wmag/integral(above)
 if ( alphaj<1.e-5 ) then  ! for backward compatibility - will depreciate
-  alambda(:) = alphaj*he(:)*bvnf(:,kbot)*wmag(:)/max(fnii(:), 1.e-9)
+  alambda(:) = alphaj*he(:)*bvnf(:,kbot_gwd)*wmag(:)/max(fnii(:), 1.e-9)
 else  ! newer usage with alphaj around 0.0075 (similar to resemble Hal's value)
-  alambda(:) = alphaj*he(:)*bvnf(:,kbot)*wmag(:)*grav/(rdry*tss(:)*max(fnii(:), 1.e-9))
+  alambda(:) = alphaj*he(:)*bvnf(:,kbot_gwd)*wmag(:)*grav/(rdry*tss(:)*max(fnii(:), 1.e-9))
 end if  
 !      define apuw=alambda.u1/wmag , apvw=alambda.v1/wmag
 apuw(:) = alambda(:)*u(:,1)/wmag(:)
 apvw(:) = alambda(:)*v(:,1)/wmag(:)
 
-do k = kbot,kl
+do k = kbot_gwd,kl
   do iq = 1,imax
     !**** form fni=alambda*max(--,0) and
     !**** solve for uu at t+1 (implicit solution)
@@ -269,17 +284,17 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     write(6,*) 'temp,bvnf_1,he,tss',   &
       temp(iq),bvnf(iq,1),he(iq),tss(iq)
     if ( sigbot_gwd<.5 ) write(6,*) 'bvng',bvng(iq) !  to be depreciated
-    write(6,*) 't',t(iq,kbot:kl)
+    write(6,*) 't',t(iq,kbot_gwd:kl)
     write(6,*) 'theta_full',theta_full(iq,1:kl)
     write(6,*) 'bvnf',bvnf(iq,1:kl)
     write(6,*) 'dtheta_dz_kmh',dtheta_dz_kmh(iq,1:kl)
-    write(6,*) 'uu',uu(iq,kbot:kl)
-    !write(6,*) 'froude2_inv',froude2_inv(iq,kbot:kl)
-    write(6,*) 'fni',fni(iq,kbot:kl)
-    !write(6,*) 'uux',uux(iq,kbot:kl)
+    write(6,*) 'uu',uu(iq,kbot_gwd:kl)
+    !write(6,*) 'froude2_inv',froude2_inv(iq,kbot_gwd:kl)
+    write(6,*) 'fni',fni(iq,kbot_gwd:kl)
+    !write(6,*) 'uux',uux(iq,kbot_gwd:kl)
 !   following in reverse k order to assist viewing by grep	 
-    !write(6,*) 'uincr',(-apuw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
-    !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot,-1)
+    !write(6,*) 'uincr',(-apuw(iq)*xxx(iq,k)*dt,k=kl,kbot_gwd,-1)
+    !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot_gwd,-1)
   end do
 end if
 #endif

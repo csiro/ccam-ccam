@@ -1050,7 +1050,7 @@ where ( land(1:imax) )
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4 
   isflag(:) = nint(tmps(:)) ! tmps is average isflag
 end where
-qsttg_land(:) = qsat(ps,tss,imax) ! must wait for tss to be updated first
+qsttg_land(:) = qsat(ps,tss) ! must wait for tss to be updated first
 where ( land(1:imax) )
   qsttg(:)  = qsttg_land(:)
 end where

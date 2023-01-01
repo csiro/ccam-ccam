@@ -691,7 +691,7 @@ if ( newfile ) then
     else  
       write(6,*) "-> Surface height is not required with zht_needed =",zht_needed
     end if
-    write(6,*) "-> nested,retopo_test                               =",nested,retopo_test
+    write(6,'(A,2I4)') " -> nested,retopo_test                               =",nested,retopo_test
     write(6,*) "-> soilt_found,mlo_found,mlo2_found,mloice_found    =",soilt_found,mlo_found,mlo2_found,mloice_found
     write(6,*) "-> zht_found,mixr_found,aero_found,urban1_found     =",zht_found,mixr_found,aero_found,urban1_found
     write(6,*) "-> urban2_found,allowtrivialfill                    =",urban2_found,allowtrivialfill

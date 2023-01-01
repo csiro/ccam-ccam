@@ -71,7 +71,7 @@ implicit none
 
 include 'kuocom.h'                ! Convection parameters
   
-integer :: tile, is, ie, k, ij, n, iq
+integer :: tile, js, je, k, ij, n, iq
 integer :: idjd_t
 real, dimension(imax,kl) :: lcfrac, lgfrac
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqfg, lqlrad, lqfrad, lqrg, lqsng, lrfrac, lsfrac, lt
@@ -94,81 +94,123 @@ logical :: mydiag_t
 !----------------------------------------------------------------------------
 ! Prepare inputs for /loud microphysics
 
-!$omp do schedule(static) private(is,ie,k,lrhoa,lcdrop,lclcon)
+!$omp do schedule(static) private(js,je,k,lrhoa,lcdrop,lclcon)
 do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
+  js = (tile-1)*imax + 1
+  je = tile*imax
   
   do k = 1,kl
-    lrhoa(:,k) = ps(is:ie)*sig(k)/(rdry*t(is:ie,k))
-    rhoa(is:ie,k) = lrhoa(:,k)
-    dz(is:ie,k) = -rdry*dsig(k)*t(is:ie,k)/(grav*sig(k)) 
+    lrhoa(:,k) = ps(js:je)*sig(k)/(rdry*t(js:je,k))
+    rhoa(js:je,k) = lrhoa(:,k)
+    dz(js:je,k) = -rdry*dsig(k)*t(js:je,k)/(grav*sig(k)) 
   end do
   
-  ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)  
-  call aerodrop(is,lcdrop,lrhoa,outconv=.TRUE.)
-  cdrop(is:ie,:) = lcdrop(:,:)
-
-  ! Calculate convective cloud fraction
-  call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie))
-  clcon(is:ie,:) = lclcon(:,:)
-  
+  ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
+  ! xtg is unchanged since updating GPU
+  call aerodrop(js,lcdrop,lrhoa,outconv=.true.)
+  cdrop(js:je,:) = lcdrop(:,:)
 end do
 !$omp end do nowait
+
+
+#ifdef GPUPHYSICS
+!$acc enter data create(cdrop,fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto) &
+!$acc   create(fcoll,faccr,vi,vs,vg,dz,rhoa,clcon)
+!$acc update device(cdrop,dz,rhoa)
+#endif
+
+
+#ifndef GPU
+!$omp do schedule(static) private(js,je,k,lrhoa,lcdrop,lclcon)
+#endif
+#ifdef GPUPHYSICS
+!$acc parallel loop present(clcon,kbsav,ktsav,condc) &
+!$acc   private(lclcon,js,je)
+#endif
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+
+  ! Calculate convective cloud fraction
+  call convectivecloudfrac(lclcon,kbsav(js:je),ktsav(js:je),condc(js:je),acon,bcon)
+  clcon(js:je,:) = lclcon(:,:)
+  
+end do
+#ifndef GPU
+!$omp end do nowait
+#endif
+#ifdef GPUPHYSICS
+!$acc end parallel loop
+#endif
 
 
 !----------------------------------------------------------------------------
 ! Update cloud fraction
 
-!$omp do schedule(static) private(is,ie),                                      &
+#ifndef GPU
+!$omp do schedule(static) private(js,je),                                      &
 !$omp private(lcfrac),                                                         &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt),                          &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),   &
 !$omp private(idjd_t,mydiag_t)
+#endif
+#ifdef GPUPHYSICS
+!$acc parallel loop present(cfrac,qg,qlg,qfg,qlrad,qfrad,dpsldt,t,stratcloud) &
+!$acc   present(kbsav,ktsav,land,ps,qccon,em,pblh,cdrop,clcon)                &
+!$acc   present(nettend,rkmsave,rkhsave)                                      &
+!$acc   private(js,je,idjd_t,mydiag_t,lcfrac,lqg,lqlg,lqfg,lqlrad,lqfrad,lt)  &
+!$acc   private(ldpsldt,lclcon,lcdrop,lstratcloud,lnettend,lrkmsave,lrkhsave) &
+!$acc   private(lqccon)
+#endif
 do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
+  js = (tile-1)*imax + 1
+  je = tile*imax
 
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
-  lcfrac   = cfrac(is:ie,:)
-  lqg      = qg(is:ie,:)
-  lqlg     = qlg(is:ie,:)
-  lqfg     = qfg(is:ie,:)
-  lqlrad   = qlrad(is:ie,:)
-  lqfrad   = qfrad(is:ie,:)
-  lt       = t(is:ie,:)
-  ldpsldt  = dpsldt(is:ie,:)
-  lclcon   = clcon(is:ie,:)
-  lcdrop   = cdrop(is:ie,:)
-  lstratcloud = stratcloud(is:ie,:)
+  lcfrac   = cfrac(js:je,:)
+  lqg      = qg(js:je,:)
+  lqlg     = qlg(js:je,:)
+  lqfg     = qfg(js:je,:)
+  lqlrad   = qlrad(js:je,:)
+  lqfrad   = qfrad(js:je,:)
+  lt       = t(js:je,:)
+  ldpsldt  = dpsldt(js:je,:)
+  lclcon   = clcon(js:je,:)
+  lcdrop   = cdrop(js:je,:)
+  lstratcloud = stratcloud(js:je,:)
   if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
-    lnettend = nettend(is:ie,:)
-    lrkmsave = rkmsave(is:ie,:)
-    lrkhsave = rkhsave(is:ie,:)
+    lnettend = nettend(js:je,:)
+    lrkmsave = rkmsave(js:je,:)
+    lrkhsave = rkhsave(js:je,:)
   end if
 
-  call update_cloud_fraction(lcfrac,kbsav(is:ie),ktsav(is:ie),land(is:ie),             &
-              ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                         &
-              ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),pblh(is:ie),idjd_t, &
+  call update_cloud_fraction(lcfrac,kbsav(js:je),ktsav(js:je),land(js:je),             &
+              ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                         &
+              ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(js:je),pblh(js:je),idjd_t, &
               mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
               vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,imax,kl)
 
-  cfrac(is:ie,:) = lcfrac
-  qccon(is:ie,:) = lqccon
-  qg(is:ie,:)    = lqg
-  qlg(is:ie,:)   = lqlg
-  qfg(is:ie,:)   = lqfg
-  qlrad(is:ie,:) = lqlrad
-  qfrad(is:ie,:) = lqfrad
-  t(is:ie,:)     = lt
-  stratcloud(is:ie,:) = lstratcloud
+  cfrac(js:je,:) = lcfrac
+  qccon(js:je,:) = lqccon
+  qg(js:je,:)    = lqg
+  qlg(js:je,:)   = lqlg
+  qfg(js:je,:)   = lqfg
+  qlrad(js:je,:) = lqlrad
+  qfrad(js:je,:) = lqfrad
+  t(js:je,:)     = lt
+  stratcloud(js:je,:) = lstratcloud
   if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. ncloud==110 ) then
-    nettend(is:ie,:) = lnettend
+    nettend(js:je,:) = lnettend
   end if
 end do
+#ifndef GPU
 !$omp end do nowait
+#endif
+#ifdef GPUPHYSICS
+!$acc end parallel loop
+#endif
 
 
 !----------------------------------------------------------------------------
@@ -176,89 +218,118 @@ end do
 select case ( interp_ncloud(ldr,ncloud) )
   case("LEON")
   
-    !$omp do schedule(static) private(is,ie),                                     &
+#ifndef GPU
+    !$omp do schedule(static) private(js,je),                                     &
     !$omp private(lgfrac,lrfrac,lsfrac),                                          &
     !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl),                  &
     !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),    &
     !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
-    !$omp private(lstratcloud,lclcon,lcdrop),                                     &
+    !$omp private(lstratcloud,lcdrop),                                            &
     !$omp private(idjd_t,mydiag_t)
+#endif
+#ifdef GPUPHYSICS
+    !$acc parallel loop copy(qgrg,qrg,qsng,gfrac,rfrac,sfrac) &
+    !$acc   present(qg,qlg,qfg,t,cdrop,stratcloud,dz,rhoa)                      &
+    !$acc   present(condg,conds,condx,precip,ktsav,ps)                          &
+    !$acc   present(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)      &
+    !$acc   present(fcoll,faccr,vi,vs,vg)                                       &
+    !$acc   present(ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs,ppmaccr)    &
+    !$acc   present(ppmrate,ppqfsedice,pprfreeze,pprscav)                       &    
+    !$acc   private(js,je,idjd_t,mydiag_t,lgfrac,lrfrac,lsfrac,lqg,lqlg,lqfg)   &
+    !$acc   private(lstratcloud,lcdrop,lt)                                      &
+    !$acc   private(lqgrg,lqrg,lqsng,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg) &
+    !$acc   private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi,lvs,lvg)             &
+    !$acc   private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,lpplambs)      &
+    !$acc   private(lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav)
+#endif
     do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
+      js = (tile-1)*imax + 1
+      je = tile*imax
 
       idjd_t = mod(idjd-1,imax) + 1
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
-      lgfrac   = gfrac(is:ie,:)
-      lrfrac   = rfrac(is:ie,:)
-      lsfrac   = sfrac(is:ie,:)
-      lqg      = qg(is:ie,:)
-      lqgrg    = qgrg(is:ie,:)
-      lqlg     = qlg(is:ie,:)
-      lqfg     = qfg(is:ie,:)
-      lqrg     = qrg(is:ie,:)
-      lqsng    = qsng(is:ie,:)
-      lt       = t(is:ie,:)
-      lcdrop   = cdrop(is:ie,:)
-      lstratcloud = stratcloud(is:ie,:)
+      lgfrac   = gfrac(js:je,:)
+      lrfrac   = rfrac(js:je,:)
+      lsfrac   = sfrac(js:je,:)
+      lqg      = qg(js:je,:)
+      lqgrg    = qgrg(js:je,:)
+      lqlg     = qlg(js:je,:)
+      lqfg     = qfg(js:je,:)
+      lqrg     = qrg(js:je,:)
+      lqsng    = qsng(js:je,:)
+      lt       = t(js:je,:)
+      lcdrop   = cdrop(js:je,:)
+      lstratcloud = stratcloud(js:je,:)
 
-      call leoncld_work(condg(is:ie),conds(is:ie),condx(is:ie),lgfrac,ktsav(is:ie),           &
+      call leoncld_work(condg(js:je),conds(js:je),condx(js:je),lgfrac,ktsav(js:je),           &
               lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,                                   &
-              lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(is:ie),       &
-              ps(is:ie),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt,                      &
+              lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,precip(js:je),       &
+              ps(js:je),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt,                      &
               lstratcloud,lcdrop,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg,lqevap,lqsubl,     &
               lqauto,lqcoll,lqaccr,lvi,lvs,lvg,                                               &
               idjd_t,mydiag_t,ncloud,nevapls,ldr,rcm,imax,kl)
 
-      gfrac(is:ie,:) = lgfrac
-      rfrac(is:ie,:) = lrfrac
-      sfrac(is:ie,:) = lsfrac
-      qg(is:ie,:)    = lqg
-      qlg(is:ie,:)   = lqlg
-      qfg(is:ie,:)   = lqfg
-      qrg(is:ie,:)   = lqrg
-      qsng(is:ie,:)  = lqsng
-      qgrg(is:ie,:)  = lqgrg
-      t(is:ie,:)     = lt
-      stratcloud(is:ie,:) = lstratcloud
-      fluxr(is:ie,:) = lfluxr/dt
-      fluxm(is:ie,:) = lfluxm/dt
-      fluxf(is:ie,:) = lfluxf/dt
-      fluxi(is:ie,:) = lfluxi/dt
-      fluxs(is:ie,:) = lfluxs/dt
-      fluxg(is:ie,:) = lfluxg/dt
-      fevap(is:ie,:) = lqevap(:,:)*rhoa(is:ie,:)*dz(is:ie,:)/dt
-      fsubl(is:ie,:) = lqsubl(:,:)*rhoa(is:ie,:)*dz(is:ie,:)/dt
-      fauto(is:ie,:) = lqauto(:,:)*rhoa(is:ie,:)*dz(is:ie,:)/dt
-      fcoll(is:ie,:) = lqcoll(:,:)*rhoa(is:ie,:)*dz(is:ie,:)/dt
-      faccr(is:ie,:) = lqaccr(:,:)*rhoa(is:ie,:)*dz(is:ie,:)/dt
-      vi(is:ie,:) = lvi
-      vs(is:ie,:) = lvs
-      vg(is:ie,:) = lvg   
+      gfrac(js:je,:) = lgfrac
+      rfrac(js:je,:) = lrfrac
+      sfrac(js:je,:) = lsfrac
+      qg(js:je,:)    = lqg
+      qlg(js:je,:)   = lqlg
+      qfg(js:je,:)   = lqfg
+      qrg(js:je,:)   = lqrg
+      qsng(js:je,:)  = lqsng
+      qgrg(js:je,:)  = lqgrg
+      t(js:je,:)     = lt
+      stratcloud(js:je,:) = lstratcloud
+      fluxr(js:je,:) = lfluxr/dt
+      fluxm(js:je,:) = lfluxm/dt
+      fluxf(js:je,:) = lfluxf/dt
+      fluxi(js:je,:) = lfluxi/dt
+      fluxs(js:je,:) = lfluxs/dt
+      fluxg(js:je,:) = lfluxg/dt
+      fevap(js:je,:) = lqevap(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
+      fsubl(js:je,:) = lqsubl(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
+      fauto(js:je,:) = lqauto(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
+      fcoll(js:je,:) = lqcoll(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
+      faccr(js:je,:) = lqaccr(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
+      vi(js:je,:) = lvi
+      vs(js:je,:) = lvs
+      vg(js:je,:) = lvg   
       ! backwards compatible data for aerosols
       if ( abs(iaero)>=2 ) then
-        ppfevap(is:ie,:)    = lppfevap
-        ppfmelt(is:ie,:)    = lppfmelt
-        ppfprec(is:ie,:)    = lppfprec
-        ppfsnow(is:ie,:)    = lppfsnow
-        ppfsubl(is:ie,:)    = lppfsubl
-        pplambs(is:ie,:)    = lpplambs
-        ppmaccr(is:ie,:)    = lppmaccr
-        ppmrate(is:ie,:)    = lppmrate
-        ppqfsedice(is:ie,:) = lppqfsedice
-        pprfreeze(is:ie,:)  = lpprfreeze
-        pprscav(is:ie,:)    = lpprscav
+        ppfevap(js:je,:)    = lppfevap
+        ppfmelt(js:je,:)    = lppfmelt
+        ppfprec(js:je,:)    = lppfprec
+        ppfsnow(js:je,:)    = lppfsnow
+        ppfsubl(js:je,:)    = lppfsubl
+        pplambs(js:je,:)    = lpplambs
+        ppmaccr(js:je,:)    = lppmaccr
+        ppmrate(js:je,:)    = lppmrate
+        ppqfsedice(js:je,:) = lppqfsedice
+        pprfreeze(js:je,:)  = lpprfreeze
+        pprscav(js:je,:)    = lpprscav
       end if
     end do
+#ifndef GPU
     !$omp end do nowait
+#endif
+#ifdef GPUPHYSICS
+    !$acc end parallel loop
+#endif
 
   case("LIN")
+#ifdef GPUPHYSICS
+    !$acc update self(qg,qlg,qfg,t,stratcloud)
+#endif  
     if ( myid==0 ) then
       write(6,*) "LIN microphysics ",ncloud
       write(6,*) "ERROR: Not supported"
     end if
     call ccmpi_abort(-1)
+#ifdef GPUPHYSICS
+    !$acc update device(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)
+    !$acc update device(fcoll,faccr,vi,vs,vg)
+#endif
       
   case default
     write(6,*) "ERROR: unknown mp_physics option "
@@ -268,10 +339,20 @@ end select
   
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)  ) then
-  !$omp do schedule(static) private(is,ie,iq,k,fcol,fr,qtot,xic,xsn,xgr,vave,alph)
+#ifndef GPU
+  !$omp do schedule(static) private(js,je,iq,k,fcol,fr,qtot,xic,xsn,xgr,vave,alph)
+#endif
+#ifdef GPUPHYSICS
+  !$acc parallel loop present(ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs) &
+  !$acc   present(ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)                &
+  !$acc   present(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)       &
+  !$acc   present(fcoll,faccr,vi,vs,vg,dz,rhoa)                                &
+  !$acc   present(rfrac,t,qfg,qsng,qgrg)                                       &
+  !$acc   private(js,je,k,iq,fr,fcol,qtot,xic,xsn,xgr,vave,alph)
+#endif
   do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
+    js = (tile-1)*imax + 1
+    je = tile*imax
     
     ! fluxi - ice flux leaving layer k to k-1 (kg/m2/s)
     ! fluxs - snow flux leaving layer k to k-1 (kg/m2/s)
@@ -290,40 +371,38 @@ if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mod
     ! vs - snowfall velocity (m/s)
     ! vg - graupelfall velocity (m/s)
 
-    ppfprec(is:ie,1)   = 0. !At TOA
-    ppfmelt(is:ie,1)   = 0. !At TOA
-    ppfsnow(is:ie,1)   = 0. !At TOA
-    pprfreeze(is:ie,1) = 0. !At TOA
+    ppfprec(js:je,1)   = 0. !At TOA
+    ppfmelt(js:je,1)   = 0. !At TOA
+    ppfsnow(js:je,1)   = 0. !At TOA
+    pprfreeze(js:je,1) = 0. !At TOA
     do k = 1,kl-1
       ! rainfall flux (entering from above) (kg/m2/s)  
-      ppfprec(is:ie,kl+1-k) = fluxr(is:ie,k+1)+fluxm(is:ie,k)-fluxf(is:ie,k)
+      ppfprec(js:je,kl+1-k) = fluxr(js:je,k+1)+fluxm(js:je,k)-fluxf(js:je,k)
       ! snowfall flux (entering from above) (kg/m2/s)
-      ppfsnow(is:ie,kl+1-k) = fluxi(is:ie,k+1)+fluxs(is:ie,k+1)+fluxg(is:ie,k+1) &
-                              -fluxm(is:ie,k)+fluxf(is:ie,k)
+      ppfsnow(js:je,kl+1-k) = fluxi(js:je,k+1)+fluxs(js:je,k+1)+fluxg(js:je,k+1) &
+                              -fluxm(js:je,k)+fluxf(js:je,k)
       ! snowfall flux melting in layer k (kg/m2/s)
-      ppfmelt(is:ie,kl+1-k) = fluxm(is:ie,k)
+      ppfmelt(js:je,kl+1-k) = fluxm(js:je,k)
       ! rainfall flux freezing in layer k (kg/m2/s)
-      pprfreeze(is:ie,kl+1-k) = fluxf(is:ie,k) 
+      pprfreeze(js:je,kl+1-k) = fluxf(js:je,k) 
     end do
     do k = 1,kl
       ! rainall flux evaporating in layer k  
-      ppfevap(is:ie,kl+1-k) = fevap(is:ie,k)
+      ppfevap(js:je,kl+1-k) = fevap(js:je,k)
       ! snowfall flux evaporating in layer k
-      ppfsubl(is:ie,kl+1-k) = fsubl(is:ie,k)
+      ppfsubl(js:je,kl+1-k) = fsubl(js:je,k)
       ! precipitation formation rate (kg/kg/s)
-      ppmrate(is:ie,kl+1-k) = (fauto(is:ie,k)+fcoll(is:ie,k))/(rhoa(is:ie,k)*dz(is:ie,k))
+      ppmrate(js:je,kl+1-k) = (fauto(js:je,k)+fcoll(js:je,k))/(rhoa(js:je,k)*dz(js:je,k))
       ! liquid accertion rate (kg/kg/s)
-      ppmaccr(is:ie,kl+1-k) = faccr(is:ie,k)/(rhoa(is:ie,k)*dz(is:ie,k))
-      ! slope (lambda) for snow crystal size distribution (m**-1)
-      pplambs(is:ie,kl+1-k) = 1.6e3*10**(-0.023*(t(iq,k)-tfrz))          
-      ! Fraction rain scavenging rate in time-step
-      do iq = is,ie
+      ppmaccr(js:je,kl+1-k) = faccr(js:je,k)/(rhoa(js:je,k)*dz(js:je,k))
+      ! slope (lambda) for snow crystal size djstribution (m**-1)
+      pplambs(js:je,kl+1-k) = 1.6e3*10**(-0.023*(t(js:je,k)-tfrz))          
+      do iq = js,je
+        ! Fraction rain scavenging rate in time-step  
         fcol = rfrac(iq,k)
         Fr = fluxr(iq,k)/max(rfrac(iq,k),1.e-10)
         pprscav(iq,kl+1-k) = dt*0.24*fcol*Fr**0.75
-      end do  
-      ! Fractional ice sedimentation in time-step
-      do iq = is,ie
+        ! Fractional ice sedimentation in time-step
         qtot = max( qfg(iq,k) + qsng(iq,k) + qgrg(iq,k), 1.e-10 )
         xsn = qsng(iq,k)/qtot
         xgr = qgrg(iq,k)/qtot
@@ -334,10 +413,21 @@ if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mod
       end do  
     end do
   end do ! tile
-  !$omp end do nowait  
+#ifndef GPU
+  !$omp end do nowait
+#endif
+#ifdef GPUPHYSICS
+  !$acc end parallel loop
+#endif
 end if   ! if abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)
-  
-  
+
+
+#ifdef GPUPHYSICS
+!$acc exit data delete(cdrop,fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)  &
+!$acc   delete(fcoll,faccr,vi,vs,vg,dz,rhoa,clcon)
+#endif
+
+
   !! Estimate cloud droplet size
   !call cloud3(lrdrop,lrice,lconl,lconi,lcfrac,lqlrad,lqfrad,lpress,lt,lcdrop,imax,kl)
 
@@ -373,7 +463,7 @@ end subroutine ctrl_microphysics
 !   
 ! subroutine to select the cloud microphysics scheme for CCAM
 !====================================================================================================
-function interp_ncloud(ldr, ncloud) result(mp_physics)
+pure function interp_ncloud(ldr, ncloud) result(mp_physics)
 
 implicit none
 

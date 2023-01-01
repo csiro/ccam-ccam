@@ -264,7 +264,7 @@ end select                                                                      
 do tile = 1,ntiles                                                                               ! land
   is = (tile-1)*imax + 1                                                                         ! land
   ie = tile*imax                                                                                 ! land
-  qsat_tmp(1:imax) = qsat(ps(is:ie),tss(is:ie),imax)                                             ! land
+  qsat_tmp(1:imax) = qsat(ps(is:ie),tss(is:ie))                                                  ! land
   do iq = is,ie                                                                                  ! land
     if ( land(iq) ) then                                                                         ! land
       qsttg(iq) = qsat_tmp(iq-is+1)                                                              ! land
@@ -995,7 +995,7 @@ end where                                                                       
                                                                                                ! MLO
 ! pan evaporation diagnostic                                                                   ! MLO
 umag = max( umod, vmodmin )                                                                    ! MLO
-qsttg = qsat(ps,tpan,imax)                                                                     ! MLO
+qsttg = qsat(ps,tpan)                                                                          ! MLO
 ri = min(grav*zmin*(1.-tpan*srcp/t)/umag**2,ri_max)                                            ! MLO
                                                                                                ! MLO
 ! stuff to keep tpan over land working                                                         ! MLO
@@ -1004,7 +1004,7 @@ where (ri>0.)                                                                   
 elsewhere                                                                                      ! MLO
   fhd = umod-umod*2.*bprm*ri/(1.+chs*2.*bprm*chnsea*sqrt(-ri*zmin/panzo))                      ! MLO
 end where                                                                                      ! MLO
-qsttg = qsat(ps,tpan,imax)                                                                     ! MLO
+qsttg = qsat(ps,tpan)                                                                          ! MLO
                                                                                                ! MLO
 where ( .not.land(1:imax) )                                                                    ! MLO
   snowd = snowd*1000.                                                                          ! MLO
@@ -1021,7 +1021,7 @@ elsewhere                                                                       
   tpan=tpan+ga*dt/(4186.*0.254*1000.)                                                          ! MLO
   epan=rho*chnsea*hl*fhd*(qsttg-qg)                                                            ! MLO
 end where                                                                                      ! MLO
-qsttg = qsat(ps,tss,imax)                                                                      ! MLO
+qsttg = qsat(ps,tss)                                                                           ! MLO
 
 return
 end subroutine sflux_mlo_work
@@ -1221,7 +1221,7 @@ call atebenergy(urban_heating_flux,"heating",0,fp,pd,rdhyd,rfhyd,upack,ufull)   
 call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
 call atebenergy(urban_storage_flux,"storage",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
 where ( u_sigma>0. )                                                                             ! urban
-  qsttg(1:imax) = qsat(ps,tss,imax)                                                              ! urban
+  qsttg(1:imax) = qsat(ps,tss)                                                                   ! urban
   taux(1:imax) = rho(1:imax)*cduv(1:imax)*u(1:imax)                                              ! urban
   tauy(1:imax) = rho(1:imax)*cduv(1:imax)*v(1:imax)                                              ! urban
 end where                                                                                        ! urban

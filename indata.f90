@@ -356,8 +356,6 @@ if ( myid==0 .and. nmaxpr==1 ) then
   write(6,*)'ratha ',ratha
   write(6,*)'rathb ',rathb
 end if
-
-!$acc update device(ratha,rathb)
    
 c = grav/stdlapse
 if ( lapsbot==1 ) then
@@ -402,6 +400,10 @@ end if
 ! zmin here is approx height of the lowest level in the model
 zmin = -rdry*280.*log(sig(1))/grav
 if ( myid==0 ) write(6,*) 'First model level height zmin = ',zmin
+
+!$acc update device(ratha,rathb,sig,dsig)
+!$acc update device(sigmh,bet,betm)
+
 
 !--------------------------------------------------------------
 ! READ OROGRAPHY (io_in and nhstest)

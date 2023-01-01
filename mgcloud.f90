@@ -36,17 +36,23 @@ contains
 !       110, D15S06, doi:10.1029/2004JD005017. 
     
 subroutine mg_progcld
+!$acc routine vector
 
+#ifndef GPU
 write(6,*) "ERROR: mg_progcld is not supported"
 stop
+#endif
 
 return
 end subroutine mg_progcld
 
 subroutine mg_2cond
+!$acc routine vector
 
+#ifndef GPU
 write(6,*) "ERROR: mg_2cond is not supported"
 stop
+#endif
 
 return
 end subroutine mg_2cond

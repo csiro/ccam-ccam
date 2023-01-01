@@ -173,7 +173,8 @@ if ( (aero_update==aero_split) ) then
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
-    call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),cldcon=cldcon(is:ie))
+    call convectivecloudfrac(lclcon,kbsav(is:ie),ktsav(is:ie),condc(is:ie),acon,bcon, &
+                            cldcon=cldcon(is:ie))
     clcon(is:ie,:) = lclcon    
   end do
   !$omp end do nowait    
