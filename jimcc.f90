@@ -139,25 +139,28 @@ endif  ! (num==0)
 
 do i=1,(np+1)/2
   xc(i,1)=max(-1.,xc(i,1)) ! for rounding errors
-enddo
+! ensure xb exactly equals xc along diagonal,
+! so as symmetrizing not sensitive to lower bound of i loop
+  xc(i,i)=.5*(xc(i,i)+xb(i,i))
+  xb(i,i)=xc(i,i)
+end do
 do j=1,(np+1)/2
- !do i=j+1,(np+1/2) ! original code
- do i=j+1,(np+1)/2  ! rest of bottom LH corner    
+ do i=j,(np+1)/2  ! rest of bottom LH corner - was (np+1/2)
   xa(j,i)=xa(i,j)
   xb(j,i)=xc(i,j)
   xc(j,i)=xb(i,j)
- enddo
+ end do
  do i=1,np/2        ! all of bottom RH corner
   xa(np+1-i,j)=xa(i,j)
   xb(np+1-i,j)=-xb(i,j)
   xc(np+1-i,j)=xc(i,j)
- enddo
+ end do
  do i=1,np          ! all of top half
   xa(i,np+1-j)=xa(i,j)
   xb(i,np+1-j)=xb(i,j)
   xc(i,np+1-j)=-xc(i,j)
- enddo
-enddo
+ end do
+end do
 
 if(num==0)then
  num=1

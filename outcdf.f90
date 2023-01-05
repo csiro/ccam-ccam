@@ -4034,6 +4034,7 @@ if ( first ) then
         call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
       end do 
     end if
+    ! avaliable in std output
     !if ( cordex_tier2 ) then
     !  do k = 11,cordex_levels ! 150, 100, 75, 50, 30, 20, 10
     !    press_level = cordex_level_data(k)
@@ -4523,6 +4524,7 @@ if ( mod(ktau,tbave)==0 ) then
       call histwrt(wa_level,trim(vname),fncid,fiarch,local,l6hr) 
     end do  
   end if
+  ! avaliable in std output
   !if ( cordex_tier1 ) then
   !  do j = 11,cordex_levels ! 150, 100, 75, 50, 30, 20, 10
   !    press_level = cordex_level_data(j)

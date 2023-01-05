@@ -303,6 +303,7 @@ idzp(:,1:kl-1) = rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
 
 ustar_ave(:) = 0.
 fg_ave(:) = 0.
+ugs_var(:) = 0.
 
 #ifdef CCAM
 if ( mode==2 .or. mode==3 ) then
@@ -489,6 +490,7 @@ do kcount = 1,mcount
     call pack_coupled_ts(w_t,w_s,imax,tile)
   end if
 #endif
+
   
 end do ! kcount loop
 
@@ -503,9 +505,10 @@ do iq = 1,imax
   !          + (2.-cs3-cw3*l_on_kz)*ppb(iq,1)                  &
   !          - (2./3.)*eps(iq,1) ) )                           &
   !          / (1.+(cw1/cs1)*l_on_kz)
-  ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq ! = (cm12-0.5*1.2)*ustar(iq)**2 + ce3*wstar(iq)**2
-  !usg_var(iq) = (2.185*ustar(iq))**2 ! Wichers et al (2008)
+  ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq      ! = (cm12-0.5*1.2)*ustar(iq)**2 + ce3*wstar(iq)**2
+  !usg_var(iq) = (2.185*ustar(iq))**2         ! Wichers et al (2008)
 end do
+
 
 #ifdef CCAM
 if ( mode==2 .or. mode==3 ) then

@@ -273,7 +273,7 @@ implicit none
 integer, intent(in) :: ntr
 integer k, iq, iqc, nc, its
 integer nstart, nend, nlen, nn, np
-integer, parameter :: num_its = 3
+integer, parameter :: num_its = 4
 integer async_counter
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
@@ -460,7 +460,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
             xfact_iwu = xfact(iwu(iq),k)
             yfact_isv = yfact(isv(iq),k)
             base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-            work(iq,k,np) = work_save(iq,k,nn) + dt*(               &
+            work(iq,k,np) = work_save(iq,k,nn) - dt*(               &
                               -base*ans(iq,k,nn) +                  &
                               xfact(iq,k)*ans(ie(iq),k,nn) +        &
                               xfact_iwu*ans(iw(iq),k,nn) +          &

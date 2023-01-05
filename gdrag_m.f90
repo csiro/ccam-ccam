@@ -30,7 +30,7 @@ public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 real, dimension(:), allocatable, save :: helo
 real, dimension(:), allocatable, save :: he
 integer, save :: kbot_gwd
-!$acc declare create(kbot_gwd,he)
+!$acc declare create(kbot_gwd)
 
 contains
 
@@ -65,7 +65,7 @@ if ( sigbot_gwd>=.5 ) then
   kbot_gwd = kpos(1) ! JLM
 end if
 if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot_gwd
-!$acc update device(kbot_gwd,he)
+!$acc update device(kbot_gwd)
 ! MJT notes - he defined in indata.f90 before calling gdrag_sbl
 
 return
@@ -102,7 +102,8 @@ logical mydiag_t
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop present(t,u,v,tss,he) &
+!$acc parallel loop copyin(tss,he)              &
+!$acc   present(t,u,v)                          &
 !$acc   private(lt,lu,lv,js,je,idjd_t,mydiag_t)
 #endif
 do tile = 1,ntiles
@@ -179,9 +180,11 @@ do k = 1,kl
   sigk(k) = sig(k)**(rdry/cp)
 end do
 
+! put theta in theta_full()
 do k = 1,kl
-  ! put theta in theta_full()
-  theta_full(:,k) = t(:,k)/sigk(k)                ! gwdrag
+  do iq = 1,imax
+    theta_full(iq,k) = t(iq,k)/sigk(k)                ! gwdrag
+  end do  
 end do
 
 !  calc d(theta)/dz  at half-levels , using 1/dz at level k-.5
@@ -191,8 +194,8 @@ do iq = 1,imax
   dtheta_dz_kmh(iq,1) = (theta_full(iq,1)-tss(iq))*dzi    
 end do
 do k = 2,kl
-  dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)
   do iq = 1,imax  
+    dzx = grav*(sig(k-1)+sig(k))/((sig(k-1)-sig(k))*rdry)    
     dzi = dzx/(t(iq,k-1)+t(iq,k)) 
     dtheta_dz_kmh(iq,k) = (theta_full(iq,k)-theta_full(iq,k-1))*dzi
   end do
@@ -206,7 +209,9 @@ wmag(:) = sqrt(max(u(:,1)**2+v(:,1)**2, vmodmin**2)) ! MJT suggestion
 !      if unstable reference level then no gwd 
 !            - happens automatically via effect on bvnf & alambda
 do k = 1,kl-1
-  bvnf(:,k) = sqrt(max(1.e-20, grav*0.5*(dtheta_dz_kmh(:,k)+dtheta_dz_kmh(:,k+1))/theta_full(:,k)) ) ! MJT fixup
+  do iq = 1,imax
+    bvnf(iq,k) = sqrt(max(1.e-20, grav*0.5*(dtheta_dz_kmh(iq,k)+dtheta_dz_kmh(iq,k+1))/theta_full(iq,k)) ) ! MJT fixup
+  end do    
 end do    ! k loop
 bvnf(:,kl) = sqrt(max(1.e-20, grav*dtheta_dz_kmh(:,kl)/theta_full(:,kl)))    ! jlm fixup
 
@@ -219,21 +224,25 @@ else
 end if
 
 do k = 1,2 ! uu is +ve wind compt in dirn of (u_1,v_1)
-  uu(:,k) = max(0., u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
+  do iq = 1,imax
+    uu(iq,k) = max(0., u(iq,k)*u(iq,1)+v(iq,k)*v(iq,1))/wmag(iq)
+  end do
 end do    ! k loop
 
 !**** set uu() to zero above if uu() zero below
 !**** uu>0 at k=1, uu>=0 at k=1+1 - only set for k=1+2 to kl  
 do k = 3,kl
-  where ( uu(:,k-1)<1.e-20 )
-    uu(:,k) = 0.
-  elsewhere
-    uu(:,k) = max(0., u(:,k)*u(:,1)+v(:,k)*v(:,1))/wmag(:)
-  end where
+  do iq = 1,imax
+    if ( uu(iq,k-1)<1.e-20 ) then
+      uu(iq,k) = 0.
+    else
+      uu(iq,k) = max(0., u(iq,k)*u(iq,1)+v(iq,k)*v(iq,1))/wmag(iq)
+    end if
+  end do  
 end do    ! k loop
 
+!       calc max(1-Fc**2/F**2,0) : put in fni()
 do k = kbot_gwd,kl
-  !       calc max(1-Fc**2/F**2,0) : put in fni()
   do iq = 1,imax
     froude2_inv = sig(k)*temp(iq)*uu(iq,k)**3/(sigk(k)*bvnf(iq,k)*theta_full(iq,k))
     fni(iq,k) = max(0., 1.-abs(fc2)*froude2_inv)
@@ -246,7 +255,9 @@ end if
 ! form integral of above*uu**2 from sig=sigbot_gwd to sig=0
 fnii(:) = -fni(:,kbot_gwd)*dsig(kbot_gwd)*uu(:,kbot_gwd)*uu(:,kbot_gwd)
 do k = kbot_gwd+1,kl
-  fnii(:) = fnii(:)-fni(:,k)*dsig(k)*uu(:,k)*uu(:,k)
+  do iq = 1,imax
+    fnii(iq) = fnii(iq)-fni(iq,k)*dsig(k)*uu(iq,k)*uu(iq,k)
+  end do  
 end do    ! k loop
 
 !     Chouinard et al. use alpha=.01

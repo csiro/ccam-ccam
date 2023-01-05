@@ -573,29 +573,16 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
 #ifdef GPUPHYSICS
   ! MJT notes - the physics OpenACC code requires a larger heapsize like
-  ! export PGI_ACC_CUDA_HEAPSIZE=268435456
-  !$acc data create(t,u,v,tss)                                     &
+  ! export PGI_ACC_CUDA_HEAPSIZE=268435456 and maxtilesize=32
+  !$acc data create(t,u,v,qg,qlg,qfg)                              &
   !$acc   create(kbsav,ktsav,condc,condx,conds,condg)              &
-  !$acc   create(dpsldt,cfrac,ps,pblh,fg,wetfac,land,em,sgsave)    &
-  !$acc   create(qg,qlg,qfg)                                       &
-  !$acc   create(precc,precip)                                     &
-  !$acc   create(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd)          &
-  !$acc   create(tr)                                               &
-  !$acc   create(cfrac,qlrad,qfrad,stratcloud,kbsav,ktsav,qccon)   &
-  !$acc   create(nettend,rkmsave,rkhsave)                          &
-  !$acc   create(ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs)  &
-  !$acc   create(ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
-  !$acc update device(t,u,v,tss) async(0)
+  !$acc   create(dpsldt,ps,pblh,land,em)                           &
+  !$acc   create(precip)
+  !$acc update device(t,u,v) async(0)
   !$acc wait(0)
-  !$acc update device(dpsldt,cfrac,ps,pblh,fg,wetfac,land,em,sgsave) async(0)
+  !$acc update device(dpsldt,ps,pblh,land,em) async(0)
   !$acc update device(qg,qlg,qfg) async(0)
-  !$acc update device(precc,precip) async(0)
-  if ( abs(iaero)>=2 ) then
-    !$acc update device(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd) async(0)
-  end if 
-  if ( ngas>0 ) then
-    !$acc update device(tr) async(0)  
-  end if
+  !$acc update device(precip) async(0)
 #endif  
   
   
@@ -619,10 +606,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #ifdef GPUPHYSICS
   !updated u,v
   !$acc wait(0)
-  !$acc update device(stratcloud) async(0)
-  if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
-    !$acc update device(nettend,rkmsave,rkhsave) async(0) 
-  end if
 #endif
 
 
@@ -684,9 +667,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
   call ctrl_microphysics
-#ifdef GPUPHYSICS
-  !$acc update self(t) ! for convh_ave calculation
-#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -698,7 +678,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
   end do  
   !$omp end do nowait
-#ifndef GPU
+#ifndef GPUPHYSICS
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -714,22 +694,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !updated t,qg,qlg,qfg,stratcloud
   !updated condg,conds,condx,precip
   !updated cfrac,qlrad,qfrad,qccon
-  !updated ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs
-  !updated ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav
+  !updated nettend,rkmsave,rkhsave
+  !updated ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs,ppmaccr
+  !updated ppmrate,ppqfsedice,pprfreeze,pprscav
   !$acc update self(u,v)
   !$acc update self(kbsav,ktsav,condc,condx,conds,condg)
   !$acc update self(t,qg,qlg,qfg)
-  !$acc update self(precc,precip)
-  !$acc update self(stratcloud)
-  !$acc update self(cfrac,qlrad,qfrad,qccon)
-  !$acc update self(ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs)
-  !$acc update self(ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav)
-  if ( abs(iaero)>=2 ) then
-    !$acc update self(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd)  
-  end if
-  if ( ngas>0 ) then
-    !$acc update self(tr)
-  end if   
+  !$acc update self(precip)
   !$acc end data
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
@@ -2941,13 +2912,9 @@ if ( kblock<0 ) then
   end if  
 end if
 if ( wgcoeff<0. ) then
-  if ( nvmix==6 .or. nvmix==7 ) then  
-    tscale = max( max( tke_timeave_length, dt ), wg_tau )
-  else
-    tscale = max( dt, wg_tau )  
-  end if
+  tscale = max( 3600., wg_tau )
   ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
-  wgcoeff = sqrt(max(0.,2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
+  wgcoeff = sqrt(max(0.,2.*log((tscale/wg_tau)*(1./sqrt(2.*pi))*(-1./log(wg_prob)))))
   if ( myid==0 ) then
     write(6,*) "Adjusting wgcoeff = ",wgcoeff
   end if

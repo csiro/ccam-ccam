@@ -35,8 +35,6 @@
 !$acc declare create(mcontlnd,mcontsea,tied_b,convt_frac)
 !$acc declare create(k500,k600,k700,k900,k980)
 !$acc declare create(klon2,komega)
-!$acc declare create(upin,upin4,downex)
-!$acc declare create(alfin,aug)
 
       contains 
       
@@ -229,8 +227,6 @@
 !$acc update device(mcontlnd,mcontsea,tied_b,convt_frac)
 !$acc update device(k500,k600,k700,k900,k980)
 !$acc update device(klon2,komega)
-!$acc update device(upin,upin4,downex)
-!$acc update device(alfin,aug)
         
       end subroutine convjlm22_init
 
@@ -265,7 +261,7 @@
       real, dimension(imax,kl,ntrac) :: ltr
       real, dimension(imax,kl)       :: ldpsldt, lt, lqg
       real, dimension(imax,kl)       :: lfluxtot
-      real, dimension(imax,kl)       :: lqlg, lqfg, lcfrac
+      real, dimension(imax,kl)       :: lqlg, lqfg
       real, dimension(imax,kl)       :: lu, lv
       real, dimension(imax,ndust)    :: ldustwd
       real, dimension(imax)          :: lso2wd, lso4wd, lbcwd
@@ -274,21 +270,23 @@
 
 #ifndef GPU
 !$omp  do schedule(static) private(js,je),
-!$omp& private(ldpsldt,lt,lqg,lqlg,lqfg,lfluxtot,lcfrac),
+!$omp& private(ldpsldt,lt,lqg,lqlg,lqfg,lfluxtot),
 !$omp& private(lu,lv),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
 !$omp& private(ltr,idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop present(alfin,aug)
+!$acc parallel loop copy(tr,xtg,dustwd,so2wd,so4wd,bcwd,ocwd)
+!$acc& copy(saltwd,precc)
+!$acc& copyin(sgsave,fg,wetfac)
+!$acc& copyin(upin,upin4,downex)
+!$acc& copyin(alfin,aug)
 !$acc& copyout(fluxtot,cape,convpsav)
 !$acc& present(t,qg,qlg,qfg,u,v)
 !$acc& present(kbsav,ktsav,condc,condx,conds,condg)
-!$acc& present(precc,precip)
-!$acc& present(dpsldt,cfrac,ps,pblh,fg,wetfac,land,em,sgsave)
-!$acc& present(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd,ps)
-!$acc& present(tr)
-!$acc& private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv,lfluxtot)
+!$acc& present(precip)
+!$acc& present(dpsldt,ps,pblh,land,em)
+!$acc& private(ldpsldt,lt,lqg,lqlg,lqfg,lu,lv,lfluxtot)
 !$acc& private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd)
 !$acc& private(ltr)
 !$acc& private(js,je,idjd_t,mydiag_t)
@@ -305,7 +303,6 @@
         lqg       = qg(js:je,:)
         lqlg      = qlg(js:je,:)
         lqfg      = qfg(js:je,:)
-        lcfrac    = cfrac(js:je,:)
         lu        = u(js:je,:)
         lv        = v(js:je,:)
          if ( abs(iaero)>=2 ) then
@@ -329,8 +326,9 @@
      &       condg(js:je),precip(js:je),
      &       pblh(js:je),fg(js:je),wetfac(js:je),land(js:je),lu,lv,
      &       em(js:je),
-     &       kbsav(js:je),ktsav(js:je),ltr,lqfg,lcfrac,sgsave(js:je),
+     &       kbsav(js:je),ktsav(js:je),ltr,lqfg,sgsave(js:je),
      &       aug(js:je),
+     &       upin,upin4,downex,
      &       idjd_t,mydiag_t,entrain,detrain,mbase,iterconv,
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,rhcv,
      &       convtime,nkuo,rhsat,nevapls,
@@ -343,7 +341,6 @@
         fluxtot(js:je,:) = lfluxtot
         u(js:je,:)       = lu
         v(js:je,:)       = lv
-        cfrac(js:je,:)   = lcfrac
         if ( abs(iaero)>=2 ) then
           xtg(js:je,:,:)  = lxtg
           dustwd(js:je,:) = ldustwd
@@ -372,7 +369,8 @@
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,u,v,em,
-     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,aug,
+     &       kbsav,ktsav,tr,qfg,sgsave,aug,
+     &       upin,upin4,downex,
      &       idjd,mydiag,entrain,detrain,mbase,iterconv,
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,rhcv,
      &       convtime,nkuo,rhsat,nevapls,
@@ -423,7 +421,6 @@
       real, dimension(imax,kl,naero), intent(inout)    :: xtg
       real, dimension(imax,kl,ntrac), intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)         :: dpsldt
-      real, dimension(imax,kl), intent(inout)      :: cfrac
       real, dimension(imax,kl), intent(inout)          :: t
       real, dimension(imax,kl), intent(inout)          :: qg
       real, dimension(imax,kl), intent(inout)          :: qlg
@@ -454,6 +451,9 @@
       real, dimension(imax), intent(inout)             :: saltwd
       real, dimension(imax), intent(out)               :: convpsav
       real, dimension(imax), intent(inout)             :: aug
+      real, dimension(kl,kl), intent(in)               :: upin
+      real, dimension(kl,kl), intent(in)               :: upin4
+      real, dimension(kl,kl), intent(in)               :: downex
       integer, dimension(imax), intent(inout)          :: kbsav
       integer, dimension(imax), intent(inout)          :: ktsav
       logical, dimension(imax), intent(in)             :: land
@@ -736,7 +736,6 @@
         write (6,"('hb/cp',12f7.2/(5x,12f7.2))") 
      .             s(iq,:)/cp+hlcp*qplume(iq,:)
         write (6,"('hs/cp ',12f7.2/(5x,12f7.2))") hs(iq,:)/cp
-        write (6,"('cfracc',12f7.3/6x,12f7.3)") cfrac(iq,:)
         write (6,"('k   ',12i7/(4x,12i7))") (k,k=1,kl)
         write (6,"('es     ',9f7.1/(7x,9f7.1))") es(iq,:)
         write (6,"('dqsdt6p',6p9f7.1/(7x,9f7.1))") dqsdt(iq,:)
@@ -1742,12 +1741,12 @@ c           write(6,*)'has tied_con=0'
       if(nmaxpr==1.and.mydiag)then
        iq=idjd
        if(ktau==1.and.itn==1)write (6, "(15x,
-     &  'ktau itn kb_sav kmin kdown kt_sav cfrac+ entxsav detrx ',
+     &  'ktau itn kb_sav kmin kdown kt_sav entxsav detrx ',
      &  ' fluxv  fluxvt-1 factr convpsav3 rnrtcn3 cape')")
        if(kb_sav(iq)<kl-1)write (6,"('ktau ... cape ',
      &   i5,i4,']',2i5,2i6,f9.2,5f8.2,3p2f8.3,1pf9.1)")  ktau,itn,
      &   kb_sav(iq),kmin(iq),kdown(iq),kt_sav(iq),
-     &   cfrac(iq,kb_sav(iq)+1),entrsav(iq,kdown(iq)),
+     &   entrsav(iq,kdown(iq)),
      &   detrx(iq,kdown(iq)),fluxv(iq,kdown(iq)),
      &   fluxv(iq,kt_sav(iq)-1),factr(iq),convpsav(iq),
      &   rnrtcn(iq),cape(iq)
@@ -1907,7 +1906,7 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
           enddo    ! iq loop
          enddo     ! k loop
         endif      ! (nevapls>0)
-        cfrac=.3   ! just a default for radn
+        !cfrac=.3   ! just a default for radn
       endif  ! (ldr.ne.0)
 !_______________end of convective calculations__________________
      

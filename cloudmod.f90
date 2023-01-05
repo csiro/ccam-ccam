@@ -114,14 +114,17 @@ real, dimension(kl) :: diag_temp
 
 ! meterological fields
 do k = 1,kl
-  prf_temp(:,k) = ps(:)*sig(k)
-  dprf(:,k)   = -0.01*ps(:)*dsig(k) !dsig is -ve
-  dz(:,k)     = -rdry*dsig(k)*t(:,k)/(grav*sig(k)) ! level thickness in metres
+  do iq = 1,imax
+    prf_temp(iq,k) = ps(iq)*sig(k)
+    dprf(iq,k)   = -0.01*ps(iq)*dsig(k) !dsig is -ve
+    prf(iq,k)    = 0.01*prf_temp(iq,k)    !ps is SI units
+    rhoa(iq,k)   = prf_temp(iq,k)/(rdry*t(iq,k))     ! air density
+    dz(:,k)     = -rdry*dsig(k)*t(:,k)/(grav*sig(k)) ! level thickness in metres
+    dz(iq,k)     = min( max(dz(iq,k), 1.), 2.e4 )
+  end do
 end do
-prf(:,:)    = 0.01*prf_temp(:,:)    !ps is SI units
-rhoa(:,:)   = prf_temp(:,:)/(rdry*t(:,:))             ! air density
-qsatg(:,:)  = qsat(prf_temp,t(:,:))                   ! saturated mixing ratio
-dz(:,:)     = min( max(dz(:,:), 1.), 2.e4 )
+qsatg(:,:)  = qsat(prf_temp,t) ! saturated mixing ratio
+
 
 ! default values
 kbase(:) = 0  ! default
@@ -151,20 +154,22 @@ endif
 
 ! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
 do k = 1,kl
-  where ( clcon(:,k)>0. )
-    !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
-    qccon(:,k)  = clcon(:,k)*wcon(:)/rhoa(:,k)
-    qenv(:,k)   = max( 1.e-8, (qg(:,k)-clcon(:,k)*max(qsatg(:,k),qg(:,k)))/(1.-clcon(:,k)) )
-    qcl(:,k)    = (qg(:,k)-(1.-clcon(:,k))*qenv(:,k))/clcon(:,k)
-    qlg(:,k)    = qlg(:,k)/(1.-clcon(:,k))
-    qfg(:,k)    = qfg(:,k)/(1.-clcon(:,k))
-    stratcloud(:,k) = stratcloud(:,k)/(1.-clcon(:,k))
-  elsewhere
-    qccon(:,k)  = 0.
-    qcl(:,k)    = qg(:,k)
-    qenv(:,k)   = qg(:,k)
-  end where
-  tenv(:,k)   = t(:,k) ! Assume T is the same in and out of convective cloud
+  do iq = 1,imax
+    if ( clcon(iq,k)>0. ) then
+      !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
+      qccon(iq,k)  = clcon(iq,k)*wcon(iq)/rhoa(iq,k)
+      qenv(iq,k)   = max( 1.e-8, (qg(iq,k)-clcon(iq,k)*max(qsatg(iq,k),qg(iq,k)))/(1.-clcon(iq,k)) )
+      qcl(iq,k)    = (qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))/clcon(iq,k)
+      qlg(iq,k)    = qlg(iq,k)/(1.-clcon(iq,k))
+      qfg(iq,k)    = qfg(iq,k)/(1.-clcon(iq,k))
+      stratcloud(iq,k) = stratcloud(iq,k)/(1.-clcon(iq,k))
+    else
+      qccon(iq,k)  = 0.
+      qcl(iq,k)    = qg(iq,k)
+      qenv(iq,k)   = qg(iq,k)
+    end if
+    tenv(iq,k)   = t(iq,k) ! Assume T is the same in and out of convective cloud
+  end do
 end do
 
 #ifdef debug
@@ -204,9 +209,13 @@ end if
 
 ! Vertically sub-grid cloud
 ccov(1:imax,1:kl) = stratcloud(1:imax,1:kl)
-where ( stratcloud(:,1:kl-2)<1.e-10 .and. stratcloud(:,2:kl-1)>1.e-2 .and. stratcloud(:,3:kl)<1.e-10 )
-  ccov(:,2:kl-1) = sqrt(stratcloud(:,2:kl-1))
-end where
+do k = 2,kl-1
+  do iq = 1,imax
+    if ( stratcloud(iq,k-1)<1.e-10 .and. stratcloud(iq,k)>1.e-2 .and. stratcloud(iq,k+1)<1.e-10 ) then
+      ccov(iq,k) = sqrt(stratcloud(iq,k))
+    end if
+  end do
+end do
 
 
 #ifdef debug
@@ -227,15 +236,17 @@ endif
 
 
 !     Weight output variables according to non-convective fraction of grid-box
-t(:,:)  = clcon(:,:)*t(:,:) + (1.-clcon(:,:))*tenv(:,:)
-qg(:,:) = clcon(:,:)*qcl(:,:) + (1.-clcon(:,:))*qenv(:,:)
 do k = 1,kl
-  where ( k>=kbase(:) .and. k<=ktop(:) )
-    stratcloud(:,k) = stratcloud(:,k)*(1.-clcon(:,k))
-    ccov(:,k) = ccov(:,k)*(1.-clcon(:,k))
-    qlg(:,k)  = qlg(:,k)*(1.-clcon(:,k))
-    qfg(:,k)  = qfg(:,k)*(1.-clcon(:,k))
-  end where
+  do iq = 1,imax
+    t(iq,k)  = clcon(iq,k)*t(iq,k) + (1.-clcon(iq,k))*tenv(iq,k)
+    qg(iq,k) = clcon(iq,k)*qcl(iq,k) + (1.-clcon(iq,k))*qenv(iq,k)
+    if ( k>=kbase(iq) .and. k<=ktop(iq) ) then
+      stratcloud(iq,k) = stratcloud(iq,k)*(1.-clcon(iq,k))
+      ccov(iq,k) = ccov(iq,k)*(1.-clcon(iq,k))
+      qlg(iq,k)  = qlg(iq,k)*(1.-clcon(iq,k))
+      qfg(iq,k)  = qfg(iq,k)*(1.-clcon(iq,k))
+    end if
+  end do
 end do
 
 #ifndef GPU
@@ -267,9 +278,9 @@ do k = 1,kl
     fl      = max(0., min(1., (t(iq,k)-ticon)/(273.15-ticon)))
     qlrad(iq,k) = qlg(iq,k) + fl*qccon(iq,k)
     qfrad(iq,k) = qfg(iq,k) + (1.-fl)*qccon(iq,k)
+    cfrac(iq,k) = min( 1., ccov(iq,k)+clcon(iq,k) ) ! original
   end do
 end do
-cfrac(:,:) = min( 1., ccov(:,:)+clcon(:,:) ) ! original
 
 return
 end subroutine update_cloud_fraction
@@ -354,27 +365,27 @@ end if
 ! Then calculate the cloud conserved variables qtot and tliq.
 ! Note that qcg is the total cloud water (liquid+frozen)
 
-where ( ttg(:,:)>=tfrz )
-  fice(:,:) = 0.
-else where ( ttg(:,:)>=tice .and. qfg(:,:)>1.e-12 )
-  fice(:,:) = min(qfg(:,:)/(qfg(:,:)+qlg(:,:)), 1.)
-else where ( ttg(:,:)>=tice )
-  fice(:,:) = 0.
-else where
-  fice(:,:) = 1.
-end where
-qcg(:,:)   = qlg(:,:) + qfg(:,:)
-qcold(:,:) = qcg(:,:)
 do k = 1,kl
   do iq = 1,imax
+    if ( ttg(iq,k)>=tfrz ) then
+      fice(iq,k) = 0.
+    else if ( ttg(iq,k)>=tice .and. qfg(iq,k)>1.e-12 ) then
+      fice(iq,k) = min(qfg(iq,k)/(qfg(iq,k)+qlg(iq,k)), 1.)
+    else if ( ttg(iq,k)>=tice ) then
+      fice(iq,k) = 0.
+    else
+      fice(iq,k) = 1.
+    end if
+    qcg(iq,k)   = qlg(iq,k) + qfg(iq,k)
+    qcold(iq,k) = qcg(iq,k)
     qfnew       = fice(iq,k)*qcg(iq,k)
     ttg(iq,k)   = ttg(iq,k) + hlfcp*(qfnew-qfg(iq,k)) !Release L.H. of fusion
     qfg(iq,k)   = qfnew
     qlg(iq,k)   = max(0., qcg(iq,k)-qfg(iq,k))
+    qtot(iq,k)  = qtg(iq,k) + qcg(iq,k)
+    tliq(iq,k)  = ttg(iq,k) - hlcp*qcg(iq,k) - hlfcp*qfg(iq,k)
   end do
 end do
-qtot(:,:)  = qtg(:,:) + qcg(:,:)
-tliq(:,:)  = ttg(:,:) - hlcp*qcg(:,:) - hlfcp*qfg(:,:)
 
 #ifdef debug
 if ( diag .and. mydiag ) then
@@ -579,14 +590,18 @@ if ( (ncloud/=4 .and. ncloud<10) .or. ncloud==100 ) then
   ! JAS, 55, 1822-1845, 1998). Their suggested range for the time constant is 0.5 to 2 hours.
   ! The grid-box-mean values of qtg and ttg are adjusted later on (below).
   decayfac = exp ( -tdt/cld_decay )  ! Try cld_decay=2 hrs (decayfac=0. is instant adjustment for the old scheme)
-  where( ttg(:,:)>=Tice )
-    qfg(:,:) = fice(:,:)*qcg(:,:)
-    qlg(:,:) = qcg(:,:) - qfg(:,:)
-  elsewhere                                 ! Cirrus T range
-    qfg(:,:) = qcold(:,:)*decayfac + qcg(:,:)*(1.-decayfac)
-    qlg(:,:) = 0.
-    qcg(:,:) = qfg(:,:)
-  end where
+  do k = 1,kl
+    do iq = 1,imax
+      if ( ttg(iq,k)>=Tice ) then
+        qfg(iq,k) = fice(iq,k)*qcg(iq,k)
+        qlg(iq,k) = qcg(iq,k) - qfg(iq,k)
+      else                                 ! Cirrus T range
+        qfg(iq,k) = qcold(iq,k)*decayfac + qcg(iq,k)*(1.-decayfac)
+        qlg(iq,k) = 0.
+        qcg(iq,k) = qfg(iq,k)
+      end if
+    end do
+  end do
 
 else
 
@@ -605,14 +620,18 @@ else
 
   decayfac = exp ( -tdt/cld_decay )  ! Try 2 hrs
   !decayfac = 0.                     ! Instant adjustment (old scheme)
-  where( ttg(:,:)>=Tice )
-    qfg(:,:) = fice(:,:)*qcg(:,:)
-    qlg(:,:) = qcg(:,:) - qfg(:,:)
-  elsewhere                                 ! Cirrus T range
-    qfg(:,:) = qcold(:,:)*decayfac + qcg(:,:)*(1.-decayfac)
-    qlg(:,:) = 0.
-    qcg(:,:) = qfg(:,:)
-  end where
+  do k = 1,kl
+    do iq = 1,imax
+      if ( ttg(iq,k)>=Tice ) then
+        qfg(iq,k) = fice(iq,k)*qcg(iq,k)
+        qlg(iq,k) = qcg(iq,k) - qfg(iq,k)
+      else                                 ! Cirrus T range
+        qfg(iq,k) = qcold(iq,k)*decayfac + qcg(iq,k)*(1.-decayfac)
+        qlg(iq,k) = 0.
+        qcg(iq,k) = qfg(iq,k)
+      end if
+    end do
+  end do
 
 end if ! ncloud/=4 .and. ncloud<10 ..else..
 
@@ -680,8 +699,12 @@ else
 end if
 
 ! Calculate new values of vapour mixing ratio and temperature
-qtg(:,:) = qtot(:,:) - qcg(:,:)
-ttg(:,:) = tliq(:,:) + hlcp*qcg(:,:) + hlfcp*qfg(:,:)
+do k = 1,kl
+  do iq = 1,imax
+    qtg(iq,k) = qtot(iq,k) - qcg(iq,k)
+    ttg(iq,k) = tliq(iq,k) + hlcp*qcg(iq,k) + hlfcp*qfg(iq,k)
+  end do
+end do
 
 #ifdef debug
 if ( diag .and. mydiag ) then
@@ -887,7 +910,7 @@ use parm_m           ! Model configuration
 
 implicit none
 
-integer k, kl
+integer k, kl, iq
 real, intent(in) :: acon, bcon
 real, dimension(:,:), intent(out) :: clcon
 real, dimension(:), intent(out), optional :: cldcon
@@ -926,11 +949,13 @@ else
 end if
 
 do k = 1,kl
-  where( k<kbsav+1 .or. k>ktsav )
-    clcon(:,k) = 0.
-  elsewhere
-    clcon(:,k) = cldcon_local
-  end where
+  do iq = 1,size(clcon,1)
+    if ( k<kbsav(iq)+1 .or. k>ktsav(iq) ) then
+      clcon(iq,k) = 0.
+    else
+      clcon(iq,k) = cldcon_local(iq)
+    end if
+  end do
 end do
 
 return

@@ -37,8 +37,6 @@
 !$acc declare create(mcontlnd,mcontsea,tied_b,convt_frac)
 !$acc declare create(k500,k600,k700,k900,k980)
 !$acc declare create(klon2,komega)
-!$acc declare create(upin,upin4,downex,detrarr)
-!$acc declare create(entrainn,alfin)
 
       contains
 
@@ -92,7 +90,7 @@
         allocate(upin(kl,kl))
         allocate(upin4(kl,kl))
         allocate(downex(kl,kl))
-        allocate(detrarr(kl,k500,kl))
+        allocate(detrarr(kl,kl,kl)) ! original kl,k500,kl
         detrarr(:,:,:)=1.e20  ! in case someone uses other than methprec=0,4,5,6,7,8
         if(methprec.ne.0.and.(methprec<3.or.methprec>9))then
           write(6,*) "unsupported methprec in convjlm"
@@ -313,8 +311,6 @@
 !$acc update device(mcontlnd,mcontsea,tied_b,convt_frac)
 !$acc update device(k500,k600,k700,k900,k980)
 !$acc update device(klon2,komega)
-!$acc update device(upin,upin4,downex,detrarr)
-!$acc update device(entrainn,alfin)
           
       end subroutine convjlm_init
 
@@ -350,7 +346,6 @@
       real, dimension(imax,kl)          :: ldpsldt, lt, lqg
       real, dimension(imax,kl)          :: lfluxtot
       real, dimension(imax,kl)          :: lqlg, lu, lv, lqfg
-      real, dimension(imax,kl)          :: lcfrac
       real, dimension(imax,ndust)       :: ldustwd
       real, dimension(imax)             :: lso2wd, lso4wd
       real, dimension(imax)             :: lbcwd, locwd, lsaltwd
@@ -360,18 +355,20 @@
 !$omp do schedule(static) private(js,je),
 !$omp& private(ldpsldt,lt,lqg,lfluxtot),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
-!$omp& private(lqlg,lqfg,lcfrac,lu,lv,ltr,idjd_t,mydiag_t)
+!$omp& private(lqlg,lqfg,lu,lv,ltr,idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop present(alfin,entrainn)
+!$acc parallel loop copy(tr,xtg,dustwd,so2wd,so4wd,bcwd,ocwd)
+!$acc& copy(saltwd,precc) 
+!$acc& copyin(sgsave,fg,wetfac)
+!$acc& copyin(upin,upin4,downex,detrarr)
+!$acc& copyin(alfin,entrainn)
 !$acc& copyout(fluxtot,cape,convpsav)
 !$acc& present(t,qg,qlg,qfg,u,v)
 !$acc& present(kbsav,ktsav,condc,condx,conds,condg)
-!$acc& present(precc,precip)
-!$acc& present(dpsldt,cfrac,ps,pblh,fg,wetfac,land,em,sgsave)
-!$acc& present(xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd,ps)
-!$acc& present(tr)
-!$acc& private(ldpsldt,lt,lqg,lqlg,lqfg,lcfrac,lu,lv,lfluxtot)
+!$acc& present(precip)
+!$acc& present(dpsldt,ps,pblh,land,em)
+!$acc& private(ldpsldt,lt,lqg,lqlg,lqfg,lu,lv,lfluxtot)
 !$acc& private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd)
 !$acc& private(ltr)
 !$acc& private(js,je,idjd_t,mydiag_t)
@@ -388,7 +385,6 @@
         lqg       = qg(js:je,:)
         lqlg      = qlg(js:je,:)
         lqfg      = qfg(js:je,:)
-        lcfrac    = cfrac(js:je,:)
         lu        = u(js:je,:)
         lv        = v(js:je,:) 
         if ( abs(iaero)>=2 ) then
@@ -411,7 +407,8 @@
      &       conds(js:je),condg(js:je),precip(js:je),
      &       pblh(js:je),fg(js:je),wetfac(js:je),land(js:je),
      &       entrainn(js:je),lu,lv,em(js:je),
-     &       kbsav(js:je),ktsav(js:je),ltr,lqfg,lcfrac,sgsave(js:je),
+     &       kbsav(js:je),ktsav(js:je),ltr,lqfg,sgsave(js:je),
+     &       upin,upin4,downex,detrarr,
      &       idjd_t,mydiag_t,entrain,detrain,mbase,nbase,iterconv,
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,detrainx,
      &       sigkscb,dsig2,sigksct,rhcv,sig_ct,convtime,tied_con,
@@ -452,7 +449,8 @@
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
      &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,entrainn,u,v,em,
-     &       kbsav,ktsav,tr,qfg,cfrac,sgsave,
+     &       kbsav,ktsav,tr,qfg,sgsave,
+     &       upin,upin4,downex,detrarr,
      &       idjd,mydiag,entrain,detrain,mbase,nbase,iterconv,
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,detrainx,
      &       sigkscb,dsig2,sigksct,rhcv,sig_ct,convtime,tied_con,
@@ -519,7 +517,6 @@
       real, dimension(imax,kl,naero), intent(inout)    :: xtg
       real, dimension(imax,kl,ntrac), intent(inout)    :: tr
       real, dimension(imax,kl), intent(in)         :: dpsldt
-      real, dimension(imax,kl), intent(in)         :: cfrac
       real, dimension(imax,kl), intent(inout)          :: t
       real, dimension(imax,kl), intent(inout)          :: qg
       real, dimension(imax,kl), intent(inout)          :: qlg
@@ -550,6 +547,10 @@
       real, dimension(imax), intent(out)               :: condg
       real, dimension(imax), intent(inout)             :: precip
 !      real, dimension(imax), intent(inout)             :: timeconv
+      real, dimension(kl,kl), intent(in)               :: upin
+      real, dimension(kl,kl), intent(in)               :: upin4
+      real, dimension(kl,kl), intent(in)               :: downex
+      real, dimension(kl,kl,kl), intent(in)            :: detrarr
       integer, dimension(imax), intent(out)            :: kbsav
       integer, dimension(imax), intent(out)            :: ktsav
       logical, dimension(imax), intent(in)             :: land
@@ -845,7 +846,6 @@ c***    Also entrain may slow convergence   N.B. qbass only used in next few lin
         write (6,"('hb/cp',12f7.2/(5x,12f7.2))") 
      .             s(iq,:)/cp+hlcp*qplume(iq,:)
         write (6,"('hs/cp ',12f7.2/(5x,12f7.2))") hs(iq,:)/cp
-        write (6,"('cfracc',12f7.3/6x,12f7.3)") cfrac(iq,:)
         write (6,"('k   ',12i7/(4x,12i7))") (k,k=1,kl)
         write (6,"('es     ',9f7.1/(7x,9f7.1))") es(iq,:)
         write (6,"('dqsdt6p',6p9f7.1/(7x,9f7.1))") dqsdt(iq,:)
@@ -2099,12 +2099,12 @@ c           print *,'has tied_con=0'
       if(nmaxpr==1.and.mydiag)then
        iq=idjd
        if(ktau==1.and.itn==1)write(6, "(15x,
-     &  'ktau itn kb_sav kmin kdown kt_sav cfrac+ entxsav detxsav ',
+     &  'ktau itn kb_sav kmin kdown kt_sav entxsav detxsav ',
      &  ' fluxv  fluxvt-1 factr convpsav3 rnrtcn3 cape')")
        if(kb_sav(iq)<kl-1)write (6,"('ktau ... cape ',
      &   i5,i4,']',2i5,2i6,f9.2,5f8.2,3p2f8.3,1pf9.1)")  ktau,itn,
      &   kb_sav(iq),kmin(iq),kdown(iq),kt_sav(iq),
-     &   cfrac(iq,kb_sav(iq)+1),entrsav(iq,kdown(iq)),
+     &   entrsav(iq,kdown(iq)),
      &   detxsav(iq,kdown(iq)),fluxv(iq,kdown(iq)),
      &   fluxv(iq,kt_sav(iq)-1),factr(iq),convpsav(iq),
      &   rnrtcn(iq),cape(iq)

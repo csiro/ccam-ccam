@@ -159,6 +159,7 @@ MPISPECIAL =
 FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(GPU),yes)
 FFLAGS += -Minfo=accel -acc -gpu=cc70,fastmath,flushz -DGPU
+FFLAGS += -Minline
 #-ta=tesla:cc70
 endif
 FOVERRIDE =
