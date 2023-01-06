@@ -94,7 +94,7 @@ real fcol, fr, alph
 logical :: mydiag_t
 
 !----------------------------------------------------------------------------
-! Prepare inputs for /loud microphysics
+! Prepare inputs for cloud microphysics
 
 !$omp do schedule(static) private(js,je,k,lrhoa,lcdrop,lclcon)
 do tile = 1,ntiles
@@ -339,9 +339,8 @@ end select
 
   
 #ifdef GPUPHYSICS
-!$acc update self(t) ! for pplambs and convh_ave
-!$acc update self(stratcloud)
-!$acc exit data delete(cdrop,dz,rhoa,clcon,stratcloud)
+!$acc update self(t) async(0) ! for pplambs and convh_ave
+!$acc update self(stratcloud) async(0)
 #endif  
 
 
@@ -418,6 +417,12 @@ if ( abs(iaero)>=2 ) then
   end if   ! interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0
 #endif
 end if     ! abs(iaero)>=2
+
+
+#ifdef GPUPHYSICS
+!$acc wait(0)
+!$acc exit data delete(cdrop,dz,rhoa,clcon,stratcloud)
+#endif  
 
 
   !! Estimate cloud droplet size

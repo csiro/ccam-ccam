@@ -705,7 +705,7 @@ do n = 1,njumps
   v2(:,ice)     = 0.1 ! Assume no cloud at top level
   vi(:,kl)      = v2(:,ice)
   v2(:,rain)    = 0.
-  cf2(:,rain)   = 1.e-6
+  !cf2(:,rain)   = 1.e-6
 
 
   ! Now work down through the levels...
@@ -719,7 +719,7 @@ do n = 1,njumps
     fluxfreeze(:) = 0.
     cfmelt(:)     = 0.
 
-
+    
     ! Detect max/random overlap clouds that are separated by a clear layer
     do nn = 1,ncldtr
       do iq = 1,imax
@@ -727,17 +727,17 @@ do n = 1,njumps
           rdclfr(iq,nn) = rdclfr(iq,nn) + mxclfr(iq,nn) - rdclfr(iq,nn)*mxclfr(iq,nn)
           mxclfr(iq,nn) = 0.
         end if
+        cf2(iq,nn) = max( rdclfr(iq,nn) + mxclfr(iq,nn) - rdclfr(iq,nn)*mxclfr(iq,nn), 1.e-10 )
       end do
     end do
-    mxclfr(:,rain) = max( mxclfr(:,rain), cfmelt(:) )    
-    cf2(:,:) = max( rdclfr(:,:) + mxclfr(:,:) - rdclfr(:,:)*mxclfr(:,:), 1.e-10 )
-    
+ 
 
     if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
-  
-      ! Graupel ---------------------------------------------------------------------------
-      do iq = 1,imax
 
+        
+      ! Graupel ---------------------------------------------------------------------------
+
+      do iq = 1,imax
         sublflux(iq) = 0.
         flux2(iq,graupel) = flux2(iq,graupel) + fluxautograupel(iq,k)*tdt/tdt_in
 
@@ -914,7 +914,7 @@ do n = 1,njumps
         fout(iq,snow)  = 1. - exp(-alph)          !analytical
         fthru(iq,snow) = 1. - fout(iq,snow)/alph  !analytical
  
-     end do
+      end do
 
       if ( any( flux2(:,snow)>0. ) ) then
 
@@ -1213,11 +1213,16 @@ do n = 1,njumps
     
     
     ! Rain --------------------------------------------------------------------------------
-    evap(:) = 0.
-
-    ! Add flux of melted snow to flux2(:,rain)
-    flux2(:,rain) = flux2(:,rain) + fluxmelt(:) + fluxautorain(:,k)*tdt/tdt_in
-      
+    do iq = 1,imax
+    
+      evap(iq) = 0.
+    
+      ! Add flux of melted snow to flux2(:,rain)
+      flux2(iq,rain) = flux2(iq,rain) + fluxmelt(iq) + fluxautorain(iq,k)*tdt/tdt_in
+      mxclfr(iq,rain) = max( mxclfr(iq,rain), cfmelt(iq) )    
+      cf2(iq,rain) = max( rdclfr(iq,rain) + mxclfr(iq,rain) - rdclfr(iq,rain)*mxclfr(iq,rain), 1.e-10 )
+    end do  
+    
     ! Calculate rain fall speed (MJT suggestion)
     if ( ncloud==2 .or. ncloud==3 .or. ncloud==4 .or. ncloud==12 .or. ncloud==13 ) then
       do iq = 1,imax

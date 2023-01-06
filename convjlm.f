@@ -563,9 +563,8 @@
       
       integer kbsav_ls(imax),kb_sav(imax),kt_sav(imax)
       integer kkbb(imax),kmin(imax)
-      real, dimension(imax,kl,naero) :: fscav
+      real, dimension(imax,kl,naero) :: fscav, xtgscav, xtgs
       real, dimension(imax,kl) :: qqsav,qliqwsav
-      real, dimension(imax,kl) :: xtgscav
       real, dimension(imax,kl) :: rho,ttsto,qqsto,qqold,qlsto,qlold
       real, dimension(imax,kl) :: xtgtmp
       real, dimension(kl) :: qqnew,qqrem
@@ -2006,87 +2005,84 @@ c           print *,'has tied_con=0'
        call convscav(fscav,qqsto,qqold,
      &               ttsto,xtgtmp,rho)
        do ntr = 1,naero
-        xtgscav(:,:) = 0.
-        s(:,1:kl-2) = xtg(:,1:kl-2,ntr)
         do iq = 1,imax
+         xtgscav(iq,1:kl,ntr) = 0.
          if ( kt_sav(iq)<kl-1 ) then
+          xtgs(iq,1:kl-2,ntr) = xtg(iq,1:kl-2,ntr)         
           kb = kb_sav(iq)
           kt = kt_sav(iq)
           veldt = factr(iq)*convpsav(iq)*(1.-fldow(iq)) ! simple treatment
-          fluxup = veldt*s(iq,kb)
+          fluxup = veldt*xtgs(iq,kb,ntr)
           ! remove aerosol from lower layer
           fluxup = min( fluxup, xtg(iq,kb,ntr)*dsk(kb) )
           xtg(iq,kb,ntr) = xtg(iq,kb,ntr) - fluxup/dsk(kb)
           ! store aerosol concentration that was scavenged
-          xtgscav(iq,kt) = fluxup*fscav(iq,kt,ntr)/dsk(kt)
+          xtgscav(iq,kt,ntr) = fluxup*fscav(iq,kt,ntr)/dsk(kt)
           ! put flux of aerosol into upper layer after scavenging
           xtg(iq,kt,ntr) = xtg(iq,kt,ntr) + fluxup/dsk(kt)
-     &        - xtgscav(iq,kt)
+     &        - xtgscav(iq,kt,ntr)
           ! continue the calculation along the column
           do k = kb+1,kt
            ! remove aerosol from upper layer  
-           fluxup = veldt*s(iq,k)
+           fluxup = veldt*xtgs(iq,k,ntr)
            fluxup = min( fluxup, xtg(iq,k,ntr)*dsk(k) )
            xtg(iq,k,ntr) = xtg(iq,k,ntr) - fluxup/dsk(k)
            ! store aerosol concentration that was scavenged
-           xtgscav(iq,k-1) = fluxup*fscav(iq,k-1,ntr)/dsk(k-1)
+           xtgscav(iq,k-1,ntr) = fluxup*fscav(iq,k-1,ntr)/dsk(k-1)
            ! put flux of aerosol into lower layer after scavenging
            xtg(iq,k-1,ntr) = xtg(iq,k-1,ntr) + 
-     &        fluxup/dsk(k-1) - xtgscav(iq,k-1)
+     &        fluxup/dsk(k-1) - xtgscav(iq,k-1,ntr)
           end do ! k loop
          end if
         end do  ! iq loop
-        ! store wet deposition from scavenging
-        if ( ntr==itracso2 ) then
-         do k = 1,kl-2
-          do iq = 1,imax 
-           so2wd(iq)=so2wd(iq)
-     &      +ps(iq)*xtgscav(iq,k)*dsk(k)
-     &      /(grav*dt)
-          end do
+      end do    ! ntr loop
+      ! store wet deposition from scavenging
+      do k = 1,kl-2
+       do iq = 1,imax 
+        so2wd(iq)=so2wd(iq)
+     &   +ps(iq)*xtgscav(iq,k,itracso2)*dsk(k)
+     &   /(grav*dt)
+        so4wd(iq)=so4wd(iq)
+     &   +ps(iq)*xtgscav(iq,k,itracso2+1)*dsk(k)
+     &   /(grav*dt)
+        end do
+       end do
+       do ntr = itracbc,itracbc+1 
+        do k = 1,kl-2
+         do iq = 1,imax 
+          bcwd(iq)=bcwd(iq)
+     &     +ps(iq)*xtgscav(iq,k,ntr)*dsk(k)
+     &     /(grav*dt)
          end do
-        elseif ( ntr==itracso2+1 ) then
-         do k = 1,kl-2
-          do iq = 1,imax 
-          so4wd(iq)=so4wd(iq)
-     &      +ps(iq)*xtgscav(iq,k)*dsk(k)
-     &      /(grav*dt)
-          end do
+        end do
+       end do 
+       do ntr = itracoc,itracoc+1
+        do k = 1,kl-2
+         do iq = 1,imax 
+          ocwd(iq)=ocwd(iq)
+     &     +ps(iq)*xtgscav(iq,k,ntr)*dsk(k)
+     &     /(grav*dt)
          end do
-        elseif (ntr==itracbc.or.ntr==itracbc+1) then
-         do k = 1,kl-2
-          do iq = 1,imax 
-           bcwd(iq)=bcwd(iq)
-     &      +ps(iq)*xtgscav(iq,k)*dsk(k)
-     &      /(grav*dt)
-          end do
+        end do
+       end do 
+       do ntr = itracdu,itracdu+ndust-1
+        do k = 1,kl-2
+         do iq = 1,imax 
+          dustwd(iq,ntr-itracdu+1)=dustwd(iq,ntr-itracdu+1)
+     &     +ps(iq)*xtgscav(iq,k,ntr)*dsk(k)
+     &     /(grav*dt)
          end do
-        elseif (ntr==itracoc.or.ntr==itracoc+1) then
-         do k = 1,kl-2
-          do iq = 1,imax 
-           ocwd(iq)=ocwd(iq)
-     &      +ps(iq)*xtgscav(iq,k)*dsk(k)
-     &      /(grav*dt)
-          end do
+        end do
+       end do 
+       do ntr = itracsa,itracsa+nsalt-1
+        do k = 1,kl-2
+         do iq = 1,imax 
+          saltwd(iq)=saltwd(iq)
+     &     +ps(iq)*xtgscav(iq,k,ntr)*dsk(k)
+     &     /(grav*dt)
          end do
-        elseif (ntr>=itracdu.and.ntr<=itracdu+ndust-1) then
-         do k = 1,kl-2
-          do iq = 1,imax 
-           dustwd(iq,ntr-itracdu+1)=dustwd(iq,ntr-itracdu+1)
-     &      +ps(iq)*xtgscav(iq,k)*dsk(k)
-     &      /(grav*dt)
-          end do
-         end do
-        elseif (ntr>=itracsa.and.ntr<=itracsa+nsalt-1) then
-         do k = 1,kl-2
-          do iq = 1,imax 
-           saltwd(iq)=saltwd(iq)
-     &      +ps(iq)*xtgscav(iq,k)*dsk(k)
-     &      /(grav*dt)
-          end do
-         end do
-        end if
-       end do     ! nt loop
+        end do
+       end do
       end if   ! (abs(iaero)==2) 
       
 #ifndef GPU

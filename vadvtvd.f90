@@ -70,8 +70,8 @@ end if
 
 !$omp parallel
 !$omp sections
-!$acc data create(sdot,nvadh_inv_pass,nits)
-!$acc update device(sdot,nvadh_inv_pass,nits)
+!$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
+!$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
 
 !$omp section
 !     t

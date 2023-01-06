@@ -401,7 +401,7 @@ end if
 zmin = -rdry*280.*log(sig(1))/grav
 if ( myid==0 ) write(6,*) 'First model level height zmin = ',zmin
 
-!$acc update device(ratha,rathb,sig,dsig)
+!$acc update device(sig,dsig)
 !$acc update device(sigmh,bet,betm)
 
 
