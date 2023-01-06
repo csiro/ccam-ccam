@@ -7683,6 +7683,13 @@ type(gas_tf_type),         intent(in)    :: Gas_tf
                  bdenom990(i,j,kk) = 1.0E+00/   &
               (1.0E+00 - fnlte990(i,j,kk)*   &
                         cdiag990(i,j,kk))
+                 ! MJT suggestion
+                 bdenom900(i,j,kk) = 1.0E+00/   &
+              (1.0E+00 - fnlte900(i,j,kk)*   &
+                        cdiag900(i,j,kk))
+                 bdenom1070(i,j,kk) = 1.0E+00/   &
+              (1.0E+00 - fnlte1070(i,j,kk)*   &
+                        cdiag1070(i,j,kk))
               end do
            end do
         end do

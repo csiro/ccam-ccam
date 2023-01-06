@@ -50,6 +50,10 @@ public vertmix,vertmix_init,trimmix
 
 integer, save :: kscbase=-1, ksctop=-1
 
+interface trimmix
+  module procedure trimmix2, trimmix3
+end interface trimmix
+
 contains
 
 subroutine vertmix_init
@@ -1704,7 +1708,8 @@ endif  !  (nlocal==5)
 return
 end subroutine pbldif
 
-pure subroutine trimmix(a,c,rhs,imax,kl)
+pure subroutine trimmix2(a,c,rhs,imax,kl)
+!$acc routine vector
 
 implicit none
 
@@ -1747,7 +1752,77 @@ do k = kl-1,1,-1
 end do
 
 return
-end subroutine trimmix
+end subroutine trimmix2
+
+pure subroutine trimmix3(a,c,rhs,imax,kl,ndim)
+!$acc routine vector
+
+implicit none
+
+integer, intent(in) :: imax, kl, ndim
+integer k, iq, n
+real, dimension(imax,kl), intent(in) :: a, c
+real, dimension(imax,kl,ndim), intent(inout) :: rhs
+real, dimension(imax,ndim,kl) :: e, g, r
+real temp, b
+
+! this routine solves the system
+!   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
+!   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
+!   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
+
+do n = 1,ndim
+  do k = 1,kl
+    do iq = 1,imax
+      r(iq,n,k) = rhs(iq,k,n)
+    end do
+  end do
+end do
+
+! the Thomas algorithm is used
+do n = 1,ndim
+  do iq = 1,imax
+    b=1./(1.-a(iq,1)-c(iq,1))
+    e(iq,n,1)=c(iq,1)*b
+    g(iq,n,1)=r(iq,n,1)*b
+  end do
+end do
+do k = 2,kl-1
+  do n = 1,ndim
+    do iq = 1,imax
+      b=1.-a(iq,k)-c(iq,k)
+      temp= 1./(b-a(iq,k)*e(iq,n,k-1))
+      e(iq,n,k)=c(iq,k)*temp
+      g(iq,n,k)=(r(iq,n,k)-a(iq,k)*g(iq,n,k-1))*temp
+    end do  
+  end do
+end do
+
+! do back substitution to give answer now
+do n = 1,ndim
+  do iq = 1,imax
+    b=1.-a(iq,kl)-c(iq,kl)
+    r(iq,n,kl)=(r(iq,n,kl)-a(iq,kl)*g(iq,n,kl-1))/(b-a(iq,kl)*e(iq,n,kl-1))
+  end do  
+end do
+do k = kl-1,1,-1
+  do n = 1,ndim
+    do iq = 1,imax
+      r(iq,n,k) = g(iq,n,k)-e(iq,n,k)*r(iq,n,k+1)
+    end do  
+  end do
+end do
+
+do k = 1,kl
+  do n = 1,ndim    
+    do iq = 1,imax
+      rhs(iq,k,n) = r(iq,n,k)
+    end do
+  end do
+end do
+
+return
+end subroutine trimmix3
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                         &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &

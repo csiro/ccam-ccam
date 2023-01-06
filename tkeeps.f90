@@ -506,7 +506,7 @@ do iq = 1,imax
   !          - (2./3.)*eps(iq,1) ) )                           &
   !          / (1.+(cw1/cs1)*l_on_kz)
   ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq      ! = (cm12-0.5*1.2)*ustar(iq)**2 + ce3*wstar(iq)**2
-  !usg_var(iq) = (2.185*ustar(iq))**2         ! Wichers et al (2008)
+  !usg_var(iq) = (2.185*ustar(iq))**2         ! Schreur et al (2008)
 end do
 
 
@@ -924,7 +924,8 @@ real, dimension(imax,kl), intent(in) :: mflx, tke, eps
 real, dimension(imax,kl), intent(in) :: idzm
 real, dimension(imax,kl-1), intent(in) :: fzzh, idzp, dz_hl
 real, dimension(imax,kl) :: km, kmo
-real, dimension(imax,kl) :: rr, bb, cc, dd
+real, dimension(imax,kl) :: rr, bb, cc
+real, dimension(imax,kl,5) :: dd, ans
 real, dimension(imax,2:kl) :: qq, aa
 real, dimension(imax), intent(inout) :: fg, eg, ustar
 real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv
@@ -964,92 +965,78 @@ bb(:,kl)=1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
 
 
 ! thetal vertical mixing
-dd(:,1)=thetal(:,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                               &
-                         +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                   &
-                   +ddts*rhos*wt0/(rhoa1(:)*dz_fl1(:))
-dd(:,2:kl-1)=thetal(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*tlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1) &
-                                   +mflx(:,2:kl-1)*tlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)      &
-                                   -mflx(:,2:kl-1)*tlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1) &
-                                   -mflx(:,3:kl)*tlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl)=thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                   &
-                           +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
+dd(:,1,1)=thetal(:,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                               &
+                           +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                   &
+                     +ddts*rhos*wt0/(rhoa1(:)*dz_fl1(:))
+dd(:,2:kl-1,1)=thetal(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*tlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1) &
+                                     +mflx(:,2:kl-1)*tlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)      &
+                                     -mflx(:,2:kl-1)*tlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1) &
+                                     -mflx(:,3:kl)*tlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl,1)=thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                   &
+                             +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+! qv (part of qtot) vertical mixing
+dd(:,1,2)=qvg(:,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                  &
+                        +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                                      &
+                        +ddts*rhos*wq0/(rhoa1(:)*dz_fl1(:))
+dd(:,2:kl-1,2)=qvg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qvup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)    &
+                                  +mflx(:,2:kl-1)*qvup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)         &
+                                  -mflx(:,2:kl-1)*qvup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)    &
+                                  -mflx(:,3:kl)*qvup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl,2)=qvg(:,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                      &
+                          +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+! ql (part of qtot) vertical mixing
+dd(:,1,3)=qlg(:,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                  &
+                        +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
+dd(:,2:kl-1,3)=qlg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)    &
+                                  +mflx(:,2:kl-1)*qlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)         &
+                                  -mflx(:,2:kl-1)*qlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)    &
+                                  -mflx(:,3:kl)*qlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl,3)=qlg(:,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                      &
+                          +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+! qf (part of qtot) vertical mixing
+dd(:,1,4)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
+                        +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
+dd(:,2:kl-1,4)=qfg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
+                                  +mflx(:,2:kl-1)*qfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                  -mflx(:,2:kl-1)*qfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                  -mflx(:,3:kl)*qfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl,4)=qfg(:,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
+                          +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+! cloud fraction vertical mixing
+dd(:,1,5) = stratcloud(:,1) - ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
+                                   +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
+dd(:,2:kl-1,5) = stratcloud(:,2:kl-1) + ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
+                                             +mflx(:,2:kl-1)*cfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                             -mflx(:,2:kl-1)*cfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                             -mflx(:,3:kl)*cfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl,5) = stratcloud(:,kl) + ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
+                                     +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
 
+call thomas(ans(:,:,1:5),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,:,1:5),imax,kl,5)
+thetal(:,:)     = ans(:,:,1)
+qvg(:,:)        = ans(:,:,2)
+qlg(:,:)        = ans(:,:,3)
+qfg(:,:)        = ans(:,:,4)
+stratcloud(:,:) = min( max( ans(:,:,5), 0. ), 1. )
     
 #ifdef scm  
 wthlflux(:,1)=wt0(:)
 wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(:,2:kl)-thetal(:,1:kl-1))/dz_hl(:,1:kl-1)                    &
                  +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))               &
                  +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
-#endif
-
-
-! qv (part of qtot) vertical mixing
-dd(:,1)=qvg(:,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                  &
-                         +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                                   &
-                         +ddts*rhos*wq0/(rhoa1(:)*dz_fl1(:))
-dd(:,2:kl-1)=qvg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qvup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)    &
-                                 +mflx(:,2:kl-1)*qvup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
-                                 -mflx(:,2:kl-1)*qvup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
-                                 -mflx(:,3:kl)*qvup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl)=qvg(:,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                      &
-                        +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
-#ifdef scm
 wqvflux(:,1)=wq0(:)
 wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(:,2:kl)-qvg(:,1:kl-1))/dz_hl(:,1:kl-1)                           &
                 +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                   &
                 +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
-#endif
-
-
-! ql (part of qtot) vertical mixing
-dd(:,1)=qlg(:,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                       &
-                            +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
-dd(:,2:kl-1)=qlg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)         &
-                                      +mflx(:,2:kl-1)*qlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
-                                      -mflx(:,2:kl-1)*qlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
-                                      -mflx(:,3:kl)*qlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl)=qlg(:,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                           &
-                              +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
-#ifdef scm
 wqlflux(:,1)=0.
 wqlflux(:,2:kl)=-kmo(:,1:kl-1)*(qlg(:,2:kl)-qlg(:,1:kl-1))/dz_hl(:,1:kl-1)                                &
                 +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                        &
                 +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
-#endif
-
-
-! qf (part of qtot) vertical mixing
-dd(:,1)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                       &
-                            +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
-dd(:,2:kl-1)=qfg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)         &
-                                      +mflx(:,2:kl-1)*qfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
-                                      -mflx(:,2:kl-1)*qfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
-                                      -mflx(:,3:kl)*qfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl)=qfg(:,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                           &
-                              +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
-#ifdef scm
 wqfflux(:,1)=0.
 wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(:,2:kl)-qfg(:,1:kl-1))/dz_hl(:,1:kl-1)                                &
                 +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                        &
                 +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
 #endif
-
-
-! cloud fraction vertical mixing
-dd(:,1) = stratcloud(:,1) - ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
-                                 +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
-dd(:,2:kl-1) = stratcloud(:,2:kl-1) + ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
-                                           +mflx(:,2:kl-1)*cfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
-                                           -mflx(:,2:kl-1)*cfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
-                                           -mflx(:,3:kl)*cfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl) = stratcloud(:,kl) + ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
-                                   +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-call thomas(stratcloud,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
-stratcloud(:,:) = min( max( stratcloud(:,:), 0. ), 1. )
 
   
 ! momentum vertical mixing
@@ -1058,10 +1045,12 @@ cc(:,1:kl-1) = rr(:,1:kl-1)
 bb(:,1) = 1. - cc(:,1) + ddts*rhos*cduv/(rhoa1(:)*dz_fl1(:)) ! implicit  
 bb(:,2:kl-1) = 1. - aa(:,2:kl-1) - cc(:,2:kl-1)
 bb(:,kl) = 1. - aa(:,kl)
-dd(:,1:kl) = ua(:,1:kl)
-call thomas(ua,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
-dd(:,1:kl) = va(:,1:kl)
-call thomas(va,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,1:kl),imax,kl)
+
+dd(:,1:kl,1) = ua(:,1:kl)
+dd(:,1:kl,2) = va(:,1:kl)
+call thomas(ans(:,:,1:2),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,:,1:2),imax,kl,2)
+ua(:,:) = ans(:,:,1)
+va(:,:) = ans(:,:,2)
   
   
 ! update surface momentum flux
@@ -1812,7 +1801,7 @@ subroutine solve_sherman_morrison_3(aa_a,bb_a,cc_a,dd_au,dd_av, &
 implicit none
 
 integer, intent(in) :: imax, kl, wlev
-integer k
+integer k, n
 real, dimension(imax,2:kl), intent(in) :: aa_a
 real, dimension(imax,kl), intent(in) :: bb_a, dd_au, dd_av
 real, dimension(imax,kl-1), intent(in) :: cc_a
@@ -1830,7 +1819,7 @@ real, dimension(imax,kl+wlev+1,3) :: ddd
 real, dimension(imax,kl+wlev+1) :: uu, vv
 real, dimension(imax,kl+wlev+1,3) :: yy
 real, dimension(imax), intent(in) :: f_ao, f_oa, f_ai, f_ia, f_oi, f_io
-real, dimension(imax) :: t1, t2, t3
+real, dimension(imax,3) :: tmp
 
 ! Original coupling matrix (inverted levels)
 ! [ bb_a cc_a                                                   ] [ t_a ]   [ dd_a ]
@@ -1926,21 +1915,21 @@ ddd(:,:,3) = uu(:,:)
 call thomas(yy(:,1:kl+wlev+1,1:3),aad(:,2:kl+wlev+1),bbd(:,1:kl+wlev+1),ccd(:,1:kl+wlev),ddd(:,1:kl+wlev+1,1:3),imax,kl+wlev+1,3)
 
 ! Solve for x = y - {(v^t y)/(1 + (v^t q))} q
-t1(:) = vv(:,kl)*yy(:,kl,1) + vv(:,kl+1)*yy(:,kl+1,1) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1,1)
-t2(:) = vv(:,kl)*yy(:,kl,2) + vv(:,kl+1)*yy(:,kl+1,2) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1,2)
-t3(:) = vv(:,kl)*yy(:,kl,3) + vv(:,kl+1)*yy(:,kl+1,3) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1,3)
+do n = 1,3
+  tmp(:,n) = vv(:,kl)*yy(:,kl,n) + vv(:,kl+1)*yy(:,kl+1,n) + vv(:,kl+wlev+1)*yy(:,kl+wlev+1,n)
+end do
 
 ! Unpack solution
 do k = 1,kl
-  tt_au(:,k) = yy(:,k,1) - yy(:,k,3)*t1(:)/(1.+t3(:))
-  tt_av(:,k) = yy(:,k,2) - yy(:,k,3)*t2(:)/(1.+t3(:))
+  tt_au(:,k) = yy(:,k,1) - yy(:,k,3)*tmp(:,1)/(1.+tmp(:,3))
+  tt_av(:,k) = yy(:,k,2) - yy(:,k,3)*tmp(:,2)/(1.+tmp(:,3))
 end do
 do k = 1,wlev
-  tt_ou(:,k) = yy(:,kl+k,1) - yy(:,kl+k,3)*t1(:)/(1.+t3(:))
-  tt_ov(:,k) = yy(:,kl+k,2) - yy(:,kl+k,3)*t2(:)/(1.+t3(:))
+  tt_ou(:,k) = yy(:,kl+k,1) - yy(:,kl+k,3)*tmp(:,1)/(1.+tmp(:,3))
+  tt_ov(:,k) = yy(:,kl+k,2) - yy(:,kl+k,3)*tmp(:,2)/(1.+tmp(:,3))
 end do
-tt_iu(:) = yy(:,kl+wlev+1,1) - yy(:,kl+wlev+1,3)*t1(:)/(1.+t3(:))
-tt_iv(:) = yy(:,kl+wlev+1,2) - yy(:,kl+wlev+1,3)*t2(:)/(1.+t3(:))
+tt_iu(:) = yy(:,kl+wlev+1,1) - yy(:,kl+wlev+1,3)*tmp(:,1)/(1.+tmp(:,3))
+tt_iv(:) = yy(:,kl+wlev+1,2) - yy(:,kl+wlev+1,3)*tmp(:,2)/(1.+tmp(:,3))
 
 return
 end subroutine solve_sherman_morrison_3
@@ -1995,14 +1984,58 @@ real, dimension(imax,klin), intent(in) :: bbi
 real, dimension(imax,klin-1), intent(in) :: cci
 real, dimension(imax,klin,ndim), intent(in) :: ddi
 real, dimension(imax,klin,ndim), intent(out) :: outdat
-integer n
+real, dimension(imax,ndim,klin) :: cc,dd,od,rh
+real :: n_s
+integer n, iq, k
         
 !! PCR for GPUs
 !call pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
 
+do n = 1,ndim
+  do k = 1,klin
+    do iq = 1,imax
+      rh(iq,n,k) = ddi(iq,k,n)
+    end do
+  end do
+end do
+
 ! Thomas
 do n = 1,ndim
-  call thomas1(outdat(:,:,n),aai,bbi,cci,ddi(:,:,n),imax,klin)
+  do iq = 1,imax
+    cc(iq,n,1) = cci(iq,1)/bbi(iq,1)
+    dd(iq,n,1) = rh(iq,n,1)/bbi(iq,1)
+  end do
+end do
+
+do k = 2,klin-1
+  do n = 1,ndim
+    do iq = 1,imax
+      n_s = 1./(bbi(iq,k)-cc(iq,n,k-1)*aai(iq,k))
+      cc(iq,n,k) = cci(iq,k)*n_s
+      dd(iq,n,k) = (rh(iq,n,k)-dd(iq,n,k-1)*aai(iq,k))*n_s
+    end do
+  end do  
+end do
+do n = 1,ndim
+  do iq = 1,imax
+    n_s = 1./(bbi(iq,klin)-cc(iq,n,klin-1)*aai(iq,klin))
+    od(iq,n,klin) = (rh(iq,n,klin)-dd(iq,n,klin-1)*aai(iq,klin))*n_s
+  end do  
+end do
+do k = klin-1,1,-1
+  do n = 1,ndim
+    do iq = 1,imax
+      od(iq,n,k) = dd(iq,n,k)-cc(iq,n,k)*od(iq,n,k+1)
+    end do
+  end do
+end do
+
+do k = 1,klin
+  do n = 1,ndim
+    do iq = 1,imax
+      outdat(iq,k,n) = od(iq,n,k)
+    end do
+  end do
 end do
 
 return
@@ -2121,11 +2154,12 @@ pure subroutine getqsat(qsat,templ,ps,fice,imax)
 implicit none
 
 integer, intent(in) :: imax
+integer iq, ix, ixx
 real, dimension(imax), intent(in) :: templ
 real, dimension(imax), intent(in) :: ps, fice
 real, dimension(imax), intent(out) :: qsat
-real, dimension(imax) :: estafi, tdiff, tdiffx, rx, rxx
-real, dimension(imax) :: qsatl, qsati, deles
+real estafi, tdiff, tdiffx, rx, rxx
+real qsatl, qsati, deles
 real, dimension(0:220), parameter :: tablei = &
 (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                & !-146C
    6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                             & !-141C
@@ -2165,21 +2199,22 @@ real, dimension(-40:2), parameter :: esdiff = &
    22.55,23.45,24.30,25.08,25.78,26.38,26.86,27.18,27.33,27.27, &
    26.96,26.38,25.47,24.20,22.51,20.34,17.64,14.34,10.37, 5.65, &
    0.08, 0., 0. /)
-integer, dimension(size(templ)) :: ix, ixx
 
-tdiff = min(max( templ(:)-123.16, 0.), 219.)
-rx = tdiff - aint(tdiff)
-ix = int(tdiff)
-estafi = (1.-rx)*tablei(ix) + rx*tablei(ix+1)
-qsati = 0.622*estafi/max(ps(:)-estafi,0.1)
+do iq = 1,imax
+  tdiff = min(max( templ(iq)-123.16, 0.), 219.)
+  rx = tdiff - aint(tdiff)
+  ix = int(tdiff)
+  estafi = (1.-rx)*tablei(ix) + rx*tablei(ix+1)
+  qsati = 0.622*estafi/max(ps(iq)-estafi,0.1)
 
-tdiffx = min(max( templ(:)-273.1, -40.), 1.)
-rxx = tdiffx - aint(tdiffx)
-ixx = int(tdiffx)
-deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
-qsatl = qsati + 0.622*deles/ps
+  tdiffx = min(max( templ(iq)-273.1, -40.), 1.)
+  rxx = tdiffx - aint(tdiffx)
+  ixx = int(tdiffx)
+  deles = (1.-rxx)*esdiff(ixx) + rxx*esdiff(ixx+1)
+  qsatl = qsati + 0.622*deles/ps(iq)
 
-qsat = fice*qsati + (1.-fice)*qsatl
+  qsat(iq) = fice(iq)*qsati + (1.-fice(iq))*qsatl
+end do
 
 return
 end subroutine getqsat
