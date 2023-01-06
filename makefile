@@ -66,9 +66,9 @@ endif
 # Default intel compiler options
 FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
-ifneq ($(NCCLIB),yes)
-LIBS += -lnetcdff
-endif
+#ifneq ($(NCCLIB),yes)
+#LIBS += -lnetcdff
+#endif
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
 PPFLAG90F = -fpp

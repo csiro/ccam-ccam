@@ -705,7 +705,7 @@ do n = 1,njumps
   v2(:,ice)     = 0.1 ! Assume no cloud at top level
   vi(:,kl)      = v2(:,ice)
   v2(:,rain)    = 0.
-  !cf2(:,rain)   = 1.e-6
+  cf2(:,rain)   = 1.e-6
 
 
   ! Now work down through the levels...
@@ -1220,7 +1220,7 @@ do n = 1,njumps
       ! Add flux of melted snow to flux2(:,rain)
       flux2(iq,rain) = flux2(iq,rain) + fluxmelt(iq) + fluxautorain(iq,k)*tdt/tdt_in
       mxclfr(iq,rain) = max( mxclfr(iq,rain), cfmelt(iq) )    
-      cf2(iq,rain) = max( rdclfr(iq,rain) + mxclfr(iq,rain) - rdclfr(iq,rain)*mxclfr(iq,rain), 1.e-10 )
+      cf2(iq,rain) = max( rdclfr(iq,rain) + mxclfr(iq,rain) - rdclfr(iq,rain)*mxclfr(iq,rain), 1.e-6 )
     end do  
     
     ! Calculate rain fall speed (MJT suggestion)
@@ -1600,7 +1600,7 @@ if ( diag .and. mydiag ) then
 #endif
   diag_temp(:) = fluxm(idjd,:)
   write(6,*) 'fluxm',diag_temp
-  write(6,*) 'cifra,fluxsnow',cf2(idjd,ice),fluxsnow(idjd)
+  write(6,*) 'cifra,fluxsnow',cf2(idjd,ice),flux2(idjd,snow)
 end if  ! (diag.and.mydiag)
 #endif
 
