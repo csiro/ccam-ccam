@@ -93,6 +93,13 @@ real, dimension(ifull,kl) :: dz, rhoa
 real fcol, fr, alph
 logical :: mydiag_t
 
+
+#ifdef GPUPHYSICS
+!$acc enter data create(cdrop,dz,rhoa,clcon,stratcloud)
+!$acc update device(stratcloud) async(1)
+#endif
+
+
 !----------------------------------------------------------------------------
 ! Prepare inputs for cloud microphysics
 
@@ -116,8 +123,7 @@ end do
 
 
 #ifdef GPUPHYSICS
-!$acc enter data create(cdrop,dz,rhoa,clcon,stratcloud)
-!$acc update device(cdrop,rhoa,stratcloud,dz)
+!$acc update device(cdrop,rhoadz) async(1)
 #endif
 
 
@@ -156,6 +162,7 @@ end do
 !$omp private(idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
+!$acc wait(1)
 !$acc parallel loop copy(nettend,rkmsave,rkhsave)                             &
 !$acc   copyout(qlrad,qfrad,qccon,cfrac)                                      &
 !$acc   present(qg,qlg,qfg,dpsldt,t,stratcloud)                               &
@@ -339,8 +346,8 @@ end select
 
   
 #ifdef GPUPHYSICS
-!$acc update self(t) async(0) ! for pplambs and convh_ave
-!$acc update self(stratcloud) async(0)
+!$acc update self(t) ! for pplambs and convh_ave
+!$acc update self(stratcloud) async(1)
 #endif  
 
 
@@ -420,7 +427,7 @@ end if     ! abs(iaero)>=2
 
 
 #ifdef GPUPHYSICS
-!$acc wait(0)
+!$acc wait(1)
 !$acc exit data delete(cdrop,dz,rhoa,clcon,stratcloud)
 #endif  
 

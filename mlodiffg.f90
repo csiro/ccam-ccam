@@ -292,13 +292,10 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
 
     ! update non-boundary grid points
     ! here we use the coloured indices to identify interior and boundary points  
-#ifndef GPU
-    !$omp parallel
-#endif
     do nn = 1,nlen
       np = nn - 1 + nstart
 #ifndef GPU
-      !$omp do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
+      !$omp parallel do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
 #else
       async_counter = mod(nn-1,async_length)
       !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
@@ -320,14 +317,12 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
         end do  
       end do
 #ifndef GPU
-      !$omp end do nowait
+      !$omp end parallel do
 #else
       !$acc end parallel loop
 #endif
     end do
-#ifndef GPU
-    !$omp end parallel
-#else
+#ifdef GPU
     !$acc wait
 #endif
 
@@ -382,13 +377,10 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
       
       call bounds_send(work(:,:,nstart:nend))
 
-#ifndef GPU
-      !$omp parallel
-#endif
       do nn = 1,nlen
         np = nn - 1 + nstart  
 #ifndef GPU
-        !$omp do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
+        !$omp parallel do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
 #else
         async_counter = mod(nn-1,async_length)
         !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
@@ -408,14 +400,12 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
           end do   
         end do
 #ifndef GPU
-        !$omp end do nowait
+        !$omp end parallel do
 #else
         !$acc end parallel loop
 #endif
       end do
-#ifndef GPU
-      !$omp end parallel
-#else
+#ifdef GPU
       !$acc wait
 #endif
 
@@ -442,13 +432,10 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
 
       call bounds_send(ans(:,:,1:nlen))
 
-#ifndef GPU
-      !$omp parallel
-#endif
       do nn = 1,nlen
         np = nn - 1 + nstart
 #ifndef GPU
-        !$omp do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
+        !$omp parallel do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
 #else
         async_counter = mod(nn-1,async_length)  
         !$acc parallel loop collapse(2) copyin(ans(:,:,nn)) copyout(work(1:ifull,:,np))  &
@@ -469,14 +456,12 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
           end do    
         end do
 #ifndef GPU
-        !$omp end do nowait
+        !$omp end parallel do
 #else
         !$acc end parallel loop
 #endif
       end do
-#ifndef GPU
-      !$omp end parallel
-#else
+#ifdef GPU
       !$acc wait
 #endif
 

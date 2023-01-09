@@ -677,7 +677,7 @@ if ( nud_t>0 ) then
 end if
 if ( nud_q>0 ) then
   do k = kbotdav,ktopdav
-    qg(1:ifull,k) = max(qg(1:ifull,k)+qbb(:,k)*vertwgt(k), 0.)
+    qg(1:ifull,k) = max(qg(1:ifull,k)+qbb(:,k)*vertwgt(k), qgmin)
   end do
 end if
 if ( nud_t>0 .or. nud_q>0 ) then

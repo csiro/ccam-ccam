@@ -464,7 +464,7 @@ integer async_counter
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: work
-real, dimension(ifull+iextra,kl,nagg) :: ans
+real, dimension(ifull,kl,nagg) :: ans
 real base, xfact_iwu, yfact_isv
 
 do nstart = 1,ntr,nagg
@@ -475,13 +475,10 @@ do nstart = 1,ntr,nagg
 
   ! update non-boundary grid points
   ! here we use the coloured indices to identify interior and boundary points
-#ifndef GPU
-  !$omp parallel
-#endif
   do nn = 1,nlen
     np = nn - 1 + nstart
 #ifndef GPU
-    !$omp do schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
+    !$omp parallel do schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
 #else
     async_counter = mod(nn-1,async_length)
     !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
@@ -499,18 +496,16 @@ do nstart = 1,ntr,nagg
                          xfact_iwu*work(iw(iq),k,np) +         &
                          yfact(iq,k)*work(in(iq),k,np) +       &
                          yfact_isv*work(is(iq),k,np) )         &
-                      / base
+                      / base 
       end do  
     end do      
 #ifndef GPU
-    !$omp end do nowait
+    !$omp end parallel do
 #else
     !$acc end parallel loop
 #endif
   end do
-#ifndef GPU  
-  !$omp end parallel
-#else
+#ifdef GPU  
   !$acc wait
 #endif
     
@@ -543,6 +538,6 @@ do nstart = 1,ntr,nagg
   end do  
 
 end do ! nstart
-  
+
 return
 end subroutine hordifgt_work
