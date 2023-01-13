@@ -147,12 +147,6 @@ if ( nmaxpr==1 .and. mydiag ) then
   write(6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp(:)
   diag_temp(:) = qlg(idjd,:)
   write(6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp(:)
-  diag_temp(:) = qrg(idjd,:)
-  write(6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp(:)
-  diag_temp(:) = qsng(idjd,:)
-  write(6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp(:)
-  diag_temp(:) = qgrg(idjd,:)
-  write(6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp(:)
 endif
 #endif
 
@@ -186,12 +180,6 @@ if ( nmaxpr==1 .and. mydiag ) then
   write(6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = qlg(idjd,:)
   write(6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
-  diag_temp(:) = qrg(idjd,:)
-  write(6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp
-  diag_temp(:) = qsng(idjd,:)
-  write(6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp
-  diag_temp(:) = qgrg(idjd,:)
-  write(6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = qenv(idjd,:)
   write(6,"('qnv ',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = qsatg(idjd,:)
@@ -236,12 +224,6 @@ if ( nmaxpr==1 .and. mydiag ) then
   write (6,"('qf  ',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = qlg(idjd,:)
   write (6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
-  diag_temp(:) = qrg(idjd,:)
-  write (6,"('qr  ',9f8.3/4x,9f8.3)") diag_temp
-  diag_temp(:) = qsng(idjd,:)
-  write (6,"('qs  ',9f8.3/4x,9f8.3)") diag_temp
-  diag_temp(:) = qgrg(idjd,:)
-  write (6,"('qg  ',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = qenv(idjd,:) ! really new qg
   write (6,"('qnv ',9f8.3/4x,9f8.3)") diag_temp
 endif
@@ -276,9 +258,6 @@ endif
 !  call maxmin(qg,'qv',ktau,1.e3,kl)
 !  call maxmin(qfg,'qf',ktau,1.e3,kl)
 !  call maxmin(qlg,'ql',ktau,1.e3,kl)
-!  call maxmin(qrg,'qr',ktau,1.e3,kl)
-!  call maxmin(qsng,'qs',ktau,1.e3,kl)
-!  call maxmin(qgrg,'qg',ktau,1.e3,kl)
 !endif
 
 

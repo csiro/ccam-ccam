@@ -1369,8 +1369,9 @@ use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use module_aux_rad                         ! Additional cloud and radiation routines
-use module_ctrl_microphysics, only : &
-    process_rate_mode,cloud_aerosol_mode   ! Interface for cloud microphysics
+use module_ctrl_microphysics, only :     &
+    process_rate_mode,cloud_aerosol_mode &
+    ,lin_aerosolmode                       ! Interface for cloud microphysics  
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
@@ -1458,9 +1459,6 @@ character(len=1024) vegprev, vegnext, vegnext2 ! depreciated namelist options
 #ifdef usempi3
 integer, dimension(3) :: shsize
 #endif
-#ifdef debug
-real, dimension(1) :: gtemparray
-#endif
 
 ! version namelist
 namelist/defaults/nversion
@@ -1526,7 +1524,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
-    process_rate_mode
+    process_rate_mode,lin_aerosolmode
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -2120,7 +2118,7 @@ surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
 cordex_fix          = dumi(25)
 deallocate( dumi )
-allocate( dumr(34), dumi(25) )
+allocate( dumr(34), dumi(26) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2184,6 +2182,7 @@ if ( myid==0 ) then
   dumi(23) = tiedtke_form
   dumi(24) = cloud_aerosol_mode
   dumi(25) = process_rate_mode
+  dumi(26) = lin_aerosolmode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2246,6 +2245,7 @@ vdeposition_mode = dumi(22)
 tiedtke_form     = dumi(23)
 cloud_aerosol_mode = dumi(24)
 process_rate_mode  = dumi(25)
+lin_aerosolmode    = dumi(26)
 deallocate( dumr, dumi )
 allocate( dumr(32), dumi(4) )
 dumr = 0.
@@ -2831,13 +2831,9 @@ if ( kblock<0 ) then
   end if  
 end if
 if ( wgcoeff<0. ) then
-  if ( nvmix==6 .or. nvmix==7 ) then  
-    tscale = max( max( tke_timeave_length, dt ), wg_tau )
-  else
-    tscale = max( dt, wg_tau )  
-  end if
+  tscale = max( 3600., wg_tau )
   ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
-  wgcoeff = sqrt(max(0.,2.*log(-sqrt(2.*pi)*(tscale/wg_tau)*log(wg_prob))))
+  wgcoeff = sqrt(max(0.,2.*log((tscale/wg_tau)*(1./sqrt(2.*pi))*(-1./log(wg_prob)))))
   if ( myid==0 ) then
     write(6,*) "Adjusting wgcoeff = ",wgcoeff
   end if

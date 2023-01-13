@@ -24,9 +24,13 @@ implicit none
 private
 public ctrl_microphysics
 public cloud_aerosol_mode, process_rate_mode
+public lin_aerosolmode
+public maxlintime
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
 integer, save :: process_rate_mode  = 0     ! process rate for cloud microphysics (0=off)
+integer, save :: lin_aerosolmode    = 0     ! aerosol in lin microphysics (0=off)
+real, save :: maxlintime = 120.             ! Maximum time-step for Lin 2nd microphysics (sec)
 
 contains
     
@@ -111,28 +115,28 @@ integer                     :: ids,ide,jds,jde,kds,kde,ims,ime,jms,jme,kms,kme, 
                                its,ite,jts,jte,kts,kte
 real                        :: dt_in
 real                        :: ccn0 !1.0E8
-real(kind=8)                :: ht
+real(kind=8), dimension(imax) :: ht
 real, dimension(imax,kl)    :: w
-real, dimension(kl)         :: zlevv
+real, dimension(imax,kl)         :: zlevv
 real, dimension(imax,kl)    :: rho, pii, z, p_lin, dz8w
 !intent in out
 real, dimension(imax)       :: RAINNC,RAINNCV
 real, dimension(imax)       :: SNOWNC,SNOWNCV
 real, dimension(imax,kl)    :: th,qv_lin,qi,ql,qs,qr
 real, dimension(imax,kl)    :: nnr,nni,nns
-real, dimension(kl)    :: Ri3D
+real, dimension(imax,kl)    :: Ri3D
 real, dimension(imax,kl)    :: nn !nc,nr,ni,ns,nn
 ! intent(out)
 real, dimension(imax,kl)    :: precr,preci,precs,eradc,eradi,erads,eradr
 ! local variables
 integer                     :: min_q, max_q
 real, dimension(imax)       :: rain, snow,ice
-real, dimension(kl)         :: qgz
-real(kind=8), dimension(kl) :: qvz,qlz,qrz,qiz,qsz,thz,tothz,rhoz,orhoz,sqrhoz
-real(kind=8), dimension(kl) :: zfluxr,zfluxi,zfluxs,zfluxg,zfluxm,    &
+!real, dimension(kl)         :: qgz
+real(kind=8), dimension(imax,kl) :: qvz,qlz,qrz,qiz,qsz,thz,tothz,rhoz,orhoz,sqrhoz
+real(kind=8), dimension(imax,kl) :: zfluxr,zfluxi,zfluxs,zfluxg,zfluxm,    &
                                zfluxf,zfevap,zfsubl,zfauto,zfcoll,    &
                                zfaccr,zvi,zvs,zvg                         !for aerosol scheme
-real(kind=8), dimension(kl) :: zpsnow,zpsaut,zpsfw,zpsfi,zpraci,      &   !process rate to understand cloud microphysics
+real(kind=8), dimension(imax,kl) :: zpsnow,zpsaut,zpsfw,zpsfi,zpraci,      &   !process rate to understand cloud microphysics
                                zpiacr,zpsaci,zpsacw,zpsdep,           &
                                zpssub,zpracs,zpsacr,zpsmlt,           &
                                zpsmltevp,zprain,zpraut,zpracw,        &
@@ -147,18 +151,19 @@ real, dimension(imax,kl)   ::  zzpsnow,zzpsaut,zzpsfw,zzpsfi,zzpraci, &   !proce
                                zzpladj,zzpcli,zzpimlt,zzpihom,        &
                                zzpidw,zzpiadj,zzqschg
 
-real(kind=8), dimension(kl) :: prez,zz,dzw,precrz,preciz,precsz
-real(kind=8), dimension(kl) :: EFFC1D,EFFI1D,EFFS1D,EFFR1D
-real(kind=8), dimension(kl) :: riz
+real(kind=8), dimension(imax,kl) :: zz,dzw,precrz,preciz,precsz
+real(kind=8), dimension(imax,kl) :: prez
+real(kind=8), dimension(imax,kl) :: EFFC1D,EFFI1D,EFFS1D,EFFR1D
+real(kind=8), dimension(imax,kl) :: riz
 real                        :: rhoe_s
-real(kind=8)                :: pptice, pptrain, pptsnow
+real(kind=8), dimension(imax)    :: pptice, pptrain, pptsnow
 real, dimension(kl)         :: nnz
-real(kind=8), dimension(kl) :: ncz,nrz,niz,nsz
-real :: maxlintime
+real(kind=8), dimension(imax,kl) :: ncz,nrz,niz,nsz,zcdrop
 real(kind=8) :: tdt
 integer :: njumps
 integer i, j, m, cnt_sny
-real                        :: prf_temp, prf
+real, dimension(imax)       :: prf
+real, dimension(imax)       :: prf_temp
 real, dimension(ifull_g,kl) :: data_g
 real, dimension(ifull_g)    :: dsurf_g
 real, dimension(ifull, kl)  :: data_kl1,data_kl2,data_kl3,data_kl4,    &
@@ -225,7 +230,7 @@ do tile = 1,ntiles
     lrkmsave = rkmsave(is:ie,:)
     lrkhsave = rkhsave(is:ie,:)
   end if
-
+  
   call update_cloud_fraction(lcfrac,kbsav(is:ie),ktsav(is:ie),land(is:ie),             &
               ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                         &
               ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),pblh(is:ie),idjd_t, &
@@ -416,251 +421,213 @@ select case ( interp_ncloud(ldr,ncloud) )
       write(6,*) "LIN microphysics ",ncloud
     end if
  
-      !check to ensure again if W is in used somewhere
-      !check if Ri only calc here
       ccn0 = 250
       riz  = 0
       rhoe_s=1.29
 
-      maxlintime = 120.
       njumps = int(dt/(maxlintime+0.01)) + 1
       tdt    = real(dt,8)/real(njumps,8)
       do tile = 1, ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
+        is = (tile-1)*imax + 1 ! is:ie inside 1:ifull
+        ie = tile*imax       ! len(is:ie) = imax
 
-        ! prepare CCAM input for Lin 2022 microphysics here
-        its = is
-        ite = ie
         kts = 1
         kte = kl
+        ! pack data from ifull into imax
+        zlevv(1:imax,1)   = bet(1)*t(is:ie,1)/grav + zs(is:ie)/grav  
+        do m=2,kl
+          zlevv(1:imax,m) = zlevv(1:imax,m-1) + (bet(m)*t(is:ie,m)+betm(m)*t(is:ie,m-1))/grav
+        end do
+        ht(1:imax)        = real( zs(is:ie)/grav, 8 )
+        
+        qvz(1:imax,:) = real(qg(is:ie,:),8)
+        qlz(1:imax,:) = real(qlg(is:ie,:),8)  
+        qrz(1:imax,:) = real(qrg(is:ie,:),8)
+        qiz(1:imax,:) = real(qfg(is:ie,:),8)  
+        qsz(1:imax,:) = real(qsng(is:ie,:),8)
+        ! ----------------
+        do k = 1,kl
+          prf_temp(1:imax)  = ps(is:ie)*sig(k)
+          prf(1:imax)       = 0.01*prf_temp(1:imax)                        ! ps is SI units
+          tothz(1:imax,k)   = real( (prf(1:imax)/1000.)**(rdry/cp), 8 )
+          thz(1:imax,k)     = real(t(is:ie,k),8) / tothz(1:imax,k)
+          rhoz(1:imax,k)    = real(rhoa(is:ie,k),8)
+          orhoz(1:imax,k)   = 1._8/rhoz(1:imax,k)
+          prez(1:imax,k)    = real( sig(k)*ps(is:ie), 8 )
+          sqrhoz(1:imax,k)  = 1.0_8
+          zz(1:imax,k)      = real( zlevv(1:imax,k), 8 )
+          dzw(1:imax,k)     = real( dz(is:ie,k), 8 )       
+        end do
 
-        ! done input for LIN 2022 microphysics
-        ! now do the loop in LIN
-        do iq = its, ite
-          ! iq is for ifull arrays  iq>=1 and iq<=ifull
-          ! i is for imax arrays
-          i = iq - its + 1 ! i>=1 and i<=imax
+        select case( lin_aerosolmode )
+          case(0)
+            ncz(1:imax,:)    = 0.                   
+            zcdrop(1:imax,:) = 0.                   
+          case(1)
+            ncz(1:imax,:)    = 0.                   
+            zcdrop(1:imax,:) = real(cdrop(is:ie,:)) ! aerosol
+        end select
 
-          zlevv(1) = bet(1)*t(iq,1)/grav + zs(iq)/grav
-          do m=2,kl
-            zlevv(m) = zlevv(m-1) + (bet(m)*t(iq,m)+betm(m)*t(iq,m-1))/grav
-          end do
-          ht = real( zs(iq)/grav, 8 )
-
-          !!- write data from 3-D to 1-D
-          do k = kts, kte
-
-            ! unpack from iq to i
-            qvz(k)   = real(qg(iq,k),8)   !qv(iq,k)
-            qlz(k)   = real(qlg(iq,k),8)  !ql(iq,k)
-            qrz(k)   = real(qrg(iq,k),8)  !qr(iq,k)
-            qiz(k)   = real(qfg(iq,k),8)  !qi(iq,k)
-            qsz(k)   = real(qsng(iq,k),8) !qs(iq,k)
-
-            ! ----------------
-            ! all arrays are imax below this line
-
-            prf_temp    = ps(iq)*sig(k)
-            prf         = 0.01*prf_temp                        ! ps is SI units
-            tothz(k)    = real( (prf/1000.)**(rdry/cp), 8 )
-            !thz(k)      = t(iq,k) * (1000. / prf)**(rdry/cp) 
-            thz(k)      = real(t(iq,k),8) / tothz(k)
-            rhoz(k)     = real(rhoa(iq,k),8) 
-            orhoz(k)    = 1._8/rhoz(k)
-            prez(k)     = real( sig(k)*ps(iq), 8 ) 
-            ! sqrhoz(k)=sqrt(rhoe_s*orhoz(k))
-            ! no density dependence of fall speed as Note #5, you can turn it on to increase fall speed at low pressure.
-            sqrhoz(k)   = 1.0_8
-
-            zz(k)       = real( zlevv(k), 8 )
-            dzw(k)      = real( dz(iq,k), 8 )
-            ncz(k)      = 0. !real( nc(iq,k), 8 )
-            nrz(k)      = 0. !real( nr(iq,k), 8 )
-            niz(k)      = real( ni(iq,k), 8 )
-            nsz(k)      = 0. !real( ns(iq,k), 8 )
-          end do ! k loop
+        nrz(1:imax,:)  = real( nr(is:ie,:), 8 )
+        niz(1:imax,:)  = real( ni(is:ie,:), 8 )
+        nsz(1:imax,:)  = real( ns(is:ie,:), 8 )
 
 
-          pptrain=0._8
-          pptsnow=0._8
-          pptice=0._8
- 
-#ifdef sonny_debug
+        pptrain(1:imax) = 0._8
+        pptsnow(1:imax) = 0._8
+        pptice(1:imax)  = 0._8
+
           if (myid == 0 .and. tile==1 ) then
             print*, '================= START input to LIN 2022 =================================='
-            print*, 'qvz      :', minval(qvz(:)), maxval(qvz(:))
-            print*, 'qlz      :', minval(qlz(:)), maxval(qlz(:))
-            print*, 'qrz      :', minval(qrz(:)), maxval(qrz(:))
-            print*, 'qiz      :', minval(qiz(:)), maxval(qiz(:))
-            print*, 'qsz      :', minval(qsz(:)), maxval(qsz(:))
-            print*, 'thz      :', minval(thz(:)), maxval(thz(:))
-            print*, 'rhoa     :', minval(rhoa(iq,:)), maxval(rhoa(iq,:))
-            print*, 'tothz    :', minval(tothz(:)), maxval(tothz(:))
-            print*, 'zlevv    :', minval(zlevv(:)), maxval(zlevv(:))
+            print*, 'qvz      :', minval(qvz(:,:)), maxval(qvz(:,:))
+            print*, 'qlz      :', minval(qlz(:,:)), maxval(qlz(:,:))
+            print*, 'qrz      :', minval(qrz(:,:)), maxval(qrz(:,:))
+            print*, 'qiz      :', minval(qiz(:,:)), maxval(qiz(:,:))
+            print*, 'qsz      :', minval(qsz(:,:)), maxval(qsz(:,:))
+            print*, 'thz      :', minval(thz(:,:)), maxval(thz(:,:))
+            print*, 'rhoa     :', minval(rhoa(:,:)), maxval(rhoa(:,:))
+            print*, 'tothz    :', minval(tothz(:,:)), maxval(tothz(:,:))
+            print*, 'zlevv    :', minval(zlevv(:,:)), maxval(zlevv(:,:))
             print*, '================= END input to LIN 2022 ===================================='
           end if
-#endif
 
-          ! Use sub time-step if required
-          do n = 1,njumps
-            CALL clphy1d_ylin(tdt, qvz, qlz, qrz, qiz, qsz,   &
-                           thz, tothz, rhoz, orhoz, sqrhoz,   &
-                           prez, zz, dzw, ht,                 &
-                           precrz, preciz, precsz,            & !zdc 20220116
-                           EFFC1D, EFFI1D, EFFS1D, EFFR1D,    & !zdc 20220208
-                           pptrain, pptsnow, pptice,          &
-                           kts, kte, i, j, riz,               &
-                           ncz, nrz, niz, nsz,                &
-                           zfluxr,zfluxi,zfluxs,zfluxg,zfluxm,&
-                           zfluxf,zfevap,zfsubl,zfauto,zfcoll,&
-                           zfaccr,zvi,zvs,zvg,                & !aerosol scheme
-                           zpsnow,zpsaut,zpsfw,zpsfi,zpraci,  & !process rate to understand cloud microphysics
-                           zpiacr,zpsaci,zpsacw,zpsdep,       &
-                           zpssub,zpracs,zpsacr,zpsmlt,       &
-                           zpsmltevp,zprain,zpraut,zpracw,    &
-                           zprevp,zpgfr,zpvapor,zpclw,        &
-                           zpladj,zpcli,zpimlt,zpihom,        &
-                           zpidw,zpiadj,zqschg)
-          end do
-#ifdef sonny_debug
+        ! Use sub time-step if required
+        do n = 1,njumps
+          CALL clphy1d_ylin(tdt, imax,                      &
+                         qvz, qlz, qrz, qiz, qsz,           &
+                         thz, tothz, rhoz, orhoz, sqrhoz,   &
+                         prez, zz, dzw, ht,                 &
+                         precrz, preciz, precsz,            & !zdc 20220116
+                         EFFC1D, EFFI1D, EFFS1D, EFFR1D,    & !zdc 20220208
+                         pptrain, pptsnow, pptice,          &
+                         kts, kte, i, j, riz,               &
+                         ncz, nrz, niz, nsz,                &
+                         zfluxr,zfluxi,zfluxs,zfluxg,zfluxm,&
+                         zfluxf,zfevap,zfsubl,zfauto,zfcoll,&
+                         zfaccr,zvi,zvs,zvg,                & !aerosol scheme
+                         zpsnow,zpsaut,zpsfw,zpsfi,zpraci,  & !process rate cloud microphysics
+                         zpiacr,zpsaci,zpsacw,zpsdep,       &
+                         zpssub,zpracs,zpsacr,zpsmlt,       &
+                         zpsmltevp,zprain,zpraut,zpracw,    &
+                         zprevp,zpgfr,zpvapor,zpclw,        &
+                         zpladj,zpcli,zpimlt,zpihom,        &
+                         zpidw,zpiadj,zqschg,               &
+                         zcdrop, lin_aerosolmode)              !aerosol feedback
+        end do
+
           if (myid == 0 .and. tile==1 ) then
           print*, '================= START output of LIN 2022 =================================='
-          print*, 'qvz      :', minval(qvz(:)), maxval(qvz(:))
-          print*, 'qlz      :', minval(qlz(:)), maxval(qlz(:))
-          print*, 'qrz      :', minval(qrz(:)), maxval(qrz(:))
-          print*, 'qiz      :', minval(qiz(:)), maxval(qiz(:))
-          print*, 'qsz      :', minval(qsz(:)), maxval(qsz(:))
-          print*, 'thz      :', minval(thz(:)), maxval(thz(:))
-          print*, 'rhoa     :', minval(rhoa(iq,:)), maxval(rhoa(iq,:))
-          print*, 'tothz    :', minval(tothz(:)), maxval(tothz(:))
-          print*, 'zlevv    :', minval(zlevv(:)), maxval(zlevv(:))
+          print*, 'qvz      :', minval(qvz(:,:)), maxval(qvz(:,:))
+          print*, 'qlz      :', minval(qlz(:,:)), maxval(qlz(:,:))
+          print*, 'qrz      :', minval(qrz(:,:)), maxval(qrz(:,:))
+          print*, 'qiz      :', minval(qiz(:,:)), maxval(qiz(:,:))
+          print*, 'qsz      :', minval(qsz(:,:)), maxval(qsz(:,:))
+          print*, 'thz      :', minval(thz(:,:)), maxval(thz(:,:))
+          print*, 'rhoa     :', minval(rhoa(:,:)), maxval(rhoa(:,:))
+          print*, 'tothz    :', minval(tothz(:,:)), maxval(tothz(:,:))
+          print*, 'zlevv    :', minval(zlevv(:,:)), maxval(zlevv(:,:))
           if (maxval(riz) > 0.) then
-          print*, 'riz      :', minval(riz(:)), maxval(riz(:))
+          print*, 'riz      :', minval(riz(:,:)), maxval(riz(:,:))
           end if
-          print*, 'precrz   :', minval(precrz(:)),maxval(precrz(:))
-          print*, 'preciz   :', minval(preciz(:)),maxval(preciz(:))
-          print*, 'precsz   :', minval(precsz(:)),maxval(precsz(:))
-          print*, 'EFFC1D   :', minval(EFFC1D(:)), maxval(EFFC1D(:))
-          print*, 'EFFI1D   :', minval(EFFI1D(:)), maxval(EFFI1D(:))
-          print*, 'EFFS1D   :', minval(EFFS1D(:)), maxval(EFFS1D(:))
-          print*, 'EFFR1D   :', minval(EFFR1D(:)), maxval(EFFR1D(:))
-          print*, 'ncz      :', minval(ncz(:)), maxval(ncz(:))
-          print*, 'nrz      :', minval(nrz(:)), maxval(nrz(:))
-          print*, 'niz      :', minval(niz(:)), maxval(niz(:))
-          print*, 'nsz      :', minval(nsz(:)), maxval(nsz(:))
+          print*, 'precrz   :', minval(precrz(:,:)),maxval(precrz(:,:))
+          print*, 'preciz   :', minval(preciz(:,:)),maxval(preciz(:,:))
+          print*, 'precsz   :', minval(precsz(:,:)),maxval(precsz(:,:))
+          print*, 'EFFC1D   :', minval(EFFC1D(:,:)), maxval(EFFC1D(:,:))
+          print*, 'EFFI1D   :', minval(EFFI1D(:,:)), maxval(EFFI1D(:,:))
+          print*, 'EFFS1D   :', minval(EFFS1D(:,:)), maxval(EFFS1D(:,:))
+          print*, 'EFFR1D   :', minval(EFFR1D(:,:)), maxval(EFFR1D(:,:))
+          print*, 'ncz      :', minval(ncz(:,:)), maxval(ncz(:,:))
+          print*, 'nrz      :', minval(nrz(:,:)), maxval(nrz(:,:))
+          print*, 'niz      :', minval(niz(:,:)), maxval(niz(:,:))
+          print*, 'nsz      :', minval(nsz(:,:)), maxval(nsz(:,:))
           print*, '================= END output of LIN 2022 ===================================='
           end if
-#endif
-          ! Precipitation from cloud microphysics -- only for one time step
-          ! unit is transferred from m to mm
-          !rain(i)= pptrain
-          !snow(i)= pptsnow
-          !ice(i) = pptice
-          !RAINNCV(i)= real( pptrain + pptsnow + pptice )
-          !RAINNC(i) = RAINNC(i) + real( pptrain + pptsnow + pptice )
-          !SNOWNCV(i)= real( pptsnow + pptice )
-          !SNOWNC(i) = SNOWNC(i) + real( pptsnow + pptice )
-          !- update data from 1-D back to 3-D
-          !do k = kts, kte
-          !  precr(i,k)=real(precrz(k))
-          !  preci(i,k)=real(preciz(k))
-          !  precs(i,k)=real(precsz(k))
-          !end do !k loop
-        !end do   !i loop
 
-        !do iq = its,ite
-          !i = iq - its + 1
-          do k = kts, kte
-            t(iq,k) = real(thz(k) * tothz(k))
-            !if ( t(iq,k) > 10000. ) then
-            !  print*, t(iq,k), th(i,k), iq, i, k, tile
-            !end if
-            gfrac(iq,k) = 0.  !lgfrac   ! graupel area fraction
-            if ( qrz(k)>0. ) then
-              rfrac(iq,k) = 1.  !lrfrac   ! rain area fraction
-            else
-              rfrac(iq,k) = 0.
-            end if
-            if ( qsz(k)>0. ) then
-              sfrac(iq,k) = 1.
-            else
-              sfrac(iq,k) = 0.
-            end if
-            qg(iq,k)    = real(qvz(k))                      ! qv mixing ratio
-            qlg(iq,k)   = real(qlz(k))                      ! ql mixing ratio
-            qfg(iq,k)   = real(qiz(k))                      ! qf mixing ratio (ice)
-            qrg(iq,k)   = real(qrz(k))                      ! qr mixing ratio (rain)
-            qsng(iq,k)  = real(qsz(k))*(1.-real(riz(k)))    ! qs mixing ratio (snow)
-            qgrg(iq,k)  = real(qsz(k))*real(riz(k))         ! qg mixing ration (graupel)
-            stratcloud(iq,k) = cfrac(iq,k)
 
-            !nc(iq,k)=ncz(k)
-            nr(iq,k)=nrz(k)
-            ni(iq,k)=niz(k)
-            ns(iq,k)=nsz(k)    !zdc 20220116
+        t(is:ie,:) = real(thz(1:imax,:) * tothz(1:imax,:))
+        gfrac(is:ie,:) = 0.        ! graupel area fraction
 
-            stras_rliq(iq,k) = real(EFFC1D(k))          ! save efflective radius for cosp
-            stras_rice(iq,k) = real(EFFI1D(k))
-            stras_rsno(iq,k) = real(EFFS1D(k))
-            stras_rrai(iq,k) = real(EFFR1D(k))
+        where ( qrz(1:imax,:)>0. )
+           rfrac(is:ie,:) = 1.
+        elsewhere
+           rfrac(is:ie,:) = 0.
+        end where
+        where ( qsz(1:imax,:)>0. )
+           sfrac(is:ie,:) = 1.
+        elsewhere
+           sfrac(is:ie,:) = 0.
+        end where
 
-            fluxr(iq,k) = zfluxr(k)               ! flux for aerosol calculation
-            fluxm(iq,k) = zfluxm(k)
-            fluxf(iq,k) = zfluxf(k)
-            fluxi(iq,k) = zfluxi(k)
-            fluxs(iq,k) = zfluxs(k)
-            fluxg(iq,k) = zfluxg(k)
-            fevap(iq,k) = zfevap(k)
-            fsubl(iq,k) = zfsubl(k)
-            fauto(iq,k) = zfauto(k)
-            fcoll(iq,k) = zfcoll(k)
-            faccr(iq,k) = zfaccr(k)
-            vi(iq,k) = zvi(k)
-            vs(iq,k) = zvs(k)
-            vg(iq,k) = zvg(k)
+        !unpack data from imax to ifull.
 
-            if (process_rate_mode == 2) then
-              psnow(iq,k)   = real(zpsnow(k))  !process rate to understand cloud microphysics
-              psaut(iq,k)   = real(zpsaut(k))
-              psfw(iq,k)    = real(zpsfw(k)) 
-              psfi(iq,k)    = real(zpsfi(k))
-              praci(iq,k)   = real(zpraci(k))
-              piacr(iq,k)   = real(zpiacr(k))
-              psaci(iq,k)   = real(zpsaci(k))
-              psacw(iq,k)   = real(zpsacw(k))
-              psdep(iq,k)   = real(zpsdep(k))
-              pssub(iq,k)   = real(zpssub(k))
-              pracs(iq,k)   = real(zpracs(k))
-              psacr(iq,k)   = real(zpsacr(k))
-              psmlt(iq,k)   = real(zpsmlt(k))
-              psmltevp(iq,k)= real(zpsmltevp(k))
-              prain(iq,k)   = real(zprain(k))
-              praut(iq,k)   = real(zpraut(k))
-              pracw(iq,k)   = real(zpracw(k))
-              prevp(iq,k)   = real(zprevp(k))
-              pgfr(iq,k)    = real(zpgfr(k))
-              pvapor(iq,k)  = real(zpvapor(k))
-              pclw(iq,k)    = real(zpclw(k))
-              pladj(iq,k)   = real(zpladj(k))
-              pcli(iq,k)    = real(zpcli(k))
-              pimlt(iq,k)   = real(zpimlt(k))
-              pihom(iq,k)   = real(zpihom(k))
-              pidw(iq,k)    = real(zpidw(k))
-              piadj(iq,k)   = real(zpiadj(k))
-              qschg(iq,k)   = real(zqschg(k))
-            end if
-          end do !k loop
+        qg(is:ie,:)         = real(qvz(1:imax,:))                             ! qv mixing ratio
+        qlg(is:ie,:)        = real(qlz(1:imax,:))                             ! ql mixing ratio
+        qfg(is:ie,:)        = real(qiz(1:imax,:))                             ! qf mixing ratio (ice)
+        qrg(is:ie,:)        = real(qrz(1:imax,:))                             ! qr mixing ratio (rain)
+        qsng(is:ie,:)       = real(qsz(1:imax,:))*(1.-real(riz(1:imax,:)))    ! qs mixing ratio (snow)
+        qgrg(is:ie,:)       = real(qsz(1:imax,:))*real(riz(1:imax,:))         ! qg mixing ration (graupel)
+        stratcloud(is:ie,:) = cfrac(is:ie,:)
 
-          condx(iq) = condx(iq) + real( pptrain + pptsnow + pptice )
-          conds(iq) = conds(iq) + real( pptsnow + pptice )
-          condg(iq) = 0.0 !condg(iq) + 0. ! for graupel
-          precip(iq) = precip(iq) + real( pptrain + pptsnow + pptice )
+        !nc(is:ie,:)        = ncz(:)
+        nr(is:ie,:)         = nrz(1:imax,:)
+        ni(is:ie,:)         = niz(1:imax,:)
+        ns(is:ie,:)         = nsz(1:imax,:)    
+        stras_rliq(is:ie,:) = real(EFFC1D(1:imax,:))             ! save efflective radius for cosp
+        stras_rice(is:ie,:) = real(EFFI1D(1:imax,:))
+        stras_rsno(is:ie,:) = real(EFFS1D(1:imax,:))
+        stras_rrai(is:ie,:) = real(EFFR1D(1:imax,:))
 
-        end do   !iq loop
+        fluxr(is:ie,:) = zfluxr(1:imax,:)                        ! flux for aerosol calculation
+        fluxm(is:ie,:) = zfluxm(1:imax,:)
+        fluxf(is:ie,:) = zfluxf(1:imax,:)
+        fluxi(is:ie,:) = zfluxi(1:imax,:)
+        fluxs(is:ie,:) = zfluxs(1:imax,:)
+        fluxg(is:ie,:) = zfluxg(1:imax,:)
+        fevap(is:ie,:) = zfevap(1:imax,:)
+        fsubl(is:ie,:) = zfsubl(1:imax,:)
+        fauto(is:ie,:) = zfauto(1:imax,:)
+        fcoll(is:ie,:) = zfcoll(1:imax,:)
+        faccr(is:ie,:) = zfaccr(1:imax,:)
+        vi(is:ie,:) = zvi(1:imax,:)
+        vs(is:ie,:) = zvs(1:imax,:)
+        vg(is:ie,:) = zvg(1:imax,:)
+
+        if (process_rate_mode == 2) then
+          psnow(is:ie,:)   = real(zpsnow(1:imax,:))  !process rate to understand cloud microphysics
+          psaut(is:ie,:)   = real(zpsaut(1:imax,:))
+          psfw(is:ie,:)    = real(zpsfw(1:imax,:))
+          psfi(is:ie,:)    = real(zpsfi(1:imax,:))
+          praci(is:ie,:)   = real(zpraci(1:imax,:))
+          piacr(is:ie,:)   = real(zpiacr(1:imax,:))
+          psaci(is:ie,:)   = real(zpsaci(1:imax,:))
+          psacw(is:ie,:)   = real(zpsacw(1:imax,:))
+          psdep(is:ie,:)   = real(zpsdep(1:imax,:))
+          pssub(is:ie,:)   = real(zpssub(1:imax,:))
+          pracs(is:ie,:)   = real(zpracs(1:imax,:))
+          psacr(is:ie,:)   = real(zpsacr(1:imax,:))
+          psmlt(is:ie,:)   = real(zpsmlt(1:imax,:))
+          psmltevp(is:ie,:)= real(zpsmltevp(1:imax,:))
+          prain(is:ie,:)   = real(zprain(1:imax,:))
+          praut(is:ie,:)   = real(zpraut(1:imax,:))
+          pracw(is:ie,:)   = real(zpracw(1:imax,:))
+          prevp(is:ie,:)   = real(zprevp(1:imax,:))
+          pgfr(is:ie,:)    = real(zpgfr(1:imax,:))
+          pvapor(is:ie,:)  = real(zpvapor(1:imax,:))
+          pclw(is:ie,:)    = real(zpclw(1:imax,:))
+          pladj(is:ie,:)   = real(zpladj(1:imax,:))
+          pcli(is:ie,:)    = real(zpcli(1:imax,:))
+          pimlt(is:ie,:)   = real(zpimlt(1:imax,:))
+          pihom(is:ie,:)   = real(zpihom(1:imax,:))
+          pidw(is:ie,:)    = real(zpidw(1:imax,:))
+          piadj(is:ie,:)   = real(zpiadj(1:imax,:))
+          qschg(is:ie,:)   = real(zqschg(1:imax,:))
+        end if
+          
+        condx(is:ie)  = condx(is:ie) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
+        conds(is:ie)  = conds(is:ie) + real( pptsnow(1:imax) + pptice(1:imax) )
+        condg(is:ie)  = 0.0          !condg(is:ie) + 0. ! for graupel
+        precip(is:ie) = precip(is:ie)+ real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
       end do     !tile loop
-
-
       if ( myid==0 ) then
         write(6,*) "DONE LIN microphysics ",ncloud
       end if

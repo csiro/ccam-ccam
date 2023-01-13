@@ -78,7 +78,7 @@ allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
 allocate(qrg(ifull,kl),qsng(ifull,kl))
 allocate(qgrg(ifull,kl))
 !rain, snow, graupel only fall vertically
-allocate(nr(ifull,kl),ni(ifull+iextra,kl),ns(ifull,kl))
+allocate(nr(ifull+iextra,kl),ni(ifull+iextra,kl),ns(ifull+iextra,kl))
 allocate(cdrop_aerosol(ifull,kl))
 allocate(fluxr(ifull,kl),fluxi(ifull,kl),fluxs(ifull,kl),fluxg(ifull,kl))
 allocate(stras_rliq(ifull,kl),stras_rice(ifull,kl),stras_rrai(ifull,kl),stras_rsno(ifull,kl))

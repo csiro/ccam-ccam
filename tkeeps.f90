@@ -496,15 +496,15 @@ end do ! kcount loop
 ! variance for wind gusts
 ! (from TAPM)
 do iq = 1,imax
-  wdash_sq = (1.2*ustar(iq))**2   ! Hurley
-  !l_on_kz = cm34*tke(iq,1)**(3./2.)/eps(iq,1)/(vkar*zz(iq,1))
-  !wdash_sq = ((2./3.)*tke(iq,1) + tke(iq,1)/(cs1*eps(iq,1))*( &
-  !            (2.-cs2-cw2*l_on_kz)*pps(iq,1)                  &
-  !          + (2.-cs3-cw3*l_on_kz)*ppb(iq,1)                  &
-  !          - (2./3.)*eps(iq,1) ) )                           &
-  !          / (1.+(cw1/cs1)*l_on_kz)
-  ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq ! = (cm12-0.5*1.2)*ustar(iq)**2 + ce3*wstar(iq)**2
-  !usg_var(iq) = (2.185*ustar(iq))**2 ! Wichers et al (2008)
+  !wdash_sq = (1.2*ustar(iq))**2   ! Hurley                                                  ! sny
+  !!l_on_kz = cm34*tke(iq,1)**(3./2.)/eps(iq,1)/(vkar*zz(iq,1))
+  !!wdash_sq = ((2./3.)*tke(iq,1) + tke(iq,1)/(cs1*eps(iq,1))*( &
+  !!            (2.-cs2-cw2*l_on_kz)*pps(iq,1)                  &
+  !!          + (2.-cs3-cw3*l_on_kz)*ppb(iq,1)                  &
+  !!          - (2./3.)*eps(iq,1) ) )                           &
+  !!          / (1.+(cw1/cs1)*l_on_kz)
+  !ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq ! = (cm12-0.5*1.2)*ustar(iq)**2 + ce3*wstar(iq)**2 ! sny
+  ugs_var(iq) = (2.185*ustar(iq))**2 ! Wichers et al (2008)
 end do
 
 

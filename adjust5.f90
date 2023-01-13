@@ -563,10 +563,16 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   if ( ncloud>=100 .and. ncloud<200 ) then
     do k = 1,kl
       ni(1:ifull,k) = max( ni(1:ifull,k), 0. )
+      nr(1:ifull,k) = max( nr(1:ifull,k), 0. )
+      ns(1:ifull,k) = max( ns(1:ifull,k), 0. )
     end do
-    call massfix(mfix_qg,1,ni,nisav,ps,ps_sav,.false.) ! to conserve moisture
+    call massfix(mfix_qg,1,ni,nisav,ps,ps_sav,.true.) ! to conserve moisture
+    call massfix(mfix_qg,1,nr,nrsav,ps,ps_sav,.true.) ! to conserve moisture
+    call massfix(mfix_qg,1,ns,nssav,ps,ps_sav,.true.) ! to conserve moisture
     do k = 1,kl
       ni(1:ifull,k) = max( ni(1:ifull,k), 0. )
+      nr(1:ifull,k) = max( nr(1:ifull,k), 0. )
+      ns(1:ifull,k) = max( ns(1:ifull,k), 0. )
     end do
   end if
   do k = 1,kl

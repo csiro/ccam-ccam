@@ -172,6 +172,10 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
     call vadv_work(ni,nvadh_inv_pass,nits)
     ni = max(ni, 0.)
+    call vadv_work(nr,nvadh_inv_pass,nits)
+    nr = max(nr, 0.)
+    call vadv_work(ns,nvadh_inv_pass,nits)
+    ns = max(ns, 0.)
   end if      ! if(ldr.ne.0)
 end if          ! if(mspec==1)
 

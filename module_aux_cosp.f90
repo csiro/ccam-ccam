@@ -44,7 +44,7 @@ module module_aux_cosp
   private
   public cloud_simulator
   public clp_lmht
-  public cls_ze
+  !public cls_ze
   public ncolumns
   public clp_phse_ice,clp_phse_liq 
   public clp_ice,clp_liq 
@@ -59,7 +59,7 @@ module module_aux_cosp
   public cloud_simulator_ready
 
   real, dimension(:,:), allocatable, save   :: clp_lmht 
-  real, dimension(:,:,:), allocatable, save :: cls_ze
+  !real, dimension(:,:,:), allocatable, save :: cls_ze
   real, dimension(:,:), allocatable, save   :: clp_phse_ice,clp_phse_liq 
   real, dimension(:,:), allocatable, save   :: clp_ice,clp_liq 
   real, dimension(:,:), allocatable, save   :: cls_db_b01,cls_db_b02,cls_db_b03,cls_db_b04
@@ -71,7 +71,7 @@ module module_aux_cosp
   real, dimension(:,:), allocatable, save   :: clp_sr_b09,clp_sr_b10,clp_sr_b11,clp_sr_b12
   real, dimension(:,:), allocatable, save   :: clp_sr_b13,clp_sr_b14,clp_sr_b15
 
-  integer, save :: ncolumns=20
+  integer, save :: ncolumns=100 !20
   logical, save :: cloud_simulator_ready = .false.
 
 #ifdef COSPP
@@ -347,7 +347,7 @@ if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
   Nptsperit       = imax
   rttov_nChannels = 3
   nLevels         = kl
-  nColumns        = 20 
+  nColumns        = 100 !20 
   cloudsat_micro_scheme = 'MMF_v3.5_single_moment'
 
   !====================================================================================================
@@ -387,7 +387,7 @@ if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
     allocate( clp_phse_liq(ifull,4) )
     allocate( clp_ice(ifull,40 ) )
     allocate( clp_liq(ifull,40 ) )
-    allocate( cls_ze(ifull,kl,Ncolumns) )
+    !allocate( cls_ze(ifull,kl,Ncolumns) )
     allocate( cls_db_b01(ifull,40) )
     allocate( cls_db_b02(ifull,40) )
     allocate( cls_db_b03(ifull,40) )
@@ -751,7 +751,7 @@ if (myid==0 ) then
     Nptsperit       = imax
     rttov_nChannels = 3
     nLevels         = kl
-    nColumns        = 20
+    nColumns        = 100 !20
     cloudsat_micro_scheme = 'MMF_v3.5_single_moment'
    
     !if (tile .eq. 1) then
@@ -782,12 +782,12 @@ if (myid==0 ) then
     cospIN%emsfc_lw         = emsfc_lw
     cospIN%rcfg_cloudsat    = rcfg_cloudsat
     cospIN%Npoints          = imax
-    cospIN%Ncolumns         = 20 
+    cospIN%Ncolumns         = 100 !20 
     cospIN%Nlevels          = kl
     cospIN%frac_out         = frac_out
     cospstateIN%Npoints     = imax
     cospstateIN%Nlevels     = kl
-    cospstateIN%Ncolumns    = 20
+    cospstateIN%Ncolumns    = 100 !20
     cospstateIN%hgt_matrix  = zlev_inv                  ! m
     cospstateIN%sunlit      = sunlit(1:imax)            ! 0-1
     cospstateIN%skt         = skt(:)                    ! K
@@ -846,10 +846,10 @@ if (myid==0 ) then
     !1st OUTPUT........................................................................
     !Ldbze94,        & ! CLOUDSAT radar reflectivity
     !x%cloudsat_Ze_tot(Npoints,Ncolumns,Nlevels)
-    do n = 1,ncolumns
-      !cloudsat_Ze_tot(is:ie,kl:1:-1,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
-      cls_ze(is:ie,kl:1:-1,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
-    end do
+    !!do n = 1,ncolumns
+    !!  !cloudsat_Ze_tot(is:ie,kl:1:-1,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
+    !!  cls_ze(is:ie,kl:1:-1,n) = cospOUT%cloudsat_Ze_tot(1:imax,n,1:kl)
+    !!end do
     !2nd OUTPUT.........................................................................
     !LcfadDbze94,      & ! CLOUDSAT radar reflectivity CFAD
     ! in calipso, it is global map for each elevation, then each grid point is for specific reflectivity range

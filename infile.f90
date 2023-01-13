@@ -1679,18 +1679,6 @@ if ( any(abs(sigin-sigin_save)>=0.0001) ) then
   enddo   !  k loop
 end if
 
-#ifdef debug
-if ( myid==0 ) then
-  write(6,*) 'in vertint kk,kl ',kk,kl
-  write(6,"('sigin',10f7.4)") (sigin(k),k=1,kk)
-  write(6,"('sig  ',10f7.4)") sig
-  write(6,*) 'ka ',ka
-  write(6,*) 'kb ',kb
-  write(6,"('wta',10f7.4)") wta
-  write(6,"('wtb',10f7.4)") wtb
-endif   !  (myid==0)
-#endif
-
 do k = 1,kl
   ! N.B. "a" denotes "above", "b" denotes "below"
   t(1:ifull,k) = wta(k)*told(:,ka(k)) + (1.-wta(k))*told(:,ka(k)-1)

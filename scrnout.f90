@@ -549,7 +549,7 @@ atu(is:ie)   = au(is:ie)*u10(is:ie)/umag(is:ie) + ou(is:ie)
 atv(is:ie)   = av(is:ie)*u10(is:ie)/umag(is:ie) + ov(is:ie)      
 u10(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 
-wsgs(is:ie) = sqrt(max(u10gs_var(is:ie),0.))*wgcoeff + u10(is:ie)
+wsgs(is:ie) = sqrt(max(ugs_var(is:ie),0.))*wgcoeff + u10(is:ie)
 
 
 ! urban tile

@@ -93,6 +93,8 @@ if ( ldr/=0 ) then
   if ( ncloud>=100 .and. ncloud<200 ) then
     do k = 1,kl
       nisav(1:ifull,k)  = ni(1:ifull,k)
+      nrsav(1:ifull,k)  = nr(1:ifull,k)
+      nssav(1:ifull,k)  = ns(1:ifull,k)
     end do
   end if
   do k = 1,kl  

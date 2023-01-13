@@ -718,10 +718,9 @@ do k = 1,kl
     end if
 
 #ifdef debug
-    if(ntest==1.and.k==nlv.and.iq=idjd)then
-      iq=idjd
-      write(6,*) 'x3d,y3d,z3d ',x3d(iq),y3d(iq),z3d(iq)
-      den(iq)=1._8-alf*z3d(iq) ! to force real*8
+    if(ntest==1.and.k==nlv.and.iq==idjd)then
+      write(6,*) 'x3d,y3d,z3d ',x3d(iq,k),y3d(iq,k),z3d(iq,k)
+      den=1._8-alf*z3d(iq,k) ! to force real*8
       write(6,*) 'den ',den
       denxyz=max( abs(xstr),abs(ystr),abs(zstr) )
       xd=xstr/denxyz
@@ -731,11 +730,6 @@ do k = 1,kl
       write(6,*) 'abs(xstr,ystr,zstr) ',abs(xstr),abs(ystr),abs(zstr)
       write(6,*) 'xd,yd,zd,nface ',xd,yd,zd,nface(iq,k)
       write(6,*) 'alf,alfonsch ',alf,alfonsch
-    endif
-    if(ndiag==2)then
-      write(6,*) 'before xytoiq'
-      call printp('xg  ',xg)
-      call printp('yg  ',yg)
     endif
 #endif
 

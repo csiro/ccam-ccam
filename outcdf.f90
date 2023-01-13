@@ -983,7 +983,7 @@ use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
 use module_aux_cosp, only : clp_lmht,             &
-                            cls_ze,               &
+                            !cls_ze,               &
                             clp_phse_ice,         &
                             clp_phse_liq,         &
                             clp_ice,              &
@@ -2148,10 +2148,10 @@ if( myid==0 .or. local ) then
         write(vname,'(A,I3.3)') "clp_lmht_",n
         call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO Total Cloud Fraction','none',0.,100.,0,cptype)
       end do
-      do n = 1,ncolumns
-        write(vname,'(A,I3.3)') "cls_ze_",n
-        call attrib(idnc,dima,asize,trim(vname),'cloudsat reflectivity','dBZ',-100.,80.,0,cptype)
-      end do
+      !do n = 1,ncolumns
+      !  write(vname,'(A,I3.3)') "cls_ze_",n
+      !  call attrib(idnc,dima,asize,trim(vname),'cloudsat reflectivity','dBZ',-100.,80.,0,cptype)
+      !end do
       ! start calipso cloud phase output
       do n = 1,4
         write(vname,'(A,I3.3)') "clp_phse_ice_",n
@@ -2595,13 +2595,18 @@ if( myid==0 .or. local ) then
       else
         allocate( procnode(2,1), procdata(1) ) ! not used
       end if
-      if ( myid==0 ) write(6,*) '--> gather leader ranks'  
+      if ( myid==0 ) write(6,*) '--> gather leader ranks' 
+      print*, 'Hello from OUTCDF process', myid 
       call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
+      print*, 'Goodbye ...sonny', myid
       if ( myid==0 ) then
+        print*, 'About to write: procnode'
         procdata(:) = procnode(1,:)  
         call ccnf_put_vara(idnc,idgpnode,(/1/),(/nproc/),procdata)  
+        print*, 'About to write: procoffset'
         procdata(:) = procnode(2,:)
         call ccnf_put_vara(idnc,idgpoff,(/1/),(/nproc/),procdata)  
+        print*, 'Finish writing ...'
       end if
       deallocate(procnode,procdata)
 #ifdef debugoutcdf
@@ -3634,10 +3639,10 @@ endif
       write(vname,'(A,I3.3)') "clp_lmht_",n
       call histwrt(clp_lmht(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
-    do n = 1,ncolumns
-      write(vname,'(A,I3.3)') "cls_ze_",n
-      call histwrt(cls_ze(:,:,n),trim(vname),idnc,iarch,local,lwrite)
-    enddo
+    !!do n = 1,ncolumns
+    !!  write(vname,'(A,I3.3)') "cls_ze_",n
+    !!  call histwrt(cls_ze(:,:,n),trim(vname),idnc,iarch,local,lwrite)
+    !!enddo
     ! start calipso cloud phase output
     do n = 1,4
       write(vname,'(A,I3.3)') "clp_phse_ice_",n

@@ -163,7 +163,7 @@ real, dimension(imax,kl) :: lbuoyproduction, lshearproduction, ltotaltransport
 real, dimension(imax,kl-1) :: lmfsave
 #endif
 real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
-real, dimension(imax,kl) :: lni
+real, dimension(imax,kl) :: lni, lnr, lns
 
 if ( nmlo/=0 .and. nvmix/=9 ) then
   !$omp do schedule(static) private(is,ie), &
@@ -370,8 +370,8 @@ end select
   
 !$omp do schedule(static) private(is,ie,iq,k,nt),   &
 !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-!$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
-!$omp private(lxtg,lrkmsave,rong,rlogs1,rlogs2),    &
+!$omp private(lni,lnr,lns,lco2em,loh,lstrloss),     &
+!$omp private(ljmcf,lrkmsave,rong,rlogs1,rlogs2),   &
 !$omp private(rlogh1,rlog12,tmnht,dz,gt)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -414,6 +414,12 @@ do tile = 1,ntiles
     lni = ni(is:ie,:)
     call trimmix(lat,lct,lni,imax,kl)
     ni(is:ie,:) = max(lni,0.)
+    lnr = nr(is:ie,:)
+    call trimmix(lat,lct,lnr,imax,kl)
+    nr(is:ie,:) = max(lnr,0.)
+    lns = ns(is:ie,:)
+    call trimmix(lat,lct,lns,imax,kl)
+    ns(is:ie,:) = max(lns,0.)
   end if                                ! turn of ni advection  ! sny 15072022
 
 end do ! tile = 1,ntiles

@@ -73,7 +73,7 @@ contains
 ! Main interface for input data that reads grid metadata
     
 subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
-                    qlg,qrg,qsng,qgrg,ni,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+                    qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
 use aerosolldr       ! LDR prognostic aerosols
 use cc_mpi           ! CC MPI routines
@@ -105,7 +105,7 @@ real, dimension(:,:), intent(out) :: wb, wbice, tgg
 real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: ocndwn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
-real, dimension(:,:), intent(out) :: ni
+real, dimension(:,:), intent(out) :: ni,nr,ns
 real, dimension(:), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(:), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
@@ -307,7 +307,7 @@ end if
 ! the output array
 
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,  &
-                   snowd,qfg,qlg,qrg,qsng,qgrg,ni,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn, &
+                   snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn, &
                    ocndwn,xtgdwn)
 
 if ( myid==0 ) write(6,*) "Leaving onthefly"
@@ -326,7 +326,7 @@ end subroutine onthefly
 ! by many processes.  In the case of restart files, then there is
 ! no need for message passing.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,  &
-                         snowd,qfg,qlg,qrg,qsng,qgrg,ni,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn, &
+                         snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn, &
                          ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
@@ -399,7 +399,7 @@ real, dimension(:,:), intent(out) :: ocndwn
 real, dimension(:,:), intent(out) :: wb, wbice, tgg
 real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
-real, dimension(:,:), intent(out) :: ni
+real, dimension(:,:), intent(out) :: ni,nr,ns
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
@@ -1824,9 +1824,15 @@ if ( nested/=1 .and. nested/=3 ) then
       qgrg(1:ifull,1:kl) = max( qgrg(1:ifull,1:kl), 0. )
     end if
     ni = 0.
+    nr = 0.
+    ns = 0.
     if ( ncloud>=100 ) then
       call gethist4a('ni',ni,5)               ! ICE NUMBER CONCENTRATION
       ni(1:ifull,1:kl) = max( ni(1:ifull,1:kl), 0. )
+      call gethist4a('nr',nr,5)               ! ICE NUMBER CONCENTRATION
+      nr(1:ifull,1:kl) = max( nr(1:ifull,1:kl), 0. )
+      call gethist4a('ns',ns,5)               ! ICE NUMBER CONCENTRATION
+      ns(1:ifull,1:kl) = max( ns(1:ifull,1:kl), 0. )
     end if
     call gethist4a('cfrac',cfrac,5)           ! CLOUD FRACTION
     cfrac(1:ifull,1:kl) = max( cfrac(1:ifull,1:kl), 0. )
@@ -2922,6 +2928,7 @@ end subroutine mslpx
       
 subroutine to_pslx(pmsl,psl,zss,t,siglev)
 
+use cc_mpi, only : mydiag  ! CC MPI routines
 use const_phys             ! Physical constants
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
@@ -2942,7 +2949,6 @@ psl(1:ifull)   = log(1.e-5*pmsl(1:ifull)) - dlnps(1:ifull)
 
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
-  write(6,*)'to_psl levk,sig(levk) ',levk,sig(levk)
   write(6,*)'zs,t_lev,psl,pmsl ',zss(idjd),t(idjd),psl(idjd),pmsl(idjd)
 end if
 #endif

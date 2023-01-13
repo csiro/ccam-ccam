@@ -207,6 +207,8 @@ if ( mspec==1 .and. mup/=0 ) then
   if ( ldr/=0 ) then
     if ( ncloud>=100 .and. ncloud<200 ) then
       call bounds(ni,nrows=2)
+      call bounds(nr,nrows=2)
+      call bounds(ns,nrows=2)
     end if
     call bounds(qg,nrows=2)
     call bounds(qlg,nrows=2)
@@ -361,7 +363,13 @@ end if
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( ldr/=0 ) then
     if ( ncloud>=100 .and. ncloud<200 ) then
-      call ints(ni,1,intsch,nface,xg,yg,4)
+      bb(:,:,1) = ni(:,:)
+      bb(:,:,2) = nr(:,:)
+      bb(:,:,3) = ns(:,:)
+      call ints(bb(:,:,1:3),3,intsch,nface,xg,yg,4)
+      ni(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
+      nr(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
+      ns(1:ifull,1:kl) = bb(1:ifull,1:kl,3) 
     end if
     bb(:,:,1) = qg(:,:)
     bb(:,:,2) = qlg(:,:)

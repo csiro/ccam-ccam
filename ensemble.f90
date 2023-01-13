@@ -95,7 +95,7 @@ real, dimension(ifull,kl) :: ee
 real, dimension(ifull,kl) :: u_pos, v_pos, t_pos
 real, dimension(ifull,kl) :: u_neg, v_neg, t_neg
 real, dimension(ifull,ms,3) :: dumg
-real, dimension(ifull,kl,6) :: dumv
+real, dimension(ifull,kl,8) :: dumv
 real, dimension(ifull,3,3) :: dums
 real, dimension(ifull,wlev,8) :: dumo
 real, dimension(ifull,kl,naero) :: dumr
@@ -120,7 +120,7 @@ if ( mtimer>mtimeb ) then
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
                     duma(:,1),dumv(:,:,1),dumv(:,:,2),            &
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
-                    dumv(:,:,6),                                  &
+                    dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          &
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
                     duma(:,2),duma(:,3),dumm,dumo,dumd,dumr)
       call retopo(pslb,zsb,zs,tb,qb)
@@ -163,7 +163,7 @@ if ( mtimer>mtimeb ) then
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
                     duma(:,1),dumv(:,:,1),dumv(:,:,2),            &
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
-                    dumv(:,:,6),                                  &
+                    dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          &
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
                     duma(:,2),duma(:,3),dumm,dumo,dumd,dumr)
     else
