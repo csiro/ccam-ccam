@@ -746,6 +746,236 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
      notlast1D(:) = notlast_work(:)
     ENDDO       ! while(any(notlast))
 
+
+!
+!-- snow
+!
+    t_del_tv1D(1:imax)=0.
+    del_tv1D(1:imax)=dtb
+    notlast1D(1:imax)=.true.
+    DO while (any(notlast1D))
+
+    notlast_work = notlast1D
+
+    min_q1D(1:imax)=kte
+    max_q1D(1:imax)=kts-1
+
+    do k=kts,kte-1
+      do iq = 1, imax
+        if (notlast1D(iq)) then
+          if (qsz2D(iq,k) .gt. 1.0e-8) then
+            min_q1D(iq)=min0(min_q1D(iq),k)
+            max_q1D(iq)=max0(max_q1D(iq),k)
+
+!            tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
+!                 **(1./tmp_ss(k))
+!            vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
+!                    ggamma(tmp_ss(k))/(tmp1**bv_s(k))
+            ! Zhao 2022 - Row 2 Table 2 or Lin 2011 - Formula A3
+            xlambdas2D(iq,k)=(am_s2D(iq,k)*ggamma(tmp_ss2D(iq,k))*nsz2D(iq,k)/qsz2D(iq,k))**(1./bm_s2D(iq,k))
+            ! Zhao 2022 - Row 1 Table 2
+            n0_s2D(iq,k)=nsz2D(iq,k)*xlambdas2D(iq,k)
+            if (xlambdas2D(iq,k).lt.lammins) then
+                xlambdas2D(iq,k)= lammins
+                n0_s2D(iq,k) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*qsz2D(iq,k)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
+                nsz2D(iq,k) = n0_s2D(iq,k)/xlambdas2D(iq,k)
+            else if (xlambdas2D(iq,k).gt.lammaxs) then
+                xlambdas2D(iq,k) = lammaxs
+                n0_s2D(iq,k) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*qsz2D(iq,k)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
+                nsz2D(iq,k) = n0_s2D(iq,k)/xlambdas2D(iq,k)
+            end if
+            olambdas2D(iq,k)=1.0/xlambdas2D(iq,k)
+            ! Zhao 2022 - Row 3 Table 2
+            vtsold2D(iq,k)= sqrho2D(iq,k)*av_s2D(iq,k)*ggamma(bv_s2D(iq,k)+tmp_ss2D(iq,k))/ &
+                   ggamma(tmp_ss2D(iq,k))*(olambdas2D(iq,k)**bv_s2D(iq,k))
+
+            ! Zhao 2022 - Row 4 Table 2
+            nvts2D(iq,k)=sqrho2D(iq,k)*av_s2D(iq,k)*ggamma(bv_s2D(iq,k)+1)*(olambdas2D(iq,k)**bv_s2D(iq,k))
+
+            if (k .eq. 1) then
+               del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zsfc2D(iq))/vtsold2D(iq,k))
+            else
+               del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zz2D(iq,k-1))/vtsold2D(iq,k))
+            endif
+        else
+            vtsold2D(iq,k)=0.
+            nvts2D(iq,k)=0.
+            olambdas2D(iq,k)=0.
+        endif
+      endif   ! notlast1D
+    enddo     ! iq
+  enddo       ! k
+
+!
+!
+!- Check if the summation of the small delta t >=  big delta t
+!             (t_del_tv)          (del_tv)             (dtb)
+
+    do iq = 1,imax
+      if (notlast1D(iq)) then
+        if (max_q1D(iq) .ge. min_q1D(iq)) then
+          t_del_tv1D(iq)=t_del_tv1D(iq)+del_tv1D(iq)
+            if ( t_del_tv1D(iq) .ge. dtb ) then
+              notlast_work(iq)=.false.
+              del_tv1D(iq)=dtb+del_tv1D(iq)-t_del_tv1D(iq)
+            endif
+            fluxin1D(iq) = 0.
+            nfluxin1D(iq) = 0.
+          end if ! maxq>minq
+        end if   ! notlast
+      end do     ! iq
+
+    do k = kte,kts,-1
+      do iq = 1,imax
+        if ( notlast1D(iq) ) then
+          if ( k>=min_q1D(iq) .and. k<=max_q1D(iq) ) then
+            fluxout1D(iq)=rho2D(iq,k)*vtsold2D(iq,k)*qsz2D(iq,k)
+            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
+            qsz2D(iq,k)=qsz2D(iq,k)+del_tv1D(iq)*flux1D(iq)
+            qsz2D(iq,k)=amax1(0.,qsz2D(iq,k))
+            fluxin1D(iq)=fluxout1D(iq)
+
+            nfluxout1D(iq)=rho2D(iq,k)*nvts2D(iq,k)*nsz2D(iq,k)
+            nflux1D(iq)   =(nfluxin1D(iq)-nfluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
+            nsz2D(iq,k)  =nsz2D(iq,k)+del_tv1D(iq)*nflux1D(iq)
+            nfluxin1D(iq) =nfluxout1D(iq)
+            qssten2D(iq,k)=flux1D(iq)
+            nssten2D(iq,k)=nflux1D(iq)
+
+            fluxs2D(iq,k) = fluxout1D(iq)                     ! sny
+          end if ! maxq, minq
+        end if   ! notlast
+      end do     ! iq
+    end do       ! k
+
+    do iq = 1, imax
+      if ( notlast1D(iq) ) then
+        if (max_q1D(iq) .ge. min_q1D(iq)) then
+          if (min_q1D(iq) .eq. 1) then
+            pptsnow1D(iq)=pptsnow1D(iq)+fluxin1D(iq)*del_tv1D(iq)
+          else
+            qsz2D(iq,min_q1D(iq)-1)=qsz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                       fluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
+            nsz2D(iq,min_q1D(iq)-1)=nsz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                         nfluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
+          endif ! minq
+        else
+          notlast_work(iq)=.false.
+        endif
+      endif     ! notlast
+    enddo       ! iq
+
+    notlast1D(:) = notlast_work(:)
+    ENDDO       ! while(any(notlast))
+
+!
+!-- cloud ice  (03/21/02) using Heymsfield and Donner (1990) Vi=3.29*qi^0.16
+!
+    t_del_tv1D(1:imax)=0.
+    del_tv1D(1:imax)=dtb
+    notlast1D(1:imax)=.true.
+    DO while (any(notlast1D))
+
+    notlast_work = notlast1D
+
+    min_q1D(1:imax)=kte
+    max_q1D(1:imax)=kts-1
+
+    do k=kts,kte-1
+      do iq = 1, imax
+        if (notlast1D(iq)) then
+          if (qiz2D(iq,k) .gt. 1.0e-8) then
+            min_q1D(iq)=min0(min_q1D(iq),k)
+            max_q1D(iq)=max0(max_q1D(iq),k)
+            vtiold2D(iq,k)= 3.29 * (rho2D(iq,k)* qiz2D(iq,k))** 0.16  ! Heymsfield and Donner
+            if (k .eq. 1) then
+              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zsfc2D(iq))/vtiold2D(iq,k))
+            else
+              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zz2D(iq,k-1))/vtiold2D(iq,k))
+            endif
+          else
+            vtiold2D(iq,k)=0.
+          endif
+        endif   ! notlast1D
+      enddo     ! iq
+    enddo       ! k
+
+!
+!- Check if the summation of the small delta t >=  big delta t
+!             (t_del_tv)          (del_tv)             (dtb)
+    do iq = 1,imax
+      if (notlast1D(iq)) then
+        if (max_q1D(iq) .ge. min_q1D(iq)) then
+          t_del_tv1D(iq)=t_del_tv1D(iq)+del_tv1D(iq)
+          if ( t_del_tv1D(iq) .ge. dtb ) then
+            notlast_work(iq)=.false.
+            del_tv1D(iq)=dtb+del_tv1D(iq)-t_del_tv1D(iq)
+          endif
+          fluxin1D(iq) = 0.
+          nfluxin1D(iq) = 0.
+        end if   ! maxq>minq
+      end if     ! notlast
+    end do       ! iq
+
+    do k = kte,kts,-1
+      do iq = 1,imax
+        if ( notlast1D(iq) ) then
+          if ( k>=min_q1D(iq) .and. k<=max_q1D(iq) ) then
+            fluxout1D(iq)=rho2D(iq,k)*vtiold2D(iq,k)*qiz2D(iq,k)
+            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
+            qiz2D(iq,k)=qiz2D(iq,k)+del_tv1D(iq)*flux1D(iq)
+            qiz2D(iq,k)=amax1(0.,qiz2D(iq,k))
+            fluxin1D(iq)=fluxout1D(iq)
+
+            nfluxout1D(iq)=rho2D(iq,k)*vtiold2D(iq,k)*niz2D(iq,k)
+            nflux1D(iq)=(nfluxin1D(iq)-nfluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
+            niz2D(iq,k)=niz2D(iq,k)+del_tv1D(iq)*nflux1D(iq)
+            niz2D(iq,k)=amax1(0.,niz2D(iq,k))
+            nfluxin1D(iq)=nfluxout1D(iq)
+            qisten2D(iq,k)=flux1D(iq)
+            nisten2D(iq,k)=nflux1D(iq)
+
+            fluxi2D(iq,k) = fluxout1D(iq)                     ! sny
+          end if ! maxq, minq
+        end if   ! notlast
+      end do     ! iq
+    end do       ! k
+
+
+    do iq = 1, imax
+      if ( notlast1D(iq) ) then
+        if (max_q1D(iq) .ge. min_q1D(iq)) then
+          if (min_q1D(iq) .eq. 1) then
+            pptice1D(iq)=pptice1D(iq)+fluxin1D(iq)*del_tv1D(iq)
+          else
+            qiz2D(iq,min_q1D(iq)-1)=qiz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                         fluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
+            niz2D(iq,min_q1D(iq)-1)=niz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                         nfluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
+          endif
+        else
+          notlast_work(iq)=.false.
+        end if
+      end if      ! notlast
+    end do        ! iq
+    
+    notlast1D(:) = notlast_work(:)
+    ENDDO       ! while(any(notlast))
+
+! zdc 20220116
+      do k=kts,kte-1                         !sg beg
+        precrz2D(1:imax,k)=rho2D(1:imax,k)*vtrold2D(1:imax,k)*qrz2D(1:imax,k)
+        preciz2D(1:imax,k)=rho2D(1:imax,k)*vtiold2D(1:imax,k)*qiz2D(1:imax,k)
+        precsz2D(1:imax,k)=rho2D(1:imax,k)*vtsold2D(1:imax,k)*qsz2D(1:imax,k)
+      enddo                                  !sg end
+      precrz2D(1:imax,kte)=0. !wig - top level never set for vtXold vars
+      preciz2D(1:imax,kte)=0. !wig
+      precsz2D(1:imax,kte)=0. !wig
+
+!     CALL wrf_debug ( 100 , 'module_ylin: end precip flux' )
+
+
+
   do iq = 1, imax2D
     i                  = i2D
     j                  = j2D
@@ -856,7 +1086,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     xlambdas(:) = xlambdas2D(iq,:) 
     vtr(:)      = vtr2D(iq,:)      
     vts(:)      = vts2D(iq,:)      
-    vtiold(:)   = vtiold2D(iq,:)   
+    !vtiold(:)   = vtiold2D(iq,:)   
     nvtr(:)     = nvtr2D(iq,:)     
     nvts(:)     = nvts2D(iq,:)     
     qisten(:)   = qisten2D(iq,:)   
@@ -893,294 +1123,25 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     xlambdar(:) = xlambdar2D(iq,:)
     olambdar(:) = olambdar2D(iq,:)
     vtrold(:)   = vtrold2D(iq,:)
+    vtsold(:)   = vtsold2D(iq,:)
+    vtiold(:)   = vtiold2D(iq,:)
     pptrain     = pptrain1D(iq)
-!***********************************************************************
-! Calculate precipitation fluxes due to terminal velocities.
-!***********************************************************************
-!
-!- Calculate termianl velocity (vt?)  of precipitation q?z
-!- Find maximum vt? to determine the small delta t
-!
-!-- rain
-!       CALL wrf_debug ( 100 , 'module_ylin, start precip fluxes' )
+    precrz(:)   = precrz2D(iq,:)
+    preciz(:)   = preciz2D(iq,:)
+    precsz(:)   = precsz2D(iq,:)
 
-!    t_del_tv=0.
-!    del_tv=dtb
-!    notlast=.true.
-!    DO while (notlast)
-!
-!    min_q=kte
-!    max_q=kts-1
-!    
-!    ! if no rain, --> minq>maxq --> notlast=False (only case minq>maxq)
-!    ! if rain --> minq<maxq (always), some vertical points norain--> no lamda, velocity   
-!    do k=kts,kte-1
-!        if (qrz(k) .gt. 1.0e-8) then
-!            min_q=min0(min_q,k)
-!            max_q=max0(max_q,k)
-!!            tmp1=sqrt(pi*rhowater*xnor/rho(k)/qrz(k))
-!!            tmp1=sqrt(tmp1)
-!!            vtrold(k)=o6*av_r*gambp4*sqrho(k)/tmp1**bv_r
-!
-!            xlambdar(k)=(pi*rhowater*nrz(k)/qrz(k))**(1./3.)   !zx
-!            n0_r(k)=nrz(k)*xlambdar(k)
-!            if (xlambdar(k).lt.lamminr) then
-!                xlambdar(k) = lamminr
-!                n0_r(K) = xlambdar(K)**4*qrz(K)/(pi*rhowater)
-!                nrz(K) = n0_r(K)/xlambdar(K)
-!            else if (xlambdar(K).gt.lammaxr) then
-!                xlambdar(K) = lammaxr
-!                n0_r(K) = xlambdar(K)**4*qrz(K)/(pi*rhowater)
-!                nrz(K) = n0_r(K)/xlambdar(K)
-!            end if
-!            olambdar(k)=1.0/xlambdar(k)
-!            vtrold(k)=o6*av_r*gambp4*sqrho(k)*olambdar(k)**bv_r
-!            nvtr(k)=av_r*gambvr1*sqrho(k)*olambdar(k)**bv_r
-!
-!            if (k .eq. 1) then
-!                del_tv=amin1(del_tv,0.9*(zz(k)-zsfc)/vtrold(k))
-!            else
-!                del_tv=amin1(del_tv,0.9*(zz(k)-zz(k-1))/vtrold(k))
-!            endif
-!        else
-!            vtrold(k)=0.
-!            nvtr(k)=0.
-!            olambdar(k)=0.
-!        endif
-!    enddo
-!
-!    if (max_q .ge. min_q) then
-!!
-!!- Check if the summation of the small delta t >=  big delta t
-!!             (t_del_tv)          (del_tv)             (dtb)
-!
-!        t_del_tv=t_del_tv+del_tv
-!!
-!        if ( t_del_tv .ge. dtb ) then
-!            notlast=.false.
-!            del_tv=dtb+del_tv-t_del_tv
-!        endif
-!!
-!        fluxin=0.
-!        nfluxin=0. ! sny
-!        ! maxq > minq --> go downward
-!        do k=max_q,min_q,-1 
-!            fluxout=rho(k)*vtrold(k)*qrz(k)
-!            flux=(fluxin-fluxout)/rho(k)/dzw(k)
-!            tmpqrz=qrz(k)
-!            qrz(k)=qrz(k)+del_tv*flux
-!            fluxin=fluxout
-!
-!            nfluxout=rho(k)*nvtr(k)*nrz(k)
-!            nflux=(nfluxin-nfluxout)/rho(k)/dzw(k)
-!            nrz(k)=nrz(k)+del_tv*nflux
-!            nfluxin=nfluxout
-!            qrsten(k)=flux
-!            nrsten(k)=nflux
-!
-!            fluxr(k) = fluxout                     ! sny
-!        enddo
-!
-!        if (min_q .eq. 1) then
-!            pptrain=pptrain+fluxin*del_tv
-!        else
-!            qrz(min_q-1)=qrz(min_q-1)+del_tv*  &
-!                          fluxin/rho(min_q-1)/dzw(min_q-1)
-!            nrz(min_q-1)=nrz(min_q-1)+del_tv*  &
-!                         nfluxin/rho(min_q-1)/dzw(min_q-1)
-!        endif
-!!
-!    else
-!         notlast=.false.
-!    endif
-!    ENDDO
-
-
-!
-!-- snow
-!
-    t_del_tv=0.
-    del_tv=dtb
-    notlast=.true.
-
-    DO while (notlast)
     
-        min_q=kte
-        max_q=kts-1
-    
-    do k=kts,kte-1
-        if (qsz(k) .gt. 1.0e-8) then
-            min_q=min0(min_q,k)
-            max_q=max0(max_q,k)
-    
-!            tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
-!                 **(1./tmp_ss(k))
-    
-!            vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
-!                    ggamma(tmp_ss(k))/(tmp1**bv_s(k))
-            ! Zhao 2022 - Row 2 Table 2 or Lin 2011 - Formula A3
-            xlambdas(k)=(am_s(k)*ggamma(tmp_ss(k))*nsz(k)/qsz(k))**(1./bm_s(k))
-            ! Zhao 2022 - Row 1 Table 2
-            n0_s(k)=nsz(k)*xlambdas(k)
-            if (xlambdas(k).lt.lammins) then
-                xlambdas(k)= lamminS
-                n0_s(K) = xlambdas(k)**(bm_s(k)+1)*qsz(K)/ggamma(1+bm_s(k))/am_s(k)
-                nsz(K) = n0_s(K)/xlambdas(k)
-            else if (xlambdas(k).gt.lammaxs) then
-                xlambdas(k) = lammaxs
-                n0_s(K) = xlambdas(k)**(bm_s(k)+1)*qsz(K)/ggamma(1+bm_s(k))/am_s(k)
-                nsz(K) = n0_s(K)/xlambdas(k)
-            end if
-            olambdas(k)=1.0/xlambdas(k)
-            ! Zhao 2022 - Row 3 Table 2
-            vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
-                   ggamma(tmp_ss(k))*(olambdas(k)**bv_s(k))
-
-            ! Zhao 2022 - Row 4 Table 2
-            nvts(k)=sqrho(k)*av_s(k)*ggamma(bv_s(k)+1)*(olambdas(k)**bv_s(k))
-    
-            if (k .eq. 1) then
-                del_tv=amin1(del_tv,0.9*(zz(k)-zsfc)/vtsold(k))
-            else
-                del_tv=amin1(del_tv,0.9*(zz(k)-zz(k-1))/vtsold(k))
-            endif
-        else
-            vtsold(k)=0.
-            nvts(k)=0.
-            olambdas(k)=0.
-        endif
-    enddo
-
-
-    if (max_q .ge. min_q) then
+!! zdc 20220116
+!      do k=kts,kte-1                         !sg beg
+!        precrz(k)=rho(k)*vtrold(k)*qrz(k)
+!        preciz(k)=rho(k)*vtiold(k)*qiz(k)
+!        precsz(k)=rho(k)*vtsold(k)*qsz(k)
+!      enddo                                  !sg end
+!      precrz(kte)=0. !wig - top level never set for vtXold vars
+!      preciz(kte)=0. !wig
+!      precsz(kte)=0. !wig
 !
-!
-!- Check if the summation of the small delta t >=  big delta t
-!             (t_del_tv)          (del_tv)             (dtb)
-
-        t_del_tv=t_del_tv+del_tv
-    
-        if ( t_del_tv .ge. dtb ) then
-            notlast=.false.
-            del_tv=dtb+del_tv-t_del_tv
-        endif
-    
-        fluxin=0.
-        nfluxin=0. ! sny
-        do k=max_q,min_q,-1
-            fluxout=rho(k)*vtsold(k)*qsz(k)
-            flux=(fluxin-fluxout)/rho(k)/dzw(k)
-            qsz(k)=qsz(k)+del_tv*flux
-            qsz(k)=amax1(0.,qsz(k))
-            fluxin=fluxout
-
-            nfluxout=rho(k)*nvts(k)*nsz(k)
-            nflux   =(nfluxin-nfluxout)/rho(k)/dzw(k)
-            nsz(k)  =nsz(k)+del_tv*nflux
-            nfluxin =nfluxout
-            qssten(k)=flux
-            nssten(k)=nflux
-        
-            fluxs(k) = fluxout                     ! sny
-        enddo
-        if (min_q .eq. 1) then
-            pptsnow=pptsnow+fluxin*del_tv
-        else
-            qsz(min_q-1)=qsz(min_q-1)+del_tv*  &
-                       fluxin/rho(min_q-1)/dzw(min_q-1)
-            nsz(min_q-1)=nsz(min_q-1)+del_tv*  &
-                         nfluxin/rho(min_q-1)/dzw(min_q-1)
-        endif
-
-    else
-        notlast=.false.
-    endif
-
-    ENDDO
-
-!
-!-- cloud ice  (03/21/02) using Heymsfield and Donner (1990) Vi=3.29*qi^0.16
-!
-    t_del_tv=0.
-    del_tv=dtb
-    notlast=.true.
-    cnt_sny=0
-    DO while (notlast)
-    
-    min_q=kte
-    max_q=kts-1
-    
-    do k=kts,kte-1
-        if (qiz(k) .gt. 1.0e-8) then
-            min_q=min0(min_q,k)
-            max_q=max0(max_q,k)
-            vtiold(k)= 3.29 * (rho(k)* qiz(k))** 0.16  ! Heymsfield and Donner
-            if (k .eq. 1) then
-              del_tv=amin1(del_tv,0.9*(zz(k)-zsfc)/vtiold(k))
-            else
-              del_tv=amin1(del_tv,0.9*(zz(k)-zz(k-1))/vtiold(k))
-            endif
-        else
-            vtiold(k)=0.
-        endif
-    enddo
-    
-    if (max_q .ge. min_q) then
-!
-!- Check if the summation of the small delta t >=  big delta t
-!             (t_del_tv)          (del_tv)             (dtb)
-
-        t_del_tv=t_del_tv+del_tv
-
-        if ( t_del_tv .ge. dtb ) then
-            notlast=.false.
-            del_tv=dtb+del_tv-t_del_tv
-        endif
-
-        fluxin=0.
-        nfluxin=0. ! sny
-        do k=max_q,min_q,-1
-            fluxout=rho(k)*vtiold(k)*qiz(k)
-            flux=(fluxin-fluxout)/rho(k)/dzw(k)
-            qiz(k)=qiz(k)+del_tv*flux
-            qiz(k)=amax1(0.,qiz(k))
-            fluxin=fluxout
-
-            nfluxout=rho(k)*vtiold(k)*niz(k)
-            nflux=(nfluxin-nfluxout)/rho(k)/dzw(k)
-            niz(k)=niz(k)+del_tv*nflux
-            niz(k)=amax1(0.,niz(k))
-            nfluxin=nfluxout
-            qisten(k)=flux
-            nisten(k)=nflux
-
-            fluxi(k) = fluxout                     ! sny
-        enddo
-        if (min_q .eq. 1) then
-            pptice=pptice+fluxin*del_tv
-        else
-            qiz(min_q-1)=qiz(min_q-1)+del_tv*  &
-                         fluxin/rho(min_q-1)/dzw(min_q-1)
-            niz(min_q-1)=niz(min_q-1)+del_tv*  &
-                         nfluxin/rho(min_q-1)/dzw(min_q-1)
-        endif
-!
-    else
-        notlast=.false.
-    endif
-    ENDDO
-
-! zdc 20220116
-      do k=kts,kte-1                         !sg beg
-        precrz(k)=rho(k)*vtrold(k)*qrz(k)
-        preciz(k)=rho(k)*vtiold(k)*qiz(k)
-        precsz(k)=rho(k)*vtsold(k)*qsz(k)
-      enddo                                  !sg end
-      precrz(kte)=0. !wig - top level never set for vtXold vars
-      preciz(kte)=0. !wig
-      precsz(kte)=0. !wig
-
-!     CALL wrf_debug ( 100 , 'module_ylin: end precip flux' )
+!!     CALL wrf_debug ( 100 , 'module_ylin: end precip flux' )
 
 ! Microphpysics processes
 
