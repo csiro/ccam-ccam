@@ -208,7 +208,8 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
                                          Ap, Bp,                      &
                                          factor, tmp_r, tmp_s,tmp_g,  &
                                          qlpqi, rsat, a1, a2, xnin
-    
+    real, dimension ( kts2D:kte2D )     :: tmp1D
+    real, dimension( 1:imax2D,kts2D:kte2D ) :: tmp2D
 !
     REAL, DIMENSION( kts2D:kte2D )    ::  oprez, tem, temcc, theiz, qswz,    &
                                       qsiz, qvoqswz, qvoqsiz, qvzodt,    &
@@ -323,7 +324,6 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     REAL, DIMENSION( kts2D:kte2D )    ::  nidep, midep
     REAL, DIMENSION( 1:imax2D,kts2D:kte2D )    :: nidep2D, midep2D
     real    ::mi0
-
 
     vtrold=0.
     vtsold=0.
@@ -975,6 +975,129 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
 !     CALL wrf_debug ( 100 , 'module_ylin: end precip flux' )
 
 
+! Microphpysics processes
+    DO k=kts,kte
+!
+        qvzodt2D(1:imax,k)=amax1( 0.0,odtb*qvz2D(1:imax,k) )
+        qlzodt2D(1:imax,k)=amax1( 0.0,odtb*qlz2D(1:imax,k) )
+        qizodt2D(1:imax,k)=amax1( 0.0,odtb*qiz2D(1:imax,k) )
+        qszodt2D(1:imax,k)=amax1( 0.0,odtb*qsz2D(1:imax,k) )
+        qrzodt2D(1:imax,k)=amax1( 0.0,odtb*qrz2D(1:imax,k) )
+
+!***********************************************************************
+!*****   diagnose mixing ratios (qrz,qsz), terminal                *****
+!*****   velocities (vtr,vts), and slope parameters in size        *****
+!*****   distribution(xlambdar,xlambdas) of rain and snow          *****
+!*****   follows Nagata and Ogura, 1991, MWR, 1309-1337. Eq (A7)   *****
+!***********************************************************************
+!
+!**** assuming no cloud water can exist in the top two levels due to
+!**** radiation consideration
+!
+!!  if
+!!     unsaturated,
+!!     no cloud water, rain, ice, snow
+!!  then
+!!     skip these processes and jump to line 2000
+!
+!
+     tmp2D(1:imax,k)=qiz2D(1:imax,k)+qlz2D(1:imax,k)+qsz2D(1:imax,k)+qrz2D(1:imax,k)
+       
+     do iq = 1, imax
+        if( .not.(qvz2D(iq,k)+qlz2D(iq,k)+qiz2D(iq,k) .lt. qsiz2D(iq,k)  &
+            .and. tmp2D(iq,k) .eq. 0.0) ) then !go to 2000
+!
+!! calculate terminal velocity of rain
+!
+        if (qrz2D(iq,k) .gt. 1.0e-8) then
+!            tmp1=sqrt(pi*rhowater*xnor*orho(k)/qrz(k))
+!            xlambdar(k)=sqrt(tmp1)
+!            olambdar(k)=1.0/xlambdar(k)
+!            vtrold(k)=o6*av_r*gambp4*sqrho(k)*olambdar(k)**bv_r
+            xlambdar2D(iq,k)=(pi*rhowater*nrz2D(iq,k)/qrz2D(iq,k))**(1./3.)   !zx
+            n0_r2D(iq,k)=nrz2D(iq,k)*xlambdar2D(iq,k)
+            if (xlambdar2D(iq,k).lt.lamminr) then
+                xlambdar2D(iq,k) = lamminr
+                n0_r2D(iq,k) = xlambdar2D(iq,k)**4*qrz2D(iq,k)/(pi*rhowater)
+                nrz2D(iq,k) = n0_r2D(iq,k)/xlambdar2D(iq,k)
+            else if (xlambdar2D(iq,k).gt.lammaxr) then
+                xlambdar2D(iq,k) = lammaxr
+                n0_r2D(iq,k) = xlambdar2D(iq,k)**4*qrz2D(iq,k)/(pi*rhowater)
+                nrz2D(iq,k) = n0_r2D(iq,k)/xlambdar2D(iq,k)
+            end if
+            olambdar2D(iq,k)=1.0/xlambdar2D(iq,k)
+            vtrold2D(iq,k)=o6*av_r*gambp4*sqrho2D(iq,k)*olambdar2D(iq,k)**bv_r
+            nvtr2D(iq,k)=av_r*gambvr1*sqrho2D(iq,k)*olambdar2D(iq,k)**bv_r
+        else
+            vtrold2D(iq,k)=0.
+            olambdar2D(iq,k)=0.
+            nvtr2D(iq,k)=0.
+        endif
+!
+        if (qrz2D(iq,k) .gt. 1.0e-8) then
+!            tmp1=sqrt(pi*rhowater*xnor*orho(k)/qrz(k))
+!            xlambdar(k)=sqrt(tmp1)
+!            olambdar(k)=1.0/xlambdar(k)
+!            vtr(k)=o6*av_r*gambp4*sqrho(k)*olambdar(k)**bv_r
+        else
+!            vtr(k)=0.
+!            olambdar(k)=0.
+        endif
+        vtr2D(iq,k)=vtrold2D(iq,k)
+
+
+!!
+!!! calculate terminal velocity of snow
+!!
+        if (qsz2D(iq,k) .gt. 1.0e-8) then
+!            tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
+!                   **(1./tmp_ss(k))
+!            xlambdas(k)=tmp1
+!            olambdas(k)=1.0/tmp1
+!            vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
+!                      ggamma(tmp_ss(k))/(tmp1**bv_s(k))
+            xlambdas2D(iq,k)=(am_s2D(iq,k)*ggamma(tmp_ss2D(iq,k))*nsz2D(iq,k)/qsz2D(iq,k))**(1./bm_s2D(iq,k))
+            n0_s2D(iq,k)=nsz2D(iq,k)*xlambdas2D(iq,k)
+            if (xlambdas2D(iq,k).lt.lammins) then
+                xlambdas2D(iq,k)= lamminS
+                n0_s2D(iq,K) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*qsz2D(iq,K)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
+                nsz2D(iq,K) = n0_s2D(iq,K)/xlambdas2D(iq,k)
+            else if (xlambdas2D(iq,k).gt.lammaxs) then
+                xlambdas2D(iq,k) = lammaxs
+                n0_s2D(iq,K) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*qsz2D(iq,K)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
+                nsz2D(iq,K) = n0_s2D(iq,K)/xlambdas2D(iq,k)
+            end if
+            olambdas2D(iq,k)=1.0/xlambdas2D(iq,k)
+            vtsold2D(iq,k)= sqrho2D(iq,k)*av_s2D(iq,k)*ggamma(bv_s2D(iq,k)+tmp_ss2D(iq,k))/ &
+                   ggamma(tmp_ss2D(iq,k))*(olambdas2D(iq,k)**bv_s2D(iq,k))
+
+            nvts2D(iq,k)=sqrho2D(iq,k)*av_s2D(iq,k)*ggamma(bv_s2D(iq,k)+1)*(olambdas2D(iq,k)**bv_s2D(iq,k))
+
+        else
+            vtsold2D(iq,k)=0.
+            olambdas2D(iq,k)=0.
+            xlambdas2D(iq,k)=0.
+            nvts2D(iq,k)=0.
+        endif
+!
+        if (qsz2D(iq,k) .gt. 1.0e-8) then
+!             tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
+!                   **(1./tmp_ss(k))
+!             olambdas(k)=1.0/tmp1
+!             vts(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
+!                      ggamma(tmp_ss(k))/(tmp1**bv_s(k))
+
+        else
+!            vts2D(iq,k)=0.
+!            olambdas2D(iq,k)=0.
+        endif
+        vts2D(iq,k)=vtsold2D(iq,k)
+
+
+       end if
+     end do     ! iq
+   ENDDO        ! k
+
 
   do iq = 1, imax2D
     i                  = i2D
@@ -1082,8 +1205,8 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     n0_c(:)     = n0_c2D(iq,:)     
     lamc(:)     = lamc2D(iq,:)     
     lami(:)     = lami2D(iq,:)     
-    xlambdar(:) = xlambdar2D(iq,:) 
-    xlambdas(:) = xlambdas2D(iq,:) 
+    !xlambdar(:) = xlambdar2D(iq,:) 
+    !xlambdas(:) = xlambdas2D(iq,:) 
     vtr(:)      = vtr2D(iq,:)      
     vts(:)      = vts2D(iq,:)      
     !vtiold(:)   = vtiold2D(iq,:)   
@@ -1110,7 +1233,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     !-------------------------------------
     Riz(:)      = Riz2D_lc(iq,:)           ! seems "Riz" is REDUNDENT, check and delete later
     cap_s(:)    = cap_s2D(iq,:)
-    n0_s(:)     = n0_s2D(iq,:)
+    !n0_s(:)     = n0_s2D(iq,:)
     am_s(:)     = am_s2D(iq,:)
     bm_s(:)     = bm_s2D(iq,:)
     aa_s(:)     = aa_s2D(iq,:)
@@ -1121,7 +1244,9 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     tmp_sa(:)   = tmp_sa2D(iq,:)
     !------------------------------------
     xlambdar(:) = xlambdar2D(iq,:)
+    xlambdas(:) = xlambdas2D(iq,:)
     olambdar(:) = olambdar2D(iq,:)
+    olambdas(:) = olambdas2D(iq,:)
     vtrold(:)   = vtrold2D(iq,:)
     vtsold(:)   = vtsold2D(iq,:)
     vtiold(:)   = vtiold2D(iq,:)
@@ -1129,134 +1254,16 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     precrz(:)   = precrz2D(iq,:)
     preciz(:)   = preciz2D(iq,:)
     precsz(:)   = precsz2D(iq,:)
+    !------------------------------------
+    tmp1D(:)    = tmp2D(iq,:)
 
     
-!! zdc 20220116
-!      do k=kts,kte-1                         !sg beg
-!        precrz(k)=rho(k)*vtrold(k)*qrz(k)
-!        preciz(k)=rho(k)*vtiold(k)*qiz(k)
-!        precsz(k)=rho(k)*vtsold(k)*qsz(k)
-!      enddo                                  !sg end
-!      precrz(kte)=0. !wig - top level never set for vtXold vars
-!      preciz(kte)=0. !wig
-!      precsz(kte)=0. !wig
-!
-!!     CALL wrf_debug ( 100 , 'module_ylin: end precip flux' )
+     DO k=kts,kte
+        tmp = tmp1D(k)
 
-! Microphpysics processes
+        if( .not.(qvz(k)+qlz(k)+qiz(k) .lt. qsiz(k)  &
+            .and. tmp .eq. 0.0) ) then !go to 2000
 
-    DO 2000 k=kts,kte
-!
-        qvzodt(k)=amax1( 0.0,odtb*qvz(k) )
-        qlzodt(k)=amax1( 0.0,odtb*qlz(k) )
-        qizodt(k)=amax1( 0.0,odtb*qiz(k) )
-        qszodt(k)=amax1( 0.0,odtb*qsz(k) )
-        qrzodt(k)=amax1( 0.0,odtb*qrz(k) )
-
-!***********************************************************************
-!*****   diagnose mixing ratios (qrz,qsz), terminal                *****
-!*****   velocities (vtr,vts), and slope parameters in size        *****
-!*****   distribution(xlambdar,xlambdas) of rain and snow          *****
-!*****   follows Nagata and Ogura, 1991, MWR, 1309-1337. Eq (A7)   *****
-!***********************************************************************
-!
-!**** assuming no cloud water can exist in the top two levels due to
-!**** radiation consideration
-!
-!!  if
-!!     unsaturated,
-!!     no cloud water, rain, ice, snow
-!!  then
-!!     skip these processes and jump to line 2000
-!
-!
-        tmp=qiz(k)+qlz(k)+qsz(k)+qrz(k)
-        if( qvz(k)+qlz(k)+qiz(k) .lt. qsiz(k)  &
-            .and. tmp .eq. 0.0 ) go to 2000
-!
-!! calculate terminal velocity of rain
-!
-        if (qrz(k) .gt. 1.0e-8) then
-!            tmp1=sqrt(pi*rhowater*xnor*orho(k)/qrz(k))
-!            xlambdar(k)=sqrt(tmp1)
-!            olambdar(k)=1.0/xlambdar(k)
-!            vtrold(k)=o6*av_r*gambp4*sqrho(k)*olambdar(k)**bv_r
-            xlambdar(k)=(pi*rhowater*nrz(k)/qrz(k))**(1./3.)   !zx 
-            n0_r(k)=nrz(k)*xlambdar(k)
-            if (xlambdar(k).lt.lamminr) then
-                xlambdar(k) = lamminr
-                n0_r(K) = xlambdar(K)**4*qrz(K)/(pi*rhowater)
-                nrz(K) = n0_r(K)/xlambdar(K)
-            else if (xlambdar(K).gt.lammaxr) then
-                xlambdar(K) = lammaxr
-                n0_r(K) = xlambdar(K)**4*qrz(K)/(pi*rhowater)
-                nrz(K) = n0_r(K)/xlambdar(K)
-            end if
-            olambdar(k)=1.0/xlambdar(k)
-            vtrold(k)=o6*av_r*gambp4*sqrho(k)*olambdar(k)**bv_r
-            nvtr(k)=av_r*gambvr1*sqrho(k)*olambdar(k)**bv_r
-        else
-            vtrold(k)=0.
-            olambdar(k)=0.
-            nvtr(k)=0.
-        endif
-!
-        if (qrz(k) .gt. 1.0e-8) then
-!            tmp1=sqrt(pi*rhowater*xnor*orho(k)/qrz(k))
-!            xlambdar(k)=sqrt(tmp1)
-!            olambdar(k)=1.0/xlambdar(k)
-!            vtr(k)=o6*av_r*gambp4*sqrho(k)*olambdar(k)**bv_r
-        else
-!            vtr(k)=0.
-!            olambdar(k)=0.
-        endif
-        vtr(k)=vtrold(k)
-!
-!! calculate terminal velocity of snow
-!
-        if (qsz(k) .gt. 1.0e-8) then
-!            tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
-!                   **(1./tmp_ss(k))
-!            xlambdas(k)=tmp1
-!            olambdas(k)=1.0/tmp1
-!            vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
-!                      ggamma(tmp_ss(k))/(tmp1**bv_s(k))
-            xlambdas(k)=(am_s(k)*ggamma(tmp_ss(k))*nsz(k)/qsz(k))**(1./bm_s(k))
-            n0_s(k)=nsz(k)*xlambdas(k)
-            if (xlambdas(k).lt.lammins) then
-                xlambdas(k)= lamminS
-                n0_s(K) = xlambdas(k)**(bm_s(k)+1)*qsz(K)/ggamma(1+bm_s(k))/am_s(k)
-                nsz(K) = n0_s(K)/xlambdas(k)
-            else if (xlambdas(k).gt.lammaxs) then
-                xlambdas(k) = lammaxs
-                n0_s(K) = xlambdas(k)**(bm_s(k)+1)*qsz(K)/ggamma(1+bm_s(k))/am_s(k)
-                nsz(K) = n0_s(K)/xlambdas(k)
-            end if
-            olambdas(k)=1.0/xlambdas(k)
-            vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
-                   ggamma(tmp_ss(k))*(olambdas(k)**bv_s(k))
-
-            nvts(k)=sqrho(k)*av_s(k)*ggamma(bv_s(k)+1)*(olambdas(k)**bv_s(k))
-
-        else
-            vtsold(k)=0.
-            olambdas(k)=0.
-            xlambdas(k)=0.
-            nvts(k)=0.
-        endif
-!
-        if (qsz(k) .gt. 1.0e-8) then
-!             tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
-!                   **(1./tmp_ss(k))
-!             olambdas(k)=1.0/tmp1
-!             vts(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
-!                      ggamma(tmp_ss(k))/(tmp1**bv_s(k))
-
-        else
-!            vts(k)=0.
-!            olambdas(k)=0.
-        endif
-        vts(k)=vtsold(k)
 
 !---------- start of snow/ice processes below freezing
 
@@ -1349,7 +1356,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
             end if
 !
 !
-            if(qrz(k) .le. 0.0) go to 1000
+            if(qrz(k) .gt. 0.0) then  ! go to 1000
 !
 ! Processes (4) and (5) only need when qrz > 0.0
 !
@@ -1371,9 +1378,9 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
                 piacr(k)=amin1( tmp2,qrzodt(k) )
                 npiacr(k)=pio4*eri*nrz(k)*av_r*niz(k)*gambp3*olambdar(k)**bp3  !--wdm6 
 !
-1000    continue
+             end if !1000    continue
 !
-            if(qsz(k) .le. 0.0) go to 1200
+            if(qsz(k) .gt. 0.0) then !go to 1200
 !
 ! Compute the following processes only when qsz > 0.0
 !
@@ -1432,7 +1439,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
                   npsdep(k)=npsdep(k)/xms
                 end if
 !
-                if(qrz(k) .le. 0.0) go to 1200
+                if(qrz(k) .gt. 0.0) then !go to 1200
 !
 ! Compute processes (9) and (10) only when qsz > 0.0 and qrz > 0.0
 ! these two terms need to be refined in the future, they should be equal
@@ -1480,7 +1487,8 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
                 npgfr(k)=0.
             endif
 
-1200    continue
+            end if ! for the go to 1200 
+          end if !1200    continue
 !
 
         else                        
@@ -1490,7 +1498,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
 !*********        snow production processes for T > 0 C       **********
 !***********************************************************************
 !
-            if (qsz(k) .le. 0.0) go to 1400
+            if (qsz(k) .gt. 0.0)  then !go to 1400
 !c
 !c (1) CLOUD WATER ACCRETION BY SNOW (Psacw): Lin (24)
 !c
@@ -1571,12 +1579,39 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
             else
               npsmltevp(k)=psmltevp(k)/xmr
             end if
-1400     continue
+          end if !          1400     continue
 !
         end if      !---- end of snow/ice processes
 !---------- end of snow/ice processes below freezing
 
 !         CALL wrf_debug ( 100 , 'module_ylin: finish ice/snow processes' )
+
+
+
+
+
+
+
+
+!       end if
+!     END DO
+!
+!
+!     DO k=kts,kte
+!        tmp = tmp1D(k)
+!
+!        if( .not.(qvz(k)+qlz(k)+qiz(k) .lt. qsiz(k)  &
+!            .and. tmp .eq. 0.0) ) then !go to 2000
+!
+
+
+
+
+
+
+
+
+
 
 
 !***********************************************************************
@@ -1869,6 +1904,35 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         end if    !T seperate for source and sink terms
 !      CALL wrf_debug ( 100 , 'module_ylin: finish sum of all processes' )
 
+
+
+
+
+!       end if
+!     END DO
+!
+!
+!     DO k=kts,kte
+!        tmp = tmp1D(k)
+!
+!        if( .not.(qvz(k)+qlz(k)+qiz(k) .lt. qsiz(k)  &
+!            .and. tmp .eq. 0.0) ) then !go to 2000
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 !rain
             if (qrz(k) .gt. 1.0e-8) then
             xlambdar(k)=(pi*rhowater*nrz(k)/qrz(k))**(1./3.)   !zx 
@@ -1935,7 +1999,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
 !    5.0e-5=1.0/(500mb-300mb)
 !
         rsat=1.0
-        if( qvz(k)+qlz(k)+qiz(k) .lt. rsat*qvsbar(k) ) then
+        if( qvz(k)+qlz(k)+qiz(k) .lt. rsat*qvsbar(k) ) then ! goto 1800
 
 !c
 !c   unsaturated
@@ -1949,8 +2013,6 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
             tem(k)=thz(k)*tothz(k)
             temcc(k)=tem(k)-273.15
 
-            go to 1800
-!
         else
 !c
 !c   saturated
@@ -1992,14 +2054,12 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
                 qvsbar(k)=( qiz(k)*qsiz(k)+qlz(k)*qswz(k) )/qlpqi
             endif
 
-        end if
-
 !
 !***********************************************************************
 !*****     melting and freezing of cloud ice and cloud water       *****
 !***********************************************************************
         qlpqi=qlz(k)+qiz(k)
-        if(qlpqi .le. 0.0) go to 1800
+        if( qlpqi .gt. 0.0 ) then !go to 1800
 !
 !c
 !c (1)  HOMOGENEOUS NUCLEATION WHEN T< -40 C (Pihom)
@@ -2067,13 +2127,16 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
            qvsbar(k)=( qiz(k)*qsiz(k)+qlz(k)*qswz(k) )/qlpqi
         endif
 
-1800  continue
+      end if ! 1800  continue
+      end if ! 1800  continue
 !
 !***********************************************************************
 !**********    integrate the productions of rain and snow     **********
 !***********************************************************************
 !
-2000  continue
+        end if ! goto 2000
+      end do   ! continue 2000
+
 
 !
 !**** below if qv < qvmin then qv=qvmin, ql=0.0, and qi=0.0
@@ -2328,8 +2391,9 @@ END SUBROUTINE clphy1d_ylin
          qvz(k)=qpz
          qiz(k)=0.0
          qlz(k)=0.0
-         go to 400
-      end if
+      !  go to 400
+      !end if
+      else     ! this else to remove the go to above
       qlpqi=qlz(k)+qiz(k)
       if( qlpqi .ge. 1.0e-5) then
         ratql=qlz(k)/qlpqi
@@ -2359,7 +2423,7 @@ END SUBROUTINE clphy1d_ylin
       tsat=tem(k)
       absft=1.0
 !
-      do 200 n=1,20
+      do n=1,20   !do 200 n=1,20
          denom1=1.0/(tsat-svp3)
          denom2=1.0/(tsat-7.66)
 !        qswz(k)=episp0k/prez(k)*  &
@@ -2378,7 +2442,7 @@ END SUBROUTINE clphy1d_ylin
          qvsbar(k)=ratql*qswz(k)+ratqi*qsiz(k)
 !
 !        if( absft .lt. 0.01 .and. n .gt. 3 ) go to 300
-         if( absft .lt. 0.01 ) go to 300
+         if( absft .ge. 0.01 ) then !go to 300
 !
          dqvsbar=ratql*qswz(k)*svp2*243.5*denom1*denom1+  &
                  ratqi*qsiz(k)*21.8745584*265.5*denom2*denom2
@@ -2387,10 +2451,11 @@ END SUBROUTINE clphy1d_ylin
          dftsat=1.0+(xlvocp+ratqi*xlfocp)*dqvsbar
          tsat=tsat-ftsat/dftsat
          absft=abs(ftsat)
+         end if !300   continue
 
-200   continue
+      end do !200   continue
 9020  format(1x,'point can not converge, absft,n=',e12.5,i5)
-300   continue
+!300   continue
 
       if( qpz .gt. qvsbar(k) ) then
         qvz(k)=qvsbar(k)
@@ -2401,7 +2466,7 @@ END SUBROUTINE clphy1d_ylin
         qiz(k)=0.0
         qlz(k)=0.0
       end if
-400  continue
+      end if !400  continue
 
       END SUBROUTINE satadj
 
