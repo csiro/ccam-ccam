@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -233,7 +233,7 @@
       subroutine convjlm22
       
       use arrays_m   
-      use aerosolldr
+      use aerosol_arrays
       use cc_mpi, only : mydiag
       use cc_omp
       use cfrac_m
@@ -383,8 +383,9 @@
 !     unused switches if nkuo=21,22,23:  rhsat
 !     unused in convjlm22: dsig2, sigkscb, sigksct, tied_rh
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
-      use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
-     &                       naero,convscav,itracsa,nsalt
+      use aerointerface, only : convscav
+      use aerosol_arrays, only : itracso2,itracbc,itracoc,itracdu,ndust,
+     &                           naero,itracsa,nsalt
       use const_phys
 #ifndef GPU
       use diag_m, only : maxmin

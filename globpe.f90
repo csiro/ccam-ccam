@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -43,8 +43,8 @@
 program globpe
 
 use aerointerface                          ! Aerosol interface
-use aerosolldr, only : naero,xtosav,xtg, &
-    so2wd,so4wd,bcwd,ocwd,dustwd,saltwd    ! LDR prognostic aerosols
+use aerosol_arrays, only : naero,xtosav, &
+    xtg                                    ! Aerosol arrays
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
@@ -527,6 +527,17 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! ***********************************************************************
   call START_LOG(phys_begin)
 
+
+#ifdef GPUPHYSICS
+  ! MJT notes - the physics OpenACC code requires a larger heapsize like
+  ! export PGI_ACC_CUDA_HEAPSIZE=268435456 and maxtilesize=32
+  !$acc data create(t,u,v,qg,qlg,qfg)                              &
+  !$acc   create(kbsav,ktsav,condc,condx,conds,condg)              &
+  !$acc   create(dpsldt,ps,pblh,land,em)                           &
+  !$acc   create(precip)
+  !$acc update device(t,u,v) async(0)
+#endif  
+
     
   ! MISC (SINGLE) ---------------------------------------------------------
   ! radiation timer calculations
@@ -550,7 +561,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    ! initialse surface rainfall to zero
+    ! initialse surface rainfall to zero (also initialised in convection)
     condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
     condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
     conds(js:je) = 0. ! default total ice + snow (convection and large scale)
@@ -572,13 +583,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   
 #ifdef GPUPHYSICS
-  ! MJT notes - the physics OpenACC code requires a larger heapsize like
-  ! export PGI_ACC_CUDA_HEAPSIZE=268435456 and maxtilesize=32
-  !$acc data create(t,u,v,qg,qlg,qfg)                              &
-  !$acc   create(kbsav,ktsav,condc,condx,conds,condg)              &
-  !$acc   create(dpsldt,ps,pblh,land,em)                           &
-  !$acc   create(precip)
-  !$acc update device(t,u,v) async(0)
   !$acc wait(0)
   !$acc update device(dpsldt,ps,pblh,land,em) async(0)
   !$acc update device(qg,qlg,qfg) async(0)
@@ -652,7 +656,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #endif
   call END_LOG(convection_end)
 
-  
+
 #ifdef GPUPHYSICS
   !updated t,u,v,qg,qlg,qfg
   !updated kbsav,ktsav,condc,condx,conds,condg
@@ -667,6 +671,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! CLOUD MICROPHYSICS ----------------------------------------------------
   call START_LOG(cloud_begin)
   call ctrl_microphysics
+  ! t is copied to self from device in ctrl_microphysics
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -689,7 +694,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #endif
   call END_LOG(cloud_end)
 
-  
+
 #ifdef GPUPHYSICS
   !updated t,qg,qlg,qfg,stratcloud
   !updated condg,conds,condx,precip
@@ -1356,10 +1361,12 @@ end subroutine stationa
 ! INITIALISE CCAM
 subroutine globpe_init
 
-use aerointerface                          ! Aerosol interface
-use aerosolldr, only : naero,ch_dust     & ! LDR prognostic aerosols
-    ,zvolcemi,aeroindir,so4mtn,carbmtn   &
-    ,saltsmallmtn,saltlargemtn
+use aerointerface, only : aeroindir      & ! Aerosol interface
+    ,aero_split,aerosol_u10
+use aerosol_arrays, only : naero           ! Aerosol arrays
+use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
+    ,so4mtn,carbmtn,saltsmallmtn         &
+    ,saltlargemtn,enhanceu10
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebnmlfile             & ! Urban
     ,energytol                           &
@@ -1576,7 +1583,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
-    saltlargemtn,aerosol_u10,aero_split,                          &
+    saltlargemtn,enhanceu10,aerosol_u10,aero_split,               &
     o3_vert_interpolate,                                          & ! ozone
     o3_time_interpolate                                             ! depreciated
 ! file namelist
@@ -2044,7 +2051,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(10), dumi(12) )
+allocate( dumr(10), dumi(13) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2071,6 +2078,7 @@ if ( myid==0 ) then
   if ( do_co2_10um ) dumi(10) = 1
   dumi(11) = aerosol_u10  
   dumi(12) = aero_split
+  dumi(13) = enhanceu10
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2100,6 +2108,7 @@ o3_vert_interpolate = dumi(9)
 do_co2_10um         = dumi(10)==1
 aerosol_u10         = dumi(11)
 aero_split          = dumi(12)
+enhanceu10          = dumi(13)
 deallocate( dumr, dumi )
 allocate( dumi(25) )
 dumi = 0
@@ -2692,6 +2701,8 @@ seaice_albnir = alphanir_seaice
 !$acc update device(alphaj,dt,fc2,vmodmin,sigbot_gwd)
 !$acc update device(qgmin,iaero)
 !$acc update device(nmr)
+!$acc update device(enhanceu10,zvolcemi,ch_dust)
+!$acc update device(saltsmallmtn,saltlargemtn)
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -3854,7 +3865,7 @@ end subroutine fixsat
 ! Reset diagnostics for averaging period    
 subroutine zero_nperavg(koundiag)
 
-use aerosolldr, only :                   & ! LDR prognostic aerosols
+use aerosol_arrays, only :               & ! Aerosol arrays
      duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -4054,7 +4065,7 @@ end subroutine zero_nperday
 ! Update diagnostics for averaging period    
 subroutine calculate_timeaverage(koundiag)
 
-use aerosolldr, only :                   & ! LDR prognostic aerosols
+use aerosol_arrays, only :               & ! LDR prognostic aerosols
      duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -4525,7 +4536,7 @@ end subroutine write_diagnostics
 ! Check for NaN errors
 subroutine nantest(message,js,je)
 
-use aerosolldr, only : xtg,naero      ! LDR prognostic aerosols
+use aerosol_arrays, only : xtg,naero  ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction

@@ -1763,13 +1763,81 @@ integer, intent(in) :: imax, kl, ndim
 integer k, iq, n
 real, dimension(imax,kl), intent(in) :: a, c
 real, dimension(imax,kl,ndim), intent(inout) :: rhs
-real, dimension(imax,ndim,kl) :: e, g, r
+real, dimension(imax,kl) :: e
+real, dimension(imax,ndim,kl) :: g, r
 real temp, b
+!#ifdef GPU
+!integer p, pmax, s, klow, khigh
+!real rr
+!real, dimension(imax,0:kl+1,ndim) :: aa, cc, dd
+!real, dimension(imax,0:kl+1,ndim) :: new_aa, new_cc, new_dd
+!#endif
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
 !   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
+
+!#ifdef GPU
+!
+!do n = 1,ndim
+!  do iq = 1,imax
+!    aa(iq,0,n) = 0.
+!    cc(iq,0,n) = 0.
+!    dd(iq,0,n) = 0.
+!    new_aa(iq,0,n) = 0.
+!    new_cc(iq,0,n) = 0.
+!    new_dd(iq,0,n) = 0.
+!    aa(iq,kl+1,n) = 0.
+!    cc(iq,kl+1,n) = 0.
+!    dd(iq,kl+1,n) = 0.
+!    new_aa(iq,kl+1,n) = 0.
+!    new_cc(iq,kl+1,n) = 0.
+!    new_dd(iq,kl+1,n) = 0.
+!  end do  
+!end do
+!do n = 1,ndim
+!  do k = 1,kl
+!    do iq = 1,imax
+!      aa(iq,k,n) = a(iq,k)
+!      cc(iq,k,n) = c(iq,k)
+!      dd(iq,k,n) = rhs(iq,k,n)
+!    end do  
+!  end do
+!end do
+!do p = 1,pmax
+!  s = 2**(p-1)
+!  do n = 1,ndim
+!    do k = 1,kl
+!      do iq = 1,imax
+!        klow = max(k-s,0)
+!        khigh = min(k+s,kl+1)
+!        rr = 1./(1.-aa(iq,k,n)*cc(iq,klow,n)-cc(iq,k,n)*aa(iq,khigh,n))
+!        new_aa(iq,k,n) = -rr*(aa(iq,k,n)*aa(iq,klow,n))
+!        new_cc(iq,k,n) = -rr*(cc(iq,k,n)*cc(iq,khigh,n))
+!        new_dd(iq,k,n) = rr*(dd(iq,k,n)-aa(iq,k,n)*dd(iq,klow,n)-cc(iq,k,n)*dd(iq,khigh,n))
+!      end do
+!    end do
+!  end do
+!  do n = 1,ndim
+!    do k = 1,kl
+!      do iq = 1,imax
+!        aa(iq,k,n) = new_aa(iq,k,n)  
+!        cc(iq,k,n) = new_cc(iq,k,n)
+!        dd(iq,k,n) = new_dd(iq,k,n)
+!      end do
+!    end do
+!  end do
+!end do
+!do n = 1,ndim
+!  do k = 1,kl
+!    do iq = 1,imax
+!      rhs(iq,k,n) = dd(iq,k,n)
+!    end do
+!  end do
+!end do
+!
+!#else
 
 do n = 1,ndim
   do k = 1,kl
@@ -1780,19 +1848,26 @@ do n = 1,ndim
 end do
 
 ! the Thomas algorithm is used
+do iq = 1,imax
+  b=1./(1.-a(iq,1)-c(iq,1))
+  e(iq,1)=c(iq,1)*b
+end do
 do n = 1,ndim
   do iq = 1,imax
     b=1./(1.-a(iq,1)-c(iq,1))
-    e(iq,n,1)=c(iq,1)*b
     g(iq,n,1)=r(iq,n,1)*b
   end do
 end do
 do k = 2,kl-1
+  do iq = 1,imax
+    b=1.-a(iq,k)-c(iq,k)
+    temp= 1./(b-a(iq,k)*e(iq,k-1))
+    e(iq,k)=c(iq,k)*temp
+  end do
   do n = 1,ndim
     do iq = 1,imax
       b=1.-a(iq,k)-c(iq,k)
-      temp= 1./(b-a(iq,k)*e(iq,n,k-1))
-      e(iq,n,k)=c(iq,k)*temp
+      temp= 1./(b-a(iq,k)*e(iq,k-1))
       g(iq,n,k)=(r(iq,n,k)-a(iq,k)*g(iq,n,k-1))*temp
     end do  
   end do
@@ -1802,13 +1877,13 @@ end do
 do n = 1,ndim
   do iq = 1,imax
     b=1.-a(iq,kl)-c(iq,kl)
-    r(iq,n,kl)=(r(iq,n,kl)-a(iq,kl)*g(iq,n,kl-1))/(b-a(iq,kl)*e(iq,n,kl-1))
+    r(iq,n,kl)=(r(iq,n,kl)-a(iq,kl)*g(iq,n,kl-1))/(b-a(iq,kl)*e(iq,kl-1))
   end do  
 end do
 do k = kl-1,1,-1
   do n = 1,ndim
     do iq = 1,imax
-      r(iq,n,k) = g(iq,n,k)-e(iq,n,k)*r(iq,n,k+1)
+      r(iq,n,k) = g(iq,n,k)-e(iq,k)*r(iq,n,k+1)
     end do  
   end do
 end do
@@ -1820,6 +1895,8 @@ do k = 1,kl
     end do
   end do
 end do
+
+!#endif
 
 return
 end subroutine trimmix3

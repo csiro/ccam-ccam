@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -21,7 +21,7 @@
 
 subroutine nonlin
 
-use aerosolldr          ! LDR prognostic aerosols
+use aerosol_arrays      ! Aerosol arrays
 use arrays_m            ! Atmosphere dyamics prognostic arrays
 use cc_mpi              ! CC MPI routines
 use const_phys          ! Physical constants

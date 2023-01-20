@@ -2241,9 +2241,12 @@ logical,                        intent(in)    :: including_aerosols
     call trans_sfc    (Gas_tf, Atmos_input, overod, co21c_KEp1, &
                        co21r_KEp1)
     if (Lw_control%do_co2_10um) then
+      !call trans_sfc_10um (Gas_tf, Atmos_input, to3cnt, co2990c_KEp1, &
+      !                     co2900c_KEp1, co21070c_KEp1, co2990r_KEp1, &
+      !                     co2900r_KEp1, co21070r_KEp1)
       call trans_sfc_10um (Gas_tf, Atmos_input, to3cnt, co2990c_KEp1, &
-                           co2900c_KEp1, co21070c_KEp1, co2990r_KEp1, &
-                           co2900r_KEp1, co21070r_KEp1)
+                           co2990r_KEp1, co2900c_KEp1, co2900r_KEp1,  &
+                           co21070c_KEp1, co21070r_KEp1)      
     endif
     
      do j = 1,size(trans_b2d1(:,:,:),2)
@@ -2587,6 +2590,14 @@ logical,                        intent(in)    :: including_aerosols
             end do
          end do
       end do
+#ifdef debug
+      if ( any( heatem(:,:,ks:ke)/=heatem(:,:,ks:ke) ) ) then
+        write(6,*) "WARN: NaN found in heatem"
+      end if
+      if ( any( cts_sum(:,:,ks:ke)/=cts_sum(:,:,ks:ke) ) ) then
+        write(6,*) "WARN: NaN found in cts_sum"
+      end if
+#endif
 
     if (nnn == 1) then ! only need to do once
     if (Rad_control%do_totcld_forcing) then                    

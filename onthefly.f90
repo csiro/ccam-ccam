@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -75,7 +75,6 @@ contains
 subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
                     qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
-use aerosolldr       ! LDR prognostic aerosols
 use cc_mpi           ! CC MPI routines
 use darcdf_m         ! Netcdf data
 use infile           ! Input file routines
@@ -691,10 +690,10 @@ if ( newfile ) then
     else  
       write(6,*) "-> Surface height is not required with zht_needed =",zht_needed
     end if
-    write(6,'(A,2I4)') " -> nested,retopo_test                               =",nested,retopo_test
-    write(6,*) "-> soilt_found,mlo_found,mlo2_found,mloice_found    =",soilt_found,mlo_found,mlo2_found,mloice_found
-    write(6,*) "-> zht_found,mixr_found,aero_found,urban1_found     =",zht_found,mixr_found,aero_found,urban1_found
-    write(6,*) "-> urban2_found,allowtrivialfill                    =",urban2_found,allowtrivialfill
+    write(6,'(A,2I4)') " -> nested,retopo_test                             =",nested,retopo_test
+    write(6,*) "-> soilt_found,mlo_found,mlo2_found,mloice_found  =",soilt_found,mlo_found,mlo2_found,mloice_found
+    write(6,*) "-> zht_found,mixr_found,aero_found,urban1_found   =",zht_found,mixr_found,aero_found,urban1_found
+    write(6,*) "-> urban2_found,allowtrivialfill                  =",urban2_found,allowtrivialfill
     if ( zht_needed .and. .not.zht_found .and. .not.allowtrivialfill ) then
       write(6,*) "ERROR: Surface height is required but not found in input file"
       call ccmpi_abort(-1)

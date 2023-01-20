@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -317,7 +317,7 @@
       subroutine convjlm
       
       use arrays_m   
-      use aerosolldr
+      use aerosol_arrays
       use cc_mpi, only : mydiag
       use cc_omp
       use cfrac_m
@@ -468,8 +468,9 @@
 !     following will be unused when we remove methprec=3 option: dsig2, sigkscb, sigksct, tied_rh
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
 !     nevapcc option now affects entrainment
-      use aerosolldr, only : itracso2,itracbc,itracoc,itracdu,ndust,
-     &                       naero,convscav,itracsa,nsalt
+      use aerointerface, only : convscav
+      use aerosol_arrays, only : itracso2,itracbc,itracoc,itracdu,ndust,
+     &                           naero,itracsa,nsalt
       use const_phys
 #ifndef GPU
       use diag_m, only : maxmin
@@ -636,25 +637,27 @@
          enddo     ! k loop
        endif  ! (nbase==-3.or.nbase==-4)
           
-        if(mbase==-10)then ! fg; qg1   
-         do iq=1,imax
-          k=kkbb(iq)
-           if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*                 !  mbase=-10; N.B. qs check done later with qbass
-     &               max(qg(iq,1),qg(iq,k980),qg(iq,k))/qg(iq,k) ! MJT suggestion
-         enddo 
-        endif  ! (mbase-=-10)
+      if(mbase==-10)then ! fg; qg1   
+       do iq=1,imax
+        k=kkbb(iq)
+         if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*                 !  mbase=-10; N.B. qs check done later with qbass
+     &             max(qg(iq,1),qg(iq,k980),qg(iq,k))/
+     &             max(qg(iq,k),qgmin) ! MJT suggestion
+       enddo 
+      endif  ! (mbase-=-10)
           
       if(mbase==0)then ! fg; qg1     was usual from 28/2/14
-         es(:,1)=establ(tt(:,1))
-         do iq=1,imax
-          pk=ps(iq)*sig(1)
-          qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1)  
-          k=kkbb(iq)  ! for alfqarr calc
-c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25         
-         if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*         !  mbase>=0;  N.B. qs check done later with qbass
-     &            max(wetfac(iq)*qs(iq,1),qg(iq,k980),qg(iq,k))/qg(iq,k)
-         enddo 
-        endif  ! (mbase==0)
+       es(:,1)=establ(tt(:,1))
+       do iq=1,imax
+        pk=ps(iq)*sig(1)
+        qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1)  
+        k=kkbb(iq)  ! for alfqarr calc
+c       N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25         
+        if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*         !  mbase>=0;  N.B. qs check done later with qbass
+     &          max(wetfac(iq)*qs(iq,1),qg(iq,k980),qg(iq,k))/
+     &          max(qg(iq,k),qgmin)
+       enddo 
+      endif  ! (mbase==0)
           
       if(mbase==1)then ! fg; qg1   similar to -10  
          es(:,1)=establ(tt(:,1))
@@ -664,7 +667,8 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
           k=kkbb(iq)  ! for alfqarr calc
 c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25         
          if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*         !  N.B. qs check done later with qbass
-     &               max(qg(iq,1),qg(iq,k980),qg(iq,k))/qg(iq,k)
+     &               max(qg(iq,1),qg(iq,k980),qg(iq,k))/
+     &               max(qg(iq,k),qgmin)
          enddo 
         endif  ! (mbase==1)
           
@@ -675,7 +679,8 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
           qs(iq,1)=.622*es(iq,1)/max(pk-es(iq,1),0.1)  
           k=kkbb(iq)  ! for alfqarr calc
           if(fg(iq)>0.)alfqarr(iq)=max(wetfac(iq)*qs(iq,1),  !  N.B. qs check done later with qbass
-     &           alfqarr(iq)*qg(iq,k980),alfqarr(iq)*qg(iq,k))/qg(iq,k)
+     &           alfqarr(iq)*qg(iq,k980),alfqarr(iq)*qg(iq,k))/
+     &           max(qg(iq,k),qgmin)
          enddo 
         endif  ! (mbase==2)
           
@@ -687,28 +692,32 @@ c         N.B. if fg<=0, then alfqarr will keep its input value, e.g. 1.25
           k=kkbb(iq)  ! for alfqarr calc
           if(land(iq))then
             if(fg(iq)>0.)alfqarr(iq)=alfqarr(iq)*         !  same as mbase=1
-     &            max(qg(iq,1),qg(iq,k980),qg(iq,k))/qg(iq,k)
+     &            max(qg(iq,1),qg(iq,k980),qg(iq,k))/
+     &            max(qg(iq,k),qgmin)
           else
             if(fg(iq)>0.)alfqarr(iq)=max(qs(iq,1),        !  same as mbase=2
-     &           alfqarr(iq)*qg(iq,k980),alfqarr(iq)*qg(iq,k))/qg(iq,k)
+     &           alfqarr(iq)*qg(iq,k980),alfqarr(iq)*qg(iq,k))/
+     &           max(qg(iq,k),qgmin)
           endif
          enddo 
         endif  ! (mbase==3)
           
       if(mbase==4)then ! fg; qg_k   similar to combined 1 & 2 with qs limit - now preferred
          do iq=1,imax
-          k=kkbb(iq)  ! for alfqarr calc
-          es(iq,k)=establ(tt(iq,k))
-          pk=ps(iq)*sig(k)
-          qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
-          if(land(iq))then
-            if(fg(iq)>0.)alfqarr(iq)=min(qs(iq,k),alfqarr(iq)*       
+          if(fg(iq)>0.) then   
+           k=kkbb(iq)  ! for alfqarr calc
+           es(iq,k)=establ(tt(iq,k))
+           pk=ps(iq)*sig(k)
+           qs(iq,k)=.622*es(iq,k)/max(pk-es(iq,k),0.1)  
+           if(land(iq))then
+            alfqarr(iq)=min(qs(iq,k),alfqarr(iq)*       
      &               max(qg(iq,1),qg(iq,k980),qg(iq,k)))
      &              /max(qg(iq,k),qgmin)
-          else
-            if(fg(iq)>0.)alfqarr(iq)=max(1.,qs(iq,k)
+           else
+            alfqarr(iq)=max(1.,qs(iq,k)
      &              /max(qg(iq,k),qgmin))
-          endif
+           endif
+          endif 
          enddo 
       endif  ! (mbase==4)
 
@@ -1638,7 +1647,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
          detrainn=min( 1., detrain+(1.-detrain)*(   ! typical detrainn is .15
      &   (.55-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .55)) /(.6-.14))**3 )
 !        diff=0, .14, .2,.3, .4, .6, .7 gives detrainn=1, .71, .52, .29, .22, .18, .15   for .15  
-        qxcess(iq)=detrainn*rnrtcn(iq) 
+         qxcess(iq)=detrainn*rnrtcn(iq) 
         enddo
       endif   ! (methdetr==1)     
       if(methdetr==2)then     ! like 3 but uses .57 instead of .6
@@ -1646,7 +1655,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
          detrainn=min( 1., detrain+(1.-detrain)*(   ! typical detrainn is .15
      &   (.57-min(sig(kb_sav(iq))-sig(kt_sav(iq)), .57)) /(.6-.14))**3 )
 !        diff=0, .14, .2,.3, .4, .6, .7 gives detrainn=1, .84, .59, .32, .19, .18, .15   for .15  
-        qxcess(iq)=detrainn*rnrtcn(iq) 
+         qxcess(iq)=detrainn*rnrtcn(iq) 
         enddo
       endif   ! (methdetr==2)     
       if(methdetr==3)then  ! usual (with .14 from 20/6/12). Used to calculate qxcess
@@ -1664,7 +1673,7 @@ c         rnrt_k=detxsav(iq,k)*max(0.,qplume(iq,k)-qsk)     ! not need as such a
 !        diff=0, .14, .2,.3, .4, .6, .7 gives detrainn=1, 1., .66, .29, .10, .02, .02   for .02
 !        With detrain=.01 instead of .15 would get
 !        diff=0, .14, .2,.3, .4, .6, .7 gives detrainn=1, 1., .66, .28, .09, .01, .01   for .01
-        qxcess(iq)=detrainn*rnrtcn(iq) 
+         qxcess(iq)=detrainn*rnrtcn(iq) 
         enddo
       endif   ! (methdetr==3)     
       if(methdetr==4)then   ! like 3 but uses .7 instead of .6 - was more usual
@@ -2002,11 +2011,10 @@ c           print *,'has tied_con=0'
         end do
        end do
        ! calculate fraction of aerosols that will be scavenged
-       call convscav(fscav,qqsto,qqold,
-     &               ttsto,xtgtmp,rho)
+       call convscav(fscav,qqsto,qqold,ttsto,xtgtmp,rho)
+       xtgscav=0.
        do ntr = 1,naero
         do iq = 1,imax
-         xtgscav(iq,1:kl,ntr) = 0.
          if ( kt_sav(iq)<kl-1 ) then
           xtgs(iq,1:kl-2,ntr) = xtg(iq,1:kl-2,ntr)         
           kb = kb_sav(iq)

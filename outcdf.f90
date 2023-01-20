@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -680,6 +680,7 @@ if ( myid==0 .or. local ) then
     end if      
     call ccnf_put_attg(idnc,'do_co2_10um',ndo_co2_10um)
     call ccnf_put_attg(idnc,'dustradmethod',dustradmethod)
+    call ccnf_put_attg(idnc,'enhanceu10',enhanceu10)
     call ccnf_put_attg(idnc,'iceradmethod',iceradmethod)
     call ccnf_put_attg(idnc,'linecatalog_form',linecatalog_form)
     call ccnf_put_attg(idnc,'liqradmethod',liqradmethod)
@@ -943,7 +944,7 @@ subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                            
                     idc,psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                                ! Aerosol interface
-use aerosolldr                                   ! LDR prognostic aerosols
+use aerosol_arrays                               ! Aerosol arrays
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebsaved, atebavetemp,      &
                  urbtemp, nfrac                  ! Urban

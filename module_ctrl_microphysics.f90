@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -123,9 +123,8 @@ end do
 
 
 #ifdef GPUPHYSICS
-!$acc update device(cdrop,rhoadz) async(1)
+!$acc update device(cdrop,rhoa,dz) async(1)
 #endif
-
 
 #ifndef GPU
 !$omp do schedule(static) private(js,je,k,lrhoa,lcdrop,lclcon)
@@ -166,7 +165,7 @@ end do
 !$acc parallel loop copy(nettend,rkmsave,rkhsave)                             &
 !$acc   copyout(qlrad,qfrad,qccon,cfrac)                                      &
 !$acc   present(qg,qlg,qfg,dpsldt,t,stratcloud)                               &
-!$acc   present(kbsav,ktsav,land,ps,em,pblh,cdrop,clcon)                      &
+!$acc   present(land,ps,em,pblh,cdrop,clcon)                                  &
 !$acc   private(js,je,idjd_t,mydiag_t,lcfrac,lqg,lqlg,lqfg,lqlrad,lqfrad,lt)  &
 !$acc   private(ldpsldt,lclcon,lcdrop,lstratcloud,lnettend,lrkmsave,lrkhsave) &
 !$acc   private(lqccon)
@@ -194,7 +193,7 @@ do tile = 1,ntiles
     lrkhsave = rkhsave(js:je,:)
   end if
 
-  call update_cloud_fraction(lcfrac,kbsav(js:je),ktsav(js:je),land(js:je),             &
+  call update_cloud_fraction(lcfrac,land(js:je),                                       &
               ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                         &
               ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(js:je),pblh(js:je),idjd_t, &
               mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &

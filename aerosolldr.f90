@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,77 +25,52 @@
 
 module aerosolldr
 
+use aerosol_arrays, only : ndust, nsalt, naero, ndcls,     &
+  itracdms, itracso2, itracso4, itracbc, itracoc, itracdu, &
+  itracsa
+  
+
 implicit none
 
 private
-public aldrcalc,aldrinit,aldrend,aldrloademiss,aldrloaderod,cldrop,convscav
-public xtg,xtgsav,xtosav,naero
-public itracdu,ndust
-public dustdd,dustwd,duste,dust_burden
-public itracbc,bce,bcdd,bcwd,bc_burden
-public itracoc,oce,ocdd,ocwd,oc_burden
-public itracdms,itracso2,itracso4
-public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
-public dms_burden,so2_burden,so4_burden
-public itracsa,nsalt,salte,saltdd,saltwd,salt_burden
-public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn
-public dustden,dustreff,saltden,saltreff
-public xtg_solub,zoxidant_g,erod,ndcls,emissfield,vso2
+public aldrcalc
+public enhanceu10, Ch_dust, zvolcemi
+public dustreff
+public so4mtn, carbmtn, saltsmallmtn, saltlargemtn
 
-integer, save :: jk2,jk3,jk4,jk5,jk6,jk8,jk9                ! levels for injection
-real, dimension(:,:,:), allocatable, save :: xtg            ! prognostic aerosols (see indexing below)
-real, dimension(:,:,:), allocatable, save :: xtgsav         ! save for mass conservation in semi-Lagrangian models
-real, dimension(:,:,:), allocatable, save :: xtosav         ! aerosol mixing ratio outside convective cloud
-real, dimension(:,:,:), allocatable, save :: xtg_solub      ! aerosol mixing ratio that is dissolved in rain
-real, dimension(:,:), allocatable, save :: erod             ! sand, clay and silt fraction that can erode
-real, dimension(:,:), allocatable, save :: emissfield       ! non-volcanic emissions
-real, dimension(:,:,:), allocatable, save :: zoxidant_g     ! oxidant fields
-real, dimension(:), allocatable, save :: vso2               ! volcanic emissions
-real, dimension(:,:), allocatable, save :: duste            ! Diagnostic - dust emissions
-real, dimension(:,:), allocatable, save :: dustdd           ! Diagnostic - dust dry deposition
-real, dimension(:,:), allocatable, save :: dustwd           ! Diagnostic - dust wet deposition
-real, dimension(:,:), allocatable, save :: dust_burden      ! Diagnostic - dust burden
-real, dimension(:), allocatable, save :: bce                ! Diagnostic - black carbon emissions
-real, dimension(:), allocatable, save :: bcdd               ! Diagnostic - black carbon dry deposition
-real, dimension(:), allocatable, save :: bcwd               ! Diagnostic - black carbon wet deposition
-real, dimension(:), allocatable, save :: bc_burden          ! Diagnostic - black carbon burden
-real, dimension(:), allocatable, save :: oce                ! Diagnostic - organic carbon emissions
-real, dimension(:), allocatable, save :: ocdd               ! Diagnostic - organic carbon dry deposition
-real, dimension(:), allocatable, save :: ocwd               ! Diagnostic - organic carbon wet deposition
-real, dimension(:), allocatable, save :: oc_burden          ! Diagnostic - organic carbon burden
-real, dimension(:), allocatable, save :: dmse               ! Diagnostic - DMS emissions
-real, dimension(:), allocatable, save :: dmsso2o            ! Diagnostic - DMS->so2 oxidation
-real, dimension(:), allocatable, save :: so2e               ! Diagnostic - so2 emissions
-real, dimension(:), allocatable, save :: so2so4o            ! Diagnostic - so2->so4 oxidation
-real, dimension(:), allocatable, save :: so2dd              ! Diagnostic - so2 dry deposition
-real, dimension(:), allocatable, save :: so2wd              ! Diagnostic - so2 wet deposition
-real, dimension(:), allocatable, save :: so4e               ! Diagnostic - so4 emissions
-real, dimension(:), allocatable, save :: so4dd              ! Diagnostic - so4 dry deposition
-real, dimension(:), allocatable, save :: so4wd              ! Diagnostic - so4 wet deposition
-real, dimension(:), allocatable, save :: salte              ! Diagnostic - salt emission
-real, dimension(:), allocatable, save :: saltdd             ! Diagnostic - salt dry deposition
-real, dimension(:), allocatable, save :: saltwd             ! Diagnostic - salt wet deposition
-real, dimension(:), allocatable, save :: dms_burden         ! Diagnostic - DMS burden
-real, dimension(:), allocatable, save :: so2_burden         ! Diagnostic - so2 burden
-real, dimension(:), allocatable, save :: so4_burden         ! Diagnostic - so4 burden
-real, dimension(:), allocatable, save :: salt_burden        ! Diagnostic - salt burden
+! options
+integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
+real, parameter :: zmin     = 1.e-10            ! Minimum concentration tolerance
 
-!!$acc declare create(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
+!$acc declare create(enhanceu10)
 
-! tracers
-integer, parameter :: nsulf = 3
-integer, parameter :: ncarb = 4
-integer, parameter :: ndust = 4
-integer, parameter :: nsalt = 2
-integer, parameter :: naero = nsulf+ncarb+ndust+nsalt ! Tracers: DMS, SO2, SO4, BCO, BCI, OCO, OCI, DUST(4), SALT(2)
-integer, parameter :: itracdms = 1                  ! Index for DMS tracer (1)
-integer, parameter :: itracso2 = 2                  ! Index for SO2 tracer (2)
-integer, parameter :: itracso4 = 3                  ! Index for SO4 tracer (3)
-integer, parameter :: itracbc = nsulf+1             ! Index for BC tracer (hydrophobic (4), hydrophillic (5))
-integer, parameter :: itracoc = nsulf+3             ! Index for OC tracer (hydrophobic (6), hydrophillic (7))
-integer, parameter :: itracdu = nsulf+ncarb+1       ! Index for dust tracer (8-11)
-integer, parameter :: itracsa = nsulf+ncarb+ndust+1 ! Index for salt tracer (12-13)
-integer, parameter :: ndcls = 3                     ! Number of dust emission classes (sand, silt, clay)
+! physical constants
+real, parameter :: grav      = 9.80616          ! Gravitation constant
+real, parameter :: rdry      = 287.04           ! Specific gas const for dry air
+real, parameter :: cp        = 1004.64          ! Heat capacity of air
+real, parameter :: hl        = 2.5104e6         ! Latent heat of vaporisation
+real, parameter :: vkar      = 0.4              ! von Karman constant
+real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/m^3
+
+! emission and deposition constants
+real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
+real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
+
+!$acc declare create(zvolcemi,ch_dust)
+
+! Indirect effect coefficients
+! converts from mass (kg/m3) to number concentration (1/m3) for dist'n
+real, save :: so4mtn = 1.24e17                  ! Penner et al (1998)
+real, save :: carbmtn = 1.25e17                 ! Penner et al (1998)
+real, save :: saltsmallmtn = 1.89e16            ! Nillson et al. number mode radius = 0.1 um, sd=2
+real, save :: saltlargemtn = 1.1e14             ! Nillson et al. number mode radius = 0.5 um, sd=2
+!real, save :: so4mtn = 1.69e17                 ! IPCC (2001) Table 5.1
+!real, save :: carbmtn = 1.21e17                ! IPCC (2001) Table 5.1
+!real, save :: carbmtn = 2.30e17                ! counts Aitken mode as well as accumulation mode carb aerosols
+!real, save :: saltsmallmtn = 3.79e17           ! Herzog number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
+!real, save :: saltlargemtn = 7.25e14           ! Herzog number mode radius = 0.35 um, sd=1.7, rho=2.165
+
+!$acc declare create(saltsmallmtn,saltlargemtn)
 
 ! emission indices
 integer, parameter :: iso2a1 = 1      ! SO2/SO4 Anthropogenic surface
@@ -114,41 +89,6 @@ integer, parameter :: idmso  = 13     ! DMS ocean
 integer, parameter :: idmst  = 14     ! DMS land
 integer, parameter :: iocna  = 15     ! Natural organic
 
-! options
-integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
-integer, save :: aeroindir  = 0                 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
-real, parameter :: zmin     = 1.e-10            ! Minimum concentration tolerance
-
-!!$acc declare create(enhanceu10)
-
-! physical constants
-real, parameter :: grav      = 9.80616          ! Gravitation constant
-real, parameter :: rdry      = 287.04           ! Specific gas const for dry air
-real, parameter :: cp        = 1004.64          ! Heat capacity of air
-real, parameter :: hl        = 2.5104e6         ! Latent heat of vaporisation
-real, parameter :: vkar      = 0.4              ! von Karman constant
-real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/m^3
-
-! emission and deposition constants
-real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
-real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
-
-!!$acc declare create(zvolcemi,ch_dust)
-
-! Indirect effect coefficients
-! converts from mass (kg/m3) to number concentration (1/m3) for dist'n
-real, save :: so4mtn = 1.24e17                  ! Penner et al (1998)
-real, save :: carbmtn = 1.25e17                 ! Penner et al (1998)
-real, save :: saltsmallmtn = 1.89e16            ! Nillson et al. number mode radius = 0.1 um, sd=2
-real, save :: saltlargemtn = 1.1e14             ! Nillson et al. number mode radius = 0.5 um, sd=2
-!real, save :: so4mtn = 1.69e17                 ! IPCC (2001) Table 5.1
-!real, save :: carbmtn = 1.21e17                ! IPCC (2001) Table 5.1
-!real, save :: carbmtn = 2.30e17                ! counts Aitken mode as well as accumulation mode carb aerosols
-!real, save :: saltsmallmtn = 3.79e17           ! Herzog number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
-!real, save :: saltlargemtn = 7.25e14           ! Herzog number mode radius = 0.35 um, sd=1.7, rho=2.165
-
-!!$acc declare create(saltsmallmtn,saltlargemtn)
-
 ! Dust coefficients
 real, dimension(ndust), parameter :: dustden = (/ 2500., 2650., 2650., 2650. /)    ! Density of dust (kg/m3)
                                                                                    ! (Clay, small silt, small slit, small silt)
@@ -156,198 +96,11 @@ real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 
                                                                                    ! (Clay, small silt, small slit, small silt)
 
 ! Salt coefficients
-real, dimension(2), parameter :: saltden = (/ 2165., 2165. /)     ! density of salt
-real, dimension(2), parameter :: saltreff = (/ 0.1e-6, 0.5e-6 /)  ! radius of salt (um)
-
-! convective scavenging coefficients
-real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
+real, dimension(nsalt), parameter :: saltden = (/ 2165., 2165. /)     ! density of salt
+real, dimension(nsalt), parameter :: saltreff = (/ 0.1e-6, 0.5e-6 /)  ! radius of salt (um)
 
 contains
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Initialisation
-
-subroutine aldrinit(ifull,iextra,kl,sig)
-
-implicit none
-
-integer, intent(in) :: ifull,iextra,kl
-integer k
-real, dimension(kl), intent(in) :: sig
-
-allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
-allocate(xtosav(ifull,kl,naero),vso2(ifull))
-allocate(emissfield(ifull,15))
-allocate(zoxidant_g(ifull,kl,4),erod(ifull,ndcls))
-allocate(duste(ifull,ndust),dustdd(ifull,ndust),dustwd(ifull,ndust),dust_burden(ifull,ndust))
-allocate(bce(ifull),bcdd(ifull),bcwd(ifull))
-allocate(bc_burden(ifull))
-allocate(oce(ifull),ocdd(ifull),ocwd(ifull))
-allocate(oc_burden(ifull))
-allocate(dmse(ifull),dmsso2o(ifull))
-allocate(so2e(ifull),so2so4o(ifull),so2dd(ifull),so2wd(ifull))
-allocate(so4e(ifull),so4dd(ifull),so4wd(ifull))
-allocate(dms_burden(ifull),so2_burden(ifull),so4_burden(ifull))
-allocate(salte(ifull),saltdd(ifull),saltwd(ifull),salt_burden(ifull))
-
-xtg=0.
-xtgsav=0.
-xtosav=0.
-vso2=0.
-emissfield=0.
-zoxidant_g=0.
-erod=0.
-duste=0.
-dustdd=0.
-dustwd=0.
-dust_burden=0.
-bce=0.
-bcdd=0.
-bcwd=0.
-bc_burden=0.
-oce=0.
-ocdd=0.
-ocwd=0.
-oc_burden=0.
-dmse=0.
-dmsso2o=0.
-so2e=0.
-so2so4o=0.
-so2dd=0.
-so2wd=0.
-so4e=0.
-so4dd=0.
-so4wd=0.
-salte=0.
-saltdd=0.
-saltwd=0.
-dms_burden=0.
-so2_burden=0.
-so4_burden=0.
-salt_burden=0.
-
-! MJT - define injection levels
-
-! scale to CSIRO9 18 levels
-jk2=2 ! jk2 is top of level=1, bottom of level=2
-jk3=3
-do k = 3,kl
-  if ( sig(k)<=0.967 ) then ! 300m
-    jk3 = k ! jk3 is top of level=2, bottom of level=3
-  else
-    exit
-  end if
-end do
-jk4 = jk3 + 1
-do k = jk3+1,kl
-  if ( sig(k)<=0.930 ) then ! 600m
-    jk4 = k ! jk4 is top of level=3, bottom of level=4
-  else
-    exit
-  end if
-end do
-jk5 = jk4 + 1
-do k = jk4+1,kl
-  if ( sig(k)<=0.882 ) then ! 1,000m
-    jk5 = k ! jk5 is top of level=4, bottom of level=5
-  else
-    exit
-  end if
-end do
-jk6 = jk5 + 1
-do k = jk5+1,kl
-  if ( sig(k)<=0.800 ) then ! 1,800m
-    jk6 = k ! jk6 is top of level=5, bottom of level=6
-  else
-    exit
-  end if
-end do
-jk8 = jk6 + 1
-do k = jk6+1,kl
-  if ( sig(k)<=0.530 ) then ! 5,000m
-    jk8 = k ! jk8 is top of level=7, bottom of level=8
-  else
-    exit
-  end if
-end do
-jk9 = jk8 + 1
-do k = jk8+1,kl
-  if ( sig(k)<=0.350 ) then ! 8,000m
-    jk9 = k ! jk9 is top of level=8, bottom of level=9
-  else
-    exit
-  end if
-end do
-
-!!$acc update device(jk2,jk3,jk4,jk5,jk6,jk8,jk9)
-!!$acc update device(zvolcemi,enhanceu10,ch_dust)
-!!$acc update device(saltsmallmtn,saltlargemtn)
-
-return
-end subroutine aldrinit
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! End
-
-subroutine aldrend
-
-implicit none
-
-deallocate(xtg,xtgsav,xtosav)
-deallocate(vso2)
-deallocate(emissfield)
-deallocate(zoxidant_g,erod)
-deallocate(duste,dustdd,dustwd,dust_burden)
-deallocate(bce,bcdd,bcwd)
-deallocate(bc_burden)
-deallocate(oce,ocdd,ocwd)
-deallocate(oc_burden)
-deallocate(dmse,dmsso2o)
-deallocate(so2e,so2so4o,so2dd,so2wd)
-deallocate(so4e,so4dd,so4wd)
-deallocate(dms_burden,so2_burden,so4_burden)
-deallocate(salte,saltdd,saltwd,salt_burden)
-
-return
-end subroutine aldrend
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Load emission arrays
-
-subroutine aldrloademiss(index,aa)
-
-implicit none
-
-integer, intent(in) :: index
-real, dimension(:), intent(in) :: aa
-
-if ( index<16 ) then
-  emissfield(:,index)=aa(1:size(emissfield,1)) ! Then follow SO2, BC and OC from anthro (a) and biomass-burning (b) levels 1 and 2
-elseif ( index==16 ) then
-  vso2(:)=aa(1:size(vso2))             ! volcanic
-else
-  write(6,*) "ERROR: index out-of-range for aldrloademiss"
-  stop
-end if
-
-return
-end subroutine aldrloademiss
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Load soil data
-
-subroutine aldrloaderod(inda,aa)
-
-implicit none
-
-integer, intent(in) :: inda
-real, dimension(:), intent(in) :: aa
-
-! EROD is the soil fraction of Sand (inda=1), Silt (inda=2) and Clay (inda=3) that can erode
-erod(:,inda) = aa(1:size(erod,1))
-
-return
-end subroutine aldrloaderod
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Main routine
@@ -355,333 +108,407 @@ end subroutine aldrloaderod
 subroutine aldrcalc(dt,sig,dz,wg,pblh,prf,ts,ttg,condc,snowd,taudar,fg,eg,v10m,                    &
                     ustar,zo,land,fracice,tsigmf,qvg,qlg,qfg,stratcloud,clcon,cldcon,pccw,rhoa,vt, &
                     pfprec,pfmelt,pfsnow,pfsubl,plambs,pmrate,pmaccr,                              &
-                    pqfsedice,prscav,prfreeze,pfevap,zdayfac,kbsav,xtg,duste,dustdd,xtosav,        &
-                    dmsso2o,so2so4o,dust_burden,bc_burden,oc_burden,dms_burden,                    &
-                    so2_burden,so4_burden,erod,zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,              &
-                    emissfield,vso2,dmse,so2e,so4e,bce,oce,so2dd,so4dd,bcdd,ocdd,salte,saltdd,     &
-                    saltwd,salt_burden,dustden,dustreff,saltden,saltreff,locean,imax,kl)
-!!$acc routine vector
+                    pqfsedice,prscav,prfreeze,pfevap,zdayfac,kbsav,locean)
+
+use aerosol_arrays, only : xtg, xtosav, duste, dustdd, dustwd, dust_burden,          &
+  bce, bcdd, bcwd, bc_burden, oce, ocdd, ocwd, oc_burden, vso2,                      &
+  dmse, so2e, so4e, so2dd, so4dd, so2wd, so4wd, dms_burden, so2_burden, so4_burden,  &
+  salte, saltdd, saltwd, salt_burden, dmsso2o, so2so4o, erod, zoxidant_g, emissfield
+use cc_omp
+use newmpar_m
 
 implicit none
 
-integer, intent(in) :: imax, kl
-integer, dimension(imax), intent(in) :: kbsav  ! Bottom of convective cloud
+integer, dimension(:), intent(in) :: kbsav  ! Bottom of convective cloud
 real, intent(in) :: dt                         ! Time step
-real, dimension(kl), intent(in) :: sig         ! Sigma levels
-real, dimension(imax), intent(in) :: wg        ! Soil moisture fraction of field capacity
-real, dimension(imax), intent(in) :: prf       ! Surface pressure
-real, dimension(imax), intent(in) :: ts        ! Surface temperture
-real, dimension(imax), intent(in) :: pblh      ! Boundary layer height
-real, dimension(imax), intent(in) :: v10m      ! 10m wind speed
-real, dimension(imax), intent(in) :: condc     ! Convective rainfall
-real, dimension(imax), intent(in) :: snowd     ! Snow depth
-real, dimension(imax), intent(in) :: taudar    ! Fraction of time sunlit
-real, dimension(imax), intent(in) :: fg        ! Sensible heat flux
-real, dimension(imax), intent(in) :: eg        ! Latent heat flux
-real, dimension(imax), intent(in) :: ustar     ! Friction velocity
-real, dimension(imax), intent(in) :: zo        ! Roughness length
-real, dimension(imax), intent(in) :: fracice   ! Sea-ice fraction
-real, dimension(imax), intent(in) :: tsigmf    ! Vegetation fraction
-real, dimension(imax), intent(in) :: vt        ! transfer velocity
-real, dimension(imax), intent(in) :: zdayfac   ! scale factor for day length
-real, dimension(imax,kl), intent(in) :: dz     ! thickness of vertical levels (m)
-real, dimension(imax,kl), intent(in) :: ttg    ! Air temperature
-real, dimension(imax,kl), intent(in) :: qvg    ! liquid water mixing ratio
-real, dimension(imax,kl), intent(in) :: qlg    ! liquid water mixing ratio
-real, dimension(imax,kl), intent(in) :: qfg    ! frozen water mixing ratio
-real, dimension(imax,kl), intent(in) :: stratcloud  ! stratiform cloud fraction
-real, dimension(imax,kl), intent(in) :: clcon  ! convective cloud fraction
-real, dimension(imax), intent(in) :: cldcon    ! Convective rainfall area fraction
-real, dimension(imax,kl), intent(in) :: pccw
-real, dimension(imax,kl), intent(in) :: rhoa   ! density of air (kg/m3)
-real, dimension(imax,kl), intent(in) :: pfprec, pfmelt, pfsnow         ! from LDR prog cloud
-real, dimension(imax,kl), intent(in) :: pfsubl, plambs, pmrate         ! from LDR prog cloud
-real, dimension(imax,kl), intent(in) :: pmaccr, pqfsedice, prscav      ! from LDR prog cloud
-real, dimension(imax,kl), intent(in) :: prfreeze                       ! from LDR prog cloud
-real, dimension(imax,kl), intent(in) :: pfevap                         ! from LDR prog cloud
-logical, dimension(imax), intent(in) :: land   ! land/water mask (t=land).  Water includes lakes and ocean
-logical, dimension(imax), intent(in) :: locean ! sea mask without lakes (t=ocean)
-real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(imax,ndust), intent(inout) :: duste
-real, dimension(imax,ndust), intent(inout) :: dustdd
-real, dimension(imax,kl,naero), intent(in) :: xtosav
-real, dimension(imax), intent(inout) :: dmsso2o
-real, dimension(imax), intent(inout) :: so2so4o
-real, dimension(imax,ndust), intent(inout) :: dust_burden
-real, dimension(imax), intent(inout) :: bc_burden
-real, dimension(imax), intent(inout) :: oc_burden
-real, dimension(imax), intent(inout) :: dms_burden
-real, dimension(imax), intent(inout) :: so2_burden
-real, dimension(imax), intent(inout) :: so4_burden
-real, dimension(imax,ndcls), intent(in) :: erod
-real, dimension(imax,kl,4), intent(in) :: zoxidant
-real, dimension(imax), intent(inout) :: so2wd
-real, dimension(imax), intent(inout) :: so4wd
-real, dimension(imax), intent(inout) :: bcwd
-real, dimension(imax), intent(inout) :: ocwd
-real, dimension(imax,ndust), intent(inout) :: dustwd
-real, dimension(imax,15), intent(in) :: emissfield
-real, dimension(imax), intent(in) :: vso2
-real, dimension(imax), intent(inout) :: dmse
-real, dimension(imax), intent(inout) :: so2e
-real, dimension(imax), intent(inout) :: so4e
-real, dimension(imax), intent(inout) :: bce
-real, dimension(imax), intent(inout) :: oce
-real, dimension(imax), intent(inout) :: so2dd
-real, dimension(imax), intent(inout) :: so4dd
-real, dimension(imax), intent(inout) :: bcdd
-real, dimension(imax), intent(inout) :: ocdd
-real, dimension(imax), intent(inout) :: salte
-real, dimension(imax), intent(inout) :: saltdd
-real, dimension(imax), intent(inout) :: saltwd
-real, dimension(imax), intent(inout) :: salt_burden
-real, dimension(ndust), intent(in) :: dustden, dustreff
-real, dimension(2), intent(in) :: saltden, saltreff
-real, dimension(imax,naero) :: xtem
-real, dimension(imax,kl,naero) :: xte,xtu,xtm1
-real, dimension(imax,kl) :: aphp1
-real, dimension(imax,kl) :: pclcon
-real, dimension(imax,kl) :: prhop1,ptp1
-real, dimension(imax,kl) :: pclcover,pcfcover,pmlwc,pmiwc,pfconv
-real, dimension(imax) :: bbem,fracc
-real, dimension(imax) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
-real, dimension(imax) :: cgssnowd
-real, dimension(imax) :: veff,vefn
-real, dimension(imax) :: qtot
-real, dimension(imax) :: rrate,Wstar3,Vgust_free,Vgust_deep
-real, dimension(imax) :: v10n,thetav,burden
-real, dimension(imax,ndust) :: dcola,dcolb
-real, dimension(imax,ndust) :: oldduste
-real, dimension(imax) :: oldsalte
+real, dimension(:), intent(in) :: sig         ! Sigma levels
+real, dimension(:), intent(in) :: wg        ! Soil moisture fraction of field capacity
+real, dimension(:), intent(in) :: prf       ! Surface pressure
+real, dimension(:), intent(in) :: ts        ! Surface temperture
+real, dimension(:), intent(in) :: pblh      ! Boundary layer height
+real, dimension(:), intent(in) :: v10m      ! 10m wind speed
+real, dimension(:), intent(in) :: condc     ! Convective rainfall
+real, dimension(:), intent(in) :: snowd     ! Snow depth
+real, dimension(:), intent(in) :: taudar    ! Fraction of time sunlit
+real, dimension(:), intent(in) :: fg        ! Sensible heat flux
+real, dimension(:), intent(in) :: eg        ! Latent heat flux
+real, dimension(:), intent(in) :: ustar     ! Friction velocity
+real, dimension(:), intent(in) :: zo        ! Roughness length
+real, dimension(:), intent(in) :: fracice   ! Sea-ice fraction
+real, dimension(:), intent(in) :: tsigmf    ! Vegetation fraction
+real, dimension(:), intent(in) :: vt        ! transfer velocity
+real, dimension(:), intent(in) :: zdayfac   ! scale factor for day length
+real, dimension(:), intent(in) :: cldcon    ! Convective rainfall area fraction
+real, dimension(:,:), intent(in) :: dz     ! thickness of vertical levels (m)
+real, dimension(:,:), intent(in) :: ttg    ! Air temperature
+real, dimension(:,:), intent(in) :: qvg    ! liquid water mixing ratio
+real, dimension(:,:), intent(in) :: qlg    ! liquid water mixing ratio
+real, dimension(:,:), intent(in) :: qfg    ! frozen water mixing ratio
+real, dimension(:,:), intent(in) :: stratcloud  ! stratiform cloud fraction
+real, dimension(:,:), intent(in) :: clcon  ! convective cloud fraction
+real, dimension(:,:), intent(in) :: pccw
+real, dimension(:,:), intent(in) :: rhoa   ! density of air (kg/m3)
+real, dimension(:,:), intent(in) :: pfprec, pfmelt, pfsnow         ! from LDR prog cloud
+real, dimension(:,:), intent(in) :: pfsubl, plambs, pmrate         ! from LDR prog cloud
+real, dimension(:,:), intent(in) :: pmaccr, pqfsedice, prscav      ! from LDR prog cloud
+real, dimension(:,:), intent(in) :: prfreeze                       ! from LDR prog cloud
+real, dimension(:,:), intent(in) :: pfevap                         ! from LDR prog cloud
+real, dimension(ifull) :: cgssnowd,bbem
+real, dimension(ifull) :: veff,vefn,v10n
+real, dimension(ifull) :: Vgust_free,Vgust_deep
 real, parameter :: beta = 0.65
-integer nt,k
+real thetav, Wstar3, rrate, qtot
+real, dimension(imax,kl) :: aphp1
+real, dimension(imax,kl) :: lrhoa, ldz, lttg
+real, dimension(imax,kl,naero) :: lxte, lxtg, xtm1, xtu
+real, dimension(imax,kl,4) :: lzoxidant
+real, dimension(imax,naero) :: lxtem
+real, dimension(imax,15) :: lemissfield
+real, dimension(imax,ndcls) :: lerod
+real, dimension(imax,ndust) :: dcola,dcolb
+real, dimension(imax,ndust) :: oldduste,ldustwd,lduste
+real, dimension(imax) :: oldsalte
+real, dimension(imax,kl) :: prhop1,ptp1,pclcon
+real, dimension(imax,kl) :: pclcover,pcfcover,pmlwc,pmiwc,pfconv
+real, dimension(imax,kl) :: lpmrate,lpfprec,lpfsnow,lpfsubl,lpmaccr
+real, dimension(imax,kl) :: lpfmelt,lpqfsedice,lplambs,lprscav,lprfreeze
+real, dimension(imax,kl) :: lpfevap,lpccw
+real, dimension(imax) :: fracc
+real, dimension(imax,naero) :: burden
+real, dimension(imax) :: so2oh,so2h2,so2o3,dmsoh,dmsn3
+logical, dimension(:), intent(in) :: land   ! land/water mask (t=land).  Water includes lakes and ocean
+logical, dimension(:), intent(in) :: locean ! sea mask without lakes (t=ocean)
+integer nt,k,iq,tile,js,je
 
 #ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
+if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range at start of aldrcalc"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
 #endif
 
-cgssnowd(:) = 1.E-3*snowd
 
-! Calculate sub-grid Vgust
-v10n(:) = ustar*log(10./zo)/vkar ! neutral wind speed
-! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
-! Equation numbers follow Fairall et al. 1996, JGR 101, 3747-3764.
+#ifdef GPUPHYSICS
+!$acc data create(xtg,ttg,rhoa,dz)
+!$acc update device(ttg,rhoa,dz) async(1)
+#endif
 
-! Calculate convective scaling velocity (Eq.17) and gustiness velocity (Eq.16)
-thetav = ttg(1:imax,1)*(1.+0.61*qvg(1:imax,1))
-Wstar3 = max(0.,(grav*pblh/thetav)*(fg/cp+0.61*ttg(1:imax,1)*eg/hl)/rhoa(:,1))
-Vgust_free = beta*Wstar3**(1./3.)
-! Calculate the Redelsperger-based Vgust_deep if deep convection is present.
-! Note that Redelspreger gives two other parameterizations, based on
-! the updraft or downdraught mass fluxes respectively.
-rrate = 8640.*condc/dt   !Rainfall rate in cm/day
-Vgust_deep = (19.8*rrate*rrate/(1.5+rrate+rrate*rrate))**0.4
+
+!$omp do schedule(static) private(js,je)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+
+  cgssnowd(js:je) = 1.E-3*snowd(js:je)
+
+  ! Calculate sub-grid Vgust
+  do iq = js,je
+    v10n(iq) = ustar(iq)*log(10./zo(iq))/vkar ! neutral wind speed
+    ! Mesoscale enhancement follows Redelsperger et al. (2000), J. Climate 13, 402-421.
+    ! Equation numbers follow Fairall et al. 1996, JGR 101, 3747-3764.
+    ! Calculate convective scaling velocity (Eq.17) and gustiness velocity (Eq.16)
+    thetav = ttg(iq,1)*(1.+0.61*qvg(iq,1))
+    Wstar3 = max(0.,(grav*pblh(iq)/thetav)*(fg(iq)/cp+0.61*ttg(iq,1)*eg(iq)/hl)/rhoa(iq,1))
+    Vgust_free(iq) = beta*Wstar3**(1./3.)
+    ! Calculate the Redelsperger-based Vgust_deep if deep convection is present.
+    ! Note that Redelspreger gives two other parameterizations, based on
+    ! the updraft or downdraught mass fluxes respectively.
+    rrate = 8640.*condc(iq)/dt   !Rainfall rate in cm/day
+    Vgust_deep(iq) = (19.8*rrate**2/(1.5+rrate+rrate**2))**0.4
+  end do
+end do
+!$omp end do nowait
+
 ! Calculate effective 10m wind (Eq. 15)
 ! These can plausibly be added in quadrature, or linearly, the latter giving a much larger
 ! effect (Lunt & Valdes, JGR, 2002).
 select case(enhanceu10)
   case(0)
-    veff = v10m
-    vefn = v10n
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      veff(js:je) = v10m(js:je)
+      vefn(js:je) = v10n(js:je)
+    end do
+    !$omp end do nowait
   case(1)
-    veff = sqrt( v10m*v10m + Vgust_free*Vgust_free + Vgust_deep*Vgust_deep )
-    vefn = sqrt( v10n*v10n + Vgust_free*Vgust_free + Vgust_deep*Vgust_deep )
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      veff(js:je) = sqrt( v10m(js:je)**2 + Vgust_free(js:je)**2 + Vgust_deep(js:je)**2 )
+      vefn(js:je) = sqrt( v10n(js:je)**2 + Vgust_free(js:je)**2 + Vgust_deep(js:je)**2 )
+    end do
+    !$omp end do nowait
   case(2)
-    veff = v10m + Vgust_free + Vgust_deep
-    vefn = v10n + Vgust_free + Vgust_deep
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      veff(js:je) = v10m(js:je) + Vgust_free(js:je) + Vgust_deep(js:je)
+      vefn(js:je) = v10n(js:je) + Vgust_free(js:je) + Vgust_deep(js:je)
+    end do
+    !$omp end do nowait
 end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
-call xtemiss(dt, rhoa, ts, fracice, vefn, land, tsigmf, cgssnowd, wg, dz,      & !Inputs
-             xte, xtem, bbem,                                                  & !Outputs
-             emissfield,vso2,dmse,so2e,so4e,bce,oce,xtg,so2dd,so4dd,bcdd,ocdd, &
-             imax,kl)                                                            !Inputs
-do nt = 1,naero
-  do k = 1,kl
-    xtg(:,k,nt) = max( xtg(:,k,nt)+xte(:,k,nt)*dt, 0. )
+!$omp do schedule(static) private(js,je,lrhoa,ldz,lemissfield,lxtg)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+  lrhoa = rhoa(js:je,:)
+  ldz = dz(js:je,:)
+  lemissfield = emissfield(js:je,:)
+  lxtg = xtg(js:je,:,:)
+  call xtemiss(dt, sig, lrhoa, ts(js:je), fracice(js:je), vefn(js:je),            & !Inputs
+               land(js:je), tsigmf(js:je), cgssnowd(js:je), wg(js:je), ldz,       & !Inputs
+               lxte, lxtem, bbem(js:je),                                          & !Outputs
+               lemissfield,vso2(js:je),dmse(js:je),so2e(js:je),so4e(js:je),       & !Outputs
+               bce(js:je),oce(js:je),lxtg,so2dd(js:je),so4dd(js:je),bcdd(js:je),  & !Output
+               ocdd(js:je),imax,kl)                                                             !Inputs
+  !xtem(js:je,:) = lxtem
+  do nt = 1,naero
+    do k = 1,kl
+      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,k,nt)*dt, 0. )
+    end do
   end do
 end do
+!$omp end do nowait
 
 #ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
+if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range after xtemiss"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
 #endif
 
-! Emission and dry deposition of dust
-do k = 1,kl
-  ! calculate air pressure
-  aphp1(:,k) = prf(:)*sig(k)*0.01 ! hPa
-end do
-! Calculate integrated column dust loading before settling and deposition
-do k = 1,ndust
-  oldduste(:,k) = duste(:,k) ! duste is cumulative dust emissions
-  dcola(:,k) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+k-1)*dz(:,:), dim=2 )
-end do  
-! Calculate the settling of large dust particles
-call dsettling(dt,rhoa,ttg,dz,aphp1,xtg,dustden,dustreff,imax,kl)
 
-#ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
-  write(6,*) "xtg out-of-range after dsettling"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-end if
+#ifndef GPU
+!$omp do schedule(static) private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
+!$omp   private(dcola,dcolb,oldsalte)
 #endif
-
-! Calculate dust emission and turbulent dry deposition at the surface
-call dustem(dt,rhoa(:,1),wg,veff,dz(:,1),vt,snowd,erod,duste,xtg, &
-            dustden,dustreff,imax,kl)
-do k = 1,ndust
-  ! Calculate integrated column dust after settling
-  dcolb(:,k) = sum( rhoa(:,:)*xtg(1:imax,:,itracdu+k-1)*dz(:,:), dim=2 )
-  ! Calculate deposition flux to surface
-  dustdd(:,k) = dustdd(:,k) + (dcola(:,k)-dcolb(:,k))/dt + duste(:,k) - oldduste(:,k)  
-end do  
-
-#ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
-  write(6,*) "xtg out-of-range after dustem"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-end if
+#ifdef GPUPHYSICS
+!$acc wait(1)
+!$acc update device(xtg)
+!$acc parallel loop copy(duste,dustdd)                                      &
+!$acc   copyin(prf,erod,wg,veff,vt,snowd,locean)                            &
+!$acc   present(xtg,ttg,rhoa,dz,sig)                                        &
+!$acc   private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
+!$acc   private(dcola,dcolb,oldsalte)
 #endif
-
-! Decay of hydrophobic black and organic carbon into hydrophilic forms
-call xtsink(dt,xtg,imax,kl)
-
-#ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
-  write(6,*) "xtg out-of-range after xtsink"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-end if
-#endif
-
-oldsalte = salte ! salte is cumulative salt emissions
-dcola(:,1) = 0.
-do k = 1,nsalt
-  dcola(:,1) = dcola(:,1) + sum( rhoa(:,:)*xtg(1:imax,:,itracsa+k-1)*dz(:,:), dim=2 )
-end do
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+  ! Emission and dry deposition of dust
+  do k = 1,kl
+    ! calculate air pressure
+    aphp1(:,k) = prf(js:je)*sig(k)*0.01 ! hPa
+  end do
+  lrhoa = rhoa(js:je,:)
+  lxtg = xtg(js:je,:,:)
+  ldz = dz(js:je,:)
+  lttg = ttg(js:je,:)
   
-! Calculate the settling of large salt particles
-call ssettling(dt,rhoa,ttg,dz,aphp1,xtg,saltden,saltreff,imax,kl)
-
-#ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
-  write(6,*) "xtg out-of-range after ssettling"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-end if
-#endif
-
-! Calculate salt emission and turbulent dry deposition at the surface
-call seasaltem(dt,veff,vt,rhoa(:,1),dz(:,1),salte,xtg,saltreff,locean,imax,kl)
-
-#ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
-  write(6,*) "xtg out-of-range after seasaltem"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-end if
-#endif
-
-dcolb(:,1) = 0.
-do k = 1,nsalt
-  ! Calculate integrated column dust after settling
-  dcolb(:,1) = dcolb(:,1) + sum( rhoa(:,:)*xtg(1:imax,:,itracsa+k-1)*dz(:,:), dim=2 )
-end do  
-! Calculate deposition flux to surface
-saltdd = saltdd + (dcola(:,1)-dcolb(:,1))/dt + salte - oldsalte  
-
-#ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
-  write(6,*) "xtg out-of-range after seasalt"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
-end if
-#endif
-
-! Aerosol chemistry and wet deposition
-! Need to invert vertical levels for ECHAM code... Don't you hate that?
-do nt = 1,naero
-  do k = 1,kl
-    xtm1(:,kl+1-k,nt) = xtg(1:imax,k,nt)
-    ! Convert from aerosol concentration outside convective cloud (used by CCAM)
-    ! to aerosol concentration inside convective cloud
-    xtu(:,kl+1-k,nt) = max(xtg(1:imax,k,nt)-(1.-clcon(:,k))*xtosav(:,k,nt),0.)/max(clcon(:,k),1.E-8)
+  lerod = erod(js:je,:)
+  ! Calculate integrated column dust loading before settling and deposition
+  oldduste(:,1:ndust) = duste(js:je,1:ndust) ! duste is cumulative dust emissions
+  dcola(:,1:ndust) = 0.
+  do nt = 1,ndust
+    do k = 1,kl
+      dcola(:,nt) = dcola(:,nt) + lrhoa(:,k)*lxtg(:,k,itracdu+nt-1)*ldz(:,k)
+    end do
+  end do  
+  ! Calculate the settling of large dust particles
+  call dsettling(dt,lrhoa,lttg,ldz,aphp1,lxtg,imax,kl)
+  call dustem(dt,lrhoa(:,1),wg(js:je),veff(js:je),ldz(:,1),vt(js:je),snowd(js:je), &
+              lerod,lduste,lxtg,imax,kl)
+  dcolb(:,1:ndust) = 0.
+  do nt = 1,ndust
+    do k = 1,kl
+      ! Calculate integrated column dust after settling
+      dcolb(:,nt) = dcolb(:,nt) + lrhoa(:,k)*lxtg(:,k,itracdu+nt-1)*ldz(:,k)
+    end do
+    ! Calculate deposition flux to surface
+    dustdd(js:je,nt) = dustdd(js:je,nt) + (dcola(:,nt)-dcolb(:,nt))/dt + lduste(:,nt) - oldduste(:,nt)
   end do
-end do
-do k = 1,kl
-  aphp1(:,kl+1-k)  = rhoa(:,k)*dz(:,k)                          ! density * thickness
-  prhop1(:,kl+1-k) = rhoa(:,k)                                  ! air density
-  ptp1(:,kl+1-k)   = ttg(1:imax,k)                              ! air temperature
-  pclcon(:,kl+1-k) = min(max(clcon(:,k),0.),1.)                 ! convective cloud fraction
-  qtot = qlg(1:imax,k) + qfg(1:imax,k)                          ! total liquid and ice mixing ratio
-  pclcover(:,kl+1-k) = stratcloud(:,k)*qlg(:,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
-  pcfcover(:,kl+1-k) = stratcloud(:,k)*qfg(:,k)/max(qtot,1.E-8) ! Ice-cloud fraction
-  pmlwc(:,kl+1-k) = qlg(:,k)
-  pmiwc(:,kl+1-k) = qfg(:,k)
-  where ( k<=kbsav )
-    pfconv(:,kl+1-k) = condc(:)/dt
-  elsewhere
-    pfconv(:,kl+1-k) = 0.
-  end where
-end do
-!fracc = 0.1   ! LDR suggestion (0.1 to 0.3)
-fracc = cldcon ! MJT suggestion (use NCAR scheme)
-call xtchemie(2, dt, zdayfac, aphp1, pmrate, pfprec,                    & !Inputs
-              pclcover, pmlwc, prhop1, ptp1, taudar, xtm1,              & !Inputs
-              pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,               & !Inputs
-              pqfsedice,plambs,prscav,prfreeze,pfevap,pclcon,fracc,     & !Inputs
-              pccw,pfconv,xtu,                                          & !Inputs
-              xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
-              zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,             &
-              imax,kl)                                                    !Inputs
-do nt = 1,naero
-  do k = 1,kl
-    xtg(1:imax,k,nt) = max( xtg(1:imax,k,nt)+xte(:,kl+1-k,nt)*dt, 0. )
+  duste(js:je,:) = lduste
+
+  call xtsink(dt,lxtg,imax,kl)
+
+  oldsalte(:) = salte(js:je) ! salte is cumulative salt emissions
+  dcola(:,1) = 0.
+  do nt = 1,nsalt
+    do k = 1,kl
+      dcola(:,1) = dcola(:,1) + lrhoa(:,k)*lxtg(:,k,itracsa+nt-1)*ldz(:,k)
+    end do
   end do
-enddo
-dmsso2o(:) = dmsso2o(:) + dmsoh(:) + dmsn3(:)             ! oxidation of DMS to SO2
-so2so4o(:) = so2so4o(:) + so2oh(:) + so2h2(:) + so2o3(:)  ! oxidation of SO2 to SO4
+  ! Calculate the settling of large salt particles
+  call ssettling(dt,lrhoa,lttg,ldz,aphp1,lxtg,imax,kl)
+  ! Calculate salt emission and turbulent dry deposition at the surface
+  call seasaltem(dt,veff(js:je),vt(js:je),lrhoa(:,1),ldz(:,1),salte(js:je), &
+                 lxtg,locean(js:je),imax,kl)
+  dcolb(:,1) = 0.
+  do nt = 1,nsalt
+    do k = 1,kl
+      ! Calculate integrated column dust after settling
+      dcolb(:,1) = dcolb(:,1) + lrhoa(:,k)*lxtg(:,k,itracsa+nt-1)*ldz(:,k)
+    end do
+  end do  
+  ! Calculate deposition flux to surface
+  saltdd(js:je) = saltdd(js:je) + (dcola(:,1)-dcolb(:,1))/dt + salte(js:je) - oldsalte(:)  
+  xtg(js:je,:,:) = lxtg
+end do
+#ifndef GPU
+!$omp end do nowait
+#endif
+#ifdef GPUPHYSICS
+!$acc end parallel loop
+#endif
 
 #ifdef debug
-if ( maxval(xtg(1:imax,:,:))>2.e-3 ) then
+if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
+  write(6,*) "xtg out-of-range after settling, xtsink and em"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
+end if
+#endif
+
+#ifndef GPU
+!$omp do schedule(static) private(js,je,nt,k,iq,xtm1,xtu,aphp1,prhop1,ptp1,pclcon) &
+!$omp   private(pclcover,pcfcover,pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec)        &
+!$omp   private(lpfsnow,lpfsubl,lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav)        &
+!$omp   private(lprfreeze,lpfevap,lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3)        &
+!$omp   private(dmsoh,dmsn3)
+#endif
+#ifdef GPUPHYSICS
+!$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
+!$acc   copyin(clcon,xtosav,qlg,qfg,stratcloud,kbsav,condc,cldcon)                 &
+!$acc   copyin(pmrate,pfprec,pfsnow,pfsubl,pmaccr,pfmelt,pqfsedice,plambs,prscav)  &
+!$acc   copyin(prfreeze,pfevap,zoxidant_g,zdayfac,taudar)                          &
+!$acc   present(xtg,ttg,rhoa,dz)                                                   &
+!$acc   private(js,je,nt,k,iq,xtm1,xtu,aphp1,prhop1,ptp1,pclcon,pclcover,pcfcover) &
+!$acc   private(pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec,lpfsnow,lpfsubl)          &
+!$acc   private(lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav,lprfreeze,lpfevap)      &
+!$acc   private(lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3,dmsoh,dmsn3)
+#endif
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+  ! Aerosol chemistry and wet deposition
+  ! Need to invert vertical levels for ECHAM code... Don't you hate that?
+  do nt = 1,naero
+    do k = 1,kl
+      xtm1(:,kl+1-k,nt) = xtg(js:je,k,nt)
+      ! Convert from aerosol concentration outside convective cloud (used by CCAM)
+      ! to aerosol concentration inside convective cloud
+      xtu(:,kl+1-k,nt) = max(xtg(js:je,k,nt)-(1.-clcon(js:je,k))*xtosav(js:je,k,nt),0.)/max(clcon(js:je,k),1.E-8)
+    end do
+  end do
+  do k = 1,kl
+    do iq = 1,imax
+      aphp1(iq,kl+1-k)  = rhoa(iq+js-1,k)*dz(iq+js-1,k)                  ! density * thickness
+      prhop1(iq,kl+1-k) = rhoa(iq+js-1,k)                                ! air density
+      ptp1(iq,kl+1-k)   = ttg(iq+js-1,k)                                 ! air temperature
+      pclcon(iq,kl+1-k) = min(max(clcon(iq+js-1,k),0.),1.)               ! convective cloud fraction
+      qtot = qlg(iq+js-1,k) + qfg(iq+js-1,k)                             ! total liquid and ice mixing ratio
+      pclcover(iq,kl+1-k) = stratcloud(iq+js-1,k)*qlg(iq+js-1,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
+      pcfcover(iq,kl+1-k) = stratcloud(iq+js-1,k)*qfg(iq+js-1,k)/max(qtot,1.E-8) ! Ice-cloud fraction
+      pmlwc(iq,kl+1-k) = qlg(iq+js-1,k)
+      pmiwc(iq,kl+1-k) = qfg(iq+js-1,k)
+      if ( k<=kbsav(iq+js-1) ) then
+        pfconv(iq,kl+1-k) = condc(iq+js-1)/dt
+      else
+        pfconv(iq,kl+1-k) = 0.
+      end if
+    end do
+  end do
+  !fracc = 0.1          ! LDR suggestion (0.1 to 0.3)
+  fracc = cldcon(js:je) ! MJT suggestion (use NCAR scheme)
+  lpmrate = pmrate(js:je,:)
+  lpfprec = pfprec(js:je,:)
+  lpfsnow = pfsnow(js:je,:)
+  lpfsubl = pfsubl(js:je,:)
+  lpmaccr = pmaccr(js:je,:)
+  lpfmelt = pfmelt(js:je,:)
+  lpqfsedice = pqfsedice(js:je,:)
+  lplambs = plambs(js:je,:)
+  lprscav = prscav(js:je,:)
+  lprfreeze = prfreeze(js:je,:)
+  lpfevap = pfevap(js:je,:)
+  lzoxidant = zoxidant_g(js:je,:,:)
+  ldustwd = dustwd(js:je,:)
+  call xtchemie(2, dt, zdayfac(js:je), aphp1, lpmrate, lpfprec,            & !Inputs
+                pclcover, pmlwc, prhop1, ptp1, taudar(js:je), xtm1,        & !Inputs
+                lpfsnow,lpfsubl,pcfcover,pmiwc,lpmaccr,lpfmelt,            & !Inputs
+                lpqfsedice,lplambs,lprscav,lprfreeze,lpfevap,pclcon,fracc, & !Inputs
+                lpccw,pfconv,xtu,                                          & !Inputs
+                lxte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                   & !Output
+                lzoxidant,so2wd(js:je),so4wd(js:je),bcwd(js:je),           &
+                ocwd(js:je),ldustwd,saltwd(js:je),                         &
+                imax,kl)                                                    !Inputs
+  do nt = 1,naero
+    do k = 1,kl
+      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,kl+1-k,nt)*dt, 0. )
+    end do
+  enddo
+  dmsso2o(js:je) = dmsso2o(js:je) + dmsoh + dmsn3          ! oxidation of DMS to SO2
+  so2so4o(js:je) = so2so4o(js:je) + so2oh + so2h2 + so2o3  ! oxidation of SO2 to SO4
+  dustwd(js:je,:) = ldustwd
+end do
+#ifndef GPU
+!$omp end do nowait
+#endif
+#ifdef GPUPHYSICS
+!$acc end parallel loop
+!$acc update self(xtg)
+!$acc end data
+#endif
+
+
+#ifdef debug
+if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range after xtchemie"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,:,:)),maxloc(xtg(1:imax,:,:))
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
 #endif
 
-do nt = 1,ndust
-  burden(:) = sum( xtg(1:imax,:,nt+itracdu-1)*rhoa(:,:)*dz(:,:), dim=2 )
-  dust_burden(:,nt) = dust_burden(:,nt) + burden(:)
+
+!$omp do schedule(static) private(js,je,nt,k,burden)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+
+  burden(:,:) = 0.
+  do k = 1,kl
+    do nt = 1,naero
+      do iq = 1,imax
+        burden(iq,nt) = burden(iq,nt) + xtg(iq+js-1,k,nt)*rhoa(iq+js-1,k)*dz(iq+js-1,k)
+      end do
+    end do
+  end do
+
+  do nt = 1,ndust
+    dust_burden(js:je,nt) = dust_burden(js:je,nt) + burden(:,nt+itracdu-1)
+  end do
+
+  do nt = itracbc,itracbc+1
+    bc_burden(js:je) = bc_burden(js:je) + burden(:,nt)
+  end do
+
+  do nt = itracoc,itracoc+1
+    oc_burden(js:je) = oc_burden(js:je) + burden(:,nt)
+  end do
+
+  dms_burden(js:je) = dms_burden(js:je) + burden(:,itracdms)
+  so2_burden(js:je) = so2_burden(js:je) + burden(:,itracso2)
+  so4_burden(js:je) = so4_burden(js:je) + burden(:,itracso4)
+
+  do nt = itracsa,itracsa+nsalt-1
+    salt_burden(js:je) = salt_burden(js:je) + burden(:,nt)
+  end do
+
 end do
-
-burden(:) = 0.
-do nt = itracbc,itracbc+1
-  burden(:) = burden(:) + sum( xtg(1:imax,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
-end do
-bc_burden(:) = bc_burden(:) + burden(:)
-
-burden(:) = 0.
-do nt = itracoc,itracoc+1
-  burden(:) = burden(:) + sum( xtg(1:imax,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
-end do
-oc_burden(:) = oc_burden(:) + burden(:)
-
-burden(:) = sum( xtg(1:imax,:,itracdms)*rhoa(:,:)*dz(:,:), dim=2 )
-dms_burden(:) = dms_burden(:) + burden(:)
-
-burden(:) = sum( xtg(1:imax,:,itracso2)*rhoa(:,:)*dz(:,:), dim=2 )
-so2_burden(:) = so2_burden(:) + burden(:)
-
-burden(:) = sum( xtg(1:imax,:,itracso4)*rhoa(:,:)*dz(:,:), dim=2 )
-so4_burden(:) = so4_burden(:) + burden(:)
-
-burden(:) = 0.
-do nt = itracsa,itracsa+nsalt-1
-  burden(:) = burden(:) + sum( xtg(1:imax,:,nt)*rhoa(:,:)*dz(:,:), dim=2 )
-end do
-salt_burden(:) = salt_burden(:) + burden(:)
+!$omp end do nowait
 
 return
 end subroutine aldrcalc
@@ -689,12 +516,12 @@ end subroutine aldrcalc
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt emiss
 
-SUBROUTINE XTEMISS(ztmst, rhoa, TSM1M, SEAICEM, ZZSPEED,                         & !Inputs
+SUBROUTINE XTEMISS(ztmst, sig, rhoa, TSM1M, SEAICEM, ZZSPEED,                    & !Inputs
                    LOLAND, PFOREST, PSNOW, WSM1M, dz,                            & !Inputs
                    XTE, PXTEMS, bbem,                                            & !Outputs
                    emissfield,vso2,dmse,so2e,so4e,bce,oce,xtg,so2dd,so4dd,bcdd,ocdd, &
                    imax,kl)                                                     !Inputs
-!!$acc routine vector
+!$acc routine vector
 
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS
@@ -718,6 +545,7 @@ implicit none
 ! Argument list
 integer, intent(in) :: imax, kl
 real, intent(in) :: ztmst                           !Timestep [s]
+real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl), intent(in) :: rhoa        !Density of air
 real, dimension(imax), intent(in) :: TSM1M          !Surface temp
 real, dimension(imax), intent(in) :: SEAICEM        !Sea-ice fraction
@@ -752,6 +580,7 @@ real wtliss, gdp, zdmsemiss
 real zhilbco, zhilbcy, zhiloco, zhilocy, zhilso2, zhilso4
 real zvd2nof, zvd4nof
 real zvdrd1, zvdrd2
+integer jk2, jk3, jk4, jk5, jk6, jk8, jk9, k
 !
 
 !     M WATER EQUIVALENT  CRITICAL SNOW HEIGHT (FROM *SURF*)
@@ -772,6 +601,37 @@ real, parameter :: a_vpco2  = 0.166 ! approx Liss and Merlivat (see nightingale 
 real, parameter :: b_vpco2  = 0.133 ! approx Liss and Merlivat (see nightingale 2000)
 
 ! Start code : ----------------------------------------------------------
+
+! MJT - define injection levels
+
+! scale to CSIRO9 18 levels
+jk2=2 ! jk2 is top of level=1, bottom of level=2
+jk3=3
+jk4=4
+jk5=5
+jk6=6
+jk8=7
+jk9=8
+do k = 3,kl
+  if ( sig(k)>=0.967 ) then ! 300m
+    jk3 = k ! jk3 is top of level=2, bottom of level=3
+  end if
+  if ( sig(k)>=0.930 ) then ! 600m
+    jk4 = k ! jk4 is top of level=3, bottom of level=4
+  end if
+  if ( sig(k)>=0.882 ) then ! 1,000m
+    jk5 = k ! jk5 is top of level=4, bottom of level=5
+  end if
+  if ( sig(k)>=0.800 ) then ! 1,800m
+    jk6 = k ! jk6 is top of level=5, bottom of level=6
+  end if
+  if ( sig(k)>=0.530 ) then ! 5,000m
+    jk8 = k ! jk8 is top of level=7, bottom of level=8
+  end if
+  if ( sig(k)>=0.350 ) then ! 8,000m
+    jk9 = k ! jk9 is top of level=8, bottom of level=9
+  end if
+end do
 
 pxtems(:,:) = 0.
 xte(:,:,:) = 0.
@@ -1064,7 +924,7 @@ end subroutine xtemiss
 ! xt sink
 
 SUBROUTINE XTSINK(PTMST,xtg,imax,kl)
-!!$acc routine vector
+!$acc routine vector
 
 !
 !   *XTSINK*  CALCULATES THE DECREASE OF TRACER CONCENTRATION
@@ -1124,7 +984,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
                     zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,                    &
                     imax,kl)                                                           !Inputs
-!!$acc routine vector
+!$acc routine vector
 
 ! Inputs
 ! ktop: top level for aerosol processes (set to 1, counting downwards from top)
@@ -1221,7 +1081,8 @@ integer jt,jk,jn
 integer jl
 real, dimension(imax,kl,naero) :: xto
 real, dimension(imax,kl) :: so2oh3d, dmsoh3d, dmsn33d
-real, dimension(imax,kl) :: ZXTP10, ZXTP1C, ZHENRY, ZSO4, ZSO4i, ZSO4C, ZHENRYC, ZXTP1CON, zsolub
+real, dimension(imax,kl) :: ZHENRY, ZSO4, ZSO4i, ZSO4C, ZHENRYC 
+real, dimension(imax,kl,2:naero) :: ZXTP10, ZXTP1C, ZXTP1CON, zsolub
 real, dimension(imax,kl) :: ZZOH, ZZH2O2, ZZO3, ZZNO2
 real, dimension(imax,kl) :: zlwcic, ziwcic
 real, dimension(imax,kl,4), intent(in) :: zoxidant
@@ -1231,6 +1092,7 @@ real, dimension(imax), intent(inout) :: bcwd
 real, dimension(imax), intent(inout) :: ocwd
 real, dimension(imax,ndust), intent(inout) :: dustwd
 real, dimension(imax), intent(inout) :: saltwd
+real, dimension(imax,2:naero) :: wd2
 real x,pqtmst
 real zlwcl, zlwcv, zhp, zqtp1, zrk, zrke, zxtp1
 real zh_so2, zpfac, zp_so2, zf_so2, zh_h2o2, zp_h2o2, zf_h2o2
@@ -1378,8 +1240,8 @@ do jk = ktop,kl
 
     !   HETEROGENEOUS CHEMISTRY
     ZXTP1         = XTO(JL,JK,ITRACSO2)
-    ZXTP10(JL,JK) = XTO(JL,JK,ITRACSO2)
-    ZXTP1C(JL,JK) = XTO(JL,JK,ITRACSO2)
+    ZXTP10(JL,JK,ITRACSO2) = XTO(JL,JK,ITRACSO2)
+    ZXTP1C(JL,JK,ITRACSO2) = XTO(JL,JK,ITRACSO2)
     IF ( ZXTP1>ZMIN .AND. ZLWCIC(JL,JK)>ZMIN ) THEN
 
       ZQTP1=1./PTP1(JL,JK)-ZQ298
@@ -1447,7 +1309,7 @@ do jk = ktop,kl
 
       ZDSO2TOT=ZXTP1-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
       ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1)
-      ZXTP1C(JL,JK)=ZXTP1-ZDSO2TOT
+      ZXTP1C(JL,JK,ITRACSO2)=ZXTP1-ZDSO2TOT
       ZSO4(JL,JK)=ZSO4(JL,JK)+ZDSO2TOT
 
       ZHENRY(JL,JK)=ZF_SO2
@@ -1565,7 +1427,7 @@ end do
 !      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
 !      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
 !
-!      ZXTP10(JL,JK)=ZXTP1(jl)-ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
+!      ZXTP10(JL,JK,ITRACSO2)=ZXTP1(jl)-ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
 !      ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
 !      ZHENRY(JL,JK)=ZF_SO2(jl)
 !! Diagnostic only...
@@ -1581,8 +1443,8 @@ end do
 
 ! Repeat the aqueous oxidation calculation for convective clouds.
 do jk = 1,kl
-  ZXTP1CON(:,jk)=amax1(XTU(:,jk,ITRACSO2),0.)
-  ZSO4C(:,jk)   =amax1(XTU(:,jk,ITRACSO4),0.)
+  ZXTP1CON(:,jk,ITRACSO2)=amax1(XTU(:,jk,ITRACSO2),0.)
+  ZSO4C(:,jk)            =amax1(XTU(:,jk,ITRACSO4),0.)
 end do
 
 do jk = ktop,kl
@@ -1679,7 +1541,7 @@ do jk = ktop,kl
 
       ZDSO2TOT=ZXTP1-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
       ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1)
-      ZXTP1CON(JL,JK)=ZXTP1CON(JL,JK)-ZDSO2TOT
+      ZXTP1CON(JL,JK,ITRACSO2)=ZXTP1CON(JL,JK,ITRACSO2)-ZDSO2TOT
       ZSO4C(JL,JK)=ZSO4C(JL,JK)+ZDSO2TOT
       ZHENRYC(JL,JK)=ZF_SO2
       ! Diagnostic only...
@@ -1697,140 +1559,68 @@ ENDDO
 !    (True for all except DMS)
 !
 
-JT=ITRACSO2
-zsolub(:,:)=zhenry(:,:)
-CALL XTWETDEP( JT,                                   &
-               PTMST,                                &
-               rhodz,                                &
-               PMRATEP, PFPREC,                      &
-               PCLCOVER, zsolub, pmlwc, ptp1,        &
-               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
-               pqfsedice,plambs,                     &
-               prscav,prfreeze,pfevap,pfconv,pclcon, & 
-               fracc,                                & !Inputs
-               ZXTP10, ZXTP1C, ZXTP1CON,             &
-               xtm1(:,:,jt),xte(:,:,jt),so2wd,imax,kl)
-
-JT=ITRACSO4
-zxtp10(:,:)=zso4i(:,:)
-zxtp1c(:,:)=zso4(:,:)    
-zxtp1con(:,:)=zso4c(:,:)
-zsolub (:,:)=0.6
-CALL XTWETDEP( JT,                                   &
-               PTMST,                                &
-               rhodz,                                &
-               PMRATEP, PFPREC,                      &
-               PCLCOVER, zsolub, pmlwc, ptp1,        &
-               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
-               pqfsedice,plambs,                     &
-               prscav,prfreeze,pfevap,pfconv,pclcon, &  
-               fracc,                                & !Inputs
-               ZXTP10, ZXTP1C, ZXTP1CON,             &
-               xtm1(:,:,jt),xte(:,:,jt),so4wd,imax,kl)
-
-JT=ITRACbc
-zxtp10(:,:)=xto(:,:,jt)
-zxtp1c(:,:)=xto(:,:,jt)
-zxtp1con(:,:)=xtu(:,:,jt)
-zsolub(:,:)=0.
-CALL XTWETDEP( JT,                                   &
-               PTMST,                                &
-               rhodz,                                &
-               PMRATEP, PFPREC,                      &
-               PCLCOVER, zsolub, pmlwc, ptp1,        &
-               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
-               pqfsedice,plambs,                     &
-               prscav,prfreeze,pfevap,pfconv,pclcon, &  
-               fracc,                                & !Inputs
-               ZXTP10, ZXTP1C, ZXTP1CON,             &
-               xtm1(:,:,jt),xte(:,:,jt),bcwd,imax,kl)
-
-JT=ITRACBC+1
-zxtp10(:,:)=xto(:,:,jt)
-zxtp1c(:,:)=xto(:,:,jt)
-zxtp1con(:,:)=xtu(:,:,jt)
-zsolub(:,:)=0.2
-CALL XTWETDEP( JT,                                   &
-               PTMST,                                &
-               rhodz,                                &
-               PMRATEP, PFPREC,                      &
-               PCLCOVER, zsolub, pmlwc, ptp1,        &
-               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
-               pqfsedice,plambs,                     &
-               prscav,prfreeze,pfevap,pfconv,pclcon, &  
-               fracc,                                & !Inputs
-               ZXTP10, ZXTP1C, ZXTP1CON,             &
-               xtm1(:,:,jt),xte(:,:,jt),bcwd,imax,kl)
-
-JT=ITRACOC
-zxtp10(:,:)=xto(:,:,jt)
-zxtp1c(:,:)=xto(:,:,jt)
-zxtp1con(:,:)=xtu(:,:,jt)
-zsolub(:,:)=0.
-CALL XTWETDEP( JT,                                   &
-               PTMST,                                &
-               rhodz,                                &
-               PMRATEP, PFPREC,                      &
-               PCLCOVER, zsolub, pmlwc, ptp1,        &
-               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
-               pqfsedice,plambs,                     &
-               prscav,prfreeze,pfevap,pfconv,pclcon, &  
-               fracc,                                & !Inputs
-               ZXTP10, ZXTP1C, ZXTP1CON,             &
-               xtm1(:,:,jt),xte(:,:,jt),ocwd,imax,kl)
-
-JT=ITRACOC+1
-zxtp10(:,:)=xto(:,:,jt)
-zxtp1c(:,:)=xto(:,:,jt)
-zxtp1con(:,:)=xtu(:,:,jt)
-zsolub(:,:)=0.2
-CALL XTWETDEP( JT,                                   &
-               PTMST,                                &
-               rhodz,                                &
-               PMRATEP, PFPREC,                      &
-               PCLCOVER, zsolub, pmlwc, ptp1,        &
-               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
-               pqfsedice,plambs,                     &
-               prscav,prfreeze,pfevap,pfconv,pclcon, &  
-               fracc,                                & !Inputs
-               ZXTP10, ZXTP1C, ZXTP1CON,             &
-               xtm1(:,:,jt),xte(:,:,jt),ocwd,imax,kl)
-
+zsolub(:,:,ITRACSO2)=zhenry(:,:)
+wd2(:,ITRACSO2) = 0.
+zxtp10(:,:,ITRACSO4)=zso4i(:,:)
+zxtp1c(:,:,ITRACSO4)=zso4(:,:)    
+zxtp1con(:,:,ITRACSO4)=zso4c(:,:)
+zsolub(:,:,ITRACSO4)=0.6
+wd2(:,ITRACSO4) = 0.
+zxtp10(:,:,ITRACbc)=xto(:,:,ITRACbc)
+zxtp1c(:,:,ITRACbc)=xto(:,:,ITRACbc)
+zxtp1con(:,:,ITRACbc)=xtu(:,:,ITRACbc)
+zsolub(:,:,ITRACbc)=0.
+wd2(:,ITRACbc) = 0.
+zxtp10(:,:,ITRACBC+1)=xto(:,:,ITRACBC+1)
+zxtp1c(:,:,ITRACBC+1)=xto(:,:,ITRACBC+1)
+zxtp1con(:,:,ITRACBC+1)=xtu(:,:,ITRACBC+1)
+zsolub(:,:,ITRACBC+1)=0.2
+wd2(:,ITRACbc+1) = 0.
+zxtp10(:,:,ITRACOC)=xto(:,:,ITRACOC)
+zxtp1c(:,:,ITRACOC)=xto(:,:,ITRACOC)
+zxtp1con(:,:,ITRACOC)=xtu(:,:,ITRACOC)
+zsolub(:,:,ITRACOC)=0.
+wd2(:,ITRACOC) = 0.
+zxtp10(:,:,ITRACOC+1)=xto(:,:,ITRACOC+1)
+zxtp1c(:,:,ITRACOC+1)=xto(:,:,ITRACOC+1)
+zxtp1con(:,:,ITRACOC+1)=xtu(:,:,ITRACOC+1)
+zsolub(:,:,ITRACOC+1)=0.2
+wd2(:,ITRACOC+1) = 0.
 DO JT=ITRACDU,ITRACDU+NDUST-1
-  zxtp10(:,:)=xto(:,:,jt)
-  zxtp1c(:,:)=xto(:,:,jt)
-  zxtp1con(:,:)=xtu(:,:,jt)
-  zsolub(:,:)=0.05
-  CALL XTWETDEP( JT,                                   &
-                 PTMST,                                &
-                 rhodz,                                &
-                 PMRATEP, PFPREC,                      &
-                 PCLCOVER, zsolub, pmlwc, ptp1,        &
-                 pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
-                 pqfsedice,plambs,                     &
-                 prscav,prfreeze,pfevap,pfconv,pclcon, &  
-                 fracc,                                & !Inputs
-                 ZXTP10, ZXTP1C, ZXTP1CON,             &
-                 xtm1(:,:,jt),xte(:,:,jt),             &
-                 dustwd(:,jt-itracdu+1),imax,kl)
+  zxtp10(:,:,jt)=xto(:,:,jt)
+  zxtp1c(:,:,jt)=xto(:,:,jt)
+  zxtp1con(:,:,jt)=xtu(:,:,jt)
+  zsolub(:,:,jt)=0.05
+  wd2(:,jt) = 0.
+end do  
+DO JT=ITRACSA,ITRACSA+NSALT-1
+  zxtp10(:,:,jt)=xto(:,:,jt)
+  zxtp1c(:,:,jt)=xto(:,:,jt)
+  zxtp1con(:,:,jt)=xtu(:,:,jt)
+  zsolub(:,:,jt)=0.05
+  wd2(:,jt) = 0.
 end do
 
-DO JT=ITRACSA,ITRACSA+NSALT-1
-  zxtp10(:,:)=xto(:,:,jt)
-  zxtp1c(:,:)=xto(:,:,jt)
-  zxtp1con(:,:)=xtu(:,:,jt)
-  zsolub(:,:)=0.05
-  CALL XTWETDEP( JT,                                   &
-                 PTMST,                                &
-                 rhodz,                                &
-                 PMRATEP, PFPREC,                      &
-                 PCLCOVER, zsolub, pmlwc, ptp1,        &
-                 pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
-                 pqfsedice,plambs,                     &
-                 prscav,prfreeze,pfevap,pfconv,pclcon, &  
-                 fracc,                                & !Inputs
-                 ZXTP10, ZXTP1C, ZXTP1CON,             &
-                 xtm1(:,:,jt),xte(:,:,jt),saltwd,imax,kl)
+CALL XTWETDEP( PTMST,                                &
+               rhodz,                                &
+               PMRATEP, PFPREC,                      &
+               PCLCOVER, zsolub, pmlwc, ptp1,        &
+               pfsnow,pfsubl,pcfcover,pmaccr,pfmelt, &
+               pqfsedice,plambs,                     &
+               prscav,prfreeze,pfevap,pfconv,pclcon, &  
+               fracc,                                & !Inputs
+               ZXTP10, ZXTP1C, ZXTP1CON,             &
+               xtm1,xte,wd2,imax,kl)
+
+so2wd = so2wd + wd2(:,ITRACSO2) 
+so4wd = so4wd + wd2(:,ITRACSO4)
+bcwd = bcwd + wd2(:,ITRACBC) + wd2(:,ITRACBC+1)
+ocwd = ocwd + wd2(:,ITRACOC) + wd2(:,ITRACOC+1)
+DO JT=ITRACDU,ITRACDU+NDUST-1
+  dustwd(:,jt-itracdu+1) = dustwd(:,jt-itracdu+1) + wd2(:,jt)
+end do
+do jt = ITRACSA,ITRACSA+NSALT-1
+  saltwd = saltwd + wd2(:,jt)
 end do
 
 #ifdef debug
@@ -1920,9 +1710,11 @@ end if
 
 
 ! Calculate tendency of SO2 due to oxidation by OH (diagnostic) and ox. tendencies of DMS
-so2oh(:) = so2oh(:) + sum( so2oh3d(:,:)*rhodz(:,:), dim=2 )
-dmsoh(:) = dmsoh(:) + sum( dmsoh3d(:,:)*rhodz(:,:), dim=2 )
-dmsn3(:) = dmsn3(:) + sum( dmsn33d(:,:)*rhodz(:,:), dim=2 )
+do jk = 1,kl
+  so2oh(:) = so2oh(:) + so2oh3d(:,jk)*rhodz(:,jk)
+  dmsoh(:) = dmsoh(:) + dmsoh3d(:,jk)*rhodz(:,jk)
+  dmsn3(:) = dmsn3(:) + dmsn33d(:,jk)*rhodz(:,jk)
+end do
 
 RETURN
 END subroutine xtchemie
@@ -1930,8 +1722,7 @@ END subroutine xtchemie
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! xt wetdep
 
-SUBROUTINE XTWETDEP(KTRAC,                                                 &
-                    PTMST,                                                 &
+SUBROUTINE XTWETDEP(PTMST,                                                 &
                     rhodz,                                                 &
                     PMRATEP, PFPREC,                                       &
                     PCLCOVER, PSOLUB, pmlwc, ptp1,                         &
@@ -1939,7 +1730,7 @@ SUBROUTINE XTWETDEP(KTRAC,                                                 &
                     pqfsedice,plambs,prscav,prfreeze,pfevap,pfconv,        &
                     pclcon,fracc,                                          & !Inputs
                     PXTP10, PXTP1C, PXTP1CON, xtm1, xte, wd, imax, kl)       !In & Out
-!!$acc routine vector
+!$acc routine vector
 
 !
 !   *XTWETDEP* CALCULATES THE WET DEPOSITION OF TRACE GASES OR AEROSOLS
@@ -1965,17 +1756,15 @@ implicit none
 
 ! Argument list
 integer, intent(in) :: imax, kl
-integer, intent(in) :: KTRAC
 real, intent(in) :: PTMST
-real, dimension(imax,kl), intent(inout) :: PXTP10   !Tracer m.r. outside liquid-water cloud (clear air/ice cloud)
-real, dimension(imax,kl), intent(inout) :: PXTP1C   !Tracer m.r.  inside liquid-water cloud
-real, dimension(imax,kl), intent(in) :: PXTP1CON
+real, dimension(imax,kl,2:naero), intent(inout) :: PXTP10   !Tracer m.r. outside liquid-water cloud (clear air/ice cloud)
+real, dimension(imax,kl,2:naero), intent(inout) :: PXTP1C   !Tracer m.r.  inside liquid-water cloud
+real, dimension(imax,kl,2:naero), intent(in) :: PXTP1CON
 real, dimension(imax,kl), intent(in) :: rhodz
 real, dimension(imax,kl), intent(in) :: PMRATEP
 real, dimension(imax,kl), intent(in) :: PFPREC
-real, dimension(imax,kl) :: PDEP3D
 real, dimension(imax,kl), intent(in) :: PCLCOVER
-real, dimension(imax,kl), intent(in) :: PSOLUB
+real, dimension(imax,kl,2:naero), intent(in) :: PSOLUB
 real, dimension(imax,kl), intent(in) :: pmlwc
 real, dimension(imax,kl), intent(in) :: ptp1  !temperature
 real, dimension(imax,kl), intent(in) :: pfsnow
@@ -1991,19 +1780,20 @@ real, dimension(imax,kl), intent(in) :: plambs
 real, dimension(imax,kl), intent(in) :: prscav
 real, dimension(imax,kl), intent(in) :: prfreeze
 real, dimension(imax,kl), intent(in) :: pfevap
-real, dimension(imax,kl), intent(in) :: xtm1
-real, dimension(imax,kl), intent(inout) :: xte
-real, dimension(imax), intent(inout) :: wd
+real, dimension(imax,kl,naero), intent(in) :: xtm1
+real, dimension(imax,kl,naero), intent(inout) :: xte
+real, dimension(imax,2:naero), intent(inout) :: wd
 
 ! Local work arrays and variables
-real, dimension(imax) :: ZDEPS, ZDEPR
+real PDEP
+real, dimension(imax,2:naero) :: ZDEPS, ZDEPR
 real ZMTOF, ZCLR0, zcollefc
 real zilcscav, ziicscav,xdep,plambda,zbcscav,xbcscav,zstay_t,xstay,frc
 real zmelt,xmelt,zicscav,xicscav
 real xfreeze, zfreeze
-real ecols_k, rcoeff_k, zcollefs_k, zcollefr_k
 real ZDXTE, zxtp1
 
+integer KTRAC
 integer jk,i
 real pqtmst
 
@@ -2032,18 +1822,11 @@ Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00/)
 Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/)
 
 PQTMST = 1./PTMST
-ecols_k = ecols(ktrac)
-rcoeff_k = rcoeff(ktrac)
-zcollefs_k = zcollefs(ktrac)
-zcollefr_k = zcollefr(ktrac)
 
-do i = 1,imax
-  zdepr(i) = 0.
-  zdeps(i) = 0.
-end do
-do jk = 1,kl
+do ktrac = 2,naero
   do i = 1,imax
-    pdep3d(i,jk) = 0.
+    zdepr(i,ktrac) = 0.
+    zdeps(i,ktrac) = 0.
   end do
 end do
 
@@ -2058,240 +1841,243 @@ end do
 
 !     BEGIN OF VERTICAL LOOP
 do JK = KTOP,kl
-
-  do i = 1,imax
+  do ktrac = 2,naero
+    do i = 1,imax
+        
+      pdep = 0.  
       
-    ! zdepr(i) = zdepr(i) + zdepr_save(i,jk)
-    ! zdeps(i) = zdeps(i) + zdeps_save(i,jk)
-    ! zdepr_save(i,jk) = 0.
-    ! zdeps_save(i,jk) = 0.
+      ! zdepr(i) = zdepr(i) + zdepr_save(i,jk)
+      ! zdeps(i) = zdeps(i) + zdeps_save(i,jk)
+      ! zdepr_save(i,jk) = 0.
+      ! zdeps_save(i,jk) = 0.
 
-    !ZCLEAR = 1. - PCLCOVER(i,JK) - pcfcover(i,jk) - pclcon(i,jk)
-    ZCLR0 = max( 1. - PCLCOVER(i,jk) - pclcon(i,jk), 0. ) !Clear air or ice cloud (applies to pxtp10)
-    ZMTOF = rhodz(i,jk)*pqtmst
-    PXTP1C(i,JK) = AMAX1( 0., PXTP1C(i,JK) )
-    PXTP10(i,JK) = AMAX1( 0., PXTP10(i,JK) )
+      !ZCLEAR = 1. - PCLCOVER(i,JK) - pcfcover(i,jk) - pclcon(i,jk)
+      ZCLR0 = max( 1. - PCLCOVER(i,jk) - pclcon(i,jk), 0. ) !Clear air or ice cloud (applies to pxtp10)
+      ZMTOF = rhodz(i,jk)*pqtmst
+      PXTP1C(i,JK,ktrac) = AMAX1( 0., PXTP1C(i,JK,ktrac) )
+      PXTP10(i,JK,ktrac) = AMAX1( 0., PXTP10(i,JK,ktrac) )
 
-    ! In-cloud ice scavenging (vertical redistribution when snow falls into a layer).
-    if ( zclr0>zmin ) then
-      ziicscav = Ecols_k*pqfsedice(i,jk) !qfsedice is the fractional sedimentation in dt
-      ziicscav = max( min( ziicscav, 1. ), 0. )
-      xdep = max( pxtp10(i,jk)*ziicscav, 0.)
-      pdep3d(i,jk) = pdep3d(i,jk) + xdep*pcfcover(i,jk)
-      pxtp10(i,jk) = pxtp10(i,jk) - xdep*pcfcover(i,jk)/zclr0 ! MJT suggestion
-      zdeps(i) = zdeps(i) + xdep*pcfcover(i,jk)*zmtof
+      ! In-cloud ice scavenging (vertical redistribution when snow falls into a layer).
+      if ( zclr0>zmin ) then
+        ziicscav = Ecols(ktrac)*pqfsedice(i,jk) !qfsedice is the fractional sedimentation in dt
+        ziicscav = max( min( ziicscav, 1. ), 0. )
+        xdep = max( pxtp10(i,jk,ktrac)*ziicscav, 0.)
+        pdep = pdep + xdep*pcfcover(i,jk)
+        pxtp10(i,jk,ktrac) = pxtp10(i,jk,ktrac) - xdep*pcfcover(i,jk)/zclr0 ! MJT suggestion
+        zdeps(i,ktrac) = zdeps(i,ktrac) + xdep*pcfcover(i,jk)*zmtof
 #ifdef debug
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
-        write(6,*) "xtg out-of-range after xtwetdep - incloud scavenging"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
-      end if
+        if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac)>6.5e-5 ) then
+          write(6,*) "xtg out-of-range after xtwetdep - incloud scavenging"
+          write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac),i,kl-jk+1,ktrac
+        end if
 #endif      
-    end if
-
-    ! This loop does riming (accretion of liquid water by falling snow)
-    if ( pmlwc(i,jk)>zmin ) then
-      zilcscav = Rcoeff_k*psolub(i,jk)*pmaccr(i,jk)*ptmst/pmlwc(i,jk)
-      zilcscav = max( min( zilcscav, 1. ), 0. )
-      xdep = max( pxtp1c(i,jk)*zilcscav, 0. )
-      pdep3d(i,jk) = pdep3d(i,jk) + xdep*pclcover(i,jk)
-      pxtp1c(i,jk) = pxtp1c(i,jk) - xdep
-      zdeps(i) = zdeps(i) + xdep*pclcover(i,jk)*zmtof
-#ifdef debug
-      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-5 ) then
-        write(6,*) "xtg out-of-range after xtwetdep - accretion of liquid water by falling snow"
-        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,kl-jk+1
       end if
+
+      ! This loop does riming (accretion of liquid water by falling snow)
+      if ( pmlwc(i,jk)>zmin ) then
+        zilcscav = Rcoeff(ktrac)*psolub(i,jk,ktrac)*pmaccr(i,jk)*ptmst/pmlwc(i,jk)
+        zilcscav = max( min( zilcscav, 1. ), 0. )
+        xdep = max( pxtp1c(i,jk,ktrac)*zilcscav, 0. )
+        pdep = pdep + xdep*pclcover(i,jk)
+        pxtp1c(i,jk,ktrac) = pxtp1c(i,jk,ktrac) - xdep
+        zdeps(i,ktrac) = zdeps(i,ktrac) + xdep*pclcover(i,jk)*zmtof
+#ifdef debug
+        if ( PCLCOVER(i,jk)*pxtp1c(i,jk,ktrac)>6.5e-5 ) then
+          write(6,*) "xtg out-of-range after xtwetdep - accretion of liquid water by falling snow"
+          write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk,ktrac),i,kl-jk+1,ktrac
+        end if
 #endif  
-    end if
+      end if
 
-    ! Below-cloud scavenging by snow
-    plambda = min( plambs(i,jk), 8.e3 ) !Cut it off at about -30 deg. C
-    zbcscav = zcollefs_k*plambda*pfsnow(i,jk)*ptmst/(2.*rhos)
-    zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
-    xbcscav = max( zbcscav*pxtp10(i,jk), 0. )
-    pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0
-    pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
-    zdeps(i) = zdeps(i) + xbcscav*zclr0*zmtof
+      ! Below-cloud scavenging by snow
+      plambda = min( plambs(i,jk), 8.e3 ) !Cut it off at about -30 deg. C
+      zbcscav = zcollefs(ktrac)*plambda*pfsnow(i,jk)*ptmst/(2.*rhos)
+      zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
+      xbcscav = max( zbcscav*pxtp10(i,jk,ktrac), 0. )
+      pdep = pdep + xbcscav*zclr0
+      pxtp10(i,jk,ktrac) = pxtp10(i,jk,ktrac) - xbcscav
+      zdeps(i,ktrac) = zdeps(i,ktrac) + xbcscav*zclr0*zmtof
 #ifdef debug
-    if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
-      write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by snow"
-      write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
-    end if
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac)>6.5e-5 ) then
+        write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by snow"
+        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac),i,kl-jk+1,ktrac
+      end if
 #endif   
 
-    ! Redistribution by snow that evaporates
-    if ( pfsubl(i,jk)>zmin .and. zclr0>zmin ) then
-      !zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)        
-      zstay_t = pfsubl(i,jk)/(pfsnow(i,jk)+pfsubl(i,jk)) ! MJT suggestion
-      zstay_t = max( min( 1., zstay_t ), 0. )
-      xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
-      !limit sublimation to prevent crash - MJT suggestion
-      xstay = max( min( xstay, 6.e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk) ), 0. )
-      pdep3d(i,jk) = pdep3d(i,jk) - xstay*zclr0
-      pxtp10(i,jk) = pxtp10(i,jk) + xstay
-      zdeps(i) = zdeps(i) - xstay*zclr0*zmtof
-      zdeps(i) = max( 0., zdeps(i) )
+      ! Redistribution by snow that evaporates
+      if ( pfsubl(i,jk)>zmin .and. zclr0>zmin ) then
+        !zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)        
+        zstay_t = pfsubl(i,jk)/(pfsnow(i,jk)+pfsubl(i,jk)) ! MJT suggestion
+        zstay_t = max( min( 1., zstay_t ), 0. )
+        xstay = max( zdeps(i,ktrac)*zstay_t/zmtof, 0. )
+        !limit sublimation to prevent crash - MJT suggestion
+        xstay = max( min( xstay, 6.e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk,ktrac) ), 0. )
+        pdep = pdep - xstay*zclr0
+        pxtp10(i,jk,ktrac) = pxtp10(i,jk,ktrac) + xstay
+        zdeps(i,ktrac) = zdeps(i,ktrac) - xstay*zclr0*zmtof
+        zdeps(i,ktrac) = max( 0., zdeps(i,ktrac) )
 #ifdef debug
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
-        write(6,*) "xtg out-of-range after xtwetdep - redistribution of snow that sublimates"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
-        write(6,*) "zstay_t,xstay,zclr0 ",zstay_t,xstay,zclr0
-        write(6,*) "zmtof ",zmtof
-      end if
+        if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac)>6.5e-5 ) then
+          write(6,*) "xtg out-of-range after xtwetdep - redistribution of snow that sublimates"
+          write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac),i,kl-jk+1,ktrac
+          write(6,*) "zstay_t,xstay,zclr0 ",zstay_t,xstay,zclr0
+          write(6,*) "zmtof ",zmtof
+        end if
 #endif         
-    end if
+      end if
     
-    ! Redistribution by snow that stays in layer
-    !if ( pfstayice(i,jk)>zmin .and. zclr0>zmin ) then
-    !  zstay_t = pfstayice(i,jk)/(pfsnow(i,jk)+pfstayice(i,jk))
-    !  zstay_t = max( min( 1., zstay_t ), 0. )
-    !  xstay = max( zdeps(i)*zstay_t/zmtof, 0. )
-    !  pdep3d(i,jk) = pdep3d(i,jk) - xstay*zclr0
-    !  zdeps_save(i,jk) = zdeps_save(i,jk) + xstay*zclr0*zmtof
-    !  zdeps(i) = zdeps(i) - xstay*zclr0*zmtof
-    !  zdeps(i) = max( 0., zdeps(i) )
-    !end if    
+      ! Redistribution by snow that stays in layer
+      !if ( pfstayice(i,jk)>zmin .and. zclr0>zmin ) then
+      !  zstay_t = pfstayice(i,jk)/(pfsnow(i,jk)+pfstayice(i,jk))
+      !  zstay_t = max( min( 1., zstay_t ), 0. )
+      !  xstay = max( zdeps(i,ktrac)*zstay_t/zmtof, 0. )
+      !  pdep = pdep - xstay*zclr0
+      !  zdeps_save(i,jk,ktrac) = zdeps_save(i,jk,ktrac) + xstay*zclr0*zmtof
+      !  zdeps(i,ktrac) = zdeps(i,ktrac) - xstay*zclr0*zmtof
+      !  zdeps(i,ktrac) = max( 0., zdeps(i,ktrac) )
+      !end if    
 
-    ! Melting of snow... 
-    zmelt = pfmelt(i,jk)/max(pfsnow(i,jk)+pfmelt(i,jk),zmin) 
-    zmelt = max( min( 1., zmelt ), 0. )
-    xmelt = zmelt*zdeps(i)
-    zdepr(i) = zdepr(i) + xmelt
-    zdeps(i) = zdeps(i) - xmelt
-    zdeps(i) = max( 0., zdeps(i) )
+      ! Melting of snow... 
+      zmelt = pfmelt(i,jk)/max(pfsnow(i,jk)+pfmelt(i,jk),zmin) 
+      zmelt = max( min( 1., zmelt ), 0. )
+      xmelt = zmelt*zdeps(i,ktrac)
+      zdepr(i,ktrac) = zdepr(i,ktrac) + xmelt
+      zdeps(i,ktrac) = zdeps(i,ktrac) - xmelt
+      zdeps(i,ktrac) = max( 0., zdeps(i,ktrac) )
   
-    !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
-    if ( pmlwc(i,jk)>zmin ) then ! MJT suggestion
-      zicscav = psolub(i,jk)*pmratep(i,jk)*ptmst/pmlwc(i,jk)
-      zicscav = max( min( zicscav, 1. ), 0. )
-      xicscav = max( pxtp1c(i,jk)*zicscav, 0. )
-      pdep3d(i,jk) = pdep3d(i,jk) + xicscav*pclcover(i,jk)
-      pxtp1c(i,jk) = pxtp1c(i,jk) - xicscav
-      zdepr(i) = zdepr(i) + xicscav*pclcover(i,jk)*zmtof
+      !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
+      if ( pmlwc(i,jk)>zmin ) then ! MJT suggestion
+        zicscav = psolub(i,jk,ktrac)*pmratep(i,jk)*ptmst/pmlwc(i,jk)
+        zicscav = max( min( zicscav, 1. ), 0. )
+        xicscav = max( pxtp1c(i,jk,ktrac)*zicscav, 0. )
+        pdep = pdep + xicscav*pclcover(i,jk)
+        pxtp1c(i,jk,ktrac) = pxtp1c(i,jk,ktrac) - xicscav
+        zdepr(i,ktrac) = zdepr(i,ktrac) + xicscav*pclcover(i,jk)*zmtof
 #ifdef debug
-      if ( PCLCOVER(i,jk)*pxtp1c(i,jk)>6.5e-5 ) then
-        write(6,*) "xtg out-of-range after xtwetdep - in-cloud scavenging by warm rain processes"
-        write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk),i,kl-jk+1
-      end if
+        if ( PCLCOVER(i,jk)*pxtp1c(i,jk,ktrac)>6.5e-5 ) then
+          write(6,*) "xtg out-of-range after xtwetdep - in-cloud scavenging by warm rain processes"
+          write(6,*) "xtg maxval,maxloc ",PCLCOVER(i,jk)*pxtp1c(i,jk,ktrac),i,kl-jk+1,ktrac
+        end if
 #endif        
-    end if
+      end if
  
-    ! Below-cloud scavenging by stratiform rain (conv done below)
-    zbcscav = zcollefr_k*prscav(i,jk)
-    zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
-    xbcscav = max( zbcscav*pxtp10(i,jk), 0. )
-    pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0
-    pxtp10(i,jk) = pxtp10(i,jk) - xbcscav 
-    zdepr(i) = zdepr(i) + xbcscav*zclr0*zmtof
+      ! Below-cloud scavenging by stratiform rain (conv done below)
+      zbcscav = zcollefr(ktrac)*prscav(i,jk)
+      zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
+      xbcscav = max( zbcscav*pxtp10(i,jk,ktrac), 0. )
+      pdep = pdep + xbcscav*zclr0
+      pxtp10(i,jk,ktrac) = pxtp10(i,jk,ktrac) - xbcscav 
+      zdepr(i,ktrac) = zdepr(i,ktrac) + xbcscav*zclr0*zmtof
 #ifdef debug
-    if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
-      write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by stratiform rain"
-      write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk
-      write(6,*) "pclcover,pclcon,tot ",pclcover(i,jk),pclcon(i,jk),(1.-pclcover(i,jk)-pclcon(i,jk))
-      write(6,*) "xbcscav,zbcscav,prscav ",xbcscav,zbcscav,prscav(i,jk)
-    end if
+      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac)>6.5e-5 ) then
+        write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by stratiform rain"
+        write(6,*) "xtg maxval,maxloc,ktrac ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac),i,kl-jk,ktrac
+        write(6,*) "pclcover,pclcon,tot ",pclcover(i,jk),pclcon(i,jk),(1.-pclcover(i,jk)-pclcon(i,jk))
+        write(6,*) "xbcscav,zbcscav,prscav ",xbcscav,zbcscav,prscav(i,jk)
+      end if
 #endif   
 
-    ! MJT - suggestion (only include evaporation)
-    ! Redistribution by rain that evaporates or stays in layer
-    if ( pfevap(i,jk)>zmin .and. zclr0>zmin ) then
-      !zstay_t = (pfevap(i,jk)+pfstayliq(i,jk))/pfprec(i,jk)  
-      zstay_t = pfevap(i,jk)/(pfprec(i,jk)+pfevap(i,jk)) ! MJT suggestion
-      zstay_t = max( min( 1., zstay_t ), 0. )
-      xstay = max( zdepr(i)*zstay_t/zmtof, 0. )
-      !limit sublimation to prevent crash - MJT suggestion
-      xstay = max( min( xstay, 6.e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk) ), 0. )      
-      pdep3d(i,jk) = pdep3d(i,jk) - xstay*zclr0
-      pxtp10(i,jk) = pxtp10(i,jk) + xstay
-      zdepr(i) = zdepr(i) - xstay*zclr0*zmtof
-      zdepr(i) = max( 0., zdepr(i) )
+      ! MJT - suggestion (only include evaporation)
+      ! Redistribution by rain that evaporates or stays in layer
+      if ( pfevap(i,jk)>zmin .and. zclr0>zmin ) then
+        !zstay_t = (pfevap(i,jk)+pfstayliq(i,jk))/pfprec(i,jk)  
+        zstay_t = pfevap(i,jk)/(pfprec(i,jk)+pfevap(i,jk)) ! MJT suggestion
+        zstay_t = max( min( 1., zstay_t ), 0. )
+        xstay = max( zdepr(i,ktrac)*zstay_t/zmtof, 0. )
+        !limit sublimation to prevent crash - MJT suggestion
+        xstay = max( min( xstay, 6.e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk,ktrac) ), 0. )
+        pdep = pdep - xstay*zclr0
+        pxtp10(i,jk,ktrac) = pxtp10(i,jk,ktrac) + xstay
+        zdepr(i,ktrac) = zdepr(i,ktrac) - xstay*zclr0*zmtof
+        zdepr(i,ktrac) = max( 0., zdepr(i,ktrac) )
 #ifdef debug
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
-        write(6,*) "xtg out-of-range after xtwetdep - redistribution of rain that evaporates"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
-      end if
+        if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac)>6.5e-5 ) then
+          write(6,*) "xtg out-of-range after xtwetdep - redistribution of rain that evaporates"
+          write(6,*) "xtg maxval,maxloc,ktrac ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac),i,kl-jk+1,ktrac
+        end if
 #endif         
-    end if
-    
-    ! Redistribution by rain that evaporates or stays in layer
-    !if ( pfstayliq(i,jk)>zmin .and. zclr0>zmin ) then
-    !  zstay_t = pfstayliq(i,jk)/(pfprec(i,jk)+pfstayliq(i,jk))
-    !  zstay_t = max( min( 1., zstay_t ), 0. )
-    !  xstay = max( zdepr(i)*zstay_t/zmtof, 0. )
-    !  pdep3d(i,jk) = pdep3d(i,jk) - xstay*zclr0
-    !  zdepr_save(i,jk) = zdepr_save(i,jk) + xstay*zclr0*zmtof
-    !  zdepr(i) = zdepr(i) - xstay*zclr0*zmtof
-    !  zdepr(i) = max( 0., zdepr(i) )
-    !end if
-
-    ! Freezing of rain... 
-    zfreeze = prfreeze(i,jk)/max(pfprec(i,jk)+prfreeze(i,jk),zmin) 
-    zfreeze = max( min( 1., zfreeze ), 0. )
-    xfreeze = zfreeze*zdepr(i)
-    zdeps(i) = zdeps(i) + xfreeze
-    zdepr(i) = zdepr(i) - xfreeze
-    zdepr(i) = max( 0., zdepr(i) )
-
-
-! Now do the convective below-cloud bit...
-! In-cloud convective bit was done in convjlm.
-
-    ! Use collection efficiencies for rain below melting level, snow above
-
-    ! MJT notes - Assume rain for JLM convection
-    if ( ptp1(i,jk)>273.15 .or. assume_convliq ) then
-      zcollefc = zcollefr_k
-    else
-      zcollefc = zcollefs_k  
-    end if
-
-    ! Below-cloud scavenging by convective precipitation
-    if ( fracc(i)>zmin ) then
-      Frc = max( 0., pfconv(i,jk-1)/fracc(i) )
-      zbcscav = zcollefc*fracc(i)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
-      !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
-      zbcscav = max( min( 1., zbcscav ), 0. ) ! MJT suggestion
-      xbcscav = max( zbcscav*pxtp10(i,jk), 0. )
-      pdep3d(i,jk) = pdep3d(i,jk) + xbcscav*zclr0
-      pxtp10(i,jk) = pxtp10(i,jk) - xbcscav
-      !conwd(i,ktrac) = conwd(i,ktrac) + xbcscav*zclr0*zmtof
-#ifdef debug
-      if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk)>6.5e-5 ) then
-        write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by convective precipitation"
-        write(6,*) "xtg maxval,maxloc ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk),i,kl-jk+1
       end if
+    
+      ! Redistribution by rain that evaporates or stays in layer
+      !if ( pfstayliq(i,jk)>zmin .and. zclr0>zmin ) then
+      !  zstay_t = pfstayliq(i,jk)/(pfprec(i,jk)+pfstayliq(i,jk))
+      !  zstay_t = max( min( 1., zstay_t ), 0. )
+      !  xstay = max( zdepr(i,ktrac)*zstay_t/zmtof, 0. )
+      !  pdep = pdep - xstay*zclr0
+      !  zdepr_save(i,jk,ktrac) = zdepr_save(i,jk,ktrac) + xstay*zclr0*zmtof
+      !  zdepr(i,ktrac) = zdepr(i,ktrac) - xstay*zclr0*zmtof
+      !  zdepr(i,ktrac) = max( 0., zdepr(i,ktrac) )
+      !end if
+
+      ! Freezing of rain... 
+      zfreeze = prfreeze(i,jk)/max(pfprec(i,jk)+prfreeze(i,jk),zmin) 
+      zfreeze = max( min( 1., zfreeze ), 0. )
+      xfreeze = zfreeze*zdepr(i,ktrac)
+      zdeps(i,ktrac) = zdeps(i,ktrac) + xfreeze
+      zdepr(i,ktrac) = zdepr(i,ktrac) - xfreeze
+      zdepr(i,ktrac) = max( 0., zdepr(i,ktrac) )
+
+
+      ! Now do the convective below-cloud bit...
+      ! In-cloud convective bit was done in convjlm.
+
+      ! Use collection efficiencies for rain below melting level, snow above
+
+      ! MJT notes - Assume rain for JLM convection
+      if ( ptp1(i,jk)>273.15 .or. assume_convliq ) then
+        zcollefc = zcollefr(ktrac)
+      else
+        zcollefc = zcollefs(ktrac)
+      end if
+
+      ! Below-cloud scavenging by convective precipitation
+      if ( fracc(i)>zmin ) then
+        Frc = max( 0., pfconv(i,jk-1)/fracc(i) )
+        zbcscav = zcollefc*fracc(i)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
+        !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
+        zbcscav = max( min( 1., zbcscav ), 0. ) ! MJT suggestion
+        xbcscav = max( zbcscav*pxtp10(i,jk,ktrac), 0. )
+        pdep = pdep + xbcscav*zclr0
+        pxtp10(i,jk,ktrac) = pxtp10(i,jk,ktrac) - xbcscav
+        !conwd(i,ktrac) = conwd(i,ktrac) + xbcscav*zclr0*zmtof
+#ifdef debug
+        if ( (1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac)>6.5e-5 ) then
+          write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by convective precipitation"
+          write(6,*) "xtg maxval,maxloc,ktrac ",(1.-pclcover(i,jk)-pclcon(i,jk))*pxtp10(i,jk,ktrac),i,kl-jk+1,ktrac
+        end if
 #endif       
-    end if
+      end if
 
-    ! Below-cloud reevaporation of convective rain
-    ! This never triggers for JLM convection because pcevap=0.
-    ! lmask(:) = jk>kbase(:) .and. pfconv(:,jk-1)>zmin .and. zclr0(:)>zmin
-    ! where ( lmask(:) )
-    !   pcevap = pfconv(:,jk-1) - pfconv(:,jk)
-    !   zevap = pcevap/pfconv(:,jk-1)
-    ! elsewhere
-    !   zevap(:)=0.
-    ! end where
-    ! where ( lmask(:) .and. zevap<1. )
-    !   zevap = Evfac(ktrac)*zevap
-    ! end where
-    ! where ( lmask(:) )
-    !   zevap = max( 0., min( 1., zevap ) )
-    !   xevap = max( conwd(:,ktrac)*zevap/zmtof(:), 0. ) !xevap is the grid-box-mean m.r. change
-    !   pdep3d(:,jk) = pdep3d(:,jk) - xevap*zclr0
-    !   pxtp10(:,jk) = pxtp10(:,jk) + xevap
-    !   conwd(:,ktrac) = conwd(:,ktrac) - xevap*zclr0*zmtof(:)
-    !   conwd(:,ktrac) = max( 0., conwd(:,ktrac) )
-    ! end where
+      ! Below-cloud reevaporation of convective rain
+      ! This never triggers for JLM convection because pcevap=0.
+      ! lmask(:) = jk>kbase(:) .and. pfconv(:,jk-1)>zmin .and. zclr0(:)>zmin
+      ! where ( lmask(:) )
+      !   pcevap = pfconv(:,jk-1) - pfconv(:,jk)
+      !   zevap = pcevap/pfconv(:,jk-1)
+      ! elsewhere
+      !   zevap(:)=0.
+      ! end where
+      ! where ( lmask(:) .and. zevap<1. )
+      !   zevap = Evfac(ktrac)*zevap
+      ! end where
+      ! where ( lmask(:) )
+      !   zevap = max( 0., min( 1., zevap ) )
+      !   xevap = max( conwd(:,ktrac)*zevap/zmtof(:), 0. ) !xevap is the grid-box-mean m.r. change
+      !   pdep = pdep - xevap*zclr0
+      !   pxtp10(:,jk,ktrac) = pxtp10(:,jk,ktrac) + xevap
+      !   conwd(:,ktrac) = conwd(:,ktrac) - xevap*zclr0*zmtof(:)
+      !   conwd(:,ktrac) = max( 0., conwd(:,ktrac) )
+      ! end where
 
-    ZXTP1=(1.-pclcover(i,jk)-pclcon(i,jk))*PXTP10(i,JK)+ &
-              PCLCOVER(i,JK)*PXTP1C(i,JK)+               &
-              pclcon(i,jk)*pxtp1con(i,jk)
-    zxtp1=max(zxtp1,0.)
-    ZDXTE=(ZXTP1-XTM1(i,JK))*PQTMST  !Total tendency (Dep + chem)
-    !    CHANGE THE TOTAL TENDENCIES
-    xte(i,jk) = xte(i,jk) + zdxte
-    wd(i) = wd(i) + pqtmst*pdep3d(i,jk)*rhodz(i,jk)
+      ZXTP1=(1.-pclcover(i,jk)-pclcon(i,jk))*PXTP10(i,JK,ktrac)+ &
+                PCLCOVER(i,JK)*PXTP1C(i,JK,ktrac)+               &
+                pclcon(i,jk)*pxtp1con(i,jk,ktrac)
+      zxtp1=max(zxtp1,0.)
+      ZDXTE=(ZXTP1-XTM1(i,JK,ktrac))*PQTMST  !Total tendency (Dep + chem)
+      !    CHANGE THE TOTAL TENDENCIES
+      xte(i,jk,ktrac) = xte(i,jk,ktrac) + zdxte
+      wd(i,ktrac) = wd(i,ktrac) + pqtmst*pdep*rhodz(i,jk)
+    end do  
   end do
 end do
 
@@ -2301,8 +2087,8 @@ end subroutine xtwetdep
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust settling
 
-subroutine dsettling(tdt,rhoa,tmp,delz,prf,xtg,dustden,dustreff,imax,kl)
-!!$acc routine vector
+subroutine dsettling(tdt,rhoa,tmp,delz,prf,xtg,imax,kl)
+!$acc routine vector
 
 implicit none
 
@@ -2314,23 +2100,22 @@ real, dimension(imax,kl), intent(in) :: tmp  !temperature (K)
 real, dimension(imax,kl), intent(in) :: delz !Layer thickness (m)
 real, dimension(imax,kl), intent(in) :: prf  !Pressure (hPa)
 real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(ndust), intent(in) :: dustden, dustreff
 
 ! Local work arrays and variables
-real, dimension(imax) :: dfall
+real, dimension(imax,ndust) :: dfall
 real c_stokes, corr, c_cun, vd_cor, b, newxtg
 integer nt,k,iq
 
 ! Start code : ----------------------------------------------------------
 
-do nt = 1, NDUST
-  ! Settling velocity (m/s) for each soil classes (Stokes Law)
-  ! DUSTDEN     soil class density             (kg/m3)
-  ! DUSTREFF    effective radius of soil class (m)
-  ! grav        gravity                        (m/s2)
-  ! 0.5         upper limit with temp correction (already incorporated with dzmin_gbl - MJT)
+! Settling velocity (m/s) for each soil classes (Stokes Law)
+! DUSTDEN     soil class density             (kg/m3)
+! DUSTREFF    effective radius of soil class (m)
+! grav        gravity                        (m/s2)
+! 0.5         upper limit with temp correction (already incorporated with dzmin_gbl - MJT)
 
-  ! Solve at the model top
+! Solve at the model top
+do nt = 1, NDUST
   do iq = 1,imax
     ! Dynamic viscosity
     C_Stokes = 1.458E-6*TMP(iq,kl)**1.5/(TMP(iq,kl)+110.4) 
@@ -2344,12 +2129,14 @@ do nt = 1, NDUST
     b = tdt*VD_cor/DELZ(iq,kl)
     newxtg = xtg(iq,kl,nt+itracdu-1)*exp(-b)
     newxtg = max( newxtg, 0. )
-    dfall(iq) = max( xtg(iq,kl,nt+itracdu-1) - newxtg, 0. )
+    dfall(iq,nt) = max( xtg(iq,kl,nt+itracdu-1) - newxtg, 0. )
     xtg(iq,kl,nt+itracdu-1) = newxtg
   end do
-  
-  ! Solve each vertical layer successively (layer k)
-  do k = kl-1,1,-1
+end do
+
+! Solve each vertical layer successively (layer k)
+do k = kl-1,1,-1
+  do nt = 1, NDUST    
     do iq = 1,imax
       ! Dynamic viscosity
       C_Stokes = 1.458E-6*TMP(iq,k)**1.5/(TMP(iq,k)+110.4) 
@@ -2361,16 +2148,15 @@ do nt = 1, NDUST
       
       ! Update mixing ratio
       b = tdt*Vd_cor/DELZ(iq,k)
-      dfall(iq) = dfall(iq) * delz(iq,k+1)*rhoa(iq,k+1)/(delz(iq,k)*rhoa(iq,k))
+      dfall(iq,nt) = dfall(iq,nt)*delz(iq,k+1)*rhoa(iq,k+1)/(delz(iq,k)*rhoa(iq,k))
       ! Fout = 1.-exp(-b)
       ! Fthru = 1.-Fout/b
-      newxtg = xtg(iq,k,nt+itracdu-1)*exp(-b) + dfall(iq)*(1.-exp(-b))/b
+      newxtg = xtg(iq,k,nt+itracdu-1)*exp(-b) + dfall(iq,nt)*(1.-exp(-b))/b
       newxtg = max( newxtg, 0. )
-      dfall(iq) = max( xtg(iq,k,nt+itracdu-1) + dfall(iq) - newxtg, 0. )
+      dfall(iq,nt) = max( xtg(iq,k,nt+itracdu-1) + dfall(iq,nt) - newxtg, 0. )
       xtg(iq,k,nt+itracdu-1) = newxtg
     end do
   end do
-  
 end do
 
 return
@@ -2380,12 +2166,11 @@ end subroutine dsettling
 ! Dust emissions
 
 subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,erod,duste,xtg, &
-                  dustden,dustreff,imax,kl)
-!!$acc routine vector
+                  imax,kl)
+!$acc routine vector
 
 implicit none
 
-!     Inputs:
 integer, intent(in) :: imax, kl
 real, intent(in) :: tdt                         !Leapfrog timestep (s) (substep and long step)
 real, dimension(imax), intent(in) :: rhoa       !air density (kg/m3)
@@ -2399,7 +2184,6 @@ real, dimension(imax) :: airmas, airden
 real, dimension(imax,ndcls), intent(in) :: erod
 real, dimension(imax,ndust), intent(inout) :: duste
 real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(ndust), intent(in) :: dustden, dustreff
 real g, den, diam
 real u_ts0, u_ts, srce, dsrc, a, b, veff
 integer n, m ,iq
@@ -2424,14 +2208,14 @@ snowa = min( 1., snowd/5. )
 airmas = dz1 * rhoa  ! kg/m2
 
 do n = 1, ndust
-  ! Threshold velocity as a function of the dust density and the diameter
-  den = dustden(n)*1.e-3
-  diam = 2.*dustreff(n)*1.e2
-  ! Pointer to the 3 classes considered in the source data files
-  m = ipoint(n)
-
   do iq = 1,imax
   
+    ! Threshold velocity as a function of the dust density and the diameter
+    den = dustden(n)*1.e-3
+    diam = 2.*dustreff(n)*1.e2
+    ! Pointer to the 3 classes considered in the source data files
+    m = ipoint(n)
+      
     ! Following is from Ginoux et al (2004) Env. Modelling & Software.
     u_ts0 = 0.13*1.e-2*sqrt(den*g*diam/airden(iq))*sqrt(1.+0.006/den/g/diam**2.5)/ &
             sqrt(1.928*(1331.*diam**1.56+0.38)**0.092-1.)
@@ -2474,7 +2258,6 @@ do n = 1, ndust
     xtg(iq,1,n+itracdu-1) = (xtg(iq,1,n+itracdu-1)+a*tdt)*exp(-min(b*tdt,50.))
     xtg(iq,1,n+itracdu-1) = max( 0., xtg(iq,1,n+itracdu-1) )
   end do
-
 end do
 
 return
@@ -2599,8 +2382,8 @@ end subroutine dustem
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt settling
-subroutine ssettling(tdt,rhoa,tmp,delz,prf,xtg,saltden,saltreff,imax,kl)
-!!$acc routine vector
+subroutine ssettling(tdt,rhoa,tmp,delz,prf,xtg,imax,kl)
+!$acc routine vector
 
 implicit none
 
@@ -2611,14 +2394,12 @@ real, dimension(imax,kl), intent(in) :: tmp  !temperature (K)
 real, dimension(imax,kl), intent(in) :: delz !Layer thickness (m)
 real, dimension(imax,kl), intent(in) :: prf  !Pressure (hPa)
 real, dimension(imax,kl,naero), intent(inout) :: xtg
-real, dimension(nsalt), intent(in) :: saltden, saltreff
-real, dimension(imax) :: dfall
+real, dimension(imax,nsalt) :: dfall
 real vd_cor, newxtg, b, c_stokes, corr, c_cun
 integer nt, k, iq
 
+! Solve at the model top
 do nt = 1,nsalt
-  
-  ! Solve at the model top
   do iq = 1,imax
     ! Dynamic viscosity
     C_Stokes = 1.458E-6*TMP(iq,kl)**1.5/(TMP(iq,kl)+110.4) 
@@ -2632,12 +2413,14 @@ do nt = 1,nsalt
     b = tdt*VD_cor/DELZ(iq,kl)
     newxtg = xtg(iq,kl,nt+itracsa-1)*exp(-b)
     newxtg = max( newxtg, 0. )
-    dfall(iq) = max( xtg(iq,kl,nt+itracsa-1) - newxtg, 0. )
+    dfall(iq,nt) = max( xtg(iq,kl,nt+itracsa-1) - newxtg, 0. )
     xtg(iq,kl,nt+itracsa-1) = newxtg
   end do
+end do  
   
-  ! Solve each vertical layer successively (layer k)
-  do k = kl-1,1,-1
+! Solve each vertical layer successively (layer k)
+do k = kl-1,1,-1
+  do nt = 1,nsalt
     do iq = 1,imax
       ! Dynamic viscosity
       C_Stokes = 1.458E-6*TMP(iq,k)**1.5/(TMP(iq,k)+110.4) 
@@ -2649,16 +2432,15 @@ do nt = 1,nsalt
       
       ! Update mixing ratio
       b = tdt*Vd_cor/DELZ(iq,k)
-      dfall(iq) = dfall(iq) * delz(iq,k+1)*rhoa(iq,k+1)/(delz(iq,k)*rhoa(iq,k))
+      dfall(iq,nt) = dfall(iq,nt)*delz(iq,k+1)*rhoa(iq,k+1)/(delz(iq,k)*rhoa(iq,k))
       ! Fout = 1.-exp(-b)
       ! Fthru = 1.-Fout/b
-      newxtg = xtg(iq,k,nt+itracsa-1)*exp(-b) + dfall(iq)*(1.-exp(-b))/b
+      newxtg = xtg(iq,k,nt+itracsa-1)*exp(-b) + dfall(iq,nt)*(1.-exp(-b))/b
       newxtg = max( newxtg, 0. )
-      dfall(iq) = max( xtg(iq,k,nt+itracsa-1) + dfall(iq) - newxtg, 0. )
+      dfall(iq,nt) = max( xtg(iq,k,nt+itracsa-1) + dfall(iq,nt) - newxtg, 0. )
       xtg(iq,k,nt+itracsa-1) = newxtg
     end do
   end do
-  
 end do
 
 return
@@ -2666,8 +2448,8 @@ end subroutine ssettling
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt emissions
-subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,saltreff,locean,imax,kl)
-!!$acc routine vector
+subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,locean,imax,kl)
+!$acc routine vector
 
 implicit none
 
@@ -2682,9 +2464,7 @@ real, dimension(imax), intent(in) :: rhoa    ! air density
 real, dimension(imax), intent(inout) :: salte
 real, dimension(imax,kl,naero), intent(inout) :: xtg
 real, dimension(imax) :: wu10
-real, dimension(nsalt) :: mtnfactor
-real, dimension(nsalt), intent(in) :: saltreff
-real, dimension(nsalt) :: saltrange
+real, dimension(nsalt) :: mtnfactor, saltrange
 logical, dimension(imax), intent(in) :: locean
 
 ! Follows Sofiev et al 2011 for emissions
@@ -2695,23 +2475,22 @@ mtnfactor(2) = saltlargemtn
 saltrange = (/ 0.4e-6, 3.5e-6 /) ! 0.1-0.5um and 0.5-4um
 
 do n = 1,nsalt
-  ! Calculate emissions  
-  diam = 2.*saltreff(n)*1.e6
-    
-  !df0dr = 3.6e5*(1.+0.057*diam**1.05)/(diam**3)*10**(1.19*exp(-((0.38-log(diam))/0.65)**2))
-  
-  ! Follows Sofiev et al 2011 for emissions (accounts for <0.1 microns)
-  df0dd = 1.e6*exp(-0.09/(diam+3.e-3))/(2.+exp(-5./diam))*(1.+0.05*diam**1.05)/(diam**3) &
-         *10**(1.05*exp(-((0.27-log(diam))/1.1)**2))
-    
-  ftw = 0.48*diam**(-0.36)   ! 15C
-  !ftw = 0.15*diam**(-0.88)  ! 5C
-  !ftw = 0.092*diam**(-0.96) ! -2C
-  
-  fsw = 0.12*diam**(-0.71)
-  !fsw = 5.85*e-5*diam**-1.7 ! sal = 0.
-  
   do iq = 1,imax
+    ! Calculate emissions  
+    diam = 2.*saltreff(n)*1.e6
+    
+    !df0dr = 3.6e5*(1.+0.057*diam**1.05)/(diam**3)*10**(1.19*exp(-((0.38-log(diam))/0.65)**2))
+  
+    ! Follows Sofiev et al 2011 for emissions (accounts for <0.1 microns)
+    df0dd = 1.e6*exp(-0.09/(diam+3.e-3))/(2.+exp(-5./diam))*(1.+0.05*diam**1.05)/(diam**3) &
+           *10**(1.05*exp(-((0.27-log(diam))/1.1)**2))
+    
+    ftw = 0.48*diam**(-0.36)   ! 15C
+    !ftw = 0.15*diam**(-0.88)  ! 5C
+    !ftw = 0.092*diam**(-0.96) ! -2C
+  
+    fsw = 0.12*diam**(-0.71)
+    !fsw = 5.85*e-5*diam**-1.7 ! sal = 0.
 
     dfdd = wu10(iq)*df0dd*ftw*fsw  ! number/micro/m^2/s
   
@@ -2741,161 +2520,5 @@ end do
 
 return
 end subroutine seasaltem
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! cloud droplet concentration
-
-subroutine cldrop(istart,cdn,rhoa,convmode)
-
-implicit none
-
-integer, intent(in) :: istart
-integer k,is,ie,imax,kl,iq
-real, dimension(:,:), intent(in) :: rhoa
-real, dimension(:,:), intent(out) :: cdn
-real, dimension(size(cdn,1),size(cdn,2)) :: xtgso4,xtgbc,xtgoc,xtgsa1,xtgsa2
-real so4_n,cphil_n,salt_n,Atot
-real so4mk
-logical, intent(in) :: convmode
-
-imax = size(cdn,1)
-kl = size(cdn,2)
-
-is = istart
-ie = istart + imax - 1
-
-if ( convmode ) then
-  ! total grid-box
-  xtgso4 = xtg(is:ie,:,itracso4)
-  xtgbc  = xtg(is:ie,:,itracbc+1)
-  xtgoc  = xtg(is:ie,:,itracoc+1)
-  xtgsa1 = xtg(is:ie,:,itracsa)
-  xtgsa2 = xtg(is:ie,:,itracsa+1)
-else
-  ! outside convective fraction of grid-box
-  xtgso4 = xtosav(is:ie,:,itracso4)
-  xtgbc  = xtosav(is:ie,:,itracbc+1)
-  xtgoc  = xtosav(is:ie,:,itracoc+1)
-  xtgsa1 = xtosav(is:ie,:,itracsa)
-  xtgsa2 = xtosav(is:ie,:,itracsa+1)
-end if
-
-select case(aeroindir)
-  case(0)
-    do k = 1,kl
-      do iq = 1,imax 
-        ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-        so4_n = so4mtn * (132.14/32.06) * rhoa(iq,k) * xtgso4(iq,k)
-        ! Factor of 1.3 converts from OC to organic matter (OM) 
-        cphil_n = carbmtn * rhoa(iq,k) * (xtgbc(iq,k)+1.3*xtgoc(iq,k))
-        salt_n = saltsmallmtn*rhoa(iq,k)*xtgsa1(iq,k) + saltlargemtn*rhoa(iq,k)*xtgsa2(iq,k)
-        ! Jones et al., modified to account for hydrophilic carb aerosols as well
-        Atot = max( so4_n + cphil_n + salt_n, 0. )
-        cdn(iq,k) = max( 1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)) )
-      end do  
-    end do
-
-  case(1)
-    ! Use ECHAM SO4 to get cdn_strat.
-    do k = 1,kl
-      do iq = 1,imax
-        so4mk = max( 1.e-5, 3.e9*rhoa(iq,k)*xtgso4(iq,k) ) ! x 3 to convert to ug/m3 SO4
-        cdn(iq,k) = max( 2.e7, 1.62e8*so4mk**0.41 )        !Combined land/ocean.
-      end do  
-    end do
-    
-  case default
-    write(6,*) "ERROR: Invaild aeroindir option ",aeroindir
-    stop
-    
-end select
-
-return
-end subroutine cldrop
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Aerosol scavenging fraction for convective clouds
-
-pure subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
-!$acc routine vector
-
-implicit none
-
-integer ntr, iq, k
-real, dimension(:,:,:), intent(out) :: fscav ! scavenging fraction
-real, dimension(:,:), intent(in) :: xpkp1 ! cloud liquid water after precipitation
-real, dimension(:,:), intent(in) :: xpold ! cloud liquid water before precipitation
-real, dimension(:,:), intent(in) :: tt    ! parcel temperature
-real, dimension(:,:), intent(in) :: xs    ! xtg(:,k,3) = so4
-real, dimension(:,:), intent(in) :: rho   ! air density
-real, dimension(size(fscav,1),size(fscav,2)) :: work
-real f_so2,scav_eff
-real zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
-real zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
-real scav_effs
-logical, dimension(size(fscav,1),size(fscav,2)) :: bwkp1 
-
-! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
-! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
-!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05,0.05,0.05/) ! liquid
-real, parameter, dimension(naero) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,0.3,0.3,0.3,0.3,0.05,0.05/) ! liquid
-!real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/) ! ice
-
-!bwkp1(:) = tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
-bwkp1(:,:) = .true.        ! assume liquid for JLM convection
-
-work(:,:) = min(max(xpold(:,:)-xpkp1(:,:),0.)/max(xpold(:,:),1.E-20),1.)
-
-do ntr = 1,naero
-
-  if ( ntr==itracso2 ) then
-    do k = 1,size(fscav,2)
-      do iq = 1,size(fscav,1)
-        !if ( bwkp1(iq,k) ) then
-          ! CALCULATE THE SOLUBILITY OF SO2
-          ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
-          ZQTP1 = 1./tt(iq,k) - 1./298.
-          ZE2  =1.23*EXP(3020.*ZQTP1)
-          ZE3 = 1.2E-02*EXP(2010.*ZQTP1)
-          ZFAC = 1000./(max(xpold(iq,k),1.E-20)*32.064)
-          ZSO4L = xs(iq,k)*ZFAC
-          ZSO4L = AMAX1(ZSO4L,0.)
-          ZSO2L = xs(iq,k)*ZFAC
-          ZSO2L = AMAX1(ZSO2L,0.)
-          ZZA = ZE2*8.2E-02*tt(iq,k)*max(xpold(iq,k),1.E-20)*rho(iq,k)*1.E-03
-          ZZB = 2.5E-06+ZSO4L
-          ZZP = (ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
-          ZZQ = -ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
-          ZZP = 0.5*ZZP
-          ZZP2 = ZZP*ZZP
-          ZHP = -ZZP + SQRT(max(ZZP2-ZZQ,0.))
-          ZQHP = 1./ZHP
-          ZHENEFF = 1. + ZE3*ZQHP
-          P_SO2 = ZZA*ZHENEFF
-          F_SO2 = P_SO2/(1.+P_SO2)
-          F_SO2 = min(max(0.,F_SO2),1.)
-          scav_eff = f_so2
-        !else
-        !  scav_eff = scav_effi(ntr)
-        !end if
-        ! Wet deposition scavenging fraction
-        fscav(iq,k,ntr) = scav_eff*work(iq,k)
-      end do
-    end do
-  else
-    !where ( bwkp1 )
-      ! Wet deposition scavenging fraction
-      fscav(:,:,ntr) = scav_effl(ntr)*work(:,:)
-    !elsewhere
-    !  fscav(:,:,ntr) = scav_effi(ntr)*work(:,:)
-    !end where
-  end if
-
-  fscav(:,:,ntr) = min( fscav(:,:,ntr), 1. )
-
-end do
-
-return
-end subroutine convscav
 
 end module aerosolldr

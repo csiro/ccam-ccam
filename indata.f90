@@ -49,7 +49,7 @@ contains
 subroutine indataf(lapsbot,isoth,nsig,io_nest)
      
 use aerointerface                                ! Aerosol interface
-use aerosolldr, only : xtg,naero,itracdu         ! LDR prognostic aerosols
+use aerosol_arrays, only : xtg,naero,itracdu     ! Aerosol arrays
 use amipsst_m                                    ! AMIP SSTs
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use ateb, ateb_energytol => energytol            ! Urban

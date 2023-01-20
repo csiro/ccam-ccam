@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -31,11 +31,11 @@ module aerointerface
 implicit none
 
 private
-public load_aerosolldr, aerocalc, aerodrop
+public load_aerosolldr, aerocalc, aerodrop, convscav
 public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppqfsedice, pprscav, pprfreeze
 public opticaldepth, updateoxidant, oxidant_timer
-public aerosol_u10, naerofamilies, aero_split
+public aerosol_u10, naerofamilies, aero_split, aeroindir
 
 integer, save :: ilon, ilat, ilev
 integer, save :: oxidant_timer = -9999
@@ -53,14 +53,19 @@ real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
 
 integer, save :: aero_split  = 0 ! Method of time-split (0 = before mixing, 1 = after mixing)
 integer, save :: aerosol_u10 = 0 ! update for 10m winds (0 = diagnostic, 1 = recalculate)
+integer, save :: aeroindir   = 0 ! Indirect effect (0=SO4+Carbon+salt, 1=SO4, 2=None)
+
+! convective scavenging coefficients
+real, parameter :: ticeu     = 263.16           ! Temperature for freezing in convective updraft
 
 contains
 
 subroutine aerocalc(oxidant_update,mins,aero_update)
 
+use aerosol_arrays                          ! Aerosol arrays
 use aerosolldr                              ! LDR prognostic aerosols
 use arrays_m                                ! Atmosphere dyamics prognostic arrays
-use cc_mpi, only : mydiag                   ! CC MPI routines
+use cc_mpi                                  ! CC MPI routines
 use cc_omp                                  ! CC OpenMP routines
 use cfrac_m                                 ! Cloud fraction
 use cloudmod, only : convectivecloudfrac    ! Prognostic strat cloud
@@ -92,33 +97,26 @@ implicit none
 include 'kuocom.h'                          ! Convection parameters
 
 integer, intent(in) :: mins, aero_update
-integer tile, js, je, idjd_t
 integer k, j, tt, ttx, kinv, smins
 integer iq
+integer tile, js, je, idjd_t
 real, dimension(imax,ilev) :: loxidantnow
-real, dimension(imax,kl,naero) :: lxtg, lxtosav
-real, dimension(imax,kl,4) :: lzoxidant
-real, dimension(imax,kl) :: lt, lqg, lqlg, lqfg, lstratcloud
-real, dimension(imax,kl) :: lppfprec, lppfmelt, lppfsnow, lppfsubl, lpplambs
-real, dimension(imax,kl) :: lppmrate, lppmaccr, lppqfsedice
-real, dimension(imax,kl) :: lpprscav, lpprfreeze, lppfevap
-real, dimension(imax,kl) :: lclcon
-real, dimension(imax,kl) :: dz, rhoa, pccw
-real, dimension(imax,ndust) :: lduste, ldustdd, ldust_burden, ldustwd
-real, dimension(imax,ndcls) :: lerod
-real, dimension(imax,15) :: lemissfield
-real, dimension(imax) :: coszro, wg
+real, dimension(ifull,kl) :: dz, rhoa, pccw
+real, dimension(imax) :: coszro
+real, dimension(ifull) :: wg
 real, dimension(ifull,kl) :: clcon
 real, dimension(ifull) :: taudar, cldcon, u10_l
-real, dimension(imax,kl) :: lrkhsave
+real, dimension(imax,kl,naero) :: lxtg
+real, dimension(imax,kl,4) :: lzoxidant
+real, dimension(imax,kl) :: lrkhsave, lt, lclcon
 real, dimension(imax,kl) :: lat, lct
 real dhr, fjd, r1, dlt, alp, slag
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical, intent(in) :: oxidant_update
 logical mydiag_t
-logical, dimension(imax) :: locean
+logical, dimension(ifull) :: locean
 
-if ( (aero_update==aero_split) ) then
+if ( aero_update==aero_split ) then
   ! update prescribed oxidant fields
   if ( oxidant_update ) then
     !$omp do schedule(static) private(js,je),                       &
@@ -197,111 +195,59 @@ if ( (aero_update==aero_split) ) then
     !$omp end do nowait
   end if
 
-  !$omp do schedule(static) private(js,je,idjd_t,mydiag_t),                                  &
-  !$omp private(k,dz,rhoa,wg,pccw,kinv,lt,lqg,lqlg,lqfg),                                    &
-  !$omp private(lstratcloud,lppfprec,lppfmelt,lppfsnow,lppfsubl,lpplambs,lppmrate,lppmaccr), &
-  !$omp private(lppqfsedice,lpprscav,lpprfreeze,lxtg,lzoxidant,lduste,ldustdd),              &
-  !$omp private(lxtosav,ldust_burden,lerod,ldustwd,lemissfield,lclcon,locean,lppfevap)
+  !$omp do schedule(static) private(js,je,k,kinv)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-  
-    idjd_t = mod(idjd-1,imax)+1
-    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag 
 
-    lzoxidant(:,:,1:4) = zoxidant_g(js:je,:,1:4)
-    lxtg               = xtg(js:je,:,:)
-    lxtosav            = xtosav(js:je,:,:)
-    lduste             = duste(js:je,:)
-    ldustdd            = dustdd(js:je,:)
-    ldustwd            = dustwd(js:je,:)
-    ldust_burden       = dust_burden(js:je,:)
-    lemissfield        = emissfield(js:je,:)
-    lerod              = erod(js:je,:)
-    lt                 = t(js:je,:)
-    lqg                = qg(js:je,:)
-    lqlg               = qlg(js:je,:)
-    lqfg               = qfg(js:je,:)
-    lstratcloud        = stratcloud(js:je,:)
-    lppfprec           = ppfprec(js:je,:)
-    lppfmelt           = ppfmelt(js:je,:)
-    lppfsnow           = ppfsnow(js:je,:)
-    lppfsubl           = ppfsubl(js:je,:)
-    lpplambs           = pplambs(js:je,:)
-    lppmrate           = ppmrate(js:je,:)
-    lppmaccr           = ppmaccr(js:je,:)
-    lppqfsedice        = ppqfsedice(js:je,:)
-    lpprscav           = pprscav(js:je,:)
-    lpprfreeze         = pprfreeze(js:je,:)
-    lppfevap           = ppfevap(js:je,:)
-    lclcon             = clcon(js:je,:)
-
-    !zg(:,1) = bet(1)*lt(:,1)/grav
-    !do k = 2,kl
-    !  zg(:,k) = zg(:,k-1) + (bet(k)*lt(:,k)+betm(k)*lt(:,k-1))/grav ! height above surface in meters
-    !end do
     do k = 1,kl
-      dz(:,k) = -rdry*dsig(k)*lt(:,k)/(grav*sig(k))
-      dz(:,k) = min( max( dz(:,k), 1. ), 2.e4 )
-      rhoa(:,k) = ps(js:je)*sig(k)/(rdry*lt(:,k)) ! density of air (kg/m**3)
+      dz(js:je,k) = -rdry*dsig(k)*t(js:je,k)/(grav*sig(k))
+      dz(js:je,k) = min( max( dz(js:je,k), 1. ), 2.e4 )
+      rhoa(js:je,k) = ps(js:je)*sig(k)/(rdry*t(js:je,k)) ! density of air (kg/m**3)
     end do
 
-    pccw(:,:) = 0.
+    pccw(js:je,:) = 0.
     do k = 1,kl
       kinv = kl + 1 - k  
       ! MJT notes - Assume rain for JLM convection
       !where ( k>kbsav(js:je) .and. k<=ktsav(js:je) .and. lt(:,k)>ticeu )
-      !  pccw(:,kl+1-k) = 0.
+      !  pccw(js:je,kl+1-k) = 0.
       where ( k>kbsav(js:je) .and. k<=ktsav(js:je) )
-        pccw(:,kinv) = wlc/rhoa(:,k)
+        pccw(js:je,kinv) = wlc/rhoa(js:je,k)
       end where
     end do
 
     ! Water converage at surface
-    wg(:) = min( max( wetfac(js:je), 0. ), 1. )
+    wg(js:je) = min( max( wetfac(js:je), 0. ), 1. )
   
-    locean = isoilm_in(js:je) == 0 ! excludes lakes
-  
-    ! update prognostic aerosols
-    call aldrcalc(dt,sig,dz,wg,pblh(js:je),ps(js:je),tss(js:je),         &
-                  lt,condc(js:je),snowd(js:je),taudar(js:je),fg(js:je),  &
-                  eg(js:je),u10_l(js:je),ustar(js:je),zo(js:je),         &
-                  land(js:je),fracice(js:je),sigmf(js:je),lqg,lqlg,lqfg, &
-                  lstratcloud,lclcon,cldcon(js:je),pccw,rhoa,            &
-                  cdtq(js:je),lppfprec,lppfmelt,lppfsnow,                &
-                  lppfsubl,lpplambs,lppmrate,lppmaccr,                   &
-                  lppqfsedice,lpprscav,lpprfreeze,lppfevap,              &
-                  zdayfac(js:je),kbsav(js:je),lxtg,lduste,ldustdd,       &
-                  lxtosav,dmsso2o(js:je),so2so4o(js:je),                 &
-                  ldust_burden,bc_burden(js:je),oc_burden(js:je),        &
-                  dms_burden(js:je),so2_burden(js:je),so4_burden(js:je), &
-                  lerod,lzoxidant,so2wd(js:je),so4wd(js:je),             &
-                  bcwd(js:je),ocwd(js:je),ldustwd,lemissfield,           &
-                  vso2(js:je),dmse(js:je),so2e(js:je),so4e(js:je),       &
-                  bce(js:je),oce(js:je),so2dd(js:je),so4dd(js:je),       &
-                  bcdd(js:je),ocdd(js:je),salte(js:je),saltdd(js:je),    &
-                  saltwd(js:je),salt_burden(js:je),dustden,dustreff,     &
-                  saltden,saltreff,locean,imax,kl)
+    locean(js:je) = isoilm_in(js:je) == 0 ! excludes lakes
 
-    ! MJT notes - passing dustden, dustreff, saltden and saltref due to issues with pgi compiler
-  
-    ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
-    ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
-    so4t(js:je) = 0.
-    do k = 1,kl
-      so4t(js:je) = so4t(js:je) + 3.e3*lxtg(:,k,3)*rhoa(:,k)*dz(:,k)
-    end do
-   
-    xtg(js:je,:,:)       = lxtg
-    duste(js:je,:)       = lduste
-    dustdd(js:je,:)      = ldustdd
-    dustwd(js:je,:)      = ldustwd
-    dust_burden(js:je,:) = ldust_burden
-    
   end do
   !$omp end do nowait
+  
+  ! update prognostic aerosols
+  call aldrcalc(dt,sig,dz,wg,pblh,ps,tss,t,condc,snowd,taudar,fg,      &
+                eg,u10_l,ustar,zo,land,fracice,sigmf,qg,qlg,qfg,       &
+                stratcloud,clcon,cldcon,pccw,rhoa,cdtq,ppfprec,        &
+                ppfmelt,ppfsnow,ppfsubl,pplambs,ppmrate,ppmaccr,       &
+                ppqfsedice,pprscav,pprfreeze,ppfevap,zdayfac,kbsav,    &
+                locean)
+  
+  ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
+  ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
+  !$omp do schedule(static) private(js,je,k)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
 
-end if
+    so4t(js:je) = 0.
+    do k = 1,kl
+      so4t(js:je) = so4t(js:je) + 3.e3*xtg(js:je,k,3)*rhoa(js:je,k)*dz(js:je,k)
+    end do
+  end do
+  !$omp end do nowait     
+
+end if ! aero_update==aero_split
      
 if ( aero_update==1 ) then     
 
@@ -311,7 +257,8 @@ if ( aero_update==1 ) then
   !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
   !$omp private(lxtg,lrkhsave,rong,rlogs1,rlogs2),    &
   !$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
-#else
+#endif
+#ifdef GPUPHYSICS
   !$acc parallel loop copy(xtg) copyin(t,rkhsave)    &
   !$acc   copyin(ratha,rathb)                        &
   !$acc   present(sig,sigmh,dsig)                    &
@@ -361,7 +308,8 @@ if ( aero_update==1 ) then
   end do ! tile = 1,ntiles
 #ifndef GPU
   !$omp end do nowait
-#else
+#endif
+#ifdef GPUPHYSICS
   !$acc end parallel loop
 #endif
 
@@ -457,7 +405,7 @@ end subroutine aerodrop
 ! Load aerosols emissions from netcdf
 subroutine load_aerosolldr(aerofile, oxidantfile, kdatein)
       
-use aerosolldr          ! LDR prognostic aerosols
+use aerosol_arrays      ! Aerosol arrays
 use cc_mpi              ! CC MPI routines
 use cc_omp              ! CC OpenMP routines
 use infile              ! Input file routines
@@ -806,4 +754,163 @@ end if
 return
 end subroutine load_aerosolldr    
     
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! cloud droplet concentration
+
+subroutine cldrop(istart,cdn,rhoa,convmode)
+
+use aerosol_arrays, only : xtg, xtosav, itracso4, itracbc, itracoc, &
+  itracsa
+use aerosolldr, only : so4mtn, carbmtn, saltsmallmtn, saltlargemtn
+
+implicit none
+
+integer, intent(in) :: istart
+integer k,is,ie,imax,kl,iq
+real, dimension(:,:), intent(in) :: rhoa
+real, dimension(:,:), intent(out) :: cdn
+real, dimension(size(cdn,1),size(cdn,2)) :: xtgso4,xtgbc,xtgoc,xtgsa1,xtgsa2
+real so4_n,cphil_n,salt_n,Atot
+real so4mk
+logical, intent(in) :: convmode
+
+imax = size(cdn,1)
+kl = size(cdn,2)
+
+is = istart
+ie = istart + imax - 1
+
+if ( convmode ) then
+  ! total grid-box
+  xtgso4 = xtg(is:ie,:,itracso4)
+  xtgbc  = xtg(is:ie,:,itracbc+1)
+  xtgoc  = xtg(is:ie,:,itracoc+1)
+  xtgsa1 = xtg(is:ie,:,itracsa)
+  xtgsa2 = xtg(is:ie,:,itracsa+1)
+else
+  ! outside convective fraction of grid-box
+  xtgso4 = xtosav(is:ie,:,itracso4)
+  xtgbc  = xtosav(is:ie,:,itracbc+1)
+  xtgoc  = xtosav(is:ie,:,itracoc+1)
+  xtgsa1 = xtosav(is:ie,:,itracsa)
+  xtgsa2 = xtosav(is:ie,:,itracsa+1)
+end if
+
+select case(aeroindir)
+  case(0)
+    do k = 1,kl
+      do iq = 1,imax 
+        ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
+        so4_n = so4mtn * (132.14/32.06) * rhoa(iq,k) * xtgso4(iq,k)
+        ! Factor of 1.3 converts from OC to organic matter (OM) 
+        cphil_n = carbmtn * rhoa(iq,k) * (xtgbc(iq,k)+1.3*xtgoc(iq,k))
+        salt_n = saltsmallmtn*rhoa(iq,k)*xtgsa1(iq,k) + saltlargemtn*rhoa(iq,k)*xtgsa2(iq,k)
+        ! Jones et al., modified to account for hydrophilic carb aerosols as well
+        Atot = max( so4_n + cphil_n + salt_n, 0. )
+        cdn(iq,k) = max( 1.e7, 3.75e8*(1.-exp(-2.5e-9*Atot)) )
+      end do  
+    end do
+
+  case(1)
+    ! Use ECHAM SO4 to get cdn_strat.
+    do k = 1,kl
+      do iq = 1,imax
+        so4mk = max( 1.e-5, 3.e9*rhoa(iq,k)*xtgso4(iq,k) ) ! x 3 to convert to ug/m3 SO4
+        cdn(iq,k) = max( 2.e7, 1.62e8*so4mk**0.41 )        !Combined land/ocean.
+      end do  
+    end do
+    
+  case default
+    write(6,*) "ERROR: Invaild aeroindir option ",aeroindir
+    stop
+    
+end select
+
+return
+end subroutine cldrop
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Aerosol scavenging fraction for convective clouds
+
+subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
+!$acc routine vector
+
+use aerosol_arrays, only : naero
+
+implicit none
+
+integer ntr, iq, k
+real, dimension(:,:,:), intent(out) :: fscav ! scavenging fraction
+real, dimension(:,:), intent(in) :: xpkp1 ! cloud liquid water after precipitation
+real, dimension(:,:), intent(in) :: xpold ! cloud liquid water before precipitation
+real, dimension(:,:), intent(in) :: tt    ! parcel temperature
+real, dimension(:,:), intent(in) :: xs    ! xtg(:,k,3) = so4
+real, dimension(:,:), intent(in) :: rho   ! air density
+real, dimension(size(fscav,1),size(fscav,2)) :: work
+real f_so2,scav_eff
+real zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
+real zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
+real scav_effs
+logical, dimension(size(fscav,1),size(fscav,2)) :: bwkp1 
+
+! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
+! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
+!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05,0.05,0.05/) ! liquid
+real, parameter, dimension(naero) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,0.3,0.3,0.3,0.3,0.05,0.05/) ! liquid
+!real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/) ! ice
+
+!bwkp1(:) = tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
+bwkp1(:,:) = .true.        ! assume liquid for JLM convection
+
+work(:,:) = min(max(xpold(:,:)-xpkp1(:,:),0.)/max(xpold(:,:),1.E-20),1.)
+
+ntr = 1
+do k = 1,size(fscav,2)
+  do iq = 1,size(fscav,1)
+    !if ( bwkp1(iq,k) ) then
+      ! CALCULATE THE SOLUBILITY OF SO2
+      ! TOTAL SULFATE  IS ONLY USED TO CALCULATE THE PH OF CLOUD WATER
+      ZQTP1 = 1./tt(iq,k) - 1./298.
+      ZE2  =1.23*EXP(3020.*ZQTP1)
+      ZE3 = 1.2E-02*EXP(2010.*ZQTP1)
+      ZFAC = 1000./(max(xpold(iq,k),1.E-20)*32.064)
+      ZSO4L = xs(iq,k)*ZFAC
+      ZSO4L = AMAX1(ZSO4L,0.)
+      ZSO2L = xs(iq,k)*ZFAC
+      ZSO2L = AMAX1(ZSO2L,0.)
+      ZZA = ZE2*8.2E-02*tt(iq,k)*max(xpold(iq,k),1.E-20)*rho(iq,k)*1.E-03
+      ZZB = 2.5E-06+ZSO4L
+      ZZP = (ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
+      ZZQ = -ZZA*ZE3*(ZZB+ZSO2L)/(1.+ZZA)
+      ZZP = 0.5*ZZP
+      ZZP2 = ZZP*ZZP
+      ZHP = -ZZP + SQRT(max(ZZP2-ZZQ,0.))
+      ZQHP = 1./ZHP
+      ZHENEFF = 1. + ZE3*ZQHP
+      P_SO2 = ZZA*ZHENEFF
+      F_SO2 = P_SO2/(1.+P_SO2)
+      F_SO2 = min(max(0.,F_SO2),1.)
+      scav_eff = f_so2
+    !else
+    !  scav_eff = scav_effi(ntr)
+    !end if
+    ! Wet deposition scavenging fraction
+    fscav(iq,k,ntr) = scav_eff*work(iq,k)
+  end do
+end do
+fscav(:,:,ntr) = min( fscav(:,:,ntr), 1. )
+
+do ntr = 2,naero
+  !where ( bwkp1 )
+    ! Wet deposition scavenging fraction
+    fscav(:,:,ntr) = scav_effl(ntr)*work(:,:)
+  !elsewhere
+  !  fscav(:,:,ntr) = scav_effi(ntr)*work(:,:)
+  !end where
+  fscav(:,:,ntr) = min( fscav(:,:,ntr), 1. )
+end do
+
+return
+end subroutine convscav
+
 end module aerointerface

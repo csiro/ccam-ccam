@@ -69,7 +69,10 @@ real, parameter :: WTMAIR           = 2.896440E+01
 
 public    &
          esfsw_driver_init, swresf,   &
-         esfsw_driver_end
+         esfsw_driver_end,            &
+         do_quench, reproduce_ulm,    &
+         do_sw_continuum,             &
+         remain_rayleigh_bug
 
 private     &
 !   called from swresf:
@@ -93,12 +96,26 @@ logical, save ::  do_quench = .false.             ! include the quenching
                                                   ! effect of non-LTE 
                                                   ! processes on the co2 
                                                   ! optical depth ?
+logical, save ::  do_h2o_sw_effects = .true.      ! the shortwave effects
+                                                  ! of h2o are included ?
+logical, save ::  do_o3_sw_effects =  .true.      ! the shortwave effects
+                                                  ! of o3 are included ?
+logical, save ::  do_co2_sw_effects = .true.      ! the shortwave effects
+                                                  ! of co2 are included ?                                         
+logical, save ::  do_o2_sw_effects = .true.       ! the shortwave effects
+                                                  ! of o2 are included ?
 logical, save ::  do_ch4_sw_effects = .true.      ! the shortwave effects
                                                   ! of ch4 are included ?
 logical, save ::  do_n2o_sw_effects = .true.      ! the shortwave effects
                                                   ! of n2o are included ?
-!logical, save ::  do_coupled_stratozone = .false. ! include the coupled
-!                                                  ! stratospheric ozone effects?
+logical, save ::  do_sw_continuum =  .false.      ! include the shortwave
+                                                  ! continuum?
+logical, save ::  do_rayleigh     = .true.        ! is rayleigh scattering
+                                                  ! turned on?
+logical, save ::  reproduce_ulm   = .true.        ! reproduce ulm code
+logical, save ::  do_four_stream  = .false.       !
+                           
+logical, save ::  remain_rayleigh_bug   = .true.
 !---------------------------------------------------------------------
 !------- public data ------
 
@@ -137,21 +154,27 @@ logical, save ::  do_n2o_sw_effects = .true.      ! the shortwave effects
 !                absorption coefficient is assigned a non-scaled        
 !                (true) or pressure-scaled (false) gas amount           
 !---------------------------------------------------------------------
-real, dimension (:), allocatable, save :: c1co2, c1co2str, c1o2, c1o2str, &
-                                          c2co2, c2co2str, c2o2, c2o2str, &
-                                          c3co2, c3co2str, c3o2, c3o2str, &
-                                          c4co2, c4co2str, c4o2, c4o2str, &
-                                          c1ch4, c1ch4str, c2ch4,         &
-                                          c2ch4str, c3ch4, c3ch4str,      &
-                                          c4ch4, c4ch4str,                &
-                                          c1n2o, c1n2ostr, c2n2o,         &
-                                          c2n2ostr, c3n2o, c3n2ostr,      &
-                                          c4n2o, c4n2ostr,                &
-                                          powph2o, p0h2o
-real, save                             :: c1o2strschrun, c2o2strschrun,   &
-                                          c3o2strschrun, c4o2strschrun
-real, dimension (:), allocatable, save    :: kh2o, ko3, wtfreq
-logical, dimension(:), allocatable, save  :: strterm
+real, dimension (:), allocatable, save     :: c1co2, c1co2str, c1o2, c1o2str, &
+                                              c2co2, c2co2str, c2o2, c2o2str, &
+                                              c3co2, c3co2str, c3o2, c3o2str, &
+                                              c4co2, c4co2str, c4o2, c4o2str, &
+                                              c1ch4, c1ch4str, c2ch4,         &
+                                              c2ch4str, c3ch4, c3ch4str,      &
+                                              c4ch4, c4ch4str,                &
+                                              c1n2o, c1n2ostr, c2n2o,         &
+                                              c2n2ostr, c3n2o, c3n2ostr,      &
+                                              c4n2o, c4n2ostr,                &
+                                              powph2o, p0h2o
+real, save                                 :: c1o2strschrun, c2o2strschrun,   &
+                                              c3o2strschrun, c4o2strschrun
+real, dimension (:), allocatable, save     :: kh2o, ko3, wtfreq
+logical, dimension(:), allocatable, save   :: strterm
+
+real, dimension (:), allocatable, save     :: kctms, kctmf
+real, dimension (:), allocatable, save     :: powpco2, p0co2
+real, dimension (:,:), allocatable, save   :: kco2, wtfreqco2
+integer, dimension (:), allocatable, save  :: nfreqptsco2
+logical, dimension(:,:), allocatable, save :: strtermco2
 
 !---------------------------------------------------------------------
 !    quantities associated with solar spectral parameterization
@@ -2273,12 +2296,18 @@ subroutine esfsw_driver_init
 !           betaddensitymol is the quantity which multiples the       
 !           molecular density to yield the rayleigh scattering      
 !           coefficient.                                           
-!           1.39E-02 is the depolorization factor.              
+!           2.79E-02 is the depolorization factor.          
 !-----------------------------------------------------------------
       refquanray = densmolref * temprefray / pressrefray 
-      corrfac = ( 6.0E+00 + 3.0E+00 * 1.39E-02 )/( 6.0E+00 - 7.0E+00 * &
-                  1.39E-02 )
-      gamma = 1.39E-02 / ( 2.0E+00 - 1.39E-02 )
+      if ( remain_rayleigh_bug ) then
+        corrfac = ( 6.0E+00 + 3.0E+00 * 1.39E-02 )/( 6.0E+00 - 7.0E+00 * &
+                    1.39E-02 )
+        gamma = 1.39E-02 / ( 2.0E+00 - 1.39E-02 )
+      else
+        corrfac = ( 6.0E+00 + 3.0E+00 * 2.79E-02 )/( 6.0E+00 - 7.0E+00 * &
+                    2.79E-02 )
+        gamma = 2.79E-02 / ( 2.0E+00 - 2.79E-02 )
+      end if    
       f1 = 7.5E-01 / ( gamma * 2.0E+00 + 1.0E+00 )
       f2 = gamma * 3.0E+00 + 1.0E+00 
       f3 = 1.0E+00 - gamma 

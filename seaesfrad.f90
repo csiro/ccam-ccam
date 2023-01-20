@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -34,7 +34,8 @@ use rad_utilities_mod, only : atmos_input_type,surface_type,astronomy_type,aeros
                               microrad_properties_type,lw_diagnostics_type,lw_table_type,          &
                               Sw_control,Lw_control, Rad_control,Cldrad_control,Lw_parameters,     &
                               thickavg,lw_clouds_type,optical_path_type,gas_tf_type
-use esfsw_driver_mod, only : swresf,esfsw_driver_init
+use esfsw_driver_mod, only : swresf,esfsw_driver_init,do_quench,reproduce_ulm,do_sw_continuum,     &
+                             remain_rayleigh_bug
 use sealw99_mod, only : sealw99,sealw99_init,sealw99_time_vary,linecatalog_form,continuum_form
 use esfsw_parameters_mod, only : Solar_spect,esfsw_parameters_init,sw_resolution,sw_diff_streams
 use microphys_rad_mod, only : microphys_rad_init,microphys_sw_driver,microphys_lw_driver,          &
@@ -45,6 +46,7 @@ public seaesfrad_settime, seaesfrad, seaesfrad_init, sw_resolution, sw_diff_stre
 public carbonradmethod, so4radmethod, dustradmethod, seasaltradmethod, lwem_form
 public csolar, linecatalog_form, continuum_form, do_co2_10um
 public seaice_albvis, seaice_albnir
+public do_quench, reproduce_ulm, do_sw_continuum, remain_rayleigh_bug
 
 real, save      :: csolar   = 1365.            ! Solar constant in W/m^2
 real, parameter :: ratco2mw = 1.519449738      ! conversion factor for CO2 diagnostic
@@ -135,7 +137,7 @@ end subroutine seaesfrad_settime
 subroutine seaesfrad(koundiag)
 
 use aerointerface                                   ! Aerosol interface
-use aerosolldr                                      ! LDR prognostic aerosols
+use aerosol_arrays                                  ! Aerosol arrays
 use arrays_m                                        ! Atmosphere dyamics prognostic arrays
 use ateb, only : atebccangle,atebalb1,atebfbeam     ! Urban
 use cc_mpi                                          ! CC MPI routines
@@ -183,6 +185,7 @@ real dhr, cosz, delta
 
 real(kind=8), dimension(1,1,1,1) :: r
 
+#ifndef GPU
 if ( diag .and. mydiag ) then
   diag_temp(:) = t(idjd,:)
   write(6,*) "tdiag ",diag_temp
@@ -217,6 +220,7 @@ if ( diag .and. mydiag ) then
     write(6,*) "saltjetdiag  ",diag_temp
   end if
 end if
+#endif
 
 
 ! main loop ---------------------------------------------------------
@@ -229,7 +233,11 @@ do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
   
+!#ifndef GPU  
   call ccomp_mythread(mythread)
+!#else
+!  mythread = iq_tile/imax
+!#endif
   
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.
@@ -940,13 +948,14 @@ do iq_tile = 1,ifull,imax
 end do  ! iq_tile = 1,ifull,imax
 !$omp end do nowait
 
-
+#ifndef GPU
 if ( diag .and. mydiag ) then
   diag_temp(:) = t(idjd,:)
   write(6,*) "tdiag ",diag_temp
   diag_temp(:) = qg(idjd,:)
   write(6,*) "qgdiag ",diag_temp
 end if
+#endif
 
 return
 end subroutine seaesfrad
@@ -1217,7 +1226,7 @@ implicit none
 
 include 'kuocom.h'
 
-integer k, kr, mythread
+integer k, kr, mythread, mxt
 integer jyear, jmonth, jday, jhour, jmin, mins
 real f1, f2, r1, fjd, dlt, alp, slag
 
@@ -1338,24 +1347,30 @@ call microphys_rad_init
 
 deallocate( pref )
   
-allocate( Atmos_input(0:maxthreads-1) )
-allocate( Rad_gases(0:maxthreads-1) )
-allocate( Cloud_microphysics(0:maxthreads-1) )
-allocate( Cldrad_props(0:maxthreads-1) )
-allocate( Lscrad_props(0:maxthreads-1) )
-allocate( Cld_spec(0:maxthreads-1) )
-allocate( Surface(0:maxthreads-1) )
-allocate( Astro(0:maxthreads-1) )
-allocate( Lw_output(0:maxthreads-1) )
-allocate( Sw_output(0:maxthreads-1) )
-allocate( Aerosol(0:maxthreads-1) )
-allocate( Aerosol_diags(0:maxthreads-1) )
-allocate( Lw_diagnostics(0:maxthreads-1) ) ! working arrays
-allocate( Lw_clouds(0:maxthreads-1) )      ! working arrays
-allocate( Optical(0:maxthreads-1) )        ! working arrays
-allocate( Gas_tf(0:maxthreads-1) )         ! working arrays
+!#ifndef GPU
+mxt = maxthreads
+!#else
+!mxt = ntiles
+!#endif
 
-do mythread = 0,maxthreads-1
+allocate( Atmos_input(0:mxt-1) )
+allocate( Rad_gases(0:mxt-1) )
+allocate( Cloud_microphysics(0:mxt-1) )
+allocate( Cldrad_props(0:mxt-1) )
+allocate( Lscrad_props(0:mxt-1) )
+allocate( Cld_spec(0:mxt-1) )
+allocate( Surface(0:mxt-1) )
+allocate( Astro(0:mxt-1) )
+allocate( Lw_output(0:mxt-1) )
+allocate( Sw_output(0:mxt-1) )
+allocate( Aerosol(0:mxt-1) )
+allocate( Aerosol_diags(0:mxt-1) )
+allocate( Lw_diagnostics(0:mxt-1) ) ! working arrays
+allocate( Lw_clouds(0:mxt-1) )      ! working arrays
+allocate( Optical(0:mxt-1) )        ! working arrays
+allocate( Gas_tf(0:mxt-1) )         ! working arrays
+
+do mythread = 0,mxt-1
 
   allocate ( Atmos_input(mythread)%press(imax, 1, kl+1) )
   allocate ( Atmos_input(mythread)%phalf(imax, 1, kl+1) )
@@ -1481,7 +1496,7 @@ do mythread = 0,maxthreads-1
     call sealw99_time_vary(Rad_time, Rad_gases(mythread)) ! sets values in gas_tf.f90
   end if    
   
-end do ! mythread = 0,maxthreads-1
+end do ! mythread = 0,mxt-1
   
 if ( do_aerosol_forcing ) then
   !if ( Rad_control%using_im_bcsul ) then
@@ -1730,7 +1745,7 @@ end subroutine seaesfrad_init
 
 subroutine loadaerooptical(Aerosol_props)
 
-use aerosolldr
+use aerosolldr, only : dustreff
 use cc_mpi
 use filnames_m
 use infile
