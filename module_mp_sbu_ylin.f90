@@ -1773,9 +1773,203 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
             end if
             end if
 
+!
+!***********************************************************************
+!**********              saturation adjustment                **********
+!***********************************************************************
+!
+!    allow supersaturation exits linearly from 0% at 500 mb to 50%
+!    above 300 mb
+!    5.0e-5=1.0/(500mb-300mb)
+!
+        rsat=1.0
+        if( qvz2D(iq,k)+qlz2D(iq,k)+qiz2D(iq,k) .lt. rsat*qvsbar2D(iq,k) ) then ! goto 1800
+
+!c
+!c   unsaturated
+!c
+            qvz2D(iq,k)=qvz2D(iq,k)+qlz2D(iq,k)+qiz2D(iq,k)
+            qlz2D(iq,k)=0.0
+            qiz2D(iq,k)=0.0
+
+            thz2D(iq,k)=theiz2D(iq,k)-(xLvocp*qvz2D(iq,k)-xLfocp*qiz2D(iq,k))/tothz2D(iq,k)
+
+            tem2D(iq,k)=thz2D(iq,k)*tothz2D(iq,k)
+            temcc2D(iq,k)=tem2D(iq,k)-273.15
+
+        else
+!c
+!c   saturated
+!c
+            pladj2D(iq,k)=qlz2D(iq,k)
+            piadj2D(iq,k)=qiz2D(iq,k)
+!
+
+            CALL satadj(qvz2D(iq,:), qlz2D(iq,:), qiz2D(iq,:), prez2D(iq,:), &
+                      theiz2D(iq,:), thz2D(iq,:), tothz2D(iq,:), kts, kte, &
+                        k, xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
+
+!
+            pladj2D(iq,k)=odtb*(qlz2D(iq,k)-pladj2D(iq,k))
+            piadj2D(iq,k)=odtb*(qiz2D(iq,k)-piadj2D(iq,k))
+!
+            pclw2D(iq,k)=pclw2D(iq,k)+pladj2D(iq,k)
+            pcli2D(iq,k)=pcli2D(iq,k)+piadj2D(iq,k)
+            pvapor2D(iq,k)=pvapor2D(iq,k)-( pladj2D(iq,k)+piadj2D(iq,k) )
+!
+            thz2D(iq,k)=theiz2D(iq,k)-(xLvocp*qvz2D(iq,k)-xLfocp*qiz2D(iq,k))/tothz2D(iq,k)
+
+            tem2D(iq,k)=thz2D(iq,k)*tothz2D(iq,k)
+
+            temcc2D(iq,k)=tem2D(iq,k)-273.15
+
+            es=1000.*svp1*exp( svp2*temcc2D(iq,k)/(tem2D(iq,k)-svp3) )
+            qswz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
+            if (tem2D(iq,k) .lt. 273.15 ) then
+                es=1000.*svp1*exp( 21.8745584*(tem2D(iq,k)-273.16)/(tem2D(iq,k)-7.66) )
+                qsiz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
+                if (temcc2D(iq,k) .lt. -40.0) qswz2D(iq,k)=qsiz2D(iq,k)
+            else
+                qsiz2D(iq,k)=qswz2D(iq,k)
+            endif
+            qlpqi=qlz2D(iq,k)+qiz2D(iq,k)
+            if ( qlpqi .eq. 0.0 ) then
+                qvsbar2D(iq,k)=qsiz2D(iq,k)
+            else
+                qvsbar2D(iq,k)=( qiz2D(iq,k)*qsiz2D(iq,k)+qlz2D(iq,k)*qswz2D(iq,k) )/qlpqi
+            endif
+
+!
+!***********************************************************************
+!*****     melting and freezing of cloud ice and cloud water       *****
+!***********************************************************************
+        qlpqi=qlz2D(iq,k)+qiz2D(iq,k)
+        if( qlpqi .gt. 0.0 ) then !go to 1800
+!
+!c
+!c (1)  HOMOGENEOUS NUCLEATION WHEN T< -40 C (Pihom)
+!c
+        if(temcc2D(iq,k) .lt. -40.0) then
+          pihom2D(iq,k)=qlz2D(iq,k)*odtb
+          nihom2D(iq,k)=ncz2D(iq,k)*odtb
+        end if
+!c
+!c (2)  MELTING OF ICE CRYSTAL WHEN T> 0 C (Pimlt)
+!c
+        if(temcc2D(iq,k) .gt. 0.0) then
+          pimlt2D(iq,k)=qiz2D(iq,k)*odtb
+          nimlt2D(iq,k)=niz2D(iq,k)*odtb
+        end if
+!c
+!c (3) PRODUCTION OF CLOUD ICE BY BERGERON PROCESS (Pidw): Hsie (p957)
+!c     this process only considered when -31 C < T < 0 C
+!c
+        if(temcc2D(iq,k) .lt. 0.0 .and. temcc2D(iq,k) .gt. -31.0) then
+!c!
+!c!   parama1 and parama2 functions must be user supplied
+!c!
+            a1=parama1( temcc2D(iq,k) )
+            a2=parama2( temcc2D(iq,k) )
+!! change unit from cgs to mks
+            a1=a1*0.001**(1.0-a2)
+            xnin=xni0*exp(-bni*temcc2D(iq,k))
+            pidw2D(iq,k)=xnin*orho2D(iq,k)*(a1*xmnin**a2)
+        end if
+!
+        pcli2D(iq,k)=pcli2D(iq,k)+pihom2D(iq,k)-pimlt2D(iq,k)+pidw2D(iq,k)
+        pclw2D(iq,k)=pclw2D(iq,k)-pihom2D(iq,k)+pimlt2D(iq,k)-pidw2D(iq,k)
+        qlz2D(iq,k)=amax1( 0.0,qlz2D(iq,k)+dtb*(-pihom2D(iq,k)+pimlt2D(iq,k)-pidw2D(iq,k)) )
+        qiz2D(iq,k)=amax1( 0.0,qiz2D(iq,k)+dtb*(pihom2D(iq,k)-pimlt2D(iq,k)+pidw2D(iq,k)) )
+
+        ncz2D(iq,k)=amax1( 0.0,ncz2D(iq,k)+dtb*(-nihom2D(iq,k)+nimlt2D(iq,k)) )
+        niz2D(iq,k)=amax1( 0.0,niz2D(iq,k)+dtb*( nihom2D(iq,k)-nimlt2D(iq,k)) )
+!
+        CALL satadj(qvz2D(iq,:), qlz2D(iq,:), qiz2D(iq,:), prez2D(iq,:), &
+                    theiz2D(iq,:), thz2D(iq,:), tothz2D(iq,:), kts, kte, &
+                    k, xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
+
+        thz2D(iq,k)=theiz2D(iq,k)-(xLvocp*qvz2D(iq,k)-xLfocp*qiz2D(iq,k))/tothz2D(iq,k)
+
+
+        tem2D(iq,k)=thz2D(iq,k)*tothz2D(iq,k)
+
+        temcc2D(iq,k)=tem2D(iq,k)-273.15
+
+        es=1000.*svp1*exp( svp2*temcc2D(iq,k)/(tem2D(iq,k)-svp3) )
+        qswz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
+
+        if (tem2D(iq,k) .lt. 273.15 ) then
+           es=1000.*svp1*exp( 21.8745584*(tem2D(iq,k)-273.16)/(tem2D(iq,k)-7.66) )
+           qsiz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
+           if (temcc2D(iq,k) .lt. -40.0) qswz2D(iq,k)=qsiz2D(iq,k)
+        else
+           qsiz2D(iq,k)=qswz2D(iq,k)
+        endif
+        qlpqi=qlz2D(iq,k)+qiz2D(iq,k)
+
+        if ( qlpqi .eq. 0.0 ) then
+           qvsbar2D(iq,k)=qsiz2D(iq,k)
+        else
+           qvsbar2D(iq,k)=( qiz2D(iq,k)*qsiz2D(iq,k)+qlz2D(iq,k)*qswz2D(iq,k) )/qlpqi
+        endif
+
+      end if ! 1800  continue
+      end if ! 1800  continue
+!
+!***********************************************************************
+!**********    integrate the productions of rain and snow     **********
+!***********************************************************************
+!
+
        end if
      end do     ! iq
    ENDDO        ! k
+
+
+        do k=kts+1,kte
+            where ( qvz2D(1:imax,k) .lt. qvmin ) 
+                qlz2D(1:imax,k)=0.0
+                qiz2D(1:imax,k)=0.0
+                ncz2D(1:imax,k)=0.0
+                niz2D(1:imax,k)=0.0
+                qvz2D(1:imax,k)=amax1( qvmin,qvz2D(1:imax,k)+qlz2D(1:imax,k)+qiz2D(1:imax,k) )
+            end where
+            niz2D(1:imax,k) = min(niz2D(1:imax,k),0.3E6/rho2D(1:imax,k))
+            ncz2D(1:imax,k) = min(ncz2D(1:imax,k),250000.E6/rho2D(1:imax,k))
+            ncz2D(1:imax,k) = max(ncz2D(1:imax,k),0.01E6/rho2D(1:imax,k))
+        enddo
+
+
+! CALCULATE EFFECTIVE RADIUS zdc 20220208
+
+    DO K=KTS,KTE
+      where (qiz2D(1:imax,k) .gt. 1.0e-8 .and. lami2D(1:imax,k)>0. ) 
+         EFFI1D2D(1:imax,k) = 3./LAMI2D(1:imax,k)/2.
+      elsewhere
+         EFFI1D2D(1:imax,k) = 25.E-6
+      end where
+
+      where (qsz2D(1:imax,k) .gt. 1.0e-8) 
+         EFFS1D2D(1:imax,k) = 3./xlambdas2D(1:imax,k)/2.
+      elsewhere
+         EFFS1D2D(1:imax,k) = 25.E-6
+      end where
+
+      where (qrz2D(1:imax,k) .gt. 1.0e-8) 
+         EFFR1D2D(1:imax,k) = 3./xlambdar2D(1:imax,k)/2.
+      elsewhere
+         EFFR1D2D(1:imax,k) = 25.E-6
+      end where
+
+      where (qlz2D(1:imax,k) .gt. 1.0e-8 .and. lamc2D(1:imax,k) >0.)
+         EFFC1D2D(1:imax,k) = GAMMA(mu_c+4.)/GAMMA(mu_c+3.)/LAMC2D(1:imax,k)/2.
+      elsewhere
+         EFFC1D2D(1:imax,k) = 25.E-6
+      end where
+
+   END DO
+
+
 
 
   do iq = 1, imax2D
@@ -1936,209 +2130,13 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     !------------------------------------
     tmp1D(:)    = tmp2D(iq,:)
     qvsbar(:)   = qvsbar2D(iq,:)
-!
-!
-     DO k=kts,kte
-        tmp = tmp1D(k)
-        if( .not.(qvz(k)+qlz(k)+qiz(k) .lt. qsiz(k)  &
-            .and. tmp .eq. 0.0) ) then !go to 2000
-!
-!***********************************************************************
-!**********              saturation adjustment                **********
-!***********************************************************************
-!
-!    allow supersaturation exits linearly from 0% at 500 mb to 50%
-!    above 300 mb
-!    5.0e-5=1.0/(500mb-300mb)
-!
-        rsat=1.0
-        if( qvz(k)+qlz(k)+qiz(k) .lt. rsat*qvsbar(k) ) then ! goto 1800
-
-!c
-!c   unsaturated
-!c
-            qvz(k)=qvz(k)+qlz(k)+qiz(k)
-            qlz(k)=0.0
-            qiz(k)=0.0
-            
-            thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
-
-            tem(k)=thz(k)*tothz(k)
-            temcc(k)=tem(k)-273.15
-
-        else
-!c
-!c   saturated
-!c
-            pladj(k)=qlz(k)
-            piadj(k)=qiz(k)
-!
-
-            CALL satadj(qvz, qlz, qiz, prez, theiz, thz, tothz, kts, kte, &
-                        k, xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
-
-!
-            pladj(k)=odtb*(qlz(k)-pladj(k))
-            piadj(k)=odtb*(qiz(k)-piadj(k))
-!
-            pclw(k)=pclw(k)+pladj(k)
-            pcli(k)=pcli(k)+piadj(k)
-            pvapor(k)=pvapor(k)-( pladj(k)+piadj(k) )
-!
-            thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
-            
-            tem(k)=thz(k)*tothz(k)
-
-            temcc(k)=tem(k)-273.15
-
-            es=1000.*svp1*exp( svp2*temcc(k)/(tem(k)-svp3) )
-            qswz(k)=ep2*es/(prez(k)-es)
-            if (tem(k) .lt. 273.15 ) then
-                es=1000.*svp1*exp( 21.8745584*(tem(k)-273.16)/(tem(k)-7.66) )
-                qsiz(k)=ep2*es/(prez(k)-es)
-                if (temcc(k) .lt. -40.0) qswz(k)=qsiz(k)
-            else
-                qsiz(k)=qswz(k)
-            endif
-            qlpqi=qlz(k)+qiz(k)
-            if ( qlpqi .eq. 0.0 ) then
-                qvsbar(k)=qsiz(k)
-            else
-                qvsbar(k)=( qiz(k)*qsiz(k)+qlz(k)*qswz(k) )/qlpqi
-            endif
-
-!
-!***********************************************************************
-!*****     melting and freezing of cloud ice and cloud water       *****
-!***********************************************************************
-        qlpqi=qlz(k)+qiz(k)
-        if( qlpqi .gt. 0.0 ) then !go to 1800
-!
-!c
-!c (1)  HOMOGENEOUS NUCLEATION WHEN T< -40 C (Pihom)
-!c
-        if(temcc(k) .lt. -40.0) then
-          pihom(k)=qlz(k)*odtb
-          nihom(k)=ncz(k)*odtb
-        end if
-!c
-!c (2)  MELTING OF ICE CRYSTAL WHEN T> 0 C (Pimlt)
-!c
-        if(temcc(k) .gt. 0.0) then
-          pimlt(k)=qiz(k)*odtb
-          nimlt(k)=niz(k)*odtb
-        end if
-!c
-!c (3) PRODUCTION OF CLOUD ICE BY BERGERON PROCESS (Pidw): Hsie (p957)
-!c     this process only considered when -31 C < T < 0 C
-!c
-        if(temcc(k) .lt. 0.0 .and. temcc(k) .gt. -31.0) then
-!c!
-!c!   parama1 and parama2 functions must be user supplied
-!c!
-            a1=parama1( temcc(k) )
-            a2=parama2( temcc(k) )
-!! change unit from cgs to mks
-            a1=a1*0.001**(1.0-a2)
-            xnin=xni0*exp(-bni*temcc(k))
-            pidw(k)=xnin*orho(k)*(a1*xmnin**a2)
-        end if
-!
-        pcli(k)=pcli(k)+pihom(k)-pimlt(k)+pidw(k)
-        pclw(k)=pclw(k)-pihom(k)+pimlt(k)-pidw(k)
-        qlz(k)=amax1( 0.0,qlz(k)+dtb*(-pihom(k)+pimlt(k)-pidw(k)) )
-        qiz(k)=amax1( 0.0,qiz(k)+dtb*(pihom(k)-pimlt(k)+pidw(k)) )
-
-        ncz(k)=amax1( 0.0,ncz(k)+dtb*(-nihom(k)+nimlt(k)) )
-        niz(k)=amax1( 0.0,niz(k)+dtb*( nihom(k)-nimlt(k)) )
-!
-        CALL satadj(qvz, qlz, qiz, prez, theiz, thz, tothz, kts, kte, &
-                    k, xLvocp, xLfocp, episp0k ,EP2,SVP1,SVP2,SVP3,SVPT0)
-
-        thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
-        
-        
-        tem(k)=thz(k)*tothz(k)
-
-        temcc(k)=tem(k)-273.15
-
-        es=1000.*svp1*exp( svp2*temcc(k)/(tem(k)-svp3) )
-        qswz(k)=ep2*es/(prez(k)-es)
-
-        if (tem(k) .lt. 273.15 ) then
-           es=1000.*svp1*exp( 21.8745584*(tem(k)-273.16)/(tem(k)-7.66) )
-           qsiz(k)=ep2*es/(prez(k)-es)
-           if (temcc(k) .lt. -40.0) qswz(k)=qsiz(k)
-        else
-           qsiz(k)=qswz(k)
-        endif
-        qlpqi=qlz(k)+qiz(k)
-
-        if ( qlpqi .eq. 0.0 ) then
-           qvsbar(k)=qsiz(k)
-        else
-           qvsbar(k)=( qiz(k)*qsiz(k)+qlz(k)*qswz(k) )/qlpqi
-        endif
-
-      end if ! 1800  continue
-      end if ! 1800  continue
-!
-!***********************************************************************
-!**********    integrate the productions of rain and snow     **********
-!***********************************************************************
-!
-        end if ! goto 2000
-      end do   ! continue 2000
+    !------------------------------------
+    EFFI1D(:)   = EFFI1D2D(iq,:)
+    EFFS1D(:)   = EFFS1D2D(iq,:)
+    EFFR1D(:)   = EFFR1D2D(iq,:)
+    EFFC1D(:)   = EFFC1D2D(iq,:)
 
 
-!
-!**** below if qv < qvmin then qv=qvmin, ql=0.0, and qi=0.0
-!
-        do k=kts+1,kte
-            if ( qvz(k) .lt. qvmin ) then
-                qlz(k)=0.0
-                qiz(k)=0.0
-                ncz(k)=0.0
-                niz(k)=0.0
-                qvz(k)=amax1( qvmin,qvz(k)+qlz(k)+qiz(k) )
-            end if
-            niz(k) = min(niz(k),0.3E6/rho(k))
-            ncz(k) = min(ncz(k),250000.E6/rho(k))
-            ncz(k) = max(ncz(k),0.01E6/rho(k))
-        enddo
-!
-
-
-! CALCULATE EFFECTIVE RADIUS zdc 20220208
-
-    DO K=KTS,KTE
-      if (qiz(k) .gt. 1.0e-8 .and. lami(k)>0. ) then
-         EFFI1D(K) = 3./LAMI(K)/2.
-      ELSE
-         EFFI1D(K) = 25.E-6
-      END IF
-
-      if (qsz(k) .gt. 1.0e-8) then
-         EFFS1D(K) = 3./xlambdas(k)/2.
-      else
-         EFFS1D(K) = 25.E-6
-      end if
-
-      if (qrz(k) .gt. 1.0e-8) then
-         EFFR1D(K) = 3./xlambdar(k)/2.
-      else
-         EFFR1D(K) = 25.E-6
-      end if
-
-      if (qlz(k) .gt. 1.0e-8 .and. lamc(k) >0.) then
-         EFFC1D(K) = GAMMA(mu_c+4.)/GAMMA(mu_c+3.)/LAMC(K)/2.
-      else
-         EFFC1D(K) = 25.E-6
-      end if
- 
-   END DO
-
-!      CALL wrf_debug ( 100 , 'module_ylin: finish saturation adjustment' )
 
    ! save all process rate for understanding cloud microphysics
    do k=kts,kte
