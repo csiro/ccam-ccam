@@ -52,6 +52,11 @@ MODULE module_mp_sbu_ylin
              o6 = 1./6.,  cdrag = 0.6,                      &
              avisc = 1.49628e-6, adiffwv = 8.7602e-5,       &
              axka = 1.4132e3, cw = 4.187e3,  ci = 2.093e3
+
+interface parama1
+  module procedure parama1_v, parama1_s
+end interface parama1
+
 CONTAINS
 
 SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
@@ -1004,7 +1009,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
      tmp2D(1:imax,k)=qiz2D(1:imax,k)+qlz2D(1:imax,k)+qsz2D(1:imax,k)+qrz2D(1:imax,k)
        
      do iq = 1, imax
-        if( .not.(qvz2D(iq,k)+qlz2D(iq,k)+qiz2D(iq,k) .lt. qsiz2D(iq,k)  &
+      if( .not.(qvz2D(iq,k)+qlz2D(iq,k)+qiz2D(iq,k) .lt. qsiz2D(iq,k)  &
             .and. tmp2D(iq,k) .eq. 0.0) ) then !go to 2000
 !
 !! calculate terminal velocity of rain
@@ -1093,6 +1098,680 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         endif
         vts2D(iq,k)=vtsold2D(iq,k)
 
+!---------- start of snow/ice processes below freezing
+
+        if (tem2D(iq,k) .lt. 273.15) then
+
+!
+! ice nucleation, cooper curve
+
+         if ((qvoqswz2D(iq,k).ge.0.999.and.temcc2D(iq,k).le. -8.).or. &
+              qvoqsiz2D(iq,k).ge.1.08) then
+              nidep2D(iq,k) = 5.*exp(0.304*(273.15-temcc2D(iq,k)))     ! m-3
+              nidep2D(iq,k) = min(nidep2D(iq,k), 500.e3)               !5.e8) sny ! limit to 500 L-1
+              nidep2D(iq,k) = max(nidep2D(iq,k)/rho2D(iq,k), 0.)       ! convert to kg-1
+              nidep2D(iq,k) = (nidep2D(iq,k) - niz2D(iq,k))*odtb
+              midep2D(iq,k) = nidep2D(iq,k)*mi0
+          end if
+!***********************************************************************
+!*********        snow production processes for T < 0 C       **********
+!***********************************************************************
+!c
+!c (1) ICE CRYSTAL AGGREGATION TO SNOW (Psaut): Lin (21)
+!c!    psaut=alpha1*(qi-qi0)
+!c!    alpha1=1.0e-3*exp(0.025*(T-T0))
+!c
+            alpha1=1.0e-3*exp( 0.025*temcc2D(iq,k) )
+!
+            ! BELOW SECTION TURN OFF BY SONNY   sny: on temp
+            ! ---------------------------------------------------------------
+            !if(temcc(k) .lt. -20.0) then
+            !    tmp1=-7.6+4.0*exp( -0.2443e-3*(abs(temcc(k))-20)**2.455 )
+            !    qic=1.0e-3*exp(tmp1)*orho(k)
+            !else
+            !    qic=qi0
+            !end if
+            !----------------------------------------------------------------
+
+            qic = qi0  ! sny: OFF temp
+
+            tmp1=odtb*(qiz2D(iq,k)-qic)*(1.0-exp(-alpha1*dtb))
+            psaut2D(iq,k)=amax1( 0.0,tmp1 )
+            npsaut2D(iq,k)=amax1( 0.0,psaut2D(iq,k)/xms)
+!c
+!c (2) BERGERON PROCESS TRANSFER OF CLOUD WATER TO SNOW (Psfw)
+!c     this process only considered when -31 C < T < 0 C
+!c     Lin (33) and Hsie (17)
+!c
+!c!
+!c!    parama1 and parama2 functions must be user supplied
+!c!
+
+            if( qlz2D(iq,k) .gt. 1.0e-10 ) then
+                temc1=amax1(-30.99,temcc2D(iq,k))
+                a1=parama1( temc1 )
+                a2=parama2( temc1 )
+                tmp1=1.0-a2
+!!   change unit from cgs to mks
+                a1=a1*0.001**tmp1
+!!   dtberg is the time needed for a crystal to grow from 40 to 50 um
+!!   odtberg=1.0/dtberg
+                odtberg=(a1*tmp1)/(xmi50**tmp1-xmi40**tmp1)
+!
+!!   compute terminal velocity of a 50 micron ice cystal
+!
+                vti50=av_i*di50**bv_i*sqrho2D(iq,k)
+!
+                eiw=1.0
+                save1=a1*xmi50**a2
+                save2=0.25*pi*eiw*rho2D(iq,k)*di50*di50*vti50
+!
+                tmp2=( save1 + save2*qlz2D(iq,k) )
+!
+!!  maximum number of 50 micron crystals limited by the amount
+!!  of supercool water
+!
+                xni50mx=qlzodt2D(iq,k)/tmp2
+!
+!!   number of 50 micron crystals produced
+!
+                xni50=qiz2D(iq,k)*( 1.0-exp(-dtb*odtberg) )/xmi50
+                xni50=amin1(xni50,xni50mx)
+!
+                tmp3=odtb*tmp2/save2*( 1.0-exp(-save2*xni50*dtb) )
+                psfw2D(iq,k)=amin1( tmp3,qlzodt2D(iq,k) )
+!c
+!c (3) REDUCTION OF CLOUD ICE BY BERGERON PROCESS (Psfi): Lin (34)
+!c     this process only considered when -31 C < T < 0 C
+!c
+                tmp1=xni50*xmi50-psfw2D(iq,k)
+                psfi2D(iq,k)=amin1(tmp1,qizodt2D(iq,k))
+            end if
+!
+!
+            if(qrz2D(iq,k) .gt. 0.0) then  ! go to 1000
+
+!
+! Processes (4) and (5) only need when qrz > 0.0
+!
+!c
+!c (4) CLOUD ICE ACCRETION BY RAIN (Praci): Lin (25)
+!c     produce PI
+!c
+                eri=1.0
+                save1=pio4*eri*n0_r2D(iq,k)*av_r*sqrho2D(iq,k)
+                tmp1=save1*gambp3*olambdar2D(iq,k)**bp3
+                praci2D(iq,k)=qizodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
+                npraci2D(iq,k)=niz2D(iq,k)*tmp1
+
+!c
+!c (5) RAIN ACCRETION BY CLOUD ICE (Piacr): Lin (26)
+!c
+                tmp2=qiz2D(iq,k)*save1*rho2D(iq,k)*pio6*rhowater*gambp6*oxmi* &
+                    olambdar2D(iq,k)**bp6
+                piacr2D(iq,k)=amin1( tmp2,qrzodt2D(iq,k) )
+                npiacr2D(iq,k)=pio4*eri*nrz2D(iq,k)*av_r*niz2D(iq,k)*gambp3* &
+                    olambdar2D(iq,k)**bp3  !--wdm6
+!
+             end if !1000    continue
+!
+            if(qsz2D(iq,k) .gt. 0.0) then !go to 1200
+!
+! Compute the following processes only when qsz > 0.0
+!
+!c
+!c (6) ICE CRYSTAL ACCRETION BY SNOW (Psaci): Lin (22)
+!c
+                esi=exp( 0.025*temcc2D(iq,k) )
+                save1 = aa_s2D(iq,k)*sqrho2D(iq,k)*N0_s2D(iq,k)* &
+                    ggamma(bv_s2D(iq,k)+tmp_sa2D(iq,k))*         &
+                    olambdas2D(iq,k)**(bv_s2D(iq,k)+tmp_sa2D(iq,k))
+
+                tmp1=esi*save1
+                psaci2D(iq,k)=qizodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
+                npsaci2D(iq,k)=amin1( tmp1*niz2D(iq,k),nizodt2D(iq,k))
+!c
+!c (7) CLOUD WATER ACCRETION BY SNOW (Psacw): Lin (24)
+!c
+                esw=1.0
+                tmp1=esw*save1
+                psacw2D(iq,k)=qlzodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
+                npsacw2D(iq,k)=amin1(tmp1*ncz2D(iq,k),ncz2D(iq,k))
+
+                ! recalculate the saturatuin temperature
+!c
+!c (8) DEPOSITION/SUBLIMATION OF SNOW (Psdep/Pssub): Lin (31)
+!c     includes consideration of ventilation effect
+!c
+                tmpa=rvapor*xka2D(iq,k)*tem2D(iq,k)*tem2D(iq,k)
+                tmpb=xls*xls*rho2D(iq,k)*qsiz2D(iq,k)*diffwv2D(iq,k)
+                tmpc=tmpa*qsiz2D(iq,k)*diffwv2D(iq,k)
+                abi=4.0*pi*cap_s2D(iq,k)*(qvoqsiz2D(iq,k)-1.0)*tmpc/(tmpa+tmpb)
+                tmp1=av_s2D(iq,k)*sqrho2D(iq,k)*        &
+                     olambdas2D(iq,k)**(5+bv_s2D(iq,k)+2*mu_s)/visc2D(iq,k)
+
+!---- YLIN, here there is some approximation assuming mu_s =1, so gamma(2)=1, etc.
+
+                tmp2= abi*N0_s2D(iq,k)*( vf1s*olambdas2D(iq,k)*olambdas2D(iq,k)+ &
+                    vf2s*schmidt2D(iq,k)**0.33334* &
+                ggamma(2.5+0.5*bv_s2D(iq,k)+mu_s)*sqrt(tmp1) )
+
+
+                tmp3=odtb*( qvz2D(iq,k)-qsiz2D(iq,k) )
+                tmp3=amin1(tmp3,0.)
+!
+                if( tmp2 .le. 0.0) then
+                    tmp2=amax1( tmp2,tmp3)
+                    pssub2D(iq,k)=amax1( tmp2,-qszodt2D(iq,k) )
+                    psdep2D(iq,k)=0.0
+                else
+                    psdep2D(iq,k)=amin1( tmp2,tmp3 )
+                    pssub2D(iq,k)=0.0
+                end if
+                if(qsz2D(iq,k) .ge. 0.0) then
+                  npssub2D(iq,k)=pssub2D(iq,k)*nsz2D(iq,k)/qsz2D(iq,k)
+                  npsdep2D(iq,k)=npsdep2D(iq,k)*nsz2D(iq,k)/qsz2D(iq,k)
+                else
+                  npssub2D(iq,k)=pssub2D(iq,k)/xms
+                  npsdep2D(iq,k)=npsdep2D(iq,k)/xms
+                end if
+!
+                if(qrz2D(iq,k) .gt. 0.0) then !go to 1200
+!
+! Compute processes (9) and (10) only when qsz > 0.0 and qrz > 0.0
+! these two terms need to be refined in the future, they should be equal
+!c
+!c (9) ACCRETION OF SNOW BY RAIN (Pracs): Lin (27)
+!c
+                esr=1.0
+                tmpa=olambdar2D(iq,k)*olambdar2D(iq,k)
+                tmpb=olambdas2D(iq,k)*olambdas2D(iq,k)
+                tmpc=olambdar2D(iq,k)*olambdas2D(iq,k)
+                tmp1=pi*pi*esr*n0_r2D(iq,k)*N0_s2D(iq,k)*    &
+                        abs( vtr2D(iq,k)-vts2D(iq,k) )*orho2D(iq,k)
+!                tmp1=pi*pi*esr*n0_r(k)*N0_s(k)*            &
+!                ( (1.2*vtr(k)-0.95*vts(k))**2+0.08*vtr(k)*vts(k))**0.5*orho(k)
+                tmp2=tmpb*tmpb*olambdar2D(iq,k)*(5.0*tmpb+2.0*tmpc+0.5*tmpa)
+                tmp3=tmp1*rhosnow*tmp2
+                pracs2D(iq,k)=amin1( tmp3,qszodt2D(iq,k) )
+!c
+!c (10) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
+!c
+                tmp3=tmpa*tmpa*olambdas2D(iq,k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
+                tmp4=tmp1*rhowater*tmp3
+                psacr2D(iq,k)=amin1( tmp4,qrzodt2D(iq,k) )
+            tmp1=0.25*pi*esr*n0_r2D(iq,k)*N0_s2D(iq,k)*abs( vtr2D(iq,k)-vts2D(iq,k) )
+            tmp2=tmpc*(2.0*tmpa+1.0*tmpc+2*tmpb)
+            tmp3=tmp1*tmp2
+            npsacr2D(iq,k)=amin1( tmp3,nrzodt2D(iq,k) )
+!
+!c
+!c (2) FREEZING OF RAIN TO FORM GRAUPEL  (pgfr): Lin (45), added to PI
+!c     positive value
+!c     Constant in Bigg freezing Aplume=Ap=0.66 /k
+!c     Constant in raindrop freezing equ. Bplume=Bp=100./m/m/m/s
+!
+
+            if (qrz2D(iq,k) .gt. 1.e-8 ) then
+                Bp=100.
+                Ap=0.66
+                tmp1=olambdar2D(iq,k)*olambdar2D(iq,k)*olambdar2D(iq,k)
+                tmp2=20.*pi*pi*Bp*n0_r2D(iq,k)*rhowater*orho2D(iq,k)*  &
+                    (exp(-Ap*temcc2D(iq,k))-1.0)*tmp1*tmp1*olambdar2D(iq,k)
+                pgfr2D(iq,k)=amin1( tmp2,qrzodt2D(iq,k) )
+                npgfr2D(iq,k)=pi*Bp*n0_r2D(iq,k)*tmpa*tmpa*(exp(-Ap*temcc2D(iq,k))-1.0)
+            else
+                pgfr2D(iq,k)=0
+                npgfr2D(iq,k)=0.
+            endif
+
+            end if ! for the go to 1200
+          end if !1200    continue
+!
+        else
+
+!
+!***********************************************************************
+!*********        snow production processes for T > 0 C       **********
+!***********************************************************************
+!
+            if (qsz2D(iq,k) .gt. 0.0)  then !go to 1400
+!c
+!c (1) CLOUD WATER ACCRETION BY SNOW (Psacw): Lin (24)
+!c
+            esw=1.0
+
+            save1 =aa_s2D(iq,k)*sqrho2D(iq,k)*N0_s2D(iq,k)* &
+                   ggamma(bv_s2D(iq,k)+tmp_sa2D(iq,k))*     &
+                   olambdas2D(iq,k)**(bv_s2D(iq,k)+tmp_sa2D(iq,k))
+
+            tmp1=esw*save1
+            psacw2D(iq,k)=qlzodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
+            npsacw2D(iq,k)=tmp1*ncz2D(iq,k)
+!c
+!c (2) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
+!c
+            esr=1.0
+            tmpa=olambdar2D(iq,k)*olambdar2D(iq,k)
+            tmpb=olambdas2D(iq,k)*olambdas2D(iq,k)
+            tmpc=olambdar2D(iq,k)*olambdas2D(iq,k)
+            tmp1=pi*pi*esr*n0_r2D(iq,k)*N0_s2D(iq,k)*   &
+                    abs( vtr2D(iq,k)-vts2D(iq,k) )*orho2D(iq,k)
+!            tmp1=pi*pi*esr*n0_r(k)*N0_s(k)*            &
+!                ( (1.2*vtr(k)-0.95*vts(k))**2+0.08*vtr(k)*vts(k))**0.5*orho(k)
+            tmp2=tmpa*tmpa*olambdas2D(iq,k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
+            tmp3=tmp1*rhowater*tmp2
+            psacr2D(iq,k)=amin1( tmp3,qrzodt2D(iq,k) )
+
+            tmp1=0.25*pi*esr*n0_r2D(iq,k)*N0_s2D(iq,k)*abs( vtr2D(iq,k)-vts2D(iq,k) )
+            tmp2=tmpc*(2.0*tmpa+1.0*tmpc+2*tmpb)
+            tmp3=tmp1*tmp2
+            npsacr2D(iq,k)=amin1( tmp3,nrzodt2D(iq,k) )
+!c
+!c (3) MELTING OF SNOW (Psmlt): Lin (32)
+!c     Psmlt is negative value
+!
+            delrs=rs02D(iq,k)-qvz2D(iq,k)
+            term1=2.0*pi*orho2D(iq,k)*( xlv*diffwv2D(iq,k)*rho2D(iq,k)*delrs- &
+                xka2D(iq,k)*temcc2D(iq,k) )
+            tmp1= av_s2D(iq,k)*sqrho2D(iq,k)*        &
+                    olambdas2D(iq,k)**(5+bv_s2D(iq,k)+2*mu_s)/visc2D(iq,k)
+            tmp2= N0_s2D(iq,k)*( vf1s*olambdas2D(iq,k)*olambdas2D(iq,k)+ &
+                vf2s*schmidt2D(iq,k)**0.33334* &
+                ggamma(2.5+0.5*bv_s2D(iq,k)+mu_s)*sqrt(tmp1) )
+            tmp3=term1*oxlf*tmp2-cwoxlf*temcc2D(iq,k)*( psacw2D(iq,k)+psacr2D(iq,k) )
+            tmp4=amin1(0.0,tmp3)
+            psmlt2D(iq,k)=amax1( tmp4,-qszodt2D(iq,k) )
+
+            if(qsz2D(iq,k) .ge. 0.0) then
+              npsmlt2D(iq,k)=psmlt2D(iq,k)*nsz2D(iq,k)/qsz2D(iq,k)
+            else
+              npsmlt2D(iq,k)=psmlt2D(iq,k)/xms
+            end if
+!c
+!c (4) EVAPORATION OF MELTING SNOW (Psmltevp): HR (A27)
+!c     but use Lin et al. coefficience
+!c     Psmltevp is a negative value
+!c
+            tmpa=rvapor*xka2D(iq,k)*tem2D(iq,k)*tem2D(iq,k)
+            tmpb=xlv*xlv*rho2D(iq,k)*qswz2D(iq,k)*diffwv2D(iq,k)
+            tmpc=tmpa*qswz2D(iq,k)*diffwv2D(iq,k)
+            tmpd=amin1( 0.0,(qvoqswz2D(iq,k)-0.90)*qswz2D(iq,k)*odtb )
+
+            abr=2.0*pi*(qvoqswz2D(iq,k)-0.90)*tmpc/(tmpa+tmpb)
+!
+!**** allow evaporation to occur when RH less than 90%
+!**** here not using 100% because the evaporation cooling
+!**** of temperature is not taking into account yet; hence,
+!**** the qsw value is a little bit larger. This will avoid
+!**** evaporation can generate cloud.
+!
+            tmp1=av_s2D(iq,k)*sqrho2D(iq,k)*    &
+                    olambdas2D(iq,k)**(5+bv_s2D(iq,k)+2*mu_s)/visc2D(iq,k)
+            tmp2= N0_s2D(iq,k)*( vf1s*olambdas2D(iq,k)*olambdas2D(iq,k)+ &
+                vf2s*schmidt2D(iq,k)**0.33334* &
+                ggamma(2.5+0.5*bv_s2D(iq,k)+mu_s)*sqrt(tmp1) )
+            tmp3=amin1(0.0,tmp2)
+            tmp3=amax1( tmp3,tmpd )
+            psmltevp2D(iq,k)=amax1( tmp3,-qszodt2D(iq,k) )
+            if(qsz2D(iq,k) .ge. 0.0) then
+              npsmltevp2D(iq,k)=psmltevp2D(iq,k)*nsz2D(iq,k)/qsz2D(iq,k)
+            else
+              npsmltevp2D(iq,k)=psmltevp2D(iq,k)/xmr
+            end if
+          end if !          1400     continue
+!
+        end if      !---- end of snow/ice processes
+!---------- end of snow/ice processes below freezing
+
+!***********************************************************************
+!*********           rain production processes                **********
+!***********************************************************************
+
+!c
+!c (1) AUTOCONVERSION OF RAIN (Praut): using Liu and Daum (2004)
+!c
+
+!---- YLIN, autoconversion use Liu and Daum (2004), unit = g cm-3 s-1, in the scheme kg/kg s-1, so
+
+      !if (AEROSOL .eq. .true.) then
+      !  print*, ' AEROSOL option here'
+
+      !else
+        if (qlz2D(iq,k) .gt. 1e-6) then
+            mu_c    = AMIN1(15., (1000.E6/ncz2D(iq,k) + 2.))
+            lamc2D(iq,k) = (ncz2D(iq,k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz2D(iq,k)*ggamma(1+mu_c)))**(1./3)
+
+            Dc_liu  = (ggamma(6+1+mu_c)/ggamma(1+mu_c))**(1./6.)/lamc2D(iq,k)             !----- R6 in m
+
+            if (Dc_liu .gt. R6c) then
+                disp = 1./(mu_c+1.)      !--- square of relative dispersion
+                eta  = (0.75/pi/(1e-3*rhowater))**2*1.9e11*((1+3*disp)*(1+4*disp)*&
+                    (1+5*disp)/(1+disp)/(1+2*disp))
+                praut2D(iq,k) = eta*(1e-3*rho2D(iq,k)*qlz2D(iq,k))**3/(1e-6*ncz2D(iq,k))  !--- g cm-3 s-1
+                praut2D(iq,k) = praut2D(iq,k)/(1e-3*rho2D(iq,k))                          !--- kg kg-1 s-1
+                npraut_r2D(iq,k) = praut2D(iq,k)/xmr                                                !--- kg kg-1 s-1
+                npraut2D(iq,k) = praut2D(iq,k)/qlz2D(iq,k)*ncz2D(iq,k)                                        !--- kg kg-1 s-1
+                npraut2D(iq,k) = praut2D(iq,k)/xmr                                                  !--- kg kg-1 s-1
+            else
+                praut2D(iq,k) = 0.0
+                npraut2D(iq,k) = 0.0
+                npraut_r2D(iq,k) = 0.0
+            endif
+        else
+            praut2D(iq,k) = 0.0
+            npraut2D(iq,k) = 0.0
+            npraut_r2D(iq,k) = 0.0
+        endif
+!        if (qlz(k) .gt. 1e-6) then
+!        praut(k)=1350.*qlz(k)**2.47*  &
+!           (ncz(k)/1.e6*rho(k))**(-1.79)
+!        npraut_r(k) = praut(k)/xmr
+!        npraut(k) = praut(k)/(qlz(k)/ncz(k))
+!        npraut(K) = MIN(npraut(k),nczodt(k))
+!        npraut_r(K) = MIN(npraut_r(k),npraut(k))
+!        endif
+
+!c
+!c (2) ACCRETION OF CLOUD WATER BY RAIN (Pracw): Lin (51)
+!c
+        erw=1.0
+        tmp1=pio4*erw*n0_r2D(iq,k)*av_r*sqrho2D(iq,k)* &
+            gambp3*olambdar2D(iq,k)**bp3 ! son
+        pracw2D(iq,k)=qlzodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
+        npracw2D(iq,k)=tmp1*ncz2D(iq,k)
+!c
+!c (3) EVAPORATION OF RAIN (Prevp): Lin (52)
+!c     Prevp is negative value
+!c
+!c     Sw=qvoqsw : saturation ratio
+!c
+        tmpa=rvapor*xka2D(iq,k)*tem2D(iq,k)*tem2D(iq,k)
+        tmpb=xlv*xlv*rho2D(iq,k)*qswz2D(iq,k)*diffwv2D(iq,k)
+        tmpc=tmpa*qswz2D(iq,k)*diffwv2D(iq,k)
+        tmpd=amin1(0.0,(qvoqswz2D(iq,k)-0.99)*qswz2D(iq,k)*odtb)
+
+        abr=2.0*pi*(qvoqswz2D(iq,k)-0.99)*tmpc/(tmpa+tmpb)
+        tmp1=av_r*sqrho2D(iq,k)*olambdar2D(iq,k)**bp5/visc2D(iq,k) !son
+        tmp2=abr*n0_r2D(iq,k)*( vf1r*olambdar2D(iq,k)*olambdar2D(iq,k)+  &
+             vf2r*schmidt2D(iq,k)**0.33334*gambp5o2*sqrt(tmp1) )
+        tmp3=amin1( 0.0,tmp2 )
+        tmp3=amax1( tmp3,tmpd )
+        prevp2D(iq,k)=amax1( tmp3,-qrzodt2D(iq,k) )
+        if (qrz2D(iq,k).gt.0.) then
+          nprevp2D(iq,k)=prevp2D(iq,k)*nrz2D(iq,k)/qrz2D(iq,k)
+        else
+          nprevp2D(iq,k)=prevp2D(iq,k)*xmr
+        end if
+
+!        CALL wrf_debug ( 100 , 'module_ylin: finish rain processes' )
+!c
+!c**********************************************************************
+!c*****     combine all processes together and avoid negative      *****
+!c*****     water substances
+!***********************************************************************
+!c
+        if ( temcc2D(iq,k) .lt. 0.0) then
+!c
+!c  combined water vapor depletions
+!c
+            tmp=psdep2D(iq,k) + midep2D(iq,k)
+            if ( tmp .gt. qvzodt2D(iq,k) ) then
+                factor=qvzodt2D(iq,k)/tmp
+                psdep2D(iq,k)=psdep2D(iq,k)*factor
+                midep2D(iq,k)=midep2D(iq,k)*factor
+            end if
+!c
+!c  combined cloud water depletions
+!c
+            tmp=praut2D(iq,k)+psacw2D(iq,k)+psfw2D(iq,k)+pracw2D(iq,k)
+            if ( tmp .gt. qlzodt2D(iq,k) ) then
+                factor=qlzodt2D(iq,k)/tmp
+                praut2D(iq,k)=praut2D(iq,k)*factor
+                psacw2D(iq,k)=psacw2D(iq,k)*factor
+                psfw2D(iq,k)=psfw2D(iq,k)*factor
+                pracw2D(iq,k)=pracw2D(iq,k)*factor
+            end if
+!c
+!c  combined cloud ice depletions
+!c
+            tmp=psaut2D(iq,k)+psaci2D(iq,k)+praci2D(iq,k)+psfi2D(iq,k)
+            if (tmp .gt. qizodt2D(iq,k) ) then
+                factor=qizodt2D(iq,k)/tmp
+                psaut2D(iq,k)=psaut2D(iq,k)*factor
+                psaci2D(iq,k)=psaci2D(iq,k)*factor
+                praci2D(iq,k)=praci2D(iq,k)*factor
+                psfi2D(iq,k)=psfi2D(iq,k)*factor
+            endif
+
+!c
+!c  combined all rain processes
+!c
+            tmp_r=piacr2D(iq,k)+psacr2D(iq,k)-prevp2D(iq,k)-  & 
+                    praut2D(iq,k)-pracw2D(iq,k)+pgfr2D(iq,k)
+            if (tmp_r .gt. qrzodt2D(iq,k) ) then
+                factor=qrzodt2D(iq,k)/tmp_r
+                piacr2D(iq,k)=piacr2D(iq,k)*factor
+                psacr2D(iq,k)=psacr2D(iq,k)*factor
+                prevp2D(iq,k)=prevp2D(iq,k)*factor
+                pgfr2D(iq,k)=pgfr2D(iq,k)*factor
+            endif
+!c
+!c   combined all snow processes
+!c
+            tmp_s=-pssub2D(iq,k)-(psaut2D(iq,k)+psaci2D(iq,k)+ &
+                    psacw2D(iq,k)+psfw2D(iq,k)+pgfr2D(iq,k)+ &
+                    psfi2D(iq,k)+praci2D(iq,k)+piacr2D(iq,k)+ &
+                    psdep2D(iq,k)+psacr2D(iq,k)-pracs2D(iq,k))
+            if ( tmp_s .gt. qszodt2D(iq,k) ) then
+                factor=qszodt2D(iq,k)/tmp_s
+                pssub2D(iq,k)=pssub2D(iq,k)*factor
+                Pracs2D(iq,k)=Pracs2D(iq,k)*factor
+            endif
+
+!c
+!c  calculate new water substances, thetae, tem, and qvsbar
+!c
+
+            pvapor2D(iq,k)=-pssub2D(iq,k)-psdep2D(iq,k)-prevp2D(iq,k)-midep2D(iq,k)
+            qvz2D(iq,k)=amax1( qvmin,qvz2D(iq,k)+dtb*pvapor2D(iq,k) )
+            pclw2D(iq,k)=-praut2D(iq,k)-pracw2D(iq,k)-psacw2D(iq,k)-psfw2D(iq,k)
+            qlz2D(iq,k)=amax1( 0.0,qlz2D(iq,k)+dtb*pclw2D(iq,k) )
+            pcli2D(iq,k)=-psaut2D(iq,k)-psfi2D(iq,k)-psaci2D(iq,k)- & 
+                    praci2D(iq,k)+midep2D(iq,k)
+            qiz2D(iq,k)=amax1( 0.0,qiz2D(iq,k)+dtb*pcli2D(iq,k) )
+            tmp_r=piacr2D(iq,k)+psacr2D(iq,k)-prevp2D(iq,k)-praut2D(iq,k)- &
+                    pracw2D(iq,k)+pgfr2D(iq,k)-pracs2D(iq,k)
+            prain2D(iq,k)=-tmp_r
+            qrz2D(iq,k)=amax1( 0.0,qrz2D(iq,k)+dtb*prain2D(iq,k) )
+            tmp_s=-pssub2D(iq,k)-(psaut2D(iq,k)+psaci2D(iq,k)+ &
+                   psacw2D(iq,k)+psfw2D(iq,k)+pgfr2D(iq,k)+  &
+                   psfi2D(iq,k)+praci2D(iq,k)+piacr2D(iq,k)+  &
+                   psdep2D(iq,k)+psacr2D(iq,k)-pracs2D(iq,k))
+            psnow2D(iq,k)=-tmp_s
+            qsz2D(iq,k)=amax1( 0.0,qsz2D(iq,k)+dtb*psnow2D(iq,k) )
+
+            qschg2D(iq,k)=qschg2D(iq,k)+psnow2D(iq,k)
+            qschg2D(iq,k)=psnow2D(iq,k)
+
+            tmp=ocp/tothz2D(iq,k)*xLf*qschg2D(iq,k)
+            theiz2D(iq,k)=theiz2D(iq,k)+dtb*tmp
+!            thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
+!            tem(k)=thz(k)*tothz(k)
+
+!            temcc(k)=tem(k)-273.15
+!==================update temperature=================================================
+            temcc2D(iq,k)=tem2D(iq,k)-273.15
+            lvap = xlv + (2106.0 - 4218.0)*temcc2D(iq,k)  !Enthalpy of vaporization
+            tmp1=(pssub2D(iq,k)+psdep2D(iq,k))*xls*ocp + prevp2D(iq,k)*lvap*ocp+  &
+                 (psfw2D(iq,k)+pgfr2D(iq,k)+psacr2D(iq,k)-pracs2D(iq,k))*xlfocp
+!bug fixed 20191126
+            tem2D(iq,k)=tem2D(iq,k)+tmp1*dtb
+
+            temcc2D(iq,k)=tem2D(iq,k)-273.15
+
+            thz2D(iq,k)=tem2D(iq,k)/tothz2D(iq,k)
+!===================================================================
+            if( temcc2D(iq,k) .lt. -40.0 ) qswz2D(iq,k)=qsiz2D(iq,k)
+            qlpqi=qlz2D(iq,k)+qiz2D(iq,k)
+            if ( qlpqi .eq. 0.0 ) then
+               qvsbar2D(iq,k)=qsiz2D(iq,k)
+            else
+               qvsbar2D(iq,k)=(qiz2D(iq,k)*qsiz2D(iq,k)+qlz2D(iq,k)*qswz2D(iq,k))/qlpqi
+            endif
+            tmp1=-npraut2D(iq,k)-npracw2D(iq,k)-npsacw2D(iq,k)
+            ncz2D(iq,k)=amax1( 0.0,ncz2D(iq,k)+dtb*tmp1 )
+            tmp1=-npsaut2D(iq,k)-npsaci2D(iq,k)-npraci2D(iq,k)+nidep2D(iq,k)
+            niz2D(iq,k)=amax1( 0.0,niz2D(iq,k)+dtb*tmp1 )
+            tmp1=npiacr2D(iq,k)+npsacr2D(iq,k)-nprevp2D(iq,k)-npraut_r2D(iq,k)+npgfr2D(iq,k)
+            nrz2D(iq,k)=amax1( 0.0,nrz2D(iq,k)-dtb*tmp1 )
+            tmp1=-(npsaut2D(iq,k)+npgfr2D(iq,k)+  &
+                   npraci2D(iq,k)+npiacr2D(iq,k)+  &
+                   npsdep2D(iq,k)+npsacr2D(iq,k))
+            nsz2D(iq,k)=amax1( 0.0,nsz2D(iq,k)-dtb*tmp1 )
+!
+        else                  !>0 C
+!c
+!c  combined cloud water depletions
+!c
+            tmp=praut2D(iq,k)+psacw2D(iq,k)+pracw2D(iq,k)
+            if ( tmp .gt. qlzodt2D(iq,k) ) then
+                factor=qlzodt2D(iq,k)/tmp
+                praut2D(iq,k)=praut2D(iq,k)*factor
+                psacw2D(iq,k)=psacw2D(iq,k)*factor
+                pracw2D(iq,k)=pracw2D(iq,k)*factor
+            end if
+!c
+!c  combined all snow processes
+!c
+            tmp_s=-(psmlt2D(iq,k)+psmltevp2D(iq,k))
+            if (tmp_s .gt. qszodt2D(iq,k) ) then
+                factor=qszodt2D(iq,k)/tmp_s
+                psmlt2D(iq,k)=psmlt2D(iq,k)*factor
+                psmltevp2D(iq,k)=psmltevp2D(iq,k)*factor
+            endif
+!c
+!c  combined all rain processes
+!c
+            tmp_r=-prevp2D(iq,k)-(praut2D(iq,k)+pracw2D(iq,k)+psacw2D(iq,k)-psmlt2D(iq,k))
+            if (tmp_r .gt. qrzodt2D(iq,k) ) then
+                factor=qrzodt2D(iq,k)/tmp_r
+                prevp2D(iq,k)=prevp2D(iq,k)*factor
+            endif
+!c
+!c  calculate new water substances and thetae
+!c
+            pvapor2D(iq,k)=-psmltevp2D(iq,k)-prevp2D(iq,k)
+            qvz2D(iq,k)=amax1( qvmin,qvz2D(iq,k)+dtb*pvapor2D(iq,k))
+            pclw2D(iq,k)=-praut2D(iq,k)-pracw2D(iq,k)-psacw2D(iq,k)
+            qlz2D(iq,k)=amax1( 0.0,qlz2D(iq,k)+dtb*pclw2D(iq,k) )
+            pcli2D(iq,k)=0.0
+            qiz2D(iq,k)=amax1( 0.0,qiz2D(iq,k)+dtb*pcli2D(iq,k) )
+            tmp_r=-prevp2D(iq,k)-(praut2D(iq,k)+pracw2D(iq,k)+psacw2D(iq,k)-psmlt2D(iq,k))
+            prain2D(iq,k)=-tmp_r
+            tmpqrz=qrz2D(iq,k)
+            qrz2D(iq,k)=amax1( 0.0,qrz2D(iq,k)+dtb*prain2D(iq,k) )
+            tmp_s=-(psmlt2D(iq,k)+psmltevp2D(iq,k))
+            psnow2D(iq,k)=-tmp_s
+            qsz2D(iq,k)=amax1( 0.0,qsz2D(iq,k)+dtb*psnow2D(iq,k) )
+            qschg2D(iq,k)=psnow2D(iq,k)
+
+            tmp=ocp/tothz2D(iq,k)*xLf*qschg2D(iq,k)
+            theiz2D(iq,k)=theiz2D(iq,k)+dtb*tmp
+!            thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
+
+!            tem(k)=thz(k)*tothz(k)
+!            temcc(k)=tem(k)-273.15
+!==================update tmperature=================================================
+            temcc2D(iq,k)=tem2D(iq,k)-273.15
+            lvap = xlv + (2106.0 - 4218.0)*temcc2D(iq,k)  !Enthalpy of vaporization
+            tmp1=psmltevp2D(iq,k)*xls*ocp + prevp2D(iq,k)*lvap*ocp+  &
+                 psmlt2D(iq,k)*xlfocp
+
+            !tmp1 =  ! 1. evaporation of rain formed by melting snow ??? (-)
+                     ! 2. evaporation of rain (-)
+                     ! 3. melting of snow to form rain (+)
+            tem2D(iq,k)=tem2D(iq,k)+tmp1*dtb
+!bugfix 20191126
+
+            !tem(k)=tem(k)+tmp1*dtb
+            temcc2D(iq,k)=tem2D(iq,k)-273.15
+
+            thz2D(iq,k)=tem2D(iq,k)/tothz2D(iq,k)
+
+!===================================================================
+            es=1000.*svp1*exp( svp2*temcc2D(iq,k)/(tem2D(iq,k)-svp3) )
+            qswz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
+            qsiz2D(iq,k)=qswz2D(iq,k)
+            qvsbar2D(iq,k)=qswz2D(iq,k)
+!
+            tmp1=-(npraut2D(iq,k)+npsacw2D(iq,k)+npracw2D(iq,k))
+            ncz2D(iq,k)=amax1( 0.0,ncz2D(iq,k)+dtb*tmp1)
+            tmp1=-nprevp2D(iq,k)-(npraut_r2D(iq,k)-npsmlt2D(iq,k))
+  !          tmp1=-nprevp(k)-(nprautr(k)+npracwr(k)+npsacw(k)-npsmltr(k))
+            nrz2D(iq,k)=amax1(0.0,nrz2D(iq,k)-dtb*tmp1)
+            tmp1=-(npsmlt2D(iq,k)+npsmltevp2D(iq,k))
+            nsz2D(iq,k)=amax1( 0.0,nsz2D(iq,k)-dtb*tmp1 )
+
+        end if    !T seperate for source and sink terms
+!      CALL wrf_debug ( 100 , 'module_ylin: finish sum of all processes' )
+!rain
+            if (qrz2D(iq,k) .gt. 1.0e-8) then
+            xlambdar2D(iq,k)=(pi*rhowater*nrz2D(iq,k)/qrz2D(iq,k))**(1./3.)   !zx
+            if (xlambdar2D(iq,k).lt.lamminr) then
+                xlambdar2D(iq,k) = lamminr
+                n0_r2D(iq,K) = xlambdar2D(iq,K)**4*qrz2D(iq,K)/(pi*rhowater)
+                nrz2D(iq,K) = n0_r2D(iq,K)/xlambdar2D(iq,K)
+            else if (xlambdar2D(iq,K).gt.lammaxr) then
+                xlambdar2D(iq,K) = lammaxr
+                n0_r2D(iq,K) = xlambdar2D(iq,K)**4*qrz2D(iq,K)/(pi*rhowater)
+                nrz2D(iq,K) = n0_r2D(iq,K)/xlambdar2D(iq,K)
+            end if
+            end if
+
+!snow
+            if (qsz2D(iq,k) .gt. 1.0e-8) then
+            xlambdas2D(iq,k)=(am_s2D(iq,k)*ggamma(tmp_ss2D(iq,k))*     &
+                    nsz2D(iq,k)/qsz2D(iq,k))**(1./bm_s2D(iq,k))
+            if (xlambdas2D(iq,k).lt.lammins) then
+                xlambdas2D(iq,k)= lamminS
+                n0_s2D(iq,K) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*      &
+                        qsz2D(iq,K)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
+                nsz2D(iq,K) = n0_s2D(iq,K)/xlambdas2D(iq,k)
+            else if (xlambdas2D(iq,k).gt.lammaxs) then
+                xlambdas2D(iq,k) = lammaxs
+                n0_s2D(iq,K) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*      & 
+                        qsz2D(iq,K)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
+                nsz2D(iq,K) = n0_s2D(iq,K)/xlambdas2D(iq,k)
+            end if
+            end if
+
+!cloud ice
+            if (qiz2D(iq,k).ge.1.0e-8) then
+            lami2D(iq,k) = max((ggamma(1.+3.)*500.*pi/6.)*niz2D(iq,k)/qiz2D(iq,k),1.e-20)**(1./3) !fixed zdc
+            if (lami2D(iq,k).lt.lammini) then
+                lami2D(iq,k)= lammini
+                n0_i2D(iq,K) = lami2D(iq,k)**4./ggamma(1.+3.)*500.*pi/6.
+                niz2D(iq,K) = n0_i2D(iq,K)/lami2D(iq,k)
+            else if (lami2D(iq,k).gt.lammaxi) then
+                lami2D(iq,k) = lammaxi
+                n0_i2D(iq,K) = lami2D(iq,k)**4./ggamma(1.+3.)*500.*pi/6.
+                niz2D(iq,K) = n0_i2D(iq,K)/lami2D(iq,k)
+            end if
+            end if
+!cloud water zdc 20220208
+            if (qlz2D(iq,k).ge.1.0e-8) then
+            lamc2D(iq,k) = (ncz2D(iq,k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz2D(iq,k)*ggamma(1+mu_c)))**(1./3)
+            if (lamc2D(iq,k).lt.lammini) then
+                lamc2D(iq,k)= lammini
+                n0_c2D(iq,k)= lamc2D(iq,k)**(mu_c+4.)*6.*qlz2D(iq,k)/(pi*rhowater*ggamma(mu_c+4))
+                ncz2D(iq,k) = n0_c2D(iq,k)/lamc2D(iq,k)
+            else if (lamc2D(iq,k).gt.lammaxi) then
+                lamc2D(iq,k)= lammaxi
+                n0_c2D(iq,k)= lamc2D(iq,k)**(mu_c+4.)*6.*qlz2D(iq,k)/(pi*rhowater*ggamma(mu_c+4))
+                ncz2D(iq,k) = n0_c2D(iq,k)/lamc2D(iq,k)
+            end if
+            end if
 
        end if
      end do     ! iq
@@ -1256,739 +1935,13 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     precsz(:)   = precsz2D(iq,:)
     !------------------------------------
     tmp1D(:)    = tmp2D(iq,:)
-
-    
+    qvsbar(:)   = qvsbar2D(iq,:)
+!
+!
      DO k=kts,kte
         tmp = tmp1D(k)
-
         if( .not.(qvz(k)+qlz(k)+qiz(k) .lt. qsiz(k)  &
             .and. tmp .eq. 0.0) ) then !go to 2000
-
-
-!---------- start of snow/ice processes below freezing
-
-        if (tem(k) .lt. 273.15) then
-
-!
-! ice nucleation, cooper curve
-
-         if ((qvoqswz(k).ge.0.999.and.temcc(k).le. -8.).or. &
-              qvoqsiz(k).ge.1.08) then
-              nidep(k) = 5.*exp(0.304*(273.15-temcc(k)))  ! m-3
-              nidep(k) = min(nidep(k), 500.e3) !5.e8) sny ! limit to 500 L-1
-              nidep(k) = max(nidep(k)/rho(k), 0.)         ! convert to kg-1
-              nidep(k) = (nidep(k) - niz(k))*odtb
-              midep(k) = nidep(k)*mi0
-          end if
-!***********************************************************************
-!*********        snow production processes for T < 0 C       **********
-!***********************************************************************
-!c
-!c (1) ICE CRYSTAL AGGREGATION TO SNOW (Psaut): Lin (21)
-!c!    psaut=alpha1*(qi-qi0)
-!c!    alpha1=1.0e-3*exp(0.025*(T-T0))
-!c
-            alpha1=1.0e-3*exp( 0.025*temcc(k) )
-!
-            ! BELOW SECTION TURN OFF BY SONNY   sny: on temp
-            ! ---------------------------------------------------------------
-            !if(temcc(k) .lt. -20.0) then
-            !    tmp1=-7.6+4.0*exp( -0.2443e-3*(abs(temcc(k))-20)**2.455 )
-            !    qic=1.0e-3*exp(tmp1)*orho(k)
-            !else
-            !    qic=qi0 
-            !end if
-            !----------------------------------------------------------------
-            
-            qic = qi0  ! sny: OFF temp
-
-            tmp1=odtb*(qiz(k)-qic)*(1.0-exp(-alpha1*dtb))
-            psaut(k)=amax1( 0.0,tmp1 )
-            npsaut(k)=amax1( 0.0,psaut(k)/xms)
-!c
-!c (2) BERGERON PROCESS TRANSFER OF CLOUD WATER TO SNOW (Psfw)
-!c     this process only considered when -31 C < T < 0 C
-!c     Lin (33) and Hsie (17)
-!c
-!c!
-!c!    parama1 and parama2 functions must be user supplied
-!c!
-
-            if( qlz(k) .gt. 1.0e-10 ) then
-                temc1=amax1(-30.99,temcc(k))
-                a1=parama1( temc1 )
-                a2=parama2( temc1 )
-                tmp1=1.0-a2
-!!   change unit from cgs to mks
-                a1=a1*0.001**tmp1
-!!   dtberg is the time needed for a crystal to grow from 40 to 50 um
-!!   odtberg=1.0/dtberg
-                odtberg=(a1*tmp1)/(xmi50**tmp1-xmi40**tmp1)
-!
-!!   compute terminal velocity of a 50 micron ice cystal
-!
-                vti50=av_i*di50**bv_i*sqrho(k)
-!
-                eiw=1.0
-                save1=a1*xmi50**a2
-                save2=0.25*pi*eiw*rho(k)*di50*di50*vti50
-!
-                tmp2=( save1 + save2*qlz(k) )
-!
-!!  maximum number of 50 micron crystals limited by the amount
-!!  of supercool water
-!
-                xni50mx=qlzodt(k)/tmp2
-!
-!!   number of 50 micron crystals produced
-!
-                xni50=qiz(k)*( 1.0-exp(-dtb*odtberg) )/xmi50
-                xni50=amin1(xni50,xni50mx)
-!
-                tmp3=odtb*tmp2/save2*( 1.0-exp(-save2*xni50*dtb) )
-                psfw(k)=amin1( tmp3,qlzodt(k) )
-!c
-!c (3) REDUCTION OF CLOUD ICE BY BERGERON PROCESS (Psfi): Lin (34)
-!c     this process only considered when -31 C < T < 0 C
-!c
-                tmp1=xni50*xmi50-psfw(k)
-                psfi(k)=amin1(tmp1,qizodt(k))
-            end if
-!
-!
-            if(qrz(k) .gt. 0.0) then  ! go to 1000
-!
-! Processes (4) and (5) only need when qrz > 0.0
-!
-!c
-!c (4) CLOUD ICE ACCRETION BY RAIN (Praci): Lin (25)
-!c     produce PI
-!c
-                eri=1.0
-                save1=pio4*eri*n0_r(k)*av_r*sqrho(k)
-                tmp1=save1*gambp3*olambdar(k)**bp3
-                praci(k)=qizodt(k)*( 1.0-exp(-tmp1*dtb) )
-                npraci(k)=niz(k)*tmp1
-
-!c
-!c (5) RAIN ACCRETION BY CLOUD ICE (Piacr): Lin (26)
-!c
-                tmp2=qiz(k)*save1*rho(k)*pio6*rhowater*gambp6*oxmi* &
-                    olambdar(k)**bp6
-                piacr(k)=amin1( tmp2,qrzodt(k) )
-                npiacr(k)=pio4*eri*nrz(k)*av_r*niz(k)*gambp3*olambdar(k)**bp3  !--wdm6 
-!
-             end if !1000    continue
-!
-            if(qsz(k) .gt. 0.0) then !go to 1200
-!
-! Compute the following processes only when qsz > 0.0
-!
-!c
-!c (6) ICE CRYSTAL ACCRETION BY SNOW (Psaci): Lin (22)
-!c
-                esi=exp( 0.025*temcc(k) )
-                save1 = aa_s(k)*sqrho(k)*N0_s(k)* &
-                    ggamma(bv_s(k)+tmp_sa(k))*olambdas(k)**(bv_s(k)+tmp_sa(k))
-
-                tmp1=esi*save1
-                psaci(k)=qizodt(k)*( 1.0-exp(-tmp1*dtb) )
-                npsaci(k)=amin1( tmp1*niz(k),nizodt(k))
-!c
-!c (7) CLOUD WATER ACCRETION BY SNOW (Psacw): Lin (24)
-!c
-                esw=1.0
-                tmp1=esw*save1
-                psacw(k)=qlzodt(K)*( 1.0-exp(-tmp1*dtb) )
-                npsacw(k)=amin1(tmp1*ncz(k),ncz(k))
-
-                ! recalculate the saturatuin temperature
-!c
-!c (8) DEPOSITION/SUBLIMATION OF SNOW (Psdep/Pssub): Lin (31)
-!c     includes consideration of ventilation effect
-!c
-                tmpa=rvapor*xka(k)*tem(k)*tem(k)
-                tmpb=xls*xls*rho(k)*qsiz(k)*diffwv(k)
-                tmpc=tmpa*qsiz(k)*diffwv(k)
-                abi=4.0*pi*cap_s(k)*(qvoqsiz(k)-1.0)*tmpc/(tmpa+tmpb)
-                tmp1=av_s(k)*sqrho(k)*olambdas(k)**(5+bv_s(k)+2*mu_s)/visc(k)
-
-!---- YLIN, here there is some approximation assuming mu_s =1, so gamma(2)=1, etc.
-
-                tmp2= abi*N0_s(k)*( vf1s*olambdas(k)*olambdas(k)+ &
-                    vf2s*schmidt(k)**0.33334* &
-                ggamma(2.5+0.5*bv_s(k)+mu_s)*sqrt(tmp1) )
-
-
-                tmp3=odtb*( qvz(k)-qsiz(k) )
-                tmp3=amin1(tmp3,0.)
-!
-                if( tmp2 .le. 0.0) then
-                    tmp2=amax1( tmp2,tmp3)
-                    pssub(k)=amax1( tmp2,-qszodt(k) )
-                    psdep(k)=0.0
-                else
-                    psdep(k)=amin1( tmp2,tmp3 )
-                    pssub(k)=0.0
-                end if
-                if(qsz(k) .ge. 0.0) then
-                  npssub(k)=pssub(k)*nsz(k)/qsz(k)
-                  npsdep(k)=npsdep(k)*nsz(k)/qsz(k)
-                else
-                  npssub(k)=pssub(k)/xms
-                  npsdep(k)=npsdep(k)/xms
-                end if
-!
-                if(qrz(k) .gt. 0.0) then !go to 1200
-!
-! Compute processes (9) and (10) only when qsz > 0.0 and qrz > 0.0
-! these two terms need to be refined in the future, they should be equal
-!c
-!c (9) ACCRETION OF SNOW BY RAIN (Pracs): Lin (27)
-!c
-                esr=1.0
-                tmpa=olambdar(k)*olambdar(k)
-                tmpb=olambdas(k)*olambdas(k)
-                tmpc=olambdar(k)*olambdas(k)
-                tmp1=pi*pi*esr*n0_r(k)*N0_s(k)*abs( vtr(k)-vts(k) )*orho(k)
-!                tmp1=pi*pi*esr*n0_r(k)*N0_s(k)*            &
-!                ( (1.2*vtr(k)-0.95*vts(k))**2+0.08*vtr(k)*vts(k))**0.5*orho(k)
-                tmp2=tmpb*tmpb*olambdar(k)*(5.0*tmpb+2.0*tmpc+0.5*tmpa)
-                tmp3=tmp1*rhosnow*tmp2
-                pracs(k)=amin1( tmp3,qszodt(k) )
-!c
-!c (10) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
-!c
-                tmp3=tmpa*tmpa*olambdas(k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
-                tmp4=tmp1*rhowater*tmp3
-                psacr(k)=amin1( tmp4,qrzodt(k) )
-            tmp1=0.25*pi*esr*n0_r(k)*N0_s(k)*abs( vtr(k)-vts(k) )
-            tmp2=tmpc*(2.0*tmpa+1.0*tmpc+2*tmpb)
-            tmp3=tmp1*tmp2
-            npsacr(k)=amin1( tmp3,nrzodt(k) )
-!
-!c
-!c (2) FREEZING OF RAIN TO FORM GRAUPEL  (pgfr): Lin (45), added to PI
-!c     positive value
-!c     Constant in Bigg freezing Aplume=Ap=0.66 /k
-!c     Constant in raindrop freezing equ. Bplume=Bp=100./m/m/m/s
-!
-
-            if (qrz(k) .gt. 1.e-8 ) then
-                Bp=100.
-                Ap=0.66
-                tmp1=olambdar(k)*olambdar(k)*olambdar(k)
-                tmp2=20.*pi*pi*Bp*n0_r(k)*rhowater*orho(k)*  &
-                    (exp(-Ap*temcc(k))-1.0)*tmp1*tmp1*olambdar(k)
-                pgfr(k)=amin1( tmp2,qrzodt(k) )
-                npgfr(k)=pi*Bp*n0_r(k)*tmpa*tmpa*(exp(-Ap*temcc(k))-1.0)
-            else
-                pgfr(k)=0
-                npgfr(k)=0.
-            endif
-
-            end if ! for the go to 1200 
-          end if !1200    continue
-!
-
-        else                        
-
-!
-!***********************************************************************
-!*********        snow production processes for T > 0 C       **********
-!***********************************************************************
-!
-            if (qsz(k) .gt. 0.0)  then !go to 1400
-!c
-!c (1) CLOUD WATER ACCRETION BY SNOW (Psacw): Lin (24)
-!c
-            esw=1.0
-
-            save1 =aa_s(k)*sqrho(k)*N0_s(k)* &
-                   ggamma(bv_s(k)+tmp_sa(k))*olambdas(k)**(bv_s(k)+tmp_sa(k))
-
-            tmp1=esw*save1
-            psacw(k)=qlzodt(k)*( 1.0-exp(-tmp1*dtb) )
-            npsacw(k)=tmp1*ncz(k)
-!c
-!c (2) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
-!c
-            esr=1.0
-            tmpa=olambdar(k)*olambdar(k)
-            tmpb=olambdas(k)*olambdas(k)
-            tmpc=olambdar(k)*olambdas(k)
-            tmp1=pi*pi*esr*n0_r(k)*N0_s(k)*abs( vtr(k)-vts(k) )*orho(k)
-!            tmp1=pi*pi*esr*n0_r(k)*N0_s(k)*            &
-!                ( (1.2*vtr(k)-0.95*vts(k))**2+0.08*vtr(k)*vts(k))**0.5*orho(k)
-            tmp2=tmpa*tmpa*olambdas(k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
-            tmp3=tmp1*rhowater*tmp2
-            psacr(k)=amin1( tmp3,qrzodt(k) )
-
-            tmp1=0.25*pi*esr*n0_r(k)*N0_s(k)*abs( vtr(k)-vts(k) )
-            tmp2=tmpc*(2.0*tmpa+1.0*tmpc+2*tmpb)
-            tmp3=tmp1*tmp2
-            npsacr(k)=amin1( tmp3,nrzodt(k) )
-
-!c
-!c (3) MELTING OF SNOW (Psmlt): Lin (32)
-!c     Psmlt is negative value
-!
-            delrs=rs0(k)-qvz(k)
-            term1=2.0*pi*orho(k)*( xlv*diffwv(k)*rho(k)*delrs- &
-                xka(k)*temcc(k) )
-            tmp1= av_s(k)*sqrho(k)*olambdas(k)**(5+bv_s(k)+2*mu_s)/visc(k)
-            tmp2= N0_s(k)*( vf1s*olambdas(k)*olambdas(k)+ &
-                vf2s*schmidt(k)**0.33334* &
-                ggamma(2.5+0.5*bv_s(k)+mu_s)*sqrt(tmp1) )
-            tmp3=term1*oxlf*tmp2-cwoxlf*temcc(k)*( psacw(k)+psacr(k) )
-            tmp4=amin1(0.0,tmp3)
-            psmlt(k)=amax1( tmp4,-qszodt(k) )
-            
-            if(qsz(k) .ge. 0.0) then
-              npsmlt(k)=psmlt(k)*nsz(k)/qsz(k)
-            else
-              npsmlt(k)=psmlt(k)/xms
-            end if
-!c
-!c (4) EVAPORATION OF MELTING SNOW (Psmltevp): HR (A27)
-!c     but use Lin et al. coefficience
-!c     Psmltevp is a negative value
-!c
-            tmpa=rvapor*xka(k)*tem(k)*tem(k)
-            tmpb=xlv*xlv*rho(k)*qswz(k)*diffwv(k)
-            tmpc=tmpa*qswz(k)*diffwv(k)
-            tmpd=amin1( 0.0,(qvoqswz(k)-0.90)*qswz(k)*odtb )
-
-            abr=2.0*pi*(qvoqswz(k)-0.90)*tmpc/(tmpa+tmpb)
-!
-!**** allow evaporation to occur when RH less than 90%
-!**** here not using 100% because the evaporation cooling
-!**** of temperature is not taking into account yet; hence,
-!**** the qsw value is a little bit larger. This will avoid
-!**** evaporation can generate cloud.
-!
-            tmp1=av_s(k)*sqrho(k)*olambdas(k)**(5+bv_s(k)+2*mu_s)/visc(k)
-            tmp2= N0_s(k)*( vf1s*olambdas(k)*olambdas(k)+ &
-                vf2s*schmidt(k)**0.33334* &
-                ggamma(2.5+0.5*bv_s(k)+mu_s)*sqrt(tmp1) )
-            tmp3=amin1(0.0,tmp2)
-            tmp3=amax1( tmp3,tmpd )
-            psmltevp(k)=amax1( tmp3,-qszodt(k) )
-            if(qsz(k) .ge. 0.0) then
-              npsmltevp(k)=psmltevp(k)*nsz(k)/qsz(k)
-            else
-              npsmltevp(k)=psmltevp(k)/xmr
-            end if
-          end if !          1400     continue
-!
-        end if      !---- end of snow/ice processes
-!---------- end of snow/ice processes below freezing
-
-!         CALL wrf_debug ( 100 , 'module_ylin: finish ice/snow processes' )
-
-
-
-
-
-
-
-
-!       end if
-!     END DO
-!
-!
-!     DO k=kts,kte
-!        tmp = tmp1D(k)
-!
-!        if( .not.(qvz(k)+qlz(k)+qiz(k) .lt. qsiz(k)  &
-!            .and. tmp .eq. 0.0) ) then !go to 2000
-!
-
-
-
-
-
-
-
-
-
-
-
-!***********************************************************************
-!*********           rain production processes                **********
-!***********************************************************************
-
-!c
-!c (1) AUTOCONVERSION OF RAIN (Praut): using Liu and Daum (2004)
-!c
-
-!---- YLIN, autoconversion use Liu and Daum (2004), unit = g cm-3 s-1, in the scheme kg/kg s-1, so
-
-      !if (AEROSOL .eq. .true.) then
-      !  print*, ' AEROSOL option here'
-        
-      !else
-        if (qlz(k) .gt. 1e-6) then
-            mu_c    = AMIN1(15., (1000.E6/ncz(k) + 2.))
-            lamc(k) = (ncz(k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz(k)*ggamma(1+mu_c)))**(1./3)
-
-            Dc_liu  = (ggamma(6+1+mu_c)/ggamma(1+mu_c))**(1./6.)/lamc(k)             !----- R6 in m
-
-            if (Dc_liu .gt. R6c) then
-                disp = 1./(mu_c+1.)      !--- square of relative dispersion
-                eta  = (0.75/pi/(1e-3*rhowater))**2*1.9e11*((1+3*disp)*(1+4*disp)*&
-                    (1+5*disp)/(1+disp)/(1+2*disp))
-                praut(k) = eta*(1e-3*rho(k)*qlz(k))**3/(1e-6*ncz(k))                      !--- g cm-3 s-1
-                praut(k) = praut(k)/(1e-3*rho(k))                                       !--- kg kg-1 s-1
-                npraut_r(k) = praut(k)/xmr                                       !--- kg kg-1 s-1
-                npraut(k) = praut(k)/qlz(k)*ncz(k)                                      !--- kg kg-1 s-1
-                npraut(k) = praut(k)/xmr                                       !--- kg kg-1 s-1
-            else
-                praut(k) = 0.0
-                npraut(k) = 0.0
-                npraut_r(k) = 0.0
-            endif
-        else
-            praut(k) = 0.0
-            npraut(k) = 0.0
-            npraut_r(k) = 0.0
-        endif 
-!        if (qlz(k) .gt. 1e-6) then
-!        praut(k)=1350.*qlz(k)**2.47*  &
-!           (ncz(k)/1.e6*rho(k))**(-1.79)
-!        npraut_r(k) = praut(k)/xmr
-!        npraut(k) = praut(k)/(qlz(k)/ncz(k))
-!        npraut(K) = MIN(npraut(k),nczodt(k))
-!        npraut_r(K) = MIN(npraut_r(k),npraut(k))
-!        endif 
-
-
-
-!c
-!c (2) ACCRETION OF CLOUD WATER BY RAIN (Pracw): Lin (51)
-!c
-        erw=1.0
-        tmp1=pio4*erw*n0_r(k)*av_r*sqrho(k)* &
-            gambp3*olambdar(k)**bp3 ! son
-        pracw(k)=qlzodt(k)*( 1.0-exp(-tmp1*dtb) )
-        npracw(k)=tmp1*ncz(k)
-!c
-!c (3) EVAPORATION OF RAIN (Prevp): Lin (52)
-!c     Prevp is negative value
-!c
-!c     Sw=qvoqsw : saturation ratio
-!c
-        tmpa=rvapor*xka(k)*tem(k)*tem(k)
-        tmpb=xlv*xlv*rho(k)*qswz(k)*diffwv(k)
-        tmpc=tmpa*qswz(k)*diffwv(k)
-        tmpd=amin1(0.0,(qvoqswz(k)-0.99)*qswz(k)*odtb)
-        
-        abr=2.0*pi*(qvoqswz(k)-0.99)*tmpc/(tmpa+tmpb)
-        tmp1=av_r*sqrho(k)*olambdar(k)**bp5/visc(k) !son
-        tmp2=abr*n0_r(k)*( vf1r*olambdar(k)*olambdar(k)+  &
-             vf2r*schmidt(k)**0.33334*gambp5o2*sqrt(tmp1) )
-        tmp3=amin1( 0.0,tmp2 )
-        tmp3=amax1( tmp3,tmpd )
-        prevp(k)=amax1( tmp3,-qrzodt(k) )
-        if (qrz(k).gt.0.) then
-          nprevp(k)=prevp(k)*nrz(k)/qrz(k)
-        else 
-          nprevp(k)=prevp(k)*xmr
-        end if
-
-!        CALL wrf_debug ( 100 , 'module_ylin: finish rain processes' )
-
-!c
-!c**********************************************************************
-!c*****     combine all processes together and avoid negative      *****
-!c*****     water substances
-!***********************************************************************
-!c
-        if ( temcc(k) .lt. 0.0) then
-!c
-!c  combined water vapor depletions
-!c
-            tmp=psdep(k) + midep(k)
-            if ( tmp .gt. qvzodt(k) ) then
-                factor=qvzodt(k)/tmp
-                psdep(k)=psdep(k)*factor
-                midep(k)=midep(k)*factor
-            end if
-!c
-!c  combined cloud water depletions
-!c
-            tmp=praut(k)+psacw(k)+psfw(k)+pracw(k)
-            if ( tmp .gt. qlzodt(k) ) then
-                factor=qlzodt(k)/tmp
-                praut(k)=praut(k)*factor
-                psacw(k)=psacw(k)*factor
-                psfw(k)=psfw(k)*factor
-                pracw(k)=pracw(k)*factor
-            end if
-!c
-!c  combined cloud ice depletions
-!c
-            tmp=psaut(k)+psaci(k)+praci(k)+psfi(k)
-            if (tmp .gt. qizodt(k) ) then
-                factor=qizodt(k)/tmp
-                psaut(k)=psaut(k)*factor
-                psaci(k)=psaci(k)*factor
-                praci(k)=praci(k)*factor
-                psfi(k)=psfi(k)*factor
-            endif
-
-!c
-!c  combined all rain processes
-!c
-            tmp_r=piacr(k)+psacr(k)-prevp(k)-praut(k)-pracw(k)+pgfr(k) 
-            if (tmp_r .gt. qrzodt(k) ) then
-                factor=qrzodt(k)/tmp_r
-                piacr(k)=piacr(k)*factor
-                psacr(k)=psacr(k)*factor
-                prevp(k)=prevp(k)*factor
-                pgfr(k)=pgfr(k)*factor
-            endif
-!c
-!c   combined all snow processes
-!c
-            tmp_s=-pssub(k)-(psaut(k)+psaci(k)+psacw(k)+psfw(k)+pgfr(k)+ &
-                 psfi(k)+praci(k)+piacr(k)+ &
-                 psdep(k)+psacr(k)-pracs(k))
-            if ( tmp_s .gt. qszodt(k) ) then
-                factor=qszodt(k)/tmp_s
-                pssub(k)=pssub(k)*factor
-                Pracs(k)=Pracs(k)*factor
-            endif
-
-!c
-!c  calculate new water substances, thetae, tem, and qvsbar
-!c
-
-            pvapor(k)=-pssub(k)-psdep(k)-prevp(k)-midep(k)
-            qvz(k)=amax1( qvmin,qvz(k)+dtb*pvapor(k) )
-            pclw(k)=-praut(k)-pracw(k)-psacw(k)-psfw(k)
-            qlz(k)=amax1( 0.0,qlz(k)+dtb*pclw(k) )
-            pcli(k)=-psaut(k)-psfi(k)-psaci(k)-praci(k)+midep(k)
-            qiz(k)=amax1( 0.0,qiz(k)+dtb*pcli(k) )
-            tmp_r=piacr(k)+psacr(k)-prevp(k)-praut(k)-pracw(k)+pgfr(k)-pracs(k) 
-            prain(k)=-tmp_r
-            qrz(k)=amax1( 0.0,qrz(k)+dtb*prain(k) )
-            tmp_s=-pssub(k)-(psaut(k)+psaci(k)+psacw(k)+psfw(k)+pgfr(k)+  &
-                   psfi(k)+praci(k)+piacr(k)+  &
-                   psdep(k)+psacr(k)-pracs(k))
-            psnow(k)=-tmp_s
-            qsz(k)=amax1( 0.0,qsz(k)+dtb*psnow(k) )
-            
-            qschg(k)=qschg(k)+psnow(k)
-            qschg(k)=psnow(k)
-            
-            tmp=ocp/tothz(k)*xLf*qschg(k)
-            theiz(k)=theiz(k)+dtb*tmp
-!            thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
-!            tem(k)=thz(k)*tothz(k)
-            
-!            temcc(k)=tem(k)-273.15
-!==================update temperature=================================================       
-            temcc(k)=tem(k)-273.15
-            lvap = xlv + (2106.0 - 4218.0)*temcc(k)  !Enthalpy of vaporization
-            tmp1=(pssub(k)+psdep(k))*xls*ocp + prevp(k)*lvap*ocp+  &
-                 (psfw(k)+pgfr(k)+psacr(k)-pracs(k))*xlfocp               
-!bug fixed 20191126            
-            tem(k)=tem(k)+tmp1*dtb
-
-            temcc(k)=tem(k)-273.15
-
-            thz(k)=tem(k)/tothz(k)
-!===================================================================            
-            if( temcc(k) .lt. -40.0 ) qswz(k)=qsiz(k)
-            qlpqi=qlz(k)+qiz(k)
-            if ( qlpqi .eq. 0.0 ) then
-               qvsbar(k)=qsiz(k)
-            else
-               qvsbar(k)=( qiz(k)*qsiz(k)+qlz(k)*qswz(k) )/qlpqi
-            endif
-            tmp1=-npraut(k)-npracw(k)-npsacw(k)
-            ncz(k)=amax1( 0.0,ncz(k)+dtb*tmp1 )
-            tmp1=-npsaut(k)-npsaci(k)-npraci(k)+nidep(k)
-            niz(k)=amax1( 0.0,niz(k)+dtb*tmp1 )
-            tmp1=npiacr(k)+npsacr(k)-nprevp(k)-npraut_r(k)+npgfr(k) 
-            nrz(k)=amax1( 0.0,nrz(k)-dtb*tmp1 )
-            tmp1=-(npsaut(k)+npgfr(k)+  &
-                   npraci(k)+npiacr(k)+  &
-                   npsdep(k)+npsacr(k))
-            nsz(k)=amax1( 0.0,nsz(k)-dtb*tmp1 )
-!
-        else                  !>0 C
-!c
-!c  combined cloud water depletions
-!c
-            tmp=praut(k)+psacw(k)+pracw(k)
-            if ( tmp .gt. qlzodt(k) ) then
-                factor=qlzodt(k)/tmp
-                praut(k)=praut(k)*factor
-                psacw(k)=psacw(k)*factor
-                pracw(k)=pracw(k)*factor
-            end if
-!c
-!c  combined all snow processes
-!c
-            tmp_s=-(psmlt(k)+psmltevp(k))
-            if (tmp_s .gt. qszodt(k) ) then
-                factor=qszodt(k)/tmp_s
-                psmlt(k)=psmlt(k)*factor
-                psmltevp(k)=psmltevp(k)*factor
-            endif
-!c
-!c  combined all rain processes
-!c
-            tmp_r=-prevp(k)-(praut(k)+pracw(k)+psacw(k)-psmlt(k)) 
-            if (tmp_r .gt. qrzodt(k) ) then
-                factor=qrzodt(k)/tmp_r
-                prevp(k)=prevp(k)*factor
-            endif
-!c
-!c  calculate new water substances and thetae
-!c
-            pvapor(k)=-psmltevp(k)-prevp(k)
-            qvz(k)=amax1( qvmin,qvz(k)+dtb*pvapor(k))
-            pclw(k)=-praut(k)-pracw(k)-psacw(k)
-            qlz(k)=amax1( 0.0,qlz(k)+dtb*pclw(k) )
-            pcli(k)=0.0
-            qiz(k)=amax1( 0.0,qiz(k)+dtb*pcli(k) )
-            tmp_r=-prevp(k)-(praut(k)+pracw(k)+psacw(k)-psmlt(k)) 
-            prain(k)=-tmp_r
-            tmpqrz=qrz(k)
-            qrz(k)=amax1( 0.0,qrz(k)+dtb*prain(k) )
-            tmp_s=-(psmlt(k)+psmltevp(k))
-            psnow(k)=-tmp_s
-            qsz(k)=amax1( 0.0,qsz(k)+dtb*psnow(k) )
-            qschg(k)=psnow(k)
-            
-            tmp=ocp/tothz(k)*xLf*qschg(k)
-            theiz(k)=theiz(k)+dtb*tmp
-!            thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
-            
-!            tem(k)=thz(k)*tothz(k)
-!            temcc(k)=tem(k)-273.15
-!==================update tmperature=================================================       
-            temcc(k)=tem(k)-273.15
-            lvap = xlv + (2106.0 - 4218.0)*temcc(k)  !Enthalpy of vaporization
-            tmp1=psmltevp(k)*xls*ocp + prevp(k)*lvap*ocp+  &
-                 psmlt(k)*xlfocp 
-           
-            !tmp1 =  ! 1. evaporation of rain formed by melting snow ??? (-)
-                     ! 2. evaporation of rain (-)
-                     ! 3. melting of snow to form rain (+) 
-            tem(k)=tem(k)+tmp1*dtb
-!bugfix 20191126          
-
-            !tem(k)=tem(k)+tmp1*dtb
-            temcc(k)=tem(k)-273.15
-
-            thz(k)=tem(k)/tothz(k)
-
-!===================================================================            
-            es=1000.*svp1*exp( svp2*temcc(k)/(tem(k)-svp3) )
-            qswz(k)=ep2*es/(prez(k)-es)
-            qsiz(k)=qswz(k)
-            qvsbar(k)=qswz(k)
-!
-            tmp1=-(npraut(k)+npsacw(k)+npracw(k))
-            ncz(k)=amax1( 0.0,ncz(k)+dtb*tmp1)
-            tmp1=-nprevp(k)-(npraut_r(k)-npsmlt(k)) 
-  !          tmp1=-nprevp(k)-(nprautr(k)+npracwr(k)+npsacw(k)-npsmltr(k)) 
-            nrz(k)=amax1(0.0,nrz(k)-dtb*tmp1)
-            tmp1=-(npsmlt(k)+npsmltevp(k))
-            nsz(k)=amax1( 0.0,nsz(k)-dtb*tmp1 )
-
-        end if    !T seperate for source and sink terms
-!      CALL wrf_debug ( 100 , 'module_ylin: finish sum of all processes' )
-
-
-
-
-
-!       end if
-!     END DO
-!
-!
-!     DO k=kts,kte
-!        tmp = tmp1D(k)
-!
-!        if( .not.(qvz(k)+qlz(k)+qiz(k) .lt. qsiz(k)  &
-!            .and. tmp .eq. 0.0) ) then !go to 2000
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-!rain
-            if (qrz(k) .gt. 1.0e-8) then
-            xlambdar(k)=(pi*rhowater*nrz(k)/qrz(k))**(1./3.)   !zx 
-            if (xlambdar(k).lt.lamminr) then
-                xlambdar(k) = lamminr
-                n0_r(K) = xlambdar(K)**4*qrz(K)/(pi*rhowater)
-                nrz(K) = n0_r(K)/xlambdar(K)
-            else if (xlambdar(K).gt.lammaxr) then
-                xlambdar(K) = lammaxr
-                n0_r(K) = xlambdar(K)**4*qrz(K)/(pi*rhowater)
-                nrz(K) = n0_r(K)/xlambdar(K)
-            end if
-            end if
-
-!snow
-            if (qsz(k) .gt. 1.0e-8) then
-            xlambdas(k)=(am_s(k)*ggamma(tmp_ss(k))*nsz(k)/qsz(k))**(1./bm_s(k))
-            if (xlambdas(k).lt.lammins) then
-                xlambdas(k)= lamminS
-                n0_s(K) = xlambdas(k)**(bm_s(k)+1)*qsz(K)/ggamma(1+bm_s(k))/am_s(k)
-                nsz(K) = n0_s(K)/xlambdas(k)
-            else if (xlambdas(k).gt.lammaxs) then
-                xlambdas(k) = lammaxs
-                n0_s(K) = xlambdas(k)**(bm_s(k)+1)*qsz(K)/ggamma(1+bm_s(k))/am_s(k)
-                nsz(K) = n0_s(K)/xlambdas(k)
-            end if
-            end if
-
-!cloud ice
-            if (qiz(k).ge.1.0e-8) then
-            lami(k) = max((ggamma(1.+3.)*500.*pi/6.)*niz(k)/qiz(k),1.e-20)**(1./3) !fixed zdc
-            if (lami(k).lt.lammini) then
-                lami(k)= lammini
-                n0_i(K) = lami(k)**4./ggamma(1.+3.)*500.*pi/6.
-                niz(K) = n0_i(K)/lami(k)
-            else if (lami(k).gt.lammaxi) then
-                lami(k) = lammaxi
-                n0_i(K) = lami(k)**4./ggamma(1.+3.)*500.*pi/6.
-                niz(K) = n0_i(K)/lami(k)
-            end if
-            end if
-
-!cloud water zdc 20220208
-            if (qlz(k).ge.1.0e-8) then
-            lamc(k) = (ncz(k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz(k)*ggamma(1+mu_c)))**(1./3)
-            if (lamc(k).lt.lammini) then
-                lamc(k)= lammini
-                n0_c(k)= lamc(k)**(mu_c+4.)*6.*qlz(k)/(pi*rhowater*ggamma(mu_c+4)) 
-                ncz(k) = n0_c(k)/lamc(k)
-            else if (lamc(k).gt.lammaxi) then
-                lamc(k)= lammaxi
-                n0_c(k)= lamc(k)**(mu_c+4.)*6.*qlz(k)/(pi*rhowater*ggamma(mu_c+4))
-                ncz(k) = n0_c(k)/lamc(k)
-            end if
-            end if
-
 !
 !***********************************************************************
 !**********              saturation adjustment                **********
@@ -2472,7 +2425,7 @@ END SUBROUTINE clphy1d_ylin
 
 
 !----------------------------------------------------------------
-     REAL FUNCTION parama1(temp)
+     FUNCTION parama1_s(temp) result(ans)
 !----------------------------------------------------------------
       IMPLICIT NONE
 !----------------------------------------------------------------
@@ -2481,6 +2434,7 @@ END SUBROUTINE clphy1d_ylin
 !----------------------------------------------------------------
 
       REAL, INTENT (IN   )   :: temp
+      real                   :: ans
       REAL, DIMENSION(32)    :: a1
       INTEGER                :: i1, i1p1
       REAL                   :: ratio
@@ -2496,9 +2450,41 @@ END SUBROUTINE clphy1d_ylin
       i1=int(-temp)+1
       i1p1=i1+1
       ratio=-(temp)-float(i1-1)
-      parama1=a1(i1)+ratio*( a1(i1p1)-a1(i1) )
+      ans=a1(i1)+ratio*( a1(i1p1)-a1(i1) )
 
-      END FUNCTION parama1
+      END FUNCTION parama1_s
+
+!----------------------------------------------------------------
+     FUNCTION parama1_v(temp) result(ans)
+!----------------------------------------------------------------
+      IMPLICIT NONE
+!----------------------------------------------------------------
+!  This program calculate the parameter for crystal growth rate
+!  in Bergeron process
+!----------------------------------------------------------------
+
+      REAL, dimension(:), INTENT (IN   )   :: temp
+      real, dimension(size(temp)) :: ans
+      REAL, DIMENSION(32)    :: a1
+      INTEGER                :: i1, i1p1, ilen, iq
+      REAL                   :: ratio
+
+      data a1/0.100e-10,0.7939e-7,0.7841e-6,0.3369e-5,0.4336e-5, &
+              0.5285e-5,0.3728e-5,0.1852e-5,0.2991e-6,0.4248e-6, &
+              0.7434e-6,0.1812e-5,0.4394e-5,0.9145e-5,0.1725e-4, &
+              0.3348e-4,0.1725e-4,0.9175e-5,0.4412e-5,0.2252e-5, &
+              0.9115e-6,0.4876e-6,0.3473e-6,0.4758e-6,0.6306e-6, &
+              0.8573e-6,0.7868e-6,0.7192e-6,0.6513e-6,0.5956e-6, &
+              0.5333e-6,0.4834e-6/
+
+      do iq = 1,size(temp)
+        i1=int(-temp(iq))+1
+        i1p1=i1+1
+        ratio=-(temp(iq))-float(i1-1)
+        ans(iq)=a1(i1)+ratio*( a1(i1p1)-a1(i1) )
+      end do  
+
+      END FUNCTION parama1_v
 
 !----------------------------------------------------------------
       REAL FUNCTION parama2(temp)
