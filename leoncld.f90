@@ -1318,7 +1318,7 @@ do n = 1,njumps
           if ( ttg(iq,k)>=tice .and. ttg(iq,k)<tfrz ) then
             qsl = qsatg(iq,k) + epsil*esdiffx(ttg(iq,k))/pk(iq)
           else
-            qsl = 0.
+            qsl = qsatg(iq,k)
           end if
           es       = qsl*pk(iq)/epsil
           Apr      = (hl/(rKa*ttg(iq,k)))*(hl/(rvap*ttg(iq,k))-1.)

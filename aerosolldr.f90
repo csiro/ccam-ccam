@@ -378,18 +378,18 @@ end if
 !$omp   private(pclcover,pcfcover,pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec)        &
 !$omp   private(lpfsnow,lpfsubl,lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav)        &
 !$omp   private(lprfreeze,lpfevap,lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3)        &
-!$omp   private(dmsoh,dmsn3)
+!$omp   private(dmsoh,dmsn3,lpccw)
 #endif
 #ifdef GPUPHYSICS
 !$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
 !$acc   copyin(clcon,xtosav,qlg,qfg,stratcloud,kbsav,condc,cldcon)                 &
 !$acc   copyin(pmrate,pfprec,pfsnow,pfsubl,pmaccr,pfmelt,pqfsedice,plambs,prscav)  &
-!$acc   copyin(prfreeze,pfevap,zoxidant_g,zdayfac,taudar)                          &
+!$acc   copyin(prfreeze,pfevap,zoxidant_g,zdayfac,taudar,pccw)                     &
 !$acc   present(xtg,ttg,rhoa,dz)                                                   &
 !$acc   private(js,je,nt,k,iq,xtm1,xtu,aphp1,prhop1,ptp1,pclcon,pclcover,pcfcover) &
 !$acc   private(pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec,lpfsnow,lpfsubl)          &
 !$acc   private(lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav,lprfreeze,lpfevap)      &
-!$acc   private(lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3,dmsoh,dmsn3)
+!$acc   private(lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3,dmsoh,dmsn3,lpccw)
 #endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
@@ -437,6 +437,7 @@ do tile = 1,ntiles
   lpfevap = pfevap(js:je,:)
   lzoxidant = zoxidant_g(js:je,:,:)
   ldustwd = dustwd(js:je,:)
+  lpccw = pccw(js:je,:)
   call xtchemie(2, dt, zdayfac(js:je), aphp1, lpmrate, lpfprec,            & !Inputs
                 pclcover, pmlwc, prhop1, ptp1, taudar(js:je), xtm1,        & !Inputs
                 lpfsnow,lpfsubl,pcfcover,pmiwc,lpmaccr,lpfmelt,            & !Inputs
