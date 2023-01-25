@@ -59,26 +59,26 @@ end interface parama1
 
 CONTAINS
 
-SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
-                      qvz2D, qlz2D, qrz2D, qiz2D, qsz2D,          &
-                      thz2D, tothz2D, rho2D, orho2D, sqrho2D,     &
-                      prez2D, zz2D, dzw2D, zsfc2D,                &
-                      precrz2D, preciz2D, precsz2D,               & !zdc20220116
-                      EFFC1D2D, EFFI1D2D, EFFS1D2D, EFFR1D2D,     & !zdc 20220208
-                      pptrain1D, pptsnow1D,pptice1D,              &
-                      kts2D, kte2D, i2D, j2D, riz2D,              &
-                      ncz2D, nrz2D, niz2D, nsz2D,                 &
-                      fluxr2D, fluxi2D, fluxs2D, fluxg2D, fluxm2D,&
-                      fluxf2D, fevap2D, fsubl2D, fauto2D, fcoll2D,&
-                      faccr2D, vi2D, vs2D, vg2D,                  &
-                      zpsnow2D,zpsaut2D,zpsfw2D,zpsfi2D,zpraci2D, & !process rate 
-                      zpiacr2D,zpsaci2D,zpsacw2D,zpsdep2D,        &
-                      zpssub2D,zpracs2D,zpsacr2D,zpsmlt2D,        &
-                      zpsmltevp2D,zprain2D,zpraut2D,zpracw2D,     &
-                      zprevp2D,zpgfr2D,zpvapor2D,zpclw2D,         &
-                      zpladj2D,zpcli2D,zpimlt2D,zpihom2D,         &
-                      zpidw2D,zpiadj2D,zqschg2D,                  &
-                      zdrop2D,lin_aerosolmode2D)                    !aerosol feedback
+SUBROUTINE clphy1d_ylin(dt, imax,                               &
+                      qvz, qlz, qrz, qiz, qsz,          &
+                      thz, tothz, rho, orho, sqrho,     &
+                      prez, zz, dzw, zsfc,                &
+                      precrz, preciz, precsz,               & !zdc20220116
+                      EFFC1D, EFFI1D, EFFS1D, EFFR1D,     & !zdc 20220208
+                      pptrain, pptsnow,pptice,              &
+                      kts, kte, i2D, j2D, riz,                  &
+                      ncz, nrz, niz, nsz,                 &
+                      fluxr, fluxi, fluxs, fluxg, fluxm,&
+                      fluxf, fevap, fsubl, fauto, fcoll,&
+                      faccr, vi, vs, vg,                  &
+                      zpsnow,zpsaut,zpsfw,zpsfi,zpraci, & !process rate 
+                      zpiacr,zpsaci,zpsacw,zpsdep,        &
+                      zpssub,zpracs,zpsacr,zpsmlt,        &
+                      zpsmltevp,zprain,zpraut,zpracw,     &
+                      zprevp,zpgfr,zpvapor,zpclw,         &
+                      zpladj,zpcli,zpimlt,zpihom,         &
+                      zpidw,zpiadj,zqschg,                  &
+                      zdrop,lin_aerosolmode)                    !aerosol feedback
 
 !-----------------------------------------------------------------------
   implicit none
@@ -130,65 +130,43 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
 !
 !----------------------------------------------------------------------
 ! new 2D declaration
-  integer,                             intent(in)    :: kts2D, kte2D, i2D, j2D
-  integer,                             intent(in)    :: imax2D
-  integer,                             intent(in)    :: lin_aerosolmode2D
-  real,                                intent(in)    :: dt2D
-  real, dimension(1:imax2D),           intent(in)    :: zsfc2D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(in)  :: zdrop2D, riz2D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(in)  :: tothz2D,rho2D,orho2D,sqrho2D,   &
-                                                          prez2D,zz2D,dzw2D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(out) :: precrz2D,preciz2D,precsz2D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(out) :: EFFC1D2D,EFFI1D2D,              &
-                                                          EFFS1D2D,EFFR1D2D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(out) :: fluxr2D,fluxi2D,fluxs2D,fluxg2D,&
-                                                          fluxm2D,fluxf2D,fevap2D,fsubl2D,&
-                                                          fauto2D,fcoll2D,faccr2D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(out) :: vi2D,vs2D,vg2D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(out) :: zpsnow2D,zpsaut2D,zpsfw2D,      &
-                                                          zpsfi2D,zpraci2D,zpiacr2D,      &
-                                                          zpsaci2D,zpsacw2D,zpsdep2D,     &
-                                                          zpssub2D,zpracs2D,zpsacr2D,     &
-                                                          zpsmlt2D,zpsmltevp2D,zprain2D,  &
-                                                          zpraut2D,zpracw2D,zprevp2D,     &
-                                                          zpgfr2D,zpvapor2D,zpclw2D,      &
-                                                          zpladj2D,zpcli2D,zpimlt2D,      &
-                                                          zpihom2D,zpidw2D,zpiadj2D,      &
-                                                          zqschg2D
-  real, dimension(1:imax2D),             intent(inout) :: pptrain1D, pptsnow1D, pptice1D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(inout) :: qvz2D,qlz2D,qrz2D,qiz2D,qsz2D,  &
-                                                          thz2D
-  real, dimension(1:imax2D,kts2D:kte2D), intent(inout) :: ncz2D,niz2D,nrz2D,nsz2D
+  integer,                         intent(in)  :: kts, kte, i2D, j2D
+  integer,                         intent(in)  :: imax
+  integer,                         intent(in)  :: lin_aerosolmode
+  real,                            intent(in)  :: dt
+  real, dimension(1:imax),         intent(in)  :: zsfc
+  real, dimension(1:imax,kts:kte), intent(in)  :: zdrop, riz
+  real, dimension(1:imax,kts:kte), intent(in)  :: tothz,rho,orho,sqrho,   &
+                                                          prez,zz,dzw
+  real, dimension(1:imax,kts:kte), intent(out) :: precrz,preciz,precsz
+  real, dimension(1:imax,kts:kte), intent(out) :: EFFC1D,EFFI1D,              &
+                                                          EFFS1D,EFFR1D
+  real, dimension(1:imax,kts:kte), intent(out) :: fluxr,fluxi,fluxs,fluxg,&
+                                                          fluxm,fluxf,fevap,fsubl,&
+                                                          fauto,fcoll,faccr
+  real, dimension(1:imax,kts:kte), intent(out) :: vi,vs,vg
+  real, dimension(1:imax,kts:kte), intent(out) :: zpsnow,zpsaut,zpsfw,      &
+                                                          zpsfi,zpraci,zpiacr,      &
+                                                          zpsaci,zpsacw,zpsdep,     &
+                                                          zpssub,zpracs,zpsacr,     &
+                                                          zpsmlt,zpsmltevp,zprain,  &
+                                                          zpraut,zpracw,zprevp,     &
+                                                          zpgfr,zpvapor,zpclw,      &
+                                                          zpladj,zpcli,zpimlt,      &
+                                                          zpihom,zpidw,zpiadj,      &
+                                                          zqschg
+  real, dimension(1:imax),         intent(inout) :: pptrain, pptsnow, pptice
+  real, dimension(1:imax,kts:kte), intent(inout) :: qvz,qlz,qrz,qiz,qsz,  &
+                                                          thz
+  real, dimension(1:imax,kts:kte), intent(inout) :: ncz,niz,nrz,nsz
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  integer                               :: kts, kte
-  integer                               :: i, j, is, ie, iq, tile, imax
-  real, dimension(kts2D:kte2D)          :: zdrop
-  integer                               :: lin_aerosolmode
+  integer                               :: i, j, is, ie, iq, tile 
   integer                               :: cnt_sny 
-  real, dimension(1:imax2D,kts2D:kte2D) :: nczodt2D,nizodt2D,nrzodt2D,nszodt2D
-  real, dimension(1:imax2D,kts2D:kte2D) :: oprez2D,tem2D,temcc2D,qswz2D,qsiz2D,  &
-                                             theiz2D,qvoqswz2D,qvoqsiz2D,qvzodt2D, &
-                                             qlzodt2D,qizodt2D,qszodt2D,qrzodt2D
-  real, dimension(1:imax2D)             :: es1D 
-  real, dimension(kts2D:kte2D)          :: qvz,qlz,qrz,qiz,qsz,thz 
-  real, dimension(kts2D:kte2D)          :: tothz,rho,orho,sqrho,prez,zz,dzw
-
-  !zdc 20220116
-  real, dimension( kts2D:kte2D )        :: precrz, preciz, precsz    
-  real, dimension( kts2D:kte2D )        :: EFFC1D, EFFI1D, EFFS1D, EFFR1D
-  real, dimension( kts2D:kte2D)         :: fluxr,fluxi,fluxs,fluxg,fluxm, &
-                                           fluxf,fevap,fsubl,fauto,fcoll, &
-                                           faccr
-  real, dimension( kts2D:kte2D)         :: vi, vs, vg        
-  real, dimension( kts2D:kte2D)         :: zpsnow,zpsaut,zpsfw,zpsfi,zpraci, & !process rate to understand cloud microphysic
-                                           zpiacr,zpsaci,zpsacw,zpsdep,      &
-                                           zpssub,zpracs,zpsacr,zpsmlt,      &
-                                           zpsmltevp,zprain,zpraut,zpracw,   &
-                                           zprevp,zpgfr,zpvapor,zpclw,       &
-                                           zpladj,zpcli,zpimlt,zpihom,       &
-                                           zpidw,zpiadj,zqschg
-  real                                  :: pptrain, pptsnow, pptice
-  real                                  :: dt, zsfc
+  real, dimension(1:imax,kts:kte)       :: nczodt, nizodt, nrzodt, nszodt
+  real, dimension(1:imax,kts:kte)       :: oprez, tem, temcc, theiz, qswz,    &
+                                           qsiz, qvoqswz, qvoqsiz, qvzodt,    &
+                                           qlzodt, qizodt, qszodt, qrzodt
+  real, dimension(1:imax)               :: es1D 
   ! local vars
   real                                  :: obp4, bp3, bp5, bp6, odp4,  &
                                            dp3, dp5, dp5o2
@@ -201,59 +179,42 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
                                            Ap, Bp,                      &
                                            factor, tmp_r, tmp_s,tmp_g,  &
                                            qlpqi, rsat, a1, a2, xnin
-  real, dimension( kts2D:kte2D )        :: tmp1D
-  real, dimension(1:imax2D,kts2D:kte2D) :: tmp2D
-  real, dimension( kts2D:kte2D )        :: oprez, tem, temcc, theiz, qswz,    &
-                                           qsiz, qvoqswz, qvoqsiz, qvzodt,    &
-                                           qlzodt, qizodt, qszodt, qrzodt
+  real, dimension(kts:kte)              :: tmp1D
+  real, dimension(1:imax,kts:kte)       :: tmp2D
+
 !--- microphysical processes
-  real, dimension( kts2D:kte2D )        :: psnow, psaut, psfw,  psfi,  praci,  &
+  real, dimension(1:imax,kts:kte)       :: psnow, psaut, psfw,  psfi,  praci,  &
                                            piacr, psaci, psacw, psdep, pssub,  &
                                            pracs, psacr, psmlt, psmltevp,      &
                                            prain, praut, pracw, prevp, pvapor, &
                                            pclw,  pladj, pcli,  pimlt, pihom,  &
                                            pidw,  piadj, pgfr,                 &
                                            qschg, pracis
-  real, dimension(1:imax2D,kts2D:kte2D) :: psnow2D, psaut2D, psfw2D,  psfi2D,  praci2D,  &
-                                           piacr2D, psaci2D, psacw2D, psdep2D, pssub2D,  &
-                                           pracs2D, psacr2D, psmlt2D, psmltevp2D,      &
-                                           prain2D, praut2D, pracw2D, prevp2D, pvapor2D, &
-                                           pclw2D,  pladj2D, pcli2D,  pimlt2D, pihom2D,  &
-                                           pidw2D,  piadj2D, pgfr2D,                 &
-                                           qschg2D, pracis2D
-  real, dimension(kts2D:kte2D)          :: qvsbar,rs0,viscmu,visc,diffwv,schmidt,xka
-  real, dimension(1:imax2D,kts2D:kte2D) :: qvsbar2D,rs02D,viscmu2D,visc2D,    &
-                                           diffwv2D,schmidt2D,xka2D
+
+  real, dimension(1:imax,kts:kte)       :: qvsbar,rs0,viscmu,visc,diffwv,schmidt,xka
+
 !---- new snow parameters
-  real, dimension( kts2D:kte2D )        :: ab_s,ab_r,ab_riming 
-  real, dimension( kts2D:kte2D )        :: cap_s       !---- capacitance of snow
-  real, dimension(1:imax2D,kts2D:kte2D) :: cap_s2D
+  real, dimension(kts:kte)              :: ab_s,ab_r,ab_riming 
+  real, dimension(1:imax,kts:kte)       :: cap_s       !---- capacitance of snow
   real                                  :: vf1s = 0.65, vf2s = 0.44, vf1r =0.78 , vf2r = 0.31 
   real                                  :: am_c1=0.004, am_c2= 6e-5,    am_c3=0.15
   real                                  :: bm_c1=1.85,  bm_c2= 0.003,   bm_c3=1.25
   real                                  :: aa_c1=1.28,  aa_c2= -0.012,  aa_c3=-0.6
   real                                  :: ba_c1=1.5,   ba_c2= 0.0075,  ba_c3=0.5
   real                                  :: best_a=1.08 ,  best_b = 0.499
-  real, dimension(kts2D:kte2D)          :: am_s,bm_s,av_s,bv_s,Ri,tmp_ss,lams 
-  real, dimension(1:imax2D,kts2D:kte2D) :: am_s2D,bm_s2D,av_s2D,bv_s2D,Ri2D,tmp_ss2D,lams2D 
-  real, dimension(kts2D:kte2D)          :: aa_s,ba_s,tmp_sa 
-  real, dimension(1:imax2D,kts2D:kte2D) :: aa_s2D,ba_s2D,tmp_sa2D 
+  real, dimension(1:imax,kts:kte)          :: am_s,bm_s,av_s,bv_s,Ri,tmp_ss,lams 
+  real, dimension(1:imax,kts:kte)          :: aa_s,ba_s,tmp_sa 
   real                                  :: mu_s=0.,mu_i=0.,mu_r=0.
    
   real                                  :: tc0, disp, Dc_liu, eta, mu_c, R6c      !--- for Liu's autoconversion
-  real, dimension(1:imax2D)             :: tc01D, disp1D, Dc_liu1D, eta1D, mu_c1D, R6c1D
+  real, dimension(1:imax)               :: tc01D, disp1D, Dc_liu1D, eta1D, mu_c1D, R6c1D
+
   ! Adding variable Riz, which will duplicate Ri but be a copy passed upward
-  real, dimension(kts2D:kte2D)          :: Riz
-  real, dimension(1:imax2D,kts2D:kte2D) :: Riz2D_lc
-  real, dimension( kts2D:kte2D )        :: vtr, vts,                       &
+  real, dimension(1:imax,kts:kte)       :: Riz2D_lc
+  real, dimension(1:imax,kts:kte)       :: vtr, vts,                       &
                                            vtrold, vtsold, vtiold,         &
                                            xlambdar, xlambdas,             &
                                            olambdar, olambdas
-  real, dimension(1:imax2D,kts2D:kte2D) :: vtr2D, vts2D,                &
-                                           vtrold2D, vtsold2D, vtiold2D,&
-                                           xlambdar2D, xlambdas2D,      &
-                                           olambdar2D, olambdas2D
-  !real, dimension( kts2D:kte2D )       :: fluxrain,fluxs,fluxice
   real                                  :: episp0k, dtb, odtb, pi, pio4,       &
                                            pio6, oxLf, xLvocp, xLfocp, av_r,   &
                                            av_i, ocdrag, gambp4, gamdp4,       &
@@ -264,45 +225,30 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
   real                                  :: temc1,save1,save2,xni50mx
   ! for terminal velocity flux
   integer                               :: min_q, max_q, max_ri_k, k
-  integer, dimension(1:imax2D)          :: min_q1D, max_q1D, max_ri_k1D
+  integer, dimension(1:imax)            :: min_q1D, max_q1D, max_ri_k1D
   real                                  :: max_ri
-  real, dimension(1:imax2D)             :: max_ri1D
+  real, dimension(1:imax)               :: max_ri1D
   real                                  :: t_del_tv, del_tv, flux, fluxin, fluxout ,tmpqrz
-  real, dimension(1:imax2D)             :: t_del_tv1D,del_tv1D,flux1D,fluxin1D,fluxout1D,tmpqrz1D
+  real, dimension(1:imax)               :: t_del_tv1D,del_tv1D,flux1D,fluxin1D,fluxout1D,tmpqrz1D
   logical                               :: notlast
-  logical, dimension(1:imax2D)          :: notlast1D, notlast_work
-  !
-  !zx add
-  real, dimension( kts2D:kte2D )        :: ncz,niz,nrz,nsz
-  real, dimension( kts2D:kte2D )        :: nczodt, nizodt, nrzodt, nszodt
-  real, dimension( kts2D:kte2D )        :: npsaut, npraci, npiacr, npsaci,    &
+  logical, dimension(1:imax)            :: notlast1D, notlast_work
+  real, dimension(1:imax,kts:kte)       :: npsaut, npraci, npiacr, npsaci,    &
                                            npsacw, npssub, npsdep, npsacr,    &
                                            npgfr,  npsmlt, npsmltevp,npraut,  &   
                                            npracw, nprevp, nihom,  nimlt,     &
                                            nsagg,  npraut_r
-  real, dimension(1:imax2D,kts2D:kte2D) :: npsaut2D, npraci2D, npiacr2D, npsaci2D,    &
-                                           npsacw2D, npssub2D, npsdep2D, npsacr2D,    &
-                                           npgfr2D,  npsmlt2D, npsmltevp2D,npraut2D,  &
-                                           npracw2D, nprevp2D, nihom2D,  nimlt2D,     &
-                                           nsagg2D,  npraut_r2D
-  real, dimension( kts2D:kte2D )        :: nvtr,   nvts
-  real, dimension(1:imax2D,kts2D:kte2D) :: nvtr2D, nvts2D 
-  real, dimension( kts2D:kte2D )        :: qisten, qrsten, qssten
-  real, dimension( kts2D:kte2D )        :: nisten, nrsten, nssten
-  real, dimension(1:imax2D,kts2D:kte2D) :: qisten2D, qrsten2D, qssten2D
-  real, dimension(1:imax2D,kts2D:kte2D) :: nisten2D, nrsten2D, nssten2D
+  real, dimension(1:imax,kts:kte)       :: nvtr,   nvts
+  real, dimension(1:imax,kts:kte)       :: qisten, qrsten, qssten
+  real, dimension(1:imax,kts:kte)       :: nisten, nrsten, nssten
   real                                  :: nflux,  nfluxin,nfluxout
-  real, dimension(1:imax2D)             :: nflux1D,nfluxin1D,nfluxout1D
-  real, dimension( kts2D:kte2D )        :: n0_r,n0_i,n0_c,n0_s                    
-  real, dimension( kts2D:kte2D )        :: lami,lamc
-  real, dimension(1:imax2D,kts2D:kte2D) :: n0_r2D,n0_i2D,n0_c2D,n0_s2D
-  real, dimension(1:imax2D,kts2D:kte2D) :: lami2D,lamc2D
+  real, dimension(1:imax)               :: nflux1D,nfluxin1D,nfluxout1D
+  real, dimension(1:imax,kts:kte)       :: n0_r,n0_i,n0_c,n0_s                  
+  real, dimension(1:imax,kts:kte)       :: lami,lamc
   real                                  :: xmr,xms,xmc,dcs,xmr_i
   real                                  :: lamminr, lammaxr,lammins, lammaxs,lammini, lammaxi
   real                                  :: gambvr1
   real                                  :: lvap
-  real, dimension( kts2D:kte2D )        :: nidep, midep
-  real, dimension(1:imax2D,kts2D:kte2D) :: nidep2D, midep2D
+  real, dimension(1:imax,kts:kte)       :: nidep, midep
   real                                  :: mi0
 
   vtrold=0.
@@ -311,7 +257,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
 
   mu_c    = AMIN1(15., (1000.E6/Nt_c + 2.))
   R6c     = 10.0E-6      !---- 10 micron, threshold radius of cloud droplet
-  dtb     = dt2D                                                                         !sny
+  dtb     = dt                                                                         !sny
   odtb    =1./dtb
   pi      =acos(-1.)
   pio4    =acos(-1.)/4.
@@ -371,144 +317,140 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
   lammini = 1./(2.*dcs+100.E-6)
 
 
-  fluxs2D = 0.                                        ! sny
-  fluxi2D = 0.
-  fluxr2D = 0.
-  fluxs2D = 0.
+  fluxs = 0.                                        ! sny
+  fluxi = 0.
+  fluxr = 0.
+  fluxs = 0.
 
-  select case( lin_aerosolmode2D )
+  select case( lin_aerosolmode )
     case(0)
-      do k=kts2D,kte2D
+      do k=kts,kte
         !ncz(k) = 250.*1.E6/rho(k)
-        ncz2D(1:imax2D,k) = Nt_c/rho2D(1:imax2D,k)
+        ncz(1:imax,k) = Nt_c/rho(1:imax,k)
       end do
     case(1)
-      do k=kts2D,kte2D
-        ncz2D(1:imax2D,k) = zdrop2D(1:imax2D,k)/rho2D(1:imax2D,k)
+      do k=kts,kte
+        ncz(1:imax,k) = zdrop(1:imax,k)/rho(1:imax,k)
       end do
     case default
       write(6,*) "ERROR: Unknown option aerosolmode"
       stop
   end select
 
-  kts   = kts2D
-  kte   = kte2D
-  imax  = imax2D
-
   do k=kts,kte
-    niz2D(1:imax,k) = min(niz2D(1:imax,k),0.3E6/rho2D(1:imax,k))
-    nrz2D(1:imax,k) = amax1( 0.0,nrz2D(1:imax,k) )
-    nsz2D(1:imax,k) = amax1( 0.0,nsz2D(1:imax,k) )
-    nczodt2D(1:imax,k)=amax1( 0.0,odtb*ncz2D(1:imax,k) )
-    nizodt2D(1:imax,k)=amax1( 0.0,odtb*niz2D(1:imax,k) )
-    nrzodt2D(1:imax,k)=amax1( 0.0,odtb*nrz2D(1:imax,k) )
-    nszodt2D(1:imax,k)=amax1( 0.0,odtb*nsz2D(1:imax,k) )
+    niz(1:imax,k) = min(niz(1:imax,k),0.3E6/rho(1:imax,k))
+    nrz(1:imax,k) = amax1( 0.0,nrz(1:imax,k) )
+    nsz(1:imax,k) = amax1( 0.0,nsz(1:imax,k) )
+    nczodt(1:imax,k)=amax1( 0.0,odtb*ncz(1:imax,k) )
+    nizodt(1:imax,k)=amax1( 0.0,odtb*niz(1:imax,k) )
+    nrzodt(1:imax,k)=amax1( 0.0,odtb*nrz(1:imax,k) )
+    nszodt(1:imax,k)=amax1( 0.0,odtb*nsz(1:imax,k) )
   end do
 
   do k=kts,kte
-    oprez2D(1:imax,k)=1./prez2D(1:imax,k) 
-    qlz2D(1:imax,k)  =amax1( 0.0,qlz2D(1:imax,k) )
-    qiz2D(1:imax,k)  =amax1( 0.0,qiz2D(1:imax,k) )
-    qvz2D(1:imax,k)  =amax1( qvmin,qvz2D(1:imax,k) )
-    qsz2D(1:imax,k)  =amax1( 0.0,qsz2D(1:imax,k) )
-    qrz2D(1:imax,k)  =amax1( 0.0,qrz2D(1:imax,k) )
-    tem2D(1:imax,k)  =thz2D(1:imax,k)*tothz2D(1:imax,k)
-    temcc2D(1:imax,k)=tem2D(1:imax,k)-273.15
-    es1D(1:imax)     =1000.*svp1*exp( svp2*temcc2D(1:imax,k)/(tem2D(1:imax,k)-svp3) )  !--- RY89 Eq(2.17)
-    qswz2D(1:imax,k) =ep2*es1D(1:imax)/(prez2D(1:imax,k)-es1D(1:imax))
+    oprez(1:imax,k)=1./prez(1:imax,k) 
+    qlz(1:imax,k)  =amax1( 0.0,qlz(1:imax,k) )
+    qiz(1:imax,k)  =amax1( 0.0,qiz(1:imax,k) )
+    qvz(1:imax,k)  =amax1( qvmin,qvz(1:imax,k) )
+    qsz(1:imax,k)  =amax1( 0.0,qsz(1:imax,k) )
+    qrz(1:imax,k)  =amax1( 0.0,qrz(1:imax,k) )
+    tem(1:imax,k)  =thz(1:imax,k)*tothz(1:imax,k)
+    temcc(1:imax,k)=tem(1:imax,k)-273.15
+    es1D(1:imax)     =1000.*svp1*exp( svp2*temcc(1:imax,k)/(tem(1:imax,k)-svp3) )  !--- RY89 Eq(2.17)
+    qswz(1:imax,k) =ep2*es1D(1:imax)/(prez(1:imax,k)-es1D(1:imax))
  
     do iq=1,imax
-      if (tem2D(iq,k) .lt. 273.15 ) then
-        es1D(iq)=1000.*svp1*exp( 21.8745584*(tem2D(iq,k)-273.16)/(tem2D(iq,k)-7.66) )
-        qsiz2D(iq,k)=ep2*es1D(iq)/(prez2D(iq,k)-es1D(iq))
-        if (temcc2D(iq,k) .lt. -40.0) qswz2D(iq,k)=qsiz2D(iq,k)
+      if (tem(iq,k) .lt. 273.15 ) then
+        es1D(iq)=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
+        qsiz(iq,k)=ep2*es1D(iq)/(prez(iq,k)-es1D(iq))
+        if (temcc(iq,k) .lt. -40.0) qswz(iq,k)=qsiz(iq,k)
       else
-        qsiz2D(iq,k)=qswz2D(iq,k)
+        qsiz(iq,k)=qswz(iq,k)
       endif
     enddo
 
-    qvoqswz2D(1:imax,k)  =qvz2D(1:imax,k)/qswz2D(1:imax,k)
-    qvoqsiz2D(1:imax,k)  =qvz2D(1:imax,k)/qsiz2D(1:imax,k)
-    qvzodt2D(1:imax,k)   =amax1( 0.0,odtb*qvz2D(1:imax,k) )
-    qlzodt2D(1:imax,k)   =amax1( 0.0,odtb*qlz2D(1:imax,k) )
-    qizodt2D(1:imax,k)   =amax1( 0.0,odtb*qiz2D(1:imax,k) )
-    qszodt2D(1:imax,k)   =amax1( 0.0,odtb*qsz2D(1:imax,k) )
-    qrzodt2D(1:imax,k)   =amax1( 0.0,odtb*qrz2D(1:imax,k) )
-    theiz2D(1:imax,k)=thz2D(1:imax,k)+(xlvocp*qvz2D(1:imax,k)-xlfocp*qiz2D(1:imax,k))/tothz2D(1:imax,k)
+    qvoqswz(1:imax,k)  =qvz(1:imax,k)/qswz(1:imax,k)
+    qvoqsiz(1:imax,k)  =qvz(1:imax,k)/qsiz(1:imax,k)
+    qvzodt(1:imax,k)   =amax1( 0.0,odtb*qvz(1:imax,k) )
+    qlzodt(1:imax,k)   =amax1( 0.0,odtb*qlz(1:imax,k) )
+    qizodt(1:imax,k)   =amax1( 0.0,odtb*qiz(1:imax,k) )
+    qszodt(1:imax,k)   =amax1( 0.0,odtb*qsz(1:imax,k) )
+    qrzodt(1:imax,k)   =amax1( 0.0,odtb*qrz(1:imax,k) )
+    theiz(1:imax,k)=thz(1:imax,k)+(xlvocp*qvz(1:imax,k)-xlfocp*qiz(1:imax,k))/tothz(1:imax,k)
   enddo
 
   do k=kts,kte
-    psnow2D(1:imax,k)   =0.                  ! sum all process for snow
-    psaut2D(1:imax,k)   =0.                  ! ice crystal aggregation to snow
-    psfw2D(1:imax,k)    =0.                  ! BERGERON process to transfer cloud water to snow
-    psfi2D(1:imax,k)    =0.                  ! BERGERON process to transfer cloud ice to snow
-    praci2D(1:imax,k)   =0.                  ! cloud ice accretion by rain
-    piacr2D(1:imax,k)   =0.                  ! rain accretion by cloud ice
-    psaci2D(1:imax,k)   =0.                  ! ice crystal accretion by snow
-    psacw2D(1:imax,k)   =0.                  ! accretion of cloud water by snow
-    psdep2D(1:imax,k)   =0.                  ! deposition of snow
-    pssub2D(1:imax,k)   =0.                  ! sublimation of snow (T<0)
-    pracs2D(1:imax,k)   =0.                  ! accretion of snow by rain
-    psacr2D(1:imax,k)   =0.                  ! accretion of rain by snow
-    psmlt2D(1:imax,k)   =0.                  ! melting of snow
-    psmltevp2D(1:imax,k)=0.                  ! evaporation of melting snow (T>0)
-    prain2D(1:imax,k)   =0.                  ! sum all process for rain
-    praut2D(1:imax,k)   =0.                  ! autoconversion of rain
-    pracw2D(1:imax,k)   =0.                  ! accretion of cloud water by rain
-    prevp2D(1:imax,k)   =0.                  ! evaporation of rain
-    pgfr2D(1:imax,k)    =0.                  ! feezing of rain to form graupel (added to PI)
-    pvapor2D(1:imax,k)  =0.                  ! sum all process for water vapor to determine qvz
-    pclw2D(1:imax,k)    =0.                  ! sum all process for cloud liquid to determine qlz
-    pladj2D(1:imax,k)   =0.                  ! saturation adjustment for ql
-    pcli2D(1:imax,k)    =0.                  ! sum all process for cloud ice to determine qiz
-    pimlt2D(1:imax,k)   =0.                  ! melting of ice crystal >0.
-    pihom2D(1:imax,k)   =0.                  ! homogeneous nucleation <-40
-    pidw2D(1:imax,k)    =0.                  ! production of cloud ice by BERGERON process
-    piadj2D(1:imax,k)   =0.                  ! saturation adjustment for qi
-    qschg2D(1:imax,k)   =0.                  ! = psnow / unsure
+    psnow(1:imax,k)   =0.                  ! sum all process for snow
+    psaut(1:imax,k)   =0.                  ! ice crystal aggregation to snow
+    psfw(1:imax,k)    =0.                  ! BERGERON process to transfer cloud water to snow
+    psfi(1:imax,k)    =0.                  ! BERGERON process to transfer cloud ice to snow
+    praci(1:imax,k)   =0.                  ! cloud ice accretion by rain
+    piacr(1:imax,k)   =0.                  ! rain accretion by cloud ice
+    psaci(1:imax,k)   =0.                  ! ice crystal accretion by snow
+    psacw(1:imax,k)   =0.                  ! accretion of cloud water by snow
+    psdep(1:imax,k)   =0.                  ! deposition of snow
+    pssub(1:imax,k)   =0.                  ! sublimation of snow (T<0)
+    pracs(1:imax,k)   =0.                  ! accretion of snow by rain
+    psacr(1:imax,k)   =0.                  ! accretion of rain by snow
+    psmlt(1:imax,k)   =0.                  ! melting of snow
+    psmltevp(1:imax,k)=0.                  ! evaporation of melting snow (T>0)
+    prain(1:imax,k)   =0.                  ! sum all process for rain
+    praut(1:imax,k)   =0.                  ! autoconversion of rain
+    pracw(1:imax,k)   =0.                  ! accretion of cloud water by rain
+    prevp(1:imax,k)   =0.                  ! evaporation of rain
+    pgfr(1:imax,k)    =0.                  ! feezing of rain to form graupel (added to PI)
+    pvapor(1:imax,k)  =0.                  ! sum all process for water vapor to determine qvz
+    pclw(1:imax,k)    =0.                  ! sum all process for cloud liquid to determine qlz
+    pladj(1:imax,k)   =0.                  ! saturation adjustment for ql
+    pcli(1:imax,k)    =0.                  ! sum all process for cloud ice to determine qiz
+    pimlt(1:imax,k)   =0.                  ! melting of ice crystal >0.
+    pihom(1:imax,k)   =0.                  ! homogeneous nucleation <-40
+    pidw(1:imax,k)    =0.                  ! production of cloud ice by BERGERON process
+    piadj(1:imax,k)   =0.                  ! saturation adjustment for qi
+    qschg(1:imax,k)   =0.                  ! = psnow / unsure
 
-    npsaut2D(1:imax,k)   =0.
-    npraci2D(1:imax,k)   =0.
-    npiacr2D(1:imax,k)   =0.
-    npsaci2D(1:imax,k)   =0.
-    npsacw2D(1:imax,k)   =0.
-    npssub2D(1:imax,k)   =0.
-    npsdep2D(1:imax,k)   =0.
-    npsacr2D(1:imax,k)   =0.
-    npgfr2D(1:imax,k)    =0.
-    npsmlt2D(1:imax,k)   =0.
-    npsmltevp2D(1:imax,k)=0.
-    npraut2D(1:imax,k)   =0.
-    npracw2D(1:imax,k)   =0.
-    nprevp2D(1:imax,k)   =0.
+    npsaut(1:imax,k)   =0.
+    npraci(1:imax,k)   =0.
+    npiacr(1:imax,k)   =0.
+    npsaci(1:imax,k)   =0.
+    npsacw(1:imax,k)   =0.
+    npssub(1:imax,k)   =0.
+    npsdep(1:imax,k)   =0.
+    npsacr(1:imax,k)   =0.
+    npgfr(1:imax,k)    =0.
+    npsmlt(1:imax,k)   =0.
+    npsmltevp(1:imax,k)=0.
+    npraut(1:imax,k)   =0.
+    npracw(1:imax,k)   =0.
+    nprevp(1:imax,k)   =0.
 
-    nimlt2D(1:imax,k)    =0.
-    nihom2D(1:imax,k)    =0.
-    nsagg2D(1:imax,k)    =0.
-    npraut_r2D(1:imax,k) =0.
+    nimlt(1:imax,k)    =0.
+    nihom(1:imax,k)    =0.
+    nsagg(1:imax,k)    =0.
+    npraut_r(1:imax,k) =0.
 
-    n0_i2D(1:imax,k)     =0.
-    n0_s2D(1:imax,k)     =0.
-    n0_r2D(1:imax,k)     =0.
-    n0_c2D(1:imax,k)     =0.
-    lamc2D(1:imax,k)     =0.
-    lami2D(1:imax,k)     =0.
-    xlambdar2D(1:imax,k) =0.
-    xlambdas2D(1:imax,k) =0.
-    vtr2D(1:imax,k)      =0.
-    vts2D(1:imax,k)      =0.
-    vtiold2D(1:imax,k)   =0.
-    nvtr2D(1:imax,k)     =0.
-    nvts2D(1:imax,k)     =0.
+    n0_i(1:imax,k)     =0.
+    n0_s(1:imax,k)     =0.
+    n0_r(1:imax,k)     =0.
+    n0_c(1:imax,k)     =0.
+    lamc(1:imax,k)     =0.
+    lami(1:imax,k)     =0.
+    xlambdar(1:imax,k) =0.
+    xlambdas(1:imax,k) =0.
+    vtr(1:imax,k)      =0.
+    vts(1:imax,k)      =0.
+    vtiold(1:imax,k)   =0.
+    nvtr(1:imax,k)     =0.
+    nvts(1:imax,k)     =0.
 
-    qisten2D(1:imax,k)   =0.
-    qrsten2D(1:imax,k)   =0.
-    qssten2D(1:imax,k)   =0.
-    nisten2D(1:imax,k)   =0.
-    nrsten2D(1:imax,k)   =0.
-    nssten2D(1:imax,k)   =0.
-    nidep2D(1:imax,k)    =0.
-    midep2D(1:imax,k)    =0.
+    qisten(1:imax,k)   =0.
+    qrsten(1:imax,k)   =0.
+    qssten(1:imax,k)   =0.
+    nisten(1:imax,k)   =0.
+    nrsten(1:imax,k)   =0.
+    nssten(1:imax,k)   =0.
+    nidep(1:imax,k)    =0.
+    midep(1:imax,k)    =0.
   end do
 
   !***********************************************************************
@@ -529,12 +471,12 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
   !      axka=1.4132e3 (1.414e3 in MM5) m2/s2/k = 1.4132e7 cm2/s2/k
   !------------------------------------------------------------------
   do k=kts,kte
-    viscmu2D(1:imax,k)=avisc*tem2D(1:imax,k)**1.5/(tem2D(1:imax,k)+120.0)
-    visc2D(1:imax,k)=viscmu2D(1:imax,k)*orho2D(1:imax,k)
-    diffwv2D(1:imax,k)=adiffwv*tem2D(1:imax,k)**1.81*oprez2D(1:imax,k)
-    schmidt2D(1:imax,k)=visc2D(1:imax,k)/diffwv2D(1:imax,k)
-    xka2D(1:imax,k)=axka*viscmu2D(1:imax,k)
-    rs02D(1:imax,k)=ep2*1000.*svp1/(prez2D(1:imax,k)-1000.*svp1)
+    viscmu(1:imax,k)=avisc*tem(1:imax,k)**1.5/(tem(1:imax,k)+120.0)
+    visc(1:imax,k)=viscmu(1:imax,k)*orho(1:imax,k)
+    diffwv(1:imax,k)=adiffwv*tem(1:imax,k)**1.81*oprez(1:imax,k)
+    schmidt(1:imax,k)=visc(1:imax,k)/diffwv(1:imax,k)
+    xka(1:imax,k)=axka*viscmu(1:imax,k)
+    rs0(1:imax,k)=ep2*1000.*svp1/(prez(1:imax,k)-1000.*svp1)
   end do
 
   ! ---- YLIN, set snow variables
@@ -544,12 +486,12 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
   !                   rv*temp(k)/(diffu(k)*qvsi(k))
 
   do k = kts, kte
-    tc01D(1:imax)   = tem2D(1:imax,k)-273.15
+    tc01D(1:imax)   = tem(1:imax,k)-273.15
     do iq=1,imax
-      if (rho2D(iq,k)*qlz2D(iq,k) .gt. 1e-5 .AND. rho2D(iq,k)*qsz2D(iq,k) .gt. 1e-5) then
-        Ri2D(iq,k) = 1.0/(1.0+6e-5/(rho2D(iq,k)**1.170*qlz2D(iq,k)*qsz2D(iq,k)**0.170))
+      if (rho(iq,k)*qlz(iq,k) .gt. 1e-5 .AND. rho(iq,k)*qsz(iq,k) .gt. 1e-5) then
+        Ri(iq,k) = 1.0/(1.0+6e-5/(rho(iq,k)**1.170*qlz(iq,k)*qsz(iq,k)**0.170))
       else
-        Ri2D(iq,k) = 0
+        Ri(iq,k) = 0
       end if
     end do
   end do
@@ -557,45 +499,45 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
   !
   !--- make sure Ri does not decrease downward in a column
   !
-  max_ri_k1D(:) = maxloc(Ri2D,dim=2)
+  max_ri_k1D(:) = maxloc(Ri,dim=2)
   do iq = 1, imax
-    max_ri1D(iq)   = Ri2D(iq,max_ri_k1D(iq))
+    max_ri1D(iq)   = Ri(iq,max_ri_k1D(iq))
   end do
 
   do k = kts,kte
     do iq = 1,imax
       if ( k<=max_ri_k1D(iq) ) then
-        Ri2D(iq,k) = max_ri1D(iq)
+        Ri(iq,k) = max_ri1D(iq)
       end if
     end do
   end do
 
   !--- YLIN, get PI properties
   do k = kts, kte
-    Ri2D(1:imax,k) = AMAX1(0.,AMIN1(Ri2D(1:imax,k),1.0))
+    Ri(1:imax,k) = AMAX1(0.,AMIN1(Ri(1:imax,k),1.0))
     ! Store the value of Ri(k) as Riz(k)
-    Riz2D_lc(1:imax,k) = Ri2D(1:imax,k)
+    Riz2D_lc(1:imax,k) = Ri(1:imax,k)
 
-    cap_s2D(1:imax,k)= 0.25*(1+Ri2D(1:imax,k))
-    tc01D(1:imax)    = AMIN1(-0.1, tem2D(1:imax,k)-273.15)
-    n0_s2D(1:imax,k) = amin1(2.0E8, 2.0E6*exp(-0.12*tc01D(1:imax)))
-    am_s2D(1:imax,k) = am_c1+am_c2*tc01D(1:imax)+am_c3*Ri2D(1:imax,k)*Ri2D(1:imax,k)   !--- Heymsfield 2007
-    am_s2D(1:imax,k) = AMAX1(0.000023,am_s2D(1:imax,k))                                !--- use the a_min in table 1 of Heymsfield
-    bm_s2D(1:imax,k) = bm_c1+bm_c2*tc01D(1:imax)+bm_c3*Ri2D(1:imax,k)
-    bm_s2D(1:imax,k) = AMIN1(bm_s2D(1:imax,k),3.0)                                     !---- capped by 3
+    cap_s(1:imax,k)= 0.25*(1+Ri(1:imax,k))
+    tc01D(1:imax)    = AMIN1(-0.1, tem(1:imax,k)-273.15)
+    n0_s(1:imax,k) = amin1(2.0E8, 2.0E6*exp(-0.12*tc01D(1:imax)))
+    am_s(1:imax,k) = am_c1+am_c2*tc01D(1:imax)+am_c3*Ri(1:imax,k)*Ri(1:imax,k)   !--- Heymsfield 2007
+    am_s(1:imax,k) = AMAX1(0.000023,am_s(1:imax,k))                                !--- use the a_min in table 1 of Heymsfield
+    bm_s(1:imax,k) = bm_c1+bm_c2*tc01D(1:imax)+bm_c3*Ri(1:imax,k)
+    bm_s(1:imax,k) = AMIN1(bm_s(1:imax,k),3.0)                                     !---- capped by 3
     !--  converting from cgs to SI unit
-    am_s2D(1:imax,k) =  10**(2*bm_s2D(1:imax,k)-3.0)*am_s2D(1:imax,k)
-    aa_s2D(1:imax,k) = aa_c1 + aa_c2*tc01D(1:imax) + aa_c3*Ri2D(1:imax,k)
-    ba_s2D(1:imax,k) = ba_c1 + ba_c2*tc01D(1:imax) + ba_c3*Ri2D(1:imax,k)
+    am_s(1:imax,k) =  10**(2*bm_s(1:imax,k)-3.0)*am_s(1:imax,k)
+    aa_s(1:imax,k) = aa_c1 + aa_c2*tc01D(1:imax) + aa_c3*Ri(1:imax,k)
+    ba_s(1:imax,k) = ba_c1 + ba_c2*tc01D(1:imax) + ba_c3*Ri(1:imax,k)
     !--  convert to SI unit as in paper
-    aa_s2D(1:imax,k) = (1e-2)**(2.0-ba_s2D(1:imax,k))*aa_s2D(1:imax,k)
+    aa_s(1:imax,k) = (1e-2)**(2.0-ba_s(1:imax,k))*aa_s(1:imax,k)
     !---- get v from Mitchell 1996
-    av_s2D(1:imax,k) = best_a*viscmu2D(1:imax,k)*(2*grav*am_s2D(1:imax,k)/rho2D(1:imax,k)/ &
-                       aa_s2D(1:imax,k)/(viscmu2D(1:imax,k)**2))**best_b
-    bv_s2D(1:imax,k) = best_b*(bm_s2D(1:imax,k)-ba_s2D(1:imax,k)+2)-1
+    av_s(1:imax,k) = best_a*viscmu(1:imax,k)*(2*grav*am_s(1:imax,k)/rho(1:imax,k)/ &
+                       aa_s(1:imax,k)/(viscmu(1:imax,k)**2))**best_b
+    bv_s(1:imax,k) = best_b*(bm_s(1:imax,k)-ba_s(1:imax,k)+2)-1
 
-    tmp_ss2D(1:imax,k)= bm_s2D(1:imax,k)+mu_s+1
-    tmp_sa2D(1:imax,k)= ba_s2D(1:imax,k)+mu_s+1
+    tmp_ss(1:imax,k)= bm_s(1:imax,k)+mu_s+1
+    tmp_sa(1:imax,k)= ba_s(1:imax,k)+mu_s+1
   end do
 
 
@@ -624,36 +566,36 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     do k=kts,kte-1
       do iq = 1,imax
         if (notlast1D(iq)) then
-          if (qrz2D(iq,k) .gt. 1.0e-8) then
+          if (qrz(iq,k) .gt. 1.0e-8) then
             min_q1D(iq)=min0(min_q1D(iq),k)
             max_q1D(iq)=max0(max_q1D(iq),k)
             ! tmp1=sqrt(pi*rhowater*xnor/rho(k)/qrz(k))
             ! tmp1=sqrt(tmp1)
             ! vtrold(k)=o6*av_r*gambp4*sqrho(k)/tmp1**bv_r
-            xlambdar2D(iq,k)=(pi*rhowater*nrz2D(iq,k)/qrz2D(iq,k))**(1./3.)   !zx
-            n0_r2D(iq,k)=nrz2D(iq,k)*xlambdar2D(iq,k)
-            if (xlambdar2D(iq,k).lt.lamminr) then
-              xlambdar2D(iq,k) = lamminr
-              n0_r2D(iq,k) = xlambdar2D(iq,k)**4*qrz2D(iq,k)/(pi*rhowater)
-              nrz2D(iq,k) = n0_r2D(iq,k)/xlambdar2D(iq,k) 
-            else if (xlambdar2D(iq,k).gt.lammaxr) then
-              xlambdar2D(iq,k) = lammaxr
-              n0_r2D(iq,k) = xlambdar2D(iq,k)**4*qrz2D(iq,k)/(pi*rhowater)
-              nrz2D(iq,k) = n0_r2D(iq,k)/xlambdar2D(iq,k)
+            xlambdar(iq,k)=(pi*rhowater*nrz(iq,k)/qrz(iq,k))**(1./3.)   !zx
+            n0_r(iq,k)=nrz(iq,k)*xlambdar(iq,k)
+            if (xlambdar(iq,k).lt.lamminr) then
+              xlambdar(iq,k) = lamminr
+              n0_r(iq,k) = xlambdar(iq,k)**4*qrz(iq,k)/(pi*rhowater)
+              nrz(iq,k) = n0_r(iq,k)/xlambdar(iq,k) 
+            else if (xlambdar(iq,k).gt.lammaxr) then
+              xlambdar(iq,k) = lammaxr
+              n0_r(iq,k) = xlambdar(iq,k)**4*qrz(iq,k)/(pi*rhowater)
+              nrz(iq,k) = n0_r(iq,k)/xlambdar(iq,k)
             end if
-            olambdar2D(iq,k)=1.0/xlambdar2D(iq,k)
-            vtrold2D(iq,k)=o6*av_r*gambp4*sqrho2D(iq,k)*olambdar2D(iq,k)**bv_r
-            nvtr2D(iq,k)=av_r*gambvr1*sqrho2D(iq,k)*olambdar2D(iq,k)**bv_r
+            olambdar(iq,k)=1.0/xlambdar(iq,k)
+            vtrold(iq,k)=o6*av_r*gambp4*sqrho(iq,k)*olambdar(iq,k)**bv_r
+            nvtr(iq,k)=av_r*gambvr1*sqrho(iq,k)*olambdar(iq,k)**bv_r
             
             if (k .eq. 1) then
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zsfc2D(iq))/vtrold2D(iq,k))
+              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zsfc(iq))/vtrold(iq,k))
             else
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zz2D(iq,k-1))/vtrold2D(iq,k))
+              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtrold(iq,k))
             endif
           else
-            vtrold2D(iq,k)=0.
-            nvtr2D(iq,k)=0.
-            olambdar2D(iq,k)=0.
+            vtrold(iq,k)=0.
+            nvtr(iq,k)=0.
+            olambdar(iq,k)=0.
           endif
         endif     ! notlast1D
       enddo       ! iq
@@ -683,20 +625,20 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         if ( notlast1D(iq) ) then
           !if (max_q1D(iq) .ge. min_q1D(iq)) then      
           if ( k>=min_q1D(iq) .and. k<=max_q1D(iq) ) then
-            fluxout1D(iq)=rho2D(iq,k)*vtrold2D(iq,k)*qrz2D(iq,k)
-            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
-            tmpqrz1D(iq)=qrz2D(iq,k)
-            qrz2D(iq,k)=qrz2D(iq,k)+del_tv1D(iq)*flux1D(iq)
+            fluxout1D(iq)=rho(iq,k)*vtrold(iq,k)*qrz(iq,k)
+            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho(iq,k)/dzw(iq,k)
+            tmpqrz1D(iq)=qrz(iq,k)
+            qrz(iq,k)=qrz(iq,k)+del_tv1D(iq)*flux1D(iq)
             fluxin1D(iq)=fluxout1D(iq)
 
-            nfluxout1D(iq)=rho2D(iq,k)*nvtr2D(iq,k)*nrz2D(iq,k)
-            nflux1D(iq)=(nfluxin1D(iq)-nfluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
-            nrz2D(iq,k)=nrz2D(iq,k)+del_tv1D(iq)*nflux1D(iq)
+            nfluxout1D(iq)=rho(iq,k)*nvtr(iq,k)*nrz(iq,k)
+            nflux1D(iq)=(nfluxin1D(iq)-nfluxout1D(iq))/rho(iq,k)/dzw(iq,k)
+            nrz(iq,k)=nrz(iq,k)+del_tv1D(iq)*nflux1D(iq)
             nfluxin1D(iq)=nfluxout1D(iq)
-            qrsten2D(iq,k)=flux1D(iq)
-            nrsten2D(iq,k)=nflux1D(iq)
+            qrsten(iq,k)=flux1D(iq)
+            nrsten(iq,k)=nflux1D(iq)
  
-            fluxr2D(iq,k) = fluxout1D(iq)                     ! sny
+            fluxr(iq,k) = fluxout1D(iq)                     ! sny
           end if !maxq, minq
         end if   !notlast
       end do     !iq
@@ -706,12 +648,12 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
       if ( notlast1D(iq) ) then
         if (max_q1D(iq) .ge. min_q1D(iq)) then      
           if (min_q1D(iq) .eq. 1) then
-            pptrain1D(iq)=pptrain1D(iq)+fluxin1D(iq)*del_tv1D(iq)
+            pptrain(iq)=pptrain(iq)+fluxin1D(iq)*del_tv1D(iq)
           else
-            qrz2D(iq,min_q1D(iq)-1)=qrz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                           fluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
-            nrz2D(iq,min_q1D(iq)-1)=nrz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                           nfluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
+            qrz(iq,min_q1D(iq)-1)=qrz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                           fluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
+            nrz(iq,min_q1D(iq)-1)=nrz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                           nfluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
           endif  !minq
         else
           notlast_work(iq)=.false.
@@ -739,7 +681,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     do k=kts,kte-1
       do iq = 1, imax
         if (notlast1D(iq)) then
-          if (qsz2D(iq,k) .gt. 1.0e-8) then
+          if (qsz(iq,k) .gt. 1.0e-8) then
             min_q1D(iq)=min0(min_q1D(iq),k)
             max_q1D(iq)=max0(max_q1D(iq),k)
             !   tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
@@ -747,33 +689,33 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
             !   vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
             !   ggamma(tmp_ss(k))/(tmp1**bv_s(k))
             ! Zhao 2022 - Row 2 Table 2 or Lin 2011 - Formula A3
-            xlambdas2D(iq,k)=(am_s2D(iq,k)*ggamma(tmp_ss2D(iq,k))*nsz2D(iq,k)/qsz2D(iq,k))**(1./bm_s2D(iq,k))
+            xlambdas(iq,k)=(am_s(iq,k)*ggamma(tmp_ss(iq,k))*nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
             ! Zhao 2022 - Row 1 Table 2
-            n0_s2D(iq,k)=nsz2D(iq,k)*xlambdas2D(iq,k)
-            if (xlambdas2D(iq,k).lt.lammins) then
-              xlambdas2D(iq,k)= lammins
-              n0_s2D(iq,k) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*qsz2D(iq,k)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
-              nsz2D(iq,k) = n0_s2D(iq,k)/xlambdas2D(iq,k)
-            else if (xlambdas2D(iq,k).gt.lammaxs) then
-              xlambdas2D(iq,k) = lammaxs
-              n0_s2D(iq,k) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*qsz2D(iq,k)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
-              nsz2D(iq,k) = n0_s2D(iq,k)/xlambdas2D(iq,k)
+            n0_s(iq,k)=nsz(iq,k)*xlambdas(iq,k)
+            if (xlambdas(iq,k).lt.lammins) then
+              xlambdas(iq,k)= lammins
+              n0_s(iq,k) = xlambdas(iq,k)**(bm_s(iq,k)+1)*qsz(iq,k)/ggamma(1+bm_s(iq,k))/am_s(iq,k)
+              nsz(iq,k) = n0_s(iq,k)/xlambdas(iq,k)
+            else if (xlambdas(iq,k).gt.lammaxs) then
+              xlambdas(iq,k) = lammaxs
+              n0_s(iq,k) = xlambdas(iq,k)**(bm_s(iq,k)+1)*qsz(iq,k)/ggamma(1+bm_s(iq,k))/am_s(iq,k)
+              nsz(iq,k) = n0_s(iq,k)/xlambdas(iq,k)
             end if
-            olambdas2D(iq,k)=1.0/xlambdas2D(iq,k)
+            olambdas(iq,k)=1.0/xlambdas(iq,k)
             ! Zhao 2022 - Row 3 Table 2
-            vtsold2D(iq,k)= sqrho2D(iq,k)*av_s2D(iq,k)*ggamma(bv_s2D(iq,k)+tmp_ss2D(iq,k))/ &
-               ggamma(tmp_ss2D(iq,k))*(olambdas2D(iq,k)**bv_s2D(iq,k))
+            vtsold(iq,k)= sqrho(iq,k)*av_s(iq,k)*ggamma(bv_s(iq,k)+tmp_ss(iq,k))/ &
+               ggamma(tmp_ss(iq,k))*(olambdas(iq,k)**bv_s(iq,k))
             ! Zhao 2022 - Row 4 Table 2
-            nvts2D(iq,k)=sqrho2D(iq,k)*av_s2D(iq,k)*ggamma(bv_s2D(iq,k)+1)*(olambdas2D(iq,k)**bv_s2D(iq,k))
+            nvts(iq,k)=sqrho(iq,k)*av_s(iq,k)*ggamma(bv_s(iq,k)+1)*(olambdas(iq,k)**bv_s(iq,k))
             if (k .eq. 1) then
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zsfc2D(iq))/vtsold2D(iq,k))
+              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zsfc(iq))/vtsold(iq,k))
             else
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zz2D(iq,k-1))/vtsold2D(iq,k))
+              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtsold(iq,k))
             endif
           else
-            vtsold2D(iq,k)=0.
-            nvts2D(iq,k)=0.
-            olambdas2D(iq,k)=0.
+            vtsold(iq,k)=0.
+            nvts(iq,k)=0.
+            olambdas(iq,k)=0.
           endif
         endif   ! notlast1D
       enddo     ! iq
@@ -802,20 +744,20 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
       do iq = 1,imax
         if ( notlast1D(iq) ) then
           if ( k>=min_q1D(iq) .and. k<=max_q1D(iq) ) then
-            fluxout1D(iq)=rho2D(iq,k)*vtsold2D(iq,k)*qsz2D(iq,k)
-            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
-            qsz2D(iq,k)=qsz2D(iq,k)+del_tv1D(iq)*flux1D(iq)
-            qsz2D(iq,k)=amax1(0.,qsz2D(iq,k))
+            fluxout1D(iq)=rho(iq,k)*vtsold(iq,k)*qsz(iq,k)
+            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho(iq,k)/dzw(iq,k)
+            qsz(iq,k)=qsz(iq,k)+del_tv1D(iq)*flux1D(iq)
+            qsz(iq,k)=amax1(0.,qsz(iq,k))
             fluxin1D(iq)=fluxout1D(iq)
 
-            nfluxout1D(iq)=rho2D(iq,k)*nvts2D(iq,k)*nsz2D(iq,k)
-            nflux1D(iq)   =(nfluxin1D(iq)-nfluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
-            nsz2D(iq,k)  =nsz2D(iq,k)+del_tv1D(iq)*nflux1D(iq)
+            nfluxout1D(iq)=rho(iq,k)*nvts(iq,k)*nsz(iq,k)
+            nflux1D(iq)   =(nfluxin1D(iq)-nfluxout1D(iq))/rho(iq,k)/dzw(iq,k)
+            nsz(iq,k)  =nsz(iq,k)+del_tv1D(iq)*nflux1D(iq)
             nfluxin1D(iq) =nfluxout1D(iq)
-            qssten2D(iq,k)=flux1D(iq)
-            nssten2D(iq,k)=nflux1D(iq)
+            qssten(iq,k)=flux1D(iq)
+            nssten(iq,k)=nflux1D(iq)
 
-            fluxs2D(iq,k) = fluxout1D(iq)                     ! sny
+            fluxs(iq,k) = fluxout1D(iq)                     ! sny
           end if ! maxq, minq
         end if   ! notlast
       end do     ! iq
@@ -825,12 +767,12 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
       if ( notlast1D(iq) ) then
         if (max_q1D(iq) .ge. min_q1D(iq)) then
           if (min_q1D(iq) .eq. 1) then
-            pptsnow1D(iq)=pptsnow1D(iq)+fluxin1D(iq)*del_tv1D(iq)
+            pptsnow(iq)=pptsnow(iq)+fluxin1D(iq)*del_tv1D(iq)
           else
-            qsz2D(iq,min_q1D(iq)-1)=qsz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                     fluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
-            nsz2D(iq,min_q1D(iq)-1)=nsz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                       nfluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
+            qsz(iq,min_q1D(iq)-1)=qsz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                     fluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
+            nsz(iq,min_q1D(iq)-1)=nsz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                       nfluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
           endif ! minq
         else
           notlast_work(iq)=.false.
@@ -856,17 +798,17 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     do k=kts,kte-1
       do iq = 1, imax
         if (notlast1D(iq)) then
-          if (qiz2D(iq,k) .gt. 1.0e-8) then
+          if (qiz(iq,k) .gt. 1.0e-8) then
             min_q1D(iq)=min0(min_q1D(iq),k)
             max_q1D(iq)=max0(max_q1D(iq),k)
-            vtiold2D(iq,k)= 3.29 * (rho2D(iq,k)* qiz2D(iq,k))** 0.16  ! Heymsfield and Donner
+            vtiold(iq,k)= 3.29 * (rho(iq,k)* qiz(iq,k))** 0.16  ! Heymsfield and Donner
             if (k .eq. 1) then
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zsfc2D(iq))/vtiold2D(iq,k))
+              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zsfc(iq))/vtiold(iq,k))
             else
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz2D(iq,k)-zz2D(iq,k-1))/vtiold2D(iq,k))
+              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtiold(iq,k))
             endif
           else
-            vtiold2D(iq,k)=0.
+            vtiold(iq,k)=0.
           endif
         endif   ! notlast1D
       enddo     ! iq
@@ -893,21 +835,21 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
       do iq = 1,imax
         if ( notlast1D(iq) ) then
           if ( k>=min_q1D(iq) .and. k<=max_q1D(iq) ) then
-            fluxout1D(iq)=rho2D(iq,k)*vtiold2D(iq,k)*qiz2D(iq,k)
-            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
-            qiz2D(iq,k)=qiz2D(iq,k)+del_tv1D(iq)*flux1D(iq)
-            qiz2D(iq,k)=amax1(0.,qiz2D(iq,k))
+            fluxout1D(iq)=rho(iq,k)*vtiold(iq,k)*qiz(iq,k)
+            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho(iq,k)/dzw(iq,k)
+            qiz(iq,k)=qiz(iq,k)+del_tv1D(iq)*flux1D(iq)
+            qiz(iq,k)=amax1(0.,qiz(iq,k))
             fluxin1D(iq)=fluxout1D(iq)
 
-            nfluxout1D(iq)=rho2D(iq,k)*vtiold2D(iq,k)*niz2D(iq,k)
-            nflux1D(iq)=(nfluxin1D(iq)-nfluxout1D(iq))/rho2D(iq,k)/dzw2D(iq,k)
-            niz2D(iq,k)=niz2D(iq,k)+del_tv1D(iq)*nflux1D(iq)
-            niz2D(iq,k)=amax1(0.,niz2D(iq,k))
+            nfluxout1D(iq)=rho(iq,k)*vtiold(iq,k)*niz(iq,k)
+            nflux1D(iq)=(nfluxin1D(iq)-nfluxout1D(iq))/rho(iq,k)/dzw(iq,k)
+            niz(iq,k)=niz(iq,k)+del_tv1D(iq)*nflux1D(iq)
+            niz(iq,k)=amax1(0.,niz(iq,k))
             nfluxin1D(iq)=nfluxout1D(iq)
-            qisten2D(iq,k)=flux1D(iq)
-            nisten2D(iq,k)=nflux1D(iq)
+            qisten(iq,k)=flux1D(iq)
+            nisten(iq,k)=nflux1D(iq)
 
-            fluxi2D(iq,k) = fluxout1D(iq)                     ! sny
+            fluxi(iq,k) = fluxout1D(iq)                     ! sny
           end if ! maxq, minq
         end if   ! notlast
       end do     ! iq
@@ -917,12 +859,12 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
       if ( notlast1D(iq) ) then
         if (max_q1D(iq) .ge. min_q1D(iq)) then
           if (min_q1D(iq) .eq. 1) then
-            pptice1D(iq)=pptice1D(iq)+fluxin1D(iq)*del_tv1D(iq)
+            pptice(iq)=pptice(iq)+fluxin1D(iq)*del_tv1D(iq)
           else
-            qiz2D(iq,min_q1D(iq)-1)=qiz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                         fluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
-            niz2D(iq,min_q1D(iq)-1)=niz2D(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                         nfluxin1D(iq)/rho2D(iq,min_q1D(iq)-1)/dzw2D(iq,min_q1D(iq)-1)
+            qiz(iq,min_q1D(iq)-1)=qiz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                         fluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
+            niz(iq,min_q1D(iq)-1)=niz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
+                         nfluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
           endif
         else
           notlast_work(iq)=.false.
@@ -935,23 +877,23 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
 
   ! zdc 20220116
   do k=kts,kte-1                         !sg beg
-    precrz2D(1:imax,k)=rho2D(1:imax,k)*vtrold2D(1:imax,k)*qrz2D(1:imax,k)
-    preciz2D(1:imax,k)=rho2D(1:imax,k)*vtiold2D(1:imax,k)*qiz2D(1:imax,k)
-    precsz2D(1:imax,k)=rho2D(1:imax,k)*vtsold2D(1:imax,k)*qsz2D(1:imax,k)
+    precrz(1:imax,k)=rho(1:imax,k)*vtrold(1:imax,k)*qrz(1:imax,k)
+    preciz(1:imax,k)=rho(1:imax,k)*vtiold(1:imax,k)*qiz(1:imax,k)
+    precsz(1:imax,k)=rho(1:imax,k)*vtsold(1:imax,k)*qsz(1:imax,k)
   enddo                                  !sg end
-    precrz2D(1:imax,kte)=0. !wig - top level never set for vtXold vars
-    preciz2D(1:imax,kte)=0. !wig
-    precsz2D(1:imax,kte)=0. !wig
+    precrz(1:imax,kte)=0. !wig - top level never set for vtXold vars
+    preciz(1:imax,kte)=0. !wig
+    precsz(1:imax,kte)=0. !wig
   !     CALL wrf_debug ( 100 , 'module_ylin: end precip flux' )
 
 
   ! Microphpysics processes
   DO k=kts,kte
-    qvzodt2D(1:imax,k)=amax1( 0.0,odtb*qvz2D(1:imax,k) )
-    qlzodt2D(1:imax,k)=amax1( 0.0,odtb*qlz2D(1:imax,k) )
-    qizodt2D(1:imax,k)=amax1( 0.0,odtb*qiz2D(1:imax,k) )
-    qszodt2D(1:imax,k)=amax1( 0.0,odtb*qsz2D(1:imax,k) )
-    qrzodt2D(1:imax,k)=amax1( 0.0,odtb*qrz2D(1:imax,k) )
+    qvzodt(1:imax,k)=amax1( 0.0,odtb*qvz(1:imax,k) )
+    qlzodt(1:imax,k)=amax1( 0.0,odtb*qlz(1:imax,k) )
+    qizodt(1:imax,k)=amax1( 0.0,odtb*qiz(1:imax,k) )
+    qszodt(1:imax,k)=amax1( 0.0,odtb*qsz(1:imax,k) )
+    qrzodt(1:imax,k)=amax1( 0.0,odtb*qrz(1:imax,k) )
 
     !***********************************************************************
     !*****   diagnose mixing ratios (qrz,qsz), terminal                *****
@@ -970,40 +912,40 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
     !!     skip these processes and jump to line 2000
     !
     !
-    tmp2D(1:imax,k)=qiz2D(1:imax,k)+qlz2D(1:imax,k)+qsz2D(1:imax,k)+qrz2D(1:imax,k)
+    tmp2D(1:imax,k)=qiz(1:imax,k)+qlz(1:imax,k)+qsz(1:imax,k)+qrz(1:imax,k)
        
     do iq = 1, imax
-      if( .not.(qvz2D(iq,k)+qlz2D(iq,k)+qiz2D(iq,k) .lt. qsiz2D(iq,k)  &
+      if( .not.(qvz(iq,k)+qlz(iq,k)+qiz(iq,k) .lt. qsiz(iq,k)  &
             .and. tmp2D(iq,k) .eq. 0.0) ) then !go to 2000
       !
       !! calculate terminal velocity of rain
       !
-        if (qrz2D(iq,k) .gt. 1.0e-8) then
+        if (qrz(iq,k) .gt. 1.0e-8) then
         !  tmp1=sqrt(pi*rhowater*xnor*orho(k)/qrz(k))
         !  xlambdar(k)=sqrt(tmp1)
         !  olambdar(k)=1.0/xlambdar(k)
         !  vtrold(k)=o6*av_r*gambp4*sqrho(k)*olambdar(k)**bv_r
-          xlambdar2D(iq,k)=(pi*rhowater*nrz2D(iq,k)/qrz2D(iq,k))**(1./3.)   !zx
-          n0_r2D(iq,k)=nrz2D(iq,k)*xlambdar2D(iq,k)
-          if (xlambdar2D(iq,k).lt.lamminr) then
-            xlambdar2D(iq,k) = lamminr
-            n0_r2D(iq,k) = xlambdar2D(iq,k)**4*qrz2D(iq,k)/(pi*rhowater)
-            nrz2D(iq,k) = n0_r2D(iq,k)/xlambdar2D(iq,k)
-          else if (xlambdar2D(iq,k).gt.lammaxr) then
-            xlambdar2D(iq,k) = lammaxr
-            n0_r2D(iq,k) = xlambdar2D(iq,k)**4*qrz2D(iq,k)/(pi*rhowater)
-            nrz2D(iq,k) = n0_r2D(iq,k)/xlambdar2D(iq,k)
+          xlambdar(iq,k)=(pi*rhowater*nrz(iq,k)/qrz(iq,k))**(1./3.)   !zx
+          n0_r(iq,k)=nrz(iq,k)*xlambdar(iq,k)
+          if (xlambdar(iq,k).lt.lamminr) then
+            xlambdar(iq,k) = lamminr
+            n0_r(iq,k) = xlambdar(iq,k)**4*qrz(iq,k)/(pi*rhowater)
+            nrz(iq,k) = n0_r(iq,k)/xlambdar(iq,k)
+          else if (xlambdar(iq,k).gt.lammaxr) then
+            xlambdar(iq,k) = lammaxr
+            n0_r(iq,k) = xlambdar(iq,k)**4*qrz(iq,k)/(pi*rhowater)
+            nrz(iq,k) = n0_r(iq,k)/xlambdar(iq,k)
           end if
-          olambdar2D(iq,k)=1.0/xlambdar2D(iq,k)
-          vtrold2D(iq,k)=o6*av_r*gambp4*sqrho2D(iq,k)*olambdar2D(iq,k)**bv_r
-          nvtr2D(iq,k)=av_r*gambvr1*sqrho2D(iq,k)*olambdar2D(iq,k)**bv_r
+          olambdar(iq,k)=1.0/xlambdar(iq,k)
+          vtrold(iq,k)=o6*av_r*gambp4*sqrho(iq,k)*olambdar(iq,k)**bv_r
+          nvtr(iq,k)=av_r*gambvr1*sqrho(iq,k)*olambdar(iq,k)**bv_r
         else
-          vtrold2D(iq,k)=0.
-          olambdar2D(iq,k)=0.
-          nvtr2D(iq,k)=0.
-        end if  ! qrz2D
+          vtrold(iq,k)=0.
+          olambdar(iq,k)=0.
+          nvtr(iq,k)=0.
+        end if  ! qrz
 
-        if (qrz2D(iq,k) .gt. 1.0e-8) then
+        if (qrz(iq,k) .gt. 1.0e-8) then
         !  tmp1=sqrt(pi*rhowater*xnor*orho(k)/qrz(k))
         !  xlambdar(k)=sqrt(tmp1)
         !  olambdar(k)=1.0/xlambdar(k)
@@ -1012,67 +954,67 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         !  vtr(k)=0.
         !  olambdar(k)=0.
         endif
-        vtr2D(iq,k)=vtrold2D(iq,k)
+        vtr(iq,k)=vtrold(iq,k)
 
 
         !!
         !!! calculate terminal velocity of snow
         !!
-        if (qsz2D(iq,k) .gt. 1.0e-8) then
+        if (qsz(iq,k) .gt. 1.0e-8) then
         !  tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
         !                   **(1./tmp_ss(k))
         !            xlambdas(k)=tmp1
         !            olambdas(k)=1.0/tmp1
         !            vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
         !                      ggamma(tmp_ss(k))/(tmp1**bv_s(k))
-          xlambdas2D(iq,k)=(am_s2D(iq,k)*ggamma(tmp_ss2D(iq,k))*nsz2D(iq,k)/qsz2D(iq,k))**(1./bm_s2D(iq,k))
-          n0_s2D(iq,k)=nsz2D(iq,k)*xlambdas2D(iq,k)
-          if (xlambdas2D(iq,k).lt.lammins) then
-            xlambdas2D(iq,k)= lamminS
-            n0_s2D(iq,K) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*qsz2D(iq,K)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
-            nsz2D(iq,K) = n0_s2D(iq,K)/xlambdas2D(iq,k)
-          else if (xlambdas2D(iq,k).gt.lammaxs) then
-            xlambdas2D(iq,k) = lammaxs
-            n0_s2D(iq,K) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*qsz2D(iq,K)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
-            nsz2D(iq,K) = n0_s2D(iq,K)/xlambdas2D(iq,k)
+          xlambdas(iq,k)=(am_s(iq,k)*ggamma(tmp_ss(iq,k))*nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
+          n0_s(iq,k)=nsz(iq,k)*xlambdas(iq,k)
+          if (xlambdas(iq,k).lt.lammins) then
+            xlambdas(iq,k)= lamminS
+            n0_s(iq,K) = xlambdas(iq,k)**(bm_s(iq,k)+1)*qsz(iq,K)/ggamma(1+bm_s(iq,k))/am_s(iq,k)
+            nsz(iq,K) = n0_s(iq,K)/xlambdas(iq,k)
+          else if (xlambdas(iq,k).gt.lammaxs) then
+            xlambdas(iq,k) = lammaxs
+            n0_s(iq,K) = xlambdas(iq,k)**(bm_s(iq,k)+1)*qsz(iq,K)/ggamma(1+bm_s(iq,k))/am_s(iq,k)
+            nsz(iq,K) = n0_s(iq,K)/xlambdas(iq,k)
           end if
-          olambdas2D(iq,k)=1.0/xlambdas2D(iq,k)
-          vtsold2D(iq,k)= sqrho2D(iq,k)*av_s2D(iq,k)*ggamma(bv_s2D(iq,k)+tmp_ss2D(iq,k))/ &
-                 ggamma(tmp_ss2D(iq,k))*(olambdas2D(iq,k)**bv_s2D(iq,k))
-          nvts2D(iq,k)=sqrho2D(iq,k)*av_s2D(iq,k)*ggamma(bv_s2D(iq,k)+1)*(olambdas2D(iq,k)**bv_s2D(iq,k))
+          olambdas(iq,k)=1.0/xlambdas(iq,k)
+          vtsold(iq,k)= sqrho(iq,k)*av_s(iq,k)*ggamma(bv_s(iq,k)+tmp_ss(iq,k))/ &
+                 ggamma(tmp_ss(iq,k))*(olambdas(iq,k)**bv_s(iq,k))
+          nvts(iq,k)=sqrho(iq,k)*av_s(iq,k)*ggamma(bv_s(iq,k)+1)*(olambdas(iq,k)**bv_s(iq,k))
         else
-          vtsold2D(iq,k)=0.
-          olambdas2D(iq,k)=0.
-          xlambdas2D(iq,k)=0.
-          nvts2D(iq,k)=0.
+          vtsold(iq,k)=0.
+          olambdas(iq,k)=0.
+          xlambdas(iq,k)=0.
+          nvts(iq,k)=0.
         endif
 
-        if (qsz2D(iq,k) .gt. 1.0e-8) then
+        if (qsz(iq,k) .gt. 1.0e-8) then
         ! tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
         !                   **(1./tmp_ss(k))
         !             olambdas(k)=1.0/tmp1
         !             vts(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
         !                      ggamma(tmp_ss(k))/(tmp1**bv_s(k))
         else
-        !            vts2D(iq,k)=0.
-        !            olambdas2D(iq,k)=0.
+        !            vts(iq,k)=0.
+        !            olambdas(iq,k)=0.
         endif
-        vts2D(iq,k)=vtsold2D(iq,k)
+        vts(iq,k)=vtsold(iq,k)
 
         !---------- start of snow/ice processes below freezing
 
-        if (tem2D(iq,k) .lt. 273.15) then
+        if (tem(iq,k) .lt. 273.15) then
 
         !
         ! ice nucleation, cooper curve
 
-          if ((qvoqswz2D(iq,k).ge.0.999.and.temcc2D(iq,k).le. -8.).or. &
-            qvoqsiz2D(iq,k).ge.1.08) then
-            nidep2D(iq,k) = 5.*exp(0.304*(273.15-temcc2D(iq,k)))     ! m-3
-            nidep2D(iq,k) = min(nidep2D(iq,k), 500.e3)               !5.e8) sny ! limit to 500 L-1
-            nidep2D(iq,k) = max(nidep2D(iq,k)/rho2D(iq,k), 0.)       ! convert to kg-1
-            nidep2D(iq,k) = (nidep2D(iq,k) - niz2D(iq,k))*odtb
-            midep2D(iq,k) = nidep2D(iq,k)*mi0
+          if ((qvoqswz(iq,k).ge.0.999.and.temcc(iq,k).le. -8.).or. &
+            qvoqsiz(iq,k).ge.1.08) then
+            nidep(iq,k) = 5.*exp(0.304*(273.15-temcc(iq,k)))     ! m-3
+            nidep(iq,k) = min(nidep(iq,k), 500.e3)               !5.e8) sny ! limit to 500 L-1
+            nidep(iq,k) = max(nidep(iq,k)/rho(iq,k), 0.)       ! convert to kg-1
+            nidep(iq,k) = (nidep(iq,k) - niz(iq,k))*odtb
+            midep(iq,k) = nidep(iq,k)*mi0
           end if
           !***********************************************************************
           !*********        snow production processes for T < 0 C       **********
@@ -1082,7 +1024,7 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
           !!    psaut=alpha1*(qi-qi0)
           !!    alpha1=1.0e-3*exp(0.025*(T-T0))
           !
-          alpha1=1.0e-3*exp( 0.025*temcc2D(iq,k) )
+          alpha1=1.0e-3*exp( 0.025*temcc(iq,k) )
 
           ! BELOW SECTION TURN OFF BY SONNY   sny: on temp
           ! ---------------------------------------------------------------
@@ -1096,9 +1038,9 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
 
           qic = qi0  ! sny: OFF temp
 
-          tmp1=odtb*(qiz2D(iq,k)-qic)*(1.0-exp(-alpha1*dtb))
-          psaut2D(iq,k)=amax1( 0.0,tmp1 )
-          npsaut2D(iq,k)=amax1( 0.0,psaut2D(iq,k)/xms)
+          tmp1=odtb*(qiz(iq,k)-qic)*(1.0-exp(-alpha1*dtb))
+          psaut(iq,k)=amax1( 0.0,tmp1 )
+          npsaut(iq,k)=amax1( 0.0,psaut(iq,k)/xms)
           !
           ! (2) BERGERON PROCESS TRANSFER OF CLOUD WATER TO SNOW (Psfw)
           !     this process only considered when -31 C < T < 0 C
@@ -1108,8 +1050,8 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
           !!    parama1 and parama2 functions must be user supplied
           !!
 
-          if( qlz2D(iq,k) .gt. 1.0e-10 ) then
-            temc1=amax1(-30.99,temcc2D(iq,k))
+          if( qlz(iq,k) .gt. 1.0e-10 ) then
+            temc1=amax1(-30.99,temcc(iq,k))
             a1=parama1( temc1 )
             a2=parama2( temc1 )
             tmp1=1.0-a2
@@ -1121,33 +1063,33 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
             !
             !!   compute terminal velocity of a 50 micron ice cystal
             !
-            vti50=av_i*di50**bv_i*sqrho2D(iq,k)
+            vti50=av_i*di50**bv_i*sqrho(iq,k)
             eiw=1.0
             save1=a1*xmi50**a2
-            save2=0.25*pi*eiw*rho2D(iq,k)*di50*di50*vti50
-            tmp2=( save1 + save2*qlz2D(iq,k) )
+            save2=0.25*pi*eiw*rho(iq,k)*di50*di50*vti50
+            tmp2=( save1 + save2*qlz(iq,k) )
             !
             !!  maximum number of 50 micron crystals limited by the amount
             !!  of supercool water
             !
-            xni50mx=qlzodt2D(iq,k)/tmp2
+            xni50mx=qlzodt(iq,k)/tmp2
             !
             !!   number of 50 micron crystals produced
             !
-            xni50=qiz2D(iq,k)*( 1.0-exp(-dtb*odtberg) )/xmi50
+            xni50=qiz(iq,k)*( 1.0-exp(-dtb*odtberg) )/xmi50
             xni50=amin1(xni50,xni50mx)
             !
             tmp3=odtb*tmp2/save2*( 1.0-exp(-save2*xni50*dtb) )
-            psfw2D(iq,k)=amin1( tmp3,qlzodt2D(iq,k) )
+            psfw(iq,k)=amin1( tmp3,qlzodt(iq,k) )
             !
             ! (3) REDUCTION OF CLOUD ICE BY BERGERON PROCESS (Psfi): Lin (34)
             !     this process only considered when -31 C < T < 0 C
             !
-            tmp1=xni50*xmi50-psfw2D(iq,k)
-            psfi2D(iq,k)=amin1(tmp1,qizodt2D(iq,k))
+            tmp1=xni50*xmi50-psfw(iq,k)
+            psfi(iq,k)=amin1(tmp1,qizodt(iq,k))
           end if
         
-          if(qrz2D(iq,k) .gt. 0.0) then  ! go to 1000
+          if(qrz(iq,k) .gt. 0.0) then  ! go to 1000
 
           !
           ! Processes (4) and (5) only need when qrz > 0.0
@@ -1156,81 +1098,81 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
           !     produce PI
           !
             eri=1.0
-            save1=pio4*eri*n0_r2D(iq,k)*av_r*sqrho2D(iq,k)
-            tmp1=save1*gambp3*olambdar2D(iq,k)**bp3
-            praci2D(iq,k)=qizodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
-            npraci2D(iq,k)=niz2D(iq,k)*tmp1
+            save1=pio4*eri*n0_r(iq,k)*av_r*sqrho(iq,k)
+            tmp1=save1*gambp3*olambdar(iq,k)**bp3
+            praci(iq,k)=qizodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
+            npraci(iq,k)=niz(iq,k)*tmp1
 
           !
           ! (5) RAIN ACCRETION BY CLOUD ICE (Piacr): Lin (26)
           !
-            tmp2=qiz2D(iq,k)*save1*rho2D(iq,k)*pio6*rhowater*gambp6*oxmi* &
-                olambdar2D(iq,k)**bp6
-            piacr2D(iq,k)=amin1( tmp2,qrzodt2D(iq,k) )
-            npiacr2D(iq,k)=pio4*eri*nrz2D(iq,k)*av_r*niz2D(iq,k)*gambp3* &
-                olambdar2D(iq,k)**bp3  !--wdm6
+            tmp2=qiz(iq,k)*save1*rho(iq,k)*pio6*rhowater*gambp6*oxmi* &
+                olambdar(iq,k)**bp6
+            piacr(iq,k)=amin1( tmp2,qrzodt(iq,k) )
+            npiacr(iq,k)=pio4*eri*nrz(iq,k)*av_r*niz(iq,k)*gambp3* &
+                olambdar(iq,k)**bp3  !--wdm6
           end if !1000    continue
 
-          if(qsz2D(iq,k) .gt. 0.0) then !go to 1200
+          if(qsz(iq,k) .gt. 0.0) then !go to 1200
           !
           ! Compute the following processes only when qsz > 0.0
           !
           !
           ! (6) ICE CRYSTAL ACCRETION BY SNOW (Psaci): Lin (22)
           !
-            esi=exp( 0.025*temcc2D(iq,k) )
-            save1 = aa_s2D(iq,k)*sqrho2D(iq,k)*N0_s2D(iq,k)* &
-            ggamma(bv_s2D(iq,k)+tmp_sa2D(iq,k))*         &
-            olambdas2D(iq,k)**(bv_s2D(iq,k)+tmp_sa2D(iq,k))
+            esi=exp( 0.025*temcc(iq,k) )
+            save1 = aa_s(iq,k)*sqrho(iq,k)*n0_s(iq,k)* &
+            ggamma(bv_s(iq,k)+tmp_sa(iq,k))*         &
+            olambdas(iq,k)**(bv_s(iq,k)+tmp_sa(iq,k))
 
             tmp1=esi*save1
-            psaci2D(iq,k)=qizodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
-            npsaci2D(iq,k)=amin1( tmp1*niz2D(iq,k),nizodt2D(iq,k))
+            psaci(iq,k)=qizodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
+            npsaci(iq,k)=amin1( tmp1*niz(iq,k),nizodt(iq,k))
           !
           ! (7) CLOUD WATER ACCRETION BY SNOW (Psacw): Lin (24)
           !
             esw=1.0
             tmp1=esw*save1
-            psacw2D(iq,k)=qlzodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
-            npsacw2D(iq,k)=amin1(tmp1*ncz2D(iq,k),ncz2D(iq,k))
+            psacw(iq,k)=qlzodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
+            npsacw(iq,k)=amin1(tmp1*ncz(iq,k),ncz(iq,k))
 
           ! recalculate the saturatuin temperature
           !
           ! (8) DEPOSITION/SUBLIMATION OF SNOW (Psdep/Pssub): Lin (31)
           !     includes consideration of ventilation effect
           !
-            tmpa=rvapor*xka2D(iq,k)*tem2D(iq,k)*tem2D(iq,k)
-            tmpb=xls*xls*rho2D(iq,k)*qsiz2D(iq,k)*diffwv2D(iq,k)
-            tmpc=tmpa*qsiz2D(iq,k)*diffwv2D(iq,k)
-            abi=4.0*pi*cap_s2D(iq,k)*(qvoqsiz2D(iq,k)-1.0)*tmpc/(tmpa+tmpb)
-            tmp1=av_s2D(iq,k)*sqrho2D(iq,k)*        &
-                olambdas2D(iq,k)**(5+bv_s2D(iq,k)+2*mu_s)/visc2D(iq,k)
+            tmpa=rvapor*xka(iq,k)*tem(iq,k)*tem(iq,k)
+            tmpb=xls*xls*rho(iq,k)*qsiz(iq,k)*diffwv(iq,k)
+            tmpc=tmpa*qsiz(iq,k)*diffwv(iq,k)
+            abi=4.0*pi*cap_s(iq,k)*(qvoqsiz(iq,k)-1.0)*tmpc/(tmpa+tmpb)
+            tmp1=av_s(iq,k)*sqrho(iq,k)*        &
+                olambdas(iq,k)**(5+bv_s(iq,k)+2*mu_s)/visc(iq,k)
 
           !---- YLIN, here there is some approximation assuming mu_s =1, so gamma(2)=1, etc.
 
-            tmp2= abi*N0_s2D(iq,k)*( vf1s*olambdas2D(iq,k)*olambdas2D(iq,k)+ &
-                 vf2s*schmidt2D(iq,k)**0.33334* &
-                 ggamma(2.5+0.5*bv_s2D(iq,k)+mu_s)*sqrt(tmp1) )
-            tmp3=odtb*( qvz2D(iq,k)-qsiz2D(iq,k) )
+            tmp2= abi*n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
+                 vf2s*schmidt(iq,k)**0.33334* &
+                 ggamma(2.5+0.5*bv_s(iq,k)+mu_s)*sqrt(tmp1) )
+            tmp3=odtb*( qvz(iq,k)-qsiz(iq,k) )
             tmp3=amin1(tmp3,0.)
 
             if( tmp2 .le. 0.0) then
               tmp2=amax1( tmp2,tmp3)
-              pssub2D(iq,k)=amax1( tmp2,-qszodt2D(iq,k) )
-              psdep2D(iq,k)=0.0
+              pssub(iq,k)=amax1( tmp2,-qszodt(iq,k) )
+              psdep(iq,k)=0.0
             else
-              psdep2D(iq,k)=amin1( tmp2,tmp3 )
-              pssub2D(iq,k)=0.0
+              psdep(iq,k)=amin1( tmp2,tmp3 )
+              pssub(iq,k)=0.0
             end if
-            if(qsz2D(iq,k) .ge. 0.0) then
-              npssub2D(iq,k)=pssub2D(iq,k)*nsz2D(iq,k)/qsz2D(iq,k)
-              npsdep2D(iq,k)=npsdep2D(iq,k)*nsz2D(iq,k)/qsz2D(iq,k)
+            if(qsz(iq,k) .ge. 0.0) then
+              npssub(iq,k)=pssub(iq,k)*nsz(iq,k)/qsz(iq,k)
+              npsdep(iq,k)=npsdep(iq,k)*nsz(iq,k)/qsz(iq,k)
             else
-              npssub2D(iq,k)=pssub2D(iq,k)/xms
-              npsdep2D(iq,k)=npsdep2D(iq,k)/xms
+              npssub(iq,k)=pssub(iq,k)/xms
+              npsdep(iq,k)=npsdep(iq,k)/xms
             end if
 
-            if(qrz2D(iq,k) .gt. 0.0) then !go to 1200
+            if(qrz(iq,k) .gt. 0.0) then !go to 1200
             !
             ! Compute processes (9) and (10) only when qsz > 0.0 and qrz > 0.0
             ! these two terms need to be refined in the future, they should be equal
@@ -1238,26 +1180,26 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
             ! (9) ACCRETION OF SNOW BY RAIN (Pracs): Lin (27)
             !
               esr=1.0
-              tmpa=olambdar2D(iq,k)*olambdar2D(iq,k)
-              tmpb=olambdas2D(iq,k)*olambdas2D(iq,k)
-              tmpc=olambdar2D(iq,k)*olambdas2D(iq,k)
-              tmp1=pi*pi*esr*n0_r2D(iq,k)*N0_s2D(iq,k)*    &
-                        abs( vtr2D(iq,k)-vts2D(iq,k) )*orho2D(iq,k)
+              tmpa=olambdar(iq,k)*olambdar(iq,k)
+              tmpb=olambdas(iq,k)*olambdas(iq,k)
+              tmpc=olambdar(iq,k)*olambdas(iq,k)
+              tmp1=pi*pi*esr*n0_r(iq,k)*n0_s(iq,k)*    &
+                        abs( vtr(iq,k)-vts(iq,k) )*orho(iq,k)
             ! tmp1=pi*pi*esr*n0_r(k)*N0_s(k)*            &
             ! ( (1.2*vtr(k)-0.95*vts(k))**2+0.08*vtr(k)*vts(k))**0.5*orho(k)
-              tmp2=tmpb*tmpb*olambdar2D(iq,k)*(5.0*tmpb+2.0*tmpc+0.5*tmpa)
+              tmp2=tmpb*tmpb*olambdar(iq,k)*(5.0*tmpb+2.0*tmpc+0.5*tmpa)
               tmp3=tmp1*rhosnow*tmp2
-              pracs2D(iq,k)=amin1( tmp3,qszodt2D(iq,k) )
+              pracs(iq,k)=amin1( tmp3,qszodt(iq,k) )
             !
             ! (10) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
             !
-              tmp3=tmpa*tmpa*olambdas2D(iq,k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
+              tmp3=tmpa*tmpa*olambdas(iq,k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
               tmp4=tmp1*rhowater*tmp3
-              psacr2D(iq,k)=amin1( tmp4,qrzodt2D(iq,k) )
-              tmp1=0.25*pi*esr*n0_r2D(iq,k)*N0_s2D(iq,k)*abs( vtr2D(iq,k)-vts2D(iq,k) )
+              psacr(iq,k)=amin1( tmp4,qrzodt(iq,k) )
+              tmp1=0.25*pi*esr*n0_r(iq,k)*n0_s(iq,k)*abs( vtr(iq,k)-vts(iq,k) )
               tmp2=tmpc*(2.0*tmpa+1.0*tmpc+2*tmpb)
               tmp3=tmp1*tmp2
-              npsacr2D(iq,k)=amin1( tmp3,nrzodt2D(iq,k) )
+              npsacr(iq,k)=amin1( tmp3,nrzodt(iq,k) )
             !
             !
             ! (2) FREEZING OF RAIN TO FORM GRAUPEL  (pgfr): Lin (45), added to PI
@@ -1266,91 +1208,91 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
             !     Constant in raindrop freezing equ. Bplume=Bp=100./m/m/m/s
             !
 
-              if (qrz2D(iq,k) .gt. 1.e-8 ) then
+              if (qrz(iq,k) .gt. 1.e-8 ) then
                 Bp=100.
                 Ap=0.66
-                tmp1=olambdar2D(iq,k)*olambdar2D(iq,k)*olambdar2D(iq,k)
-                tmp2=20.*pi*pi*Bp*n0_r2D(iq,k)*rhowater*orho2D(iq,k)*  &
-                  (exp(-Ap*temcc2D(iq,k))-1.0)*tmp1*tmp1*olambdar2D(iq,k)
-                pgfr2D(iq,k)=amin1( tmp2,qrzodt2D(iq,k) )
-                npgfr2D(iq,k)=pi*Bp*n0_r2D(iq,k)*tmpa*tmpa*(exp(-Ap*temcc2D(iq,k))-1.0)
+                tmp1=olambdar(iq,k)*olambdar(iq,k)*olambdar(iq,k)
+                tmp2=20.*pi*pi*Bp*n0_r(iq,k)*rhowater*orho(iq,k)*  &
+                  (exp(-Ap*temcc(iq,k))-1.0)*tmp1*tmp1*olambdar(iq,k)
+                pgfr(iq,k)=amin1( tmp2,qrzodt(iq,k) )
+                npgfr(iq,k)=pi*Bp*n0_r(iq,k)*tmpa*tmpa*(exp(-Ap*temcc(iq,k))-1.0)
               else
-                pgfr2D(iq,k)=0
-                npgfr2D(iq,k)=0.
+                pgfr(iq,k)=0
+                npgfr(iq,k)=0.
               endif
             end if ! for the go to 1200
           end if   !1200    continue
 
-        else       ! if (tem2D(iq,k) .lt. 273.15) then
+        else       ! if (tem(iq,k) .lt. 273.15) then
 
         !
         !***********************************************************************
         !*********        snow production processes for T > 0 C       **********
         !***********************************************************************
         !
-          if (qsz2D(iq,k) .gt. 0.0)  then !go to 1400
+          if (qsz(iq,k) .gt. 0.0)  then !go to 1400
           !
           ! (1) CLOUD WATER ACCRETION BY SNOW (Psacw): Lin (24)
           !
             esw=1.0
-            save1 =aa_s2D(iq,k)*sqrho2D(iq,k)*N0_s2D(iq,k)* &
-                   ggamma(bv_s2D(iq,k)+tmp_sa2D(iq,k))*     &
-                   olambdas2D(iq,k)**(bv_s2D(iq,k)+tmp_sa2D(iq,k))
+            save1 =aa_s(iq,k)*sqrho(iq,k)*n0_s(iq,k)* &
+                   ggamma(bv_s(iq,k)+tmp_sa(iq,k))*     &
+                   olambdas(iq,k)**(bv_s(iq,k)+tmp_sa(iq,k))
 
             tmp1=esw*save1
-            psacw2D(iq,k)=qlzodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
-            npsacw2D(iq,k)=tmp1*ncz2D(iq,k)
+            psacw(iq,k)=qlzodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
+            npsacw(iq,k)=tmp1*ncz(iq,k)
           !
           ! (2) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
           !
             esr=1.0
-            tmpa=olambdar2D(iq,k)*olambdar2D(iq,k)
-            tmpb=olambdas2D(iq,k)*olambdas2D(iq,k)
-            tmpc=olambdar2D(iq,k)*olambdas2D(iq,k)
-            tmp1=pi*pi*esr*n0_r2D(iq,k)*N0_s2D(iq,k)*   &
-                    abs( vtr2D(iq,k)-vts2D(iq,k) )*orho2D(iq,k)
+            tmpa=olambdar(iq,k)*olambdar(iq,k)
+            tmpb=olambdas(iq,k)*olambdas(iq,k)
+            tmpc=olambdar(iq,k)*olambdas(iq,k)
+            tmp1=pi*pi*esr*n0_r(iq,k)*n0_s(iq,k)*   &
+                    abs( vtr(iq,k)-vts(iq,k) )*orho(iq,k)
           ! tmp1=pi*pi*esr*n0_r(k)*N0_s(k)*            &
           ! ( (1.2*vtr(k)-0.95*vts(k))**2+0.08*vtr(k)*vts(k))**0.5*orho(k)
-            tmp2=tmpa*tmpa*olambdas2D(iq,k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
+            tmp2=tmpa*tmpa*olambdas(iq,k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
             tmp3=tmp1*rhowater*tmp2
-            psacr2D(iq,k)=amin1( tmp3,qrzodt2D(iq,k) )
+            psacr(iq,k)=amin1( tmp3,qrzodt(iq,k) )
 
-            tmp1=0.25*pi*esr*n0_r2D(iq,k)*N0_s2D(iq,k)*abs( vtr2D(iq,k)-vts2D(iq,k) )
+            tmp1=0.25*pi*esr*n0_r(iq,k)*n0_s(iq,k)*abs( vtr(iq,k)-vts(iq,k) )
             tmp2=tmpc*(2.0*tmpa+1.0*tmpc+2*tmpb)
             tmp3=tmp1*tmp2
-            npsacr2D(iq,k)=amin1( tmp3,nrzodt2D(iq,k) )
+            npsacr(iq,k)=amin1( tmp3,nrzodt(iq,k) )
           !
           ! (3) MELTING OF SNOW (Psmlt): Lin (32)
           !     Psmlt is negative value
           !
-            delrs=rs02D(iq,k)-qvz2D(iq,k)
-            term1=2.0*pi*orho2D(iq,k)*( xlv*diffwv2D(iq,k)*rho2D(iq,k)*delrs- &
-                  xka2D(iq,k)*temcc2D(iq,k) )
-            tmp1= av_s2D(iq,k)*sqrho2D(iq,k)*        &
-                  olambdas2D(iq,k)**(5+bv_s2D(iq,k)+2*mu_s)/visc2D(iq,k)
-            tmp2= N0_s2D(iq,k)*( vf1s*olambdas2D(iq,k)*olambdas2D(iq,k)+ &
-                  vf2s*schmidt2D(iq,k)**0.33334* &
-                  ggamma(2.5+0.5*bv_s2D(iq,k)+mu_s)*sqrt(tmp1) )
-            tmp3=term1*oxlf*tmp2-cwoxlf*temcc2D(iq,k)*( psacw2D(iq,k)+psacr2D(iq,k) )
+            delrs=rs0(iq,k)-qvz(iq,k)
+            term1=2.0*pi*orho(iq,k)*( xlv*diffwv(iq,k)*rho(iq,k)*delrs- &
+                  xka(iq,k)*temcc(iq,k) )
+            tmp1= av_s(iq,k)*sqrho(iq,k)*        &
+                  olambdas(iq,k)**(5+bv_s(iq,k)+2*mu_s)/visc(iq,k)
+            tmp2= n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
+                  vf2s*schmidt(iq,k)**0.33334* &
+                  ggamma(2.5+0.5*bv_s(iq,k)+mu_s)*sqrt(tmp1) )
+            tmp3=term1*oxlf*tmp2-cwoxlf*temcc(iq,k)*( psacw(iq,k)+psacr(iq,k) )
             tmp4=amin1(0.0,tmp3)
-            psmlt2D(iq,k)=amax1( tmp4,-qszodt2D(iq,k) )
+            psmlt(iq,k)=amax1( tmp4,-qszodt(iq,k) )
 
-            if(qsz2D(iq,k) .ge. 0.0) then
-              npsmlt2D(iq,k)=psmlt2D(iq,k)*nsz2D(iq,k)/qsz2D(iq,k)
+            if(qsz(iq,k) .ge. 0.0) then
+              npsmlt(iq,k)=psmlt(iq,k)*nsz(iq,k)/qsz(iq,k)
             else
-              npsmlt2D(iq,k)=psmlt2D(iq,k)/xms
+              npsmlt(iq,k)=psmlt(iq,k)/xms
             end if
           !
           ! (4) EVAPORATION OF MELTING SNOW (Psmltevp): HR (A27)
           !     but use Lin et al. coefficience
           !     Psmltevp is a negative value
           !
-            tmpa=rvapor*xka2D(iq,k)*tem2D(iq,k)*tem2D(iq,k)
-            tmpb=xlv*xlv*rho2D(iq,k)*qswz2D(iq,k)*diffwv2D(iq,k)
-            tmpc=tmpa*qswz2D(iq,k)*diffwv2D(iq,k)
-            tmpd=amin1( 0.0,(qvoqswz2D(iq,k)-0.90)*qswz2D(iq,k)*odtb )
+            tmpa=rvapor*xka(iq,k)*tem(iq,k)*tem(iq,k)
+            tmpb=xlv*xlv*rho(iq,k)*qswz(iq,k)*diffwv(iq,k)
+            tmpc=tmpa*qswz(iq,k)*diffwv(iq,k)
+            tmpd=amin1( 0.0,(qvoqswz(iq,k)-0.90)*qswz(iq,k)*odtb )
 
-            abr=2.0*pi*(qvoqswz2D(iq,k)-0.90)*tmpc/(tmpa+tmpb)
+            abr=2.0*pi*(qvoqswz(iq,k)-0.90)*tmpc/(tmpa+tmpb)
           !
           !**** allow evaporation to occur when RH less than 90%
           !**** here not using 100% because the evaporation cooling
@@ -1358,21 +1300,21 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
           !**** the qsw value is a little bit larger. This will avoid
           !**** evaporation can generate cloud.
           
-            tmp1=av_s2D(iq,k)*sqrho2D(iq,k)*    &
-                 olambdas2D(iq,k)**(5+bv_s2D(iq,k)+2*mu_s)/visc2D(iq,k)
-            tmp2=N0_s2D(iq,k)*( vf1s*olambdas2D(iq,k)*olambdas2D(iq,k)+ &
-                 vf2s*schmidt2D(iq,k)**0.33334* &
-                 ggamma(2.5+0.5*bv_s2D(iq,k)+mu_s)*sqrt(tmp1) )
+            tmp1=av_s(iq,k)*sqrho(iq,k)*    &
+                 olambdas(iq,k)**(5+bv_s(iq,k)+2*mu_s)/visc(iq,k)
+            tmp2=n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
+                 vf2s*schmidt(iq,k)**0.33334* &
+                 ggamma(2.5+0.5*bv_s(iq,k)+mu_s)*sqrt(tmp1) )
             tmp3=amin1(0.0,tmp2)
             tmp3=amax1( tmp3,tmpd )
-            psmltevp2D(iq,k)=amax1( tmp3,-qszodt2D(iq,k) )
-            if(qsz2D(iq,k) .ge. 0.0) then
-              npsmltevp2D(iq,k)=psmltevp2D(iq,k)*nsz2D(iq,k)/qsz2D(iq,k)
+            psmltevp(iq,k)=amax1( tmp3,-qszodt(iq,k) )
+            if(qsz(iq,k) .ge. 0.0) then
+              npsmltevp(iq,k)=psmltevp(iq,k)*nsz(iq,k)/qsz(iq,k)
             else
-              npsmltevp2D(iq,k)=psmltevp2D(iq,k)/xmr
+              npsmltevp(iq,k)=psmltevp(iq,k)/xmr
             end if
           end if !          1400     continue
-        end if      !---- end of snow/ice processes   if (tem2D(iq,k) .lt. 273.15) then
+        end if      !---- end of snow/ice processes   if (tem(iq,k) .lt. 273.15) then
         !---------- end of snow/ice processes below freezing
 
         !***********************************************************************
@@ -1389,28 +1331,28 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         !  print*, ' AEROSOL option here'
 
         !else
-        if (qlz2D(iq,k) .gt. 1e-6) then
-          mu_c    = AMIN1(15., (1000.E6/ncz2D(iq,k) + 2.))
-          lamc2D(iq,k) = (ncz2D(iq,k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz2D(iq,k)*ggamma(1+mu_c)))**(1./3)
-          Dc_liu  = (ggamma(6+1+mu_c)/ggamma(1+mu_c))**(1./6.)/lamc2D(iq,k)             !----- R6 in m
+        if (qlz(iq,k) .gt. 1e-6) then
+          mu_c    = AMIN1(15., (1000.E6/ncz(iq,k) + 2.))
+          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz(iq,k)*ggamma(1+mu_c)))**(1./3)
+          Dc_liu  = (ggamma(6+1+mu_c)/ggamma(1+mu_c))**(1./6.)/lamc(iq,k)             !----- R6 in m
           if (Dc_liu .gt. R6c) then
             disp = 1./(mu_c+1.)      !--- square of relative dispersion
             eta  = (0.75/pi/(1e-3*rhowater))**2*1.9e11*((1+3*disp)*(1+4*disp)*&
                    (1+5*disp)/(1+disp)/(1+2*disp))
-            praut2D(iq,k) = eta*(1e-3*rho2D(iq,k)*qlz2D(iq,k))**3/(1e-6*ncz2D(iq,k))  !--- g cm-3 s-1
-            praut2D(iq,k) = praut2D(iq,k)/(1e-3*rho2D(iq,k))                          !--- kg kg-1 s-1
-            npraut_r2D(iq,k) = praut2D(iq,k)/xmr                                                !--- kg kg-1 s-1
-            npraut2D(iq,k) = praut2D(iq,k)/qlz2D(iq,k)*ncz2D(iq,k)                                        !--- kg kg-1 s-1
-            npraut2D(iq,k) = praut2D(iq,k)/xmr                                                  !--- kg kg-1 s-1
+            praut(iq,k) = eta*(1e-3*rho(iq,k)*qlz(iq,k))**3/(1e-6*ncz(iq,k))  !--- g cm-3 s-1
+            praut(iq,k) = praut(iq,k)/(1e-3*rho(iq,k))                          !--- kg kg-1 s-1
+            npraut_r(iq,k) = praut(iq,k)/xmr                                                !--- kg kg-1 s-1
+            npraut(iq,k) = praut(iq,k)/qlz(iq,k)*ncz(iq,k)                                        !--- kg kg-1 s-1
+            npraut(iq,k) = praut(iq,k)/xmr                                                  !--- kg kg-1 s-1
           else
-            praut2D(iq,k) = 0.0
-            npraut2D(iq,k) = 0.0
-            npraut_r2D(iq,k) = 0.0
+            praut(iq,k) = 0.0
+            npraut(iq,k) = 0.0
+            npraut_r(iq,k) = 0.0
           endif
         else
-          praut2D(iq,k) = 0.0
-          npraut2D(iq,k) = 0.0
-          npraut_r2D(iq,k) = 0.0
+          praut(iq,k) = 0.0
+          npraut(iq,k) = 0.0
+          npraut_r(iq,k) = 0.0
         endif
         ! if (qlz(k) .gt. 1e-6) then
         ! praut(k)=1350.*qlz(k)**2.47*  &
@@ -1425,10 +1367,10 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         ! (2) ACCRETION OF CLOUD WATER BY RAIN (Pracw): Lin (51)
         !
         erw=1.0
-        tmp1=pio4*erw*n0_r2D(iq,k)*av_r*sqrho2D(iq,k)* &
-             gambp3*olambdar2D(iq,k)**bp3 ! son
-        pracw2D(iq,k)=qlzodt2D(iq,k)*( 1.0-exp(-tmp1*dtb) )
-        npracw2D(iq,k)=tmp1*ncz2D(iq,k)
+        tmp1=pio4*erw*n0_r(iq,k)*av_r*sqrho(iq,k)* &
+             gambp3*olambdar(iq,k)**bp3 ! son
+        pracw(iq,k)=qlzodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
+        npracw(iq,k)=tmp1*ncz(iq,k)
         
         !
         ! (3) EVAPORATION OF RAIN (Prevp): Lin (52)
@@ -1436,22 +1378,22 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         !
         !     Sw=qvoqsw : saturation ratio
         !
-        tmpa=rvapor*xka2D(iq,k)*tem2D(iq,k)*tem2D(iq,k)
-        tmpb=xlv*xlv*rho2D(iq,k)*qswz2D(iq,k)*diffwv2D(iq,k)
-        tmpc=tmpa*qswz2D(iq,k)*diffwv2D(iq,k)
-        tmpd=amin1(0.0,(qvoqswz2D(iq,k)-0.99)*qswz2D(iq,k)*odtb)
+        tmpa=rvapor*xka(iq,k)*tem(iq,k)*tem(iq,k)
+        tmpb=xlv*xlv*rho(iq,k)*qswz(iq,k)*diffwv(iq,k)
+        tmpc=tmpa*qswz(iq,k)*diffwv(iq,k)
+        tmpd=amin1(0.0,(qvoqswz(iq,k)-0.99)*qswz(iq,k)*odtb)
 
-        abr=2.0*pi*(qvoqswz2D(iq,k)-0.99)*tmpc/(tmpa+tmpb)
-        tmp1=av_r*sqrho2D(iq,k)*olambdar2D(iq,k)**bp5/visc2D(iq,k) !son
-        tmp2=abr*n0_r2D(iq,k)*( vf1r*olambdar2D(iq,k)*olambdar2D(iq,k)+  &
-             vf2r*schmidt2D(iq,k)**0.33334*gambp5o2*sqrt(tmp1) )
+        abr=2.0*pi*(qvoqswz(iq,k)-0.99)*tmpc/(tmpa+tmpb)
+        tmp1=av_r*sqrho(iq,k)*olambdar(iq,k)**bp5/visc(iq,k) !son
+        tmp2=abr*n0_r(iq,k)*( vf1r*olambdar(iq,k)*olambdar(iq,k)+  &
+             vf2r*schmidt(iq,k)**0.33334*gambp5o2*sqrt(tmp1) )
         tmp3=amin1( 0.0,tmp2 )
         tmp3=amax1( tmp3,tmpd )
-        prevp2D(iq,k)=amax1( tmp3,-qrzodt2D(iq,k) )
-        if (qrz2D(iq,k).gt.0.) then
-          nprevp2D(iq,k)=prevp2D(iq,k)*nrz2D(iq,k)/qrz2D(iq,k)
+        prevp(iq,k)=amax1( tmp3,-qrzodt(iq,k) )
+        if (qrz(iq,k).gt.0.) then
+          nprevp(iq,k)=prevp(iq,k)*nrz(iq,k)/qrz(iq,k)
         else
-          nprevp2D(iq,k)=prevp2D(iq,k)*xmr
+          nprevp(iq,k)=prevp(iq,k)*xmr
         end if
 
         ! CALL wrf_debug ( 100 , 'module_ylin: finish rain processes' )
@@ -1461,258 +1403,258 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         !*****     water substances
         !***********************************************************************
         !
-        if ( temcc2D(iq,k) .lt. 0.0) then
+        if ( temcc(iq,k) .lt. 0.0) then
         !
         !  combined water vapor depletions
         !
-          tmp=psdep2D(iq,k) + midep2D(iq,k)
-          if ( tmp .gt. qvzodt2D(iq,k) ) then
-            factor=qvzodt2D(iq,k)/tmp
-            psdep2D(iq,k)=psdep2D(iq,k)*factor
-            midep2D(iq,k)=midep2D(iq,k)*factor
+          tmp=psdep(iq,k) + midep(iq,k)
+          if ( tmp .gt. qvzodt(iq,k) ) then
+            factor=qvzodt(iq,k)/tmp
+            psdep(iq,k)=psdep(iq,k)*factor
+            midep(iq,k)=midep(iq,k)*factor
           end if
         !
         !  combined cloud water depletions
         !
-          tmp=praut2D(iq,k)+psacw2D(iq,k)+psfw2D(iq,k)+pracw2D(iq,k)
-          if ( tmp .gt. qlzodt2D(iq,k) ) then
-            factor=qlzodt2D(iq,k)/tmp
-            praut2D(iq,k)=praut2D(iq,k)*factor
-            psacw2D(iq,k)=psacw2D(iq,k)*factor
-            psfw2D(iq,k)=psfw2D(iq,k)*factor
-            pracw2D(iq,k)=pracw2D(iq,k)*factor
+          tmp=praut(iq,k)+psacw(iq,k)+psfw(iq,k)+pracw(iq,k)
+          if ( tmp .gt. qlzodt(iq,k) ) then
+            factor=qlzodt(iq,k)/tmp
+            praut(iq,k)=praut(iq,k)*factor
+            psacw(iq,k)=psacw(iq,k)*factor
+            psfw(iq,k)=psfw(iq,k)*factor
+            pracw(iq,k)=pracw(iq,k)*factor
           end if
         !
         !  combined cloud ice depletions
         !
-          tmp=psaut2D(iq,k)+psaci2D(iq,k)+praci2D(iq,k)+psfi2D(iq,k)
-          if (tmp .gt. qizodt2D(iq,k) ) then
-            factor=qizodt2D(iq,k)/tmp
-            psaut2D(iq,k)=psaut2D(iq,k)*factor
-            psaci2D(iq,k)=psaci2D(iq,k)*factor
-            praci2D(iq,k)=praci2D(iq,k)*factor
-            psfi2D(iq,k)=psfi2D(iq,k)*factor
+          tmp=psaut(iq,k)+psaci(iq,k)+praci(iq,k)+psfi(iq,k)
+          if (tmp .gt. qizodt(iq,k) ) then
+            factor=qizodt(iq,k)/tmp
+            psaut(iq,k)=psaut(iq,k)*factor
+            psaci(iq,k)=psaci(iq,k)*factor
+            praci(iq,k)=praci(iq,k)*factor
+            psfi(iq,k)=psfi(iq,k)*factor
           endif
 
         !
         !  combined all rain processes
         !
-          tmp_r=piacr2D(iq,k)+psacr2D(iq,k)-prevp2D(iq,k)-  & 
-                praut2D(iq,k)-pracw2D(iq,k)+pgfr2D(iq,k)
-          if (tmp_r .gt. qrzodt2D(iq,k) ) then
-            factor=qrzodt2D(iq,k)/tmp_r
-            piacr2D(iq,k)=piacr2D(iq,k)*factor
-            psacr2D(iq,k)=psacr2D(iq,k)*factor
-            prevp2D(iq,k)=prevp2D(iq,k)*factor
-            pgfr2D(iq,k)=pgfr2D(iq,k)*factor
+          tmp_r=piacr(iq,k)+psacr(iq,k)-prevp(iq,k)-  & 
+                praut(iq,k)-pracw(iq,k)+pgfr(iq,k)
+          if (tmp_r .gt. qrzodt(iq,k) ) then
+            factor=qrzodt(iq,k)/tmp_r
+            piacr(iq,k)=piacr(iq,k)*factor
+            psacr(iq,k)=psacr(iq,k)*factor
+            prevp(iq,k)=prevp(iq,k)*factor
+            pgfr(iq,k)=pgfr(iq,k)*factor
           endif
         !
         !   combined all snow processes
         !
-          tmp_s=-pssub2D(iq,k)-(psaut2D(iq,k)+psaci2D(iq,k)+ &
-                 psacw2D(iq,k)+psfw2D(iq,k)+pgfr2D(iq,k)+ &
-                 psfi2D(iq,k)+praci2D(iq,k)+piacr2D(iq,k)+ &
-                 psdep2D(iq,k)+psacr2D(iq,k)-pracs2D(iq,k))
-          if ( tmp_s .gt. qszodt2D(iq,k) ) then
-            factor=qszodt2D(iq,k)/tmp_s
-            pssub2D(iq,k)=pssub2D(iq,k)*factor
-            pracs2D(iq,k)=Pracs2D(iq,k)*factor
+          tmp_s=-pssub(iq,k)-(psaut(iq,k)+psaci(iq,k)+ &
+                 psacw(iq,k)+psfw(iq,k)+pgfr(iq,k)+ &
+                 psfi(iq,k)+praci(iq,k)+piacr(iq,k)+ &
+                 psdep(iq,k)+psacr(iq,k)-pracs(iq,k))
+          if ( tmp_s .gt. qszodt(iq,k) ) then
+            factor=qszodt(iq,k)/tmp_s
+            pssub(iq,k)=pssub(iq,k)*factor
+            pracs(iq,k)=pracs(iq,k)*factor
           endif
 
         !
         ! calculate new water substances, thetae, tem, and qvsbar
         !
 
-          pvapor2D(iq,k)=-pssub2D(iq,k)-psdep2D(iq,k)-prevp2D(iq,k)-midep2D(iq,k)
-          qvz2D(iq,k)=amax1( qvmin,qvz2D(iq,k)+dtb*pvapor2D(iq,k) )
-          pclw2D(iq,k)=-praut2D(iq,k)-pracw2D(iq,k)-psacw2D(iq,k)-psfw2D(iq,k)
-          qlz2D(iq,k)=amax1( 0.0,qlz2D(iq,k)+dtb*pclw2D(iq,k) )
-          pcli2D(iq,k)=-psaut2D(iq,k)-psfi2D(iq,k)-psaci2D(iq,k)- & 
-                    praci2D(iq,k)+midep2D(iq,k)
-          qiz2D(iq,k)=amax1( 0.0,qiz2D(iq,k)+dtb*pcli2D(iq,k) )
-          tmp_r=piacr2D(iq,k)+psacr2D(iq,k)-prevp2D(iq,k)-praut2D(iq,k)- &
-                    pracw2D(iq,k)+pgfr2D(iq,k)-pracs2D(iq,k)
-          prain2D(iq,k)=-tmp_r
-          qrz2D(iq,k)=amax1( 0.0,qrz2D(iq,k)+dtb*prain2D(iq,k) )
-          tmp_s=-pssub2D(iq,k)-(psaut2D(iq,k)+psaci2D(iq,k)+ &
-                 psacw2D(iq,k)+psfw2D(iq,k)+pgfr2D(iq,k)+  &
-                 psfi2D(iq,k)+praci2D(iq,k)+piacr2D(iq,k)+  &
-                 psdep2D(iq,k)+psacr2D(iq,k)-pracs2D(iq,k))
-          psnow2D(iq,k)=-tmp_s
-          qsz2D(iq,k)=amax1( 0.0,qsz2D(iq,k)+dtb*psnow2D(iq,k) )
-          qschg2D(iq,k)=qschg2D(iq,k)+psnow2D(iq,k)
-          qschg2D(iq,k)=psnow2D(iq,k)
+          pvapor(iq,k)=-pssub(iq,k)-psdep(iq,k)-prevp(iq,k)-midep(iq,k)
+          qvz(iq,k)=amax1( qvmin,qvz(iq,k)+dtb*pvapor(iq,k) )
+          pclw(iq,k)=-praut(iq,k)-pracw(iq,k)-psacw(iq,k)-psfw(iq,k)
+          qlz(iq,k)=amax1( 0.0,qlz(iq,k)+dtb*pclw(iq,k) )
+          pcli(iq,k)=-psaut(iq,k)-psfi(iq,k)-psaci(iq,k)- & 
+                    praci(iq,k)+midep(iq,k)
+          qiz(iq,k)=amax1( 0.0,qiz(iq,k)+dtb*pcli(iq,k) )
+          tmp_r=piacr(iq,k)+psacr(iq,k)-prevp(iq,k)-praut(iq,k)- &
+                    pracw(iq,k)+pgfr(iq,k)-pracs(iq,k)
+          prain(iq,k)=-tmp_r
+          qrz(iq,k)=amax1( 0.0,qrz(iq,k)+dtb*prain(iq,k) )
+          tmp_s=-pssub(iq,k)-(psaut(iq,k)+psaci(iq,k)+ &
+                 psacw(iq,k)+psfw(iq,k)+pgfr(iq,k)+  &
+                 psfi(iq,k)+praci(iq,k)+piacr(iq,k)+  &
+                 psdep(iq,k)+psacr(iq,k)-pracs(iq,k))
+          psnow(iq,k)=-tmp_s
+          qsz(iq,k)=amax1( 0.0,qsz(iq,k)+dtb*psnow(iq,k) )
+          qschg(iq,k)=qschg(iq,k)+psnow(iq,k)
+          qschg(iq,k)=psnow(iq,k)
 
-          tmp=ocp/tothz2D(iq,k)*xLf*qschg2D(iq,k)
-          theiz2D(iq,k)=theiz2D(iq,k)+dtb*tmp
+          tmp=ocp/tothz(iq,k)*xLf*qschg(iq,k)
+          theiz(iq,k)=theiz(iq,k)+dtb*tmp
           ! thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
           ! tem(k)=thz(k)*tothz(k)
           ! temcc(k)=tem(k)-273.15
           !==================update temperature=================================================
-          temcc2D(iq,k)=tem2D(iq,k)-273.15
-          lvap = xlv + (2106.0 - 4218.0)*temcc2D(iq,k)  !Enthalpy of vaporization
-          tmp1=(pssub2D(iq,k)+psdep2D(iq,k))*xls*ocp + prevp2D(iq,k)*lvap*ocp+  &
-               (psfw2D(iq,k)+pgfr2D(iq,k)+psacr2D(iq,k)-pracs2D(iq,k))*xlfocp
+          temcc(iq,k)=tem(iq,k)-273.15
+          lvap = xlv + (2106.0 - 4218.0)*temcc(iq,k)  !Enthalpy of vaporization
+          tmp1=(pssub(iq,k)+psdep(iq,k))*xls*ocp + prevp(iq,k)*lvap*ocp+  &
+               (psfw(iq,k)+pgfr(iq,k)+psacr(iq,k)-pracs(iq,k))*xlfocp
           !bug fixed 20191126
-          tem2D(iq,k)=tem2D(iq,k)+tmp1*dtb
-          temcc2D(iq,k)=tem2D(iq,k)-273.15
-          thz2D(iq,k)=tem2D(iq,k)/tothz2D(iq,k)
+          tem(iq,k)=tem(iq,k)+tmp1*dtb
+          temcc(iq,k)=tem(iq,k)-273.15
+          thz(iq,k)=tem(iq,k)/tothz(iq,k)
           !===================================================================
-          if( temcc2D(iq,k) .lt. -40.0 ) qswz2D(iq,k)=qsiz2D(iq,k)
-            qlpqi=qlz2D(iq,k)+qiz2D(iq,k)
+          if( temcc(iq,k) .lt. -40.0 ) qswz(iq,k)=qsiz(iq,k)
+            qlpqi=qlz(iq,k)+qiz(iq,k)
             if ( qlpqi .eq. 0.0 ) then
-              qvsbar2D(iq,k)=qsiz2D(iq,k)
+              qvsbar(iq,k)=qsiz(iq,k)
             else
-              qvsbar2D(iq,k)=(qiz2D(iq,k)*qsiz2D(iq,k)+qlz2D(iq,k)*qswz2D(iq,k))/qlpqi
+              qvsbar(iq,k)=(qiz(iq,k)*qsiz(iq,k)+qlz(iq,k)*qswz(iq,k))/qlpqi
             endif
-            tmp1=-npraut2D(iq,k)-npracw2D(iq,k)-npsacw2D(iq,k)
-            ncz2D(iq,k)=amax1( 0.0,ncz2D(iq,k)+dtb*tmp1 )
-            tmp1=-npsaut2D(iq,k)-npsaci2D(iq,k)-npraci2D(iq,k)+nidep2D(iq,k)
-            niz2D(iq,k)=amax1( 0.0,niz2D(iq,k)+dtb*tmp1 )
-            tmp1=npiacr2D(iq,k)+npsacr2D(iq,k)-nprevp2D(iq,k)-npraut_r2D(iq,k)+npgfr2D(iq,k)
-            nrz2D(iq,k)=amax1( 0.0,nrz2D(iq,k)-dtb*tmp1 )
-            tmp1=-(npsaut2D(iq,k)+npgfr2D(iq,k)+  &
-                   npraci2D(iq,k)+npiacr2D(iq,k)+  &
-                   npsdep2D(iq,k)+npsacr2D(iq,k))
-            nsz2D(iq,k)=amax1( 0.0,nsz2D(iq,k)-dtb*tmp1 )
+            tmp1=-npraut(iq,k)-npracw(iq,k)-npsacw(iq,k)
+            ncz(iq,k)=amax1( 0.0,ncz(iq,k)+dtb*tmp1 )
+            tmp1=-npsaut(iq,k)-npsaci(iq,k)-npraci(iq,k)+nidep(iq,k)
+            niz(iq,k)=amax1( 0.0,niz(iq,k)+dtb*tmp1 )
+            tmp1=npiacr(iq,k)+npsacr(iq,k)-nprevp(iq,k)-npraut_r(iq,k)+npgfr(iq,k)
+            nrz(iq,k)=amax1( 0.0,nrz(iq,k)-dtb*tmp1 )
+            tmp1=-(npsaut(iq,k)+npgfr(iq,k)+  &
+                   npraci(iq,k)+npiacr(iq,k)+  &
+                   npsdep(iq,k)+npsacr(iq,k))
+            nsz(iq,k)=amax1( 0.0,nsz(iq,k)-dtb*tmp1 )
           else                  !>0 C
           !
           !  combined cloud water depletions
           !
-            tmp=praut2D(iq,k)+psacw2D(iq,k)+pracw2D(iq,k)
-            if ( tmp .gt. qlzodt2D(iq,k) ) then
-              factor=qlzodt2D(iq,k)/tmp
-              praut2D(iq,k)=praut2D(iq,k)*factor
-              psacw2D(iq,k)=psacw2D(iq,k)*factor
-              pracw2D(iq,k)=pracw2D(iq,k)*factor
+            tmp=praut(iq,k)+psacw(iq,k)+pracw(iq,k)
+            if ( tmp .gt. qlzodt(iq,k) ) then
+              factor=qlzodt(iq,k)/tmp
+              praut(iq,k)=praut(iq,k)*factor
+              psacw(iq,k)=psacw(iq,k)*factor
+              pracw(iq,k)=pracw(iq,k)*factor
             end if
           !
           !  combined all snow processes
           !
-            tmp_s=-(psmlt2D(iq,k)+psmltevp2D(iq,k))
-            if (tmp_s .gt. qszodt2D(iq,k) ) then
-              factor=qszodt2D(iq,k)/tmp_s
-              psmlt2D(iq,k)=psmlt2D(iq,k)*factor
-              psmltevp2D(iq,k)=psmltevp2D(iq,k)*factor
+            tmp_s=-(psmlt(iq,k)+psmltevp(iq,k))
+            if (tmp_s .gt. qszodt(iq,k) ) then
+              factor=qszodt(iq,k)/tmp_s
+              psmlt(iq,k)=psmlt(iq,k)*factor
+              psmltevp(iq,k)=psmltevp(iq,k)*factor
             endif
           !
           !  combined all rain processes
           !
-            tmp_r=-prevp2D(iq,k)-(praut2D(iq,k)+pracw2D(iq,k)+psacw2D(iq,k)-psmlt2D(iq,k))
-            if (tmp_r .gt. qrzodt2D(iq,k) ) then
-              factor=qrzodt2D(iq,k)/tmp_r
-              prevp2D(iq,k)=prevp2D(iq,k)*factor
+            tmp_r=-prevp(iq,k)-(praut(iq,k)+pracw(iq,k)+psacw(iq,k)-psmlt(iq,k))
+            if (tmp_r .gt. qrzodt(iq,k) ) then
+              factor=qrzodt(iq,k)/tmp_r
+              prevp(iq,k)=prevp(iq,k)*factor
             endif
           !
           !  calculate new water substances and thetae
           !
-            pvapor2D(iq,k)=-psmltevp2D(iq,k)-prevp2D(iq,k)
-            qvz2D(iq,k)=amax1( qvmin,qvz2D(iq,k)+dtb*pvapor2D(iq,k))
-            pclw2D(iq,k)=-praut2D(iq,k)-pracw2D(iq,k)-psacw2D(iq,k)
-            qlz2D(iq,k)=amax1( 0.0,qlz2D(iq,k)+dtb*pclw2D(iq,k) )
-            pcli2D(iq,k)=0.0
-            qiz2D(iq,k)=amax1( 0.0,qiz2D(iq,k)+dtb*pcli2D(iq,k) )
-            tmp_r=-prevp2D(iq,k)-(praut2D(iq,k)+pracw2D(iq,k)+psacw2D(iq,k)-psmlt2D(iq,k))
-            prain2D(iq,k)=-tmp_r
-            tmpqrz=qrz2D(iq,k)
-            qrz2D(iq,k)=amax1( 0.0,qrz2D(iq,k)+dtb*prain2D(iq,k) )
-            tmp_s=-(psmlt2D(iq,k)+psmltevp2D(iq,k))
-            psnow2D(iq,k)=-tmp_s
-            qsz2D(iq,k)=amax1( 0.0,qsz2D(iq,k)+dtb*psnow2D(iq,k) )
-            qschg2D(iq,k)=psnow2D(iq,k)
+            pvapor(iq,k)=-psmltevp(iq,k)-prevp(iq,k)
+            qvz(iq,k)=amax1( qvmin,qvz(iq,k)+dtb*pvapor(iq,k))
+            pclw(iq,k)=-praut(iq,k)-pracw(iq,k)-psacw(iq,k)
+            qlz(iq,k)=amax1( 0.0,qlz(iq,k)+dtb*pclw(iq,k) )
+            pcli(iq,k)=0.0
+            qiz(iq,k)=amax1( 0.0,qiz(iq,k)+dtb*pcli(iq,k) )
+            tmp_r=-prevp(iq,k)-(praut(iq,k)+pracw(iq,k)+psacw(iq,k)-psmlt(iq,k))
+            prain(iq,k)=-tmp_r
+            tmpqrz=qrz(iq,k)
+            qrz(iq,k)=amax1( 0.0,qrz(iq,k)+dtb*prain(iq,k) )
+            tmp_s=-(psmlt(iq,k)+psmltevp(iq,k))
+            psnow(iq,k)=-tmp_s
+            qsz(iq,k)=amax1( 0.0,qsz(iq,k)+dtb*psnow(iq,k) )
+            qschg(iq,k)=psnow(iq,k)
 
-            tmp=ocp/tothz2D(iq,k)*xLf*qschg2D(iq,k)
-            theiz2D(iq,k)=theiz2D(iq,k)+dtb*tmp
+            tmp=ocp/tothz(iq,k)*xLf*qschg(iq,k)
+            theiz(iq,k)=theiz(iq,k)+dtb*tmp
             ! thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
             ! tem(k)=thz(k)*tothz(k)
             ! temcc(k)=tem(k)-273.15
             !==================update tmperature=================================================
-            temcc2D(iq,k)=tem2D(iq,k)-273.15
-            lvap = xlv + (2106.0 - 4218.0)*temcc2D(iq,k)  !Enthalpy of vaporization
-            tmp1=psmltevp2D(iq,k)*xls*ocp + prevp2D(iq,k)*lvap*ocp+  &
-                 psmlt2D(iq,k)*xlfocp
+            temcc(iq,k)=tem(iq,k)-273.15
+            lvap = xlv + (2106.0 - 4218.0)*temcc(iq,k)  !Enthalpy of vaporization
+            tmp1=psmltevp(iq,k)*xls*ocp + prevp(iq,k)*lvap*ocp+  &
+                 psmlt(iq,k)*xlfocp
             !tmp1 =  ! 1. evaporation of rain formed by melting snow ??? (-)
                      ! 2. evaporation of rain (-)
                      ! 3. melting of snow to form rain (+)
-            tem2D(iq,k)=tem2D(iq,k)+tmp1*dtb
+            tem(iq,k)=tem(iq,k)+tmp1*dtb
             !bugfix 20191126
 
             !tem(k)=tem(k)+tmp1*dtb
-            temcc2D(iq,k)=tem2D(iq,k)-273.15
+            temcc(iq,k)=tem(iq,k)-273.15
 
-            thz2D(iq,k)=tem2D(iq,k)/tothz2D(iq,k)
+            thz(iq,k)=tem(iq,k)/tothz(iq,k)
 
             !===================================================================
-            es=1000.*svp1*exp( svp2*temcc2D(iq,k)/(tem2D(iq,k)-svp3) )
-            qswz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
-            qsiz2D(iq,k)=qswz2D(iq,k)
-            qvsbar2D(iq,k)=qswz2D(iq,k)
-            ! tmp1=-(npraut2D(iq,k)+npsacw2D(iq,k)+npracw2D(iq,k))
-            ncz2D(iq,k)=amax1( 0.0,ncz2D(iq,k)+dtb*tmp1)
-            tmp1=-nprevp2D(iq,k)-(npraut_r2D(iq,k)-npsmlt2D(iq,k))
+            es=1000.*svp1*exp( svp2*temcc(iq,k)/(tem(iq,k)-svp3) )
+            qswz(iq,k)=ep2*es/(prez(iq,k)-es)
+            qsiz(iq,k)=qswz(iq,k)
+            qvsbar(iq,k)=qswz(iq,k)
+            ! tmp1=-(npraut(iq,k)+npsacw(iq,k)+npracw(iq,k))
+            ncz(iq,k)=amax1( 0.0,ncz(iq,k)+dtb*tmp1)
+            tmp1=-nprevp(iq,k)-(npraut_r(iq,k)-npsmlt(iq,k))
             ! tmp1=-nprevp(k)-(nprautr(k)+npracwr(k)+npsacw(k)-npsmltr(k))
-            nrz2D(iq,k)=amax1(0.0,nrz2D(iq,k)-dtb*tmp1)
-            tmp1=-(npsmlt2D(iq,k)+npsmltevp2D(iq,k))
-            nsz2D(iq,k)=amax1( 0.0,nsz2D(iq,k)-dtb*tmp1 )
+            nrz(iq,k)=amax1(0.0,nrz(iq,k)-dtb*tmp1)
+            tmp1=-(npsmlt(iq,k)+npsmltevp(iq,k))
+            nsz(iq,k)=amax1( 0.0,nsz(iq,k)-dtb*tmp1 )
           end if    !T seperate for source and sink terms
           ! CALL wrf_debug ( 100 , 'module_ylin: finish sum of all processes' )
 
         !rain
-        if (qrz2D(iq,k) .gt. 1.0e-8) then
-          xlambdar2D(iq,k)=(pi*rhowater*nrz2D(iq,k)/qrz2D(iq,k))**(1./3.)   !zx
-          if (xlambdar2D(iq,k).lt.lamminr) then
-            xlambdar2D(iq,k) = lamminr
-            n0_r2D(iq,K) = xlambdar2D(iq,K)**4*qrz2D(iq,K)/(pi*rhowater)
-            nrz2D(iq,K) = n0_r2D(iq,K)/xlambdar2D(iq,K)
-          else if (xlambdar2D(iq,K).gt.lammaxr) then
-            xlambdar2D(iq,K) = lammaxr
-            n0_r2D(iq,K) = xlambdar2D(iq,K)**4*qrz2D(iq,K)/(pi*rhowater)
-            nrz2D(iq,K) = n0_r2D(iq,K)/xlambdar2D(iq,K)
+        if (qrz(iq,k) .gt. 1.0e-8) then
+          xlambdar(iq,k)=(pi*rhowater*nrz(iq,k)/qrz(iq,k))**(1./3.)   !zx
+          if (xlambdar(iq,k).lt.lamminr) then
+            xlambdar(iq,k) = lamminr
+            n0_r(iq,K) = xlambdar(iq,K)**4*qrz(iq,K)/(pi*rhowater)
+            nrz(iq,K) = n0_r(iq,K)/xlambdar(iq,K)
+          else if (xlambdar(iq,K).gt.lammaxr) then
+            xlambdar(iq,K) = lammaxr
+            n0_r(iq,K) = xlambdar(iq,K)**4*qrz(iq,K)/(pi*rhowater)
+            nrz(iq,K) = n0_r(iq,K)/xlambdar(iq,K)
           end if
         end if
 
         !snow
-        if (qsz2D(iq,k) .gt. 1.0e-8) then
-          xlambdas2D(iq,k)=(am_s2D(iq,k)*ggamma(tmp_ss2D(iq,k))*     &
-          nsz2D(iq,k)/qsz2D(iq,k))**(1./bm_s2D(iq,k))
-          if (xlambdas2D(iq,k).lt.lammins) then
-            xlambdas2D(iq,k)= lamminS
-            n0_s2D(iq,K) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*      &
-                           qsz2D(iq,K)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
-            nsz2D(iq,K) = n0_s2D(iq,K)/xlambdas2D(iq,k)
-          else if (xlambdas2D(iq,k).gt.lammaxs) then
-            xlambdas2D(iq,k) = lammaxs
-            n0_s2D(iq,K) = xlambdas2D(iq,k)**(bm_s2D(iq,k)+1)*      & 
-                           qsz2D(iq,K)/ggamma(1+bm_s2D(iq,k))/am_s2D(iq,k)
-            nsz2D(iq,K) = n0_s2D(iq,K)/xlambdas2D(iq,k)
+        if (qsz(iq,k) .gt. 1.0e-8) then
+          xlambdas(iq,k)=(am_s(iq,k)*ggamma(tmp_ss(iq,k))*     &
+          nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
+          if (xlambdas(iq,k).lt.lammins) then
+            xlambdas(iq,k)= lamminS
+            n0_s(iq,K) = xlambdas(iq,k)**(bm_s(iq,k)+1)*      &
+                           qsz(iq,K)/ggamma(1+bm_s(iq,k))/am_s(iq,k)
+            nsz(iq,K) = n0_s(iq,K)/xlambdas(iq,k)
+          else if (xlambdas(iq,k).gt.lammaxs) then
+            xlambdas(iq,k) = lammaxs
+            n0_s(iq,K) = xlambdas(iq,k)**(bm_s(iq,k)+1)*      & 
+                           qsz(iq,K)/ggamma(1+bm_s(iq,k))/am_s(iq,k)
+            nsz(iq,K) = n0_s(iq,K)/xlambdas(iq,k)
           end if
         end if
 
         !cloud ice
-        if (qiz2D(iq,k).ge.1.0e-8) then
-          lami2D(iq,k) = max((ggamma(1.+3.)*500.*pi/6.)*niz2D(iq,k)/qiz2D(iq,k),1.e-20)**(1./3) !fixed zdc
-          if (lami2D(iq,k).lt.lammini) then
-            lami2D(iq,k)= lammini
-            n0_i2D(iq,K) = lami2D(iq,k)**4./ggamma(1.+3.)*500.*pi/6.
-            niz2D(iq,K) = n0_i2D(iq,K)/lami2D(iq,k)
-          else if (lami2D(iq,k).gt.lammaxi) then
-            lami2D(iq,k) = lammaxi
-            n0_i2D(iq,K) = lami2D(iq,k)**4./ggamma(1.+3.)*500.*pi/6.
-            niz2D(iq,K) = n0_i2D(iq,K)/lami2D(iq,k)
+        if (qiz(iq,k).ge.1.0e-8) then
+          lami(iq,k) = max((ggamma(1.+3.)*500.*pi/6.)*niz(iq,k)/qiz(iq,k),1.e-20)**(1./3) !fixed zdc
+          if (lami(iq,k).lt.lammini) then
+            lami(iq,k)= lammini
+            n0_i(iq,K) = lami(iq,k)**4./ggamma(1.+3.)*500.*pi/6.
+            niz(iq,K) = n0_i(iq,K)/lami(iq,k)
+          else if (lami(iq,k).gt.lammaxi) then
+            lami(iq,k) = lammaxi
+            n0_i(iq,K) = lami(iq,k)**4./ggamma(1.+3.)*500.*pi/6.
+            niz(iq,K) = n0_i(iq,K)/lami(iq,k)
           end if
         end if
 
         !cloud water zdc 20220208
-        if (qlz2D(iq,k).ge.1.0e-8) then
-          lamc2D(iq,k) = (ncz2D(iq,k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz2D(iq,k)*ggamma(1+mu_c)))**(1./3)
-          if (lamc2D(iq,k).lt.lammini) then
-            lamc2D(iq,k)= lammini
-            n0_c2D(iq,k)= lamc2D(iq,k)**(mu_c+4.)*6.*qlz2D(iq,k)/(pi*rhowater*ggamma(mu_c+4))
-            ncz2D(iq,k) = n0_c2D(iq,k)/lamc2D(iq,k)
-          else if (lamc2D(iq,k).gt.lammaxi) then
-            lamc2D(iq,k)= lammaxi
-            n0_c2D(iq,k)= lamc2D(iq,k)**(mu_c+4.)*6.*qlz2D(iq,k)/(pi*rhowater*ggamma(mu_c+4))
-            ncz2D(iq,k) = n0_c2D(iq,k)/lamc2D(iq,k)
+        if (qlz(iq,k).ge.1.0e-8) then
+          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz(iq,k)*ggamma(1+mu_c)))**(1./3)
+          if (lamc(iq,k).lt.lammini) then
+            lamc(iq,k)= lammini
+            n0_c(iq,k)= lamc(iq,k)**(mu_c+4.)*6.*qlz(iq,k)/(pi*rhowater*ggamma(mu_c+4))
+            ncz(iq,k) = n0_c(iq,k)/lamc(iq,k)
+          else if (lamc(iq,k).gt.lammaxi) then
+            lamc(iq,k)= lammaxi
+            n0_c(iq,k)= lamc(iq,k)**(mu_c+4.)*6.*qlz(iq,k)/(pi*rhowater*ggamma(mu_c+4))
+            ncz(iq,k) = n0_c(iq,k)/lamc(iq,k)
           end if
         end if
 
@@ -1726,125 +1668,125 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
         !    5.0e-5=1.0/(500mb-300mb)
         !
         rsat=1.0
-        if( qvz2D(iq,k)+qlz2D(iq,k)+qiz2D(iq,k) .lt. rsat*qvsbar2D(iq,k) ) then ! goto 1800
+        if( qvz(iq,k)+qlz(iq,k)+qiz(iq,k) .lt. rsat*qvsbar(iq,k) ) then ! goto 1800
 
         !
         !   unsaturated
         !
-          qvz2D(iq,k)=qvz2D(iq,k)+qlz2D(iq,k)+qiz2D(iq,k)
-          qlz2D(iq,k)=0.0
-          qiz2D(iq,k)=0.0
+          qvz(iq,k)=qvz(iq,k)+qlz(iq,k)+qiz(iq,k)
+          qlz(iq,k)=0.0
+          qiz(iq,k)=0.0
 
-          thz2D(iq,k)=theiz2D(iq,k)-(xLvocp*qvz2D(iq,k)-xLfocp*qiz2D(iq,k))/tothz2D(iq,k)
+          thz(iq,k)=theiz(iq,k)-(xLvocp*qvz(iq,k)-xLfocp*qiz(iq,k))/tothz(iq,k)
 
-          tem2D(iq,k)=thz2D(iq,k)*tothz2D(iq,k)
-          temcc2D(iq,k)=tem2D(iq,k)-273.15
+          tem(iq,k)=thz(iq,k)*tothz(iq,k)
+          temcc(iq,k)=tem(iq,k)-273.15
 
         else
         !
         !   saturated
         !
-          pladj2D(iq,k)=qlz2D(iq,k)
-          piadj2D(iq,k)=qiz2D(iq,k)
+          pladj(iq,k)=qlz(iq,k)
+          piadj(iq,k)=qiz(iq,k)
         !
 
-          CALL satadj(qvz2D(iq,:), qlz2D(iq,:), qiz2D(iq,:), prez2D(iq,:), &
-                      theiz2D(iq,:), thz2D(iq,:), tothz2D(iq,:), kts, kte, &
+          CALL satadj(qvz(iq,:), qlz(iq,:), qiz(iq,:), prez(iq,:), &
+                      theiz(iq,:), thz(iq,:), tothz(iq,:), kts, kte, &
                       k, xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
 
-          pladj2D(iq,k)=odtb*(qlz2D(iq,k)-pladj2D(iq,k))
-          piadj2D(iq,k)=odtb*(qiz2D(iq,k)-piadj2D(iq,k))
-          pclw2D(iq,k)=pclw2D(iq,k)+pladj2D(iq,k)
-          pcli2D(iq,k)=pcli2D(iq,k)+piadj2D(iq,k)
-          pvapor2D(iq,k)=pvapor2D(iq,k)-( pladj2D(iq,k)+piadj2D(iq,k) )
-          thz2D(iq,k)=theiz2D(iq,k)-(xLvocp*qvz2D(iq,k)-xLfocp*qiz2D(iq,k))/tothz2D(iq,k)
-          tem2D(iq,k)=thz2D(iq,k)*tothz2D(iq,k)
-          temcc2D(iq,k)=tem2D(iq,k)-273.15
+          pladj(iq,k)=odtb*(qlz(iq,k)-pladj(iq,k))
+          piadj(iq,k)=odtb*(qiz(iq,k)-piadj(iq,k))
+          pclw(iq,k)=pclw(iq,k)+pladj(iq,k)
+          pcli(iq,k)=pcli(iq,k)+piadj(iq,k)
+          pvapor(iq,k)=pvapor(iq,k)-( pladj(iq,k)+piadj(iq,k) )
+          thz(iq,k)=theiz(iq,k)-(xLvocp*qvz(iq,k)-xLfocp*qiz(iq,k))/tothz(iq,k)
+          tem(iq,k)=thz(iq,k)*tothz(iq,k)
+          temcc(iq,k)=tem(iq,k)-273.15
 
-          es=1000.*svp1*exp( svp2*temcc2D(iq,k)/(tem2D(iq,k)-svp3) )
-          qswz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
-          if (tem2D(iq,k) .lt. 273.15 ) then
-            es=1000.*svp1*exp( 21.8745584*(tem2D(iq,k)-273.16)/(tem2D(iq,k)-7.66) )
-            qsiz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
-            if (temcc2D(iq,k) .lt. -40.0) qswz2D(iq,k)=qsiz2D(iq,k)
+          es=1000.*svp1*exp( svp2*temcc(iq,k)/(tem(iq,k)-svp3) )
+          qswz(iq,k)=ep2*es/(prez(iq,k)-es)
+          if (tem(iq,k) .lt. 273.15 ) then
+            es=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
+            qsiz(iq,k)=ep2*es/(prez(iq,k)-es)
+            if (temcc(iq,k) .lt. -40.0) qswz(iq,k)=qsiz(iq,k)
           else
-            qsiz2D(iq,k)=qswz2D(iq,k)
+            qsiz(iq,k)=qswz(iq,k)
           endif
-          qlpqi=qlz2D(iq,k)+qiz2D(iq,k)
+          qlpqi=qlz(iq,k)+qiz(iq,k)
           if ( qlpqi .eq. 0.0 ) then
-            qvsbar2D(iq,k)=qsiz2D(iq,k)
+            qvsbar(iq,k)=qsiz(iq,k)
           else
-            qvsbar2D(iq,k)=( qiz2D(iq,k)*qsiz2D(iq,k)+qlz2D(iq,k)*qswz2D(iq,k) )/qlpqi
+            qvsbar(iq,k)=( qiz(iq,k)*qsiz(iq,k)+qlz(iq,k)*qswz(iq,k) )/qlpqi
           endif
 
         !
         !***********************************************************************
         !*****     melting and freezing of cloud ice and cloud water       *****
         !***********************************************************************
-          qlpqi=qlz2D(iq,k)+qiz2D(iq,k)
+          qlpqi=qlz(iq,k)+qiz(iq,k)
           if( qlpqi .gt. 0.0 ) then !go to 1800
           !
           !
           ! (1)  HOMOGENEOUS NUCLEATION WHEN T< -40 C (Pihom)
           !
-            if(temcc2D(iq,k) .lt. -40.0) then
-              pihom2D(iq,k)=qlz2D(iq,k)*odtb
-              nihom2D(iq,k)=ncz2D(iq,k)*odtb
+            if(temcc(iq,k) .lt. -40.0) then
+              pihom(iq,k)=qlz(iq,k)*odtb
+              nihom(iq,k)=ncz(iq,k)*odtb
             end if
           !
           ! (2)  MELTING OF ICE CRYSTAL WHEN T> 0 C (Pimlt)
           !
-            if(temcc2D(iq,k) .gt. 0.0) then
-              pimlt2D(iq,k)=qiz2D(iq,k)*odtb
-              nimlt2D(iq,k)=niz2D(iq,k)*odtb
+            if(temcc(iq,k) .gt. 0.0) then
+              pimlt(iq,k)=qiz(iq,k)*odtb
+              nimlt(iq,k)=niz(iq,k)*odtb
             end if
           !
           ! (3) PRODUCTION OF CLOUD ICE BY BERGERON PROCESS (Pidw): Hsie (p957)
           !     this process only considered when -31 C < T < 0 C
           !
-            if(temcc2D(iq,k) .lt. 0.0 .and. temcc2D(iq,k) .gt. -31.0) then
+            if(temcc(iq,k) .lt. 0.0 .and. temcc(iq,k) .gt. -31.0) then
           !!
           !!   parama1 and parama2 functions must be user supplied
           !!
-              a1=parama1( temcc2D(iq,k) )
-              a2=parama2( temcc2D(iq,k) )
+              a1=parama1( temcc(iq,k) )
+              a2=parama2( temcc(iq,k) )
               !! change unit from cgs to mks
               a1=a1*0.001**(1.0-a2)
-              xnin=xni0*exp(-bni*temcc2D(iq,k))
-              pidw2D(iq,k)=xnin*orho2D(iq,k)*(a1*xmnin**a2)
+              xnin=xni0*exp(-bni*temcc(iq,k))
+              pidw(iq,k)=xnin*orho(iq,k)*(a1*xmnin**a2)
             end if
 
-            pcli2D(iq,k)=pcli2D(iq,k)+pihom2D(iq,k)-pimlt2D(iq,k)+pidw2D(iq,k)
-            pclw2D(iq,k)=pclw2D(iq,k)-pihom2D(iq,k)+pimlt2D(iq,k)-pidw2D(iq,k)
-            qlz2D(iq,k)=amax1( 0.0,qlz2D(iq,k)+dtb*(-pihom2D(iq,k)+pimlt2D(iq,k)-pidw2D(iq,k)) )
-            qiz2D(iq,k)=amax1( 0.0,qiz2D(iq,k)+dtb*(pihom2D(iq,k)-pimlt2D(iq,k)+pidw2D(iq,k)) )
+            pcli(iq,k)=pcli(iq,k)+pihom(iq,k)-pimlt(iq,k)+pidw(iq,k)
+            pclw(iq,k)=pclw(iq,k)-pihom(iq,k)+pimlt(iq,k)-pidw(iq,k)
+            qlz(iq,k)=amax1( 0.0,qlz(iq,k)+dtb*(-pihom(iq,k)+pimlt(iq,k)-pidw(iq,k)) )
+            qiz(iq,k)=amax1( 0.0,qiz(iq,k)+dtb*(pihom(iq,k)-pimlt(iq,k)+pidw(iq,k)) )
 
-            ncz2D(iq,k)=amax1( 0.0,ncz2D(iq,k)+dtb*(-nihom2D(iq,k)+nimlt2D(iq,k)) )
-            niz2D(iq,k)=amax1( 0.0,niz2D(iq,k)+dtb*( nihom2D(iq,k)-nimlt2D(iq,k)) )
+            ncz(iq,k)=amax1( 0.0,ncz(iq,k)+dtb*(-nihom(iq,k)+nimlt(iq,k)) )
+            niz(iq,k)=amax1( 0.0,niz(iq,k)+dtb*( nihom(iq,k)-nimlt(iq,k)) )
 
-            CALL satadj(qvz2D(iq,:), qlz2D(iq,:), qiz2D(iq,:), prez2D(iq,:), &
-                    theiz2D(iq,:), thz2D(iq,:), tothz2D(iq,:), kts, kte, &
+            CALL satadj(qvz(iq,:), qlz(iq,:), qiz(iq,:), prez(iq,:), &
+                    theiz(iq,:), thz(iq,:), tothz(iq,:), kts, kte, &
                     k, xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
 
-            thz2D(iq,k)=theiz2D(iq,k)-(xLvocp*qvz2D(iq,k)-xLfocp*qiz2D(iq,k))/tothz2D(iq,k)
-            tem2D(iq,k)=thz2D(iq,k)*tothz2D(iq,k)
-            temcc2D(iq,k)=tem2D(iq,k)-273.15
-            es=1000.*svp1*exp( svp2*temcc2D(iq,k)/(tem2D(iq,k)-svp3) )
-            qswz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
+            thz(iq,k)=theiz(iq,k)-(xLvocp*qvz(iq,k)-xLfocp*qiz(iq,k))/tothz(iq,k)
+            tem(iq,k)=thz(iq,k)*tothz(iq,k)
+            temcc(iq,k)=tem(iq,k)-273.15
+            es=1000.*svp1*exp( svp2*temcc(iq,k)/(tem(iq,k)-svp3) )
+            qswz(iq,k)=ep2*es/(prez(iq,k)-es)
 
-            if (tem2D(iq,k) .lt. 273.15 ) then
-              es=1000.*svp1*exp( 21.8745584*(tem2D(iq,k)-273.16)/(tem2D(iq,k)-7.66) )
-              qsiz2D(iq,k)=ep2*es/(prez2D(iq,k)-es)
-              if (temcc2D(iq,k) .lt. -40.0) qswz2D(iq,k)=qsiz2D(iq,k)
+            if (tem(iq,k) .lt. 273.15 ) then
+              es=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
+              qsiz(iq,k)=ep2*es/(prez(iq,k)-es)
+              if (temcc(iq,k) .lt. -40.0) qswz(iq,k)=qsiz(iq,k)
             else
-              qsiz2D(iq,k)=qswz2D(iq,k)
+              qsiz(iq,k)=qswz(iq,k)
             endif
-            qlpqi=qlz2D(iq,k)+qiz2D(iq,k)
+            qlpqi=qlz(iq,k)+qiz(iq,k)
 
             if ( qlpqi .eq. 0.0 ) then
-              qvsbar2D(iq,k)=qsiz2D(iq,k)
+              qvsbar(iq,k)=qsiz(iq,k)
             else
-              qvsbar2D(iq,k)=( qiz2D(iq,k)*qsiz2D(iq,k)+qlz2D(iq,k)*qswz2D(iq,k) )/qlpqi
+              qvsbar(iq,k)=( qiz(iq,k)*qsiz(iq,k)+qlz(iq,k)*qswz(iq,k) )/qlpqi
             endif
           end if ! 1800  continue
         end if ! 1800  continue
@@ -1859,104 +1801,104 @@ SUBROUTINE clphy1d_ylin(dt2D, imax2D,                             &
 
 
   do k=kts+1,kte
-    where ( qvz2D(1:imax,k) .lt. qvmin ) 
-      qlz2D(1:imax,k)=0.0
-      qiz2D(1:imax,k)=0.0
-      ncz2D(1:imax,k)=0.0
-      niz2D(1:imax,k)=0.0
-      qvz2D(1:imax,k)=amax1( qvmin,qvz2D(1:imax,k)+qlz2D(1:imax,k)+qiz2D(1:imax,k) )
+    where ( qvz(1:imax,k) .lt. qvmin ) 
+      qlz(1:imax,k)=0.0
+      qiz(1:imax,k)=0.0
+      ncz(1:imax,k)=0.0
+      niz(1:imax,k)=0.0
+      qvz(1:imax,k)=amax1( qvmin,qvz(1:imax,k)+qlz(1:imax,k)+qiz(1:imax,k) )
     end where
-      niz2D(1:imax,k) = min(niz2D(1:imax,k),0.3E6/rho2D(1:imax,k))
-      ncz2D(1:imax,k) = min(ncz2D(1:imax,k),250000.E6/rho2D(1:imax,k))
-      ncz2D(1:imax,k) = max(ncz2D(1:imax,k),0.01E6/rho2D(1:imax,k))
+      niz(1:imax,k) = min(niz(1:imax,k),0.3E6/rho(1:imax,k))
+      ncz(1:imax,k) = min(ncz(1:imax,k),250000.E6/rho(1:imax,k))
+      ncz(1:imax,k) = max(ncz(1:imax,k),0.01E6/rho(1:imax,k))
   end do
 
 
   ! CALCULATE EFFECTIVE RADIUS zdc 20220208
   do k=kts,kte
-    where (qiz2D(1:imax,k) .gt. 1.0e-8 .and. lami2D(1:imax,k)>0. ) 
-      EFFI1D2D(1:imax,k) = 3./LAMI2D(1:imax,k)/2.
+    where (qiz(1:imax,k) .gt. 1.0e-8 .and. lami(1:imax,k)>0. ) 
+      EFFI1D(1:imax,k) = 3./LAMI(1:imax,k)/2.
     elsewhere
-      EFFI1D2D(1:imax,k) = 25.E-6
+      EFFI1D(1:imax,k) = 25.E-6
     end where
 
-    where (qsz2D(1:imax,k) .gt. 1.0e-8) 
-      EFFS1D2D(1:imax,k) = 3./xlambdas2D(1:imax,k)/2.
+    where (qsz(1:imax,k) .gt. 1.0e-8) 
+      EFFS1D(1:imax,k) = 3./xlambdas(1:imax,k)/2.
     elsewhere
-      EFFS1D2D(1:imax,k) = 25.E-6
+      EFFS1D(1:imax,k) = 25.E-6
     end where
 
-    where (qrz2D(1:imax,k) .gt. 1.0e-8) 
-      EFFR1D2D(1:imax,k) = 3./xlambdar2D(1:imax,k)/2.
+    where (qrz(1:imax,k) .gt. 1.0e-8) 
+      EFFR1D(1:imax,k) = 3./xlambdar(1:imax,k)/2.
     elsewhere
-      EFFR1D2D(1:imax,k) = 25.E-6
+      EFFR1D(1:imax,k) = 25.E-6
     end where
 
-    where (qlz2D(1:imax,k) .gt. 1.0e-8 .and. lamc2D(1:imax,k) >0.)
-      EFFC1D2D(1:imax,k) = GAMMA(mu_c+4.)/GAMMA(mu_c+3.)/LAMC2D(1:imax,k)/2.
+    where (qlz(1:imax,k) .gt. 1.0e-8 .and. lamc(1:imax,k) >0.)
+      EFFC1D(1:imax,k) = GAMMA(mu_c+4.)/GAMMA(mu_c+3.)/LAMC(1:imax,k)/2.
     elsewhere
-      EFFC1D2D(1:imax,k) = 25.E-6
+      EFFC1D(1:imax,k) = 25.E-6
     end where
   end do
 
   ! save all process rate for understanding cloud microphysics
   do k=kts,kte
-    zpsnow2D(1:imax,k)   = psnow2D(1:imax,k)    ! sum all process for snow
-    zpsaut2D(1:imax,k)   = psaut2D(1:imax,k)    ! ice crystal aggregation to snow
-    zpsfw2D(1:imax,k)    = psfw2D(1:imax,k)     ! BERGERON process to transfer cloud water to snow
-    zpsfi2D(1:imax,k)    = psfi2D(1:imax,k)     ! BERGERON process to transfer cloud ice to snow
-    zpraci2D(1:imax,k)   = praci2D(1:imax,k)    ! cloud ice accretion by rain
-    zpiacr2D(1:imax,k)   = piacr2D(1:imax,k)    ! rain accretion by cloud ice
-    zpsaci2D(1:imax,k)   = psaci2D(1:imax,k)    ! ice crystal accretion by snow
-    zpsacw2D(1:imax,k)   = psacw2D(1:imax,k)    ! accretion of cloud water by snow
-    zpsdep2D(1:imax,k)   = psdep2D(1:imax,k)    ! deposition of snow
-    zpssub2D(1:imax,k)   = pssub2D(1:imax,k)    ! sublimation of snow (T<0)
-    zpracs2D(1:imax,k)   = pracs2D(1:imax,k)    ! accretion of snow by rain
-    zpsacr2D(1:imax,k)   = psacr2D(1:imax,k)    ! accretion of rain by snow
-    zpsmlt2D(1:imax,k)   = psmlt2D(1:imax,k)    ! melting of snow
-    zpsmltevp2D(1:imax,k)= psmltevp2D(1:imax,k) ! evaporation of melting snow (T>0)
-    zprain2D(1:imax,k)   = prain2D(1:imax,k)    ! sum all process for rain
-    zpraut2D(1:imax,k)   = praut2D(1:imax,k)    ! autoconversion of rain
-    zpracw2D(1:imax,k)   = pracw2D(1:imax,k)    ! accretion of cloud water by rain
-    zprevp2D(1:imax,k)   = prevp2D(1:imax,k)    ! evaporation of rain
-    zpgfr2D(1:imax,k)    = pgfr2D(1:imax,k)     ! feezing of rain to form graupel (added to PI)
-    zpvapor2D(1:imax,k)  = pvapor2D(1:imax,k)   ! sum all process for water vapor to determine qvz
-    zpclw2D(1:imax,k)    = pclw2D(1:imax,k)     ! sum all process for cloud liquid to determine qlz
-    zpladj2D(1:imax,k)   = pladj2D(1:imax,k)    ! saturation adjustment for ql
-    zpcli2D(1:imax,k)    = pcli2D(1:imax,k)     ! sum all process for cloud ice to determine qiz
-    zpimlt2D(1:imax,k)   = pimlt2D(1:imax,k)    ! melting of ice crystal >0.
-    zpihom2D(1:imax,k)   = pihom2D(1:imax,k)    ! homogeneous nucleation <-40
-    zpidw2D(1:imax,k)    = pidw2D(1:imax,k)     ! production of cloud ice by BERGERON process
-    zpiadj2D(1:imax,k)   = piadj2D(1:imax,k)    ! saturation adjustment for qi
-    zqschg2D(1:imax,k)   = qschg2D(1:imax,k)    ! = psnow / unsure
+    zpsnow(1:imax,k)   = psnow(1:imax,k)    ! sum all process for snow
+    zpsaut(1:imax,k)   = psaut(1:imax,k)    ! ice crystal aggregation to snow
+    zpsfw(1:imax,k)    = psfw(1:imax,k)     ! BERGERON process to transfer cloud water to snow
+    zpsfi(1:imax,k)    = psfi(1:imax,k)     ! BERGERON process to transfer cloud ice to snow
+    zpraci(1:imax,k)   = praci(1:imax,k)    ! cloud ice accretion by rain
+    zpiacr(1:imax,k)   = piacr(1:imax,k)    ! rain accretion by cloud ice
+    zpsaci(1:imax,k)   = psaci(1:imax,k)    ! ice crystal accretion by snow
+    zpsacw(1:imax,k)   = psacw(1:imax,k)    ! accretion of cloud water by snow
+    zpsdep(1:imax,k)   = psdep(1:imax,k)    ! deposition of snow
+    zpssub(1:imax,k)   = pssub(1:imax,k)    ! sublimation of snow (T<0)
+    zpracs(1:imax,k)   = pracs(1:imax,k)    ! accretion of snow by rain
+    zpsacr(1:imax,k)   = psacr(1:imax,k)    ! accretion of rain by snow
+    zpsmlt(1:imax,k)   = psmlt(1:imax,k)    ! melting of snow
+    zpsmltevp(1:imax,k)= psmltevp(1:imax,k) ! evaporation of melting snow (T>0)
+    zprain(1:imax,k)   = prain(1:imax,k)    ! sum all process for rain
+    zpraut(1:imax,k)   = praut(1:imax,k)    ! autoconversion of rain
+    zpracw(1:imax,k)   = pracw(1:imax,k)    ! accretion of cloud water by rain
+    zprevp(1:imax,k)   = prevp(1:imax,k)    ! evaporation of rain
+    zpgfr(1:imax,k)    = pgfr(1:imax,k)     ! feezing of rain to form graupel (added to PI)
+    zpvapor(1:imax,k)  = pvapor(1:imax,k)   ! sum all process for water vapor to determine qvz
+    zpclw(1:imax,k)    = pclw(1:imax,k)     ! sum all process for cloud liquid to determine qlz
+    zpladj(1:imax,k)   = pladj(1:imax,k)    ! saturation adjustment for ql
+    zpcli(1:imax,k)    = pcli(1:imax,k)     ! sum all process for cloud ice to determine qiz
+    zpimlt(1:imax,k)   = pimlt(1:imax,k)    ! melting of ice crystal >0.
+    zpihom(1:imax,k)   = pihom(1:imax,k)    ! homogeneous nucleation <-40
+    zpidw(1:imax,k)    = pidw(1:imax,k)     ! production of cloud ice by BERGERON process
+    zpiadj(1:imax,k)   = piadj(1:imax,k)    ! saturation adjustment for qi
+    zqschg(1:imax,k)   = qschg(1:imax,k)    ! = psnow / unsure
   enddo
 
 
   ! save process rate for aerisol scheme
   do k=kts,kte
-    fluxi2D(1:imax,k) = fluxi2D(1:imax,k)                         ! - ice flux leaving layer k to k-1 (kg/m2/s)
-    fluxs2D(1:imax,k) = fluxs2D(1:imax,k)                         ! - snow flux leaving layer k to k-1 (kg/m2/s)
-    fluxr2D(1:imax,k) = fluxr2D(1:imax,k)                         ! - rain flux leaving layer k to k-1 (kg/m2/s)
-    fluxg2D(1:imax,k) = 0.                                        ! - graupel flux leving layer k to k-1 (kg/m2/s)
-    fluxm2D(1:imax,k) = -1.*(psmlt2D(1:imax,k)*dzw2D(1:imax,k)*  &!
-                        rho2D(1:imax,k)+psmltevp2D(1:imax,k)*    &!
-                        dzw2D(1:imax,k)*rho2D(1:imax,k))          ! - ice melting flux in layer k (kg/m2/s)
-    fluxf2D(1:imax,k) = pgfr2D(1:imax,k)*dzw2D(1:imax,k)*        &!
-                        rho2D(1:imax,k)                           ! - liquid freezing flux in layer k (kg/m2/s)
-    fevap2D(1:imax,k) = -1.*prevp2D(1:imax,k)*dzw2D(1:imax,k)*   &!
-                        rho2D(1:imax,k)                           ! - evaporation of rainfall flux (kg/m2/s)
-    fsubl2D(1:imax,k) = -1.*pssub2D(1:imax,k)*dzw2D(1:imax,k)*   &!
-                        rho2D(1:imax,k)                           ! - sublimation of snow, ice and graupel flux (kg/m2/s)
-    fauto2D(1:imax,k) = praut2D(1:imax,k)*dzw2D(1:imax,k)*       &!
-                        rho2D(1:imax,k)                           ! - autoconversion flux for rainfall (kg/m2/s)
-    fcoll2D(1:imax,k) = pracw2D(1:imax,k)*dzw2D(1:imax,k)*       &!
-                        rho2D(1:imax,k)                           ! - collection of cloud liquid water by rain (kg/m2/s)
-    faccr2D(1:imax,k) = psacw2D(1:imax,k)*dzw2D(1:imax,k)*       &!
-                        rho2D(1:imax,k) + psfw2D(1:imax,k)*      &! - accretion of cloud liq water by snow,ice and graupel (kg/m2/s)
-                        dzw2D(1:imax,k)*rho2D(1:imax,k)
-    vi2D(1:imax,k)    = vtiold2D(1:imax,k)
-    vs2D(1:imax,k)    = vtsold2D(1:imax,k)
-    vg2D(1:imax,k)    = 0.
+    fluxi(1:imax,k) = fluxi(1:imax,k)                         ! - ice flux leaving layer k to k-1 (kg/m2/s)
+    fluxs(1:imax,k) = fluxs(1:imax,k)                         ! - snow flux leaving layer k to k-1 (kg/m2/s)
+    fluxr(1:imax,k) = fluxr(1:imax,k)                         ! - rain flux leaving layer k to k-1 (kg/m2/s)
+    fluxg(1:imax,k) = 0.                                        ! - graupel flux leving layer k to k-1 (kg/m2/s)
+    fluxm(1:imax,k) = -1.*(psmlt(1:imax,k)*dzw(1:imax,k)*  &!
+                        rho(1:imax,k)+psmltevp(1:imax,k)*    &!
+                        dzw(1:imax,k)*rho(1:imax,k))          ! - ice melting flux in layer k (kg/m2/s)
+    fluxf(1:imax,k) = pgfr(1:imax,k)*dzw(1:imax,k)*        &!
+                        rho(1:imax,k)                           ! - liquid freezing flux in layer k (kg/m2/s)
+    fevap(1:imax,k) = -1.*prevp(1:imax,k)*dzw(1:imax,k)*   &!
+                        rho(1:imax,k)                           ! - evaporation of rainfall flux (kg/m2/s)
+    fsubl(1:imax,k) = -1.*pssub(1:imax,k)*dzw(1:imax,k)*   &!
+                        rho(1:imax,k)                           ! - sublimation of snow, ice and graupel flux (kg/m2/s)
+    fauto(1:imax,k) = praut(1:imax,k)*dzw(1:imax,k)*       &!
+                        rho(1:imax,k)                           ! - autoconversion flux for rainfall (kg/m2/s)
+    fcoll(1:imax,k) = pracw(1:imax,k)*dzw(1:imax,k)*       &!
+                        rho(1:imax,k)                           ! - collection of cloud liquid water by rain (kg/m2/s)
+    faccr(1:imax,k) = psacw(1:imax,k)*dzw(1:imax,k)*       &!
+                        rho(1:imax,k) + psfw(1:imax,k)*      &! - accretion of cloud liq water by snow,ice and graupel (kg/m2/s)
+                        dzw(1:imax,k)*rho(1:imax,k)
+    vi(1:imax,k)    = vtiold(1:imax,k)
+    vs(1:imax,k)    = vtsold(1:imax,k)
+    vg(1:imax,k)    = 0.
   end do
 
 END SUBROUTINE clphy1d_ylin
