@@ -500,7 +500,7 @@ select case ( interp_ncloud(ldr,ncloud) )
                          precrz, preciz, precsz,            & !zdc 20220116
                          EFFC1D, EFFI1D, EFFS1D, EFFR1D,    & !zdc 20220208
                          pptrain, pptsnow, pptice,          &
-                         kts, kte, i, j, riz,               &
+                         kts, kte, riz,                     &
                          ncz, nrz, niz, nsz,                &
                          zfluxr,zfluxi,zfluxs,zfluxg,zfluxm,&
                          zfluxf,zfevap,zfsubl,zfauto,zfcoll,&

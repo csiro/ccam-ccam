@@ -474,7 +474,8 @@ module cc_mpi
    integer, public, save :: p4_begin, p4_end
    integer, public, save :: p5_begin, p5_end
    integer, public, save :: p6_begin, p6_end
-   integer, parameter :: nevents = 90
+   integer, public, save :: sonny_begin, sonny_end
+   integer, parameter :: nevents = 91
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
    character(len=15), dimension(nevents), save :: event_name
@@ -6527,6 +6528,7 @@ contains
       call add_event(p4_begin,            p4_end,            "Probe4")
       call add_event(p5_begin,            p5_end,            "Probe5")
       call add_event(p6_begin,            p6_end,            "Probe6")
+      call add_event(sonny_begin,         sonny_end,         "Sonny")
       
    end subroutine log_setup
 

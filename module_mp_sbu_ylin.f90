@@ -59,28 +59,30 @@ end interface parama1
 
 CONTAINS
 
-SUBROUTINE clphy1d_ylin(dt, imax,                               &
-                      qvz, qlz, qrz, qiz, qsz,          &
-                      thz, tothz, rho, orho, sqrho,     &
-                      prez, zz, dzw, zsfc,                &
+SUBROUTINE clphy1d_ylin(dt, imax,                           &
+                      qvz, qlz, qrz, qiz, qsz,              &
+                      thz, tothz, rho, orho, sqrho,         &
+                      prez, zz, dzw, zsfc,                  &
                       precrz, preciz, precsz,               & !zdc20220116
-                      EFFC1D, EFFI1D, EFFS1D, EFFR1D,     & !zdc 20220208
+                      EFFC1D, EFFI1D, EFFS1D, EFFR1D,       & !zdc 20220208
                       pptrain, pptsnow,pptice,              &
-                      kts, kte, i2D, j2D, riz,                  &
-                      ncz, nrz, niz, nsz,                 &
-                      fluxr, fluxi, fluxs, fluxg, fluxm,&
-                      fluxf, fevap, fsubl, fauto, fcoll,&
-                      faccr, vi, vs, vg,                  &
-                      zpsnow,zpsaut,zpsfw,zpsfi,zpraci, & !process rate 
-                      zpiacr,zpsaci,zpsacw,zpsdep,        &
-                      zpssub,zpracs,zpsacr,zpsmlt,        &
-                      zpsmltevp,zprain,zpraut,zpracw,     &
-                      zprevp,zpgfr,zpvapor,zpclw,         &
-                      zpladj,zpcli,zpimlt,zpihom,         &
+                      kts, kte, riz,                        &
+                      ncz, nrz, niz, nsz,                   &
+                      fluxr, fluxi, fluxs, fluxg, fluxm,    &
+                      fluxf, fevap, fsubl, fauto, fcoll,    &
+                      faccr, vi, vs, vg,                    &
+                      zpsnow,zpsaut,zpsfw,zpsfi,zpraci,     & !process rate 
+                      zpiacr,zpsaci,zpsacw,zpsdep,          &
+                      zpssub,zpracs,zpsacr,zpsmlt,          &
+                      zpsmltevp,zprain,zpraut,zpracw,       &
+                      zprevp,zpgfr,zpvapor,zpclw,           &
+                      zpladj,zpcli,zpimlt,zpihom,           &
                       zpidw,zpiadj,zqschg,                  &
-                      zdrop,lin_aerosolmode)                    !aerosol feedback
+                      zdrop,lin_aerosolmode)                  !aerosol feedback
 
 !-----------------------------------------------------------------------
+  use cc_mpi
+
   implicit none
 !-----------------------------------------------------------------------
 !  This program handles the vertical 1-D cloud micphysics
@@ -130,127 +132,120 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
 !
 !----------------------------------------------------------------------
 ! new 2D declaration
-  integer,                         intent(in)  :: kts, kte, i2D, j2D
-  integer,                         intent(in)  :: imax
-  integer,                         intent(in)  :: lin_aerosolmode
-  real,                            intent(in)  :: dt
-  real, dimension(1:imax),         intent(in)  :: zsfc
-  real, dimension(1:imax,kts:kte), intent(in)  :: zdrop, riz
-  real, dimension(1:imax,kts:kte), intent(in)  :: tothz,rho,orho,sqrho,   &
-                                                          prez,zz,dzw
-  real, dimension(1:imax,kts:kte), intent(out) :: precrz,preciz,precsz
-  real, dimension(1:imax,kts:kte), intent(out) :: EFFC1D,EFFI1D,              &
-                                                          EFFS1D,EFFR1D
-  real, dimension(1:imax,kts:kte), intent(out) :: fluxr,fluxi,fluxs,fluxg,&
-                                                          fluxm,fluxf,fevap,fsubl,&
-                                                          fauto,fcoll,faccr
-  real, dimension(1:imax,kts:kte), intent(out) :: vi,vs,vg
-  real, dimension(1:imax,kts:kte), intent(out) :: zpsnow,zpsaut,zpsfw,      &
-                                                          zpsfi,zpraci,zpiacr,      &
-                                                          zpsaci,zpsacw,zpsdep,     &
-                                                          zpssub,zpracs,zpsacr,     &
-                                                          zpsmlt,zpsmltevp,zprain,  &
-                                                          zpraut,zpracw,zprevp,     &
-                                                          zpgfr,zpvapor,zpclw,      &
-                                                          zpladj,zpcli,zpimlt,      &
-                                                          zpihom,zpidw,zpiadj,      &
-                                                          zqschg
+  integer,                         intent(in)    :: kts, kte
+  integer,                         intent(in)    :: imax
+  integer,                         intent(in)    :: lin_aerosolmode
+  real,                            intent(in)    :: dt
+  real, dimension(1:imax),         intent(in)    :: zsfc
+  real, dimension(1:imax,kts:kte), intent(in)    :: zdrop, riz
+  real, dimension(1:imax,kts:kte), intent(in)    :: tothz,rho,orho,sqrho,              &
+                                                    prez,zz,dzw
+  real, dimension(1:imax,kts:kte), intent(out)   :: precrz,preciz,precsz
+  real, dimension(1:imax,kts:kte), intent(out)   :: EFFC1D,EFFI1D,                     &
+                                                    EFFS1D,EFFR1D
+  real, dimension(1:imax,kts:kte), intent(out)   :: fluxr,fluxi,fluxs,fluxg,           &
+                                                    fluxm,fluxf,fevap,fsubl,           &
+                                                    fauto,fcoll,faccr
+  real, dimension(1:imax,kts:kte), intent(out)   :: vi,vs,vg
+  real, dimension(1:imax,kts:kte), intent(out)   :: zpsnow,zpsaut,zpsfw,               &
+                                                    zpsfi,zpraci,zpiacr,               &
+                                                    zpsaci,zpsacw,zpsdep,              &
+                                                    zpssub,zpracs,zpsacr,              &
+                                                    zpsmlt,zpsmltevp,zprain,           &
+                                                    zpraut,zpracw,zprevp,              &
+                                                    zpgfr,zpvapor,zpclw,               &
+                                                    zpladj,zpcli,zpimlt,               &
+                                                    zpihom,zpidw,zpiadj,               &
+                                                    zqschg
   real, dimension(1:imax),         intent(inout) :: pptrain, pptsnow, pptice
-  real, dimension(1:imax,kts:kte), intent(inout) :: qvz,qlz,qrz,qiz,qsz,  &
-                                                          thz
+  real, dimension(1:imax,kts:kte), intent(inout) :: qvz,qlz,qrz,qiz,qsz,thz
   real, dimension(1:imax,kts:kte), intent(inout) :: ncz,niz,nrz,nsz
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  integer                               :: i, j, is, ie, iq, tile 
-  integer                               :: cnt_sny 
-  real, dimension(1:imax,kts:kte)       :: nczodt, nizodt, nrzodt, nszodt
-  real, dimension(1:imax,kts:kte)       :: oprez, tem, temcc, theiz, qswz,    &
-                                           qsiz, qvoqswz, qvoqsiz, qvzodt,    &
-                                           qlzodt, qizodt, qszodt, qrzodt
-  real, dimension(1:imax)               :: es1D 
+  integer                                        :: i, j, k, is, ie, iq, tile 
   ! local vars
-  real                                  :: obp4, bp3, bp5, bp6, odp4,  &
-                                           dp3, dp5, dp5o2
+  real                                           :: obp4, bp3, bp5, bp6, odp4,         &
+                                                    dp3, dp5, dp5o2
   ! temperary vars
-  real                                  :: tmp, tmp0, tmp1, tmp2,tmp3,  &
-                                           tmp4, tmpa,tmpb,tmpc,tmpd,alpha1,  &
-                                           qic, abi,abr, abg, odtberg,  &
-                                           vti50,eiw,eri,esi,esr, esw,  &
-                                           erw,delrs,term0,term1,       &
-                                           Ap, Bp,                      &
-                                           factor, tmp_r, tmp_s,tmp_g,  &
-                                           qlpqi, rsat, a1, a2, xnin
-  real, dimension(kts:kte)              :: tmp1D
-  real, dimension(1:imax,kts:kte)       :: tmp2D
-
+  real                                           :: tmp, tmp0, tmp1, tmp2,tmp3,        &
+                                                    tmp4, tmpa,tmpb,tmpc,tmpd,alpha1,  &
+                                                    qic, abi,abr, abg, odtberg,        &
+                                                    vti50,eiw,eri,esi,esr, esw,        &
+                                                    erw,delrs,term0,term1,             &
+                                                    Ap, Bp,                            &
+                                                    factor, tmp_r, tmp_s,tmp_g,        &
+                                                    qlpqi, rsat, a1, a2, xnin
+  real, dimension(1:imax)                        :: es1d
+  real, dimension(1:imax,kts:kte)                :: nczodt, nizodt, nrzodt, nszodt
+  real, dimension(1:imax,kts:kte)                :: oprez, tem, temcc, theiz, qswz,    &
+                                                    qsiz, qvoqswz, qvoqsiz, qvzodt,    &
+                                                    qlzodt, qizodt, qszodt, qrzodt
+  real, dimension(1:imax,kts:kte)                :: tmp2d
+  real, dimension(1:imax,kts:kte)                :: qvsbar,rs0,viscmu,visc,diffwv,     &
+                                                    schmidt,xka
 !--- microphysical processes
-  real, dimension(1:imax,kts:kte)       :: psnow, psaut, psfw,  psfi,  praci,  &
-                                           piacr, psaci, psacw, psdep, pssub,  &
-                                           pracs, psacr, psmlt, psmltevp,      &
-                                           prain, praut, pracw, prevp, pvapor, &
-                                           pclw,  pladj, pcli,  pimlt, pihom,  &
-                                           pidw,  piadj, pgfr,                 &
-                                           qschg, pracis
-
-  real, dimension(1:imax,kts:kte)       :: qvsbar,rs0,viscmu,visc,diffwv,schmidt,xka
-
+  real, dimension(1:imax,kts:kte)                :: psnow, psaut, psfw,  psfi,  praci, &
+                                                    piacr, psaci, psacw, psdep, pssub, &
+                                                    pracs, psacr, psmlt, psmltevp,     &
+                                                    prain, praut, pracw, prevp, pvapor,&
+                                                    pclw,  pladj, pcli,  pimlt, pihom, &
+                                                    pidw,  piadj, pgfr,                &
+                                                    qschg, pracis
 !---- new snow parameters
-  real, dimension(kts:kte)              :: ab_s,ab_r,ab_riming 
-  real, dimension(1:imax,kts:kte)       :: cap_s       !---- capacitance of snow
-  real                                  :: vf1s = 0.65, vf2s = 0.44, vf1r =0.78 , vf2r = 0.31 
-  real                                  :: am_c1=0.004, am_c2= 6e-5,    am_c3=0.15
-  real                                  :: bm_c1=1.85,  bm_c2= 0.003,   bm_c3=1.25
-  real                                  :: aa_c1=1.28,  aa_c2= -0.012,  aa_c3=-0.6
-  real                                  :: ba_c1=1.5,   ba_c2= 0.0075,  ba_c3=0.5
-  real                                  :: best_a=1.08 ,  best_b = 0.499
-  real, dimension(1:imax,kts:kte)          :: am_s,bm_s,av_s,bv_s,Ri,tmp_ss,lams 
-  real, dimension(1:imax,kts:kte)          :: aa_s,ba_s,tmp_sa 
-  real                                  :: mu_s=0.,mu_i=0.,mu_r=0.
-   
-  real                                  :: tc0, disp, Dc_liu, eta, mu_c, R6c      !--- for Liu's autoconversion
-  real, dimension(1:imax)               :: tc01D, disp1D, Dc_liu1D, eta1D, mu_c1D, R6c1D
-
+  real                                          :: vf1s = 0.65,vf2s = 0.44,            &
+                                                   vf1r =0.78,vf2r = 0.31 
+  real                                          :: am_c1=0.004,am_c2= 6e-5,  am_c3=0.15
+  real                                          :: bm_c1=1.85, bm_c2= 0.003, bm_c3=1.25
+  real                                          :: aa_c1=1.28, aa_c2= -0.012,aa_c3=-0.6
+  real                                          :: ba_c1=1.5,  ba_c2= 0.0075,ba_c3=0.5
+  real                                          :: best_a=1.08 ,  best_b = 0.499
+  real                                          :: disp, Dc_liu, eta, mu_c, R6c        !--- for Liu's autoconversion
+  real, dimension(1:imax)                       :: tc0
+  real, dimension(kts:kte)                      :: ab_s,ab_r,ab_riming 
+  real, dimension(1:imax,kts:kte)               :: cap_s    !---- capacitance of snow
+  real, dimension(1:imax,kts:kte)               :: am_s,bm_s,av_s,bv_s,Ri,tmp_ss,lams 
+  real, dimension(1:imax,kts:kte)               :: aa_s,ba_s,tmp_sa 
+  real                                          :: mu_s=0.,mu_i=0.,mu_r=0.
+ 
   ! Adding variable Riz, which will duplicate Ri but be a copy passed upward
-  real, dimension(1:imax,kts:kte)       :: Riz2D_lc
-  real, dimension(1:imax,kts:kte)       :: vtr, vts,                       &
-                                           vtrold, vtsold, vtiold,         &
-                                           xlambdar, xlambdas,             &
-                                           olambdar, olambdas
-  real                                  :: episp0k, dtb, odtb, pi, pio4,       &
-                                           pio6, oxLf, xLvocp, xLfocp, av_r,   &
-                                           av_i, ocdrag, gambp4, gamdp4,       &
-                                           gam4pt5, Cpor, oxmi, gambp3, gamdp3,&
-                                           gambp6, gam3pt5, gam2pt75, gambp5o2,&
-                                           gamdp5o2, cwoxlf, ocp, xni50, es
-  real                                  :: qvmin=1.e-20
-  real                                  :: temc1,save1,save2,xni50mx
+  real                                          :: episp0k, dtb, odtb, pi, pio4,       &
+                                                   pio6, oxLf, xLvocp, xLfocp, av_r,   &
+                                                   av_i, ocdrag, gambp4, gamdp4,       &
+                                                   gam4pt5, Cpor, oxmi, gambp3, gamdp3,&
+                                                   gambp6, gam3pt5, gam2pt75, gambp5o2,&
+                                                   gamdp5o2, cwoxlf, ocp, xni50, es
+  real                                          :: qvmin=1.e-20
+  real                                          :: temc1,save1,save2,xni50mx
+  real, dimension(1:imax,kts:kte)               :: riz2d_temp
+  real, dimension(1:imax,kts:kte)               :: vtr, vts,                           &
+                                                   vtrold, vtsold, vtiold,             &
+                                                   xlambdar, xlambdas,                 &
+                                                   olambdar, olambdas
   ! for terminal velocity flux
-  integer                               :: min_q, max_q, max_ri_k, k
-  integer, dimension(1:imax)            :: min_q1D, max_q1D, max_ri_k1D
-  real                                  :: max_ri
-  real, dimension(1:imax)               :: max_ri1D
-  real                                  :: t_del_tv, del_tv, flux, fluxin, fluxout ,tmpqrz
-  real, dimension(1:imax)               :: t_del_tv1D,del_tv1D,flux1D,fluxin1D,fluxout1D,tmpqrz1D
-  logical                               :: notlast
-  logical, dimension(1:imax)            :: notlast1D, notlast_work
-  real, dimension(1:imax,kts:kte)       :: npsaut, npraci, npiacr, npsaci,    &
-                                           npsacw, npssub, npsdep, npsacr,    &
-                                           npgfr,  npsmlt, npsmltevp,npraut,  &   
-                                           npracw, nprevp, nihom,  nimlt,     &
-                                           nsagg,  npraut_r
-  real, dimension(1:imax,kts:kte)       :: nvtr,   nvts
-  real, dimension(1:imax,kts:kte)       :: qisten, qrsten, qssten
-  real, dimension(1:imax,kts:kte)       :: nisten, nrsten, nssten
-  real                                  :: nflux,  nfluxin,nfluxout
-  real, dimension(1:imax)               :: nflux1D,nfluxin1D,nfluxout1D
-  real, dimension(1:imax,kts:kte)       :: n0_r,n0_i,n0_c,n0_s                  
-  real, dimension(1:imax,kts:kte)       :: lami,lamc
-  real                                  :: xmr,xms,xmc,dcs,xmr_i
-  real                                  :: lamminr, lammaxr,lammins, lammaxs,lammini, lammaxi
-  real                                  :: gambvr1
-  real                                  :: lvap
-  real, dimension(1:imax,kts:kte)       :: nidep, midep
-  real                                  :: mi0
-
+  real                                          :: xmr,xms,xmc,dcs,xmr_i
+  real                                          :: lamminr, lammaxr,lammins,           &
+                                                   lammaxs,lammini, lammaxi
+  real                                          :: gambvr1
+  real                                          :: lvap
+  real                                          :: mi0
+  real, dimension(1:imax)                       :: max_ri
+  real, dimension(1:imax)                       :: t_del_tv,del_tv,flux,               &
+                                                   fluxin,fluxout,tmpqrz
+  real, dimension(1:imax)                       :: nflux,nfluxin,nfluxout
+  integer, dimension(1:imax)                    :: min_q, max_q, max_ri_k
+  logical, dimension(1:imax)                    :: notlast, notlast_work
+  real, dimension(1:imax,kts:kte)               :: npsaut, npraci, npiacr, npsaci,     &
+                                                   npsacw, npssub, npsdep, npsacr,     &
+                                                   npgfr,  npsmlt, npsmltevp,npraut,   &   
+                                                   npracw, nprevp, nihom,  nimlt,      &
+                                                   nsagg,  npraut_r
+  real, dimension(1:imax,kts:kte)               :: nvtr,   nvts
+  real, dimension(1:imax,kts:kte)               :: qisten, qrsten, qssten
+  real, dimension(1:imax,kts:kte)               :: nisten, nrsten, nssten
+  real, dimension(1:imax,kts:kte)               :: nidep, midep
+  real, dimension(1:imax,kts:kte)               :: n0_r,n0_i,n0_c,n0_s                  
+  real, dimension(1:imax,kts:kte)               :: lami,lamc
+  !------------------------------------------------------------------------------------
+  call START_LOG(p1_begin)
   vtrold=0.
   vtsold=0.
   vtiold=0.
@@ -356,13 +351,13 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     qrz(1:imax,k)  =amax1( 0.0,qrz(1:imax,k) )
     tem(1:imax,k)  =thz(1:imax,k)*tothz(1:imax,k)
     temcc(1:imax,k)=tem(1:imax,k)-273.15
-    es1D(1:imax)     =1000.*svp1*exp( svp2*temcc(1:imax,k)/(tem(1:imax,k)-svp3) )  !--- RY89 Eq(2.17)
-    qswz(1:imax,k) =ep2*es1D(1:imax)/(prez(1:imax,k)-es1D(1:imax))
+    es1d(1:imax)     =1000.*svp1*exp( svp2*temcc(1:imax,k)/(tem(1:imax,k)-svp3) )  !--- RY89 Eq(2.17)
+    qswz(1:imax,k) =ep2*es1d(1:imax)/(prez(1:imax,k)-es1d(1:imax))
  
     do iq=1,imax
       if (tem(iq,k) .lt. 273.15 ) then
-        es1D(iq)=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
-        qsiz(iq,k)=ep2*es1D(iq)/(prez(iq,k)-es1D(iq))
+        es1d(iq)=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
+        qsiz(iq,k)=ep2*es1d(iq)/(prez(iq,k)-es1d(iq))
         if (temcc(iq,k) .lt. -40.0) qswz(iq,k)=qsiz(iq,k)
       else
         qsiz(iq,k)=qswz(iq,k)
@@ -453,6 +448,9 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     midep(1:imax,k)    =0.
   end do
 
+  call END_LOG(p1_end)
+  call START_LOG(p2_begin)
+
   !***********************************************************************
   !*****  compute viscosity,difusivity,thermal conductivity, and    ******
   !*****  Schmidt number                                            ******
@@ -479,35 +477,58 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     rs0(1:imax,k)=ep2*1000.*svp1/(prez(1:imax,k)-1000.*svp1)
   end do
 
+! rewrite in "iq" by sny
+!  do k=kts,kte
+!    do iq=1,imax
+!      viscmu(iq,k)=avisc*tem(iq,k)**1.5/(tem(iq,k)+120.0)
+!      visc(iq,k)=viscmu(iq,k)*orho(iq,k)
+!      diffwv(iq,k)=adiffwv*tem(iq,k)**1.81*oprez(iq,k)
+!      schmidt(iq,k)=visc(iq,k)/diffwv(iq,k)
+!      xka(iq,k)=axka*viscmu(iq,k)
+!      rs0(iq,k)=ep2*1000.*svp1/(prez(iq,k)-1000.*svp1)
+!    end do
+!  end do
+
   ! ---- YLIN, set snow variables
   !
   !---- A+B in depositional growth, the first try just take from Rogers and Yau(1989)
   !         ab_s(k) = lsub*lsub*orv/(tcond(k)*temp(k))+&
   !                   rv*temp(k)/(diffu(k)*qvsi(k))
 
+!  do k = kts, kte
+!    tc0(1:imax)   = tem(1:imax,k)-273.15
+!    do iq=1,imax
+!      if (rho(iq,k)*qlz(iq,k) .gt. 1e-5 .AND. rho(iq,k)*qsz(iq,k) .gt. 1e-5) then
+!        Ri(iq,k) = 1.0/(1.0+6e-5/(rho(iq,k)**1.170*qlz(iq,k)*qsz(iq,k)**0.170))
+!      else
+!        Ri(iq,k) = 0.
+!      end if
+!    end do
+!  end do
+
+! rewrite in "iq" by sny
   do k = kts, kte
-    tc01D(1:imax)   = tem(1:imax,k)-273.15
-    do iq=1,imax
-      if (rho(iq,k)*qlz(iq,k) .gt. 1e-5 .AND. rho(iq,k)*qsz(iq,k) .gt. 1e-5) then
-        Ri(iq,k) = 1.0/(1.0+6e-5/(rho(iq,k)**1.170*qlz(iq,k)*qsz(iq,k)**0.170))
-      else
-        Ri(iq,k) = 0
-      end if
-    end do
+    tc0(1:imax)   = tem(1:imax,k)-273.15
+    where( rho(1:imax,k)*qlz(1:imax,k) .gt. 1e-5 .AND. rho(1:imax,k)*qsz(1:imax,k) .gt. 1e-5  )
+      Ri(1:imax,k) = 1.0/(1.0+6e-5/(rho(1:imax,k)**1.170*qlz(1:imax,k)*qsz(1:imax,k)**0.170)) 
+    elsewhere
+      Ri(1:imax,k) = 0.
+    end where
   end do
+
 
   !
   !--- make sure Ri does not decrease downward in a column
   !
-  max_ri_k1D(:) = maxloc(Ri,dim=2)
+  max_ri_k(:) = maxloc(Ri,dim=2)
   do iq = 1, imax
-    max_ri1D(iq)   = Ri(iq,max_ri_k1D(iq))
+    max_ri(iq)   = Ri(iq,max_ri_k(iq))
   end do
 
   do k = kts,kte
     do iq = 1,imax
-      if ( k<=max_ri_k1D(iq) ) then
-        Ri(iq,k) = max_ri1D(iq)
+      if ( k<=max_ri_k(iq) ) then
+        Ri(iq,k) = max_ri(iq)
       end if
     end do
   end do
@@ -516,19 +537,19 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
   do k = kts, kte
     Ri(1:imax,k) = AMAX1(0.,AMIN1(Ri(1:imax,k),1.0))
     ! Store the value of Ri(k) as Riz(k)
-    Riz2D_lc(1:imax,k) = Ri(1:imax,k)
+    riz2d_temp(1:imax,k) = Ri(1:imax,k)
 
     cap_s(1:imax,k)= 0.25*(1+Ri(1:imax,k))
-    tc01D(1:imax)    = AMIN1(-0.1, tem(1:imax,k)-273.15)
-    n0_s(1:imax,k) = amin1(2.0E8, 2.0E6*exp(-0.12*tc01D(1:imax)))
-    am_s(1:imax,k) = am_c1+am_c2*tc01D(1:imax)+am_c3*Ri(1:imax,k)*Ri(1:imax,k)   !--- Heymsfield 2007
+    tc0(1:imax)    = AMIN1(-0.1, tem(1:imax,k)-273.15)
+    n0_s(1:imax,k) = amin1(2.0E8, 2.0E6*exp(-0.12*tc0(1:imax)))
+    am_s(1:imax,k) = am_c1+am_c2*tc0(1:imax)+am_c3*Ri(1:imax,k)*Ri(1:imax,k)   !--- Heymsfield 2007
     am_s(1:imax,k) = AMAX1(0.000023,am_s(1:imax,k))                                !--- use the a_min in table 1 of Heymsfield
-    bm_s(1:imax,k) = bm_c1+bm_c2*tc01D(1:imax)+bm_c3*Ri(1:imax,k)
+    bm_s(1:imax,k) = bm_c1+bm_c2*tc0(1:imax)+bm_c3*Ri(1:imax,k)
     bm_s(1:imax,k) = AMIN1(bm_s(1:imax,k),3.0)                                     !---- capped by 3
     !--  converting from cgs to SI unit
     am_s(1:imax,k) =  10**(2*bm_s(1:imax,k)-3.0)*am_s(1:imax,k)
-    aa_s(1:imax,k) = aa_c1 + aa_c2*tc01D(1:imax) + aa_c3*Ri(1:imax,k)
-    ba_s(1:imax,k) = ba_c1 + ba_c2*tc01D(1:imax) + ba_c3*Ri(1:imax,k)
+    aa_s(1:imax,k) = aa_c1 + aa_c2*tc0(1:imax) + aa_c3*Ri(1:imax,k)
+    ba_s(1:imax,k) = ba_c1 + ba_c2*tc0(1:imax) + ba_c3*Ri(1:imax,k)
     !--  convert to SI unit as in paper
     aa_s(1:imax,k) = (1e-2)**(2.0-ba_s(1:imax,k))*aa_s(1:imax,k)
     !---- get v from Mitchell 1996
@@ -540,6 +561,39 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     tmp_sa(1:imax,k)= ba_s(1:imax,k)+mu_s+1
   end do
 
+! rewrite in "iq" by sny
+!  !--- YLIN, get PI properties
+!  do k = kts, kte
+!    do iq = 1, imax
+!      Ri(iq,k) = AMAX1(0.,AMIN1(Ri(iq,k),1.0))
+!      ! Store the value of Ri(k) as Riz(k)
+!      riz2d_temp(iq,k) = Ri(iq,k)
+!
+!      cap_s(iq,k)= 0.25*(1+Ri(iq,k))
+!      tc0(iq)    = AMIN1(-0.1, tem(iq,k)-273.15)
+!      n0_s(iq,k) = amin1(2.0E8, 2.0E6*exp(-0.12*tc0(iq)))
+!      am_s(iq,k) = am_c1+am_c2*tc0(iq)+am_c3*Ri(iq,k)*Ri(iq,k)   !--- Heymsfield 2007
+!      am_s(iq,k) = AMAX1(0.000023,am_s(iq,k))                                !--- use the a_min in table 1 of Heymsfield
+!      bm_s(iq,k) = bm_c1+bm_c2*tc0(iq)+bm_c3*Ri(iq,k)
+!      bm_s(iq,k) = AMIN1(bm_s(iq,k),3.0)                                     !---- capped by 3
+!      !--  converting from cgs to SI unit
+!      am_s(iq,k) =  10**(2*bm_s(iq,k)-3.0)*am_s(iq,k)
+!      aa_s(iq,k) = aa_c1 + aa_c2*tc0(iq) + aa_c3*Ri(iq,k)
+!      ba_s(iq,k) = ba_c1 + ba_c2*tc0(iq) + ba_c3*Ri(iq,k)
+!      !--  convert to SI unit as in paper
+!      aa_s(iq,k) = (1e-2)**(2.0-ba_s(iq,k))*aa_s(iq,k)
+!      !---- get v from Mitchell 1996
+!      av_s(iq,k) = best_a*viscmu(iq,k)*(2*grav*am_s(iq,k)/rho(iq,k)/ &
+!                       aa_s(iq,k)/(viscmu(iq,k)**2))**best_b
+!      bv_s(iq,k) = best_b*(bm_s(iq,k)-ba_s(iq,k)+2)-1
+!      tmp_ss(iq,k)= bm_s(iq,k)+mu_s+1
+!      tmp_sa(iq,k)= ba_s(iq,k)+mu_s+1
+!    end do
+!  end do
+
+
+  call END_LOG(p2_end)
+  call START_LOG(p3_begin)
 
   !***********************************************************************
   ! Calculate precipitation fluxes due to terminal velocities.
@@ -551,24 +605,24 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
   !-- rain
   !       CALL wrf_debug ( 100 , 'module_ylin, start precip fluxes' )
 
-  t_del_tv1D(1:imax)=0.
-  del_tv1D(1:imax)=dtb
-  notlast1D(1:imax)=.true.
-  DO while (any(notlast1D))
+  t_del_tv(1:imax)=0.
+  del_tv(1:imax)=dtb
+  notlast(1:imax)=.true.
+  DO while (any(notlast))
 
-    notlast_work = notlast1D
+    notlast_work = notlast
 
-    min_q1D(1:imax)=kte
-    max_q1D(1:imax)=kts-1
+    min_q(1:imax)=kte
+    max_q(1:imax)=kts-1
 
     ! if no rain, --> minq>maxq --> notlast=False (only case minq>maxq)
     ! if rain --> minq<maxq (always), some vertical points norain--> no lamda, velocity
     do k=kts,kte-1
       do iq = 1,imax
-        if (notlast1D(iq)) then
+        if (notlast(iq)) then
           if (qrz(iq,k) .gt. 1.0e-8) then
-            min_q1D(iq)=min0(min_q1D(iq),k)
-            max_q1D(iq)=max0(max_q1D(iq),k)
+            min_q(iq)=min0(min_q(iq),k)
+            max_q(iq)=max0(max_q(iq),k)
             ! tmp1=sqrt(pi*rhowater*xnor/rho(k)/qrz(k))
             ! tmp1=sqrt(tmp1)
             ! vtrold(k)=o6*av_r*gambp4*sqrho(k)/tmp1**bv_r
@@ -588,16 +642,16 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
             nvtr(iq,k)=av_r*gambvr1*sqrho(iq,k)*olambdar(iq,k)**bv_r
             
             if (k .eq. 1) then
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zsfc(iq))/vtrold(iq,k))
+              del_tv(iq)=amin1(del_tv(iq),0.9*(zz(iq,k)-zsfc(iq))/vtrold(iq,k))
             else
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtrold(iq,k))
+              del_tv(iq)=amin1(del_tv(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtrold(iq,k))
             endif
           else
             vtrold(iq,k)=0.
             nvtr(iq,k)=0.
             olambdar(iq,k)=0.
           endif
-        endif     ! notlast1D
+        endif     ! notlast
       enddo       ! iq
     enddo         ! k
 
@@ -606,54 +660,54 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     !             (t_del_tv)          (del_tv)             (dtb)
 
     do iq = 1,imax
-      if (notlast1D(iq)) then
-        if (max_q1D(iq) .ge. min_q1D(iq)) then
-          t_del_tv1D(iq)=t_del_tv1D(iq)+del_tv1D(iq)
-          if ( t_del_tv1D(iq) .ge. dtb ) then
+      if (notlast(iq)) then
+        if (max_q(iq) .ge. min_q(iq)) then
+          t_del_tv(iq)=t_del_tv(iq)+del_tv(iq)
+          if ( t_del_tv(iq) .ge. dtb ) then
             notlast_work(iq)=.false.
-            del_tv1D(iq)=dtb+del_tv1D(iq)-t_del_tv1D(iq)
+            del_tv(iq)=dtb+del_tv(iq)-t_del_tv(iq)
           end if
-          fluxin1D(iq)=0.
-          nfluxin1D(iq)=0. ! sny
+          fluxin(iq)=0.
+          nfluxin(iq)=0. ! sny
         end if ! maxq>minq
       end if   ! notlast
     end do     ! iq
 
     do k = kte,kts,-1
-    !do k = maxval(max_q1D),minval(min_q1D),-1
+    !do k = maxval(max_q),minval(min_q),-1
       do iq = 1,imax
-        if ( notlast1D(iq) ) then
-          !if (max_q1D(iq) .ge. min_q1D(iq)) then      
-          if ( k>=min_q1D(iq) .and. k<=max_q1D(iq) ) then
-            fluxout1D(iq)=rho(iq,k)*vtrold(iq,k)*qrz(iq,k)
-            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho(iq,k)/dzw(iq,k)
-            tmpqrz1D(iq)=qrz(iq,k)
-            qrz(iq,k)=qrz(iq,k)+del_tv1D(iq)*flux1D(iq)
-            fluxin1D(iq)=fluxout1D(iq)
+        if ( notlast(iq) ) then
+          !if (max_q(iq) .ge. min_q(iq)) then      
+          if ( k>=min_q(iq) .and. k<=max_q(iq) ) then
+            fluxout(iq)=rho(iq,k)*vtrold(iq,k)*qrz(iq,k)
+            flux(iq)=(fluxin(iq)-fluxout(iq))/rho(iq,k)/dzw(iq,k)
+            tmpqrz(iq)=qrz(iq,k)
+            qrz(iq,k)=qrz(iq,k)+del_tv(iq)*flux(iq)
+            fluxin(iq)=fluxout(iq)
 
-            nfluxout1D(iq)=rho(iq,k)*nvtr(iq,k)*nrz(iq,k)
-            nflux1D(iq)=(nfluxin1D(iq)-nfluxout1D(iq))/rho(iq,k)/dzw(iq,k)
-            nrz(iq,k)=nrz(iq,k)+del_tv1D(iq)*nflux1D(iq)
-            nfluxin1D(iq)=nfluxout1D(iq)
-            qrsten(iq,k)=flux1D(iq)
-            nrsten(iq,k)=nflux1D(iq)
+            nfluxout(iq)=rho(iq,k)*nvtr(iq,k)*nrz(iq,k)
+            nflux(iq)=(nfluxin(iq)-nfluxout(iq))/rho(iq,k)/dzw(iq,k)
+            nrz(iq,k)=nrz(iq,k)+del_tv(iq)*nflux(iq)
+            nfluxin(iq)=nfluxout(iq)
+            qrsten(iq,k)=flux(iq)
+            nrsten(iq,k)=nflux(iq)
  
-            fluxr(iq,k) = fluxout1D(iq)                     ! sny
+            fluxr(iq,k) = fluxout(iq)                     ! sny
           end if !maxq, minq
         end if   !notlast
       end do     !iq
     end do       !k
 
     do iq = 1, imax
-      if ( notlast1D(iq) ) then
-        if (max_q1D(iq) .ge. min_q1D(iq)) then      
-          if (min_q1D(iq) .eq. 1) then
-            pptrain(iq)=pptrain(iq)+fluxin1D(iq)*del_tv1D(iq)
+      if ( notlast(iq) ) then
+        if (max_q(iq) .ge. min_q(iq)) then      
+          if (min_q(iq) .eq. 1) then
+            pptrain(iq)=pptrain(iq)+fluxin(iq)*del_tv(iq)
           else
-            qrz(iq,min_q1D(iq)-1)=qrz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                           fluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
-            nrz(iq,min_q1D(iq)-1)=nrz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                           nfluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
+            qrz(iq,min_q(iq)-1)=qrz(iq,min_q(iq)-1)+del_tv(iq)*  &
+                           fluxin(iq)/rho(iq,min_q(iq)-1)/dzw(iq,min_q(iq)-1)
+            nrz(iq,min_q(iq)-1)=nrz(iq,min_q(iq)-1)+del_tv(iq)*  &
+                           nfluxin(iq)/rho(iq,min_q(iq)-1)/dzw(iq,min_q(iq)-1)
           endif  !minq
         else
           notlast_work(iq)=.false.
@@ -662,28 +716,28 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     end do     !iq
 
 
-    notlast1D(:) = notlast_work(:)
+    notlast(:) = notlast_work(:)
   ENDDO      ! while(any(notlast))
 
 
   !
   !-- snow
   !
-  t_del_tv1D(1:imax)=0.
-  del_tv1D(1:imax)=dtb
-  notlast1D(1:imax)=.true.
-  DO while (any(notlast1D))
+  t_del_tv(1:imax)=0.
+  del_tv(1:imax)=dtb
+  notlast(1:imax)=.true.
+  DO while (any(notlast))
 
-    notlast_work = notlast1D
-    min_q1D(1:imax)=kte
-    max_q1D(1:imax)=kts-1
+    notlast_work = notlast
+    min_q(1:imax)=kte
+    max_q(1:imax)=kts-1
 
     do k=kts,kte-1
       do iq = 1, imax
-        if (notlast1D(iq)) then
+        if (notlast(iq)) then
           if (qsz(iq,k) .gt. 1.0e-8) then
-            min_q1D(iq)=min0(min_q1D(iq),k)
-            max_q1D(iq)=max0(max_q1D(iq),k)
+            min_q(iq)=min0(min_q(iq),k)
+            max_q(iq)=max0(max_q(iq),k)
             !   tmp1= (am_s(k)*N0_s(k)*ggamma(tmp_ss(k))*orho(k)/qsz(k))&
             !   **(1./tmp_ss(k))
             !   vtsold(k)= sqrho(k)*av_s(k)*ggamma(bv_s(k)+tmp_ss(k))/ &
@@ -708,16 +762,16 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
             ! Zhao 2022 - Row 4 Table 2
             nvts(iq,k)=sqrho(iq,k)*av_s(iq,k)*ggamma(bv_s(iq,k)+1)*(olambdas(iq,k)**bv_s(iq,k))
             if (k .eq. 1) then
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zsfc(iq))/vtsold(iq,k))
+              del_tv(iq)=amin1(del_tv(iq),0.9*(zz(iq,k)-zsfc(iq))/vtsold(iq,k))
             else
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtsold(iq,k))
+              del_tv(iq)=amin1(del_tv(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtsold(iq,k))
             endif
           else
             vtsold(iq,k)=0.
             nvts(iq,k)=0.
             olambdas(iq,k)=0.
           endif
-        endif   ! notlast1D
+        endif   ! notlast
       enddo     ! iq
     enddo       ! k
 
@@ -727,52 +781,52 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     !             (t_del_tv)          (del_tv)             (dtb)
 
     do iq = 1,imax
-      if (notlast1D(iq)) then
-        if (max_q1D(iq) .ge. min_q1D(iq)) then
-          t_del_tv1D(iq)=t_del_tv1D(iq)+del_tv1D(iq)
-          if ( t_del_tv1D(iq) .ge. dtb ) then
+      if (notlast(iq)) then
+        if (max_q(iq) .ge. min_q(iq)) then
+          t_del_tv(iq)=t_del_tv(iq)+del_tv(iq)
+          if ( t_del_tv(iq) .ge. dtb ) then
             notlast_work(iq)=.false.
-            del_tv1D(iq)=dtb+del_tv1D(iq)-t_del_tv1D(iq)
+            del_tv(iq)=dtb+del_tv(iq)-t_del_tv(iq)
           endif
-          fluxin1D(iq) = 0.
-          nfluxin1D(iq) = 0.
+          fluxin(iq) = 0.
+          nfluxin(iq) = 0.
         end if ! maxq>minq
       end if   ! notlast
     end do     ! iq
 
     do k = kte,kts,-1
       do iq = 1,imax
-        if ( notlast1D(iq) ) then
-          if ( k>=min_q1D(iq) .and. k<=max_q1D(iq) ) then
-            fluxout1D(iq)=rho(iq,k)*vtsold(iq,k)*qsz(iq,k)
-            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho(iq,k)/dzw(iq,k)
-            qsz(iq,k)=qsz(iq,k)+del_tv1D(iq)*flux1D(iq)
+        if ( notlast(iq) ) then
+          if ( k>=min_q(iq) .and. k<=max_q(iq) ) then
+            fluxout(iq)=rho(iq,k)*vtsold(iq,k)*qsz(iq,k)
+            flux(iq)=(fluxin(iq)-fluxout(iq))/rho(iq,k)/dzw(iq,k)
+            qsz(iq,k)=qsz(iq,k)+del_tv(iq)*flux(iq)
             qsz(iq,k)=amax1(0.,qsz(iq,k))
-            fluxin1D(iq)=fluxout1D(iq)
+            fluxin(iq)=fluxout(iq)
 
-            nfluxout1D(iq)=rho(iq,k)*nvts(iq,k)*nsz(iq,k)
-            nflux1D(iq)   =(nfluxin1D(iq)-nfluxout1D(iq))/rho(iq,k)/dzw(iq,k)
-            nsz(iq,k)  =nsz(iq,k)+del_tv1D(iq)*nflux1D(iq)
-            nfluxin1D(iq) =nfluxout1D(iq)
-            qssten(iq,k)=flux1D(iq)
-            nssten(iq,k)=nflux1D(iq)
+            nfluxout(iq)=rho(iq,k)*nvts(iq,k)*nsz(iq,k)
+            nflux(iq)   =(nfluxin(iq)-nfluxout(iq))/rho(iq,k)/dzw(iq,k)
+            nsz(iq,k)  =nsz(iq,k)+del_tv(iq)*nflux(iq)
+            nfluxin(iq) =nfluxout(iq)
+            qssten(iq,k)=flux(iq)
+            nssten(iq,k)=nflux(iq)
 
-            fluxs(iq,k) = fluxout1D(iq)                     ! sny
+            fluxs(iq,k) = fluxout(iq)                     ! sny
           end if ! maxq, minq
         end if   ! notlast
       end do     ! iq
     end do       ! k
 
     do iq = 1, imax
-      if ( notlast1D(iq) ) then
-        if (max_q1D(iq) .ge. min_q1D(iq)) then
-          if (min_q1D(iq) .eq. 1) then
-            pptsnow(iq)=pptsnow(iq)+fluxin1D(iq)*del_tv1D(iq)
+      if ( notlast(iq) ) then
+        if (max_q(iq) .ge. min_q(iq)) then
+          if (min_q(iq) .eq. 1) then
+            pptsnow(iq)=pptsnow(iq)+fluxin(iq)*del_tv(iq)
           else
-            qsz(iq,min_q1D(iq)-1)=qsz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                     fluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
-            nsz(iq,min_q1D(iq)-1)=nsz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                       nfluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
+            qsz(iq,min_q(iq)-1)=qsz(iq,min_q(iq)-1)+del_tv(iq)*  &
+                     fluxin(iq)/rho(iq,min_q(iq)-1)/dzw(iq,min_q(iq)-1)
+            nsz(iq,min_q(iq)-1)=nsz(iq,min_q(iq)-1)+del_tv(iq)*  &
+                       nfluxin(iq)/rho(iq,min_q(iq)-1)/dzw(iq,min_q(iq)-1)
           endif ! minq
         else
           notlast_work(iq)=.false.
@@ -780,37 +834,37 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
       endif     ! notlast
     enddo       ! iq
 
-    notlast1D(:) = notlast_work(:)
+    notlast(:) = notlast_work(:)
   ENDDO       ! while(any(notlast))
 
   !
   !-- cloud ice  (03/21/02) using Heymsfield and Donner (1990) Vi=3.29*qi^0.16
   !
-  t_del_tv1D(1:imax)=0.
-  del_tv1D(1:imax)=dtb
-  notlast1D(1:imax)=.true.
-  DO while (any(notlast1D))
+  t_del_tv(1:imax)=0.
+  del_tv(1:imax)=dtb
+  notlast(1:imax)=.true.
+  DO while (any(notlast))
 
-    notlast_work = notlast1D
-    min_q1D(1:imax)=kte
-    max_q1D(1:imax)=kts-1
+    notlast_work = notlast
+    min_q(1:imax)=kte
+    max_q(1:imax)=kts-1
 
     do k=kts,kte-1
       do iq = 1, imax
-        if (notlast1D(iq)) then
+        if (notlast(iq)) then
           if (qiz(iq,k) .gt. 1.0e-8) then
-            min_q1D(iq)=min0(min_q1D(iq),k)
-            max_q1D(iq)=max0(max_q1D(iq),k)
+            min_q(iq)=min0(min_q(iq),k)
+            max_q(iq)=max0(max_q(iq),k)
             vtiold(iq,k)= 3.29 * (rho(iq,k)* qiz(iq,k))** 0.16  ! Heymsfield and Donner
             if (k .eq. 1) then
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zsfc(iq))/vtiold(iq,k))
+              del_tv(iq)=amin1(del_tv(iq),0.9*(zz(iq,k)-zsfc(iq))/vtiold(iq,k))
             else
-              del_tv1D(iq)=amin1(del_tv1D(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtiold(iq,k))
+              del_tv(iq)=amin1(del_tv(iq),0.9*(zz(iq,k)-zz(iq,k-1))/vtiold(iq,k))
             endif
           else
             vtiold(iq,k)=0.
           endif
-        endif   ! notlast1D
+        endif   ! notlast
       enddo     ! iq
     enddo       ! k
 
@@ -818,53 +872,53 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     !- Check if the summation of the small delta t >=  big delta t
     !             (t_del_tv)          (del_tv)             (dtb)
     do iq = 1,imax
-      if (notlast1D(iq)) then
-        if (max_q1D(iq) .ge. min_q1D(iq)) then
-          t_del_tv1D(iq)=t_del_tv1D(iq)+del_tv1D(iq)
-          if ( t_del_tv1D(iq) .ge. dtb ) then
+      if (notlast(iq)) then
+        if (max_q(iq) .ge. min_q(iq)) then
+          t_del_tv(iq)=t_del_tv(iq)+del_tv(iq)
+          if ( t_del_tv(iq) .ge. dtb ) then
             notlast_work(iq)=.false.
-            del_tv1D(iq)=dtb+del_tv1D(iq)-t_del_tv1D(iq)
+            del_tv(iq)=dtb+del_tv(iq)-t_del_tv(iq)
           endif
-          fluxin1D(iq) = 0.
-          nfluxin1D(iq) = 0.
+          fluxin(iq) = 0.
+          nfluxin(iq) = 0.
         end if   ! maxq>minq
       end if     ! notlast
     end do       ! iq
 
     do k = kte,kts,-1
       do iq = 1,imax
-        if ( notlast1D(iq) ) then
-          if ( k>=min_q1D(iq) .and. k<=max_q1D(iq) ) then
-            fluxout1D(iq)=rho(iq,k)*vtiold(iq,k)*qiz(iq,k)
-            flux1D(iq)=(fluxin1D(iq)-fluxout1D(iq))/rho(iq,k)/dzw(iq,k)
-            qiz(iq,k)=qiz(iq,k)+del_tv1D(iq)*flux1D(iq)
+        if ( notlast(iq) ) then
+          if ( k>=min_q(iq) .and. k<=max_q(iq) ) then
+            fluxout(iq)=rho(iq,k)*vtiold(iq,k)*qiz(iq,k)
+            flux(iq)=(fluxin(iq)-fluxout(iq))/rho(iq,k)/dzw(iq,k)
+            qiz(iq,k)=qiz(iq,k)+del_tv(iq)*flux(iq)
             qiz(iq,k)=amax1(0.,qiz(iq,k))
-            fluxin1D(iq)=fluxout1D(iq)
+            fluxin(iq)=fluxout(iq)
 
-            nfluxout1D(iq)=rho(iq,k)*vtiold(iq,k)*niz(iq,k)
-            nflux1D(iq)=(nfluxin1D(iq)-nfluxout1D(iq))/rho(iq,k)/dzw(iq,k)
-            niz(iq,k)=niz(iq,k)+del_tv1D(iq)*nflux1D(iq)
+            nfluxout(iq)=rho(iq,k)*vtiold(iq,k)*niz(iq,k)
+            nflux(iq)=(nfluxin(iq)-nfluxout(iq))/rho(iq,k)/dzw(iq,k)
+            niz(iq,k)=niz(iq,k)+del_tv(iq)*nflux(iq)
             niz(iq,k)=amax1(0.,niz(iq,k))
-            nfluxin1D(iq)=nfluxout1D(iq)
-            qisten(iq,k)=flux1D(iq)
-            nisten(iq,k)=nflux1D(iq)
+            nfluxin(iq)=nfluxout(iq)
+            qisten(iq,k)=flux(iq)
+            nisten(iq,k)=nflux(iq)
 
-            fluxi(iq,k) = fluxout1D(iq)                     ! sny
+            fluxi(iq,k) = fluxout(iq)                     ! sny
           end if ! maxq, minq
         end if   ! notlast
       end do     ! iq
     end do       ! k
 
     do iq = 1, imax
-      if ( notlast1D(iq) ) then
-        if (max_q1D(iq) .ge. min_q1D(iq)) then
-          if (min_q1D(iq) .eq. 1) then
-            pptice(iq)=pptice(iq)+fluxin1D(iq)*del_tv1D(iq)
+      if ( notlast(iq) ) then
+        if (max_q(iq) .ge. min_q(iq)) then
+          if (min_q(iq) .eq. 1) then
+            pptice(iq)=pptice(iq)+fluxin(iq)*del_tv(iq)
           else
-            qiz(iq,min_q1D(iq)-1)=qiz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                         fluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
-            niz(iq,min_q1D(iq)-1)=niz(iq,min_q1D(iq)-1)+del_tv1D(iq)*  &
-                         nfluxin1D(iq)/rho(iq,min_q1D(iq)-1)/dzw(iq,min_q1D(iq)-1)
+            qiz(iq,min_q(iq)-1)=qiz(iq,min_q(iq)-1)+del_tv(iq)*  &
+                         fluxin(iq)/rho(iq,min_q(iq)-1)/dzw(iq,min_q(iq)-1)
+            niz(iq,min_q(iq)-1)=niz(iq,min_q(iq)-1)+del_tv(iq)*  &
+                         nfluxin(iq)/rho(iq,min_q(iq)-1)/dzw(iq,min_q(iq)-1)
           endif
         else
           notlast_work(iq)=.false.
@@ -872,7 +926,7 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
       end if      ! notlast
     end do        ! iq
     
-    notlast1D(:) = notlast_work(:)
+    notlast(:) = notlast_work(:)
   ENDDO       ! while(any(notlast))
 
   ! zdc 20220116
@@ -886,6 +940,8 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     precsz(1:imax,kte)=0. !wig
   !     CALL wrf_debug ( 100 , 'module_ylin: end precip flux' )
 
+  call END_LOG(p3_end)
+  call START_LOG(p4_begin)
 
   ! Microphpysics processes
   DO k=kts,kte
@@ -912,11 +968,11 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     !!     skip these processes and jump to line 2000
     !
     !
-    tmp2D(1:imax,k)=qiz(1:imax,k)+qlz(1:imax,k)+qsz(1:imax,k)+qrz(1:imax,k)
+    tmp2d(1:imax,k)=qiz(1:imax,k)+qlz(1:imax,k)+qsz(1:imax,k)+qrz(1:imax,k)
        
     do iq = 1, imax
       if( .not.(qvz(iq,k)+qlz(iq,k)+qiz(iq,k) .lt. qsiz(iq,k)  &
-            .and. tmp2D(iq,k) .eq. 0.0) ) then !go to 2000
+            .and. tmp2d(iq,k) .eq. 0.0) ) then !go to 2000
       !
       !! calculate terminal velocity of rain
       !
@@ -1799,6 +1855,8 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     end do     ! iq
   ENDDO        ! k
 
+  call END_LOG(p4_end)
+  call START_LOG(p5_begin)
 
   do k=kts+1,kte
     where ( qvz(1:imax,k) .lt. qvmin ) 
@@ -1900,6 +1958,8 @@ SUBROUTINE clphy1d_ylin(dt, imax,                               &
     vs(1:imax,k)    = vtsold(1:imax,k)
     vg(1:imax,k)    = 0.
   end do
+
+  call END_LOG(p5_end) 
 
 END SUBROUTINE clphy1d_ylin
 
