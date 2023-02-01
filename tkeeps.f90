@@ -364,6 +364,9 @@ do kcount = 1,mcount
     ustar(js:je) = sqrt(cduv(js:je)*sqrt(ua(js:je,1)**2+va(js:je,1)**2))  
     wstar(js:je) = max(grav*zi(js:je)*max(wtv0(js:je),0.)/thetav(js:je,1),1.e-10)**(1./3.)   
   
+    ! Surface boundary condition
+    tke(js:je,1) = cm12*ustar(js:je)**2 + ce3*wstar(js:je)**2
+    
   end do
   !$omp end do nowait
 
@@ -383,8 +386,7 @@ do kcount = 1,mcount
 
       ! plume rise model
       mask = wtv0(js:je)>0.
-      ltke(:,1) = cm12*ustar(js:je)**2 + ce3*wstar(js:je)**2
-      ltke(:,1) = max(ltke(:,1), mintke)
+      ltke(:,1) = max(tke(js:je,1), mintke)
       do k = 2,kl
         ltke(:,k) = tke(js:je,k)
       end do
@@ -415,7 +417,6 @@ do kcount = 1,mcount
                      sigkap,imax,kl)  
 
       do k = 1,kl
-        tke(js:je,k) = ltke(:,k)
         mflx(js:je,k) = lmflx(:,k)
         tlup(js:je,k) = ltlup(:,k)
         qvup(js:je,k) = lqvup(:,k)
@@ -536,6 +537,61 @@ do kcount = 1,mcount
 
   if ( mode==2 .or. mode==3 ) then
 
+!!$omp do schedule(static) private(js,je,lwu0_o,lwv0_o,lustar_o,lkm_o,lks_o,lgammas_o) &
+!!$omp   private(ldeptho_fl,ldeptho_hl,lw_t,lw_s,lw_u,lw_v,lw_t_ema,lw_s_ema,lshear_o) &
+!!$omp   private(lw_tke,lw_eps)
+!do tile = 1,ntiles
+!  js = (tile-1)*imax + 1
+!  je = tile*imax
+!
+!  ! calculate eddy diffusivity for ocean
+!
+!  ldeptho_fl = deptho_fl(js:je,:)
+!  ldeptho_hl = deptho_hl(js:je,:)
+!  lw_t = w_t(js:je,:)
+!  lw_s = w_s(js:je,:)
+!  lw_u = w_u(js:je,:)
+!  lw_v = w_v(js:je,:)
+!  lw_t_ema = w_t_ema(js:je,:)
+!  lw_s_ema = w_s_ema(js:je,:)
+!  lshear_o = shear_o(js:je,:)
+!  lw_tke = w_tke(js:je,:)
+!  lw_eps = w_eps(js:je,:)
+!
+!  ! update ocean eddy diffusivity possibly including prognostic tke and eps
+!  lwu0_o(:) = -(1.-fracice(js:je))*rhoa1(js:je)*cd_water(js:je)*(ua(js:je,1)-w_u(js:je,1))/wrtrho
+!  lwv0_o(:) = -(1.-fracice(js:je))*rhoa1(js:je)*cd_water(js:je)*(va(js:je,1)-w_v(js:je,1))/wrtrho
+!  lwu0_o(:) = lwu0_o(:) + fracice(js:je)*cdbot_ice(js:je)*(w_u(js:je,1)-i_u(js:je))
+!  lwv0_o(:) = lwv0_o(:) + fracice(js:je)*cdbot_ice(js:je)*(w_v(js:je,1)-i_v(js:je))
+!  lustar_o(:) = max(sqrt(sqrt(lwu0_o(:)**2+lwv0_o(:)**2)),1.e-6)
+!  call mlo_updatekm(lkm_o,lks_o,lgammas_o,ddts,0,                                    &
+!                    lustar_o,zo_o(js:je),ldeptho_fl,ldeptho_hl,lw_t,lw_s,lw_u,lw_v,  &
+!                    lw_t_ema,lw_s_ema,lshear_o,ibot(js:je),lw_tke,lw_eps,imax,wlev)
+!
+!  km_o(js:je,:) = lkm_o
+!  ks_o(js:je,:) = lks_o
+!  gammas_o(js:je,:) = lgammas_o
+!  w_t_ema(js:je,:) = lw_t_ema
+!  w_s_ema(js:je,:) = lw_s_ema
+!  w_tke(js:je,:) = lw_tke
+!  w_eps(js:je,:) = lw_eps
+!
+!  rhs_o(js:je,:) = 0.
+!  where ( deptho_dz(js:je,1)>1.e-4 )
+!    rhs_o(js:je,1) = ks_o(js:je,2)*gammas_o(js:je,2)/deptho_dz(js:je,1)
+!  end where
+!  do k = 2,wlev-1
+!    where ( deptho_dz(js:je,k)>1.e-4 )  
+!      rhs_o(js:je,k) = (ks_o(js:je,k+1)*gammas_o(js:je,k+1)-ks_o(js:je,k)*gammas_o(js:je,k))/deptho_dz(js:je,k)
+!    end where  
+!  end do
+!  where ( deptho_dz(js:je,wlev)>1.e-4 )
+!    rhs_o(js:je,wlev) = -ks_o(js:je,wlev)*gammas_o(js:je,wlev)/deptho_dz(js:je,wlev)
+!  end where
+!
+!end do
+!!$omp end do nowait      
+      
 !#ifndef GPU
 !    !$omp do schedule(static) private(js,je,k,lthetal,lqvg,lqlg,lqfg,lstratcloud) &
 !    !$omp   private(lua,lva,ltlup,lqvup,lqlup,lqfup,lcfup,ltke,leps,lmflx,lidzm)  &
@@ -805,11 +861,11 @@ subroutine plumerise(mask,                                        &
 
 integer, intent(in) :: imax, kl
 integer k, iq
-real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
+real, dimension(imax,kl), intent(out) :: mflx, tlup, qvup, qlup, qfup, cfup
 real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, stratcloud
 real, dimension(imax,kl), intent(in) :: zz, thetal, ua, va 
 real, dimension(imax,kl-1), intent(in) :: dz_hl
-real, dimension(imax,kl), intent(inout) :: tke
+real, dimension(imax,kl), intent(in) :: tke
 real, dimension(imax), intent(in) :: wt0, wq0, ps, ustar
 real, dimension(kl), intent(in) :: sig, sigkap
 real, dimension(imax), intent(inout) :: zi, wstar
