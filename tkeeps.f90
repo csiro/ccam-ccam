@@ -1687,7 +1687,8 @@ do tile = 1,ntiles
     bb_o(:,1) = bb_o(:,1) + ddts*t1(:)*(1.-fracice(js:je))/(wrtrho*cp0*deptho_dz(js:je,1))
     dd_o(:,1,1) = dd_o(:,1,1) - ddts*t1(:)*(1.-fracice(js:je))*wrtemp/(wrtrho*cp0*deptho_dz(js:je,1))
     dd_o(:,1,1) = dd_o(:,1,1) - ddts*(wt0rad_o(js:je)+wt0melt_o(js:je)+wt0eg_o(js:je))/deptho_dz(js:je,1)
-    dd_o(:,1,1) = dd_o(:,1,1) + ddts*t1(:)*(1.-fracice(js:je))/(wrtrho*cp0)*sigkap(1)*(lv*qlg(js:je,1)+ls*qfg(js:je,1))/cp/deptho_dz(js:je,1)
+    dd_o(:,1,1) = dd_o(:,1,1) + ddts*t1(:)*(1.-fracice(js:je))/(wrtrho*cp0)*sigkap(1)*(lv*qlg(js:je,1)+ls*qfg(js:je,1)) &
+                                /cp/deptho_dz(js:je,1)
     dd_o(:,1,1) = dd_o(:,1,1) - ddts*wt0fb_o(js:je)/deptho_dz(js:je,1)
   end where
   where ( .not.land(js:je) )
