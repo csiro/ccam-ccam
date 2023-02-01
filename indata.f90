@@ -378,6 +378,10 @@ else if ( lapsbot==3 ) then ! possibly suits nh
   bet(1) = -rdry*log(sig(1))
 endif
 
+do k = 1,kl
+  sigkap(k) = sig(k)**(-rdry/cp)
+end do
+
 ! Calculate eigenvectors
 if ( myid==0 ) then
   if ( nmaxpr==1 ) then  
@@ -403,6 +407,7 @@ if ( myid==0 ) write(6,*) 'First model level height zmin = ',zmin
 
 !$acc update device(sig,dsig)
 !$acc update device(sigmh,bet,betm)
+!$acc update device(sigkap)
 
 
 !--------------------------------------------------------------

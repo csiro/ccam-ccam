@@ -63,60 +63,74 @@ subroutine update_cloud_fraction(cfrac,land,                                    
                     ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                              &
                     dpsldt,nettend,stratcloud,clcon,cdrop,em,pblh,idjd,mydiag,      &
                     ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
-                    vdeposition_mode,tiedtke_form,rkmsave,rkhsave,imax,kl)
+                    vdeposition_mode,tiedtke_form,rkmsave,rkhsave)
 !$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
-use mgcloud_m , only : mg_progcld
-                                  ! MG cloud microphysics
-use parm_m, only : nmaxpr, dt
-                                  ! Model configuration
+use mgcloud_m , only : mg_progcld ! MG cloud microphysics
+use parm_m, only : nmaxpr, dt     ! Model configuration
 use sigs_m                        ! Atmosphere sigma levels
 
 implicit none
 
+real, dimension(:,:), intent(inout) :: t
 integer, intent(in) :: idjd, ncloud, nclddia, ldr, vdeposition_mode
 integer, intent(in) :: tiedtke_form
-integer, intent(in) :: imax, kl
-real, dimension(imax,kl), intent(inout) :: qg, qlg, qfg
-real, dimension(imax,kl), intent(inout) :: qlrad, qfrad
-real, dimension(imax,kl), intent(inout) :: t
-real, dimension(imax,kl), intent(inout) :: nettend
-real, dimension(imax,kl), intent(inout) :: stratcloud
-real, dimension(imax,kl), intent(out) :: qccon, cfrac
-real, dimension(imax,kl), intent(in) :: dpsldt, rkmsave, rkhsave
-real, dimension(imax,kl), intent(in) :: clcon, cdrop
-real, dimension(imax), intent(in) :: ps
-real, dimension(imax), intent(in) :: em, pblh
+real, dimension(size(t,1),size(t,2)), intent(inout) :: qg, qlg, qfg
+real, dimension(size(t,1),size(t,2)), intent(out) :: qlrad, qfrad
+real, dimension(size(t,1),size(t,2)), intent(inout) :: nettend
+real, dimension(size(t,1),size(t,2)), intent(inout) :: stratcloud
+real, dimension(size(t,1),size(t,2)), intent(out) :: qccon, cfrac
+real, dimension(size(t,1),size(t,2)), intent(in) :: dpsldt, rkmsave, rkhsave
+real, dimension(size(t,1),size(t,2)), intent(in) :: clcon, cdrop
+real, dimension(size(t,1)), intent(in) :: ps
+real, dimension(size(t,1)), intent(in) :: em, pblh
 real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay
 logical, intent(in) :: mydiag
-logical, dimension(imax), intent(in) :: land
+logical, dimension(size(t,1)), intent(in) :: land
 
-real, dimension(imax,kl) :: prf      !Pressure on full levels (hPa)
-real, dimension(imax,kl) :: rhoa     !Air density (kg/m3)
-real, dimension(imax,kl) :: ccov     !Cloud cover (may differ from cloud frac if vertically subgrid)
-real, dimension(imax,kl) :: qcl      !Vapour mixing ratio inside convective cloud
-real, dimension(imax,kl) :: qenv     !Vapour mixing ratio outside convective cloud
-real, dimension(imax,kl) :: tenv     !Temperature outside convective cloud
+!integer, dimension(size(t,1)) :: kbase,ktop  !Bottom and top of convective cloud
+real, dimension(size(t,1),size(t,2)) :: prf      !Pressure on full levels (hPa)
+real, dimension(size(t,1),size(t,2)) :: rhoa     !Air density (kg/m3)
+real, dimension(size(t,1),size(t,2)) :: ccov     !Cloud cover (may differ from cloud frac if vertically subgrid)
+real, dimension(size(t,1),size(t,2)) :: qcl      !Vapour mixing ratio inside convective cloud
+real, dimension(size(t,1),size(t,2)) :: qenv     !Vapour mixing ratio outside convective cloud
+real, dimension(size(t,1),size(t,2)) :: tenv     !Temperature outside convective cloud
 
-integer k, iq
+integer imax, kl, k, iq
 real fl, prf_temp
-real qsatg    !Saturation mixing ratio
-real, dimension(kl) :: diag_temp
+real qsatg !Saturation mixing ratio
+real wcon  !Convective cloud water content (in-cloud, prescribed)
+real, dimension(size(t,2)) :: diag_temp
+
+
+imax = size(t,1)
+kl = size(t,2)
+
 
 ! meterological fields
 do k = 1,kl
   do iq = 1,imax
     prf_temp = ps(iq)*sig(k)
-    !dprf(iq,k)   = -0.01*ps(iq)*dsig(k) !dsig is -ve
-    prf(iq,k)    = 0.01*prf_temp         !ps is SI units
-    rhoa(iq,k)   = prf_temp/(rdry*t(iq,k))     ! air density
-    !dz(:,k)     = -rdry*dsig(k)*t(:,k)/(grav*sig(k)) ! level thickness in metres
-    !dz(iq,k)     = min( max(dz(iq,k), 1.), 2.e4 )
+    !dprf(iq,k) = -0.01*ps(iq)*dsig(k)  !dsig is -ve
+    prf(iq,k) = 0.01*prf_temp           !ps is SI units
+    rhoa(iq,k) = prf_temp/(rdry*t(iq,k))     ! air density
   end do
 end do
 
+!! default values
+!kbase(:) = 0  ! default
+!ktop(:)  = 0  ! default
+
+!     Set up convective cloud column
+!where ( ktsav(:)<kl-1 )
+  !ktop(:)  = ktsav(:)
+  !kbase(:) = kbsav(:) + 1
+!  wcon(:)  = wlc
+!elsewhere
+!  wcon(:)  = 0.
+!end where
 
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
@@ -132,17 +146,18 @@ endif
 
 
 ! Calculate convective cloud fraction and adjust moisture variables before calling newcloud
+tenv(:,:) = t(:,:) ! Assume T is the same in and out of convective cloud
 do k = 1,kl
   do iq = 1,imax
     if ( clcon(iq,k)>0. ) then
-      !wcon(iq) = wlc  
+      wcon = wlc
       !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
       prf_temp = ps(iq)*sig(k)
-      qsatg = qsat(prf_temp,t(iq,k)) ! saturated mixing ratio      
-      qccon(iq,k)  = clcon(iq,k)*wlc/rhoa(iq,k)
+      qsatg = qsat(prf_temp,t(iq,k)) ! saturated mixing ratio
+      qccon(iq,k)  = clcon(iq,k)*wcon/rhoa(iq,k)
       qenv(iq,k)   = max( 1.e-8, (qg(iq,k)-clcon(iq,k)*max(qsatg,qg(iq,k)))/(1.-clcon(iq,k)) )
       qcl(iq,k)    = max(qsatg,qg(iq,k))
-      !qcl(iq,k)    = (qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))/clcon(iq,k)
+      !qcl(iq,k)   = (qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))/clcon(iq,k)
       qlg(iq,k)    = qlg(iq,k)/(1.-clcon(iq,k))
       qfg(iq,k)    = qfg(iq,k)/(1.-clcon(iq,k))
       stratcloud(iq,k) = stratcloud(iq,k)/(1.-clcon(iq,k))
@@ -151,7 +166,6 @@ do k = 1,kl
       qcl(iq,k)    = qg(iq,k)
       qenv(iq,k)   = qg(iq,k)
     end if
-    tenv(iq,k)   = t(iq,k) ! Assume T is the same in and out of convective cloud
   end do
 end do
 
@@ -168,13 +182,13 @@ if ( nmaxpr==1 .and. mydiag ) then
   write(6,"('ql  ',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = qenv(idjd,:)
   write(6,"('qnv ',9f8.3/4x,9f8.3)") diag_temp
-  diag_temp(:) = qsatg(idjd,:)
-  write(6,"('qsat',9f8.3/4x,9f8.3)") diag_temp
+  !diag_temp(:) = qsatg(idjd,:)
+  !write(6,"('qsat',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = qcl(idjd,:)
   write(6,"('qcl ',9f8.3/4x,9f8.3)") diag_temp
   diag_temp(:) = clcon(idjd,:)
   write(6,"('clc ',9f8.3/4x,9f8.3)") diag_temp
-  write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
+  !write(6,*) 'kbase,ktop ',kbase(idjd),ktop(idjd)
 endif
 #endif
 
@@ -192,6 +206,7 @@ end if
 
 ! Vertically sub-grid cloud
 ccov(1:imax,1:kl) = stratcloud(1:imax,1:kl)
+
 do k = 2,kl-1
   do iq = 1,imax
     if ( stratcloud(iq,k-1)<1.e-10 .and. stratcloud(iq,k)>1.e-2 .and. stratcloud(iq,k+1)<1.e-10 ) then
@@ -223,12 +238,10 @@ do k = 1,kl
   do iq = 1,imax
     t(iq,k)  = clcon(iq,k)*t(iq,k) + (1.-clcon(iq,k))*tenv(iq,k)
     qg(iq,k) = clcon(iq,k)*qcl(iq,k) + (1.-clcon(iq,k))*qenv(iq,k)
-    !if ( k>=kbase(iq) .and. k<=ktop(iq) ) then
-      stratcloud(iq,k) = stratcloud(iq,k)*(1.-clcon(iq,k))
-      ccov(iq,k) = ccov(iq,k)*(1.-clcon(iq,k))
-      qlg(iq,k)  = qlg(iq,k)*(1.-clcon(iq,k))
-      qfg(iq,k)  = qfg(iq,k)*(1.-clcon(iq,k))
-    !end if
+    stratcloud(iq,k) = stratcloud(iq,k)*(1.-clcon(iq,k))
+    ccov(iq,k) = ccov(iq,k)*(1.-clcon(iq,k))
+    qlg(iq,k)  = qlg(iq,k)*(1.-clcon(iq,k))
+    qfg(iq,k)  = qfg(iq,k)*(1.-clcon(iq,k))
   end do
 end do
 
@@ -348,15 +361,16 @@ end if
 ! Then calculate the cloud conserved variables qtot and tliq.
 ! Note that qcg is the total cloud water (liquid+frozen)
 
+where ( ttg(:,:)>=tfrz )
+  fice(:,:) = 0.
+else where ( ttg(:,:)>=tice )
+  fice(:,:) = qfg(:,:)/max(qfg(:,:)+qlg(:,:),1.e-12)
+elsewhere
+  fice(:,:) = 1.
+end where
+
 do k = 1,kl
   do iq = 1,imax
-    if ( ttg(iq,k)>=tfrz ) then
-      fice(iq,k) = 0.
-    else if ( ttg(iq,k)>=tice ) then
-      fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-12)
-    else
-      fice(iq,k) = 1.
-    end if
     qcg(iq,k)   = qlg(iq,k) + qfg(iq,k)
     qcold(iq,k) = qcg(iq,k)
     qfnew       = fice(iq,k)*qcg(iq,k)

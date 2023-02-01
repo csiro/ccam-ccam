@@ -171,17 +171,17 @@ real, dimension(imax,kl) :: qaccf
 #ifndef GPUPHYSICS
 real, dimension(imax,kl) :: pqfsedice, pslopes, prscav
 #endif
-real, dimension(imax,kl) :: prf_temp
+real prf_temp
 real, dimension(imax) :: fl, diag_temp
 real invdt
 
 ! meterological fields
 do k = 1,kl
   do iq = 1,imax
-    prf_temp(iq,k) = ps(iq)*sig(k)
-    prf(iq,k)      = 0.01*prf_temp(iq,k)    !ps is SI units
-    rhoa(iq,k)     = prf_temp(iq,k)/(rdry*t(iq,k))        ! air density
-    dz(iq,k)       = -rdry*dsig(k)*t(iq,k)/(grav*sig(k)) ! level thickness in metres 
+    prf_temp       = ps(iq)*sig(k)
+    prf(iq,k)      = 0.01*prf_temp                        !ps is SI units
+    rhoa(iq,k)     = prf_temp/(rdry*t(iq,k))              ! air density
+    dz(iq,k)       = -rdry*dsig(k)*t(iq,k)/(grav*sig(k))  ! level thickness in metres 
     dz(iq,k)       = min( max(dz(iq,k), 1.), 2.e4 )
   end do
 end do 

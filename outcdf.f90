@@ -180,7 +180,8 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,alphavis_seaice,alphanir_seaice     &
     ,alphavis_seasnw,alphanir_seasnw     &
     ,mlosigma,oclosure,usepice,ominl     &
-    ,omaxl,mlo_timeave_length,kemaxdt
+    ,omaxl,mlo_timeave_length,kemaxdt    &
+    ,omineps,omink
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
@@ -218,7 +219,8 @@ integer tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer namipo3, nalways_mspeca, ndo_co2_10um
+integer namipo3, nalways_mspeca, ndo_co2_10um, ndo_quench
+integer nremain_rayleigh_bug
 integer, save :: idnc_hist=0, iarch_hist=0
 integer :: idnc, iarch
 real, dimension(:), intent(in) :: psl_in
@@ -679,6 +681,12 @@ if ( myid==0 .or. local ) then
       ndo_co2_10um = 0
     end if      
     call ccnf_put_attg(idnc,'do_co2_10um',ndo_co2_10um)
+    if ( do_quench ) then
+      ndo_quench = 1
+    else
+      ndo_quench = 0
+    end if
+    call ccnf_put_attg(idnc,'do_quench',ndo_quench)
     call ccnf_put_attg(idnc,'dustradmethod',dustradmethod)
     call ccnf_put_attg(idnc,'enhanceu10',enhanceu10)
     call ccnf_put_attg(idnc,'iceradmethod',iceradmethod)
@@ -688,6 +696,12 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mins_rad',mins_rad)
     call ccnf_put_attg(idnc,'o3_vert_interpolate',o3_vert_interpolate)
     call ccnf_put_attg(idnc,'qgmin',qgmin)
+    if ( remain_rayleigh_bug ) then
+      nremain_rayleigh_bug = 1
+    else
+      nremain_rayleigh_bug = 0
+    end if  
+    call ccnf_put_attg(idnc,'remain_rayleigh_bug',nremain_rayleigh_bug)
     call ccnf_put_attg(idnc,'saltlargemtn',saltlargemtn)
     call ccnf_put_attg(idnc,'saltsmallmtn',saltsmallmtn)
     call ccnf_put_attg(idnc,'seasaltradmethod',seasaltradmethod)
@@ -879,6 +893,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ocneps',ocneps)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
     call ccnf_put_attg(idnc,'omaxl',omaxl)
+    call ccnf_put_attg(idnc,'omineps',omineps)
+    call ccnf_put_attg(idnc,'omink',omink)
     call ccnf_put_attg(idnc,'ominl',ominl)
     call ccnf_put_attg(idnc,'otaumode',otaumode)
     call ccnf_put_attg(idnc,'rivercoeff',rivercoeff)
@@ -2774,7 +2790,7 @@ end if
 if ( itype/=-1 ) then  ! these not written to restart file  
   if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
     aa = 0.  
-    call mlodiag(aa,0)  
+    call mlodiag("mixdepth",aa,0,0)  
     call histwrt(aa,'mixdepth',idnc,iarch,local,lave)
   end if
 end if
@@ -2855,72 +2871,72 @@ if ( abs(iaero)>=2 .and. nrad==5 ) then
   end if
   if ( nextout>=1 .and. save_aerosols .and. itype/=-1 ) then
     do k = 1,ndust
-      aa = max(duste(:,k)*3.154e10,0.) ! g/m2/yr
+      aa = max(min(duste(:,k),1.e10)*3.154e10,0.) ! g/m2/yr
       write(vname,'("dust",I1.1,"e_ave")') k
       call histwrt(aa,trim(vname),idnc,iarch,local,lave)
     end do  
     do k = 1,ndust
-      aa=max(dustdd(:,k)*3.154e10,0.) ! g/m2/yr
+      aa=max(min(dustdd(:,k),1.e10)*3.154e10,0.) ! g/m2/yr
       write(vname,'("dust",I1.1,"dd_ave")') k
       call histwrt(aa,trim(vname),idnc,iarch,local,lave)
     end do
     do k = 1,ndust
-      aa=max(dustwd(:,k)*3.154e10,0.) ! g/m2/yr
+      aa=max(min(dustwd(:,k),1.e10)*3.154e10,0.) ! g/m2/yr
       write(vname,'("dust",I1.1,"wd_ave")') k
       call histwrt(aa,trim(vname),idnc,iarch,local,lave)
     end do  
     do k = 1,ndust
-      aa=max(dust_burden(:,k)*1.e6,0.) ! mg/m2
+      aa=max(min(dust_burden(:,k),1.e10)*1.e6,0.) ! mg/m2
       write(vname,'("dust",I1.1,"b_ave")') k
       call histwrt(aa,trim(vname),idnc,iarch,local,lave)
     end do  
-    aa=max(bce*3.154e10,0.) ! g/m2/yr
+    aa=max(min(bce,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'bce_ave',idnc,iarch,local,lave)
-    aa=max(bcdd*3.154e10,0.) ! g/m2/yr
+    aa=max(min(bcdd,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'bcdd_ave',idnc,iarch,local,lave)
-    aa=max(bcwd*3.154e10,0.) ! g/m2/yr
+    aa=max(min(bcwd,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'bcwd_ave',idnc,iarch,local,lave)
-    aa=max(bc_burden*1.e6,0.) ! mg/m2
+    aa=max(min(bc_burden,1.e10)*1.e6,0.) ! mg/m2
     call histwrt(aa,'bcb_ave',idnc,iarch,local,lave)
-    aa=max(oce*3.154e10,0.) ! g/m2/yr
+    aa=max(min(oce,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'oce_ave',idnc,iarch,local,lave)
-    aa=max(ocdd*3.154e10,0.) ! g/m2/yr
+    aa=max(min(ocdd,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'ocdd_ave',idnc,iarch,local,lave)
-    aa=max(ocwd*3.154e10,0.) ! g/m2/yr
+    aa=max(min(ocwd,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'ocwd_ave',idnc,iarch,local,lave)
-    aa=max(oc_burden*1.e6,0.) ! mg/m2
+    aa=max(min(oc_burden,1.e10)*1.e6,0.) ! mg/m2
     call histwrt(aa,'ocb_ave',idnc,iarch,local,lave)
-    aa=max(dmse*3.154e10,0.) ! gS/m2/yr (*1.938 for g/m2/yr)
+    aa=max(min(dmse,1.e10)*3.154e10,0.) ! gS/m2/yr (*1.938 for g/m2/yr)
     call histwrt(aa,'dmse_ave',idnc,iarch,local,lave)
-    aa=max(dmsso2o*3.154e10,0.) ! gS/m2/yr
+    aa=max(min(dmsso2o,1.e10)*3.154e10,0.) ! gS/m2/yr
     call histwrt(aa,'dmsso2_ave',idnc,iarch,local,lave)
-    aa=max(so2e*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
+    aa=max(min(so2e,1.e10)*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
     call histwrt(aa,'so2e_ave',idnc,iarch,local,lave)
-    aa=max(so2so4o*3.154e10,0.) ! gS/m2/yr
+    aa=max(min(so2so4o,1.e10)*3.154e10,0.) ! gS/m2/yr
     call histwrt(aa,'so2so4_ave',idnc,iarch,local,lave)
-    aa=max(so2dd*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
+    aa=max(min(so2dd,1.e10)*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
     call histwrt(aa,'so2dd_ave',idnc,iarch,local,lave)
-    aa=max(so2wd*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
+    aa=max(min(so2wd,1.e10)*3.154e10,0.) ! gS/m2/yr (*2. for g/m2/yr)
     call histwrt(aa,'so2wd_ave',idnc,iarch,local,lave)
-    aa=max(so4e*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
+    aa=max(min(so4e,1.e10)*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
     call histwrt(aa,'so4e_ave',idnc,iarch,local,lave)
-    aa=max(so4dd*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
+    aa=max(min(so4dd,1.e10)*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
     call histwrt(aa,'so4dd_ave',idnc,iarch,local,lave)
-    aa=max(so4wd*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
+    aa=max(min(so4wd,1.e10)*3.154e10,0.) ! gS/m2/yr (*3. for g/m2/yr)
     call histwrt(aa,'so4wd_ave',idnc,iarch,local,lave)
-    aa=max(dms_burden*1.e6,0.) ! mgS/m2
+    aa=max(min(dms_burden,1.e10)*1.e6,0.) ! mgS/m2
     call histwrt(aa,'dmsb_ave',idnc,iarch,local,lave)
-    aa=max(so2_burden*1.e6,0.) ! mgS/m2
+    aa=max(min(so2_burden,1.e10)*1.e6,0.) ! mgS/m2
     call histwrt(aa,'so2b_ave',idnc,iarch,local,lave)
-    aa=max(so4_burden*1.e6,0.) ! mgS/m2
+    aa=max(min(so4_burden,1.e10)*1.e6,0.) ! mgS/m2
     call histwrt(aa,'so4b_ave',idnc,iarch,local,lave)
-    aa=max(salte*3.154e10,0.) ! g/m2/yr
+    aa=max(min(salte,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'salte_ave',idnc,iarch,local,lave)
-    aa=max(saltdd*3.154e10,0.) ! g/m2/yr
+    aa=max(min(saltdd,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'saltdd_ave',idnc,iarch,local,lave)
-    aa=max(saltwd*3.154e10,0.) ! g/m2/yr
+    aa=max(min(saltwd,1.e10)*3.154e10,0.) ! g/m2/yr
     call histwrt(aa,'saltwd_ave',idnc,iarch,local,lave)
-    aa=max(salt_burden*1.e6,0.) ! mg/m2
+    aa=max(min(salt_burden,1.e10)*1.e6,0.) ! mg/m2
     call histwrt(aa,'saltb_ave',idnc,iarch,local,lave)
   end if  
 end if

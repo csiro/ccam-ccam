@@ -94,16 +94,18 @@ real fcol, fr, alph
 logical :: mydiag_t
 
 
+!----------------------------------------------------------------------------
+! Prepare inputs for cloud microphysics
+
+
 #ifdef GPUPHYSICS
-!$acc enter data create(cdrop,dz,rhoa,clcon,stratcloud)
+!$acc enter data create(stratcloud,clcon,cdrop,nettend,rkmsave,rkhsave,ktsav,kbsav)
+!$acc update device(ktsav,kbsav)
 !$acc update device(stratcloud) async(1)
 #endif
 
 
-!----------------------------------------------------------------------------
-! Prepare inputs for cloud microphysics
-
-!$omp do schedule(static) private(js,je,k,lrhoa,lcdrop,lclcon)
+!$omp do schedule(static) private(js,je,k,lrhoa,lcdrop)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -122,25 +124,20 @@ end do
 !$omp end do nowait
 
 
-#ifdef GPUPHYSICS
-!$acc update device(cdrop,rhoa,dz) async(1)
-#endif
-
 #ifndef GPU
-!$omp do schedule(static) private(js,je,k,lrhoa,lcdrop,lclcon)
+!$omp do schedule(static) private(js,je,lclcon)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop present(clcon,kbsav,ktsav,condc) &
-!$acc   private(lclcon,js,je)
+!$acc wait(1)
+!$acc update device(cdrop) async(1)
+!$acc parallel loop copyin(condc) present(ktsav,kbsav,clcon) private(js,je,lclcon)
 #endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
-
   ! Calculate convective cloud fraction
   call convectivecloudfrac(lclcon,kbsav(js:je),ktsav(js:je),condc(js:je),acon,bcon)
   clcon(js:je,:) = lclcon(:,:)
-  
 end do
 #ifndef GPU
 !$omp end do nowait
@@ -154,21 +151,24 @@ end do
 ! Update cloud fraction
 
 #ifndef GPU
-!$omp do schedule(static) private(js,je),                                      &
-!$omp private(lcfrac),                                                         &
+!$omp do schedule(static) private(js,je,lcfrac),                               &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt),                          &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),   &
 !$omp private(idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
 !$acc wait(1)
-!$acc parallel loop copy(nettend,rkmsave,rkhsave)                             &
-!$acc   copyout(qlrad,qfrad,qccon,cfrac)                                      &
-!$acc   present(qg,qlg,qfg,dpsldt,t,stratcloud)                               &
-!$acc   present(land,ps,em,pblh,cdrop,clcon)                                  &
-!$acc   private(js,je,idjd_t,mydiag_t,lcfrac,lqg,lqlg,lqfg,lqlrad,lqfrad,lt)  &
-!$acc   private(ldpsldt,lclcon,lcdrop,lstratcloud,lnettend,lrkmsave,lrkhsave) &
-!$acc   private(lqccon)
+if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
+  !$acc update device(nettend,rkmsave,rkhsave)
+endif
+!$acc parallel loop copyout(qlrad,qfrad,cfrac,qccon)                &
+!$acc   present(qg,qlg,qfg,t,dpsldt,cdrop,stratcloud,clcon)         &
+!$acc   present(nettend,rkmsave,rkhsave)                            &
+!$acc   present(land,ps,em,pblh)                                    &
+!$acc   private(js,je,idjd_t,mydiag_t)                              &
+!$acc   private(lqg,lqlg,lqfg,lt,ldpsldt,lclcon,lcdrop,lstratcloud) &
+!$acc   private(lnettend,lrkmsave,lrkhsave,lcfrac,lqccon,lqlrad)    &
+!$acc   private(lqfrad)
 #endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
@@ -180,8 +180,6 @@ do tile = 1,ntiles
   lqg      = qg(js:je,:)
   lqlg     = qlg(js:je,:)
   lqfg     = qfg(js:je,:)
-  lqlrad   = qlrad(js:je,:)
-  lqfrad   = qfrad(js:je,:)
   lt       = t(js:je,:)
   ldpsldt  = dpsldt(js:je,:)
   lclcon   = clcon(js:je,:)
@@ -197,7 +195,7 @@ do tile = 1,ntiles
               ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                         &
               ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(js:je),pblh(js:je),idjd_t, &
               mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
-              vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,imax,kl)
+              vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
 
   cfrac(js:je,:) = lcfrac
   qccon(js:je,:) = lqccon
@@ -217,6 +215,9 @@ end do
 #endif
 #ifdef GPUPHYSICS
 !$acc end parallel loop
+if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
+  !$acc update self(nettend)
+end if
 #endif
 
 
@@ -237,11 +238,14 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
+    !$acc update device(qg,qlg,qfg,t)
     !$acc parallel loop copy(qgrg,qrg,qsng,gfrac,rfrac,sfrac)                   &
+    !$acc   copyin(dz,rhoa)                                                     &
     !$acc   copyout(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)      &
     !$acc   copyout(fcoll,faccr,vi)                                             &
-    !$acc   present(qg,qlg,qfg,t,cdrop,stratcloud,dz,rhoa)                      &
-    !$acc   present(condg,conds,condx,precip,ktsav,ps)                          &
+    !$acc   present(qg,qlg,qfg,t)                                               &
+    !$acc   present(cdrop,stratcloud,ktsav)                                     &
+    !$acc   present(condg,conds,condx,precip,ps)                                &
     !$acc   private(js,je,idjd_t,mydiag_t,lgfrac,lrfrac,lsfrac,lqg,lqlg,lqfg)   &
     !$acc   private(lstratcloud,lcdrop,lt)                                      &
     !$acc   private(lqgrg,lqrg,lqsng,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg) &
@@ -326,7 +330,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 
   case("LIN")
 #ifdef GPUPHYSICS
-    !$acc update self(qg,qlg,qfg,t,stratcloud)
+    !$acc update self(qg,qlg,qfg,t)
 #endif  
     if ( myid==0 ) then
       write(6,*) "LIN microphysics ",ncloud
@@ -334,7 +338,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     end if
     call ccmpi_abort(-1)
 #ifdef GPUPHYSICS
-    !$acc update device(qg,qlg,qfg,t,stratcloud)
+    !$acc update device(qg,qlg,qfg,t)
 #endif      
       
   case default
@@ -427,8 +431,8 @@ end if     ! abs(iaero)>=2
 
 #ifdef GPUPHYSICS
 !$acc wait(1)
-!$acc exit data delete(cdrop,dz,rhoa,clcon,stratcloud)
-#endif  
+!$acc exit data delete(stratcloud,clcon,cdrop,nettend,rkmsave,rkhsave,ktsav)
+#endif
 
 
   !! Estimate cloud droplet size

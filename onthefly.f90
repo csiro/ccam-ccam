@@ -339,7 +339,7 @@ use infile                                     ! Input file routines
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
 use mlo, only : wlev,micdwn,mloregrid,wrtemp, &
-    mloexpdep,mink,mineps,oclosure,mloimport   ! Ocean physics and prognostic arrays
+    mloexpdep,omink,omineps,oclosure,mloimport ! Ocean physics and prognostic arrays
 use mlodynamics                                ! Ocean dynamics
 use mlodynamicsarrays_m                        ! Ocean dynamics data
 use mlostag                                    ! Ocean dynamics staggering
@@ -1122,8 +1122,8 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     mlodwn(1:ifull,k,4) = 0.      ! voc
     mlodwn(1:ifull,k,5) = 0.      ! km
     mlodwn(1:ifull,k,6) = 0.      ! ks
-    mlodwn(1:ifull,k,7) = mink    ! tke
-    mlodwn(1:ifull,k,8) = mineps  ! eps
+    mlodwn(1:ifull,k,7) = omink   ! tke
+    mlodwn(1:ifull,k,8) = omineps ! eps
   end do  
   if ( mlo_found ) then
     ! ocean potential temperature

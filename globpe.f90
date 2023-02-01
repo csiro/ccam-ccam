@@ -532,7 +532,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! MJT notes - the physics OpenACC code requires a larger heapsize like
   ! export PGI_ACC_CUDA_HEAPSIZE=268435456 and maxtilesize=32
   !$acc data create(t,u,v,qg,qlg,qfg)                              &
-  !$acc   create(kbsav,ktsav,condc,condx,conds,condg)              &
+  !$acc   create(condx,conds,condg)                                &
   !$acc   create(dpsldt,ps,pblh,land,em)                           &
   !$acc   create(precip)
   !$acc update device(t,u,v) async(0)
@@ -659,12 +659,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 #ifdef GPUPHYSICS
   !updated t,u,v,qg,qlg,qfg
-  !updated kbsav,ktsav,condc,condx,conds,condg
+  !updated condx,conds,condg
   !updated precc,precip
-  !updated fluxtot,cape,convpsav
-  !updated xtg,dustwd,so2wd,so4wd,bcwd,ocwd,saltwd
-  !updated tr
   !$acc wait(0)
+  !$acc update self(t)
 #endif
 
 
@@ -696,14 +694,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 
 #ifdef GPUPHYSICS
-  !updated t,qg,qlg,qfg,stratcloud
+  !updated t,qg,qlg,qfg
   !updated condg,conds,condx,precip
-  !updated cfrac,qlrad,qfrad,qccon
-  !updated nettend,rkmsave,rkhsave
-  !updated ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,pplambs,ppmaccr
-  !updated ppmrate,ppqfsedice,pprfreeze,pprscav
   !$acc update self(u,v)
-  !$acc update self(kbsav,ktsav,condc,condx,conds,condg)
+  !$acc update self(condx,conds,condg)
   !$acc update self(t,qg,qlg,qfg)
   !$acc update self(precip)
   !$acc end data
@@ -1451,8 +1445,8 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,otaumode,mlosigma,wlev,oclosure     &
     ,pdl,pdu,k_mode,eps_mode             &
     ,limitL,fixedce3,nops                &
-    ,nopb,fixedstabfunc,omink => mink    &
-    ,omineps => mineps,mlovlevels        &
+    ,nopb,fixedstabfunc,omink            &
+    ,omineps,mlovlevels                  &
     ,usepice,ominl,omaxl                 &
     ,mlo_timeave_length,kemaxdt
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
@@ -1582,6 +1576,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
+    do_quench,remain_rayleigh_bug,                                &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,enhanceu10,aerosol_u10,aero_split,               &
     o3_vert_interpolate,                                          & ! ozone
@@ -2051,7 +2046,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(10), dumi(13) )
+allocate( dumr(10), dumi(15) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2079,6 +2074,8 @@ if ( myid==0 ) then
   dumi(11) = aerosol_u10  
   dumi(12) = aero_split
   dumi(13) = enhanceu10
+  if ( do_quench ) dumi(14) = 1
+  if ( remain_rayleigh_bug ) dumi(15) = 1
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2109,6 +2106,8 @@ do_co2_10um         = dumi(10)==1
 aerosol_u10         = dumi(11)
 aero_split          = dumi(12)
 enhanceu10          = dumi(13)
+do_quench           = dumi(14)==1
+remain_rayleigh_bug = dumi(15)==1
 deallocate( dumr, dumi )
 allocate( dumi(25) )
 dumi = 0

@@ -96,14 +96,14 @@ logical, save ::  do_quench = .false.             ! include the quenching
                                                   ! effect of non-LTE 
                                                   ! processes on the co2 
                                                   ! optical depth ?
-logical, save ::  do_h2o_sw_effects = .true.      ! the shortwave effects
-                                                  ! of h2o are included ?
-logical, save ::  do_o3_sw_effects =  .true.      ! the shortwave effects
-                                                  ! of o3 are included ?
-logical, save ::  do_co2_sw_effects = .true.      ! the shortwave effects
-                                                  ! of co2 are included ?                                         
-logical, save ::  do_o2_sw_effects = .true.       ! the shortwave effects
-                                                  ! of o2 are included ?
+!logical, save ::  do_h2o_sw_effects = .true.     ! the shortwave effects
+!                                                 ! of h2o are included ?
+!logical, save ::  do_o3_sw_effects =  .true.     ! the shortwave effects
+!                                                 ! of o3 are included ?
+!logical, save ::  do_co2_sw_effects = .true.     ! the shortwave effects
+!                                                 ! of co2 are included ?                                         
+!logical, save ::  do_o2_sw_effects = .true.      ! the shortwave effects
+!                                                 ! of o2 are included ?
 logical, save ::  do_ch4_sw_effects = .true.      ! the shortwave effects
                                                   ! of ch4 are included ?
 logical, save ::  do_n2o_sw_effects = .true.      ! the shortwave effects
@@ -113,7 +113,7 @@ logical, save ::  do_sw_continuum =  .false.      ! include the shortwave
 logical, save ::  do_rayleigh     = .true.        ! is rayleigh scattering
                                                   ! turned on?
 logical, save ::  reproduce_ulm   = .true.        ! reproduce ulm code
-logical, save ::  do_four_stream  = .false.       !
+!logical, save ::  do_four_stream  = .false.       !
                            
 logical, save ::  remain_rayleigh_bug   = .true.
 !---------------------------------------------------------------------
@@ -170,7 +170,7 @@ real, save                                 :: c1o2strschrun, c2o2strschrun,   &
 real, dimension (:), allocatable, save     :: kh2o, ko3, wtfreq
 logical, dimension(:), allocatable, save   :: strterm
 
-real, dimension (:), allocatable, save     :: kctms, kctmf
+!real, dimension (:), allocatable, save     :: kctms, kctmf
 real, dimension (:), allocatable, save     :: powpco2, p0co2
 real, dimension (:,:), allocatable, save   :: kco2, wtfreqco2
 integer, dimension (:), allocatable, save  :: nfreqptsco2
@@ -2201,13 +2201,22 @@ subroutine esfsw_driver_init
           totco2max(n) = 0.0                                            
           totco2strmax(n) = 0.0
         endif
+        
         if (c1o2(n) /= input_flag .and.   &
             c2o2(n) /= input_flag .and.   &
             c3o2(n) /= input_flag ) then
           c4o2(n) = c1o2(n) * c2o2(n) ** c3o2(n)
-          c4o2str(n) = c1o2str(n) * c2o2str(n) ** c3o2str(n)
           toto2max(n) = ( (1.0/c1o2(n) ) + c2o2(n) ** c3o2(n) ) ** &
                           (1.0/c3o2(n) ) - c2o2(n)
+        else
+          c4o2(n) = 0.0                              
+          toto2max(n) = 0.0                                            
+        endif
+        
+        if (c1o2(n) /= input_flag .and.   &
+            c2o2(n) /= input_flag .and.   &
+            c3o2(n) /= input_flag ) then
+          c4o2str(n) = c1o2str(n) * c2o2str(n) ** c3o2str(n)
           if (nbands == 18) then
             if ( n /= 4) then
               toto2strmax(n) = ( (1.0/c1o2str(n) ) + c2o2str(n) ** &
@@ -2222,11 +2231,10 @@ subroutine esfsw_driver_init
                                 c2o2str(n)
           endif
         else
-          c4o2(n) = 0.0                              
           c4o2str(n) = 0.0
-          toto2max(n) = 0.0                                            
           toto2strmax(n) = 0.0
         endif
+        
     if (do_ch4_sw_effects) then
         if (c1ch4(n) /= input_flag .and.  &
             c2ch4(n) /= input_flag .and.  &
@@ -2720,10 +2728,17 @@ integer,                       intent(in)    :: naerosol_optical
 !--------------------------------------------------------------------
 !    define the rayleigh optical depths.                                
 !---------------------------------------------------------------------
-      do nband = 1, NBANDS
-        rayopdep(:,:,:,nband) = betaddensitymol(nband)*  &
+      if (do_rayleigh) then
+        do nband = 1, NBANDS          
+          rayopdep(:,:,:,nband) = betaddensitymol(nband)*  &
                                         densitymol(:,:,:)*deltaz(:,:,:)
-      end do   ! (nband loop)
+        end do  
+      else 
+        do nband = 1, NBANDS          
+          rayopdep(:,:,:,nband) = 1.e-6*betaddensitymol(nband)*  &
+                                          densitymol(:,:,:)*deltaz(:,:,:)
+        end do  
+      endif
 
       nzens = Rad_control%nzens
 
@@ -4244,6 +4259,9 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
 !     local variables:
  
 
+!      real, dimension (size(Atmos_input%temp,1),size(Atmos_input%temp,2),size(Atmos_input%temp,3)-1)  :: &
+!                   wh2octms,   wh2octmf 
+
       real, dimension (size(Atmos_input%temp,1),size(Atmos_input%temp,2),size(Atmos_input%temp,3)-1)  :: &
                    deltaz,     qo3,         rh2o,                    &
                    efftauo2,   efftauco2,   efftauch4,   efftaun2o, &
@@ -4431,7 +4449,21 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
               wh2o(:,:,k) = rh2o(:,:,k)*delpdig(:,:,k)*   &
                   exp(powph2o(nband)*alog(press(:,:,k)*p0h2o(nband)))
             end do
- 
+
+!            if (do_sw_continuum) then 
+!              do k = KSRAD,KERAD
+!                do j = jsrad,jerad
+!                  do i = israd,ierad                  
+!                    wh2octms(i,j,k) = (h2o_conv/0.622)*press(i,j,k)*rh2o(i,j,k)**2 &
+!                          *delpdig(i,j,k)*exp(1500.*((1./temp(i,j,k)) -3.38E-3))&
+!                          *(296./temp(i,j,k))
+!                     wh2octmf(i,j,k) = h2o_conv*press(i,j,k)*rh2o(i,j,k)&
+!                          *delpdig(i,j,k)*(296./temp(i,j,k)) - wh2octms(i,j,k)     
+!                  end do
+!                end do  
+!              end do
+!            end if  
+            
 !---------------------------------------------------------------------
 !    calculate the "effective" co2, o2, ch4 and n2o gas optical depths 
 !    for the appropriate absorbing bands.                               
@@ -4625,35 +4657,73 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
             end if
           end if
 
-          do nf = 1,nfreqpts(nband)
-            np = np + 1
+!          if ( do_sw_continuum ) then
+!          
+!            do nf = 1,nfreqpts(nband)
+!              np = np + 1
+!
+!              if (strterm(np)) then
+!                do k = ksrad,kerad
+!!---------------------------------------------------------------------
+!!    define the h2o + o3 gas optical depths.                           
+!!--------------------------------------------------------------------
+!                  where ( daylight )
+!                    gasopdep(:,:,k,np,ng) =    &
+!                             kh2o(np)*wh2ostr(:,:,k) + ko3(np)*wo3(:,:,k) + & 
+!                             quenchfac(:,:,k)*efftauco2(:,:,k) +            &
+!                             efftauo2(:,:,k) + efftauch4(:,:,k) + efftaun2o(:,:,k) &
+!                             + wh2octms(:,:,k)*kctms(np) + wh2octmf(:,:,k)*kctmf(np)
+!                  end where
+!                end do ! (k loop)
+!              else
+!                do k = ksrad,kerad
+!!---------------------------------------------------------------------
+!!    define the h2o + o3 gas optical depths.                           
+!!--------------------------------------------------------------------
+!                  where ( daylight )
+!                    gasopdep(:,:,k,np,ng) =    &
+!                             kh2o(np)*wh2o(:,:,k) + ko3(np)*wo3(:,:,k) + &
+!                             quenchfac(:,:,k)*efftauco2(:,:,k) +         &
+!                             efftauo2(:,:,k) + efftauch4(:,:,k) + efftaun2o(:,:,k) &
+!                             + wh2octms(:,:,k)*kctms(np) + wh2octmf(:,:,k)*kctmf(np)
+!                  end where
+!                end do ! (k loop)
+!              end if  ! strterm(np)
+!            end do  ! (nf loop)
+!              
+!          else    
+              
+            do nf = 1,nfreqpts(nband)
+              np = np + 1
 
-            if (strterm(np)) then
-              do k = ksrad,kerad
+              if (strterm(np)) then
+                do k = ksrad,kerad
 !---------------------------------------------------------------------
 !    define the h2o + o3 gas optical depths.                           
 !--------------------------------------------------------------------
-                where ( daylight )
-                  gasopdep(:,:,k,np,ng) =    &
-                           kh2o(np)*wh2ostr(:,:,k) + ko3(np)*wo3(:,:,k) + & 
-                           quenchfac(:,:,k)*efftauco2(:,:,k) +            &
-                           efftauo2(:,:,k) + efftauch4(:,:,k) + efftaun2o(:,:,k)
-                end where
-              end do ! (k loop)
-            else
-              do k = ksrad,kerad
+                  where ( daylight )
+                    gasopdep(:,:,k,np,ng) =    &
+                             kh2o(np)*wh2ostr(:,:,k) + ko3(np)*wo3(:,:,k) + & 
+                             quenchfac(:,:,k)*efftauco2(:,:,k) +            &
+                             efftauo2(:,:,k) + efftauch4(:,:,k) + efftaun2o(:,:,k)
+                  end where
+                end do ! (k loop)
+              else
+                do k = ksrad,kerad
 !---------------------------------------------------------------------
 !    define the h2o + o3 gas optical depths.                           
 !--------------------------------------------------------------------
-                where ( daylight )
-                  gasopdep(:,:,k,np,ng) =    &
-                           kh2o(np)*wh2o(:,:,k) + ko3(np)*wo3(:,:,k) + &
-                           quenchfac(:,:,k)*efftauco2(:,:,k) +         &
-                           efftauo2(:,:,k) + efftauch4(:,:,k) + efftaun2o(:,:,k)
-                end where
-              end do ! (k loop)
-            end if  ! strterm(np)
-          end do  ! (nf loop)
+                  where ( daylight )
+                    gasopdep(:,:,k,np,ng) =    &
+                             kh2o(np)*wh2o(:,:,k) + ko3(np)*wo3(:,:,k) + &
+                             quenchfac(:,:,k)*efftauco2(:,:,k) +         &
+                             efftauo2(:,:,k) + efftauch4(:,:,k) + efftaun2o(:,:,k)
+                  end where
+                end do ! (k loop)
+              end if  ! strterm(np)
+            end do  ! (nf loop)
+            
+!          end if  ! do_sw_continuum
           
         end do   ! (nband loop)
       end do  ! (ng loop)
