@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -140,7 +140,7 @@ real, dimension(ifull,5) :: duma
 real, dimension(ifull,6) :: ocndwn
 real, dimension(ifull,wlev,8) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
-real, dimension(ifull,kl,9) :: dumb
+real, dimension(ifull,kl,12) :: dumb
 real, dimension(ifull,ms,3) :: dumca
 real, dimension(ifull,3,3) :: dumi
 real, dimension(ifull,3) :: dums
@@ -954,6 +954,7 @@ if ( io_in<4 ) then
   if ( abs(io_in)==1 ) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &
                   qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsng,qgrg,     &
+                  ni,nr,ns,                                        &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
                   ocndwn,xtgdwn)
     ! UPDATE BIOSPHERE DATA (nsib)
@@ -1489,7 +1490,8 @@ if ( .not.lrestart ) then
       call onthefly(2,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),duma(:,4),    &
                     duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),            &
                     dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),dumb(:,:,6),   &
-                    dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),tggsn,smass,ssdn,     &
+                    dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumb(:,:,10),         &
+                    dumb(:,:,11),dumb(:,:,12),tggsn,smass,ssdn,               &
                     ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
       ! UPDATE BIOSPHERE DATA (nsib)
       if ( nsib==6 .or. nsib==7 ) then
@@ -1559,7 +1561,8 @@ if ( .not.lrestart ) then
                   duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),          &
                   dumb(:,:,4),dumca(:,:,1),dumca(:,:,2),dumca(:,:,3),     &
                   dums(:,1),dumb(:,:,5),dumb(:,:,6),                      &
-                  dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumi(:,:,1),        &
+                  dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumb(:,:,10),       &
+                  dumb(:,:,11),dumb(:,:,12),dumi(:,:,1),                  &
                   dumi(:,:,2),dumi(:,:,3),                                &
                   dums(:,2),dums(:,3),dumf,mlodwn,ocndwn,xtgdwn)
     call histclose

@@ -40,7 +40,7 @@ public leap,nbarewet,nsigmf,qg_fix
 public qgmin, zo_clearing
 public av_vmod, vmodmin, snmin, tss_sh, charnock, chn10, zobgin
 public rlongdn, rlongdx, rlatdn, rlatdx, ds, dt, dtin, panfg, panzo
-public bpyear, helim, fc2, sigbot_gwd, alphaj, divdamp
+public bpyear, helim, fc2, sigbot_gwd, alphaj, divdamp, use_rad_year, rad_year
 public sigramplow, sigramphigh, amxlsq, dvmodmin, siburbanfrac, cqmix
 public intsch_mode
 public diag, synchist, amipo3
@@ -69,7 +69,7 @@ integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tbave=1, tbave1
 integer, save :: nurban=0, nmr=0, nmlo=0, ktopdav=0, nud_sst=0, nud_sss=0, kbotmlo=-1000, ktopmlo=1
 integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, iaero=0
 integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000
-integer, save :: leap=0, nbarewet=0, nsigmf=1, qg_fix=2
+integer, save :: leap=0, nbarewet=0, nsigmf=1, qg_fix=2, rad_year=0
 integer, save :: procmode=0, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
 integer, save :: nstagin=0, nstaguin=0, intsch_mode=-1
@@ -87,13 +87,16 @@ real, save :: sigramplow=0., sigramphigh=0., amxlsq=100., dvmodmin=1., siburbanf
 real, save :: ensemble_rsfactor=0.1
 real, save :: siglow=0.68, sigmid=0.44
 real, save :: wgcoeff=-1., wg_tau=3., wg_prob=0.5
-logical, save :: diag=.false., synchist=.false., amipo3=.false.
+logical, save :: diag=.false., synchist=.false., amipo3=.false., use_rad_year=.false.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.
 
-!$acc declare create(alphaj,dt,fc2,vmodmin,sigbot_gwd,ds)
-!$acc declare create(qgmin,iaero)
+!$acc declare create(dt,qgmin,iaero)
 !$acc declare create(nmr)
+!$acc declare create(ds)
+#ifdef GPUPHYSICS
+!$acc declare create(alphaj,fc2,vmodmin,sigbot_gwd)
+#endif
 
 end module parm_m

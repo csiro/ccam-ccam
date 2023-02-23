@@ -1243,6 +1243,13 @@ fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
+
+! Define radiative forcing date
+if ( use_rad_year ) then
+  jyear = rad_year
+end if
+
+
 ! initialise co2
 call co2_read(sig,jyear,csolar)
 rrco2 = rrvco2*ratco2mw

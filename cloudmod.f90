@@ -64,7 +64,6 @@ subroutine update_cloud_fraction(cfrac,land,                                    
                     dpsldt,nettend,stratcloud,clcon,cdrop,em,pblh,idjd,mydiag,      &
                     ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
                     vdeposition_mode,tiedtke_form,rkmsave,rkhsave)
-!$acc routine vector
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -287,7 +286,6 @@ subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
                     mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
                     cld_decay,vdeposition_mode,tiedtke_form,  &
                     rkmsave,rkhsave,imax,kl)
-!$acc routine vector
 
 ! This routine is part of the prognostic cloud water scheme
 
@@ -657,7 +655,7 @@ if ( vdeposition_mode==0 ) then
         qfdep     = min(qfdep, qlg(iq,k))
         qlg(iq,k) = qlg(iq,k) - qfdep
         qfg(iq,k) = qfg(iq,k) + qfdep
-        fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
+        fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-20)
       end if
     end do
   end do
@@ -724,7 +722,6 @@ end subroutine newcloud
 subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rcrit, &
                      dpsldt,nettend,stratcloud,tiedtke_form, &
                      rkmsave,rkhsave,imax,kl)
-!$acc routine vector
 
 use const_phys                    ! Physical constants
 use parm_m, only : qgmin          ! Model configuration
@@ -899,7 +896,6 @@ return
 end subroutine progcloud
 
 subroutine convectivecloudfrac(clcon,kbsav,ktsav,condc,acon,bcon,cldcon)
-!$acc routine vector
 
 use parm_m           ! Model configuration
 

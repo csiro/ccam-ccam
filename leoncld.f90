@@ -101,7 +101,9 @@ subroutine leoncld_work(condg,conds,condx,gfrac,ktsav,                          
                         stratcloud,cdrop,fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,qevap,     &
                         qsubl,qauto,qcoll,qaccr,vi,                                     &
                         idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -408,7 +410,9 @@ subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,ttg,qlg,qfg,qrg,qsng,qgrg,precs,
 #endif
                        vi,                                                                                &
                        condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function

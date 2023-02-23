@@ -98,7 +98,7 @@ integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, kdhour, kdmin, kddate
 integer khour_r, kmin_r, khour, kmin
 integer :: num=0
-real, dimension(ifull,kl,5) :: dumv
+real, dimension(ifull,kl,8) :: dumv
 real, dimension(ifull,wlev,4) :: dumaa
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,3,3) :: dums
@@ -136,6 +136,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
                     duma(:,1),dumv(:,:,1),dumv(:,:,2),            & !unused
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          & !unused
+                    dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          & !unused
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                     duma(:,2),duma(:,3),dumm,                     & !unused
                     sssb,ocndep,xtghostb)
@@ -182,6 +183,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
                   duma(:,1),dumv(:,:,1),dumv(:,:,2),            & !unused
                   dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          & !unused
+                  dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          & !unused
                   dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                   duma(:,2),duma(:,3),dumm,                     & !unused
                   sssb,ocndep,xtghostb)
@@ -358,7 +360,7 @@ integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, ntr
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
 real, dimension(ifull,kl,naero) :: xtghostc
-real, dimension(ifull,kl,5) :: dumv
+real, dimension(ifull,kl,8) :: dumv
 real, dimension(ifull,wlev,4) :: sssc
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,3,3) :: dums
@@ -399,6 +401,7 @@ if ( mtimer>mtimeb ) then
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
                     duma(:,1),dumv(:,:,1),dumv(:,:,2),            & !unused
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          & !unused
+                    dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          & !unused
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                     duma(:,2),duma(:,3),dumm,                     & !unused
                     sssb,ocndep,xtghostb)
@@ -446,6 +449,7 @@ if ( mtimer>mtimeb ) then
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
                   duma(:,1),dumv(:,:,1),dumv(:,:,2),            & !unused
                   dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          & !unused
+                  dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          & !unused
                   dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                   duma(:,2),duma(:,3),dumm,                     & !unused
                   sssb,ocndep,xtghostb)

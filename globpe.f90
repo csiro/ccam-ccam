@@ -264,17 +264,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! START ATMOSPHERE DYNAMICS
   ! ***********************************************************************
 
+  call nantest("before atmosphere dynamics",1,ifull,"all")
 
   ! NESTING ---------------------------------------------------------------
   if ( nbd/=0 ) then
     ! Newtonian relaxiation
     call START_LOG(nestin_begin)
-    call nantest("before nesting",1,ifull)
     call nestin
-    call nantest("after nesting",1,ifull)
     call END_LOG(nestin_end)
-  else
-    call nantest("before atmosphere dynamics",1,ifull)
+    call nantest("after nesting",1,ifull,"nesting")
   end if
 
 
@@ -426,7 +424,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
     ! check for rounding errors
     call fixqg(1,ifull)
-    call nantest("after atmosphere dynamics",1,ifull)
+    call nantest("after atmosphere dynamics",1,ifull,"dynamics")
       
       
     ! NESTING ---------------------------------------------------------------
@@ -436,14 +434,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
         ! scale-selective filter
         call START_LOG(nestin_begin)
         call nestinb
-        call nantest("after nesting",1,ifull)      
         call END_LOG(nestin_end)
+        call nantest("after nesting",1,ifull,"nesting")        
       else if ( nbd/=0 ) then
         ! Newtonian relaxiation
         call START_LOG(nestin_begin)
         call davies
-        call nantest("after nesting",1,ifull)      
         call END_LOG(nestin_end)
+        call nantest("after nesting",1,ifull,"nesting")        
       end if
     end if
     
@@ -462,13 +460,12 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! HORIZONTAL DIFFUSION ----------------------------------------------------
   if ( nhor<0 ) then
     call START_LOG(hordifg_begin) 
-    call nantest("before atm horizontal diffusion",1,ifull) 
     call hordifgt
     if ( diag .and. mydiag ) then
       write(6,*) 'after hordifgt t ',t(idjd,:)
     end if
-    call nantest("after atm horizontal diffusion",1,ifull)    
     call END_LOG(hordifg_end)
+    call nantest("after atm horizontal diffusion",1,ifull,"dynamics")        
   end if  
 
     
@@ -528,15 +525,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call START_LOG(phys_begin)
 
 
-#ifdef GPUPHYSICS
   ! MJT notes - the physics OpenACC code requires a larger heapsize like
   ! export PGI_ACC_CUDA_HEAPSIZE=268435456 and maxtilesize=32
-  !$acc data create(t,u,v,qg,qlg,qfg)                              &
-  !$acc   create(condx,conds,condg)                                &
-  !$acc   create(dpsldt,ps,pblh,land,em)                           &
-  !$acc   create(precip)
-  !$acc update device(t,u,v) async(0)
-#endif  
 
     
   ! MISC (SINGLE) ---------------------------------------------------------
@@ -577,40 +567,25 @@ do ktau = 1,ntau   ! ****** start of main time loop
     if ( abs(iaero)>=2 ) then
       xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
     end if
-    call nantest("start of physics",js,je)
+    call nantest("start of physics",js,je,"all")
   end do  
   !$omp end do nowait
 
-  
-#ifdef GPUPHYSICS
-  !$acc wait(0)
-  !$acc update device(dpsldt,ps,pblh,land,em) async(0)
-  !$acc update device(qg,qlg,qfg) async(0)
-  !$acc update device(precip) async(0)
-#endif  
-  
+    
   
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
   if ( ngwd<0 ) then
     call gwdrag  ! <0 for split - only one now allowed
   end if
-#ifndef GPUPHYSICS
+  call END_LOG(gwdrag_end)
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    call nantest("after gravity wave drag",js,je)
+    call nantest("after gravity wave drag",js,je,"gwdrag")
   end do  
   !$omp end do nowait
-#endif
-  call END_LOG(gwdrag_end)
-
-
-#ifdef GPUPHYSICS
-  !updated u,v
-  !$acc wait(0)
-#endif
 
 
   ! CONVECTION ------------------------------------------------------------
@@ -630,40 +605,24 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! Select convection scheme
   select case ( nkuo )
     case(5)
-#ifndef GPUPHYSICS   
       !$omp barrier  
       !$omp single  
       call betts(t,qg,tn,land,ps) ! not called these days
       !$omp end single
-#else
-      write(6,*) "ERROR: nkuo=5 is not supported for GPUs"
-      call ccmpi_abort(-1)
-#endif
     case(21,22)
       call convjlm22              ! split convjlm 
     case(23,24)
       call convjlm                ! split convjlm 
   end select
-#ifndef GPUPHYSICS    
+  call END_LOG(convection_end)
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
     call fixqg(js,je)
-    call nantest("after convection",js,je)
+    call nantest("after convection",js,je,"conv")
   end do  
   !$omp end do nowait
-#endif
-  call END_LOG(convection_end)
-
-
-#ifdef GPUPHYSICS
-  !updated t,u,v,qg,qlg,qfg
-  !updated condx,conds,condg
-  !updated precc,precip
-  !$acc wait(0)
-  !$acc update self(t)
-#endif
 
 
   ! CLOUD MICROPHYSICS ----------------------------------------------------
@@ -681,34 +640,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
   end do  
   !$omp end do nowait
-#ifndef GPUPHYSICS
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    call nantest("after cloud microphysics",js,je) 
-  end do  
-  !$omp end do nowait
-#endif
   call END_LOG(cloud_end)
-
-
-#ifdef GPUPHYSICS
-  !updated t,qg,qlg,qfg
-  !updated condg,conds,condx,precip
-  !$acc update self(u,v)
-  !$acc update self(condx,conds,condg)
-  !$acc update self(t,qg,qlg,qfg)
-  !$acc update self(precip)
-  !$acc end data
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    call nantest("after GPU gdrag, convection & cloud",js,je)
+    call nantest("after cloud microphysics",js,je,"cloud") 
   end do  
   !$omp end do nowait
-#endif
   
 
   ! RADIATION -------------------------------------------------------------
@@ -749,15 +688,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
       end do
       !$omp end do nowait
   end select
+  call END_LOG(radnet_end)
   !$omp do schedule(static) private(js,je)  
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
     t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
-    call nantest("after radiation",js,je)    
+    call nantest("after radiation",js,je,"radiation")    
   end do
   !$omp end do nowait
-  call END_LOG(radnet_end)
 
     
   ! HELD & SUAREZ ---------------------------------------------------------
@@ -778,14 +717,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( ntsur>1 ) then
     call sflux
   endif   ! (ntsur>1)    
+  call END_LOG(sfluxnet_end)
   !$omp do schedule(static) private(js,je)  
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax 
-    call nantest("after surface fluxes",js,je)
+    call nantest("after surface fluxes",js,je,"surface")
   end do  
   !$omp end do nowait
-  call END_LOG(sfluxnet_end)
 
   
   ! AEROSOLS --------------------------------------------------------------
@@ -794,14 +733,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( abs(iaero)>=2 ) then
     call aerocalc(oxidant_update,mins,0)
   end if
+  call END_LOG(aerosol_end)
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
-    call nantest("after aerosols",js,je)
+    call nantest("after aerosols",js,je,"aerosols")
   end do  
   !$omp end do nowait
-  call END_LOG(aerosol_end)
 
     
   ! VERTICAL MIXING ------------------------------------------------------
@@ -826,14 +765,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
     !$omp end do nowait
   end if   ! (ncloud>=4 .and. ncloud<=13 )
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax  
-    call fixqg(js,je)
-    call nantest("after PBL mixing",js,je)
-  end do  
-  !$omp end do nowait
   if ( nmaxpr==1 ) then
     if ( mydiag .and. ntiles==1 ) then
       !$omp master
@@ -842,6 +773,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
   end if
   call END_LOG(vertmix_end)
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call fixqg(js,je)
+    call nantest("after PBL mixing",js,je,"vmixing")
+  end do  
+  !$omp end do nowait
 
   
   ! AEROSOLS --------------------------------------------------------------
@@ -851,14 +790,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( abs(iaero)>=2 ) then
     call aerocalc(oxidant_update,mins,1)
   end if
+  call END_LOG(aerosol_end)
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax  
-    call nantest("after aerosols",js,je)
+    call nantest("after aerosols",js,je,"aerosols")
   end do  
   !$omp end do nowait
-  call END_LOG(aerosol_end)
 
   
   ! TRACERS ---------------------------------------------------------------
@@ -1153,6 +1092,7 @@ nullify(x_g, y_g, z_g)
 ! finalize MPI comms
 call ccmpi_finalize
 
+stop
 end
     
     
@@ -1576,7 +1516,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
-    do_quench,remain_rayleigh_bug,                                &
+    do_quench,remain_rayleigh_bug,use_rad_year,rad_year,          &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,enhanceu10,aerosol_u10,aero_split,               &
     o3_vert_interpolate,                                          & ! ozone
@@ -1605,7 +1545,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     ncvcloud,ncvmix,nevapcc,nkuo,nrhcrit,                         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,                                                          &
+    rcm,lin_aerosolmode,maxlintime,                               &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode
 ! boundary layer turbulence and gravity wave namelist
@@ -2046,7 +1986,7 @@ if ( nstn>0 ) then
     call ccmpi_bcast(name_stn(i),0,comm_world)
   end do
 end if
-allocate( dumr(10), dumi(15) )
+allocate( dumr(10), dumi(17) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2076,6 +2016,8 @@ if ( myid==0 ) then
   dumi(13) = enhanceu10
   if ( do_quench ) dumi(14) = 1
   if ( remain_rayleigh_bug ) dumi(15) = 1
+  if ( use_rad_year ) dumi(16) = 1
+  dumi(17) = rad_year
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2108,6 +2050,8 @@ aero_split          = dumi(12)
 enhanceu10          = dumi(13)
 do_quench           = dumi(14)==1
 remain_rayleigh_bug = dumi(15)==1
+use_rad_year        = dumi(16)==1
+rad_year            = dumi(17)
 deallocate( dumr, dumi )
 allocate( dumi(25) )
 dumi = 0
@@ -2203,7 +2147,7 @@ surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
 cordex_fix          = dumi(25)
 deallocate( dumi )
-allocate( dumr(34), dumi(24) )
+allocate( dumr(35), dumi(25) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2242,6 +2186,7 @@ if ( myid==0 ) then
   dumr(32) = rcrit_l
   dumr(33) = rcrit_s
   dumr(34) = cld_decay
+  dumr(35) = maxlintime
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -2266,6 +2211,7 @@ if ( myid==0 ) then
   dumi(22) = vdeposition_mode
   dumi(23) = tiedtke_form
   dumi(24) = cloud_aerosol_mode
+  dumr(25) = lin_aerosolmode  
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2303,6 +2249,7 @@ rcm              = dumr(31)
 rcrit_l          = dumr(32)
 rcrit_s          = dumr(33)
 cld_decay        = dumr(34)
+maxlintime       = dumr(35)
 iterconv         = dumi(1) 
 ksc              = dumi(2)
 kscmom           = dumi(3)
@@ -2327,6 +2274,7 @@ nevapls          = dumi(21)
 vdeposition_mode = dumi(22)
 tiedtke_form     = dumi(23)
 cloud_aerosol_mode = dumi(24)
+lin_aerosolmode    = dumi(25)
 deallocate( dumr, dumi )
 allocate( dumr(32), dumi(4) )
 dumr = 0.
@@ -2697,11 +2645,19 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
-!$acc update device(alphaj,dt,fc2,vmodmin,sigbot_gwd)
-!$acc update device(qgmin,iaero)
+!$acc update device(dt,qgmin,iaero)
 !$acc update device(nmr)
 !$acc update device(enhanceu10,zvolcemi,ch_dust)
 !$acc update device(saltsmallmtn,saltlargemtn)
+#ifdef GPUPHYSICS
+!$acc update device(alphaj,fc2,vmodmin,sigbot_gwd)
+!!$acc update device(cm0,ce0,ce1,ce2,maxl,minl,mintke,mineps,buoymeth,tkemeth)
+!!$acc update device(ce3,mfbeta,stabmeth,m0,qcmf,be,b1,b2)
+!!$acc update device(maxdts,dtrc0,entc0,ent_min,ent0,ent1,ezmin)
+!!$acc update device(tke_timeave_length)
+!!$acc update device(mlo_timeave_length,ominl,omaxl,omink,nopb,omineps,fixedce3)
+!!$acc update device(limitl,eps_mode,fixedstabfunc,k_mode,nops,kemaxdt)
+#endif
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -4533,7 +4489,7 @@ end subroutine write_diagnostics
     
 !-------------------------------------------------------------------- 
 ! Check for NaN errors
-subroutine nantest(message,js,je)
+subroutine nantest(message,js,je,mode)
 
 use aerosol_arrays, only : xtg,naero  ! LDR prognostic aerosols
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -4553,7 +4509,9 @@ implicit none
 integer, intent(in) :: js, je
 integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
-character(len=*), intent(in) :: message
+character(len=*), intent(in) :: message, mode
+logical t_check, uv_check, qv_check, qtot_check, qrad_check
+logical ps_check, tss_check, aero_check, turb_check
 
 if ( qg_fix<=-1 ) return
 
@@ -4562,318 +4520,419 @@ if ( js<1 .or. je>ifull ) then
   call ccmpi_abort(-1)
 end if
 
-if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
+#ifdef debug
+t_check = .true.
+uv_check = .true.
+qv_check = .true.
+qtot_check = .true.
+qrad_check = .true.
+ps_check = .true.
+tss_check = .true.
+aero_check = .true.
+turb_check = .true.
+#else
+select case(mode)
+  case("gdrag")
+    t_check = .false.
+    uv_check = .true.
+    qv_check = .false.
+    qtot_check = .false.
+    qrad_check = .false.
+    ps_check = .false.
+    tss_check = .false.
+    aero_check = .false.
+    turb_check = .false.
+  case("conv")
+    t_check = .true.
+    uv_check = .true.
+    qv_check = .true.
+    qtot_check = .true.
+    qrad_check = .false.
+    ps_check = .false.
+    tss_check = .false.
+    aero_check = .false.
+    turb_check = .false.   
+  case("cloud")
+    t_check = .true.
+    uv_check = .false.
+    qv_check = .true.
+    qtot_check = .true.
+    qrad_check = .true.
+    ps_check = .false.
+    tss_check = .false.
+    aero_check = .false.
+    turb_check = .false. 
+  case("radiation")
+    t_check = .true.
+    uv_check = .false.
+    qv_check = .false.
+    qtot_check = .false.
+    qrad_check = .false.
+    ps_check = .false.
+    tss_check = .false.
+    aero_check = .false.
+    turb_check = .false.     
+  case("surface")
+    t_check = .false.
+    uv_check = .false.
+    qv_check = .false.
+    qtot_check = .false.
+    qrad_check = .false.
+    ps_check = .false.
+    tss_check = .true.
+    aero_check = .false.
+    turb_check = .true.  
+  case("vmixing")
+    t_check = .true.
+    uv_check = .true.
+    qv_check = .true.
+    qtot_check = .true.
+    qrad_check = .false.
+    ps_check = .false.
+    tss_check = .false.
+    aero_check = .false.
+    turb_check = .false. 
+  case("aerosol")
+    t_check = .false.
+    uv_check = .false.
+    qv_check = .false.
+    qtot_check = .false.
+    qrad_check = .false.
+    ps_check = .false.
+    tss_check = .false.
+    aero_check = .true.
+    turb_check = .false.
+  case("nesting")
+    t_check = .true.
+    uv_check = .true.
+    qv_check = .true.
+    qtot_check = .false.
+    qrad_check = .false.
+    ps_check = .true.
+    tss_check = .false.
+    aero_check = .true.
+    turb_check = .false.
+  case("dynamics")
+    t_check = .true.
+    uv_check = .true.
+    qv_check = .true.
+    qtot_check = .true.
+    qrad_check = .false.
+    ps_check = .true.
+    tss_check = .true.
+    aero_check = .true.
+    turb_check = .false.
+  case default ! all
+    t_check = .true.
+    uv_check = .true.
+    qv_check = .true.
+    qtot_check = .true.
+    qrad_check = .true.
+    ps_check = .true.
+    tss_check = .true.
+    aero_check = .true.
+    turb_check = .true.
+end select
+#endif  
+
+if ( t_check ) then  
+  if ( any(t(js:je,1:kl)/=t(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
+    write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
+    posmin = minloc(t(js:je,1:kl))
+    posmax = maxloc(t(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1)
+  end if
+end if  
+
+if ( uv_check ) then
+  if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
+    write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
+    posmin = minloc(u(js:je,1:kl))
+    posmax = maxloc(u(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
+    write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
+    posmin = minloc(v(js:je,1:kl))
+    posmax = maxloc(v(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+end if  
+
+if ( qv_check ) then
+  if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>8.e-2) ) then
+    write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
+    posmin = minloc(qg(js:je,1:kl))
+    posmax = maxloc(qg(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+end if  
+
+if ( qtot_check ) then
+  if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in qlg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>8.e-2) ) then
+    write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
+    posmin = minloc(qlg(js:je,1:kl))
+    posmax = maxloc(qlg(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in qfg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>8.e-2) ) then
+    write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
+    posmin = minloc(qfg(js:je,1:kl))
+    posmax = maxloc(qfg(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in qrg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(qrg(js:je,1:kl)<-1.e-8) ) then
+    write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
+    write(6,*) "minval ",minval(qrg(js:je,1:kl))
+    posmin = minloc(qrg(js:je,1:kl))
+    posmax = maxloc(qrg(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in qsng on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(qsng(js:je,1:kl)<-1.e-8) ) then
+    write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
+    write(6,*) "minval ",minval(qsng(js:je,1:kl))
+    posmin = minloc(qsng(js:je,1:kl))
+    posmax = maxloc(qsng(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in qgrg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(qgrg(js:je,1:kl)<-1.e-8) ) then
+    write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
+    write(6,*) "minval ",minval(qgrg(js:je,1:kl))
+    posmin = minloc(qgrg(js:je,1:kl))
+    posmax = maxloc(qgrg(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(rfrac(js:je,1:kl)/=rfrac(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in rfrac on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.001) ) then
+    write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(rfrac(js:je,1:kl)),maxval(rfrac(js:je,1:kl))
+    posmin = minloc(rfrac(js:je,1:kl))
+    posmax = maxloc(rfrac(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(sfrac(js:je,1:kl)/=sfrac(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in sfrac on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.001) ) then
+    write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(sfrac(js:je,1:kl)),maxval(sfrac(js:je,1:kl))
+    posmin = minloc(sfrac(js:je,1:kl))
+    posmax = maxloc(sfrac(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(gfrac(js:je,1:kl)/=gfrac(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in gfrac on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.001) ) then
+    write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(gfrac(js:je,1:kl)),maxval(gfrac(js:je,1:kl))
+    posmin = minloc(gfrac(js:je,1:kl))
+    posmax = maxloc(gfrac(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+end if
+  
+if ( qrad_check ) then
+  if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in qlrad on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>8.e-2) ) then
+    write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
+    posmin = minloc(qlrad(js:je,1:kl))
+    posmax = maxloc(qlrad(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in qfrad on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>8.e-2) ) then
+    write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
+    posmin = minloc(qfrad(js:je,1:kl))
+    posmax = maxloc(qfrad(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(cfrac(js:je,1:kl)/=cfrac(js:je,1:kl)) ) then
+    write(6,*) "ERROR: NaN detected in cfrac on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if
+  if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.001) ) then
+    write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(cfrac(js:je,1:kl)),maxval(cfrac(js:je,1:kl))
+    posmin = minloc(cfrac(js:je,1:kl))
+    posmax = maxloc(cfrac(js:je,1:kl))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+end if  
+
+if ( ps_check ) then
+  if ( any(psl(js:je)/=psl(js:je)) ) then
+    write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(psl(js:je)<-1.6) .or. any(psl(js:je)>0.6) ) then
+    write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
+    posmin(1:1) = minloc(psl(js:je))
+    posmax(1:1) = maxloc(psl(js:je))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin(1:1),posmax(1:1)
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(ps(js:je)/=ps(js:je)) ) then
+    write(6,*) "ERROR: NaN detected in ps on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
 end if
 
-if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
-  write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
-  posmin = minloc(t(js:je,1:kl))
-  posmax = maxloc(t(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1)
+if ( tss_check ) then
+  if ( any(tss(js:je)/=tss(js:je)) ) then
+    write(6,*) "ERROR: NaN detected in tss on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any(tss(js:je)<75.) .or. any(tss(js:je)>425.) ) then
+    write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
+    posmin(1:1) = minloc(tss(js:je))
+    posmax(1:1) = maxloc(tss(js:je))
+    posmin(1) = posmin(1) + js - 1
+    posmax(1) = posmax(1) + js - 1
+    posmin(1) = iq2iqg(posmin(1))
+    posmax(1) = iq2iqg(posmax(1))
+    write(6,*) "minloc,maxloc ",posmin(1:1),posmax(1:1)
+    call ccmpi_abort(-1) 
+  end if
 end if
 
-if ( any(u(js:je,1:kl)/=u(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in u on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(u(js:je,1:kl)<-400.) .or. any(u(js:je,1:kl)>400.) ) then
-  write(6,*) "ERROR: Out-of-range detected in u on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(u(js:je,1:kl)),maxval(u(js:je,1:kl))
-  posmin = minloc(u(js:je,1:kl))
-  posmax = maxloc(u(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(v(js:je,1:kl)/=v(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in v on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(v(js:je,1:kl)<-400.) .or. any(v(js:je,1:kl)>400.) ) then
-  write(6,*) "ERROR: Out-of-range detected in v on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(v(js:je,1:kl)),maxval(v(js:je,1:kl))
-  posmin = minloc(v(js:je,1:kl))
-  posmax = maxloc(v(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(qg(js:je,1:kl)/=qg(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>8.e-2) ) then
-  write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
-  posmin = minloc(qg(js:je,1:kl))
-  posmax = maxloc(qg(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(qlg(js:je,1:kl)/=qlg(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in qlg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>8.e-2) ) then
-  write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
-  posmin = minloc(qlg(js:je,1:kl))
-  posmax = maxloc(qlg(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(qfg(js:je,1:kl)/=qfg(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in qfg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>8.e-2) ) then
-  write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
-  posmin = minloc(qfg(js:je,1:kl))
-  posmax = maxloc(qfg(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(qrg(js:je,1:kl)/=qrg(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in qrg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(qrg(js:je,1:kl)<-1.e-8) ) then
-  write(6,*) "ERROR: Out-of-range detected in qrg on myid=",myid," at ",trim(message)
-  write(6,*) "minval ",minval(qrg(js:je,1:kl))
-  posmin = minloc(qrg(js:je,1:kl))
-  posmax = maxloc(qrg(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(qsng(js:je,1:kl)/=qsng(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in qsng on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(qsng(js:je,1:kl)<-1.e-8) ) then
-  write(6,*) "ERROR: Out-of-range detected in qsng on myid=",myid," at ",trim(message)
-  write(6,*) "minval ",minval(qsng(js:je,1:kl))
-  posmin = minloc(qsng(js:je,1:kl))
-  posmax = maxloc(qsng(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(qgrg(js:je,1:kl)/=qgrg(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in qgrg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(qgrg(js:je,1:kl)<-1.e-8) ) then
-  write(6,*) "ERROR: Out-of-range detected in qgrg on myid=",myid," at ",trim(message)
-  write(6,*) "minval ",minval(qgrg(js:je,1:kl))
-  posmin = minloc(qgrg(js:je,1:kl))
-  posmax = maxloc(qgrg(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(qlrad(js:je,1:kl)/=qlrad(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in qlrad on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(qlrad(js:je,1:kl)<-1.e-8) .or. any(qlrad(js:je,1:kl)>8.e-2) ) then
-  write(6,*) "ERROR: Out-of-range detected in qlrad on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qlrad(js:je,1:kl)),maxval(qlrad(js:je,1:kl))
-  posmin = minloc(qlrad(js:je,1:kl))
-  posmax = maxloc(qlrad(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(qfrad(js:je,1:kl)/=qfrad(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in qfrad on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(qfrad(js:je,1:kl)<-1.e-8) .or. any(qfrad(js:je,1:kl)>8.e-2) ) then
-  write(6,*) "ERROR: Out-of-range detected in qfrad on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(qfrad(js:je,1:kl)),maxval(qfrad(js:je,1:kl))
-  posmin = minloc(qfrad(js:je,1:kl))
-  posmax = maxloc(qfrad(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(cfrac(js:je,1:kl)/=cfrac(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in cfrac on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(cfrac(js:je,1:kl)<-1.e-8) .or. any(cfrac(js:je,1:kl)>1.001) ) then
-  write(6,*) "ERROR: Out-of-range detected in cfrac on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(cfrac(js:je,1:kl)),maxval(cfrac(js:je,1:kl))
-  posmin = minloc(cfrac(js:je,1:kl))
-  posmax = maxloc(cfrac(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(rfrac(js:je,1:kl)/=rfrac(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in rfrac on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(rfrac(js:je,1:kl)<-1.e-8) .or. any(rfrac(js:je,1:kl)>1.001) ) then
-  write(6,*) "ERROR: Out-of-range detected in rfrac on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(rfrac(js:je,1:kl)),maxval(rfrac(js:je,1:kl))
-  posmin = minloc(rfrac(js:je,1:kl))
-  posmax = maxloc(rfrac(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(sfrac(js:je,1:kl)/=sfrac(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in sfrac on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(sfrac(js:je,1:kl)<-1.e-8) .or. any(sfrac(js:je,1:kl)>1.001) ) then
-  write(6,*) "ERROR: Out-of-range detected in sfrac on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(sfrac(js:je,1:kl)),maxval(sfrac(js:je,1:kl))
-  posmin = minloc(sfrac(js:je,1:kl))
-  posmax = maxloc(sfrac(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(gfrac(js:je,1:kl)/=gfrac(js:je,1:kl)) ) then
-  write(6,*) "ERROR: NaN detected in gfrac on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)    
-end if
-
-if ( any(gfrac(js:je,1:kl)<-1.e-8) .or. any(gfrac(js:je,1:kl)>1.001) ) then
-  write(6,*) "ERROR: Out-of-range detected in gfrac on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(gfrac(js:je,1:kl)),maxval(gfrac(js:je,1:kl))
-  posmin = minloc(gfrac(js:je,1:kl))
-  posmax = maxloc(gfrac(js:je,1:kl))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin,posmax
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(psl(js:je)/=psl(js:je)) ) then
-  write(6,*) "ERROR: NaN detected in psl on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(psl(js:je)<-1.6) .or. any(psl(js:je)>0.6) ) then
-  write(6,*) "ERROR: Out-of-range detected in psl on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(psl(js:je)),maxval(psl(js:je))
-  posmin(1:1) = minloc(psl(js:je))
-  posmax(1:1) = maxloc(psl(js:je))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin(1:1),posmax(1:1)
-  call ccmpi_abort(-1) 
-end if
-
-if ( any(ps(js:je)/=ps(js:je)) ) then
-  write(6,*) "ERROR: NaN detected in ps on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(tss(js:je)/=tss(js:je)) ) then
-  write(6,*) "ERROR: NaN detected in tss on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any(tss(js:je)<75.) .or. any(tss(js:je)>425.) ) then
-  write(6,*) "ERROR: Out-of-range detected in tss on myid=",myid," at ",trim(message)
-  write(6,*) "minval,maxval ",minval(tss(js:je)),maxval(tss(js:je))
-  posmin(1:1) = minloc(tss(js:je))
-  posmax(1:1) = maxloc(tss(js:je))
-  posmin(1) = posmin(1) + js - 1
-  posmax(1) = posmax(1) + js - 1
-  posmin(1) = iq2iqg(posmin(1))
-  posmax(1) = iq2iqg(posmax(1))
-  write(6,*) "minloc,maxloc ",posmin(1:1),posmax(1:1)
-  call ccmpi_abort(-1) 
-end if
-
-if ( abs(iaero)>=2 ) then
+if ( aero_check .and. abs(iaero)>=2 ) then
   if ( any(xtg(js:je,1:kl,1:naero)/=xtg(js:je,1:kl,1:naero)) ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
@@ -4892,18 +4951,16 @@ if ( abs(iaero)>=2 ) then
   end if  
 end if
 
-if ( any( fg(js:je)/=fg(js:je) ) ) then
-  write(6,*) "ERROR: NaN detected in fg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
-end if
-
-if ( any( eg(js:je)/=eg(js:je) ) ) then
-  write(6,*) "ERROR: NaN detected in eg on myid=",myid," at ",trim(message)
-  call ccmpi_abort(-1)
+if ( turb_check ) then
+  if ( any( fg(js:je)/=fg(js:je) ) ) then
+    write(6,*) "ERROR: NaN detected in fg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
+  if ( any( eg(js:je)/=eg(js:je) ) ) then
+    write(6,*) "ERROR: NaN detected in eg on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)
+  end if
 end if
 
 return
 end subroutine nantest
-
-
-

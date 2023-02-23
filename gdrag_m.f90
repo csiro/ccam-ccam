@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,7 +30,10 @@ public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 real, dimension(:), allocatable, save :: helo
 real, dimension(:), allocatable, save :: he
 integer, save :: kbot_gwd
+
+#ifdef GPUPHYSICS
 !$acc declare create(kbot_gwd)
+#endif
 
 contains
 
@@ -65,8 +68,11 @@ if ( sigbot_gwd>=.5 ) then
   kbot_gwd = kpos(1) ! JLM
 end if
 if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot_gwd
-!$acc update device(kbot_gwd)
 ! MJT notes - he defined in indata.f90 before calling gdrag_sbl
+
+#ifdef GPUPHYSICS
+!$acc update device(kbot_gwd)
+#endif
 
 return
 end subroutine gdrag_sbl
@@ -102,8 +108,7 @@ logical mydiag_t
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop copyin(tss,he)              &
-!$acc   present(t,u,v)                          &
+!$acc parallel loop copy(u,v) copyin(t,tss,he)  &
 !$acc   private(lt,lu,lv,js,je,idjd_t,mydiag_t)
 #endif
 do tile = 1,ntiles
@@ -142,7 +147,9 @@ end subroutine gwdrag
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
 subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 use const_phys, only : grav, rdry, cp
 use parm_m, only : vmodmin, sigbot_gwd, fc2, dt, alphaj, ngwd

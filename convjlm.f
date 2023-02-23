@@ -34,9 +34,11 @@
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
       
+#ifdef GPUPHYSICS
 !$acc declare create(mcontlnd,mcontsea,tied_b,convt_frac)
 !$acc declare create(k500,k600,k700,k900,k980)
 !$acc declare create(klon2,komega)
+#endif
 
       contains
 
@@ -308,9 +310,11 @@
        endif  ! (tied_a>1.)
       !----------------------------------------------------------------
 
+#ifdef GPUPHYSICS
 !$acc update device(mcontlnd,mcontsea,tied_b,convt_frac)
 !$acc update device(k500,k600,k700,k900,k980)
 !$acc update device(klon2,komega)
+#endif
           
       end subroutine convjlm_init
 
@@ -358,16 +362,15 @@
 !$omp& private(lqlg,lqfg,lu,lv,ltr,idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop copy(tr,xtg,dustwd,so2wd,so4wd,bcwd,ocwd)
-!$acc& copy(saltwd,precc) 
+!$acc parallel loop copy(t,qg,qlg,qfg,u,v)
+!$acc& copy(tr,xtg,dustwd,so2wd,so4wd,bcwd,ocwd)
+!$acc& copy(saltwd,precc,precip) 
 !$acc& copyin(sgsave,fg,wetfac)
 !$acc& copyin(upin,upin4,downex,detrarr)
 !$acc& copyin(alfin,entrainn)
+!$acc& copyin(dpsldt,ps,pblh,land,em)
 !$acc& copyout(fluxtot,cape,convpsav,ktsav,kbsav,condc)
-!$acc& present(t,qg,qlg,qfg,u,v)
-!$acc& present(condx,conds,condg)
-!$acc& present(precip)
-!$acc& present(dpsldt,ps,pblh,land,em)
+!$acc& copyout(condx,conds)
 !$acc& private(ldpsldt,lt,lqg,lqlg,lqfg,lu,lv,lfluxtot)
 !$acc& private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd)
 !$acc& private(ltr)
@@ -404,7 +407,7 @@
      &       ps(js:je),lfluxtot,convpsav(js:je),cape(js:je),
      &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd,
      &       lqlg,condc(js:je),precc(js:je),condx(js:je),
-     &       conds(js:je),condg(js:je),precip(js:je),
+     &       conds(js:je),precip(js:je),
      &       pblh(js:je),fg(js:je),wetfac(js:je),land(js:je),
      &       entrainn(js:je),lu,lv,em(js:je),
      &       kbsav(js:je),ktsav(js:je),ltr,lqfg,sgsave(js:je),
@@ -447,7 +450,7 @@
       
       subroutine convjlm_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
-     &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
+     &       dustwd,saltwd,qlg,condc,precc,condx,conds,precip,
      &       pblh,fg,wetfac,land,entrainn,u,v,em,
      &       kbsav,ktsav,tr,qfg,sgsave,
      &       upin,upin4,downex,detrarr,
@@ -455,7 +458,9 @@
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,detrainx,
      &       sigkscb,dsig2,sigksct,rhcv,sig_ct,convtime,tied_con,
      &       mdelay,nevapcc,convfact,ncvcloud,ldr,rhmois,imax,kl)     ! jlm convective scheme
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 !     version 1503e removes various fluxh, and keeps prior defn fluxv
 !     version 1503d changes reflux(k) to fluxv()
@@ -545,7 +550,6 @@
       real, dimension(imax), intent(inout)             :: precc
       real, dimension(imax), intent(out)               :: condx
       real, dimension(imax), intent(out)               :: conds
-      real, dimension(imax), intent(out)               :: condg
       real, dimension(imax), intent(inout)             :: precip
 !      real, dimension(imax), intent(inout)             :: timeconv
       real, dimension(kl,kl), intent(in)               :: upin
@@ -2205,7 +2209,6 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 !    N.B. condx used to update rnd03,...,rnd24. LS added in leoncld.f       
       condx(1:imax)=condc(1:imax)+.001*dt*rnrt(1:imax) ! total precip for this timestep
       conds(:)=0.   ! (:) here for easy use in VCAM
-      condg(:)=0.   ! (:) here for easy use in VCAM
       precip(1:imax)=precip(1:imax)+condx(1:imax)
       t(1:imax,:)=tt(1:imax,:)             
 

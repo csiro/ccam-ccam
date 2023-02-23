@@ -73,7 +73,7 @@ contains
 ! Main interface for input data that reads grid metadata
     
 subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
-                    qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+                    qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
 use cc_mpi           ! CC MPI routines
 use darcdf_m         ! Netcdf data
@@ -104,6 +104,7 @@ real, dimension(:,:), intent(out) :: wb, wbice, tgg
 real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: ocndwn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
+real, dimension(:,:), intent(out) :: ni, nr, ns
 real, dimension(:), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(:), intent(out) :: sicedep, ssdnn, snage
 real, dimension(nrhead) :: ahead
@@ -302,8 +303,8 @@ end if
 ! the output array
 
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                   snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
-                   ocndwn,xtgdwn)
+                   snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag, &
+                   mlodwn,ocndwn,xtgdwn)
 
 if ( myid==0 ) write(6,*) "Leaving onthefly"
 
@@ -321,8 +322,8 @@ end subroutine onthefly
 ! by many processes.  In the case of restart files, then there is
 ! no need for message passing.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                         snowd,qfg,qlg,qrg,qsng,qgrg,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,   &
-                         ocndwn,xtgdwn)
+                         snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag, &
+                         mlodwn,ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
 use ateb, only : urbtemp, atebloadd, nfrac     ! Urban
@@ -394,6 +395,7 @@ real, dimension(:,:), intent(out) :: ocndwn
 real, dimension(:,:), intent(out) :: wb, wbice, tgg
 real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
+real, dimension(:,:), intent(out) :: ni, nr, ns
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
@@ -1846,6 +1848,14 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( ncloud>=4 .and. ncloud<=13 ) then
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=4)
+    if ( ncloud>=100 .and. ncloud<=120 ) then
+      call gethist4a('ni',ni,5)               ! Ice number concentration
+      call gethist4a('nr',nr,5)               ! Rain number concentration
+      call gethist4a('ns',ni,5)               ! Snow number concentration
+      ni(1:ifull,1:kl) = max( ni(1:ifull,1:kl), 0. )
+      nr(1:ifull,1:kl) = max( nr(1:ifull,1:kl), 0. )
+      ns(1:ifull,1:kl) = max( ns(1:ifull,1:kl), 0. )
+    end if    
   end if   ! (nested==0)
 
   !------------------------------------------------------------------

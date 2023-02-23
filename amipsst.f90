@@ -623,7 +623,7 @@ elseif ( ktau>0 ) then
   end if
   old = tgg(:,1)
   call mloexpmelt(timelt)
-  timelt = min(timelt,271.2)
+  timelt = min(timelt+0.01,tgg(:,1))
   new = tgg(:,1)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
   wgt = dt/real(nud_hrs*3600)
   call mloexport("temp",old,1,0)
@@ -631,8 +631,7 @@ elseif ( ktau>0 ) then
   do k = 1,kbotmlo
     old = 273.16 - wrtemp  
     call mloexport("temp",old,k,0)
-    old = wgt*delta + old
-    old = min( max( old, 260.-wrtemp ), 380.-wrtemp )
+    old = old + max( wgt*delta, 271.16-wrtemp-old )
     call mloimport("temp",old,k,0)
   end do  
   do k = 1,ms
@@ -1531,7 +1530,13 @@ if ( mod(ktau,nperday)==0 ) then
       else
         call ccmpi_distribute(fraciceb, ssta_g(:,1))
       end if  
-
+      
+    else   
+      where( ssta<271.2 )
+        fraciceb = 1.
+      elsewhere
+        fraciceb = 0.
+      end where      
     end if       
     
     deallocate( ssta_g, ssta_l )         
@@ -1542,6 +1547,12 @@ if ( mod(ktau,nperday)==0 ) then
     if ( namip==2 .or. namip==3 .or. namip==4 .or. namip==5 .or. namip==13 .or. &
          namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then     
       call ccmpi_distribute(fraciceb)
+    else
+      where( ssta<271.2 )
+        fraciceb = 1.
+      elsewhere
+        fraciceb = 0.
+      end where
     end if  
       
   end if ! myid==0 ..else..        
@@ -1589,14 +1600,15 @@ elseif ( ktau>0 ) then
   end if
   oldsst = ssta
   call mloexpmelt(timelt)
-  timelt = min(timelt,271.2)
+  timelt = min(timelt+0.01,ssta)
   newsst = ssta*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
   wgt = dt/real(nud_hrs*3600)
   call mloexport("temp",oldsst,1,0)
   deltasst = newsst - oldsst
   do k = 1,kbotmlo
+    oldsst = 273.16 - wrtemp  
     call mloexport("temp",oldsst,k,0)
-    newsst = wgt*deltasst + oldsst
+    newsst = oldsst + max( wgt*deltasst, 271.16-wrtemp-oldsst )
     call mloimport("temp",newsst,k,0)
   end do  
   do k = 1,ms

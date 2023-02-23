@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -26,11 +26,13 @@ implicit none
 private
 public qlg,qfg ! cloud liquid water, cloud frozen water
 public qrg,qsng,qgrg ! rain, snow, graupel
+public nr, ni, ns    ! 2nd moment terms
 public liqwpar_init,liqwpar_end
 
 real, dimension(:,:), allocatable, save :: qlg,qfg
 real, dimension(:,:), allocatable, save :: qrg,qsng
 real, dimension(:,:), allocatable, save :: qgrg
+real, dimension(:,:), allocatable, save :: nr, ni, ns
 
 contains
 
@@ -43,11 +45,16 @@ integer, intent(in) :: ifull,iextra,kl
 allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
 allocate(qrg(ifull,kl),qsng(ifull,kl))
 allocate(qgrg(ifull,kl))
+allocate(nr(ifull+iextra,kl), ni(ifull+iextra,kl))
+allocate(ns(ifull+iextra,kl))
 qlg=0.
 qfg=0.
 qrg=0.
 qsng=0.
 qgrg=0.
+nr = 0.
+ni = 0.
+ns = 0.
 
 return
 end subroutine liqwpar_init
@@ -59,6 +66,8 @@ implicit none
 deallocate(qlg,qfg)
 deallocate(qrg,qsng)
 deallocate(qgrg)
+deallocate(ni,nr)
+deallocate(ns)
 
 return
 end subroutine liqwpar_end

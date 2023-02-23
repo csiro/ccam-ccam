@@ -188,7 +188,7 @@ end if
 #endif
 
 
-#ifdef GPUPHYSICS
+#ifdef GPU
 !$acc data create(xtg,ttg,rhoa,dz)
 !$acc update device(ttg,rhoa,dz) async(1)
 #endif
@@ -268,11 +268,7 @@ do tile = 1,ntiles
                bce(js:je),oce(js:je),lxtg,so2dd(js:je),so4dd(js:je),bcdd(js:je),  & !Output
                ocdd(js:je),imax,kl)                                                             !Inputs
   !xtem(js:je,:) = lxtem
-  do nt = 1,naero
-    do k = 1,kl
-      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,k,nt)*dt, 0. )
-    end do
-  end do
+  xtg(js:je,:,:) = max( xtg(js:je,:,:)+lxte(:,:,:)*dt, 0. )
 end do
 !$omp end do nowait
 
@@ -287,8 +283,7 @@ end if
 #ifndef GPU
 !$omp do schedule(static) private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
 !$omp   private(dcola,dcolb,oldsalte)
-#endif
-#ifdef GPUPHYSICS
+#else
 !$acc wait(1)
 !$acc update device(xtg)
 !$acc parallel loop copy(duste,dustdd)                                      &
@@ -361,8 +356,7 @@ do tile = 1,ntiles
 end do
 #ifndef GPU
 !$omp end do nowait
-#endif
-#ifdef GPUPHYSICS
+#else
 !$acc end parallel loop
 #endif
 
@@ -379,8 +373,7 @@ end if
 !$omp   private(lpfsnow,lpfsubl,lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav)        &
 !$omp   private(lprfreeze,lpfevap,lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3)        &
 !$omp   private(dmsoh,dmsn3,lpccw)
-#endif
-#ifdef GPUPHYSICS
+#else
 !$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
 !$acc   copyin(clcon,xtosav,qlg,qfg,stratcloud,kbsav,condc,cldcon)                 &
 !$acc   copyin(pmrate,pfprec,pfsnow,pfsubl,pmaccr,pfmelt,pqfsedice,plambs,prscav)  &
@@ -396,31 +389,32 @@ do tile = 1,ntiles
   je = tile*imax
   ! Aerosol chemistry and wet deposition
   ! Need to invert vertical levels for ECHAM code... Don't you hate that?
+  xtm1(:,:,:) = xtg(js:je,kl:1:-1,:)
   do nt = 1,naero
-    do k = 1,kl
-      xtm1(:,kl+1-k,nt) = xtg(js:je,k,nt)
-      ! Convert from aerosol concentration outside convective cloud (used by CCAM)
-      ! to aerosol concentration inside convective cloud
-      xtu(:,kl+1-k,nt) = max(xtg(js:je,k,nt)-(1.-clcon(js:je,k))*xtosav(js:je,k,nt),0.)/max(clcon(js:je,k),1.E-8)
-    end do
+    ! Convert from aerosol concentration outside convective cloud (used by CCAM)
+    ! to aerosol concentration inside convective cloud
+    xtu(:,:,nt) = max(xtg(js:je,kl:1:-1,nt)-(1.-clcon(js:je,kl:1:-1))*xtosav(js:je,kl:1:-1,nt),0.) &
+                /max(clcon(js:je,kl:1:-1),1.E-8)
   end do
+  aphp1(:,:) = rhoa(js:je,kl:1:-1)*dz(js:je,kl:1:-1)               ! density * thickness
+  prhop1(:,:) = rhoa(js:je,kl:1:-1)                                ! air density
+  ptp1(:,:)   = ttg(js:je,kl:1:-1)                                 ! air temperature
+  pclcon(:,:) = min(max(clcon(js:je,kl:1:-1),0.),1.)               ! convective cloud fraction
   do k = 1,kl
     do iq = 1,imax
-      aphp1(iq,kl+1-k)  = rhoa(iq+js-1,k)*dz(iq+js-1,k)                  ! density * thickness
-      prhop1(iq,kl+1-k) = rhoa(iq+js-1,k)                                ! air density
-      ptp1(iq,kl+1-k)   = ttg(iq+js-1,k)                                 ! air temperature
-      pclcon(iq,kl+1-k) = min(max(clcon(iq+js-1,k),0.),1.)               ! convective cloud fraction
-      qtot = qlg(iq+js-1,k) + qfg(iq+js-1,k)                             ! total liquid and ice mixing ratio
+      qtot = qlg(iq+js-1,k) + qfg(iq+js-1,k)                                     ! total liquid and ice mixing ratio
       pclcover(iq,kl+1-k) = stratcloud(iq+js-1,k)*qlg(iq+js-1,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
       pcfcover(iq,kl+1-k) = stratcloud(iq+js-1,k)*qfg(iq+js-1,k)/max(qtot,1.E-8) ! Ice-cloud fraction
-      pmlwc(iq,kl+1-k) = qlg(iq+js-1,k)
-      pmiwc(iq,kl+1-k) = qfg(iq+js-1,k)
-      if ( k<=kbsav(iq+js-1) ) then
-        pfconv(iq,kl+1-k) = condc(iq+js-1)/dt
-      else
-        pfconv(iq,kl+1-k) = 0.
-      end if
     end do
+  end do
+  pmlwc(:,:) = qlg(js:je,kl:1:-1)
+  pmiwc(:,:) = qfg(js:je,kl:1:-1)
+  do k = 1,kl
+    where ( k<=kbsav(js:je) )
+      pfconv(:,kl+1-k) = condc(js:je)/dt
+    elsewhere
+      pfconv(:,kl+1-k) = 0.
+    end where
   end do
   !fracc = 0.1          ! LDR suggestion (0.1 to 0.3)
   fracc = cldcon(js:je) ! MJT suggestion (use NCAR scheme)
@@ -447,19 +441,14 @@ do tile = 1,ntiles
                 lzoxidant,so2wd(js:je),so4wd(js:je),bcwd(js:je),           &
                 ocwd(js:je),ldustwd,saltwd(js:je),                         &
                 imax,kl)                                                    !Inputs
-  do nt = 1,naero
-    do k = 1,kl
-      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,kl+1-k,nt)*dt, 0. )
-    end do
-  enddo
+  xtg(js:je,:,:) = max( xtg(js:je,:,:)+lxte(:,kl:1:-1,:)*dt, 0. )
   dmsso2o(js:je) = dmsso2o(js:je) + dmsoh + dmsn3          ! oxidation of DMS to SO2
   so2so4o(js:je) = so2so4o(js:je) + so2oh + so2h2 + so2o3  ! oxidation of SO2 to SO4
   dustwd(js:je,:) = ldustwd
 end do
 #ifndef GPU
 !$omp end do nowait
-#endif
-#ifdef GPUPHYSICS
+#else
 !$acc end parallel loop
 !$acc update self(xtg)
 !$acc end data
@@ -1325,9 +1314,7 @@ end do
 
 
 ! Repeat the aqueous oxidation calculation for ice clouds.
-do jk = 1,kl
-  ZSO4i(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
-end do
+ZSO4i(:,1:kl)=amax1(XTO(:,1:kl,ITRACSO4),0.)
 
 !******************************************************************************
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
@@ -1443,10 +1430,8 @@ end do
 
 
 ! Repeat the aqueous oxidation calculation for convective clouds.
-do jk = 1,kl
-  ZXTP1CON(:,jk,ITRACSO2)=amax1(XTU(:,jk,ITRACSO2),0.)
-  ZSO4C(:,jk)            =amax1(XTU(:,jk,ITRACSO4),0.)
-end do
+ZXTP1CON(:,1:kl,ITRACSO2)=amax1(XTU(:,1:kl,ITRACSO2),0.)
+ZSO4C(:,1:kl)            =amax1(XTU(:,1:kl,ITRACSO4),0.)
 
 do jk = ktop,kl
   do jl = 1,imax
@@ -1906,9 +1891,9 @@ do JK = KTOP,kl
 #endif   
 
       ! Redistribution by snow that evaporates
-      if ( pfsubl(i,jk)>zmin .and. zclr0>zmin ) then
+      if ( pfsubl(i,jk)>zmin .and. pfsnow(i,jk)>zmin .and. zclr0>zmin ) then
         !zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)        
-        zstay_t = pfsubl(i,jk)/(pfsnow(i,jk)+pfsubl(i,jk)) ! MJT suggestion
+        zstay_t = pfsubl(i,jk)/pfsnow(i,jk) ! MJT suggestion
         zstay_t = max( min( 1., zstay_t ), 0. )
         xstay = max( zdeps(i,ktrac)*zstay_t/zmtof, 0. )
         !limit sublimation to prevent crash - MJT suggestion
@@ -1980,9 +1965,9 @@ do JK = KTOP,kl
 
       ! MJT - suggestion (only include evaporation)
       ! Redistribution by rain that evaporates or stays in layer
-      if ( pfevap(i,jk)>zmin .and. zclr0>zmin ) then
+      if ( pfevap(i,jk)>zmin .and. pfprec(i,jk)>zmin .and. zclr0>zmin ) then
         !zstay_t = (pfevap(i,jk)+pfstayliq(i,jk))/pfprec(i,jk)  
-        zstay_t = pfevap(i,jk)/(pfprec(i,jk)+pfevap(i,jk)) ! MJT suggestion
+        zstay_t = pfevap(i,jk)/pfprec(i,jk) ! MJT suggestion
         zstay_t = max( min( 1., zstay_t ), 0. )
         xstay = max( zdepr(i,ktrac)*zstay_t/zmtof, 0. )
         !limit sublimation to prevent crash - MJT suggestion

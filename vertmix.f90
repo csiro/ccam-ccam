@@ -1640,7 +1640,6 @@ return
 end subroutine pbldif
 
 pure subroutine trimmix2(a,c,rhs,imax,kl)
-!$acc routine vector
 
 implicit none
 
@@ -1674,7 +1673,8 @@ end do
 ! do back substitution to give answer now
 do iq = 1,imax
   b=1.-a(iq,kl)-c(iq,kl)
-  rhs(iq,kl)=(rhs(iq,kl)-a(iq,kl)*g(iq,kl-1))/(b-a(iq,kl)*e(iq,kl-1))
+  temp = 1./(b-a(iq,kl)*e(iq,kl-1))
+  rhs(iq,kl)=(rhs(iq,kl)-a(iq,kl)*g(iq,kl-1))*temp
 end do
 do k = kl-1,1,-1
   do iq = 1,imax
@@ -1686,7 +1686,7 @@ return
 end subroutine trimmix2
 
 pure subroutine trimmix3(a,c,rhs,imax,kl,ndim)
-!$acc routine vector
+!!$acc routine vector
 
 implicit none
 
@@ -1694,88 +1694,20 @@ integer, intent(in) :: imax, kl, ndim
 integer k, iq, n
 real, dimension(imax,kl), intent(in) :: a, c
 real, dimension(imax,kl,ndim), intent(inout) :: rhs
-!#ifdef GPU
-!integer p, pmax, s, klow, khigh
-!real rr
-!real, dimension(imax,ndim,0:kl+1) :: aa, cc, dd
-!real, dimension(imax,ndim,kl) :: new_aa, new_cc
-!#else
 real temp, b
-real, dimension(imax,ndim,kl) :: e, g, r
-!#endif
+real, dimension(imax,ndim,kl) :: e, g
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
 !   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
 
-!#ifdef GPU
-!
-!pmax = 1
-!do while ( 2**pmax < kl )
-!  pmax = pmax + 1
-!end do
-!
-!do n = 1,ndim
-!  do iq = 1,imax
-!    aa(iq,n,0) = 0.
-!    cc(iq,n,0) = 0.
-!    dd(iq,n,0) = 0.
-!    aa(iq,n,kl+1) = 0.
-!    cc(iq,n,kl+1) = 0.
-!    dd(iq,n,kl+1) = 0.
-!  end do  
-!end do
-!do k = 1,kl
-!  do n = 1,ndim
-!    do iq = 1,imax
-!      aa(iq,n,k) = a(iq,k)
-!      cc(iq,n,k) = c(iq,k)
-!      dd(iq,n,k) = rhs(iq,k,n)
-!    end do  
-!  end do
-!end do
-!do p = 1,pmax
-!  s = 2**(p-1)
-!  do k = 1,kl
-!    do n = 1,ndim
-!      do iq = 1,imax
-!        klow = max(k-s,0)
-!        khigh = min(k+s,kl+1)
-!        rr = 1./(1.-aa(iq,n,k)*cc(iq,n,klow)-cc(iq,n,k)*aa(iq,n,khigh))
-!        new_aa(iq,n,k) = -rr*(aa(iq,n,k)*aa(iq,n,klow))
-!        new_cc(iq,n,k) = -rr*(cc(iq,n,k)*cc(iq,n,khigh))
-!        rhs(iq,n,k) = rr*(dd(iq,n,k)-aa(iq,n,k)*dd(iq,n,klow)-cc(iq,n,k)*dd(iq,n,khigh))
-!      end do
-!    end do
-!  end do
-!  do k = 1,kl
-!    do n = 1,ndim
-!      do iq = 1,imax
-!        aa(iq,n,k) = new_aa(iq,n,k)  
-!        cc(iq,n,k) = new_cc(iq,n,k)
-!        dd(iq,n,k) = rhs(iq,n,k)
-!      end do
-!    end do
-!  end do
-!end do
-!
-!#else
-
-do n = 1,ndim
-  do k = 1,kl
-    do iq = 1,imax
-      r(iq,n,k) = rhs(iq,k,n)
-    end do
-  end do
-end do
-
 ! the Thomas algorithm is used
 do n = 1,ndim
   do iq = 1,imax
     b=1./(1.-a(iq,1)-c(iq,1))
     e(iq,n,1)=c(iq,1)*b
-    g(iq,n,1)=r(iq,n,1)*b
+    g(iq,n,1)=rhs(iq,1,n)*b
   end do
 end do
 do k = 2,kl-1
@@ -1784,7 +1716,7 @@ do k = 2,kl-1
       b=1.-a(iq,k)-c(iq,k)
       temp= 1./(b-a(iq,k)*e(iq,n,k-1))
       e(iq,n,k)=c(iq,k)*temp
-      g(iq,n,k)=(r(iq,n,k)-a(iq,k)*g(iq,n,k-1))*temp
+      g(iq,n,k)=(rhs(iq,k,n)-a(iq,k)*g(iq,n,k-1))*temp
     end do  
   end do
 end do
@@ -1793,22 +1725,15 @@ end do
 do n = 1,ndim
   do iq = 1,imax
     b=1.-a(iq,kl)-c(iq,kl)
-    r(iq,n,kl)=(r(iq,n,kl)-a(iq,kl)*g(iq,n,kl-1))/(b-a(iq,kl)*e(iq,n,kl-1))
+    temp= 1./(b-a(iq,kl)*e(iq,n,kl-1))
+    rhs(iq,kl,n)=(rhs(iq,kl,n)-a(iq,kl)*g(iq,n,kl-1))*temp
   end do  
 end do
 do k = kl-1,1,-1
   do n = 1,ndim
     do iq = 1,imax
-      r(iq,n,k) = g(iq,n,k)-e(iq,n,k)*r(iq,n,k+1)
+      rhs(iq,k,n) = g(iq,n,k)-e(iq,n,k)*rhs(iq,k+1,n)
     end do  
-  end do
-end do
-
-do k = 1,kl
-  do n = 1,ndim    
-    do iq = 1,imax
-      rhs(iq,k,n) = r(iq,n,k)
-    end do
   end do
 end do
 
@@ -1839,7 +1764,7 @@ use tkeeps, only : tkemix        ! TKE-EPS boundary layer
 implicit none
 
 integer, dimension(ifull) :: ibot
-integer k, iq, js, je, tile
+integer k, iq, js, je, tile, tke_mode
 real, dimension(:,:), intent(inout) :: t, qg, qfg, qlg
 real, dimension(:,:), intent(inout) :: stratcloud, u, v
 real, dimension(:,:), intent(inout) :: tke, eps
@@ -1866,6 +1791,13 @@ real, dimension(ifull) :: i_u, i_v, imass, cd_ice, cdbot_ice
 real, dimension(kl) :: delh
 real, dimension(imax) :: ldum
 real, dimension(imax,wlev) :: lw_t, lw_s, lw_u, lw_v
+real, dimension(imax,wlev) :: lw_tke, lw_eps, lw_t_ema, lw_s_ema
+real, dimension(imax,wlev) :: ldeptho_fl, lrad_o
+real, dimension(imax,wlev+1) :: ldeptho_hl
+real, dimension(imax,2:wlev-1) :: lshear_o
+real, dimension(imax,kl) :: ltheta, lqg, lqlg, lqfg, lstratcloud, lu, lv
+real, dimension(imax,kl) :: ltke, leps, lthetal_ema, lqv_ema, lql_ema, lqf_ema, lcf_ema, ltke_ema
+real, dimension(imax,kl) :: lzg, lzh, lshear, lrkm
 real rong
 logical, dimension(:), intent(in) :: land
 #ifdef scm
@@ -1874,6 +1806,8 @@ real, dimension(:,:), intent(inout) :: vw_flux
 real, dimension(:,:), intent(inout) :: buoyproduction, shearproduction
 real, dimension(:,:), intent(inout) :: totaltransport
 real, dimension(:,:), intent(inout) :: mfsave
+real, dimension(imax,kl) :: lwth_flux, lwq_flux, luw_flux, lvw_flux, lmf_save
+real, dimension(imax,kl) :: lbuoyproduction, lshearproduction, ltotaltransport
 #endif
 
 !$omp do schedule(static) private(js,je,k,delh,rong)
@@ -1887,7 +1821,7 @@ do tile = 1,ntiles
   ! Set-up potential temperature transforms
   rong = rdry/grav
   do k = 1,kl
-    delh(k)   = -rong*dsig(k)/sig(k)  ! sign of delh defined so always +ve
+    delh(k) = -rong*dsig(k)/sig(k)  ! sign of delh defined so always +ve
   end do      ! k loop
       
   ! note ksc/=0 options are clobbered when nvmix=6 or nvmix=9
@@ -2026,106 +1960,318 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait
 
-! Evaluate EDMF scheme
-select case(nvmix)
-  case(6)
-    select case(nlocal)
-      case(0) ! atm only, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                    ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,    &
-                    cf_ema,tke_ema,                                                       &
-                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,               &
-                    shearproduction,totaltransport,                                       &
-                    deptho_fl,deptho_hl,cd_water,cdh_water,cdbot_water,wt0rad_o,          &
-                    wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,w_t,w_s,w_u,w_v,rad_o,   &
-                    ibot,i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,w_tke,w_eps,      &
-                    w_t_ema,w_s_ema,zo_o,shear_o,                                         &
-                    land,ugs_var,sigkap)
-      case(7) ! atm only, mass-flux counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                    ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,    &
-                    cf_ema,tke_ema,                                                       &
-                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,               &
-                    shearproduction,totaltransport,                                       &
-                    deptho_fl,deptho_hl,cd_water,cdh_water,cdbot_water,wt0rad_o,          &
-                    wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,w_t,w_s,w_u,w_v,rad_o,   &
-                    ibot,i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,w_tke,w_eps,      &
-                    w_t_ema,w_s_ema,zo_o,shear_o,                                         &
-                    land,ugs_var,sigkap)
-    end select    
-  case(9)
-    select case(nlocal)
-      case(0) ! coupled atm-ocn, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                    ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,    &
-                    cf_ema,tke_ema,                                                       &
-                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,               &
-                    shearproduction,totaltransport,                                       &
-                    deptho_fl,deptho_hl,cd_water,cdh_water,cdbot_water,wt0rad_o,          &
-                    wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,w_t,w_s,w_u,w_v,rad_o,   &
-                    ibot,i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,w_tke,w_eps,      &
-                    w_t_ema,w_s_ema,zo_o,shear_o,                                         &
-                    land,ugs_var,sigkap)          
-      case(7) ! coupled atm-ocn, mass-flux counter gradient 
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                    usta,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,    &
-                    cf_ema,tke_ema,                                                       &
-                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,               &
-                    shearproduction,totaltransport,                                       &
-                    deptho_fl,deptho_hl,cd_water,cdh_water,cdbot_water,wt0rad_o,          &
-                    wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,w_t,w_s,w_u,w_v,rad_o,   &
-                    ibot,i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,w_tke,w_eps,      &
-                    w_t_ema,w_s_ema,zo_o,shear_o,                                         &
-                    land,ugs_var,sigkap)          
-    end select    
-end select
+!$omp do schedule(static) private(js,je,k,ltheta,lqg,qlg,lqfg,lstratloud)     &
+!$omp   private(lu,lv,ltke,leps,lthetal_ema,lqv_ema,lqf_ema,lcf_ema,ltke_ema) &
+!$omp   private(lzz,lzh,lshear,lw_t,lw_s,lw_u,lw_v,lw_tke,lw_eps,lw_t_ema)    &
+!$omp   private(lw_s_ema,ldeptho_fl,ldeptho_hl,lrad_o,lshear_o,lrkm)          &
+!$omp   private(lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,lbuoyproduction) &
+!$omp   private(lshearproduction,ltotaltransport)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+  
+  ltheta = rhs(js:je,:)
+  lqg = qg(js:je,:)
+  lqlg = qlg(js:je,:)
+  lqfg = qfg(js:je,:)
+  lstratcloud = stratcloud(js:je,:)
+  lu = u(js:je,:)
+  lv = v(js:je,:)
+  ltke = tke(js:je,:)
+  leps = eps(js:je,:)
+  lthetal_ema = thetal_ema(js:je,:)
+  lqv_ema = qv_ema(js:je,:)
+  lql_ema = ql_ema(js:je,:)
+  lqf_ema = qf_ema(js:je,:)
+  lcf_ema = cf_ema(js:je,:)
+  ltke_ema = tke_ema(js:je,:)
 
+  lzg = zg(js:je,:)
+  lzh = zh(js:je,:)
+  lshear = shear(js:je,:)
+  
+  lw_t = w_t(js:je,:)
+  lw_s = w_s(js:je,:)
+  lw_u = w_u(js:je,:)
+  lw_v = w_v(js:je,:)
+  lw_tke = w_tke(js:je,:)
+  lw_eps = w_eps(js:je,:)
+  lw_t_ema = w_t_ema(js:je,:)
+  lw_s_ema = w_s_ema(js:je,:)
+  
+  ldeptho_fl = deptho_fl(js:je,:)
+  ldeptho_hl = deptho_hl(js:je,:)
+  lrad_o = rad_o(js:je,:)
+  lshear_o = shear_o(js:je,:)
+  
+  lwth_flux(:,:) = 0.
+  lwq_flux(:,:) = 0.
+  luw_flux(:,:) = 0.
+  lvw_flux(:,:) = 0.
+  lmfsave(:,:) = 0.
+
+  ! Evaluate EDMF scheme
+  select case(nvmix)
+    case(6)
+      select case(nlocal)
+        case(0) ! atm only, no counter gradient
+          call tkemix(lrkm,ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,pblh(js:je),fg(js:je),    &
+                      eg(js:je),cduv(js:je),ps(js:je),lzg,lzh,sig,rhos(js:je),              &
+                      ustar(js:je),dt,qgmin,1,ltke,leps,lshear,dx(js:je),lthetal_ema,       &
+                      lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,                             &
+                      lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,lbuoyproduction,         &
+                      lshearproduction,ltotaltransport,                                     &
+                      ldeptho_fl,ldeptho_hl,cd_water(js:je),cdh_water(js:je),               &
+                      cdbot_water(js:je),wt0rad_o(js:je),wt0melt_o(js:je),wt0eg_o(js:je),   &
+                      wt0fb_o(js:je),ws0_o(js:je),ws0subsurf_o(js:je),lw_t,lw_s,lw_u,lw_v,  &
+                      lrad_o,ibot(js:je),i_u(js:je),i_v(js:je),fracice(js:je),              &
+                      icefg_a(js:je),imass(js:je),cd_ice(js:je),cdbot_ice(js:je),lw_tke,    &
+                      lw_eps,lw_t_ema,lw_s_ema,zo_o(js:je),lshear_o,land(js:je),            &
+                      ugs_var(js:je),sigkap,imax,kl,wlev)
+        case(7) ! atm only, mass-flux counter gradient
+          call tkemix(lrkm,ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,pblh(js:je),fg(js:je),    &
+                      eg(js:je),cduv(js:je),ps(js:je),lzg,lzh,sig,rhos(js:je),              &
+                      ustar(js:je),dt,qgmin,0,ltke,leps,lshear,dx(js:je),lthetal_ema,       &
+                      lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,                             &
+                      lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,lbuoyproduction,         &
+                      lshearproduction,ltotaltransport,                                     &
+                      ldeptho_fl,ldeptho_hl,cd_water(js:je),cdh_water(js:je),               &
+                      cdbot_water(js:je),wt0rad_o(js:je),wt0melt_o(js:je),wt0eg_o(js:je),   &
+                      wt0fb_o(js:je),ws0_o(js:je),ws0subsurf_o(js:je),lw_t,lw_s,lw_u,lw_v,  &
+                      lrad_o,ibot(js:je),i_u(js:je),i_v(js:je),fracice(js:je),              &
+                      icefg_a(js:je),imass(js:je),cd_ice(js:je),cdbot_ice(js:je),lw_tke,    &
+                      lw_eps,lw_t_ema,lw_s_ema,zo_o(js:je),lshear_o,land(js:je),            &
+                      ugs_var(js:je),sigkap,imax,kl,wlev)
+      end select    
+    case(9)
+      select case(nlocal)
+        case(0) ! coupled atm-ocn, no counter gradient
+          call tkemix(lrkm,ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,pblh(js:je),fg(js:je),    &
+                      eg(js:je),cduv(js:je),ps(js:je),lzg,lzh,sig,rhos(js:je),              &
+                      ustar(js:je),dt,qgmin,3,ltke,leps,lshear,dx(js:je),lthetal_ema,       &
+                      lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,                             &
+                      lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,lbuoyproduction,         &
+                      lshearproduction,ltotaltransport,                                     &
+                      ldeptho_fl,ldeptho_hl,cd_water(js:je),cdh_water(js:je),               &
+                      cdbot_water(js:je),wt0rad_o(js:je),wt0melt_o(js:je),wt0eg_o(js:je),   &
+                      wt0fb_o(js:je),ws0_o(js:je),ws0subsurf_o(js:je),lw_t,lw_s,lw_u,lw_v,  &
+                      lrad_o,ibot(js:je),i_u(js:je),i_v(js:je),fracice(js:je),              &
+                      icefg_a(js:je),imass(js:je),cd_ice(js:je),cdbot_ice(js:je),lw_tke,    &
+                      lw_eps,lw_t_ema,lw_s_ema,zo_o(js:je),lshear_o,land(js:je),            &
+                      ugs_var(js:je),sigkap,imax,kl,wlev)
+        case(7) ! coupled atm-ocn, mass-flux counter gradient 
+          call tkemix(lrkm,ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,pblh(js:je),fg(js:je),    &
+                      eg(js:je),cduv(js:je),ps(js:je),lzg,lzh,sig,rhos(js:je),              &
+                      ustar(js:je),dt,qgmin,2,ltke,leps,lshear,dx(js:je),lthetal_ema,       &
+                      lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,                             &
+                      lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,lbuoyproduction,         &
+                      lshearproduction,ltotaltransport,                                     &
+                      ldeptho_fl,ldeptho_hl,cd_water(js:je),cdh_water(js:je),               &
+                      cdbot_water(js:je),wt0rad_o(js:je),wt0melt_o(js:je),wt0eg_o(js:je),   &
+                      wt0fb_o(js:je),ws0_o(js:je),ws0subsurf_o(js:je),lw_t,lw_s,lw_u,lw_v,  &
+                      lrad_o,ibot(js:je),i_u(js:je),i_v(js:je),fracice(js:je),              &
+                      icefg_a(js:je),imass(js:je),cd_ice(js:je),cdbot_ice(js:je),lw_tke,    &
+                      lw_eps,lw_t_ema,lw_s_ema,zo_o(js:je),lshear_o,land(js:je),            &
+                      ugs_var(js:je),sigkap,imax,kl,wlev)
+      end select    
+    end select
+
+  rkm(js:je,:) = lrkm
+  
+  rhs(js:je,:) = ltheta
+  qg(js:je,:) = lqg
+  qlg(js:je,:) = lqlg
+  qfg(js:je,:) = lqfg
+  stratcloud(js:je,:) = lstratcloud
+  u(js:je,:) = lu
+  v(js:je,:) = lv
+  tke(js:je,:) = ltke
+  eps(js:je,:) = leps
+  thetal_ema(js:je,:) = lthetal_ema
+  qv_ema(js:je,:) = lqv_ema
+  ql_ema(js:je,:) = lql_ema
+  qf_ema(js:je,:) = lqf_ema
+  cf_ema(js:je,:) = lcf_ema
+  tke_ema(js:je,:) = ltke_ema
+  
+  w_t(js:je,:) = lw_t
+  w_s(js:je,:) = lw_s
+  w_u(js:je,:) = lw_u
+  w_v(js:je,:) = lw_v
+  w_tke(js:je,:) = lw_tke
+  w_eps(js:je,:) = lw_eps
+  w_t_ema(js:je,:) = lw_t_ema
+  w_s_ema(js:je,:) = lw_s_ema
+
+  wth_flux(js:je,:) = lwth_flux
+  wq_flux(js:je,:) = lwq_flux
+  uw_flux(js:je,:) = luw_flux
+  vw_flux(js:je,:) = lvw_flux
+  mfsave(js:je,:) = lmfsave
+  buoyproduction(js:je,:) = lbuoyproduction
+  shearproduction(js:je,:) = lshearproduction
+  totaltransport(js:je,:) = ltotaltransport  
+  
+end do
+!$omp end do nowait
+   
 #else
-! Evaluate EDMF scheme
-select case(nvmix)
-  case(6)  
-    select case(nlocal)
-      case(0) ! atm only, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                    ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,    &
-                    cf_ema,tke_ema,                                                       &
-                    deptho_fl,deptho_hl,cd_water,cdh_water,cdbot_water,wt0rad_o,          &
-                    wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,w_t,w_s,w_u,w_v,rad_o,   &
-                    ibot,i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,w_tke,w_eps,      &
-                    w_t_ema,w_s_ema,zo_o,shear_o,                                         &
-                    land,ugs_var,sigkap) 
-      case(7) ! atm only, mass-flux counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                    ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,    &
-                    cf_ema,tke_ema,                                                       &
-                    deptho_fl,deptho_hl,cd_water,cdh_water,cdbot_water,wt0rad_o,          &
-                    wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,w_t,w_s,w_u,w_v,rad_o,   &
-                    ibot,i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,w_tke,w_eps,      &
-                    w_t_ema,w_s_ema,zo_o,shear_o,                                         &
-                    land,ugs_var,sigkap)     
-    end select
-  case(9)
-    select case(nlocal)
-      case(0) ! coupled atm-ocn, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                    ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,    &
-                    cf_ema,tke_ema,                                                       &
-                    deptho_fl,deptho_hl,cd_water,cdh_water,cdbot_water,wt0rad_o,          &
-                    wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,w_t,w_s,w_u,w_v,rad_o,   &
-                    ibot,i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,w_tke,w_eps,      &
-                    w_t_ema,w_s_ema,zo_o,shear_o,                                         &
-                    land,ugs_var,sigkap) 
-      case(7) ! coupled atm-ocn, mass-flux counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,rhos,  &
-                    ustar,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,qf_ema,    &
-                    cf_ema,tke_ema,                                                       &
-                    deptho_fl,deptho_hl,cd_water,cdh_water,cdbot_water,wt0rad_o,          &
-                    wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,w_t,w_s,w_u,w_v,rad_o,   &
-                    ibot,i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,w_tke,w_eps,      &
-                    w_t_ema,w_s_ema,zo_o,shear_o,                                         &
-                    land,ugs_var,sigkap)     
-    end select
-end select
+
+#ifndef GPU
+!$omp do schedule(static) private(js,je,ltheta,lqg,lqlg,lqfg,lstratcloud)   &
+!$omp   private(lu,lv,ltke,leps,lthetal_ema,lqv_ema,lql_ema,lqf_ema)        &
+!$omp   private(cf_ema,ltke_ema)                                            &
+!$omp   private(lzg,lzh,lshear,lw_t,lw_s,lw_u,lw_v,lw_tke,lw_eps,lw_t_ema)  &
+!$omp   private(lw_s_ema,ldeptho_fl,ldeptho_hl,lrad_o,lshear_o,lrkm)
+#endif
+#ifdef GPUPHYSICS
+!!$acc parallel loop copy(rhs,qg,qlg,qfg,stratcloud,u,v,tke,eps)        &
+!!$acc   copy(thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,tke_ema)           &
+!!$acc   copy(w_t,w_s,w_u,w_v,w_tke,w_eps)                              &
+!!$acc   copy(w_t_ema,w_s_ema,pblh,fg,i_u,i_v)                          &
+!!$acc   copyin(zg,zh,shear,deptho_fl,deptho_hl,rad_o,shear_o)          &
+!!$acc   copyin(eg,cduv,ps,rhos,dx,cd_water,cdh_water,cdbot_water)      &
+!!$acc   copyin(wt0rad_o,wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o)  &
+!!$acc   copyin(ibot,fracice,icefg_a,imass,cd_ice,cdbot_ice,zo_o,land)  &
+!!$acc   copyout(rkm,ugs_var,ustar)                                     &
+!!$acc   present(sig,sigkap)                                            &
+!!$acc   private(ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,ltke,leps)      &
+!!$acc   private(lthetal_ema,lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema)  &
+!!$acc   private(lzg,lzh,lshear,ldeptho_fl,ldeptho_hl,lrad_o,lshear_o)  &
+!!$acc   private(lw_t,lw_s,lw_u,lw_v,lw_tke,lw_eps)                     &
+!!$acc   private(lw_t_ema,lw_s_ema,lrkm,js,je)
+#endif
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+  
+  ltheta = rhs(js:je,:)
+  lqg = qg(js:je,:)
+  lqlg = qlg(js:je,:)
+  lqfg = qfg(js:je,:)
+  lstratcloud = stratcloud(js:je,:)
+  lu = u(js:je,:)
+  lv = v(js:je,:)
+  ltke = tke(js:je,:)
+  leps = eps(js:je,:)
+  lthetal_ema = thetal_ema(js:je,:)
+  lqv_ema = qv_ema(js:je,:)
+  lql_ema = ql_ema(js:je,:)
+  lqf_ema = qf_ema(js:je,:)
+  lcf_ema = cf_ema(js:je,:)
+  ltke_ema = tke_ema(js:je,:)
+
+  lzg = zg(js:je,:)
+  lzh = zh(js:je,:)
+  lshear = shear(js:je,:)
+  
+  lw_t = w_t(js:je,:)
+  lw_s = w_s(js:je,:)
+  lw_u = w_u(js:je,:)
+  lw_v = w_v(js:je,:)
+  lw_tke = w_tke(js:je,:)
+  lw_eps = w_eps(js:je,:)
+  lw_t_ema = w_t_ema(js:je,:)
+  lw_s_ema = w_s_ema(js:je,:)
+  
+  ldeptho_fl = deptho_fl(js:je,:)
+  ldeptho_hl = deptho_hl(js:je,:)
+  lrad_o = rad_o(js:je,:)
+  lshear_o = shear_o(js:je,:)
+  
+  ! Evaluate EDMF scheme
+  select case(nvmix)
+    case(6)  
+      select case(nlocal)
+        case(0) ! atm only, no counter gradient
+          call tkemix(lrkm,ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,pblh(js:je),fg(js:je),    &
+                      eg(js:je),cduv(js:je),ps(js:je),lzg,lzh,sig,rhos(js:je),              &
+                      ustar(js:je),dt,qgmin,1,ltke,leps,lshear,dx(js:je),lthetal_ema,       &
+                      lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,                             &
+                      ldeptho_fl,ldeptho_hl,cd_water(js:je),cdh_water(js:je),               &
+                      cdbot_water(js:je),wt0rad_o(js:je),wt0melt_o(js:je),wt0eg_o(js:je),   &
+                      wt0fb_o(js:je),ws0_o(js:je),ws0subsurf_o(js:je),lw_t,lw_s,lw_u,lw_v,  &
+                      lrad_o,ibot(js:je),i_u(js:je),i_v(js:je),fracice(js:je),              &
+                      icefg_a(js:je),imass(js:je),cd_ice(js:je),cdbot_ice(js:je),lw_tke,    &
+                      lw_eps,lw_t_ema,lw_s_ema,zo_o(js:je),lshear_o,land(js:je),            &
+                      ugs_var(js:je),sigkap,imax,kl,wlev) 
+        case(7) ! atm only, mass-flux counter gradient
+          call tkemix(lrkm,ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,pblh(js:je),fg(js:je),    &
+                      eg(js:je),cduv(js:je),ps(js:je),lzg,lzh,sig,rhos(js:je),              &
+                      ustar(js:je),dt,qgmin,0,ltke,leps,lshear,dx(js:je),lthetal_ema,       &
+                      lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,                             &
+                      ldeptho_fl,ldeptho_hl,cd_water(js:je),cdh_water(js:je),               &
+                      cdbot_water(js:je),wt0rad_o(js:je),wt0melt_o(js:je),wt0eg_o(js:je),   &
+                      wt0fb_o(js:je),ws0_o(js:je),ws0subsurf_o(js:je),lw_t,lw_s,lw_u,lw_v,  &
+                      lrad_o,ibot(js:je),i_u(js:je),i_v(js:je),fracice(js:je),              &
+                      icefg_a(js:je),imass(js:je),cd_ice(js:je),cdbot_ice(js:je),lw_tke,    &
+                      lw_eps,lw_t_ema,lw_s_ema,zo_o(js:je),lshear_o,land(js:je),            &
+                      ugs_var(js:je),sigkap,imax,kl,wlev) 
+      end select
+    case(9)
+      select case(nlocal)
+        case(0) ! coupled atm-ocn, no counter gradient
+          call tkemix(lrkm,ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,pblh(js:je),fg(js:je),    &
+                      eg(js:je),cduv(js:je),ps(js:je),lzg,lzh,sig,rhos(js:je),              &
+                      ustar(js:je),dt,qgmin,3,ltke,leps,lshear,dx(js:je),lthetal_ema,       &
+                      lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,                             &
+                      ldeptho_fl,ldeptho_hl,cd_water(js:je),cdh_water(js:je),               &
+                      cdbot_water(js:je),wt0rad_o(js:je),wt0melt_o(js:je),wt0eg_o(js:je),   &
+                      wt0fb_o(js:je),ws0_o(js:je),ws0subsurf_o(js:je),lw_t,lw_s,lw_u,lw_v,  &
+                      lrad_o,ibot(js:je),i_u(js:je),i_v(js:je),fracice(js:je),              &
+                      icefg_a(js:je),imass(js:je),cd_ice(js:je),cdbot_ice(js:je),lw_tke,    &
+                      lw_eps,lw_t_ema,lw_s_ema,zo_o(js:je),lshear_o,land(js:je),            &
+                      ugs_var(js:je),sigkap,imax,kl,wlev) 
+        case(7) ! coupled atm-ocn, mass-flux counter gradient
+          call tkemix(lrkm,ltheta,lqg,lqlg,lqfg,lstratcloud,lu,lv,pblh(js:je),fg(js:je),    &
+                      eg(js:je),cduv(js:je),ps(js:je),lzg,lzh,sig,rhos(js:je),              &
+                      ustar(js:je),dt,qgmin,2,ltke,leps,lshear,dx(js:je),lthetal_ema,       &
+                      lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,                             &
+                      ldeptho_fl,ldeptho_hl,cd_water(js:je),cdh_water(js:je),               &
+                      cdbot_water(js:je),wt0rad_o(js:je),wt0melt_o(js:je),wt0eg_o(js:je),   &
+                      wt0fb_o(js:je),ws0_o(js:je),ws0subsurf_o(js:je),lw_t,lw_s,lw_u,lw_v,  &
+                      lrad_o,ibot(js:je),i_u(js:je),i_v(js:je),fracice(js:je),              &
+                      icefg_a(js:je),imass(js:je),cd_ice(js:je),cdbot_ice(js:je),lw_tke,    &
+                      lw_eps,lw_t_ema,lw_s_ema,zo_o(js:je),lshear_o,land(js:je),            &
+                      ugs_var(js:je),sigkap,imax,kl,wlev)   
+      end select
+  end select
+  
+  rkm(js:je,:) = lrkm
+  
+  rhs(js:je,:) = ltheta
+  qg(js:je,:) = lqg
+  qlg(js:je,:) = lqlg
+  qfg(js:je,:) = lqfg
+  stratcloud(js:je,:) = lstratcloud
+  u(js:je,:) = lu
+  v(js:je,:) = lv
+  tke(js:je,:) = ltke
+  eps(js:je,:) = leps
+  thetal_ema(js:je,:) = lthetal_ema
+  qv_ema(js:je,:) = lqv_ema
+  ql_ema(js:je,:) = lql_ema
+  qf_ema(js:je,:) = lqf_ema
+  cf_ema(js:je,:) = lcf_ema
+  tke_ema(js:je,:) = ltke_ema
+  
+  w_t(js:je,:) = lw_t
+  w_s(js:je,:) = lw_s
+  w_u(js:je,:) = lw_u
+  w_v(js:je,:) = lw_v
+  w_tke(js:je,:) = lw_tke
+  w_eps(js:je,:) = lw_eps
+  w_t_ema(js:je,:) = lw_t_ema
+  w_s_ema(js:je,:) = lw_s_ema
+  
+end do
+#ifndef GPU
+!$omp end do nowait
+#endif
+#ifdef GPUPHYSICS
+!!$acc end parallel loop
+#endif
+
 #endif
 
 

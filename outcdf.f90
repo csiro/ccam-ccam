@@ -220,7 +220,7 @@ integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3, nalways_mspeca, ndo_co2_10um, ndo_quench
-integer nremain_rayleigh_bug
+integer nremain_rayleigh_bug, nuse_rad_year
 integer, save :: idnc_hist=0, iarch_hist=0
 integer :: idnc, iarch
 real, dimension(:), intent(in) :: psl_in
@@ -696,6 +696,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mins_rad',mins_rad)
     call ccnf_put_attg(idnc,'o3_vert_interpolate',o3_vert_interpolate)
     call ccnf_put_attg(idnc,'qgmin',qgmin)
+    call ccnf_put_attg(idnc,'rad_year',rad_year)    
     if ( remain_rayleigh_bug ) then
       nremain_rayleigh_bug = 1
     else
@@ -711,6 +712,12 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'so4radmethod',so4radmethod)
     call ccnf_put_attg(idnc,'sw_diff_streams',sw_diff_streams)
     call ccnf_put_attg(idnc,'sw_resolution',sw_resolution)
+    if ( use_rad_year ) then
+      nuse_rad_year = 1
+    else
+      nuse_rad_year = 0
+    end if
+    call ccnf_put_attg(idnc,'use_rad_year',nuse_rad_year)
     call ccnf_put_attg(idnc,'zvolcemi',zvolcemi)
     
     ! convection and cloud microphysics
@@ -739,6 +746,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'kscmom',kscmom)
     call ccnf_put_attg(idnc,'kscsea',kscsea)
     call ccnf_put_attg(idnc,'ldr',ldr)
+    call ccnf_put_attg(idnc,'lin_aerosolmode',lin_aerosolmode)
+    call ccnf_put_attg(idnc,'maxlintime',maxlintime)
     call ccnf_put_attg(idnc,'mbase',mbase)
     call ccnf_put_attg(idnc,'mdelay',mdelay)
     call ccnf_put_attg(idnc,'methdetr',methdetr)
@@ -2065,6 +2074,11 @@ if( myid==0 .or. local ) then
       if ( (ncloud>=4.and.ncloud<=13) .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,5,'strat_nt','Strat net temp tendency','K s-1',-50.,50.,0,cptype)
       end if
+      if ( (ncloud>=100.and.ncloud<=120) .and. (itype==-1.or.diaglevel_cloud>5) ) then
+        call attrib(idnc,dima,5,'ni','Ice number concentration','kg-1',0.,1.e10,0,-1)
+        call attrib(idnc,dima,5,'nr','Rain number concentration','kg-1',0.,1.e10,0,-1)
+        call attrib(idnc,dima,5,'ns','Snow number concentration','kg-1',0.,1.e10,0,-1)
+      end if  
     end if
         
     ! TURBULENT MIXING ----------------------------------------------
@@ -3312,7 +3326,12 @@ if ( ldr/=0 ) then
   if ( (ncloud>=4.and.ncloud<=13) .and. (itype==-1.or.diaglevel_cloud>5) ) then 
     call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
   end if
-endif
+  if ( (ncloud>=100.and.ncloud<=120) .and. (itype==-1.or.diaglevel_cloud>5) ) then
+    call histwrt(nr,'ni',idnc,iarch,local,.true.)  
+    call histwrt(ni,'nr',idnc,iarch,local,.true.)
+    call histwrt(ns,'ns',idnc,iarch,local,.true.)
+  end if      
+end if
       
 ! TURBULENT MIXING --------------------------------------------
 if ( nvmix==6 .or. nvmix==9 ) then
