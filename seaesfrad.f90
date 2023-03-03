@@ -148,6 +148,8 @@ use extraout_m                                      ! Additional diagnostics
 use estab                                           ! Liquid saturation function
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
+use liqwpar_m, only : stras_rliq,stras_rice, &      ! Cloud water mixing ratios
+      stras_rsno
 use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
 use module_aux_rad                                  ! Additional cloud and radiation routines
 use newmpar_m                                       ! Grid parameters
@@ -173,6 +175,7 @@ integer i, iq, istart, iend, kr, nr, iq_tile
 integer ktop, kbot, mythread
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
+real, dimension(imax,kl) :: dum_stras_rliq, dum_stras_rice, dum_stras_rsno
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
@@ -569,9 +572,13 @@ do iq_tile = 1,ifull,imax
     dumcf = cfrac(istart:iend,:)
     dumql = qlrad(istart:iend,:)
     dumqf = qfrad(istart:iend,:)
+    dum_stras_rliq = stras_rliq(istart:iend,:)
+    dum_stras_rice = stras_rice(istart:iend,:)
+    dum_stras_rsno = stras_rsno(istart:iend,:)
     call cloud3(Cloud_microphysics(mythread)%size_drop,Cloud_microphysics(mythread)%size_ice,       &
                 Cloud_microphysics(mythread)%conc_drop,Cloud_microphysics(mythread)%conc_ice,       &
-                dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl)
+                dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl,                                              &
+                stras_rliq=dum_stras_rliq,stras_rice=dum_stras_rice,stras_rsno=dum_stras_rsno)
     Cloud_microphysics(mythread)%size_drop = max(Cloud_microphysics(mythread)%size_drop, 1.e-20_8)
     Cloud_microphysics(mythread)%size_ice  = max(Cloud_microphysics(mythread)%size_ice,  1.e-20_8)                
     Cloud_microphysics(mythread)%size_rain = 1.e-20_8
