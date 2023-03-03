@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,17 +28,20 @@ public liqradmethod, iceradmethod
 public cloud3
 
 integer, save :: liqradmethod = 0     ! Method for calculating radius of liquid droplets
-                                      ! (0=Martin Mid/NBer, 1=Martin Low/NBer, 2=Martin High/NBer
-                                      !  3=Martin Mid/Ber,  4=Martin Low/Ber,  5=Martin High/Ber )
+                                      ! (0=Martin Mid/NBer, 1=Martin Low/NBer, 2=Martin High/NBer,
+                                      !  3=Martin Mid/Ber,  4=Martin Low/Ber,  5=Martin High/Ber,
+                                      !  6=Lin feedback)
 integer, save :: iceradmethod = 1     ! Method for calculating radius of ice droplets
-                                      ! (0=Lohmann, 1=Donner smooth, 2=Fu, 3=Donner orig)
+                                      ! (0=Lohmann, 1=Donner smooth, 2=Fu, 3=Donner orig,
+                                      !  4=Lin feedback)
 
 real, parameter :: rhow = 1000.       ! Density of water (kg/m^3)
 
 contains
 
 ! This subroutine is based on cloud2.f
-subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlrad,qfrad,prf,ttg,cdrop,imax,kl)
+subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlrad,qfrad,prf,ttg,cdrop,imax,kl, &
+                  stras_rliq,stras_rice,stras_rsno)
 
 use const_phys          ! Physical constants
 use parm_m              ! Model configuration
@@ -50,6 +53,7 @@ integer iq, k, kr
 integer, dimension(imax) :: tpos
 real, dimension(imax,kl), intent(in) :: cfrac, qlrad, qfrad, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
+real, dimension(imax,kl), intent(in), optional :: stras_rliq,stras_rice,stras_rsno
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
 real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa
 real, dimension(imax,kl) :: eps, rk, Wice
@@ -72,56 +76,74 @@ do_brenguier = .false.
 
 rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
 
-select case(liqradmethod)
-  case(0)
-    liqparm = -0.003e-6 ! mid range
-    do_brenguier = .false.
-    scale_factor = 1.
-  case(1)
-    liqparm = -0.001e-6 ! lower bound
-    do_brenguier = .false.
-    scale_factor = 1.
-  case(2)
-    liqparm = -0.008e-6 ! upper bound
-    do_brenguier = .false.
-    scale_factor = 1.
-  case(3)
-    liqparm = -0.003e-6 ! mid range
-    do_brenguier = .true.
-    scale_factor = 0.85
-  case(4)
-    liqparm = -0.001e-6 ! lower bound
-    do_brenguier = .true.
-    scale_factor = 0.85
-  case(5)
-    liqparm = -0.008e-6 ! upper bound
-    do_brenguier = .true.
-    scale_factor = 0.85
-  case default
-    write(6,*) "ERROR: Unknown option for liqradmethod ",liqradmethod
-    stop -1
-end select
+if ( liqradmethod<6 ) then
+  select case(liqradmethod)
+    case(0)
+      liqparm = -0.003e-6 ! mid range
+      do_brenguier = .false.
+      scale_factor = 1.
+    case(1)
+      liqparm = -0.001e-6 ! lower bound
+      do_brenguier = .false.
+      scale_factor = 1.
+    case(2)
+      liqparm = -0.008e-6 ! upper bound
+      do_brenguier = .false.
+      scale_factor = 1.
+    case(3)
+      liqparm = -0.003e-6 ! mid range
+      do_brenguier = .true.
+      scale_factor = 0.85
+    case(4)
+      liqparm = -0.001e-6 ! lower bound
+      do_brenguier = .true.
+      scale_factor = 0.85
+    case(5)
+      liqparm = -0.008e-6 ! upper bound
+      do_brenguier = .true.
+      scale_factor = 0.85
+    case default
+      write(6,*) "ERROR: Unknown option for liqradmethod ",liqradmethod
+      stop -1
+  end select
 
-! Reffl is the effective radius calculated following
-! Martin etal 1994, JAS 51, 1823-1842
-where ( qlrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
-  Wliq(:,:) = rhoa(:,:)*qlrad(:,:)/cfrac(:,:) !kg/m^3
-  ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-  eps(:,:) = 1. - 0.7*exp(liqparm*cdrop(:,:))
-  rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
+  ! Reffl is the effective radius calculated following
+  ! Martin etal 1994, JAS 51, 1823-1842
+  where ( qlrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
+    Wliq(:,:) = rhoa(:,:)*qlrad(:,:)/cfrac(:,:) !kg/m^3
+    ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
+    eps(:,:) = 1. - 0.7*exp(liqparm*cdrop(:,:))
+    rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
 
-  ! k_ratio = rk**(-1./3.)  
-  ! GFDL        k_ratio (land) 1.143 (water) 1.077
-  ! mid range   k_ratio (land) 1.393 (water) 1.203
-  ! lower bound k_ratio (land) 1.203 (water) 1.050
+    ! k_ratio = rk**(-1./3.)  
+    ! GFDL        k_ratio (land) 1.143 (water) 1.077
+    ! mid range   k_ratio (land) 1.393 (water) 1.203
+    ! lower bound k_ratio (land) 1.203 (water) 1.050
 
-  ! Martin et al 1994
-  reffl(:,:) = 2.*(3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
-elsewhere
-  reffl(:,:) = 0.
-  Wliq(:,:) = 0.
-end where
+    ! Martin et al 1994
+    reffl(:,:) = 2.*(3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
+  elsewhere
+    reffl(:,:) = 0.
+    Wliq(:,:) = 0.
+  end where
   
+else if ( liqradmethod==6 ) then
+
+  if ( .not.present(stras_rliq) ) then
+    write(6,*) "ERROR: cloud3 called with liqradmethod=6 but without stras_rliq argument"
+    stop
+  end if 
+  where ( qlrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
+    Wliq(:,:) = rhoa(:,:)*qlrad(:,:)/cfrac(:,:) !kg/m^3
+  elsewhere
+    Wliq(:,:) = 0.
+  end where
+  reffl(:,:) = stras_rliq(:,:)
+
+else
+  write(6,*) "ERROR: Unknown liqradmethod ",liqradmethod
+end if
+
 
 ! (GFDL NOTES)
 !    for single layer liquid or mixed phase clouds it is assumed that
@@ -223,7 +245,23 @@ select case(iceradmethod)
       end do
     end do
 
-  end select 
+  case(4)
+    if ( .not.present(stras_rice) ) then
+      write(6,*) "ERROR: cloud3 called with iceradmethod=4 but without stras_rice argument"
+      stop
+    end if 
+    where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
+      Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) ! kg/m**3
+    elsewhere
+      Wice(:,:) = 0.
+    end where
+    reffi(:,:) = stras_rice(:,:)
+
+  case default
+    write(6,*) "ERROR: Invalid option iceradmethod ",iceradmethod
+    stop
+
+end select 
   
   
 do k = 1,kl

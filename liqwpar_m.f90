@@ -25,14 +25,15 @@ implicit none
 
 private
 public qlg,qfg ! cloud liquid water, cloud frozen water
-public qrg,qsng,qgrg ! rain, snow, graupel
-public nr, ni, ns    ! 2nd moment terms
+public qrg,qsng,qgrg                  ! rain, snow, graupel
+public nr, ni, ns                     ! 2nd moment terms
+public stras_rliq, stras_rice, stras_rsno, stras_rrai ! droplet radius
 public liqwpar_init,liqwpar_end
 
 real, dimension(:,:), allocatable, save :: qlg,qfg
-real, dimension(:,:), allocatable, save :: qrg,qsng
-real, dimension(:,:), allocatable, save :: qgrg
+real, dimension(:,:), allocatable, save :: qrg,qsng,qgrg
 real, dimension(:,:), allocatable, save :: nr, ni, ns
+real, dimension(:,:), allocatable, save :: stras_rliq, stras_rice, stras_rsno, stras_rrai
 
 contains
 
@@ -43,10 +44,9 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
-allocate(qrg(ifull,kl),qsng(ifull,kl))
-allocate(qgrg(ifull,kl))
-allocate(nr(ifull+iextra,kl), ni(ifull+iextra,kl))
-allocate(ns(ifull+iextra,kl))
+allocate(qrg(ifull,kl),qsng(ifull,kl),qgrg(ifull,kl))
+allocate(nr(ifull,kl), ni(ifull+iextra,kl), ns(ifull,kl))
+allocate(stras_rliq(ifull,kl),stras_rice(ifull,kl),stras_rsno(ifull,kl),stras_rrai(ifull,kl))
 qlg=0.
 qfg=0.
 qrg=0.
@@ -55,6 +55,10 @@ qgrg=0.
 nr = 0.
 ni = 0.
 ns = 0.
+stras_rliq = 0.
+stras_rice = 0.
+stras_rsno = 0.
+stras_rrai = 0.
 
 return
 end subroutine liqwpar_init
@@ -66,8 +70,8 @@ implicit none
 deallocate(qlg,qfg)
 deallocate(qrg,qsng)
 deallocate(qgrg)
-deallocate(ni,nr)
-deallocate(ns)
+deallocate(ni,nr,ns)
+deallocate(stras_rliq,stras_rice,stras_rsno,stras_rrai)
 
 return
 end subroutine liqwpar_end

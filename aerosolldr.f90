@@ -194,7 +194,7 @@ end if
 #endif
 
 
-!$omp do schedule(static) private(js,je)
+!$omp do schedule(static) private(js,je,iq,thetav,wstar3,rrate)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -286,7 +286,7 @@ end if
 #else
 !$acc wait(1)
 !$acc update device(xtg)
-!$acc parallel loop copy(duste,dustdd)                                      &
+!$acc parallel loop copy(duste,salte,dustdd,saltdd)                         &
 !$acc   copyin(prf,erod,wg,veff,vt,snowd,locean)                            &
 !$acc   present(xtg,ttg,rhoa,dz,sig)                                        &
 !$acc   private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
@@ -372,7 +372,7 @@ end if
 !$omp   private(pclcover,pcfcover,pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec)        &
 !$omp   private(lpfsnow,lpfsubl,lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav)        &
 !$omp   private(lprfreeze,lpfevap,lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3)        &
-!$omp   private(dmsoh,dmsn3,lpccw)
+!$omp   private(dmsoh,dmsn3,lpccw,qtot)
 #else
 !$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
 !$acc   copyin(clcon,xtosav,qlg,qfg,stratcloud,kbsav,condc,cldcon)                 &
@@ -382,11 +382,12 @@ end if
 !$acc   private(js,je,nt,k,iq,xtm1,xtu,aphp1,prhop1,ptp1,pclcon,pclcover,pcfcover) &
 !$acc   private(pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec,lpfsnow,lpfsubl)          &
 !$acc   private(lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav,lprfreeze,lpfevap)      &
-!$acc   private(lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3,dmsoh,dmsn3,lpccw)
+!$acc   private(lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3,dmsoh,dmsn3,lpccw,qtot)
 #endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
+
   ! Aerosol chemistry and wet deposition
   ! Need to invert vertical levels for ECHAM code... Don't you hate that?
   xtm1(:,:,:) = xtg(js:je,kl:1:-1,:)
@@ -463,7 +464,7 @@ end if
 #endif
 
 
-!$omp do schedule(static) private(js,je,nt,k,burden)
+!$omp do schedule(static) private(js,je,nt,k,iq,burden)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -511,7 +512,6 @@ SUBROUTINE XTEMISS(ztmst, sig, rhoa, TSM1M, SEAICEM, ZZSPEED,                   
                    XTE, PXTEMS, bbem,                                            & !Outputs
                    emissfield,vso2,dmse,so2e,so4e,bce,oce,xtg,so2dd,so4dd,bcdd,ocdd, &
                    imax,kl)                                                     !Inputs
-!$acc routine vector
 
 !
 !    THIS ROUTINE CALCULATES THE LOWER BOUNDARY CONDITIONS

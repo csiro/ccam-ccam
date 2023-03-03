@@ -476,6 +476,8 @@ casa_variable.o: casa_variable.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 POP.o: POP.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
+module_mp_sbu_ylin.o: module_mp_sbu_ylin.f90
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(IPFLAG) $<
 estab.o: estab.f90
 	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 helmsolve.o: helmsolve.f90
@@ -486,12 +488,12 @@ leoncld.o: leoncld.f90
 	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 seaesfrad.o: seaesfrad.f90
 	$(FC) -c $(FFLAGS) $(VTHRESH) $(PPFLAG90) $<
-stacklimit.o: stacklimit.c
-	$(CC) -c stacklimit.c
 tkeeps.o: tkeeps.f90
 	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
 vertmix.o: vertmix.f90
 	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+stacklimit.o: stacklimit.c
+	$(CC) -c stacklimit.c
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "character(len=*), parameter :: version= &" > brokenver

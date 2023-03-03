@@ -372,6 +372,9 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
+    if ( ncloud>=100 .and. ncloud<200 ) then
+      call ints(ni,1,intsch,nface,xg,yg,4)
+    end if
   else
     call ints(qg,1,intsch,nface,xg,yg,3)
   end if    ! ldr/=0

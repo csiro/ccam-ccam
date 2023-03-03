@@ -101,8 +101,7 @@ implicit none
 include 'kuocom.h'                ! Convection parameters
   
 integer :: tile, js, je, k, n, iq
-integer :: njumps, m
-integer :: idjd_t
+integer :: njumps, m, idjd_t
 real, dimension(imax,kl) :: lcfrac, lgfrac
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqfg, lqlrad, lqfrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
@@ -121,27 +120,28 @@ real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
 real, dimension(ifull,kl) :: vi
 real, dimension(ifull,kl) :: dz, rhoa
 
-real, dimension(imax,0:kl) :: zlevv
-real, dimension(imax,kl) :: riz, tothz, thz, sqrhoz, dzw
-real, dimension(imax,kl) :: znc, znr, zni, zns
-real, dimension(imax,kl) :: zpres
-#ifndef GPUPHYSICS
-real, dimension(imax,kl) :: EFFC1D, EFFI1D, EFFS1D, EFFR1D
-real, dimension(imax,kl) :: zpsnow, zpsaut, zpsfw, zpsfi
-real, dimension(imax,kl) :: zpraci, zpiacr, zpsaci, zpsacw
-real, dimension(imax,kl) :: zpsdep, zpssub, zpracs, zpsacr
-real, dimension(imax,kl) :: zpsmlt, zpsmltevp, zprain
-real, dimension(imax,kl) :: zpraut, zpracw, zprevp, zpgfr
-real, dimension(imax,kl) :: zpvapor, zpclw, zpladj, zpcli
-real, dimension(imax,kl) :: zpimlt, zpihom, zpidw, zpiadj
-real, dimension(imax,kl) :: zqschg
+real(kind=8), dimension(imax,0:kl) :: zlevv
+real(kind=8), dimension(imax,kl) :: riz, tothz, thz, dzw
+real(kind=8), dimension(imax,kl) :: znc, znr, zni, zns
+real(kind=8), dimension(imax,kl) :: zpres, zrhoa, zcdrop, zvi
+real(kind=8), dimension(imax,kl) :: zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D
+real(kind=8), dimension(imax,kl) :: zqg, zqlg, zqfg, zqrg, zqsng
+real(kind=8), dimension(imax,kl) :: zfluxr, zfluxi, zfluxs, zfluxm, zfluxf
+real(kind=8), dimension(imax,kl) :: zqevap, zqsubl, zqauto, zqcoll, zqaccr
+#ifdef diagnostic
+real(kind=8), dimension(imax,kl) :: zpsnow, zpsaut, zpsfw, zpsfi
+real(kind=8), dimension(imax,kl) :: zpraci, zpiacr, zpsaci, zpsacw
+real(kind=8), dimension(imax,kl) :: zpsdep, zpssub, zpracs, zpsacr
+real(kind=8), dimension(imax,kl) :: zpsmlt, zpsmltevp, zprain
+real(kind=8), dimension(imax,kl) :: zpraut, zpracw, zprevp, zpgfr
+real(kind=8), dimension(imax,kl) :: zpvapor, zpclw, zpladj, zpcli
+real(kind=8), dimension(imax,kl) :: zpimlt, zpihom, zpidw, zpiadj
+real(kind=8), dimension(imax,kl) :: zqschg
 #endif
 !real, dimension(imax,kl) :: precrz, preciz, precsz
-real, dimension(imax) :: pptrain, pptsnow, pptice
-real tdt
-
-real prf_temp, prf
-real fcol, fr, alph
+real(kind=8), dimension(imax) :: pptrain, pptsnow, pptice
+real(kind=8) tdt
+real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
 
 
@@ -182,10 +182,9 @@ end do
 !----------------------------------------------------------------------------
 ! Update cloud fraction
 
-!$omp do schedule(static) private(js,je,lcfrac),                               &
+!$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac),               &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt),                          &
-!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),   &
-!$omp private(idjd_t,mydiag_t)
+!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -235,15 +234,14 @@ select case ( interp_ncloud(ldr,ncloud) )
   case("LEON")
   
 #ifndef GPU
-    !$omp do schedule(static) private(js,je),                                     &
+    !$omp do schedule(static) private(js,je,idjd_t,mydiag_t),                     &
     !$omp private(lgfrac,lrfrac,lsfrac),                                          &
     !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl),                  &
     !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),    &
     !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
     !$omp private(lstratcloud,lcdrop),                                            &
     !$omp private(lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg),                     &
-    !$omp private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi),                        &
-    !$omp private(idjd_t,mydiag_t)
+    !$omp private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi)
 #endif
 #ifdef GPUPHYSICS
     !$acc parallel loop copy(t,qg,qlg,qfg)                                      & 
@@ -338,16 +336,19 @@ select case ( interp_ncloud(ldr,ncloud) )
   case("LIN")
       
 #ifndef GPU
-    !$omp do schedule(static) private(js,je,m,k,njumps,tdt,n),                &
-    !$omp private(riz,zlevv,lqg,lqlg,lqrg,lqfg,lqsng,prf_temp,prf,tothz),     &
-    !$omp private(thz,lrhoa,zpres,dzw,znc,znr,zni,zns,pptrain),               &
-    !$omp private(pptsnow,pptice,lcdrop,EFFC1D,EFFI1D),                       &
-    !$omp private(EFFS1D,EFFR1D,lfluxr,lfluxi,lfluxs,lfluxm,lfluxf),          &
-    !$omp private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi,zpsnow,zpsaut),      &
-    !$omp private(zpsfw,zpsfi,zpraci,zpiacr,zpsaci,zpsacw,zpsdep,zpssub),     &
-    !$omp private(zpracs,zpsacr,zpsmlt,zpsmltevp,zprain,zpraut,zpracw),       &
-    !$omp private(zprevp,zpgfr,zpvapor,zpclw,zpladj,zpcli,zpimlt,zpihom),     &
-    !$omp private(zpidw,zpiadj,zqschg)
+    !$omp do schedule(static) private(js,je,riz,zlevv,m,zqg,zqlg,zqrg,zqfg)   &
+    !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
+    !$omp private(zcdrop,znr,zni,zns,pptrain,pptsnow,pptice,njumps,tdt,n)     &
+    !$omp private(zeffc1d,zeffi1d,zeffs1d,zeffr1d,zfluxr,zfluxi,zfluxs)       &
+    !$omp private(zfluxm,zfluxf,zqevap,zqsubl,zqauto,zqcoll,zqaccr)           &
+#ifdef debug
+    !$omp private(zpsnow,zpsaut)                                              &
+    !$omp private(zpsfw,zpsfi,zpraci,zpiacr,zpsaci,zpsacw,zpsdep,zpssub)      &
+    !$omp private(zpracs,zpsacr,zpsmlt,zpsmltevp,zprain,zpraut,zpracw)        &
+    !$omp private(zprevp,zpgfr,zpvapor,zpclw,zpladj,zpcli,zpimlt,zpihom)      &
+    !$omp private(zpidw,zpiadj,zqschg)                                        &
+#endif
+    !$omp private(zvi)
 #endif
 #ifdef GPUPHYSICS
     !$acc parallel loop copy(t,qg,qlg,qfg)                                      &
@@ -356,93 +357,78 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$acc   copyin(zs,dz,rhoa,cdrop,ps)                                         &
     !$acc   copyout(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)      &
     !$acc   copyout(fcoll,faccr,vi,gfrac,rfrac,sfrac)                           &
+    !$acc   copyout(stras_rliq,stras_rice,stras_rsno,stras_rrai)                &
     !$acc   present(bet,betm,sig)                                               &
     !$acc   private(js,je,m,k,njumps,tdt,n,iq,prf_temp,prf)                     &
-    !$acc   private(lqg,lqlg,lqfg)                                              &
-    !$acc   private(lcdrop,thz,tothz,riz,zlevv)                                 &
-    !$acc   private(lrhoa,zpres,dzw,znc,znr,zni,zns)                            &
+    !$acc   private(zqg,zqlg,zqfg)                                              &
+    !$acc   private(zcdrop,thz,tothz,riz,zlevv)                                 &
+    !$acc   private(zrhoa,zpres,dzw,znc,znr,zni,zns)                            &
     !$acc   private(pptrain,pptsnow,pptice)                                     &
-    !$acc   private(lqrg,lqsng,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs)              &
-    !$acc   private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi)
+    !$acc   private(zqrg,zqsng,zfluxr,zfluxm,zfluxf,zfluxi,zfluxs)              &
+    !$acc   private(zqevap,zqsubl,zqauto,zqcoll,zqaccr,zvi)                     &
+    !$acc   private(zeffr1d,zeffs1d,zeffi1d,zeffc1d)
 #endif  
     do tile = 1, ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
 
-      riz(1:imax,:) = 0. ! partition between snow and graupel
+      riz(1:imax,:) = 0._8 ! partition between snow and graupel
         
       ! pack data from ifull into imax
-      zlevv(1:imax,0)   = zs(js:je)/grav
-      zlevv(1:imax,1)   = bet(1)*t(js:je,1)/grav + zs(js:je)/grav
+      zlevv(1:imax,0)   = real( zs(js:je)/grav, 8 )
+      zlevv(1:imax,1)   = zlevv(1:imax,0) + real( bet(1)*t(js:je,1)/grav, 8 )
       do m = 2,kl
-        zlevv(1:imax,m) = zlevv(1:imax,m-1) + (bet(m)*t(js:je,m)+betm(m)*t(js:je,m-1))/grav
+        zlevv(1:imax,m) = zlevv(1:imax,m-1) + real( (bet(m)*t(js:je,m)+betm(m)*t(js:je,m-1))/grav, 8 )
       end do
         
-      lqg(1:imax,:) = qg(js:je,:)
-      lqlg(1:imax,:) = qlg(js:je,:)
-      lqrg(1:imax,:) = qrg(js:je,:)
-      lqfg(1:imax,:) = qfg(js:je,:)
-      lqsng(1:imax,:) = qsng(js:je,:) + qgrg(js:je,:)
+      zqg(1:imax,:) = real( qg(js:je,:), 8 )
+      zqlg(1:imax,:) = real( qlg(js:je,:), 8 )
+      zqrg(1:imax,:) = real( qrg(js:je,:), 8 )
+      zqfg(1:imax,:) = real( qfg(js:je,:), 8 )
+      zqsng(1:imax,:) = real( qsng(js:je,:) + qgrg(js:je,:), 8 )
       ! ----------------
       do k = 1,kl
         do iq = 1,imax
           prf_temp      = ps(iq+js-1)*sig(k)
           prf           = 0.01*prf_temp                        ! ps is SI units
-          tothz(iq,k)   = (prf/1000.)**(rdry/cp)
-          thz(iq,k)     = t(iq+js-1,k) / tothz(iq,k)
-          lrhoa(iq,k)   = rhoa(iq+js-1,k)
-          !zorhoa(iq,k)  = 1._8/lrhoa(iq,k)
-          zpres(iq,k)   = prf_temp
+          tothz(iq,k)   = real( (prf/1000.)**(rdry/cp), 8 )
+          thz(iq,k)     = real( t(iq+js-1,k)/tothz(iq,k), 8 )
+          zrhoa(iq,k)   = real( rhoa(iq+js-1,k), 8 )
+          !zorhoa(iq,k)  = 1._8/zrhoa(iq,k)
+          zpres(iq,k)   = real( prf_temp, 8 )
           !sqrhoz(iq,k)  = 1._8
-          dzw(iq,k)     = dz(iq+js-1,k)
+          dzw(iq,k)     = real( dz(iq+js-1,k), 8 )
         end do
       end do
 
-      znc(1:imax,:) = 0.
-      lcdrop(1:imax,:) = cdrop(js:je,:) ! aerosol
-      znr(1:imax,:)  = nr(js:je,:)
-      zni(1:imax,:)  = ni(js:je,:)
-      zns(1:imax,:)  = ns(js:je,:)
+      znc(1:imax,:) = 0._8
+      zcdrop(1:imax,:) = real( cdrop(js:je,:), 8 ) ! aerosol
+      znr(1:imax,:)  = real( nr(js:je,:), 8 )
+      zni(1:imax,:)  = real( ni(js:je,:), 8 )
+      zns(1:imax,:)  = real( ns(js:je,:), 8 )
 
-      pptrain(1:imax) = 0.
-      pptsnow(1:imax) = 0.
-      pptice(1:imax)  = 0.
+      pptrain(1:imax) = 0._8
+      pptsnow(1:imax) = 0._8
+      pptice(1:imax)  = 0._8
 
-#ifdef debug
-      if (myid == 0 .and. tile==1 ) then
-        print*, '================= START input to LIN 2022 =================================='
-        print*, 'qvz      :', minval(zqg(:,:)), maxval(zqg(:,:))
-        print*, 'qlz      :', minval(zqlg(:,:)), maxval(zqlg(:,:))
-        print*, 'qrz      :', minval(zqrg(:,:)), maxval(zqrg(:,:))
-        print*, 'qiz      :', minval(zqfg(:,:)), maxval(zqfg(:,:))
-        print*, 'qsz      :', minval(zqsng(:,:)), maxval(zqsng(:,:))
-        print*, 'thz      :', minval(thz(:,:)), maxval(thz(:,:))
-        print*, 'rhoa     :', minval(lrhoa(:,:)), maxval(lrhoa(:,:))
-        print*, 'tothz    :', minval(tothz(:,:)), maxval(tothz(:,:))
-        print*, 'zlevv    :', minval(zlevv(:,:)), maxval(zlevv(:,:))
-        print*, '================= END input to LIN 2022 ===================================='
-      end if
-#endif      
-
+      
       ! Use sub time-step if required
       njumps = int(dt/(maxlintime+0.01)) + 1
-      tdt    = dt/real(njumps)
+      tdt    = real( dt/real(njumps), 8 )
       do n = 1,njumps
-        CALL clphy1d_ylin(tdt, imax,                       &
-                       lqg, lqlg, lqrg, lqfg, lqsng,       &
-                       thz, tothz, lrhoa,                  &
+        call clphy1d_ylin(tdt, imax,                       &
+                       zqg, zqlg, zqrg, zqfg, zqsng,       &
+                       thz, tothz, zrhoa,                  &
                        zpres, zlevv, dzw,                  &
-                       !precrz, preciz, precsz,             & !zdc 20220116
-#ifndef GPUPHYSICS
-                       EFFC1D, EFFI1D, EFFS1D, EFFR1D,     & !zdc 20220208
-#endif
+                       !precrz, preciz, precsz,            & !zdc 20220116
+                       zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D, & !zdc 20220208
                        pptrain, pptsnow, pptice,           &
                        1, kl, riz,                         &
                        znc, znr, zni, zns,                 &
-                       lfluxr,lfluxi,lfluxs,lfluxm,        &
-                       lfluxf,lqevap,lqsubl,lqauto,lqcoll, &
-                       lqaccr,lvi,                         & !aerosol scheme
-#ifndef GPUPHYSICS
+                       zfluxr,zfluxi,zfluxs,zfluxm,        &
+                       zfluxf,zqevap,zqsubl,zqauto,zqcoll, &
+                       zqaccr,zvi,                         & !aerosol scheme
+#ifdef diagnostic
                        zpsnow,zpsaut,zpsfw,zpsfi,zpraci,   & !process rate cloud microphysics
                        zpiacr,zpsaci,zpsacw,zpsdep,        &
                        zpssub,zpracs,zpsacr,zpsmlt,        &
@@ -451,134 +437,105 @@ select case ( interp_ncloud(ldr,ncloud) )
                        zpladj,zpcli,zpimlt,zpihom,         &
                        zpidw,zpiadj,zqschg,                &
 #endif
-                       lcdrop, lin_aerosolmode)              !aerosol feedback
+                       zcdrop, lin_aerosolmode)              !aerosol feedback
       end do
 
-#ifdef debug
-      if (myid == 0 .and. tile==1 ) then
-        print*, '================= START output of LIN 2022 =================================='
-        print*, 'qvz      :', minval(zqg(:,:)), maxval(zqg(:,:))
-        print*, 'qlz      :', minval(zqlg(:,:)), maxval(zqlg(:,:))
-        print*, 'qrz      :', minval(zqrg(:,:)), maxval(zqrg(:,:))
-        print*, 'qiz      :', minval(zqfg(:,:)), maxval(zqfg(:,:))
-        print*, 'qsz      :', minval(zqsng(:,:)), maxval(zqsn(:,:))
-        print*, 'thz      :', minval(thz(:,:)), maxval(thz(:,:))
-        print*, 'rhoa     :', minval(lrhoa(:,:)), maxval(lrhoa(:,:))
-        print*, 'tothz    :', minval(tothz(:,:)), maxval(tothz(:,:))
-        print*, 'zlevv    :', minval(zlevv(:,1:kl)), maxval(zlevv(:,1:kl))
-        if (maxval(riz) > 0._8) then
-        print*, 'riz      :', minval(riz(:,:)), maxval(riz(:,:))
-        end if
-        !print*, 'precrz   :', minval(precrz(:,:)),maxval(precrz(:,:))
-        !print*, 'preciz   :', minval(preciz(:,:)),maxval(preciz(:,:))
-        !print*, 'precsz   :', minval(precsz(:,:)),maxval(precsz(:,:))
-        print*, 'EFFC1D   :', minval(EFFC1D(:,:)), maxval(EFFC1D(:,:))
-        print*, 'EFFI1D   :', minval(EFFI1D(:,:)), maxval(EFFI1D(:,:))
-        print*, 'EFFS1D   :', minval(EFFS1D(:,:)), maxval(EFFS1D(:,:))
-        print*, 'EFFR1D   :', minval(EFFR1D(:,:)), maxval(EFFR1D(:,:))
-        print*, 'ncz      :', minval(znc(:,:)), maxval(znc(:,:))
-        print*, 'nrz      :', minval(znr(:,:)), maxval(znr(:,:))
-        print*, 'niz      :', minval(zni(:,:)), maxval(zni(:,:))
-        print*, 'nsz      :', minval(zns(:,:)), maxval(zns(:,:))
-        print*, '================= END output of LIN 2022 ===================================='
-      end if
-#endif
+      
+      t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
 
-      t(js:je,:) = thz(1:imax,:)*tothz(1:imax,:)
+      !unpack data from imax to ifull.
 
-      where ( lqrg(1:imax,:)>0. )
+      qg(js:je,:)         = real( zqg(1:imax,:) )                        ! qv mixing ratio
+      qlg(js:je,:)        = real( zqlg(1:imax,:) )                       ! ql mixing ratio
+      qfg(js:je,:)        = real( zqfg(1:imax,:) )                       ! qf mixing ratio (ice)
+      qrg(js:je,:)        = real( zqrg(1:imax,:) )                       ! qr mixing ratio (rain)
+      qsng(js:je,:)       = real( zqsng(1:imax,:)*(1._8-riz(1:imax,:)) ) ! qs mixing ratio (snow)
+      qgrg(js:je,:)       = real( zqsng(1:imax,:)*riz(1:imax,:) )        ! qg mixing ration (graupel)
+
+      where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
       elsewhere
          rfrac(js:je,:) = 0.
       end where
-      where ( lqsng(1:imax,:)*(1.-riz(1:imax,:))>0. )
+      where ( qsng(js:je,:)>0. )
          sfrac(js:je,:) = 1.
       elsewhere
          sfrac(js:je,:) = 0.
       end where
-      where ( lqsng(1:imax,:)*riz(1:imax,:)>0. )
+      where ( qgrg(js:je,:)>0. )
          gfrac(js:je,:) = 1.
       elsewhere
          gfrac(js:je,:) = 0.
       end where
-
-      !unpack data from imax to ifull.
-
-      qg(js:je,:)         = lqg(1:imax,:)                      ! qv mixing ratio
-      qlg(js:je,:)        = lqlg(1:imax,:)                     ! ql mixing ratio
-      qfg(js:je,:)        = lqfg(1:imax,:)                     ! qf mixing ratio (ice)
-      qrg(js:je,:)        = lqrg(1:imax,:)                     ! qr mixing ratio (rain)
-      qsng(js:je,:)       = lqsng(1:imax,:)*(1.-riz(1:imax,:)) ! qs mixing ratio (snow)
-      qgrg(js:je,:)       = lqsng(1:imax,:)*riz(1:imax,:)      ! qg mixing ration (graupel)
       where ( qlg(js:je,:)+qfg(js:je,:)>1.e-12 )
         stratcloud(js:je,:) = max( stratcloud(js:je,:), 1.e-8 )
       end where 
       
-      !nc(js:je,:)        = znc(1:imax,:)
-      nr(js:je,:)         = znr(1:imax,:)
-      ni(js:je,:)         = zni(1:imax,:)
-      ns(js:je,:)         = zns(1:imax,:)
-      !stras_rliq(js:je,:) = EFFC1D(1:imax,:)             ! save efflective radius for cosp
-      !stras_rice(js:je,:) = EFFI1D(1:imax,:)
-      !stras_rsno(js:je,:) = EFFS1D(1:imax,:)
-      !stras_rrai(js:je,:) = EFFR1D(1:imax,:)
+      !nc(js:je,:)        = real( znc(1:imax,:) )
+      nr(js:je,:)         = real( znr(1:imax,:) )
+      ni(js:je,:)         = real( zni(1:imax,:) )
+      ns(js:je,:)         = real( zns(1:imax,:) )
+      stras_rliq(js:je,:) = real( zEFFC1D(1:imax,:) )   ! save efflective radius for cosp
+      stras_rice(js:je,:) = real( zEFFI1D(1:imax,:) )
+      stras_rsno(js:je,:) = real( zEFFS1D(1:imax,:) )
+      stras_rrai(js:je,:) = real( zEFFR1D(1:imax,:) )
 
-      fluxr(js:je,2:kl)   = lfluxr(1:imax,1:kl-1)           ! flux for aerosol calculation
-      fluxr(js:je,1)      = pptrain(1:imax)
-      fluxi(js:je,2:kl)   = lfluxi(1:imax,1:kl-1)
-      fluxi(js:je,1)      = pptice(1:imax)
-      fluxs(js:je,2:kl)   = lfluxs(1:imax,1:kl-1)*(1.-riz(1:imax,1:kl-1))
-      fluxs(js:je,1)      = pptsnow(1:imax)*(1.-riz(1:imax,1))
-      fluxg(js:je,2:kl)   = lfluxs(1:imax,1:kl-1)*riz(1:imax,1:kl-1)
-      fluxg(js:je,1)      = pptsnow(1:imax)*riz(1:imax,1)
+      fluxr(js:je,1)      = real( pptrain(1:imax) )
+      fluxr(js:je,2:kl)   = real( zfluxr(1:imax,1:kl-1) )  ! flux for aerosol calculation
+      fluxi(js:je,1)      = real( pptice(1:imax) )
+      fluxi(js:je,2:kl)   = real( zfluxi(1:imax,1:kl-1) )
+      fluxs(js:je,1)      = real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) )
+      fluxs(js:je,2:kl)   = real( zfluxs(1:imax,1:kl-1)*(1._8-riz(1:imax,1:kl-1)) )
+      fluxg(js:je,1)      = real( pptsnow(1:imax)*riz(1:imax,1) )
+      fluxg(js:je,2:kl)   = real( zfluxs(1:imax,1:kl-1)*riz(1:imax,1:kl-1) )
+      fluxm(js:je,1:kl-1) = real( zfluxm(1:imax,1:kl-1) )
       fluxm(js:je,kl)     = 0.
-      fluxm(js:je,1:kl-1) = lfluxm(1:imax,1:kl-1)
+      fluxf(js:je,1:kl-1) = real( zfluxf(1:imax,1:kl-1) )
       fluxf(js:je,kl)     = 0.
-      fluxf(js:je,1:kl-1) = lfluxf(1:imax,1:kl-1)
-      fevap(js:je,:) = lqevap(1:imax,:)
-      fsubl(js:je,:) = lqsubl(1:imax,:)
-      fauto(js:je,:) = lqauto(1:imax,:)
-      fcoll(js:je,:) = lqcoll(1:imax,:)
-      faccr(js:je,:) = lqaccr(1:imax,:)
-      vi(js:je,:) = lvi(1:imax,:)
+      fevap(js:je,:) = real( zqevap(1:imax,:) )
+      fsubl(js:je,:) = real( zqsubl(1:imax,:) )
+      fauto(js:je,:) = real( zqauto(1:imax,:) )
+      fcoll(js:je,:) = real( zqcoll(1:imax,:) )
+      faccr(js:je,:) = real( zqaccr(1:imax,:) )
+      vi(js:je,:) = real( zvi(1:imax,:) )
 
-#ifndef GPUPHYSICS
+#ifdef diagnostic
       !if (process_rate_mode == 2) then
-      !  psnow(js:je,:)   = zpsnow(1:imax,:) !process rate to understand cloud microphysics
-      !  psaut(js:je,:)   = zpsaut(1:imax,:)
-      !  psfw(js:je,:)    = zpsfw(1:imax,:)
-      !  psfi(js:je,:)    = zpsfi(1:imax,:)
-      !  praci(js:je,:)   = zpraci(1:imax,:)
-      !  piacr(js:je,:)   = zpiacr(1:imax,:)
-      !  psaci(js:je,:)   = zpsaci(1:imax,:)
-      !  psacw(js:je,:)   = zpsacw(1:imax,:)
-      !  psdep(js:je,:)   = zpsdep(1:imax,:)
-      !  pssub(js:je,:)   = zpssub(1:imax,:)
-      !  pracs(js:je,:)   = zpracs(1:imax,:)
-      !  psacr(js:je,:)   = zpsacr(1:imax,:)
-      !  psmlt(js:je,:)   = zpsmlt(1:imax,:)
-      !  psmltevp(js:je,:)= zpsmltevp(1:imax,:)
-      !  prain(js:je,:)   = zprain(1:imax,:)
-      !  praut(js:je,:)   = zpraut(1:imax,:)
-      !  pracw(js:je,:)   = zpracw(1:imax,:)
-      !  prevp(js:je,:)   = zprevp(1:imax,:)
-      !  pgfr(js:je,:)    = zpgfr(1:imax,:)
-      !  pvapor(js:je,:)  = zpvapor(1:imax,:)
-      !  pclw(js:je,:)    = zpclw(1:imax,:)
-      !  pladj(js:je,:)   = zpladj(1:imax,:)
-      !  pcli(js:je,:)    = zpcli(1:imax,:)
-      !  pimlt(js:je,:)   = zpimlt(1:imax,:)
-      !  pihom(js:je,:)   = zpihom(1:imax,:)
-      !  pidw(js:je,:)    = zpidw(1:imax,:)
-      !  piadj(js:je,:)   = zpiadj(1:imax,:)
-      !  qschg(js:je,:)   = zqschg(1:imax,:)
+      !  psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
+      !  psaut(js:je,:)   = real( zpsaut(1:imax,:) )
+      !  psfw(js:je,:)    = real( zpsfw(1:imax,:) )
+      !  psfi(js:je,:)    = real( zpsfi(1:imax,:) )
+      !  praci(js:je,:)   = real( zpraci(1:imax,:) )
+      !  piacr(js:je,:)   = real( zpiacr(1:imax,:) )
+      !  psaci(js:je,:)   = real( zpsaci(1:imax,:) )
+      !  psacw(js:je,:)   = real( zpsacw(1:imax,:) )
+      !  psdep(js:je,:)   = real( zpsdep(1:imax,:) )
+      !  pssub(js:je,:)   = real( zpssub(1:imax,:) )
+      !  pracs(js:je,:)   = real( zpracs(1:imax,:) )
+      !  psacr(js:je,:)   = real( zpsacr(1:imax,:) )
+      !  psmlt(js:je,:)   = real( zpsmlt(1:imax,:) )
+      !  psmltevp(js:je,:)= real( zpsmltevp(1:imax,:) )
+      !  prain(js:je,:)   = real( zprain(1:imax,:) )
+      !  praut(js:je,:)   = real( zpraut(1:imax,:) )
+      !  pracw(js:je,:)   = real( zpracw(1:imax,:) )
+      !  prevp(js:je,:)   = real( zprevp(1:imax,:) )
+      !  pgfr(js:je,:)    = real( zpgfr(1:imax,:) )
+      !  pvapor(js:je,:)  = real( zpvapor(1:imax,:) )
+      !  pclw(js:je,:)    = real( zpclw(1:imax,:) )
+      !  pladj(js:je,:)   = real( zpladj(1:imax,:) )
+      !  pcli(js:je,:)    = real( zpcli(1:imax,:) )
+      !  pimlt(js:je,:)   = real( zpimlt(1:imax,:) )
+      !  pihom(js:je,:)   = real( zpihom(1:imax,:) )
+      !  pidw(js:je,:)    = real( zpidw(1:imax,:) )
+      !  piadj(js:je,:)   = real( zpiadj(1:imax,:) )
+      !  qschg(js:je,:)   = real( zqschg(1:imax,:) )
       !end if
 #endif
           
-      condx(js:je)  = condx(js:je) + pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax)
-      conds(js:je)  = conds(js:je) + pptsnow(1:imax)*(1.-riz(1:imax,1)) + pptice(1:imax)
-      condg(js:je)  = pptsnow(1:imax)*riz(1:imax,1) ! for graupel
-      precip(js:je) = precip(js:je) + pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax)
+      condx(js:je)  = condx(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
+      conds(js:je)  = conds(js:je) + real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax) )
+      condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel
+      precip(js:je) = precip(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
     end do     !tile loop
 #ifndef GPU
     !$omp end do nowait
@@ -649,7 +606,7 @@ if ( abs(iaero)>=2 ) then
           ! liquid accertion rate (kg/kg/s)
           ppmaccr(iq,kl+1-k) = faccr(iq,k)/(rhoa(iq,k)*dz(iq,k))
           ! slope (lambda) for snow crystal size djstribution (m**-1)
-          pplambs(iq,kl+1-k) = 1.6e3*10**(-0.023*(t(iq,k)-tfrz))          
+          pplambs(iq,kl+1-k) = 1.6e3*10**(-0.023*max(t(iq,k)-tfrz,-200.))          
           ! Fraction rain scavenging rate in time-step  
           fcol = rfrac(iq,k)
           Fr = fluxr(iq,k)/max(rfrac(iq,k),1.e-10)

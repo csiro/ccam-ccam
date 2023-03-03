@@ -124,33 +124,32 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 end if          ! if(mspec==1)
     
 !$omp section
-if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  if ( ldr/=0 ) then
-    call vadv_work(qlg,nvadh_inv_pass,nits)
-    if ( diag .and. mydiag ) then
-      write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
-      write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
-    end if
-  end if      ! if(ldr.ne.0)
-end if          ! if(mspec==1)
+if ( mspec==1 .and. ldr/=0 ) then
+  call vadv_work(qlg,nvadh_inv_pass,nits)
+  if ( diag .and. mydiag ) then
+    write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
+    write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
+  end if
+end if
 
 !$omp section
-if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  if ( ldr/=0 ) then
-    call vadv_work(qfg,nvadh_inv_pass,nits)
-    if ( diag .and. mydiag ) then
-      write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
-      write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
-    end if
-  end if      ! if(ldr.ne.0)
-end if          ! if(mspec==1)
+if ( mspec==1 .and. ldr/=0 ) then
+  call vadv_work(qfg,nvadh_inv_pass,nits)
+  if ( diag .and. mydiag ) then
+    write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
+    write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
+  end if
+end if
 
 !$omp section
-if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  if ( ldr/=0 ) then
-    call vadv_work(stratcloud,nvadh_inv_pass,nits)
-  end if      ! if(ldr.ne.0)
-end if          ! if(mspec==1)
+if ( mspec==1 .and. ldr/=0 ) then
+  call vadv_work(stratcloud,nvadh_inv_pass,nits)
+end if
+
+!$omp section
+if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    call vadv_work(ni,nvadh_inv_pass,nits)
+end if
 
 !$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
@@ -176,7 +175,6 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
     end do
     !$omp end do nowait
   end if   ! abs(iaero)>=2
-  
   if ( ngas>0 .or. nextout>=4 ) then
     !$omp do schedule(static) private(ntr)
     do ntr = 1,ntrac
@@ -184,7 +182,6 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
     end do
     !$omp end do nowait
   end if        ! (nextout>=4)
-  
 end if          ! if(mspec==1)
 
 !$omp end parallel

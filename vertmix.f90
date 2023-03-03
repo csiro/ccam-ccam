@@ -1686,7 +1686,6 @@ return
 end subroutine trimmix2
 
 pure subroutine trimmix3(a,c,rhs,imax,kl,ndim)
-!!$acc routine vector
 
 implicit none
 
@@ -1701,6 +1700,7 @@ real, dimension(imax,ndim,kl) :: e, g
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
 !   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
+
 
 ! the Thomas algorithm is used
 do n = 1,ndim
@@ -1736,8 +1736,6 @@ do k = kl-1,1,-1
     end do  
   end do
 end do
-
-!#endif
 
 return
 end subroutine trimmix3
@@ -1887,7 +1885,7 @@ end do
 !$omp end do nowait
 
 if ( nvmix==9 ) then
-  !$omp do schedule(static) private(js,je,k)
+  !$omp do schedule(static) private(js,je,k,lw_t,lw_s,lw_u,lw_v,ldum)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
@@ -2120,7 +2118,7 @@ end do
 #ifndef GPU
 !$omp do schedule(static) private(js,je,ltheta,lqg,lqlg,lqfg,lstratcloud)   &
 !$omp   private(lu,lv,ltke,leps,lthetal_ema,lqv_ema,lql_ema,lqf_ema)        &
-!$omp   private(cf_ema,ltke_ema)                                            &
+!$omp   private(lcf_ema,ltke_ema)                                           &
 !$omp   private(lzg,lzh,lshear,lw_t,lw_s,lw_u,lw_v,lw_tke,lw_eps,lw_t_ema)  &
 !$omp   private(lw_s_ema,ldeptho_fl,ldeptho_hl,lrad_o,lshear_o,lrkm)
 #endif
@@ -2276,7 +2274,7 @@ end do
 
 
 if ( nvmix==9 ) then
-  !$omp do schedule(static) private(js,je,k)
+  !$omp do schedule(static) private(js,je,k,lw_t,lw_s,lw_u,lw_v)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax

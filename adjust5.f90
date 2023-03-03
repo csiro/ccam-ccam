@@ -579,6 +579,7 @@ else if ( mfix_qg/=0 .and. mspec==1 ) then
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.)
   qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
 end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
+ni(1:ifull,1:kl) = max( ni(1:ifull,1:kl), 0. ) 
 
 !------------------------------------------------------------------------
 ! Tracer conservation
