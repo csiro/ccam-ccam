@@ -78,6 +78,7 @@ use latlong_m                     ! Lat/lon coordinates
 use leoncld_mod                   ! Prognostic cloud condensate
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
+use module_aux_cosp               ! COSP cloud simulator
 use module_aux_rad                ! Additional cloud and radiation routines
 use module_mp_sbu_ylin            ! Lin cloud microphysics
 use morepbl_m                     ! Additional boundary layer diagnostics
@@ -653,6 +654,8 @@ end if     ! abs(iaero)>=2
   !  cloud_emiss(js:je,k) = 1. - exp(-min(kliq(:)*lwp(:) + kice(:)*iwp(:),20.))
   !end do 
   
+  call cloud_simulator
+
 return
 end subroutine ctrl_microphysics
 

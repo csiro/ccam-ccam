@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1509,9 +1509,8 @@ real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 ! rhobar = int_0^sigma rho dsigma / sigma
 
-!$omp parallel
+!$omp parallel do collapse(2) schedule(static) private(ii,iq)
 do jj = 1,2
-  !$omp do schedule(static) private(ii,iq)
   do ii = 1,wlev
     do iq = 1,ifull
       ! process staggered u locations  
@@ -1524,9 +1523,8 @@ do jj = 1,2
                                                      +rho(ine(iq),ii,jj)-rho(inw(iq),ii,jj))
     end do
   end do
-  !$omp end do nowait
 end do
-!$omp end parallel
+!$omp end parallel do
 
 return
 end subroutine zstar2
@@ -1679,13 +1677,18 @@ implicit none
 integer, intent(in) :: ntr
 integer iq, n
 real, dimension(ifull+iextra,ntr), intent(inout) :: dumc
-real, dimension(ifull) :: dum_out
 real, dimension(ifull+iextra), intent(in) :: niu,niv,spnet
+real, dimension(ifull,ntr) :: dum_out
 real odum, tdum
 real(kind=8) dumd
 
 
+#ifndef GPU
 !$omp parallel do schedule(static) private(n,iq,dumd,dum_out,odum,tdum)
+#else
+!$acc parallel loop collapse(2) copyin(dumc,niu,niv,spnet,emu,emv) copyout(dum_out) &
+!$acc   private(dumd,odum,tdum) present(iwu,iw,ie,isv,is,in)
+#endif
 do n = 1,ntr
   do iq = 1,ifull
     dumd=real(dumc(iq,n),8)
@@ -1749,11 +1752,16 @@ do n = 1,ntr
     end if
     dumd=dumd+real(odum,8)
 
-    dum_out(iq)=real(max(dumd,0._8))
+    dum_out(iq,n)=real(max(dumd,0._8))
   end do
-  dumc(1:ifull,n) = dum_out(1:ifull)
 end do
+#ifndef GPU
 !$omp end parallel do
+#else
+!$acc end parallel loop
+#endif
+
+dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
   
 return
 end subroutine upwind_iceadv
