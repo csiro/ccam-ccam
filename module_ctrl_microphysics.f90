@@ -78,7 +78,6 @@ use latlong_m                     ! Lat/lon coordinates
 use leoncld_mod                   ! Prognostic cloud condensate
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
-use module_aux_cosp               ! COSP cloud simulator
 use module_aux_rad                ! Additional cloud and radiation routines
 use module_mp_sbu_ylin            ! Lin cloud microphysics
 use morepbl_m                     ! Additional boundary layer diagnostics
@@ -129,7 +128,7 @@ real(kind=8), dimension(imax,kl) :: zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D
 real(kind=8), dimension(imax,kl) :: zqg, zqlg, zqfg, zqrg, zqsng
 real(kind=8), dimension(imax,kl) :: zfluxr, zfluxi, zfluxs, zfluxm, zfluxf
 real(kind=8), dimension(imax,kl) :: zqevap, zqsubl, zqauto, zqcoll, zqaccr
-#ifdef diagnostic
+#ifdef debug
 real(kind=8), dimension(imax,kl) :: zpsnow, zpsaut, zpsfw, zpsfi
 real(kind=8), dimension(imax,kl) :: zpraci, zpiacr, zpsaci, zpsacw
 real(kind=8), dimension(imax,kl) :: zpsdep, zpssub, zpracs, zpsacr
@@ -245,7 +244,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi)
 #endif
 #ifdef GPUPHYSICS
-    !$acc parallel loop copy(t,qg,qlg,qfg)                                      & 
+    !$acc parallel loop vector_length(32) copy(t,qg,qlg,qfg)                    & 
     !$acc   copy(qgrg,qrg,qsng,gfrac,rfrac,sfrac)                               &
     !$acc   copy(condg,conds,condx,precip,stratcloud)                           &
     !$acc   copyin(dz,rhoa,cdrop,ktsav,ps)                                      &
@@ -352,7 +351,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(zvi)
 #endif
 #ifdef GPUPHYSICS
-    !$acc parallel loop copy(t,qg,qlg,qfg)                                      &
+    !$acc parallel loop gang copy(t,qg,qlg,qfg)                                 &
     !$acc   copy(qgrg,qrg,qsng,nr,ni,ns)                                        &
     !$acc   copy(condg,conds,condx,precip,stratcloud)                           &
     !$acc   copyin(zs,dz,rhoa,cdrop,ps)                                         &
@@ -411,8 +410,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       pptrain(1:imax) = 0._8
       pptsnow(1:imax) = 0._8
       pptice(1:imax)  = 0._8
+     
 
-      
       ! Use sub time-step if required
       njumps = int(dt/(maxlintime+0.01)) + 1
       tdt    = real( dt/real(njumps), 8 )
@@ -441,7 +440,7 @@ select case ( interp_ncloud(ldr,ncloud) )
                        zcdrop, lin_aerosolmode)              !aerosol feedback
       end do
 
-      
+
       t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
 
       !unpack data from imax to ifull.
@@ -500,7 +499,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       faccr(js:je,:) = real( zqaccr(1:imax,:) )
       vi(js:je,:) = real( zvi(1:imax,:) )
 
-#ifdef diagnostic
+#ifndef GPUPHYSICS
       !if (process_rate_mode == 2) then
       !  psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
       !  psaut(js:je,:)   = real( zpsaut(1:imax,:) )
@@ -654,8 +653,6 @@ end if     ! abs(iaero)>=2
   !  cloud_emiss(js:je,k) = 1. - exp(-min(kliq(:)*lwp(:) + kice(:)*iwp(:),20.))
   !end do 
   
-  call cloud_simulator
-
 return
 end subroutine ctrl_microphysics
 

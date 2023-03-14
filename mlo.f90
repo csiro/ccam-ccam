@@ -3178,9 +3178,10 @@ do iqw = 1,imax
     k(iqw,ii) = (sqrt(cdbot)*umag/cu0)**2
     eps(iqw,ii) = min((cu0)**3*max(k(iqw,ii),1.e-8)**1.5,1.e9)/(vkar*(0.5*max(dz(iqw,ii),1.e-4)+zrough))
   end if
-  k(iqw,ii) = max( k(iqw,ii), omink )
-  eps(iqw,ii) = max( eps(iqw,ii), omineps )
 end do  
+
+k = max( k, omink )
+eps = max( eps, omineps )
 
 !limit length scale
 L(:,:) = cu0**3*k(:,:)**1.5/eps(:,:)

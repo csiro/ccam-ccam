@@ -2211,7 +2211,7 @@ if ( myid==0 ) then
   dumi(22) = vdeposition_mode
   dumi(23) = tiedtke_form
   dumi(24) = cloud_aerosol_mode
-  dumr(25) = lin_aerosolmode  
+  dumi(25) = lin_aerosolmode  
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -360,6 +360,8 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
 
   ! Bi-Harmonic diffusion.  iterative version.
 
+  ans = 0.
+    
 #ifdef GPU
   !$acc enter data create(work_save)   
 #endif

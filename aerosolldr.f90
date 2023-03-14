@@ -188,7 +188,7 @@ end if
 #endif
 
 
-#ifdef GPU
+#ifdef GPUPHYSICS
 !$acc data create(xtg,ttg,rhoa,dz)
 !$acc update device(ttg,rhoa,dz) async(1)
 #endif
@@ -283,10 +283,11 @@ end if
 #ifndef GPU
 !$omp do schedule(static) private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
 !$omp   private(dcola,dcolb,oldsalte)
-#else
+#endif
+#ifdef GPUPHYSICS
 !$acc wait(1)
 !$acc update device(xtg)
-!$acc parallel loop copy(duste,salte,dustdd,saltdd)                         &
+!$acc parallel loop gang copy(duste,salte,dustdd,saltdd)                    &
 !$acc   copyin(prf,erod,wg,veff,vt,snowd,locean)                            &
 !$acc   present(xtg,ttg,rhoa,dz,sig)                                        &
 !$acc   private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
@@ -356,7 +357,8 @@ do tile = 1,ntiles
 end do
 #ifndef GPU
 !$omp end do nowait
-#else
+#endif
+#ifdef GPUPHYSICS
 !$acc end parallel loop
 #endif
 
@@ -373,8 +375,9 @@ end if
 !$omp   private(lpfsnow,lpfsubl,lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav)        &
 !$omp   private(lprfreeze,lpfevap,lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3)        &
 !$omp   private(dmsoh,dmsn3,lpccw,qtot)
-#else
-!$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
+#endif
+#ifdef GPUPHYSICS
+!$acc parallel loop gang copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd) &
 !$acc   copyin(clcon,xtosav,qlg,qfg,stratcloud,kbsav,condc,cldcon)                 &
 !$acc   copyin(pmrate,pfprec,pfsnow,pfsubl,pmaccr,pfmelt,pqfsedice,plambs,prscav)  &
 !$acc   copyin(prfreeze,pfevap,zoxidant_g,zdayfac,taudar,pccw)                     &
@@ -449,7 +452,8 @@ do tile = 1,ntiles
 end do
 #ifndef GPU
 !$omp end do nowait
-#else
+#endif
+#ifdef GPUPHYSICS
 !$acc end parallel loop
 !$acc update self(xtg)
 !$acc end data
@@ -470,11 +474,9 @@ do tile = 1,ntiles
   je = tile*imax
 
   burden(:,:) = 0.
-  do k = 1,kl
-    do nt = 1,naero
-      do iq = 1,imax
-        burden(iq,nt) = burden(iq,nt) + xtg(iq+js-1,k,nt)*rhoa(iq+js-1,k)*dz(iq+js-1,k)
-      end do
+  do nt = 1,naero
+    do k = 1,kl
+      burden(:,nt) = burden(:,nt) + xtg(js:je,k,nt)*rhoa(js:je,k)*dz(js:je,k)
     end do
   end do
 
@@ -1150,10 +1152,8 @@ end where
 ! Calculate xto, tracer mixing ratio outside convective updraughts
 ! Assumes pclcon < 1, but this shouldn't be a problem.
 do jt = 1,naero
-  do jk = 1,kl
-    xto(:,jk,jt)=(xtm1(:,jk,jt)-pclcon(:,jk)*xtu(:,jk,jt))/(1.-pclcon(:,jk))
-    xto(:,jk,jt)=max(0.,xto(:,jk,jt))
-  end do
+  xto(:,1:kl,jt)=(xtm1(:,1:kl,jt)-pclcon(:,1:kl)*xtu(:,1:kl,jt))/(1.-pclcon(:,1:kl))
+  xto(:,1:kl,jt)=max(0.,xto(:,1:kl,jt))
 end do
 
 #ifdef debug
@@ -1170,38 +1170,30 @@ end if
 !    CONSTANTS
 PQTMST=1./PTMST
 
-do jk = 1,kl
+! Calculate in-cloud ql
+where ( pclcover(:,1:kl)>1.e-8 )
+  zlwcic(:,1:kl)=pmlwc(:,1:kl)/pclcover(:,1:kl)
+elsewhere
+  zlwcic(:,1:kl)=0.
+end where
+where ( pcfcover(:,1:kl)>1.e-8 )
+  ziwcic(:,1:kl)=pmiwc(:,1:kl)/pcfcover(:,1:kl)
+elsewhere
+  ziwcic(:,1:kl)=0.
+end where
 
-  ! Calculate in-cloud ql
-  where ( pclcover(:,jk)>1.e-8 )
-    zlwcic(:,jk)=pmlwc(:,jk)/pclcover(:,jk)
-  elsewhere
-    zlwcic(:,jk)=0.
-  end where
-  where ( pcfcover(:,jk)>1.e-8 )
-    ziwcic(:,jk)=pmiwc(:,jk)/pcfcover(:,jk)
-  elsewhere
-    ziwcic(:,jk)=0.
-  end where
+!  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
+! -- levels are already inverted --
+ZZOH(:,1:kl)   = ZOXIDANT(:,1:kl,1)
+ZZH2O2(:,1:kl) = ZOXIDANT(:,1:kl,2)*PRHOP1(:,1:kl)*1.e-3
+ZZO3(:,1:kl)   = ZOXIDANT(:,1:kl,3)*PRHOP1(:,1:kl)*1.e-3
+ZZNO2(:,1:kl)  = ZOXIDANT(:,1:kl,4)*PRHOP1(:,1:kl)*1.e-3
 
-  !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
-  ! -- levels are already inverted --
-  ZZOH(:,jk)   = ZOXIDANT(:,jk,1)
-  ZZH2O2(:,jk) = ZOXIDANT(:,jk,2)*PRHOP1(:,jk)*1.e-3
-  ZZO3(:,jk)   = ZOXIDANT(:,jk,3)*PRHOP1(:,jk)*1.e-3
-  ZZNO2(:,jk)  = ZOXIDANT(:,jk,4)*PRHOP1(:,jk)*1.e-3
-  
-end do
-
-do jk = 1,kl
-  zhenry(:,jk)=0.
-  zhenryc(:,jk)=0.
-end do
+zhenry(:,1:kl)=0.
+zhenryc(:,1:kl)=0.
 
  !   PROCESSES WHICH ARE DIFERENT INSIDE AND OUTSIDE OF CLOUDS
-do jk = 1,kl
-  ZSO4(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
-end do
+ZSO4(:,1:kl)=amax1(XTO(:,1:kl,ITRACSO4),0.)
 
 do jk = ktop,kl
   do jl = 1,imax

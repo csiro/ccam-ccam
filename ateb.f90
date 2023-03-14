@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -100,7 +100,7 @@ public atebinit,atebcalc,atebend,atebzo,atebtype,atebalb1,                      
        atebhydro,atebenergy,atebloadd,atebsaved,atebmisc,atebdeftype_export,           &
        atebavetemp
 public atebnmlfile,urbtemp,energytol,resmeth,useonewall,zohmeth,acmeth,nrefl,vegmode,  &
-       soilunder,conductmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha, &
+       soilunder,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha,             &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
        zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,        &
        intairtmeth,intmassmeth,statsmeth,lwintmeth,cvcoeffmeth,infilmeth,acfactor,     &
@@ -220,7 +220,6 @@ integer, save      :: vegmode=2            ! In-canyon vegetation mode (0=50%/50
                                            ! Negative values are X=abs(vegmode))
 integer, save      :: soilunder=1          ! Modify road heat capacity to extend under
                                            ! (0=road only, 1=canveg, 2=bld, 3=canveg & bld)
-integer, save      :: conductmeth=1        ! Conduction method (0=half-layer, 1=interface)
 integer, save      :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
 integer, save      :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
 integer, save      :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
@@ -1031,6 +1030,7 @@ integer ii,j,ierr,nlp
 integer, dimension(imax), intent(in) :: itype
 integer, dimension(ufull) :: itmp
 integer, parameter :: maxtype = 8
+integer conductmeth ! depreciated
 real x
 real, dimension(ufull) :: tsigveg,tsigmabld
 ! In-canyon vegetation fraction
@@ -4404,17 +4404,10 @@ real, intent(in), dimension(ufull)  :: skintemp, newairtemp
 real, intent(out), dimension(ufull) :: newskintemp,ggint
 real, dimension(ufull) :: condterm
 
-select case(conductmeth)
-  case(0) ! half-layer conduction
-    condterm = 1./(0.5*depth/lambda +1./cvcoeff)
-    newskintemp = skintemp-condterm*(skintemp-newairtemp) &
-                    /(volcp*depth/ddt+condterm)
-
-  case(1) ! interface conduction
-    condterm = cvcoeff
-    newskintemp = skintemp-condterm*(skintemp-newairtemp) &
+! interface conduction
+condterm = cvcoeff
+newskintemp = skintemp-condterm*(skintemp-newairtemp) &
                 /(0.5*volcp*depth/ddt+condterm)
-end select
 
 ggint = condterm*(newskintemp-newairtemp)
 
@@ -4458,31 +4451,16 @@ integer k, iqu
 #ifdef CCAM
 res = depth/lambda
 cap = depth*volcp
-select case(conductmeth)
-  case(0) !!!!!!!!! half-layer conduction !!!!!!!!!!!
-    ggA(:,1)      =-2./res(:,1)
-    ggA(:,2:nl)   =-2./(res(:,1:nl-1) +res(:,2:nl))
-    ggB(:,0)      = 2./res(:,1) + ggext_impl
-    ggB(:,1)      = 2./res(:,1) +2./(res(:,1)+res(:,2)) + cap(:,1)/ddt
-    ggB(:,2:nl-1) = 2./(res(:,1:nl-2) +res(:,2:nl-1)) +2./(res(:,2:nl-1) & 
-                      +res(:,3:nl)) +cap(:,2:nl-1)/ddt
-    ggB(:,nl)     = 2./(res(:,nl-1)+res(:,nl)) + cap(:,nl)/ddt + ggint_impl
-    ggC(:,0)      =-2./res(:,1)
-    ggC(:,1:nl-1) =-2./(res(:,1:nl-1)+res(:,2:nl))
-    ggD(:,0)      = ggext
-    ggD(:,1:nl-1) = nodetemp(:,1:nl-1)*cap(:,1:nl-1)/ddt
-    ggD(:,nl)     = nodetemp(:,nl)*cap(:,nl)/ddt - ggint - rgint
-  case(1) !!!!!!!!! interface conduction !!!!!!!!!!!
-    ggA(:,1:nl)   = -1./res(:,1:nl)
-    ggB(:,0)      =  1./res(:,1) +0.5*cap(:,1)/ddt + ggext_impl
-    ggB(:,1:nl-1) =  1./res(:,1:nl-1) +1./res(:,2:nl) +0.5*(cap(:,1:nl-1) &
-                       +cap(:,2:nl))/ddt
-    ggB(:,nl)     =  1./res(:,nl) + 0.5*cap(:,nl)/ddt + ggint_impl
-    ggC(:,0:nl-1) = -1./res(:,1:nl)
-    ggD(:,0)      = nodetemp(:,0)*0.5*cap(:,1)/ddt + ggext
-    ggD(:,1:nl-1) = nodetemp(:,1:nl-1)*0.5*(cap(:,1:nl-1)+cap(:,2:nl))/ddt
-    ggD(:,nl)     = nodetemp(:,nl)*0.5*cap(:,nl)/ddt - ggint - rgint
-end select
+!!!!!!!!! interface conduction !!!!!!!!!!!
+ggA(:,1:nl)   = -1./res(:,1:nl)
+ggB(:,0)      =  1./res(:,1) +0.5*cap(:,1)/ddt + ggext_impl
+ggB(:,1:nl-1) =  1./res(:,1:nl-1) +1./res(:,2:nl) +0.5*(cap(:,1:nl-1) &
+                   +cap(:,2:nl))/ddt
+ggB(:,nl)     =  1./res(:,nl) + 0.5*cap(:,nl)/ddt + ggint_impl
+ggC(:,0:nl-1) = -1./res(:,1:nl)
+ggD(:,0)      = nodetemp(:,0)*0.5*cap(:,1)/ddt + ggext
+ggD(:,1:nl-1) = nodetemp(:,1:nl-1)*0.5*(cap(:,1:nl-1)+cap(:,2:nl))/ddt
+ggD(:,nl)     = nodetemp(:,nl)*0.5*cap(:,nl)/ddt - ggint - rgint
 ! tridiagonal solver (Thomas algorithm) to solve node temperatures
 do k=1,nl
   do iqu = 1,ufull
@@ -4498,31 +4476,16 @@ end do
 #else
 res = real(depth,8)/real(lambda,8)
 cap = real(depth,8)*real(volcp,8)
-select case(conductmeth)
-  case(0) !!!!!!!!! half-layer conduction !!!!!!!!!!!
-    ggA(:,1)      =-2._8/res(:,1)
-    ggA(:,2:nl)   =-2._8/(res(:,1:nl-1) +res(:,2:nl))
-    ggB(:,0)      = 2._8/res(:,1) + ggext_impl
-    ggB(:,1)      = 2._8/res(:,1) +2._8/(res(:,1)+res(:,2)) + cap(:,1)/real(ddt,8)
-    ggB(:,2:nl-1) = 2._8/(res(:,1:nl-2) +res(:,2:nl-1)) +2._8/(res(:,2:nl-1) & 
-                      +res(:,3:nl)) +cap(:,2:nl-1)/real(ddt,8)
-    ggB(:,nl)     = 2._8/(res(:,nl-1)+res(:,nl)) + cap(:,nl)/real(ddt,8) + ggint_impl
-    ggC(:,0)      =-2._8/res(:,1)
-    ggC(:,1:nl-1) =-2._8/(res(:,1:nl-1)+res(:,2:nl))
-    ggD(:,0)      = ggext
-    ggD(:,1:nl-1) = nodetemp(:,1:nl-1)*cap(:,1:nl-1)/real(ddt,8)
-    ggD(:,nl)     = nodetemp(:,nl)*cap(:,nl)/real(ddt,8) - ggint - rgint
-  case(1) !!!!!!!!! interface conduction !!!!!!!!!!!
-    ggA(:,1:nl)   = -1._8/res(:,1:nl)
-    ggB(:,0)      =  1._8/res(:,1) +0.5_8*cap(:,1)/ddt + ggext_impl
-    ggB(:,1:nl-1) =  1._8/res(:,1:nl-1) +1._8/res(:,2:nl) +0.5_8*(cap(:,1:nl-1) &
-                       +cap(:,2:nl))/ddt
-    ggB(:,nl)     =  1._8/res(:,nl) + 0.5_8*cap(:,nl)/real(ddt,8) + ggint_impl
-    ggC(:,0:nl-1) = -1._8/res(:,1:nl)
-    ggD(:,0)      = nodetemp(:,0)*0.5_8*cap(:,1)/real(ddt,8) + ggext
-    ggD(:,1:nl-1) = nodetemp(:,1:nl-1)*0.5_8*(cap(:,1:nl-1)+cap(:,2:nl))/real(ddt,8)
-    ggD(:,nl)     = nodetemp(:,nl)*0.5_8*cap(:,nl)/ddt - ggint - rgint
-end select
+!!!!!!!!! interface conduction !!!!!!!!!!!
+ggA(:,1:nl)   = -1._8/res(:,1:nl)
+ggB(:,0)      =  1._8/res(:,1) +0.5_8*cap(:,1)/ddt + ggext_impl
+ggB(:,1:nl-1) =  1._8/res(:,1:nl-1) +1._8/res(:,2:nl) +0.5_8*(cap(:,1:nl-1) &
+                   +cap(:,2:nl))/ddt
+ggB(:,nl)     =  1._8/res(:,nl) + 0.5_8*cap(:,nl)/real(ddt,8) + ggint_impl
+ggC(:,0:nl-1) = -1._8/res(:,1:nl)
+ggD(:,0)      = nodetemp(:,0)*0.5_8*cap(:,1)/real(ddt,8) + ggext
+ggD(:,1:nl-1) = nodetemp(:,1:nl-1)*0.5_8*(cap(:,1:nl-1)+cap(:,2:nl))/real(ddt,8)
+ggD(:,nl)     = nodetemp(:,nl)*0.5_8*cap(:,nl)/ddt - ggint - rgint
 ! tridiagonal solver (Thomas algorithm) to solve node temperatures
 do k=1,nl
   do iqu = 1,ufull
@@ -4595,28 +4558,19 @@ pd%surferr = 0.
 ! assume a_rho=1 for interior
 room%storage(:,1) = real(fp%bldheight(:)*aircp*room%nodetemp(:,1),8)
 ! Sum heat stored in urban materials from layer 1 to nl
-select case(conductmeth)
-  case(0) ! half-layer conduction
-    roof%storage(:,:) = real(fp_roof%depth(:,:),8)*real(fp_roof%volcp(:,:),8)*real(roof%nodetemp(:,1:nl),8)
-    road%storage(:,:) = real(fp_road%depth(:,:),8)*real(fp_road%volcp(:,:),8)*real(road%nodetemp(:,1:nl),8)
-    walle%storage(:,:)= real(fp_wall%depth(:,:),8)*real(fp_wall%volcp(:,:),8)*real(walle%nodetemp(:,1:nl),8)
-    wallw%storage(:,:)= real(fp_wall%depth(:,:),8)*real(fp_wall%volcp(:,:),8)*real(wallw%nodetemp(:,1:nl),8)
-    slab%storage(:,:) = real(fp_slab%depth(:,:),8)*real(fp_slab%volcp(:,:),8)*real(slab%nodetemp(:,1:nl),8)
-    intm%storage(:,:) = real(fp_intm%depth(:,:),8)*real(fp_intm%volcp(:,:),8)*real(intm%nodetemp(:,1:nl),8)
-  case(1) ! interface conduction
-    roof%storage(:,:)  = 0.5_8*real(fp_roof%depth(:,:),8)*real(fp_roof%volcp(:,:),8)                        & 
-                            *(real(roof%nodetemp(:,0:nl-1),8)+real(roof%nodetemp(:,1:nl),8))
-    road%storage(:,:)  = 0.5_8*real(fp_road%depth(:,:),8)*real(fp_road%volcp(:,:),8)                        & 
-                            *(real(road%nodetemp(:,0:nl-1),8)+real(road%nodetemp(:,1:nl),8))
-    walle%storage(:,:) = 0.5_8*real(fp_wall%depth(:,:),8)*real(fp_wall%volcp(:,:),8)                        & 
-                            *(real(walle%nodetemp(:,0:nl-1),8)+real(walle%nodetemp(:,1:nl),8))
-    wallw%storage(:,:) = 0.5_8*real(fp_wall%depth(:,:),8)*real(fp_wall%volcp(:,:),8)                        & 
-                            *(real(wallw%nodetemp(:,0:nl-1),8)+real(wallw%nodetemp(:,1:nl),8))
-    slab%storage(:,:)  = 0.5_8*real(fp_slab%depth(:,:),8)*real(fp_slab%volcp(:,:),8)                        & 
-                            *(real(slab%nodetemp(:,0:nl-1),8)+real(slab%nodetemp(:,1:nl),8))
-    intm%storage(:,:)  = 0.5_8*real(fp_intm%depth(:,:),8)*real(fp_intm%volcp(:,:),8)                        & 
-                            *(real(intm%nodetemp(:,0:nl-1),8)+real(intm%nodetemp(:,1:nl),8))
-  end select
+! interface conduction
+roof%storage(:,:)  = 0.5_8*real(fp_roof%depth(:,:),8)*real(fp_roof%volcp(:,:),8)                        & 
+                        *(real(roof%nodetemp(:,0:nl-1),8)+real(roof%nodetemp(:,1:nl),8))
+road%storage(:,:)  = 0.5_8*real(fp_road%depth(:,:),8)*real(fp_road%volcp(:,:),8)                        & 
+                        *(real(road%nodetemp(:,0:nl-1),8)+real(road%nodetemp(:,1:nl),8))
+walle%storage(:,:) = 0.5_8*real(fp_wall%depth(:,:),8)*real(fp_wall%volcp(:,:),8)                        & 
+                        *(real(walle%nodetemp(:,0:nl-1),8)+real(walle%nodetemp(:,1:nl),8))
+wallw%storage(:,:) = 0.5_8*real(fp_wall%depth(:,:),8)*real(fp_wall%volcp(:,:),8)                        & 
+                        *(real(wallw%nodetemp(:,0:nl-1),8)+real(wallw%nodetemp(:,1:nl),8))
+slab%storage(:,:)  = 0.5_8*real(fp_slab%depth(:,:),8)*real(fp_slab%volcp(:,:),8)                        & 
+                        *(real(slab%nodetemp(:,0:nl-1),8)+real(slab%nodetemp(:,1:nl),8))
+intm%storage(:,:)  = 0.5_8*real(fp_intm%depth(:,:),8)*real(fp_intm%volcp(:,:),8)                        & 
+                        *(real(intm%nodetemp(:,0:nl-1),8)+real(intm%nodetemp(:,1:nl),8))
 
 ! first call do not calculate comparison with last timestep (return) 
 if ( pd%first_call ) then
@@ -5102,11 +5056,6 @@ iroomtemp       = room%nodetemp(:,1)
 
 rdsnmelt        = 0.
 dumvegdelta     = 0. ! cray compiler bug
-if ( conductmeth==0 ) then
-  road%nodetemp(:,0)  = road%nodetemp(:,1)
-  walle%nodetemp(:,0) = walle%nodetemp(:,1)
-  wallw%nodetemp(:,0) = wallw%nodetemp(:,1)
-end if
 d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                            &
         +(1.-d_rdsndelta)*(1.-cnveg%sigma)*fp_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
         +(1.-d_rdsndelta)*cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4)
@@ -5160,39 +5109,6 @@ do l = 1,ncyits
   aa=rdhyd%surfwater/ddt+a_rnd+rdsnmelt
   eg_road=lv*min(a_rho*d_roaddelta*(roadqsat-d_canyonmix)*acond_road,aa)
   
-  if ( conductmeth==0 ) then ! half-layer diagnostic skin temperature estimate
-    ! calculate road and wall skin temperatures
-    ! Write energy budget
-    !     Solar_net + Longwave_net - Sensible flux - Latent flux - Conduction = 0
-    ! or 
-    !     sg + a_rg - f_emiss*sbconst*Tskin**4 - aircp*a_rho*(Tskin-d_tempc) &
-    !     -eg - (Tskin-temp(:,1))/ldrratio = 0
-    ! as a quartic equation
-    !      aa*Tskin^4 + dd*Tskin + ee = 0
-    ! and solve for Tskin  
-    effwalle=fp_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cw0                  & 
-                    +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cww+d_netrad*d_cwr)
-    effwallw=fp_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cw0                  &
-                    +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cww+d_netrad*d_cwr)
-    effroad=fp_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                       &
-                    +sbconst*fp_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
-    ldratio = 0.5*fp_wall%depth(:,1)/fp_wall%lambda(:,1)
-    aa = fp_wall%emiss*sbconst
-    dd = aircp*a_rho*acond_walle+1./ldratio
-    ee = -sg_walle-effwalle-aircp*a_rho*acond_walle*(d_canyontemp+urbtemp)-(walle%nodetemp(:,1)+urbtemp)/ldratio
-    call solvequartic(skintemp,aa,dd,ee) ! This is an estimate of Tskin to be updated in solvetridiag
-    walle%nodetemp(:,0) = skintemp - urbtemp
-    dd = aircp*a_rho*acond_wallw+1./ldratio
-    ee = -sg_wallw-effwallw-aircp*a_rho*acond_wallw*(d_canyontemp+urbtemp)-(wallw%nodetemp(:,1)+urbtemp)/ldratio
-    call solvequartic(skintemp,aa,dd,ee) ! This is an estimate of Tskin to be updated in solvetridiag
-    wallw%nodetemp(:,0) = skintemp - urbtemp
-    ldratio = 0.5*fp_road%depth(:,1)/fp_road%lambda(:,1)
-    aa = fp_road%emiss*sbconst
-    dd = aircp*a_rho*acond_road+1./ldratio
-    ee = -sg_road-effroad-aircp*a_rho*acond_road*(d_canyontemp+urbtemp)-(road%nodetemp(:,1)+urbtemp)/ldratio+eg_road
-    call solvequartic(skintemp,aa,dd,ee)  ! This is an estimate of Tskin to be updated in solvetridiag
-    road%nodetemp(:,0) = skintemp - urbtemp
-  end if
   ! Calculate longwave radiation emitted from the canyon floor
   ! MJT notes - This could be included within the iterative solver for snow and vegetation temperatures.
   ! However, it creates a (weak) coupling between these two variables and therefore could require
@@ -5226,7 +5142,7 @@ do l = 1,ncyits
   
   ! solve for road snow and canyon veg temperatures -------------------------------
   ldratio  = 0.5*( sndepth/snlambda + fp_road%depth(:,1)/fp_road%lambda(:,1) )
-  oldval(:,1) = cnveg%temp + 0.5
+  oldval(:,1) = cnveg%temp + 0.5 ! 1st guess
   oldval(:,2) = rdsntemp + 0.5
   call canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,      &
                   sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
@@ -5236,7 +5152,7 @@ do l = 1,ncyits
                   effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
                   lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                      &
                   cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
-  cnveg%temp = cnveg%temp - 0.5
+  cnveg%temp = cnveg%temp - 0.5 ! 2nd guess
   rdsntemp   = rdsntemp - 0.5
   do k = 1,nfgits ! sectant
     evctx = evct
@@ -5913,10 +5829,6 @@ type(vegdata), intent(inout) :: rfveg
 type(facetdata), intent(inout) :: roof
 type(fparmdata), intent(in) :: fp
 
-if ( conductmeth==0 ) then
-  roof%nodetemp(:,0) = roof%nodetemp(:,1) ! 1st estimate for calculating roof snow temp
-end if
-
 lzomroof=log(d_rfdzmin/zoroof)
 lzohroof=2.3+lzomroof
 call getqsat(qsatr,roof%nodetemp(:,0),d_sigr)
@@ -5984,25 +5896,6 @@ elsewhere
   aa=rfhyd%surfwater/ddt+a_rnd+rfsnmelt
   eg_roof=lv*min(a_rho*d_roofdelta*(qsatr-d_mixrr)*acond_roof,aa)
 end where
-
-if ( conductmeth==0 ) then     
-  ! estimate roof skin temperature
-  ! Write roof energy budget
-  !     Solar_net + Longwave_net - Sensible flux - Latent flux - Conduction = 0
-  ! or 
-  !     sg_roof + a_rg - fp_roof%emiss*sbconst*Tskin**4 - aircp*a_rho*(Tskin-d_tempr) &
-  !     -eg_roof - (Tskin-roof%nodetemp(:,1))/ldrratio = 0
-  ! as a quartic equation
-  !      aa*Tskin^4 + dd*Tskin + ee = 0
-  ! and solve for Tskin
-  ldratio=0.5*(fp_roof%depth(:,1)/fp_roof%lambda(:,1))
-  aa=fp_roof%emiss*sbconst
-  dd=aircp*a_rho*acond_roof+1./ldratio
-  ee=-sg_roof-fp_roof%emiss*a_rg-aircp*a_rho*acond_roof*(d_tempr+urbtemp) &
-     -(roof%nodetemp(:,1)+urbtemp)/ldratio+eg_roof
-  call solvequartic(skintemp,aa,dd,ee) ! This the 2nd estimate of Tskin to be updated in solvetridiag
-  roof%nodetemp(:,0) = skintemp - urbtemp
-end if
 
 ! calculate net roof longwave radiation
 ! (sensible heat flux will be updated in solvetridiag)
@@ -6690,33 +6583,6 @@ pd%qscrn       = max(pd%qscrn,1.E-4)
       
 return
 end subroutine scrncalc
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Solves Quartic equation of the form a*x^4+d*x+e=0
-
-subroutine solvequartic(x,a,d,e)
-
-implicit none
-
-real, dimension(:), intent(out) :: x
-real, dimension(:), intent(in) :: a,d,e
-real, dimension(size(x)) :: t1,q,s,qq,d0,d1
-
-d0=12.*a*e
-d1=27.*a*d**2
-qq=(0.5*(d1+sqrt(d1**2-4.*d0**3)))**(1./3.)
-s=0.5*sqrt((qq+d0/qq)/(3.*a))
-q=d/a
-t1=-s+0.5*sqrt(-4*s**2+q/s)
-!t2=-s-0.5*sqrt(-4*s**2+q/s)
-!t3=s+0.5*sqrt(-4*s**2-q/s)
-!t4=s-0.5*sqrt(-4*s**2-q/s)
-
-x=t1
-
-return
-end subroutine solvequartic
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Disables aTEB so subroutine calls have no effect

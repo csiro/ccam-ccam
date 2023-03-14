@@ -1683,12 +1683,7 @@ real odum, tdum
 real(kind=8) dumd
 
 
-#ifndef GPU
-!$omp parallel do schedule(static) private(n,iq,dumd,dum_out,odum,tdum)
-#else
-!$acc parallel loop collapse(2) copyin(dumc,niu,niv,spnet,emu,emv) copyout(dum_out) &
-!$acc   private(dumd,odum,tdum) present(iwu,iw,ie,isv,is,in)
-#endif
+!$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)
 do n = 1,ntr
   do iq = 1,ifull
     dumd=real(dumc(iq,n),8)
@@ -1755,11 +1750,7 @@ do n = 1,ntr
     dum_out(iq,n)=real(max(dumd,0._8))
   end do
 end do
-#ifndef GPU
 !$omp end parallel do
-#else
-!$acc end parallel loop
-#endif
 
 dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
   
