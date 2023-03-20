@@ -120,13 +120,11 @@ use aerointerface                          ! Aerosol interface
 use aerosolldr                             ! LDR prognostic aerosols
 use ateb, only :                         & ! Urban
      ateb_resmeth=>resmeth               &
-    ,ateb_useonewall=>useonewall         &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
     ,ateb_nrefl=>nrefl                   &
     ,ateb_vegmode=>vegmode               &
     ,ateb_soilunder=>soilunder           &
-    ,ateb_conductmeth=>conductmeth       &
     ,ateb_scrnmeth=>scrnmeth             &
     ,ateb_wbrelaxc=>wbrelaxc             &
     ,ateb_wbrelaxr=>wbrelaxr             &
@@ -827,8 +825,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_acfactor',ateb_acfactor)
     call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
     call ccnf_put_attg(idnc,'ateb_lwintmeth',ateb_lwintmeth)   
-    call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
-    call ccnf_put_attg(idnc,'ateb_conductmeth',ateb_conductmeth)
     call ccnf_put_attg(idnc,'ateb_cvcoeffmeth',ateb_cvcoeffmeth)
     call ccnf_put_attg(idnc,'ateb_infilmeth',ateb_infilmeth)
     call ccnf_put_attg(idnc,'ateb_intairtmeth',ateb_intairtmeth)
@@ -853,7 +849,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_soilunder',ateb_soilunder)
     call ccnf_put_attg(idnc,'ateb_statsmeth',ateb_statsmeth)
     call ccnf_put_attg(idnc,'ateb_tol',ateb_tol)
-    call ccnf_put_attg(idnc,'ateb_useonewall',ateb_useonewall)
     call ccnf_put_attg(idnc,'ateb_vegmode',ateb_vegmode)
     call ccnf_put_attg(idnc,'ateb_wbrelaxc',ateb_wbrelaxc)
     call ccnf_put_attg(idnc,'ateb_wbrelaxr',ateb_wbrelaxr)
@@ -971,12 +966,12 @@ subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                            
 use aerointerface                                ! Aerosol interface
 use aerosol_arrays                               ! Aerosol arrays
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebsaved, atebavetemp,      &
-                 urbtemp, nfrac                  ! Urban
-use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
-                       cable_pop,POP_NPATCH,  &
-                       POP_NCOHORT,           &
-                       cable_climate,ccycle
+use ateb, only : atebsaved, atebavetemp,       & ! Urban
+                 urbtemp, nfrac, atebmisc        
+use cable_ccam, only : savetile, savetiledef,  & ! CABLE interface
+                       cable_pop, POP_NPATCH,  &
+                       POP_NCOHORT,            &
+                       cable_climate, ccycle
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
@@ -993,8 +988,8 @@ use infile                                       ! Input file routines
 use latlong_m                                    ! Lat/lon coordinates
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
-use mlo, only : wlev,mlosave,mlodiag,       &    ! Ocean physics and prognostic arrays
-                mloexpdep,mloexport,wrtemp, &
+use mlo, only : wlev,mlosave,mlodiag,          & ! Ocean physics and prognostic arrays
+                mloexpdep,mloexport,wrtemp,    &
                 oclosure,mlovlevels
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
@@ -1039,8 +1034,8 @@ use sigs_m                                       ! Atmosphere sigma levels
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
-use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &  ! TKE-EPS boundary layer
-                   thetal_ema,qv_ema,ql_ema,  &
+use tkeeps, only : tke,eps,u_ema,v_ema,w_ema,  & ! TKE-EPS boundary layer
+                   thetal_ema,qv_ema,ql_ema,   &
                    qf_ema,cf_ema,tke_ema
 use tracermodule, only : writetrpm, co2em        ! Tracer routines
 use tracers_m                                    ! Tracer data
@@ -1058,21 +1053,18 @@ integer, intent(in) :: iarch, itype, iout
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idnc
-integer idum, cptype
-integer ifrac
-integer, dimension(2) :: csize
+integer idum, cptype, ifrac
 integer, dimension(6), intent(in) :: idc
 integer, dimension(5), intent(in) :: dima, dimo
 integer, dimension(6,7), intent(in) :: dimc
 integer, dimension(4) :: dimj
 integer, dimension(3) :: dimk
+integer, dimension(2) :: csize
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:,:), allocatable :: procnode
 integer, dimension(:), allocatable :: procdata
-real, dimension(:,:), allocatable :: xpnt2
-real, dimension(:,:), allocatable :: ypnt2
-real, dimension(:), allocatable :: xpnt
-real, dimension(:), allocatable :: ypnt
+real, dimension(:,:), allocatable :: xpnt2, ypnt2
+real, dimension(:), allocatable :: xpnt, ypnt
 real, dimension(:), allocatable :: cabledata
 real, dimension(:), intent(in) :: psl_in
 real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
@@ -1877,14 +1869,14 @@ if( myid==0 .or. local ) then
       call attrib(idnc,dimj,4,'urbantasmax',lname,'K',100.,425.,1,cptype)
       lname = 'Minimum urban screen temperature'
       call attrib(idnc,dimj,4,'urbantasmin',lname,'K',100.,425.,1,cptype)
-      !lname = 'Skin temperature'
-      !call attrib(idnc,dimj,4,'tasskin',lname,'K',100.,425.,1,cptype)
-      !lname = 'Surface temperature pavements'
-      !call attrib(idnc,dimj,4,'tspav',lname,'K',100.,425.,1,cptype)
-      !lname = 'Surface temperature roof'
-      !call attrib(idnc,dimj,4,'tsroof',lname,'K',100.,425.,1,cptype)
-      !lname = 'Surface temperature green spaces'
-      !call attrib(idnc,dimj,4,'tsgree',lname,'K',100.,425.,1,cptype)
+      lname = 'Skin temperature'
+      call attrib(idnc,dimj,4,'tasskin',lname,'K',100.,425.,1,cptype)
+      lname = 'Surface temperature pavements'
+      call attrib(idnc,dimj,4,'tspav',lname,'K',100.,425.,1,cptype)
+      lname = 'Surface temperature roof'
+      call attrib(idnc,dimj,4,'tsroof',lname,'K',100.,425.,1,cptype)
+      lname = 'Surface temperature green spaces'
+      call attrib(idnc,dimj,4,'tsgree',lname,'K',100.,425.,1,cptype)
     end if    
     if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
       do k = 1,5  
@@ -3234,18 +3226,18 @@ if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
     aa = tminscr
   end where
   call histwrt(aa,'urbantasmin',idnc,iarch,local,lday)
-  ! URB-RCC variables  
-  !call histwrt(urban_ts,'tasskin',idnc,iarch,local,.true.)
+  ! URB-RCC variables
+  call histwrt(urban_ts,'tasskin',idnc,iarch,local,.true.)
   ! anthroheat from anth_ave
-  !aa = 999.
-  !call atebavetemp(aa,"roadtemp1",0)  
-  !call histwrt(aa,'tspav',idnc,iarch,local,.true.)
-  !aa = 999.
-  !call atebavetemp(aa,"rooftemp1",0)  
-  !call histwrt(aa,'tsroof',idnc,iarch,local,.true.)
-  !aa = 999.
-  !call atebavetemp(aa,"canyonvegtemp",0)  
-  !call histwrt(aa,'tsgree',idnc,iarch,local,.true.)
+  aa = 999.
+  call atebavetemp(aa,"roadtemp1",0)  
+  call histwrt(aa,'tspav',idnc,iarch,local,.true.)
+  aa = 999.
+  call atebavetemp(aa,"rooftemp1",0)  
+  call histwrt(aa,'tsroof',idnc,iarch,local,.true.)
+  aa = 999.
+  call atebmisc(aa,"vegt",0)  
+  call histwrt(aa,'tsgree',idnc,iarch,local,.true.)
 end if
 if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
   do k = 1,5

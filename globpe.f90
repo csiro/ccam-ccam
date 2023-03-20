@@ -1305,13 +1305,11 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use ateb, only : atebnmlfile             & ! Urban
     ,energytol                           &
     ,ateb_resmeth=>resmeth               &
-    ,ateb_useonewall=>useonewall         &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
     ,ateb_nrefl=>nrefl                   &
     ,ateb_vegmode=>vegmode               &
     ,ateb_soilunder=>soilunder           &
-    ,ateb_conductmeth=>conductmeth       &
     ,ateb_scrnmeth=>scrnmeth             &
     ,ateb_wbrelaxc=>wbrelaxc             &
     ,ateb_wbrelaxr=>wbrelaxr             &
@@ -1459,6 +1457,8 @@ integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 integer o3_time_interpolate        ! depreciated namelist options
 integer kmlo, calcinloop           ! depreciated namelist options
 integer fnproc_bcast_max, nriver   ! depreciated namelist options
+integer ateb_conductmeth           ! depreciated namelist options
+integer ateb_useonewall            ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -1562,9 +1562,9 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
     cable_gw_model,cable_roughness,cable_version,cable_potev,     &
-    ateb_energytol,ateb_resmeth,ateb_useonewall,ateb_zohmeth,     & ! urban
+    ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
     ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
-    ateb_conductmeth,ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,   &
+    ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,                    &
     ateb_lweff,ateb_ncyits,ateb_nfgits,ateb_tol,ateb_alpha,       &
     ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,                 &
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
@@ -1575,7 +1575,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_deltat,ateb_acfactor,                                 &
     siburbanfrac,                                                 &
-    ateb_ac_smooth,ateb_ac_copmax                                   ! depreciated
+    ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,               & ! depreciated
+    ateb_useonewall
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
@@ -2362,7 +2363,7 @@ stabmeth           = dumi(2)
 tkemeth            = dumi(3)
 ngwd               = dumi(4)
 deallocate( dumr, dumi )
-allocate( dumr(24), dumi(33) )
+allocate( dumr(24), dumi(31) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2408,27 +2409,25 @@ if ( myid==0 ) then
   dumi(10) = smrf_switch
   dumi(11) = strf_switch
   dumi(12) = ateb_resmeth
-  dumi(13) = ateb_useonewall
-  dumi(14) = ateb_zohmeth
-  dumi(15) = ateb_acmeth
-  dumi(16) = ateb_nrefl
-  dumi(17) = ateb_vegmode
-  dumi(18) = ateb_soilunder
-  dumi(19) = ateb_conductmeth
-  dumi(20) = ateb_scrnmeth
-  dumi(21) = ateb_wbrelaxc
-  dumi(22) = ateb_wbrelaxr
-  dumi(23) = ateb_lweff
-  dumi(24) = ateb_ncyits
-  dumi(25) = ateb_nfgits
-  dumi(26) = ateb_intairtmeth
-  dumi(27) = ateb_intmassmeth
-  dumi(28) = ateb_cvcoeffmeth
-  dumi(29) = ateb_statsmeth
-  dumi(30) = ateb_lwintmeth
-  dumi(31) = ateb_infilmeth
-  dumi(32) = cable_roughness
-  dumi(33) = cable_potev
+  dumi(13) = ateb_zohmeth
+  dumi(14) = ateb_acmeth
+  dumi(15) = ateb_nrefl
+  dumi(16) = ateb_vegmode
+  dumi(17) = ateb_soilunder
+  dumi(18) = ateb_scrnmeth
+  dumi(19) = ateb_wbrelaxc
+  dumi(20) = ateb_wbrelaxr
+  dumi(21) = ateb_lweff
+  dumi(22) = ateb_ncyits
+  dumi(23) = ateb_nfgits
+  dumi(24) = ateb_intairtmeth
+  dumi(25) = ateb_intmassmeth
+  dumi(26) = ateb_cvcoeffmeth
+  dumi(27) = ateb_statsmeth
+  dumi(28) = ateb_lwintmeth
+  dumi(29) = ateb_infilmeth
+  dumi(30) = cable_roughness
+  dumi(31) = cable_potev
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2468,27 +2467,25 @@ cable_climate     = dumi(9)
 smrf_switch       = dumi(10)
 strf_switch       = dumi(11)
 ateb_resmeth      = dumi(12)
-ateb_useonewall   = dumi(13)
-ateb_zohmeth      = dumi(14)
-ateb_acmeth       = dumi(15)
-ateb_nrefl        = dumi(16) 
-ateb_vegmode      = dumi(17) 
-ateb_soilunder    = dumi(18)
-ateb_conductmeth  = dumi(19) 
-ateb_scrnmeth     = dumi(20)
-ateb_wbrelaxc     = dumi(21) 
-ateb_wbrelaxr     = dumi(22) 
-ateb_lweff        = dumi(23) 
-ateb_ncyits       = dumi(24)
-ateb_nfgits       = dumi(25) 
-intairtmeth       = dumi(26) ! note switch to UCLEM parameter
-intmassmeth       = dumi(27) ! note switch to UCLEM parameter 
-ateb_cvcoeffmeth  = dumi(28) 
-ateb_statsmeth    = dumi(29) 
-ateb_lwintmeth    = dumi(30) 
-ateb_infilmeth    = dumi(31)
-cable_roughness   = dumi(32)
-cable_potev       = dumi(33)
+ateb_zohmeth      = dumi(13)
+ateb_acmeth       = dumi(14)
+ateb_nrefl        = dumi(15) 
+ateb_vegmode      = dumi(16) 
+ateb_soilunder    = dumi(17)
+ateb_scrnmeth     = dumi(18)
+ateb_wbrelaxc     = dumi(19) 
+ateb_wbrelaxr     = dumi(20) 
+ateb_lweff        = dumi(21) 
+ateb_ncyits       = dumi(22)
+ateb_nfgits       = dumi(23) 
+intairtmeth       = dumi(24) ! note switch to UCLEM parameter
+intmassmeth       = dumi(25) ! note switch to UCLEM parameter 
+ateb_cvcoeffmeth  = dumi(26) 
+ateb_statsmeth    = dumi(27) 
+ateb_lwintmeth    = dumi(28) 
+ateb_infilmeth    = dumi(29)
+cable_roughness   = dumi(30)
+cable_potev       = dumi(31)
 deallocate( dumr, dumi )
 allocate( dumr(21), dumi(20) )
 dumr = 0.
