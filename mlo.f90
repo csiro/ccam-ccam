@@ -3180,8 +3180,8 @@ do iqw = 1,imax
   end if
 end do  
 
-k = max( k, omink )
-eps = max( eps, omineps )
+  k(:,:) = min( max( k(:,:), omink ), 1.e10 )
+  eps(:,:) = min( max( eps(:,:), omineps ), 1.e10 )
 
 !limit length scale
 L(:,:) = cu0**3*k(:,:)**1.5/eps(:,:)
@@ -3331,8 +3331,8 @@ do step = 1,nsteps
  
   
   !limit k & eps
-  k(:,:) = max( k(:,:), omink )
-  eps(:,:) = max( eps(:,:), omineps )
+  k(:,:) = min( max( k(:,:), omink ), 1.e10 )
+  eps(:,:) = min( max( eps(:,:), omineps ), 1.e10 )
 
   !limit length scale
   L = cu0**3*k**1.5/eps

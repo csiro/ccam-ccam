@@ -612,6 +612,7 @@ mlodynamics.o : arrays_m.o bigxy4_m.o cc_acc.o cc_mpi.o cc_omp.o const_phys.o he
 mloints.o : cc_acc.o cc_mpi.o indices_m.o mlo.o newmpar_m.o parm_m.o parmhor_m.o
 mlostag.o : cc_mpi.o indices_m.o mlo.o mlodynamicsarrays_m.o newmpar_m.o parm_m.o
 mlovadvtvd.o : cc_acc.o cc_mpi.o mlo.o newmpar_m.o
+module_aux_cosp.o : arrays_m.o cc_omp.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o estab.o filnames_m.o kuocomb_m.o latlong_m.o liqwpar_m.o map_m.o module_aux_rad.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o pbl_m.o prec_m.o raddiag_m.o screen_m.o sflux.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o vvel_m.o
 module_aux_rad.o : const_phys.o parm_m.o
 module_ctrl_microphysics.o : aerointerface.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o cloudmod.o const_phys.o estab.o filnames_m.o kuocomb_m.o latlong_m.o leoncld.o liqwpar_m.o map_m.o module_aux_cosp.o module_aux_rad.o module_mp_sbu_ylin.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o pbl_m.o prec_m.o raddiag_m.o screen_m.o sflux.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o vvel_m.o kuocom.h
 module_mp_sbu_ylin.o : cc_mpi.o

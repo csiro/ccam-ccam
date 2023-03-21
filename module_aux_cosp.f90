@@ -268,7 +268,6 @@ module module_aux_cosp
 contains
   subroutine cloud_simulator
 
-  use cc_omp
   use arrays_m                      ! Atmosphere dyamics prognostic arrays
   use cc_mpi                        ! CC MPI routines
   use cc_omp                        ! CC OpenMP routines
