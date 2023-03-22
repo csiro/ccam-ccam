@@ -1423,7 +1423,7 @@ dd_a(:,1,1) = thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idz
 do k = 2,kl-1
   kr = kl + 1 - k
   dd_a(:,k,1) = thetal(:,kr)+ddts*(mflx(:,kr-1)*tlup(:,kr-1)*(1.-fzzh(:,kr-1))*idzm(:,kr) &
-                                  +mflx(:,kr)*tlup(:,kr)*fzzh(:,kr)*idzm(:,kr)            &
+                                  +mflx(:,kr)*tlup(:,kr)*fzzh(:,kr-1)*idzm(:,kr)          &
                                   -mflx(:,kr)*tlup(:,kr)*(1.-fzzh(:,kr))*idzp(:,kr)       &
                                   -mflx(:,kr+1)*tlup(:,kr+1)*fzzh(:,kr)*idzp(:,kr))
 end do
@@ -1537,7 +1537,7 @@ dd_a(:,1,2)=qlg(:,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,k
 do k = 2,kl-1
   kr = kl + 1 - k
   dd_a(:,k,2)=qlg(:,kr)+ddts*(mflx(:,kr-1)*qlup(:,kr-1)*(1.-fzzh(:,kr-1))*idzm(:,kr) &
-                             +mflx(:,kr)*qlup(:,kr)*fzzh(:,kr)*idzm(:,kr)            &
+                             +mflx(:,kr)*qlup(:,kr)*fzzh(:,kr-1)*idzm(:,kr)          &
                              -mflx(:,kr)*qlup(:,kr)*(1.-fzzh(:,kr))*idzp(:,kr)       &
                              -mflx(:,kr+1)*qlup(:,kr+1)*fzzh(:,kr)*idzp(:,kr))
 end do
@@ -1554,7 +1554,7 @@ do k = 2,kl-1
                              -mflx(:,kr)*qfup(:,kr)*(1.-fzzh(:,kr))*idzp(:,kr)       &
                              -mflx(:,kr+1)*qfup(:,kr+1)*fzzh(:,kr)*idzp(:,kr))
 end do
-dd_a(:,kl,3)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
+dd_a(:,kl,3)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)             &
                            +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
 
 ! stratcloud - atmosphere

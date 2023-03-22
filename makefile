@@ -24,28 +24,35 @@ ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2 -align array32byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
-IPFLAG = -ip
+IPFLAG =
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -O3 -xSKYLAKE-AVX512 -align array64byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
-IPFLAG = -ip
+IPFLAG =
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -O3 -xCASCADELAKE -align array64byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
-IPFLAG = -ip
+IPFLAG =
+VTHRESH = -vec-threshold0
+endif
+ifeq ($(SAPPHIRERAPIDS),yes)
+FHOST = -O3 -xSAPPHIRERAPIDS -align array64byte -fimf-use-svml
+FOVERRIDE = -qoverride-limits
+ZMM = -qopt-zmm-usage=high
+IPFLAG =
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(ZEN3),yes)
 FHOST = -O3 -axCORE-AVX2 -align array32byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
-IPFLAG = -ip
+IPFLAG =
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(MAGNUS),yes)
@@ -54,7 +61,7 @@ FCSCM = ftn
 FHOST = -O3 -xHost
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
-IPFLAG = -ip
+IPFLAG =
 VTHRESH = -vec-threshold0
 endif
 # Default intel compiler options
@@ -238,7 +245,7 @@ FFLAGS += -qopenmp -qno-openmp-simd
 endif
 FOVERRIDE = -qoverride-limits
 ZMM =
-IPFLAG = -ip
+IPFLAG =
 IPOFLAG =
 VTHRESH = -vec-threshold0
 PPFLAG90 = -fpp
