@@ -67,7 +67,7 @@ real :: scale_factor      ! account for the plane-parallel homogenous cloud bias
 integer, parameter :: n_donner = 8
 real, dimension(n_donner+1), parameter :: temp_donner = &
     (/ 215.66, 220.66, 225.66, 230.66, 235.66, 240.66, 245.66, 250.66, 250.66 /)
-real, dimension(n_donner+1), parameter :: rad_donner =  &
+real, dimension(n_donner+1), parameter :: deff_donner =  &
     (/   20.2,   21.6,   39.9,   42.5,   63.9,   93.5,   80.8,  100.6,  100.6 /)
 
 scale_factor = 1.
@@ -121,12 +121,12 @@ if ( liqradmethod<6 ) then
     ! lower bound k_ratio (land) 1.203 (water) 1.050
 
     ! Martin et al 1994
-    reffl(:,:) = 2.*(3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
+    reffl(:,:) = (3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
   elsewhere
     reffl(:,:) = 0.
     Wliq(:,:) = 0.
   end where
-  
+
 else if ( liqradmethod==6 ) then
 
   if ( .not.present(stras_rliq) ) then
@@ -182,7 +182,7 @@ select case(iceradmethod)
     !Lohmann et al.(1999)
     where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
       Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
+      reffi(:,:) = 0.5*min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
     elsewhere
       Wice(:,:) = 0.
       reffi(:,:) = 0.
@@ -196,10 +196,10 @@ select case(iceradmethod)
       tstore(:) = min( max( tstore(:), 1. ), real(n_donner) )
       tfrac(:) = tstore(:) - aint(tstore(:))
       tpos(:) = int(tstore)
-      basesize(:) = (1.-tfrac(:))*rad_donner(tpos(:)) + tfrac(:)*rad_donner(tpos(:)+1)
+      basesize(:) = (1.-tfrac(:))*deff_donner(tpos(:)) + tfrac(:)*deff_donner(tpos(:)+1)
       where ( qfrad(:,k)>1.e-8 .and. cfrac(:,k)>1.e-4 )
         Wice(:,k) = rhoa(:,k)*qfrad(:,k)/cfrac(:,k) ! kg/m**3
-        reffi(:,k) = 1.e-6*basesize(:)
+        reffi(:,k) = 0.5e-6*basesize(:)
       elsewhere
         Wice(:,k) = 0.
         reffi(:,k) = 0.
@@ -210,7 +210,7 @@ select case(iceradmethod)
     ! Fu 2007
     where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
       Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = 1.E-6*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
+      reffi(:,:) = 0.5E-6*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
     elsewhere
       Wice(:,:) = 0.
       reffi(:,:) = 0.
@@ -222,21 +222,21 @@ select case(iceradmethod)
         if ( qfrad(iq,k)>1.E-8 .and. cfrac(iq,k)>1.E-4 ) then
           Wice(iq,k) = rhoa(iq,k)*qfrad(iq,k)/cfrac(iq,k) ! kg/m**3
           if ( ttg(iq,k)>248.16 ) then
-            reffi(iq,k) = 1.E-6*100.6
+            reffi(iq,k) = 0.5E-6*100.6
           elseif ( ttg(iq,k)>243.16 ) then
-            reffi(iq,k) = 1.E-6*80.8
+            reffi(iq,k) = 0.5E-6*80.8
           elseif ( ttg(iq,k)>238.16 ) then
-            reffi(iq,k) = 1.E-6*93.5
+            reffi(iq,k) = 0.5E-6*93.5
           elseif ( ttg(iq,k)>233.16 ) then
-            reffi(iq,k) = 1.E-6*63.9
+            reffi(iq,k) = 0.5E-6*63.9
           elseif ( ttg(iq,k)>228.16 ) then
-            reffi(iq,k) = 1.E-6*42.5
+            reffi(iq,k) = 0.5E-6*42.5
           elseif ( ttg(iq,k)>223.16 ) then
-            reffi(iq,k) = 1.E-6*39.9
+            reffi(iq,k) = 0.5E-6*39.9
           elseif ( ttg(iq,k)>218.16 ) then
-            reffi(iq,k) = 1.E-6*21.6
+            reffi(iq,k) = 0.5E-6*21.6
           else
-            reffi(iq,k) = 1.E-6*20.2
+            reffi(iq,k) = 0.5E-6*20.2
           end if
         else
           reffi(iq,k) = 0.
@@ -272,8 +272,10 @@ do k = 1,kl
   coni(:,kr)  = real(1000.*scale_factor*Wice(:,k), 8)
 end do
 
-Rdrop(:,:) = min(max(Rdrop(:,:), 8.4_8), 33.2_8) ! constrain size to acceptable range (see microphys_rad.f90)
-Rice(:,:) = min(max(Rice(:,:), 18.6_8), 130.2_8)
+!Rdrop(:,:) = min(max(Rdrop(:,:), 4.2_8), 16.6_8)   ! GFDL cloud_rad.f90
+!Rice(:,:) = min(max(Rice(:,:), 9.3_8), 65.1_8)     ! GFDL cloud_rad.f90
+Rdrop(:,:) = min(max(Rdrop(:,:), 4.2_8), 16.6_8)
+Rice(:,:) = min(max(Rice(:,:), 9.3_8), 65.1_8)
 
 return
 end subroutine cloud3

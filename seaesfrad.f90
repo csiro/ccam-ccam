@@ -579,8 +579,9 @@ do iq_tile = 1,ifull,imax
                 Cloud_microphysics(mythread)%conc_drop,Cloud_microphysics(mythread)%conc_ice,       &
                 dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl,                                              &
                 stras_rliq=dum_stras_rliq,stras_rice=dum_stras_rice,stras_rsno=dum_stras_rsno)
-    Cloud_microphysics(mythread)%size_drop = max(Cloud_microphysics(mythread)%size_drop, 1.e-20_8)
-    Cloud_microphysics(mythread)%size_ice  = max(Cloud_microphysics(mythread)%size_ice,  1.e-20_8)                
+    ! convert to diameter
+    Cloud_microphysics(mythread)%size_drop = max(2.*Cloud_microphysics(mythread)%size_drop, 1.e-20_8)
+    Cloud_microphysics(mythread)%size_ice  = max(2.*Cloud_microphysics(mythread)%size_ice,  1.e-20_8)                
     Cloud_microphysics(mythread)%size_rain = 1.e-20_8
     Cloud_microphysics(mythread)%conc_rain = 0._8
     Cloud_microphysics(mythread)%size_snow = 1.e-20_8

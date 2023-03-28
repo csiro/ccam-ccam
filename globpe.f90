@@ -1547,7 +1547,8 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
     rcm,lin_aerosolmode,maxlintime,                               &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
-    vdeposition_mode,tiedtke_form,cloud_aerosol_mode
+    vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
+    cloud_ice_method
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -2148,7 +2149,7 @@ surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
 cordex_fix          = dumi(25)
 deallocate( dumi )
-allocate( dumr(35), dumi(25) )
+allocate( dumr(35), dumi(26) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2213,6 +2214,7 @@ if ( myid==0 ) then
   dumi(23) = tiedtke_form
   dumi(24) = cloud_aerosol_mode
   dumi(25) = lin_aerosolmode  
+  dumi(26) = cloud_ice_method
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2276,6 +2278,7 @@ vdeposition_mode = dumi(22)
 tiedtke_form     = dumi(23)
 cloud_aerosol_mode = dumi(24)
 lin_aerosolmode    = dumi(25)
+cloud_ice_method   = dumi(26)
 deallocate( dumr, dumi )
 allocate( dumr(32), dumi(4) )
 dumr = 0.

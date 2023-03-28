@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -8658,22 +8658,52 @@ contains
       integer :: oldrank, ty, cy, tx, cx
       integer :: new_node_nproc
       integer :: testid, newid
+      integer :: vsize
       integer(kind=4) :: ref_nodecaptain_nproc
       integer(kind=4) :: lerr, lid, lcommin, lcommout
+      integer(kind=4), dimension(:), allocatable :: nodesize
+      integer(kind=4), dimension(1) :: lnode
 
 #ifdef usempi3
-      lcommin = comm_world
       node_nx = 0
       node_ny = 0
       node_dx = nxp
       node_dy = nyp
+      new_node_nproc = -1
       
       ! communicate number of nodes to all processes
       ref_nodecaptain_nproc = nodecaptain_nproc
+      lcommin = comm_world      
       call MPI_Bcast(ref_nodecaptain_nproc, 1_4, MPI_INTEGER, 0_4, lcommin, lerr )
    
       if ( mod(nproc, ref_nodecaptain_nproc)==0 .and. ref_nodecaptain_nproc>1 ) then
+         ! fully loaded nodes method
          new_node_nproc = nproc / ref_nodecaptain_nproc
+      else
+         ! virtual nodes method
+         allocate( nodesize(ref_nodecaptain_nproc) )
+         if ( node_myid==0 ) then
+            lnode(1) = node_nproc
+            lcommin = comm_nodecaptain
+            call START_LOG(gather_begin)
+            call MPI_Gather(lnode,1_4,MPI_INTEGER,nodesize,1_4,MPI_INTEGER,0_4,lcommin,lerr)
+            call END_LOG(gather_end)
+         end if
+         lcommin = comm_world
+         call MPI_Bcast(nodesize, ref_nodecaptain_nproc, MPI_INTEGER, 0_4, lcommin, lerr )
+         do vsize = maxval(nodesize),1,-1 
+            if ( all( mod(nodesize(:),vsize)==0 ) ) then
+               exit 
+            end if
+         end do
+         deallocate( nodesize )
+         if ( vsize > 2 ) then
+            new_node_nproc = vsize
+         end if
+      end if
+
+      if ( new_node_nproc >= 4 ) then
+
          ! calculate virtual node decomposition
          node_nx = max( int(sqrt(real(new_node_nproc))), 1 )
          node_ny = new_node_nproc / node_nx
@@ -8714,6 +8744,7 @@ contains
          if ( lcommin/=MPI_COMM_WORLD .and. lcommin/=MPI_COMM_NULL ) then
             call MPI_Comm_Free(lcommin, lerr) 
          end if
+
       end if
 #endif   
    

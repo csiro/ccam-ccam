@@ -43,6 +43,7 @@ implicit none
 private
 public convectivecloudfrac
 public update_cloud_fraction
+public cloud_ice_method
 
 ! Physical constants
 real, parameter :: Dva=2.21    !Diffusivity of qv in air (0 deg. and 1 Pa)
@@ -56,6 +57,8 @@ real, parameter :: tice=273.15+ti          !Convert ti to Kelvin
 real, parameter :: wlc=0.2e-3   !LWC of deep conv cloud (kg/m**3)
 real, parameter :: ticon=238.15 !Temp at which conv cloud becomes ice
 
+integer, save :: cloud_ice_method = 0   ! method for 0C to -40C (0=liq, 1=linear)
+
 contains
 
 ! This subroutine is the interface for the LDR cloud microphysics
@@ -67,7 +70,7 @@ subroutine update_cloud_fraction(cfrac,land,                                    
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
-use mgcloud_m , only : mg_progcld ! MG cloud microphysics
+use mgcloud_m, only : mg_progcld  ! MG cloud microphysics
 use parm_m, only : nmaxpr, dt     ! Model configuration
 use sigs_m                        ! Atmosphere sigma levels
 
@@ -359,13 +362,37 @@ end if
 ! Then calculate the cloud conserved variables qtot and tliq.
 ! Note that qcg is the total cloud water (liquid+frozen)
 
-where ( ttg(:,:)>=tfrz )
-  fice(:,:) = 0.
-else where ( ttg(:,:)>=tice )
-  fice(:,:) = qfg(:,:)/max(qfg(:,:)+qlg(:,:),1.e-12)
-elsewhere
-  fice(:,:) = 1.
-end where
+select case(cloud_ice_method)
+  case(0)  
+    do k = 1,kl
+      where ( ttg(:,k)>=tfrz )
+        fice(:,k) = 0.
+      else where ( ttg(:,k)>=tice .and. qfg(:,k)>1.e-12 )
+        fice(:,k) = qfg(:,k)/(qfg(:,k)+qlg(:,k))
+      else where ( ttg(:,k)>=tice )
+        fice(:,k) = 0.
+      elsewhere
+        fice(:,k) = 1.
+      end where
+    end do
+  case(1)
+    do k = 1,kl
+      where ( ttg(:,k)>=tfrz )
+        fice(:,k) = 0.
+      else where ( ttg(:,k)>=tice .and. qlg(:,k)+qfg(:,k)>1.e-12 )
+        fice(:,k) = qfg(:,k)/(qfg(:,k)+qlg(:,k))
+      else where ( ttg(:,k)>=tice )
+        fice(:,k) = 1. - (ttg(:,k)-tice)/(tfrz-tice) ! MJT suggestion
+      elsewhere
+        fice(:,k) = 1.
+      end where
+    end do
+#ifndef GPU    
+  case default
+    write(6,*) "ERROR: Invalid cloud_ice_method ",cloud_ice_method
+    stop
+#endif
+end select
 
 do k = 1,kl
   do iq = 1,imax

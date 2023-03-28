@@ -168,6 +168,7 @@ use cable_ccam, only : proglai           & ! CABLE
     ,cable_gw_model,cable_roughness      &
     ,cable_version, cable_potev
 use cc_mpi                                 ! CC MPI routines
+use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
 use filnames_m                             ! Filenames
 use infile                                 ! Input file routines
@@ -731,6 +732,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'cldl_sea',cldl_sea)
     call ccnf_put_attg(idnc,'cldm_sea',cldm_sea)
     call ccnf_put_attg(idnc,'cloud_aerosol_mode',cloud_aerosol_mode)
+    call ccnf_put_attg(idnc,'cloud_ice_method',cloud_ice_method)
     call ccnf_put_attg(idnc,'convfact',convfact)
     call ccnf_put_attg(idnc,'convtime',convtime)
     call ccnf_put_attg(idnc,'detrain',detrain)
