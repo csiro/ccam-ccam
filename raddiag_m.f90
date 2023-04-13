@@ -38,6 +38,7 @@ public sgdn_amp, dni_amp, sw_tend_amp, sint_amp, sout_amp
 public soutclr_amp, sgclr_amp, sgn_amp, sgdndir_amp
 public sw_tend, lw_tend, sgdclr_amp
 public raddiag_init,raddiag_end
+public coszro_sav
 
 real, dimension(:), allocatable, save :: sint_ave,sot_ave,soc_ave,sgn_ave
 real, dimension(:), allocatable, save :: sgdn_ave,rgdn_ave,sgdn,rgdn,rgn
@@ -53,6 +54,7 @@ real, dimension(:), allocatable, save :: soutclr_amp, sgclr_amp, sgn_amp, sgdndi
 real, dimension(:), allocatable, save :: sgdclr_amp
 real, dimension(:,:), allocatable, save :: sw_tend, lw_tend
 real, dimension(:,:), allocatable, save :: sw_tend_amp
+real, dimension(:), allocatable, save :: coszro_sav 
 logical, save :: odcalc = .false.
 
 contains
@@ -77,6 +79,7 @@ allocate(soutclr_amp(ifull),sgclr_amp(ifull),sgn_amp(ifull),sgdndir_amp(ifull))
 allocate(sgdclr_amp(ifull))
 allocate(sw_tend(ifull,kl),lw_tend(ifull,kl))
 allocate(sw_tend_amp(ifull,kl))
+allocate(coszro_sav(ifull))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
 sint_ave=0.
@@ -125,6 +128,7 @@ sgdclr_amp=0.
 sw_tend=0.
 lw_tend=0.
 sw_tend_amp=0.
+coszro_sav=0.
 
 return
 end subroutine raddiag_init
@@ -147,6 +151,7 @@ deallocate(soutclr_amp,sgclr_amp,sgn_amp,sgdndir_amp)
 deallocate(sgdclr_amp)
 deallocate(sw_tend,lw_tend)
 deallocate(sw_tend_amp)
+deallocate(coszro_sav)
 
 return
 end subroutine raddiag_end

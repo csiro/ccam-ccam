@@ -37,7 +37,7 @@ public psnow,psaut,psfw,psfi,praci, &
        psmltevp,prain,praut,pracw,  &
        prevp,pgfr,pvapor,pclw,      &
        pladj,pcli,pimlt,pihom,      &
-       pidw,piadj,qschg
+       pidw,piadj,pmidep
 public leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&
        leo_pgsub,leo_pgacw,leo_pgacr,leo_pgaci,&
        leo_pgacs,leo_psmlt,leo_pssub,leo_psacw,&
@@ -58,7 +58,7 @@ real, dimension(:,:), allocatable, save :: psnow,psaut,psfw,psfi,praci, &
                                            psmltevp,prain,praut,pracw,  &
                                            prevp,pgfr,pvapor,pclw,      &
                                            pladj,pcli,pimlt,pihom,      &
-                                           pidw,piadj,qschg
+                                           pidw,piadj,pmidep
 real, dimension(:,:), allocatable, save :: leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&
                                            leo_pgsub,leo_pgacw,leo_pgacr,leo_pgaci,&
                                            leo_pgacs,leo_psmlt,leo_pssub,leo_psacw,&
@@ -142,7 +142,7 @@ else if (process_rate_mode == 2) then
            psmltevp(ifull,kl),prain(ifull,kl),praut(ifull,kl),pracw(ifull,kl)           ,&
            prevp(ifull,kl),pgfr(ifull,kl),pvapor(ifull,kl),pclw(ifull,kl)               ,&
            pladj(ifull,kl),pcli(ifull,kl),pimlt(ifull,kl),pihom(ifull,kl)               ,&
-           pidw(ifull,kl),piadj(ifull,kl),qschg(ifull,kl))
+           pidw(ifull,kl),piadj(ifull,kl),pmidep(ifull,kl))
   psnow = 0.
   psaut = 0.
   psfw  = 0.
@@ -170,7 +170,7 @@ else if (process_rate_mode == 2) then
   pihom = 0.
   pidw  = 0.
   piadj = 0.
-  qschg = 0.
+  pmidep = 0.
 end if
 
 return
@@ -195,7 +195,7 @@ if ( allocated(psnow) ) then
            psmltevp,prain,praut,pracw           ,&
            prevp,pgfr,pvapor,pclw               ,&
            pladj,pcli,pimlt,pihom               ,&
-           pidw,piadj,qschg)
+           pidw,piadj,pmidep)
 end if
 if ( allocated(leo_pcaut) ) then
   deallocate(leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&

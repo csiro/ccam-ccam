@@ -61,6 +61,7 @@ contains
 ! This subroutine is the interface for the LDR cloud microphysics
 subroutine update_cloud_fraction(cfrac,kbsav,ktsav,land,                            &
                     ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                              &
+                    qrg,qsng,qgrg,                                                  &
                     dpsldt,nettend,stratcloud,clcon,cdrop,em,pblh,idjd,mydiag,      &
                     ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
                     vdeposition_mode,tiedtke_form,rkmsave,rkhsave,imax,kl)
@@ -82,6 +83,7 @@ integer, dimension(imax), intent(in) :: kbsav
 integer, dimension(imax), intent(in) :: ktsav
 real, dimension(imax,kl), intent(inout) :: cfrac
 real, dimension(imax,kl), intent(inout) :: qg, qlg, qfg
+real, dimension(imax,kl), intent(inout) :: qrg, qsng, qgrg
 real, dimension(imax,kl), intent(inout) :: qlrad, qfrad
 real, dimension(imax,kl), intent(inout) :: t
 real, dimension(imax,kl), intent(inout) :: nettend
@@ -198,6 +200,7 @@ if ( ncloud==20 .or. ncloud==22 .or. ncloud==120 ) then
   call mg_progcld
 else
   call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
+                qrg,qsng,qgrg,                            &
                 dpsldt,nettend,stratcloud,em,pblh,idjd,   &
                 mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
                 cld_decay,vdeposition_mode,tiedtke_form,  &
@@ -276,6 +279,7 @@ end subroutine update_cloud_fraction
 
 
 subroutine newcloud(tdt,land,prf,rhoa,ttg,qtg,qlg,qfg,        &
+                    qrg,qsng,qgrg,                            &
                     dpsldt,nettend,stratcloud,em,pblh,idjd,   &
                     mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
                     cld_decay,vdeposition_mode,tiedtke_form,  &
@@ -300,6 +304,7 @@ real, dimension(imax,kl), intent(inout) :: ttg
 real, dimension(imax,kl), intent(inout) :: qtg
 real, dimension(imax,kl), intent(inout) :: qlg
 real, dimension(imax,kl), intent(inout) :: qfg
+real, dimension(imax,kl), intent(inout) :: qrg,qsng,qgrg
 real, dimension(imax,kl), intent(in) :: dpsldt, rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
@@ -312,7 +317,7 @@ logical, dimension(imax), intent(in) :: land
 
 ! Local work arrays and variables
 real, dimension(imax,kl) :: qsw
-real, dimension(imax,kl) :: qcg, qtot, tliq
+real, dimension(imax,kl) :: qcg, qtot, tliq, qtotx
 real, dimension(imax,kl) :: fice, qcold, rcrit
 real, dimension(imax) :: tk
 real, dimension(imax) :: pk, deles
@@ -357,10 +362,11 @@ do k = 1,kl
   do iq = 1,imax
     if ( ttg(iq,k)>=tfrz ) then
       fice(iq,k) = 0.
-    else if ( ttg(iq,k)>=tice .and. qfg(iq,k)>1.e-12 ) then
-      fice(iq,k) = min(qfg(iq,k)/(qfg(iq,k)+qlg(iq,k)), 1.)
+    else if ( ttg(iq,k)>=tice .and. (qlg(iq,k)+qfg(iq,k))>1.e-12 ) then
+      fice(iq,k) = qfg(iq,k)/(qfg(iq,k)+qlg(iq,k))
+      !fice(iq,k) = 1. - (ttg(iq,k)-tice)/(tfrz-tice)
     else if ( ttg(iq,k)>=tice ) then
-      fice(iq,k) = 0.
+      fice(iq,k) = 1. - (ttg(iq,k)-tice)/(tfrz-tice) ! MJT suggestion
     else
       fice(iq,k) = 1.
     end if
@@ -370,10 +376,14 @@ do k = 1,kl
     ttg(iq,k)   = ttg(iq,k) + hlfcp*(qfnew-qfg(iq,k)) !Release L.H. of fusion
     qfg(iq,k)   = qfnew
     qlg(iq,k)   = max(0., qcg(iq,k)-qfg(iq,k))
-    qtot(iq,k)  = qtg(iq,k) + qcg(iq,k)
+    qtot(iq,k)  = qtg(iq,k) + qcg(iq,k) !+ qrg(iq,k) + qsng(iq,k) + qgrg(iq,k)
     tliq(iq,k)  = ttg(iq,k) - hlcp*qcg(iq,k) - hlfcp*qfg(iq,k)
   end do
 end do
+
+!if ( sonny_cloud_qtot==1 ) then
+!qtotx = qtot + qrg + qsng + qgrg
+!end if
 
 #ifdef debug
 if ( diag .and. mydiag ) then
@@ -488,7 +498,7 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
   ! has a useful discussion of the dependence of RHcrit on grid spacing
   do k = 1,kl ! typically set rcrit_l=.75,  rcrit_s=.85
     do iq = 1,imax
-      al = ds/(em(iq)*208498.)
+      al = ds/(em(iq)*208498.)           ! 208498 is the grid spacing in meter when rcrit = rcrit_l or rcrit_s
       fl = (1.+real(nclddia))*al/(1.+real(nclddia)*al)
       ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
       ! for rcit_l=.75 % nclddia=120 get rcrit=(0.750, 0.752, .756, .785, .813, .865, .907) for (200, 100, 50, 10, 5, 2, 1) km
@@ -521,7 +531,7 @@ if ( (ncloud/=4 .and. ncloud<10) .or. ncloud==100 ) then
       qs = qsw(iq,k)
       dqsdt = qs*hlrvap/tliq(iq,k)**2
       al = 1./(1.+(hlcp+fice(iq,k)*hlfcp)*dqsdt)  !Smith's notation
-      qc = qtot(iq,k) - qs
+      qc = qtot(iq,k) - qs   !qtotx
       delq = (1.-rcrit(iq,k))*qs     !UKMO style (equivalent to above)
       if ( qc<=-delq ) then
         stratcloud(iq,k) = 0.
@@ -537,7 +547,7 @@ if ( (ncloud/=4 .and. ncloud<10) .or. ncloud==100 ) then
         qcg(iq,k) = al*qc
       end if
     end do ! iq loop
-  end do   ! k loop
+  end do   ! k loop   
 
   if ( nclddia==3 ) then
     do k = 1,kl

@@ -539,7 +539,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if    
   ! aerosol timer (true indicates update oxidants, etc)
   oxidant_update = oxidant_timer<=mins-updateoxidant
-
   
   ! MISC (PARALLEL) -------------------------------------------------------
   !$omp parallel

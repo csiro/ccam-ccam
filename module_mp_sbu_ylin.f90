@@ -21,7 +21,7 @@ MODULE module_mp_sbu_ylin
 !..Parameters user might change based on their need
   real, parameter, private :: RH = 1.0
   real, parameter, private :: xnor = 8.0e6
-  real, parameter, private :: Nt_c = 250.E6 
+  real, parameter, private :: Nt_c = 100.E6 !250.E6 
 !..Water vapor and air gas constants at constant pressure
   real, parameter, private :: Rvapor = 461.5
   real, parameter, private :: oRv    = 1./Rvapor
@@ -77,7 +77,7 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
                       zpsmltevp,zprain,zpraut,zpracw,       &
                       zprevp,zpgfr,zpvapor,zpclw,           &
                       zpladj,zpcli,zpimlt,zpihom,           &
-                      zpidw,zpiadj,zqschg,                  &
+                      zpidw,zpiadj,zpmidep,                  &
                       zdrop,lin_aerosolmode)                  !aerosol feedback
 
 !-----------------------------------------------------------------------
@@ -156,7 +156,7 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
                                                     zpgfr,zpvapor,zpclw,               &
                                                     zpladj,zpcli,zpimlt,               &
                                                     zpihom,zpidw,zpiadj,               &
-                                                    zqschg
+                                                    zpmidep
   real, dimension(1:imax),         intent(inout) :: pptrain, pptsnow, pptice
   real, dimension(1:imax,kts:kte), intent(inout) :: qvz,qlz,qrz,qiz,qsz,thz
   real, dimension(1:imax,kts:kte), intent(inout) :: ncz,niz,nrz,nsz
@@ -223,7 +223,7 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
   ! for terminal velocity flux
   real                                          :: xmr,xms,xmc,dcs,xmr_i
   real                                          :: lamminr, lammaxr,lammins,           &
-                                                   lammaxs,lammini, lammaxi
+                                                   lammaxs,lammini, lammaxi,lammin,lammax
   real                                          :: gambvr1
   real                                          :: lvap
   real                                          :: mi0
@@ -245,7 +245,7 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
   real, dimension(1:imax,kts:kte)               :: n0_r,n0_i,n0_c,n0_s                  
   real, dimension(1:imax,kts:kte)               :: lami,lamc
   !------------------------------------------------------------------------------------
-  call START_LOG(p1_begin)
+  !call START_LOG(p1_begin)
   vtrold=0.
   vtsold=0.
   vtiold=0.
@@ -304,13 +304,12 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
   mi0     = 4./3.*3.14*500.*(10.e-6)**3
   !    xmc     =4.17*10e-14 !4./3.*pi*(0.00001)**3*1000.
   lammaxr = 1./20.E-6
-  lamminr = 1./500.E-6
+  !lamminr = 1./500.E-6
   lamminr = 1./2800.E-6
   lammaxs = 1./10.E-6
   lammins = 1./2000.E-6
   lammaxi = 1./1.E-6
   lammini = 1./(2.*dcs+100.E-6)
-
 
   fluxs = 0.                                        ! sny
   fluxi = 0.
@@ -402,7 +401,6 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
     pihom(1:imax,k)   =0.                  ! homogeneous nucleation <-40
     pidw(1:imax,k)    =0.                  ! production of cloud ice by BERGERON process
     piadj(1:imax,k)   =0.                  ! saturation adjustment for qi
-    qschg(1:imax,k)   =0.                  ! = psnow / unsure
 
     npsaut(1:imax,k)   =0.
     npraci(1:imax,k)   =0.
@@ -448,8 +446,8 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
     midep(1:imax,k)    =0.
   end do
 
-  call END_LOG(p1_end)
-  call START_LOG(p2_begin)
+  !call END_LOG(p1_end)
+  !call START_LOG(p2_begin)
 
   !***********************************************************************
   !*****  compute viscosity,difusivity,thermal conductivity, and    ******
@@ -592,8 +590,8 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
 !  end do
 
 
-  call END_LOG(p2_end)
-  call START_LOG(p3_begin)
+  !call END_LOG(p2_end)
+  !call START_LOG(p3_begin)
 
   !***********************************************************************
   ! Calculate precipitation fluxes due to terminal velocities.
@@ -940,8 +938,8 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
     precsz(1:imax,kte)=0. !wig
   !     CALL wrf_debug ( 100 , 'module_ylin: end precip flux' )
 
-  call END_LOG(p3_end)
-  call START_LOG(p4_begin)
+  !call END_LOG(p3_end)
+  !call START_LOG(p4_begin)
 
   ! Microphpysics processes
   DO k=kts,kte
@@ -1066,11 +1064,15 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
 
           if ((qvoqswz(iq,k).ge.0.999.and.temcc(iq,k).le. -8.).or. &
             qvoqsiz(iq,k).ge.1.08) then
-            nidep(iq,k) = 5.*exp(0.304*(273.15-temcc(iq,k)))     ! m-3
-            nidep(iq,k) = min(nidep(iq,k), 500.e3)               !5.e8) sny ! limit to 500 L-1
+            nidep(iq,k) = 5.*exp(0.304*(273.15-tem(iq,k)))     ! m-3
+            nidep(iq,k) = min(nidep(iq,k), 500.e3)             !5.e8) sny ! limit to 500 L-1
             nidep(iq,k) = max(nidep(iq,k)/rho(iq,k), 0.)       ! convert to kg-1
             nidep(iq,k) = (nidep(iq,k) - niz(iq,k))*odtb
             midep(iq,k) = nidep(iq,k)*mi0
+
+            !**********PROCESS**********
+            zpmidep(iq,k)= midep(iq,k)   ! wapor deposition to ice
+            !---------------------------            
           end if
           !***********************************************************************
           !*********        snow production processes for T < 0 C       **********
@@ -1082,26 +1084,25 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
           !
           alpha1=1.0e-3*exp( 0.025*temcc(iq,k) )
 
-          ! BELOW SECTION TURN OFF BY SONNY   sny: on temp
-          ! ---------------------------------------------------------------
-          !if(temcc(k) .lt. -20.0) then
-          !    tmp1=-7.6+4.0*exp( -0.2443e-3*(abs(temcc(k))-20)**2.455 )
-          !    qic=1.0e-3*exp(tmp1)*orho(k)
-          !else
-          !    qic=qi0
-          !end if
-          !----------------------------------------------------------------
-
-          qic = qi0  ! sny: OFF temp
+          if(temcc(iq,k) .lt. -20.0) then
+              tmp1=-7.6+4.0*exp( -0.2443e-3*MAX(-temcc(iq,k)-20,0.)**2.455 )
+              qic=1.0e-3*exp(tmp1)*orho(iq,k)
+          else
+              qic=qi0
+          end if
 
           tmp1=odtb*(qiz(iq,k)-qic)*(1.0-exp(-alpha1*dtb))
           psaut(iq,k)=amax1( 0.0,tmp1 )
           npsaut(iq,k)=amax1( 0.0,psaut(iq,k)/xms)
+
+          !**********PROCESS**********
+          zpsaut(iq,k) = psaut(iq,k)  ! ice crystal aggregation to snow
+          !---------------------------
+
           !
           ! (2) BERGERON PROCESS TRANSFER OF CLOUD WATER TO SNOW (Psfw)
           !     this process only considered when -31 C < T < 0 C
           !     Lin (33) and Hsie (17)
-          ! 
           !!
           !!    parama1 and parama2 functions must be user supplied
           !!
@@ -1137,12 +1138,20 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             !
             tmp3=odtb*tmp2/save2*( 1.0-exp(-save2*xni50*dtb) )
             psfw(iq,k)=amin1( tmp3,qlzodt(iq,k) )
+
+            !**********PROCESS**********       
+            zpsfw(iq,k) = psfw(iq,k)    ! BERGERON process to transfer cloud water to snow
+            !---------------------------
             !
             ! (3) REDUCTION OF CLOUD ICE BY BERGERON PROCESS (Psfi): Lin (34)
             !     this process only considered when -31 C < T < 0 C
             !
             tmp1=xni50*xmi50-psfw(iq,k)
             psfi(iq,k)=amin1(tmp1,qizodt(iq,k))
+
+            !**********PROCESS**********
+            zpsfi(iq,k) = psfi(iq,k)    ! BERGERON process to transfer cloud ice to snow
+            !---------------------------
           end if
         
           if(qrz(iq,k) .gt. 0.0) then  ! go to 1000
@@ -1159,6 +1168,10 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             praci(iq,k)=qizodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
             npraci(iq,k)=niz(iq,k)*tmp1
 
+            !**********PROCESS**********
+            zpraci(iq,k) = praci(iq,k)  ! cloud ice accretion by rain
+            !---------------------------
+
           !
           ! (5) RAIN ACCRETION BY CLOUD ICE (Piacr): Lin (26)
           !
@@ -1167,6 +1180,10 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             piacr(iq,k)=amin1( tmp2,qrzodt(iq,k) )
             npiacr(iq,k)=pio4*eri*nrz(iq,k)*av_r*niz(iq,k)*gambp3* &
                 olambdar(iq,k)**bp3  !--wdm6
+
+            !**********PROCESS**********
+            zpiacr(iq,k) = piacr(iq,k)  ! rain accretion by cloud ice
+            !---------------------------
           end if !1000    continue
 
           if(qsz(iq,k) .gt. 0.0) then !go to 1200
@@ -1184,6 +1201,11 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             tmp1=esi*save1
             psaci(iq,k)=qizodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
             npsaci(iq,k)=amin1( tmp1*niz(iq,k),nizodt(iq,k))
+
+            !**********PROCESS**********
+            zpsaci(iq,k) = psaci(iq,k)  ! ! ice crystal accretion by snow
+            !---------------------------
+
           !
           ! (7) CLOUD WATER ACCRETION BY SNOW (Psacw): Lin (24)
           !
@@ -1191,6 +1213,10 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             tmp1=esw*save1
             psacw(iq,k)=qlzodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
             npsacw(iq,k)=amin1(tmp1*ncz(iq,k),ncz(iq,k))
+
+            !**********PROCESS**********
+            zpsacw(iq,k) = psacw(iq,k)  ! ! accretion of cloud water by snow
+            !---------------------------
 
           ! recalculate the saturatuin temperature
           !
@@ -1216,9 +1242,18 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
               tmp2=amax1( tmp2,tmp3)
               pssub(iq,k)=amax1( tmp2,-qszodt(iq,k) )
               psdep(iq,k)=0.0
+ 
+              !**********PROCESS**********
+              zpssub(iq,k) = pssub(iq,k)  ! snow submimation to form water vapor
+              zpsdep(iq,k) = psdep(iq,k)  ! water wapor depostion to from snow
+              !---------------------------
             else
               psdep(iq,k)=amin1( tmp2,tmp3 )
               pssub(iq,k)=0.0
+              !**********PROCESS**********
+              zpssub(iq,k) = pssub(iq,k)  ! snow submimation to form water vapor
+              zpsdep(iq,k) = psdep(iq,k)  ! water wapor depostion to from snow
+              !---------------------------
             end if
             if(qsz(iq,k) .ge. 0.0) then
               npssub(iq,k)=pssub(iq,k)*nsz(iq,k)/qsz(iq,k)
@@ -1246,12 +1281,21 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
               tmp2=tmpb*tmpb*olambdar(iq,k)*(5.0*tmpb+2.0*tmpc+0.5*tmpa)
               tmp3=tmp1*rhosnow*tmp2
               pracs(iq,k)=amin1( tmp3,qszodt(iq,k) )
+
+              !**********PROCESS**********
+              zpracs(iq,k) = pracs(iq,k)  ! accretion of snow by rain
+              !---------------------------
             !
             ! (10) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
             !
               tmp3=tmpa*tmpa*olambdas(iq,k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
               tmp4=tmp1*rhowater*tmp3
               psacr(iq,k)=amin1( tmp4,qrzodt(iq,k) )
+
+              !**********PROCESS**********
+              zpracs(iq,k) = psacr(iq,k)  ! accretion of rain by snow
+              !---------------------------
+
               tmp1=0.25*pi*esr*n0_r(iq,k)*n0_s(iq,k)*abs( vtr(iq,k)-vts(iq,k) )
               tmp2=tmpc*(2.0*tmpa+1.0*tmpc+2*tmpb)
               tmp3=tmp1*tmp2
@@ -1272,14 +1316,21 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
                   (exp(-Ap*temcc(iq,k))-1.0)*tmp1*tmp1*olambdar(iq,k)
                 pgfr(iq,k)=amin1( tmp2,qrzodt(iq,k) )
                 npgfr(iq,k)=pi*Bp*n0_r(iq,k)*tmpa*tmpa*(exp(-Ap*temcc(iq,k))-1.0)
+
+                !**********PROCESS**********
+                zpgfr(iq,k) = pgfr(iq,k)    ! feezing of rain to form graupel (added to PI)
+                !---------------------------
               else
                 pgfr(iq,k)=0
                 npgfr(iq,k)=0.
+                !**********PROCESS**********
+                zpgfr(iq,k) = pgfr(iq,k)    ! feezing of rain to form graupel (added to PI)
+                !---------------------------
               endif
             end if ! for the go to 1200
           end if   !1200    continue
 
-        else       ! if (tem(iq,k) .lt. 273.15) then
+        else  !(T>273.15)    
 
         !
         !***********************************************************************
@@ -1298,6 +1349,9 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             tmp1=esw*save1
             psacw(iq,k)=qlzodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
             npsacw(iq,k)=tmp1*ncz(iq,k)
+            !**********PROCESS**********
+            zpsacw(iq,k) = psacw(iq,k)  ! ! accretion of cloud water by snow
+            !---------------------------
           !
           ! (2) ACCRETION OF RAIN BY SNOW (Psacr): Lin (28)
           !
@@ -1312,6 +1366,10 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             tmp2=tmpa*tmpa*olambdas(iq,k)*(5.0*tmpa+2.0*tmpc+0.5*tmpb)
             tmp3=tmp1*rhowater*tmp2
             psacr(iq,k)=amin1( tmp3,qrzodt(iq,k) )
+
+            !**********PROCESS**********
+            zpracs(iq,k) = psacr(iq,k)  ! accretion of rain by snow
+            !---------------------------
 
             tmp1=0.25*pi*esr*n0_r(iq,k)*n0_s(iq,k)*abs( vtr(iq,k)-vts(iq,k) )
             tmp2=tmpc*(2.0*tmpa+1.0*tmpc+2*tmpb)
@@ -1332,6 +1390,10 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             tmp3=term1*oxlf*tmp2-cwoxlf*temcc(iq,k)*( psacw(iq,k)+psacr(iq,k) )
             tmp4=amin1(0.0,tmp3)
             psmlt(iq,k)=amax1( tmp4,-qszodt(iq,k) )
+
+            !**********PROCESS**********
+            zpsmlt(iq,k) = psmlt(iq,k)  ! melting of snow
+            !---------------------------
 
             if(qsz(iq,k) .ge. 0.0) then
               npsmlt(iq,k)=psmlt(iq,k)*nsz(iq,k)/qsz(iq,k)
@@ -1364,6 +1426,11 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             tmp3=amin1(0.0,tmp2)
             tmp3=amax1( tmp3,tmpd )
             psmltevp(iq,k)=amax1( tmp3,-qszodt(iq,k) )
+ 
+            !**********PROCESS**************
+            zpsmltevp(iq,k) = psmltevp(iq,k)! evaporation of melting snow (T>0)
+            !-------------------------------
+
             if(qsz(iq,k) .ge. 0.0) then
               npsmltevp(iq,k)=psmltevp(iq,k)*nsz(iq,k)/qsz(iq,k)
             else
@@ -1376,39 +1443,55 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
         !***********************************************************************
         !*********           rain production processes                **********
         !***********************************************************************
-
         !
         ! (1) AUTOCONVERSION OF RAIN (Praut): using Liu and Daum (2004)
         !
-
         !---- YLIN, autoconversion use Liu and Daum (2004), unit = g cm-3 s-1, in the scheme kg/kg s-1, so
 
-        !if (AEROSOL .eq. .true.) then
-        !  print*, ' AEROSOL option here'
-
-        !else
         if (qlz(iq,k) .gt. 1e-6) then
-          mu_c    = AMIN1(15., (1000.E6/ncz(iq,k) + 2.))
+          !mu_c    = AMIN1(15., (1000.E6/ncz(iq,k) + 2.))                              ! spectral shape parameter for droplets
+
+          tmp = prez(iq,k)/(287.15*tem(iq,k))                      ! temperature in K
+          mu_c=0.0005714*(ncz(iq,k)/1.E6*tmp)+0.2714
+          mu_c=1./(mu_c**2)-1.
+          mu_c=MAX(mu_c,2.)
+          mu_c=MIN(mu_c,10.)
+
+          lammin = (mu_c+1.)/60.E-6
+          lammax = (mu_c+1.)/1.E-6                                  ! refered from Hugh Morrison
           lamc(iq,k) = (ncz(iq,k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz(iq,k)*ggamma(1+mu_c)))**(1./3)
-          Dc_liu  = (ggamma(6+1+mu_c)/ggamma(1+mu_c))**(1./6.)/lamc(iq,k)             !----- R6 in m
+
+          lamc(iq,k) = max(lamc(iq,k),lammin)
+          lamc(iq,k) = min(lamc(iq,k),lammax)
+
+          Dc_liu  = (ggamma(6+1+mu_c)/ggamma(1+mu_c))**(1./6.)/lamc(iq,k)             !----- R6 in m A3 with p=6
           if (Dc_liu .gt. R6c) then
-            disp = 1./(mu_c+1.)      !--- square of relative dispersion
+            disp = 1./(mu_c+1.)      !--- square of relative dispersion               ! A7
             eta  = (0.75/pi/(1e-3*rhowater))**2*1.9e11*((1+3*disp)*(1+4*disp)*&
-                   (1+5*disp)/(1+disp)/(1+2*disp))
-            praut(iq,k) = eta*(1e-3*rho(iq,k)*qlz(iq,k))**3/(1e-6*ncz(iq,k))  !--- g cm-3 s-1
-            praut(iq,k) = praut(iq,k)/(1e-3*rho(iq,k))                          !--- kg kg-1 s-1
-            npraut_r(iq,k) = praut(iq,k)/xmr                                                !--- kg kg-1 s-1
-            npraut(iq,k) = praut(iq,k)/qlz(iq,k)*ncz(iq,k)                                        !--- kg kg-1 s-1
-            npraut(iq,k) = praut(iq,k)/xmr                                                  !--- kg kg-1 s-1
+                   (1+5*disp)/(1+disp)/(1+2*disp))                                    ! part of 28c LIU&DAM
+            praut(iq,k) = eta*(1e-3*rho(iq,k)*qlz(iq,k))**3/(1e-6*ncz(iq,k))          !--- g cm-3 s-1
+            praut(iq,k) = praut(iq,k)/(1e-3*rho(iq,k))                                !--- kg kg-1 s-1
+            npraut_r(iq,k) = praut(iq,k)/xmr                                          !--- kg kg-1 s-1
+            npraut(iq,k) = praut(iq,k)/qlz(iq,k)*ncz(iq,k)                            !--- kg kg-1 s-1
+            npraut(iq,k) = praut(iq,k)/xmr                                            !--- kg kg-1 s-1
+            !**********PROCESS**********
+            zpraut(iq,k) = praut(iq,k)  ! autoconversion of rain
+            !---------------------------
           else
             praut(iq,k) = 0.0
             npraut(iq,k) = 0.0
             npraut_r(iq,k) = 0.0
+            !**********PROCESS**********
+            zpraut(iq,k) = praut(iq,k)  ! autoconversion of rain
+            !---------------------------
           endif
         else
           praut(iq,k) = 0.0
           npraut(iq,k) = 0.0
           npraut_r(iq,k) = 0.0
+          !**********PROCESS**********
+          zpraut(iq,k) = praut(iq,k)  ! autoconversion of rain
+          !---------------------------
         endif
         ! if (qlz(k) .gt. 1e-6) then
         ! praut(k)=1350.*qlz(k)**2.47*  &
@@ -1427,6 +1510,10 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
              gambp3*olambdar(iq,k)**bp3 ! son
         pracw(iq,k)=qlzodt(iq,k)*( 1.0-exp(-tmp1*dtb) )
         npracw(iq,k)=tmp1*ncz(iq,k)
+
+        !**********PROCESS**********
+        zpracw(iq,k) = pracw(iq,k)  ! accretion of cloud water by rain
+        !---------------------------
         
         !
         ! (3) EVAPORATION OF RAIN (Prevp): Lin (52)
@@ -1446,6 +1533,11 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
         tmp3=amin1( 0.0,tmp2 )
         tmp3=amax1( tmp3,tmpd )
         prevp(iq,k)=amax1( tmp3,-qrzodt(iq,k) )
+
+        !**********PROCESS************
+        zprevp(iq,k) = prevp(iq,k)! evaporation of rain
+        !-----------------------------
+
         if (qrz(iq,k).gt.0.) then
           nprevp(iq,k)=prevp(iq,k)*nrz(iq,k)/qrz(iq,k)
         else
@@ -1541,6 +1633,14 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
           qschg(iq,k)=qschg(iq,k)+psnow(iq,k)
           qschg(iq,k)=psnow(iq,k)
 
+          !**********PROCESS**********
+          zpvapor(iq,k)=pvapor(iq,k)  ! sum all process for water vapor to determine qvz
+          zpclw(iq,k)=  pclw(iq,k)    ! sum all process for cloud liquid to determine qlz
+          zpcli(iq,k)=  pcli(iq,k)    ! sum all process for cloud ice to determine qiz
+          zprain(iq,k)= prain(iq,k)   ! sum all process for rain
+          zpsnow(iq,k)= psnow(iq,k)   ! sum all process for snow
+          !---------------------------
+
           tmp=ocp/tothz(iq,k)*xLf*qschg(iq,k)
           theiz(iq,k)=theiz(iq,k)+dtb*tmp
           ! thz(k)=theiz(k)-(xLvocp*qvz(k)-xLfocp*qiz(k))/tothz(k)
@@ -1573,7 +1673,10 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
                    npraci(iq,k)+npiacr(iq,k)+  &
                    npsdep(iq,k)+npsacr(iq,k))
             nsz(iq,k)=amax1( 0.0,nsz(iq,k)-dtb*tmp1 )
+
+          !----------------------------------------
           else                  !>0 C
+          !----------------------------------------
           !
           !  combined cloud water depletions
           !
@@ -1618,6 +1721,14 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             psnow(iq,k)=-tmp_s
             qsz(iq,k)=amax1( 0.0,qsz(iq,k)+dtb*psnow(iq,k) )
             qschg(iq,k)=psnow(iq,k)
+
+            !**********PROCESS**********
+            zpvapor(iq,k)=pvapor(iq,k)  ! sum all process for water vapor to determine qvz
+            zpclw(iq,k)=  pclw(iq,k)    ! sum all process for cloud liquid to determine qlz
+            zpcli(iq,k)=  pcli(iq,k)    ! sum all process for cloud ice to determine qiz
+            zprain(iq,k)= prain(iq,k)   ! sum all process for rain
+            zpsnow(iq,k)= psnow(iq,k)   ! sum all process for snow
+            !---------------------------
 
             tmp=ocp/tothz(iq,k)*xLf*qschg(iq,k)
             theiz(iq,k)=theiz(iq,k)+dtb*tmp
@@ -1703,12 +1814,12 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
         !cloud water zdc 20220208
         if (qlz(iq,k).ge.1.0e-8) then
           lamc(iq,k) = (ncz(iq,k)*rhowater*pi*ggamma(4.+mu_c)/(6.*qlz(iq,k)*ggamma(1+mu_c)))**(1./3)
-          if (lamc(iq,k).lt.lammini) then
-            lamc(iq,k)= lammini
+          if (lamc(iq,k).lt.lammin) then
+            lamc(iq,k)= lammin
             n0_c(iq,k)= lamc(iq,k)**(mu_c+4.)*6.*qlz(iq,k)/(pi*rhowater*ggamma(mu_c+4))
             ncz(iq,k) = n0_c(iq,k)/lamc(iq,k)
-          else if (lamc(iq,k).gt.lammaxi) then
-            lamc(iq,k)= lammaxi
+          else if (lamc(iq,k).gt.lammax) then
+            lamc(iq,k)= lammax
             n0_c(iq,k)= lamc(iq,k)**(mu_c+4.)*6.*qlz(iq,k)/(pi*rhowater*ggamma(mu_c+4))
             ncz(iq,k) = n0_c(iq,k)/lamc(iq,k)
           end if
@@ -1788,6 +1899,10 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             if(temcc(iq,k) .lt. -40.0) then
               pihom(iq,k)=qlz(iq,k)*odtb
               nihom(iq,k)=ncz(iq,k)*odtb
+
+              !**********PROCESS**********
+              zpihom(iq,k) = pihom(iq,k)  ! homogeneous nucleation <-40
+              !---------------------------
             end if
           !
           ! (2)  MELTING OF ICE CRYSTAL WHEN T> 0 C (Pimlt)
@@ -1795,6 +1910,9 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
             if(temcc(iq,k) .gt. 0.0) then
               pimlt(iq,k)=qiz(iq,k)*odtb
               nimlt(iq,k)=niz(iq,k)*odtb
+              !**********PROCESS**********
+              zpimlt(iq,k) = pimlt(iq,k)  ! melting of ice crystal >0.
+              !---------------------------
             end if
           !
           ! (3) PRODUCTION OF CLOUD ICE BY BERGERON PROCESS (Pidw): Hsie (p957)
@@ -1810,10 +1928,20 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
               a1=a1*0.001**(1.0-a2)
               xnin=xni0*exp(-bni*temcc(iq,k))
               pidw(iq,k)=xnin*orho(iq,k)*(a1*xmnin**a2)
+
+              !**********PROCESS**********
+              zpidw(iq,k)= pidw(iq,k)     ! production of cloud ice by BERGERON process
+              !---------------------------
             end if
 
             pcli(iq,k)=pcli(iq,k)+pihom(iq,k)-pimlt(iq,k)+pidw(iq,k)
             pclw(iq,k)=pclw(iq,k)-pihom(iq,k)+pimlt(iq,k)-pidw(iq,k)
+
+            !**********PROCESS*******
+            zpiadj(iq,k)= pcli(iq,k) ! zpiadj - zpcli = +pihom(iq,k)-pimlt(iq,k)+pidw(iq,k) 
+            zpladj(iq,k)= pclw(iq,k) ! zpladj - zpclw = -pihom(iq,k)+pimlt(iq,k)-pidw(iq,k) 
+            !------------------------
+
             qlz(iq,k)=amax1( 0.0,qlz(iq,k)+dtb*(-pihom(iq,k)+pimlt(iq,k)-pidw(iq,k)) )
             qiz(iq,k)=amax1( 0.0,qiz(iq,k)+dtb*(pihom(iq,k)-pimlt(iq,k)+pidw(iq,k)) )
 
@@ -1855,8 +1983,8 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
     end do     ! iq
   ENDDO        ! k
 
-  call END_LOG(p4_end)
-  call START_LOG(p5_begin)
+  !call END_LOG(p4_end)
+  !call START_LOG(p5_begin)
 
   do k=kts+1,kte
     where ( qvz(1:imax,k) .lt. qvmin ) 
@@ -1893,43 +2021,43 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
     end where
 
     where (qlz(1:imax,k) .gt. 1.0e-8 .and. lamc(1:imax,k) >0.)
-      EFFC1D(1:imax,k) = GAMMA(mu_c+4.)/GAMMA(mu_c+3.)/LAMC(1:imax,k)/2.
+      EFFC1D(1:imax,k) = GAMMA(mu_c+4.)/GAMMA(mu_c+3.)/lamc(1:imax,k)/2.
     elsewhere
       EFFC1D(1:imax,k) = 25.E-6
     end where
   end do
 
   ! save all process rate for understanding cloud microphysics
-  do k=kts,kte
-    zpsnow(1:imax,k)   = psnow(1:imax,k)    ! sum all process for snow
-    zpsaut(1:imax,k)   = psaut(1:imax,k)    ! ice crystal aggregation to snow
-    zpsfw(1:imax,k)    = psfw(1:imax,k)     ! BERGERON process to transfer cloud water to snow
-    zpsfi(1:imax,k)    = psfi(1:imax,k)     ! BERGERON process to transfer cloud ice to snow
-    zpraci(1:imax,k)   = praci(1:imax,k)    ! cloud ice accretion by rain
-    zpiacr(1:imax,k)   = piacr(1:imax,k)    ! rain accretion by cloud ice
-    zpsaci(1:imax,k)   = psaci(1:imax,k)    ! ice crystal accretion by snow
-    zpsacw(1:imax,k)   = psacw(1:imax,k)    ! accretion of cloud water by snow
-    zpsdep(1:imax,k)   = psdep(1:imax,k)    ! deposition of snow
-    zpssub(1:imax,k)   = pssub(1:imax,k)    ! sublimation of snow (T<0)
-    zpracs(1:imax,k)   = pracs(1:imax,k)    ! accretion of snow by rain
-    zpsacr(1:imax,k)   = psacr(1:imax,k)    ! accretion of rain by snow
-    zpsmlt(1:imax,k)   = psmlt(1:imax,k)    ! melting of snow
-    zpsmltevp(1:imax,k)= psmltevp(1:imax,k) ! evaporation of melting snow (T>0)
-    zprain(1:imax,k)   = prain(1:imax,k)    ! sum all process for rain
-    zpraut(1:imax,k)   = praut(1:imax,k)    ! autoconversion of rain
-    zpracw(1:imax,k)   = pracw(1:imax,k)    ! accretion of cloud water by rain
-    zprevp(1:imax,k)   = prevp(1:imax,k)    ! evaporation of rain
-    zpgfr(1:imax,k)    = pgfr(1:imax,k)     ! feezing of rain to form graupel (added to PI)
-    zpvapor(1:imax,k)  = pvapor(1:imax,k)   ! sum all process for water vapor to determine qvz
-    zpclw(1:imax,k)    = pclw(1:imax,k)     ! sum all process for cloud liquid to determine qlz
-    zpladj(1:imax,k)   = pladj(1:imax,k)    ! saturation adjustment for ql
-    zpcli(1:imax,k)    = pcli(1:imax,k)     ! sum all process for cloud ice to determine qiz
-    zpimlt(1:imax,k)   = pimlt(1:imax,k)    ! melting of ice crystal >0.
-    zpihom(1:imax,k)   = pihom(1:imax,k)    ! homogeneous nucleation <-40
-    zpidw(1:imax,k)    = pidw(1:imax,k)     ! production of cloud ice by BERGERON process
-    zpiadj(1:imax,k)   = piadj(1:imax,k)    ! saturation adjustment for qi
-    zqschg(1:imax,k)   = qschg(1:imax,k)    ! = psnow / unsure
-  enddo
+!  do k=kts,kte
+!    zpsnow(1:imax,k)   = psnow(1:imax,k)    ! sum all process for snow
+!    zpsaut(1:imax,k)   = psaut(1:imax,k)    ! ice crystal aggregation to snow
+!    zpsfw(1:imax,k)    = psfw(1:imax,k)     ! BERGERON process to transfer cloud water to snow
+!    zpsfi(1:imax,k)    = psfi(1:imax,k)     ! BERGERON process to transfer cloud ice to snow
+!    zpraci(1:imax,k)   = praci(1:imax,k)    ! cloud ice accretion by rain
+!    zpiacr(1:imax,k)   = piacr(1:imax,k)    ! rain accretion by cloud ice
+!    zpsaci(1:imax,k)   = psaci(1:imax,k)    ! ice crystal accretion by snow
+!    zpsacw(1:imax,k)   = psacw(1:imax,k)    ! accretion of cloud water by snow
+!    zpsdep(1:imax,k)   = psdep(1:imax,k)    ! deposition of snow
+!    zpssub(1:imax,k)   = pssub(1:imax,k)    ! sublimation of snow (T<0)
+!    zpracs(1:imax,k)   = pracs(1:imax,k)    ! accretion of snow by rain
+!    zpsacr(1:imax,k)   = psacr(1:imax,k)    ! accretion of rain by snow
+!    zpsmlt(1:imax,k)   = psmlt(1:imax,k)    ! melting of snow
+!    zpsmltevp(1:imax,k)= psmltevp(1:imax,k) ! evaporation of melting snow (T>0)
+!    zprain(1:imax,k)   = prain(1:imax,k)    ! sum all process for rain
+!    zpraut(1:imax,k)   = praut(1:imax,k)    ! autoconversion of rain
+!    zpracw(1:imax,k)   = pracw(1:imax,k)    ! accretion of cloud water by rain
+!    zprevp(1:imax,k)   = prevp(1:imax,k)    ! evaporation of rain
+!    zpgfr(1:imax,k)    = pgfr(1:imax,k)     ! feezing of rain to form graupel (added to PI)
+!    zpvapor(1:imax,k)  = pvapor(1:imax,k)   ! sum all process for water vapor to determine qvz
+!    zpclw(1:imax,k)    = pclw(1:imax,k)     ! sum all process for cloud liquid to determine qlz
+!    zpladj(1:imax,k)   = pladj(1:imax,k)    ! saturation adjustment for ql
+!    zpcli(1:imax,k)    = pcli(1:imax,k)     ! sum all process for cloud ice to determine qiz
+!    zpimlt(1:imax,k)   = pimlt(1:imax,k)    ! melting of ice crystal >0.
+!    zpihom(1:imax,k)   = pihom(1:imax,k)    ! homogeneous nucleation <-40
+!    zpidw(1:imax,k)    = pidw(1:imax,k)     ! production of cloud ice by BERGERON process
+!    zpiadj(1:imax,k)   = piadj(1:imax,k)    ! saturation adjustment for qi
+!    zpmidep(1:imax,k)  = midep(1:imax,k)    ! 
+!  enddo
 
 
   ! save process rate for aerisol scheme
@@ -1959,7 +2087,7 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
     vg(1:imax,k)    = 0.
   end do
 
-  call END_LOG(p5_end) 
+  !call END_LOG(p5_end) 
 
 END SUBROUTINE clphy1d_ylin
 

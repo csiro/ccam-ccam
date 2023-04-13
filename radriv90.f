@@ -267,6 +267,7 @@ C---------------------------------------------------------------------*
       dhr = dt/3600.0
       call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &            rlongg(istart:iend),dhr,imax,coszro2,taudar2)
+      coszro_sav(istart:iend) = coszro2
       call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
      & ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt
      & ,sin(dlt)) 

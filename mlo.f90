@@ -4099,7 +4099,7 @@ egmax=1000.*lv*d_wavail/(dt*max(1.-ice%fracice,0.01))
 dgwater%fg=rho*dgwater%cdh*cpair*(dumwatertemp-atm_temp/srcp)
 dgwater%fg=min(max(dgwater%fg,-3000.),3000.)
 dgwater%eg=min(rho*dgwater%cdq*lv*(qsat-atm_qg),egmax)
-dgwater%eg=min(max(dgwater%eg,-3000.),3000.)
+dgwater%eg=min(max(dgwater%eg,-3000.),3000.) 
 dgwater%taux=rho*dgwater%cd*atu
 dgwater%tauy=rho*dgwater%cd*atv
 

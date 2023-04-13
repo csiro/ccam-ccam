@@ -142,18 +142,19 @@ real(kind=8), dimension(imax,kl) :: zpsnow,zpsaut,zpsfw,zpsfi,zpraci,      &   !
                                zpsmltevp,zprain,zpraut,zpracw,        &
                                zprevp,zpgfr,zpvapor,zpclw,            &
                                zpladj,zpcli,zpimlt,zpihom,            &
-                               zpidw,zpiadj,zqschg
+                               zpidw,zpiadj,zpmidep
 real, dimension(imax,kl)   ::  zzpsnow,zzpsaut,zzpsfw,zzpsfi,zzpraci, &   !process rate to understand cloud microphysics
                                zzpiacr,zzpsaci,zzpsacw,zzpsdep,       &
                                zzpssub,zzpracs,zzpsacr,zzpsmlt,       &
                                zzpsmltevp,zzprain,zzpraut,zzpracw,    &
                                zzprevp,zzpgfr,zzpvapor,zzpclw,        &
                                zzpladj,zzpcli,zzpimlt,zzpihom,        &
-                               zzpidw,zzpiadj,zzqschg
+                               zzpidw,zzpiadj,zzpmidep
 
 real(kind=8), dimension(imax,kl) :: zz,dzw,precrz,preciz,precsz
 real(kind=8), dimension(imax,kl) :: prez
 real(kind=8), dimension(imax,kl) :: EFFC1D,EFFI1D,EFFS1D,EFFR1D
+real, dimension(imax,kl) :: r_effc1d, r_effi1d, r_effs1d
 real(kind=8), dimension(imax,kl) :: riz
 real                        :: rhoe_s
 real(kind=8), dimension(imax)    :: pptice, pptrain, pptsnow
@@ -161,7 +162,7 @@ real, dimension(kl)         :: nnz
 real(kind=8), dimension(imax,kl) :: ncz,nrz,niz,nsz,zcdrop
 real(kind=8) :: tdt
 integer :: njumps
-integer i, j, m, cnt_sny
+integer i, j, m, cnt_sny, kr
 real, dimension(imax)       :: prf
 real, dimension(imax)       :: prf_temp
 real, dimension(ifull_g,kl) :: data_g
@@ -205,6 +206,7 @@ end do
 !$omp do schedule(static) private(is,ie),                                      &
 !$omp private(lcfrac),                                                         &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt),                          &
+!$omp private(lqrg,lqsng,lqgrg),                                               &
 !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave),   &
 !$omp private(idjd_t,mydiag_t)
 do tile = 1,ntiles
@@ -221,6 +223,9 @@ do tile = 1,ntiles
   lqlrad   = qlrad(is:ie,:)
   lqfrad   = qfrad(is:ie,:)
   lt       = t(is:ie,:)
+  lqrg     = qrg(is:ie,:)
+  lqsng    = qsng(is:ie,:) 
+  lqgrg    = qgrg(is:ie,:)
   ldpsldt  = dpsldt(is:ie,:)
   lclcon   = clcon(is:ie,:)
   lcdrop   = cdrop(is:ie,:)
@@ -233,6 +238,7 @@ do tile = 1,ntiles
   
   call update_cloud_fraction(lcfrac,kbsav(is:ie),ktsav(is:ie),land(is:ie),             &
               ps(is:ie),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                         &
+              lqrg,lqsng,lqgrg,                                                        &
               ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(is:ie),pblh(is:ie),idjd_t, &
               mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
               vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,imax,kl)
@@ -245,6 +251,9 @@ do tile = 1,ntiles
   qlrad(is:ie,:) = lqlrad
   qfrad(is:ie,:) = lqfrad
   t(is:ie,:)     = lt
+  qrg(is:ie,:)   = lqrg
+  qsng(is:ie,:)  = lqsng
+  qgrg(is:ie,:)  = lqgrg 
   stratcloud(is:ie,:) = lstratcloud
   if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. ncloud==110 ) then
     nettend(is:ie,:) = lnettend
@@ -260,7 +269,7 @@ select case ( interp_ncloud(ldr,ncloud) )
   
     !$omp do schedule(static) private(is,ie),                                     &
     !$omp private(lgfrac,lrfrac,lsfrac),                                          &
-    !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnowlppfsubl),                   &
+    !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl),                  &
     !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),    &
     !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
     !$omp private(lstratcloud,lclcon,lcdrop),                                     &
@@ -377,10 +386,13 @@ select case ( interp_ncloud(ldr,ncloud) )
       kts = 1
       kte = kl
       do k = kts, kte
+        kr = kte + kts - k
         do iq = its, ite
           i = iq - its + 1 ! i must be smaller than 97
-          stras_rliq(iq,k) = real(Rdrop(i,k))/1.E6
-          stras_rice(iq,k) = real(Rice(i,k))/1.E6
+          stras_rliq(iq,kr) = real(Rdrop(i,k))/1.E6 ! unit meters
+          stras_rice(iq,kr) = real(Rice(i,k))/1.E6
+          stras_rsno(iq,kr) = 0.
+          stras_rrai(iq,kr) = 0.
         end do
       end do
 
@@ -417,9 +429,9 @@ select case ( interp_ncloud(ldr,ncloud) )
 
   case("LIN")
     cnt_sny = 0
-    if ( myid==0 ) then
-      write(6,*) "LIN microphysics ",ncloud
-    end if
+    !if ( myid==0 ) then
+    !  write(6,*) "LIN microphysics ",ncloud
+    !end if
  
       ccn0 = 250
       riz  = 0
@@ -427,6 +439,12 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       njumps = int(dt/(maxlintime+0.01)) + 1
       tdt    = real(dt,8)/real(njumps,8)
+
+      !$omp do schedule(static) private(is,ie),                                 &
+      !$omp private(k,kts,kte,zlevv,m,ht),                                      &
+      !$omp private(qvz,qlz,qrz,qiz,qsz),                                       &
+      !$omp private(prf_temp,prf,tothz,thz,rhoz,orhoz,prez,sqrhoz,zz,dzw),      &
+      !$omp private(ncz,zcdrop,nrz,niz,nsz,pptrain,pptsnow,pptice)
       do tile = 1, ntiles
         is = (tile-1)*imax + 1 ! is:ie inside 1:ifull
         ie = tile*imax       ! len(is:ie) = imax
@@ -477,20 +495,6 @@ select case ( interp_ncloud(ldr,ncloud) )
         pptsnow(1:imax) = 0._8
         pptice(1:imax)  = 0._8
 
-          if (myid == 0 .and. tile==1 ) then
-            print*, '================= START input to LIN 2022 =================================='
-            print*, 'qvz      :', minval(qvz(:,:)), maxval(qvz(:,:))
-            print*, 'qlz      :', minval(qlz(:,:)), maxval(qlz(:,:))
-            print*, 'qrz      :', minval(qrz(:,:)), maxval(qrz(:,:))
-            print*, 'qiz      :', minval(qiz(:,:)), maxval(qiz(:,:))
-            print*, 'qsz      :', minval(qsz(:,:)), maxval(qsz(:,:))
-            print*, 'thz      :', minval(thz(:,:)), maxval(thz(:,:))
-            print*, 'rhoa     :', minval(rhoa(:,:)), maxval(rhoa(:,:))
-            print*, 'tothz    :', minval(tothz(:,:)), maxval(tothz(:,:))
-            print*, 'zlevv    :', minval(zlevv(:,:)), maxval(zlevv(:,:))
-            print*, '================= END input to LIN 2022 ===================================='
-          end if
-
         ! Use sub time-step if required
         do n = 1,njumps
           CALL clphy1d_ylin(tdt, imax,                      &
@@ -511,38 +515,9 @@ select case ( interp_ncloud(ldr,ncloud) )
                          zpsmltevp,zprain,zpraut,zpracw,    &
                          zprevp,zpgfr,zpvapor,zpclw,        &
                          zpladj,zpcli,zpimlt,zpihom,        &
-                         zpidw,zpiadj,zqschg,               &
+                         zpidw,zpiadj,zpmidep,               &
                          zcdrop, lin_aerosolmode)              !aerosol feedback
         end do
-
-          if (myid == 0 .and. tile==1 ) then
-          print*, '================= START output of LIN 2022 =================================='
-          print*, 'qvz      :', minval(qvz(:,:)), maxval(qvz(:,:))
-          print*, 'qlz      :', minval(qlz(:,:)), maxval(qlz(:,:))
-          print*, 'qrz      :', minval(qrz(:,:)), maxval(qrz(:,:))
-          print*, 'qiz      :', minval(qiz(:,:)), maxval(qiz(:,:))
-          print*, 'qsz      :', minval(qsz(:,:)), maxval(qsz(:,:))
-          print*, 'thz      :', minval(thz(:,:)), maxval(thz(:,:))
-          print*, 'rhoa     :', minval(rhoa(:,:)), maxval(rhoa(:,:))
-          print*, 'tothz    :', minval(tothz(:,:)), maxval(tothz(:,:))
-          print*, 'zlevv    :', minval(zlevv(:,:)), maxval(zlevv(:,:))
-          if (maxval(riz) > 0.) then
-          print*, 'riz      :', minval(riz(:,:)), maxval(riz(:,:))
-          end if
-          print*, 'precrz   :', minval(precrz(:,:)),maxval(precrz(:,:))
-          print*, 'preciz   :', minval(preciz(:,:)),maxval(preciz(:,:))
-          print*, 'precsz   :', minval(precsz(:,:)),maxval(precsz(:,:))
-          print*, 'EFFC1D   :', minval(EFFC1D(:,:)), maxval(EFFC1D(:,:))
-          print*, 'EFFI1D   :', minval(EFFI1D(:,:)), maxval(EFFI1D(:,:))
-          print*, 'EFFS1D   :', minval(EFFS1D(:,:)), maxval(EFFS1D(:,:))
-          print*, 'EFFR1D   :', minval(EFFR1D(:,:)), maxval(EFFR1D(:,:))
-          print*, 'ncz      :', minval(ncz(:,:)), maxval(ncz(:,:))
-          print*, 'nrz      :', minval(nrz(:,:)), maxval(nrz(:,:))
-          print*, 'niz      :', minval(niz(:,:)), maxval(niz(:,:))
-          print*, 'nsz      :', minval(nsz(:,:)), maxval(nsz(:,:))
-          print*, '================= END output of LIN 2022 ===================================='
-          end if
-
 
         t(is:ie,:) = real(thz(1:imax,:) * tothz(1:imax,:))
         gfrac(is:ie,:) = 0.        ! graupel area fraction
@@ -572,8 +547,8 @@ select case ( interp_ncloud(ldr,ncloud) )
         nr(is:ie,:)         = nrz(1:imax,:)
         ni(is:ie,:)         = niz(1:imax,:)
         ns(is:ie,:)         = nsz(1:imax,:)    
-        stras_rliq(is:ie,:) = real(EFFC1D(1:imax,:))             ! save efflective radius for cosp
-        stras_rice(is:ie,:) = real(EFFI1D(1:imax,:))
+        !stras_rliq(is:ie,:) = real(EFFC1D(1:imax,:))             ! save efflective radius for cosp
+        !stras_rice(is:ie,:) = real(EFFI1D(1:imax,:))
         stras_rsno(is:ie,:) = real(EFFS1D(1:imax,:))
         stras_rrai(is:ie,:) = real(EFFR1D(1:imax,:))
 
@@ -620,17 +595,49 @@ select case ( interp_ncloud(ldr,ncloud) )
           pihom(is:ie,:)   = real(zpihom(1:imax,:))
           pidw(is:ie,:)    = real(zpidw(1:imax,:))
           piadj(is:ie,:)   = real(zpiadj(1:imax,:))
-          qschg(is:ie,:)   = real(zqschg(1:imax,:))
+          pmidep(is:ie,:)  = real(zpmidep(1:imax,:))
         end if
           
         condx(is:ie)  = condx(is:ie) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
         conds(is:ie)  = conds(is:ie) + real( pptsnow(1:imax) + pptice(1:imax) )
         condg(is:ie)  = 0.0          !condg(is:ie) + 0. ! for graupel
         precip(is:ie) = precip(is:ie)+ real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
+
+
+        r_cfrac = cfrac(is:ie,1:kl)
+        r_qlrad = qlrad(is:ie,1:kl)
+        r_qfrad = qfrad(is:ie,1:kl)
+        r_cdrop = cdrop_aerosol(is:ie,1:kl)
+        r_effc1d = real(effc1d)
+        r_effi1d = real(effi1d)
+        r_effs1d = real(effs1d)
+        do k=1,kl
+          ptemp(:,k)= sig(k)*ps(is:ie)
+        end do
+        ttemp       = t(is:ie,1:kl)
+        call cloud3(Rdrop,Rice,conl,coni,r_cfrac,r_qlrad,r_qfrad,ptemp,ttemp,r_cdrop,imax,kl, &
+                    stras_rliq=r_effc1d,stras_rice=r_effi1d,stras_rsno=r_effs1d)
+        its = is
+        ite = ie
+        kts = 1
+        kte = kl
+        do k = kts, kte
+          kr = kte + kts - k
+          do iq = its, ite
+            i = iq - its + 1 ! i must be smaller than 97
+            stras_rliq(iq,kr) = real(Rdrop(i,k))/1.E6 ! unit meters
+            stras_rice(iq,kr) = real(Rice(i,k))/1.E6
+            stras_rsno(iq,k) = real(EFFS1D(i,k))
+            stras_rrai(iq,k) = real(EFFR1D(i,k))
+          end do
+        end do
+        
       end do     !tile loop
-      if ( myid==0 ) then
-        write(6,*) "DONE LIN microphysics ",ncloud
-      end if
+      !$omp end do nowait
+      
+      !if ( myid==0 ) then
+      !  write(6,*) "DONE LIN microphysics ",ncloud
+      !end if
 
 
   case default
@@ -639,6 +646,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       
 end select
   
+
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 .and. (interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0)  ) then
   !$omp do schedule(static) private(is,ie,iq,k,fcol,fr,qtot,xic,xsn,xgr,vave,alph)

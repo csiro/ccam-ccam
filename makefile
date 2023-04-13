@@ -93,13 +93,17 @@ ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
+OMPFLAG =
+ifeq ($(OMP),yes)
+OMPFLAG = -fopenmp
+endif
 ifeq ($(ZEN3),yes)
 #FHOST =  -O3 -fstack-arrays -fallow-argument-mismatch -march=native -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
 FHOST =  -fallow-argument-mismatch
 MPIFLAG = -Dusempi3
 MPISPECIAL = -fallow-argument-mismatch
 #FFLAGS = -O3 -ftree-vectorize -fstack-arrays -fallow-argument-mismatch -march=native -lmvec -Dgfortran $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
-FFLAGS = -O2 $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O2 $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) $(OMPFLAG)
 FOVERRIDE = 
 ZMM = 
 IPFLAG = 
@@ -631,7 +635,7 @@ river.o : arrays_m.o cable_ccam2.o cc_mpi.o const_phys.o indices_m.o map_m.o new
 riverarrays_m.o : newmpar_m.o
 scm.o : aerointerface.o aerosolldr.o arrays_m.o ateb.o cable_ccam2.o carbpools_m.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o convjlm.o convjlm22.o dates_m.o estab.o extraout_m.o filnames_m.o gdrag_m.o getopt_m.o histave_m.o hs_phys.o infile.o kuocomb_m.o latlong_m.o leoncld.o liqwpar_m.o map_m.o mgcloud.o mlo.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmdyn_m.o parmgeom_m.o parmhdff_m.o parmhor_m.o pbl_m.o prec_m.o raddiag_m.o riverarrays_m.o radisw_m.o savuvt_m.o scmarrays_m.o screen_m.o seaesfrad.o sflux.o sigs_m.o soil_m.o soilv_m.o soilsnow_m.o stime_m.o tkeeps.o vegpar_m.o vertmix.o vvel_m.o work2_m.o work3_m.o work3f_m.o
 scrnout.o : arrays_m.o cc_mpi.o cc_omp.o const_phys.o diag_m.o estab.o extraout_m.o liqwpar_m.o mlo.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o pbl_m.o permsurf_m.o prec_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o work2_m.o
-seaesfrad.o : aerointerface.o aerosolldr.o arrays_m.o ateb.o cc_mpi.o cfrac_m.o co2_read.o const_phys.o esfsw_driver.o esfsw_parameters.o estab.o extraout_m.o filnames_m.o infile.o latlong_m.o longwave_params.o microphys_rad.o mlo.o module_aux_rad.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o ozoneread.o pbl_m.o raddiag_m.o radisw_m.o rad_utilities.o sealw99.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o zenith.o kuocom.h
+seaesfrad.o : aerointerface.o aerosolldr.o arrays_m.o ateb.o cc_mpi.o cfrac_m.o co2_read.o const_phys.o esfsw_driver.o esfsw_parameters.o estab.o extraout_m.o filnames_m.o infile.o latlong_m.o liqwpar_m.o longwave_params.o microphys_rad.o mlo.o module_aux_rad.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o ozoneread.o pbl_m.o raddiag_m.o radisw_m.o rad_utilities.o sealw99.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o zenith.o kuocom.h
 sealw99.o : cc_mpi.o filnames_m.o gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_params.o longwave_tables.o lw_gases_stdtf.o optical_path.o rad_utilities.o
 setxyz.o : cc_mpi.o const_phys.o indices_m.o jimcc.o latlong_m.o map_m.o newmpar_m.o utilities.o workglob_m.o 
 sflux.o : arrays_m.o ateb.o cable_ccam2.o cc_mpi.o cc_omp.o const_phys.o dates_m.o diag_m.o estab.o extraout_m.o gdrag_m.o latlong_m.o liqwpar_m.o map_m.o mlo.o mlodynamicsarrays_m.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o prec_m.o raddiag_m.o riverarrays_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o vecsuv_m.o vegpar_m.o work2_m.o work3_m.o xyzinfo_m.o 

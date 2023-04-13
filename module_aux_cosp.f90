@@ -46,7 +46,9 @@ module module_aux_cosp
   public clp_lmht
   !public cls_ze
   public ncolumns
-  public clp_phse_ice,clp_phse_liq 
+  public clp_phse_ice,clp_phse_liq
+  public grd_reflect
+  public meantaucld 
   public clp_ice,clp_liq 
   public cls_db_b01,cls_db_b02,cls_db_b03,cls_db_b04,cls_db_b05
   public cls_db_b06,cls_db_b07,cls_db_b08,cls_db_b09,cls_db_b10
@@ -60,7 +62,9 @@ module module_aux_cosp
 
   real, dimension(:,:), allocatable, save   :: clp_lmht 
   !real, dimension(:,:,:), allocatable, save :: cls_ze
-  real, dimension(:,:), allocatable, save   :: clp_phse_ice,clp_phse_liq 
+  real, dimension(:,:), allocatable, save   :: clp_phse_ice,clp_phse_liq
+  real, dimension(:,:), allocatable, save   :: grd_reflect
+  real, dimension(:), allocatable, save     :: meantaucld 
   real, dimension(:,:), allocatable, save   :: clp_ice,clp_liq 
   real, dimension(:,:), allocatable, save   :: cls_db_b01,cls_db_b02,cls_db_b03,cls_db_b04
   real, dimension(:,:), allocatable, save   :: cls_db_b05,cls_db_b06,cls_db_b07,cls_db_b08
@@ -185,9 +189,9 @@ module module_aux_cosp
            LlidarBetaMol355=.true.,LcfadLidarsr355=.true.,Latb355=.true.,              &     ! ATLID diagnostics
            Lclatlid=.true.,Lclhatlid=.true.,Lcllatlid=.true.,                          &
            Lclmatlid=.true.,Lcltatlid=.true.,                                          &
-           Lalbisccp=.false.,Lboxptopisccp=.false.,Lboxtauisccp=.false.,               &     !- ISCCP
-           Lpctisccp=.false.,Lclisccp=.false.,Ltauisccp=.false.,                       &
-           Lcltisccp=.false.,Lmeantbisccp=.false.,Lmeantbclrisccp=.false.,             &
+           Lalbisccp=.true.,Lboxptopisccp=.true.,Lboxtauisccp=.true.,               &     !- ISCCP
+           Lpctisccp=.true.,Lclisccp=.true.,Ltauisccp=.true.,                       &
+           Lcltisccp=.true.,Lmeantbisccp=.true.,Lmeantbclrisccp=.true.,             &
            LclMISR=.true.,                                                             &     !- MISR
            Lclcalipso2=.true.,Lcltlidarradar=.true.,Lcloudsat_tcc=.true.,              &     !- Use lidar and radar
            Lcloudsat_tcc2=.true.,                                                      &
@@ -340,6 +344,9 @@ contains
 !====================================================================================================
 if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
 
+  !$omp barrier
+  !$omp single
+
   cloud_simulator_ready = .true.
 
   Npoints_it      = imax
@@ -385,6 +392,8 @@ if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
     allocate( clp_lmht(ifull,4) )
     allocate( clp_phse_ice(ifull,4) )
     allocate( clp_phse_liq(ifull,4) )
+    allocate( grd_reflect(ifull,5) )
+    allocate( meantaucld(ifull) )
     allocate( clp_ice(ifull,40 ) )
     allocate( clp_liq(ifull,40 ) )
     !allocate( cls_ze(ifull,kl,Ncolumns) )
@@ -476,49 +485,49 @@ if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
   ! 2nd call: Initialize the distributional parameters for hydrometeors in radar simulator
   call hydro_class_init(lsingle,ldouble,sd)
 
-#ifdef sonny_debug
-if (myid==0 ) then
-    print*, ' ======='
-    print*, 'cosp_calipso_init PRINT OUT THE OUTPUT VALUES IN SD TYPE AFTER hydro_class_init'
-    print*, ' ====================================================='
-    print*, 'sd%dtype(1:N_HYDRO) ', sd%dtype(1:N_HYDRO)
-    print*, 'sd%phase(1:N_HYDRO) ', sd%phase(1:N_HYDRO)
-    print*, 'sd%dmin(1:N_HYDRO)  ', sd%dmin(1:N_HYDRO)
-    print*, 'sd%dmax(1:N_HYDRO)  ', sd%dmax(1:N_HYDRO)
-    print*, 'sd%apm(1:N_HYDRO)   ', sd%apm(1:N_HYDRO)
-    print*, 'sd%bpm(1:N_HYDRO)   ', sd%bpm(1:N_HYDRO)
-    print*, 'sd%rho(1:N_HYDRO)   ', sd%rho(1:N_HYDRO)
-    print*, 'sd%p1(1:N_HYDRO)    ', sd%p1(1:N_HYDRO)
-    print*, 'sd%p2(1:N_HYDRO)    ', sd%p2(1:N_HYDRO)
-    print*, 'sd%p3(1:N_HYDRO)    ', sd%p3(1:N_HYDRO)
-    print*, '======='
-    print*, 'PRINT OUT THE INPUT VALUES FOR "COSP_INIT"'
-    print*, ' ====================================================='
-    print*, 'Lisccp      ',   Lisccp
-    print*, 'Lmodis      ',   Lmodis
-    print*, 'Lmisr       ',   Lmisr
-    print*, 'Lcloudsat   ',   Lcloudsat
-    print*, 'Lcalipso    ',   Lcalipso
-    print*, 'LgrLidar532 ',   LgrLidar532
-    print*, 'Latlid      ',   Latlid
-    print*, 'Lparasol    ',   Lparasol
-    print*, 'Lrttov      ',   Lrttov
-
-    print*, 'cloudsat_use_gas_abs      :', cloudsat_use_gas_abs
-    print*, 'cloudsat_do_ray           :', cloudsat_do_ray
-    print*, 'isccp_topheight           :', isccp_topheight
-    print*, 'isccp_topheight_direction :', isccp_topheight_direction
-    print*, 'Nlevels                   :', Nlevels
-    print*, 'Nvgrid                    :', Nlvgrid
-    print*, 'surface_radar             :', surface_radar
-
-    print*, 'cloudsat_radar_freq       :', cloudsat_radar_freq
-    print*, 'cloudsat_k2               :', cloudsat_k2
-    print*, 'lusevgrid                 :', use_vgrid
-    print*, 'luseCSATvgrid             :', csat_vgrid
-    print*, 'cloudsat_micro_scheme     :', cloudsat_micro_scheme
-  end if
-#endif
+!#ifdef sonny_debug
+!if (myid==0 ) then
+!    print*, ' ======='
+!    print*, 'cosp_calipso_init PRINT OUT THE OUTPUT VALUES IN SD TYPE AFTER hydro_class_init'
+!    print*, ' ====================================================='
+!    print*, 'sd%dtype(1:N_HYDRO) ', sd%dtype(1:N_HYDRO)
+!    print*, 'sd%phase(1:N_HYDRO) ', sd%phase(1:N_HYDRO)
+!    print*, 'sd%dmin(1:N_HYDRO)  ', sd%dmin(1:N_HYDRO)
+!    print*, 'sd%dmax(1:N_HYDRO)  ', sd%dmax(1:N_HYDRO)
+!    print*, 'sd%apm(1:N_HYDRO)   ', sd%apm(1:N_HYDRO)
+!    print*, 'sd%bpm(1:N_HYDRO)   ', sd%bpm(1:N_HYDRO)
+!    print*, 'sd%rho(1:N_HYDRO)   ', sd%rho(1:N_HYDRO)
+!    print*, 'sd%p1(1:N_HYDRO)    ', sd%p1(1:N_HYDRO)
+!    print*, 'sd%p2(1:N_HYDRO)    ', sd%p2(1:N_HYDRO)
+!    print*, 'sd%p3(1:N_HYDRO)    ', sd%p3(1:N_HYDRO)
+!    print*, '======='
+!    print*, 'PRINT OUT THE INPUT VALUES FOR "COSP_INIT"'
+!    print*, ' ====================================================='
+!    print*, 'Lisccp      ',   Lisccp
+!    print*, 'Lmodis      ',   Lmodis
+!    print*, 'Lmisr       ',   Lmisr
+!    print*, 'Lcloudsat   ',   Lcloudsat
+!    print*, 'Lcalipso    ',   Lcalipso
+!    print*, 'LgrLidar532 ',   LgrLidar532
+!    print*, 'Latlid      ',   Latlid
+!    print*, 'Lparasol    ',   Lparasol
+!    print*, 'Lrttov      ',   Lrttov
+!
+!    print*, 'cloudsat_use_gas_abs      :', cloudsat_use_gas_abs
+!    print*, 'cloudsat_do_ray           :', cloudsat_do_ray
+!    print*, 'isccp_topheight           :', isccp_topheight
+!    print*, 'isccp_topheight_direction :', isccp_topheight_direction
+!    print*, 'Nlevels                   :', Nlevels
+!    print*, 'Nvgrid                    :', Nlvgrid
+!    print*, 'surface_radar             :', surface_radar
+!
+!    print*, 'cloudsat_radar_freq       :', cloudsat_radar_freq
+!    print*, 'cloudsat_k2               :', cloudsat_k2
+!    print*, 'lusevgrid                 :', use_vgrid
+!    print*, 'luseCSATvgrid             :', csat_vgrid
+!    print*, 'cloudsat_micro_scheme     :', cloudsat_micro_scheme
+!  end if
+!#endif
   ! 3rd call: Initialize COSP simulator
   call COSP_INIT(Lisccp, Lmodis, Lmisr, Lcloudsat, Lcalipso, LgrLidar532, Latlid,                  &
                  Lparasol, Lrttov,                                                                 &
@@ -564,13 +573,13 @@ if (myid==0 ) then
   ! #Points per COSP iteration (nPoints_it) == also imax in CCAM
   !====================================================================================================
   do tile = 1,ntiles
-#ifdef sonny_debug  
-    if (myid==0 ) then
-      print*, 'Number of ntiles    :', ntiles
-      print*, 'Now at tile/ntiles  :', tile, '/', ntiles
-      print*, '**************************************************************************************'
-    end if
-#endif
+!#ifdef sonny_debug  
+!    if (myid==0 ) then
+!      print*, 'Number of ntiles    :', ntiles
+!      print*, 'Now at tile/ntiles  :', tile, '/', ntiles
+!      print*, '**************************************************************************************'
+!    end if
+!#endif
     is = (tile-1)*imax + 1
     ie = tile*imax          
 
@@ -650,7 +659,7 @@ if (myid==0 ) then
     do iq = its, ite
       i = iq - its + 1  ! i must be smaller than 97
       do k = kts, kte
-        Reff(i,k,1) = stras_rliq(iq,k)                  ! Large-scale (stratiform) liquid
+        Reff(i,k,1) = stras_rliq(iq,k)   !unit: meters  ! Large-scale (stratiform) liquid
         Reff(i,k,2) = stras_rice(iq,k)                  ! Large-scale (stratiform) ice
         Reff(i,k,3) = stras_rrai(iq,k)                  ! Large-scale (stratiform) rain    
         Reff(i,k,4) = stras_rsno(iq,k)                  ! Large-scale (stratiform) snow
@@ -686,65 +695,65 @@ if (myid==0 ) then
     
     dtau_s = cloud_tau
     dem_s  = cloud_emiss
-    if (myid == 0) then
-      print*, 'Starting ..............................................'
-      print*, 'rdrop_save values: ', minval(Reff(:,:,1)), maxval(Reff(:,:,1))
-      print*, 'rdrop_save values: ', minval(stras_rliq(:,:)) ! 33.20
-      print*, 'rice_save values : ', minval(Reff(:,:,2)), maxval(Reff(:,:,2))
-      print*, 'rice_save values : ', minval(stras_rice(:,:))   ! 100.59
-      print*, 'cloud_tau   : ', minval(cloud_tau), maxval(cloud_tau)
-      print*, 'cloud_emiss : ', minval(cloud_emiss), maxval(cloud_emiss)
-      print*, 'Ending ..............................................'
-      print*, ' '
-    end if
+!    if (myid == 0) then
+!      print*, 'Starting ..............................................'
+!      print*, 'rdrop_save values: ', minval(Reff(:,:,1)), maxval(Reff(:,:,1))
+!      print*, 'rdrop_save values: ', minval(stras_rliq(:,:)) ! 33.20
+!      print*, 'rice_save values : ', minval(Reff(:,:,2)), maxval(Reff(:,:,2))
+!      print*, 'rice_save values : ', minval(stras_rice(:,:))   ! 100.59
+!      print*, 'cloud_tau   : ', minval(cloud_tau), maxval(cloud_tau)
+!      print*, 'cloud_emiss : ', minval(cloud_emiss), maxval(cloud_emiss)
+!      print*, 'Ending ..............................................'
+!      print*, ' '
+!    end if
     seaice        = fracice(is:ie)         ! Sea-ice fraction                       (0-1)
 
-#ifdef COSPP    
-    if (myid==0 ) then
-      print*, ' ======'
-      print*, ' PRINT OUT THE INPUT FOR THE COSP'
-      print*, '=================================='
-      print*, 'Npoints  : ', Npoints
-      print*, 'Nlevels  : ', Nlevels
-      print*, 'N_HYDRO  : ', N_HYDRO
-      print*, 'lat      : ', minval(lat      ), maxval(lat      ), 'shape:', shape(lat      )
-      print*, 'lon      : ', minval(lon      ), maxval(lon      ), 'shape:', shape(lon      )
-      print*, 'p        : ', minval(p        ), maxval(p        ), 'shape:', shape(p        )
-      print*, 'ph       : ', minval(ph       ), maxval(ph       ), 'shape:', shape(ph       )
-      print*, 'zlev     : ', minval(zlev     ), maxval(zlev     ), 'shape:', shape(zlev     )
-      print*, 'zlev_half: ', minval(zlev_half), maxval(zlev_half), 'shape:', shape(zlev_half)
-      print*, 'Te       : ', minval(Te       ), maxval(Te       ), 'shape:', shape(Te       )
-      print*, 'qv       : ', minval(qv       ), maxval(qv       ), 'shape:', shape(qv       )
-      print*, 'rh       : ', minval(rh       ), maxval(rh       ), 'shape:', shape(rh       )
-      print*, 'tca      : ', minval(tca      ), maxval(tca      ), 'shape:', shape(tca      )
-      print*, 'cca      : ', minval(cca      ), maxval(cca      ), 'shape:', shape(cca      )
-      print*, 'mr_lsliq : ', minval(mr_lsliq ), maxval(mr_lsliq ), 'shape:', shape(mr_lsliq )
-      print*, 'mr_lsice : ', minval(mr_lsice ), maxval(mr_lsice ), 'shape:', shape(mr_lsice )
-      print*, 'mr_ccliq : ', minval(mr_ccliq ), maxval(mr_ccliq ), 'shape:', shape(mr_ccliq )
-      print*, 'mr_ccice : ', minval(mr_ccice ), maxval(mr_ccice ), 'shape:', shape(mr_ccice )
-      print*, 'fl_lsrain: ', minval(fl_lsrain), maxval(fl_lsrain), 'shape:', shape(fl_lsrain)
-      print*, 'fl_lssnow: ', minval(fl_lssnow), maxval(fl_lssnow), 'shape:', shape(fl_lssnow)
-      print*, 'fl_lsgrpl: ', minval(fl_lsgrpl), maxval(fl_lsgrpl), 'shape:', shape(fl_lsgrpl)
-      print*, 'fl_ccrain: ', minval(fl_ccrain), maxval(fl_ccrain), 'shape:', shape(fl_ccrain)
-      print*, 'fl_ccsnow: ', minval(fl_ccsnow), maxval(fl_ccsnow), 'shape:', shape(fl_ccsnow)
-      print*, 'Reff     : ', minval(Reff     ), maxval(Reff     ), 'shape:', shape(Reff     )
-      print*, 'dtau_s   : ', minval(dtau_s   ), maxval(dtau_s   ), 'shape:', shape(dtau_s   )
-      print*, 'dtau_c   : ', minval(dtau_c   ), maxval(dtau_c   ), 'shape:', shape(dtau_c   )
-      print*, 'dem_s    : ', minval(dem_s    ), maxval(dem_s    ), 'shape:', shape(dem_s    )
-      print*, 'dem_c    : ', minval(dem_c    ), maxval(dem_c    ), 'shape:', shape(dem_c    )
-      print*, 'skt      : ', minval(skt      ), maxval(skt      ), 'shape:', shape(skt      )
-      print*, 'landmask : ', minval(landmask ), maxval(landmask ), 'shape:', shape(landmask )
-      print*, 'mr_ozone : ', minval(mr_ozone ), maxval(mr_ozone ), 'shape:', shape(mr_ozone )
-      print*, 'u_wind   : ', minval(u_wind   ), maxval(u_wind   ), 'shape:', shape(u_wind   )
-      print*, 'v_wind   : ', minval(v_wind   ), maxval(v_wind   ), 'shape:', shape(v_wind   )
-      print*, 'sunlit   : ', minval(sunlit   ), maxval(sunlit   ), 'shape:', shape(sunlit   )
-      print*, 'emsfc_lw : ', emsfc_lw
-      print*, 'geomode  : ', geomode
-      print*, 'Nlon     : ', Nlon
-      print*, 'Nlat     : ', Nlat
-      print*, 'surfelev : ', minval(surfelev ), maxval(surfelev ), 'shape:', shape(surfelev )
-    end if
-#endif    
+!#ifdef COSPP    
+!    if (myid==0 ) then
+!      print*, ' ======'
+!      print*, ' PRINT OUT THE INPUT FOR THE COSP'
+!      print*, '=================================='
+!      print*, 'Npoints  : ', Npoints
+!      print*, 'Nlevels  : ', Nlevels
+!      print*, 'N_HYDRO  : ', N_HYDRO
+!      print*, 'lat      : ', minval(lat      ), maxval(lat      ), 'shape:', shape(lat      )
+!      print*, 'lon      : ', minval(lon      ), maxval(lon      ), 'shape:', shape(lon      )
+!      print*, 'p        : ', minval(p        ), maxval(p        ), 'shape:', shape(p        )
+!      print*, 'ph       : ', minval(ph       ), maxval(ph       ), 'shape:', shape(ph       )
+!      print*, 'zlev     : ', minval(zlev     ), maxval(zlev     ), 'shape:', shape(zlev     )
+!      print*, 'zlev_half: ', minval(zlev_half), maxval(zlev_half), 'shape:', shape(zlev_half)
+!      print*, 'Te       : ', minval(Te       ), maxval(Te       ), 'shape:', shape(Te       )
+!      print*, 'qv       : ', minval(qv       ), maxval(qv       ), 'shape:', shape(qv       )
+!      print*, 'rh       : ', minval(rh       ), maxval(rh       ), 'shape:', shape(rh       )
+!      print*, 'tca      : ', minval(tca      ), maxval(tca      ), 'shape:', shape(tca      )
+!      print*, 'cca      : ', minval(cca      ), maxval(cca      ), 'shape:', shape(cca      )
+!      print*, 'mr_lsliq : ', minval(mr_lsliq ), maxval(mr_lsliq ), 'shape:', shape(mr_lsliq )
+!      print*, 'mr_lsice : ', minval(mr_lsice ), maxval(mr_lsice ), 'shape:', shape(mr_lsice )
+!      print*, 'mr_ccliq : ', minval(mr_ccliq ), maxval(mr_ccliq ), 'shape:', shape(mr_ccliq )
+!      print*, 'mr_ccice : ', minval(mr_ccice ), maxval(mr_ccice ), 'shape:', shape(mr_ccice )
+!      print*, 'fl_lsrain: ', minval(fl_lsrain), maxval(fl_lsrain), 'shape:', shape(fl_lsrain)
+!      print*, 'fl_lssnow: ', minval(fl_lssnow), maxval(fl_lssnow), 'shape:', shape(fl_lssnow)
+!      print*, 'fl_lsgrpl: ', minval(fl_lsgrpl), maxval(fl_lsgrpl), 'shape:', shape(fl_lsgrpl)
+!      print*, 'fl_ccrain: ', minval(fl_ccrain), maxval(fl_ccrain), 'shape:', shape(fl_ccrain)
+!      print*, 'fl_ccsnow: ', minval(fl_ccsnow), maxval(fl_ccsnow), 'shape:', shape(fl_ccsnow)
+!      print*, 'Reff     : ', minval(Reff     ), maxval(Reff     ), 'shape:', shape(Reff     )
+!      print*, 'dtau_s   : ', minval(dtau_s   ), maxval(dtau_s   ), 'shape:', shape(dtau_s   )
+!      print*, 'dtau_c   : ', minval(dtau_c   ), maxval(dtau_c   ), 'shape:', shape(dtau_c   )
+!      print*, 'dem_s    : ', minval(dem_s    ), maxval(dem_s    ), 'shape:', shape(dem_s    )
+!      print*, 'dem_c    : ', minval(dem_c    ), maxval(dem_c    ), 'shape:', shape(dem_c    )
+!      print*, 'skt      : ', minval(skt      ), maxval(skt      ), 'shape:', shape(skt      )
+!      print*, 'landmask : ', minval(landmask ), maxval(landmask ), 'shape:', shape(landmask )
+!      print*, 'mr_ozone : ', minval(mr_ozone ), maxval(mr_ozone ), 'shape:', shape(mr_ozone )
+!      print*, 'u_wind   : ', minval(u_wind   ), maxval(u_wind   ), 'shape:', shape(u_wind   )
+!      print*, 'v_wind   : ', minval(v_wind   ), maxval(v_wind   ), 'shape:', shape(v_wind   )
+!      print*, 'sunlit   : ', minval(sunlit   ), maxval(sunlit   ), 'shape:', shape(sunlit   )
+!      print*, 'emsfc_lw : ', emsfc_lw
+!      print*, 'geomode  : ', geomode
+!      print*, 'Nlon     : ', Nlon
+!      print*, 'Nlat     : ', Nlat
+!      print*, 'surfelev : ', minval(surfelev ), maxval(surfelev ), 'shape:', shape(surfelev )
+!    end if
+!#endif    
     ! Construct COSP input types
     Npoints_it      = imax
     Npoints         = imax
@@ -842,7 +851,8 @@ if (myid==0 ) then
     !SR_BINS              = 15,   ! Number of bins (backscattering coefficient) in CALOPSO LIDAR simulator.
     !CLOUDSAT_DBZE_BINS   = 15, & ! Number of dBZe bins in histogram (cfad)
     !LIDAR_NCAT           = 4,  & ! Number of categories for cloudtop heights (high/mid/low/tot)
-
+    !LIDAR_NTEMP = 40
+    !LIDAR_NTYPE = 3
     !1st OUTPUT........................................................................
     !Ldbze94,        & ! CLOUDSAT radar reflectivity
     !x%cloudsat_Ze_tot(Npoints,Ncolumns,Nlevels)
@@ -903,18 +913,39 @@ if (myid==0 ) then
     !5rd OUTPUT.........................................................................
     !allocate(x%calipso_cldlayer(Npoints,LIDAR_NCAT))
     do n=1,4
-      !cltcalipso_o(is:ie,n) = cospOUT%calipso_cldlayer(:,n)
       clp_lmht(is:ie,n) = cospOUT%calipso_cldlayer(:,n)
     end do
     !6rd OUTPUT.........................................................................
     !allocate(x%calipso_cldlayerphase(Npoints,LIDAR_NCAT,6))
     do n=1,4
-      !Ccldphase_1o(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,1)
-      !Ccldphase_2o(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,2)
       clp_phse_ice(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,1)
       clp_phse_liq(is:ie,n) = cospOUT%calipso_cldlayerphase(:,n,2)
     end do
-    ! 3D "lidar cloud phase temperature"
+    !7th OUTPUT.........................................................................
+    !x%parasolGrid_refl(Npoints,PARASOL_NREFL)
+    do n=1,5
+       grd_reflect(is:ie,n) = cospOUT%parasolGrid_refl(:,n)
+    end do
+    !8th OUTPUT.........................................................................
+    !ISCCP (x%isccp_meantaucld(Npoints)
+    meantaucld(is:ie)       = cospOUT%isccp_meantaucld(:)
+    !9th OUTPUT.........................................................................
+    ! 3D cloud x%calipso_lidarcldtype(Npoints,Nlvgrid,LIDAR_NTYPE+1)
+    !do n=1,4
+    !  opaq_cloud(is:ie,n) = cospOUT%calipso_lidarcldtype(:,n,1)
+    !  thin_cloud(is:ie,n) = cospOUT%calipso_lidarcldtype(:,n,2)
+    !  z_opaquecd(is:ie,n) = cospOUT%calipso_lidarcldtype(:,n,3)
+    !  opacitycld(is:ie,n) = cospOUT%calipso_lidarcldtype(:,n,4)
+    !end do
+    !10th OUTPUT.......................................................................
+    ! 3D cloud and temperature (x%calipso_cldtypetemp(Npoints,LIDAR_NTYPE))
+    !do n=1,3
+    !  opaq_cloud_tm(is:ie,n) = cospOUT%calipso_cldtypetemp(:,1)
+    !  thin_cloud_tm(is:ie,n) = cospOUT%calipso_cldtypetemp(:,2)
+    !  z_opaquecd_tm(is:ie,n) = cospOUT%calipso_cldtypetemp(:,3)
+    !end do
+    !11th OUTPUT.......................................................................
+    ! 3D "lidar cloud phase (ice/liquid) temperature"
     ! allocate(x%calipso_lidarcldtmp(Npoints,LIDAR_NTEMP,5))
   end do !for each tile  
   !print*, '# cloudsat_Ze_tot > 0 : ', cnttt,count(cloudsat_ze_tot>0.)
@@ -924,6 +955,9 @@ if (myid==0 ) then
   call destroy_cosp_outputs(cospOUT)
   call destroy_cospIN(cospIN)
   call cosp_cleanUp()
+
+  !$omp end single
+
 endif
 #endif
   
@@ -1155,7 +1189,7 @@ endif
          LcfadLidarsr532gr,& ! GROUND LIDAR @ 532NM scattering ratio CFAD
          LcfadLidarsr355,  & ! ATLID scattering ratio CFAD
          Lclcalipso2,      & ! CALIPSO cloud fraction undetected by cloudsat
-         Lclcalipso,       & ! CALIPSO cloud area fraction
+         Lclcalipso,       & ! CALIPSO cloud area fraction                              !3D sny
          LclgrLidar532,   & ! GROUND LIDAR @ 532NM cloud area fraction
          Lclatlid,         & ! ATLID cloud area fraction
          Lclhcalipso,      & ! CALIPSO high-level cloud fraction

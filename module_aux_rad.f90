@@ -27,21 +27,22 @@ private
 public liqradmethod, iceradmethod
 public cloud3
 
-integer, save :: liqradmethod = 0     ! Method for calculating radius of liquid droplets
+integer, save :: liqradmethod = 0 !6 !0  ! Method for calculating radius of liquid droplets
                                       ! (0=Martin Mid/NBer, 1=Martin Low/NBer, 2=Martin High/NBer
                                       !  3=Martin Mid/Ber,  4=Martin Low/Ber,  5=Martin High/Ber )
-integer, save :: iceradmethod = 1     ! Method for calculating radius of ice droplets
+integer, save :: iceradmethod = 1 !4 !1  ! Method for calculating radius of ice droplets
                                       ! (0=Lohmann, 1=Donner smooth, 2=Fu, 3=Donner orig)
-
 real, parameter :: rhow = 1000.       ! Density of water (kg/m^3)
 
 contains
 
 ! This subroutine is based on cloud2.f
-subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlrad,qfrad,prf,ttg,cdrop,imax,kl)
+subroutine cloud3(Rdrop,Rice,conl,coni,cfrac,qlrad,qfrad,prf,ttg,cdrop,imax,kl, &
+                  stras_rliq,stras_rice,stras_rsno)
 
 use const_phys          ! Physical constants
 use parm_m              ! Model configuration
+use sigs_m
 
 implicit none
 
@@ -50,6 +51,7 @@ integer iq, k, kr
 integer, dimension(imax) :: tpos
 real, dimension(imax,kl), intent(in) :: cfrac, qlrad, qfrad, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
+real, dimension(imax,kl), intent(in), optional :: stras_rliq,stras_rice,stras_rsno 
 real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
 real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa
 real, dimension(imax,kl) :: eps, rk, Wice
@@ -72,6 +74,7 @@ do_brenguier = .false.
 
 rhoa(:,:) = prf(:,:)/(rdry*ttg(:,:))
 
+if ( liqradmethod<6 ) then
 select case(liqradmethod)
   case(0)
     liqparm = -0.003e-6 ! mid range
@@ -116,11 +119,30 @@ where ( qlrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
   ! lower bound k_ratio (land) 1.203 (water) 1.050
 
   ! Martin et al 1994
-  reffl(:,:) = 2.*(3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
+  reffl(:,:) = (3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
 elsewhere
-  reffl(:,:) = 0.
+  reffl(:,:) = 25.E-6
   Wliq(:,:) = 0.
 end where
+
+else if ( liqradmethod==6 ) then
+  if ( .not.present(stras_rliq) ) then
+    write(6,*) "ERROR: effc1d is not an argument for cloud3 with liqradmethod."
+    write(6,*) "  Please contact Sonny and ask him to fix this"
+    stop
+  end if
+  where ( qlrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
+    Wliq(:,:) = rhoa(:,:)*qlrad(:,:)/cfrac(:,:) !kg/m^3
+  elsewhere
+    Wliq(:,:) = 0.
+  end where
+
+  reffl(:,:) = stras_rliq(:,:) !units: meters
+
+else
+  write(6,*) "ERROR: Invalid liqradmethod ",liqradmethod
+  stop
+end if
   
 
 ! (GFDL NOTES)
@@ -160,10 +182,10 @@ select case(iceradmethod)
     !Lohmann et al.(1999)
     where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
       Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
+      reffi(:,:) = 1.*min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
     elsewhere
       Wice(:,:) = 0.
-      reffi(:,:) = 0.
+      reffi(:,:) = 25.E-6
     end where
     
   case(1)
@@ -180,7 +202,7 @@ select case(iceradmethod)
         reffi(:,k) = 1.e-6*basesize(:)
       elsewhere
         Wice(:,k) = 0.
-        reffi(:,k) = 0.
+        reffi(:,k) = 25.E-6
       end where
     end do  
    
@@ -191,7 +213,7 @@ select case(iceradmethod)
       reffi(:,:) = 1.E-6*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
     elsewhere
       Wice(:,:) = 0.
-      reffi(:,:) = 0.
+      reffi(:,:) = 25.E-6
     end where
 
   case(3)
@@ -217,24 +239,48 @@ select case(iceradmethod)
             reffi(iq,k) = 1.E-6*20.2
           end if
         else
-          reffi(iq,k) = 0.
+          reffi(iq,k) = 25.E-6
           Wice(iq,k) = 0.
         end if
       end do
     end do
 
-  end select 
+  case(4)
+    if ( .not.present(stras_rice) .or. .not.present(stras_rsno) ) then
+      write(6,*) "ERROR: Missing arguments for effi1d and effs1d with cloud3 when using iceradmethod=4"
+      stop
+    end if
+    where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
+      Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) !kg/m**3
+    elsewhere
+      Wice(:,:) = 0.
+    end where 
+    reffi(:,:) = stras_rice(:,:) !units: meters 
+end select 
   
   
 do k = 1,kl
   kr = kl + 1 - k
+
+  !if ( sig(k)>=0.68 ) then
+  !if ( sig(k)>=0.44 .and. sig(k)<0.68) then
+  !if ( sig(k)<0.44 ) then
+    !Wliq(:,k) = Wliq(:,k)/10.
+    !Wice(:,k) = Wice(:,k)/10.
+    !reffl(:,k) = reffl(:,k)*4.
+    !reffi(:,k) = reffi(:,k)*4.
+  !end if
+
   Rdrop(:,kr) = real(1.E6*reffl(:,k), 8) ! convert to microns
   Rice(:,kr)  = real(1.E6*reffi(:,k), 8)
   conl(:,kr)  = real(1000.*scale_factor*Wliq(:,k), 8) !g/m^3
   coni(:,kr)  = real(1000.*scale_factor*Wice(:,k), 8)
+  !if ( sig(k)<=0.8 ) then
+  !  coni(:,kr) = coni(:,kl)/10.
+  !end if
 end do
 
-Rdrop(:,:) = min(max(Rdrop(:,:), 8.4_8), 33.2_8) ! constrain size to acceptable range (see microphys_rad.f90)
+Rdrop(:,:) = min(max(Rdrop(:,:), 4.2_8), 16.5_8)      ! constrain size to acceptable range (see microphys_rad.f90)
 Rice(:,:) = min(max(Rice(:,:), 18.6_8), 130.2_8)
 
 return

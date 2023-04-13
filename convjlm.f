@@ -2057,8 +2057,11 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
             if(tt(iq,k)<253.16)then   ! i.e. -20C
               qfg(iq,k)=qfg(iq,k)+qliqw(iq,k)
               tt(iq,k)=tt(iq,k)+3.35e5*qliqw(iq,k)/cp   ! fusion heating
+              !qg(iq,k)=qg(iq,k)+qliqw(iq,k)
             else
+              !fice = ....
               qlg(iq,k)=qlg(iq,k)+qliqw(iq,k)
+              !qg(iq,k)=qg(iq,k)+qliqw(iq,k)
             endif
            enddo
           enddo  ! k loop           

@@ -370,8 +370,8 @@ end select
   
 !$omp do schedule(static) private(is,ie,iq,k,nt),   &
 !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-!$omp private(lni,lnr,lns,lco2em,loh,lstrloss),     &
-!$omp private(ljmcf,lrkmsave,rong,rlogs1,rlogs2),   &
+!$omp private(lni,lnr,lns),                         &
+!$omp private(lrkmsave,rong,rlogs1,rlogs2),         &
 !$omp private(rlogh1,rlog12,tmnht,dz,gt)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1

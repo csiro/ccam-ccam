@@ -986,6 +986,8 @@ use module_aux_cosp, only : clp_lmht,             &
                             !cls_ze,               &
                             clp_phse_ice,         &
                             clp_phse_liq,         &
+                            grd_reflect,          &
+                            meantaucld,           &
                             clp_ice,              &
                             clp_liq,              &
                             ncolumns,             &
@@ -1081,6 +1083,7 @@ logical, intent(in) :: local
 logical lwrite, lave, lday
 logical lwrite_0, lave_0, lday_0 ! includes the zeroth time-step when using restart
 logical l3hr
+logical, parameter :: output_cfad=.false.
 ! flags to control output
 lwrite   = ktau>0
 lwrite_0 = lwrite.or.lrestart
@@ -1615,6 +1618,8 @@ if( myid==0 .or. local ) then
         end if
         lname = 'Surface pressure tendency'
         call attrib(idnc,dimj,jsize,'dpsdt',lname,'hPa day-1',-400.,400.,0,cptype)
+        lname = 'Cosine of zenith angle'
+        call attrib(idnc,dimj,jsize,'coszro',lname,'none',0.,1.,0,cptype)
       endif     ! (nextout>=1)
     end if      ! itype/=-1
     if ( save_pbl .or. itype==-1 ) then
@@ -2110,12 +2115,17 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'pihom','homogeneous nucleation <-40','kg kg-1 s-1',1.E-12,1.E12,0,-1)
         call attrib(idnc,dima,asize,'pidw','production of cloud ice by BERGERON process','kg kg-1 s-1',1.E-12,1.E12,0,-1)
         call attrib(idnc,dima,asize,'piadj','saturation adjustment for qi','kg kg-1 s-1',1.E-12,1.E12,0,-1)
-        call attrib(idnc,dima,asize,'qschg','equal psnow,unsure','kg kg-1 s-1',1.E-12,1.E12,0,-1)
+        call attrib(idnc,dima,asize,'pmidep','water vapor deposition to form snow','kg kg-1 s-1',1.E-12,1.E12,0,-1)
       end if
       ! number concentration
       call attrib(idnc,dima,asize,'nr','Rain number concentration','kg-1',0.,1.E10,0,-1)
       call attrib(idnc,dima,asize,'ni','Ice number concentration','kg-1',0.,1.E10,0,-1)
       call attrib(idnc,dima,asize,'ns','Snow number concentration','kg-1',0.,1.E10,0,-1)
+      ! effective radius
+      call attrib(idnc,dima,asize,'stras_rliq','Water effective particle radius','micron',0.,40.,0,-1)
+      call attrib(idnc,dima,asize,'stras_rice','Ice effective particle radius','micron',0.,300.,0,-1)
+      call attrib(idnc,dima,asize,'stras_rrai','Rain effective particle radius','micron',0.,3000.,0,-1)
+      call attrib(idnc,dima,asize,'stras_rsno','Snow effective particle radius','micron',0.,1000.,0,-1)
       ! mixing ratio
       call attrib(idnc,dima,asize,'qfg','Frozen water','kg kg-1',0.,.065,0,cptype)
       call attrib(idnc,dima,asize,'qlg','Liquid water','kg kg-1',0.,.065,0,cptype)
@@ -2161,6 +2171,13 @@ if( myid==0 .or. local ) then
         write(vname,'(A,I3.3)') "clp_phse_liq_",n
         call attrib(idnc,dimj,jsize,trim(vname),'clp_phse_liq_','none',0.,100.,0,cptype)
       end do
+      do n = 1,5
+        write(vname,'(A,I3.3)') "grd_reflect_",n
+        call attrib(idnc,dimj,jsize,trim(vname),'grd_reflect_','none',0.,1.,0,cptype)
+      end do
+
+      call attrib(idnc,dimj,jsize,'meantaucld','meantaucld','none',0.,100.,0,cptype)
+      !call attrib(idnc,dima,asize,'meantaucld','meantaucld','none',0.,100.,0,cptype)
       ! end calipso cloud phase output
         
       do n=1,40
@@ -2174,6 +2191,7 @@ if( myid==0 .or. local ) then
       end do
 
       ! output 15 bin size for CLOUDSAT radar refectivity 
+      if ( output_cfad ) then
       do n=1,40
         write(vname,'(A,I3.3)') "cls_db_b01_",n
         call attrib(idnc,dimj,jsize,trim(vname),'CLOUDSAT radar reflectivity CFAD','none',-50.,25.,0,cptype)
@@ -2297,6 +2315,7 @@ if( myid==0 .or. local ) then
         write(vname,'(A,I3.3)') "clp_sr_b15_",n
         call attrib(idnc,dimj,jsize,trim(vname),'CALIPSO scattering ratio CFAD','none',0.,100.,0,cptype)
       end do
+      end if
      ! done output 15 bin size for CALIPSO scattering ratio CFAD
 
       if ( ncolumns>100 ) then
@@ -3107,6 +3126,7 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt(dni_ave,'dni',idnc,iarch,local,lave)
     end if
     call histwrt(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
+    call histwrt(coszro_sav,'coszro',idnc,iarch,local,lwrite)
   endif   ! nextout>=1
 endif    ! (itype/=-1)
 if ( save_pbl .or. itype==-1 ) then
@@ -3600,12 +3620,17 @@ if ( ldr/=0 ) then
     call histwrt(pihom,'pihom',idnc,iarch,local,.true.)
     call histwrt(pidw,'pidw',idnc,iarch,local,.true.)
     call histwrt(piadj,'piadj',idnc,iarch,local,.true.)
-    call histwrt(qschg,'qschg',idnc,iarch,local,.true.)
+    call histwrt(pmidep,'pmidep',idnc,iarch,local,.true.)
   end if
   ! number concentration
   call histwrt(nr,'nr',idnc,iarch,local,.true.)
   call histwrt(ni,'ni',idnc,iarch,local,.true.)
   call histwrt(ns,'ns',idnc,iarch,local,.true.)
+  ! effective radius
+  call histwrt(stras_rliq,'stras_rliq',idnc,iarch,local,.true.)
+  call histwrt(stras_rice,'stras_rice',idnc,iarch,local,.true.)
+  call histwrt(stras_rrai,'stras_rrai',idnc,iarch,local,.true.)
+  call histwrt(stras_rsno,'stras_rsno',idnc,iarch,local,.true.)
   ! mixing ratio
   call histwrt(qfg,'qfg',idnc,iarch,local,.true.)
   call histwrt(qlg,'qlg',idnc,iarch,local,.true.)
@@ -3652,6 +3677,13 @@ endif
       write(vname,'(A,I3.3)') "clp_phse_liq_",n
       call histwrt(clp_phse_liq(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
+    do n = 1,5
+      write(vname,'(A,I3.3)') "grd_reflect_",n
+      call histwrt(grd_reflect(:,n),trim(vname),idnc,iarch,local,lwrite)
+    end do
+
+    call histwrt(meantaucld,'meantaucld',idnc,iarch,local,lwrite)
+    !call histwrt(meantaucld,'meantaucld',idnc,iarch,local,.true.)
     ! end calipso cloud phase output
 
     do n = 1,40
@@ -3665,6 +3697,7 @@ endif
     end do
 
     ! output 15 bin size for CLOUDSAT radar refectivity
+    if ( output_cfad ) then
     do n = 1,40
       write(vname,'(A,I3.3)') "cls_db_b01_",n
       call histwrt(cls_db_b01(:,n),trim(vname),idnc,iarch,local,lwrite)
@@ -3789,6 +3822,7 @@ endif
       call histwrt(clp_sr_b15(:,n),trim(vname),idnc,iarch,local,lwrite)
     end do
     ! DONE output 15 bin size for CALIPSO scattering ratio CFAD
+    end if
   end if  
 #endif
 ! TURBULENT MIXING --------------------------------------------
