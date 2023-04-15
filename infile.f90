@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -43,7 +43,7 @@ public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
 public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
 public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
 public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
-public comm_ip
+public comm_ip, pil_single
 public driving_model_id, driving_model_ensemble_number, driving_experiment_name
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
@@ -1379,7 +1379,7 @@ do while ( mod(fnproc,fnresid)/=0 )
   fnresid = fnresid - 1     ! limit on processor ranks that will read files    
 end do
 fncount = fnproc/fnresid
-if ( myid<fnresid) then
+if ( myid<fnresid ) then
   mynproc = fncount  ! calculate the number of files to be read per process
 else
   mynproc = 0
@@ -1536,7 +1536,7 @@ if ( dmode==0 ) then
       call ccmpi_abort(-1)
     end if
     do ipf = 0,mynproc-1
-      ipin = ipf*fnresid + myid  
+      ipin = ipf*fnresid + myid 
       ppanid(ipf) = 1 - pnoff(ipin)
       ppiid(ipf) = pioff(ipin,0) + 1 ! assumes face decomposition
       ppjid(ipf) = pjoff(ipin,0) + 1 ! assumes face decomposition
@@ -2188,7 +2188,6 @@ integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,vnode_nproc) :: ipack_g
 real, dimension(ifull), intent(in) :: var
 real, dimension(ifull,vnode_nproc) :: var_g
-real, dimension(ifull,vnode_nproc) :: var_t
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
@@ -2203,10 +2202,7 @@ ncount = (/ il, jl, vnode_nproc, 1 /)
 !  return
 !end if
 
-call ccmpi_gatherx(var_t,var,0,comm_vnode)
-do v = 1,vnode_nproc
-  var_g(1:ifull,v) = var_t(1:ifull,v)
-end do
+call ccmpi_gatherx(var_g,var,0,comm_vnode)
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)
@@ -2261,7 +2257,6 @@ integer(kind=4), dimension(4) :: start, ncount
 integer(kind=2), dimension(ifull,vnode_nproc) :: ipack_g
 real(kind=8), dimension(ifull), intent(in) :: var
 real(kind=8), dimension(ifull,vnode_nproc) :: var_g
-real(kind=8), dimension(ifull,vnode_nproc) :: var_t
 real(kind=4) :: laddoff, lscale_f
 character(len=*), intent(in) :: sname
 
@@ -2276,10 +2271,7 @@ ncount = (/ il, jl, vnode_nproc, 1 /)
 !  return
 !end if
 
-call ccmpi_gatherxr8(var_t,var,0,comm_vnode)
-do v = 1,vnode_nproc
-  var_g(1:ifull,v) = var_t(1:ifull,v)
-end do
+call ccmpi_gatherxr8(var_g,var,0,comm_vnode)
 
 lidnc = idnc
 ier = nf90_inq_varid(lidnc,sname,mid)

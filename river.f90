@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -77,9 +77,10 @@ integer, dimension(ifull) :: xp_i, xp_j, xp_n
 integer n, iq, iq_g, xp_g, xpb_g, i, j, ridx
 integer iqout, maxacc, testacc
 real(kind=8), dimension(ifull+iextra,3) :: xyzbc
+real(kind=8) :: dr
 real, dimension(ifull+iextra) ::  ee
 real, dimension(ifull+iextra,3) :: r_outloc
-real minzs, testzs, r, slope
+real minzs, testzs, slope
 real grid_area
 
 ! for cray compiler
@@ -297,13 +298,13 @@ river_dx(:) = 1.e-9
 do iq = 1,ifull
   if ( river_outdir(iq)>0 ) then  
     iqout = xp(iq,river_outdir(iq))
-    r = real(sum(xyzbc(iq,:)*xyzbc(iqout,:)))
-    r = acos(max( min( r, 1. ), -1. ))*rearth
-    r = max(r, 1.e-9)
-    slope = max( (zs(iq)-zs(iqout))/grav, 0. )/r
+    dr = sum(xyzbc(iq,:)*xyzbc(iqout,:))
+    dr = acos(max( min( dr, 1._8 ), -1._8 ))*real(rearth,8)
+    dr = max(dr, 1.e-9_8)
+    slope = max( (zs(iq)-zs(iqout))/grav, 0. )/real(dr)
     ! river_vel is output diagnostic that is always calculated according to Miller
     river_vel(iq) = max( min( rivercoeff*sqrt(slope), 5. ), 0.15 ) ! from Miller et al (1994)
-    river_dx(iq) = r
+    river_dx(iq) = real(dr)
   end if
 end do
 

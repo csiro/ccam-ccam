@@ -93,7 +93,6 @@ integer, save :: kmax=-1
 integer, parameter :: nf=2
 
 nhorx = 0
-
 if ( kmax<0 ) then
   kmax = 1
   do while ( sig(kmax)>=0.25 .and. kmax<kl )
@@ -111,6 +110,7 @@ if ( abs(nhor)>=50 ) then
   delphi = nhora*grav
 endif
 
+work = 0.
 do k = 1,kl
   t_kh(:,k) = 0.
   xfact(:,k) = 0.
@@ -358,10 +358,8 @@ end if
 
 ! perform diffusion
 
-#ifdef GPU
 !$acc data create(xfact,yfact,emi)
 !$acc update device(xfact,yfact,emi)
-#endif
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   ! momentum U, V, W
@@ -398,6 +396,11 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   qlg(1:ifull,:)        = work(1:ifull,:,1)
   qfg(1:ifull,:)        = work(1:ifull,:,2)
   stratcloud(1:ifull,:) = work(1:ifull,:,3)
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    !call hordifgt_work(nr,xfact,yfact,emi,1)
+    call hordifgt_work(ni,xfact,yfact,emi,1)
+    !call hordifgt_work(ns,xfact,yfact,emi,1)
+  end if
 end if
 
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
@@ -414,9 +417,7 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   call hordifgt_work(xtg,xfact,yfact,emi,naero)  
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
-#ifdef GPU
 !$acc end data
-#endif
 
 
 ! post-processing
@@ -470,21 +471,18 @@ real base, xfact_iwu, yfact_isv
 do nstart = 1,ntr,nagg
   nend = min(nstart + nagg - 1, ntr )
   nlen = nend - nstart + 1
-    
+  
   call bounds_send(work(:,:,nstart:nend))
 
   ! update non-boundary grid points
   ! here we use the coloured indices to identify interior and boundary points
+  !$omp parallel do schedule(static) private(nn,np,k,iq,base,xfact_iwu,yfact_isv,async_counter)
   do nn = 1,nlen
     np = nn - 1 + nstart
-#ifndef GPU
-    !$omp parallel do schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
-#else
     async_counter = mod(nn-1,async_length)
     !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
     !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)                            &
     !$acc   async(async_counter)
-#endif    
     do k = 1,kl
       do iq = 1,ifull  
         xfact_iwu = xfact(iwu(iq),k)
@@ -499,15 +497,11 @@ do nstart = 1,ntr,nagg
                       / base 
       end do  
     end do      
-#ifndef GPU
-    !$omp end parallel do
-#else
     !$acc end parallel loop
-#endif
   end do
-#ifdef GPU  
+  !$omp end parallel do
+  
   !$acc wait
-#endif
     
   call bounds_recv(work(:,:,nstart:nend))
 

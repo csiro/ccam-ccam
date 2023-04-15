@@ -205,8 +205,7 @@ type(fparmdata), dimension(:), allocatable,   save :: f_g
 
 ! model parameters
 integer, save      :: atebnmlfile=11       ! Read configuration from nml file (0=off, >0 unit number (default=11))
-integer, save      :: resmeth=1            ! Canyon sensible heat transfer (0=Masson, 1=Harman (varying width), 2=Kusaka,
-                                           ! 3=Harman (fixed width))
+integer, save      :: resmeth=3            ! Canyon sensible heat transfer (0=Masson, 2=Kusaka, 3=Harman (fixed width))
 integer, save      :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, save      :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, 3=COP of 1.0)
 integer, save      :: intairtmeth=0        ! Internal air temperature (0=prescribed, 1=aggregated varying, 2=fractional varying)
@@ -3444,7 +3443,11 @@ do tile = 1,ntiles
       ie = count(upack_g(kstart:kfinish,tile))+ib-1
       if ( ib<=ie ) then
         f_g(tile)%hangle(ib:ie)=0.5*pi-pack(azimuthin(jstart:jfinish),upack_g(kstart:kfinish,tile))
+#ifdef debug
+        f_g(tile)%vangle(ib:ie)=real(acos(real(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)),8)))
+#else
         f_g(tile)%vangle(ib:ie)=acos(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)))
+#endif
         f_g(tile)%ctime(ib:ie)=pack(ctimein(jstart:jfinish),upack_g(kstart:kfinish,tile))
       end if
     end if
@@ -3510,7 +3513,11 @@ do tile = 1,ntiles
           f_g(tile)%hangle(iqu)=0.5*pi-atan2(x,y)
         end do  
         
+#ifdef debug
+        f_g(tile)%vangle(ib:ie)=real(acos(real(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)),8)))
+#else
         f_g(tile)%vangle(ib:ie)=acos(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)))
+#endif
         f_g(tile)%ctime(ib:ie)=min(max(mod(0.5*hloc(ib:ie)/pi-0.5,1.),0.),1.)
         ! calculate weekdayload loading
         f_g(tile)%weekdayload(ib:ie)=1.0
@@ -3994,28 +4001,6 @@ select case(resmeth)
     abase_wallw=cu
     abase_rdsn =cu
     abase_vegc =cu
-  case(1) ! Harman et al (2004)
-    we=0. ! for cray compiler
-    ww=0. ! for cray compiler
-    wr=0. ! for cray compiler
-    ! estimate wind speed along canyon surfaces
-    call getincanwind(we,ww,wr,a_udir,zonet,fp,ufull)
-    dis=max(0.1*fp%coeffbldheight*fp%bldheight,zocanyon+0.2)
-    zolog=log(dis/zocanyon)
-    ! calculate terms for turbulent fluxes
-    a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
-    abase_walle=a*we                 ! east wall bulk transfer
-    abase_wallw=a*ww                 ! west wall bulk transfer
-    dis=max(0.1*fp%coeffbldheight*fp%bldheight,zocanyon+0.2,cnveg%zo+0.2,zosnow+0.2)
-    zolog=log(dis/zocanyon)
-    a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
-    abase_road=a*wr                  ! road bulk transfer
-    zolog=log(dis/cnveg%zo)
-    a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
-    abase_vegc=a*wr
-    zolog=log(dis/zosnow)
-    a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
-    abase_rdsn=a*wr                  ! road snow bulk transfer
   case(2) ! Kusaka et al (2001)
     cu=exp(-0.386*fp%effhwratio)
     abase_road =cu ! bulk transfer coefficients are updated in canyonflux
@@ -4043,6 +4028,9 @@ select case(resmeth)
     zolog=log(dis/zosnow)
     a=vkar*vkar/(zolog*(2.3+zolog))  ! Assume zot=zom/10.
     abase_rdsn=a*wr                  ! road snow bulk transfer
+  case default
+    write(6,*) "ERROR: Invalid choice for resmeth ",resmeth
+    stop
 end select
   
 call getdiurnal(fp%ctime,fp%weekdayload,cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation)
@@ -5966,85 +5954,8 @@ end subroutine getdiurnal
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate in-canyon wind speed for walls and road
-! This version allows the eddy size to change with canyon orientation
-! which requires a numerical solution to the integral
-
-subroutine getincanwind(ueast,uwest,ufloor,a_udir,z0,fp,ufull)
-
-implicit none
-
-integer, intent(in) :: ufull
-real, dimension(ufull), intent(out) :: ueast,uwest,ufloor
-real, dimension(ufull), intent(in) :: z0
-real, dimension(ufull) :: a,b,wsuma,wsumb,fsum
-real, dimension(ufull) :: theta1,wdir,h,w
-real, dimension(ufull), intent(in) :: a_udir
-type(fparmdata), intent(in) :: fp
-
-! rotate wind direction so that all cases are between 0 and pi
-! walls are flipped at the end of the subroutine to account for additional pi rotation
-where (a_udir>=0.)
-  wdir=a_udir
-elsewhere
-  wdir=a_udir+pi
-endwhere
-
-h=fp%bldheight*fp%coeffbldheight
-w=fp%bldheight/fp%hwratio
-
-theta1=asin(min(w/(3.*h),1.))
-wsuma=0.
-wsumb=0.
-fsum=0.  ! floor
-
-! integrate jet on road, venting side (A)
-a=0.
-b=max(0.,wdir-pi+theta1)
-call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0,ufull)
-
-! integrate jet on wall, venting side
-a=max(0.,wdir-pi+theta1)
-b=max(0.,wdir-theta1)
-call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,1,ufull)
-
-! integrate jet on road, venting side (B)
-a=max(0.,wdir-theta1)
-b=wdir
-call integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,0,ufull)
-
-! integrate jet on road, recirculation side (A)
-a=wdir
-b=min(pi,wdir+theta1)
-call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0,ufull)
-
-! integrate jet on wall, recirculation side
-a=min(pi,wdir+theta1)
-b=min(pi,wdir+pi-theta1)
-call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,1,ufull)
-
-! integrate jet on road, recirculation side (B)
-a=min(pi,wdir+pi-theta1)
-b=pi
-call integratewind(wsumb,wsuma,fsum,a,b,h,w,wdir,z0,0,ufull)
-
-! Correct for rotation of winds at start of subroutine
-! 0.5 to adjust for factor of 2 in gettopu
-where (a_udir>=0.)
-  ueast=0.5*wsuma
-  uwest=0.5*wsumb
-elsewhere
-  ueast=0.5*wsumb
-  uwest=0.5*wsuma
-end where
-ufloor=0.5*fsum      ! floor
-
-return
-end subroutine getincanwind
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Calculate in-canyon wind speed for walls and road
-! This version fixes the eddy size to the canyon width which allows
-! for an analytic solution to the integral
+! This version holds the eddy size in the canyon to a constant width
+! that allows for an analytic solution to the integral
 
 subroutine getincanwindb(ueast,uwest,ufloor,a_udir,z0,fp,ufull)
 
@@ -6071,7 +5982,11 @@ endwhere
 h=fp%bldheight*fp%coeffbldheight
 w=fp%bldheight/fp%hwratio
 
+#ifdef debug
+theta1=real(acos(real(min(w/(3.*h),1.),8)))
+#else
 theta1=acos(min(w/(3.*h),1.))
+#endif
 
 call winda(dufa,dura,duva,h,w,z0,ufull) ! jet on road
 call windb(dufb,durb,duvb,h,w,z0,ufull) ! jet on wall
@@ -6101,55 +6016,6 @@ return
 end subroutine getincanwindb
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! integrate winds
-
-subroutine integratewind(wsuma,wsumb,fsum,a,b,h,w,wdir,z0,mode,ufull)
-
-implicit none
-
-integer, intent(in) :: ufull
-integer, intent(in) :: mode
-integer n
-!integer, parameter :: ntot=45
-integer, parameter :: ntot=1 ! simplified method
-real, dimension(ufull), intent(in) :: a,b,h,w,wdir,z0
-real, dimension(ufull), intent(inout) :: wsuma,wsumb,fsum
-real, dimension(ufull) :: theta,dtheta,st,nw
-real, dimension(ufull) :: duf,dur,duv
-
-dtheta=(b-a)/real(ntot)
-if (any(dtheta>0.)) then
-  select case(mode)
-    case(0) ! jet on road
-      do n=1,ntot
-        theta=dtheta*(real(n)-0.5)+a
-        st=abs(sin(theta-wdir))
-        nw=max(w/max(st,1.E-9),3.*h)
-        call winda(duf,dur,duv,h,nw,z0,ufull)
-        wsuma=wsuma+dur*st*dtheta
-        wsumb=wsumb+duv*st*dtheta
-        fsum=fsum+duf*st*dtheta
-      end do
-    case(1) ! jet on wall
-      do n=1,ntot
-        theta=dtheta*(real(n)-0.5)+a
-        st=abs(sin(theta-wdir))
-        nw=min(w/max(st,1.E-9),3.*h)
-        call windb(duf,dur,duv,h,nw,z0,ufull)
-        wsuma=wsuma+dur*st*dtheta
-        wsumb=wsumb+duv*st*dtheta
-        fsum=fsum+duf*st*dtheta
-      end do
-    case DEFAULT
-      write(6,*) "ERROR: Unknown ateb.f90 integratewind mode ",mode
-      stop
-  end select
-end if
-
-return
-end subroutine integratewind
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate canyon wind speeds, jet on road
 
 subroutine winda(uf,ur,uv,h,w,z0,ufull)
@@ -6157,24 +6023,26 @@ subroutine winda(uf,ur,uv,h,w,z0,ufull)
 implicit none
 
 integer, intent(in) :: ufull
+integer iqu
 real, dimension(ufull), intent(out) :: uf,ur,uv
 real, dimension(ufull), intent(in) :: h,w,z0
-real, dimension(ufull) :: a,u0,cuven,zolog
+real a,u0,cuven,zolog
 
-a=0.15*max(1.,3.*h/(2.*w))
 u0=exp(-0.9*sqrt(13./4.))
-
-zolog=log(max(h,z0+0.2)/z0)
-cuven=log(max(refheight*h,z0+0.2)/z0)/log(max(h,z0+0.2)/z0)
-cuven=max(cuven*max(1.-3.*h/w,0.),(u0/a)*(h/w)*(1.-exp(max(-a*max(w/h-3.,0.),-40.))))
-uf=(u0/a)*(h/w)*(1.-exp(-3.*a))+cuven
-!uf=(u0/a)*(h/w)*(2.-exp(-a*3.)-exp(-a*(w/h-3.)))
-ur=(u0/a)*exp(-a*3.)*(1.-exp(-a))
-! MJT suggestion
-cuven=1.-1./zolog
-uv=(u0/a)*exp(max(-a*max(w/h-3.,0.),-40.))*(1.-exp(-a))
-uv=max(cuven,uv)
-!uv=(u0/a)*exp(-a*(w/h-3.))*(1.-exp(-a))
+do iqu = 1,ufull
+  a=0.15*max(1.,3.*h(iqu)/(2.*w(iqu)))
+  zolog=log(max(h(iqu),z0(iqu)+0.2)/z0(iqu))
+  cuven=log(max(refheight*h(iqu),z0(iqu)+0.2)/z0(iqu))/log(max(h(iqu),z0(iqu)+0.2)/z0(iqu))
+  cuven=max(cuven*max(1.-3.*h(iqu)/w(iqu),0.),(u0/a)*(h(iqu)/w(iqu))*(1.-exp(max(-a*max(w(iqu)/h(iqu)-3.,0.),-40.))))
+  uf(iqu)=(u0/a)*(h(iqu)/w(iqu))*(1.-exp(-3.*a))+cuven
+  !uf(iqu)=(u0/a)*(h(iqu)/w(iqu))*(2.-exp(-a*3.)-exp(-a*(w(iqu)/h(iqu)-3.)))
+  ur(iqu)=(u0/a)*exp(-a*3.)*(1.-exp(-a))
+  ! MJT suggestion
+  cuven=1.-1./zolog
+  uv(iqu)=(u0/a)*exp(max(-a*max(w(iqu)/h(iqu)-3.,0.),-40.))*(1.-exp(-a))
+  uv(iqu)=max(cuven,uv(iqu))
+  !uv(iqu)=(u0/a)*exp(-a*(w(iqu)/h(iqu)-3.))*(1.-exp(-a))
+end do
 
 return
 end subroutine winda
@@ -6187,27 +6055,30 @@ subroutine windb(uf,ur,uv,h,win,z0,ufull)
 implicit none
 
 integer, intent(in) :: ufull
+integer iqu
 real, dimension(ufull), intent(out) :: uf,ur,uv
 real, dimension(ufull), intent(in) :: h,win,z0
-real, dimension(ufull) :: a,dh,u0,w
-real, dimension(ufull) :: zolog,cuven
+real a,dh,u0,w
+real zolog,cuven
 
-w=min(win,1.5*h)
+do iqu = 1,ufull
+  w=min(win(iqu),1.5*h(iqu))
 
-a=0.15*max(1.,3.*h/(2.*w))
-dh=max(2.*w/3.-h,0.)
-u0=exp(-0.9*sqrt(13./4.)*dh/h)
+  a=0.15*max(1.,3.*h(iqu)/(2.*w))
+  dh=max(2.*w/3.-h(iqu),0.)
+  u0=exp(-0.9*sqrt(13./4.)*dh/h(iqu))
 
-zolog=log(max(h,z0+0.2)/z0)
-! MJT suggestion (cuven is multiplied by dh to avoid divide by zero)
-cuven=h-(h-dh)*log(max(h-dh,z0+0.2)/z0)/zolog-dh/zolog
-! MJT cuven is back to the correct units of m/s
-cuven=max(cuven/h,(u0/a)*(1.-exp(-a*dh/h)))
+  zolog=log(max(h(iqu),z0(iqu)+0.2)/z0(iqu))
+  ! MJT suggestion (cuven is multiplied by dh to avoid divide by zero)
+  cuven=h(iqu)-(h(iqu)-dh)*log(max(h(iqu)-dh,z0(iqu)+0.2)/z0(iqu))/zolog-dh/zolog
+  ! MJT cuven is back to the correct units of m/s
+  cuven=max(cuven/h(iqu),(u0/a)*(1.-exp(-a*dh/h(iqu))))
 
-uf=(u0/a)*(h/w)*exp(-a*(1.-dh/h))*(1.-exp(-a*w/h))
-ur=(u0/a)*exp(-a*(1.-dh/h+w/h))*(1.-exp(-a))
-uv=(u0/a)*(1.-exp(-a*(1.-dh/h)))+cuven
-!uv=(u0/a)*(2.-exp(-a*(1.-dh/h))-exp(-a*dh/h))
+  uf(iqu)=(u0/a)*(h(iqu)/w)*exp(-a*(1.-dh/h(iqu)))*(1.-exp(-a*w/h(iqu)))
+  ur(iqu)=(u0/a)*exp(-a*(1.-dh/h(iqu)+w/h(iqu)))*(1.-exp(-a))
+  uv(iqu)=(u0/a)*(1.-exp(-a*(1.-dh/h(iqu))))+cuven
+  !uv(iqu)=(u0/a)*(2.-exp(-a*(1.-dh/h(iqu)))-exp(-a*dh/h(iqu)))
+end do
 
 return
 end subroutine windb
@@ -6679,7 +6550,8 @@ mrt = 0.5*(fp%bldheight/(fp%bldwidth+fp%bldheight)*(walle%nodetemp(:,nl) + wallw
 ! globe temperature approximation (average of mrt and air temperature) [Celsius]
 xtemp = 0.5*(iroomtemp + mrt)
 
-d_openwindows = 1./(1. + exp( 0.5*(fp%bldairtemp+ac_deltat+5.-xtemp) ))*1./(1. + exp( (d_canyontemp-iroomtemp) ))
+d_openwindows = 1./(1. + exp( 0.5*(fp%bldairtemp+ac_deltat+5.-xtemp) )) &
+    *1./(1. + exp( max(min(d_canyontemp-iroomtemp,40.),-40.) ))
 
 return
 end subroutine calc_openwindows

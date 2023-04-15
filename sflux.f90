@@ -238,7 +238,7 @@ end if                                                                          
 do tile = 1,ntiles                                                                               ! sea
   is = (tile-1)*imax + 1                                                                         ! sea
   ie = tile*imax                                                                                 ! sea
-  call nantest("after sflux_water",is,ie,"surface")                                                        ! sea
+  call nantest("after sflux_water",is,ie,"surface")                                              ! sea
 end do                                                                                           ! sea
 !$omp end do nowait
 !$omp master
@@ -274,7 +274,7 @@ do tile = 1,ntiles                                                              
       grpl(iq) = grpl(iq) + condg(iq)                                                            ! land
     end if                                                                                       ! land
   end do                                                                                         ! land
-  call nantest("after sflux_land",is,ie,"surface")                                                         ! land
+  call nantest("after sflux_land",is,ie,"surface")                                               ! land
 end do                                                                                           ! land
 !$omp end do nowait
 !$omp master
@@ -293,7 +293,7 @@ end if                                                                          
 do tile = 1,ntiles                                                                               ! urban
   is = (tile-1)*imax + 1                                                                         ! urban
   ie = tile*imax                                                                                 ! urban
-  call nantest("after sflux_urban",is,ie,"surface")                                                        ! urban
+  call nantest("after sflux_urban",is,ie,"surface")                                              ! urban
 end do                                                                                           ! urban
 !$omp end do nowait
 !$omp master
@@ -330,7 +330,7 @@ if ( nmlo==0 ) then                                                             
                  tgg(:,1),tggsn(:,1),fracice,sicedep)                                            ! VCOM
   tss(:) = (1.-fracice(:))*tgg(:,1) + fracice(:)*tggsn(:,1)                                      ! VCOM
                                                                                                  ! VCOM  
-  !call nantest("after VCOM",1,ifull,"all")                                                            ! VCOM
+  !call nantest("after VCOM",1,ifull,"all")                                                      ! VCOM
   call END_LOG(sfluxwater_end)                                                                   ! VCOM
 end if                                                                                           ! VCOM
 !$omp end single

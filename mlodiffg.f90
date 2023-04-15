@@ -105,6 +105,9 @@ real tx_fact, ty_fact
 
 call START_LOG(waterdiff_begin)
 
+work = 0.
+duma = 0.
+
 if ( abs(nmlo)>=3 ) then
   do k = 1,wlev  
     uau(1:ifull,k) = (av_vmod*u(1:ifull,k)+(1.-av_vmod)*oldu1(1:ifull,k))*ee(1:ifull,k)
@@ -292,16 +295,13 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
 
     ! update non-boundary grid points
     ! here we use the coloured indices to identify interior and boundary points  
+    !$omp parallel do schedule(static) private(nn,np,k,iq,xfact_iwu,yfact_isv,base,async_counter)
     do nn = 1,nlen
       np = nn - 1 + nstart
-#ifndef GPU
-      !$omp parallel do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
-#else
       async_counter = mod(nn-1,async_length)
       !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
       !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)                            &  
       !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
-#endif
       do k = 1,wlev
         do iq = 1,ifull
           xfact_iwu = xfact(iwu(iq),k)
@@ -316,15 +316,10 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
                         / base
         end do  
       end do
-#ifndef GPU
-      !$omp end parallel do
-#else
       !$acc end parallel loop
-#endif
     end do
-#ifdef GPU
+    !$omp end parallel do
     !$acc wait
-#endif
 
     call bounds_recv(work(:,:,nstart:nend))
 
@@ -362,33 +357,26 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
 
   ans = 0.
     
-#ifdef GPU
   !$acc enter data create(work_save)   
-#endif
   
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr )
     nlen = nend - nstart + 1
 
     work_save(1:ifull,1:wlev,1:nlen) = work(1:ifull,1:wlev,nstart:nend)
-#ifdef GPU
     !$acc update device(work_save)
-#endif
     
     do its = 1,num_its  
       
       call bounds_send(work(:,:,nstart:nend))
 
+      !$omp parallel do schedule(static) private(nn,np,iq,k,xfact_iwu,yfact_isv,base,async_counter)
       do nn = 1,nlen
         np = nn - 1 + nstart  
-#ifndef GPU
-        !$omp parallel do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
-#else
         async_counter = mod(nn-1,async_length)
         !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
         !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)                            &
         !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
-#endif
         do k = 1,wlev
           do iq = 1,ifull  
             xfact_iwu = xfact(iwu(iq),k)
@@ -401,15 +389,10 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
                              yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
           end do   
         end do
-#ifndef GPU
-        !$omp end parallel do
-#else
         !$acc end parallel loop
-#endif
       end do
-#ifdef GPU
+      !$omp end parallel do
       !$acc wait
-#endif
 
       call bounds_recv(work(:,:,nstart:nend))
 
@@ -434,16 +417,13 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
 
       call bounds_send(ans(:,:,1:nlen))
 
+      !$omp parallel do schedule(static) private(nn,np,iq,k,xfact_iwu,yfact_isv,base,async_counter)
       do nn = 1,nlen
         np = nn - 1 + nstart
-#ifndef GPU
-        !$omp parallel do schedule(static) private(iq,k,xfact_iwu,yfact_isv,base)
-#else
         async_counter = mod(nn-1,async_length)  
         !$acc parallel loop collapse(2) copyin(ans(:,:,nn)) copyout(work(1:ifull,:,np))  &
         !$acc   present(work_save,xfact,yfact,emi,in,is,ie,iw,iwu,isv)                   &
         !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
-#endif        
         do k = 1,wlev
           do iq = 1,ifull  
             xfact_iwu = xfact(iwu(iq),k)
@@ -457,15 +437,10 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
                               yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
           end do    
         end do
-#ifndef GPU
-        !$omp end parallel do
-#else
         !$acc end parallel loop
-#endif
       end do
-#ifdef GPU
+      !$omp end parallel do
       !$acc wait
-#endif
 
       call bounds_recv(ans(:,:,1:nlen))
 
@@ -498,9 +473,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
     
   end do   ! nstart  
   
-#ifdef GPU
   !$acc exit data delete(work_save)
-#endif
 
 else
   write(6,*) "ERROR: Unknown mlodiff option ",mlodiff

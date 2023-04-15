@@ -269,7 +269,7 @@ if ( .not.pfall ) then
   schmidtx    = rdum(3)
   kdate_r     = nint(rdum(4))*10000+nint(rdum(5))*100+nint(rdum(6))
   ktime_r     = nint(rdum(7))
-  newfile     = (nint(rdum(8))==1)
+  newfile     = nint(rdum(8))==1
   iarchi      = nint(rdum(9))
   nsibx       = nint(rdum(10))
   native_ccam = nint(rdum(11))

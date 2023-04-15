@@ -45,7 +45,6 @@ use sigs_m                 ! Atmosphere sigma levels
 use staguvmod              ! Reversible grid staggering
 use tbar2d_m               ! Atmosphere dynamics reference temperature
 use tracers_m              ! Tracer data
-use vadv                   ! Vertical advection
 use vecsuv_m               ! Map to cartesian coordinates
 use vecs_m                 ! Eigenvectors for atmosphere dynamics
 use vvel_m                 ! Additional vertical velocity
@@ -579,7 +578,9 @@ else if ( mfix_qg/=0 .and. mspec==1 ) then
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.)
   qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
 end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
-ni(1:ifull,1:kl) = max( ni(1:ifull,1:kl), 0. ) 
+nr(1:ifull,1:kl) = max( nr(1:ifull,1:kl), 0. )
+ni(1:ifull,1:kl) = max( ni(1:ifull,1:kl), 0. )
+ns(1:ifull,1:kl) = max( ns(1:ifull,1:kl), 0. )
 
 !------------------------------------------------------------------------
 ! Tracer conservation

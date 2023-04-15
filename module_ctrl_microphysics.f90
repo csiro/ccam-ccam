@@ -110,6 +110,8 @@ real, dimension(imax,kl) :: lrkmsave, lrkhsave
 real, dimension(imax,kl) :: lfluxr, lfluxm, lfluxf, lfluxi, lfluxs, lfluxg
 real, dimension(imax,kl) :: lqevap, lqsubl, lqauto, lqcoll, lqaccr
 real, dimension(imax,kl) :: lvi
+real, dimension(imax,kl) :: l_rliq, l_rice, l_cliq, l_cice, lp
+real, dimension(imax,kl) :: l_rliq_in, l_rice_in, l_rsno_in
 #ifndef GPUPHYSICS
 real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
 real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
@@ -247,7 +249,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$acc parallel loop vector_length(32) copy(t,qg,qlg,qfg)                    & 
     !$acc   copy(qgrg,qrg,qsng,gfrac,rfrac,sfrac)                               &
     !$acc   copy(condg,conds,condx,precip,stratcloud)                           &
-    !$acc   copyin(dz,rhoa,cdrop,ktsav,ps)                                      &
+    !$acc   copyin(dz,rhoa,cdrop,ktsav,ps,qlrad,qfrad,cfrac)                    &
     !$acc   copyout(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)      &
     !$acc   copyout(fcoll,faccr,vi)                                             &
     !$acc   private(js,je,idjd_t,mydiag_t)                                      &
@@ -331,6 +333,34 @@ select case ( interp_ncloud(ldr,ncloud) )
 #endif
 #ifdef GPUPHYSICS
     !$acc end parallel loop
+#endif
+
+#ifndef GPU
+    !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
+    !$omp private(l_rliq,l_rice,l_cliq,l_cice)
+#endif
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+
+      lcfrac = cfrac(js:je,:)
+      lqlg = qlrad(js:je,:)
+      lqfg = qfrad(js:je,:)
+      lt = t(js:je,:)
+      lcdrop = cdrop(js:je,:)
+      do k = 1,kl
+        lp(:,k) = ps(js:je)*sig(k)
+      end do
+      call cloud3(l_rliq,l_rice,l_cliq,l_cice,lcfrac,lqlg,lqfg,lp,lt,lcdrop,imax,kl)
+      stras_rliq(js:je,:) = l_rliq   ! save effective radius for cosp
+      stras_rice(js:je,:) = l_rice
+      stras_rsno(js:je,:) = 0.
+      stras_rrai(js:je,:) = 0.
+      stras_cliq(js:je,:) = l_cliq
+      stras_cice(js:je,:) = l_cice
+    end do
+#ifndef GPU
+    !$omp end do nowait
 #endif
 
   case("LIN")
@@ -475,7 +505,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       nr(js:je,:)         = real( znr(1:imax,:) )
       ni(js:je,:)         = real( zni(1:imax,:) )
       ns(js:je,:)         = real( zns(1:imax,:) )
-      stras_rliq(js:je,:) = real( zEFFC1D(1:imax,:) )   ! save efflective radius for cosp
+      stras_rliq(js:je,:) = real( zEFFC1D(1:imax,:) )   ! save effective radius for cosp
       stras_rice(js:je,:) = real( zEFFI1D(1:imax,:) )
       stras_rsno(js:je,:) = real( zEFFS1D(1:imax,:) )
       stras_rrai(js:je,:) = real( zEFFR1D(1:imax,:) )
@@ -536,6 +566,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       conds(js:je)  = conds(js:je) + real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax) )
       condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel
       precip(js:je) = precip(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
+
     end do     !tile loop
 #ifndef GPU
     !$omp end do nowait
@@ -543,6 +574,36 @@ select case ( interp_ncloud(ldr,ncloud) )
 #ifdef GPUPHYSICS
     !$acc end parallel loop
 #endif      
+
+#ifndef GPU
+    !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
+    !$omp private(l_rliq,l_rice,l_cliq,l_cice,l_rliq_in,l_rice_in,l_rsno_in)
+#endif
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+
+      lcfrac = cfrac(js:je,:)
+      lqlg = qlrad(js:je,:)
+      lqfg = qfrad(js:je,:)
+      lt = t(js:je,:)
+      lcdrop = cdrop(js:je,:)
+      do k = 1,kl
+        lp(:,k) = ps(js:je)*sig(k)
+      end do
+      l_rliq_in = stras_rliq(js:je,:)
+      l_rice_in = stras_rice(js:je,:)
+      l_rsno_in = stras_rsno(js:je,:)
+      call cloud3(l_rliq,l_rice,l_cliq,l_cice,lcfrac,lqlg,lqfg,lp,lt,lcdrop,imax,kl, &
+                  stras_rliq=l_rliq_in,stras_rice=l_rice_in,stras_rsno=l_rsno_in)
+      stras_rliq(js:je,:) = l_rliq   ! save effective radius for cosp
+      stras_rice(js:je,:) = l_rice
+      stras_cliq(js:je,:) = l_cliq
+      stras_cice(js:je,:) = l_cice
+    end do
+#ifndef GPU
+    !$omp end do nowait
+#endif
       
   case default
     write(6,*) "ERROR: unknown mp_physics option "
@@ -625,9 +686,6 @@ if ( abs(iaero)>=2 ) then
 #endif
 end if     ! abs(iaero)>=2
 
-
-  !! Estimate cloud droplet size
-  !call cloud3(lrdrop,lrice,lconl,lconi,lcfrac,lqlrad,lqfrad,lpress,lt,lcdrop,imax,kl)
 
   ! cloud optical depth and emissivity ----------------------------
   ! Bands based on Slingo      

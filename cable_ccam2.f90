@@ -650,8 +650,6 @@ rad%trad         = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )*
 !canopy%cdtq =  max( 0.1_8*canopy%cduv, canopy%cdtq )
 ! MJT suggestion
 canopy%cdtq =  max( 0._8, canopy%cdtq )
-
-! MJT suggestion
 ssnow%wbice = max( ssnow%wbice, 0._8 )
 
 ! change in soil temperature

@@ -28,12 +28,14 @@ public qlg,qfg ! cloud liquid water, cloud frozen water
 public qrg,qsng,qgrg                  ! rain, snow, graupel
 public nr, ni, ns                     ! 2nd moment terms
 public stras_rliq, stras_rice, stras_rsno, stras_rrai ! droplet radius
+public stras_cliq, stras_cice
 public liqwpar_init,liqwpar_end
 
 real, dimension(:,:), allocatable, save :: qlg,qfg
 real, dimension(:,:), allocatable, save :: qrg,qsng,qgrg
 real, dimension(:,:), allocatable, save :: nr, ni, ns
 real, dimension(:,:), allocatable, save :: stras_rliq, stras_rice, stras_rsno, stras_rrai
+real, dimension(:,:), allocatable, save :: stras_cliq, stras_cice
 
 contains
 
@@ -47,6 +49,7 @@ allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
 allocate(qrg(ifull,kl),qsng(ifull,kl),qgrg(ifull,kl))
 allocate(nr(ifull,kl), ni(ifull+iextra,kl), ns(ifull,kl))
 allocate(stras_rliq(ifull,kl),stras_rice(ifull,kl),stras_rsno(ifull,kl),stras_rrai(ifull,kl))
+allocate(stras_cliq(ifull,kl),stras_cice(ifull,kl))
 qlg=0.
 qfg=0.
 qrg=0.
@@ -59,6 +62,8 @@ stras_rliq = 0.
 stras_rice = 0.
 stras_rsno = 0.
 stras_rrai = 0.
+stras_cliq = 0.
+stras_cice = 0.
 
 return
 end subroutine liqwpar_init
@@ -72,6 +77,7 @@ deallocate(qrg,qsng)
 deallocate(qgrg)
 deallocate(ni,nr,ns)
 deallocate(stras_rliq,stras_rice,stras_rsno,stras_rrai)
+deallocate(stras_cliq,stras_cice)
 
 return
 end subroutine liqwpar_end

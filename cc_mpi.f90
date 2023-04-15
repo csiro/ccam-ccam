@@ -133,7 +133,7 @@ module cc_mpi
              setglobalpack_v, ccmpi_gathermap_wait, deallocateglobalpack
    public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
              ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
-             ccmpi_filegather, ccmpi_filedistribute, procarray,             &
+             ccmpi_filedistribute, procarray,                               &
              ccmpi_filewininit, ccmpi_filewinfinalize,                      &
              ccmpi_filewinfinalize_exit
    public :: ccmpi_remap  
@@ -241,10 +241,6 @@ module cc_mpi
    interface ccmpi_filebounds_recv
       module procedure ccmpi_filebounds_recv2, ccmpi_filebounds_recv3
    end interface ccmpi_filebounds_recv
-   interface ccmpi_filegather
-      module procedure host_filegather2, proc_filegather2
-      module procedure host_filegather3, proc_filegather3
-   end interface ccmpi_filegather
    interface ccmpi_filedistribute
       module procedure host_filedistribute2, proc_filedistribute2
       module procedure host_filedistribute3, proc_filedistribute3
@@ -4293,7 +4289,7 @@ contains
       integer, intent(in) :: iqq
       integer :: iqg, i_g, j_g, iproc, ioff_g, joff_g
       real, intent(in) :: maxdis
-      real :: disarray_g
+      real(kind=8) :: disarray_g
       logical, dimension(0:nproc-1), intent(inout) :: neigharray_g
    
       do joff_g = 0,jl_g/jpan-1
@@ -4301,9 +4297,9 @@ contains
             j_g = 1
             do i_g = 1,ipan
                iqg = i_g + ioff_g*ipan + (j_g + joff_g*jpan - 1)*il_g
-               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
+               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = acos( max( min( disarray_g, 1._8 ), -1._8 ) )
+               if ( disarray_g < real(maxdis,8) ) then
                   iproc = qproc(iqg)
                   neigharray_g(iproc) = .true.
                end if
@@ -4311,9 +4307,9 @@ contains
             j_g = jpan
             do i_g = 1,ipan
                iqg = i_g + ioff_g*ipan + (j_g + joff_g*jpan - 1)*il_g
-               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
+               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = acos( max( min( disarray_g, 1._8 ), -1._8 ) )
+               if ( disarray_g < real(maxdis,8) ) then
                   iproc = qproc(iqg)
                   neigharray_g(iproc) = .true.
                end if
@@ -4321,9 +4317,9 @@ contains
             i_g = 1
             do j_g = 1,jpan
                iqg = i_g + ioff_g*ipan + (j_g + joff_g*jpan - 1)*il_g
-               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
+               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = acos( max( min( disarray_g, 1._8 ), -1._8 ) )
+               if ( disarray_g < real(maxdis,8) ) then
                   iproc = qproc(iqg)
                   neigharray_g(iproc) = .true.
                end if
@@ -4331,9 +4327,9 @@ contains
             i_g = ipan
             do j_g = 1,jpan
                iqg = i_g + ioff_g*ipan + (j_g + joff_g*jpan - 1)*il_g
-               disarray_g = real(x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg))
-               disarray_g = acos( max( min( disarray_g, 1. ), -1. ) )
-               if ( disarray_g < maxdis ) then
+               disarray_g = x_g(iqq)*x_g(iqg) + y_g(iqq)*y_g(iqg) + z_g(iqq)*z_g(iqg)
+               disarray_g = acos( max( min( disarray_g, 1._8 ), -1._8 ) )
+               if ( disarray_g < real(maxdis,8) ) then
                   iproc = qproc(iqg)
                   neigharray_g(iproc) = .true.
                end if
@@ -10250,7 +10246,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: lcomm, lsize, ierr, sreq, ldone
+      integer(kind=4) :: lcomm, lsize, ierr, sreq, ldone, lproc
       integer(kind=4) :: itag = 50
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
       integer(kind=4), dimension(size(filemap_recv)) :: i_list, donelist      
@@ -10274,7 +10270,8 @@ contains
          itag = 50 + ipf
          nreq  = nreq + 1
          i_list(nreq) = w
-         call MPI_IRecv( bbuf(:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+         lproc = filemap_recv(w)
+         call MPI_IRecv( bbuf(:,w), lsize, ltype, lproc, itag, lcomm, i_req(nreq), ierr )
       end do
       rreq = nreq
  
@@ -10284,7 +10281,8 @@ contains
          itag = 50 + ipf
          cc = nlen*ipf
          nreq  = nreq + 1
-         call MPI_ISend( sinp(1+cc:nlen+cc), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )
+         lproc = filemap_send(w)
+         call MPI_ISend( sinp(1+cc:nlen+cc), lsize, ltype, lproc, itag, lcomm, i_req(nreq), ierr )
       end do
       
       ! Unpack incomming messages
@@ -10350,7 +10348,7 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
-      integer(kind=4) :: lcomm, sreq, ldone, lsize, ierr
+      integer(kind=4) :: lcomm, sreq, ldone, lsize, ierr, lproc
       integer(kind=4) :: itag = 51
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
       integer(kind=4), dimension(size(filemap_recv)) :: i_list, donelist
@@ -10371,7 +10369,8 @@ contains
          itag = 51 + ipf
          nreq  = nreq + 1
          i_list(nreq) = w
-         call MPI_IRecv( bbuf(:,:,w), lsize, ltype, filemap_recv(w), itag, lcomm, i_req(nreq), ierr )
+         lproc = filemap_recv(w)
+         call MPI_IRecv( bbuf(:,:,w), lsize, ltype, lproc, itag, lcomm, i_req(nreq), ierr )
       end do
       rreq = nreq
       
@@ -10384,7 +10383,8 @@ contains
          ipf = filemap_smod(w)
          itag = 51 + ipf
          nreq  = nreq + 1
-         call MPI_ISend( cbuf(:,:,ipf+1), lsize, ltype, filemap_send(w), itag, lcomm, i_req(nreq), ierr )  
+         lproc = filemap_send(w)
+         call MPI_ISend( cbuf(:,:,ipf+1), lsize, ltype, lproc, itag, lcomm, i_req(nreq), ierr )  
       end do
 
       ! Unpack incomming messages
@@ -10511,9 +10511,9 @@ contains
    
    end subroutine ccmpi_filewinfinalize_exit
    
-   subroutine ccmpi_filebounds_setup(comm)
+   subroutine ccmpi_filebounds_setup(comm_ip)
 
-      integer, intent(in) :: comm
+      integer, intent(in) :: comm_ip
       integer, dimension(:,:), allocatable, save :: dumi
       integer :: ipf, n, i, j, iq, ncount, ca, cb, no, ip
       integer :: filemaxbuflen, xlen
@@ -10527,9 +10527,9 @@ contains
 #endif
       logical, save :: fileallocate = .false.
      
-      if ( myid >= fnresid ) return
-
-      lcomm = comm
+      if ( myid>=fnresid ) return
+      
+      lcomm = comm_ip
       filemaxbuflen = 2*(pipan+pjpan+2)*pnpan*fncount
       maxvertlen = max( maxvertlen, pka_g, pko_g )
       
@@ -10704,7 +10704,7 @@ contains
       ncount = 0
       do jproc = 1,fnresid-1
          iproc = modulo(myid+jproc,fnresid)
-          if ( filebnds(iproc)%rlenx > 0 ) then
+         if ( filebnds(iproc)%rlenx > 0 ) then
             ncount = ncount + 1
             fileneighlist(ncount) = iproc
          end if
@@ -10808,24 +10808,25 @@ contains
       do jproc = 1,fileneighnum
          iproc = fileneighlist(jproc)
          xlen = maxvertlen*filebnds(iproc)%rlenx
-         if ( bnds(iproc)%rbuflen < xlen ) then
-            if ( allocated(bnds(iproc)%rbuf) ) then
-               deallocate( bnds(iproc)%rbuf )
-               deallocate( bnds(iproc)%r8buf )
+         lproc = iproc
+         if ( bnds(lproc)%rbuflen < xlen ) then
+            if ( allocated(bnds(lproc)%rbuf) ) then
+               deallocate( bnds(lproc)%rbuf )
+               deallocate( bnds(lproc)%r8buf )
             end if
-            allocate( bnds(iproc)%rbuf(xlen) )
-            allocate( bnds(iproc)%r8buf(xlen) )
-            bnds(iproc)%rbuflen = xlen
+            allocate( bnds(lproc)%rbuf(xlen) )
+            allocate( bnds(lproc)%r8buf(xlen) )
+            bnds(lproc)%rbuflen = xlen
          end if
          xlen = maxvertlen*filebnds(iproc)%slenx
-         if ( bnds(iproc)%sbuflen < xlen ) then
-            if ( allocated(bnds(iproc)%sbuf) ) then
-               deallocate( bnds(iproc)%sbuf )
-               deallocate( bnds(iproc)%s8buf )
+         if ( bnds(lproc)%sbuflen < xlen ) then
+            if ( allocated(bnds(lproc)%sbuf) ) then
+               deallocate( bnds(lproc)%sbuf )
+               deallocate( bnds(lproc)%s8buf )
             end if
-            allocate( bnds(iproc)%sbuf(xlen) )
-            allocate( bnds(iproc)%s8buf(xlen) )
-            bnds(iproc)%sbuflen = xlen
+            allocate( bnds(lproc)%sbuf(xlen) )
+            allocate( bnds(lproc)%s8buf(xlen) )
+            bnds(lproc)%sbuflen = xlen
          end if
       end do
       
@@ -10849,9 +10850,9 @@ contains
    
    end subroutine check_filebnds_alloc
 
-   subroutine ccmpi_filebounds_send2(sdat,comm,corner)
+   subroutine ccmpi_filebounds_send2(sdat,comm_ip,corner)
 
-      integer, intent(in) :: comm
+      integer, intent(in) :: comm_ip
       integer :: iproc, iq, send_len
       integer, dimension(fileneighnum) :: rslen, sslen
       integer(kind=4) :: llen, lproc, ierr, lcomm
@@ -10865,7 +10866,7 @@ contains
       logical, intent(in), optional :: corner
       logical :: extra
       
-      lcomm = comm
+      lcomm = comm_ip
       
       if ( present(corner) ) then
          extra = corner
@@ -10911,9 +10912,9 @@ contains
 
    end subroutine ccmpi_filebounds_send2
 
-   subroutine ccmpi_filebounds_recv2(sdat,comm,corner)
+   subroutine ccmpi_filebounds_recv2(sdat,comm_ip,corner)
 
-      integer, intent(in) :: comm
+      integer, intent(in) :: comm_ip
       integer :: myrlen, iproc, jproc, mproc, iq, rcount
       integer, dimension(fileneighnum) :: rslen
       integer(kind=4) :: lproc, ierr, ldone, sreq, lcomm
@@ -10922,7 +10923,7 @@ contains
       logical, intent(in), optional :: corner
       logical :: extra
 
-      lcomm = comm
+      lcomm = comm_ip
       
       if ( present(corner) ) then
          extra = corner
@@ -10977,9 +10978,9 @@ contains
 
    end subroutine ccmpi_filebounds_recv2
    
-   subroutine ccmpi_filebounds_send3(sdat,comm,corner)
+   subroutine ccmpi_filebounds_send3(sdat,comm_ip,corner)
 
-      integer, intent(in) :: comm
+      integer, intent(in) :: comm_ip
       integer :: iproc, iq, kx, send_len, k
       integer, dimension(fileneighnum) :: rslen, sslen
       integer(kind=4) :: llen, lproc, ierr, lcomm
@@ -10994,7 +10995,7 @@ contains
       logical :: extra
       
       kx = size(sdat,5)
-      lcomm = comm
+      lcomm = comm_ip
 
       if ( present(corner) ) then
          extra = corner
@@ -11029,8 +11030,9 @@ contains
             lproc = fileneighlist(iproc)  ! Send to
             do k = 1,kx
                do iq = 1,send_len
-                  bnds(lproc)%sbuf(iq+(k-1)*send_len) = sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),      &
-                                                             filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),k)
+                  bnds(lproc)%sbuf(iq+(k-1)*send_len) =                              &
+                     sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),    &
+                          filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),k)
                end do
             end do   
             nreq = nreq + 1
@@ -11110,135 +11112,6 @@ contains
       end if   
       
    end subroutine ccmpi_filebounds_recv3
-   
-   subroutine host_filegather2(a,ag,comm)
-      ! Collect global arrays.
-      integer, intent(in) :: comm
-      integer :: iproc, ipf, ip, n, j
-      integer :: ca, cb
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4),parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize, lcomm
-      real, dimension(pipan*pjpan*pnpan*fncount), intent(in) :: a
-      real, dimension(pil_g*pjl_g), intent(out) :: ag
-      real, dimension(pipan*pjpan*pnpan*fncount,0:fnresid-1) :: abuf
-
-      lsize = pipan*pjpan*pnpan*fncount
-      lcomm = comm
-      call START_LOG(gatherfile_begin)
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
-      call END_LOG(gatherfile_end)
-
-      ! map array in order of processor rank
-      do iproc = 0,fnresid-1
-         do ipf = 0,fncount-1
-            ip = iproc + ipf*fnresid
-            do n = 0,pnpan-1
-               do j = 1,pjpan
-                  ca = (j-1)*pipan + n*pipan*pjpan + ipf*pipan*pjpan*pnpan
-                  cb = pioff(ip,n) + (j+pjoff(ip,n)-1)*pil_g + (n-pnoff(ip)+1)*pil_g*pil_g
-                  ag(1+cb:pipan+cb) = abuf(1+ca:pipan+ca,iproc)
-               end do
-            end do
-         end do
-      end do   
-
-   end subroutine host_filegather2
-   
-   subroutine proc_filegather2(a,comm)
-      ! Collect global arrays.
-      integer, intent(in) :: comm
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4),parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize, lcomm
-      real, dimension(pipan*pjpan*pnpan*fncount), intent(in) :: a
-      real, dimension(1,1) :: abuf
-
-      if ( myid == 0 ) then
-         write(6,*) "Error: ccmpi_filegather argument is required on proc 0"
-         call ccmpi_abort(-1)
-      end if
-      
-      lsize = pipan*pjpan*pnpan*fncount
-      lcomm = comm
-      call START_LOG(gatherfile_begin)
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
-      call END_LOG(gatherfile_end)
-
-   end subroutine proc_filegather2
-
-   subroutine host_filegather3(a,ag,comm)
-      ! Collect global arrays.
-      integer, intent(in) :: comm
-      integer :: iproc, k, ipf, ip, n, j
-      integer :: kx, ca, cb
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4),parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize, lcomm
-      real, dimension(:,:), intent(in) :: a
-      real, dimension(:,:), intent(out) :: ag
-      real, dimension(size(a,1),size(a,2),0:fnresid-1) :: abuf
-
-      kx = size(a,2)
-      lsize = pipan*pjpan*pnpan*fncount*kx
-      lcomm = comm
-      call START_LOG(gatherfile_begin)
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
-      call END_LOG(gatherfile_end)
-
-      ! map array in order of processor rank
-      do iproc = 0,fnresid-1
-         do k = 1,kx 
-            do ipf = 0,fncount-1
-               ip = iproc + ipf*fnresid
-               do n = 0,pnpan-1
-                  do j = 1,pjpan
-                     ca = (j-1)*pipan + n*pipan*pjpan + ipf*pipan*pjpan*pnpan
-                     cb = pioff(ip,n) + (j+pjoff(ip,n)-1)*pil_g + (n-pnoff(ip)+1)*pil_g*pil_g
-                     ag(1+cb:pipan+cb,k) = abuf(1+ca:pipan+ca,k,iproc)
-                  end do   
-               end do
-            end do
-         end do
-      end do   
-
-   end subroutine host_filegather3
-   
-   subroutine proc_filegather3(a,comm)
-      ! Collect global arrays.
-      integer, intent(in) :: comm
-      integer :: kx
-#ifdef i8r8
-      integer(kind=4),parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4),parameter :: ltype = MPI_REAL
-#endif
-      integer(kind=4) :: ierr, lsize, lcomm
-      real, dimension(:,:), intent(in) :: a
-      real, dimension(1,1,1) :: abuf
-
-      if ( myid == 0 ) then
-         write(6,*) "Error: ccmpi_filegather argument is required on proc 0"
-         call ccmpi_abort(-1)
-      end if
-      
-      kx = size(a,2)
-      lsize = pipan*pjpan*pnpan*fncount*kx
-      lcomm = comm
-      call START_LOG(gatherfile_begin)
-      call MPI_Gather(a,lsize,ltype,abuf,lsize,ltype,0_4,lcomm,ierr)
-      call END_LOG(gatherfile_end)
-
-   end subroutine proc_filegather3
    
    subroutine host_filedistribute2(af,a1,comm)
       ! Convert standard 1D arrays to face form and distribute to processors

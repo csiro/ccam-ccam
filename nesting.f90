@@ -798,7 +798,8 @@ integer, intent(in) :: klt
 integer iq, iqg, k, n, j, kltp1
 real, dimension(ifull,klt), intent(out) :: tbb
 real, dimension(ifull_g,klt), intent(in) :: tt
-real, dimension(ifull_g) :: xa, ya, za, sm ! large working array
+real, dimension(ifull_g) :: sm        ! large working array
+real, dimension(ifull_g) :: xa, ya, za ! large working array
 real, dimension(klt+1) :: local_sum
 real, intent(in) :: cq
 real, dimension(ifull_g,klt+1) :: tt_l
@@ -810,12 +811,12 @@ real, dimension(ifull,klt+1) :: tbb_l
 call START_LOG(nestcalc_begin)
 
 kltp1 = klt + 1
-xa = real(x_g)
-ya = real(y_g)
-za = real(z_g)
 
 ! discrete normalisation factor
 sm = 1./em_g**2
+xa = real(x_g)
+ya = real(y_g)
+za = real(z_g)
 
 do k = 1,klt
   tt_l(:,k) = tt(:,k)*sm
@@ -1266,7 +1267,7 @@ real, dimension(il_g*ipan*(klt+1)*3) :: dd    ! subset of sparse array
 real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(il_g) :: at, asum             ! subset of sparse array
 real, dimension(klt+1) :: local_sum
-real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za         ! subset of shared array
+real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za ! subset of shared array
 real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l         ! subset of sparse array
 #ifdef GPU
 integer :: async_counter
@@ -2271,7 +2272,8 @@ integer, intent(in) :: kd
 integer iqq, iqqg, k, n, j, kdp1
 real, dimension(ifull_g,kd), intent(in) :: diff_g ! large common array
 real, dimension(ifull,kd), intent(out) :: dd
-real, dimension(ifull_g) :: xa, ya, za, sm
+real, dimension(ifull_g) :: sm
+real, dimension(ifull_g) :: xa, ya, za
 real, dimension(kd+1) :: local_sum
 real cq
 real, dimension(ifull_g,kd+1) :: diff_g_l ! large common array
@@ -3542,7 +3544,8 @@ integer i, ilen
 real, intent(in) :: cq
 real, dimension(:), intent(in) :: xa, ya, za
 real, dimension(:), intent(in) :: at
-real out_sum, ra
+real ra
+real out_sum, rb
 real at_t, e, t1, t2
 complex local_sum
 
@@ -3552,8 +3555,8 @@ local_sum = (0.,0.)
 do i = 1,ilen
   ra = xa(nn)*xa(i) + ya(nn)*ya(i) + za(nn)*za(i)
   ra = acos(max(min(ra, 1.), -1.))
-  ra = exp(-min((cq*ra)**2,50.))
-  at_t = ra*at(i)
+  rb = exp(-min((cq*ra)**2,40.))
+  at_t = rb*at(i)
   t1 = at_t + real(local_sum)
   e  = t1 - at_t
   t2 = ((real(local_sum) - e) + (at_t - (t1 - e))) + aimag(local_sum)
@@ -3579,22 +3582,36 @@ real, dimension(:), intent(in) :: xa, ya, za
 real, dimension(:,:), intent(in) :: at
 real, dimension(size(at,2)) :: at_k
 real, dimension(size(at,2)) :: out_sum
-real, dimension(size(xa)) :: ra
+real, dimension(size(xa)) :: rb
 real at_t, e, t1, t2
+#ifdef debug
+real(kind=8) ra
+#else
+real ra
+#endif
 complex, dimension(size(at,2)) :: local_sum
 
 ilen = size(xa)
 kx = size(at,2)
 
 local_sum(1:kx) = (0.,0.)
-ra(:) = xa(nn)*xa(:) + ya(nn)*ya(:) + za(nn)*za(:)
-ra(:) = acos(max(min(ra(:), 1.), -1.))
-ra(:) = exp(-min((cq*ra(:))**2,50.))
+do i = 1,ilen
+#ifdef debug
+  ra = real(xa(nn),8)*real(xa(i),8) + real(ya(nn),8)*real(ya(i),8) &
+     + real(za(nn),8)*real(za(i),8)
+  ra = acos(max(min(ra, 1._8), -1._8))
+  rb(i) = exp(-min((cq*real(ra))**2,50.))  
+#else
+  ra = xa(nn)*xa(i) + ya(nn)*ya(i) + za(nn)*za(i)
+  ra = acos(max(min(ra, 1.), -1.))
+  rb(i) = exp(-min((cq*ra)**2,50.))  
+#endif
+end do
 
 do i = 1,ilen
   at_k(:) = at(i,:)  
   do k = 1,kx
-    at_t = ra(i)*at_k(k)
+    at_t = rb(i)*at_k(k)
     t1 = at_t + real(local_sum(k))
     e  = t1 - at_t
     t2 = ((real(local_sum(k)) - e) + (at_t - (t1 - e))) + aimag(local_sum(k))

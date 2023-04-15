@@ -32,7 +32,7 @@ integer, save :: liqradmethod = 0     ! Method for calculating radius of liquid 
                                       !  3=Martin Mid/Ber,  4=Martin Low/Ber,  5=Martin High/Ber,
                                       !  6=Lin feedback)
 integer, save :: iceradmethod = 1     ! Method for calculating radius of ice droplets
-                                      ! (0=Lohmann, 1=Donner smooth, 2=Fu, 3=Donner orig,
+                                      ! (0=Lohmann, 5=Donner smooth, 2=Fu, 3=Donner orig,
                                       !  4=Lin feedback)
 
 real, parameter :: rhow = 1000.       ! Density of water (kg/m^3)
@@ -49,25 +49,20 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: imax, kl
-integer iq, k, kr
-integer, dimension(imax) :: tpos
+integer iq, k, tpos
 real, dimension(imax,kl), intent(in) :: cfrac, qlrad, qfrad, prf, ttg
 real, dimension(imax,kl), intent(in) :: cdrop
 real, dimension(imax,kl), intent(in), optional :: stras_rliq,stras_rice,stras_rsno
-real(kind=8), dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
-real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa
-real, dimension(imax,kl) :: eps, rk, Wice
-real, dimension(imax) :: basesize, tstore, tfrac
-real :: liqparm
+real, dimension(imax,kl), intent(out) :: Rdrop, Rice, conl, coni
+real, dimension(imax,kl) :: reffl, reffi, Wliq, rhoa, Wice
+real basesize, tstore, tfrac, eps, rk, liqparm
 ! parameters
 logical :: do_brenguier   ! Adjust effective radius for vertically stratified cloud
 real :: scale_factor      ! account for the plane-parallel homogenous cloud bias  (e.g. Cahalan effect)
 ! data
 ! MJT notes - add one extra index for overflow
 integer, parameter :: n_donner = 8
-real, dimension(n_donner+1), parameter :: temp_donner = &
-    (/ 215.66, 220.66, 225.66, 230.66, 235.66, 240.66, 245.66, 250.66, 250.66 /)
-real, dimension(n_donner+1), parameter :: deff_donner =  &
+real, dimension(n_donner+1), parameter :: rad_donner =  &
     (/   20.2,   21.6,   39.9,   42.5,   63.9,   93.5,   80.8,  100.6,  100.6 /)
 
 scale_factor = 1.
@@ -109,24 +104,28 @@ if ( liqradmethod<6 ) then
 
   ! Reffl is the effective radius calculated following
   ! Martin etal 1994, JAS 51, 1823-1842
-  where ( qlrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
-    Wliq(:,:) = rhoa(:,:)*qlrad(:,:)/cfrac(:,:) !kg/m^3
-    ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
-    eps(:,:) = 1. - 0.7*exp(liqparm*cdrop(:,:))
-    rk(:,:)  = (1.+eps(:,:)**2)/(1.+2.*eps(:,:)**2)**2
+  do k = 1,kl
+    do iq = 1,imax
+      if ( qlrad(iq,k)>1.E-8 .and. cfrac(iq,k)>1.E-4 ) then
+        Wliq(iq,k) = rhoa(iq,k)*qlrad(iq,k)/cfrac(iq,k) !kg/m^3
+        ! This is the Liu and Daum scheme for relative dispersion (Nature, 419, 580-581 and pers. comm.)
+        eps = 1. - 0.7*exp(liqparm*cdrop(iq,k))
+        rk  = (1.+eps**2)/(1.+2.*eps**2)**2
 
-    ! k_ratio = rk**(-1./3.)  
-    ! GFDL        k_ratio (land) 1.143 (water) 1.077
-    ! mid range   k_ratio (land) 1.393 (water) 1.203
-    ! lower bound k_ratio (land) 1.203 (water) 1.050
+        ! k_ratio = rk**(-1./3.)  
+        ! GFDL        k_ratio (land) 1.143 (water) 1.077
+        ! mid range   k_ratio (land) 1.393 (water) 1.203
+        ! lower bound k_ratio (land) 1.203 (water) 1.050
 
-    ! Martin et al 1994
-    reffl(:,:) = (3.*Wliq(:,:)/(4.*pi*rhow*rk(:,:)*cdrop(:,:)))**(1./3.)
-  elsewhere
-    reffl(:,:) = 0.
-    Wliq(:,:) = 0.
-  end where
-
+        ! Martin et al 1994
+        reffl(iq,k) = (3.*Wliq(iq,k)/(4.*pi*rhow*rk*cdrop(iq,k)))**(1./3.)
+      else
+        reffl(iq,k) = 0.
+        Wliq(iq,k) = 0.
+      end if
+    end do
+  end do
+  
 else if ( liqradmethod==6 ) then
 
   if ( .not.present(stras_rliq) ) then
@@ -182,35 +181,37 @@ select case(iceradmethod)
     !Lohmann et al.(1999)
     where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
       Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = 0.5*min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
+      reffi(:,:) = min(150.e-6, 3.73e-4*Wice(:,:)**0.216) 
     elsewhere
       Wice(:,:) = 0.
       reffi(:,:) = 0.
     end where
     
   case(1)
-    !Donner et al (1997)
+    !Donner et al (1997) - old version.  Replaced with iceradmeth=5
     ! linear interpolation by MJT
     do k = 1,kl
-      tstore(:) = (ttg(:,k) - temp_donner(1))/(temp_donner(2) - temp_donner(1)) + 1.
-      tstore(:) = min( max( tstore(:), 1. ), real(n_donner) )
-      tfrac(:) = tstore(:) - aint(tstore(:))
-      tpos(:) = int(tstore)
-      basesize(:) = (1.-tfrac(:))*deff_donner(tpos(:)) + tfrac(:)*deff_donner(tpos(:)+1)
-      where ( qfrad(:,k)>1.e-8 .and. cfrac(:,k)>1.e-4 )
-        Wice(:,k) = rhoa(:,k)*qfrad(:,k)/cfrac(:,k) ! kg/m**3
-        reffi(:,k) = 0.5e-6*basesize(:)
-      elsewhere
-        Wice(:,k) = 0.
-        reffi(:,k) = 0.
-      end where
+      do iq = 1,imax
+        tstore = (ttg(iq,k) - 215.66)/5. + 1.
+        tstore = min( max( tstore, 1. ), real(n_donner) )
+        tfrac = tstore - aint(tstore)
+        tpos = int(tstore)
+        basesize = (1.-tfrac)*rad_donner(tpos) + tfrac*rad_donner(tpos+1)
+        if ( qfrad(iq,k)>1.e-8 .and. cfrac(iq,k)>1.e-4 ) then
+          Wice(iq,k) = rhoa(iq,k)*qfrad(iq,k)/cfrac(iq,k) ! kg/m**3
+          reffi(iq,k) = 0.5e-6*basesize
+        else
+          Wice(iq,k) = 0.
+          reffi(iq,k) = 0.
+        end if
+      end do
     end do  
    
   case(2)
     ! Fu 2007
     where ( qfrad(:,:)>1.E-8 .and. cfrac(:,:)>1.E-4 )
       Wice(:,:) = rhoa(:,:)*qfrad(:,:)/cfrac(:,:) !kg/m**3
-      reffi(:,:) = 0.5E-6*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
+      reffi(:,:) = 1.E-6*(47.05+0.6624*(ttg(:,:)-273.16)+0.001741*(ttg(:,:)-273.16)**2)
     elsewhere
       Wice(:,:) = 0.
       reffi(:,:) = 0.
@@ -222,21 +223,21 @@ select case(iceradmethod)
         if ( qfrad(iq,k)>1.E-8 .and. cfrac(iq,k)>1.E-4 ) then
           Wice(iq,k) = rhoa(iq,k)*qfrad(iq,k)/cfrac(iq,k) ! kg/m**3
           if ( ttg(iq,k)>248.16 ) then
-            reffi(iq,k) = 0.5E-6*100.6
+            reffi(iq,k) = 1.E-6*100.6
           elseif ( ttg(iq,k)>243.16 ) then
-            reffi(iq,k) = 0.5E-6*80.8
+            reffi(iq,k) = 1.E-6*80.8
           elseif ( ttg(iq,k)>238.16 ) then
-            reffi(iq,k) = 0.5E-6*93.5
+            reffi(iq,k) = 1.E-6*93.5
           elseif ( ttg(iq,k)>233.16 ) then
-            reffi(iq,k) = 0.5E-6*63.9
+            reffi(iq,k) = 1.E-6*63.9
           elseif ( ttg(iq,k)>228.16 ) then
-            reffi(iq,k) = 0.5E-6*42.5
+            reffi(iq,k) = 1.E-6*42.5
           elseif ( ttg(iq,k)>223.16 ) then
-            reffi(iq,k) = 0.5E-6*39.9
+            reffi(iq,k) = 1.E-6*39.9
           elseif ( ttg(iq,k)>218.16 ) then
-            reffi(iq,k) = 0.5E-6*21.6
+            reffi(iq,k) = 1.E-6*21.6
           else
-            reffi(iq,k) = 0.5E-6*20.2
+            reffi(iq,k) = 1.E-6*20.2
           end if
         else
           reffi(iq,k) = 0.
@@ -257,25 +258,39 @@ select case(iceradmethod)
     end where
     reffi(:,:) = stras_rice(:,:)
 
+  case(5)
+    !Donner et al (1997)
+    ! linear interpolation by MJT
+    do k = 1,kl
+      do iq = 1,imax
+        tstore = (ttg(iq,k) - 215.66)/5. + 1.
+        tstore = min( max( tstore, 1. ), real(n_donner) )
+        tfrac = tstore - aint(tstore)
+        tpos = int(tstore)
+        basesize = (1.-tfrac)*rad_donner(tpos) + tfrac*rad_donner(tpos+1)
+        if ( qfrad(iq,k)>1.e-8 .and. cfrac(iq,k)>1.e-4 ) then
+          Wice(iq,k) = rhoa(iq,k)*qfrad(iq,k)/cfrac(iq,k) ! kg/m**3
+          reffi(iq,k) = 1.e-6*basesize
+        else
+          Wice(iq,k) = 0.
+          reffi(iq,k) = 0.
+        end if
+      end do
+    end do  
+    
   case default
     write(6,*) "ERROR: Invalid option iceradmethod ",iceradmethod
     stop
 
 end select 
   
-  
 do k = 1,kl
-  kr = kl + 1 - k
-  Rdrop(:,kr) = real(1.E6*reffl(:,k), 8) ! convert to microns
-  Rice(:,kr)  = real(1.E6*reffi(:,k), 8)
-  conl(:,kr)  = real(1000.*scale_factor*Wliq(:,k), 8) !g/m^3
-  coni(:,kr)  = real(1000.*scale_factor*Wice(:,k), 8)
+  Rdrop(:,k) = min(max(reffl(:,k), 4.2E-6_8), 16.6E-6_8) ! constrain size to acceptable range (see microphys_rad.f90)
+  Rice(:,k)  = min(max(reffi(:,k), 9.3E-6_8), 130.2E-6_8)
+  conl(:,k)  = scale_factor*Wliq(:,k) !kg/m^3
+  coni(:,k)  = scale_factor*Wice(:,k)
 end do
 
-!Rdrop(:,:) = min(max(Rdrop(:,:), 4.2_8), 16.6_8)   ! GFDL cloud_rad.f90
-!Rice(:,:) = min(max(Rice(:,:), 9.3_8), 65.1_8)     ! GFDL cloud_rad.f90
-Rdrop(:,:) = min(max(Rdrop(:,:), 4.2_8), 16.6_8)
-Rice(:,:) = min(max(Rice(:,:), 9.3_8), 65.1_8)
 
 return
 end subroutine cloud3

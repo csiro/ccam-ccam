@@ -211,6 +211,11 @@ if ( mspec==1 .and. mup/=0 ) then
     call bounds(qlg,nrows=2)
     call bounds(qfg,nrows=2)
     call bounds(stratcloud,nrows=2)
+    if ( ncloud>=100 .and. ncloud<200 ) then
+      !call bounds(nr,nrows=2)  
+      call bounds(ni,nrows=2) ! only advect ql and qf for now
+      !call bounds(ns,nrows=2)
+    end if    
   else
     call bounds(qg,nrows=2)
   end if    ! ldr/=0
@@ -373,7 +378,9 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
     if ( ncloud>=100 .and. ncloud<200 ) then
-      call ints(ni,1,intsch,nface,xg,yg,4)
+      !call ints(nr,1,intsch,nface,xg,yg,4)
+      call ints(nr,1,intsch,nface,xg,yg,4) !only advect ql and qf
+      !call ints(nr,1,intsch,nface,xg,yg,4)
     end if
   else
     call ints(qg,1,intsch,nface,xg,yg,3)

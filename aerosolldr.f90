@@ -307,8 +307,9 @@ do tile = 1,ntiles
   lttg = ttg(js:je,:)
   
   lerod = erod(js:je,:)
+  lduste = duste(js:je,1:ndust)
   ! Calculate integrated column dust loading before settling and deposition
-  oldduste(:,1:ndust) = duste(js:je,1:ndust) ! duste is cumulative dust emissions
+  oldduste(:,1:ndust) = lduste(:,1:ndust) ! duste is cumulative dust emissions
   dcola(:,1:ndust) = 0.
   do nt = 1,ndust
     do k = 1,kl
@@ -1100,7 +1101,7 @@ real zhil,zexp,zm,zdms,t,ztk1,zqt,zqt3
 real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx12
 real zkno2no3,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
-
+real dum
 
 !    REACTION RATE SO2-OH
 real, parameter :: ZK2I=2.0E-12
@@ -1618,12 +1619,12 @@ do jk = 1,kl
       ZTK2=ZK2*(PTP1(JL,JK)/300.)**(-3.3)
       ZM=X*ZNAMAIR
       ZHIL=ZTK2*ZM/ZK2I
-      ZEXP=ALOG10(ZHIL)
+      ZEXP=LOG10(ZHIL)
       ZEXP=1./(1.+ZEXP*ZEXP)
       ZTK23B=ZTK2*ZM/(1.+ZHIL)*ZK2F**ZEXP
       ZSO2=ZXTP1SO2*ZZOH(JL,JK)*ZTK23B*ZDAYFAC(jl)
-      ZSO2=AMIN1(ZSO2,ZXTP1SO2*PQTMST)
-      ZSO2=AMAX1(ZSO2,0.)
+      ZSO2=MIN(ZSO2,ZXTP1SO2*PQTMST)
+      ZSO2=MAX(ZSO2,0.)
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)-ZSO2
       XTE(JL,JK,ITRACSO4)=XTE(JL,JK,ITRACSO4)+ZSO2
       so2oh3d(jl,jk)=zso2
@@ -1639,7 +1640,7 @@ do jk = 1,kl
       ztk1=2.*ztk1          !This is the fudge factor to account for other oxidants
       !ztk1=1.5*ztk1        !This is the fudge factor to account for other oxidants
       ZDMS=ZXTP1DMS*ZZOH(JL,JK)*ZTK1*ZDAYFAC(jl)
-      ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
+      ZDMS=MIN(ZDMS,ZXTP1DMS*PQTMST)
       XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
       dmsoh3d(jl,jk)=zdms
@@ -1657,10 +1658,17 @@ do jk = 1,kl
       ZRX1=2.2E-30*ZQT3**3.9*ZRHOAIR
       !ZRX2=1.5E-12*ZQT3**0.7
       ZRX12=1.467e-18*ZQT3**3.2*ZRHOAIR !=ZRX1/ZRX2
-      ZKNO2NO3=ZRX1/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
+      dum=1./(1.+ZRX12)*0.6**(1./(1.+(LOG10(ZRX12))**2))
+      ZKNO2NO3=ZRX1*dum
       !ZEQN2O5=4.E-27*EXP(10930.*ZQT)
       !ZKN2O5=ZKNO2NO3/ZEQN2O5
-      ZKN2O5=5.5E-4*ZQT3**3.9*ZRHOAIR*EXP(-10930.*ZQT)/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
+#ifdef debug      
+      ZKN2O5=real( 5.5E-4_8*real(ZQT3,8)**3.9_8 &
+                   *EXP(-10930._8*real(ZQT,8))  &
+                   *real(dum,8)*real(ZRHOAIR,8) )
+#else
+      ZKN2O5=5.5E-4_8*ZQT3**3.9_8*EXP(-10930._8*ZQT)*dum*ZRHOAIR
+#endif
 
       ZNO3=ZKNO2O3*(ZKN2O5+ZKN2O5AQ)*ZZNO2(JL,JK)*ZZO3(JL,JK)
       ZZQ=ZKNO2NO3*ZKN2O5AQ*ZZNO2(JL,JK)+(ZKN2O5+ZKN2O5AQ)*ZTK3*ZXTP1DMS*X*6.022E+20/ZMOLGS
@@ -1670,7 +1678,7 @@ do jk = 1,kl
         ZNO3=0.
       ENDIF
       ZDMS=ZXTP1DMS*ZNO3*ZTK3
-      ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
+      ZDMS=MIN(ZDMS,ZXTP1DMS*PQTMST)
       XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
       dmsn33d(jl,jk)=zdms
@@ -1779,25 +1787,17 @@ integer, parameter :: ktop = 2    !Top level for wet deposition (counting from t
 logical, parameter :: assume_convliq = .true. ! assume convective rainfall is liquid
 
 !Below-cloud collection eff. for rain
-!real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40,0.05,0.10/)
-real, dimension(naero) :: zcollefr
+real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40,0.05,0.10/)
 !Below-cloud collection eff. for snow
-!real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08,0.01,0.02/)
-real, dimension(naero) :: zcollefs
+real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08,0.01,0.02/)
 !Retention coeff. on riming
-real, dimension(naero) :: Rcoeff
+real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00/)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
-real, dimension(naero) :: Ecols
-! wet deposition coefficients
-!!Relative re-evaporation rate
-!real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
+real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/)
+!Relative re-evaporation rate
+real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
 
 ! Start code : ----------------------------------------------------------
-
-zcollefr = (/0.10,0.10,0.10,0.10,0.10,0.10,0.10,0.05,0.10,0.20,0.40,0.05,0.10/)
-zcollefs = (/0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.02,0.04,0.08,0.01,0.02/)
-Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00/)
-Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/)
 
 PQTMST = 1./PTMST
 
@@ -1961,7 +1961,7 @@ do JK = KTOP,kl
         !zstay_t = (pfevap(i,jk)+pfstayliq(i,jk))/pfprec(i,jk)  
         zstay_t = pfevap(i,jk)/pfprec(i,jk) ! MJT suggestion
         zstay_t = max( min( 1., zstay_t ), 0. )
-        xstay = max( zdepr(i,ktrac)*zstay_t/zmtof, 0. )
+        xstay = max( zdepr(i,ktrac)*zstay_t*evfac(ktrac)/zmtof, 0. )
         !limit sublimation to prevent crash - MJT suggestion
         xstay = max( min( xstay, 6.e-6/(1.-pclcover(i,jk)-pclcon(i,jk)) - pxtp10(i,jk,ktrac) ), 0. )
         pdep = pdep - xstay*zclr0
@@ -2225,7 +2225,7 @@ do n = 1, ndust
       
     ! Calculate turbulent dry deposition at surface
     ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-    veff = max( Vt(iq)*(wg(iq)+(1.-wg(iq))*exp(-max( 0., w10m(iq)-u_ts0 ))), 0. )
+    veff = max( Vt(iq)*(wg(iq)+(1.-wg(iq))*exp(-min(max( 0., w10m(iq)-u_ts0 ),40.))), 0. )
     b = Veff / dz1(iq)
 
     ! Update mixing ratio

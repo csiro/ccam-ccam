@@ -53,7 +53,7 @@ integer, parameter, dimension(0:5) :: npans_g = (/ 104, 0, 100, 2, 102, 4 /)
 integer, parameter, dimension(0:5) :: npane_g = (/ 102, 2, 104, 4, 100, 0 /)
 integer, parameter, dimension(0:5) :: npanw_g = (/ 5, 105, 1, 101, 3, 103 /)
 
-!$acc declare create(in,is,ie,iw)
+!$acc declare create(in,is,ie,iw,ien,ies,ine,inw)
 !$acc declare create(iwu,isv)
 
 contains

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,7 +30,6 @@ public gdrag_init,gdrag_sbl,gdrag_end,gwdrag
 real, dimension(:), allocatable, save :: helo
 real, dimension(:), allocatable, save :: he
 integer, save :: kbot_gwd
-
 #ifdef GPUPHYSICS
 !$acc declare create(kbot_gwd)
 #endif
@@ -68,11 +67,10 @@ if ( sigbot_gwd>=.5 ) then
   kbot_gwd = kpos(1) ! JLM
 end if
 if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot_gwd
-! MJT notes - he defined in indata.f90 before calling gdrag_sbl
-
 #ifdef GPUPHYSICS
 !$acc update device(kbot_gwd)
 #endif
+! MJT notes - he defined in indata.f90 before calling gdrag_sbl
 
 return
 end subroutine gdrag_sbl
@@ -108,7 +106,8 @@ logical mydiag_t
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop copy(u,v) copyin(t,tss,he)  &
+!$acc parallel loop copyin(tss,he)              &
+!$acc   present(t,u,v)                          &
 !$acc   private(lt,lu,lv,js,je,idjd_t,mydiag_t)
 #endif
 do tile = 1,ntiles

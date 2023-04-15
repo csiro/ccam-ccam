@@ -378,9 +378,9 @@ else if ( lapsbot==3 ) then ! possibly suits nh
   bet(1) = -rdry*log(sig(1))
 endif
 
-do k = 1,kl
-  sigkap(k) = sig(k)**(-rdry/cp)
-end do
+!do k = 1,kl
+!  sigkap(k) = sig(k)**(-rdry/cp)
+!end do
 
 ! Calculate eigenvectors
 if ( myid==0 ) then

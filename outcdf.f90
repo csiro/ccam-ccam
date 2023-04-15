@@ -214,14 +214,13 @@ integer, dimension(2) :: dimpx, dimpy
 integer, dimension(1) :: dimpg
 integer, dimension(6) :: idc ! 1=idcp, 2=idc2p, 3=idc91p, 4=idc31p, 5=idc20y, 6=idc5d
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgpnode, idgpoff
-integer tlen
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3, nalways_mspeca, ndo_co2_10um, ndo_quench
 integer nremain_rayleigh_bug, nuse_rad_year
 integer, save :: idnc_hist=0, iarch_hist=0
-integer :: idnc, iarch
+integer idnc, iarch, tlen
 real, dimension(:), intent(in) :: psl_in
 real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
 real, dimension(nrhead) :: ahead
@@ -649,6 +648,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ol',ol)
     call ccnf_put_attg(idnc,'panfg',panfg)
     call ccnf_put_attg(idnc,'panzo',panzo)
+    call ccnf_put_attg(idnc,'pil_single',pil_single)
     call ccnf_put_attg(idnc,'precon',precon)
     call ccnf_put_attg(idnc,'qg_fix',qg_fix)
     call ccnf_put_attg(idnc,'rescrn',rescrn)
@@ -933,6 +933,23 @@ call openhist(iarch,itype,iout,dima,dimo,dimc,                              &
               idc,psl_in,u_in,v_in,t_in,q_in)
 
 
+! flush output buffers
+if ( synchist ) then
+  if ( myid==0 .or. local ) then
+    call ccnf_sync(idnc)
+  end if
+end if
+
+if ( myid==0 ) then
+  if ( iout==19 ) then  
+    write(6,*) "finished writing to restart" 
+  else if ( iout==20 ) then  
+    write(6,*) "finished writing to ofile"  
+  else
+    write(6,*) "finished writing to ensemble"
+  end if  
+end if
+
 ! close netcdf file if required
 if ( myid==0 .or. local ) then
   if ( ktau==ntau .or. itype==-1 ) then
@@ -946,8 +963,8 @@ if ( myid==0 .or. local ) then
       end if  
     end if
     call ccnf_close(idnc)
-  endif
-endif    ! (myid==0.or.local)
+  end if
+end if    ! (myid==0.or.local)
 
 
 ! save history data for next call to cdfout
@@ -1051,10 +1068,10 @@ implicit none
 include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
-integer, intent(in) :: iarch, itype, iout
+integer, intent(in) :: iarch, itype, iout, idnc
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
-integer idv, iq, j, k, n, igas, idnc
+integer idv, iq, j, k, n, igas
 integer idum, cptype, ifrac
 integer, dimension(6), intent(in) :: idc
 integer, dimension(5), intent(in) :: dima, dimo
@@ -1872,7 +1889,7 @@ if( myid==0 .or. local ) then
       lname = 'Minimum urban screen temperature'
       call attrib(idnc,dimj,4,'urbantasmin',lname,'K',100.,425.,1,cptype)
       lname = 'Skin temperature'
-      call attrib(idnc,dimj,4,'tasskin',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'tsskin',lname,'K',100.,425.,1,cptype)
       lname = 'Surface temperature pavements'
       call attrib(idnc,dimj,4,'tspav',lname,'K',100.,425.,1,cptype)
       lname = 'Surface temperature roof'
@@ -3229,7 +3246,7 @@ if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
   end where
   call histwrt(aa,'urbantasmin',idnc,iarch,local,lday)
   ! URB-RCC variables
-  call histwrt(urban_ts,'tasskin',idnc,iarch,local,.true.)
+  call histwrt(urban_ts,'tsskin',idnc,iarch,local,.true.)
   ! anthroheat from anth_ave
   aa = 999.
   call atebavetemp(aa,"roadtemp1",0)  
@@ -3849,23 +3866,6 @@ endif  ! (itype==-1)
 if ( nsib==6 .or. nsib==7 ) then
   call savetile(idnc,local,iarch,itype)
 end if
-  
-! flush output buffers
-if ( synchist ) then
-  if ( myid==0 .or. local ) then
-    call ccnf_sync(idnc)
-  end if
-end if
-
-if ( myid==0 ) then
-  if ( iout==19 ) then  
-    write(6,*) "finished writing to restart" 
-  else if ( iout==20 ) then  
-    write(6,*) "finished writing to ofile"  
-  else
-    write(6,*) "finished writing to ensemble"
-  end if  
-end if
 
 return
 end subroutine openhist
@@ -3925,7 +3925,7 @@ integer, dimension(1) :: gpdim
 integer, dimension(5) :: outdim
 integer, dimension(1) :: msdim
 integer idms,js,je,tile
-integer ixp,iyp,izp,tlen
+integer ixp,iyp,izp,tlencd
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,k,n,iq,fiarch
 integer idnp, idgpn, idgpo
@@ -4035,8 +4035,8 @@ if ( first ) then
         gpdim(1)=0
       end if
     end if
-    tlen = ntau/tbave
-    call ccnf_def_dim(fncid,'time',tlen,adim(5))  
+    tlencd = ntau/tbave
+    call ccnf_def_dim(fncid,'time',tlencd,adim(5))  
     ! Define coords.
     if ( local ) then
       outdim(1) = adim(1)
@@ -4961,7 +4961,7 @@ if ( mod(ktau,tbave)==0 ) then
   if ( cordex_tier1 ) then
     do k = 1,ms
       call cordex_name(vname,"tgg",k)  
-      call histwrt(outdata,vname,fncid,fiarch,local,l6hr)
+      call histwrt(tgg(:,k),vname,fncid,fiarch,local,l6hr)
       outdata = wb(:,k)*zse(k)*1000.  
       call cordex_name(vname,"mrsol",k)  
       call histwrt(outdata,vname,fncid,fiarch,local,l6hr)
@@ -5054,11 +5054,11 @@ integer, dimension(5) :: adim
 integer, dimension(4) :: sdim
 integer, dimension(1) :: gpdim
 integer, dimension(5) :: outdim
-integer ixp,iyp,izp,tlen
+integer ixp,iyp,izp
 integer icy,icm,icd,ich,icmi,ics
 integer i,j,n,fiarch
 integer idnp, idgpn, idgpo
-integer press_level
+integer press_level, tlenhf
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -5123,8 +5123,8 @@ if ( first ) then
         gpdim(1)=0
       end if
     end if
-    tlen = ntau/tbave10
-    call ccnf_def_dim(fncid,'time',tlen,adim(5))  
+    tlenhf = ntau/tbave10
+    call ccnf_def_dim(fncid,'time',tlenhf,adim(5))  
     ! Define coords.
     if ( local ) then
       outdim(1) = adim(1)

@@ -693,7 +693,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    t(js:je,1:kl) = t(js:je,1:kl) - dt*(sw_tend(js:je,1:kl)+lw_tend(js:je,1:kl))
+    do k = 1,kl
+      t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
+    end do
     call nantest("after radiation",js,je,"radiation")    
   end do
   !$omp end do nowait
@@ -1505,7 +1507,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
     atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
     always_mspeca,ntvd,tbave10,                                   &
-    procmode,compression,hp_output,                               & ! file io
+    procmode,compression,hp_output,pil_single,                    & ! file io
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
@@ -1666,7 +1668,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(118) ) 
+allocate( dumr(33), dumi(119) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1822,6 +1824,7 @@ if ( myid==0 ) then
   dumi(116) = tbave10  
   dumi(117) = async_length
   dumi(118) = nagg
+  dumi(119) = pil_single
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1976,6 +1979,7 @@ ntvd              = dumi(115)
 tbave10           = dumi(116)
 async_length      = dumi(117)
 nagg              = dumi(118)
+pil_single        = dumi(119)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2897,6 +2901,65 @@ call ccmpi_remap
 
 
 !--------------------------------------------------------------
+! PARAMETER TESTS
+
+if ( nllp==0 .and. nextout>=4 ) then
+  write(6,*) 'need nllp=3 for nextout>=4'
+  call ccmpi_abort(-1)
+end if
+if ( newtop>2 ) then
+  write(6,*) 'newtop>2 no longer allowed'
+  call ccmpi_abort(-1)
+end if
+if ( mfix_qg>0 .and. nkuo==4 ) then
+  write(6,*) 'nkuo=4: mfix_qg>0 not allowed'
+  call ccmpi_abort(-1)
+end if
+nstagin  = nstag    ! -ve nstagin gives swapping & its frequency
+nstaguin = nstagu   ! only the sign of nstaguin matters (chooses scheme)
+if ( nstagin==5 .or. nstagin<0 ) then
+  nstag  = 4
+  nstagu = 4
+  if ( nstagin==5 ) then  ! for backward compatability
+    nstagin  = -1 
+    nstaguin = 5  
+  endif
+endif
+if ( surfile /= ' ' ) then
+  if ( tbave<=0 ) then
+    write(6,*) "ERROR: tbave must be greater than zero"
+    write(6,*) "tbave ",tbave
+    call ccmpi_abort(-1)  
+  end if
+  if ( mod(ntau, tbave)/=0 ) then
+    write(6,*) "ERROR: tave must be a factor of ntau"
+    write(6,*) "ntau,tbave ",ntau,tbave
+    call ccmpi_abort(-1)
+  end if
+end if
+if ( freqfile /= ' ' ) then
+  if ( tbave10<=0 ) then
+    write(6,*) "ERROR: tbave10 must be greater than zero"
+    write(6,*) "tbave10 ",tbave10
+    call ccmpi_abort(-1)  
+  end if
+  if ( mod(ntau, tbave10)/=0 ) then
+    write(6,*) "ERROR: tave must be a factor of ntau"
+    write(6,*) "ntau,tbave10 ",ntau,tbave10
+    call ccmpi_abort(-1)
+  end if
+end if
+
+
+!--------------------------------------------------------------
+! SHARED MEMORY AND FILE IO CONFIGURATION
+
+! This is the procformat IO system where a single output file is
+! written per (virtual) node
+call ccmpi_procformat_init(procmode) 
+
+
+!--------------------------------------------------------------
 ! DISPLAY NAMELIST
 
 if ( myid==0 ) then   
@@ -3021,59 +3084,6 @@ if ( myid==0 ) then
   write(6, landnml)
   write(6, mlonml)
 end if ! myid=0
-if ( nllp==0 .and. nextout>=4 ) then
-  write(6,*) 'need nllp=3 for nextout>=4'
-  call ccmpi_abort(-1)
-end if
-if ( newtop>2 ) then
-  write(6,*) 'newtop>2 no longer allowed'
-  call ccmpi_abort(-1)
-end if
-if ( mfix_qg>0 .and. nkuo==4 ) then
-  write(6,*) 'nkuo=4: mfix_qg>0 not allowed'
-  call ccmpi_abort(-1)
-end if
-nstagin  = nstag    ! -ve nstagin gives swapping & its frequency
-nstaguin = nstagu   ! only the sign of nstaguin matters (chooses scheme)
-if ( nstagin==5 .or. nstagin<0 ) then
-  nstag  = 4
-  nstagu = 4
-  if ( nstagin==5 ) then  ! for backward compatability
-    nstagin  = -1 
-    nstaguin = 5  
-  endif
-endif
-if ( surfile /= ' ' ) then
-  if ( tbave<=0 ) then
-    write(6,*) "ERROR: tbave must be greater than zero"
-    write(6,*) "tbave ",tbave
-    call ccmpi_abort(-1)  
-  end if
-  if ( mod(ntau, tbave)/=0 ) then
-    write(6,*) "ERROR: tave must be a factor of ntau"
-    write(6,*) "ntau,tbave ",ntau,tbave
-    call ccmpi_abort(-1)
-  end if
-end if
-if ( freqfile /= ' ' ) then
-  if ( tbave10<=0 ) then
-    write(6,*) "ERROR: tbave10 must be greater than zero"
-    write(6,*) "tbave10 ",tbave10
-    call ccmpi_abort(-1)  
-  end if
-  if ( mod(ntau, tbave10)/=0 ) then
-    write(6,*) "ERROR: tave must be a factor of ntau"
-    write(6,*) "ntau,tbave10 ",ntau,tbave10
-    call ccmpi_abort(-1)
-  end if
-end if
-
-!--------------------------------------------------------------
-! SHARED MEMORY AND FILE IO CONFIGURATION
-
-! This is the procformat IO system where a single output file is
-! written per (virtual) node
-call ccmpi_procformat_init(procmode) 
 
 
 !--------------------------------------------------------------
@@ -3145,7 +3155,7 @@ end if
 call ccmpi_setup(id,jd,idjd,dt)
 
 !$acc update device(ds)
-!$acc update device(in,is,ie,iw)
+!$acc update device(in,is,ie,iw,ien,ies,ine,inw)
 !$acc update device(iwu,isv)
 
 !--------------------------------------------------------------
@@ -4640,7 +4650,7 @@ if ( t_check ) then
     write(6,*) "ERROR: NaN detected in t on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
-  if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>425.) ) then
+  if ( any(t(js:je,1:kl)<75.) .or. any(t(js:je,1:kl)>450.) ) then
     write(6,*) "ERROR: Out-of-range detected in t on myid=",myid," at ",trim(message)
     write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
     posmin = minloc(t(js:je,1:kl))

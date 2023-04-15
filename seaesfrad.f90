@@ -149,7 +149,7 @@ use estab                                           ! Liquid saturation function
 use infile                                          ! Input file routines
 use latlong_m                                       ! Lat/lon coordinates
 use liqwpar_m, only : stras_rliq,stras_rice, &      ! Cloud water mixing ratios
-      stras_rsno
+      stras_cliq, stras_cice
 use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
 use module_aux_rad                                  ! Additional cloud and radiation routines
 use newmpar_m                                       ! Grid parameters
@@ -175,7 +175,6 @@ integer i, iq, istart, iend, kr, nr, iq_tile
 integer ktop, kbot, mythread
 real, dimension(imax,kl) :: duo3n, rhoa
 real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
-real, dimension(imax,kl) :: dum_stras_rliq, dum_stras_rice, dum_stras_rsno
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
@@ -415,12 +414,11 @@ do iq_tile = 1,ifull,imax
         
 #ifdef debug
         if ( any( Aerosol(mythread)%aerosol>2.e-4 ) ) then
-          write(6,*) "WARN: seaesf detects high aerosol concentrations "
+          write(6,*) "WARN: seaesf detects high aerosol concentration"
           write(6,*) "xtg,maxloc ",maxval(Aerosol(mythread)%aerosol),maxloc(Aerosol(mythread)%aerosol)
         end if  
 #endif
         Aerosol(mythread)%aerosol=min(max(Aerosol(mythread)%aerosol, 0._8), 2.e-4_8)
-        Aerosol(mythread)%aerosol=max(Aerosol(mythread)%aerosol, 0._8)
         
         !if ( Rad_control%using_im_bcsul ) then
         !  Aerosol_props(mythread)%ivol(:,1,:) = 100-nint(100.*Aerosol(mythread)%aerosol(:,1,:,1)/ &
@@ -568,25 +566,18 @@ do iq_tile = 1,ifull,imax
     end do  
 
     ! cloud microphysics for radiation
-    ! cfrac, qlrad and qfrad also include convective cloud as well as qfg and qlg
-    dumcf = cfrac(istart:iend,:)
-    dumql = qlrad(istart:iend,:)
-    dumqf = qfrad(istart:iend,:)
-    dum_stras_rliq = stras_rliq(istart:iend,:)
-    dum_stras_rice = stras_rice(istart:iend,:)
-    dum_stras_rsno = stras_rsno(istart:iend,:)
-    call cloud3(Cloud_microphysics(mythread)%size_drop,Cloud_microphysics(mythread)%size_ice,       &
-                Cloud_microphysics(mythread)%conc_drop,Cloud_microphysics(mythread)%conc_ice,       &
-                dumcf,dumql,dumqf,p2,dumt,cd2,imax,kl,                                              &
-                stras_rliq=dum_stras_rliq,stras_rice=dum_stras_rice,stras_rsno=dum_stras_rsno)
-    ! convert to diameter
-    Cloud_microphysics(mythread)%size_drop = max(2.*Cloud_microphysics(mythread)%size_drop, 1.e-20_8)
-    Cloud_microphysics(mythread)%size_ice  = max(2.*Cloud_microphysics(mythread)%size_ice,  1.e-20_8)                
-    Cloud_microphysics(mythread)%size_rain = 1.e-20_8
-    Cloud_microphysics(mythread)%conc_rain = 0._8
-    Cloud_microphysics(mythread)%size_snow = 1.e-20_8
-    Cloud_microphysics(mythread)%conc_snow = 0._8
-    
+    do k = 1,kl
+      kr = kl + 1 - k
+      Cloud_microphysics(mythread)%size_drop(:,1,kr) = max(2.E6_8*real(stras_rliq(istart:iend,k),8), 1.e-20_8)
+      Cloud_microphysics(mythread)%size_ice(:,1,kr)  = max(2.E6_8*real(stras_rice(istart:iend,k),8), 1.e-20_8)
+      Cloud_microphysics(mythread)%conc_drop(:,1,kr) = 1.E3_8*real(stras_cliq(istart:iend,k),8)
+      Cloud_microphysics(mythread)%conc_ice(:,1,kr)  = 1.E3_8*real(stras_cice(istart:iend,k),8)
+      Cloud_microphysics(mythread)%size_rain(:,1,kr) = 1.e-20_8
+      Cloud_microphysics(mythread)%conc_rain(:,1,kr) = 0._8
+      Cloud_microphysics(mythread)%size_snow(:,1,kr) = 1.e-20_8
+      Cloud_microphysics(mythread)%conc_snow(:,1,kr) = 0._8
+    end do
+   
     Lscrad_props(mythread)%cldext   = 0._8
     Lscrad_props(mythread)%cldsct   = 0._8
     Lscrad_props(mythread)%cldasymm = 1._8
@@ -1250,13 +1241,6 @@ call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
 fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
-
-
-! Define radiative forcing date
-if ( use_rad_year ) then
-  jyear = rad_year
-end if
-
 
 ! initialise co2
 call co2_read(sig,jyear,csolar)

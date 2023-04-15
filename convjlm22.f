@@ -259,8 +259,8 @@
 
       include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
-      integer tile, js, je
-      integer idjd_t
+      integer :: tile, js, je
+      integer :: idjd_t
       real, dimension(imax,kl,naero) :: lxtg
       real, dimension(imax,kl,ntrac) :: ltr
       real, dimension(imax,kl)       :: ldpsldt, lt, lqg
@@ -270,7 +270,7 @@
       real, dimension(imax,ndust)    :: ldustwd
       real, dimension(imax)          :: lso2wd, lso4wd, lbcwd
       real, dimension(imax)          :: locwd, lsaltwd
-      logical mydiag_t
+      logical :: mydiag_t
 
 #ifndef GPU
 !$omp  do schedule(static) private(js,je),
@@ -280,15 +280,16 @@
 !$omp& private(ltr,idjd_t,mydiag_t)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop copy(t,qg,qlg,qfg,u,v)
-!$acc& copy(tr,xtg,dustwd,so2wd,so4wd,bcwd,ocwd)
-!$acc& copy(saltwd,precc,precip)
+!$acc parallel loop copy(tr,xtg,dustwd,so2wd,so4wd,bcwd,ocwd)
+!$acc& copy(saltwd,precc)
 !$acc& copyin(sgsave,fg,wetfac)
 !$acc& copyin(upin,upin4,downex)
 !$acc& copyin(alfin,aug)
-!$acc& copyin(dpsldt,ps,pblh,land,em)
-!$acc& copyout(fluxtot,cape,convpsav,kbsav,ktsav,condc)
-!$acc& copyout(condx,conds)
+!$acc& copyout(fluxtot,cape,convpsav)
+!$acc& present(t,qg,qlg,qfg,u,v)
+!$acc& present(kbsav,ktsav,condc,condx,conds,condg)
+!$acc& present(precip)
+!$acc& present(dpsldt,ps,pblh,land,em)
 !$acc& private(ldpsldt,lt,lqg,lqlg,lqfg,lu,lv,lfluxtot)
 !$acc& private(lxtg,ldustwd,lso2wd,lso4wd,lbcwd,locwd,lsaltwd)
 !$acc& private(ltr)
@@ -326,7 +327,7 @@
      &       ps(js:je),lfluxtot,convpsav(js:je),cape(js:je),
      &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd,
      &       lqlg,condc(js:je),precc(js:je),condx(js:je),conds(js:je),
-     &       precip(js:je),
+     &       condg(js:je),precip(js:je),
      &       pblh(js:je),fg(js:je),wetfac(js:je),land(js:je),lu,lv,
      &       em(js:je),
      &       kbsav(js:je),ktsav(js:je),ltr,lqfg,sgsave(js:je),
@@ -370,7 +371,7 @@
             
       subroutine convjlm22_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
-     &       dustwd,saltwd,qlg,condc,precc,condx,conds,precip,
+     &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
      &       pblh,fg,wetfac,land,u,v,em,
      &       kbsav,ktsav,tr,qfg,sgsave,aug,
      &       upin,upin4,downex,
@@ -442,10 +443,11 @@
       real, dimension(imax), intent(in)                :: wetfac
       real, dimension(imax), intent(in)                :: em
       real, dimension(imax), intent(in)                :: sgsave
-      real, dimension(imax), intent(out)               :: cape
-      real, dimension(imax), intent(out)               :: condc
-      real, dimension(imax), intent(out)               :: condx
-      real, dimension(imax), intent(out)               :: conds
+      real, dimension(imax), intent(inout)             :: cape
+      real, dimension(imax), intent(inout)             :: condc
+      real, dimension(imax), intent(inout)             :: condx
+      real, dimension(imax), intent(inout)             :: conds
+      real, dimension(imax), intent(inout)             :: condg
       real, dimension(imax), intent(inout)             :: precc
       real, dimension(imax), intent(inout)             :: precip
       !real, dimension(imax), intent(inout)             :: timeconv

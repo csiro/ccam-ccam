@@ -44,7 +44,6 @@ use staguvmod           ! Reversible grid staggering
 use tbar2d_m            ! Atmosphere dynamics reference temperature
 use tracers_m           ! Tracer data
 use unn_m               ! Saved dynamic arrays
-use vadv                ! Vertical advection
 use vecsuv_m            ! Map to cartesian coordinates
 use vvel_m              ! Additional vertical velocity
 use work3sav_m          ! Water and tracer saved arrays

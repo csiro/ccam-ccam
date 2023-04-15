@@ -146,10 +146,21 @@ if ( mspec==1 .and. ldr/=0 ) then
   call vadv_work(stratcloud,nvadh_inv_pass,nits)
 end if
 
+!!$omp section
+!if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+!    call vadv_work(nr,nvadh_inv_pass,nits)
+!end if
+
 !$omp section
 if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    ! only advect ql and qf for now
     call vadv_work(ni,nvadh_inv_pass,nits)
 end if
+
+!!$omp section
+!if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+!    call vadv_work(ns,nvadh_inv_pass,nits)
+!end if
 
 !$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
