@@ -372,51 +372,53 @@ select case(nvmix)
 end select
 
 
-!$omp do schedule(static) private(is,ie,iq,k),      &
-!$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-!$omp private(ln,lrkhsave,rong,rlogs1,rlogs2),      &
-!$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  idjd_t = mod(idjd-1,imax)+1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+if ( ncloud>=100 .and. ncloud<200 ) then
+  !$omp do schedule(static) private(is,ie,iq,k),      &
+  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+  !$omp private(ln,lrkhsave,rong,rlogs1,rlogs2),      &
+  !$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    idjd_t = mod(idjd-1,imax)+1
+    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-  lt       = t(is:ie,:)
-  lrkhsave = rkhsave(is:ie,:)
+    lt       = t(is:ie,:)
+    lrkhsave = rkhsave(is:ie,:)
   
-  rong = rdry/grav
-  lat(:,1) = 0.
-  lct(:,kl) = 0.
-  rlogs1=log(sig(1))
-  rlogs2=log(sig(2))
-  rlogh1=log(sigmh(2))
-  rlog12=1./(rlogs1-rlogs2)
-  do iq = 1,imax
-    tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
-    dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-    gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
-    lat(iq,2) = -gt/dsig(2)  
-    lct(iq,1) = -gt/dsig(1)
-  end do
-  do k = 2,kl-1
+    rong = rdry/grav
+    lat(:,1) = 0.
+    lct(:,kl) = 0.
+    rlogs1=log(sig(1))
+    rlogs2=log(sig(2))
+    rlogh1=log(sigmh(2))
+    rlog12=1./(rlogs1-rlogs2)
     do iq = 1,imax
-      ! Calculate half level heights and temperatures
-      ! n.b. an approximate zh (in m) is quite adequate for this routine
-      tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-      dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-      gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
-      lat(iq,k+1) = -gt/dsig(k+1)  
-      lct(iq,k) = -gt/dsig(k)
+      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+      dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+      gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
+      lat(iq,2) = -gt/dsig(2)  
+      lct(iq,1) = -gt/dsig(1)
     end do
-  end do
+    do k = 2,kl-1
+      do iq = 1,imax
+        ! Calculate half level heights and temperatures
+        ! n.b. an approximate zh (in m) is quite adequate for this routine
+        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+        dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+        gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
+        lat(iq,k+1) = -gt/dsig(k+1)  
+        lct(iq,k) = -gt/dsig(k)
+      end do
+    end do
   
-  !call trimmix(lat,lct,nr,imax,kl)
-  call trimmix(lat,lct,ni,imax,kl) !only advect ql and qf for now
-  !call trimmix(lat,lct,ns,imax,kl)
+    !call trimmix(lat,lct,nr,imax,kl)
+    call trimmix(lat,lct,ni,imax,kl) !only advect ql and qf for now
+    !call trimmix(lat,lct,ns,imax,kl)
   
-end do ! tile = 1,ntiles
-!$omp end do nowait
+  end do ! tile = 1,ntiles
+  !$omp end do nowait
+end if
 
 return
 end subroutine vertmix
@@ -1759,7 +1761,9 @@ return
 end subroutine pbldif
 
 pure subroutine trimmix2(a,c,rhs,imax,kl)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 implicit none
 
@@ -1793,7 +1797,8 @@ end do
 ! do back substitution to give answer now
 do iq = 1,imax
   b=1.-a(iq,kl)-c(iq,kl)
-  rhs(iq,kl)=(rhs(iq,kl)-a(iq,kl)*g(iq,kl-1))/(b-a(iq,kl)*e(iq,kl-1))
+  temp = 1./(b-a(iq,kl)*e(iq,kl-1))
+  rhs(iq,kl)=(rhs(iq,kl)-a(iq,kl)*g(iq,kl-1))*temp
 end do
 do k = kl-1,1,-1
   do iq = 1,imax
@@ -1805,7 +1810,9 @@ return
 end subroutine trimmix2
 
 pure subroutine trimmix3(a,c,rhs,imax,kl,ndim)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 implicit none
 
@@ -1813,140 +1820,49 @@ integer, intent(in) :: imax, kl, ndim
 integer k, iq, n
 real, dimension(imax,kl), intent(in) :: a, c
 real, dimension(imax,kl,ndim), intent(inout) :: rhs
-real, dimension(imax,kl) :: e
-real, dimension(imax,ndim,kl) :: g, r
 real temp, b
-!#ifdef GPU
-!integer p, pmax, s, klow, khigh
-!real rr
-!real, dimension(imax,0:kl+1,ndim) :: aa, cc, dd
-!real, dimension(imax,0:kl+1,ndim) :: new_aa, new_cc, new_dd
-!#endif
+real, dimension(imax,ndim,kl) :: e, g
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
 !   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
 
-!#ifdef GPU
-!
-!do n = 1,ndim
-!  do iq = 1,imax
-!    aa(iq,0,n) = 0.
-!    cc(iq,0,n) = 0.
-!    dd(iq,0,n) = 0.
-!    new_aa(iq,0,n) = 0.
-!    new_cc(iq,0,n) = 0.
-!    new_dd(iq,0,n) = 0.
-!    aa(iq,kl+1,n) = 0.
-!    cc(iq,kl+1,n) = 0.
-!    dd(iq,kl+1,n) = 0.
-!    new_aa(iq,kl+1,n) = 0.
-!    new_cc(iq,kl+1,n) = 0.
-!    new_dd(iq,kl+1,n) = 0.
-!  end do  
-!end do
-!do n = 1,ndim
-!  do k = 1,kl
-!    do iq = 1,imax
-!      aa(iq,k,n) = a(iq,k)
-!      cc(iq,k,n) = c(iq,k)
-!      dd(iq,k,n) = rhs(iq,k,n)
-!    end do  
-!  end do
-!end do
-!do p = 1,pmax
-!  s = 2**(p-1)
-!  do n = 1,ndim
-!    do k = 1,kl
-!      do iq = 1,imax
-!        klow = max(k-s,0)
-!        khigh = min(k+s,kl+1)
-!        rr = 1./(1.-aa(iq,k,n)*cc(iq,klow,n)-cc(iq,k,n)*aa(iq,khigh,n))
-!        new_aa(iq,k,n) = -rr*(aa(iq,k,n)*aa(iq,klow,n))
-!        new_cc(iq,k,n) = -rr*(cc(iq,k,n)*cc(iq,khigh,n))
-!        new_dd(iq,k,n) = rr*(dd(iq,k,n)-aa(iq,k,n)*dd(iq,klow,n)-cc(iq,k,n)*dd(iq,khigh,n))
-!      end do
-!    end do
-!  end do
-!  do n = 1,ndim
-!    do k = 1,kl
-!      do iq = 1,imax
-!        aa(iq,k,n) = new_aa(iq,k,n)  
-!        cc(iq,k,n) = new_cc(iq,k,n)
-!        dd(iq,k,n) = new_dd(iq,k,n)
-!      end do
-!    end do
-!  end do
-!end do
-!do n = 1,ndim
-!  do k = 1,kl
-!    do iq = 1,imax
-!      rhs(iq,k,n) = dd(iq,k,n)
-!    end do
-!  end do
-!end do
-!
-!#else
-
-do n = 1,ndim
-  do k = 1,kl
-    do iq = 1,imax
-      r(iq,n,k) = rhs(iq,k,n)
-    end do
-  end do
-end do
 
 ! the Thomas algorithm is used
-do iq = 1,imax
-  b=1./(1.-a(iq,1)-c(iq,1))
-  e(iq,1)=c(iq,1)*b
-end do
 do n = 1,ndim
   do iq = 1,imax
     b=1./(1.-a(iq,1)-c(iq,1))
-    g(iq,n,1)=r(iq,n,1)*b
+    e(iq,n,1)=c(iq,1)*b
+    g(iq,n,1)=rhs(iq,1,n)*b
   end do
 end do
 do k = 2,kl-1
-  do iq = 1,imax
-    b=1.-a(iq,k)-c(iq,k)
-    temp= 1./(b-a(iq,k)*e(iq,k-1))
-    e(iq,k)=c(iq,k)*temp
-  end do
   do n = 1,ndim
     do iq = 1,imax
       b=1.-a(iq,k)-c(iq,k)
-      temp= 1./(b-a(iq,k)*e(iq,k-1))
-      g(iq,n,k)=(r(iq,n,k)-a(iq,k)*g(iq,n,k-1))*temp
+      temp= 1./(b-a(iq,k)*e(iq,n,k-1))
+      e(iq,n,k)=c(iq,k)*temp
+      g(iq,n,k)=(rhs(iq,k,n)-a(iq,k)*g(iq,n,k-1))*temp
     end do  
   end do
 end do
 
-! do back substitution to give answer now
+! do back substitution to give answer
 do n = 1,ndim
   do iq = 1,imax
     b=1.-a(iq,kl)-c(iq,kl)
-    r(iq,n,kl)=(r(iq,n,kl)-a(iq,kl)*g(iq,n,kl-1))/(b-a(iq,kl)*e(iq,kl-1))
+    temp= 1./(b-a(iq,kl)*e(iq,n,kl-1))
+    rhs(iq,kl,n)=(rhs(iq,kl,n)-a(iq,kl)*g(iq,n,kl-1))*temp
   end do  
 end do
 do k = kl-1,1,-1
   do n = 1,ndim
     do iq = 1,imax
-      r(iq,n,k) = g(iq,n,k)-e(iq,k)*r(iq,n,k+1)
+      rhs(iq,k,n) = g(iq,n,k)-e(iq,n,k)*rhs(iq,k+1,n)
     end do  
   end do
 end do
-
-do k = 1,kl
-  do n = 1,ndim    
-    do iq = 1,imax
-      rhs(iq,k,n) = r(iq,n,k)
-    end do
-  end do
-end do
-
-!#endif
 
 return
 end subroutine trimmix3

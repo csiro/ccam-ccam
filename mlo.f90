@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -3001,7 +3001,7 @@ implicit none
 
 real, dimension(imax,wlev), intent(inout) :: km_out, ks_out
 type(dgwaterdata), intent(in) :: dgwater
-type(waterdata), intent(in) :: water
+type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
 type(turbdata), intent(inout) :: turb
 real, intent(in) :: dt
@@ -3050,7 +3050,7 @@ d_ustar = max(sqrt(sqrt(dgwater%wu0**2+dgwater%wv0**2)),1.E-6)
 fdepth_hl(:,2:wlev) = (depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1))/max(depth%depth(:,2:wlev)-depth%depth(:,1:wlev-1),1.e-8)
 
 ! calculate rho_ema from temp_ema and sal_ema
-call mlo_ema(dt,"ts")
+call mlo_ema_thread(dt,water,depth,"ts")
 pxtr_ema(:) = 0. ! neglect surface pressure
 call calcdensity(rho_ema,alpha_ema,beta_ema,water%temp_ema,water%sal_ema,depth%dz,pxtr_ema)
 call interpolate_hl(rho_ema,fdepth_hl,d_rho_hl)
@@ -4356,8 +4356,7 @@ subroutine seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,    &
 implicit none
 
 integer, intent(in) :: diag
-integer pc
-integer, dimension(5) :: nc
+integer pc, nc
 integer, dimension(imax), intent(inout) :: d_nk
 integer, dimension(imax) :: dt_nk
 real, intent(in) :: dt
@@ -4376,65 +4375,61 @@ if (diag>=1) write(6,*) "Pack ice data"
 
 ! Pack different ice configurations
 pqpack(:,1)=( d_nk==2 .and. ice%snowd>0.05 .and. ice%thick>icemin )   ! thick snow + 2 ice layers
-nc(1)=count(pqpack(:,1))
 pqpack(:,2)=( d_nk==1 .and. ice%snowd>0.05 .and. ice%thick>icemin )   ! thick snow + 1 ice layer
-nc(2)=count(pqpack(:,2))
 pqpack(:,3)=( d_nk==2 .and. ice%snowd<=0.05 .and. ice%thick>icemin )  ! 2 ice layers (+ snow?)
-nc(3)=count(pqpack(:,3))
 pqpack(:,4)=( d_nk==1 .and. ice%snowd<=0.05 .and. ice%thick>icemin )  ! 1 ice layer (+ snow?)
-nc(4)=count(pqpack(:,4))
 pqpack(:,5)=( d_nk==0 .and. ice%thick>icemin )                        ! thin ice (+ snow?)
-nc(5)=count(pqpack(:,5))
 
 ! Update ice and snow temperatures
 do pc=1,5
-  if ( nc(pc)>0 ) then
-    it_tsurf(1:nc(pc))  =pack(ice%tsurf,pqpack(:,pc))
-    it_tn0(1:nc(pc))    =pack(ice%temp(:,0),pqpack(:,pc))
-    it_tn1(1:nc(pc))    =pack(ice%temp(:,1),pqpack(:,pc))
-    it_tn2(1:nc(pc))    =pack(ice%temp(:,2),pqpack(:,pc))
-    pt_egice(1:nc(pc))  =pack(dgice%eg,pqpack(:,pc))
-    it_dic(1:nc(pc))    =pack(ice%thick,pqpack(:,pc))
-    it_dsn(1:nc(pc))    =pack(ice%snowd,pqpack(:,pc))
-    it_sto(1:nc(pc))    =pack(ice%store,pqpack(:,pc))
-    dt_ftop(1:nc(pc))   =pack(d_ftop,pqpack(:,pc))
-    dt_tb(1:nc(pc))     =pack(d_tb,pqpack(:,pc))
-    dt_fb(1:nc(pc))     =pack(d_fb,pqpack(:,pc))
-    dt_timelt(1:nc(pc)) =pack(d_timelt,pqpack(:,pc))
-    dt_salflx(1:nc(pc)) =pack(d_salflx,pqpack(:,pc))
-    dt_wavail(1:nc(pc)) =pack(d_wavail,pqpack(:,pc))
-    dt_nk(1:nc(pc))     =pack(d_nk,pqpack(:,pc))
+  nc=count(pqpack(:,pc))  
+  if ( nc>0 ) then
+    it_tsurf(1:nc)  =pack(ice%tsurf,pqpack(:,pc))
+    it_tn0(1:nc)    =pack(ice%temp(:,0),pqpack(:,pc))
+    it_tn1(1:nc)    =pack(ice%temp(:,1),pqpack(:,pc))
+    it_tn2(1:nc)    =pack(ice%temp(:,2),pqpack(:,pc))
+    pt_egice(1:nc)  =pack(dgice%eg,pqpack(:,pc))
+    it_dic(1:nc)    =pack(ice%thick,pqpack(:,pc))
+    it_dsn(1:nc)    =pack(ice%snowd,pqpack(:,pc))
+    it_sto(1:nc)    =pack(ice%store,pqpack(:,pc))
+    dt_ftop(1:nc)   =pack(d_ftop,pqpack(:,pc))
+    dt_tb(1:nc)     =pack(d_tb,pqpack(:,pc))
+    dt_fb(1:nc)     =pack(d_fb,pqpack(:,pc))
+    dt_timelt(1:nc) =pack(d_timelt,pqpack(:,pc))
+    dt_salflx(1:nc) =pack(d_salflx,pqpack(:,pc))
+    dt_wavail(1:nc) =pack(d_wavail,pqpack(:,pc))
+    dt_nk(1:nc)     =pack(d_nk,pqpack(:,pc))
     select case(pc)
       case(1)
-        call icetemps1s2i(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,            &
+        call icetemps1s2i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,            &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,          &
                  dt_nk,dt_wavail,pt_egice,diag)
       case(2)
-        call icetemps1s1i(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,            &
+        call icetemps1s1i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,            &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,          &
                  dt_nk,dt_wavail,pt_egice,diag)
       case(3)
-        call icetempi2i(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,              &
+        call icetempi2i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,              &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,          &
                  dt_nk,dt_wavail,pt_egice,diag)
       case(4)
-        call icetempi1i(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,              &
+        call icetempi1i(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,              &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,          &
                  dt_nk,dt_wavail,pt_egice,diag)
       case(5)
-        call icetemps(nc(pc),dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,                &
+        call icetemps(nc,dt,it_tn0,it_tn1,it_tn2,it_dic,it_dsn,                &
                  it_tsurf,it_sto,dt_ftop,dt_tb,dt_fb,dt_timelt,dt_salflx,          &
                  dt_nk,dt_wavail,pt_egice,diag)
     end select
-    ice%tsurf    =unpack(it_tsurf(1:nc(pc)),pqpack(:,pc),ice%tsurf)
-    ice%temp(:,0)=unpack(it_tn0(1:nc(pc)),pqpack(:,pc),ice%temp(:,0))
-    ice%temp(:,1)=unpack(it_tn1(1:nc(pc)),pqpack(:,pc),ice%temp(:,1))
-    ice%temp(:,2)=unpack(it_tn2(1:nc(pc)),pqpack(:,pc),ice%temp(:,2))
-    ice%thick    =unpack(it_dic(1:nc(pc)),pqpack(:,pc),ice%thick)
-    ice%snowd    =unpack(it_dsn(1:nc(pc)),pqpack(:,pc),ice%snowd)
-    ice%store    =unpack(it_sto(1:nc(pc)),pqpack(:,pc),ice%store)
-    d_salflx     =unpack(dt_salflx(1:nc(pc)),pqpack(:,pc),d_salflx)
-    d_nk         =unpack(dt_nk(1:nc(pc)),pqpack(:,pc),d_nk)
+    ice%tsurf    =unpack(it_tsurf(1:nc),pqpack(:,pc),ice%tsurf)
+    ice%temp(:,0)=unpack(it_tn0(1:nc),pqpack(:,pc),ice%temp(:,0))
+    ice%temp(:,1)=unpack(it_tn1(1:nc),pqpack(:,pc),ice%temp(:,1))
+    ice%temp(:,2)=unpack(it_tn2(1:nc),pqpack(:,pc),ice%temp(:,2))
+    ice%thick    =unpack(it_dic(1:nc),pqpack(:,pc),ice%thick)
+    ice%snowd    =unpack(it_dsn(1:nc),pqpack(:,pc),ice%snowd)
+    ice%store    =unpack(it_sto(1:nc),pqpack(:,pc),ice%store)
+    d_salflx     =unpack(dt_salflx(1:nc),pqpack(:,pc),d_salflx)
+    d_nk         =unpack(dt_nk(1:nc),pqpack(:,pc),d_nk)
     select case(pc)
       case(1)
         call mlocheck("MLO-icetemps1s2i",ice_tsurf=ice%tsurf,ice_temp=ice%temp, &

@@ -2651,16 +2651,10 @@ seaice_albnir = alphanir_seaice
 
 !$acc update device(dt,qgmin,iaero)
 !$acc update device(nmr)
+#ifdef GPUPHYSICS
 !$acc update device(enhanceu10,zvolcemi,ch_dust)
 !$acc update device(saltsmallmtn,saltlargemtn)
-#ifdef GPUPHYSICS
 !$acc update device(alphaj,fc2,vmodmin,sigbot_gwd)
-!!$acc update device(cm0,ce0,ce1,ce2,maxl,minl,mintke,mineps,buoymeth,tkemeth)
-!!$acc update device(ce3,mfbeta,stabmeth,m0,qcmf,be,b1,b2)
-!!$acc update device(maxdts,dtrc0,entc0,ent_min,ent0,ent1,ezmin)
-!!$acc update device(tke_timeave_length)
-!!$acc update device(mlo_timeave_length,ominl,omaxl,omink,nopb,omineps,fixedce3)
-!!$acc update device(limitl,eps_mode,fixedstabfunc,k_mode,nops,kemaxdt)
 #endif
 
 !--------------------------------------------------------------

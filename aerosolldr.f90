@@ -42,8 +42,6 @@ public so4mtn, carbmtn, saltsmallmtn, saltlargemtn
 integer, save :: enhanceu10 = 0                 ! Modify 10m wind speed for emissions (0=none, 1=quadrature, 2=linear)
 real, parameter :: zmin     = 1.e-10            ! Minimum concentration tolerance
 
-!$acc declare create(enhanceu10)
-
 ! physical constants
 real, parameter :: grav      = 9.80616          ! Gravitation constant
 real, parameter :: rdry      = 287.04           ! Specific gas const for dry air
@@ -56,8 +54,6 @@ real, parameter :: rhos      = 100.             ! Assumed density of snow in kg/
 real, save :: zvolcemi       = 8.               ! Total emission from volcanoes (TgS/yr)
 real, save :: Ch_dust        = 1.e-9            ! Transfer coeff for type natural source (kg*s2/m5)
 
-!$acc declare create(zvolcemi,ch_dust)
-
 ! Indirect effect coefficients
 ! converts from mass (kg/m3) to number concentration (1/m3) for dist'n
 real, save :: so4mtn = 1.24e17                  ! Penner et al (1998)
@@ -69,8 +65,6 @@ real, save :: saltlargemtn = 1.1e14             ! Nillson et al. number mode rad
 !real, save :: carbmtn = 2.30e17                ! counts Aitken mode as well as accumulation mode carb aerosols
 !real, save :: saltsmallmtn = 3.79e17           ! Herzog number mode radius = 0.035 um, sd=1.92, rho=2.165 g/cm3
 !real, save :: saltlargemtn = 7.25e14           ! Herzog number mode radius = 0.35 um, sd=1.7, rho=2.165
-
-!$acc declare create(saltsmallmtn,saltlargemtn)
 
 ! emission indices
 integer, parameter :: iso2a1 = 1      ! SO2/SO4 Anthropogenic surface
@@ -99,6 +93,12 @@ real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 
 real, dimension(nsalt), parameter :: saltden = (/ 2165., 2165. /)     ! density of salt
 real, dimension(nsalt), parameter :: saltreff = (/ 0.1e-6, 0.5e-6 /)  ! radius of salt (um)
 
+#ifdef GPUPHYSICS
+!$acc declare create(enhanceu10)
+!$acc declare create(zvolcemi,ch_dust)
+!$acc declare create(saltsmallmtn,saltlargemtn)
+#endif
+
 contains
 
 
@@ -120,8 +120,8 @@ use newmpar_m
 implicit none
 
 integer, dimension(:), intent(in) :: kbsav  ! Bottom of convective cloud
-real, intent(in) :: dt                         ! Time step
-real, dimension(:), intent(in) :: sig         ! Sigma levels
+real, intent(in) :: dt                      ! Time step
+real, dimension(:), intent(in) :: sig       ! Sigma levels
 real, dimension(:), intent(in) :: wg        ! Soil moisture fraction of field capacity
 real, dimension(:), intent(in) :: prf       ! Surface pressure
 real, dimension(:), intent(in) :: ts        ! Surface temperture
@@ -917,7 +917,9 @@ end subroutine xtemiss
 ! xt sink
 
 SUBROUTINE XTSINK(PTMST,xtg,imax,kl)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 !
 !   *XTSINK*  CALCULATES THE DECREASE OF TRACER CONCENTRATION
@@ -977,7 +979,9 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
                     zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,                    &
                     imax,kl)                                                           !Inputs
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 ! Inputs
 ! ktop: top level for aerosol processes (set to 1, counting downwards from top)
@@ -1716,7 +1720,9 @@ SUBROUTINE XTWETDEP(PTMST,                                                 &
                     pqfsedice,plambs,prscav,prfreeze,pfevap,pfconv,        &
                     pclcon,fracc,                                          & !Inputs
                     PXTP10, PXTP1C, PXTP1CON, xtm1, xte, wd, imax, kl)       !In & Out
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 !
 !   *XTWETDEP* CALCULATES THE WET DEPOSITION OF TRACE GASES OR AEROSOLS
@@ -2066,7 +2072,9 @@ end subroutine xtwetdep
 ! Dust settling
 
 subroutine dsettling(tdt,rhoa,tmp,delz,prf,xtg,imax,kl)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 implicit none
 
@@ -2145,7 +2153,9 @@ end subroutine dsettling
 
 subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,erod,duste,xtg, &
                   imax,kl)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 implicit none
 
@@ -2361,7 +2371,9 @@ end subroutine dustem
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt settling
 subroutine ssettling(tdt,rhoa,tmp,delz,prf,xtg,imax,kl)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 implicit none
 
@@ -2427,7 +2439,9 @@ end subroutine ssettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt emissions
 subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,locean,imax,kl)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 implicit none
 

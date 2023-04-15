@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -280,26 +280,39 @@ do k = 1,kl
   end do
 end do
   
-! Fraction for interpolation from full levels to half levels
-fzzh(:,1:kl-1) = (zzh(:,1:kl-1)-zz(:,1:kl-1))/(zz(:,2:kl)-zz(:,1:kl-1))
 
-! Calculate dz at half levels
-dz_hl(:,1:kl-1) = max( zz(:,2:kl) - zz(:,1:kl-1), 1. )
+do k = 1,kl-1
+  do iq = 1,imax
+    ! Fraction for interpolation from full levels to half levels
+    fzzh(iq,k) = (zzh(iq,k)-zz(iq,k))/(zz(iq,k+1)-zz(iq,k))
+
+    ! Calculate dz at half levels
+    dz_hl(iq,k) = max( zz(iq,k+1) - zz(iq,k), 1. )
+  end do
+end do
 
 ! Calculate dz at full levels
 dz_fl(:,1)    = zzh(:,1)
-dz_fl(:,2:kl) = zzh(:,2:kl) - zzh(:,1:kl-1)
+do k = 2,kl
+  dz_fl(:,k) = zzh(:,k) - zzh(:,k-1)
+end do
 dz_fl = max( dz_fl, 1. )
 
 ! Calculate shear term on full levels
-pps(:,1:kl-1) = km(:,1:kl-1)*shear(:,1:kl-1)
+do k = 1,kl-1
+  pps(:,k) = km(:,k)*shear(:,k)
+end do
 
 ! interpolate diffusion coeff and air density to half levels
 call updatekmo(kmo,   km,  fzzh,imax,kl)
 call updatekmo(rhoahl,rhoa,fzzh,imax,kl)
 ! eddy diffusion terms to account for air density with level thickness
-idzm(:,2:kl)   = rhoahl(:,1:kl-1)/(rhoa(:,2:kl)*dz_fl(:,2:kl))
-idzp(:,1:kl-1) = rhoahl(:,1:kl-1)/(rhoa(:,1:kl-1)*dz_fl(:,1:kl-1))
+do k = 2,kl
+  idzm(:,k)   = rhoahl(:,k-1)/(rhoa(:,k)*dz_fl(:,k))
+end do
+do k = 1,kl-1
+  idzp(:,k) = rhoahl(:,k)/(rhoa(:,k)*dz_fl(:,k))
+end do
 
 ustar_ave(:) = 0.
 fg_ave(:) = 0.
@@ -848,30 +861,38 @@ select case(buoymeth)
   end select
     
   ! Calculate transport source term on full levels
-  ppt(:,2:kl-1)= kmo(:,2:kl-1)*idzp(:,2:kl-1)*(tke_ema(:,3:kl)-tke_ema(:,2:kl-1))/dz_hl(:,2:kl-1)  &
-                -kmo(:,1:kl-2)*idzm(:,2:kl-1)*(tke_ema(:,2:kl-1)-tke_ema(:,1:kl-2))/dz_hl(:,1:kl-2)
+  do k = 2,kl-1
+    ppt(:,k) = kmo(:,k)*idzp(:,k)*(tke_ema(:,k+1)-tke_ema(:,k))/dz_hl(:,k)  &
+              -kmo(:,k-1)*idzm(:,k)*(tke_ema(:,k)-tke_ema(:,k-1))/dz_hl(:,k-1)
+  end do
   
   ! Pre-calculate eddy diffusivity mixing terms
   ! -ve because gradient is calculated at t+1
-  qq(:,2:kl-1)=-ddts*idzm(:,2:kl-1)/dz_hl(:,1:kl-2)
-  rr(:,2:kl-1)=-ddts*idzp(:,2:kl-1)/dz_hl(:,2:kl-1)
+  do k = 2,kl-1
+    qq(:,k)=-ddts*idzm(:,k)/dz_hl(:,k-1)
+    rr(:,k)=-ddts*idzp(:,k)/dz_hl(:,k)
+  end do
   
   ! eps vertical mixing
-  aa(:,2:kl-1)=ce0*kmo(:,1:kl-2)*qq(:,2:kl-1)
-  cc(:,2:kl-1)=ce0*kmo(:,2:kl-1)*rr(:,2:kl-1)
-  ! follow Hurley 2007 to make scheme more numerically stable
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)+ddts*ce2*eps(:,2:kl-1)/tke(:,2:kl-1)
-  dd(:,2:kl-1)=eps(:,2:kl-1)+ddts*eps(:,2:kl-1)/tke(:,2:kl-1)                    &
-              *ce1*(pps(:,2:kl-1)+max(ppb(:,2:kl-1),0.)+max(ppt(:,2:kl-1),0.))
+  do k = 2,kl-1
+    aa(:,k)=ce0*kmo(:,k-1)*qq(:,k)
+    cc(:,k)=ce0*kmo(:,k)*rr(:,k)
+    ! follow Hurley 2007 to make scheme more numerically stable
+    bb(:,k)=1.-aa(:,k)-cc(:,k)+ddts*ce2*eps(:,k)/tke(:,k)
+    dd(:,k)=eps(:,k)+ddts*eps(:,k)/tke(:,k)                    &
+            *ce1*(pps(:,k)+max(ppb(:,k),0.)+max(ppt(:,k),0.))
+  end do
   dd(:,2)     =dd(:,2)   -aa(:,2)*eps(:,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mineps
   call thomas(eps(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),imax,kl-2)
   
   ! TKE vertical mixing
-  aa(:,2:kl-1)=kmo(:,1:kl-2)*qq(:,2:kl-1)
-  cc(:,2:kl-1)=kmo(:,2:kl-1)*rr(:,2:kl-1)
-  bb(:,2:kl-1)=1.-aa(:,2:kl-1)-cc(:,2:kl-1)
-  dd(:,2:kl-1)=tke(:,2:kl-1)+ddts*(pps(:,2:kl-1)+ppb(:,2:kl-1)-eps(:,2:kl-1))
+  do k = 2,kl-1
+    aa(:,k)=kmo(:,k-1)*qq(:,k)
+    cc(:,k)=kmo(:,k)*rr(:,k)
+    bb(:,k)=1.-aa(:,k)-cc(:,k)
+    dd(:,k)=tke(:,k)+ddts*(pps(:,k)+ppb(:,k)-eps(:,k))
+  end do
   dd(:,2)     =dd(:,2)   -aa(:,2)*tke(:,1)
   dd(:,kl-1)  =dd(:,kl-1)-cc(:,kl-1)*mintke
   call thomas(tke(:,2:kl-1),aa(:,3:kl-1),bb(:,2:kl-1),cc(:,2:kl-2),dd(:,2:kl-1),imax,kl-2)
@@ -1948,7 +1969,7 @@ real, dimension(imax,klin), intent(in) :: bbi,ddi
 real, dimension(imax,klin-1), intent(in) :: cci
 real, dimension(imax,klin), intent(out) :: outdat
 real, dimension(imax,klin) :: cc,dd
-real :: n_s
+real n_s
 integer k, iq
 
 do iq = 1,imax
@@ -1984,26 +2005,15 @@ real, dimension(imax,klin), intent(in) :: bbi
 real, dimension(imax,klin-1), intent(in) :: cci
 real, dimension(imax,klin,ndim), intent(in) :: ddi
 real, dimension(imax,klin,ndim), intent(out) :: outdat
-real, dimension(imax,ndim,klin) :: cc,dd,od,rh
-real :: n_s
 integer n, iq, k
-        
-!! PCR for GPUs
-!call pcr(outdat,aai,bbi,cci,ddi,imax,klin,ndim)
-
-do n = 1,ndim
-  do k = 1,klin
-    do iq = 1,imax
-      rh(iq,n,k) = ddi(iq,k,n)
-    end do
-  end do
-end do
+real, dimension(imax,ndim,klin) :: cc,dd
+real n_s
 
 ! Thomas
 do n = 1,ndim
   do iq = 1,imax
     cc(iq,n,1) = cci(iq,1)/bbi(iq,1)
-    dd(iq,n,1) = rh(iq,n,1)/bbi(iq,1)
+    dd(iq,n,1) = ddi(iq,1,n)/bbi(iq,1)
   end do
 end do
 
@@ -2012,139 +2022,26 @@ do k = 2,klin-1
     do iq = 1,imax
       n_s = 1./(bbi(iq,k)-cc(iq,n,k-1)*aai(iq,k))
       cc(iq,n,k) = cci(iq,k)*n_s
-      dd(iq,n,k) = (rh(iq,n,k)-dd(iq,n,k-1)*aai(iq,k))*n_s
+      dd(iq,n,k) = (ddi(iq,k,n)-dd(iq,n,k-1)*aai(iq,k))*n_s
     end do
   end do  
 end do
 do n = 1,ndim
   do iq = 1,imax
     n_s = 1./(bbi(iq,klin)-cc(iq,n,klin-1)*aai(iq,klin))
-    od(iq,n,klin) = (rh(iq,n,klin)-dd(iq,n,klin-1)*aai(iq,klin))*n_s
+    outdat(iq,klin,n) = (ddi(iq,klin,n)-dd(iq,n,klin-1)*aai(iq,klin))*n_s
   end do  
 end do
 do k = klin-1,1,-1
   do n = 1,ndim
     do iq = 1,imax
-      od(iq,n,k) = dd(iq,n,k)-cc(iq,n,k)*od(iq,n,k+1)
-    end do
-  end do
-end do
-
-do k = 1,klin
-  do n = 1,ndim
-    do iq = 1,imax
-      outdat(iq,k,n) = od(iq,n,k)
+      outdat(iq,k,n) = dd(iq,n,k)-cc(iq,n,k)*outdat(iq,k+1,n)
     end do
   end do
 end do
 
 return
 end subroutine thomas2
-
-!pure subroutine pcr(outdat,aaj,bbj,ccj,ddj,imax,klin,ndim)
-!
-!implicit none
-!
-!integer, intent(in) :: imax, klin, ndim
-!integer pmax, n, iq
-!integer async_counter
-!integer, parameter :: async_length = 3
-!real, dimension(imax,2:klin), intent(in) :: aaj
-!real, dimension(imax,klin), intent(in) :: bbj
-!real, dimension(imax,klin-1), intent(in) :: ccj
-!real, dimension(imax,klin,ndim), intent(in) :: ddj
-!real, dimension(imax,klin,ndim), intent(out) :: outdat
-!real, dimension(klin,imax) :: aai, bbi, cci
-!real, dimension(klin,imax,ndim) :: ddi
-!real, dimension(1:klin,imax,ndim) :: odati
-!
-!pmax = 1
-!do while ( 2**pmax < klin )
-!  pmax = pmax + 1
-!end do
-!
-!aai(1,:) = 0.
-!cci(klin-1,:) = 0.
-!
-!aai(2:klin,1:imax) = transpose( aaj(1:imax,2:klin) )
-!bbi(1:klin,1:imax) = transpose( bbj(1:imax,1:klin) )
-!cci(1:klin-1,1:imax) = transpose( ccj(1:imax,1:klin-1) )
-!do n = 1,ndim
-!  ddi(1:klin,1:imax,n) = transpose( ddj(1:imax,1:klin,n) )
-!end do
-!
-!!$acc parallel loop collapse(2) copyin(aai,bbi,cci,ddi) copyout(odati)
-!do n = 1,ndim
-!  do iq = 1,imax
-!    call pcr_work(odati(:,iq,n),aai(:,iq),bbi(:,iq),cci(:,iq),ddi(:,iq,n),klin,pmax)
-!  end do
-!end do
-!!$acc end parallel loop
-!
-!do n = 1,ndim
-!  outdat(1:imax,1:klin,n) = transpose( odati(1:klin,1:imax,n) )
-!end do
-!
-!return
-!end subroutine pcr
-
-!pure subroutine pcr_work(outdat,aai,bbi,cci,ddi,klin,pmax)
-!!$acc routine vector
-!
-!implicit none
-!
-!integer, intent(in) :: klin, pmax
-!integer k, p, s, klow, khigh
-!real, dimension(klin), intent(in) :: aai, bbi, cci, ddi
-!real, dimension(0:klin+1) :: aa, cc, dd
-!real, dimension(klin), intent(out) :: outdat
-!real, dimension(klin) :: new_aa, new_cc
-!real rr
-!
-!aa(0) = 0.
-!cc(0) = 0.
-!dd(0) = 0.
-!do k = 1,klin
-!  aa(k) = aai(k)/bbi(k)
-!  cc(k) = cci(k)/bbi(k)
-!  dd(k) = ddi(k)/bbi(k)
-!end do
-!aa(klin+1) = 0.
-!cc(klin+1) = 0.
-!dd(klin+1) = 0.
-!
-!do p = 1,pmax,2
-!
-!  s = 2**(p-1)
-!  do k = 1,klin
-!    klow = max(k-s,0)
-!    khigh = min(k+s,klin+1)
-!    rr = 1./(1.-aa(k)*cc(klow)-cc(k)*aa(khigh))
-!    new_aa(k) = -rr*(aa(k)*aa(klow))
-!    new_cc(k) = -rr*(cc(k)*cc(khigh))
-!    outdat(k) = rr*(dd(k)-aa(k)*dd(klow)-cc(k)*dd(khigh))
-!  end do
-!
-!  s = 2**p
-!  do k = 1,klin
-!    klow = max(k-s,0)
-!    khigh = min(k+s,klin+1)
-!    rr = 1./(1.-new_aa(k)*new_cc(klow)-new_cc(k)*new_aa(khigh))
-!    aa(k) = -rr*(new_aa(k)*new_aa(klow))
-!    cc(k) = -rr*(new_cc(k)*new_cc(khigh))
-!    dd(k) = rr*(outdat(k)-new_aa(k)*outdat(klow)-new_cc(k)*outdat(khigh))
-!  end do
-!  
-!end do ! p = 1,pmax
-!
-!if ( mod(p,2)==0 ) then
-!  do k = 1,klin
-!    outdat(k) = dd(k)
-!  end do
-!end if
-!
-!return
-!end subroutine pcr_work
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate saturation mixing ratio
@@ -2227,11 +2124,14 @@ pure subroutine updatekmo(kmo,km,fzhl,imax,kl)
 implicit none
 
 integer, intent(in) :: imax, kl
+integer k
 real, dimension(imax,kl), intent(out) :: kmo
 real, dimension(imax,kl), intent(in) :: km
 real, dimension(imax,kl-1), intent(in) :: fzhl
 
-kmo(:,1:kl-1)=km(:,1:kl-1)+fzhl(:,1:kl-1)*(km(:,2:kl)-km(:,1:kl-1))
+do k = 1,kl-1
+  kmo(:,k) = km(:,k) + fzhl(:,k)*(km(:,k+1)-km(:,k))
+end do
 ! These terms are never used
 kmo(:,kl)=0.
 
