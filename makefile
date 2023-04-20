@@ -158,6 +158,7 @@ FHOST = -O4 -fast -tp=host
 ifeq ($(SKYLAKE),yes)
 FHOST = -O4 -fast -tp=skylake-avx512
 endif
+FHOST += -Dpgi
 MPIFLAG =
 MPISPECIAL =
 FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)

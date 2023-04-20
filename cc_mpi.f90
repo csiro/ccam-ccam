@@ -8696,6 +8696,23 @@ contains
          if ( vsize > 2 ) then
             new_node_nproc = vsize
          end if
+         !if ( node_myid==0 ) then
+         !   lnode = node_nproc 
+         !   lcommin = comm_nodecaptain
+         !   call START_LOG(reduce_begin)
+         !   call MPI_Reduce(lnode, mnode, 1_4, MPI_INTEGER, MPI_MAX, 0_4, lcommin, lerr )
+         !   call END_LOG(reduce_end)
+         !end if
+         !lcommin = comm_world
+         !call MPI_Bcast(mnode, 1, MPI_INTEGER, 0_4, lcommin, lerr )
+         !do vsize = mnode,1,-1
+         !   if ( mod(nproc,vsize)==0 ) then
+         !      exit
+         !   end if
+         !end do
+         !if ( vsize > 2 ) then
+         !   new_node_nproc = vsize
+         !end if
       end if
 
       if ( new_node_nproc >= 4 ) then

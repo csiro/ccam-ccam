@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -65,7 +65,15 @@ do k = 1,kl
   s(1:ifull,k,3) = wc(1:ifull,k)
 end do  
 
-call bounds(s,nrows=2)
+!$acc data create(xg,yg,nface,xx4,yy4,sx)
+!$acc update device(xx4,yy4)
+
+call bounds_send(s,nrows=2)
+
+! convert to grid point numbering
+call toij5(x3d,y3d,z3d)
+
+call bounds_recv(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -147,13 +155,8 @@ else
 
 end if
 
-!$acc data create(xg,yg,nface,xx4,yy4,sx)
-!$acc update device(xx4,yy4,sx)
-
-! convert to grid point numbering
-call toij5(x3d,y3d,z3d)
-
 ! Share off processor departure points.
+!$acc update device(sx)
 !$acc update self(xg,yg,nface)
 call deptsync(nface,xg,yg)
 

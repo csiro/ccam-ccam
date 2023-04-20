@@ -407,7 +407,6 @@ if ( myid==0 ) write(6,*) 'First model level height zmin = ',zmin
 
 !$acc update device(sig,dsig)
 !$acc update device(sigmh,bet,betm)
-!$acc update device(sigkap)
 
 
 !--------------------------------------------------------------

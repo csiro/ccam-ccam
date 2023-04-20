@@ -286,7 +286,7 @@ real, dimension(ifull) :: oev_isv, oeu_iwu
 real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull) :: sdiv
 real, dimension(ifull) :: gosigu, gosigv
-real, dimension(ifull+iextra,wlev,3) :: cou
+real, dimension(ifull+iextra,wlev,6) :: cou
 real, dimension(ifull+iextra,wlev+1) :: cc
 real, dimension(ifull+iextra,wlev) :: eou, eov, ccu, ccv
 real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns, mps
@@ -540,8 +540,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! (Assume free surface correction is small so that changes in the compression 
   ! effect due to neta can be neglected.  Consequently, the neta dependence is 
   ! separable in the iterative loop)
-  call bounds(nt,corner=.true.)
-  call bounds(ns,corner=.true.)
+  cou(1:ifull,:,1) = nt(1:ifull,:)
+  cou(1:ifull,:,2) = ns(1:ifull,:)
+  call bounds(cou(:,:,1:2),corner=.true.)
+  nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
+  ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
 
   ! Calculate normalised density gradients
   ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
@@ -715,39 +718,35 @@ do mspec_mlo = mspeca_mlo,1,-1
   !$acc update device(xg,yg,nface)
 #endif
   
-  ! Convert (u,v) to cartesian coordinates (U,V,W)
   do ii = 1,wlev
+    ! Convert (u,v) to cartesian coordinates (U,V,W)  
     cou(1:ifull,ii,1) = ax(1:ifull)*uau(:,ii) + bx(1:ifull)*uav(:,ii)
     cou(1:ifull,ii,2) = ay(1:ifull)*uau(:,ii) + by(1:ifull)*uav(:,ii)
     cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
+    cou(1:ifull,ii,4) = nt(1:ifull,ii)
+    cou(1:ifull,ii,5) = mps(1:ifull,ii)
+    ! MJT notes - only advect salinity for salt water (filter out fresh water points for advection)
+    workdata2(1:ifull,ii) = ns(1:ifull,ii)
+    cou(1:ifull,ii,6) = ns(1:ifull,ii) - 34.72    
   end do
-  ! Horizontal advection for U, V, W
-  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,.false.)
+  
+  ! Horizontal advection for U, V, W, T, S and continuity
+  call mlob2ints_bs(cou(:,:,1:6),nface,xg,yg,wtr,(/.false.,.false.,.false.,.false.,.false.,.true./))
+  
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
-  ! Convert (U,V,W) back to conformal cubic coordinates
+  
   do ii = 1,wlev
+    ! Convert (U,V,W) back to conformal cubic coordinates  
     uau(:,ii) = ax(1:ifull)*cou(1:ifull,ii,1) + ay(1:ifull)*cou(1:ifull,ii,2) + az(1:ifull)*cou(1:ifull,ii,3)
     uav(:,ii) = bx(1:ifull)*cou(1:ifull,ii,1) + by(1:ifull)*cou(1:ifull,ii,2) + bz(1:ifull)*cou(1:ifull,ii,3)
     uau(:,ii) = uau(:,ii)*ee(1:ifull,ii)
     uav(:,ii) = uav(:,ii)*ee(1:ifull,ii)
-  end do
-
-  ! Horizontal advection for T, S and continuity
-  do ii = 1,wlev
-    ! MJT notes - only advect salinity for salt water (filter out fresh water points for advection)
-    workdata2(1:ifull,ii) = ns(1:ifull,ii)
-    ns(1:ifull,ii) = ns(1:ifull,ii) - 34.72
-  end do
-  cou(1:ifull,1:wlev,1) = nt(1:ifull,1:wlev)
-  cou(1:ifull,1:wlev,2) = mps(1:ifull,1:wlev)
-  call mlob2ints_bs(cou(:,:,1:2),nface,xg,yg,wtr,.false.)
-  call mlob2ints_bs(ns,nface,xg,yg,wtr,.true.)
-  do ii = 1,wlev
-    nt(1:ifull,ii) = max( cou(1:ifull,ii,1), -wrtemp )
-    mps(1:ifull,ii) = cou(1:ifull,ii,2)
+    ! Update T, S and continuity
+    nt(1:ifull,ii) = max( cou(1:ifull,ii,4), -wrtemp )
+    mps(1:ifull,ii) = cou(1:ifull,ii,5)
     ! MJT notes - only advect salinity for salt water
-    ns(1:ifull,ii) = ns(1:ifull,ii) + 34.72
+    ns(1:ifull,ii) = cou(1:ifull,ii,6) + 34.72
     where ( workdata2(1:ifull,ii)<2. )
       ns(1:ifull,ii) = workdata2(1:ifull,ii)
     end where  
@@ -786,8 +785,11 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
   if ( nxtrrho==1 ) then
-    call bounds(nt,corner=.true.)
-    call bounds(ns,corner=.true.)
+    cou(1:ifull,:,1) = nt(1:ifull,:)
+    cou(1:ifull,:,2) = ns(1:ifull,:)
+    call bounds(cou(:,:,1:2),corner=.true.)
+    nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
+    ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
     ! update normalised density gradients
     call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhobar,rhobaru,rhobarv)
   end if

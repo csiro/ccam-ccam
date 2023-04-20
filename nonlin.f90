@@ -60,6 +60,8 @@ real invconst_nh, contv
 real, dimension(ifull,kl) :: aa, bb
 real, dimension(ifull+iextra,kl) :: p, tv, phiv
 real, dimension(ifull+iextra,kl+1) :: duma
+real, dimension(ifull+iextra,kl,2) :: dumb
+real, dimension(ifull+iextra,2*kl) :: dumu, dumv
 real, dimension(ifull) :: t_nh, spmax2, termlin
 real, allocatable, save, dimension(:) :: epstsav
       
@@ -298,12 +300,17 @@ end do
 
 ! MJT notes - This is the first bounds call after the physics
 ! routines, so load balance is a significant issue
+dumb(ifull+1:ifull+iextra,:,:) = 0.
+dumb(1:ifull,:,1) = p(1:ifull,:)
+dumb(1:ifull,:,2) = tv(1:ifull,:)
+call bounds(dumb(:,:,1:2),nehalf=.true.)
+p(ifull+1:ifull+iextra,:) = dumb(ifull+1:ifull+iextra,:,1)
+tv(ifull+1:ifull+iextra,:) = dumb(ifull+1:ifull+iextra,:,2)
+
 duma(ifull+1:ifull+iextra,:) = 0. ! avoids float invalid errors
-call bounds(p,nehalf=.true.)
-call bounds(tv,nehalf=.true.)
 duma(1:ifull,1:kl) = phiv(1:ifull,:)
 duma(1:ifull,kl+1) = psl(1:ifull)
-call bounds(duma(:,1:kl+1))
+call bounds(duma)
 phiv(ifull+1:ifull+iextra,1:kl) = duma(ifull+1:ifull+iextra,1:kl)
 psl(ifull+1:ifull+iextra)       = duma(ifull+1:ifull+iextra,kl+1)
 
@@ -331,9 +338,15 @@ end if                     ! (diag)
 
 
 ! Bounds call for unstaggering winds
-! Bounds call for unstaggering winds
-call unstaguv(aa,bb,ux,vx) ! convert to unstaggered positions
-call unstaguv(un,vn,un,vn) ! convert to unstaggered positions
+dumu(1:ifull,1:kl) = aa(1:ifull,1:kl)
+dumv(1:ifull,1:kl) = bb(1:ifull,1:kl)
+dumu(1:ifull,kl+1:2*kl) = un(1:ifull,1:kl)
+dumv(1:ifull,kl+1:2*kl) = vn(1:ifull,1:kl)
+call unstaguv(dumu,dumv,dumu,dumv) ! convert to unstaggered positions
+ux(1:ifull,1:kl) = dumu(1:ifull,1:kl)
+vx(1:ifull,1:kl) = dumv(1:ifull,1:kl)
+un(1:ifull,1:kl) = dumu(1:ifull,kl+1:2*kl)
+vn(1:ifull,1:kl) = dumv(1:ifull,kl+1:2*kl)
 
 
 if ( diag ) then

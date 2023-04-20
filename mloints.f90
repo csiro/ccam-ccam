@@ -67,7 +67,7 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
-logical, intent(in) :: sal_test
+logical, dimension(size(s,3)), intent(in) :: sal_test
 
 call START_LOG(waterints_begin)
 
@@ -81,17 +81,14 @@ do nn = 1,ntr
       s(1:ifull,k,nn) = cxx - 1. ! missing value flag
     end where
   end do
-end do  
-
-if ( sal_test ) then
-  do nn = 1,ntr  
+  if ( sal_test(nn) ) then
     do k = 1,wlev  
       where ( s(1:ifull,k,nn)<2.-34.72 )
         s(1:ifull,k,nn) = cxx - 1. ! missing value flag
       end where
     end do
-  end do  
-end if
+  end if
+end do
 
 ! fill
 do ii = 1,3 ! 3 iterations of fill should be enough
@@ -452,17 +449,14 @@ do nn = 1,ntr
       s(1:ifull,k,nn) = s_store(1:ifull,k,nn)
     end where
   end do
-end do  
-
-if ( sal_test ) then
-  do nn = 1,ntr  
+  if ( sal_test(nn) ) then
     do k = 1,wlev
       where ( s_store(1:ifull,k,nn)<2.-34.72 )
         s(1:ifull,k,nn) = s_store(1:ifull,k,nn)  
       end where
     end do
-  end do  
-end if
+  end if
+end do
 
 call END_LOG(waterints_end)
 
@@ -851,7 +845,7 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
-logical, intent(in) :: sal_test
+logical, dimension(size(s,3)), intent(in) :: sal_test
 
 call START_LOG(waterints_begin)
 
@@ -865,17 +859,14 @@ do nn = 1,ntr
       s(1:ifull,k,nn) = cxx - 1. ! missing value flag
     end where
   end do
-end do  
-
-if ( sal_test ) then
-  do nn = 1,ntr  
+  if ( sal_test(nn) ) then
     do k = 1,wlev  
       where ( s(1:ifull,k,nn)<2.-34.72 )
         s(1:ifull,k,nn) = cxx - 1. ! missing value flag
       end where
     end do
-  end do  
-end if
+  end if
+end do
 
 ! fill
 do ii = 1,3 ! 3 iterations of fill should be enough
@@ -1216,17 +1207,14 @@ do nn = 1,ntr
       s(1:ifull,k,nn) = s_store(1:ifull,k,nn)
     end where
   end do
-end do  
-
-if ( sal_test ) then
-  do nn = 1,ntr  
+  if ( sal_test(nn) ) then
     do k = 1,wlev
       where ( s_store(1:ifull,k,nn)<2.-34.72 )
         s(1:ifull,k,nn) = s_store(1:ifull,k,nn)  
       end where
     end do
-  end do  
-end if
+  end if
+end do
 
 call END_LOG(waterints_end)
 

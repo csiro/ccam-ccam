@@ -35,6 +35,7 @@ module cc_omp
    integer, save, public :: maxtilesize = 32 ! suggested value
 #else
    integer, save, public :: maxtilesize = 96 ! suggested value
+   ! MJT notes - ideally want multiple of 16 like maxtilesize=48, 96, 144
 #endif
 !#ifdef _OPENMP
 !#ifdef GPU
@@ -90,12 +91,23 @@ module cc_omp
       !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
       maxtilesize = min( max( maxtilesize, 1 ), ifull )
       tmp = maxtilesize
-      do i = tmp,1,-1
-         if ( mod(ifull,i) == 0 ) then
+      maxtilesize = -1 ! missing flag
+      ! first attempt to find multiple of 16
+      do i = tmp,16,-1
+         if ( mod(ifull,i)==0 .and. mod(i,16)==0 ) then
             maxtilesize = i
             exit
          end if
       end do
+      if ( maxtilesize<1 ) then
+         ! second attempt if multiple of 16 is not possible
+         do i = tmp,1,-1
+            if ( mod(ifull,i)==0 ) then
+               maxtilesize = i
+               exit
+            end if
+         end do
+      end if
 
       !increase the number of tiles if the resultant tile size is too big
       if ( ifull/ntiles > maxtilesize ) ntiles = ifull/maxtilesize

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -47,8 +47,8 @@ use parmhor_m          ! Horizontal advection parameters
 implicit none
 
 integer, intent(in) :: intsch  ! method to interpolate panel corners
-integer, intent(in) :: nfield  ! use B&S if nfield>=mh_bs
 integer, intent(in) :: ntr     ! number of tracers to process
+integer, dimension(ntr), intent(in) :: nfield  ! use B&S if nfield>=mh_bs
 integer idel, iq, jdel
 integer i, j, k, n, ii, nn, np
 integer nstart, nend, nlen, async_counter
@@ -111,9 +111,10 @@ if ( intsch==1 ) then
     end do              ! nn loop  
 
     ! Loop over points that need to be calculated for other processes
-    if ( nfield<mh_bs ) then
 
-      do nn = 1,nlen 
+    do nn = 1,nlen 
+      if ( nfield(nn+nstart-1)<mh_bs ) then
+          
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
             ! depature point coordinates
@@ -145,16 +146,58 @@ if ( intsch==1 ) then
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do      ! iq loop
         end do        ! ii loop
-      end do          ! nn loop  
+        
+      else               ! (nfield<mh_bs)
+          
+        do ii = 1,neighnum
+          do iq = 1,drlen(ii)
+            n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
+            idel = int(dpoints(ii)%a(iq,2))
+            xxg = dpoints(ii)%a(iq,2) - real(idel)
+            jdel = int(dpoints(ii)%a(iq,3))
+            yyg = dpoints(ii)%a(iq,3) - real(jdel)
+            k = nint(dpoints(ii)%a(iq,4))
+            idel = idel - ioff
+            jdel = jdel - joff
+            ! bi-cubic
+            cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+            cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+            cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+            cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+            dmul_2 = (1.-xxg)
+            dmul_3 = xxg
+            emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+            emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+            emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+            emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+            cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+            cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+            rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
+            rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                     sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
+            rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
+                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
+            rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
+                rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+          end do      ! iq loop
+        end do        ! ii loop
+        
+      end if
+    end do          ! nn loop  
 
-      ! Send messages to other processors.  We then start the calculation for this processor while waiting for
-      ! the messages to return, thereby overlapping computation with communication.
-      call intssync_send(nlen)
+    ! Send messages to other processors.  We then start the calculation for this processor while waiting for
+    ! the messages to return, thereby overlapping computation with communication.
+    call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel
+    !$omp parallel
 #endif
-      do nn = 1,nlen
+    do nn = 1,nlen
+      if ( nfield(nn+nstart-1)<mh_bs ) then
+          
 #ifndef GPU
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
@@ -198,61 +241,9 @@ if ( intsch==1 ) then
 #else
         !$acc end parallel loop
 #endif
-      end do           ! nn loop
-#ifndef GPU
-      !$omp end parallel
-#else
-      !$acc wait
-#endif
-    
-    else              ! (nfield<mh_bs)
 
-      do nn = 1,nlen  
-        do ii = 1,neighnum
-          do iq = 1,drlen(ii)
-            n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
-            idel = int(dpoints(ii)%a(iq,2))
-            xxg = dpoints(ii)%a(iq,2) - real(idel)
-            jdel = int(dpoints(ii)%a(iq,3))
-            yyg = dpoints(ii)%a(iq,3) - real(jdel)
-            k = nint(dpoints(ii)%a(iq,4))
-            idel = idel - ioff
-            jdel = jdel - joff
-            ! bi-cubic
-            cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-            cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-            cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-            cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-            dmul_2 = (1.-xxg)
-            dmul_3 = xxg
-            emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-            emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-            emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-            emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-            cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-            rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-            rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
-                rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
-          end do      ! iq loop
-        end do        ! ii loop
-      end do          ! nn loop
-      
-      ! Send messages to other processors.  We then start the calculation for this processor while waiting for
-      ! the messages to return, thereby overlapping computation with communication.
-      call intssync_send(nlen)
+      else              ! (nfield<mh_bs)
 
-#ifndef GPU
-      !$omp parallel
-#endif
-      do nn = 1,nlen
 #ifndef GPU
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
@@ -301,14 +292,14 @@ if ( intsch==1 ) then
 #else
         !$acc end parallel loop
 #endif
-      end do           ! nn loop
+          
+      end if
+    end do           ! nn loop
 #ifndef GPU
       !$omp end parallel
 #else
       !$acc wait
 #endif
-
-    end if            ! (nfield<mh_bs)  .. else ..
   
     call intssync_recv(s(:,:,nstart:nend))  
     
@@ -362,9 +353,10 @@ else     ! if(intsch==1)then
     end do                  ! nn loop
 
     ! For other processes
-    if ( nfield < mh_bs ) then
-
-      do nn = 1,nlen  
+    
+    do nn = 1,nlen
+      if ( nfield(nn+nstart-1) < mh_bs ) then
+          
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
             n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
@@ -396,14 +388,57 @@ else     ! if(intsch==1)then
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do         ! iq loop
         end do           ! ii loop
-      end do             ! nn loop  
+        
+      else                 ! (nfield<mh_bs)  
+
+        do ii = 1,neighnum
+          do iq = 1,drlen(ii)
+            n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
+            !  Need global face index in fproc call
+            idel = int(dpoints(ii)%a(iq,2))
+            xxg = dpoints(ii)%a(iq,2) - real(idel)
+            jdel = int(dpoints(ii)%a(iq,3))
+            yyg = dpoints(ii)%a(iq,3) - real(jdel)
+            k = nint(dpoints(ii)%a(iq,4))
+            idel = idel - ioff
+            jdel = jdel - joff
+            ! bi-cubic
+            cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+            cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+            cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+            cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+            dmul_2 = (1.-yyg)
+            dmul_3 = yyg
+            emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+            emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+            emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+            emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+            cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+            cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
+                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
+            rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
+            rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
+                     sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
+            rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
+                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
+            rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
+                rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
+          end do      ! iq loop
+        end do        ! ii loop
+          
+      end if    
+    end do             ! nn loop  
     
-      call intssync_send(nlen)
+    call intssync_send(nlen)
 
 #ifndef GPU
-      !$omp parallel
+    !$omp parallel
 #endif
-      do nn = 1,nlen
+    do nn = 1,nlen
+      if ( nfield(nn+nstart-1) < mh_bs ) then
+          
 #ifndef GPU
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
@@ -448,60 +483,9 @@ else     ! if(intsch==1)then
 #else
         !$acc end parallel loop
 #endif
-      end do           ! nn loop
-#ifndef GPU
-      !$omp end parallel
-#else
-      !$acc wait
-#endif
-    
-    else                 ! (nfield<mh_bs)
 
-      do nn = 1,nlen  
-        do ii = 1,neighnum
-          do iq = 1,drlen(ii)
-            n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
-            !  Need global face index in fproc call
-            idel = int(dpoints(ii)%a(iq,2))
-            xxg = dpoints(ii)%a(iq,2) - real(idel)
-            jdel = int(dpoints(ii)%a(iq,3))
-            yyg = dpoints(ii)%a(iq,3) - real(jdel)
-            k = nint(dpoints(ii)%a(iq,4))
-            idel = idel - ioff
-            jdel = jdel - joff
-            ! bi-cubic
-            cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-            cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-            cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-            cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-            dmul_2 = (1.-yyg)
-            dmul_3 = yyg
-            emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-            emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-            emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-            emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-            cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-            rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-            rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
-                rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
-          end do      ! iq loop
-        end do        ! ii loop
-      end do          ! nn loop  
-  
-      call intssync_send(nlen)
+      else                 ! (nfield<mh_bs)
 
-#ifndef GPU
-      !$omp parallel
-#endif
-      do nn = 1,nlen
 #ifndef GPU
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
@@ -550,15 +534,16 @@ else     ! if(intsch==1)then
 #else
         !$acc end parallel loop
 #endif
-      end do           ! nn loop
+          
+      end if
+
+    end do           ! nn loop
 #ifndef GPU
-      !$omp end parallel
+    !$omp end parallel
 #else
-      !$acc wait
+    !$acc wait
 #endif
     
-    end if            ! (nfield<mh_bs)  .. else ..
-
     call intssync_recv(s(:,:,nstart:nend))  
     
   end do ! ntr

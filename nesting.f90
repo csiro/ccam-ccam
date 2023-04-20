@@ -1036,6 +1036,15 @@ if ( nud_q>0 ) then
   call START_LOG(nestwin_begin)
   call ccmpi_gathermap_recv3(klt,klt)   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
+end if  
+
+if ( abs(iaero)>=2 .and. nud_aero>0 ) then
+  call START_LOG(nestwin_begin)  
+  call ccmpi_gathermap_send3(xtgbb(:,kln:klx,1)) ! gather data onto global sparse array (1)
+  call END_LOG(nestwin_end)
+end if  
+
+if ( nud_q>0 ) then
   do ppass = pprocn,pprocx
     call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
     call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
@@ -1045,9 +1054,6 @@ if ( nud_q>0 ) then
 end if
 
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send3(xtgbb(:,kln:klx,1)) ! gather data onto global sparse array (1)
-  call END_LOG(nestwin_end)
   do i = 1,naero
     call START_LOG(nestwin_begin)  
     call ccmpi_gathermap_recv3(klt,klt) ! gather data onto global sparse array (1)
@@ -1184,14 +1190,20 @@ if ( nud_q>0 ) then
   call START_LOG(nestwin_begin)  
   call ccmpi_gathermap_recv3(klt,0)   ! gather data onto global sparse array (0)
   call END_LOG(nestwin_end)
-  call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  qbb(:,kln:klx) = qt(:,:)
 end if
 
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   call START_LOG(nestwin_begin)  
   call ccmpi_gathermap_send3(xtgbb(:,kln:klx,1)) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)    
+  call END_LOG(nestwin_end) 
+end if
+
+if ( nud_q>0 ) then
+  call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
+  qbb(:,kln:klx) = qt(:,:)
+end if
+
+if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   do n = 1,naero
     call START_LOG(nestwin_begin)  
     call ccmpi_gathermap_recv3(klt,0) ! gather data onto global sparse array (0)
@@ -3584,11 +3596,7 @@ real, dimension(size(at,2)) :: at_k
 real, dimension(size(at,2)) :: out_sum
 real, dimension(size(xa)) :: rb
 real at_t, e, t1, t2
-#ifdef debug
-real(kind=8) ra
-#else
 real ra
-#endif
 complex, dimension(size(at,2)) :: local_sum
 
 ilen = size(xa)
@@ -3596,16 +3604,9 @@ kx = size(at,2)
 
 local_sum(1:kx) = (0.,0.)
 do i = 1,ilen
-#ifdef debug
-  ra = real(xa(nn),8)*real(xa(i),8) + real(ya(nn),8)*real(ya(i),8) &
-     + real(za(nn),8)*real(za(i),8)
-  ra = acos(max(min(ra, 1._8), -1._8))
-  rb(i) = exp(-min((cq*real(ra))**2,50.))  
-#else
   ra = xa(nn)*xa(i) + ya(nn)*ya(i) + za(nn)*za(i)
   ra = acos(max(min(ra, 1.), -1.))
   rb(i) = exp(-min((cq*ra)**2,50.))  
-#endif
 end do
 
 do i = 1,ilen

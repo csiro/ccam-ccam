@@ -173,7 +173,7 @@ real, dimension(imax,kl) :: qaccf
 #ifndef GPUPHYSICS
 real, dimension(imax,kl) :: pqfsedice, pslopes, prscav
 #endif
-real, dimension(imax) :: fl, diag_temp
+real, dimension(kl) :: diag_temp
 real invdt, prf_temp
 
 ! meterological fields
