@@ -2,6 +2,13 @@ FC = mpif90
 FCSCM = ifort
 CC = cc
 
+ifeq ($(GPU),yes)
+USE_GPU=yes
+endif
+ifeq ($(GPUPHYSICS),yes)
+USE_GPU=yes
+endif
+
 # Common compiler flags
 ifneq ($(CUSTOM),yes)
 NCFLAG = -I $(NETCDF_ROOT)/include
@@ -105,8 +112,11 @@ IPFLAG =
 IPOFLAG =
 VTHRESH =
 endif
-ifeq ($(GPU),yes)
+ifeq ($(USE_GPU),yes)
 FFLAGS += -DGPU -foffload=nvptx-none
+endif
+ifeq ($(GPUPHYSICS),yes)
+FFLAGS += -DGPUPHYSICS
 endif
 ifeq ($(OMP),yes)
 FFLAGS += -fopenmp
@@ -162,10 +172,13 @@ FHOST += -Dpgi
 MPIFLAG =
 MPISPECIAL =
 FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
-ifeq ($(GPU),yes)
+ifeq ($(USE_GPU),yes)
 FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
 FFLAGS += -Minline
 #-ta=tesla:cc70
+endif
+ifeq ($(GPUPHYSICS),yes)
+FFLAGS += -DGPUPHYSICS
 endif
 FOVERRIDE =
 ZMM =
@@ -178,37 +191,6 @@ PPFLAG90F = -cpp
 REAL8FLAG = -r8
 INT8FLAG = -i8
 DEBUGFLAG = -g
-endif
-
-#PGFORTRAN
-ifeq ($(PGI),yes)
-MPIFC = pgfortran
-MPIF77 = pgfortran
-FC = pgfortran -I$(I_MPI_ROOT)/include64 -L$(I_MPI_ROOT)/lib64 -lmpi -lmpiif 
-FCSCM = pgfortran
-CC = pgcc
-FHOST = -O3 -tp=haswell -fast
-#FHOST = -g
-MPIFLAG +=  
-MPISPECIAL =
-FFLAGS = $(FHOST) -Dpgi -traceback $(MPIFLAG) $(NCFLAG)
-ifeq ($(GPU),yes)
-#FFLAGS += -Minfo=accel -acc -ta=host
-#FFLAGS += -Minfo=accel -acc -ta=multicore
-#FFLAGS += -Minfo=accel -acc -ta=nvidia:cc60
-FFLAGS += -Minfo=accel -acc -ta=tesla:cc60 -DGPU
-endif
-FOVERRIDE =
-ZMM =
-IPFLAG =
-IPOFLAG =
-VTHRESH =
-PPFLAG90 = -cpp
-PPFLAG77 = -cpp
-PPFLAG90F = -cpp
-REAL8FLAG = -r8
-INT8FLAG = -i8
-DEBUGFLAG =
 endif
 
 # CRAY compiler options

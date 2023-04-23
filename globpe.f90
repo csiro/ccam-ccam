@@ -805,7 +805,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       js = (tile-1)*imax + 1
       je = tile*imax  
       call nantest("after aerosols",js,je,"aerosols")
-   end do  
+    end do  
     !$omp end do nowait
 
   
@@ -3725,8 +3725,6 @@ end subroutine proctest_face
     
 !--------------------------------------------------------------------
 ! Fix water vapour mixing ratio
-!--------------------------------------------------------------------
-! Fix water vapour mixing ratio
 subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -3776,6 +3774,7 @@ use const_phys                        ! Physical constants
 use cfrac_m                           ! Cloud fraction
 use estab                             ! Liquid saturation function
 use liqwpar_m                         ! Cloud water mixing ratios
+use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
 use sigs_m                            ! Atmosphere sigma levels
@@ -3783,10 +3782,11 @@ use sigs_m                            ! Atmosphere sigma levels
 implicit none
 
 integer, intent(in) :: js, je
-integer k, ilen
-real, dimension(js:je) :: qtot, tliq
-real, dimension(js:je) :: pk, qsi, deles, qsl, qsw, fice
-real, dimension(js:je) :: dqsdt, hlrvap, al, qc
+integer k, ilen, iq
+real, dimension(js:je,kl) :: zg
+real, dimension(js:je) :: tliq, pk, qsi, deles, qsl
+real qtot, qsw, fice
+real dqsdt, hlrvap, al, qc
 real, parameter :: tice = 233.16
 
 ! requires qg_fix>=2
@@ -3794,38 +3794,53 @@ if ( qg_fix<=1 ) return
 
 ilen = je - js + 1
 
+! calculate approximate height above surface
+zg(js:je,1) = bet(1)*t(js:je,1)/grav
+do k = 2,kl
+  zg(js:je,k) = zg(js:je,k-1) + (bet(k)*t(js:je,k) + betm(k)*t(js:je,k-1))/grav
+end do
+
 do k = 1,kl
-  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), 0. )
-  qc(js:je)   = max( qlg(js:je,k) + qfg(js:je,k), 0. )
+    
   tliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
-  
-  where ( qfg(js:je,k)>1.e-8 )
-    fice(js:je) = min( qfg(js:je,k)/(qfg(js:je,k)+qlg(js:je,k)), 1. )
-  elsewhere
-    fice(js:je) = 0.
-  end where
-  pk(js:je) = ps(js:je)*sig(k)
-  qsi(js:je) = qsati(pk(js:je),tliq(js:je))
+  pk(js:je) = ps(js:je)*sig(k)  
+  qsi(js:je) = qsati(pk(js:je),tliq(js:je))  
   deles(js:je) = esdiffx(tliq(js:je))
   qsl(js:je) = qsi(js:je) + epsil*deles(js:je)/pk(js:je)
-  qsw(js:je) = fice(js:je)*qsi(js:je) + (1.-fice(js:je))*qsl(js:je)
-  hlrvap(js:je) = (hl+fice(js:je)*hlf)/rvap
-  dqsdt(js:je) = qsw(js:je)*hlrvap(js:je)/tliq(js:je)**2
-  al(js:je) = 1./(1.+(hlcp+fice(js:je)*hlfcp)*dqsdt(js:je))
-  qc(js:je) = max( al(js:je)*(qtot(js:je) - qsw(js:je)), qc(js:je) )
-  where ( t(js:je,k)>=tice )
-    qfg(js:je,k) = max( fice(js:je)*qc(js:je), 0. )  
-    qlg(js:je,k) = max( qc(js:je)-qfg(js:je,k), 0. )
-  end where
+  
+  do iq = js,je
+    ! only apply below boundary layer height  
+    if ( zg(iq,k) < pblh(iq) ) then
+    
+      qtot = max( qg(iq,k) + qlg(iq,k) + qfg(iq,k), 0. )
+      qc   = max( qlg(iq,k) + qfg(iq,k), 0. )
+      if ( qfg(iq,k)>1.e-8 ) then
+        fice = min( qfg(iq,k)/(qfg(iq,k)+qlg(iq,k)), 1. )
+      else
+        fice= 0.
+      end if
+      qsw = fice*qsi(iq) + (1.-fice)*qsl(iq)
+      hlrvap = (hl+fice*hlf)/rvap
+      dqsdt = qsw*hlrvap/tliq(iq)**2
+      al = 1./(1.+(hlcp+fice*hlfcp)*dqsdt)
+      qc = max( al*(qtot - qsw), qc )
+      if ( t(iq,k)>=tice ) then
+        qfg(iq,k) = max( fice*qc, 0. )  
+        qlg(iq,k) = max( qc-qfg(iq,k), 0. )
+      end if
 
-  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), 0. )
-  t(js:je,k)  = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
-  where ( qlg(js:je,k)+qfg(js:je,k)>1.E-8 )
-    stratcloud(js:je,k) = max( stratcloud(js:je,k), 1.E-8 )
-  elsewhere
-    stratcloud(js:je,k) = 0.  
-  end where
-end do
+      qg(iq,k) = max( qtot - qlg(iq,k) - qfg(iq,k), 0. )
+      t(iq,k)  = tliq(iq) + hlcp*qlg(iq,k) + hlscp*qfg(iq,k)
+      if ( qlg(iq,k)+qfg(iq,k)>1.E-8 ) then
+        stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
+      else
+        stratcloud(iq,k) = 0.  
+      end if
+      
+    end if ! zg<pblh  
+  end do   ! iq 
+  
+end do     ! k
 
 return
 end subroutine fixsat    

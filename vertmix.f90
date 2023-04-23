@@ -1761,9 +1761,6 @@ return
 end subroutine pbldif
 
 pure subroutine trimmix2(a,c,rhs,imax,kl)
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
 implicit none
 
@@ -1810,9 +1807,6 @@ return
 end subroutine trimmix2
 
 pure subroutine trimmix3(a,c,rhs,imax,kl,ndim)
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
 implicit none
 

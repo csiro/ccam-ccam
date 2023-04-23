@@ -252,20 +252,10 @@ end if ! aero_update==aero_split
 if ( aero_update==1 ) then     
 
   ! Aerosol mixing
-#ifndef GPU    
   !$omp do schedule(static) private(js,je,iq,k),      &
   !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
   !$omp private(lxtg,lrkhsave,rong,rlogs1,rlogs2),    &
   !$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
-#endif
-#ifdef GPUPHYSICS
-  !!$acc parallel loop copy(xtg) copyin(t,rkhsave)    &
-  !!$acc   copyin(ratha,rathb)                        &
-  !!$acc   present(sig,sigmh,dsig)                    &
-  !!$acc   private(js,je,idjd_t,mydiag_t,lt,lrkhsave) &
-  !!$acc   private(lat,lct,lxtg,rong,rlogs1,rlogs2)   &
-  !!$acc   private(rlogh1,rlog12,tmnht,dzz,gt)
-#endif
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
@@ -306,12 +296,7 @@ if ( aero_update==1 ) then
     xtg(js:je,:,:) = lxtg
   
   end do ! tile = 1,ntiles
-#ifndef GPU
   !$omp end do nowait
-#endif
-#ifdef GPUPHYSICS
-  !!$acc end parallel loop
-#endif
 
 end if
 
@@ -833,9 +818,6 @@ end subroutine cldrop
 ! Aerosol scavenging fraction for convective clouds
 
 subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
 use aerosol_arrays, only : naero
 

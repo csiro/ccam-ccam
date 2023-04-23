@@ -100,9 +100,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
                       zpidw,zpiadj,zqschg,                  &
 #endif
                       zdrop,lin_aerosolmode)                  !aerosol feedback
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
 !-----------------------------------------------------------------------
 
@@ -370,11 +367,9 @@ subroutine clphy1d_ylin(dt, imax,                           &
       do k=kts,kte
         ncz(1:imax,k) = zdrop(1:imax,k)/rho(1:imax,k)
       end do
-#ifndef GPU
     case default
       write(6,*) "ERROR: Unknown option aerosolmode"
       stop
-#endif
   end select
 
   do k=kts,kte
@@ -1986,9 +1981,6 @@ END SUBROUTINE clphy1d_ylin
 !---------------------------------------------------------------------
 pure SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
                   xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
-#ifdef GPUPHYSICS
-!$acc routine seq
-#endif
 
 !---------------------------------------------------------------------
       IMPLICIT NONE
@@ -2117,9 +2109,6 @@ END SUBROUTINE satadj
 
 !----------------------------------------------------------------
 PURE FUNCTION ggamma(X) result(ans)
-#ifdef GPUPHYSICS
-!$acc routine seq
-#endif
 !----------------------------------------------------------------
   IMPLICIT NONE
   !----------------------------------------------------------------

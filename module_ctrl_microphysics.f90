@@ -112,10 +112,8 @@ real, dimension(imax,kl) :: lqevap, lqsubl, lqauto, lqcoll, lqaccr
 real, dimension(imax,kl) :: lvi
 real, dimension(imax,kl) :: l_rliq, l_rice, l_cliq, l_cice, lp
 real, dimension(imax,kl) :: l_rliq_in, l_rice_in, l_rsno_in
-#ifndef GPUPHYSICS
 real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
 real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
-#endif
 real, dimension(ifull,kl) :: clcon, cdrop
 real, dimension(ifull,kl) :: fluxr, fluxm, fluxf, fluxi, fluxs, fluxg
 real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
@@ -235,7 +233,6 @@ end do
 select case ( interp_ncloud(ldr,ncloud) )
   case("LEON")
   
-#ifndef GPU
     !$omp do schedule(static) private(js,je,idjd_t,mydiag_t),                     &
     !$omp private(lgfrac,lrfrac,lsfrac),                                          &
     !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl),                  &
@@ -244,20 +241,6 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(lstratcloud,lcdrop),                                            &
     !$omp private(lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg),                     &
     !$omp private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi)
-#endif
-#ifdef GPUPHYSICS
-    !$acc parallel loop vector_length(32) copy(t,qg,qlg,qfg)                    & 
-    !$acc   copy(qgrg,qrg,qsng,gfrac,rfrac,sfrac)                               &
-    !$acc   copy(condg,conds,condx,precip,stratcloud)                           &
-    !$acc   copyin(dz,rhoa,cdrop,ktsav,ps,qlrad,qfrad,cfrac)                    &
-    !$acc   copyout(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)      &
-    !$acc   copyout(fcoll,faccr,vi)                                             &
-    !$acc   private(js,je,idjd_t,mydiag_t)                                      &
-    !$acc   private(lgfrac,lrfrac,lsfrac,lqg,lqlg,lqfg)                         &
-    !$acc   private(lstratcloud,lcdrop,lt)                                      &
-    !$acc   private(lqgrg,lqrg,lqsng,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg) &
-    !$acc   private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi)
-#endif
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -279,10 +262,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       lstratcloud = stratcloud(js:je,:)
 
       call leoncld_work(condg(js:je),conds(js:je),condx(js:je),lgfrac,ktsav(js:je),           &
-#ifndef GPUPHYSICS          
               lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,                                   &
               lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,                     &
-#endif
               precip(js:je),ps(js:je),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt,        &
               lstratcloud,lcdrop,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg,lqevap,lqsubl,     &
               lqauto,lqcoll,lqaccr,lvi,                                                       &
@@ -311,7 +292,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       fcoll(js:je,:) = lqcoll(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       faccr(js:je,:) = lqaccr(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       vi(js:je,:) = lvi
-#ifndef GPUPHYSICS
       ! backwards compatible data for aerosols
       if ( abs(iaero)>=2 ) then
         ppfevap(js:je,:)    = lppfevap
@@ -326,19 +306,11 @@ select case ( interp_ncloud(ldr,ncloud) )
         pprfreeze(js:je,:)  = lpprfreeze
         pprscav(js:je,:)    = lpprscav
       end if
-#endif
     end do
-#ifndef GPU
     !$omp end do nowait
-#endif
-#ifdef GPUPHYSICS
-    !$acc end parallel loop
-#endif
 
-#ifndef GPU
     !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
     !$omp private(l_rliq,l_rice,l_cliq,l_cice)
-#endif
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -359,13 +331,10 @@ select case ( interp_ncloud(ldr,ncloud) )
       stras_cliq(js:je,:) = l_cliq
       stras_cice(js:je,:) = l_cice
     end do
-#ifndef GPU
     !$omp end do nowait
-#endif
 
   case("LIN")
       
-#ifndef GPU
     !$omp do schedule(static) private(js,je,riz,zlevv,m,zqg,zqlg,zqrg,zqfg)   &
     !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
     !$omp private(zcdrop,znr,zni,zns,pptrain,pptsnow,pptice,njumps,tdt,n)     &
@@ -379,25 +348,6 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(zpidw,zpiadj,zqschg)                                        &
 #endif
     !$omp private(zvi)
-#endif
-#ifdef GPUPHYSICS
-    !$acc parallel loop gang copy(t,qg,qlg,qfg)                                 &
-    !$acc   copy(qgrg,qrg,qsng,nr,ni,ns)                                        &
-    !$acc   copy(condg,conds,condx,precip,stratcloud)                           &
-    !$acc   copyin(zs,dz,rhoa,cdrop,ps)                                         &
-    !$acc   copyout(fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,fevap,fsubl,fauto)      &
-    !$acc   copyout(fcoll,faccr,vi,gfrac,rfrac,sfrac)                           &
-    !$acc   copyout(stras_rliq,stras_rice,stras_rsno,stras_rrai)                &
-    !$acc   present(bet,betm,sig)                                               &
-    !$acc   private(js,je,m,k,njumps,tdt,n,iq,prf_temp,prf)                     &
-    !$acc   private(zqg,zqlg,zqfg)                                              &
-    !$acc   private(zcdrop,thz,tothz,riz,zlevv)                                 &
-    !$acc   private(zrhoa,zpres,dzw,znc,znr,zni,zns)                            &
-    !$acc   private(pptrain,pptsnow,pptice)                                     &
-    !$acc   private(zqrg,zqsng,zfluxr,zfluxm,zfluxf,zfluxi,zfluxs)              &
-    !$acc   private(zqevap,zqsubl,zqauto,zqcoll,zqaccr,zvi)                     &
-    !$acc   private(zeffr1d,zeffs1d,zeffi1d,zeffc1d)
-#endif  
     do tile = 1, ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
@@ -529,7 +479,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       faccr(js:je,:) = real( zqaccr(1:imax,:) )
       vi(js:je,:) = real( zvi(1:imax,:) )
 
-#ifndef GPUPHYSICS
       !if (process_rate_mode == 2) then
       !  psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
       !  psaut(js:je,:)   = real( zpsaut(1:imax,:) )
@@ -560,7 +509,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       !  piadj(js:je,:)   = real( zpiadj(1:imax,:) )
       !  qschg(js:je,:)   = real( zqschg(1:imax,:) )
       !end if
-#endif
           
       condx(js:je)  = condx(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
       conds(js:je)  = conds(js:je) + real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax) )
@@ -568,17 +516,10 @@ select case ( interp_ncloud(ldr,ncloud) )
       precip(js:je) = precip(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
 
     end do     !tile loop
-#ifndef GPU
     !$omp end do nowait
-#endif
-#ifdef GPUPHYSICS
-    !$acc end parallel loop
-#endif      
 
-#ifndef GPU
     !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
     !$omp private(l_rliq,l_rice,l_cliq,l_cice,l_rliq_in,l_rice_in,l_rsno_in)
-#endif
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -601,9 +542,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       stras_cliq(js:je,:) = l_cliq
       stras_cice(js:je,:) = l_cice
     end do
-#ifndef GPU
     !$omp end do nowait
-#endif
       
   case default
     write(6,*) "ERROR: unknown mp_physics option "
@@ -614,12 +553,8 @@ end select
 
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 ) then
-#ifndef GPUPHYSICS  
   if ( interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0  ) then
-#endif
-#ifndef GPU
     !$omp do schedule(static) private(js,je,iq,k,fcol,fr,alph)
-#endif
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -678,12 +613,8 @@ if ( abs(iaero)>=2 ) then
         end do  
       end do
     end do ! tile
-#ifndef GPU
     !$omp end do nowait
-#endif
-#ifndef GPUPHYSICS
   end if   ! interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0
-#endif
 end if     ! abs(iaero)>=2
 
 

@@ -93,17 +93,12 @@ contains
     
 ! This subroutine is the interface for the LDR cloud microphysics
 subroutine leoncld_work(condg,conds,condx,gfrac,ktsav,                                  &
-#ifndef GPUPHYSICS    
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,                        &
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,           &
-#endif
                         precip,ps,qfg,qg,qgrg,qlg,qrg,qsng,rfrac,sfrac,t,               &
                         stratcloud,cdrop,fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,qevap,     &
                         qsubl,qauto,qcoll,qaccr,vi,                                     &
                         idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -122,7 +117,6 @@ real, dimension(imax,kl), intent(inout) :: gfrac, rfrac, sfrac
 real, dimension(imax,kl), intent(inout) :: qg, qlg, qfg, qrg, qsng, qgrg
 real, dimension(imax,kl), intent(inout) :: t
 real, dimension(imax,kl), intent(inout) :: stratcloud, cdrop
-#ifndef GPUPHYSICS
 real, dimension(imax,kl), intent(out) :: ppfevap
 real, dimension(imax,kl), intent(out) :: ppfmelt
 real, dimension(imax,kl), intent(out) :: ppfprec
@@ -134,7 +128,6 @@ real, dimension(imax,kl), intent(out) :: ppmrate
 real, dimension(imax,kl), intent(out) :: ppqfsedice
 real, dimension(imax,kl), intent(out) :: pprfreeze
 real, dimension(imax,kl), intent(out) :: pprscav
-#endif
 real, dimension(imax,kl), intent(out) :: fluxr
 real, dimension(imax,kl), intent(out) :: fluxm
 real, dimension(imax,kl), intent(out) :: fluxf
@@ -170,9 +163,7 @@ real, dimension(imax) :: wcon        !Convective cloud water content (in-cloud, 
 
 integer k, iq
 real, dimension(imax,kl) :: qaccf
-#ifndef GPUPHYSICS
 real, dimension(imax,kl) :: pqfsedice, pslopes, prscav
-#endif
 real, dimension(kl) :: diag_temp
 real invdt, prf_temp
 
@@ -201,9 +192,7 @@ else
                    precs,qg,stratcloud,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
                    qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
                    fluxf,                                                           &
-#ifndef GPUPHYSICS
                    pqfsedice,pslopes,prscav,                                        &
-#endif
                    vi,                                                              &
                    condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
 end if
@@ -239,7 +228,6 @@ end if
 #endif
 
 
-#ifndef GPUPHYSICS
 !--------------------------------------------------------------
 ! Store data needed by prognostic aerosol scheme
 ! MJT notes - invert levels for aerosol code
@@ -271,7 +259,6 @@ if ( abs(iaero)>=2 ) then
   end do
 end if
 !--------------------------------------------------------------
-#endif
 
 
 !========================= Jack's diag stuff =========================
@@ -404,14 +391,9 @@ end subroutine leoncld_work
 subroutine newsnowrain(tdt_in,rhoa,dz,prf,cdrop,ttg,qlg,qfg,qrg,qsng,qgrg,precs,qtg,stratcloud,cfrain,    &
                        cfsnow,cfgraupel,preci,precg,qevap,qsubl,qauto,qcoll,qaccr,qaccf,fluxr,            &
                        fluxi,fluxs,fluxg,fluxm,fluxf,                                                     &
-#ifndef GPUPHYSICS
                        pqfsedice,pslopes,prscav,                                                          &
-#endif
                        vi,                                                                                &
                        condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -444,11 +426,9 @@ real, dimension(imax,kl), intent(out) :: qauto
 real, dimension(imax,kl), intent(out) :: qcoll
 real, dimension(imax,kl), intent(out) :: qaccr
 real, dimension(imax,kl), intent(out) :: qaccf
-#ifndef GPUPHYSICS
 real, dimension(imax,kl), intent(out) :: pqfsedice
 real, dimension(imax,kl), intent(out) :: pslopes
 real, dimension(imax,kl), intent(out) :: prscav
-#endif
 real, dimension(imax,kl), intent(out) :: fluxr
 real, dimension(imax,kl), intent(out) :: fluxi
 real, dimension(imax,kl), intent(out) :: fluxs
@@ -558,11 +538,9 @@ qcoll            = 0.
 qsubl            = 0.
 qaccr            = 0.
 qaccf            = 0.
-#ifndef GPUPHYSICS
 pqfsedice        = 0.
 prscav           = 0.  
 pslopes          = 0.
-#endif
 pk3              = 100.*prf
 qsatg            = qsati(pk3,ttg)
 cfauto           = 0.
@@ -708,7 +686,7 @@ do n = 1,njumps
   v2(:,rain)    = 0.
   vi(:,kl)      = v2(:,ice)
   cf2(:,:)      = 0. ! total fraction = mx+rd-mx*rd
-  cf2(:,rain)   = 1.e-6
+  !cf2(:,rain)   = 1.e-6
 
 
   ! Now work down through the levels...
@@ -1241,13 +1219,11 @@ do n = 1,njumps
       
     end if ! flux2(iq,ice)>0.
     
-#ifndef GPUPHYSICS
     ! store slope for aerosols
     do iq = 1,imax
       slopes_i      = 1.6e3*10**(-0.023*(ttg(iq,k)-tfrz))
       pslopes(iq,k) = pslopes(iq,k) + slopes_i*tdt/tdt_in  
     end do
-#endif
     
     
     ! Rain --------------------------------------------------------------------------------
@@ -1255,7 +1231,8 @@ do n = 1,njumps
       ! Add flux of melted snow to flux2(:,rain)
       flux2(iq,rain) = flux2(iq,rain) + fluxmelt(iq)
       mxclfr(iq,rain) = max( mxclfr(iq,rain), cfmelt(iq) )    
-      cf2(iq,rain) = max( rdclfr(iq,rain) + mxclfr(iq,rain) - rdclfr(iq,rain)*mxclfr(iq,rain), 1.e-6 )
+      cf2(iq,rain) = max( rdclfr(iq,rain) + mxclfr(iq,rain) - rdclfr(iq,rain)*mxclfr(iq,rain), 1.e-10 )
+      !cf2(iq,rain) = max( rdclfr(iq,rain) + mxclfr(iq,rain) - rdclfr(iq,rain)*mxclfr(iq,rain), 1.e-6 )
     end do  
     
     ! Calculate rain fall speed (MJT suggestion)
@@ -1416,9 +1393,7 @@ do n = 1,njumps
         
       ! store for aerosols
       qevap(:,k) = qevap(:,k) + evap
-#ifndef GPUPHYSICS
       prscav(:,k) = prscav(:,k) + tdt*0.24*fcol*Fr**0.75   !Strat only
-#endif
       
     end if ! flux2(:,rain)>0.
 
@@ -1470,9 +1445,7 @@ do n = 1,njumps
     ! Save velocity
     vi(:,k) = v2(:,ice)
     
-#ifndef GPUPHYSICS    
     pqfsedice(:,k) = pqfsedice(:,k) + fout(:,ice)*tdt/tdt_in ! Save sedimentation rate for aerosol scheme
-#endif
 
 
     ! Update graupel, snow, ice and rain ------------------------------------------------
@@ -1569,7 +1542,6 @@ do k = 1,kl
   end do
 end do
 
-#ifndef GPU
 !      Adjust cloud fraction (and cloud cover) after precipitation
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'diags from newrain for idjd ',idjd
@@ -1582,7 +1554,6 @@ if ( nmaxpr==1 .and. mydiag ) then
   diag_temp(:) = cfgraupel(idjd,:)
   write (6,"('cfgraupel ',9f8.3/6x,9f8.3)") diag_temp
 end if
-#endif
 
 #ifdef debug
 ! Diagnostics for debugging
@@ -1619,10 +1590,8 @@ if ( diag .and. mydiag ) then
   !write(6,*) 'foutice',diag_temp(1:kl-1)
   !diag_temp(1:kl-1) = fthruice(idjd,1:kl-1)
   !write(6,*) 'fthruice',diag_temp(1:kl-1)
-#ifndef GPUPHYSICS
   diag_temp(:) = pqfsedice(idjd,:)
   write(6,*) 'pqfsedice',diag_temp
-#endif
   diag_temp(:) = fluxm(idjd,:)
   write(6,*) 'fluxm',diag_temp
   write(6,*) 'cifra,fluxsnow',cf2(idjd,ice),flux2(idjd,snow)
