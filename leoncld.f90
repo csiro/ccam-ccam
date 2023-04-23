@@ -35,12 +35,8 @@
 ! ncloud = 10   Same as ncloud=0 with Tiedtke from GFDL-CM3
 ! ncloud = 12   Same as ncloud=2 with Tiedtke from GFDL-CM3
 ! ncloud = 13   Same as ncloud=3 with Tiedtke from GFDL-CM3 (i.e., same as ncloud=4)
-! ncloud = 20   Same as ncloud=3 with MG cloud
-! ncloud = 21   Same as ncloud=3 with 2nd moment condensate
-! ncloud = 22   Same as ncloud=3 with MG cloud and 2nd momement condensate
 ! ncloud = 100  Use Lin et al 2nd moment microphysics
 ! ncloud = 110  Same as ncloud=100 with Tiedtke from GFDL-CM3
-! ncloud = 120  Same as ncloud=100 with MG cloud fraction
    
 !                            Water vapour (qg)
 !
@@ -82,11 +78,11 @@ real, parameter :: rhosno=100. !Assumed density of snow in kg/m^3
 real, parameter :: Eac=0.7     !Mean collection efficiency of ql by snow
 
 ! Parameters related to rain
-real, parameter :: Ecol=0.7  !Mean collection efficiency of ql by rain
+real, parameter :: Ecol=0.7    !Mean collection efficiency of ql by rain
 
 ! Parameters related to cloud radiative properties
-real, parameter :: aice=1.016 !Constant in Platt optical depth for ice (SI units)
-real, parameter :: bice=0.68  !Constant in Platt optical depth for ice (SI units)
+real, parameter :: aice=1.016  !Constant in Platt optical depth for ice (SI units)
+real, parameter :: bice=0.68   !Constant in Platt optical depth for ice (SI units)
 
 
 contains
@@ -102,8 +98,6 @@ subroutine leoncld_work(condg,conds,condx,gfrac,ktsav,                          
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
-use mgcloud_m , only : mg_2cond
-                                  ! MG cloud microphysics            
 use parm_m, only : iaero, nmaxpr, dt
                                   ! Model configuration
 use sigs_m                        ! Atmosphere sigma levels
@@ -185,17 +179,13 @@ precg(:) = 0. ! graupel
 
 
 !     Calculate precipitation and related processes
-if ( ncloud==21 .or. ncloud==22 ) then
-  call mg_2cond
-else
-  call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                    &
-                   precs,qg,stratcloud,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
-                   qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
-                   fluxf,                                                           &
-                   pqfsedice,pslopes,prscav,                                        &
-                   vi,                                                              &
-                   condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
-end if
+call newsnowrain(dt,rhoa,dz,prf,cdrop,t,qlg,qfg,qrg,qsng,qgrg,                    &
+                 precs,qg,stratcloud,rfrac,sfrac,gfrac,preci,precg,qevap,qsubl,   &
+                 qauto,qcoll,qaccr,qaccf,fluxr,fluxi,fluxs,fluxg,fluxm,           &
+                 fluxf,                                                           &
+                 pqfsedice,pslopes,prscav,                                        &
+                 vi,                                                              &
+                 condx,ktsav,idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
 
 
 #ifdef debug

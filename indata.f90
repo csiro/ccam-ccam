@@ -65,6 +65,7 @@ use darcdf_m                                     ! Netcdf data
 use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
 use diag_m                                       ! Diagnostic routines
+use eig_m                                        ! Eigenvector routines
 use ensemble                                     ! Ensemble
 use epst_m                                       ! Off-centre terms
 use extraout_m                                   ! Additional diagnostics

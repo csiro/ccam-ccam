@@ -31,12 +31,8 @@ module cloudmod
 ! ncloud = 10   Same as ncloud=0 with Tiedtke from GFDL-CM3
 ! ncloud = 12   Same as ncloud=2 with Tiedtke from GFDL-CM3
 ! ncloud = 13   Same as ncloud=3 with Tiedtke from GFDL-CM3 (i.e., same as ncloud=4)
-! ncloud = 20   Same as ncloud=3 with MG cloud
-! ncloud = 21   Same as ncloud=3 with 2nd moment condensate
-! ncloud = 22   Same as ncloud=3 with MG cloud and 2nd momement condensate
 ! ncloud = 100  Use Lin et al 2nd moment microphysics
 ! ncloud = 110  Same as ncloud=100 with Tiedtke from GFDL-CM3
-! ncloud = 120  Same as ncloud=100 with MG cloud fraction
     
 implicit none
     
@@ -70,7 +66,6 @@ subroutine update_cloud_fraction(cfrac,land,                                    
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
-use mgcloud_m, only : mg_progcld  ! MG cloud microphysics
 use parm_m, only : nmaxpr, dt     ! Model configuration
 use sigs_m                        ! Atmosphere sigma levels
 
@@ -196,15 +191,12 @@ endif
 
 
 !     Calculate cloud fraction and cloud water mixing ratios
-if ( ncloud==20 .or. ncloud==22 .or. ncloud==120 ) then
-  call mg_progcld
-else
-  call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
-                dpsldt,nettend,stratcloud,em,pblh,idjd,   &
-                mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
-                cld_decay,vdeposition_mode,tiedtke_form,  &
-                rkmsave,rkhsave,imax,kl)
-end if
+call newcloud(dt,land,prf,rhoa,tenv,qenv,qlg,qfg,       &
+              dpsldt,nettend,stratcloud,em,pblh,idjd,   &
+              mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
+              cld_decay,vdeposition_mode,tiedtke_form,  &
+              rkmsave,rkhsave,imax,kl)
+
 
 ! Vertically sub-grid cloud
 ccov(1:imax,1:kl) = stratcloud(1:imax,1:kl)

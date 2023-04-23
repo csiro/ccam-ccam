@@ -18,7 +18,18 @@
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
-    
+  
+module eig_m
+
+implicit none
+
+private
+public eig
+integer, parameter :: rp = kind(1._8)
+!integer, parameter :: rp = kind(1._16) ! might be needed for large numbers of vertical levels
+
+contains
+
 !  this is eig derived from eignew, but used in-line in C-CAM
 subroutine eig(sigin,sigmhin,tbarin,lapsbot,isoth,dtin,epspin,epshin,nsig,betin,betmin,nh)
 use cc_mpi, only : myid
@@ -26,7 +37,6 @@ use vecs_m, only : emat,einv,bam
 use newmpar_m
 use parm_m, only : nmaxpr
 implicit none
-integer, parameter :: rp = kind(1._8)
 integer, intent(in) :: nh,nsig,lapsbot,isoth
 integer :: nchng,k,l
 integer, parameter :: neig = 1
@@ -1226,3 +1236,5 @@ real(kind=rp), dimension(kl+1), intent(in) :: sigmh
 sig(1:kl) = .5_rp*(sigmh(2:kl+1)+sigmh(1:kl))
 return
 end subroutine sightosig
+
+end module eig_m
