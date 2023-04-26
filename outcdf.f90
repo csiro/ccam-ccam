@@ -4890,7 +4890,9 @@ if ( mod(ktau,tbave)==0 ) then
             exit
           end if
         end do   
-        xx = (real(press_level)*100. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+        !xx = (real(press_level)*100. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+        xx = (log(real(press_level)*100.) - log(ps(iq)*sig(n))) &
+            /(log(ps(iq)*sig(n+1))-log(ps(iq)*sig(n)))
         ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
         va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
         ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
@@ -4930,7 +4932,9 @@ if ( mod(ktau,tbave)==0 ) then
   !          exit
   !        end if
   !      end do   
-  !      xx = (real(press_level)*100. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+  !      !xx = (real(press_level)*100. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
+  !      xx = (log(real(press_level)*100.) - log(ps(iq)*sig(n))) &
+  !          /(log(ps(iq)*sig(n+1))-log(ps(iq)*sig(n)))
   !      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
   !      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
   !      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
