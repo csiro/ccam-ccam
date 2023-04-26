@@ -8544,10 +8544,10 @@ contains
 
       ! Global communicator
 #ifdef _OPENMP
-      call MPI_Init_Thread(MPI_THREAD_SERIALIZED, lprovided, lerr)
+      call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
       !call MPI_Init_Thread(MPI_THREAD_MULTIPLE, lprovided, lerr) ! recommended for DUG system
-      if ( lprovided < MPI_THREAD_SERIALIZED ) then
-         write(6,*) "ERROR: MPI does not support MPI_THREAD_SERIALIZED"
+      if ( lprovided < MPI_THREAD_FUNNELED ) then
+         write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
          write(6,*) "       Unable to support hybrid MPI+OpenMP"
          call ccmpi_abort(-1)
       end if
@@ -8572,9 +8572,9 @@ contains
       integer(kind=4) :: lerr, lid
       integer(kind=4) :: lcommout, lcommin
       integer(kind=4) :: lcolour
-#ifdef usempi3
+!#ifdef usempi3
       integer(kind=4) :: lproc
-#endif
+!#endif
       
       if ( newnproc < nproc ) then
          if ( myid == 0 ) then
@@ -8596,7 +8596,7 @@ contains
          end if    
       end if
       
-#ifdef usempi3
+!#ifdef usempi3
       ! Intra-node communicator 
       lid = myid
       lcommin = comm_world
@@ -8629,22 +8629,22 @@ contains
          write(6,*) "myid, node_myid, nodecaptain_myid ",myid,node_myid,nodecaptain_myid
          call ccmpi_abort(-1)
       end if
-#else
-      ! each process is treated as a node
-      lcommin = comm_world
-      lcolour = myid
-      lid = 0
-      call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
-      comm_node  = lcommout
-      node_nproc = 1
-      node_myid  = 0
-      
-      comm_nodecaptain = comm_world
-      nodecaptain_nproc = nproc
-      nodecaptain_myid = myid
-      
-      node_captainid = myid
-#endif
+!#else
+!      ! each process is treated as a node
+!      lcommin = comm_world
+!      lcolour = myid
+!      lid = 0
+!      call MPI_Comm_Split(lcommin, lcolour, lid, lcommout, lerr)
+!      comm_node  = lcommout
+!      node_nproc = 1
+!      node_myid  = 0
+!      
+!      comm_nodecaptain = comm_world
+!      nodecaptain_nproc = nproc
+!      nodecaptain_myid = myid
+!      
+!      node_captainid = myid
+!#endif
 
    end subroutine ccmpi_reinit
    
@@ -8660,7 +8660,7 @@ contains
       integer(kind=4), dimension(:), allocatable :: nodesize
       integer(kind=4), dimension(1) :: lnode
 
-#ifdef usempi3
+!#ifdef usempi3
       node_nx = 0
       node_ny = 0
       node_dx = nxp
@@ -8759,7 +8759,7 @@ contains
          end if
 
       end if
-#endif   
+!#endif   
    
    end subroutine ccmpi_remap
    
@@ -8774,12 +8774,12 @@ contains
    subroutine ccmpi_procformat_init(procmode)
    
       integer, intent(inout) :: procmode
-#ifdef usempi3
+!#ifdef usempi3
       integer(kind=4) :: lcolour, lcomm, lrank
       integer(kind=4) :: lcommout, lerr, lsize
-#endif
+!#endif
 
-#ifdef usempi3
+!#ifdef usempi3
       ! configure procmode
       if ( procmode == 0 ) then
          ! procmode=0 uses existing nodes, even if they have different numbers of processes
@@ -8837,21 +8837,21 @@ contains
          write(6,*) "ERROR: vnode_myid/=0 with myid==0"
          call ccmpi_abort(-1)
       end if   
-#else
-      if ( myid == 0 ) then  
-         write(6,*) "Set procmode=1 as CCAM was compiled without -Dusempi3"
-      end if  
-      procmode = 1
-      ! Intra-procmode communicator
-      comm_vnode = comm_node
-      vnode_nproc = node_nproc ! =1
-      vnode_myid = node_myid   ! =0
-      ! Inter-procmode communicator
-      comm_vleader = comm_world
-      vleader_nproc = nproc
-      vleader_myid = myid
-      vnode_vleaderid = vleader_myid
-#endif
+!#else
+!      if ( myid == 0 ) then  
+!         write(6,*) "Set procmode=1 as CCAM was compiled without -Dusempi3"
+!      end if  
+!      procmode = 1
+!      ! Intra-procmode communicator
+!      comm_vnode = comm_node
+!      vnode_nproc = node_nproc ! =1
+!      vnode_myid = node_myid   ! =0
+!      ! Inter-procmode communicator
+!      comm_vleader = comm_world
+!      vleader_nproc = nproc
+!      vleader_myid = myid
+!      vnode_vleaderid = vleader_myid
+!#endif
 
    end subroutine ccmpi_procformat_init
    

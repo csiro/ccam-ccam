@@ -805,7 +805,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       js = (tile-1)*imax + 1
       je = tile*imax  
       call nantest("after aerosols",js,je,"aerosols")
-    end do  
+   end do  
     !$omp end do nowait
 
   
@@ -826,6 +826,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     js = (tile-1)*imax + 1
     je = tile*imax  
     call fixsat(js,je) ! if qg_fix>1, then removes supersaturated qg
+    call nantest("after fixsat",js,je,"cloud")
   end do  
   !$omp end do nowait
   if ( rescrn>0 ) then
@@ -2775,23 +2776,23 @@ do while( mod(jl, nrows_rad) /= 0 )
   nrows_rad = nrows_rad - 1
 end do
 
-#ifdef usempi3
+!#ifdef usempi3
 ! since processes might have been remapped, then use node_myid
 ! to determine GPU assigned to each process
 call ccomp_init(node_myid,ngpus)
 call ccacc_init(node_myid,ngpus)
-#else
-call ccomp_init(myid,ngpus)
-call ccacc_init(myid,ngpus)
-#endif
+!#else
+!call ccomp_init(myid,ngpus)
+!call ccacc_init(myid,ngpus)
+!#endif
 
 if ( myid==0 ) then
   write(6,'(" ",A)') trim(version)
   write(6,*) "Running for nproc                        = ",nproc
   write(6,*) 'Using defaults for nversion              = ',nversion
-#ifdef usempi3
+!#ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
-#endif
+!#endif
 #ifdef i8r8
   write(6,*) 'Using double precision mode'
 #endif
@@ -3782,7 +3783,7 @@ use sigs_m                            ! Atmosphere sigma levels
 implicit none
 
 integer, intent(in) :: js, je
-integer k, ilen, iq
+integer k, iq
 real, dimension(js:je,kl) :: zg
 real, dimension(js:je) :: tliq, pk, qsi, deles, qsl
 real qtot, qsw, fice
@@ -3791,8 +3792,6 @@ real, parameter :: tice = 233.16
 
 ! requires qg_fix>=2
 if ( qg_fix<=1 ) return
-
-ilen = je - js + 1
 
 ! calculate approximate height above surface
 zg(js:je,1) = bet(1)*t(js:je,1)/grav
