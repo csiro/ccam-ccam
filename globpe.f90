@@ -2776,23 +2776,23 @@ do while( mod(jl, nrows_rad) /= 0 )
   nrows_rad = nrows_rad - 1
 end do
 
-!#ifdef usempi3
+#ifdef usempi3
 ! since processes might have been remapped, then use node_myid
 ! to determine GPU assigned to each process
 call ccomp_init(node_myid,ngpus)
 call ccacc_init(node_myid,ngpus)
-!#else
-!call ccomp_init(myid,ngpus)
-!call ccacc_init(myid,ngpus)
-!#endif
+#else
+call ccomp_init(myid,ngpus)
+call ccacc_init(myid,ngpus)
+#endif
 
 if ( myid==0 ) then
   write(6,'(" ",A)') trim(version)
   write(6,*) "Running for nproc                        = ",nproc
   write(6,*) 'Using defaults for nversion              = ',nversion
-!#ifdef usempi3
+#ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
-!#endif
+#endif
 #ifdef i8r8
   write(6,*) 'Using double precision mode'
 #endif
