@@ -307,6 +307,7 @@ real, dimension(ifull,3) :: gamm
 real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical lleap
 logical, dimension(ifull+iextra,wlev) :: wtr
+logical, dimension(6) :: sal_test
 complex lsum, gsum
 
 ! Vertical coordinates are defined as:
@@ -731,7 +732,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
   
   ! Horizontal advection for U, V, W, T, S and continuity
-  call mlob2ints_bs(cou(:,:,1:6),nface,xg,yg,wtr,(/.false.,.false.,.false.,.false.,.false.,.true./))
+  sal_test = (/.false.,.false.,.false.,.false.,.false.,.true./)
+  call mlob2ints_bs(cou(:,:,1:6),nface,xg,yg,wtr,sal_test(1:6))
   
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)

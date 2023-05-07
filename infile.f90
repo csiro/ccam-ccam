@@ -1602,6 +1602,10 @@ end if
 if ( allocated(filemap_send) ) then
   deallocate( filemap_send, filemap_smod )
 end if
+if ( allocated(filemap_indx) ) then
+  deallocate( filemap_indx )
+  filemap_indxlen = 0
+end if
 
 call ccmpi_filewinfinalize
 

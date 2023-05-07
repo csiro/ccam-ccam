@@ -253,7 +253,7 @@ select case(enhanceu10)
 end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
-!$omp do schedule(static) private(js,je,lrhoa,ldz,lemissfield,lxtg)
+!$omp do schedule(static) private(js,je,nt,k,lrhoa,ldz,lemissfield,lxtg)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -268,7 +268,11 @@ do tile = 1,ntiles
                bce(js:je),oce(js:je),lxtg,so2dd(js:je),so4dd(js:je),bcdd(js:je),  & !Output
                ocdd(js:je),imax,kl)                                                             !Inputs
   !xtem(js:je,:) = lxtem
-  xtg(js:je,:,:) = max( xtg(js:je,:,:)+lxte(:,:,:)*dt, 0. )
+  do nt = 1,naero
+    do k = 1,kl
+      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,k,nt)*dt, 0. )
+    end do
+  end do
 end do
 !$omp end do nowait
 
@@ -287,7 +291,7 @@ end if
 #ifdef GPUPHYSICS
 !$acc wait(1)
 !$acc update device(xtg)
-!$acc parallel loop gang copy(duste,salte,dustdd,saltdd)                    &
+!$acc parallel loop copy(duste,dustdd)                                      &
 !$acc   copyin(prf,erod,wg,veff,vt,snowd,locean)                            &
 !$acc   present(xtg,ttg,rhoa,dz,sig)                                        &
 !$acc   private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
@@ -378,7 +382,7 @@ end if
 !$omp   private(dmsoh,dmsn3,lpccw,qtot)
 #endif
 #ifdef GPUPHYSICS
-!$acc parallel loop gang copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd) &
+!$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
 !$acc   copyin(clcon,xtosav,qlg,qfg,stratcloud,kbsav,condc,cldcon)                 &
 !$acc   copyin(pmrate,pfprec,pfsnow,pfsubl,pmaccr,pfmelt,pqfsedice,plambs,prscav)  &
 !$acc   copyin(prfreeze,pfevap,zoxidant_g,zdayfac,taudar,pccw)                     &
@@ -391,35 +395,33 @@ end if
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
-
   ! Aerosol chemistry and wet deposition
   ! Need to invert vertical levels for ECHAM code... Don't you hate that?
-  xtm1(:,:,:) = xtg(js:je,kl:1:-1,:)
   do nt = 1,naero
-    ! Convert from aerosol concentration outside convective cloud (used by CCAM)
-    ! to aerosol concentration inside convective cloud
-    xtu(:,:,nt) = max(xtg(js:je,kl:1:-1,nt)-(1.-clcon(js:je,kl:1:-1))*xtosav(js:je,kl:1:-1,nt),0.) &
-                /max(clcon(js:je,kl:1:-1),1.E-8)
-  end do
-  aphp1(:,:) = rhoa(js:je,kl:1:-1)*dz(js:je,kl:1:-1)               ! density * thickness
-  prhop1(:,:) = rhoa(js:je,kl:1:-1)                                ! air density
-  ptp1(:,:)   = ttg(js:je,kl:1:-1)                                 ! air temperature
-  pclcon(:,:) = min(max(clcon(js:je,kl:1:-1),0.),1.)               ! convective cloud fraction
-  do k = 1,kl
-    do iq = 1,imax
-      qtot = qlg(iq+js-1,k) + qfg(iq+js-1,k)                                     ! total liquid and ice mixing ratio
-      pclcover(iq,kl+1-k) = stratcloud(iq+js-1,k)*qlg(iq+js-1,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
-      pcfcover(iq,kl+1-k) = stratcloud(iq+js-1,k)*qfg(iq+js-1,k)/max(qtot,1.E-8) ! Ice-cloud fraction
+    do k = 1,kl
+      xtm1(:,kl+1-k,nt) = xtg(js:je,k,nt)
+      ! Convert from aerosol concentration outside convective cloud (used by CCAM)
+      ! to aerosol concentration inside convective cloud
+      xtu(:,kl+1-k,nt) = max(xtg(js:je,k,nt)-(1.-clcon(js:je,k))*xtosav(js:je,k,nt),0.)/max(clcon(js:je,k),1.E-8)
     end do
   end do
-  pmlwc(:,:) = qlg(js:je,kl:1:-1)
-  pmiwc(:,:) = qfg(js:je,kl:1:-1)
   do k = 1,kl
-    where ( k<=kbsav(js:je) )
-      pfconv(:,kl+1-k) = condc(js:je)/dt
-    elsewhere
-      pfconv(:,kl+1-k) = 0.
-    end where
+    do iq = 1,imax
+      aphp1(iq,kl+1-k)  = rhoa(iq+js-1,k)*dz(iq+js-1,k)                  ! density * thickness
+      prhop1(iq,kl+1-k) = rhoa(iq+js-1,k)                                ! air density
+      ptp1(iq,kl+1-k)   = ttg(iq+js-1,k)                                 ! air temperature
+      pclcon(iq,kl+1-k) = min(max(clcon(iq+js-1,k),0.),1.)               ! convective cloud fraction
+      qtot = qlg(iq+js-1,k) + qfg(iq+js-1,k)                             ! total liquid and ice mixing ratio
+      pclcover(iq,kl+1-k) = stratcloud(iq+js-1,k)*qlg(iq+js-1,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
+      pcfcover(iq,kl+1-k) = stratcloud(iq+js-1,k)*qfg(iq+js-1,k)/max(qtot,1.E-8) ! Ice-cloud fraction
+      pmlwc(iq,kl+1-k) = qlg(iq+js-1,k)
+      pmiwc(iq,kl+1-k) = qfg(iq+js-1,k)
+      if ( k<=kbsav(iq+js-1) ) then
+        pfconv(iq,kl+1-k) = condc(iq+js-1)/dt
+      else
+        pfconv(iq,kl+1-k) = 0.
+      end if
+    end do
   end do
   !fracc = 0.1          ! LDR suggestion (0.1 to 0.3)
   fracc = cldcon(js:je) ! MJT suggestion (use NCAR scheme)
@@ -446,7 +448,11 @@ do tile = 1,ntiles
                 lzoxidant,so2wd(js:je),so4wd(js:je),bcwd(js:je),           &
                 ocwd(js:je),ldustwd,saltwd(js:je),                         &
                 imax,kl)                                                    !Inputs
-  xtg(js:je,:,:) = max( xtg(js:je,:,:)+lxte(:,kl:1:-1,:)*dt, 0. )
+  do nt = 1,naero
+    do k = 1,kl
+      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,kl+1-k,nt)*dt, 0. )
+    end do
+  enddo
   dmsso2o(js:je) = dmsso2o(js:je) + dmsoh + dmsn3          ! oxidation of DMS to SO2
   so2so4o(js:je) = so2so4o(js:je) + so2oh + so2h2 + so2o3  ! oxidation of SO2 to SO4
   dustwd(js:je,:) = ldustwd
@@ -469,15 +475,17 @@ end if
 #endif
 
 
-!$omp do schedule(static) private(js,je,nt,k,iq,burden)
+!$omp do schedule(static) private(js,je,nt,iq,k,burden)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
 
   burden(:,:) = 0.
-  do nt = 1,naero
-    do k = 1,kl
-      burden(:,nt) = burden(:,nt) + xtg(js:je,k,nt)*rhoa(js:je,k)*dz(js:je,k)
+  do k = 1,kl
+    do nt = 1,naero
+      do iq = 1,imax
+        burden(iq,nt) = burden(iq,nt) + xtg(iq+js-1,k,nt)*rhoa(iq+js-1,k)*dz(iq+js-1,k)
+      end do
     end do
   end do
 
@@ -1105,7 +1113,7 @@ real zhil,zexp,zm,zdms,t,ztk1,zqt,zqt3
 real zrhoair,zkno2o3,zkn2o5aq,zrx1,zrx12
 real zkno2no3,ztk3,ztk2,zkn2o5
 real zno3,zxtp1so2
-real dum
+
 
 !    REACTION RATE SO2-OH
 real, parameter :: ZK2I=2.0E-12
@@ -1157,8 +1165,10 @@ end where
 ! Calculate xto, tracer mixing ratio outside convective updraughts
 ! Assumes pclcon < 1, but this shouldn't be a problem.
 do jt = 1,naero
-  xto(:,1:kl,jt)=(xtm1(:,1:kl,jt)-pclcon(:,1:kl)*xtu(:,1:kl,jt))/(1.-pclcon(:,1:kl))
-  xto(:,1:kl,jt)=max(0.,xto(:,1:kl,jt))
+  do jk = 1,kl
+    xto(:,jk,jt)=(xtm1(:,jk,jt)-pclcon(:,jk)*xtu(:,jk,jt))/(1.-pclcon(:,jk))
+    xto(:,jk,jt)=max(0.,xto(:,jk,jt))
+  end do
 end do
 
 #ifdef debug
@@ -1175,30 +1185,38 @@ end if
 !    CONSTANTS
 PQTMST=1./PTMST
 
-! Calculate in-cloud ql
-where ( pclcover(:,1:kl)>1.e-8 )
-  zlwcic(:,1:kl)=pmlwc(:,1:kl)/pclcover(:,1:kl)
-elsewhere
-  zlwcic(:,1:kl)=0.
-end where
-where ( pcfcover(:,1:kl)>1.e-8 )
-  ziwcic(:,1:kl)=pmiwc(:,1:kl)/pcfcover(:,1:kl)
-elsewhere
-  ziwcic(:,1:kl)=0.
-end where
+do jk = 1,kl
 
-!  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
-! -- levels are already inverted --
-ZZOH(:,1:kl)   = ZOXIDANT(:,1:kl,1)
-ZZH2O2(:,1:kl) = ZOXIDANT(:,1:kl,2)*PRHOP1(:,1:kl)*1.e-3
-ZZO3(:,1:kl)   = ZOXIDANT(:,1:kl,3)*PRHOP1(:,1:kl)*1.e-3
-ZZNO2(:,1:kl)  = ZOXIDANT(:,1:kl,4)*PRHOP1(:,1:kl)*1.e-3
+  ! Calculate in-cloud ql
+  where ( pclcover(:,jk)>1.e-8 )
+    zlwcic(:,jk)=pmlwc(:,jk)/pclcover(:,jk)
+  elsewhere
+    zlwcic(:,jk)=0.
+  end where
+  where ( pcfcover(:,jk)>1.e-8 )
+    ziwcic(:,jk)=pmiwc(:,jk)/pcfcover(:,jk)
+  elsewhere
+    ziwcic(:,jk)=0.
+  end where
 
-zhenry(:,1:kl)=0.
-zhenryc(:,1:kl)=0.
+  !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
+  ! -- levels are already inverted --
+  ZZOH(:,jk)   = ZOXIDANT(:,jk,1)
+  ZZH2O2(:,jk) = ZOXIDANT(:,jk,2)*PRHOP1(:,jk)*1.e-3
+  ZZO3(:,jk)   = ZOXIDANT(:,jk,3)*PRHOP1(:,jk)*1.e-3
+  ZZNO2(:,jk)  = ZOXIDANT(:,jk,4)*PRHOP1(:,jk)*1.e-3
+  
+end do
+
+do jk = 1,kl
+  zhenry(:,jk)=0.
+  zhenryc(:,jk)=0.
+end do
 
  !   PROCESSES WHICH ARE DIFERENT INSIDE AND OUTSIDE OF CLOUDS
-ZSO4(:,1:kl)=amax1(XTO(:,1:kl,ITRACSO4),0.)
+do jk = 1,kl
+  ZSO4(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
+end do
 
 do jk = ktop,kl
   do jl = 1,imax
@@ -1311,7 +1329,9 @@ end do
 
 
 ! Repeat the aqueous oxidation calculation for ice clouds.
-ZSO4i(:,1:kl)=amax1(XTO(:,1:kl,ITRACSO4),0.)
+do jk = 1,kl
+  ZSO4i(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
+end do
 
 !******************************************************************************
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
@@ -1427,8 +1447,10 @@ ZSO4i(:,1:kl)=amax1(XTO(:,1:kl,ITRACSO4),0.)
 
 
 ! Repeat the aqueous oxidation calculation for convective clouds.
-ZXTP1CON(:,1:kl,ITRACSO2)=amax1(XTU(:,1:kl,ITRACSO2),0.)
-ZSO4C(:,1:kl)            =amax1(XTU(:,1:kl,ITRACSO4),0.)
+do jk = 1,kl
+  ZXTP1CON(:,jk,ITRACSO2)=amax1(XTU(:,jk,ITRACSO2),0.)
+  ZSO4C(:,jk)            =amax1(XTU(:,jk,ITRACSO4),0.)
+end do
 
 do jk = ktop,kl
   do jl = 1,imax
@@ -1623,12 +1645,12 @@ do jk = 1,kl
       ZTK2=ZK2*(PTP1(JL,JK)/300.)**(-3.3)
       ZM=X*ZNAMAIR
       ZHIL=ZTK2*ZM/ZK2I
-      ZEXP=LOG10(ZHIL)
+      ZEXP=ALOG10(ZHIL)
       ZEXP=1./(1.+ZEXP*ZEXP)
       ZTK23B=ZTK2*ZM/(1.+ZHIL)*ZK2F**ZEXP
       ZSO2=ZXTP1SO2*ZZOH(JL,JK)*ZTK23B*ZDAYFAC(jl)
-      ZSO2=MIN(ZSO2,ZXTP1SO2*PQTMST)
-      ZSO2=MAX(ZSO2,0.)
+      ZSO2=AMIN1(ZSO2,ZXTP1SO2*PQTMST)
+      ZSO2=AMAX1(ZSO2,0.)
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)-ZSO2
       XTE(JL,JK,ITRACSO4)=XTE(JL,JK,ITRACSO4)+ZSO2
       so2oh3d(jl,jk)=zso2
@@ -1644,7 +1666,7 @@ do jk = 1,kl
       ztk1=2.*ztk1          !This is the fudge factor to account for other oxidants
       !ztk1=1.5*ztk1        !This is the fudge factor to account for other oxidants
       ZDMS=ZXTP1DMS*ZZOH(JL,JK)*ZTK1*ZDAYFAC(jl)
-      ZDMS=MIN(ZDMS,ZXTP1DMS*PQTMST)
+      ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
       XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
       dmsoh3d(jl,jk)=zdms
@@ -1662,17 +1684,10 @@ do jk = 1,kl
       ZRX1=2.2E-30*ZQT3**3.9*ZRHOAIR
       !ZRX2=1.5E-12*ZQT3**0.7
       ZRX12=1.467e-18*ZQT3**3.2*ZRHOAIR !=ZRX1/ZRX2
-      dum=1./(1.+ZRX12)*0.6**(1./(1.+(LOG10(ZRX12))**2))
-      ZKNO2NO3=ZRX1*dum
+      ZKNO2NO3=ZRX1/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
       !ZEQN2O5=4.E-27*EXP(10930.*ZQT)
       !ZKN2O5=ZKNO2NO3/ZEQN2O5
-#ifdef debug      
-      ZKN2O5=real( 5.5E-4_8*real(ZQT3,8)**3.9_8 &
-                   *EXP(-10930._8*real(ZQT,8))  &
-                   *real(dum,8)*real(ZRHOAIR,8) )
-#else
-      ZKN2O5=5.5E-4_8*ZQT3**3.9_8*EXP(-10930._8*ZQT)*dum*ZRHOAIR
-#endif
+      ZKN2O5=5.5E-4*ZQT3**3.9*ZRHOAIR*EXP(-10930.*ZQT)/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
 
       ZNO3=ZKNO2O3*(ZKN2O5+ZKN2O5AQ)*ZZNO2(JL,JK)*ZZO3(JL,JK)
       ZZQ=ZKNO2NO3*ZKN2O5AQ*ZZNO2(JL,JK)+(ZKN2O5+ZKN2O5AQ)*ZTK3*ZXTP1DMS*X*6.022E+20/ZMOLGS
@@ -1682,7 +1697,7 @@ do jk = 1,kl
         ZNO3=0.
       ENDIF
       ZDMS=ZXTP1DMS*ZNO3*ZTK3
-      ZDMS=MIN(ZDMS,ZXTP1DMS*PQTMST)
+      ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
       XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
       dmsn33d(jl,jk)=zdms
@@ -1800,6 +1815,7 @@ real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00/)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
 real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/)
+! wet deposition coefficients
 !Relative re-evaporation rate
 real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
 
@@ -2235,7 +2251,7 @@ do n = 1, ndust
       
     ! Calculate turbulent dry deposition at surface
     ! Use full layer thickness for CSIRO model (should be correct if Vt is relative to mid-layer)
-    veff = max( Vt(iq)*(wg(iq)+(1.-wg(iq))*exp(-min(max( 0., w10m(iq)-u_ts0 ),40.))), 0. )
+    veff = max( Vt(iq)*(wg(iq)+(1.-wg(iq))*exp(-max( 0., w10m(iq)-u_ts0 ))), 0. )
     b = Veff / dz1(iq)
 
     ! Update mixing ratio

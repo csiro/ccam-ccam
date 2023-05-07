@@ -55,7 +55,9 @@ private
 public leoncld_work
 public rhow, rhoice
 public aice, bice
+public leon_snowmeth
 
+integer, save :: leon_snowmeth = 0   ! Autoconversion method (0=Hong, 1=Lin)
 real, parameter :: maxlintime = 120. ! time-step for Lin et al 83 cloud microphysics
 
 ! Physical constants
@@ -229,11 +231,11 @@ if ( abs(iaero)>=2 ) then
   pprfreeze(:,1) = 0. !At TOA
   do k = 1,kl-1
     do iq = 1,imax
-      ppfprec(iq,kl-k) = (fluxr(iq,k+1)+fluxm(iq,k)-fluxf(iq,k))*invdt     !flux *entering* layer k
-      ppfmelt(iq,kl-k) = fluxm(iq,k)*invdt                                 !flux melting in layer k
-      ppfsnow(iq,kl-k) = (fluxi(iq,k+1)+fluxs(iq,k+1)+fluxg(iq,k+1) &
-                        -fluxm(iq,k)+fluxf(iq,k))*invdt                    !flux *entering* layer k
-      pprfreeze(iq,kl-k) = fluxf(iq,k)*invdt                               !flux freezing in layer k
+      ppfprec(iq,kl-k+1) = (fluxr(iq,k+1)+fluxm(iq,k)-fluxf(iq,k))*invdt     !flux *entering* layer k
+      ppfmelt(iq,kl-k+1) = fluxm(iq,k)*invdt                                 !flux melting in layer k
+      ppfsnow(iq,kl-k+1) = (fluxi(iq,k+1)+fluxs(iq,k+1)+fluxg(iq,k+1) &
+                          -fluxm(iq,k)+fluxf(iq,k))*invdt                    !flux *entering* layer k
+      pprfreeze(iq,kl-k+1) = fluxf(iq,k)*invdt                               !flux freezing in layer k
     end do
   end do
   do k = 1,kl
@@ -486,6 +488,7 @@ real cftmp, cltmp
 real slopes_r, slopes_i
 real esi, apr, bpr, cev
 real dqsdt, bl, satevap
+real csacw, csaci, tmp, r0_c
 
 real, parameter :: n0r = 8.e6        ! intercept for rain
 real, parameter :: n0g = 4.e6        ! intercept for graupel
@@ -493,6 +496,7 @@ real, parameter :: rho_r = 1.0e3     ! rain density
 real, parameter :: rho_s = 0.1e3     ! snow density
 real, parameter :: rho_g = 0.4e3     ! grauple density
 ! Threshold from WSM6 scheme, Hong et al 2004, Eq(13) : q0_crt(snow) ~8.e-5
+! q0_crt depends on resolution with 0.8e-4 for 1-5km and 1.e-4 for 25-50km
 real, dimension(ncldtr), parameter :: q0_crt = (/ 6.e-3, 8.e-5, 0., 2.e-4 /)   ! snow->graupel and ice->snow density threshold
 real, parameter :: c_piacr = 0.1     ! accretion rate of rain -> ice
 real, dimension(graupel:snow), parameter :: c_paut = (/ 1.e-3, 1.e-3 /)   ! autoconversion rate of snow->graupel and ice->snow
@@ -582,18 +586,45 @@ end do   ! k loop
 if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
 
   ! autoconversion of ice to snow (from Lin et al 1983)
-  do k = 1,kl
-    do iq = 1,imax
-      if ( rho(iq,ice,k)>q0_crt(snow) ) then
-        qfs  = max( (rho(iq,ice,k)-q0_crt(snow))/rhoa(iq,k), 0. )
-        cdts = tdt*c_paut(snow)*exp(c_paut_d(snow)*(ttg(iq,k)-tfrz))
-        dqfs = max( min( rho(iq,ice,k)/rhoa(iq,k), qfs*cdts ), 0. )
-        cfauto(iq,snow,k)   = cf3(iq,ice,k)
-        rho(iq,ice,k)       = rho(iq,ice,k) - dqfs*rhoa(iq,k)
-        fluxauto(iq,snow,k) = dqfs*rhoa(iq,k)*dz(iq,k)
-      end if
-    end do
-  end do
+  select case(leon_snowmeth)
+    case(0) ! Hong (orig) 
+      do k = 1,kl
+        do iq = 1,imax
+          if ( rho(iq,ice,k)>q0_crt(snow) ) then
+            qfs  = max( (rho(iq,ice,k)-q0_crt(snow))/rhoa(iq,k), 0. )
+            cdts = tdt*c_paut(snow)*exp(c_paut_d(snow)*(ttg(iq,k)-tfrz))
+            dqfs = max( min( rho(iq,ice,k)/rhoa(iq,k), qfs*cdts ), 0. )
+            cfauto(iq,snow,k)   = cf3(iq,ice,k)
+            rho(iq,ice,k)       = rho(iq,ice,k) - dqfs*rhoa(iq,k)
+            fluxauto(iq,snow,k) = dqfs*rhoa(iq,k)*dz(iq,k)
+          end if
+        end do
+      end do
+      
+    case(1) ! Lin
+      do k = 1,kl
+        do iq = 1,imax
+          if ( ttg(iq,k)<251.16 ) then    
+            tmp = -7.6 + 4.*exp( -0.2443e-3*(251.16-ttg(iq,k))**2.455 )
+            r0_c = 1.e-3*exp(tmp)
+          else
+            r0_c = 1.e-3
+          end if  
+          if ( rho(iq,ice,k)>r0_c ) then
+            qfs = max( (rho(iq,ice,k)-r0_c)/rhoa(iq,k), 0. )
+            cdts = tdt*c_paut(snow)*exp(c_paut_d(snow)*(ttg(iq,k)-tfrz))
+            dqfs = max( min( rho(iq,ice,k)/rhoa(iq,k), qfs*cdts ), 0. )
+            cfauto(iq,snow,k)   = cf3(iq,ice,k)
+            rho(iq,ice,k)       = rho(iq,ice,k) - dqfs*rhoa(iq,k)
+            fluxauto(iq,snow,k) = dqfs*rhoa(iq,k)*dz(iq,k)
+          end if
+        end do
+      end do
+      
+    case default
+      write(6,*) "ERROR: Unknown option for leon_snowmeth = ",leon_snowmeth
+      stop
+  end select    
   
   ! autoconversion of snow to graupel (from Lin et al 1983)
   do k = 1,kl

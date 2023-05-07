@@ -59,7 +59,7 @@ integer ii, intsch, iq, jj, k, kk
 integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
-integer, dimension(max(naero,ngas)) :: nfield
+integer, dimension(max(naero,ngas,6)) :: nfield
 real, dimension(ifull) :: nvadh_inv_pass
 real, dimension(ifull+iextra,kl,6) :: bb
 real, dimension(ifull+iextra,kl,3) :: uvw
@@ -288,7 +288,8 @@ if ( mup/=0 ) then
     bb(:,:,2) = h_nh
     bb(:,:,3) = tx
     bb(:,:,4:6) = uvw(:,:,1:3)
-    call ints(bb,6,intsch,nface,xg,yg,(/1,1,3,2,2,2/))
+    nfield(1:6) = (/1,1,3,2,2,2/)
+    call ints(bb,6,intsch,nface,xg,yg,nfield(1:6))
     pslx = bb(:,:,1)
     h_nh = bb(:,:,2)
     tx = bb(:,:,3)
@@ -298,7 +299,8 @@ if ( mup/=0 ) then
     bb(:,:,1) = pslx
     bb(:,:,2) = tx
     bb(:,:,3:5) = uvw(:,:,1:3)
-    call ints(bb,5,intsch,nface,xg,yg,(/1,3,2,2,2/))    
+    nfield(1:5) = (/1,3,2,2,2/)
+    call ints(bb,5,intsch,nface,xg,yg,nfield(1:5))    
     pslx = bb(:,:,1)
     tx = bb(:,:,2)
     uvw(:,:,1:3) = bb(:,:,3:5)
@@ -409,7 +411,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       bb(:,:,3) = qfg(:,:)
       bb(:,:,4) = stratcloud(:,:)
       bb(:,:,5) = ni(:,:)
-      call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,(/4,4,4,4,4/))
+      nfield(1:5) = (/4,4,4,4,4/)
+      call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,nfield(1:5))
       qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
       qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
       qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
@@ -420,7 +423,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       bb(:,:,2) = qlg(:,:)
       bb(:,:,3) = qfg(:,:)
       bb(:,:,4) = stratcloud(:,:)
-      call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,(/4,4,4,4/))
+      nfield(1:4) = (/4,4,4,4/)
+      call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,nfield(1:4))
       qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
       qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
       qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
@@ -451,7 +455,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
     bb(:,:,1) = tke(:,:)
     bb(:,:,2) = eps(:,:)
-    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,(/4,4/))
+    nfield(1:2) = (/4,4/)
+    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,nfield(1:2))
     tke(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     eps(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
   endif                 ! nvmix==6 .or. nvmix==9

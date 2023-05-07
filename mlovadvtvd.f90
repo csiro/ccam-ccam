@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -128,7 +128,7 @@ async_counter = mod( async_counter+1, async_length )
 if ( mlontvd==0 ) then ! MC
 
   !$acc enter data create(uu,delu,ff) async(async_counter)
-  !$acc update device(uu,dzdum) async(async_counter)
+  !$acc update device(uu) async(async_counter)
 
   !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum) async(async_counter)
   do ii = 1,wlev-1

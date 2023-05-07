@@ -3331,9 +3331,14 @@ if ( myid==0 .and. nmaxpr==1 ) then
 end if
 call ccmpi_allreduce(lproc,lproc_t,"or",comm_node) ! collect required data for node on node_myid==0
 ! redistribute node messages across cores on the node
+allocate( specmap_indx(0:nproc-1) )
+specmap_indx = 0
+specmap_indxlen = 0
 ncount = 0
 do iproc = 0,nproc-1
   if ( lproc_t(iproc) ) then
+    specmap_indxlen = specmap_indxlen + 1
+    specmap_indx(iproc) = specmap_indxlen
     ncount = ncount + 1
     if ( mod(ncount,node_nproc)/=node_myid ) then
       lproc_t(iproc) = .false.

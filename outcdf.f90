@@ -173,6 +173,7 @@ use dates_m                                ! Date data
 use filnames_m                             ! Filenames
 use infile                                 ! Input file routines
 use liqwpar_m                              ! Cloud water mixing ratios
+use leoncld_mod                            ! Rotstayn microphysics
 use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,minwater,mxd,zomode,zoseaice        &
     ,factchseaice,otaumode               &
@@ -746,6 +747,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'kscmom',kscmom)
     call ccnf_put_attg(idnc,'kscsea',kscsea)
     call ccnf_put_attg(idnc,'ldr',ldr)
+    call ccnf_put_attg(idnc,'leon_snowmeth',leon_snowmeth)
     call ccnf_put_attg(idnc,'lin_aerosolmode',lin_aerosolmode)
     call ccnf_put_attg(idnc,'maxlintime',maxlintime)
     call ccnf_put_attg(idnc,'mbase',mbase)
@@ -1079,9 +1081,9 @@ integer, dimension(6,7), intent(in) :: dimc
 integer, dimension(4) :: dimj
 integer, dimension(3) :: dimk
 integer, dimension(2) :: csize
-integer, dimension(:), allocatable :: vnode_dat
-integer, dimension(:,:), allocatable :: procnode
-integer, dimension(:), allocatable :: procdata
+integer, dimension(nproc) :: vnode_dat
+integer, dimension(nproc) :: procdata
+integer, dimension(2,nproc) :: procnode
 real, dimension(:,:), allocatable :: xpnt2, ypnt2
 real, dimension(:), allocatable :: xpnt, ypnt
 real, dimension(:), allocatable :: cabledata
@@ -2545,7 +2547,6 @@ if( myid==0 .or. local ) then
     if ( local ) then
       ! store local processor id in output file
       if ( myid==0 ) write(6,*) '-> write procformat data'
-      allocate( vnode_dat(vnode_nproc) )
       if ( procmode==1 ) then
          vnode_dat(:) = myid
          if ( vnode_nproc/=1 ) then
@@ -2557,23 +2558,17 @@ if( myid==0 .or. local ) then
          call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       end if
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
-      deallocate( vnode_dat )
       ! store file id for a given processor number in output file number 000000
       ! store offset within a file for a given processor number in output file number 000000
-      if ( myid==0 ) then
-        allocate( procnode(2,nproc), procdata(nproc) )
-      else
-        allocate( procnode(2,1), procdata(1) ) ! not used
-      end if
       if ( myid==0 ) write(6,*) '-> gather leader ranks'  
       call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
+        write(6,*) '-> store rank information'    
         procdata(:) = procnode(1,:)  
         call ccnf_put_vara(idnc,idgpnode,(/1/),(/nproc/),procdata)  
         procdata(:) = procnode(2,:)
         call ccnf_put_vara(idnc,idgpoff,(/1/),(/nproc/),procdata)  
       end if
-      deallocate( procnode, procdata )
     end if
    
     call ccnf_put_vara(idnc,'ds',1,ds)
@@ -2672,12 +2667,8 @@ else
     call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
     deallocate(ypnt,ypnt2)
   
-    allocate(vnode_dat(vnode_nproc))
     call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
-    deallocate(vnode_dat)
-    allocate(procnode(2,1)) ! not used
     call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
-    deallocate(procnode)
     
   end if ! if iarchi==1
     
@@ -5086,9 +5077,9 @@ character(len=20) timorg
 
 call START_LOG(outfile_begin)
 
-! procformat mode is where one 'node' captian will
-! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
-! they cannot be split across physical nodes.
+! procformat mode is where one 'node' captian will write the output for that
+! 'node' of processes.  Procformat supports virtual nodes, although they
+! cannot be split across physical nodes.
 
 ! local=.true. if this process needs to write to a file
 

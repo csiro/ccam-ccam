@@ -26,24 +26,31 @@ module cc_mpi
 ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
 ! shared memory arrays.
 
+! MJT notes - Currently -Dusempif08 is not avaliable due to library issues with user defined reduce functions.
 
 ! Preprocessor directives:
 
-! -Dusempi3    exploits MPI-3 shared memory that is currently used for sharing global arrays within a node to reduce
-!              the size of the CCAM memory footprint
-! -Dvampir     is for coupling with VAMPIR for tracers
-! -Di8r8       is for running in double precision mode
-! -Dscm        is for Single Column Model which disables MPI
+! -Dusempi3      exploits MPI-3 shared memory to optmise communication between nodes
+! -Dusempimod    uses f90 mod interface for MPI.  Requires same compiler for MPI library.
+! -Dvampir       is for coupling with VAMPIR for tracers
+! -Di8r8         is for running in double precision mode
+! -Dscm          is for Single Column Model which disables MPI
 
    use cc_omp
 #ifndef scm
-   use mpif_m
+#ifdef usempimod
+   use mpi
+#endif
    use newmpar_m
 
    implicit none
 
    private
 
+#ifndef usempimod
+   include 'mpif.h'
+#endif
+   
    integer, save, public :: comm_world                                     ! global communication group
    integer, save, public :: myid                                           ! processor rank for comm_world
    integer, save, public :: ipan, jpan                                     ! grid size on processor
@@ -81,9 +88,11 @@ module cc_mpi
       specmap_recv                                                         ! gather map recieved for spectral filter
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       specmap_send                                                         ! gather map sent for spectral filter
+   integer, allocatable, dimension(:), save, public :: specmap_indx        ! index for nodepack
+   integer, save, public :: specmap_indxlen                                ! number of messages for nodepack
    integer, allocatable, dimension(:), save, public :: specmap_ext         ! gather map for spectral filter (includes filter final
                                                                            ! pass for sparse arrays)
-   real, dimension(:,:,:,:,:,:), pointer, save, private :: nodepack        ! node buffer for spectral filter
+   real, dimension(:,:,:,:,:), pointer, save, private :: nodepack          ! node buffer for spectral filter
    integer, save, private :: nodepack_win
    type globalpack_info
      real, allocatable, dimension(:,:,:) :: localdata
@@ -102,7 +111,9 @@ module cc_mpi
       filemap_recv, filemap_rmod                                           ! file map received for onthefly
    integer(kind=4), allocatable, dimension(:), save, public ::              &
       filemap_send, filemap_smod                                           ! file map sent for onthefly
-   real, dimension(:,:,:,:), pointer, save, private :: nodefile            ! node buffer for file map
+   integer, allocatable, dimension(:,:), save, public :: filemap_indx      ! index for file map messages
+   integer, save, public :: filemap_indxlen
+   real, dimension(:,:,:,:,:), pointer, save, private :: nodefile          ! node buffer for file map
    integer, save, private :: nodefile_win
    integer, save, private, dimension(3) :: nodefilesave_win
    integer, save, private :: nodefile_count = 0
@@ -263,7 +274,7 @@ module cc_mpi
 #ifdef usempi3
    interface ccmpi_allocshdata
       module procedure ccmpi_allocshdata2r, ccmpi_allocshdata3r, ccmpi_allocshdata4r
-      module procedure ccmpi_allocshdata5r, ccmpi_allocshdata7r
+      module procedure ccmpi_allocshdata5r, ccmpi_allocshdata6r, ccmpi_allocshdata7r
       module procedure ccmpi_allocshdata2i, ccmpi_allocshdata3i, ccmpi_allocshdata5i
    end interface
    interface ccmpi_allocshdatar8
@@ -315,7 +326,6 @@ module cc_mpi
 
    ! partition boundary indices into colours
    integer, dimension(:,:), allocatable, save, public :: iqx, iqn, iqe, iqw, iqs
-   integer, dimension(:,:), allocatable, save, public :: iqne, iqen, iqse, iqes, iqnw, iqwn, iqsw, iqws
    integer, public, save :: ifull_maxcolour
    integer, dimension(maxcolour), public, save :: ifull_colour, ifull_colour_border
 
@@ -651,10 +661,6 @@ contains
       allocate( iqx(ifull_maxcolour,maxcolour) )
       allocate( iqn(ifull_maxcolour,maxcolour), iqe(ifull_maxcolour,maxcolour) )
       allocate( iqw(ifull_maxcolour,maxcolour), iqs(ifull_maxcolour,maxcolour) )
-      allocate( iqne(ifull_maxcolour,maxcolour), iqen(ifull_maxcolour,maxcolour) )
-      allocate( iqse(ifull_maxcolour,maxcolour), iqes(ifull_maxcolour,maxcolour) )
-      allocate( iqnw(ifull_maxcolour,maxcolour), iqwn(ifull_maxcolour,maxcolour) )
-      allocate( iqsw(ifull_maxcolour,maxcolour), iqws(ifull_maxcolour,maxcolour) )
       ifull_colour = 0
       ! first process border
       do n = 1,npan
@@ -667,14 +673,6 @@ contains
           iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
           iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
           iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
-          iqne(ifull_colour(colourmask(iq)),colourmask(iq)) = ine(iq)
-          iqen(ifull_colour(colourmask(iq)),colourmask(iq)) = ien(iq)
-          iqse(ifull_colour(colourmask(iq)),colourmask(iq)) = ise(iq)
-          iqes(ifull_colour(colourmask(iq)),colourmask(iq)) = ies(iq)
-          iqnw(ifull_colour(colourmask(iq)),colourmask(iq)) = inw(iq)
-          iqwn(ifull_colour(colourmask(iq)),colourmask(iq)) = iwn(iq)
-          iqsw(ifull_colour(colourmask(iq)),colourmask(iq)) = isw(iq)
-          iqws(ifull_colour(colourmask(iq)),colourmask(iq)) = iws(iq)
         end do
         j = jpan
         do i = 1,ipan
@@ -685,14 +683,6 @@ contains
           iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
           iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
           iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
-          iqne(ifull_colour(colourmask(iq)),colourmask(iq)) = ine(iq)
-          iqen(ifull_colour(colourmask(iq)),colourmask(iq)) = ien(iq)
-          iqse(ifull_colour(colourmask(iq)),colourmask(iq)) = ise(iq)
-          iqes(ifull_colour(colourmask(iq)),colourmask(iq)) = ies(iq)
-          iqnw(ifull_colour(colourmask(iq)),colourmask(iq)) = inw(iq)
-          iqwn(ifull_colour(colourmask(iq)),colourmask(iq)) = iwn(iq)
-          iqsw(ifull_colour(colourmask(iq)),colourmask(iq)) = isw(iq)
-          iqws(ifull_colour(colourmask(iq)),colourmask(iq)) = iws(iq)
         end do
         i = 1
         do j = 2,jpan-1
@@ -703,14 +693,6 @@ contains
           iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
           iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
           iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
-          iqne(ifull_colour(colourmask(iq)),colourmask(iq)) = ine(iq)
-          iqen(ifull_colour(colourmask(iq)),colourmask(iq)) = ien(iq)
-          iqse(ifull_colour(colourmask(iq)),colourmask(iq)) = ise(iq)
-          iqes(ifull_colour(colourmask(iq)),colourmask(iq)) = ies(iq)
-          iqnw(ifull_colour(colourmask(iq)),colourmask(iq)) = inw(iq)
-          iqwn(ifull_colour(colourmask(iq)),colourmask(iq)) = iwn(iq)
-          iqsw(ifull_colour(colourmask(iq)),colourmask(iq)) = isw(iq)
-          iqws(ifull_colour(colourmask(iq)),colourmask(iq)) = iws(iq)
         end do
         i = ipan
         do j = 2,jpan-1
@@ -721,14 +703,6 @@ contains
           iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
           iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
           iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
-          iqne(ifull_colour(colourmask(iq)),colourmask(iq)) = ine(iq)
-          iqen(ifull_colour(colourmask(iq)),colourmask(iq)) = ien(iq)
-          iqse(ifull_colour(colourmask(iq)),colourmask(iq)) = ise(iq)
-          iqes(ifull_colour(colourmask(iq)),colourmask(iq)) = ies(iq)
-          iqnw(ifull_colour(colourmask(iq)),colourmask(iq)) = inw(iq)
-          iqwn(ifull_colour(colourmask(iq)),colourmask(iq)) = iwn(iq)
-          iqsw(ifull_colour(colourmask(iq)),colourmask(iq)) = isw(iq)
-          iqws(ifull_colour(colourmask(iq)),colourmask(iq)) = iws(iq)
         end do
       end do
       ifull_colour_border(1:maxcolour) = ifull_colour(1:maxcolour)
@@ -743,14 +717,6 @@ contains
             iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
             iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
             iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
-            iqne(ifull_colour(colourmask(iq)),colourmask(iq)) = ine(iq)
-            iqen(ifull_colour(colourmask(iq)),colourmask(iq)) = ien(iq)
-            iqse(ifull_colour(colourmask(iq)),colourmask(iq)) = ise(iq)
-            iqes(ifull_colour(colourmask(iq)),colourmask(iq)) = ies(iq)
-            iqnw(ifull_colour(colourmask(iq)),colourmask(iq)) = inw(iq)
-            iqwn(ifull_colour(colourmask(iq)),colourmask(iq)) = iwn(iq)
-            iqsw(ifull_colour(colourmask(iq)),colourmask(iq)) = isw(iq)
-            iqws(ifull_colour(colourmask(iq)),colourmask(iq)) = iws(iq)
           end do
         end do
       end do
@@ -1964,7 +1930,7 @@ contains
       integer :: w, iproc, n, iq
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
-      integer :: sreq, rcount, jproc
+      integer :: sreq, rcount, jproc, kproc
       integer(kind=4) :: ierr, lcomm, ldone
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
       
@@ -1980,13 +1946,11 @@ contains
             do jproc = 1,ldone
                w = rlist(donelist(jproc))
                iproc = specmap_recv(w)
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
+               kproc = specmap_indx(iproc)
                do n = 1,npan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iq = (n-1)*ipan*jpan
-                  nodepack(:,:,1,ipak+1,jpak+1,n-npoff+1) = &
+                  nodepack(:,:,n,1,kproc) = &
                      reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
                end do
             end do
@@ -2005,13 +1969,11 @@ contains
          ! ccmpi_gathermap_wait has already been called
          do w = 1,size(specmap_recv)
             iproc = specmap_recv(w)
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
+            kproc = specmap_indx(iproc)
             do n = 1,npan
                ! Global indices are i+ipoff, j+jpoff, n-npoff
                iq = (n-1)*ipan*jpan
-               nodepack(:,:,1,ipak+1,jpak+1,n-npoff+1) = &
+               nodepack(:,:,n,1,kproc) = &
                   reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
             end do
          end do
@@ -2026,12 +1988,13 @@ contains
       ! unpack for process
       do w = 1,size(specmap_req)
          iproc = specmap_req(w)
+         kproc = specmap_indx(iproc)
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          ipak = ipoff/ipan
          jpak = jpoff/jpan
          do n = 1,npan
             globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
-               nodepack(:,:,1,ipak+1,jpak+1,n-npoff+1)
+               nodepack(:,:,n,1,kproc)
          end do   
       end do   
       
@@ -2048,7 +2011,7 @@ contains
       integer :: w, iproc, k, n, iq
       integer :: ipoff, jpoff, npoff
       integer :: ipak, jpak
-      integer :: sreq, rcount, jproc
+      integer :: sreq, rcount, jproc, kproc
       integer(kind=4) :: ierr, ldone, lcomm
       integer(kind=4), dimension(size(specmap_recv)) :: donelist
 
@@ -2064,14 +2027,12 @@ contains
             do jproc = 1,ldone
                w = rlist(donelist(jproc))
                iproc = specmap_recv(w)
-               call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-               ipak = ipoff/ipan
-               jpak = jpoff/jpan
+               kproc = specmap_indx(iproc)
                do k = 1,kx
                   do n = 1,npan
                      ! Global indices are i+ipoff, j+jpoff, n-npoff
                      iq = (n-1)*ipan*jpan + (k-1)*ifull
-                     nodepack(:,:,k,ipak+1,jpak+1,n-npoff+1) = &
+                     nodepack(:,:,n,k,kproc) = &
                         reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
                   end do
                end do
@@ -2090,14 +2051,12 @@ contains
 
          do w = 1,size(specmap_recv)
             iproc = specmap_recv(w)
-            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
-            ipak = ipoff/ipan
-            jpak = jpoff/jpan
+            kproc = specmap_indx(iproc)
             do k = 1,kx
                do n = 1,npan
                   ! Global indices are i+ipoff, j+jpoff, n-npoff
                   iq = (n-1)*ipan*jpan + (k-1)*ifull
-                  nodepack(:,:,k,ipak+1,jpak+1,n-npoff+1) = &
+                  nodepack(:,:,n,k,kproc) = &
                     reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
                end do
             end do
@@ -2113,13 +2072,14 @@ contains
       ! unpack for process
       do w = 1,size(specmap_req)
          iproc = specmap_req(w)
+         kproc = specmap_indx(iproc)
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          ipak = ipoff/ipan
          jpak = jpoff/jpan
          do k = 1,kx
             do n = 1,npan
                globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+k) = &
-                  nodepack(:,:,k,ipak+1,jpak+1,n-npoff+1)
+                  nodepack(:,:,n,k,kproc)
             end do
          end do   
       end do 
@@ -2318,7 +2278,7 @@ contains
       integer :: ncount, w, ipak, jpak, n, iproc
       integer :: ipoff, jpoff, npoff
       integer :: xlen
-      integer, dimension(6) :: shsize
+      integer, dimension(5) :: shsize
       
       ! increase request list size
       xlen = size(specmap_recv) + size(specmap_send)
@@ -2381,13 +2341,12 @@ contains
 #ifdef usempi3
       shsize(1) = ipan
       shsize(2) = jpan
-      shsize(3) = kx
-      shsize(4) = nxproc
-      shsize(5) = nyproc
-      shsize(6) = 6
-      call ccmpi_allocshdata(nodepack,shsize(1:6),nodepack_win)
+      shsize(3) = npan
+      shsize(4) = kx
+      shsize(5) = specmap_indxlen
+      call ccmpi_allocshdata(nodepack,shsize(1:5),nodepack_win)
 #else
-      allocate( nodepack(ipan,jpan,kx,nxproc,nyproc,6) )
+      allocate( nodepack(ipan,jpan,npan,kx,specmap_indxlen) )
 #endif
    
    end subroutine allocateglobalpack
@@ -2397,7 +2356,7 @@ contains
 #ifdef usempi3
       call ccmpi_freeshdata(nodepack_win)
 #else
-      deallocate( nodepack)
+      deallocate( nodepack )
 #endif
       nullify( nodepack )
    
@@ -10256,7 +10215,7 @@ contains
    
       integer :: w, nlen, cc, ipf
       integer :: n
-      integer :: rcount, jproc
+      integer :: rcount, jproc, kproc
       integer :: ip, no, ca, cb
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -10312,12 +10271,10 @@ contains
          do jproc = 1,ldone
             w = i_list(donelist(jproc))
             ip = filemap_recv(w) + filemap_rmod(w)*fnresid
+            kproc = filemap_indx(filemap_recv(w),filemap_rmod(w))
             do n = 0,pnpan-1
-               no = n - pnoff(ip) + 1
-               ca = pioff(ip,no)
-               cb = pjoff(ip,no)
                cc = n*pipan*pjpan
-               nodefile(1+ca:pipan+ca,1+cb:pjpan+cb,no+1,1) = reshape( bbuf(1+cc:pipan*pjpan+cc,w), (/ pipan, pjpan /) )
+               nodefile(:,:,n+1,1,kproc) = reshape( bbuf(1+cc:pipan*pjpan+cc,w), (/ pipan, pjpan /) )
             end do
          end do
       end do
@@ -10337,12 +10294,13 @@ contains
 
       do w = 1,size(filemap_req)
          ip = filemap_req(w) + filemap_qmod(w)*fnresid
+         kproc = filemap_indx(filemap_req(w),filemap_qmod(w))
          do n = 0,pnpan-1
             no = n - pnoff(ip) + 1
             ca = pioff(ip,no)
             cb = pjoff(ip,no)
             cc = n*pipan*pjpan
-            abuf(1+cc:pipan*pjpan+cc,w) = reshape( nodefile(1+ca:pipan+ca,1+cb:pjpan+cb,no+1,1), (/ pipan*pjpan /) )
+            abuf(1+cc:pipan*pjpan+cc,w) = reshape( nodefile(:,:,n+1,1,kproc), (/ pipan*pjpan /) )
          end do
       end do  
       
@@ -10357,7 +10315,7 @@ contains
    
       integer :: n, w, nlen, kx
       integer :: cc, ipf
-      integer :: rcount, jproc
+      integer :: rcount, jproc, kproc
       integer :: k
       integer :: ip, no, ca, cb
 #ifdef i8r8
@@ -10414,13 +10372,11 @@ contains
          do jproc = 1,ldone
             w = i_list(donelist(jproc))
             ip = filemap_recv(w) + filemap_rmod(w)*fnresid
+            kproc = filemap_indx(filemap_recv(w),filemap_rmod(w))
             do k = 1,kx
                do n = 0,pnpan-1
-                  no = n - pnoff(ip) + 1
-                  ca = pioff(ip,no)
-                  cb = pjoff(ip,no)
                   cc = n*pipan*pjpan
-                  nodefile(1+ca:pipan+ca,1+cb:pjpan+cb,no+1,k) = reshape( bbuf(1+cc:pipan*pjpan+cc,k,w), (/ pipan, pjpan /) )
+                  nodefile(:,:,n+1,k,kproc) = reshape( bbuf(1+cc:pipan*pjpan+cc,k,w), (/ pipan, pjpan /) )
                 end do  
             end do
          end do
@@ -10441,13 +10397,14 @@ contains
 
       do w = 1,size(filemap_req)
          ip = filemap_req(w) + filemap_qmod(w)*fnresid
+         kproc = filemap_indx(filemap_req(w),filemap_qmod(w))
          do k = 1,kx
             do n = 0,pnpan-1
                no = n - pnoff(ip) + 1
                ca = pioff(ip,no)
                cb = pjoff(ip,no)
                cc = n*pipan*pjpan
-               abuf(1+cc:pipan*pjpan+cc,w,k) = reshape( nodefile(1+ca:pipan+ca,1+cb:pjpan+cb,no+1,k), (/ pipan*pjpan /) )
+               abuf(1+cc:pipan*pjpan+cc,w,k) = reshape( nodefile(:,:,n+1,k,kproc), (/ pipan*pjpan /) )
             end do  
          end do
       end do  
@@ -10481,18 +10438,19 @@ contains
    subroutine ccmpi_filewininit(kblock)
    
       integer, intent(in) :: kblock
-      integer, dimension(4) :: shsize
+      integer, dimension(5) :: shsize
       
       ! allocated shared memory for internal node buffer
 #ifdef usempi3
-      shsize(1) = pil_g
-      shsize(2) = pil_g
-      shsize(3) = 6
+      shsize(1) = pipan
+      shsize(2) = pjpan
+      shsize(3) = pnpan
       shsize(4) = kblock
-      call ccmpi_allocshdata(nodefile,shsize(1:4),nodefile_win)
+      shsize(5) = filemap_indxlen
+      call ccmpi_allocshdata(nodefile,shsize(1:5),nodefile_win)
       nodefile_count = nodefile_count + 1
 #else
-      allocate( nodefile(pil_g,pil_g,6,kblock) )
+      allocate( nodefile(pipan,pjpan,pnpan,kblock,filemap_indxlen) )
 #endif
    
    end subroutine ccmpi_filewininit
@@ -11688,7 +11646,7 @@ contains
       end if
       call MPI_Type_size( ltype, tsize, ierr )
       if ( lmyid == 0 ) then
-         lsize = sshape(1)*sshape(2)*tsize
+         lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
@@ -11732,7 +11690,7 @@ contains
       end if
       call MPI_Type_size(ltype, tsize, ierr)
       if ( lmyid == 0 ) then
-         lsize = sshape(1)*sshape(2)*sshape(3)*tsize
+         lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
@@ -11776,7 +11734,7 @@ contains
       end if
       call MPI_Type_size( ltype, tsize, ierr )
       if ( lmyid == 0 ) then
-         lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
+         lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
@@ -11789,6 +11747,50 @@ contains
 
    end subroutine ccmpi_allocshdata5r 
 
+   subroutine ccmpi_allocshdata6r(pdata,sshape,win,comm_in,myid_in)
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
+
+      integer, intent(out) :: win
+      integer, intent(in), optional :: comm_in, myid_in
+      integer :: lmyid
+      integer, dimension(5), intent(in) :: sshape
+      integer(kind=MPI_ADDRESS_KIND) :: qsize, lsize
+      integer(kind=4) :: disp_unit, ierr, tsize
+      integer(kind=4) :: lcomm, lwin
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, pointer, dimension(:,:,:,:,:) :: pdata 
+      type(c_ptr) :: baseptr
+
+!     allocted a single shared memory region on each node
+      if ( present(comm_in) ) then
+         lcomm = comm_in
+      else
+         lcomm = comm_node
+      end if
+      if ( present(myid_in) ) then
+         lmyid = myid_in
+      else
+         lmyid = node_myid
+      end if
+      call MPI_Type_size( ltype, tsize, ierr )
+      if ( lmyid == 0 ) then
+         lsize = product(sshape)*tsize
+      else
+         lsize = 0_4
+      end if
+      call MPI_Win_allocate_shared( lsize, 1_4, MPI_INFO_NULL, lcomm, baseptr, lwin, ierr )
+      if ( lmyid /= 0 ) then
+         call MPI_Win_shared_query( lwin, 0_4, qsize, disp_unit, baseptr, ierr )
+      end if
+      call c_f_pointer( baseptr, pdata, sshape )
+      win = lwin
+
+   end subroutine ccmpi_allocshdata6r 
+   
    subroutine ccmpi_allocshdata7r(pdata,sshape,win,comm_in,myid_in)
       use, intrinsic :: iso_c_binding, only : c_ptr, c_f_pointer
 
@@ -11820,7 +11822,7 @@ contains
       end if
       call MPI_Type_size( ltype, tsize, ierr )
       if ( lmyid == 0 ) then
-         lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*sshape(5)*sshape(6)*tsize
+         lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
@@ -11908,7 +11910,7 @@ contains
       end if
       call MPI_Type_size( ltype, tsize, ierr )
       if ( lmyid == 0 ) then
-         lsize = sshape(1)*sshape(2)*tsize
+         lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if
@@ -11952,7 +11954,7 @@ contains
       end if
       call MPI_Type_size( ltype, tsize, ierr )
       if ( lmyid == 0 ) then
-         lsize = sshape(1)*sshape(2)*sshape(3)*sshape(4)*tsize
+         lsize = product(sshape)*tsize
       else
          lsize = 0_4
       end if

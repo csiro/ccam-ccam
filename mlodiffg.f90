@@ -126,13 +126,13 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
 else if ( mlodiff>=10 .and. mlodiff<=19 ) then
   hdif = 0.125*(ocnsmag/pi)**2  
 end if
+
+! z* levels  
 if ( mlosigma>=0 .and. mlosigma<=3 ) then
   write(6,*) "ERROR: Unsupported option for mlosigma = ",mlodiff
   call ccmpi_abort(-1)
-else
-  ! z* levels  
-  emi = 1./em(1:ifull)
 end if
+emi(1:ifull) = 1./em(1:ifull)
 
 ! calculate shear for EMA
 call mlo_ema(dt,"uvw")
@@ -261,9 +261,7 @@ end subroutine mlodiffusion_work
 subroutine mlodiffcalc(work,xfact,yfact,emi,ntr)    
 
 use cc_acc, only : async_length
-use cc_mpi, only : bounds_send, bounds_recv, maxcolour, iqx, &
-                   ifull_colour, ifull_colour_border,        &
-                   ccmpi_abort, nagg
+use cc_mpi, only : bounds, nagg, ccmpi_abort
 use indices_m
 use map_m
 use mlo
@@ -291,10 +289,8 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
     nend = min(nstart + nagg - 1, ntr )
     nlen = nend - nstart + 1  
     
-    call bounds_send(work(:,:,nstart:nend))
+    call bounds(work(:,:,nstart:nend))
 
-    ! update non-boundary grid points
-    ! here we use the coloured indices to identify interior and boundary points  
     !$omp parallel do schedule(static) private(nn,np,k,iq,xfact_iwu,yfact_isv,base,async_counter)
     do nn = 1,nlen
       np = nn - 1 + nstart
@@ -321,28 +317,9 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
     !$omp end parallel do
     !$acc wait
 
-    call bounds_recv(work(:,:,nstart:nend))
-
-    ! update boundary grid points
-    ! here we use the coloured indices to identify interior and boundary points  
     do nn = 1,nlen
-      np = nn - 1 + nstart
+      np = nn - 1 + nstart  
       do k = 1,wlev
-        do nc = 1,maxcolour  
-          do iqc = 1,ifull_colour_border(nc)
-            iq = iqx(iqc,nc)  
-            xfact_iwu = xfact(iwu(iq),k)
-            yfact_isv = yfact(isv(iq),k)
-            base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                          +yfact(iq,k)+yfact_isv
-            ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +               &
-                             xfact(iq,k)*work(ie(iq),k,np) +       &
-                             xfact_iwu*work(iw(iq),k,np) +         &
-                             yfact(iq,k)*work(in(iq),k,np) +       &
-                             yfact_isv*work(is(iq),k,np) )         &
-                          / base
-          end do  
-        end do
         do iq = 1,ifull
           work(iq,k,np) = ans(iq,k,nn)
         end do
@@ -368,7 +345,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
     
     do its = 1,num_its  
       
-      call bounds_send(work(:,:,nstart:nend))
+      call bounds(work(:,:,nstart:nend))
 
       !$omp parallel do schedule(static) private(nn,np,iq,k,xfact_iwu,yfact_isv,base,async_counter)
       do nn = 1,nlen
@@ -394,28 +371,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
       !$omp end parallel do
       !$acc wait
 
-      call bounds_recv(work(:,:,nstart:nend))
-
-      do nn = 1,nlen
-        np = nn - 1 + nstart  
-        do k = 1,wlev
-          do nc = 1,maxcolour  
-            do iqc = 1,ifull_colour_border(nc)
-              iq = iqx(iqc,nc)
-              xfact_iwu = xfact(iwu(iq),k)
-              yfact_isv = yfact(isv(iq),k)
-              base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-              ans(iq,k,nn) = ( -base*work(iq,k,np) +              &
-                               xfact(iq,k)*work(ie(iq),k,np) +    &
-                               xfact_iwu*work(iw(iq),k,np) +      &
-                               yfact(iq,k)*work(in(iq),k,np) +    &
-                               yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
-            end do  
-          end do
-        end do  
-      end do
-
-      call bounds_send(ans(:,:,1:nlen))
+      call bounds(ans(:,:,1:nlen))
 
       !$omp parallel do schedule(static) private(nn,np,iq,k,xfact_iwu,yfact_isv,base,async_counter)
       do nn = 1,nlen
@@ -441,33 +397,17 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
       end do
       !$omp end parallel do
       !$acc wait
-
-      call bounds_recv(ans(:,:,1:nlen))
-
+      
       do nn = 1,nlen
         np = nn - 1 + nstart
         do k = 1,wlev
-          do nc = 1,maxcolour  
-            do iqc = 1,ifull_colour_border(nc)
-              iq = iqx(iqc,nc)  
-              xfact_iwu = xfact(iwu(iq),k)
-              yfact_isv = yfact(isv(iq),k)
-              base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-              work(iq,k,np) = work_save(iq,k,nn) - dt*(            &
-                             -base*ans(iq,k,nn) +                  &
-                             xfact(iq,k)*ans(ie(iq),k,nn) +        &
-                             xfact_iwu*ans(iw(iq),k,nn) +          &
-                             yfact(iq,k)*ans(in(iq),k,nn) +        &
-                             yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
-            end do  
-          end do  
           do iq = 1,ifull
             if ( ee(iq,k)<0.5 ) then
               work(iq,k,np) = work_save(iq,k,nn)
             end if
           end do
         end do  
-      end do
+      end do      
     
     end do ! its
     

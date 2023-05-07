@@ -45,6 +45,13 @@
 !        nhorps=-4 does only T, qg, cloud, TKE & aerosols horiz diff.
 !        nhorps=-5 does only T                            horiz diff.
 !        nhorps=-6 does only T & qg                       horiz diff.
+  
+module hordifg_m
+
+private
+public hordifgt
+
+contains
     
 subroutine hordifgt
 
@@ -356,71 +363,155 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 )
 end if
 
 
-! perform diffusion
+! update halos --------------------------------------------------------
 
-!$acc data create(xfact,yfact,emi)
-!$acc update device(xfact,yfact,emi)
-
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  ! momentum U, V, W
-  work(1:ifull,:,1) = uc(1:ifull,:)
-  work(1:ifull,:,2) = vc(1:ifull,:)
-  work(1:ifull,:,3) = wc(1:ifull,:)
-  call hordifgt_work(work(:,:,1:3),xfact,yfact,emi,3)
-  uc(1:ifull,:) = work(1:ifull,:,1)
-  vc(1:ifull,:) = work(1:ifull,:,2)
-  wc(1:ifull,:) = work(1:ifull,:,3)
-end if  
-
+! momentum U, V, W - updated above
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
   ! potential temperture and water vapour
   work(1:ifull,:,1) = t(1:ifull,:)
   work(1:ifull,:,2) = qg(1:ifull,:)
-  call hordifgt_work(work(:,:,1:2),xfact,yfact,emi,2)
+  call bounds(work(:,:,1:2))
   t(1:ifull,:)  = work(1:ifull,:,1)
   qg(1:ifull,:) = work(1:ifull,:,2)
 else if ( nhorps==-5 ) then
   ! potential temperature
-  call hordifgt_work(t,xfact,yfact,emi,1)  
+  call bounds(t)  
 else if ( nhorps==-3 ) then  
   ! water vapour  
-  call hordifgt_work(qg,xfact,yfact,emi,1)  
+  call bounds(qg)  
 end if  
-
 if ( nhorps==-4 .and. ldr/=0 ) then  
   ! cloud liquid & frozen water plus cloud fraction
   work(1:ifull,:,1) = qlg(1:ifull,:)
   work(1:ifull,:,2) = qfg(1:ifull,:)
   work(1:ifull,:,3) = stratcloud(1:ifull,:)
-  call hordifgt_work(work(:,:,1:3),xfact,yfact,emi,3)
+  call bounds(work(:,:,1:3))
   qlg(1:ifull,:)        = work(1:ifull,:,1)
   qfg(1:ifull,:)        = work(1:ifull,:,2)
   stratcloud(1:ifull,:) = work(1:ifull,:,3)
   if ( ncloud>=100 .and. ncloud<200 ) then
-    !call hordifgt_work(nr,xfact,yfact,emi,1)
-    call hordifgt_work(ni,xfact,yfact,emi,1)
-    !call hordifgt_work(ns,xfact,yfact,emi,1)
+    !call bounds(nr)
+    call bounds(ni)
+    !call bounds(ns)
   end if
 end if
-
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   ! tke and eps
   work(1:ifull,:,1) = tke(1:ifull,:)
   work(1:ifull,:,2) = eps(1:ifull,:)
-  call hordifgt_work(work(:,:,1:2),xfact,yfact,emi,2)
+  call bounds(work(:,:,1:2))
   tke(1:ifull,:) = work(1:ifull,:,1)
   eps(1:ifull,:) = work(1:ifull,:,2)
 end if
+! prgnostic aerosols (disabled by default)
+if ( nhorps==-4 .and. abs(iaero)>=2 ) then
+  call bounds(xtg)  
+end if  ! (nhorps==-4.and.abs(iaero)>=2)  
+
+
+! perform diffusion ---------------------------------------------------
+
+!$omp parallel
+!$omp sections
+!$acc data create(xfact,yfact,emi)
+!$acc update device(xfact,yfact,emi)
+
+!$omp section
+! momentum U
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
+  call hordifgt_work(uc,xfact,yfact,emi)
+end if  
+
+!$omp section
+! momentum V
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
+  call hordifgt_work(vc,xfact,yfact,emi)
+end if  
+
+!$omp section
+! momentum W
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
+  call hordifgt_work(wc,xfact,yfact,emi)
+end if  
+
+!$omp section
+! potential temperature
+if ( nhorps==-5 ) then
+  ! potential temperature
+  call hordifgt_work(t,xfact,yfact,emi)
+end if
+
+!$omp section
+! water vapour    
+if ( nhorps==-3 ) then  
+  call hordifgt_work(qg,xfact,yfact,emi)  
+end if  
+
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(qlg,xfact,yfact,emi)
+end if
+
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(qfg,xfact,yfact,emi)
+end if
+
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(stratcloud,xfact,yfact,emi)
+end if
+
+!!$omp section
+!if ( nhorps==-4 .and. ldr/=0 ) then  
+!  if ( ncloud>=100 .and. ncloud<200 ) then
+!    call hordifgt_work(nr,xfact,yfact,emi)
+!  end if
+!end if
+
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    call hordifgt_work(ni,xfact,yfact,emi)
+  end if
+end if
+
+!!$omp section
+!if ( nhorps==-4 .and. ldr/=0 ) then  
+!  if ( ncloud>=100 .and. ncloud<200 ) then
+!    call hordifgt_work(ns,xfact,yfact,emi)
+!  end if
+!end if
+
+!$omp section
+! eps
+if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
+  call hordifgt_work(eps,xfact,yfact,emi)
+end if
+
+!$omp section
+! tke
+if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
+  call hordifgt_work(tke,xfact,yfact,emi)
+end if
+
+!$omp end sections nowait
 
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  call hordifgt_work(xtg,xfact,yfact,emi,naero)  
+  !$omp do schedule(static) private(ntr)
+  do ntr = 1,naero
+    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
+  end do
+  !$omp end do nowait  
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
+!$omp end parallel
+!$acc wait
 !$acc end data
 
 
-! post-processing
+! post-processing -----------------------------------------------------
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
     u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
@@ -449,89 +540,53 @@ end if
 return
 end subroutine hordifgt
 
-subroutine hordifgt_work(work,xfact,yfact,emi,ntr)    
+subroutine hordifgt_work(work,xfact,yfact,emi)
 
 use cc_acc, only : async_length
-use cc_mpi, only : bounds_send, bounds_recv, maxcolour, iqx, &
-                   ifull_colour, ifull_colour_border, nagg
 use indices_m
 use newmpar_m
 
 implicit none
 
-integer, intent(in) :: ntr
-integer k, iq, iqc, nc, nstart, nend, nlen, nn, np
-integer async_counter
+integer k, iq
+integer, save :: async_counter = -1
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
-real, dimension(ifull+iextra,kl,ntr), intent(inout) :: work
-real, dimension(ifull,kl,nagg) :: ans
+real, dimension(ifull+iextra,kl), intent(inout) :: work
+real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
-do nstart = 1,ntr,nagg
-  nend = min(nstart + nagg - 1, ntr )
-  nlen = nend - nstart + 1
-  
-  call bounds_send(work(:,:,nstart:nend))
+async_counter = mod(async_counter+1, async_length)
 
-  ! update non-boundary grid points
-  ! here we use the coloured indices to identify interior and boundary points
-  !$omp parallel do schedule(static) private(nn,np,k,iq,base,xfact_iwu,yfact_isv,async_counter)
-  do nn = 1,nlen
-    np = nn - 1 + nstart
-    async_counter = mod(nn-1,async_length)
-    !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
-    !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)                            &
-    !$acc   async(async_counter)
-    do k = 1,kl
-      do iq = 1,ifull  
-        xfact_iwu = xfact(iwu(iq),k)
-        yfact_isv = yfact(isv(iq),k)
-        base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                      +yfact(iq,k)+yfact_isv
-        ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +               &
-                         xfact(iq,k)*work(ie(iq),k,np) +       &
-                         xfact_iwu*work(iw(iq),k,np) +         &
-                         yfact(iq,k)*work(in(iq),k,np) +       &
-                         yfact_isv*work(is(iq),k,np) )         &
-                      / base 
-      end do  
-    end do      
-    !$acc end parallel loop
-  end do
-  !$omp end parallel do
-  
-  !$acc wait
-    
-  call bounds_recv(work(:,:,nstart:nend))
-
-  ! update boundary grid points
-  ! here we use the coloured indices to identify interior and boundary points  
-  do nn = 1,nlen
-    np = nn - 1 + nstart  
-    do k = 1,kl
-      do nc = 1,maxcolour  
-        do iqc = 1,ifull_colour_border(nc)
-          iq = iqx(iqc,nc)  
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                        +yfact(iq,k)+yfact_isv
-          ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +               &
-                           xfact(iq,k)*work(ie(iq),k,np) +       &
-                           xfact_iwu*work(iw(iq),k,np) +         &
-                           yfact(iq,k)*work(in(iq),k,np) +       &
-                           yfact_isv*work(is(iq),k,np) )         &
-                        / base
-        end do  
-      end do
-      do iq = 1,ifull
-        work(iq,k,np) = ans(iq,k,nn)
-      end do
-    end do
+!$acc enter data create(ans,work) async(async_counter)
+!$acc update device(work) async(async_counter)
+!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) async(async_counter)
+do k = 1,kl
+  do iq = 1,ifull  
+    xfact_iwu = xfact(iwu(iq),k)
+    yfact_isv = yfact(isv(iq),k)
+    base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                  +yfact(iq,k)+yfact_isv
+    ans(iq,k) = ( emi(iq)*work(iq,k) +               &
+                  xfact(iq,k)*work(ie(iq),k) +       &
+                  xfact_iwu*work(iw(iq),k) +         &
+                  yfact(iq,k)*work(in(iq),k) +       &
+                  yfact_isv*work(is(iq),k) )         &
+               / base 
   end do  
-
-end do ! nstart
+end do      
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
+do k = 1,kl
+  do iq = 1,ifull
+    work(iq,k) = ans(iq,k)
+  end do
+end do
+!$acc end parallel loop
+!$acc update self(work) async(async_counter)
+!$acc exit data delete(work,ans) async(async_counter)
 
 return
 end subroutine hordifgt_work
+
+end module hordifg_m

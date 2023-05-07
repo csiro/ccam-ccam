@@ -30,15 +30,16 @@
 !                      v+ve northwards (on the panel)
 
 ! Preprocessor directives:
-!   CCAM        - support CCAM (required)
-!   debug       - additional debugging checks
-!   scm         - single column mode
-!   i8r8        - double precision mode
-!   GPU         - target GPUs with OpenMP
-!   csircoupled - CSIR coupled model
-!   usempi3     - allow shared memory (preferred)
-!   stacklimit  - disable stacklimit
-!   vampir      - enable vampir profiling
+!   CCAM         - support CCAM (required)
+!   debug        - additional debugging checks
+!   scm          - single column mode
+!   i8r8         - double precision mode
+!   GPU          - target GPUs with OpenMP
+!   csircoupled  - CSIR coupled model
+!   usempi3      - optimse communication with MPI-3 (preferrd)
+!   share_ifullg - redice memory with MPI-3 (preferred) - requires usempi3
+!   stacklimit   - disable stacklimit
+!   vampir       - enable vampir profiling
     
 program globpe
 
@@ -65,6 +66,7 @@ use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
 use gdrag_m, only : gwdrag                 ! Gravity wave drag
 use histave_m                              ! Time average arrays
+use hordifg_m                              ! Horizontal diffusion
 use hs_phys_m                              ! Held & Suarez
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
@@ -1079,7 +1081,7 @@ if ( myid==0 ) then
   call finishbanner
 end if
 
-#ifdef usempi3
+#ifdef share_ifullg
 call ccmpi_freeshdata(xx4_win)
 call ccmpi_freeshdata(yy4_win)
 call ccmpi_freeshdata(em_g_win)
@@ -1387,6 +1389,7 @@ use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
 use kuocomb_m                              ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
+use leoncld_mod                            ! Rotstayn microphysics
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
@@ -1492,7 +1495,7 @@ character(len=10) timeval
 character(len=8) text, rundate
 character(len=1024) vegprev, vegnext, vegnext2 ! depreciated namelist options
 
-#ifdef usempi3
+#ifdef share_ifullg
 integer, dimension(3) :: shsize
 #endif
 
@@ -1561,7 +1564,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcm,lin_aerosolmode,maxlintime,                               &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
-    cloud_ice_method
+    cloud_ice_method, leon_snowmeth
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -2164,7 +2167,7 @@ surf_windfarm       = dumi(23)
 output_windmax      = dumi(24)
 cordex_fix          = dumi(25)
 deallocate( dumi )
-allocate( dumr(35), dumi(26) )
+allocate( dumr(35), dumi(27) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2230,6 +2233,7 @@ if ( myid==0 ) then
   dumi(24) = cloud_aerosol_mode
   dumi(25) = lin_aerosolmode  
   dumi(26) = cloud_ice_method
+  dumi(27) = leon_snowmeth
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2294,6 +2298,7 @@ tiedtke_form     = dumi(23)
 cloud_aerosol_mode = dumi(24)
 lin_aerosolmode    = dumi(25)
 cloud_ice_method   = dumi(26)
+leon_snowmeth      = dumi(27)
 deallocate( dumr, dumi )
 allocate( dumr(32), dumi(4) )
 dumr = 0.
@@ -3094,7 +3099,7 @@ end if ! myid=0
 !--------------------------------------------------------------
 ! INITIALISE ifull_g ALLOCATABLE ARRAYS
 
-#ifdef usempi3
+#ifdef share_ifullg
 ! Allocate xx4, yy4, em_g, x_g, y_g and z_g as shared
 ! memory within a node.  The node captain is responsible
 ! for updating these arrays.
@@ -3132,8 +3137,7 @@ end if
 ! Broadcast the following global data
 ! xx4 and yy4 are used for calculating depature points
 ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
-#ifdef usempi3
-! use shared memory for global arrays common to all processes
+#ifdef share_ifullg
 if ( node_myid==0 ) then
   call ccmpi_bcastr8(xx4,0,comm_nodecaptain)
   call ccmpi_bcastr8(yy4,0,comm_nodecaptain)

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,7 +25,7 @@ module sumdd_m
    private
    integer(kind=4), save, public :: MPI_SUMDR
 contains
-   pure subroutine drpdr (dra, drb, len, itype) 
+   subroutine drpdr(dra, drb, len, itype) 
 !  Modification of original codes written by David H. Bailey. 
 !  This subroutine computes drb(i) = dra(i) + drb(i) 
 !  From He and Ding 2001
@@ -35,15 +35,12 @@ contains
 !  Here we're more concerned with reproducibility rather than accuracy
 !  so there's no need for double precision.
 
-!  With ifort, this has to be compiled with -mp 
-! (no other optimisation options, not even -g)
-!  On APAC it works with default optimisation and on the NEC with -Cvopt.
-
-      integer(kind=4), intent(in) :: len, itype
-      complex, dimension(len), intent(in)  :: dra
-      complex, dimension(len), intent(inout) :: drb
+      integer(kind=4), intent(in) :: len
       real :: e, t1, t2 
       integer :: i
+      complex, dimension(len), intent(in)  :: dra
+      complex, dimension(len), intent(inout) :: drb
+      integer(kind=4), intent(in) :: itype
 
       do i = 1, len 
          !  Compute dra + drb using Knuth's trick. 

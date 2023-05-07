@@ -3652,6 +3652,9 @@ tempmap_send(:) = -1
 tempmap_smod(:) = -1
 tempmap_recv(:) = -1
 tempmap_rmod(:) = -1
+allocate( filemap_indx(0:nproc-1,0:fncount-1) )
+filemap_indx = 0
+filemap_indxlen = 0
 ncount_a = 0
 ncount_b = 0
 do ipf = 0,fncount-1
@@ -3665,6 +3668,8 @@ do ipf = 0,fncount-1
   ncount = 0
   do w = 0,nproc-1
     if ( lproc_t(w) ) then
+      filemap_indxlen = filemap_indxlen + 1
+      filemap_indx(w,ipf) = filemap_indxlen
       ncount = ncount + 1
       if ( mod(ncount,node_nproc)/=node_myid ) then
         lproc_t(w) = .false.
