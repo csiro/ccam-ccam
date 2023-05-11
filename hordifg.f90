@@ -45,7 +45,14 @@
 !        nhorps=-4 does only T, qg, cloud, TKE & aerosols horiz diff.
 !        nhorps=-5 does only T                            horiz diff.
 !        nhorps=-6 does only T & qg                       horiz diff.
-    
+ 
+module hordifg_m
+
+private
+public hordifgt
+
+contains
+
 subroutine hordifgt
 
 use aerosolldr
@@ -86,7 +93,7 @@ real dudx, dudy, dvdx, dvdy, dudz, dvdz
 real r1, r2, cc, base
 real ucc, vcc, wcc
 real delphi, hdif
-real tv
+real tv, tke_fix, eps_fix, cm34, tff
 integer iq, k, nhora, nhorx
 integer nstart, nend, nt, ntr
 integer, save :: kmax=-1
@@ -309,8 +316,15 @@ select case(nhorjlm)
   case(3)
     ! K-eps model + Smag
     call boundsuv(uav,vav,allvec=.true.)
+    cm34 = sqrt(sqrt(cm0**3))    
     do k = 1,kl
       do iq = 1,ifull
+
+        tke_fix = max(tke(iq,k), mintke)
+        tff     = cm34*tke_fix*sqrt(tke_fix)
+        eps_fix = min(eps_fix, tff/minl)
+        eps_fix = max(eps_fix, tff/maxl, mineps)
+
         hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
@@ -318,7 +332,7 @@ select case(nhorjlm)
         dvdy = 0.5*(vav(inv(iq),k)-vav(isv(iq),k))*em(iq)/ds
         r1 = (dudx-dvdy)**2+(dvdx+dudy)**2
         t_kh(iq,k) = sqrt(r1)*hdif*emi(iq)
-        t_kh(iq,k)=max( t_kh(iq,k), tke(iq,k)**2/eps(iq,k)*dt*cm0*emi(iq) )
+        t_kh(iq,k)=max( t_kh(iq,k), tke_fix**2/eps_fix*dt*cm0*emi(iq) )
       end do
     end do
 
@@ -526,13 +540,15 @@ implicit none
 
 integer k, iq
 integer, save :: async_counter = -1
-real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
-real, dimension(ifull), intent(in) :: emi
-real, dimension(ifull+iextra,kl), intent(inout) :: work
-real, dimension(ifull+iextra,kl) :: ans
+real, dimension(:,:), intent(in) :: xfact, yfact
+real, dimension(:), intent(in) :: emi
+real, dimension(:,:), intent(inout) :: work
+real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
 async_counter = mod(async_counter+1, async_length)
+
+ans = 0.
 
 #ifdef _OPENMP
 #ifdef GPU
@@ -556,6 +572,12 @@ do k = 1,kl
                    yfact(iq,k)*work(in(iq),k) +       &
                    yfact_isv*work(is(iq),k) )         &
                 / base
+     !if ( ans(iq,k)<-1.e7 ) then
+     !  print *,"ERROR ans ",myid,iq,k,ans(iq,k)   
+     !  print *,"emi,xfact,xfact_iwu,yfact,yfact_isv ",emi(iq),xfact(iq,k),xfact_iwu,yfact(iq,k),yfact_isv
+     !  print *,"base ",base
+     !  print *,"work ",work(iq,k),work(ie(iq),k),work(iw(iq),k),work(in(iq),k),work(is(iq),k)
+     !end if
   end do
 end do
 #ifdef _OPENMP
@@ -585,3 +607,5 @@ end do
 
 return
 end subroutine hordifgt_work
+
+end module hordifg_m

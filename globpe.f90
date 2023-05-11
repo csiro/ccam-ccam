@@ -64,6 +64,7 @@ use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
 use gdrag_m, only : gwdrag                 ! Gravity wave drag
 use histave_m                              ! Time average arrays
+use hordifg_m
 use hs_phys_m                              ! Held & Suarez
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
@@ -565,7 +566,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("start of physics",js,je)
   end do  
   !$omp end do nowait
-  
+
+
+  if ( nsib>0 ) then  ! larger than 0 means normal run; ==0 disable physics
+
 
   ! GWDRAG ----------------------------------------------------------------
   call START_LOG(gwdrag_begin)
@@ -676,12 +680,18 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
   call END_LOG(radnet_end)
 
+
+  end if
+
     
   ! HELD & SUAREZ ---------------------------------------------------------
   if ( nhstest==2 ) then
     call hs_phys
   end if
   
+
+  if ( nsib>0 ) then
+
   
   ! SURFACE FLUXES ---------------------------------------------
   ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
@@ -782,6 +792,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! Turbulent mixing
   if ( ngas>0 ) then
     call tracervmix  
+  end if
+
+
   end if
 
   

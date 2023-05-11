@@ -402,6 +402,36 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
     pidw(1:imax,k)    =0.                  ! production of cloud ice by BERGERON process
     piadj(1:imax,k)   =0.                  ! saturation adjustment for qi
 
+    zpsnow(1:imax,k)   =0. 
+    zpsaut(1:imax,k)   =0. 
+    zpsfw(1:imax,k)    =0. 
+    zpsfi(1:imax,k)    =0. 
+    zpraci(1:imax,k)   =0. 
+    zpiacr(1:imax,k)   =0. 
+    zpsaci(1:imax,k)   =0. 
+    zpsacw(1:imax,k)   =0. 
+    zpsdep(1:imax,k)   =0. 
+    zpssub(1:imax,k)   =0. 
+    zpracs(1:imax,k)   =0. 
+    zpsacr(1:imax,k)   =0. 
+    zpsmlt(1:imax,k)   =0. 
+    zpsmltevp(1:imax,k)=0. 
+    zprain(1:imax,k)   =0. 
+    zpraut(1:imax,k)   =0. 
+    zpracw(1:imax,k)   =0. 
+    zprevp(1:imax,k)   =0. 
+    zpgfr(1:imax,k)    =0. 
+    zpvapor(1:imax,k)  =0. 
+    zpclw(1:imax,k)    =0. 
+    zpladj(1:imax,k)   =0. 
+    zpcli(1:imax,k)    =0. 
+    zpimlt(1:imax,k)   =0. 
+    zpihom(1:imax,k)   =0. 
+    zpidw(1:imax,k)    =0. 
+    zpiadj(1:imax,k)   =0.
+    zpmidep(1:imax,k)  =0.  
+
+
     npsaut(1:imax,k)   =0.
     npraci(1:imax,k)   =0.
     npiacr(1:imax,k)   =0.
@@ -2026,39 +2056,6 @@ SUBROUTINE clphy1d_ylin(dt, imax,                           &
       EFFC1D(1:imax,k) = 25.E-6
     end where
   end do
-
-  ! save all process rate for understanding cloud microphysics
-!  do k=kts,kte
-!    zpsnow(1:imax,k)   = psnow(1:imax,k)    ! sum all process for snow
-!    zpsaut(1:imax,k)   = psaut(1:imax,k)    ! ice crystal aggregation to snow
-!    zpsfw(1:imax,k)    = psfw(1:imax,k)     ! BERGERON process to transfer cloud water to snow
-!    zpsfi(1:imax,k)    = psfi(1:imax,k)     ! BERGERON process to transfer cloud ice to snow
-!    zpraci(1:imax,k)   = praci(1:imax,k)    ! cloud ice accretion by rain
-!    zpiacr(1:imax,k)   = piacr(1:imax,k)    ! rain accretion by cloud ice
-!    zpsaci(1:imax,k)   = psaci(1:imax,k)    ! ice crystal accretion by snow
-!    zpsacw(1:imax,k)   = psacw(1:imax,k)    ! accretion of cloud water by snow
-!    zpsdep(1:imax,k)   = psdep(1:imax,k)    ! deposition of snow
-!    zpssub(1:imax,k)   = pssub(1:imax,k)    ! sublimation of snow (T<0)
-!    zpracs(1:imax,k)   = pracs(1:imax,k)    ! accretion of snow by rain
-!    zpsacr(1:imax,k)   = psacr(1:imax,k)    ! accretion of rain by snow
-!    zpsmlt(1:imax,k)   = psmlt(1:imax,k)    ! melting of snow
-!    zpsmltevp(1:imax,k)= psmltevp(1:imax,k) ! evaporation of melting snow (T>0)
-!    zprain(1:imax,k)   = prain(1:imax,k)    ! sum all process for rain
-!    zpraut(1:imax,k)   = praut(1:imax,k)    ! autoconversion of rain
-!    zpracw(1:imax,k)   = pracw(1:imax,k)    ! accretion of cloud water by rain
-!    zprevp(1:imax,k)   = prevp(1:imax,k)    ! evaporation of rain
-!    zpgfr(1:imax,k)    = pgfr(1:imax,k)     ! feezing of rain to form graupel (added to PI)
-!    zpvapor(1:imax,k)  = pvapor(1:imax,k)   ! sum all process for water vapor to determine qvz
-!    zpclw(1:imax,k)    = pclw(1:imax,k)     ! sum all process for cloud liquid to determine qlz
-!    zpladj(1:imax,k)   = pladj(1:imax,k)    ! saturation adjustment for ql
-!    zpcli(1:imax,k)    = pcli(1:imax,k)     ! sum all process for cloud ice to determine qiz
-!    zpimlt(1:imax,k)   = pimlt(1:imax,k)    ! melting of ice crystal >0.
-!    zpihom(1:imax,k)   = pihom(1:imax,k)    ! homogeneous nucleation <-40
-!    zpidw(1:imax,k)    = pidw(1:imax,k)     ! production of cloud ice by BERGERON process
-!    zpiadj(1:imax,k)   = piadj(1:imax,k)    ! saturation adjustment for qi
-!    zpmidep(1:imax,k)  = midep(1:imax,k)    ! 
-!  enddo
-
 
   ! save process rate for aerisol scheme
   do k=kts,kte

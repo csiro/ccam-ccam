@@ -460,22 +460,22 @@ do kcount = 1,mcount
     qfg(:,k) = max( qfg(:,k), 0. )
     qlg(:,k) = max( qlg(:,k), 0. )
     
-    ! account for saturation  
-    theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
-    templ(:) = thetal(:,k)/sigkap(k)
-    pres(:) = ps(:)*sig(k)
-    fice = min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8), 1. )
-    call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
+  !  ! account for saturation  
+  !  theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+  !  templ(:) = thetal(:,k)/sigkap(k)
+  !  pres(:) = ps(:)*sig(k)
+  !  fice = min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8), 1. )
+  !  call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
     do iq = 1,imax
-      lx = lv + lf*fice(iq)
-      dqsdt = qsat(iq,k)*lx/(rv*templ(iq)**2)
-      al = cp/(cp+lx*dqsdt)
-      qc(iq) = max( al*(qt(iq) - qsat(iq,k)), qc(iq) )
-      temp = theta(iq,k)/sigkap(k)
-      if ( temp>=tice ) then
-        qfg(iq,k) = max( fice(iq)*qc(iq), 0. )  
-        qlg(iq,k) = max( qc(iq) - qfg(iq,k), 0. )
-      end if
+  !    lx = lv + lf*fice(iq)
+  !    dqsdt = qsat(iq,k)*lx/(rv*templ(iq)**2)
+  !    al = cp/(cp+lx*dqsdt)
+  !    qc(iq) = max( al*(qt(iq) - qsat(iq,k)), qc(iq) )
+  !    temp = theta(iq,k)/sigkap(k)
+  !    if ( temp>=tice ) then
+  !      qfg(iq,k) = max( fice(iq)*qc(iq), 0. )  
+  !      qlg(iq,k) = max( qc(iq) - qfg(iq,k), 0. )
+  !    end if
       qvg(iq,k) = max( qt(iq) - qfg(iq,k) - qlg(iq,k), 0. )
       theta(iq,k) = thetal(iq,k) + sigkap(k)*(lv*qlg(iq,k)+ls*qfg(iq,k))/cp
       if ( qlg(iq,k)+qfg(iq,k)>1.E-12 ) then
