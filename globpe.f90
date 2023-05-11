@@ -1094,6 +1094,7 @@ deallocate(em_g)
 deallocate(x_g, y_g, z_g)
 #endif
 call ccmpi_filewinfinalize_exit
+call nestin_exit
 if ( mbd/=0 .and. nud_uv/=9 ) then
   call deallocateglobalpack
 end if

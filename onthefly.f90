@@ -38,7 +38,7 @@ module onthefly_m
 implicit none
 
 private
-public onthefly, retopo
+public onthefly, retopo, onthefly_exit
     
 integer, save :: ik, jk, kk, ok, nsibx                        ! input grid size
 integer fwsize                                                ! size of temporary arrays
@@ -49,6 +49,9 @@ integer, save :: fill_floorlake = 0                           ! number of iterat
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
 integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
 integer, save :: native_ccam = 0                              ! is host CCAM (native_ccam=1) or cdfivdar (native_ccam=0)
+integer, save :: xx4_win, yy4_win                             ! shared memory windows
+integer, save :: xy4_count = 0                                ! multiple shared memory windows
+integer, dimension(3), save :: xx4save_win, yy4save_win       ! multiple shared memory windows
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
@@ -60,6 +63,7 @@ real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 real, dimension(:), allocatable, save :: gosig_in             ! input ocean levels
 real, dimension(:,:,:), allocatable, save :: sx               ! working array for interpolation
+real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! working array for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
 
@@ -388,6 +392,7 @@ integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(9+3*ms) :: ierc
 integer, dimension(11), save :: iers
+integer, dimension(2) :: shsize
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
 real, dimension(:,:,:), intent(out) :: xtgdwn
@@ -407,7 +412,9 @@ real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
+real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real, dimension(kk+ok+11) :: dumr
+real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 character(len=20) vname
 character(len=4) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
@@ -419,10 +426,6 @@ logical aero_found
 logical, dimension(:), allocatable, save :: land_a, landlake_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 logical, dimension(:,:), allocatable, save :: landlake_3d
-
-real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
-real(kind=8), dimension(:,:), pointer, save :: xx4, yy4
-real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 
 ! iotest      indicates no interpolation required
 ! ptest       indicates the grid decomposition of the mesonest file is the same as the model, including the same number of processes
@@ -512,8 +515,16 @@ end if
 !--------------------------------------------------------------------
 ! Determine input grid coordinates and interpolation arrays
 if ( newfile .and. .not.iop_test ) then
-    
+  
+#ifdef share_ifullg
+  shsize(1) = 1 + 4*ik
+  shsize(2) = 1 + 4*ik
+  call ccmpi_allocshdatar8(xx4,shsize(1:2),xx4_win)
+  call ccmpi_allocshdatar8(yy4,shsize(1:2),yy4_win)
+  xy4_count = xy4_count + 1
+#else
   allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
+#endif
 
   if ( m_fly==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
@@ -543,8 +554,16 @@ if ( newfile .and. .not.iop_test ) then
     nullify( x_a, y_a, z_a )
   end if ! (myid==0)
   
+#ifdef share_ifullg
+  if ( node_myid==0 ) then
+    call ccmpi_bcastr8(xx4,0,comm_nodecaptain)
+    call ccmpi_bcastr8(yy4,0,comm_nodecaptain)
+  end if  
+  call ccmpi_barrier(comm_node)
+#else
   call ccmpi_bcastr8(xx4,0,comm_world)
   call ccmpi_bcastr8(yy4,0,comm_world)
+#endif
   
   ! calculate the rotated coords for host and model grid
   rotpoles = calc_rotpole(rlong0x,rlat0x)
@@ -573,10 +592,23 @@ if ( newfile .and. .not.iop_test ) then
                   xx4,yy4,ik)
   end do
 
-  deallocate( xx4, yy4 )  
-  nullify( xx4, yy4 )  
+#ifdef share_ifullg
+  ! Previously deallocating memory triggered bugs in the MPI library
+  ! Here we will leave the memory allocated for now and deallocate
+  ! just before mpi_finalize  
+  if ( xy4_count <= size(xx4save_win) ) then
+    xx4save_win(xy4_count) = xx4_win  
+    yy4save_win(xy4_count) = yy4_win
+  end if    
+  !call ccmpi_freeshdata(xx4_win)
+  !call ccmpi_freeshdata(yy4_win)
+#else
+  deallocate( xx4, yy4 )
+#endif
+  nullify( xx4, yy4 )
   
   ! Define filemap for multi-file method
+  ! Also deallocates axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a arrays
   call file_wininit
       
 end if ! newfile .and. .not.iop_test
@@ -3579,8 +3611,8 @@ integer mm, iq, idel, jdel
 integer ncount, w
 integer ncount_a, ncount_b
 logical, dimension(0:fnproc-1) :: lfile
-integer, dimension(:), allocatable :: tempmap_send, tempmap_smod
-integer, dimension(:), allocatable :: tempmap_recv, tempmap_rmod
+integer, dimension(nproc*fncount) :: tempmap_send, tempmap_smod
+integer, dimension(nproc*fncount) :: tempmap_recv, tempmap_rmod
 logical, dimension(0:nproc-1) :: lproc, lproc_t
 
 if ( allocated(filemap_req) ) then
@@ -3646,8 +3678,6 @@ end do
 if ( myid==0 ) then
   write(6,*) "-> Create map for communication between processes"  
 end if
-allocate( tempmap_send(nproc*fncount), tempmap_smod(nproc*fncount) )
-allocate( tempmap_recv(nproc*fncount), tempmap_rmod(nproc*fncount) )
 tempmap_send(:) = -1
 tempmap_smod(:) = -1
 tempmap_recv(:) = -1
@@ -3696,8 +3726,6 @@ filemap_send(1:ncount_a) = tempmap_send(1:ncount_a)
 filemap_smod(1:ncount_a) = tempmap_smod(1:ncount_a)
 filemap_recv(1:ncount_b) = tempmap_recv(1:ncount_b)
 filemap_rmod(1:ncount_b) = tempmap_rmod(1:ncount_b)
-deallocate( tempmap_send, tempmap_smod )
-deallocate( tempmap_recv, tempmap_rmod )
 
 call ccmpi_filewininit(kblock)
 
@@ -3737,5 +3765,22 @@ end if
 
 return
 end subroutine file_wininit
+
+subroutine onthefly_exit
+
+use cc_mpi
+
+implicit none
+
+integer i
+
+#ifdef share_ifullg
+do i = 1,xy4_count
+  call ccmpi_freeshdata(xx4save_win(i))
+  call ccmpi_freeshdata(yy4save_win(i))
+end do
+#endif
+
+end subroutine onthefly_exit
 
 end module onthefly_m

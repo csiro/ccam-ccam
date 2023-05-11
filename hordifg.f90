@@ -371,8 +371,8 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
   work(1:ifull,:,1) = t(1:ifull,:)
   work(1:ifull,:,2) = qg(1:ifull,:)
   call bounds(work(:,:,1:2))
-  t(1:ifull,:)  = work(1:ifull,:,1)
-  qg(1:ifull,:) = work(1:ifull,:,2)
+  t(ifull+1:ifull+iextra,:)  = work(ifull+1:ifull+iextra,:,1)
+  qg(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
 else if ( nhorps==-5 ) then
   ! potential temperature
   call bounds(t)  
@@ -386,9 +386,9 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   work(1:ifull,:,2) = qfg(1:ifull,:)
   work(1:ifull,:,3) = stratcloud(1:ifull,:)
   call bounds(work(:,:,1:3))
-  qlg(1:ifull,:)        = work(1:ifull,:,1)
-  qfg(1:ifull,:)        = work(1:ifull,:,2)
-  stratcloud(1:ifull,:) = work(1:ifull,:,3)
+  qlg(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,1)
+  qfg(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
+  stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
   if ( ncloud>=100 .and. ncloud<200 ) then
     !call bounds(nr)
     call bounds(ni)
@@ -400,8 +400,8 @@ if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   work(1:ifull,:,1) = tke(1:ifull,:)
   work(1:ifull,:,2) = eps(1:ifull,:)
   call bounds(work(:,:,1:2))
-  tke(1:ifull,:) = work(1:ifull,:,1)
-  eps(1:ifull,:) = work(1:ifull,:,2)
+  tke(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,1)
+  eps(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
 end if
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then

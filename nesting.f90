@@ -52,7 +52,7 @@ module nesting
 
 private
 public nestin, nestinb, mlofilterhub, mlonudge, specinit
-public mtimea, mtimeb
+public mtimea, mtimeb, nestin_exit
 
 integer, save :: mtimea = -1  ! previous mesonest time (mins)
 integer, save :: mtimeb = -1  ! next mesonest time (mins)
@@ -3632,5 +3632,14 @@ end function drpdr_fast
     
 #endif
 
+subroutine nestin_exit
+
+use onthefly_m
+
+implicit none
+
+call onthefly_exit
+
+end subroutine nestin_exit
 
 end module nesting
