@@ -8520,7 +8520,7 @@ contains
       comm_world = MPI_COMM_WORLD
       
       call system_clock( end_time, count_rate, count_max )
-      mpiinit_time = real( begin_time - end_time, 8)/real(count_rate,8)
+      mpiinit_time = real( end_time - begin_time, 8)/real(count_rate,8)
 
    end subroutine ccmpi_init
    
