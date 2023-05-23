@@ -209,18 +209,9 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
-#ifndef GPU
-  !$omp parallel
-#endif
   do nn = 1,3
-#ifndef GPU
-    !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n),                          &
-    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-#else
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
-#endif    
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -250,18 +241,9 @@ if ( intsch==1 ) then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do   ! iq loop
     end do     ! k loop
-#ifndef GPU
-    !$omp end do nowait
-#else
     !$acc end parallel loop
-#endif
   end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel
-#else
-  !$acc wait
-#endif
-  
+  !$acc wait  
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -303,18 +285,9 @@ else     ! if(intsch==1)then
   
   call intssync_send(3)
 
-#ifndef GPU
-  !$omp parallel
-#endif
   do nn = 1,3
-#ifndef GPU
-    !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n),                          &
-    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-#else
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
-#endif    
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -344,17 +317,9 @@ else     ! if(intsch==1)then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! k loop
-#ifndef GPU
-    !$omp end do nowait
-#else
     !$acc end parallel loop
-#endif
   end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel
-#else
   !$acc wait
-#endif
   
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -418,18 +383,9 @@ if ( intsch==1 ) then
 
   call intssync_send(3)
 
-#ifndef GPU
-  !$omp parallel
-#endif
   do nn = 1,3
-#ifndef GPU
-    !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n),                          &
-    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-#else
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
-#endif    
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -459,17 +415,9 @@ if ( intsch==1 ) then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do   ! iq loop
     end do     ! k loop
-#ifndef GPU
-    !$omp end do nowait
-#else
     !$acc end parallel loop
-#endif
   end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel
-#else
   !$acc wait
-#endif
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -512,18 +460,9 @@ else     ! if(intsch==1)then
 
   call intssync_send(3)
 
-#ifndef GPU
-  !$omp parallel
-#endif
   do nn = 1,3
-#ifndef GPU
-    !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n),                          &
-    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4), &
-    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4)
-#else
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
-#endif    
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
@@ -554,17 +493,9 @@ else     ! if(intsch==1)then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
     end do            ! k loop
-#ifndef GPU
-    !$omp end do nowait
-#else
     !$acc end parallel loop
-#endif
   end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel
-#else
   !$acc wait
-#endif
   
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -621,20 +552,13 @@ real(kind=8) alf,alfonsch  ! 6/11/07 esp for 200m
 real(kind=8) dxx,dxy,dyx,dyy
 real(kind=8), dimension(ifull,kl), intent(in) :: x3d,y3d,z3d
 real(kind=8) den
-logical xytest, xztest, yztest
 
 ! if necessary, transform (x3d, y3d, z3d) to equivalent
 ! coordinates (xstr, ystr, zstr) on regular gnomonic panels
 alf      = (1._8-real(schmidt,8)**2)/(1._8+real(schmidt,8)**2)
 alfonsch = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more accurate
 
-#ifndef GPU
-!$omp parallel do schedule(static) private(k,iq,den),                               &
-!$omp private(xstr,ystr,zstr,denxyz,xd,yd,zd,xytest,xztest,yztest,ri,rj,loop,i,j),  &
-!$omp private(is,js,dxx,dyx,dxy,dyy)
-#else
 !$acc parallel loop collapse(2) copyin(x3d,y3d,z3d) present(xg,yg,nface,xx4,yy4)
-#endif
 do k = 1,kl
   do iq = 1,ifull    
     den  = 1._8 - alf*z3d(iq,k)
@@ -652,26 +576,23 @@ do k = 1,kl
     yd = ystr/denxyz
     zd = zstr/denxyz
 
-    xytest = abs(xd)>abs(yd)
-    xztest = abs(xd)>abs(zd)
-    yztest = abs(yd)>abs(zd)
-    if ( xytest .and. xztest .and. xd>0. ) then
+    if ( abs(xstr-denxyz)<1.e-8 ) then
       nface(iq,k)    =0
       xg(iq,k) =       yd
       yg(iq,k) =       zd
-    else if ( xytest .and. xztest ) then
+    else if ( abs(xstr+denxyz)<1.e-8 ) then
       nface(iq,k)    =3
       xg(iq,k) =     -zd
       yg(iq,k) =     -yd
-    else if ( yztest .and. yd>0. ) then
+    else if ( abs(ystr-denxyz)<1.e-8 ) then
       nface(iq,k)    =2
       xg(iq,k) =     -zd
       yg(iq,k) =     -xd
-    else if ( yztest ) then
+    else if ( abs(ystr+denxyz)<1.e-8 ) then
       nface(iq,k)    =5
       xg(iq,k) =      xd
       yg(iq,k) =      zd
-    else if ( zd>0. ) then
+    else if ( abs(zstr-denxyz)<1.e-8 ) then
       nface(iq,k)    =1
       xg(iq,k) =      yd
       yg(iq,k) =     -xd
@@ -726,11 +647,7 @@ do k = 1,kl
     yg(iq,k) = 0.25*(rj+3.) - 0.5  ! -.5 for stag  
   end do
 end do
-#ifndef GPU
-!$omp end parallel do
-#else
 !$acc end parallel loop
-#endif
 
 return
 end subroutine toij5

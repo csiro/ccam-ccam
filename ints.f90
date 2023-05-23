@@ -192,21 +192,12 @@ if ( intsch==1 ) then
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(nlen)
 
-#ifndef GPU
-    !$omp parallel
-#endif
     do nn = 1,nlen
       if ( nfield(nn+nstart-1)<mh_bs ) then
-          
-#ifndef GPU
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#else
+
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
-#endif
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
             idel = int(xg(iq,k))
@@ -236,23 +227,13 @@ if ( intsch==1 ) then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
-#ifndef GPU
-        !$omp end do nowait
-#else
         !$acc end parallel loop
-#endif
 
       else              ! (nfield<mh_bs)
 
-#ifndef GPU
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#else
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
-#endif
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
             idel = int(xg(iq,k))
@@ -287,19 +268,11 @@ if ( intsch==1 ) then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! k loop
-#ifndef GPU
-        !$omp end do nowait
-#else
         !$acc end parallel loop
-#endif
           
       end if
     end do           ! nn loop
-#ifndef GPU
-      !$omp end parallel
-#else
-      !$acc wait
-#endif
+    !$acc wait
   
     call intssync_recv(s(:,:,nstart:nend))  
     
@@ -433,21 +406,12 @@ else     ! if(intsch==1)then
     
     call intssync_send(nlen)
 
-#ifndef GPU
-    !$omp parallel
-#endif
     do nn = 1,nlen
       if ( nfield(nn+nstart-1) < mh_bs ) then
-          
-#ifndef GPU
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#else
+
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
-#endif
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
             ! Convert face index from 0:npanels to array indices
@@ -478,23 +442,13 @@ else     ! if(intsch==1)then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
-#ifndef GPU
-        !$omp end do nowait
-#else
         !$acc end parallel loop
-#endif
 
       else                 ! (nfield<mh_bs)
 
-#ifndef GPU
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
-#else
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
-#endif
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
             idel = int(xg(iq,k))
@@ -529,20 +483,12 @@ else     ! if(intsch==1)then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do       ! iq loop
         end do         ! k loop
-#ifndef GPU
-        !$omp end do nowait
-#else
         !$acc end parallel loop
-#endif
           
       end if
 
     end do           ! nn loop
-#ifndef GPU
-    !$omp end parallel
-#else
     !$acc wait
-#endif
     
     call intssync_recv(s(:,:,nstart:nend))  
     
@@ -621,7 +567,8 @@ end do
 
 call intssync_send
 
-!$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
+!$acc parallel loop collapse(2) copyin(sx) copyout(s)        &
+!$acc   present(xg,yg,nface)
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
@@ -636,7 +583,7 @@ do k = 1,kl
             + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
-!$omp end parallel do
+!$acc end parallel loop
 
 call intssync_recv(s)
 

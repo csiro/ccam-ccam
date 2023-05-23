@@ -284,10 +284,6 @@ end if
 #endif
 
 
-#ifndef GPU
-!$omp do schedule(static) private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
-!$omp   private(dcola,dcolb,oldsalte)
-#endif
 #ifdef GPUPHYSICS
 !$acc wait(1)
 !$acc update device(xtg)
@@ -296,6 +292,9 @@ end if
 !$acc   present(xtg,ttg,rhoa,dz,sig)                                        &
 !$acc   private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
 !$acc   private(dcola,dcolb,oldsalte)
+#else
+!$omp do schedule(static) private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
+!$omp   private(dcola,dcolb,oldsalte)
 #endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
@@ -360,11 +359,10 @@ do tile = 1,ntiles
   saltdd(js:je) = saltdd(js:je) + (dcola(:,1)-dcolb(:,1))/dt + salte(js:je) - oldsalte(:)  
   xtg(js:je,:,:) = lxtg
 end do
-#ifndef GPU
-!$omp end do nowait
-#endif
 #ifdef GPUPHYSICS
 !$acc end parallel loop
+#else
+!$omp end do nowait
 #endif
 
 #ifdef debug
@@ -374,13 +372,6 @@ if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
 end if
 #endif
 
-#ifndef GPU
-!$omp do schedule(static) private(js,je,nt,k,iq,xtm1,xtu,aphp1,prhop1,ptp1,pclcon) &
-!$omp   private(pclcover,pcfcover,pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec)        &
-!$omp   private(lpfsnow,lpfsubl,lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav)        &
-!$omp   private(lprfreeze,lpfevap,lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3)        &
-!$omp   private(dmsoh,dmsn3,lpccw,qtot)
-#endif
 #ifdef GPUPHYSICS
 !$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
 !$acc   copyin(clcon,xtosav,qlg,qfg,stratcloud,kbsav,condc,cldcon)                 &
@@ -391,6 +382,12 @@ end if
 !$acc   private(pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec,lpfsnow,lpfsubl)          &
 !$acc   private(lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav,lprfreeze,lpfevap)      &
 !$acc   private(lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3,dmsoh,dmsn3,lpccw,qtot)
+#else
+!$omp do schedule(static) private(js,je,nt,k,iq,xtm1,xtu,aphp1,prhop1,ptp1,pclcon) &
+!$omp   private(pclcover,pcfcover,pmlwc,pmiwc,pfconv,fracc,lpmrate,lpfprec)        &
+!$omp   private(lpfsnow,lpfsubl,lpmaccr,lpfmelt,lpqfsedice,lplambs,lprscav)        &
+!$omp   private(lprfreeze,lpfevap,lzoxidant,ldustwd,lxte,so2oh,so2h2,so2o3)        &
+!$omp   private(dmsoh,dmsn3,lpccw,qtot)
 #endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
@@ -457,13 +454,12 @@ do tile = 1,ntiles
   so2so4o(js:je) = so2so4o(js:je) + so2oh + so2h2 + so2o3  ! oxidation of SO2 to SO4
   dustwd(js:je,:) = ldustwd
 end do
-#ifndef GPU
-!$omp end do nowait
-#endif
 #ifdef GPUPHYSICS
 !$acc end parallel loop
 !$acc update self(xtg)
 !$acc end data
+#else
+!$omp end do nowait
 #endif
 
 

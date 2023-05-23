@@ -714,10 +714,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Calculate depature points for horizontal advection
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
 
-#ifdef GPU
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
-#endif
   
   do ii = 1,wlev
     ! Convert (u,v) to cartesian coordinates (U,V,W)  
@@ -754,9 +752,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     end where  
   end do
 
-#ifdef GPU  
   !$acc end data
-#endif
 
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
@@ -1513,14 +1509,8 @@ real, dimension(ifull,wlev,2), intent(out) :: drhodxu,drhodyu,drhodxv,drhodyv
 
 ! rhobar = int_0^sigma rho dsigma / sigma
 
-!$acc data create(eeu,eev,emu,emv,stwgt)
-!$acc update device(eeu,eev,emu,emv,stwgt)
-
-!$omp parallel do schedule(static) private(jj,ii,iq)
+!$omp parallel do collapse(2) schedule(static) private(jj,ii,iq)
 do jj = 1,2
-  !$acc parallel loop collapse(2) copyin(rho(:,:,jj)) copyout(drhodxu(:,:,jj))  &
-  !$acc   copyout(drhodyu(:,:,jj),drhodxv(:,:,jj),drhodyv(:,:,jj))              &
-  !$acc   present(eeu,eev,emu,emv,stwgt,ie,in,is,iw,ien,ies,ine,inw) async(jj-1)
   do ii = 1,wlev
     do iq = 1,ifull
       ! process staggered u locations  
@@ -1533,12 +1523,8 @@ do jj = 1,2
                                                      +rho(ine(iq),ii,jj)-rho(inw(iq),ii,jj))
     end do
   end do
-  !$acc end parallel loop
 end do
 !$omp end parallel do
-
-!$acc wait
-!$acc end data
 
 return
 end subroutine zstar2

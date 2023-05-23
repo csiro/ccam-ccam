@@ -2785,10 +2785,10 @@ end do
 #ifdef usempi3
 ! since processes might have been remapped, then use node_myid
 ! to determine GPU assigned to each process
-call ccomp_init(node_myid,ngpus)
+call ccomp_init(node_myid)
 call ccacc_init(node_myid,ngpus)
 #else
-call ccomp_init(myid,ngpus)
+call ccomp_init(myid)
 call ccacc_init(myid,ngpus)
 #endif
 
@@ -2804,9 +2804,6 @@ if ( myid==0 ) then
 #endif
 #ifdef _OPENMP
   write(6,*) 'Using OpenMP with number of threads      = ',maxthreads
-#ifdef GPU
-  write(6,*) 'Using OpenMP with GPUs per node          = ',ngpus
-#endif
 #endif
 #ifdef _OPENACC
   write(6,*) 'Using OpenACC with GPUs per node         = ',ngpus  

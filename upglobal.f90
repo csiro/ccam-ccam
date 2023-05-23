@@ -262,10 +262,8 @@ end if     ! mspec==1
 call END_LOG(ints_end)
 
 
-#ifdef GPU
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
-#endif
 
 if ( diag ) then
   if ( mydiag ) then
@@ -466,9 +464,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   end if
 end if     ! mspec==1
 
-#ifdef GPU
 !$acc end data
-#endif
 
 do k = 2,kl
   sdot(:,k) = sbar(:,k)

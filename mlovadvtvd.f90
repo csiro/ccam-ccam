@@ -26,7 +26,7 @@ implicit none
 private
 public mlovadv, mlontvd
 
-integer, save      :: mlontvd     = 1       ! Vertical advection limiter (0=MC, 1=Superbee)
+integer, save :: mlontvd = 1       ! Vertical advection limiter (0=MC, 1=Superbee)
 
 contains
     
@@ -74,22 +74,15 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
-!$omp parallel sections
 !$acc data create(its,dtnew,ww,depdum,dzdum)
 !$acc update device(its,dtnew,ww,depdum,dzdum)
 
-!$omp section
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
-!$omp section
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
-!$omp section
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
-!$omp section
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
-!$omp section
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
 
-!$omp end parallel sections
 !$acc wait
 !$acc end data
   

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -239,7 +239,6 @@ do k = 1,kl
   end do
 end do
 
-#ifndef GPU
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'before newsnowrain'
   diag_temp(:) = t(idjd,:)
@@ -257,7 +256,6 @@ endif
 !  call maxmin(qfg,'qf',ktau,1.e3,kl)
 !  call maxmin(qlg,'ql',ktau,1.e3,kl)
 !endif
-#endif
 
 
 ! Add convective cloud water into fields for radiation
@@ -379,11 +377,9 @@ select case(cloud_ice_method)
         fice(:,k) = 1.
       end where
     end do
-#ifndef GPU    
   case default
     write(6,*) "ERROR: Invalid cloud_ice_method ",cloud_ice_method
     stop
-#endif
 end select
 
 do k = 1,kl

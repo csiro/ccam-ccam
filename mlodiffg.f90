@@ -216,21 +216,12 @@ end where
 
 ! perform diffusion
 
-#ifdef GPU
-!$acc data create(xfact,yfact,emi)
-!$acc update device(xfact,yfact,emi)
-#endif
-
 if ( mlodiff==0 .or. mlodiff==10 ) then
   ! UX, VX, WX
   call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,3)
 end if
 ! potential temperature and salinity
 call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,2)
-
-#ifdef GPU
-!$acc end data
-#endif
 
 
 ! post-processing
@@ -260,7 +251,6 @@ end subroutine mlodiffusion_work
 
 subroutine mlodiffcalc(work,xfact,yfact,emi,ntr)    
 
-use cc_acc, only : async_length
 use cc_mpi, only : bounds, nagg, ccmpi_abort
 use indices_m
 use map_m
@@ -275,7 +265,6 @@ integer, intent(in) :: ntr
 integer k, iq, iqc, nc, its
 integer nstart, nend, nlen, nn, np
 integer, parameter :: num_its = 4
-integer async_counter
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,wlev,ntr), intent(inout) :: work
@@ -291,13 +280,9 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
     
     call bounds(work(:,:,nstart:nend))
 
-    !$omp parallel do schedule(static) private(nn,np,k,iq,xfact_iwu,yfact_isv,base,async_counter)
+    !$omp parallel do schedule(static) private(nn,np,k,iq,xfact_iwu,yfact_isv,base)
     do nn = 1,nlen
       np = nn - 1 + nstart
-      async_counter = mod(nn-1,async_length)
-      !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
-      !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)                            &  
-      !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
       do k = 1,wlev
         do iq = 1,ifull
           xfact_iwu = xfact(iwu(iq),k)
@@ -312,10 +297,8 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
                         / base
         end do  
       end do
-      !$acc end parallel loop
     end do
     !$omp end parallel do
-    !$acc wait
 
     do nn = 1,nlen
       np = nn - 1 + nstart  
@@ -333,27 +316,20 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
   ! Bi-Harmonic diffusion.  iterative version.
 
   ans = 0.
-    
-  !$acc enter data create(work_save)   
-  
+      
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr )
     nlen = nend - nstart + 1
 
     work_save(1:ifull,1:wlev,1:nlen) = work(1:ifull,1:wlev,nstart:nend)
-    !$acc update device(work_save)
     
     do its = 1,num_its  
       
       call bounds(work(:,:,nstart:nend))
 
-      !$omp parallel do schedule(static) private(nn,np,iq,k,xfact_iwu,yfact_isv,base,async_counter)
+      !$omp parallel do schedule(static) private(nn,np,iq,k,xfact_iwu,yfact_isv,base)
       do nn = 1,nlen
         np = nn - 1 + nstart  
-        async_counter = mod(nn-1,async_length)
-        !$acc parallel loop collapse(2) copyin(work(:,:,np)) copyout(ans(1:ifull,:,nn)) &
-        !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)                            &
-        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
         do k = 1,wlev
           do iq = 1,ifull  
             xfact_iwu = xfact(iwu(iq),k)
@@ -366,20 +342,14 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
                              yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
           end do   
         end do
-        !$acc end parallel loop
       end do
       !$omp end parallel do
-      !$acc wait
 
       call bounds(ans(:,:,1:nlen))
 
-      !$omp parallel do schedule(static) private(nn,np,iq,k,xfact_iwu,yfact_isv,base,async_counter)
+      !$omp parallel do schedule(static) private(nn,np,iq,k,xfact_iwu,yfact_isv,base)
       do nn = 1,nlen
         np = nn - 1 + nstart
-        async_counter = mod(nn-1,async_length)  
-        !$acc parallel loop collapse(2) copyin(ans(:,:,nn)) copyout(work(1:ifull,:,np))  &
-        !$acc   present(work_save,xfact,yfact,emi,in,is,ie,iw,iwu,isv)                   &
-        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
         do k = 1,wlev
           do iq = 1,ifull  
             xfact_iwu = xfact(iwu(iq),k)
@@ -393,10 +363,8 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
                               yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
           end do    
         end do
-        !$acc end parallel loop
       end do
       !$omp end parallel do
-      !$acc wait
       
       do nn = 1,nlen
         np = nn - 1 + nstart
@@ -412,8 +380,6 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
     end do ! its
     
   end do   ! nstart  
-  
-  !$acc exit data delete(work_save)
 
 else
   write(6,*) "ERROR: Unknown mlodiff option ",mlodiff

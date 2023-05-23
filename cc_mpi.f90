@@ -492,9 +492,9 @@ module cc_mpi
    integer, parameter :: nevents = 92
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
+   real(kind=8), save, public :: mpiinit_time, total_time
    character(len=15), dimension(nevents), save :: event_name
-   real, save, public :: mpiinit_time, total_time
-
+   
 #ifdef vampir
 #include "vt_user.inc"
 #endif
@@ -6893,7 +6893,7 @@ contains
       integer :: i
       integer(kind=4) :: ierr, llen, lcomm
       real(kind=8), dimension(nevents) :: emean, emax, emin
-      real, dimension(2) :: time_l, time_mean, time_max, time_min
+      real(kind=8), dimension(2) :: time_l, time_mean, time_max, time_min
       
       llen = nevents
       lcomm = comm_world
@@ -6923,12 +6923,12 @@ contains
       time_max = 0.
       time_min = 0.
       time_l(1:2) = (/ mpiinit_time, total_time /)
-      call MPI_Reduce(time_l, time_mean, llen, MPI_REAL, &
+      call MPI_Reduce(time_l, time_mean, llen, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, 0_4, lcomm, ierr )
       time_mean = time_mean/real(nproc)
-      call MPI_Reduce(time_l, time_max, llen, MPI_REAL,  &
+      call MPI_Reduce(time_l, time_max, llen, MPI_DOUBLE_PRECISION,  &
                       MPI_MAX, 0_4, lcomm, ierr )
-      call MPI_Reduce(time_l, time_min, llen, MPI_REAL,  &
+      call MPI_Reduce(time_l, time_min, llen, MPI_DOUBLE_PRECISION,  &
                       MPI_MIN, 0_4, lcomm, ierr )
       if ( myid == 0 ) then
          write(*,"(a,3f10.3)") "MPI_Initialise ",time_mean(1),time_min(1),time_max(1)
@@ -8494,12 +8494,12 @@ contains
    subroutine ccmpi_init
 
       integer(kind=4) :: lerr, lproc, lid
-      integer, dimension(8) :: times_a, times_b
+      integer(kind=8) :: begin_time, end_time, count_rate, count_max
 #ifdef _OPENMP
       integer(kind=4) :: lprovided
 #endif
 
-      call date_and_time(values=times_a)
+      call system_clock( begin_time, count_rate, count_max )
 
       ! Global communicator
 #ifdef _OPENMP
@@ -8519,9 +8519,8 @@ contains
       myid       = lid
       comm_world = MPI_COMM_WORLD
       
-      call date_and_time(values=times_b)
-      mpiinit_time = sum( real(times_b(5:8) - times_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
-      if ( mpiinit_time < 0. ) mpiinit_time = mpiinit_time + 86400.
+      call system_clock( end_time, count_rate, count_max )
+      mpiinit_time = real( begin_time - end_time, 8)/real(count_rate,8)
 
    end subroutine ccmpi_init
    

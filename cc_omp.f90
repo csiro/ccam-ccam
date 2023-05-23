@@ -31,17 +31,7 @@ module cc_omp
    private
 
    integer, save, public :: maxthreads, ntiles, imax
-#ifdef GPUPHYSICS
-   integer, save, public :: maxtilesize = 32 ! suggested value
-#else
    integer, save, public :: maxtilesize = 96 ! suggested value
-   ! MJT notes - ideally want multiple of 16 like maxtilesize=48, 96, 144
-#endif
-!#ifdef _OPENMP
-!#ifdef GPU
-!   integer, save, private :: gpuid = -1
-!#endif
-!#endif
 
    public ::  ccomp_init
    public ::  ccomp_mythread
@@ -60,21 +50,13 @@ module cc_omp
 
    end function ccomp_get_thread_num
 
-   subroutine ccomp_init(myid,ngpus)
+   subroutine ccomp_init(myid)
       use newmpar_m, only : ifull
       integer :: i, tmp
       integer, intent(in) :: myid
-      integer, intent(inout) :: ngpus
    
 #ifdef _OPENMP
       maxthreads = omp_get_max_threads()
-!#ifdef GPU
-!      ngpus = omp_get_num_devices()
-!      if ( ngpus > 0 ) then
-!         call omp_set_default_device(mod(myid,ngpus))
-!         gpuid = omp_get_default_device()
-!      end if   
-!#endif
 #else
       maxthreads = 1
 #endif      

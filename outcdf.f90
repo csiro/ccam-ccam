@@ -1891,13 +1891,13 @@ if( myid==0 .or. local ) then
       lname = 'Minimum urban screen temperature'
       call attrib(idnc,dimj,4,'urbantasmin',lname,'K',100.,425.,1,cptype)
       lname = 'Skin temperature'
-      call attrib(idnc,dimj,4,'tsskin',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'tsskin',lname,'K',100.,425.,0,cptype)
       lname = 'Surface temperature pavements'
-      call attrib(idnc,dimj,4,'tspav',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'tspav',lname,'K',100.,425.,0,cptype)
       lname = 'Surface temperature roof'
-      call attrib(idnc,dimj,4,'tsroof',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'tsroof',lname,'K',100.,425.,0,cptype)
       lname = 'Surface temperature green spaces'
-      call attrib(idnc,dimj,4,'tsgree',lname,'K',100.,425.,1,cptype)
+      call attrib(idnc,dimj,4,'tsgree',lname,'K',100.,425.,0,cptype)
     end if    
     if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
       do k = 1,5  
@@ -3868,6 +3868,8 @@ subroutine freqfile_cordex
 
 use aerointerface                     ! Aerosol interface
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use ateb, only : atebavetemp,       & ! Urban
+      atebmisc
 use cc_mpi                            ! CC MPI routines
 use cc_omp, only : ntiles, imax       ! CC OpenMP routines
 use const_phys                        ! Physical constants
@@ -3944,7 +3946,7 @@ real(kind=8) tpnt
 real, parameter :: shallow_max = 0.1 ! shallow soil depth (10cm)
 logical, save :: first = .true.
 logical local, lday, l6hr
-logical cordex_core, cordex_tier1, cordex_tier2
+logical cordex_core, cordex_tier1, cordex_tier2, cordex_urbrcc
 character(len=1024) ffile
 character(len=80) lname
 character(len=40) vname
@@ -3972,18 +3974,32 @@ select case ( surf_cordex )
     cordex_core = .false.
     cordex_tier1 = .false.
     cordex_tier2 = .false.
+    cordex_urbrcc = .false.
   case(1)
     cordex_core = .true.
     cordex_tier1 = .true.
     cordex_tier2 = .true.
+    cordex_urbrcc = .false.
   case(2)
     cordex_core = .true.
     cordex_tier1 = .true.
     cordex_tier2 = .false.
+    cordex_urbrcc = .false.
   case(3)
     cordex_core = .true.
     cordex_tier1 = .false.
     cordex_tier2 = .false.
+    cordex_urbrcc = .false.
+  case(11)
+    cordex_core = .true.
+    cordex_tier1 = .true.
+    cordex_tier2 = .true.
+    cordex_urbrcc = .true.
+  case(12)
+    cordex_core = .true.
+    cordex_tier1 = .true.
+    cordex_tier2 = .false.
+    cordex_urbrcc = .true.  
   case default
     write(6,*) "ERROR: Invalid option for surf_cordex ",surf_cordex
     call ccmpi_abort(-1)
@@ -4455,6 +4471,19 @@ if ( first ) then
         call cordex_name(lname,"Frozen Water Content of Soil Layer ",k)
         call attrib(fncid,sdim,4,trim(vname),lname,'kg m-2',0.,6500.,iatt6hr,1)  
       end do    
+    end if   
+    
+    if ( cordex_urbrcc ) then
+      lname = 'Urban anthropogenic flux'
+      call attrib(fncid,sdim,4,'anth_ave',lname,'W m-2',0.,650.,0,1)
+      lname = 'Skin temperature'
+      call attrib(fncid,sdim,4,'tsskin',lname,'K',100.,425.,0,1)
+      lname = 'Surface temperature pavements'
+      call attrib(fncid,sdim,4,'tspav',lname,'K',100.,425.,0,1)
+      lname = 'Surface temperature roof'
+      call attrib(fncid,sdim,4,'tsroof',lname,'K',100.,425.,0,1)
+      lname = 'Surface temperature green spaces'
+      call attrib(fncid,sdim,4,'tsgree',lname,'K',100.,425.,0,1)
     end if    
 
     if ( output_windmax/=0 ) then
@@ -4965,6 +4994,20 @@ if ( mod(ktau,tbave)==0 ) then
       call histwrt(outdata,vname,fncid,fiarch,local,l6hr)
     end do
   end if
+  
+  if ( cordex_urbrcc ) then
+    call histwrt(anthropogenic_ave,'anth_ave',fncid,fiarch,local,.true.) 
+    call histwrt(urban_ts,'tsskin',fncid,fiarch,local,.true.)
+    outdata = 999.
+    call atebavetemp(outdata,"roadtemp1",0)  
+    call histwrt(outdata,'tspav',fncid,fiarch,local,.true.)
+    outdata = 999.
+    call atebavetemp(outdata,"rooftemp1",0)  
+    call histwrt(outdata,'tsroof',fncid,fiarch,local,.true.)
+    outdata = 999.
+    call atebmisc(outdata,"vegt",0)  
+    call histwrt(outdata,'tsgree',fncid,fiarch,local,.true.)    
+  end if    
 
   if ( output_windmax/=0 ) then
     call histwrt(freqstore(1:ifull,30),'u10m_max',fncid,fiarch,local,.true.)

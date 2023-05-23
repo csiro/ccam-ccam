@@ -386,8 +386,8 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   work(1:ifull,:,2) = qfg(1:ifull,:)
   work(1:ifull,:,3) = stratcloud(1:ifull,:)
   call bounds(work(:,:,1:3))
-  qlg(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,1)
-  qfg(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
+  qlg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,1)
+  qfg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,2)
   stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
   if ( ncloud>=100 .and. ncloud<200 ) then
     !call bounds(nr)
@@ -413,8 +413,6 @@ end if  ! (nhorps==-4.and.abs(iaero)>=2)
 
 !$omp parallel
 !$omp sections
-!$acc data create(xfact,yfact,emi)
-!$acc update device(xfact,yfact,emi)
 
 !$omp section
 ! momentum U
@@ -507,8 +505,6 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
 !$omp end parallel
-!$acc wait
-!$acc end data
 
 
 ! post-processing -----------------------------------------------------
@@ -542,25 +538,18 @@ end subroutine hordifgt
 
 subroutine hordifgt_work(work,xfact,yfact,emi)
 
-use cc_acc, only : async_length
 use indices_m
 use newmpar_m
 
 implicit none
 
 integer k, iq
-integer, save :: async_counter = -1
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
 real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
-async_counter = mod(async_counter+1, async_length)
-
-!$acc enter data create(ans,work) async(async_counter)
-!$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) async(async_counter)
 do k = 1,kl
   do iq = 1,ifull  
     xfact_iwu = xfact(iwu(iq),k)
@@ -575,16 +564,11 @@ do k = 1,kl
                / base 
   end do  
 end do      
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
 do k = 1,kl
   do iq = 1,ifull
     work(iq,k) = ans(iq,k)
   end do
 end do
-!$acc end parallel loop
-!$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ans) async(async_counter)
 
 return
 end subroutine hordifgt_work

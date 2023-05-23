@@ -68,12 +68,9 @@ if ( num==0 ) then
   end if
 end if
 
-!$omp parallel
-!$omp sections
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
 !$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
 
-!$omp section
 !     t
 call vadv_work(tarr,nvadh_inv_pass,nits)
 
@@ -83,7 +80,6 @@ if( diag .and. mydiag )then
   write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
 endif
 
-!$omp section
 !     u
 call vadv_work(uarr,nvadh_inv_pass,nits)
 
@@ -93,7 +89,6 @@ if( diag .and. mydiag )then
   write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
 endif
 
-!$omp section
 !     v
 call vadv_work(varr,nvadh_inv_pass,nits)
 
@@ -103,17 +98,14 @@ if( diag .and. mydiag )then
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
 endif
 
-!$omp section
 !     h_nh
 if ( nh/=0 ) then
   call vadv_work(h_nh,nvadh_inv_pass,nits)
 end if
 
-!$omp section
 !     pslx
 call vadv_work(pslx,nvadh_inv_pass,nits)
 
-!$omp section
 !      qg
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   call vadv_work(qg,nvadh_inv_pass,nits)
@@ -123,7 +115,6 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   end if
 end if          ! if(mspec==1)
     
-!$omp section
 if ( mspec==1 .and. ldr/=0 ) then
   call vadv_work(qlg,nvadh_inv_pass,nits)
   if ( diag .and. mydiag ) then
@@ -132,7 +123,6 @@ if ( mspec==1 .and. ldr/=0 ) then
   end if
 end if
 
-!$omp section
 if ( mspec==1 .and. ldr/=0 ) then
   call vadv_work(qfg,nvadh_inv_pass,nits)
   if ( diag .and. mydiag ) then
@@ -141,61 +131,49 @@ if ( mspec==1 .and. ldr/=0 ) then
   end if
 end if
 
-!$omp section
 if ( mspec==1 .and. ldr/=0 ) then
   call vadv_work(stratcloud,nvadh_inv_pass,nits)
 end if
 
-!!$omp section
 !if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
 !    call vadv_work(nr,nvadh_inv_pass,nits)
 !end if
 
-!$omp section
 if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
     ! only advect ql and qf for now
     call vadv_work(ni,nvadh_inv_pass,nits)
 end if
 
-!!$omp section
 !if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
 !    call vadv_work(ns,nvadh_inv_pass,nits)
 !end if
 
-!$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
     call vadv_work(eps,nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
-!$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
     call vadv_work(tke,nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
-!$omp end sections nowait
 
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( abs(iaero)>=2 ) then
-    !$omp do schedule(static) private(ntr)
     do ntr = 1,naero
       call vadv_work(xtg(:,:,ntr),nvadh_inv_pass,nits)
     end do
-    !$omp end do nowait
   end if   ! abs(iaero)>=2
   if ( ngas>0 .or. nextout>=4 ) then
-    !$omp do schedule(static) private(ntr)
     do ntr = 1,ntrac
       call vadv_work(tr(:,:,ntr),nvadh_inv_pass,nits)
     end do
-    !$omp end do nowait
   end if        ! (nextout>=4)
 end if          ! if(mspec==1)
 
-!$omp end parallel
 !$acc wait
 !$acc end data
 
@@ -260,8 +238,8 @@ if ( ntvd==2 ) then ! MC
       ! higher order scheme
       fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-    enddo
-  enddo      ! k loop
+    end do
+  end do      ! k loop
   !$acc end parallel loop
 
   !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
@@ -333,8 +311,8 @@ else if ( ntvd==3 ) then ! Superbee
       ! higher order scheme
       fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-    enddo
-  enddo      ! k loop
+    end do
+  end do      ! k loop
   !$acc end parallel loop
 
   !$acc parallel loop collapse(2) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
