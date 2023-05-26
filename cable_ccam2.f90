@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -140,7 +140,7 @@ public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 
 ! CABLE biophysical options
-real, save :: cable_version = 6608. ! version id for input data
+real, save :: cable_version = 6608. ! expected version id for input data
                                     ! 6608 includes update to ice albedo
                                     ! 3939 had fixes for soil albedo
 
@@ -4924,10 +4924,11 @@ if ( io_in==1 .and. .not.defaultmode ) then
   end if
 end if
   
+call defaulttile ! initially use default values before overwriting
+
 ! Cannot locate tile data, use diagnostic data instead
 if ( ierr/=0 ) then
   if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise CABLE"
-  call defaulttile
 else
   ! Located CABLE tile data
   if ( myid==0 ) write(6,*) "-> Use tiled data to initialise CABLE"
@@ -5038,8 +5039,7 @@ else
   if ( soil_struc==1 ) then
     if ( ierr_sli/=0 ) then
       if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise SLI"
-      call defaulttile_sli
-    else    
+    else 
       do n = 1,maxtile
         write(vname,'("t",I1.1,"_hzero")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
@@ -5084,7 +5084,6 @@ else
   if ( ccycle/=0 ) then
     if ( ierr_casa/=0 ) then
       if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise CASA-CNP"
-      call defaulttile_casa
     else
       if ( myid==0 ) write(6,*) "-> Use tiled data to initialise CASA-CNP"  
       do n = 1,maxtile
@@ -6501,7 +6500,7 @@ real, dimension(mp_global), intent(in) :: old_sv
 real, dimension(ifull,maxnb) :: up_new_svs, up_old_svs
 real, dimension(ifull) :: svs_sum
 real, dimension(maxnb) :: adj_pos_frac, adj_neg_frac, new_svs, old_svs
-real(kind=8) :: ave_neg_vdata
+real(kind=8) :: ave_neg_vdata, adj_neg_frac_sum
 real(kind=8), dimension(mp_global), intent(inout) :: vdata
 real(kind=8), dimension(ifull,maxnb) :: up_vdata
 real(kind=8), dimension(maxnb) :: old_vdata
@@ -6534,12 +6533,13 @@ do tile = 1,ntiles
   do iq = is,ie
     new_svs(:) = up_new_svs(iq,:)
     old_svs(:) = up_old_svs(iq,:)      
-    if ( land(iq) .and. any( abs(new_svs-old_svs)>1.e-8 ) ) then 
-      adj_pos_frac(:) = max( new_svs(:)-old_svs(:), 0. ) ! tiles with increasing fraction
-      adj_neg_frac(:) = max( old_svs(:)-new_svs(:), 0. ) ! tiles with decreasing fraction
+    adj_pos_frac(:) = max( new_svs(:)-old_svs(:), 0. ) ! tiles with increasing fraction
+    adj_neg_frac(:) = max( old_svs(:)-new_svs(:), 0. ) ! tiles with decreasing fraction
+    adj_neg_frac_sum = sum( adj_neg_frac )   
+    if ( land(iq) .and. any( abs(new_svs-old_svs)>1.e-8 ) .and. adj_neg_frac_sum>1.e-8 ) then 
       old_vdata(:) = up_vdata(iq,:)
       ! combine tiles with decreasing area fraction into one tile
-      ave_neg_vdata = sum( adj_neg_frac(:)*old_vdata )/sum( adj_neg_frac )
+      ave_neg_vdata = sum( adj_neg_frac(:)*old_vdata )/adj_neg_frac_sum
       ! Only change tiles that are increasing in area fraction
       do nb = 1,maxnb
         if ( adj_pos_frac(nb)>0. ) then  
@@ -6582,50 +6582,48 @@ logical, intent(in) :: local
 integer, intent(in) :: itype
   
 if (myid==0.or.local) then
-  if (myid==0) then
-    write(6,*) "-> define CABLE tile data"
-  end if
+  if (myid==0) write(6,*) "-> define CABLE tile data"
   if ( itype==-1 ) then !just for restart file
     do n = 1,maxtile
       write(lname,'("Veg fraction tile ",I1.1)') n
       write(vname,'("t",I1.1,"_svs")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.,0,2) ! kind=8        
-      do k=1,ms
+      do k = 1,ms
         write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
         call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,0,2) ! kind=8
       end do
-      do k=1,ms
+      do k = 1,ms
         write(lname,'("Soil moisture tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_wb",I1.1)') n,k 
         call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
       end do
-      do k=1,ms
+      do k = 1,ms
         write(lname,'("Soil ice tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_wbice",I1.1)') n,k 
         call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,0,2) ! kind=8
       end do
-      do k=1,3
+      do k = 1,3
         write(lname,'("Snow temperature tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
         call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,0,2) ! kind=8
       end do
-      do k=1,3
+      do k = 1,3
         write(lname,'("Snow mass tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_smass",I1.1)') n,k 
         call attrib(idnc,jdim,jsize,vname,lname,'K',0.,650.,0,2) ! kind=8
       end do
-      do k=1,3
+      do k = 1,3
         write(lname,'("Snow density tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k 
         call attrib(idnc,jdim,jsize,vname,lname,'kg/m3',0.,650.,0,2) ! kind=8
       end do
-      do k=1,3
+      do k = 1,3
         write(lname,'("Snow depth tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k 
         call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,0,2) ! kind=8
       end do
-      do k=1,3
+      do k = 1,3
         write(lname,'("Snow sconds tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_sconds",I1.1)') n,k 
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6.5,0,2) ! kind=8
@@ -6668,21 +6666,21 @@ if (myid==0.or.local) then
       call attrib(idnc,jdim,jsize,vname,lname,'none',-6500.,6500.,0,2) ! kind=8
     end do
     if ( soil_struc==1 ) then
-      do n=1,maxtile  
+      do n = 1,maxtile  
         write(lname,'("hzero tile ",I1.1)') n
         write(vname,'("t",I1.1,"_hzero")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        do k=1,ms
+        do k = 1,ms
           write(lname,'("S tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_s",I1.1)') n,k
           call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         end do
-        do k=1,ms
+        do k = 1,ms
           write(lname,'("tsoil tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
           call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
         end do
-        do k=1,ms
+        do k = 1,ms
           write(lname,'("thetai tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
           call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
@@ -6720,7 +6718,7 @@ if (myid==0.or.local) then
         !call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       !end do  
     else
-      do n=1,maxtile  
+      do n = 1,maxtile  
         do k = 1,mplant
           write(lname,'("C leaf pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
@@ -6840,7 +6838,7 @@ if (myid==0.or.local) then
       end do
     end if
     if ( cable_climate==1 ) then
-      do n=1,maxtile  
+      do n = 1,maxtile  
         write(lname,'("climate iveg tile ",I1.1)') n
         write(vname,'("t",I1.1,"_climateiveg")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8

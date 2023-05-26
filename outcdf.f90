@@ -1672,7 +1672,7 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,4,'oc_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column seasalt optical depth VIS'
         call attrib(idnc,dimj,4,'ssalt_vis',lname,'none',0.,13.,0,cptype)
-        lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
+        lname = 'Ambient Aerosol Optical Thickness at 550nm'
         call attrib(idnc,dimj,4,'od550aer',lname,'1',0.,13.,0,cptype)        
       end if  
       if ( nextout>=1 .and. save_aerosols .and. itype/=-1 ) then
@@ -3968,6 +3968,10 @@ iattdaily = 1 ! daily flag for valid_time attribute
 iatt6hr = 2   ! 6 hour flag for valid_time attribute
 
 fiarch = ktau/tbave
+cordex_core = .true.
+cordex_tier1 = .true.
+cordex_tier2 = .true.
+cordex_urbrcc = .true.
 
 select case ( surf_cordex )
   case(0)

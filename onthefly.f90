@@ -50,8 +50,8 @@ integer, save :: fill_sea = 0                                 ! number of iterat
 integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
 integer, save :: native_ccam = 0                              ! is host CCAM (native_ccam=1) or cdfivdar (native_ccam=0)
 integer, save :: xx4_win, yy4_win                             ! shared memory windows
-integer, save :: xy4_count = 0                                ! multiple shared memory windows
-integer, dimension(3), save :: xx4save_win, yy4save_win       ! multiple shared memory windows
+integer, save :: xy4_count = 0                                ! counter for new allocations of memory windows
+integer, dimension(3), save :: xx4save_win, yy4save_win       ! store old memory windows for later deallocation
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
@@ -63,7 +63,7 @@ real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 real, dimension(:), allocatable, save :: gosig_in             ! input ocean levels
 real, dimension(:,:,:), allocatable, save :: sx               ! working array for interpolation
-real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! working array for interpolation
+real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! shared arrays used for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
 
@@ -461,7 +461,7 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   iotest = iotest .and. (wlev==ok)
 end if
-! MJT notes - Do not combine iotest with ptest using AND
+iop_test = iotest .and. ptest
 
 if ( iotest ) then
   io_in = 1   ! no interpolation

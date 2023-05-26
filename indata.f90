@@ -331,7 +331,7 @@ dsig(kl)       = -sigmh(kl)
 sumdsig        = sum(dsig(1:kl))
 tbardsig(1:kl) = 0.
 if ( myid==0 .and. nmaxpr==1 ) then
-  write(6,*)'dsig,sumdsig ',dsig,sumdsig
+  write(6,*) 'dsig,sumdsig ',dsig,sumdsig
 end if
 if ( isoth>=0 ) then
   dtmax=1./(sig(1)*log(sig(1)/sig(2)))
@@ -530,27 +530,6 @@ if ( nsib>=1 ) then
   end if
   ! special options for standard land surface scheme
   if ( nsib==3 ) then
-    !if ( nspecial==35 ) then       ! test for Andy Cottrill
-    !  do iq=1,ifull
-    !    rlongd=rlongg(iq)*180./pi
-    !    rlatd=rlatt(iq)*180./pi
-    !    if(rlatd>-32..and.rlatd<-23.5)then
-    !      if(rlongd>145..and.rlongd<=150.)ivegt(iq)=4
-    !      if(rlongd>150..and.rlongd<154.)ivegt(iq)=2
-    !    endif
-    !  enddo
-    !endif  ! (nspecial==35)
-    !! zap vegetation over SEQ for Andy
-    !if ( nspecial==41 ) then
-    !  do iq=1,ifull
-    !    rlongd=rlongg(iq)*180./pi
-    !    rlatd=rlatt(iq)*180./pi
-    !    if(rlatd>-32. .and. rlatd<-23.5)then
-    !      if(rlongd>145. .and. rlongd<=152.)ivegt(iq)=4 
-    !      if(rlongd>152. .and. rlongd< 154.)ivegt(iq)=2 
-    !    endif
-    !  enddo
-    !endif  ! (nspecial==41)
     do iq=1,ifull
       ! check for littoral veg over Oz      
       rlongd=rlongg(iq)*180./pi
@@ -2220,19 +2199,26 @@ call sflux_init
 ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Importing MLO data'
-  if ( any( mlodwn(1:ifull,1:wlev,1)+wrtemp>400.) .and. .not.lrestart ) then
-    ! This may trigger if there is a change in land-sea mask with the same grid
-    ! e.g., patching Samoa
-    if ( myid==0 ) then
-      write(6,*) "WARN: Invalid ocean data detected.  Correcting data."
+  ! Ocean fill
+  ! This may trigger if there is a change in land-sea mask with the same grid
+  ! e.g., patching Samoa
+  do iq = 1,ifull
+    if ( mlodwn(iq,1,1)+wrtemp>400. ) then
+      ocndwn(iq,2) = 0.
+      mlodwn(iq,1,1) = 288. - wrtemp
+      mlodwn(iq,1,2) = 34.72
+      mlodwn(iq,1,3) = 0.
+      mlodwn(iq,1,4) = 0.
     end if
-    where ( mlodwn(1:ifull,1:wlev,1)+wrtemp>400. )
-      mlodwn(1:ifull,1:wlev,1) = 288. - wrtemp
-      mlodwn(1:ifull,1:wlev,2) = 34.72
-      mlodwn(1:ifull,1:wlev,3) = 0.
-      mlodwn(1:ifull,1:wlev,4) = 0.
-    end where
-  end if
+    do k = 2,wlev
+      if ( mlodwn(iq,k,1)+wrtemp>400. ) then
+        mlodwn(iq,k,1) = mlodwn(iq,k-1,1)
+        mlodwn(iq,k,2) = mlodwn(iq,k-1,2)
+        mlodwn(iq,k,3) = mlodwn(iq,k-1,3)
+        mlodwn(iq,k,4) = mlodwn(iq,k-1,4)
+      end if
+    end do
+  end do  
   mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
   micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
   if ( .not.lrestart ) then
