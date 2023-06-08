@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -206,8 +206,8 @@ end do
 !$omp end do nowait
 
 if (diag.or.ntest==1) then
-!$omp barrier
-!$omp single    
+  !$omp barrier
+  !$omp single    
   if (mydiag) then
     if (land(idjd)) then
       write(6,*) 'entering sflux ktau,nsib,ivegt,isoilm,land ',ktau,nsib,ivegt(idjd),isoilm(idjd),land(idjd)
@@ -219,18 +219,16 @@ if (diag.or.ntest==1) then
     endif
   end if
   call maxmin(t,' t',ktau,1.,kl)
-!$omp end single
+  !$omp end single
 endif
 
 !--------------------------------------------------------------
-!$omp master
 call START_LOG(sfluxwater_begin)
-!$omp end master
 if ( nmlo==0 ) then ! prescribed SSTs
-!$omp barrier
-!$omp single
+  !$omp barrier
+  !$omp single
   call sflux_sea                                                                                 ! sea
-!$omp end single
+  !$omp end single
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then ! prognostic SSTs                                    ! sea
   call sflux_mlo                                                                                 ! sea
 end if                                                                                           ! sea
@@ -241,21 +239,17 @@ do tile = 1,ntiles                                                              
   call nantest("after sflux_water",is,ie,"surface")                                              ! sea
 end do                                                                                           ! sea
 !$omp end do nowait
-!$omp master
 call END_LOG(sfluxwater_end)
-!$omp end master
 
 
 !--------------------------------------------------------------      
-!$omp master
 call START_LOG(sfluxland_begin)
-!$omp end master
 select case(nsib)                                                                                ! land
   case(3,5)                                                                                      ! land
-!$omp barrier
-!$omp single
+    !$omp barrier
+    !$omp single
     call sflux_land                                                                              ! land
-!$omp end single
+    !$omp end single
   case(7)                                                                                        ! land
     call sib4 ! call cable                                                                       ! land
 end select                                                                                       ! land
@@ -277,16 +271,12 @@ do tile = 1,ntiles                                                              
   call nantest("after sflux_land",is,ie,"surface")                                               ! land
 end do                                                                                           ! land
 !$omp end do nowait
-!$omp master
 call END_LOG(sfluxland_end)
-!$omp end master
 !----------------------------------------------------------
 
 
-!$omp master
 call START_LOG(sfluxurban_begin)
-!$omp end master
-if (nurban/=0) then                                                                              ! urban
+if ( nurban/=0 ) then                                                                              ! urban
   call sflux_urban                                                                               ! urban
 end if                                                                                           ! urban
 !$omp do schedule(static) private(is,ie)
@@ -296,9 +286,7 @@ do tile = 1,ntiles                                                              
   call nantest("after sflux_urban",is,ie,"surface")                                              ! urban
 end do                                                                                           ! urban
 !$omp end do nowait
-!$omp master
 call END_LOG(sfluxurban_end)
-!$omp end master
 ! ----------------------------------------------------------------------
 
 
@@ -375,8 +363,8 @@ end do
 !$omp end do nowait
   
 if(diag.or.ntest==1)then
-!$omp barrier
-!$omp single
+  !$omp barrier
+  !$omp single
   if ( mydiag ) then
     write(6,*) 'at end of sflux'
     write(6,*) 'eg,fg ',eg(idjd),fg(idjd)
@@ -387,20 +375,20 @@ if(diag.or.ntest==1)then
     write(6,*) 't1,tss,tgg_2,tgg_ms ',t(idjd,1),tss(idjd),tgg(idjd,2),tgg(idjd,ms)
   end if
   call maxmin(tscrn,'tc',ktau,1.,1)
-!$omp end single
-endif
+  !$omp end single
+end if
 if(ntest==4.and.ktau==10)then
-!$omp barrier
-!$omp single
+  !$omp barrier
+  !$omp single
   do iq=1,ifull
     if(.not.land(iq))then
       write(45,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),fg(iq)
       write(46,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),eg(iq)
-    endif
+    end if
     write(47,'(2g13.4)') sqrt(u(iq,1)**2+v(iq,1)**2),eg(iq)
-  enddo
-!$omp end single
-endif
+  end do
+  !$omp end single
+end if
 
 return
 end subroutine sflux
@@ -457,6 +445,7 @@ if( charnock>0. )then                                                           
 elseif ( charnock<-10. ) then ! Beljaars                                                         ! sea
   charnck(:)=zcom1                                                                               ! sea
 elseif(charnock<-1.)then  ! zo like Moon (2004)                                                  ! sea
+  ! http://dx.doi.org/10.1175/1520-0469(2004)061<2334:EOSWOA>2.0.CO;2                            ! sea
   charnck(:)=max(.0000386*u10(:),.000085*u10(:)-.00058)                                          ! sea
 else                      ! like Makin (2002)                                                    ! sea
   charnck(:)=.008+3.e-4*(u10(:)-9.)**2/(1.+(.006+.00008*u10(:))*u10(:)**2)                       ! sea
@@ -918,7 +907,7 @@ use soil_m, only : zmin              ! Soil and surface data
 implicit none
 
 integer iq, calcprog
-real root, denha, esatf
+real root, denha, esatf, oflow
 real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
 real, dimension(imax), intent(in) :: t, qg
 real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan
@@ -926,7 +915,7 @@ real, dimension(imax), intent(inout) :: fg, eg, evspsbl, sbl, epot, tss, cduv, c
 real, dimension(imax), intent(inout) :: snowd, sno, grpl, qsttg, zo, wetfac, zoh, zoq, ga
 real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
 real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, condx, conds, condg, vmod, theta
-real, dimension(imax) :: neta, oflow, dumw, dumrg, dumx, dums, fhd
+real, dimension(imax) :: neta, dumw, dumrg, dumx, dums, fhd
 real, dimension(imax) :: umod, umag, levspsbl, lsbl
 logical, dimension(imax), intent(in) :: outflowmask, land
 type(waterdata), intent(inout) :: water
@@ -964,11 +953,13 @@ else if ( abs(nmlo)>=2 ) then                                                   
   ! lake outflow                                                                               ! MLO
   neta(1:imax) = 0.                                                                            ! MLO
   call mloexport("eta",neta,0,0,water,depth)                                                   ! MLO
-  where ( outflowmask(1:imax) )                                                                ! MLO
-    oflow(:) = max( neta(1:imax), 0. )                                                         ! MLO
-    watbdy(1:imax) = watbdy(1:imax) + 1000.*oflow(:)                                           ! MLO
-    neta(1:imax) = neta(1:imax) - oflow(:)                                                     ! MLO
-  end where                                                                                    ! MLO
+  do iq = 1,imax                                                                               ! MLO
+    if ( outflowmask(iq) ) then                                                                ! MLO
+      oflow = max( neta(iq), 0. )                                                              ! MLO
+      watbdy(iq) = watbdy(iq) + 1000.*oflow                                                    ! MLO
+      neta(iq) = neta(iq) - oflow                                                              ! MLO
+    end if                                                                                     ! MLO
+  end do                                                                                       ! MLO  
   call mloimport("eta",neta,0,0,water,depth)                                                   ! MLO
 else                                                                                           ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO

@@ -627,32 +627,32 @@ END SUBROUTINE InitPOP2D_Poisson
 
     IF (NDISTURB.EQ.1) THEN
        IF (PRESENT(precip)) THEN
-          !   CALL Patch_disturb(POP,it,1,precip)
-          CALL Patch_partial_disturb2(POP,1,precip)
+          !   CALL Patch_disturb(POP,it,1_i4b,precip)
+          CALL Patch_partial_disturb2(POP,1_i4b,precip)
        ELSE
-          CALL Patch_disturb(POP,1)
-          ! CALL Patch_partial_disturb2(POP,it,1)
+          CALL Patch_disturb(POP,1_i4b)
+          ! CALL Patch_partial_disturb2(POP,it,1_i4b)
        ENDIF
     ELSEIF (NDISTURB.EQ.2) THEN
        IF (PRESENT(frac_intensity1)) THEN
           IF (PRESENT(precip)) THEN
-             CALL Patch_partial_disturb(POP,1,disturbance_intensity,precip,frac_intensity1=frac_intensity1)
+             CALL Patch_partial_disturb(POP,1_i4b,disturbance_intensity,precip,frac_intensity1=frac_intensity1)
           ELSE
-             CALL Patch_partial_disturb(POP,1,disturbance_intensity,frac_intensity1=frac_intensity1)
+             CALL Patch_partial_disturb(POP,1_i4b,disturbance_intensity,frac_intensity1=frac_intensity1)
           ENDIF
        ELSE
           IF (PRESENT(precip)) THEN
-             CALL Patch_partial_disturb(POP,1,disturbance_intensity,precip=precip)
+             CALL Patch_partial_disturb(POP,1_i4b,disturbance_intensity,precip=precip)
           ELSE
-             CALL Patch_partial_disturb(POP,1,disturbance_intensity)
+             CALL Patch_partial_disturb(POP,1_i4b,disturbance_intensity)
           ENDIF
        ENDIF
        IF (PRESENT(precip)) THEN
-          !CALL Patch_partial_disturb2(POP,it,2,precip)
-          CALL Patch_disturb(POP,2,precip)
+          !CALL Patch_partial_disturb2(POP,it,2_i4b,precip)
+          CALL Patch_disturb(POP,2_i4b,precip)
        ELSE
-          ! CALL Patch_partial_disturb2(POP,it,2)
-          CALL Patch_disturb(POP,2)
+          ! CALL Patch_partial_disturb2(POP,it,2_i4b)
+          CALL Patch_disturb(POP,2_i4b)
        ENDIF
     ENDIF
 

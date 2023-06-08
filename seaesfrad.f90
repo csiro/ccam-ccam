@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -177,7 +177,7 @@ real, dimension(imax,kl) :: p2, cd2, dumcf, dumql, dumqf, dumt, dz
 real, dimension(imax) :: coszro2, taudar2, coszro, taudar, mx
 real, dimension(imax) :: sgdnvis, sgdnnir
 real, dimension(imax) :: sgvis, sgdnvisdir, sgdnvisdif, sgdnnirdir, sgdnnirdif
-real, dimension(imax) :: dzrho, dumtss
+real, dimension(imax) :: dzrho, dumtss, dumps
 real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam
 real, dimension(imax) :: sgn
 real, dimension(kl+1) :: sigh
@@ -474,10 +474,11 @@ do iq_tile = 1,ifull,imax
 
     ! Prepare SEA-ESF arrays ----------------------------------------
     dumtss = min( max( tss(istart:iend), 100.), 365.)
+    dumps = ps(istart:iend)
     do k = 1,kl
       kr = kl + 1 - k
       dumt(:,k) = min( max( t(istart:iend,k), 100.), 365.)
-      p2(:,k) = ps(istart:iend)*sig(k)
+      p2(:,k) = dumps*sig(k)
       Atmos_input(mythread)%deltaz(:,1,kr)  = real(dz(:,k), 8)
       Atmos_input(mythread)%rh2o(:,1,kr)    = max(real(qg(istart:iend,k), 8), 2.E-7_8)
       Atmos_input(mythread)%temp(:,1,kr)    = real(dumt(:,k),8)    
@@ -485,7 +486,7 @@ do iq_tile = 1,ifull,imax
       Atmos_input(mythread)%rel_hum(:,1,kr) = min(real(qg(istart:iend,k)/qsat(p2(:,k),dumt(:,k)), 8), 1._8)
     end do
     Atmos_input(mythread)%temp(:,1,kl+1)  = real(dumtss, 8)
-    Atmos_input(mythread)%press(:,1,kl+1) = real(ps(istart:iend), 8)
+    Atmos_input(mythread)%press(:,1,kl+1) = real(dumps, 8)
     Atmos_input(mythread)%pflux(:,1,1  )  = 0._8
     Atmos_input(mythread)%tflux(:,1,1  )  = Atmos_input(mythread)%temp(:,1,1)
     do k = 1,kl-1
@@ -493,18 +494,18 @@ do iq_tile = 1,ifull,imax
       Atmos_input(mythread)%pflux(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
       Atmos_input(mythread)%tflux(:,1,kr) = real(rathb(k)*dumt(:,k)+ratha(k)*dumt(:,k+1), 8)
     end do
-    Atmos_input(mythread)%pflux(:,1,kl+1) = real(ps(istart:iend), 8)
+    Atmos_input(mythread)%pflux(:,1,kl+1) = real(dumps, 8)
     Atmos_input(mythread)%tflux(:,1,kl+1) = real(dumtss, 8)
     Atmos_input(mythread)%clouddeltaz     = Atmos_input(mythread)%deltaz
 
-    Atmos_input(mythread)%psfc(:,1)    = real(ps(istart:iend), 8)
+    Atmos_input(mythread)%psfc(:,1)    = real(dumps, 8)
     Atmos_input(mythread)%tsfc(:,1)    = real(dumtss, 8)
     Atmos_input(mythread)%phalf(:,1,1) = 0._8
     do k = 1,kl-1
       kr = kl + 1 - k
       Atmos_input(mythread)%phalf(:,1,kr) = real(rathb(k)*p2(:,k)+ratha(k)*p2(:,k+1), 8)
     end do
-    Atmos_input(mythread)%phalf(:,1,kl+1) = real(ps(istart:iend), 8)
+    Atmos_input(mythread)%phalf(:,1,kl+1) = real(dumps, 8)
     if ( do_aerosol_forcing ) then
       Atmos_input(mythread)%aerosolrelhum = Atmos_input(mythread)%rel_hum
     end if
@@ -1331,14 +1332,19 @@ Rad_control%using_im_bcsul_iz           = .true.
 
 if ( myid==0 ) then
   write(6,*) "Reading SEA-ESF model datasets" 
+  write(6,*) "-> Longwave datasets"
 end if
 call sealw99_init(pref,Lw_tables)
+if ( myid==0 ) write(6,*) "-> Shortwave datasets"
 call esfsw_parameters_init
 call esfsw_driver_init
+if ( myid==0 ) write(6,*) "-> Microphysics datasets"
 call microphys_rad_init
-
 deallocate( pref )
-  
+
+
+if ( myid==0 ) write(6,*) "-> Allocate working arrays"
+
 allocate( Atmos_input(0:maxthreads-1) )
 allocate( Rad_gases(0:maxthreads-1) )
 allocate( Cloud_microphysics(0:maxthreads-1) )
@@ -1479,12 +1485,14 @@ do mythread = 0,maxthreads-1
   Rad_gases(mythread)%time_varying_f22 = .false.
   Rad_gases(mythread)%use_model_supplied_co2 = .false.
   if ( mythread==0 ) then
+    if ( myid==0 ) write(6,*) "-> Time varying gases"
     call sealw99_time_vary(Rad_time, Rad_gases(mythread)) ! sets values in gas_tf.f90
   end if    
   
 end do ! mythread = 0,maxthreads-1
   
 if ( do_aerosol_forcing ) then
+  if ( myid==0 ) write(6,*) "-> Allocate aerosol arrays"
   !if ( Rad_control%using_im_bcsul ) then
   !  allocate( Aerosol_props%sulfate_index(0:100, 0:100) )
   !else
@@ -1679,6 +1687,7 @@ if ( do_aerosol_forcing ) then
   Aerosol_props%seasalt3_index(:) = Aerosol_props%seasalt2_index(:) + 25
   Aerosol_props%seasalt4_index(:) = Aerosol_props%seasalt3_index(:) + 25
   Aerosol_props%seasalt5_index(:) = Aerosol_props%seasalt4_index(:) + 25
+  if ( myid==0 ) write(6,*) "-> Aerosol optical properties"
   call loadaerooptical(Aerosol_props)
     
   if ( include_volcanoes ) then
@@ -1710,7 +1719,7 @@ do k = 1,kl-1
 end do
 
 if ( myid==0 ) then
-  write(6,*) "Define diagnostic cloud levels"  
+  write(6,*) "-> Define diagnostic cloud levels"  
   write(6,*) "-> siglow,sigmid = ",siglow,sigmid
   write(6,*) "-> nlow,nmid     = ",nlow,nmid
 end if
@@ -2064,7 +2073,6 @@ if ( myid==0 ) then
     write(6,*) "ERROR: Cannot open ",trim(filename)
     call ccmpi_abort(-1)
   end if
-  write(6,*) "Loading aerosol optical properties"
 
   !----------------------------------------------------------------------
   !    read the dimension information contained in the input file.

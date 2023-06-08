@@ -44,20 +44,21 @@ module cc_acc
 
      integer, intent(in) :: myid
      integer, intent(inout) :: ngpus
-
-#ifndef _OPENMP     
+     integer(kind=4) :: lmyid, lngpus, lgpuid
 #ifdef _OPENACC
-     integer :: device_num
+     integer(kind=4) :: device_num
      integer(acc_device_kind) :: devicetype
 
+     lmyid = myid
      devicetype = acc_get_device_type()
-     ngpus = acc_get_num_devices(devicetype)
+     lngpus = acc_get_num_devices(devicetype)
+     ngpus = lngpus
 
      if ( ngpus > 0 ) then
-        call acc_set_device_num(mod(myid,ngpus),devicetype)
-        gpuid = acc_get_device_num(devicetype)
+        call acc_set_device_num(mod(lmyid,lngpus),devicetype)
+        lgpuid = acc_get_device_num(devicetype)
+        gpuid = lgpuid
      end if   
-#endif
 #endif
 
    end subroutine ccacc_init

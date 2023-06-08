@@ -2419,8 +2419,8 @@ contains
       call drpdr_local_v(tmparr,local_sum_k)
       local_sum(1:2) = cmplx(0., 0.)
       do k = 1,kx
-         call drpdr(local_sum_k(k:k),local_sum(1:1),1,ltype)
-         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,ltype)
+         call drpdr(local_sum_k(k:k),local_sum(1:1),1_4,ltype)
+         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1_4,ltype)
       end do
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
@@ -2459,8 +2459,8 @@ contains
       call drpdr_local_v(tmparr,local_sum_k)
       local_sum(1:2) = cmplx(0., 0.)
       do k = 1,kx
-         call drpdr(local_sum_k(k:k),local_sum(1:1),1,ltype)
-         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,ltype)
+         call drpdr(local_sum_k(k:k),local_sum(1:1),1_4,ltype)
+         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1_4,ltype)
       end do
       global_sum(1:2) = cmplx(0., 0.)
       lcomm = comm_world
@@ -2503,8 +2503,8 @@ contains
       local_sum(1:2*ntr) = cmplx(0.,0.)      
       do i = 1,ntr
          do k = 1,kx
-            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1,ltype)
-            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1,ltype)
+            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1_4,ltype)
+            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1_4,ltype)
          end do
       end do
       mnum = 2*ntr
@@ -2549,8 +2549,8 @@ contains
       local_sum(1:2*ntr) = cmplx(0.,0.)
       do i = 1,ntr
          do k = 1,kx
-            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1,ltype)
-            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1,ltype)
+            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1_4,ltype)
+            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1_4,ltype)
          end do
       end do
       mnum = 2*ntr

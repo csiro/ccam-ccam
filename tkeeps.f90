@@ -48,7 +48,7 @@ public tkeinit,tkemix,tkeend,tke,eps,shear
 public cm0,ce0,ce1,ce2,ce3,be,ent0,ent1,entc0,ezmin,dtrc0
 public m0,b1,b2,qcmf,ent_min,mfbeta
 public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
-public tkemeth
+public tkemeth, plume_maxiter
 public tke_timeave_length, update_ema
 public u_ema, v_ema, w_ema
 public thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
@@ -61,33 +61,34 @@ real, dimension(:,:), allocatable, save :: thetal_ema, qv_ema, ql_ema, qf_ema, c
 real, dimension(:,:), allocatable, save :: tke_ema
 
 ! model ED constants
-real, save :: cm0      = 0.09     ! Hurley (2007) 0.09, Duynkerke (1988) 0.03, Duynkerke (1987) 0.09
-real, save :: ce0      = 0.69     ! Hurley (2007) 0.69, Duynkerke (1988) 0.42, Duynkerke (1987) 0.77
+real, save :: cm0      = 0.09      ! Hurley (2007) 0.09, Duynkerke (1988) 0.03, Duynkerke (1987) 0.09
+real, save :: ce0      = 0.69      ! Hurley (2007) 0.69, Duynkerke (1988) 0.42, Duynkerke (1987) 0.77
 real, save :: ce1      = 1.46
 real, save :: ce2      = 1.83
-real, save :: ce3      = 0.45     ! Hurley (2007) 0.45, Duynkerke 1987 0.35
-real, save :: mintke   = 1.E-8    ! min value for tke (1.5e-4 in TAPM)
-real, save :: mineps   = 1.E-11   ! min value for eps (1.0e-6 in TAPM)
-real, save :: minl     = 1.       ! min value for L   (5. in TAPM)
-real, save :: maxl     = 1000.    ! max value for L   (500. in TAPM)
+real, save :: ce3      = 0.45      ! Hurley (2007) 0.45, Duynkerke 1987 0.35
+real, save :: mintke   = 1.E-8     ! min value for tke (1.5e-4 in TAPM)
+real, save :: mineps   = 1.E-11    ! min value for eps (1.0e-6 in TAPM)
+real, save :: minl     = 1.        ! min value for L   (5. in TAPM)
+real, save :: maxl     = 1000.     ! max value for L   (500. in TAPM)
 ! model MF constants
-real, save :: be       = 0.1      ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
-real, save :: ent0     = 0.25     ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
+real, save :: be       = 0.1       ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
+real, save :: ent0     = 0.25      ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
 real, save :: ent1     = 0.25
-real, save :: ent_min  = 0.       ! Minimum entrainment
-real, save :: ezmin    = 100.     ! Limits entrainment at plume top
-real, save :: entc0    = 2.e-3    ! Saturated entrainment constant for mass flux
-real, save :: dtrc0    = 3.e-3    ! Saturated detrainment constant for mass flux
-real, save :: m0       = 0.1      ! Mass flux area constant (Hurley (2007) 0.1)
-real, save :: b1       = 2.       ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
-real, save :: b2       = 1./3.    ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
-real, save :: qcmf     = 1.e-4    ! Critical mixing ratio of liquid water before autoconversion
-real, save :: mfbeta   = 0.15     ! Horizontal scale factor
+real, save :: ent_min  = 0.        ! Minimum entrainment
+real, save :: ezmin    = 100.      ! Limits entrainment at plume top
+real, save :: entc0    = 2.e-3     ! Saturated entrainment constant for mass flux
+real, save :: dtrc0    = 3.e-3     ! Saturated detrainment constant for mass flux
+real, save :: m0       = 0.1       ! Mass flux area constant (Hurley (2007) 0.1)
+real, save :: b1       = 2.        ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
+real, save :: b2       = 1./3.     ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
+real, save :: qcmf     = 1.e-4     ! Critical mixing ratio of liquid water before autoconversion
+real, save :: mfbeta   = 0.15      ! Horizontal scale factor
+integer, save :: plume_maxiter = 1 ! Number of iterations for plume calculation
 ! generic constants
-integer, save :: buoymeth = 1     ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
-integer, save :: stabmeth = 0     ! Method for stability calculation (0=B&H, 1=Luhar)
-integer, save :: tkemeth  = 1     ! Method for TKE calculation (0=D&K84, 1=Hurley)
-real, save :: maxdts      = 120.  ! max timestep for split
+integer, save :: buoymeth = 1      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
+integer, save :: stabmeth = 0      ! Method for stability calculation (0=B&H, 1=Luhar)
+integer, save :: tkemeth  = 1      ! Method for TKE calculation (0=D&K84, 1=Hurley)
+real, save :: maxdts      = 120.   ! max timestep for split
 ! wind gusts
 real, parameter :: cs1 = 2.2
 real, parameter :: cs2 = 1.63
@@ -365,8 +366,6 @@ do kcount = 1,mcount
 
     ! plume rise model
     mask = wtv0>0.
-    tke(:,1) = cm12*ustar**2 + ce3*wstar**2
-    tke(:,1) = max(tke(:,1), mintke)
     call plumerise(mask,                                         &
                    zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,       &
                    zz,dz_hl,thetal,qvg,qlg,qfg,                  &
@@ -544,7 +543,7 @@ pure subroutine plumerise(mask,                                        &
                      sig,sigkap,tke,ua,va,imax,kl)
 
 integer, intent(in) :: imax, kl
-integer k, iq
+integer k, iq, iter
 real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
 real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, stratcloud
 real, dimension(imax,kl), intent(in) :: zz, thetal, ua, va 
@@ -555,13 +554,16 @@ real, dimension(kl), intent(in) :: sig, sigkap
 real, dimension(imax), intent(inout) :: zi, wstar
 real, dimension(imax,kl) ::  w2up, nn, cxup, rino
 real, dimension(imax,kl) :: theta, thetav
-real, dimension(imax) :: ent, qupsat
+real, dimension(imax) :: ent, qupsat, old_tke, ave_tke
 real, dimension(imax) :: wtv0, fice, pres, templ, dzht
 real qtup, qxup, lx, dqsdt, al, qcup, thup, tvup
 real vvk, as, bs, cs, xp, upf
+real cm12
 real, parameter :: fac = 10. ! originally fac=100.
 real, parameter :: ricr = 0.3
 logical, dimension(imax), intent(in) :: mask
+
+cm12 = 1./sqrt(cm0)
 
 ! Update theta and thetav
 do k = 1,kl
@@ -583,90 +585,100 @@ do k = 1,kl
   cfup(:,k) = stratcloud(:,k)
 end do
 
-! first level -----------------
+old_tke = tke(:,1)
 
-! Entrainment rates
-ent = entfn(zz(:,1), zi(:), imax)
+do iter = 1,plume_maxiter
+  
+  tke(:,1) = cm12*ustar**2 + ce3*wstar**2
+  tke(:,1) = max(tke(:,1), mintke)  
+  ave_tke = max( 0.5*(tke(:,1)+old_tke), 1.5e-4 )
 
-! initial thermodynamic state
-! split qtot into components (conservation of thetal and qtot is maintained)
-where ( mask )
-  tlup(:,1) = thetal(:,1) + be*wt0(:)/sqrt(max(tke(:,1),1.5e-4))       ! Hurley 2007
-  qvup(:,1) = qvg(:,1)    + be*wq0(:)/sqrt(max(tke(:,1),1.5e-4))       ! Hurley 2007
-  qlup(:,1) = qlg(:,1)
-  qfup(:,1) = qfg(:,1)
-  cfup(:,1) = stratcloud(:,1)
-end where
-! update updraft velocity and mass flux
-nn(:,1) = grav*be*wtv0(:)/(thetav(:,1)*sqrt(max(tke(:,1),1.5e-4))) ! Hurley 2007
-dzht = zz(:,1)
-w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent(:))              ! Hurley 2007
-cxup(:,1) = 0.
-rino(:,1) = 0.
+  ! first level -----------------
 
-
-! updraft with condensation
-do k = 2,kl
   ! Entrainment rates
-  ent = entfn(zz(:,k), zi(:), imax)
-  templ = tlup(:,k)/sigkap(k)     ! templ,up
-  pres = ps(:)*sig(k)
-  fice = min( qfup(:,k)/max(qfup(:,k)+qlup(:,k),1.e-8), 1. )
-  call getqsat(qupsat,templ,pres,fice,imax)
-  dzht = dz_hl(:,k-1)
-  where ( w2up(:,k-1)>0. .and. mask(:) )
-    ! entrain air into plume
-    ! split qtot into components (conservation of qtot is maintained)
-    tlup(:,k) = (tlup(:,k-1)+dzht*ent(:)*thetal(:,k))/(1.+dzht*ent(:))
-    qvup(:,k) = (qvup(:,k-1)+dzht*ent(:)*qvg(:,k)   )/(1.+dzht*ent(:))
-    qlup(:,k) = (qlup(:,k-1)+dzht*ent(:)*qlg(:,k)   )/(1.+dzht*ent(:))
-    qfup(:,k) = (qfup(:,k-1)+dzht*ent(:)*qfg(:,k)   )/(1.+dzht*ent(:))
-    cfup(:,k) = (cfup(:,k-1)+dzht*ent(:)*stratcloud(:,k))/(1.+dzht*ent(:))
-  end where
-  do iq = 1,imax
-    ! calculate conserved variables
-    qtup = qvup(iq,k) + qlup(iq,k) + qfup(iq,k)    ! qtot,up
-    if ( qtup>qupsat(iq) .and. w2up(iq,k-1)>0. ) then
-      qxup = qupsat(iq)
-      cxup(iq,k) = 1.
-    else
-      qxup = qtup
-      cxup(iq,k) = 0.
-    end if
-    lx = lv + lf*fice(iq)
-    dqsdt = qupsat(iq)*lx/(rv*templ(iq)**2)
-    al = cp/(cp+lx*dqsdt)
-    qcup = max(al*(qtup-qxup), 0.)                           ! qcondensate,up after redistribution
-    qcup = min(qcup, qcmf)                                   ! limit condensation with simple autoconversion
-    thup = tlup(iq,k) + sigkap(k)*qcup*lx/cp                 ! theta,up after redistribution
-    tvup = thup + theta(iq,k)*(0.61*qxup-qcup)               ! thetav,up after redistribution
-    if ( w2up(iq,k-1)>0. ) then
-      nn(iq,k) = grav*(tvup-thetav(iq,k))/thetav(iq,k)                                ! calculate buayancy
-      w2up(iq,k) = (w2up(iq,k-1)+2.*dzht(iq)*b2*nn(iq,k))/(1.+2.*dzht(iq)*b1*ent(iq)) ! update updraft velocity
-    else
-      nn(iq,k) = 0.  
-      w2up(iq,k) = 0.
-    end if
-    vvk = (ua(iq,k)-ua(iq,1))**2 + (va(iq,k)-va(iq,1))**2 + fac*ustar(iq)**2  
-    rino(iq,k) = grav*(thetav(iq,k)-thetav(iq,1))*(zz(iq,k)-zz(iq,1))/max(thetav(iq,1)*vvk,1.e-30)
-    ! test if maximum plume height is reached
-    if ( w2up(iq,k)<=0. .and. w2up(iq,k-1)>0. .and. mask(iq) ) then ! unstable
-      as = 2.*b2*(nn(iq,k)-nn(iq,k-1))/dzht(iq)
-      bs = 2.*b2*nn(iq,k-1)
-      cs = w2up(iq,k-1)
-      xp = -2.*cs/(bs-sqrt(max(bs**2-4.*as*cs,0.)))
-      xp = min(max(xp,0.),dzht(iq))
-      zi(iq) = xp + zz(iq,k-1)
-    else if ( rino(iq,k)>ricr .and. rino(iq,k-1)<=ricr .and. .not.mask(iq) ) then ! stable
-      xp = (ricr-rino(iq,k-1))/(rino(iq,k)-rino(iq,k-1))
-      xp = min( max(xp, 0.), 1.)
-      zi(iq) = zz(iq,k-1) + xp*(zz(iq,k)-zz(iq,k-1))
-    end if
-  end do
-end do
+  ent = entfn(zz(:,1), zi(:), imax)
 
-! update wstar with new zi          
-wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
+  ! initial thermodynamic state
+  ! split qtot into components (conservation of thetal and qtot is maintained)
+  where ( mask )
+    tlup(:,1) = thetal(:,1) + be*wt0(:)/sqrt(ave_tke)       ! Hurley 2007
+    qvup(:,1) = qvg(:,1)    + be*wq0(:)/sqrt(ave_tke)       ! Hurley 2007
+    qlup(:,1) = qlg(:,1)
+    qfup(:,1) = qfg(:,1)
+    cfup(:,1) = stratcloud(:,1)
+  end where
+  ! update updraft velocity and mass flux
+  nn(:,1) = grav*be*wtv0(:)/(thetav(:,1)*sqrt(ave_tke))       ! Hurley 2007
+  dzht = zz(:,1)
+  w2up(:,1) = 2.*dzht*b2*nn(:,1)/(1.+2.*dzht*b1*ent(:))       ! Hurley 2007
+  cxup(:,1) = 0.
+  rino(:,1) = 0.
+
+
+  ! updraft with condensation
+  do k = 2,kl
+    ! Entrainment rates
+    ent = entfn(zz(:,k), zi(:), imax)
+    templ = tlup(:,k)/sigkap(k)     ! templ,up
+    pres = ps(:)*sig(k)
+    fice = min( qfup(:,k)/max(qfup(:,k)+qlup(:,k),1.e-8), 1. )
+    call getqsat(qupsat,templ,pres,fice,imax)
+    dzht = dz_hl(:,k-1)
+    where ( w2up(:,k-1)>0. .and. mask(:) )
+      ! entrain air into plume
+      ! split qtot into components (conservation of qtot is maintained)
+      tlup(:,k) = (tlup(:,k-1)+dzht*ent(:)*thetal(:,k))/(1.+dzht*ent(:))
+      qvup(:,k) = (qvup(:,k-1)+dzht*ent(:)*qvg(:,k)   )/(1.+dzht*ent(:))
+      qlup(:,k) = (qlup(:,k-1)+dzht*ent(:)*qlg(:,k)   )/(1.+dzht*ent(:))
+      qfup(:,k) = (qfup(:,k-1)+dzht*ent(:)*qfg(:,k)   )/(1.+dzht*ent(:))
+      cfup(:,k) = (cfup(:,k-1)+dzht*ent(:)*stratcloud(:,k))/(1.+dzht*ent(:))
+    end where
+    do iq = 1,imax
+      ! calculate conserved variables
+      qtup = qvup(iq,k) + qlup(iq,k) + qfup(iq,k)    ! qtot,up
+      if ( qtup>qupsat(iq) .and. w2up(iq,k-1)>0. ) then
+        qxup = qupsat(iq)
+        cxup(iq,k) = 1.
+      else
+        qxup = qtup
+        cxup(iq,k) = 0.
+      end if
+      lx = lv + lf*fice(iq)
+      dqsdt = qupsat(iq)*lx/(rv*templ(iq)**2)
+      al = cp/(cp+lx*dqsdt)
+      qcup = max(al*(qtup-qxup), 0.)                           ! qcondensate,up after redistribution
+      qcup = min(qcup, qcmf)                                   ! limit condensation with simple autoconversion
+      thup = tlup(iq,k) + sigkap(k)*qcup*lx/cp                 ! theta,up after redistribution
+      tvup = thup + theta(iq,k)*(0.61*qxup-qcup)               ! thetav,up after redistribution
+      if ( w2up(iq,k-1)>0. ) then
+        nn(iq,k) = grav*(tvup-thetav(iq,k))/thetav(iq,k)                                ! calculate buayancy
+        w2up(iq,k) = (w2up(iq,k-1)+2.*dzht(iq)*b2*nn(iq,k))/(1.+2.*dzht(iq)*b1*ent(iq)) ! update updraft velocity
+      else
+        nn(iq,k) = 0.  
+        w2up(iq,k) = 0.
+      end if
+      vvk = (ua(iq,k)-ua(iq,1))**2 + (va(iq,k)-va(iq,1))**2 + fac*ustar(iq)**2  
+      rino(iq,k) = grav*(thetav(iq,k)-thetav(iq,1))*(zz(iq,k)-zz(iq,1))/max(thetav(iq,1)*vvk,1.e-30)
+      ! test if maximum plume height is reached
+      if ( w2up(iq,k)<=0. .and. w2up(iq,k-1)>0. .and. mask(iq) ) then ! unstable
+        as = 2.*b2*(nn(iq,k)-nn(iq,k-1))/dzht(iq)
+        bs = 2.*b2*nn(iq,k-1)
+        cs = w2up(iq,k-1)
+        xp = -2.*cs/(bs-sqrt(max(bs**2-4.*as*cs,0.)))
+        xp = min(max(xp,0.),dzht(iq))
+        zi(iq) = xp + zz(iq,k-1)
+      else if ( rino(iq,k)>ricr .and. rino(iq,k-1)<=ricr .and. .not.mask(iq) ) then ! stable
+        xp = (ricr-rino(iq,k-1))/(rino(iq,k)-rino(iq,k-1))
+        xp = min( max(xp, 0.), 1.)
+        zi(iq) = zz(iq,k-1) + xp*(zz(iq,k)-zz(iq,k-1))
+      end if
+    end do
+  end do ! k loop
+
+  ! update wstar with new zi          
+  wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
+  
+end do ! iter loop
           
 ! update mass flux
 mflx(:,1) = m0*sqrt(max(w2up(:,1), 0.))

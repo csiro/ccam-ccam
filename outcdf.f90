@@ -814,6 +814,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)
     call ccnf_put_attg(idnc,'ngwd',ngwd)
+    call ccnf_put_attg(idnc,'plume_maxiter',plume_maxiter)
     call ccnf_put_attg(idnc,'qcmf',qcmf)
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
