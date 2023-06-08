@@ -677,6 +677,7 @@ do iter = 1,plume_maxiter
 
   ! update wstar with new zi          
   wstar = (grav*zi*max(wtv0,0.)/thetav(:,1))**(1./3.)
+  old_tke = tke(:,1)
   
 end do ! iter loop
           
