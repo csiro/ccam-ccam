@@ -1,2 +1,2 @@
 character(len=*), parameter :: version= &
-'CCAM Date:   Fri May 26 17:52:24 2023 +1000 commit ae154499ed1348ddd84edfb812f06dcb4e6283bd' 
+'CCAM Date:   Thu Jun 8 14:25:12 2023 +1000 commit 49b6a20e31dbb39edd5ff9ad71e816172872d27f' 

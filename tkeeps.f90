@@ -174,8 +174,8 @@ end subroutine tkeinit
 ! mode=2 combined atmosphere and ocean with mass flux
 ! mode=3 combined atm-ocn and no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,ua,va,zi,fg,eg,cduv,ps,zz,zzh,sig,rhos, &
-                  ustar_ave,dt,qgmin,mode,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,       &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,ni,stratcloud,ua,va,zi,fg,eg,cduv,ps,zz,zzh,sig,   &
+                  rhos,ustar_ave,dt,qgmin,mode,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,  &
                   qf_ema,cf_ema,tke_ema,                                                   &
 #ifdef scm
                   wthflux,wqvflux,uwflux,vwflux,mfout,buoyproduction,                      &
@@ -197,7 +197,7 @@ integer k, iq
 integer kcount, mcount
 real, intent(in) :: dt, qgmin
 real, dimension(imax,kl), intent(inout) :: theta,stratcloud,ua,va
-real, dimension(imax,kl), intent(inout) :: qvg,qlg,qfg
+real, dimension(imax,kl), intent(inout) :: qvg,qlg,qfg,ni
 real, dimension(imax,kl), intent(out) :: kmo
 real, dimension(imax,kl), intent(in) :: zz,zzh
 real, dimension(imax,kl), intent(in) :: shear
@@ -211,7 +211,7 @@ real, dimension(imax), intent(out) :: ustar_ave, ugs_var
 real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl) :: km, thetav, thetal, qsat
 real, dimension(imax,kl) :: rhoa,rhoahl
-real, dimension(imax,kl) :: tlup,qvup,qlup,qfup
+real, dimension(imax,kl) :: tlup,qvup,qlup,qfup,niup
 real, dimension(imax,kl) :: cfup,mflx
 real, dimension(imax,kl) :: pps,ppt,ppb
 real, dimension(imax,kl) :: idzm
@@ -367,8 +367,8 @@ do kcount = 1,mcount
     ! plume rise model
     mask = wtv0>0.
     call plumerise(mask,                                         &
-                   zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,       &
-                   zz,dz_hl,thetal,qvg,qlg,qfg,                  &
+                   zi,wstar,mflx,tlup,qvup,qlup,qfup,niup,cfup,  &
+                   zz,dz_hl,thetal,qvg,qlg,qfg,ni,               &
                    stratcloud,wt0,wq0,ps,ustar,                  &
                    sig,sigkap,tke,ua,va,imax,kl)
 
@@ -389,6 +389,7 @@ do kcount = 1,mcount
     qvup(:,:) = qvg(:,:)
     qlup(:,:) = qlg(:,:)
     qfup(:,:) = qfg(:,:)
+    niup(:,:) = ni(:,:)
     cfup(:,:) = stratcloud(:,:)
     
   end if
@@ -423,9 +424,9 @@ do kcount = 1,mcount
   
 #ifdef CCAM
   if ( mode==2 .or. mode==3 ) then
-    call update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
-                        tlup,qvup,qlup,qfup,cfup,fg,eg,rhos,    &
-                        ustar,cduv,                             &
+    call update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,ua,va, &
+                        tlup,qvup,qlup,qfup,niup,cfup,fg,eg,    &
+                        rhos,ustar,cduv,                        &
                         tke,eps,mflx,fzzh,idzp,idzm,dz_hl,      &
                         rhoa(:,1),dz_fl(:,1),                   &
                         deptho_dz,deptho_dz_hl,                 &
@@ -440,9 +441,9 @@ do kcount = 1,mcount
 #endif
                         ddts,imax,kl,tile)  
   else
-    call update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
-                           tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
-                           ustar,cduv,                          &
+    call update_atmosphere(thetal,qvg,qlg,qfg,ni,stratcloud,ua, &
+                           va,tlup,qvup,qlup,qfup,niup,cfup,fg, &
+                           eg,rhos,ustar,cduv,                  &
                            tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
                            rhoa(:,1),dz_fl(:,1),                &
 #ifdef scm
@@ -451,9 +452,9 @@ do kcount = 1,mcount
                            ddts,imax,kl)
   end if
 #else
-  call update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
-                         tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
-                         ustar,cduv,                          &
+  call update_atmosphere(thetal,qvg,qlg,qfg,ni,stratcloud,ua, &
+                         va,tlup,qvup,qlup,qfup,niup,cfup,fg, &
+                         eg,rhos,ustar,cduv,                  &
                          tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
                          rhoa(:,1),dz_fl(:,1),                &
 #ifdef scm
@@ -537,15 +538,15 @@ end subroutine tkemix
 ! Plume rise model
     
 pure subroutine plumerise(mask,                                        &
-                     zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,           &
-                     zz,dz_hl,thetal,qvg,qlg,qfg,                      &
+                     zi,wstar,mflx,tlup,qvup,qlup,qfup,niup,cfup,      &
+                     zz,dz_hl,thetal,qvg,qlg,qfg,ni,                   &
                      stratcloud,wt0,wq0,ps,ustar,                      &
                      sig,sigkap,tke,ua,va,imax,kl)
 
 integer, intent(in) :: imax, kl
 integer k, iq, iter
-real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, cfup
-real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, stratcloud
+real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, niup, cfup
+real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, ni, stratcloud
 real, dimension(imax,kl), intent(in) :: zz, thetal, ua, va 
 real, dimension(imax,kl), intent(in) :: dz_hl
 real, dimension(imax,kl), intent(inout) :: tke
@@ -582,6 +583,7 @@ do k = 1,kl
   qvup(:,k) = qvg(:,k)
   qlup(:,k) = qlg(:,k)
   qfup(:,k) = qfg(:,k)
+  niup(:,k) = ni(:,k)
   cfup(:,k) = stratcloud(:,k)
 end do
 
@@ -605,6 +607,7 @@ do iter = 1,plume_maxiter
     qvup(:,1) = qvg(:,1)    + be*wq0(:)/sqrt(ave_tke)       ! Hurley 2007
     qlup(:,1) = qlg(:,1)
     qfup(:,1) = qfg(:,1)
+    niup(:,1) = ni(:,1)
     cfup(:,1) = stratcloud(:,1)
   end where
   ! update updraft velocity and mass flux
@@ -631,6 +634,7 @@ do iter = 1,plume_maxiter
       qvup(:,k) = (qvup(:,k-1)+dzht*ent(:)*qvg(:,k)   )/(1.+dzht*ent(:))
       qlup(:,k) = (qlup(:,k-1)+dzht*ent(:)*qlg(:,k)   )/(1.+dzht*ent(:))
       qfup(:,k) = (qfup(:,k-1)+dzht*ent(:)*qfg(:,k)   )/(1.+dzht*ent(:))
+      niup(:,k) = (niup(:,k-1)+dzht*ent(:)*ni(:,k)    )/(1.+dzht*ent(:))
       cfup(:,k) = (cfup(:,k-1)+dzht*ent(:)*stratcloud(:,k))/(1.+dzht*ent(:))
     end where
     do iq = 1,imax
@@ -932,9 +936,9 @@ end subroutine update_tkeeps
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update atmosphere only
 
-subroutine update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
-                             tlup,qvup,qlup,qfup,cfup,fg,eg,rhos, &
-                             ustar,cduv,                          &
+subroutine update_atmosphere(thetal,qvg,qlg,qfg,ni,stratcloud,ua, &
+                             va,tlup,qvup,qlup,qfup,niup,cfup,fg, &
+                             eg,rhos,ustar,cduv,                  &
                              tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
                              rhoa1,dz_fl1,                        &
 #ifdef scm
@@ -945,14 +949,14 @@ subroutine update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,va, &
 implicit none
 
 integer, intent(in) :: imax, kl
-real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, stratcloud, ua, va
-real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, cfup
+real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, ni, stratcloud, ua, va
+real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, niup, cfup
 real, dimension(imax,kl), intent(in) :: mflx, tke, eps
 real, dimension(imax,kl), intent(in) :: idzm
 real, dimension(imax,kl-1), intent(in) :: fzzh, idzp, dz_hl
 real, dimension(imax,kl) :: km, kmo
 real, dimension(imax,kl) :: rr, bb, cc
-real, dimension(imax,kl,5) :: dd, ans
+real, dimension(imax,kl) :: dd
 real, dimension(imax,2:kl) :: qq, aa
 real, dimension(imax), intent(inout) :: fg, eg, ustar
 real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv
@@ -992,59 +996,74 @@ bb(:,kl)=1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
 
 
 ! thetal vertical mixing
-dd(:,1,1)=thetal(:,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                               &
-                           +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                   &
-                     +ddts*rhos*wt0/(rhoa1(:)*dz_fl1(:))
-dd(:,2:kl-1,1)=thetal(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*tlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1) &
-                                     +mflx(:,2:kl-1)*tlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)      &
-                                     -mflx(:,2:kl-1)*tlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1) &
-                                     -mflx(:,3:kl)*tlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl,1)=thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                   &
+dd(:,1)=thetal(:,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                               &
+                         +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))                                   &
+                   +ddts*rhos*wt0/(rhoa1(:)*dz_fl1(:))
+dd(:,2:kl-1)=thetal(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*tlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1) &
+                                   +mflx(:,2:kl-1)*tlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)      &
+                                   -mflx(:,2:kl-1)*tlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1) &
+                                   -mflx(:,3:kl)*tlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl)=thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                   &
                              +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-! qv (part of qtot) vertical mixing
-dd(:,1,2)=qvg(:,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                  &
-                        +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                                      &
-                        +ddts*rhos*wq0/(rhoa1(:)*dz_fl1(:))
-dd(:,2:kl-1,2)=qvg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qvup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)    &
-                                  +mflx(:,2:kl-1)*qvup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)         &
-                                  -mflx(:,2:kl-1)*qvup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)    &
-                                  -mflx(:,3:kl)*qvup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl,2)=qvg(:,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                      &
-                          +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-! ql (part of qtot) vertical mixing
-dd(:,1,3)=qlg(:,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                  &
-                        +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
-dd(:,2:kl-1,3)=qlg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)    &
-                                  +mflx(:,2:kl-1)*qlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)         &
-                                  -mflx(:,2:kl-1)*qlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)    &
-                                  -mflx(:,3:kl)*qlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl,3)=qlg(:,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                      &
-                          +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-! qf (part of qtot) vertical mixing
-dd(:,1,4)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
-                        +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
-dd(:,2:kl-1,4)=qfg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
-                                  +mflx(:,2:kl-1)*qfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
-                                  -mflx(:,2:kl-1)*qfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
-                                  -mflx(:,3:kl)*qfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl,4)=qfg(:,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
-                          +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
-! cloud fraction vertical mixing
-dd(:,1,5) = stratcloud(:,1) - ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
-                                   +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
-dd(:,2:kl-1,5) = stratcloud(:,2:kl-1) + ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
-                                             +mflx(:,2:kl-1)*cfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
-                                             -mflx(:,2:kl-1)*cfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
-                                             -mflx(:,3:kl)*cfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-dd(:,kl,5) = stratcloud(:,kl) + ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
-                                     +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+call thomas(thetal,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
 
-call thomas(ans(:,:,1:5),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,:,1:5),imax,kl,5)
-thetal(:,:)     = ans(:,:,1)
-qvg(:,:)        = ans(:,:,2)
-qlg(:,:)        = ans(:,:,3)
-qfg(:,:)        = ans(:,:,4)
-stratcloud(:,:) = min( max( ans(:,:,5), 0. ), 1. )
+! qv (part of qtot) vertical mixing
+dd(:,1)=qvg(:,1)-ddts*(mflx(:,1)*qvup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                  &
+                      +mflx(:,2)*qvup(:,2)*fzzh(:,1)*idzp(:,1))                                      &
+                      +ddts*rhos*wq0/(rhoa1(:)*dz_fl1(:))
+dd(:,2:kl-1)=qvg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qvup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)    &
+                                +mflx(:,2:kl-1)*qvup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)         &
+                                -mflx(:,2:kl-1)*qvup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)    &
+                                -mflx(:,3:kl)*qvup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl)=qvg(:,kl)+ddts*(mflx(:,kl-1)*qvup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                      &
+                        +mflx(:,kl)*qvup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+call thomas(qvg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
+
+! ql (part of qtot) vertical mixing
+dd(:,1)=qlg(:,1)-ddts*(mflx(:,1)*qlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                  &
+                      +mflx(:,2)*qlup(:,2)*fzzh(:,1)*idzp(:,1))
+dd(:,2:kl-1)=qlg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qlup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)    &
+                                +mflx(:,2:kl-1)*qlup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)         &
+                                -mflx(:,2:kl-1)*qlup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)    &
+                                -mflx(:,3:kl)*qlup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl)=qlg(:,kl)+ddts*(mflx(:,kl-1)*qlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                      &
+                        +mflx(:,kl)*qlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+call thomas(qlg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
+
+! qf (part of qtot) vertical mixing
+dd(:,1)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
+                      +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
+dd(:,2:kl-1)=qfg(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*qfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
+                                +mflx(:,2:kl-1)*qfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                -mflx(:,2:kl-1)*qfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                -mflx(:,3:kl)*qfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl)=qfg(:,kl)+ddts*(mflx(:,kl-1)*qfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
+                        +mflx(:,kl)*qfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+call thomas(qfg,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
+
+! ni vertical mixing
+dd(:,1)=ni(:,1)-ddts*(mflx(:,1)*niup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
+                     +mflx(:,2)*niup(:,2)*fzzh(:,1)*idzp(:,1))
+dd(:,2:kl-1)=ni(:,2:kl-1)+ddts*(mflx(:,1:kl-2)*niup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
+                               +mflx(:,2:kl-1)*niup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                               -mflx(:,2:kl-1)*niup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                               -mflx(:,3:kl)*niup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl)=ni(:,kl)+ddts*(mflx(:,kl-1)*niup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
+                       +mflx(:,kl)*niup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+call thomas(ni,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
+
+! cloud fraction vertical mixing
+dd(:,1) = stratcloud(:,1) - ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)                                 &
+                                 +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
+dd(:,2:kl-1) = stratcloud(:,2:kl-1) + ddts*(mflx(:,1:kl-2)*cfup(:,1:kl-2)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
+                                           +mflx(:,2:kl-1)*cfup(:,2:kl-1)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
+                                           -mflx(:,2:kl-1)*cfup(:,2:kl-1)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
+                                           -mflx(:,3:kl)*cfup(:,3:kl)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
+dd(:,kl) = stratcloud(:,kl) + ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
+                                   +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+
+call thomas(stratcloud,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
+stratcloud(:,:) = min( max( stratcloud, 0. ), 1. )
     
 #ifdef scm  
 wthlflux(:,1)=wt0(:)
@@ -1073,11 +1092,11 @@ bb(:,1) = 1. - cc(:,1) + ddts*rhos*cduv/(rhoa1(:)*dz_fl1(:)) ! implicit
 bb(:,2:kl-1) = 1. - aa(:,2:kl-1) - cc(:,2:kl-1)
 bb(:,kl) = 1. - aa(:,kl)
 
-dd(:,1:kl,1) = ua(:,1:kl)
-dd(:,1:kl,2) = va(:,1:kl)
-call thomas(ans(:,:,1:2),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd(:,:,1:2),imax,kl,2)
-ua(:,:) = ans(:,:,1)
-va(:,:) = ans(:,:,2)
+dd(:,1:kl) = ua(:,1:kl)
+call thomas(ua,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
+
+dd(:,1:kl) = va(:,1:kl)
+call thomas(va,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
   
   
 ! update surface momentum flux
@@ -1235,9 +1254,9 @@ end subroutine pack_coupled_uv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update coupled
 
-subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
-                          tlup,qvup,qlup,qfup,cfup,fg,eg,rhos,    &
-                          ustar,cduv,                             &    
+subroutine update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,ua,va, &
+                          tlup,qvup,qlup,qfup,niup,cfup,fg,eg,    &
+                          rhos,ustar,cduv,                        &    
                           tke,eps,mflx,fzzh,idzp,idzm,dz_hl,      &
                           rhoa1,dz_fl1,                           &
                           deptho_dz,deptho_dz_hl,                 &
@@ -1261,14 +1280,14 @@ implicit none
 integer, intent(in) :: imax, kl, tile
 integer, dimension(imax), intent(in) :: ibot
 integer k, kn, iq
-real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, stratcloud, ua, va
-real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, cfup
+real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, ni, stratcloud, ua, va
+real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, niup, cfup
 real, dimension(imax,kl), intent(in) :: mflx, tke, eps
 real, dimension(imax,kl), intent(in) :: idzm
 real, dimension(imax,kl-1), intent(in) :: fzzh, idzp, dz_hl
 real, dimension(imax,kl) :: km_a, kmo_a
 real, dimension(imax,kl) :: bb_a, cc_a, rr
-real, dimension(imax,kl,4) :: dd_a, tt_a
+real, dimension(imax,kl,5) :: dd_a, tt_a
 real, dimension(imax,2:kl) :: qq, aa_a
 real, dimension(imax), intent(in) :: cd_water, cdh_water, cdbot_water, wt0rad_o, wt0melt_o
 real, dimension(imax,wlev), intent(in) :: deptho_dz
@@ -1525,28 +1544,42 @@ end do
 dd_a(:,kl,3)=qfg(:,1)-ddts*(mflx(:,1)*qfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
                            +mflx(:,2)*qfup(:,2)*fzzh(:,1)*idzp(:,1))
 
+! ni - atmosphere
+dd_a(:,1,4)=ni(:,kl)+ddts*(mflx(:,kl-1)*niup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
+                          +mflx(:,kl)*niup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
+do k = 2,kl-1
+  kn = kl - k + 1
+  dd_a(:,k,4)=ni(:,kn)+ddts*(mflx(:,kn-1)*niup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
+                            +mflx(:,kn)*niup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
+                            -mflx(:,kn)*niup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
+                            -mflx(:,kn+1)*niup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
+end do
+dd_a(:,kl,4)=ni(:,1)-ddts*(mflx(:,1)*niup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
+                          +mflx(:,2)*niup(:,2)*fzzh(:,1)*idzp(:,1))
+
 ! stratcloud - atmosphere
-dd_a(:,1,4)=stratcloud(:,kl)+ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
+dd_a(:,1,5)=stratcloud(:,kl)+ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
                                   +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
 do k = 2,kl-1
   kn = kl - k + 1
-  dd_a(:,k,4)=stratcloud(:,kn)+ddts*(mflx(:,kn-1)*cfup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
+  dd_a(:,k,5)=stratcloud(:,kn)+ddts*(mflx(:,kn-1)*cfup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
                                     +mflx(:,kn)*cfup(:,kn)*fzzh(:,kn-1)*idzm(:,kn)            &
                                     -mflx(:,kn)*cfup(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn)         &
                                     -mflx(:,kn+1)*cfup(:,kn+1)*fzzh(:,kn)*idzp(:,kn))
 end do
-dd_a(:,kl,4)=stratcloud(:,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
+dd_a(:,kl,5)=stratcloud(:,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
                                   +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
 
-call thomas(tt_a(:,:,1:4),aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl,1:4),   &
-            imax,kl,4)
+call thomas(tt_a(:,:,1:5),aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl,1:5),   &
+            imax,kl,5)
 
 do k = 1,kl
   kn = kl - k + 1  
   qvg(:,k) = tt_a(:,kn,1)
   qlg(:,k) = tt_a(:,kn,2)
   qfg(:,k) = tt_a(:,kn,3)
-  stratcloud(:,k) = min( max( tt_a(:,kn,4), 0. ), 1. )
+  ni(:,k) = tt_a(:,kn,4)
+  stratcloud(:,k) = min( max( tt_a(:,kn,5), 0. ), 1. )
 end do
 
 #ifdef scm

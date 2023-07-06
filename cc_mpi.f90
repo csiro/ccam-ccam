@@ -8838,7 +8838,7 @@ contains
       ipanx = mg(g)%ipan
       jpanx = mg(g)%ifull/(mg(g)%ipan*mg(g)%npanx)
       call mgcollectreduce_work( g, vdat, dsolmax, kx, mg(g)%nmax, msg_len, mg(g)%npanx, ipanx, jpanx )
-  
+
    return
    end subroutine mgcollectreduce
 
@@ -8895,7 +8895,7 @@ contains
          end do
          dsolmax(1:kx) = maxval( tdat_g(hoz_len*kx+1:ilen,1:nmax), dim=2 )
       end if
-  
+
    return
    end subroutine mgcollectreduce_work
 

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -998,7 +998,7 @@ if ( mg_maxlevel_local>0 ) then
     ! MJT notes - some groups use colours for the following smoothing, due to better convegence.
     do i = 2,itrbgn
       do k = 1,kl
-        ! post smoothing
+        ! pre smoothing
         do iq = 1,ng
           w(iq,k) = (mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
                    + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
@@ -1034,7 +1034,7 @@ if ( mg_maxlevel_local>0 ) then
       helm(1:mg(g+1)%ifull,1:kl,g+1) = rhs(1:mg(g+1)%ifull,kl+1:2*kl,g+1)
     end if  
 
-  end do
+  end do ! g loop over V levels
 
 
   ! solve for coarse grid
@@ -1120,7 +1120,7 @@ if ( mg_maxlevel_local>0 ) then
     
     call mgbounds(g,v(:,1:kl,g)) ! for next mgbcast
 
-  end do
+  end do ! g loop over V levels
 
  
   ! broadcast coarse solution to fine grid, as well as global smaxmin_g
@@ -1269,10 +1269,10 @@ do itr = 2,itr_mg
       do k = 1,klim
         do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
           iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
-                     + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
-                     + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
-                     + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
-                     - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+                                 + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                                 + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                                 + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                                 - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
         end do  
         do iq = 1,ifull_colour(nc)
           iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
@@ -1288,9 +1288,9 @@ do itr = 2,itr_mg
   !$omp do schedule(static) private(k,iq)
   do k = 1,klim
     do iq = 1,ifull
-      w(iq,k)=-izzn(iq)*iv(in(iq),k)-izzw(iq)*iv(iw(iq),k) &
-              -izze(iq)*iv(ie(iq),k)-izzs(iq)*iv(is(iq),k) &
-              +irhs(iq,k)+iv(iq,k)*(ihelm(iq,k)-izz(iq))
+      w(iq,k) = -izzn(iq)*iv(in(iq),k)-izzw(iq)*iv(iw(iq),k) &
+                -izze(iq)*iv(ie(iq),k)-izzs(iq)*iv(is(iq),k) &
+                +irhs(iq,k)+iv(iq,k)*(ihelm(iq,k)-izz(iq))
     end do
   end do
   !$omp end do
@@ -1299,7 +1299,7 @@ do itr = 2,itr_mg
 
   ! test for convergence
   do k = 1,klim
-    dsolmax_g(k) = maxval(abs(iv(1:ifull,k)-iv_old(1:ifull,k))) ! cannot vectorise with -fp-precise
+    dsolmax_g(k) = maxval( abs(iv(1:ifull,k)-iv_old(1:ifull,k)) ) ! cannot vectorise with -fp-precise
   end do  
   
   ! For when the inital grid cannot be upscaled
@@ -1319,22 +1319,22 @@ do itr = 2,itr_mg
       do iq = 1,ng4
         rhs(iq,k,2) = 0.25*(w(mg(1)%fine(iq)  ,k) + w(mg(1)%fine_n(iq) ,k)  &
                           + w(mg(1)%fine_e(iq),k) + w(mg(1)%fine_ne(iq),k))
-      end do  
-    end do  
-                             
+      end do
+    end do
+
     ! merge grids if insufficent points on this processor
     call mgcollect(2,rhs(:,1:klim,2),dsolmax_g(:),klim=klim)
- 
+
     call END_LOG(mgfine_end)
-    
-    
+
+
     call START_LOG(mgup_begin)
-  
+
     ! upscale grid
     do g = 2,gmax
-  
+
       ng = mg(g)%ifull
-                
+
       ! update scalar field
       ! assume zero for first guess of residual (also avoids additional bounds call)
       do k = 1,klim
@@ -1347,7 +1347,7 @@ do itr = 2,itr_mg
       ! into colours so that the number of messages is reduced.
       do i = 2,itrbgn
         do k = 1,klim
-          ! post smoothing
+          ! pre smoothing
           do iq = 1,ng
             w(iq,k) = ( mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
                       + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
@@ -1376,7 +1376,7 @@ do itr = 2,itr_mg
       ! merge grids if insufficent points on this processor
       call mgcollect(g+1,rhs(:,1:klim,g+1),dsolmax_g(1:klim),klim=klim)
 
-    end do
+    end do ! g loop over V levels
   
     call END_LOG(mgup_end)
   
@@ -1466,7 +1466,7 @@ do itr = 2,itr_mg
 
       call mgbounds(g,v(:,1:klim,g),klim=klim) ! for next mgbcast
       
-    end do
+    end do ! g loop over V levels
   
     
     ! fine grid
@@ -3754,7 +3754,7 @@ if ( .not.sorfirst ) return
 
 ! Begin full initialisation
 mg_maxsize = ifull + iextra ! first guess of maximum grid size
-lglob = (nproc==1)          ! Global gather flag
+lglob = nproc==1            ! Global gather flag
 mipan = ipan                ! local number of rows
 mjpan = jpan                ! local number of columns
 mil_g = il_g                ! global grid size
@@ -3828,12 +3828,12 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
 
     ! find my processor and surrounding members of the gather
     nn = 1 - noff
-
     ix = -1
     jx = -1
     do jj = 1,mil_g,hjpan
       do ii = 1,mil_g,hipan
         if ( mg_fproc(1,ii,jj,nn)==myid ) then
+          ! found my process  
           ix = ii
           jx = jj
           exit
@@ -3845,32 +3845,37 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
       write(6,*) "ERROR: Cannot locate processor in gather4"
       call ccmpi_abort(-1)
     end if
+    
+    ! locate target of gather as the process responsible for the
+    ! top left grid points.
     ii = ix
     jj = jx
     if ( mod( (ii-1)/hipan, 2 )/=0 ) ii = ii - hipan
     if ( mod( (jj-1)/hjpan, 2 )/=0 ) jj = jj - hjpan
     ix = ix - ii ! offset for myid from ii
     jx = jx - jj ! offset for myid from jj
-   
+
+    ! construct the list for gather with the target as the first index
     mg(1)%merge_list(1) = mg_fproc(1,ii,      jj      ,nn)
     mg(1)%merge_list(2) = mg_fproc(1,ii+hipan,jj      ,nn)
     mg(1)%merge_list(3) = mg_fproc(1,ii,      jj+hjpan,nn)
     mg(1)%merge_list(4) = mg_fproc(1,ii+hipan,jj+hjpan,nn)
        
+    ! update procmap with processor that owns this data
     do j = 1,mil_g,mjpan
       do i = 1,mil_g,mipan
         cid = mg_fproc(1,i+ix,j+jx,nn) ! processor in same merge position as myid
                                        ! we will maintain communications with this processor
         do jja = 1,mjpan,hjpan
           do iia = 1,mipan,hipan
-            ! update fproc map with processor that owns this data
             mg(1)%procmap(mg_fproc_1(1,i+iia-1,j+jja-1,nn)) = cid  
-            !mg(1)%fproc(i+iia-1,j+jja-1,nn) = cid
           end do
         end do
       end do
     end do
 
+    ! need merge_pos if a gather is required at the finest grid
+    ! (e.g., ipan or jpan is an odd number)
     mg(1)%merge_pos = -1
     do j = 1,4
       if ( mg(1)%merge_list(j)==myid ) then
@@ -3895,7 +3900,6 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
               do iia = 1,mipan
                 ! update fproc map with processor that owns this data
                 mg(1)%procmap(mg_fproc_1(1,i+iia-1,j+jja-1,nn)) = cid
-                !mg(1)%fproc(i+iia-1,j+jja-1,nn) = cid
               end do
             end do
           end do
@@ -3905,13 +3909,9 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
 
   else if ( .not.lglob ) then ! collect all data to one processor
     lglob = .true.
-    !if ( uniform_decomp ) then
-    !  mg(1)%merge_len = mxpr*mypr
-    !else
     mg(1)%merge_len = min( 6*mxpr*mypr, nproc )
     mg(1)%npanx = 1
     mg_npan = 6
-    !end if
 
     mg(1)%merge_row = mxpr
     mg(1)%nmax = mg(1)%merge_len
@@ -3925,31 +3925,6 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     end if
       
     ! find gather members
-    !if ( uniform_decomp ) then
-    !  allocate( mg(1)%merge_list(mg(1)%merge_len) )
-    !  iqq = 0
-    !  do jj = 1,mil_g,hjpan
-    !    do ii = 1,mil_g,hipan
-    !      iqq = iqq + 1
-    !      mg(1)%merge_list(iqq) = mg_fproc(1,ii,jj,0)
-    !    end do
-    !  end do
-    !  if ( iqq/=mg(1)%merge_len ) then
-    !    write(6,*) "ERROR: merge_len mismatch ",iqq,mg(1)%merge_len,1
-    !    call ccmpi_abort(-1)
-    !  end if
-    !  mg(1)%merge_pos = -1
-    !  do i = 1,mg(1)%merge_len
-    !    if ( mg(1)%merge_list(i)==myid ) then
-    !      mg(1)%merge_pos = i
-    !      exit
-    !    end if
-    !  end do
-    !  if ( mg(1)%merge_pos<1 ) then
-    !    write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
-    !    call ccmpi_abort(-1)
-    !  end if
-    !else
     allocate( mg(1)%merge_list(mg(1)%merge_len) )      
     iqq = 0
     do n = 1,6/npan
@@ -3976,7 +3951,6 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
       write(6,*) "ERROR: Invalid merge_pos g,pos ",1,mg(1)%merge_pos
       call ccmpi_abort(-1)
     end if
-    !end if
 
     ! modify mg_fproc for remaining processor
     mg(1)%procmap(:) = myid
@@ -3989,9 +3963,7 @@ if ( mod( mipan, 2 )/=0 .or. mod( mjpan, 2 )/=0 .or. g==mg_maxlevel ) then
     if ( myid==0 ) then
       write(6,*) "-> Multi-grid toplevel                   ",1,mipan,mjpan
     end if
-    !if ( .not.uniform_decomp ) then
     mg(1)%npanx = 1  
-    !end if
     mg(1)%merge_pos = 1
   end if
     
@@ -4171,13 +4143,9 @@ do g = 2,mg_maxlevel
     
     else if ( .not.lglob ) then ! collect all data to one processor
       lglob = .true.
-      !if ( uniform_decomp ) then
-      !  mg(g)%merge_len = mxpr*mypr
-      !else
       mg(g)%merge_len = min( 6*mxpr*mypr, nproc )
       mg(g)%npanx = 1
       mg_npan = 6
-      !end if
 
       mg(g)%merge_row = mxpr
       mg(g)%nmax = mg(g)%merge_len
@@ -4191,31 +4159,6 @@ do g = 2,mg_maxlevel
       end if
       
       ! find gather members
-      !if ( uniform_decomp ) then
-      !  allocate( mg(g)%merge_list(mg(g)%merge_len) )
-      !  iqq = 0
-      !  do jj = 1,mil_g,hjpan
-      !    do ii = 1,mil_g,hipan
-      !      iqq = iqq + 1
-      !      mg(g)%merge_list(iqq) = mg_fproc(g,ii,jj,0)
-      !    end do
-      !  end do
-      !  if ( iqq/=mg(g)%merge_len ) then
-      !    write(6,*) "ERROR: merge_len mismatch ",iqq,mg(g)%merge_len,g
-      !    call ccmpi_abort(-1)
-      !  end if
-      !  mg(g)%merge_pos = -1
-      !  do i = 1,mg(g)%merge_len
-      !    if ( mg(g)%merge_list(i)==myid ) then
-      !      mg(g)%merge_pos = i
-      !      exit
-      !    end if
-      !  end do
-      !  if ( mg(g)%merge_pos<1 ) then
-      !    write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
-      !    call ccmpi_abort(-1)
-      !  end if
-      !else
       allocate( mg(g)%merge_list(mg(g)%merge_len) )      
       iqq = 0
       do n = 1,6/npan
@@ -4242,7 +4185,6 @@ do g = 2,mg_maxlevel
         write(6,*) "ERROR: Invalid merge_pos g,pos ",g,mg(g)%merge_pos
         call ccmpi_abort(-1)
       end if
-      !end if
 
       ! modify mg_fproc for remaining processor
       mg(g)%procmap(:) = myid
@@ -4255,9 +4197,7 @@ do g = 2,mg_maxlevel
       if ( myid==0 ) then
         write(6,*) "-> Multi-grid toplevel                   ",g,mipan,mjpan
       end if
-      !if ( .not.uniform_decomp ) then
       mg(g)%npanx = 1  
-      !end if
       mg(g)%merge_pos = 1
     end if
 
@@ -4265,7 +4205,7 @@ do g = 2,mg_maxlevel
     if ( mg(g)%merge_len>1 ) then
       colour = mg(g)%merge_list(1)
       rank = mg(g)%merge_pos-1
-      call ccmpi_commsplit(mg(g)%comm_merge,comm_world,colour,rank)
+      call ccmpi_commsplit(mg(g)%comm_merge, comm_world, colour, rank)
       if ( rank/=0 ) then
         mg_maxlevel_local = min( g-1, mg_maxlevel_local )
         mg(g)%nmax = 0
@@ -4293,7 +4233,6 @@ do g = 2,mg_maxlevel
   dcol = mjpan/ncol
   npanx = mg_npan
   
-  !if ( .not.uniform_decomp .and. lglob ) then
   if ( lglob ) then
     npanx = 1
     dcol = 6*mjpan/ncol

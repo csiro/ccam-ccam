@@ -1303,17 +1303,11 @@ oe = ioff + ipan
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel
-#endif
-
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
-  !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
+  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
   do j = 1,jpan
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1335,9 +1329,7 @@ do ipass = 0,2
       at_l(sn:sn+il_g-1,klt+1,j) = asum      
     end do
   end do
-#ifndef GPU
-  !$omp end do nowait
-#endif
+  !$omp end parallel do
     
   ! start convolution
 
@@ -1359,7 +1351,7 @@ do ipass = 0,2
 
 #else
 
-  !$omp do collapse(2) schedule(static) private(j,n,nn,ibase,k,local_sum)
+  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,ibase,k,local_sum)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
@@ -1370,15 +1362,13 @@ do ipass = 0,2
       end do  
     end do 
   end do 
-  !$omp end do
+  !$omp end parallel do
 
 #endif
 
 end do ! ipass
 
-#ifndef GPU
-!$omp end parallel
-#else
+#ifdef GPU
 !$acc wait
 #endif
 
@@ -1440,10 +1430,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel
-!$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
+!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
 do j = 1,ipan    
   ! pack from sparse arrays
   jj = j + ns - 1
@@ -1465,9 +1452,7 @@ do j = 1,ipan
     at_l(sn:sn+il_g-1,klt+1,j) = asum
   end do
 end do
-#ifndef GPU
-!$omp end do nowait
-#endif
+!$omp end parallel do
   
 ! start convolution
 #ifdef GPU
@@ -1495,7 +1480,7 @@ end do
 #else
 
 ! CPU version
-!$omp do collapse(2) schedule(static) private(j,n,nn,local_sum)
+!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
@@ -1503,8 +1488,7 @@ do j = 1,ipan
     qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
 end do
-!$omp end do
-!$omp end parallel
+!$omp end parallel do
 
 #endif
 
@@ -1562,17 +1546,11 @@ oe = joff + jpan
   
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel
-#endif
-
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
-  !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
+  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1594,9 +1572,7 @@ do ipass = 0,2
       at_l(sn:sn+il_g-1,klt+1,j) = asum
     end do
   end do
-#ifndef GPU
-  !$omp end do nowait
-#endif
+  !$omp end parallel do
   
   ! start convolution
 
@@ -1619,7 +1595,7 @@ do ipass = 0,2
 #else
 
   ! CPU version
-  !$omp do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
+  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
@@ -1629,15 +1605,13 @@ do ipass = 0,2
       end do  
     end do
   end do
-  !$omp end do
+  !$omp end parallel do
 
 #endif
 
 end do ! ipass
 
-#ifndef GPU
-!$omp end parallel
-#else
+#ifdef GPU
 !$acc wait
 #endif
 
@@ -1699,10 +1673,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel
-!$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
+!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -1725,9 +1696,7 @@ do j = 1,jpan
     at_l(sn:sn+il_g-1,klt+1,j) = asum    
   end do
 end do
-#ifndef GPU
-!$omp end do nowait
-#endif
+!$omp end parallel do
   
 ! start convolution
 
@@ -1756,7 +1725,7 @@ end do
 #else
 
 ! CPU version
-!$omp do collapse(2) schedule(static) private(j,n,nn,local_sum)
+!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
@@ -1764,8 +1733,7 @@ do j = 1,jpan
     qt(n+ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
   end do
 end do
-!$omp end do
-!$omp end parallel
+!$omp end parallel do
 
 #endif
 
@@ -2104,7 +2072,7 @@ do kbb = ktopmlo,kc,kblock
       old = sstb(:,ka)
       call mloexport("temp",old,k,0)
       !old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
-      old = old + max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old )
+      old = old + min( max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old ), 373.16-wrtemp-old )
       call mloimport("temp",old,k,0)
     end do
     if ( klx==kc ) then
@@ -2112,7 +2080,7 @@ do kbb = ktopmlo,kc,kblock
         old = sstb(:,ka)
         call mloexport("temp",old,k,0)
         !old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
-        old = old + max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old )
+        old = old + min( max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old ), 373.16-wrtemp-old )
         call mloimport("temp",old,k,0)
       end do
     end if
@@ -2683,17 +2651,11 @@ oe = ioff + ipan
  
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel
-#endif
-
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
-  !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
+  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
   do j = 1,jpan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2716,9 +2678,7 @@ do ipass = 0,2
       ap_l(sn:sn+il_g-1,kd+1,j) = asum      
     end do
   end do
-#ifndef GPU
-  !$omp end do nowait  
-#endif
+  !$omp end parallel do
     
   ! start convolution
 
@@ -2739,7 +2699,7 @@ do ipass = 0,2
 
 #else
 
-  !$omp do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
+  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
@@ -2749,15 +2709,13 @@ do ipass = 0,2
       end do  
     end do
   end do
-  !$omp end do
+  !$omp end parallel do
 
 #endif
 
 end do ! ipass
 
-#ifndef GPU
-!$omp end parallel
-#else
+#ifdef GPU
 !$acc wait
 #endif
 
@@ -2819,10 +2777,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel
-!$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
+!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
 do j = 1,ipan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -2845,9 +2800,7 @@ do j = 1,ipan
     ap_l(sn:sn+il_g-1,kd+1,j) = asum    
   end do
 end do
-#ifndef GPU
-!$omp end do nowait
-#endif
+!$omp end parallel do
   
 ! start convolution
 #ifdef GPU
@@ -2873,7 +2826,7 @@ end do
 
 #else
 
-!$omp do collapse(2) schedule(static) private(j,n,nn,local_sum)
+!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
@@ -2881,8 +2834,7 @@ do j = 1,ipan
     qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/max(local_sum(kd+1),1.e-8)
   end do
 end do
-!$omp end do
-!$omp end parallel
+!$omp end parallel do
 
 #endif
 
@@ -2936,17 +2888,11 @@ oe = joff + jpan
      
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel
-#endif
-
 do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
-  !$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
+  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2968,9 +2914,7 @@ do ipass = 0,2
       ap_l(sn:sn+il_g-1,kd+1,j) = asum      
     end do
   end do
-#ifndef GPU
-  !$omp end do nowait
-#endif
+  !$omp end parallel do
     
   ! start convolution
 
@@ -2992,8 +2936,8 @@ do ipass = 0,2
 
 #else
 
-! CPU version
-  !$omp do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
+  ! CPU version
+  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
@@ -3004,15 +2948,13 @@ do ipass = 0,2
       end do  
     end do    
   end do
-  !$omp end do
+  !$omp end parallel do
 
 #endif
 
 end do ! ipass
 
-#ifndef GPU
-!$omp end parallel
-#else
+#ifdef GPU
 !$acc wait
 #endif
 
@@ -3074,10 +3016,7 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel
-!$omp do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
+!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -3100,11 +3039,10 @@ do j = 1,jpan
     ap_l(sn:sn+il_g-1,kd+1,j) = asum    
   end do
 end do
-#ifndef GPU
-!$omp end do nowait
-#endif
+!$omp end parallel do
   
 ! start convolution
+
 #ifdef GPU
 
 ! GPU version
@@ -3130,7 +3068,7 @@ end do
 #else
 
 ! CPU version
-!$omp do collapse(2) schedule(static) private(j,n,nn,local_sum)
+!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
@@ -3138,8 +3076,7 @@ do j = 1,jpan
     qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/max(local_sum(kd+1), 1.e-8)  
   end do  
 end do
-!$omp end do
-!$omp end parallel
+!$omp end parallel do
 
 #endif
 

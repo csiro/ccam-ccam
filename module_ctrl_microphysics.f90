@@ -78,6 +78,7 @@ use latlong_m                     ! Lat/lon coordinates
 use leoncld_mod                   ! Prognostic cloud condensate
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
+use module_aux_cosp               ! COSP cloud sat simulator
 use module_aux_rad                ! Additional cloud and radiation routines
 use module_mp_sbu_ylin            ! Lin cloud microphysics
 use morepbl_m                     ! Additional boundary layer diagnostics
@@ -617,31 +618,10 @@ if ( abs(iaero)>=2 ) then
   end if   ! interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0
 end if     ! abs(iaero)>=2
 
+! update COSP cloud sat simulator if avaliable
+! (must be downloaded and compiled independently of CCAM)
+call cloud_simulator
 
-  ! cloud optical depth and emissivity ----------------------------
-  ! Bands based on Slingo      
-  !            BAND               SLINGO                 EBERT AND CURRY
-  !
-  !             1               0.25-0.69                0.25 - 0.7
-  !             2               0.69-1.19                0.7 - 1.3
-  !             3               1.19-2.38                1.3 - 2.5
-  !             4               2.38-4.00                2.5 - 3.5    
-  !do k = 1,kl
-  !  rdrop = real(lrdrop(:,k))
-  !  rice = real(lrice(:,k))
-  !  lwp(:) = -dsig(k)*lqlrad(:,k)*ps(js:je)/grav
-  !  iwp(:) = -dsig(k)*lqfrad(:,k)*ps(js:je)/grav
-  !  tau_liq(:,1) = lwp(:)*1000.*(0.02817 + (1.305/rdrop))
-  !  tau_liq(:,2) = lwp(:)*1000.*(0.02682 + (1.346/rdrop))
-  !  tau_liq(:,3) = lwp(:)*1000.*(0.02264 + (1.454/rdrop))
-  !  tau_liq(:,4) = lwp(:)*1000.*(0.01281 + (1.641/rdrop))
-  !  tau_ice(:) = iwp(:)*1000.*(0.003448 + (2.431/rice))
-  !  cloud_tau(js:je,k) = sum(tau_liq,dim=2)/4. + tau_ice ! 4 bands
-  !  kliq(:) = 140.
-  !  kice(:) = 4.83591 + 1758.511/rice
-  !  cloud_emiss(js:je,k) = 1. - exp(-min(kliq(:)*lwp(:) + kice(:)*iwp(:),20.))
-  !end do 
-  
 return
 end subroutine ctrl_microphysics
 
@@ -666,7 +646,7 @@ if ( ldr /= 0 ) then
       mp_physics = "LEON"
     case(100,110,120)
       mp_physics = "LIN"
-    end select
+  end select
 end if
 
 return

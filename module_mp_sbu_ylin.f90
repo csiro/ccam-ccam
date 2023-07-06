@@ -1052,15 +1052,15 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
           ! BELOW SECTION TURN OFF BY SONNY   sny: on temp
           ! ---------------------------------------------------------------
-          !if(temcc(k) .lt. -20.0) then
-          !    tmp1=-7.6+4.*exp( -0.2443e-3.*(abs(temcc(k))-20.)**2.455 )
-          !    qic=1.e-3*exp(tmp1)/rho(k)
-          !else
-          !    qic=qi0
-          !end if
+          if(temcc(iq,k) .lt. -20.0) then
+              tmp1=-7.6+4.*exp( -0.2443e-3*(abs(temcc(iq,k))-20.)**2.455 )
+              qic=1.e-3*exp(tmp1)/rho(iq,k)
+          else
+              qic=qi0
+          end if
           !----------------------------------------------------------------
 
-          qic = qi0  ! sny: OFF temp
+          !qic = qi0  ! sny: OFF temp
 
           tmp1=odtb*(qiz(iq,k)-qic)*(1.0-exp(-alpha1*dtb))
           psaut(iq)=max( 0., tmp1 )
