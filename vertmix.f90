@@ -228,6 +228,8 @@ select case(nvmix)
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
         lv(:,k) = v(is:ie,k) - vadj(is:ie)
+        lsavu(:,k) = savu(is:ie,k) - uadj(is:ie)
+        lsavv(:,k) = savv(is:ie,k) - vadj(is:ie)        
       end do  
       lthetal_ema = thetal_ema(is:ie,:)
       lqv_ema     = qv_ema(is:ie,:)
@@ -239,7 +241,8 @@ select case(nvmix)
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                           &
                        ps(is:ie),lqg,lqfg,lqlg,lni,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie), &
                        ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,lql_ema, &
-                       lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,lugs_var,f(is:ie),          &
+                       lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,lugs_var,f(is:ie),lsavu,    &
+                       lsavv,                                                                 &
 #ifdef scm
                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,                          &
                        lbuoyproduction,lshearproduction,ltotaltransport,                      &
@@ -1865,7 +1868,7 @@ end subroutine trimmix3
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,ni,stratcloud,                      &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &
-                       qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,ugs_var,f,                 & 
+                       qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,ugs_var,f,savu,savv,       & 
 #ifdef scm
                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,                         &
                        buoyproduction,shearproduction,totaltransport,                   &
@@ -1873,7 +1876,7 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,ni,stratcloud,              
                        imax,kl,tile)
 
 use const_phys                   ! Physical constants
-use parm_m, only : ds, nlocal, dt, qgmin, cqmix, nvmix
+use parm_m, only : ds, nlocal, dt, qgmin, cqmix, nvmix, av_vmod
                                  ! Model configuration
 use sigs_m                       ! Atmosphere sigma levels
 use tkeeps, only : tkemix        ! TKE-EPS boundary layer
@@ -1885,13 +1888,13 @@ integer k
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg, ni
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
-real, dimension(imax,kl), intent(in) :: shear
+real, dimension(imax,kl), intent(in) :: shear, savu, savv
 real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
 real, dimension(imax,kl), intent(inout) :: tke_ema
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
-real, dimension(imax,kl) :: rkm, rkh
+real, dimension(imax,kl) :: rkm, rkh, uav, vav
 real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg, ugs_var
 real, dimension(imax), intent(in) :: em, tss, ps, f
 real, dimension(imax), intent(in) :: cduv
@@ -1964,8 +1967,10 @@ select case(nvmix)
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,ugs_var,tile,imax,kl)
-        rkh = rkm          
-        call pbldif(rhs,rkm,rkh,u,v,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
+        rkh = rkm   
+        uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
+        vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
+        call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
               ,wth_flux,wq_flux)
       case(7) ! atm only, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
@@ -1991,7 +1996,9 @@ select case(nvmix)
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,ugs_var,tile,imax,kl)
         rkh = rkm        
-        call pbldif(rhs,rkm,rkh,u,v,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
+        uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
+        vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
+        call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
               ,wth_flux,wq_flux)
       case(7) ! coupled atm-ocn, mass-flux counter gradient 
         call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
@@ -2018,7 +2025,9 @@ select case(nvmix)
                     rhos,ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl) 
         rkh = rkm        
-        call pbldif(rhs,rkm,rkh,u,v,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)
+        uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
+        vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
+        call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)
       case(7) ! atm only, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
                     rhos,ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
@@ -2037,7 +2046,9 @@ select case(nvmix)
                     rhos,ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl) 
         rkh = rkm
-        call pbldif(rhs,rkm,rkh,u,v,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)
+        uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
+        vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
+        call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)
       case(7) ! coupled atm-ocn, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
                     rhos,ustar,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
