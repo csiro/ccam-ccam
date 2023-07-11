@@ -1570,7 +1570,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
-    tke_timeave_length,plume_maxiter,                             &
+    tke_timeave_length,plume_alpha,                               &
     wg_tau,wg_prob,                                               & ! wind gusts
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
@@ -2301,7 +2301,7 @@ lin_aerosolmode    = dumi(25)
 cloud_ice_method   = dumi(26)
 leon_snowmeth      = dumi(27)
 deallocate( dumr, dumi )
-allocate( dumr(32), dumi(5) )
+allocate( dumr(33), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2343,11 +2343,11 @@ if ( myid==0 ) then
   dumr(30) = tke_timeave_length
   dumr(31) = wg_tau
   dumr(32) = wg_prob
+  dumr(33) = plume_alpha
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
   dumi(4)  = ngwd
-  dumi(5)  = plume_maxiter
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2383,11 +2383,11 @@ dvmodmin           = dumr(29)
 tke_timeave_length = dumr(30)
 wg_tau             = dumr(31)
 wg_prob            = dumr(32)
+plume_alpha        = dumr(33)
 buoymeth           = dumi(1)
 stabmeth           = dumi(2)
 tkemeth            = dumi(3)
 ngwd               = dumi(4)
-plume_maxiter      = dumi(5)
 deallocate( dumr, dumi )
 allocate( dumr(24), dumi(31) )
 dumr = 0.
@@ -3820,7 +3820,7 @@ do k = 1,kl
       if ( qfg(iq,k)>1.e-8 ) then
         fice = min( qfg(iq,k)/(qfg(iq,k)+qlg(iq,k)), 1. )
       else
-        fice= 0.
+        fice = 0.
       end if
       qsw = fice*qsi(iq) + (1.-fice)*qsl(iq)
       hlrvap = (hl+fice*hlf)/rvap
