@@ -818,6 +818,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'qcmf',qcmf)
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
+    call ccnf_put_attg(idnc,'tcalmeth',tcalmeth)
     call ccnf_put_attg(idnc,'tke_timeave_length',tke_timeave_length)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
     call ccnf_put_attg(idnc,'wg_prob',wg_prob)

@@ -1861,6 +1861,10 @@ contains
       do w = 1,size(specmap_recv)
          nreq = nreq + 1
          rlist(nreq) = w
+         if ( size(bnds(specmap_recv(w))%rbuf) < lsize ) then
+            write(6,*) "ERROR: rbuf too small in ccmpi_gathermap_send2"
+            call ccmpi_abort(-1)
+         end if         
          call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, ltype, specmap_recv(w), itag, lcomm, ireq(nreq), &
                          ierr )
       end do
@@ -1870,6 +1874,10 @@ contains
       bnds(myid)%sbuf(1:ifull) = a
       do w = 1,size(specmap_send)
          nreq = nreq + 1
+         if ( size(bnds(myid)%sbuf) < lsize ) then
+            write(6,*) "ERROR: sbuf too small in ccmpi_gathermap_send2"
+            call ccmpi_abort(-1)
+         end if         
          call MPI_ISend( bnds(myid)%sbuf, lsize, ltype, specmap_send(w), itag, lcomm, ireq(nreq), ierr )
       end do
 
@@ -1897,6 +1905,10 @@ contains
       do w = 1,size(specmap_recv)
          nreq = nreq + 1
          rlist(nreq) = w
+         if ( size(bnds(specmap_recv(w))%rbuf) < lsize ) then
+            write(6,*) "ERROR: rbuf too small in ccmpi_gathermap_send3"
+            call ccmpi_abort(-1)
+         end if         
          call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, ltype, specmap_recv(w), itag, lcomm, ireq(nreq), &
                          ierr )
       end do
@@ -1906,6 +1918,10 @@ contains
       bnds(myid)%sbuf(1:ifull*kx) = reshape( a(1:ifull,1:kx), (/ ifull*kx /) )
       do w = 1,size(specmap_send)
          nreq = nreq + 1
+         if ( size(bnds(myid)%sbuf) < lsize ) then
+            write(6,*) "ERROR: sbuf too small in ccmpi_gathermap_send3"
+            call ccmpi_abort(-1)
+         end if         
          call MPI_ISend( bnds(myid)%sbuf, lsize, ltype, specmap_send(w), itag, lcomm, ireq(nreq), ierr )
       end do
 
@@ -3401,7 +3417,7 @@ contains
          if ( bnds(rproc)%rlen2 > 0 ) then
             nreq = nreq + 1
             lproc = rproc
-            call MPI_IRecv( dumr(:,iproc), 7_4, ltypei, lproc, &
+            call MPI_IRecv( dumr(1:7,iproc), 7_4, ltypei, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -3417,7 +3433,7 @@ contains
             dums(6,iproc) = bnds(sproc)%rlenx_fn(1)
             dums(7,iproc) = bnds(sproc)%rlenx_fn(2)
             lproc = sproc
-            call MPI_ISend( dums(:,iproc), 7_4, ltypei, lproc, &
+            call MPI_ISend( dums(1:7,iproc), 7_4, ltypei, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -3922,7 +3938,7 @@ contains
          if ( bnds(rproc)%rlen_eev_fn > 0 ) then
             nreq = nreq + 1
             lproc = rproc
-            call MPI_IRecv( dumr(:,iproc), 6_4, ltypei, lproc, &
+            call MPI_IRecv( dumr(1:6,iproc), 6_4, ltypei, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -3937,7 +3953,7 @@ contains
             dums(5,iproc) = bnds(sproc)%rlen_ev_fn
             dums(6,iproc) = bnds(sproc)%rlen_eev_fn
             lproc = sproc
-            call MPI_ISend( dums(:,iproc), 6_4, ltypei, lproc, &
+            call MPI_ISend( dums(1:6,iproc), 6_4, ltypei, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
@@ -4018,6 +4034,10 @@ contains
          if ( llen > 0 ) then
             nreq = nreq + 1
             lproc = rproc
+            if ( size(dumrl(:,iproc)) < llen ) then
+               write(6,*) "ERROR: dumrl too small in bounds_setup"
+               call ccmpi_abort(-1)
+            end if
             call MPI_IRecv( dumrl(:,iproc), llen, MPI_LOGICAL, &
                   lproc, itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4030,6 +4050,10 @@ contains
             nreq = nreq + 1
             lproc = sproc
             dumsl(1:bnds(sproc)%rlen_eev_fn,iproc) = bnds(sproc)%uv_swap(1:bnds(sproc)%rlen_eev_fn)
+            if ( size(dumsl(:,iproc)) < llen ) then
+               write(6,*) "ERROR: dumsl too small in bounds_setup"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_ISend( dumsl(:,iproc), llen, MPI_LOGICAL, &
                   lproc, itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4372,6 +4396,10 @@ contains
             nreq  = nreq + 1
             rlist(nreq) = iproc
             llen  = recv_len
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in bounds2"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                    itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4388,6 +4416,10 @@ contains
             end do   
             nreq  = nreq + 1
             llen  = send_len
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in bounds2"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4491,6 +4523,10 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in bounds3"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4507,6 +4543,10 @@ contains
             end do   
             nreq = nreq + 1
             llen = send_len*kx
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in bounds3"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4608,6 +4648,10 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
+            if ( size(bnds(lproc)%r8buf) < llen ) then
+               write(6,*) "ERROR: r8buf too small in bounds3r8"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_IRecv( bnds(lproc)%r8buf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4624,6 +4668,10 @@ contains
             end do   
             nreq = nreq + 1
             llen = send_len*kx
+            if ( size(bnds(lproc)%s8buf) < llen ) then
+               write(6,*) "ERROR: s8buf too small in bounds3r8"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_ISend( bnds(lproc)%s8buf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4732,6 +4780,10 @@ contains
                nreq = nreq + 1
                rlist(nreq) = iproc
                llen = recv_len*kx*ntot
+               if ( size(bnds(lproc)%rbuf) < llen ) then
+                  write(6,*) "ERROR: rbuf too small in bounds4"
+                  call ccmpi_abort(-1)
+               end if
                call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                     itag, lcomm, ireq(nreq), ierr )
             end if
@@ -4751,6 +4803,10 @@ contains
                end do   
                nreq = nreq + 1
                llen = send_len*kx*ntot
+               if ( size(bnds(lproc)%rbuf) < llen ) then
+                  write(6,*) "ERROR: sbuf too small in bounds4"
+                  call ccmpi_abort(-1)
+               end if               
                call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                     itag, lcomm, ireq(nreq), ierr )
             end if
@@ -4836,6 +4892,10 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in bounds_colour_send"
+               call ccmpi_abort(-1)
+            end if
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
@@ -4882,6 +4942,10 @@ contains
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in bounds_colour_send"
+               call ccmpi_abort(-1)
+            end if
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
@@ -5038,6 +5102,10 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in bounds_send3"
+               call ccmpi_abort(-1)
+            end if
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -5054,6 +5122,10 @@ contains
             end do   
             nreq = nreq + 1
             llen = send_len*kx
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in bounds_send3"
+               call ccmpi_abort(-1)
+            end if
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -5135,6 +5207,10 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx*ntr
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in bounds_send4"
+               call ccmpi_abort(-1)
+            end if
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -5154,6 +5230,10 @@ contains
             end do
             nreq = nreq + 1
             llen = send_len*kx*ntr
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in bounds_send4"
+               call ccmpi_abort(-1)
+            end if
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -5465,6 +5545,10 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in boundsuv2"
+               call ccmpi_abort(-1)
+            end if
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -5549,6 +5633,10 @@ contains
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in boundsuv2"
+               call ccmpi_abort(-1)
+            end if
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -5809,6 +5897,10 @@ contains
             rlist(nreq) = iproc
             llen = recv_len
             lproc = rproc
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in boundsuv3"
+               call ccmpi_abort(-1)
+            end if
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -5912,6 +6004,10 @@ contains
             nreq = nreq + 1
             llen = iqq
             lproc = sproc
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in boundsuv3"
+               call ccmpi_abort(-1)
+            end if
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
          end if
@@ -6086,6 +6182,10 @@ contains
          lproc = neighlist(iproc)  ! Recv from
          ! Use the maximum size in the recv call.
          llen = 4*bnds(lproc)%len
+         if ( 4*maxbuflen*maxvertlen < llen ) then
+            write(6,*) "ERROR: buf_depoints too small in deptsync"
+            call ccmpi_abort(-1)
+         end if
          call MPI_IRecv( buf_dpoints(:,:,iproc), llen, ltype, lproc, &
                       itag, lcomm, ireq(iproc), ierr )
       end do
@@ -6159,6 +6259,10 @@ contains
          nreq = nreq + 1
          llen = 4*dslen(iproc)
          buf_dbuf(1:4,1:dslen(iproc),iproc) = transpose( dbuf(iproc)%a(1:dslen(iproc),1:4) )
+         if ( 4*maxbuflen*maxvertlen < llen ) then
+            write(6,*) "ERROR: buf_dbuf too small in deptsync"
+            call ccmpi_abort(-1)
+         end if         
          call MPI_ISend( buf_dbuf(:,:,iproc), llen, ltype, lproc, &
                  itag, lcomm, ireq(nreq), ierr )
       end do
@@ -6220,6 +6324,10 @@ contains
             rlist(nreq) = iproc
             llen = dslen(iproc)*ntr
             lproc = neighlist(iproc)  ! Recv from
+            if ( size(dbuf(iproc)%b) < llen ) then
+               write(6,*) "ERROR: b too small in intssync_send4"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_IRecv( dbuf(iproc)%b, llen, ltype, lproc, itag, &
                             lcomm, ireq(nreq), ierr )
          end if
@@ -6230,6 +6338,10 @@ contains
             nreq = nreq + 1
             llen = drlen(iproc)*ntr
             lproc = neighlist(iproc)  ! Send to
+            if ( size(sextra(iproc)%a) < llen ) then
+               write(6,*) "ERROR: a too small in intssync_send4"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_ISend( sextra(iproc)%a, llen, ltype, lproc, itag, & 
                             lcomm, ireq(nreq), ierr )
          end if
@@ -10021,6 +10133,10 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in mgbounds2"
+               call ccmpi_abort(-1)
+            end if             
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
@@ -10035,6 +10151,10 @@ contains
             end do   
             nreq = nreq + 1
             llen = send_len
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in mgbounds2"
+               call ccmpi_abort(-1)
+            end if             
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
@@ -10117,6 +10237,10 @@ contains
             nreq = nreq + 1
             rlist(nreq) = iproc
             llen = recv_len*kx
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in mgbounds3"
+               call ccmpi_abort(-1)
+            end if   
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
@@ -10133,6 +10257,10 @@ contains
             end do   
             nreq = nreq + 1
             llen = send_len*kx
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in mgbounds3"
+               call ccmpi_abort(-1)
+            end if             
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end if
@@ -10864,6 +10992,10 @@ contains
             lproc = fileneighlist(iproc)  ! Recv from
             nreq  = nreq + 1
             rlist(nreq) = iproc
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in ccmpi_filebounds_send2"
+               call ccmpi_abort(-1)
+            end if 
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
          end if   
       end do
@@ -10880,6 +11012,10 @@ contains
                                            filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4))
             end do
             nreq  = nreq + 1
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in ccmpi_filebounds_send2"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
          end if   
       end do
@@ -10993,6 +11129,10 @@ contains
             lproc = fileneighlist(iproc)  ! Recv from
             nreq = nreq + 1
             rlist(nreq) = iproc
+            if ( size(bnds(lproc)%rbuf) < llen ) then
+               write(6,*) "ERROR: rbuf too small in ccmpi_filebounds_send3"
+               call ccmpi_abort(-1)
+            end if
             call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
          end if   
       end do
@@ -11010,6 +11150,10 @@ contains
                end do
             end do   
             nreq = nreq + 1
+            if ( size(bnds(lproc)%sbuf) < llen ) then
+               write(6,*) "ERROR: sbuf too small in ccmpi_filebounds_send3"
+               call ccmpi_abort(-1)
+            end if            
             call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
          end if   
       end do

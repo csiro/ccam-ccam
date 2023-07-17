@@ -44,11 +44,11 @@ module tkeeps
 implicit none
 
 private
-public tkeinit,tkemix,tkeend,tke,eps,shear
-public cm0,ce0,ce1,ce2,ce3,be,ent0,ent1,entc0,ezmin,dtrc0
-public m0,b1,b2,qcmf,ent_min,mfbeta
-public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
-public tkemeth, plume_alpha
+public tkeinit, tkemix, tkeend, tke, eps, shear
+public cm0, ce0, ce1, ce2, ce3, be, ent0, ent1, entc0, ezmin, dtrc0
+public m0, b1, b2, qcmf, ent_min, mfbeta
+public buoymeth, maxdts, mintke, mineps, minl, maxl, stabmeth
+public tkemeth, plume_alpha, tcalmeth
 public tke_timeave_length, update_ema
 public u_ema, v_ema, w_ema
 public thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
@@ -83,11 +83,12 @@ real, save :: b1       = 2.        ! Updraft entrainment coeff (Soares et al (20
 real, save :: b2       = 1./3.     ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 real, save :: qcmf     = 1.e-4     ! Critical mixing ratio of liquid water before autoconversion
 real, save :: mfbeta   = 0.15      ! Horizontal scale factor
-real, save :: plume_alpha = 1.     ! Time-averaging factor for tke surface boundary in MF term
 ! generic constants
 integer, save :: buoymeth = 1      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
 integer, save :: stabmeth = 0      ! Method for stability calculation (0=B&H, 1=Luhar)
 integer, save :: tkemeth  = 1      ! Method for TKE calculation (0=D&K84, 1=Hurley)
+integer, save :: tcalmeth = 1      ! Method for correcting saturated air (0=Off, 1=Simple)
+real, save :: plume_alpha = 1.     ! Time-averaging factor for tke surface boundary in MF term
 real, save :: maxdts      = 120.   ! max timestep for split
 ! wind gusts
 real, parameter :: cs1 = 2.2
@@ -225,9 +226,10 @@ real, dimension(imax) :: pres
 real, dimension(imax) :: ustar, fg_ave
 real, dimension(imax) :: zi_save, zturb, cgmap
 real, dimension(imax) :: templ, fice, qc, qt
+real, dimension(imax) :: temp, lx, dqsdt, al
 real, dimension(kl) :: sigkap
 real tff, cm12, cm34, ddts
-real temp, lx, dqsdt, al, wdash_sq
+real wdash_sq
 logical, dimension(imax) :: mask
 
 #ifdef CCAM
@@ -334,10 +336,14 @@ mcount = int(dt/(min(maxdts,12./max(m0,0.1))+0.01)) + 1
 ddts   = dt/real(mcount)
 do kcount = 1,mcount
 
-  ! calculate theta_v
+  ! calculate theta and theta_v
+  if ( tcalmeth>0 ) then
+    do k = 1,kl
+      theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp  
+    end do
+  end if
   do k = 1,kl
     theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp  
-    thetav(:,k) = theta(:,k)*(1.+0.61*qvg(:,k)-qlg(:,k)-qfg(:,k))
   end do
   
   ! time averaging
@@ -362,7 +368,7 @@ do kcount = 1,mcount
   ! is constant in the plume (i.e., volume conserving)
   if ( mode/=1 .and. mode/=3 ) then ! mass flux
       
-    zi_save = zi  
+    zi_save = zi
 
     ! plume rise model
     mask = wtv0>0.
@@ -467,38 +473,73 @@ do kcount = 1,mcount
   fg_ave = fg_ave + fg/real(mcount)
 
   ! Account for phase transistions
-  do k = 1,kl
-    ! Check for -ve values  
-    qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
-    qc(:) = max( qfg(:,k) + qlg(:,k), 0. )
+  select case(tcalmeth)
       
-    qfg(:,k) = max( qfg(:,k), 0. )
-    qlg(:,k) = max( qlg(:,k), 0. )
+    case default ! fix rounding errors only
+      do k = 1,kl
+        ! Check for -ve values  
+        qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
+        qfg(:,k) = max( qfg(:,k), 0. )
+        qlg(:,k) = max( qlg(:,k), 0. )
+        do iq = 1,imax
+          qvg(iq,k) = max( qt(iq) - qfg(iq,k) - qlg(iq,k), 0. )
+          if ( qlg(iq,k)+qfg(iq,k)>1.E-12 ) then
+            stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
+          end if
+        end do
+      end do  
+      
+    case(0) ! correct saturated air
+      do k = 1,kl
+        ! Check for -ve values  
+        qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
+        qc(:) = max( qfg(:,k) + qlg(:,k), 0. )
+      
+        qfg(:,k) = max( qfg(:,k), 0. )
+        qlg(:,k) = max( qlg(:,k), 0. )
     
-    do iq = 1,imax
-      qvg(iq,k) = max( qt(iq) - qfg(iq,k) - qlg(iq,k), 0. )
-      if ( qlg(iq,k)+qfg(iq,k)>1.E-12 ) then
-        stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
-      end if
-    end do
-  end do  
+        ! account for saturation  
+        theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+        temp(:) = theta(:,k)/sigkap(k)
+        templ(:) = thetal(:,k)/sigkap(k)
+        pres(:) = ps(:)*sig(k)
+        fice = min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8), 1. )
+        call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
+        lx(:) = lv + lf*fice(:)
+        dqsdt(:) = qsat(:,k)*lx(:)/(rv*templ(:)**2)
+        al(:) = cp/(cp+lx(:)*dqsdt(:))
+        qc(:) = max( al(:)*(qt(:) - qsat(:,k)), qc(:) )
+        where ( temp(:)>=tice )
+          qfg(:,k) = max( fice(:)*qc(:), 0. )  
+          qlg(:,k) = max( qc(:) - qfg(:,k), 0. )
+        end where
+   
+        qvg(:,k) = max( qt(:) - qfg(:,k) - qlg(:,k), 0. )
+        theta(:,k) = thetal(:,k) + sigkap(k)*(lv*qlg(:,k)+ls*qfg(:,k))/cp
+        where ( qlg(:,k)+qfg(:,k)>1.E-12 )
+          stratcloud(:,k) = max( stratcloud(:,k), 1.E-8 )
+        end where
+      end do  
+
+  end select
 
 #ifdef CCAM
   if ( mode==2 .or. mode==3 ) then
     call pack_coupled_ts(w_t,w_s,imax,tile)
   end if
 #endif
-
   
 end do ! kcount loop
 
 
-!update theta
-do k = 1,kl
-  do iq = 1,imax
-    theta(iq,k) = thetal(iq,k) + sigkap(k)*(lv*qlg(iq,k)+ls*qfg(iq,k))/cp
-  end do
-end do    
+if ( tcalmeth>0 ) then
+  !update theta
+  do k = 1,kl
+    do iq = 1,imax
+      theta(iq,k) = thetal(iq,k) + sigkap(k)*(lv*qlg(iq,k)+ls*qfg(iq,k))/cp
+    end do
+  end do    
+end if  
 
 
 ! variance for wind gusts

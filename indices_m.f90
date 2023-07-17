@@ -37,7 +37,6 @@ public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 public indices_init,indices_end
 public jn_g, je_g, js_g, jw_g
 public jne_g, jen_g, jse_g, jes_g, jnw_g, jwn_g, jsw_g, jws_g
-public unpack_scalar
 
 integer, dimension(:), allocatable, save :: in,is,ie,iw                     ! default bounds
 integer, dimension(:), allocatable, save :: ine,ien,ise,ies,isw,iws,inw,iwn ! corner=.true.
@@ -52,9 +51,6 @@ integer, parameter, dimension(0:5) :: npann_g = (/ 1, 103, 3, 105, 5, 101 /)
 integer, parameter, dimension(0:5) :: npans_g = (/ 104, 0, 100, 2, 102, 4 /)
 integer, parameter, dimension(0:5) :: npane_g = (/ 102, 2, 104, 4, 100, 0 /)
 integer, parameter, dimension(0:5) :: npanw_g = (/ 5, 105, 1, 101, 3, 103 /)
-
-!$acc declare create(in,is,ie,iw,ien,ies,ine,inw)
-!$acc declare create(iwu,isv)
 
 contains
 
@@ -95,38 +91,6 @@ deallocate(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
 
 return
 end subroutine indices_end
-
-subroutine unpack_scalar(data_in,data_out)
-
-use newmpar_m
-
-implicit none
-
-integer i, j, n, iq, ipan, jpan
-real, dimension(:), intent(in) :: data_in
-real, dimension(0:,0:,1:), intent(out) :: data_out
-
-ipan = il
-jpan = jl/npan
-
-data_out(1:ipan,1:jpan,1:npan) = reshape( data_in(1:ifull), (/ ipan, jpan, npan /) )
-do n = 1,npan
-  do j = 1,jpan
-    iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
-    data_out(0,j,n) = data_in(iw(iq))
-    iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan
-    data_out(ipan+1,j,n) = data_in(ie(iq))
-  end do
-  do i = 1,ipan
-    iq = i + (n-1)*ipan*jpan
-    data_out(i,0,n) = data_in(is(iq))
-    iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan
-    data_out(i,jpan+1,n) = data_in(in(iq))
-  end do
-end do
-
-return
-end subroutine unpack_scalar 
 
 function in_g(iq) result(iqq)
 use newmpar_m

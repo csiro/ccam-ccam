@@ -1570,7 +1570,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
-    tke_timeave_length,plume_alpha,                               &
+    tke_timeave_length,plume_alpha,tcalmeth,                      &
     wg_tau,wg_prob,                                               & ! wind gusts
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
@@ -2301,7 +2301,7 @@ lin_aerosolmode    = dumi(25)
 cloud_ice_method   = dumi(26)
 leon_snowmeth      = dumi(27)
 deallocate( dumr, dumi )
-allocate( dumr(33), dumi(4) )
+allocate( dumr(33), dumi(5) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2348,6 +2348,7 @@ if ( myid==0 ) then
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
   dumi(4)  = ngwd
+  dumi(5)  = tcalmeth
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2388,6 +2389,7 @@ buoymeth           = dumi(1)
 stabmeth           = dumi(2)
 tkemeth            = dumi(3)
 ngwd               = dumi(4)
+tcalmeth           = dumi(5)
 deallocate( dumr, dumi )
 allocate( dumr(24), dumi(31) )
 dumr = 0.
@@ -2668,22 +2670,19 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
-!$acc update device(dt,qgmin,iaero)
-!$acc update device(nmr)
 #ifdef GPUPHYSICS
 !$acc update device(enhanceu10,zvolcemi,ch_dust)
 !$acc update device(saltsmallmtn,saltlargemtn)
-!$acc update device(alphaj,fc2,vmodmin,sigbot_gwd)
 #endif
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
 
-il_g    = 48 ! default global grid size
-rlong0  = 0. ! default longitude
-rlat0   = 0. ! default latitude
-schmidt = 1. ! default schmidt factor for grid stretching
-kl      = 18 ! default number of vertical levels
+il_g    = 48 ! default global grid size (replaced with size in topography file)
+rlong0  = 0. ! default longitude (replaced with longitude in topography file)
+rlat0   = 0. ! default latitude (replaced with latitiude in topography file)
+schmidt = 1. ! default schmidt factor for grid stretching (replaced with schmidt in topography file)
+kl      = 18 ! default number of vertical levels (replaced with levels in eigen file)
 
 if ( myid==0 ) then
   if ( io_in<=4 ) then
@@ -2794,6 +2793,7 @@ call ccomp_init(myid)
 call ccacc_init(myid,ngpus)
 #endif
 
+! Display model configuration information in log file
 if ( myid==0 ) then
   write(6,'(" ",A)') trim(version)
   write(6,*) "Running for nproc                        = ",nproc
@@ -3163,10 +3163,6 @@ if ( myid==0 ) then
 end if
 call ccmpi_setup(id,jd,idjd,dt)
 
-!$acc update device(ds)
-!$acc update device(in,is,ie,iw,ien,ies,ine,inw)
-!$acc update device(iwu,isv)
-
 !--------------------------------------------------------------
 ! DEALLOCATE ifull_g ARRAYS WHERE POSSIBLE
 if ( myid==0 ) then
@@ -3233,9 +3229,7 @@ if ( nbd/=0 .or. mbd/=0 ) then
 end if
 ! Remaining arrays are allocated in indata.f90, since their
 ! dimension size requires additional input data (e.g, land-surface)
-
-!$acc update device(ntrac,ngas)
-  
+ 
 !--------------------------------------------------------------
 ! DISPLAY DIAGNOSTIC INDEX AND TIMER DATA
 if ( mydiag ) then
