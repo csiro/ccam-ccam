@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -45,17 +45,17 @@
 !        nhorps=-4 does only T, qg, cloud, TKE & aerosols horiz diff.
 !        nhorps=-5 does only T                            horiz diff.
 !        nhorps=-6 does only T & qg                       horiz diff.
- 
+  
 module hordifg_m
 
 private
 public hordifgt
 
 contains
-
+    
 subroutine hordifgt
 
-use aerosolldr
+use aerosol_arrays
 use arrays_m
 use cc_mpi
 use cfrac_m
@@ -80,7 +80,7 @@ implicit none
 
 include 'kuocom.h'
 
-real, dimension(ifull+iextra,kl,4) :: work
+real, dimension(ifull+iextra,kl,3) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
@@ -93,14 +93,13 @@ real dudx, dudy, dvdx, dvdy, dudz, dvdz
 real r1, r2, cc, base
 real ucc, vcc, wcc
 real delphi, hdif
-real tv, tke_fix, eps_fix, cm34, tff
+real tv
 integer iq, k, nhora, nhorx
 integer nstart, nend, nt, ntr
 integer, save :: kmax=-1
 integer, parameter :: nf=2
 
 nhorx = 0
-
 if ( kmax<0 ) then
   kmax = 1
   do while ( sig(kmax)>=0.25 .and. kmax<kl )
@@ -118,6 +117,7 @@ if ( abs(nhor)>=50 ) then
   delphi = nhora*grav
 endif
 
+work = 0.
 do k = 1,kl
   t_kh(:,k) = 0.
   xfact(:,k) = 0.
@@ -194,13 +194,12 @@ if ( nvmix==6 .or. nvmix==9 ) then
       end do
     end do
   else
-  do k = 1,kl
-    do iq = 1,ifull  
-      dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
-      dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
-    end do
-  end do
-      
+    do k = 1,kl
+      do iq = 1,ifull  
+        dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
+        dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
+      end do
+    end do  
   end if
   
   ! calculate height on full levels (hydrostatic terms)
@@ -273,27 +272,27 @@ select case(nhorjlm)
     ! t_kh is kh at t points
     call boundsuv(uav,vav,allvec=.true.)
     do k = 1,kl
+      hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1  
       do iq = 1,ifull
-        hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
         dvdx = 0.5*(vav(iev(iq),k)-vav(iwv(iq),k))*em(iq)/ds
         dvdy = 0.5*(vav(inv(iq),k)-vav(isv(iq),k))*em(iq)/ds
         r1 = (dvdx+dudy)**2 + 0.5*dudx**2 + 0.5*dvdy**2
-        t_kh(iq,k)=sqrt(r1)*hdif*emi(iq)
+        t_kh(iq,k) = sqrt(r1)*hdif*emi(iq)
       end do
     end do
              
   case(1)
     ! jlm deformation scheme using 3D uc, vc, wc
     do k = 1,kl
+      hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  
       do iq = 1,ifull
-        hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
         cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
              (vc(ie(iq),k)-vc(iw(iq),k))**2 + (vc(in(iq),k)-vc(is(iq),k))**2 + &
              (wc(ie(iq),k)-wc(iw(iq),k))**2 + (wc(in(iq),k)-wc(is(iq),k))**2
         ! N.B. using double grid length
-        t_kh(iq,k)= .5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
+        t_kh(iq,k)= 0.5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     end do
 
@@ -309,22 +308,15 @@ select case(nhorjlm)
              .01*(dpsldt(in(iq),k)*ps(in(iq))-dpsldt(is(iq),k)*ps(is(iq)))**2 
         ! approx 1 Pa/s = .1 m/s     
         ! N.B. using double grid length
-        t_kh(iq,k)= .5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
+        t_kh(iq,k)= 0.5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     enddo
 
   case(3)
     ! K-eps model + Smag
     call boundsuv(uav,vav,allvec=.true.)
-    cm34 = sqrt(sqrt(cm0**3))    
     do k = 1,kl
       do iq = 1,ifull
-
-        tke_fix = max(tke(iq,k), mintke)
-        tff     = cm34*tke_fix*sqrt(tke_fix)
-        eps_fix = min(eps_fix, tff/minl)
-        eps_fix = max(eps_fix, tff/maxl, mineps)
-
         hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
@@ -332,7 +324,7 @@ select case(nhorjlm)
         dvdy = 0.5*(vav(inv(iq),k)-vav(isv(iq),k))*em(iq)/ds
         r1 = (dudx-dvdy)**2+(dvdx+dudy)**2
         t_kh(iq,k) = sqrt(r1)*hdif*emi(iq)
-        t_kh(iq,k)=max( t_kh(iq,k), tke_fix**2/eps_fix*dt*cm0*emi(iq) )
+        t_kh(iq,k)=max( t_kh(iq,k), tke(iq,k)**2/eps(iq,k)*dt*cm0*emi(iq) )
       end do
     end do
 
@@ -368,140 +360,136 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 )
   do k = 1,kl
     t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
   end do
-  call bounds(t)
 end if
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then
-  call bounds(qg)
-end if
+
+
+! update halos --------------------------------------------------------
+
+! momentum U, V, W - updated above
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
+  ! potential temperture and water vapour
+  work(1:ifull,:,1) = t(1:ifull,:)
+  work(1:ifull,:,2) = qg(1:ifull,:)
+  call bounds(work(:,:,1:2))
+  t(ifull+1:ifull+iextra,:)  = work(ifull+1:ifull+iextra,:,1)
+  qg(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
+else if ( nhorps==-5 ) then
+  ! potential temperature
+  call bounds(t)  
+else if ( nhorps==-3 ) then  
+  ! water vapour  
+  call bounds(qg)  
+end if  
 if ( nhorps==-4 .and. ldr/=0 ) then  
-  call bounds(qlg)
-  call bounds(qfg)
-  call bounds(stratcloud)
-end if       ! (ldr/=0.and.nhorps==-4)
+  ! cloud liquid & frozen water plus cloud fraction
+  work(1:ifull,:,1) = qlg(1:ifull,:)
+  work(1:ifull,:,2) = qfg(1:ifull,:)
+  work(1:ifull,:,3) = stratcloud(1:ifull,:)
+  call bounds(work(:,:,1:3))
+  qlg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,1)
+  qfg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,2)
+  stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    !call bounds(nr)
+    call bounds(ni)
+    !call bounds(ns)
+  end if
+end if
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
-  call bounds(tke)
-  call bounds(eps)
-end if   ! (nvmix==6.or.nvmix==9)
+  ! tke and eps
+  work(1:ifull,:,1) = tke(1:ifull,:)
+  work(1:ifull,:,2) = eps(1:ifull,:)
+  call bounds(work(:,:,1:2))
+  tke(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,1)
+  eps(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
+end if
+! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  call bounds(xtg)
+  call bounds(xtg)  
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
 
-! perform diffusion
+! perform diffusion ---------------------------------------------------
 
-#ifdef GPU
-!$omp target data map(to:xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-#else
-!$omp parallel
-!$omp sections
-#endif
-!$acc data create(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-!$acc update device(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
+!$acc data create(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
+!$acc update device(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
 
-#ifndef GPU    
-!$omp section
-#endif
+! momentum U
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  ! momentum U  
-  call hordifgt_work(uc,xfact,yfact,emi)    
-end if  
-#ifndef GPU    
-!$omp section
-#endif
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  ! momentum V  
-  call hordifgt_work(vc,xfact,yfact,emi)    
-end if  
-#ifndef GPU    
-!$omp section
-#endif
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  ! momentum W
-  call hordifgt_work(wc,xfact,yfact,emi)    
+  call hordifgt_work(uc,xfact,yfact,emi)
 end if  
 
-#ifndef GPU    
-!$omp section
-#endif
+! momentum V
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
+  call hordifgt_work(vc,xfact,yfact,emi)
+end if  
+
+! momentum W
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
+  call hordifgt_work(wc,xfact,yfact,emi)
+end if  
+
+! potential temperature
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
-  ! potential temperature
-  call hordifgt_work(t,xfact,yfact,emi)  
-end if  
+  call hordifgt_work(t,xfact,yfact,emi)
+end if
 
-#ifndef GPU    
-!$omp section
-#endif
+! water vapour    
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then  
-  ! water vapour  
   call hordifgt_work(qg,xfact,yfact,emi)  
 end if  
 
-#ifndef GPU    
-!$omp section
-#endif
 if ( nhorps==-4 .and. ldr/=0 ) then  
-  ! cloud liquid water  
-  call hordifgt_work(qlg,xfact,yfact,emi)  
+  call hordifgt_work(qlg,xfact,yfact,emi)
 end if
 
-#ifndef GPU    
-!$omp section
-#endif
-if ( nhorps==-4 .and. ldr/=0 ) then
-  ! cloud frozen water
-  call hordifgt_work(qfg,xfact,yfact,emi)  
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(qfg,xfact,yfact,emi)
 end if
 
-#ifndef GPU    
-!$omp section
-#endif
-if ( nhorps==-4 .and. ldr/=0 ) then
-  ! cloud fraction  
-  call hordifgt_work(stratcloud,xfact,yfact,emi)  
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(stratcloud,xfact,yfact,emi)
 end if
 
-#ifndef GPU    
-!$omp section
-#endif
+!if ( nhorps==-4 .and. ldr/=0 ) then  
+!  if ( ncloud>=100 .and. ncloud<200 ) then
+!    call hordifgt_work(nr,xfact,yfact,emi)
+!  end if
+!end if
+
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    call hordifgt_work(ni,xfact,yfact,emi)
+  end if
+end if
+
+!if ( nhorps==-4 .and. ldr/=0 ) then  
+!  if ( ncloud>=100 .and. ncloud<200 ) then
+!    call hordifgt_work(ns,xfact,yfact,emi)
+!  end if
+!end if
+
+! eps
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
-  ! tke  
-  call hordifgt_work(tke,xfact,yfact,emi)  
+  call hordifgt_work(eps,xfact,yfact,emi)
 end if
 
-#ifndef GPU    
-!$omp section
-#endif
+! tke
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
-  ! eps  
-  call hordifgt_work(eps,xfact,yfact,emi)  
+  call hordifgt_work(tke,xfact,yfact,emi)
 end if
-
-#ifndef GPU
-!$omp end sections nowait
-#endif
 
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-#ifndef GPU
-  !$omp do schedule(static) private(ntr)
-#endif    
   do ntr = 1,naero
-    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)  
+    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
   end do
-#ifndef GPU    
-  !$omp end do nowait
-#endif
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
-#ifdef GPU
-!$omp end target data
-#else
-!$omp end parallel
-#endif
-!$acc wait
 !$acc end data
 
-! post-processing
+
+! post-processing -----------------------------------------------------
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
     u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
@@ -530,7 +518,7 @@ end if
 return
 end subroutine hordifgt
 
-subroutine hordifgt_work(work,xfact,yfact,emi)    
+subroutine hordifgt_work(work,xfact,yfact,emi)
 
 use cc_acc, only : async_length
 use indices_m
@@ -540,70 +528,42 @@ implicit none
 
 integer k, iq
 integer, save :: async_counter = -1
-real, dimension(:,:), intent(in) :: xfact, yfact
-real, dimension(:), intent(in) :: emi
-real, dimension(:,:), intent(inout) :: work
+real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
+real, dimension(ifull), intent(in) :: emi
+real, dimension(ifull+iextra,kl), intent(inout) :: work
 real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
 async_counter = mod(async_counter+1, async_length)
 
-ans = 0.
-
-#ifdef _OPENMP
-#ifdef GPU
-!$omp target enter data map(to:work) map(alloc:ans)
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
-#endif
-#else
-!$acc enter data create(work,ans) async(async_counter)
+!$acc enter data create(ans,work) async(async_counter)
 !$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,iwu,isv,in,is,ie,iw) async(async_counter)
-#endif
+!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) &
+!$acc   async(async_counter)
 do k = 1,kl
-   do iq = 1,ifull
-     xfact_iwu = xfact(iwu(iq),k)
-     yfact_isv = yfact(isv(iq),k)
-     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                   +yfact(iq,k)+yfact_isv
-     ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                   xfact(iq,k)*work(ie(iq),k) +       &
-                   xfact_iwu*work(iw(iq),k) +         &
-                   yfact(iq,k)*work(in(iq),k) +       &
-                   yfact_isv*work(is(iq),k) )         &
-                / base
-     !if ( ans(iq,k)<-1.e7 ) then
-     !  print *,"ERROR ans ",myid,iq,k,ans(iq,k)   
-     !  print *,"emi,xfact,xfact_iwu,yfact,yfact_isv ",emi(iq),xfact(iq,k),xfact_iwu,yfact(iq,k),yfact_isv
-     !  print *,"base ",base
-     !  print *,"work ",work(iq,k),work(ie(iq),k),work(iw(iq),k),work(in(iq),k),work(is(iq),k)
-     !end if
-  end do
-end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
-#endif
-#else
+  do iq = 1,ifull  
+    xfact_iwu = xfact(iwu(iq),k)
+    yfact_isv = yfact(isv(iq),k)
+    base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                  +yfact(iq,k)+yfact_isv
+    ans(iq,k) = ( emi(iq)*work(iq,k) +               &
+                  xfact(iq,k)*work(ie(iq),k) +       &
+                  xfact_iwu*work(iw(iq),k) +         &
+                  yfact(iq,k)*work(in(iq),k) +       &
+                  yfact_isv*work(is(iq),k) )         &
+               / base 
+  end do  
+end do  
 !$acc end parallel loop
 !$acc parallel loop collapse(2) present(work,ans) async(async_counter)
-#endif
 do k = 1,kl
-   do iq = 1,ifull
-     work(iq,k) = ans(iq,k)
+  do iq = 1,ifull
+    work(iq,k) = ans(iq,k)
   end do
 end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target exit data map(from:work)
-#endif
-#else
 !$acc end parallel loop
 !$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ans) async(async_counter)
-#endif
+!$acc exit data delete(ans,work) async(async_counter)
 
 return
 end subroutine hordifgt_work

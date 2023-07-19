@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,7 +28,7 @@ public mlodiffusion,mlodiffusion_work
 public mlodiff,ocndelphi,ocnsmag
 
 integer, parameter :: nf          = 2       ! power for horizontal diffusion reduction factor
-integer, save      :: mlodiff     = 0       ! diffusion (0=all, 1=scalars only)
+integer, save      :: mlodiff     = 0       ! diffusion (0=all laplican, 1=scalars laplican, 10=all biharmonic, 11=scalars biharmonic )
 real, save      :: ocndelphi      = 150.    ! horizontal diffusion reduction factor gradient (1.e6 = disabled)
 real, save      :: ocnsmag        = 1.      ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
 
@@ -39,6 +39,7 @@ contains
 ! and McGregor's hordifg.f routines for CCAM.
 subroutine mlodiffusion
 
+use cc_mpi, only : ccmpi_abort
 use mlo
 use newmpar_m
 
@@ -88,7 +89,7 @@ implicit none
 integer iq, k
 real hdif
 real, dimension(ifull+iextra,wlev,3) :: duma
-real, dimension(ifull+iextra,wlev) :: work_tt, work_ss
+real, dimension(ifull+iextra,wlev,2) :: work
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
 real, dimension(ifull+iextra,wlev) :: w_ema
@@ -104,6 +105,9 @@ real tx_fact, ty_fact
 
 call START_LOG(waterdiff_begin)
 
+work = 0.
+duma = 0.
+
 if ( abs(nmlo)>=3 ) then
   do k = 1,wlev  
     uau(1:ifull,k) = (av_vmod*u(1:ifull,k)+(1.-av_vmod)*oldu1(1:ifull,k))*ee(1:ifull,k)
@@ -117,16 +121,20 @@ else
 end if
 
 ! Define diffusion scale and grid spacing
-hdif = dt*(ocnsmag/pi)**2
-if ( mlosigma>=0 .and. mlosigma<=3 ) then
-  ! sigma levels  
-  emi = dd(1:ifull)/em(1:ifull)
-else
-  ! z* levels  
-  emi = 1./em(1:ifull)
+if ( mlodiff>=0 .and. mlodiff<=9 ) then
+  hdif = dt*(ocnsmag/pi)**2
+else if ( mlodiff>=10 .and. mlodiff<=19 ) then
+  hdif = 0.125*(ocnsmag/pi)**2  
 end if
 
-! calculate shear from EMA
+! z* levels  
+if ( mlosigma>=0 .and. mlosigma<=3 ) then
+  write(6,*) "ERROR: Unsupported option for mlosigma = ",mlodiff
+  call ccmpi_abort(-1)
+end if
+emi(1:ifull) = 1./em(1:ifull)
+
+! calculate shear for EMA
 call mlo_ema(dt,"uvw")
 w_ema = 0.
 do k = 1,wlev
@@ -148,15 +156,15 @@ end do
 call boundsuv(uau,uav,allvec=.true.)
 do k = 1,wlev
   do iq = 1,ifull
-    dudx = 0.5*((uau(ieu(iq),k)-uau(iq,k))*emu(iq)        &
-               +(uau(iq,k)-uau(iwu(iq),k))*emu(iwu(iq)))/ds
-    dudy = 0.5*((uau(inu(iq),k)-uau(iq,k))*emv(iq)        &
-               +(uau(iq,k)-uau(isu(iq),k))*emv(isv(iq)))/ds
-    dvdx = 0.5*((uav(iev(iq),k)-uav(iq,k))*emu(iq)        &
-               +(uav(iq,k)-uav(iwv(iq),k))*emu(iwu(iq)))/ds
-    dvdy = 0.5*((uav(inv(iq),k)-uav(iq,k))*emv(iq)        &
-               +(uav(iq,k)-uav(isv(iq),k))*emv(isv(iq)))/ds
-    t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi(iq)
+    dudx = 0.5*((uau(ieu(iq),k)-uau(iq,k))*emu(iq)*eeu(iq,k)                &
+               +(uau(iq,k)-uau(iwu(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
+    dudy = 0.5*((uau(inu(iq),k)-uau(iq,k))*emv(iq)*eev(iq,k)                &
+               +(uau(iq,k)-uau(isu(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
+    dvdx = 0.5*((uav(iev(iq),k)-uav(iq,k))*emu(iq)*eeu(iq,k)                &
+               +(uav(iq,k)-uav(iwv(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
+    dvdy = 0.5*((uav(inv(iq),k)-uav(iq,k))*emv(iq)*eev(iq,k)                &
+               +(uav(iq,k)-uav(isv(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
+    t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi(iq)*ee(iq,k)
   end do
 end do
 call bounds(t_kh(:,1:wlev),nehalf=.true.)
@@ -164,19 +172,8 @@ call bounds(t_kh(:,1:wlev),nehalf=.true.)
 
 ! reduce diffusion errors where bathymetry gradients are steep
 if ( mlosigma>=0 .and. mlosigma<=3 ) then
-  ! sigma levels  
-  do k = 1,wlev
-    dep(1:ifull,k) = gosig(1:ifull,k)*dd(1:ifull) !+ gosig(1:ifull,k)*eta(1:ifull)
-  end do  
-  call bounds(dep,nehalf=.true.)
-  do k = 1,wlev
-    do iq = 1,ifull
-      tx_fact = 1./(1.+(abs(dep(ie(iq),k)-dep(iq,k))/ocndelphi)**nf)
-      ty_fact = 1./(1.+(abs(dep(in(iq),k)-dep(iq,k))/ocndelphi)**nf)
-      xfact(iq,k) = 0.5*(t_kh(iq,k)+t_kh(ie(iq),k))*tx_fact*eeu(iq,k) ! reduction factor
-      yfact(iq,k) = 0.5*(t_kh(iq,k)+t_kh(in(iq),k))*ty_fact*eev(iq,k) ! reduction factor
-    end do
-  end do
+  write(6,*) "ERROR: Unsupported option for mlosigma = ",mlodiff
+  call ccmpi_abort(-1)
 else
   ! z* levels
   do k = 1,wlev
@@ -184,20 +181,23 @@ else
     yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*eev(1:ifull,k)
   end do
 end if
+if ( mlodiff>=10 .and. mlodiff<=19 ) then
+  ! Take sqrt as we apply the Laplican twice for Grad^4  
+  xfact(1:ifull,1:wlev) = sqrt(xfact(1:ifull,1:wlev))
+  yfact(1:ifull,1:wlev) = sqrt(yfact(1:ifull,1:wlev))
+end if
 call boundsuv(xfact,yfact,stag=-9)
-
 
 ! pre-process boundaries
 
-if ( mlodiff==0 ) then
+if ( mlodiff==0 .or. mlodiff==10 ) then
   ! Laplacian diffusion terms (closure #1)
   do k = 1,wlev
     duma(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
     duma(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
     duma(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
-  call bounds(duma(:,:,1:3))
-else if ( mlodiff==1 ) then
+else if ( mlodiff==1 .or. mlodiff==11 ) then
   ! no diffusion applied to momentum
 else
   write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
@@ -206,76 +206,32 @@ end if
 
 ! Potential temperature and salinity
 ! MJT notes - only apply salinity diffusion to salt water
-work_tt(1:ifull,:) = tt(1:ifull,:)
+work(1:ifull,:,1) = tt(1:ifull,:)
 workdata2(1:ifull,:) = ss(1:ifull,:)
-work_ss(1:ifull,:) = ss(1:ifull,:) - 34.72
+work(1:ifull,:,2) = ss(1:ifull,:) - 34.72
 where( workdata2(1:ifull,:)<2. )
-  work_ss(1:ifull,:) = 0.
+  work(1:ifull,:,2) = 0.
 end where
-call bounds(work_tt)
-call bounds(work_ss)
+
+
+!$acc data create(is,ie,in,iw,iwu,isv,emi,xfact,yfact)
+!$acc update device(is,ie,in,iw,iwu,isv,emi,xfact,yfact)
 
 
 ! perform diffusion
+if ( mlodiff==0 .or. mlodiff==10 ) then
+  ! UX, VX, WX
+  call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,3)
+end if
+! potential temperature and salinity
+call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,2)
 
-#ifdef GPU
-!$omp target data map(to:xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-#else
-!$omp parallel
-!$omp sections
-#endif
-!$acc data create(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-!$acc update device(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
 
-#ifndef GPU    
-!$omp section
-#endif
-if ( mlodiff==0 ) then
-  ! UX  
-  call mlodiffcalc(duma(:,:,1),xfact,yfact,emi)
-endif
-
-#ifndef GPU    
-!$omp section
-#endif
-if ( mlodiff==0 ) then
-  ! VY  
-  call mlodiffcalc(duma(:,:,2),xfact,yfact,emi)
-endif
-
-#ifndef GPU    
-!$omp section
-#endif
-if ( mlodiff==0 ) then
-  ! WZ  
-  call mlodiffcalc(duma(:,:,3),xfact,yfact,emi)
-endif
-
-#ifndef GPU    
-!$omp section
-#endif
-! potential temperature
-call mlodiffcalc(work_tt,xfact,yfact,emi)
-
-#ifndef GPU    
-!$omp section
-#endif
-! salinity
-call mlodiffcalc(work_ss,xfact,yfact,emi)
-
-#ifdef GPU
-!$omp end target data
-#else
-!$omp end sections
-!$omp end parallel
-#endif
-!$acc wait
 !$acc end data
 
 
 ! post-processing
-
-if ( mlodiff==0 ) then
+if ( mlodiff==0 .or. mlodiff==10 ) then
   do k = 1,wlev
     do iq = 1,ifull
       u(iq,k) = ax(iq)*duma(iq,k,1) + ay(iq)*duma(iq,k,2) + az(iq)*duma(iq,k,3)
@@ -285,8 +241,8 @@ if ( mlodiff==0 ) then
 end if
 do k = 1,wlev
   do iq = 1,ifull
-    tt(iq,k) = max(work_tt(iq,k), -wrtemp)
-    ss(iq,k) = work_ss(iq,k) + 34.72
+    tt(iq,k) = max(work(iq,k,1), -wrtemp)
+    ss(iq,k) = work(iq,k,2) + 34.72
     if ( workdata2(iq,k)<2. ) then
       ss(iq,k) = workdata2(iq,k)
     end if  
@@ -298,75 +254,169 @@ call END_LOG(waterdiff_end)
 return
 end subroutine mlodiffusion_work
 
-subroutine mlodiffcalc(work,xfact,yfact,emi)    
+subroutine mlodiffcalc(work,xfact,yfact,emi,ntr)    
 
 use cc_acc, only : async_length
+use cc_mpi, only : bounds, nagg, ccmpi_abort
 use indices_m
+use map_m
 use mlo
+use mlodynamicsarrays_m, only : ee
 use newmpar_m
+use parm_m, only : dt, ds
 
 implicit none
 
-integer k, iq
-integer, save :: async_counter = -1
+integer, intent(in) :: ntr
+integer k, iq, iqc, nc, its
+integer nstart, nend, nlen, nn, np
+integer async_counter
+integer, parameter :: num_its = 4
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
-real, dimension(ifull+iextra,wlev), intent(inout) :: work
-real, dimension(ifull+iextra,wlev) :: ans
+real, dimension(ifull+iextra,wlev,ntr), intent(inout) :: work
+real, dimension(ifull+iextra,wlev,nagg) :: ans
+real, dimension(ifull,wlev,nagg) :: work_save
 real base, xfact_iwu, yfact_isv
 
-async_counter = mod(async_counter+1, async_length)
+if ( mlodiff>=0 .and. mlodiff<=9 ) then
+    
+  !$acc enter data create(ans)
+    
+  do nstart = 1,ntr,nagg
+    nend = min(nstart + nagg - 1, ntr )
+    nlen = nend - nstart + 1  
+    
+    call bounds(work(:,:,nstart:nend))
 
-#ifdef _OPENMP
-#ifdef GPU
-!$omp target enter data map(to:work) map(alloc:ans)
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq,base,xfact_iwu,yfact_isv)
-#endif
-#else
-!$acc enter data create(work,ans) async(async_counter)
-!$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,iwu,isv,in,is,ie,iw) async(async_counter)
-#endif
-do k = 1,wlev
-   do iq = 1,ifull
-     xfact_iwu = xfact(iwu(iq),k)
-     yfact_isv = yfact(isv(iq),k)
-     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                   +yfact(iq,k)+yfact_isv
-     ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                   xfact(iq,k)*work(ie(iq),k) +       &
-                   xfact_iwu*work(iw(iq),k) +         &
-                   yfact(iq,k)*work(in(iq),k) +       &
-                   yfact_isv*work(is(iq),k) )         &
-                / base
-  end do
-end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target teams distribute parallel do collapse(2) schedule(static) private(k,iq)
-#endif
-#else
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
-#endif
-do k = 1,wlev
-   do iq = 1,ifull
-     work(iq,k) = ans(iq,k)
-  end do
-end do
-#ifdef _OPENMP
-#ifdef GPU
-!$omp end target teams distribute parallel do
-!$omp target exit data map(from:work)
-#endif
-#else
-!$acc end parallel loop
-!$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ans) async(async_counter)
-#endif
+    do nn = 1,nlen
+      np = nn - 1 + nstart
+      async_counter = mod(nn-1,async_length)
+      !$acc parallel loop collapse(2) copyin(work(:,:,np))            &
+      !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,ans)        &
+      !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)      
+      do k = 1,wlev
+        do iq = 1,ifull
+          xfact_iwu = xfact(iwu(iq),k)
+          yfact_isv = yfact(isv(iq),k)
+          base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                        +yfact(iq,k)+yfact_isv
+          ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +               &
+                           xfact(iq,k)*work(ie(iq),k,np) +       &
+                           xfact_iwu*work(iw(iq),k,np) +         &
+                           yfact(iq,k)*work(in(iq),k,np) +       &
+                           yfact_isv*work(is(iq),k,np) )         &
+                        / base
+        end do  
+      end do
+      !$acc end parallel loop
+      !$acc parallel loop collapse(2) copyout(work(:,:,np)) &
+      !$acc   present(ans) async(async_counter)
+      do k = 1,wlev
+        do iq = 1,ifull
+          work(iq,k,np) = ans(iq,k,nn)
+        end do
+      end do  
+      !$acc end parallel loop
+    end do
+    !$acc wait
+
+  end do ! nstart
+  
+  !$acc exit data delete(ans)
+    
+else if ( mlodiff>=10 .and. mlodiff<=19 ) then
+
+  ! Bi-Harmonic diffusion.  iterative version.
+
+  !$acc enter data create(work_save,ans,work,ee)  
+  !$acc update device(ee)
+    
+  ans = 0.
+  do nstart = 1,ntr,nagg
+    nend = min(nstart + nagg - 1, ntr )
+    nlen = nend - nstart + 1
+
+    work_save(1:ifull,1:wlev,1:nlen) = work(1:ifull,1:wlev,nstart:nend)
+    !$acc update device(work_save(:,:,1:nlen),work(1:ifull,:,nstart:nend))
+    
+    do its = 1,num_its  
+      
+      call bounds(work(:,:,nstart:nend))
+
+      do nn = 1,nlen
+        np = nn - 1 + nstart  
+        async_counter = mod(nn-1,async_length)
+        !$acc update device(work(ifull+1:ifull+iextra,:,np)) async(async_counter)
+        !$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) &
+        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
+        do k = 1,wlev
+          do iq = 1,ifull  
+            xfact_iwu = xfact(iwu(iq),k)
+            yfact_isv = yfact(isv(iq),k)
+            base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
+            ans(iq,k,nn) = ( -base*work(iq,k,np) +              &
+                             xfact(iq,k)*work(ie(iq),k,np) +    &
+                             xfact_iwu*work(iw(iq),k,np) +      &
+                             yfact(iq,k)*work(in(iq),k,np) +    &
+                             yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
+          end do   
+        end do
+        !$acc end parallel loop
+        !$acc update self(ans(1:ifull,:,nn)) async(async_counter)
+      end do
+      !$acc wait
+
+      call bounds(ans(:,:,1:nlen))
+
+      do nn = 1,nlen
+        np = nn - 1 + nstart
+        async_counter = mod(nn-1,async_length)
+        !$acc update device(ans(ifull+1:ifull+iextra,:,nn)) async(async_counter)
+        !$acc parallel loop collapse(2) present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,work_save,ans,work) &
+        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)        
+        do k = 1,wlev
+          do iq = 1,ifull  
+            xfact_iwu = xfact(iwu(iq),k)
+            yfact_isv = yfact(isv(iq),k)
+            base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
+            work(iq,k,np) = work_save(iq,k,nn) - dt*(               &
+                              -base*ans(iq,k,nn) +                  &
+                              xfact(iq,k)*ans(ie(iq),k,nn) +        &
+                              xfact_iwu*ans(iw(iq),k,nn) +          &
+                              yfact(iq,k)*ans(in(iq),k,nn) +        &
+                              yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
+          end do    
+        end do
+        !$acc end parallel loop
+        !$acc parallel loop collapse(2) present(work,work_save) async(async_counter)
+        do k = 1,wlev
+          do iq = 1,ifull
+            if ( ee(iq,k)<0.5 ) then
+              work(iq,k,np) = work_save(iq,k,nn)
+            end if
+          end do
+        end do  
+        !$acc end parallel loop
+        !$acc update self(work(ifull+1:ifull+iextra,:,np)) async(async_counter)
+      end do    
+      !$acc wait
+    
+    end do ! its
+    
+    !$acc update self(work(1:ifull,:,nstart:nend))
+    
+  end do   ! nstart  
+  
+  !$acc exit data delete(work_save,ans,work)
+
+else
+  write(6,*) "ERROR: Unknown mlodiff option ",mlodiff
+  call ccmpi_abort(-1)
+end if
 
 return
 end subroutine mlodiffcalc
 
 end module mlodiffg
+

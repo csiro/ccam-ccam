@@ -1541,7 +1541,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
-    tke_timeave_length,                                           &
+    tke_timeave_length,plume_alpha,                               &
     wg_tau,wg_prob,                                               & ! wind gusts
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
@@ -2259,7 +2259,7 @@ cloud_aerosol_mode = dumi(24)
 process_rate_mode  = dumi(25)
 lin_aerosolmode    = dumi(26)
 deallocate( dumr, dumi )
-allocate( dumr(32), dumi(4) )
+allocate( dumr(33), dumi(4) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2301,6 +2301,7 @@ if ( myid==0 ) then
   dumr(30) = tke_timeave_length
   dumr(31) = wg_tau
   dumr(32) = wg_prob
+  dumr(33) = plume_alpha
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2340,6 +2341,7 @@ dvmodmin           = dumr(29)
 tke_timeave_length = dumr(30)
 wg_tau             = dumr(31)
 wg_prob            = dumr(32)
+plume_alpha        = dumr(33)
 buoymeth           = dumi(1)
 stabmeth           = dumi(2)
 tkemeth            = dumi(3)
