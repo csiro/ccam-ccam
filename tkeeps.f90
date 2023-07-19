@@ -87,7 +87,7 @@ real, save :: mfbeta   = 0.15      ! Horizontal scale factor
 integer, save :: buoymeth = 1      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
 integer, save :: stabmeth = 0      ! Method for stability calculation (0=B&H, 1=Luhar)
 integer, save :: tkemeth  = 1      ! Method for TKE calculation (0=D&K84, 1=Hurley)
-integer, save :: tcalmeth = 1      ! Method for correcting saturated air (0=Off, 1=Simple)
+integer, save :: tcalmeth = 1      ! Method for correcting saturated air (0=Remove, 1=Retain)
 real, save :: plume_alpha = 1.     ! Time-averaging factor for tke surface boundary in MF term
 real, save :: maxdts      = 120.   ! max timestep for split
 ! wind gusts

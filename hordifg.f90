@@ -411,100 +411,82 @@ end if  ! (nhorps==-4.and.abs(iaero)>=2)
 
 ! perform diffusion ---------------------------------------------------
 
-!$omp parallel
-!$omp sections
+!$acc data create(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
+!$acc update device(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
 
-!$omp section
 ! momentum U
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(uc,xfact,yfact,emi)
 end if  
 
-!$omp section
 ! momentum V
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(vc,xfact,yfact,emi)
 end if  
 
-!$omp section
 ! momentum W
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(wc,xfact,yfact,emi)
 end if  
 
-!$omp section
 ! potential temperature
-if ( nhorps==-5 ) then
-  ! potential temperature
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   call hordifgt_work(t,xfact,yfact,emi)
 end if
 
-!$omp section
 ! water vapour    
-if ( nhorps==-3 ) then  
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then  
   call hordifgt_work(qg,xfact,yfact,emi)  
 end if  
 
-!$omp section
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(qlg,xfact,yfact,emi)
 end if
 
-!$omp section
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(qfg,xfact,yfact,emi)
 end if
 
-!$omp section
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(stratcloud,xfact,yfact,emi)
 end if
 
-!!$omp section
 !if ( nhorps==-4 .and. ldr/=0 ) then  
 !  if ( ncloud>=100 .and. ncloud<200 ) then
 !    call hordifgt_work(nr,xfact,yfact,emi)
 !  end if
 !end if
 
-!$omp section
 if ( nhorps==-4 .and. ldr/=0 ) then  
   if ( ncloud>=100 .and. ncloud<200 ) then
     call hordifgt_work(ni,xfact,yfact,emi)
   end if
 end if
 
-!!$omp section
 !if ( nhorps==-4 .and. ldr/=0 ) then  
 !  if ( ncloud>=100 .and. ncloud<200 ) then
 !    call hordifgt_work(ns,xfact,yfact,emi)
 !  end if
 !end if
 
-!$omp section
 ! eps
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(eps,xfact,yfact,emi)
 end if
 
-!$omp section
 ! tke
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(tke,xfact,yfact,emi)
 end if
 
-!$omp end sections nowait
-
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  !$omp do schedule(static) private(ntr)
   do ntr = 1,naero
     call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
   end do
-  !$omp end do nowait  
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
-!$omp end parallel
+!$acc end data
 
 
 ! post-processing -----------------------------------------------------
@@ -538,18 +520,26 @@ end subroutine hordifgt
 
 subroutine hordifgt_work(work,xfact,yfact,emi)
 
+use cc_acc, only : async_length
 use indices_m
 use newmpar_m
 
 implicit none
 
 integer k, iq
+integer, save :: async_counter = -1
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
 real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
+async_counter = mod(async_counter+1, async_length)
+
+!$acc enter data create(ans,work) async(async_counter)
+!$acc update device(work) async(async_counter)
+!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) &
+!$acc   async(async_counter)
 do k = 1,kl
   do iq = 1,ifull  
     xfact_iwu = xfact(iwu(iq),k)
@@ -563,12 +553,17 @@ do k = 1,kl
                   yfact_isv*work(is(iq),k) )         &
                / base 
   end do  
-end do      
+end do  
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
 do k = 1,kl
   do iq = 1,ifull
     work(iq,k) = ans(iq,k)
   end do
 end do
+!$acc end parallel loop
+!$acc update self(work) async(async_counter)
+!$acc exit data delete(ans,work) async(async_counter)
 
 return
 end subroutine hordifgt_work

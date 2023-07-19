@@ -39,12 +39,8 @@ real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
 ! ncloud = 10   Same as ncloud=0 with Tiedtke from GFDL-CM3
 ! ncloud = 12   Same as ncloud=2 with Tiedtke from GFDL-CM3
 ! ncloud = 13   Same as ncloud=3 with Tiedtke from GFDL-CM3 (i.e., same as ncloud=4)
-! ncloud = 20   Same as ncloud=3 with MG cloud
-! ncloud = 21   Same as ncloud=3 with 2nd moment condensate
-! ncloud = 22   Same as ncloud=3 with MG cloud and 2nd momement condensate
 ! ncloud = 100  Use Lin et al 2nd moment microphysics
 ! ncloud = 110  Same as ncloud=100 with Tiedtke from GFDL-CM3
-! ncloud = 120  Same as ncloud=100 with MG cloud fraction
 
 !                            Water vapour (qg)
 !
@@ -642,9 +638,9 @@ mp_physics = "ERROR"
 
 if ( ldr /= 0 ) then
   select case(ncloud)
-    case(0,2,3,4,10,12,13,20,21,22)
+    case(0,2,3,4,10,12,13)
       mp_physics = "LEON"
-    case(100,110,120)
+    case(100,110)
       mp_physics = "LIN"
   end select
 end if
