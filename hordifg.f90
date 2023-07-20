@@ -363,23 +363,57 @@ if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 )
 end if
 
 
-! update halos --------------------------------------------------------
+! perform diffusion ---------------------------------------------------
 
-! momentum U, V, W - updated above
+!$acc data create(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
+!$acc update device(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
+
+! momentum U, V, W
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
+  call hordifgt_work(uc,xfact,yfact,emi)
+  call hordifgt_work(vc,xfact,yfact,emi)
+  call hordifgt_work(wc,xfact,yfact,emi)
+  do k = 1,kl
+    u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
+                 + ay(1:ifull)*vc(1:ifull,k) &
+                 + az(1:ifull)*wc(1:ifull,k)
+    v(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) &
+                 + by(1:ifull)*vc(1:ifull,k) &
+                 + bz(1:ifull)*wc(1:ifull,k)
+  end do
+end if  
+
+
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
   ! potential temperture and water vapour
   work(1:ifull,:,1) = t(1:ifull,:)
   work(1:ifull,:,2) = qg(1:ifull,:)
   call bounds(work(:,:,1:2))
-  t(ifull+1:ifull+iextra,:)  = work(ifull+1:ifull+iextra,:,1)
-  qg(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
-else if ( nhorps==-5 ) then
+  t(:,:)  = work(:,:,1)
+  qg(:,:) = work(:,:,2)
+  call hordifgt_work(t,xfact,yfact,emi)
+  do k = 1,kl
+    t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
+  end do
+  call hordifgt_work(qg,xfact,yfact,emi)  
+end if
+
+if ( nhorps==-5 ) then
   ! potential temperature
   call bounds(t)  
-else if ( nhorps==-3 ) then  
+  call hordifgt_work(t,xfact,yfact,emi)
+  do k = 1,kl
+    t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
+  end do
+end if
+
+if ( nhorps==-3 ) then  
   ! water vapour  
   call bounds(qg)  
+  call hordifgt_work(qg,xfact,yfact,emi)  
 end if  
+
+
 if ( nhorps==-4 .and. ldr/=0 ) then  
   ! cloud liquid & frozen water plus cloud fraction
   work(1:ifull,:,1) = qlg(1:ifull,:)
@@ -389,12 +423,21 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   qlg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,1)
   qfg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,2)
   stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
+  
+  call hordifgt_work(qlg,xfact,yfact,emi)
+  call hordifgt_work(qfg,xfact,yfact,emi)
+  call hordifgt_work(stratcloud,xfact,yfact,emi)
+  
   if ( ncloud>=100 .and. ncloud<200 ) then
     !call bounds(nr)
+    !call hordifgt_work(nr,xfact,yfact,emi)
     call bounds(ni)
+    call hordifgt_work(ni,xfact,yfact,emi)
     !call bounds(ns)
+    !call hordifgt_work(ns,xfact,yfact,emi)
   end if
 end if
+
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   ! tke and eps
   work(1:ifull,:,1) = tke(1:ifull,:)
@@ -402,85 +445,15 @@ if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call bounds(work(:,:,1:2))
   tke(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,1)
   eps(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
-end if
-! prgnostic aerosols (disabled by default)
-if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  call bounds(xtg)  
-end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
-
-! perform diffusion ---------------------------------------------------
-
-!$acc data create(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
-!$acc update device(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
-
-! momentum U
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  call hordifgt_work(uc,xfact,yfact,emi)
-end if  
-
-! momentum V
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  call hordifgt_work(vc,xfact,yfact,emi)
-end if  
-
-! momentum W
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  call hordifgt_work(wc,xfact,yfact,emi)
-end if  
-
-! potential temperature
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
-  call hordifgt_work(t,xfact,yfact,emi)
-end if
-
-! water vapour    
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then  
-  call hordifgt_work(qg,xfact,yfact,emi)  
-end if  
-
-if ( nhorps==-4 .and. ldr/=0 ) then  
-  call hordifgt_work(qlg,xfact,yfact,emi)
-end if
-
-if ( nhorps==-4 .and. ldr/=0 ) then  
-  call hordifgt_work(qfg,xfact,yfact,emi)
-end if
-
-if ( nhorps==-4 .and. ldr/=0 ) then  
-  call hordifgt_work(stratcloud,xfact,yfact,emi)
-end if
-
-!if ( nhorps==-4 .and. ldr/=0 ) then  
-!  if ( ncloud>=100 .and. ncloud<200 ) then
-!    call hordifgt_work(nr,xfact,yfact,emi)
-!  end if
-!end if
-
-if ( nhorps==-4 .and. ldr/=0 ) then  
-  if ( ncloud>=100 .and. ncloud<200 ) then
-    call hordifgt_work(ni,xfact,yfact,emi)
-  end if
-end if
-
-!if ( nhorps==-4 .and. ldr/=0 ) then  
-!  if ( ncloud>=100 .and. ncloud<200 ) then
-!    call hordifgt_work(ns,xfact,yfact,emi)
-!  end if
-!end if
-
-! eps
-if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(eps,xfact,yfact,emi)
-end if
-
-! tke
-if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(tke,xfact,yfact,emi)
 end if
 
-! prgnostic aerosols (disabled by default)
+! prognostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
+  call bounds(xtg)  
+  
   do ntr = 1,naero
     call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
   end do
@@ -490,16 +463,6 @@ end if  ! (nhorps==-4.and.abs(iaero)>=2)
 
 
 ! post-processing -----------------------------------------------------
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  do k = 1,kl
-    u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
-                 + ay(1:ifull)*vc(1:ifull,k) &
-                 + az(1:ifull)*wc(1:ifull,k)
-    v(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) &
-                 + by(1:ifull)*vc(1:ifull,k) &
-                 + bz(1:ifull)*wc(1:ifull,k)
-  end do
-end if   ! nhorps==0 .or. nhorps==-2
 if ( diag .and. mydiag ) then
   do k = 1,kl
     write(6,*) 'k,id,jd,idjd ',k,id,jd,idjd
@@ -509,11 +472,6 @@ if ( diag .and. mydiag ) then
     write(6,*) 'k,u,v ',k,u(idjd,k),v(idjd,k)
   end do
 endif
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then      
-  do k = 1,kl
-    t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
-  end do
-end if
 
 return
 end subroutine hordifgt

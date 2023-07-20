@@ -188,83 +188,11 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"(9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 end if
 
-! call bounds before calling ints
-call START_LOG(ints_begin)
 do k = 1,kl
   uvw(1:ifull,k,1) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
   uvw(1:ifull,k,2) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
   uvw(1:ifull,k,3) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
 end do
-if ( mup/=0 ) then
-  call bounds(dd,corner=.true.)
-  if ( nh/=0 ) then
-    bb(1:ifull,1:kl,1) = pslx(1:ifull,1:kl)
-    bb(1:ifull,1:kl,2) = h_nh(1:ifull,1:kl)
-    bb(1:ifull,1:kl,3) = tx(1:ifull,1:kl)
-    bb(1:ifull,1:kl,4:6) = uvw(1:ifull,1:kl,1:3)
-    call bounds(bb(:,:,1:6),nrows=2)
-    pslx(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-    h_nh(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-    tx(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,3)
-    uvw(ifull+1:ifull+iextra,1:kl,1:3) = bb(ifull+1:ifull+iextra,1:kl,4:6)
-  else
-    bb(1:ifull,1:kl,1) = pslx(1:ifull,1:kl)
-    bb(1:ifull,1:kl,2) = tx(1:ifull,1:kl)
-    bb(1:ifull,1:kl,3:5) = uvw(1:ifull,1:kl,1:3)
-    call bounds(bb(:,:,1:5),nrows=2)
-    pslx(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-    tx(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-    uvw(ifull+1:ifull+iextra,1:kl,1:3) = bb(ifull+1:ifull+iextra,1:kl,3:5)
-  end if ! nh/=0
-end if
-if ( mspec==1 .and. mup/=0 ) then
-  if ( ldr/=0 ) then
-    if ( ncloud>=100 .and. ncloud<200 ) then
-      bb(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
-      bb(1:ifull,1:kl,5) = ni(1:ifull,1:kl)
-      call bounds(bb(:,:,1:5),nrows=2)
-      qg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-      qlg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-      qfg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,3)
-      stratcloud(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,4)
-      ni(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,5)
-    else    
-      bb(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
-      call bounds(bb(:,:,1:4),nrows=2)
-      qg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-      qlg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-      qfg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,3)
-      stratcloud(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,4)
-    end if    
-  else
-    call bounds(qg,nrows=2)
-  end if    ! ldr/=0
-  if ( ngas>0 ) then
-    call bounds(tr,nrows=2)
-  end if
-  if ( nvmix==6 .or. nvmix==9 ) then
-    bb(1:ifull,1:kl,1) = tke(1:ifull,1:kl)
-    bb(1:ifull,1:kl,2) = eps(1:ifull,1:kl)
-    call bounds(bb(:,:,1:2),nrows=2)
-    tke(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-    eps(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-  endif                 ! nvmix==6 .or. nvmix==9
-  if ( abs(iaero)>=2 ) then
-    call bounds(xtg,nrows=2)
-  end if
-end if     ! mspec==1
-call END_LOG(ints_end)
-
-
-!$acc data create(xg,yg,nface)
-!$acc update device(xg,yg,nface)
-
 if ( diag ) then
   if ( mydiag ) then
     write(6,*) 'uc,vc,wc before advection'
@@ -278,14 +206,19 @@ if ( diag ) then
   if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
 end if
 
+!$acc data create(xg,yg,nface)
+!$acc update device(xg,yg,nface)
+
 if ( mup/=0 ) then
+  call bounds(dd,corner=.true.)
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    bb(:,:,1) = pslx
-    bb(:,:,2) = h_nh
-    bb(:,:,3) = tx
-    bb(:,:,4:6) = uvw(:,:,1:3)
+    bb(1:ifull,1:kl,1) = pslx(1:ifull,1:kl)
+    bb(1:ifull,1:kl,2) = h_nh(1:ifull,1:kl)
+    bb(1:ifull,1:kl,3) = tx(1:ifull,1:kl)
+    bb(1:ifull,1:kl,4:6) = uvw(1:ifull,1:kl,1:3)
+    call bounds(bb(:,:,1:6),nrows=2)
     nfield(1:6) = (/1,1,3,2,2,2/)
     call ints(bb,6,intsch,nface,xg,yg,nfield(1:6))
     pslx = bb(:,:,1)
@@ -294,9 +227,10 @@ if ( mup/=0 ) then
     uvw(:,:,1:3) = bb(:,:,4:6)
   else
     ! hydrostatic version
-    bb(:,:,1) = pslx
-    bb(:,:,2) = tx
-    bb(:,:,3:5) = uvw(:,:,1:3)
+    bb(1:ifull,1:kl,1) = pslx(1:ifull,1:kl)
+    bb(1:ifull,1:kl,2) = tx(1:ifull,1:kl)
+    bb(1:ifull,1:kl,3:5) = uvw(1:ifull,1:kl,1:3)
+    call bounds(bb(:,:,1:5),nrows=2)
     nfield(1:5) = (/1,3,2,2,2/)
     call ints(bb,5,intsch,nface,xg,yg,nfield(1:5))    
     pslx = bb(:,:,1)
@@ -404,11 +338,12 @@ end if
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( ldr/=0 ) then
     if ( ncloud>=100 .and. ncloud<200 ) then
-      bb(:,:,1) = qg(:,:)
-      bb(:,:,2) = qlg(:,:)
-      bb(:,:,3) = qfg(:,:)
-      bb(:,:,4) = stratcloud(:,:)
-      bb(:,:,5) = ni(:,:)
+      bb(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
+      bb(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
+      bb(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
+      bb(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
+      bb(1:ifull,1:kl,5) = ni(1:ifull,1:kl)
+      call bounds(bb(:,:,1:5),nrows=2)
       nfield(1:5) = (/4,4,4,4,4/)
       call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,nfield(1:5))
       qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
@@ -417,10 +352,11 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
       ni(1:ifull,1:kl) = bb(1:ifull,1:kl,5)    
     else    
-      bb(:,:,1) = qg(:,:)
-      bb(:,:,2) = qlg(:,:)
-      bb(:,:,3) = qfg(:,:)
-      bb(:,:,4) = stratcloud(:,:)
+      bb(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
+      bb(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
+      bb(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
+      bb(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
+      call bounds(bb(:,:,1:4),nrows=2)
       nfield(1:4) = (/4,4,4,4/)
       call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,nfield(1:4))
       qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
@@ -429,6 +365,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
     end if  
   else
+    call bounds(qg,nrows=2)  
     call ints(qg,1,intsch,nface,xg,yg,(/3/))
   end if    ! ldr/=0
   if ( ngas>0 .or. nextout>=4 ) then
@@ -441,6 +378,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       !write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     end if
     if ( ngas>0 ) then
+      call bounds(tr,nrows=2)  
       nfield(1:ngas) = 5
       call ints(tr,ngas,intsch,nface,xg,yg,nfield(1:ngas))
     end if
@@ -451,14 +389,16 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     !endif
   endif  ! (ngas>0.or.nextout>=4)
   if ( nvmix==6 .or. nvmix==9 ) then
-    bb(:,:,1) = tke(:,:)
-    bb(:,:,2) = eps(:,:)
+    bb(1:ifull,1:kl,1) = tke(1:ifull,1:kl)
+    bb(1:ifull,1:kl,2) = eps(1:ifull,1:kl)
+    call bounds(bb(:,:,1:2),nrows=2)
     nfield(1:2) = (/4,4/)
     call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,nfield(1:2))
     tke(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     eps(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
   endif                 ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 ) then
+    call bounds(xtg,nrows=2)
     nfield(1:naero) = 5
     call ints(xtg,naero,intsch,nface,xg,yg,nfield(1:naero))
   end if
