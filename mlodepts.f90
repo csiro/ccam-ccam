@@ -127,15 +127,8 @@ do ii = 1,3 ! 3 iterations of fill should be enough
   end do
 end do
 
-call bounds_send(s,nrows=2)
+call bounds(s,nrows=2)
 
-!$acc data create(xg,yg,nface,xx4,yy4,sx)
-!$acc update device(xx4,yy4)
-
-! convert to grid point numbering
-call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
-
-call bounds_recv(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -221,8 +214,13 @@ else
 
 end if
 
+!$acc data create(xg,yg,nface,xx4,yy4,sx)
+!$acc update device(xx4,yy4,sx)
+
+! convert to grid point numbering
+call mlotoij5(x3d,y3d,z3d,nface,xg,yg)
+
 ! Share off processor departure points.
-!$acc update device(sx)
 !$acc update self(xg,yg,nface)
 call deptsync(nface,xg,yg)
 
