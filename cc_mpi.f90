@@ -131,17 +131,15 @@ module cc_mpi
              ccmpi_bcastr8, ccmpi_barrier, ccmpi_gatherx, ccmpi_gatherxr8,  &
              ccmpi_scatterx, ccmpi_allgatherx, ccmpi_init,                  &
              ccmpi_finalize, ccmpi_commsplit, ccmpi_commfree,               &
-             bounds_colour_send, bounds_colour_recv, bounds_send,           &
-             bounds_recv, boundsr8, ccmpi_reinit, ccmpi_alltoall,           &
-             ccmpi_procformat_init
+             bounds_colour_send, bounds_colour_recv, boundsr8,              &
+             ccmpi_reinit, ccmpi_alltoall, ccmpi_procformat_init
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
              mg_fproc, mg_fproc_1
    public :: indp, indg, iq2iqg, iqg2iq, indv_mpi, fproc, face_set,         &
              uniform_set, dix_set
-   public :: allocateglobalpack, copyglobalpack,                            &
-             ccmpi_gathermap_send2, ccmpi_gathermap_recv2,                  &
-             ccmpi_gathermap_send3, ccmpi_gathermap_recv3, getglobalpack_v, &
-             setglobalpack_v, ccmpi_gathermap_wait, deallocateglobalpack
+   public :: allocateglobalpack, copyglobalpack, ccmpi_gathermap_send,      &
+             ccmpi_gathermap_recv, getglobalpack_v, setglobalpack_v,        &
+             ccmpi_gathermap_wait, deallocateglobalpack
    public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
              ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
              ccmpi_filedistribute, procarray,                               &
@@ -178,12 +176,6 @@ module cc_mpi
    end interface
    interface bounds
       module procedure bounds2, bounds3, bounds4
-   end interface
-   interface bounds_send
-      module procedure bounds_send3, bounds_send4
-   end interface
-   interface bounds_recv
-      module procedure bounds_recv3, bounds_recv4
    end interface
    interface boundsuv
       module procedure boundsuv2, boundsuv3
@@ -270,6 +262,12 @@ module cc_mpi
    end interface
    interface mgcollect
       module procedure mgcollect1, mgcollectreduce, mgcollectxn
+   end interface
+   interface ccmpi_gathermap_send
+      module procedure ccmpi_gathermap_send2, ccmpi_gathermap_send3
+   end interface
+   interface ccmpi_gathermap_recv
+      module procedure ccmpi_gathermap_recv2, ccmpi_gathermap_recv3
    end interface
 #ifdef usempi3
    interface ccmpi_allocshdata
@@ -5035,377 +5033,6 @@ contains
 
    end subroutine bounds_colour_recv
 
-   subroutine bounds_send3(t, nrows, klim, corner, nehalf)
-      real, dimension(:,:), intent(in) :: t
-      integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner
-      logical, intent(in), optional :: nehalf
-      logical :: extra, single, double
-      integer :: iproc, kx, send_len, recv_len
-      integer :: iq, k
-      integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=2, llen, lproc
-      integer(kind=4) :: lcomm
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif  
-
-      if ( ccomp_get_thread_num() /= 0 ) return
-
-      kx = size(t,2)
-      double = .false.
-      extra  = .false.
-      single = .true.
-      if ( present(klim) ) then
-         kx = klim
-      end if
-      if ( present(nrows) ) then
-         if ( nrows == 2 ) then
-            double = .true.
-         end if
-      end if
-      if ( .not. double ) then
-         if ( present(corner) ) then
-            extra = corner
-         end if
-         if ( .not. extra ) then
-            if ( present(nehalf) ) then
-               single = .not. nehalf
-            end if
-         end if
-      end if
-
-      ! Split messages into corner and non-corner processors
-      if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-         sslen = bnds(neighlist)%slen2
-      else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-         sslen = bnds(neighlist)%slenx_fn(maxcolour)
-      else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-         sslen = bnds(neighlist)%slen_fn(maxcolour)
-      else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-         sslen = bnds(neighlist)%slenh_fn(maxcolour)
-      end if
-
-      ! Set up the buffers to send and recv
-      lcomm = comm_world
-      nreq = 0
-      do iproc = 1,neighnum
-         recv_len = rslen(iproc)
-         if ( recv_len > 0 ) then
-            lproc = neighlist(iproc)  ! Recv from
-            nreq = nreq + 1
-            rlist(nreq) = iproc
-            llen = recv_len*kx
-            if ( size(bnds(lproc)%rbuf) < llen ) then
-               write(6,*) "ERROR: rbuf too small in bounds_send3"
-               call ccmpi_abort(-1)
-            end if
-            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
-         end if
-      end do
-      rreq = nreq
-      do iproc = neighnum,1,-1
-         send_len = sslen(iproc)
-         if ( send_len > 0 ) then
-            lproc = neighlist(iproc)  ! Send to
-            do k = 1, kx
-               do iq = 1,send_len
-                  bnds(lproc)%sbuf(iq+(k-1)*send_len) = t(bnds(lproc)%send_list(iq),k)
-               end do
-            end do   
-            nreq = nreq + 1
-            llen = send_len*kx
-            if ( size(bnds(lproc)%sbuf) < llen ) then
-               write(6,*) "ERROR: sbuf too small in bounds_send3"
-               call ccmpi_abort(-1)
-            end if
-            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
-         end if
-      end do
-
-   end subroutine bounds_send3
-
-   subroutine bounds_send4(t, nrows, klim, corner, nehalf)
-      real, dimension(:,:,:), intent(in) :: t
-      integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner
-      logical, intent(in), optional :: nehalf
-      logical :: extra, single, double
-      integer :: iproc, kx, send_len, recv_len
-      integer :: iq, k, ntr, l
-      integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=2, llen, lproc
-      integer(kind=4) :: lcomm
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif  
-
-      if ( ccomp_get_thread_num() /= 0 ) return
-
-      kx = size(t,2)
-      ntr = size(t,3)
-      double = .false.
-      extra  = .false.
-      single = .true.
-      if ( present(klim) ) then
-         kx = klim
-      end if
-      if ( present(nrows) ) then
-         if ( nrows == 2 ) then
-            double = .true.
-         end if
-      end if
-      if ( .not. double ) then
-         if ( present(corner) ) then
-            extra = corner
-         end if
-         if ( .not. extra ) then
-            if ( present(nehalf) ) then
-               single = .not. nehalf
-            end if
-         end if
-      end if
-
-      ! Split messages into corner and non-corner processors
-      if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-         sslen = bnds(neighlist)%slen2
-      else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-         sslen = bnds(neighlist)%slenx_fn(maxcolour)
-      else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-         sslen = bnds(neighlist)%slen_fn(maxcolour)
-      else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-         sslen = bnds(neighlist)%slenh_fn(maxcolour)
-      end if
-
-      lcomm = comm_world
-      
-      if ( ntr > nagg ) then
-         write(6,*) "ERROR: bounds_send4 can only send nagg tracers"
-         call ccmpi_abort(-1)
-      end if
-            
-      ! Set up the buffers to send and recv   
-      nreq = 0
-      do iproc = 1,neighnum
-         recv_len = rslen(iproc)
-         if ( recv_len > 0 ) then
-            lproc = neighlist(iproc)  ! Recv from
-            nreq = nreq + 1
-            rlist(nreq) = iproc
-            llen = recv_len*kx*ntr
-            if ( size(bnds(lproc)%rbuf) < llen ) then
-               write(6,*) "ERROR: rbuf too small in bounds_send4"
-               call ccmpi_abort(-1)
-            end if
-            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
-         end if
-      end do
-      rreq = nreq
-      do iproc = neighnum,1,-1
-         send_len = sslen(iproc)
-         if ( send_len > 0 ) then
-            lproc = neighlist(iproc)  ! Send to
-            do l = 1,ntr
-               do k = 1, kx
-                  do iq = 1,send_len
-                     bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx) = &
-                       t(bnds(lproc)%send_list(iq),k,l)
-                  end do
-               end do   
-            end do
-            nreq = nreq + 1
-            llen = send_len*kx*ntr
-            if ( size(bnds(lproc)%sbuf) < llen ) then
-               write(6,*) "ERROR: sbuf too small in bounds_send4"
-               call ccmpi_abort(-1)
-            end if
-            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
-                 itag, lcomm, ireq(nreq), ierr )
-         end if
-      end do
-
-   end subroutine bounds_send4
-   
-   subroutine bounds_recv3(t, nrows, klim, corner, nehalf)
-      ! Calls to this subroutine must use the same arguments as for bounds_send3
-      real, dimension(:,:), intent(inout) :: t
-      integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner
-      logical, intent(in), optional :: nehalf
-      logical :: extra, single, double
-      integer :: iproc, kx
-      integer :: rcount, jproc, mproc, iq, k
-      integer, dimension(neighnum) :: rslen
-      integer(kind=4) :: ierr, sreq, lproc
-      integer(kind=4) :: ldone
-      integer(kind=4), dimension(neighnum) :: donelist
-
-      if ( ccomp_get_thread_num() /= 0 ) return
-      
-      kx = size(t,2)
-      double = .false.
-      extra  = .false.
-      single = .true.
-      if ( present(klim) ) then
-         kx = klim
-      end if
-      if ( present(nrows) ) then
-         if ( nrows == 2 ) then
-            double = .true.
-         end if
-      end if
-      if ( .not. double ) then
-         if ( present(corner) ) then
-            extra = corner
-         end if
-         if ( .not. extra ) then
-            if ( present(nehalf) ) then
-               single = .not. nehalf
-            end if
-         end if
-      end if
-      
-      ! Split messages into corner and non-corner processors
-      if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-      else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-      else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-      else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-      end if
-
-      ! Unpack incomming messages
-      rcount = rreq
-      do while ( rcount > 0 )
-         call START_LOG(mpiwait_begin)
-         call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
-         rcount = rcount - ldone
-         do jproc = 1,ldone
-            mproc = donelist(jproc)
-            iproc = rlist(mproc)  ! Recv from
-            lproc = neighlist(iproc)
-            do k = 1,kx
-               do iq = 1,rslen(iproc)
-                  t(ifull+bnds(lproc)%unpack_list(iq),k) &
-                      = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
-               end do
-            end do   
-         end do
-      end do
-
-      ! Clear any remaining messages
-      sreq = nreq - rreq
-      if ( sreq > 0 ) then
-         call START_LOG(mpiwait_begin)
-         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr)
-         call END_LOG(mpiwait_end)
-      end if
-
-   end subroutine bounds_recv3
-
-   subroutine bounds_recv4(t, nrows, corner, nehalf)
-      ! Calls to this subroutine must use the same arguments as for bounds_send3
-      real, dimension(:,:,:), intent(inout) :: t
-      integer, intent(in), optional :: nrows
-      logical, intent(in), optional :: corner
-      logical, intent(in), optional :: nehalf
-      logical :: extra, single, double
-      integer :: iproc, kx, ntr, l
-      integer :: rcount, jproc, mproc, iq, k
-      integer, dimension(neighnum) :: rslen
-      integer(kind=4) :: ierr, sreq, lproc
-      integer(kind=4) :: ldone
-      integer(kind=4), dimension(neighnum) :: donelist
-
-      if ( ccomp_get_thread_num() /= 0 ) return
-      
-      kx = size(t,2)
-      ntr = size(t,3)
-      double = .false.
-      extra  = .false.
-      single = .true.
-      if ( present(nrows) ) then
-         if ( nrows == 2 ) then
-            double = .true.
-         end if
-      end if
-      if ( .not. double ) then
-         if ( present(corner) ) then
-            extra = corner
-         end if
-         if ( .not. extra ) then
-            if ( present(nehalf) ) then
-               single = .not. nehalf
-            end if
-         end if
-      end if
-      
-      ! Split messages into corner and non-corner processors
-      if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-      else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-      else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-      else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-      end if
-      
-      if ( ntr > nagg ) then
-         write(6,*) "ERROR: bounds_recv4 can only recieve nagg tracers"
-         call ccmpi_abort(-1)
-      end if   
-
-      ! Unpack incomming messages
-      rcount = rreq
-      do while ( rcount > 0 )
-         call START_LOG(mpiwait_begin)
-         call MPI_Waitsome( rreq, ireq(1:rreq), ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
-         rcount = rcount - ldone
-         do jproc = 1,ldone
-            mproc = donelist(jproc)
-            iproc = rlist(mproc)  ! Recv from
-            lproc = neighlist(iproc)
-            do l = 1,ntr
-               do k = 1,kx
-                  do iq = 1,rslen(iproc)
-                     t(ifull+bnds(lproc)%unpack_list(iq),k,l) &
-                         = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
-                  end do   
-               end do
-            end do   
-         end do
-      end do
-
-      ! Clear any remaining messages
-      sreq = nreq - rreq
-      if ( sreq > 0 ) then
-         call START_LOG(mpiwait_begin)
-         call MPI_Waitall( sreq, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr)
-         call END_LOG(mpiwait_end)
-      end if
-
-   end subroutine bounds_recv4
-   
    subroutine boundsuv2(u, v, nrows, stag, allvec)
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the

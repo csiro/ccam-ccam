@@ -3949,6 +3949,7 @@ real, parameter :: shallow_max = 0.1 ! shallow soil depth (10cm)
 logical, save :: first = .true.
 logical local, lday, l6hr
 logical cordex_core, cordex_tier1, cordex_tier2, cordex_urbrcc
+logical cordex_tier2b
 character(len=1024) ffile
 character(len=80) lname
 character(len=40) vname
@@ -3973,6 +3974,7 @@ fiarch = ktau/tbave
 cordex_core = .true.
 cordex_tier1 = .true.
 cordex_tier2 = .true.
+cordex_tier2b = .true.
 cordex_urbrcc = .true.
 
 select case ( surf_cordex )
@@ -3980,32 +3982,44 @@ select case ( surf_cordex )
     cordex_core = .false.
     cordex_tier1 = .false.
     cordex_tier2 = .false.
+    cordex_tier2b = .false.
     cordex_urbrcc = .false.
   case(1)
     cordex_core = .true.
     cordex_tier1 = .true.
     cordex_tier2 = .true.
+    cordex_tier2b = .false.
     cordex_urbrcc = .false.
   case(2)
     cordex_core = .true.
     cordex_tier1 = .true.
     cordex_tier2 = .false.
+    cordex_tier2b = .false.
     cordex_urbrcc = .false.
   case(3)
     cordex_core = .true.
     cordex_tier1 = .false.
     cordex_tier2 = .false.
+    cordex_tier2b = .false.
     cordex_urbrcc = .false.
   case(11)
     cordex_core = .true.
     cordex_tier1 = .true.
     cordex_tier2 = .true.
+    cordex_tier2b = .false.
     cordex_urbrcc = .true.
   case(12)
     cordex_core = .true.
     cordex_tier1 = .true.
     cordex_tier2 = .false.
+    cordex_tier2b = .false.
     cordex_urbrcc = .true.  
+  case(21)
+    cordex_core = .true.
+    cordex_tier1 = .true.
+    cordex_tier2 = .true.
+    cordex_tier2b = .true.
+    cordex_urbrcc = .true.
   case default
     write(6,*) "ERROR: Invalid option for surf_cordex ",surf_cordex
     call ccmpi_abort(-1)
@@ -4367,19 +4381,21 @@ if ( first ) then
       lname = 'y-component wind stress'
       call attrib(fncid,sdim,4,'tauy',lname,'N m-2',-50.,50.,0,1)
     end if
-    if ( cordex_tier2 ) then
-      !lname = 'Clear sky SW out at TOA'
-      !call attrib(fncid,sdim,4,'soc_ave',lname,'W m-2',0.,900.,iattdaily,-1)   ! -1 = long
-      !lname = 'Clear sky SW at ground (+ve down)'
-      !call attrib(fncid,sdim,4,'sgc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long
-      !lname = 'Surface Downwelling Clear-Sky Shortwave Radiation'
-      !call attrib(fncid,sdim,4,'sgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1) ! -1 = long      
-      !lname = 'Clear sky LW at TOA'
-      !call attrib(fncid,sdim,4,'rtc_ave',lname,'W m-2',0.,800.,iattdaily,-1)   ! -1 = long
-      !lname = 'Clear sky LW at ground'
-      !call attrib(fncid,sdim,4,'rgc_ave',lname,'W m-2',-500.,1000.,iattdaily,-1)   ! -1 = long
-      !lname = 'Surface Downwelling Clear-Sky Longwave Radiation'
-      !call attrib(fncid,sdim,4,'rgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long  
+    if ( cordex_tier2b ) then
+      lname = 'Clear sky SW out at TOA'
+      call attrib(fncid,sdim,4,'soc_ave',lname,'W m-2',0.,900.,iattdaily,-1)   ! -1 = long
+      lname = 'Clear sky SW at ground (+ve down)'
+      call attrib(fncid,sdim,4,'sgc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long
+      lname = 'Surface Downwelling Clear-Sky Shortwave Radiation'
+      call attrib(fncid,sdim,4,'sgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1) ! -1 = long      
+      lname = 'Clear sky LW at TOA'
+      call attrib(fncid,sdim,4,'rtc_ave',lname,'W m-2',0.,800.,iattdaily,-1)   ! -1 = long
+      lname = 'Clear sky LW at ground'
+      call attrib(fncid,sdim,4,'rgc_ave',lname,'W m-2',-500.,1000.,iattdaily,-1)   ! -1 = long
+      lname = 'Surface Downwelling Clear-Sky Longwave Radiation'
+      call attrib(fncid,sdim,4,'rgdc_ave',lname,'W m-2',-500.,2000.,iattdaily,-1)  ! -1 = long  
+    end if  
+    if ( cordex_tier2 ) then        
       if ( rescrn>0 ) then
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(fncid,sdim,4,'wsgsmax',lname,'m s-1',0.,350.,iattdaily,1)
@@ -4441,29 +4457,29 @@ if ( first ) then
       end do 
     end if
     ! avaliable in std output
-    !if ( cordex_tier2 ) then
-    !  do k = 11,cordex_levels ! 150, 100, 75, 50, 30, 20, 10
-    !    press_level = cordex_level_data(k)
-    !    call cordex_name(lname,"x-component ",press_level,"hPa wind")
-    !    call cordex_name(vname,"ua",press_level)
-    !    call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
-    !    call cordex_name(lname,"y-component ",press_level,"hPa wind")
-    !    call cordex_name(vname,"va",press_level)
-    !    call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
-    !    lname = 'Air Temperature'     
-    !    call cordex_name(vname,"ta",press_level)
-    !    call attrib(fncid,sdim,4,trim(vname),lname,'K',100.,425.,iatt6hr,1)
-    !    lname = 'Specific Humidity'
-    !    call cordex_name(vname,"hus",press_level)
-    !    call attrib(fncid,sdim,4,trim(vname),lname,'1',0.,0.06,iatt6hr,1)
-    !    lname = 'Geopotential Height'
-    !    call cordex_name(vname,"zg",press_level)
-    !    call attrib(fncid,sdim,4,trim(vname),lname,'m',0.,130000.,iatt6hr,1)
-    !    lname = 'Upward Air Velocity'
-    !    call cordex_name(vname,"wa",press_level)
-    !    call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
-    !  end do 
-    !end if
+    if ( cordex_tier2b ) then
+      do k = 11,cordex_levels ! 150, 100, 75, 50, 30, 20, 10
+        press_level = cordex_level_data(k)
+        call cordex_name(lname,"x-component ",press_level,"hPa wind")
+        call cordex_name(vname,"ua",press_level)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        call cordex_name(lname,"y-component ",press_level,"hPa wind")
+        call cordex_name(vname,"va",press_level)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+        lname = 'Air Temperature'     
+        call cordex_name(vname,"ta",press_level)
+        call attrib(fncid,sdim,4,trim(vname),lname,'K',100.,425.,iatt6hr,1)
+        lname = 'Specific Humidity'
+        call cordex_name(vname,"hus",press_level)
+        call attrib(fncid,sdim,4,trim(vname),lname,'1',0.,0.06,iatt6hr,1)
+        lname = 'Geopotential Height'
+        call cordex_name(vname,"zg",press_level)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m',0.,130000.,iatt6hr,1)
+        lname = 'Upward Air Velocity'
+        call cordex_name(vname,"wa",press_level)
+        call attrib(fncid,sdim,4,trim(vname),lname,'m s-1',-130.,130.,iatt6hr,1)
+      end do 
+    end if
     
     if ( cordex_tier1 ) then   
       do k = 1,ms
