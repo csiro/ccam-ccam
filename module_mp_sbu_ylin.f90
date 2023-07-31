@@ -12,6 +12,11 @@
 !---       7) The Liu and Daum autoconverion is quite sensitive on Nt_c. For mixed-phase cloud and marine environment, Nt_c of 10 or 20 is suggested.
 !---          default value is 10E.6. Change accordingly for your use.
 
+! Zhao, X., Lin, Y., Luo, Y., Qian, Q., Liu, X., Liu, X., & Colle, B. A. (2021).
+! A double-moment SBU-YLIN cloud microphysics scheme and its impact
+! on a squall line simulation. Journal of Advances in Modeling Earth Systems,
+! 13, e2021MS002545. https://doi.org/10.1029/2021MS002545
+    
 
 MODULE module_mp_sbu_ylin
 
@@ -254,13 +259,11 @@ subroutine clphy1d_ylin(dt, imax,                           &
   real                                          :: gambvr1
   real                                          :: lvap
   real                                          :: mi0
-  real, dimension(1:imax)                       :: max_ri
   real t_del_tv,del_tv
   real flux, fluxin, fluxout
   real nflux, nfluxin, nfluxout
   integer                                       :: min_q, max_q
   integer, dimension(1:imax)                    :: min_q_v, max_q_v
-  integer, dimension(1:imax)                    :: max_ri_k
   logical                                       :: notlast
   logical, dimension(1:imax)                    :: mask
   real                                          :: nimlt, nihom
@@ -473,21 +476,9 @@ subroutine clphy1d_ylin(dt, imax,                           &
   !
   !--- make sure Ri does not decrease downward in a column
   !
-  max_ri(:) = -1.
-  do k = kts,kte
+  do k = kte-1,kts,-1
     do iq = 1,imax
-      if ( Ri(iq,k) > max_ri_k(iq) ) then
-        max_ri(iq)   = Ri(iq,k)
-        max_ri_k(iq) = k
-      end if
-    end do
-  end do
-
-  do k = kts,kte
-    do iq = 1,imax
-      if ( k<max_ri_k(iq) ) then
-        Ri(iq,k) = max_ri(iq)
-      end if
+      Ri(iq,k) = max( Ri(iq,k), Ri(iq,k+1) )
     end do
   end do
 
@@ -1368,11 +1359,11 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
         !else
         if (qlz(iq,k) > 1.e-6) then
-          mu_c(iq,k)    = min(15., (1000.E6/ncz(iq,k) + 2.))
+          mu_c(iq,k) = min(15., (1000.E6/ncz(iq,k) + 2.))
           lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31(iq)/(6.*qlz(iq,k)*gg32(iq)))**(1./3)
-          Dc_liu  = (gg33(iq)/gg32(iq))**(1./6.)/lamc(iq,k)             !----- R6 in m
+          Dc_liu = (gg33(iq)/gg32(iq))**(1./6.)/lamc(iq,k) !----- R6 in m
           if (Dc_liu > R6c) then
-            disp = 1./(mu_c(iq,k)+1.)      !--- square of relative dispersion
+            disp = 1./(mu_c(iq,k)+1.)                      !--- square of relative dispersion
             eta  = (0.75/pi/(1.e-3*rhowater))**2*1.9e11*((1.+3.*disp)*(1.+4.*disp)*&
                    (1.+5.*disp)/(1.+disp)/(1.+2.*disp))
             praut(iq) = eta*(1.e-3*rho(iq,k)*qlz(iq,k))**3/(1.e-6*ncz(iq,k))  !--- g cm-3 s-1

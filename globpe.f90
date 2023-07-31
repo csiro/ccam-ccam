@@ -4478,7 +4478,7 @@ if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
   tmparr(1:ifull,7) = cloudmi(1:ifull)*wts(1:ifull)
   tmparr(1:ifull,8) = cloudhi(1:ifull)*wts(1:ifull)
   tmparr(1:ifull,9) = cloudtot(1:ifull)*wts(1:ifull)
-  call drpdr_local_v(tmparr(:,1:9), local_sum(1:9))
+  call drpdr_local(tmparr(:,1:9), local_sum(1:9))
   ! All this combined into a single reduction
   global_sum(:) = cmplx(0.,0.)
   call ccmpi_allreduce( local_sum, global_sum, "sumdr", comm_world )

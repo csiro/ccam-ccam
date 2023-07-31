@@ -295,7 +295,7 @@ contains
          tmpb(1:ifull,k) = speed(1:ifull,k)*wts(1:ifull)
       end do
       tmpc(1:kl) = cmplx(0.,0.)
-      call drpdr_local_v(tmpb(1:ifull,1:kl),tmpc(1:kl))
+      call drpdr_local(tmpb(1:ifull,1:kl),tmpc(1:kl))
       tmpc_g(1:kl) = cmplx(0.,0.)
       call ccmpi_reduce(tmpc,tmpc_g,"sumdr",0,comm_world)
       spmean_g(1:kl) = real(tmpc_g(1:kl))

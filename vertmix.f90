@@ -219,7 +219,6 @@ select case(nvmix)
       lqg = qg(is:ie,:)
       lqfg = qfg(is:ie,:)
       lqlg = qlg(is:ie,:)
-      lni = ni(is:ie,:)
       lstratcloud = stratcloud(is:ie,:)
       ltke   = tke(is:ie,:)
       leps   = eps(is:ie,:)
@@ -239,7 +238,7 @@ select case(nvmix)
       ltke_ema    = tke_ema(is:ie,:)
     
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                           &
-                       ps(is:ie),lqg,lqfg,lqlg,lni,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie), &
+                       ps(is:ie),lqg,lqfg,lqlg,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie),     &
                        ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,lql_ema, &
                        lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,lugs_var,f(is:ie),lsavu,    &
                        lsavv,                                                                 &
@@ -253,7 +252,6 @@ select case(nvmix)
       qg(is:ie,:)         = lqg
       qfg(is:ie,:)        = lqfg
       qlg(is:ie,:)        = lqlg
-      ni(is:ie,:)         = lni
       stratcloud(is:ie,:) = lstratcloud
       tke(is:ie,:)        = ltke
       eps(is:ie,:)        = leps
@@ -390,6 +388,7 @@ if ( ncloud>=100 .and. ncloud<200 ) then
 
     lt       = t(is:ie,:)
     lrkhsave = rkhsave(is:ie,:)
+    lni      = ni(is:ie,:)
   
     rong = rdry/grav
     lat(:,1) = 0.
@@ -417,9 +416,11 @@ if ( ncloud>=100 .and. ncloud<200 ) then
       end do
     end do
   
-    !call trimmix(lat,lct,nr,imax,kl)
-    call trimmix(lat,lct,ni,imax,kl) !only advect ql and qf for now
-    !call trimmix(lat,lct,ns,imax,kl)
+    !call trimmix(lat,lct,lnr,imax,kl)
+    call trimmix(lat,lct,lni,imax,kl) !only advect ql and qf for now
+    !call trimmix(lat,lct,lns,imax,kl)
+
+    ni(is:ie,:) = lni
   
   end do ! tile = 1,ntiles
   !$omp end do nowait
@@ -1866,7 +1867,7 @@ end do
 return
 end subroutine trimmix3
 
-subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,ni,stratcloud,                      &
+subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                         &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &
                        qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,ugs_var,f,savu,savv,       & 
 #ifdef scm
@@ -1885,7 +1886,7 @@ implicit none
 
 integer, intent(in) :: imax, kl, tile
 integer k
-real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg, ni
+real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(in) :: shear, savu, savv
@@ -1955,7 +1956,7 @@ select case(nvmix)
   case(6)
     select case(nlocal)
       case(0) ! atm only, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
@@ -1963,7 +1964,7 @@ select case(nvmix)
         rkh = rkm
       case(6)        
         hdt = 0.5*dt  
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,hdt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
@@ -1973,13 +1974,13 @@ select case(nvmix)
         vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
         call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
               ,wth_flux,wq_flux)
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,hdt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,ugs_var,tile,imax,kl)
       case(7) ! atm only, mass-flux counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
@@ -1992,7 +1993,7 @@ select case(nvmix)
   case(9)
     select case(nlocal)
       case(0) ! coupled atm-ocn, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
@@ -2000,7 +2001,7 @@ select case(nvmix)
         rkh = rkm        
       case(6)
         hdt = 0.5*dt  
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,hdt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
@@ -2010,7 +2011,7 @@ select case(nvmix)
         vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
         call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
               ,wth_flux,wq_flux)
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,hdt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
@@ -2034,24 +2035,24 @@ select case(nvmix)
   case(6)  
     select case(nlocal)
       case(0) ! atm only, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl)
         rkh = rkm
       case(6)
         hdt = 0.5*dt  
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,hdt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl) 
         rkh = rkm        
         uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
         vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
         call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,hdt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl) 
       case(7) ! atm only, mass-flux counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl)
         rkh = rkm
@@ -2062,24 +2063,24 @@ select case(nvmix)
   case(9)
     select case(nlocal)
       case(0) ! coupled atm-ocn, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl)
         rkh = rkm        
       case(6)
         hdt = 0.5*dt  
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,hdt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl) 
         rkh = rkm
         uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
         vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
         call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,hdt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl) 
       case(7) ! coupled atm-ocn, mass-flux counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,ugs_var,tile,imax,kl)
         rkh = rkm
