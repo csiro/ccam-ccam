@@ -931,7 +931,7 @@ if ( io_in<4 ) then
                   ni,nr,ns,                                        &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
                   ocndwn,xtgdwn)
-    ! UPDATE BIOSPHERE DATA (nsib)
+    ! UPDATE CABLE BIOSPHERE DATA (nsib)
     if ( nsib==6 .or. nsib==7 ) then
       call loadtile
     end if

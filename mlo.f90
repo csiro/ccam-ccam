@@ -1053,19 +1053,19 @@ select case(mode)
   case("u")
     where ( depth%dz(:,ilev)>=1.e-4 )
       water%u(:,ilev)=sst
-    else where
+    elsewhere
       water%u(:,ilev) = 0.
     end where
   case("v")
     where ( depth%dz(:,ilev)>=1.e-4 )
       water%v(:,ilev)=sst
-    else where
+    elsewhere
       water%v(:,ilev) = 0.
     end where
   case("w")
     where ( depth%dz(:,ilev)>=1.e-4 )
       water%w(:,ilev)=sst
-    else where
+    elsewhere
       water%w(:,ilev) = 0.
     end where    
   case("eta")
@@ -1353,7 +1353,11 @@ select case(mode)
   case("v")
     where ( depth%dz(:,1)>=1.e-4 )
       sst=water%v(:,ilev)
-    end where  
+    end where 
+  case("w")
+    where ( depth%dz(:,1)>=1.e-4 )
+      sst=water%w(:,ilev)
+    end where    
   case("eta")
     where ( depth%dz(:,1)>=1.e-4 )  
       sst=water%eta
@@ -1398,6 +1402,9 @@ select case(mode)
     where ( depth%dz(:,1)>=1.e-4 )
       sst=water%sal_ema(:,ilev)
     end where
+  case DEFAULT
+    write(6,*) "ERROR: Invalid mode ",trim(mode)
+    stop    
 end select
 
 return
@@ -3950,7 +3957,7 @@ real, parameter :: charnck = 0.018
 real, parameter :: chn10   = 0.00125
 ! ..... high wind speed - rough sea
 real, parameter :: zcom1 = 0.018     ! Charnock's constant
-real, parameter :: zcoh1 = 0.0       ! Beljaars 1994 values
+real, parameter :: zcoh1 = 0.0       ! Beljaars 1995 values ( https://doi.org/10.1002/qj.49712152203 )
 real, parameter :: zcoq1 = 0.0
 ! ..... low wind speed - smooth sea
 real, parameter :: gnu   = 1.5e-5

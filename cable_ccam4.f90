@@ -46,20 +46,28 @@ type tiledata
   integer :: poffset
 end type tiledata
 
-TYPE(tiledata), dimension(:), allocatable :: tdata
+type(tiledata), dimension(:), allocatable :: tdata
 
 interface cable_pack
-  module procedure cable_pack_r4_2_r4, cable_pack_r4_2_r8, &
-                   cable_pack_i4_2_i4, cable_pack_r4_2_i4, &
-                   cable_pack_i4_2_i8, cable_pack_r4_2_i8
+  module procedure cable_pack_r4_2_r4, cable_pack_r4_2_r8
+  module procedure cable_pack_i4_2_i4, cable_pack_r4_2_i4
+  module procedure cable_pack_i4_2_i8, cable_pack_r4_2_i8
+  module procedure cable_pack_r4_2_r4_tile, cable_pack_r4_2_r8_tile
+  module procedure cable_pack_i4_2_i4_tile, cable_pack_r4_2_i4_tile
+  module procedure cable_pack_i4_2_i8_tile, cable_pack_r4_2_i8_tile
+  module procedure cable_pack_r4_2_r4_map, cable_pack_r4_2_r8_map
+  module procedure cable_pack_i4_2_i4_map
 #ifndef i8r8
   module procedure cable_pack_r8_2_r8
+  module procedure cable_pack_r8_2_r8_tile
+  module procedure cable_pack_r8_2_r8_map
 #endif
 end interface
 
 interface cable_unpack
   module procedure cable_unpack_r4_2_r4, cable_unpack_r8_2_r4
   module procedure cable_unpack_r4_2_r4_tile, cable_unpack_r8_2_r4_tile
+  module procedure cable_unpack_i4_2_i4_tile
 #ifndef i8r8
   module procedure cable_unpack_r4_2_r8
   module procedure cable_unpack_r8_2_r8_tile
@@ -69,6 +77,7 @@ end interface
 interface pop_pack
   module procedure pop_pack_r8_2_r8_tile, pop_pack_i4_2_i4_tile
   module procedure pop_pack_i4_2_i8_tile
+  module procedure pop_pack_r8_2_r8_map, pop_pack_i4_2_i4_map
 end interface
 
 interface pop_unpack
@@ -86,266 +95,433 @@ end interface
 
 contains
 
-subroutine cable_pack_r4_2_r4(indata,outdata,inb)
+subroutine cable_pack_r4_2_r4(indata,outdata)
   use newmpar_m, only : ifull
-
   implicit none
-
   real, dimension(ifull), intent(in) :: indata
   real(kind=4), dimension(:), intent(out) :: outdata
-  integer, intent(in), optional :: inb
   integer :: nb, is, ie, js, je, tile
 
-  if ( present(inb) ) then
-    nb = inb
-    do tile = 1,ntiles
-      js = 1 + (tile-1)*imax
-      je = tile*imax
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
+    do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(is:ie) =  pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
+        outdata(is:ie) = pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
       end if  
     end do
-  else
-    do tile = 1,ntiles
-      js = 1 + (tile-1)*imax
-      je = tile*imax
-      do nb = 1,tdata(tile)%maxnb
-        is = tdata(tile)%tind(nb,1)
-        ie = tdata(tile)%tind(nb,2)
-        if ( is<=ie ) then
-          outdata(is:ie) =  pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
-        end if  
-      end do
-    end do
-  end if
+  end do
 
 end subroutine cable_pack_r4_2_r4
 
-subroutine cable_pack_r4_2_r8(indata,outdata,inb)
+subroutine cable_pack_r4_2_r8(indata,outdata)
   use newmpar_m, only : ifull
-
   implicit none
-
   real, dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(out) :: outdata
-  integer, intent(in), optional :: inb
   integer :: nb, is, ie, js, je, tile
 
-  if ( present(inb) ) then
-    nb = inb
-    do tile = 1,ntiles
-      js = 1 + (tile-1)*imax
-      je = tile*imax
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
+    do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
         outdata(is:ie) = pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
       end if  
     end do
-  else
-    do tile = 1,ntiles
-      js = 1 + (tile-1)*imax
-      je = tile*imax
-      do nb = 1,tdata(tile)%maxnb
-        is = tdata(tile)%tind(nb,1)
-        ie = tdata(tile)%tind(nb,2)
-        if ( is<=ie ) then
-          outdata(is:ie) = pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
-        end if  
-      end do
-    end do
-  end if
-
+  end do
+  
 end subroutine cable_pack_r4_2_r8
 
-#ifndef i8r8
-subroutine cable_pack_r8_2_r8(indata,outdata,inb)
+subroutine cable_pack_r4_2_r4_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
-  real(kind=8), dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(out) :: outdata
-  integer, intent(in), optional :: inb
+  real, dimension(ifull), intent(in) :: indata
+  real(kind=4), dimension(:), intent(out) :: outdata
+  integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
-  if ( present(inb) ) then
-    nb = inb
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+  nb = inb
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      outdata(is:ie) = pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
+    end if  
+  end do
+
+end subroutine cable_pack_r4_2_r4_tile
+
+subroutine cable_pack_r4_2_r8_tile(indata,outdata,inb)
+  use newmpar_m, only : ifull
+  implicit none
+  real, dimension(ifull), intent(in) :: indata
+  real(kind=8), dimension(:), intent(out) :: outdata
+  integer, intent(in) :: inb
+  integer :: nb, is, ie, js, je, tile
+
+  nb = inb
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      outdata(is:ie) = pack(real(indata(js:je),8),tdata(tile)%tmap(:,nb))
+    end if  
+  end do
+
+end subroutine cable_pack_r4_2_r8_tile
+
+subroutine cable_pack_r4_2_r4_map(indata,outdata,nmp)
+  use newmpar_m, only : ifull
+  implicit none
+  real, dimension(ifull), intent(in) :: indata
+  real(kind=4), dimension(:), intent(out) :: outdata
+  integer, dimension(ifull), intent(in) :: nmp
+  integer :: nb, is, ie, js, je, tile, iqt, iq, iqx
+
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
+    if ( all( nmp(js)==nmp(js:je) ) ) then
+      nb = nmp(js)
+      is = tdata(tile)%tind(nb,1)
+      ie = tdata(tile)%tind(nb,2)
+      if ( is<=ie ) then
+        outdata(is:ie) = pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
+      end if  
+    else    
+      do iq = js,je
+        nb = nmp(iq)
+        iqx = iq-js+1
+        if ( tdata(tile)%tmap(iqx,nb) ) then
+          is = tdata(tile)%tind(nb,1)  
+          iqt = is + count( tdata(tile)%tmap(1:iqx,nb) ) - 1
+          outdata(iqt) = indata(iq)
+        end if
+      end do  
+    end if  
+  end do    
+
+end subroutine cable_pack_r4_2_r4_map
+
+subroutine cable_pack_r4_2_r8_map(indata,outdata,nmp)
+  use newmpar_m, only : ifull
+  implicit none
+  real, dimension(ifull), intent(in) :: indata
+  real(kind=8), dimension(:), intent(out) :: outdata
+  integer, dimension(ifull), intent(in) :: nmp
+  integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
+
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
+    if ( all( nmp(js)==nmp(js:je) ) ) then
+      nb = nmp(js)
+      is = tdata(tile)%tind(nb,1)
+      ie = tdata(tile)%tind(nb,2)
+      if ( is<=ie ) then
+        outdata(is:ie) = pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
+      end if  
+    else    
+      do iq = js,je   ! ifull
+        nb = nmp(iq)
+        iqx = iq-js+1 ! imax
+        if ( tdata(tile)%tmap(iqx,nb) ) then
+          is = tdata(tile)%tind(nb,1)  
+          iqt = is + count( tdata(tile)%tmap(1:iqx,nb) ) - 1
+          outdata(iqt) = indata(iq)
+        end if
+      end do   
+    end if  
+  end do   
+
+end subroutine cable_pack_r4_2_r8_map
+
+#ifndef i8r8
+subroutine cable_pack_r8_2_r8(indata,outdata)
+  use newmpar_m, only : ifull
+  implicit none
+  real(kind=8), dimension(ifull), intent(in) :: indata
+  real(kind=8), dimension(:), intent(out) :: outdata
+  integer :: nb, is, ie, js, je, tile
+
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
         outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
       end if  
     end do
-  else
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
-      do nb = 1,tdata(tile)%maxnb
-        is = tdata(tile)%tind(nb,1)
-        ie = tdata(tile)%tind(nb,2)
-        if ( is<=ie ) then
-          outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
-        end if  
-      end do
-    end do
-  end if
+  end do
 
 end subroutine cable_pack_r8_2_r8
-#endif
 
-subroutine cable_pack_i4_2_i4(indata,outdata,inb)
+subroutine cable_pack_r8_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
-  integer, dimension(ifull), intent(in) :: indata
-  integer(kind=4), dimension(:), intent(out) :: outdata
-  integer, intent(in), optional :: inb
+  real(kind=8), dimension(ifull), intent(in) :: indata
+  real(kind=8), dimension(:), intent(out) :: outdata
+  integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
-  if ( present(inb) ) then
-    nb = inb
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+  nb = inb
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      outdata(is:ie) =  pack(indata(js:je),tdata(tile)%tmap(:,nb))
+    end if  
+  end do
+  
+end subroutine cable_pack_r8_2_r8_tile
+
+subroutine cable_pack_r8_2_r8_map(indata,outdata,nmp)
+  use newmpar_m, only : ifull
+  implicit none
+  real(kind=8), dimension(ifull), intent(in) :: indata
+  real(kind=8), dimension(:), intent(out) :: outdata
+  integer, dimension(ifull), intent(in) :: nmp
+  integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
+
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
+    if ( all( nmp(js)==nmp(js:je) ) ) then
+      nb = nmp(js)
+      is = tdata(tile)%tind(nb,1)
+      ie = tdata(tile)%tind(nb,2)
+      if ( is<=ie ) then
+        outdata(is:ie) = pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
+      end if  
+    else    
+      do iq = js,je
+        nb = nmp(iq)
+        iqx = iq-js+1
+        if ( tdata(tile)%tmap(iqx,nb) ) then
+          is = tdata(tile)%tind(nb,1)  
+          iqt = is + count( tdata(tile)%tmap(1:iqx,nb) ) - 1
+          outdata(iqt) = indata(iq)
+        end if
+      end do 
+    end if  
+  end do   
+
+end subroutine cable_pack_r8_2_r8_map
+#endif
+
+subroutine cable_pack_i4_2_i4(indata,outdata)
+  use newmpar_m, only : ifull
+  implicit none
+  integer, dimension(ifull), intent(in) :: indata
+  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer :: nb, is, ie, js, je, tile
+
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
         outdata(is:ie) =  pack(int(indata(js:je),4),tdata(tile)%tmap(:,nb))
       end if  
     end do
-  else
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
-      do nb = 1,tdata(tile)%maxnb
-        is = tdata(tile)%tind(nb,1)
-        ie = tdata(tile)%tind(nb,2)
-        if ( is<=ie ) then
-          outdata(is:ie) =  pack(int(indata(js:je),4),tdata(tile)%tmap(:,nb))
-        end if  
-      end do
-    end do
-  end if
+  end do
 
 end subroutine cable_pack_i4_2_i4
 
-subroutine cable_pack_i4_2_i8(indata,outdata,inb)
+subroutine cable_pack_i4_2_i4_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
   integer, dimension(ifull), intent(in) :: indata
-  integer(kind=8), dimension(:), intent(out) :: outdata
-  integer, intent(in), optional :: inb
+  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
-  if ( present(inb) ) then
-    nb = inb
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+  nb = inb
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      outdata(is:ie) =  pack(int(indata(js:je),4),tdata(tile)%tmap(:,nb))
+    end if  
+  end do
+
+end subroutine cable_pack_i4_2_i4_tile
+
+subroutine cable_pack_i4_2_i4_map(indata,outdata,nmp)
+  use newmpar_m, only : ifull
+  implicit none
+  integer, dimension(ifull), intent(in) :: indata
+  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer, dimension(ifull), intent(in) :: nmp
+  integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
+
+  do tile = 1,ntiles
+    js = 1 + (tile-1)*imax
+    je = tile*imax
+    if ( all( nmp(js)==nmp(js:je) ) ) then
+      nb = nmp(js)
+      is = tdata(tile)%tind(nb,1)
+      ie = tdata(tile)%tind(nb,2)
+      if ( is<=ie ) then
+        outdata(is:ie) = pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
+      end if  
+    else    
+      do iq = js,je
+        nb = nmp(iq)
+        iqx = iq-js+1
+        if ( tdata(tile)%tmap(iqx,nb) ) then
+          is = tdata(tile)%tind(nb,1)  
+          iqt = is + count( tdata(tile)%tmap(1:iqx,nb) ) - 1
+          outdata(iqt) = indata(iq)
+        end if
+      end do 
+    end if  
+  end do    
+
+end subroutine cable_pack_i4_2_i4_map
+
+subroutine cable_pack_i4_2_i8(indata,outdata)
+  use newmpar_m, only : ifull
+  implicit none
+  integer, dimension(ifull), intent(in) :: indata
+  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer :: nb, is, ie, js, je, tile
+
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
         outdata(is:ie) =  pack(int(indata(js:je),8),tdata(tile)%tmap(:,nb))
       end if  
     end do
-  else
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
-      do nb = 1,tdata(tile)%maxnb
-        is = tdata(tile)%tind(nb,1)
-        ie = tdata(tile)%tind(nb,2)
-        if ( is<=ie ) then
-          outdata(is:ie) =  pack(int(indata(js:je),8),tdata(tile)%tmap(:,nb))
-        end if  
-      end do
-    end do
-  end if
+  end do
 
 end subroutine cable_pack_i4_2_i8
 
-subroutine cable_pack_r4_2_i4(indata,outdata,inb)
+subroutine cable_pack_i4_2_i8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
-  real, dimension(ifull), intent(in) :: indata
-  integer(kind=4), dimension(:), intent(out) :: outdata
-  integer, intent(in), optional :: inb
+  integer, dimension(ifull), intent(in) :: indata
+  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
-  if ( present(inb) ) then
-    nb = inb
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+  nb = inb
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      outdata(is:ie) =  pack(int(indata(js:je),8),tdata(tile)%tmap(:,nb))
+    end if  
+  end do
+
+end subroutine cable_pack_i4_2_i8_tile
+
+subroutine cable_pack_r4_2_i4(indata,outdata)
+  use newmpar_m, only : ifull
+  implicit none
+  real, dimension(ifull), intent(in) :: indata
+  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer :: nb, is, ie, js, je, tile
+
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
         outdata(is:ie) =  pack(nint(indata(js:je),4),tdata(tile)%tmap(:,nb))
       end if  
     end do
-  else
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
-      do nb = 1,tdata(tile)%maxnb
-        is = tdata(tile)%tind(nb,1)
-        ie = tdata(tile)%tind(nb,2)
-        if ( is<=ie ) then
-          outdata(is:ie) =  pack(nint(indata(js:je),4),tdata(tile)%tmap(:,nb))
-        end if  
-      end do
-    end do
-  end if
+  end do
 
 end subroutine cable_pack_r4_2_i4
 
-subroutine cable_pack_r4_2_i8(indata,outdata,inb)
+subroutine cable_pack_r4_2_i4_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
   real, dimension(ifull), intent(in) :: indata
-  integer(kind=8), dimension(:), intent(out) :: outdata
-  integer, intent(in), optional :: inb
+  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
-  if ( present(inb) ) then
-    nb = inb
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
+  nb = inb
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      outdata(is:ie) =  pack(nint(indata(js:je),4),tdata(tile)%tmap(:,nb))
+    end if  
+  end do
+
+end subroutine cable_pack_r4_2_i4_tile
+
+subroutine cable_pack_r4_2_i8(indata,outdata)
+  use newmpar_m, only : ifull
+  implicit none
+  real, dimension(ifull), intent(in) :: indata
+  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer :: nb, is, ie, js, je, tile
+
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    do nb = 1,tdata(tile)%maxnb
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
         outdata(is:ie) =  pack(nint(indata(js:je),8),tdata(tile)%tmap(:,nb))
       end if  
     end do
-  else
-    do tile = 1,ntiles
-      js=1+(tile-1)*imax
-      je=tile*imax
-      do nb = 1,tdata(tile)%maxnb
-        is = tdata(tile)%tind(nb,1)
-        ie = tdata(tile)%tind(nb,2)
-        if ( is<=ie ) then
-          outdata(is:ie) =  pack(nint(indata(js:je),8),tdata(tile)%tmap(:,nb))
-        end if  
-      end do
-    end do
-  end if
+  end do
 
 end subroutine cable_pack_r4_2_i8
+
+subroutine cable_pack_r4_2_i8_tile(indata,outdata,inb)
+  use newmpar_m, only : ifull
+  implicit none
+  real, dimension(ifull), intent(in) :: indata
+  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer, intent(in) :: inb
+  integer :: nb, is, ie, js, je, tile
+
+  nb = inb
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      outdata(is:ie) =  pack(nint(indata(js:je),8),tdata(tile)%tmap(:,nb))
+    end if  
+  end do
+
+end subroutine cable_pack_r4_2_i8_tile
 
 subroutine cable_unpack_r4_2_r4(indata,outdata)
   use newmpar_m, only : ifull
@@ -439,6 +615,27 @@ subroutine cable_unpack_r8_2_r4_tile(indata,outdata,inb)
 
 end subroutine cable_unpack_r8_2_r4_tile
 
+subroutine cable_unpack_i4_2_i4_tile(indata,outdata,inb)
+  use newmpar_m, only : ifull
+  implicit none
+  integer, dimension(:), intent(in) :: indata
+  integer, dimension(ifull), intent(inout) :: outdata
+  integer, intent(in) :: inb
+  integer :: is, ie, js, je, tile, nb
+
+  nb = inb
+  do tile = 1,ntiles
+    is = tdata(tile)%tind(nb,1)
+    ie = tdata(tile)%tind(nb,2)
+    if ( is<=ie ) then
+      js=1+(tile-1)*imax
+      je=tile*imax
+      outdata(js:je) = unpack(indata(is:ie),tdata(tile)%tmap(:,nb),outdata(js:je))
+    end if  
+  end do
+
+end subroutine cable_unpack_i4_2_i4_tile
+
 #ifndef i8r8
 subroutine cable_unpack_r4_2_r8(indata,outdata)
   use newmpar_m, only : ifull
@@ -489,9 +686,7 @@ end subroutine cable_unpack_r8_2_r8_tile
 
 subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
   real(kind=8), dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -499,24 +694,55 @@ subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
 
   nb = inb
   do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax      
     is = tdata(tile)%pind(nb,1)
     ie = tdata(tile)%pind(nb,2)
     if ( is<=ie ) then
-      js=1+(tile-1)*imax
-      je=tile*imax
-      outdata(is:ie) =  pack(real(indata(js:je),8),tdata(tile)%pmap(:,nb))
+      outdata(is:ie) = pack(indata(js:je),tdata(tile)%pmap(:,nb))
     end if  
   end do
 
 end subroutine pop_pack_r8_2_r8_tile
 
+subroutine pop_pack_r8_2_r8_map(indata,outdata,nmp)
+  use newmpar_m, only : ifull
+  implicit none
+  real(kind=8), dimension(ifull), intent(in) :: indata
+  real(kind=8), dimension(:), intent(inout) :: outdata
+  integer, dimension(ifull), intent(in) :: nmp
+  integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
+
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    if ( all( nmp(js)==nmp(js:je) ) ) then
+      nb = nmp(js)  
+      is = tdata(tile)%pind(nb,1)
+      ie = tdata(tile)%pind(nb,2)
+      if ( is<=ie ) then
+        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%pmap(:,nb))
+      end if  
+    else  
+      do iq = js,je
+        nb = nmp(iq)
+        iqx = iq-js+1
+        if ( tdata(tile)%pmap(iqx,nb) ) then
+          is = tdata(tile)%pind(nb,1)  
+          iqt = is + count( tdata(tile)%pmap(1:iqx,nb) ) - 1
+          outdata(iqt) = indata(iq)
+        end if
+      end do 
+    end if  
+  end do
+
+end subroutine pop_pack_r8_2_r8_map
+
 subroutine pop_pack_i4_2_i4_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
   integer, dimension(ifull), intent(in) :: indata
-  integer(kind=4), dimension(:), intent(inout) :: outdata
+  integer, dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -533,11 +759,42 @@ subroutine pop_pack_i4_2_i4_tile(indata,outdata,inb)
 
 end subroutine pop_pack_i4_2_i4_tile
 
+subroutine pop_pack_i4_2_i4_map(indata,outdata,nmp)
+  use newmpar_m, only : ifull
+  implicit none
+  integer, dimension(ifull), intent(in) :: indata
+  integer(kind=4), dimension(:), intent(inout) :: outdata
+  integer, dimension(ifull), intent(in) :: nmp
+  integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
+
+  do tile = 1,ntiles
+    js=1+(tile-1)*imax
+    je=tile*imax
+    if ( all( nmp(js)==nmp(js:je) ) ) then
+      nb = nmp(js)  
+      is = tdata(tile)%pind(nb,1)
+      ie = tdata(tile)%pind(nb,2)
+      if ( is<=ie ) then
+        outdata(is:ie) =  pack(indata(js:je),tdata(tile)%pmap(:,nb))
+      end if  
+    else  
+      do iq = js,je
+        nb = nmp(iq)
+        iqx = iq-js+1
+        if ( tdata(tile)%pmap(iqx,nb) ) then
+          is = tdata(tile)%pind(nb,1)  
+          iqt = is + count( tdata(tile)%pmap(1:iqx,nb) ) - 1
+          outdata(iqt) = indata(iq)
+        end if
+      end do 
+    end if  
+  end do
+
+end subroutine pop_pack_i4_2_i4_map
+
 subroutine pop_pack_i4_2_i8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -558,9 +815,7 @@ end subroutine pop_pack_i4_2_i8_tile
 
 subroutine pop_unpack_r8_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
   real(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(out) :: outdata
   integer, intent(in) :: inb
@@ -581,9 +836,7 @@ end subroutine pop_unpack_r8_2_r8_tile
 
 subroutine pop_unpack_i4_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
   integer(kind=4), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(out) :: outdata
   integer, intent(in) :: inb
@@ -604,9 +857,7 @@ end subroutine pop_unpack_i4_2_r8_tile
 
 subroutine pop_unpack_i8_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
-
   implicit none
-
   integer(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(out) :: outdata
   integer, intent(in) :: inb
@@ -627,7 +878,6 @@ end subroutine pop_unpack_i8_2_r8_tile
 
 subroutine setp_air(air,lair,tile)
   implicit none
-
   type(air_type), intent(in) :: air
   type(air_type), intent(inout) :: lair
   integer, intent(in) :: tile

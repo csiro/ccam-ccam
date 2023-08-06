@@ -126,12 +126,12 @@ if ( mlontvd==0 ) then ! MC
   !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum) async(async_counter)
   do ii = 1,wlev-1
     do iq = 1,ifull
-      ff(iq,ii) = 0.  
+      ff(iq,ii) = 0.
       if ( dzdum(iq,ii+1)>1.e-4 ) then
         delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
       else
-        delu(iq,ii) = 0.  
-      end if    
+        delu(iq,ii) = 0.
+      end if
     end do
   end do
   !$acc end parallel loop

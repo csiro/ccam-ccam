@@ -459,7 +459,7 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
          abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and.      &
          native_ccam==1
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  iotest = iotest .and. (wlev==ok)
+  iotest = iotest .and. wlev==ok
 end if
 iop_test = iotest .and. ptest
 

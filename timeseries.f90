@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -264,7 +264,6 @@ end if
 !     in that case, don't write the file
 if (ngrdpts>0) then
   call ccnf_create(outfile,tsid(1))
-  call ccnf_nofill(tsid(1))
 !       define dimensions
   call ccnf_def_dim(tsid(1),'gridpts',ngrdpts,griddim)
   call ccnf_def_dim(tsid(1),'surfpts',ngrdpts1,surfdim)
@@ -552,7 +551,6 @@ enddo
 write(chtemp,'(i8)') kdate
 outfile2 = 'ship.'//chtemp(1:4)//'.'//chtemp(5:6)//'.nc'
 call ccnf_create(outfile2,outshipid(1))
-call ccnf_nofill(outshipid(1))
 call ccnf_def_dim(outshipid(1),'nshiptrac',ntrac,tracdim)
 !    rml 18/12/03 increased dimension to include level for aircraft output
 call ccnf_def_dim(outshipid(1),'date_time_loc_ship',5,dtlsdim)

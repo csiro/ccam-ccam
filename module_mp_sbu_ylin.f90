@@ -16,8 +16,10 @@
 ! A double-moment SBU-YLIN cloud microphysics scheme and its impact
 ! on a squall line simulation. Journal of Advances in Modeling Earth Systems,
 ! 13, e2021MS002545. https://doi.org/10.1029/2021MS002545
-    
 
+! Modified code to improve vectorization with Sonny Truong and Marcus Thatcher
+! in CCAM
+    
 MODULE module_mp_sbu_ylin
 
   implicit none

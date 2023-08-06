@@ -29,8 +29,8 @@ integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to
 integer, save :: lin_aerosolmode    = 0     ! 0=off, 1=aerosol indirect effects for Lin microphysics
 real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
 
-! ldr    = 0    Diagnosed cloud scheme (depreciated)
-! ldr   /= 0    Prognostic cloud condensate (different ice fall speed options)
+! ldr  = 0      Diagnosed cloud scheme (depreciated)
+! ldr /= 0      Prognostic cloud condensate (different ice fall speed options)
   
 ! ncloud = 0    Standard LDR cloud microphysics with water vapour, liquid cloud and ice cloud
 ! ncloud = 2    Same as ncloud=0, but with prognostic rain and modified cfrac

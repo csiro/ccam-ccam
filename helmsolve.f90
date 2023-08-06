@@ -2731,7 +2731,7 @@ do itr = 2,itr_mgice
       v(1:ng,1:2,g) = v(1:ng,1:2,g) + ws(1:ng,1:2)
 
       do i = 1,itrend
-        call mgbounds(g,v(:,1:2,g))  
+        call mgbounds(g,v(:,1:2,g))
         ! ocean - post smoothing
         do iq = 1,ng
           bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &

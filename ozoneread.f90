@@ -457,7 +457,7 @@ select case ( ozoneintp )
       do m = ilev-1,1,-1
         if ( o3inp(m)>1.E19 ) o3inp(m) = o3inp(m+1)
       end do
-      prf = 0.01*ps(iq)*sig
+      prf(:) = 0.01*ps(iq)*sig(:)
       k1sav = 2
       do m = 1,kl_l
         if ( prf(m)>fpres(1) ) then
@@ -485,7 +485,7 @@ select case ( ozoneintp )
       o3inp = fmth(iq,:)
         
       ! pressure levels on CCAM grid
-      prf=0.01*ps(iq)*sig
+      prf(:)=0.01*ps(iq)*sig(:)
          
       mino3=minval(o3inp)
          

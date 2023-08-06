@@ -25,8 +25,7 @@ module sumdd_m
    private
    integer(kind=4), save, public :: MPI_SUMDR
    interface drpdr_local
-     module procedure drpdr_local2r, drpdr_local3r
-     module procedure drpdr_local2c
+     module procedure drpdr_local2r, drpdr_local3r, drpdr_local2c
    end interface drpdr_local
 contains
    subroutine drpdr(dra, drb, len, itype) 
@@ -38,7 +37,7 @@ contains
 !  on a range of machines.
 !  Here we're more concerned with reproducibility rather than accuracy
 !  so there's no need for double precision.
-
+      implicit none
       integer(kind=4), intent(in) :: len
       real :: e, t1, t2 
       integer :: i
@@ -85,17 +84,16 @@ contains
       implicit none 
       real, dimension(:,:), intent(in)  :: array
       complex, dimension(:), intent(inout) :: local_sum
+      real, dimension(size(array,2)) :: array_t
       real :: e, t1, t2 
-      real, dimension(size(array,2),size(array,1)) :: array_t
       integer :: i, n
       
-      array_t(:,:) = transpose(array)
-
-      do i = 1,size(array_t,2)
-         do n = 1,size(array_t,1)
-            t1 = array_t(n,i) + real(local_sum(n))
-            e = t1 - array_t(n,i) 
-            t2 = ((real(local_sum(n)) - e) + (array_t(n,i) - (t1 - e)))  + aimag(local_sum(n))
+      do i = 1,size(array,1)
+         array_t(:) = array(i,:)
+         do n = 1,size(array,2)
+            t1 = array_t(n) + real(local_sum(n))
+            e = t1 - array_t(n) 
+            t2 = ((real(local_sum(n)) - e) + (array_t(n) - (t1 - e)))  + aimag(local_sum(n))
             local_sum(n) = cmplx(t1 + t2, t2 - ((t1 + t2) - t1))
          end do
       end do

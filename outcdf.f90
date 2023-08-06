@@ -262,8 +262,6 @@ if ( myid==0 .or. local ) then
     ! Open new file  
     if ( myid==0 ) write(6,'(" create with itype,cdffile=",i5," ",a80)') itype,cdffile
     call ccnf_create(cdffile,idnc)
-    ! Turn off the data filling
-    call ccnf_nofill(idnc)
     
     ! Create standard dimensions
     xdim = 0
@@ -4042,8 +4040,6 @@ if ( first ) then
   end if
   if ( myid==0 .or. local ) then
     call ccnf_create(ffile,fncid)
-    ! Turn off the data filling
-    call ccnf_nofill(fncid)
     ! Create dimensions
     if ( local ) then
       call ccnf_def_dim(fncid,'longitude',il,adim(1))
@@ -5164,8 +5160,6 @@ if ( first ) then
   end if
   if ( myid==0 .or. local ) then
     call ccnf_create(ffile,fncid)
-    ! Turn off the data filling
-    call ccnf_nofill(fncid)
     ! Create dimensions
     if ( local ) then
       call ccnf_def_dim(fncid,'longitude',il,adim(1))
