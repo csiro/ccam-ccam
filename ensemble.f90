@@ -88,12 +88,12 @@ real, dimension(ifull) :: dd, old, new, delta
 real, dimension(ifull) :: zsb, timelt
 real, dimension(ifull) :: psl_pos, psl_neg
 real, dimension(:), allocatable, save :: u_rms, v_rms
-real, dimension(:), allocatable, save :: t_rms
+real, dimension(:), allocatable, save :: t_rms, q_rms
 real, dimension(ifull,3) :: duma
 real, dimension(ifull,6) :: dumd
 real, dimension(ifull,kl) :: ee
-real, dimension(ifull,kl) :: u_pos, v_pos, t_pos
-real, dimension(ifull,kl) :: u_neg, v_neg, t_neg
+real, dimension(ifull,kl) :: u_pos, v_pos, t_pos, q_pos
+real, dimension(ifull,kl) :: u_neg, v_neg, t_neg, q_neg
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,kl,8) :: dumv
 real, dimension(ifull,3,3) :: dums
@@ -109,11 +109,12 @@ if ( mtimer>mtimeb ) then
     allocate( tb(ifull,kl), ub(ifull,kl), vb(ifull,kl), qb(ifull,kl) )
     allocate( pslb(ifull), tssb(ifull), fraciceb(ifull) )
     allocate( sicedepb(ifull) )
-    allocate( u_rms(kl), v_rms(kl), t_rms(kl) )
+    allocate( u_rms(kl), v_rms(kl), t_rms(kl), q_rms(kl) )
     psl_rms = 1.
     u_rms(:) = 1.
     v_rms(:) = 1.
     t_rms(:) = 1.
+    q_rms(:) = 1.
     if ( abs(io_in)==1 ) then
       call onthefly(3,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
@@ -134,6 +135,7 @@ if ( mtimer>mtimeb ) then
       u_rms(:) = -1.
       v_rms(:) = -1.
       t_rms(:) = -1.
+      q_rms(:) = -1.
       dd(:) = psl(1:ifull) - pslb
       call rmse(dd,psl_rms)
       psl_rms = ensemble_rsfactor*psl_rms
@@ -201,44 +203,88 @@ if ( mtimer>=mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
     case(1) ! control
       if ( myid==0 ) then
         write(6,*) "Create ensemble initial conditions"  
-      end if    
-      dd(:) = psl(1:ifull) - pslb
-      psl_pos(:) = max( min( pslb + dd, 0.3 ), -1.4 )
-      psl_neg(:) = max( min( pslb - dd, 0.3 ), -1.4 )
-      ee(:,:) = u(1:ifull,:) - ub
-      u_pos(:,:) = max( min( ub + ee, 350. ), -350. )
-      u_neg(:,:) = max( min( ub - ee, 350. ), -350. )
-      ee(:,:) = v(1:ifull,:) - vb
-      v_pos(:,:) = max( min( vb + ee, 350. ), -350. )
-      v_neg(:,:) = max( min( vb - ee, 350. ), -350. )
-      ee(:,:) = t(1:ifull,:) - tb
-      t_pos(:,:) = max( min( tb + ee, 400. ), 100. )
-      t_neg(:,:) = max( min( tb - ee, 400. ), 100. )
+      end if
+      if ( nud_p>0 ) then
+        dd(:) = psl(1:ifull) - pslb
+        psl_pos(:) = max( min( pslb + dd, 0.3 ), -1.4 )
+        psl_neg(:) = max( min( pslb - dd, 0.3 ), -1.4 )
+      else
+        psl_pos(:) = psl(1:ifull)
+        psl_neg(:) = psl(1:ifull)
+      end if
+      if ( nud_uv>0 ) then
+        ee(:,:) = u(1:ifull,:) - ub
+        u_pos(:,:) = max( min( ub + ee, 350. ), -350. )
+        u_neg(:,:) = max( min( ub - ee, 350. ), -350. )
+        ee(:,:) = v(1:ifull,:) - vb
+        v_pos(:,:) = max( min( vb + ee, 350. ), -350. )
+        v_neg(:,:) = max( min( vb - ee, 350. ), -350. )
+      else
+        u_pos(:,:) = u(1:ifull,:)
+        u_neg(:,:) = u(1:ifull,:)
+        v_pos(:,:) = v(1:ifull,:)
+        v_neg(:,:) = v(1:ifull,:)
+      end if
+      if ( nud_t>0 ) then
+        ee(:,:) = t(1:ifull,:) - tb
+        t_pos(:,:) = max( min( tb + ee, 400. ), 100. )
+        t_neg(:,:) = max( min( tb - ee, 400. ), 100. )
+      else
+        t_pos(:,:) = t(1:ifull,:)
+        t_neg(:,:) = t(1:ifull,:)
+      end if
+      if ( nud_q>0 ) then
+        ee(:,:) = qg(1:ifull,:) - qb
+        q_pos(:,:) = max( min( qb + ee, 1.e-1 ), 1.e-8 )
+        q_neg(:,:) = max( min( qb - ee, 1.e-1 ), 1.e-8 )
+      else
+        q_pos(:,:) = qg(1:ifull,:)
+        q_neg(:,:) = qg(1:ifull,:)
+      end if
       num = num + 1 ! odd = pos
-      call saveoutput(num,psl_pos,u_pos,v_pos,t_pos,qg)
+      call saveoutput(num,psl_pos,u_pos,v_pos,t_pos,q_pos)
       num = num + 1 ! even = neg
-      call saveoutput(num,psl_neg,u_neg,v_neg,t_neg,qg)
-      psl(1:ifull) = pslb(:)
-      u(1:ifull,:) = ub(:,:)
-      v(1:ifull,:) = vb(:,:)
-      t(1:ifull,:) = tb(:,:)
-      qg(1:ifull,:) = qb(:,:)
+      call saveoutput(num,psl_neg,u_neg,v_neg,t_neg,q_neg)
+      if ( nud_p>0 ) then
+        psl(1:ifull) = pslb(:)
+      end if
+      if ( nud_uv>0 ) then
+        u(1:ifull,:) = ub(:,:)
+        v(1:ifull,:) = vb(:,:)
+      end if
+      if ( nud_t>0 ) then
+        t(1:ifull,:) = tb(:,:)
+      end if
+      if ( nud_q>0 ) then
+        qg(1:ifull,:) = qb(:,:)
+      end if
     case(2) ! breed
       if ( myid==0 ) then
         write(6,*) "Update ensemble breeding"  
       end if    
-      dd(:) = psl(1:ifull) - pslb
-      call rmse(dd,psl_rms)
-      psl(1:ifull) = pslb + dd
-      ee(:,:) = u(1:ifull,:) - ub
-      call rmse(ee,u_rms)
-      u(1:ifull,:) = ub + ee
-      ee(:,:) = v(1:ifull,:) - vb
-      call rmse(ee,v_rms)
-      v(1:ifull,:) = vb + ee
-      ee(:,:) = t(1:ifull,:) - tb
-      call rmse(ee,t_rms)
-      t(1:ifull,:) = tb + ee
+      if ( nud_p>0 ) then
+        dd(:) = psl(1:ifull) - pslb
+        call rmse(dd,psl_rms)
+        psl(1:ifull) = pslb + dd
+      end if
+      if ( nud_uv>0 ) then
+        ee(:,:) = u(1:ifull,:) - ub
+        call rmse(ee,u_rms)
+        u(1:ifull,:) = ub + ee
+        ee(:,:) = v(1:ifull,:) - vb
+        call rmse(ee,v_rms)
+        v(1:ifull,:) = vb + ee
+      end if
+      if ( nud_t>0 ) then
+        ee(:,:) = t(1:ifull,:) - tb
+        call rmse(ee,t_rms)
+        t(1:ifull,:) = tb + ee
+      end if
+      if ( nud_q>0 ) then
+        ee(:,:) = qg(1:ifull,:) - qb
+        call rmse(ee,q_rms)
+        qg(1:ifull,:) = qb + ee
+      end if
   end select  
   
 end if     ! (mtimer==mtimec).and.(mod(nint(ktau*dt),60)==0)

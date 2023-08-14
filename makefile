@@ -350,7 +350,7 @@ optical_path.o gas_tf.o lw_gases_stdtf.o \
 mlodynamics.o mlodynamicsarrays_m.o mlodiffg.o mlostag.o mlodepts.o mloints.o mlovadvtvd.o \
 darcdf_m.o dates_m.o filnames_m.o newmpar_m.o parm_m.o parmdyn_m.o parmgeom_m.o \
 parmhor_m.o soilv_m.o stime_m.o \
-netcdf_m.o parmvert_m.o stacklimit.o module_aux_cosp.o
+netcdf_m.o parmvert_m.o module_aux_cosp.o
 
 # Object files for single column mode
 OBJSCM = aerointerface.o aerosol_arrays.o aerosolldr.o arrays_m.o ateb.o cable_air.o \
@@ -373,7 +373,7 @@ riverarrays_m.o savuvt_m.o scm.o scmarrays_m.o screen_m.o scrnout.o \
 seaesfrad.o sealw99.o sflux.o sigs_m.o soil_m.o soilsnow.o soilsnow_m.o soilv_m.o \
 stime_m.o tkeeps.o tracers_m.o vecsuv_m.o vegpar_m.o vertmix.o vvel_m.o work2_m.o \
 work3_m.o work3b_m.o work3f_m.o xyzinfo_m.o zenith.o \
-getopt_m.o stacklimit.o
+getopt_m.o 
 
 ifeq ($(SCM),yes)
 FC = $(FCSCM)
@@ -486,8 +486,6 @@ tkeeps.o: tkeeps.f90
 	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
 vertmix.o: vertmix.f90
 	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
-stacklimit.o: stacklimit.c
-	$(CC) -c stacklimit.c
 version.h: FORCE
 	rm -f brokenver tmpver
 	echo "character(len=*), parameter :: version= &" > brokenver

@@ -38,7 +38,6 @@
 !   csircoupled  - CSIR coupled model
 !   usempi3      - optimse communication with MPI-3 (preferrd)
 !   share_ifullg - redice memory with MPI-3 (preferred) - requires usempi3
-!   stacklimit   - disable stacklimit
 !   vampir       - enable vampir profiling
     
 program globpe
@@ -168,11 +167,6 @@ if ( myid==0 ) then
   write(6,*) "CCAM: Starting globpea"
   write(6,*) "=============================================================================="
 end if
-
-#ifndef stacklimit
-! For Linux only - removes stacklimit on all processes
-call setstacklimit(-1)
-#endif
 
 
 !----------------------------------------------------------------

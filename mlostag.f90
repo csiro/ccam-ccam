@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -58,11 +58,11 @@ real, dimension(:,:,:), allocatable, save :: wtul,wtvl
 real, dimension(:,:,:), allocatable, save :: wtur,wtvr
 real, dimension(:,:,:), allocatable, save :: dtul,dtvl
 real, dimension(:,:,:), allocatable, save :: dtur,dtvr
-real, dimension(ifull,0:3) :: nwtu,nwtv
+real, dimension(:,:), allocatable :: nwtu,nwtv
 real, dimension(:,:), allocatable, save :: stul,stvl
 real, dimension(:,:), allocatable, save :: stur,stvr
-logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
-logical, dimension(ifull) :: euewtest,evnstest,eutest,evtest
+logical, dimension(:), allocatable :: euetest,euwtest,evntest,evstest
+logical, dimension(:), allocatable :: euewtest,evnstest,eutest,evtest
 logical ltest
 
 call START_LOG(ocnstag_begin)
@@ -75,14 +75,18 @@ if (.not.allocated(wtul)) then
   allocate(dtur(ifull,wlev,3),dtvr(ifull,wlev,3))
   allocate(stul(ifull,wlev),stvl(ifull,wlev))
   allocate(stur(ifull,wlev),stvr(ifull,wlev))
+
+  allocate( nwtu(ifull,0:3), nwtv(ifull,0:3) )
+  allocate( euetest(ifull), euwtest(ifull), evntest(ifull), evstest(ifull) )
+  allocate( euewtest(ifull), evnstest(ifull), eutest(ifull), evtest(ifull) )
   
   ! assign land arrays
   do k = 1,wlev
     eutest = ee(1:ifull,k)*ee(ie,k)>0.5
     evtest = ee(1:ifull,k)*ee(in,k)>0.5
-    euetest = eutest     .and. ee(ie,k)*ee(iee,k)>0.5
+    euetest = eutest .and. ee(ie,k)*ee(iee,k)>0.5
     euwtest = ee(iw,k)*ee(1:ifull,k)>0.5 .and. eutest
-    evntest = evtest     .and. ee(in,k)*ee(inn,k)>0.5
+    evntest = evtest .and. ee(in,k)*ee(inn,k)>0.5
     evstest = ee(is,k)*ee(1:ifull,k)>0.5 .and. evtest
     euewtest = euetest .and. euwtest
     evnstest = evntest .and. evstest
@@ -140,9 +144,9 @@ if (.not.allocated(wtul)) then
       wtul(1:ifull,k,3)=0.
       dtul(1:ifull,k,1)=0.
       dtul(1:ifull,k,2)=0.
-      dtul(1:ifull,k,3)=0.
-            
+      dtul(1:ifull,k,3)=0.            
     end where
+
     where (evnstest)
       wtvl(1:ifull,k,0)=1.
       wtvl(1:ifull,k,1)=-0.5
@@ -187,9 +191,7 @@ if (.not.allocated(wtul)) then
   end do
     
   ! Apply JLM's preconditioner
-  do i = 0,3
-    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10)
-  end do  
+  call boundsuv(wtul(:,:,0:3),wtvl(:,:,0:3),stag=-10)
   do k = 1,wlev
     where (abs(wtul(ieu,k,0))>1.E-4.and.abs(wtul(1:ifull,k,1))>1.E-4)
       stul(1:ifull,k)=-wtul(1:ifull,k,1)/wtul(ieu,k,0)
@@ -242,9 +244,7 @@ if (.not.allocated(wtul)) then
   end do
     
   ! normalise
-  do i = 0,3
-    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10)
-  end do  
+  call boundsuv(wtul(:,:,0:3),wtvl(:,:,0:3),stag=-10)
   do k = 1,wlev
     do i=1,3
       dtul(1:ifull,k,i)=dtul(1:ifull,k,i)/wtul(1:ifull,k,0)
@@ -320,8 +320,8 @@ if (.not.allocated(wtul)) then
       dtur(1:ifull,k,1)=0.
       dtur(1:ifull,k,2)=0.
       dtur(1:ifull,k,3)=0.
-      
     end where
+
     where (evnstest)
       wtvr(1:ifull,k,0)=1.
       wtvr(1:ifull,k,1)=-0.1
@@ -366,9 +366,7 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! Apply JLM's preconditioner
-  do i = 0,3
-    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9)
-  end do  
+  call boundsuv(wtur(:,:,0:3),wtvr(:,:,0:3),stag=-9)
   do k = 1,wlev
     where (abs(wtur(iwu,k,0))>1.E-4.and.abs(wtur(1:ifull,k,2))>1.E-4)
       stur(1:ifull,k)=-wtur(1:ifull,k,2)/wtur(iwu,k,0)
@@ -421,9 +419,7 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! normalise
-  do i = 0,3
-     call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9)
-  end do  
+  call boundsuv(wtur(:,:,0:3),wtvr(:,:,0:3),stag=-9)
   do k = 1,wlev
     do i = 1,3
       dtur(1:ifull,k,i)=dtur(1:ifull,k,i)/wtur(1:ifull,k,0)
@@ -436,6 +432,10 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,k,0)=1.
     wtvr(1:ifull,k,0)=1.
   end do  
+
+  deallocate( nwtu, nwtv )
+  deallocate( euetest, euwtest, evntest, evstest )
+  deallocate( euewtest, evnstest, eutest, evtest )
 
 end if
 
@@ -516,7 +516,7 @@ if ( ltest ) then
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
-      end do  
+      end do
     end do
     !$omp end do nowait
     !$omp do schedule(static) private(k,iq)      
@@ -669,18 +669,18 @@ real, dimension(:,:), intent(out) :: uout,vout
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va
 real, dimension(ifull+iextra,size(u,2)) :: ud,vd
-real, dimension(ifull,0:3) :: nwtu,nwtv
+real, dimension(:,:), allocatable :: nwtu,nwtv
 real, dimension(:,:,:), allocatable, save :: wtul,wtvl
 real, dimension(:,:,:), allocatable, save :: wtur,wtvr
 real, dimension(:,:,:), allocatable, save :: dtul,dtvl
 real, dimension(:,:,:), allocatable, save :: dtur,dtvr
 real, dimension(:,:), allocatable, save :: stul,stvl
 real, dimension(:,:), allocatable, save :: stur,stvr
-logical, dimension(ifull) :: eutest,evtest
-logical, dimension(ifull) :: eetest,ewtest,entest,estest
-logical, dimension(ifull) :: euetest,euwtest,evntest,evstest
-logical, dimension(ifull) :: euewtest,evnstest
-logical, dimension(ifull) :: eeetest,ewwtest,enntest,esstest
+logical, dimension(:), allocatable :: eutest,evtest
+logical, dimension(:), allocatable :: eetest,ewtest,entest,estest
+logical, dimension(:), allocatable :: euetest,euwtest,evntest,evstest
+logical, dimension(:), allocatable :: euewtest,evnstest
+logical, dimension(:), allocatable :: eeetest,ewwtest,enntest,esstest
 logical ltest
 
 call START_LOG(ocnstag_begin)
@@ -692,6 +692,13 @@ if (.not.allocated(wtul)) then
   allocate(dtur(ifull,wlev,3),dtvr(ifull,wlev,3))
   allocate(stul(ifull,wlev),stvl(ifull,wlev))
   allocate(stur(ifull,wlev),stvr(ifull,wlev))
+
+  allocate( nwtu(ifull,0:3), nwtv(ifull,0:3) )
+  allocate( eutest(ifull), evtest(ifull) )
+  allocate( eetest(ifull), ewtest(ifull), entest(ifull), estest(ifull) )
+  allocate( euetest(ifull), euwtest(ifull), evntest(ifull), evstest(ifull) )
+  allocate( euewtest(ifull), evnstest(ifull) )
+  allocate( eeetest(ifull), ewwtest(ifull), enntest(ifull), esstest(ifull) )
 
   do k = 1,wlev
     ! assign land arrays
@@ -786,9 +793,9 @@ if (.not.allocated(wtul)) then
       wtul(1:ifull,k,3)=0.
       dtul(1:ifull,k,1)=0.
       dtul(1:ifull,k,2)=0.
-      dtul(1:ifull,k,3)=0.
-      
+      dtul(1:ifull,k,3)=0.    
     end where
+
     where (evnstest)
       wtvl(1:ifull,k,0)=1.
       wtvl(1:ifull,k,1)=-0.1
@@ -851,9 +858,7 @@ if (.not.allocated(wtul)) then
   end do  
     
   ! Apply JLM's preconditioner
-  do i = 0,3
-     call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9)
-  end do   
+  call boundsuv(wtul(:,:,0:3),wtvl(:,:,0:3),stag=-9)
   do k = 1,wlev
     where (abs(wtul(iwu,k,0))>1.E-4.and.abs(wtul(1:ifull,k,2))>1.E-4)
       stul(1:ifull,k)=-wtul(1:ifull,k,2)/wtul(iwu,k,0)
@@ -906,9 +911,7 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! normalise
-  do i = 0,3
-     call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9)
-  end do   
+  call boundsuv(wtul(:,:,0:3),wtvl(:,:,0:3),stag=-9)
   do k = 1,wlev
     do i = 1,3
       wtul(1:ifull,k,i)=wtul(1:ifull,k,i)/wtul(1:ifull,k,0)
@@ -929,16 +932,16 @@ if (.not.allocated(wtul)) then
     ewtest = ee(iw,k)*ee(1:ifull,k)>0.5
     estest = ee(is,k)*ee(1:ifull,k)>0.5
       
-    eutest=ee(1:ifull,k)*ee(ie,k)>0.5
-    evtest=ee(1:ifull,k)*ee(in,k)>0.5
-    euetest=eutest.and.ee(ie,k)*ee(iee,k)>0.5
-    evntest=evtest.and.ee(in,k)*ee(inn,k)>0.5
-    euwtest=eutest.and.ee(iw,k)*ee(1:ifull,k)>0.5
-    evstest=evtest.and.ee(is,k)*ee(1:ifull,k)>0.5
-    euewtest=euetest.and.euwtest
-    evnstest=evntest.and.evstest
-    ewwtest=ewtest.and.ee(iww,k)>0.5
-    esstest=estest.and.ee(iss,k)>0.5
+    eutest = ee(1:ifull,k)*ee(ie,k)>0.5
+    evtest = ee(1:ifull,k)*ee(in,k)>0.5
+    euetest = eutest .and. ee(ie,k)*ee(iee,k)>0.5
+    evntest = evtest .and. ee(in,k)*ee(inn,k)>0.5
+    euwtest = eutest .and. ee(iw,k)*ee(1:ifull,k)>0.5
+    evstest = evtest .and. ee(is,k)*ee(1:ifull,k)>0.5
+    euewtest = euetest .and. euwtest
+    evnstest = evntest .and. evstest
+    ewwtest = ewtest .and. ee(iww,k)>0.5
+    esstest = estest .and. ee(iss,k)>0.5
   
   
     !  |   W   |   * X |  E   |     unstaggered
@@ -1016,8 +1019,8 @@ if (.not.allocated(wtul)) then
       dtur(1:ifull,k,1)=0.
       dtur(1:ifull,k,2)=0.
       dtur(1:ifull,k,3)=0.
-
     end where
+
     where (evnstest)
       wtvr(1:ifull,k,0)=1.
       wtvr(1:ifull,k,1)=-0.5
@@ -1080,9 +1083,7 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! Apply JLM's preconditioner
-  do i = 0,3
-     call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10)
-  end do   
+  call boundsuv(wtur(:,:,0:3),wtvr(:,:,0:3),stag=-10)
   do k = 1,wlev
     where (abs(wtur(ieu,k,0))>1.E-4.and.abs(wtur(1:ifull,k,1))>1.E-4)
       stur(1:ifull,k)=-wtur(1:ifull,k,1)/wtur(ieu,k,0)
@@ -1135,9 +1136,7 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! normalise
-  do i = 0,3
-    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10)
-  end do  
+  call boundsuv(wtur(:,:,0:3),wtvr(:,:,0:3),stag=-10)
   do k = 1,wlev
     do i = 1,3
       wtur(1:ifull,k,i)=wtur(1:ifull,k,i)/wtur(1:ifull,k,0)
@@ -1150,6 +1149,13 @@ if (.not.allocated(wtul)) then
     wtur(1:ifull,k,0)=1.
     wtvr(1:ifull,k,0)=1.
   end do  
+
+  deallocate( nwtu, nwtv )
+  deallocate( eutest, evtest )
+  deallocate( eetest, ewtest, entest, estest )
+  deallocate( euetest, euwtest, evntest, evstest )
+  deallocate( euewtest, evnstest )
+  deallocate( eeetest, ewwtest, enntest, esstest )
 
 end if
 
