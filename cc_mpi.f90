@@ -452,6 +452,7 @@ module cc_mpi
    integer, public, save :: mpiwaitsome_begin, mpiwaitsome_end
    integer, public, save :: mpiwaitall_begin, mpiwaitall_end
    integer, public, save :: mpibarrier_begin, mpibarrier_end
+   integer, public, save :: mpifence_begin, mpifence_end
    integer, public, save :: mgsetup_begin, mgsetup_end
    integer, public, save :: mgfine_begin, mgfine_end
    integer, public, save :: mgup_begin, mgup_end
@@ -465,7 +466,7 @@ module cc_mpi
    integer, public, save :: p6_begin, p6_end
    integer, public, save :: p7_begin, p7_end
    integer, public, save :: p8_begin, p8_end   
-   integer, parameter :: nevents = 76
+   integer, parameter :: nevents = 77
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
    real(kind=8), save, public :: mpiinit_time, total_time
@@ -5473,6 +5474,7 @@ contains
       call add_event(mpiwaitsome_begin,   mpiwaitsome_end,   "MPI_Waitsome")
       call add_event(mpiwaitall_begin,    mpiwaitall_end,    "MPI_Waitall")
       call add_event(mpibarrier_begin,    mpibarrier_end,    "MPI_Barrier")
+      call add_event(mpifence_begin,      mpifence_end,      "MPI_Fence")
       call add_event(p1_begin,            p1_end,            "Probe1")
       call add_event(p2_begin,            p2_end,            "Probe2")
       call add_event(p3_begin,            p3_end,            "Probe3")
@@ -6585,8 +6587,8 @@ contains
       integer, intent(in) :: comm
       integer(kind=4) :: lcomm, ierr
       
-      lcomm = comm
       call START_LOG(mpibarrier_begin)
+      lcomm = comm      
       call MPI_Barrier( lcomm, ierr )
       call END_LOG(mpibarrier_end)
    
@@ -7040,6 +7042,9 @@ contains
       ref_nodecaptain_nproc = nodecaptain_nproc
       lcommin = comm_world      
       call MPI_Bcast(ref_nodecaptain_nproc, 1_4, MPI_INTEGER, 0_4, lcommin, lerr )
+      
+      ! do not remap process ranks if running a single node
+      if ( ref_nodecaptain_nproc == 1 ) return
    
       if ( mod(nproc, ref_nodecaptain_nproc)==0 .and. ref_nodecaptain_nproc>1 ) then
          ! fully loaded nodes method
@@ -7065,23 +7070,6 @@ contains
          if ( vsize > 2 ) then
             new_node_nproc = vsize
          end if
-         !if ( node_myid==0 ) then
-         !   lnode = node_nproc 
-         !   lcommin = comm_nodecaptain
-         !   call START_LOG(reduce_begin)
-         !   call MPI_Reduce(lnode, mnode, 1_4, MPI_INTEGER, MPI_MAX, 0_4, lcommin, lerr )
-         !   call END_LOG(reduce_end)
-         !end if
-         !lcommin = comm_world
-         !call MPI_Bcast(mnode, 1, MPI_INTEGER, 0_4, lcommin, lerr )
-         !do vsize = mnode,1,-1
-         !   if ( mod(nproc,vsize)==0 ) then
-         !      exit
-         !   end if
-         !end do
-         !if ( vsize > 2 ) then
-         !   new_node_nproc = vsize
-         !end if
       end if
 
       if ( new_node_nproc >= 4 ) then
@@ -8498,7 +8486,7 @@ contains
    subroutine ccmpi_filewinget3(abuf,sinp)
       integer :: n, w, nlen, kx, cc, ipf
       integer :: rcount, jproc, kproc
-      integer :: k, ip, no, ca, cb
+      integer :: k
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -8552,7 +8540,6 @@ contains
          rcount = rcount - ldone
          do jproc = 1,ldone
             w = i_list(donelist(jproc))
-            ip = filemap_recv(w) + filemap_rmod(w)*fnresid
             kproc = filemap_indx(filemap_recv(w),filemap_rmod(w))
             do k = 1,kx
                do n = 0,pnpan-1
@@ -8577,13 +8564,9 @@ contains
       call END_LOG(mpibarrier_end)
 
       do w = 1,size(filemap_req)
-         ip = filemap_req(w) + filemap_qmod(w)*fnresid
          kproc = filemap_indx(filemap_req(w),filemap_qmod(w))
          do k = 1,kx
             do n = 0,pnpan-1
-               no = n - pnoff(ip) + 1
-               ca = pioff(ip,no)
-               cb = pjoff(ip,no)
                cc = n*pipan*pjpan
                abuf(1+cc:pipan*pjpan+cc,w,k) = reshape( nodefile(:,:,n+1,k,kproc), (/ pipan*pjpan /) )
             end do  
@@ -10089,6 +10072,7 @@ contains
        integer(kind=4) :: lwin, lerr, lassert
        character(len=*), intent(in), optional :: assert
        
+       call START_LOG(mpifence_begin)
        lassert = 0_4
        if ( present(assert) ) then
           select case(assert)
@@ -10098,9 +10082,9 @@ contains
                 lassert = MPI_MODE_NOSUCCEED
           end select
        end if
-       
        lwin = win
        call MPI_Win_fence( lassert, lwin, lerr )
+       call END_LOG(mpifence_end)
 
    end subroutine ccmpi_shepoch
    

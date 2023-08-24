@@ -819,6 +819,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'tcalmeth',tcalmeth)
     call ccnf_put_attg(idnc,'tke_timeave_length',tke_timeave_length)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
+    call ccnf_put_attg(idnc,'ugs_meth',ugs_meth)
     call ccnf_put_attg(idnc,'wg_prob',wg_prob)
     call ccnf_put_attg(idnc,'wg_tau',wg_tau)
     
@@ -1652,6 +1653,14 @@ if( myid==0 .or. local ) then
         call attrib(idnc,dimj,4,'wsgs',lname,'m s-1',0.,350.,0,cptype)
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(idnc,dimj,4,'wsgsmax',lname,'m s-1',0.,350.,1,cptype)
+        lname = 'Friction Velocity For Maximum Wind Gust'
+        call attrib(idnc,dimj,4,'wsgsmax_ustar',lname,'m s-1',0.,35.,1,cptype)
+        lname = 'Near-Surface Wind Speed For Maximum Wind Gust'
+        call attrib(idnc,dimj,4,'wsgsmax_u10',lname,'m s-1',0.,350.,1,cptype)
+        if ( nvmix==6.or.nvmix==9 ) then
+          lname = 'Near-Surface Turbulent Kinetic Energy For Maximum Wind Gust'
+          call attrib(idnc,dimj,4,'wsgsmax_tke',lname,'m2 s-2',0.,65.,1,cptype)
+        end if
       end if  
     end if  
     
@@ -3061,6 +3070,11 @@ if ( save_pbl .and. itype==1 ) then
   if ( rescrn>0 ) then  
     call histwrt(wsgs,'wsgs',idnc,iarch,local,.true.)  
     call histwrt(wsgsmax,'wsgsmax',idnc,iarch,local,lday)  
+    call histwrt(wsgsmax_ustar,'wsgsmax_ustar',idnc,iarch,local,lday)
+    call histwrt(wsgsmax_u10,'wsgsmax_u10',idnc,iarch,local,lday)
+    if ( nvmix==6.or.nvmix==9 ) then
+      call histwrt(wsgsmax_tke,'wsgsmax_tke',idnc,iarch,local,lday)
+    end if  
   end if  
 end if
 

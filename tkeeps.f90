@@ -183,7 +183,7 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,ua,va,zi,fg,eg,cduv,ps,zz,zzh
                   shearproduction,totaltransport,                                          &
 #endif
 #ifdef CCAM
-                  land,ugs_var,tile,                                                       &
+                  land,tile,                                                               &
 #endif
                   imax,kl)
 
@@ -208,7 +208,7 @@ real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, c
 real, dimension(imax,kl), intent(inout) :: tke_ema
 real, dimension(imax), intent(inout) :: zi,fg,eg
 real, dimension(imax), intent(in) :: cduv,ps,rhos,dx
-real, dimension(imax), intent(out) :: ustar_ave, ugs_var
+real, dimension(imax), intent(out) :: ustar_ave
 real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl) :: km, thetav, thetal, qsat
 real, dimension(imax,kl) :: rhoa,rhoahl
@@ -229,7 +229,7 @@ real, dimension(imax) :: templ, fice, qc, qt
 real, dimension(imax) :: temp, lx, dqsdt, al
 real, dimension(kl) :: sigkap
 real tff, cm12, cm34, ddts
-real wdash_sq
+real wdash_sq, l_on_kz
 logical, dimension(imax) :: mask
 
 #ifdef CCAM
@@ -319,7 +319,6 @@ end do
 
 ustar_ave(:) = 0.
 fg_ave(:) = 0.
-ugs_var(:) = 0.
 
 #ifdef CCAM
 if ( mode==2 .or. mode==3 ) then
@@ -541,19 +540,20 @@ if ( tcalmeth>0 ) then
 end if  
 
 
-! variance for wind gusts
-! (from TAPM)
-do iq = 1,imax
-  wdash_sq = (1.2*ustar(iq))**2   ! Hurley
-  !l_on_kz = cm34*tke(iq,1)**(3./2.)/eps(iq,1)/(vkar*zz(iq,1))
-  !wdash_sq = ((2./3.)*tke(iq,1) + tke(iq,1)/(cs1*eps(iq,1))*( &
-  !            (2.-cs2-cw2*l_on_kz)*pps(iq,1)                  &
-  !          + (2.-cs3-cw3*l_on_kz)*ppb(iq,1)                  &
-  !          - (2./3.)*eps(iq,1) ) )                           &
-  !          / (1.+(cw1/cs1)*l_on_kz)
-  ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq      ! = (cm12-0.5*1.2)*ustar(iq)**2 + ce3*wstar(iq)**2
-  !usg_var(iq) = (2.185*ustar(iq))**2         ! Schreur et al (2008)
-end do
+!! variance for wind gusts
+!! (from TAPM)
+!do iq = 1,imax
+!  !wdash_sq = (1.2*ustar(iq))**2   ! Hurley
+!  !l_on_kz = cm34*tke(iq,1)**(3./2.)/eps(iq,1)/(vkar*zz(iq,1))
+!  !wdash_sq = ((2./3.)*tke(iq,1) + tke(iq,1)/(cs1*eps(iq,1))*( &
+!  !            (2.-cs2-cw2*l_on_kz)*pps(iq,1)                  &
+!  !          + (2.-cs3-cw3*l_on_kz)*ppb(iq,1)                  &
+!  !          - (2./3.)*eps(iq,1) ) )                           &
+!  !          / (1.+(cw1/cs1)*l_on_kz)
+!  !ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq    ! = (1./sqrt(cm0)-0.5*1.44)*ustar(iq)**2 + ce3*wstar(iq)**2
+!                                             ! = 2.61*ustar**2 + ce3*wstar**2
+!  ugs_var(iq) = (2.185*ustar(iq))**2         ! Schreur et al (2008)
+!end do
 
 
 #ifdef CCAM

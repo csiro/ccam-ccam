@@ -3273,31 +3273,41 @@ filemap_indxlen = 0
 ncount_a = 0
 ncount_b = 0
 do ipf = 0,fncount-1
+  ! determine files needed by this process  
   lproc(:) = .false.
   do w = 1,size(filemap_req)
     if ( filemap_qmod(w) == ipf ) then
       lproc(filemap_req(w)) = .true.
     end if
   end do 
+  ! combine required files for a node
   call ccmpi_allreduce(lproc,lproc_t,"or",comm_node)
   ncount = 0
   do w = 0,nproc-1
     if ( lproc_t(w) ) then
+      ! construct a index for the required data  
       filemap_indxlen = filemap_indxlen + 1
       filemap_indx(w,ipf) = filemap_indxlen
+      ! only one process per node will receive the information
+      ! ( and then share it within the node )
       ncount = ncount + 1
       if ( mod(ncount-1,node_nproc)/=node_myid ) then
         lproc_t(w) = .false.
       end if
     end if
+    ! construct a list of messages expected to be received
     if ( lproc_t(w) ) then
       ncount_b = ncount_b + 1
       tempmap_recv(ncount_b) = w
       tempmap_rmod(ncount_b) = ipf
     end if
   end do
+  ! perform transpose to convert messages to be received
+  ! into messages to be sent
   call ccmpi_alltoall(lproc_t,comm_world) ! global transpose
   do w = 0,nproc-1
+    ! constuct a list of messages to be sent
+    ! ( should be a single message per node )
     if ( lproc_t(w) ) then
       ncount_a = ncount_a + 1
       tempmap_send(ncount_a) = w
@@ -3305,6 +3315,7 @@ do ipf = 0,fncount-1
     end if
   end do  
 end do
+! store information for sending and receiving messages
 allocate( filemap_send(ncount_a), filemap_smod(ncount_a) )
 allocate( filemap_recv(ncount_b), filemap_rmod(ncount_b) )
 filemap_send(1:ncount_a) = tempmap_send(1:ncount_a)

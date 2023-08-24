@@ -1565,7 +1565,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL s
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
     tke_timeave_length,plume_alpha,tcalmeth,                      &
-    wg_tau,wg_prob,                                               & ! wind gusts
+    wg_tau,wg_prob,ugs_meth,                                      & ! wind gusts
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
     tkecduv,zimax                                                   ! depreciated
@@ -2295,7 +2295,7 @@ lin_aerosolmode    = dumi(25)
 cloud_ice_method   = dumi(26)
 leon_snowmeth      = dumi(27)
 deallocate( dumr, dumi )
-allocate( dumr(33), dumi(5) )
+allocate( dumr(33), dumi(6) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2343,6 +2343,7 @@ if ( myid==0 ) then
   dumi(3)  = tkemeth
   dumi(4)  = ngwd
   dumi(5)  = tcalmeth
+  dumi(6)  = ugs_meth
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2384,6 +2385,7 @@ stabmeth           = dumi(2)
 tkemeth            = dumi(3)
 ngwd               = dumi(4)
 tcalmeth           = dumi(5)
+ugs_meth           = dumi(6)
 deallocate( dumr, dumi )
 allocate( dumr(24), dumi(31) )
 dumr = 0.
@@ -2888,7 +2890,7 @@ end if
 if ( wgcoeff<0. ) then
   tscale = max( 3600., wg_tau )
   ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
-  wgcoeff = sqrt(max(0.,2.*log((tscale/wg_tau)*(1./sqrt(2.*pi))*(-1./log(wg_prob)))))
+  wgcoeff = sqrt(max(0.,2.*log((tscale/wg_tau)*(1./sqrt(2.*pi))*(1./log(1./wg_prob)))))
   if ( myid==0 ) then
     write(6,*) "Adjusting wgcoeff = ",wgcoeff
   end if
@@ -3800,25 +3802,20 @@ do k = 1,kl
   qsl(js:je) = qsi(js:je) + epsil*deles(js:je)/pk(js:je)
   
   do iq = js,je
-    ! only apply below boundary layer height  
-    if ( zg(iq,k) < pblh(iq) ) then
+    ! only apply below boundary layer height and when t>=tice
+    ! (supersaturated air is allowed for t<tice)  
+    if ( zg(iq,k)<pblh(iq) .and. t(iq,k)>=tice ) then
     
       qtot = max( qg(iq,k) + qlg(iq,k) + qfg(iq,k), 0. )
       qc   = max( qlg(iq,k) + qfg(iq,k), 0. )
-      if ( qfg(iq,k)>1.e-8 ) then
-        fice = min( qfg(iq,k)/(qfg(iq,k)+qlg(iq,k)), 1. )
-      else
-        fice = 0.
-      end if
+      fice = min( qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-8), 1. )
       qsw = fice*qsi(iq) + (1.-fice)*qsl(iq)
       hlrvap = (hl+fice*hlf)/rvap
       dqsdt = qsw*hlrvap/tliq(iq)**2
       al = 1./(1.+(hlcp+fice*hlfcp)*dqsdt)
       qc = max( al*(qtot - qsw), qc )
-      if ( t(iq,k)>=tice ) then
-        qfg(iq,k) = max( fice*qc, 0. )  
-        qlg(iq,k) = max( qc-qfg(iq,k), 0. )
-      end if
+      qfg(iq,k) = max( fice*qc, 0. )  
+      qlg(iq,k) = max( qc-qfg(iq,k), 0. )
 
       qg(iq,k) = max( qtot - qlg(iq,k) - qfg(iq,k), 0. )
       t(iq,k)  = tliq(iq) + hlcp*qlg(iq,k) + hlscp*qfg(iq,k)
@@ -3828,7 +3825,7 @@ do k = 1,kl
         stratcloud(iq,k) = 0.  
       end if
       
-    end if ! zg<pblh  
+    end if ! zg<pblh .and. t>=tice 
   end do   ! iq 
   
 end do     ! k
@@ -4027,6 +4024,9 @@ rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
 tmaxurban(:)= urban_tas
 tminurban(:)= urban_tas
 wsgsmax(:)  = 0.
+wsgsmax_ustar(:) = 0.
+wsgsmax_u10(:)   = 0.
+wsgsmax_tke(:)   = 0.
 sunhours(:) = 0.
 
 if ( nextout>=4 ) then
@@ -4068,6 +4068,7 @@ use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
 use screen_m                               ! Screen level diagnostics
 use soilsnow_m                             ! Soil, snow and surface data
+use tkeeps, only : tke                     ! TKE-EPS boundary layer
 use tracers_m                              ! Tracer data
 use work3_m                                ! Mk3 land-surface diagnostic arrays
 
@@ -4106,7 +4107,20 @@ wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
 taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
 tauy_ave(1:ifull)          = tauy_ave(1:ifull) + tauy
-wsgsmax(1:ifull)           = max( wsgsmax(1:ifull), wsgs )
+if ( nvmix==6.or.nvmix==9 ) then
+  where ( wsgs>wsgsmax )
+    wsgsmax(1:ifull) = wsgs
+    wsgsmax_ustar(1:ifull) = ustar
+    wsgsmax_u10(1:ifull) = u10
+    wsgsmax_tke(1:ifull) = tke(1:ifull,1)
+  end where
+else
+  where ( wsgs>wsgsmax )
+    wsgsmax(1:ifull) = wsgs
+    wsgsmax_ustar(1:ifull) = ustar
+    wsgsmax_u10(1:ifull) = u10
+  end where
+end if
 
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2

@@ -3277,7 +3277,7 @@ do iproc = 0,nproc-1
     specmap_indxlen = specmap_indxlen + 1
     specmap_indx(iproc) = specmap_indxlen
     ncount = ncount + 1
-    if ( mod(ncount,node_nproc)/=node_myid ) then
+    if ( mod(ncount-1,node_nproc)/=node_myid ) then
       lproc_t(iproc) = .false.
     end if
   end if

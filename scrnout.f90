@@ -463,7 +463,7 @@ use extraout_m
 use liqwpar_m
 use mlo
 use morepbl_m, only : urban_tas, urban_zom, urban_zoh, urban_zoq, &
-                      urban_ts, urban_wetfac, ugs_var, wsgs
+                      urban_ts, urban_wetfac, wsgs
 use newmpar_m
 use nharrs_m
 use nsibd_m, only : sigmu
@@ -474,19 +474,21 @@ use screen_m
 use sigs_m
 use soil_m
 use soilsnow_m
+use tkeeps, only : tke
 use work2_m
       
 implicit none
       
 integer, intent(in) :: is, ie
-integer :: tile
+integer :: tile, iq, k, k850, k950
+real :: rsig, wspd1, wspd2, u850, u950, x850, x950
 real, dimension(is:ie) :: umag, zminx, smixr
 real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
 real, dimension(is:ie) :: u_qgscrn, u_rhscrn, u_uscrn, u_u10
 real, dimension(is:ie) :: u_ustar, u_tstar, u_qstar, u_thetavstar
 real, dimension(is:ie) :: new_zo, new_zoh, new_zoq, new_tss, new_smixr
-    
+
 tile = ie/imax
 
 zminx(is:ie) = bet(1)*t(is:ie,1)/grav
@@ -547,7 +549,56 @@ atu(is:ie)   = au(is:ie)*u10(is:ie)/umag(is:ie) + ou(is:ie)
 atv(is:ie)   = av(is:ie)*u10(is:ie)/umag(is:ie) + ov(is:ie)      
 u10(is:ie)   = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 
-wsgs(is:ie) = sqrt(max(ugs_var(is:ie),0.))*wgcoeff + u10(is:ie)
+
+! Calculate wind gusts
+select case(ugs_meth)
+  case(0) ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
+    wsgs(is:ie) = wgcoeff*2.185*ustar(is:ie) + u10(is:ie)
+  case(1) ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
+    if ( .not.(nvmix==6.or.nvmix==9) ) then
+      write(6,*) "ERROR: ugs_meth=1 requires nvmix=6 or nvmix=9"
+      stop -1
+    end if
+    do iq = is,ie
+      rsig = (1.-0.069*exp(-2.3*u10(iq)*wg_tau/10.))*exp(-0.116*(u10(iq)*wg_tau/10.)**0.555)
+      wsgs(iq) = wgcoeff*rsig*sqrt(2.*tke(iq,1)) + u10(iq)
+    end do
+  case(2)
+    if ( .not.(nvmix==6.or.nvmix==9) ) then
+      write(6,*) "ERROR: ugs_meth=1 requires nvmix=6 or nvmix=9"
+      stop -1
+    end if
+    do iq = is,ie
+      wsgs(iq) = 3.5*sqrt(tke(iq,1)) + u10(iq)
+    end do
+  case(3)
+    wsgs(is:ie) = wgcoeff*2.185*0.4/log(10./0.03)*u10(is:ie) + u10(is:ie)  
+  case(4) ! ECMWF IFS DOCUMENTATION – Cy33r1
+    ! https://www.ecmwf.int/sites/default/files/elibrary/2009/9227-part-iv-physical-processes.pdf
+    do k = 1,kl-1
+      if ( sig(k)>=0.95 .and. sig(k+1)<=0.95 ) then
+        k950 = k
+        x950 = (0.95-sig(k))/(sig(k+1)-sig(k))
+      end if
+      if ( sig(k)>=0.85 .and. sig(k+1)<=0.85 ) then
+        k850 = k
+        x850 = (0.85-sig(k))/(sig(k+1)-sig(k))
+        exit
+      end if
+    end do  
+    do iq = is,ie
+      wspd1 = sqrt(u(iq,k850)**2+v(iq,k850))
+      wspd2 = sqrt(u(iq,k850+1)**2+v(iq,k850+1))
+      u850 = wspd1*(1.-x850) + wspd2*x850
+      wspd1 = sqrt(u(iq,k950)**2+v(iq,k950))
+      wspd2 = sqrt(u(iq,k950+1)**2+v(iq,k950+1))
+      u950 = wspd1*(1.-x950) + wspd2*x950
+      wsgs(iq) = u10(iq) + 7.71*2.185*ustar(iq) + 0.6*max(0.,u850-u950)
+    end do  
+  case default
+    write(6,*) "ERROR: Unknown method ugs_meth = ",ugs_meth
+    stop -1
+end select
 
 
 ! urban tile
@@ -579,7 +630,6 @@ use cc_omp, only : imax
 use const_phys, only : grav
 use estab
 use mlo
-use morepbl_m, only : ugs_var
 use newmpar_m
 use parm_m
 use pbl_m, only : tss

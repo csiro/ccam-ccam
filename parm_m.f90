@@ -55,7 +55,7 @@ public nstagin, nstaguin
 public hp_output, surf_cordex, surf_windfarm, output_windmax, cordex_fix
 public ensemble_mode, ensemble_period, ensemble_rsfactor
 public siglow, sigmid
-public wgcoeff, wg_tau, wg_prob
+public wgcoeff, wg_tau, wg_prob, ugs_meth
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
 integer, save :: kountr=0, nrad=4, nvmix=3, nlocal=6
@@ -69,7 +69,7 @@ integer, save :: nwt=-99, nrun=0, nextout=3, m_fly=4, nsemble=0, tbave=1, tbave1
 integer, save :: nurban=0, nmr=0, nmlo=0, ktopdav=0, nud_sst=0, nud_sss=0, kbotmlo=-1000, ktopmlo=1
 integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, iaero=0
 integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000
-integer, save :: leap=0, nbarewet=0, nsigmf=1, qg_fix=2, rad_year=0
+integer, save :: leap=0, nbarewet=0, nsigmf=1, qg_fix=2, rad_year=0, ugs_meth=0
 integer, save :: procmode=16, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
 integer, save :: nstagin=0, nstaguin=0, intsch_mode=-1
