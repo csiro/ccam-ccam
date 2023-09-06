@@ -76,14 +76,14 @@
 
 ! URBAN TYPES:
  
-! 1 = Urban               (TAPM 31)
-! 2 = Urban (low)         (TAPM 32)
-! 3 = Urban (medium)      (TAPM 33)
-! 4 = Urban (high)        (TAPM 34)
-! 5 = Urban (cbd)         (TAPM 35)
-! 6 = Industrial (low)    (TAPM 36)
-! 7 = Industrial (medium) (TAPM 37)
-! 8 = Industrial (high)   (TAPM 38)
+! 1 = Urban
+! 2 = Urban (low)
+! 3 = Urban (medium)
+! 4 = Urban (high)
+! 5 = Urban (cbd)
+! 6 = Industrial (low)
+! 7 = Industrial (medium)
+! 8 = Industrial (high)
 
 module ateb
 
@@ -99,8 +99,8 @@ public atebinit,atebcalc,atebend,atebzo,atebtype,atebalb1,                      
        atebdwn,atebscrnout,atebfbeam,atebspitter,atebsigmau,energyrecord,atebdeftype,  &
        atebhydro,atebenergy,atebloadd,atebsaved,atebmisc,atebdeftype_export,           &
        atebavetemp
-public atebnmlfile,urbtemp,energytol,resmeth,zohmeth,acmeth,nrefl,vegmode,             &
-       soilunder,scrnmeth,wbrelaxc,wbrelaxr,lweff,ncyits,nfgits,tol,alpha,             &
+public urbtemp,energytol,resmeth,zohmeth,acmeth,nrefl,                                 &
+       soilunder,scrnmeth,wbrelaxc,wbrelaxr,ncyits,nfgits,tol,alpha,                   &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
        zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,        &
        intairtmeth,intmassmeth,statsmeth,lwintmeth,cvcoeffmeth,infilmeth,acfactor,     &
@@ -126,7 +126,6 @@ integer, dimension(:), allocatable, save :: ufull_g
 logical, save :: ateb_active = .false.
 logical, dimension(:,:), allocatable, save :: upack_g
 real, dimension(:,:), allocatable, save :: atebdwn ! This array is for CCAM onthefly.f
-real, dimension(0:220), save :: table
 
 type facetdata
   real, dimension(:,:), allocatable :: nodetemp        ! Temperature of node (prognostic)       [K]
@@ -204,7 +203,6 @@ type(fparmdata), dimension(:), allocatable,   save :: f_g
 
 
 ! model parameters
-integer, save      :: atebnmlfile=11       ! Read configuration from nml file (0=off, >0 unit number (default=11))
 integer, save      :: resmeth=3            ! Canyon sensible heat transfer (0=Masson, 2=Kusaka, 3=Harman (fixed width))
 integer, save      :: zohmeth=1            ! Urban roughness length for heat (0=0.1*zom, 1=Kanda, 2=0.003*zom)
 integer, save      :: acmeth=1             ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible, 3=COP of 1.0)
@@ -214,14 +212,11 @@ integer, save      :: cvcoeffmeth=1        ! Internal surface convection heat tr
 integer, save      :: statsmeth=1          ! Use statistically based diurnal QF amendments (0=off, 1=on) from Thatcher 2007 
 integer, save      :: infilmeth=0          ! Method to calculate infiltration rate (0=constant, 1=EnergyPlus/BLAST, 2=ISO)
 integer, save      :: nrefl=3              ! Number of canyon reflections for radiation (default=3)
-integer, save      :: vegmode=2            ! In-canyon vegetation mode (0=50%/50%, 1=100%/0%, 2=0%/100%, where out/in=X/Y.
-                                           ! Negative values are X=abs(vegmode))
 integer, save      :: soilunder=1          ! Modify road heat capacity to extend under
                                            ! (0=road only, 1=canveg, 2=bld, 3=canveg & bld)
 integer, save      :: scrnmeth=1           ! Screen diagnostic method (0=Slab, 1=Hybrid, 2=Canyon)
 integer, save      :: wbrelaxc=0           ! Relax canyon soil moisture for irrigation (0=Off, 1=On)
 integer, save      :: wbrelaxr=0           ! Relax roof soil moisture for irrigation (0=Off, 1=On)
-integer, save      :: lweff=2              ! Modification of LW flux for effective canyon height (0=insulated, 1=coupled, 2=full)
 integer, save      :: lwintmeth=2          ! Interior longwave flux method (0=off, 1=explicit, 2=with forward step facet temps)
 integer, parameter :: nl=4                 ! Number of layers (default 4, must be factors of 4)
 integer, save      :: iqt=314              ! Diagnostic point (in terms of host grid)
@@ -499,6 +494,7 @@ select case( intairtmeth )
     stop
 end select
 
+  
 allocate( roof_g(nfrac,ntiles), road_g(nfrac,ntiles), walle_g(nfrac,ntiles), wallw_g(nfrac,ntiles) )
 allocate( slab_g(nfrac,ntiles), intm_g(nfrac,ntiles) )
 allocate( room_g(nfrac,ntiles) )
@@ -634,40 +630,6 @@ do tile = 1,ntiles
 end do
 
 
-! for getqsat
-table(0:4)=    (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9 /)                                !-146C
-table(5:9)=    (/ 6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9 /)                             !-141C
-table(10:14)=  (/ 36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9 /)                          !-136C
-table(15:19)=  (/ 0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648 /)  !-131C
-table(20:24)=  (/ 0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774 /)  !-126C
-table(25:29)=  (/ 0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081 /)   !-121C
-table(30:34)=  (/ 0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866 /)       !-116C
-table(35:39)=  (/ 0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280 /)         !-111C
-table(40:44)=  (/ 0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951 /)            !-106C
-table(45:49)=  (/ 0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143 /)             !-101C
-table(50:55)=  (/ .001403, .001719, .002101, .002561, .003117, .003784 /)             !-95C
-table(56:63)=  (/ .004584, .005542, .006685, .008049, .009672,.01160,.01388,.01658 /) !-87C
-table(64:72)=  (/ .01977, .02353, .02796,.03316,.03925,.04638,.05472,.06444,.07577 /) !-78C
-table(73:81)=  (/ .08894, .1042, .1220, .1425, .1662, .1936, .2252, .2615, .3032 /)   !-69C
-table(82:90)=  (/ .3511, .4060, .4688, .5406, .6225, .7159, .8223, .9432, 1.080 /)    !-60C
-table(91:99)=  (/ 1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476 /)    !-51C
-table(100:107)=(/ 3.935,4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098 /)            !-43C
-table(108:116)=(/ 10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88 /)    !-34C
-table(117:126)=(/ 27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85 /) !-24C 
-table(127:134)=(/ 77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67 /)      !-16C
-table(135:142)=(/ 171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78 /)  !-8C
-table(143:150)=(/ 353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78 /)   !0C
-table(151:158)=(/ 656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2 /)   !8C
-table(159:166)=(/ 1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3 /)   !16C
-table(167:174)=(/ 1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1 /)   !24C
-table(175:182)=(/ 3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1 /)   !32C
-table(183:190)=(/ 5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7 /)   !40C
-table(191:197)=(/ 7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0 /)         !47C
-table(198:204)=(/ 11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0 /)    !54C
-table(205:211)=(/ 15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0 /)    !61C
-table(212:218)=(/ 21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0 /)    !68C
-table(219:220)=(/ 29845.0, 31169.0 /)
-
 return
 end subroutine atebinit
 
@@ -754,7 +716,7 @@ if ( ateb_active ) then
   deallocate( upack_g )
 
 end if
-    
+
 return
 end subroutine atebend
 
@@ -1120,41 +1082,29 @@ type(vegdata), intent(inout) :: cnveg, rfveg
 type(facetparams), intent(inout) :: fp_roof, fp_road, fp_wall, fp_slab, fp_intm
 type(intldata), intent(inout) :: intl
 
-namelist /atebnml/  resmeth,useonewall,zohmeth,acmeth,intairtmeth,intmassmeth,nrefl,vegmode,soilunder, &
-                    conductmeth,cvcoeffmeth,statsmeth,scrnmeth,wbrelaxc,wbrelaxr,lweff,iqt,            &
-                    infilmeth,lwintmeth,infilalpha
-namelist /atebsnow/ zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden
-namelist /atebgen/  refheight,zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf, &
-                    acfactor,ac_heatcap,ac_coolcap,ac_deltat,cyc_prop,cyc_base,cyc_traf,cyc_tran
-namelist /atebtile/ czovegc,cvegrlaic,cvegrsminc,czovegr,cvegrlair,cvegrsminr,cswilt,csfc,cssat,       &
-                    cvegemissc,cvegemissr,cvegdeptr,cvegalphac,cvegalphar,csigvegc,csigvegr,           &
-                    csigmabld,cbldheight,chwratio,cindustryfg,cintgains,ctrafficfg,cbldtemp,           &
-                    croofalpha,cwallalpha,croadalpha,croofemiss,cwallemiss,croademiss,croofdepth,      &
-                    cwalldepth,croaddepth,croofcp,cwallcp,croadcp,crooflambda,cwalllambda,croadlambda, &
-                    cslabdepth,cslabcp,cslablambda,cinfilach,cventilach,cheatprop,ccoolprop
 
 ! facet array where: rows=maxtypes (landtypes) and columns=nl (material layers)
 nlp=nl/4 ! number of layers in each material segment (over 4 material segments)
 ! depths (m)
-croofdepth= reshape((/ ((0.01/nlp, ii=1,maxtype),j=1,nlp),    &
-                       ((0.09/nlp, ii=1,maxtype),j=1,nlp),    & 
-                       ((0.40/nlp, ii=1,maxtype),j=1,nlp),    &
-                       ((0.10/nlp, ii=1,maxtype),j=1,nlp) /), &
+croofdepth= reshape((/ ((0.01/real(nlp), ii=1,maxtype),j=1,nlp),    &
+                       ((0.09/real(nlp), ii=1,maxtype),j=1,nlp),    & 
+                       ((0.40/real(nlp), ii=1,maxtype),j=1,nlp),    &
+                       ((0.10/real(nlp), ii=1,maxtype),j=1,nlp) /), &
                        (/maxtype,nl/))
-cwalldepth= reshape((/ ((0.01/nlp, ii=1,maxtype),j=1,nlp),    &
-                       ((0.04/nlp, ii=1,maxtype),j=1,nlp),    & 
-                       ((0.10/nlp, ii=1,maxtype),j=1,nlp),    &
-                       ((0.05/nlp, ii=1,maxtype),j=1,nlp) /), &
+cwalldepth= reshape((/ ((0.01/real(nlp), ii=1,maxtype),j=1,nlp),    &
+                       ((0.04/real(nlp), ii=1,maxtype),j=1,nlp),    & 
+                       ((0.10/real(nlp), ii=1,maxtype),j=1,nlp),    &
+                       ((0.05/real(nlp), ii=1,maxtype),j=1,nlp) /), &
                        (/maxtype,nl/))
-croaddepth= reshape((/ ((0.01/nlp, ii=1,maxtype),j=1,nlp),    &
-                       ((0.04/nlp, ii=1,maxtype),j=1,nlp),    & 
-                       ((0.45/nlp, ii=1,maxtype),j=1,nlp),    &
-                       ((3.50/nlp, ii=1,maxtype),j=1,nlp) /), &
+croaddepth= reshape((/ ((0.01/real(nlp), ii=1,maxtype),j=1,nlp),    &
+                       ((0.04/real(nlp), ii=1,maxtype),j=1,nlp),    & 
+                       ((0.45/real(nlp), ii=1,maxtype),j=1,nlp),    &
+                       ((3.50/real(nlp), ii=1,maxtype),j=1,nlp) /), &
                        (/maxtype,nl/))
-cslabdepth=reshape((/  ((0.05/nlp, ii=1,maxtype),j=1,nlp),    &
-                       ((0.05/nlp, ii=1,maxtype),j=1,nlp),    & 
-                       ((0.05/nlp, ii=1,maxtype),j=1,nlp),    &
-                       ((0.05/nlp, ii=1,maxtype),j=1,nlp) /), &
+cslabdepth=reshape((/  ((0.05/real(nlp), ii=1,maxtype),j=1,nlp),    &
+                       ((0.05/real(nlp), ii=1,maxtype),j=1,nlp),    & 
+                       ((0.05/real(nlp), ii=1,maxtype),j=1,nlp),    &
+                       ((0.05/real(nlp), ii=1,maxtype),j=1,nlp) /), &
                        (/maxtype,nl/))
 ! heat capacity (J m^-3 K^-1)
 croofcp =   reshape((/ ((2.11E6, ii=1,maxtype),j=1,nlp),    & ! dense concrete (Oke 87)
@@ -1208,96 +1158,61 @@ if ((minval(itmp)<1).or.(maxval(itmp)>maxtype)) then
   stop
 end if
 
-if (atebnmlfile/=0) then
-  open(unit=atebnmlfile,file='ateb.nml',action="read",iostat=ierr)
-  if (ierr==0) then
-    write(6,*) "Reading ateb.nml"
-    read(atebnmlfile,nml=atebnml)
-    read(atebnmlfile,nml=atebsnow)
-    read(atebnmlfile,nml=atebgen)
-    read(atebnmlfile,nml=atebtile)
-    close(atebnmlfile)  
-  end if
-end if
+tsigveg = csigvegc(itmp)
+tsigmabld = csigmabld(itmp)
+cnveg%sigma = max(min(tsigveg/(1.-tsigmabld),1.),0.)
+rfveg%sigma = max(min(csigvegr(itmp),1.),0.)
+fp%sigmabld = max(min(tsigmabld,1.),0.)
+fp%hwratio = chwratio(itmp)
 
-select case(vegmode)
-  case(0)
-    tsigveg=0.5*csigvegc(itmp)/(1.-0.5*csigvegc(itmp))
-    tsigmabld=csigmabld(itmp)/(1.-0.5*csigvegc(itmp))
-    fp%sigmau=fp%sigmau*(1.-0.5*csigvegc(itmp))
-  case(1)
-    tsigveg=0.
-    tsigmabld=csigmabld(itmp)/(1.-csigvegc(itmp))
-    fp%sigmau=fp%sigmau*(1.-csigvegc(itmp))
-  case(2)
-    tsigveg=csigvegc(itmp)
-    tsigmabld=csigmabld(itmp)
-  case DEFAULT
-    if (vegmode<0) then
-      x=real(abs(vegmode))/100.
-      x=max(min(x,1.),0.)
-      tsigveg=x*csigvegc(itmp)/(1.-(1.-x)*csigvegc(itmp))
-      tsigmabld=csigmabld(itmp)/(1.-(1.-x)*csigvegc(itmp))
-      fp%sigmau=fp%sigmau*(1.-(1.-x)*csigvegc(itmp))
-    else
-      write(6,*) "ERROR: Unsupported vegmode ",vegmode
-      stop
-    end if
-end select
-cnveg%sigma=max(min(tsigveg/(1.-tsigmabld),1.),0.)
-rfveg%sigma=max(min(csigvegr(itmp),1.),0.)
-fp%sigmabld=max(min(tsigmabld,1.),0.)
-!fp%hwratio=chwratio(itmp)*fp%sigmabld/(1.-fp%sigmabld) ! MJT suggested new definition
-fp%hwratio=chwratio(itmp)          ! MJL simple definition
-
-fp%industryfg=cindustryfg(itmp)
-fp%intgains_flr=cintgains(itmp)
-fp%trafficfg=ctrafficfg(itmp)
-fp%bldheight=cbldheight(itmp)
-fp_roof%alpha=croofalpha(itmp)
-fp_wall%alpha=cwallalpha(itmp)
-fp_road%alpha=croadalpha(itmp)
-cnveg%alpha=cvegalphac(itmp)
-rfveg%alpha=cvegalphar(itmp)
-fp_roof%emiss=croofemiss(itmp)
-fp_wall%emiss=cwallemiss(itmp)
-fp_road%emiss=croademiss(itmp)
-cnveg%emiss=cvegemissc(itmp)
-rfveg%emiss=cvegemissr(itmp)
-fp%bldairtemp=cbldtemp(itmp) - urbtemp
-fp%rfvegdepth=cvegdeptr(itmp)
-do ii=1,nl
-  fp_roof%depth(:,ii)=croofdepth(itmp,ii)
-  fp_wall%depth(:,ii)=cwalldepth(itmp,ii)
-  fp_road%depth(:,ii)=croaddepth(itmp,ii)
-  fp_roof%lambda(:,ii)=crooflambda(itmp,ii)
-  fp_wall%lambda(:,ii)=cwalllambda(itmp,ii)
-  fp_road%lambda(:,ii)=croadlambda(itmp,ii)
-  fp_roof%volcp(:,ii)=croofcp(itmp,ii)
-  fp_wall%volcp(:,ii)=cwallcp(itmp,ii)
+fp%industryfg = cindustryfg(itmp)
+fp%intgains_flr = cintgains(itmp)
+fp%trafficfg = ctrafficfg(itmp)
+fp%bldheight = cbldheight(itmp)
+fp_roof%alpha = croofalpha(itmp)
+fp_wall%alpha = cwallalpha(itmp)
+fp_road%alpha = croadalpha(itmp)
+cnveg%alpha = cvegalphac(itmp)
+rfveg%alpha = cvegalphar(itmp)
+fp_roof%emiss = croofemiss(itmp)
+fp_wall%emiss = cwallemiss(itmp)
+fp_road%emiss = croademiss(itmp)
+cnveg%emiss = cvegemissc(itmp)
+rfveg%emiss = cvegemissr(itmp)
+fp%bldairtemp = cbldtemp(itmp) - urbtemp
+fp%rfvegdepth = cvegdeptr(itmp)
+do ii = 1,nl
+  fp_roof%depth(:,ii) = croofdepth(itmp,ii)
+  fp_wall%depth(:,ii) = cwalldepth(itmp,ii)
+  fp_road%depth(:,ii) = croaddepth(itmp,ii)
+  fp_roof%lambda(:,ii) = crooflambda(itmp,ii)
+  fp_wall%lambda(:,ii) = cwalllambda(itmp,ii)
+  fp_road%lambda(:,ii) = croadlambda(itmp,ii)
+  fp_roof%volcp(:,ii) = croofcp(itmp,ii)
+  fp_wall%volcp(:,ii) = cwallcp(itmp,ii)
   select case(soilunder)
     case(0) ! storage under road only
-      fp_road%volcp(:,ii)=croadcp(itmp,ii)
+      fp_road%volcp(:,ii) = croadcp(itmp,ii)
     case(1) ! storage under road and canveg
-      fp_road%volcp(:,ii)=croadcp(itmp,ii)/(1.-cnveg%sigma)
+      fp_road%volcp(:,ii) = croadcp(itmp,ii)/(1.-cnveg%sigma)
     case(2) ! storage under road and bld
-      fp_road%volcp(:,ii)=croadcp(itmp,ii)*(1./(1.-cnveg%sigma)*(1./(1.-fp%sigmabld)-1.) +1.)
+      fp_road%volcp(:,ii) = croadcp(itmp,ii)*(1./(1.-cnveg%sigma)*(1./(1.-fp%sigmabld)-1.) +1.)
     case(3) ! storage under road and canveg and bld (100% of grid point)
-      fp_road%volcp(:,ii)=croadcp(itmp,ii)/(1.-cnveg%sigma)/(1.-fp%sigmabld)
+      fp_road%volcp(:,ii) = croadcp(itmp,ii)/(1.-cnveg%sigma)/(1.-fp%sigmabld)
     case DEFAULT
       write(6,*) "ERROR: Unknown soilunder mode ",soilunder
       stop
   end select
 end do
-cnveg%zo=czovegc(itmp)
-cnveg%lai=cvegrlaic(itmp)
-cnveg%rsmin=cvegrsminc(itmp)/max(cnveg%lai,1.E-8)
-rfveg%zo=czovegr(itmp)
-rfveg%lai=cvegrlair(itmp)
-rfveg%rsmin=cvegrsminr(itmp)/max(rfveg%lai,1.E-8)
-fp%swilt=cswilt(itmp)
-fp%sfc=csfc(itmp)
-fp%ssat=cssat(itmp)
+cnveg%zo = czovegc(itmp)
+cnveg%lai = cvegrlaic(itmp)
+cnveg%rsmin = cvegrsminc(itmp)/max(cnveg%lai,1.E-8)
+rfveg%zo = czovegr(itmp)
+rfveg%lai = cvegrlair(itmp)
+rfveg%rsmin = cvegrsminr(itmp)/max(rfveg%lai,1.E-8)
+fp%swilt = cswilt(itmp)
+fp%sfc = csfc(itmp)
+fp%ssat = cssat(itmp)
 
 ! for varying internal temperature
 fp_slab%emiss = cslabemiss(itmp)
@@ -1305,13 +1220,13 @@ fp%infilach = cinfilach(itmp)
 fp%ventilach = cventilach(itmp)
 fp%heatprop = cheatprop(itmp)
 fp%coolprop = ccoolprop(itmp)
-do ii=1,nl
-  fp_slab%depth(:,ii)=cslabdepth(itmp,ii)
-  fp_intm%depth(:,ii)=cslabdepth(itmp,ii)  ! internal mass material same as slab
-  fp_slab%lambda(:,ii)=cslablambda(itmp,ii)
-  fp_intm%lambda(:,ii)=cslablambda(itmp,ii)
-  fp_slab%volcp(:,ii)=cslabcp(itmp,ii)
-  fp_intm%volcp(:,ii)=cslabcp(itmp,ii)
+do ii = 1,nl
+  fp_slab%depth(:,ii) = cslabdepth(itmp,ii)
+  fp_intm%depth(:,ii) = cslabdepth(itmp,ii)  ! internal mass material same as slab
+  fp_slab%lambda(:,ii) = cslablambda(itmp,ii)
+  fp_intm%lambda(:,ii) = cslablambda(itmp,ii)
+  fp_slab%volcp(:,ii) = cslabcp(itmp,ii)
+  fp_intm%volcp(:,ii) = cslabcp(itmp,ii)
 end do
 
 ! Here we modify the effective canyon geometry to account for in-canyon vegetation tall vegetation
@@ -1820,11 +1735,12 @@ select case(paramname)
     end if  
 end select
 
+  
+! Here we modify the effective canyon geometry to account for in-canyon vegetation tall vegetation
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   if ( ufull_g(tile)>0 ) then
-    ! Here we modify the effective canyon geometry to account for in-canyon vegetation tall vegetation
     f_g(tile)%coeffbldheight = max(f_g(tile)%bldheight-6.*cnveg_g(tile)%zo,0.2)/f_g(tile)%bldheight
     f_g(tile)%effhwratio     = f_g(tile)%hwratio*f_g(tile)%coeffbldheight   
     
@@ -3443,11 +3359,7 @@ do tile = 1,ntiles
       ie = count(upack_g(kstart:kfinish,tile))+ib-1
       if ( ib<=ie ) then
         f_g(tile)%hangle(ib:ie)=0.5*pi-pack(azimuthin(jstart:jfinish),upack_g(kstart:kfinish,tile))
-#ifdef debug
-        f_g(tile)%vangle(ib:ie)=real(acos(real(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)),8)))
-#else
         f_g(tile)%vangle(ib:ie)=acos(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)))
-#endif
         f_g(tile)%ctime(ib:ie)=pack(ctimein(jstart:jfinish),upack_g(kstart:kfinish,tile))
       end if
     end if
@@ -3513,11 +3425,7 @@ do tile = 1,ntiles
           f_g(tile)%hangle(iqu)=0.5*pi-atan2(x,y)
         end do  
         
-#ifdef debug
-        f_g(tile)%vangle(ib:ie)=real(acos(real(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)),8)))
-#else
         f_g(tile)%vangle(ib:ie)=acos(pack(cosin(jstart:jfinish),upack_g(kstart:kfinish,tile)))
-#endif
         f_g(tile)%ctime(ib:ie)=min(max(mod(0.5*hloc(ib:ie)/pi-0.5,1.),0.),1.)
         ! calculate weekdayload loading
         f_g(tile)%weekdayload(ib:ie)=1.0
@@ -4697,6 +4605,41 @@ real, dimension(:), intent(out) :: qsat
 real, dimension(size(temp)) :: esatf,tdiff,rx
 integer, dimension(size(temp)) :: ix
 
+real, dimension(0:220), parameter :: table =                                          &
+  (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                               & !-146C
+     6.e-9, 9.e-9, 13.e-9, 18.e-9, 26.e-9,                                            & !-141C
+     36.e-9, 51.e-9, 71.e-9, 99.e-9, 136.e-9,                                         & !-136C
+     0.000000188, 0.000000258, 0.000000352, 0.000000479, 0.000000648,                 & !-131C
+     0.000000874, 0.000001173, 0.000001569, 0.000002090, 0.000002774,                 & !-126C
+     0.000003667, 0.000004831, 0.000006340, 0.000008292, 0.00001081,                  & !-121C
+     0.00001404, 0.00001817, 0.00002345, 0.00003016, 0.00003866,                      & !-116C
+     0.00004942, 0.00006297, 0.00008001, 0.0001014, 0.0001280,                        & !-111C
+     0.0001613, 0.0002026, 0.0002538, 0.0003170, 0.0003951,                           & !-106C
+     0.0004910, 0.0006087, 0.0007528, 0.0009287, 0.001143,                            & !-101C 
+     0.001403, 0.001719, 0.002101, 0.002561, 0.003117, 0.003784,                      & !-95C
+     0.004584, 0.005542, 0.006685, 0.008049, 0.009672, 0.01160, 0.01388, 0.01658,     & !-87C
+     0.01977, 0.02353, 0.02796, 0.03316, 0.03925, 0.04638, 0.05472, 0.06444, 0.07577, & !-78C
+     0.08894, 0.1042, 0.1220, 0.1425, 0.1662, 0.1936, 0.2252, 0.2615, 0.3032,         & !-69C
+     0.3511, 0.4060, 0.4688, 0.5406, 0.6225, 0.7159, 0.8223, 0.9432, 1.080,           & !-60C
+     1.236, 1.413, 1.612, 1.838, 2.092, 2.380, 2.703, 3.067, 3.476,                   & !-51C
+     3.935, 4.449, 5.026, 5.671, 6.393, 7.198, 8.097, 9.098,                          & !-43C
+     10.21, 11.45, 12.83, 14.36, 16.06, 17.94, 20.02, 22.33, 24.88,                   & !-34C
+     27.69, 30.79, 34.21, 37.98, 42.13, 46.69,51.70,57.20,63.23,69.85,                & !-24C 
+     77.09, 85.02, 93.70, 103.20, 114.66, 127.20, 140.81, 155.67,                     & !-16C
+     171.69, 189.03, 207.76, 227.96 , 249.67, 272.98, 298.00, 324.78,                 & !-8C
+     353.41, 383.98, 416.48, 451.05, 487.69, 526.51, 567.52, 610.78,                  & !0C
+     656.62, 705.47, 757.53, 812.94, 871.92, 934.65, 1001.3, 1072.2,                  & !8C
+     1147.4, 1227.2, 1311.9, 1401.7, 1496.9, 1597.7, 1704.4, 1817.3,                  & !16C
+     1936.7, 2063.0, 2196.4, 2337.3, 2486.1, 2643.0, 2808.6, 2983.1,                  & !24C
+     3167.1, 3360.8, 3564.9, 3779.6, 4005.5, 4243.0, 4492.7, 4755.1,                  & !32C
+     5030.7, 5320.0, 5623.6, 5942.2, 6276.2, 6626.4, 6993.4, 7377.7,                  & !40C
+     7780.2, 8201.5, 8642.3, 9103.4, 9585.5, 10089.0, 10616.0,                        & !47C
+     11166.0, 11740.0, 12340.0, 12965.0, 13617.0, 14298.0, 15007.0,                   & !54C
+     15746.0, 16516.0, 17318.0, 18153.0, 19022.0, 19926.0, 20867.0,                   & !61C
+     21845.0, 22861.0, 23918.0, 25016.0, 26156.0, 27340.0, 28570.0,                   & !68C
+     29845.0, 31169.0 /)
+
+
 tdiff=min(max( temp+(urbtemp-123.16), 0.), 219.)
 rx=tdiff-aint(tdiff)
 ix=int(tdiff)
@@ -4999,10 +4942,7 @@ real, dimension(ufull), intent(out) :: cvcoeff_intm1, cvcoeff_intm2
 real, dimension(ufull), intent(out) :: d_roomstor
 real, dimension(ufull) :: newval,sndepth,snlambda,ldratio,roadqsat,vegqsat,rdsnqsat
 real, dimension(ufull) :: cu,topinvres,dts,dtt,cduv,z_on_l,dumroaddelta,dumvegdelta,res
-real, dimension(ufull) :: effwalle,effwallw,effroad,effrdsn,effvegc
 real, dimension(ufull) :: aa,bb,cc,dd,ee,ff
-real, dimension(ufull) :: lwflux_walle_road, lwflux_wallw_road, lwflux_walle_rdsn, lwflux_wallw_rdsn
-real, dimension(ufull) :: lwflux_walle_vegc, lwflux_wallw_vegc
 real, dimension(ufull) :: cyc_proportion,cyc_translation
 real, dimension(ufull,2) :: evct,evctx,oldval
 real, dimension(ufull) :: d_canyontemp_prev
@@ -5096,27 +5036,6 @@ do l = 1,ncyits
           +(1.-d_rdsndelta)*((1.-cnveg%sigma)*fp_road%emiss*(road%nodetemp(:,0)+urbtemp)**4 &
           +cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4))
   
-  if ( lweff/=1 ) then
-    lwflux_walle_road = 0.
-    lwflux_wallw_road = 0.
-    lwflux_walle_rdsn = 0.
-    lwflux_wallw_rdsn = 0.
-    lwflux_walle_vegc = 0.
-    lwflux_wallw_vegc = 0.
-  else
-    lwflux_walle_road = sbconst*(fp_road%emiss*(road%nodetemp(:,0)+urbtemp)**4         &
-                       -fp_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-fp%coeffbldheight)
-    lwflux_wallw_road = sbconst*(fp_road%emiss*(road%nodetemp(:,0)+urbtemp)**4         &
-                       -fp_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-fp%coeffbldheight)
-    lwflux_walle_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                       &
-                       -fp_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-fp%coeffbldheight)
-    lwflux_wallw_rdsn = sbconst*(snowemiss*(rdsntemp+urbtemp)**4                       &
-                       -fp_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-fp%coeffbldheight)
-    lwflux_walle_vegc = sbconst*(cnveg%emiss*(cnveg%temp+urbtemp)**4                   &
-                       -fp_wall%emiss*(walle%nodetemp(:,0)+urbtemp)**4)*(1.-fp%coeffbldheight)
-    lwflux_wallw_vegc = sbconst*(cnveg%emiss*(cnveg%temp+urbtemp)**4                   &
-                       -fp_wall%emiss*(wallw%nodetemp(:,0)+urbtemp)**4)*(1.-fp%coeffbldheight)
-  end if
   
   ! solve for road snow and canyon veg temperatures -------------------------------
   ldratio  = 0.5*( sndepth/snlambda + fp_road%depth(:,1)/fp_road%lambda(:,1) )
@@ -5128,9 +5047,7 @@ do l = 1,ncyits
                   sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
                   a_rg,a_rho,a_rnd,a_snd,                                                       &
                   d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
-                  d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,                                     &
-                  effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
-                  lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                      &
+                  d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,ldratio,ddt,                         &
                   cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
   cnveg%temp = cnveg%temp - 0.5 ! 2nd guess
   rdsntemp   = rdsntemp - 0.5
@@ -5140,9 +5057,7 @@ do l = 1,ncyits
                     sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
                     a_rg,a_rho,a_rnd,a_snd,                                                       &
                     d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
-                    d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,                                     &
-                    effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                  &
-                    lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                      &
+                    d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,ldratio,ddt,                         &
                     cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
     evctx = evct - evctx
     where ( abs(evctx(:,1))>tol )
@@ -5206,6 +5121,7 @@ end do
 
 room%nodetemp(:,1) = iroomtemp
 
+
 ! solve for canyon sensible heat flux
 fg_walle = aircp*a_rho*(walle%nodetemp(:,0)-d_canyontemp)*acond_walle*fp%coeffbldheight ! canyon vegetation blocks turbulent flux
 fg_wallw = aircp*a_rho*(wallw%nodetemp(:,0)-d_canyontemp)*acond_wallw*fp%coeffbldheight ! canyon vegetation blocks turbulent flux
@@ -5216,6 +5132,7 @@ fgtop = fp%hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_ro
       + (1.-d_rdsndelta)*cnveg%sigma*fg_vegc + d_rdsndelta*fg_rdsn                 &
       + d_traf + d_ac_canyon - int_infilfg
 
+
 ! solve for canyon latent heat flux
 egtop = (1.-d_rdsndelta)*(1.-cnveg%sigma)*eg_road + (1.-d_rdsndelta)*cnveg%sigma*eg_vegc &
       + d_rdsndelta*eg_rdsn
@@ -5223,49 +5140,18 @@ evspsbltop = (1.-d_rdsndelta)*(1.-cnveg%sigma)*eg_road/lv + (1.-d_rdsndelta)*cnv
       + d_rdsndelta*eg_rdsn/ls
 sbltop = d_rdsndelta*eg_rdsn/ls
 
+
 ! calculate longwave radiation
-if ( lweff/=2 ) then
-  effwalle=fp_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*(fp_wall%emiss*d_cw0-1.)                & 
-                                  +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cww+d_netrad*d_cwr)
-  rg_walle=effwalle*fp%coeffbldheight+lwflux_walle_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/fp%hwratio                  &
-                                  +lwflux_walle_vegc*(1.-d_rdsndelta)*cnveg%sigma/fp%hwratio                          &
-                                  +lwflux_walle_rdsn*d_rdsndelta/fp%hwratio
-  effwallw=fp_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*(fp_wall%emiss*d_cw0-1.)                &
-                                  +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cww+d_netrad*d_cwr)
-  rg_wallw=effwallw*fp%coeffbldheight+lwflux_wallw_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/fp%hwratio                  &
-                                  +lwflux_wallw_vegc*(1.-d_rdsndelta)*cnveg%sigma/fp%hwratio                          &
-                                  +lwflux_wallw_rdsn*d_rdsndelta/fp%hwratio
-  effroad=fp_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                          &
-                    +sbconst*fp_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
-  rg_road=effroad-lwflux_walle_road-lwflux_wallw_road
-  ! outgoing longwave radiation
-  ! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
-  d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-cnveg%sigma)*effroad+cnveg%sigma*effvegc)            &
-                    -fp%hwratio*fp%coeffbldheight*(effwalle+effwallw)
-else
-  effwalle=fp_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*(fp_wall%emiss*d_cw0-1.)                & 
-                                  +sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cww+d_netrad*d_cwr)
-  rg_walle=effwalle
-  effwallw=fp_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*(fp_wall%emiss*d_cw0-1.)                &
-                                  +sbconst*(walle%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cww+d_netrad*d_cwr)
-  rg_wallw=effwallw
-  effroad=fp_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                          &
-                    +sbconst*fp_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
-  rg_road=effroad
-  ! outgoing longwave radiation
-  ! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
-  d_canyonrgout=a_rg-d_rdsndelta*effrdsn-(1.-d_rdsndelta)*((1.-cnveg%sigma)*effroad+cnveg%sigma*effvegc)            &
-                    -fp%hwratio*(effwalle+effwallw)
-end if
-!0. = d_rdsndelta*(lwflux_walle_rdsn+lwflux_wallw_rdsn)                            &
-!     +(1.-d_rdsndelta)*((1.-cnveg%sigma)*(lwflux_walle_road+lwflux_wallw_road)    &
-!    +cnveg%sigma*(lwflux_walle_vegc+lwflux_wallw_vegc))                           &
-!    -fp%hwratio*(lwflux_walle_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/fp%hwratio   &
-!    +lwflux_walle_vegc*(1.-d_rdsndelta)*cnveg%sigma/fp%hwratio                    &
-!     +lwflux_walle_rdsn*d_rdsndelta/fp%hwratio)                                   &
-!    - fp%hwratio*(lwflux_wallw_road*(1.-d_rdsndelta)*(1.-cnveg%sigma)/fp%hwratio  &
-!    +lwflux_wallw_vegc*(1.-d_rdsndelta)*cnveg%sigma/fp%hwratio                    &
-!    +lwflux_wallw_rdsn*d_rdsndelta/fp%hwratio)
+rg_walle = fp_wall%emiss*(a_rg*d_cwa+sbconst*(walle%nodetemp(:,0)+urbtemp)**4*(fp_wall%emiss*d_cw0-1.)                & 
+         + sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cww+d_netrad*d_cwr)
+rg_wallw = fp_wall%emiss*(a_rg*d_cwa+sbconst*(wallw%nodetemp(:,0)+urbtemp)**4*(fp_wall%emiss*d_cw0-1.)                &
+         + sbconst*(walle%nodetemp(:,0)+urbtemp)**4*fp_wall%emiss*d_cww+d_netrad*d_cwr)
+rg_road = fp_road%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(road%nodetemp(:,0)+urbtemp)**4)                          &
+        + sbconst*fp_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4+(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
+! outgoing longwave radiation
+! note that eff terms are used for outgoing longwave radiation, whereas rg terms are used for heat conduction
+d_canyonrgout = a_rg-d_rdsndelta*rg_rdsn-(1.-d_rdsndelta)*((1.-cnveg%sigma)*rg_road+cnveg%sigma*rg_vegc)              &
+              - fp%hwratio*(rg_walle+rg_wallw)
 
 return
 end subroutine solvecanyon
@@ -5622,9 +5508,7 @@ subroutine canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,re
                       sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat,  &
                       a_rg,a_rho,a_rnd,a_snd,                                                        &
                       d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                      &
-                      d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,                                      &
-                      effvegc,effrdsn,ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,                   &
-                      lwflux_walle_vegc,lwflux_wallw_vegc,ddt,                                       &
+                      d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,ldratio,ddt,                          &
                       cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
 
 implicit none
@@ -5636,8 +5520,7 @@ real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegq
 real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat
 real, dimension(ufull), intent(in) :: sg_vegc,sg_rdsn
 real, dimension(ufull), intent(in) :: a_rg,a_rho,a_rnd,a_snd,d_sigd
-real, dimension(ufull), intent(in) :: ldratio,lwflux_walle_rdsn,lwflux_wallw_rdsn,lwflux_walle_vegc,lwflux_wallw_vegc
-real, dimension(ufull), intent(out) :: effvegc,effrdsn
+real, dimension(ufull), intent(in) :: ldratio
 real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_netrad,d_tranc,d_evapc
 real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac
 real, dimension(ufull) :: ff,f1,f2,f3,f4
@@ -5676,14 +5559,12 @@ fg_vegc=aircp*a_rho*(cnveg%temp-d_canyontemp)*acond_vegc
 fg_rdsn=aircp*a_rho*(rdsntemp-d_canyontemp)*acond_rdsn
 
 ! calculate longwave radiation for vegetation and snow
-effvegc=cnveg%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(cnveg%temp+urbtemp)**4)    &
+rg_vegc=cnveg%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(cnveg%temp+urbtemp)**4)    &
                   +sbconst*fp_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4          &
                   +(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
-rg_vegc=effvegc-lwflux_walle_vegc-lwflux_wallw_vegc
-effrdsn=snowemiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(rdsntemp+urbtemp)**4)        &
+rg_rdsn=snowemiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(rdsntemp+urbtemp)**4)        &
                   +sbconst*fp_wall%emiss*((walle%nodetemp(:,0)+urbtemp)**4          &
                   +(wallw%nodetemp(:,0)+urbtemp)**4)*d_crw)
-rg_rdsn=effrdsn-lwflux_walle_rdsn-lwflux_wallw_rdsn
 
 ! estimate snow melt
 rdsnmelt=min(max(0.,rdsntemp+(urbtemp-273.16))*icecp*rdhyd%snow/(ddt*lf),rdhyd%snow/ddt)
@@ -5981,12 +5862,7 @@ endwhere
 
 h=fp%bldheight*fp%coeffbldheight
 w=fp%bldheight/fp%hwratio
-
-#ifdef debug
-theta1=real(acos(real(min(w/(3.*h),1.),8)))
-#else
 theta1=acos(min(w/(3.*h),1.))
-#endif
 
 call winda(dufa,dura,duva,h,w,z0,ufull) ! jet on road
 call windb(dufb,durb,duvb,h,w,z0,ufull) ! jet on wall

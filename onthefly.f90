@@ -264,6 +264,7 @@ if ( .not.pfall ) then
   rdum(11) = real(native_ccam)
   call ccmpi_bcast(rdum(1:11),0,comm_world)
   if ( nested==1 ) then
+    ! MJT notes - could replace with comm_nodecaptain  
     call ccmpi_bcast(driving_model_id,0,comm_world)
     call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
     call ccmpi_bcast(driving_experiment_name,0,comm_world)
@@ -746,9 +747,8 @@ if ( newfile ) then
     end if
   end if
   
-  ! read zht
-  if ( allocated(zss_a) ) deallocate(zss_a)
   ! read zht for initial conditions or nudging or land-sea mask
+  if ( allocated(zss_a) ) deallocate(zss_a)
   if ( zht_needed ) then
     if ( zht_found ) then  
       if ( tss_test .and. iop_test ) then
@@ -779,9 +779,8 @@ if ( newfile ) then
     end if
   end if
   
-  ! read soilt
+  ! read soilt for land-sea mask  
   if ( soilt_found ) then
-    ! read soilt for land-sea mask  
     if ( .not.(tss_test.and.iop_test) ) then
       call histrd(iarchi,ier,'soilt',ucc,6*ik*ik)
       if ( fwsize>0 ) then
@@ -794,7 +793,6 @@ if ( newfile ) then
   
   ! read host ocean bathymetry data
   if ( allocated(ocndep_a) ) deallocate( ocndep_a )
-  ! read bathymetry for MLO
   if ( mlo_found ) then
     if ( tss_test .and. iop_test ) then
       allocate( ocndep_a(ifull) )
@@ -2098,7 +2096,6 @@ implicit none
 integer k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(pipan*pjpan*pnpan,size(filemap_req),kblock) :: abuf
 
 call START_LOG(otf_ints4_begin)
 
@@ -2109,12 +2106,12 @@ do kb = 1,kx,kblock
   kn = ke - kb + 1
 
   ! This version distributes multi-file data
-  call ccmpi_filewinget(abuf(:,:,1:kn),s(:,kb:ke))
+  call ccmpi_filewinstart(s(:,kb:ke))
     
   if ( iotest ) then
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
+      call ccmpi_filewinunpack(sx(:,:,:),k)
       call sxpanelbounds(sx(:,:,:))
       do n = 1,npan
         iq = (n-1)*ipan*jpan
@@ -2124,13 +2121,15 @@ do kb = 1,kx,kblock
   else
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
+      call ccmpi_filewinunpack(sx(:,:,:),k)
       call sxpanelbounds(sx(:,:,:))
       call intsb(sx(:,:,:),sout(:,k+kb-1),nface4,xg4,yg4)
     end do
   end if ! iotest ..else..
 
 end do ! kb
+
+call ccmpi_filewinstop
 
 call END_LOG(otf_ints4_end)
 
@@ -2301,7 +2300,6 @@ subroutine fill_cc4_3d(a_io,land_3d,fill_count)
 ! routine fills in interior of an array which has undefined points
 ! this version is distributed over processes with input files
 
-use cc_acc          ! CC OpenACC routines
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
 
@@ -2347,12 +2345,14 @@ nrem(:) = 1
 local_count = 0
 c_io = value
 
+call ccmpi_filebounds_reset
+
 do while ( any(nrem(:)>0) )
   c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pipan, pjpan, pnpan, mynproc, kx /) )
-  call ccmpi_filebounds_send(c_io,comm_ip,corner=.true.)
+  call ccmpi_filebounds_send(c_io,comm_ip,missing=value,corner=.true.)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
+  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount,inb)
   do k = 1,kx
     if ( ncount(k)>0 ) then
       do ipf = 1,mynproc
@@ -2380,7 +2380,7 @@ do while ( any(nrem(:)>0) )
     end if
   end do
   !$omp end parallel do
-  call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
+  call ccmpi_filebounds_recv(c_io,comm_ip,missing=value,corner=.true.)
   ! update halo
   do k = 1,kx
     if ( ncount(k)>0 ) then  

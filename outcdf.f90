@@ -123,12 +123,10 @@ use ateb, only :                         & ! Urban
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
     ,ateb_nrefl=>nrefl                   &
-    ,ateb_vegmode=>vegmode               &
     ,ateb_soilunder=>soilunder           &
     ,ateb_scrnmeth=>scrnmeth             &
     ,ateb_wbrelaxc=>wbrelaxc             &
     ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_lweff=>lweff                   &
     ,ateb_ncyits=>ncyits                 &
     ,ateb_nfgits=>nfgits                 &
     ,ateb_tol=>tol                       &
@@ -834,7 +832,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_infilmeth',ateb_infilmeth)
     call ccnf_put_attg(idnc,'ateb_intairtmeth',ateb_intairtmeth)
     call ccnf_put_attg(idnc,'ateb_intmassmeth',ateb_intmassmeth)
-    call ccnf_put_attg(idnc,'ateb_lweff',ateb_lweff)
     call ccnf_put_attg(idnc,'ateb_maxrdsn',ateb_maxrdsn)
     call ccnf_put_attg(idnc,'ateb_maxrdwater',ateb_maxrdwater)
     call ccnf_put_attg(idnc,'ateb_maxrfsn',ateb_maxrfsn)
@@ -854,7 +851,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_soilunder',ateb_soilunder)
     call ccnf_put_attg(idnc,'ateb_statsmeth',ateb_statsmeth)
     call ccnf_put_attg(idnc,'ateb_tol',ateb_tol)
-    call ccnf_put_attg(idnc,'ateb_vegmode',ateb_vegmode)
     call ccnf_put_attg(idnc,'ateb_wbrelaxc',ateb_wbrelaxc)
     call ccnf_put_attg(idnc,'ateb_wbrelaxr',ateb_wbrelaxr)
     call ccnf_put_attg(idnc,'ateb_zocanyon',ateb_zocanyon)

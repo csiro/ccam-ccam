@@ -587,11 +587,11 @@ select case(ugs_meth)
       end if
     end do  
     do iq = is,ie
-      wspd1 = sqrt(u(iq,k850)**2+v(iq,k850))
-      wspd2 = sqrt(u(iq,k850+1)**2+v(iq,k850+1))
+      wspd1 = sqrt(u(iq,k850)**2+v(iq,k850)**2)
+      wspd2 = sqrt(u(iq,k850+1)**2+v(iq,k850+1)**2)
       u850 = wspd1*(1.-x850) + wspd2*x850
-      wspd1 = sqrt(u(iq,k950)**2+v(iq,k950))
-      wspd2 = sqrt(u(iq,k950+1)**2+v(iq,k950+1))
+      wspd1 = sqrt(u(iq,k950)**2+v(iq,k950)**2)
+      wspd2 = sqrt(u(iq,k950+1)**2+v(iq,k950+1)**2)
       u950 = wspd1*(1.-x950) + wspd2*x950
       wsgs(iq) = u10(iq) + 7.71*2.185*ustar(iq) + 0.6*max(0.,u850-u950)
     end do  

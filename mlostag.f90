@@ -463,44 +463,33 @@ end if
 if ( ltest ) then
 
   call boundsuv(uin,vin,stag=1)
-  !$omp parallel
-  !$omp do schedule(static) private(k,iq)
   do k = 1,kn
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,k,1)*uin(ieeu(iq),k)+dtul(iq,k,2)*uin(ieu(iq),k)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(innv(iq),k)+dtvl(iq,k,2)*vin(inv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)
   do k = kn+1,kx
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,1,1)*uin(ieeu(iq),k)+dtul(iq,1,2)*uin(ieu(iq),k)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(innv(iq),k)+dtvl(iq,1,2)*vin(inv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
     end do  
   end do
-  !$omp end do
 
   call boundsuv(ud,vd,stag=-10)
-  !$omp barrier
-  !$omp do schedule(static) private(k,iq)  
+  ! Apply JLM's preconditioner
   do k = 1,kn
-    ! Apply JLM's preconditioner
     ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,k)*ud(ieu,k)
     va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,k)*vd(inv,k)
     ud(1:ifull,k) = ua(1:ifull,k)
     vd(1:ifull,k) = va(1:ifull,k)
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)  
   do k = kn+1,kx
-    ! Apply JLM's preconditioner
     ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,1)*ud(ieu,k)
     va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,1)*vd(inv,k)
     ud(1:ifull,k) = ua(1:ifull,k)
     vd(1:ifull,k) = va(1:ifull,k)
   end do
-  !$omp end do
 
   ! There are many ways to handle staggering near coastlines.
   ! This version supports the following properties:
@@ -510,128 +499,93 @@ if ( ltest ) then
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)     
     do k = 1,kn
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
       end do
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
     do k = kn+1,kx
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
       end do  
     end do
-    !$omp end do
     call boundsuv(uin,vin,stag=2)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)        
     do k = 1,kn
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(innv(iq),k)
       end do  
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)        
     do k = kn+1,kx
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(innv(iq),k)
       end do  
     end do
-    !$omp end do
   end do                 ! itn=1,itnmax
-  
-  !$omp end parallel
- 
+   
 else
 
   call boundsuv(uin,vin)
-  !$omp parallel 
-  !$omp do schedule(static) private(k,iq)      
   do k = 1,kn
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,k,1)*uin(iwu(iq),k)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*uin(ieu(iq),k)
       vd(iq,k)=dtvr(iq,k,1)*vin(isv(iq),k)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*vin(inv(iq),k)
     end do  
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)     
   do k = kn+1,kx
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,1,1)*uin(iwu(iq),k)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*uin(ieu(iq),k)
       vd(iq,k)=dtvr(iq,1,1)*vin(isv(iq),k)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*vin(inv(iq),k)
     end do  
   end do
-  !$omp end do
 
   call boundsuv(ud,vd,stag=-9)
-  !$omp barrier
-  !$omp do schedule(static) private(k,iq)   
+  ! Apply JLM's preconditioner
   do k = 1,kn
-    ! Apply JLM's preconditioner
     ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,k)*ud(iwu,k)
     va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,k)*vd(isv,k)
     ud(1:ifull,k) = ua(1:ifull,k)
     vd(1:ifull,k) = va(1:ifull,k)    
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)      
   do k = kn+1,kx
-    ! Apply JLM's preconditioner
     ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,1)*ud(iwu,k)
     va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(isv,k)
     ud(1:ifull,k) = ua(1:ifull,k)
     vd(1:ifull,k) = va(1:ifull,k)
   end do
-  !$omp end do
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)       
     do k = 1,kn
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
       end do  
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
     do k = kn+1,kx
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
       end do  
     end do
-    !$omp end do
     call boundsuv(uin,vin,stag=3)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)      
     do k = 1,kn
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(issv(iq),k)
       end do  
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
     do k = kn+1,kx
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(issv(iq),k)
       end do  
     end do
-    !$omp end do
   end do                 ! itn=1,itnmax
   
-  !$omp end parallel
-
 end if
 
 do k = 1,kn
@@ -1187,168 +1141,122 @@ end if
 if (ltest) then
   
   call boundsuv(uin,vin,stag=5)
-  !$omp parallel 
-  !$omp do schedule(static) private(k,iq)   
   do k = 1,kn
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,k,1)*uin(iwwu(iq),k)+dtul(iq,k,2)*uin(iwu(iq),k)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(issv(iq),k)+dtvl(iq,k,2)*vin(isv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)       
   do k = kn+1,kx
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,1,1)*uin(iwwu(iq),k)+dtul(iq,1,2)*uin(iwu(iq),k)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(issv(iq),k)+dtvl(iq,1,2)*vin(isv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
     end do  
   end do
-  !$omp end do
 
   call boundsuv(ud,vd,stag=-9)
-  !$omp barrier
-  !$omp do schedule(static) private(k,iq)    
+  ! Apply JLM's preconditioner
   do k=1,kn
-    ! Apply JLM's preconditioner
     ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,k)*ud(iwu,k)
     va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,k)*vd(isv,k)
     ud(1:ifull,k) = ua(1:ifull,k)
     vd(1:ifull,k) = va(1:ifull,k)    
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)   
   do k = kn+1,kx
-    ! Apply JLM's preconditioner
     ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,1)*ud(iwu,k)
     va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,1)*vd(isv,k)
     ud(1:ifull,k) = ua(1:ifull,k)
     vd(1:ifull,k) = va(1:ifull,k)    
   end do
-  !$omp end do
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)      
     do k = 1,kn
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
       end do  
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
     do k = kn+1,kx
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
       end do  
     end do
-    !$omp end do
     call boundsuv(uin,vin,stag=3)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)     
     do k = 1,kn
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(issv(iq),k)
       end do  
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
     do k = kn+1,kx
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(iwwu(iq),k)
         va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(issv(iq),k)
       end do  
     end do
-    !$omp end do
   end do                  ! itn=1,itnmax
-  
-  !$omp end parallel
-  
+    
 else
 
   call boundsuv(uin,vin)
-  !$omp parallel 
-  !$omp do schedule(static) private(k,iq)   
   do k = 1,kn
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,k,1)*uin(ieu(iq),k)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*uin(iwu(iq),k)
       vd(iq,k)=dtvr(iq,k,1)*vin(inv(iq),k)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*vin(isv(iq),k)
     end do  
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)   
   do k = kn+1,kx
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,1,1)*uin(ieu(iq),k)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*uin(iwu(iq),k)
       vd(iq,k)=dtvr(iq,1,1)*vin(inv(iq),k)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*vin(isv(iq),k)
     end do  
   end do
-  !$omp end do
 
   call boundsuv(ud,vd,stag=-10)
-  !$omp barrier
-  !$omp do schedule(static) private(k,iq)     
+  ! Apply JLM's preconditioner
   do k = 1,kn
-    ! Apply JLM's preconditioner
     ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,k)*ud(ieu,k)
     va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,k)*vd(inv,k)
     ud(1:ifull,k) = ua(1:ifull,k)
     vd(1:ifull,k) = va(1:ifull,k)     
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)    
   do k = kn+1,kx
-    ! Apply JLM's preconditioner
     ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,1)*ud(ieu,k)
     va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(inv,k)
     ud(1:ifull,k) = ua(1:ifull,k)
     vd(1:ifull,k) = va(1:ifull,k)    
   end do
-  !$omp end do
 
   do itn = 1,itnmax        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)      
     do k = 1,kn
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
       end do  
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)       
     do k = kn+1,kx
       do iq = 1,ifull  
         uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
         vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
       end do  
     end do
-    !$omp end do
     call boundsuv(uin,vin,stag=2)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)   
     do k = 1,kn
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(innv(iq),k)
       end do  
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
     do k = kn+1,kx
       do iq = 1,ifull  
         ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(ieeu(iq),k)
         va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(innv(iq),k)
       end do  
     end do
-    !$omp end do
   end do                  ! itn=1,itnmax
-  
-  !$omp end parallel
 
 end if
 

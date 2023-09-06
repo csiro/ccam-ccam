@@ -201,11 +201,11 @@ select case(nvmix)
     ! k-e + MF closure scheme
     
     !$omp do schedule(static) private(is,ie,k),             &
-    !$omp private(lt,lqg,lqfg,lqlg,lni),                    &
+    !$omp private(lt,lqg,lqfg,lqlg),                        &
     !$omp private(lstratcloud,lu,lv,ltke,leps,lshear),      &
     !$omp private(lrkmsave,lrkhsave,lsavu,lsavv),           &
     !$omp private(lthetal_ema,lqv_ema,lql_ema,lqf_ema),     &
-    !$omp private(lcf_ema,ltke_ema.idjd_t,mydiag_t)
+    !$omp private(lcf_ema,ltke_ema,idjd_t,mydiag_t)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -420,6 +420,7 @@ if ( ncloud>=100 .and. ncloud<200 ) then
   end do ! tile = 1,ntiles
   !$omp end do nowait
 end if
+
 
 return
 end subroutine vertmix

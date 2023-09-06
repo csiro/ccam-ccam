@@ -105,7 +105,7 @@ ifeq ($(ZEN3),yes)
 FHOST =  -O3 -fallow-argument-mismatch -march=native 
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 MPISPECIAL = -fallow-argument-mismatch
-FFLAGS = -O3 -ftree-vectorize -fstack-arrays -lmvec -Dgfortran $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
+FFLAGS = -O3 -ftree-vectorize -fstack-arrays -lmvec $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
 FOVERRIDE = 
 ZMM = 
 IPFLAG = 

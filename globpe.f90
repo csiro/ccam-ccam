@@ -1102,8 +1102,7 @@ nullify(x_g, y_g, z_g)
 ! finalize MPI comms
 call ccmpi_finalize
 
-stop
-end
+end program
     
     
 !--------------------------------------------------------------
@@ -1312,18 +1311,15 @@ use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
     ,so4mtn,carbmtn,saltsmallmtn         &
     ,saltlargemtn,enhanceu10
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebnmlfile             & ! Urban
-    ,energytol                           &
+use ateb, only : energytol               & ! Urban
     ,ateb_resmeth=>resmeth               &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
     ,ateb_nrefl=>nrefl                   &
-    ,ateb_vegmode=>vegmode               &
     ,ateb_soilunder=>soilunder           &
     ,ateb_scrnmeth=>scrnmeth             &
     ,ateb_wbrelaxc=>wbrelaxc             &
     ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_lweff=>lweff                   &
     ,ateb_ncyits=>ncyits                 &
     ,ateb_nfgits=>nfgits                 &
     ,ateb_tol=>tol                       &
@@ -1514,7 +1510,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
-    atebnmlfile,nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix, &
+    nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix,             &
     always_mspeca,ntvd,tbave10,                                   &
     procmode,compression,hp_output,pil_single,                    & ! file io
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
@@ -1575,9 +1571,9 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
     cable_gw_model,cable_roughness,cable_version,cable_potev,     &
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
-    ateb_acmeth,ateb_nrefl,ateb_vegmode,ateb_soilunder,           &
+    ateb_acmeth,ateb_nrefl,ateb_soilunder,                        &
     ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,                    &
-    ateb_lweff,ateb_ncyits,ateb_nfgits,ateb_tol,ateb_alpha,       &
+    ateb_ncyits,ateb_nfgits,ateb_tol,ateb_alpha,                  &
     ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,                 &
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
@@ -1646,7 +1642,6 @@ khor                = -8
 khdif               = 2
 nhorjlm             = 1
 ngas                = 0
-atebnmlfile         = 0
 ateb_energytol      = 4.
 ateb_intairtmeth    = 0
 ateb_intmassmeth    = 0
@@ -1677,7 +1672,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(119) ) 
+allocate( dumr(33), dumi(118) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1816,24 +1811,23 @@ if ( myid==0 ) then
   dumi(99) = knh
   dumi(100) = kblock
   dumi(101) = nud_aero
-  dumi(102) = atebnmlfile
-  dumi(103) = nud_period
-  dumi(104) = procmode
-  dumi(105) = compression
-  dumi(106) = nmr
-  dumi(107) = maxtilesize
-  dumi(108) = mfix_t
-  dumi(109) = ensemble_mode
-  dumi(110) = ensemble_period
-  dumi(111) = hp_output
-  dumi(112) = intsch_mode
-  dumi(113) = qg_fix
-  if ( always_mspeca ) dumi(114) = 1
-  dumi(115) = ntvd
-  dumi(116) = tbave10  
-  dumi(117) = async_length
-  dumi(118) = nagg
-  dumi(119) = pil_single
+  dumi(102) = nud_period
+  dumi(103) = procmode
+  dumi(104) = compression
+  dumi(105) = nmr
+  dumi(106) = maxtilesize
+  dumi(107) = mfix_t
+  dumi(108) = ensemble_mode
+  dumi(109) = ensemble_period
+  dumi(110) = hp_output
+  dumi(111) = intsch_mode
+  dumi(112) = qg_fix
+  if ( always_mspeca ) dumi(113) = 1
+  dumi(114) = ntvd
+  dumi(115) = tbave10  
+  dumi(116) = async_length
+  dumi(117) = nagg
+  dumi(118) = pil_single
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1971,24 +1965,23 @@ ol                = dumi(98)
 knh               = dumi(99)
 kblock            = dumi(100)
 nud_aero          = dumi(101)
-atebnmlfile       = dumi(102)
-nud_period        = dumi(103)
-procmode          = dumi(104)
-compression       = dumi(105)
-nmr               = dumi(106)
-maxtilesize       = dumi(107)
-mfix_t            = dumi(108)
-ensemble_mode     = dumi(109)
-ensemble_period   = dumi(110)
-hp_output         = dumi(111)
-intsch_mode       = dumi(112)
-qg_fix            = dumi(113)
-always_mspeca     = dumi(114)==1
-ntvd              = dumi(115)
-tbave10           = dumi(116)
-async_length      = dumi(117)
-nagg              = dumi(118)
-pil_single        = dumi(119)
+nud_period        = dumi(102)
+procmode          = dumi(103)
+compression       = dumi(104)
+nmr               = dumi(105)
+maxtilesize       = dumi(106)
+mfix_t            = dumi(107)
+ensemble_mode     = dumi(108)
+ensemble_period   = dumi(109)
+hp_output         = dumi(110)
+intsch_mode       = dumi(111)
+qg_fix            = dumi(112)
+always_mspeca     = dumi(113)==1
+ntvd              = dumi(114)
+tbave10           = dumi(115)
+async_length      = dumi(116)
+nagg              = dumi(117)
+pil_single        = dumi(118)
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -2387,7 +2380,7 @@ ngwd               = dumi(4)
 tcalmeth           = dumi(5)
 ugs_meth           = dumi(6)
 deallocate( dumr, dumi )
-allocate( dumr(24), dumi(31) )
+allocate( dumr(24), dumi(29) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2436,22 +2429,20 @@ if ( myid==0 ) then
   dumi(13) = ateb_zohmeth
   dumi(14) = ateb_acmeth
   dumi(15) = ateb_nrefl
-  dumi(16) = ateb_vegmode
-  dumi(17) = ateb_soilunder
-  dumi(18) = ateb_scrnmeth
-  dumi(19) = ateb_wbrelaxc
-  dumi(20) = ateb_wbrelaxr
-  dumi(21) = ateb_lweff
-  dumi(22) = ateb_ncyits
-  dumi(23) = ateb_nfgits
-  dumi(24) = ateb_intairtmeth
-  dumi(25) = ateb_intmassmeth
-  dumi(26) = ateb_cvcoeffmeth
-  dumi(27) = ateb_statsmeth
-  dumi(28) = ateb_lwintmeth
-  dumi(29) = ateb_infilmeth
-  dumi(30) = cable_roughness
-  dumi(31) = cable_potev
+  dumi(16) = ateb_soilunder
+  dumi(17) = ateb_scrnmeth
+  dumi(18) = ateb_wbrelaxc
+  dumi(19) = ateb_wbrelaxr
+  dumi(20) = ateb_ncyits
+  dumi(21) = ateb_nfgits
+  dumi(22) = ateb_intairtmeth
+  dumi(23) = ateb_intmassmeth
+  dumi(24) = ateb_cvcoeffmeth
+  dumi(25) = ateb_statsmeth
+  dumi(26) = ateb_lwintmeth
+  dumi(27) = ateb_infilmeth
+  dumi(28) = cable_roughness
+  dumi(29) = cable_potev
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2494,22 +2485,20 @@ ateb_resmeth      = dumi(12)
 ateb_zohmeth      = dumi(13)
 ateb_acmeth       = dumi(14)
 ateb_nrefl        = dumi(15) 
-ateb_vegmode      = dumi(16) 
-ateb_soilunder    = dumi(17)
-ateb_scrnmeth     = dumi(18)
-ateb_wbrelaxc     = dumi(19) 
-ateb_wbrelaxr     = dumi(20) 
-ateb_lweff        = dumi(21) 
-ateb_ncyits       = dumi(22)
-ateb_nfgits       = dumi(23) 
-intairtmeth       = dumi(24) ! note switch to UCLEM parameter
-intmassmeth       = dumi(25) ! note switch to UCLEM parameter 
-ateb_cvcoeffmeth  = dumi(26) 
-ateb_statsmeth    = dumi(27) 
-ateb_lwintmeth    = dumi(28) 
-ateb_infilmeth    = dumi(29)
-cable_roughness   = dumi(30)
-cable_potev       = dumi(31)
+ateb_soilunder    = dumi(16)
+ateb_scrnmeth     = dumi(17)
+ateb_wbrelaxc     = dumi(18) 
+ateb_wbrelaxr     = dumi(19) 
+ateb_ncyits       = dumi(20)
+ateb_nfgits       = dumi(21) 
+intairtmeth       = dumi(22) ! note switch to UCLEM parameter
+intmassmeth       = dumi(23) ! note switch to UCLEM parameter 
+ateb_cvcoeffmeth  = dumi(24) 
+ateb_statsmeth    = dumi(25) 
+ateb_lwintmeth    = dumi(26) 
+ateb_infilmeth    = dumi(27)
+cable_roughness   = dumi(28)
+cable_potev       = dumi(29)
 deallocate( dumr, dumi )
 allocate( dumr(21), dumi(20) )
 dumr = 0.

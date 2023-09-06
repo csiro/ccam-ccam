@@ -77,6 +77,7 @@ module cc_mpi
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
    integer, allocatable, dimension(:), save, private :: rlist              ! map of processor index from requested message index
+   integer(kind=4), save, private :: nreq_ibarrier, ireq_ibarrier          ! non-blocking barrier for shared memory
    
    integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processors
    integer, allocatable, dimension(:), save, private :: neighmap           ! map of processor to neighbour index
@@ -139,15 +140,14 @@ module cc_mpi
    public :: allocateglobalpack, copyglobalpack, ccmpi_gathermap_send,      &
              ccmpi_gathermap_recv, getglobalpack_v, setglobalpack_v,        &
              ccmpi_gathermap_wait, deallocateglobalpack
-   public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
-             ccmpi_filebounds_send, ccmpi_filebounds_recv,                  &
-             ccmpi_filedistribute, procarray,                               &
+   public :: ccmpi_filewinstart, ccmpi_filewinunpack, ccmpi_filewinstop,    &
+             ccmpi_filebounds_setup, ccmpi_filebounds_send,                 &
+             ccmpi_filebounds_recv, ccmpi_filedistribute, procarray,        &
              ccmpi_filewininit, ccmpi_filewinfinalize,                      &
-             ccmpi_filewinfinalize_exit
+             ccmpi_filewinfinalize_exit, ccmpi_filebounds_reset
    public :: ccmpi_remap  
 #ifdef usempi3
-   public :: ccmpi_allocshdata, ccmpi_allocshdatar8
-   public :: ccmpi_shepoch, ccmpi_freeshdata
+   public :: ccmpi_allocshdata, ccmpi_allocshdatar8, ccmpi_freeshdata
 #endif
    
    interface ccmpi_gather
@@ -200,15 +200,14 @@ module cc_mpi
    end interface
    interface ccmpi_reduce
       module procedure ccmpi_reduce2i, ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r
-      module procedure ccmpi_reduce2c, ccmpi_reduce1l, ccmpi_reduce2l
+      module procedure ccmpi_reduce1c, ccmpi_reduce2c, ccmpi_reduce1l, ccmpi_reduce2l
    end interface
    interface ccmpi_reducer8
      module procedure ccmpi_reduce1rr8
    end interface
    interface ccmpi_allreduce
       module procedure ccmpi_allreduce1i, ccmpi_allreduce2i, ccmpi_allreduce1r, ccmpi_allreduce2r
-      module procedure ccmpi_allreduce3r, ccmpi_allreduce1c, ccmpi_allreduce2c
-      module procedure ccmpi_allreduce2l
+      module procedure ccmpi_allreduce3r, ccmpi_allreduce1c, ccmpi_allreduce2c, ccmpi_allreduce2l
    end interface
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r
@@ -242,8 +241,8 @@ module cc_mpi
       module procedure host_filedistribute2, proc_filedistribute2
       module procedure host_filedistribute3, proc_filedistribute3
    end interface ccmpi_filedistribute
-   interface ccmpi_filewinget
-     module procedure ccmpi_filewinget2, ccmpi_filewinget3
+   interface ccmpi_filewinstart
+     module procedure ccmpi_filewinstart2, ccmpi_filewinstart3
    end interface
    interface mgbounds
       module procedure mgbounds2, mgbounds3
@@ -384,6 +383,7 @@ module cc_mpi
       integer, dimension(:,:), allocatable :: request_list
       integer, dimension(:,:), allocatable :: unpack_list
       integer :: len, rlen, slen, rlenx, slenx
+      integer :: s_enable, r_enable
    end type filebounds_info
    
    type(filebounds_info), allocatable, dimension(:), save :: filebnds
@@ -451,6 +451,7 @@ module cc_mpi
    integer, public, save :: allreduce_begin, allreduce_end
    integer, public, save :: mpiwaitsome_begin, mpiwaitsome_end
    integer, public, save :: mpiwaitall_begin, mpiwaitall_end
+   integer, public, save :: mpiwait_begin, mpiwait_end
    integer, public, save :: mpibarrier_begin, mpibarrier_end
    integer, public, save :: mpifence_begin, mpifence_end
    integer, public, save :: mgsetup_begin, mgsetup_end
@@ -466,7 +467,7 @@ module cc_mpi
    integer, public, save :: p6_begin, p6_end
    integer, public, save :: p7_begin, p7_end
    integer, public, save :: p8_begin, p8_end   
-   integer, parameter :: nevents = 77
+   integer, parameter :: nevents = 78
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
    real(kind=8), save, public :: mpiinit_time, total_time
@@ -497,6 +498,8 @@ contains
       real, dimension(:,:), allocatable :: dumu, dumv
       real(kind=8), dimension(:,:), allocatable :: dumr8, dumr8_g
       logical(kind=4) :: ltrue
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       nreq = 0
       allocate( bnds(0:nproc-1) )
@@ -745,6 +748,7 @@ contains
       real, dimension(ifull,1,1) :: af_l
       real, dimension(ifull_g,1,1) :: a1_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a1_l(:,1,1) = a1(:)
       call host_distribute4(af_l,a1_l)
       af(:) = af_l(:,1,1)
@@ -760,6 +764,7 @@ contains
       real, dimension(size(af,1),size(af,2),1) :: af_l
       real, dimension(size(a1,1),size(a1,2),1) :: a1_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a1_l(:,:,1) = a1(:,:)
       call host_distribute4(af_l,a1_l)
       af(:,:) = af_l(:,:,1)
@@ -784,9 +789,9 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, lcomm
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(af,2)
       lx = size(af,3)
-
       ! map array in order of processor rank
       do l = 1,lx 
          do k = 1,kx
@@ -802,7 +807,6 @@ contains
             end do
          end do
       end do
-
       lsize = ifull*kx*lx
       lcomm = comm_world
       call START_LOG(scatter_begin) 
@@ -817,6 +821,7 @@ contains
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull,1,1) :: af_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call proc_distribute4(af_l)
       af(:) = af_l(:,1,1)
       
@@ -829,6 +834,7 @@ contains
       real, dimension(:,:), intent(out) :: af
       real, dimension(size(af,1),size(af,2),1) :: af_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call proc_distribute4(af_l)
       af(:,:) = af_l(:,:,1)
       
@@ -849,11 +855,11 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, lcomm
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( myid == 0 ) then
          write(6,*) "Error: ccmpi_distribute argument required on proc 0"
          call ccmpi_abort(-1)
       end if
-
       kx = size(af,2)
       lx = size(af,3)
       lsize = ifull*kx*lx
@@ -872,6 +878,7 @@ contains
       real(kind=8), dimension(ifull,1,1) :: af_l
       real(kind=8), dimension(ifull_g,1,1) :: a1_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a1_l(:,1,1) = a1(:)
       call host_distribute4r8(af_l,a1_l)
       af(:) = af_l(:,1,1)
@@ -885,6 +892,7 @@ contains
       real(kind=8), dimension(size(af,1),size(af,2),1) :: af_l
       real(kind=8), dimension(size(a1,1),size(a1,2),1) :: a1_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a1_l(:,:,1) = a1(:,:)
       call host_distribute4r8(af_l,a1_l)
       af(:,:) = af_l(:,:,1)
@@ -902,9 +910,9 @@ contains
       integer :: slen, kx, k, lx, l
       integer(kind=4) :: ierr, lsize, lcomm
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(af,2)
       lx = size(af,3)
-      
       ! map array in order of processor rank
       do l = 1,lx  
          do k = 1,kx 
@@ -920,7 +928,6 @@ contains
             end do
          end do
       end do
-
       lsize = ifull*kx*lx
       lcomm = comm_world
       call START_LOG(scatter_begin) 
@@ -935,6 +942,7 @@ contains
       real(kind=8), dimension(ifull), intent(out) :: af
       real(kind=8), dimension(ifull,1,1) :: af_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call proc_distribute4r8(af_l)
       af(:) = af_l(:,1,1)
       
@@ -945,6 +953,7 @@ contains
       real(kind=8), dimension(:,:), intent(out) :: af
       real(kind=8), dimension(size(af,1),size(af,2),1) :: af_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call proc_distribute4r8(af_l)
       af(:,:) = af_l(:,:,1)
 
@@ -958,11 +967,11 @@ contains
       integer :: kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( myid == 0 ) then
          write(6,*) "Error: ccmpi_distribute argument required on proc 0"
          call ccmpi_abort(-1)
       end if
-
       kx = size(af,2)
       lx = size(af,3)
       lsize = ifull*kx*lx
@@ -981,6 +990,7 @@ contains
       integer, dimension(ifull,1) :: af_l
       integer, dimension(ifull_g,1) :: a1_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a1_l(:,1) = a1(:)
       call host_distribute3i(af_l,a1_l)
       af(:) = af_l(:,1)
@@ -1005,8 +1015,8 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, lcomm
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(af,2)
-
       ! map array in order of processor rank
       do k = 1,kx
          do iproc = 0,nproc-1
@@ -1020,7 +1030,6 @@ contains
             end do
          end do
       end do
-
       lsize = ifull*kx
       lcomm = comm_world
       call START_LOG(scatter_begin) 
@@ -1035,6 +1044,7 @@ contains
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull,1) :: af_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call proc_distribute3i(af_l)
       af(:) = af_l(:,1)
 
@@ -1055,11 +1065,11 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize, lcomm
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( myid == 0 ) then
          write(6,*) "Error: ccmpi_distribute argument required on proc 0"
          call ccmpi_abort(-1)
       end if
-      
       kx = size(af,2)
       lsize = ifull*kx
       lcomm = comm_world
@@ -1077,6 +1087,7 @@ contains
       real, dimension(ifull,1,1) :: a_l
       real, dimension(ifull_g,1,1) :: ag_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,1,1) = a(:)
       call host_gather4(a_l,ag_l)
       ag(:) = ag_l(:,1,1)
@@ -1090,6 +1101,7 @@ contains
       real, dimension(size(a,1),size(a,2),1) :: a_l
       real, dimension(size(ag,1),size(ag,2),1) :: ag_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,:,1) = a(:,:)
       call host_gather4(a_l,ag_l)
       ag(:,:) = ag_l(:,:,1)
@@ -1112,6 +1124,7 @@ contains
       real, dimension(ifull,size(a,2),size(a,3),0:nproc-1) :: abuf
       real, dimension(ifull,size(a,2),size(a,3)) :: atemp
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(a,2)
       lx = size(a,3)
       lsize = ifull*kx*lx
@@ -1120,7 +1133,6 @@ contains
       call START_LOG(gather_begin)
       call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
       call END_LOG(gather_end)
-
       ! map array in order of processor rank
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
@@ -1145,6 +1157,7 @@ contains
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull,1,1) :: a_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,1,1) = a(:)
       call proc_gather4(a_l)
 
@@ -1155,6 +1168,7 @@ contains
       real, dimension(:,:), intent(in) :: a
       real, dimension(size(a,1),size(a,2),1) :: a_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,:,1) = a(:,:)
       call proc_gather4(a_l)
 
@@ -1173,11 +1187,11 @@ contains
       real, dimension(ifull,size(a,2),size(a,3)) :: atemp
       integer :: kx, lx
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( myid == 0 ) then
          write(6,*) "Error: ccmpi_gather argument required on proc 0"
          call ccmpi_abort(-1)
       end if
-
       kx = size(a,2)
       lx = size(a,3)
       lsize = ifull*kx*lx
@@ -1196,6 +1210,7 @@ contains
       real(kind=8), dimension(ifull,1,1) :: a_l
       real(kind=8), dimension(ifull_g,1,1) :: ag_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,1,1) = a(:)
       call host_gather4r8(a_l,ag_l)
       ag(:) = ag_l(:,1,1)
@@ -1209,6 +1224,7 @@ contains
       real(kind=8), dimension(size(a,1),size(a,2),1) :: a_l
       real(kind=8), dimension(size(ag,1),size(ag,2),1) :: ag_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,:,1) = a(:,:)
       call host_gather4r8(a_l,ag_l)
       ag(:,:) = ag_l(:,:,1)
@@ -1227,6 +1243,7 @@ contains
       real(kind=8), dimension(ifull,size(a,2),size(a,3),0:nproc-1) :: abuf
       real(kind=8), dimension(ifull,size(a,2),size(a,3)) :: atemp
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(a,2)
       lx = size(a,3)
       lsize = ifull*kx*lx
@@ -1235,7 +1252,6 @@ contains
       call START_LOG(gather_begin)
       call MPI_Gather( atemp, lsize, ltype, abuf, lsize, ltype, 0_4, lcomm, ierr )
       call END_LOG(gather_end)
-
       ! map array in order of processor rank
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
@@ -1260,6 +1276,7 @@ contains
       real(kind=8), dimension(ifull), intent(in) :: a
       real(kind=8), dimension(ifull,1,1) :: a_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,1,1) = a(:)
       call proc_gather4r8(a_l)
       
@@ -1270,6 +1287,7 @@ contains
       real(kind=8), dimension(:,:), intent(in) :: a
       real(kind=8), dimension(size(a,1),size(a,2),1) :: a_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,:,1) = a(:,:)
       call proc_gather4r8(a_l)
       
@@ -1284,11 +1302,11 @@ contains
       real(kind=8), dimension(ifull,size(a,2),size(a,3)) :: atemp
       integer :: kx, lx
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( myid == 0 ) then
          write(6,*) "Error: ccmpi_gather argument required on proc 0"
          call ccmpi_abort(-1)
       end if
-      
       kx = size(a,2)
       lx = size(a,3)
       lsize = ifull*kx*lx
@@ -1307,6 +1325,7 @@ contains
       real, dimension(ifull,1) :: a_l
       real, dimension(ifull_g,1) :: ag_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,1) = a(:)
       call ccmpi_gatherall3(a_l,ag_l)
       ag(:) = ag_l(:,1)
@@ -1328,6 +1347,7 @@ contains
       integer :: ipoff, jpoff, npoff
       integer :: j, n, k, iq, iqg, kx, iproc
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
@@ -1335,7 +1355,6 @@ contains
       call START_LOG(allgather_begin)
       call MPI_AllGather( atemp, lsize, ltype, abuf, lsize, ltype, lcomm, ierr )
       call END_LOG(allgather_end)
-
       ! map array in order of processor rank
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
@@ -1357,6 +1376,7 @@ contains
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull,1) :: a_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a_l(:,1) = a(:)
       call ccmpi_gathermap_send3(a_l)
 
@@ -1374,10 +1394,10 @@ contains
       integer(kind=4) :: lcomm
       integer(kind=4) :: itag = 52
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
-
       ! Set up the buffers to recv
       nreq = 0
       do w = 1,size(specmap_recv)
@@ -1391,7 +1411,6 @@ contains
                          ierr )
       end do
       rreq = nreq
-      
       ! Set up the buffers to send
       bnds(myid)%sbuf(1:ifull*kx) = reshape( a(1:ifull,1:kx), (/ ifull*kx /) )
       do w = 1,size(specmap_send)
@@ -1405,36 +1424,22 @@ contains
 
    end subroutine ccmpi_gathermap_send3
 
-   subroutine ccmpi_gathermap_wait
-      integer(kind=4) :: ierr
-      
-      if ( nreq > 0 ) then
-         call START_LOG(mpiwaitall_begin) 
-         call MPI_Waitall( nreq, ireq(1:nreq), MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitall_end)
-         nreq = 0
-      end if   
-
-   end subroutine ccmpi_gathermap_wait
-   
-   subroutine ccmpi_gathermap_recv2(kref)
-      integer, intent(in) :: kref
-
-      call ccmpi_gathermap_recv3(1,kref)
-      
-   end subroutine ccmpi_gathermap_recv2
-
-   subroutine ccmpi_gathermap_recv3(kx,kref)
-      integer, intent(in) :: kx, kref
-      integer :: w, iproc, k, n, iq
-      integer :: ipoff, jpoff, npoff
-      integer :: ipak, jpak
-      integer :: sreq, rcount, jproc, kproc
+   subroutine ccmpi_gathermap_wait(kx)
+      integer, intent(in) :: kx
+      integer :: sreq, rcount, jproc, iproc, kproc
+      integer :: k, n, iq, w
       integer(kind=4) :: ierr, ldone, lcomm
-      integer(kind=4), dimension(size(specmap_recv)) :: donelist
+      integer(kind=4), dimension(size(specmap_recv)) :: donelist      
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+      ! Confirm read nodepack is complete
+      if ( nreq_ibarrier > 0 ) then
+         call START_LOG(mpiwait_begin)
+         call MPI_Wait( ireq_ibarrier, MPI_STATUS_IGNORE, ierr )
+         nreq_ibarrier = 0
+         call END_LOG(mpiwait_end)
+      end if   
       if ( nreq > 0 ) then
-          
          ! Unpack incomming messages
          rcount = rreq
          do while ( rcount > 0 )
@@ -1456,6 +1461,10 @@ contains
                end do
             end do
          end do
+         ! Write to nodepack is complete
+         lcomm = comm_node
+         call MPI_IBarrier( lcomm, ireq_ibarrier, ierr )
+         nreq_ibarrier = 1
       
          sreq = nreq - rreq
          if ( sreq > 0 ) then
@@ -1464,29 +1473,37 @@ contains
             call END_LOG(mpiwaitall_end)
          end if 
          nreq = 0
+      end if   
+
+   end subroutine ccmpi_gathermap_wait
+   
+   subroutine ccmpi_gathermap_recv2(kref)
+      integer, intent(in) :: kref
+
+      if ( ccomp_get_thread_num() /= 0 ) return
+      call ccmpi_gathermap_recv3(1,kref)
       
-      else
+   end subroutine ccmpi_gathermap_recv2
 
-         do w = 1,size(specmap_recv)
-            iproc = specmap_recv(w)
-            kproc = specmap_indx(iproc)
-            do k = 1,kx
-               do n = 1,npan
-                  ! Global indices are i+ipoff, j+jpoff, n-npoff
-                  iq = (n-1)*ipan*jpan + (k-1)*ifull
-                  nodepack(:,:,n,k,kproc) = &
-                    reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
-               end do
-            end do
-         end do
-          
+   subroutine ccmpi_gathermap_recv3(kx,kref)
+      integer, intent(in) :: kx, kref
+      integer :: w, k, n
+      integer :: ipoff, jpoff, npoff
+      integer :: ipak, jpak
+      integer :: kproc, iproc
+      integer(kind=4) :: ierr, lcomm
+
+      if ( ccomp_get_thread_num() /= 0 ) return
+      if ( nreq > 0 ) then
+         call ccmpi_gathermap_wait(kx)
       end if
-
-      call START_LOG(mpibarrier_begin) 
-      lcomm = comm_node
-      call MPI_Barrier( lcomm, ierr )
-      call END_LOG(mpibarrier_end)
-
+      ! Confirm write to nodepack is complete
+      if ( nreq_ibarrier > 0 ) then
+         call START_LOG(mpiwait_begin) 
+         call MPI_Wait( ireq_ibarrier, MPI_STATUS_IGNORE, ierr )
+         nreq_ibarrier = 0
+         call END_LOG(mpiwait_end)
+      end if
       ! unpack for process
       do w = 1,size(specmap_req)
          iproc = specmap_req(w)
@@ -1501,11 +1518,10 @@ contains
             end do
          end do   
       end do 
-
-      call START_LOG(mpibarrier_begin) 
+      ! Read from nodepack is complete
       lcomm = comm_node
-      call MPI_Barrier( lcomm, ierr )
-      call END_LOG(mpibarrier_end)
+      call MPI_IBarrier( lcomm, ireq_ibarrier, ierr )
+      nreq_ibarrier = 1
       
    end subroutine ccmpi_gathermap_recv3
     
@@ -1519,7 +1535,7 @@ contains
       integer :: s_ipak, s_jpak, s_iloc, s_jloc
       integer :: c_ipak, c_jpak
       real, dimension(:), intent(in) :: datain
-      
+
       il2 = il_g*il_g
       
       iqg = ibeg - 1
@@ -1690,6 +1706,8 @@ contains
       integer :: xlen
       integer, dimension(5) :: shsize
       
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       ! increase request list size
       xlen = size(specmap_recv) + size(specmap_send)
       if ( size(ireq)<xlen ) then
@@ -1763,6 +1781,7 @@ contains
    
    subroutine deallocateglobalpack
    
+      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef usempi3
       call ccmpi_freeshdata(nodepack_win)
 #else
@@ -1781,6 +1800,7 @@ contains
       real, dimension(1) :: delpos_l, delneg_l
       integer :: iq
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       array_l(:,1,1) = array(:)
       dsig_l(1:ifull,1) = spread(1.,1,ifull)
       call ccglobal_posneg4o(array_l,delpos_l,delneg_l,dsig_l)
@@ -1801,6 +1821,7 @@ contains
       real, dimension(1) :: delpos_l, delneg_l
       integer :: k, iq
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       array_l(:,:,1) = array(:,:)
       do k = 1,size(dsig)
          dsig_l(1:ifull,k) = spread(dsig(k),1,ifull)
@@ -1819,6 +1840,7 @@ contains
       real, dimension(ifull,size(dsig)) :: dsig_l
       integer :: k, iq
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       do k = 1,size(dsig)
          dsig_l(1:ifull,k) = spread(dsig(k),1,ifull)
       end do
@@ -1834,6 +1856,7 @@ contains
       real, dimension(size(array,1),size(array,2),1) :: array_l
       real, dimension(1) :: delpos_l, delneg_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       array_l(:,:,1) = array(:,:)
       call ccglobal_posneg4o(array_l,delpos_l,delneg_l,dsig)
       delpos = delpos_l(1)
@@ -1859,6 +1882,7 @@ contains
       complex, dimension(2*size(array,2),size(array,3)) :: local_sum_ki
       real, dimension(ifull,2*size(array,2)) :: tmparr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx  = size(array,2)
       ntr = size(array,3)
       local_sum_ki(1:2*kx,1:ntr) = cmplx(0., 0.)
@@ -1908,6 +1932,8 @@ contains
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
       real :: maxdis
       real, intent(in) :: dt
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       ! Just set values that point to values within own processors region.
       ! Other values are set up later
@@ -3654,6 +3680,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: corner_l, nehalf_l
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       nrows_l = 1
       corner_l = .false.
       nehalf_l = .false.
@@ -3683,6 +3710,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: corner_l, nehalf_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(t,2)
       nrows_l = 1
       klim_l = kx
@@ -4174,6 +4202,8 @@ contains
       logical, intent(in), optional :: allvec
       logical :: allvec_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       nrows_l = 1
       stag_l = 0
       allvec_l = .false.
@@ -4205,6 +4235,8 @@ contains
       integer :: nrows_l, stag_l
       logical, intent(in), optional :: allvec
       logical :: allvec_l
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       nrows_l = 1
       stag_l = 0
@@ -4701,6 +4733,7 @@ contains
 #endif  
       real, dimension(4,maxbuflen*maxvertlen,neighnum) :: buf_dpoints, buf_dbuf 
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       ! This does nothing in the one processor case
       if ( neighnum < 1 ) return
       
@@ -4830,6 +4863,7 @@ contains
 
    subroutine intssync_send3
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call intssync_send4(1)
 
    end subroutine intssync_send3
@@ -4845,6 +4879,8 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       if ( ntr > nagg ) then
          write(6,*) "ERROR: Internal error in intssync_send.  ntr > nagg"
          call ccmpi_abort(-1)
@@ -4888,6 +4924,7 @@ contains
       real, dimension(:,:), intent(inout) :: s
       real, dimension(size(s,1),size(s,2),1) :: s_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       s_l(:,:,1) = s(:,:)
       call intssync_recv4(s_l)
       s(:,:) = s_l(:,:,1)
@@ -4900,6 +4937,8 @@ contains
       integer :: rcount, ntr, l
       integer(kind=4) :: ierr, ldone, sreq
       integer(kind=4), dimension(neighnum) :: donelist
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       ntr = size(s,3)
       if ( ntr > nagg ) then
@@ -5407,6 +5446,8 @@ contains
 
    subroutine log_setup()
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       call add_event(maincalc_begin,      maincalc_end,      "MainCalc")
       call add_event(indata_begin,        indata_end,        "Indata")
       call add_event(phys_begin,          phys_end,          "Phys")
@@ -5473,6 +5514,7 @@ contains
       call add_event(reduce_begin,        reduce_end,        "MPI_Reduce")
       call add_event(mpiwaitsome_begin,   mpiwaitsome_end,   "MPI_Waitsome")
       call add_event(mpiwaitall_begin,    mpiwaitall_end,    "MPI_Waitall")
+      call add_event(mpiwait_begin,       mpiwait_end,       "MPI_Wait")
       call add_event(mpibarrier_begin,    mpibarrier_end,    "MPI_Barrier")
       call add_event(mpifence_begin,      mpifence_end,      "MPI_Fence")
       call add_event(p1_begin,            p1_end,            "Probe1")
@@ -5492,13 +5534,11 @@ contains
       integer, save :: e_counter = 0
 
       e_counter = e_counter + 1
-
       if ( e_counter > nevents ) then
          write(6,*) "ERROR: nevents is incorrectly specified"
          write(6,*) e_counter, nevents
          stop
       end if
-
       e_begin = e_counter
       e_end = e_counter
       event_name(e_counter) = e_name
@@ -5511,6 +5551,8 @@ contains
       integer(kind=4) :: ierr, llen, lcomm
       real(kind=8), dimension(nevents) :: emean, emax, emin
       real(kind=8), dimension(2) :: time_l, time_mean, time_max, time_min
+
+      if ( ccomp_get_thread_num() /= 0 ) return
       
       llen = nevents
       lcomm = comm_world
@@ -5564,6 +5606,8 @@ contains
       real, dimension(ifull_g) :: varg
       logical :: doskip
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       doskip = .false.
       if ( present(skip) ) doskip = skip
 
@@ -5598,6 +5642,8 @@ contains
       character(len=*), intent(in), optional :: fmt
       integer, dimension(ifull_g) :: varg
       logical :: doskip
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       doskip = .false.
       if ( present(skip) ) doskip = skip
@@ -5635,6 +5681,8 @@ contains
       integer :: kk
       logical :: doskip
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       doskip = .false.
       if ( present(skip) ) doskip = skip
 
@@ -5671,6 +5719,8 @@ contains
       character(len=*), intent(in), optional :: fmt
       real, dimension(ifull_g) :: varg
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       if ( myid == 0 ) then
          ! Use explicit ranges here because some arguments might be extended.
          call ccmpi_gather(var(1:ifull),varg)
@@ -5695,6 +5745,8 @@ contains
       real, dimension(ifull_g,size(var,2)) :: varg
       character(len=*), intent(in), optional :: fmt
       integer :: kk
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       kk = size(var,2)
 
@@ -5727,10 +5779,10 @@ contains
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -5742,7 +5794,6 @@ contains
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(reduce_begin)
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, ierr )
       call END_LOG(reduce_end)
@@ -5751,41 +5802,40 @@ contains
 
    subroutine ccmpi_reduce1r(ldat,gdat,op,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: ltype, lop, lcomm, lerr, lhost
+      integer(kind=4) :: lop, lcomm, lerr, lhost
+#ifdef i8r8
+      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4) :: ltype = MPI_REAL
+#endif
       real, intent(in) :: ldat
       real, intent(out) :: gdat
+      complex :: ldat_c
+      complex :: gdat_c
       character(len=*), intent(in) :: op
+
+      if ( ccomp_get_thread_num() /= 0 ) return
+
+      ! use sumdr instead of sum
+      if ( op == "sum" ) then
+         gdat_c = cmplx(0.,0.)
+         ldat_c = cmplx(ldat,0.)
+         call ccmpi_reduce1c(ldat_c,gdat_c,"sumdr",host,comm)
+         gdat = real(gdat_c)
+         return
+      end if
 
       lhost = host
       lcomm = comm
-      
       select case( op )
          case( "max" )
             lop = MPI_MAX
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
          case( "min" )
             lop = MPI_MIN
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
-         case( "sum" )
-            lop = MPI_SUM
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
-
       call START_LOG(reduce_begin)
       call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
       call END_LOG(reduce_end)
@@ -5794,15 +5844,32 @@ contains
    
    subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
       integer, intent(in) :: host, comm
+      integer :: i
       integer(kind=4) :: ltype, lop, lcomm, lerr, lsize, lhost
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
+      complex, dimension(size(ldat)) :: ldat_c
+      complex, dimension(size(gdat)) :: gdat_c
       character(len=*), intent(in) :: op
       
+      if ( ccomp_get_thread_num() /= 0 ) return
+
+      ! use sumdr instead of sum
+      if ( op == "sum" ) then
+         gdat_c = cmplx(0.,0.)
+         do i = 1,size(ldat) 
+            ldat_c(i) = cmplx(ldat(i),0.)
+         end do
+         call ccmpi_reduce2c(ldat_c,gdat_c,"sumdr",host,comm)
+         do i = 1,size(gdat)
+            gdat(i) = real(gdat_c(i))
+         end do
+         return
+      end if
+
       lhost = host
       lcomm = comm
-      lsize = size(ldat)
-            
+      lsize = size(ldat)            
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -5813,13 +5880,6 @@ contains
 #endif 
          case( "min" )
             lop = MPI_MIN
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
-         case( "sum" )
-            lop = MPI_SUM
 #ifdef i8r8
             ltype = MPI_DOUBLE_PRECISION
 #else
@@ -5845,7 +5905,6 @@ contains
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
-
       call START_LOG(reduce_begin)
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
       call END_LOG(reduce_end)
@@ -5859,10 +5918,10 @@ contains
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
-      lsize = size(ldat)
-      
+      lsize = size(ldat)      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -5879,6 +5938,9 @@ contains
             ltype = MPI_REAL
 #endif 
          case( "sum" )
+            if ( myid==0 ) then
+               write(6,*) "WARN: ccmpi_reduce using less accurate sum"
+            end if
             lop = MPI_SUM
 #ifdef i8r8
             ltype = MPI_DOUBLE_PRECISION
@@ -5906,12 +5968,44 @@ contains
             call ccmpi_abort(-1)
 
       end select
-      
       call START_LOG(reduce_begin)
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_reduce3r
+
+   subroutine ccmpi_reduce1c(ldat,gdat,op,host,comm)
+      use sumdd_m
+      integer, intent(in) :: host,comm
+      integer(kind=4) :: lop, lcomm, lerr, lhost
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
+#else
+      integer(kind=4), parameter :: ltype = MPI_COMPLEX
+#endif 
+      complex, intent(in) :: ldat
+      complex, intent(out) :: gdat
+      character(len=*), intent(in) :: op
+
+      if ( ccomp_get_thread_num() /= 0 ) return
+      lhost = host
+      lcomm = comm
+      select case( op )
+         case( "max" )
+            lop = MPI_MAX
+         case( "min" )
+            lop = MPI_MIN
+         case( "sumdr" )
+            lop = MPI_SUMDR
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call ccmpi_abort(-1)
+      end select
+      call START_LOG(reduce_begin)
+      call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_reduce1c
 
    subroutine ccmpi_reduce2c(ldat,gdat,op,host,comm)
       use sumdd_m
@@ -5926,24 +6020,21 @@ contains
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
-      lsize = size(ldat)
-      
+      lsize = size(ldat)      
       select case( op )
          case( "max" )
             lop = MPI_MAX
          case( "min" )
             lop = MPI_MIN
-         case( "sum" )
-            lop = MPI_SUM
          case( "sumdr" )
             lop = MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(reduce_begin)
       call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
       call END_LOG(reduce_end)
@@ -5961,9 +6052,9 @@ contains
 #endif
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
-      lcomm = comm
-      
+      lcomm = comm      
       select case( op )
          case( "or" )
             lop = MPI_LOR
@@ -5973,7 +6064,6 @@ contains
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(reduce_begin)
 #ifdef i8r8
       ldat_l = ldat
@@ -5997,10 +6087,10 @@ contains
 #endif
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
-      lsize = size(ldat)
-      
+      lsize = size(ldat)      
       select case( op )
          case( "or" )
             lop = MPI_LOR
@@ -6010,7 +6100,6 @@ contains
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(reduce_begin)
 #ifdef i8r8
       ldat_l = ldat
@@ -6025,31 +6114,30 @@ contains
 
    subroutine ccmpi_reduce1rr8(ldat,gdat,op,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: ltype, lop, lcomm, lerr, lhost
+      integer(kind=4) :: lop, lcomm, lerr, lhost
       real(kind=8), intent(in) :: ldat
       real(kind=8), intent(out) :: gdat
       character(len=*), intent(in) :: op
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
-      lcomm = comm
-            
+      lcomm = comm            
       select case( op )
          case( "max" )
             lop = MPI_MAX
-            ltype = MPI_DOUBLE_PRECISION
          case( "min" )
             lop = MPI_MIN
-            ltype = MPI_DOUBLE_PRECISION
          case( "sum" )
+            if ( myid==0 ) then
+               write(6,*) "WARN: ccmpi_reducer8 using less accurate sum"
+            end if
             lop = MPI_SUM
-            ltype = MPI_DOUBLE_PRECISION
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
-
       call START_LOG(reduce_begin)
-      call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
+      call MPI_Reduce(ldat, gdat, 1_4, MPI_DOUBLE_PRECISION, lop, lhost, lcomm, lerr )
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_reduce1rr8
@@ -6066,8 +6154,8 @@ contains
       integer, intent(out) :: gdat
       character(len=*), intent(in) :: op
 
-      lcomm = comm
-      
+      if ( ccomp_get_thread_num() /= 0 ) return
+      lcomm = comm      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -6079,7 +6167,6 @@ contains
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(allreduce_begin)
       call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
@@ -6098,9 +6185,9 @@ contains
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
-      lsize = size(ldat)
-      
+      lsize = size(ldat)      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -6112,7 +6199,6 @@ contains
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(allreduce_begin)
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
@@ -6121,7 +6207,7 @@ contains
 
    subroutine ccmpi_allreduce1r(ldat,gdat,op,comm)
       integer, intent(in) :: comm
-      integer(kind=4) lop, lcomm, lerr
+      integer(kind=4) :: lop, lcomm, lerr
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -6129,22 +6215,31 @@ contains
 #endif
       real, intent(in) :: ldat
       real, intent(out) :: gdat
+      complex :: ldat_c
+      complex :: gdat_c
       character(len=*), intent(in) :: op
 
-      lcomm = comm
-      
+      if ( ccomp_get_thread_num() /= 0 ) return
+
+      ! use sumdr instead of sum
+      if ( op == "sum" ) then
+         gdat_c = cmplx(0.,0.)
+         ldat_c = cmplx(ldat,0.)
+         call ccmpi_allreduce1c(ldat_c,gdat_c,"sumdr",comm)
+         gdat = real(gdat_c)
+         return
+      end if
+
+      lcomm = comm      
       select case( op )
          case( "max" )
             lop = MPI_MAX
          case( "min" )
             lop = MPI_MIN
-         case( "sum" )
-            lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
       end select
-
       call START_LOG(allreduce_begin)
       call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
@@ -6153,7 +6248,8 @@ contains
    
    subroutine ccmpi_allreduce2r(ldat,gdat,op,comm)
       integer, intent(in) :: comm
-      integer(kind=4) lop, lcomm, lerr, lsize
+      integer :: i
+      integer(kind=4) :: lop, lcomm, lerr, lsize
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -6161,23 +6257,36 @@ contains
 #endif
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
+      complex, dimension(size(ldat)) :: ldat_c
+      complex, dimension(size(gdat)) :: gdat_c
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
+      ! use sumdr instead of sum
+      if ( op == "sum" ) then
+         gdat_c = cmplx(0.,0.)
+         do i = 1,size(ldat) 
+            ldat_c(i) = cmplx(ldat(i),0.)
+         end do
+         call ccmpi_allreduce2c(ldat_c,gdat_c,"sumdr",comm)
+         do i = 1,size(gdat)
+            gdat(i) = real(gdat_c(i))
+         end do
+         return
+      end if
+
       lcomm = comm
-      lsize = size(ldat)
-      
+      lsize = size(ldat)      
       select case( op )
          case( "max" )
             lop = MPI_MAX
          case( "min" )
             lop = MPI_MIN
-         case( "sum" )
-            lop = MPI_SUM
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
       end select
-
       call START_LOG(allreduce_begin)
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
@@ -6185,16 +6294,16 @@ contains
    end subroutine ccmpi_allreduce2r
   
    subroutine ccmpi_allreduce3r(ldat,gdat,op,comm)
-      use sumdd_m
       integer, intent(in) :: comm
-      integer(kind=4) ltype, lop, lcomm, lerr, lsize
+      integer :: i
+      integer(kind=4) :: ltype, lop, lcomm, lerr, lsize
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
-      lsize = size(ldat)
-      
+      lsize = size(ldat)      
       select case( op )
          case( "max" )
             lop = MPI_MAX
@@ -6211,6 +6320,9 @@ contains
             ltype = MPI_REAL
 #endif 
          case( "sum" )
+            if ( myid==0 ) then
+               write(6,*) "WARN: ccmpi_allreduce using less accurate sum"
+            end if
             lop = MPI_SUM
 #ifdef i8r8
             ltype = MPI_DOUBLE_PRECISION
@@ -6236,8 +6348,7 @@ contains
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
-      end select
-         
+      end select         
       call START_LOG(allreduce_begin)
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
@@ -6257,22 +6368,19 @@ contains
       complex, intent(out) :: gdat
       character(len=*), intent(in) :: op
 
-      lcomm = comm
-      
+      if ( ccomp_get_thread_num() /= 0 ) return
+      lcomm = comm      
       select case( op )
          case( "max" )
             lop = MPI_MAX
          case( "min" )
             lop = MPI_MIN
-         case( "sum" )
-            lop = MPI_SUM
          case( "sumdr" )
             lop = MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(allreduce_begin)
       call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
@@ -6292,23 +6400,20 @@ contains
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
-      lsize = size(ldat)
-      
+      lsize = size(ldat)      
       select case( op )
          case( "max" )
             lop = MPI_MAX
          case( "min" )
             lop = MPI_MIN
-         case( "sum" )
-            lop = MPI_SUM
          case( "sumdr" )
             lop = MPI_SUMDR
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(allreduce_begin)
       call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
@@ -6327,9 +6432,9 @@ contains
 #endif
       character(len=*), intent(in) :: op
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
-      lsize = size(ldat_in)
-      
+      lsize = size(ldat_in)      
       select case( op )
          case( "or" )
             lop = MPI_LOR
@@ -6339,7 +6444,6 @@ contains
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
-      
       call START_LOG(allreduce_begin)
 #ifdef i8r8
       ldat = ldat_in
@@ -6356,6 +6460,7 @@ contains
       integer, intent(in) :: ierrin
       integer(kind=4) :: lerrin, ierr
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( myid==0 ) then
         call finishbanner
       end if
@@ -6374,6 +6479,7 @@ contains
 #endif
       integer, intent(inout) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       call START_LOG(bcast_begin)
@@ -6392,6 +6498,7 @@ contains
 #endif
       integer, dimension(:), intent(inout) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -6411,6 +6518,7 @@ contains
 #endif
       integer, dimension(:,:), intent(inout) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -6430,6 +6538,7 @@ contains
 #endif
       real, intent(inout) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       call START_LOG(bcast_begin)
@@ -6448,6 +6557,7 @@ contains
 #endif
       real, dimension(:), intent(inout) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -6467,6 +6577,7 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -6486,6 +6597,7 @@ contains
 #endif
       real, dimension(:,:,:), intent(inout) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -6505,6 +6617,7 @@ contains
 
       ! MJT notes - MS Windows MPI_CHARACTER seems broken
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = len(ldat)
@@ -6530,6 +6643,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), intent(inout) :: ldat
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       call START_LOG(bcast_end)
@@ -6544,6 +6658,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:), intent(inout) :: ldat
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -6559,6 +6674,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:), intent(inout) :: ldat
    
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -6574,6 +6690,7 @@ contains
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:,:), intent(inout) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lhost = host
       lcomm = comm
       lsize = size(ldat)
@@ -6587,6 +6704,7 @@ contains
       integer, intent(in) :: comm
       integer(kind=4) :: lcomm, ierr
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call START_LOG(mpibarrier_begin)
       lcomm = comm      
       call MPI_Barrier( lcomm, ierr )
@@ -6605,6 +6723,7 @@ contains
       real, dimension(:,:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6625,6 +6744,7 @@ contains
       real, dimension(:,:,:), intent(out) :: gdat
       real, dimension(:,:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6645,6 +6765,7 @@ contains
       real, dimension(:,:,:,:), intent(out) :: gdat
       real, dimension(:,:,:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6665,6 +6786,7 @@ contains
       integer, dimension(:), intent(out) :: gdat
       integer, dimension(:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6685,6 +6807,7 @@ contains
       integer, dimension(:,:), intent(out) :: gdat
       integer, dimension(:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6704,6 +6827,7 @@ contains
       logical(kind=4), dimension(size(ldat)) :: ldat_l
 #endif
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6726,6 +6850,7 @@ contains
       real(kind=8), dimension(:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6742,6 +6867,7 @@ contains
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6758,6 +6884,7 @@ contains
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6774,6 +6901,7 @@ contains
       real(kind=8), dimension(:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6790,6 +6918,7 @@ contains
       real(kind=8), dimension(:,:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:,:), intent(in) :: ldat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lhost = host
       lsize = size(ldat)
@@ -6810,6 +6939,7 @@ contains
       integer, dimension(:), intent(in) :: ldat
       integer, dimension(:), intent(out) :: gdat
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lsize = size(ldat)
       call START_LOG(allgather_begin)
@@ -6829,6 +6959,7 @@ contains
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
    
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lsize = size(ldat)
       call START_LOG(allgather_begin)
@@ -6848,6 +6979,7 @@ contains
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
    
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lsize = size(ldat)
       call START_LOG(allgather_begin)
@@ -6865,6 +6997,7 @@ contains
       logical(kind=4), dimension(size(gdat)) :: qdat
 #endif
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lsize = size(gdat)/nproc
       call START_LOG(alltoall_begin)
@@ -6884,6 +7017,7 @@ contains
       integer, intent(in) :: comm, colour, rank
       integer(kind=4) :: lcomm, lcommout, lerr, lrank, lcolour
    
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       lrank = rank
       if ( colour >= 0 ) then
@@ -6900,6 +7034,7 @@ contains
       integer, intent(in) :: comm
       integer(kind=4) :: lcomm, lerr
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       lcomm = comm
       if ( lcomm /= MPI_COMM_NULL ) then
         call MPI_Comm_Free(lcomm,lerr)
@@ -6913,6 +7048,8 @@ contains
 #ifdef _OPENMP
       integer(kind=4) :: lprovided
 #endif
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       call system_clock( begin_time, count_rate, count_max )
 
@@ -6948,6 +7085,8 @@ contains
       integer(kind=4) :: lproc
 #endif
       
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       if ( newnproc < nproc ) then
          if ( myid == 0 ) then
             write(6,*) "Reducing number of processes from ",nproc," to ",newnproc  
@@ -7030,6 +7169,8 @@ contains
       integer(kind=4) :: lerr, lid, lcommin, lcommout
       integer(kind=4), dimension(:), allocatable :: nodesize
       integer(kind=4), dimension(1) :: lnode
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
 #ifdef usempi3
       node_nx = 0
@@ -7123,6 +7264,7 @@ contains
    subroutine ccmpi_finalize
       integer(kind=4) :: lerr
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call MPI_Finalize( lerr )
    
    end subroutine ccmpi_finalize
@@ -7133,6 +7275,8 @@ contains
       integer(kind=4) :: lcolour, lcomm, lrank
       integer(kind=4) :: lcommout, lerr, lsize
 #endif
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
 #ifdef usempi3
       ! configure procmode
@@ -7221,6 +7365,8 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
 
@@ -7252,6 +7398,8 @@ contains
       real, dimension(:), intent(inout) :: dsolmax
       real, dimension((msg_len*npanx+1)*kx) :: tdat
       real, dimension((msg_len*npanx+1)*kx,nmax) :: tdat_g
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
@@ -7299,6 +7447,8 @@ contains
       integer :: kx, msg_len, ipanx, jpanx
       real, dimension(:,:), intent(inout) :: vdat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
       
@@ -7329,6 +7479,8 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(msg_len*npanx*kx) :: tdat
       real, dimension(msg_len*npanx*kx,nmax) :: tdat_g
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per processor
@@ -7374,6 +7526,8 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       ! merge length
       if ( mg(g)%merge_len <= 1 ) return
       
@@ -7405,6 +7559,8 @@ contains
       real, dimension(:,:), intent(inout) :: smaxmin
       real, dimension((msg_len*npanx+2)*kx) :: tdat
       real, dimension((msg_len*npanx+2)*kx,nmax) :: tdat_g
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
@@ -7456,6 +7612,8 @@ contains
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       nbflag = .false.
       if ( present(nobounds) ) then
          nbflag = nobounds
@@ -7483,6 +7641,7 @@ contains
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( mg(g)%merge_len <= 1 ) return
 
       if ( present(klim) ) then
@@ -7490,7 +7649,6 @@ contains
       else
          kx = size(vdat,2)
       end if
-      
       nbflag = .false.
       if ( present(nobounds) ) then
          nbflag = nobounds
@@ -7523,6 +7681,7 @@ contains
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       nbflag = .false.
       if ( present(nobounds) ) then
          nbflag = nobounds
@@ -7547,6 +7706,7 @@ contains
       logical, intent(in), optional :: nobounds
       logical :: nbflag
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( mg(g)%merge_len <= 1 ) return
 
       kx = size(vdat,2)
@@ -7589,14 +7749,14 @@ contains
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( mg(g)%merge_len <= 1 ) return
 
       if (present(klim)) then
          kx = klim
       else
          kx = size(vdat,2)
-      end if
-      
+      end if      
       nbflag = .false.
       if ( present(nobounds) ) then
          nbflag = nobounds
@@ -7643,9 +7803,10 @@ contains
 #endif
       logical lflag, lglob      
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       ! size of this grid
       mfull_g = 6*mil_g*mil_g
-
 
       ! calculate processor map in iq coordinates
       lglob = .true.
@@ -8313,6 +8474,7 @@ contains
       logical, intent(in), optional :: corner
       logical :: corner_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       corner_l = .false.
       if ( present(corner) ) then
          corner_l = corner
@@ -8341,6 +8503,7 @@ contains
 #endif
       real, dimension(:,:), intent(inout) :: vdat
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(vdat,2)
       extra = .false.
       if (present(klim)) then
@@ -8471,19 +8634,17 @@ contains
    
    end function mg_qproc
 
-   subroutine ccmpi_filewinget2(abuf,sinp)
+   subroutine ccmpi_filewinstart2(sinp)
       real, dimension(:), intent(in) :: sinp
-      real, dimension(pipan*pjpan*pnpan,size(filemap_req)), intent(out) :: abuf 
       real, dimension(size(sinp),1) :: sinp_l
-      real, dimension(pipan*pjpan*pnpan,size(filemap_req),1) :: abuf_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       sinp_l(:,1) = sinp(:)
-      call ccmpi_filewinget3(abuf_l,sinp_l)
-      abuf(:,:) = abuf_l(:,:,1)
+      call ccmpi_filewinstart3(sinp_l)
       
-   end subroutine ccmpi_filewinget2
+   end subroutine ccmpi_filewinstart2
 
-   subroutine ccmpi_filewinget3(abuf,sinp)
+   subroutine ccmpi_filewinstart3(sinp)
       integer :: n, w, nlen, kx, cc, ipf
       integer :: rcount, jproc, kproc
       integer :: k
@@ -8497,9 +8658,10 @@ contains
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req
       integer(kind=4), dimension(size(filemap_recv)) :: i_list, donelist
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(:,:,:), intent(out) :: abuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),size(filemap_recv)) :: bbuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),mynproc) :: cbuf
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       kx = size(sinp,2)
       nlen = pipan*pjpan*pnpan
@@ -8530,6 +8692,14 @@ contains
          lproc = filemap_send(w)
          call MPI_ISend( cbuf(:,:,ipf+1), lsize, ltype, lproc, itag, lcomm, i_req(nreq), ierr )  
       end do
+      
+      ! Confirm read from nodefile is complete
+      if ( nreq_ibarrier > 0 ) then
+         call START_LOG(mpiwait_begin)
+         call MPI_Wait( ireq_ibarrier, MPI_STATUS_IGNORE, ierr )
+         nreq_ibarrier = 0
+         call END_LOG(mpiwait_end)
+      end if
 
       ! Unpack incomming messages
       rcount = rreq
@@ -8549,6 +8719,11 @@ contains
             end do
          end do
       end do
+      
+      ! Write to nodefile is complete
+      lcomm = comm_node
+      call MPI_IBarrier( lcomm, ireq_ibarrier, ierr )
+      nreq_ibarrier = 1
 
       sreq = nreq - rreq
       if ( sreq > 0 ) then
@@ -8557,51 +8732,52 @@ contains
          call END_LOG(mpiwaitall_end)
       end if
       nreq = 0
+      
+      ! Confirm write to nodefile is complete
+      if ( nreq_ibarrier > 0 ) then
+         call START_LOG(mpiwait_begin)
+         call MPI_Wait( ireq_ibarrier, MPI_STATUS_IGNORE, ierr )
+         nreq_ibarrier = 0
+         call END_LOG(mpiwait_end)
+      end if
 
-      call START_LOG(mpibarrier_begin) 
-      lcomm = comm_node
-      call MPI_Barrier( lcomm, ierr )
-      call END_LOG(mpibarrier_end)
-
-      do w = 1,size(filemap_req)
-         kproc = filemap_indx(filemap_req(w),filemap_qmod(w))
-         do k = 1,kx
-            do n = 0,pnpan-1
-               cc = n*pipan*pjpan
-               abuf(1+cc:pipan*pjpan+cc,w,k) = reshape( nodefile(:,:,n+1,k,kproc), (/ pipan*pjpan /) )
-            end do  
-         end do
-      end do  
-
-      call START_LOG(mpibarrier_begin) 
-      lcomm = comm_node
-      call MPI_Barrier( lcomm, ierr )
-      call END_LOG(mpibarrier_end)
-
-   end subroutine ccmpi_filewinget3
+   end subroutine ccmpi_filewinstart3
    
-   subroutine ccmpi_filewinunpack(sout,abuf)
-      integer :: w, ip, n, no, ca, cb, cc
+   subroutine ccmpi_filewinunpack(sout,kx)
+      integer, intent(in) :: kx
+      integer :: w, ip, n, no, ca, cb, cc, kproc
       real, dimension(-1:,-1:,0:), intent(inout) :: sout
-      real, dimension(:,:), intent(in) :: abuf
       
       do w = 1,size(filemap_req)
+         kproc = filemap_indx(filemap_req(w),filemap_qmod(w)) 
          ip = filemap_req(w) + filemap_qmod(w)*fnresid
          do n = 0,pnpan-1
             no = n - pnoff(ip) + 1
             ca = pioff(ip,no)
             cb = pjoff(ip,no)
             cc = n*pipan*pjpan
-            sout(1+ca:pipan+ca,1+cb:pjpan+cb,no) = reshape( abuf(1+cc:pipan*pjpan+cc,w), (/ pipan, pjpan /) )
+            sout(1+ca:pipan+ca,1+cb:pjpan+cb,no) = nodefile(:,:,n+1,kx,kproc)
          end do
       end do
       
    end subroutine ccmpi_filewinunpack
+   
+   subroutine ccmpi_filewinstop
+      integer(kind=4) :: lcomm, ierr
+   
+      if ( ccomp_get_thread_num() /= 0 ) return
+      ! Read from nodefile is complete
+      lcomm = comm_node
+      call MPI_IBarrier( lcomm, ireq_ibarrier, ierr )
+      nreq_ibarrier = 1
+   
+   end subroutine ccmpi_filewinstop
 
    subroutine ccmpi_filewininit(kblock)
       integer, intent(in) :: kblock
       integer, dimension(5) :: shsize
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       ! allocated shared memory for internal node buffer
 #ifdef usempi3
       shsize(1) = pipan
@@ -8619,6 +8795,7 @@ contains
    
    subroutine ccmpi_filewinfinalize
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef usempi3
       ! Previously deallocating memory triggered bugs in the MPI library
       ! Here we will leave the memory allocated for now and deallocate
@@ -8639,6 +8816,7 @@ contains
    subroutine ccmpi_filewinfinalize_exit
       integer :: i
    
+      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef usempi3
       do i = 1,nodefile_count
          call ccmpi_freeshdata(nodefilesave_win(i))
@@ -8662,6 +8840,7 @@ contains
 #endif
       logical, save :: fileallocate = .false.
      
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( myid>=fnresid ) return
       
       lcomm = comm_ip
@@ -8692,6 +8871,8 @@ contains
       filebnds(:)%slen = 0
       filebnds(:)%rlenx = 0
       filebnds(:)%slenx = 0
+      filebnds(:)%s_enable = 1
+      filebnds(:)%r_enable = 1
       do ipf = 0,fncount-1  ! fncount=fnproc/fnresid
          ip = ipf*fnresid + myid
          do n = 1,pnpan
@@ -8988,24 +9169,37 @@ contains
    
    end subroutine check_filebnds_alloc
 
-   subroutine ccmpi_filebounds_send2(sdat,comm_ip,corner)
+   subroutine ccmpi_filebounds_reset
+
+      filebnds(:)%s_enable = 1
+      filebnds(:)%r_enable = 1
+
+   end subroutine ccmpi_filebounds_reset
+
+   subroutine ccmpi_filebounds_send2(sdat,comm_ip,missing,corner)
       integer, intent(in) :: comm_ip
       real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount), intent(inout) :: sdat
       real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount,1) :: sdat_l
+      real, intent(in), optional :: missing
       logical, intent(in), optional :: corner
       logical :: corner_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       corner_l = .false.
       if ( present(corner) ) then
          corner_l = corner
       end if
       sdat_l(:,:,:,:,1) = sdat(:,:,:,:)
-      call ccmpi_filebounds_send3(sdat_l,comm_ip,corner=corner_l)
+      if ( present(missing) ) then
+         call ccmpi_filebounds_send3(sdat_l,comm_ip,missing=missing,corner=corner_l)
+      else
+         call ccmpi_filebounds_send3(sdat_l,comm_ip,corner=corner_l)
+      end if
       sdat(:,:,:,:) = sdat_l(:,:,:,:,1)
 
    end subroutine ccmpi_filebounds_send2
    
-   subroutine ccmpi_filebounds_send3(sdat,comm_ip,corner)
+   subroutine ccmpi_filebounds_send3(sdat,comm_ip,missing,corner)
       integer, intent(in) :: comm_ip
       integer :: iproc, iq, kx, send_len, k
       integer, dimension(fileneighnum) :: rslen, sslen
@@ -9017,12 +9211,14 @@ contains
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
+      real, intent(in), optional :: missing
       logical, intent(in), optional :: corner
       logical :: extra
       
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       kx = size(sdat,5)
       lcomm = comm_ip
-
       if ( present(corner) ) then
          extra = corner
       else
@@ -9036,6 +9232,12 @@ contains
          rslen(:) = filebnds(fileneighlist)%rlen
          sslen(:) = filebnds(fileneighlist)%slen
       end if 
+      
+      ! disable messages as fill completes
+      if ( present(missing) ) then
+         rslen(:) = rslen(:)*filebnds(fileneighlist)%r_enable
+         sslen(:) = sslen(:)*filebnds(fileneighlist)%s_enable
+      end if
 
       !     Set up the buffers to send and recv
       nreq = 0
@@ -9060,11 +9262,16 @@ contains
             lproc = fileneighlist(iproc)  ! Send to
             do k = 1,kx
                do iq = 1,send_len
-                  bnds(lproc)%sbuf(iq+(k-1)*send_len) =                              &
+                  bnds(lproc)%sbuf(iq+(k-1)*send_len) =                                       &
                      sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),    &
                           filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4),k)
                end do
-            end do   
+            end do 
+            if ( present(missing) ) then
+               if ( all(abs(bnds(lproc)%sbuf(1:llen)-missing)>1.e-20) ) then
+                  filebnds(lproc)%s_enable = 0
+               end if
+            end if  
             nreq = nreq + 1
             if ( size(bnds(lproc)%sbuf) < llen ) then
                write(6,*) "ERROR: sbuf too small in ccmpi_filebounds_send3"
@@ -9076,24 +9283,30 @@ contains
 
    end subroutine ccmpi_filebounds_send3
 
-   subroutine ccmpi_filebounds_recv2(sdat,comm_ip,corner)
+   subroutine ccmpi_filebounds_recv2(sdat,comm_ip,missing,corner)
       integer, intent(in) :: comm_ip
       real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount), intent(inout) :: sdat
       real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount,1) :: sdat_l
+      real, intent(in), optional :: missing
       logical, intent(in), optional :: corner
       logical :: corner_l
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       corner_l = .false.
       if ( present(corner) ) then
          corner_l = corner
       end if
       sdat_l(:,:,:,:,1) = sdat(:,:,:,:)
-      call ccmpi_filebounds_recv3(sdat_l,comm_ip,corner=corner_l)
+      if ( present(missing) ) then
+         call ccmpi_filebounds_recv3(sdat_l,comm_ip,missing=missing,corner=corner_l)
+      else
+         call ccmpi_filebounds_recv3(sdat_l,comm_ip,corner=corner_l)
+      end if
       sdat(:,:,:,:) = sdat_l(:,:,:,:,1)
 
    end subroutine ccmpi_filebounds_recv2
    
-   subroutine ccmpi_filebounds_recv3(sdat,comm,corner)
+   subroutine ccmpi_filebounds_recv3(sdat,comm,missing,corner)
       integer, intent(in) :: comm
       integer :: myrlen, iproc, jproc, mproc, iq, rcount, kx
       integer :: k
@@ -9101,12 +9314,14 @@ contains
       integer(kind=4) :: lproc, ierr, ldone, sreq, lcomm
       integer(kind=4), dimension(fileneighnum) :: donelist
       real, dimension(0:,0:,1:,1:,1:), intent(inout) :: sdat
+      real, intent(in), optional :: missing
       logical, intent(in), optional :: corner
       logical :: extra
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+
       kx = size(sdat,5)
       lcomm = comm
-
       if ( present(corner) ) then
          extra = corner
       else
@@ -9119,6 +9334,11 @@ contains
          rslen(:) = filebnds(fileneighlist)%rlen
       end if 
       myrlen = filebnds(myid)%rlenx
+
+      ! disable messages as fill completes
+      if ( present(missing) ) then
+         rslen(:) = rslen(:)*filebnds(fileneighlist)%r_enable
+      end if
 
       ! See if there are any points on my own processor that need
       ! to be fixed up.
@@ -9149,7 +9369,12 @@ contains
                        filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4),k) = &
                   bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
                end do
-            end do   
+            end do
+            if ( present(missing) ) then
+               if ( all(abs(bnds(lproc)%rbuf(1:rslen(iproc)*kx)-missing)>1.e-20) ) then
+                  filebnds(lproc)%r_enable = 0
+               end if
+            end if   
          end do
       end do
 
@@ -9171,6 +9396,7 @@ contains
       real, dimension(pipan*pjpan*pnpan*fncount,1) :: af_l
       real, dimension(pil_g*pjl_g,1) :: a1_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       a1_l(:,1) = a1(:)
       call host_filedistribute3(af_l,a1_l,comm)
       af(:) = af_l(:,1)
@@ -9192,8 +9418,8 @@ contains
       real, dimension(:,:), intent(in) :: a1
       real, dimension(size(af,1),size(af,2),0:fnresid-1) :: sbuf
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(af,2)
-      
       ! map array in order of processor rank
       do iproc = 0,fnresid-1
          do k = 1,kx 
@@ -9209,7 +9435,6 @@ contains
             end do
          end do
       end do 
-
       lsize = pipan*pjpan*pnpan*fncount*kx
       lcomm = comm
       call START_LOG(scatter_begin)
@@ -9224,6 +9449,7 @@ contains
       real, dimension(pipan*pjpan*pnpan*fncount), intent(out) :: af
       real, dimension(pipan*pjpan*pnpan*fncount,1) :: af_l
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       call proc_filedistribute3(af_l,comm)
       af(:) = af_l(:,1)
       
@@ -9242,11 +9468,11 @@ contains
       real, dimension(:,:), intent(out) :: af
       real, dimension(1,1,1) :: sbuf
 
+      if ( ccomp_get_thread_num() /= 0 ) return
       if ( myid == 0 ) then
          write(6,*) "Error: ccmpi_distribute argument required on proc 0"
          call ccmpi_abort(-1)
-      end if
-      
+      end if      
       kx = size(af,2)
       lsize = pipan*pjpan*pnpan*fncount*kx
       lcomm = comm
@@ -9480,8 +9706,7 @@ contains
       i = i_in
       j = j_in
       n = n_in
-      call procarray_ijn(i,j,n)
-      
+      call procarray_ijn(i,j,n)      
       ! determine processor that owns the grid point
       do ip = 0,fnproc-1
          cc = n + pnoff(ip) - 1
@@ -9626,6 +9851,7 @@ contains
       real, pointer, dimension(:) :: pdata 
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -9669,6 +9895,7 @@ contains
       real, pointer, dimension(:,:) :: pdata 
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -9712,6 +9939,7 @@ contains
       real, pointer, dimension(:,:,:) :: pdata 
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -9755,6 +9983,7 @@ contains
       real, pointer, dimension(:,:,:,:) :: pdata 
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -9798,6 +10027,7 @@ contains
       real, pointer, dimension(:,:,:,:,:) :: pdata 
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -9841,6 +10071,7 @@ contains
 #endif
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -9884,6 +10115,7 @@ contains
 #endif
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -9927,6 +10159,7 @@ contains
 #endif
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -9965,6 +10198,7 @@ contains
       real(kind=8), pointer, dimension(:) :: pdata 
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -10003,6 +10237,7 @@ contains
       real(kind=8), pointer, dimension(:,:) :: pdata 
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -10041,6 +10276,7 @@ contains
       real(kind=8), pointer, dimension(:,:,:) :: pdata 
       type(c_ptr) :: baseptr
 
+      if ( ccomp_get_thread_num() /= 0 ) return
 !     allocted a single shared memory region on each node
       if ( present(comm_in) ) then
          lcomm = comm_in
@@ -10066,32 +10302,12 @@ contains
       win = lwin
 
    end subroutine ccmpi_allocshdata4_r8 
-
-   subroutine ccmpi_shepoch(win,assert)
-       integer, intent(in) :: win
-       integer(kind=4) :: lwin, lerr, lassert
-       character(len=*), intent(in), optional :: assert
-       
-       call START_LOG(mpifence_begin)
-       lassert = 0_4
-       if ( present(assert) ) then
-          select case(assert)
-             case('noprecede')
-                lassert = MPI_MODE_NOPRECEDE 
-             case('nosucceed')
-                lassert = MPI_MODE_NOSUCCEED
-          end select
-       end if
-       lwin = win
-       call MPI_Win_fence( lassert, lwin, lerr )
-       call END_LOG(mpifence_end)
-
-   end subroutine ccmpi_shepoch
    
    subroutine ccmpi_freeshdata(win)
       integer, intent(in) :: win
       integer(kind=4) :: lwin, lerr
       
+      if ( ccomp_get_thread_num() /= 0 ) return
       lwin = win
       call MPI_win_free( lwin, lerr ) 
       

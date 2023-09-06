@@ -845,7 +845,7 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do schedule(static) private(iqg,iq,local_sum)
+!$omp parallel do schedule(static) private(iqg,iq,n,j,local_sum)
 do iq = 1,ifull
   n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
@@ -1375,7 +1375,7 @@ end do ! ipass
 call END_LOG(nestcalc_end)
 
 call START_LOG(nestwin_begin)
-call ccmpi_gathermap_wait
+call ccmpi_gathermap_wait(klt)
 call END_LOG(nestwin_end)
 
 call START_LOG(nestcomm_begin)
@@ -1393,6 +1393,7 @@ do ipass = 0,2
   c = cstr(0)
 
   ! unpack to sparse arrays
+  !$omp parallel do schedule(static) private(n,nn,k,jpoff,sy,ibase,ibeg,iend,at)
   do n = 1,ipan
     nn = n + os - 1
     do k = 1,klt
@@ -1414,6 +1415,7 @@ do ipass = 0,2
     iend = a*nn + b*il_g + c
     call setglobalpack_v(at(1:il_g),ibeg,iend,0)
   end do  
+  !$omp end parallel do
 
 end do ! ipass
 
@@ -1618,7 +1620,7 @@ end do ! ipass
 call END_LOG(nestcalc_end)
 
 call START_LOG(nestwin_begin)
-call ccmpi_gathermap_wait
+call ccmpi_gathermap_wait(klt)
 call END_LOG(nestwin_end)
 
 call START_LOG(nestcomm_begin)
@@ -1636,6 +1638,7 @@ do ipass = 0,2
   c = cstr(0)
 
   ! unpack data to sparse arrays
+  !$omp parallel do schedule(static) private(n,nn,k,jpoff,sy,ibase,ibeg,iend,at)
   do n = 1,jpan
     nn = n + os - 1
     do k = 1,klt
@@ -1657,6 +1660,7 @@ do ipass = 0,2
     iend = a*nn + b*il_g + c
     call setglobalpack_v(at(1:il_g),ibeg,iend,0)
   end do  
+  !$omp end parallel do
 
 end do ! ipass
 
@@ -2300,7 +2304,7 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do schedule(static) private(iqqg,iqq,local_sum)
+!$omp parallel do schedule(static) private(iqqg,iqq,n,j,local_sum)
 do iqq = 1,ifull
   n = 1 + (iqq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iqq - (n-1)*(ipan*jpan) - 1) / ipan
@@ -2722,7 +2726,7 @@ end do ! ipass
 call END_LOG(nestcalc_end)
 
 call START_LOG(nestwin_begin)
-call ccmpi_gathermap_wait
+call ccmpi_gathermap_wait(kd)
 call END_LOG(nestwin_end)
 
 call START_LOG(nestcomm_begin)
@@ -2740,6 +2744,7 @@ do ipass = 0,2
   c = cstr(0)
 
   ! unpack data to sparse arrays
+  !$omp parallel do schedule(static) private(n,nn,k,jpoff,sy,ibase,ibeg,iend,ap)
   do n = 1,ipan
     nn = n + os - 1
     do k = 1,kd
@@ -2761,6 +2766,7 @@ do ipass = 0,2
     iend = a*nn + b*il_g + c
     call setglobalpack_v(ap(1:il_g),ibeg,iend,0)
   end do  
+  !$omp end parallel do
           
 end do ! ipass
 
@@ -2961,7 +2967,7 @@ end do ! ipass
 call END_LOG(nestcalc_end)
 
 call START_LOG(nestwin_begin)
-call ccmpi_gathermap_wait
+call ccmpi_gathermap_wait(kd)
 call END_LOG(nestwin_end)
 
 call START_LOG(nestcomm_begin)
@@ -2979,6 +2985,7 @@ do ipass = 0,2
   c = cstr(0)
   
   ! unpack data to sparse arrays
+  !$omp parallel do schedule(static) private(n,nn,k,jpoff,sy,ibase,ibeg,iend,ap)
   do n = 1,jpan
     nn = n + os - 1
     do k = 1,kd
@@ -3000,6 +3007,7 @@ do ipass = 0,2
     iend = a*nn + b*il_g + c
     call setglobalpack_v(ap(1:il_g),ibeg,iend,0)
   end do  
+  !$omp end parallel do
           
 end do ! ipass
 
