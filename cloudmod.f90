@@ -116,19 +116,6 @@ do k = 1,kl
   end do
 end do
 
-!! default values
-!kbase(:) = 0  ! default
-!ktop(:)  = 0  ! default
-
-!     Set up convective cloud column
-!where ( ktsav(:)<kl-1 )
-  !ktop(:)  = ktsav(:)
-  !kbase(:) = kbsav(:) + 1
-!  wcon(:)  = wlc
-!elsewhere
-!  wcon(:)  = 0.
-!end where
-
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
   write(6,*) 'entering leoncld'
@@ -510,6 +497,7 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
     do iq = 1,imax
       al = ds/(em(iq)*208498.)
       fl = (1.+real(nclddia))*al/(1.+real(nclddia)*al)
+      ! for rcit_l=.825 & nclddia=8 get rcrit=(0.826, 0.844, .871, .945, .968, .986, .993) for (200, 100, 50, 10, 5, 2, 1) km
       ! for rcit_l=.75 & nclddia=12 get rcrit=(0.751, 0.769, .799, .901, .940, .972, .985) for (200, 100, 50, 10, 5, 2, 1) km
       ! for rcit_l=.75 % nclddia=120 get rcrit=(0.750, 0.752, .756, .785, .813, .865, .907) for (200, 100, 50, 10, 5, 2, 1) km
       if ( land(iq) ) then
@@ -562,7 +550,9 @@ if ( (ncloud/=4 .and. ncloud<10) .or. ncloud==100 ) then
   if ( nclddia==3 ) then
     do k = 1,kl
       do iq = 1,imax
-        stratcloud(iq,k)=max(0.,min(1.,(qtot(iq,k)/qsw(iq,k)-rcrit(iq,k))/(rfull(k)-rcrit(iq,k))))
+        tk = min(1.,ds/(em(iq)*40000.)) ! used to increase rcrit linearly for ds<40 km
+        rcrit(iq,k) = rfull(k)-tk*(rfull(k)-rcrit(iq,k))
+        stratcloud(iq,k) = max(0.,min(1.,(qtot(iq,k)/qsw(iq,k)-rcrit(iq,k))/(rfull(k)-rcrit(iq,k)+0.001)))
       end do
     end do
   end if

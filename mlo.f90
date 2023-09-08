@@ -584,7 +584,7 @@ do tile = 1,ntiles
     ! find bottom index
     do ii = 1,wlev
       lbottom(1:imax) = depth_g(tile)%depth_hl(:,ii+1)>=depth_g(tile)%depth_hl(:,wlev+1) .and.  &
-                                 depth_g(tile)%depth_hl(:,wlev+1)<mxd .and. depth_g(tile)%dz(:,ii)>1.e-4  
+                        depth_g(tile)%depth_hl(:,wlev+1)<mxd .and. depth_g(tile)%dz(:,ii)>1.e-4  
       where ( lbottom(1:imax) )
         water_g(tile)%ibot(:) = ii
       end where
@@ -5668,7 +5668,9 @@ if ( present( water_u ) .and. present( water_v ) ) then
   if ( any(abs(water_u)>40.) .or. any(abs(water_v)>40.) ) then
     write(6,*) "ERROR: current out-of-range in ",trim(message)
     write(6,*) "u ",minval(water_u),maxval(water_u)
+    write(6,*) "  ",minloc(water_u),maxloc(water_u)
     write(6,*) "v ",minval(water_v),maxval(water_v)
+    write(6,*) "  ",minloc(water_v),maxloc(water_v)
     stop -1
   end if
 end if  

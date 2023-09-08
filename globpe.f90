@@ -1588,8 +1588,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
-    alphanir_seaice,mlojacobi,usepice,mlosigma,ocndelphi,nodrift, &
-    kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,                 &
+    alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
+    kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2500,7 +2500,7 @@ ateb_infilmeth    = dumi(27)
 cable_roughness   = dumi(28)
 cable_potev       = dumi(29)
 deallocate( dumr, dumi )
-allocate( dumr(21), dumi(20) )
+allocate( dumr(20), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2524,13 +2524,12 @@ if ( myid==0 ) then
   dumr(12) = pdu
   dumr(13) = omink
   dumr(14) = omineps
-  dumr(15) = ocndelphi
-  dumr(16) = ominl
-  dumr(17) = omaxl
-  dumr(18) = mlo_timeave_length
-  dumr(19) = kemaxdt
-  dumr(20) = alphavis_seasnw
-  dumr(21) = alphanir_seasnw
+  dumr(15) = ominl
+  dumr(16) = omaxl
+  dumr(17) = mlo_timeave_length
+  dumr(18) = kemaxdt
+  dumr(19) = alphavis_seasnw
+  dumr(20) = alphanir_seasnw
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2551,6 +2550,7 @@ if ( myid==0 ) then
   dumi(18) = mlomfix
   dumi(19) = nodrift
   dumi(20) = mlontvd
+  dumi(21) = mlodiff_numits
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2568,13 +2568,12 @@ pdl                = dumr(11)
 pdu                = dumr(12)
 omink              = dumr(13)
 omineps            = dumr(14)
-ocndelphi          = dumr(15)
-ominl              = dumr(16)
-omaxl              = dumr(17)
-mlo_timeave_length = dumr(18)
-kemaxdt            = dumr(19)
-alphavis_seasnw    = dumr(20)
-alphanir_seasnw    = dumr(21)
+ominl              = dumr(15)
+omaxl              = dumr(16)
+mlo_timeave_length = dumr(17)
+kemaxdt            = dumr(18)
+alphavis_seasnw    = dumr(19)
+alphanir_seasnw    = dumr(20)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 
@@ -2595,6 +2594,7 @@ fixedstabfunc      = dumi(17)
 mlomfix            = dumi(18)
 nodrift            = dumi(19)
 mlontvd            = dumi(20)
+mlodiff_numits     = dumi(21)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0

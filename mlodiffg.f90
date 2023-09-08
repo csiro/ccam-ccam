@@ -25,11 +25,10 @@ implicit none
 
 private
 public mlodiffusion,mlodiffusion_work
-public mlodiff,ocndelphi,ocnsmag
+public mlodiff,ocnsmag,mlodiff_numits
 
-integer, parameter :: nf          = 2       ! power for horizontal diffusion reduction factor
-integer, save      :: mlodiff     = 0       ! diffusion (0=all laplican, 1=scalars laplican, 10=all biharmonic, 11=scalars biharmonic )
-real, save      :: ocndelphi      = 150.    ! horizontal diffusion reduction factor gradient (1.e6 = disabled)
+integer, save   :: mlodiff        = 0       ! diffusion (0=all laplican, 1=scalars laplican, 10=all biharmonic, 11=scalars biharmonic )
+integer, save   :: mlodiff_numits = 4       ! Number of iterations required for bi-harmonic diffusion
 real, save      :: ocnsmag        = 1.      ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
 
 contains
@@ -193,9 +192,11 @@ call boundsuv(xfact,yfact,stag=-9)
 if ( mlodiff==0 .or. mlodiff==10 ) then
   ! Laplacian diffusion terms (closure #1)
   do k = 1,wlev
-    duma(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
-    duma(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
-    duma(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
+    do iq = 1,ifull
+      duma(iq,k,1) = ( ax(iq)*u(iq,k) + bx(iq)*v(iq,k) )*ee(iq,k)
+      duma(iq,k,2) = ( ay(iq)*u(iq,k) + by(iq)*v(iq,k) )*ee(iq,k)
+      duma(iq,k,3) = ( az(iq)*u(iq,k) + bz(iq)*v(iq,k) )*ee(iq,k)
+    end do
   end do
 else if ( mlodiff==1 .or. mlodiff==11 ) then
   ! no diffusion applied to momentum
@@ -271,7 +272,6 @@ integer, intent(in) :: ntr
 integer k, iq, iqc, nc, its
 integer nstart, nend, nlen, nn, np
 integer async_counter
-integer, parameter :: num_its = 4
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,wlev,ntr), intent(inout) :: work
@@ -340,7 +340,7 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
     work_save(1:ifull,1:wlev,1:nlen) = work(1:ifull,1:wlev,nstart:nend)
     !$acc update device(work_save(:,:,1:nlen),work(1:ifull,:,nstart:nend))
     
-    do its = 1,num_its  
+    do its = 1,mlodiff_numits
       
       call bounds(work(:,:,nstart:nend))
 

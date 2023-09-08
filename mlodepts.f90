@@ -93,7 +93,7 @@ do k = 1,wlev
 end do
 
 ! fill
-do ii = 1,3 ! 3 iterations of fill should be enough
+do ii = 1,6 ! 6 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
   call bounds(s_old)
   do nn = 1,3

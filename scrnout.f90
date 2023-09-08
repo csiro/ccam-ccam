@@ -463,7 +463,7 @@ use extraout_m
 use liqwpar_m
 use mlo
 use morepbl_m, only : urban_tas, urban_zom, urban_zoh, urban_zoq, &
-                      urban_ts, urban_wetfac, wsgs
+                      urban_ts, urban_wetfac, wsgs, fg, eg
 use newmpar_m
 use nharrs_m
 use nsibd_m, only : sigmu
@@ -482,6 +482,7 @@ implicit none
 integer, intent(in) :: is, ie
 integer :: tile, iq, k, k850, k950
 real :: rsig, wspd1, wspd2, u850, u950, x850, x950
+real :: thetav, rhos, wt0, wq0, wtv0, z_on_l, fl
 real, dimension(is:ie) :: umag, zminx, smixr
 real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
@@ -593,7 +594,20 @@ select case(ugs_meth)
       wspd1 = sqrt(u(iq,k950)**2+v(iq,k950)**2)
       wspd2 = sqrt(u(iq,k950+1)**2+v(iq,k950+1)**2)
       u950 = wspd1*(1.-x950) + wspd2*x950
-      wsgs(iq) = u10(iq) + 7.71*2.185*ustar(iq) + 0.6*max(0.,u850-u950)
+      
+      thetav = theta(iq)*(1.+0.61*qg(iq,1)-qlg(iq,1)-qfg(iq,1))
+      rhos = ps(iq)/(rdry*tss(iq))
+      wt0 = fg(iq)/(rhos*cp)
+      wq0 = eg(iq)/(rhos*hl)
+      wtv0 = wt0 + theta(iq)*0.61*wq0
+      z_on_l = -0.4*1000.*grav*wtv0/(thetav*max(ustar(iq)**3,1.E-10))
+      if ( z_on_l < 0. ) then
+        fl = (1.-z_on_l*0.5/12.)**3
+      else
+        fl = 1.
+      end if
+      
+      wsgs(iq) = u10(iq) + 7.2*fl*ustar(iq) + 0.6*max(0.,u850-u950)
     end do  
   case default
     write(6,*) "ERROR: Unknown method ugs_meth = ",ugs_meth
