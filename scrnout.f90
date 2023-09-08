@@ -607,7 +607,7 @@ select case(ugs_meth)
         fl = 1.
       end if
       
-      wsgs(iq) = u10(iq) + 7.2*fl*ustar(iq) + 0.6*max(0.,u850-u950)
+      wsgs(iq) = u10(iq) + 7.2*fl*ustar(iq) + 0.3*max(0.,u850-u950)
     end do  
   case default
     write(6,*) "ERROR: Unknown method ugs_meth = ",ugs_meth
