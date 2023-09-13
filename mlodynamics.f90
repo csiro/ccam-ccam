@@ -51,7 +51,7 @@ real, dimension(:), allocatable, save :: bu, bv, cu, cv
 integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode     = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
 integer, parameter :: nxtrrho     = 1       ! Estimate rho at t+1 (0=off, 1=on)
-integer, save      :: mlojacobi   = 7       ! density gradient method (0=off, 6,7=AC2003)
+integer, save      :: mlojacobi   = 7       ! density gradient method (0=off, 6=dDdx=0, 7=AC2003)
 integer, save      :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
 integer, save      :: mlomfix     = 2       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
@@ -86,6 +86,7 @@ real, dimension(ifull) :: odum
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
 real, dimension(3*wlev) :: dumz,gdumz
+real, dimension(ifull+iextra,wlev,2) :: dumf
 logical, dimension(ifull+iextra,wlev) :: wtr
 complex lsum
 
@@ -194,8 +195,11 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
   end do    
 else
   ! z* levels
-  call bounds(gosig,nrows=2)
-  call bounds(godsig,nrows=2)
+  dumf(:,:,1) = gosig(:,:)
+  dumf(:,:,2) = godsig(:,:)
+  call bounds(dumf(:,:,1:2),nrows=2)
+  gosig(:,:)  = dumf(:,:,1)
+  godsig(:,:) = dumf(:,:,2)
 end if
 do ii = 1,wlev
   godsigu(1:ifull,ii) = 0.5*(godsig(1:ifull,ii)+godsig(ie,ii))*eeu(1:ifull,ii)
@@ -311,8 +315,6 @@ logical, dimension(6) :: sal_test
 complex lsum, gsum
 
 ! Vertical coordinates are defined as:
-!  mlosigma=0,1,2,3
-!   sig = (z+eta)/(D+eta)
 !  mlosigma=4,5,6,7
 !   z* = D*(z+eta)/(D+eta) = sig*D
 !   from Adcroft and Campin 2003 (see also MPAS)
@@ -519,6 +521,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! for 5-point stencil
   if ( abs(dt-dtsave)>1.e-20 ) then
+    ! update when time-step changes (e.g., 0.5*dt for first half time-step)  
     bb(1:ifull) = -ee(1:ifull,1)*(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(1:ifull))**2) ! unstaggered
     call bounds(bb,nehalf=.true.)
     bu(1:ifull) = 0.5*(bb(1:ifull)+bb(ie))*eeu(1:ifull,1)
@@ -674,7 +677,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     tav(:,ii) = tav(:,ii)*eev(1:ifull,ii)
   end do
   select case(mlojacobi)
-    case(6,7)
+    case(7)
       do ii = 1,wlev
         depdum_rho(1:ifull+iextra) = gosig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
         dzdxu = (depdum_rho(ie)-depdum_rho(1:ifull))*emu(1:ifull)*eeu(1:ifull,ii)/ds
@@ -834,6 +837,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   call bounds(cc(:,1:wlev+1),corner=.true.)
   ibb(ifull+1:ifull+iextra) = cc(ifull+1:ifull+iextra,wlev+1)
 
+  
   ! ocean - recalculate bb with rhobar
   bb = 0.
   bb3u = 0.
@@ -869,6 +873,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! dPdz* = grav*rho*(eta+D)/D
     ! P = grav*rhobar*(eta+D)*(z*)/D = grav*rhobar*(z+eta) = grav*rhobar*sig*(eta+D)
     ! dPdx = grav*sig*(eta+D)*d(rhobar)dx + grav*rhobar*d(eta)dx
+      
+    ! (mlojacobi=6 neglects dDdx and mlojacobi=7 includes dDdx terms)
     
     ! Note pressure gradients are along constant z surfaces
     ! p = ps + grav*wrtrho*tt + grav*sig*(dd+eta)*rhobar
@@ -908,7 +914,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
   
   select case(mlojacobi)
-    case(6,7)
+    case(7)
       do ii = 1,wlev   
         depdum_rho(1:ifull+iextra) = gosig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
         do iq = 1,ifull

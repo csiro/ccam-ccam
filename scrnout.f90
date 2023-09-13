@@ -594,21 +594,71 @@ select case(ugs_meth)
       wspd1 = sqrt(u(iq,k950)**2+v(iq,k950)**2)
       wspd2 = sqrt(u(iq,k950+1)**2+v(iq,k950+1)**2)
       u950 = wspd1*(1.-x950) + wspd2*x950
-      
-      thetav = theta(iq)*(1.+0.61*qg(iq,1)-qlg(iq,1)-qfg(iq,1))
-      rhos = ps(iq)/(rdry*tss(iq))
-      wt0 = fg(iq)/(rhos*cp)
-      wq0 = eg(iq)/(rhos*hl)
-      wtv0 = wt0 + theta(iq)*0.61*wq0
-      z_on_l = -0.4*1000.*grav*wtv0/(thetav*max(ustar(iq)**3,1.E-10))
-      if ( z_on_l < 0. ) then
-        fl = (1.-z_on_l*0.5/12.)**3
-      else
-        fl = 1.
-      end if
-      
-      wsgs(iq) = u10(iq) + 7.2*fl*ustar(iq) + 0.3*max(0.,u850-u950)
+      !thetav = theta(iq)*(1.+0.61*qg(iq,1)-qlg(iq,1)-qfg(iq,1))
+      !rhos = ps(iq)/(rdry*tss(iq))
+      !wt0 = fg(iq)/(rhos*cp)
+      !wq0 = eg(iq)/(rhos*hl)
+      !wtv0 = wt0 + theta(iq)*0.61*wq0
+      !z_on_l = -0.4*1000.*grav*wtv0/(thetav*max(ustar(iq)**3,1.E-10))
+      !if ( z_on_l < 0. ) then
+      !  fl = (1.-z_on_l*0.5/12.)**3
+      !else
+      !  fl = 1.
+      !end if
+      !wsgs(iq) = u10(iq) + 7.2*fl*ustar(iq) + 0.3*max(0.,u850-u950)
+      wsgs(iq) = u10(iq) + 7.2*ustar(iq) + 0.3*max(0.,u850-u950)
     end do  
+  case(10) 
+    ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
+    ! + convective wind gust  
+    do k = 1,kl-1
+      if ( sig(k)>=0.95 .and. sig(k+1)<=0.95 ) then
+        k950 = k
+        x950 = (0.95-sig(k))/(sig(k+1)-sig(k))
+      end if
+      if ( sig(k)>=0.85 .and. sig(k+1)<=0.85 ) then
+        k850 = k
+        x850 = (0.85-sig(k))/(sig(k+1)-sig(k))
+        exit
+      end if
+    end do  
+    do iq = is,ie
+      wspd1 = sqrt(u(iq,k850)**2+v(iq,k850)**2)
+      wspd2 = sqrt(u(iq,k850+1)**2+v(iq,k850+1)**2)
+      u850 = wspd1*(1.-x850) + wspd2*x850
+      wspd1 = sqrt(u(iq,k950)**2+v(iq,k950)**2)
+      wspd2 = sqrt(u(iq,k950+1)**2+v(iq,k950+1)**2)
+      u950 = wspd1*(1.-x950) + wspd2*x950      
+      wsgs(iq) = wgcoeff*2.185*ustar(iq) + u10(iq) + 0.3*max(0.,u850-u950)
+    end do  
+  case(11)
+    ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
+    ! + convective wind gust  
+    if ( .not.(nvmix==6.or.nvmix==9) ) then
+      write(6,*) "ERROR: ugs_meth=1 requires nvmix=6 or nvmix=9"
+      stop -1
+    end if
+    do k = 1,kl-1
+      if ( sig(k)>=0.95 .and. sig(k+1)<=0.95 ) then
+        k950 = k
+        x950 = (0.95-sig(k))/(sig(k+1)-sig(k))
+      end if
+      if ( sig(k)>=0.85 .and. sig(k+1)<=0.85 ) then
+        k850 = k
+        x850 = (0.85-sig(k))/(sig(k+1)-sig(k))
+        exit
+      end if
+    end do  
+    do iq = is,ie
+      wspd1 = sqrt(u(iq,k850)**2+v(iq,k850)**2)
+      wspd2 = sqrt(u(iq,k850+1)**2+v(iq,k850+1)**2)
+      u850 = wspd1*(1.-x850) + wspd2*x850
+      wspd1 = sqrt(u(iq,k950)**2+v(iq,k950)**2)
+      wspd2 = sqrt(u(iq,k950+1)**2+v(iq,k950+1)**2)
+      u950 = wspd1*(1.-x950) + wspd2*x950      
+      rsig = (1.-0.069*exp(-2.3*u10(iq)*wg_tau/10.))*exp(-0.116*(u10(iq)*wg_tau/10.)**0.555)
+      wsgs(iq) = wgcoeff*rsig*sqrt(2.*tke(iq,1)) + u10(iq) + 0.3*max(0.,u850-u950)
+    end do    
   case default
     write(6,*) "ERROR: Unknown method ugs_meth = ",ugs_meth
     stop -1

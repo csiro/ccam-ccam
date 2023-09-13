@@ -896,6 +896,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nodrift',nodrift)
     call ccnf_put_attg(idnc,'oclosure',oclosure)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
+    call ccnf_put_attg(idnc,'ocnlap',ocnlap)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
     call ccnf_put_attg(idnc,'omaxl',omaxl)
     call ccnf_put_attg(idnc,'omineps',omineps)

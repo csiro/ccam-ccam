@@ -63,7 +63,7 @@ real, dimension(:,:), allocatable, private, save    :: ppinv
 integer, save :: mg_maxsize, mg_minsize, gmax ! grid sizes for automatic arrays
 integer, save :: mg_maxlevel_decomp           ! maximum level for shared memory
 integer, save :: itr_mg    = 20               ! maximum number of iterations for atmosphere MG solver
-integer, save :: itr_mgice = 20               ! maximum number of iterations for ocean/ice MG solver
+integer, save :: itr_mgice = 40               ! maximum number of iterations for ocean/ice MG solver
 integer, save :: itrbgn    = 2                ! number of iterations relaxing the solution after MG restriction
 integer, save :: itrend    = 2                ! number of iterations relaxing the solution after MG interpolation
 real, parameter :: dfac = 0.25                ! adjustment for grid spacing after MG restriction

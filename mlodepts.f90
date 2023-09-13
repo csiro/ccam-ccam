@@ -96,6 +96,7 @@ end do
 do ii = 1,6 ! 6 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
   call bounds(s_old)
+  !$omp parallel do collapse(2) private(nn,k,iq,s_tot,s_count)
   do nn = 1,3
     do k = 1,wlev
       do iq = 1,ifull
@@ -125,7 +126,8 @@ do ii = 1,6 ! 6 iterations of fill should be enough
       end do
     end do
   end do
-end do
+  !$omp end parallel do
+end do ! ii loop
 
 call bounds(s,nrows=2)
 

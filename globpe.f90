@@ -1590,6 +1590,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
+    ocnlap,                                                       &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2500,7 +2501,7 @@ ateb_infilmeth    = dumi(27)
 cable_roughness   = dumi(28)
 cable_potev       = dumi(29)
 deallocate( dumr, dumi )
-allocate( dumr(20), dumi(21) )
+allocate( dumr(21), dumi(21) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2530,6 +2531,7 @@ if ( myid==0 ) then
   dumr(18) = kemaxdt
   dumr(19) = alphavis_seasnw
   dumr(20) = alphanir_seasnw
+  dumr(21) = ocnlap
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2574,6 +2576,7 @@ mlo_timeave_length = dumr(17)
 kemaxdt            = dumr(18)
 alphavis_seasnw    = dumr(19)
 alphanir_seasnw    = dumr(20)
+ocnlap             = dumr(21)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 

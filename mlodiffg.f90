@@ -25,11 +25,12 @@ implicit none
 
 private
 public mlodiffusion,mlodiffusion_work
-public mlodiff,ocnsmag,mlodiff_numits
+public mlodiff,ocnsmag,ocnlap,mlodiff_numits
 
 integer, save   :: mlodiff        = 0       ! diffusion (0=all laplican, 1=scalars laplican, 10=all biharmonic, 11=scalars biharmonic )
-integer, save   :: mlodiff_numits = 4       ! Number of iterations required for bi-harmonic diffusion
-real, save      :: ocnsmag        = 1.      ! horizontal diffusion (2. in Griffies (2000), 1.-1.4 in POM (Mellor 2004), 1. in SHOC)
+integer, save   :: mlodiff_numits = 10      ! Number of iterations required for bi-harmonic diffusion
+real, save      :: ocnsmag        = 1.      ! horizontal diffusion for Bilinear (2. in Griffies (2000))
+real, save      :: ocnlap         = 0.      ! horizontal diffusion for Laplacian ( 1.-1.4 in POM (Mellor 2004), 1. in SHOC )
 
 contains
 
@@ -86,7 +87,6 @@ use vecsuv_m
 implicit none
 
 integer iq, k
-real hdif
 real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev,2) :: work
 real, dimension(ifull+iextra,wlev) :: uau,uav
@@ -96,6 +96,7 @@ real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
 real, dimension(ifull,wlev) :: workdata2
 real, dimension(ifull) :: dwdx, dwdy
+real hdif, ldif
 real base
 real dudx,dvdx,dudy,dvdy
 real nu,nv,nw
@@ -121,9 +122,13 @@ end if
 
 ! Define diffusion scale and grid spacing
 if ( mlodiff>=0 .and. mlodiff<=9 ) then
-  hdif = dt*(ocnsmag/pi)**2
+  ! Laplacian only (redefine ocnsmag)
+  hdif = 0.
+  ldif = dt*(ocnsmag/pi)**2
 else if ( mlodiff>=10 .and. mlodiff<=19 ) then
-  hdif = 0.125*(ocnsmag/pi)**2  
+  ! Biharmonic and Laplacian
+  hdif = sqrt( 0.125*(ocnsmag/pi)**2 )  
+  ldif = dt*(ocnlap/pi)**2
 end if
 
 ! z* levels  
@@ -163,7 +168,7 @@ do k = 1,wlev
                +(uav(iq,k)-uav(iwv(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
     dvdy = 0.5*((uav(inv(iq),k)-uav(iq,k))*emv(iq)*eev(iq,k)                &
                +(uav(iq,k)-uav(isv(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
-    t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*hdif*emi(iq)*ee(iq,k)
+    t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*emi(iq)*ee(iq,k)
   end do
 end do
 call bounds(t_kh(:,1:wlev),nehalf=.true.)
@@ -177,13 +182,10 @@ else
   ! z* levels
   do k = 1,wlev
     xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*eeu(1:ifull,k)
+    xfact(1:ifull,k) = sqrt(xfact(1:ifull,k))
     yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*eev(1:ifull,k)
+    yfact(1:ifull,k) = sqrt(yfact(1:ifull,k))
   end do
-end if
-if ( mlodiff>=10 .and. mlodiff<=19 ) then
-  ! Take sqrt as we apply the Laplican twice for Grad^4  
-  xfact(1:ifull,1:wlev) = sqrt(xfact(1:ifull,1:wlev))
-  yfact(1:ifull,1:wlev) = sqrt(yfact(1:ifull,1:wlev))
 end if
 call boundsuv(xfact,yfact,stag=-9)
 
@@ -222,10 +224,10 @@ end where
 ! perform diffusion
 if ( mlodiff==0 .or. mlodiff==10 ) then
   ! UX, VX, WX
-  call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,3)
+  call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,hdif,ldif,3)
 end if
 ! potential temperature and salinity
-call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,2)
+call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,hdif,ldif,2)
 
 
 !$acc end data
@@ -255,7 +257,7 @@ call END_LOG(waterdiff_end)
 return
 end subroutine mlodiffusion_work
 
-subroutine mlodiffcalc(work,xfact,yfact,emi,ntr)    
+subroutine mlodiffcalc(work,xfact,yfact,emi,hdif,ldif,ntr)    
 
 use cc_acc, only : async_length
 use cc_mpi, only : bounds, nagg, ccmpi_abort
@@ -277,143 +279,128 @@ real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,wlev,ntr), intent(inout) :: work
 real, dimension(ifull+iextra,wlev,nagg) :: ans
 real, dimension(ifull,wlev,nagg) :: work_save
+real, intent(in) :: hdif, ldif
 real base, xfact_iwu, yfact_isv
 
-if ( mlodiff>=0 .and. mlodiff<=9 ) then
+! Bi-Harmonic and Laplacian diffusion.  iterative version.
+
+!$acc enter data create(work_save,ans,work,ee)  
+!$acc update device(ee)
     
-  !$acc enter data create(ans)
+ans = 0.
+do nstart = 1,ntr,nagg
+  nend = min(nstart + nagg - 1, ntr )
+  nlen = nend - nstart + 1
+
+  work_save(1:ifull,1:wlev,1:nlen) = work(1:ifull,1:wlev,nstart:nend)
+  !$acc update device(work_save(:,:,1:nlen),work(1:ifull,:,nstart:nend))
     
-  do nstart = 1,ntr,nagg
-    nend = min(nstart + nagg - 1, ntr )
-    nlen = nend - nstart + 1  
-    
+  ! Biharmonic part
+  do its = 1,mlodiff_numits
+      
     call bounds(work(:,:,nstart:nend))
 
+    ! Estimate Laplacian at t+1
+    do nn = 1,nlen
+      np = nn - 1 + nstart  
+      async_counter = mod(nn-1,async_length)
+      !$acc update device(work(ifull+1:ifull+iextra,:,np)) async(async_counter)
+      !$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) &
+      !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
+      do k = 1,wlev
+        do iq = 1,ifull  
+          xfact_iwu = xfact(iwu(iq),k)
+          yfact_isv = yfact(isv(iq),k)
+          base = hdif*xfact(iq,k) + hdif*xfact_iwu &
+               + hdif*yfact(iq,k) + hdif*yfact_isv
+          ans(iq,k,nn) = ( -base*work(iq,k,np) +                   &
+                           hdif*xfact(iq,k)*work(ie(iq),k,np) +    &
+                           hdif*xfact_iwu*work(iw(iq),k,np) +      &
+                           hdif*yfact(iq,k)*work(in(iq),k,np) +    &
+                           hdif*yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
+        end do   
+      end do
+      !$acc end parallel loop
+      !$acc update self(ans(1:ifull,:,nn)) async(async_counter)
+    end do
+    !$acc wait
+
+    call bounds(ans(:,:,1:nlen))
+
+    ! Estimate diffusion
     do nn = 1,nlen
       np = nn - 1 + nstart
       async_counter = mod(nn-1,async_length)
+
+      ! Estimate Biharmonic diffusion
+      !$acc update device(ans(ifull+1:ifull+iextra,:,nn)) async(async_counter)
+      !$acc parallel loop collapse(2) present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,work_save,ans,work) &
+      !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)        
+      do k = 1,wlev
+        do iq = 1,ifull  
+          xfact_iwu = xfact(iwu(iq),k)
+          yfact_isv = yfact(isv(iq),k)
+          base = hdif*xfact(iq,k) + hdif*xfact_iwu &
+               + hdif*yfact(iq,k) + hdif*yfact_isv
+          work(iq,k,np) = work_save(iq,k,nn) - dt*(                    &
+                            -base*ans(iq,k,nn) +                       &
+                            hdif*xfact(iq,k)*ans(ie(iq),k,nn) +        &
+                            hdif*xfact_iwu*ans(iw(iq),k,nn) +          &
+                            hdif*yfact(iq,k)*ans(in(iq),k,nn) +        &
+                            hdif*yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
+        end do    
+      end do
+      !$acc end parallel loop
+      !$acc parallel loop collapse(2) present(work,work_save) async(async_counter)
+      do k = 1,wlev
+        do iq = 1,ifull
+          if ( ee(iq,k)<0.5 ) then
+            work(iq,k,np) = work_save(iq,k,nn)
+          end if
+        end do
+      end do  
+      !$acc end parallel loop
+
+      ! Estimate Laplacian diffusion
       !$acc parallel loop collapse(2) copyin(work(:,:,np))            &
-      !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,ans)        &
+      !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,work_save)  &
       !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)      
       do k = 1,wlev
         do iq = 1,ifull
           xfact_iwu = xfact(iwu(iq),k)
           yfact_isv = yfact(isv(iq),k)
-          base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                        +yfact(iq,k)+yfact_isv
-          ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +               &
-                           xfact(iq,k)*work(ie(iq),k,np) +       &
-                           xfact_iwu*work(iw(iq),k,np) +         &
-                           yfact(iq,k)*work(in(iq),k,np) +       &
-                           yfact_isv*work(is(iq),k,np) )         &
+          base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
+                        +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
+          ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +         &
+                           ldif*xfact(iq,k)**2*work(ie(iq),k,np) +  &
+                           ldif*xfact_iwu**2*work(iw(iq),k,np) +    &
+                           ldif*yfact(iq,k)**2*work(in(iq),k,np) +  &
+                           ldif*yfact_isv**2*work(is(iq),k,np) )    &
                         / base
         end do  
       end do
       !$acc end parallel loop
-      !$acc parallel loop collapse(2) copyout(work(:,:,np)) &
-      !$acc   present(ans) async(async_counter)
+      !$acc parallel loop collapse(2) present(work,ans) async(async_counter)
       do k = 1,wlev
         do iq = 1,ifull
-          work(iq,k,np) = ans(iq,k,nn)
+          if ( ee(iq,k)<0.5 ) then
+            work(iq,k,np) = ans(iq,k,nn)
+          end if
         end do
       end do  
       !$acc end parallel loop
-    end do
+
+    end do    
     !$acc wait
-
-  end do ! nstart
+    
+  end do ! its
+    
+  !$acc update self(work(1:ifull,:,nstart:nend))
+    
+end do   ! nstart  
   
-  !$acc exit data delete(ans)
-    
-else if ( mlodiff>=10 .and. mlodiff<=19 ) then
+!$acc exit data delete(work_save,ans,work)
 
-  ! Bi-Harmonic diffusion.  iterative version.
-
-  !$acc enter data create(work_save,ans,work,ee)  
-  !$acc update device(ee)
-    
-  ans = 0.
-  do nstart = 1,ntr,nagg
-    nend = min(nstart + nagg - 1, ntr )
-    nlen = nend - nstart + 1
-
-    work_save(1:ifull,1:wlev,1:nlen) = work(1:ifull,1:wlev,nstart:nend)
-    !$acc update device(work_save(:,:,1:nlen),work(1:ifull,:,nstart:nend))
-    
-    do its = 1,mlodiff_numits
-      
-      call bounds(work(:,:,nstart:nend))
-
-      do nn = 1,nlen
-        np = nn - 1 + nstart  
-        async_counter = mod(nn-1,async_length)
-        !$acc update device(work(ifull+1:ifull+iextra,:,np)) async(async_counter)
-        !$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) &
-        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
-        do k = 1,wlev
-          do iq = 1,ifull  
-            xfact_iwu = xfact(iwu(iq),k)
-            yfact_isv = yfact(isv(iq),k)
-            base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-            ans(iq,k,nn) = ( -base*work(iq,k,np) +              &
-                             xfact(iq,k)*work(ie(iq),k,np) +    &
-                             xfact_iwu*work(iw(iq),k,np) +      &
-                             yfact(iq,k)*work(in(iq),k,np) +    &
-                             yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
-          end do   
-        end do
-        !$acc end parallel loop
-        !$acc update self(ans(1:ifull,:,nn)) async(async_counter)
-      end do
-      !$acc wait
-
-      call bounds(ans(:,:,1:nlen))
-
-      do nn = 1,nlen
-        np = nn - 1 + nstart
-        async_counter = mod(nn-1,async_length)
-        !$acc update device(ans(ifull+1:ifull+iextra,:,nn)) async(async_counter)
-        !$acc parallel loop collapse(2) present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,work_save,ans,work) &
-        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)        
-        do k = 1,wlev
-          do iq = 1,ifull  
-            xfact_iwu = xfact(iwu(iq),k)
-            yfact_isv = yfact(isv(iq),k)
-            base = xfact(iq,k) + xfact_iwu + yfact(iq,k) + yfact_isv
-            work(iq,k,np) = work_save(iq,k,nn) - dt*(               &
-                              -base*ans(iq,k,nn) +                  &
-                              xfact(iq,k)*ans(ie(iq),k,nn) +        &
-                              xfact_iwu*ans(iw(iq),k,nn) +          &
-                              yfact(iq,k)*ans(in(iq),k,nn) +        &
-                              yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
-          end do    
-        end do
-        !$acc end parallel loop
-        !$acc parallel loop collapse(2) present(work,work_save) async(async_counter)
-        do k = 1,wlev
-          do iq = 1,ifull
-            if ( ee(iq,k)<0.5 ) then
-              work(iq,k,np) = work_save(iq,k,nn)
-            end if
-          end do
-        end do  
-        !$acc end parallel loop
-        !$acc update self(work(ifull+1:ifull+iextra,:,np)) async(async_counter)
-      end do    
-      !$acc wait
-    
-    end do ! its
-    
-    !$acc update self(work(1:ifull,:,nstart:nend))
-    
-  end do   ! nstart  
-  
-  !$acc exit data delete(work_save,ans,work)
-
-else
-  write(6,*) "ERROR: Unknown mlodiff option ",mlodiff
-  call ccmpi_abort(-1)
-end if
 
 return
 end subroutine mlodiffcalc
