@@ -2511,6 +2511,12 @@ if ( nsib <= 3 ) then
     call readint(vegfile,iglobal2d(:,1),ifull_g)
     write(6,*) "Reading soil data"
     call readint(soilfile,iglobal2d(:,2),ifull_g)
+    if ( .not.any( iglobal2d(:,2)==0 ) ) then
+      write(6,*) "-> Patch soil data"  
+      where( iglobal2d(:,2)==-1 )
+        iglobal2d(:,2) = 0
+      end where
+    end if
     call ccmpi_distribute(ilocal2d(:,1:2),iglobal2d(:,1:2))
     ivegt(1:ifull)     = ilocal2d(1:ifull,1)
     isoilm_in(1:ifull) = ilocal2d(1:ifull,2)
@@ -2561,6 +2567,12 @@ else if ( nsib==5 ) then
       call surfread(global2d(:,5),'lai',     netcdfid=ncidveg)
       write(6,*) "Reading soil data"
       call surfread(global2d(:,6),'soil',    netcdfid=ncidveg)
+      if ( .not.any( nint(global2d(:,6))==0 ) ) then
+        write(6,*) "-> Patch soil data"  
+        where( abs(global2d(:,6)+1.)<1.e-8 )
+          global2d(:,6) = 0.
+        end where
+      end if      
       write(6,*) "Reading veg data"
       call surfread(global2d(:,7),'landtype',netcdfid=ncidveg)      
     else
@@ -2581,6 +2593,12 @@ else if ( nsib==5 ) then
       global2d(1:ifull_g,5) = 0.01*global2d(1:ifull_g,5)
       write(6,*) "Reading soil data"
       call surfread(global2d(:,6),'soilt', filename=soilfile)
+      if ( .not.any( nint(global2d(:,6))==0 ) ) then
+        write(6,*) "-> Patch soil data"  
+        where( abs(global2d(:,6)+1.)<1.e-8 )
+          global2d(:,6) = 0.
+        end where
+      end if      
       global2d(1:ifull_g,7) = 1 ! ivegt
     end if
     call ccmpi_distribute(local2d(:,1:7),global2d(:,1:7))
@@ -2611,6 +2629,12 @@ else if ( nsib>=6 ) then
     if ( lncveg == 1 ) then
       write(6,*) "Reading soil data"
       call surfread(global2d(:,1),'soilt', netcdfid=ncidveg)
+      if ( .not.any( nint(global2d(:,1))==0 ) ) then
+        write(6,*) "-> Patch soil data"  
+        where( abs(global2d(:,1)+1.)<1.e-8 )
+          global2d(:,1) = 0.
+        end where
+      end if      
       write(6,*) "Reading albedo data"
       call surfread(global2d(:,2),'albvis',netcdfid=ncidveg)
       call surfread(global2d(:,3),'albnir',netcdfid=ncidveg)

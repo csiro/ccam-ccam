@@ -301,7 +301,7 @@ real, dimension(ifull,wlev) :: w_u, w_v, w_t, w_s
 real, dimension(ifull,wlev) :: nuh, nvh, xg, yg, uau, uav
 real, dimension(ifull,wlev) :: kku, kkv, oou, oov
 real, dimension(ifull,wlev) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
-real, dimension(ifull,wlev) :: rhobaru, rhobarv, rhobar
+real, dimension(ifull,wlev) :: rhobaru_dash, rhobarv_dash, rhobar_dash
 real, dimension(ifull,wlev) :: depdum,dzdum,mfixdum
 real, dimension(ifull,wlev) :: workdata, workdata2, worku, workv
 real, dimension(ifull,wlev) :: w_ocn
@@ -550,9 +550,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
   ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
 
+  ! rho(x) = wrtrho + rho_dash(x), where wrtrho is a constant
+  
   ! Calculate normalised density gradients
   ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
-  call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhobar,rhobaru,rhobarv)
+  call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhobar_dash,rhobaru_dash,rhobarv_dash)
 
   call END_LOG(watereos_end)
 
@@ -667,27 +669,32 @@ do mspec_mlo = mspeca_mlo,1,-1
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
     tau(:,ii) = grav*gosigu*ddu(1:ifull)*drhobardxu(:,ii)/wrtrho  &
                + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu       &
-               + grav*gosigu*oeu(1:ifull)*drhobardxu(:,ii)/wrtrho &
-               + grav*rhobaru(1:ifull,ii)*detadxu/wrtrho ! staggered
+               + grav*gosigu*oeu(1:ifull)*drhobardxu(:,ii)/wrtrho ! staggered
+               !+ grav*rhobaru_dash(1:ifull,ii)*detadxu/wrtrho ! approximate when rhobar_dash << wrtrho
     tav(:,ii) = grav*gosigv*ddv(1:ifull)*drhobardyv(:,ii)/wrtrho  &
                + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv       &
-               + grav*gosigv*oev(1:ifull)*drhobardyv(:,ii)/wrtrho &
-               + grav*rhobarv(1:ifull,ii)*detadyv/wrtrho
+               + grav*gosigv*oev(1:ifull)*drhobardyv(:,ii)/wrtrho
+               !+ grav*rhobarv_dash(1:ifull,ii)*detadyv/wrtrho ! approximate when rhobar_dash << wrtrho
     tau(:,ii) = tau(:,ii)*eeu(1:ifull,ii)
     tav(:,ii) = tav(:,ii)*eev(1:ifull,ii)
   end do
+  
+  ! include rho_dash/wrtrho terms (i.e., sig*dD/dx and (1-sig)*d(eta)/dx )
   select case(mlojacobi)
     case(7)
       do ii = 1,wlev
         depdum_rho(1:ifull+iextra) = gosig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
         dzdxu = (depdum_rho(ie)-depdum_rho(1:ifull))*emu(1:ifull)*eeu(1:ifull,ii)/ds
         dzdyv = (depdum_rho(in)-depdum_rho(1:ifull))*emv(1:ifull)*eev(1:ifull,ii)/ds
-        tau(:,ii) = tau(:,ii) + grav*rhobaru(1:ifull,ii)*dzdxu/wrtrho ! staggered
-        tav(:,ii) = tav(:,ii) + grav*rhobarv(1:ifull,ii)*dzdyv/wrtrho
+        tau(:,ii) = tau(:,ii) + grav*rhobaru_dash(1:ifull,ii)/wrtrho*detadxu*(1.-gosig(1:ifull,ii)) &
+                  + grav*rhobaru_dash(1:ifull,ii)/wrtrho*dzdxu*gosig(1:ifull,ii)*oeu(1:ifull)/ddu(1:ifull) ! staggered            
+        tav(:,ii) = tav(:,ii) + grav*rhobarv_dash(1:ifull,ii)/wrtrho*detadyv*(1.-gosig(1:ifull,ii)) &
+                  + grav*rhobarv_dash(1:ifull,ii)/wrtrho*dzdyv*gosig(1:ifull,ii)*oev(1:ifull)/ddv(1:ifull)
         tau(:,ii) = tau(:,ii)*eeu(1:ifull,ii)
         tav(:,ii) = tav(:,ii)*eev(1:ifull,ii)
       end do     
   end select    
+    
   ! ice
   !tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
   !tav(:,wlev+1)=grav*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
@@ -792,7 +799,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
     ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
     ! update normalised density gradients
-    call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhobar,rhobaru,rhobarv)
+    call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhobar_dash,rhobaru_dash,rhobarv_dash)
   end if
 
   call END_LOG(watereos_end)
@@ -827,18 +834,29 @@ do mspec_mlo = mspeca_mlo,1,-1
   niv(1:ifull) = ttav(:,wlev+1)/(1.+(dt*fv(1:ifull))**2)
  
   
-  ! calculate 5-point stencil
+  ! calculate 5-point stencil for free surface
+  ! (i.e., terms for free surface gradient contribution to currents)
   bb(1:ifull) = -ee(1:ifull,1)*(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(1:ifull))**2) ! unstaggered
   ibb(1:ifull) = -ee(1:ifull,1)*dt/(imass(1:ifull)*(1.+(dt*f(1:ifull))**2))  ! unstaggered
   do ii = 1,wlev
-    cc(1:ifull,ii) = (1.+rhobar(1:ifull,ii)/wrtrho)*bb(1:ifull)*ee(1:ifull,ii)
+    !cc(1:ifull,ii) = (1.+rhobar_dash(1:ifull,ii)/wrtrho)*bb(1:ifull)*ee(1:ifull,ii)
+    cc(1:ifull,ii) = bb(1:ifull)*ee(1:ifull,ii) ! approximate when rhobar_dash << wrtrho
   end do
   cc(1:ifull,wlev+1) = ibb(1:ifull)
+
+  ! include rho_dash/wrtrho terms (i.e., sig*dD/dx and (1-sig)*d(eta)/dx )
+  select case(mlojacobi)
+    case(7)
+      do ii = 1,wlev  
+        cc(1:ifull,ii) = cc(1:ifull,ii) + bb(1:ifull)*ee(1:ifull,ii)*(1.-gosig(1:ifull,ii))*rhobar_dash(1:ifull,ii)/wrtrho
+      end do
+  end select
+  
   call bounds(cc(:,1:wlev+1),corner=.true.)
   ibb(ifull+1:ifull+iextra) = cc(ifull+1:ifull+iextra,wlev+1)
-
   
-  ! ocean - recalculate bb with rhobar
+  
+  ! ocean - recalculate bb now possibly including rhobar_dash contribution to cc
   bb = 0.
   bb3u = 0.
   bb4v = 0.
@@ -869,6 +887,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! v^(t+1)*(1+(0.5*dt*f)^2) = [v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*) - 0.5*dt*f*[u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*)
     !                            - 0.5*dt/wrtrho*[dpdy - 0.5*dt*f*dpdx]^(t+1)
     
+    ! rhobar = wrtrho + rhobar_dash  
+      
     ! dPdz = grav*rho
     ! dPdz* = grav*rho*(eta+D)/D
     ! P = grav*rhobar*(eta+D)*(z*)/D = grav*rhobar*(z+eta) = grav*rhobar*sig*(eta+D)
@@ -877,6 +897,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! (mlojacobi=6 neglects dDdx and mlojacobi=7 includes dDdx terms)
     
     ! Note pressure gradients are along constant z surfaces
+    ! (ps is air pressure, tt is the tide term, eta is the free surface
+    !  and rhobar is the column averaged density to depth z)
     ! p = ps + grav*wrtrho*tt + grav*sig*(dd+eta)*rhobar
 
     ! We use a modified form of JLM's trick where:
@@ -885,10 +907,14 @@ do mspec_mlo = mspeca_mlo,1,-1
     !   F = (1+ocneps)*0.5*dt*f
     ! which produces a 5-point stencil when solving for neta and ip.
     
-    !dpdxu=dpsdxu+grav*wrtrho*dttdxu+grav*sig*(ddu+etau)*drhobardxu+grav*rhobar*detadxu+grav*(rhobar-wrtrho)*dzdxu
-    !dpdyu=dpsdyu+grav*wrtrho*dttdyu+grav*sig*(ddu+etau)*drhobardyu+grav*rhobar*detadyu+grav*(rhobar-wrtrho)*dzdyu
-    !dpdxv=dpsdxv+grav*wrtrho*dttdxv+grav*sig*(ddv+etav)*drhobardxv+grav*rhobar*detadxv+grav*(rhobar-wrtrho)*dzdxv
-    !dpdyv=dpsdyv+grav*wrtrho*dttdyv+grav*sig*(ddv+etav)*drhobardyv+grav*rhobar*detadyv+grav*(rhobar-wrtrho)*dzdyv
+    !dpdxu=dpsdxu+grav*wrtrho*dttdxu+grav*sig*(ddu+etau)*drhobardxu+grav*rhobar*detadxu
+    !      +grav*(rhobar-wrtrho)*sig*etau/ddu*dzdxu + grav*(rhobar-wrtrho)*(1-sig)*detadxu
+    !dpdyu=dpsdyu+grav*wrtrho*dttdyu+grav*sig*(ddu+etau)*drhobardyu+grav*rhobar*detadyu
+    !      +grav*(rhobar-wrtrho)*sig*etau/ddu*dzdyu + grav*(rhobar-wrtrho)*(1-sig)*detadyu
+    !dpdxv=dpsdxv+grav*wrtrho*dttdxv+grav*sig*(ddv+etav)*drhobardxv+grav*rhobar*detadxv
+    !      +grav*(rhobar-wrtrho)*sig*etav/ddv*dzdxv + grav*(rhobar-wrtrho)*(1-sig)*detadxv
+    !dpdyv=dpsdyv+grav*wrtrho*dttdyv+grav*sig*(ddv+etav)*drhobardyv+grav*rhobar*detadyv
+    !      +grav*(rhobar-wrtrho)*sig*etav/ddv*dzdyv + grav*(rhobar-wrtrho)*(1-sig)*detadyv
 
     ! Create arrays for u and v at t+1 in terms of neta gradients
     
@@ -913,6 +939,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     
   end do
   
+  ! include rho_dash/wrtrho terms (i.e., sig*dD/dx and (1-sig)*d(eta)/dx )
   select case(mlojacobi)
     case(7)
       do ii = 1,wlev   
@@ -927,10 +954,12 @@ do mspec_mlo = mspeca_mlo,1,-1
         dzdyu = 0.5*stwgt(1:ifull,ii)*(tnu-tsu)*emu(1:ifull)/ds
         dzdxv = 0.5*stwgt(1:ifull,ii)*(tev-twv)*emv(1:ifull)/ds
         dzdyv = (depdum_rho(in)-depdum_rho(1:ifull))*emv(1:ifull)*eev(1:ifull,ii)/ds
-        kku(:,ii) = kku(:,ii) + bu*grav*rhobaru(:,ii)*dzdxu/wrtrho + cu*grav*rhobaru(:,ii)*dzdyu/wrtrho   
-        kkv(:,ii) = kkv(:,ii) + bv*grav*rhobarv(:,ii)*dzdyv/wrtrho + cv*grav*rhobarv(:,ii)*dzdxv/wrtrho
-        kku(:,ii) = kku(:,ii)*eeu(1:ifull,ii)
-        kkv(:,ii) = kkv(:,ii)*eev(1:ifull,ii)   
+        oou(:,ii) = oou(:,ii) + bu*grav*rhobaru_dash(:,ii)/wrtrho*dzdxu*gosig(1:ifull,ii)/ddu(1:ifull) &
+                  + cu*grav*rhobaru_dash(:,ii)/wrtrho*dzdyu*gosig(1:ifull,ii)/ddu(1:ifull)
+        oov(:,ii) = oov(:,ii) + bv*grav*rhobarv_dash(:,ii)/wrtrho*dzdyv*gosig(1:ifull,ii)/ddv(1:ifull) &
+                  + cv*grav*rhobarv_dash(:,ii)/wrtrho*dzdxv*gosig(1:ifull,ii)/ddv(1:ifull)
+        oou(:,ii) = oou(:,ii)*eeu(1:ifull,ii)
+        oov(:,ii) = oov(:,ii)*eev(1:ifull,ii)   
       end do  
   end select
       
@@ -1035,8 +1064,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     nu(1:ifull,ii) = kku(:,ii) + oou(:,ii)*oeu(1:ifull) + grav*lbu*detadxu + grav*lcu*detadyu
     nv(1:ifull,ii) = kkv(:,ii) + oov(:,ii)*oev(1:ifull) + grav*lbv*detadyv + grav*lcv*detadxv
   end do 
-  
-  
+    
   worku = nu(1:ifull,:)
   workv = nv(1:ifull,:)
   call mlocheck("solver",water_u=worku,water_v=workv)
@@ -1398,7 +1426,7 @@ end subroutine mlorot
 ! density Jacobian
 
 subroutine tsjacobi(nti,nsi,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
-                    rhobar,rhobaru,rhobarv)
+                    rhobar_dash,rhobaru_dash,rhobarv_dash)
 
 use indices_m
 use mlo, only : wlev, wrtemp, mloexpdensity, minsal, maxsal
@@ -1410,18 +1438,20 @@ implicit none
 integer iq, ii
 real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi
 real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
-real, dimension(ifull,wlev), intent(out) :: rhobaru, rhobarv, rhobar
+real, dimension(ifull,wlev), intent(out) :: rhobaru_dash, rhobarv_dash, rhobar_dash
 real, dimension(ifull+iextra), intent(in) :: pice
 real, dimension(ifull+iextra,wlev,2) :: na
-real, dimension(ifull+iextra,wlev) :: alpha, beta, lrho, dzdum_rho
+real, dimension(ifull+iextra,wlev) :: alpha, beta, lrho_dash, dzdum_rho
 real absu, bbsu, absv, bbsv
 real, dimension(ifull,wlev,2) :: dnadxu, dnadxv, dnadyu, dnadyv
+
+! rho(x) = rho0 + rho_dash(x), where rho0 is a constant equal to wrtrho
 
 do ii = 1,wlev
   ! neglect neta for calculating density  
   dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
 end do
-call mloexpdensity(lrho,alpha,beta,nti,nsi,dzdum_rho,pice,0,rawrho=.true.)
+call mloexpdensity(lrho_dash,alpha,beta,nti,nsi,dzdum_rho,pice,0,rawrho=.true.)
 
 na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
 where ( nsi<2. )
@@ -1436,9 +1466,9 @@ if ( mlojacobi==0 ) then !off
     drhobardxv(1:ifull,ii) = 0.
     drhobardyu(1:ifull,ii) = 0.
     drhobardyv(1:ifull,ii) = 0.
-    rhobar(:,ii) = 0.
-    rhobaru(:,ii) = 0.
-    rhobarv(:,ii) = 0.
+    rhobar_dash(:,ii) = 0.
+    rhobaru_dash(:,ii) = 0.
+    rhobarv_dash(:,ii) = 0.
   end do
 else
   select case( mlojacobi )
@@ -1467,26 +1497,26 @@ else
   drhobardxv(:,1) = drhobardxv(:,1)*godsigv(1:ifull,1)
   drhobardyu(:,1) = drhobardyu(:,1)*godsigu(1:ifull,1)
   drhobardyv(:,1) = drhobardyv(:,1)*godsigv(1:ifull,1)
-  rhobar(:,1) = lrho(1:ifull,1)*godsig(1:ifull,1)
-  rhobaru(:,1) = 0.5*(lrho(1:ifull,1)+lrho(ie,1))*godsigu(1:ifull,1)
-  rhobarv(:,1) = 0.5*(lrho(1:ifull,1)+lrho(in,1))*godsigu(1:ifull,1)
+  rhobar_dash(:,1) = lrho_dash(1:ifull,1)*godsig(1:ifull,1)
+  rhobaru_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(ie,1))*godsigu(1:ifull,1)
+  rhobarv_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(in,1))*godsigu(1:ifull,1)
   do ii = 2,wlev
     drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsigu(1:ifull,ii)
     drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsigv(1:ifull,ii)
     drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhobardyu(:,ii)*godsigu(1:ifull,ii)
     drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsigv(1:ifull,ii)
-    rhobar(:,ii) = rhobar(:,ii-1) + lrho(1:ifull,ii)*godsig(1:ifull,ii)
-    rhobaru(:,ii) = rhobaru(:,ii-1) + 0.5*(lrho(1:ifull,ii)+lrho(ie,ii))*godsigu(1:ifull,ii)
-    rhobarv(:,ii) = rhobarv(:,ii-1) + 0.5*(lrho(1:ifull,ii)+lrho(in,ii))*godsigu(1:ifull,ii)
+    rhobar_dash(:,ii) = rhobar_dash(:,ii-1) + lrho_dash(1:ifull,ii)*godsig(1:ifull,ii)
+    rhobaru_dash(:,ii) = rhobaru_dash(:,ii-1) + 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(ie,ii))*godsigu(1:ifull,ii)
+    rhobarv_dash(:,ii) = rhobarv_dash(:,ii-1) + 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(in,ii))*godsigu(1:ifull,ii)
   end do
   do ii = 1,wlev
     drhobardxu(:,ii) = drhobardxu(:,ii)/gosighu(:,ii)
     drhobardxv(:,ii) = drhobardxv(:,ii)/gosighv(:,ii)
     drhobardyu(:,ii) = drhobardyu(:,ii)/gosighu(:,ii)
     drhobardyv(:,ii) = drhobardyv(:,ii)/gosighv(:,ii)
-    rhobar(:,ii) = rhobar(:,ii)/gosigh(:,ii)
-    rhobaru(:,ii) = rhobaru(:,ii)/gosighu(:,ii)
-    rhobarv(:,ii) = rhobarv(:,ii)/gosighv(:,ii)
+    rhobar_dash(:,ii) = rhobar_dash(:,ii)/gosigh(:,ii)
+    rhobaru_dash(:,ii) = rhobaru_dash(:,ii)/gosighu(:,ii)
+    rhobarv_dash(:,ii) = rhobarv_dash(:,ii)/gosighv(:,ii)
   end do
 end if
   
