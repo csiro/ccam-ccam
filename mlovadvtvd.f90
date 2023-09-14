@@ -74,18 +74,33 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
+
 !$acc data create(its,dtnew,ww,depdum,dzdum)
 !$acc update device(its,dtnew,ww,depdum,dzdum)
 
-call mlotvd(its,dtnew,ww,uu,depdum,dzdum)
-call mlotvd(its,dtnew,ww,vv,depdum,dzdum)
-call mlotvd(its,dtnew,ww,ss,depdum,dzdum)
-call mlotvd(its,dtnew,ww,tt,depdum,dzdum)
-call mlotvd(its,dtnew,ww,mm,depdum,dzdum)
+!$omp parallel sections
+
+!$omp section
+call mlotvd(its,dtnew,ww,uu,depdum,dzdum,1)
+
+!$omp section
+call mlotvd(its,dtnew,ww,vv,depdum,dzdum,2)
+
+!$omp section
+call mlotvd(its,dtnew,ww,ss,depdum,dzdum,3)
+
+!$omp section
+call mlotvd(its,dtnew,ww,tt,depdum,dzdum,4)
+
+!$omp section
+call mlotvd(its,dtnew,ww,mm,depdum,dzdum,5)
+
+!$omp end parallel sections
 
 !$acc wait
 !$acc end data
-  
+
+
 ss(1:ifull,:)=max(ss(1:ifull,:),0.)
 tt(1:ifull,:)=max(tt(1:ifull,:),-wrtemp)
 
@@ -94,7 +109,7 @@ call END_LOG(watervadv_end)
 return
 end subroutine mlovadv
 
-subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum)
+subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,async)
 
 use cc_acc, only : async_length
 use mlo
@@ -102,8 +117,8 @@ use newmpar_m
 
 implicit none
 
-integer ii,i,iq,kp,kx
-integer, save :: async_counter = -1
+integer ii,i,iq,kp,kx,async_counter
+integer, intent(in) :: async
 integer, dimension(ifull), intent(in) :: its
 real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
@@ -116,7 +131,7 @@ real fl,fh,cc,rr
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
 
-async_counter = mod( async_counter+1, async_length )
+async_counter = mod( async-1, async_length )
 
 if ( mlontvd==0 ) then ! MC
 

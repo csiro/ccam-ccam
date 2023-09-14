@@ -190,6 +190,11 @@ if ( intsch==1 ) then
     ! the messages to return, thereby overlapping computation with communication.
     call intssync_send(nlen)
 
+#ifndef GPU
+    !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)  &
+    !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
+    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
     do nn = 1,nlen
       async_counter = mod(nn-1, async_length)
       
@@ -267,6 +272,9 @@ if ( intsch==1 ) then
       end if
 
     end do           ! nn loop
+#ifndef GPU
+    !$omp end parallel do
+#endif
     !$acc wait
   
     call intssync_recv(s(:,:,nstart:nend))  
@@ -399,6 +407,11 @@ else     ! if(intsch==1)then
     
     call intssync_send(nlen)
 
+#ifndef GPU
+    !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)  &
+    !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
+    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
     do nn = 1,nlen
       async_counter = mod(nn-1, async_length)
       
@@ -477,6 +490,9 @@ else     ! if(intsch==1)then
       end if
 
     end do           ! nn loop
+#ifndef GPU
+    !$omp end parallel do
+#endif
     !$acc wait
     
     call intssync_recv(s(:,:,nstart:nend))  
@@ -556,8 +572,11 @@ end do
 
 call intssync_send
 
-!$acc parallel loop collapse(2) copyin(sx) copyout(s)        &
-!$acc   present(xg,yg,nface)
+#ifdef GPU
+!$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
+#else
+!$omp parallel do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
@@ -572,7 +591,11 @@ do k = 1,kl
             + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
+#ifdef GPU
 !$acc end parallel loop
+#else
+!$omp end parallel do
+#endif
 
 call intssync_recv(s)
 

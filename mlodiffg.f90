@@ -127,7 +127,7 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
   ldif = dt*(ocnsmag/pi)**2
 else if ( mlodiff>=10 .and. mlodiff<=19 ) then
   ! Biharmonic and Laplacian
-  hdif = sqrt( 0.125*(ocnsmag/pi)**2 )  
+  hdif = sqrt(0.125)*ocnsmag/pi
   ldif = dt*(ocnlap/pi)**2
 end if
 
@@ -224,10 +224,10 @@ end where
 ! perform diffusion
 if ( mlodiff==0 .or. mlodiff==10 ) then
   ! UX, VX, WX
-  call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,hdif,ldif,3)
+  call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,hdif,ldif)
 end if
 ! potential temperature and salinity
-call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,hdif,ldif,2)
+call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,hdif,ldif)
 
 
 !$acc end data
@@ -257,7 +257,7 @@ call END_LOG(waterdiff_end)
 return
 end subroutine mlodiffusion_work
 
-subroutine mlodiffcalc(work,xfact,yfact,emi,hdif,ldif,ntr)    
+subroutine mlodiffcalc(work,xfact,yfact,emi,hdif,ldif)
 
 use cc_acc, only : async_length
 use cc_mpi, only : bounds, nagg, ccmpi_abort
@@ -270,19 +270,20 @@ use parm_m, only : dt, ds
 
 implicit none
 
-integer, intent(in) :: ntr
-integer k, iq, iqc, nc, its
+integer k, iq, iqc, nc, its, ntr
 integer nstart, nend, nlen, nn, np
 integer async_counter
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
-real, dimension(ifull+iextra,wlev,ntr), intent(inout) :: work
+real, dimension(:,:,:), intent(inout) :: work
 real, dimension(ifull+iextra,wlev,nagg) :: ans
 real, dimension(ifull,wlev,nagg) :: work_save
 real, intent(in) :: hdif, ldif
 real base, xfact_iwu, yfact_isv
 
 ! Bi-Harmonic and Laplacian diffusion.  iterative version.
+
+ntr = size(work,3)
 
 !$acc enter data create(work_save,ans,work,ee)  
 !$acc update device(ee)
@@ -301,6 +302,7 @@ do nstart = 1,ntr,nagg
     call bounds(work(:,:,nstart:nend))
 
     ! Estimate Laplacian at t+1
+    !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
     do nn = 1,nlen
       np = nn - 1 + nstart  
       async_counter = mod(nn-1,async_length)
@@ -323,11 +325,13 @@ do nstart = 1,ntr,nagg
       !$acc end parallel loop
       !$acc update self(ans(1:ifull,:,nn)) async(async_counter)
     end do
+    !$omp end parallel do
     !$acc wait
 
     call bounds(ans(:,:,1:nlen))
 
     ! Estimate diffusion
+    !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
     do nn = 1,nlen
       np = nn - 1 + nstart
       async_counter = mod(nn-1,async_length)
@@ -391,6 +395,7 @@ do nstart = 1,ntr,nagg
       !$acc end parallel loop
 
     end do    
+    !$omp end parallel do
     !$acc wait
     
   end do ! its
