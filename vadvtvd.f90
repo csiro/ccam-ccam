@@ -211,9 +211,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 end if          ! if(mspec==1)
 
 
-#ifndef GPU
 !$omp end parallel
-#endif
 
 !$acc wait
 !$acc end data
