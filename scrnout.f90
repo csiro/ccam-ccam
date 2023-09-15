@@ -482,7 +482,7 @@ implicit none
 integer, intent(in) :: is, ie
 integer :: tile, iq, k, k850, k950
 real :: rsig, wspd1, wspd2, u850, u950, x850, x950
-real :: thetav, rhos, wt0, wq0, wtv0, z_on_l, fl
+real :: thetav, rhos, wt0, wq0, wtv0, z_on_l, fl,pil, th
 real, dimension(is:ie) :: umag, zminx, smixr
 real, dimension(is:ie) :: ou, ov, atu, atv, iu, iv
 real, dimension(is:ie) :: au, av, es, rho
@@ -594,11 +594,13 @@ select case(ugs_meth)
       wspd1 = sqrt(u(iq,k950)**2+v(iq,k950)**2)
       wspd2 = sqrt(u(iq,k950+1)**2+v(iq,k950+1)**2)
       u950 = wspd1*(1.-x950) + wspd2*x950
-      !thetav = theta(iq)*(1.+0.61*qg(iq,1)-qlg(iq,1)-qfg(iq,1))
+      !pil = (ps(iq)/1.e5)**(rdry/cp)
+      !th = t(iq,1)/pil
+      !thetav = th*(1.+0.61*qg(iq,1)-qlg(iq,1)-qfg(iq,1))
       !rhos = ps(iq)/(rdry*tss(iq))
       !wt0 = fg(iq)/(rhos*cp)
       !wq0 = eg(iq)/(rhos*hl)
-      !wtv0 = wt0 + theta(iq)*0.61*wq0
+      !wtv0 = wt0 + th*0.61*wq0
       !z_on_l = -0.4*1000.*grav*wtv0/(thetav*max(ustar(iq)**3,1.E-10))
       !if ( z_on_l < 0. ) then
       !  fl = (1.-z_on_l*0.5/12.)**3
@@ -658,6 +660,14 @@ select case(ugs_meth)
       u950 = wspd1*(1.-x950) + wspd2*x950      
       rsig = (1.-0.069*exp(-2.3*u10(iq)*wg_tau/10.))*exp(-0.116*(u10(iq)*wg_tau/10.)**0.555)
       wsgs(iq) = wgcoeff*rsig*sqrt(2.*tke(iq,1)) + u10(iq) + 0.3*max(0.,u850-u950)
+    end do
+  case(21) ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
+    if ( .not.(nvmix==6.or.nvmix==9) ) then
+      write(6,*) "ERROR: ugs_meth=1 requires nvmix=6 or nvmix=9"
+      stop -1
+    end if
+    do iq = is,ie
+      wsgs(iq) = wgcoeff*sqrt(2.*tke(iq,1)) + u10(iq)
     end do    
   case default
     write(6,*) "ERROR: Unknown method ugs_meth = ",ugs_meth
