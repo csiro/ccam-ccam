@@ -566,7 +566,7 @@ select case(ugs_meth)
     end do
   case(2)
     if ( .not.(nvmix==6.or.nvmix==9) ) then
-      write(6,*) "ERROR: ugs_meth=1 requires nvmix=6 or nvmix=9"
+      write(6,*) "ERROR: ugs_meth=2 requires nvmix=6 or nvmix=9"
       stop -1
     end if
     do iq = is,ie
@@ -637,7 +637,7 @@ select case(ugs_meth)
     ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
     ! + convective wind gust  
     if ( .not.(nvmix==6.or.nvmix==9) ) then
-      write(6,*) "ERROR: ugs_meth=1 requires nvmix=6 or nvmix=9"
+      write(6,*) "ERROR: ugs_meth=11 requires nvmix=6 or nvmix=9"
       stop -1
     end if
     do k = 1,kl-1
@@ -663,7 +663,7 @@ select case(ugs_meth)
     end do
   case(21) ! Schreur et al (2008) "Theory of a TKE based parameterisation of wind gusts" HIRLAM newsletter 54.
     if ( .not.(nvmix==6.or.nvmix==9) ) then
-      write(6,*) "ERROR: ugs_meth=1 requires nvmix=6 or nvmix=9"
+      write(6,*) "ERROR: ugs_meth=21 requires nvmix=6 or nvmix=9"
       stop -1
     end if
     do iq = is,ie

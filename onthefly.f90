@@ -23,7 +23,7 @@
 ! interpolated to nested model grid.  Three options are
 !   nested=0  Initial conditions
 !   nested=1  Nudging fields
-!   nested=2  Surface data recycling
+!   nested=2  Surface data recycling (with biosphere)
 !   nested=3  Ensemble fields
 !   nested=4  Surface data recycling (without biosphere)
       
@@ -48,9 +48,10 @@ integer, save :: fill_floor = 0                               ! number of iterat
 integer, save :: fill_floorlake = 0                           ! number of iterations required for floor+lake fill (3d ocean)
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
 integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
-integer, save :: native_ccam = 0                              ! is host CCAM (native_ccam=1) or cdfivdar (native_ccam=0)
+integer, save :: native_ccam = 0                              ! is host CCAM? (native_ccam=1) or cdfivdar (native_ccam=0)
 integer, save :: xx4_win, yy4_win                             ! shared memory windows
 integer, save :: xy4_count = 0                                ! counter for new allocations of memory windows
+integer m_fly_l                                               ! Local value for m_fly (changes depending on input grid)
 integer, dimension(3), save :: xx4save_win, yy4save_win       ! store old memory windows for later deallocation
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
@@ -302,11 +303,12 @@ if ( ktime_r<0 ) then
 end if
 !--------------------------------------------------------------------
       
-! Here we call ontheflyx
+! Here we call onthefly_work (i.e., to read data for kdate_r and ktime_r in mode nested)
    
 ! Note that if histrd fails to find a variable, it returns zero in
 ! the output array
 
+! (mlodwn & ocndwn are ocean fields.  xtgdwn are aerosol fields)
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag, &
                    mlodwn,ocndwn,xtgdwn)
@@ -419,7 +421,7 @@ real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 character(len=20) vname
 character(len=4) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
-logical tss_test, tst
+logical tss_test, tst, gridtest
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_needed, zht_found, urban1_found, urban2_found
@@ -428,7 +430,8 @@ logical, dimension(:), allocatable, save :: land_a, landlake_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 logical, dimension(:,:), allocatable, save :: landlake_3d
 
-! iotest      indicates no interpolation required
+! iotest      indicates no interpolation and input is native CCAM
+! gridtest    indicates no interpolation is required, but input may not be native CCAM
 ! ptest       indicates the grid decomposition of the mesonest file is the same as the model, including the same number of processes
 ! iop_test    indicates that both iotest and ptest are true and hence no MPI communication is required
 ! tss_test    indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
@@ -454,11 +457,14 @@ if ( nud_p==0 .and. nud_t==0 .and. nud_q==0 ) then
 else
   retopo_test = 1
 end if
+
+! Default interpolation
+m_fly_l = m_fly
       
 ! Determine if interpolation is required
-iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
-         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and.      &
-         native_ccam==1
+gridtest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
+           abs(schmidtx-schmidt)<iotol
+iotest = gridtest .and. (nsib==nsibx.or.nested==1.or.nested==3) .and. native_ccam==1
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   iotest = iotest .and. wlev==ok
 end if
@@ -478,11 +484,18 @@ if ( iotest ) then
   end if  
 else
   io_in = -1  ! interpolation
-  if ( myid==0 ) then
-    write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
+  if ( gridtest ) then
+    m_fly_l = 1  
+    if ( myid==0 ) then
+      write(6,*) "Limited interpolation is required with iotest,m_fly,io_in =",iotest, m_fly_l, io_in
+    end if  
+  else
+    if ( myid==0 ) then
+      write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
+    end if  
   end if  
 end if
-  
+ 
 
 !--------------------------------------------------------------------
 ! Allocate interpolation, vertical level and mask arrays
@@ -527,7 +540,7 @@ if ( newfile .and. .not.iop_test ) then
   allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
 #endif
 
-  if ( m_fly==1 ) then
+  if ( m_fly_l==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
     rlat4_l(:,1)  = rlatt(:)*180./pi
   end if
@@ -570,7 +583,7 @@ if ( newfile .and. .not.iop_test ) then
   rotpoles = calc_rotpole(rlong0x,rlat0x)
   rotpole  = calc_rotpole(rlong0,rlat0)
   if ( myid==0 .and. nmaxpr==1 ) then
-    write(6,*)'m_fly,nord ',m_fly,3
+    write(6,*)'m_fly,nord ',m_fly_l,3
     write(6,*)'kdate_r,ktime_r,ktau,ds',kdate_r,ktime_r,ktau,ds
     write(6,*)'rotpoles:'
     do i = 1,3
@@ -586,7 +599,7 @@ if ( newfile .and. .not.iop_test ) then
   end if                  ! (myid==0)
 
   ! setup interpolation arrays
-  do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
+  do mm = 1,m_fly_l  !  was 4, now may be set to 1 in namelist
     call latltoij(rlong4_l(:,mm),rlat4_l(:,mm),      & !input
                   rlong0x,rlat0x,schmidtx,           & !input
                   xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
@@ -2220,12 +2233,12 @@ use parm_m                 ! Model configuration
 
 implicit none
 
-integer, dimension(ifull,m_fly), intent(in) :: nface4
+integer, dimension(ifull,m_fly_l), intent(in) :: nface4
 integer :: idel, jdel, n, iq, mm
 real, dimension(ifull), intent(out) :: sout
-real, intent(in), dimension(ifull,m_fly) :: xg4, yg4
+real, intent(in), dimension(ifull,m_fly_l) :: xg4, yg4
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
-real, dimension(ifull,m_fly) :: wrk
+real, dimension(ifull,m_fly_l) :: wrk
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -2233,7 +2246,7 @@ real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 !$omp parallel do schedule(static) private(mm,iq,n,idel,xxg,jdel,yyg),             &
 !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),   &
 !$omp   private(emul_4,cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)
-do mm = 1,m_fly     !  was 4, now may be 1
+do mm = 1,m_fly_l   !  was 4, now may be 1
   do iq = 1,ifull   ! runs through list of target points
     n = nface4(iq,mm)
     idel = int(xg4(iq,mm))
@@ -2266,10 +2279,14 @@ do mm = 1,m_fly     !  was 4, now may be 1
 end do      ! mm loop
 !$omp end parallel do
 
-sout(1:ifull) = wrk(:,1)/real(m_fly)
-do mm = 2,m_fly
-  sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly)
-end do  
+if ( m_fly_l == 1 ) then
+  sout(1:ifull) = wrk(:,1)
+else  
+  sout(1:ifull) = wrk(:,1)/real(m_fly_l)
+  do mm = 2,m_fly_l
+    sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly_l)
+  end do  
+end if
 
 return
 end subroutine intsb
@@ -3223,7 +3240,7 @@ end if
 
 ! calculate which grid points and input files are needed by this processor
 lfile(:) = .false.
-do mm = 1,m_fly
+do mm = 1,m_fly_l
   do iq = 1,ifull
     idel = int(xg4(iq,mm))
     jdel = int(yg4(iq,mm))
