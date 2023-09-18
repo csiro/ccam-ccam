@@ -1476,7 +1476,7 @@ real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
 real zimax                          ! depreciated namelist options
-logical procformat, localhist       ! depreciated namelist options
+logical procformat                  ! depreciated namelist options
 logical unlimitedhist               ! depreciated namelist options
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
@@ -1673,7 +1673,7 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(118) ) 
+allocate( dumr(33), dumi(119) ) 
 dumr(:) = 0.
 dumi(:) = 0
 if ( myid==0 ) then
@@ -1829,6 +1829,7 @@ if ( myid==0 ) then
   dumi(116) = async_length
   dumi(117) = nagg
   dumi(118) = pil_single
+  if ( localhist ) dumi(119) = 1
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -1983,6 +1984,7 @@ tbave10           = dumi(115)
 async_length      = dumi(116)
 nagg              = dumi(117)
 pil_single        = dumi(118)
+localhist         = dumi(119)==1
 deallocate( dumr, dumi )
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
@@ -3661,8 +3663,6 @@ end subroutine change_defaults
 ! Find valid nproc
 subroutine reducenproc(npanels,il_g,nproc,newnproc,nxp,nyp)
 
-use cc_mpi                                 ! CC MPI routines
-
 implicit none
 
 integer, intent(in) :: il_g, nproc, npanels
@@ -3696,6 +3696,7 @@ integer jl_g
 
 if ( mod(nproc,6)/=0 .and. mod(6,nproc)/=0 ) then
   nxp = -1
+  nyp = -1
 else
   jl_g = il_g + npanels*il_g                 ! size of grid along all panels (usually 6*il_g)
   nxp = max( 1, nint(sqrt(real(nproc)/6.)) ) ! number of processes in X direction

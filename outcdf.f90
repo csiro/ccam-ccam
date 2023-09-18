@@ -232,9 +232,9 @@ character(len=33) grdtim
 ! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
 ! they cannot be split across physical nodes.
 
-! local=.true. if this process needs to write to a file
+! if myid==0 or local=.true., then this process needs to write to a file
 
-local = vnode_myid==0
+local = localhist .and. vnode_myid==0
 
 ! File setup follows
 if ( itype==1 ) then  
@@ -270,7 +270,7 @@ if ( myid==0 .or. local ) then
     ubdim = 0
     pdim = 0
     gpdim = 0
-    if( local ) then
+    if ( local ) then
       call ccnf_def_dim(idnc,'longitude',il,xdim)
       call ccnf_def_dim(idnc,'latitude',jl,ydim)
     else
@@ -1140,7 +1140,7 @@ csize(1) = 5
 csize(2) = 5 + 1
 
 
-if( myid==0 .or. local ) then
+if ( myid==0 .or. local ) then
 
 ! if this is the first archive, set up some global attributes
   if ( iarch==1 ) then
@@ -3971,9 +3971,9 @@ call START_LOG(outfile_begin)
 ! write the output for that 'node' of processes.  Procformat supports virtual nodes, although
 ! they cannot be split across physical nodes.
 
-! local=.true. if this process needs to write to a file
+! if myid==0 or local=.true., then this process needs to write to a file
 
-local = vnode_myid==0
+local = localhist .and. vnode_myid==0
 lday  = mod(ktau,nperday)==0.or.ktau==ntau
 l6hr  = mod(ktau,nper6hr)==0.or.ktau==ntau
 iattdaily = 1 ! daily flag for valid_time attribute
@@ -5153,9 +5153,9 @@ call START_LOG(outfile_begin)
 ! 'node' of processes.  Procformat supports virtual nodes, although they
 ! cannot be split across physical nodes.
 
-! local=.true. if this process needs to write to a file
+! if myid==0 or local=.true., then this process needs to write to a file
 
-local = vnode_myid==0
+local = localhist .and. vnode_myid==0
 
 ! allocate arrays and open new file
 if ( first ) then

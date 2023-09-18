@@ -49,7 +49,7 @@ public save_ocean, save_radiation, save_urban, save_carbon, save_river
 public diaglevel_aerosols, diaglevel_pbl, diaglevel_cloud, diaglevel_land, diaglevel_maxmin
 public diaglevel_ocean, diaglevel_radiation, diaglevel_urban, diaglevel_carbon, diaglevel_river
 public diaglevel_pop
-public procmode, compression
+public procmode, compression, localhist
 public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
 public nstagin, nstaguin
 public hp_output, surf_cordex, surf_windfarm, output_windmax, cordex_fix
@@ -87,7 +87,7 @@ real, save :: sigramplow=0., sigramphigh=0., amxlsq=100., dvmodmin=1., siburbanf
 real, save :: ensemble_rsfactor=0.1
 real, save :: siglow=0.68, sigmid=0.44
 real, save :: wgcoeff=-1., wg_tau=3., wg_prob=0.5
-logical, save :: diag=.false., synchist=.false., amipo3=.false., use_rad_year=.false.
+logical, save :: diag=.false., synchist=.false., amipo3=.false., use_rad_year=.false., localhist=.true.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
 !logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.

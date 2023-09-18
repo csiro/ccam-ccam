@@ -899,13 +899,15 @@ if ( myid==0 ) then
 end if
 
 ! calculate number of files to be read on this processor
+! (start with number of ranks reading files)
 fnresid = min( fnproc, nproc ) 
 do while ( mod(fnproc,fnresid)/=0 )
-  fnresid = fnresid - 1     ! limit on processor ranks that will read files    
+  fnresid = fnresid - 1
 end do
+! (calculate number of files to be read with each rank)
 fncount = fnproc/fnresid
 if ( myid<fnresid ) then
-  mynproc = fncount  ! calculate the number of files to be read per process
+  mynproc = fncount
 else
   mynproc = 0
 end if
@@ -934,8 +936,8 @@ end if
 
 ! distribute comms
 if ( myid==0 ) then
-  write(6,*) "-> Splitting comms for distributing file data with fnresid ",fnresid
-  write(6,*) "-> Number of files to be read with mynproc ",mynproc
+  write(6,*) "-> Splitting comms for file data using ranks fnresid=",fnresid
+  write(6,*) "-> Number of files to be read per rank with mynproc=",mynproc
 end if
 
 ! define comm group to read the residual files
@@ -1800,8 +1802,12 @@ endif
 
 if ( local ) then
   call hw5lp(wvar,sname,idnc,iarch)  
+else if ( localhist ) then
+  call ccmpi_gatherx(var_g,wvar,0,comm_vnode)
+else if ( myid==0 ) then
+  call hw5a(wvar,sname,idnc,iarch)    
 else
-  call ccmpi_gatherx(var_g,var,0,comm_vnode)
+  call ccmpi_gather(wvar)
 endif
 
 return
@@ -1835,8 +1841,12 @@ endif
 
 if ( local ) then
   call hw5lpr8(wvar,sname,idnc,iarch)  
-else
+else if ( localhist ) then  
   call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
+else if ( myid==0 ) then
+  call hw5ar8(wvar,sname,idnc,iarch)  
+else
+  call ccmpi_gatherr8(wvar)  
 endif
 
 return
@@ -1931,6 +1941,97 @@ end if
 return
 end subroutine hw5lp           
 
+subroutine hw5a(var,sname,idnc,iarch)
+
+use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
+
+implicit none
+
+integer, intent(in) :: idnc, iarch
+integer iq, k, ier, v, kk, l, ll
+integer(kind=4) mid, vtype, lidnc, ndims
+integer(kind=4), dimension(5) :: start, ncount
+real, dimension(:,:,:), intent(in) :: var
+real, dimension(:,:,:), allocatable :: var_g
+real(kind=4) laddoff, lscale_f
+character(len=*), intent(in) :: sname
+integer(kind=2), dimension(:,:,:), allocatable :: ipack_g
+
+kk = size(var,2)
+ll = size(var,3)
+
+!if ( useiobuffer ) then
+!  ! MJT notes - move this to its own subroutine ...  
+!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
+!  write(6,*) "ERROR: iobuffer not yet implemented"
+!  call ccmpi_abort(-1)
+!  return
+!end if
+
+allocate( var_g(ifull_g,kk,ll) )
+
+call ccmpi_gather(var,var_g)
+
+lidnc = idnc
+ier = nf90_inq_varid(lidnc,sname,mid)
+call ncmsg(sname,ier)
+ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+select case(int(ndims))
+  case(5)
+    start(1:5) = (/ 1, 1, 1, 1, iarch /)
+    ncount(1:5) = (/ il, jl, kk, ll, 1 /)
+  case(4)
+    start(1:4) = (/ 1, 1, 1, iarch /)
+    ncount(1:4) = (/ il, jl, kk, 1 /)
+  case(3)
+    start(1:3) = (/ 1, 1, iarch /)
+    ncount(1:3) = (/ il, jl, 1 /)
+  case(2)
+    start(1:2) = (/ 1, 1 /)
+    ncount(1:2) = (/ il, jl /)
+  case default
+    write(6,*) "ERROR: Variable ",trim(sname)," was expected to have 3-6 dimensions"
+    write(6,*) "but was created with ndims = ",ndims
+    call ccmpi_abort(-1)
+end select
+
+if ( vtype==nf90_short ) then
+  allocate( ipack_g(ifull,kk,ll) )
+  if ( all(var_g>9.8e36) ) then
+    ipack_g(:,:,:) = missval
+  else
+    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    do l = 1,ll  
+      do k = 1,kk
+        do iq = 1,ifull
+          ipack_g(iq,k,l) = nint(max(min((var_g(iq,k,l)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
+        end do  
+      end do
+    end do
+  end if
+  ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( ipack_g )
+else
+  ier = nf90_put_var(lidnc,mid,var_g,start=start(1:ndims),count=ncount(1:ndims))
+end if
+call ncmsg(sname,ier)
+
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
+  if ( any(abs(var-real(nf90_fill_float))<1.e-20) ) then
+    write(6,'(" histwrt ",a20,i4,a7)') sname,iarch,"missing"
+  else
+    write(6,'(" histwrt ",a20,i4)') sname,iarch
+  end if
+end if
+
+deallocate( var_g )
+
+return
+end subroutine hw5a 
+
 #ifndef i8r8
 ! procformat and local(write)
 subroutine hw5lpr8(var,sname,idnc,iarch)
@@ -2020,6 +2121,96 @@ end if
 
 return
 end subroutine hw5lpr8    
+
+subroutine hw5ar8(var,sname,idnc,iarch)
+
+use cc_mpi               ! CC MPI routines
+use newmpar_m            ! Grid parameters
+use parm_m               ! Model configuration
+
+implicit none
+
+integer, intent(in) :: idnc, iarch
+integer :: iq, k, ier, v, kk, l, ll
+integer(kind=4) mid, vtype, lidnc, ndims
+integer(kind=4), dimension(6) :: start, ncount
+real(kind=8), dimension(:,:,:), intent(in) :: var
+real(kind=8), dimension(:,:,:), allocatable :: var_g
+real(kind=4) :: laddoff, lscale_f
+character(len=*), intent(in) :: sname
+integer(kind=2), dimension(:,:,:), allocatable :: ipack_g
+
+kk = size(var,2)
+ll = size(var,3)
+
+!if ( useiobuffer ) then
+!  ! MJT notes - move this to its own subroutine ...  
+!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
+!  write(6,*) "ERROR: iobuffer not yet implemented"
+!  call ccmpi_abort(-1)
+!  return
+!end if
+
+allocate( var_g(ifull_g,kk,ll) )
+
+call ccmpi_gatherr8(var,var_g)
+
+lidnc = idnc
+ier = nf90_inq_varid(lidnc,sname,mid)
+call ncmsg(sname,ier)
+ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
+select case(int(ndims))
+  case(5)
+    start(1:5) = (/ 1, 1, 1, 1, iarch /)
+    ncount(1:5) = (/ il, jl, kk, ll, 1 /)
+  case(4)
+    start(1:4) = (/ 1, 1, 1, iarch /)
+    ncount(1:4) = (/ il, jl, kk, 1 /)
+  case(3)
+    start(1:3) = (/ 1, 1, iarch /)
+    ncount(1:3) = (/ il, jl, 1 /)
+  case(2)
+    start(1:2) = (/ 1, 1 /)
+    ncount(1:2) = (/ il, jl /)
+  case default
+    write(6,*) "ERROR: Variable ",trim(sname)," was expected to have 3-6 dimensions"
+    write(6,*) "but was created with ndims = ",ndims
+    call ccmpi_abort(-1)
+end select
+
+if ( vtype==nf90_short ) then
+  allocate( ipack_g(ifull_g,kk,ll) )  
+  if ( all(var>9.8e36_8) ) then
+    ipack_g(:,:,:) = missval
+  else
+    ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
+    ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
+    do l = 1,ll  
+      do k = 1,kk
+        do iq = 1,ifull
+          ipack_g(iq,k,l) = nint(max(min((var_g(iq,k,l)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)), &
+                                 real(minv,8)),2)
+        end do
+      end do
+    end do
+  end if
+  ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( ipack_g )
+else
+  ier = nf90_put_var(lidnc,mid,var_g,start=start(1:ndims),count=ncount(1:ndims))
+end if
+call ncmsg(sname,ier)
+
+if ( mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
+  if ( any(abs(var-real(nf90_fill_float,8))<1.e-20_8) ) then
+    write(6,'(" histwrt5r8 ",a20,i4,a7)') sname,iarch,"missing"
+  else
+    write(6,'(" histwrt5r8 ",a20,i4)') sname,iarch
+  end if
+end if
+
+return
+end subroutine hw5ar8
 #endif
 
 !--------------------------------------------------------------------
