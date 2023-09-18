@@ -483,6 +483,7 @@ real cftmp, cltmp
 real slopes_r, slopes_i
 real esi, apr, bpr, cev
 real dqsdt, bl, satevap
+real tmp, r0_c
 
 real, parameter :: n0r = 8.e6        ! intercept for rain
 real, parameter :: n0g = 4.e6        ! intercept for graupel
@@ -572,21 +573,52 @@ end do   ! k loop
 ! calculate rate of precipitation of frozen cloud water to snow
 if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
 
-  do k = 1,kl
-    do iq = 1,imax
-      
+    
+  select case(leon_snowmeth)
+    case(0) ! Hong (orig) 
       ! autoconversion of ice to snow (from Lin et al 1983)
       ! Threshold from WSM6 scheme, Hong et al 2004, Eq(13) : qi0_crt ~8.e-5
-      if ( qfg(iq,k)*rhoa(iq,k)>qi0_crt ) then
-        qfs  = max( qfg(iq,k)-qi0_crt/rhoa(iq,k), 0. )
-        cdts = tdt*c_psaut*exp(0.025*(ttg(iq,k)-tfrz))
-        dqfs = max( min( qfg(iq,k), qfs*cdts ), 0. )
-        cfautosnow(iq,k)   = cifr(iq,k)
-        qfg(iq,k)          = qfg(iq,k) - dqfs
-        fluxautosnow(iq,k) = dqfs*rhoa(iq,k)*dz(iq,k)
-      end if
+      do k = 1,kl
+        do iq = 1,imax      
+          if ( qfg(iq,k)*rhoa(iq,k)>qi0_crt ) then
+            qfs  = max( qfg(iq,k)-qi0_crt/rhoa(iq,k), 0. )
+            cdts = tdt*c_psaut*exp(0.025*(ttg(iq,k)-tfrz))
+            dqfs = max( min( qfg(iq,k), qfs*cdts ), 0. )
+            cfautosnow(iq,k)   = cifr(iq,k)
+            qfg(iq,k)          = qfg(iq,k) - dqfs
+            fluxautosnow(iq,k) = dqfs*rhoa(iq,k)*dz(iq,k)
+          end if
+        end do
+      end do  
+      
+    case(1) ! Lin
+      do k = 1,kl
+        do iq = 1,imax
+          if ( ttg(iq,k)<251.16 ) then    
+            tmp = -7.6 + 4.*exp( -0.2443e-3*(251.16-ttg(iq,k))**2.455 )
+            r0_c = 1.e-3*exp(tmp)
+          else
+            r0_c = 1.e-3
+          end if  
+          if ( qfg(iq,k)*rhoa(iq,k)>r0_c ) then
+            qfs = max( qfg(iq,k)-r0_c/rhoa(iq,k), 0. )
+            cdts = tdt*c_psaut*exp(0.025*(ttg(iq,k)-tfrz))
+            dqfs = max( min( qfg(iq,k), qfs*cdts ), 0. )
+            cfautosnow(iq,k)    = cifr(iq,k)
+            qfg(iq,k)           = qfg(iq,k) - dqfs
+            fluxautosnow(iq,k) = dqfs*rhoa(iq,k)*dz(iq,k)
+          end if
+        end do
+      end do
+      
+    case default
+      write(6,*) "ERROR: Unknown option for leon_snowmeth = ",leon_snowmeth
+      stop
+  end select   
     
-      ! autoconversion of snow to graupel (from Lin et al 1983)
+  ! autoconversion of snow to graupel (from Lin et al 1983)
+  do k = 1,kl
+    do iq = 1,imax
       if ( qsng(iq,k)*rhoa(iq,k)>qs0_crt ) then
         qfs  = max( qsng(iq,k)-qs0_crt/rhoa(iq,k), 0. )
         cdts = tdt*1.e-3*exp(0.09*(ttg(iq,k)-tfrz))
@@ -595,7 +627,6 @@ if ( ncloud==3 .or. ncloud==4 .or. ncloud==13 ) then
         qsng(iq,k)            = qsng(iq,k) - dqfs
         fluxautograupel(iq,k) = dqfs*rhoa(iq,k)*dz(iq,k)
       end if
-
     end do ! iq loop 
   end do   ! k loop
   
