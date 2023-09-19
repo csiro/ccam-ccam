@@ -26,6 +26,8 @@
 ! itype=-1, iout=21  write ensemble file (uncompressed)
 ! hp_output=0        compressed history file
 ! hp_output=1        uncompressed history file
+! localhist=f        single file output 
+! localhist=t        parallel output for a group of processors (e.g., for a node)
 
 ! Thanks to Paul Ryan for optimising netcdf routines.
     
@@ -1182,27 +1184,27 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'sigma',sig)
 
     lname = 'year-month-day at start of run'
-    call ccnf_def_var(idnc,'kdate','int',1,dima(asize:asize),idkdate)
+    call ccnf_def_var(idnc,'kdate','int',1,dima(d4:d4),idkdate)
     call ccnf_put_att(idnc,idkdate,'long_name',lname)
 
     lname = 'hour-minute at start of run'
-    call ccnf_def_var(idnc,'ktime','int',1,dima(asize:asize),idktime)
+    call ccnf_def_var(idnc,'ktime','int',1,dima(d4:d4),idktime)
     call ccnf_put_att(idnc,idktime,'long_name',lname)
 
     lname = 'timer (hrs)'
-    call ccnf_def_var(idnc,'timer','float',1,dima(asize:asize),idnter)
+    call ccnf_def_var(idnc,'timer','float',1,dima(d4:d4),idnter)
     call ccnf_put_att(idnc,idnter,'long_name',lname)
 
     lname = 'mtimer (mins)'
-    call ccnf_def_var(idnc,'mtimer','int',1,dima(asize:asize),idmtimer)
+    call ccnf_def_var(idnc,'mtimer','int',1,dima(d4:d4),idmtimer)
     call ccnf_put_att(idnc,idmtimer,'long_name',lname)
 
     lname = 'timeg (UTC)'
-    call ccnf_def_var(idnc,'timeg','float',1,dima(asize:asize),idnteg)
+    call ccnf_def_var(idnc,'timeg','float',1,dima(d4:d4),idnteg)
     call ccnf_put_att(idnc,idnteg,'long_name',lname)
 
     lname = 'number of time steps from start'
-    call ccnf_def_var(idnc,'ktau','int',1,dima(asize:asize),idktau)
+    call ccnf_def_var(idnc,'ktau','int',1,dima(d4:d4),idktau)
     call ccnf_put_att(idnc,idktau,'long_name',lname)
 
     lname = 'down'
@@ -1210,20 +1212,20 @@ if ( myid==0 .or. local ) then
     call ccnf_put_att(idnc,idv,'positive',lname)
 
     lname = 'atm stag direction'
-    call ccnf_def_var(idnc,'nstag','int',1,dima(asize:asize),idv)
+    call ccnf_def_var(idnc,'nstag','int',1,dima(d4:d4),idv)
     call ccnf_put_att(idnc,idv,'long_name',lname)
 
     lname = 'atm unstag direction'
-    call ccnf_def_var(idnc,'nstagu','int',1,dima(asize:asize),idv)
+    call ccnf_def_var(idnc,'nstagu','int',1,dima(d4:d4),idv)
     call ccnf_put_att(idnc,idv,'long_name',lname)
 
     lname = 'atm stag offset'
-    call ccnf_def_var(idnc,'nstagoff','int',1,dima(asize:asize),idv)
+    call ccnf_def_var(idnc,'nstagoff','int',1,dima(d4:d4),idv)
     call ccnf_put_att(idnc,idv,'long_name',lname)
 
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'ocn stag offset'
-      call ccnf_def_var(idnc,'nstagoffmlo','int',1,dima(asize:asize),idv)
+      call ccnf_def_var(idnc,'nstagoffmlo','int',1,dima(d4:d4),idv)
       call ccnf_put_att(idnc,idv,'long_name',lname)     
     end if
 
@@ -2666,7 +2668,7 @@ if ( myid==0 .or. local ) then
     write(6,*) 'timer,timeg=',timer,timeg
   end if
   
-else
+else if ( localhist ) then
     
   if ( iarch==1 ) then  
 
@@ -2691,7 +2693,7 @@ else
     
   end if ! if iarchi==1
     
-end if ! myid == 0 .or. local ..else.. 
+end if ! myid == 0 .or. local ..else.. localhist
 
 if ( myid==0 ) then
   if ( iout==19 ) then
@@ -4619,7 +4621,7 @@ if ( first ) then
       deallocate(procoffset)
     end if
     
-  else
+  else if ( localhist ) then
     
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
@@ -4647,7 +4649,7 @@ if ( first ) then
     call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
     deallocate(procoffset)
     
-  end if ! myid==0 .or. local ..else..
+  end if ! myid==0 .or. local ..else.. localhist
   
   if ( cordex_core ) then
     call histwrt(zs,'zht',fncid,fiarch,local,.true.)
@@ -5467,7 +5469,7 @@ if ( first ) then
       deallocate(procoffset)
     end if
     
-  else
+  else if ( localhist ) then
     
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
@@ -5495,7 +5497,7 @@ if ( first ) then
     call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
     deallocate(procoffset)
     
-  end if ! myid==0 .or. local ..else..
+  end if ! myid==0 .or. local ..else.. localhist
   
   first=.false.
   if ( myid==0 ) write(6,*) "Finished initialising sub hourly output"

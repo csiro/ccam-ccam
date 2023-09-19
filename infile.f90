@@ -1571,7 +1571,7 @@ else
 end if
 lcdfid = cdfid
 ldim   = dim
-if ( ndim>3 ) then
+if ( localhist .and. ndim>3 ) then
   ! MJT notes - PR identified (/il, jl, kl,vnode_nproc, min(10, tlen)/) as optimal.
   ! However, here we simplify the code and PR reports that the performance is
   ! similar
@@ -1655,15 +1655,19 @@ character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
 if (.not.lwrite) then
-  wvar(:,1,1)=real(nf90_fill_float)
+  wvar(:,1,1) = real(nf90_fill_float)
 else
-  wvar(:,1,1)=var(:)
+  wvar(:,1,1) = var(:)
 end if
 
 if ( local ) then
   call hw5lp(wvar,sname,idnc,iarch)  
-else 
+else if ( localhist ) then
   call ccmpi_gatherx(var_t,wvar,0,comm_vnode)
+else if ( myid==0 ) then
+  call hw5a(wvar,sname,idnc,iarch)    
+else
+  call ccmpi_gather(wvar)  
 end if
 
 return
@@ -1688,15 +1692,19 @@ character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
 if (.not.lwrite) then
-  wvar(:,1,1)=real(nf90_fill_float,8)
+  wvar(:,1,1) = real(nf90_fill_float,8)
 else
-  wvar(:,1,1)=var(:)
+  wvar(:,1,1) = var(:)
 end if
 
 if ( local ) then
   call hw5lpr8(wvar,sname,idnc,iarch)  
-else
+else if ( localhist ) then
   call ccmpi_gatherxr8(var_t,wvar,0,comm_vnode)
+else if ( myid==0 ) then
+  call hw5ar8(wvar,sname,idnc,iarch)
+else
+  call ccmpi_gatherr8(wvar)  
 end if
 
 return
@@ -1714,25 +1722,26 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer ll
 real, dimension(:,:), intent(in) :: var
 real, dimension(ifull,size(var,2),1) :: wvar
 real, dimension(1,1,1,1) :: var_g
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
-ll = size(var,2)
-
 if ( .not.lwrite ) then
-  wvar(:,:,1)=real(nf90_fill_float)
+  wvar(:,:,1) = real(nf90_fill_float)
 else
-  wvar(1:ifull,:,1)=var(1:ifull,:)
+  wvar(1:ifull,:,1) = var(1:ifull,:)
 endif
 
 if ( local ) then
   call hw5lp(wvar,sname,idnc,iarch)  
-else
+else if ( localhist ) then
   call ccmpi_gatherx(var_g,wvar,0,comm_vnode)
+else if ( myid==0 ) then
+  call hw5a(wvar,sname,idnc,iarch)
+else
+  call ccmpi_gather(wvar)
 endif
 
 return
@@ -1748,25 +1757,26 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer ll
 real(kind=8), dimension(:,:), intent(in) :: var
 real(kind=8), dimension(ifull,size(var,2),1) :: wvar
 real(kind=8), dimension(1,1,1,1) :: var_g
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
-ll = size(var,2)
-
 if ( .not.lwrite ) then
-  wvar(:,:,1)=real(nf90_fill_float)
+  wvar(:,:,1) = real(nf90_fill_float)
 else
-  wvar(1:ifull,:,1)=var(1:ifull,:)
+  wvar(1:ifull,:,1) = var(1:ifull,:)
 endif
 
 if ( local ) then
   call hw5lpr8(wvar,sname,idnc,iarch)  
-else
+else if ( localhist ) then
   call ccmpi_gatherxr8(var_g,wvar,0,comm_vnode)
+else if ( myid==0 ) then
+  call hw5ar8(wvar,sname,idnc,iarch)
+else
+  call ccmpi_gatherr8(wvar)
 endif
 
 return
@@ -1784,20 +1794,16 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer ll, kk
 real, dimension(:,:,:), intent(in) :: var
 real, dimension(ifull,size(var,2),size(var,3)) :: wvar
 real, dimension(1,1,1,1) :: var_g
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
-kk = size(var,2)
-ll = size(var,3)
-
 if ( .not.lwrite ) then
-  wvar=real(nf90_fill_float)
+  wvar = real(nf90_fill_float)
 else
-  wvar(:,:,:)=var(1:ifull,1:kk,1:ll)
+  wvar(:,:,:) = var(1:ifull,:,:)
 endif
 
 if ( local ) then
@@ -1823,20 +1829,16 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer kk, ll
 real(kind=8), dimension(:,:,:), intent(in) :: var
 real(kind=8), dimension(ifull,size(var,2),size(var,3)) :: wvar
 real(kind=8), dimension(1,1,1,1) :: var_g
 character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
-kk = size(var,2)
-ll = size(var,3)
-
 if ( .not.lwrite ) then
-  wvar=real(nf90_fill_float)
+  wvar = real(nf90_fill_float)
 else
-  wvar(:,:,:)=var(1:ifull,1:kk,1:ll)
+  wvar(:,:,:) = var(1:ifull,:,:)
 endif
 
 if ( local ) then
@@ -1962,14 +1964,6 @@ integer(kind=2), dimension(:,:,:), allocatable :: ipack_g
 kk = size(var,2)
 ll = size(var,3)
 
-!if ( useiobuffer ) then
-!  ! MJT notes - move this to its own subroutine ...  
-!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
-!  write(6,*) "ERROR: iobuffer not yet implemented"
-!  call ccmpi_abort(-1)
-!  return
-!end if
-
 allocate( var_g(ifull_g,kk,ll) )
 
 call ccmpi_gather(var,var_g)
@@ -1981,24 +1975,24 @@ ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 select case(int(ndims))
   case(5)
     start(1:5) = (/ 1, 1, 1, 1, iarch /)
-    ncount(1:5) = (/ il, jl, kk, ll, 1 /)
+    ncount(1:5) = (/ il_g, jl_g, kk, ll, 1 /)
   case(4)
     start(1:4) = (/ 1, 1, 1, iarch /)
-    ncount(1:4) = (/ il, jl, kk, 1 /)
+    ncount(1:4) = (/ il_g, jl_g, kk, 1 /)
   case(3)
     start(1:3) = (/ 1, 1, iarch /)
-    ncount(1:3) = (/ il, jl, 1 /)
+    ncount(1:3) = (/ il_g, jl_g, 1 /)
   case(2)
     start(1:2) = (/ 1, 1 /)
-    ncount(1:2) = (/ il, jl /)
+    ncount(1:2) = (/ il_g, jl_g /)
   case default
-    write(6,*) "ERROR: Variable ",trim(sname)," was expected to have 3-6 dimensions"
+    write(6,*) "ERROR: Variable ",trim(sname)," was expected to have 2-5 dimensions"
     write(6,*) "but was created with ndims = ",ndims
     call ccmpi_abort(-1)
 end select
 
 if ( vtype==nf90_short ) then
-  allocate( ipack_g(ifull,kk,ll) )
+  allocate( ipack_g(ifull_g,kk,ll) )
   if ( all(var_g>9.8e36) ) then
     ipack_g(:,:,:) = missval
   else
@@ -2006,7 +2000,7 @@ if ( vtype==nf90_short ) then
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
     do l = 1,ll  
       do k = 1,kk
-        do iq = 1,ifull
+        do iq = 1,ifull_g
           ipack_g(iq,k,l) = nint(max(min((var_g(iq,k,l)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
         end do  
       end do
@@ -2162,16 +2156,16 @@ ier = nf90_inquire_variable(lidnc,mid,xtype=vtype,ndims=ndims)
 select case(int(ndims))
   case(5)
     start(1:5) = (/ 1, 1, 1, 1, iarch /)
-    ncount(1:5) = (/ il, jl, kk, ll, 1 /)
+    ncount(1:5) = (/ il_g, jl_g, kk, ll, 1 /)
   case(4)
     start(1:4) = (/ 1, 1, 1, iarch /)
-    ncount(1:4) = (/ il, jl, kk, 1 /)
+    ncount(1:4) = (/ il_g, jl_g, kk, 1 /)
   case(3)
     start(1:3) = (/ 1, 1, iarch /)
-    ncount(1:3) = (/ il, jl, 1 /)
+    ncount(1:3) = (/ il_g, jl_g, 1 /)
   case(2)
     start(1:2) = (/ 1, 1 /)
-    ncount(1:2) = (/ il, jl /)
+    ncount(1:2) = (/ il_g, jl_g /)
   case default
     write(6,*) "ERROR: Variable ",trim(sname)," was expected to have 3-6 dimensions"
     write(6,*) "but was created with ndims = ",ndims
@@ -2187,7 +2181,7 @@ if ( vtype==nf90_short ) then
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
     do l = 1,ll  
       do k = 1,kk
-        do iq = 1,ifull
+        do iq = 1,ifull_g
           ipack_g(iq,k,l) = nint(max(min((var_g(iq,k,l)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)), &
                                  real(minv,8)),2)
         end do

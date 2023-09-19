@@ -2956,7 +2956,7 @@ end if
 
 ! This is the procformat IO system where a single output file is
 ! written per (virtual) node
-call ccmpi_procformat_init(procmode) 
+call ccmpi_procformat_init(localhist,procmode) 
 
 
 !--------------------------------------------------------------

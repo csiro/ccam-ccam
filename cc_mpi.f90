@@ -7269,8 +7269,9 @@ contains
    
    end subroutine ccmpi_finalize
    
-   subroutine ccmpi_procformat_init(procmode)
+   subroutine ccmpi_procformat_init(localhist,procmode)
       integer, intent(inout) :: procmode
+      logical, intent(in) :: localhist
 #ifdef usempi3
       integer(kind=4) :: lcolour, lcomm, lrank
       integer(kind=4) :: lcommout, lerr, lsize
@@ -7278,79 +7279,91 @@ contains
 
       if ( ccomp_get_thread_num() /= 0 ) return
 
+      if ( localhist ) then
 #ifdef usempi3
-      ! configure procmode
-      if ( procmode == 0 ) then
-         ! procmode=0 uses existing nodes, even if they have different numbers of processes
-         ! Intra-procmode communicator 
-         comm_vnode  = comm_node
-         vnode_nproc = node_nproc
-         vnode_myid  = node_myid
-         ! Inter-procmode communicator
-         comm_vleader  = comm_nodecaptain
-         vleader_nproc = nodecaptain_nproc
-         vleader_myid  = nodecaptain_myid
-         ! Communicate procmode id
-         vnode_vleaderid = node_captainid
-         procmode = node_nproc ! can be different on different nodes
-         if ( myid == 0 ) then
-            write(6,*) "Configure procformat output with procmode=",procmode
+         ! configure procmode
+         if ( procmode == 0 ) then
+            ! procmode=0 uses existing nodes, even if they have different numbers of processes
+            ! Intra-procmode communicator 
+            comm_vnode  = comm_node
+            vnode_nproc = node_nproc
+            vnode_myid  = node_myid
+            ! Inter-procmode communicator
+            comm_vleader  = comm_nodecaptain
+            vleader_nproc = nodecaptain_nproc
+            vleader_myid  = nodecaptain_myid
+            ! Communicate procmode id
+            vnode_vleaderid = node_captainid
+            procmode = node_nproc ! can be different on different nodes
+            if ( myid == 0 ) then
+               write(6,*) "Configure procformat output with procmode=",procmode
+            end if
+         else
+            ! user specified procmode>0 
+            procmode = max(procmode, 1) 
+            do while ( mod(node_nproc,procmode) /= 0 )
+               procmode = procmode - 1 ! can be different on different nodes
+            end do  
+            if ( myid == 0 ) then
+               write(6,*) "Configure procformat output with procmode=",procmode
+            end if
+            ! Intra-procmode communicator
+            lcolour = node_myid/procmode
+            lcomm = comm_node
+            lrank = node_myid
+            call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
+            comm_vnode = lcommout
+            call MPI_Comm_Size(lcommout, lsize, lerr)
+            vnode_nproc = lsize
+            call MPI_Comm_Rank(lcommout, lrank, lerr)
+            vnode_myid = lrank
+            ! Inter-procmode communicator
+            lcolour = vnode_myid
+            lcomm = comm_world
+            lrank = myid
+            call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
+            comm_vleader = lcommout
+            call MPI_Comm_Size(lcommout, lsize, lerr)
+            vleader_nproc = lsize
+            call MPI_Comm_Rank(lcommout, lrank, lerr)
+            vleader_myid = lrank
+            ! Communicate procmode id
+            lcomm = comm_vnode
+            lrank = vleader_myid
+            call MPI_Bcast( lrank, 1_4, MPI_INTEGER, 0_4, lcomm, lerr )
+            vnode_vleaderid = lrank
          end if
-      else
-         ! user specified procmode>0 
-         procmode = max(procmode, 1) 
-         do while ( mod(node_nproc,procmode) /= 0 )
-            procmode = procmode - 1 ! can be different on different nodes
-         end do  
-         if ( myid == 0 ) then
-            write(6,*) "Configure procformat output with procmode=",procmode
-         end if
-         ! Intra-procmode communicator
-         lcolour = node_myid/procmode
-         lcomm = comm_node
-         lrank = node_myid
-         call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
-         comm_vnode = lcommout
-         call MPI_Comm_Size(lcommout, lsize, lerr)
-         vnode_nproc = lsize
-         call MPI_Comm_Rank(lcommout, lrank, lerr)
-         vnode_myid = lrank
-         ! Inter-procmode communicator
-         lcolour = vnode_myid
-         lcomm = comm_world
-         lrank = myid
-         call MPI_Comm_Split(lcomm, lcolour, lrank, lcommout, lerr)
-         comm_vleader = lcommout
-         call MPI_Comm_Size(lcommout, lsize, lerr)
-         vleader_nproc = lsize
-         call MPI_Comm_Rank(lcommout, lrank, lerr)
-         vleader_myid = lrank
-         ! Communicate procmode id
-         lcomm = comm_vnode
-         lrank = vleader_myid
-         call MPI_Bcast( lrank, 1_4, MPI_INTEGER, 0_4, lcomm, lerr )
-         vnode_vleaderid = lrank
-      end if
-      ! just an internal check to make sure there are no errors
-      if ( myid==0 .and. vnode_myid/=0 ) then
-         write(6,*) "ERROR: vnode_myid/=0 with myid==0"
-         call ccmpi_abort(-1)
-      end if   
+         ! just an internal check to make sure there are no errors
+         if ( myid==0 .and. vnode_myid/=0 ) then
+            write(6,*) "ERROR: vnode_myid/=0 with myid==0"
+            call ccmpi_abort(-1)
+         end if   
 #else
-      if ( myid == 0 ) then  
-         write(6,*) "Set procmode=1 as CCAM was compiled without -Dusempi3"
-      end if  
-      procmode = 1
-      ! Intra-procmode communicator
-      comm_vnode = comm_node
-      vnode_nproc = node_nproc ! =1
-      vnode_myid = node_myid   ! =0
-      ! Inter-procmode communicator
-      comm_vleader = comm_world
-      vleader_nproc = nproc
-      vleader_myid = myid
-      vnode_vleaderid = vleader_myid
+         if ( myid == 0 ) then  
+            write(6,*) "Set procmode=1 as CCAM was compiled without -Dusempi3"
+         end if  
+         procmode = 1
+         ! Intra-procmode communicator
+         comm_vnode = comm_node
+         vnode_nproc = node_nproc ! =1
+         vnode_myid = node_myid   ! =0
+         ! Inter-procmode communicator
+         comm_vleader = comm_world
+         vleader_nproc = nproc
+         vleader_myid = myid
+         vnode_vleaderid = vleader_myid
 #endif
+      else
+         ! localhist = .false.
+         procmode = nproc
+         comm_vnode = comm_world
+         vnode_nproc = nproc
+         vnode_myid = myid
+         comm_vleader = comm_world
+         vleader_nproc = nproc
+         vleader_myid = myid
+         vnode_vleaderid = 0
+      end if
 
    end subroutine ccmpi_procformat_init
    

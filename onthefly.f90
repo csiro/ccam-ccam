@@ -464,6 +464,7 @@ m_fly_l = m_fly
 ! Determine if interpolation is required
 gridtest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
            abs(schmidtx-schmidt)<iotol
+! Additional checks to make sure restart data is avaliable and land-sea mask is matched
 iotest = gridtest .and. (nsib==nsibx.or.nested==1.or.nested==3) .and. native_ccam==1
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   iotest = iotest .and. wlev==ok
