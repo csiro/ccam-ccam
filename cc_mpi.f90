@@ -1392,12 +1392,13 @@ contains
 #endif
       integer(kind=4) :: ierr, lsize
       integer(kind=4) :: lcomm
-      integer(kind=4) :: itag = 52
+      integer(kind=4), save :: itag=52
 
       if ( ccomp_get_thread_num() /= 0 ) return
       kx = size(a,2)
       lsize = ifull*kx
       lcomm = comm_world
+      itag = mod( itag+1, 100 )
       ! Set up the buffers to recv
       nreq = 0
       do w = 1,size(specmap_recv)
@@ -4731,7 +4732,8 @@ contains
       integer :: iproc, jproc, dproc
       integer :: ip, jp, xn, kx
       integer :: iq, k, idel, jdel, nf, rcount
-      integer(kind=4) :: itag=99, ierr, llen, ncount, sreq, lproc
+      integer(kind=4), save :: itag=99
+      integer(kind=4) :: ierr, llen, ncount, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,size(ireq)) :: status
       integer(kind=4), dimension(neighnum) :: donelist
@@ -4751,6 +4753,7 @@ contains
       drlen(:) = 0
       dproc = 0
       lcomm = comm_world
+      itag = mod( itag+1, 100 )
       
       ! In this case the length of each buffer is unknown and will not
       ! be symmetric between processors. Therefore need to get the length
@@ -4880,7 +4883,7 @@ contains
    subroutine intssync_send4(ntr)
       integer, intent(in) :: ntr
       integer :: iproc
-      integer(kind=4), parameter :: itag=98
+      integer(kind=4), save :: itag=98
       integer(kind=4) :: ierr, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -4897,6 +4900,7 @@ contains
 
       ! When sending the results, roles of dslen and drlen are reversed
       lcomm = comm_world
+      itag = mod( itag+1, 100 )
       nreq = 0
       do iproc = 1,neighnum
          if ( dslen(iproc) > 0 ) then
@@ -8548,6 +8552,7 @@ contains
 
       !     Set up the buffers to send and recv
       lcomm = comm_world
+      itag = 20 + g
       nreq = 0
       do iproc = 1,mg(g)%neighnum
          recv_len = rslen(iproc)
@@ -9225,8 +9230,8 @@ contains
       integer, intent(in) :: comm_ip
       integer :: iproc, iq, kx, send_len, k
       integer, dimension(fileneighnum) :: rslen, sslen
+      integer(kind=4), save :: itag=41
       integer(kind=4) :: llen, lproc, ierr, lcomm
-      integer(kind=4) :: itag=41
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -9260,6 +9265,8 @@ contains
          rslen(:) = rslen(:)*filebnds(fileneighlist)%r_enable
          sslen(:) = sslen(:)*filebnds(fileneighlist)%s_enable
       end if
+      
+      itag = mod( itag+1, 100 )
 
       !     Set up the buffers to send and recv
       nreq = 0
