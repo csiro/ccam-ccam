@@ -356,54 +356,67 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 
 ! perform diffusion ---------------------------------------------------
 
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
-  ! potential temperture and water vapour
-  do k = 1,kl
-    t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
-  end do
-end if
-
 !$acc data create(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
 !$acc update device(xfact,yfact,emi,in,is,ie,iw,iwu,isv)
 
 ! momentum U, V, W
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   !$omp parallel sections
-  !$omp section  
-  call hordifgt_work(uc,xfact,yfact,emi)
   !$omp section
-  call hordifgt_work(vc,xfact,yfact,emi)
+  call hordifgt_work(uc,xfact,yfact,emi,1)
   !$omp section
-  call hordifgt_work(wc,xfact,yfact,emi)
+  call hordifgt_work(vc,xfact,yfact,emi,2)
+  !$omp section
+  call hordifgt_work(wc,xfact,yfact,emi,3)
   !$omp end parallel sections
+  do k = 1,kl
+    u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
+                 + ay(1:ifull)*vc(1:ifull,k) &
+                 + az(1:ifull)*wc(1:ifull,k)
+    v(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) &
+                 + by(1:ifull)*vc(1:ifull,k) &
+                 + bz(1:ifull)*wc(1:ifull,k)
+  end do
 end if  
 
 
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
   ! potential temperture and water vapour
+  do k = 1,kl
+    t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
+  end do    
   work(1:ifull,:,1) = t(1:ifull,:)
   work(1:ifull,:,2) = qg(1:ifull,:)
   call bounds(work(:,:,1:2))
-  t(:,:)  = work(:,:,1)
-  qg(:,:) = work(:,:,2)
+  t(ifull+1:ifull+iextra,:)  = work(ifull+1:ifull+iextra,:,1)
+  qg(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
   !$omp parallel sections
   !$omp section
-  call hordifgt_work(t,xfact,yfact,emi)
+  call hordifgt_work(t,xfact,yfact,emi,4)
+  do k = 1,kl
+    t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
+  end do
   !$omp section
-  call hordifgt_work(qg,xfact,yfact,emi)
+  call hordifgt_work(qg,xfact,yfact,emi,5)  
   !$omp end parallel sections
 end if
 
 if ( nhorps==-5 ) then
   ! potential temperature
+  do k = 1,kl
+    t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull) ! watch out for Chen!
+  end do    
   call bounds(t)  
-  call hordifgt_work(t,xfact,yfact,emi)
+  call hordifgt_work(t,xfact,yfact,emi,4)
+  do k = 1,kl
+    t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
+  end do
 end if
 
 if ( nhorps==-3 ) then  
   ! water vapour  
   call bounds(qg)  
-  call hordifgt_work(qg,xfact,yfact,emi)  
+  call hordifgt_work(qg,xfact,yfact,emi,5)  
 end if  
 
 
@@ -417,19 +430,18 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   qlg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,1)
   qfg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,2)
   stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
-  ni(ifull+1:ifull+iextra,:)         = work(ifull+1:ifull+iextra,:,4)
-
+  ni(ifull+1:ifull+iextra,:)         = work(ifull+1:ifull+iextra,:,3)
+  
   !$omp parallel sections
   !$omp section
-  call hordifgt_work(qlg,xfact,yfact,emi)
+  call hordifgt_work(qlg,xfact,yfact,emi,6)
   !$omp section
-  call hordifgt_work(qfg,xfact,yfact,emi)
+  call hordifgt_work(qfg,xfact,yfact,emi,7)
   !$omp section
-  call hordifgt_work(stratcloud,xfact,yfact,emi)
+  call hordifgt_work(stratcloud,xfact,yfact,emi,8)
   !$omp section
-  call hordifgt_work(ni,xfact,yfact,emi)
+  call hordifgt_work(ni,xfact,yfact,emi,9)  
   !$omp end parallel sections
-  
 end if
 
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
@@ -437,14 +449,14 @@ if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   work(1:ifull,:,1) = tke(1:ifull,:)
   work(1:ifull,:,2) = eps(1:ifull,:)
   call bounds(work(:,:,1:2))
-  tke(:,:) = work(:,:,1)
-  eps(:,:) = work(:,:,2)
+  tke(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,1)
+  eps(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
 
   !$omp parallel sections
   !$omp section
-  call hordifgt_work(eps,xfact,yfact,emi)
+  call hordifgt_work(eps,xfact,yfact,emi,10)
   !$omp section
-  call hordifgt_work(tke,xfact,yfact,emi)
+  call hordifgt_work(tke,xfact,yfact,emi,11)
   !$omp end parallel sections
 end if
 
@@ -453,35 +465,15 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   call bounds(xtg)  
   !$omp parallel do schedule(static) private(ntr)
   do ntr = 1,naero
-    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
+    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi,ntr)
   end do
   !$omp end parallel do
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
-!$acc wait
 !$acc end data
 
 
 ! post-processing -----------------------------------------------------
-
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  do k = 1,kl
-    u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
-                 + ay(1:ifull)*vc(1:ifull,k) &
-                 + az(1:ifull)*wc(1:ifull,k)
-    v(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) &
-                 + by(1:ifull)*vc(1:ifull,k) &
-                 + bz(1:ifull)*wc(1:ifull,k)
-  end do
-end if  
-
-! potential temperture
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
-  do k = 1,kl
-    t(1:ifull,k) = ptemp(1:ifull)*t(1:ifull,k)
-  end do
-end if
-
 if ( diag .and. mydiag ) then
   do k = 1,kl
     write(6,*) 'k,id,jd,idjd ',k,id,jd,idjd
@@ -495,7 +487,7 @@ endif
 return
 end subroutine hordifgt
 
-subroutine hordifgt_work(work,xfact,yfact,emi)
+subroutine hordifgt_work(work,xfact,yfact,emi,async)
 
 use cc_acc, only : async_length
 use indices_m
@@ -503,15 +495,15 @@ use newmpar_m
 
 implicit none
 
-integer k, iq
-integer, save :: async_counter = -1
+integer, intent(in) :: async
+integer k, iq, async_counter
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
 real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
-async_counter = mod(async_counter+1, async_length)
+async_counter = mod(async, async_length)
 
 !$acc enter data create(ans,work) async(async_counter)
 !$acc update device(work) async(async_counter)
@@ -539,7 +531,7 @@ do k = 1,kl
   end do
 end do
 !$acc end parallel loop
-!$acc update self(work(1:ifull,:)) async(async_counter)
+!$acc update self(work) async(async_counter)
 !$acc exit data delete(ans,work) async(async_counter)
 
 return

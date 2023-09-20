@@ -3746,7 +3746,8 @@ contains
       integer :: rcount, jproc, mproc, ntr, iq, k, l
       integer :: nstart, nend, ntot
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=3, llen, sreq, lproc
+      integer(kind=4), save :: itag=3
+      integer(kind=4) :: ierr, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
@@ -3801,6 +3802,8 @@ contains
       do nstart = 1,ntr,nagg
          nend = min(nstart+nagg-1,ntr)
          ntot = nend - nstart + 1
+         
+         itag = mod( itag+1, 100 )
       
          ! Set up the buffers to send
          nreq = 0
@@ -3888,7 +3891,8 @@ contains
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, jproc, mproc, iq, k
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 2, llen, sreq, lproc
+      integer(kind=4), save :: itag=2
+      integer(kind=4) :: ierr, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION      
       integer(kind=4), dimension(neighnum) :: donelist
@@ -3935,6 +3939,7 @@ contains
 
       ! Set up the buffers to send and recv
       lcomm = comm_world
+      itag = mod( itag+1, 100 )
       nreq = 0
       do iproc = 1,neighnum
          recv_len = rslen(iproc)
@@ -4011,7 +4016,8 @@ contains
       logical, intent(in), optional :: corner
       logical :: extra
       integer :: iproc, kx, recv_len, iqq, ibeg, iend, iq, k
-      integer(kind=4) :: ierr, itag=4, llen, lproc, lcomm
+      integer(kind=4), save :: itag=4
+      integer(kind=4) :: ierr, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -4036,6 +4042,7 @@ contains
 
 !     Set up the buffers to send and recv
       lcomm = comm_world
+      itag = mod( itag+1, 100 )
       nreq = 0
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
@@ -4271,8 +4278,9 @@ contains
       logical :: fsuev, fnnueev
       integer :: iq, iqz, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode, k
+      integer(kind=4), save :: itag=6
       integer :: nstart, nend, ntot, ntr, naggh, l
-      integer(kind=4) :: ierr, itag=6, llen, sreq, lproc
+      integer(kind=4) :: ierr, llen, sreq, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(neighnum) :: donelist
 #ifdef i8r8
@@ -4382,6 +4390,7 @@ contains
          ntot = nend - nstart + 1
 
 !        Set up the buffers to send and recv
+         itag = mod( itag+1, 100 )
          nreq = 0
          do iproc = 1,neighnum
             rproc = neighlist(iproc)  ! Recv from
