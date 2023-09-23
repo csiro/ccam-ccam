@@ -62,7 +62,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mlosurf,mlonewice,mlo_ema,minsfc,minsal,maxsal,icemax
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
-public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl
+public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
 public mlo_timeave_length,kemaxdt
 
 #ifdef CCAM
@@ -213,11 +213,12 @@ type(depthdata), dimension(:), allocatable, save :: depth_g
 type(turbdata), dimension(:), allocatable, save :: turb_g
   
 ! mode
-integer, save :: zomode    = 2            ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
-integer, save :: otaumode  = 0            ! momentum coupling (0=Explicit, 1=Implicit)
-integer, save :: mlosigma  = 6            ! vertical levels (4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
-integer, save :: oclosure  = 0            ! 0=kpp, 1=k-eps
-integer, save :: usepice   = 0            ! include ice in surface pressure (0=without ice, 1=with ice)
+integer, save :: zomode     = 2           ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, save :: otaumode   = 0           ! momentum coupling (0=Explicit, 1=Implicit)
+integer, save :: mlosigma   = 6           ! vertical levels (4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
+integer, save :: oclosure   = 0           ! 0=kpp, 1=k-eps
+integer, save :: usepice    = 0           ! include ice in surface pressure (0=without ice, 1=with ice)
+integer, save :: mlo_adjeta = 1           ! allow adjustment to surface outside dynamics (0=off, 1=all)
 real, save :: pdu    = 2.7                ! zoom factor near the surface for mlosigma==gotm
 real, save :: pdl    = 0.0                ! zoom factor near the bottom for mlosigma==gotm
 real, save :: kemaxdt = 120.              ! max time-step for k-e coupling
@@ -2669,8 +2670,10 @@ if ( calcprog==0 ) then
 end if
 if ( calcprog==0 .or. calcprog==2 .or. calcprog==3 ) then
 
-  ! adjust surface height
-  water%eta = d_neta
+  if ( mlo_adjeta>0 ) then
+    ! adjust surface height
+    water%eta = d_neta
+  end if
 
 end if
 
@@ -3749,7 +3752,9 @@ dgwater%wt0 = -(1.-ice%fracice)*(-dgwater%fg)/(wrtrho*cp0) + dgwater%wt0_eg + dg
 dgwater%ws0 = (1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/wrtrho
 dgwater%ws0_subsurf = atm_inflow*water%sal(:,1)/wrtrho ! inflow under ice
 
-d_neta = d_neta + dt*(atm_inflow+(1.-ice%fracice)*(atm_rnd+atm_snd))/wrtrho
+if ( mlo_adjeta>0 ) then
+  d_neta = d_neta + dt*(atm_inflow+(1.-ice%fracice)*(atm_rnd+atm_snd))/wrtrho
+end if
 
 return
 end subroutine getwflux
@@ -4113,8 +4118,10 @@ dgwater%eg=min(max(dgwater%eg,-3000.),3000.)
 dgwater%taux=rho*dgwater%cd*atu
 dgwater%tauy=rho*dgwater%cd*atv
 
-! update free surface after evaporation
-d_neta=d_neta-0.001*dt*(1.-ice%fracice)*dgwater%eg/lv
+if ( mlo_adjeta>0 ) then
+  ! update free surface after evaporation
+  d_neta=d_neta-0.001*dt*(1.-ice%fracice)*dgwater%eg/lv
+end if
 
 return
 end subroutine fluxcalc
@@ -4173,7 +4180,7 @@ d_salflx=0.                                               ! fresh water flux
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.) ! water avaliable for freezing
 
 ! Ice depth limitation for poor initial conditions
-ice%thick=ice%thick-max(ice%thick-icemax,0.)  
+ice%thick=min(ice%thick, icemax)  
 ! no temperature or salinity conservation
 
 ! update ice prognostic variables
@@ -4181,11 +4188,14 @@ call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_wavail,diag, &
                 dgice,ice)
 
 ! Ice depth limitation for poor initial conditions
-ice%thick=ice%thick-max(ice%thick-icemax,0.)  
+ice%thick=min(ice%thick, icemax)  
 ! no temperature or salinity conservation
 
 dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/wrtrho
-d_neta = d_neta - dt*ice%fracice*d_salflx/wrtrho
+
+if ( mlo_adjeta>0 ) then
+  d_neta = d_neta - dt*ice%fracice*d_salflx/wrtrho
+end if
 
 return
 end subroutine mloice
@@ -4344,8 +4354,10 @@ where ( lremove )
   ice%temp(:,2)=273.16
 end where
 
-! MJT notes - remove salt flux between ice and water for now
-water%eta = d_neta
+if ( mlo_adjeta>0 ) then
+  ! MJT notes - remove salt flux between ice and water for now
+  water%eta = d_neta
+end if
 
 call mlocheck("MLO-icemelt",water_temp=water%temp,water_sal=water%sal,ice_tsurf=ice%tsurf, &
               ice_temp=ice%temp,ice_thick=ice%thick)

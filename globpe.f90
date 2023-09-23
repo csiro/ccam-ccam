@@ -1393,7 +1393,8 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,nopb,fixedstabfunc,omink            &
     ,omineps,mlovlevels                  &
     ,usepice,ominl,omaxl                 &
-    ,mlo_timeave_length,kemaxdt
+    ,mlo_timeave_length,kemaxdt          &
+    ,mlo_adjeta
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
@@ -1590,7 +1591,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
-    ocnlap,                                                       &
+    ocnlap,mlo_adjeta,                                            &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2503,7 +2504,7 @@ ateb_infilmeth    = dumi(27)
 cable_roughness   = dumi(28)
 cable_potev       = dumi(29)
 deallocate( dumr, dumi )
-allocate( dumr(21), dumi(21) )
+allocate( dumr(21), dumi(22) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2555,6 +2556,7 @@ if ( myid==0 ) then
   dumi(19) = nodrift
   dumi(20) = mlontvd
   dumi(21) = mlodiff_numits
+  dumi(22) = mlo_adjeta
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2600,6 +2602,7 @@ mlomfix            = dumi(18)
 nodrift            = dumi(19)
 mlontvd            = dumi(20)
 mlodiff_numits     = dumi(21)
+mlo_adjeta         = dumi(22)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0

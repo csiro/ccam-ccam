@@ -899,7 +899,7 @@ use mlo, only : waterdata,icedata, & ! Ocean physics and prognostic arrays
   dgwaterdata,dgicedata,dgscrndata,& 
   depthdata,mloeval,               & 
   mloexport,mloimport,mloextra,    &
-  mloexpice,turbdata
+  mloexpice,turbdata,mlo_adjeta
 use newmpar_m                        ! Grid parameters
 use parm_m                           ! Model configuration
 use soil_m, only : zmin              ! Soil and surface data
@@ -950,17 +950,19 @@ else if ( abs(nmlo)>=2 ) then                                                   
     dumw(1:imax) = watbdy(1:imax)/dt                                                           ! MLO
     watbdy(1:imax) = 0.                                                                        ! MLO
   end where                                                                                    ! MLO
-  ! lake outflow                                                                               ! MLO
-  neta(1:imax) = 0.                                                                            ! MLO
-  call mloexport("eta",neta,0,0,water,depth)                                                   ! MLO
-  do iq = 1,imax                                                                               ! MLO
-    if ( outflowmask(iq) ) then                                                                ! MLO
-      oflow = max( neta(iq), 0. )                                                              ! MLO
-      watbdy(iq) = watbdy(iq) + 1000.*oflow                                                    ! MLO
-      neta(iq) = neta(iq) - oflow                                                              ! MLO
-    end if                                                                                     ! MLO
-  end do                                                                                       ! MLO  
-  call mloimport("eta",neta,0,0,water,depth)                                                   ! MLO
+  if ( mlo_adjeta>0 ) then                                                                     ! MLO
+    ! lake outflow                                                                             ! MLO
+    neta(1:imax) = 0.                                                                          ! MLO
+    call mloexport("eta",neta,0,0,water,depth)                                                 ! MLO
+    do iq = 1,imax                                                                             ! MLO
+      if ( outflowmask(iq) ) then                                                              ! MLO
+        oflow = max( neta(iq), 0. )                                                            ! MLO
+        watbdy(iq) = watbdy(iq) + 1000.*oflow                                                  ! MLO
+        neta(iq) = neta(iq) - oflow                                                            ! MLO
+      end if                                                                                   ! MLO
+    end do                                                                                     ! MLO  
+    call mloimport("eta",neta,0,0,water,depth)                                                 ! MLO
+  end if                                                                                       ! MLO
 else                                                                                           ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
 end if                                                                                         ! MLO
@@ -1147,9 +1149,9 @@ urban_wetfac = 0.                                                               
 u_rn = 0.                                                                                        ! urban
 u_evspsbl = 0.                                                                                   ! urban
 u_sbl = 0.                                                                                       ! urban
-! call aTEB                                                                                      ! urban
+! call UCLEM                                                                                     ! urban
 call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_evspsbl,u_sbl,dt,azmin,sgdn,dumrg,     &    ! urban
-              dumx,dums,rho,t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,              &    ! urban
+              dumx,dums,rho,t,qg,ps,uzon,vmer,vmodmin,                                      &    ! urban
               fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,    &    ! urban
               roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                    ! urban
 u_sigma = unpack(fp%sigmau,upack,0.)                                                             ! urban
@@ -1158,7 +1160,7 @@ where ( u_sigma>0. )                                                            
   eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                            ! urban
   tss = (1.-u_sigma)*tss + u_sigma*urban_ts                                                      ! urban
   wetfac = (1.-u_sigma)*wetfac + u_sigma*urban_wetfac                                            ! urban
-  ! since ateb will blend non-urban and urban runoff, it is                                      ! urban
+  ! since UCLEM will blend non-urban and urban runoff, it is                                      ! urban
   ! easier to remove the new runoff and add it again after the                                   ! urban
   ! urban scheme has been updated                                                                ! urban
   runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                            ! urban

@@ -181,7 +181,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,alphavis_seasnw,alphanir_seasnw     &
     ,mlosigma,oclosure,usepice,ominl     &
     ,omaxl,mlo_timeave_length,kemaxdt    &
-    ,omineps,omink
+    ,omineps,omink,mlo_adjeta
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
@@ -887,6 +887,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'kemaxdt',kemaxdt)
     call ccnf_put_attg(idnc,'mindep',mindep)
     call ccnf_put_attg(idnc,'minwater',minwater)
+    call ccnf_put_attg(idnc,'mlo_adjeta',mlo_adjeta)
     call ccnf_put_attg(idnc,'mlo_timeave_length',mlo_timeave_length)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlodiff_numits',mlodiff_numits)
