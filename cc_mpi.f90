@@ -9266,8 +9266,6 @@ contains
          sslen(:) = sslen(:)*filebnds(fileneighlist)%s_enable
       end if
       
-      itag = mod( itag+1, 100 )
-
       !     Set up the buffers to send and recv
       nreq = 0
       do iproc = 1,fileneighnum

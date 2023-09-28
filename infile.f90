@@ -1836,7 +1836,7 @@ character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
 if ( .not.lwrite ) then
-  wvar = real(nf90_fill_float)
+  wvar(:,:,:) = real(nf90_fill_float)
 else
   wvar(:,:,:) = var(1:ifull,:,:)
 endif
@@ -2137,14 +2137,6 @@ integer(kind=2), dimension(:,:,:), allocatable :: ipack_g
 kk = size(var,2)
 ll = size(var,3)
 
-!if ( useiobuffer ) then
-!  ! MJT notes - move this to its own subroutine ...  
-!  !call add_iobuffer(idnc,mid,ndims,ifull,istep,vnode_nproc,start,ncount,var)
-!  write(6,*) "ERROR: iobuffer not yet implemented"
-!  call ccmpi_abort(-1)
-!  return
-!end if
-
 allocate( var_g(ifull_g,kk,ll) )
 
 call ccmpi_gatherr8(var,var_g)
@@ -2167,7 +2159,7 @@ select case(int(ndims))
     start(1:2) = (/ 1, 1 /)
     ncount(1:2) = (/ il_g, jl_g /)
   case default
-    write(6,*) "ERROR: Variable ",trim(sname)," was expected to have 3-6 dimensions"
+    write(6,*) "ERROR: Variable ",trim(sname)," was expected to have 2-5 dimensions"
     write(6,*) "but was created with ndims = ",ndims
     call ccmpi_abort(-1)
 end select

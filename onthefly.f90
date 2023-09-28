@@ -2367,7 +2367,7 @@ call ccmpi_filebounds_reset
 
 do while ( any(nrem(:)>0) )
   c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pipan, pjpan, pnpan, mynproc, kx /) )
-  call ccmpi_filebounds_send(c_io,comm_ip,missing=value,corner=.true.)
+  call ccmpi_filebounds_send(c_io,comm_ip,corner=.true.)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
   !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount,inb)
@@ -2398,7 +2398,7 @@ do while ( any(nrem(:)>0) )
     end if
   end do
   !$omp end parallel do
-  call ccmpi_filebounds_recv(c_io,comm_ip,missing=value,corner=.true.)
+  call ccmpi_filebounds_recv(c_io,comm_ip,corner=.true.)
   ! update halo
   do k = 1,kx
     if ( ncount(k)>0 ) then  
