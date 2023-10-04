@@ -217,8 +217,8 @@ where( workdata2(1:ifull,:)<2. )
 end where
 
 
-!$acc data create(is,ie,in,iw,iwu,isv,emi,xfact,yfact)
-!$acc update device(is,ie,in,iw,iwu,isv,emi,xfact,yfact)
+!$acc data create(is,ie,in,iw,iwu,isv,emi,xfact,yfact,ee)
+!$acc update device(is,ie,in,iw,iwu,isv,emi,xfact,yfact,ee)
 
 
 ! perform diffusion
@@ -285,8 +285,7 @@ real base, xfact_iwu, yfact_isv
 
 ntr = size(work,3)
 
-!$acc enter data create(work_save,ans,work,ee)  
-!$acc update device(ee)
+!$acc enter data create(work_save,ans,work)  
     
 ans = 0.
 do nstart = 1,ntr,nagg
@@ -296,111 +295,143 @@ do nstart = 1,ntr,nagg
   work_save(1:ifull,1:wlev,1:nlen) = work(1:ifull,1:wlev,nstart:nend)
   !$acc update device(work_save(:,:,1:nlen),work(1:ifull,:,nstart:nend))
     
-  ! Biharmonic part
   do its = 1,mlodiff_numits
-      
-    call bounds(work(:,:,nstart:nend))
+  
+    ! Biharmonic diffusion
+    if ( hdif>0. ) then
 
-    ! Estimate Laplacian at t+1
-    !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
-    do nn = 1,nlen
-      np = nn - 1 + nstart  
-      async_counter = mod(nn-1,async_length)
-      !$acc update device(work(ifull+1:ifull+iextra,:,np)) async(async_counter)
-      !$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) &
-      !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
-      do k = 1,wlev
-        do iq = 1,ifull  
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = hdif*xfact(iq,k) + hdif*xfact_iwu &
-               + hdif*yfact(iq,k) + hdif*yfact_isv
-          ans(iq,k,nn) = ( -base*work(iq,k,np) +                   &
-                           hdif*xfact(iq,k)*work(ie(iq),k,np) +    &
-                           hdif*xfact_iwu*work(iw(iq),k,np) +      &
-                           hdif*yfact(iq,k)*work(in(iq),k,np) +    &
-                           hdif*yfact_isv*work(is(iq),k,np) ) / sqrt(emi(iq))
-        end do   
-      end do
-      !$acc end parallel loop
-      !$acc update self(ans(1:ifull,:,nn)) async(async_counter)
-    end do
-    !$omp end parallel do
-    !$acc wait
+      call bounds(work(:,:,nstart:nend))
 
-    call bounds(ans(:,:,1:nlen))
-
-    ! Estimate diffusion
-    !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
-    do nn = 1,nlen
-      np = nn - 1 + nstart
-      async_counter = mod(nn-1,async_length)
-
-      ! Estimate Biharmonic diffusion
-      !$acc update device(ans(ifull+1:ifull+iextra,:,nn)) async(async_counter)
-      !$acc parallel loop collapse(2) present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,work_save,ans,work) &
-      !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)        
-      do k = 1,wlev
-        do iq = 1,ifull  
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = hdif*xfact(iq,k) + hdif*xfact_iwu &
-               + hdif*yfact(iq,k) + hdif*yfact_isv
-          work(iq,k,np) = work_save(iq,k,nn) - dt*(                    &
-                            -base*ans(iq,k,nn) +                       &
-                            hdif*xfact(iq,k)*ans(ie(iq),k,nn) +        &
-                            hdif*xfact_iwu*ans(iw(iq),k,nn) +          &
-                            hdif*yfact(iq,k)*ans(in(iq),k,nn) +        &
-                            hdif*yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
-        end do    
-      end do
-      !$acc end parallel loop
-      !$acc parallel loop collapse(2) present(work,work_save) async(async_counter)
-      do k = 1,wlev
-        do iq = 1,ifull
-          if ( ee(iq,k)<0.5 ) then
-            work(iq,k,np) = work_save(iq,k,nn)
-          end if
+      ! Estimate Laplacian at t+1
+      !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
+      do nn = 1,nlen
+        np = nn - 1 + nstart  
+        async_counter = mod(nn-1,async_length)
+        !$acc update device(work(ifull+1:ifull+iextra,:,np)) async(async_counter)
+        !$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi,in,is,ie,iw,iwu,isv) &
+        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)
+        do k = 1,wlev
+          do iq = 1,ifull  
+            xfact_iwu = xfact(iwu(iq),k)
+            yfact_isv = yfact(isv(iq),k)
+            base = hdif*xfact(iq,k) + hdif*xfact_iwu &
+                 + hdif*yfact(iq,k) + hdif*yfact_isv
+            ans(iq,k,nn) = ( -base*work(iq,k,np) +                   &
+                             hdif*xfact(iq,k)*work(ie(iq),k,np) +    &
+                             hdif*xfact_iwu*work(iw(iq),k,np) +      &
+                             hdif*yfact(iq,k)*work(in(iq),k,np) +    &
+                             hdif*yfact_isv*work(is(iq),k,np) )      &
+                          / sqrt(emi(iq))
+          end do   
         end do
-      end do  
-      !$acc end parallel loop
+        !$acc end parallel loop
+        !$acc update self(ans(1:ifull,:,nn)) async(async_counter)
+      end do
+      !$omp end parallel do
+      !$acc wait
 
-      ! Estimate Laplacian diffusion
-      !$acc parallel loop collapse(2) copyin(work(:,:,np))            &
-      !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,work_save)  &
-      !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)      
-      do k = 1,wlev
-        do iq = 1,ifull
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
-                        +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
-          ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +         &
-                           ldif*xfact(iq,k)**2*work(ie(iq),k,np) +  &
-                           ldif*xfact_iwu**2*work(iw(iq),k,np) +    &
-                           ldif*yfact(iq,k)**2*work(in(iq),k,np) +  &
-                           ldif*yfact_isv**2*work(is(iq),k,np) )    &
-                        / base
+      call bounds(ans(:,:,1:nlen))
+
+      ! Estimate Laplacian^2 (= Grad^4) at t+1
+      !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
+      do nn = 1,nlen
+        np = nn - 1 + nstart
+        async_counter = mod(nn-1,async_length)
+        !$acc update device(ans(ifull+1:ifull+iextra,:,nn)) async(async_counter)
+        !$acc parallel loop collapse(2) present(xfact,yfact,emi,in,is,ie,iw,iwu,isv,work_save,ans,work) &
+        !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)        
+        do k = 1,wlev
+          do iq = 1,ifull  
+            xfact_iwu = xfact(iwu(iq),k)
+            yfact_isv = yfact(isv(iq),k)
+            base = hdif*xfact(iq,k) + hdif*xfact_iwu &
+                 + hdif*yfact(iq,k) + hdif*yfact_isv
+            work(iq,k,np) = work_save(iq,k,nn) - dt*(                    &
+                              -base*ans(iq,k,nn) +                       &
+                              hdif*xfact(iq,k)*ans(ie(iq),k,nn) +        &
+                              hdif*xfact_iwu*ans(iw(iq),k,nn) +          &
+                              hdif*yfact(iq,k)*ans(in(iq),k,nn) +        &
+                              hdif*yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
+          end do    
+        end do
+        !$acc end parallel loop
+        !$acc parallel loop collapse(2) present(work,work_save,ee) async(async_counter)
+        do k = 1,wlev
+          do iq = 1,ifull
+            if ( ee(iq,k)<0.5 ) then
+              work(iq,k,np) = work_save(iq,k,nn)
+            end if
+          end do
         end do  
+        !$acc end parallel loop
+        !$acc update self(work(1:ifull,:,np)) async(async_counter)
       end do
-      !$acc end parallel loop
-      !$acc parallel loop collapse(2) present(work,ans) async(async_counter)
-      do k = 1,wlev
-        do iq = 1,ifull
-          if ( ee(iq,k)<0.5 ) then
-            work(iq,k,np) = ans(iq,k,nn)
-          end if
-        end do
-      end do  
-      !$acc end parallel loop
+      !$omp end parallel do
+      !$acc wait
 
-    end do    
-    !$omp end parallel do
-    !$acc wait
+    else
+
+      !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
+      do nn = 1,nlen
+        np = nn - 1 + nstart
+        async_counter = mod(nn-1,async_length)
+        !$acc parallel loop collapse(2) present(work,work_save) async(async_counter)
+        do k = 1,wlev
+          do iq = 1,ifull
+            work(iq,k,np) = work_save(iq,k,nn)
+          end do
+        end do  
+        !$acc end parallel loop
+        !$acc update self(work(1:ifull,:,np)) async(async_counter)
+      end do
+      !$omp end parallel do
+      !$acc wait
+      
+    end if ! hdif>0.
+
+    ! Estimate Laplacian diffusion (Grad^2) at t+1
+    if ( ldif > 0. ) then
+       call bounds(work(:,:,1:nlen))
+       !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
+       do nn = 1,nlen
+         np = nn - 1 + nstart
+         async_counter = mod(nn-1,async_length)
+         !$acc update device(work(ifull+1:ifull+iextra,:,np)) async(async_counter)
+         !$acc parallel loop collapse(2) present(work)                   &
+         !$acc   present(xfact,yfact,emi,in,is,ie,iw,iwu,isv)            &
+         !$acc   private(xfact_iwu,yfact_isv,base) async(async_counter)      
+         do k = 1,wlev
+           do iq = 1,ifull
+             xfact_iwu = xfact(iwu(iq),k)
+             yfact_isv = yfact(isv(iq),k)
+             base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
+                           +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
+             ans(iq,k,nn) = ( emi(iq)*work(iq,k,np) +                  &
+                              ldif*xfact(iq,k)**2*work(ie(iq),k,np) +  &
+                              ldif*xfact_iwu**2*work(iw(iq),k,np) +    &
+                              ldif*yfact(iq,k)**2*work(in(iq),k,np) +  &
+                              ldif*yfact_isv**2*work(is(iq),k,np) )    &
+                           / base
+           end do  
+         end do
+         !$acc end parallel loop
+         !$acc parallel loop collapse(2) present(work,ans,ee) async(async_counter)
+         do k = 1,wlev
+           do iq = 1,ifull
+             if ( ee(iq,k)<0.5 ) then
+               work(iq,k,np) = ans(iq,k,nn)
+             end if
+           end do
+         end do  
+         !$acc end parallel loop
+         !$acc update self(work(1:ifull,:,np)) async(async_counter)
+       end do    
+       !$omp end parallel do
+       !$acc wait
+    end if ! ldif>0.
     
   end do ! its
     
-  !$acc update self(work(1:ifull,:,nstart:nend))
     
 end do   ! nstart  
   
