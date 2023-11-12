@@ -23,7 +23,7 @@
 ! interpolated to nested model grid.  Three options are
 !   nested=0  Initial conditions
 !   nested=1  Nudging fields
-!   nested=2  Surface data recycling (with biosphere)
+!   nested=2  Surface data recycling
 !   nested=3  Ensemble fields
 !   nested=4  Surface data recycling (without biosphere)
       
@@ -48,10 +48,9 @@ integer, save :: fill_floor = 0                               ! number of iterat
 integer, save :: fill_floorlake = 0                           ! number of iterations required for floor+lake fill (3d ocean)
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
 integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
-integer, save :: native_ccam = 0                              ! is host CCAM? (native_ccam=1) or cdfivdar (native_ccam=0)
+integer, save :: native_ccam = 0                              ! is host CCAM (native_ccam=1) or cdfivdar (native_ccam=0)
 integer, save :: xx4_win, yy4_win                             ! shared memory windows
 integer, save :: xy4_count = 0                                ! counter for new allocations of memory windows
-integer m_fly_l                                               ! Local value for m_fly (changes depending on input grid)
 integer, dimension(3), save :: xx4save_win, yy4save_win       ! store old memory windows for later deallocation
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
@@ -265,7 +264,6 @@ if ( .not.pfall ) then
   rdum(11) = real(native_ccam)
   call ccmpi_bcast(rdum(1:11),0,comm_world)
   if ( nested==1 ) then
-    ! MJT notes - could replace with comm_nodecaptain  
     call ccmpi_bcast(driving_model_id,0,comm_world)
     call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
     call ccmpi_bcast(driving_experiment_name,0,comm_world)
@@ -303,12 +301,11 @@ if ( ktime_r<0 ) then
 end if
 !--------------------------------------------------------------------
       
-! Here we call onthefly_work (i.e., to read data for kdate_r and ktime_r in mode nested)
+! Here we call ontheflyx
    
 ! Note that if histrd fails to find a variable, it returns zero in
 ! the output array
 
-! (mlodwn & ocndwn are ocean fields.  xtgdwn are aerosol fields)
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag, &
                    mlodwn,ocndwn,xtgdwn)
@@ -421,7 +418,7 @@ real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 character(len=20) vname
 character(len=4) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
-logical tss_test, tst, gridtest
+logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_needed, zht_found, urban1_found, urban2_found
@@ -430,8 +427,7 @@ logical, dimension(:), allocatable, save :: land_a, landlake_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 logical, dimension(:,:), allocatable, save :: landlake_3d
 
-! iotest      indicates no interpolation and input is native CCAM
-! gridtest    indicates no interpolation is required, but input may not be native CCAM
+! iotest      indicates no interpolation required
 ! ptest       indicates the grid decomposition of the mesonest file is the same as the model, including the same number of processes
 ! iop_test    indicates that both iotest and ptest are true and hence no MPI communication is required
 ! tss_test    indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
@@ -457,17 +453,13 @@ if ( nud_p==0 .and. nud_t==0 .and. nud_q==0 ) then
 else
   retopo_test = 1
 end if
-
-! Default interpolation
-m_fly_l = m_fly
       
 ! Determine if interpolation is required
-gridtest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
-           abs(schmidtx-schmidt)<iotol
-! Additional checks to make sure restart data is avaliable and land-sea mask is matched
-iotest = gridtest .and. (nsib==nsibx.or.nested==1.or.nested==3) .and. native_ccam==1
+iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
+         abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and.      &
+         native_ccam==1
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  iotest = iotest .and. wlev==ok
+  iotest = iotest .and. (wlev==ok)
 end if
 iop_test = iotest .and. ptest
 
@@ -485,18 +477,11 @@ if ( iotest ) then
   end if  
 else
   io_in = -1  ! interpolation
-  if ( gridtest ) then
-    m_fly_l = 1  
-    if ( myid==0 ) then
-      write(6,*) "Limited interpolation is required with iotest,m_fly,io_in =",iotest, m_fly_l, io_in
-    end if  
-  else
-    if ( myid==0 ) then
-      write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
-    end if  
+  if ( myid==0 ) then
+    write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
   end if  
 end if
- 
+  
 
 !--------------------------------------------------------------------
 ! Allocate interpolation, vertical level and mask arrays
@@ -541,7 +526,7 @@ if ( newfile .and. .not.iop_test ) then
   allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
 #endif
 
-  if ( m_fly_l==1 ) then
+  if ( m_fly==1 ) then
     rlong4_l(:,1) = rlongg(:)*180./pi
     rlat4_l(:,1)  = rlatt(:)*180./pi
   end if
@@ -584,7 +569,7 @@ if ( newfile .and. .not.iop_test ) then
   rotpoles = calc_rotpole(rlong0x,rlat0x)
   rotpole  = calc_rotpole(rlong0,rlat0)
   if ( myid==0 .and. nmaxpr==1 ) then
-    write(6,*)'m_fly,nord ',m_fly_l,3
+    write(6,*)'m_fly,nord ',m_fly,3
     write(6,*)'kdate_r,ktime_r,ktau,ds',kdate_r,ktime_r,ktau,ds
     write(6,*)'rotpoles:'
     do i = 1,3
@@ -600,7 +585,7 @@ if ( newfile .and. .not.iop_test ) then
   end if                  ! (myid==0)
 
   ! setup interpolation arrays
-  do mm = 1,m_fly_l  !  was 4, now may be set to 1 in namelist
+  do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
     call latltoij(rlong4_l(:,mm),rlat4_l(:,mm),      & !input
                   rlong0x,rlat0x,schmidtx,           & !input
                   xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
@@ -761,8 +746,9 @@ if ( newfile ) then
     end if
   end if
   
-  ! read zht for initial conditions or nudging or land-sea mask
+  ! read zht
   if ( allocated(zss_a) ) deallocate(zss_a)
+  ! read zht for initial conditions or nudging or land-sea mask
   if ( zht_needed ) then
     if ( zht_found ) then  
       if ( tss_test .and. iop_test ) then
@@ -793,8 +779,9 @@ if ( newfile ) then
     end if
   end if
   
-  ! read soilt for land-sea mask  
+  ! read soilt
   if ( soilt_found ) then
+    ! read soilt for land-sea mask  
     if ( .not.(tss_test.and.iop_test) ) then
       call histrd(iarchi,ier,'soilt',ucc,6*ik*ik)
       if ( fwsize>0 ) then
@@ -807,6 +794,7 @@ if ( newfile ) then
   
   ! read host ocean bathymetry data
   if ( allocated(ocndep_a) ) deallocate( ocndep_a )
+  ! read bathymetry for MLO
   if ( mlo_found ) then
     if ( tss_test .and. iop_test ) then
       allocate( ocndep_a(ifull) )
@@ -1049,19 +1037,25 @@ else
     tss_l_a(1:fwsize) = abs(tss_a(1:fwsize))
     tss_s_a(1:fwsize) = abs(tss_a(1:fwsize))
     call fill_cc1(tss_l_a,sea_a,fill_sea)
-    ucc6(:,1) = tss_s_a
-    ucc6(:,2) = sicedep_a
-    ucc6(:,3) = fracice_a
     if ( mlo_found ) then
+      ucc6(:,1) = tss_s_a
+      ucc6(:,2) = sicedep_a
+      ucc6(:,3) = fracice_a        
       ucc6(:,4) = ocndep_a
       call fill_cc4(ucc6(:,1:4),land_a,fill_land)
+      tss_s_a   = ucc6(:,1)
+      sicedep_a = ucc6(:,2)
+      fracice_a = ucc6(:,3)
       ocndep_a = ucc6(:,4)
     else    
+      ucc6(:,1) = tss_s_a
+      ucc6(:,2) = sicedep_a
+      ucc6(:,3) = fracice_a        
       call fill_cc4(ucc6(:,1:3),land_a,fill_land)
+      tss_s_a   = ucc6(:,1)
+      sicedep_a = ucc6(:,2)
+      fracice_a = ucc6(:,3)
     end if  
-    tss_s_a   = ucc6(:,1)
-    sicedep_a = ucc6(:,2)
-    fracice_a = ucc6(:,3)
   end if ! fwsize>0
 
   if ( fwsize>0 ) then
@@ -1166,10 +1160,8 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     end where    
     mlodwn(1:ifull,k,3) = 0.      ! uoc
     mlodwn(1:ifull,k,4) = 0.      ! voc
-    mlodwn(1:ifull,k,5) = 0.      ! km
-    mlodwn(1:ifull,k,6) = 0.      ! ks
-    mlodwn(1:ifull,k,7) = omink   ! tke
-    mlodwn(1:ifull,k,8) = omineps ! eps
+    mlodwn(1:ifull,k,5) = omink   ! tke
+    mlodwn(1:ifull,k,6) = omineps ! eps
   end do  
   if ( mlo_found ) then
     ! ocean potential temperature
@@ -1824,11 +1816,11 @@ if ( nested/=1 .and. nested/=3 ) then
 
   ! k-eps data
   if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9) ) then
-    mlodwn(:,:,5:8) = 0.
+    mlodwn(:,:,5:6) = 0.
     if ( mlo2_found ) then
       if ( oclosure==1 ) then
-        call fillhist4o('tkeo',mlodwn(:,:,7),land_3d,fill_floor,ocndwn(:,1))  
-        call fillhist4o('epso',mlodwn(:,:,8),land_3d,fill_floor,ocndwn(:,1))
+        call fillhist4o('tkeo',mlodwn(:,:,5),land_3d,fill_floor,ocndwn(:,1))  
+        call fillhist4o('epso',mlodwn(:,:,6),land_3d,fill_floor,ocndwn(:,1))
         call fillhist4o('uo_ema',oo,land_3d,fill_floor,ocndwn(:,1))
         do k = 1,wlev
           call mloimport('u_ema',oo(:,k),k,0)
@@ -2081,19 +2073,37 @@ end subroutine onthefly_work
 
 subroutine doints1(s,sout)
       
+use cc_mpi                 ! CC MPI routines
+use infile                 ! Input file routines
 use newmpar_m              ! Grid parameters
+use parm_m                 ! Model configuration
 
 implicit none
       
+integer n, iq
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(fwsize,1) :: s_l
-real, dimension(ifull,1) :: sout_l
+real, dimension(pipan*pjpan*pnpan,size(filemap_req)) :: abuf
 
-s_l(:,1) = s(:)
-sout_l(:,1) = sout(:)
-call doints4(s_l,sout_l)
-sout(:) = sout_l(:,1)
+call START_LOG(otf_ints_begin)
+
+! This version distributes mutli-file data
+call ccmpi_filewinget(abuf,s)
+
+sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
+call ccmpi_filewinunpack(sx(:,:,:),abuf)
+call sxpanelbounds(sx(:,:,:))
+
+if ( iotest ) then
+  do n = 1,npan
+    iq = (n-1)*ipan*jpan
+    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
+  end do
+else
+  call intsb(sx(:,:,:),sout,nface4,xg4,yg4)
+end if
+
+call END_LOG(otf_ints_end)
 
 return
 end subroutine doints1
@@ -2110,8 +2120,9 @@ implicit none
 integer k, kx, kb, ke, kn, n, iq
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
+real, dimension(pipan*pjpan*pnpan,size(filemap_req),kblock) :: abuf
 
-call START_LOG(otf_ints4_begin)
+call START_LOG(otf_ints_begin)
 
 kx = size(sout,2)
 
@@ -2120,12 +2131,12 @@ do kb = 1,kx,kblock
   kn = ke - kb + 1
 
   ! This version distributes multi-file data
-  call ccmpi_filewinstart(s(:,kb:ke))
+  call ccmpi_filewinget(abuf(:,:,1:kn),s(:,kb:ke))
     
   if ( iotest ) then
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:),k)
+      call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
       call sxpanelbounds(sx(:,:,:))
       do n = 1,npan
         iq = (n-1)*ipan*jpan
@@ -2135,7 +2146,7 @@ do kb = 1,kx,kblock
   else
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:),k)
+      call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
       call sxpanelbounds(sx(:,:,:))
       call intsb(sx(:,:,:),sout(:,k+kb-1),nface4,xg4,yg4)
     end do
@@ -2143,9 +2154,7 @@ do kb = 1,kx,kblock
 
 end do ! kb
 
-call ccmpi_filewinstop
-
-call END_LOG(otf_ints4_end)
+call END_LOG(otf_ints_end)
 
 return
 end subroutine doints4
@@ -2234,12 +2243,12 @@ use parm_m                 ! Model configuration
 
 implicit none
 
-integer, dimension(ifull,m_fly_l), intent(in) :: nface4
+integer, dimension(ifull,m_fly), intent(in) :: nface4
 integer :: idel, jdel, n, iq, mm
 real, dimension(ifull), intent(out) :: sout
-real, intent(in), dimension(ifull,m_fly_l) :: xg4, yg4
+real, intent(in), dimension(ifull,m_fly) :: xg4, yg4
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
-real, dimension(ifull,m_fly_l) :: wrk
+real, dimension(ifull,m_fly) :: wrk
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -2247,7 +2256,7 @@ real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 !$omp parallel do schedule(static) private(mm,iq,n,idel,xxg,jdel,yyg),             &
 !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),   &
 !$omp   private(emul_4,cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)
-do mm = 1,m_fly_l   !  was 4, now may be 1
+do mm = 1,m_fly     !  was 4, now may be 1
   do iq = 1,ifull   ! runs through list of target points
     n = nface4(iq,mm)
     idel = int(xg4(iq,mm))
@@ -2280,14 +2289,10 @@ do mm = 1,m_fly_l   !  was 4, now may be 1
 end do      ! mm loop
 !$omp end parallel do
 
-if ( m_fly_l == 1 ) then
-  sout(1:ifull) = wrk(:,1)
-else  
-  sout(1:ifull) = wrk(:,1)/real(m_fly_l)
-  do mm = 2,m_fly_l
-    sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly_l)
-  end do  
-end if
+sout(1:ifull) = wrk(:,1)/real(m_fly)
+do mm = 2,m_fly
+  sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly)
+end do  
 
 return
 end subroutine intsb
@@ -2296,19 +2301,119 @@ end subroutine intsb
 ! FILL ROUTINES
 
 subroutine fill_cc1(a_io,land_a,fill_count)
+      
+! routine fills in interior of an array which has undefined points
+! this version is for multiple input files
+
+use cc_mpi          ! CC MPI routines
+use infile          ! Input file routines
 
 implicit none
 
 integer, intent(inout) :: fill_count
+integer nrem, j, n
+integer ncount, cc, ipf, local_count
+integer i
+real, parameter :: value=999.       ! missing value flag
 real, dimension(fwsize), intent(inout) :: a_io
-real, dimension(fwsize,1) :: a_io_l
+real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc) :: c_io
+real csum, ccount
 logical, dimension(fwsize), intent(in) :: land_a
-logical, dimension(fwsize,1) :: land_a_l
 
-a_io_l(:,1) = a_io(:)
-land_a_l(:,1) = land_a(:)
-call fill_cc4_3d(a_io_l,land_a_l,fill_count)
-a_io(:) = a_io_l(:,1)
+! only perform fill on processors reading input files
+if ( fwsize==0 ) return
+
+! ignore fill if land_a is trivial
+if ( allowtrivialfill ) then
+  ncount = count( .not.land_a(1:fwsize) )
+  call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+  if ( nrem==0 .or. nrem==6*ik*ik ) return
+end if
+
+call START_LOG(otf_fill_begin)
+
+where ( land_a(1:fwsize) )
+  a_io(1:fwsize) = value
+end where
+
+nrem = 1
+local_count = 0
+c_io = value
+
+do while ( nrem>0 )
+  c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pipan, pjpan, pnpan, mynproc /) )
+  ncount = count( abs(a_io(1:fwsize)-value)<1.E-20 )
+  call ccmpi_filebounds(c_io,comm_ip,corner=.true.)
+  ! update body
+  if ( ncount>0 ) then
+    !$omp parallel do collapse(3) schedule(static) private(ipf,n,j,i,cc,csum,ccount)
+    do ipf = 1,mynproc
+      do n = 1,pnpan
+        do j = 1,pjpan
+          do i = 1,pipan
+            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            if ( abs(a_io(cc+i)-value)<1.e-20 ) then
+              csum = 0.
+              ccount = 0.
+              if ( abs(c_io(i-1,j-1,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,j-1,n,ipf)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i,j-1,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j-1,n,ipf)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i+1,j-1,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,j-1,n,ipf)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i-1,j,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,j,n,ipf)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i+1,j,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,j,n,ipf)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i-1,j+1,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i-1,j+1,n,ipf)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i,j+1,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i,j+1,n,ipf)
+                ccount = ccount + 1.
+              end if
+              if ( abs(c_io(i+1,j+1,n,ipf)-value)>=1.e-20 ) then
+                csum = csum + c_io(i+1,j+1,n,ipf)
+                ccount = ccount + 1.
+              end if
+              if ( ccount>0. ) then        
+                a_io(cc+i) = csum/ccount
+              end if
+            end if
+          end do
+        end do
+      end do
+    end do
+    !$omp end parallel do
+    ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )  
+  end if  
+  ! test for convergence
+  local_count = local_count + 1
+  if ( local_count==fill_count ) then
+    nrem = 0
+  else if ( local_count>fill_count ) then
+    call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
+    if ( nrem==6*ik*ik ) then
+      ! Cannot perform fill as all points are trivial    
+      nrem = 0
+    end if
+  end if  
+end do
+      
+fill_count = local_count
+
+call END_LOG(otf_fill_end)
 
 return
 end subroutine fill_cc1
@@ -2318,6 +2423,7 @@ subroutine fill_cc4_3d(a_io,land_3d,fill_count)
 ! routine fills in interior of an array which has undefined points
 ! this version is distributed over processes with input files
 
+use cc_acc          ! CC OpenACC routines
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
 
@@ -2327,10 +2433,8 @@ real, dimension(:,:), intent(inout) :: a_io
 integer, intent(inout) :: fill_count
 integer j, n, k, kx
 integer cc, ipf, local_count
-integer i, inb
+integer i
 integer, dimension(size(a_io,2)) :: ncount, nrem
-integer, dimension(8), parameter :: px = (/ -1,  0,  1, -1, 1, -1, 0, 1 /)
-integer, dimension(8), parameter :: py = (/ -1, -1, -1,  0, 0,  1, 1, 1 /)
 real, parameter :: value=999.       ! missing value flag
 real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
 real csum, ccount
@@ -2363,30 +2467,54 @@ nrem(:) = 1
 local_count = 0
 c_io = value
 
-call ccmpi_filebounds_reset
-
 do while ( any(nrem(:)>0) )
   c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pipan, pjpan, pnpan, mynproc, kx /) )
-  call ccmpi_filebounds_send(c_io,comm_ip,missing=value,corner=.true.)
+  call ccmpi_filebounds(c_io,comm_ip,corner=.true.)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount,inb)
+  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
   do k = 1,kx
     if ( ncount(k)>0 ) then
       do ipf = 1,mynproc
         do n = 1,pnpan
-          do j = 2,pjpan-1
-            do i = 2,pipan-1
+          do j = 1,pjpan
+            do i = 1,pipan
               cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
               if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
                 csum = 0.
                 ccount = 0.
-                do inb = 1,8
-                  if ( abs(c_io(i+px(inb),j+py(inb),n,ipf,k)-value)>=1.e-20 ) then
-                    csum = csum + c_io(i+px(inb),j+py(inb),n,ipf,k)
-                    ccount = ccount + 1.
-                  end if
-                end do  
+                if ( abs(c_io(i-1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j-1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j-1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i-1,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i-1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i-1,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
+                if ( abs(c_io(i+1,j+1,n,ipf,k)-value)>=1.e-20 ) then
+                  csum = csum + c_io(i+1,j+1,n,ipf,k)
+                  ccount = ccount + 1.
+                end if
                 if ( ccount>0. ) then        
                   a_io(cc+i,k) = csum/ccount
                 end if
@@ -2395,135 +2523,10 @@ do while ( any(nrem(:)>0) )
           end do
         end do
       end do
-    end if
-  end do
-  !$omp end parallel do
-  call ccmpi_filebounds_recv(c_io,comm_ip,missing=value,corner=.true.)
-  ! update halo
-  do k = 1,kx
-    if ( ncount(k)>0 ) then  
-      do ipf = 1,mynproc
-        do n = 1,pnpan
-          do i = 1,pipan
-            cc = (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
-              csum = 0.
-              ccount = 0.
-              do inb = -1,1
-                if ( abs(c_io(i+inb,0,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+inb,0,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-              end do  
-              if ( abs(c_io(i-1,1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,1,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,1,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              do inb = -1,1
-                if ( abs(c_io(i+inb,2,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+inb,2,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-              end do  
-              if ( ccount>0. ) then        
-                a_io(cc+i,k) = csum/ccount
-              end if
-            end if
-            cc = (pjpan-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            if ( abs(a_io(cc+i,k)-value)<1.e-20 ) then
-              csum = 0.
-              ccount = 0.
-              do inb = -1,1
-                if ( abs(c_io(i+inb,pjpan-1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+inb,pjpan-1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-              end do  
-              if ( abs(c_io(i-1,pjpan,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,pjpan,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,pjpan,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,pjpan,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              do inb = -1,1
-                if ( abs(c_io(i+inb,pjpan+1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(i+inb,pjpan+1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-              end do  
-              if ( ccount>0. ) then        
-                a_io(cc+i,k) = csum/ccount
-              end if
-            end if
-          end do
-          do j = 2,pjpan-1
-            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            if ( abs(a_io(cc+1,k)-value)<1.e-20 ) then
-              csum = 0.
-              ccount = 0.
-              do inb = -1,1
-                if ( abs(c_io(1+inb,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(1+inb,j-1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-              end do  
-              if ( abs(c_io(0,j,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(0,j,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(2,j,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(2,j,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              do inb = -1,1
-                if ( abs(c_io(1+inb,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(1+inb,j+1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-              end do  
-              if ( ccount>0. ) then        
-                a_io(cc+1,k) = csum/ccount
-              end if
-            end if
-            if ( abs(a_io(cc+pipan,k)-value)<1.e-20 ) then
-              csum = 0.
-              ccount = 0.
-              do inb = -1,1
-                if ( abs(c_io(pipan+inb,j-1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(pipan+inb,j-1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-              end do  
-              if ( abs(c_io(pipan-1,j,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(pipan-1,j,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(pipan+1,j,n,ipf,k)-value)>=1.e-20 ) then
-                csum = csum + c_io(pipan+1,j,n,ipf,k)
-                ccount = ccount + 1.
-              end if
-              do inb = -1,1
-                if ( abs(c_io(pipan+inb,j+1,n,ipf,k)-value)>=1.e-20 ) then
-                  csum = csum + c_io(pipan+inb,j+1,n,ipf,k)
-                  ccount = ccount + 1.
-                end if
-              end do  
-              if ( ccount>0. ) then        
-                a_io(cc+pipan,k) = csum/ccount
-              end if
-            end if
-          end do
-        end do
-      end do
       ncount(k) = count( abs(a_io(1:fwsize,k)-value)<1.E-6 )
     end if
   end do
+  !$omp end parallel do
   ! test for convergence
   local_count = local_count + 1
   if ( local_count==fill_count ) then
@@ -2692,59 +2695,120 @@ end subroutine retopo
 
 subroutine interpwind4(uct,vct,ucc,vcc)
       
+use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
+use vecsuv_m         ! Map to cartesian coordinates
       
 implicit none
       
+integer k
 real, dimension(fwsize,kk), intent(inout) :: ucc, vcc
+real, dimension(fwsize,kk) :: wcc
+real, dimension(fwsize) :: uc, vc, wc
 real, dimension(ifull,kk), intent(out) :: uct, vct
+real, dimension(ifull,kk) :: wct
+real, dimension(ifull) :: newu, newv, neww
 
-call interpuv4(uct,vct,ucc,vcc)
- 
+if ( iotest ) then
+    
+  call doints4(ucc,uct)  
+  call doints4(vcc,vct)
+  
+else
+    
+  if ( fwsize>0 ) then
+    do k = 1,kk
+      ! first set up winds in Cartesian "source" coords            
+      uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
+      vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
+      wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,k) + bzs_w(1:fwsize)*vcc(1:fwsize,k)
+      ! now convert to winds in "absolute" Cartesian components
+      ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+      vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+      wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+    end do    ! k loop
+  end if      ! fwsize>0
+  ! interpolate all required arrays to new C-C positions
+  ! do not need to do map factors and Coriolis on target grid
+  call doints4(ucc, uct)
+  call doints4(vcc, vct)
+  call doints4(wcc, wct)
+  
+  do k = 1,kk
+    ! now convert to "target" Cartesian components (transpose used)
+    newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
+    newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
+    neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
+    ! then finally to "target" local x-y components
+    uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
+    vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
+  end do  ! k loop
+  
+end if
+  
 return
 end subroutine interpwind4
 
 subroutine interpcurrent1(uct,vct,ucc,vcc,mask_a,fill_count)
       
+use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
+use vecsuv_m         ! Map to cartesian coordinates
       
 implicit none
 
 integer, intent(inout) :: fill_count      
 real, dimension(fwsize), intent(inout) :: ucc, vcc
+real, dimension(fwsize) :: wcc
+real, dimension(fwsize) :: uc, vc, wc
+real, dimension(fwsize,3) :: uvwcc
 real, dimension(ifull), intent(out) :: uct, vct
-real, dimension(fwsize,1) :: ucc_l, vcc_l
-real, dimension(ifull,1) :: uct_l, vct_l
+real, dimension(ifull) :: wct
+real, dimension(ifull) :: newu, newv, neww
+real, dimension(ifull,3) :: newuvw
 logical, dimension(fwsize), intent(in) :: mask_a
-logical, dimension(fwsize,1) :: mask_a_l
 
-ucc_l(:,1) = ucc(:)
-vcc_l(:,1) = vcc(:)
-mask_a_l(:,1) = mask_a(:)
-call interpuv4(uct_l,vct_l,ucc_l,vcc_l,mask_3d=mask_a_l,fill_count=fill_count)
-uct(:) = uct_l(:,1)
-vct(:) = vct_l(:,1)
+if ( iotest ) then
+    
+  call doints1(ucc,uct)  
+  call doints1(vcc,vct)
+    
+else
+
+  if ( fwsize>0 ) then
+    uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize) + bxs_w(1:fwsize)*vcc(1:fwsize)
+    vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize) + bys_w(1:fwsize)*vcc(1:fwsize)
+    wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize) + bzs_w(1:fwsize)*vcc(1:fwsize)
+    ! now convert to winds in "absolute" Cartesian components
+    ucc(1:fwsize) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+    vcc(1:fwsize) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+    wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+    ! interpolate all required arrays to new C-C positions
+    ! do not need to do map factors and Coriolis on target grid
+    uvwcc(:,1) = ucc
+    uvwcc(:,2) = vcc
+    uvwcc(:,3) = wcc
+    call fill_cc4(uvwcc(:,1:3), mask_a, fill_count)
+  end if
+  call doints4(uvwcc(:,1:3), newuvw(:,1:3))
+  
+  ! now convert to "target" Cartesian components (transpose used)
+  uct(1:ifull) = newuvw(1:ifull,1)
+  vct(1:ifull) = newuvw(1:ifull,2)
+  wct(1:ifull) = newuvw(1:ifull,3)
+  newu(1:ifull) = uct(1:ifull)*rotpole(1,1) + vct(1:ifull)*rotpole(2,1) + wct(1:ifull)*rotpole(3,1)
+  newv(1:ifull) = uct(1:ifull)*rotpole(1,2) + vct(1:ifull)*rotpole(2,2) + wct(1:ifull)*rotpole(3,2)
+  neww(1:ifull) = uct(1:ifull)*rotpole(1,3) + vct(1:ifull)*rotpole(2,3) + wct(1:ifull)*rotpole(3,3)
+  ! then finally to "target" local x-y components
+  uct(1:ifull) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
+  vct(1:ifull) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
+  
+end if
 
 return
 end subroutine interpcurrent1
 
 subroutine interpcurrent4(uct,vct,ucc,vcc,mask_3d,fill_count)
-
-use newmpar_m        ! Grid parameters
-      
-implicit none
-      
-integer, intent(inout) :: fill_count
-real, dimension(fwsize,ok), intent(inout) :: ucc, vcc
-real, dimension(ifull,ok), intent(out) :: uct, vct
-logical, dimension(fwsize,ok), intent(in) :: mask_3d
-
-call interpuv4(uct,vct,ucc,vcc,mask_3d=mask_3d,fill_count=fill_count)
-
-return
-end subroutine interpcurrent4
-
-subroutine interpuv4(uct,vct,ucc,vcc,mask_3d,fill_count)
       
 use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
@@ -2752,15 +2816,15 @@ use vecsuv_m         ! Map to cartesian coordinates
       
 implicit none
       
-integer, intent(inout), optional :: fill_count
-integer k, kx
-real, dimension(:,:), intent(inout) :: ucc, vcc
-real, dimension(fwsize,size(ucc,2)) :: wcc
-real, dimension(:,:), intent(out) :: uct, vct
-real, dimension(ifull,size(uct,2)) :: wct
+integer, intent(inout) :: fill_count
+integer k
+real, dimension(fwsize,ok), intent(inout) :: ucc, vcc
+real, dimension(fwsize,ok) :: wcc
+real, dimension(ifull,ok), intent(out) :: uct, vct
+real, dimension(ifull,ok) :: wct
 real, dimension(fwsize) :: uc, vc, wc
 real, dimension(ifull) :: newu, newv, neww
-logical, dimension(:,:), intent(in), optional :: mask_3d
+logical, dimension(fwsize,ok), intent(in) :: mask_3d
 
 if ( iotest ) then
     
@@ -2769,9 +2833,8 @@ if ( iotest ) then
     
 else
 
-  kx = size(ucc,2)  
   if ( fwsize>0 ) then
-    do k = 1,kx
+    do k = 1,ok
       ! first set up currents in Cartesian "source" coords            
       uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
       vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
@@ -2783,17 +2846,15 @@ else
     end do  ! k loop  
     ! interpolate all required arrays to new C-C positions
     ! do not need to do map factors and Coriolis on target grid
-    if ( present(mask_3d) .and. present(fill_count) ) then
-      call fill_cc4(ucc, mask_3d, fill_count)
-      call fill_cc4(vcc, mask_3d, fill_count)
-      call fill_cc4(wcc, mask_3d, fill_count)
-    end if  
+    call fill_cc4(ucc, mask_3d, fill_count)
+    call fill_cc4(vcc, mask_3d, fill_count)
+    call fill_cc4(wcc, mask_3d, fill_count)
   end if
   call doints4(ucc, uct)
   call doints4(vcc, vct)
   call doints4(wcc, wct)
   
-  do k = 1,kx
+  do k = 1,ok
     ! now convert to "target" Cartesian components (transpose used)  
     newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
     newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
@@ -2806,8 +2867,7 @@ else
 end if
 
 return
-end subroutine interpuv4
-
+end subroutine interpcurrent4
 
 ! *****************************************************************************
 ! FILE IO ROUTINES
@@ -3212,7 +3272,6 @@ integer n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w
 integer ncount_a, ncount_b
-real, dimension(:,:), allocatable :: dum_a, dum_w
 logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(nproc*fncount) :: tempmap_send, tempmap_smod
 integer, dimension(nproc*fncount) :: tempmap_recv, tempmap_rmod
@@ -3241,7 +3300,7 @@ end if
 
 ! calculate which grid points and input files are needed by this processor
 lfile(:) = .false.
-do mm = 1,m_fly_l
+do mm = 1,m_fly
   do iq = 1,ifull
     idel = int(xg4(iq,mm))
     jdel = int(yg4(iq,mm))
@@ -3291,41 +3350,31 @@ filemap_indxlen = 0
 ncount_a = 0
 ncount_b = 0
 do ipf = 0,fncount-1
-  ! determine files needed by this process  
   lproc(:) = .false.
   do w = 1,size(filemap_req)
     if ( filemap_qmod(w) == ipf ) then
       lproc(filemap_req(w)) = .true.
     end if
   end do 
-  ! combine required files for a node
   call ccmpi_allreduce(lproc,lproc_t,"or",comm_node)
   ncount = 0
   do w = 0,nproc-1
     if ( lproc_t(w) ) then
-      ! construct a index for the required data  
       filemap_indxlen = filemap_indxlen + 1
       filemap_indx(w,ipf) = filemap_indxlen
-      ! only one process per node will receive the information
-      ! ( and then share it within the node )
       ncount = ncount + 1
-      if ( mod(ncount-1,node_nproc)/=node_myid ) then
+      if ( mod(ncount,node_nproc)/=node_myid ) then
         lproc_t(w) = .false.
       end if
     end if
-    ! construct a list of messages expected to be received
     if ( lproc_t(w) ) then
       ncount_b = ncount_b + 1
       tempmap_recv(ncount_b) = w
       tempmap_rmod(ncount_b) = ipf
     end if
   end do
-  ! perform transpose to convert messages to be received
-  ! into messages to be sent
   call ccmpi_alltoall(lproc_t,comm_world) ! global transpose
   do w = 0,nproc-1
-    ! constuct a list of messages to be sent
-    ! ( should be a single message per node )
     if ( lproc_t(w) ) then
       ncount_a = ncount_a + 1
       tempmap_send(ncount_a) = w
@@ -3333,7 +3382,6 @@ do ipf = 0,fncount-1
     end if
   end do  
 end do
-! store information for sending and receiving messages
 allocate( filemap_send(ncount_a), filemap_smod(ncount_a) )
 allocate( filemap_recv(ncount_b), filemap_rmod(ncount_b) )
 filemap_send(1:ncount_a) = tempmap_send(1:ncount_a)
@@ -3353,31 +3401,25 @@ call ccmpi_filebounds_setup(comm_ip)
 if ( myid==0 ) then
   write(6,*) "-> Distribute vector rotation data to processors reading input files"
 end if
-allocate( axs_w(fwsize), ays_w(fwsize), azs_w(fwsize) )
-allocate( bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize) )
-allocate( dum_w(fwsize,6) )  
+allocate(axs_w(fwsize), ays_w(fwsize), azs_w(fwsize))
+allocate(bxs_w(fwsize), bys_w(fwsize), bzs_w(fwsize))
 if ( myid==0 ) then
-  allocate( dum_a(ik*ik*6,6) )  
-  dum_a(:,1) = axs_a(:)  
-  dum_a(:,2) = ays_a(:)
-  dum_a(:,3) = azs_a(:)
-  dum_a(:,4) = bxs_a(:)
-  dum_a(:,5) = bys_a(:)
-  dum_a(:,6) = bzs_a(:)
-  call ccmpi_filedistribute(dum_w,dum_a,comm_ip)
-  deallocate( dum_a )
+  call ccmpi_filedistribute(axs_w,axs_a,comm_ip)
+  call ccmpi_filedistribute(ays_w,ays_a,comm_ip)
+  call ccmpi_filedistribute(azs_w,azs_a,comm_ip)
+  call ccmpi_filedistribute(bxs_w,bxs_a,comm_ip)
+  call ccmpi_filedistribute(bys_w,bys_a,comm_ip)
+  call ccmpi_filedistribute(bzs_w,bzs_a,comm_ip)
   deallocate( axs_a, ays_a, azs_a )
   deallocate( bxs_a, bys_a, bzs_a )
 else if ( fwsize>0 ) then
-  call ccmpi_filedistribute(dum_w,comm_ip)
+  call ccmpi_filedistribute(axs_w,comm_ip)
+  call ccmpi_filedistribute(ays_w,comm_ip)
+  call ccmpi_filedistribute(azs_w,comm_ip)
+  call ccmpi_filedistribute(bxs_w,comm_ip)
+  call ccmpi_filedistribute(bys_w,comm_ip)
+  call ccmpi_filedistribute(bzs_w,comm_ip)
 end if
-axs_w(:) = dum_w(:,1)
-ays_w(:) = dum_w(:,2)
-azs_w(:) = dum_w(:,3)
-bxs_w(:) = dum_w(:,4)
-bys_w(:) = dum_w(:,5)
-bzs_w(:) = dum_w(:,6)
-deallocate( dum_w )
 
 if ( myid==0 ) then
   write(6,*) "-> Finished creating control data for input file data"

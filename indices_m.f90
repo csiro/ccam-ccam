@@ -35,6 +35,9 @@ public iev,iwv,inu,isu,ieev,innu
 public lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 public indices_init,indices_end
+public jn_g, je_g, js_g, jw_g
+public jne_g, jen_g, jse_g, jes_g, jnw_g, jwn_g, jsw_g, jws_g
+public unpack_scalar
 
 integer, dimension(:), allocatable, save :: in,is,ie,iw                     ! default bounds
 integer, dimension(:), allocatable, save :: ine,ien,ise,ies,isw,iws,inw,iwn ! corner=.true.
@@ -49,6 +52,9 @@ integer, parameter, dimension(0:5) :: npann_g = (/ 1, 103, 3, 105, 5, 101 /)
 integer, parameter, dimension(0:5) :: npans_g = (/ 104, 0, 100, 2, 102, 4 /)
 integer, parameter, dimension(0:5) :: npane_g = (/ 102, 2, 104, 4, 100, 0 /)
 integer, parameter, dimension(0:5) :: npanw_g = (/ 5, 105, 1, 101, 3, 103 /)
+
+!$acc declare create(in,is,ie,iw,ien,ies,ine,inw)
+!$acc declare create(iwu,isv)
 
 contains
 
@@ -90,96 +96,112 @@ deallocate(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
 return
 end subroutine indices_end
 
-function in_g(iq,mil_g) result(iqq)
+subroutine unpack_scalar(data_in,data_out)
+
+use newmpar_m
+
+implicit none
+
+integer i, j, n, iq, ipan, jpan
+real, dimension(:), intent(in) :: data_in
+real, dimension(0:,0:,1:), intent(out) :: data_out
+
+ipan = il
+jpan = jl/npan
+
+data_out(1:ipan,1:jpan,1:npan) = reshape( data_in(1:ifull), (/ ipan, jpan, npan /) )
+do n = 1,npan
+  do j = 1,jpan
+    iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
+    data_out(0,j,n) = data_in(iw(iq))
+    iq = ipan + (j-1)*ipan + (n-1)*ipan*jpan
+    data_out(ipan+1,j,n) = data_in(ie(iq))
+  end do
+  do i = 1,ipan
+    iq = i + (n-1)*ipan*jpan
+    data_out(i,0,n) = data_in(is(iq))
+    iq = i + (jpan-1)*ipan + (n-1)*ipan*jpan
+    data_out(i,jpan+1,n) = data_in(in(iq))
+  end do
+end do
+
+return
+end subroutine unpack_scalar 
+
+function in_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if (j==il__g) then
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (j==il_g) then
   if (npann_g(n)<100) then
-    iqq=i+npann_g(n)*il__g**2
+    iqq=i+npann_g(n)*il_g*il_g
   else
-    iqq=1+(il__g-i)*il__g+(npann_g(n)-100)*il__g**2
+    iqq=1+(il_g-i)*il_g+(npann_g(n)-100)*il_g*il_g
   end if
 else
-  iqq=iq+il__g    
+  iqq=iq+il_g    
 end if
 end function in_g
 
-function is_g(iq,mil_g) result(iqq)
+function is_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
 if (j==1) then
   if (npans_g(n)<100) then
-    iqq=i+(il__g-1)*il__g+npans_g(n)*il__g**2
+    iqq=i+(il_g-1)*il_g+npans_g(n)*il_g*il_g
   else
-    iqq=il__g+(il__g-i)*il__g+(npans_g(n)-100)*il__g**2
+    iqq=il_g+(il_g-i)*il_g+(npans_g(n)-100)*il_g*il_g
   end if
 else
-  iqq=iq-il__g    
+  iqq=iq-il_g    
 end if
 end function is_g
 
-function ie_g(iq,mil_g) result(iqq)
+function ie_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if (i==il__g) then
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (i==il_g) then
   if (npane_g(n)<100) then
-    iqq=1+(j-1)*il__g+npane_g(n)*il__g**2
+    iqq=1+(j-1)*il_g+npane_g(n)*il_g*il_g
   else
-    iqq=il__g+1-j+(npane_g(n)-100)*il__g**2
+    iqq=il_g+1-j+(npane_g(n)-100)*il_g*il_g
   end if
 else
   iqq=iq+1
 end if
 end function ie_g
 
-function iw_g(iq,mil_g) result(iqq)
+function iw_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( i==1 ) then
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (i==1) then
   if (npanw_g(n)<100) then
-    iqq=il__g+(j-1)*il__g+npanw_g(n)*il__g**2
+    iqq=il_g+(j-1)*il_g+npanw_g(n)*il_g*il_g
   else
-    iqq=il__g+1-j+(il__g-1)*il__g+(npanw_g(n)-100)*il__g**2
+    iqq=il_g+1-j+(il_g-1)*il_g+(npanw_g(n)-100)*il_g*il_g
   end if
 else
   iqq=iq-1
@@ -250,163 +272,131 @@ else
 end if
 end function iww_g
 
-function ine_g(iq,mil_g) result(iqq)
+function ine_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( npane_g(n)>=100 .and. i==il__g ) then
-  iqq=iw_g(ie_g(iq,mil_g=il__g),mil_g=il__g)
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npane_g(n)>=100.and.i==il_g) then
+  iqq=iw_g(ie_g(iq))
 else
-  iqq=in_g(ie_g(iq,mil_g=il__g),mil_g=il__g)
+  iqq=in_g(ie_g(iq))
 end if
 end function ine_g
 
-function ise_g(iq,mil_g) result(iqq)
+function ise_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( npane_g(n)>=100 .and. i==il__g ) then
-  iqq=ie_g(ie_g(iq,mil_g=il__g),mil_g=il__g)
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npane_g(n)>=100.and.i==il_g) then
+  iqq=ie_g(ie_g(iq))
 else
-  iqq=is_g(ie_g(iq,mil_g=il__g),mil_g=il__g)
+  iqq=is_g(ie_g(iq))
 end if
 end function ise_g
 
-function ien_g(iq,mil_g) result(iqq)
+function ien_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( npann_g(n)>=100 .and. j==il__g ) then
-  iqq=is_g(in_g(iq,mil_g=il__g),mil_g=il__g)
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npann_g(n)>=100.and.j==il_g) then
+  iqq=is_g(in_g(iq))
 else
-  iqq=ie_g(in_g(iq,mil_g=il__g),mil_g=il__g)
+  iqq=ie_g(in_g(iq))
 end if
 end function ien_g
 
-function iwn_g(iq,mil_g) result(iqq)
+function iwn_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( npann_g(n)>=100 .and. j==il__g ) then
-  iqq=in_g(in_g(iq,mil_g=il__g),mil_g=il__g)
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npann_g(n)>=100.and.j==il_g) then
+  iqq=in_g(in_g(iq))
 else
-  iqq=iw_g(in_g(iq,mil_g=il__g),mil_g=il__g)
+  iqq=iw_g(in_g(iq))
 end if
 end function iwn_g
 
-function inw_g(iq,mil_g) result(iqq)
+function inw_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( npanw_g(n)>=100 .and. i==1 ) then
-  iqq=iw_g(iw_g(iq,mil_g=il__g),mil_g=il__g)
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npanw_g(n)>=100.and.i==1) then
+  iqq=iw_g(iw_g(iq))
 else
-  iqq=in_g(iw_g(iq,mil_g=il__g),mil_g=il__g)
+  iqq=in_g(iw_g(iq))
 end if
 end function inw_g
 
-function isw_g(iq,mil_g) result(iqq)
+function isw_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( npanw_g(n)>=100 .and. i==1 ) then
-  iqq=ie_g(iw_g(iq,mil_g=il__g),mil_g=il__g)
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npanw_g(n)>=100.and.i==1) then
+  iqq=ie_g(iw_g(iq))
 else
-  iqq=is_g(iw_g(iq,mil_g=il__g),mil_g=il__g)
+  iqq=is_g(iw_g(iq))
 end if
 end function isw_g
 
-function ies_g(iq,mil_g) result(iqq)
+function ies_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( npans_g(n)>=100 .and. j==1 ) then
-  iqq=is_g(is_g(iq,mil_g=il__g),mil_g=il__g)
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npans_g(n)>=100.and.j==1) then
+  iqq=is_g(is_g(iq))
 else
-  iqq=ie_g(is_g(iq,mil_g=il__g),mil_g=il__g)
+  iqq=ie_g(is_g(iq))
 end if
 end function ies_g
 
-function iws_g(iq,mil_g) result(iqq)
+function iws_g(iq) result(iqq)
 use newmpar_m
 implicit none
 integer, intent(in) :: iq
-integer, intent(in), optional :: mil_g
-integer iqq,n,i,j,il__g
-il__g = il_g
-if ( present(mil_g) ) then
-  il__g = mil_g
-end if
-n=(iq-1)/(il__g**2)
-j=(iq-1-n*il__g**2)/il__g+1
-i=iq-(j-1)*il__g-n*il__g**2
-if ( npans_g(n)>=100 .and. j==1 ) then
-  iqq=in_g(is_g(iq,mil_g=il__g),mil_g=il__g)
+integer iqq
+integer n,i,j
+n=(iq-1)/(il_g*il_g)
+j=(iq-1-n*il_g*il_g)/il_g+1
+i=iq-(j-1)*il_g-n*il_g*il_g
+if (npans_g(n)>=100.and.j==1) then
+  iqq=in_g(is_g(iq))
 else
-  iqq=iw_g(is_g(iq,mil_g=il__g),mil_g=il__g)
+  iqq=iw_g(is_g(iq))
 end if
 end function iws_g
 
@@ -633,5 +623,201 @@ else
   iqq=iee_g(is_g(il_g+n*il_g*il_g))
 end if
 end function lees_g
+
+function jn_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( j==mil_g ) then
+  if ( npann_g(n)<100 ) then
+    iqq = i + npann_g(n)*mil_g*mil_g
+  else
+    iqq = 1 + (mil_g-i)*mil_g + (npann_g(n)-100)*mil_g*mil_g
+  end if
+else
+  iqq = iq + mil_g    
+end if
+end function jn_g
+
+function je_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( i==mil_g ) then
+  if ( npane_g(n)<100 ) then
+    iqq = 1 + (j-1)*mil_g + npane_g(n)*mil_g*mil_g
+  else
+    iqq = mil_g + 1 - j + (npane_g(n)-100)*mil_g*mil_g
+  end if
+else
+  iqq = iq + 1
+end if
+end function je_g
+
+function js_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( j==1 ) then
+  if ( npans_g(n)<100 ) then
+    iqq = i + (mil_g-1)*mil_g + npans_g(n)*mil_g*mil_g
+  else
+    iqq = mil_g + (mil_g-i)*mil_g + (npans_g(n)-100)*mil_g*mil_g
+  end if
+else
+  iqq = iq - mil_g    
+end if
+end function js_g
+
+function jw_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( i==1 ) then
+  if ( npanw_g(n)<100 ) then
+    iqq = mil_g + (j-1)*mil_g + npanw_g(n)*mil_g*mil_g
+  else
+    iqq = mil_g + 1 - j + (mil_g-1)*mil_g + (npanw_g(n)-100)*mil_g*mil_g
+  end if
+else
+  iqq = iq - 1
+end if
+end function jw_g
+
+function jne_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npane_g(n)>=100 .and. i==mil_g ) then
+  iqq = jw_g(je_g(iq,mil_g),mil_g)
+else
+  iqq = jn_g(je_g(iq,mil_g),mil_g)
+end if
+end function jne_g
+
+function jen_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npann_g(n)>=100 .and. j==mil_g ) then
+  iqq = js_g(jn_g(iq,mil_g),mil_g)
+else
+  iqq = je_g(jn_g(iq,mil_g),mil_g)
+end if
+end function jen_g
+
+function jse_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npane_g(n)>=100 .and. i==mil_g ) then
+  iqq = je_g(je_g(iq,mil_g),mil_g)
+else
+  iqq = js_g(je_g(iq,mil_g),mil_g)
+end if
+end function jse_g
+
+function jes_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npans_g(n)>=100 .and. j==1 ) then
+  iqq = js_g(js_g(iq,mil_g),mil_g)
+else
+  iqq = je_g(js_g(iq,mil_g),mil_g)
+end if
+end function jes_g
+
+function jnw_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npanw_g(n)>=100 .and. i==1 ) then
+  iqq = jw_g(jw_g(iq,mil_g),mil_g)
+else
+  iqq = jn_g(jw_g(iq,mil_g),mil_g)
+end if
+end function jnw_g
+
+function jwn_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npann_g(n)>=100 .and. j==mil_g ) then
+  iqq = jn_g(jn_g(iq,mil_g),mil_g)
+else
+  iqq = jw_g(jn_g(iq,mil_g),mil_g)
+end if
+end function jwn_g
+
+function jsw_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npanw_g(n)>=100 .and. i==1 ) then
+  iqq = je_g(jw_g(iq,mil_g),mil_g)
+else
+  iqq = js_g(jw_g(iq,mil_g),mil_g)
+end if
+end function jsw_g
+
+function jws_g(iq,mil_g) result(iqq)
+implicit none
+integer, intent(in) :: iq, mil_g
+integer iqq
+integer n, i, j
+n = (iq-1)/(mil_g*mil_g)
+j = (iq-1-n*mil_g*mil_g)/mil_g + 1
+i = iq - (j-1)*mil_g - n*mil_g*mil_g
+if ( npans_g(n)>=100 .and. j==1 ) then
+  iqq = jn_g(js_g(iq,mil_g),mil_g)
+else
+  iqq = jw_g(js_g(iq,mil_g),mil_g)
+end if
+end function jws_g
 
 end module indices_m

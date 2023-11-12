@@ -26,7 +26,7 @@ implicit none
 private
 public ee, eeu, eev
 public dd, ddu, ddv
-public stwgt
+public stwgtu, stwgtv
 public gosig, gosigh, godsig
 public godsigu, godsigv, gosighu, gosighv
 public oldu1, oldu2, oldv1, oldv2
@@ -35,7 +35,7 @@ public mlodynamicsarrays_init, mlodynamicsarrays_end
 
 real, dimension(:,:), allocatable, save :: ee, eeu, eev
 real, dimension(:), allocatable, save :: dd, ddu, ddv
-real, dimension(:,:), allocatable, save :: stwgt
+real, dimension(:,:), allocatable, save :: stwgtu, stwgtv
 real, dimension(:,:), allocatable, save :: gosig, gosigh, godsig
 real, dimension(:,:), allocatable, save :: godsigu, godsigv, gosighu, gosighv
 real, dimension(:,:), allocatable, save :: oldu1, oldu2, oldv1, oldv2

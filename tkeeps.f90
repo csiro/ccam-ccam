@@ -44,10 +44,10 @@ module tkeeps
 implicit none
 
 private
-public tkeinit, tkemix, tkeend, tke, eps, shear
-public cm0, ce0, ce1, ce2, ce3, be, ent0, ent1, entc0, ezmin, dtrc0
-public m0, b1, b2, qcmf, ent_min, mfbeta
-public buoymeth, maxdts, mintke, mineps, minl, maxl, stabmeth
+public tkeinit,tkemix,tkeend,tke,eps,shear
+public cm0,ce0,ce1,ce2,ce3,be,ent0,ent1,entc0,ezmin,dtrc0
+public m0,b1,b2,qcmf,ent_min,mfbeta
+public buoymeth,maxdts,mintke,mineps,minl,maxl,stabmeth
 public tkemeth, plume_alpha, tcalmeth
 public tke_timeave_length, update_ema
 public u_ema, v_ema, w_ema
@@ -367,14 +367,14 @@ do kcount = 1,mcount
   ! is constant in the plume (i.e., volume conserving)
   if ( mode/=1 .and. mode/=3 ) then ! mass flux
       
-    zi_save = zi
+    zi_save = zi  
 
     ! plume rise model
     mask = wtv0>0.
-    call plumerise(mask,                                    &
-                   zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,  &
-                   zz,dz_hl,thetal,qvg,qlg,qfg,             &
-                   stratcloud,wt0,wq0,ps,ustar,             &
+    call plumerise(mask,                                         &
+                   zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,       &
+                   zz,dz_hl,thetal,qvg,qlg,qfg,                  &
+                   stratcloud,wt0,wq0,ps,ustar,                  &
                    sig,sigkap,tke,ua,va,imax,kl)
 
 #ifndef scm
@@ -521,11 +521,13 @@ do kcount = 1,mcount
 
   end select
 
+
 #ifdef CCAM
   if ( mode==2 .or. mode==3 ) then
     call pack_coupled_ts(w_t,w_s,imax,tile)
   end if
 #endif
+
   
 end do ! kcount loop
 
@@ -538,22 +540,6 @@ if ( tcalmeth>0 ) then
     end do
   end do    
 end if  
-
-
-!! variance for wind gusts
-!! (from TAPM)
-!do iq = 1,imax
-!  !wdash_sq = (1.2*ustar(iq))**2   ! Hurley
-!  !l_on_kz = cm34*tke(iq,1)**(3./2.)/eps(iq,1)/(vkar*zz(iq,1))
-!  !wdash_sq = ((2./3.)*tke(iq,1) + tke(iq,1)/(cs1*eps(iq,1))*( &
-!  !            (2.-cs2-cw2*l_on_kz)*pps(iq,1)                  &
-!  !          + (2.-cs3-cw3*l_on_kz)*ppb(iq,1)                  &
-!  !          - (2./3.)*eps(iq,1) ) )                           &
-!  !          / (1.+(cw1/cs1)*l_on_kz)
-!  !ugs_var(iq) = tke(iq,1) - 0.5*wdash_sq    ! = (1./sqrt(cm0)-0.5*1.44)*ustar(iq)**2 + ce3*wstar(iq)**2
-!                                             ! = 2.61*ustar**2 + ce3*wstar**2
-!  ugs_var(iq) = (2.185*ustar(iq))**2         ! Schreur et al (2008)
-!end do
 
 
 #ifdef CCAM
@@ -577,10 +563,10 @@ end subroutine tkemix
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Plume rise model
     
-pure subroutine plumerise(mask,                                   &
-                     zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,      &
-                     zz,dz_hl,thetal,qvg,qlg,qfg,                 &
-                     stratcloud,wt0,wq0,ps,ustar,                 &
+pure subroutine plumerise(mask,                                        &
+                     zi,wstar,mflx,tlup,qvup,qlup,qfup,cfup,           &
+                     zz,dz_hl,thetal,qvg,qlg,qfg,                      &
+                     stratcloud,wt0,wq0,ps,ustar,                      &
                      sig,sigkap,tke,ua,va,imax,kl)
 
 integer, intent(in) :: imax, kl
@@ -625,7 +611,6 @@ do k = 1,kl
   qfup(:,k) = qfg(:,k)
   cfup(:,k) = stratcloud(:,k)
 end do
-
 
 old_tke = tke(:,1)
 tke(:,1) = cm12*ustar**2 + ce3*wstar**2
@@ -714,7 +699,7 @@ do k = 2,kl
     end if
   end do
 end do ! k loop
-     
+          
 ! update mass flux
 mflx(:,1) = m0*sqrt(max(w2up(:,1), 0.))
 do k = 2,kl
@@ -1274,7 +1259,7 @@ end subroutine pack_coupled_uv
 ! Update coupled
 
 subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
-                          tlup,qvup,qlup,qfup,cfup,fg,eg,         &   
+                          tlup,qvup,qlup,qfup,cfup,fg,eg,         &
                           rhos,ustar,cduv,                        &    
                           tke,eps,mflx,fzzh,idzp,idzm,dz_hl,      &
                           rhoa1,dz_fl1,                           &
@@ -1576,7 +1561,7 @@ end do
 dd_a(:,kl,4)=stratcloud(:,1)-ddts*(mflx(:,1)*cfup(:,1)*(1.-fzzh(:,1))*idzp(:,1)               &
                                   +mflx(:,2)*cfup(:,2)*fzzh(:,1)*idzp(:,1))
 
-call thomas(tt_a(:,:,1:4),aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,:,1:4),   &
+call thomas(tt_a(:,:,1:4),aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl,1:4),   &
             imax,kl,4)
 
 do k = 1,kl
@@ -1629,17 +1614,27 @@ bb_o(:,wlev) = 1. - aa_o(:,wlev)
 fulldeptho = 0.
 targetdeptho = min( minsfc, sum( deptho_dz, dim=2 ) )
 do k = 1,wlev
-  dd_o(:,k,1) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o
+  !dd_o(:,k,1) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o
+  dd_o(:,k,1) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o*w_s(:,1)
   where ( deptho_dz(:,k)>1.e-4 )
     deltazo = max( min( deptho_dz(:,k), targetdeptho-fulldeptho ), 0. )
     fulldeptho = fulldeptho + deltazo
-    dd_o(:,k,1) = dd_o(:,k,1) - ddts*ws0subsurf_o*deltazo/max(deptho_dz(:,k)*targetdeptho,1.e-4)
+    !dd_o(:,k,1) = dd_o(:,k,1) - ddts*ws0subsurf_o*deltazo/max(deptho_dz(:,k)*targetdeptho,1.e-4)
+    bb_o(:,k) = bb_o(:,k) + ddts*ws0subsurf_o*deltazo/max(deptho_dz(:,k)*targetdeptho,1.e-4)
   end where
 end do
 where ( .not.land(1:imax) )
-  dd_o(:,1,1) = dd_o(:,1,1) - ddts*ws0_o/deptho_dz(:,1)
+  !dd_o(:,1,1) = dd_o(:,1,1) - ddts*ws0_o/deptho_dz(:,1)
+  bb_o(:,1) = bb_o(:,1) + ddts*ws0_o/deptho_dz(:,1)
 end where
 call thomas(w_s,aa_o(:,2:wlev),bb_o(:,1:wlev),cc_o(:,1:wlev-1),dd_o(:,1:wlev,1),imax,wlev)
+
+! recalculate bb_o after salinity
+!b_o(:,1) = 1. - cc_o(:,1)
+!do k = 2,wlev-1
+!  bb_o(:,k) = 1. - aa_o(:,k) - cc_o(:,k)
+!end do
+!bb_o(:,wlev) = 1. - aa_o(:,wlev)
 
 !------------------------------------------------------------------------------
 

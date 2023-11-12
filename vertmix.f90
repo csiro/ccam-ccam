@@ -45,6 +45,7 @@ use mlo, only : waterdata,icedata   ! Ocean physics and prognostic arrays
 implicit none
 
 private
+
 public vertmix,vertmix_init,trimmix
 
 integer, save :: kscbase=-1, ksctop=-1
@@ -205,7 +206,8 @@ select case(nvmix)
     !$omp private(lstratcloud,lu,lv,ltke,leps,lshear),      &
     !$omp private(lrkmsave,lrkhsave,lsavu,lsavv),           &
     !$omp private(lthetal_ema,lqv_ema,lql_ema,lqf_ema),     &
-    !$omp private(lcf_ema,ltke_ema,idjd_t,mydiag_t)
+    !$omp private(lcf_ema,ltke_ema),                        &
+    !$omp private(idjd_t,mydiag_t)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -225,8 +227,6 @@ select case(nvmix)
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
         lv(:,k) = v(is:ie,k) - vadj(is:ie)
-        lsavu(:,k) = savu(is:ie,k) - uadj(is:ie)
-        lsavv(:,k) = savv(is:ie,k) - vadj(is:ie)        
       end do  
       lthetal_ema = thetal_ema(is:ie,:)
       lqv_ema     = qv_ema(is:ie,:)
@@ -238,7 +238,7 @@ select case(nvmix)
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                           &
                        ps(is:ie),lqg,lqfg,lqlg,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie),     &
                        ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,lql_ema, &
-                       lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,f(is:ie),lsavu,lsavv,       &
+                       lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,f(is:ie),                   &
 #ifdef scm
                        lwth_flux,lwq_flux,luw_flux,lvw_flux,lmfsave,                          &
                        lbuoyproduction,lshearproduction,ltotaltransport,                      &
@@ -282,7 +282,7 @@ select case(nvmix)
       lrho(1:imax) = ps(is:ie)/(rdry*tss(is:ie))
       taux(is:ie) = lrho(1:imax)*cduv(is:ie)*(u(is:ie,1)-uadj(is:ie))
       tauy(is:ie) = lrho(1:imax)*cduv(is:ie)*(v(is:ie,1)-vadj(is:ie))
-      
+
     end do ! tile = 1,ntiles
     !$omp end do nowait
 
@@ -420,7 +420,6 @@ if ( ncloud>=100 .and. ncloud<200 ) then
   end do ! tile = 1,ntiles
   !$omp end do nowait
 end if
-
 
 return
 end subroutine vertmix
@@ -1865,7 +1864,7 @@ end subroutine trimmix3
 
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                         &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &
-                       qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,f,savu,savv,               & 
+                       qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,f,                         & 
 #ifdef scm
                        wth_flux,wq_flux,uw_flux,vw_flux,mfsave,                         &
                        buoyproduction,shearproduction,totaltransport,                   &
@@ -1873,7 +1872,7 @@ subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                 
                        imax,kl,tile)
 
 use const_phys                   ! Physical constants
-use parm_m, only : ds, nlocal, dt, qgmin, cqmix, nvmix, av_vmod
+use parm_m, only : ds, nlocal, dt, qgmin, cqmix, nvmix
                                  ! Model configuration
 use sigs_m                       ! Atmosphere sigma levels
 use tkeeps, only : tkemix        ! TKE-EPS boundary layer
@@ -1885,19 +1884,19 @@ integer k
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
-real, dimension(imax,kl), intent(in) :: shear, savu, savv
+real, dimension(imax,kl), intent(in) :: shear
 real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
 real, dimension(imax,kl), intent(inout) :: tke_ema
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
-real, dimension(imax,kl) :: rkm, rkh, uav, vav
+real, dimension(imax,kl) :: rkm, rkh
 real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg
 real, dimension(imax), intent(in) :: em, tss, ps, f
 real, dimension(imax), intent(in) :: cduv
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sigkap, delh
-real rong, hdt
+real rong
 logical, dimension(imax), intent(in) :: land
 #ifdef scm
 real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
@@ -1958,33 +1957,15 @@ select case(nvmix)
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)
         rkh = rkm
-      case(6)        
-        hdt = 0.5*dt  
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,hdt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
-                    qf_ema,cf_ema,tke_ema,                                               &
-                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
-                    shearproduction,totaltransport,land,tile,imax,kl)
-        rkh = rkm   
-        uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
-        vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
-        call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
+        call pbldif(rhs,rkm,rkh,u,v,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
               ,wth_flux,wq_flux)
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,hdt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
-                    qf_ema,cf_ema,tke_ema,                                               &
-                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
-                    shearproduction,totaltransport,land,tile,imax,kl)
       case(7) ! atm only, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)
-        rkh = rkm
-      case default
-        write(6,*) "ERROR: Unknown option for nlocal=",nlocal
-        stop -1
+        rkh = rkm        
     end select    
   case(9)
     select case(nlocal)
@@ -1995,33 +1976,13 @@ select case(nvmix)
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)
         rkh = rkm        
-      case(6)
-        hdt = 0.5*dt  
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,hdt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
-                    qf_ema,cf_ema,tke_ema,                                               &
-                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
-                    shearproduction,totaltransport,land,tile,imax,kl)
-        rkh = rkm        
-        uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
-        vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
-        call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud &
-              ,wth_flux,wq_flux)
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,hdt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
-                    qf_ema,cf_ema,tke_ema,                                               &
-                    wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
-                    shearproduction,totaltransport,land,tile,imax,kl)
       case(7) ! coupled atm-ocn, mass-flux counter gradient 
-        call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,   &
+        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,                                               &
                     wth_flux,wq_flux,uw_flux,vw_flux,mfsave,buoyproduction,              &
                     shearproduction,totaltransport,land,tile,imax,kl)
-        rkh = rkm
-      case default
-        write(6,*) "ERROR: Unknown option for nlocal=",nlocal
-        stop -1
+        rkh = rkm        
     end select    
 end select
 
@@ -2035,26 +1996,11 @@ select case(nvmix)
                     rhos,ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
         rkh = rkm
-      case(6)
-        hdt = 0.5*dt  
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,hdt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
-                    qf_ema,cf_ema,tke_ema,land,tile,imax,kl) 
-        rkh = rkm        
-        uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
-        vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
-        call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,hdt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
-                    qf_ema,cf_ema,tke_ema,land,tile,imax,kl) 
       case(7) ! atm only, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
         rkh = rkm
-      case default
-        write(6,*) "ERROR: Unknown option for nlocal=",nlocal
-        stop -1
     end select
   case(9)
     select case(nlocal)
@@ -2063,26 +2009,11 @@ select case(nvmix)
                     rhos,ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
         rkh = rkm        
-      case(6)
-        hdt = 0.5*dt  
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,hdt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
-                    qf_ema,cf_ema,tke_ema,land,tile,imax,kl) 
-        rkh = rkm
-        uav(:,:) = av_vmod*u(:,:) + (1.-av_vmod)*savu(:,:) 
-        vav(:,:) = av_vmod*v(:,:) + (1.-av_vmod)*savv(:,:)         
-        call pbldif(rhs,rkm,rkh,uav,vav,t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,hdt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,    &
-                    qf_ema,cf_ema,tke_ema,land,tile,imax,kl) 
       case(7) ! coupled atm-ocn, mass-flux counter gradient
         call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
                     rhos,ustar,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
                     qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
         rkh = rkm
-      case default
-        write(6,*) "ERROR: Unknown option for nlocal=",nlocal
-        stop -1
     end select
 end select
 #endif

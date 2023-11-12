@@ -31,7 +31,7 @@ public urban_storage_flux, urban_elecgas_flux
 public urban_heating_flux, urban_cooling_flux
 public urban_zom, urban_zoh, urban_zoq, urban_emiss
 public rkmsave, rkhsave
-public wsgsmax, wsgs, wsgsmax_ustar, wsgsmax_u10, wsgsmax_tke
+public wsgsmax, wsgs
 public morepbl_init, morepbl_end
 
 #ifdef scm
@@ -46,7 +46,7 @@ real, dimension(:), allocatable, save :: urban_storage_flux, urban_elecgas_flux
 real, dimension(:), allocatable, save :: urban_heating_flux, urban_cooling_flux
 real, dimension(:), allocatable, save :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(:), allocatable, save :: condc, condx, conds, condg, pblh, fg, eg
-real, dimension(:), allocatable, save :: wsgsmax, wsgs, wsgsmax_ustar, wsgsmax_u10, wsgsmax_tke
+real, dimension(:), allocatable, save :: wsgsmax, wsgs
 real, dimension(:,:), allocatable, save :: rkmsave, rkhsave
 
 #ifdef scm
@@ -70,7 +70,7 @@ allocate( anthropogenic_flux(ifull), urban_tas(ifull), urban_ts(ifull), urban_we
 allocate( urban_storage_flux(ifull), urban_elecgas_flux(ifull) )
 allocate( urban_heating_flux(ifull), urban_cooling_flux(ifull) )
 allocate( urban_zom(ifull), urban_zoh(ifull), urban_zoq(ifull), urban_emiss(ifull) )
-allocate( wsgsmax(ifull), wsgs(ifull), wsgsmax_ustar(ifull), wsgsmax_u10(ifull), wsgsmax_tke(ifull) )
+allocate( wsgsmax(ifull), wsgs(ifull) )
 allocate( rkmsave(ifull,kl), rkhsave(ifull,kl) )
 
 fg=0.
@@ -98,9 +98,6 @@ urban_zoq          = 0.
 urban_emiss        = 0.
 wsgsmax=0.
 wsgs=0.
-wsgsmax_ustar=0.
-wsgsmax_u10=0.
-wsgsmax_tke=0.
 rkmsave=0.
 rkhsave=0.
 
@@ -133,7 +130,7 @@ deallocate( anthropogenic_flux, urban_tas, urban_ts, urban_wetfac )
 deallocate( urban_storage_flux, urban_elecgas_flux )
 deallocate( urban_heating_flux, urban_cooling_flux )
 deallocate( urban_zom, urban_zoh, urban_zoq, urban_emiss )
-deallocate( wsgsmax, wsgs, wsgsmax_ustar, wsgsmax_u10, wsgsmax_tke )
+deallocate( wsgsmax, wsgs )
 deallocate( rkmsave, rkhsave )
 
 #ifdef scm

@@ -33,7 +33,7 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine performs vertical advection based on JLMs TVD scheme
 
-subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,idzdum,wtr,cnum)
+subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,idzdum,ee,cnum)
 
 use cc_mpi
 use mlo
@@ -49,8 +49,8 @@ real, dimension(ifull) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,idzdum
 real, dimension(:,:), intent(inout) :: uu,vv,ss,tt,mm
+real, dimension(:,:), intent(in) :: ee
 real, dimension(ifull,wlev) :: dzdum
-logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 
 call START_LOG(watervadv_begin)
 
@@ -60,9 +60,9 @@ dzdum = max(idzdum(:,:),1.E-10)
 dtnew(:) = dtin
 do ii = 1,wlev-1
   do iq = 1,ifull    
-    if ( wtr(iq,ii) ) then
+    if ( ee(iq,ii)>0.5 ) then
       ! this trick works if dzdum(iq,ii)<dzdum(iq,ii+1)
-      dtnew(iq)=min(dtnew(iq),0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
+      dtnew(iq) = min(dtnew(iq),0.3*dzdum(iq,ii)/max(abs(ww(iq,ii)),1.E-12))
     end if
   end do
 end do
@@ -74,33 +74,41 @@ if (its_g>500) then
   write(6,*) "MLOVERT myid,cnum,its_g",myid,cnum,its_g
 end if
 
-
-!$acc data create(its,dtnew,ww,depdum,dzdum)
-!$acc update device(its,dtnew,ww,depdum,dzdum)
-
+#ifdef GPU
+!$acc data create(its,dtnew,ww,depdum,dzdum,ee)
+!$acc update device(its,dtnew,ww,depdum,dzdum,ee)
+#else
 !$omp parallel sections
+#endif
 
+#ifndef GPU
 !$omp section
-call mlotvd(its,dtnew,ww,uu,depdum,dzdum,1)
-
+#endif
+call mlotvd(its,dtnew,ww,uu,depdum,dzdum,ee)
+#ifndef GPU
 !$omp section
-call mlotvd(its,dtnew,ww,vv,depdum,dzdum,2)
-
+#endif
+call mlotvd(its,dtnew,ww,vv,depdum,dzdum,ee)
+#ifndef GPU
 !$omp section
-call mlotvd(its,dtnew,ww,ss,depdum,dzdum,3)
-
+#endif
+call mlotvd(its,dtnew,ww,ss,depdum,dzdum,ee)
+#ifndef GPU
 !$omp section
-call mlotvd(its,dtnew,ww,tt,depdum,dzdum,4)
-
+#endif
+call mlotvd(its,dtnew,ww,tt,depdum,dzdum,ee)
+#ifndef GPU
 !$omp section
-call mlotvd(its,dtnew,ww,mm,depdum,dzdum,5)
+#endif
+call mlotvd(its,dtnew,ww,mm,depdum,dzdum,ee)
 
-!$omp end parallel sections
-
+#ifdef GPU
 !$acc wait
 !$acc end data
-
-
+#else
+!$omp end parallel sections
+#endif
+  
 ss(1:ifull,:)=max(ss(1:ifull,:),0.)
 tt(1:ifull,:)=max(tt(1:ifull,:),-wrtemp)
 
@@ -109,7 +117,7 @@ call END_LOG(watervadv_end)
 return
 end subroutine mlovadv
 
-subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,async)
+subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,ee)
 
 use cc_acc, only : async_length
 use mlo
@@ -117,8 +125,8 @@ use newmpar_m
 
 implicit none
 
-integer ii,i,iq,kp,kx,async_counter
-integer, intent(in) :: async
+integer ii,i,iq,kp,kx
+integer, save :: async_counter = -1
 integer, dimension(ifull), intent(in) :: its
 real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
@@ -126,27 +134,24 @@ real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
 real, dimension(:,:), intent(inout) :: uu
 real, dimension(ifull,0:wlev) :: ff
 real, dimension(ifull,0:wlev) :: delu
+real, dimension(:,:), intent(in) :: ee
 real fl,fh,cc,rr
 
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
 
-async_counter = mod( async-1, async_length )
+async_counter = mod( async_counter+1, async_length )
 
 if ( mlontvd==0 ) then ! MC
 
   !$acc enter data create(uu,delu,ff) async(async_counter)
   !$acc update device(uu) async(async_counter)
 
-  !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum) async(async_counter)
+  !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum,ee) async(async_counter)
   do ii = 1,wlev-1
     do iq = 1,ifull
-      ff(iq,ii) = 0.
-      if ( dzdum(iq,ii+1)>1.e-4 ) then
-        delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
-      else
-        delu(iq,ii) = 0.
-      end if
+      ff(iq,ii) = 0.  
+      delu(iq,ii) = (uu(iq,ii+1) - uu(iq,ii))*ee(iq,ii)*ee(iq,ii+1)
     end do
   end do
   !$acc end parallel loop
@@ -160,7 +165,7 @@ if ( mlontvd==0 ) then ! MC
   !$acc end parallel loop
 
 ! TVD part
-  !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum) async(async_counter)
+  !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
   do ii = 1,wlev-1
     do iq = 1,ifull
       ! +ve ww is downwards to the ocean floor
@@ -172,17 +177,16 @@ if ( mlontvd==0 ) then ! MC
       fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))             &
         - 0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
         /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-      if ( dzdum(iq,ii+1)>1.e-4 ) then
-        ff(iq,ii) = fl + cc*(fh-fl)
-      end if
-     !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
-   end do
+      ff(iq,ii) = fl + cc*(fh-fl)
+      !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit        
+      ff(iq,ii) = ff(iq,ii)*ee(iq,ii)*ee(iq,ii+1)
+    end do
   end do
   !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
+  !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
   do ii = 1,wlev
     do iq = 1,ifull
-      if ( dzdum(iq,ii)>1.e-4 ) then  
+      if ( ee(iq,ii)>0.5 ) then  
         uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
                            -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
       end if   
@@ -190,15 +194,12 @@ if ( mlontvd==0 ) then ! MC
   end do
   !$acc end parallel loop
 
-  !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
+  !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum,ee) async(async_counter)
   do iq = 1,ifull
     do i = 2,its(iq)
-      do ii=1,wlev-1
-        if ( dzdum(iq,ii+1)>1.e-4 ) then
-          delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
-        else
-          delu(iq,ii) = 0.  
-        end if 
+      do ii = 1,wlev-1
+        ff(iq,ii) = 0.  
+        delu(iq,ii) = (uu(iq,ii+1) - uu(iq,ii))*ee(iq,ii)*ee(iq,ii+1)
       end do
       ! TVD part
       do ii=1,wlev-1
@@ -211,12 +212,11 @@ if ( mlontvd==0 ) then ! MC
         fh=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))          &
           -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
           /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-        if ( dzdum(iq,ii+1)>1.e-4 ) then 
-          ff(iq,ii)=fl+cc*(fh-fl)
-        end if 
+        ff(iq,ii)=fl+cc*(fh-fl)
+        ff(iq,ii) = ff(iq,ii)*ee(iq,ii)*ee(iq,ii+1)
       end do
       do ii=1,wlev
-        if ( dzdum(iq,ii)>1.e-4 ) then  
+        if ( ee(iq,ii)>0.5 ) then  
           uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1)) &
                                         -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
         end if  
@@ -233,15 +233,11 @@ else if ( mlontvd==1 ) then ! Superbee
   !$acc enter data create(uu,delu,ff) async(async_counter)
   !$acc update device(uu) async(async_counter)
 
-  !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum) async(async_counter)
+  !$acc parallel loop collapse(2) present(delu,uu,ff,dzdum,ee) async(async_counter)
   do ii = 1,wlev-1
     do iq = 1,ifull
       ff(iq,ii) = 0.  
-      if ( dzdum(iq,ii+1)>1.e-4 ) then
-        delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
-      else
-        delu(iq,ii) = 0.  
-      end if    
+      delu(iq,ii) = (uu(iq,ii+1) - uu(iq,ii))*ee(iq,ii)*ee(iq,ii+1)
     end do
   end do
   !$acc end parallel loop
@@ -255,7 +251,7 @@ else if ( mlontvd==1 ) then ! Superbee
   !$acc end parallel loop
 
   ! TVD part
-  !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum) async(async_counter)
+  !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
   do ii = 1,wlev-1
     do iq = 1,ifull
       ! +ve ww is downwards to the ocean floor
@@ -267,17 +263,16 @@ else if ( mlontvd==1 ) then ! Superbee
       fh = ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))             &
         - 0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
         /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-      if ( dzdum(iq,ii+1)>1.e-4 ) then
-        ff(iq,ii) = fl + cc*(fh-fl)
-      end if  
-     !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
+      ff(iq,ii) = fl + cc*(fh-fl)
+      !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
+      ff(iq,ii) = ff(iq,ii)*ee(iq,ii)*ee(iq,ii+1)
    end do
   end do
   !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum) async(async_counter)
+  !$acc parallel loop collapse(2) present(ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
   do ii = 1,wlev
     do iq = 1,ifull
-      if ( dzdum(iq,ii)>1.e-4 ) then  
+      if ( ee(iq,ii)>0.5 ) then  
         uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
                            -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
       end if   
@@ -285,15 +280,12 @@ else if ( mlontvd==1 ) then ! Superbee
   end do
   !$acc end parallel loop
 
-  !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum) async(async_counter)
+  !$acc parallel loop present(its,delu,uu,ww,ff,dtnew,depdum,dzdum,ee) async(async_counter)
   do iq = 1,ifull
     do i = 2,its(iq)
       do ii = 1,wlev-1
-        if ( dzdum(iq,ii+1)>1.e-4 ) then
-          delu(iq,ii) = uu(iq,ii+1) - uu(iq,ii)
-        else
-          delu(iq,ii) = 0.  
-        end if 
+        ff(iq,ii) = 0.  
+        delu(iq,ii) = (uu(iq,ii+1) - uu(iq,ii))*ee(iq,ii)*ee(iq,ii+1)
       end do
       ! TVD part
       do ii = 1,wlev-1
@@ -306,12 +298,11 @@ else if ( mlontvd==1 ) then ! Superbee
         fh=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1))          &
           -0.5*(uu(iq,ii+1)-uu(iq,ii))*ww(iq,ii)**2*dtnew(iq) &
           /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-        if ( dzdum(iq,ii+1)>1.e-4 ) then 
-          ff(iq,ii)=fl+cc*(fh-fl)
-        end if  
+        ff(iq,ii)=fl+cc*(fh-fl)
+        ff(iq,ii) = ff(iq,ii)*ee(iq,ii)*ee(iq,ii+1)
       end do
       do ii = 1,wlev
-        if ( dzdum(iq,ii)>1.e-4 ) then  
+        if ( ee(iq,ii)>0.5 ) then  
           uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1)) &
                                         -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
         end if  

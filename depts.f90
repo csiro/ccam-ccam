@@ -65,7 +65,15 @@ do k = 1,kl
   s(1:ifull,k,3) = wc(1:ifull,k)
 end do  
 
-call bounds(s,nrows=2)
+!$acc data create(xg,yg,nface,xx4,yy4,sx)
+!$acc update device(xx4,yy4)
+
+call bounds_send(s,nrows=2)
+
+! convert to grid point numbering
+call toij5(x3d,y3d,z3d)
+
+call bounds_recv(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -147,13 +155,8 @@ else
 
 end if
 
-!$acc data create(xg,yg,nface,xx4,yy4,sx)
-!$acc update device(xx4,yy4,sx)
-
-! convert to grid point numbering
-call toij5(x3d,y3d,z3d)
-
 ! Share off processor departure points.
+!$acc update device(sx)
 !$acc update self(xg,yg,nface)
 call deptsync(nface,xg,yg)
 
@@ -210,7 +213,7 @@ if ( intsch==1 ) then
   !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,xxg,yyg,n)  &
   !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
   !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
-#endif
+#endif  
   do nn = 1,3
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
@@ -331,8 +334,8 @@ else     ! if(intsch==1)then
   end do       ! nn loop
 #ifndef GPU
   !$omp end parallel do
-#endif    
-  !$acc wait
+#endif  
+  !$acc wait  
   
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -400,7 +403,7 @@ if ( intsch==1 ) then
   !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,xxg,yyg,n)  &
   !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
   !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
-#endif  
+#endif    
   do nn = 1,3
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
@@ -437,8 +440,8 @@ if ( intsch==1 ) then
   end do       ! nn loop
 #ifndef GPU
   !$omp end parallel do
-#endif    
-  !$acc wait
+#endif  
+  !$acc wait 
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -523,8 +526,8 @@ else     ! if(intsch==1)then
   end do       ! nn loop
 #ifndef GPU
   !$omp end parallel do
-#endif    
-  !$acc wait
+#endif  
+  !$acc wait 
   
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================

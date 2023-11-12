@@ -256,7 +256,7 @@ select case(iceradmethod)
     elsewhere
       Wice(:,:) = 0.
     end where
-    reffi(:,:) =  min( max( stras_rice(:,:), 18.6E-6_8 ), 130.2E-6_8 )
+    reffi(:,:) = min( max( stras_rice(:,:), 18.6e-6_8 ), 130.2e-6_8 )
 
   case(5)
     !Donner et al (1997)

@@ -68,17 +68,19 @@ if ( num==0 ) then
   end if
 end if
 
-
+#ifdef GPU
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
 !$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
-
+#else
 !$omp parallel
 !$omp sections
+#endif
 
-
-!     t
+#ifndef GPU
 !$omp section
-call vadv_work(tarr,nvadh_inv_pass,nits,1)
+#endif
+!     t
+call vadv_work(tarr,nvadh_inv_pass,nits)
 
 !       These diagnostics don't work with single input/output argument
 if( diag .and. mydiag )then
@@ -86,10 +88,11 @@ if( diag .and. mydiag )then
   write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
 endif
 
-
-!     u
+#ifndef GPU
 !$omp section
-call vadv_work(uarr,nvadh_inv_pass,nits,2)
+#endif
+!     u
+call vadv_work(uarr,nvadh_inv_pass,nits)
 
 !       These diagnostics don't work with single input/output argument
 if( diag .and. mydiag )then
@@ -97,10 +100,11 @@ if( diag .and. mydiag )then
   write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
 endif
 
-
-!     v
+#ifndef GPU
 !$omp section
-call vadv_work(varr,nvadh_inv_pass,nits,3)
+#endif
+!     v
+call vadv_work(varr,nvadh_inv_pass,nits)
 
 !       These diagnostics don't work with single input/output argument
 if( diag .and. mydiag )then
@@ -108,114 +112,130 @@ if( diag .and. mydiag )then
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
 endif
 
-
-!     h_nh
+#ifndef GPU
 !$omp section
+#endif
+!     h_nh
 if ( nh/=0 ) then
-  call vadv_work(h_nh,nvadh_inv_pass,nits,4)
+  call vadv_work(h_nh,nvadh_inv_pass,nits)
 end if
 
-
+#ifndef GPU
+!$omp section
+#endif
 !     pslx
+call vadv_work(pslx,nvadh_inv_pass,nits)
+
+#ifndef GPU
 !$omp section
-call vadv_work(pslx,nvadh_inv_pass,nits,5)
-
-
+#endif
 !      qg
-!$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  call vadv_work(qg,nvadh_inv_pass,nits,6)
+  call vadv_work(qg,nvadh_inv_pass,nits)
   if ( diag .and. mydiag ) then
     write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
     write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
   end if
 end if          ! if(mspec==1)
 
-
+#ifndef GPU
 !$omp section
+#endif
 if ( mspec==1 .and. ldr/=0 ) then
-  call vadv_work(qlg,nvadh_inv_pass,nits,7)
+  call vadv_work(qlg,nvadh_inv_pass,nits)
   if ( diag .and. mydiag ) then
     write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
     write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
   end if
 end if
 
-
+#ifndef GPU
 !$omp section
+#endif
 if ( mspec==1 .and. ldr/=0 ) then
-  call vadv_work(qfg,nvadh_inv_pass,nits,8)
+  call vadv_work(qfg,nvadh_inv_pass,nits)
   if ( diag .and. mydiag ) then
     write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
     write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv)) 
   end if
 end if
 
-
+#ifndef GPU
 !$omp section
+#endif
 if ( mspec==1 .and. ldr/=0 ) then
-  call vadv_work(stratcloud,nvadh_inv_pass,nits,9)
+  call vadv_work(stratcloud,nvadh_inv_pass,nits)
 end if
 
+!if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+!    call vadv_work(nr,nvadh_inv_pass,nits)
+!end if
 
-
+#ifndef GPU
 !$omp section
+#endif
 if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
     ! only advect ql and qf for now
-!   call vadv_work(nr,nvadh_inv_pass,nits,10)
-    call vadv_work(ni,nvadh_inv_pass,nits,10)
-!   call vadv_work(ns,nvadh_inv_pass,nits,10)    
+    call vadv_work(ni,nvadh_inv_pass,nits)
 end if
 
+!if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+!    call vadv_work(ns,nvadh_inv_pass,nits)
+!end if
 
+#ifndef GPU
 !$omp section
+#endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
-    call vadv_work(eps,nvadh_inv_pass,nits,11)
+    call vadv_work(eps,nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
-
-
+#ifndef GPU
 !$omp section
+#endif
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
-    call vadv_work(tke,nvadh_inv_pass,nits,12)
+    call vadv_work(tke,nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 end if          ! if(mspec==1)
 
-
-
+#ifndef GPU
 !$omp end sections nowait
-
+#endif
 
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( abs(iaero)>=2 ) then
+#ifndef GPU
     !$omp do schedule(static) private(ntr)
+#endif
     do ntr = 1,naero
-      call vadv_work(xtg(:,:,ntr),nvadh_inv_pass,nits,ntr)
+      call vadv_work(xtg(:,:,ntr),nvadh_inv_pass,nits)
     end do
+#ifndef GPU
     !$omp end do nowait
+#endif
   end if   ! abs(iaero)>=2
-end if
-  
-
-if ( mspec==1 ) then   ! advect qg and gases after preliminary step  
   if ( ngas>0 .or. nextout>=4 ) then
+#ifndef GPU
     !$omp do schedule(static) private(ntr)
+#endif
     do ntr = 1,ntrac
-      call vadv_work(tr(:,:,ntr),nvadh_inv_pass,nits,ntr)
+      call vadv_work(tr(:,:,ntr),nvadh_inv_pass,nits)
     end do
+#ifndef GPU
     !$omp end do nowait
+#endif
   end if        ! (nextout>=4)
 end if          ! if(mspec==1)
 
-
-!$omp end parallel
-
+#ifdef GPU
 !$acc wait
 !$acc end data
-
+#else
+!$omp end parallel
+#endif
 
 call END_LOG(vadv_end)
  
@@ -223,7 +243,7 @@ return
 end subroutine vadvtvd
       
 ! Subroutine to perform generic TVD advection
-subroutine vadv_work(tarr,nvadh_inv_pass,nits,async)
+subroutine vadv_work(tarr,nvadh_inv_pass,nits)
 
 use cc_acc, only : async_length
 use newmpar_m
@@ -234,14 +254,14 @@ use vvel_m
 implicit none
       
 integer, dimension(ifull), intent(in) :: nits
-integer i, k, iq, kp, kx, async_counter
-integer, intent(in) :: async
+integer i, k, iq, kp, kx
+integer, save :: async_counter = -1
 real, dimension(:,:), intent(inout) :: tarr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
 real rat, phitvd, fluxhi, fluxlo
 real, dimension(ifull,0:kl) :: delt, fluxh
 
-async_counter = mod(async-1, async_length)
+async_counter = mod(async_counter+1, async_length)
 
 ! The first sub-step is vectorised for all points.
 

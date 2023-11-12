@@ -34,6 +34,7 @@ module cc_omp
    integer, save, public :: maxtilesize = 96 ! suggested value
 
    public ::  ccomp_init
+   public ::  ccomp_mythread
    public ::  ccomp_get_thread_num
 
    contains
@@ -97,5 +98,17 @@ module cc_omp
       
       return
    end subroutine ccomp_init
+   
+   subroutine ccomp_mythread(mythread)
+      integer, intent(out) :: mythread
+      
+#ifdef _OPENMP
+      mythread = omp_get_thread_num()
+#else
+      mythread = 0
+#endif
+
+      return
+   end subroutine ccomp_mythread
  
 end module cc_omp

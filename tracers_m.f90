@@ -41,6 +41,8 @@ real, dimension(:), allocatable, save :: acloss_g
 character(len=20), dimension(:), save, allocatable :: tracname
 character(len=20), dimension(:), save, allocatable :: tractype
 
+!$acc declare create(ntrac,ngas)
+
 contains
 
 subroutine tracers_init(il,jl,kl,iextra)

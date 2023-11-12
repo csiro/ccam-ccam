@@ -2810,10 +2810,17 @@ DO p=1,np   ! loop over interpolated age pairs
 
 
    ! check for obs locations forming a quadrangle around interpolating point
+#ifdef CCAM   
+   MASK2 = (sign(1_i4b,A1(p)-xobs)== -sign(1_i4b,A1(p)-x1)).AND.(sign(1_i4b,A2(p)-yobs)== sign(1_i4b,A2(p)-y1).and.A1(p).NE.xobs)
+   MASK3 = (sign(1_i4b,A1(p)-xobs)== sign(1_i4b,A1(p)-x1)).AND.(sign(1_i4b,A2(p)-yobs)== -sign(1_i4b,A2(p)-y1).and.A2(p).NE.yobs)
+   MASK4 = (sign(1_i4b,A1(p)-xobs)== -sign(1_i4b,A1(p)-x1)).AND.(sign(1_i4b,A2(p)-yobs)== -sign(1_i4b,A2(p)-y1) &
+        .and.A1(p).NE.xobs.and.A2(p).NE.yobs)
+#else
    MASK2 = (sign(1,A1(p)-xobs)== -sign(1,A1(p)-x1)).AND.(sign(1,A2(p)-yobs)== sign(1,A2(p)-y1).and.A1(p).NE.xobs)
    MASK3 = (sign(1,A1(p)-xobs)== sign(1,A1(p)-x1)).AND.(sign(1,A2(p)-yobs)== -sign(1,A2(p)-y1).and.A2(p).NE.yobs)
    MASK4 = (sign(1,A1(p)-xobs)== -sign(1,A1(p)-x1)).AND.(sign(1,A2(p)-yobs)== -sign(1,A2(p)-y1) &
         .and.A1(p).NE.xobs.and.A2(p).NE.yobs)
+#endif
 
    IF ((ANY(MASK2)).and.(ANY(MASK3)).and.(ANY(MASK4)))    THEN
       ! get nearest point with opposing sign of x displacement

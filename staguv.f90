@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -112,7 +112,7 @@ if ( nstag==3 ) then
   end do
   !$omp end do
 
-  do itn=1,itnmax        ! each loop is a double iteration
+  do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
@@ -134,6 +134,26 @@ if ( nstag==3 ) then
     end do
     !$omp end do
   end do                  ! itn=1,itnmax
+  call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+  !$omp barrier
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,kx
+    do iq = 1,ifull  
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+    end do
+  end do  
+  !$omp end do
+  call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+  !$omp barrier
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,kx
+    do iq = 1,ifull  
+      uout(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
+      vout(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
+    end do
+  end do
+  !$omp end do
   !$omp end parallel
 
 else !if ( nstag==4 ) then
@@ -151,7 +171,7 @@ else !if ( nstag==4 ) then
   end do
   !$omp end do
 
-  do itn=1,itnmax        ! each loop is a double iteration
+  do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
@@ -173,16 +193,29 @@ else !if ( nstag==4 ) then
     end do  
     !$omp end do
   end do                 ! itn=1,itnmax
-  !$omp end parallel 
-
+  call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+  !$omp barrier
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,kx
+    do iq = 1,ifull      
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+    end do
+  end do  
+  !$omp end do
+  call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+  !$omp barrier
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,kx
+    do iq = 1,ifull      
+      uout(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
+      vout(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
+    end do
+  end do  
+  !$omp end do
+  !$omp end parallel
+ 
 end if
-
-do k = 1,kx
-  do iq = 1,ifull
-    uout(iq,k) = ua(iq,k)
-    vout(iq,k) = va(iq,k)
-  end do
-end do
 
 call END_LOG(stag_end)
 
@@ -260,7 +293,7 @@ if ( nstagu==3 ) then
   end do  
   !$omp end do
 
-  do itn=1,itnmax        ! each loop is a double iteration
+  do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
     !$omp barrier
     !$omp do schedule(static) private(k,iq)    
@@ -282,6 +315,26 @@ if ( nstagu==3 ) then
     end do
     !$omp end do
   end do                 ! itn=1,itnmax
+  call boundsuv(ua,va,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+  !$omp barrier
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,kx
+    do iq = 1,ifull  
+      uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+    end do
+  end do  
+  !$omp end do
+  call boundsuv(uin,vin,stag=3) ! issv, isv, inv, iwwu, iwu, ieu
+  !$omp barrier
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,kx
+    do iq = 1,ifull  
+      uout(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
+      vout(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
+    end do
+  end do
+  !$omp end do
   !$omp end parallel
 
 else !if ( nstagu==4 ) then
@@ -299,7 +352,7 @@ else !if ( nstagu==4 ) then
   end do  
   !$omp end do
 
-  do itn=1,itnmax        ! each loop is a double iteration
+  do itn=1,itnmax-1        ! each loop is a double iteration
     call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
     !$omp barrier
     !$omp do schedule(static) private(k,iq)
@@ -321,16 +374,29 @@ else !if ( nstagu==4 ) then
     end do  
     !$omp end do
   enddo                  ! itn=1,itnmax
+  call boundsuv(ua,va,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+  !$omp barrier
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,kx
+    do iq = 1,ifull      
+      uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
+      vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+    end do
+  end do  
+  !$omp end do
+  call boundsuv(uin,vin,stag=2) ! isv, inv, innv, iwu, ieu, ieeu
+  !$omp barrier
+  !$omp do schedule(static) private(k,iq)
+  do k = 1,kx
+    do iq = 1,ifull  
+      uout(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
+      vout(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
+    end do
+  end do  
+  !$omp end do
   !$omp end parallel
       
 end if
-
-do k = 1,kx
-  do iq = 1,ifull
-    uout(iq,k) = ua(iq,k)
-    vout(iq,k) = va(iq,k)
-  end do
-end do
 
 call END_LOG(stag_end)
 

@@ -113,8 +113,8 @@ if ( intsch==1 ) then
     ! Loop over points that need to be calculated for other processes
 
     do nn = 1,nlen 
-
       if ( nfield(nn+nstart-1)<mh_bs ) then
+
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
             ! depature point coordinates
@@ -146,7 +146,9 @@ if ( intsch==1 ) then
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do      ! iq loop
         end do        ! ii loop
+        
       else               ! (nfield<mh_bs)
+          
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
             n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
@@ -182,8 +184,8 @@ if ( intsch==1 ) then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! ii loop
+        
       end if
-
     end do          ! nn loop  
 
     ! Send messages to other processors.  We then start the calculation for this processor while waiting for
@@ -193,12 +195,12 @@ if ( intsch==1 ) then
 #ifndef GPU
     !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)  &
     !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
-#endif
+    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4,cmin,cmax)
+#endif    
     do nn = 1,nlen
-      async_counter = mod(nn-1, async_length)
-      
       if ( nfield(nn+nstart-1)<mh_bs ) then
+
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
         do k = 1,kl
@@ -231,7 +233,10 @@ if ( intsch==1 ) then
           end do       ! iq loop
         end do         ! k loop
         !$acc end parallel loop
+
       else              ! (nfield<mh_bs)
+
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
         do k = 1,kl
@@ -269,8 +274,8 @@ if ( intsch==1 ) then
           end do      ! iq loop
         end do        ! k loop
         !$acc end parallel loop
+          
       end if
-
     end do           ! nn loop
 #ifndef GPU
     !$omp end parallel do
@@ -331,8 +336,8 @@ else     ! if(intsch==1)then
     ! For other processes
     
     do nn = 1,nlen
-        
       if ( nfield(nn+nstart-1) < mh_bs ) then
+          
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
             n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
@@ -364,7 +369,9 @@ else     ! if(intsch==1)then
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do         ! iq loop
         end do           ! ii loop
+        
       else                 ! (nfield<mh_bs)  
+
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
             n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
@@ -401,8 +408,8 @@ else     ! if(intsch==1)then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! ii loop
-      end if
-
+          
+      end if    
     end do             ! nn loop  
     
     call intssync_send(nlen)
@@ -410,12 +417,12 @@ else     ! if(intsch==1)then
 #ifndef GPU
     !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)  &
     !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
-#endif
+    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4,cmin,cmax)
+#endif    
     do nn = 1,nlen
-      async_counter = mod(nn-1, async_length)
-      
       if ( nfield(nn+nstart-1) < mh_bs ) then
+
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
         do k = 1,kl
@@ -449,7 +456,10 @@ else     ! if(intsch==1)then
           end do       ! iq loop
         end do         ! k loop
         !$acc end parallel loop
+
       else                 ! (nfield<mh_bs)
+
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface) async(async_counter)
         do k = 1,kl
@@ -487,6 +497,7 @@ else     ! if(intsch==1)then
           end do       ! iq loop
         end do         ! k loop
         !$acc end parallel loop
+          
       end if
 
     end do           ! nn loop

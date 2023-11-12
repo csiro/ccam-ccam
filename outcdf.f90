@@ -162,8 +162,7 @@ use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
     ,cable_litter,gs_switch              &
-    ,cable_climate,POP_NPATCH            &
-    ,POP_NCOHORT,ccycle                  &
+    ,POP_NPATCH,POP_NCOHORT,ccycle       &
     ,smrf_switch,strf_switch,POP_AGEMAX  &
     ,cable_gw_model,cable_roughness      &
     ,cable_version, cable_potev
@@ -181,9 +180,11 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,alphavis_seasnw,alphanir_seasnw     &
     ,mlosigma,oclosure,usepice,ominl     &
     ,omaxl,mlo_timeave_length,kemaxdt    &
-    ,omineps,omink,mlo_adjeta
+    ,omineps,omink,mlo_adjeta            &
+    ,mlo_limitsal
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
+use mlostag, only : mstagf                 ! Ocean reversible staggering
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use module_aux_rad                         ! Additional cloud and radiation routines
 use module_ctrl_microphysics               ! Interface for cloud microphysics
@@ -317,12 +318,6 @@ if ( myid==0 .or. local ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_agemax',POP_AGEMAX,cadim)  
       end if
-      if ( cable_climate==1 ) then
-        call ccnf_def_dim(idnc,'cable_91days',91,c91pdim)
-        call ccnf_def_dim(idnc,'cable_31days',31,c31pdim)
-        call ccnf_def_dim(idnc,'cable_20years',20,c20ydim)
-        call ccnf_def_dim(idnc,'cable_5days',120,c5ddim)
-      end if
     end if  
     
     ! set-up multi-dimensional arrays
@@ -430,12 +425,6 @@ if ( myid==0 .or. local ) then
       end if
     end if
     if ( itype==-1 ) then
-      if ( cable_climate==1 ) then
-        call ccnf_def_var(idnc,'cable_91days','float',1,dimc(3:3,3),idc(3))
-        call ccnf_def_var(idnc,'cable_31days','float',1,dimc(3:3,4),idc(4))
-        call ccnf_def_var(idnc,'cable_20years','float',1,dimc(3:3,5),idc(5))
-        call ccnf_def_var(idnc,'cable_5days','float',1,dimc(3:3,6),idc(6))
-      end if
     end if    
 
     icy = kdate/10000
@@ -860,7 +849,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_zomratio',ateb_zomratio)
     call ccnf_put_attg(idnc,'ateb_zoroof',ateb_zoroof)
     call ccnf_put_attg(idnc,'ateb_zosnow',ateb_zosnow)
-    call ccnf_put_attg(idnc,'cable_climate',cable_climate)
     call ccnf_put_attg(idnc,'cable_gw_model',cable_gw_model)
     call ccnf_put_attg(idnc,'cable_litter',cable_litter)
     call ccnf_put_attg(idnc,'cable_roughness',cable_roughness)
@@ -888,15 +876,20 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mindep',mindep)
     call ccnf_put_attg(idnc,'minwater',minwater)
     call ccnf_put_attg(idnc,'mlo_adjeta',mlo_adjeta)
+    call ccnf_put_attg(idnc,'mlo_bs',mlo_bs)
+    call ccnf_put_attg(idnc,'mlo_limitsal',mlo_limitsal)
     call ccnf_put_attg(idnc,'mlo_timeave_length',mlo_timeave_length)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlodiff_numits',mlodiff_numits)
+    call ccnf_put_attg(idnc,'mlodps',mlodps)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
     call ccnf_put_attg(idnc,'mlontvd',mlontvd)
+    call ccnf_put_attg(idnc,'mstagf',mstagf)
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'nodrift',nodrift)
+    call ccnf_put_attg(idnc,'nxtrrho',nxtrrho)
     call ccnf_put_attg(idnc,'oclosure',oclosure)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
     call ccnf_put_attg(idnc,'ocnlap',ocnlap)
@@ -992,8 +985,7 @@ use ateb, only : atebsaved, atebavetemp,       & ! Urban
                  urbtemp, nfrac, atebmisc        
 use cable_ccam, only : savetile, savetiledef,  & ! CABLE interface
                        cable_pop, POP_NPATCH,  &
-                       POP_NCOHORT,            &
-                       cable_climate, ccycle
+                       POP_NCOHORT, ccycle
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
@@ -1098,7 +1090,7 @@ real, dimension(wlev) :: zocean
 real, dimension(ifull,10) :: micdwn
 real, dimension(ifull,kl) :: tmpry, rhoa
 real, dimension(ifull,wlev) :: oo
-real, dimension(ifull,wlev,8) :: mlodwn
+real, dimension(ifull,wlev,6) :: mlodwn
 real, dimension(ifull,3:6) :: ocndwn
 real scale_factor
 character(len=50) expdesc
@@ -1666,14 +1658,6 @@ if ( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,'wsgs',lname,'m s-1',0.,350.,0,cptype)
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(idnc,dimj,jsize,'wsgsmax',lname,'m s-1',0.,350.,1,cptype)
-        lname = 'Friction Velocity For Maximum Wind Gust'
-        call attrib(idnc,dimj,jsize,'wsgsmax_ustar',lname,'m s-1',0.,35.,1,cptype)
-        lname = 'Near-Surface Wind Speed For Maximum Wind Gust'
-        call attrib(idnc,dimj,jsize,'wsgsmax_u10',lname,'m s-1',0.,350.,1,cptype)
-        if ( nvmix==6.or.nvmix==9 ) then
-          lname = 'Near-Surface Turbulent Kinetic Energy For Maximum Wind Gust'
-          call attrib(idnc,dimj,jsize,'wsgsmax_tke',lname,'m2 s-2',0.,65.,1,cptype)
-        end if
       end if  
     end if  
     
@@ -1873,26 +1857,6 @@ if ( myid==0 .or. local ) then
             ! Plant Turnover Wood Resource Lim
           end if
         end if
-        if ( cable_climate==1 ) then
-          lname = 'Climate ivegt'
-          call attrib(idnc,dimj,jsize,'climate_ivegt',lname,'none',0.,65.,1,cptype)
-          lname = 'Climate biome'
-          call attrib(idnc,dimj,jsize,'climate_biome',lname,'none',0.,65.,1,cptype)
-          lname = 'Climate average minimum annual temperature'
-          call attrib(idnc,dimj,jsize,'climate_min20',lname,'K',-130.,130.,1,cptype)
-          lname = 'Climate average maximum annual temperature'
-          call attrib(idnc,dimj,jsize,'climate_max20',lname,'K',-130.,130.,1,cptype)
-          lname = 'Climate average ratio of precip to PT evap'
-          call attrib(idnc,dimj,jsize,'climate_alpha20',lname,'none',0.,13.,1,cptype)
-          lname = 'Climate annual growing degree days above -5C'
-          call attrib(idnc,dimj,jsize,'climate_agdd5',lname,'K',0.,13000.,1,cptype)
-          lname = 'Climate growing moisture days'
-          call attrib(idnc,dimj,jsize,'climate_gmd',lname,'none',0.,650.,1,cptype)
-          lname = 'Climate average minimum annual moisture'
-          call attrib(idnc,dimj,jsize,'climate_dmoist_min20',lname,'none',0.,13.,1,cptype)
-          lname = 'Climate average maximum annual moisture'
-          call attrib(idnc,dimj,jsize,'climate_dmoist_max20',lname,'none',0.,13.,1,cptype)
-        end if
       end if
     end if
 
@@ -2086,12 +2050,6 @@ if ( myid==0 .or. local ) then
         call attrib(idnc,dimo,osize,"vo",lname,'m s-1',-65.,65.,0,cptype)
         lname = "Ocean vertical velocity (+ve down)"
         call attrib(idnc,dimo,osize,"wo",lname,'m s-1',-6.5,6.5,0,cptype)
-        if ( diaglevel_ocean>5 ) then
-          lname = "Ocean Eddy Viscosity"
-          call attrib(idnc,dimo,osize,"kmo",lname,'m2 s-1',0.,10.,0,cptype)
-          lname = "Ocean Eddy Diffusivity"
-          call attrib(idnc,dimo,osize,"kso",lname,'m2 s-1',0.,10.,0,cptype)
-        end if  
         if ( oclosure==1 ) then
           if (diaglevel_ocean>5 .or. itype==-1 ) then
             lname = "Ocean Turbulent Kinetic Energy"
@@ -2614,34 +2572,6 @@ if ( myid==0 .or. local ) then
         deallocate( cabledata )
       end if
     end if
-    if ( itype==-1 ) then
-      if ( cable_climate==1 ) then
-        allocate( cabledata(91) )
-        do i = 1,91
-          cabledata(i) = real(i)
-        end do  
-        call ccnf_put_vara(idnc,idc(3),1,91,cabledata)
-        deallocate( cabledata )
-        allocate( cabledata(31) )
-        do i = 1,31
-          cabledata(i) = real(i)
-        end do  
-        call ccnf_put_vara(idnc,idc(4),1,31,cabledata)
-        deallocate( cabledata )
-        allocate( cabledata(20) )
-        do i = 1,20
-          cabledata(i) = real(i)
-        end do
-        call ccnf_put_vara(idnc,idc(5),1,20,cabledata)
-        deallocate( cabledata )
-        allocate( cabledata(120) )
-        do i = 1,120
-          cabledata(i) = real(i)
-        end do
-        call ccnf_put_vara(idnc,idc(6),1,120,cabledata)
-        deallocate( cabledata )
-      end if    
-    end if    
     
   end if ! iarch==1
   ! -----------------------------------------------------------      
@@ -2710,7 +2640,7 @@ end if
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,1:2) = 999. ! temp, sal
   mlodwn(:,:,3:4) = 0.   ! u, v
-  mlodwn(:,:,5:8) = 0.   ! km, ks, tke & eps
+  mlodwn(:,:,5:6) = 0.   ! tke & eps
   micdwn(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
   micdwn(:,8:10)  = 0.   ! sto, uic, vic
   ocndep(:)       = 0.   ! ocean depth
@@ -3083,11 +3013,6 @@ if ( save_pbl .and. itype==1 ) then
   if ( rescrn>0 ) then  
     call histwrt(wsgs,'wsgs',idnc,iarch,local,.true.)  
     call histwrt(wsgsmax,'wsgsmax',idnc,iarch,local,lday)  
-    call histwrt(wsgsmax_ustar,'wsgsmax_ustar',idnc,iarch,local,lday)
-    call histwrt(wsgsmax_u10,'wsgsmax_u10',idnc,iarch,local,lday)
-    if ( nvmix==6.or.nvmix==9 ) then
-      call histwrt(wsgsmax_tke,'wsgsmax_tke',idnc,iarch,local,lday)
-    end if  
   end if  
 end if
 
@@ -3221,20 +3146,6 @@ if ( nsib==6 .or. nsib==7 ) then
           call histwrt(plant_turnover_wood_ave,'cplant2_turnover',idnc,iarch,local,lave)
         end if
       end if
-    end if
-    if ( cable_climate==1 ) then
-      aa = real(climate_ivegt)  
-      call histwrt(aa,'climate_ivegt',idnc,iarch,local,lday)
-      aa = real(climate_biome)  
-      call histwrt(aa,'climate_biome',idnc,iarch,local,lday)  
-      call histwrt(climate_min20,'climate_min20',idnc,iarch,local,lday)  
-      call histwrt(climate_max20,'climate_max20',idnc,iarch,local,lday)
-      call histwrt(climate_alpha20,'climate_alpha20',idnc,iarch,local,lday)
-      call histwrt(climate_agdd5,'climate_agdd5',idnc,iarch,local,lday)
-      aa = real(climate_gmd)
-      call histwrt(aa,'climate_gmd',idnc,iarch,local,lday)
-      call histwrt(climate_dmoist_min20,'climate_dmoist_min20',idnc,iarch,local,lday)
-      call histwrt(climate_dmoist_max20,'climate_dmoist_max20',idnc,iarch,local,lday)
     end if
   end if
 endif   
@@ -3494,14 +3405,10 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       call mloexport("w",oo(:,k),k,0)
     end do  
     call histwrt(oo,"wo",idnc,iarch,local,.true.)
-    if ( diaglevel_ocean>5 ) then
-      call histwrt(mlodwn(:,:,5),"kmo",idnc,iarch,local,lwrite)
-      call histwrt(mlodwn(:,:,6),"kso",idnc,iarch,local,lwrite)
-    end if  
     if ( oclosure==1 ) then
       if ( diaglevel_ocean>5 .or. itype==-1 ) then
-        call histwrt(mlodwn(:,:,7),'tkeo',idnc,iarch,local,.true.)
-        call histwrt(mlodwn(:,:,8),'epso',idnc,iarch,local,.true.)
+        call histwrt(mlodwn(:,:,5),'tkeo',idnc,iarch,local,.true.)
+        call histwrt(mlodwn(:,:,6),'epso',idnc,iarch,local,.true.)
       end if
       if ( itype==-1 ) then  
         do k = 1,wlev  

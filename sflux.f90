@@ -276,7 +276,7 @@ call END_LOG(sfluxland_end)
 
 
 call START_LOG(sfluxurban_begin)
-if ( nurban/=0 ) then                                                                              ! urban
+if ( nurban/=0 ) then                                                                            ! urban
   call sflux_urban                                                                               ! urban
 end if                                                                                           ! urban
 !$omp do schedule(static) private(is,ie)
@@ -960,7 +960,7 @@ else if ( abs(nmlo)>=2 ) then                                                   
         watbdy(iq) = watbdy(iq) + 1000.*oflow                                                  ! MLO
         neta(iq) = neta(iq) - oflow                                                            ! MLO
       end if                                                                                   ! MLO
-    end do                                                                                     ! MLO  
+    end do                                                                                     ! MLO
     call mloimport("eta",neta,0,0,water,depth)                                                 ! MLO
   end if                                                                                       ! MLO
 else                                                                                           ! MLO
@@ -1149,9 +1149,9 @@ urban_wetfac = 0.                                                               
 u_rn = 0.                                                                                        ! urban
 u_evspsbl = 0.                                                                                   ! urban
 u_sbl = 0.                                                                                       ! urban
-! call UCLEM                                                                                     ! urban
+! call aTEB                                                                                      ! urban
 call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_evspsbl,u_sbl,dt,azmin,sgdn,dumrg,     &    ! urban
-              dumx,dums,rho,t,qg,ps,uzon,vmer,vmodmin,                                      &    ! urban
+              dumx,dums,rho,t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,              &    ! urban
               fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,    &    ! urban
               roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                    ! urban
 u_sigma = unpack(fp%sigmau,upack,0.)                                                             ! urban
@@ -1160,7 +1160,7 @@ where ( u_sigma>0. )                                                            
   eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                            ! urban
   tss = (1.-u_sigma)*tss + u_sigma*urban_ts                                                      ! urban
   wetfac = (1.-u_sigma)*wetfac + u_sigma*urban_wetfac                                            ! urban
-  ! since UCLEM will blend non-urban and urban runoff, it is                                      ! urban
+  ! since ateb will blend non-urban and urban runoff, it is                                      ! urban
   ! easier to remove the new runoff and add it again after the                                   ! urban
   ! urban scheme has been updated                                                                ! urban
   runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                            ! urban

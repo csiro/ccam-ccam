@@ -31,13 +31,14 @@
 
 ! Preprocessor directives:
 !   CCAM         - support CCAM (required)
-!   debug        - additional debugging checks
+!   debug        - additional debugging checks, but runs slower
 !   scm          - single column mode
 !   i8r8         - double precision mode
-!   GPU          - target GPUs with OpenMP
+!   OMP          - enable additional threads with OpenMP
+!   GPU          - target GPUs with OpenACC
 !   csircoupled  - CSIR coupled model
-!   usempi3      - optimse communication with MPI-3 (preferrd)
-!   share_ifullg - redice memory with MPI-3 (preferred) - requires usempi3
+!   usempi3      - optimse communication with MPI-3 shared memory (preferrd)
+!   share_ifullg - redice shared memory with MPI-3 (preferred) - requires usempi3
 !   vampir       - enable vampir profiling
     
 program globpe
@@ -151,6 +152,12 @@ if ( kind(iq)/=4 .or. kind(aa)/=4 ) then
   write(6,*) "ERROR: CCAM compiled for single precision, but double precision code was detected"
   stop
 end if
+#endif
+
+#ifdef share_ifullg
+#ifndef usempi3
+write(6,*) "ERROR: CCAM -Dshare_ifullg requires -Dusempi3"
+#endif
 #endif
 
 
@@ -801,7 +808,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       js = (tile-1)*imax + 1
       je = tile*imax  
       call nantest("after aerosols",js,je,"aerosols")
-   end do  
+    end do  
     !$omp end do nowait
 
   
@@ -1353,7 +1360,7 @@ use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
-    ,gs_switch,cable_climate,ccycle      &
+    ,gs_switch,ccycle                    &
     ,smrf_switch,strf_switch             &
     ,cable_gw_model,cable_roughness      &
     ,cable_version,cable_potev
@@ -1394,9 +1401,10 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,omineps,mlovlevels                  &
     ,usepice,ominl,omaxl                 &
     ,mlo_timeave_length,kemaxdt          &
-    ,mlo_adjeta
+    ,mlo_adjeta,mlo_limitsal
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
+use mlostag, only : mstagf                 ! Ocean reversible staggering
 use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use module_aux_rad                         ! Additional cloud and radiation routines
 use module_ctrl_microphysics               ! Interface for cloud microphysics
@@ -1467,6 +1475,7 @@ integer kmlo, calcinloop           ! depreciated namelist options
 integer fnproc_bcast_max, nriver   ! depreciated namelist options
 integer ateb_conductmeth           ! depreciated namelist options
 integer ateb_useonewall            ! depreciated namelist options
+integer cable_climate              ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -1591,7 +1600,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
-    ocnlap,mlo_adjeta,                                            &
+    ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2384,7 +2393,7 @@ ngwd               = dumi(4)
 tcalmeth           = dumi(5)
 ugs_meth           = dumi(6)
 deallocate( dumr, dumi )
-allocate( dumr(24), dumi(29) )
+allocate( dumr(24), dumi(28) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2426,27 +2435,26 @@ if ( myid==0 ) then
   dumi(6)  = fwsoil_switch
   dumi(7)  = cable_litter
   dumi(8)  = gs_switch
-  dumi(9)  = cable_climate
-  dumi(10) = smrf_switch
-  dumi(11) = strf_switch
-  dumi(12) = ateb_resmeth
-  dumi(13) = ateb_zohmeth
-  dumi(14) = ateb_acmeth
-  dumi(15) = ateb_nrefl
-  dumi(16) = ateb_soilunder
-  dumi(17) = ateb_scrnmeth
-  dumi(18) = ateb_wbrelaxc
-  dumi(19) = ateb_wbrelaxr
-  dumi(20) = ateb_ncyits
-  dumi(21) = ateb_nfgits
-  dumi(22) = ateb_intairtmeth
-  dumi(23) = ateb_intmassmeth
-  dumi(24) = ateb_cvcoeffmeth
-  dumi(25) = ateb_statsmeth
-  dumi(26) = ateb_lwintmeth
-  dumi(27) = ateb_infilmeth
-  dumi(28) = cable_roughness
-  dumi(29) = cable_potev
+  dumi(9)  = smrf_switch
+  dumi(10) = strf_switch
+  dumi(11) = ateb_resmeth
+  dumi(12) = ateb_zohmeth
+  dumi(13) = ateb_acmeth
+  dumi(14) = ateb_nrefl
+  dumi(15) = ateb_soilunder
+  dumi(16) = ateb_scrnmeth
+  dumi(17) = ateb_wbrelaxc
+  dumi(18) = ateb_wbrelaxr
+  dumi(19) = ateb_ncyits
+  dumi(20) = ateb_nfgits
+  dumi(21) = ateb_intairtmeth
+  dumi(22) = ateb_intmassmeth
+  dumi(23) = ateb_cvcoeffmeth
+  dumi(24) = ateb_statsmeth
+  dumi(25) = ateb_lwintmeth
+  dumi(26) = ateb_infilmeth
+  dumi(27) = cable_roughness
+  dumi(28) = cable_potev
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2482,29 +2490,28 @@ progvcmax         = dumi(5)
 fwsoil_switch     = dumi(6)
 cable_litter      = dumi(7)
 gs_switch         = dumi(8)
-cable_climate     = dumi(9)
-smrf_switch       = dumi(10)
-strf_switch       = dumi(11)
-ateb_resmeth      = dumi(12)
-ateb_zohmeth      = dumi(13)
-ateb_acmeth       = dumi(14)
-ateb_nrefl        = dumi(15) 
-ateb_soilunder    = dumi(16)
-ateb_scrnmeth     = dumi(17)
-ateb_wbrelaxc     = dumi(18) 
-ateb_wbrelaxr     = dumi(19) 
-ateb_ncyits       = dumi(20)
-ateb_nfgits       = dumi(21) 
-intairtmeth       = dumi(22) ! note switch to UCLEM parameter
-intmassmeth       = dumi(23) ! note switch to UCLEM parameter 
-ateb_cvcoeffmeth  = dumi(24) 
-ateb_statsmeth    = dumi(25) 
-ateb_lwintmeth    = dumi(26) 
-ateb_infilmeth    = dumi(27)
-cable_roughness   = dumi(28)
-cable_potev       = dumi(29)
+smrf_switch       = dumi(9)
+strf_switch       = dumi(10)
+ateb_resmeth      = dumi(11)
+ateb_zohmeth      = dumi(12)
+ateb_acmeth       = dumi(13)
+ateb_nrefl        = dumi(14) 
+ateb_soilunder    = dumi(15)
+ateb_scrnmeth     = dumi(16)
+ateb_wbrelaxc     = dumi(17) 
+ateb_wbrelaxr     = dumi(18) 
+ateb_ncyits       = dumi(19)
+ateb_nfgits       = dumi(20) 
+intairtmeth       = dumi(21) ! note switch to UCLEM parameter
+intmassmeth       = dumi(22) ! note switch to UCLEM parameter 
+ateb_cvcoeffmeth  = dumi(23) 
+ateb_statsmeth    = dumi(24) 
+ateb_lwintmeth    = dumi(25) 
+ateb_infilmeth    = dumi(26)
+cable_roughness   = dumi(27)
+cable_potev       = dumi(28)
 deallocate( dumr, dumi )
-allocate( dumr(21), dumi(22) )
+allocate( dumr(21), dumi(27) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2557,6 +2564,11 @@ if ( myid==0 ) then
   dumi(20) = mlontvd
   dumi(21) = mlodiff_numits
   dumi(22) = mlo_adjeta
+  dumi(23) = mstagf
+  dumi(24) = mlodps
+  dumi(25) = mlo_limitsal
+  dumi(26) = nxtrrho
+  dumi(27) = mlo_bs
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2603,6 +2615,11 @@ nodrift            = dumi(19)
 mlontvd            = dumi(20)
 mlodiff_numits     = dumi(21)
 mlo_adjeta         = dumi(22)
+mstagf             = dumi(23)
+mlodps             = dumi(24)
+mlo_limitsal       = dumi(25)
+nxtrrho            = dumi(26)
+mlo_bs             = dumi(27)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0
@@ -3184,7 +3201,7 @@ call liqwpar_init(ifull,iextra,kl)
 call morepbl_init(ifull,kl)
 call nharrs_init(ifull,iextra,kl)
 call nlin_init(ifull,kl)
-call nsibd_init(ifull,nsib,cable_climate)
+call nsibd_init(ifull,nsib)
 call parmhdff_init(kl)
 call pbl_init(ifull)
 call permsurf_init(ifull)
@@ -3798,20 +3815,25 @@ do k = 1,kl
   qsl(js:je) = qsi(js:je) + epsil*deles(js:je)/pk(js:je)
   
   do iq = js,je
-    ! only apply below boundary layer height and when t>=tice
-    ! (supersaturated air is allowed for t<tice)  
-    if ( zg(iq,k)<pblh(iq) .and. t(iq,k)>=tice ) then
+    ! only apply below boundary layer height  
+    if ( zg(iq,k) < pblh(iq) ) then
     
       qtot = max( qg(iq,k) + qlg(iq,k) + qfg(iq,k), 0. )
       qc   = max( qlg(iq,k) + qfg(iq,k), 0. )
-      fice = min( qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-8), 1. )
+      if ( qfg(iq,k)>1.e-8 ) then
+        fice = min( qfg(iq,k)/(qfg(iq,k)+qlg(iq,k)), 1. )
+      else
+        fice= 0.
+      end if
       qsw = fice*qsi(iq) + (1.-fice)*qsl(iq)
       hlrvap = (hl+fice*hlf)/rvap
       dqsdt = qsw*hlrvap/tliq(iq)**2
       al = 1./(1.+(hlcp+fice*hlfcp)*dqsdt)
       qc = max( al*(qtot - qsw), qc )
-      qfg(iq,k) = max( fice*qc, 0. )  
-      qlg(iq,k) = max( qc-qfg(iq,k), 0. )
+      if ( t(iq,k)>=tice ) then
+        qfg(iq,k) = max( fice*qc, 0. )  
+        qlg(iq,k) = max( qc-qfg(iq,k), 0. )
+      end if
 
       qg(iq,k) = max( qtot - qlg(iq,k) - qfg(iq,k), 0. )
       t(iq,k)  = tliq(iq) + hlcp*qlg(iq,k) + hlscp*qfg(iq,k)
@@ -3821,7 +3843,7 @@ do k = 1,kl
         stratcloud(iq,k) = 0.  
       end if
       
-    end if ! zg<pblh .and. t>=tice 
+    end if ! zg<pblh  
   end do   ! iq 
   
 end do     ! k
@@ -4020,9 +4042,6 @@ rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
 tmaxurban(:)= urban_tas
 tminurban(:)= urban_tas
 wsgsmax(:)  = 0.
-wsgsmax_ustar(:) = 0.
-wsgsmax_u10(:)   = 0.
-wsgsmax_tke(:)   = 0.
 sunhours(:) = 0.
 
 if ( nextout>=4 ) then
@@ -4064,7 +4083,6 @@ use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
 use screen_m                               ! Screen level diagnostics
 use soilsnow_m                             ! Soil, snow and surface data
-use tkeeps, only : tke                     ! TKE-EPS boundary layer
 use tracers_m                              ! Tracer data
 use work3_m                                ! Mk3 land-surface diagnostic arrays
 
@@ -4103,20 +4121,7 @@ wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
 taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
 tauy_ave(1:ifull)          = tauy_ave(1:ifull) + tauy
-if ( nvmix==6.or.nvmix==9 ) then
-  where ( wsgs>wsgsmax )
-    wsgsmax(1:ifull) = wsgs
-    wsgsmax_ustar(1:ifull) = ustar
-    wsgsmax_u10(1:ifull) = u10
-    wsgsmax_tke(1:ifull) = tke(1:ifull,1)
-  end where
-else
-  where ( wsgs>wsgsmax )
-    wsgsmax(1:ifull) = wsgs
-    wsgsmax_ustar(1:ifull) = ustar
-    wsgsmax_u10(1:ifull) = u10
-  end where
-end if
+wsgsmax(1:ifull)           = max( wsgsmax(1:ifull), wsgs )
 
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
@@ -4482,7 +4487,7 @@ if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
   tmparr(1:ifull,7) = cloudmi(1:ifull)*wts(1:ifull)
   tmparr(1:ifull,8) = cloudhi(1:ifull)*wts(1:ifull)
   tmparr(1:ifull,9) = cloudtot(1:ifull)*wts(1:ifull)
-  call drpdr_local(tmparr(:,1:9), local_sum(1:9))
+  call drpdr_local_v(tmparr(:,1:9), local_sum(1:9))
   ! All this combined into a single reduction
   global_sum(:) = cmplx(0.,0.)
   call ccmpi_allreduce( local_sum, global_sum, "sumdr", comm_world )

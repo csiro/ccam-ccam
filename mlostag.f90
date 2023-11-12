@@ -28,7 +28,7 @@ public mlostaguv, mlounstaguv
 public mstagf, koff, nstagoffmlo
 
 integer, save      :: nstagoffmlo = 0       ! staggering offset
-integer, parameter :: mstagf      = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, save      :: mstagf      = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff        = 1       ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: itnmax      = 6       ! number of interations for reversible staggering
 
@@ -191,7 +191,9 @@ if (.not.allocated(wtul)) then
   end do
     
   ! Apply JLM's preconditioner
-  call boundsuv(wtul(:,:,0:3),wtvl(:,:,0:3),stag=-10)
+  do i = 0,3
+    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10)
+  end do  
   do k = 1,wlev
     where (abs(wtul(ieu,k,0))>1.E-4.and.abs(wtul(1:ifull,k,1))>1.E-4)
       stul(1:ifull,k)=-wtul(1:ifull,k,1)/wtul(ieu,k,0)
@@ -244,7 +246,9 @@ if (.not.allocated(wtul)) then
   end do
     
   ! normalise
-  call boundsuv(wtul(:,:,0:3),wtvl(:,:,0:3),stag=-10)
+  do i = 0,3
+    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10)
+  end do  
   do k = 1,wlev
     do i=1,3
       dtul(1:ifull,k,i)=dtul(1:ifull,k,i)/wtul(1:ifull,k,0)
@@ -366,7 +370,9 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! Apply JLM's preconditioner
-  call boundsuv(wtur(:,:,0:3),wtvr(:,:,0:3),stag=-9)
+  do i = 0,3
+    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9)
+  end do  
   do k = 1,wlev
     where (abs(wtur(iwu,k,0))>1.E-4.and.abs(wtur(1:ifull,k,2))>1.E-4)
       stur(1:ifull,k)=-wtur(1:ifull,k,2)/wtur(iwu,k,0)
@@ -419,7 +425,9 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! normalise
-  call boundsuv(wtur(:,:,0:3),wtvr(:,:,0:3),stag=-9)
+  do i = 0,3
+    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9)
+  end do  
   do k = 1,wlev
     do i = 1,3
       dtur(1:ifull,k,i)=dtur(1:ifull,k,i)/wtur(1:ifull,k,0)
@@ -858,7 +866,9 @@ if (.not.allocated(wtul)) then
   end do  
     
   ! Apply JLM's preconditioner
-  call boundsuv(wtul(:,:,0:3),wtvl(:,:,0:3),stag=-9)
+  do i = 0,3
+    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9)
+  end do   
   do k = 1,wlev
     where (abs(wtul(iwu,k,0))>1.E-4.and.abs(wtul(1:ifull,k,2))>1.E-4)
       stul(1:ifull,k)=-wtul(1:ifull,k,2)/wtul(iwu,k,0)
@@ -911,7 +921,9 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! normalise
-  call boundsuv(wtul(:,:,0:3),wtvl(:,:,0:3),stag=-9)
+  do i = 0,3
+    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9)
+  end do  
   do k = 1,wlev
     do i = 1,3
       wtul(1:ifull,k,i)=wtul(1:ifull,k,i)/wtul(1:ifull,k,0)
@@ -1083,7 +1095,9 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! Apply JLM's preconditioner
-  call boundsuv(wtur(:,:,0:3),wtvr(:,:,0:3),stag=-10)
+  do i = 0,3
+    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10)
+  end do  
   do k = 1,wlev
     where (abs(wtur(ieu,k,0))>1.E-4.and.abs(wtur(1:ifull,k,1))>1.E-4)
       stur(1:ifull,k)=-wtur(1:ifull,k,1)/wtur(ieu,k,0)
@@ -1136,7 +1150,9 @@ if (.not.allocated(wtul)) then
   end do  
 
   ! normalise
-  call boundsuv(wtur(:,:,0:3),wtvr(:,:,0:3),stag=-10)
+  do i = 0,3
+    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10)
+  end do  
   do k = 1,wlev
     do i = 1,3
       wtur(1:ifull,k,i)=wtur(1:ifull,k,i)/wtur(1:ifull,k,0)

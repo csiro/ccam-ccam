@@ -79,7 +79,7 @@ use ateb, only : atebnmlfile             & ! Urban
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
     ,fwsoil_switch,cable_litter          &
-    ,gs_switch,cable_climate,ccycle      &
+    ,gs_switch,ccycle                    &
     ,smrf_switch,strf_switch
 use carbpools_m, only : carbpools_init   & ! Carbon pools
     ,fpn,frs,frp
@@ -165,6 +165,7 @@ integer, save :: iarch_nudge = 0
 integer nud_ql, nud_qf
 integer tblock
 integer o3_time_interpolate, calcinloop, nriver ! depreciated
+integer cable_climate                           ! depreciated
 real, dimension(1000) :: press_in
 real press_surf, gridres, soil_albedo_vis, soil_albedo_nir, vlai_in
 real es
@@ -462,7 +463,7 @@ call latlong_init(ifull_g,ifull,myid)
 call liqwpar_init(ifull,iextra,kl)
 call morepbl_init(ifull,kl)
 call nharrs_init(ifull,iextra,kl)
-call nsibd_init(ifull,nsib,cable_climate)
+call nsibd_init(ifull,nsib)
 call pbl_init(ifull)
 call prec_init(ifull)
 call raddiag_init(ifull,kl)
@@ -2611,8 +2612,6 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
   if ( firstcall ) then
     write(6,*) "Creating time output file"  
     call ccnf_create(timeoutput,timencid)
-    ! Turn off the data filling
-    call ccnf_nofill(timencid)
     
     ! attributes
     call ccnf_put_attg(timencid,'model','CCAM+UCLEM')
@@ -3287,8 +3286,6 @@ if ( scm_mode=="sublime" .or. scm_mode=="CCAM" .or. scm_mode=="gabls4" ) then
     
     write(6,*) "Creating profile output file"  
     call ccnf_create(profileoutput,profilencid)
-    ! Turn off the data filling
-    call ccnf_nofill(profilencid)
     
     ! attributes
     call ccnf_put_attg(profilencid,'model','CCAM+UCLEM')
@@ -4978,7 +4975,7 @@ use ateb, only : atebsaved, urbtemp, nfrac
 use cable_ccam, only : savetile, savetiledef, &  ! CABLE interface
                        cable_pop,POP_NPATCH,  &
                        POP_NCOHORT,           &
-                       cable_climate,ccycle,  &
+                       ccycle,                &
                        POP_AGEMAX
 use cfrac_m
 use dates_m
@@ -5048,7 +5045,6 @@ itype = -1
 local = .false.
 
 call ccnf_create(restfile,idnc)
-call ccnf_nofill(idnc)
 
 call ccnf_def_dim(idnc,'longitude',1,xdim)
 call ccnf_def_dim(idnc,'latitude',1,ydim)
@@ -5061,12 +5057,6 @@ if ( cable_pop==1 ) then
   call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
   call ccnf_def_dim(idnc,'cable_cohort',POP_NCOHORT,c2pdim)
   call ccnf_def_dim(idnc,'cable_agemax',POP_AGEMAX,cadim)  
-end if
-if ( cable_climate==1 ) then
-  call ccnf_def_dim(idnc,'cable_91days',91,c91pdim)
-  call ccnf_def_dim(idnc,'cable_31days',31,c31pdim)
-  call ccnf_def_dim(idnc,'cable_20years',20,c20ydim)
-  call ccnf_def_dim(idnc,'cable_5days',120,c5ddim)
 end if
 call ccnf_def_dimu(idnc,'time',tdim)
       
@@ -5117,12 +5107,6 @@ end if
 if ( cable_pop==1 ) then
   call ccnf_def_var(idnc,'cable_patch','float',1,dimc(3:3,1),idcp)  
   call ccnf_def_var(idnc,'cable_cohort','float',1,dimc(4:4,2),idc2p)  
-end if
-if ( cable_climate==1 ) then
-  call ccnf_def_var(idnc,'cable_91days','float',1,dimc(3:3,3),idc91p)
-  call ccnf_def_var(idnc,'cable_31days','float',1,dimc(3:3,4),idc31p)
-  call ccnf_def_var(idnc,'cable_20years','float',1,dimc(3:3,5),idc20y)
-  call ccnf_def_var(idnc,'cable_5days','float',1,dimc(3:3,6),idc5d)
 end if
 
 call ccnf_def_var(idnc,'time','float',1,dima(4:4),idnt)
@@ -5425,32 +5409,6 @@ if ( cable_pop==1 ) then
   call ccnf_put_vara(idnc,idc2p,1,POP_NCOHORT,cabledata)
   deallocate( cabledata )
 end if
-if ( cable_climate==1 ) then
-  allocate( cabledata(91) )
-  do i = 1,91
-    cabledata(i) = real(i)
-  end do  
-  call ccnf_put_vara(idnc,idc91p,1,91,cabledata)
-  deallocate( cabledata )
-  allocate( cabledata(31) )
-  do i = 1,31
-    cabledata(i) = real(i)
-  end do  
-  call ccnf_put_vara(idnc,idc31p,1,31,cabledata)
-  deallocate( cabledata )
-  allocate( cabledata(20) )
-  do i = 1,20
-    cabledata(i) = real(i)
-  end do
-  call ccnf_put_vara(idnc,idc20y,1,20,cabledata)
-  deallocate( cabledata )
-  allocate( cabledata(120) )
-  do i = 1,120
-    cabledata(i) = real(i)
-  end do
-  call ccnf_put_vara(idnc,idc5d,1,120,cabledata)
-  deallocate( cabledata )
-end if    
 
 call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
 

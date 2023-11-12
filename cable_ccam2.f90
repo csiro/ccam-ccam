@@ -31,8 +31,7 @@
 ! - CO2 can be constant or read from the radiation code.  A tracer CO2 is avaliable
 !   when tracers are active
 ! - The code assumes only one month at a time is integrated in RCM mode.
-! - Options exist for using SLI soil model (soil_struc=1), climate feedbacks
-!   (cable_climate=1) and the POP model (cable_pop=1)
+! - Options exist for using SLI soil model (soil_struc=1), and the POP model (cable_pop=1)
 
 ! CSIRO PFT index
 ! 1  Evergreen Needleleaf
@@ -135,7 +134,7 @@ public sib4, cable_version
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
-public fwsoil_switch, cable_litter, gs_switch, cable_climate
+public fwsoil_switch, cable_litter, gs_switch
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 
@@ -161,8 +160,6 @@ integer, save :: proglai         = 0          ! 0 prescribed, 1 prognostic LAI
 integer, save :: progvcmax       = 0          ! 0 prescribed, 1 prognostic vcmax (standard), 2 prognostic vcmax (Walker2014)
 ! CABLE POP options
 integer, save :: cable_pop       = 0          ! 0 off, 1 on
-! CABLE climate options
-integer, save :: cable_climate   = 0          ! 0 off, 1 on
 ! CABLE parameters
 integer, parameter :: maxtile    = 9          ! maximum possible number of tiles (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
@@ -174,8 +171,8 @@ integer, save :: POP_HEIGHT_BINS = -1
 integer, save :: POP_NDISTURB    = -1
 integer, save :: POP_AGEMAX      = -1
 
-integer, save :: maxnb                           ! maximum number of actual tiles
-integer, save :: mp_global                       ! maximum number of land-points on this process
+integer, save :: maxnb                        ! maximum number of actual tiles
+integer, save :: mp_global                    ! maximum number of land-points on this process
 integer, dimension(:), allocatable, target, save :: cveg
 real, dimension(:), allocatable, target, save :: sv, vl2
 
@@ -252,7 +249,7 @@ type(sum_flux_type) :: lsum_flux
 type(veg_parameter_type) :: lveg
 type(climate_save_type) :: lclimate_save
 
-!$omp do schedule(static) private(is,ie,js,je,ltind,ltmap,lmaxnb),                                             &
+!$omp do schedule(static) private(tile,is,ie,js,je,ltind,ltmap,lmaxnb,ico2,igas),                              &
 !$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
 !$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
 !$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,latmco2),                         &
@@ -305,17 +302,6 @@ do tile = 1,ntiles
         lplant_turnover_wood = plant_turnover_wood(is:ie)
       end if
     end if 
-    if ( cable_climate==1 ) then
-      lclimate_biome = 999
-      lclimate_iveg = 0
-      lclimate_min20 = 0.
-      lclimate_max20 = 0.
-      lclimate_alpha20 = 0.
-      lclimate_agdd5 = 0.
-      lclimate_gmd = 0
-      lclimate_dmoist_min20 = 0.
-      lclimate_dmoist_max20 = 0.
-    end if
     
     ! set co2 forcing for cable
     ! constant: atmospheric co2 = 360 ppm 
@@ -356,10 +342,6 @@ do tile = 1,ntiles
         call setp(pop,lpop,tile)  
       end if    
     end if
-    if ( cable_climate==1 ) then
-      call setp(climate,lclimate,tile)
-      call setp(climate_save,lclimate_save,tile)
-    end if  
 
     call sib4_work(albnirdif(is:ie),albnirdir(is:ie),albnirsav(is:ie),albvisdif(is:ie),albvisdir(is:ie),                 &
                    albvissav(is:ie),cansto(is:ie),cdtq(is:ie),cduv(is:ie),lclitter,lcnbp,                                &
@@ -408,18 +390,7 @@ do tile = 1,ntiles
         plant_turnover_wood(is:ie) = lplant_turnover_wood
       end if
     end if  
-    if ( cable_climate==1 ) then
-      climate_biome(is:ie) = lclimate_biome
-      climate_ivegt(is:ie) = lclimate_iveg
-      climate_min20(is:ie) = lclimate_min20
-      climate_max20(is:ie) = lclimate_max20
-      climate_alpha20(is:ie) = lclimate_alpha20
-      climate_agdd5(is:ie) = lclimate_agdd5
-      climate_gmd(is:ie) = lclimate_gmd
-      climate_dmoist_min20(is:ie) = lclimate_dmoist_min20
-      climate_dmoist_max20(is:ie) = lclimate_dmoist_max20
-    end if
-  end if
+  end if ! mp>0
 
 end do
 !$omp end do nowait
@@ -697,10 +668,6 @@ if ( any( ssnow%tss/=ssnow%tss ) ) then
 end if
 #endif
 
-!--------------------------------------------------------------
-! CABLE CLIMATE
-call cableclimate(idoy,jmonth,ndoy,canopy,climate,met,rad,ssnow,veg, &
-                  climate_save,npercasa,ktau)
 
 !--------------------------------------------------------------
 ! CASA CNP
@@ -730,11 +697,7 @@ select case (ccycle)
       casamet%tsoil=casamet%tsoil/real(npercasa,8)
       casamet%moist=casamet%moist/real(npercasa,8)
       xKNlimiting = 1._8
-      if ( cable_climate==1 ) then
-        call cable_phenology_clim(climate,phen,rad,veg)
-      else
-        call phenology(idoy,veg,phen)
-      end if
+      call phenology(idoy,veg,phen)
       call avgsoil(veg,soil,casamet)
       call casa_rplant(veg,casabiome,casapool,casaflux,casamet,climate)
       if ( cable_pop/=1 ) then
@@ -1015,18 +978,6 @@ if ( ccycle/=0 ) then
   end do
 end if
 
-if ( cable_climate==1 ) then
-  ! just extract the first tile for now  
-  climate_ivegt        = unpack(climate%iveg,tmap(:,1),0)
-  climate_biome        = unpack(climate%biome,tmap(:,1),0)
-  climate_min20        = real(unpack(climate%mtemp_min20,tmap(:,1),0._8),4)
-  climate_max20        = real(unpack(climate%mtemp_max20,tmap(:,1),0._8),4)
-  climate_alpha20      = real(unpack(climate%alpha_PT20,tmap(:,1),0._8),4)
-  climate_agdd5        = real(unpack(climate%agdd5,tmap(:,1),0._8),4)
-  climate_gmd          = unpack(climate%gmd,tmap(:,1),0)
-  climate_dmoist_min20 = real(unpack(climate%dmoist_min20,tmap(:,1),0._8),4)
-  climate_dmoist_max20 = real(unpack(climate%dmoist_max20,tmap(:,1),0._8),4)
-end if
 
 ! MJT notes - ustar, cduv, fg and eg are passed to the boundary layer turbulence scheme
 ! zoh, zoq and zo are passed to the scrnout diagnostics routines
@@ -1315,15 +1266,7 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
       write(6,*) "ERROR: Invalid progvcmax ",progvcmax
       stop
   end select
-  
-  if ( mod(ktau,nperday)==1 ) then    
-    if ( cable_climate==1 .and. (progvcmax==2 .or. progvcmax==1) ) then
-      if ( all(climate%tleaf_sun(:,1)>0.1_8) ) then  
-        call optimise_JV(veg,climate,24,bjvref)
-      end if
-    end if  
-  end if
-  
+   
 end if
   
 return
@@ -1550,321 +1493,6 @@ end if ! CALL_POP
 
 return
 end subroutine POPdriver
-
-! *************************************************************************************
-! track climate feedback into CABLE
-subroutine cableclimate(idoy,imonth,ndoy,canopy,climate,met,rad,ssnow,veg, &
-                        climate_save,npercasa,ktau)
-
-use parm_m, only : dt, nperhr, leap
-
-implicit none
-
-integer, intent(in) :: idoy, imonth, npercasa, ktau
-integer d, y, nsd, eom
-integer, dimension(13), intent(in) :: ndoy
-real(kind=8), dimension(mp) :: mtemp_last
-real(kind=8), dimension(mp) :: RhoA, PPc, EpsA, phiEq, tmp
-real(kind=8), dimension(mp) :: frec0, f1, f2
-logical cdnh, cdsh
-type(canopy_type), intent(in) :: canopy
-type(climate_type), intent(inout) :: climate
-type(met_type), intent(in) :: met
-type(radiation_type), intent(inout) :: rad
-type(soil_snow_type), intent(in) :: ssnow
-type(veg_parameter_type), intent(in) :: veg
-type(climate_save_type), intent(in) :: climate_save 
-
-real(kind=8), parameter :: Gaero   = 0.015_8    ! (m s-1) aerodynmaic conductance (for use in PT evap)
-real(kind=8), parameter :: Capp    = 29.09_8    ! isobaric spec heat air    [J/molA/K]
-real(kind=8), parameter :: SBoltz  = 5.67e-8_8  ! Stefan-Boltzmann constant [W/m2/K4]
-real(kind=8), parameter :: moisture_min = 0.15  ! threshold for setting "growing moisture days",
-                                                ! as required for drought-deciduous phenology
-real(kind=8), parameter :: CoeffPT = 1.26_8
-real(kind=8), parameter :: T1 = 0._8
-real(kind=8), parameter :: T2 = -3._8
-real(kind=8), parameter :: T3 = -4._8
-real(kind=8), parameter :: T6 = -5._8
-real(kind=8), parameter :: ffrost = 0.1_8
-real(kind=8), parameter :: fdorm0 = 0.15_8
-real(kind=8), parameter :: gdd0_rec0 = 500.
-
-if ( cable_climate==0 ) return
-
-nsd = 24*5 ! number of subdirunal time-steps to be accumulated
-climate%doy = idoy
-
-! accumulate annual evaporation and potential evaporation
-RhoA  = met%pmb*100._8/(8.314_8*met%tk) ! air density [molA/m3]
-PPc   = Gaero/(Gaero+4._8*SBoltz*(met%tk**3/(RhoA*Capp)))
-tmp   = met%tk - 273.16_8 ! avoid array temporary
-EpSA  = Epsif(tmp, met%pmb)
-phiEq = canopy%rniso*(PPc*EpsA)/(PPc*EpsA+1._8) ! equil ltnt heat flux  [W/m2]
-
-climate%evap_PT = climate%evap_PT + phiEq*CoeffPT/2.5014e6*dt  ! mm
-climate%aevap   = climate%aevap + met%precip ! mm
-climate%dtemp   = climate%dtemp + met%tk - 273.15_8
-climate%dmoist  = climate%dmoist + sum(ssnow%wb(:,:)*veg%froot(:,:),2)
-
-if ( mod(ktau,npercasa)==1 ) climate%dtemp_min = met%tk - 273.15_8
-climate%dtemp_min = min( climate%dtemp_min, met%tk - 273.15_8 )
-
-if ( mod(ktau,nperhr)==1 ) then
-  climate_save%apar_leaf_sun = 0._8
-  climate_save%apar_leaf_shade = 0._8
-  climate_save%dleaf_sun = 0._8
-  climate_save%fwsoil = 0._8
-  climate_save%dleaf_shade = 0._8
-  climate_save%tleaf_sun = 0._8
-  climate_save%tleaf_shade = 0._8
-  climate_save%cs_sun = 0._8
-  climate_save%cs_shade = 0._8
-  climate_save%scalex_sun = 0._8
-  climate_save%scalex_shade = 0._8
-end if
-climate_save%apar_leaf_sun = climate_save%apar_leaf_sun + rad%qcan(:,1,1)*4.6_8 ! umol m-2 s-1
-climate_save%apar_leaf_shade = climate_save%apar_leaf_shade + rad%qcan(:,2,1)*4.6_8 ! umod m-2 s-1
-climate_save%dleaf_sun = climate_save%dleaf_sun + canopy%dlf
-climate_save%fwsoil = climate_save%fwsoil + canopy%fwsoil
-climate_save%dleaf_shade = climate_save%dleaf_shade + canopy%dlf
-climate_save%tleaf_sun = climate_save%tleaf_sun + canopy%tlf
-climate_save%tleaf_shade = climate_save%tleaf_shade + canopy%tlf
-climate_save%cs_sun = climate_save%cs_sun + canopy%cs_sl ! ppm
-climate_save%cs_shade = climate_save%cs_shade + canopy%cs_sh ! ppm
-climate_save%scalex_sun = climate_save%scalex_sun + rad%scalex(:,1)
-climate_save%scalex_shade = climate_save%scalex_shade + rad%scalex(:,2)
-
-! midday fraction of incoming visible radiation absorbed by the canopy
-!if ( mod(ktau,npercasa) == npercasa/2 ) THEN
-!  where (rad%fbeam(:,1)>=0.01)
-!    climate%fapar_ann_max = max(1.- rad%extkbm(:,1)*canopy%vlaiw, climate%fapar_ann_max)
-!  endwhere
-!endif
-
-! accumulate sub-diurnal sub- and shade-leaf net variables that are revant for calc of Anet
-if ( mod(ktau,nperhr)==0 ) then
-  climate%APAR_leaf_sun(:,1:nsd-1)   = climate%APAR_leaf_sun(:,2:nsd)
-  climate%APAR_leaf_shade(:,1:nsd-1) = climate%APAR_leaf_shade(:,2:nsd)
-  climate%Dleaf_sun(:,1:nsd-1)       = climate%Dleaf_sun(:,2:nsd)
-  climate%fwsoil(:,1:nsd-1)          = climate%fwsoil(:,2:nsd)
-  climate%Dleaf_shade(:,1:nsd-1)     = climate%Dleaf_shade(:,2:nsd)
-  climate%Tleaf_sun(:,1:nsd-1)       = climate%Tleaf_sun(:,2:nsd)
-  climate%Tleaf_shade(:,1:nsd-1)     = climate%Tleaf_shade(:,2:nsd)
-  climate%cs_sun(:,1:nsd-1)          = climate%cs_sun(:,2:nsd)
-  climate%cs_shade(:,1:nsd-1)        = climate%cs_shade(:,2:nsd)
-  climate%scalex_sun(:,1:nsd-1)      = climate%scalex_sun(:,2:nsd)
-  climate%scalex_shade(:,1:nsd-1)    = climate%scalex_shade(:,2:nsd)
-  climate%APAR_leaf_sun(:,nsd)   = climate_save%apar_leaf_sun/real(nperhr,8)
-  climate%APAR_leaf_shade(:,nsd) = climate_save%apar_leaf_shade/real(nperhr,8)
-  climate%Dleaf_sun(:,nsd)       = climate_save%dleaf_sun/real(nperhr,8)
-  climate%fwsoil(:,nsd)          = climate_save%fwsoil/real(nperhr,8)
-  climate%Dleaf_shade(:,nsd)     = climate_save%dleaf_shade/real(nperhr,8)
-  climate%Tleaf_sun(:,nsd)       = climate_save%tleaf_sun/real(nperhr,8)
-  climate%Tleaf_shade(:,nsd)     = climate_save%tleaf_shade/real(nperhr,8)
-  climate%cs_sun(:,nsd)          = climate_save%cs_sun/real(nperhr,8)
-  climate%cs_shade(:,nsd)        = climate_save%cs_shade/real(nperhr,8)
-  climate%scalex_sun(:,nsd)      = climate_save%scalex_sun/real(nperhr,8)
-  climate%scalex_shade(:,nsd)    = climate_save%scalex_shade/real(nperhr,8)
-end if
-  
-! accumulate daily temperature, evap and potential evap
-if ( mod(ktau,npercasa)==0 .and. ktau>0 ) then
-
-  climate%dtemp = climate%dtemp/real(npercasa,8)
-  climate%dmoist = climate%dmoist/real(npercasa,8)
-  
-  ! In midwinter, reset GDD counter for summergreen phenology  
-  where ( (rad%latitude>=0._8.and.idoy==COLDEST_DAY_NHEMISPHERE) .or. &
-          (rad%latitude<0._8.and.idoy==COLDEST_DAY_SHEMISPHERE) )
-    !climate%gdd5 = 0._8
-    climate%gdd0 = 0._8
-    ! reset day degree sum related to spring photosynthetic recovery
-    climate%gdd0_rec = 0._8
-  end where
-          
-  ! In minsumer, reset dormancy fraction        
-  where ( (rad%latitude<=0._8 .and. idoy==COLDEST_DAY_NHEMISPHERE) .or. &
-          (rad%latitude>=0._8 .and. idoy==COLDEST_DAY_SHEMISPHERE) )
-    climate%fdorm = 1._8
-  end where  
-
-  where ( climate%dtemp_min>=T6 .and. climate%dtemp_min<=0._8 )
-    climate%fdorm = max( climate%fdorm-ffrost*climate%dtemp_min/T6, 0._8 )
-  elsewhere ( climate%dtemp_min<T6 )
-    climate%fdorm = max( climate%fdorm-ffrost, 0._8 )
-  end where
-  
-  frec0 = fdorm0 + (1._8-fdorm0)*climate%fdorm
-          
-  where ( climate%dtemp_min>=T1 .and. climate%dtemp>=T1 )
-    f2 = 1._8
-  elsewhere ( climate%dtemp_min<=T2 .and. climate%dtemp<=T2 ) 
-    f2 = 0._8
-  elsewhere
-    f2 = min( (climate%dtemp_min-T2)/(T1-T2), (climate%dtemp-T2)/(T1-T2) )  
-  end where
-  
-  where ( climate%dtemp_min>=T2 )
-    f1 = 0._8
-  elsewhere ( climate%dtemp_min<=T3 )
-    f1 = 0.3_8
-  elsewhere
-    f1 = 0.3_8*(T2-climate%dtemp_min)/(T2-T3)
-  end where  
-  
-  where ( climate%dtemp_min>=T2 )
-    climate%gdd0_rec = max( climate%gdd0_rec+climate%dtemp*f2, 0._8 )
-  elsewhere ( climate%dtemp_min<T2 )
-    climate%gdd0_rec = max( climate%gdd0_rec*(1._8-f1), 0._8 )
-  end where  
-  
-  where ( climate%gdd0_rec<=gdd0_rec0 )
-    climate%frec = frec0 + (1._8-frec0)*climate%gdd0_rec/gdd0_rec0
-  elsewhere
-    climate%frec = 1._8
-  end where  
-  
-  ! Update GDD counters and chill day count
-  climate%gdd0  = climate%gdd0 + max(0._8,climate%dtemp)
-  climate%agdd0 = climate%agdd0 + max(0._8,climate%dtemp)
-  climate%gdd5  = climate%gdd5 + max(0._8,climate%dtemp-5.)
-  climate%agdd5 = climate%agdd5 + max(0._8,climate%dtemp-5.)
-  climate%dmoist_min = min( climate%dmoist_min, climate%dmoist )
-  climate%dmoist_max = max( climate%dmoist_max, climate%dmoist )
-  where ( climate%dtemp<5. )
-    climate%chilldays = min(climate%chilldays + 1, 365)
-  end where
-
-  ! update GMD (growing moisture day) counter
-  where ( climate%dmoist>climate%dmoist_min20+moisture_min*(climate%dmoist_max20-climate%dmoist_min20) .and. &
-          climate%dmoist_max20>climate%dmoist_min20 )
-    climate%gmd = climate%gmd + 1
-  elsewhere
-    climate%gmd = 0
-  end where
-  
-  ! Save yesterday's mean temperature for the last month
-  mtemp_last = climate%mtemp
-
-  ! Update daily temperatures, and mean overall temperature, for last 31 days
-  climate%mtemp = climate%dtemp
-  climate%qtemp = climate%dtemp
-  climate%mmoist = climate%dmoist
-  do d = 1,30
-    climate%dtemp_31(:,d) = climate%dtemp_31(:,d+1) ! why not use dtemp_91(:,61:91)?
-    climate%mtemp = climate%mtemp + climate%dtemp_31(:,d)
-    climate%dmoist_31(:,d) = climate%dmoist_31(:,d+1)
-    climate%mmoist = climate%mmoist + climate%dmoist_31(:,d)
-  end do
-  do d = 1,90
-    climate%dtemp_91(:,d) = climate%dtemp_91(:,d+1)
-    climate%qtemp = climate%qtemp + climate%dtemp_91(:,d)
-  end do
-  climate%dtemp_91(:,91) = climate%dtemp
-  climate%dtemp_31(:,31) = climate%dtemp
-  climate%dmoist_31(:,31) = climate%dmoist
-  climate%qtemp = climate%qtemp/91._8   ! average temperature over the last quarter
-  climate%mtemp = climate%mtemp/31._8   ! average temperature over the last month
-  climate%mmoist = climate%mmoist/31._8 ! average moisture index over the last month
-
-  ! Reset GDD and chill day counter if mean monthly temperature falls below base
-  ! temperature
-  where ( mtemp_last>=5._8 .and. climate%mtemp<5._8 )
-    climate%gdd5 = 0._8
-    climate%chilldays = 0._8
-  end where
-  
-  ! check if end of month
-  if ( leap==0 ) then
-    eom = ndoy(imonth+1)
-  else if ( leap==1 ) then
-    eom = ndoy(imonth+1)
-  else
-    eom = imonth*30
-  end if
-  if ( idoy==eom ) then
-
-    ! Update mean temperature for the last 12 months
-    ! atemp_mean_new = atemp_mean_old * (11/12) + mtemp * (1/12)
-    !climate%atemp_mean = climate%atemp_mean*(11./12.) + climate%mtemp*(1./12.)
-
-    ! Record minimum and maximum monthly temperatures
-    if ( imonth==1 ) then
-      climate%mtemp_min = climate%mtemp
-      climate%mtemp_max = climate%mtemp
-      climate%qtemp_max_last_year = climate%qtemp_max
-      climate%qtemp_max = climate%qtemp
-    end if
-    climate%mtemp_min = min(climate%mtemp, climate%mtemp_min)
-    climate%mtemp_max = max(climate%mtemp, climate%mtemp_max)
-    climate%qtemp_max = max(climate%qtemp, climate%qtemp_max)
-
-    ! On 31 December update records of minimum monthly temperatures for the last
-    ! 20 years and find minimum monthly temperature for the last 20 years
-    if ( imonth==12 ) then
-
-      climate%alpha_PT = max(climate%aevap/climate%evap_PT, 0._8) ! ratio of annual evap to annual PT evap  
-      !climate%fapar_ann_max_last_year = climate%fapar_ann_max 
-        
-      do y = 1,19
-        climate%mtemp_min_20(:,y) = climate%mtemp_min_20(:,y+1)
-        climate%mtemp_max_20(:,y) = climate%mtemp_max_20(:,y+1)
-        climate%alpha_PT_20(:,y) = climate%alpha_PT_20(:,y+1)
-        climate%dmoist_min_20(:,y) = climate%dmoist_min_20(:,y+1)
-        climate%dmoist_max_20(:,y) = climate%dmoist_max_20(:,y+1)
-      end do
-      climate%mtemp_min_20(:,20) = climate%mtemp_min
-      climate%mtemp_max_20(:,20) = climate%mtemp_max
-      climate%alpha_PT_20(:,20) = climate%alpha_PT
-      climate%dmoist_min_20(:,20) = climate%dmoist_min
-      climate%dmoist_max_20(:,20) = climate%dmoist_max
-
-      climate%mtemp_min20 = 0._8
-      climate%mtemp_max20 = 0._8
-      climate%alpha_PT20 = 0._8
-      climate%dmoist_min20 = 0._8
-      climate%dmoist_max20 = 0._8
-      climate%nyears = 0
-      do y = 1,20      
-        if ( .not.(all(climate%mtemp_min_20(:,y)<0.00000001_8).and.all(climate%mtemp_max_20(:,y)<0.00000001_8)) ) then
-          climate%nyears = climate%nyears + 1
-          climate%mtemp_min20 = climate%mtemp_min20 + climate%mtemp_min_20(:,y)
-          climate%mtemp_max20 = climate%mtemp_max20 + climate%mtemp_max_20(:,y)
-          climate%alpha_PT20 = climate%alpha_PT20 + climate%alpha_PT_20(:,y)
-          climate%dmoist_min20 = climate%dmoist_min20 + climate%dmoist_min_20(:,y)
-          climate%dmoist_max20 = climate%dmoist_max20 + climate%dmoist_max_20(:,y)
-        end if
-      end do
-      
-      if ( climate%nyears>0 ) then
-        climate%mtemp_min20 = climate%mtemp_min20/real(climate%nyears,8)
-        climate%mtemp_max20 = climate%mtemp_max20/real(climate%nyears,8)
-        climate%alpha_PT20 = climate%alpha_PT20/real(climate%nyears,8)
-        climate%dmoist_min20 = climate%dmoist_min20/real(climate%nyears,8)
-        climate%dmoist_max20 = climate%dmoist_max20/real(climate%nyears,8)
-        call biome1_pft(climate,rad,mp)
-      end if  
- 
-      ! reset climate data for next year
-      climate%agdd5      = 0._8
-      climate%agdd0      = 0._8
-      climate%evap_PT    = 0._8     ! annual PT evap [mm]
-      climate%aevap      = 0._8     ! annual evap [mm]
-      !climate%fapar_ann_max = 0.0 
-      climate%dmoist_min = climate%dmoist
-      climate%dmoist_max = climate%dmoist
-      
-    end if  ! last month of year
-  end if    ! last day of month
-
-  ! reset climate data for next day
-  climate%dtemp   = 0._8
-  climate%dmoist  = 0._8
-  
-end if      ! end of day
-
-return
-end subroutine cableclimate
 
 function epsif(tc,pmb) result(epsif_out)
 
@@ -2556,20 +2184,6 @@ if ( mp_global>0 ) then
   call alloc_cbm_var(ssnow, mp_global)
   call alloc_cbm_var(sum_flux, mp_global)
   call alloc_cbm_var(veg, mp_global)
-  if ( cable_climate==1 ) then
-    call alloc_cbm_var(climate, mp_global, 24)
-    allocate( climate_save%APAR_leaf_sun(mp_global) )
-    allocate( climate_save%APAR_leaf_shade(mp_global) )
-    allocate( climate_save%Dleaf_sun(mp_global) )
-    allocate( climate_save%fwsoil(mp_global) )
-    allocate( climate_save%Dleaf_shade(mp_global) )
-    allocate( climate_save%Tleaf_sun(mp_global) )
-    allocate( climate_save%Tleaf_shade(mp_global) )
-    allocate( climate_save%cs_sun(mp_global) )
-    allocate( climate_save%cs_shade(mp_global) )
-    allocate( climate_save%scalex_sun(mp_global) )
-    allocate( climate_save%scalex_shade(mp_global) )
-  end if
   allocate( dummy_unpack(mp_global) )
   
   ! Cable configuration
@@ -2594,16 +2208,9 @@ if ( mp_global>0 ) then
   cable_user%l_rev_corr = .true.
   cable_user%gw_model = cable_gw_model==1
   cable_user%soil_thermal_fix = .true.
-  select case ( cable_climate )
-    case(1)
-      cable_user%call_climate = .true.
-      cable_user%phenology_switch = "climate"
-      cable_user%finite_gm = .true.
-    case default
-      cable_user%call_climate = .false.
-      cable_user%phenology_switch = "MODIS"
-      cable_user%finite_gm = .false.
-  end select
+  cable_user%call_climate = .false.
+  cable_user%phenology_switch = "MODIS"
+  cable_user%finite_gm = .false.
   select case ( cable_pop )
     case(1)
       cable_user%call_pop = .true.
@@ -2836,75 +2443,6 @@ if ( mp_global>0 ) then
   bal%precip_tot=0._8
   bal%ebal_tot=0._8
   bal%rnoff_tot=0._8
-  
-  if ( cable_climate==1 ) then
-    climate%doy = 0
-    climate%nyears = 0
-    climate%biome = 999
-    climate%iveg = 0
-    climate%chilldays = 0 ! used by phenology
-    climate%gdd5 = 0._8   ! used by phenology
-    climate%gdd0 = 0._8
-    climate%agdd5 = 0._8
-    climate%agdd0 = 0._8
-    climate%dmoist = 0._8
-    climate%dtemp = 0._8
-    climate%mtemp = 0._8
-    climate%mmoist = 0._8
-    climate%qtemp = 0._8
-    climate%evap_PT = 0._8
-    climate%aevap = 0._8
-    climate%mtemp_max = 0._8
-    climate%mtemp_min = 0._8
-    climate%qtemp_max = 0._8
-    climate%qtemp_max_last_year = 0._8 ! used by cable_canopy and CASA-CNP
-    climate%dmoist_min = 9999._8
-    climate%dmoist_max = -9999._8
-    climate%dtemp_91 = 0._8
-    climate%dtemp_31 = 0._8
-    climate%dmoist_31 = 0._8
-    climate%dmoist_min_20 = 0._8
-    climate%dmoist_max_20 = 0._8
-    climate%dmoist_min20 = 0._8
-    climate%dmoist_max20 = 0._8
-    climate%atemp_mean = 0._8
-    climate%mtemp_min_20 = 0._8 ! missing flag
-    climate%mtemp_min20 = 0._8
-    climate%mtemp_max_20 = 0._8 ! missing flag
-    climate%mtemp_max20 = 0._8
-    climate%alpha_PT_20 = 0._8  ! missing flag
-    climate%alpha_PT20 = 0._8
-    climate%alpha_PT = 0._8
-    climate%gdd0_rec = 0._8
-    climate%dtemp_min = 0._8
-    climate%fdorm = 1._8
-    climate%fapar_ann_max = 0._8
-    climate%fapar_ann_max_last_year = 0._8
-    climate%frec = 1._8
-    climate%gmd = 0
-    climate%APAR_leaf_sun = 0._8
-    climate%APAR_leaf_shade = 0._8
-    climate%Dleaf_sun = 0._8
-    climate%fwsoil = 0._8
-    climate%Dleaf_shade = 0._8
-    climate%Tleaf_sun = 0._8
-    climate%Tleaf_shade = 0._8
-    climate%cs_sun = 0._8
-    climate%cs_shade = 0._8
-    climate%scalex_sun = 0._8
-    climate%scalex_shade = 0._8
-    climate_save%APAR_leaf_sun = 0._8
-    climate_save%APAR_leaf_shade = 0._8
-    climate_save%Dleaf_sun = 0._8
-    climate_save%fwsoil = 0._8
-    climate_save%Dleaf_shade = 0._8
-    climate_save%Tleaf_sun = 0._8
-    climate_save%Tleaf_shade = 0._8
-    climate_save%cs_sun = 0._8
-    climate_save%cs_shade = 0._8
-    climate_save%scalex_sun = 0._8
-    climate_save%scalex_shade = 0._8
-  end if
   
   if ( ccycle==0 ) then
     ! Initialise CABLE carbon pools
@@ -4848,10 +4386,6 @@ real(kind=8), dimension(:), allocatable :: dat_out
 real(kind=8), dimension(:,:), allocatable :: datpatch
 real(kind=8), dimension(:,:), allocatable :: datage
 real(kind=8), dimension(:,:,:), allocatable :: datpc
-real(kind=8), dimension(:,:), allocatable :: dat91days
-real(kind=8), dimension(:,:), allocatable :: dat31days
-real(kind=8), dimension(:,:), allocatable :: dat20years
-real(kind=8), dimension(:,:), allocatable :: dat5days
 logical tst
 logical defaultmode
 character(len=80) vname
@@ -5202,198 +4736,6 @@ else
         call cable_pack(dat,canopy%frday,nmp(:,n))
       end do  
     end if
-  end if
-  if ( cable_climate==1 ) then
-    allocate( dat91days(ifull,91) )  
-    allocate( dat31days(ifull,31) )
-    allocate( dat20years(ifull,20) )
-    allocate( dat5days(ifull,120) )
-    dat91days = 0._8
-    dat31days = 0._8
-    dat20years = 0._8
-    dat5days = 0._8
-    do n = 1,maxtile
-      write(vname,'("t",I1.1,"_climateiveg")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      dati = nint(dat)
-      call cable_pack(dati,climate%iveg,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatebiome")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      dati = nint(dat)
-      call cable_pack(dati,climate%biome,nmp(:,n))
-      write(vname,'("t",I1.1,"_climateevapPT")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%evap_PT,nmp(:,n))
-      write(vname,'("t",I1.1,"_climateaevap")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%aevap,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatemtempmax")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%mtemp_max,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatemtempmin")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%mtemp_min,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatedmoistmax")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%dmoist_max,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatedmoistmin")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%dmoist_min,nmp(:,n))
-      write(vname,'("t",I1.1,"_climateqtempmax")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%qtemp_max,nmp(:,n))
-      write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%qtemp_max_last_year,nmp(:,n))
-      write(vname,'("t",I1.1,"_climategdd0")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%gdd0,nmp(:,n))
-      write(vname,'("t",I1.1,"_climategdd5")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%gdd5,nmp(:,n))
-      write(vname,'("t",I1.1,"_climateagdd0")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%agdd0,nmp(:,n))
-      write(vname,'("t",I1.1,"_climateagdd5")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%agdd5,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatechilldays")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      dati = nint(dat)      
-      call cable_pack(dati,climate%chilldays,nmp(:,n))
-      write(vname,'("t",I1.1,"_climategdd0_rec")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%gdd0_rec,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatemtempmin20")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%mtemp_min20,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatemtempmax20")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%mtemp_max20,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatealphaPT20")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%alpha_PT20,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatedmoistmin20")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%dmoist_min20,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatedmoistmax20")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%dmoist_max20,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatefrec")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%frec,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatefdorm")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,climate%fdorm,nmp(:,n))
-      write(vname,'("t",I1.1,"_climategmd")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      dati = nint(dat)      
-      call cable_pack(dati,climate%gmd,nmp(:,n))
-      write(vname,'("t",I1.1,"_climatedtemp")') n
-      call histrd(iarchi-1,ierr,vname,dat91days,ifull)
-      do k = 1,91  
-        call cable_pack(dat91days(:,k),climate%dtemp_91(:,k),nmp(:,n))
-        if ( k>60 ) then
-          call cable_pack(dat91days(:,k),climate%dtemp_31(:,k-60),nmp(:,n))
-        end if
-      end do
-      write(vname,'("t",I1.1,"_climatedmoist")') n
-      call histrd(iarchi-1,ierr,vname,dat31days,ifull)
-      do k = 1,31  
-        call cable_pack(dat31days(:,k),climate%dmoist_31(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
-      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
-      do k = 1,20  
-        call cable_pack(dat20years(:,k),climate%mtemp_min_20(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
-      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
-      do k = 1,20  
-        call cable_pack(dat20years(:,k),climate%mtemp_max_20(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
-      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
-      do k = 1,20  
-        call cable_pack(dat20years(:,k),climate%alpha_PT_20(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
-      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
-      do k = 1,20  
-        call cable_pack(dat20years(:,k),climate%dmoist_min_20(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
-      call histrd(iarchi-1,ierr,vname,dat20years,ifull)
-      do k = 1,20  
-        call cable_pack(dat20years(:,k),climate%dmoist_max_20(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%apar_leaf_sun(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%apar_leaf_shade(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatedleaf_sun")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%dleaf_sun(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatedleaf_shade")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%dleaf_shade(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatetleaf_sun")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%tleaf_sun(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatetleaf_shade")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%tleaf_shade(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatecs_sun")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%cs_sun(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatecs_shade")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%cs_shade(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatescalex_sun")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%scalex_sun(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_climatescalex_shade")') n
-      call histrd(iarchi-1,ierr,vname,dat5days,ifull)
-      do k = 1,120  
-        call cable_pack(dat5days(:,k),climate%scalex_shade(:,k),nmp(:,n))
-      end do  
-      write(vname,'("t",I1.1,"_vegvcmax_sun")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,veg%vcmax_sun,nmp(:,n))
-      write(vname,'("t",I1.1,"_vegvcmax_shade")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,veg%vcmax_shade,nmp(:,n))
-      write(vname,'("t",I1.1,"_vegejmax_sun")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,veg%ejmax_sun,nmp(:,n))
-      write(vname,'("t",I1.1,"_vegejmax_shade")') n
-      call histrd(iarchi-1,ierr,vname,dat,ifull)
-      call cable_pack(dat,veg%ejmax_shade,nmp(:,n))
-    end do
-    deallocate( dat91days )
-    deallocate( dat31days )
-    deallocate( dat20years )
-    deallocate( dat5days )
   end if
   if ( cable_pop==1 ) then
     if ( ierr_pop/=0 ) then
@@ -6686,149 +6028,7 @@ if (myid==0.or.local) then
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
       end do
     end if
-    if ( cable_climate==1 ) then
-      do n = 1,maxtile  
-        write(lname,'("climate iveg tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateiveg")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate biome tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatebiome")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate evapPT tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateevapPT")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate aevap tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateaevap")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate mtempmax tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatemtempmax")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate mtempmin tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatemtempmin")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoistmax tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedmoistmax")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoistmin tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedmoistmin")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate qtempmax tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateqtempmax")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate qtempmaxlastyear tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate gdd0 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climategdd0")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate gdd5 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climategdd5")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate agdd0 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateagdd0")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate agdd5 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateagdd5")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate chilldays tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatechilldays")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate gdd0_rec tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climategdd0_rec")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate mtemp_min20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatemtempmin20")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate mtemp_max20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatemtempmax20")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate alpha_PT20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatealphaPT20")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoist_min20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedmoistmin20")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoist_max20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedmoistmax20")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate frec tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatefrec")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate fdorm tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatefdorm")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate gmd tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climategmd")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dtemp tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedtemp")') n
-        call attrib(idnc,cdim(:,3),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoist tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedmoist")') n
-        call attrib(idnc,cdim(:,4),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate mtemp_min_20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
-        call attrib(idnc,cdim(:,5),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate mtemp_max_20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
-        call attrib(idnc,cdim(:,5),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate alpha_PT_20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
-        call attrib(idnc,cdim(:,5),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoist_min_20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
-        call attrib(idnc,cdim(:,5),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate dmoist_max_20 tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
-        call attrib(idnc,cdim(:,5),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate APAR_leaf_sun tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate APAR_leaf_shade tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate Dleaf_sun tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedleaf_sun")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate fwsoil tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatefwsoil")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate Dleaf_shade tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatedleaf_shade")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate Tleaf_sun tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatetleaf_sun")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate Tleaf_shade tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatetleaf_shade")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate cs_sun tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatecs_sun")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate cs_shade tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatecs_shade")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate scalex_sun tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatescalex_sun")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("climate scalex_shade tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_climatescalex_shade")') n
-        call attrib(idnc,cdim(:,6),csize(1),vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("veg vcmax_sun tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_vegvcmax_sun")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("veg vcmax_shade tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_vegvcmax_shade")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("veg ejmax_sun tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_vegejmax_sun")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-        write(lname,'("veg ejmax_shade tile ",I1.1)') n
-        write(vname,'("t",I1.1,"_vegejmax_shade")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,0,2) ! kind=8
-      end do  
-    end if
-  end if
+  end if ! itype==-1
   if ( cable_pop==1 ) then
     do n = 1,maxtile  
       ! Convention for POP variables are of the form t<n>_pop_grid_<......>
@@ -7257,10 +6457,6 @@ real(kind=8), dimension(:), allocatable :: dat_in
 real(kind=8), dimension(:,:), allocatable :: datpatch
 real(kind=8), dimension(:,:), allocatable :: datage
 real(kind=8), dimension(:,:,:), allocatable :: datpc
-real(kind=8), dimension(:,:), allocatable :: dat91days
-real(kind=8), dimension(:,:), allocatable :: dat31days
-real(kind=8), dimension(:,:), allocatable :: dat20years
-real(kind=8), dimension(:,:), allocatable :: dat5days
 character(len=80) vname
 logical, intent(in) :: local
   
@@ -7583,287 +6779,7 @@ if ( itype==-1 ) then !just for restart file
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
   end if
-  if ( cable_climate==1 ) then
-    allocate( dat91days(ifull,91) )
-    allocate( dat31days(ifull,31) )
-    allocate( dat20years(ifull,20) )
-    allocate( dat5days(ifull,120) )
-    dat91days = 0._8
-    dat31days = 0._8
-    dat20years = 0._8
-    dat5days = 0._8
-    do n = 1,maxtile  ! tile
-      dat=0._8
-      if (n<=maxnb) dummy_unpack = real(climate%iveg,8)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
-      write(vname,'("t",I1.1,"_climateiveg")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) dummy_unpack = real(climate%biome,8)
-      if (n<=maxnb) call cable_unpack(dummy_unpack,dat,n)
-      write(vname,'("t",I1.1,"_climatebiome")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%evap_PT,dat,n)
-      write(vname,'("t",I1.1,"_climateevapPT")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%aevap,dat,n)
-      write(vname,'("t",I1.1,"_climateaevap")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%mtemp_max,dat,n)
-      write(vname,'("t",I1.1,"_climatemtempmax")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%mtemp_min,dat,n)
-      write(vname,'("t",I1.1,"_climatemtempmin")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%dmoist_max,dat,n)
-      write(vname,'("t",I1.1,"_climatedmoistmax")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%dmoist_min,dat,n)
-      write(vname,'("t",I1.1,"_climatedmoistmin")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%qtemp_max,dat,n)
-      write(vname,'("t",I1.1,"_climateqtempmax")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%qtemp_max_last_year,dat,n)
-      write(vname,'("t",I1.1,"_climateqtempmaxlastyear")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%gdd0,dat,n)
-      write(vname,'("t",I1.1,"_climategdd0")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%gdd5,dat,n)
-      write(vname,'("t",I1.1,"_climategdd5")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%agdd0,dat,n)
-      write(vname,'("t",I1.1,"_climateagdd0")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%agdd5,dat,n)
-      write(vname,'("t",I1.1,"_climateagdd5")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) then
-        dummy_unpack = real(climate%chilldays,8)  
-        call cable_unpack(dummy_unpack,dat,n)
-      end if  
-      write(vname,'("t",I1.1,"_climatechilldays")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%gdd0_rec,dat,n)
-      write(vname,'("t",I1.1,"_climategdd0_rec")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%mtemp_min20,dat,n)
-      write(vname,'("t",I1.1,"_climatemtempmin20")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%mtemp_max20,dat,n)
-      write(vname,'("t",I1.1,"_climatemtempmax20")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%alpha_PT20,dat,n)
-      write(vname,'("t",I1.1,"_climatealphaPT20")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%dmoist_min20,dat,n)
-      write(vname,'("t",I1.1,"_climatedmoistmin20")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%dmoist_max20,dat,n)
-      write(vname,'("t",I1.1,"_climatedmoistmax20")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%frec,dat,n)
-      write(vname,'("t",I1.1,"_climatefrec")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(climate%fdorm,dat,n)
-      write(vname,'("t",I1.1,"_climatefdorm")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) then
-        dummy_unpack = real(climate%gmd,8)  
-        call cable_unpack(dummy_unpack,dat,n)
-      end if  
-      write(vname,'("t",I1.1,"_climategmd")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat91days = 0._8
-      if ( n<=maxnb ) then
-        do k = 1,91  
-          call cable_unpack(climate%dtemp_91(:,k),dat91days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatedtemp")') n
-      call histwrt(dat91days,vname,idnc,iarch,local,.true.)
-      dat31days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,31  
-          call cable_unpack(climate%dmoist_31(:,k),dat31days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatedmoist")') n
-      call histwrt(dat31days,vname,idnc,iarch,local,.true.)
-      dat20years = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,20  
-          call cable_unpack(climate%mtemp_min_20(:,k),dat20years(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatemtemp_min_20")') n
-      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-      dat20years = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,20  
-          call cable_unpack(climate%mtemp_max_20(:,k),dat20years(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatemtemp_max_20")') n
-      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-      dat20years = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,20  
-          call cable_unpack(climate%alpha_PT_20(:,k),dat20years(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatealpha_PT_20")') n
-      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-      dat20years = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,20  
-          call cable_unpack(climate%dmoist_min_20(:,k),dat20years(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatedmoist_min_20")') n
-      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-      dat20years = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,20  
-          call cable_unpack(climate%dmoist_max_20(:,k),dat20years(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatedmoist_max_20")') n
-      call histwrt(dat20years,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%APAR_leaf_sun(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climateapar_leaf_sun")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%APAR_leaf_shade(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climateapar_leaf_shade")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%Dleaf_sun(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatedleaf_sun")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%fwsoil(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatefwsoil")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%Dleaf_shade(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatedleaf_shade")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%Tleaf_sun(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatetleaf_sun")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%Tleaf_shade(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatetleaf_shade")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%cs_sun(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatecs_sun")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%cs_shade(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatecs_shade")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%scalex_sun(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatescalex_sun")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat5days = 0._8  
-      if ( n<=maxnb ) then
-        do k = 1,120  
-          call cable_unpack(climate%scalex_shade(:,k),dat5days(:,k),n)
-        end do  
-      end if  
-      write(vname,'("t",I1.1,"_climatescalex_shade")') n
-      call histwrt(dat5days,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(veg%vcmax_sun,dat,n)
-      write(vname,'("t",I1.1,"_vegvcmax_sun")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(veg%vcmax_shade,dat,n)
-      write(vname,'("t",I1.1,"_vegvcmax_shade")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(veg%ejmax_sun,dat,n)
-      write(vname,'("t",I1.1,"_vegejmax_sun")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-      dat=0._8
-      if (n<=maxnb) call cable_unpack(veg%ejmax_shade,dat,n)
-      write(vname,'("t",I1.1,"_vegejmax_shade")') n
-      call histwrt(dat,vname,idnc,iarch,local,.true.)
-    end do  
-    deallocate( dat91days )
-    deallocate( dat31days )
-    deallocate( dat20years )
-    deallocate( dat5days )
-  end if
-end if
+end if ! itype==-1
 if ( cable_pop==1 ) then
   allocate( datpatch(ifull,POP_NPATCH) )  
   allocate( datage(ifull,POP_AGEMAX) )  

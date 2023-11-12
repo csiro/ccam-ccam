@@ -139,7 +139,7 @@ real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,5) :: duma
 real, dimension(ifull,6) :: ocndwn
-real, dimension(ifull,wlev,8) :: mlodwn
+real, dimension(ifull,wlev,6) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,12) :: dumb
 real, dimension(ifull,ms,3) :: dumca
@@ -931,7 +931,7 @@ if ( io_in<4 ) then
                   ni,nr,ns,                                        &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
                   ocndwn,xtgdwn)
-    ! UPDATE CABLE BIOSPHERE DATA (nsib)
+    ! UPDATE BIOSPHERE DATA (nsib)
     if ( nsib==6 .or. nsib==7 ) then
       call loadtile
     end if
@@ -2516,7 +2516,7 @@ if ( nsib <= 3 ) then
       where( iglobal2d(:,2)==-1 )
         iglobal2d(:,2) = 0
       end where
-    end if
+    end if    
     call ccmpi_distribute(ilocal2d(:,1:2),iglobal2d(:,1:2))
     ivegt(1:ifull)     = ilocal2d(1:ifull,1)
     isoilm_in(1:ifull) = ilocal2d(1:ifull,2)
@@ -2572,7 +2572,7 @@ else if ( nsib==5 ) then
         where( abs(global2d(:,6)+1.)<1.e-8 )
           global2d(:,6) = 0.
         end where
-      end if      
+      end if  
       write(6,*) "Reading veg data"
       call surfread(global2d(:,7),'landtype',netcdfid=ncidveg)      
     else
@@ -2598,7 +2598,7 @@ else if ( nsib==5 ) then
         where( abs(global2d(:,6)+1.)<1.e-8 )
           global2d(:,6) = 0.
         end where
-      end if      
+      end if
       global2d(1:ifull_g,7) = 1 ! ivegt
     end if
     call ccmpi_distribute(local2d(:,1:7),global2d(:,1:7))
@@ -2634,7 +2634,7 @@ else if ( nsib>=6 ) then
         where( abs(global2d(:,1)+1.)<1.e-8 )
           global2d(:,1) = 0.
         end where
-      end if      
+      end if       
       write(6,*) "Reading albedo data"
       call surfread(global2d(:,2),'albvis',netcdfid=ncidveg)
       call surfread(global2d(:,3),'albnir',netcdfid=ncidveg)
