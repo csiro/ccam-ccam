@@ -55,7 +55,7 @@ integer, save      :: mlojacobi   = 7       ! density gradient method (0=off, 6=
 integer, save      :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
 integer, save      :: mlomfix     = 2       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
 integer, save      :: mlodps      = 1       ! Include atmosphere pressure gradient terms (0=off, 1=on)
-integer, save      :: mlo_bs      = 4       ! Category to apply B-S advection (1=all, 2=mps, 3=uv, 4=t, 5=sal)
+integer, save      :: mlo_bs      = 3       ! Category to apply B-S advection (1=all, 2=mps, 3=uv, 4=t, 5=sal)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
@@ -883,56 +883,41 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! calculate 5-point stencil for free surface
   ! (i.e., terms for free surface gradient contribution to currents)
 
-  ! calculate cc, cc3u, cc4v
-  cc(:,:) = 0.
-  cc3u(:,:) = 0.
-  cc4v(:,:) = 0.
-
   ! temporary terms to be updated later
   bb(:) = -(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(:))**2) ! unstaggered
   ff(:) = (1.+ocneps)*0.5*dt*f(:)
+
+  do ii = 1,wlev
+    cc(:,ii) = bb(:)
+  end do
 
   ! include rho_dash/wrtrho terms (i.e., sig*dD/dx and (1-sig)*d(eta)/dx )
   select case(mlojacobi)
     case(7)
       do ii = 1,wlev  
-        cc(1:ifull,ii) = ee(1:ifull,ii)*bb(1:ifull)*(1.-gosig(1:ifull,ii))*rhobar_dash(1:ifull,ii)/wrtrho
+        cc(1:ifull,ii) = cc(1:ifull,ii) + ee(1:ifull,ii)*bb(1:ifull)*(1.-gosig(1:ifull,ii))*rhobar_dash(1:ifull,ii)/wrtrho
       end do
       call bounds(cc(:,1:wlev),corner=.true.)
-      do ii = 1,wlev
-        do iq = 1,ifull
-          tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq)) + cc(ien(iq),ii)*ff(ien(iq)) )
-          tsu(iq) = 0.5*( cc(is(iq),ii)*ff(is(iq)) + cc(ies(iq),ii)*ff(ies(iq)) )
-          tev(iq) = 0.5*( cc(ie(iq),ii)*ff(ie(iq)) + cc(ine(iq),ii)*ff(ine(iq)) )
-          twv(iq) = 0.5*( cc(iw(iq),ii)*ff(iw(iq)) + cc(inw(iq),ii)*ff(inw(iq)) )
-        end do
-        cc3u(1:ifull,ii) = 0.5*stwgtu(1:ifull,ii)*( tnu-tsu )*emu(1:ifull)/ds
-        cc4v(1:ifull,ii) = 0.5*stwgtv(1:ifull,ii)*( tev-twv )*emv(1:ifull)/ds
-      end do
   end select
 
   ! update cc, cc3u, cc4v terms with f terms
-  do iq = 1,ifull
-    tnu(iq) = 0.5*( bb(in(iq))*ff(in(iq)) + bb(ien(iq))*ff(ien(iq)) )
-    tsu(iq) = 0.5*( bb(is(iq))*ff(is(iq)) + bb(ies(iq))*ff(ies(iq)) )
-    tev(iq) = 0.5*( bb(ie(iq))*ff(ie(iq)) + bb(ine(iq))*ff(ine(iq)) )
-    twv(iq) = 0.5*( bb(iw(iq))*ff(iw(iq)) + bb(inw(iq))*ff(inw(iq)) )
-  end do
+  cc3u(:,:) = 0.
+  cc4v(:,:) = 0.
   do ii = 1,wlev
-    cc(:,ii) = cc(:,ii) + bb(:)
-    cc(:,ii) = cc(:,ii)*ee(:,ii)
-    cc3u(1:ifull,ii) = cc3u(1:ifull,ii) + 0.5*( tnu-tsu )*emu(1:ifull)/ds
-    cc4v(1:ifull,ii) = cc4v(1:ifull,ii) + 0.5*( tev-twv )*emv(1:ifull)/ds
-    cc3u(1:ifull,ii) = cc3u(1:ifull,ii)*eeu(1:ifull,ii)
-    cc4v(1:ifull,ii) = cc4v(1:ifull,ii)*eev(1:ifull,ii)
+    do iq = 1,ifull
+      tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq)) + cc(ien(iq),ii)*ff(ien(iq)) )
+      tsu(iq) = 0.5*( cc(is(iq),ii)*ff(is(iq)) + cc(ies(iq),ii)*ff(ies(iq)) )
+      tev(iq) = 0.5*( cc(ie(iq),ii)*ff(ie(iq)) + cc(ine(iq),ii)*ff(ine(iq)) )
+      twv(iq) = 0.5*( cc(iw(iq),ii)*ff(iw(iq)) + cc(inw(iq),ii)*ff(inw(iq)) )
+    end do
+    cc3u(1:ifull,ii) = 0.5*stwgtu(1:ifull,ii)*( tnu-tsu )*emu(1:ifull)/ds
+    cc4v(1:ifull,ii) = 0.5*stwgtv(1:ifull,ii)*( tev-twv )*emv(1:ifull)/ds
   end do
 
-  ! ocean - calculate bb, bb3u, bb4v now possibly including rhobar_dash contribution to cc
-  bb(:) = 0.
+  ! ocean - calculate bb3u, bb4v now possibly including rhobar_dash contribution to cc
   bb3u(:) = 0.
   bb4v(:) = 0.
   do ii = 1,wlev
-    bb(:) = bb(:) + cc(:,ii)*godsig(:,ii)
     bb3u(1:ifull) = bb3u(1:ifull) + cc3u(1:ifull,ii)*godsigu(1:ifull,ii)
     bb4v(1:ifull) = bb4v(1:ifull) + cc4v(1:ifull,ii)*godsigv(1:ifull,ii)
   end do
