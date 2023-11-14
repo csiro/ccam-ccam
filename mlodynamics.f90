@@ -643,10 +643,10 @@ do mspec_mlo = mspeca_mlo,1,-1
     ccv(:,ii) = ccv(:,ii-1) + eov(:,ii)*godsigv(:,ii)
   end do
   ! surface height at staggered coordinate
-  oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))*eeu(1:ifull,1)
-  oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))*eev(1:ifull,1)
-  oeu_iwu = 0.5*(neta(iw)+neta(1:ifull))*eeu(iwu,1)
-  oev_isv = 0.5*(neta(is)+neta(1:ifull))*eev(isv,1)
+  oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))
+  oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))
+  oeu_iwu = 0.5*(neta(iw)+neta(1:ifull))
+  oev_isv = 0.5*(neta(is)+neta(1:ifull))
   ! calculate vertical velocity (use flux form)
   sdiv(:) = (ccu(1:ifull,wlev)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)    &
             -ccu(iwu,wlev)*(ddu(iwu)+oeu_iwu)/emu(iwu)                     &
@@ -692,8 +692,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Prepare pressure gradient terms at time t and incorporate into velocity field
   detadxu = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
   detadyv = (neta(in)-neta(1:ifull))*emv(1:ifull)/ds
-  oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))*eeu(1:ifull,1)
-  oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))*eev(1:ifull,1)
+  oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))
+  oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))
   do ii = 1,wlev
     gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
@@ -777,7 +777,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Horizontal advection for U, V, W, T, continuity and S
   sal_test = (/.false.,.false.,.false.,.false.,.false.,.true./)
   select case(mlo_bs)
-    case default
+    case(1)
       bs_test = (/.true.,.true.,.true.,.true.,.true.,.true./) 
     case(2)
       bs_test = (/.true.,.true.,.true.,.true.,.false.,.true./) 
@@ -787,6 +787,9 @@ do mspec_mlo = mspeca_mlo,1,-1
       bs_test = (/.false.,.false.,.false.,.false.,.false.,.true./)  
     case(5)  
       bs_test =  (/.false.,.false.,.false.,.false.,.false.,.false./)
+    case default
+      write(6,*) "ERROR: Unknown option mlo_bs = ",mlo_bs
+      call ccmpi_abort(-1)
   end select    
   call mlob2ints_bs(cou(:,:,1:6),nface,xg,yg,wtr,sal_test(1:6),bs_test(1:6))
   
@@ -888,14 +891,15 @@ do mspec_mlo = mspeca_mlo,1,-1
   ff(:) = (1.+ocneps)*0.5*dt*f(:)
 
   do ii = 1,wlev
-    cc(:,ii) = bb(:)
+    cc(:,ii) = grav*bb(:)
   end do
 
   ! include rho_dash/wrtrho terms (i.e., sig*dD/dx and (1-sig)*d(eta)/dx )
   select case(mlojacobi)
     case(7)
       do ii = 1,wlev  
-        cc(1:ifull,ii) = cc(1:ifull,ii) + ee(1:ifull,ii)*bb(1:ifull)*(1.-gosig(1:ifull,ii))*rhobar_dash(1:ifull,ii)/wrtrho
+        cc(1:ifull,ii) = cc(1:ifull,ii) + grav*ee(1:ifull,ii)*bb(1:ifull) &
+            *(1.-gosig(1:ifull,ii))*rhobar_dash(1:ifull,ii)/wrtrho
       end do
       call bounds(cc(:,1:wlev),corner=.true.)
   end select
@@ -1123,8 +1127,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   
   ! Update currents once neta is calculated
-  detadxu = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds*eeu(1:ifull,1)
-  detadyv = (neta(in)-neta(1:ifull))*emv(1:ifull)/ds*eev(1:ifull,1) 
+  detadxu = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
+  detadyv = (neta(in)-neta(1:ifull))*emv(1:ifull)/ds
   oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))
   oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))
   ff(:) = (1.+ocneps)*0.5*dt*f(:)
@@ -1548,7 +1552,7 @@ else
   drhobardyv(:,1) = drhobardyv(:,1)*godsigv(1:ifull,1)
   rhobar_dash(:,1) = lrho_dash(1:ifull,1)*godsig(1:ifull,1)
   rhobaru_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(ie,1))*godsigu(1:ifull,1)
-  rhobarv_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(in,1))*godsigu(1:ifull,1)
+  rhobarv_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(in,1))*godsigv(1:ifull,1)
   do ii = 2,wlev
     drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhobardxu(:,ii)*godsigu(1:ifull,ii)
     drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhobardxv(:,ii)*godsigv(1:ifull,ii)
@@ -1556,7 +1560,7 @@ else
     drhobardyv(:,ii) = drhobardyv(:,ii-1) + drhobardyv(:,ii)*godsigv(1:ifull,ii)
     rhobar_dash(:,ii) = rhobar_dash(:,ii-1) + lrho_dash(1:ifull,ii)*godsig(1:ifull,ii)
     rhobaru_dash(:,ii) = rhobaru_dash(:,ii-1) + 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(ie,ii))*godsigu(1:ifull,ii)
-    rhobarv_dash(:,ii) = rhobarv_dash(:,ii-1) + 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(in,ii))*godsigu(1:ifull,ii)
+    rhobarv_dash(:,ii) = rhobarv_dash(:,ii-1) + 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(in,ii))*godsigv(1:ifull,ii)
   end do
   do ii = 1,wlev
     drhobardxu(:,ii) = drhobardxu(:,ii)/gosighu(:,ii)
