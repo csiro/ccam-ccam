@@ -36,7 +36,7 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate depature points for MLO semi-Lagrangian advection
 
-subroutine mlob2ints_bs_3(s,nface,xg,yg,wtr,sal_test,bs_test)
+subroutine mlob2ints_bs_3(s,nface,xg,yg,wtr,bc_test,bs_test)
 
 use cc_acc
 use cc_mpi
@@ -63,7 +63,8 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
-logical, dimension(size(s,3)), intent(in) :: sal_test, bs_test
+logical, dimension(size(s,3)), intent(in) :: bs_test
+integer, dimension(size(s,3)), intent(in) :: bc_test
 
 call START_LOG(waterints_begin)
 
@@ -73,17 +74,27 @@ intsch = mod(ktau, 2)
 do nn = 1,ntr
   do k = 1,wlev
     s_store(1:ifull,k,nn) = s(1:ifull,k,nn)
-    where (.not.wtr(1:ifull,k))
-      s(1:ifull,k,nn) = cxx - 1. ! missing value flag
-    end where
   end do
-  if ( sal_test(nn) ) then
-    do k = 1,wlev  
-      where ( s(1:ifull,k,nn)<2. )
-        s(1:ifull,k,nn) = cxx - 1. ! missing value flag
-      end where
-    end do
-  end if  
+  select case(bc_test(nn))
+    case(0) ! fill
+      do k = 1,wlev
+        where (.not.wtr(1:ifull,k))
+          s(1:ifull,k,nn) = cxx - 1. ! missing value flag
+        end where
+      end do
+    case(1) ! salinity + fill
+      do k = 1,wlev  
+        where ( s(1:ifull,k,nn)<2. .or. .not.wtr(1:ifull,k) )
+          s(1:ifull,k,nn) = cxx - 1. ! missing value flag
+        end where
+      end do
+    case(2) ! zero
+      do k = 1,wlev
+        where (.not.wtr(1:ifull,k))
+          s(1:ifull,k,nn) = 0.
+        end where
+      end do
+  end select
 end do
 
 ! fill
@@ -567,7 +578,7 @@ do nn = 1,ntr
       s(1:ifull,k,nn) = s_store(1:ifull,k,nn)
     end where
   end do
-  if ( sal_test(nn) ) then
+  if ( bc_test(nn)==1 ) then
     do k = 1,wlev
       where ( s_store(1:ifull,k,nn)<2. )
         s(1:ifull,k,nn) = s_store(1:ifull,k,nn)  
@@ -581,7 +592,7 @@ call END_LOG(waterints_end)
 return
 end subroutine mlob2ints_bs_3
 
-subroutine mlob2ints_bs_2(s,nface,xg,yg,wtr,sal_test,bs_test)
+subroutine mlob2ints_bs_2(s,nface,xg,yg,wtr,bc_test,bs_test)
 
 use cc_acc
 use cc_mpi
@@ -608,7 +619,8 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
-logical, intent(in) :: sal_test, bs_test
+logical, intent(in) :: bs_test
+integer, intent(in) :: bc_test
 
 call START_LOG(waterints_begin)
 
@@ -616,17 +628,28 @@ intsch = mod(ktau,2)
 
 do k = 1,wlev
   s_store(1:ifull,k) = s(1:ifull,k)
-  where (.not.wtr(1:ifull,k))
-    s(1:ifull,k) = cxx - 1. ! missing value flag
-  end where
 end do
-if ( sal_test ) then
-  do k = 1,wlev  
-    where ( s(1:ifull,k)<2. )
-      s(1:ifull,k) = cxx - 1. ! missing value flag
-    end where
-  end do
-end if
+
+select case(bc_test)
+  case(0) ! fill
+    do k = 1,wlev
+      where (.not.wtr(1:ifull,k))
+        s(1:ifull,k) = cxx - 1. ! missing value flag
+      end where
+    end do
+  case(1) ! salinity + fill
+    do k = 1,wlev  
+      where ( s(1:ifull,k)<2. .or. .not.wtr(1:ifull,k) )
+        s(1:ifull,k) = cxx - 1. ! missing value flag
+      end where
+    end do
+  case(2) ! zero
+    do k = 1,wlev
+      where (.not.wtr(1:ifull,k))
+        s(1:ifull,k) = 0.
+      end where
+    end do
+end select
 
 ! fill
 do ii = 1,6 ! 6 iterations of fill should be enough
@@ -1060,7 +1083,7 @@ do k = 1,wlev
     s(1:ifull,k) = s_store(1:ifull,k)
   end where
 end do
-if ( sal_test ) then
+if ( bc_test==1 ) then
   do k = 1,wlev
     where ( s_store(1:ifull,k)<2. )
       s(1:ifull,k) = s_store(1:ifull,k)  

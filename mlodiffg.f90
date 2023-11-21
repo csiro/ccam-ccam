@@ -266,7 +266,7 @@ use parm_m, only : dt, ds
 
 implicit none
 
-integer k, iq, iqc, nc, its, ntr, nn
+integer k, iq, iqc, nc, its, ntr, nn, nits
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:,:), intent(inout) :: work
@@ -278,11 +278,16 @@ real base, xfact_iwu, yfact_isv
 ! Bi-Harmonic and Laplacian diffusion.  iterative version.
 
 ntr = size(work,3)
+nits = mlodiff_numits
 ans = 0.
  
 work_save(1:ifull,1:wlev,1:ntr) = work(1:ifull,1:wlev,1:ntr)
-    
-do its = 1,mlodiff_numits
+
+if ( hdif<=0. ) then
+  nits = 1
+end if
+
+do its = 1,nits
   
   ! Biharmonic diffusion
   if ( hdif>0. ) then
@@ -328,7 +333,7 @@ do its = 1,mlodiff_numits
                             hdif*yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
         end do    
         do iq = 1,ifull
-          if ( ee(iq,k)<0.5 ) then
+          if ( ee(iq,k)>0.5 ) then
             work(iq,k,nn) = work_save(iq,k,nn)
           end if
         end do
@@ -361,7 +366,7 @@ do its = 1,mlodiff_numits
                         / base
         end do  
         do iq = 1,ifull
-          if ( ee(iq,k)<0.5 ) then
+          if ( ee(iq,k)>0.5 ) then
             work(iq,k,nn) = ans(iq,k,nn)
           end if
         end do

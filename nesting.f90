@@ -795,7 +795,7 @@ use xyzinfo_m         ! Grid coordinate arrays
 implicit none
 
 integer, intent(in) :: klt
-integer iq, iqg, k, n, j, kltp1
+integer iq, iqg, k, n, j, i, kltp1
 real, dimension(ifull,klt), intent(out) :: tbb
 real, dimension(ifull_g,klt), intent(in) :: tt
 real, dimension(ifull_g) :: sm        ! large working array
@@ -827,12 +827,13 @@ tt_l(:,klt+1) = sm(:)
 
 ! GPU version
 !$acc parallel loop collapse(2) copyin(cq,klt,kltp1,xa,ya,za,tt_l) &
-!$acc   copyout(tbb_l) private(iq,iqg,n,j)
+!$acc   copyout(tbb_l) private(iq,iqg,n,j,i)
 do k = 1,klt+1
   do iq = 1,ifull
     n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
     j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
-    iqg = iq - (j-1)*ipan - (n-1)*(ipan*jpan)
+    i = iq - (j-1)*ipan - (n-1)*ipan*jpan
+    iqg = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g**2
     ! apply low band pass filter
     tbb_l(iq,k) = drpdr_fast(iqg,cq,xa,ya,za,tt_l(:,k))
   end do  
@@ -845,11 +846,12 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do schedule(static) private(iqg,iq,local_sum)
+!$omp parallel do schedule(static) private(iqg,iq,local_sum,i,j,n)
 do iq = 1,ifull
   n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
-  iqg = iq - (j-1)*ipan - (n-1)*(ipan*jpan)
+  i = iq - (j-1)*ipan - (n-1)*ipan*jpan
+  iqg = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g**2
   ! apply low band pass filter
   local_sum(1:kltp1) = drpdr_fast(iqg,cq,xa,ya,za,tt_l)
   tbb(iq,1:klt) = local_sum(1:klt)/local_sum(kltp1)
@@ -2044,6 +2046,9 @@ do kbb = ktopmlo,kc,kblock
     end do
   end if
 
+
+  ! Note that nmlo=1 or nmlo=-1 will use the 2D filter
+
   if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
     if (myid==0) then
       if (klt==1) then
@@ -2063,7 +2068,8 @@ do kbb = ktopmlo,kc,kblock
     end if
     call mlofilter(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),lblock,klt)
   end if
-  
+
+
   if ( nud_sst/=0 ) then
     !call mloexpmelt(timelt)
     do k = kln,klx
@@ -2071,7 +2077,6 @@ do kbb = ktopmlo,kc,kblock
       kb = k - kln + 1
       old = sstb(:,ka)
       call mloexport("temp",old,k,0)
-      !old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
       old = old + min( max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old ), 373.16-wrtemp-old )
       call mloimport("temp",old,k,0)
     end do
@@ -2079,7 +2084,6 @@ do kbb = ktopmlo,kc,kblock
       do k = kc+1,kbotmlo
         old = sstb(:,ka)
         call mloexport("temp",old,k,0)
-        !old = old + max( diff_l(:,kb)*nudgewgt, 275.16-wrtemp-old )
         old = old + min( max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old ), 373.16-wrtemp-old )
         call mloimport("temp",old,k,0)
       end do
@@ -2249,7 +2253,7 @@ use xyzinfo_m          ! Grid coordinate arrays
 implicit none
 
 integer, intent(in) :: kd
-integer iqq, iqqg, k, n, j, kdp1
+integer iqq, iqqg, k, n, j, i, kdp1
 real, dimension(ifull_g,kd), intent(in) :: diff_g ! large common array
 real, dimension(ifull,kd), intent(out) :: dd
 real, dimension(ifull_g) :: sm
@@ -2281,12 +2285,13 @@ diff_g_l(:,kd+1) = sm(:)
 
 ! GPU version
 !$acc parallel loop collapse(2) copyin(cq,xa,ya,za,diff_g_l) &
-!$acc   copyout(dd_l) private(iqq,iqqg,n,j)
+!$acc   copyout(dd_l) private(iqq,iqqg,n,j,i)
 do k = 1,kd+1
   do iqq = 1,ifull
     n = 1 + (iqq-1)/(ipan*jpan)  ! In range 1 .. npan
     j = 1 + ( iqq - (n-1)*(ipan*jpan) - 1) / ipan
-    iqqg = iqq - (j-1)*ipan - (n-1)*(ipan*jpan)
+    i = iqq - (j-1)*ipan - (n-1)*ipan*jpan
+    iqqg = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g**2
     dd_l(iqq,k) = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_l(:,k))
   end do  
 end do
@@ -2300,11 +2305,12 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do schedule(static) private(iqqg,iqq,local_sum)
+!$omp parallel do schedule(static) private(iqqg,iqq,local_sum,i,j,n)
 do iqq = 1,ifull
   n = 1 + (iqq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iqq - (n-1)*(ipan*jpan) - 1) / ipan
-  iqqg = iqq - (j-1)*ipan - (n-1)*(ipan*jpan)
+  i = iqq - (j-1)*ipan - (n-1)*ipan*jpan
+  iqqg = i+ioff + (j+joff-1)*il_g + (n-noff)*il_g**2
   local_sum(1:kd+1) = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_l)
   dd(iqq,1:kd) = local_sum(1:kd)/max(local_sum(kd+1),1.e-8)
 end do

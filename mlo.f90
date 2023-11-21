@@ -63,7 +63,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta,mlo_limitsal
-public mlo_timeave_length,kemaxdt
+public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl
 
 #ifdef CCAM
 public water_g,ice_g
@@ -210,7 +210,7 @@ type(dgscrndata), dimension(:), allocatable, save :: dgscrn_g
 type(depthdata), dimension(:), allocatable, save :: depth_g
 type(turbdata), dimension(:), allocatable, save :: turb_g
   
-! mode
+! model
 integer, save :: zomode       = 2         ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
 integer, save :: otaumode     = 0         ! momentum coupling (0=Explicit, 1=Implicit)
 integer, save :: mlosigma     = 6         ! vertical levels (4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
@@ -218,6 +218,8 @@ integer, save :: oclosure     = 0         ! 0=kpp, 1=k-eps
 integer, save :: usepice      = 0         ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save :: mlo_adjeta   = 1         ! allow adjustment to surface outside dynamics (0=off, 1=all)
 integer, save :: mlo_limitsal = 0         ! limit salinity to maxsal when loading data ( 0=off, 1=limit )
+integer, save :: mlo_step     = 0         ! ocean floor (0=full-step, 1=partial-step)
+integer, save :: mlo_uvcoupl  = 1         ! wind coupling (0=off, 1=on)
 real, save :: pdu    = 2.7                ! zoom factor near the surface for mlosigma==gotm
 real, save :: pdl    = 0.0                ! zoom factor near the bottom for mlosigma==gotm
 real, save :: kemaxdt = 120.              ! max time-step for k-e coupling
@@ -245,7 +247,7 @@ real, save :: mindep   = 1.               ! thickness of first layer (m)
 real, save :: minwater = 10.              ! minimum water depth (m)
 real, parameter :: ric     = 0.3          ! critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1          ! ratio of surface layer and mixed layer thickness
-real, parameter :: minsfc  = 5.           ! minimum thickness to average surface layer properties (m)
+real, parameter :: minsfc  = 1.           ! minimum thickness to average surface layer properties (m)
 real, parameter :: minsal  = 28.          ! minimum non-zero salinity for error checking (PSU)
 real, parameter :: maxsal  = 60.          ! maximum salinity used in density and melting point calculations (PSU)
 real, parameter :: mu_1    = 23.          ! VIS depth (m) - Type I
@@ -644,38 +646,10 @@ integer ii
 real, intent(in) :: depin
 real, dimension(wlin), intent(out) :: depthout
 real, dimension(wlin+1), intent(out) :: depth_hlout
-real dd, x, al, bt
+real x, al, bt
 
-dd = min( mxd, max( mindep, depin ) )
 x = real(wlin)
 select case(mlosigma)
-  !case(0) ! cubic
-  !  al = dd*(mindep*x/mxd-1.)/(x-x**3) ! sigma levels
-  !  bt = dd*(mindep*x**3/mxd-1.)/(x**3-x) 
-  !  do ii = 1,wlin+1
-  !    x = real(ii-1)
-  !    depth_hlout(ii) = al*x**3 + bt*x ! ii is for half level ii-0.5
-  !  end do
-  !  
-  !case(1) ! quadratic
-  !  al = dd*(1.-mindep*x/mxd)/(x**2-x)   ! sigma levels 
-  !  bt = dd*(1.-mindep*x*x/mxd)/(x-x**2)
-  !  do ii = 1,wlin+1
-  !    x = real(ii-1)
-  !    depth_hlout(ii) = al*x**2 + bt*x   ! ii is for half leel ii-0.5
-  !  end do
-  !
-  !case(2) !gotm dynamic
-  !  do ii = 1,wlin+1
-  !    x = real(ii-1)
-  !    depth_hlout(ii) = dd*(tanh((pdu+pdl)*x/wlin -pdu) + tanh(pdu))/(tanh(pdu)+tanh(pdl))
-  !  end do
-  !
-  !case(3) !linear
-  !  do ii = 1,wlin+1
-  !    x = real(ii-1)
-  !    depth_hlout(ii) = x*dd/wlin
-  !  end do
     
   case(4) ! Adcroft and Campin 2003 - cubic
     al = (mindep*x-mxd)/(x-x**3)     ! z* levels
@@ -706,7 +680,7 @@ select case(mlosigma)
     end do
     
   case default
-    write(6,*) "ERROR: Unknown option mlosigma=",mlosigma
+    write(6,*) "ERROR: Unknown option mlosigma = ",mlosigma
     stop
     
 end select
@@ -716,26 +690,35 @@ do ii = 1,wlin
   depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
 end do
 
-! full step version
-do ii = 1,wlin
-  if ( depthout(ii)>dd ) then
-    depth_hlout(ii+1) = depth_hlout(ii)
-  end if
-end do
+select case(mlo_step)
+  case(0)
+    ! full step version
+    do ii = 1,wlin
+      if ( depthout(ii)>depin ) then
+        depth_hlout(ii+1) = depth_hlout(ii)
+      end if
+    end do
+  
+  case(1)  
+    ! partial step version
+    if ( depin>1.e-4 ) then
+      do ii = 1,wlin
+        depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
+        if ( depthout(ii)>depin .and. ii>1 ) then
+          ! avoids thin layers by extending the previous layer  
+          depth_hlout(ii) = depth_hlout(ii+1)
+        end if
+      end do
+    else
+      depth_hlout(:) = 0.
+    end if  
 
-!! partial step version
-!do ii = 1,wlin
-!  depth_hlout(ii+1) = min( depth_hlout(ii+1), dd )
-!  if ( depthout(ii)>dd ) then
-!    ! avoids thin layers by extending the previous layer  
-!    depth_hlout(ii) = depth_hlout(ii+1)
-!    depthout(ii) = dd
-!  end if
-!end do
-!do ii = 1,wlin
-!  depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
-!end do
-
+  case default
+    write(6,*) "ERROR: Unknown option mlo_step = ",mlo_step
+    stop
+    
+end select
+    
 return
 end subroutine vgrid
 
@@ -754,9 +737,6 @@ if ( present(sigma) ) then
 end if
 
 select case(mlosigma)
-  !case(0,1,2,3)
-  !  call vgrid(wlev,1000.,ans,ans_hl)
-  !  ans = ans/1000.
   case(4,5,6,7)
     call vgrid(wlev,mxd,ans,ans_hl)
     if ( usesigma ) then
@@ -4101,9 +4081,16 @@ do iqw = 1,imax
   ii = water%ibot(iqw)  
   uoave = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
   voave = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
-  umag = sqrt(uoave**2+voave**2)
+  umag = sqrt(max(uoave**2+voave**2,1.e-4))
   dgwater%cd_bot(iqw) = cdbot*umag
 end do
+
+! disable coupling with winds
+if ( mlo_uvcoupl==0 ) then
+  do iqw = 1,imax
+    dgwater%cd(iqw) = 0.
+  end do
+end if
 
 ! turn off lake evaporation when minimum depth is reached
 ! fg should be replaced with bare ground value
@@ -5306,9 +5293,12 @@ vv=atm_v-newiv
 du=fluxwgt*water%u(:,1)+(1.-fluxwgt)*water%utop-newiu
 dv=fluxwgt*water%v(:,1)+(1.-fluxwgt)*water%vtop-newiv
 vmagn=sqrt(max(uu**2+vv**2,1.E-4))
-icemagn=sqrt(max(du**2+dv**2,1.E-8))
+icemagn=sqrt(max(du**2+dv**2,1.E-4))
 dgice%cd = af*fm*vmagn
 dgice%cd_bot = 0.00536*icemagn
+if ( mlo_uvcoupl==0 ) then
+  dgice%cd_bot = 0.  
+end if    
 dgice%tauxica=rho*dgice%cd*uu
 dgice%tauyica=rho*dgice%cd*vv
 ! MJT notes - use wrtrho reference density for Boussinesq fluid approximation

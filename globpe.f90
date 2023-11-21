@@ -1401,7 +1401,8 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,omineps,mlovlevels                  &
     ,usepice,ominl,omaxl                 &
     ,mlo_timeave_length,kemaxdt          &
-    ,mlo_adjeta,mlo_limitsal
+    ,mlo_adjeta,mlo_limitsal,mlo_step    &
+    ,mlo_uvcoupl
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlostag, only : mstagf                 ! Ocean reversible staggering
@@ -1601,6 +1602,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
+    mlo_step,mlo_uvcoupl,                                         &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2511,7 +2513,7 @@ ateb_infilmeth    = dumi(26)
 cable_roughness   = dumi(27)
 cable_potev       = dumi(28)
 deallocate( dumr, dumi )
-allocate( dumr(21), dumi(27) )
+allocate( dumr(21), dumi(29) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2569,6 +2571,8 @@ if ( myid==0 ) then
   dumi(25) = mlo_limitsal
   dumi(26) = nxtrrho
   dumi(27) = mlo_bs
+  dumi(28) = mlo_step
+  dumi(29) = mlo_uvcoupl
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2620,6 +2624,8 @@ mlodps             = dumi(24)
 mlo_limitsal       = dumi(25)
 nxtrrho            = dumi(26)
 mlo_bs             = dumi(27)
+mlo_step           = dumi(28)
+mlo_uvcoupl        = dumi(29)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0

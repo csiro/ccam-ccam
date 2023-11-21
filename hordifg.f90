@@ -80,7 +80,7 @@ implicit none
 
 include 'kuocom.h'
 
-real, dimension(ifull+iextra,kl,3) :: work
+real, dimension(ifull+iextra,kl,4) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh

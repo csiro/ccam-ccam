@@ -156,11 +156,11 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
   stwgtu = 0.
   stwgtv = 0.
   do ii = 1,wlev
-    where ( wtr(in,ii) .and. wtr(ien,ii) .and. wtr(is,ii) .and. wtr(ies,ii) .and. &
+    where ( wtr(in,ii) .and. wtr(ine,ii) .and. wtr(is,ii) .and. wtr(ise,ii) .and. &
             wtr(1:ifull,ii) .and. wtr(ie,ii) )
       stwgtu(1:ifull,ii) = 1.
     end where
-    where ( wtr(ie,ii) .and. wtr(ine,ii) .and. wtr(iw,ii) .and. wtr(inw,ii) .and. &
+    where ( wtr(ie,ii) .and. wtr(ien,ii) .and. wtr(iw,ii) .and. wtr(iwn,ii) .and. &
             wtr(1:ifull,ii) .and. wtr(in,ii) )
       stwgtv(1:ifull,ii) = 1.
     end where
@@ -272,6 +272,7 @@ integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart, iq, mspec_mlo, mspeca_mlo
 integer, dimension(ifull,wlev) :: nface
+integer, dimension(6) :: bc_test
 real maxglobseta,maxglobip,hdt,dtin_mlo
 real alph_p, delta
 real, save :: dtsave=0.
@@ -318,7 +319,7 @@ real, dimension(ifull,3) :: gamm
 real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical lleap
 logical, dimension(ifull+iextra,wlev) :: wtr
-logical, dimension(6) :: sal_test, bs_test
+logical, dimension(6) :: bs_test
 complex lsum, gsum
 
 ! Vertical coordinates are defined as:
@@ -509,10 +510,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! surface pressure
   if ( mlodps==1 ) then
     do iq = 1,ifull
-      tnu(iq) = 0.5*( pice(in(iq)) + pice(ien(iq)) )
-      tsu(iq) = 0.5*( pice(is(iq)) + pice(ies(iq)) )
-      tev(iq) = 0.5*( pice(ie(iq)) + pice(ine(iq)) )
-      twv(iq) = 0.5*( pice(iw(iq)) + pice(inw(iq)) )
+      tnu(iq) = 0.5*( pice(in(iq)) + pice(ine(iq)) )
+      tsu(iq) = 0.5*( pice(is(iq)) + pice(ise(iq)) )
+      tev(iq) = 0.5*( pice(ie(iq)) + pice(ien(iq)) )
+      twv(iq) = 0.5*( pice(iw(iq)) + pice(iwn(iq)) )
     end do  
     dpsdxu = (pice(ie)-pice(1:ifull))*emu(1:ifull)/ds ! staggered at time t
     dpsdyu = 0.5*(tnu-tsu)*emu(1:ifull)/ds
@@ -531,10 +532,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! tides
   if ( usetide==1 ) then
     do iq = 1,ifull
-      tnu(iq) = 0.5*( tide(in(iq)) + tide(ien(iq)) )
-      tsu(iq) = 0.5*( tide(is(iq)) + tide(ies(iq)) )
-      tev(iq) = 0.5*( tide(ie(iq)) + tide(ine(iq)) )
-      twv(iq) = 0.5*( tide(iw(iq)) + tide(inw(iq)) )
+      tnu(iq) = 0.5*( tide(in(iq)) + tide(ine(iq)) )
+      tsu(iq) = 0.5*( tide(is(iq)) + tide(ise(iq)) )
+      tev(iq) = 0.5*( tide(ie(iq)) + tide(ien(iq)) )
+      twv(iq) = 0.5*( tide(iw(iq)) + tide(iwn(iq)) )
     end do  
     dttdxu = (tide(ie)-tide(1:ifull))*emu(1:ifull)/ds ! staggered
     dttdyu = 0.5*(tnu-tsu)*emu(1:ifull)/ds
@@ -676,10 +677,10 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   
   ! calculate vertical velocity at full levels for diagnostic output
-  dnetadx = (oeu(1:ifull)/emu(1:ifull)-oeu_iwu/emu(iwu))*em(1:ifull)**2/ds
-  dnetady = (oev(1:ifull)/emv(1:ifull)-oev_isv/emv(isv))*em(1:ifull)**2/ds
-  ddddx = (ddu(1:ifull)/emu(1:ifull)-ddu(iwu)/emu(iwu))*em(1:ifull)**2/ds
-  ddddy = (ddv(1:ifull)/emv(1:ifull)-ddv(isv)/emv(isv))*em(1:ifull)**2/ds
+  dnetadx = (oeu(1:ifull)-oeu_iwu)*em(1:ifull)/ds
+  dnetady = (oev(1:ifull)-oev_isv)*em(1:ifull)/ds
+  ddddx = (ddu(1:ifull)-ddu(iwu))*em(1:ifull)/ds
+  ddddy = (ddv(1:ifull)-ddv(isv))*em(1:ifull)/ds
   do ii = 1,wlev  
     w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))                                   &
                 - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx - gosig(1:ifull,ii)*ddddx)   &
@@ -709,10 +710,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   select case(mlojacobi)
     case(7)
       do iq = 1,ifull
-        tnu(iq) = 0.5*( dd(in(iq)) + dd(ien(iq)) )
-        tsu(iq) = 0.5*( dd(is(iq)) + dd(ies(iq)) )
-        tev(iq) = 0.5*( dd(ie(iq)) + dd(ine(iq)) )
-        twv(iq) = 0.5*( dd(iw(iq)) + dd(inw(iq)) )
+        tnu(iq) = 0.5*( dd(in(iq)) + dd(ine(iq)) )
+        tsu(iq) = 0.5*( dd(is(iq)) + dd(ise(iq)) )
+        tev(iq) = 0.5*( dd(ie(iq)) + dd(ien(iq)) )
+        twv(iq) = 0.5*( dd(iw(iq)) + dd(iwn(iq)) )
       end do
       ddddxu = (dd(ie)-dd(1:ifull))*emu(1:ifull)/ds
       ddddyu = 0.5*(tnu-tsu)*emu(1:ifull)/ds
@@ -775,7 +776,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
   
   ! Horizontal advection for U, V, W, T, continuity and S
-  sal_test = (/.false.,.false.,.false.,.false.,.false.,.true./)
+  bc_test = (/0,0,0,0,0,1/)
   select case(mlo_bs)
     case(1)
       bs_test = (/.true.,.true.,.true.,.true.,.true.,.true./) 
@@ -791,7 +792,7 @@ do mspec_mlo = mspeca_mlo,1,-1
       write(6,*) "ERROR: Unknown option mlo_bs = ",mlo_bs
       call ccmpi_abort(-1)
   end select    
-  call mlob2ints_bs(cou(:,:,1:6),nface,xg,yg,wtr,sal_test(1:6),bs_test(1:6))
+  call mlob2ints_bs(cou(:,:,1:6),nface,xg,yg,wtr,bc_test(1:6),bs_test(1:6))
   
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
@@ -869,11 +870,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   ! Set-up calculation of ocean and ice at t+1
   ! ocean
-  odum = eeu(1:ifull,1)/(1.+((1.+ocneps)*0.5*dt*fu(1:ifull))**2)
+  odum = 1./(1.+((1.+ocneps)*0.5*dt*fu(1:ifull))**2)
   do ii = 1,wlev
     ccu(1:ifull,ii) = ttau(:,ii)*odum*eeu(1:ifull,ii) ! staggered
   end do
-  odum = eev(1:ifull,1)/(1.+((1.+ocneps)*0.5*dt*fv(1:ifull))**2)
+  odum = 1./(1.+((1.+ocneps)*0.5*dt*fv(1:ifull))**2)
   do ii = 1,wlev
     ccv(1:ifull,ii) = ttav(:,ii)*odum*eev(1:ifull,ii) ! staggered
   end do
@@ -909,19 +910,21 @@ do mspec_mlo = mspeca_mlo,1,-1
   cc4v(:,:) = 0.
   do ii = 1,wlev
     do iq = 1,ifull
-      tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq)) + cc(ien(iq),ii)*ff(ien(iq)) )
-      tsu(iq) = 0.5*( cc(is(iq),ii)*ff(is(iq)) + cc(ies(iq),ii)*ff(ies(iq)) )
-      tev(iq) = 0.5*( cc(ie(iq),ii)*ff(ie(iq)) + cc(ine(iq),ii)*ff(ine(iq)) )
-      twv(iq) = 0.5*( cc(iw(iq),ii)*ff(iw(iq)) + cc(inw(iq),ii)*ff(inw(iq)) )
+      tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq)) + cc(ine(iq),ii)*ff(ine(iq)) )
+      tsu(iq) = 0.5*( cc(is(iq),ii)*ff(is(iq)) + cc(ise(iq),ii)*ff(ise(iq)) )
+      tev(iq) = 0.5*( cc(ie(iq),ii)*ff(ie(iq)) + cc(ien(iq),ii)*ff(ien(iq)) )
+      twv(iq) = 0.5*( cc(iw(iq),ii)*ff(iw(iq)) + cc(iwn(iq),ii)*ff(iwn(iq)) )
     end do
     cc3u(1:ifull,ii) = 0.5*stwgtu(1:ifull,ii)*( tnu-tsu )*emu(1:ifull)/ds
     cc4v(1:ifull,ii) = 0.5*stwgtv(1:ifull,ii)*( tev-twv )*emv(1:ifull)/ds
   end do
 
-  ! ocean - calculate bb3u, bb4v now possibly including rhobar_dash contribution to cc
+  ! ocean - calculate bb, bb3u, bb4v now possibly including rhobar_dash contribution to cc
+  bb(:) = 0.
   bb3u(:) = 0.
   bb4v(:) = 0.
   do ii = 1,wlev
+    bb(:) = bb(:) + cc(:,ii)*godsig(:,ii)
     bb3u(1:ifull) = bb3u(1:ifull) + cc3u(1:ifull,ii)*godsigu(1:ifull,ii)
     bb4v(1:ifull) = bb4v(1:ifull) + cc4v(1:ifull,ii)*godsigv(1:ifull,ii)
   end do
@@ -930,10 +933,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   ibb(:) = -ee(:,1)*dt/(imass(:)*(1.+(dt*f(:))**2)) ! unstaggered
   ff(:) = dt*f(:)  
   do iq = 1,ifull
-    tnu(iq) = 0.5*( ibb(in(iq))*ff(in(iq)) + ibb(ien(iq))*ff(ien(iq)) )
-    tsu(iq) = 0.5*( ibb(is(iq))*ff(is(iq)) + ibb(ies(iq))*ff(ies(iq)) )
-    tev(iq) = 0.5*( ibb(ie(iq))*ff(ie(iq)) + ibb(ine(iq))*ff(ine(iq)) )
-    twv(iq) = 0.5*( ibb(iw(iq))*ff(iw(iq)) + ibb(inw(iq))*ff(inw(iq)) )
+    tnu(iq) = 0.5*( ibb(in(iq))*ff(in(iq)) + ibb(ine(iq))*ff(ine(iq)) )
+    tsu(iq) = 0.5*( ibb(is(iq))*ff(is(iq)) + ibb(ise(iq))*ff(ise(iq)) )
+    tev(iq) = 0.5*( ibb(ie(iq))*ff(ie(iq)) + ibb(ien(iq))*ff(ien(iq)) )
+    twv(iq) = 0.5*( ibb(iw(iq))*ff(iw(iq)) + ibb(iwn(iq))*ff(iwn(iq)) )
   end do
   ibb3u(1:ifull) = 0.5*stwgtu(1:ifull,1)*( tnu-tsu )*emu(1:ifull)/ds
   ibb4v(1:ifull) = 0.5*stwgtv(1:ifull,1)*( tev-twv )*emv(1:ifull)/ds
@@ -1108,8 +1111,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Iterative loop to estimate ice 'pressure'
   if ( precon<-9999 ) then
     ! Multi-grid
-    call mlomg(neta,sou,sov,snu,snv,squ,sqv,bb3u,bb4v,xps, &
-               niu,niv,ibu,ibv,ibb3u,ibb4v,                &
+    call mlomg(neta,sou,sov,snu,snv,squ,sqv,bb,bb3u,bb4v,xps, &
+               niu,niv,ibu,ibv,ibb,ibb3u,ibb4v,               &
                ipmax,totits,maxglobseta,maxglobip)
   else
     ! Usual SOR
@@ -1135,10 +1138,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     ! update currents (staggered)
     do iq = 1,ifull
-      tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq))*neta(in(iq)) + cc(ien(iq),ii)*ff(ien(iq))*neta(ien(iq)) )
-      tsu(iq) = 0.5*( cc(is(iq),ii)*ff(is(iq))*neta(is(iq)) + cc(ies(iq),ii)*ff(ies(iq))*neta(ies(iq)) )
-      tev(iq) = 0.5*( cc(ie(iq),ii)*ff(ie(iq))*neta(ie(iq)) + cc(ine(iq),ii)*ff(ine(iq))*neta(ine(iq)) )
-      twv(iq) = 0.5*( cc(iw(iq),ii)*ff(iw(iq))*neta(iw(iq)) + cc(inw(iq),ii)*ff(inw(iq))*neta(inw(iq)) )
+      tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq))*neta(in(iq)) + cc(ine(iq),ii)*ff(ine(iq))*neta(ine(iq)) )
+      tsu(iq) = 0.5*( cc(is(iq),ii)*ff(is(iq))*neta(is(iq)) + cc(ise(iq),ii)*ff(ise(iq))*neta(ise(iq)) )
+      tev(iq) = 0.5*( cc(ie(iq),ii)*ff(ie(iq))*neta(ie(iq)) + cc(ien(iq),ii)*ff(ien(iq))*neta(ien(iq)) )
+      twv(iq) = 0.5*( cc(iw(iq),ii)*ff(iw(iq))*neta(iw(iq)) + cc(iwn(iq),ii)*ff(iwn(iq))*neta(iwn(iq)) )
     end do  
     nu(1:ifull,ii) = kku(:,ii) + oou(:,ii)*oeu(1:ifull) + mmu(:,ii)*detadxu &
                    + 0.5*stwgtu(1:ifull,ii)*(tnu-tsu)*emu(1:ifull)/ds       &
@@ -1162,10 +1165,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   ipv = 0.5*(ipice(in)+ipice(1:ifull))
   ff(:) = dt*f(:)
   do iq = 1,ifull
-    tnu(iq) = 0.5*( ibb(in(iq))*ff(in(iq))*ipice(in(iq))+ibb(ien(iq))*ff(ien(iq))*ipice(ien(iq)) )
-    tsu(iq) = 0.5*( ibb(is(iq))*ff(is(iq))*ipice(is(iq))+ibb(ies(iq))*ff(ies(iq))*ipice(ies(iq)) )
-    tev(iq) = 0.5*( ibb(ie(iq))*ff(ie(iq))*ipice(ie(iq))+ibb(ine(iq))*ff(ine(iq))*ipice(ine(iq)) )
-    twv(iq) = 0.5*( ibb(iw(iq))*ff(iw(iq))*ipice(iw(iq))+ibb(inw(iq))*ff(inw(iq))*ipice(inw(iq)) )
+    tnu(iq) = 0.5*( ibb(in(iq))*ff(in(iq))*ipice(in(iq))+ibb(ine(iq))*ff(ine(iq))*ipice(ine(iq)) )
+    tsu(iq) = 0.5*( ibb(is(iq))*ff(is(iq))*ipice(is(iq))+ibb(ise(iq))*ff(ise(iq))*ipice(ise(iq)) )
+    tev(iq) = 0.5*( ibb(ie(iq))*ff(ie(iq))*ipice(ie(iq))+ibb(ien(iq))*ff(ien(iq))*ipice(ien(iq)) )
+    twv(iq) = 0.5*( ibb(iw(iq))*ff(iw(iq))*ipice(iw(iq))+ibb(iwn(iq))*ff(iwn(iq))*ipice(iwn(iq)) )
   end do  
   niu(1:ifull) = niu(1:ifull) + ibu(1:ifull)*dipdxu              &
                + 0.5*stwgtu(1:ifull,1)*(tnu-tsu)*emu(1:ifull)/ds &
@@ -1322,10 +1325,8 @@ do mspec_mlo = mspeca_mlo,1,-1
           nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
         end do  
     end select
-    
     workdata = nt(1:ifull,:)
     call mlocheck("conservation fix",water_temp=workdata)
-    
   end if ! nud_sst==0
 
   ! salinity conservation
@@ -1368,11 +1369,9 @@ do mspec_mlo = mspeca_mlo,1,-1
         do ii = 1,wlev
           ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
         end do  
-      end select
-      
+    end select
     workdata2 = ns(1:ifull,:)
     call mlocheck("conservation fix",water_sal=workdata2)
-      
   end if ! nud_sss==0
 
   if ( myid==0 .and. (ktau<=5.or.maxglobseta>tol.or.maxglobip>itol) ) then
@@ -1605,11 +1604,11 @@ do jj = 1,2
       ! process staggered u locations  
       drhodxu(iq,ii,jj)=(rho(ie(iq),ii,jj)-rho(iq,ii,jj))*eeu(iq,ii)*emu(iq)/ds
       drhodyu(iq,ii,jj)=0.25*stwgtu(iq,ii)*emu(iq)/ds*(rho(in(iq),ii,jj)-rho(is(iq),ii,jj) &
-                                                      +rho(ien(iq),ii,jj)-rho(ies(iq),ii,jj))
+                                                      +rho(ine(iq),ii,jj)-rho(ise(iq),ii,jj))
       ! process staggered v locations
       drhodyv(iq,ii,jj)=(rho(in(iq),ii,jj)-rho(iq,ii,jj))*eev(iq,ii)*emv(iq)/ds
       drhodxv(iq,ii,jj)=0.25*stwgtv(iq,ii)*emv(iq)/ds*(rho(ie(iq),ii,jj)-rho(iw(iq),ii,jj) &
-                                                      +rho(ine(iq),ii,jj)-rho(inw(iq),ii,jj))
+                                                      +rho(ien(iq),ii,jj)-rho(iwn(iq),ii,jj))
     end do
   end do
 end do
@@ -1849,10 +1848,11 @@ end subroutine upwind_iceadv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Use multi-grid to solve for free surface and ice pressure
 
-subroutine mlomg(neta,sou,sov,snu,snv,squ,sqv,bb3u,bb4v,xps, &
-                 niu,niv,ibu,ibv,ibb3u,ibb4v,                &
+subroutine mlomg(neta,sou,sov,snu,snv,squ,sqv,bb,bb3u,bb4v,xps, &
+                 niu,niv,ibu,ibv,ibb,ibb3u,ibb4v,               &
                  ipmax,totits,maxglobseta,maxglobip)
 
+use cc_mpi
 use helmsolve
 use indices_m
 use map_m
@@ -1862,17 +1862,19 @@ use parm_m
 
 implicit none
 
+integer iq, n
 integer, intent(out) :: totits
 real, intent(out) :: maxglobseta, maxglobip
 real, dimension(ifull), intent(in) :: xps
 real, dimension(ifull+iextra), intent(inout) :: neta
 real, dimension(ifull+iextra), intent(in) :: ipmax
-real, dimension(ifull+iextra), intent(in) :: sou, sov, snu, snv, squ, sqv, bb3u, bb4v
-real, dimension(ifull+iextra), intent(in) :: niu, niv, ibu, ibv, ibb3u, ibb4v
+real, dimension(ifull+iextra), intent(in) :: sou, sov, snu, snv, squ, sqv, bb, bb3u, bb4v
+real, dimension(ifull+iextra), intent(in) :: niu, niv, ibu, ibv, ibb, ibb3u, ibb4v
 real, dimension(ifull,2) :: zz, zzn, zzs, zze, zzw, rhs
 real, dimension(ifull) :: odiv_d, odiv_n
 real, dimension(ifull) :: hh
 real, dimension(ifull) :: yy, yyn, yys, yye, yyw
+real, dimension(ifull+iextra) :: ff
 
 call mgsor_init
 
@@ -1898,42 +1900,80 @@ call mgsor_init
 !                         + yy*neta*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy)
 !                         + zz*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) ) = xps
 
-! prep ocean gradient terms - constant
-odiv_d = (sou(1:ifull)*ddu(1:ifull)-sou(iwu)*ddu(iwu)  &
-         +sov(1:ifull)*ddv(1:ifull)-sov(isv)*ddv(isv)) &
-         *em(1:ifull)/ds
+ff(:) = (1.+ocneps)*0.5*dt*f(:)
 
-odiv_n = (sou(1:ifull)-sou(iwu)+sov(1:ifull)-sov(isv)) &
-         *em(1:ifull)/ds
+! prep ocean gradient terms - constant
+odiv_d = (sou(1:ifull)*ddu(1:ifull)/emu(1:ifull)-sou(iwu)*ddu(iwu)/emu(iwu)  &
+         +sov(1:ifull)*ddv(1:ifull)/emv(1:ifull)-sov(isv)*ddv(isv)/emv(isv)) &
+         *em(1:ifull)**2/ds
+
+odiv_n = (sou(1:ifull)/emu(1:ifull)-sou(iwu)/emu(iwu)+sov(1:ifull)/emv(1:ifull)-sov(isv)/emv(isv)) &
+         *em(1:ifull)**2/ds
 
 odiv_d = odiv_d*ee(1:ifull,1)
 odiv_n = odiv_n*ee(1:ifull,1)
 
 ! yy*neta*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + zz*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + hh*neta = rhs
 
-yyn(:) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(sqv(1:ifull)*emv(1:ifull)/ds + 0.5*snv(1:ifull) + 0.5*bb4v(1:ifull))
-yys(:) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(sqv(isv)*emv(isv)/ds - 0.5*snv(isv) - 0.5*bb4v(isv))
-yye(:) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(squ(1:ifull)*emu(1:ifull)/ds + 0.5*snu(1:ifull) - 0.5*bb3u(1:ifull))
-yyw(:) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(squ(iwu)*emu(iwu)/ds - 0.5*snu(iwu) + 0.5*bb3u(iwu))
-yy(:) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*((-sqv(1:ifull)*emv(1:ifull)-sqv(isv)*emv(isv)         &
-                                            -squ(1:ifull)*emu(1:ifull)-squ(iwu)*emu(1:ifull))/ds &
-          +0.5*snv(1:ifull)-0.5*snv(isv)+0.5*snu(1:ifull)-0.5*snu(iwu)                           &
-          +0.5*bb4v(1:ifull)-0.5*bb4v(isv)-0.5*bb3u(1:ifull)+0.5*bb3u(iwu))
+yyn(:) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(sqv(1:ifull)*emv(1:ifull)/ds + 0.5*snv(1:ifull) + 0.5*bb4v(1:ifull))/emv(1:ifull)
+yys(:) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(sqv(isv)*emv(isv)/ds - 0.5*snv(isv) - 0.5*bb4v(isv))/emv(isv)
+yye(:) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(squ(1:ifull)*emu(1:ifull)/ds + 0.5*snu(1:ifull) - 0.5*bb3u(1:ifull))/emu(1:ifull)
+yyw(:) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(squ(iwu)*emu(iwu)/ds - 0.5*snu(iwu) + 0.5*bb3u(iwu))/emu(iwu)
+yy(:) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*((-sqv(1:ifull)-sqv(isv)-squ(1:ifull)-squ(iwu))/ds                           &
+          +0.5*snv(1:ifull)/emv(1:ifull)-0.5*snv(isv)/emv(isv)+0.5*snu(1:ifull)/emu(1:ifull)-0.5*snu(iwu)/emu(iwu)        &
+          +0.5*bb4v(1:ifull)/emv(1:ifull)-0.5*bb4v(isv)/emv(isv)-0.5*bb3u(1:ifull)/emu(1:ifull)+0.5*bb3u(iwu)/emu(iwu))
 
-zzn(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(ddv(1:ifull)*sqv(1:ifull)*emv(1:ifull)/ds + 0.5*ddv(1:ifull)*snv(1:ifull) &
-                                                     + 0.5*ddv(1:ifull)*bb4v(1:ifull))
-zzs(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(ddv(isv)*sqv(isv)*emv(isv)/ds - 0.5*ddv(isv)*snv(isv) &
-                                                     - 0.5*ddv(isv)*bb4v(isv))
-zze(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(ddu(1:ifull)*squ(1:ifull)*emu(1:ifull)/ds + 0.5*ddu(1:ifull)*snu(1:ifull) &
-                                                     - 0.5*ddu(1:ifull)*bb3u(1:ifull))
-zzw(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(ddu(iwu)*squ(iwu)*emu(iwu)/ds - 0.5*ddu(iwu)*snu(iwu) &
-                                                     + 0.5*ddu(iwu)*bb3u(iwu))
-zz(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)/ds*(-ddv(1:ifull)*sqv(1:ifull)*emv(1:ifull)/ds-ddv(isv)*sqv(isv)*emv(isv)/ds &
-             -ddu(1:ifull)*squ(1:ifull)*emu(1:ifull)/ds-ddu(iwu)*squ(iwu)*emu(iwu)/ds                                 &
-             +0.5*ddv(1:ifull)*snv(1:ifull)-0.5*ddv(isv)*snv(isv)                                                     &
-             +0.5*ddu(1:ifull)*snu(1:ifull)-0.5*ddu(iwu)*snu(iwu)                                                     &
-             +0.5*ddv(1:ifull)*bb4v(1:ifull)-0.5*ddv(isv)*bb4v(isv)                                                   &
-             -0.5*ddu(1:ifull)*bb3u(1:ifull)+0.5*ddu(iwu)*bb3u(iwu))
+zzn(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(ddv(1:ifull)*sqv(1:ifull)*emv(1:ifull)/ds + 0.5*ddv(1:ifull)*snv(1:ifull) &
+                                                     + 0.5*ddv(1:ifull)*bb4v(1:ifull))/emv(1:ifull)
+zzs(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(ddv(isv)*sqv(isv)*emv(isv)/ds - 0.5*ddv(isv)*snv(isv)                     &
+                                                     - 0.5*ddv(isv)*bb4v(isv))/emv(isv)
+zze(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(ddu(1:ifull)*squ(1:ifull)*emu(1:ifull)/ds + 0.5*ddu(1:ifull)*snu(1:ifull) &
+                                                     - 0.5*ddu(1:ifull)*bb3u(1:ifull))/emu(1:ifull)
+zzw(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(ddu(iwu)*squ(iwu)*emu(iwu)/ds - 0.5*ddu(iwu)*snu(iwu)                     &
+                                                     + 0.5*ddu(iwu)*bb3u(iwu))/emu(iwu)
+zz(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(-ddv(1:ifull)*sqv(1:ifull)/ds-ddv(isv)*sqv(isv)/ds &
+             -ddu(1:ifull)*squ(1:ifull)/ds-ddu(iwu)*squ(iwu)/ds                                    &
+             +0.5*ddv(1:ifull)*snv(1:ifull)/emv(1:ifull)-0.5*ddv(isv)*snv(isv)/emv(isv)            &
+             +0.5*ddu(1:ifull)*snu(1:ifull)/emu(1:ifull)-0.5*ddu(iwu)*snu(iwu)/emu(iwu)            &
+             +0.5*ddv(1:ifull)*bb4v(1:ifull)/emv(1:ifull)-0.5*ddv(isv)*bb4v(isv)/emv(isv)          &
+             -0.5*ddu(1:ifull)*bb3u(1:ifull)/emu(1:ifull)+0.5*ddu(iwu)*bb3u(iwu)/emu(iwu))
+
+if ( edge_s .and. edge_w ) then
+  do n = 1,npan
+    iq = indp(1,1,n)
+    yys(iq) = yys(iq) + 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+    yyw(iq) = yyw(iq) - 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+    zzs(iq,1) = zzs(iq,1) + 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(isv(iq))/(ds**2)
+    zzw(iq,1) = zzw(iq,1) - 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iwu(iq))/(ds**2)
+  end do
+end if
+if ( edge_n .and. edge_e ) then
+  do n = 1,npan
+    iq = indp(ipan,jpan,n)
+    yyn(iq) = yyn(iq) + 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+    yye(iq) = yye(iq) - 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+    zzn(iq,1) = zzn(iq,1) + 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(iq)/(ds**2)
+    zze(iq,1) = zze(iq,1) - 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iq)/(ds**2)
+  end do
+end if
+if ( edge_s .and. edge_e ) then
+  do n = 1,npan
+    iq = indp(ipan,1,n)
+    yys(iq) = yys(iq) - 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+    yye(iq) = yye(iq) + 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+    zzs(iq,1) = zzs(iq,1) - 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(isv(iq))/(ds**2)
+    zze(iq,1) = zze(iq,1) + 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iq)/(ds**2)
+  end do
+end if
+if ( edge_n .and. edge_w ) then
+  do n = 1,npan
+    iq = indp(1,jpan,n)
+    yyn(iq) = yyn(iq) - 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+    yyw(iq) = yyw(iq) + 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+    zzn(iq,1) = zzn(iq,1) - 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(iq)/(ds**2)
+    zzw(iq,1) = zzw(iq,1) + 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iwu(iq))/(ds**2)
+  end do
+end if
 
 yyn(:) = yyn(:)*ee(1:ifull,1)
 yys(:) = yys(:)*ee(1:ifull,1)
@@ -1956,14 +1996,44 @@ rhs(:,1) = rhs(:,1)*ee(1:ifull,1)
 ! ice
 ! zz*(d2ipice/dx2 + d2ipice/dy2) + zz*d2ipice/dxdy = rhs
 
-zzn(:,2) = -ibv(1:ifull)*emv(1:ifull)/ds - 0.5*ibb4v(1:ifull)
-zzs(:,2) = -ibv(isv)*emv(isv)/ds + 0.5*ibb4v(isv)
-zze(:,2) = -ibu(1:ifull)*emu(1:ifull)/ds + 0.5*ibb3u(1:ifull)
-zzw(:,2) = -ibu(iwu)*emu(iwu)/ds - 0.5*ibb3u(iwu)
-zz(:,2)  = (ibv(1:ifull)*emv(1:ifull)+ibv(isv)*emv(isv)     &
-           +ibu(1:ifull)*emu(1:ifull)+ibu(iwu)*emu(iwu))/ds &
-           -0.5*ibb4v(1:ifull)+0.5*ibb4v(isv)               &
-           +0.5*ibb3u(1:ifull)-0.5*ibb3u(iwu)
+ff(:) = dt*f(:)  
+
+zzn(:,2) = -ibv(1:ifull)/ds - 0.5*ibb4v(1:ifull)/emv(1:ifull)
+zzs(:,2) = -ibv(isv)/ds + 0.5*ibb4v(isv)/emv(isv)
+zze(:,2) = -ibu(1:ifull)/ds + 0.5*ibb3u(1:ifull)/emu(1:ifull)
+zzw(:,2) = -ibu(iwu)/ds - 0.5*ibb3u(iwu)/emu(iwu)
+zz(:,2)  = (ibv(1:ifull)+ibv(isv)+ibu(1:ifull)+ibu(iwu))/ds          &
+           -0.5*ibb4v(1:ifull)/emv(1:ifull)+0.5*ibb4v(isv)/emv(isv)  &
+           +0.5*ibb3u(1:ifull)/emu(1:ifull)-0.5*ibb3u(iwu)/emu(iwu)
+
+if ( edge_s .and. edge_w ) then
+  do n = 1,npan
+    iq = indp(1,1,n)
+    zzs(iq,2) = zzs(iq,2) + 0.25*ibb(is(iq))*ff(is(iq))/ds
+    zzw(iq,2) = zzw(iq,2) - 0.25*ibb(iw(iq))*ff(iw(iq))/ds
+  end do
+end if
+if ( edge_n .and. edge_e ) then
+  do n = 1,npan
+    iq = indp(ipan,jpan,n)
+    zzn(iq,2) = zzn(iq,2) + 0.25*ibb(in(iq))*ff(in(iq))/ds
+    zze(iq,2) = zze(iq,2) - 0.25*ibb(ie(iq))*ff(ie(iq))/ds
+  end do
+end if
+if ( edge_s .and. edge_e ) then
+  do n = 1,npan
+    iq = indp(ipan,1,n)
+    zzs(iq,2) = zzs(iq,2) - 0.25*ibb(is(iq))*ff(is(iq))/ds
+    zze(iq,2) = zze(iq,2) + 0.25*ibb(ie(iq))*ff(ie(iq))/ds
+  end do
+end if
+if ( edge_n .and. edge_w ) then
+  do n = 1,npan
+    iq = indp(1,jpan,n)
+    zzn(iq,2) = zzn(iq,2) - 0.25*ibb(in(iq))*ff(in(iq))/ds
+    zzw(iq,2) = zzw(iq,2) + 0.25*ibb(iw(iq))*ff(iw(iq))/ds
+  end do
+end if
 
 zzn(:,2) = zzn(:,2)*ee(1:ifull,1)
 zzs(:,2) = zzs(:,2)*ee(1:ifull,1)
@@ -1971,7 +2041,8 @@ zze(:,2) = zze(:,2)*ee(1:ifull,1)
 zzw(:,2) = zzw(:,2)*ee(1:ifull,1)
 zz(:,2) = zz(:,2)*ee(1:ifull,1)
 
-rhs(:,2) = min(niu(1:ifull)-niu(iwu)+niv(1:ifull)-niv(isv),0.)
+rhs(:,2) = min(niu(1:ifull)/emu(1:ifull)-niu(iwu)/emu(iwu) &
+              +niv(1:ifull)/emv(1:ifull)-niv(isv)/emv(isv),0.)
 rhs(:,2) = rhs(:,2)*ee(1:ifull,1)
 
 ! Ensure that zero is a valid solution for ice free grid points

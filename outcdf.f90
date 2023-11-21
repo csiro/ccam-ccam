@@ -181,7 +181,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,mlosigma,oclosure,usepice,ominl     &
     ,omaxl,mlo_timeave_length,kemaxdt    &
     ,omineps,omink,mlo_adjeta            &
-    ,mlo_limitsal
+    ,mlo_limitsal,mlo_step
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlostag, only : mstagf                 ! Ocean reversible staggering
@@ -878,6 +878,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlo_adjeta',mlo_adjeta)
     call ccnf_put_attg(idnc,'mlo_bs',mlo_bs)
     call ccnf_put_attg(idnc,'mlo_limitsal',mlo_limitsal)
+    call ccnf_put_attg(idnc,'mlo_step',mlo_step)
     call ccnf_put_attg(idnc,'mlo_timeave_length',mlo_timeave_length)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlodiff_numits',mlodiff_numits)
@@ -1250,7 +1251,7 @@ if ( myid==0 .or. local ) then
 
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'Water bathymetry'
-      call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,32500.,0,cptype)
+      call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,8125.,0,cptype)
     end if
     lname = 'x-component river '
     call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
