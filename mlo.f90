@@ -63,7 +63,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta,mlo_limitsal
-public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl
+public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt
 
 #ifdef CCAM
 public water_g,ice_g
@@ -252,7 +252,7 @@ real, parameter :: minsal  = 28.          ! minimum non-zero salinity for error 
 real, parameter :: maxsal  = 60.          ! maximum salinity used in density and melting point calculations (PSU)
 real, parameter :: mu_1    = 23.          ! VIS depth (m) - Type I
 real, parameter :: mu_2    = 0.35         ! NIR depth (m) - Type I
-real, parameter :: fluxwgt = 0.7          ! time filter for flux calculations
+real, save :: fluxwgt = 0.7               ! time filter for flux calculations
 real, parameter :: wrtemp  = 290.         ! water reference temperature (K)
 real, parameter :: wrtrho  = 1030.        ! water reference density (kg m^-3)
 ! physical parameters
@@ -701,7 +701,7 @@ select case(mlo_step)
   
   case(1)  
     ! partial step version
-    if ( depin>1.e-4 ) then
+    if ( depin>1.e-4 ) then      
       do ii = 1,wlin
         depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
         if ( depthout(ii)>depin .and. ii>1 ) then
@@ -711,7 +711,7 @@ select case(mlo_step)
       end do
     else
       depth_hlout(:) = 0.
-    end if  
+    end if    
 
   case default
     write(6,*) "ERROR: Unknown option mlo_step = ",mlo_step
@@ -2290,6 +2290,10 @@ select case(mode)
     where ( depth%dz(:,1)>=1.e-4 )  
       odep = depth%depth_hl(:,ilev)
     end where  
+  case("depth_fl")
+    where ( depth%dz(:,1)>=1.e-4 )  
+      odep = depth%depth(:,ilev)
+    end where     
   case default
     write(6,*) "ERROR: Unknown option for mlo_export_depth with mode = ",trim(mode)
     stop

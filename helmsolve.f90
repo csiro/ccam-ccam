@@ -1722,7 +1722,7 @@ do i = 1,itrbgn
         +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)        
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
-         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
+         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
     end do  
     
     !$omp section
@@ -1755,7 +1755,7 @@ do i = 1,itrbgn
         +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)   
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),     &
-         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
+         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
     end do  
     
     !$omp section
@@ -1927,7 +1927,7 @@ if ( mg_maxlevel_local>0 ) then
     do iq = 1,ng
       bu = zz(iq,g) + hh(iq,g)
       cu = -rhs(iq,g)    
-      v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
+      v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
     end do  
     v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
     call mgbounds(g,v(:,1:2,g))
@@ -1942,7 +1942,7 @@ if ( mg_maxlevel_local>0 ) then
         cu = zzn(iq,g)*v(mg(g)%in(iq),1,g) + zzs(iq,g)*v(mg(g)%is(iq),1,g) &
            + zze(iq,g)*v(mg(g)%ie(iq),1,g) + zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
            - rhs(iq,g)
-        vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
+        vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
       end do
       v(1:ng,1,g) = vnew(1:ng)
       
@@ -2112,9 +2112,9 @@ if ( mg_maxlevel_local>0 ) then
     do iq = 1,ng
       bu = zz(iq,g) + hh(iq,g)
       cu = -rhs(iq,g)
-      v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1))) ! ocean
+      v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01))) ! ocean
     end do  
-    v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                       ! ice
+    v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                        ! ice
     do itrc = 1,itr_mgice
       ! store previous guess for convegence test
       ws(1:ng,1:2) = v(1:ng,1:2,g)
@@ -2129,7 +2129,7 @@ if ( mg_maxlevel_local>0 ) then
              + zzecu(iq,nc)*v(col_iqe(iq,nc),1,g) + zzwcu(iq,nc)*v(col_iqw(iq,nc),1,g)     &
              - rhscu(iq,nc)
           ! 3 colours makes it safe to update
-          v(col_iq(iq,nc),1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyzcu(iq,nc)*cu,0.1)))
+          v(col_iq(iq,nc),1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyzcu(iq,nc)*cu,0.01)))
         end do 
 
         ! ice
@@ -2180,7 +2180,7 @@ if ( mg_maxlevel_local>0 ) then
         cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
            + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
            - rhs(iq,g)
-        vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
+        vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
       end do
       v(1:ng,1,g) = vnew(1:ng)
       
@@ -2265,7 +2265,7 @@ do i = 1,itrend
         +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)     
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
-         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
+         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
     end do  
     
     !$omp section
@@ -2298,7 +2298,7 @@ do i = 1,itrend
         +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)   
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
-         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
+         -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
     end do  
     
     !$omp section
@@ -2358,7 +2358,7 @@ do itr = 2,itr_mgice
            + zzec(iq,nc)*dumc_e(iq,1) + zzwc(iq,nc)*dumc_w(iq,1) &
            - rhsc(iq,nc)   
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),        &
-           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
       end do
         
       !$omp section
@@ -2392,7 +2392,7 @@ do itr = 2,itr_mgice
           +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)   &
           -rhsc(iq,nc)
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),      &
-           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
       end do
         
       !$omp section
@@ -2523,7 +2523,7 @@ do itr = 2,itr_mgice
       do iq = 1,ng
         bu = zz(iq,g) + hh(iq,g)
         cu = -rhs(iq,g)
-        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
+        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
       end do  
       v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
       call mgbounds(g,v(:,1:2,g))
@@ -2537,7 +2537,7 @@ do itr = 2,itr_mgice
           cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
              + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
              - rhs(iq,g)
-          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
+          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
         end do
         v(1:ng,1,g) = vnew(1:ng)
         
@@ -2668,9 +2668,9 @@ do itr = 2,itr_mgice
       do iq = 1,ng
         bu = zz(iq,g) + hh(iq,g)
         cu = -rhs(iq,g)
-        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1))) ! ocean
+        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01))) ! ocean
       end do  
-      v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                       ! ice
+      v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                        ! ice
       do itrc = 1,itr_mgice
         ! store previous guess for convegence test
         ws(1:ng,1:2) = v(1:ng,1:2,g)
@@ -2685,7 +2685,7 @@ do itr = 2,itr_mgice
                + zzecu(iq,nc)*v(col_iqe(iq,nc),1,g) + zzwcu(iq,nc)*v(col_iqw(iq,nc),1,g) &
                - rhscu(iq,nc)
             ! 3 colours makes it safe to update
-            v(col_iq(iq,nc),1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyzcu(iq,nc)*cu,0.1))) 
+            v(col_iq(iq,nc),1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyzcu(iq,nc)*cu,0.01))) 
           end do  
       
           ! ice
@@ -2740,7 +2740,7 @@ do itr = 2,itr_mgice
           cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
              + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
              - rhs(iq,g)
-          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.1)))
+          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
         end do
         v(1:ng,1,g) = vnew(1:ng)
         ! ice - post smoothing
@@ -2826,7 +2826,7 @@ do itr = 2,itr_mgice
           +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
           -rhsc(iq,nc)    
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
-           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
       end do  
 
       !$omp section
@@ -2859,7 +2859,7 @@ do itr = 2,itr_mgice
           +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
           -rhsc(iq,nc)   
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
-           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.1))) )
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
       end do
  
       !$omp section

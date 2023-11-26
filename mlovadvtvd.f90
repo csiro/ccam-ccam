@@ -187,8 +187,8 @@ if ( mlontvd==0 ) then ! MC
   do ii = 1,wlev
     do iq = 1,ifull
       if ( ee(iq,ii)>0.5 ) then  
-        uu(iq,ii)=uu(iq,ii)+dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
-                           -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
+        uu(iq,ii) = uu(iq,ii) + dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &
+                               -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
       end if   
     end do  
   end do

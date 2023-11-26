@@ -1402,7 +1402,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,usepice,ominl,omaxl                 &
     ,mlo_timeave_length,kemaxdt          &
     ,mlo_adjeta,mlo_limitsal,mlo_step    &
-    ,mlo_uvcoupl
+    ,mlo_uvcoupl,fluxwgt
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlostag, only : mstagf                 ! Ocean reversible staggering
@@ -1602,7 +1602,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
-    mlo_step,mlo_uvcoupl,                                         &
+    mlo_step,mlo_uvcoupl,fluxwgt,                                 &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2513,7 +2513,7 @@ ateb_infilmeth    = dumi(26)
 cable_roughness   = dumi(27)
 cable_potev       = dumi(28)
 deallocate( dumr, dumi )
-allocate( dumr(21), dumi(29) )
+allocate( dumr(22), dumi(29) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2544,6 +2544,7 @@ if ( myid==0 ) then
   dumr(19) = alphavis_seasnw
   dumr(20) = alphanir_seasnw
   dumr(21) = ocnlap
+  dumr(22) = fluxwgt
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2597,6 +2598,7 @@ kemaxdt            = dumr(18)
 alphavis_seasnw    = dumr(19)
 alphanir_seasnw    = dumr(20)
 ocnlap             = dumr(21)
+fluxwgt            = dumr(22)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 

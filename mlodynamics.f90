@@ -304,6 +304,7 @@ real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns, mps
 real, dimension(ifull+iextra,9) :: data_c, data_d
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull,wlev+1) :: tau, tav, ttau, ttav
+real, dimension(ifull,wlev) :: u_tstar, v_tstar
 real, dimension(ifull,wlev) :: cc3u, cc4v
 real, dimension(ifull,wlev) :: w_u, w_v, w_t, w_s
 real, dimension(ifull,wlev) :: nuh, nvh, xg, yg, uau, uav
@@ -353,7 +354,7 @@ nw       = 0.            ! water vertical velocity
 pice     = 0.            ! ice pressure for cavitating fluid
 imass    = 0.            ! ice mass
 tide     = 0.            ! tidal forcing
-nt       = 0.            ! new water temperature
+nt       = 293.16-wrtemp ! new water temperature
 ns       = 0.            ! new water salinity
 nu       = 0.            ! new u component of water current
 nv       = 0.            ! new v component of water current
@@ -556,8 +557,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! update when time-step changes (e.g., 0.5*dt for first half time-step)  
     bu(1:ifull) = -eeu(1:ifull,1)*(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*fu(1:ifull))**2)
     bv(1:ifull) = -eev(1:ifull,1)*(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*fv(1:ifull))**2)
-    cu(1:ifull) =  bu(1:ifull)*(1.+ocneps)*0.5*dt*fu(1:ifull)
-    cv(1:ifull) = -bv(1:ifull)*(1.+ocneps)*0.5*dt*fv(1:ifull)
+    cu(1:ifull) = -bu(1:ifull)*(1.+ocneps)*0.5*dt*fu(1:ifull)
+    cv(1:ifull) =  bv(1:ifull)*(1.+ocneps)*0.5*dt*fv(1:ifull)
     dtsave = dt
   end if
   
@@ -610,7 +611,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
 
   ! Define horizontal transport
-  ! dH(phi)/dt = d(phi)/dt + u*d(phi)/dx + v*d(phi)/dy
+  ! dH(phi)/dt = d(phi)/dt + u*d(phi)/dx + v*d(phi)/dy + w*d(phi)/dz
   
   ! Continuity equation
   ! 1/(neta+D) dH(neta+D)/dt + du/dx + dv/dy + dw/dz = 0
@@ -699,9 +700,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
     tau(:,ii) = grav*gosigu*(ddu(1:ifull)+oeu(1:ifull))*drhobardxu(:,ii)/wrtrho  &
-               + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu ! staggered
+              + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu ! staggered
     tav(:,ii) = grav*gosigv*(ddv(1:ifull)+oev(1:ifull))*drhobardyv(:,ii)/wrtrho  &
-               + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv
+              + dpsdyv/wrtrho + grav*dttdyv + grav*detadyv
     tau(:,ii) = tau(:,ii)*eeu(1:ifull,ii)
     tav(:,ii) = tav(:,ii)*eev(1:ifull,ii)
   end do
@@ -739,24 +740,24 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlounstaguv(tau(:,1:wlev),tav(:,1:wlev),ttau(:,1:wlev),ttav(:,1:wlev),toff=1)
   ! ocean
   do ii = 1,wlev
-    uau(:,ii) = nu(1:ifull,ii) + (1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)-ttau(:,ii)) ! unstaggered
-    uav(:,ii) = nv(1:ifull,ii) + (1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)-ttav(:,ii))
-    uau(:,ii) = uau(:,ii)*ee(1:ifull,ii)
-    uav(:,ii) = uav(:,ii)*ee(1:ifull,ii)
+    u_tstar(:,ii) = nu(1:ifull,ii) - (1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)+ttau(:,ii)) ! unstaggered
+    v_tstar(:,ii) = nv(1:ifull,ii) - (1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)+ttav(:,ii))
+    u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)
+    v_tstar(:,ii) = v_tstar(:,ii)*ee(1:ifull,ii)
   end do
   ! ice
   snu(1:ifull) = i_u !-dt*ttau(:,wlev+1)
   snv(1:ifull) = i_v !-dt*ttav(:,wlev+1)
-  
+ 
 
   ! Vertical advection (first call for 0.5*dt)
-  call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,ee,1)
+  call mlovadv(hdt,nw,u_tstar,v_tstar,ns,nt,mps,depdum,dzdum,ee,1)
 
   
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
   call mlocheck("first vertical advection",water_temp=workdata,water_sal=workdata2, &
-                water_u=uau,water_v=uav)
+                water_u=u_tstar,water_v=v_tstar)
 
 
   ! Calculate depature points for horizontal advection
@@ -767,16 +768,16 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   do ii = 1,wlev
     ! Convert (u,v) to cartesian coordinates (U,V,W)  
-    cou(1:ifull,ii,1) = ax(1:ifull)*uau(:,ii) + bx(1:ifull)*uav(:,ii)
-    cou(1:ifull,ii,2) = ay(1:ifull)*uau(:,ii) + by(1:ifull)*uav(:,ii)
-    cou(1:ifull,ii,3) = az(1:ifull)*uau(:,ii) + bz(1:ifull)*uav(:,ii)
+    cou(1:ifull,ii,1) = ax(1:ifull)*u_tstar(:,ii) + bx(1:ifull)*v_tstar(:,ii)
+    cou(1:ifull,ii,2) = ay(1:ifull)*u_tstar(:,ii) + by(1:ifull)*v_tstar(:,ii)
+    cou(1:ifull,ii,3) = az(1:ifull)*u_tstar(:,ii) + bz(1:ifull)*v_tstar(:,ii)
     cou(1:ifull,ii,4) = nt(1:ifull,ii)
     cou(1:ifull,ii,5) = mps(1:ifull,ii)
     cou(1:ifull,ii,6) = ns(1:ifull,ii)
   end do
   
   ! Horizontal advection for U, V, W, T, continuity and S
-  bc_test = (/0,0,0,0,0,1/)
+  bc_test = (/0,0,0,0,2,1/)
   select case(mlo_bs)
     case(1)
       bs_test = (/.true.,.true.,.true.,.true.,.true.,.true./) 
@@ -799,10 +800,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   do ii = 1,wlev
     ! Convert (U,V,W) back to conformal cubic coordinates  
-    uau(:,ii) = ax(1:ifull)*cou(1:ifull,ii,1) + ay(1:ifull)*cou(1:ifull,ii,2) + az(1:ifull)*cou(1:ifull,ii,3)
-    uav(:,ii) = bx(1:ifull)*cou(1:ifull,ii,1) + by(1:ifull)*cou(1:ifull,ii,2) + bz(1:ifull)*cou(1:ifull,ii,3)
-    uau(:,ii) = uau(:,ii)*ee(1:ifull,ii)
-    uav(:,ii) = uav(:,ii)*ee(1:ifull,ii)
+    u_tstar(:,ii) = ax(1:ifull)*cou(1:ifull,ii,1) + ay(1:ifull)*cou(1:ifull,ii,2) + az(1:ifull)*cou(1:ifull,ii,3)
+    v_tstar(:,ii) = bx(1:ifull)*cou(1:ifull,ii,1) + by(1:ifull)*cou(1:ifull,ii,2) + bz(1:ifull)*cou(1:ifull,ii,3)
+    u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)
+    v_tstar(:,ii) = v_tstar(:,ii)*ee(1:ifull,ii)
     ! Update T, S and continuity
     nt(1:ifull,ii) = max( cou(1:ifull,ii,4), -wrtemp )
     mps(1:ifull,ii) = cou(1:ifull,ii,5)
@@ -815,19 +816,19 @@ do mspec_mlo = mspeca_mlo,1,-1
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
   call mlocheck("horizontal advection",water_temp=workdata,water_sal=workdata2, &
-                water_u=uau,water_v=uav)
+                water_u=u_tstar,water_v=v_tstar)
 
 
   ! Vertical advection (second call for 0.5*dt)
   ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
   ! Could use nuh and nvh to estimate nw at t+1/2, but also require an estimate of neta at t+1/2
-  call mlovadv(hdt,nw,uau,uav,ns,nt,mps,depdum,dzdum,ee,2)
+  call mlovadv(hdt,nw,u_tstar,v_tstar,ns,nt,mps,depdum,dzdum,ee,2)
 
 
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
   call mlocheck("second vertical advection",water_temp=workdata,water_sal=workdata2, &
-                water_u=uau,water_v=uav)
+                water_u=u_tstar,water_v=v_tstar)
 
 
   ! dsig terms where included before advection 
@@ -836,7 +837,6 @@ do mspec_mlo = mspeca_mlo,1,-1
     xps(:) = xps(:) + mps(1:ifull,ii)
   end do
   xps(:) = xps(:)*ee(1:ifull,1) ! only needed for sigma levels
-
   
   
   call START_LOG(watereos_begin)
@@ -860,12 +860,12 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Precompute U,V current and integral terms at t+1
   ! ocean
   do ii = 1,wlev
-    tau(:,ii) = uau(:,ii) + (1.+ocneps)*0.5*dt*f(1:ifull)*uav(:,ii) ! unstaggered
-    tav(:,ii) = uav(:,ii) - (1.+ocneps)*0.5*dt*f(1:ifull)*uau(:,ii)
+    tau(:,ii) = u_tstar(:,ii) - (1.+ocneps)*0.5*dt*f(1:ifull)*v_tstar(:,ii) ! unstaggered
+    tav(:,ii) = v_tstar(:,ii) + (1.+ocneps)*0.5*dt*f(1:ifull)*u_tstar(:,ii)
   end do
   ! ice
-  tau(:,wlev+1) = snu(1:ifull) + dt*f(1:ifull)*snv(1:ifull) ! unstaggered
-  tav(:,wlev+1) = snv(1:ifull) - dt*f(1:ifull)*snu(1:ifull)
+  tau(:,wlev+1) = snu(1:ifull) - dt*f(1:ifull)*snv(1:ifull) ! unstaggered
+  tav(:,wlev+1) = snv(1:ifull) + dt*f(1:ifull)*snu(1:ifull)
   call mlostaguv(tau(:,1:wlev+1),tav(:,1:wlev+1),ttau(:,1:wlev+1),ttav(:,1:wlev+1))
   
   ! Set-up calculation of ocean and ice at t+1
@@ -882,13 +882,13 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
   niu(1:ifull) = ttau(:,wlev+1)/(1.+(dt*fu(1:ifull))**2) ! staggered
   niv(1:ifull) = ttav(:,wlev+1)/(1.+(dt*fv(1:ifull))**2)
- 
   
+
   ! calculate 5-point stencil for free surface
   ! (i.e., terms for free surface gradient contribution to currents)
 
   ! temporary terms to be updated later
-  bb(:) = -(1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(:))**2) ! unstaggered
+  bb(:) = (1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(:))**2) ! unstaggered
   ff(:) = (1.+ocneps)*0.5*dt*f(:)
 
   do ii = 1,wlev
@@ -930,7 +930,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
 
   ! ice - calculate ibb, ibb3u, ibb4v
-  ibb(:) = -ee(:,1)*dt/(imass(:)*(1.+(dt*f(:))**2)) ! unstaggered
+  ibb(:) = ee(:,1)*dt/(max(imass(:),minicemass)*(1.+(dt*f(:))**2)) ! unstaggered
   ff(:) = dt*f(:)  
   do iq = 1,ifull
     tnu(iq) = 0.5*( ibb(in(iq))*ff(in(iq)) + ibb(ine(iq))*ff(ine(iq)) )
@@ -944,15 +944,35 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   do ii = 1,wlev
     ! Create arrays to calcuate u and v at t+1, based on pressure gradient at t+1
-      
+    
+    !   u^(t+1) + 0.5*(1+eps)*dt*f*v^(t+1) + 0.5*(1+eps)*dt*(grav/rho)*dpdx^(t+1)
+    ! = u^t - 0.5*(1-eps)*dt*f*v^t - 0.5*(1-eps)*dt*(grav/rho)*dpdx^t
+    ! = u^(t*)
+
+    !   v^(t+1) - 0.5*(1+eps)*dt*f*u^(t+1) + 0.5*(1+eps)*dt*(grav/rho)*dpdy^(t+1)
+    ! = v^t + 0.5*(1-eps)*dt*f*u^t - 0.5*(1-eps)*dt*(grav/rho)*dpdy^t
+    ! = v^(t*)
+
+    ! u^(t+1)*(1+(0.5*(1+eps)*dt*f)**2)
+    !   - 0.5*(1+eps)*dt*(grav/rho)*dpdx^(t+1)
+    !   + (0.5*(1+eps)*dt)**2*f*(grav/rho)*dpdy^(t+1)
+    ! = u^(t*) - 0.5*(1+eps)*dt*f*v^(t*)
+    ! = ttau = ccu*(1+(0.5*(1+eps)*dt*f)**2)
+
+    ! v^(t+1)*(1+(0.5*(1+eps)*dt*f)**2)
+    !   - 0.5*(1+eps)*dt*(grav/rho)*dpdy^(t+1)
+    !   - (0.5*(1+eps)*dt)**2*f*(grav/rho)*dpdx^(t+1) 
+    ! = v^(t*) + 0.5*(1+eps)*dt*f*u^(t*)
+    ! = ttav = ccv*(1+(0.5*(1+eps)*dt*f)**2)  
+  
     ! ffu = (1.+ocneps)*0.5*dt*fu
     ! ffv = (1.+ocneps)*0.5*dt*fv     
     ! u^(t+1) = nu = ccu^(t*) + bu*dpdxu^(t+1)/wrtrho + bu*ffu*dpdyu^(t+1)/wrtrho (staggered)
     ! v^(t+1) = nv = ccv^(t*) + bv*dpdyv^(t+1)/wrtrho - bv*ffv*dpdxv^(t+1)/wrtrho (staggered)
       
-    ! u^(t+1)*(1+(0.5*dt*f)^2) = [u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*) + 0.5*dt*f*[v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*)
+    ! u^(t+1)*(1+(0.5*dt*f)^2) = [u - 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*) - 0.5*dt*f*[v + 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*)
     !                            - 0.5*dt/wrtrho*[dpdx + 0.5*dt*f*dpdy]^(t+1)     
-    ! v^(t+1)*(1+(0.5*dt*f)^2) = [v - 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*) - 0.5*dt*f*[u + 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*)
+    ! v^(t+1)*(1+(0.5*dt*f)^2) = [v + 0.5*dt*f*u - 0.5*dt/wrtrho*dpdy]^(t*) - 0.5*dt*f*[u - 0.5*dt*f*v - 0.5*dt/wrtrho*dpdx]^(t*)
     !                            - 0.5*dt/wrtrho*[dpdy - 0.5*dt*f*dpdx]^(t+1)
     
     ! rhobar = wrtrho + rhobar_dash  
@@ -972,8 +992,8 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! We use a modified form of JLM's trick where:
     !    B*F*dP/dy =   d(B*F*P)/dy - (d(B*F)/dy)*P
     !   -B*F*dP/dx = - d(B*F*P)/dx + (d(B*F)/dx)*P
-    !   B = -(1.+ocneps)*0.5*dt/(1.+f**2)*(1+(1-sig)*(rhobar-wrtrho)/wrtrho)
-    !   F = (1+ocneps)*0.5*dt*f
+    !   B = (1.+ocneps)*0.5*dt/(1.+((1+eps)*0.5*dt*f)**2)*(1+(1-sig)*(rhobar-wrtrho)/wrtrho)
+    !   F = (1.+ocneps)*0.5*dt*f
     ! which produces a 5-point stencil when solving for neta and ip.      
       
     !dpdxu=dpsdxu+grav*wrtrho*dttdxu+grav*sig*(ddu+etau)*drhobardxu+grav*rhobar*detadxu
@@ -1061,8 +1081,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! calculate terms for ice velocity at t+1
 
   ! (staggered)
-  ! niu(t+1) = niu + ibu*dipdx + ibu*dt*fu*dipdy
-  ! niv(t+1) = niv + ibv*dipdy - ibv*dt*fv*dipdx
+  ! niu(t+1) = niu + ibu*dipdx - ibu*dt*fu*dipdy
+  ! niv(t+1) = niv + ibv*dipdy + ibv*dt*fv*dipdx
 
   ! niu(t+1) = niu + ibu*dipdx + d(BI*F*ip)dy - d(BI*F)dy*ip
   ! niv(t+1) = niv + ibv*dipdy - d(BI*F*ip)dx + d(BI*F)dx*ip
@@ -1149,7 +1169,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     nv(1:ifull,ii) = kkv(:,ii) + oov(:,ii)*oev(1:ifull) + mmv(:,ii)*detadyv &
                    - 0.5*stwgtv(1:ifull,ii)*(tev-twv)*emv(1:ifull)/ds       &
                    + cc4v(1:ifull,ii)*oev(1:ifull)
-  end do 
+  end do
   
 
   worku = nu(1:ifull,:)
@@ -1283,6 +1303,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     end if
   end if
 
+
   ! temperature conservation (usually off when nudging SSTs)
   if ( nud_sst==0 ) then
     delpos(1) = 0.
@@ -1397,6 +1418,7 @@ call mlocheck("end of mlodynamics",water_temp=w_t,water_sal=w_s,water_u=w_u,wate
 call mlodiffusion_work(w_u,w_v,w_t,w_s)
 
 call mlocheck("after diffusion",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v=w_v)
+
 
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
 do ii = 1,wlev
