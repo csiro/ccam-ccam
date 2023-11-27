@@ -2513,7 +2513,7 @@ type(turbdata), intent(inout) :: turb
 real, dimension(imax) :: d_ftop,d_tb,d_zcr
 real, dimension(imax) :: d_fb,d_timelt,d_neta,d_ndsn
 real, dimension(imax) :: d_ndic,d_nsto,d_delstore
-real, dimension(imax) :: ubot_save, vbot_save, utop_save, vtop_save
+!real, dimension(imax) :: ubot_save, vbot_save, utop_save, vtop_save
 integer, dimension(imax) :: d_nk
 
 if (diag>=1) write(6,*) "Evaluate MLO"
@@ -2539,12 +2539,12 @@ if ( mlo_limitsal==1 ) then
 end if  
 
 ! store data for time-averaging
-utop_save = water%u(:,1)
-vtop_save = water%v(:,1)
-do iqw = 1,imax
-  ubot_save(iqw) = water%u(iqw,water%ibot(iqw))
-  vbot_save(iqw) = water%v(iqw,water%ibot(iqw))
-end do
+!utop_save = water%u(:,1)
+!vtop_save = water%v(:,1)
+!do iqw = 1,imax
+!  ubot_save(iqw) = water%u(iqw,water%ibot(iqw))
+!  vbot_save(iqw) = water%v(iqw,water%ibot(iqw))
+!end do
 
 ! adjust levels for free surface
 where ( depth%dz(:,1)>1.e-4 )
@@ -2648,11 +2648,11 @@ end if
 call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag, &
               dgice,dgscrn,dgwater,ice,water)
 
-! store currents for next time-step
-water%utop = utop_save
-water%vtop = vtop_save
-water%ubot = ubot_save
-water%vbot = vbot_save
+!! store currents for next time-step
+!water%utop = utop_save
+!water%vtop = vtop_save
+!water%ubot = ubot_save
+!water%vbot = vbot_save
 
 call mlocheck("MLO-end",water_temp=water%temp,water_sal=water%sal,water_u=water%u, &
               water_v=water%v,ice_tsurf=ice%tsurf,ice_temp=ice%temp,               &
@@ -2956,6 +2956,7 @@ subroutine mlo_calc_k(km_hl,ks_hl,gammas,dt,d_zcr,depth,dgwater,water,turb)
                    
 implicit none
 
+integer iqw, ii
 real, intent(in) :: dt
 real, dimension(imax,wlev), intent(inout) :: km_hl, ks_hl, gammas
 real, dimension(imax), intent(in) :: d_zcr
@@ -2978,6 +2979,14 @@ select case(oclosure)
     call getstab(km_hl,ks_hl,gammas,d_zcr,depth,dgwater,water)
 end select
 
+do iqw = 1,imax
+  water%utop(iqw) = water%u(iqw,1)  
+  water%vtop(iqw) = water%v(iqw,1)
+  ii = water%ibot(iqw)
+  water%ubot(iqw) = water%u(iqw,ii)
+  water%vbot(iqw) = water%v(iqw,ii)
+end do  
+  
 return
 end subroutine mlo_calc_k
                    
