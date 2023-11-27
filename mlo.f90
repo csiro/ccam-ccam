@@ -263,6 +263,7 @@ real, parameter :: ls      = lv + lf      ! Latent heat of sublimation (J kg^-1)
 real, parameter :: grav    = 9.8          ! graviational constant (m s^-2)
 real, parameter :: sbconst = 5.67e-8      ! Stefan-Boltzmann constant
 real, parameter :: cdbot   = 2.4e-3       ! bottom drag coefficent
+real, parameter :: utide   = 0.05         ! Tide velocity for bottom drag (m/s)
 real, parameter :: cpair   = 1004.64      ! Specific heat of dry air at const P
 real, parameter :: rdry    = 287.04       ! Specific gas const for dry air
 real, parameter :: rvap    = 461.5        ! Gas constant for water vapor
@@ -3017,9 +3018,8 @@ real, dimension(imax) :: d_ustar
 real, dimension(imax) :: pxtr_ema, shear
 real, dimension(imax,wlev) :: rho_ema, alpha_ema, beta_ema
 
-real :: dtt
-real :: minL
-real :: umag, zrough
+real :: dtt, minL
+real :: umag, zrough, uoave, voave
 
 integer :: ii,step,iqw,nsteps
 
@@ -3072,7 +3072,10 @@ k(:,1) = (d_ustar(:)/cu0)**2
 eps(:,1) = min((cu0)**3*k(:,1)**1.5,1.e9)/(vkar*(0.5*max(depth%dz(:,1),1.e-4)+dgwater%zo(:)))
 do iqw = 1,imax
   ii = water%ibot(iqw)
-  umag = sqrt(water%u(iqw,ii)**2+water%v(iqw,ii)**2) 
+  uoave = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
+  voave = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
+  umag = sqrt(max(uoave**2+voave**2,1.e-4))
+  umag = max( umag, utide )
   zrough = 0.5*max(depth%dz(iqw,ii),1.e-4)/exp(vkar/sqrt(cdbot))
   if ( ii==1 ) then
     k(iqw,1) = 0.5*( k(iqw,1) + cdbot*(umag/cu0)**2 )
@@ -4086,6 +4089,7 @@ do iqw = 1,imax
   uoave = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
   voave = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
   umag = sqrt(max(uoave**2+voave**2,1.e-4))
+  umag = max( umag, utide )
   dgwater%cd_bot(iqw) = cdbot*umag
 end do
 

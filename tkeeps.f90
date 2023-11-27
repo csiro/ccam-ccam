@@ -1434,21 +1434,21 @@ elsewhere
 end where  
 
 bb_o(:,1) = 1. - cc_o(:,1)
-dd_o(:,1,1) = w_t(:,1) + ddts*rhs_o(:,1)
+dd_o(:,1,1) = w_t(:,1) 
 where ( deptho_dz(:,1)>1.e-4 )
-  dd_o(:,1,1) = dd_o(:,1,1) - ddts*rad_o(:,1)/deptho_dz(:,1)
+  dd_o(:,1,1) = dd_o(:,1,1) + ddts*rhs_o(:,1) - ddts*rad_o(:,1)/deptho_dz(:,1)
 end where
 do k = 2,wlev-1
   bb_o(:,k) = 1. - aa_o(:,k) - cc_o(:,k)
-  dd_o(:,k,1) = w_t(:,k) + ddts*rhs_o(:,k)
+  dd_o(:,k,1) = w_t(:,k) 
   where ( deptho_dz(:,k)>1.e-4 )
-    dd_o(:,k,1) = dd_o(:,k,1) - ddts*rad_o(:,k)/deptho_dz(:,k)
+    dd_o(:,k,1) = dd_o(:,k,1) + ddts*rhs_o(:,k) - ddts*rad_o(:,k)/deptho_dz(:,k)
   end where
 end do
 bb_o(:,wlev) = 1. - aa_o(:,wlev)
-dd_o(:,wlev,1) = w_t(:,wlev) + ddts*rhs_o(:,wlev)
+dd_o(:,wlev,1) = w_t(:,wlev)
 where ( deptho_dz(:,wlev)>1.e-4 )
-  dd_o(:,wlev,1) = dd_o(:,wlev,1) - ddts*rad_o(:,wlev)/deptho_dz(:,wlev)
+  dd_o(:,wlev,1) = dd_o(:,wlev,1) + ddts*rhs_o(:,wlev) - ddts*rad_o(:,wlev)/deptho_dz(:,wlev)
 end where
 where ( .not.land(1:imax) )
   bb_o(:,1) = bb_o(:,1) + ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0*deptho_dz(:,1))
@@ -1615,8 +1615,9 @@ fulldeptho = 0.
 targetdeptho = min( minsfc, sum( deptho_dz, dim=2 ) )
 do k = 1,wlev
   !dd_o(:,k,1) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o
-  dd_o(:,k,1) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o*w_s(:,1)
+  dd_o(:,k,1) = w_s(:,k)
   where ( deptho_dz(:,k)>1.e-4 )
+    dd_o(:,k,1) = dd_o(:,k,1) + ddts*rhs_o(:,k)*ws0_o*w_s(:,1)  
     deltazo = max( min( deptho_dz(:,k), targetdeptho-fulldeptho ), 0. )
     fulldeptho = fulldeptho + deltazo
     !dd_o(:,k,1) = dd_o(:,k,1) - ddts*ws0subsurf_o*deltazo/max(deptho_dz(:,k)*targetdeptho,1.e-4)
@@ -1684,7 +1685,10 @@ end where
 do iq = 1,imax
   if ( .not.land(iq) ) then  
     k = ibot(iq)
-    bb_o(iq,k) = bb_o(iq,k) + ddts*cdbot_water(iq)/deptho_dz(iq,k) 
+    if ( deptho_dz(iq,k)>=1.e-4 ) then
+      ! cdbot_water is cd*|u|
+      bb_o(iq,k) = bb_o(iq,k) + ddts*cdbot_water(iq)/deptho_dz(iq,k) 
+    end if  
   end if
 end do
 
