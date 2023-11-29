@@ -136,8 +136,13 @@ wtr = abs(ee-1.)<1.e-20
 allocate( ddu(ifull+iextra), ddv(ifull+iextra) )
 ddu = 0.
 ddv = 0.
-ddu(1:ifull) = 0.5*(dd(1:ifull)+dd(ie))
-ddv(1:ifull) = 0.5*(dd(1:ifull)+dd(in))
+!if ( mlosigma>=0 .and. mlosigma<=3 ) then
+!  ddu(1:ifull) = 0.5*(dd(1:ifull)+dd(ie))
+!  ddv(1:ifull) = 0.5*(dd(1:ifull)+dd(in))
+!else
+  ddu(1:ifull) = min(dd(1:ifull),dd(ie))
+  ddv(1:ifull) = min(dd(1:ifull),dd(in))
+!end if
 where ( abs(eeu(1:ifull,1))<1.e-20 )
   ddu(1:ifull) = 1.E-8
 end where
@@ -182,36 +187,38 @@ do ii = 1,wlev
   gosigh(1:ifull,ii) = max(dephl(1:ifull,ii),1.e-8)/dd(1:ifull)
   godsig(1:ifull,ii) = dz(1:ifull,ii)/dd(1:ifull)*ee(1:ifull,ii)
 end do
-if ( mlosigma>=0 .and. mlosigma<=3 ) then
-  ! sigma levels  
-  dumz = 0.
-  do iq = 1,ifull
-    if (.not.land(iq)) then
-      do ii = 1,wlev
-        dumz(ii)       =max(dumz(ii),gosig(iq,ii))
-        dumz(ii+wlev)  =max(dumz(ii+wlev),gosigh(iq,ii))
-        dumz(ii+2*wlev)=max(dumz(ii+2*wlev),godsig(iq,ii))
-      end do
-    end if 
-  end do
-  call ccmpi_allreduce(dumz(1:3*wlev),gdumz(1:3*wlev),"max",comm_world)
-  do ii = 1,wlev
-    gosig(:,ii)  = gdumz(ii)
-    gosigh(:,ii) = gdumz(ii+wlev)
-    godsig(:,ii) = gdumz(ii+2*wlev)
-  end do    
-else
+!if ( mlosigma>=0 .and. mlosigma<=3 ) then
+!  ! sigma levels  
+!  dumz = 0.
+!  do iq = 1,ifull
+!    if (.not.land(iq)) then
+!      do ii = 1,wlev
+!        dumz(ii)       =max(dumz(ii),gosig(iq,ii))
+!        dumz(ii+wlev)  =max(dumz(ii+wlev),gosigh(iq,ii))
+!        dumz(ii+2*wlev)=max(dumz(ii+2*wlev),godsig(iq,ii))
+!      end do
+!    end if 
+!  end do
+!  call ccmpi_allreduce(dumz(1:3*wlev),gdumz(1:3*wlev),"max",comm_world)
+!  do ii = 1,wlev
+!    gosig(:,ii)  = gdumz(ii)
+!    gosigh(:,ii) = gdumz(ii+wlev)
+!    godsig(:,ii) = gdumz(ii+2*wlev)
+!    godsigu(1:ifull,ii) = 0.5*(godsig(1:ifull,ii)+godsig(ie,ii))*eeu(1:ifull,ii)
+!    godsigv(1:ifull,ii) = 0.5*(godsig(1:ifull,ii)+godsig(in,ii))*eev(1:ifull,ii)
+!  end do  
+!else
   ! z* levels
   dumf(:,:,1) = gosig(:,:)
   dumf(:,:,2) = godsig(:,:)
   call bounds(dumf(:,:,1:2),nrows=2)
   gosig(:,:)  = dumf(:,:,1)
   godsig(:,:) = dumf(:,:,2)
-end if
-do ii = 1,wlev
-  godsigu(1:ifull,ii) = 0.5*(godsig(1:ifull,ii)+godsig(ie,ii))*eeu(1:ifull,ii)
-  godsigv(1:ifull,ii) = 0.5*(godsig(1:ifull,ii)+godsig(in,ii))*eev(1:ifull,ii)
-end do  
+  do ii = 1,wlev
+    godsigu(1:ifull,ii) = min(dd(1:ifull)*godsig(1:ifull,ii),dd(ie)*godsig(ie,ii))/ddu(1:ifull)
+    godsigv(1:ifull,ii) = min(dd(1:ifull)*godsig(1:ifull,ii),dd(in)*godsig(in,ii))/ddv(1:ifull)
+  end do  
+!end if
 call boundsuv(godsigu,godsigv)
 gosighu(:,1) = godsigu(1:ifull,1)
 gosighv(:,1) = godsigv(1:ifull,1)
@@ -697,8 +704,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))
   oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))
   do ii = 1,wlev
-    gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
-    gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+    !gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
+    !gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+    gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/ddu(1:ifull)
+    gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/ddv(1:ifull)
     tau(:,ii) = grav*gosigu*(ddu(1:ifull)+oeu(1:ifull))*drhobardxu(:,ii)/wrtrho  &
               + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu ! staggered
     tav(:,ii) = grav*gosigv*(ddv(1:ifull)+oev(1:ifull))*drhobardyv(:,ii)/wrtrho  &
@@ -721,8 +730,10 @@ do mspec_mlo = mspeca_mlo,1,-1
       ddddxv = 0.5*(tev-twv)*emv(1:ifull)/ds
       ddddyv = (dd(in)-dd(1:ifull))*emv(1:ifull)/ds
       do ii = 1,wlev
-        gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
-        gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+        !gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
+        !gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+        gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/ddu(1:ifull)
+        gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/ddv(1:ifull)
         where ( eeu(1:ifull,ii)>0.5 )
           tau(:,ii) = tau(:,ii) + grav*rhobaru_dash(1:ifull,ii)/wrtrho*detadxu*(1.-gosigu) &
                     + grav*rhobaru_dash(1:ifull,ii)/wrtrho*ddddxu*gosigu*oeu(1:ifull)/ddu(1:ifull) ! staggered
@@ -748,7 +759,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! ice
   snu(1:ifull) = i_u !-dt*ttau(:,wlev+1)
   snv(1:ifull) = i_v !-dt*ttav(:,wlev+1)
- 
+  
 
   ! Vertical advection (first call for 0.5*dt)
   call mlovadv(hdt,nw,u_tstar,v_tstar,ns,nt,mps,depdum,dzdum,ee,1)
@@ -953,15 +964,21 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! = v^t + 0.5*(1-eps)*dt*f*u^t - 0.5*(1-eps)*dt*(grav/rho)*dpdy^t
     ! = v^(t*)
 
+    !   u^(t+1) + 0.5*(1+eps)*dt*f*( 0.5*(1+eps)*dt*f*u^(t+1) - 0.5*(1+eps)*dt*(grav/rho)*dpdy^(t+1) )
+    !     + 0.5*(1+eps)*dt*(grav/rho)*dpdx^(t+1) = u^(t*) - 0.5*(1+eps)*dt*f*v^(t*)
+
+    !   v^(t+1) + 0.5*(1+eps)*dt*f*( 0.5*(1+eps)*dt*f*v^(t+1) + 0.5*(1+eps)*dt*(grav/rho)*dpdx^(t+1) )
+    !     + 0.5*(1+eps)*dt*(grav/rho)*dpdy^(t+1) = v^(t*) + 0.5*(1+eps)*dt*f*u^(t*)
+
     ! u^(t+1)*(1+(0.5*(1+eps)*dt*f)**2)
-    !   - 0.5*(1+eps)*dt*(grav/rho)*dpdx^(t+1)
-    !   + (0.5*(1+eps)*dt)**2*f*(grav/rho)*dpdy^(t+1)
+    !   + 0.5*(1+eps)*dt*(grav/rho)*dpdx^(t+1)
+    !   - (0.5*(1+eps)*dt)**2*f*(grav/rho)*dpdy^(t+1)
     ! = u^(t*) - 0.5*(1+eps)*dt*f*v^(t*)
     ! = ttau = ccu*(1+(0.5*(1+eps)*dt*f)**2)
 
     ! v^(t+1)*(1+(0.5*(1+eps)*dt*f)**2)
-    !   - 0.5*(1+eps)*dt*(grav/rho)*dpdy^(t+1)
-    !   - (0.5*(1+eps)*dt)**2*f*(grav/rho)*dpdx^(t+1) 
+    !   + 0.5*(1+eps)*dt*(grav/rho)*dpdy^(t+1)
+    !   + (0.5*(1+eps)*dt)**2*f*(grav/rho)*dpdx^(t+1) 
     ! = v^(t*) + 0.5*(1+eps)*dt*f*u^(t*)
     ! = ttav = ccv*(1+(0.5*(1+eps)*dt*f)**2)  
   
@@ -1013,8 +1030,10 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! nu = kku + oou*etau + mmu*detadxu + d(cc*eta)dyu - cc3u*eta   (staggered)
     ! nv = kkv + oov*etav + mmv*detadyv - d(cc*eta)dxv + cc4v*eta   (staggered)      
       
-    gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
-    gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+    !gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
+    !gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+    gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/ddu(1:ifull)
+    gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/ddv(1:ifull)
         
     kku(:,ii) = ccu(1:ifull,ii) + bu*(dpsdxu/wrtrho+grav*dttdxu) + cu*(dpsdyu/wrtrho+grav*dttdyu) &
               + grav*gosigu*ddu(1:ifull)*(bu*drhobardxu(:,ii)/wrtrho + cu*drhobardyu(:,ii)/wrtrho)
@@ -1041,8 +1060,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   select case(mlojacobi)
     case(7)
       do ii = 1,wlev
-        gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
-        gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+        !gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
+        !gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
+        gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/ddu(1:ifull)
+        gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/ddv(1:ifull)
         where ( eeu(1:ifull,ii)>0.5 )
           oou(:,ii) = oou(:,ii) + bu*grav*rhobaru_dash(:,ii)/wrtrho*ddddxu*gosigu/ddu(1:ifull) &
                     + cu*grav*rhobaru_dash(:,ii)/wrtrho*ddddyu*gosigu/ddu(1:ifull)
@@ -1302,7 +1323,6 @@ do mspec_mlo = mspeca_mlo,1,-1
       neta(1:ifull) = (neta(1:ifull) - delta)*ee(1:ifull,1)
     end if
   end if
-
 
   ! temperature conservation (usually off when nudging SSTs)
   if ( nud_sst==0 ) then
