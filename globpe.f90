@@ -1477,6 +1477,7 @@ integer fnproc_bcast_max, nriver   ! depreciated namelist options
 integer ateb_conductmeth           ! depreciated namelist options
 integer ateb_useonewall            ! depreciated namelist options
 integer cable_climate              ! depreciated namelist options
+integer surf_windfarm              ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -1553,8 +1554,8 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_land,diaglevel_maxmin,diaglevel_ocean,              &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
-    surf_cordex,surf_windfarm,output_windmax,cordex_fix,          &
-    vegprev,vegnext,vegnext2                                        ! depreciated
+    surf_cordex,output_windmax,cordex_fix,                        &
+    vegprev,vegnext,vegnext2,surf_windfarm                          ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     cldh_sea,cldm_sea,cldl_sea,convfact,convtime,shaltime,        &
@@ -1602,7 +1603,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
-    mlo_step,mlo_uvcoupl,fluxwgt,                                 &
+    mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,                      &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2076,7 +2077,7 @@ remain_rayleigh_bug = dumi(15)==1
 use_rad_year        = dumi(16)==1
 rad_year            = dumi(17)
 deallocate( dumr, dumi )
-allocate( dumi(25) )
+allocate( dumi(24) )
 dumi = 0
 if ( myid==0 ) then
   read(99, datafile)
@@ -2102,9 +2103,8 @@ if ( myid==0 ) then
   dumi(20) = diaglevel_river
   dumi(21) = diaglevel_pop
   dumi(22) = surf_cordex
-  dumi(23) = surf_windfarm
-  dumi(24) = output_windmax
-  dumi(25) = cordex_fix
+  dumi(23) = output_windmax
+  dumi(24) = cordex_fix
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -2166,9 +2166,8 @@ diaglevel_carbon    = dumi(19)
 diaglevel_river     = dumi(20)
 diaglevel_pop       = dumi(21)
 surf_cordex         = dumi(22)
-surf_windfarm       = dumi(23)
-output_windmax      = dumi(24)
-cordex_fix          = dumi(25)
+output_windmax      = dumi(23)
+cordex_fix          = dumi(24)
 deallocate( dumi )
 allocate( dumr(35), dumi(27) )
 dumr = 0.
@@ -2513,7 +2512,7 @@ ateb_infilmeth    = dumi(26)
 cable_roughness   = dumi(27)
 cable_potev       = dumi(28)
 deallocate( dumr, dumi )
-allocate( dumr(22), dumi(29) )
+allocate( dumr(22), dumi(30) )
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
@@ -2574,6 +2573,7 @@ if ( myid==0 ) then
   dumi(27) = mlo_bs
   dumi(28) = mlo_step
   dumi(29) = mlo_uvcoupl
+  dumi(30) = mlointschf
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2628,6 +2628,7 @@ nxtrrho            = dumi(26)
 mlo_bs             = dumi(27)
 mlo_step           = dumi(28)
 mlo_uvcoupl        = dumi(29)
+mlointschf         = dumi(30)
 deallocate( dumr, dumi )
 allocate( dumi(1) )
 dumi = 0

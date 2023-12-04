@@ -301,7 +301,7 @@ real, parameter :: rimax=(1./fmroot-1.)/bprm
 
 ! Time averaging
 real, save :: mlo_timeave_length = 0. ! Time period for averaging source terms (Ps, Pb, Pt) in seconds
-                                      ! 0 indicates alpha=2/3
+                                      ! 0 indicates alpha=1.
 
 interface mloeval
   module procedure mloeval_standard, mloeval_thread
@@ -457,8 +457,7 @@ do tile = 1,ntiles
     allocate(depth_g(tile)%depth(imax,wlev),depth_g(tile)%dz(imax,wlev))
     allocate(depth_g(tile)%depth_hl(imax,wlev+1),depth_g(tile)%dz_hl(imax,2:wlev))
     allocate(depth_g(tile)%f(imax))
-    allocate(turb_g(tile)%k(imax,wlev))
-    allocate(turb_g(tile)%eps(imax,wlev))
+    allocate(turb_g(tile)%k(imax,wlev),turb_g(tile)%eps(imax,wlev))
 
     water_g(tile)%temp=288.-wrtemp    ! K
     water_g(tile)%sal=34.72           ! PSU
@@ -570,6 +569,7 @@ do tile = 1,ntiles
     do ii = 1,wlev
       depth_g(tile)%dz(:,ii) = depth_g(tile)%depth_hl(:,ii+1) - depth_g(tile)%depth_hl(:,ii)
     end do
+    ! dz_hl just used for mixing between full levels.  Hence ii=1 and ii=wlev+1 are not defined.
     do ii = 2,wlev
       where ( depth_g(tile)%dz(:,ii)*depth_g(tile)%dz(:,ii-1)>1.e-4 )
         depth_g(tile)%dz_hl(:,ii) = depth_g(tile)%depth(:,ii) - depth_g(tile)%depth(:,ii-1)
@@ -884,7 +884,13 @@ do tile = 1,ntiles
       ice_g(tile)%store(:)   =icein(is:ie,8)
       ice_g(tile)%u(:)       =icein(is:ie,9)
       ice_g(tile)%v(:)       =icein(is:ie,10)
-    end where  
+    end where
+    
+    if ( any( water_g(tile)%sal<-1.e-4 .or. water_g(tile)%sal>100. ) ) then
+      write(6,*) "WARN: Salinity is out-of-range in MLO-load"
+      write(6,*) "minval,maxval ",minval(water_g(tile)%sal),maxval(water_g(tile)%sal)
+      water_g(tile)%sal = min( max( water_g(tile)%sal, 0. ), maxsal )
+    end if
 
     call mlocheck("MLO-load",water_temp=water_g(tile)%temp,water_sal=water_g(tile)%sal, &
                   water_u=water_g(tile)%u,water_v=water_g(tile)%v,                      &
@@ -2513,7 +2519,6 @@ type(turbdata), intent(inout) :: turb
 real, dimension(imax) :: d_ftop,d_tb,d_zcr
 real, dimension(imax) :: d_fb,d_timelt,d_neta,d_ndsn
 real, dimension(imax) :: d_ndic,d_nsto,d_delstore
-!real, dimension(imax) :: ubot_save, vbot_save, utop_save, vtop_save
 integer, dimension(imax) :: d_nk
 
 if (diag>=1) write(6,*) "Evaluate MLO"
@@ -2537,14 +2542,6 @@ end do
 if ( mlo_limitsal==1 ) then
   water%sal = min( water%sal, maxsal )
 end if  
-
-! store data for time-averaging
-!utop_save = water%u(:,1)
-!vtop_save = water%v(:,1)
-!do iqw = 1,imax
-!  ubot_save(iqw) = water%u(iqw,water%ibot(iqw))
-!  vbot_save(iqw) = water%v(iqw,water%ibot(iqw))
-!end do
 
 ! adjust levels for free surface
 where ( depth%dz(:,1)>1.e-4 )
@@ -2647,12 +2644,6 @@ end if
 ! screen diagnostics
 call scrncalc(atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,diag, &
               dgice,dgscrn,dgwater,ice,water)
-
-!! store currents for next time-step
-!water%utop = utop_save
-!water%vtop = vtop_save
-!water%ubot = ubot_save
-!water%vbot = vbot_save
 
 call mlocheck("MLO-end",water_temp=water%temp,water_sal=water%sal,water_u=water%u, &
               water_v=water%v,ice_tsurf=ice%tsurf,ice_temp=ice%temp,               &
@@ -2979,6 +2970,7 @@ select case(oclosure)
     call getstab(km_hl,ks_hl,gammas,d_zcr,depth,dgwater,water)
 end select
 
+! store currents for next time-step  
 do iqw = 1,imax
   water%utop(iqw) = water%u(iqw,1)  
   water%vtop(iqw) = water%v(iqw,1)
@@ -2986,6 +2978,7 @@ do iqw = 1,imax
   water%ubot(iqw) = water%u(iqw,ii)
   water%vbot(iqw) = water%v(iqw,ii)
 end do  
+! Assume ocean mixing occurs after this routine is called
   
 return
 end subroutine mlo_calc_k
@@ -3113,8 +3106,8 @@ L(:,:) = max( min( L(:,:), omaxl), ominl )
 !stability functions
 if ( fixedstabfunc==1 ) then
   alpha = 0.
-  cu = (cu0 + 2.182*alpha)/(1.0 + 20.4*alpha + 53.12*alpha**2)
-  cud = 0.6985/(1. + 17.34*alpha)
+  cu = cu0
+  cud = 0.6985
 else
   alpha = L**2*n2/k
   alpha = max( min( alpha, 0.56), -0.0466 ) ! SHOC (before eq 6.7.5)
@@ -3282,8 +3275,8 @@ do step = 1,nsteps
   !stability functions
   if ( fixedstabfunc==1 ) then
     alpha = 0.
-    cu = (cu0 + 2.182*alpha)/(1. + 20.4*alpha + 53.12*alpha**2)
-    cud = 0.6985/(1. + 17.34*alpha)
+    cu = cu0
+    cud = 0.6985
   else
     alpha = L**2*n2/k
     alpha = max( min( alpha, 0.56), -0.0466 ) ! SHOC (before eq 6.7.5)

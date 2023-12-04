@@ -33,7 +33,7 @@ contains
 ! Calculate depature points for MLO semi-Lagrangian advection
 ! (This subroutine is based on depts.f)
 
-subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr)
+subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
 
 use bigxy4_m
 use cc_acc, only : async_length
@@ -41,6 +41,7 @@ use cc_mpi
 use const_phys
 use indices_m
 use mlo
+use mloints
 use newmpar_m
 use parm_m
 use parmhor_m
@@ -49,6 +50,7 @@ use xyzinfo_m
 
 implicit none
 
+integer, intent(in) :: mlointschf
 integer iq,i,j,k,n,nn,idel,jdel,intsch,ii
 integer async_counter
 integer, dimension(ifull,wlev), intent(out) :: nface
@@ -62,7 +64,6 @@ real s_tot, s_count
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real xxg, yyg
-real, parameter :: cxx = -9999. ! missing value flag
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 
 call START_LOG(waterdeps_begin)
@@ -78,7 +79,14 @@ do k = 1,wlev
   z3d(:,k) = z - real(wc(:,k),8)
 end do
 
-intsch = mod(ktau,2)
+if ( mlointschf==0 ) then
+  intsch = 0
+else if ( mlointschf>0 ) then
+  intsch = mod(ktau,mlointschf)
+else
+  write(6,*) "ERROR: Unknown value for mlointschf = ",mlointschf  
+  call ccmpi_abort(-1)
+end if
 
 do k = 1,wlev
   where (wtr(1:ifull,k))
@@ -244,24 +252,7 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        ! bi-cubic interpolation
-        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul_2 = (1.-xxg)
-        dmul_3 = xxg
-        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -269,9 +260,7 @@ if ( intsch==1 ) then
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)  &
-  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
 #endif  
   do nn = 1,3  
     async_counter = mod(nn-1,async_length)  
@@ -285,24 +274,7 @@ if ( intsch==1 ) then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        ! bi-cubic interpolation
-        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul_2 = (1.-xxg)
-        dmul_3 = xxg
-        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
       end do     ! iq loop
     end do       ! k loop
     !$acc end parallel loop
@@ -328,24 +300,7 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        ! bi-cubic interpolation
-        cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul_2 = (1.-yyg)
-        dmul_3 = yyg
-        emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-        rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-        rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -353,9 +308,7 @@ else     ! if(intsch==1)then
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)  &
-  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
 #endif  
   do nn = 1,3  
     async_counter = mod(nn-1,async_length)  
@@ -369,24 +322,7 @@ else     ! if(intsch==1)then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        ! bi-cubic interpolation
-        cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul_2 = (1.-yyg)
-        dmul_3 = yyg
-        emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-        rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-        rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
       end do
     end do
     !$acc end parallel loop
@@ -433,23 +369,7 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul_2 = (1.-xxg)
-        dmul_3 = xxg
-        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -457,9 +377,7 @@ if ( intsch==1 ) then
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)  &
-  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
 #endif
   do nn = 1,3  
     async_counter = mod(nn-1,async_length)  
@@ -473,23 +391,7 @@ if ( intsch==1 ) then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        dmul_2 = (1.-xxg)
-        dmul_3 = xxg
-        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-        rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-        rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
-        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
       end do     ! iq loop
     end do       ! k loop
     !$acc end parallel loop
@@ -515,23 +417,7 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul_2 = (1.-yyg)
-        dmul_3 = yyg
-        emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-        rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-        rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -539,9 +425,7 @@ else     ! if(intsch==1)then
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)  &
-  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
 #endif
   do nn = 1,3  
     async_counter = mod(nn-1,async_length)  
@@ -555,24 +439,7 @@ else     ! if(intsch==1)then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        ! bi-cubic interpolation
-        cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-        cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-        cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-        cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        dmul_2 = (1.-yyg)
-        dmul_3 = yyg
-        emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-        emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-        emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-        emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-        rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-        rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                 sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-        rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
-        s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
       end do
     end do
     !$acc end parallel loop

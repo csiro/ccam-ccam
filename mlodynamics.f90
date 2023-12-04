@@ -44,7 +44,7 @@ implicit none
 private
 public mlohadv,mlodyninit
 public ocneps
-public usetide,mlojacobi,mlomfix,nodrift,mlodps,nxtrrho,mlo_bs
+public usetide,mlojacobi,mlomfix,nodrift,mlodps,nxtrrho,mlo_bs,mlointschf
 
 complex, save :: emsum
 real, dimension(:), allocatable, save :: bu, bv, cu, cv
@@ -56,6 +56,7 @@ integer, save      :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on
 integer, save      :: mlomfix     = 2       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
 integer, save      :: mlodps      = 1       ! Include atmosphere pressure gradient terms (0=off, 1=on)
 integer, save      :: mlo_bs      = 3       ! Category to apply B-S advection (1=all, 2=mps, 3=uv, 4=t, 5=sal)
+integer, save      :: mlointschf  = 2       ! Direction for interpolation at depature points (0=off, 2=usual)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
@@ -279,7 +280,7 @@ integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart, iq, mspec_mlo, mspeca_mlo
 integer, dimension(ifull,wlev) :: nface
-integer, dimension(6) :: bc_test
+integer, dimension(9) :: bc_test
 real maxglobseta,maxglobip,hdt,dtin_mlo
 real alph_p, delta
 real, save :: dtsave=0.
@@ -304,7 +305,7 @@ real, dimension(ifull) :: oev_isv, oeu_iwu
 real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull) :: sdiv, imu, imv
 real, dimension(ifull) :: gosigu, gosigv
-real, dimension(ifull+iextra,wlev,6) :: cou
+real, dimension(ifull+iextra,wlev,9) :: cou
 real, dimension(ifull+iextra,wlev) :: cc
 real, dimension(ifull+iextra,wlev) :: eou, eov, ccu, ccv
 real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns, mps
@@ -312,6 +313,7 @@ real, dimension(ifull+iextra,9) :: data_c, data_d
 real, dimension(ifull+iextra,4) :: nit
 real, dimension(ifull,wlev+1) :: tau, tav, ttau, ttav
 real, dimension(ifull,wlev) :: u_tstar, v_tstar
+real, dimension(ifull,wlev) :: px_tstar, py_tstar
 real, dimension(ifull,wlev) :: cc3u, cc4v
 real, dimension(ifull,wlev) :: w_u, w_v, w_t, w_s
 real, dimension(ifull,wlev) :: nuh, nvh, xg, yg, uau, uav
@@ -327,7 +329,7 @@ real, dimension(ifull,3) :: gamm
 real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
 logical lleap
 logical, dimension(ifull+iextra,wlev) :: wtr
-logical, dimension(6) :: bs_test
+logical, dimension(9) :: bs_test
 complex lsum, gsum
 
 ! Vertical coordinates are defined as:
@@ -652,10 +654,10 @@ do mspec_mlo = mspeca_mlo,1,-1
     ccv(:,ii) = ccv(:,ii-1) + eov(:,ii)*godsigv(:,ii)
   end do
   ! surface height at staggered coordinate
-  oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))
-  oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))
-  oeu_iwu = 0.5*(neta(iw)+neta(1:ifull))
-  oev_isv = 0.5*(neta(is)+neta(1:ifull))
+  oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))*eeu(1:ifull,1)
+  oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))*eev(1:ifull,1)
+  oeu_iwu = 0.5*(neta(iw)+neta(1:ifull))*eeu(iwu,1)
+  oev_isv = 0.5*(neta(is)+neta(1:ifull))*eev(isv,1)
   ! calculate vertical velocity (use flux form)
   sdiv(:) = (ccu(1:ifull,wlev)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)    &
             -ccu(iwu,wlev)*(ddu(iwu)+oeu_iwu)/emu(iwu)                     &
@@ -706,8 +708,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     !gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     !gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-    gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/ddu(1:ifull)
-    gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/ddv(1:ifull)
+    gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/max(ddu(1:ifull),1.e-8)
+    gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/max(ddv(1:ifull),1.e-8)
     tau(:,ii) = grav*gosigu*(ddu(1:ifull)+oeu(1:ifull))*drhobardxu(:,ii)/wrtrho  &
               + dpsdxu/wrtrho + grav*dttdxu + grav*detadxu ! staggered
     tav(:,ii) = grav*gosigv*(ddv(1:ifull)+oev(1:ifull))*drhobardyv(:,ii)/wrtrho  &
@@ -732,8 +734,8 @@ do mspec_mlo = mspeca_mlo,1,-1
       do ii = 1,wlev
         !gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
         !gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-        gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/ddu(1:ifull)
-        gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/ddv(1:ifull)
+        gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/max(ddu(1:ifull),1.e-8)
+        gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/max(ddv(1:ifull),1.e-8)
         where ( eeu(1:ifull,ii)>0.5 )
           tau(:,ii) = tau(:,ii) + grav*rhobaru_dash(1:ifull,ii)/wrtrho*detadxu*(1.-gosigu) &
                     + grav*rhobaru_dash(1:ifull,ii)/wrtrho*ddddxu*gosigu*oeu(1:ifull)/ddu(1:ifull) ! staggered
@@ -751,10 +753,14 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlounstaguv(tau(:,1:wlev),tav(:,1:wlev),ttau(:,1:wlev),ttav(:,1:wlev),toff=1)
   ! ocean
   do ii = 1,wlev
-    u_tstar(:,ii) = nu(1:ifull,ii) - (1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)+ttau(:,ii)) ! unstaggered
-    v_tstar(:,ii) = nv(1:ifull,ii) - (1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii)+ttav(:,ii))
+    u_tstar(:,ii) = nu(1:ifull,ii) - (1.-ocneps)*0.5*dt*( f(1:ifull)*nv(1:ifull,ii)) ! unstaggered
+    v_tstar(:,ii) = nv(1:ifull,ii) - (1.-ocneps)*0.5*dt*(-f(1:ifull)*nu(1:ifull,ii))
     u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)
     v_tstar(:,ii) = v_tstar(:,ii)*ee(1:ifull,ii)
+    px_tstar(:,ii) = -(1.-ocneps)*0.5*dt*ttau(:,ii) ! unstaggered
+    py_tstar(:,ii) = -(1.-ocneps)*0.5*dt*ttav(:,ii)
+    px_tstar(:,ii) = px_tstar(:,ii)*ee(1:ifull,ii)
+    py_tstar(:,ii) = py_tstar(:,ii)*ee(1:ifull,ii)
   end do
   ! ice
   snu(1:ifull) = i_u !-dt*ttau(:,wlev+1)
@@ -762,7 +768,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   
 
   ! Vertical advection (first call for 0.5*dt)
-  call mlovadv(hdt,nw,u_tstar,v_tstar,ns,nt,mps,depdum,dzdum,ee,1)
+  call mlovadv(hdt,nw,u_tstar,v_tstar,px_tstar,py_tstar,ns,nt,mps,depdum,dzdum,ee,1)
 
   
   workdata = nt(1:ifull,:)
@@ -772,7 +778,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
 
   ! Calculate depature points for horizontal advection
-  call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr)
+  call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
 
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
@@ -785,29 +791,39 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,4) = nt(1:ifull,ii)
     cou(1:ifull,ii,5) = mps(1:ifull,ii)
     cou(1:ifull,ii,6) = ns(1:ifull,ii)
+    cou(1:ifull,ii,7) = ax(1:ifull)*px_tstar(:,ii) + bx(1:ifull)*py_tstar(:,ii)
+    cou(1:ifull,ii,8) = ay(1:ifull)*px_tstar(:,ii) + by(1:ifull)*py_tstar(:,ii)
+    cou(1:ifull,ii,9) = az(1:ifull)*px_tstar(:,ii) + bz(1:ifull)*py_tstar(:,ii)
   end do
   
   ! Horizontal advection for U, V, W, T, continuity and S
-  bc_test = (/0,0,0,0,2,1/)
+  bc_test = (/0,0,0,0,2,1,0,0,0/)
   select case(mlo_bs)
     case(1)
-      bs_test = (/.true.,.true.,.true.,.true.,.true.,.true./) 
+      bs_test = (/.true.,.true.,.true.,.true.,.true.,.true.,.true.,.true.,.true./) 
     case(2)
-      bs_test = (/.true.,.true.,.true.,.true.,.false.,.true./) 
+      bs_test = (/.true.,.true.,.true.,.true.,.false.,.true.,.true.,.true.,.true./) 
     case(3)
-      bs_test = (/.false.,.false.,.false.,.true.,.false.,.true./)
+      bs_test = (/.false.,.false.,.false.,.true.,.false.,.true.,.true.,.true.,.true./)
     case(4)
-      bs_test = (/.false.,.false.,.false.,.false.,.false.,.true./)  
+      bs_test = (/.false.,.false.,.false.,.false.,.false.,.true.,.true.,.true.,.true./)  
     case(5)  
-      bs_test =  (/.false.,.false.,.false.,.false.,.false.,.false./)
+      bs_test =  (/.false.,.false.,.false.,.false.,.false.,.false.,.true.,.true.,.true./)
+    case(13)
+      bs_test = (/.false.,.false.,.false.,.true.,.false.,.true.,.false.,.false.,.false./)
+    case(14)
+      bs_test = (/.false.,.false.,.false.,.false.,.false.,.true.,.false.,.false.,.false./)  
+    case(15)  
+      bs_test =  (/.false.,.false.,.false.,.false.,.false.,.false.,.false.,.false.,.false./)
     case default
       write(6,*) "ERROR: Unknown option mlo_bs = ",mlo_bs
       call ccmpi_abort(-1)
   end select    
-  call mlob2ints_bs(cou(:,:,1:6),nface,xg,yg,wtr,bc_test(1:6),bs_test(1:6))
+  call mlob2ints_bs(cou(:,:,1:9),nface,xg,yg,wtr,bc_test(1:9),bs_test(1:9),mlointschf)
   
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
+  call mlorot(cou(:,:,7),cou(:,:,8),cou(:,:,9),x3d,y3d,z3d)
   
   do ii = 1,wlev
     ! Convert (U,V,W) back to conformal cubic coordinates  
@@ -820,6 +836,10 @@ do mspec_mlo = mspeca_mlo,1,-1
     mps(1:ifull,ii) = cou(1:ifull,ii,5)
     ! MJT notes - only advect salinity for salt water
     ns(1:ifull,ii) = max( cou(1:ifull,ii,6), 0. )
+    px_tstar(:,ii) = ax(1:ifull)*cou(1:ifull,ii,7) + ay(1:ifull)*cou(1:ifull,ii,8) + az(1:ifull)*cou(1:ifull,ii,9)
+    py_tstar(:,ii) = bx(1:ifull)*cou(1:ifull,ii,7) + by(1:ifull)*cou(1:ifull,ii,8) + bz(1:ifull)*cou(1:ifull,ii,9)
+    px_tstar(:,ii) = px_tstar(:,ii)*ee(1:ifull,ii)
+    py_tstar(:,ii) = py_tstar(:,ii)*ee(1:ifull,ii)
   end do
 
   !$acc end data
@@ -833,7 +853,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Vertical advection (second call for 0.5*dt)
   ! use explicit nw and depdum,dzdum from t=tau step (i.e., following JLM in CCAM atmospheric dynamics)
   ! Could use nuh and nvh to estimate nw at t+1/2, but also require an estimate of neta at t+1/2
-  call mlovadv(hdt,nw,u_tstar,v_tstar,ns,nt,mps,depdum,dzdum,ee,2)
+  call mlovadv(hdt,nw,u_tstar,v_tstar,px_tstar,py_tstar,ns,nt,mps,depdum,dzdum,ee,2)
 
 
   workdata = nt(1:ifull,:)
@@ -871,8 +891,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Precompute U,V current and integral terms at t+1
   ! ocean
   do ii = 1,wlev
-    tau(:,ii) = u_tstar(:,ii) - (1.+ocneps)*0.5*dt*f(1:ifull)*v_tstar(:,ii) ! unstaggered
-    tav(:,ii) = v_tstar(:,ii) + (1.+ocneps)*0.5*dt*f(1:ifull)*u_tstar(:,ii)
+    tau(:,ii) = u_tstar(:,ii) + px_tstar(:,ii) &
+      - (1.+ocneps)*0.5*dt*f(1:ifull)*(v_tstar(:,ii)+py_tstar(:,ii)) ! unstaggered
+    tav(:,ii) = v_tstar(:,ii) + py_tstar(:,ii) &
+      + (1.+ocneps)*0.5*dt*f(1:ifull)*(u_tstar(:,ii)+px_tstar(:,ii))
   end do
   ! ice
   tau(:,wlev+1) = snu(1:ifull) - dt*f(1:ifull)*snv(1:ifull) ! unstaggered
@@ -1032,8 +1054,8 @@ do mspec_mlo = mspeca_mlo,1,-1
       
     !gosigu = 0.5*(gosig(1:ifull,ii)+gosig(ie,ii))
     !gosigv = 0.5*(gosig(1:ifull,ii)+gosig(in,ii))
-    gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/ddu(1:ifull)
-    gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/ddv(1:ifull)
+    gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/max(ddu(1:ifull),1.e-8)
+    gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/max(ddv(1:ifull),1.e-8)
         
     kku(:,ii) = ccu(1:ifull,ii) + bu*(dpsdxu/wrtrho+grav*dttdxu) + cu*(dpsdyu/wrtrho+grav*dttdyu) &
               + grav*gosigu*ddu(1:ifull)*(bu*drhobardxu(:,ii)/wrtrho + cu*drhobardyu(:,ii)/wrtrho)
@@ -1980,42 +2002,42 @@ zz(:,1) = (1.+ocneps)*0.5*dt*em(1:ifull)**2/ds*(-ddv(1:ifull)*sqv(1:ifull)/ds-dd
              +0.5*ddv(1:ifull)*bb4v(1:ifull)/emv(1:ifull)-0.5*ddv(isv)*bb4v(isv)/emv(isv)          &
              -0.5*ddu(1:ifull)*bb3u(1:ifull)/emu(1:ifull)+0.5*ddu(iwu)*bb3u(iwu)/emu(iwu))
 
-if ( edge_s .and. edge_w ) then
-  do n = 1,npan
-    iq = indp(1,1,n)
-    yys(iq) = yys(iq) + 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
-    yyw(iq) = yyw(iq) - 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
-    zzs(iq,1) = zzs(iq,1) + 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(isv(iq))/(ds**2)
-    zzw(iq,1) = zzw(iq,1) - 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iwu(iq))/(ds**2)
-  end do
-end if
-if ( edge_n .and. edge_e ) then
-  do n = 1,npan
-    iq = indp(ipan,jpan,n)
-    yyn(iq) = yyn(iq) + 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
-    yye(iq) = yye(iq) - 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
-    zzn(iq,1) = zzn(iq,1) + 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(iq)/(ds**2)
-    zze(iq,1) = zze(iq,1) - 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iq)/(ds**2)
-  end do
-end if
-if ( edge_s .and. edge_e ) then
-  do n = 1,npan
-    iq = indp(ipan,1,n)
-    yys(iq) = yys(iq) - 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
-    yye(iq) = yye(iq) + 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
-    zzs(iq,1) = zzs(iq,1) - 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(isv(iq))/(ds**2)
-    zze(iq,1) = zze(iq,1) + 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iq)/(ds**2)
-  end do
-end if
-if ( edge_n .and. edge_w ) then
-  do n = 1,npan
-    iq = indp(1,jpan,n)
-    yyn(iq) = yyn(iq) - 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
-    yyw(iq) = yyw(iq) + 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
-    zzn(iq,1) = zzn(iq,1) - 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(iq)/(ds**2)
-    zzw(iq,1) = zzw(iq,1) + 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iwu(iq))/(ds**2)
-  end do
-end if
+!if ( edge_s .and. edge_w ) then
+!  do n = 1,npan
+!    iq = indp(1,1,n)
+!    yys(iq) = yys(iq) + 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+!    yyw(iq) = yyw(iq) - 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+!    zzs(iq,1) = zzs(iq,1) + 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(isv(iq))/(ds**2)
+!    zzw(iq,1) = zzw(iq,1) - 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iwu(iq))/(ds**2)
+!  end do
+!end if
+!if ( edge_n .and. edge_e ) then
+!  do n = 1,npan
+!    iq = indp(ipan,jpan,n)
+!    yyn(iq) = yyn(iq) + 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+!    yye(iq) = yye(iq) - 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+!    zzn(iq,1) = zzn(iq,1) + 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(iq)/(ds**2)
+!    zze(iq,1) = zze(iq,1) - 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iq)/(ds**2)
+!  end do
+!end if
+!if ( edge_s .and. edge_e ) then
+!  do n = 1,npan
+!    iq = indp(ipan,1,n)
+!    yys(iq) = yys(iq) - 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+!    yye(iq) = yye(iq) + 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+!    zzs(iq,1) = zzs(iq,1) - 0.25*bb(is(iq))*ff(is(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(isv(iq))/(ds**2)
+!    zze(iq,1) = zze(iq,1) + 0.25*bb(ie(iq))*ff(ie(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iq)/(ds**2)
+!  end do
+!end if
+!if ( edge_n .and. edge_w ) then
+!  do n = 1,npan
+!    iq = indp(1,jpan,n)
+!    yyn(iq) = yyn(iq) - 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+!    yyw(iq) = yyw(iq) + 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2/(ds**2)
+!    zzn(iq,1) = zzn(iq,1) - 0.25*bb(in(iq))*ff(in(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddv(iq)/(ds**2)
+!    zzw(iq,1) = zzw(iq,1) + 0.25*bb(iw(iq))*ff(iw(iq))*(1.+ocneps)*0.5*dt*em(iq)**2*ddu(iwu(iq))/(ds**2)
+!  end do
+!end if
 
 yyn(:) = yyn(:)*ee(1:ifull,1)
 yys(:) = yys(:)*ee(1:ifull,1)
@@ -2048,34 +2070,34 @@ zz(:,2)  = (ibv(1:ifull)+ibv(isv)+ibu(1:ifull)+ibu(iwu))/ds          &
            -0.5*ibb4v(1:ifull)/emv(1:ifull)+0.5*ibb4v(isv)/emv(isv)  &
            +0.5*ibb3u(1:ifull)/emu(1:ifull)-0.5*ibb3u(iwu)/emu(iwu)
 
-if ( edge_s .and. edge_w ) then
-  do n = 1,npan
-    iq = indp(1,1,n)
-    zzs(iq,2) = zzs(iq,2) + 0.25*ibb(is(iq))*ff(is(iq))/ds
-    zzw(iq,2) = zzw(iq,2) - 0.25*ibb(iw(iq))*ff(iw(iq))/ds
-  end do
-end if
-if ( edge_n .and. edge_e ) then
-  do n = 1,npan
-    iq = indp(ipan,jpan,n)
-    zzn(iq,2) = zzn(iq,2) + 0.25*ibb(in(iq))*ff(in(iq))/ds
-    zze(iq,2) = zze(iq,2) - 0.25*ibb(ie(iq))*ff(ie(iq))/ds
-  end do
-end if
-if ( edge_s .and. edge_e ) then
-  do n = 1,npan
-    iq = indp(ipan,1,n)
-    zzs(iq,2) = zzs(iq,2) - 0.25*ibb(is(iq))*ff(is(iq))/ds
-    zze(iq,2) = zze(iq,2) + 0.25*ibb(ie(iq))*ff(ie(iq))/ds
-  end do
-end if
-if ( edge_n .and. edge_w ) then
-  do n = 1,npan
-    iq = indp(1,jpan,n)
-    zzn(iq,2) = zzn(iq,2) - 0.25*ibb(in(iq))*ff(in(iq))/ds
-    zzw(iq,2) = zzw(iq,2) + 0.25*ibb(iw(iq))*ff(iw(iq))/ds
-  end do
-end if
+!if ( edge_s .and. edge_w ) then
+!  do n = 1,npan
+!    iq = indp(1,1,n)
+!    zzs(iq,2) = zzs(iq,2) + 0.25*ibb(is(iq))*ff(is(iq))/ds
+!    zzw(iq,2) = zzw(iq,2) - 0.25*ibb(iw(iq))*ff(iw(iq))/ds
+!  end do
+!end if
+!if ( edge_n .and. edge_e ) then
+!  do n = 1,npan
+!    iq = indp(ipan,jpan,n)
+!    zzn(iq,2) = zzn(iq,2) + 0.25*ibb(in(iq))*ff(in(iq))/ds
+!    zze(iq,2) = zze(iq,2) - 0.25*ibb(ie(iq))*ff(ie(iq))/ds
+!  end do
+!end if
+!if ( edge_s .and. edge_e ) then
+!  do n = 1,npan
+!    iq = indp(ipan,1,n)
+!    zzs(iq,2) = zzs(iq,2) - 0.25*ibb(is(iq))*ff(is(iq))/ds
+!    zze(iq,2) = zze(iq,2) + 0.25*ibb(ie(iq))*ff(ie(iq))/ds
+!  end do
+!end if
+!if ( edge_n .and. edge_w ) then
+!  do n = 1,npan
+!    iq = indp(1,jpan,n)
+!    zzn(iq,2) = zzn(iq,2) - 0.25*ibb(in(iq))*ff(in(iq))/ds
+!    zzw(iq,2) = zzw(iq,2) + 0.25*ibb(iw(iq))*ff(iw(iq))/ds
+!  end do
+!end if
 
 zzn(:,2) = zzn(:,2)*ee(1:ifull,1)
 zzs(:,2) = zzs(:,2)*ee(1:ifull,1)

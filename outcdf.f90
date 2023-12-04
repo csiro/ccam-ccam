@@ -886,6 +886,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlodiff_numits',mlodiff_numits)
     call ccnf_put_attg(idnc,'mlodps',mlodps)
+    call ccnf_put_attg(idnc,'mlointschf',mlointschf)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
