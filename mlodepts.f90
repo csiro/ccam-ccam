@@ -65,6 +65,7 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real xxg, yyg
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: wx
 
 call START_LOG(waterdeps_begin)
 
@@ -139,7 +140,7 @@ end do ! ii loop
 
 call bounds_send(s,nrows=2)
 
-!$acc data create(xg,yg,nface,xx4,yy4,sx)
+!$acc data create(xg,yg,nface,xx4,yy4,sx,wx)
 !$acc update device(xx4,yy4)
 
 ! convert to grid point numbering
@@ -188,6 +189,46 @@ if ( intsch==1 ) then
     end do                 ! k loop
   end do                   ! nn loop
 
+  do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+    do n = 1,npan
+      do j = 1,jpan
+        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+        wx(0,j,n,k)      = wtr( iw(iq),k)
+        wx(-1,j,n,k)     = wtr(iww(iq),k)
+        iq = j*ipan+(n-1)*ipan*jpan
+        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+      end do            ! j loop
+      do i = 1,ipan
+        iq = i+(n-1)*ipan*jpan
+        wx(i,0,n,k)      = wtr( is(iq),k)
+        wx(i,-1,n,k)     = wtr(iss(iq),k)
+        iq = i-ipan+n*ipan*jpan
+        wx(i,jpan+1,n,k) = wtr( in(iq),k)
+        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+      end do            ! i loop
+    end do
+!   for ew interpolation, sometimes need (different from ns):
+!       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+    do n = 1,npan
+      wx(-1,0,n,k)          = wtr(lwws(n),                  k)
+      wx(0,0,n,k)           = wtr(iws(1+(n-1)*ipan*jpan),   k)
+      wx(0,-1,n,k)          = wtr(lwss(n),                  k)
+      wx(ipan+1,0,n,k)      = wtr(ies(ipan+(n-1)*ipan*jpan),k)
+      wx(ipan+2,0,n,k)      = wtr(lees(n),                  k)
+      wx(ipan+1,-1,n,k)     = wtr(less(n),                  k)
+      wx(-1,jpan+1,n,k)     = wtr(lwwn(n),                  k)
+      wx(0,jpan+2,n,k)      = wtr(lwnn(n),                  k)
+      wx(ipan+2,jpan+1,n,k) = wtr(leen(n),                  k)
+      wx(ipan+1,jpan+2,n,k) = wtr(lenn(n),                  k)
+      wx(0,jpan+1,n,k)      = wtr(iwn(1-ipan+n*ipan*jpan),  k)
+      wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
+    end do           ! n loop
+  end do             ! k loop
+  
 else
 !======================== start of intsch=2 section ====================
 
@@ -229,11 +270,51 @@ else
     end do             ! k loop
   end do               ! nn loop
 
+  do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+    do n = 1,npan
+      do j = 1,jpan
+        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+        wx(0,j,n,k)      = wtr( iw(iq),k)
+        wx(-1,j,n,k)     = wtr(iww(iq),k)
+        iq = j*ipan+(n-1)*ipan*jpan
+        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+      end do            ! j loop
+      do i = 1,ipan
+        iq = i+(n-1)*ipan*jpan
+        wx(i,0,n,k)      = wtr( is(iq),k)
+        wx(i,-1,n,k)     = wtr(iss(iq),k)
+        iq = i-ipan+n*ipan*jpan
+        wx(i,jpan+1,n,k) = wtr( in(iq),k)
+        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+      end do            ! i loop
+    end do
+!   for ns interpolation, sometimes need (different from ew):
+!        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+    do n = 1,npan
+      wx(-1,0,n,k)          = wtr(lsww(n),k)
+      wx(0,0,n,k)           = wtr(isw(1+(n-1)*ipan*jpan),   k)
+      wx(0,-1,n,k)          = wtr(lssw(n),k)
+      wx(ipan+2,0,n,k)      = wtr(lsee(n),k)
+      wx(ipan+1,-1,n,k)     = wtr(lsse(n),k)
+      wx(-1,jpan+1,n,k)     = wtr(lnww(n),k)
+      wx(0,jpan+1,n,k)      = wtr(inw(1-ipan+n*ipan*jpan),  k)
+      wx(0,jpan+2,n,k)      = wtr(lnnw(n),k)
+      wx(ipan+2,jpan+1,n,k) = wtr(lnee(n),k)
+      wx(ipan+1,jpan+2,n,k) = wtr(lnne(n),k)
+      wx(ipan+1,0,n,k)      = wtr(ise(ipan+(n-1)*ipan*jpan),k)
+      wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
+    end do           ! n loop
+  end do             ! k loop 
+  
 end if
 
 
 ! Share off processor departure points.
-!$acc update device(sx)
+!$acc update device(sx,wx)
 !$acc update self(xg,yg,nface)
 call deptsync(nface,xg,yg)
 
@@ -252,7 +333,7 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -264,7 +345,7 @@ if ( intsch==1 ) then
 #endif  
   do nn = 1,3  
     async_counter = mod(nn-1,async_length)  
-    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -274,7 +355,7 @@ if ( intsch==1 ) then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+        s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do     ! iq loop
     end do       ! k loop
     !$acc end parallel loop
@@ -300,7 +381,7 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -312,7 +393,7 @@ else     ! if(intsch==1)then
 #endif  
   do nn = 1,3  
     async_counter = mod(nn-1,async_length)  
-    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -322,7 +403,7 @@ else     ! if(intsch==1)then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+        s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do
     end do
     !$acc end parallel loop
@@ -369,7 +450,7 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -381,7 +462,7 @@ if ( intsch==1 ) then
 #endif
   do nn = 1,3  
     async_counter = mod(nn-1,async_length)  
-    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -391,7 +472,7 @@ if ( intsch==1 ) then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+        s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do     ! iq loop
     end do       ! k loop
     !$acc end parallel loop
@@ -417,7 +498,7 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -429,7 +510,7 @@ else     ! if(intsch==1)then
 #endif
   do nn = 1,3  
     async_counter = mod(nn-1,async_length)  
-    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+    !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -439,7 +520,7 @@ else     ! if(intsch==1)then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+        s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do
     end do
     !$acc end parallel loop

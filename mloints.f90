@@ -64,6 +64,7 @@ real, dimension(ifull,wlev,size(s,3)) :: s_store
 real s_tot, s_count
 real xxg, yyg
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: wx
 logical, dimension(size(s,3)), intent(in) :: bs_test
 integer, dimension(size(s,3)), intent(in) :: bc_test
 
@@ -93,7 +94,7 @@ do nn = 1,ntr
       end do
     case(1) ! salinity + fill
       do k = 1,wlev  
-        where ( s(1:ifull,k,nn)<0.01 .or. .not.wtr(1:ifull,k) )
+        where ( s(1:ifull,k,nn)<2. .or. .not.wtr(1:ifull,k) )
           s(1:ifull,k,nn) = cxx - 1. ! missing value flag
         end where
       end do
@@ -195,6 +196,47 @@ if ( intsch==1 ) then
       end do             ! k loop
     end do               ! nn loop  
 
+    do k = 1,wlev
+      wx(1:ipan,1:jpan,1:npan,k) = &
+        reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+      do n = 1,npan
+        do j = 1,jpan
+          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+          wx(0,j,n,k)      = wtr( iw(iq),k)
+          wx(-1,j,n,k)     = wtr(iww(iq),k)
+          iq = j*ipan+(n-1)*ipan*jpan
+          wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+          wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+        end do            ! j loop
+        do i = 1,ipan
+          iq = i+(n-1)*ipan*jpan
+          wx(i,0,n,k)      = wtr( is(iq),k)
+          wx(i,-1,n,k)     = wtr(iss(iq),k)
+          iq = i-ipan+n*ipan*jpan
+          wx(i,jpan+1,n,k) = wtr( in(iq),k)
+          wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+        end do            ! i loop
+      end do
+!   for ew interpolation, sometimes need (different from ns):
+!       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+      do n = 1,npan
+        wx(-1,0,n,k)          = wtr(lwws(n),                  k)
+        wx(0,0,n,k)           = wtr(iws(1+(n-1)*ipan*jpan),   k)
+        wx(0,-1,n,k)          = wtr(lwss(n),                  k)
+        wx(ipan+1,0,n,k)      = wtr(ies(ipan+(n-1)*ipan*jpan),k)
+        wx(ipan+2,0,n,k)      = wtr(lees(n),                  k)
+        wx(ipan+1,-1,n,k)     = wtr(less(n),                  k)
+        wx(-1,jpan+1,n,k)     = wtr(lwwn(n),                  k)
+        wx(0,jpan+2,n,k)      = wtr(lwnn(n),                  k)
+        wx(ipan+2,jpan+1,n,k) = wtr(leen(n),                  k)
+        wx(ipan+1,jpan+2,n,k) = wtr(lenn(n),                  k)
+        wx(0,jpan+1,n,k)      = wtr(iwn(1-ipan+n*ipan*jpan),  k)
+        wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
+      end do           ! n loop
+    end do             ! k loop
+
+  
     ! Loop over points that need to be calculated for other processes
     do nn = 1,nlen
       if ( bs_test(nn-1+nstart) ) then
@@ -208,7 +250,7 @@ if ( intsch==1 ) then
             k = nint(dpoints(ii)%a(iq,4))
             idel = idel - ioff
             jdel = jdel - joff
-            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1bs(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1bs(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do          ! iq loop
         end do            ! ii loop
       else
@@ -222,7 +264,7 @@ if ( intsch==1 ) then
             k = nint(dpoints(ii)%a(iq,4))
             idel = idel - ioff
             jdel = jdel - joff
-            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do          ! iq loop
         end do            ! ii loop
       end if              ! bs_test ..else.. 
@@ -230,6 +272,8 @@ if ( intsch==1 ) then
 
     call intssync_send(nlen)
 
+    !$acc enter data create(wx)
+    !$acc update device(wx)    
 #ifndef GPU
     !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
 #endif    
@@ -237,7 +281,7 @@ if ( intsch==1 ) then
       async_counter = mod(nn-1, async_length)
       if ( bs_test(nn-1+nstart) ) then
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(xg,yg,nface) async(async_counter)
+        !$acc   present(xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -247,13 +291,13 @@ if ( intsch==1 ) then
             idel = min( max(idel - ioff, 0), ipan)
             jdel = min( max(jdel - joff, 0), jpan)
             n = min( max(nface(iq,k) + noff, 1), npan)
-            s(iq,k,nn-1+nstart) = intintp1bs(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+            s(iq,k,nn-1+nstart) = intintp1bs(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do       ! iq loop
         end do         ! k loop
         !$acc end parallel loop
       else
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(xg,yg,nface) async(async_counter)
+        !$acc   present(xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -263,7 +307,7 @@ if ( intsch==1 ) then
             idel = min( max(idel - ioff, 0), ipan)
             jdel = min( max(jdel - joff, 0), jpan)
             n = min( max(nface(iq,k) + noff, 1), npan)
-            s(iq,k,nn-1+nstart) = intintp1(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+            s(iq,k,nn-1+nstart) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do       ! iq loop
         end do         ! k loop
         !$acc end parallel loop
@@ -273,6 +317,7 @@ if ( intsch==1 ) then
     !$omp end parallel do
 #endif
     !$acc wait
+    !$acc exit data delete(wx)
 
     call intssync_recv(s(:,:,nstart:nend))  
     
@@ -329,8 +374,49 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
-    end do               ! nn loop  
+    end do               ! nn loop
+    
+    do k = 1,wlev
+      wx(1:ipan,1:jpan,1:npan,k) = &
+        reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+      do n = 1,npan
+        do j = 1,jpan
+          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+          wx(0,j,n,k)      = wtr( iw(iq),k)
+          wx(-1,j,n,k)     = wtr(iww(iq),k)
+          iq = j*ipan+(n-1)*ipan*jpan
+          wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+          wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+        end do            ! j loop
+        do i = 1,ipan
+          iq = i+(n-1)*ipan*jpan
+          wx(i,0,n,k)      = wtr( is(iq),k)
+          wx(i,-1,n,k)     = wtr(iss(iq),k)
+          iq = i-ipan+n*ipan*jpan
+          wx(i,jpan+1,n,k) = wtr( in(iq),k)
+          wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+        end do            ! i loop
+      end do
+!   for ns interpolation, sometimes need (different from ew):
+!        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+      do n = 1,npan
+        wx(-1,0,n,k)          = wtr(lsww(n),k)
+        wx(0,0,n,k)           = wtr(isw(1+(n-1)*ipan*jpan),   k)
+        wx(0,-1,n,k)          = wtr(lssw(n),k)
+        wx(ipan+2,0,n,k)      = wtr(lsee(n),k)
+        wx(ipan+1,-1,n,k)     = wtr(lsse(n),k)
+        wx(-1,jpan+1,n,k)     = wtr(lnww(n),k)
+        wx(0,jpan+1,n,k)      = wtr(inw(1-ipan+n*ipan*jpan),  k)
+        wx(0,jpan+2,n,k)      = wtr(lnnw(n),k)
+        wx(ipan+2,jpan+1,n,k) = wtr(lnee(n),k)
+        wx(ipan+1,jpan+2,n,k) = wtr(lnne(n),k)
+        wx(ipan+1,0,n,k)      = wtr(ise(ipan+(n-1)*ipan*jpan),k)
+        wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
+      end do           ! n loop
+    end do             ! k loop 
 
+  
     ! For other processes
     do nn = 1,nlen
       if ( bs_test(nn-1+nstart) ) then
@@ -344,7 +430,7 @@ else     ! if(intsch==1)then
             k = nint(dpoints(ii)%a(iq,4))
             idel = idel - ioff
             jdel = jdel - joff
-            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0bs(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0bs(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do          ! iq loop
         end do            ! ii loop
       else
@@ -358,7 +444,7 @@ else     ! if(intsch==1)then
             k = nint(dpoints(ii)%a(iq,4))
             idel = idel - ioff
             jdel = jdel - joff
-            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+            sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do          ! iq loop
         end do            ! ii loop
       end if              ! bs_test ..else.. 
@@ -366,6 +452,8 @@ else     ! if(intsch==1)then
 
     call intssync_send(nlen)
 
+    !$acc enter data create(wx)
+    !$acc update device(wx)
 #ifndef GPU
     !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
 #endif  
@@ -373,7 +461,7 @@ else     ! if(intsch==1)then
       async_counter = mod(nn-1, async_length)
       if ( bs_test(nn-1+nstart) ) then
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(xg,yg,nface) async(async_counter)
+        !$acc   present(xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -383,13 +471,13 @@ else     ! if(intsch==1)then
             idel = min( max(idel - ioff, 0), ipan)
             jdel = min( max(jdel - joff, 0), jpan)
             n = min( max(nface(iq,k) + noff, 1), npan)
-            s(iq,k,nn-1+nstart) = intintp0bs(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+            s(iq,k,nn-1+nstart) = intintp0bs(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do
         end do
         !$acc end parallel loop
       else
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(xg,yg,nface) async(async_counter)
+        !$acc   present(xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -399,7 +487,7 @@ else     ! if(intsch==1)then
             idel = min( max(idel - ioff, 0), ipan)
             jdel = min( max(jdel - joff, 0), jpan)
             n = min( max(nface(iq,k) + noff, 1), npan)
-            s(iq,k,nn-1+nstart) = intintp0(sx(:,:,n,k,nn),idel,jdel,xxg,yyg)
+            s(iq,k,nn-1+nstart) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do
         end do
         !$acc end parallel loop
@@ -409,6 +497,7 @@ else     ! if(intsch==1)then
     !$omp end parallel do
 #endif
     !$acc wait
+    !$acc exit data delete(wx)
 
     call intssync_recv(s(:,:,nstart:nend))  
 
@@ -425,7 +514,7 @@ do nn = 1,ntr
   end do
   if ( bc_test(nn)==1 ) then
     do k = 1,wlev
-      where ( s_store(1:ifull,k,nn)<0.01 )
+      where ( s_store(1:ifull,k,nn)<2. )
         s(1:ifull,k,nn) = s_store(1:ifull,k,nn)  
       end where
     end do
@@ -462,6 +551,7 @@ real, dimension(ifull,wlev) :: s_store
 real s_tot, s_count
 real xxg, yyg
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: wx
 logical, intent(in) :: bs_test
 integer, intent(in) :: bc_test
 
@@ -489,7 +579,7 @@ select case(bc_test)
     end do
   case(1) ! salinity + fill
     do k = 1,wlev  
-      where ( s(1:ifull,k)<0.01 .or. .not.wtr(1:ifull,k) )
+      where ( s(1:ifull,k)<2. .or. .not.wtr(1:ifull,k) )
         s(1:ifull,k) = cxx - 1. ! missing value flag
       end where
     end do
@@ -580,7 +670,48 @@ if ( intsch==1 ) then
       sx(ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop
+  
+  do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+    do n = 1,npan
+      do j = 1,jpan
+        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+        wx(0,j,n,k)      = wtr( iw(iq),k)
+        wx(-1,j,n,k)     = wtr(iww(iq),k)
+        iq = j*ipan+(n-1)*ipan*jpan
+        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+      end do            ! j loop
+      do i = 1,ipan
+        iq = i+(n-1)*ipan*jpan
+        wx(i,0,n,k)      = wtr( is(iq),k)
+        wx(i,-1,n,k)     = wtr(iss(iq),k)
+        iq = i-ipan+n*ipan*jpan
+        wx(i,jpan+1,n,k) = wtr( in(iq),k)
+        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+      end do            ! i loop
+    end do
+!   for ew interpolation, sometimes need (different from ns):
+!       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+    do n = 1,npan
+      wx(-1,0,n,k)          = wtr(lwws(n),                  k)
+      wx(0,0,n,k)           = wtr(iws(1+(n-1)*ipan*jpan),   k)
+      wx(0,-1,n,k)          = wtr(lwss(n),                  k)
+      wx(ipan+1,0,n,k)      = wtr(ies(ipan+(n-1)*ipan*jpan),k)
+      wx(ipan+2,0,n,k)      = wtr(lees(n),                  k)
+      wx(ipan+1,-1,n,k)     = wtr(less(n),                  k)
+      wx(-1,jpan+1,n,k)     = wtr(lwwn(n),                  k)
+      wx(0,jpan+2,n,k)      = wtr(lwnn(n),                  k)
+      wx(ipan+2,jpan+1,n,k) = wtr(leen(n),                  k)
+      wx(ipan+1,jpan+2,n,k) = wtr(lenn(n),                  k)
+      wx(0,jpan+1,n,k)      = wtr(iwn(1-ipan+n*ipan*jpan),  k)
+      wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
+    end do           ! n loop
+  end do             ! k loop
 
+    
   ! Loop over points that need to be calculated for other processes
   if ( bs_test ) then
     do ii = 1,neighnum
@@ -593,7 +724,7 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq) = intintp1bs(sx(:,:,n,k),idel,jdel,xxg,yyg)
+        sextra(ii)%a(iq) = intintp1bs(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! ii loop
   else
@@ -607,7 +738,7 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq) = intintp1(sx(:,:,n,k),idel,jdel,xxg,yyg)
+        sextra(ii)%a(iq) = intintp1(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! ii loop
   end if
@@ -615,7 +746,7 @@ if ( intsch==1 ) then
   call intssync_send(1)
 
   if ( bs_test ) then
-    !$acc parallel loop collapse(2) copyin(sx) copyout(s)        &
+    !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
     do k = 1,wlev      
       do iq = 1,ifull
@@ -626,12 +757,12 @@ if ( intsch==1 ) then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k) = intintp1bs(sx(:,:,n,k),idel,jdel,xxg,yyg)
+        s(iq,k) = intintp1bs(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do       ! iq loop
     end do         ! k loop
     !$acc end parallel loop
   else
-    !$acc parallel loop collapse(2) copyin(sx) copyout(s)        &
+    !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
     do k = 1,wlev      
       do iq = 1,ifull
@@ -642,7 +773,7 @@ if ( intsch==1 ) then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k) = intintp1(sx(:,:,n,k),idel,jdel,xxg,yyg)
+        s(iq,k) = intintp1(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do       ! iq loop
     end do         ! k loop
     !$acc end parallel loop
@@ -695,7 +826,48 @@ else     ! if(intsch==1)then
       sx(ipan+1,jpan+1,n,k) = s(ine(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop
+  
+  do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+    do n = 1,npan
+      do j = 1,jpan
+        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+        wx(0,j,n,k)      = wtr( iw(iq),k)
+        wx(-1,j,n,k)     = wtr(iww(iq),k)
+        iq = j*ipan+(n-1)*ipan*jpan
+        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+      end do            ! j loop
+      do i = 1,ipan
+        iq = i+(n-1)*ipan*jpan
+        wx(i,0,n,k)      = wtr( is(iq),k)
+        wx(i,-1,n,k)     = wtr(iss(iq),k)
+        iq = i-ipan+n*ipan*jpan
+        wx(i,jpan+1,n,k) = wtr( in(iq),k)
+        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+      end do            ! i loop
+    end do
+!   for ns interpolation, sometimes need (different from ew):
+!        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+    do n = 1,npan
+      wx(-1,0,n,k)          = wtr(lsww(n),k)
+      wx(0,0,n,k)           = wtr(isw(1+(n-1)*ipan*jpan),   k)
+      wx(0,-1,n,k)          = wtr(lssw(n),k)
+      wx(ipan+2,0,n,k)      = wtr(lsee(n),k)
+      wx(ipan+1,-1,n,k)     = wtr(lsse(n),k)
+      wx(-1,jpan+1,n,k)     = wtr(lnww(n),k)
+      wx(0,jpan+1,n,k)      = wtr(inw(1-ipan+n*ipan*jpan),  k)
+      wx(0,jpan+2,n,k)      = wtr(lnnw(n),k)
+      wx(ipan+2,jpan+1,n,k) = wtr(lnee(n),k)
+      wx(ipan+1,jpan+2,n,k) = wtr(lnne(n),k)
+      wx(ipan+1,0,n,k)      = wtr(ise(ipan+(n-1)*ipan*jpan),k)
+      wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
+    end do           ! n loop
+  end do             ! k loop 
 
+    
   ! For other processes
   if ( bs_test ) then
     do ii = neighnum,1,-1
@@ -708,7 +880,7 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq) = intintp0bs(sx(:,:,n,k),idel,jdel,xxg,yyg)
+        sextra(ii)%a(iq) = intintp0bs(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! ii loop
   else
@@ -722,7 +894,7 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq) = intintp0(sx(:,:,n,k),idel,jdel,xxg,yyg)
+        sextra(ii)%a(iq) = intintp0(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do          ! iq loop
     end do            ! ii loop
   end if
@@ -730,7 +902,7 @@ else     ! if(intsch==1)then
   call intssync_send(1)
 
   if ( bs_test ) then
-    !$acc parallel loop collapse(2) copyin(sx) copyout(s)        &
+    !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
     do k = 1,wlev
       do iq = 1,ifull
@@ -741,12 +913,12 @@ else     ! if(intsch==1)then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k) = intintp0bs(sx(:,:,n,k),idel,jdel,xxg,yyg)
+        s(iq,k) = intintp0bs(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do
     end do
     !$acc end parallel loop
   else
-    !$acc parallel loop collapse(2) copyin(sx) copyout(s)        &
+    !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
     do k = 1,wlev
       do iq = 1,ifull
@@ -757,7 +929,7 @@ else     ! if(intsch==1)then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k) = intintp0(sx(:,:,n,k),idel,jdel,xxg,yyg)
+        s(iq,k) = intintp0(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do
     end do
     !$acc end parallel loop
@@ -775,7 +947,7 @@ do k = 1,wlev
 end do
 if ( bc_test==1 ) then
   do k = 1,wlev
-    where ( s_store(1:ifull,k)<0.01 )
+    where ( s_store(1:ifull,k)<2. )
       s(1:ifull,k) = s_store(1:ifull,k)  
     end where
   end do
@@ -785,7 +957,7 @@ call END_LOG(waterints_end)
 
 end subroutine mlob2ints_bs_2
 
-pure function intintp1(sx,idel,jdel,xxg,yyg) result(sx_ans)
+pure function intintp1(sx,wx,idel,jdel,xxg,yyg) result(sx_ans)
 !$acc routine seq
 
 use cc_mpi, only : ipan, jpan
@@ -793,26 +965,21 @@ use cc_mpi, only : ipan, jpan
 implicit none
 
 integer, intent(in) :: idel, jdel
-integer :: ncount, i
 real, intent(in) :: xxg, yyg
 real :: sx_ans
 real :: cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
 real :: rmul_1, rmul_2, rmul_3, rmul_4
-real :: cmax, cmin, nsum
 real, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: sx
-real, dimension(-1:2,-1:2) :: rx
-real, dimension(0:1,0:1) :: nx
-logical :: abcd_test, blin_test, bcub_test, bnnb_test
+logical, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: wx
+logical :: bcub_water, blin_test
 
-rx(-1:2,-1:2) = sx(idel-1:idel+2,jdel-1:jdel+2)
+bcub_water = all( wx(idel:idel+1,jdel-1) ) .and.        &
+             all( wx(idel-1:idel+2,jdel:jdel+1) ) .and. &
+             all( wx(idel:idel+1,jdel+2) )
 
-abcd_test = all( rx(0:1,-1)>=cxx ) .and. all( rx(-1,0:1)>=cxx ) .and. &
-            all( rx(0:1, 2)>=cxx ) .and. all( rx( 2,0:1)>=cxx )
-blin_test = all( rx(0:1,0:1)>=cxx )
-bcub_test = abcd_test .and. blin_test
-bnnb_test = any( rx(0:1,0:1)>=cxx )
+blin_test = all( sx(idel:idel+1,jdel:jdel+1)>=cxx )
 
-if ( bcub_test ) then
+if ( bcub_water ) then
   cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
   cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
   cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
@@ -823,85 +990,16 @@ if ( bcub_test ) then
   emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
   emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
   emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-  rmul_1 = rx( 0,-1)*dmul_2 + rx( 1,-1)*dmul_3
-  rmul_2 = rx(-1, 0)*cmul_1 + rx( 0, 0)*cmul_2 + &
-           rx( 1, 0)*cmul_3 + rx( 2, 0)*cmul_4
-  rmul_3 = rx(-1, 1)*cmul_1 + rx( 0, 1)*cmul_2 + &
-           rx( 1, 1)*cmul_3 + rx( 2, 1)*cmul_4
-  rmul_4 = rx( 0, 2)*dmul_2 + rx( 1, 2)*dmul_3
+  rmul_1 = sx(idel  ,jdel-1)*dmul_2 + sx(idel+1,jdel-1)*dmul_3
+  rmul_2 = sx(idel-1,jdel  )*cmul_1 + sx(idel  ,jdel  )*cmul_2 + &
+           sx(idel+1,jdel  )*cmul_3 + sx(idel+2,jdel  )*cmul_4
+  rmul_3 = sx(idel-1,jdel+1)*cmul_1 + sx(idel  ,jdel+1)*cmul_2 + &
+           sx(idel+1,jdel+1)*cmul_3 + sx(idel+2,jdel+1)*cmul_4
+  rmul_4 = sx(idel  ,jdel+2)*dmul_2 + sx(idel+1,jdel+2)*dmul_3
   sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
 else if ( blin_test ) then
-  cmul_1 = rx(0,0) + xxg*(rx(1,0)-rx(0,0))
-  cmul_2 = rx(0,1) + xxg*(rx(1,1)-rx(0,1))
-  sx_ans = cmul_1 + yyg*(cmul_2-cmul_1)
-else if ( bnnb_test ) then
-  nx(0:1,0:1) = rx(0:1,0:1)
-  do i = 1,2
-    if ( nx(0,0)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(1,0)>=cxx ) then
-        nsum = nsum + rx(1,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(0,1)>=cxx ) then
-        nsum = nsum + rx(0,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(0,0) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(1,0)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,0)>=cxx ) then
-        nsum = nsum + rx(0,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,1)>=cxx ) then
-        nsum = nsum + rx(1,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(1,0) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(0,1)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,0)>=cxx ) then
-        nsum = nsum + rx(0,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,1)>=cxx ) then
-        nsum = nsum + rx(1,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(0,1) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(1,1)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,1)>=cxx ) then
-        nsum = nsum + rx(0,1)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,0)>=cxx ) then
-        nsum = nsum + rx(1,0)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(1,1) = nsum/real(ncount)
-      end if
-    end if
-    rx(0:1,0:1) = nx(0:1,0:1)
-  end do
-  cmul_1 = rx(0,0) + xxg*(rx(1,0)-rx(0,0))
-  cmul_2 = rx(0,1) + xxg*(rx(1,1)-rx(0,1))
-  sx_ans = cmul_1 + yyg*(cmul_2-cmul_1)
+  sx_ans = (1.-xxg)*(1.-yyg)*sx(idel,jdel) + xxg*(1.-yyg)*sx(idel+1,jdel) &
+         + (1.-xxg)*yyg*sx(idel,jdel+1) + xxg*yyg*sx(idel+1,jdel+1)
 else
   sx_ans = cxx - 1.
 end if
@@ -909,7 +1007,7 @@ end if
 return
 end function intintp1
 
-pure function intintp1bs(sx,idel,jdel,xxg,yyg) result(sx_ans)
+pure function intintp1bs(sx,wx,idel,jdel,xxg,yyg) result(sx_ans)
 !$acc routine seq
 
 use cc_mpi, only : ipan, jpan
@@ -917,128 +1015,23 @@ use cc_mpi, only : ipan, jpan
 implicit none
 
 integer, intent(in) :: idel, jdel
-integer :: ncount, i
 real, intent(in) :: xxg, yyg
 real :: sx_ans
-real :: cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
-real :: rmul_1, rmul_2, rmul_3, rmul_4
-real :: cmax, cmin, nsum
+real :: cmin, cmax
 real, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: sx
-real, dimension(-1:2,-1:2) :: rx
-real, dimension(0:1,0:1) :: nx
-logical :: abcd_test, blin_test, bcub_test, bnnb_test
+logical, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: wx
 
-rx(-1:2,-1:2) = sx(idel-1:idel+2,jdel-1:jdel+2)
-
-abcd_test = all( rx(0:1,-1)>=cxx ) .and. all( rx(-1,0:1)>=cxx ) .and. &
-            all( rx(0:1, 2)>=cxx ) .and. all( rx( 2,0:1)>=cxx )
-blin_test = all( rx(0:1,0:1)>=cxx )
-bcub_test = abcd_test .and. blin_test
-bnnb_test = any( rx(0:1,0:1)>=cxx )
-
-if ( bcub_test ) then
-  cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-  cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-  cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-  cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-  dmul_2 = (1.-xxg)
-  dmul_3 = xxg
-  emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-  emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-  emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-  emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-  rmul_1 = rx( 0,-1)*dmul_2 + rx( 1,-1)*dmul_3
-  rmul_2 = rx(-1, 0)*cmul_1 + rx( 0, 0)*cmul_2 + &
-           rx( 1, 0)*cmul_3 + rx( 2, 0)*cmul_4
-  rmul_3 = rx(-1, 1)*cmul_1 + rx( 0, 1)*cmul_2 + &
-           rx( 1, 1)*cmul_3 + rx( 2, 1)*cmul_4
-  rmul_4 = rx( 0, 2)*dmul_2 + rx( 1, 2)*dmul_3
-  sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-else if ( blin_test ) then
-  cmul_1 = rx(0,0) + xxg*(rx(1,0)-rx(0,0))
-  cmul_2 = rx(0,1) + xxg*(rx(1,1)-rx(0,1))
-  sx_ans = cmul_1 + yyg*(cmul_2-cmul_1)
-else if ( bnnb_test ) then
-  nx(0:1,0:1) = rx(0:1,0:1)
-  do i = 1,2
-    if ( nx(0,0)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(1,0)>=cxx ) then
-        nsum = nsum + rx(1,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(0,1)>=cxx ) then
-        nsum = nsum + rx(0,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(0,0) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(1,0)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,0)>=cxx ) then
-        nsum = nsum + rx(0,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,1)>=cxx ) then
-        nsum = nsum + rx(1,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(1,0) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(0,1)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,0)>=cxx ) then
-        nsum = nsum + rx(0,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,1)>=cxx ) then
-        nsum = nsum + rx(1,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(0,1) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(1,1)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,1)>=cxx ) then
-        nsum = nsum + rx(0,1)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,0)>=cxx ) then
-        nsum = nsum + rx(1,0)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(1,1) = nsum/real(ncount)
-      end if
-    end if
-    rx(0:1,0:1) = nx(0:1,0:1)
-  end do
-  cmul_1 = rx(0,0) + xxg*(rx(1,0)-rx(0,0))
-  cmul_2 = rx(0,1) + xxg*(rx(1,1)-rx(0,1))
-  sx_ans = cmul_1 + yyg*(cmul_2-cmul_1)
-else
-  sx_ans = cxx - 1.
-end if
+sx_ans = intintp1(sx,wx,idel,jdel,xxg,yyg)
 if ( sx_ans>=cxx ) then
-  cmin = min(rx(0,0),rx(1,0),rx(0,1),rx(1,1))
-  cmax = max(rx(0,0),rx(1,0),rx(0,1),rx(1,1))
+  cmin = min(sx(idel,jdel),sx(idel+1,jdel),sx(idel,jdel+1),sx(idel+1,jdel+1))
+  cmax = max(sx(idel,jdel),sx(idel+1,jdel),sx(idel,jdel+1),sx(idel+1,jdel+1))
   sx_ans = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth
 end if
 
 return
 end function intintp1bs
 
-pure function intintp0(sx,idel,jdel,xxg,yyg) result(sx_ans)
+pure function intintp0(sx,wx,idel,jdel,xxg,yyg) result(sx_ans)
 !$acc routine seq
 
 use cc_mpi, only : ipan, jpan
@@ -1046,26 +1039,22 @@ use cc_mpi, only : ipan, jpan
 implicit none
 
 integer, intent(in) :: idel, jdel
-integer :: ncount, i
 real, intent(in) :: xxg, yyg
 real :: sx_ans
 real :: cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
 real :: rmul_1, rmul_2, rmul_3, rmul_4
-real :: cmax, cmin, nsum
+real :: cmax, cmin
 real, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: sx
-real, dimension(-1:2,-1:2) :: rx
-real, dimension(0:1,0:1) :: nx
-logical :: abcd_test, blin_test, bcub_test, bnnb_test
+logical, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: wx
+logical :: bcub_water, blin_test
 
-rx(-1:2,-1:2) = sx(idel-1:idel+2,jdel-1:jdel+2)
+bcub_water = all( wx(idel:idel+1,jdel-1) ) .and.        &
+             all( wx(idel-1:idel+2,jdel:jdel+1) ) .and. &
+             all( wx(idel:idel+1,jdel+2) )
 
-abcd_test = all( rx(0:1,-1)>=cxx ) .and. all( rx(-1,0:1)>=cxx ) .and. &
-            all( rx(0:1, 2)>=cxx ) .and. all( rx( 2,0:1)>=cxx )
-blin_test = all( rx(0:1,0:1)>=cxx )
-bcub_test = abcd_test .and. blin_test
-bnnb_test = any( rx(0:1,0:1)>=cxx )
+blin_test = all( sx(idel:idel+1,jdel:jdel+1)>=cxx )
 
-if ( bcub_test ) then
+if ( bcub_water ) then
   cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
   cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
   cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
@@ -1076,85 +1065,16 @@ if ( bcub_test ) then
   emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
   emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
   emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-  rmul_1 = rx(-1, 0)*dmul_2 + rx(-1,1)*dmul_3
-  rmul_2 = rx( 0,-1)*cmul_1 + rx( 0, 0)*cmul_2 + &
-           rx( 0, 1)*cmul_3 + rx( 0, 2)*cmul_4
-  rmul_3 = rx( 1,-1)*cmul_1 + rx( 1, 0)*cmul_2 + &
-           rx( 1, 1)*cmul_3 + rx( 1, 2)*cmul_4
-  rmul_4 = rx( 2, 0)*dmul_2 + rx( 2, 1)*dmul_3
+  rmul_1 = sx(idel-1,jdel  )*dmul_2 + sx(idel-1,jdel+1)*dmul_3
+  rmul_2 = sx(idel  ,jdel-1)*cmul_1 + sx(idel  ,jdel  )*cmul_2 + &
+           sx(idel  ,jdel+1)*cmul_3 + sx(idel  ,jdel+2)*cmul_4
+  rmul_3 = sx(idel+1,jdel-1)*cmul_1 + sx(idel+1,jdel  )*cmul_2 + &
+           sx(idel+1,jdel+1)*cmul_3 + sx(idel+1,jdel+2)*cmul_4
+  rmul_4 = sx(idel+2,jdel  )*dmul_2 + sx(idel+2,jdel+1)*dmul_3
   sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
 else if ( blin_test ) then
-  cmul_1 = rx(0,0) + xxg*(rx(1,0)-rx(0,0))
-  cmul_2 = rx(0,1) + xxg*(rx(1,1)-rx(0,1))
-  sx_ans = cmul_1 + yyg*(cmul_2-cmul_1)
-else if ( bnnb_test ) then
-  nx(0:1,0:1) = rx(0:1,0:1)
-  do i = 1,2
-    if ( nx(0,0)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(1,0)>=cxx ) then
-        nsum = nsum + rx(1,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(0,1)>=cxx ) then
-        nsum = nsum + rx(0,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(0,0) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(1,0)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,0)>=cxx ) then
-        nsum = nsum + rx(0,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,1)>=cxx ) then
-        nsum = nsum + rx(1,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(1,0) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(0,1)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,0)>=cxx ) then
-        nsum = nsum + rx(0,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,1)>=cxx ) then
-        nsum = nsum + rx(1,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(0,1) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(1,1)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,1)>=cxx ) then
-        nsum = nsum + rx(0,1)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,0)>=cxx ) then
-        nsum = nsum + rx(1,0)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(1,1) = nsum/real(ncount)
-      end if
-    end if
-    rx(0:1,0:1) = nx(0:1,0:1)
-  end do
-  cmul_1 = rx(0,0) + xxg*(rx(1,0)-rx(0,0))
-  cmul_2 = rx(0,1) + xxg*(rx(1,1)-rx(0,1))
-  sx_ans = cmul_1 + yyg*(cmul_2-cmul_1)
+  sx_ans = (1.-xxg)*(1.-yyg)*sx(idel,jdel) + xxg*(1.-yyg)*sx(idel+1,jdel) &
+         + (1.-xxg)*yyg*sx(idel,jdel+1) + xxg*yyg*sx(idel+1,jdel+1)
 else
   sx_ans = cxx - 1.
 end if
@@ -1162,7 +1082,7 @@ end if
 return
 end function intintp0
 
-pure function intintp0bs(sx,idel,jdel,xxg,yyg) result(sx_ans)
+pure function intintp0bs(sx,wx,idel,jdel,xxg,yyg) result(sx_ans)
 !$acc routine seq
 
 use cc_mpi, only : ipan, jpan
@@ -1170,121 +1090,16 @@ use cc_mpi, only : ipan, jpan
 implicit none
 
 integer, intent(in) :: idel, jdel
-integer :: ncount, i
 real, intent(in) :: xxg, yyg
 real :: sx_ans
-real :: cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
-real :: rmul_1, rmul_2, rmul_3, rmul_4
-real :: cmax, cmin, nsum
+real :: cmin, cmax
 real, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: sx
-real, dimension(-1:2,-1:2) :: rx
-real, dimension(0:1,0:1) :: nx
-logical :: abcd_test, blin_test, bcub_test, bnnb_test
+logical, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: wx
 
-rx(-1:2,-1:2) = sx(idel-1:idel+2,jdel-1:jdel+2)
-
-abcd_test = all( rx(0:1,-1)>=cxx ) .and. all( rx(-1,0:1)>=cxx ) .and. &
-            all( rx(0:1, 2)>=cxx ) .and. all( rx( 2,0:1)>=cxx )
-blin_test = all( rx(0:1,0:1)>=cxx )
-bcub_test = abcd_test .and. blin_test
-bnnb_test = any( rx(0:1,0:1)>=cxx )
-
-if ( bcub_test ) then
-  cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-  cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-  cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-  cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-  dmul_2 = (1.-yyg)
-  dmul_3 = yyg
-  emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-  emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-  emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-  emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-  rmul_1 = rx(-1, 0)*dmul_2 + rx(-1,1)*dmul_3
-  rmul_2 = rx( 0,-1)*cmul_1 + rx( 0, 0)*cmul_2 + &
-           rx( 0, 1)*cmul_3 + rx( 0, 2)*cmul_4
-  rmul_3 = rx( 1,-1)*cmul_1 + rx( 1, 0)*cmul_2 + &
-           rx( 1, 1)*cmul_3 + rx( 1, 2)*cmul_4
-  rmul_4 = rx( 2, 0)*dmul_2 + rx( 2, 1)*dmul_3
-  sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
-else if ( blin_test ) then
-  cmul_1 = rx(0,0) + xxg*(rx(1,0)-rx(0,0))
-  cmul_2 = rx(0,1) + xxg*(rx(1,1)-rx(0,1))
-  sx_ans = cmul_1 + yyg*(cmul_2-cmul_1)
-else if ( bnnb_test ) then
-  nx(0:1,0:1) = rx(0:1,0:1)
-  do i = 1,2
-    if ( nx(0,0)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(1,0)>=cxx ) then
-        nsum = nsum + rx(1,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(0,1)>=cxx ) then
-        nsum = nsum + rx(0,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(0,0) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(1,0)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,0)>=cxx ) then
-        nsum = nsum + rx(0,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,1)>=cxx ) then
-        nsum = nsum + rx(1,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(1,0) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(0,1)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,0)>=cxx ) then
-        nsum = nsum + rx(0,0)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,1)>=cxx ) then
-        nsum = nsum + rx(1,1)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(0,1) = nsum/real(ncount)
-      end if
-    end if
-    if ( nx(1,1)<cxx ) then
-      nsum = 0.
-      ncount = 0
-      if ( rx(0,1)>=cxx ) then
-        nsum = nsum + rx(0,1)
-        ncount = ncount + 1
-      end if
-      if ( rx(1,0)>=cxx ) then
-        nsum = nsum + rx(1,0)
-        ncount = ncount + 1
-      end if
-      if ( ncount>0 ) then
-        nx(1,1) = nsum/real(ncount)
-      end if
-    end if
-    rx(0:1,0:1) = nx(0:1,0:1)
-  end do
-  cmul_1 = rx(0,0) + xxg*(rx(1,0)-rx(0,0))
-  cmul_2 = rx(0,1) + xxg*(rx(1,1)-rx(0,1))
-  sx_ans = cmul_1 + yyg*(cmul_2-cmul_1)
-else
-  sx_ans = cxx - 1.
-end if
+sx_ans = intintp0(sx,wx,idel,jdel,xxg,yyg)
 if ( sx_ans>=cxx ) then
-  cmin = min(rx(0,0),rx(1,0),rx(0,1),rx(1,1))
-  cmax = max(rx(0,0),rx(1,0),rx(0,1),rx(1,1))
+  cmin = min(sx(idel,jdel),sx(idel+1,jdel),sx(idel,jdel+1),sx(idel+1,jdel+1))
+  cmax = max(sx(idel,jdel),sx(idel+1,jdel),sx(idel,jdel+1),sx(idel+1,jdel+1))
   sx_ans = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth
 end if
 

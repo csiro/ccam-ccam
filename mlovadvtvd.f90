@@ -33,7 +33,7 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine performs vertical advection based on JLMs TVD scheme
 
-subroutine mlovadv(dtin,ww,uu,vv,px,py,ss,tt,mm,depdum,idzdum,ee,cnum)
+subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,idzdum,ee,cnum)
 
 use cc_mpi
 use mlo
@@ -48,7 +48,7 @@ real, intent(in) :: dtin
 real, dimension(ifull) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,idzdum
-real, dimension(:,:), intent(inout) :: uu,vv,ss,tt,mm,px,py
+real, dimension(:,:), intent(inout) :: uu,vv,ss,tt,mm
 real, dimension(:,:), intent(in) :: ee
 real, dimension(ifull,wlev) :: dzdum
 
@@ -101,14 +101,6 @@ call mlotvd(its,dtnew,ww,tt,depdum,dzdum,ee)
 !$omp section
 #endif
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum,ee)
-#ifndef GPU
-!$omp section
-#endif
-call mlotvd(its,dtnew,ww,px,depdum,dzdum,ee)
-#ifndef GPU
-!$omp section
-#endif
-call mlotvd(its,dtnew,ww,py,depdum,dzdum,ee)
 
 #ifdef GPU
 !$acc wait
