@@ -704,7 +704,7 @@ select case(mlo_step)
     ! partial step version
     if ( depin>1.e-4 ) then      
       do ii = 1,wlin
-        depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
+        depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(2)+0.1) )
         if ( depthout(ii)>depin .and. ii>1 ) then
           ! avoids thin layers by extending the previous layer  
           depth_hlout(ii) = depth_hlout(ii+1)
