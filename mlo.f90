@@ -101,6 +101,7 @@ type depthdata
   real, dimension(:,:), allocatable :: depth, depth_hl  ! Column depth (m)
   real, dimension(:,:), allocatable :: dz, dz_hl        ! Column thickness (m)
   real, dimension(:), allocatable :: f                  ! Coriolis
+  integer, dimension(:), allocatable :: ibot            ! index of bottom layer  
   logical :: data_allocated
 end type depthdata
 
@@ -115,7 +116,6 @@ type waterdata
   real, dimension(:), allocatable :: vbot           ! water v-current at bottom from previous time-step (m/s)  
   real, dimension(:), allocatable :: utop           ! water u-current at top from previous time-step (m/s)
   real, dimension(:), allocatable :: vtop           ! water v-current at top from previous time-step (m/s)  
-  integer, dimension(:), allocatable :: ibot        ! index of bottom layer
   real, dimension(:,:), allocatable :: u_ema        ! exponential average of u
   real, dimension(:,:), allocatable :: v_ema        ! exponential average of v
   real, dimension(:,:), allocatable :: w_ema        ! exponential average of w 
@@ -218,7 +218,7 @@ integer, save :: oclosure     = 0         ! 0=kpp, 1=k-eps
 integer, save :: usepice      = 0         ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save :: mlo_adjeta   = 1         ! allow adjustment to surface outside dynamics (0=off, 1=all)
 integer, save :: mlo_limitsal = 0         ! limit salinity to maxsal when loading data ( 0=off, 1=limit )
-integer, save :: mlo_step     = 0         ! ocean floor (0=full-step, 1=partial-step)
+integer, save :: mlo_step     = 0         ! ocean floor (0=full-step, 1=pseduo partial-step, 2=partial-step)
 integer, save :: mlo_uvcoupl  = 1         ! wind coupling (0=off, 1=on)
 real, save :: pdu    = 2.7                ! zoom factor near the surface for mlosigma==gotm
 real, save :: pdl    = 0.0                ! zoom factor near the bottom for mlosigma==gotm
@@ -417,7 +417,6 @@ do tile = 1,ntiles
     allocate(water_g(tile)%eta(imax))
     allocate(water_g(tile)%ubot(imax),water_g(tile)%vbot(imax))
     allocate(water_g(tile)%utop(imax),water_g(tile)%vtop(imax))
-    allocate(water_g(tile)%ibot(imax))
     allocate(water_g(tile)%u_ema(imax,wlev),water_g(tile)%v_ema(imax,wlev))
     allocate(water_g(tile)%w_ema(imax,wlev))
     allocate(water_g(tile)%temp_ema(imax,wlev),water_g(tile)%sal_ema(imax,wlev))
@@ -456,7 +455,7 @@ do tile = 1,ntiles
     allocate(dgscrn_g(tile)%u10(imax))
     allocate(depth_g(tile)%depth(imax,wlev),depth_g(tile)%dz(imax,wlev))
     allocate(depth_g(tile)%depth_hl(imax,wlev+1),depth_g(tile)%dz_hl(imax,2:wlev))
-    allocate(depth_g(tile)%f(imax))
+    allocate(depth_g(tile)%f(imax),depth_g(tile)%ibot(imax))
     allocate(turb_g(tile)%k(imax,wlev),turb_g(tile)%eps(imax,wlev))
 
     water_g(tile)%temp=288.-wrtemp    ! K
@@ -469,7 +468,6 @@ do tile = 1,ntiles
     water_g(tile)%vbot=0.             ! m/s
     water_g(tile)%utop=0.             ! m/s
     water_g(tile)%vtop=0.             ! m/s
-    water_g(tile)%ibot=wlev
     water_g(tile)%u_ema=0.            ! m/s
     water_g(tile)%v_ema=0.            ! m/s
     water_g(tile)%w_ema=0.            ! m/s
@@ -538,10 +536,13 @@ do tile = 1,ntiles
     dgice_g(tile)%tauxicw=0.
     dgice_g(tile)%tauyicw=0.
     dgice_g(tile)%imass=0.
+    
     dgscrn_g(tile)%temp=273.2
     dgscrn_g(tile)%qg=0.
     dgscrn_g(tile)%u2=0.
     dgscrn_g(tile)%u10=0.
+    
+    depth_g(tile)%ibot=wlev
 
     ! MLO - 30 level ( mlosigma=6 )
     !depth = (/   4.5,  14.2,  25.9,  39.8,  56.5,  76.3, 100.0, 128.1, 161.7, 201.5, &
@@ -587,7 +588,7 @@ do tile = 1,ntiles
       lbottom(1:imax) = depth_g(tile)%depth_hl(:,ii+1)>=depth_g(tile)%depth_hl(:,wlev+1) .and.  &
                         depth_g(tile)%depth_hl(:,wlev+1)<mxd .and. depth_g(tile)%dz(:,ii)>1.e-4  
       where ( lbottom(1:imax) )
-        water_g(tile)%ibot(:) = ii
+        depth_g(tile)%ibot(:) = ii
       end where
     end do
 
@@ -701,7 +702,7 @@ select case(mlo_step)
     end do
   
   case(1)  
-    ! partial step version
+    ! pseduo partial step version (cell point at full step)
     if ( depin>1.e-4 ) then      
       do ii = 1,wlin
         depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
@@ -713,6 +714,25 @@ select case(mlo_step)
     else
       depth_hlout(:) = 0.
     end if    
+
+  case(2)
+    ! partial step version (cell point at midpoint)
+    if ( depin>1.e-4 ) then      
+      do ii = 1,wlin
+        depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
+        ! avoid thin layers by extending the previous layer
+        if ( depth_hlout(ii+1)-depth_hlout(ii)<mindep .and. &
+             depth_hlout(ii+1)-depth_hlout(ii)>1.e-4  .and. &
+             ii>1 ) then
+          depth_hlout(ii) = depth_hlout(ii+1)
+        end if
+      end do
+    else
+      depth_hlout(:) = 0.
+    end if
+    do ii = 1,wlev
+      depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
+    end do
 
   case default
     write(6,*) "ERROR: Unknown option mlo_step = ",mlo_step
@@ -770,7 +790,6 @@ if ( mlo_active ) then
       deallocate(water_g(tile)%eta)
       deallocate(water_g(tile)%ubot,water_g(tile)%vbot)
       deallocate(water_g(tile)%utop,water_g(tile)%vtop)
-      deallocate(water_g(tile)%ibot)
       deallocate(water_g(tile)%u_ema,water_g(tile)%v_ema)
       deallocate(water_g(tile)%w_ema)
       deallocate(water_g(tile)%temp_ema,water_g(tile)%sal_ema)
@@ -809,7 +828,7 @@ if ( mlo_active ) then
       deallocate(dgice_g(tile)%cd_bot)
       deallocate(dgscrn_g(tile)%temp,dgscrn_g(tile)%u2,dgscrn_g(tile)%qg,dgscrn_g(tile)%u10)
       deallocate(depth_g(tile)%depth,depth_g(tile)%dz,depth_g(tile)%depth_hl,depth_g(tile)%dz_hl)
-      deallocate(depth_g(tile)%f)
+      deallocate(depth_g(tile)%f,depth_g(tile)%ibot)
       deallocate(turb_g(tile)%k,turb_g(tile)%eps)
       
       depth_g(tile)%data_allocated = .false.
@@ -886,11 +905,12 @@ do tile = 1,ntiles
       ice_g(tile)%v(:)       =icein(is:ie,10)
     end where
     
-    if ( any( water_g(tile)%sal<-1.e-4 .or. water_g(tile)%sal>100. ) ) then
-      write(6,*) "WARN: Salinity is out-of-range in MLO-load"
-      write(6,*) "minval,maxval ",minval(water_g(tile)%sal),maxval(water_g(tile)%sal)
-      water_g(tile)%sal = min( max( water_g(tile)%sal, 0. ), maxsal )
-    end if
+    ! fix for old restart files
+    !if ( any( water_g(tile)%sal<-1.e-4 .or. water_g(tile)%sal>100. ) ) then
+    !  write(6,*) "WARN: Salinity is out-of-range in MLO-load"
+    !  write(6,*) "minval,maxval ",minval(water_g(tile)%sal),maxval(water_g(tile)%sal)
+    !  water_g(tile)%sal = min( max( water_g(tile)%sal, 0. ), maxsal )
+    !end if
 
     call mlocheck("MLO-load",water_temp=water_g(tile)%temp,water_sal=water_g(tile)%sal, &
                   water_u=water_g(tile)%u,water_v=water_g(tile)%v,                      &
@@ -1347,7 +1367,7 @@ select case(mode)
     end where  
   case("ibot")
     where ( depth%dz(:,1)>=1.e-4 )      
-      sst=real(water%ibot)
+      sst=real(depth%ibot)
     end where  
   case("u_ema")
     where ( depth%dz(:,1)>=1.e-4 )
@@ -2082,11 +2102,11 @@ implicit none
 
 integer, intent(in) :: wlin,mode
 integer tile, is, ie
-real, dimension(wlin), intent(in) :: sigin
+real, dimension(:,:), intent(in) :: sigin
 real, dimension(:), intent(in) :: depin
 real, dimension(:,:), intent(in) :: mloin
 real, dimension(:,:), intent(inout) :: mlodat
-real, dimension(imax,wlin) :: mloin_tmp
+real, dimension(imax,wlin) :: mloin_tmp, sigin_tmp
 real, dimension(imax,wlev) :: mlodat_tmp
 
 if ( .not.mlo_active ) return
@@ -2094,9 +2114,10 @@ if ( .not.mlo_active ) return
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
+  sigin_tmp(1:imax,1:wlin) = sigin(is:ie,1:wlin)
   mloin_tmp(1:imax,1:wlin) = mloin(is:ie,1:wlin)
   mlodat_tmp(1:imax,1:wlev) = mlodat(is:ie,1:wlev)
-  call mloregrid_work(wlin,sigin,depin(is:ie),mloin_tmp,mlodat_tmp,mode, &
+  call mloregrid_work(wlin,sigin_tmp,depin(is:ie),mloin_tmp,mlodat_tmp,mode, &
                       depth_g(tile))
   mlodat(is:ie,1:wlev) = mlodat_tmp(1:imax,1:wlev)
 end do
@@ -2111,7 +2132,7 @@ implicit none
 
 integer, intent(in) :: wlin,mode
 integer iqw,ii,jj,jj_found,pos(1)
-real, dimension(wlin), intent(in) :: sig_tmp
+real, dimension(imax,wlin), intent(in) :: sig_tmp
 real, dimension(imax), intent(in) :: depin
 real, dimension(imax,wlin), intent(in) :: mloin
 real, dimension(imax,wlev), intent(inout) :: mlodat
@@ -2124,21 +2145,23 @@ type(depthdata), intent(in) :: depth
 if ( .not.mlo_active ) return
 if ( .not.depth%data_allocated ) return
 
-if ( sig_tmp(1)>sig_tmp(wlin) ) then
-  write(6,*) "ERROR: Input sigma levels for MLO are in reverse order"
-  stop
-end if
+do iqw = 1,imax
+  if ( sig_tmp(iqw,1)>sig_tmp(iqw,wlin) ) then
+    write(6,*) "ERROR: Input levels for MLO are in reverse order"
+    stop
+  end if
+end do  
 
 if ( any(sig_tmp>1.) ) then
   ! found z* levels
   do ii = 1,wlin
-    sigin(:,ii) = sig_tmp(ii)/max(depin(:),1.e-8)
+    do iqw = 1,imax  
+      sigin(iqw,ii) = sig_tmp(iqw,ii)/max(depin(iqw),1.e-8)
+    end do  
   end do  
 else
-  ! found sigma levels  
-  do ii = 1,wlin
-    sigin(:,ii) = sig_tmp(ii)
-  end do
+  write(6,*) "ERROR: Simga levels for MLO are no longer supported"
+  stop
 end if
 
 select case(mode)
@@ -2275,6 +2298,7 @@ subroutine mlo_export_depth_imax(mode,odep,ilev,diag,depth)
 implicit none
 
 integer, intent(in) :: ilev,diag
+integer iqw, ii
 real, dimension(imax), intent(out) :: odep
 type(depthdata), intent(in) :: depth
 character(len=*), intent(in) :: mode
@@ -2300,7 +2324,14 @@ select case(mode)
   case("depth_fl")
     where ( depth%dz(:,1)>=1.e-4 )  
       odep = depth%depth(:,ilev)
-    end where     
+    end where 
+  case("depth_p")
+    do iqw = 1,imax
+      ii = depth%ibot(iqw)
+      if ( depth%dz(iqw,ii)>=1.e-4 ) then
+        odep(iqw) = depth%depth(iqw,ii)
+      end if
+    end do
   case default
     write(6,*) "ERROR: Unknown option for mlo_export_depth with mode = ",trim(mode)
     stop
@@ -2816,7 +2847,7 @@ end where
 bb(:,wlev) = 1. - aa(:,wlev)
 ! bottom drag
 do iqw = 1,imax
-  ii = water%ibot(iqw)  
+  ii = depth%ibot(iqw)  
   if ( depth%dz(iqw,ii)>=1.e-4 ) then
     bb(iqw,ii) = bb(iqw,ii) + dt*dgwater%cd_bot(iqw)/(depth%dz(iqw,ii)*d_zcr(iqw))
   end if
@@ -2974,7 +3005,7 @@ end select
 do iqw = 1,imax
   water%utop(iqw) = water%u(iqw,1)  
   water%vtop(iqw) = water%v(iqw,1)
-  ii = water%ibot(iqw)
+  ii =depth%ibot(iqw)
   water%ubot(iqw) = water%u(iqw,ii)
   water%vbot(iqw) = water%v(iqw,ii)
 end do  
@@ -3073,7 +3104,7 @@ end do
 k(:,1) = (d_ustar(:)/cu0)**2
 eps(:,1) = min((cu0)**3*k(:,1)**1.5,1.e9)/(vkar*(0.5*max(depth%dz(:,1),1.e-4)+dgwater%zo(:)))
 do iqw = 1,imax
-  ii = water%ibot(iqw)
+  ii = depth%ibot(iqw)
   uoave = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
   voave = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
   umag = sqrt(max(uoave**2+voave**2,1.e-4))
@@ -3171,33 +3202,33 @@ do step = 1,nsteps
   cc = 0.
   dd = eps
   do ii=2,wlev-1
-    where ( depth%dz(:,ii)*depth%dz(:,ii-1  )>1.e-4 .and. water%ibot(:)>ii )  
+    where ( depth%dz(:,ii)*depth%dz(:,ii-1  )>1.e-4 .and. depth%ibot(:)>ii )  
       aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  )*sigmaeps)
     end where
-    where ( depth%dz(:,ii)*depth%dz(:,ii+1)>1.e-4 .and. water%ibot(:)>ii )
+    where ( depth%dz(:,ii)*depth%dz(:,ii+1)>1.e-4 .and. depth%ibot(:)>ii )
       cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1)*sigmaeps)
     end where  
     bb(:,ii) = 1. - aa(:,ii) - cc(:,ii)
   end do
   if ( eps_mode==0 ) then !explicit eps
     do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 .and. water%ibot(:)>ii )  
+      where ( depth%dz(:,ii)>1.e-4 .and. depth%ibot(:)>ii )  
         dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii) - ce2*eps(:,ii))
       end where
     end do  
   else if ( eps_mode==1 ) then !quasi implicit for eps, Patanker (1980)
     do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 .and. water%ibot(:)>ii )  
+      where ( depth%dz(:,ii)>1.e-4 .and. depth%ibot(:)>ii )  
         bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
         dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
       end where
     end do  
   else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
     do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 .and. (ce1*ps(:,ii)+ce3(:,ii)*pb(:,ii))>0. .and. water%ibot(:)>ii )
+      where ( depth%dz(:,ii)>1.e-4 .and. (ce1*ps(:,ii)+ce3(:,ii)*pb(:,ii))>0. .and. depth%ibot(:)>ii )
         bb(:,ii) = bb(:,ii) + dtt*ce2*eps(:,ii)/k(:,ii)
         dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii) + ce3(:,ii)*pb(:,ii))
-      elsewhere ( depth%dz(:,ii)>1.e-4 .and. water%ibot(:)>ii )
+      elsewhere ( depth%dz(:,ii)>1.e-4 .and. depth%ibot(:)>ii )
         bb(:,ii) = bb(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce2 - ce3(:,ii)*pb(:,ii)/eps(:,ii))
         dd(:,ii) = dd(:,ii) + dtt*eps(:,ii)/k(:,ii)*(ce1*ps(:,ii))
       end where
@@ -3216,33 +3247,33 @@ do step = 1,nsteps
   cc = 0.
   dd = k
   do ii = 2,wlev-1
-    where ( depth%dz(:,ii)*depth%dz(:,ii-1  )>1.e-4 .and. water%ibot(:)>ii )  
+    where ( depth%dz(:,ii)*depth%dz(:,ii-1  )>1.e-4 .and. depth%ibot(:)>ii )  
       aa(:,ii) = -dtt*km_hl(:,ii  )/(depth%dz(:,ii)*depth%dz_hl(:,ii  ))
     end where
-    where ( depth%dz(:,ii)*depth%dz(:,ii+1)>1.e-4 .and. water%ibot(:)>ii )
+    where ( depth%dz(:,ii)*depth%dz(:,ii+1)>1.e-4 .and. depth%ibot(:)>ii )
       cc(:,ii) = -dtt*km_hl(:,ii+1)/(depth%dz(:,ii)*depth%dz_hl(:,ii+1))
     end where
     bb(:,ii) = 1. - aa(:,ii) - cc(:,ii)
   end do
   if ( k_mode==0 ) then !explicit eps
     do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 .and. water%ibot(:)>ii )  
+      where ( depth%dz(:,ii)>1.e-4 .and. depth%ibot(:)>ii )  
         dd(:,ii) = dd(:,ii) + dtt*(ps(:,ii) + pb(:,ii) - eps(:,ii))
       end where
     end do    
   else if ( k_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
     do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 .and. water%ibot(:)>ii )  
+      where ( depth%dz(:,ii)>1.e-4 .and. depth%ibot(:)>ii )  
         bb(:,ii) = bb(:,ii) + dtt*eps(:,ii)/k(:,ii)
         dd(:,ii) = dd(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
       end where    
     end do    
   else if ( k_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
     do ii = 2,wlev-1
-      where ( depth%dz(:,ii)>1.e-4 .and. (ps(:,ii)+pb(:,ii))>0. .and. water%ibot(:)>ii )  
+      where ( depth%dz(:,ii)>1.e-4 .and. (ps(:,ii)+pb(:,ii))>0. .and. depth%ibot(:)>ii )  
         bb(:,ii) = bb(:,ii) + dtt*eps(:,ii)/k(:,ii)
         dd(:,ii) = dd(:,ii) + dtt*(ps(:,ii) + pb(:,ii))
-      elsewhere ( depth%dz(:,ii)>1.e-4 .and. water%ibot(:)>ii )
+      elsewhere ( depth%dz(:,ii)>1.e-4 .and. depth%ibot(:)>ii )
         bb(:,ii) = bb(:,ii) + dtt/k(:,ii)*(eps(:,ii) - pb(:,ii))
         dd(:,ii) = dd(:,ii) + dtt*ps(:,ii)
       end where     
@@ -3614,7 +3645,7 @@ real, parameter :: cm=8.38
 real, parameter :: as=-28.86
 real, parameter :: cs=98.96
 
-sig=dep/mixdp                  ! stable
+sig=dep/max(mixdp,1.e-8)       ! stable
 where (bf<=0..and.sig>epsilon) ! unstable
   sig=epsilon
 end where
@@ -4087,7 +4118,7 @@ do iqw = 1,imax
   dgwater%umod(iqw)=vmagn(iqw)
 
   ! bottom
-  ii = water%ibot(iqw)  
+  ii = depth%ibot(iqw)  
   uoave = fluxwgt*water%u(iqw,ii) + (1.-fluxwgt)*water%ubot(iqw)
   voave = fluxwgt*water%v(iqw,ii) + (1.-fluxwgt)*water%vbot(iqw)
   umag = sqrt(max(uoave**2+voave**2,1.e-4))

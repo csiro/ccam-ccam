@@ -3069,8 +3069,8 @@ if ( myid==0 ) then
   write(6,'(i5,2i6,4f8.2,f8.3,f9.5)') ntaft,ntsea,ntsur,av_vmod,tss_sh,vmodmin,zobgin,charnock,chn10
   write(6,*)' ccycle proglai soil_struc cable_pop progvcmax fwsoil_switch cable_litter'
   write(6,'(7i7)') ccycle,proglai,soil_struc,cable_pop,progvcmax,fwsoil_switch,cable_litter
-  write(6,*)' gs_switch cable_climate smrf_switch strf_switch'
-  write(6,'(4i7)') gs_switch,cable_climate,smrf_switch,strf_switch
+  write(6,*)' gs_switch smrf_switch strf_switch'
+  write(6,'(3i7)') gs_switch,smrf_switch,strf_switch
   write(6,*)' nurban siburbanfrac'
   write(6,'(i7,f8.4)') nurban,siburbanfrac
   write(6,*)'Ocean/lake options:'

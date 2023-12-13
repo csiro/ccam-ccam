@@ -99,8 +99,8 @@ dd(:) = 0.
 dep(:,:) = 0.
 dz(:,:) = 0.
 do ii = 1,wlev
-  call mloexpdep(0,dep(:,ii),ii,0)
-  call mloexpdep(1,dz(:,ii),ii,0)
+  call mloexpdep("depth_fl",dep(:,ii),ii,0)
+  call mloexpdep("depth_dz_fl",dz(:,ii),ii,0)
 end do
 dephl(:,0) = 0.
 dephl(:,1) = dz(:,1)
@@ -975,10 +975,21 @@ do mspec_mlo = mspeca_mlo,1,-1
     
     ! rhobar = wrtrho + rhobar_dash  
       
-    ! dPdz = grav*rho
-    ! dPdz* = grav*rho*(eta+D)/D
+    ! dPdz = grav*rhobar
+    ! dPdz* = grav*rhobar*(1+eta/D)
     ! P = grav*rhobar*(eta+D)*(z*)/D = grav*rhobar*(z+eta) = grav*rhobar*sig*(eta+D)
     ! dPdx = grav*sig*(eta+D)*d(rhobar)dx + grav*rhobar*d(eta)dx
+      
+    ! dGdz = grav
+    ! dGdz* = grav*(D+eta)/D
+    ! G = grav*z
+    ! dGdz* * dz*dx = grav*( dDdx*sig*eta/D + d(eta)dx*(1-sig) )
+    
+    ! dz*dx = dDdx*sig*eta/(D+eta) + detadx*D/(D+eta)
+      
+    ! -(1/wrtrho)*dPdx + dGdx
+    ! = -grav*sig*(eta+D)*d(rhobar)dx/wrtrho - grav*d(eta)dx
+    !   -grav*rhobar_dash*( dDdx*sig*eta/D + d(eta)dx*(1-sig) )
       
     ! (mlojacobi=6 neglects rhobar_dash/rho and mlojacobi=7 includes rhobar_dash/rho terms)
     
@@ -1029,6 +1040,31 @@ do mspec_mlo = mspeca_mlo,1,-1
     oov(:,ii) = grav*gosigv*(bv*drhobardyv(:,ii)/wrtrho                            &
                            + cv*drhobardxv(:,ii)/wrtrho)/((1.+ocneps)*0.5)
     mmv(:,ii) = grav*bv
+
+    ! partial step correction
+    ! -(1/wrtho)dPdz* + dGdz* = grav*rhobar_dash*(1+eta/D)
+    do iq = 1,ifull
+      tnu(iq) = 0.5*( gosig(in(iq),ii)*dd(in(iq)) + gosig(ine(iq),ii)*dd(ine(iq)) )
+      tsu(iq) = 0.5*( gosig(is(iq),ii)*dd(is(iq)) + gosig(ise(iq),ii)*dd(ise(iq)) )
+      tev(iq) = 0.5*( gosig(ie(iq),ii)*dd(ie(iq)) + gosig(ien(iq),ii)*dd(ien(iq)) )
+      twv(iq) = 0.5*( gosig(iw(iq),ii)*dd(iw(iq)) + gosig(iwn(iq),ii)*dd(iwn(iq)) )
+    end do
+    kku(:,ii) = kku(:,ii) + bu(:)*grav*(dd(ie)*gosig(ie,ii)-dd(1:ifull)*gosig(1:ifull,ii))*emu(1:ifull)/ds              &
+                            *rhobaru_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)                                                &
+                          + cu(:)*grav*0.5*stwgtu(1:ifull,ii)*( tnu-tsu )*emu(1:ifull)/ds                               &
+                            *rhobaru_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)
+    oou(:,ii) = oou(:,ii) + bu(:)*grav/ddu(1:ifull)*(dd(ie)*gosig(ie,ii)-dd(1:ifull)*gosig(1:ifull,ii))*emu(1:ifull)/ds &
+                            *rhobaru_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)                                                &
+                          + cu(:)*grav/ddu(1:ifull)*0.5*stwgtu(1:ifull,ii)*( tnu-tsu )*emu(1:ifull)/ds                  &
+                            *rhobaru_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)
+    kkv(:,ii) = kkv(:,ii) + bv(:)*grav*(dd(in)*gosig(in,ii)-dd(1:ifull)*gosig(1:ifull,ii))*emv(1:ifull)/ds              &
+                            *rhobarv_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)                                                &
+                          + cv(:)*grav*0.5*stwgtv(1:ifull,ii)*( tev-twv )*emv(1:ifull)/ds                               &
+                            *rhobarv_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)
+    oov(:,ii) = oov(:,ii) + bv(:)*grav/ddv(1:ifull)*(dd(in)*gosig(in,ii)-dd(1:ifull)*gosig(1:ifull,ii))*emv(1:ifull)/ds &
+                            *rhobarv_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)                                                &
+                          + cv(:)*grav/ddv(1:ifull)*0.5*stwgtv(1:ifull,ii)*( tev-twv )*emv(1:ifull)/ds                  &
+                            *rhobarv_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)
     
     kku(:,ii) = kku(:,ii)*eeu(1:ifull,ii)
     oou(:,ii) = oou(:,ii)*eeu(1:ifull,ii)

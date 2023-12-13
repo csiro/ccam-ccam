@@ -1088,7 +1088,7 @@ real, dimension(:), allocatable :: xpnt, ypnt
 real, dimension(:), allocatable :: cabledata
 real, dimension(:), intent(in) :: psl_in
 real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
-real, dimension(ifull) :: aa, ocndep, ocnheight
+real, dimension(ifull) :: aa, ocndep, ocnheight, opldep
 real, dimension(ifull) :: qtot, tv
 real, dimension(ms) :: zsoil
 real, dimension(wlev) :: zocean
@@ -1256,6 +1256,10 @@ if ( myid==0 .or. local ) then
     if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'Water bathymetry'
       call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,8125.,0,cptype)
+    end if
+    if ( abs(nmlo)>0.and.abs(nmlo)<=9 ) then
+      lname = 'Water partial step depth'
+      call attrib(idnc,dimk,ksize,'opldepth',lname,'m',0.,8125.,0,cptype)
     end if
     lname = 'x-component river '
     call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
@@ -2650,7 +2654,9 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   micdwn(:,8:10)  = 0.   ! sto, uic, vic
   ocndep(:)       = 0.   ! ocean depth
   ocnheight(:)    = 0.   ! free surface height
+  opldep(:)       = 0.   ! ocean partial step depth
   call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
+  call mloexpdep("depth_p",opldep,ol,0)
   ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
   ocndwn(:,3:4) = 0. ! oldutop, oldvtop
   ocndwn(:,5:6) = 0. ! oldubot, oldvbot
@@ -2685,6 +2691,9 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   end if
   if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt(ocndep,'ocndepth',idnc,iarch,local,.true.)
+  end if
+  if ( abs(nmlo)>0.and.abs(nmlo)<=9 ) then
+    call histwrt(opldep,'opldepth',idnc,iarch,local,.true.)
   end if
   call rivervector(tmpry(:,1),tmpry(:,2))
   call histwrt(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
