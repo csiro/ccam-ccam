@@ -62,6 +62,7 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 real, dimension(:), allocatable, save :: gosig_1              ! input ocean reference levels
+real, dimension(:), allocatable, save :: gosig_h              ! input ocean reference half levels
 real, dimension(:,:), allocatable, save :: gosig_3            ! input ocean 3d levels
 real, dimension(:,:,:), allocatable, save :: sx               ! working array for interpolation
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! shared arrays used for interpolation
@@ -493,11 +494,11 @@ end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
     deallocate( sigin, gosig_1, land_a, landlake_a, land_3d, landlake_3d, sea_a, nourban_a )
-    deallocate( gosig_3 )
+    deallocate( gosig_3, gosig_h )
   end if
   allocate( sigin(kk), gosig_1(ok), land_a(fwsize), landlake_a(fwsize), land_3d(fwsize,ok) )
   allocate( landlake_3d(fwsize,ok), sea_a(fwsize), nourban_a(fwsize) )
-  allocate( gosig_3(ifull,ok) )
+  allocate( gosig_3(ifull,ok), gosig_h(0:ok) )
   sigin       = 1.
   gosig_1     = 1.
   gosig_3     = 1.
@@ -817,6 +818,12 @@ if ( newfile ) then
         end if  
       end if
     end if
+    ! calculate ocean half levels
+    gosig_h(0) = 0.
+    do k = 1,ok
+      ! 0.5*(gosig_h(k-1)+gosig_h(k)) = gosig_1(k)  
+      gosig_h(k) = 2.*gosig_1(k) - gosig_h(k-1) 
+    end do  
     ! default 3d ocean depths
     do k = 1,ok
       gosig_3(:,k) = gosig_1(k)
@@ -862,8 +869,8 @@ if ( newfile ) then
           if ( opldep_a(iq)>1.e-4 ) then
             ! find ocean floor  
             ktest = 1  
-            do k = 2,ok
-              if ( 0.5*(gosig_1(k-1)+gosig_1(k))<opldep_a(iq) ) then
+            do k = 1,ok
+              if ( gosig_h(k-1)<opldep_a(iq) ) then
                 ktest = k
               else
                 exit
@@ -1042,9 +1049,9 @@ if ( tss_test .and. iop_test ) then
     zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
   end if
   if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    opldep(1:ifull) = 0.  
     if ( mlo_found ) then
       ocndwn(1:ifull,1) = ocndep_a(1:ifull)
+      opldep(1:ifull) = 0.      
     end if
     if ( mlo3_found ) then
       opldep(1:ifull) = opldep_a(1:ifull)
@@ -1178,8 +1185,8 @@ if ( newfile ) then
     if ( opldep(iq)>1.e-4 ) then
       do iq = 1,ifull
         ktest = 1  
-        do k = 2,ok
-          if ( 0.5*(gosig_1(k-1)+gosig_1(k))<opldep(iq) ) then
+        do k = 1,ok
+          if ( gosig_h(k-1)<opldep(iq) ) then
             ktest = k
           else
             exit  
