@@ -701,7 +701,7 @@ if ( newfile ) then
   if ( .not.pfall ) then
     dumr(1:kk) = sigin(1:kk)
     dumr(kk+1:kk+12) = real(iers(1:12))
-    if ( ok>0 ) dumr(kk+12:kk+ok+12) = gosig_1(1:ok)
+    if ( ok>0 ) dumr(kk+13:kk+ok+12) = gosig_1(1:ok)
     call ccmpi_bcast(dumr(1:kk+ok+12),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
     iers(1:12) = nint(dumr(kk+1:kk+12))
@@ -859,11 +859,11 @@ if ( newfile ) then
           gosig3_a(:,k) = gosig_1(:)
         end do
         do iq = 1,fwsize
-          if ( land_a(iq) ) then
+          if ( opldep_a(iq)>1.e-4 ) then
             ! find ocean floor  
             ktest = 1  
-            do k = 1,ok
-              if ( gosig_1(k)<ocndep_a(iq) ) then
+            do k = 2,ok
+              if ( 0.5*(gosig_1(k-1)+gosig_1(k))<opldep_a(iq) ) then
                 ktest = k
               else
                 exit
@@ -1040,12 +1040,15 @@ if ( tss_test .and. iop_test ) then
   ! update surface height and ocean depth if required
   if ( zht_needed ) then
     zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
-  end if  
-  if ( mlo_found .and. abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    ocndwn(1:ifull,1) = ocndep_a(1:ifull)
   end if
-  if ( mlo3_found .and. abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    opldep(1:ifull) = opldep_a(1:ifull)
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+    opldep(1:ifull) = 0.  
+    if ( mlo_found ) then
+      ocndwn(1:ifull,1) = ocndep_a(1:ifull)
+    end if
+    if ( mlo3_found ) then
+      opldep(1:ifull) = opldep_a(1:ifull)
+    end if  
   end if    
 
 else
@@ -1172,19 +1175,19 @@ if ( newfile ) then
     end do
   end if ! mlo_found
   if ( mlo3_found ) then
-    do iq = 1,ifull
-      ktest = 1  
-      do k = 1,ok
-        if ( gosig_1(k)<ocndwn(iq,1) ) then
-          ktest = k
-        else
-          exit  
-       end if
-      end do
-      if ( opldep(iq)>1.e-4 ) then
+    if ( opldep(iq)>1.e-4 ) then
+      do iq = 1,ifull
+        ktest = 1  
+        do k = 2,ok
+          if ( 0.5*(gosig_1(k-1)+gosig_1(k))<opldep(iq) ) then
+            ktest = k
+          else
+            exit  
+          end if
+        end do
         gosig_3(iq,ktest) = opldep(iq)
-      end if
-    end do
+      end do
+    end if
   end if ! mlo3_found
 end if   ! newfile
 

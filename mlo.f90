@@ -727,12 +727,12 @@ select case(mlo_step)
           depth_hlout(ii) = depth_hlout(ii+1)
         end if
       end do
+      do ii = 1,wlev
+        depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
+      end do      
     else
       depth_hlout(:) = 0.
     end if
-    do ii = 1,wlev
-      depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
-    end do
 
   case default
     write(6,*) "ERROR: Unknown option mlo_step = ",mlo_step
@@ -2148,6 +2148,7 @@ if ( .not.depth%data_allocated ) return
 do iqw = 1,imax
   if ( sig_tmp(iqw,1)>sig_tmp(iqw,wlin) ) then
     write(6,*) "ERROR: Input levels for MLO are in reverse order"
+    write(6,*) "sig_tmp ",sig_tmp(iqw,:)
     stop
   end if
 end do  
