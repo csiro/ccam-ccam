@@ -727,8 +727,10 @@ select case(mlo_step)
           depth_hlout(ii) = depth_hlout(ii+1)
         end if
       end do
-      do ii = 1,wlin
-        depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
+      do ii = 1,wlev
+        if ( depth_hlout(ii+1)-depth_hlout(ii)>1.e-4 ) then
+          depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
+        end if  
       end do      
     else
       depth_hlout(:) = 0.

@@ -1182,8 +1182,8 @@ if ( newfile ) then
     end do
   end if ! mlo_found
   if ( mlo3_found ) then
-    if ( opldep(iq)>1.e-4 ) then
-      do iq = 1,ifull
+    do iq = 1,ifull
+      if ( opldep(iq)>1.e-4 ) then        
         ktest = 1  
         do k = 1,ok
           if ( gosig_h(k-1)<opldep(iq) ) then
@@ -1193,8 +1193,8 @@ if ( newfile ) then
           end if
         end do
         gosig_3(iq,ktest) = opldep(iq)
-      end do
-    end if
+      end if
+    end do
   end if ! mlo3_found
 end if   ! newfile
 
