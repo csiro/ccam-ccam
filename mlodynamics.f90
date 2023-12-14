@@ -302,7 +302,6 @@ real, dimension(ifull,wlev) :: w_u, w_v, w_t, w_s
 real, dimension(ifull,wlev) :: nuh, nvh, xg, yg, uau, uav
 real, dimension(ifull,wlev) :: kku, kkv, oou, oov, mmu, mmv
 real, dimension(ifull,wlev) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
-real, dimension(ifull,wlev) :: rhobaru_dash, rhobarv_dash, rhobar_dash
 real, dimension(ifull,wlev) :: rhou_dash, rhov_dash, rho_dash
 real, dimension(ifull,wlev) :: depdum,dzdum,mfixdum
 real, dimension(ifull,wlev) :: workdata, workdata2, worku, workv
@@ -578,7 +577,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   ! Calculate normalised density gradients
   ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
-  call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhobar_dash,rhobaru_dash,rhobarv_dash, &
+  call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                 rho_dash,rhou_dash,rhov_dash)
   
   call END_LOG(watereos_end)
@@ -720,12 +719,12 @@ do mspec_mlo = mspeca_mlo,1,-1
         gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/max(ddu(1:ifull),1.e-8)
         gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/max(ddv(1:ifull),1.e-8)
         where ( eeu(1:ifull,ii)>0.5 )
-          tau(:,ii) = tau(:,ii) + grav*(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho*detadxu*(1.-gosigu) &
-                    + grav*(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho*ddddxu*gosigu*oeu(1:ifull)/ddu(1:ifull) ! staggered
+          tau(:,ii) = tau(:,ii) + grav*rhou_dash(:,ii)/wrtrho*detadxu*(1.-gosigu) &
+                    + grav*rhou_dash(:,ii)/wrtrho*ddddxu*gosigu*oeu(1:ifull)/ddu(1:ifull) ! staggered
         end where
         where ( eev(1:ifull,ii)>0.5 )
-          tav(:,ii) = tav(:,ii) + grav*(rhobarv_dash(:,ii)-rhov_dash(:,ii))/wrtrho*detadyv*(1.-gosigv) &
-                    + grav*(rhobarv_dash(1:ifull,ii)-rhov_dash(:,ii))/wrtrho*ddddyv*gosigv*oev(1:ifull)/ddv(1:ifull)
+          tav(:,ii) = tav(:,ii) + grav*rhov_dash(:,ii)/wrtrho*detadyv*(1.-gosigv) &
+                    + grav*rhov_dash(:,ii)/wrtrho*ddddyv*gosigv*oev(1:ifull)/ddv(1:ifull)
         end where  
       end do     
   end select    
@@ -845,7 +844,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
     ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
     ! update normalised density gradients
-    call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv,rhobar_dash,rhobaru_dash,rhobarv_dash, &
+    call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                   rho_dash,rhou_dash,rhov_dash)
   end if
 
@@ -897,7 +896,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     case(7)
       do ii = 1,wlev  
         cc(1:ifull,ii) = cc(1:ifull,ii) + grav*ee(1:ifull,ii)*bb(1:ifull) &
-            *(1.-gosig(1:ifull,ii))*(rhobar_dash(:,ii)-rho_dash(:,ii))/wrtrho
+            *(1.-gosig(1:ifull,ii))*rho_dash(:,ii)/wrtrho
       end do
       call bounds(cc(:,1:wlev),corner=.true.)
   end select
@@ -916,7 +915,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     cc4v(1:ifull,ii) = 0.5*stwgtv(1:ifull,ii)*( tev-twv )*emv(1:ifull)/ds
   end do
 
-  ! ocean - calculate bb, bb3u, bb4v now possibly including rhobar_dash contribution to cc
+  ! ocean - calculate bb, bb3u, bb4v now possibly including rho_dash contribution to cc
   bb(:) = 0.
   bb3u(:) = 0.
   bb4v(:) = 0.
@@ -976,11 +975,11 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! u^(t+1) = nu = ccu^(t*) + bu*dpdxu^(t+1)/wrtrho - bu*ffu*dpdyu^(t+1)/wrtrho (staggered)
     ! v^(t+1) = nv = ccv^(t*) + bv*dpdyv^(t+1)/wrtrho + bv*ffv*dpdxv^(t+1)/wrtrho (staggered)
     
-    ! rhobar = wrtrho + rhobar_dash  
     ! rho = wrtrho + rho_dash
+    ! rhobar = (int_0_z rho dz)/z
       
-    ! dPdz = grav*rhobar
-    ! dPdz* = grav*rhobar*(1+eta/D)
+    ! dPdz = grav*rho
+    ! dPdz* = grav*rho*(1+eta/D)
     ! P = grav*rhobar*(eta+D)*(z*)/D = grav*rhobar*(z+eta) = grav*rhobar*sig*(eta+D)
     ! dPdx = grav*sig*(eta+D)*d(rhobar)dx + grav*rhobar*d(eta)dx
       
@@ -991,32 +990,29 @@ do mspec_mlo = mspeca_mlo,1,-1
     
     ! dz*dx = dDdx*sig*eta/(D+eta) + detadx*D/(D+eta)
       
+    ! -(1/wrtrho)*dPdz + (rho/wrtrho)*dGdz = 0   ! hydrostatic approximation
+
     ! -(1/wrtrho)*dPdx + dGdx
     ! = -grav*sig*(eta+D)*d(rhobar)dx/wrtrho - grav*d(eta)dx
-    !   -grav*(rhobar_dash-rho_dash)*( dDdx*sig*eta/D + d(eta)dx*(1-sig) )
+    !   -grav*(rho_dash)*( dDdx*sig*eta/D + d(eta)dx*(1-sig) )
       
-    ! (mlojacobi=6 neglects rhobar_dash/rho and mlojacobi=7 includes rhobar_dash/rho terms)
-    
-    ! Note pressure gradients are along constant z surfaces
-    ! (ps is air pressure, tt is the tide term, eta is the free surface
-    !  and rhobar is the column averaged density to depth z)
-    ! p = ps + grav*wrtrho*tt + grav*sig*(D+eta)*rhobar
+    ! (mlojacobi=6 neglects rho_dash/wrtrho and mlojacobi=7 includes rho_dash/wrtrho terms)
     
     ! We use a modified form of JLM's trick where:
     !   -B*F*dP/dy = - d(B*F*P)/dy + (d(B*F)/dy)*P
     !    B*F*dP/dx =   d(B*F*P)/dx - (d(B*F)/dx)*P
-    !   B = dt/(1.+((1+eps)*0.5*dt*f)**2)*(1+(1-sig)*(rhobar-rho)/wrtrho)
+    !   B = dt/(1.+((1+eps)*0.5*dt*f)**2)*(1+(1-sig)*rho_dash/wrtrho)
     !   F = (1.+ocneps)*0.5*dt*f
     ! which produces a 5-point stencil when solving for neta and ip.      
       
     !dpdxu=dpsdxu+grav*wrtrho*dttdxu+grav*sig*(ddu+etau)*drhobardxu+grav*rhobar*detadxu
-    !      +grav*(rhobar-rho)*sig*etau/ddu*ddddxu + grav*(rhobar-rho)*(1-sig)*detadxu
+    !      +grav*rho_dash*sig*etau/ddu*ddddxu + grav*rho_dash*(1-sig)*detadxu
     !dpdyu=dpsdyu+grav*wrtrho*dttdyu+grav*sig*(ddu+etau)*drhobardyu+grav*rhobar*detadyu
-    !      +grav*(rhobar-rho)*sig*etau/ddu*ddddyu + grav*(rhobar-rho)*(1-sig)*detadyu
+    !      +grav*rho_dash*sig*etau/ddu*ddddyu + grav*rho_dash*(1-sig)*detadyu
     !dpdxv=dpsdxv+grav*wrtrho*dttdxv+grav*sig*(ddv+etav)*drhobardxv+grav*rhobar*detadxv
-    !      +grav*(rhobar-rho)*sig*etav/ddv*ddddxv + grav*(rhobar-rho)*(1-sig)*detadxv
+    !      +grav*rho_dash*sig*etav/ddv*ddddxv + grav*rho_dash*(1-sig)*detadxv
     !dpdyv=dpsdyv+grav*wrtrho*dttdyv+grav*sig*(ddv+etav)*drhobardyv+grav*rhobar*detadyv
-    !      +grav*(rhobar-rho)*sig*etav/ddv*ddddyv + grav*(rhobar-rho)*(1-sig)*detadyv
+    !      +grav*rho_dash*sig*etav/ddv*ddddyv + grav*rho_dash*(1-sig)*detadyv
 
     ! Create arrays for u and v at t+1 in terms of neta gradients
     
@@ -1046,7 +1042,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     mmv(:,ii) = grav*bv
 
     ! partial step correction
-    ! -(1/wrtho)dPdz* + dGdz* = grav*(rhobar_dash-rho_dash)*(1+eta/D)
+    ! -(1/wrtho)dPdz* + dGdz* = grav*rho_dash*(1+eta/D)
     do iq = 1,ifull
       tnu(iq) = 0.5*( gosig(in(iq),ii)*dd(in(iq)) + gosig(ine(iq),ii)*dd(ine(iq)) )
       tsu(iq) = 0.5*( gosig(is(iq),ii)*dd(is(iq)) + gosig(ise(iq),ii)*dd(ise(iq)) )
@@ -1054,21 +1050,21 @@ do mspec_mlo = mspeca_mlo,1,-1
       twv(iq) = 0.5*( gosig(iw(iq),ii)*dd(iw(iq)) + gosig(iwn(iq),ii)*dd(iwn(iq)) )
     end do
     kku(:,ii) = kku(:,ii) + bu(:)*grav*(dd(ie)*gosig(ie,ii)-dd(1:ifull)*gosig(1:ifull,ii))*emu(1:ifull)/ds              &
-                            *(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho/((1.+ocneps)*0.5)                              &
+                            *rhou_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)                                                   &
                           + cu(:)*grav*0.5*stwgtu(1:ifull,ii)*( tnu-tsu )*emu(1:ifull)/ds                               &
-                            *(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho/((1.+ocneps)*0.5)
+                            *rhou_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)
     oou(:,ii) = oou(:,ii) + bu(:)*grav/ddu(1:ifull)*(dd(ie)*gosig(ie,ii)-dd(1:ifull)*gosig(1:ifull,ii))*emu(1:ifull)/ds &
-                            *(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho/((1.+ocneps)*0.5)                              &
+                            *rhou_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)                                                   &
                           + cu(:)*grav/ddu(1:ifull)*0.5*stwgtu(1:ifull,ii)*( tnu-tsu )*emu(1:ifull)/ds                  &
-                            *(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho/((1.+ocneps)*0.5)
+                            *rhou_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)
     kkv(:,ii) = kkv(:,ii) + bv(:)*grav*(dd(in)*gosig(in,ii)-dd(1:ifull)*gosig(1:ifull,ii))*emv(1:ifull)/ds              &
-                            *(rhobarv_dash(:,ii)-rhov_dash(:,ii))/wrtrho/((1.+ocneps)*0.5)                              &
+                            *rhov_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)                                                   &
                           + cv(:)*grav*0.5*stwgtv(1:ifull,ii)*( tev-twv )*emv(1:ifull)/ds                               &
-                            *(rhobarv_dash(:,ii)-rhov_dash(:,ii))/wrtrho/((1.+ocneps)*0.5)
+                            *rhov_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)
     oov(:,ii) = oov(:,ii) + bv(:)*grav/ddv(1:ifull)*(dd(in)*gosig(in,ii)-dd(1:ifull)*gosig(1:ifull,ii))*emv(1:ifull)/ds &
-                            *(rhobarv_dash(:,ii)-rhov_dash(:,ii))/wrtrho/((1.+ocneps)*0.5)                              &
+                            *rhov_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)                                                   &
                           + cv(:)*grav/ddv(1:ifull)*0.5*stwgtv(1:ifull,ii)*( tev-twv )*emv(1:ifull)/ds                  &
-                            *(rhobarv_dash(:,ii)-rhov_dash(:,ii))/wrtrho/((1.+ocneps)*0.5)
+                            *rhov_dash(:,ii)/wrtrho/((1.+ocneps)*0.5)
     
     kku(:,ii) = kku(:,ii)*eeu(1:ifull,ii)
     oou(:,ii) = oou(:,ii)*eeu(1:ifull,ii)
@@ -1098,14 +1094,14 @@ do mspec_mlo = mspeca_mlo,1,-1
         gosigu = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(ie,ii)*dd(ie))/ddu(1:ifull)
         gosigv = min(gosig(1:ifull,ii)*dd(1:ifull),gosig(in,ii)*dd(in))/ddv(1:ifull)
         where ( eeu(1:ifull,ii)>0.5 )
-          oou(:,ii) = oou(:,ii) + bu*grav*(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho*ddddxu*gosigu/ddu(1:ifull) &
-                    + cu*grav*(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho*ddddyu*gosigu/ddu(1:ifull)
-          mmu(:,ii) = mmu(:,ii) + grav*bu*(1.-gosigu)*(rhobaru_dash(:,ii)-rhou_dash(:,ii))/wrtrho
+          oou(:,ii) = oou(:,ii) + bu*grav*rhou_dash(:,ii)/wrtrho*ddddxu*gosigu/ddu(1:ifull) &
+                    + cu*grav*rhou_dash(:,ii)/wrtrho*ddddyu*gosigu/ddu(1:ifull)
+          mmu(:,ii) = mmu(:,ii) + grav*bu*(1.-gosigu)*rhou_dash(:,ii)/wrtrho
         end where
         where ( eev(1:ifull,ii)>0.5 )
-          oov(:,ii) = oov(:,ii) + bv*grav*(rhobarv_dash(:,ii)-rhov_dash(:,ii))/wrtrho*ddddyv*gosigv/ddv(1:ifull) &
-                    + cv*grav*(rhobarv_dash(:,ii)-rhov_dash(:,ii))/wrtrho*ddddxv*gosigv/ddv(1:ifull)
-          mmv(:,ii) = mmv(:,ii) + grav*bv*(1.-gosigv)*(rhobarv_dash(:,ii)-rhov_dash(:,ii))/wrtrho
+          oov(:,ii) = oov(:,ii) + bv*grav*rhov_dash(:,ii)/wrtrho*ddddyv*gosigv/ddv(1:ifull) &
+                    + cv*grav*rhov_dash(:,ii)/wrtrho*ddddxv*gosigv/ddv(1:ifull)
+          mmv(:,ii) = mmv(:,ii) + grav*bv*(1.-gosigv)*rhov_dash(:,ii)/wrtrho
         end where  
       end do    
   end select
@@ -1554,7 +1550,6 @@ end subroutine mlorot
 ! density Jacobian
 
 subroutine tsjacobi(nti,nsi,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
-                    rhobar_dash,rhobaru_dash,rhobarv_dash,                    &
                     rho_dash,rhou_dash,rhov_dash)
 
 use indices_m
@@ -1567,7 +1562,6 @@ implicit none
 integer iq, ii
 real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi
 real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
-real, dimension(ifull,wlev), intent(out) :: rhobaru_dash, rhobarv_dash, rhobar_dash
 real, dimension(ifull,wlev), intent(out) :: rhou_dash, rhov_dash, rho_dash
 real, dimension(ifull,wlev) :: drhodxu, drhodyu, drhodxv, drhodyv
 real, dimension(ifull+iextra), intent(in) :: pice
@@ -1597,9 +1591,9 @@ if ( mlojacobi==0 ) then !off
     drhobardxv(1:ifull,ii) = 0.
     drhobardyu(1:ifull,ii) = 0.
     drhobardyv(1:ifull,ii) = 0.
-    rhobar_dash(:,ii) = 0.
-    rhobaru_dash(:,ii) = 0.
-    rhobarv_dash(:,ii) = 0.
+    rho_dash(:,ii) = 0.
+    rhou_dash(:,ii) = 0.
+    rhov_dash(:,ii) = 0.
   end do
 else
   select case( mlojacobi )
@@ -1631,9 +1625,6 @@ else
   rho_dash(:,1) = lrho_dash(1:ifull,1)
   rhou_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(ie,1))
   rhov_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(in,1))
-  rhobar_dash(:,1) = rho_dash(:,1)*godsig(1:ifull,1)
-  rhobaru_dash(:,1) = rhou_dash(:,1)*godsigu(1:ifull,1)
-  rhobarv_dash(:,1) = rhov_dash(:,1)*godsigv(1:ifull,1)
   do ii = 2,wlev
     drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhodxu(:,ii)*godsigu(1:ifull,ii)
     drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhodxv(:,ii)*godsigv(1:ifull,ii)
@@ -1642,18 +1633,12 @@ else
     rho_dash(:,ii) = lrho_dash(1:ifull,ii)
     rhou_dash(:,ii) = 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(ie,ii))
     rhov_dash(:,ii) = 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(in,ii))
-    rhobar_dash(:,ii) = rhobar_dash(:,ii-1) + rho_dash(:,ii)*godsig(1:ifull,ii)
-    rhobaru_dash(:,ii) = rhobaru_dash(:,ii-1) + rhou_dash(:,ii)*godsigu(1:ifull,ii)
-    rhobarv_dash(:,ii) = rhobarv_dash(:,ii-1) + rhov_dash(:,ii)*godsigv(1:ifull,ii)
   end do
   do ii = 1,wlev
     drhobardxu(:,ii) = drhobardxu(:,ii)/gosighu(:,ii)
     drhobardxv(:,ii) = drhobardxv(:,ii)/gosighv(:,ii)
     drhobardyu(:,ii) = drhobardyu(:,ii)/gosighu(:,ii)
     drhobardyv(:,ii) = drhobardyv(:,ii)/gosighv(:,ii)
-    rhobar_dash(:,ii) = rhobar_dash(:,ii)/gosigh(:,ii)
-    rhobaru_dash(:,ii) = rhobaru_dash(:,ii)/gosighu(:,ii)
-    rhobarv_dash(:,ii) = rhobarv_dash(:,ii)/gosighv(:,ii)
   end do
 end if
   
