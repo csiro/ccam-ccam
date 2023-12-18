@@ -402,8 +402,6 @@ end if
 zmin = -rdry*280.*log(sig(1))/grav
 if ( myid==0 ) write(6,*) 'First model level height zmin = ',zmin
 
-!$acc update device(sig)
-
 
 !--------------------------------------------------------------
 ! READ OROGRAPHY (io_in and nhstest)

@@ -191,10 +191,9 @@ end if
 #ifdef GPUPHYSICS
 !$acc data create(xtg,ttg,rhoa,dz)
 !$acc update device(ttg,rhoa,dz) async(1)
-#endif
-
-
+#else
 !$omp do schedule(static) private(js,je,iq,thetav,wstar3,rrate)
+#endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -217,43 +216,59 @@ do tile = 1,ntiles
     Vgust_deep(iq) = (19.8*rrate**2/(1.5+rrate+rrate**2))**0.4
   end do
 end do
+#ifndef GPUPHYSICS
 !$omp end do nowait
+#endif
 
 ! Calculate effective 10m wind (Eq. 15)
 ! These can plausibly be added in quadrature, or linearly, the latter giving a much larger
 ! effect (Lunt & Valdes, JGR, 2002).
 select case(enhanceu10)
   case(0)
+#ifndef GPUPHYSICS
     !$omp do schedule(static) private(js,je)
+#endif
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       veff(js:je) = v10m(js:je)
       vefn(js:je) = v10n(js:je)
     end do
+#ifndef GPUPHYSICS
     !$omp end do nowait
+#endif
   case(1)
+#ifndef GPUPHYSICS
     !$omp do schedule(static) private(js,je)
+#endif
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       veff(js:je) = sqrt( v10m(js:je)**2 + Vgust_free(js:je)**2 + Vgust_deep(js:je)**2 )
       vefn(js:je) = sqrt( v10n(js:je)**2 + Vgust_free(js:je)**2 + Vgust_deep(js:je)**2 )
     end do
+#ifndef GPUPHYSICS
     !$omp end do nowait
+#endif
   case(2)
+#ifndef GPUPHYSICS
     !$omp do schedule(static) private(js,je)
+#endif
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       veff(js:je) = v10m(js:je) + Vgust_free(js:je) + Vgust_deep(js:je)
       vefn(js:je) = v10n(js:je) + Vgust_free(js:je) + Vgust_deep(js:je)
     end do
+#ifndef GPUPHYSICS
     !$omp end do nowait
+#endif
 end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
+#ifndef GPUPHYSICS
 !$omp do schedule(static) private(js,je,nt,k,lrhoa,ldz,lemissfield,lxtg)
+#endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -274,7 +289,9 @@ do tile = 1,ntiles
     end do
   end do
 end do
+#ifndef GPUPHYSICS
 !$omp end do nowait
+#endif
 
 #ifdef debug
 if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
@@ -471,7 +488,9 @@ end if
 #endif
 
 
+#ifndef GPUPHYSICS
 !$omp do schedule(static) private(js,je,nt,iq,k,burden)
+#endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -506,7 +525,9 @@ do tile = 1,ntiles
   end do
 
 end do
+#ifndef GPUPHYSICS
 !$omp end do nowait
+#endif
 
 return
 end subroutine aldrcalc

@@ -117,6 +117,12 @@ logical mydiag_t
 logical, dimension(ifull) :: locean
 
 if ( aero_update==aero_split ) then
+
+#ifdef GPUPHYSICS
+  !$omp parallel
+#endif
+
+
   ! update prescribed oxidant fields
   if ( oxidant_update ) then
     !$omp do schedule(static) private(js,je),                       &
@@ -174,7 +180,7 @@ if ( aero_update==aero_split ) then
                             cldcon=cldcon(js:je))
     clcon(js:je,:) = lclcon    
   end do
-  !$omp end do nowait    
+  !$omp end do nowait
 
   ! update 10m wind speed (avoids impact of diagnostic output)
   if ( aerosol_u10==0 ) then
@@ -224,7 +230,13 @@ if ( aero_update==aero_split ) then
 
   end do
   !$omp end do nowait
+
+
+#ifdef GPUPHYSICS
+  !$omp end parallel
+#endif
   
+
   ! update prognostic aerosols
   call aldrcalc(dt,sig,dz,wg,pblh,ps,tss,t,condc,snowd,taudar,fg,      &
                 eg,u10_l,ustar,zo,land,fracice,sigmf,qg,qlg,qfg,       &
@@ -232,6 +244,12 @@ if ( aero_update==aero_split ) then
                 ppfmelt,ppfsnow,ppfsubl,pplambs,ppmrate,ppmaccr,       &
                 ppqfsedice,pprscav,pprfreeze,ppfevap,zdayfac,kbsav,    &
                 locean)
+
+
+#ifdef GPUPHYSICS
+!$omp parallel
+#endif
+
   
   ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
   ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
@@ -245,17 +263,27 @@ if ( aero_update==aero_split ) then
       so4t(js:je) = so4t(js:je) + 3.e3*xtg(js:je,k,3)*rhoa(js:je,k)*dz(js:je,k)
     end do
   end do
-  !$omp end do nowait     
+  !$omp end do nowait
+
+
+#ifdef GPUPHYSICS
+  !$omp end parallel
+#endif
 
 end if ! aero_update==aero_split
      
 if ( aero_update==1 ) then     
 
+#ifdef GPUPHYSICS
+  !$omp parallel
+#endif
+
+
   ! Aerosol mixing
   !$omp do schedule(static) private(js,je,iq,k),      &
   !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
   !$omp private(lxtg,lrkhsave,rong,rlogs1,rlogs2),    &
-  !$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
+  !$omp private(rlogh1,rlog12,tmnht,dzz,gt)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
@@ -297,6 +325,11 @@ if ( aero_update==1 ) then
   
   end do ! tile = 1,ntiles
   !$omp end do nowait
+
+
+#ifdef GPUPHYSICS
+  !$omp end parallel
+#endif
 
 end if
 

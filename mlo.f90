@@ -20,12 +20,10 @@
 !------------------------------------------------------------------------------
     
 ! This is a 1D, mixed layer ocean model based on Large, et al (1994), for ensemble regional climate simulations.
-! This code is also used for modelling lakes in ACCESS and CCAM.  In CCAM this module interfaces with
-! mlodynamics.f90 for river routing, diffusion and advection routines.
+! In CCAM this module interfaces withmlodynamics.f90 for river routing, diffusion and advection routines.
 
-! This version has a relatively thin 1st layer (e.g, 0.5m) so as to better reproduce a diurnal cycle in SST.  It also
-! supports a thermodynamic model of sea ice based on O'Farrell from Mk3.5.  We have included a free surface so that
-! lakes can change depth, etc.
+! This version supports a thermodynamic model of sea ice based on O'Farrell from Mk3.5.  We have included a
+! free surface so that lakes can change depth, etc.
 
 ! This version can assimilate SSTs from GCMs, using a convolution based digital filter (see nesting.f90),
 ! which avoids problems with complex land-sea boundary conditions.
@@ -254,7 +252,7 @@ real, parameter :: mu_1    = 23.          ! VIS depth (m) - Type I
 real, parameter :: mu_2    = 0.35         ! NIR depth (m) - Type I
 real, save :: fluxwgt = 0.7               ! time filter for flux calculations
 real, parameter :: wrtemp  = 290.         ! water reference temperature (K)
-real, parameter :: wrtrho  = 1030.        ! water reference density (kg m^-3)
+real, parameter :: wrtrho  = 1035.        ! water reference density (kg m^-3)
 ! physical parameters
 real, parameter :: vkar    = 0.4          ! von Karman constant
 real, parameter :: lv      = 2.501e6      ! Latent heat of vaporisation (J kg^-1)
@@ -3072,7 +3070,7 @@ fdepth_hl(:,2:wlev) = (depth%depth_hl(:,2:wlev)-depth%depth(:,1:wlev-1))/max(dep
 
 ! calculate rho_ema from temp_ema and sal_ema
 call mlo_ema_thread(dt,water,depth,"ts")
-pxtr_ema(:) = 0. ! neglect surface pressure
+pxtr_ema(:) = 0. ! neglect surface pressure as rho is only used for n2 calculation
 call calcdensity(rho_ema,alpha_ema,beta_ema,water%temp_ema,water%sal_ema,depth%dz,pxtr_ema)
 call interpolate_hl(rho_ema,fdepth_hl,d_rho_hl)
 

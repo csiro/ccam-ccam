@@ -3964,6 +3964,9 @@ select case( intairtmeth + (ifrac-1)*10 )
     pd%frac_sigma = (max( fp%heatprop, fp%coolprop ) - min( fp%heatprop, fp%coolprop ))*cyc_proportion
   case(22) ! no conditioning
     pd%frac_sigma = 1. - max( fp%heatprop, fp%coolprop )*cyc_proportion
+  case default
+    write(6,*) "ERROR: Invalid choice for intairtemth+(ifrac-1)*10 ",intairtmeth + (ifrac-1)*10
+    stop
 end select      
 
 ! calculate canyon fluxes
@@ -4010,13 +4013,19 @@ else
   ggext_intm = 0.  
 end if  
 
-if ( intairtmeth/=0 ) then
+if ( intairtmeth==0 ) then
+  rgint_slab  = 0.
+  rgint_wallw = 0.
+  rgint_roof  = 0.
+  rgint_walle = 0.    
+else    
   select case(lwintmeth)
     case(0) ! interior longwave off
       rgint_slab  = 0.
       rgint_wallw = 0.
       rgint_roof  = 0.
       rgint_walle = 0.
+
     case(1) ! explicit longwave, no intermediate facet temperature calc (can cause oscillation)
       iskintemp(:,1) = slab%nodetemp(:,nl)
       iskintemp(:,2) = wallw%nodetemp(:,nl)
@@ -4068,7 +4077,7 @@ if ( intairtmeth/=0 ) then
       call internal_lwflux(rgint_slab,rgint_wallw,rgint_roof,rgint_walle,    &
                            iskintemp,fp,intl,ufull)
   end select
-end if
+end if ! intairtmeth==0 ..else..
 
 
 ! solve final conduction through facets with explicit interior, implicit exterior boundary
@@ -4097,7 +4106,9 @@ call solvetridiag(ggext_road,ggint_road,zero_flux,ggext_impl,ggint_impl,road%nod
                   road%nodetemp,fp_road%depth,fp_road%volcp,fp_road%lambda,ddt,ufull)
 
 ! calculate internal facet conduction
-if ( intairtmeth/=0 ) then
+if ( intairtmeth==0 ) then
+  slab%nodetemp = 1. ! + urbtemp 
+else    
   ggint_impl = cvcoeff_slab
   ggint = -cvcoeff_slab*iroomtemp
   ggext_slab = 0.  ! zero_flux boundary condition

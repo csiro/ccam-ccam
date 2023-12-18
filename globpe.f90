@@ -530,7 +530,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! MJT notes - the physics OpenACC code requires a larger heapsize like
   ! export PGI_ACC_CUDA_HEAPSIZE=268435456 and maxtilesize=32
-
     
   ! MISC (SINGLE) ---------------------------------------------------------
   ! radiation timer calculations
@@ -574,26 +573,26 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do  
   !$omp end do nowait
 
-  
-  if ( nsib>0 ) then   ! provides option to bypass physics for nsib=0
-  
-  
-    ! GWDRAG ----------------------------------------------------------------
+    
+  ! GWDRAG ----------------------------------------------------------------
+  if ( nsib>0 ) then
     call START_LOG(gwdrag_begin)
     if ( ngwd<0 ) then
       call gwdrag  ! <0 for split - only one now allowed
     end if
     call END_LOG(gwdrag_end)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      call nantest("after gravity wave drag",js,je,"gwdrag")
-    end do  
-    !$omp end do nowait
+  end if
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call nantest("after gravity wave drag",js,je,"gwdrag")
+  end do  
+  !$omp end do nowait
 
 
-    ! CONVECTION ------------------------------------------------------------
+  ! CONVECTION ------------------------------------------------------------
+  if ( nsib>0 ) then
     call START_LOG(convection_begin)
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -619,17 +618,19 @@ do ktau = 1,ntau   ! ****** start of main time loop
         call convjlm                ! split convjlm 
     end select
     call END_LOG(convection_end)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      call fixqg(js,je)
-      call nantest("after convection",js,je,"conv")
-    end do  
-    !$omp end do nowait
+  end if
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call fixqg(js,je)
+    call nantest("after convection",js,je,"conv")
+  end do  
+  !$omp end do nowait
 
 
-    ! CLOUD MICROPHYSICS ----------------------------------------------------
+  ! CLOUD MICROPHYSICS ----------------------------------------------------
+  if ( nsib>0 ) then
     call START_LOG(cloud_begin)
     call ctrl_microphysics
     ! t is copied to self from device in ctrl_microphysics
@@ -645,16 +646,18 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do  
     !$omp end do nowait
     call END_LOG(cloud_end)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      call nantest("after cloud microphysics",js,je,"cloud") 
-    end do  
-    !$omp end do nowait
+  end if
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call nantest("after cloud microphysics",js,je,"cloud") 
+  end do  
+  !$omp end do nowait
   
 
-    ! RADIATION -------------------------------------------------------------
+  ! RADIATION -------------------------------------------------------------
+  if ( nsib>0 ) then
     call START_LOG(radnet_begin)
     if ( ncloud>=4 .and. ncloud<=13 ) then
       !$omp do schedule(static) private(js,je)
@@ -693,19 +696,17 @@ do ktau = 1,ntau   ! ****** start of main time loop
         !$omp end do nowait
     end select
     call END_LOG(radnet_end)
-    !$omp do schedule(static) private(js,je)  
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      do k = 1,kl
-        t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
-      end do
-      call nantest("after radiation",js,je,"radiation")    
-    end do
-    !$omp end do nowait
-
-    
   end if ! ( nsib>0 )  
+  !$omp do schedule(static) private(js,je)  
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    do k = 1,kl
+      t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
+    end do
+    call nantest("after radiation",js,je,"radiation")    
+  end do
+  !$omp end do nowait
     
   
   ! HELD & SUAREZ ---------------------------------------------------------
@@ -714,11 +715,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if
   
   
+  ! SURFACE FLUXES ---------------------------------------------
+  ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
   if ( nsib>0 ) then
- 
-  
-    ! SURFACE FLUXES ---------------------------------------------
-    ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
     call START_LOG(sfluxnet_begin)
     if ( diag .and. ntiles==1 ) then
       call maxmin(u,'#u',ktau,1.,kl)
@@ -730,33 +729,43 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call sflux
     endif   ! (ntsur>1)    
     call END_LOG(sfluxnet_end)
-    !$omp do schedule(static) private(js,je)  
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax 
-      call nantest("after surface fluxes",js,je,"surface")
-    end do  
-    !$omp end do nowait
+  end if
+  !$omp do schedule(static) private(js,je)  
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax 
+    call nantest("after surface fluxes",js,je,"surface")
+  end do  
+  !$omp end do nowait
 
   
-    ! AEROSOLS --------------------------------------------------------------
-    ! Old time-split with aero_split=0
+#ifdef GPUPHYSICS
+  !$omp end parallel
+#endif
+  ! AEROSOLS --------------------------------------------------------------
+  ! Old time-split with aero_split=0
+  if ( nsib>0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
       call aerocalc(oxidant_update,mins,0)
     end if
     call END_LOG(aerosol_end)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call nantest("after aerosols",js,je,"aerosols")
-    end do  
-    !$omp end do nowait
+  end if
+#ifdef GPUPHYSICS
+  !$omp parallel
+#endif
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call nantest("after aerosols",js,je,"aerosols")
+  end do
+  !$omp end do nowait
 
     
-    ! VERTICAL MIXING ------------------------------------------------------
-    ! (not including aerosols or tracers)
+  ! VERTICAL MIXING ------------------------------------------------------
+  ! (not including aerosols or tracers)
+  if ( nsib>0 ) then
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
       if ( mydiag .and. ntiles==1 ) then
@@ -785,41 +794,49 @@ do ktau = 1,ntau   ! ****** start of main time loop
       end if
     end if
     call END_LOG(vertmix_end)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call fixqg(js,je)
-      call nantest("after PBL mixing",js,je,"vmixing")
-    end do  
-    !$omp end do nowait
+  end if
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call fixqg(js,je)
+    call nantest("after PBL mixing",js,je,"vmixing")
+  end do  
+  !$omp end do nowait
 
   
-    ! AEROSOLS --------------------------------------------------------------
-    ! New time-split with aero_split=1
-    ! Includes turbulent mixing
+  ! AEROSOLS --------------------------------------------------------------
+  ! New time-split with aero_split=1
+  ! Includes turbulent mixing
+#ifdef GPUPHYSICS
+  !$omp end parallel
+#endif
+  if ( nsib>0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
       call aerocalc(oxidant_update,mins,1)
     end if
     call END_LOG(aerosol_end)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call nantest("after aerosols",js,je,"aerosols")
-    end do  
-    !$omp end do nowait
+  end if
+#ifdef GPUPHYSICS
+  !$omp parallel
+#endif
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call nantest("after aerosols",js,je,"aerosols")
+  end do  
+  !$omp end do nowait
 
   
-    ! TRACERS ---------------------------------------------------------------
-    ! Turbulent mixing
+  ! TRACERS ---------------------------------------------------------------
+  ! Turbulent mixing
+  if ( nsib>0 ) then
     if ( ngas>0 ) then
       call tracervmix  
     end if
-
-  
-  end if ! ( nsib>0 )  
+  end if
 
   
   ! MISC (PARALLEL) -------------------------------------------------------
@@ -2692,6 +2709,7 @@ seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
 #ifdef GPUPHYSICS
+!$acc update device(sig)
 !$acc update device(enhanceu10,zvolcemi,ch_dust)
 !$acc update device(saltsmallmtn,saltlargemtn)
 #endif

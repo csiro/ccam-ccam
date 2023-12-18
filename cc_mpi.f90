@@ -118,10 +118,9 @@ module cc_mpi
    integer, save, private, dimension(3) :: nodefilesave_win
    integer, save, private :: nodefile_count = 0
    
-   
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
    integer, save, public :: fileneighnum                                   ! number of file neighbours
-   
+  
    public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather, ccmpi_gatherr8,   &
              ccmpi_distributer8, ccmpi_gatherall, bounds, boundsuv,         &
              deptsync, intssync_send, intssync_recv, start_log, end_log,    &
@@ -475,6 +474,7 @@ module cc_mpi
 #include "vt_user.inc"
 #endif
 
+!$acc declare create(ipan,jpan)
 
 contains
 
@@ -511,7 +511,8 @@ contains
          maxbuflen = (max(ipan,jpan)+4)*3*2 + 4
       end if    
       maxvertlen = max( kl, ol, 15 )
-      
+
+      !$acc update device(ipan,jpan)
       
       ! Distribute global arrays over processes
       allocate( dumr8(ifull,26) )

@@ -30,7 +30,9 @@ public sigs_init,sigs_end
 real, dimension(:), allocatable, save :: sig,sigmh,dsig,rata,ratb,bet,tbar,tbardsig,betm,ratha,rathb
 real, save :: dtmax
 
+#ifdef GPUPHYSICS
 !$acc declare create(sig)
+#endif
 
 contains
 

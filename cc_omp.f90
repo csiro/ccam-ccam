@@ -31,7 +31,11 @@ module cc_omp
    private
 
    integer, save, public :: maxthreads, ntiles, imax
+#ifdef GPU
+   integer, save, public :: maxtilesize = 32 ! suggested value
+#else
    integer, save, public :: maxtilesize = 96 ! suggested value
+#endif   
 
    public ::  ccomp_init
    public ::  ccomp_mythread

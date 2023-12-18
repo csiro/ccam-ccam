@@ -1106,19 +1106,30 @@ else
     tss_l_a(1:fwsize) = abs(tss_a(1:fwsize))
     tss_s_a(1:fwsize) = abs(tss_a(1:fwsize))
     call fill_cc1(tss_l_a,sea_a,fill_sea)
-    if ( mlo_found ) then
+    if ( mlo3_found ) then
       ucc7(:,1:5) = 0.  
       ucc7(:,1) = tss_s_a
       ucc7(:,2) = sicedep_a
       ucc7(:,3) = fracice_a        
       ucc7(:,4) = ocndep_a
-      if ( mlo3_found ) ucc7(:,5) = opldep_a
+      ucc7(:,5) = opldep_a
       call fill_cc4(ucc7(:,1:5),land_a,fill_land)
       tss_s_a   = ucc7(:,1)
       sicedep_a = ucc7(:,2)
       fracice_a = ucc7(:,3)
       ocndep_a = ucc7(:,4)
-      if ( mlo3_found ) opldep_a = ucc7(:,5)
+      opldep_a = ucc7(:,5)
+    else if ( mlo_found ) then
+      ucc7(:,1:4) = 0.  
+      ucc7(:,1) = tss_s_a
+      ucc7(:,2) = sicedep_a
+      ucc7(:,3) = fracice_a        
+      ucc7(:,4) = ocndep_a
+      call fill_cc4(ucc7(:,1:4),land_a,fill_land)
+      tss_s_a   = ucc7(:,1)
+      sicedep_a = ucc7(:,2)
+      fracice_a = ucc7(:,3)
+      ocndep_a = ucc7(:,4)
     else    
       ucc7(:,1) = tss_s_a
       ucc7(:,2) = sicedep_a

@@ -1009,7 +1009,7 @@ use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
 use mlo, only : wlev,mlosave,mlodiag,          & ! Ocean physics and prognostic arrays
                 mloexpdep,mloexport,wrtemp,    &
-                oclosure,mlovlevels
+                oclosure,mlovlevels,mlo_step
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
@@ -1257,7 +1257,7 @@ if ( myid==0 .or. local ) then
       lname = 'Water bathymetry'
       call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,8125.,0,cptype)
     end if
-    if ( abs(nmlo)>0.and.abs(nmlo)<=9 ) then
+    if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
       lname = 'Water partial step depth'
       call attrib(idnc,dimk,ksize,'opldepth',lname,'m',0.,8125.,0,cptype)
     end if
@@ -2692,7 +2692,7 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
-  if ( abs(nmlo)>0.and.abs(nmlo)<=9 ) then
+  if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
     call histwrt(opldep,'opldepth',idnc,iarch,local,.true.)
   end if
   call rivervector(tmpry(:,1),tmpry(:,2))
