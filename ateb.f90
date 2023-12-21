@@ -3208,6 +3208,9 @@ real, dimension(imax) :: ualb,utmp
 real, dimension(imax) :: dumfbeam,snowdeltac,snowdeltar
 real, dimension(imax) :: tmpalb,wallpsi,roadpsi
 real, dimension(imax) :: sg_roof,sg_vegr,sg_road,sg_walle,sg_wallw,sg_vegc,sg_rfsn,sg_rdsn
+real, dimension(imax) :: t_hwratio, t_effhwratio, t_vangle, t_hangle, tcv_sigma
+real, dimension(imax) :: trv_sigma, trd_alpha, tcv_alpha, tw_alpha, trd_snowalpha
+real, dimension(imax) :: t_sigmabld, trf_alpha, trv_alpha, trf_snowalpha
 logical, intent(in), optional :: raw
 logical outmode
 
@@ -3255,22 +3258,38 @@ do tile = 1,ntiles
   
           ! canyon
           snowdeltac(ib:ie)=rdhyd_g(ifrac,tile)%snow(ib:ie)/(rdhyd_g(ifrac,tile)%snow(ib:ie)+maxrdsn)
+          ! some fixes for the nvfortran compiler
+          t_hwratio(ib:ie) = f_g(tile)%hwratio(ib:ie)
+          t_effhwratio(ib:ie) = f_g(tile)%effhwratio(ib:ie)
+          t_vangle(ib:ie) = f_g(tile)%vangle(ib:ie)
+          t_hangle(ib:ie) = f_g(tile)%hangle(ib:ie)
+          tcv_sigma(ib:ie) = cnveg_g(tile)%sigma(ib:ie)
+          trv_sigma(ib:ie) = rfveg_g(tile)%sigma(ib:ie)
+          trd_alpha(ib:ie) = f_road(tile)%alpha(ib:ie)
+          tcv_alpha(ib:ie) = cnveg_g(tile)%alpha(ib:ie)
+          tw_alpha(ib:ie) = f_wall(tile)%alpha(ib:ie)
+          trd_snowalpha(ib:ie) = rdhyd_g(ifrac,tile)%snowalpha(ib:ie)
+          t_sigmabld(ib:ie) = f_g(tile)%sigmabld(ib:ie)
+          trf_alpha(ib:ie) = f_roof(tile)%alpha(ib:ie)
+          trv_alpha(ib:ie) = rfveg_g(tile)%alpha(ib:ie)
+          trf_snowalpha(ib:ie) = rfhyd_g(ifrac,tile)%snowalpha(ib:ie)
+          ! call the subroutine
           call getswcoeff(sg_roof(ib:ie),sg_vegr(ib:ie),sg_road(ib:ie),sg_walle(ib:ie),sg_wallw(ib:ie),      &
                           sg_vegc(ib:ie),sg_rfsn(ib:ie),sg_rdsn(ib:ie),wallpsi(ib:ie),roadpsi(ib:ie),        &
-                          f_g(tile)%hwratio(ib:ie),f_g(tile)%effhwratio(ib:ie),f_g(tile)%vangle(ib:ie),      &
-                          f_g(tile)%hangle(ib:ie),dumfbeam(ib:ie),cnveg_g(tile)%sigma(ib:ie),                &
-                          f_road(tile)%alpha(ib:ie),cnveg_g(tile)%alpha(ib:ie),f_wall(tile)%alpha(ib:ie),    &
-                          rdhyd_g(ifrac,tile)%snowalpha(ib:ie),snowdeltac(ib:ie))
+                          t_hwratio(ib:ie),t_effhwratio(ib:ie),t_vangle(ib:ie),                              &
+                          t_hangle(ib:ie),dumfbeam(ib:ie),tcv_sigma(ib:ie),                                  &
+                          trd_alpha(ib:ie),tcv_alpha(ib:ie),tw_alpha(ib:ie),                                 &
+                          trd_snowalpha(ib:ie),snowdeltac(ib:ie))
           sg_walle(ib:ie)=sg_walle(ib:ie)*f_g(tile)%coeffbldheight(ib:ie)
           sg_wallw(ib:ie)=sg_wallw(ib:ie)*f_g(tile)%coeffbldheight(ib:ie)
 
           call getnetalbedo(tmpalb(ib:ie),sg_roof(ib:ie),sg_vegr(ib:ie),sg_road(ib:ie),sg_walle(ib:ie),       &
                             sg_wallw(ib:ie),sg_vegc(ib:ie),sg_rfsn(ib:ie),sg_rdsn(ib:ie),                     &
-                            f_g(tile)%hwratio(ib:ie),f_g(tile)%sigmabld(ib:ie),rfveg_g(tile)%sigma(ib:ie),    &
-                            f_roof(tile)%alpha(ib:ie),rfveg_g(tile)%alpha(ib:ie),                             &
-                            cnveg_g(tile)%sigma(ib:ie),f_road(tile)%alpha(ib:ie),                             &
-                            f_wall(tile)%alpha(ib:ie),cnveg_g(tile)%alpha(ib:ie),                             &
-                            rfhyd_g(ifrac,tile)%snowalpha(ib:ie),rdhyd_g(ifrac,tile)%snowalpha(ib:ie),        &
+                            t_hwratio(ib:ie),t_sigmabld(ib:ie),trv_sigma(ib:ie),                              &
+                            trf_alpha(ib:ie),trv_alpha(ib:ie),                                                &
+                            tcv_sigma(ib:ie),trd_alpha(ib:ie),                                                &
+                            tw_alpha(ib:ie),tcv_alpha(ib:ie),                                                 &
+                            trf_snowalpha(ib:ie),trd_snowalpha(ib:ie),                                        &
                             snowdeltar(ib:ie),snowdeltac(ib:ie))
 
           ualb(ib:ie) = ualb(ib:ie) + tmpalb(ib:ie)*p_g(ifrac,tile)%frac_sigma(ib:ie)

@@ -11149,7 +11149,7 @@ use filnames_m
 !    assumption, no other frequencies are used.
 !----------------------------------------------------------------------
       do j=1,nptch2o
-        vvj(j) = v1sh2o_296 + dvsh2o_296*float(j+ioffh2o-1)
+        vvj(j) = v1sh2o_296 + dvsh2o_296*real(j+ioffh2o-1)
       end do
 
 !---------------------------------------------------------------------

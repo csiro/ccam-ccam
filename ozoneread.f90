@@ -387,7 +387,7 @@ else ! CMIP3 ozone
   ! Convert time to day number
   ! date = amod( float(mins)/1440., year)
   ! Use year of exactly 365 days
-  date = float(mod(mins,525600))/1440.
+  date = real(mod(mins,525600))/1440.
   rang = tpi*(date-rlag)/year
   rsin1 = sin(rang)
   rcos1 = cos(rang)

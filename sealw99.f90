@@ -2701,9 +2701,9 @@ logical,                        intent(in)    :: including_aerosols
    end do  ! (profiles loop)
  
     if (Cldrad_control%do_ica_calcs) then
-      Lw_output%heatra = heatra_save / Float(nprofiles)
-      Lw_output%flxnet = flxnet_save / Float(nprofiles)
-      Lw_output%bdy_flx = 1.0e-03*Lw_output%bdy_flx/Float(nprofiles)
+      Lw_output%heatra = heatra_save / real(nprofiles)
+      Lw_output%flxnet = flxnet_save / real(nprofiles)
+      Lw_output%bdy_flx = 1.0e-03*Lw_output%bdy_flx/real(nprofiles)
     endif
 
 !-----------------------------------------------------------------------

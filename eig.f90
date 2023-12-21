@@ -1028,7 +1028,7 @@ end do
 ! the inverse iteration is performed on the matrix until the
 ! infinite norm of the right-hand side vector is greater
 ! than the bound defined as  0.01(n*ex).
-bound = 0.01_rp/(ex * float(kl))
+bound = 0.01_rp/(ex * real(kl))
 ns = 0
 iter = 1
 

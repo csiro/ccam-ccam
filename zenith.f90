@@ -152,7 +152,7 @@ contains
       el = velngm + craten*radian
 !
 !  constrain el to range of zero to 2 * pi
-      el = el - tpi*ifix(el/tpi)
+      el = el - tpi*real(int(el/tpi))
       if (el .lt. 0.0) el= el+tpi
       elt   = el
 !
@@ -163,7 +163,7 @@ contains
                    + 13.0*ec*ecsq*sin(3.0*(el-peri))/12.0
 !
 !   constrain rlam to range of zero to 2 * pi
-      rlam = rlam - tpi*ifix(rlam/tpi)
+      rlam = rlam - tpi*real(int(rlam/tpi))
       if (rlam .lt. 0.0) rlam = rlam + tpi
 !
 !   compute right ascension of sun (alp) in radians

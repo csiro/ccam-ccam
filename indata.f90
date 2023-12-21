@@ -30,11 +30,12 @@ module indata
 
 private
 public indataf
-public nstnmax, nstn, istn, jstn, iunp
+public nstnmax, nstn, istn, jstn, iunp, io_nest
 public slat, slon, zstn, mystn, name_stn
 
 integer, parameter :: nstnmax = 47
 integer, save :: nstn = 0
+integer, save :: io_nest = 1
 integer, dimension(nstnmax), save :: istn, jstn, iunp=6
 real, dimension(nstnmax), save    :: slat=-89., slon=0., zstn=0.
 logical, dimension(nstnmax), save :: mystn
@@ -46,7 +47,7 @@ end interface datacheck
 
 contains
     
-subroutine indataf(lapsbot,isoth,nsig,io_nest)
+subroutine indataf(lapsbot,isoth,nsig)
      
 use aerointerface                                ! Aerosol interface
 use aerosol_arrays, only : xtg,naero,itracdu     ! Aerosol arrays
@@ -123,7 +124,6 @@ real, parameter :: delty    = 60.   ! pole to equator variation in equal tempera
 real, parameter :: deltheta = 10.   ! vertical variation
 real, parameter :: rkappa   = 2./7.
 
-integer, intent(inout) :: io_nest
 integer ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
 integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
 integer nface, nn, nsig, i, j, n
@@ -325,6 +325,10 @@ if ( myid==0 ) then
   write(6,*) "-> lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
   write(6,*) "Processing vertical levels"
 end if
+
+#ifdef GPUPHYSICS
+!$acc update device(sig)
+#endif
 
 dsig(1:kl-1)   = sigmh(2:kl) - sigmh(1:kl-1)
 dsig(kl)       = -sigmh(kl)

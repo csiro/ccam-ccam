@@ -3188,52 +3188,64 @@ integer,                       intent(in)    :: naerosol_optical
 !    spectral values.                                                  
 !------------------------------------------------------------------
             do k = KSRAD,KERAD+1
-              where ( daylight(:,:) )
-                Sw_output%dfsw (:,:,k,nz) =   &
-                       Sw_output%dfsw(:,:,k,nz) + sumtr(:,:,k,nz)*&
-                                                      solarflux_p(:,:)
-                Sw_output%ufsw (:,:,k,nz) =   &
-                       Sw_output%ufsw(:,:,k,nz) + sumre(:,:,k,nz)*  &
-                                                       solarflux_p(:,:)
-                fswband(:,:,k,nz) = ((sumre(:,:,k,nz)*  &
-                                          solarflux_p(:,:)) - &
-                                         (sumtr(:,:,k,nz)*    &
-                                                      solarflux_p(:,:)))
-                Sw_output%fsw(:,:,k,nz) = Sw_output%fsw(:,:,k,nz) +&
-                                                      fswband(:,:,k,nz)
-              end where
+              do j = JSRAD,JERAD
+                do i = ISRAD,IERAD
+                  if ( daylight(i,j) ) then
+                    Sw_output%dfsw (i,j,k,nz) =   &
+                       Sw_output%dfsw(i,j,k,nz) + sumtr(i,j,k,nz)*&
+                                                      solarflux_p(i,j)
+                    Sw_output%ufsw (i,j,k,nz) =   &
+                       Sw_output%ufsw(i,j,k,nz) + sumre(i,j,k,nz)*  &
+                                                       solarflux_p(i,j)
+                    fswband(i,j,k,nz) = ((sumre(i,j,k,nz)*  &
+                                          solarflux_p(i,j)) - &
+                                         (sumtr(i,j,k,nz)*    &
+                                                      solarflux_p(i,j)))
+                    Sw_output%fsw(i,j,k,nz) = Sw_output%fsw(i,j,k,nz) +&
+                                                      fswband(i,j,k,nz)
+                  end if
+                end do
+              end do
             end do
  
-            where ( daylight(:,:) )
-              Sw_output%dfsw_dir_sfc(:,:,nz) =   &
-                            Sw_output%dfsw_dir_sfc(:,:,nz) +   &
-                              sumtr_dir(:,:,KERAD+1,nz)*solarflux_p(:,:)
-              Sw_output%ufsw_dir_sfc(:,:,nz) =   &
-                            Sw_output%ufsw_dir_sfc(:,:,nz) +   &
-                              sumtr_dir_up(:,:,nz)*solarflux_p(:,:)
-              Sw_output%ufsw_dif_sfc(:,:,nz) =   &
-                             Sw_output%ufsw_dif_sfc(:,:,nz) +   &
-                               sumre(:,:,KERAD+1,nz)*solarflux_p(:,:)
-            end where
+            do j = JSRAD,JERAD
+              do i = ISRAD,IERAD
+                if ( daylight(i,j) ) then
+                  Sw_output%dfsw_dir_sfc(i,j,nz) =   &
+                            Sw_output%dfsw_dir_sfc(i,j,nz) +   &
+                              sumtr_dir(i,j,KERAD+1,nz)*solarflux_p(i,j)
+                  Sw_output%ufsw_dir_sfc(i,j,nz) =   &
+                            Sw_output%ufsw_dir_sfc(i,j,nz) +   &
+                              sumtr_dir_up(i,j,nz)*solarflux_p(i,j)
+                  Sw_output%ufsw_dif_sfc(i,j,nz) =   &
+                             Sw_output%ufsw_dif_sfc(i,j,nz) +   &
+                               sumre(i,j,KERAD+1,nz)*solarflux_p(i,j)
+                end if
+              end do
+            end do
 
             if (nband > NIRBANDS) then
-              where ( daylight(:,:) )
-                Sw_output%dfsw_vis_sfc(:,:,nz) =   &
-                          Sw_output%dfsw_vis_sfc(:,:,nz) +   &
-                                sumtr(:,:,KERAD+1,nz)*solarflux_p(:,:)
-                Sw_output%ufsw_vis_sfc(:,:,nz) =   &
-                           Sw_output%ufsw_vis_sfc(:,:,nz) +   &
-                                 sumre(:,:,KERAD+1,nz)*solarflux_p(:,:)
-                Sw_output%dfsw_vis_sfc_dir(:,:,nz) =   &
-                            Sw_output%dfsw_vis_sfc_dir(:,:,nz) +   &
-                              sumtr_dir(:,:,KERAD+1,nz)*solarflux_p(:,:)
-                Sw_output%ufsw_vis_sfc_dir(:,:,nz) =   &
-                            Sw_output%ufsw_vis_sfc_dir(:,:,nz) +   &
-                              sumtr_dir_up(:,:,nz)*solarflux_p(:,:)
-                Sw_output%ufsw_vis_sfc_dif(:,:,nz) =   &
-                             Sw_output%ufsw_vis_sfc_dif(:,:,nz) +   &
-                                 sumre(:,:,KERAD+1,nz)*solarflux_p(:,:)
-              end where
+              do j = JSRAD,JERAD
+                do i = ISRAD,IERAD
+                  if ( daylight(i,j) ) then
+                    Sw_output%dfsw_vis_sfc(i,j,nz) =   &
+                          Sw_output%dfsw_vis_sfc(i,j,nz) +   &
+                                sumtr(i,j,KERAD+1,nz)*solarflux_p(i,j)
+                    Sw_output%ufsw_vis_sfc(i,j,nz) =   &
+                           Sw_output%ufsw_vis_sfc(i,j,nz) +   &
+                                 sumre(i,j,KERAD+1,nz)*solarflux_p(i,j)
+                    Sw_output%dfsw_vis_sfc_dir(i,j,nz) =   &
+                            Sw_output%dfsw_vis_sfc_dir(i,j,nz) +   &
+                              sumtr_dir(i,j,KERAD+1,nz)*solarflux_p(i,j)
+                    Sw_output%ufsw_vis_sfc_dir(i,j,nz) =   &
+                            Sw_output%ufsw_vis_sfc_dir(i,j,nz) +   &
+                              sumtr_dir_up(i,j,nz)*solarflux_p(i,j)
+                    Sw_output%ufsw_vis_sfc_dif(i,j,nz) =   &
+                             Sw_output%ufsw_vis_sfc_dif(i,j,nz) +   &
+                                 sumre(i,j,KERAD+1,nz)*solarflux_p(i,j)
+                  end if
+                end do
+              end do
             endif
 
 !---------------------------------------------------------------------
@@ -3258,17 +3270,25 @@ integer,                       intent(in)    :: naerosol_optical
             if (nprofile == 1) then  ! clr sky need be done only for 
                                      ! first cloud profile
               if (Rad_control%do_totcld_forcing) then
-                where ( daylight )
-                  Sw_output%dfsw_dir_sfc_clr(:,:,nz) =   &
-                     Sw_output%dfsw_dir_sfc_clr(:,:,nz) +   &
-                      sumtr_dir_clr(:,:,KERAD+1,nz)*solarflux_p(:,:)
-                end where
+                do j = JSRAD,JERAD
+                  do i = ISRAD,IERAD
+                    if ( daylight(i,j) ) then
+                      Sw_output%dfsw_dir_sfc_clr(i,j,nz) =   &
+                       Sw_output%dfsw_dir_sfc_clr(i,j,nz) +   &
+                        sumtr_dir_clr(i,j,KERAD+1,nz)*solarflux_p(i,j)
+                    end if
+                  end do
+                end do
                 if (nband > NIRBANDS) then
-                  where ( daylight )
-                    Sw_output%dfsw_vis_sfc_clr(:,:,nz) =   &
-                       Sw_output%dfsw_vis_sfc_clr(:,:,nz) +   &
-                          sumtrclr(:,:,KERAD+1,nz)*solarflux_p(:,:)
-                  end where
+                  do j = JSRAD,JERAD
+                    do i = ISRAD,IERAD
+                      if ( daylight(i,j) ) then
+                        Sw_output%dfsw_vis_sfc_clr(i,j,nz) =   &
+                         Sw_output%dfsw_vis_sfc_clr(i,j,nz) +   &
+                          sumtrclr(i,j,KERAD+1,nz)*solarflux_p(i,j)
+                      end if
+                    end do
+                  end do
                 endif
                 if (nband == Solar_spect%visible_band_indx) then
                   Sw_output%bdy_flx_clr(:,:,1,nz) =      &
@@ -3351,29 +3371,41 @@ integer,                       intent(in)    :: naerosol_optical
       endif
 
       do nz=1,nzens
-        where ( daylight )
-          Sw_output%dfsw_dif_sfc(:,:,nz ) =   &
-                          Sw_output%dfsw(:,:,KERAD+1,nz ) -   &
-                                  Sw_output%dfsw_dir_sfc(:,:,nz )
-        end where
+        do j = JSRAD,JERAD
+          do i = ISRAD,IERAD
+            if ( daylight(i,j) ) then
+              Sw_output%dfsw_dif_sfc(i,j,nz ) =   &
+                          Sw_output%dfsw(i,j,KERAD+1,nz ) -   &
+                                  Sw_output%dfsw_dir_sfc(i,j,nz )
+            end if
+          end do
+        end do
       end do
 
       if (Rad_control%do_totcld_forcing) then
         do nz=1,nzens
-          where ( daylight )
-            Sw_output%dfsw_dif_sfc_clr(:,:,nz ) =   &
-                              Sw_output%dfswcf(:,:,KERAD+1,nz) -   &
-                              Sw_output%dfsw_dir_sfc_clr(:,:,nz)
-          end where
+          do j = JSRAD,JERAD
+            do i = ISRAD,IERAD
+              if ( daylight(i,j) ) then
+                Sw_output%dfsw_dif_sfc_clr(i,j,nz ) =   &
+                              Sw_output%dfswcf(i,j,KERAD+1,nz) -   &
+                              Sw_output%dfsw_dir_sfc_clr(i,j,nz)
+              end if
+            end do
+          end do
         end do
       endif
 
       do nz=1,nzens
-        where ( daylight )
-          Sw_output%dfsw_vis_sfc_dif(:,:,nz) =   &
-                            Sw_output%dfsw_vis_sfc(:,:,nz) -   &
-                            Sw_output%dfsw_vis_sfc_dir(:,:,nz) 
-        end where
+        do j = JSRAD,JERAD
+          do i = ISRAD,IERAD
+            if ( daylight(i,j) ) then
+              Sw_output%dfsw_vis_sfc_dif(i,j,nz) =   &
+                            Sw_output%dfsw_vis_sfc(i,j,nz) -   &
+                            Sw_output%dfsw_vis_sfc_dir(i,j,nz) 
+            end if
+          end do
+        end do
       end do
 
 !--------------------------------------------------------------------

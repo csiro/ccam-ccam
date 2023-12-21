@@ -896,6 +896,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'nodrift',nodrift)
     call ccnf_put_attg(idnc,'oclosure',oclosure)
+    call ccnf_put_attg(idnc,'ocnepr',ocnepr)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
     call ccnf_put_attg(idnc,'ocnlap',ocnlap)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
@@ -2486,7 +2487,7 @@ if ( myid==0 .or. local ) then
       ! procformat
       allocate(xpnt(il),xpnt2(il,vnode_nproc))
       do i = 1,ipan
-        xpnt(i) = float(i + ioff)
+        xpnt(i) = real(i + ioff)
       end do
       call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
       call ccnf_put_vara(idnc,ixp,(/1,1/),(/il,vnode_nproc/),xpnt2)
@@ -2495,7 +2496,7 @@ if ( myid==0 .or. local ) then
       do n = 1,npan
         do j = 1,jpan
           i = j + (n-1)*jpan  
-          ypnt(i) = float(j + joff + (n-noff)*il_g)
+          ypnt(i) = real(j + joff + (n-noff)*il_g)
         end do
       end do
       call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
@@ -2505,13 +2506,13 @@ if ( myid==0 .or. local ) then
       ! single file
       allocate(xpnt(il_g))
       do i = 1,il_g
-        xpnt(i) = float(i)
+        xpnt(i) = real(i)
       end do
       call ccnf_put_vara(idnc,ixp,1,il_g,xpnt(1:il_g))
       deallocate(xpnt)
       allocate(ypnt(jl_g))
       do j = 1,jl_g
-        ypnt(j) = float(j)
+        ypnt(j) = real(j)
       end do
       call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
       deallocate(ypnt)
@@ -2614,7 +2615,7 @@ else if ( localhist ) then
 
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
-      xpnt(i) = float(i + ioff)
+      xpnt(i) = real(i + ioff)
     end do
     call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
     deallocate(xpnt,xpnt2)
@@ -2622,7 +2623,7 @@ else if ( localhist ) then
     do n = 1,npan
       do j = 1,jpan
         i = j + (n-1)*jpan  
-        ypnt(i) = float(j + joff + (n-noff)*il_g)
+        ypnt(i) = real(j + joff + (n-noff)*il_g)
       end do
     end do
     call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
@@ -3684,7 +3685,7 @@ if ( ngas>0 ) then
       if ( writetrpm ) then
         ! first divide by number of contributions to average
         do k = 1,kl
-          trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/float(npm)
+          trpm(1:ifull,k,igas) = trpm(1:ifull,k,igas)/real(npm)
         end do
         call histwrt(trpm(:,:,igas),'trpm'//trnum,idnc,iarch,local,.true.)
       endif
@@ -4475,7 +4476,7 @@ if ( first ) then
       ! procformat
       allocate(xpnt(il),xpnt2(il,vnode_nproc))
       do i = 1,ipan
-        xpnt(i) = float(i + ioff)
+        xpnt(i) = real(i + ioff)
       end do
       call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
       call ccnf_put_vara(fncid,ixp,(/1,1/),(/il,vnode_nproc/),xpnt2)
@@ -4484,7 +4485,7 @@ if ( first ) then
       do n = 1,npan
         do j = 1,jpan
           i = j + (n-1)*jpan  
-          ypnt(i) = float(j + joff + (n-noff)*il_g)
+          ypnt(i) = real(j + joff + (n-noff)*il_g)
         end do
       end do
       call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
@@ -4493,13 +4494,13 @@ if ( first ) then
     else
       allocate(xpnt(il_g))
       do i=1,il_g
-        xpnt(i) = float(i)
+        xpnt(i) = real(i)
       end do
       call ccnf_put_vara(fncid,ixp,1,il_g,xpnt(1:il_g))
       deallocate(xpnt)
       allocate(ypnt(jl_g))
       do j=1,jl_g
-        ypnt(j) = float(j)
+        ypnt(j) = real(j)
       end do
       call ccnf_put_vara(fncid,iyp,1,jl_g,ypnt(1:jl_g))
       deallocate(ypnt)
@@ -4547,7 +4548,7 @@ if ( first ) then
     
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
-      xpnt(i) = float(i + ioff)
+      xpnt(i) = real(i + ioff)
     end do
     call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
     deallocate(xpnt,xpnt2)
@@ -4555,7 +4556,7 @@ if ( first ) then
     do n = 1,npan
       do j = 1,jpan
         i = j + (n-1)*jpan  
-        ypnt(i) = float(j + joff + (n-noff)*il_g)
+        ypnt(i) = real(j + joff + (n-noff)*il_g)
       end do
     end do
     call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
@@ -5329,7 +5330,7 @@ if ( first ) then
       ! procformat
       allocate(xpnt(il),xpnt2(il,vnode_nproc))
       do i = 1,ipan
-        xpnt(i) = float(i + ioff)
+        xpnt(i) = real(i + ioff)
       end do
       call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
       call ccnf_put_vara(fncid,ixp,(/1,1/),(/il,vnode_nproc/),xpnt2)
@@ -5338,7 +5339,7 @@ if ( first ) then
       do n = 1,npan
         do j = 1,jpan
           i = j + (n-1)*jpan  
-          ypnt(i) = float(j + joff + (n-noff)*il_g)
+          ypnt(i) = real(j + joff + (n-noff)*il_g)
         end do
       end do
       call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
@@ -5347,13 +5348,13 @@ if ( first ) then
     else
       allocate(xpnt(il_g))
       do i=1,il_g
-        xpnt(i) = float(i)
+        xpnt(i) = real(i)
       end do
       call ccnf_put_vara(fncid,ixp,1,il_g,xpnt(1:il_g))
       deallocate(xpnt)
       allocate(ypnt(jl_g))
       do j=1,jl_g
-        ypnt(j) = float(j)
+        ypnt(j) = real(j)
       end do
       call ccnf_put_vara(fncid,iyp,1,jl_g,ypnt(1:jl_g))
       deallocate(ypnt)
@@ -5395,7 +5396,7 @@ if ( first ) then
     
     allocate(xpnt(il),xpnt2(il,vnode_nproc))
     do i = 1,ipan
-      xpnt(i) = float(i + ioff)
+      xpnt(i) = real(i + ioff)
     end do
     call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
     deallocate(xpnt,xpnt2)
@@ -5403,7 +5404,7 @@ if ( first ) then
     do n = 1,npan
       do j = 1,jpan
         i = j + (n-1)*jpan  
-        ypnt(i) = float(j + joff + (n-noff)*il_g)
+        ypnt(i) = real(j + joff + (n-noff)*il_g)
       end do
     end do
     call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)

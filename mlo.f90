@@ -2053,7 +2053,7 @@ do tile = 1,ntiles
       !snow(ib:ie)=min(max(ice(tile)%snowd(ib:ie)/0.05,0.),1.)
       snow(ib:ie)=0.
 
-      where ( coszro(jstart:jfinish)>0. .and. depth_g(tile)%dz(ib:ie,1)>=1.e-4 )
+      where ( coszro(jstart:jfinish)>1.e-8 .and. depth_g(tile)%dz(ib:ie,1)>=1.e-4 )
         dgwater_g(tile)%visdiralb(ib:ie)=0.026/(coszro(jstart:jfinish)**1.7+0.065)+0.15*(coszro(jstart:jfinish)-0.1)* &
                         (coszro(jstart:jfinish)-0.5)*(coszro(jstart:jfinish)-1.)
       elsewhere ( depth_g(tile)%dz(ib:ie,1)>=1.e-4 )
@@ -4551,11 +4551,11 @@ real, dimension(nc,4) :: ans
 if (diag>=1) write(6,*) "Two ice layers + snow"
 
 ! Thickness of each layer
-rhsn=1./it_dsn
-rhin=2./(it_dic-gammi/cpi)
-con =condsnw/it_dsn
-conb=1./(it_dsn/condsnw+0.5*max(it_dic,icemin)/condice)
-conc=2.*condice/max(it_dic,icemin)
+rhsn=1./max(it_dsn,0.05)
+rhin=2./(max(it_dic,himin)-gammi/cpi)
+con =condsnw/max(it_dsn,0.05)
+conb=1./(it_dsn/condsnw+0.5*max(it_dic,himin)/condice)
+conc=2.*condice/max(it_dic,himin)
 
 ! no need to map from generic ice pack into 2 layer + snow
 
@@ -4585,8 +4585,8 @@ dhb=dt*(fl-dt_fb)/qice                ! Excess flux between water and ice layer
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 flnew=dt_fb+dhb*qice/dt
-it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic) ! Modify temperature if limit is reached
-it_tn2=it_tn2+(flnew-fl)/(cpi*it_dic) ! Modify temperature if limit is reached
+it_tn1=it_tn1+(flnew-fl)/(cpi*max(it_dic,himin)) ! Modify temperature if limit is reached
+it_tn2=it_tn2+(flnew-fl)/(cpi*max(it_dic,himin)) ! Modify temperature if limit is reached
 
 ! Bottom ablation or accretion
 it_dic = it_dic + dhb
@@ -4697,9 +4697,9 @@ real, dimension(nc,3) :: ans
 if (diag>=1) write(6,*) "One ice layer + snow"
 
 ! Thickness of each layer
-rhsn=1./it_dsn
-rhin=1./(it_dic-gammi/cpi)
-con =condsnw/it_dsn
+rhsn=1./max(it_dsn,0.05)
+rhin=1./(max(it_dic,himin)-gammi/cpi)
+con =condsnw/max(it_dsn,0.05)
 conb=1./(it_dsn/condsnw+max(it_dic,icemin)/condice)
 conc=condice/max(it_dic,icemin)
 
@@ -4729,7 +4729,7 @@ dhb=dt*(fl-dt_fb)/qice                      ! Excess flux between water and ice 
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 flnew=dt_fb+dhb*qice/dt
-it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic-gammi) ! modify temperature if limit is reached
+it_tn1=it_tn1+(flnew-fl)/(cpi*max(it_dic,himin)-gammi) ! modify temperature if limit is reached
 
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
@@ -4838,8 +4838,8 @@ real, dimension(nc,3) :: ans
 
 if (diag>=1) write(6,*) "Two ice layers + without snow"
 
-con =1./(it_dsn/condsnw+0.5*max(it_dic,icemin)/condice)
-conb=2.*condice/max(it_dic,icemin)
+con =1./(it_dsn/condsnw+0.5*max(it_dic,himin)/condice)
+conb=2.*condice/max(it_dic,himin)
 gamm=cps*it_dsn+gammi  ! for energy conservation
 
 ! map from generic ice pack to 2 layer
@@ -4848,7 +4848,7 @@ it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0)/gamm
 !it_tn2=it_tn2
 
 ! Thickness of each layer
-rhin=2./(it_dic-gammi/cpi)
+rhin=2./(max(it_dic,himin)-gammi/cpi)
 
 ! Solve implicit ice temperature matrix
 bb(:,1)=1.+dt*2.*con/gamm
@@ -4871,8 +4871,8 @@ dhb=dt*(fl-dt_fb)/qice                   ! first guess of excess flux between wa
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 flnew=dt_fb+dhb*qice/dt
-it_tn1=it_tn1+2.*(flnew-fl)/(cpi*it_dic) ! modify temperature if limit is reached
-it_tn2=it_tn2+2.*(flnew-fl)/(cpi*it_dic) ! modify temperature if limit is reached
+it_tn1=it_tn1+2.*(flnew-fl)/(cpi*max(it_dic,himin)) ! modify temperature if limit is reached
+it_tn2=it_tn2+2.*(flnew-fl)/(cpi*max(it_dic,himin)) ! modify temperature if limit is reached
 
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb
@@ -4980,7 +4980,7 @@ it_tsurf=(gammi*it_tsurf+cps*it_dsn*it_tn0)/gamm
 it_tn1=0.5*(it_tn1+it_tn2)
 
 ! Thickness of layer
-rhin=1./(it_dic-gammi/cpi)
+rhin=1./(max(it_dic,himin)-gammi/cpi)
 
 ! Solve implicit ice temperature matrix
 ! f0=2.*con*(newt1-newtsurf) is the flux between tsurf and t1
@@ -5000,7 +5000,7 @@ dhb=dt*(fl-dt_fb)/qice                      ! first guess of excess flux between
 dhb=max(dhb,-it_dic)
 dhb=min(dhb,dt_wavail*wrtrho/rhoic)
 flnew=dt_fb+dhb*qice/dt                     ! final excess flux from below
-it_tn1=it_tn1+(flnew-fl)/(cpi*it_dic)       ! does nothing unless a limit is reached
+it_tn1=it_tn1+(flnew-fl)/(cpi*max(it_dic,himin))  ! does nothing unless a limit is reached
 
 ! Bottom ablation or accretion
 it_dic=it_dic+dhb

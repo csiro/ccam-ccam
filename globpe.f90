@@ -163,9 +163,8 @@ write(6,*) "ERROR: CCAM -Dshare_ifullg requires -Dusempi3"
 
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
-! CCAM has been optimised around MPI for parallel processing, although
-! CCAM does support OMP parallel threads for its physical parameterisations
-! CCAM also supports GPU accelerators for some functions with either OpenMP or OpenACC
+! CCAM has been optimised around MPI for parallel processing, although CCAM
+! does optionally support OMP parallel threads and OpenACC for GPUs.
 call ccmpi_init
 
 ! Start banner
@@ -1484,7 +1483,7 @@ integer, dimension(:), allocatable, save :: dumi
 integer ierr, k, new_nproc, ilx, jlx, i, ng
 integer isoth, nsig, lapsbot
 integer secs_rad, nversion
-integer mstn, io_nest, mbd_min
+integer mstn, mbd_min
 integer opt, nopt
 integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
@@ -1620,7 +1619,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
-    mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,                      &
+    mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,               &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -1679,7 +1678,6 @@ ateb_intmassmeth    = 0
 ateb_zocanyon       = zocanyon
 ateb_zoroof         = zoroof
 lapsbot             = 0
-io_nest             = 1
 npa                 = 0   ! depreciated
 npb                 = 0   ! depreciated
 cgmap_offset        = 0.  ! depreciated
@@ -1703,627 +1701,22 @@ call ccmpi_bcast(nversion,0,comm_world)
 if ( nversion/=0 ) then
   call change_defaults(nversion)
 end if
-allocate( dumr(33), dumi(119) ) 
-dumr(:) = 0.
-dumi(:) = 0
 if ( myid==0 ) then
   read(99, cardin)
-  dumr(1)   = dt
-  dumr(2)   = restol
-  dumr(3)   = panfg
-  dumr(4)   = panzo
-  dumr(5)   = rlatdn
-  dumr(6)   = rlatdx
-  dumr(7)   = rlongdn
-  dumr(8)   = rlongdx
-  dumr(9)   = epsp
-  dumr(10)  = epsu
-  dumr(11)  = epsf
-  dumr(12)  = epsh
-  dumr(13)  = av_vmod
-  dumr(14)  = charnock
-  dumr(15)  = chn10
-  dumr(16)  = snmin
-  dumr(17)  = tss_sh
-  dumr(18)  = vmodmin
-  dumr(19)  = zobgin
-  dumr(20)  = rlong0
-  dumr(21)  = rlat0
-  dumr(22)  = schmidt
-  dumr(23)  = sigramplow
-  dumr(24)  = sigramphigh
-  dumr(25)  = ch_dust
-  dumr(26)  = helim
-  dumr(27)  = fc2
-  dumr(28)  = sigbot_gwd
-  dumr(29)  = alphaj
-  dumr(30)  = qgmin
-  dumr(31)  = rhsat
-  dumr(32)  = ensemble_rsfactor
-  dumr(33)  = zo_clearing
-  dumi(1)   = ntau
-  dumi(2)   = nwt
-  dumi(3)   = nhorps
-  dumi(4)   = nperavg
-  dumi(5)   = ia
-  dumi(6)   = ib
-  dumi(7)   = ja
-  dumi(8)   = jb
-  dumi(9)   = id
-  dumi(10)  = jd
-  dumi(11)  = iaero
-  dumi(12)  = khdif
-  dumi(13)  = khor
-  dumi(14)  = nhorjlm
-  dumi(15)  = mex
-  dumi(16)  = mbd
-  dumi(17)  = nbd
-  dumi(18)  = mbd_maxscale
-  dumi(19)  = mbd_maxgrid
-  dumi(20)  = ndi
-  dumi(21)  = ndi2
-  dumi(22)  = nhor
-  dumi(23)  = nlv
-  dumi(24)  = nmaxpr
-  dumi(25)  = nrad
-  dumi(26)  = ntaft
-  dumi(27)  = ntsea
-  dumi(28)  = ntsur
-  dumi(29)  = nvmix
-  dumi(30)  = precon
-  dumi(31)  = kdate_s
-  dumi(32)  = ktime_s
-  dumi(33)  = leap
-  dumi(34)  = newtop
-  dumi(35)  = mup
-  dumi(36)  = lgwd
-  dumi(37)  = ngwd
-  dumi(38)  = nextout
-  dumi(39)  = jalbfix
-  dumi(40)  = nalpha
-  dumi(41)  = nstag
-  dumi(42)  = nstagu
-  dumi(43)  = ntbar
-  dumi(44)  = nwrite
-  dumi(45)  = irest
-  dumi(46)  = nrun
-  dumi(47)  = nstn
-  dumi(48)  = nrungcm
-  dumi(49)  = nsib
-  dumi(50)  = mh_bs
-  dumi(51)  = nritch_t
-  dumi(52)  = nt_adv
-  dumi(53)  = mfix
-  dumi(54)  = mfix_qg
-  dumi(55)  = namip
-  if ( amipo3 ) dumi(56) = 1
-  dumi(57)  = nh
-  dumi(58)  = nhstest
-  dumi(59)  = nsemble
-  dumi(60)  = nspecial
-  dumi(61)  = newrough
-  dumi(62)  = nglacier
-  dumi(63)  = newztsea
-  dumi(64)  = kbotdav
-  dumi(65)  = kbotu
-  dumi(66)  = nud_p
-  dumi(67)  = nud_q
-  dumi(68)  = nud_t
-  dumi(69)  = nud_uv
-  dumi(70)  = nud_hrs
-  dumi(71)  = nudu_hrs
-  dumi(72)  = nlocal
-  dumi(73)  = nbarewet
-  dumi(74)  = nsigmf
-  dumi(75)  = io_in
-  dumi(76)  = io_nest
-  dumi(77)  = io_out
-  dumi(78)  = io_rest
-  dumi(79)  = tbave
-  if ( synchist ) dumi(80) = 1
-  dumi(81)  = m_fly
-  dumi(82)  = nurban
-  dumi(83)  = ktopdav
-  dumi(84)  = mbd_mlo
-  dumi(85)  = mbd_maxscale_mlo
-  dumi(86)  = nud_sst
-  dumi(87)  = nud_sss
-  dumi(88)  = mfix_tr
-  dumi(89)  = mfix_aero
-  dumi(90)  = kbotmlo
-  dumi(91)  = ktopmlo
-  dumi(92)  = mloalpha
-  dumi(93)  = nud_ouv
-  dumi(94)  = nud_sfh
-  dumi(95)  = rescrn
-  dumi(96) = helmmeth
-  dumi(97) = nmlo
-  dumi(98) = ol
-  dumi(99) = knh
-  dumi(100) = kblock
-  dumi(101) = nud_aero
-  dumi(102) = nud_period
-  dumi(103) = procmode
-  dumi(104) = compression
-  dumi(105) = nmr
-  dumi(106) = maxtilesize
-  dumi(107) = mfix_t
-  dumi(108) = ensemble_mode
-  dumi(109) = ensemble_period
-  dumi(110) = hp_output
-  dumi(111) = intsch_mode
-  dumi(112) = qg_fix
-  if ( always_mspeca ) dumi(113) = 1
-  dumi(114) = ntvd
-  dumi(115) = tbave10  
-  dumi(116) = async_length
-  dumi(117) = nagg
-  dumi(118) = pil_single
-  if ( localhist ) dumi(119) = 1
 end if
-call ccmpi_bcast(dumr,0,comm_world)
-call ccmpi_bcast(dumi,0,comm_world)
-dt                = dumr(1)
-restol            = dumr(2)
-panfg             = dumr(3)
-panzo             = dumr(4)
-rlatdn            = dumr(5)
-rlatdx            = dumr(6)
-rlongdn           = dumr(7)
-rlongdx           = dumr(8)
-epsp              = dumr(9)
-epsu              = dumr(10)
-epsf              = dumr(11)
-epsh              = dumr(12)
-av_vmod           = dumr(13)
-charnock          = dumr(14)
-chn10             = dumr(15)
-snmin             = dumr(16)
-tss_sh            = dumr(17)
-vmodmin           = dumr(18)
-zobgin            = dumr(19)
-rlong0            = dumr(20)
-rlat0             = dumr(21)
-schmidt           = dumr(22)
-sigramplow        = dumr(23)
-sigramphigh       = dumr(24)
-ch_dust           = dumr(25)
-helim             = dumr(26)
-fc2               = dumr(27)
-sigbot_gwd        = dumr(28)
-alphaj            = dumr(29)
-qgmin             = dumr(30)
-rhsat             = dumr(31)
-ensemble_rsfactor = dumr(32)
-zo_clearing       = dumr(33)
-ntau              = dumi(1)
-nwt               = dumi(2)
-nhorps            = dumi(3)
-nperavg           = dumi(4)
-ia                = dumi(5)
-ib                = dumi(6)
-ja                = dumi(7)
-jb                = dumi(8)
-id                = dumi(9)
-jd                = dumi(10)
-iaero             = dumi(11)
-khdif             = dumi(12)
-khor              = dumi(13)
-nhorjlm           = dumi(14)
-mex               = dumi(15)
-mbd               = dumi(16)
-nbd               = dumi(17)
-mbd_maxscale      = dumi(18)
-mbd_maxgrid       = dumi(19)
-ndi               = dumi(20)
-ndi2              = dumi(21)
-nhor              = dumi(22)
-nlv               = dumi(23)
-nmaxpr            = dumi(24)
-nrad              = dumi(25)
-ntaft             = dumi(26)
-ntsea             = dumi(27)
-ntsur             = dumi(28)
-nvmix             = dumi(29)
-precon            = dumi(30)
-kdate_s           = dumi(31)
-ktime_s           = dumi(32)
-leap              = dumi(33)
-newtop            = dumi(34)
-mup               = dumi(35)
-lgwd              = dumi(36)
-ngwd              = dumi(37)
-nextout           = dumi(38)
-jalbfix           = dumi(39)
-nalpha            = dumi(40)
-nstag             = dumi(41)
-nstagu            = dumi(42)
-ntbar             = dumi(43)
-nwrite            = dumi(44)
-irest             = dumi(45)
-nrun              = dumi(46)
-nstn              = dumi(47)
-nrungcm           = dumi(48)
-nsib              = dumi(49)
-mh_bs             = dumi(50)
-nritch_t          = dumi(51)
-nt_adv            = dumi(52)
-mfix              = dumi(53)
-mfix_qg           = dumi(54)
-namip             = dumi(55)
-amipo3            = dumi(56)==1
-nh                = dumi(57)
-nhstest           = dumi(58)
-nsemble           = dumi(59)
-nspecial          = dumi(60)
-newrough          = dumi(61)
-nglacier          = dumi(62)
-newztsea          = dumi(63)
-kbotdav           = dumi(64)
-kbotu             = dumi(65)
-nud_p             = dumi(66)
-nud_q             = dumi(67)
-nud_t             = dumi(68)
-nud_uv            = dumi(69)
-nud_hrs           = dumi(70)
-nudu_hrs          = dumi(71)
-nlocal            = dumi(72)
-nbarewet          = dumi(73)
-nsigmf            = dumi(74)
-io_in             = dumi(75)
-io_nest           = dumi(76)
-io_out            = dumi(77)
-io_rest           = dumi(78)
-tbave             = dumi(79)
-synchist          = dumi(80)==1
-m_fly             = dumi(81)
-nurban            = dumi(82)
-ktopdav           = dumi(83)
-mbd_mlo           = dumi(84)
-mbd_maxscale_mlo  = dumi(85)
-nud_sst           = dumi(86)
-nud_sss           = dumi(87)
-mfix_tr           = dumi(88)
-mfix_aero         = dumi(89)
-kbotmlo           = dumi(90)
-ktopmlo           = dumi(91)
-mloalpha          = dumi(92)
-nud_ouv           = dumi(93)
-nud_sfh           = dumi(94)
-rescrn            = dumi(95)
-helmmeth          = dumi(96)
-nmlo              = dumi(97)
-ol                = dumi(98)
-knh               = dumi(99)
-kblock            = dumi(100)
-nud_aero          = dumi(101)
-nud_period        = dumi(102)
-procmode          = dumi(103)
-compression       = dumi(104)
-nmr               = dumi(105)
-maxtilesize       = dumi(106)
-mfix_t            = dumi(107)
-ensemble_mode     = dumi(108)
-ensemble_period   = dumi(109)
-hp_output         = dumi(110)
-intsch_mode       = dumi(111)
-qg_fix            = dumi(112)
-always_mspeca     = dumi(113)==1
-ntvd              = dumi(114)
-tbave10           = dumi(115)
-async_length      = dumi(116)
-nagg              = dumi(117)
-pil_single        = dumi(118)
-localhist         = dumi(119)==1
-deallocate( dumr, dumi )
-if ( nstn>0 ) then
-  call ccmpi_bcast(istn(1:nstn),0,comm_world)
-  call ccmpi_bcast(jstn(1:nstn),0,comm_world)
-  call ccmpi_bcast(iunp(1:nstn),0,comm_world)
-  call ccmpi_bcast(slat(1:nstn),0,comm_world)
-  call ccmpi_bcast(slon(1:nstn),0,comm_world)
-  call ccmpi_bcast(zstn(1:nstn),0,comm_world)
-  do i = 1,nstn
-    call ccmpi_bcast(name_stn(i),0,comm_world)
-  end do
-end if
-allocate( dumr(10), dumi(17) )
-dumr = 0.
-dumi = 0
+call broadcast_cardin
 if ( myid==0 ) then
   read(99, skyin)
-  dumr(1)  = bpyear
-  dumr(2)  = qgmin
-  dumr(3)  = ch_dust
-  dumr(4)  = zvolcemi
-  dumr(5)  = so4mtn
-  dumr(6)  = carbmtn
-  dumr(7)  = saltsmallmtn
-  dumr(8)  = saltlargemtn
-  dumr(9)  = siglow
-  dumr(10) = sigmid
-  dumi(1)  = mins_rad
-  dumi(2)  = liqradmethod
-  dumi(3)  = iceradmethod
-  dumi(4)  = so4radmethod
-  dumi(5)  = carbonradmethod
-  dumi(6)  = dustradmethod
-  dumi(7)  = seasaltradmethod
-  dumi(8)  = aeroindir
-  dumi(9)  = o3_vert_interpolate
-  if ( do_co2_10um ) dumi(10) = 1
-  dumi(11) = aerosol_u10  
-  dumi(12) = aero_split
-  dumi(13) = enhanceu10
-  if ( do_quench ) dumi(14) = 1
-  if ( remain_rayleigh_bug ) dumi(15) = 1
-  if ( use_rad_year ) dumi(16) = 1
-  dumi(17) = rad_year
 end if
-call ccmpi_bcast(dumr,0,comm_world)
-call ccmpi_bcast(dumi,0,comm_world)
-call ccmpi_bcast(sw_resolution,0,comm_world)
-call ccmpi_bcast(lwem_form,0,comm_world)
-call ccmpi_bcast(linecatalog_form,0,comm_world)
-call ccmpi_bcast(continuum_form,0,comm_world)
-bpyear              = dumr(1)
-qgmin               = dumr(2)
-ch_dust             = dumr(3)
-zvolcemi            = dumr(4)
-so4mtn              = dumi(5)
-carbmtn             = dumr(6)
-saltsmallmtn        = dumr(7)
-saltlargemtn        = dumr(8)
-siglow              = dumr(9)
-sigmid              = dumr(10)
-mins_rad            = dumi(1)
-liqradmethod        = dumi(2)
-iceradmethod        = dumi(3)
-so4radmethod        = dumi(4)
-carbonradmethod     = dumi(5)
-dustradmethod       = dumi(6)
-seasaltradmethod    = dumi(7)
-aeroindir           = dumi(8)
-o3_vert_interpolate = dumi(9)
-do_co2_10um         = dumi(10)==1
-aerosol_u10         = dumi(11)
-aero_split          = dumi(12)
-enhanceu10          = dumi(13)
-do_quench           = dumi(14)==1
-remain_rayleigh_bug = dumi(15)==1
-use_rad_year        = dumi(16)==1
-rad_year            = dumi(17)
-deallocate( dumr, dumi )
-allocate( dumi(25) )
-dumi = 0
+call broadcast_skyin
 if ( myid==0 ) then
   read(99, datafile)
-  if ( save_aerosols ) dumi(1)=1
-  if ( save_pbl ) dumi(2)=1
-  if ( save_cloud ) dumi(3)=1
-  if ( save_land ) dumi(4)=1
-  if ( save_maxmin ) dumi(5)=1
-  if ( save_ocean ) dumi(6)=1
-  if ( save_radiation ) dumi(7)=1
-  if ( save_urban ) dumi(8)=1
-  if ( save_carbon ) dumi(9)=1
-  if ( save_river ) dumi(10)=1
-  dumi(11) = diaglevel_aerosols
-  dumi(12) = diaglevel_pbl
-  dumi(13) = diaglevel_cloud
-  dumi(14) = diaglevel_land
-  dumi(15) = diaglevel_maxmin
-  dumi(16) = diaglevel_ocean
-  dumi(17) = diaglevel_radiation
-  dumi(18) = diaglevel_urban
-  dumi(19) = diaglevel_carbon
-  dumi(20) = diaglevel_river
-  dumi(21) = diaglevel_pop
-  dumi(22) = surf_cordex
-  dumi(23) = surf_windfarm
-  dumi(24) = output_windmax
-  dumi(25) = cordex_fix
 end if
-call ccmpi_bcast(dumi,0,comm_world)
-call ccmpi_bcast(ifile,0,comm_world)
-call ccmpi_bcast(ofile,0,comm_world)
-call ccmpi_bcast(mesonest,0,comm_world)
-call ccmpi_bcast(restfile,0,comm_world)
-call ccmpi_bcast(surfile,0,comm_world)
-call ccmpi_bcast(surf_00,0,comm_world)
-call ccmpi_bcast(surf_12,0,comm_world)
-call ccmpi_bcast(cnsdir,0,comm_world)
-call ccmpi_bcast(ensembleoutfile,0,comm_world)
-!call ccmpi_bcast(albfile,0,comm_world)
-!call ccmpi_bcast(eigenv,0,comm_world)
-!call ccmpi_bcast(icefile,0,comm_world)
-!call ccmpi_bcast(rsmfile,0,comm_world)
-!call ccmpi_bcast(so4tfile,0,comm_world)
-!call ccmpi_bcast(soilfile,0,comm_world)
-!call ccmpi_bcast(sstfile,0,comm_world)
-!call ccmpi_bcast(topofile,0,comm_world)
-!call ccmpi_bcast(vegfile,0,comm_world)
-!call ccmpi_bcast(zofile,0,comm_world)
-!call ccmpi_bcast(laifile,0,comm_world)
-!call ccmpi_bcast(albnirfile,0,comm_world)
-!call ccmpi_bcast(urbanfile,0,comm_world)
-!call ccmpi_bcast(bathfile,0,comm_world)
-!call ccmpi_bcast(salfile,0,comm_world)
-!call ccmpi_bcast(oxidantfile,0,comm_world)
-!call ccmpi_bcast(casafile,0,comm_world)
-!call ccmpi_bcast(phenfile,0,comm_world)
-call ccmpi_bcast(solarfile,0,comm_world)
-call ccmpi_bcast(radfile,0,comm_world)
-call ccmpi_bcast(ch4file,0,comm_world)
-call ccmpi_bcast(n2ofile,0,comm_world)
-call ccmpi_bcast(cfc11file,0,comm_world)
-call ccmpi_bcast(cfc12file,0,comm_world)
-call ccmpi_bcast(cfc113file,0,comm_world)
-call ccmpi_bcast(hcfc22file,0,comm_world)
-!call ccmpi_bcast(o3file,0,comm_world)
-call ccmpi_bcast(freqfile,0,comm_world)
-save_aerosols  = dumi(1)==1
-save_pbl       = dumi(2)==1
-save_cloud     = dumi(3)==1
-save_land      = dumi(4)==1
-save_maxmin    = dumi(5)==1
-save_ocean     = dumi(6)==1
-save_radiation = dumi(7)==1
-save_urban     = dumi(8)==1
-save_carbon    = dumi(9)==1
-save_river     = dumi(10)==1
-diaglevel_aerosols  = dumi(11)
-diaglevel_pbl       = dumi(12)
-diaglevel_cloud     = dumi(13)
-diaglevel_land      = dumi(14)
-diaglevel_maxmin    = dumi(15)
-diaglevel_ocean     = dumi(16)
-diaglevel_radiation = dumi(17)
-diaglevel_urban     = dumi(18)
-diaglevel_carbon    = dumi(19)
-diaglevel_river     = dumi(20)
-diaglevel_pop       = dumi(21)
-surf_cordex         = dumi(22)
-surf_windfarm       = dumi(23)
-output_windmax      = dumi(24)
-cordex_fix          = dumi(25)
-deallocate( dumi )
-allocate( dumr(35), dumi(27) )
-dumr = 0.
-dumi = 0
+call broadcast_datafile
 if ( myid==0 ) then
   read(99, kuonml)
-  dumr(1)  = alflnd
-  dumr(2)  = alfsea
-  dumr(3)  = cldh_lnd
-  dumr(4)  = cldm_lnd
-  dumr(5)  = cldl_lnd
-  dumr(6)  = cldh_sea
-  dumr(7)  = cldm_sea
-  dumr(8)  = cldl_sea
-  dumr(9)  = convfact
-  dumr(10) = convtime
-  dumr(11) = shaltime
-  dumr(12) = detrain
-  dumr(13) = detrainx
-  dumr(14) = dsig2
-  dumr(15) = dsig4
-  dumr(16) = entrain
-  dumr(17) = fldown
-  dumr(18) = rhcv
-  dumr(19) = rhmois
-  dumr(20) = rhsat
-  dumr(21) = sigcb
-  dumr(22) = sigcll
-  dumr(23) = sig_ct
-  dumr(24) = sigkscb
-  dumr(25) = sigksct
-  dumr(26) = tied_con
-  dumr(27) = tied_over
-  dumr(28) = tied_rh
-  dumr(29) = acon
-  dumr(30) = bcon
-  dumr(31) = rcm
-  dumr(32) = rcrit_l
-  dumr(33) = rcrit_s
-  dumr(34) = cld_decay
-  dumr(35) = maxlintime
-  dumi(1)  = iterconv
-  dumi(2)  = ksc
-  dumi(3)  = kscmom
-  dumi(4)  = kscsea
-  dumi(5)  = ldr
-  dumi(6)  = mbase
-  dumi(7)  = mdelay
-  dumi(8)  = methdetr
-  dumi(9)  = methprec
-  dumi(10) = nbase
-  dumi(11) = ncvcloud
-  dumi(12) = ncvmix
-  dumi(13) = nevapcc
-  dumi(14) = nkuo
-  dumi(15) = nrhcrit
-  dumi(16) = nstab_cld
-  dumi(17) = nuvconv
-  dumi(18) = ncloud
-  dumi(19) = nclddia
-  dumi(20) = nmr
-  dumi(21) = nevapls
-  dumi(22) = vdeposition_mode
-  dumi(23) = tiedtke_form
-  dumi(24) = cloud_aerosol_mode
-  dumi(25) = lin_aerosolmode  
-  dumi(26) = cloud_ice_method
-  dumi(27) = leon_snowmeth
 end if
-call ccmpi_bcast(dumr,0,comm_world)
-call ccmpi_bcast(dumi,0,comm_world)
-alflnd           = dumr(1)
-alfsea           = dumr(2)
-cldh_lnd         = dumr(3)
-cldm_lnd         = dumr(4) 
-cldl_lnd         = dumr(5)
-cldh_sea         = dumr(6) 
-cldm_sea         = dumr(7)
-cldl_sea         = dumr(8)
-convfact         = dumr(9)
-convtime         = dumr(10)
-shaltime         = dumr(11) 
-detrain          = dumr(12)
-detrainx         = dumr(13)
-dsig2            = dumr(14)
-dsig4            = dumr(15)
-entrain          = dumr(16)
-fldown           = dumr(17)
-rhcv             = dumr(18)
-rhmois           = dumr(19)
-rhsat            = dumr(20)
-sigcb            = dumr(21)
-sigcll           = dumr(22)
-sig_ct           = dumr(23)
-sigkscb          = dumr(24)
-sigksct          = dumr(25)
-tied_con         = dumr(26)
-tied_over        = dumr(27)
-tied_rh          = dumr(28)
-acon             = dumr(29)
-bcon             = dumr(30)
-rcm              = dumr(31)
-rcrit_l          = dumr(32)
-rcrit_s          = dumr(33)
-cld_decay        = dumr(34)
-maxlintime       = dumr(35)
-iterconv         = dumi(1) 
-ksc              = dumi(2)
-kscmom           = dumi(3)
-kscsea           = dumi(4)
-ldr              = dumi(5)
-mbase            = dumi(6)
-mdelay           = dumi(7)
-methdetr         = dumi(8) 
-methprec         = dumi(9)
-nbase            = dumi(10)
-ncvcloud         = dumi(11)
-ncvmix           = dumi(12)
-nevapcc          = dumi(13)
-nkuo             = dumi(14)
-nrhcrit          = dumi(15)
-nstab_cld        = dumi(16)
-nuvconv          = dumi(17)
-ncloud           = dumi(18)
-nclddia          = dumi(19) 
-nmr              = dumi(20)
-nevapls          = dumi(21)
-vdeposition_mode = dumi(22)
-tiedtke_form     = dumi(23)
-cloud_aerosol_mode = dumi(24)
-lin_aerosolmode    = dumi(25)
-cloud_ice_method   = dumi(26)
-leon_snowmeth      = dumi(27)
-deallocate( dumr, dumi )
-allocate( dumr(33), dumi(6) )
-dumr = 0.
-dumi = 0
+call broadcast_kuonml
 if ( myid==0 ) then
   read(99, turbnml, iostat=ierr)  ! try reading PBL and GWdrag namelist
   if ( ierr/=0 ) then
@@ -2331,91 +1724,8 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, turbnml)
   end if
-  dumr(1)  = be
-  dumr(2)  = cm0
-  dumr(3)  = ce0
-  dumr(4)  = ce1
-  dumr(5)  = ce2
-  dumr(6)  = ce3
-  dumr(7)  = cqmix
-  dumr(8)  = ent0
-  dumr(9)  = ent1
-  dumr(10) = entc0
-  dumr(11) = dtrc0
-  dumr(12) = m0
-  dumr(13) = b1
-  dumr(14) = b2
-  dumr(15) = maxdts
-  dumr(16) = mintke
-  dumr(17) = mineps
-  dumr(18) = minl
-  dumr(19) = maxl
-  dumr(20) = qcmf
-  dumr(21) = ezmin
-  dumr(22) = amxlsq
-  dumr(23) = helim
-  dumr(24) = fc2
-  dumr(25) = sigbot_gwd
-  dumr(26) = alphaj
-  dumr(27) = ent_min
-  dumr(28) = mfbeta
-  dumr(29) = dvmodmin
-  dumr(30) = tke_timeave_length
-  dumr(31) = wg_tau
-  dumr(32) = wg_prob
-  dumr(33) = plume_alpha
-  dumi(1)  = buoymeth
-  dumi(2)  = stabmeth
-  dumi(3)  = tkemeth
-  dumi(4)  = ngwd
-  dumi(5)  = tcalmeth
-  dumi(6)  = ugs_meth
 end if
-call ccmpi_bcast(dumr,0,comm_world)
-call ccmpi_bcast(dumi,0,comm_world)
-be                 = dumr(1)
-cm0                = dumr(2)
-ce0                = dumr(3)
-ce1                = dumr(4)
-ce2                = dumr(5)
-ce3                = dumr(6)
-cqmix              = dumr(7)
-ent0               = dumr(8)
-ent1               = dumr(9)
-entc0              = dumr(10)
-dtrc0              = dumr(11)
-m0                 = dumr(12)
-b1                 = dumr(13)
-b2                 = dumr(14)
-maxdts             = dumr(15)
-mintke             = dumr(16)
-mineps             = dumr(17) 
-minl               = dumr(18)
-maxl               = dumr(19)
-qcmf               = dumr(20)
-ezmin              = dumr(21)
-amxlsq             = dumr(22)
-helim              = dumr(23)
-fc2                = dumr(24)
-sigbot_gwd         = dumr(25)
-alphaj             = dumr(26)
-ent_min            = dumr(27)
-mfbeta             = dumr(28)
-dvmodmin           = dumr(29)
-tke_timeave_length = dumr(30)
-wg_tau             = dumr(31)
-wg_prob            = dumr(32)
-plume_alpha        = dumr(33)
-buoymeth           = dumi(1)
-stabmeth           = dumi(2)
-tkemeth            = dumi(3)
-ngwd               = dumi(4)
-tcalmeth           = dumi(5)
-ugs_meth           = dumi(6)
-deallocate( dumr, dumi )
-allocate( dumr(24), dumi(28) )
-dumr = 0.
-dumi = 0
+call broadcast_turbnml
 if ( myid==0 ) then
   read(99, landnml, iostat=ierr)  ! try reading land/carbon namelist
   if ( ierr/=0 ) then
@@ -2423,117 +1733,13 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, landnml)
   end if
-  dumr(1)  = ateb_energytol ! note conversion from ateb_energytol to energytol
-  dumr(2)  = ateb_tol
-  dumr(3)  = ateb_alpha
-  dumr(4)  = ateb_zosnow
-  dumr(5)  = ateb_snowemiss
-  dumr(6)  = ateb_maxsnowalpha
-  dumr(7)  = ateb_minsnowalpha
-  dumr(8)  = ateb_maxsnowden
-  dumr(9)  = ateb_minsnowden
-  dumr(10) = ateb_refheight
-  dumr(11) = ateb_zomratio
-  dumr(12) = ateb_zocanyon
-  dumr(13) = ateb_zoroof
-  dumr(14) = ateb_maxrfwater
-  dumr(15) = ateb_maxrdwater
-  dumr(16) = ateb_maxrfsn
-  dumr(17) = ateb_maxrdsn
-  dumr(18) = ateb_maxvwatf
-  dumr(19) = ateb_ac_heatcap
-  dumr(20) = ateb_ac_coolcap
-  dumr(21) = ateb_ac_deltat
-  dumr(22) = ateb_acfactor
-  dumr(23) = siburbanfrac
-  dumr(24) = cable_version
-  dumi(1)  = proglai
-  dumi(2)  = ccycle
-  dumi(3)  = soil_struc
-  dumi(4)  = cable_pop
-  dumi(5)  = progvcmax
-  dumi(6)  = fwsoil_switch
-  dumi(7)  = cable_litter
-  dumi(8)  = gs_switch
-  dumi(9)  = smrf_switch
-  dumi(10) = strf_switch
-  dumi(11) = ateb_resmeth
-  dumi(12) = ateb_zohmeth
-  dumi(13) = ateb_acmeth
-  dumi(14) = ateb_nrefl
-  dumi(15) = ateb_soilunder
-  dumi(16) = ateb_scrnmeth
-  dumi(17) = ateb_wbrelaxc
-  dumi(18) = ateb_wbrelaxr
-  dumi(19) = ateb_ncyits
-  dumi(20) = ateb_nfgits
-  dumi(21) = ateb_intairtmeth
-  dumi(22) = ateb_intmassmeth
-  dumi(23) = ateb_cvcoeffmeth
-  dumi(24) = ateb_statsmeth
-  dumi(25) = ateb_lwintmeth
-  dumi(26) = ateb_infilmeth
-  dumi(27) = cable_roughness
-  dumi(28) = cable_potev
+  energytol = real(ateb_energytol,8) ! note conversion from ateb_energytol to energytol
+  zocanyon = ateb_zocanyon
+  zoroof = ateb_zoroof
+  intairtmeth = ateb_intairtmeth ! note switch to UCLEM parameter
+  intmassmeth = ateb_intmassmeth ! note switch to UCLEM parameter
 end if
-call ccmpi_bcast(dumr,0,comm_world)
-call ccmpi_bcast(dumi,0,comm_world)
-energytol         = real(dumr(1),8) ! note conversion from ateb_energytol to energytol
-ateb_tol          = dumr(2)
-ateb_alpha        = dumr(3)
-ateb_zosnow       = dumr(4)
-ateb_snowemiss    = dumr(5)
-ateb_maxsnowalpha = dumr(6)
-ateb_minsnowalpha = dumr(7)
-ateb_maxsnowden   = dumr(8)
-ateb_minsnowden   = dumr(9)
-ateb_refheight    = dumr(10) 
-ateb_zomratio     = dumr(11)
-zocanyon          = dumr(12)
-zoroof            = dumr(13)
-ateb_maxrfwater   = dumr(14)
-ateb_maxrdwater   = dumr(15)
-ateb_maxrfsn      = dumr(16)
-ateb_maxrdsn      = dumr(17)
-ateb_maxvwatf     = dumr(18) 
-ateb_ac_heatcap   = dumr(19)
-ateb_ac_coolcap   = dumr(20)
-ateb_ac_deltat    = dumr(21)
-ateb_acfactor     = dumr(22)
-siburbanfrac      = dumr(23) 
-cable_version     = dumr(24)
-proglai           = dumi(1)
-ccycle            = dumi(2)
-soil_struc        = dumi(3)
-cable_pop         = dumi(4)
-progvcmax         = dumi(5)
-fwsoil_switch     = dumi(6)
-cable_litter      = dumi(7)
-gs_switch         = dumi(8)
-smrf_switch       = dumi(9)
-strf_switch       = dumi(10)
-ateb_resmeth      = dumi(11)
-ateb_zohmeth      = dumi(12)
-ateb_acmeth       = dumi(13)
-ateb_nrefl        = dumi(14) 
-ateb_soilunder    = dumi(15)
-ateb_scrnmeth     = dumi(16)
-ateb_wbrelaxc     = dumi(17) 
-ateb_wbrelaxr     = dumi(18) 
-ateb_ncyits       = dumi(19)
-ateb_nfgits       = dumi(20) 
-intairtmeth       = dumi(21) ! note switch to UCLEM parameter
-intmassmeth       = dumi(22) ! note switch to UCLEM parameter 
-ateb_cvcoeffmeth  = dumi(23) 
-ateb_statsmeth    = dumi(24) 
-ateb_lwintmeth    = dumi(25) 
-ateb_infilmeth    = dumi(26)
-cable_roughness   = dumi(27)
-cable_potev       = dumi(28)
-deallocate( dumr, dumi )
-allocate( dumr(22), dumi(30) )
-dumr = 0.
-dumi = 0
+call broadcast_landnml
 if ( myid==0 ) then
   read(99, mlonml, iostat=ierr)   ! try reading ocean namelist
   if ( ierr/=0 ) then
@@ -2541,116 +1747,8 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, mlonml)
   end if
-  dumr(1)  = ocnsmag
-  dumr(2)  = ocneps
-  dumr(3)  = zoseaice
-  dumr(4)  = factchseaice
-  dumr(5)  = minwater
-  dumr(6)  = mxd
-  dumr(7)  = mindep
-  dumr(8)  = alphavis_seaice
-  dumr(9)  = alphanir_seaice
-  dumr(10) = rivercoeff
-  dumr(11) = pdl
-  dumr(12) = pdu
-  dumr(13) = omink
-  dumr(14) = omineps
-  dumr(15) = ominl
-  dumr(16) = omaxl
-  dumr(17) = mlo_timeave_length
-  dumr(18) = kemaxdt
-  dumr(19) = alphavis_seasnw
-  dumr(20) = alphanir_seasnw
-  dumr(21) = ocnlap
-  dumr(22) = fluxwgt
-  dumi(1)  = mlodiff
-  dumi(2)  = usetide
-  dumi(3)  = zomode
-  dumi(4)  = otaumode
-  dumi(5)  = rivermd
-  dumi(6)  = basinmd
-  dumi(7)  = mlojacobi
-  dumi(8)  = usepice
-  dumi(9)  = mlosigma
-  dumi(10) = oclosure
-  dumi(11) = k_mode
-  dumi(12) = eps_mode
-  dumi(13) = limitL
-  dumi(14) = fixedce3
-  dumi(15) = nops
-  dumi(16) = nopb
-  dumi(17) = fixedstabfunc
-  dumi(18) = mlomfix
-  dumi(19) = nodrift
-  dumi(20) = mlontvd
-  dumi(21) = mlodiff_numits
-  dumi(22) = mlo_adjeta
-  dumi(23) = mstagf
-  dumi(24) = mlodps
-  dumi(25) = mlo_limitsal
-  dumi(26) = mlo_bs
-  dumi(27) = mlo_step
-  dumi(28) = mlo_uvcoupl
-  dumi(29) = mlointschf
-  dumi(30) = nxtrrho
 end if
-call ccmpi_bcast(dumr,0,comm_world)
-call ccmpi_bcast(dumi,0,comm_world)
-ocnsmag            = dumr(1) 
-ocneps             = dumr(2) 
-zoseaice           = dumr(3) 
-factchseaice       = dumr(4)
-minwater           = dumr(5) 
-mxd                = dumr(6)
-mindep             = dumr(7)
-alphavis_seaice    = dumr(8)
-alphanir_seaice    = dumr(9)
-rivercoeff         = dumr(10)
-pdl                = dumr(11)
-pdu                = dumr(12)
-omink              = dumr(13)
-omineps            = dumr(14)
-ominl              = dumr(15)
-omaxl              = dumr(16)
-mlo_timeave_length = dumr(17)
-kemaxdt            = dumr(18)
-alphavis_seasnw    = dumr(19)
-alphanir_seasnw    = dumr(20)
-ocnlap             = dumr(21)
-fluxwgt            = dumr(22)
-mlodiff            = dumi(1)
-usetide            = dumi(2) 
-zomode             = dumi(3) 
-otaumode           = dumi(4) 
-rivermd            = dumi(5)
-basinmd            = dumi(6)
-mlojacobi          = dumi(7)
-usepice            = dumi(8)
-mlosigma           = dumi(9)
-oclosure           = dumi(10)
-k_mode             = dumi(11)
-eps_mode           = dumi(12)
-limitL             = dumi(13)
-fixedce3           = dumi(14)
-nops               = dumi(15)
-nopb               = dumi(16)
-fixedstabfunc      = dumi(17)
-mlomfix            = dumi(18)
-nodrift            = dumi(19)
-mlontvd            = dumi(20)
-mlodiff_numits     = dumi(21)
-mlo_adjeta         = dumi(22)
-mstagf             = dumi(23)
-mlodps             = dumi(24)
-mlo_limitsal       = dumi(25)
-mlo_bs             = dumi(26)
-mlo_step           = dumi(27)
-mlo_uvcoupl        = dumi(28)
-mlointschf         = dumi(29)
-nxtrrho            = dumi(30)
-deallocate( dumr, dumi )
-allocate( dumi(1) )
-dumi = 0
+call broadcast_mlonml
 if ( myid==0 ) then
   rewind(99)  
   read(99, trfiles, iostat=ierr)  ! try reading tracer namelist
@@ -2659,16 +1757,8 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, trfiles)
   end if
-  if ( writetrpm ) dumi(1) = 1
 end if
-call ccmpi_bcast(tracerlist,0,comm_world)
-if ( tracerlist/=' ' ) then
-  call ccmpi_bcast(dumi,0,comm_world)
-  call ccmpi_bcast(sitefile,0,comm_world)
-  call ccmpi_bcast(shipfile,0,comm_world)
-  writetrpm = dumi(1)==1
-end if  
-deallocate( dumi )
+call broadcast_trfiles
 if ( myid==0 ) then
   close(99)
 end if
@@ -2709,7 +1799,6 @@ seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
 #ifdef GPUPHYSICS
-!$acc update device(sig)
 !$acc update device(enhanceu10,zvolcemi,ch_dust)
 !$acc update device(saltsmallmtn,saltlargemtn)
 #endif
@@ -3287,7 +2376,7 @@ end if
 if ( myid==0 ) then
   write(6,*) "Calling indata"
 end if
-call indataf(lapsbot,isoth,nsig,io_nest)
+call indataf(lapsbot,isoth,nsig)
 
 
 !--------------------------------------------------------------
@@ -3708,6 +2797,1162 @@ end if
 return
 end subroutine change_defaults
 
+!--------------------------------------------------------------
+! Broadcast cardin namelist
+subroutine broadcast_cardin
+
+use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
+    ,so4mtn,carbmtn,saltsmallmtn         &
+    ,saltlargemtn,enhanceu10
+use cc_acc                                 ! CC ACC routines
+use cc_mpi                                 ! CC MPI routines
+use cc_omp                                 ! CC OpenMP routines
+use indata                                 ! Data initialisation
+use infile                                 ! Input file routines
+use newmpar_m                              ! Grid parameters
+use nharrs_m                               ! Non-hydrostatic atmosphere arrays
+use parm_m                                 ! Model configuration
+use parmdyn_m                              ! Dynamics parameters
+use parmgeom_m                             ! Coordinate data
+use parmhdff_m                             ! Horizontal diffusion parameters
+use parmhor_m                              ! Horizontal advection parameters
+use parmvert_m                             ! Vertical advection parameters
+use stime_m                                ! File date data
+
+implicit none
+
+include 'kuocom.h'                         ! Convection parameters
+
+integer i
+integer, dimension(119) :: dumi
+real, dimension(33) :: dumr
+    
+dumr(:) = 0.
+dumi(:) = 0
+if ( myid==0 ) then
+  dumr(1)   = dt
+  dumr(2)   = restol
+  dumr(3)   = panfg
+  dumr(4)   = panzo
+  dumr(5)   = rlatdn
+  dumr(6)   = rlatdx
+  dumr(7)   = rlongdn
+  dumr(8)   = rlongdx
+  dumr(9)   = epsp
+  dumr(10)  = epsu
+  dumr(11)  = epsf
+  dumr(12)  = epsh
+  dumr(13)  = av_vmod
+  dumr(14)  = charnock
+  dumr(15)  = chn10
+  dumr(16)  = snmin
+  dumr(17)  = tss_sh
+  dumr(18)  = vmodmin
+  dumr(19)  = zobgin
+  dumr(20)  = rlong0
+  dumr(21)  = rlat0
+  dumr(22)  = schmidt
+  dumr(23)  = sigramplow
+  dumr(24)  = sigramphigh
+  dumr(25)  = ch_dust
+  dumr(26)  = helim
+  dumr(27)  = fc2
+  dumr(28)  = sigbot_gwd
+  dumr(29)  = alphaj
+  dumr(30)  = qgmin
+  dumr(31)  = rhsat
+  dumr(32)  = ensemble_rsfactor
+  dumr(33)  = zo_clearing
+  dumi(1)   = ntau
+  dumi(2)   = nwt
+  dumi(3)   = nhorps
+  dumi(4)   = nperavg
+  dumi(5)   = ia
+  dumi(6)   = ib
+  dumi(7)   = ja
+  dumi(8)   = jb
+  dumi(9)   = id
+  dumi(10)  = jd
+  dumi(11)  = iaero
+  dumi(12)  = khdif
+  dumi(13)  = khor
+  dumi(14)  = nhorjlm
+  dumi(15)  = mex
+  dumi(16)  = mbd
+  dumi(17)  = nbd
+  dumi(18)  = mbd_maxscale
+  dumi(19)  = mbd_maxgrid
+  dumi(20)  = ndi
+  dumi(21)  = ndi2
+  dumi(22)  = nhor
+  dumi(23)  = nlv
+  dumi(24)  = nmaxpr
+  dumi(25)  = nrad
+  dumi(26)  = ntaft
+  dumi(27)  = ntsea
+  dumi(28)  = ntsur
+  dumi(29)  = nvmix
+  dumi(30)  = precon
+  dumi(31)  = kdate_s
+  dumi(32)  = ktime_s
+  dumi(33)  = leap
+  dumi(34)  = newtop
+  dumi(35)  = mup
+  dumi(36)  = lgwd
+  dumi(37)  = ngwd
+  dumi(38)  = nextout
+  dumi(39)  = jalbfix
+  dumi(40)  = nalpha
+  dumi(41)  = nstag
+  dumi(42)  = nstagu
+  dumi(43)  = ntbar
+  dumi(44)  = nwrite
+  dumi(45)  = irest
+  dumi(46)  = nrun
+  dumi(47)  = nstn
+  dumi(48)  = nrungcm
+  dumi(49)  = nsib
+  dumi(50)  = mh_bs
+  dumi(51)  = nritch_t
+  dumi(52)  = nt_adv
+  dumi(53)  = mfix
+  dumi(54)  = mfix_qg
+  dumi(55)  = namip
+  if ( amipo3 ) dumi(56) = 1
+  dumi(57)  = nh
+  dumi(58)  = nhstest
+  dumi(59)  = nsemble
+  dumi(60)  = nspecial
+  dumi(61)  = newrough
+  dumi(62)  = nglacier
+  dumi(63)  = newztsea
+  dumi(64)  = kbotdav
+  dumi(65)  = kbotu
+  dumi(66)  = nud_p
+  dumi(67)  = nud_q
+  dumi(68)  = nud_t
+  dumi(69)  = nud_uv
+  dumi(70)  = nud_hrs
+  dumi(71)  = nudu_hrs
+  dumi(72)  = nlocal
+  dumi(73)  = nbarewet
+  dumi(74)  = nsigmf
+  dumi(75)  = io_in
+  dumi(76)  = io_nest
+  dumi(77)  = io_out
+  dumi(78)  = io_rest
+  dumi(79)  = tbave
+  if ( synchist ) dumi(80) = 1
+  dumi(81)  = m_fly
+  dumi(82)  = nurban
+  dumi(83)  = ktopdav
+  dumi(84)  = mbd_mlo
+  dumi(85)  = mbd_maxscale_mlo
+  dumi(86)  = nud_sst
+  dumi(87)  = nud_sss
+  dumi(88)  = mfix_tr
+  dumi(89)  = mfix_aero
+  dumi(90)  = kbotmlo
+  dumi(91)  = ktopmlo
+  dumi(92)  = mloalpha
+  dumi(93)  = nud_ouv
+  dumi(94)  = nud_sfh
+  dumi(95)  = rescrn
+  dumi(96) = helmmeth
+  dumi(97) = nmlo
+  dumi(98) = ol
+  dumi(99) = knh
+  dumi(100) = kblock
+  dumi(101) = nud_aero
+  dumi(102) = nud_period
+  dumi(103) = procmode
+  dumi(104) = compression
+  dumi(105) = nmr
+  dumi(106) = maxtilesize
+  dumi(107) = mfix_t
+  dumi(108) = ensemble_mode
+  dumi(109) = ensemble_period
+  dumi(110) = hp_output
+  dumi(111) = intsch_mode
+  dumi(112) = qg_fix
+  if ( always_mspeca ) dumi(113) = 1
+  dumi(114) = ntvd
+  dumi(115) = tbave10  
+  dumi(116) = async_length
+  dumi(117) = nagg
+  dumi(118) = pil_single
+  if ( localhist ) dumi(119) = 1
+end if
+call ccmpi_bcast(dumr,0,comm_world)
+call ccmpi_bcast(dumi,0,comm_world)
+dt                = dumr(1)
+restol            = dumr(2)
+panfg             = dumr(3)
+panzo             = dumr(4)
+rlatdn            = dumr(5)
+rlatdx            = dumr(6)
+rlongdn           = dumr(7)
+rlongdx           = dumr(8)
+epsp              = dumr(9)
+epsu              = dumr(10)
+epsf              = dumr(11)
+epsh              = dumr(12)
+av_vmod           = dumr(13)
+charnock          = dumr(14)
+chn10             = dumr(15)
+snmin             = dumr(16)
+tss_sh            = dumr(17)
+vmodmin           = dumr(18)
+zobgin            = dumr(19)
+rlong0            = dumr(20)
+rlat0             = dumr(21)
+schmidt           = dumr(22)
+sigramplow        = dumr(23)
+sigramphigh       = dumr(24)
+ch_dust           = dumr(25)
+helim             = dumr(26)
+fc2               = dumr(27)
+sigbot_gwd        = dumr(28)
+alphaj            = dumr(29)
+qgmin             = dumr(30)
+rhsat             = dumr(31)
+ensemble_rsfactor = dumr(32)
+zo_clearing       = dumr(33)
+ntau              = dumi(1)
+nwt               = dumi(2)
+nhorps            = dumi(3)
+nperavg           = dumi(4)
+ia                = dumi(5)
+ib                = dumi(6)
+ja                = dumi(7)
+jb                = dumi(8)
+id                = dumi(9)
+jd                = dumi(10)
+iaero             = dumi(11)
+khdif             = dumi(12)
+khor              = dumi(13)
+nhorjlm           = dumi(14)
+mex               = dumi(15)
+mbd               = dumi(16)
+nbd               = dumi(17)
+mbd_maxscale      = dumi(18)
+mbd_maxgrid       = dumi(19)
+ndi               = dumi(20)
+ndi2              = dumi(21)
+nhor              = dumi(22)
+nlv               = dumi(23)
+nmaxpr            = dumi(24)
+nrad              = dumi(25)
+ntaft             = dumi(26)
+ntsea             = dumi(27)
+ntsur             = dumi(28)
+nvmix             = dumi(29)
+precon            = dumi(30)
+kdate_s           = dumi(31)
+ktime_s           = dumi(32)
+leap              = dumi(33)
+newtop            = dumi(34)
+mup               = dumi(35)
+lgwd              = dumi(36)
+ngwd              = dumi(37)
+nextout           = dumi(38)
+jalbfix           = dumi(39)
+nalpha            = dumi(40)
+nstag             = dumi(41)
+nstagu            = dumi(42)
+ntbar             = dumi(43)
+nwrite            = dumi(44)
+irest             = dumi(45)
+nrun              = dumi(46)
+nstn              = dumi(47)
+nrungcm           = dumi(48)
+nsib              = dumi(49)
+mh_bs             = dumi(50)
+nritch_t          = dumi(51)
+nt_adv            = dumi(52)
+mfix              = dumi(53)
+mfix_qg           = dumi(54)
+namip             = dumi(55)
+amipo3            = dumi(56)==1
+nh                = dumi(57)
+nhstest           = dumi(58)
+nsemble           = dumi(59)
+nspecial          = dumi(60)
+newrough          = dumi(61)
+nglacier          = dumi(62)
+newztsea          = dumi(63)
+kbotdav           = dumi(64)
+kbotu             = dumi(65)
+nud_p             = dumi(66)
+nud_q             = dumi(67)
+nud_t             = dumi(68)
+nud_uv            = dumi(69)
+nud_hrs           = dumi(70)
+nudu_hrs          = dumi(71)
+nlocal            = dumi(72)
+nbarewet          = dumi(73)
+nsigmf            = dumi(74)
+io_in             = dumi(75)
+io_nest           = dumi(76)
+io_out            = dumi(77)
+io_rest           = dumi(78)
+tbave             = dumi(79)
+synchist          = dumi(80)==1
+m_fly             = dumi(81)
+nurban            = dumi(82)
+ktopdav           = dumi(83)
+mbd_mlo           = dumi(84)
+mbd_maxscale_mlo  = dumi(85)
+nud_sst           = dumi(86)
+nud_sss           = dumi(87)
+mfix_tr           = dumi(88)
+mfix_aero         = dumi(89)
+kbotmlo           = dumi(90)
+ktopmlo           = dumi(91)
+mloalpha          = dumi(92)
+nud_ouv           = dumi(93)
+nud_sfh           = dumi(94)
+rescrn            = dumi(95)
+helmmeth          = dumi(96)
+nmlo              = dumi(97)
+ol                = dumi(98)
+knh               = dumi(99)
+kblock            = dumi(100)
+nud_aero          = dumi(101)
+nud_period        = dumi(102)
+procmode          = dumi(103)
+compression       = dumi(104)
+nmr               = dumi(105)
+maxtilesize       = dumi(106)
+mfix_t            = dumi(107)
+ensemble_mode     = dumi(108)
+ensemble_period   = dumi(109)
+hp_output         = dumi(110)
+intsch_mode       = dumi(111)
+qg_fix            = dumi(112)
+always_mspeca     = dumi(113)==1
+ntvd              = dumi(114)
+tbave10           = dumi(115)
+async_length      = dumi(116)
+nagg              = dumi(117)
+pil_single        = dumi(118)
+localhist         = dumi(119)==1
+if ( nstn>0 ) then
+  call ccmpi_bcast(istn(1:nstn),0,comm_world)
+  call ccmpi_bcast(jstn(1:nstn),0,comm_world)
+  call ccmpi_bcast(iunp(1:nstn),0,comm_world)
+  call ccmpi_bcast(slat(1:nstn),0,comm_world)
+  call ccmpi_bcast(slon(1:nstn),0,comm_world)
+  call ccmpi_bcast(zstn(1:nstn),0,comm_world)
+  do i = 1,nstn
+    call ccmpi_bcast(name_stn(i),0,comm_world)
+  end do
+end if
+
+return
+end subroutine broadcast_cardin
+
+!--------------------------------------------------------------
+! Broadcast skyin namelist
+subroutine broadcast_skyin
+
+use aerointerface, only : aeroindir      & ! Aerosol interface
+    ,aero_split,aerosol_u10
+use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
+    ,so4mtn,carbmtn,saltsmallmtn         &
+    ,saltlargemtn,enhanceu10
+use cc_mpi                                 ! CC MPI routines
+use module_aux_rad                         ! Additional cloud and radiation routines
+use ozoneread                              ! Ozone input routines
+use parm_m                                 ! Model configuration
+use seaesfrad_m                            ! SEA-ESF radiation
+
+implicit none
+
+include 'kuocom.h'                         ! Convection parameters
+
+integer, dimension(17) :: dumi
+real, dimension(10) :: dumr
+    
+dumr = 0.
+dumi = 0
+if ( myid==0 ) then
+  dumr(1)  = bpyear
+  dumr(2)  = qgmin
+  dumr(3)  = ch_dust
+  dumr(4)  = zvolcemi
+  dumr(5)  = so4mtn
+  dumr(6)  = carbmtn
+  dumr(7)  = saltsmallmtn
+  dumr(8)  = saltlargemtn
+  dumr(9)  = siglow
+  dumr(10) = sigmid
+  dumi(1)  = mins_rad
+  dumi(2)  = liqradmethod
+  dumi(3)  = iceradmethod
+  dumi(4)  = so4radmethod
+  dumi(5)  = carbonradmethod
+  dumi(6)  = dustradmethod
+  dumi(7)  = seasaltradmethod
+  dumi(8)  = aeroindir
+  dumi(9)  = o3_vert_interpolate
+  if ( do_co2_10um ) dumi(10) = 1
+  dumi(11) = aerosol_u10  
+  dumi(12) = aero_split
+  dumi(13) = enhanceu10
+  if ( do_quench ) dumi(14) = 1
+  if ( remain_rayleigh_bug ) dumi(15) = 1
+  if ( use_rad_year ) dumi(16) = 1
+  dumi(17) = rad_year
+end if
+call ccmpi_bcast(dumr,0,comm_world)
+call ccmpi_bcast(dumi,0,comm_world)
+call ccmpi_bcast(sw_resolution,0,comm_world)
+call ccmpi_bcast(lwem_form,0,comm_world)
+call ccmpi_bcast(linecatalog_form,0,comm_world)
+call ccmpi_bcast(continuum_form,0,comm_world)
+bpyear              = dumr(1)
+qgmin               = dumr(2)
+ch_dust             = dumr(3)
+zvolcemi            = dumr(4)
+so4mtn              = dumi(5)
+carbmtn             = dumr(6)
+saltsmallmtn        = dumr(7)
+saltlargemtn        = dumr(8)
+siglow              = dumr(9)
+sigmid              = dumr(10)
+mins_rad            = dumi(1)
+liqradmethod        = dumi(2)
+iceradmethod        = dumi(3)
+so4radmethod        = dumi(4)
+carbonradmethod     = dumi(5)
+dustradmethod       = dumi(6)
+seasaltradmethod    = dumi(7)
+aeroindir           = dumi(8)
+o3_vert_interpolate = dumi(9)
+do_co2_10um         = dumi(10)==1
+aerosol_u10         = dumi(11)
+aero_split          = dumi(12)
+enhanceu10          = dumi(13)
+do_quench           = dumi(14)==1
+remain_rayleigh_bug = dumi(15)==1
+use_rad_year        = dumi(16)==1
+rad_year            = dumi(17)
+
+return
+end subroutine broadcast_skyin
+
+!--------------------------------------------------------------
+! Broadcast datafile namelist
+subroutine broadcast_datafile
+
+use cc_mpi                                 ! CC MPI routines
+use filnames_m                             ! Filenames
+use parm_m                                 ! Model configuration
+
+implicit none
+
+include 'kuocom.h'                         ! Convection parameters
+
+integer, dimension(24) :: dumi
+    
+dumi = 0
+if ( myid==0 ) then
+  if ( save_aerosols ) dumi(1)=1
+  if ( save_pbl ) dumi(2)=1
+  if ( save_cloud ) dumi(3)=1
+  if ( save_land ) dumi(4)=1
+  if ( save_maxmin ) dumi(5)=1
+  if ( save_ocean ) dumi(6)=1
+  if ( save_radiation ) dumi(7)=1
+  if ( save_urban ) dumi(8)=1
+  if ( save_carbon ) dumi(9)=1
+  if ( save_river ) dumi(10)=1
+  dumi(11) = diaglevel_aerosols
+  dumi(12) = diaglevel_pbl
+  dumi(13) = diaglevel_cloud
+  dumi(14) = diaglevel_land
+  dumi(15) = diaglevel_maxmin
+  dumi(16) = diaglevel_ocean
+  dumi(17) = diaglevel_radiation
+  dumi(18) = diaglevel_urban
+  dumi(19) = diaglevel_carbon
+  dumi(20) = diaglevel_river
+  dumi(21) = diaglevel_pop
+  dumi(22) = surf_cordex
+  dumi(23) = output_windmax
+  dumi(24) = cordex_fix
+end if
+call ccmpi_bcast(dumi,0,comm_world)
+call ccmpi_bcast(ifile,0,comm_world)
+call ccmpi_bcast(ofile,0,comm_world)
+call ccmpi_bcast(mesonest,0,comm_world)
+call ccmpi_bcast(restfile,0,comm_world)
+call ccmpi_bcast(surfile,0,comm_world)
+call ccmpi_bcast(surf_00,0,comm_world)
+call ccmpi_bcast(surf_12,0,comm_world)
+call ccmpi_bcast(cnsdir,0,comm_world)
+call ccmpi_bcast(ensembleoutfile,0,comm_world)
+!call ccmpi_bcast(albfile,0,comm_world)
+!call ccmpi_bcast(eigenv,0,comm_world)
+!call ccmpi_bcast(icefile,0,comm_world)
+!call ccmpi_bcast(rsmfile,0,comm_world)
+!call ccmpi_bcast(so4tfile,0,comm_world)
+!call ccmpi_bcast(soilfile,0,comm_world)
+!call ccmpi_bcast(sstfile,0,comm_world)
+!call ccmpi_bcast(topofile,0,comm_world)
+!call ccmpi_bcast(vegfile,0,comm_world)
+!call ccmpi_bcast(zofile,0,comm_world)
+!call ccmpi_bcast(laifile,0,comm_world)
+!call ccmpi_bcast(albnirfile,0,comm_world)
+!call ccmpi_bcast(urbanfile,0,comm_world)
+!call ccmpi_bcast(bathfile,0,comm_world)
+!call ccmpi_bcast(salfile,0,comm_world)
+!call ccmpi_bcast(oxidantfile,0,comm_world)
+!call ccmpi_bcast(casafile,0,comm_world)
+!call ccmpi_bcast(phenfile,0,comm_world)
+call ccmpi_bcast(solarfile,0,comm_world)
+call ccmpi_bcast(radfile,0,comm_world)
+call ccmpi_bcast(ch4file,0,comm_world)
+call ccmpi_bcast(n2ofile,0,comm_world)
+call ccmpi_bcast(cfc11file,0,comm_world)
+call ccmpi_bcast(cfc12file,0,comm_world)
+call ccmpi_bcast(cfc113file,0,comm_world)
+call ccmpi_bcast(hcfc22file,0,comm_world)
+!call ccmpi_bcast(o3file,0,comm_world)
+call ccmpi_bcast(freqfile,0,comm_world)
+save_aerosols  = dumi(1)==1
+save_pbl       = dumi(2)==1
+save_cloud     = dumi(3)==1
+save_land      = dumi(4)==1
+save_maxmin    = dumi(5)==1
+save_ocean     = dumi(6)==1
+save_radiation = dumi(7)==1
+save_urban     = dumi(8)==1
+save_carbon    = dumi(9)==1
+save_river     = dumi(10)==1
+diaglevel_aerosols  = dumi(11)
+diaglevel_pbl       = dumi(12)
+diaglevel_cloud     = dumi(13)
+diaglevel_land      = dumi(14)
+diaglevel_maxmin    = dumi(15)
+diaglevel_ocean     = dumi(16)
+diaglevel_radiation = dumi(17)
+diaglevel_urban     = dumi(18)
+diaglevel_carbon    = dumi(19)
+diaglevel_river     = dumi(20)
+diaglevel_pop       = dumi(21)
+surf_cordex         = dumi(22)
+output_windmax      = dumi(23)
+cordex_fix          = dumi(24)
+
+return
+end subroutine broadcast_datafile
+
+!--------------------------------------------------------------
+! Broadcast kuonml namelist
+subroutine broadcast_kuonml
+
+use cc_mpi                                 ! CC MPI routines
+use cloudmod                               ! Prognostic cloud fraction
+use leoncld_mod                            ! Rotstayn microphysics
+use module_ctrl_microphysics               ! Interface for cloud microphysics
+use parm_m                                 ! Model configuration
+
+implicit none
+
+include 'kuocom.h'                         ! Convection parameters
+
+integer, dimension(27) :: dumi
+real, dimension(35) :: dumr
+    
+dumr = 0.
+dumi = 0
+if ( myid==0 ) then
+  dumr(1)  = alflnd
+  dumr(2)  = alfsea
+  dumr(3)  = cldh_lnd
+  dumr(4)  = cldm_lnd
+  dumr(5)  = cldl_lnd
+  dumr(6)  = cldh_sea
+  dumr(7)  = cldm_sea
+  dumr(8)  = cldl_sea
+  dumr(9)  = convfact
+  dumr(10) = convtime
+  dumr(11) = shaltime
+  dumr(12) = detrain
+  dumr(13) = detrainx
+  dumr(14) = dsig2
+  dumr(15) = dsig4
+  dumr(16) = entrain
+  dumr(17) = fldown
+  dumr(18) = rhcv
+  dumr(19) = rhmois
+  dumr(20) = rhsat
+  dumr(21) = sigcb
+  dumr(22) = sigcll
+  dumr(23) = sig_ct
+  dumr(24) = sigkscb
+  dumr(25) = sigksct
+  dumr(26) = tied_con
+  dumr(27) = tied_over
+  dumr(28) = tied_rh
+  dumr(29) = acon
+  dumr(30) = bcon
+  dumr(31) = rcm
+  dumr(32) = rcrit_l
+  dumr(33) = rcrit_s
+  dumr(34) = cld_decay
+  dumr(35) = maxlintime
+  dumi(1)  = iterconv
+  dumi(2)  = ksc
+  dumi(3)  = kscmom
+  dumi(4)  = kscsea
+  dumi(5)  = ldr
+  dumi(6)  = mbase
+  dumi(7)  = mdelay
+  dumi(8)  = methdetr
+  dumi(9)  = methprec
+  dumi(10) = nbase
+  dumi(11) = ncvcloud
+  dumi(12) = ncvmix
+  dumi(13) = nevapcc
+  dumi(14) = nkuo
+  dumi(15) = nrhcrit
+  dumi(16) = nstab_cld
+  dumi(17) = nuvconv
+  dumi(18) = ncloud
+  dumi(19) = nclddia
+  dumi(20) = nmr
+  dumi(21) = nevapls
+  dumi(22) = vdeposition_mode
+  dumi(23) = tiedtke_form
+  dumi(24) = cloud_aerosol_mode
+  dumi(25) = lin_aerosolmode  
+  dumi(26) = cloud_ice_method
+  dumi(27) = leon_snowmeth
+end if
+call ccmpi_bcast(dumr,0,comm_world)
+call ccmpi_bcast(dumi,0,comm_world)
+alflnd           = dumr(1)
+alfsea           = dumr(2)
+cldh_lnd         = dumr(3)
+cldm_lnd         = dumr(4) 
+cldl_lnd         = dumr(5)
+cldh_sea         = dumr(6) 
+cldm_sea         = dumr(7)
+cldl_sea         = dumr(8)
+convfact         = dumr(9)
+convtime         = dumr(10)
+shaltime         = dumr(11) 
+detrain          = dumr(12)
+detrainx         = dumr(13)
+dsig2            = dumr(14)
+dsig4            = dumr(15)
+entrain          = dumr(16)
+fldown           = dumr(17)
+rhcv             = dumr(18)
+rhmois           = dumr(19)
+rhsat            = dumr(20)
+sigcb            = dumr(21)
+sigcll           = dumr(22)
+sig_ct           = dumr(23)
+sigkscb          = dumr(24)
+sigksct          = dumr(25)
+tied_con         = dumr(26)
+tied_over        = dumr(27)
+tied_rh          = dumr(28)
+acon             = dumr(29)
+bcon             = dumr(30)
+rcm              = dumr(31)
+rcrit_l          = dumr(32)
+rcrit_s          = dumr(33)
+cld_decay        = dumr(34)
+maxlintime       = dumr(35)
+iterconv         = dumi(1) 
+ksc              = dumi(2)
+kscmom           = dumi(3)
+kscsea           = dumi(4)
+ldr              = dumi(5)
+mbase            = dumi(6)
+mdelay           = dumi(7)
+methdetr         = dumi(8) 
+methprec         = dumi(9)
+nbase            = dumi(10)
+ncvcloud         = dumi(11)
+ncvmix           = dumi(12)
+nevapcc          = dumi(13)
+nkuo             = dumi(14)
+nrhcrit          = dumi(15)
+nstab_cld        = dumi(16)
+nuvconv          = dumi(17)
+ncloud           = dumi(18)
+nclddia          = dumi(19) 
+nmr              = dumi(20)
+nevapls          = dumi(21)
+vdeposition_mode = dumi(22)
+tiedtke_form     = dumi(23)
+cloud_aerosol_mode = dumi(24)
+lin_aerosolmode    = dumi(25)
+cloud_ice_method   = dumi(26)
+leon_snowmeth      = dumi(27)
+
+return
+end subroutine broadcast_kuonml
+
+!--------------------------------------------------------------
+! Broadcast turbnml namelist
+subroutine broadcast_turbnml
+
+use cc_mpi                                 ! CC MPI routines
+use parm_m                                 ! Model configuration
+use tkeeps                                 ! TKE-EPS boundary layer
+
+implicit none
+
+include 'kuocom.h'                         ! Convection parameters
+
+integer, dimension(6) :: dumi
+real, dimension(33) :: dumr
+    
+dumr = 0.
+dumi = 0
+if ( myid==0 ) then
+  dumr(1)  = be
+  dumr(2)  = cm0
+  dumr(3)  = ce0
+  dumr(4)  = ce1
+  dumr(5)  = ce2
+  dumr(6)  = ce3
+  dumr(7)  = cqmix
+  dumr(8)  = ent0
+  dumr(9)  = ent1
+  dumr(10) = entc0
+  dumr(11) = dtrc0
+  dumr(12) = m0
+  dumr(13) = b1
+  dumr(14) = b2
+  dumr(15) = maxdts
+  dumr(16) = mintke
+  dumr(17) = mineps
+  dumr(18) = minl
+  dumr(19) = maxl
+  dumr(20) = qcmf
+  dumr(21) = ezmin
+  dumr(22) = amxlsq
+  dumr(23) = helim
+  dumr(24) = fc2
+  dumr(25) = sigbot_gwd
+  dumr(26) = alphaj
+  dumr(27) = ent_min
+  dumr(28) = mfbeta
+  dumr(29) = dvmodmin
+  dumr(30) = tke_timeave_length
+  dumr(31) = wg_tau
+  dumr(32) = wg_prob
+  dumr(33) = plume_alpha
+  dumi(1)  = buoymeth
+  dumi(2)  = stabmeth
+  dumi(3)  = tkemeth
+  dumi(4)  = ngwd
+  dumi(5)  = tcalmeth
+  dumi(6)  = ugs_meth
+end if
+call ccmpi_bcast(dumr,0,comm_world)
+call ccmpi_bcast(dumi,0,comm_world)
+be                 = dumr(1)
+cm0                = dumr(2)
+ce0                = dumr(3)
+ce1                = dumr(4)
+ce2                = dumr(5)
+ce3                = dumr(6)
+cqmix              = dumr(7)
+ent0               = dumr(8)
+ent1               = dumr(9)
+entc0              = dumr(10)
+dtrc0              = dumr(11)
+m0                 = dumr(12)
+b1                 = dumr(13)
+b2                 = dumr(14)
+maxdts             = dumr(15)
+mintke             = dumr(16)
+mineps             = dumr(17) 
+minl               = dumr(18)
+maxl               = dumr(19)
+qcmf               = dumr(20)
+ezmin              = dumr(21)
+amxlsq             = dumr(22)
+helim              = dumr(23)
+fc2                = dumr(24)
+sigbot_gwd         = dumr(25)
+alphaj             = dumr(26)
+ent_min            = dumr(27)
+mfbeta             = dumr(28)
+dvmodmin           = dumr(29)
+tke_timeave_length = dumr(30)
+wg_tau             = dumr(31)
+wg_prob            = dumr(32)
+plume_alpha        = dumr(33)
+buoymeth           = dumi(1)
+stabmeth           = dumi(2)
+tkemeth            = dumi(3)
+ngwd               = dumi(4)
+tcalmeth           = dumi(5)
+ugs_meth           = dumi(6)
+
+return
+end subroutine broadcast_turbnml
+
+!--------------------------------------------------------------
+! Broadcast landnml namelist
+subroutine broadcast_landnml
+
+use ateb, only : energytol               & ! Urban
+    ,ateb_resmeth=>resmeth               &
+    ,ateb_zohmeth=>zohmeth               &
+    ,ateb_acmeth=>acmeth                 &
+    ,ateb_nrefl=>nrefl                   &
+    ,ateb_soilunder=>soilunder           &
+    ,ateb_scrnmeth=>scrnmeth             &
+    ,ateb_wbrelaxc=>wbrelaxc             &
+    ,ateb_wbrelaxr=>wbrelaxr             &
+    ,ateb_ncyits=>ncyits                 &
+    ,ateb_nfgits=>nfgits                 &
+    ,ateb_tol=>tol                       &
+    ,ateb_alpha=>alpha                   &
+    ,ateb_zosnow=>zosnow                 &
+    ,ateb_snowemiss=>snowemiss           &
+    ,ateb_maxsnowalpha=>maxsnowalpha     &
+    ,ateb_minsnowalpha=>minsnowalpha     &
+    ,ateb_maxsnowden=>maxsnowden         &
+    ,ateb_minsnowden=>minsnowden         &
+    ,ateb_refheight=>refheight           &
+    ,ateb_zomratio=>zomratio             &
+    ,zocanyon                            &
+    ,zoroof                              &
+    ,ateb_maxrfwater=>maxrfwater         &
+    ,ateb_maxrdwater=>maxrdwater         &
+    ,ateb_maxrfsn=>maxrfsn               &
+    ,ateb_maxrdsn=>maxrdsn               &
+    ,ateb_maxvwatf=>maxvwatf             &
+    ,intairtmeth                         &
+    ,intmassmeth                         &
+    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
+    ,ateb_statsmeth=>statsmeth           &
+    ,ateb_lwintmeth=>lwintmeth           &
+    ,ateb_infilmeth=>infilmeth           &
+    ,ateb_ac_heatcap=>ac_heatcap         &
+    ,ateb_ac_coolcap=>ac_coolcap         &
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor
+use cable_ccam, only : proglai           & ! CABLE
+    ,soil_struc,cable_pop,progvcmax      &
+    ,fwsoil_switch,cable_litter          &
+    ,gs_switch,ccycle                    &
+    ,smrf_switch,strf_switch             &
+    ,cable_gw_model,cable_roughness      &
+    ,cable_version,cable_potev
+use cc_mpi                                 ! CC MPI routines
+use parm_m                                 ! Model configuration
+
+implicit none
+
+include 'kuocom.h'                         ! Convection parameters
+
+integer, dimension(28) :: dumi
+real, dimension(24) :: dumr
+    
+dumr = 0.
+dumi = 0
+if ( myid==0 ) then
+  dumr(1)  = real(energytol) 
+  dumr(2)  = ateb_tol
+  dumr(3)  = ateb_alpha
+  dumr(4)  = ateb_zosnow
+  dumr(5)  = ateb_snowemiss
+  dumr(6)  = ateb_maxsnowalpha
+  dumr(7)  = ateb_minsnowalpha
+  dumr(8)  = ateb_maxsnowden
+  dumr(9)  = ateb_minsnowden
+  dumr(10) = ateb_refheight
+  dumr(11) = ateb_zomratio
+  dumr(12) = zocanyon
+  dumr(13) = zoroof
+  dumr(14) = ateb_maxrfwater
+  dumr(15) = ateb_maxrdwater
+  dumr(16) = ateb_maxrfsn
+  dumr(17) = ateb_maxrdsn
+  dumr(18) = ateb_maxvwatf
+  dumr(19) = ateb_ac_heatcap
+  dumr(20) = ateb_ac_coolcap
+  dumr(21) = ateb_ac_deltat
+  dumr(22) = ateb_acfactor
+  dumr(23) = siburbanfrac
+  dumr(24) = cable_version
+  dumi(1)  = proglai
+  dumi(2)  = ccycle
+  dumi(3)  = soil_struc
+  dumi(4)  = cable_pop
+  dumi(5)  = progvcmax
+  dumi(6)  = fwsoil_switch
+  dumi(7)  = cable_litter
+  dumi(8)  = gs_switch
+  dumi(9)  = smrf_switch
+  dumi(10) = strf_switch
+  dumi(11) = ateb_resmeth
+  dumi(12) = ateb_zohmeth
+  dumi(13) = ateb_acmeth
+  dumi(14) = ateb_nrefl
+  dumi(15) = ateb_soilunder
+  dumi(16) = ateb_scrnmeth
+  dumi(17) = ateb_wbrelaxc
+  dumi(18) = ateb_wbrelaxr
+  dumi(19) = ateb_ncyits
+  dumi(20) = ateb_nfgits
+  dumi(21) = intairtmeth
+  dumi(22) = intmassmeth
+  dumi(23) = ateb_cvcoeffmeth
+  dumi(24) = ateb_statsmeth
+  dumi(25) = ateb_lwintmeth
+  dumi(26) = ateb_infilmeth
+  dumi(27) = cable_roughness
+  dumi(28) = cable_potev
+end if
+call ccmpi_bcast(dumr,0,comm_world)
+call ccmpi_bcast(dumi,0,comm_world)
+energytol         = real(dumr(1),8)
+ateb_tol          = dumr(2)
+ateb_alpha        = dumr(3)
+ateb_zosnow       = dumr(4)
+ateb_snowemiss    = dumr(5)
+ateb_maxsnowalpha = dumr(6)
+ateb_minsnowalpha = dumr(7)
+ateb_maxsnowden   = dumr(8)
+ateb_minsnowden   = dumr(9)
+ateb_refheight    = dumr(10) 
+ateb_zomratio     = dumr(11)
+zocanyon          = dumr(12)
+zoroof            = dumr(13)
+ateb_maxrfwater   = dumr(14)
+ateb_maxrdwater   = dumr(15)
+ateb_maxrfsn      = dumr(16)
+ateb_maxrdsn      = dumr(17)
+ateb_maxvwatf     = dumr(18) 
+ateb_ac_heatcap   = dumr(19)
+ateb_ac_coolcap   = dumr(20)
+ateb_ac_deltat    = dumr(21)
+ateb_acfactor     = dumr(22)
+siburbanfrac      = dumr(23) 
+cable_version     = dumr(24)
+proglai           = dumi(1)
+ccycle            = dumi(2)
+soil_struc        = dumi(3)
+cable_pop         = dumi(4)
+progvcmax         = dumi(5)
+fwsoil_switch     = dumi(6)
+cable_litter      = dumi(7)
+gs_switch         = dumi(8)
+smrf_switch       = dumi(9)
+strf_switch       = dumi(10)
+ateb_resmeth      = dumi(11)
+ateb_zohmeth      = dumi(12)
+ateb_acmeth       = dumi(13)
+ateb_nrefl        = dumi(14) 
+ateb_soilunder    = dumi(15)
+ateb_scrnmeth     = dumi(16)
+ateb_wbrelaxc     = dumi(17) 
+ateb_wbrelaxr     = dumi(18) 
+ateb_ncyits       = dumi(19)
+ateb_nfgits       = dumi(20) 
+intairtmeth       = dumi(21) 
+intmassmeth       = dumi(22)
+ateb_cvcoeffmeth  = dumi(23) 
+ateb_statsmeth    = dumi(24) 
+ateb_lwintmeth    = dumi(25) 
+ateb_infilmeth    = dumi(26)
+cable_roughness   = dumi(27)
+cable_potev       = dumi(28)
+
+return
+end subroutine broadcast_landnml
+
+!--------------------------------------------------------------
+! Broadcast mlonml namelist
+subroutine broadcast_mlonml
+
+use cc_mpi                                 ! CC MPI routines
+use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
+    ,factchseaice,minwater,mxd,mindep    &
+    ,alphavis_seaice,alphanir_seaice     &
+    ,alphavis_seasnw,alphanir_seasnw     &
+    ,otaumode,mlosigma,wlev,oclosure     &
+    ,pdl,pdu,k_mode,eps_mode             &
+    ,limitL,fixedce3,nops                &
+    ,nopb,fixedstabfunc,omink            &
+    ,omineps,mlovlevels                  &
+    ,usepice,ominl,omaxl                 &
+    ,mlo_timeave_length,kemaxdt          &
+    ,mlo_adjeta,mlo_limitsal,mlo_step    &
+    ,mlo_uvcoupl,fluxwgt
+use mlodiffg                               ! Ocean dynamics horizontal diffusion
+use mlodynamics                            ! Ocean dynamics
+use mlostag, only : mstagf                 ! Ocean reversible staggering
+use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
+use river                                  ! River routing
+
+implicit none
+
+include 'kuocom.h'                         ! Convection parameters
+
+integer, dimension(30) :: dumi
+real, dimension(23) :: dumr    
+
+dumr = 0.
+dumi = 0
+if ( myid==0 ) then
+  dumr(1)  = ocnsmag
+  dumr(2)  = ocneps
+  dumr(3)  = zoseaice
+  dumr(4)  = factchseaice
+  dumr(5)  = minwater
+  dumr(6)  = mxd
+  dumr(7)  = mindep
+  dumr(8)  = alphavis_seaice
+  dumr(9)  = alphanir_seaice
+  dumr(10) = rivercoeff
+  dumr(11) = pdl
+  dumr(12) = pdu
+  dumr(13) = omink
+  dumr(14) = omineps
+  dumr(15) = ominl
+  dumr(16) = omaxl
+  dumr(17) = mlo_timeave_length
+  dumr(18) = kemaxdt
+  dumr(19) = alphavis_seasnw
+  dumr(20) = alphanir_seasnw
+  dumr(21) = ocnlap
+  dumr(22) = fluxwgt
+  dumr(23) = ocnepr
+  dumi(1)  = mlodiff
+  dumi(2)  = usetide
+  dumi(3)  = zomode
+  dumi(4)  = otaumode
+  dumi(5)  = rivermd
+  dumi(6)  = basinmd
+  dumi(7)  = mlojacobi
+  dumi(8)  = usepice
+  dumi(9)  = mlosigma
+  dumi(10) = oclosure
+  dumi(11) = k_mode
+  dumi(12) = eps_mode
+  dumi(13) = limitL
+  dumi(14) = fixedce3
+  dumi(15) = nops
+  dumi(16) = nopb
+  dumi(17) = fixedstabfunc
+  dumi(18) = mlomfix
+  dumi(19) = nodrift
+  dumi(20) = mlontvd
+  dumi(21) = mlodiff_numits
+  dumi(22) = mlo_adjeta
+  dumi(23) = mstagf
+  dumi(24) = mlodps
+  dumi(25) = mlo_limitsal
+  dumi(26) = mlo_bs
+  dumi(27) = mlo_step
+  dumi(28) = mlo_uvcoupl
+  dumi(29) = mlointschf
+  dumi(30) = nxtrrho
+end if
+call ccmpi_bcast(dumr,0,comm_world)
+call ccmpi_bcast(dumi,0,comm_world)
+ocnsmag            = dumr(1) 
+ocneps             = dumr(2) 
+zoseaice           = dumr(3) 
+factchseaice       = dumr(4)
+minwater           = dumr(5) 
+mxd                = dumr(6)
+mindep             = dumr(7)
+alphavis_seaice    = dumr(8)
+alphanir_seaice    = dumr(9)
+rivercoeff         = dumr(10)
+pdl                = dumr(11)
+pdu                = dumr(12)
+omink              = dumr(13)
+omineps            = dumr(14)
+ominl              = dumr(15)
+omaxl              = dumr(16)
+mlo_timeave_length = dumr(17)
+kemaxdt            = dumr(18)
+alphavis_seasnw    = dumr(19)
+alphanir_seasnw    = dumr(20)
+ocnlap             = dumr(21)
+fluxwgt            = dumr(22)
+ocnepr             = dumr(23)
+mlodiff            = dumi(1)
+usetide            = dumi(2) 
+zomode             = dumi(3) 
+otaumode           = dumi(4) 
+rivermd            = dumi(5)
+basinmd            = dumi(6)
+mlojacobi          = dumi(7)
+usepice            = dumi(8)
+mlosigma           = dumi(9)
+oclosure           = dumi(10)
+k_mode             = dumi(11)
+eps_mode           = dumi(12)
+limitL             = dumi(13)
+fixedce3           = dumi(14)
+nops               = dumi(15)
+nopb               = dumi(16)
+fixedstabfunc      = dumi(17)
+mlomfix            = dumi(18)
+nodrift            = dumi(19)
+mlontvd            = dumi(20)
+mlodiff_numits     = dumi(21)
+mlo_adjeta         = dumi(22)
+mstagf             = dumi(23)
+mlodps             = dumi(24)
+mlo_limitsal       = dumi(25)
+mlo_bs             = dumi(26)
+mlo_step           = dumi(27)
+mlo_uvcoupl        = dumi(28)
+mlointschf         = dumi(29)
+nxtrrho            = dumi(30)
+    
+return
+end subroutine broadcast_mlonml
+    
+!--------------------------------------------------------------
+! Broadcast trfiles namelist
+subroutine broadcast_trfiles
+
+use cc_mpi                                 ! CC MPI routines
+use tracermodule, only : tracerlist      & ! Tracer routines
+    ,sitefile,shipfile,writetrpm         &
+    ,init_tracer
+
+implicit none
+
+include 'kuocom.h'                         ! Convection parameters
+
+integer, dimension(1) :: dumi
+    
+dumi = 0
+if ( myid==0 ) then
+  if ( writetrpm ) dumi(1) = 1
+end if
+call ccmpi_bcast(tracerlist,0,comm_world)
+if ( tracerlist/=' ' ) then
+  call ccmpi_bcast(dumi,0,comm_world)
+  call ccmpi_bcast(sitefile,0,comm_world)
+  call ccmpi_bcast(shipfile,0,comm_world)
+  writetrpm = dumi(1)==1
+end if  
+    
+return
+end subroutine broadcast_trfiles   
+    
 !--------------------------------------------------------------
 ! Find valid nproc
 subroutine reducenproc(npanels,il_g,nproc,newnproc,nxp,nyp)

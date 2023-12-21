@@ -543,14 +543,14 @@ if (trim(fluxtype)=='daypulseon') then
 !       count number of timesteps that source emitting for
   kount=0
   do n=1,nperday
-    hr = 24.*float(n)/float(nperday)
+    hr = 24.*real(n)/real(nperday)
     if (tracdaytime(igas,1)<tracdaytime(igas,2) .and. tracdaytime(igas,1)<=hr .and. tracdaytime(igas,2)>=hr) kount=kount+1 
     if (tracdaytime(igas,1)>tracdaytime(igas,2) .and. (tracdaytime(igas,1)<=hr .or. tracdaytime(igas,2)>=hr)) kount=kount+1 
   enddo
 !       scale flux to allow for emission over fraction of day
 !       just set flux to zero if no daylight
   if (kount/=0) then
-    fluxin = fluxin*float(nperday)/float(kount)
+    fluxin = fluxin*real(nperday)/real(kount)
   else
     fluxin = 0.
   endif
@@ -713,16 +713,16 @@ do igas=1,numtracer
 
    ! monthly linear interpolation
    case(1)
-     a1 = float(nperday*mdays(month-1))/2.
-     a2 = float(nperday*mdays(month))/2.
-     a3 = float(nperday*mdays(month+1))/2.
+     a1 = real(nperday*mdays(month-1))/2.
+     a2 = real(nperday*mdays(month))/2.
+     a3 = real(nperday*mdays(month+1))/2.
      if (ktau<a2) then
 !            first half of month
-       ratlm = (a1+float(ktau))/(a1+a2)
+       ratlm = (a1+real(ktau))/(a1+a2)
        m1 = 1; m2 = 2
      else
 !            second half of month
-       ratlm = (float(ktau)-a2)/(a2+a3)
+       ratlm = (real(ktau)-a2)/(a2+a3)
        m1 = 2; m2 = 3
      endif
      co2em(:,igas) = (1.0-ratlm)*co2em123(:,m1,igas) + ratlm*co2em123(:,m2,igas)
@@ -757,8 +757,8 @@ do igas=1,numtracer
 
     ! monthly PWCB interpolation
     case(3)
-     a2 = float(nperday*mdays(month))
-     ratlm=a2/float(ktau)
+     a2 = real(nperday*mdays(month))
+     ratlm=a2/real(ktau)
      c2=co2em123(:,1,igas)
      c3=c2+co2em123(:,2,igas)
      c4=c3+co2em123(:,3,igas)
@@ -766,8 +766,8 @@ do igas=1,numtracer
 
     ! same as case(1), but interpolate from start of month
     case(4)
-     a2 = float(nperday*mdays(month))
-     ratlm = float(ktau)/a2
+     a2 = real(nperday*mdays(month))
+     ratlm = real(ktau)/a2
      co2em(:,igas) = (1.-ratlm)*co2em123(:,2,igas) + ratlm*co2em123(:,3,igas)
   end select
 enddo

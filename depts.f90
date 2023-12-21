@@ -48,7 +48,11 @@ real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3) :: sx
 real(kind=8), dimension(ifull,kl), intent(out) :: x3d, y3d, z3d   ! upglobal depts 
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
-      
+
+! MJT notes - transferring data to the GPU can be reduced by keeping x3d, y3d, z3d
+! on the GPU until the end of the subroutine and not overlapping intssync with
+! the bi-cubic interpolation.
+
 call START_LOG(depts_begin)
 
 do k = 1,kl
@@ -57,9 +61,6 @@ do k = 1,kl
   uc(1:ifull,k) = (ax(1:ifull)*ubar(1:ifull,k) + bx(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
   vc(1:ifull,k) = (ay(1:ifull)*ubar(1:ifull,k) + by(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
   wc(1:ifull,k) = (az(1:ifull)*ubar(1:ifull,k) + bz(1:ifull)*vbar(1:ifull,k))*dt/rearth ! unit sphere 
-  x3d(1:ifull,k) = x(1:ifull) - real(uc(1:ifull,k),8) ! 1st guess
-  y3d(1:ifull,k) = y(1:ifull) - real(vc(1:ifull,k),8)
-  z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
   s(1:ifull,k,1) = uc(1:ifull,k)
   s(1:ifull,k,2) = vc(1:ifull,k)
   s(1:ifull,k,3) = wc(1:ifull,k)
@@ -70,10 +71,21 @@ end do
 
 call bounds_send(s,nrows=2)
 
+do k = 1,kl
+  x3d(1:ifull,k) = x(1:ifull) - real(uc(1:ifull,k),8) ! 1st guess
+  y3d(1:ifull,k) = y(1:ifull) - real(vc(1:ifull,k),8)
+  z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
+end do
+
 ! convert to grid point numbering
 call toij5(x3d,y3d,z3d)
 
+!$acc update self(xg,yg,nface)
+
 call bounds_recv(s,nrows=2)
+
+! Share off processor departure points.
+call deptsync(nface,xg,yg)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -155,10 +167,7 @@ else
 
 end if
 
-! Share off processor departure points.
 !$acc update device(sx)
-!$acc update self(xg,yg,nface)
-call deptsync(nface,xg,yg)
 
 if ( diag .and. mydiag ) then
   write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)

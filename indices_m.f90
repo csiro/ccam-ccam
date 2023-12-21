@@ -31,7 +31,7 @@ public lssw_g,lsee_g,lsse_g,lnww_g,lnnw_g,lnee_g,lnne_g
 public npann_g,npane_g,npanw_g,npans_g
 public iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee
 public iwu,isv,ieu,inv,iwwu,issv,ieeu,innv
-public iev,iwv,inu,isu,ieev,innu
+public iev,iwv,inu,isu
 public lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 public lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 public indices_init,indices_end
@@ -45,7 +45,6 @@ integer, dimension(:), allocatable, save :: inn,iss,iee,iww                 ! nr
 integer, dimension(:), allocatable, save :: inv,ieu,iwu,isv                 ! default boundsuv
 integer, dimension(:), allocatable, save :: innv,ieeu,iwwu,issv             ! stag or allvec.and.nrows=2
 integer, dimension(:), allocatable, save :: inu,iev,iwv,isu                 ! allvec
-integer, dimension(:), allocatable, save :: innu,ieev                       ! allvec.and.nrows=2
 integer, dimension(:), allocatable, save :: lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww
 integer, dimension(:), allocatable, save :: lssw,lsee,lsse,lnww,lnnw,lnee,lnne
 integer, parameter, dimension(0:5) :: npann_g = (/ 1, 103, 3, 105, 5, 101 /)
@@ -69,7 +68,6 @@ allocate(iee(ifull),iwu(ifull),isv(ifull),ieu(ifull))
 allocate(inv(ifull),iwwu(ifull),issv(ifull),ieeu(ifull))
 allocate(innv(ifull))
 allocate(iev(ifull),iwv(ifull),inu(ifull),isu(ifull))
-allocate(ieev(ifull),innu(ifull))
 allocate(lwws(npan),lwss(npan))
 allocate(lees(npan),less(npan),lwwn(npan),lwnn(npan))
 allocate(leen(npan),lenn(npan),lsww(npan))
@@ -86,7 +84,6 @@ implicit none
 deallocate(iw,is,ise,ie,ine,in,iwn,inw,isw,ies,iws,ien,inn,iss,iww,iee,iwu,isv)
 deallocate(ieu,inv,iwwu,issv,ieeu,innv)
 deallocate(iev,iwv,inu,isu)
-deallocate(ieev,innu)
 deallocate(lwws,lwss,lees,less,lwwn,lwnn,leen,lenn,lsww)
 deallocate(lssw,lsee,lsse,lnww,lnnw,lnee,lnne)
 

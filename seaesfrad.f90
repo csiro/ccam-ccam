@@ -1232,7 +1232,7 @@ do_aerosol_forcing = abs(iaero)>=2
 
 ! Set up number of minutes from beginning of year
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-fjd = float(mod(mins, 525600))/1440. ! restrict to 365 day calendar
+fjd = real(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 ! Calculate sun position
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
