@@ -10,7 +10,7 @@ VPATH += :surface:surface/CABLE
 VPATH += :chemistry/aerosol:chemistry/tracers
 
 
-INC = -I ./main/general
+INC = -I ./main/general -I .
 
 ifeq ($(GPU),yes)
 USE_GPU=yes
