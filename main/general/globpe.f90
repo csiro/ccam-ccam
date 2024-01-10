@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1452,6 +1452,7 @@ use setxyz_m                               ! Define CCAM grid
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
+use staguvmod                              ! Reversible grid staggering 
 use stime_m                                ! File date data
 use tbar2d_m, only : tbar2d_init           ! Atmosphere dynamics reference temperature
 use tkeeps                                 ! TKE-EPS boundary layer
@@ -1539,7 +1540,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
     nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix,             &
-    always_mspeca,ntvd,tbave10,                                   &
+    always_mspeca,ntvd,tbave10,maxuv,                             &
     procmode,compression,hp_output,pil_single,                    & ! file io
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -2298,7 +2299,6 @@ if ( myid==0 ) then
   deallocate( ax_g, ay_g, az_g )
   deallocate( bx_g, by_g, bz_g )
   deallocate( f_g, fu_g, fv_g )
-  deallocate( dmdx_g, dmdy_g )
   deallocate( rlatt_g, rlongg_g )
 end if
 
@@ -2817,6 +2817,7 @@ use parmgeom_m                             ! Coordinate data
 use parmhdff_m                             ! Horizontal diffusion parameters
 use parmhor_m                              ! Horizontal advection parameters
 use parmvert_m                             ! Vertical advection parameters
+use staguvmod                              ! Reversible grid staggering 
 use stime_m                                ! File date data
 
 implicit none
@@ -2825,7 +2826,7 @@ include 'kuocom.h'                         ! Convection parameters
 
 integer i
 integer, dimension(119) :: dumi
-real, dimension(33) :: dumr
+real, dimension(34) :: dumr
     
 dumr(:) = 0.
 dumi(:) = 0
@@ -2863,6 +2864,7 @@ if ( myid==0 ) then
   dumr(31)  = rhsat
   dumr(32)  = ensemble_rsfactor
   dumr(33)  = zo_clearing
+  dumr(34)  = maxuv
   dumi(1)   = ntau
   dumi(2)   = nwt
   dumi(3)   = nhorps
@@ -3018,6 +3020,7 @@ qgmin             = dumr(30)
 rhsat             = dumr(31)
 ensemble_rsfactor = dumr(32)
 zo_clearing       = dumr(33)
+maxuv             = dumr(34)
 ntau              = dumi(1)
 nwt               = dumi(2)
 nhorps            = dumi(3)

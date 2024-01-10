@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -955,7 +955,7 @@ SUBROUTINE XTSINK(PTMST,xtg,imax,kl)
 !   PURPOSE
 !  ---------------
 !   THE MASS MIXING-RATIO OF TRACERS IS MULTIPLIED WITH
-!   EXP(ALOG(0.5)*TIME-STEP/HALF-LIFE-TIME).
+!   EXP(LOG(0.5)*TIME-STEP/HALF-LIFE-TIME).
 !
 
 implicit none
@@ -970,7 +970,7 @@ integer jk, jl
 ! Start code : ----------------------------------------------------------
 
 PQTMST=1./PTMST
-ZFAC=ALOG(0.5)*PTMST
+ZFAC=LOG(0.5)*PTMST
 
 ZDECAY=EXP(ZFAC/86400.) ! 1 day
 do jk = 1,kl
@@ -1232,7 +1232,7 @@ end do
 
  !   PROCESSES WHICH ARE DIFERENT INSIDE AND OUTSIDE OF CLOUDS
 do jk = 1,kl
-  ZSO4(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
+  ZSO4(:,jk)=max(XTO(:,jk,ITRACSO4),0.)
 end do
 
 do jk = ktop,kl
@@ -1299,7 +1299,7 @@ do jk = ktop,kl
 
         ZDSO2H=ZSO2M-ZSO2MH
         ZH2O2M=ZH2O2M-ZDSO2H
-        ZH2O2M=AMAX1(0.,ZH2O2M)
+        ZH2O2M=MAX(0.,ZH2O2M)
         ZSUMH2O2=ZSUMH2O2+ZDSO2H
 
         ZSO4M=ZSO4M+ZDSO2H
@@ -1330,7 +1330,7 @@ do jk = ktop,kl
       end do  !End of iteration loop
 
       ZDSO2TOT=ZXTP1-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
-      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1)
+      ZDSO2TOT=MIN(ZDSO2TOT,ZXTP1)
       ZXTP1C(JL,JK,ITRACSO2)=ZXTP1-ZDSO2TOT
       ZSO4(JL,JK)=ZSO4(JL,JK)+ZDSO2TOT
 
@@ -1347,7 +1347,7 @@ end do
 
 ! Repeat the aqueous oxidation calculation for ice clouds.
 do jk = 1,kl
-  ZSO4i(:,jk)=amax1(XTO(:,jk,ITRACSO4),0.)
+  ZSO4i(:,jk)=max(XTO(:,jk,ITRACSO4),0.)
 end do
 
 !******************************************************************************
@@ -1416,7 +1416,7 @@ end do
 !
 !        ZDSO2H=ZSO2M-ZSO2MH
 !        ZH2O2M=ZH2O2M-ZDSO2H
-!        ZH2O2M=AMAX1(0.,ZH2O2M)
+!        ZH2O2M=MAX(0.,ZH2O2M)
 !        ZSUMH2O2=ZSUMH2O2+ZDSO2H
 !
 !        ZSO4M=ZSO4M+ZDSO2H
@@ -1447,7 +1447,7 @@ end do
 !      ENDDO  !End of iteration loop
 !
 !      ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*X)
-!      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1(jl))
+!      ZDSO2TOT=MIN(ZDSO2TOT,ZXTP1(jl))
 !
 !      ZXTP10(JL,JK,ITRACSO2)=ZXTP1(jl)-ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
 !      ZSO4i(JL,JK)=ZSO4i(JL,JK)+ZDSO2TOT*pcfcover(jl,jk)/(1.-pclcover(jl,jk))
@@ -1465,8 +1465,8 @@ end do
 
 ! Repeat the aqueous oxidation calculation for convective clouds.
 do jk = 1,kl
-  ZXTP1CON(:,jk,ITRACSO2)=amax1(XTU(:,jk,ITRACSO2),0.)
-  ZSO4C(:,jk)            =amax1(XTU(:,jk,ITRACSO4),0.)
+  ZXTP1CON(:,jk,ITRACSO2)=max(XTU(:,jk,ITRACSO2),0.)
+  ZSO4C(:,jk)            =max(XTU(:,jk,ITRACSO4),0.)
 end do
 
 do jk = ktop,kl
@@ -1531,7 +1531,7 @@ do jk = ktop,kl
 
         ZDSO2H=ZSO2M-ZSO2MH
         ZH2O2M=ZH2O2M-ZDSO2H
-        ZH2O2M=AMAX1(0.,ZH2O2M)
+        ZH2O2M=MAX(0.,ZH2O2M)
         ZSUMH2O2=ZSUMH2O2+ZDSO2H
 
         ZSO4M=ZSO4M+ZDSO2H
@@ -1562,7 +1562,7 @@ do jk = ktop,kl
       ENDDO  !End of iteration loop
 
       ZDSO2TOT=ZXTP1-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(JL,JK))
-      ZDSO2TOT=AMIN1(ZDSO2TOT,ZXTP1)
+      ZDSO2TOT=MIN(ZDSO2TOT,ZXTP1)
       ZXTP1CON(JL,JK,ITRACSO2)=ZXTP1CON(JL,JK,ITRACSO2)-ZDSO2TOT
       ZSO4C(JL,JK)=ZSO4C(JL,JK)+ZDSO2TOT
       ZHENRYC(JL,JK)=ZF_SO2
@@ -1662,12 +1662,12 @@ do jk = 1,kl
       ZTK2=ZK2*(PTP1(JL,JK)/300.)**(-3.3)
       ZM=X*ZNAMAIR
       ZHIL=ZTK2*ZM/ZK2I
-      ZEXP=ALOG10(ZHIL)
+      ZEXP=LOG10(ZHIL)
       ZEXP=1./(1.+ZEXP*ZEXP)
       ZTK23B=ZTK2*ZM/(1.+ZHIL)*ZK2F**ZEXP
       ZSO2=ZXTP1SO2*ZZOH(JL,JK)*ZTK23B*ZDAYFAC(jl)
-      ZSO2=AMIN1(ZSO2,ZXTP1SO2*PQTMST)
-      ZSO2=AMAX1(ZSO2,0.)
+      ZSO2=MIN(ZSO2,ZXTP1SO2*PQTMST)
+      ZSO2=MAX(ZSO2,0.)
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)-ZSO2
       XTE(JL,JK,ITRACSO4)=XTE(JL,JK,ITRACSO4)+ZSO2
       so2oh3d(jl,jk)=zso2
@@ -1683,7 +1683,7 @@ do jk = 1,kl
       ztk1=2.*ztk1          !This is the fudge factor to account for other oxidants
       !ztk1=1.5*ztk1        !This is the fudge factor to account for other oxidants
       ZDMS=ZXTP1DMS*ZZOH(JL,JK)*ZTK1*ZDAYFAC(jl)
-      ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
+      ZDMS=MIN(ZDMS,ZXTP1DMS*PQTMST)
       XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
       dmsoh3d(jl,jk)=zdms
@@ -1701,10 +1701,10 @@ do jk = 1,kl
       ZRX1=2.2E-30*ZQT3**3.9*ZRHOAIR
       !ZRX2=1.5E-12*ZQT3**0.7
       ZRX12=1.467e-18*ZQT3**3.2*ZRHOAIR !=ZRX1/ZRX2
-      ZKNO2NO3=ZRX1/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
+      ZKNO2NO3=ZRX1/(1.+ZRX12)*0.6**(1./(1.+(LOG10(ZRX12))**2))
       !ZEQN2O5=4.E-27*EXP(10930.*ZQT)
       !ZKN2O5=ZKNO2NO3/ZEQN2O5
-      ZKN2O5=5.5E-4*ZQT3**3.9*ZRHOAIR*EXP(-10930.*ZQT)/(1.+ZRX12)*0.6**(1./(1.+(ALOG10(ZRX12))**2))
+      ZKN2O5=5.5E-4*ZQT3**3.9*ZRHOAIR*EXP(-10930.*ZQT)/(1.+ZRX12)*0.6**(1./(1.+(LOG10(ZRX12))**2))
 
       ZNO3=ZKNO2O3*(ZKN2O5+ZKN2O5AQ)*ZZNO2(JL,JK)*ZZO3(JL,JK)
       ZZQ=ZKNO2NO3*ZKN2O5AQ*ZZNO2(JL,JK)+(ZKN2O5+ZKN2O5AQ)*ZTK3*ZXTP1DMS*X*6.022E+20/ZMOLGS
@@ -1714,7 +1714,7 @@ do jk = 1,kl
         ZNO3=0.
       ENDIF
       ZDMS=ZXTP1DMS*ZNO3*ZTK3
-      ZDMS=AMIN1(ZDMS,ZXTP1DMS*PQTMST)
+      ZDMS=MIN(ZDMS,ZXTP1DMS*PQTMST)
       XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
       dmsn33d(jl,jk)=zdms
@@ -1871,8 +1871,8 @@ do JK = KTOP,kl
       !ZCLEAR = 1. - PCLCOVER(i,JK) - pcfcover(i,jk) - pclcon(i,jk)
       ZCLR0 = max( 1. - PCLCOVER(i,jk) - pclcon(i,jk), 0. ) !Clear air or ice cloud (applies to pxtp10)
       ZMTOF = rhodz(i,jk)*pqtmst
-      PXTP1C(i,JK,ktrac) = AMAX1( 0., PXTP1C(i,JK,ktrac) )
-      PXTP10(i,JK,ktrac) = AMAX1( 0., PXTP10(i,JK,ktrac) )
+      PXTP1C(i,JK,ktrac) = MAX( 0., PXTP1C(i,JK,ktrac) )
+      PXTP10(i,JK,ktrac) = MAX( 0., PXTP10(i,JK,ktrac) )
 
       ! In-cloud ice scavenging (vertical redistribution when snow falls into a layer).
       if ( zclr0>zmin ) then
@@ -2244,7 +2244,7 @@ do n = 1, ndust
     ! Case of surface dry enough to erode
     if ( wg(iq)<0.1 ) then
       !Tuning suggested for Asian source by P. Ginoux
-      u_ts = max( 0., u_ts0*(1.2+0.2*alog10(max( 1.e-3, wg(iq) ))) )
+      u_ts = max( 0., u_ts0*(1.2+0.2*log10(max( 1.e-3, wg(iq) ))) )
     else
       ! Case of wet surface, no erosion
       u_ts = 100.

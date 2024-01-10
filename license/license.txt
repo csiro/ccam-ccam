@@ -1,5 +1,5 @@
 CSIRO Open Source Software License Agreement (GPLv3)
-Copyright (c) 2015-2023, Commonwealth Scientific and Industrial Research Organisation (CSIRO) ABN 41 687 119 230.
+Copyright (c) 2015-2024, Commonwealth Scientific and Industrial Research Organisation (CSIRO) ABN 41 687 119 230.
 All rights reserved. CSIRO is willing to grant you a license to the Conformal Cubic Atmospheric Model on the terms of the GNU General
 Public License version 3 as published by the Free Software Foundation (http://www.gnu.org/licenses/gpl.html), except where otherwise
 indicated for third party material.

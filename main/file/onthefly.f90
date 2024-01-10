@@ -64,7 +64,7 @@ real, dimension(:), allocatable, save :: sigin                ! input vertical c
 real, dimension(:), allocatable, save :: gosig_1              ! input ocean reference levels
 real, dimension(:), allocatable, save :: gosig_h              ! input ocean reference half levels
 real, dimension(:,:), allocatable, save :: gosig_3            ! input ocean 3d levels
-real, dimension(:,:,:), allocatable, save :: sx               ! working array for interpolation
+real, dimension(:,:,:), allocatable, save :: sx
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! shared arrays used for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
@@ -336,6 +336,7 @@ use ateb, only : urbtemp, atebloadd, nfrac     ! Urban
 use cable_ccam, only : ccycle                  ! CABLE
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
+use cc_omp                                     ! CC OpenMP routines
 use cfrac_m                                    ! Cloud fraction
 use const_phys                                 ! Physical constants
 use darcdf_m                                   ! Netcdf data
@@ -2201,8 +2202,8 @@ call START_LOG(otf_ints_begin)
 call ccmpi_filewinget(abuf,s)
 
 sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-call ccmpi_filewinunpack(sx(:,:,:),abuf)
-call sxpanelbounds(sx(:,:,:))
+call ccmpi_filewinunpack(sx,abuf)
+call sxpanelbounds(sx)
 
 if ( iotest ) then
   do n = 1,npan
@@ -2210,7 +2211,7 @@ if ( iotest ) then
     sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
   end do
 else
-  call intsb(sx(:,:,:),sout,nface4,xg4,yg4)
+  call intsb(sx,sout,nface4,xg4,yg4)
 end if
 
 call END_LOG(otf_ints_end)
@@ -2227,7 +2228,7 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer k, kx, kb, ke, kn, n, iq
+integer k, kx, kb, ke, kn, n, iq, mythread
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(pipan*pjpan*pnpan,size(filemap_req),kblock) :: abuf
@@ -2246,8 +2247,8 @@ do kb = 1,kx,kblock
   if ( iotest ) then
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
-      call sxpanelbounds(sx(:,:,:))
+      call ccmpi_filewinunpack(sx,abuf(:,:,k))
+      call sxpanelbounds(sx)
       do n = 1,npan
         iq = (n-1)*ipan*jpan
         sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
@@ -2256,9 +2257,9 @@ do kb = 1,kx,kblock
   else
     do k = 1,kn
       sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx(:,:,:),abuf(:,:,k))
-      call sxpanelbounds(sx(:,:,:))
-      call intsb(sx(:,:,:),sout(:,k+kb-1),nface4,xg4,yg4)
+      call ccmpi_filewinunpack(sx,abuf(:,:,k))
+      call sxpanelbounds(sx)
+      call intsb(sx,sout(:,k+kb-1),nface4,xg4,yg4)
     end do
   end if ! iotest ..else..
 
@@ -2348,6 +2349,7 @@ subroutine intsb(sx_l,sout,nface4,xg4,yg4)
 !     doing x-interpolation before y-interpolation
 !     This is a global routine 
 
+use cc_omp                 ! CC OpenMP routines
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 
@@ -2355,54 +2357,60 @@ implicit none
 
 integer, dimension(ifull,m_fly), intent(in) :: nface4
 integer :: idel, jdel, n, iq, mm
+integer :: js, je, tile
 real, dimension(ifull), intent(out) :: sout
 real, intent(in), dimension(ifull,m_fly) :: xg4, yg4
 real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
-real, dimension(ifull,m_fly) :: wrk
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 
-!$omp parallel do schedule(static) private(mm,iq,n,idel,xxg,jdel,yyg),             &
-!$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3),   &
-!$omp   private(emul_4,cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)
-do mm = 1,m_fly     !  was 4, now may be 1
-  do iq = 1,ifull   ! runs through list of target points
-    n = nface4(iq,mm)
-    idel = int(xg4(iq,mm))
-    xxg = xg4(iq,mm) - real(idel)
-    jdel = int(yg4(iq,mm))
-    yyg = yg4(iq,mm) - real(jdel)
-    ! bi-cubic
-    cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-    cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-    cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-    cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-    dmul_2 = (1.-xxg)
-    dmul_3 = xxg
-    emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-    emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-    emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-    emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-    cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
-               sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
-    cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
-               sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
-    rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
-    rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
-             sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
-    rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
-             sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
-    rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
-    wrk(iq,mm) = min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
-  end do    ! iq loop
-end do      ! mm loop
-!$omp end parallel do
+!$omp parallel do schedule(static) private(tile,js,je,iq,mm,n,idel,xxg,jdel,yyg)       &
+!$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
+!$omp   private(cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
 
-sout(1:ifull) = wrk(:,1)/real(m_fly)
-do mm = 2,m_fly
-  sout(1:ifull) = sout(1:ifull) + wrk(:,mm)/real(m_fly)
-end do  
+  do iq = js,je
+    sout(iq) = 0.
+  end do
+
+  do mm = 1,m_fly     !  was 4, now may be 1
+    do iq = js,je     ! runs through list of target points
+      n = nface4(iq,mm)
+      idel = int(xg4(iq,mm))
+      xxg = xg4(iq,mm) - real(idel)
+      jdel = int(yg4(iq,mm))
+      yyg = yg4(iq,mm) - real(jdel)
+      ! bi-cubic
+      cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+      cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      dmul_2 = (1.-xxg)
+      dmul_3 = xxg
+      emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+      emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+                 sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+      cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
+                 sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
+      rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
+      rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
+               sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
+      rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
+               sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
+      rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
+      sout(iq) = sout(iq) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
+                                          + rmul_3*emul_3 + rmul_4*emul_4 ), &
+                                      cmax )/real(m_fly) ! Bermejo & Staniforth
+    end do    ! iq loop
+  end do      ! mm loop
+end do        ! tile loop
+!$omp end parallel do
 
 return
 end subroutine intsb

@@ -21,7 +21,7 @@
     
 module sumdd_m
    implicit none
-   public drpdr, drpdr_local, drpdr_local_v
+   public drpdr, drpdr_v, drpdr_local, drpdr_local_v
    private
    integer(kind=4), save, public :: MPI_SUMDR
 contains
@@ -51,9 +51,37 @@ contains
          !    The result is t1 + t2, after normalization. 
          drb(i) = cmplx (t1 + t2, t2 - ((t1 + t2) - t1)) 
       end do
+
    end subroutine drpdr
 
-   pure subroutine drpdr_local (array, local_sum)
+   pure subroutine drpdr_v(dra, drb)
+   ! This is a local version of drpdr that takes an array of reals on 
+   ! one processor and returns the double-real sum
+   ! Note that it accumulates into local_sum so this has to be zeroed
+   ! before use.
+      implicit none 
+      complex, dimension(:,:), intent(in)  :: dra
+      complex, dimension(:), intent(inout) :: drb
+      real :: e, t1, t2 
+      integer :: i, n
+ 
+      ! expect size(drb)=2
+     
+      do n = 1,size(dra,2)
+         do i = 1,size(dra,1)
+            !  Compute dra + drb using Knuth's trick. 
+            t1 = real(dra(i,n)) + real(drb(n)) 
+            e = t1 - real(dra(i,n)) 
+            t2 = ((real(drb(n)) - e) + (real(dra(i,n)) - (t1 - e)))  + &
+                 aimag(dra(i,n)) + aimag(drb(n)) 
+            !    The result is t1 + t2, after normalization. 
+            drb(n) = cmplx (t1 + t2, t2 - ((t1 + t2) - t1)) 
+         end do
+      end do
+      
+   end subroutine drpdr_v
+
+   pure subroutine drpdr_local(array, local_sum)
    ! This is a local version of drpdr that takes an array of reals on 
    ! one processor and returns the double-real sum
    ! Note that it accumulates into local_sum so this has to be zeroed
@@ -73,7 +101,7 @@ contains
       
    end subroutine drpdr_local
    
-   pure subroutine drpdr_local_v (array, local_sum)
+   pure subroutine drpdr_local_v(array, local_sum)
    ! This is a local version of drpdr that takes an array of reals on 
    ! one processor and returns the double-real sum
    ! Note that it accumulates into local_sum so this has to be zeroed
@@ -82,19 +110,31 @@ contains
       real, dimension(:,:), intent(in)  :: array
       complex, dimension(:), intent(inout) :: local_sum
       real :: e, t1, t2 
-      real, dimension(size(array,2),size(array,1)) :: array_t
+      real, dimension(size(array,2)) :: array_t
       integer :: i, n
       
-      array_t(:,:) = transpose(array)
-
-      do i = 1,size(array_t,2)
-         do n = 1,size(array_t,1)
-            t1 = array_t(n,i) + real(local_sum(n))
-            e = t1 - array_t(n,i) 
-            t2 = ((real(local_sum(n)) - e) + (array_t(n,i) - (t1 - e)))  + aimag(local_sum(n))
+#ifdef GPU
+      !$acc parallel loop copyin(array) copy(local_sum)
+      do n = 1,size(array,2)
+         do i = 1,size(array,1)
+            t1 = array(i,n) + real(local_sum(n))
+            e = t1 - array(i,n) 
+            t2 = ((real(local_sum(n)) - e) + (array(i,n) - (t1 - e)))  + aimag(local_sum(n))
             local_sum(n) = cmplx(t1 + t2, t2 - ((t1 + t2) - t1))
          end do
       end do
+      !$acc end parallel loop
+#else
+      do i = 1,size(array,1)
+         array_t(:) = array(i,:)
+         do n = 1,size(array_t)
+            t1 = array_t(n) + real(local_sum(n))
+            e = t1 - array_t(n) 
+            t2 = ((real(local_sum(n)) - e) + (array_t(n) - (t1 - e)))  + aimag(local_sum(n))
+            local_sum(n) = cmplx(t1 + t2, t2 - ((t1 + t2) - t1))
+         end do
+      end do
+#endif
       
    end subroutine drpdr_local_v
    

@@ -200,6 +200,7 @@ use parmhor_m                              ! Horizontal advection parameters
 use parmvert_m                             ! Vertical advection parameters
 use river                                  ! River routing
 use seaesfrad_m                            ! SEA-ESF radiation
+use staguvmod                              ! Reversible grid staggering   
 use tkeeps                                 ! TKE-EPS boundary layer
 use tracers_m                              ! Tracer data
 
@@ -578,6 +579,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'liqradmethod',liqradmethod)    
     call ccnf_put_attg(idnc,'lgwd',lgwd)
     call ccnf_put_attg(idnc,'m_fly',m_fly)
+    call ccnf_put_attg(idnc,'maxuv',maxuv)
     call ccnf_put_attg(idnc,'mbd',mbd)
     call ccnf_put_attg(idnc,'mbd_maxgrid',mbd_maxgrid)
     call ccnf_put_attg(idnc,'mbd_maxscale',mbd_maxscale)

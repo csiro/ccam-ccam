@@ -25,13 +25,11 @@ implicit none
 
 private
 public em_g, emu_g, emv_g, f_g, fu_g, fv_g
-public dmdx_g, dmdy_g
 public em, emu, emv, f, fu, fv
 public em_g_win
 public map_init, map_end
 
 real, dimension(:), allocatable, save :: emu_g, emv_g, f_g, fu_g, fv_g
-real, dimension(:), allocatable, save :: dmdx_g, dmdy_g
 real, dimension(:), allocatable, save :: emu, emv, fu, fv
 real, dimension(:), allocatable, save :: em, f
 real, dimension(:), pointer, save :: em_g
@@ -48,7 +46,6 @@ integer, intent(in) :: ifull_g, ifull, iextra, myid
 if ( myid==0 ) then
   allocate( emu_g(ifull_g), emv_g(ifull_g) )
   allocate( f_g(ifull_g), fu_g(ifull_g), fv_g(ifull_g) )
-  allocate( dmdx_g(ifull_g), dmdy_g(ifull_g) )
 end if
 allocate( em(ifull+iextra), emu(ifull+iextra), emv(ifull+iextra) )
 allocate( f(ifull+iextra), fu(ifull+iextra), fv(ifull+iextra) )
@@ -63,7 +60,6 @@ implicit none
 if ( allocated(emu_g) ) then
   deallocate( emu_g, emv_g )
   deallocate( f_g, fu_g, fv_g )
-  deallocate( dmdx_g, dmdy_g )
 end if
 deallocate( em, emu, emv )
 deallocate( f, fu, fv )

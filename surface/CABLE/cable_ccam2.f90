@@ -152,7 +152,7 @@ integer, save :: smrf_switch     = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 
 integer, save :: strf_switch     = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),
                                               ! 5 DAMM (Soil Temp Respiration Function)
 integer, save :: cable_gw_model  = 0          ! 0 off, 1 GW_Hydro
-integer, save :: cable_roughness = 0          ! 0 defailt, 1 new
+integer, save :: cable_roughness = 0          ! 0 default, 1 new
 integer, save :: cable_potev     = 1          ! 0 Penman Monteith, 1 Humidity Deficit
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
@@ -161,7 +161,8 @@ integer, save :: progvcmax       = 0          ! 0 prescribed, 1 prognostic vcmax
 ! CABLE POP options
 integer, save :: cable_pop       = 0          ! 0 off, 1 on
 ! CABLE parameters
-integer, parameter :: maxtile    = 9          ! maximum possible number of tiles (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
+integer, parameter :: maxtile    = 9          ! maximum possible number of tiles
+                                              ! (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
 integer, save :: POP_NPATCH      = -1
@@ -617,8 +618,6 @@ rad%trad         = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )*
 ! canopy%ga    = canopy%rnet - canopy%fh - canopy%fe
 ! canopy%dgdtg = ssnow%dfn_dtg - ssnow%dfh_dtg - ssnow%dfe_ddq*ssnow%ddq_dtg
 
-! EK suggestion
-!canopy%cdtq =  max( 0.1_8*canopy%cduv, canopy%cdtq )
 ! MJT suggestion
 canopy%cdtq =  max( 0._8, canopy%cdtq )
 ssnow%wbice = max( ssnow%wbice, 0._8 )
@@ -2114,13 +2113,13 @@ do tile = 1,ntiles
       if ( landcount==0 ) then
         write(6,*) "ERROR: No CABLE tiles assigned to land point: myid,iq,tile",myid,iq,tile
         call ccmpi_abort(-1)
-	  end if
-	  landsum = sum(svs(iq,:))
-	  if ( landsum<0.99 .or. landsum>1.01 ) then
-		write(6,*) "ERROR: CABLE tiles do not sum to 1."
-		write(6,*) "myid,iq,tile,landsum ",myid,iq,tile,landsum
-		call ccmpi_abort(-1)
-	  end if
+      end if
+      landsum = sum(svs(iq,:))
+      if ( landsum<0.99 .or. landsum>1.01 ) then
+        write(6,*) "ERROR: CABLE tiles do not sum to 1."
+        write(6,*) "myid,iq,tile,landsum ",myid,iq,tile,landsum
+        call ccmpi_abort(-1)
+      end if
     end if
   end do
 end do
@@ -4202,12 +4201,12 @@ if ( mp_global>0 ) then
   ssnow%satfrac = 0.5_8
   ssnow%wbliq = ssnow%wb - ssnow%wbice
   ssnow%GWwb = 0.95_8*soil%ssat 
-  if ( soil_struc==0 ) then
-    do k = 1,ms
-      ssnow%wb(:,k) = max(ssnow%wb(:,k), 0.5_8*soil%swilt)
-      ssnow%wb(:,k) = min(ssnow%wb(:,k), soil%sfc)
-    end do    
-  end if
+  !if ( soil_struc==0 ) then
+  !  do k = 1,ms
+  !    ssnow%wb(:,k) = max(ssnow%wb(:,k), 0.5_8*soil%swilt)
+  !    ssnow%wb(:,k) = min(ssnow%wb(:,k), soil%sfc)
+  !  end do    
+  !end if
   dummy_pack = real(1-isflag)*tgg(:,1) + real(isflag)*tggsn(:,1) - 273.15
   call cable_pack(dummy_pack,ssnow%tsurface)
   ssnow%rtsoil = 50._8

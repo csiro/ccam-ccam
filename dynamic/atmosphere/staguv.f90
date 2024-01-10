@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -22,9 +22,10 @@
 module staguvmod
 
 private
-public staguv, unstaguv
+public staguv, unstaguv, maxuv
 
 integer, parameter :: itnmax=3
+real, save :: maxuv = 900.
 
 contains
 
@@ -120,8 +121,10 @@ if ( nstag==3 ) then
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
-        uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
-        vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+        uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10.+ua(ieeu(iq),k)/4.)/.95
+        vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10.+va(innv(iq),k)/4.)/.95
+        uin(iq,k)=min( max( uin(iq,k), -maxuv ), maxuv )
+        vin(iq,k)=min( max( vin(iq,k), -maxuv ), maxuv )
       end do
     end do
     !$omp end do
@@ -132,6 +135,8 @@ if ( nstag==3 ) then
       do iq = 1,ifull  
         ua(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
         va(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
+        ua(iq,k)=min( max( ua(iq,k), -maxuv ), maxuv )
+        va(iq,k)=min( max( va(iq,k), -maxuv ), maxuv )
       end do
     end do
     !$omp end do
@@ -159,8 +164,10 @@ else !if ( nstag==4 ) then
     !$omp do schedule(static) private(k,iq)
     do k = 1,kx
       do iq = 1,ifull  
-        uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
-        vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+        uin(iq,k)=( ug(iq,k)-ua(ieu(iq),k)/10.+ua(iwwu(iq),k)/4. )/.95
+        vin(iq,k)=( vg(iq,k)-va(inv(iq),k)/10.+va(issv(iq),k)/4. )/.95
+        uin(iq,k)=min( max( uin(iq,k), -maxuv ), maxuv )
+        vin(iq,k)=min( max( vin(iq,k), -maxuv ), maxuv )
       end do
     end do
     !$omp end do
@@ -171,6 +178,8 @@ else !if ( nstag==4 ) then
       do iq = 1,ifull  
         ua(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
         va(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
+        ua(iq,k)=min( max( ua(iq,k), -maxuv ), maxuv )
+        va(iq,k)=min( max( va(iq,k), -maxuv ), maxuv )
       end do
     end do  
     !$omp end do
@@ -270,6 +279,8 @@ if ( nstagu==3 ) then
       do iq = 1,ifull  
         uin(iq,k)=(ug(iq,k)-ua(ieu(iq),k)/10. +ua(iwwu(iq),k)/4.)/.95
         vin(iq,k)=(vg(iq,k)-va(inv(iq),k)/10. +va(issv(iq),k)/4.)/.95
+        uin(iq,k)=min( max( uin(iq,k), -maxuv ), maxuv )
+        vin(iq,k)=min( max( vin(iq,k), -maxuv ), maxuv )
       end do
     end do
     !$omp end do
@@ -280,6 +291,8 @@ if ( nstagu==3 ) then
       do iq = 1,ifull  
         ua(iq,k)=(ug(iq,k)-uin(ieu(iq),k)/10. +uin(iwwu(iq),k)/4.)/.95
         va(iq,k)=(vg(iq,k)-vin(inv(iq),k)/10. +vin(issv(iq),k)/4.)/.95
+        ua(iq,k)=min( max( ua(iq,k), -maxuv ), maxuv )
+        va(iq,k)=min( max( va(iq,k), -maxuv ), maxuv )
       end do
     end do
     !$omp end do
@@ -309,6 +322,8 @@ else !if ( nstagu==4 ) then
       do iq = 1,ifull  
         uin(iq,k)=(ug(iq,k)-ua(iwu(iq),k)/10. +ua(ieeu(iq),k)/4.)/.95
         vin(iq,k)=(vg(iq,k)-va(isv(iq),k)/10. +va(innv(iq),k)/4.)/.95
+        uin(iq,k)=min( max( uin(iq,k), -maxuv ), maxuv )
+        vin(iq,k)=min( max( vin(iq,k), -maxuv ), maxuv )
       end do
     end do  
     !$omp end do
@@ -319,6 +334,8 @@ else !if ( nstagu==4 ) then
       do iq = 1,ifull  
         ua(iq,k)=(ug(iq,k)-uin(iwu(iq),k)/10. +uin(ieeu(iq),k)/4.)/.95
         va(iq,k)=(vg(iq,k)-vin(isv(iq),k)/10. +vin(innv(iq),k)/4.)/.95
+        ua(iq,k)=min( max( ua(iq,k), -maxuv ), maxuv )
+        va(iq,k)=min( max( va(iq,k), -maxuv ), maxuv )
       end do
     end do  
     !$omp end do

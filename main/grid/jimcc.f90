@@ -55,7 +55,7 @@ integer, dimension(0:47), parameter :: knc =                                &
                  37,36,39,38,41,40, 43,42,45,44,47,46 /)
 integer, dimension(0:47), save :: ipofig, kgofig
 integer, dimension(8,6), save :: igofkg
-integer, save :: ig = 0
+!integer, save :: ig = 0
 real, save :: ss
 real, parameter :: third = 1./3.
 real, parameter :: fourth = 1./4.
@@ -92,6 +92,8 @@ real, dimension(3,0:11), save :: e
 real, dimension(3,3), save :: txe
 real, dimension(3,3,0:47), save :: rotg
 complex, save :: ci, cip4, cip3oss
+
+!$acc declare create(ci,igofkg,cip3oss,rotg)
 
 contains
 
@@ -292,10 +294,13 @@ real, parameter :: stretch=1.
 real, parameter :: stretchm=1.-stretch
 real, dimension(np,np), intent(out) :: xe, ye, ze
 real, dimension(np,np), intent(out) :: dxa,dxb,dxc,em4
-real, dimension(np,3,3) :: xc
-!real, dimension(np,2) :: dfdx
-real, dimension(np) :: xvec, den
-real :: d, xadd, yadd, x, y
+#ifdef GPU
+real, dimension(3) :: xc
+#else
+real, dimension(np,3) :: xc
+real, dimension(np) :: xvec
+#endif
+real :: d, xadd, yadd, x, y, den
 
 d=1./real(np-1)
 xadd=0.
@@ -307,6 +312,32 @@ if(ngr==2.or.ngr==4)then
   yadd=.5*d
 end if
 
+#ifdef GPU
+
+!$acc update device(ci,igofkg,cip3oss,rotg)
+!$acc parallel loop collapse(2) copyout(xe,ye,ze,em4,dxa,dxb,dxc) private(xc)
+do j = 1,np
+  do i = 1,np
+   y = real(j-1)*d  + yadd   ! jlm allows staggered v
+   y = .5+(y-.5)*(stretch+stretchm*(2.*y-1.)**2)   !jlm
+   x = real(i-1)*d + xadd   ! jlm allows staggered u
+   x = .5+(x-.5)*(stretch+stretchm*(2.*x-1.)**2)   !jlm
+   call vmtoc(x,y,ipanel,xe(i,j),ye(i,j),ze(i,j))
+   call vmtocd(x,y,ipanel,xc,em4(i,j))
+   ! return dxa etc as unit vectors
+   den=sqrt(xc(1)**2+xc(2)**2+xc(3)**2)
+   if (den<1.e-6) then
+     den = 1.
+   end if
+   dxa(i,j) = xc(1)/den   ! the three components of a vector along dx
+   dxb(i,j) = xc(2)/den
+   dxc(i,j) = xc(3)/den
+ end do
+end do
+!$acc end parallel loop
+
+#else
+
 do j = 0,np-1
  jp = j + 1
  y = real(j)*d  + yadd   ! jlm allows staggered v
@@ -317,15 +348,20 @@ do j = 0,np-1
  end do
  call vmtoc(xvec,y,ipanel,xe(:,jp),ye(:,jp),ze(:,jp),np)
  call vmtocd(xvec,y,ipanel,xc,em4(:,jp),np)
-! return dxa etc as unit vectors
- den(1:np)=sqrt(xc(1:np,1,1)**2+xc(1:np,2,1)**2+xc(1:np,3,1)**2)
- where (den(1:np)<1.e-6)
-   den(1:np) = 1.
- end where
- dxa(1:np,jp) = xc(1:np,1,1)/den(1:np)   ! the three components of a vector along dx
- dxb(1:np,jp) = xc(1:np,2,1)/den(1:np)
- dxc(1:np,jp) = xc(1:np,3,1)/den(1:np)
-enddo
+ ! return dxa etc as unit vectors
+ do i = 1,np
+   den=sqrt(xc(i,1)**2+xc(i,2)**2+xc(i,3)**2)
+   if (den<1.e-6) then
+     den = 1.
+   end if
+   dxa(i,jp) = xc(i,1)/den   ! the three components of a vector along dx
+   dxb(i,jp) = xc(i,2)/den
+   dxc(i,jp) = xc(i,3)/den
+ end do
+end do
+
+#endif
+
 return
 end subroutine rgrid
 
@@ -339,7 +375,7 @@ SUBROUTINE INHEDRA(ROT,IG1)
 implicit none
 integer, dimension(6), intent(in) :: ig1
 integer, dimension(8) :: igk
-integer :: ip, kg, i, j, k, lg
+integer :: ip, kg, i, j, k, lg, ig
 real, dimension(3,3), intent(in) :: rot
 real :: r2, r3, r6, r2o2, r3o2, r3o3, r6o3, r3o6, r6o6
 
@@ -450,56 +486,120 @@ end subroutine inhedra
 !  -->    IPANEL map-panel index
 !  <--    XC     standard earth-centered cartesian coordinates
 !----------------------------------------------------------------------------
+#ifdef GPU
+subroutine vmtoc(xx, yy, ipanel, xc, yc, zc)
+!$acc routine seq
+implicit none
+integer, intent(in) :: ipanel
+integer :: kg
+integer :: i, ig
+real, intent(in) :: xx
+real, intent(in) :: yy
+real, intent(out) :: xc, yc, zc
+real, dimension(3) :: xv, tmpc
+real :: t, x, y, xw, yw, h
+complex :: w, z
+complex :: arg
+
+x = xx
+y = yy
+kg = 1
+if ( x > 0.5 ) then 
+ kg = kg + 1
+ x = 1.0 - x
+end if
+if ( y > 0.5 ) then 
+ kg = kg + 2
+ y = 1.0 - y
+end if
+if (y > x) then 
+ kg = kg + 4
+ t = x
+ x = y
+ y = t
+end if
+! z=cmplx(x,y)**4
+z = cmplx(x,y)*cmplx(x,y)
+z = z*z
+W=cmplx(0.,0.)
+DO I=30,1,-1
+ W=(W+A(I))*Z
+ENDDO
+arg = -ci*w                               ! mrd
+if ( abs(arg)<1.e-20 ) then               ! mrd
+ w = (0.0,0.0)                            ! mrd
+else                                      ! mrd
+ w = cip3oss*(-ci*w)**third               ! mrd
+end if                                    ! mrd
+xw = real(w)
+yw = aimag(w)
+h = 2.0/(1.0 + xw*xw + yw*yw)
+xv(1) = xw*h
+xv(2) = yw*h
+xv(3) = h - 1.0
+ig = igofkg(kg,ipanel)
+tmpc(:) = matmul( rotg(:,:,ig), xv(:) )
+xc = tmpc(1)
+yc = tmpc(2)
+zc = tmpc(3)
+
+return
+end subroutine vmtoc
+#else
 subroutine vmtoc(xx, yy, ipanel, xc, yc, zc, n)
 implicit none
 integer, intent(in) :: ipanel
 integer, intent(in) :: n
 integer, dimension(n) :: kg
-integer :: i
+integer :: i, ig
 real, intent(in), dimension(n) :: xx
 real, intent(in) :: yy
 real, dimension(n), intent(out) :: xc, yc, zc
 real, dimension(3) :: xv, tmpc
-real, dimension(n) :: x, y, t, xw, yw, h
-complex, dimension(n) :: w, z, arg
+real :: t, x, y, xw, yw, h
+complex, dimension(n) :: w, z
+complex :: arg
 
-x = xx
-y = yy
-kg = 1
-where ( x > 0.5 ) 
- kg = kg + 1
- x = 1.0 - x
-endwhere
-where ( y > 0.5 ) 
- kg = kg + 2
- y = 1.0 - y
-endwhere
-where (y > x) 
- kg = kg + 4
- t = x
- x = y
- y = t
-endwhere
-
-! z=cmplx(x,y)**4
-z = cmplx(x,y)*cmplx(x,y)
-z = z*z
-call vtay (z, a, 30, w)
-arg = -ci*w                                ! mrd
-where ( abs(arg)<1.e-20 )                  ! mrd
- w = (0.0,0.0)                             ! mrd
-elsewhere                                  ! mrd
- w = cip3oss*(-ci*w)**third                ! mrd
-endwhere                                   ! mrd
-xw = real(w)
-yw = aimag(w)
-h = 2.0/(1.0 + xw*xw + yw*yw)
 do i = 1,n
- xv(1) = xw(i)*h(i)
- xv(2) = yw(i)*h(i)
- xv(3) = h(i) - 1.0
+ x = xx(i)
+ y = yy
+ kg(i) = 1
+ if ( x > 0.5 ) then 
+  kg(i) = kg(i) + 1
+  x = 1.0 - x
+ end if
+ if ( y > 0.5 ) then 
+  kg(i) = kg(i) + 2
+  y = 1.0 - y
+ end if
+ if (y > x) then 
+  kg(i) = kg(i) + 4
+  t = x
+  x = y
+  y = t
+ end if
+ ! z=cmplx(x,y)**4
+ z(i) = cmplx(x,y)*cmplx(x,y)
+ z(i) = z(i)*z(i)
+end do
+call vtay(z, a, 30, w)
+do i = 1,n
+ arg = -ci*w(i)                           ! mrd
+ if ( abs(arg)<1.e-20 ) then              ! mrd
+  w(i) = (0.0,0.0)                        ! mrd
+ else                                     ! mrd
+  w(i) = cip3oss*(-ci*w(i))**third        ! mrd
+ end if                                   ! mrd
+end do
+do i = 1,n
+ xw = real(w(i))
+ yw = aimag(w(i))
+ h = 2.0/(1.0 + xw*xw + yw*yw)
+ xv(1) = xw*h
+ xv(2) = yw*h
+ xv(3) = h - 1.0
  ig = igofkg(kg(i),ipanel)
- tmpc(:) = matmul ( rotg(:,:,ig), xv )
+ tmpc(:) = matmul( rotg(:,:,ig), xv(:) )
  xc(i) = tmpc(1)
  yc(i) = tmpc(2)
  zc(i) = tmpc(3)
@@ -507,6 +607,7 @@ end do
 
 return
 end subroutine vmtoc
+#endif
 
 !---------------------------------------------------------------------------
 !   R.J.Purser, National Meteorological Center, Washington D.C.  1994
@@ -526,50 +627,61 @@ end subroutine vmtoc
 !  <-- em4   map-factor at this point
 !  <-- DFDX x- and y-derivatives of map-factor here
 !---------------------------------------------------------------------------
-subroutine vmtocd(xx, yy, ipanel, xc, em4, n)
+#ifdef GPU
+subroutine vmtocd(xx, yy, ipanel, xci, em4)
+!$acc routine seq
 implicit none
 integer, intent(in) :: ipanel
-integer, intent(in) :: n
-integer, dimension(n) :: kg
-integer :: i
-real, intent(in), dimension(n) :: xx
+integer :: kg
+integer :: i, j, ig
+real, intent(in) :: xx
 real, intent(in) :: yy
-real, intent(out), dimension(n) :: em4
-real, intent(out), dimension(n,3,3)  :: xc
-!real, intent(out), dimension(2,n)    :: dfdx
-real, dimension(n,3,3) :: xdc
-real, dimension(n,3,2) :: xd
-real, dimension(n,2) :: v1
-real, dimension(n) :: x, y, t, xw, yw, xwxw, xwyw, ywyw, h, hh, rd, qd, &
-                      rdd, qdd, s, dsdx, dsdy, dhdx, dhdy
-complex, dimension(n) :: w, z, zu, wu, cd, cdd, arg
+real, intent(out) :: em4
+real, intent(out), dimension(3)  :: xci
+real, dimension(3,3) :: xc
+real, dimension(3,3) :: xdc
+real, dimension(3,2) :: xd
+real, dimension(2) :: v1
+real :: x, y, t, xw, yw, xwxw, xwyw, ywyw, h, hh
+real :: rd, qd, rdd, qdd, s, dsdx, dsdy, dhdx, dhdy
+complex :: w, z, cd, cdd, zu
+complex :: arg, wu
 
 x = xx
 y = yy
 kg = 1
-where ( x > 0.5 ) 
+if ( x > 0.5 ) then 
  kg = kg + 1
  x = 1.0 - x
-endwhere
-where ( y > 0.5 ) 
+end if
+if ( y > 0.5 ) then 
  kg = kg + 2
  y = 1.0 - y
-endwhere
-where ( y > x ) 
+end if
+if ( y > x ) then 
  kg = kg + 4
  t = x
  x = y
  y = t
-endwhere
+end if
 zu = cmplx(x,y)
 z = zu**4
-call vtaydd (z, a, 30, w, cd, cdd)
+W=cmplx(0.,0.)
+CD=cmplx(0.,0.)
+CDD=cmplx(0.,0.)
+DO I=30,1,-1
+ W=(W+A(I))*Z
+ CD=Z*CD+I*A(I)
+ENDDO
+DO I=30,2,-1
+ CDD=Z*CDD+I*(I-1)*A(I)
+ENDDO
 arg = -ci*w                                ! mrd
-where ( abs(arg)<1.e-20 )                  ! mrd
+if ( abs(arg)<1.e-20 ) then                ! mrd
  wu = (0.0,0.0)                            ! mrd
-elsewhere                                  ! mrd
+else                                       ! mrd
  wu = cip3oss*(-ci*w)**third               ! mrd
-endwhere                                   ! mrd
+end if                                     ! mrd
 xw = real(wu)
 yw = aimag(wu)
 xwxw = xw*xw
@@ -577,22 +689,22 @@ xwyw = xw*yw
 ywyw = yw*yw
 h = 2.0/(1.0 + xwxw + ywyw)
 hh = h*h
-xdc(:,1,3) = xw*h
-xdc(:,2,3) = yw*h
-xdc(:,3,3) = h - 1.0
-xdc(:,1,1) = h - hh*xwxw
-xdc(:,2,1) = -hh*xwyw
-xdc(:,3,1) = -hh*xw
-xdc(:,1,2) = xdc(:,2,1)
-xdc(:,2,2) = h - hh*ywyw
-xdc(:,3,2) = -hh*yw
-where ( abs(z)<1.e-20 ) 
+xdc(1,3) = xw*h
+xdc(2,3) = yw*h
+xdc(3,3) = h - 1.0
+xdc(1,1) = h - hh*xwxw
+xdc(2,1) = -hh*xwyw
+xdc(3,1) = -hh*xw
+xdc(1,2) = xdc(2,1)
+xdc(2,2) = h - hh*ywyw
+xdc(3,2) = -hh*yw
+if ( abs(z)<1.e-20 ) then 
  cd    = 0.0
  cdd   = 0.0
  em4   = 0.0
- v1(:,1) = 0.0
- v1(:,2) = 0.0
-elsewhere
+ v1(1)  = 0.0
+ v1(2)  = 0.0
+else
  cd = 4.0*wu*cd*z/(3.0*w*zu)
  cdd = 3.0*cd/zu - 2.0*cd*cd/wu + 16.0*wu*z**2*cdd/(3.0*w*zu**2)
  rd = real(cd)
@@ -605,25 +717,128 @@ elsewhere
  dhdx = -hh*(xw*rd + yw*qd)
  dhdy = -hh*((-xw*qd) + yw*rd)
  em4 = h*s
- v1(:,1) = dhdx*s + h*dsdx
- v1(:,2) = dhdy*s + h*dsdy
-endwhere
-rd = real(cd)
-qd = aimag(cd)
-do i=1,3
- xd(:,i,1) = xdc(:,i,1)*rd + xdc(:,i,2)*qd
- xd(:,i,2) = (-xdc(:,i,1)*qd) + xdc(:,i,2)*rd
+ v1(1) = dhdx*s + h*dsdx
+ v1(2) = dhdy*s + h*dsdy
+end if
+do j = 1,3
+  rd = real(cd)
+  qd = aimag(cd)
+  xd(j,1) = xdc(j,1)*rd + xdc(j,2)*qd
+  xd(j,2) = (-xdc(j,1)*qd) + xdc(j,2)*rd
 end do
-do i=1,n
+ig = igofkg(kg,ipanel)
+xdc(:,1:2) = matmul( xd(:,:), flip8(:,:,kg) )
+xc(:,:) = matmul( rotg(:,:,ig), xdc(:,:) )
+xci(1:3) = xc(1:3,1)
+
+return
+end subroutine vmtocd
+#else
+subroutine vmtocd(xx, yy, ipanel, xci, em4, n)
+implicit none
+integer, intent(in) :: ipanel
+integer, intent(in) :: n
+integer, dimension(n) :: kg
+integer :: i, j, ig
+real, intent(in), dimension(n) :: xx
+real, intent(in) :: yy
+real, intent(out), dimension(n) :: em4
+real, intent(out), dimension(n,3)  :: xci
+real, dimension(3,3) :: xc
+real, dimension(n,3,3) :: xdc
+real, dimension(n,3,2) :: xd
+real, dimension(n,2) :: v1
+real :: x, y, t, xw, yw, xwxw, xwyw, ywyw, h, hh
+real :: rd, qd, rdd, qdd, s, dsdx, dsdy, dhdx, dhdy
+complex, dimension(n) :: w, z, cd, cdd, zu
+complex :: arg, wu
+
+do i = 1,n
+  x = xx(i)
+  y = yy
+  kg(i) = 1
+  if ( x > 0.5 ) then 
+   kg(i) = kg(i) + 1
+   x = 1.0 - x
+  end if
+  if ( y > 0.5 ) then 
+   kg(i) = kg(i) + 2
+   y = 1.0 - y
+  end if
+  if ( y > x ) then 
+   kg(i) = kg(i) + 4
+   t = x
+   x = y
+   y = t
+  end if
+  zu(i) = cmplx(x,y)
+  z(i) = zu(i)**4
+end do
+call vtaydd(z, a, 30, w, cd, cdd)
+do i = 1,n
+  arg = -ci*w(i)                           ! mrd
+  if ( abs(arg)<1.e-20 ) then              ! mrd
+   wu = (0.0,0.0)                          ! mrd
+  else                                     ! mrd
+   wu = cip3oss*(-ci*w(i))**third          ! mrd
+  end if                                   ! mrd
+  xw = real(wu)
+  yw = aimag(wu)
+  xwxw = xw*xw
+  xwyw = xw*yw
+  ywyw = yw*yw
+  h = 2.0/(1.0 + xwxw + ywyw)
+  hh = h*h
+  xdc(i,1,3) = xw*h
+  xdc(i,2,3) = yw*h
+  xdc(i,3,3) = h - 1.0
+  xdc(i,1,1) = h - hh*xwxw
+  xdc(i,2,1) = -hh*xwyw
+  xdc(i,3,1) = -hh*xw
+  xdc(i,1,2) = xdc(i,2,1)
+  xdc(i,2,2) = h - hh*ywyw
+  xdc(i,3,2) = -hh*yw
+  if ( abs(z(i))<1.e-20 ) then 
+   cd(i)    = 0.0
+   cdd(i)   = 0.0
+   em4(i)   = 0.0
+   v1(i,1)  = 0.0
+   v1(i,2)  = 0.0
+  else
+   cd(i) = 4.0*wu*cd(i)*z(i)/(3.0*w(i)*zu(i))
+   cdd(i) = 3.0*cd(i)/zu(i) - 2.0*cd(i)*cd(i)/wu + 16.0*wu*z(i)**2*cdd(i)/(3.0*w(i)*zu(i)**2)
+   rd = real(cd(i))
+   qd = aimag(cd(i))
+   rdd = real(cdd(i))
+   qdd = aimag(cdd(i))
+   s = sqrt(rd*rd + qd*qd)
+   dsdx = (rdd*rd + qdd*qd)/s
+   dsdy = (rdd*qd - qdd*rd)/s
+   dhdx = -hh*(xw*rd + yw*qd)
+   dhdy = -hh*((-xw*qd) + yw*rd)
+   em4(i) = h*s
+   v1(i,1) = dhdx*s + h*dsdx
+   v1(i,2) = dhdy*s + h*dsdy
+  end if
+end do
+do j = 1,3
+  do i = 1,n
+    rd = real(cd(i))
+    qd = aimag(cd(i))
+    xd(i,j,1) = xdc(i,j,1)*rd + xdc(i,j,2)*qd
+    xd(i,j,2) = (-xdc(i,j,1)*qd) + xdc(i,j,2)*rd
+  end do
+end do
+do i = 1,n
  ig = igofkg(kg(i),ipanel)
- !dfdx(i,:) = matmul ( transpose(flip8(:,:,kg(i))), v1(i,:) )
- xdc(i,:,1:2) = matmul ( xd(i,:,:), flip8(:,:,kg(i)) )
- xc(i,:,:) = matmul ( rotg(:,:,ig), xdc(i,:,:) )
+ xdc(i,:,1:2) = matmul( xd(i,:,:), flip8(:,:,kg(i)) )
+ xc(:,:) = matmul( rotg(:,:,ig), xdc(i,:,:) )
+ xci(i,1:3) = xc(1:3,1)
 end do
 
 return
 end subroutine vmtocd
-
+#endif
 
 !------------------------------------------------------------------------------!
 !   R.J.Purser, National Meteorological Center, Washington D.C.  1994          !

@@ -1309,7 +1309,9 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
+#ifndef GPU
   !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
+#endif
   do j = 1,jpan
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1331,7 +1333,9 @@ do ipass = 0,2
       at_l(sn:sn+il_g-1,klt+1,j) = asum      
     end do
   end do
+#ifndef GPU
   !$omp end parallel do
+#endif
     
   ! start convolution
 
@@ -1432,7 +1436,9 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
 !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
+#endif
 do j = 1,ipan    
   ! pack from sparse arrays
   jj = j + ns - 1
@@ -1454,7 +1460,9 @@ do j = 1,ipan
     at_l(sn:sn+il_g-1,klt+1,j) = asum
   end do
 end do
+#ifndef GPU
 !$omp end parallel do
+#endif
   
 ! start convolution
 #ifdef GPU
@@ -1552,7 +1560,9 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
+#ifndef GPU
   !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
+#endif
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1574,7 +1584,9 @@ do ipass = 0,2
       at_l(sn:sn+il_g-1,klt+1,j) = asum
     end do
   end do
+#ifndef GPU
   !$omp end parallel do
+#endif
   
   ! start convolution
 
@@ -1675,7 +1687,9 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
 !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
+#endif
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -1698,8 +1712,10 @@ do j = 1,jpan
     at_l(sn:sn+il_g-1,klt+1,j) = asum    
   end do
 end do
+#ifndef GPU
 !$omp end parallel do
-  
+#endif
+
 ! start convolution
 
 #ifdef GPU
@@ -2661,7 +2677,9 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
+#ifndef GPU
   !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
+#endif
   do j = 1,jpan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2684,7 +2702,9 @@ do ipass = 0,2
       ap_l(sn:sn+il_g-1,kd+1,j) = asum      
     end do
   end do
+#ifndef GPU
   !$omp end parallel do
+#endif
     
   ! start convolution
 
@@ -2783,7 +2803,9 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
 !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
+#endif
 do j = 1,ipan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -2806,8 +2828,10 @@ do j = 1,ipan
     ap_l(sn:sn+il_g-1,kd+1,j) = asum    
   end do
 end do
+#ifndef GPU
 !$omp end parallel do
-  
+#endif
+
 ! start convolution
 #ifdef GPU
 
@@ -2898,7 +2922,9 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
+#ifndef GPU
   !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
+#endif
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2920,7 +2946,9 @@ do ipass = 0,2
       ap_l(sn:sn+il_g-1,kd+1,j) = asum      
     end do
   end do
+#ifndef GPU
   !$omp end parallel do
+#endif
     
   ! start convolution
 
@@ -3022,7 +3050,9 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
+#ifndef GPU
 !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
+#endif
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -3045,7 +3075,9 @@ do j = 1,jpan
     ap_l(sn:sn+il_g-1,kd+1,j) = asum    
   end do
 end do
+#ifndef GPU
 !$omp end parallel do
+#endif
   
 ! start convolution
 

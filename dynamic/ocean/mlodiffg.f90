@@ -130,13 +130,11 @@ else if ( mlodiff>=10 .and. mlodiff<=19 ) then
   ! Biharmonic and Laplacian
   hdif = sqrt(0.125)*ocnsmag/pi
   ldif = dt*(ocnlap/pi)**2
-end if
-
-! z* levels  
-if ( mlosigma>=0 .and. mlosigma<=3 ) then
-  write(6,*) "ERROR: Unsupported option for mlosigma = ",mlosigma
+else
+  write(6,*) "ERROR: Unknown option mlodiff = ",mlodiff
   call ccmpi_abort(-1)
 end if
+
 emi(1:ifull) = 1./em(1:ifull)
 
 ! calculate shear for EMA
@@ -182,17 +180,16 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
 else
   ! z* levels
   do k = 1,wlev
-    xfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(ie,k))*eeu(1:ifull,k)
-    xfact(1:ifull,k) = sqrt(xfact(1:ifull,k))
-    yfact(1:ifull,k) = 0.5*(t_kh(1:ifull,k)+t_kh(in,k))*eev(1:ifull,k)
-    yfact(1:ifull,k) = sqrt(yfact(1:ifull,k))
+    xfact(1:ifull,k) = sqrt(0.5*(t_kh(1:ifull,k)+t_kh(ie,k)))*eeu(1:ifull,k)
+    yfact(1:ifull,k) = sqrt(0.5*(t_kh(1:ifull,k)+t_kh(in,k)))*eev(1:ifull,k)
   end do
 end if
 call boundsuv(xfact,yfact,stag=-9)
 
-! pre-process boundaries
 
+! perform diffusion
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
+  ! UX, VX, WX
   ! Laplacian diffusion terms (closure #1)
   do k = 1,wlev
     do iq = 1,ifull
@@ -201,36 +198,7 @@ if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
       duma(iq,k,3) = ( az(iq)*u(iq,k) + bz(iq)*v(iq,k) )*ee(iq,k)
     end do
   end do
-else if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
-  ! no diffusion applied to momentum
-else
-  write(6,*) "ERROR: Unknown option for mlodiff = ",mlodiff
-  call ccmpi_abort(-1)
-end if
-
-! Potential temperature and salinity
-! MJT notes - only apply salinity diffusion to salt water
-work(1:ifull,:,1) = tt(1:ifull,:)
-workdata2(1:ifull,:) = ss(1:ifull,:)
-work(1:ifull,:,2) = ss(1:ifull,:) - 34.72
-where( workdata2(1:ifull,:)<2. )
-  work(1:ifull,:,2) = 0.
-end where
-
-
-! perform diffusion
-if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
-  ! UX, VX, WX
   call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,hdif,ldif)
-end if
-if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
-  ! potential temperature and salinity
-  call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,hdif,ldif)
-end if  
-
-
-! post-processing
-if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   do k = 1,wlev
     do iq = 1,ifull
       u(iq,k) = ax(iq)*duma(iq,k,1) + ay(iq)*duma(iq,k,2) + az(iq)*duma(iq,k,3)
@@ -238,15 +206,27 @@ if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     end do
   end do
 end if
-do k = 1,wlev
-  do iq = 1,ifull
-    tt(iq,k) = max(work(iq,k,1), -wrtemp)
-    ss(iq,k) = work(iq,k,2) + 34.72
-    if ( workdata2(iq,k)<2. ) then
-      ss(iq,k) = workdata2(iq,k)
-    end if  
+
+if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
+  ! potential temperature and salinity
+  ! MJT notes - only apply salinity diffusion to salt water
+  work(1:ifull,:,1) = tt(1:ifull,:)
+  workdata2(1:ifull,:) = ss(1:ifull,:)
+  work(1:ifull,:,2) = ss(1:ifull,:) - 34.72
+  where( workdata2(1:ifull,:)<2. )
+    work(1:ifull,:,2) = 0.
+  end where  
+  call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,hdif,ldif)
+  do k = 1,wlev
+    do iq = 1,ifull
+      tt(iq,k) = max(work(iq,k,1), -wrtemp)
+      ss(iq,k) = work(iq,k,2) + 34.72
+      if ( workdata2(iq,k)<2. ) then
+        ss(iq,k) = workdata2(iq,k)
+      end if  
+    end do
   end do
-end do
+end if  
 
 call END_LOG(waterdiff_end)
 
@@ -271,6 +251,7 @@ real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:,:), intent(inout) :: work
 real, dimension(ifull+iextra,wlev,size(work,3)) :: ans
+real, dimension(ifull) :: ansl
 real, dimension(ifull,wlev,size(work,3)) :: work_save
 real, intent(in) :: hdif, ldif
 real base, xfact_iwu, yfact_isv
@@ -278,13 +259,14 @@ real base, xfact_iwu, yfact_isv
 ! Bi-Harmonic and Laplacian diffusion.  iterative version.
 
 ntr = size(work,3)
-nits = mlodiff_numits
 ans = 0.
  
 work_save(1:ifull,1:wlev,1:ntr) = work(1:ifull,1:wlev,1:ntr)
 
 if ( hdif<=0. ) then
   nits = 1
+else
+  nits = mlodiff_numits    
 end if
 
 do its = 1,nits
@@ -345,7 +327,7 @@ do its = 1,nits
 
     work(1:ifull,1:wlev,1:ntr) = work_save(1:ifull,1:wlev,1:ntr)
      
-  end if ! hdif>0.
+  end if ! hdif>0. ..else..
 
   ! Estimate Laplacian diffusion (Grad^2) at t+1
   if ( ldif > 0. ) then
@@ -358,16 +340,16 @@ do its = 1,nits
           yfact_isv = yfact(isv(iq),k)
           base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
                         +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
-          ans(iq,k,nn) = ( emi(iq)*work(iq,k,nn) +                  &
-                           ldif*xfact(iq,k)**2*work(ie(iq),k,nn) +  &
-                           ldif*xfact_iwu**2*work(iw(iq),k,nn) +    &
-                           ldif*yfact(iq,k)**2*work(in(iq),k,nn) +  &
-                           ldif*yfact_isv**2*work(is(iq),k,nn) )    &
-                        / base
+          ansl(iq) = ( emi(iq)*work(iq,k,nn) +                  &
+                       ldif*xfact(iq,k)**2*work(ie(iq),k,nn) +  &
+                       ldif*xfact_iwu**2*work(iw(iq),k,nn) +    &
+                       ldif*yfact(iq,k)**2*work(in(iq),k,nn) +  &
+                       ldif*yfact_isv**2*work(is(iq),k,nn) )    &
+                    / base
         end do  
         do iq = 1,ifull
           if ( ee(iq,k)>0.5 ) then
-            work(iq,k,nn) = ans(iq,k,nn)
+            work(iq,k,nn) = ansl(iq)
           end if
         end do
       end do  

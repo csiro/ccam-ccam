@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -293,8 +293,13 @@ real, dimension(25), save :: cyc_tran = (/ -1.09, -1.21, -2.12, -2.77, -3.06, -2
 
 interface atebcalc
   module procedure atebcalc_standard, atebcalc_thread
+  module procedure atebcalc2_standard, atebcalc2_thread
 end interface
-  
+
+interface atebdeftype_export
+  module procedure atebdeftype_export_standard, atebdeftype_export_thread
+end interface
+
 interface atebenergy
   module procedure atebenergy_standard, atebenergy_thread
 end interface
@@ -1752,293 +1757,155 @@ end do
 return
 end subroutine atebdeftype
 
-subroutine atebdeftype_export(paramdata,paramname,diag)
+subroutine atebdeftype_export_standard(paramdata,paramname,diag)
 
 implicit none
 
 integer, intent(in) :: diag
-integer tile, is, ie, i
+integer tile, is, ie
 real, dimension(ifull), intent(inout) :: paramdata
-logical found
 character(len=*), intent(in) :: paramname
 character(len=20) :: vname
 
 if ( diag>=1 ) write(6,*) "Export aTEB parameter: ",trim(paramname)
 if ( .not.ateb_active ) return
 
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax  
+  if ( ufull_g(tile)>0 ) then
+    call atebdeftype_export_thread(paramdata(is:ie),paramname,f_g(tile),cnveg_g(tile),f_roof(tile),f_wall(tile), &
+                                   f_road(tile),f_slab(tile),upack_g(:,tile),ufull_g(tile),diag)
+  end if
+end do  
+
+return
+end subroutine atebdeftype_export_standard
+
+subroutine atebdeftype_export_thread(paramdata,paramname,fp,cnveg,fp_roof,fp_wall, &
+                                     fp_road,fp_slab,upack,ufull,diag)
+
+implicit none
+
+integer, intent(in) :: ufull, diag
+integer tile, is, ie, i
+real, dimension(:), intent(inout) :: paramdata
+logical, dimension(:), intent(in) :: upack
+logical found
+character(len=*), intent(in) :: paramname
+character(len=20) :: vname
+type(fparmdata), intent(in) :: fp
+type(vegdata), intent(in) :: cnveg
+type(facetparams), intent(in) :: fp_roof, fp_wall, fp_road, fp_slab
+
+if ( diag>=2 ) write(6,*) "THREAD: Export aTEB parameter: ",trim(paramname)
+if ( ufull==0 ) return
+
 select case(paramname)
   case('bldheight')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax  
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_g(tile)%bldheight,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp%bldheight,upack,paramdata)
   case('hwratio')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax 
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_g(tile)%hwratio,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do
+    paramdata=unpack(fp%hwratio,upack,paramdata)
   case('sigvegc')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax  
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(cnveg_g(tile)%sigma*(1.-f_g(tile)%sigmabld),upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(cnveg%sigma*(1.-fp%sigmabld),upack,paramdata)
   case('sigmabld')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax 
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_g(tile)%sigmabld,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp%sigmabld,upack,paramdata)
   case('industryfg')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax  
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_g(tile)%industryfg,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp%industryfg,upack,paramdata)
   case('trafficfg')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax  
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_g(tile)%trafficfg,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp%trafficfg,upack,paramdata)
   case('roofalpha')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_roof(tile)%alpha,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp_roof%alpha,upack,paramdata)
   case('wallalpha')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_wall(tile)%alpha,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp_wall%alpha,upack,paramdata)
   case('roadalpha')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax 
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_road(tile)%alpha,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp_road%alpha,upack,paramdata)
   case('roofemiss')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax 
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_roof(tile)%emiss,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp_roof%emiss,upack,paramdata)
   case('wallemiss')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax 
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_wall(tile)%emiss,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp_wall%emiss,upack,paramdata)
   case('roademiss')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_road(tile)%emiss,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do   
+    paramdata=unpack(fp_road%emiss,upack,paramdata)
   case('vegalphac')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax 
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(cnveg_g(tile)%alpha,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(cnveg%alpha,upack,paramdata)
   case('zovegc')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax  
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(cnveg_g(tile)%zo,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(cnveg%zo,upack,paramdata)
   case('infilach')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_g(tile)%infilach,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp%infilach,upack,paramdata)
   case('intgains')
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax  
-      if ( ufull_g(tile)>0 ) then
-        paramdata(is:ie)=unpack(f_g(tile)%intgains_flr,upack_g(:,tile),paramdata(is:ie))
-      end if
-    end do  
+    paramdata=unpack(fp%intgains_flr,upack,paramdata)
   case default
     found = .false.
     do i = 1,4
       write(vname,'("roofthick",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_roof(tile)%depth(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_roof%depth(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("roofcp",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax 
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_roof(tile)%volcp(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_roof%volcp(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("roofcond",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax  
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_roof(tile)%lambda(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_roof%lambda(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("wallthick",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax 
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_wall(tile)%depth(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_wall%depth(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("wallcp",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax 
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_wall(tile)%volcp(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_wall%volcp(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("wallcond",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_wall(tile)%lambda(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_wall%lambda(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("roadthick",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_road(tile)%depth(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_road%depth(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("roadcp",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax  
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_road(tile)%volcp(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_road%volcp(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("roadcond",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_road(tile)%lambda(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_road%lambda(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("slabthick",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_slab(tile)%depth(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_slab%depth(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("slabcp",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_slab(tile)%volcp(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_slab%volcp(:,i),upack,paramdata)
         found = .true.
         exit
       end if
       write(vname,'("slabcond",(I1.1))') i
       if ( trim(paramname)==trim(vname) ) then
-        do tile = 1,ntiles
-          is = (tile-1)*imax + 1
-          ie = tile*imax  
-          if ( ufull_g(tile)>0 ) then
-            paramdata(is:ie)=unpack(f_slab(tile)%lambda(:,i),upack_g(:,tile),paramdata(is:ie))
-          end if
-        end do 
+        paramdata=unpack(fp_slab%lambda(:,i),upack,paramdata)
         found = .true.
         exit
       end if
@@ -2050,7 +1917,7 @@ select case(paramname)
 end select
 
 return
-end subroutine atebdeftype_export
+end subroutine atebdeftype_export_thread
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -3610,26 +3477,52 @@ logical mode
 mode=.false.
 if (present(raw)) mode=raw
 
+call atebcalc2_standard(ofg,oeg,ots,owf,orn,oevspsbl,osbl,dt,zmin,zmin,sg,rg,rnd,snd,rho, &
+                        temp,temp,mixr,mixr,ps,uu,uu,vv,vv,umin,diag,raw=mode)
+
+return
+end subroutine atebcalc_standard
+
+subroutine atebcalc2_standard(ofg,oeg,ots,owf,orn,oevspsbl,osbl,dt,zmin,zroof,sg,rg,rnd,snd,rho, &
+                             temp,temproof,mixr,mixrroof,ps,uu,uuroof,vv,vvroof,umin,diag,raw)
+
+implicit none
+
+integer, intent(in) :: diag
+integer tile, is, ie
+real, intent(in) :: dt,umin
+real, dimension(ifull), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,zmin
+real, dimension(ifull), intent(in) :: temproof,mixrroof,uuroof,vvroof,zroof
+real, dimension(ifull), intent(inout) :: ofg,oeg,ots,owf,orn,oevspsbl,osbl
+logical, intent(in), optional :: raw
+logical mode
+
+! mode = .false. implies weight output with urban area cover fraction
+! mode = .true. implies no weighting of output with urban area cover fraction (assumes 100% cover)
+mode=.false.
+if (present(raw)) mode=raw
+
 if ( .not.ateb_active ) return
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   if ( ufull_g(tile)>0 ) then
-    call atebcalc_thread(ofg(is:ie),oeg(is:ie),ots(is:ie),owf(is:ie),orn(is:ie),oevspsbl(is:ie),      &
-                        osbl(is:ie),dt,zmin(is:ie),sg(is:ie),rg(is:ie),rnd(is:ie),snd(is:ie),         &
-                        rho(is:ie),temp(is:ie),mixr(is:ie),ps(is:ie),uu(is:ie),vv(is:ie),umin,        &
-                        f_g(tile),f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),   &
-                        intm_g(:,tile),p_g(:,tile),rdhyd_g(:,tile),rfhyd_g(:,tile),rfveg_g(tile),     &
-                        road_g(:,tile),roof_g(:,tile),room_g(:,tile),slab_g(:,tile),walle_g(:,tile),  &
-                        wallw_g(:,tile),cnveg_g(tile),intl_g(tile),upack_g(:,tile),ufull_g(tile),     &
-                        diag,raw=mode)
+    call atebcalc2_thread(ofg(is:ie),oeg(is:ie),ots(is:ie),owf(is:ie),orn(is:ie),oevspsbl(is:ie),       &
+                          osbl(is:ie),dt,zmin(is:ie),zroof(is:ie),sg(is:ie),rg(is:ie),rnd(is:ie),       &
+                          snd(is:ie),rho(is:ie),temp(is:ie),temproof(is:ie),mixr(is:ie),                &
+                          mixrroof(is:ie),ps(is:ie),uu(is:ie),uuroof(is:ie),vv(is:ie),vvroof(is:ie),    &
+                          umin,f_g(tile),f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),           &
+                          f_wall(tile),intm_g(:,tile),p_g(:,tile),rdhyd_g(:,tile),rfhyd_g(:,tile),      &
+                          rfveg_g(tile),road_g(:,tile),roof_g(:,tile),room_g(:,tile),slab_g(:,tile),    &
+                          walle_g(:,tile),wallw_g(:,tile),cnveg_g(tile),intl_g(tile),upack_g(:,tile),   &
+                          ufull_g(tile),diag,raw=mode)
   end if
 end do
 
 return
-end subroutine atebcalc_standard
-
+end subroutine atebcalc2_standard
+                             
 subroutine atebcalc_thread(ofg,oeg,ots,owf,orn,oevspsbl,osbl,dt,zmin,sg,rg,rnd,snd,rho,temp,    &
                     mixr,ps,uu,vv,umin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,      &
                     rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl,               &
@@ -3658,6 +3551,46 @@ type(vegdata), intent(inout) :: cnveg
 type(intldata), intent(in) :: intl
 type(fparmdata), intent(in) :: fp
 
+call atebcalc2_thread(ofg,oeg,ots,owf,orn,oevspsbl,osbl,dt,zmin,zmin,sg,rg,rnd,snd,rho,           &
+                      temp,temp,mixr,mixr,ps,uu,uu,vv,vv,                                         &
+                      umin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,                    &
+                      rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl,               &
+                      upack,ufull,diag,raw)
+
+return
+end subroutine atebcalc_thread
+
+subroutine atebcalc2_thread(ofg,oeg,ots,owf,orn,oevspsbl,osbl,dt,zmin,zroof,sg,rg,rnd,snd,rho,  &
+                    temp,temproof,mixr,mixrroof,ps,uu,uuroof,vv,vvroof,                         &
+                    umin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,                    &
+                    rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl,               &
+                    upack,ufull,diag,raw)
+
+implicit none
+
+integer, intent(in) :: ufull, diag
+integer ifrac
+real, intent(in) :: dt, umin
+real, dimension(:), intent(in) :: sg,rg,rnd,snd,rho,temp,mixr,ps,uu,vv,zmin
+real, dimension(:), intent(in) :: temproof,mixrroof,uuroof,vvroof,zroof
+real, dimension(:), intent(inout) :: ofg,oeg,ots,owf,orn,oevspsbl,osbl
+real, dimension(ufull) :: tmp
+real, dimension(ufull) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
+real, dimension(ufull) :: a_temproof, a_mixrroof, a_umagroof, a_zroof
+real, dimension(ufull) :: u_fg,u_eg,u_ts,u_wf,u_rn,u_evspsbl,u_sbl
+real, dimension(ufull) :: tmp_fg, tmp_eg, tmp_ts, tmp_wf, tmp_rn, tmp_evspsbl, tmp_sbl
+logical, intent(in), optional :: raw
+logical mode
+logical, dimension(:), intent(in) :: upack
+type(hydrodata), dimension(nfrac), intent(inout) :: rdhyd, rfhyd
+type(facetdata), dimension(nfrac), intent(inout) :: road, roof, room, slab, walle, wallw, intm
+type(pdiagdata), dimension(nfrac), intent(inout) :: pd
+type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
+type(vegdata), intent(inout) :: rfveg
+type(vegdata), intent(inout) :: cnveg
+type(intldata), intent(in) :: intl
+type(fparmdata), intent(in) :: fp
+
 if ( ufull==0 ) return ! no urban grid points
 
 ! mode = .false. implies weight output with urban area cover fraction
@@ -3666,17 +3599,21 @@ mode=.false.
 if (present(raw)) mode=raw
 
 ! Host model meteorological data
-a_zmin=pack(zmin,                 upack)
-a_sg  =pack(sg,                   upack)
-a_rg  =pack(rg,                   upack)
-a_rho =pack(rho,                  upack)
-a_temp=pack(temp-urbtemp,         upack)
-a_mixr=pack(mixr,                 upack)
-a_ps  =pack(ps,                   upack)
-a_umag=max(pack(sqrt(uu*uu+vv*vv),upack),umin)
-a_udir=pack(atan2(vv,uu),         upack)
-a_rnd =pack(rnd-snd,              upack)
-a_snd =pack(snd,                  upack)
+a_zmin    =pack(zmin,                         upack)
+a_zroof   =pack(zroof,                        upack)
+a_sg      =pack(sg,                           upack)
+a_rg      =pack(rg,                           upack)
+a_rho     =pack(rho,                          upack)
+a_temp    =pack(temp-urbtemp,                 upack)
+a_temproof=pack(temproof-urbtemp,             upack)
+a_mixr    =pack(mixr,                         upack)
+a_mixrroof=pack(mixrroof,                     upack)
+a_ps      =pack(ps,                           upack)
+a_umag    =max(pack(sqrt(uu**2+vv**2),        upack),umin)
+a_umagroof=max(pack(sqrt(uuroof**2+vvroof**2),upack),umin)
+a_udir    =pack(atan2(vv,uu),                 upack)
+a_rnd     =pack(rnd-snd,                      upack)
+a_snd     =pack(snd,                          upack)
 
 u_fg = 0.
 u_eg = 0.
@@ -3689,10 +3626,11 @@ u_sbl = 0.
 do ifrac = 1,nfrac
 
   ! Update urban prognostic variables
-  call atebeval(tmp_fg,tmp_eg,tmp_ts,tmp_wf,tmp_rn,tmp_evspsbl,tmp_sbl,dt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps, &
-                a_umag,a_udir,a_rnd,a_snd,a_zmin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm(ifrac),      &
-                pd(ifrac),rdhyd(ifrac),rfhyd(ifrac),rfveg,road(ifrac),roof(ifrac),room(ifrac),slab(ifrac),    &
-                walle(ifrac),wallw(ifrac),cnveg,intl,ufull,ifrac,diag)
+  call atebeval(tmp_fg,tmp_eg,tmp_ts,tmp_wf,tmp_rn,tmp_evspsbl,tmp_sbl,dt,a_sg,a_rg,a_rho,a_temp,a_temproof,  &
+                a_mixr,a_mixrroof,a_ps,a_umag,a_umagroof,a_udir,a_rnd,a_snd,a_zmin,a_zroof,fp,fp_intm,        &
+                fp_road,fp_roof,fp_slab,fp_wall,intm(ifrac),pd(ifrac),rdhyd(ifrac),rfhyd(ifrac),rfveg,        &
+                road(ifrac),roof(ifrac),room(ifrac),slab(ifrac),walle(ifrac),wallw(ifrac),cnveg,intl,ufull,   &
+                ifrac,diag)
 
   u_fg = u_fg + tmp_fg*pd(ifrac)%frac_sigma
   u_eg = u_eg + tmp_eg*pd(ifrac)%frac_sigma
@@ -3740,8 +3678,9 @@ else
 end if
 
 return
-end subroutine atebcalc_thread
-
+end subroutine atebcalc2_thread
+                    
+                    
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! urban flux calculations
 
@@ -3774,9 +3713,10 @@ end subroutine atebcalc_thread
 !  Estimate bulk long wave flux and surface temperature
 !  Estimate bulk sensible and latent heat fluxes
 
-subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,u_evspsbl,u_sbl,ddt,a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,  &
-                    a_udir,a_rnd,a_snd,a_zmin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,      &
-                    rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl,ufull,ifrac,diag)
+subroutine atebeval(u_fg,u_eg,u_ts,u_wf,u_rn,u_evspsbl,u_sbl,ddt,a_sg,a_rg,a_rho,a_temp,a_temproof, &
+                    a_mixr,a_mixrroof,a_ps,a_umag,a_umagroof,a_udir,a_rnd,a_snd,a_zmin,a_zroof,fp,  &
+                    fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,    &
+                    room,slab,walle,wallw,cnveg,intl,ufull,ifrac,diag)
 
 implicit none
 
@@ -3785,6 +3725,7 @@ integer, intent(in) :: diag
 integer k
 real, intent(in) :: ddt
 real, dimension(ufull), intent(in) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
+real, dimension(ufull), intent(in) :: a_temproof,a_mixrroof,a_umagroof,a_zroof
 real, dimension(ufull), intent(out) :: u_fg,u_eg,u_ts,u_wf,u_rn,u_evspsbl,u_sbl
 real, dimension(ufull) :: ggint_roof,ggint_walle,ggint_wallw,ggint_road,ggint_slab,ggint_intm
 real, dimension(ufull) :: rdsntemp,rfsntemp,rdsnmelt,rfsnmelt,garfsn,gardsn
@@ -3841,7 +3782,7 @@ where ( a_snd>1.e-10 )
   rdhyd%snowalpha = maxsnowalpha
 end where
 
-! reset inception of leafe water
+! reset inception of leaf water
 pd%delintercept = 0.
 
 ! calculate water and snow area cover fractions
@@ -3856,17 +3797,21 @@ d_rdsndelta = rdhyd%snow/(rdhyd%snow+maxrdsn)
 pa      = a_ps*exp(-grav*a_zmin/(rd*(a_temp+urbtemp)))
 d_sigd  = a_ps
 a       = (d_sigd/pa)**(rd/aircp)
+!d_tempc = (a_temp+urbtemp)*a - urbtemp
 d_tempc = a_temp*a + urbtemp*(a-1.)
 call getqsat(qsatr,d_tempc,d_sigd)
 call getqsat(qsata,a_temp,pa)
 d_mixrc = a_mixr*qsatr/qsata
 
 ! roof level air temperature and water vapor (displacement height at building height)
-d_sigr  = a_ps*exp(-grav*fp%bldheight*(1.-refheight)/(rd*(a_temp+urbtemp)))
+pa      = a_ps*exp(-grav*a_zroof/(rd*(a_temproof+urbtemp)))
+d_sigr  = a_ps*exp(-grav*fp%bldheight*(1.-refheight)/(rd*(a_temproof+urbtemp)))
 a       = (d_sigr/pa)**(rd/aircp)
-d_tempr = a_temp*a + urbtemp*(a-1.)
+!d_tempr = (a_temproof+urbtemp)*a - urbtemp
+d_tempr = a_temproof*a + urbtemp*(a-1.)
 call getqsat(qsatr,d_tempr,d_sigr)
-d_mixrr = a_mixr*qsatr/qsata
+call getqsat(qsata,a_temproof,pa)
+d_mixrr = a_mixrroof*qsatr/qsata
 
 ! calculate soil data
 d_totdepth = sum(fp_road%depth,2)
@@ -3913,8 +3858,8 @@ n   = rdhyd%snow/(rdhyd%snow+maxrdsn+0.408*grav*zom)   ! snow cover for urban ro
 zom = (1.-n)*zom + n*zosnow                            ! blend urban and snow roughness lengths (i.e., snow fills canyon)
 
 ! Calculate distance from atmosphere to displacement height
-d_rfdzmin = max(a_zmin-fp%bldheight,zoroof+0.2,rfveg%zo+0.2) ! distance to roof displacement height
-pd%cndzmin = max(a_zmin-refheight*fp%bldheight,1.5,zom+0.2)  ! distance to canyon displacement height
+d_rfdzmin = max(a_zroof-fp%bldheight,zoroof+0.2,rfveg%zo+0.2) ! distance to roof displacement height
+pd%cndzmin = max(a_zmin-refheight*fp%bldheight,1.5,zom+0.2)   ! distance to canyon displacement height
 pd%lzom    = log(pd%cndzmin/zom)
 
 ! calculate canyon wind speed and bulk transfer coefficients
@@ -4011,7 +3956,7 @@ eg_roof = 0. ! For cray compiler
 call solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rfsn,d_rfsndelta, &
                sg_vegr,rg_vegr,fg_vegr,eg_vegr,acond_vegr,d_vegdeltar,                          &
                sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
-               a_rg,a_umag,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,         &
+               a_rg,a_umagroof,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,     &
                d_sigr,ddt,fp_roof,rfhyd,rfveg,roof,fp,ufull)
 
 

@@ -3113,7 +3113,8 @@ do iqw = 1,imax
   zrough = 0.5*max(depth%dz(iqw,ii),1.e-4)/exp(vkar/sqrt(cdbot))
   if ( ii==1 ) then
     k(iqw,1) = 0.5*( k(iqw,1) + cdbot*(umag/cu0)**2 )
-    eps(iqw,1) = 0.5*( eps(iqw,1) + min((cu0)**3*max(k(iqw,1),1.e-8)**1.5,1.e9)/(vkar*(0.5*max(depth%dz(iqw,1),1.e-4)+zrough)) )      
+    eps(iqw,1) = 0.5*( eps(iqw,1) + min((cu0)**3*max(k(iqw,1),1.e-8)**1.5,1.e9) &
+        /(vkar*(0.5*max(depth%dz(iqw,1),1.e-4)+zrough)) )
   else
     k(iqw,ii) = cdbot*(umag/cu0)**2
     eps(iqw,ii) = min((cu0)**3*max(k(iqw,ii),1.e-8)**1.5,1.e9)/(vkar*(0.5*max(depth%dz(iqw,ii),1.e-4)+zrough))

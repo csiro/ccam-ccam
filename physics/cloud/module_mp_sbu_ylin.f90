@@ -265,7 +265,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
   real flux, fluxin, fluxout
   real nflux, nfluxin, nfluxout
   integer                                       :: min_q, max_q
-  integer, dimension(1:imax)                    :: min_q_v, max_q_v
   logical                                       :: notlast
   logical, dimension(1:imax)                    :: mask
   real                                          :: nimlt, nihom
@@ -529,17 +528,11 @@ subroutine clphy1d_ylin(dt, imax,                           &
   !-- rain
 
   do iq = 1,imax
-    vtrold(iq,kts:kte)   = 0.
-    nvtr(iq,kts:kte)     = 0.
-    olambdar(iq,kts:kte) = 0.
     qrz_k(kts:kte) = qrz(iq,kts:kte)    
-    notlast=.true.
+    notlast=any( qrz_k(kts:kte)>1.e-8 )
     if ( notlast ) then
       vtrold_k(kts:kte) = 0.
-      nvtr_k(kts:kte) = 0.
-      olambdar_k(kts:kte) = 0.
-      xlambdar_k(kts:kte) = xlambdar(iq,kts:kte)
-      n0_r_k(kts:kte) = n0_r(iq,kts:kte)
+      n0_r_k(kts:kte) = 0.
       nrz_k(kts:kte) = nrz(iq,kts:kte)
       pptrain_k = pptrain(iq)
       zz_k(0:kte) = zz(iq,0:kte)
@@ -586,6 +579,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
         !             (t_del_tv)          (del_tv)             (dtb)
 
         if (max_q >= min_q) then
+
           fluxin=0.
           nfluxin=0. ! sny
           t_del_tv=t_del_tv+del_tv
@@ -593,39 +587,37 @@ subroutine clphy1d_ylin(dt, imax,                           &
             notlast=.false.
             del_tv=dtb+del_tv-t_del_tv
           end if
-        end if ! maxq>minq
 
-        do k = max_q,min_q,-1
-          fluxout=rho_k(k)*vtrold_k(k)*qrz_k(k)
-          flux=(fluxin-fluxout)/rho_k(k)/dzw_k(k)
-          !tmpqrz(iq)=qrz(iq,k)
-          qrz_k(k)=qrz_k(k)+del_tv*flux
-          fluxin=fluxout
+          do k = max_q,min_q,-1
+            fluxout=rho_k(k)*vtrold_k(k)*qrz_k(k)
+            flux=(fluxin-fluxout)/rho_k(k)/dzw_k(k)
+            !tmpqrz(iq)=qrz(iq,k)
+            qrz_k(k)=qrz_k(k)+del_tv*flux
+            fluxin=fluxout
 
-          nfluxout=rho_k(k)*nvtr_k(k)*nrz_k(k)
-          nflux=(nfluxin-nfluxout)/rho_k(k)/dzw_k(k)
-          nrz_k(k)=nrz_k(k)+del_tv*nflux
-          nfluxin=nfluxout
-          !qrsten(iq,k)=flux
-          !nrsten(iq,k)=nflux
-        end do       !k
+            nfluxout=rho_k(k)*nvtr_k(k)*nrz_k(k)
+            nflux=(nfluxin-nfluxout)/rho_k(k)/dzw_k(k)
+            nrz_k(k)=nrz_k(k)+del_tv*nflux
+            nfluxin=nfluxout
+            !qrsten(iq,k)=flux
+            !nrsten(iq,k)=nflux
+          end do       !k
 
-        if ( min_q == 1 ) then
-          pptrain_k = pptrain_k + fluxin*del_tv  
-        else if (max_q >= min_q) then      
-          qrz_k(min_q-1)=qrz_k(min_q-1)+del_tv*  &
-                         fluxin/rho_k(min_q-1)/dzw_k(min_q-1)
-          nrz_k(min_q-1)=nrz_k(min_q-1)+del_tv*  &
-                         nfluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+          if ( min_q == 1 ) then
+            pptrain_k = pptrain_k + fluxin*del_tv  
+          else      
+            qrz_k(min_q-1)=qrz_k(min_q-1)+del_tv*  &
+                           fluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+            nrz_k(min_q-1)=nrz_k(min_q-1)+del_tv*  &
+                           nfluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+          end if
+
         else
           notlast=.false.
-        end if 
+        end if ! maxq>minq
 
       END DO      ! while(notlast)
       vtrold(iq,kts:kte)   = vtrold_k(kts:kte)
-      nvtr(iq,kts:kte)     = nvtr_k(kts:kte)
-      olambdar(iq,kts:kte) = olambdar_k(kts:kte)
-      xlambdar(iq,kts:kte) = xlambdar_k(kts:kte)
       n0_r(iq,kts:kte)     = n0_r_k(kts:kte)
       nrz(iq,kts:kte)      = nrz_k(kts:kte)
       qrz(iq,kts:kte)      = qrz_k(kts:kte)
@@ -633,21 +625,14 @@ subroutine clphy1d_ylin(dt, imax,                           &
     end if
   end do ! iq
 
-
   !
   !-- snow
   !
   do iq = 1,imax
-    vtsold(iq,kts:kte)   = 0.
-    nvts(iq,kts:kte)     = 0.
-    olambdas(iq,kts:kte) = 0.
     qsz_k(kts:kte) = qsz(iq,kts:kte)    
-    notlast=.true.
-    if ( notlast ) then    
+    notlast=any( qsz_k(kts:kte)>1.e-8 )
+    if ( notlast ) then
       vtsold_k(kts:kte) = 0.
-      nvts_k(kts:kte) = 0.
-      olambdas_k(kts:kte) = 0.
-      xlambdas_k(kts:kte) = xlambdas(iq,kts:kte)
       n0_s_k(kts:kte) = n0_s(iq,kts:kte)
       nsz_k(kts:kte) = nsz(iq,kts:kte)
       pptsnow_k = pptsnow(iq)
@@ -706,6 +691,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
         !             (t_del_tv)          (del_tv)             (dtb)
 
         if (max_q >= min_q) then
+
           fluxin = 0.
           nfluxin = 0.
           t_del_tv=t_del_tv+del_tv
@@ -713,54 +699,50 @@ subroutine clphy1d_ylin(dt, imax,                           &
             notlast=.false.
             del_tv=dtb+del_tv-t_del_tv
           endif
-        end if ! maxq>minq
 
-        do k = max_q,min_q,-1
-          fluxout=rho_k(k)*vtsold_k(k)*qsz_k(k)
-          flux=(fluxin-fluxout)/rho_k(k)/dzw_k(k)
-          qsz_k(k)=qsz_k(k)+del_tv*flux
-          qsz_k(k)=max(0.,qsz_k(k))
-          fluxin=fluxout
+          do k = max_q,min_q,-1
+            fluxout=rho_k(k)*vtsold_k(k)*qsz_k(k)
+            flux=(fluxin-fluxout)/rho_k(k)/dzw_k(k)
+            qsz_k(k)=qsz_k(k)+del_tv*flux
+            qsz_k(k)=max(0.,qsz_k(k))
+            fluxin=fluxout
 
-          nfluxout=rho_k(k)*nvts_k(k)*nsz_k(k)
-          nflux   =(nfluxin-nfluxout)/rho_k(k)/dzw_k(k)
-          nsz_k(k)  =nsz_k(k)+del_tv*nflux
-          nfluxin =nfluxout
-          !qssten(iq,k)=flux
-          !nssten(iq,k)=nflux
-        end do       ! k
+            nfluxout=rho_k(k)*nvts_k(k)*nsz_k(k)
+            nflux   =(nfluxin-nfluxout)/rho_k(k)/dzw_k(k)
+            nsz_k(k)  =nsz_k(k)+del_tv*nflux
+            nfluxin =nfluxout
+            !qssten(iq,k)=flux
+            !nssten(iq,k)=nflux
+          end do       ! k
 
-        if ( min_q == 1 ) then
-          pptsnow_k = pptsnow_k + fluxin*del_tv  
-        else if (max_q >= min_q) then
-          qsz_k(min_q-1)=qsz_k(min_q-1)+del_tv*  &
-                   fluxin/rho_k(min_q-1)/dzw_k(min_q-1)
-          nsz_k(min_q-1)=nsz_k(min_q-1)+del_tv*  &
-                     nfluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+          if ( min_q == 1 ) then
+            pptsnow_k = pptsnow_k + fluxin*del_tv  
+          else
+            qsz_k(min_q-1)=qsz_k(min_q-1)+del_tv*  &
+                     fluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+            nsz_k(min_q-1)=nsz_k(min_q-1)+del_tv*  &
+                       nfluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+          end if
+
         else
           notlast=.false.
-        endif
+        end if ! maxq>minq
 
       END DO       ! while(notlast)
       vtsold(iq,kts:kte)   = vtsold_k(kts:kte)
-      nvts(iq,kts:kte)     = nvts_k(kts:kte)
-      olambdas(iq,kts:kte) = olambdas_k(kts:kte)
-      xlambdas(iq,kts:kte) = xlambdas_k(kts:kte)
       n0_s(iq,kts:kte)     = n0_s_k(kts:kte)
       nsz(iq,kts:kte)      = nsz_k(kts:kte)
       qsz(iq,kts:kte)      = qsz_k(kts:kte)
       pptsnow(iq)          = pptsnow_k
     end if
   end do        ! iq = 1,imax
-
  
   !
   !-- cloud ice  (03/21/02) using Heymsfield and Donner (1990) Vi=3.29*qi^0.16
   !
   do iq = 1,imax
-    vtiold(iq,kts:kte) = 0.
     qiz_k(kts:kte) = qiz(iq,kts:kte)
-    notlast=.true.
+    notlast=any( qiz_k(kts:kte)>1.e-8 )
     if ( notlast ) then
       vtiold_k(kts:kte) = 0.
       niz_k(kts:kte) = niz(iq,kts:kte)
@@ -790,6 +772,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
         !- Check if the summation of the small delta t >=  big delta t
         !             (t_del_tv)          (del_tv)             (dtb)
         if (max_q >= min_q) then
+
           fluxin = 0.
           nfluxin = 0.
           t_del_tv=t_del_tv+del_tv
@@ -797,34 +780,36 @@ subroutine clphy1d_ylin(dt, imax,                           &
             notlast=.false.
             del_tv=dtb+del_tv-t_del_tv
           endif
-        end if   ! maxq>minq
 
-        do k = max_q,min_q,-1
-          fluxout=rho_k(k)*vtiold_k(k)*qiz_k(k)
-          flux=(fluxin-fluxout)/rho_k(k)/dzw_k(k)
-          qiz_k(k)=qiz_k(k)+del_tv*flux
-          qiz_k(k)=max(0.,qiz_k(k))
-          fluxin=fluxout
+          do k = max_q,min_q,-1
+            fluxout=rho_k(k)*vtiold_k(k)*qiz_k(k)
+            flux=(fluxin-fluxout)/rho_k(k)/dzw_k(k)
+            qiz_k(k)=qiz_k(k)+del_tv*flux
+            qiz_k(k)=max(0.,qiz_k(k))
+            fluxin=fluxout
 
-          nfluxout=rho_k(k)*vtiold_k(k)*niz_k(k)
-          nflux=(nfluxin-nfluxout)/rho_k(k)/dzw_k(k)
-          niz_k(k)=niz_k(k)+del_tv*nflux
-          niz_k(k)=max(0.,niz_k(k))
-          nfluxin=nfluxout
-          !qisten(iq,k)=flux
-          !nisten(iq,k)=nflux
-        end do       ! k
+            nfluxout=rho_k(k)*vtiold_k(k)*niz_k(k)
+            nflux=(nfluxin-nfluxout)/rho_k(k)/dzw_k(k)
+            niz_k(k)=niz_k(k)+del_tv*nflux
+            niz_k(k)=max(0.,niz_k(k))
+            nfluxin=nfluxout
+            !qisten(iq,k)=flux
+            !nisten(iq,k)=nflux
+          end do       ! k
 
-        if ( min_q == 1 ) then
-          pptice_k = pptice_k + fluxin*del_tv  
-        else if (max_q >= min_q) then
-          qiz_k(min_q-1)=qiz_k(min_q-1)+del_tv*  &
-                       fluxin/rho_k(min_q-1)/dzw_k(min_q-1)
-          niz_k(min_q-1)=niz_k(min_q-1)+del_tv*  &
-                       nfluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+          if ( min_q == 1 ) then
+            pptice_k = pptice_k + fluxin*del_tv  
+          else
+            qiz_k(min_q-1)=qiz_k(min_q-1)+del_tv*  &
+                         fluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+            niz_k(min_q-1)=niz_k(min_q-1)+del_tv*  &
+                         nfluxin/rho_k(min_q-1)/dzw_k(min_q-1)
+          end if
+
         else
           notlast=.false.
-        end if
+        end if   ! maxq>minq
+
     
       END DO       ! while(notlast)
       vtiold(iq,kts:kte)   = vtiold_k(kts:kte)
@@ -833,10 +818,10 @@ subroutine clphy1d_ylin(dt, imax,                           &
       pptice(iq)           = pptice_k
     end if
   end do        ! iq = 1,imax
-
     
   ! Microphpysics processes
   DO k=kts,kte
+
     qvoqswz(1:imax)  =qvz(1:imax,k)/qswz(1:imax,k)
     qvoqsiz(1:imax)  =qvz(1:imax,k)/qsiz(1:imax,k)
     qvzodt(1:imax)=max( 0.,odtb*qvz(1:imax,k) )
@@ -863,9 +848,18 @@ subroutine clphy1d_ylin(dt, imax,                           &
     !
     !
 
-    n0_r(1:imax,k)   =0.
-    n0_i(1:imax)     =0.
-    n0_c(1:imax)     =0.
+    n0_r(1:imax,k)     = 0.
+    n0_i(1:imax)       = 0.
+    n0_c(1:imax)       = 0.
+
+    nvtr(1:imax,k)     = 0.
+    nvts(1:imax,k)     = 0.
+
+    xlambdar(1:imax,k) = 0.
+    xlambdas(1:imax,k) = 0.
+
+    olambdar(1:imax,k) = 0.
+    olambdas(1:imax,k) = 0.
 
     psacw(1:imax)   =0.                  ! accretion of cloud water by snow
     psaut(1:imax)   =0.                  ! ice crystal aggregation to snow
@@ -920,8 +914,8 @@ subroutine clphy1d_ylin(dt, imax,                           &
     
     do iq = 1,imax
       tmp2d=qiz(iq,k)+qlz(iq,k)+qsz(iq,k)+qrz(iq,k)
-      mask(iq) = .not.(qvz(iq,k)+qlz(iq,k)+qiz(iq,k) < qsiz(iq,k)  &
-                 .and. tmp2d == 0.)
+      mask(iq) = .not.(qvz(iq,k)+qlz(iq,k)+qiz(iq,k) < qsiz(iq,k) .and. &
+                       tmp2d == 0.)
       
       if ( mask(iq) ) then
         !gg11(iq) = ggamma(tmp_ss(iq,k))
@@ -976,7 +970,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
         
       end if
     end do
-
     
     !!
     !!! calculate terminal velocity of snow
@@ -1013,7 +1006,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
         
       end if
     end do
-
     
     do iq = 1,imax 
       if( mask(iq) ) then !go to 2000
@@ -1043,7 +1035,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
           !
           alpha1=1.e-3*exp( 0.025*temcc(iq,k) )
 
-          ! BELOW SECTION TURN OFF BY SONNY   sny: on temp
           ! ---------------------------------------------------------------
           if(temcc(iq,k) .lt. -20.0) then
               tmp1=-7.6+4.*exp( -0.2443e-3*(abs(temcc(iq,k))-20.)**2.455 )
@@ -1058,6 +1049,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
           tmp1=odtb*(qiz(iq,k)-qic)*(1.0-exp(-alpha1*dtb))
           psaut(iq)=max( 0., tmp1 )
           npsaut(iq)=max( 0., psaut(iq)/xms)
+
           !
           ! (2) BERGERON PROCESS TRANSFER OF CLOUD WATER TO SNOW (Psfw)
           !     this process only considered when -31 C < T < 0 C
@@ -1342,7 +1334,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
       end if
     end do
 
-    
     do iq = 1,imax 
       if( mask(iq) ) then !go to 2000
         
@@ -1392,6 +1383,12 @@ subroutine clphy1d_ylin(dt, imax,                           &
         ! npraut_r(K) = MIN(npraut_r(k),npraut(k))
         ! endif
 
+      end if
+    end do
+
+    do iq = 1,imax 
+      if( mask(iq) ) then !go to 2000
+
         !
         ! (2) ACCRETION OF CLOUD WATER BY RAIN (Pracw): Lin (51)
         !
@@ -1400,6 +1397,12 @@ subroutine clphy1d_ylin(dt, imax,                           &
              gambp3*olambdar(iq,k)**bp3 ! son
         pracw(iq)=qlzodt(iq)*( 1.-exp(-tmp1*dtb) )
         npracw(iq)=tmp1*ncz(iq,k)
+
+      end if
+    end do
+
+    do iq = 1,imax 
+      if( mask(iq) ) then !go to 2000
         
         !
         ! (3) EVAPORATION OF RAIN (Prevp): Lin (52)
@@ -1425,6 +1428,11 @@ subroutine clphy1d_ylin(dt, imax,                           &
           nprevp(iq)=prevp(iq)*xmr
         end if
 
+      end if
+    end do
+
+    do iq = 1,imax 
+      if( mask(iq) ) then !go to 2000
     
         !
         !**********************************************************************
@@ -1629,7 +1637,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
       end if
     end do
-
     
     do iq = 1,imax 
       if( mask(iq) ) then !go to 2000        
@@ -1717,7 +1724,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
         
       end if
     end do
-    
+
     do iq = 1,imax
       if( mask(iq) ) then !go to 2000    
         
@@ -1963,7 +1970,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
     !vs(1:imax,k)    = vtsold(1:imax,k)
 
   ENDDO        ! k
-
 
 END SUBROUTINE clphy1d_ylin
 

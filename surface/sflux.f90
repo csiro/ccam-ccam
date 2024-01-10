@@ -57,7 +57,6 @@ real, dimension(:), allocatable :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
 #ifdef csircoupled
 real, dimension(:), allocatable :: river_inflow
 #endif
-!real, dimension(:), allocatable :: tss_save
 
 #ifdef csircoupled
 real, dimension(:), allocatable :: dumrg, dumx
@@ -96,7 +95,6 @@ allocate( oldrunoff(ifull), oldsnowmelt(ifull), oldevspsbl(ifull), oldsbl(ifull)
 allocate( af(ifull), aft(ifull), ri(ifull) )
 allocate( fg_ocn(ifull), fg_ice(ifull), eg_ocn(ifull), eg_ice(ifull) )
 allocate( taux_ocn(ifull), taux_ice(ifull), tauy_ocn(ifull), tauy_ice(ifull) )
-!allocate( tss_save(ifull) )
 #ifdef csircoupled
 allocate( river_inflow(ifull) )
 allocate( dumrg(ifull), dumx(ifull) )
@@ -185,7 +183,6 @@ do tile = 1,ntiles
   uav(is:ie) = av_vmod*u(is:ie,1) + (1.-av_vmod)*savu(is:ie,1)   
   vav(is:ie) = av_vmod*v(is:ie,1) + (1.-av_vmod)*savv(is:ie,1)  
   vmag(is:ie) = max( sqrt(uav(is:ie)**2+vav(is:ie)**2), vmodmin )    ! vmag used to calculate ri
-  !tss_save(is:ie) = tss(is:ie)
   rnet(is:ie) = sgsave(is:ie) - rgsave(is:ie)
 
   taux(is:ie) = 0.      ! dummy value
@@ -1035,6 +1032,7 @@ use parmgeom_m                     ! Coordinate data
 use pbl_m                          ! Boundary layer arrays
 use prec_m, only : evspsbl, sbl    ! Precipitation
 use raddiag_m                      ! Radiation diagnostic
+use savuvt_m                       ! Saved dynamic arrays
 use soilsnow_m                     ! Soil, snow and surface data
 use vecsuv_m                       ! Map to cartesian coordinates
 use work2_m                        ! Diagnostic arrays
@@ -1042,8 +1040,10 @@ use xyzinfo_m                      ! Grid coordinate arrays
 
 implicit none
 
-integer :: tile, is, ie
-real, dimension(imax) :: luzon, lvmer, costh, sinth, zonx, zony, zonz
+integer :: tile, is, ie, k
+real, dimension(imax) :: costh, sinth, zonx, zony, zonz
+real, dimension(imax) :: luav, lvav
+real, dimension(imax,kl) :: luzon, lvmer, lt, lqg
 
 !$omp do schedule(static) private(is,ie),                                 &
 !$omp private(luzon, lvmer, costh, sinth, zonx, zony, zonz) 
@@ -1051,30 +1051,36 @@ do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
+  do k = 1,kl
+    luav(:) = av_vmod*u(is:ie,k) + (1.-av_vmod)*savu(is:ie,k)   
+    lvav(:) = av_vmod*v(is:ie,k) + (1.-av_vmod)*savv(is:ie,k)
 #ifdef scm
-    luzon = uav(is:ie) ! zonal wind
-    lvmer = vav(is:ie) ! meridonal wind 
+    luzon(:,k) = luav(:) ! zonal wind
+    lvmer(:,k) = lvav(:) ! meridonal wind 
 #else
-    zonx=real(                       -sin(rlat0*pi/180.)*y(is:ie))      
+    zonx=real(-sin(rlat0*pi/180.)*y(is:ie))      
     zony=real(sin(rlat0*pi/180.)*x(is:ie)+cos(rlat0*pi/180.)*z(is:ie))  
-    zonz=real(-cos(rlat0*pi/180.)*y(is:ie)                       )      
+    zonz=real(-cos(rlat0*pi/180.)*y(is:ie))      
     costh= (zonx*ax(is:ie)+zony*ay(is:ie)+zonz*az(is:ie)) &
           /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )      
     sinth=-(zonx*bx(is:ie)+zony*by(is:ie)+zonz*bz(is:ie)) &
           /sqrt( max(zonx**2+zony**2+zonz**2,1.e-7) )   
-    luzon= costh*uav(is:ie)-sinth*vav(is:ie)  ! zonal wind
-    lvmer= sinth*uav(is:ie)+costh*vav(is:ie)  ! meridonal wind
+    luzon(:,k)= costh*luav(:)-sinth*lvav(:)  ! zonal wind
+    lvmer(:,k)= sinth*luav(:)+costh*lvav(:)  ! meridonal wind
 #endif
 
-  call sflux_urban_work(azmin(is:ie),oldrunoff(is:ie),rho(is:ie),vmag(is:ie),                                        &
-                        oldsnowmelt(is:ie),f_g(tile),                                                                &
+    lt(:,k) = t(is:ie,k)
+    lqg(:,K) = qg(is:ie,k)
+  end do
+
+  call sflux_urban_work(oldrunoff(is:ie),rho(is:ie),vmag(is:ie),oldsnowmelt(is:ie),f_g(tile),                        &
                         f_intm(tile),f_road(tile),f_roof(tile),f_slab(tile),f_wall(tile),intm_g(:,tile),p_g(:,tile), &
                         rdhyd_g(:,tile),rfhyd_g(:,tile),rfveg_g(tile),road_g(:,tile),roof_g(:,tile),room_g(:,tile),  &
                         slab_g(:,tile),walle_g(:,tile),wallw_g(:,tile),cnveg_g(tile),intl_g(tile),                   &
                         luzon,lvmer,cdtq(is:ie),cduv(is:ie),conds(is:ie),                                            &
-                        condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),qg(is:ie,1),                         &
+                        condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),lqg,                                 &
                         qsttg(is:ie),rgsave(is:ie),runoff(is:ie),sgdn(is:ie),sgsave(is:ie),                          &
-                        snowmelt(is:ie),t(is:ie,1),taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                    &
+                        snowmelt(is:ie),lt,taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                            &
                         ustar(is:ie),v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),           &
                         evspsbl(is:ie),oldevspsbl(is:ie),sbl(is:ie),oldsbl(is:ie),anthropogenic_flux(is:ie),         &
                         urban_ts(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),                                        &
@@ -1088,7 +1094,7 @@ end do
 return
 end subroutine sflux_urban
 
-subroutine sflux_urban_work(azmin,oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,                      &
+subroutine sflux_urban_work(oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp_roof,                            &
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             uzon,vmer,cdtq,cduv,                                                                  &
                             conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,runoff,sgdn,sgsave,snowmelt,               &
@@ -1105,17 +1111,18 @@ use estab                          ! Liquid saturation function
 use newmpar_m                      ! Grid parameters
 use parm_m                         ! Model configuration
 use parmgeom_m                     ! Coordinate data
+use sigs_m                         ! Atmosphere sigma levels
 
 implicit none
 
 integer, intent(in) :: ufull
-real, dimension(imax), intent(in) :: uzon,vmer
+integer k
 real, dimension(imax) :: dumrg,dumx,dums
 real, dimension(imax) :: newsnowmelt
 real, dimension(imax) :: u_fg, u_eg, u_rn, u_evspsbl, u_sbl
 real, dimension(imax) :: zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax) :: cduv_work, cdtq_work
-real, dimension(imax), intent(in) :: azmin, oldrunoff, rho, vmag, oldsnowmelt, oldevspsbl, oldsbl
+real, dimension(imax), intent(in) :: oldrunoff, rho, vmag, oldsnowmelt, oldevspsbl, oldsbl
 real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
 real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(imax), intent(inout) :: urban_storage_flux,urban_elecgas_flux
@@ -1127,7 +1134,11 @@ real, dimension(imax), intent(inout) :: eg, fg, qsttg
 real, dimension(imax), intent(inout) :: runoff, snowmelt
 real, dimension(imax), intent(inout) :: taux, tauy, tss, ustar, wetfac
 real, dimension(imax), intent(inout) :: zo, zoh, zoq, evspsbl, sbl
-real, dimension(imax), intent(in) :: qg, t, u, v
+real, dimension(imax,kl), intent(in) :: qg, t, uzon, vmer
+real, dimension(imax), intent(in) :: u, v
+real, dimension(imax) :: bldheight, az_roof, t_roof, qg_roof, uzon_roof, vmer_roof
+real, dimension(imax) :: azmin, t_cany, qg_cany, uzon_cany, vmer_cany
+real, dimension(imax,kl) :: zg
 logical, dimension(imax), intent(in) :: upack
 type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_slab, fp_wall
 type(hydrodata), dimension(nfrac), intent(inout) :: rdhyd, rfhyd
@@ -1149,9 +1160,36 @@ urban_wetfac = 0.                                                               
 u_rn = 0.                                                                                        ! urban
 u_evspsbl = 0.                                                                                   ! urban
 u_sbl = 0.                                                                                       ! urban
+                                                                                                 ! urban
+! find model reference height                                                                    ! urban
+bldheight = 0.                                                                                   ! urban
+call atebdeftype_export(bldheight,"bldheight",fp,cnveg,fp_roof,fp_wall, &
+                        fp_road,fp_slab,upack,ufull,0)                                  ! urban
+zg(:,1) = bet(1)*t(:,1)/grav                                                                     ! urban
+do k = 2,kl                                                                                      ! urban
+  zg(:,k) = zg(:,k-1) + (bet(k)*t(:,k)+betm(k)*t(:,k-1))/grav                                    ! urban
+end do                                                                                           ! urban
+do k = kl,1,-1                                                                                   ! urban
+  where ( zg(:,k)>bldheight(:)+2. )                                                              ! urban
+    az_roof(:) = zg(:,k)                                                                         ! urban
+    t_roof(:) = t(:,k)                                                                           ! urban
+    qg_roof(:) = qg(:,k)                                                                         ! urban
+    uzon_roof(:) = uzon(:,k)                                                                     ! urban
+    vmer_roof(:) = vmer(:,k)                                                                     ! urban
+  end where                                                                                      ! urban 
+  where ( zg(:,k)>bldheight(:)*refheight+2. )                                                    ! urban
+    azmin(:) = zg(:,k)                                                                           ! urban
+    t_cany(:) = t(:,k)                                                                           ! urban
+    qg_cany(:) = qg(:,k)                                                                         ! urban
+    uzon_cany(:) = uzon(:,k)                                                                     ! urban
+    vmer_cany(:) = vmer(:,k)                                                                     ! urban
+  end where                                                                                      ! urban
+end do                                                                                           ! urban
+                                                                                                 ! urban
 ! call aTEB                                                                                      ! urban
-call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_evspsbl,u_sbl,dt,azmin,sgdn,dumrg,     &    ! urban
-              dumx,dums,rho,t(1:imax),qg(1:imax),ps(1:imax),uzon,vmer,vmodmin,              &    ! urban
+call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_evspsbl,u_sbl,dt,azmin,az_roof,sgdn,   &    ! urban
+              dumrg,dumx,dums,rho,t_cany,t_roof,qg_cany,qg_roof,ps(1:imax),                 &    ! urban
+              uzon_cany,uzon_roof,vmer_cany,vmer_roof,vmodmin,                              &    ! urban
               fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,    &    ! urban
               roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                    ! urban
 u_sigma = unpack(fp%sigmau,upack,0.)                                                             ! urban

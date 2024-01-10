@@ -583,10 +583,10 @@ if (schmidtin>=0.) then  ! (schmidt<0. is to finish of stuff needed for onthefly
     fu_g(iq)=(f_g(iq)+f_g(ie_g(iq)))*.5
     fv_g(iq)=(f_g(iq)+f_g(in_g(iq)))*.5
   enddo   ! iq loop
-  do iq=1,ifull_g   ! average map factor derivs needed for nxmap=1
-    dmdx_g(iq)=.5*(em_g(ie_g(iq))-em_g(iw_g(iq)))/ds  
-    dmdy_g(iq)=.5*(em_g(in_g(iq))-em_g(is_g(iq)))/ds  
-  enddo   ! iq loop
+  !do iq=1,ifull_g   ! average map factor derivs needed for nxmap=1
+  ! dmdx_g(iq)=.5*(em_g(ie_g(iq))-em_g(iw_g(iq)))/ds  
+  !  dmdy_g(iq)=.5*(em_g(in_g(iq))-em_g(is_g(iq)))/ds  
+  !enddo   ! iq loop
 
   ratmin=100.
   ratmax=0.

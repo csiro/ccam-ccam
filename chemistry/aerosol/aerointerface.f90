@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -892,9 +892,9 @@ do k = 1,size(fscav,2)
       ZE3 = 1.2E-02*EXP(2010.*ZQTP1)
       ZFAC = 1000./(max(xpold(iq,k),1.E-20)*32.064)
       ZSO4L = xs(iq,k)*ZFAC
-      ZSO4L = AMAX1(ZSO4L,0.)
+      ZSO4L = MAX(ZSO4L,0.)
       ZSO2L = xs(iq,k)*ZFAC
-      ZSO2L = AMAX1(ZSO2L,0.)
+      ZSO2L = MAX(ZSO2L,0.)
       ZZA = ZE2*8.2E-02*tt(iq,k)*max(xpold(iq,k),1.E-20)*rho(iq,k)*1.E-03
       ZZB = 2.5E-06+ZSO4L
       ZZP = (ZZA*ZE3-ZZB-ZZA*ZZB)/(1.+ZZA)
