@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -4286,7 +4286,8 @@ contains
       integer :: iproc, send_len, recv_len
       integer :: rcount, jproc, mproc, iq
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=1, llen, lproc
+      integer(kind=4), save :: itag=1
+      integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist
 #ifdef i8r8
@@ -4330,6 +4331,8 @@ contains
          rslen(:) = bnds(neighlist(:))%rlenh_fn(maxcolour)
          sslen(:) = bnds(neighlist(:))%slenh_fn(maxcolour)
       end if
+      
+      itag = mod(itag + 1, 10000)
 
       ! Set up the buffers to recv
       lcomm = comm_world
@@ -4375,7 +4378,7 @@ contains
                iproc = rlist(mproc)  ! Recv from
                lproc = neighlist(iproc)
                ! unpack_list(iq) is index into extended region
-               do concurrent ( iq=1:rslen(iproc) )
+               do iq = 1,rslen(iproc)
                   t(ifull+bnds(lproc)%unpack_list(iq)) = bnds(lproc)%rbuf(iq)
                end do
             end if   
@@ -4395,7 +4398,8 @@ contains
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, jproc, mproc, iq, k
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=2, llen, lproc
+      integer(kind=4), save :: itag=2
+      integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist
 #ifdef i8r8
@@ -4443,6 +4447,8 @@ contains
          rslen = bnds(neighlist)%rlenh_fn(maxcolour)
          sslen = bnds(neighlist)%slenh_fn(maxcolour)
       end if
+      
+      itag = mod(itag + 1, 10000)
 
       ! Set up the buffers to send and recv
       lcomm = comm_world
@@ -4487,9 +4493,11 @@ contains
             if ( mproc <= rreq ) then
                iproc = rlist(mproc)  ! Recv from
                lproc = neighlist(iproc)
-               do concurrent ( k=1:kx, iq=1:rslen(iproc) )
-                  t(ifull+bnds(lproc)%unpack_list(iq),k) &
-                      = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
+               do k = 1,kx
+                  do iq = 1,rslen(iproc)
+                     t(ifull+bnds(lproc)%unpack_list(iq),k) &
+                         = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
+                  end do   
                end do
             end if
          end do
@@ -4508,7 +4516,8 @@ contains
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, jproc, mproc, iq, k
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag = 2, llen, lproc
+      integer(kind=4), save :: itag=2
+      integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION      
       integer(kind=4), dimension(2*neighnum) :: donelist
@@ -4552,6 +4561,8 @@ contains
          rslen = bnds(neighlist)%rlenh_fn(maxcolour)
          sslen = bnds(neighlist)%slenh_fn(maxcolour)
       end if
+      
+      itag = mod(itag + 1, 10000)
 
       ! Set up the buffers to send and recv
       lcomm = comm_world
@@ -4596,9 +4607,11 @@ contains
             if ( mproc <= rreq ) then
                iproc = rlist(mproc)  ! Recv from
                lproc = neighlist(iproc)
-               do concurrent( k=1:kx, iq=1:rslen(iproc) )
-                  t(ifull+bnds(lproc)%unpack_list(iq),k) &
-                      = bnds(lproc)%r8buf(iq+(k-1)*rslen(iproc))
+               do k = 1,kx
+                  do iq = 1,rslen(iproc)
+                     t(ifull+bnds(lproc)%unpack_list(iq),k) &
+                         = bnds(lproc)%r8buf(iq+(k-1)*rslen(iproc))
+                  end do   
                end do
             end if   
          end do
@@ -4617,7 +4630,8 @@ contains
       integer :: rcount, jproc, mproc, ntr, iq, k, l
       integer :: nstart, nend, ntot
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=3, llen, lproc
+      integer(kind=4), save :: itag=3
+      integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist
 #ifdef i8r8
@@ -4669,6 +4683,8 @@ contains
       do nstart = 1,ntr,nagg
          nend = min(nstart+nagg-1,ntr)
          ntot = nend - nstart + 1
+         
+         itag = mod(itag + 1, 10000)
       
          ! Set up the buffers to send
          nreq = 0
@@ -4715,9 +4731,13 @@ contains
                if ( mproc <= rreq ) then
                   iproc = rlist(mproc)  ! Recv from
                   lproc = neighlist(iproc)
-                  do concurrent( l=1:ntot, k=1:kx, iq=1:rslen(iproc) )
-                     t(ifull+bnds(lproc)%unpack_list(iq),k,l+nstart-1)              &
-                          = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
+                  do l = 1,ntot
+                     do k=1,kx
+                        do iq = 1,rslen(iproc)
+                           t(ifull+bnds(lproc)%unpack_list(iq),k,l+nstart-1)              &
+                                = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
+                        end do
+                     end do   
                   end do
                end if
             end do
@@ -4736,7 +4756,8 @@ contains
       logical, intent(in), optional :: corner
       logical :: extra
       integer :: iproc, kx, recv_len, iqq, ibeg, iend, iq, k
-      integer(kind=4) :: ierr, itag=4, llen, lproc, lcomm
+      integer(kind=4), save :: itag=4
+      integer(kind=4) :: ierr, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
 #else
@@ -4758,6 +4779,8 @@ contains
       if ( present(corner) ) then
          extra = corner
       end if
+      
+      itag = mod(itag + 1, 10000)
 
 !     Set up the buffers to send and recv
       lcomm = comm_world
@@ -4870,24 +4893,30 @@ contains
                iqq = 0
                ibeg = bnds(lproc)%rlenh_bg(lcolour)
                iend = bnds(lproc)%rlenh_fn(lcolour)
-               do concurrent( k=1:kx, iq=1:iend-ibeg+1 )
-                  t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
-                      = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+               do k = 1,kx
+                  do iq = 1,iend-ibeg+1
+                     t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
+                         = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+                  end do   
                end do
                iqq = iqq + (iend-ibeg+1)*kx
                ibeg = bnds(lproc)%rlen_bg(lcolour)
                iend = bnds(lproc)%rlen_fn(lcolour)
-               do concurrent( k=1:kx, iq=1:iend-ibeg+1 )
-                  t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
-                      = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+               do k = 1,kx
+                  do iq = 1,iend-ibeg+1
+                     t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
+                         = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+                  end do   
                end do   
                iqq = iqq + (iend-ibeg+1)*kx
                if ( extra ) then
                   ibeg = bnds(lproc)%rlenx_bg(lcolour)
                   iend = bnds(lproc)%rlenx_fn(lcolour)
-                  do concurrent( k=1:kx, iq=1:iend-ibeg+1 )
-                     t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
-                         = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+                  do k = 1,kx
+                     do iq = 1,iend-ibeg+1
+                        t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
+                            = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+                     end do   
                   end do
                   iqq = iqq + (iend-ibeg+1)*kx
                end if
@@ -4906,7 +4935,8 @@ contains
       integer :: iproc, kx, send_len, recv_len
       integer :: iq, k
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=2, llen, lproc
+      integer(kind=4), save :: itag=2
+      integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -4953,6 +4983,8 @@ contains
          rslen = bnds(neighlist)%rlenh_fn(maxcolour)
          sslen = bnds(neighlist)%slenh_fn(maxcolour)
       end if
+      
+      itag = mod(itag + 1, 10000)
 
       ! Set up the buffers to send and recv
       lcomm = comm_world
@@ -4996,7 +5028,8 @@ contains
       integer :: iproc, kx, send_len, recv_len
       integer :: iq, k, ntr, l
       integer, dimension(neighnum) :: rslen, sslen
-      integer(kind=4) :: ierr, itag=2, llen, lproc
+      integer(kind=4), save :: itag=2
+      integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -5046,6 +5079,7 @@ contains
       end if
 
       lcomm = comm_world
+      itag = mod(itag + 1, 10000)
       
       if ( ntr > nagg ) then
          write(6,*) "ERROR: bounds_send4 can only send nagg tracers"
@@ -5149,9 +5183,11 @@ contains
             if ( mproc <= rreq ) then
                iproc = rlist(mproc)  ! Recv from
                lproc = neighlist(iproc)
-               do concurrent( k=1:kx, iq=1:rslen(iproc) )
-                  t(ifull+bnds(lproc)%unpack_list(iq),k) &
-                      = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
+               do k = 1,kx
+                  do iq = 1,rslen(iproc)
+                     t(ifull+bnds(lproc)%unpack_list(iq),k) &
+                         = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc))
+                  end do   
                end do
             end if   
          end do
@@ -5224,9 +5260,13 @@ contains
             if ( mproc <= rreq ) then
                iproc = rlist(mproc)  ! Recv from
                lproc = neighlist(iproc)
-               do concurrent( l=1:ntr, k=1:kx, iq=1:rslen(iproc) )
-                  t(ifull+bnds(lproc)%unpack_list(iq),k,l) &
-                      = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
+               do l = 1,ntr
+                  do k = 1,kx
+                     do iq = 1,rslen(iproc)
+                        t(ifull+bnds(lproc)%unpack_list(iq),k,l) &
+                            = bnds(lproc)%rbuf(iq+(k-1)*rslen(iproc)+(l-1)*rslen(iproc)*kx)
+                     end do
+                  end do
                end do
             end if   
          end do
@@ -5252,7 +5292,8 @@ contains
 #else
       integer(kind=4), parameter :: ltype = MPI_REAL
 #endif   
-      integer(kind=4) :: ierr, itag=5, llen, lproc
+      integer(kind=4), save :: itag=5
+      integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist
 
@@ -5317,6 +5358,8 @@ contains
          fsuev = .false.
       end if
       myrlen = bnds(myid)%rlen_ev_fn
+      
+      itag = mod(itag + 1, 10000)
 
 !     Set up the buffers to send
       lcomm = comm_world
@@ -5427,25 +5470,23 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
-         do concurrent( iq=1:myrlen )
-            ! request_list is same as send_list in this case
-            ! unpack_list(iq) is index into extended region 
-            if ( bnds(myid)%request_list_uv(iq)>0 .neqv. bnds(myid)%uv_swap(iq) ) then
-               if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(myid)%unpack_list_uv(iq)) = bnds(myid)%uv_neg(iq)*u(abs(bnds(myid)%request_list_uv(iq)))
-               else
-                  v(ifull-bnds(myid)%unpack_list_uv(iq)) = bnds(myid)%uv_neg(iq)*u(abs(bnds(myid)%request_list_uv(iq)))
-               end if
-            else   
-               if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
-                  u(ifull+bnds(myid)%unpack_list_uv(iq)) = bnds(myid)%uv_neg(iq)*v(abs(bnds(myid)%request_list_uv(iq)))
-               else
-                  v(ifull-bnds(myid)%unpack_list_uv(iq)) = bnds(myid)%uv_neg(iq)*v(abs(bnds(myid)%request_list_uv(iq)))
-               end if   
+      do iq = 1,myrlen
+         ! request_list is same as send_list in this case
+         ! unpack_list(iq) is index into extended region 
+         if ( bnds(myid)%request_list_uv(iq)>0 .neqv. bnds(myid)%uv_swap(iq) ) then
+            if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
+               u(ifull+bnds(myid)%unpack_list_uv(iq)) = bnds(myid)%uv_neg(iq)*u(abs(bnds(myid)%request_list_uv(iq)))
+            else
+               v(ifull-bnds(myid)%unpack_list_uv(iq)) = bnds(myid)%uv_neg(iq)*u(abs(bnds(myid)%request_list_uv(iq)))
             end if
-         end do
-      end if
+         else   
+            if ( bnds(myid)%unpack_list_uv(iq) > 0 ) then
+               u(ifull+bnds(myid)%unpack_list_uv(iq)) = bnds(myid)%uv_neg(iq)*v(abs(bnds(myid)%request_list_uv(iq)))
+            else
+               v(ifull-bnds(myid)%unpack_list_uv(iq)) = bnds(myid)%uv_neg(iq)*v(abs(bnds(myid)%request_list_uv(iq)))
+            end if   
+         end if
+      end do
       
       ! Unpack incomming messages
       rcount = nreq
@@ -5463,7 +5504,7 @@ contains
                if ( fsvwu ) then
                   iqz = iqq - bnds(lproc)%rlen_sv_bg + 1 
                   iqlen = bnds(lproc)%rlen_wu_fn - bnds(lproc)%rlen_sv_bg + 1
-                  do concurrent ( iq=bnds(lproc)%rlen_sv_bg:bnds(lproc)%rlen_wu_fn )
+                  do iq = bnds(lproc)%rlen_sv_bg,bnds(lproc)%rlen_wu_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5476,7 +5517,7 @@ contains
                if ( fnveu ) then
                   iqz = iqq - bnds(lproc)%rlen_nv_bg + 1 
                   iqlen = bnds(lproc)%rlen_eu_fn - bnds(lproc)%rlen_nv_bg + 1
-                  do concurrent( iq=bnds(lproc)%rlen_nv_bg:bnds(lproc)%rlen_eu_fn )
+                  do iq = bnds(lproc)%rlen_nv_bg,bnds(lproc)%rlen_eu_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5489,7 +5530,7 @@ contains
                if ( fssvwwu ) then
                   iqz = iqq - bnds(lproc)%rlen_ssv_bg + 1 
                   iqlen = bnds(lproc)%rlen_wwu_fn - bnds(lproc)%rlen_ssv_bg + 1
-                  do concurrent( iq=bnds(lproc)%rlen_ssv_bg:bnds(lproc)%rlen_wwu_fn )
+                  do iq = bnds(lproc)%rlen_ssv_bg,bnds(lproc)%rlen_wwu_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5502,7 +5543,7 @@ contains
                if ( fnnveeu ) then
                   iqz = iqq - bnds(lproc)%rlen_nnv_bg + 1 
                   iqlen = bnds(lproc)%rlen_eeu_fn - bnds(lproc)%rlen_nnv_bg + 1
-                  do concurrent ( iq=bnds(lproc)%rlen_nnv_bg:bnds(lproc)%rlen_eeu_fn )
+                  do iq = bnds(lproc)%rlen_nnv_bg,bnds(lproc)%rlen_eeu_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5515,7 +5556,7 @@ contains
                if ( fsuev ) then
                   iqz = iqq - bnds(lproc)%rlen_su_bg + 1 
                   iqlen = bnds(lproc)%rlen_ev_fn - bnds(lproc)%rlen_su_bg + 1
-                  do concurrent ( iq=bnds(lproc)%rlen_su_bg:bnds(lproc)%rlen_ev_fn )
+                  do iq = bnds(lproc)%rlen_su_bg,bnds(lproc)%rlen_ev_fn
                      ! unpack_list(iq) is index into extended region
                      if ( bnds(lproc)%unpack_list_uv(iq) > 0 ) then
                         u(ifull+bnds(lproc)%unpack_list_uv(iq)) = bnds(lproc)%rbuf(iqz+iq)
@@ -5544,7 +5585,8 @@ contains
       integer :: iq, iqz, iproc, kx, rproc, sproc, iqq, recv_len
       integer :: rcount, myrlen, jproc, mproc, stagmode, k
       integer :: iqlen
-      integer(kind=4) :: ierr, itag=6, llen, lproc
+      integer(kind=4), save :: itag=6
+      integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist
 #ifdef i8r8
@@ -5615,6 +5657,8 @@ contains
          fsuev = .false.
       end if
       myrlen = bnds(myid)%rlen_ev_fn
+      
+      itag = mod(itag + 1, 10000)
 
 !     Set up the buffers to send and recv
       lcomm = comm_world
@@ -5742,8 +5786,8 @@ contains
 
       ! See if there are any points on my own processor that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
-      if ( myrlen > 0 ) then
-         do concurrent ( k=1:kx, iq=1:myrlen )
+      do k = 1,kx
+         do iq = 1,myrlen
             ! request_list is same as send_list in this case
             ! unpack_list(iq) is index into extended region
             if ( bnds(myid)%request_list_uv(iq)>0 .neqv. bnds(myid)%uv_swap(iq) ) then 
@@ -5760,7 +5804,7 @@ contains
                end if
             end if   
          end do   
-      end if
+      end do
       
       ! Unpack incomming messages
       rcount = nreq
@@ -5778,65 +5822,75 @@ contains
                if ( fsvwu ) then
                   iqz = iqq - bnds(rproc)%rlen_sv_bg + 1 
                   iqlen = bnds(rproc)%rlen_wu_fn - bnds(rproc)%rlen_sv_bg + 1
-                  do concurrent( k=1:kx, iq=bnds(rproc)%rlen_sv_bg:bnds(rproc)%rlen_wu_fn )
-                     ! unpack_list(iq) is index into extended region
-                     if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     end if
+                  do k = 1,kx
+                     do iq = bnds(rproc)%rlen_sv_bg,bnds(rproc)%rlen_wu_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        else
+                           v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        end if
+                     end do   
                   end do   
                   iqq = iqq + iqlen*kx
                end if
                if ( fnveu ) then
                   iqz = iqq - bnds(rproc)%rlen_nv_bg + 1                 
                   iqlen = bnds(rproc)%rlen_eu_fn - bnds(rproc)%rlen_nv_bg + 1
-                  do concurrent ( k=1:kx, iq=bnds(rproc)%rlen_nv_bg:bnds(rproc)%rlen_eu_fn )
-                     ! unpack_list(iq) is index into extended region
-                     if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     end if
+                  do k = 1,kx
+                     do iq = bnds(rproc)%rlen_nv_bg,bnds(rproc)%rlen_eu_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        else
+                           v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        end if
+                     end do   
                   end do   
                   iqq = iqq + iqlen*kx
                end if         
                if ( fssvwwu ) then
                   iqz = iqq - bnds(rproc)%rlen_ssv_bg + 1                 
                   iqlen = bnds(rproc)%rlen_wwu_fn - bnds(rproc)%rlen_ssv_bg + 1
-                  do concurrent ( k=1:kx, iq=bnds(rproc)%rlen_ssv_bg:bnds(rproc)%rlen_wwu_fn )
-                     ! unpack_list(iq) is index into extended region
-                     if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     end if
+                  do k = 1,kx
+                     do iq = bnds(rproc)%rlen_ssv_bg,bnds(rproc)%rlen_wwu_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        else
+                           v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        end if
+                     end do   
                   end do  
                   iqq = iqq + iqlen*kx
                end if         
                if ( fnnveeu ) then
                   iqz = iqq - bnds(rproc)%rlen_nnv_bg + 1                 
                   iqlen = bnds(rproc)%rlen_eeu_fn - bnds(rproc)%rlen_nnv_bg + 1
-                  do concurrent ( k=1:kx, iq=bnds(rproc)%rlen_nnv_bg:bnds(rproc)%rlen_eeu_fn )
-                     ! unpack_list(iq) is index into extended region
-                     if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     end if
+                  do k = 1,kx
+                     do iq = bnds(rproc)%rlen_nnv_bg,bnds(rproc)%rlen_eeu_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        else
+                           v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        end if
+                     end do   
                   end do   
                   iqq = iqq + iqlen*kx
                end if     
                if ( fsuev ) then
                   iqz = iqq - bnds(rproc)%rlen_su_bg + 1                 
                   iqlen = bnds(rproc)%rlen_ev_fn - bnds(rproc)%rlen_su_bg + 1
-                  do concurrent ( k=1:kx, iq=bnds(rproc)%rlen_su_bg:bnds(rproc)%rlen_ev_fn )
-                     ! unpack_list(iq) is index into extended region
-                     if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
-                        u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     else
-                        v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
-                     end if
+                  do k = 1,kx
+                     do iq = bnds(rproc)%rlen_su_bg,bnds(rproc)%rlen_ev_fn
+                        ! unpack_list(iq) is index into extended region
+                        if ( bnds(rproc)%unpack_list_uv(iq) > 0 ) then
+                           u(ifull+bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        else
+                           v(ifull-bnds(rproc)%unpack_list_uv(iq),k) = bnds(rproc)%rbuf(iqz+iq+(k-1)*iqlen)
+                        end if
+                     end do   
                   end do
                   iqq = iqq + iqlen*kx
                end if
@@ -5861,7 +5915,8 @@ contains
       integer :: ip, jp, xn, kx
       integer :: iq, k
       integer :: rcount
-      integer(kind=4) :: itag=99, ierr, llen, ncount, lproc
+      integer(kind=4), save :: itag=99
+      integer(kind=4) :: ierr, llen, ncount, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*neighnum) :: status
       integer(kind=4), dimension(2*neighnum) :: donelist
@@ -5880,6 +5935,7 @@ contains
       drlen(:) = 0
       dproc = 0
       lcomm = comm_world
+      itag = mod(itag + 1, 10000)
       
       ! In this case the length of each buffer is unknown and will not
       ! be symmetric between processors. Therefore need to get the length
@@ -5989,7 +6045,7 @@ contains
    subroutine intssync_send4(ntr)
       integer, intent(in) :: ntr
       integer :: iproc
-      integer(kind=4), parameter :: itag=98
+      integer(kind=4), save :: itag=98
       integer(kind=4) :: ierr, llen, lproc, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
@@ -6001,6 +6057,8 @@ contains
          write(6,*) "ERROR: Internal error in intssync_send.  ntr > nagg"
          call ccmpi_abort(-1)
       end if
+      
+      itag = mod(itag + 1, 10000)
 
       ! When sending the results, roles of dslen and drlen are reversed
       lcomm = comm_world
@@ -6046,8 +6104,9 @@ contains
             mproc = donelist(jproc)
             if ( mproc <= rreq ) then
                iproc = rlist(mproc)
-               do concurrent ( iq=1:dslen(iproc) )
-                  s(dindex(iproc)%a(iq,1),dindex(iproc)%a(iq,2)) = dbuf(iproc)%b(iq)
+               do iq = 1,dslen(iproc)
+                  s(dindex(iproc)%a(iq,1),dindex(iproc)%a(iq,2)) &
+                      = dbuf(iproc)%b(iq)
                end do
             end if 
          end do
@@ -6079,8 +6138,11 @@ contains
             mproc = donelist(jproc)
             if ( mproc <= rreq ) then
                iproc = rlist(mproc)
-               do concurrent ( l=1:ntr, iq=1:dslen(iproc) )
-                  s(dindex(iproc)%a(iq,1),dindex(iproc)%a(iq,2),l) = dbuf(iproc)%b(iq+(l-1)*dslen(iproc))
+               do l = 1,ntr
+                  do iq = 1,dslen(iproc)
+                     s(dindex(iproc)%a(iq,1),dindex(iproc)%a(iq,2),l) &
+                         = dbuf(iproc)%b(iq+(l-1)*dslen(iproc))
+                  end do   
                end do
             end if   
          end do
