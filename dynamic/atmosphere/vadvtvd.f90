@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -37,6 +37,7 @@ use arrays_m
 use cc_mpi
 use cfrac_m, only : stratcloud
 use diag_m
+use kuocom_m
 use liqwpar_m  ! ifullw
 use map_m
 use newmpar_m
@@ -50,8 +51,6 @@ use vvel_m
 use xarrs_m
 
 implicit none
-
-include 'kuocom.h'     ! also with kbsav,ktsav
 
 integer ntr,k
 integer, dimension(ifull), intent(in) :: nits
@@ -293,8 +292,8 @@ if ( ntvd==2 ) then ! MC
       kp = nint(sign(1.,sdot(iq,k+1)))
       kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
       rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo = tarr(iq,kx)
       phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
+      fluxlo = tarr(iq,kx)
       ! higher order scheme
       fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -321,9 +320,9 @@ if ( ntvd==2 ) then ! MC
         kp = nint(sign(1.,sdot(iq,k+1)))
         kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
         rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
+        phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat        
         fluxlo = tarr(iq,kx)
-        phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat
-        ! higher order scheme
+        phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat        ! higher order scheme
         fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
         fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
       end do ! k
@@ -366,8 +365,8 @@ else if ( ntvd==3 ) then ! Superbee
       kp = nint(sign(1.,sdot(iq,k+1)))
       kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
       rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-      fluxlo = tarr(iq,kx)
       phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+      fluxlo = tarr(iq,kx)
       ! higher order scheme
       fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
       fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
@@ -394,8 +393,8 @@ else if ( ntvd==3 ) then ! Superbee
         kp = nint(sign(1.,sdot(iq,k+1)))
         kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
         rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-        fluxlo = tarr(iq,kx)
         phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+        fluxlo = tarr(iq,kx)
         ! higher order scheme
         fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
         fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))

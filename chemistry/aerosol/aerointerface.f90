@@ -72,7 +72,7 @@ use cloudmod, only : convectivecloudfrac    ! Prognostic strat cloud
 use const_phys                              ! Physical constants
 use extraout_m                              ! Additional diagnostics
 use infile                                  ! Input file routines
-use kuocomb_m                               ! JLM convection
+use kuocom_m                                ! JLM convection
 use latlong_m                               ! Lat/lon coordinates
 use liqwpar_m                               ! Cloud water mixing ratios
 use morepbl_m                               ! Additional boundary layer diagnostics
@@ -93,8 +93,6 @@ use work2_m                                 ! Diagnostic arrays
 use zenith_m                                ! Astronomy routines
 
 implicit none
-
-include 'kuocom.h'                          ! Convection parameters
 
 integer, intent(in) :: mins, aero_update
 integer k, j, tt, ttx, kinv, smins

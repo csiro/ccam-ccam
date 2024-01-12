@@ -276,7 +276,7 @@ contains
   use const_phys                    ! Physical constants
   use estab
   use filnames_m
-  use kuocomb_m                     ! JLM convection
+  use kuocom_m                      ! JLM convection
   use latlong_m
   use liqwpar_m                     ! Cloud water mixing ratios
   use map_m                         ! Grid map arrays

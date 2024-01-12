@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -39,6 +39,7 @@
       subroutine convjlm_init
       
       use cc_mpi, only : myid, ccmpi_abort, mydiag
+      use kuocom_m
       use map_m
       use newmpar_m, only : ifull, kl
       use parm_m
@@ -46,8 +47,6 @@
       use soil_m
 
       implicit none
-
-      include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
       
       integer iq,k,kt,nlayers,ntest,kb
       real frac,summ,sumb
@@ -314,7 +313,7 @@
       use cc_omp
       use cfrac_m
       use extraout_m
-      use kuocomb_m
+      use kuocom_m
       use liqwpar_m  ! ifullw
       use map_m
       use morepbl_m
@@ -328,8 +327,6 @@
       use work2_m   ! for wetfa!    JLM
 
       implicit none
-
-      include 'kuocom.h'   ! kbsav,ktsav,convfact,convpsav,ndavconv
 
       integer :: tile, js, je
       integer :: idjd_t

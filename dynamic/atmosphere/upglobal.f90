@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,6 +29,7 @@ use const_phys             ! Physical constants
 use diag_m                 ! Diagnostic routines
 use epst_m                 ! Off-centre terms
 use indices_m              ! Grid index arrays
+use kuocom_m               ! JLM convection
 use liqwpar_m              ! Cloud water mixing ratios
 use map_m                  ! Grid map arrays
 use newmpar_m              ! Grid parameters
@@ -51,8 +52,6 @@ use xarrs_m                ! Saved dynamic arrays
 use xyzinfo_m              ! Grid coordinate arrays
 
 implicit none
-
-include 'kuocom.h'         ! Convection parameters
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
 integer ii, intsch, iq, jj, k, kk

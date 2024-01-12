@@ -34,11 +34,10 @@
 !   debug        - additional debugging checks, but runs slower
 !   scm          - single column mode
 !   i8r8         - double precision mode
-!   OMP          - enable additional threads with OpenMP
-!   GPU          - target GPUs with OpenACC
+!   GPU          - target GPUs with OpenACC. additional physics enabled with GPUPHYSICS
 !   csircoupled  - CSIR coupled model
-!   usempi3      - optimse communication with MPI-3 shared memory (preferrd)
-!   share_ifullg - redice shared memory with MPI-3 (preferred) - requires usempi3
+!   usempi3      - optimse communication with MPI shared memory (preferred)
+!   share_ifullg - reduce shared memory with MPI (preferred) requires usempi3 directive
 !   vampir       - enable vampir profiling
     
 program globpe
@@ -71,7 +70,7 @@ use hs_phys_m                              ! Held & Suarez
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
-use kuocomb_m                              ! JLM convection
+use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlo                                    ! Ocean physics and prognostic arrays
@@ -118,9 +117,7 @@ use vcom_ccam                              ! CSIR (SA) ocean model
 #endif
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
-      
+     
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
 integer iq, k, js, je, tile
@@ -1184,38 +1181,7 @@ endif   ! (nllp>=5)
 return
 end subroutine setllp
 
-
-!--------------------------------------------------------------
-! INTIAL PARAMETERS
-blockdata main_blockdata
-
-implicit none
-
-include 'kuocom.h'           ! Convection parameters
-
-! Vertical mixing options
-data ncvmix/0/
-! Cumulus convection options
-data nkuo/23/,sigcb/1./,sig_ct/1./,rhcv/0./,rhmois/.1/,rhsat/1./
-data convfact/1.02/,convtime/.33/,shaltime/0./
-data alflnd/1.1/,alfsea/1.1/,fldown/.6/,iterconv/3/,ncvcloud/0/
-data nevapcc/0/,nevapls/-4/,nuvconv/0/
-data mbase/101/,mdelay/-1/,methprec/8/,nbase/-4/,detrain/.15/
-data entrain/.05/,methdetr/2/,detrainx/0./,dsig2/.15/,dsig4/.4/
-! Shallow convection options
-data ksc/-95/,kscsea/0/,kscmom/1/,sigkscb/.95/,sigksct/.8/
-data tied_con/2./,tied_over/0./,tied_rh/.75/
-! Other moist physics options
-data acon/.2/,bcon/.07/,rcm/.92e-5/
-data rcrit_l/.75/,rcrit_s/.85/,cld_decay/7200./
-! Cloud options
-data ldr/1/,nclddia/1/,nstab_cld/0/,nrhcrit/10/,sigcll/.95/ 
-data cldh_lnd/95./,cldm_lnd/85./,cldl_lnd/75./
-data cldh_sea/95./,cldm_sea/90./,cldl_sea/80./
-data ncloud/0/,vdeposition_mode/0/,tiedtke_form/0/
-
-end
-      
+    
 !--------------------------------------------------------------
 ! WRITE STATION DATA
 subroutine stationa
@@ -1401,7 +1367,7 @@ use histave_m                              ! Time average arrays
 use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
-use kuocomb_m                              ! JLM convection
+use kuocom_m                               ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
 use leoncld_mod                            ! Rotstayn microphysics
 use liqwpar_m                              ! Cloud water mixing ratios
@@ -1477,7 +1443,6 @@ use xyzinfo_m                              ! Grid coordinate arrays
 
 implicit none
 
-include 'kuocom.h'                         ! Convection parameters
 include 'version.h'                        ! Model version data
 
 integer, dimension(:), allocatable, save :: dumi
@@ -2314,7 +2279,7 @@ call epst_init(ifull)
 call extraout_init(ifull,nextout)
 call gdrag_init(ifull)
 call histave_init(ifull,kl,ms,ccycle,output_windmax)
-call kuocomb_init(ifull,kl)
+call kuocom_init(ifull,kl)
 call liqwpar_init(ifull,iextra,kl)
 call morepbl_init(ifull,kl)
 call nharrs_init(ifull,iextra,kl)
@@ -2624,6 +2589,7 @@ end subroutine globpe_init
 ! PREVIOUS VERSION DEFAULT PARAMETERS
 subroutine change_defaults(nversion)
 
+use kuocom_m                ! JLM convection
 use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
 use parmdyn_m               ! Dynamics parmaters
@@ -2631,8 +2597,6 @@ use parmhor_m               ! Horizontal advection parameters
 use parmhdff_m              ! Horizontal diffusion parameters
 
 implicit none
-
-include 'kuocom.h'          ! Convection parameters
 
 integer, intent(in) :: nversion
 
@@ -2809,6 +2773,7 @@ use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
 use indata                                 ! Data initialisation
 use infile                                 ! Input file routines
+use kuocom_m                               ! JLM convection
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use parm_m                                 ! Model configuration
@@ -2821,8 +2786,6 @@ use staguvmod                              ! Reversible grid staggering
 use stime_m                                ! File date data
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer i
 integer, dimension(119) :: dumi
@@ -3165,14 +3128,13 @@ use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
     ,so4mtn,carbmtn,saltsmallmtn         &
     ,saltlargemtn,enhanceu10
 use cc_mpi                                 ! CC MPI routines
+use kuocom_m                               ! JLM convection
 use module_aux_rad                         ! Additional cloud and radiation routines
 use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
 use seaesfrad_m                            ! SEA-ESF radiation
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, dimension(17) :: dumi
 real, dimension(10) :: dumr
@@ -3251,11 +3213,10 @@ subroutine broadcast_datafile
 
 use cc_mpi                                 ! CC MPI routines
 use filnames_m                             ! Filenames
+use kuocom_m                               ! JLM convection
 use parm_m                                 ! Model configuration
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, dimension(24) :: dumi
     
@@ -3358,13 +3319,12 @@ subroutine broadcast_kuonml
 
 use cc_mpi                                 ! CC MPI routines
 use cloudmod                               ! Prognostic cloud fraction
+use kuocom_m                               ! JLM convection
 use leoncld_mod                            ! Rotstayn microphysics
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use parm_m                                 ! Model configuration
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, dimension(27) :: dumi
 real, dimension(35) :: dumr
@@ -3508,12 +3468,11 @@ end subroutine broadcast_kuonml
 subroutine broadcast_turbnml
 
 use cc_mpi                                 ! CC MPI routines
+use kuocom_m                               ! JLM convection
 use parm_m                                 ! Model configuration
 use tkeeps                                 ! TKE-EPS boundary layer
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, dimension(6) :: dumi
 real, dimension(33) :: dumr
@@ -3656,11 +3615,10 @@ use cable_ccam, only : proglai           & ! CABLE
     ,cable_gw_model,cable_roughness      &
     ,cable_version,cable_potev
 use cc_mpi                                 ! CC MPI routines
+use kuocom_m                               ! JLM convection
 use parm_m                                 ! Model configuration
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, dimension(28) :: dumi
 real, dimension(24) :: dumr
@@ -3784,6 +3742,7 @@ end subroutine broadcast_landnml
 subroutine broadcast_mlonml
 
 use cc_mpi                                 ! CC MPI routines
+use kuocom_m                               ! JLM convection
 use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,factchseaice,minwater,mxd,mindep    &
     ,alphavis_seaice,alphanir_seaice     &
@@ -3804,8 +3763,6 @@ use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use river                                  ! River routing
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, dimension(30) :: dumi
 real, dimension(23) :: dumr    
@@ -3931,13 +3888,12 @@ end subroutine broadcast_mlonml
 subroutine broadcast_trfiles
 
 use cc_mpi                                 ! CC MPI routines
+use kuocom_m                               ! JLM convection
 use tracermodule, only : tracerlist      & ! Tracer routines
     ,sitefile,shipfile,writetrpm         &
     ,init_tracer
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, dimension(1) :: dumi
     
@@ -4613,7 +4569,7 @@ use diag_m                                 ! Diagnostic routines
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
-use kuocomb_m                              ! JLM convection
+use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters

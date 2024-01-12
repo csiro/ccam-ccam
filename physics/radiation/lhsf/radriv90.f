@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -47,7 +47,7 @@
       use extraout_m ! sintsave, etc
       use infile
       use kdacom_m, only : kdacom_init
-      use kuocomb_m
+      use kuocom_m
       use latlong_m
       use liqwpar_m  ! ifullw
       use lwout_m
@@ -81,7 +81,6 @@
 !        or, usefully can edit 'ntest.gt.0' to 'ktau.gt.nnn'
       integer ixin
       integer kcl_top       !max level for cloud top (conjob,radrive,vertmix)
-      include 'kuocom.h'     ! also with kbsav,ktsav
 !     For the radiation code
       include 'rdparm.h'   ! imax
       include 'hcon.h'

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -65,6 +65,7 @@ c******************************************************************************
       use diag_m
       use cc_mpi, only : mydiag,myid
       use const_phys
+      use kuocom_m
       use leoncld_mod
       use newmpar_m
       use parm_m
@@ -72,7 +73,6 @@ c******************************************************************************
       use sigs_m
       implicit none
 C Global parameters
-      include 'kuocom.h'     ! ldr
       include 'rdparm.h'     !Input radiation scheme parameters
       include 'hcon.h'       !Input radiation physical constants
 

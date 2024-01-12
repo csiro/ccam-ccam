@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -171,6 +171,7 @@ use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
 use filnames_m                             ! Filenames
 use infile                                 ! Input file routines
+use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
 use leoncld_mod                            ! Rotstayn microphysics
 use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
@@ -205,8 +206,6 @@ use tkeeps                                 ! TKE-EPS boundary layer
 use tracers_m                              ! Tracer data
 
 implicit none
-
-include 'kuocom.h'                         ! Convection parameters
 
 integer, parameter :: nihead=54
 integer, parameter :: nrhead=14
@@ -1007,6 +1006,7 @@ use filnames_m                                   ! Filenames
 use gdrag_m                                      ! Gravity wave drag
 use histave_m                                    ! Time average arrays
 use infile                                       ! Input file routines
+use kuocom_m                                     ! JLM convection
 use latlong_m                                    ! Lat/lon coordinates
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
@@ -1068,7 +1068,6 @@ use xarrs_m, only : pslx                         ! Saved dynamic arrays
 
 implicit none
 
-include 'kuocom.h'                               ! Convection parameters
 include 'version.h'                              ! Model version data
 
 integer, intent(in) :: iarch, itype, iout, idnc
@@ -3830,6 +3829,7 @@ use extraout_m                        ! Additional diagnostics
 use filnames_m                        ! Filenames
 use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
+use kuocom_m                          ! JLM convection
 use liqwpar_m                         ! Cloud water mixing ratios
 use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
@@ -3853,7 +3853,6 @@ use work2_m                           ! Diagnostic arrays
       
 implicit none
 
-include 'kuocom.h'                    ! Convection parameters
 include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 31  ! number of variables to average
@@ -5037,6 +5036,7 @@ use extraout_m                        ! Additional diagnostics
 use filnames_m                        ! Filenames
 use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
+use kuocom_m                          ! JLM convection
 use liqwpar_m                         ! Cloud water mixing ratios
 use morepbl_m                         ! Additional boundary layer diagnostics
 use newmpar_m                         ! Grid parameters
@@ -5058,7 +5058,6 @@ use tracers_m                         ! Tracer data
       
 implicit none
 
-include 'kuocom.h'                    ! Convection parameters
 include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 2  ! number of variables to average

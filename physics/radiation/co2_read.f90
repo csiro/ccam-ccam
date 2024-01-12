@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -47,8 +47,6 @@ use parm_m
 use radisw_m
       
 implicit none
-      
-include 'rdparm.h'
       
 real, intent(inout) :: csolar
 real, dimension(kl), intent(in) :: sigma
@@ -353,9 +351,7 @@ else
     read(lu,*) co218
     close(lu)
   end if
-  rdum(1)=rrvco2
-  call ccmpi_bcast(rdum(1:1),0,comm_world)
-  rrvco2=rdum(1)
+  call ccmpi_bcast(rrvco2,0,comm_world)
   call ccmpi_bcast(stemp,0,comm_world)
   call ccmpi_bcast(gtemp,0,comm_world)
   call ccmpi_bcast(cdt51,0,comm_world)

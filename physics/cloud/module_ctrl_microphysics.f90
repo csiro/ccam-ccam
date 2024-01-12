@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -69,7 +69,7 @@ use cloudmod                      ! Prognostic cloud fraction
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
 use filnames_m                    ! Filenames
-use kuocomb_m                     ! JLM convection
+use kuocom_m                      ! JLM convection
 use latlong_m                     ! Lat/lon coordinates
 use leoncld_mod                   ! Prognostic cloud condensate
 use liqwpar_m                     ! Cloud water mixing ratios
@@ -94,8 +94,6 @@ use work3f_m                      ! Grid work arrays
 use vvel_m                        ! Additional vertical velocity
 
 implicit none
-
-include 'kuocom.h'                ! Convection parameters
   
 integer :: tile, js, je, k, n, iq
 integer :: njumps, m, idjd_t

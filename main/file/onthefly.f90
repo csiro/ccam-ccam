@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -344,6 +344,7 @@ use extraout_m                                 ! Additional diagnostics
 use histave_m, only : cbas_ave,ctop_ave,      &     
     wb_ave,tscr_ave,rhscr_ave                  ! Time average arrays
 use infile                                     ! Input file routines
+use kuocom_m                                   ! JLM convection
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
 use mlo, only : wlev,micdwn,mloregrid,wrtemp, &
@@ -382,8 +383,6 @@ use work2_m                                    ! Diagnostic arrays
 use xarrs_m, only : pslx                       ! Saved dynamic arrays
 
 implicit none
-
-include 'kuocom.h'                             ! Convection parameters
 
 real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid matching
 real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data
@@ -2364,6 +2363,8 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+
+! use tiles to improve cache utilisation?
 
 !$omp parallel do schedule(static) private(tile,js,je,iq,mm,n,idel,xxg,jdel,yyg)       &
 !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &

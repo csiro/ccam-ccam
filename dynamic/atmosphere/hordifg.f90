@@ -62,6 +62,7 @@ use cfrac_m
 use const_phys
 use dpsdt_m
 use indices_m
+use kuocom_m
 use liqwpar_m
 use map_m
 use newmpar_m
@@ -77,8 +78,6 @@ use vecsuv_m
 use vvel_m
 
 implicit none
-
-include 'kuocom.h'
 
 real, dimension(ifull+iextra,kl,4) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
@@ -247,7 +246,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
 end if ! nvmix=6 .or. nvmix==9
       
 ! usual deformation for nhorjlm=1 or nhorjlm=2
-if ( nhorjlm==1 .or. nhorjlm==2 ) then 
+if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
   do k = 1,kl
     ! in hordifgt, need to calculate Cartesian components 
     work(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
@@ -356,76 +355,93 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 
 ! perform diffusion ---------------------------------------------------
 
-! momentum U, V, W
+! momentum U, V, W - bounds updated above
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  work(1:ifull,:,1) = uc(1:ifull,:)
-  work(1:ifull,:,2) = vc(1:ifull,:)
-  work(1:ifull,:,3) = wc(1:ifull,:)
-  call hordifgt_work(work(:,:,1:3),xfact,yfact,emi)
-  u(1:ifull,k) = ax(1:ifull)*work(1:ifull,k,1) &
-               + ay(1:ifull)*work(1:ifull,k,2) &
-               + az(1:ifull)*work(1:ifull,k,3)
-  v(1:ifull,k) = bx(1:ifull)*work(1:ifull,k,1) &
-               + by(1:ifull)*work(1:ifull,k,2) &
-               + bz(1:ifull)*work(1:ifull,k,3)
+  call hordifgt_work(uc,xfact,yfact,emi)
+  call hordifgt_work(vc,xfact,yfact,emi)
+  call hordifgt_work(wc,xfact,yfact,emi)
+  do k = 1,kl
+    u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
+                 + ay(1:ifull)*vc(1:ifull,k) &
+                 + az(1:ifull)*wc(1:ifull,k)
+    v(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) &
+                 + by(1:ifull)*vc(1:ifull,k) &
+                 + bz(1:ifull)*wc(1:ifull,k)
+  end do
 end if  
+
 
 ! potential temperture and water vapour
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
-  do k = 1,kl  
-    work(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull)
-  end do  
-  work(1:ifull,:,2) = qg(1:ifull,:)
-  call hordifgt_work(work(:,:,1:2),xfact,yfact,emi)
-  do k = 1,kl
-    t(1:ifull,k)  = work(1:ifull,k,1)*ptemp(1:ifull)
-  end do  
-  qg(1:ifull,:) = work(1:ifull,:,2)
-end if
-
-! potential temperature (only)
-if ( nhorps==-5 ) then
+  work(:,:,1:2) = 0.  
   do k = 1,kl
     work(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull)
-  end do  
-  call hordifgt_work(work(:,:,1:1),xfact,yfact,emi)
+    work(1:ifull,k,2) = qg(1:ifull,k)
+  end do
+  call bounds(work(:,:,1:2))
+  t(:,:)  = work(:,:,1)
+  qg(:,:) = work(:,:,2)
+  call hordifgt_work(t,xfact,yfact,emi)
+  call hordifgt_work(qg,xfact,yfact,emi)
   do k = 1,kl
-    t(1:ifull,k)  = work(1:ifull,k,1)*ptemp(1:ifull)
-  end do  
-end if
-
-! water vapour (only)
-if ( nhorps==-3 ) then  
-  work(1:ifull,:,1) = qg(1:ifull,:)
-  call hordifgt_work(work(:,:,1:1),xfact,yfact,emi)
-  qg(1:ifull,:)  = work(1:ifull,:,1)
+    t(1:ifull,k) = t(1:ifull,k)*ptemp(1:ifull)  
+  end do
+else if ( nhorps==-5 ) then
+  call bounds(t)  
+  call hordifgt_work(t,xfact,yfact,emi)
+else if ( nhorps==-3 ) then  
+  call bounds(qg)  
+  call hordifgt_work(qg,xfact,yfact,emi)  
 end if  
 
 ! cloud liquid & frozen water plus cloud fraction
 if ( nhorps==-4 .and. ldr/=0 ) then  
-  work(1:ifull,:,1) = qlg(1:ifull,:)
-  work(1:ifull,:,2) = qfg(1:ifull,:)
-  work(1:ifull,:,3) = stratcloud(1:ifull,:)
-  work(1:ifull,:,4) = ni(1:ifull,:)
-  call hordifgt_work(work(:,:,1:4),xfact,yfact,emi)
-  qlg(1:ifull,:)        = work(1:ifull,:,1)
-  qfg(1:ifull,:)        = work(1:ifull,:,2)
-  stratcloud(1:ifull,:) = work(1:ifull,:,3)
-  ni(1:ifull,:)         = work(1:ifull,:,4)
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    work(1:ifull,:,1) = qlg(1:ifull,:)
+    work(1:ifull,:,2) = qfg(1:ifull,:)
+    work(1:ifull,:,3) = stratcloud(1:ifull,:)
+    work(1:ifull,:,4) = ni(1:ifull,:)
+    call bounds(work(:,:,1:4))
+    qlg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,1)
+    qfg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,2)
+    stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
+    ni(ifull+1:ifull+iextra,:)         = work(ifull+1:ifull+iextra,:,4)
+  else  
+    work(1:ifull,:,1) = qlg(1:ifull,:)
+    work(1:ifull,:,2) = qfg(1:ifull,:)
+    work(1:ifull,:,3) = stratcloud(1:ifull,:)
+    call bounds(work(:,:,1:3))
+    qlg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,1)
+    qfg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,2)
+    stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
+  end if
+  call hordifgt_work(qlg,xfact,yfact,emi)
+  call hordifgt_work(qfg,xfact,yfact,emi)
+  call hordifgt_work(stratcloud,xfact,yfact,emi)
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    call hordifgt_work(ni,xfact,yfact,emi)
+  end if
 end if
+
 
 ! tke and eps
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   work(1:ifull,:,1) = tke(1:ifull,:)
   work(1:ifull,:,2) = eps(1:ifull,:)
-  call hordifgt_work(work(:,:,1:2),xfact,yfact,emi)
-  tke(1:ifull,:) = work(1:ifull,:,1)
-  eps(1:ifull,:) = work(1:ifull,:,2)
+  call bounds(work(:,:,1:2))
+  tke(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,1)
+  eps(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
+  call hordifgt_work(eps,xfact,yfact,emi)
+  call hordifgt_work(tke,xfact,yfact,emi)
 end if
 
-! prognostic aerosols (disabled by default)
+
+! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  call hordifgt_work(xtg(:,:,1:ntr),xfact,yfact,emi)
+  call bounds(xtg)  
+  do ntr = 1,naero
+    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
+  end do
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
 
@@ -444,53 +460,40 @@ end subroutine hordifgt
 
 subroutine hordifgt_work(work,xfact,yfact,emi)
 
-use cc_mpi, only : bounds, nagg
 use indices_m
 use newmpar_m
 
 implicit none
 
-integer k, iq, ntr
-integer nstart, nend, nlen, nn, np
+integer k, iq
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
-real, dimension(:,:,:), intent(inout) :: work
-real, dimension(ifull) :: ans
+real, dimension(ifull+iextra,kl), intent(inout) :: work
+real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
-ntr = size(work,3)
-
-do nstart = 1,ntr,nagg
-  nend = min(nstart + nagg - 1, ntr )
-  nlen = nend - nstart + 1
-  
-  call bounds(work(:,:,nstart:nend))
-
-  !$omp parallel do schedule(static) private(nn,np,async_counter,k,iq,xfact_iwu,yfact_isv,base)
-  do nn = 1,nlen
-    np = nn - 1 + nstart  
-    do k = 1,kl
-      do iq = 1,ifull  
-        xfact_iwu = xfact(iwu(iq),k)
-        yfact_isv = yfact(isv(iq),k)
-        base = emi(iq)+xfact(iq,k)+xfact_iwu  &
-                      +yfact(iq,k)+yfact_isv
-        ans(iq) = ( emi(iq)*work(iq,k,np) +            &
-                 xfact(iq,k)*work(ie(iq),k,np) +       &
-                 xfact_iwu*work(iw(iq),k,np) +         &
-                 yfact(iq,k)*work(in(iq),k,np) +       &
-                 yfact_isv*work(is(iq),k,np) )         &
-              / base 
-      end do
-      do iq = 1,ifull
-        work(iq,k,np) = ans(iq)
-      end do
-    end do
+!$omp parallel do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
+do k = 1,kl
+  do iq = 1,ifull  
+    xfact_iwu = xfact(iwu(iq),k)
+    yfact_isv = yfact(isv(iq),k)
+    base = emi(iq)+xfact(iq,k)+xfact_iwu  &
+                  +yfact(iq,k)+yfact_isv
+    ans(iq,k) = ( emi(iq)*work(iq,k) +               &
+                  xfact(iq,k)*work(ie(iq),k) +       &
+                  xfact_iwu*work(iw(iq),k) +         &
+                  yfact(iq,k)*work(in(iq),k) +       &
+                  yfact_isv*work(is(iq),k) )         &
+               / base 
+  end do  
+end do
+!$omp end parallel do
+do k = 1,kl
+  do iq = 1,ifull
+    work(iq,k) = ans(iq,k)
   end do
-  !$omp end parallel do
- 
-end do ! nstart  
-  
+end do
+
 return
 end subroutine hordifgt_work
 

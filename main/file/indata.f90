@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -74,6 +74,7 @@ use filnames_m                                   ! Filenames
 use gdrag_m                                      ! Gravity wave drag
 use indices_m                                    ! Grid index arrays
 use infile                                       ! Input file routines
+use kuocom_m                                     ! JLM convection
 use latlong_m                                    ! Lat/lon coordinates
 use latltoij_m                                   ! Lat/Lon to cubic ij conversion
 use liqwpar_m                                    ! Cloud water mixing ratios
@@ -112,8 +113,6 @@ use vcom_ccam
 #endif
 
 implicit none
-      
-include 'kuocom.h'                               ! Convection parameters
 
 integer, parameter :: jlmsigmf = 1      ! 1 for jlm fixes to dean's data
 integer, parameter :: nfixwb   = 2      ! 0, 1 or 2; wb fixes with nrungcm=1
@@ -3169,7 +3168,7 @@ parameter (ccd   = 15.0)         ! constant in d/h equation
 parameter (ccw   = 2.0)          ! ccw=(zw-d)/(h-d)
 parameter (usuhm = 0.3)          ! (max of us/uh)
 parameter (vonk  = 0.4)          ! von karman constant
-psih=alog(ccw)-1.0+1.0/ccw  ! i.e. .19315
+psih=log(ccw)-1.0+1.0/ccw  ! i.e. .19315
 rl = rlai*0.5
 ! find uh/us
 usuhl  = sqrt(cs+cr*rl)            ! sqrt(.003 + .15*rlai)

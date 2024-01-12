@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -146,6 +146,7 @@ use const_phys                                      ! Physical constants
 use extraout_m                                      ! Additional diagnostics
 use estab                                           ! Liquid saturation function
 use infile                                          ! Input file routines
+use kuocom_m                                        ! JLM convection
 use latlong_m                                       ! Lat/lon coordinates
 use liqwpar_m, only : stras_rliq,stras_rice, &      ! Cloud water mixing ratios
       stras_cliq, stras_cice
@@ -165,8 +166,6 @@ use work3f_m                                        ! Grid work arrays
 use zenith_m                                        ! Astronomy routines
 
 implicit none
-
-include 'kuocom.h'                                  ! Convection parameters
 
 integer, intent(inout) :: koundiag
 integer k
@@ -1207,6 +1206,7 @@ use cc_omp
 use co2_read_m
 use extraout_m
 use infile
+use kuocom_m
 use newmpar_m
 use ozoneread
 use parm_m
@@ -1216,8 +1216,6 @@ use sigs_m
 use zenith_m
 
 implicit none
-
-include 'kuocom.h'
 
 integer k, kr, mythread
 integer jyear, jmonth, jday, jhour, jmin, mins
