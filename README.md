@@ -16,11 +16,7 @@ For documentation, see our website at
 
 ## Dependencies
 
-CCAM requires the following libraries
-
-NetCDF
-Message Passing Interface (MPI)
-
+CCAM requires the NetCDF and Message Passing Interface (MPI) libraries.
 Although CCAM is written in fortran, it links with the NetCDF C library.
 
 
