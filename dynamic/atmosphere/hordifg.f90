@@ -486,11 +486,13 @@ do k = 1,kl
                   yfact_isv*work(is(iq),k) )         &
                / base 
   end do  
+end do  
+!$omp end parallel do
+do k = 1,kl
   do iq = 1,ifull
     work(iq,k) = ans(iq,k)
   end do
 end do
-!$omp end parallel do
 
 return
 end subroutine hordifgt_work
