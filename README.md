@@ -22,7 +22,7 @@ Although CCAM is written in fortran, it links with the NetCDF C library.
 
 ## Building CCAM
 
-To build CCAM with the intel, gnu and cray compiler use
+To build CCAM with the intel, gnu and cray fortran compiler use
 
 ```
 make

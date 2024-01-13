@@ -2412,7 +2412,7 @@ implicit none
 integer, intent(in) :: ufull, diag
 integer ifrac
 real, dimension(:), intent(inout) :: o_data
-real, dimension(ufull) :: ctmp, dtmp
+real, dimension(ufull) :: dtmp
 character(len=*), intent(in) :: mode
 logical, dimension(:), intent(in) :: upack
 type(fparmdata), intent(in) :: fp
@@ -2428,65 +2428,49 @@ select case(mode)
     do ifrac = 1,nfrac
       dtmp = dtmp + pd(ifrac)%emiss*pd(ifrac)%frac_sigma
     end do  
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
+    o_data = unpack(dtmp, upack, o_data)
   case("snowt")
     dtmp = 0.
     do ifrac = 1,nfrac
       dtmp = dtmp + pd(ifrac)%snowt*pd(ifrac)%frac_sigma  
     end do    
-    ctmp=pack(o_data,upack)
-    ctmp=(1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data=unpack(ctmp,upack,o_data)    
+    o_data = unpack(dtmp, upack, o_data)
   case("vegt")
     dtmp = 0.
     do ifrac = 1,nfrac
       dtmp = dtmp + pd(ifrac)%vegt*pd(ifrac)%frac_sigma  
     end do    
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
+    o_data = unpack(dtmp, upack, o_data)
   case("tairbuilding")
     dtmp = 0.
     do ifrac = 1,nfrac
       dtmp = dtmp + (room(ifrac)%nodetemp(:,1)+urbtemp)*pd(ifrac)%frac_sigma  
     end do    
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
+    o_data = unpack(dtmp, upack, o_data)
   case("salbedo")
     dtmp = 0.
     do ifrac = 1,nfrac
       dtmp = dtmp + pd(ifrac)%salbedo*pd(ifrac)%frac_sigma  
     end do    
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)      
+    o_data = unpack(dtmp, upack, o_data)
   case("calbedo")
     dtmp = 0.
     do ifrac = 1,nfrac
       dtmp = dtmp + pd(ifrac)%calbedo*pd(ifrac)%frac_sigma  
     end do    
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
+    o_data = unpack(dtmp, upack, o_data)
   case("urbanlai")
     dtmp = 0.
     do ifrac = 1,nfrac
       dtmp = dtmp + pd(ifrac)%ulai*pd(ifrac)%frac_sigma  
-    end do    
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp, upack, o_data)
+    end do
+    o_data = unpack(dtmp, upack, o_data)
   case("taircanyon")
     dtmp = 0.
     do ifrac = 1,nfrac
-      dtmp = dtmp + pd(ifrac)%taircanyon*pd(ifrac)%frac_sigma  
+      dtmp = dtmp + (pd(ifrac)%taircanyon+urbtemp)*pd(ifrac)%frac_sigma  
     end do    
-    ctmp = pack(o_data, upack)
-    ctmp = (1.-fp%sigmau)*ctmp + fp%sigmau*dtmp
-    o_data = unpack(ctmp+urbtemp, upack, o_data)      
+    o_data = unpack(dtmp, upack, o_data)      
   case default
     write(6,*) "ERROR: Unknown atebmisc mode ",trim(mode)
     stop

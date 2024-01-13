@@ -3855,7 +3855,7 @@ implicit none
 
 include 'version.h'                   ! Model version data
 
-integer, parameter :: freqvars = 31  ! number of variables to average
+integer, parameter :: freqvars = 32  ! number of variables to average
 integer, parameter :: runoffvars = 4 ! number of runoff variables
 integer, parameter :: nihead   = 54
 integer, parameter :: nrhead   = 14
@@ -4625,12 +4625,12 @@ if ( abs(iaero)>=2 ) then
   freqstore(1:ifull,29) = freqstore(1:ifull,29) + sum(opticaldepth(:,1:7,1),dim=2) &
                                                  /real(nperday)
 end if
-
 umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
 where ( u10**2 > freqstore(1:ifull,30)**2 + freqstore(1:ifull,31)**2 )
   freqstore(1:ifull,30) = u10(:)*u(1:ifull,1)/max(0.001,umag)
   freqstore(1:ifull,31) = u10(:)*v(1:ifull,1)/max(0.001,umag)
 end where
+freqstore(1:ifull,32) = freqstore(1:ifull,32) + anthropogenic_flux/real(tbave)
 
 
 shallow_zse(:) = 0.
@@ -4974,7 +4974,7 @@ if ( mod(ktau,tbave)==0 ) then
   end if
   
   if ( cordex_urbrcc ) then
-    call histwrt(anthropogenic_ave,'anth_ave',fncid,fiarch,local,.true.) 
+    call histwrt(freqstore(1:ifull,32),'anth_ave',fncid,fiarch,local,.true.) 
     call histwrt(urban_ts,'tsskin',fncid,fiarch,local,.true.)
     outdata = 999.
     call atebavetemp(outdata,"roadtemp1",0)  
