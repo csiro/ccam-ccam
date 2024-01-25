@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -146,13 +146,59 @@ end do
 
 call bounds(s,nrows=2)
 
+!$acc enter data create(wx)
+
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
     
+  do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+    do n = 1,npan
+      do j = 1,jpan
+        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+        wx(0,j,n,k)      = wtr( iw(iq),k)
+        wx(-1,j,n,k)     = wtr(iww(iq),k)
+        iq = j*ipan+(n-1)*ipan*jpan
+        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+      end do            ! j loop
+      do i = 1,ipan
+        iq = i+(n-1)*ipan*jpan
+        wx(i,0,n,k)      = wtr( is(iq),k)
+        wx(i,-1,n,k)     = wtr(iss(iq),k)
+        iq = i-ipan+n*ipan*jpan
+        wx(i,jpan+1,n,k) = wtr( in(iq),k)
+        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+      end do            ! i loop
+    end do
+!   for ew interpolation, sometimes need (different from ns):
+!       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+    do n = 1,npan
+      wx(-1,0,n,k)          = wtr(lwws(n),                  k)
+      wx(0,0,n,k)           = wtr(iws(1+(n-1)*ipan*jpan),   k)
+      wx(0,-1,n,k)          = wtr(lwss(n),                  k)
+      wx(ipan+1,0,n,k)      = wtr(ies(ipan+(n-1)*ipan*jpan),k)
+      wx(ipan+2,0,n,k)      = wtr(lees(n),                  k)
+      wx(ipan+1,-1,n,k)     = wtr(less(n),                  k)
+      wx(-1,jpan+1,n,k)     = wtr(lwwn(n),                  k)
+      wx(0,jpan+2,n,k)      = wtr(lwnn(n),                  k)
+      wx(ipan+2,jpan+1,n,k) = wtr(leen(n),                  k)
+      wx(ipan+1,jpan+2,n,k) = wtr(lenn(n),                  k)
+      wx(0,jpan+1,n,k)      = wtr(iwn(1-ipan+n*ipan*jpan),  k)
+      wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
+    end do           ! n loop
+  end do             ! k loop
+
+  !$acc update device(wx)    
+
+
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr)
     nlen = nend - nstart + 1
 
+    !$omp parallel do schedule(static) private(np,i,j,nn,ii,k,iq,idel,jdel,n,xxg,yyg)
     do nn = 1,nlen
       np = nn - 1 + nstart  
       do k = 1,wlev
@@ -194,51 +240,8 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
-    end do               ! nn loop  
-
-    do k = 1,wlev
-      wx(1:ipan,1:jpan,1:npan,k) = &
-        reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
-      do n = 1,npan
-        do j = 1,jpan
-          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
-          wx(0,j,n,k)      = wtr( iw(iq),k)
-          wx(-1,j,n,k)     = wtr(iww(iq),k)
-          iq = j*ipan+(n-1)*ipan*jpan
-          wx(ipan+1,j,n,k) = wtr( ie(iq),k)
-          wx(ipan+2,j,n,k) = wtr(iee(iq),k)
-        end do            ! j loop
-        do i = 1,ipan
-          iq = i+(n-1)*ipan*jpan
-          wx(i,0,n,k)      = wtr( is(iq),k)
-          wx(i,-1,n,k)     = wtr(iss(iq),k)
-          iq = i-ipan+n*ipan*jpan
-          wx(i,jpan+1,n,k) = wtr( in(iq),k)
-          wx(i,jpan+2,n,k) = wtr(inn(iq),k)
-        end do            ! i loop
-      end do
-!   for ew interpolation, sometimes need (different from ns):
-!       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-!     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-      do n = 1,npan
-        wx(-1,0,n,k)          = wtr(lwws(n),                  k)
-        wx(0,0,n,k)           = wtr(iws(1+(n-1)*ipan*jpan),   k)
-        wx(0,-1,n,k)          = wtr(lwss(n),                  k)
-        wx(ipan+1,0,n,k)      = wtr(ies(ipan+(n-1)*ipan*jpan),k)
-        wx(ipan+2,0,n,k)      = wtr(lees(n),                  k)
-        wx(ipan+1,-1,n,k)     = wtr(less(n),                  k)
-        wx(-1,jpan+1,n,k)     = wtr(lwwn(n),                  k)
-        wx(0,jpan+2,n,k)      = wtr(lwnn(n),                  k)
-        wx(ipan+2,jpan+1,n,k) = wtr(leen(n),                  k)
-        wx(ipan+1,jpan+2,n,k) = wtr(lenn(n),                  k)
-        wx(0,jpan+1,n,k)      = wtr(iwn(1-ipan+n*ipan*jpan),  k)
-        wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
-      end do           ! n loop
-    end do             ! k loop
-
   
-    ! Loop over points that need to be calculated for other processes
-    do nn = 1,nlen
+      ! Loop over points that need to be calculated for other processes
       if ( bs_test(nn-1+nstart) ) then
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
@@ -269,19 +272,22 @@ if ( intsch==1 ) then
         end do            ! ii loop
       end if              ! bs_test ..else.. 
     end do                ! nn loop  
+    !$omp end parallel do
 
     call intssync_send(nlen)
 
-    !$acc enter data create(wx)
-    !$acc update device(wx)    
 #ifndef GPU
-    !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
+    !$omp parallel
 #endif    
     do nn = 1,nlen
-      async_counter = mod(nn-1, async_length)
       if ( bs_test(nn-1+nstart) ) then
+#ifdef GPU
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
+#else
+        !$omp do schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -294,10 +300,19 @@ if ( intsch==1 ) then
             s(iq,k,nn-1+nstart) = intintp1bs(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do       ! iq loop
         end do         ! k loop
+#ifdef GPU
         !$acc end parallel loop
+#else
+        !$omp end do nowait
+#endif
       else
+#ifdef GPU
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
+#else
+        !$omp do schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -310,14 +325,18 @@ if ( intsch==1 ) then
             s(iq,k,nn-1+nstart) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do       ! iq loop
         end do         ! k loop
+#ifdef GPU
         !$acc end parallel loop
+#else
+        !$omp end do nowait
+#endif
       end if           ! bs_test ..else..
     end do             ! nn loop
-#ifndef GPU
-    !$omp end parallel do
-#endif
+#ifdef GPU
     !$acc wait
-    !$acc exit data delete(wx)
+#else
+    !$omp end parallel
+#endif
 
     call intssync_recv(s(:,:,nstart:nend))  
     
@@ -329,10 +348,54 @@ else     ! if(intsch==1)then
 !       this is intsc           NS interps done first
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
+  do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+    do n = 1,npan
+      do j = 1,jpan
+        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+        wx(0,j,n,k)      = wtr( iw(iq),k)
+        wx(-1,j,n,k)     = wtr(iww(iq),k)
+        iq = j*ipan+(n-1)*ipan*jpan
+        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+      end do            ! j loop
+      do i = 1,ipan
+        iq = i+(n-1)*ipan*jpan
+        wx(i,0,n,k)      = wtr( is(iq),k)
+        wx(i,-1,n,k)     = wtr(iss(iq),k)
+        iq = i-ipan+n*ipan*jpan
+        wx(i,jpan+1,n,k) = wtr( in(iq),k)
+        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+      end do            ! i loop
+    end do
+!   for ns interpolation, sometimes need (different from ew):
+!        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+    do n = 1,npan
+      wx(-1,0,n,k)          = wtr(lsww(n),k)
+      wx(0,0,n,k)           = wtr(isw(1+(n-1)*ipan*jpan),   k)
+      wx(0,-1,n,k)          = wtr(lssw(n),k)
+      wx(ipan+2,0,n,k)      = wtr(lsee(n),k)
+      wx(ipan+1,-1,n,k)     = wtr(lsse(n),k)
+      wx(-1,jpan+1,n,k)     = wtr(lnww(n),k)
+      wx(0,jpan+1,n,k)      = wtr(inw(1-ipan+n*ipan*jpan),  k)
+      wx(0,jpan+2,n,k)      = wtr(lnnw(n),k)
+      wx(ipan+2,jpan+1,n,k) = wtr(lnee(n),k)
+      wx(ipan+1,jpan+2,n,k) = wtr(lnne(n),k)
+      wx(ipan+1,0,n,k)      = wtr(ise(ipan+(n-1)*ipan*jpan),k)
+      wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
+    end do           ! n loop
+  end do             ! k loop 
+
+  !$acc update device(wx)
+
+
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr)
     nlen = nend - nstart + 1
-    
+
+    !$omp parallel do schedule(static) private(np,i,j,nn,ii,k,iq,idel,jdel,n,xxg,yyg)    
     do nn = 1,nlen
       np = nn - 1 + nstart      
       do k = 1,wlev
@@ -374,51 +437,8 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
-    end do               ! nn loop
-    
-    do k = 1,wlev
-      wx(1:ipan,1:jpan,1:npan,k) = &
-        reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
-      do n = 1,npan
-        do j = 1,jpan
-          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
-          wx(0,j,n,k)      = wtr( iw(iq),k)
-          wx(-1,j,n,k)     = wtr(iww(iq),k)
-          iq = j*ipan+(n-1)*ipan*jpan
-          wx(ipan+1,j,n,k) = wtr( ie(iq),k)
-          wx(ipan+2,j,n,k) = wtr(iee(iq),k)
-        end do            ! j loop
-        do i = 1,ipan
-          iq = i+(n-1)*ipan*jpan
-          wx(i,0,n,k)      = wtr( is(iq),k)
-          wx(i,-1,n,k)     = wtr(iss(iq),k)
-          iq = i-ipan+n*ipan*jpan
-          wx(i,jpan+1,n,k) = wtr( in(iq),k)
-          wx(i,jpan+2,n,k) = wtr(inn(iq),k)
-        end do            ! i loop
-      end do
-!   for ns interpolation, sometimes need (different from ew):
-!        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-!      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-      do n = 1,npan
-        wx(-1,0,n,k)          = wtr(lsww(n),k)
-        wx(0,0,n,k)           = wtr(isw(1+(n-1)*ipan*jpan),   k)
-        wx(0,-1,n,k)          = wtr(lssw(n),k)
-        wx(ipan+2,0,n,k)      = wtr(lsee(n),k)
-        wx(ipan+1,-1,n,k)     = wtr(lsse(n),k)
-        wx(-1,jpan+1,n,k)     = wtr(lnww(n),k)
-        wx(0,jpan+1,n,k)      = wtr(inw(1-ipan+n*ipan*jpan),  k)
-        wx(0,jpan+2,n,k)      = wtr(lnnw(n),k)
-        wx(ipan+2,jpan+1,n,k) = wtr(lnee(n),k)
-        wx(ipan+1,jpan+2,n,k) = wtr(lnne(n),k)
-        wx(ipan+1,0,n,k)      = wtr(ise(ipan+(n-1)*ipan*jpan),k)
-        wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
-      end do           ! n loop
-    end do             ! k loop 
-
   
-    ! For other processes
-    do nn = 1,nlen
+      ! For other processes
       if ( bs_test(nn-1+nstart) ) then
         do ii = neighnum,1,-1
           do iq = 1,drlen(ii)
@@ -449,19 +469,22 @@ else     ! if(intsch==1)then
         end do            ! ii loop
       end if              ! bs_test ..else.. 
     end do                ! nn loop  
+    !$omp end parallel do
 
     call intssync_send(nlen)
 
-    !$acc enter data create(wx)
-    !$acc update device(wx)
 #ifndef GPU
-    !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
+    !$omp parallel
 #endif  
     do nn = 1,nlen
-      async_counter = mod(nn-1, async_length)
       if ( bs_test(nn-1+nstart) ) then
+#ifdef GPU
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
+#else
+        !$omp do schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -474,10 +497,19 @@ else     ! if(intsch==1)then
             s(iq,k,nn-1+nstart) = intintp0bs(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do
         end do
+#ifdef GPU
         !$acc end parallel loop
+#else
+        !$omp end do nowait
+#endif
       else
+#ifdef GPU
+        async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
+#else
+        !$omp do schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -490,14 +522,18 @@ else     ! if(intsch==1)then
             s(iq,k,nn-1+nstart) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do
         end do
+#ifdef GPU
         !$acc end parallel loop
+#else
+        !$omp end do nowait
+#endif
       end if
     end do           ! nn loop
-#ifndef GPU
-    !$omp end parallel do
-#endif
+#ifdef GPU
     !$acc wait
-    !$acc exit data delete(wx)
+#else
+    !$omp end parallel
+#endif
 
     call intssync_recv(s(:,:,nstart:nend))  
 
@@ -505,6 +541,8 @@ else     ! if(intsch==1)then
     
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
+
+!$acc exit data delete(wx)
 
 do nn = 1,ntr
   do k = 1,wlev
@@ -630,6 +668,46 @@ call bounds(s,nrows=2)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
+
+  do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+    do n = 1,npan
+      do j = 1,jpan
+        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+        wx(0,j,n,k)      = wtr( iw(iq),k)
+        wx(-1,j,n,k)     = wtr(iww(iq),k)
+        iq = j*ipan+(n-1)*ipan*jpan
+        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+      end do            ! j loop
+      do i = 1,ipan
+        iq = i+(n-1)*ipan*jpan
+        wx(i,0,n,k)      = wtr( is(iq),k)
+        wx(i,-1,n,k)     = wtr(iss(iq),k)
+        iq = i-ipan+n*ipan*jpan
+        wx(i,jpan+1,n,k) = wtr( in(iq),k)
+        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+      end do            ! i loop
+    end do
+!   for ew interpolation, sometimes need (different from ns):
+!       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+    do n = 1,npan
+      wx(-1,0,n,k)          = wtr(lwws(n),                  k)
+      wx(0,0,n,k)           = wtr(iws(1+(n-1)*ipan*jpan),   k)
+      wx(0,-1,n,k)          = wtr(lwss(n),                  k)
+      wx(ipan+1,0,n,k)      = wtr(ies(ipan+(n-1)*ipan*jpan),k)
+      wx(ipan+2,0,n,k)      = wtr(lees(n),                  k)
+      wx(ipan+1,-1,n,k)     = wtr(less(n),                  k)
+      wx(-1,jpan+1,n,k)     = wtr(lwwn(n),                  k)
+      wx(0,jpan+2,n,k)      = wtr(lwnn(n),                  k)
+      wx(ipan+2,jpan+1,n,k) = wtr(leen(n),                  k)
+      wx(ipan+1,jpan+2,n,k) = wtr(lenn(n),                  k)
+      wx(0,jpan+1,n,k)      = wtr(iwn(1-ipan+n*ipan*jpan),  k)
+      wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
+    end do           ! n loop
+  end do             ! k loop
     
   do k = 1,wlev
     sx(1:ipan,1:jpan,1:npan,k) = &
@@ -670,46 +748,6 @@ if ( intsch==1 ) then
       sx(ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop
-  
-  do k = 1,wlev
-    wx(1:ipan,1:jpan,1:npan,k) = &
-      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
-    do n = 1,npan
-      do j = 1,jpan
-        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
-        wx(0,j,n,k)      = wtr( iw(iq),k)
-        wx(-1,j,n,k)     = wtr(iww(iq),k)
-        iq = j*ipan+(n-1)*ipan*jpan
-        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
-        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
-      end do            ! j loop
-      do i = 1,ipan
-        iq = i+(n-1)*ipan*jpan
-        wx(i,0,n,k)      = wtr( is(iq),k)
-        wx(i,-1,n,k)     = wtr(iss(iq),k)
-        iq = i-ipan+n*ipan*jpan
-        wx(i,jpan+1,n,k) = wtr( in(iq),k)
-        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
-      end do            ! i loop
-    end do
-!   for ew interpolation, sometimes need (different from ns):
-!       (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-!     (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-    do n = 1,npan
-      wx(-1,0,n,k)          = wtr(lwws(n),                  k)
-      wx(0,0,n,k)           = wtr(iws(1+(n-1)*ipan*jpan),   k)
-      wx(0,-1,n,k)          = wtr(lwss(n),                  k)
-      wx(ipan+1,0,n,k)      = wtr(ies(ipan+(n-1)*ipan*jpan),k)
-      wx(ipan+2,0,n,k)      = wtr(lees(n),                  k)
-      wx(ipan+1,-1,n,k)     = wtr(less(n),                  k)
-      wx(-1,jpan+1,n,k)     = wtr(lwwn(n),                  k)
-      wx(0,jpan+2,n,k)      = wtr(lwnn(n),                  k)
-      wx(ipan+2,jpan+1,n,k) = wtr(leen(n),                  k)
-      wx(ipan+1,jpan+2,n,k) = wtr(lenn(n),                  k)
-      wx(0,jpan+1,n,k)      = wtr(iwn(1-ipan+n*ipan*jpan),  k)
-      wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
-    end do           ! n loop
-  end do             ! k loop
 
     
   ! Loop over points that need to be calculated for other processes
@@ -746,8 +784,12 @@ if ( intsch==1 ) then
   call intssync_send(1)
 
   if ( bs_test ) then
+#ifdef GPU
     !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
+#else
+    !$omp parallel do schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)
+#endif
     do k = 1,wlev      
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -760,10 +802,18 @@ if ( intsch==1 ) then
         s(iq,k) = intintp1bs(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do       ! iq loop
     end do         ! k loop
+#ifdef GPU
     !$acc end parallel loop
+#else
+    !$omp end parallel do
+#endif
   else
+#ifdef GPU
     !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
+#else
+    !$omp parallel do schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)
+#endif
     do k = 1,wlev      
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -776,7 +826,11 @@ if ( intsch==1 ) then
         s(iq,k) = intintp1(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do       ! iq loop
     end do         ! k loop
+#ifdef GPU
     !$acc end parallel loop
+#else
+    !$omp end parallel do
+#endif
   end if
 
   call intssync_recv(s)  
@@ -786,6 +840,46 @@ else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 !       this is intsc           NS interps done first
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
+
+  do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
+    do n = 1,npan
+      do j = 1,jpan
+        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+        wx(0,j,n,k)      = wtr( iw(iq),k)
+        wx(-1,j,n,k)     = wtr(iww(iq),k)
+        iq = j*ipan+(n-1)*ipan*jpan
+        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
+        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
+      end do            ! j loop
+      do i = 1,ipan
+        iq = i+(n-1)*ipan*jpan
+        wx(i,0,n,k)      = wtr( is(iq),k)
+        wx(i,-1,n,k)     = wtr(iss(iq),k)
+        iq = i-ipan+n*ipan*jpan
+        wx(i,jpan+1,n,k) = wtr( in(iq),k)
+        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
+      end do            ! i loop
+    end do
+!   for ns interpolation, sometimes need (different from ew):
+!        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
+!      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
+    do n = 1,npan
+      wx(-1,0,n,k)          = wtr(lsww(n),k)
+      wx(0,0,n,k)           = wtr(isw(1+(n-1)*ipan*jpan),   k)
+      wx(0,-1,n,k)          = wtr(lssw(n),k)
+      wx(ipan+2,0,n,k)      = wtr(lsee(n),k)
+      wx(ipan+1,-1,n,k)     = wtr(lsse(n),k)
+      wx(-1,jpan+1,n,k)     = wtr(lnww(n),k)
+      wx(0,jpan+1,n,k)      = wtr(inw(1-ipan+n*ipan*jpan),  k)
+      wx(0,jpan+2,n,k)      = wtr(lnnw(n),k)
+      wx(ipan+2,jpan+1,n,k) = wtr(lnee(n),k)
+      wx(ipan+1,jpan+2,n,k) = wtr(lnne(n),k)
+      wx(ipan+1,0,n,k)      = wtr(ise(ipan+(n-1)*ipan*jpan),k)
+      wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
+    end do           ! n loop
+  end do             ! k loop 
     
   do k = 1,wlev
     sx(1:ipan,1:jpan,1:npan,k) = &
@@ -826,46 +920,6 @@ else     ! if(intsch==1)then
       sx(ipan+1,jpan+1,n,k) = s(ine(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop
-  
-  do k = 1,wlev
-    wx(1:ipan,1:jpan,1:npan,k) = &
-      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
-    do n = 1,npan
-      do j = 1,jpan
-        iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
-        wx(0,j,n,k)      = wtr( iw(iq),k)
-        wx(-1,j,n,k)     = wtr(iww(iq),k)
-        iq = j*ipan+(n-1)*ipan*jpan
-        wx(ipan+1,j,n,k) = wtr( ie(iq),k)
-        wx(ipan+2,j,n,k) = wtr(iee(iq),k)
-      end do            ! j loop
-      do i = 1,ipan
-        iq = i+(n-1)*ipan*jpan
-        wx(i,0,n,k)      = wtr( is(iq),k)
-        wx(i,-1,n,k)     = wtr(iss(iq),k)
-        iq = i-ipan+n*ipan*jpan
-        wx(i,jpan+1,n,k) = wtr( in(iq),k)
-        wx(i,jpan+2,n,k) = wtr(inn(iq),k)
-      end do            ! i loop
-    end do
-!   for ns interpolation, sometimes need (different from ew):
-!        (-1,0),   (0,0),   (0,-1)   (-1,il+1),   (0,il+1),   (0,il+2)
-!      (il+1,0),(il+2,0),(il+1,-1) (il+1,il+1),(il+2,il+1),(il+1,il+2)
-    do n = 1,npan
-      wx(-1,0,n,k)          = wtr(lsww(n),k)
-      wx(0,0,n,k)           = wtr(isw(1+(n-1)*ipan*jpan),   k)
-      wx(0,-1,n,k)          = wtr(lssw(n),k)
-      wx(ipan+2,0,n,k)      = wtr(lsee(n),k)
-      wx(ipan+1,-1,n,k)     = wtr(lsse(n),k)
-      wx(-1,jpan+1,n,k)     = wtr(lnww(n),k)
-      wx(0,jpan+1,n,k)      = wtr(inw(1-ipan+n*ipan*jpan),  k)
-      wx(0,jpan+2,n,k)      = wtr(lnnw(n),k)
-      wx(ipan+2,jpan+1,n,k) = wtr(lnee(n),k)
-      wx(ipan+1,jpan+2,n,k) = wtr(lnne(n),k)
-      wx(ipan+1,0,n,k)      = wtr(ise(ipan+(n-1)*ipan*jpan),k)
-      wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
-    end do           ! n loop
-  end do             ! k loop 
 
     
   ! For other processes
@@ -902,8 +956,12 @@ else     ! if(intsch==1)then
   call intssync_send(1)
 
   if ( bs_test ) then
+#ifdef GPU
     !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
+#else
+    !$omp parallel do schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)
+#endif
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -916,10 +974,18 @@ else     ! if(intsch==1)then
         s(iq,k) = intintp0bs(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do
     end do
+#ifdef GPU
     !$acc end parallel loop
+#else
+    !$omp end parallel do
+#endif
   else
+#ifdef GPU
     !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
+#else
+    !$omp parallel do schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)
+#endif
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -932,7 +998,11 @@ else     ! if(intsch==1)then
         s(iq,k) = intintp0(sx(:,:,n,k),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do
     end do
+#ifdef GPU
     !$acc end parallel loop
+#else
+    !$omp end parallel do
+#endif
   end if
 
   call intssync_recv(s)  

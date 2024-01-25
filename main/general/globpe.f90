@@ -1384,7 +1384,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,usepice,ominl,omaxl                 &
     ,mlo_timeave_length,kemaxdt          &
     ,mlo_adjeta,mlo_limitsal,mlo_step    &
-    ,mlo_uvcoupl,fluxwgt
+    ,mlo_uvcoupl,fluxwgt,delwater
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlostag, only : mstagf                 ! Ocean reversible staggering
@@ -1585,7 +1585,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
-    mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,               &
+    mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,delwater,      &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -3755,7 +3755,7 @@ use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
     ,usepice,ominl,omaxl                 &
     ,mlo_timeave_length,kemaxdt          &
     ,mlo_adjeta,mlo_limitsal,mlo_step    &
-    ,mlo_uvcoupl,fluxwgt
+    ,mlo_uvcoupl,fluxwgt,delwater
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlostag, only : mstagf                 ! Ocean reversible staggering
@@ -3765,7 +3765,7 @@ use river                                  ! River routing
 implicit none
 
 integer, dimension(30) :: dumi
-real, dimension(23) :: dumr    
+real, dimension(24) :: dumr    
 
 dumr = 0.
 dumi = 0
@@ -3793,6 +3793,7 @@ if ( myid==0 ) then
   dumr(21) = ocnlap
   dumr(22) = fluxwgt
   dumr(23) = ocnepr
+  dumr(24) = delwater
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -3849,6 +3850,7 @@ alphanir_seasnw    = dumr(20)
 ocnlap             = dumr(21)
 fluxwgt            = dumr(22)
 ocnepr             = dumr(23)
+delwater           = dumr(24)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 

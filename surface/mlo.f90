@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -61,7 +61,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
 public micdwn
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta,mlo_limitsal
-public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt
+public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater
 
 #ifdef CCAM
 public water_g,ice_g
@@ -242,7 +242,8 @@ real, save :: omaxl  = 1.e3               ! maximum L
 ! model parameters
 real, save :: mxd      = 5002.18          ! max depth (m)
 real, save :: mindep   = 1.               ! thickness of first layer (m)
-real, save :: minwater = 10.              ! minimum water depth (m)
+real, save :: minwater = 10.              ! absolute minimum water depth (m)
+real, save :: delwater = 100.             ! allowed anomoly depth (m)
 real, parameter :: ric     = 0.3          ! critical Ri for diagnosing mixed layer depth
 real, parameter :: epsilon = 0.1          ! ratio of surface layer and mixed layer thickness
 real, parameter :: minsfc  = 1.           ! minimum thickness to average surface layer properties (m)
@@ -2577,7 +2578,7 @@ end if
 
 ! adjust levels for free surface
 where ( depth%dz(:,1)>1.e-4 )
-  d_zcr = max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
+  d_zcr = max(1.+max(water%eta,-delwater)/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
 elsewhere
   d_zcr = 1.
 end where
@@ -2683,7 +2684,7 @@ call mlocheck("MLO-end",water_temp=water%temp,water_sal=water%sal,water_u=water%
 
 
 ! energy conservation check
-!d_zcr=max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
+!d_zcr=max(1.+max(water%eta,-delwater)/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
 !dgwater%deleng=0._8
 !do ii=1,wlev
 !  dgwater%deleng=dgwater%deleng+real((water%temp(:,ii)*d_zcr-oldwatertemp(:,ii)*oldzcr)*depth%dz(:,ii),8)
@@ -2940,7 +2941,7 @@ km_hl = 0.
 ks_hl = 0.
 gammas = 0.
 where ( depth%dz(:,1)>1.e-4 )
-  d_zcr = max(1.+water%eta/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
+  d_zcr = max(1.+max(water%eta,-delwater)/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
 elsewhere
   d_zcr = 1.
 end where
@@ -4138,6 +4139,7 @@ end if
 ! turn off lake evaporation when minimum depth is reached
 ! fg should be replaced with bare ground value
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
+d_wavail = min( d_wavail, max(delwater+d_neta,0.) )
 egmax=1000.*lv*d_wavail/(dt*max(1.-ice%fracice,0.01))
 
 ! explicit estimate of fluxes
@@ -4209,6 +4211,7 @@ if (diag>=1) write(6,*) "Update ice thermodynamic model"
 
 d_salflx=0.                                               ! fresh water flux
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.) ! water avaliable for freezing
+d_wavail=min( d_wavail, max(delwater+d_neta,0.)  )
 
 ! Ice depth limitation for poor initial conditions
 ice%thick=min(ice%thick, icemax)  
@@ -4276,6 +4279,7 @@ d_neta = water%eta
 
 ! limits on ice formation due to water avaliability
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
+d_wavail=min( d_wavail, max(delwater+d_neta,0.) )
 where ( ice%fracice<0.999 )
   maxnewice=d_wavail*wrtrho/rhoic/(1.-ice%fracice)
 elsewhere
@@ -5355,6 +5359,7 @@ d_fb=cp0*wrtrho*0.006*ustar*(d_tb-d_timelt)
 d_fb=min(max(d_fb,-1000.),1000.)
 
 wavail=max(depth%depth_hl(:,wlev+1)+water%eta-minwater,0.)
+wavail=min( wavail, max(delwater+water%eta,0.) )
 f0=wavail*wrtrho/rhoic*qice/dt
 d_fb=max(d_fb,-f0)
 

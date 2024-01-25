@@ -94,27 +94,30 @@ real ucc, vcc, wcc
 real delphi, hdif
 real tv
 integer iq, k, nhora, nhorx
-integer nstart, nend, nt, ntr
-integer, save :: kmax=-1
+integer nstart, nend, nt, ntr, kmax
 integer, parameter :: nf=2
-
-nhorx = 0
-if ( kmax<0 ) then
-  kmax = 1
-  do while ( sig(kmax)>=0.25 .and. kmax<kl )
-    kmax = kmax + 1
-  end do
-end if
 
 !     set up topography reduction factors for each type of location
 !     expect power nf to be about 1 or 2 (see data statement)
 
+nhorx = 0
 delphi = 1.e6  ! turns off reduction (can also use nhorx=4)
 if ( abs(nhor)>=50 ) then
   nhora = 10*(abs(nhor)/10)    ! e.g. 150  for nhor=-157
   nhorx = abs(nhor) - nhora    ! e.g.   7  for nhor=-157
   delphi = nhora*grav
 endif
+
+if ( nhorx==1 ) then
+  kmax = kl
+else if ( nhorx>=7 ) then
+  kmax = 1
+  do while ( sig(kmax)>=0.25 .and. kmax<kl )
+    kmax = kmax + 1
+  end do
+else
+  kmax = 0
+end if
 
 work = 0.
 do k = 1,kl
@@ -128,7 +131,8 @@ do k = 1,kl
   wc(:,k) = 0.  
 end do
 emi(1:ifull) = ps(1:ifull)/em(1:ifull)
-ptemp(1:ifull) = ps(1:ifull)**.286
+!ptemp(1:ifull) = ps(1:ifull)**.286
+ptemp(1:ifull) = 26.915348*exp(0.286*psl(1:ifull))
 tx_fact(1:ifull) = 1./(1.+(abs(zs(ie)-zs(1:ifull))/delphi)**nf)
 ty_fact(1:ifull) = 1./(1.+(abs(zs(in)-zs(1:ifull))/delphi)**nf)
 
@@ -141,8 +145,8 @@ if ( diag .and. mydiag ) then
   write(6,*) 'tx_,ty_ ',tx_fact(idjd),ty_fact(idjd)
 endif
 
+! weighted horizontal velocities
 do k = 1,kl        
-  ! weighted horizontal velocities
   uav(1:ifull,k) = av_vmod*u(1:ifull,k) + (1.-av_vmod)*savu(1:ifull,k)
   vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*savv(1:ifull,k)
 end do
@@ -162,51 +166,31 @@ if ( nvmix==6 .or. nvmix==9 ) then
     end do  
   end do
 
-  ! time averaging of source terms for tke-eps
-  call update_ema(ww,w_ema,dt)
-  call update_ema(uav,u_ema,dt)
-  call update_ema(vav,v_ema,dt)
-  
-  call bounds(w_ema)
-  if ( nhorx==1 ) then
-    do k = 1,kl
-      do iq = 1,ifull  
-        dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
-        dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
-        dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
-        dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
-      end do
-    end do
-  else if ( nhorx>=7 ) then
-    do k = 1,kmax
-      do iq = 1,ifull  
-        dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
-        dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
-        dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
-        dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
-      end do
-    end do
-    do k = kmax+1,kl
-      do iq = 1,ifull  
-        dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
-        dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
-      end do
-    end do
-  else
-    do k = 1,kl
-      do iq = 1,ifull  
-        dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
-        dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
-      end do
-    end do  
-  end if
-  
   ! calculate height on full levels (hydrostatic terms)
   zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
   do k = 2,kl
     zg(:,k) = zg(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
   end do ! k  loop
   !zg = zg + phi_nh(1:ifull,:)/grav
+
+  ! time averaging of source terms for tke-eps
+  call update_ema(ww,w_ema,dt)
+  call update_ema(uav,u_ema,dt)
+  call update_ema(vav,v_ema,dt)
+  
+  call bounds(w_ema)
+  do k = 1,kl
+    do iq = 1,ifull  
+      dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
+      dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
+    end do
+  end do
+  do k = 1,kmax
+    do iq = 1,ifull  
+      dwdx(iq,k) = dwdx(iq,k)*tx_fact(iq)
+      dwdy(iq,k) = dwdy(iq,k)*ty_fact(iq)
+    end do
+  end do
   
   ! calculate vertical gradients
   do iq = 1,ifull
@@ -338,17 +322,10 @@ do k = 1,kl
   xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
   yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5
 end do  
-if ( nhorx==1 ) then
-  do k = 1,kl
-    xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
-    yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
-  end do    
-else if ( nhorx>=7 ) then
-  do k = 1,kmax
-    xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
-    yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
-  end do    
-end if
+do k = 1,kmax
+  xfact(1:ifull,k) = xfact(1:ifull,k)*tx_fact(1:ifull)
+  yfact(1:ifull,k) = yfact(1:ifull,k)*ty_fact(1:ifull)
+end do    
 call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
                                    ! only update iwu and isv values
 
@@ -485,14 +462,12 @@ do k = 1,kl
                   yfact(iq,k)*work(in(iq),k) +       &
                   yfact_isv*work(is(iq),k) )         &
                / base 
-  end do  
-end do  
-!$omp end parallel do
-do k = 1,kl
+  end do
   do iq = 1,ifull
     work(iq,k) = ans(iq,k)
   end do
 end do
+!$omp end parallel do
 
 return
 end subroutine hordifgt_work

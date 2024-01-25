@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1595,7 +1595,8 @@ else
 
   ! rhobar = int_0^sigma rho dsigma / sigma
 
-
+  !$omp parallel do schedule(static) private(ii,iq,absu,bbsu,absv,bbsv)            &
+  !$omp   private(dnadxu1,dnadyu1,dnadyv1,dnadxv1,dnadxu2,dnadyu2,dnadyv2,dnadxv2)
   do ii = 1,wlev
     do iq = 1,ifull
       absu = 0.5*(alpha(iq,ii)+alpha(ie(iq),ii))
@@ -1625,6 +1626,7 @@ else
       drhodyv(iq,ii) = -absv*dnadyv1 + bbsv*dnadyv2
     end do
   end do
+  !$omp end parallel do
 
   ! integrate density gradient  
   drhobardxu(:,1) = drhodxu(:,1)*godsigu(1:ifull,1)
@@ -1876,7 +1878,7 @@ use parm_m
 
 implicit none
 
-integer iq, n
+integer iq
 integer, intent(out) :: totits
 real, intent(out) :: maxglobseta, maxglobip
 real, dimension(ifull), intent(in) :: xps
@@ -1885,10 +1887,9 @@ real, dimension(ifull+iextra), intent(in) :: ipmax
 real, dimension(ifull+iextra), intent(in) :: sou, sov, snu, snv, squ, sqv, bb, bb3u, bb4v
 real, dimension(ifull+iextra), intent(in) :: niu, niv, ibu, ibv, ibb, ibb3u, ibb4v
 real, dimension(ifull,2) :: zz, zzn, zzs, zze, zzw, rhs
-real, dimension(ifull) :: odiv_d, odiv_n
+real :: odiv_d, odiv_n
 real, dimension(ifull) :: hh
 real, dimension(ifull) :: yy, yyn, yys, yye, yyw
-real, dimension(ifull+iextra) :: ff
 
 call mgsor_init
 
@@ -1913,19 +1914,6 @@ call mgsor_init
 ! neta + (1+eps)*0.5*dt*( neta*odiv_n + odiv_d
 !                         + yy*neta*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy)
 !                         + zz*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) ) = xps
-
-ff(:) = (1.+ocneps)*0.5*dt*f(:)
-
-! prep ocean gradient terms - constant
-odiv_d = (sou(1:ifull)*ddu(1:ifull)/emu(1:ifull)-sou(iwu)*ddu(iwu)/emu(iwu)  &
-         +sov(1:ifull)*ddv(1:ifull)/emv(1:ifull)-sov(isv)*ddv(isv)/emv(isv)) &
-         *em(1:ifull)**2/ds
-
-odiv_n = (sou(1:ifull)/emu(1:ifull)-sou(iwu)/emu(iwu)+sov(1:ifull)/emv(1:ifull)-sov(isv)/emv(isv)) &
-         *em(1:ifull)**2/ds
-
-odiv_d = odiv_d*ee(1:ifull,1)
-odiv_n = odiv_n*ee(1:ifull,1)
 
 ! yy*neta*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + zz*(d2neta/dx2+d2neta/dy2+dneta/dx+dneta/dy) + hh*neta = rhs
 
@@ -1965,16 +1953,28 @@ zze(:,1) = zze(:,1)*ee(1:ifull,1)
 zzw(:,1) = zzw(:,1)*ee(1:ifull,1)
 zz(:,1) = zz(:,1)*ee(1:ifull,1)
 
-hh(:) = 1. + (1.+ocneps)*0.5*dt*odiv_n
+do iq = 1,ifull
 
-rhs(:,1) = xps(1:ifull) - (1.+ocneps)*0.5*dt*odiv_d
-rhs(:,1) = rhs(:,1)*ee(1:ifull,1)
+  ! prep ocean gradient terms - constant
+  odiv_d = (sou(iq)*ddu(iq)/emu(iq)-sou(iwu(iq))*ddu(iwu(iq))/emu(iwu(iq))  &
+           +sov(iq)*ddv(iq)/emv(iq)-sov(isv(iq))*ddv(isv(iq))/emv(isv(iq))) &
+           *em(iq)**2/ds
 
+  odiv_n = (sou(iq)/emu(iq)-sou(iwu(iq))/emu(iwu(iq))+sov(iq)/emv(iq)-sov(isv(iq))/emv(isv(iq))) &
+           *em(iq)**2/ds
+
+  odiv_d = odiv_d*ee(iq,1)
+  odiv_n = odiv_n*ee(iq,1)
+
+  hh(iq) = 1. + (1.+ocneps)*0.5*dt*odiv_n
+
+  rhs(iq,1) = xps(iq) - (1.+ocneps)*0.5*dt*odiv_d
+  rhs(iq,1) = rhs(iq,1)*ee(iq,1)
+
+end do
 
 ! ice
 ! zz*(d2ipice/dx2 + d2ipice/dy2) + zz*d2ipice/dxdy = rhs
-
-ff(:) = dt*f(:)  
 
 zzn(:,2) = -ibv(1:ifull)/ds + 0.5*ibb4v(1:ifull)/emv(1:ifull)
 zzs(:,2) = -ibv(isv)/ds - 0.5*ibb4v(isv)/emv(isv)

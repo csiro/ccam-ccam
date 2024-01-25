@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -4465,8 +4465,6 @@ call defaulttile ! initially use default values before overwriting
 if ( ierr/=0 ) then
   if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise CABLE"
 else
-  ! Located CABLE tile data
-  if ( myid==0 ) write(6,*) "-> Use tiled data to initialise CABLE"
   ! check for changes
   if ( ierr_cvc /= 0 ) then
     old_cv = cveg
@@ -4483,6 +4481,7 @@ else
   call create_new_tile_map(old_cv,nmp)
 
   ! read tile data
+  if ( myid==0 ) write(6,*) "-> Use tiled data to initialise CABLE"  
   do n = 1,maxtile
     if ( ierr_svs /= 0 ) then
       old_sv = sv    
@@ -4574,6 +4573,7 @@ else
     if ( ierr_sli/=0 ) then
       if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise SLI"
     else 
+      if ( myid==0 ) write(6,*) "-> Use tiled data to initialise SLI"  
       do n = 1,maxtile
         write(vname,'("t",I1.1,"_hzero")') n
         call histrd(iarchi-1,ierr,vname,dat,ifull)
@@ -5441,6 +5441,8 @@ implicit none
 integer k
 real totdepth
  
+if ( myid==0 ) write(6,*) "-> Check for initalisation errors"
+
 ! Some fixes for rounding errors
 if ( mp_global>0 ) then
 
@@ -5552,6 +5554,8 @@ integer, dimension(ifull,maxtile) :: oldv_up, newv_up
 integer, dimension(maxtile) :: oldv_v, newv_v
 logical :: cv_test, global_cv_test
 
+if ( myid==0 ) write(6,*) "-> Check for tile redistribution"
+
 if ( mp_global>0 ) then
   cv_test = any( cveg/=old_cv )
   call ccmpi_reduce(cv_test,global_cv_test,'or',0,comm_world)
@@ -5621,6 +5625,8 @@ integer k
 real, dimension(mp_global), intent(in) :: old_sv
 logical :: sv_test, global_sv_test
 
+if ( myid==0 ) write(6,*) "-> Check for land-cover change"
+
 if ( mp_global>0 ) then
   sv_test = any( abs(sv-old_sv)>1.e-8 )
   call ccmpi_reduce(sv_test,global_sv_test,'or',0,comm_world)
@@ -5639,13 +5645,18 @@ if ( mp_global>0 ) then
   if ( sv_test ) then
     
     ! assume common soil texture and soil heat capacity
+    if ( any(ssnow%tgg>400.) ) then
+      write(6,*) "ERROR: Invalid input temperature for CABLE redistribute_tile"
+      write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
+      call ccmpi_abort(-1)
+    end if        
     do k = 1,ms
       call redistribute_work(old_sv,ssnow%tgg(:,k))
       call redistribute_work(old_sv,ssnow%wb(:,k))
       call redistribute_work(old_sv,ssnow%wbice(:,k))
     end do
     if ( any(ssnow%tgg>400.) ) then
-      write(6,*) "ERROR: Invalid temperature for CABLE redistribute_tile"
+      write(6,*) "ERROR: Invalid output temperature for CABLE redistribute_tile"
       write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
       call ccmpi_abort(-1)
     end if  
@@ -6436,6 +6447,7 @@ end subroutine savetiledef
 subroutine savetile(idnc,local,iarch,itype)
 
 use carbpools_m
+use cc_mpi, only : ccmpi_abort
 use infile
 use newmpar_m
 use parm_m, only : diaglevel_pop
@@ -6469,6 +6481,16 @@ if ( itype==-1 ) then !just for restart file
     write(vname,'("t",I1.1,"_cvc")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
   end do      
+  
+  ! soil temperature check
+  if ( mp_global>0 ) then
+    if ( any(ssnow%tgg>400.) ) then
+      write(6,*) "ERROR: Invalid CABLE temperature when writing tile"
+      write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
+      stop -1
+    end if
+  end if
+  
   do n = 1,maxtile  ! tile
     datr = 0.
     if ( n<=maxnb ) call cable_unpack(sv,datr,n)

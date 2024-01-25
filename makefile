@@ -157,7 +157,6 @@ FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(USE_GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
 FFLAGS += -Minfo=accel -acc -gpu=cuda12.2,fastmath,flushz -DGPU
-FFLAGS += -Minline
 #-ta=tesla:cc70
 endif
 ifeq ($(GPUPHYSICS),yes)

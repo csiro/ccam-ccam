@@ -147,7 +147,6 @@ if (abs(dt-dtsave)>=1.e-20) then ! dt/=dtsave
     ! usual
     do k=1,kl
       call optmx(il_g,schmidt,dt,bam(k),accel(k))
-      ! MJT - not sure about the following line
       accel(k)=1.+.55*(accel(k)-1.) ! for uniform-dec 22/4/08
       if(myid==0)write(6,*)'k,accel ',k,accel(k)
     enddo
@@ -834,7 +833,7 @@ integer klimc, itrc
 real, dimension(ifull+iextra,kl), intent(inout) :: iv
 real, dimension(ifull+iextra) :: vdum
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
-real, dimension(ifull,kl) :: iv_old, irhs
+real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
 real, dimension(ifull_maxcolour,kl,maxcolour) :: rhelmc, rhsc
 real, dimension(ifull_maxcolour,maxcolour) :: zznc, zzec, zzwc, zzsc, zzc
@@ -849,11 +848,6 @@ real, dimension(kl) :: dsolmax_g, savg, sdif, dsolmaxc, sdifc
 
 if ( sorfirst .or. zzfirst ) then
   write(6,*) "ERROR: mghelm requires mgsor_init and mgzz_init to be called first"
-  call ccmpi_abort(-1)
-end if
-
-if ( maxcolour/=3 ) then
-  write(6,*) "ERROR: mghelm assumes maxcolour=3"
   call ccmpi_abort(-1)
 end if
 
@@ -878,6 +872,7 @@ klim = kl
 
 do k = 1,kl
   iv(ifull+1:ifull+iextra,k) = 0. ! for IBM compiler
+  iv_new(:,k) = 0.                ! for IBM compiler
   vdum(:) = 0.
   ! determine max/min for convergence calculations
   smaxmin_g(k,1) = maxval(iv(1:ifull,k))
@@ -888,13 +883,11 @@ end do
 
 ! pack colour arrays at fine level
 ! note that the packing reorders the calculation to update the border points first
-!$omp parallel do collapse(2) schedule(static) private(nc,k,iq)
+!$omp parallel do collapse(2) schedule(static) private(nc,k)
 do nc = 1,maxcolour
   do k = 1,kl  
-    do iq = 1,ifull_colour(nc)  
-      rhelmc(iq,k,nc) = ihelm(iqx(iq,nc),k)
-      rhsc(iq,k,nc)   = jrhs(iqx(iq,nc),k)
-    end do  
+    rhelmc(1:ifull_colour(nc),k,nc) = ihelm(iqx(1:ifull_colour(nc),nc),k)
+    rhsc(1:ifull_colour(nc),k,nc)   = jrhs(iqx(1:ifull_colour(nc),nc),k)
   end do
 end do  
 !$omp end parallel do
@@ -918,24 +911,27 @@ do i = 1,itrbgn
     ! first calculate border points and send out halo
     do k = 1,kl
       do iq = 1,ifull_colour_border(nc)
-        iv(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)     &
-                           + zzwc(iq,nc)*iv(iqw(iq,nc),k)     &
-                           + zzec(iq,nc)*iv(iqe(iq,nc),k)     &
-                           + zzsc(iq,nc)*iv(iqs(iq,nc),k)     &
-                           - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)     &
+                               + zzwc(iq,nc)*iv(iqw(iq,nc),k)     &
+                               + zzec(iq,nc)*iv(iqe(iq,nc),k)     &
+                               + zzsc(iq,nc)*iv(iqs(iq,nc),k)     &
+                               - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
       end do  
     end do
-    call bounds_colour_send(iv,nc)
+    call bounds_colour_send(iv_new,nc)
     ! calcuate interior points while waiting for halo to update
     !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kl
       do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-        iv(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)     &
-                           + zzwc(iq,nc)*iv(iqw(iq,nc),k)     &
-                           + zzec(iq,nc)*iv(iqe(iq,nc),k)     &
-                           + zzsc(iq,nc)*iv(iqs(iq,nc),k)     &
-                           - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)     &
+                   + zzwc(iq,nc)*iv(iqw(iq,nc),k)                 &
+                   + zzec(iq,nc)*iv(iqe(iq,nc),k)                 &
+                   + zzsc(iq,nc)*iv(iqs(iq,nc),k)                 &
+                   - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
       end do
+      do iq = 1,ifull_colour(nc)
+        iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
+      end do  
     end do
     !$omp end parallel do
     call bounds_colour_recv(iv,nc)
@@ -1166,23 +1162,26 @@ do i = 1,itrend
     ! update boundary grid points and send halo
     do k = 1,kl
       do iq = 1,ifull_colour_border(nc)
-        iv(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
-                           + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
-                           + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
-                           + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
-                           - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                               + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                               + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                               + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                               - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
       end do  
     end do
-    call bounds_colour_send(iv,nc)
+    call bounds_colour_send(iv_new,nc)
     ! calculate non-boundary grid points while waiting for the halo to be updated
     !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kl
       do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-        iv(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
-                           + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
-                           + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
-                           + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
-                           - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+        iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                   + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                   + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                   + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                   - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+      end do  
+      do iq = 1,ifull_colour(nc)
+        iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
       end do  
     end do
     !$omp end parallel do
@@ -1197,22 +1196,16 @@ do k = 1,kl
 end do
 
 ! re-pack colour arrays at fine level to remove offsets
-!$omp parallel
-!$omp do schedule(static) private(k)
-do k = 1,kl  
-  irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)
-end do
-!$omp end do nowait
+!$omp parallel do schedule(static) private(nc,k,iq)
 do nc = 1,maxcolour
-  !$omp do schedule(static) private(k,iq)  
   do k = 1,kl  
+    irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)  
     do iq = 1,ifull_colour(nc)  
       rhsc(iq,k,nc) = irhs(iqx(iq,nc),k)
     end do  
-  end do
-  !$omp end do nowait
-end do ! k loop
-!$omp end parallel
+  end do ! k loop
+end do 
+!$omp end parallel do
 
 call END_LOG(mgsetup_end)
 
@@ -1222,6 +1215,7 @@ iters = 0
 do itr = 2,itr_mg
     
   call START_LOG(mgfine_begin)
+  
   
   ! update on model grid using colours
   do i = 1,itrbgn
@@ -1239,23 +1233,26 @@ do itr = 2,itr_mg
       ! update boundary grid points and send halo
       do k = 1,klim
         do iq = 1,ifull_colour_border(nc)
-          iv(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
-                             + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
-                             + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
-                             + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
-                             - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                                 + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                                 + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                                 + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                                 - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
         end do  
       end do
-      call bounds_colour_send(iv,nc,klim=klim)
+      call bounds_colour_send(iv_new,nc,klim=klim)
       ! calculate non-boundary grid points while waiting for halo to update
       !$omp parallel do schedule(static) private(k,iq)
       do k = 1,klim
         do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-          iv(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
-                             + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
-                             + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
-                             + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
-                             - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                                 + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                                 + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                                 + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                                 - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+        end do  
+        do iq = 1,ifull_colour(nc)
+          iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
         end do  
       end do
       !$omp end parallel do
@@ -1493,34 +1490,38 @@ do itr = 2,itr_mg
   
   call bounds(iv(:,1:klim),klim=klim)
   
+  
   do i = 1,itrend
     ! post smoothing
     do nc = 1,maxcolour
       do k = 1,klim
         do iq = 1,ifull_colour_border(nc)
-          iv(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
-                             + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
-                             + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
-                             + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
-                             - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                                 + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                                 + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                                 + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                                 - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
         end do  
       end do
-      call bounds_colour_send(iv,nc,klim=klim)
+      call bounds_colour_send(iv_new,nc,klim=klim)
       !$omp parallel do schedule(static) private(k,iq)
       do k = 1,klim
         do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-          iv(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
-                             + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
-                             + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
-                             + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
-                             - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+          iv_new(iqx(iq,nc),k) = ( zznc(iq,nc)*iv(iqn(iq,nc),k)      &
+                     + zzwc(iq,nc)*iv(iqw(iq,nc),k)      &
+                     + zzec(iq,nc)*iv(iqe(iq,nc),k)      &
+                     + zzsc(iq,nc)*iv(iqs(iq,nc),k)      &
+                     - rhsc(iq,k,nc) )/(rhelmc(iq,k,nc)-zzc(iq,nc))
+        end do  
+        do iq = 1,ifull_colour(nc)
+          iv(iqx(iq,nc),k) = iv_new(iqx(iq,nc),k)
         end do  
       end do
       !$omp end parallel do
       call bounds_colour_recv(iv,nc,klim=klim)
     end do ! nc (colour) loop
   end do   ! i (itr) loop
-  
+ 
   call END_LOG(mgfine_end)
 
   ! test for convergence.  Test lags by one iteration, due to combining
@@ -1708,7 +1709,7 @@ do i = 1,itrbgn
     call bounds_colour_send(dumc(:,1:2),nc)
     
     ! update interior
-    !$omp parallel sections
+    !$omp parallel sections private(iq,dumc_n,dumc_s,dumc_e,dumc_w)
     
     !$omp section
     ! ocean
@@ -2249,7 +2250,7 @@ do i = 1,itrend
     call bounds_colour_send(dumc(:,1:2),nc)
     
     ! update interior
-    !$omp parallel sections
+    !$omp parallel sections private(iq,dumc_n,dumc_s,dumc_e,dumc_w)
     
     !$omp section
     ! ocean
@@ -2338,7 +2339,7 @@ do itr = 2,itr_mgice
     
       ! update interior
 
-      !$omp parallel sections
+      !$omp parallel sections private(iq,dumc_n,dumc_s,dumc_e,dumc_w)
       
       !$omp section
       ! ocean
@@ -2803,7 +2804,7 @@ do itr = 2,itr_mgice
       call bounds_colour_send(dumc,nc)
     
       ! update interior
-      !$omp parallel sections
+      !$omp parallel sections private(iq,dumc_n,dumc_s,dumc_e,dumc_w)
 
       !$omp section
       ! ocean

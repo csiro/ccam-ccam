@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,7 +30,7 @@ public mstagf, koff, nstagoffmlo
 integer, save      :: nstagoffmlo = 0       ! staggering offset
 integer, save      :: mstagf      = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff        = 1       ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
-integer, parameter :: itnmax      = 6       ! number of interations for reversible staggering
+integer, parameter :: itnmax      = 3       ! number of interations for reversible staggering
 
 contains
 
@@ -61,8 +61,8 @@ real, dimension(:,:,:), allocatable, save :: dtur,dtvr
 real, dimension(:,:), allocatable :: nwtu,nwtv
 real, dimension(:,:), allocatable, save :: stul,stvl
 real, dimension(:,:), allocatable, save :: stur,stvr
-logical, dimension(:), allocatable :: euetest,euwtest,evntest,evstest
-logical, dimension(:), allocatable :: euewtest,evnstest,eutest,evtest
+logical euetest,euwtest,evntest,evstest
+logical euewtest,evnstest,eutest,evtest
 logical ltest
 
 call START_LOG(ocnstag_begin)
@@ -77,117 +77,117 @@ if (.not.allocated(wtul)) then
   allocate(stur(ifull,wlev),stvr(ifull,wlev))
 
   allocate( nwtu(ifull,0:3), nwtv(ifull,0:3) )
-  allocate( euetest(ifull), euwtest(ifull), evntest(ifull), evstest(ifull) )
-  allocate( euewtest(ifull), evnstest(ifull), eutest(ifull), evtest(ifull) )
   
   ! assign land arrays
   do k = 1,wlev
-    eutest = ee(1:ifull,k)*ee(ie,k)>0.5
-    evtest = ee(1:ifull,k)*ee(in,k)>0.5
-    euetest = eutest .and. ee(ie,k)*ee(iee,k)>0.5
-    euwtest = ee(iw,k)*ee(1:ifull,k)>0.5 .and. eutest
-    evntest = evtest .and. ee(in,k)*ee(inn,k)>0.5
-    evstest = ee(is,k)*ee(1:ifull,k)>0.5 .and. evtest
-    euewtest = euetest .and. euwtest
-    evnstest = evntest .and. evstest
+    do iq = 1,ifull
+      eutest = ee(iq,k)*ee(ie(iq),k)>0.5
+      evtest = ee(iq,k)*ee(in(iq),k)>0.5
+      euetest = eutest .and. ee(ie(iq),k)*ee(iee(iq),k)>0.5
+      euwtest = ee(iw(iq),k)*ee(iq,k)>0.5 .and. eutest
+      evntest = evtest .and. ee(in(iq),k)*ee(inn(iq),k)>0.5
+      evstest = ee(is(iq),k)*ee(iq,k)>0.5 .and. evtest
+      euewtest = euetest .and. euwtest
+      evnstest = evntest .and. evstest
 
-    ! assign weights (left)
+      ! assign weights (left)
 
-    ! |   *   | X E   |  EE  |     unstaggered
-    ! W       * X     E            staggered
-    where (euewtest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=-0.5
-      wtul(1:ifull,k,2)=-0.1
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.1
-      dtul(1:ifull,k,2)=1.
-      dtul(1:ifull,k,3)=0.5
+      ! |   *   | X E   |  EE  |     unstaggered
+      ! W       * X     E            staggered
+      if ( euewtest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=-0.5
+        wtul(iq,k,2)=-0.1
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.1
+        dtul(iq,k,2)=1.
+        dtul(iq,k,3)=0.5
 
-    ! #   *   | X E   |  EE  |     unstaggered
-    ! 0       * X     E            staggered
-    elsewhere (euetest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=-0.5
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.1
-      dtul(1:ifull,k,2)=1.
-      dtul(1:ifull,k,3)=0.5
+      ! #   *   | X E   |  EE  |     unstaggered
+      ! 0       * X     E            staggered
+      else if ( euetest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=-0.5
+        wtul(iq,k,2)=0.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.1
+        dtul(iq,k,2)=1.
+        dtul(iq,k,3)=0.5
 
-    ! |   *   | X E   #  ##  #     unstaggered
-    !         * X     0  ##  #     staggered
-    elsewhere (euwtest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=1.
-      dtul(1:ifull,k,3)=1./3.
+      ! |   *   | X E   #  ##  #     unstaggered
+      !         * X     0  ##  #     staggered
+      else if ( euwtest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=0.
+        wtul(iq,k,2)=0.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=1.
+        dtul(iq,k,3)=1./3.
 
-    ! #   *   |   E   #  ##  #     unstaggered
-    ! #       *       #  ##  #     staggered
-    elsewhere (eutest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=0.5
-      dtul(1:ifull,k,3)=0.5
+      ! #   *   |   E   #  ##  #     unstaggered
+      ! #       *       #  ##  #     staggered
+      else if ( eutest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=0.
+        wtul(iq,k,2)=0.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=0.5
+        dtul(iq,k,3)=0.5
 
-    elsewhere
-      wtul(1:ifull,k,0)=0.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=0.
-      dtul(1:ifull,k,3)=0.            
-    end where
+      else
+        wtul(iq,k,0)=0.
+        wtul(iq,k,1)=0.
+        wtul(iq,k,2)=0.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=0.
+        dtul(iq,k,3)=0.            
+      end if
 
-    where (evnstest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=-0.5
-      wtvl(1:ifull,k,2)=-0.1
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.1
-      dtvl(1:ifull,k,2)=1.
-      dtvl(1:ifull,k,3)=0.5
-    elsewhere (evntest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=-0.5
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.1
-      dtvl(1:ifull,k,2)=1.
-      dtvl(1:ifull,k,3)=0.5
-    elsewhere (evstest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0. 
-      dtvl(1:ifull,k,2)=1.
-      dtvl(1:ifull,k,3)=1./3.
-    elsewhere (evtest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.
-      dtvl(1:ifull,k,2)=0.5
-      dtvl(1:ifull,k,3)=0.5
-    elsewhere
-      wtvl(1:ifull,k,0)=0.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.
-      dtvl(1:ifull,k,2)=0.
-      dtvl(1:ifull,k,3)=0.
-    end where
+      if ( evnstest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=-0.5
+        wtvl(iq,k,2)=-0.1
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.1
+        dtvl(iq,k,2)=1.
+        dtvl(iq,k,3)=0.5
+      else if ( evntest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=-0.5
+        wtvl(iq,k,2)=0.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.1
+        dtvl(iq,k,2)=1.
+        dtvl(iq,k,3)=0.5
+      else if ( evstest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=0.
+        wtvl(iq,k,2)=0.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0. 
+        dtvl(iq,k,2)=1.
+        dtvl(iq,k,3)=1./3.
+      else if ( evtest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=0.
+        wtvl(iq,k,2)=0.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.
+        dtvl(iq,k,2)=0.5
+        dtvl(iq,k,3)=0.5
+      else
+        wtvl(iq,k,0)=0.
+        wtvl(iq,k,1)=0.
+        wtvl(iq,k,2)=0.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.
+        dtvl(iq,k,2)=0.
+        dtvl(iq,k,3)=0.
+      end if
+    end do
   end do
     
   ! Apply JLM's preconditioner
@@ -264,109 +264,112 @@ if (.not.allocated(wtul)) then
 
   ! assign weights (right)
   do k = 1,wlev
-    eutest = ee(1:ifull,k)*ee(ie,k)>0.5
-    evtest = ee(1:ifull,k)*ee(in,k)>0.5
-    euetest = eutest     .and. ee(ie,k)*ee(iee,k)>0.5
-    euwtest = ee(iw,k)*ee(1:ifull,k)>0.5 .and. eutest
-    evntest = evtest     .and. ee(in,k)*ee(inn,k)>0.5
-    evstest = ee(is,k)*ee(1:ifull,k)>0.5 .and. evtest
-    euewtest = euetest .and. euwtest
-    evnstest = evntest .and. evstest
+    do iq = 1,ifull
+      eutest = ee(iq,k)*ee(ie(iq),k)>0.5
+      evtest = ee(iq,k)*ee(in(iq),k)>0.5
+      euetest = eutest     .and. ee(ie(iq),k)*ee(iee(iq),k)>0.5
+      euwtest = ee(iw(iq),k)*ee(iq,k)>0.5 .and. eutest
+      evntest = evtest     .and. ee(in(iq),k)*ee(inn(iq),k)>0.5
+      evstest = ee(is(iq),k)*ee(iq,k)>0.5 .and. evtest
+      euewtest = euetest .and. euwtest
+      evnstest = evntest .and. evstest
  
-    ! |   W   |   * X |  E   |     unstaggered
-    !         W     X *      E     staggered
-    where (euewtest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=-0.1
-      wtur(1:ifull,k,2)=-0.5
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.1
-      dtur(1:ifull,k,2)=1.
-      dtur(1:ifull,k,3)=0.5
+      ! |   W   |   * X |  E   |     unstaggered
+      !         W     X *      E     staggered
+      if ( euewtest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=-0.1
+        wtur(iq,k,2)=-0.5
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.1
+        dtur(iq,k,2)=1.
+        dtur(iq,k,3)=0.5
 
-    ! |   W   |   * X |  E   #     unstaggered
-    !         W     X *      0     staggered
-    elsewhere (euwtest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=-0.5
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.1
-      dtur(1:ifull,k,2)=1.
-      dtur(1:ifull,k,3)=0.5
+      ! |   W   |   * X |  E   #     unstaggered
+      !         W     X *      0     staggered
+      else if ( euwtest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=0.
+        wtur(iq,k,2)=-0.5
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.1
+        dtur(iq,k,2)=1.
+        dtur(iq,k,3)=0.5
 
-    ! #  ##   #   * X |   E   |     unstaggered
-    ! #  ##   0     X *             staggered
-    elsewhere (euetest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=1.
-      dtur(1:ifull,k,3)=1./3.
+      ! #  ##   #   * X |   E   |     unstaggered
+      ! #  ##   0     X *             staggered
+      else if ( euetest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=0.
+        wtur(iq,k,2)=0.
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=1.
+        dtur(iq,k,3)=1./3.
 
-    ! #  ##   #   *   |  E   #     unstaggered
-    ! #  ##   #       *      #     staggered
-    elsewhere (eutest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=0.5
-      dtur(1:ifull,k,3)=0.5
-    elsewhere
-      wtur(1:ifull,k,0)=0.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=0.
-      dtur(1:ifull,k,3)=0.
-    end where
+      ! #  ##   #   *   |  E   #     unstaggered
+      ! #  ##   #       *      #     staggered
+      else if ( eutest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=0.
+        wtur(iq,k,2)=0.
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=0.5
+        dtur(iq,k,3)=0.5
 
-    where (evnstest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=-0.1
-      wtvr(1:ifull,k,2)=-0.5
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.1
-      dtvr(1:ifull,k,2)=1.
-      dtvr(1:ifull,k,3)=0.5
-    elsewhere (evstest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=-0.5
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.1
-      dtvr(1:ifull,k,2)=1.
-      dtvr(1:ifull,k,3)=0.5
-    elsewhere (evntest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=1.
-      dtvr(1:ifull,k,3)=1./3.
-    elsewhere (evtest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=0.5
-      dtvr(1:ifull,k,3)=0.5
-    elsewhere
-      wtvr(1:ifull,k,0)=0.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=0.
-      dtvr(1:ifull,k,3)=0.
-    end where
+      else
+        wtur(iq,k,0)=0.
+        wtur(iq,k,1)=0.
+        wtur(iq,k,2)=0.
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=0.
+        dtur(iq,k,3)=0.
+      end if
+
+      if ( evnstest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=-0.1
+        wtvr(iq,k,2)=-0.5
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.1
+        dtvr(iq,k,2)=1.
+        dtvr(iq,k,3)=0.5
+      else if ( evstest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=0.
+        wtvr(iq,k,2)=-0.5
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.1
+        dtvr(iq,k,2)=1.
+        dtvr(iq,k,3)=0.5
+      else if ( evntest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=0.
+        wtvr(iq,k,2)=0.
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=1.
+        dtvr(iq,k,3)=1./3.
+      else if ( evtest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=0.
+        wtvr(iq,k,2)=0.
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=0.5
+        dtvr(iq,k,3)=0.5
+      else
+        wtvr(iq,k,0)=0.
+        wtvr(iq,k,1)=0.
+        wtvr(iq,k,2)=0.
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=0.
+        dtvr(iq,k,3)=0.
+      end if
+    end do
   end do  
 
   ! Apply JLM's preconditioner
@@ -442,8 +445,6 @@ if (.not.allocated(wtul)) then
   end do  
 
   deallocate( nwtu, nwtv )
-  deallocate( euetest, euwtest, evntest, evstest )
-  deallocate( euewtest, evnstest, eutest, evtest )
 
 end if
 
@@ -684,11 +685,11 @@ real, dimension(:,:,:), allocatable, save :: dtul,dtvl
 real, dimension(:,:,:), allocatable, save :: dtur,dtvr
 real, dimension(:,:), allocatable, save :: stul,stvl
 real, dimension(:,:), allocatable, save :: stur,stvr
-logical, dimension(:), allocatable :: eutest,evtest
-logical, dimension(:), allocatable :: eetest,ewtest,entest,estest
-logical, dimension(:), allocatable :: euetest,euwtest,evntest,evstest
-logical, dimension(:), allocatable :: euewtest,evnstest
-logical, dimension(:), allocatable :: eeetest,ewwtest,enntest,esstest
+logical eutest,evtest
+logical eetest,ewtest,entest,estest
+logical euetest,euwtest,evntest,evstest
+logical euewtest,evnstest
+logical eeetest,ewwtest,enntest,esstest
 logical ltest
 
 call START_LOG(ocnstag_begin)
@@ -702,167 +703,160 @@ if (.not.allocated(wtul)) then
   allocate(stur(ifull,wlev),stvr(ifull,wlev))
 
   allocate( nwtu(ifull,0:3), nwtv(ifull,0:3) )
-  allocate( eutest(ifull), evtest(ifull) )
-  allocate( eetest(ifull), ewtest(ifull), entest(ifull), estest(ifull) )
-  allocate( euetest(ifull), euwtest(ifull), evntest(ifull), evstest(ifull) )
-  allocate( euewtest(ifull), evnstest(ifull) )
-  allocate( eeetest(ifull), ewwtest(ifull), enntest(ifull), esstest(ifull) )
 
   do k = 1,wlev
-    ! assign land arrays
-    eetest = ee(1:ifull,k)*ee(ie,k)>0.5
-    entest = ee(1:ifull,k)*ee(in,k)>0.5
+    do iq = 1,ifull
+      ! assign land arrays
+      eetest = ee(iq,k)*ee(ie(iq),k)>0.5
+      entest = ee(iq,k)*ee(in(iq),k)>0.5
 
-    eutest = ee(iw,k)*ee(1:ifull,k)>0.5
-    evtest = ee(is,k)*ee(1:ifull,k)>0.5
-    euetest = eutest .and. ee(1:ifull,k)*ee(ie,k)>0.5
-    evntest = evtest .and. ee(1:ifull,k)*ee(in,k)>0.5
-    euwtest = eutest .and. ee(iww,k)*ee(iw,k)>0.5
-    evstest = evtest .and. ee(iss,k)*ee(is,k)>0.5
-    euewtest = euetest .and. euwtest
-    evnstest = evntest .and. evstest
-    eeetest = eetest .and. ee(iee,k)>0.5
-    enntest = entest .and. ee(inn,k)>0.5
+      eutest = ee(iw(iq),k)*ee(iq,k)>0.5
+      evtest = ee(is(iq),k)*ee(iq,k)>0.5
+      euetest = eutest .and. ee(iq,k)*ee(ie(iq),k)>0.5
+      evntest = evtest .and. ee(iq,k)*ee(in(iq),k)>0.5
+      euwtest = eutest .and. ee(iww(iq),k)*ee(iw(iq),k)>0.5
+      evstest = evtest .and. ee(iss(iq),k)*ee(is(iq),k)>0.5
+      euewtest = euetest .and. euwtest
+      evnstest = evntest .and. evstest
+      eeetest = eetest .and. ee(iee(iq),k)>0.5
+      enntest = entest .and. ee(inn(iq),k)>0.5
 
-    ! assign weights (left)
+      ! assign weights (left)
 
-    !  |   W   | X *   |  E   |     unstaggered
-    ! WW       W X     *            staggered
-    where (euewtest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=-0.1
-      wtul(1:ifull,k,2)=-0.5
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.1
-      dtul(1:ifull,k,2)=1.
-      dtul(1:ifull,k,3)=0.5
-      !ud(1:ifull,k)=uin(iwwu,k)*0.1+uin(iwu,k)+uin(1:ifull,k)*0.5
-      !uin(1:ifull,k)=ud(:,k)-ua(ieu,k)*0.1-ua(iwu,k)*0.5
+      !  |   W   | X *   |  E   |     unstaggered
+      ! WW       W X     *            staggered
+      if ( euewtest ) then
+      wtul(iq,k,0)=1.
+      wtul(iq,k,1)=-0.1
+      wtul(iq,k,2)=-0.5
+      wtul(iq,k,3)=0.
+      dtul(iq,k,1)=0.1
+      dtul(iq,k,2)=1.
+      dtul(iq,k,3)=0.5
 
-    ! ##   W   | X *   |  E   |     unstaggered
-    ! #0       W X     *            staggered
-    elsewhere (euetest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=-0.1
-      wtul(1:ifull,k,2)=-0.5
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=1.
-      dtul(1:ifull,k,3)=0.5
+      ! ##   W   | X *   |  E   |     unstaggered
+      ! #0       W X     *            staggered
+      else if ( euetest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=-0.1
+        wtul(iq,k,2)=-0.5
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=1.
+        dtul(iq,k,3)=0.5
       
-    !  |   W   | X *   #  ##  #     unstaggered
-    !          W X     0  ##  #     staggered
-    elsewhere (euwtest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=-1./3.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=1.
-      dtul(1:ifull,k,3)=0.
+      !  |   W   | X *   #  ##  #     unstaggered
+      !          W X     0  ##  #     staggered
+      else if ( euwtest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=0.
+        wtul(iq,k,2)=-1./3.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=1.
+        dtul(iq,k,3)=0.
 
-    ! ##   ##  #   * X |   E   |     unstaggered
-    ! ##   ##  0     X *             staggered
-    elsewhere (eeetest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=-1./3.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=0.
-      dtul(1:ifull,k,3)=1.
+      ! ##   ##  #   * X |   E   |     unstaggered
+      ! ##   ##  0     X *             staggered
+      else if ( eeetest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=-1./3.
+        wtul(iq,k,2)=0.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=0.
+        dtul(iq,k,3)=1.
 
-    ! ##   ##  #   *   |   E    #     unstaggered
-    ! ##   ##  #       *        #     staggered
-    elsewhere (eetest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=0.
-      dtul(1:ifull,k,3)=1.
+      ! ##   ##  #   *   |   E    #     unstaggered
+      ! ##   ##  #       *        #     staggered
+      else if ( eetest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=0.
+        wtul(iq,k,2)=0.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=0.
+        dtul(iq,k,3)=1.
 
-    ! ##   W   |   *   #  ##  #     unstaggered
-    ! ##       W       #  ##  #     staggered
-    elsewhere (eutest)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=1.
-      dtul(1:ifull,k,3)=0.
+      ! ##   W   |   *   #  ##  #     unstaggered
+      ! ##       W       #  ##  #     staggered
+      else if ( eutest ) then
+        wtul(iq,k,0)=1.
+        wtul(iq,k,1)=0.
+        wtul(iq,k,2)=0.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=1.
+        dtul(iq,k,3)=0.
 
-    elsewhere
-      wtul(1:ifull,k,0)=0.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-      dtul(1:ifull,k,1)=0.
-      dtul(1:ifull,k,2)=0.
-      dtul(1:ifull,k,3)=0.    
-    end where
+      else
+        wtul(iq,k,0)=0.
+        wtul(iq,k,1)=0.
+        wtul(iq,k,2)=0.
+        wtul(iq,k,3)=0.
+        dtul(iq,k,1)=0.
+        dtul(iq,k,2)=0.
+        dtul(iq,k,3)=0.    
+      end if
 
-    where (evnstest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=-0.1
-      wtvl(1:ifull,k,2)=-0.5
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.1
-      dtvl(1:ifull,k,2)=1.
-      dtvl(1:ifull,k,3)=0.5
-      !vd(1:ifull,k)=vin(issv,k)*0.1+vin(isv,k)+vin(1:ifull,k)*0.5
-      !vin(1:ifull,k)=vd(:,k)-va(inv,k)*0.1-va(isv,k)*0.5
-    elsewhere (evntest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=-0.1
-      wtvl(1:ifull,k,2)=-0.5
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.
-      dtvl(1:ifull,k,2)=1.
-      dtvl(1:ifull,k,3)=0.5
-    elsewhere (evstest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=-1./3.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.
-      dtvl(1:ifull,k,2)=1.
-      dtvl(1:ifull,k,3)=0.
-    elsewhere (enntest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=-1./3.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.
-      dtvl(1:ifull,k,2)=0.
-      dtvl(1:ifull,k,3)=1.
-    elsewhere (entest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.
-      dtvl(1:ifull,k,2)=0.
-      dtvl(1:ifull,k,3)=1.
-    elsewhere (evtest)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.
-      dtvl(1:ifull,k,2)=1.
-      dtvl(1:ifull,k,3)=0.
-    elsewhere
-      wtvl(1:ifull,k,0)=0.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-      dtvl(1:ifull,k,1)=0.
-      dtvl(1:ifull,k,2)=0.
-      dtvl(1:ifull,k,3)=0.
-    end where
+      if ( evnstest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=-0.1
+        wtvl(iq,k,2)=-0.5
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.1
+        dtvl(iq,k,2)=1.
+        dtvl(iq,k,3)=0.5
+      else if ( evntest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=-0.1
+        wtvl(iq,k,2)=-0.5
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.
+        dtvl(iq,k,2)=1.
+        dtvl(iq,k,3)=0.5
+      else if ( evstest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=0.
+        wtvl(iq,k,2)=-1./3.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.
+        dtvl(iq,k,2)=1.
+        dtvl(iq,k,3)=0.
+      else if ( enntest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=-1./3.
+        wtvl(iq,k,2)=0.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.
+        dtvl(iq,k,2)=0.
+        dtvl(iq,k,3)=1.
+      else if ( entest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=0.
+        wtvl(iq,k,2)=0.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.
+        dtvl(iq,k,2)=0.
+        dtvl(iq,k,3)=1.
+      else if ( evtest ) then
+        wtvl(iq,k,0)=1.
+        wtvl(iq,k,1)=0.
+        wtvl(iq,k,2)=0.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.
+        dtvl(iq,k,2)=1.
+        dtvl(iq,k,3)=0.
+      else
+        wtvl(iq,k,0)=0.
+        wtvl(iq,k,1)=0.
+        wtvl(iq,k,2)=0.
+        wtvl(iq,k,3)=0.
+        dtvl(iq,k,1)=0.
+        dtvl(iq,k,2)=0.
+        dtvl(iq,k,3)=0.
+      end if
+    end do
   end do  
     
   ! Apply JLM's preconditioner
@@ -939,159 +933,157 @@ if (.not.allocated(wtul)) then
 
   ! assign weights (right) 
   do k = 1,wlev
+    do iq = 1,ifull
       
-    ! assign land arrays  
-    ewtest = ee(iw,k)*ee(1:ifull,k)>0.5
-    estest = ee(is,k)*ee(1:ifull,k)>0.5
+      ! assign land arrays  
+      ewtest = ee(iw(iq),k)*ee(iq,k)>0.5
+      estest = ee(is(iq),k)*ee(iq,k)>0.5
       
-    eutest = ee(1:ifull,k)*ee(ie,k)>0.5
-    evtest = ee(1:ifull,k)*ee(in,k)>0.5
-    euetest = eutest .and. ee(ie,k)*ee(iee,k)>0.5
-    evntest = evtest .and. ee(in,k)*ee(inn,k)>0.5
-    euwtest = eutest .and. ee(iw,k)*ee(1:ifull,k)>0.5
-    evstest = evtest .and. ee(is,k)*ee(1:ifull,k)>0.5
-    euewtest = euetest .and. euwtest
-    evnstest = evntest .and. evstest
-    ewwtest = ewtest .and. ee(iww,k)>0.5
-    esstest = estest .and. ee(iss,k)>0.5
+      eutest = ee(iq,k)*ee(ie(iq),k)>0.5
+      evtest = ee(iq,k)*ee(in(iq),k)>0.5
+      euetest = eutest .and. ee(ie(iq),k)*ee(iee(iq),k)>0.5
+      evntest = evtest .and. ee(in(iq),k)*ee(inn(iq),k)>0.5
+      euwtest = eutest .and. ee(iw(iq),k)*ee(iq,k)>0.5
+      evstest = evtest .and. ee(is(iq),k)*ee(iq,k)>0.5
+      euewtest = euetest .and. euwtest
+      evnstest = evntest .and. evstest
+      ewwtest = ewtest .and. ee(iww(iq),k)>0.5
+      esstest = estest .and. ee(iss(iq),k)>0.5
   
   
-    !  |   W   |   * X |  E   |     unstaggered
-    !          W     X *      E     staggered
-    where (euewtest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=-0.5
-      wtur(1:ifull,k,2)=-0.1
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.1
-      dtur(1:ifull,k,2)=1.
-      dtur(1:ifull,k,3)=0.5
-      !ud(1:ifull,k)=uin(ieu,k)*0.1+uin(1:ifull,k)+uin(iwu,k)*0.5
-      !uin(1:ifull,k)=ud(:,k)-ua(iwu,k)*0.1-ua(ieu,k)*0.5
+      !  |   W   |   * X |  E   |     unstaggered
+      !          W     X *      E     staggered
+      if ( euewtest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=-0.5
+        wtur(iq,k,2)=-0.1
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.1
+        dtur(iq,k,2)=1.
+        dtur(iq,k,3)=0.5
         
-    !  |   W   |   * X |  E   #     unstaggered
-    !          W     X *      0     staggered
-    elsewhere (euwtest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=-0.5
-      wtur(1:ifull,k,2)=-0.1
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=1.
-      dtur(1:ifull,k,3)=0.5
+      !  |   W   |   * X |  E   #     unstaggered
+      !          W     X *      0     staggered
+      else if ( euwtest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=-0.5
+        wtur(iq,k,2)=-0.1
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=1.
+        dtur(iq,k,3)=0.5
       
-    !  #   ##  #   * X |   E   |     unstaggered
-    !  #   ##  0     X *             staggered
-    elsewhere (euetest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=-1./3.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=1.
-      dtur(1:ifull,k,3)=0.
+      !  #   ##  #   * X |   E   |     unstaggered
+      !  #   ##  0     X *             staggered
+      else if ( euetest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=-1./3.
+        wtur(iq,k,2)=0.
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=1.
+        dtur(iq,k,3)=0.
 
-    !  |   W   | X *   #  ##  #     unstaggered
-    !          W X     0  ##  #     staggered
-    elsewhere (ewwtest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=-1./3.
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=0.
-      dtur(1:ifull,k,3)=1.
+      !  |   W   | X *   #  ##  #     unstaggered
+      !          W X     0  ##  #     staggered
+      else if ( ewwtest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=0.
+        wtur(iq,k,2)=-1./3.
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=0.
+        dtur(iq,k,3)=1.
 
-    !  #   W   |   *   #  ##  #     unstaggered
-    !  #       W       #  ##  #     staggered
-    elsewhere (ewtest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=0.
-      dtur(1:ifull,k,3)=1.
+      !  #   W   |   *   #  ##  #     unstaggered
+      !  #       W       #  ##  #     staggered
+      else if ( ewtest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=0.
+        wtur(iq,k,2)=0.
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=0.
+        dtur(iq,k,3)=1.
 
-    !  #   ##  #   *   |  E   #     unstaggered
-    !  #   ##  #       *      #     staggered
-    elsewhere (eutest)
-      wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=1.
-      dtur(1:ifull,k,3)=0.
-    elsewhere
-      wtur(1:ifull,k,0)=0.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-      dtur(1:ifull,k,1)=0.
-      dtur(1:ifull,k,2)=0.
-      dtur(1:ifull,k,3)=0.
-    end where
+      !  #   ##  #   *   |  E   #     unstaggered
+      !  #   ##  #       *      #     staggered
+      else if ( eutest ) then
+        wtur(iq,k,0)=1.
+        wtur(iq,k,1)=0.
+        wtur(iq,k,2)=0.
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=1.
+        dtur(iq,k,3)=0.
+      else
+        wtur(iq,k,0)=0.
+        wtur(iq,k,1)=0.
+        wtur(iq,k,2)=0.
+        wtur(iq,k,3)=0.
+        dtur(iq,k,1)=0.
+        dtur(iq,k,2)=0.
+        dtur(iq,k,3)=0.
+      end if
 
-    where (evnstest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=-0.5
-      wtvr(1:ifull,k,2)=-0.1
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.1
-      dtvr(1:ifull,k,2)=1.
-      dtvr(1:ifull,k,3)=0.5
-      !vd(1:ifull,k)=vin(inv,k)*0.1+vin(1:ifull,k)+vin(isv,k)*0.5
-      !vin(1:ifull,k)=vd(:,k)-va(isv,k)*0.1-va(inv,k)*0.5
-    elsewhere (evstest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=-0.5
-      wtvr(1:ifull,k,2)=-0.1
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=1.
-      dtvr(1:ifull,k,3)=0.5
-    elsewhere (evntest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=-1./3.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=1.
-      dtvr(1:ifull,k,3)=0.
-    elsewhere (esstest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=-1./3.
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=0.
-      dtvr(1:ifull,k,3)=1.
-    elsewhere (estest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=0.
-      dtvr(1:ifull,k,3)=1.
-    elsewhere (evtest)
-      wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=1.
-      dtvr(1:ifull,k,3)=0.
-    elsewhere
-      wtvr(1:ifull,k,0)=0.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-      dtvr(1:ifull,k,1)=0.
-      dtvr(1:ifull,k,2)=0.
-      dtvr(1:ifull,k,3)=0.
-    end where
+      if ( evnstest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=-0.5
+        wtvr(iq,k,2)=-0.1
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.1
+        dtvr(iq,k,2)=1.
+        dtvr(iq,k,3)=0.5
+      else if ( evstest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=-0.5
+        wtvr(iq,k,2)=-0.1
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=1.
+        dtvr(iq,k,3)=0.5
+      else if ( evntest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=-1./3.
+        wtvr(iq,k,2)=0.
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=1.
+        dtvr(iq,k,3)=0.
+      else if ( esstest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=0.
+        wtvr(iq,k,2)=-1./3.
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=0.
+        dtvr(iq,k,3)=1.
+      else if ( estest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=0.
+        wtvr(iq,k,2)=0.
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=0.
+        dtvr(iq,k,3)=1.
+      else if ( evtest ) then
+        wtvr(iq,k,0)=1.
+        wtvr(iq,k,1)=0.
+        wtvr(iq,k,2)=0.
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=1.
+        dtvr(iq,k,3)=0.
+      else
+        wtvr(iq,k,0)=0.
+        wtvr(iq,k,1)=0.
+        wtvr(iq,k,2)=0.
+        wtvr(iq,k,3)=0.
+        dtvr(iq,k,1)=0.
+        dtvr(iq,k,2)=0.
+        dtvr(iq,k,3)=0.
+      end if
+    end do
   end do  
 
   ! Apply JLM's preconditioner
@@ -1167,11 +1159,6 @@ if (.not.allocated(wtul)) then
   end do  
 
   deallocate( nwtu, nwtv )
-  deallocate( eutest, evtest )
-  deallocate( eetest, ewtest, entest, estest )
-  deallocate( euetest, euwtest, evntest, evstest )
-  deallocate( euewtest, evnstest )
-  deallocate( eeetest, ewwtest, enntest, esstest )
 
 end if
 

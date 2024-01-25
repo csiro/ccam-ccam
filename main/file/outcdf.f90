@@ -183,7 +183,7 @@ use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
     ,omaxl,mlo_timeave_length,kemaxdt    &
     ,omineps,omink,mlo_adjeta            &
     ,mlo_limitsal,mlo_step,mlo_uvcoupl   &
-    ,fluxwgt
+    ,fluxwgt,delwater
 use mlodiffg                               ! Ocean dynamics horizontal diffusion
 use mlodynamics                            ! Ocean dynamics
 use mlostag, only : mstagf                 ! Ocean reversible staggering
@@ -874,6 +874,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'alphavis_seaice',alphavis_seaice)    
     call ccnf_put_attg(idnc,'alphavis_seasnw',alphavis_seasnw)    
     call ccnf_put_attg(idnc,'basinmd',basinmd)
+    call ccnf_put_attg(idnc,'delwater',delwater)
     call ccnf_put_attg(idnc,'factchseaice',factchseaice)
     call ccnf_put_attg(idnc,'fluxwgt',fluxwgt)
     call ccnf_put_attg(idnc,'kemaxdt',kemaxdt)

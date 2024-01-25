@@ -180,8 +180,11 @@ endif
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then  
-  ! Loop over points that need to be calculated for other processes
 
+  ! Loop over points that need to be calculated for other processes
+  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,xxg,yyg,n)             &
+  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
+  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -215,17 +218,22 @@ if ( intsch==1 ) then
       end do        ! iq loop
     end do          ! nn loop
   end do            ! ii loop
+  !$omp end parallel do
 
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,xxg,yyg,n)  &
-  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
-#endif  
+  !$omp parallel
+#endif
   do nn = 1,3
+#ifdef GPU
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+#else
+    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,xxg,yyg,n) &
+    !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -255,18 +263,26 @@ if ( intsch==1 ) then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do   ! iq loop
     end do     ! k loop
+#ifdef GPU
     !$acc end parallel loop
+#else
+    !$omp end do nowait
+#endif
   end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel do
-#endif  
+#ifdef GPU
   !$acc wait  
+#else
+  !$omp end parallel
+#endif
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
   
   ! For other processes
+  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,xxg,yyg,n) &
+  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
+  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -299,17 +315,22 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii
+  !$omp end parallel do
   
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,xxg,yyg,n)  &
-  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
-#endif  
+  !$omp parallel
+#endif
   do nn = 1,3
+#ifdef GPU
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+#else
+    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,xxg,yyg,n) &
+    !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -338,13 +359,18 @@ else     ! if(intsch==1)then
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
-    end do            ! k loop
+    end do     ! k loop
+#ifdef GPU
     !$acc end parallel loop
+#else
+    !$omp end do nowait
+#endif
   end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel do
-#endif  
+#ifdef GPU
   !$acc wait  
+#else
+  !$omp end parallel
+#endif
   
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -372,6 +398,9 @@ end if
 if ( intsch==1 ) then
 
   ! Loop over points that need to be calculated for other processes
+  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,xxg,yyg,n) &
+  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
+  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -405,17 +434,22 @@ if ( intsch==1 ) then
       end do        ! iq loop
     end do          ! nn loop
   end do            ! ii loop
+  !$omp end parallel do
 
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,xxg,yyg,n)  &
-  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
-#endif    
+  !$omp parallel
+#endif
   do nn = 1,3
+#ifdef GPU
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+#else
+    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,xxg,yyg,n) &
+    !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         idel = int(xg(iq,k))
@@ -445,18 +479,26 @@ if ( intsch==1 ) then
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do   ! iq loop
     end do     ! k loop
+#ifdef GPU
     !$acc end parallel loop
+#else
+    !$omp end do nowait
+#endif
   end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel do
-#endif  
-  !$acc wait 
+#ifdef GPU
+  !$acc wait  
+#else
+  !$omp end parallel
+#endif
             
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
   ! For other processes
+  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,xxg,yyg,n) &
+  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
+  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -490,17 +532,22 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii
+  !$omp end parallel do
 
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,xxg,yyg,n)  &
-  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-  !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
-#endif  
+  !$omp parallel
+#endif
   do nn = 1,3
+#ifdef GPU
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
+#else
+    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,xxg,yyg,n) &
+    !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
+#endif
     do k = 1,kl
       do iq = 1,ifull    ! non Berm-Stan option
         ! Convert face index from 0:npanels to array indices
@@ -530,13 +577,18 @@ else     ! if(intsch==1)then
         rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
         s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
       end do          ! iq loop
-    end do            ! k loop
+    end do     ! k loop
+#ifdef GPU
     !$acc end parallel loop
+#else
+    !$omp end do nowait
+#endif
   end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel do
-#endif  
-  !$acc wait 
+#ifdef GPU
+  !$acc wait  
+#else
+  !$omp end parallel
+#endif
   
 endif                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================

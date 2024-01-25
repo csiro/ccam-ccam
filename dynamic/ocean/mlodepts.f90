@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -321,6 +321,7 @@ call deptsync(nface,xg,yg)
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then  
   ! Loop over points that need to be calculated for other processes
+  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,n,xxg,yyg)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -337,15 +338,20 @@ if ( intsch==1 ) then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
+  !$omp end parallel do
   
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
-#endif  
+  !$omp parallel
+#endif
   do nn = 1,3  
+#ifdef GPU
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
+#else
+    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif  
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -357,19 +363,25 @@ if ( intsch==1 ) then
         n = min( max(nface(iq,k) + noff, 1), npan)
         s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do     ! iq loop
-    end do       ! k loop
+    end do
+#ifdef GPU
     !$acc end parallel loop
-  end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel do
+#else
+    !$omp end do nowait
 #endif
+  end do       ! nn loop
+#ifdef GPU
   !$acc wait
+#else
+  !$omp end parallel
+#endif
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
   
   ! For other processes
+  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,n,xxg,yyg)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -385,15 +397,20 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
+  !$omp end parallel do
 
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
-#endif  
+  !$omp parallel
+#endif
   do nn = 1,3  
+#ifdef GPU
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
+#else
+    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif  
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -406,12 +423,18 @@ else     ! if(intsch==1)then
         s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do
     end do
+#ifdef GPU
     !$acc end parallel loop
-  end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel do
+#else
+    !$omp end do nowait
 #endif
+  end do       ! nn loop
+#ifdef GPU
   !$acc wait
+#else
+  !$omp end parallel
+#endif
+
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
@@ -439,6 +462,7 @@ call deptsync(nface,xg,yg)
 if ( intsch==1 ) then
  
   ! Loop over points that need to be calculated for other processes
+  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,n,xxg,yyg)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -454,15 +478,20 @@ if ( intsch==1 ) then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
+  !$omp end parallel do
   
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
+  !$omp parallel
 #endif
   do nn = 1,3  
+#ifdef GPU
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
+#else
+    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif  
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -474,19 +503,25 @@ if ( intsch==1 ) then
         n = min( max(nface(iq,k) + noff, 1), npan)
         s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do     ! iq loop
-    end do       ! k loop
+    end do
+#ifdef GPU
     !$acc end parallel loop
-  end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel do
+#else
+    !$omp end do nowait
 #endif
+  end do       ! nn loop
+#ifdef GPU
   !$acc wait
+#else
+  !$omp end parallel
+#endif
        
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
 
   ! For other processes
+  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,n,xxg,yyg)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -502,15 +537,20 @@ else     ! if(intsch==1)then
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
+  !$omp end parallel do
 
   call intssync_send(3)
 
 #ifndef GPU
-  !$omp parallel do schedule(static) private(nn,async_counter,k,iq,idel,jdel,n,xxg,yyg)
+  !$omp parallel
 #endif
   do nn = 1,3  
+#ifdef GPU
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
+#else
+    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+#endif  
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -523,12 +563,17 @@ else     ! if(intsch==1)then
         s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
       end do
     end do
+#ifdef GPU
     !$acc end parallel loop
-  end do       ! nn loop
-#ifndef GPU
-  !$omp end parallel do
+#else
+    !$omp end do nowait
 #endif
+  end do       ! nn loop
+#ifdef GPU
   !$acc wait
+#else
+  !$omp end parallel
+#endif
 
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================

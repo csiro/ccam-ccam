@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -251,7 +251,6 @@ real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:,:), intent(inout) :: work
 real, dimension(ifull+iextra,wlev,size(work,3)) :: ans
-real, dimension(ifull) :: ansl
 real, dimension(ifull,wlev,size(work,3)) :: work_save
 real, intent(in) :: hdif, ldif
 real base, xfact_iwu, yfact_isv
@@ -340,16 +339,16 @@ do its = 1,nits
           yfact_isv = yfact(isv(iq),k)
           base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
                         +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
-          ansl(iq) = ( emi(iq)*work(iq,k,nn) +                  &
-                       ldif*xfact(iq,k)**2*work(ie(iq),k,nn) +  &
-                       ldif*xfact_iwu**2*work(iw(iq),k,nn) +    &
-                       ldif*yfact(iq,k)**2*work(in(iq),k,nn) +  &
-                       ldif*yfact_isv**2*work(is(iq),k,nn) )    &
-                    / base
+          ans(iq,k,nn) = ( emi(iq)*work(iq,k,nn) +                  &
+                           ldif*xfact(iq,k)**2*work(ie(iq),k,nn) +  &
+                           ldif*xfact_iwu**2*work(iw(iq),k,nn) +    &
+                           ldif*yfact(iq,k)**2*work(in(iq),k,nn) +  &
+                           ldif*yfact_isv**2*work(is(iq),k,nn) )    &
+                        / base
         end do  
         do iq = 1,ifull
           if ( ee(iq,k)>0.5 ) then
-            work(iq,k,nn) = ansl(iq)
+            work(iq,k,nn) = ans(iq,k,nn)
           end if
         end do
       end do  

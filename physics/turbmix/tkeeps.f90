@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1129,7 +1129,8 @@ subroutine unpack_coupled(deptho_dz,deptho_dz_hl,rad_o,                   &
                           imass,fracice,cd_ice,cdbot_ice,ibot,imax,tile)
 
 use mlo, only : mloexport, mloexpdep, mlodiag, mloexpice, mlodiagice, wlev, &
-                water_g, dgwater_g, ice_g, dgice_g, depth_g, minwater
+                water_g, dgwater_g, ice_g, dgice_g, depth_g, minwater,      &
+                delwater
 
 implicit none
 
@@ -1143,14 +1144,14 @@ real, dimension(imax), intent(out) :: cd_water, cdh_water, cdbot_water, wt0rad_o
 real, dimension(imax,wlev), intent(out) :: w_t, w_s, w_u, w_v
 real, dimension(imax), intent(out) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o, fracice
 real, dimension(imax), intent(out) :: i_u, i_v, imass, cd_ice, cdbot_ice
-real, dimension(imax) :: d_zcr, rbot, neta, deptho_max
+real, dimension(imax) :: rbot, neta, deptho_max, d_zcr
 
 neta = 0.
 call mloexport("eta",neta,0,0,water_g(tile),depth_g(tile))
 deptho_max = 0.
 call mloexpdep("depth_hl",deptho_max,wlev+1,0,depth_g(tile))
 
-d_zcr = max( 1. + neta/max(deptho_max,1.e-4), minwater/max(deptho_max,1.e-4) )
+d_zcr = max( 1. + max(neta,-delwater)/max(deptho_max,1.e-4), minwater/max(deptho_max,1.e-4) )
 
 do k = 1,wlev
   call mloexpdep("depth_dz_fl",deptho_dz(:,k),k,0,depth_g(tile))
