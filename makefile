@@ -280,6 +280,11 @@ ifeq ($(NETCDF3),yes)
 FFLAGS += -Dusenc3
 endif
 
+#MPI 
+ifeq ($(MPIMOD),yes)
+FFLAGS += -Dusempimod
+endif
+
 # COSP
 ifeq ($(COSP),yes)
 VPATH = ../../program/COSPv2.0/build

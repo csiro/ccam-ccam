@@ -265,7 +265,6 @@ integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart, iq, mspec_mlo, mspeca_mlo
 integer, dimension(ifull,wlev) :: nface
-integer, dimension(6) :: bc_test
 real maxglobseta,maxglobip,hdt,dtin_mlo
 real alph_p, delta, rone
 real, dimension(2) :: delpos, delneg
@@ -289,7 +288,7 @@ real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull) :: sdiv, imu, imv
 real, dimension(ifull) :: oeu_iwu, oev_isv
 real, dimension(ifull) :: bu, bv, cu, cv
-real, dimension(ifull+iextra,wlev,6) :: cou
+real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev) :: cc
 real, dimension(ifull+iextra,wlev) :: eou, eov, ccu, ccv
 real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns, mps
@@ -311,9 +310,8 @@ real, dimension(ifull,0:wlev) :: nw
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,3) :: gamm
 real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
-logical lleap
+logical lleap, bs_test
 logical, dimension(ifull+iextra,wlev) :: wtr
-logical, dimension(6) :: bs_test
 complex lsum, gsum
 
 ! Vertical coordinates are defined as:
@@ -758,31 +756,19 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,1) = ax(1:ifull)*u_tstar(:,ii) + bx(1:ifull)*v_tstar(:,ii)
     cou(1:ifull,ii,2) = ay(1:ifull)*u_tstar(:,ii) + by(1:ifull)*v_tstar(:,ii)
     cou(1:ifull,ii,3) = az(1:ifull)*u_tstar(:,ii) + bz(1:ifull)*v_tstar(:,ii)
-    cou(1:ifull,ii,4) = nt(1:ifull,ii)
-    cou(1:ifull,ii,5) = mps(1:ifull,ii)
-    cou(1:ifull,ii,6) = ns(1:ifull,ii)
   end do
   
   ! Horizontal advection for U, V, W, T, continuity and S
-  bc_test = (/0,0,0,0,2,1/)
-  select case(mlo_bs)
-    case(1)
-      bs_test = (/.true.,.true.,.true.,.true.,.true.,.true./) 
-    case(2)
-      bs_test = (/.true.,.true.,.true.,.true.,.false.,.true./) 
-    case(3)
-      bs_test = (/.false.,.false.,.false.,.true.,.false.,.true./)
-    case(4)
-      bs_test = (/.false.,.false.,.false.,.false.,.false.,.true./)  
-    case(5)  
-      bs_test =  (/.false.,.false.,.false.,.false.,.false.,.false./)
-    case default
-      write(6,*) "ERROR: Unknown option mlo_bs = ",mlo_bs
-      call ccmpi_abort(-1)
-  end select    
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
-  call mlob2ints_bs(cou(:,:,1:6),nface,xg,yg,wtr,bc_test(1:6),bs_test(1:6),mlointschf)
+  bs_test = 2<=mlo_bs
+  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,0,bs_test,mlointschf)
+  bs_test = 3<=mlo_bs
+  call mlob2ints_bs(nt,nface,xg,yg,wtr,0,bs_test,mlointschf)
+  bs_test = 1<=mlo_bs
+  call mlob2ints_bs(mps,nface,xg,yg,wtr,2,bs_test,mlointschf)
+  bs_test = 4<=mlo_bs
+  call mlob2ints_bs(ns,nface,xg,yg,wtr,1,bs_test,mlointschf)
   !$acc end data
 
   ! Rotate vector to arrival point
@@ -795,10 +781,9 @@ do mspec_mlo = mspeca_mlo,1,-1
     u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)
     v_tstar(:,ii) = v_tstar(:,ii)*ee(1:ifull,ii)
     ! Update T, S and continuity
-    nt(1:ifull,ii) = max( cou(1:ifull,ii,4), -wrtemp )
-    mps(1:ifull,ii) = cou(1:ifull,ii,5)
+    nt(1:ifull,ii) = max( nt(1:ifull,ii), -wrtemp )
     ! MJT notes - only advect salinity for salt water
-    ns(1:ifull,ii) = max( cou(1:ifull,ii,6), 0. )
+    ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )
   end do
 
   workdata = nt(1:ifull,:)

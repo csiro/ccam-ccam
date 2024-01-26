@@ -350,7 +350,7 @@ if ( intsch==1 ) then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
 #endif  
     do k = 1,wlev
       do iq = 1,ifull
@@ -409,7 +409,7 @@ else     ! if(intsch==1)then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
 #endif  
     do k = 1,wlev
       do iq = 1,ifull
@@ -490,7 +490,7 @@ if ( intsch==1 ) then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
 #endif  
     do k = 1,wlev
       do iq = 1,ifull
@@ -549,7 +549,7 @@ else     ! if(intsch==1)then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
 #endif  
     do k = 1,wlev
       do iq = 1,ifull

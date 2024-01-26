@@ -52,6 +52,7 @@ use parmhor_m
 implicit none
 
 integer, intent(in) :: mlointschf
+integer, intent(in) :: bc_test
 integer idel, iq, jdel
 integer i, j, k, n, intsch, nn, np
 integer ii, ntr, nstart, nend, nlen, async_counter
@@ -65,8 +66,7 @@ real s_tot, s_count
 real xxg, yyg
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: wx
-logical, dimension(size(s,3)), intent(in) :: bs_test
-integer, dimension(size(s,3)), intent(in) :: bc_test
+logical, intent(in) :: bs_test
 
 call START_LOG(waterints_begin)
 
@@ -85,27 +85,33 @@ do nn = 1,ntr
   do k = 1,wlev
     s_store(1:ifull,k,nn) = s(1:ifull,k,nn)
   end do
-  select case(bc_test(nn))
-    case(0) ! fill
+end do  
+select case(bc_test)
+  case(0) ! fill
+    do nn = 1,ntr
       do k = 1,wlev
         where (.not.wtr(1:ifull,k))
           s(1:ifull,k,nn) = cxx - 1. ! missing value flag
         end where
       end do
-    case(1) ! salinity + fill
+    end do
+  case(1) ! salinity + fill
+    do nn = 1,ntr
       do k = 1,wlev  
         where ( s(1:ifull,k,nn)<2. .or. .not.wtr(1:ifull,k) )
           s(1:ifull,k,nn) = cxx - 1. ! missing value flag
         end where
       end do
-    case(2) ! zero
+    end do
+  case(2) ! zero
+    do nn = 1,ntr
       do k = 1,wlev
         where (.not.wtr(1:ifull,k))
           s(1:ifull,k,nn) = 0.
         end where
       end do
-  end select
-end do
+    end do
+end select
 
 ! fill
 do ii = 1,6 ! 6 iterations of fill should be enough
@@ -198,7 +204,6 @@ if ( intsch==1 ) then
     nend = min(nstart + nagg - 1, ntr)
     nlen = nend - nstart + 1
 
-    !$omp parallel do schedule(static) private(np,i,j,nn,ii,k,iq,idel,jdel,n,xxg,yyg)
     do nn = 1,nlen
       np = nn - 1 + nstart  
       do k = 1,wlev
@@ -240,9 +245,11 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
+    end do
   
-      ! Loop over points that need to be calculated for other processes
-      if ( bs_test(nn-1+nstart) ) then
+    ! Loop over points that need to be calculated for other processes
+    if ( bs_test ) then
+      do nn = 1,nlen
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
             n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
@@ -256,7 +263,9 @@ if ( intsch==1 ) then
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1bs(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do          ! iq loop
         end do            ! ii loop
-      else
+      end do  
+    else
+      do nn = 1,nlen
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
             n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
@@ -270,23 +279,22 @@ if ( intsch==1 ) then
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do          ! iq loop
         end do            ! ii loop
-      end if              ! bs_test ..else.. 
-    end do                ! nn loop  
-    !$omp end parallel do
+      end do              ! nn loop        
+    end if                ! bs_test ..else.. 
 
     call intssync_send(nlen)
 
+    if ( bs_test ) then    
 #ifndef GPU
-    !$omp parallel
+      !$omp parallel
 #endif    
-    do nn = 1,nlen
-      if ( bs_test(nn-1+nstart) ) then
+      do nn = 1,nlen
 #ifdef GPU
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
 #else
-        !$omp do schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+        !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
 #endif
         do k = 1,wlev      
           do iq = 1,ifull
@@ -305,13 +313,23 @@ if ( intsch==1 ) then
 #else
         !$omp end do nowait
 #endif
-      else
+      end do
+#ifdef GPU
+      !$acc wait
+#else
+      !$omp end parallel
+#endif
+    else
+#ifndef GPU
+      !$omp parallel
+#endif    
+      do nn = 1,nlen
 #ifdef GPU
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
 #else
-        !$omp do schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+        !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
 #endif
         do k = 1,wlev      
           do iq = 1,ifull
@@ -330,13 +348,13 @@ if ( intsch==1 ) then
 #else
         !$omp end do nowait
 #endif
-      end if           ! bs_test ..else..
-    end do             ! nn loop
+      end do             ! nn loop
 #ifdef GPU
-    !$acc wait
+      !$acc wait
 #else
-    !$omp end parallel
+      !$omp end parallel
 #endif
+    end if           ! bs_test ..else..
 
     call intssync_recv(s(:,:,nstart:nend))  
     
@@ -395,7 +413,6 @@ else     ! if(intsch==1)then
     nend = min(nstart + nagg - 1, ntr)
     nlen = nend - nstart + 1
 
-    !$omp parallel do schedule(static) private(np,i,j,nn,ii,k,iq,idel,jdel,n,xxg,yyg)    
     do nn = 1,nlen
       np = nn - 1 + nstart      
       do k = 1,wlev
@@ -437,9 +454,11 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
+    end do  
   
-      ! For other processes
-      if ( bs_test(nn-1+nstart) ) then
+    ! For other processes
+    if ( bs_test ) then
+      do nn = 1,nlen        
         do ii = neighnum,1,-1
           do iq = 1,drlen(ii)
             n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
@@ -453,7 +472,9 @@ else     ! if(intsch==1)then
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0bs(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do          ! iq loop
         end do            ! ii loop
-      else
+      end do  
+    else
+      do nn = 1,nlen
         do ii = neighnum,1,-1
           do iq = 1,drlen(ii)
             n = nint(dpoints(ii)%a(iq,1)) + noff ! Local index
@@ -467,23 +488,22 @@ else     ! if(intsch==1)then
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
           end do          ! iq loop
         end do            ! ii loop
-      end if              ! bs_test ..else.. 
-    end do                ! nn loop  
-    !$omp end parallel do
+      end do              ! nn loop  
+    end if                ! bs_test ..else..       
 
     call intssync_send(nlen)
 
+    if ( bs_test ) then
 #ifndef GPU
-    !$omp parallel
+      !$omp parallel
 #endif  
-    do nn = 1,nlen
-      if ( bs_test(nn-1+nstart) ) then
+      do nn = 1,nlen
 #ifdef GPU
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
 #else
-        !$omp do schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+        !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
 #endif
         do k = 1,wlev
           do iq = 1,ifull
@@ -502,13 +522,23 @@ else     ! if(intsch==1)then
 #else
         !$omp end do nowait
 #endif
-      else
+      end do           ! nn loop
+#ifdef GPU
+      !$acc wait
+#else
+      !$omp end parallel
+#endif
+    else
+#ifndef GPU
+      !$omp parallel
+#endif  
+      do nn = 1,nlen        
 #ifdef GPU
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
 #else
-        !$omp do schedule(static) firstprivate(nn) private(k,iq,idel,jdel,n,xxg,yyg)
+        !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
 #endif
         do k = 1,wlev
           do iq = 1,ifull
@@ -527,13 +557,13 @@ else     ! if(intsch==1)then
 #else
         !$omp end do nowait
 #endif
-      end if
-    end do           ! nn loop
+      end do           ! nn loop
 #ifdef GPU
-    !$acc wait
+      !$acc wait
 #else
-    !$omp end parallel
+      !$omp end parallel
 #endif
+    end if
 
     call intssync_recv(s(:,:,nstart:nend))  
 
@@ -550,14 +580,16 @@ do nn = 1,ntr
       s(1:ifull,k,nn) = s_store(1:ifull,k,nn)
     end where
   end do
-  if ( bc_test(nn)==1 ) then
+end do  
+if ( bc_test==1 ) then
+  do nn = 1,ntr
     do k = 1,wlev
       where ( s_store(1:ifull,k,nn)<2. )
         s(1:ifull,k,nn) = s_store(1:ifull,k,nn)  
       end where
     end do
-  end if
-end do
+  end do
+end if
 
 call END_LOG(waterints_end)
 
@@ -577,6 +609,7 @@ use parmhor_m
 implicit none
 
 integer, intent(in) :: mlointschf
+integer, intent(in) :: bc_test
 integer idel, iq, jdel
 integer i, j, k, n, intsch
 integer ii
@@ -591,7 +624,6 @@ real xxg, yyg
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: wx
 logical, intent(in) :: bs_test
-integer, intent(in) :: bc_test
 
 call START_LOG(waterints_begin)
 

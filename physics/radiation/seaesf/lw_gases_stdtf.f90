@@ -2569,13 +2569,13 @@ real, dimension(:,:), intent(out)   :: approx
 !                             (sexp_app(kp,k)/uexp_app(kp,k))
 !---------------------------------------------------------------------
             
-          upathv(kp,k) = EXP((1.0/sexp_app(kp,k))* ALOG(  &
+          upathv(kp,k) = EXP((1.0/sexp_app(kp,k))* log(  &
                         (press_hi_pa(kp,k) - press_lo_pa(kp,k))))* &
                         (press_hi_pa(kp,k) + press_lo_pa(kp,k) +  &
                          dop_core)
-          upathv(kp,k) = EXP(uexp_app(kp,k)*ALOG(upathv(kp,k)))
+          upathv(kp,k) = EXP(uexp_app(kp,k)*log(upathv(kp,k)))
           approx(kp,k) = EXP( ((sexp_app(kp,k)/uexp_app(kp,k)) *  &
-                         ALOG( ca_app(kp,k)*   &
+                         log( ca_app(kp,k)*   &
                          LOG(1.0 + xa_app(kp,k)*upathv(kp,k)))))
         enddo
       enddo
@@ -3992,16 +3992,16 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
           endif
         endif 
 !------------------------------------------------------------------
-!    all  a(**)b code replaced with exp(b*(alog(a)) code below for 
+!    all  a(**)b code replaced with exp(b*(log(a)) code below for 
 !    overall ~ 10% speedup in standalone code -- no change in radiag 
 !    file
 !       rexp(k) = r(k)**(uexp(k)/sexp(k))
 !       upatha(k) = upatha(k)**uexp(k)
 !       upathb(k) = upathb(k)**uexp(k)
 !------------------------------------------------------------------
-        rexp(k) = EXP((uexp(k)/sexp(k))*ALOG(r(k)))
-        upatha(k) = EXP(uexp(k)*ALOG(upatha(k)))
-        upathb(k) = EXP(uexp(k)*ALOG(upathb(k)))
+        rexp(k) = EXP((uexp(k)/sexp(k))*log(r(k)))
+        upatha(k) = EXP(uexp(k)*log(upatha(k)))
+        upathb(k) = EXP(uexp(k)*log(upathb(k)))
         xx(k) = 2.0*(upathb(k)*rexp(k) - upatha(k))/   &
                 (upathb(k)*upathb(k)*rexp(k) - upatha(k)*upatha(k))
         xx0(k) = xx(k)
@@ -4030,17 +4030,17 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
             xa(k)=1.0
     
 !------------------------------------------------------------------
-!    all  a(**)b code replaced with exp(b*(alog(a)) code below for 
+!    all  a(**)b code replaced with exp(b*(log(a)) code below for 
 !    overall ~ 10% speedup in standalone code -- no change in radiag 
 !    file
 !           ca(k)=(1.0 - trns_val(k,k-2))**(uexp(k)/sexp(k))/upatha(k)
 !------------------------------------------------------------------
             if (do_co2_bug) then 
               ca(k)=EXP((uexp(k)/sexp(k))*   &
-                  ALOG((1.0 - trns_val(k,k-2))))/upatha(k)
+                  log((1.0 - trns_val(k,k-2))))/upatha(k)
             else     
               ca(k)=EXP((uexp(k)/sexp(k))*   &
-                  ALOG((abs_val(k,k-2))))/upatha(k)
+                  log((abs_val(k,k-2))))/upatha(k)
               f(k) = 0.0
               fprime(k) = 1.0
             endif  
@@ -4051,7 +4051,7 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
             xa(k) = EXP(xxlog(k))
 
 !------------------------------------------------------------------
-!    all  a(**)b code replaced with exp(b*(alog(a)) code below for 
+!    all  a(**)b code replaced with exp(b*(log(a)) code below for 
 !    overall ~ 10% speedup in standalone code -- no change in radiag 
 !    file
 !           ca(k) = (1.0 - trns_val(k,k-2))**(uexp(k)/sexp(k))/  &
@@ -4059,11 +4059,11 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
 !------------------------------------------------------------------
             if (do_co2_bug) then 
               ca(k)=EXP((uexp(k)/sexp(k))*   &
-                 ALOG((1.0 - trns_val(k,k-2))))/   &
+                 log((1.0 - trns_val(k,k-2))))/   &
                       (xxlog(k) + LOG(upatha(k)))
             else 
               ca(k)=EXP((uexp(k)/sexp(k))*   &
-                  ALOG((abs_val(k,k-2))))/   &
+                  log((abs_val(k,k-2))))/   &
                        (xxlog(k) + LOG(upatha(k)))
               f(k) = 0.0
               fprime(k) = 1.0  
@@ -4137,12 +4137,12 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
         do k=3,NSTDCO2LVLS
 
 !------------------------------------------------------------------
-!    all  a(**)b code replaced with exp(b*(alog(a)) code below for 
+!    all  a(**)b code replaced with exp(b*(log(a)) code below for 
 !    overall ~ 10% speedup in standalone code -- no change in radiag 
 !    file
 !         upath0(k)=upath0(k)**uexp(k)
 !------------------------------------------------------------------
-          upath0(k)=EXP(uexp(k)*ALOG(upath0(k)))
+          upath0(k)=EXP(uexp(k)*log(upath0(k)))
           upath0(k)=1.0 +xa(k)*upath0(k)
           if (upath0(k).lt.0.)   then
             write (     *, 361) k, upath0(k), xa(k) 
@@ -5468,14 +5468,14 @@ integer,                 intent(in)       :: ndimlo, ndimhi
       do k = ndimlo,ndimhi
 
 !------------------------------------------------------------------
-!    all  a(**)b code replaced with exp(b*(alog(a)) code below for 
+!    all  a(**)b code replaced with exp(b*(log(a)) code below for 
 !    overall ~ 10% speedup in standalone code -- no change in radiag 
 !    file
 !       upath(k) = (press_hi(k) - press_lo(k))**(1./sexp(k))*   &
 !                  (press_hi(k) + press_lo(k) + dop_core)
 !------------------------------------------------------------------
 
-        upath(k) = EXP((1./sexp(k))*ALOG((press_hi(k) - press_lo(k))))*&
+        upath(k) = EXP((1./sexp(k))*log((press_hi(k) - press_lo(k))))*&
                    (press_hi(k) + press_lo(k) + dop_core)
       enddo
 

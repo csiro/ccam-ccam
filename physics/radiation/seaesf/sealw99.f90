@@ -6270,12 +6270,12 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
     if (Lw_control%do_h2o) then
       do j = 1,size(ylog(:,:,:),2)
          do i = 1,size(ylog(:,:,:),1)
-            ylog(i,j,KE  ) = ALOG10(Optical%var2(i,j,KE))
+            ylog(i,j,KE  ) = log10(Optical%var2(i,j,KE))
          end do
       end do
       do j = 1,size(ylog(:,:,:),2)
          do i = 1,size(ylog(:,:,:),1)
-            ylog(i,j,KE+1) = ALOG10(Optical%var2(i,j,KE) + Optical%empl1(i,j,KE))
+            ylog(i,j,KE+1) = log10(Optical%var2(i,j,KE) + Optical%empl1(i,j,KE))
          end do
       end do
 
@@ -6303,12 +6303,12 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
         do m=1,NBTRGE
           do j = 1,size(ylog(:,:,:),2)
              do i = 1,size(ylog(:,:,:),1)
-                ylog(i,j,KE  ) = ALOG10(Optical%vrpfh2o(i,j,KE,m))
+                ylog(i,j,KE  ) = log10(Optical%vrpfh2o(i,j,KE,m))
              end do
           end do
           do j = 1,size(ylog(:,:,:),2)
              do i = 1,size(ylog(:,:,:),1)
-                ylog(i,j,KE+1) = ALOG10(Optical%vrpfh2o(i,j,KE,m) + Optical%empl1f(i,j,KE,m))
+                ylog(i,j,KE+1) = log10(Optical%vrpfh2o(i,j,KE,m) + Optical%empl1f(i,j,KE,m))
              end do
           end do
 
@@ -6339,7 +6339,7 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
       do kk = KS,KE+1
          do j = 1,size(ylog(:,:,:),2)
             do i = 1,size(ylog(:,:,:),1)
-               ylog(i,j,kk) = ALOG10(Optical%empl1(i,j,kk))
+               ylog(i,j,kk) = log10(Optical%empl1(i,j,kk))
             end do
          end do
       end do
@@ -6363,7 +6363,7 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
           do kk = KS,KE+1
              do j = 1,size(ylog(:,:,:),2)
                 do i = 1,size(ylog(:,:,:),1)
-                   ylog(i,j,kk) = ALOG10(Optical%empl1f(i,j,kk,m))
+                   ylog(i,j,kk) = log10(Optical%empl1f(i,j,kk,m))
                 end do
              end do
           end do
@@ -6390,7 +6390,7 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
       do kk = KS+1,KE+1
          do j = 1,size(ylog(:,:,:),2)
             do i = 1,size(ylog(:,:,:),1)
-               ylog(i,j,kk) = ALOG10(Optical%empl2(i,j,kk))
+               ylog(i,j,kk) = log10(Optical%empl2(i,j,kk))
             end do
          end do
       end do
@@ -6414,7 +6414,7 @@ real, dimension (:,:,:),   intent(inout) :: tcfc8
           do kk = KS+1,KE+1
              do j = 1,size(ylog(:,:,:),2)
                 do i = 1,size(ylog(:,:,:),1)
-                   ylog(i,j,kk) = ALOG10(Optical%empl2f(i,j,kk,m))
+                   ylog(i,j,kk) = log10(Optical%empl2f(i,j,kk,m))
                 end do
              end do
           end do
@@ -6802,7 +6802,7 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
       do kk = KS,KE+1
          do j = 1,size(ylog(:,:,:),2)
             do i = 1,size(ylog(:,:,:),1)
-               ylog(i,j,kk) = ALOG10(Optical%empl1(i,j,kk))
+               ylog(i,j,kk) = log10(Optical%empl1(i,j,kk))
             end do
          end do
       end do
@@ -6826,7 +6826,7 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
           do kk = KS,KE+1
              do j = 1,size(ylog(:,:,:),2)
                 do i = 1,size(ylog(:,:,:),1)
-                   ylog(i,j,kk) = ALOG10(Optical%empl1f(i,j,kk,m))
+                   ylog(i,j,kk) = log10(Optical%empl1f(i,j,kk,m))
                 end do
              end do
           end do
@@ -6854,7 +6854,7 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
       do kk = KS+1,KE+1
          do j = 1,size(ylog(:,:,:),2)
             do i = 1,size(ylog(:,:,:),1)
-               ylog(i,j,kk) = ALOG10(Optical%empl2(i,j,kk))
+               ylog(i,j,kk) = log10(Optical%empl2(i,j,kk))
             end do
          end do
       end do
@@ -6878,7 +6878,7 @@ real, dimension (:,:,:),   intent(inout) ::  tcfc8
           do kk = KS+1,KE+1
              do j = 1,size(ylog(:,:,:),2)
                 do i = 1,size(ylog(:,:,:),1)
-                   ylog(i,j,kk) = ALOG10(Optical%empl2f(i,j,kk,m))
+                   ylog(i,j,kk) = log10(Optical%empl2f(i,j,kk,m))
                 end do
              end do
           end do

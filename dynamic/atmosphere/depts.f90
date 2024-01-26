@@ -230,7 +230,7 @@ if ( intsch==1 ) then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,xxg,yyg,n) &
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                  &
     !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
     !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
@@ -327,7 +327,7 @@ else     ! if(intsch==1)then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,xxg,yyg,n) &
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                  &
     !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
     !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
@@ -446,7 +446,7 @@ if ( intsch==1 ) then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,xxg,yyg,n) &
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                  &
     !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
     !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif
@@ -544,7 +544,7 @@ else     ! if(intsch==1)then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) firstprivate(nn) private(k,iq,idel,jdel,xxg,yyg,n) &
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                  &
     !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
     !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)
 #endif

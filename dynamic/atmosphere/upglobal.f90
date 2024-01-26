@@ -79,6 +79,7 @@ real, dimension(kl) :: diag_temp
 
 call START_LOG(upglobal_begin)
 
+
 select case( intsch_mode )
   case(1)
     intsch = 1
@@ -159,6 +160,7 @@ do k = 1,kl
   dd(1:ifull,k) = aa(1:ifull)
 end do     ! k loop
 
+
 !-------------------------moved up here May 06---------------------------
 ! N.B. this moved one is doing vadv on just extra pslx terms    
 sdmx(:) = maxval(abs(sdot), 2)
@@ -187,60 +189,31 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"(9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 end if
 
+
 ! call bounds before calling ints
 call START_LOG(ints_begin)
+if ( mup/=0 ) then
+  call bounds(dd,corner=.true.)
+  call bounds(pslx,nrows=2)
+  if ( nh/=0 ) then
+    call bounds(h_nh,nrows=2)
+  end if ! nh/=0
+  call bounds(tx,nrows=2)
+end if    ! mup/=0
 do k = 1,kl
   uvw(1:ifull,k,1) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
   uvw(1:ifull,k,2) = ay(1:ifull)*ux(1:ifull,k) + by(1:ifull)*vx(1:ifull,k)
   uvw(1:ifull,k,3) = az(1:ifull)*ux(1:ifull,k) + bz(1:ifull)*vx(1:ifull,k)
 end do
 if ( mup/=0 ) then
-  call bounds(dd,corner=.true.)
-  if ( nh/=0 ) then
-    bb(1:ifull,1:kl,1) = pslx(1:ifull,1:kl)
-    bb(1:ifull,1:kl,2) = h_nh(1:ifull,1:kl)
-    bb(1:ifull,1:kl,3) = tx(1:ifull,1:kl)
-    bb(1:ifull,1:kl,4:6) = uvw(1:ifull,1:kl,1:3)
-    call bounds(bb(:,:,1:6),nrows=2)
-    pslx(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-    h_nh(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-    tx(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,3)
-    uvw(ifull+1:ifull+iextra,1:kl,1:3) = bb(ifull+1:ifull+iextra,1:kl,4:6)
-  else
-    bb(1:ifull,1:kl,1) = pslx(1:ifull,1:kl)
-    bb(1:ifull,1:kl,2) = tx(1:ifull,1:kl)
-    bb(1:ifull,1:kl,3:5) = uvw(1:ifull,1:kl,1:3)
-    call bounds(bb(:,:,1:5),nrows=2)
-    pslx(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-    tx(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-    uvw(ifull+1:ifull+iextra,1:kl,1:3) = bb(ifull+1:ifull+iextra,1:kl,3:5)
-  end if ! nh/=0
+  call bounds(uvw,nrows=2)
 end if
 if ( mspec==1 .and. mup/=0 ) then
   if ( ldr/=0 ) then
-    if ( ncloud>=100 .and. ncloud<200 ) then
-      bb(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
-      bb(1:ifull,1:kl,5) = ni(1:ifull,1:kl)
-      call bounds(bb(:,:,1:5),nrows=2)
-      qg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-      qlg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-      qfg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,3)
-      stratcloud(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,4)
-      ni(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,5)
-    else    
-      bb(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
-      bb(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
-      call bounds(bb(:,:,1:4),nrows=2)
-      qg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-      qlg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
-      qfg(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,3)
-      stratcloud(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,4)
-    end if    
+    call bounds(qg,nrows=2)
+    call bounds(qlg,nrows=2)
+    call bounds(qfg,nrows=2)
+    call bounds(stratcloud,nrows=2)
   else
     call bounds(qg,nrows=2)
   end if    ! ldr/=0
@@ -248,11 +221,8 @@ if ( mspec==1 .and. mup/=0 ) then
     call bounds(tr,nrows=2)
   end if
   if ( nvmix==6 .or. nvmix==9 ) then
-    bb(1:ifull,1:kl,1) = tke(1:ifull,1:kl)
-    bb(1:ifull,1:kl,2) = eps(1:ifull,1:kl)
-    call bounds(bb(:,:,1:2),nrows=2)
-    tke(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,1)
-    eps(ifull+1:ifull+iextra,1:kl) = bb(ifull+1:ifull+iextra,1:kl,2)
+    call bounds(tke,nrows=2)
+    call bounds(eps,nrows=2)
   endif                 ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 ) then
     call bounds(xtg,nrows=2)
@@ -264,44 +234,14 @@ call END_LOG(ints_end)
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
 
-if ( diag ) then
-  if ( mydiag ) then
-    write(6,*) 'uc,vc,wc before advection'
-    write (6,'(a,18e20.10)') 'uc,vc,wc ',uvw(idjd,nlv,1),uvw(idjd,nlv,2),uvw(idjd,nlv,3)
-  end if
-  call printa('uc  ',uvw(:,:,1),ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('vc  ',uvw(:,:,2),ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('wc  ',uvw(:,:,3),ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('xg  ',xg,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
-  if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
-end if
-
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
+  call ints(pslx,1,intsch,nface,xg,yg,1)
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    bb(:,:,1) = pslx
-    bb(:,:,2) = h_nh
-    bb(:,:,3) = tx
-    bb(:,:,4:6) = uvw(:,:,1:3)
-    nfield(1:6) = (/1,1,3,2,2,2/)
-    call ints(bb,6,intsch,nface,xg,yg,nfield(1:6))
-    pslx = bb(:,:,1)
-    h_nh = bb(:,:,2)
-    tx = bb(:,:,3)
-    uvw(:,:,1:3) = bb(:,:,4:6)
-  else
-    ! hydrostatic version
-    bb(:,:,1) = pslx
-    bb(:,:,2) = tx
-    bb(:,:,3:5) = uvw(:,:,1:3)
-    nfield(1:5) = (/1,3,2,2,2/)
-    call ints(bb,5,intsch,nface,xg,yg,nfield(1:5))    
-    pslx = bb(:,:,1)
-    tx = bb(:,:,2)
-    uvw(:,:,1:3) = bb(:,:,3:5)
+    call ints(h_nh,1,intsch,nface,xg,yg,1)
   end if ! nh/=0
+  call ints(tx,1,intsch,nface,xg,yg,3)
 end if    ! mup/=0
 
 do k = 1,kl
@@ -349,6 +289,23 @@ end if
 !end if
 
 if ( diag ) then
+  if ( mydiag ) then
+    write(6,*) 'uc,vc,wc before advection'
+    write (6,'(a,18e20.10)') 'uc,vc,wc ',uvw(idjd,nlv,1),uvw(idjd,nlv,2),uvw(idjd,nlv,3)
+  end if
+  call printa('uc  ',uvw(:,:,1),ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('vc  ',uvw(:,:,2),ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('wc  ',uvw(:,:,3),ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('xg  ',xg,ktau,nlv,ia,ib,ja,jb,0.,1.)
+  call printa('yg  ',yg,ktau,nlv,ia,ib,ja,jb,0.,1.)
+  if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
+end if
+
+if ( mup/=0 ) then
+  call ints(uvw,3,intsch,nface,xg,yg,2)
+end if
+
+if ( diag ) then
   if ( mydiag ) write(6,*) 'uc,vc,wc after advection'
   call printa('uc  ',uvw(:,:,1),ktau,nlv,ia,ib,ja,jb,0.,1.)
   call printa('vc  ',uvw(:,:,2),ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -394,6 +351,7 @@ do k = 1,kl
   vx(1:ifull,k) = bx(1:ifull)*uvw(1:ifull,k,1) + by(1:ifull)*uvw(1:ifull,k,2) + bz(1:ifull)*uvw(1:ifull,k,3)
 end do   ! k loop
 
+
 if ( diag .and. k==nlv ) then
   if ( mydiag ) write(6,*) 'after advection in upglobal; unstaggered ux and vx:'
   call printa('ux  ',ux,ktau,nlv,ia,ib,ja,jb,0.,1.)
@@ -402,64 +360,45 @@ end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( ldr/=0 ) then
-    if ( ncloud>=100 .and. ncloud<200 ) then
-      bb(:,:,1) = qg(:,:)
-      bb(:,:,2) = qlg(:,:)
-      bb(:,:,3) = qfg(:,:)
-      bb(:,:,4) = stratcloud(:,:)
-      bb(:,:,5) = ni(:,:)
-      nfield(1:5) = (/4,4,4,4,4/)
-      call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,nfield(1:5))
-      qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
-      qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
-      qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
-      stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
-      ni(1:ifull,1:kl) = bb(1:ifull,1:kl,5)    
-    else    
-      bb(:,:,1) = qg(:,:)
-      bb(:,:,2) = qlg(:,:)
-      bb(:,:,3) = qfg(:,:)
-      bb(:,:,4) = stratcloud(:,:)
-      nfield(1:4) = (/4,4,4,4/)
-      call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,nfield(1:4))
-      qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
-      qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
-      qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
-      stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
-    end if  
+    bb(:,:,1) = qg(:,:)
+    bb(:,:,2) = qlg(:,:)
+    bb(:,:,3) = qfg(:,:)
+    bb(:,:,4) = stratcloud(:,:)
+    call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,4)
+    qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
+    qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
+    qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
+    stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
   else
-    call ints(qg,1,intsch,nface,xg,yg,(/3/))
+    call ints(qg,1,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
   if ( ngas>0 .or. nextout>=4 ) then
     if ( nmaxpr==1 .and. mydiag ) then
       write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
       write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
       write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
-      !write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-      !write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-      !write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
+      write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
+      write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
+      write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     end if
     if ( ngas>0 ) then
-      nfield(1:ngas) = 5
-      call ints(tr,ngas,intsch,nface,xg,yg,nfield(1:ngas))
+      call ints(tr,ngas,intsch,nface,xg,yg,5)
     end if
-    !if ( nmaxpr==1 .and. mydiag ) then
-    !  write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-    !  write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-    !  write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-    !endif
+    if ( nmaxpr==1 .and. mydiag ) then
+      write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
+      write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
+      write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
+    endif
   endif  ! (ngas>0.or.nextout>=4)
   if ( nvmix==6 .or. nvmix==9 ) then
     bb(:,:,1) = tke(:,:)
     bb(:,:,2) = eps(:,:)
-    nfield(1:2) = (/4,4/)
-    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,nfield(1:2))
+    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,4)
     tke(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     eps(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
   endif                 ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 ) then
-    nfield(1:naero) = 5
-    call ints(xtg,naero,intsch,nface,xg,yg,nfield(1:naero))
+    call ints(xtg,naero,intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1
 
@@ -481,6 +420,7 @@ if ( (diag.or.nmaxpr==1) .and. mydiag ) then
 endif
 
 call vadvtvd(tx,ux,vx,nvadh_inv_pass,nits)
+
 
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'
@@ -506,6 +446,7 @@ end do
 
 !     now interpolate ux,vx to the staggered grid
 call staguv(ux,vx,ux,vx)
+
 
 if ( diag ) then
   if ( mydiag ) then
