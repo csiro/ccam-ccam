@@ -1758,6 +1758,7 @@ if ( nvmix==9 .and. nmlo==0 ) then
 end if
 if ( maxcolour/=2 .and. maxcolour/=3 ) then
   write(6,*) "ERROR: maxcolour must equal 2 or 3"
+  write(6,*) "maxcolour = ",maxcolour
   call ccmpi_abort(-1)
 end if
 nagg = max( nagg, 4 ) ! use 4 for two staguv u & v arrays
@@ -2968,7 +2969,7 @@ if ( myid==0 ) then
   dumi(117) = nagg
   dumi(118) = pil_single
   if ( localhist ) dumi(119) = 1
-  dumi(119) = maxcolour
+  dumi(120) = maxcolour
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
