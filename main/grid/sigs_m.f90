@@ -32,6 +32,8 @@ real, save :: dtmax
 
 #ifdef GPUPHYSICS
 !$acc declare create(sig)
+!$acc declare create(dsig) ! gdrag
+!$acc declare create(bet,betm,sigmh) ! convection
 #endif
 
 contains

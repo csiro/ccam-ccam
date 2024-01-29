@@ -320,8 +320,10 @@ contains
   integer                  :: ite,its,kte,kts
 
 #ifdef _OPENMP
+#ifndef GPUPHYSICS
   write(6,*) "ERROR: COSP does not support OMP"
   stop
+#endif
 #endif
   
 

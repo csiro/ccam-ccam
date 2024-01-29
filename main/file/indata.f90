@@ -325,10 +325,6 @@ if ( myid==0 ) then
   write(6,*) "Processing vertical levels"
 end if
 
-#ifdef GPUPHYSICS
-!$acc update device(sig)
-#endif
-
 dsig(1:kl-1)   = sigmh(2:kl) - sigmh(1:kl-1)
 dsig(kl)       = -sigmh(kl)
 sumdsig        = sum(dsig(1:kl))
@@ -399,6 +395,12 @@ if ( abs(epsp)<=1. ) then
 else
   call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,0.,nsig,bet,betm,nh)
 end if
+
+#ifdef GPUPHYSICS
+!$acc update device(sig)
+!$acc update device(dsig) ! gdrag
+!$acc update device(bet,betm,sigmh) ! convection
+#endif
 
 
 ! zmin here is approx height of the lowest level in the model

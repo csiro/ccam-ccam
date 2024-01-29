@@ -322,7 +322,6 @@ if ( ntvd==2 ) then ! MC
         rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
         phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat        
         fluxlo = tarr(iq,kx)
-        phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat        ! higher order scheme
         fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
         fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
       end do ! k

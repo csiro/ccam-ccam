@@ -107,6 +107,9 @@ subroutine clphy1d_ylin(dt, imax,                           &
                       zpidw,zpiadj,zqschg,                  &
 #endif
                       zdrop,lin_aerosolmode)                  !aerosol feedback
+#ifdef GPUPHYSICS
+!$acc routine vector
+#endif
 
 !-----------------------------------------------------------------------
 
@@ -1980,6 +1983,9 @@ END SUBROUTINE clphy1d_ylin
 !---------------------------------------------------------------------
 pure SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
                   xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
+#ifdef GPUPHYSICS
+!$acc routine seq
+#endif
 
 !---------------------------------------------------------------------
       IMPLICIT NONE
@@ -2108,6 +2114,9 @@ END SUBROUTINE satadj
 
 !----------------------------------------------------------------
 PURE FUNCTION ggamma(X) result(ans)
+#ifdef GPUPHYSICS
+!$acc routine seq
+#endif
 !----------------------------------------------------------------
   IMPLICIT NONE
   !----------------------------------------------------------------

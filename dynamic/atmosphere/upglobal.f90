@@ -194,9 +194,11 @@ end if
 call START_LOG(ints_begin)
 if ( mup/=0 ) then
   call bounds(dd,corner=.true.)
-  call bounds(pslx,nrows=2)
   if ( nh/=0 ) then
+    call bounds(pslx,nrows=2)      
     call bounds(h_nh,nrows=2)
+  else
+    call bounds(pslx,nrows=2)      
   end if ! nh/=0
   call bounds(tx,nrows=2)
 end if    ! mup/=0
@@ -209,7 +211,13 @@ if ( mup/=0 ) then
   call bounds(uvw,nrows=2)
 end if
 if ( mspec==1 .and. mup/=0 ) then
-  if ( ldr/=0 ) then
+  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    call bounds(qg,nrows=2)
+    call bounds(qlg,nrows=2)
+    call bounds(qfg,nrows=2)
+    call bounds(stratcloud,nrows=2)
+    call bounds(ni,nrows=2)      
+  else if ( ldr/=0 ) then
     call bounds(qg,nrows=2)
     call bounds(qlg,nrows=2)
     call bounds(qfg,nrows=2)
@@ -236,10 +244,15 @@ call END_LOG(ints_end)
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-  call ints(pslx,1,intsch,nface,xg,yg,1)
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    call ints(h_nh,1,intsch,nface,xg,yg,1)
+    bb(:,:,1) = pslx(:,:)
+    bb(:,:,2) = h_nh(:,:)
+    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,1)      
+    pslx(:,:) = bb(:,:,1)
+    h_nh(:,:) = bb(:,:,2)
+  else
+    call ints(pslx,1,intsch,nface,xg,yg,1)    
   end if ! nh/=0
   call ints(tx,1,intsch,nface,xg,yg,3)
 end if    ! mup/=0
@@ -341,15 +354,12 @@ do k = 1,kl
       uvw(iq,k,2) = vdot1*vec1y + vdot2*vec3y
       uvw(iq,k,3) = vdot1*vec1z + vdot2*vec3z
     end if ! (denb>1.e-4)
+    ! convert back to conformal-cubic velocity components (unstaggered)
+    ! globpea: this can be sped up later
+    ux(iq,k) = ax(iq)*uvw(iq,k,1) + ay(iq)*uvw(iq,k,2) + az(iq)*uvw(iq,k,3)
+    vx(iq,k) = bx(iq)*uvw(iq,k,1) + by(iq)*uvw(iq,k,2) + bz(iq)*uvw(iq,k,3)
   end do   ! iq
 end do     ! k
-
-! convert back to conformal-cubic velocity components (unstaggered)
-! globpea: this can be sped up later
-do k = 1,kl
-  ux(1:ifull,k) = ax(1:ifull)*uvw(1:ifull,k,1) + ay(1:ifull)*uvw(1:ifull,k,2) + az(1:ifull)*uvw(1:ifull,k,3)
-  vx(1:ifull,k) = bx(1:ifull)*uvw(1:ifull,k,1) + by(1:ifull)*uvw(1:ifull,k,2) + bz(1:ifull)*uvw(1:ifull,k,3)
-end do   ! k loop
 
 
 if ( diag .and. k==nlv ) then
@@ -359,7 +369,19 @@ if ( diag .and. k==nlv ) then
 end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
-  if ( ldr/=0 ) then
+  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    bb(:,:,1) = qg(:,:)
+    bb(:,:,2) = qlg(:,:)
+    bb(:,:,3) = qfg(:,:)
+    bb(:,:,4) = stratcloud(:,:)
+    bb(:,:,5) = ni(:,:)
+    call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,4)
+    qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
+    qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
+    qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
+    stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
+    ni(1:ifull,1:kl) = bb(1:ifull,1:kl,5)  
+  else if ( ldr/=0 ) then
     bb(:,:,1) = qg(:,:)
     bb(:,:,2) = qlg(:,:)
     bb(:,:,3) = qfg(:,:)

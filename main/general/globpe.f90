@@ -570,6 +570,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
 
     
+#ifdef GPUPHYSICS
+  !$omp end parallel
+#endif
   ! GWDRAG ----------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(gwdrag_begin)
@@ -578,6 +581,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(gwdrag_end)
   end if
+#ifdef GPUPHYSICS
+  !$omp parallel
+#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -588,26 +594,33 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 
   ! CONVECTION ------------------------------------------------------------
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    do k = 1,kl  
+      do iq = js,je
+        convh_ave(iq,k) = convh_ave(iq,k) - t(iq,k)*real(nperday)/real(nperavg)
+      end do  
+    end do
+  end do
+  !$omp end do nowait
+#ifdef GPUPHYSICS
+  !$omp end parallel
+#endif
   if ( nsib>0 ) then
     call START_LOG(convection_begin)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      do k = 1,kl  
-        do iq = js,je
-          convh_ave(iq,k) = convh_ave(iq,k) - t(iq,k)*real(nperday)/real(nperavg)
-        end do  
-      end do
-    end do
-    !$omp end do nowait
     ! Select convection scheme
     select case ( nkuo )
       case(5)
+#ifndef GPUPHYSICS
         !$omp barrier  
-        !$omp single  
+        !$omp single
+#endif  
         call betts(t,qg,tn,land,ps) ! not called these days
+#ifndef GPUPHYSICS
         !$omp end single
+#endif
       case(21,22)
         call convjlm22              ! split convjlm 
       case(23,24)
@@ -615,6 +628,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end select
     call END_LOG(convection_end)
   end if
+#ifdef GPUPHYSICS
+  !$omp parallel
+#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -626,27 +642,26 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 
   ! CLOUD MICROPHYSICS ----------------------------------------------------
+#ifdef GPUPHYSICS
+  !$omp end parallel
+#endif
   if ( nsib>0 ) then
     call START_LOG(cloud_begin)
     call ctrl_microphysics
-    ! t is copied to self from device in ctrl_microphysics
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      do k = 1,kl  
-        do iq = js,je
-          convh_ave(iq,k) = convh_ave(iq,k) + t(iq,k)*real(nperday)/real(nperavg)
-        end do  
-      end do
-    end do  
-    !$omp end do nowait
     call END_LOG(cloud_end)
   end if
+#ifdef GPUPHYSICS
+  !$omp parallel
+#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
+    do k = 1,kl  
+      do iq = js,je
+        convh_ave(iq,k) = convh_ave(iq,k) + t(iq,k)*real(nperday)/real(nperavg)
+      end do  
+    end do
     call nantest("after cloud microphysics",js,je,"cloud") 
   end do  
   !$omp end do nowait
@@ -1505,7 +1520,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
     nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix,             &
-    always_mspeca,ntvd,tbave10,maxuv,                             &
+    always_mspeca,ntvd,tbave10,maxuv,maxcolour,                   &
     procmode,compression,hp_output,pil_single,                    & ! file io
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -1741,6 +1756,10 @@ if ( nvmix==9 .and. nmlo==0 ) then
   write(6,*) "ERROR: nvmix=9 requires nmlo/=0"
   call ccmpi_abort(-1)
 end if
+if ( maxcolour/=2 .and. maxcolour/=3 ) then
+  write(6,*) "ERROR: maxcolour must equal 2 or 3"
+  call ccmpi_abort(-1)
+end if
 nagg = max( nagg, 4 ) ! use 4 for two staguv u & v arrays
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
@@ -1765,8 +1784,10 @@ seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
 #ifdef GPUPHYSICS
-!$acc update device(enhanceu10,zvolcemi,ch_dust)
-!$acc update device(saltsmallmtn,saltlargemtn)
+!$acc update device(alphaj,dt,fc2,vmodmin,sigbot_gwd) ! gdrag
+!$acc update device(ds,iaero,qgmin) ! convection
+!$acc update device(enhanceu10,zvolcemi,ch_dust) ! aerosol
+!$acc update device(saltsmallmtn,saltlargemtn)   ! aerosol
 #endif
 
 !--------------------------------------------------------------
@@ -2788,7 +2809,7 @@ use stime_m                                ! File date data
 implicit none
 
 integer i
-integer, dimension(119) :: dumi
+integer, dimension(120) :: dumi
 real, dimension(34) :: dumr
     
 dumr(:) = 0.
@@ -2947,6 +2968,7 @@ if ( myid==0 ) then
   dumi(117) = nagg
   dumi(118) = pil_single
   if ( localhist ) dumi(119) = 1
+  dumi(119) = maxcolour
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3103,6 +3125,7 @@ async_length      = dumi(116)
 nagg              = dumi(117)
 pil_single        = dumi(118)
 localhist         = dumi(119)==1
+maxcolour         = dumi(120)
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
   call ccmpi_bcast(jstn(1:nstn),0,comm_world)

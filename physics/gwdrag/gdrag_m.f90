@@ -31,6 +31,10 @@ real, dimension(:), allocatable, save :: helo
 real, dimension(:), allocatable, save :: he
 integer, save :: kbot_gwd
 
+#ifdef GPUPHYSICS
+!$acc declare create(kbot_gwd)
+#endif
+
 contains
 
 subroutine gdrag_init(ifull)
@@ -66,6 +70,10 @@ end if
 if ( mydiag ) write(6,*) 'in gwdrag sigbot_gwd,kbot:',sigbot_gwd,kbot_gwd
 ! MJT notes - he defined in indata.f90 before calling gdrag_sbl
 
+#ifdef GPUPHYSICS
+!$acc update device(kbot_gwd)
+#endif
+
 return
 end subroutine gdrag_sbl
 
@@ -84,7 +92,6 @@ use cc_mpi, only : mydiag
 use cc_omp
 use arrays_m
 use newmpar_m
-use nharrs_m
 use parm_m, only : idjd
 use pbl_m
 
@@ -95,8 +102,12 @@ integer idjd_t
 real, dimension(imax,kl) :: lt, lu, lv
 logical mydiag_t
 
+#ifdef GPUPHYSICS
+!$acc parallel loop copy(u,v) copyin(t,tss,he) private(lt,lu,lv) 
+#else
 !$omp do schedule(static) private(js,je),        &
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)
+#endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -114,7 +125,11 @@ do tile = 1,ntiles
   v(js:je,:) = lv
  
 end do
+#ifdef GPUPHYSICS
+!$acc end parallel loop
+#else
 !$omp end do nowait
+#endif
 
 return
 end subroutine gwdrag
@@ -128,6 +143,7 @@ end subroutine gwdrag
 !  sigbot_gwd 0.8 breaking may only occur from this sigma level up (previously 1.)
     
 subroutine gwdrag_work(t,u,v,tss,he,idjd,mydiag)
+!$acc routine vector
 
 use const_phys, only : grav, rdry, cp
 use parm_m, only : vmodmin, sigbot_gwd, fc2, dt, alphaj, ngwd
@@ -272,6 +288,7 @@ do k = kbot_gwd,kl
   end do
 end do     ! k loop
 
+#ifndef GPU
 if ( ntest==1 .and. mydiag ) then ! JLM
   do iq = idjd-1,idjd+1
     write(6,*) 'from gwdrag, iq,ngwd,alambda,fnii,apuw,apvw,wmag',  &
@@ -292,6 +309,7 @@ if ( ntest==1 .and. mydiag ) then ! JLM
     !write(6,*) 'vincr',(-apvw(iq)*xxx(iq,k)*dt,k=kl,kbot_gwd,-1)
   end do
 end if
+#endif
 
 return
 end subroutine gwdrag_work

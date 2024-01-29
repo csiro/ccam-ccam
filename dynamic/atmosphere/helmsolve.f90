@@ -1577,7 +1577,6 @@ integer nc, k
 real, intent(in) :: tol, itol
 real, intent(out) :: maxglobseta, maxglobip
 real bu, cu
-real dumc_n, dumc_s, dumc_e, dumc_w
 real, dimension(ifull+iextra), intent(inout) :: neta, ipice
 real, dimension(ifull+iextra), intent(in) :: ee, dd
 real, dimension(ifull+iextra), intent(in) :: ipmax
@@ -1587,6 +1586,7 @@ real, dimension(ifull), intent(in) :: ihh
 real, dimension(ifull), intent(in) :: iyy, iyyn, iyys, iyye, iyyw
 real, dimension(ifull+iextra,2) :: dumc
 real, dimension(ifull+iextra,2) :: vduma
+real, dimension(ifull,2) :: dumc_n, dumc_s, dumc_e, dumc_w
 real, dimension(ifull_maxcolour,maxcolour) :: rhsc, rhscice, ddc, eec, ipmaxc
 real, dimension(ifull_maxcolour,maxcolour) :: zzhhc, zznc, zzsc, zzec, zzwc
 real, dimension(ifull_maxcolour,maxcolour) :: zzcice, zzncice, zzscice, zzecice, zzwcice
@@ -1608,11 +1608,6 @@ real, dimension(8) :: dsolmax_g
 
 if ( sorfirst ) then
   write(6,*) "ERROR: mgsormlo requires mgsor_init to be called first"
-  call ccmpi_abort(-1)
-end if
-
-if ( maxcolour/=3 ) then
-  write(6,*) "ERROR: mgmlo assumes maxcolour=3"
   call ccmpi_abort(-1)
 end if
 
@@ -1679,50 +1674,46 @@ do i = 1,itrbgn
     ! update halo
     
     ! ocean
+    dumc_n(1:ifull_colour(nc),1) = dumc(iqn(1:ifull_colour(nc),nc),1)
+    dumc_s(1:ifull_colour(nc),1) = dumc(iqs(1:ifull_colour(nc),nc),1)
+    dumc_e(1:ifull_colour(nc),1) = dumc(iqe(1:ifull_colour(nc),nc),1)
+    dumc_w(1:ifull_colour(nc),1) = dumc(iqw(1:ifull_colour(nc),nc),1)
     do iq = 1,ifull_colour_border(nc)
-      dumc_n = dumc(iqn(iq,nc),1)
-      dumc_s = dumc(iqs(iq,nc),1)
-      dumc_e = dumc(iqe(iq,nc),1)
-      dumc_w = dumc(iqw(iq,nc),1)
-      bu=yync(iq,nc)*dumc_n+yysc(iq,nc)*dumc_s      &
-        +yyec(iq,nc)*dumc_e+yywc(iq,nc)*dumc_w      &
+      bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+        +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
         +zzhhc(iq,nc)
-      cu=zznc(iq,nc)*dumc_n+zzsc(iq,nc)*dumc_s      &
-        +zzec(iq,nc)*dumc_e+zzwc(iq,nc)*dumc_w      &
+      cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+        +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)        
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),    &
          -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
     end do  
     
     ! sea-ice (cavitating fluid)
+    dumc_n(1:ifull_colour(nc),2) = dumc(iqn(1:ifull_colour(nc),nc),2)
+    dumc_s(1:ifull_colour(nc),2) = dumc(iqs(1:ifull_colour(nc),nc),2)
+    dumc_e(1:ifull_colour(nc),2) = dumc(iqe(1:ifull_colour(nc),nc),2)
+    dumc_w(1:ifull_colour(nc),2) = dumc(iqw(1:ifull_colour(nc),nc),2)   
     do iq = 1,ifull_colour_border(nc)
-      dumc_n = dumc(iqn(iq,nc),2)
-      dumc_s = dumc(iqs(iq,nc),2)
-      dumc_e = dumc(iqe(iq,nc),2)
-      dumc_w = dumc(iqw(iq,nc),2)
-      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),           &
-         ( -zzncice(iq,nc)*dumc_n - zzscice(iq,nc)*dumc_s      &
-           -zzecice(iq,nc)*dumc_e - zzwcice(iq,nc)*dumc_w      &
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+         ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+           -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
     
     call bounds_colour_send(dumc(:,1:2),nc)
     
     ! update interior
-    !$omp parallel sections private(iq,dumc_n,dumc_s,dumc_e,dumc_w)
+    !$omp parallel sections
     
     !$omp section
     ! ocean
     do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-      dumc_n = dumc(iqn(iq,nc),1)
-      dumc_s = dumc(iqs(iq,nc),1)
-      dumc_e = dumc(iqe(iq,nc),1)
-      dumc_w = dumc(iqw(iq,nc),1)
-      bu=yync(iq,nc)*dumc_n+yysc(iq,nc)*dumc_s      &
-        +yyec(iq,nc)*dumc_e+yywc(iq,nc)*dumc_w      &
+      bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+        +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
         +zzhhc(iq,nc)
-      cu=zznc(iq,nc)*dumc_n+zzsc(iq,nc)*dumc_s      &
-        +zzec(iq,nc)*dumc_e+zzwc(iq,nc)*dumc_w      &
+      cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+        +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)   
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),     &
          -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
@@ -1731,13 +1722,9 @@ do i = 1,itrbgn
     !$omp section
     ! sea-ice (cavitating fluid)
     do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-      dumc_n = dumc(iqn(iq,nc),2)
-      dumc_s = dumc(iqs(iq,nc),2)
-      dumc_e = dumc(iqe(iq,nc),2)
-      dumc_w = dumc(iqw(iq,nc),2)
-      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),           &
-         ( -zzncice(iq,nc)*dumc_n - zzscice(iq,nc)*dumc_s      &
-           -zzecice(iq,nc)*dumc_e - zzwcice(iq,nc)*dumc_w      &
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+         ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+           -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
     
@@ -1794,6 +1781,7 @@ w(1:ifull,17) = izze(1:ifull,2)
 w(1:ifull,18) = izzw(1:ifull,2)
 
 !$omp end parallel sections
+
 
 call mgcollect(1,w(:,1:18))
   
@@ -2218,52 +2206,48 @@ do i = 1,itrend
   do nc = 1,maxcolour
       
     ! update halo
-  
+
     ! ocean
+    dumc_n(1:ifull_colour(nc),1) = dumc(iqn(1:ifull_colour(nc),nc),1)
+    dumc_s(1:ifull_colour(nc),1) = dumc(iqs(1:ifull_colour(nc),nc),1)
+    dumc_e(1:ifull_colour(nc),1) = dumc(iqe(1:ifull_colour(nc),nc),1)
+    dumc_w(1:ifull_colour(nc),1) = dumc(iqw(1:ifull_colour(nc),nc),1)
     do iq = 1,ifull_colour_border(nc)
-      dumc_n = dumc(iqn(iq,nc),1)
-      dumc_s = dumc(iqs(iq,nc),1)
-      dumc_e = dumc(iqe(iq,nc),1)
-      dumc_w = dumc(iqw(iq,nc),1)
-      bu=yync(iq,nc)*dumc_n+yysc(iq,nc)*dumc_s      &
-        +yyec(iq,nc)*dumc_e+yywc(iq,nc)*dumc_w      &
+      bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+        +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
         +zzhhc(iq,nc)
-      cu=zznc(iq,nc)*dumc_n+zzsc(iq,nc)*dumc_s      &
-        +zzec(iq,nc)*dumc_e+zzwc(iq,nc)*dumc_w      &
+      cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+        +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)     
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
          -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
     end do  
     
     ! sea-ice (cavitating fluid)
+    dumc_n(1:ifull_colour(nc),2) = dumc(iqn(1:ifull_colour(nc),nc),2)
+    dumc_s(1:ifull_colour(nc),2) = dumc(iqs(1:ifull_colour(nc),nc),2)
+    dumc_e(1:ifull_colour(nc),2) = dumc(iqe(1:ifull_colour(nc),nc),2)
+    dumc_w(1:ifull_colour(nc),2) = dumc(iqw(1:ifull_colour(nc),nc),2)
     do iq = 1,ifull_colour_border(nc)
-      dumc_n = dumc(iqn(iq,nc),2)
-      dumc_s = dumc(iqs(iq,nc),2)
-      dumc_e = dumc(iqe(iq,nc),2)
-      dumc_w = dumc(iqw(iq,nc),2)
-      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),           &
-         ( -zzncice(iq,nc)*dumc_n - zzscice(iq,nc)*dumc_s      &
-           -zzecice(iq,nc)*dumc_e - zzwcice(iq,nc)*dumc_w      &
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+         ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+           -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
     
     call bounds_colour_send(dumc(:,1:2),nc)
     
     ! update interior
-    !$omp parallel sections private(iq,dumc_n,dumc_s,dumc_e,dumc_w)
+    !$omp parallel sections
     
     !$omp section
     ! ocean
     do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-      dumc_n = dumc(iqn(iq,nc),1)
-      dumc_s = dumc(iqs(iq,nc),1)
-      dumc_e = dumc(iqe(iq,nc),1)
-      dumc_w = dumc(iqw(iq,nc),1)
-      bu=yync(iq,nc)*dumc_n+yysc(iq,nc)*dumc_s      &
-        +yyec(iq,nc)*dumc_e+yywc(iq,nc)*dumc_w      &
+      bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+        +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
         +zzhhc(iq,nc)
-      cu=zznc(iq,nc)*dumc_n+zzsc(iq,nc)*dumc_s      &
-        +zzec(iq,nc)*dumc_e+zzwc(iq,nc)*dumc_w      &
+      cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+        +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
         -rhsc(iq,nc)   
       dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
          -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
@@ -2272,13 +2256,9 @@ do i = 1,itrend
     !$omp section
     ! sea-ice (cavitating fluid)
     do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-      dumc_n = dumc(iqn(iq,nc),2)
-      dumc_s = dumc(iqs(iq,nc),2)
-      dumc_e = dumc(iqe(iq,nc),2)
-      dumc_w = dumc(iqw(iq,nc),2)
-      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),           &
-         ( -zzncice(iq,nc)*dumc_n - zzscice(iq,nc)*dumc_s      &
-           -zzecice(iq,nc)*dumc_e - zzwcice(iq,nc)*dumc_w      &
+      dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+         ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+           -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
           + rhscice(iq,nc) ) / zzcice(iq,nc) ))
     end do  
     
@@ -2295,8 +2275,7 @@ call END_LOG(mgsetup_end)
 do itr = 2,itr_mgice
    
   call START_LOG(mgfine_begin)
-  
- 
+    
   do i = 1,itrbgn
       
     ! store previous solution to test for convergence  
@@ -2308,30 +2287,30 @@ do itr = 2,itr_mgice
       ! update halo
   
       ! ocean
+      dumc_n(1:ifull_colour(nc),1) = dumc(iqn(1:ifull_colour(nc),nc),1)
+      dumc_s(1:ifull_colour(nc),1) = dumc(iqs(1:ifull_colour(nc),nc),1)
+      dumc_e(1:ifull_colour(nc),1) = dumc(iqe(1:ifull_colour(nc),nc),1)
+      dumc_w(1:ifull_colour(nc),1) = dumc(iqw(1:ifull_colour(nc),nc),1)
       do iq = 1,ifull_colour_border(nc)
-        dumc_n = dumc(iqn(iq,nc),1)
-        dumc_s = dumc(iqs(iq,nc),1)
-        dumc_e = dumc(iqe(iq,nc),1)
-        dumc_w = dumc(iqw(iq,nc),1)
-        bu = yync(iq,nc)*dumc_n + yysc(iq,nc)*dumc_s &
-           + yyec(iq,nc)*dumc_e + yywc(iq,nc)*dumc_w &
+        bu = yync(iq,nc)*dumc_n(iq,1) + yysc(iq,nc)*dumc_s(iq,1) &
+           + yyec(iq,nc)*dumc_e(iq,1) + yywc(iq,nc)*dumc_w(iq,1) &
            + zzhhc(iq,nc)
-        cu = zznc(iq,nc)*dumc_n + zzsc(iq,nc)*dumc_s &
-           + zzec(iq,nc)*dumc_e + zzwc(iq,nc)*dumc_w &
+        cu = zznc(iq,nc)*dumc_n(iq,1) + zzsc(iq,nc)*dumc_s(iq,1) &
+           + zzec(iq,nc)*dumc_e(iq,1) + zzwc(iq,nc)*dumc_w(iq,1) &
            - rhsc(iq,nc)   
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),        &
            -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
       end do
         
       ! ice (cavitating fluid)
+      dumc_n(1:ifull_colour(nc),2) = dumc(iqn(1:ifull_colour(nc),nc),2)
+      dumc_s(1:ifull_colour(nc),2) = dumc(iqs(1:ifull_colour(nc),nc),2)
+      dumc_e(1:ifull_colour(nc),2) = dumc(iqe(1:ifull_colour(nc),nc),2)
+      dumc_w(1:ifull_colour(nc),2) = dumc(iqw(1:ifull_colour(nc),nc),2)
       do iq = 1,ifull_colour_border(nc)
-        dumc_n = dumc(iqn(iq,nc),2)
-        dumc_s = dumc(iqs(iq,nc),2)
-        dumc_e = dumc(iqe(iq,nc),2)
-        dumc_w = dumc(iqw(iq,nc),2)
-        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),           &
-           ( -zzncice(iq,nc)*dumc_n - zzscice(iq,nc)*dumc_s      &
-             -zzecice(iq,nc)*dumc_e - zzwcice(iq,nc)*dumc_w      &
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+           ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+             -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
       
@@ -2339,20 +2318,16 @@ do itr = 2,itr_mgice
     
       ! update interior
 
-      !$omp parallel sections private(iq,dumc_n,dumc_s,dumc_e,dumc_w)
+      !$omp parallel sections
       
       !$omp section
       ! ocean
       do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-        dumc_n = dumc(iqn(iq,nc),1)
-        dumc_s = dumc(iqs(iq,nc),1)
-        dumc_e = dumc(iqe(iq,nc),1)
-        dumc_w = dumc(iqw(iq,nc),1)
-        bu=yync(iq,nc)*dumc_n + yysc(iq,nc)*dumc_s &
-         + yyec(iq,nc)*dumc_e + yywc(iq,nc)*dumc_w &
+        bu=yync(iq,nc)*dumc_n(iq,1) + yysc(iq,nc)*dumc_s(iq,1) &
+         + yyec(iq,nc)*dumc_e(iq,1) + yywc(iq,nc)*dumc_w(iq,1) &
          + zzhhc(iq,nc)
-        cu=zznc(iq,nc)*dumc_n+zzsc(iq,nc)*dumc_s   &
-          +zzec(iq,nc)*dumc_e+zzwc(iq,nc)*dumc_w   &
+        cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)   &
+          +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)   &
           -rhsc(iq,nc)
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),      &
            -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
@@ -2361,13 +2336,9 @@ do itr = 2,itr_mgice
       !$omp section
       ! ice (cavitating fluid)
       do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-        dumc_n = dumc(iqn(iq,nc),2)
-        dumc_s = dumc(iqs(iq,nc),2)
-        dumc_e = dumc(iqe(iq,nc),2)
-        dumc_w = dumc(iqw(iq,nc),2)
-        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),           &
-           ( -zzncice(iq,nc)*dumc_n - zzscice(iq,nc)*dumc_s      &
-             -zzecice(iq,nc)*dumc_e - zzwcice(iq,nc)*dumc_w      &
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+           ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+             -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
       
@@ -2415,7 +2386,7 @@ do itr = 2,itr_mgice
   end where
   
   !$omp end parallel sections
-  
+    
   ! For when the inital grid cannot be upscaled
   call mgcollect(1,w(:,1:8),dsolmax_g(1:8))
   
@@ -2767,57 +2738,53 @@ do itr = 2,itr_mgice
   dumc(1:ifull,1) = neta(1:ifull)
   dumc(1:ifull,2) = ipice(1:ifull)
   call bounds(dumc(:,1:2))
-  
+   
   do i = 1,itrend
     do nc = 1,maxcolour
       
       ! update halo
       
       ! ocean
+      dumc_n(1:ifull_colour(nc),1) = dumc(iqn(1:ifull_colour(nc),nc),1)
+      dumc_s(1:ifull_colour(nc),1) = dumc(iqs(1:ifull_colour(nc),nc),1)
+      dumc_e(1:ifull_colour(nc),1) = dumc(iqe(1:ifull_colour(nc),nc),1)
+      dumc_w(1:ifull_colour(nc),1) = dumc(iqw(1:ifull_colour(nc),nc),1)
       do iq = 1,ifull_colour_border(nc)
-        dumc_n = dumc(iqn(iq,nc),1)
-        dumc_s = dumc(iqs(iq,nc),1)
-        dumc_e = dumc(iqe(iq,nc),1)
-        dumc_w = dumc(iqw(iq,nc),1)
-        bu=yync(iq,nc)*dumc_n+yysc(iq,nc)*dumc_s      &
-          +yyec(iq,nc)*dumc_e+yywc(iq,nc)*dumc_w      &
+        bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+          +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
           +zzhhc(iq,nc)
-        cu=zznc(iq,nc)*dumc_n+zzsc(iq,nc)*dumc_s      &
-          +zzec(iq,nc)*dumc_e+zzwc(iq,nc)*dumc_w      &
+        cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+          +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
           -rhsc(iq,nc)    
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
            -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
       end do  
 
       ! ice (cavitating fluid)
+      dumc_n(1:ifull_colour(nc),2) = dumc(iqn(1:ifull_colour(nc),nc),2)
+      dumc_s(1:ifull_colour(nc),2) = dumc(iqs(1:ifull_colour(nc),nc),2)
+      dumc_e(1:ifull_colour(nc),2) = dumc(iqe(1:ifull_colour(nc),nc),2)
+      dumc_w(1:ifull_colour(nc),2) = dumc(iqw(1:ifull_colour(nc),nc),2)
       do iq = 1,ifull_colour_border(nc)
-        dumc_n = dumc(iqn(iq,nc),2)
-        dumc_s = dumc(iqs(iq,nc),2)
-        dumc_e = dumc(iqe(iq,nc),2)
-        dumc_w = dumc(iqw(iq,nc),2)
-        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),           &
-           ( -zzncice(iq,nc)*dumc_n - zzscice(iq,nc)*dumc_s      &
-             -zzecice(iq,nc)*dumc_e - zzwcice(iq,nc)*dumc_w      &
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+           ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+             -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do  
-      
+            
       call bounds_colour_send(dumc,nc)
     
       ! update interior
-      !$omp parallel sections private(iq,dumc_n,dumc_s,dumc_e,dumc_w)
+      !$omp parallel sections
 
       !$omp section
       ! ocean
       do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-        dumc_n = dumc(iqn(iq,nc),1)
-        dumc_s = dumc(iqs(iq,nc),1)
-        dumc_e = dumc(iqe(iq,nc),1)
-        dumc_w = dumc(iqw(iq,nc),1)
-        bu=yync(iq,nc)*dumc_n+yysc(iq,nc)*dumc_s      &
-          +yyec(iq,nc)*dumc_e+yywc(iq,nc)*dumc_w      &
+        bu=yync(iq,nc)*dumc_n(iq,1)+yysc(iq,nc)*dumc_s(iq,1)      &
+          +yyec(iq,nc)*dumc_e(iq,1)+yywc(iq,nc)*dumc_w(iq,1)      &
           +zzhhc(iq,nc)
-        cu=zznc(iq,nc)*dumc_n+zzsc(iq,nc)*dumc_s      &
-          +zzec(iq,nc)*dumc_e+zzwc(iq,nc)*dumc_w      &
+        cu=zznc(iq,nc)*dumc_n(iq,1)+zzsc(iq,nc)*dumc_s(iq,1)      &
+          +zzec(iq,nc)*dumc_e(iq,1)+zzwc(iq,nc)*dumc_w(iq,1)      &
           -rhsc(iq,nc)   
         dumc(iqx(iq,nc),1) = eec(iq,nc)*max( -ddc(iq,nc),         &
            -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iq,nc)*cu,0.01))) )
@@ -2826,13 +2793,9 @@ do itr = 2,itr_mgice
       !$omp section
       ! ice (cavitating fluid)
       do iq = ifull_colour_border(nc) + 1,ifull_colour(nc)
-        dumc_n = dumc(iqn(iq,nc),2)
-        dumc_s = dumc(iqs(iq,nc),2)
-        dumc_e = dumc(iqe(iq,nc),2)
-        dumc_w = dumc(iqw(iq,nc),2)
-        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),           &
-           ( -zzncice(iq,nc)*dumc_n - zzscice(iq,nc)*dumc_s      &
-             -zzecice(iq,nc)*dumc_e - zzwcice(iq,nc)*dumc_w      &
+        dumc(iqx(iq,nc),2) = max(0.,min(ipmaxc(iq,nc),                       &
+           ( -zzncice(iq,nc)*dumc_n(iq,2) - zzscice(iq,nc)*dumc_s(iq,2)      &
+             -zzecice(iq,nc)*dumc_e(iq,2) - zzwcice(iq,nc)*dumc_w(iq,2)      &
             + rhscice(iq,nc) ) / zzcice(iq,nc) ))
       end do
 
@@ -2842,7 +2805,7 @@ do itr = 2,itr_mgice
     
     end do
   end do
-  
+    
   call END_LOG(mgfine_end)
  
   ! test for convergence

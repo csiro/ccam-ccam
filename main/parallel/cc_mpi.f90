@@ -57,7 +57,7 @@ module cc_mpi
    integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid
    integer, save, public :: nxproc, nyproc                                 ! number of processors in the x and y directions
    integer, save, public :: nagg = 8                                       ! maximum number of levels to aggregate
-   integer, parameter, public :: maxcolour = 3                             ! maximum number of colours for iterative solvers
+   integer, save, public :: maxcolour = 2                                  ! maximum number of colours for iterative solvers
    
    integer, save, private :: maxbuflen, maxvertlen                         ! bounds buffer size   
    logical, save, public :: mydiag                                         ! true if diagnostic point id, jd is in my region
@@ -301,12 +301,12 @@ module cc_mpi
       ! Number of points for each processor. Also double row versions.
       ! lenx is first row plux corner points.  lenh is just the ne side.
       integer :: slen2, rlen2
-      integer, dimension(maxcolour) :: rlenh_bg, rlenh_fn
-      integer, dimension(maxcolour) :: rlen_bg, rlen_fn
-      integer, dimension(maxcolour) :: rlenx_bg, rlenx_fn
-      integer, dimension(maxcolour) :: slenh_bg, slenh_fn
-      integer, dimension(maxcolour) :: slen_bg, slen_fn
-      integer, dimension(maxcolour) :: slenx_bg, slenx_fn
+      integer, dimension(:), allocatable :: rlenh_bg, rlenh_fn
+      integer, dimension(:), allocatable :: rlen_bg, rlen_fn
+      integer, dimension(:), allocatable :: rlenx_bg, rlenx_fn
+      integer, dimension(:), allocatable :: slenh_bg, slenh_fn
+      integer, dimension(:), allocatable :: slen_bg, slen_fn
+      integer, dimension(:), allocatable :: slenx_bg, slenx_fn
       ! Vector groups
       integer :: rlen_su_bg, rlen_ev_fn
       integer :: rlen_sv_bg, rlen_wu_fn, rlen_nv_bg, rlen_eu_fn
@@ -322,7 +322,7 @@ module cc_mpi
    ! partition boundary indices into colours
    integer, dimension(:,:), allocatable, save, public :: iqx, iqn, iqe, iqw, iqs
    integer, public, save :: ifull_maxcolour
-   integer, dimension(maxcolour), public, save :: ifull_colour, ifull_colour_border
+   integer, dimension(:), allocatable, public, save :: ifull_colour, ifull_colour_border
 
    ! flag whether processor region edge is a face edge.
    logical, public, save :: edge_w, edge_n, edge_s, edge_e
@@ -503,13 +503,36 @@ contains
       real, intent(in) :: dt
       real, dimension(:,:), allocatable :: dum
       real, dimension(:,:), allocatable :: dumu, dumv
+      real, dimension(:,:), allocatable :: dumr, dumr_g
       real(kind=8), dimension(:,:), allocatable :: dumr8, dumr8_g
       logical(kind=4) :: ltrue
 
+      
+      if ( maxcolour/=2 .and. maxcolour/=3 ) then
+         write(6,*) "ERROR: Invalid choice for maxcolour"
+         call ccmpi_abort(-1)
+      end if
+      
+      
+      ! Allocate arrays for boundary information
       nreq = 0
       allocate( bnds(0:nproc-1) )
-      
-      
+      do n = 0,nproc-1
+         allocate( bnds(n)%rlenh_bg(maxcolour) )
+         allocate( bnds(n)%rlenh_fn(maxcolour) )
+         allocate( bnds(n)%slenh_bg(maxcolour) )
+         allocate( bnds(n)%slenh_fn(maxcolour) )
+         allocate( bnds(n)%rlen_bg(maxcolour) )
+         allocate( bnds(n)%rlen_fn(maxcolour) )
+         allocate( bnds(n)%slen_bg(maxcolour) )
+         allocate( bnds(n)%slen_fn(maxcolour) )
+         allocate( bnds(n)%rlenx_bg(maxcolour) )
+         allocate( bnds(n)%rlenx_fn(maxcolour) )
+         allocate( bnds(n)%slenx_bg(maxcolour) )
+         allocate( bnds(n)%slenx_fn(maxcolour) )
+      end do  
+
+
       ! Decompose grid over processes
       call proc_setup(id,jd,idjd)
       if ( nproc < npanels+1 ) then
@@ -527,55 +550,57 @@ contains
       if ( myid==0 ) then
          write(6,*) "-> Distribute global arrays"
       end if
-      allocate( dumr8(ifull,26) )
+      allocate( dumr(ifull,23), dumr8(ifull,3) )
       if ( myid == 0 ) then
-         allocate( dumr8_g(ifull_g,26) ) 
-         dumr8_g(1:ifull_g,1)  = real( wts_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,2)  = real( em_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,3)  = real( emu_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,4)  = real( emv_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,5)  = real( ax_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,6)  = real( ay_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,7)  = real( az_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,8)  = real( bx_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,9)  = real( by_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,10) = real( bz_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,11) = real( f_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,12) = real( fu_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,13) = real( fv_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,14) = real( rlatt_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,15) = real( rlongg_g(1:ifull_g), 8 )
-         dumr8_g(1:ifull_g,16:19) = real( rlat4(1:ifull_g,1:4), 8 )
-         dumr8_g(1:ifull_g,20:23) = real( rlong4(1:ifull_g,1:4), 8 )
-         dumr8_g(1:ifull_g,24) = x_g(1:ifull_g)
-         dumr8_g(1:ifull_g,25) = y_g(1:ifull_g)
-         dumr8_g(1:ifull_g,26) = z_g(1:ifull_g)
-         call ccmpi_distributer8(dumr8(:,1:26),dumr8_g(:,1:26)) 
-         deallocate( dumr8_g )
+         allocate( dumr_g(ifull_g,23), dumr8_g(ifull_g,3) ) 
+         dumr_g(1:ifull_g,1)  = wts_g(1:ifull_g)
+         dumr_g(1:ifull_g,2)  = em_g(1:ifull_g)
+         dumr_g(1:ifull_g,3)  = emu_g(1:ifull_g)
+         dumr_g(1:ifull_g,4)  = emv_g(1:ifull_g)
+         dumr_g(1:ifull_g,5)  = ax_g(1:ifull_g)
+         dumr_g(1:ifull_g,6)  = ay_g(1:ifull_g)
+         dumr_g(1:ifull_g,7)  = az_g(1:ifull_g)
+         dumr_g(1:ifull_g,8)  = bx_g(1:ifull_g)
+         dumr_g(1:ifull_g,9)  = by_g(1:ifull_g)
+         dumr_g(1:ifull_g,10) = bz_g(1:ifull_g)
+         dumr_g(1:ifull_g,11) = f_g(1:ifull_g)
+         dumr_g(1:ifull_g,12) = fu_g(1:ifull_g)
+         dumr_g(1:ifull_g,13) = fv_g(1:ifull_g)
+         dumr_g(1:ifull_g,14) = rlatt_g(1:ifull_g)
+         dumr_g(1:ifull_g,15) = rlongg_g(1:ifull_g)
+         dumr_g(1:ifull_g,16:19) = rlat4(1:ifull_g,1:4)
+         dumr_g(1:ifull_g,20:23) = rlong4(1:ifull_g,1:4)
+         dumr8_g(1:ifull_g,1) = x_g(1:ifull_g)
+         dumr8_g(1:ifull_g,2) = y_g(1:ifull_g)
+         dumr8_g(1:ifull_g,3) = z_g(1:ifull_g)
+         call ccmpi_distribute(dumr(:,1:23),dumr_g(:,1:23)) 
+         call ccmpi_distributer8(dumr8(:,1:3),dumr8_g(:,1:3)) 
+         deallocate( dumr_g, dumr8_g )
       else
-         call ccmpi_distributer8(dumr8(:,1:26))
+         call ccmpi_distribute(dumr(:,1:23))
+         call ccmpi_distributer8(dumr8(:,1:3))
       end if
-      wts(1:ifull)    = real( dumr8(1:ifull,1) )
-      em(1:ifull)     = real( dumr8(1:ifull,2) )
-      emu(1:ifull)    = real( dumr8(1:ifull,3) )
-      emv(1:ifull)    = real( dumr8(1:ifull,4) )
-      ax(1:ifull)     = real( dumr8(1:ifull,5) )
-      ay(1:ifull)     = real( dumr8(1:ifull,6) )
-      az(1:ifull)     = real( dumr8(1:ifull,7) )
-      bx(1:ifull)     = real( dumr8(1:ifull,8) )
-      by(1:ifull)     = real( dumr8(1:ifull,9) )
-      bz(1:ifull)     = real( dumr8(1:ifull,10) )
-      f(1:ifull)      = real( dumr8(1:ifull,11) )
-      fu(1:ifull)     = real( dumr8(1:ifull,12) )
-      fv(1:ifull)     = real( dumr8(1:ifull,13) )
-      rlatt(1:ifull)  = real( dumr8(1:ifull,14) )
-      rlongg(1:ifull) = real( dumr8(1:ifull,15) )
-      rlat4_l(1:ifull,1:4)  = real( dumr8(1:ifull,16:19) )
-      rlong4_l(1:ifull,1:4) = real( dumr8(1:ifull,20:23) )
-      x(1:ifull) = dumr8(1:ifull,24)
-      y(1:ifull) = dumr8(1:ifull,25)
-      z(1:ifull) = dumr8(1:ifull,26)
-      deallocate( dumr8 )
+      wts(1:ifull)    = dumr(1:ifull,1)
+      em(1:ifull)     = dumr(1:ifull,2)
+      emu(1:ifull)    = dumr(1:ifull,3)
+      emv(1:ifull)    = dumr(1:ifull,4)
+      ax(1:ifull)     = dumr(1:ifull,5)
+      ay(1:ifull)     = dumr(1:ifull,6)
+      az(1:ifull)     = dumr(1:ifull,7)
+      bx(1:ifull)     = dumr(1:ifull,8)
+      by(1:ifull)     = dumr(1:ifull,9)
+      bz(1:ifull)     = dumr(1:ifull,10)
+      f(1:ifull)      = dumr(1:ifull,11)
+      fu(1:ifull)     = dumr(1:ifull,12)
+      fv(1:ifull)     = dumr(1:ifull,13)
+      rlatt(1:ifull)  = dumr(1:ifull,14)
+      rlongg(1:ifull) = dumr(1:ifull,15)
+      rlat4_l(1:ifull,1:4)  = dumr(1:ifull,16:19)
+      rlong4_l(1:ifull,1:4) = dumr(1:ifull,20:23)
+      x(1:ifull) = dumr8(1:ifull,1)
+      y(1:ifull) = dumr8(1:ifull,2)
+      z(1:ifull) = dumr8(1:ifull,3)
+      deallocate( dumr, dumr8 )
       
       ! Configure halos
       if ( myid==0 ) then
@@ -2812,7 +2837,9 @@ contains
 !     region.
       iext = 0
  
-      bnds(:)%rlenh_bg(1) = 1
+      do n = 0,nproc-1
+         bnds(n)%rlenh_bg(1) = 1
+      end do   
       
       do icol = 1,maxcolour
       
@@ -2866,14 +2893,18 @@ contains
          end do ! n=1,npan
          
          if ( icol < maxcolour ) then
-            bnds(:)%rlenh_bg(min(icol+1,maxcolour)) = bnds(:)%rlenh_fn(icol) + 1
-            bnds(:)%rlenh_fn(min(icol+1,maxcolour)) = bnds(:)%rlenh_fn(icol)
+            do n = 0,nproc-1 
+               bnds(n)%rlenh_bg(min(icol+1,maxcolour)) = bnds(n)%rlenh_fn(icol) + 1
+               bnds(n)%rlenh_fn(min(icol+1,maxcolour)) = bnds(n)%rlenh_fn(icol)
+            end do   
          end if
       
       end do ! icol=1,maxcolour
-      
-      bnds(:)%rlen_bg(1) = bnds(:)%rlenh_fn(maxcolour) + 1
-      bnds(:)%rlen_fn(1) = bnds(:)%rlenh_fn(maxcolour)
+
+      do n = 0,nproc-1
+         bnds(n)%rlen_bg(1) = bnds(n)%rlenh_fn(maxcolour) + 1
+         bnds(n)%rlen_fn(1) = bnds(n)%rlenh_fn(maxcolour)
+      end do   
       
       do icol = 1,maxcolour
       
@@ -2929,14 +2960,18 @@ contains
          end do ! n=1,npan
 
          if ( icol < maxcolour ) then
-            bnds(:)%rlen_bg(min(icol+1,maxcolour)) = bnds(:)%rlen_fn(icol) + 1
-            bnds(:)%rlen_fn(min(icol+1,maxcolour)) = bnds(:)%rlen_fn(icol)
+            do n = 0,nproc-1 
+               bnds(n)%rlen_bg(min(icol+1,maxcolour)) = bnds(n)%rlen_fn(icol) + 1
+               bnds(n)%rlen_fn(min(icol+1,maxcolour)) = bnds(n)%rlen_fn(icol)
+            end do   
          end if
          
       end do ! icol=1,maxcolour
       
-      bnds(:)%rlenx_bg(1) = bnds(:)%rlen_fn(maxcolour) + 1
-      bnds(:)%rlenx_fn(1) = bnds(:)%rlen_fn(maxcolour)
+      do n = 0,nproc-1
+         bnds(n)%rlenx_bg(1) = bnds(n)%rlen_fn(maxcolour) + 1
+         bnds(n)%rlenx_fn(1) = bnds(n)%rlen_fn(maxcolour)
+      end do   
       
       do icol = 1,maxcolour
       
@@ -3093,14 +3128,18 @@ contains
          end do
          
          if ( icol < maxcolour ) then
-            bnds(:)%rlenx_bg(min(icol+1,maxcolour)) = bnds(:)%rlenx_fn(icol) + 1
-            bnds(:)%rlenx_fn(min(icol+1,maxcolour)) = bnds(:)%rlenx_fn(icol)
+            do n = 0,nproc-1 
+               bnds(n)%rlenx_bg(min(icol+1,maxcolour)) = bnds(n)%rlenx_fn(icol) + 1
+               bnds(n)%rlenx_fn(min(icol+1,maxcolour)) = bnds(n)%rlenx_fn(icol)
+            end do   
          end if
          
       end do ! icol=1,maxcolour
 
       ! Now set up the second row
-      bnds(:)%rlen2 = bnds(:)%rlenx_fn(maxcolour)  ! so that they're appended.
+      do n = 0,nproc-1
+         bnds(n)%rlen2 = bnds(n)%rlenx_fn(maxcolour)  ! so that they're appended.
+      end do   
 
       do n = 1,npan
 
@@ -3339,7 +3378,9 @@ contains
       end if
       allocate( neigharray_g(0:nproc-1) )
       ! default neighbour list
-      neigharray_g(:) = bnds(:)%rlen2 > 0
+      do n = 0,nproc-1
+         neigharray_g(n) = bnds(n)%rlen2 > 0
+      end do   
       ! estimate maximum distance for departure points
       ! assume wind speed is less than 350 m/s
       maxdis = 350.*dt/rearth ! unit sphere
@@ -3366,10 +3407,12 @@ contains
          end do
       end do
       neigharray_g(myid) = .false.
-      neighnum = count( neigharray_g )
-      where( neigharray_g )
-         bnds(:)%len = max( bnds(:)%len, maxbuflen*maxvertlen )
-      end where
+      neighnum = count( neigharray_g(:) )
+      do n = 0,nproc-1
+         if ( neigharray_g(n) ) then
+            bnds(n)%len = max( bnds(n)%len, maxbuflen*maxvertlen )
+         end if
+      end do
 
       ! set-up neighbour lists
       allocate ( neighlist(neighnum) )
@@ -3436,18 +3479,20 @@ contains
             bnds(rproc)%slenx_fn(1:maxcolour) = dumr(2*maxcolour+2:3*maxcolour+1,iproc)
          end if
       end do
-      bnds(:)%slenh_bg(1) = 1
-      do i = 2,maxcolour
-         bnds(:)%slenh_bg(i) = bnds(:)%slenh_fn(i-1) + 1
-      end do
-      bnds(:)%slen_bg(1)  = bnds(:)%slenh_fn(maxcolour) + 1
-      do i = 2,maxcolour
-        bnds(:)%slen_bg(i)  = bnds(:)%slen_fn(i-1) + 1
-      end do
-      bnds(:)%slenx_bg(1) = bnds(:)%slen_fn(maxcolour) + 1
-      do i = 2,maxcolour
-        bnds(:)%slenx_bg(i) = bnds(:)%slenx_fn(i-1) + 1
-      end do
+      do n = 0,nproc-1
+         bnds(n)%slenh_bg(1) = 1
+         do i = 2,maxcolour
+            bnds(n)%slenh_bg(i) = bnds(n)%slenh_fn(i-1) + 1
+         end do
+         bnds(n)%slen_bg(1)  = bnds(n)%slenh_fn(maxcolour) + 1
+         do i = 2,maxcolour
+            bnds(n)%slen_bg(i)  = bnds(n)%slen_fn(i-1) + 1
+         end do
+         bnds(n)%slenx_bg(1) = bnds(n)%slen_fn(maxcolour) + 1
+         do i = 2,maxcolour
+            bnds(n)%slenx_bg(i) = bnds(n)%slenx_fn(i-1) + 1
+         end do
+      end do   
       
       deallocate( dums, dumr )
 
@@ -3514,7 +3559,9 @@ contains
       iextv = 0
 
       ! save start of isv indices
-      bnds(:)%rlen_sv_bg = 1
+      do n = 0,nproc-1
+         bnds(n)%rlen_sv_bg = 1
+      end do   
 
       !     S edge, V
       j = 1
@@ -3567,8 +3614,10 @@ contains
       end do
 
       ! save start of inv indices
-      bnds(:)%rlen_nv_bg = bnds(:)%rlen_wu_fn + 1
-      bnds(:)%rlen_eu_fn = bnds(:)%rlen_wu_fn
+      do n = 0,nproc-1
+         bnds(n)%rlen_nv_bg = bnds(n)%rlen_wu_fn + 1
+         bnds(n)%rlen_eu_fn = bnds(n)%rlen_wu_fn
+      end do   
 
       !     N edge (V)
       j = jpan
@@ -3626,8 +3675,10 @@ contains
       issv = iss
 
       ! save start of issv indices
-      bnds(:)%rlen_ssv_bg = bnds(:)%rlen_eu_fn + 1
-      bnds(:)%rlen_wwu_fn = bnds(:)%rlen_eu_fn
+      do n = 0,nproc-1
+         bnds(n)%rlen_ssv_bg = bnds(n)%rlen_eu_fn + 1
+         bnds(n)%rlen_wwu_fn = bnds(n)%rlen_eu_fn
+      end do   
 
       !     SS edge, V
       j = 1
@@ -3679,8 +3730,10 @@ contains
       end do
 
       ! save start of innv indices
-      bnds(:)%rlen_nnv_bg = bnds(:)%rlen_wwu_fn + 1
-      bnds(:)%rlen_eeu_fn = bnds(:)%rlen_wwu_fn
+      do n = 0,nproc-1
+         bnds(n)%rlen_nnv_bg = bnds(n)%rlen_wwu_fn + 1
+         bnds(n)%rlen_eeu_fn = bnds(n)%rlen_wwu_fn
+      end do   
 
       !     NN edge (V)
       j = jpan
@@ -3733,8 +3786,10 @@ contains
 
       ! Third pass
       ! save start of isu indices
-      bnds(:)%rlen_su_bg = bnds(:)%rlen_eeu_fn + 1
-      bnds(:)%rlen_ev_fn = bnds(:)%rlen_eeu_fn
+      do n = 0,nproc-1
+         bnds(n)%rlen_su_bg = bnds(n)%rlen_eeu_fn + 1
+         bnds(n)%rlen_ev_fn = bnds(n)%rlen_eeu_fn
+      end do   
 
       !     S edge, U
       j = 1
@@ -3905,11 +3960,13 @@ contains
             bnds(rproc)%slen_ev_fn  = dumr(5,iproc)
          end if
       end do
-      bnds(:)%slen_sv_bg  = 1
-      bnds(:)%slen_nv_bg  = bnds(:)%slen_wu_fn  + 1
-      bnds(:)%slen_ssv_bg = bnds(:)%slen_eu_fn  + 1
-      bnds(:)%slen_nnv_bg = bnds(:)%slen_wwu_fn + 1
-      bnds(:)%slen_su_bg  = bnds(:)%slen_eeu_fn + 1
+      do n = 0,nproc-1
+         bnds(n)%slen_sv_bg  = 1
+         bnds(n)%slen_nv_bg  = bnds(n)%slen_wu_fn  + 1
+         bnds(n)%slen_ssv_bg = bnds(n)%slen_eu_fn  + 1
+         bnds(n)%slen_nnv_bg = bnds(n)%slen_wwu_fn + 1
+         bnds(n)%slen_su_bg  = bnds(n)%slen_eeu_fn + 1
+      end do   
       
       deallocate( dumr, dums )
 
@@ -4284,7 +4341,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, send_len, recv_len
-      integer :: rcount, jproc, mproc, iq
+      integer :: rcount, jproc, mproc, iq, n
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4), save :: itag=1
       integer(kind=4) :: ierr, llen, lproc
@@ -4319,17 +4376,25 @@ contains
       
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen(:) = bnds(neighlist(:))%rlen2
-         sslen(:) = bnds(neighlist(:))%slen2
+         do n = 1,neighnum
+            rslen(n) = bnds(neighlist(n))%rlen2
+            sslen(n) = bnds(neighlist(n))%slen2
+         end do   
       else if ( extra ) then
-         rslen(:) = bnds(neighlist(:))%rlenx_fn(maxcolour)
-         sslen(:) = bnds(neighlist(:))%slenx_fn(maxcolour)
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenx_fn(maxcolour)
+         end do   
       else if ( single ) then
-         rslen(:) = bnds(neighlist(:))%rlen_fn(maxcolour)
-         sslen(:) = bnds(neighlist(:))%slen_fn(maxcolour)
+         do n = 1,neighnum
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slen_fn(maxcolour)
+         end do   
       else
-         rslen(:) = bnds(neighlist(:))%rlenh_fn(maxcolour)
-         sslen(:) = bnds(neighlist(:))%slenh_fn(maxcolour)
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenh_fn(maxcolour)
+         end do   
       end if
       
       itag = mod(itag + 1, 10000)
@@ -4396,7 +4461,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, jproc, mproc, iq, k
+      integer :: rcount, jproc, mproc, iq, k, n
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4), save :: itag=2
       integer(kind=4) :: ierr, llen, lproc
@@ -4435,17 +4500,25 @@ contains
 
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-         sslen = bnds(neighlist)%slen2
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen2
+            sslen(n) = bnds(neighlist(n))%slen2
+         end do   
       else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-         sslen = bnds(neighlist)%slenx_fn(maxcolour)
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenx_fn(maxcolour)
+         end do   
       else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-         sslen = bnds(neighlist)%slen_fn(maxcolour)
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slen_fn(maxcolour)
+         end do   
       else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-         sslen = bnds(neighlist)%slenh_fn(maxcolour)
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenh_fn(maxcolour)
+         end do   
       end if
       
       itag = mod(itag + 1, 10000)
@@ -4514,7 +4587,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, jproc, mproc, iq, k
+      integer :: rcount, jproc, mproc, iq, k, n
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4), save :: itag=2
       integer(kind=4) :: ierr, llen, lproc
@@ -4549,17 +4622,25 @@ contains
 
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-         sslen = bnds(neighlist)%slen2
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen2
+            sslen(n) = bnds(neighlist(n))%slen2
+         end do   
       else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-         sslen = bnds(neighlist)%slenx_fn(maxcolour)
+         do n = 1,neighnum  
+            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenx_fn(maxcolour)
+         end do   
       else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-         sslen = bnds(neighlist)%slen_fn(maxcolour)
+         do n = 1,neighnum
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slen_fn(maxcolour)
+         end do   
       else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-         sslen = bnds(neighlist)%slenh_fn(maxcolour)
+         do n = 1,neighnum
+            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenh_fn(maxcolour)
+         end do   
       end if
       
       itag = mod(itag + 1, 10000)
@@ -4627,7 +4708,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: rcount, jproc, mproc, ntr, iq, k, l
+      integer :: rcount, jproc, mproc, ntr, iq, k, l, n
       integer :: nstart, nend, ntot
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4), save :: itag=3
@@ -4665,17 +4746,25 @@ contains
 
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-         sslen = bnds(neighlist)%slen2
+         do n = 1,neighnum  
+            rslen(n) = bnds(neighlist(n))%rlen2
+            sslen(n) = bnds(neighlist(n))%slen2
+         end do
       else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-         sslen = bnds(neighlist)%slenx_fn(maxcolour)
+         do n = 1,neighnum     
+            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenx_fn(maxcolour)
+         end do
       else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-         sslen = bnds(neighlist)%slen_fn(maxcolour)
+         do n = 1,neighnum     
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slen_fn(maxcolour)
+         end do
       else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-         sslen = bnds(neighlist)%slenh_fn(maxcolour)
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenh_fn(maxcolour)
+         end do
       end if
 
       lcomm = comm_world
@@ -4933,7 +5022,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: iq, k
+      integer :: iq, k, n
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4), save :: itag=2
       integer(kind=4) :: ierr, llen, lproc
@@ -4971,17 +5060,25 @@ contains
 
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-         sslen = bnds(neighlist)%slen2
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen2
+            sslen(n) = bnds(neighlist(n))%slen2
+         end do
       else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-         sslen = bnds(neighlist)%slenx_fn(maxcolour)
+         do n = 1,neighnum    
+            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenx_fn(maxcolour)
+         end do
       else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-         sslen = bnds(neighlist)%slen_fn(maxcolour)
+         do n = 1,neighnum    
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slen_fn(maxcolour)
+         end do
       else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-         sslen = bnds(neighlist)%slenh_fn(maxcolour)
+         do n = 1,neighnum    
+            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenh_fn(maxcolour)
+         end do
       end if
       
       itag = mod(itag + 1, 10000)
@@ -5026,7 +5123,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx, send_len, recv_len
-      integer :: iq, k, ntr, l
+      integer :: iq, k, ntr, l, n
       integer, dimension(neighnum) :: rslen, sslen
       integer(kind=4), save :: itag=2
       integer(kind=4) :: ierr, llen, lproc
@@ -5065,17 +5162,25 @@ contains
 
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen = bnds(neighlist)%rlen2
-         sslen = bnds(neighlist)%slen2
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen2
+            sslen(n) = bnds(neighlist(n))%slen2
+         end do
       else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
-         sslen = bnds(neighlist)%slenx_fn(maxcolour)
+         do n = 1,neighnum    
+            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenx_fn(maxcolour)
+         end do
       else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
-         sslen = bnds(neighlist)%slen_fn(maxcolour)
+         do n = 1,neighnum    
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slen_fn(maxcolour)
+         end do
       else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
-         sslen = bnds(neighlist)%slenh_fn(maxcolour)
+         do n = 1,neighnum    
+            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slenh_fn(maxcolour)
+         end do
       end if
 
       lcomm = comm_world
@@ -5129,7 +5234,7 @@ contains
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
       integer :: iproc, kx
-      integer :: rcount, jproc, mproc, iq, k
+      integer :: rcount, jproc, mproc, iq, k, n
       integer, dimension(neighnum) :: rslen
       integer(kind=4) :: ierr, lproc
       integer(kind=4) :: ldone
@@ -5162,13 +5267,21 @@ contains
       
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen = bnds(neighlist)%rlen2
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen2
+         end do   
       else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
+         end do   
       else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+         end do
       else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
+         do n = 1,neighnum    
+            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
+         end do
       end if
 
       ! Unpack incomming messages
@@ -5202,7 +5315,7 @@ contains
       logical, intent(in), optional :: corner
       logical, intent(in), optional :: nehalf
       logical :: extra, single, double
-      integer :: iproc, kx, ntr, l
+      integer :: iproc, kx, ntr, l, n
       integer :: rcount, jproc, mproc, iq, k
       integer, dimension(neighnum) :: rslen
       integer(kind=4) :: ierr, lproc
@@ -5234,13 +5347,21 @@ contains
       
       ! Split messages into corner and non-corner processors
       if ( double ) then
-         rslen = bnds(neighlist)%rlen2
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen2
+         end do   
       else if ( extra ) then
-         rslen = bnds(neighlist)%rlenx_fn(maxcolour)
+         do n = 1,neighnum  
+            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
+         end do   
       else if ( single ) then
-         rslen = bnds(neighlist)%rlen_fn(maxcolour)
+         do n = 1,neighnum     
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+         end do    
       else
-         rslen = bnds(neighlist)%rlenh_fn(maxcolour)
+         do n = 1,neighnum     
+            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
+         end do   
       end if
       
       if ( ntr > nagg ) then
@@ -10436,11 +10557,13 @@ contains
       fileallocate = .true.
 
       ! calculate recv message length
-      filebnds(:)%len = 0
-      filebnds(:)%rlen = 0
-      filebnds(:)%slen = 0
-      filebnds(:)%rlenx = 0
-      filebnds(:)%slenx = 0
+      do n = 0,fnresid-1
+         filebnds(n)%len = 0
+         filebnds(n)%rlen = 0
+         filebnds(n)%slen = 0
+         filebnds(n)%rlenx = 0
+         filebnds(n)%slenx = 0
+      end do   
       do ipf = 0,fncount-1  ! fncount=fnproc/fnresid
          ip = ipf*fnresid + myid
          do n = 1,pnpan
@@ -10510,7 +10633,9 @@ contains
          end do
       end do
       
-      filebnds(:)%rlen = filebnds(:)%rlenx
+      do n = 0,fnresid-1
+         filebnds(n)%rlen = filebnds(n)%rlenx
+      end do   
       do ipf = 0,fncount-1  ! fncount=fnproc/fnresid
          ip = ipf*fnresid + myid
          do n = 1,pnpan

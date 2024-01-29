@@ -849,6 +849,7 @@ end subroutine cldrop
 ! Aerosol scavenging fraction for convective clouds
 
 subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
+!$acc routine vector
 
 use aerosol_arrays, only : naero
 
