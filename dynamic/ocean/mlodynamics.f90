@@ -761,13 +761,13 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Horizontal advection for U, V, W, T, continuity and S
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
-  bs_test = 2<=mlo_bs
+  bs_test = mlo_bs<=2
   call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,0,bs_test,mlointschf)
-  bs_test = 3<=mlo_bs
+  bs_test = mlo_bs<=3
   call mlob2ints_bs(nt,nface,xg,yg,wtr,0,bs_test,mlointschf)
-  bs_test = 1<=mlo_bs
+  bs_test = mlo_bs<=1
   call mlob2ints_bs(mps,nface,xg,yg,wtr,2,bs_test,mlointschf)
-  bs_test = 4<=mlo_bs
+  bs_test = mlo_bs<=4
   call mlob2ints_bs(ns,nface,xg,yg,wtr,1,bs_test,mlointschf)
   !$acc end data
 
