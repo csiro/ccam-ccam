@@ -680,6 +680,7 @@ contains
          end do
       end do
 
+      allocate( ifull_colour(maxcolour), ifull_colour_border(maxcolour) )
       do n = 1,maxcolour
          ifull_colour(n) = count( colourmask == n )
       end do
