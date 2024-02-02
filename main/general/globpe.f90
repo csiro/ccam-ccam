@@ -1601,6 +1601,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
     mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,delwater,      &
+    mlomaxuv,                                                     &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -1758,7 +1759,6 @@ if ( nvmix==9 .and. nmlo==0 ) then
 end if
 if ( maxcolour/=2 .and. maxcolour/=3 ) then
   write(6,*) "ERROR: maxcolour must equal 2 or 3"
-  write(6,*) "maxcolour = ",maxcolour
   call ccmpi_abort(-1)
 end if
 nagg = max( nagg, 4 ) ! use 4 for two staguv u & v arrays
@@ -3789,7 +3789,7 @@ use river                                  ! River routing
 implicit none
 
 integer, dimension(30) :: dumi
-real, dimension(24) :: dumr    
+real, dimension(25) :: dumr    
 
 dumr = 0.
 dumi = 0
@@ -3818,6 +3818,7 @@ if ( myid==0 ) then
   dumr(22) = fluxwgt
   dumr(23) = ocnepr
   dumr(24) = delwater
+  dumr(25) = mlomaxuv
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -3875,6 +3876,7 @@ ocnlap             = dumr(21)
 fluxwgt            = dumr(22)
 ocnepr             = dumr(23)
 delwater           = dumr(24)
+mlomaxuv           = dumr(25)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 

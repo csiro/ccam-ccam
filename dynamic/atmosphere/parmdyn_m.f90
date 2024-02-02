@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,6 +29,7 @@ public nh,nritch_t,mspec,mup
 public nstag,nstagu,ntbar,precon,helmmeth
 public nstagoff
 public epsp,epsu,epsf,epsh,restol
+public maxuv
 
 !     dynamics options
 
@@ -48,5 +49,6 @@ integer, save :: nh=0,nritch_t=300,mspec,mup=1
 integer, save :: nstag=-10,nstagu=-1,ntbar,precon=-2900,helmmeth=1
 integer, save :: nstagoff=0
 real, save :: epsp=-15.,epsu=0.,epsf=0.,epsh=1.,restol=4.e-7
+real, save :: maxuv=900.
     
 end module parmdyn_m

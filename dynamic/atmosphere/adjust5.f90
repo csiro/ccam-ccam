@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -163,6 +163,7 @@ p(1:ifull,1) = zs(1:ifull) + bet(1)*(tx(1:ifull,1)-280.) + rdry*tbar2d(1:ifull)*
 do k = 2,kl
   p(1:ifull,k) = p(1:ifull,k-1) + bet(k)*(tx(1:ifull,k)-280.) + betm(k)*(tx(1:ifull,k-1)-280.)
 end do ! k loop
+
 
 if ( nh/=0 .and. (ktau>=knh.or.lrestart) ) then
   ! add in departure values of p-related nh terms  & omgfnl terms    
@@ -369,6 +370,10 @@ if ( nstag==0 ) then
  endif
 else
   call unstaguv(cc,dd,u,v) ! usual
+  do k = 1,kl
+    u(1:ifull,k) = max(min( u(1:ifull,k), maxuv),-maxuv)
+    v(1:ifull,k) = max(min( v(1:ifull,k), maxuv),-maxuv)
+  end do
 endif
 
 ! vert. integ. div into e

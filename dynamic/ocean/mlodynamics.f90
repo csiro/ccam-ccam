@@ -44,7 +44,7 @@ implicit none
 private
 public mlohadv,mlodyninit
 public ocneps,ocnepr,nxtrrho
-public usetide,mlojacobi,mlomfix,nodrift,mlodps,mlo_bs,mlointschf
+public usetide,mlojacobi,mlomfix,nodrift,mlodps,mlo_bs,mlointschf,mlomaxuv
 
 complex, save :: emsum
 integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
@@ -64,6 +64,7 @@ real, save      :: ocnepr         = 1.      ! lagrangian off-centring term for d
 real, parameter :: maxicefrac     = 0.999   ! maximum ice fraction
 real, parameter :: tol            = 5.E-5   ! Tolerance for SOR solver (water)
 real, parameter :: itol           = 1.E1    ! Tolerance for SOR solver (ice)
+real, save      :: mlomaxuv       = 900.    ! Limit currents after staggering
 
 contains
 
@@ -195,11 +196,8 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
   call ccmpi_abort(-1)
 else
   ! z* levels
-  dumf(:,:,1) = gosig(:,:)
-  dumf(:,:,2) = godsig(:,:)
-  call bounds(dumf(:,:,1:2),nrows=2)
-  gosig(:,:)  = dumf(:,:,1)
-  godsig(:,:) = dumf(:,:,2)
+  call bounds(gosig,nrows=2)
+  call bounds(godsig,nrows=2)
   do ii = 1,wlev
     godsigu(1:ifull,ii) = min(dd(1:ifull)*godsig(1:ifull,ii),dd(ie)*godsig(ie,ii))/ddu(1:ifull)
     godsigv(1:ifull,ii) = min(dd(1:ifull)*godsig(1:ifull,ii),dd(in)*godsig(in,ii))/ddv(1:ifull)
@@ -566,11 +564,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! (Assume free surface correction is small so that changes in the compression 
   ! effect due to neta can be neglected.  Consequently, the neta dependence is 
   ! separable in the iterative loop)
-  cou(1:ifull,:,1) = nt(1:ifull,:)
-  cou(1:ifull,:,2) = ns(1:ifull,:)
-  call bounds(cou(:,:,1:2),corner=.true.)
-  nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
-  ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
+  call bounds(nt,corner=.true.)
+  call bounds(ns,corner=.true.)
 
   ! rho(x) = wrtrho + rho_dash(x), where wrtrho is a constant
   
@@ -716,8 +711,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! ocean
   do ii = 1,wlev
     u_tstar(:,ii) = nu(1:ifull,ii) + (1.-ocneps)*0.5*dt*f(1:ifull)*nv(1:ifull,ii) - ttau(:,ii) ! unstaggered
-    v_tstar(:,ii) = nv(1:ifull,ii) - (1.-ocneps)*0.5*dt*f(1:ifull)*nu(1:ifull,ii) - ttav(:,ii)
     u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)
+    v_tstar(:,ii) = nv(1:ifull,ii) - (1.-ocneps)*0.5*dt*f(1:ifull)*nu(1:ifull,ii) - ttav(:,ii)
     v_tstar(:,ii) = v_tstar(:,ii)*ee(1:ifull,ii)
   end do
   ! ice
@@ -731,8 +726,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
-  call mlocheck("first vertical advection",water_temp=workdata,water_sal=workdata2, &
-                water_u=u_tstar,water_v=v_tstar)
+  call mlocheck("first vertical advection",water_temp=workdata,water_sal=workdata2)
 
   ! Calculate depature points for horizontal advection
   do ii = 1,wlev
@@ -777,8 +771,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   do ii = 1,wlev
     ! Convert (U,V,W) back to conformal cubic coordinates  
     u_tstar(:,ii) = ax(1:ifull)*cou(1:ifull,ii,1) + ay(1:ifull)*cou(1:ifull,ii,2) + az(1:ifull)*cou(1:ifull,ii,3)
+    u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)    
     v_tstar(:,ii) = bx(1:ifull)*cou(1:ifull,ii,1) + by(1:ifull)*cou(1:ifull,ii,2) + bz(1:ifull)*cou(1:ifull,ii,3)
-    u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)
     v_tstar(:,ii) = v_tstar(:,ii)*ee(1:ifull,ii)
     ! Update T, S and continuity
     nt(1:ifull,ii) = max( nt(1:ifull,ii), -wrtemp )
@@ -788,8 +782,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
-  call mlocheck("horizontal advection",water_temp=workdata,water_sal=workdata2, &
-                water_u=u_tstar,water_v=v_tstar)
+  call mlocheck("horizontal advection",water_temp=workdata,water_sal=workdata2)
 
 
   ! Vertical advection (second call for 0.5*dt)
@@ -800,11 +793,10 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
-  call mlocheck("second vertical advection",water_temp=workdata,water_sal=workdata2, &
-                water_u=u_tstar,water_v=v_tstar)
+  call mlocheck("second vertical advection",water_temp=workdata,water_sal=workdata2)
 
 
-  ! dsig terms where included before advection 
+  ! dsig terms are included before advection 
   xps(:) = mps(1:ifull,1)
   do ii = 2,wlev
     xps(:) = xps(:) + mps(1:ifull,ii)
@@ -816,11 +808,8 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
   if ( nxtrrho==1 ) then
-    cou(1:ifull,:,1) = nt(1:ifull,:)
-    cou(1:ifull,:,2) = ns(1:ifull,:)
-    call bounds(cou(:,:,1:2),corner=.true.)
-    nt(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,1)
-    ns(ifull+1:ifull+iextra,:) = cou(ifull+1:ifull+iextra,:,2)
+    call bounds(nt,corner=.true.)
+    call bounds(ns,corner=.true.)
     ! update normalised density gradients
     call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                   rho_dash,rhou_dash,rhov_dash)
@@ -844,13 +833,16 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   ! Set-up calculation of ocean and ice at t+1
   ! ocean
+  ! ccu and ccv have the correct magnitude for the advected current
   odum = 1./(1.+((1.+ocneps)*0.5*dt*fu(1:ifull))**2)
   do ii = 1,wlev
     ccu(1:ifull,ii) = ttau(:,ii)*odum*eeu(1:ifull,ii) ! staggered
+    ccu(1:ifull,ii) = max(min( ccu(1:ifull,ii), mlomaxuv),-mlomaxuv)
   end do
   odum = 1./(1.+((1.+ocneps)*0.5*dt*fv(1:ifull))**2)
   do ii = 1,wlev
     ccv(1:ifull,ii) = ttav(:,ii)*odum*eev(1:ifull,ii) ! staggered
+    ccv(1:ifull,ii) = max(min( ccv(1:ifull,ii), mlomaxuv),-mlomaxuv)
   end do
   ! ice
   ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
@@ -941,13 +933,11 @@ do mspec_mlo = mspeca_mlo,1,-1
     !   + 0.5*(1+eps)*dt*(grav/rho)*dpdx^(t+1)
     !   + (0.5*(1+eps)*dt)**2*f*(grav/rho)*dpdy^(t+1)
     ! = u^(t*) + 0.5*(1+eps)*dt*f*v^(t*)
-    ! = ttau = ccu*(1+(0.5*(1+eps)*dt*f)**2)
 
     ! v^(t+1)*(1+(0.5*(1+eps)*dt*f)**2)
     !   + 0.5*(1+eps)*dt*(grav/rho)*dpdy^(t+1)
     !   - (0.5*(1+eps)*dt)**2*f*(grav/rho)*dpdx^(t+1) 
     ! = v^(t*) - 0.5*(1+eps)*dt*f*u^(t*)
-    ! = ttav = ccv*(1+(0.5*(1+eps)*dt*f)**2)  
   
     ! ffu = (1.+ocneps)*0.5*dt*fu
     ! ffv = (1.+ocneps)*0.5*dt*fv     
@@ -1192,6 +1182,31 @@ do mspec_mlo = mspeca_mlo,1,-1
                    - cc4v(1:ifull,ii)*oev(1:ifull)
   end do
   
+
+  ! error checking
+  do ii = 1,wlev
+    do iq = 1,ifull
+      if ( abs(nu(iq,ii))>40. ) then
+        tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq))*neta(in(iq)) + cc(ine(iq),ii)*ff(ine(iq))*neta(ine(iq)) )
+        tsu(iq) = 0.5*( cc(is(iq),ii)*ff(is(iq))*neta(is(iq)) + cc(ise(iq),ii)*ff(ise(iq))*neta(ise(iq)) )
+        write(6,*) "WARN: nu,iq,ii ",nu(iq,ii),iq,ii
+        write(6,*) " kku,oou*oeu,mmu*detadxu,nnu*detadyu ",        &
+          kku(iq,ii),oou(iq,ii)*oeu(iq),mmu(iq,ii)*detadxu(iq), &
+          - 0.5*stwgtu(iq,ii)*(tnu(iq)-tsu(iq))*emu(iq)/ds      &
+          + cc3u(iq,ii)*oeu(iq)
+      end if
+      if ( abs(nv(iq,ii))>40. ) then
+        tev(iq) = 0.5*( cc(ie(iq),ii)*ff(ie(iq))*neta(ie(iq)) + cc(ien(iq),ii)*ff(ien(iq))*neta(ien(iq)) )
+        twv(iq) = 0.5*( cc(iw(iq),ii)*ff(iw(iq))*neta(iw(iq)) + cc(iwn(iq),ii)*ff(iwn(iq))*neta(iwn(iq)) )
+        write(6,*) "WARN: nv,iq,ii ",nv(iq,ii),iq,ii
+        write(6,*) " kkv,oov*oev,mmv*detadyv,nnv*detadxv ",        &
+          kkv(iq,ii),oov(iq,ii)*oev(iq),mmv(iq,ii)*detadyv(iq), &
+          + 0.5*stwgtv(iq,ii)*(tev(iq)-twv(iq))*emv(iq)/ds      &
+          + cc4v(iq,ii)*oev(iq)
+      end if
+    end do
+  end do
+
 
   worku = nu(1:ifull,:)
   workv = nv(1:ifull,:)

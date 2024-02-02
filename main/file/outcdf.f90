@@ -892,6 +892,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlodps',mlodps)
     call ccnf_put_attg(idnc,'mlointschf',mlointschf)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
+    call ccnf_put_attg(idnc,'mlomaxuv',mlomaxuv)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
     call ccnf_put_attg(idnc,'mlontvd',mlontvd)
@@ -2541,22 +2542,22 @@ if ( myid==0 .or. local ) then
       ! store local processor id in output file
       if ( myid==0 ) write(6,*) '-> write procformat data'
       if ( procmode==1 ) then
-         vnode_dat(:) = myid
-         if ( vnode_nproc/=1 ) then
-            write(6,*) "ERROR: vnode_nproc/=1 when procmode=1"
-            call ccmpi_abort(-1)
-         end if
+        vnode_dat(:) = myid
+        if ( vnode_nproc/=1 ) then
+          write(6,*) "ERROR: vnode_nproc/=1 when procmode=1"
+          call ccmpi_abort(-1)
+        end if
       else
-         if ( myid==0 ) write(6,*) '-> gather virtual node ranks'  
-         call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+        if ( myid==0 ) write(6,*) '-> gather virtual node ranks'  
+        call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
       end if
+      if ( myid==0 ) write(6,*) '-> gather leader ranks'  
+      call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
+      if ( myid==0 ) write(6,*) '-> store rank information'    
       call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
       ! store file id for a given processor number in output file number 000000
       ! store offset within a file for a given processor number in output file number 000000
-      if ( myid==0 ) write(6,*) '-> gather leader ranks'  
-      call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
-        write(6,*) '-> store rank information'    
         procdata(:) = procnode(1,:)  
         call ccnf_put_vara(idnc,idgpnode,(/1/),(/nproc/),procdata)  
         procdata(:) = procnode(2,:)
@@ -2567,10 +2568,9 @@ if ( myid==0 .or. local ) then
     call ccnf_put_vara(idnc,'ds',1,ds)
     call ccnf_put_vara(idnc,'dt',1,dt)
     
-    if ( myid==0 ) write(6,*) '-> write land tile data'
-    
     if ( itype==-1 .or. diaglevel_pop>=9 ) then
       if ( cable_pop==1 ) then
+        if ( myid==0 ) write(6,*) '-> write land tile data'  
         allocate( cabledata(POP_NPATCH) )
         do i = 1,POP_NPATCH
           cabledata(i) = real(i)
@@ -2590,6 +2590,7 @@ if ( myid==0 .or. local ) then
   ! -----------------------------------------------------------      
   
   ! set time to number of minutes since start 
+  if ( myid==0 ) write(6,*) '-> write timers'    
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
   call ccnf_put_vara(idnc,'timer',iarch,timer)   ! to be depreciated
   call ccnf_put_vara(idnc,'mtimer',iarch,mtimer) ! to be depreciated

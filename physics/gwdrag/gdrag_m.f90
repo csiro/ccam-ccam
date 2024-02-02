@@ -103,7 +103,7 @@ real, dimension(imax,kl) :: lt, lu, lv
 logical mydiag_t
 
 #ifdef GPUPHYSICS
-!$acc parallel loop copy(u,v) copyin(t,tss,he) private(lt,lu,lv) 
+!$acc parallel loop copy(u,v) copyin(t,tss,he) private(lt,lu,lv) vector_length(32)
 #else
 !$omp do schedule(static) private(js,je),        &
 !$omp private(lt,lu,lv,idjd_t,mydiag_t)

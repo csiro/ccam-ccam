@@ -357,6 +357,7 @@
 !$acc& copyout(ktsav)
 !$acc& private(ldpsldt,lt,lqg,lqlg,lqfg,lu,lv,lxtg,ldustwd,lso2wd)
 !$acc& private(lso4wd,lbcwd,locwd,lsaltwd,ltr,lfluxtot)
+!$acc& vector_length(32)
 #else
 !$omp do schedule(static) private(js,je),
 !$omp& private(ldpsldt,lt,lqg,lfluxtot),

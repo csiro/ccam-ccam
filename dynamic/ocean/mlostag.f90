@@ -30,7 +30,7 @@ public mstagf, koff, nstagoffmlo
 integer, save      :: nstagoffmlo = 0       ! staggering offset
 integer, save      :: mstagf      = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
 integer, parameter :: koff        = 1       ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
-integer, parameter :: itnmax      = 3       ! number of interations for reversible staggering
+integer, parameter :: itnmax      = 6       ! number of interations for reversible staggering
 
 contains
 
