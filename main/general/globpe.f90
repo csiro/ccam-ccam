@@ -490,18 +490,18 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! nmlo=3   nmlo=2 plus 3D dynamics
   ! nmlo>9   Use external PCOM ocean model
 
-  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     ! DYNAMICS & DIFFUSION ------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlohadv
     call END_LOG(waterdynamics_end)
-  else if ( abs(nmlo)==2 .and. nhstest>=0 ) then
+  else if ( abs(nmlo)==2 ) then
     ! DIFFUSION -----------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlodiffusion
     call END_LOG(waterdynamics_end)
   end if
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
     ! SEA ICE  ------------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlonewice
@@ -564,7 +564,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       cduv(js:je) = 0.
     end if     ! (ntsur<=1.or.nhstest==2) 
     ! Save aerosol concentrations for outside convective fraction of grid box
-    if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+    if ( abs(iaero)>=2 ) then
       xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
     end if
     call nantest("start of physics",js,je,"all")
@@ -757,7 +757,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #endif
   ! AEROSOLS --------------------------------------------------------------
   ! Old time-split with aero_split=0
-  if ( nsib>0 .and. nhstest>=0 ) then
+  if ( nsib>0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
       call aerocalc(oxidant_update,mins,0)
@@ -824,7 +824,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #ifdef GPUPHYSICS
   !$omp end parallel
 #endif
-  if ( nsib>0 .and. nhstest>=0 ) then
+  if ( nsib>0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
       call aerocalc(oxidant_update,mins,1)
@@ -1774,7 +1774,15 @@ if ( nwt<=0 ) then
   write(6,*) "ERROR: nwt must be greater than zero or nwt=-99"
   call ccmpi_abort(-1)
 end if
-if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then ! set ocean levels if required
+if ( nhstest<0 .and. nmlo/=0 ) then
+  write(6,*) "ERROR: nhstest<0 requires nmlo=0"
+  call ccmpi_abort(-1)
+end if
+if ( nhstest<0 .and. iaero/=0 ) then
+  write(6,*) "ERROR: nhstest<0 requires iaero=0"
+  call ccmpi_abort(-1)
+end if
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then ! set ocean levels if required
   ol = max( ol, 1 )
 else
   ol = 0
@@ -2318,11 +2326,7 @@ call savuv1_init(ifull,kl)
 call sbar_init(ifull,kl)
 call screen_init(ifull)
 call sigs_init(kl)
-if ( nhstest>=0 ) then
-  call soil_init(ifull,iaero,nsib)
-else
-  call soil_init(ifull,0,nsib)  
-end if    
+call soil_init(ifull,iaero,nsib)
 call soilsnow_init(ifull,ms,nsib)
 call tbar2d_init(ifull)
 call unn_init(ifull,kl)
@@ -2340,7 +2344,7 @@ end if
 call init_tracer
 call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
-  if ( abs(iaero)>=2 .and. nud_aero/=0 .and. nhstest>=0 ) then
+  if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
     call dav_init(ifull,kl,naero,nbd,mbd)
   else
     call dav_init(ifull,kl,0,nbd,mbd)
@@ -2420,7 +2424,7 @@ end if
 if ( kbotu==0 ) kbotu = kbotdav
 
 ! fix ocean nuding levels
-if ( nmlo/=0 .and. abs(nmlo)<9 .and. nhstest>=0 ) then
+if ( nmlo/=0 .and. abs(nmlo)<9 ) then
   allocate( gosig_in(ol) )
   call mlovlevels(gosig_in,sigma=.true.)
   if ( kbotmlo<0 )  then
@@ -2566,7 +2570,7 @@ if ( nud_q==0 .and. mfix_qg==0 ) then
   write(6,*) "Model will not conserve moisture"
   call ccmpi_abort(-1)
 end if
-if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 .and. nhstest>=0 ) then
+if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
   write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
   write(6,*) "Model will not conserve aerosols"
   call ccmpi_abort(-1)
@@ -4219,7 +4223,7 @@ if ( ccycle/=0 ) then
   end if
 end if
 
-if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+if ( abs(iaero)>=2 ) then
   duste         = 0.  ! Dust emissions
   dustdd        = 0.  ! Dust dry deposition
   dustwd        = 0.  ! Dust wet deposition
@@ -4548,7 +4552,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     end if
   end if
    
-  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+  if ( abs(iaero)>=2 ) then
     duste         = duste/min(ntau,nperavg)        ! Dust emissions
     dustdd        = dustdd/min(ntau,nperavg)       ! Dust dry deposition
     dustwd        = dustwd/min(ntau,nperavg)       ! Dust wet deposition
@@ -5228,7 +5232,7 @@ if ( tss_check ) then
   end if
 end if
 
-if ( aero_check .and. abs(iaero)>=2 .and. nhstest>=0 ) then
+if ( aero_check .and. abs(iaero)>=2 ) then
   if ( any(xtg(js:je,1:kl,1:naero)/=xtg(js:je,1:kl,1:naero)) ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)

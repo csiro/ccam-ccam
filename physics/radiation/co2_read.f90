@@ -278,6 +278,18 @@ if ( nrad==5 ) then
       
   end select    
 
+  if ( nhstest<0 ) then
+    ! aquaplanet  
+    rrvco2 = 0.348e-3
+    rrvch4 = 0.
+    rrvn2o = 0.
+    rrvf11 = 0.
+    rrvf12 = 0.
+    rrvf113 = 0.
+    rrvf22 = 0.
+    csolar = 1365.
+  end if  
+    
   if ( myid==0 ) then
     write(6,*) ' CO2  mixing ratio is ',rrvco2*1e6,' ppmv'
     write(6,*) ' CH4  mixing ratio is ',rrvch4*1e9,' ppbv'
@@ -320,7 +332,6 @@ else
       end if
     end do
     read(lu,*) rrvco2
-    write(6,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
     read(lu,*) stemp
     read(lu,*) gtemp
     read(lu,*) cdt51
@@ -381,7 +392,17 @@ else
   call ccmpi_bcast(co211,0,comm_world)
   call ccmpi_bcast(co218,0,comm_world)
 end if      
-      
+
+if ( nhstest<0 ) then
+  ! aquaplanet
+  rrvco2 = 0.348e-3
+  csolar = 1365.
+end if
+
+if ( myid==0) then
+  write(6,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
+end if  
+
 return
 end subroutine co2_read
 

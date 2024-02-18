@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -42,7 +42,7 @@ contains
 
    subroutine solargh(day_of_year,bpyear,r,dlt,alp,slag)
    
-   use parm_m, only : leap ! Model configuration
+   use parm_m, only : leap, nhstest ! Model configuration
 !
 !  subroutine solar is called by march and computes the radius
 !    vector, the declination and right ascension of the sun, the
@@ -74,7 +74,11 @@ contains
       real :: day
 !
 !     set fundamental astronomical parameters
-      if ( abs(bpyear)<1.e-20 ) then
+      if ( nhstest<0 ) then
+         ec = 0.
+         peril = 102.04 ! does nothing in this case
+         oblqty = 0.
+      else if ( abs(bpyear)<1.e-20 ) then
          ec  = 0.016724
          peril  = 102.04
          oblqty  = 23.446
@@ -103,11 +107,11 @@ contains
 
 !   tropical or calendar year in mean solar days is cyear
       if ( leap==0 ) then ! 365 day calendar
-        cyear = 365.
+         cyear = 365.
       else if ( leap==1 ) then ! 365/366 day calendar
-        cyear = 365. ! repeat extra day
+         cyear = 365. ! repeat extra day
       else if ( leap==2 ) then ! 360 day calendar
-        cyear = 360.
+         cyear = 360.
       end if
       day = mod( day_of_year, cyear )
         
@@ -138,8 +142,13 @@ contains
 !  insolation and paleoclimates" from the NATO ASI "Long Term
 !  Climatic Variations, Data and Modelling" (J. C. Duplessy, ed.).
 !  The equation is a variant of that given on p.2365 of the JAS paper.
-      cosphi = sqrt(1.0-ecsq)
-      beta = (1.0-cosphi)/ec
+      if ( ec<1.e-20 ) then
+         cosphi = 1.
+         beta = 0.
+      else
+         cosphi = sqrt(1.0-ecsq)
+         beta = (1.0-cosphi)/ec
+      end if  
       peri = radian*sunper
 !
 !  longitude of mean sun at vernal equinox is velngm
@@ -194,7 +203,7 @@ contains
 !    of time in minutes)
       slag = elt - alp
 
-   end subroutine solargh
+end subroutine solargh
 
 subroutine zenith(fjd,r,dlt,slag,xlat,xlon,dhr,npts,coszrs,frac)
 

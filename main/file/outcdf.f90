@@ -1210,8 +1210,8 @@ if ( myid==0 .or. local ) then
     call ccnf_def_var(idnc,'nstagoff','int',1,dima(d4:d4),idv)
     call ccnf_put_att(idnc,idv,'long_name',lname)
 
-    if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
-         (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
+    if ( (nmlo<0.and.nmlo>=-9) .or. &
+         (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'ocn stag offset'
       call ccnf_def_var(idnc,'nstagoffmlo','int',1,dima(d4:d4),idv)
       call ccnf_put_att(idnc,idv,'long_name',lname)     
@@ -1243,21 +1243,19 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dimk,ksize,'mrsofc',lname,'kg m-2',0.,6500.,0,cptype)
     end if
 
-    if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
-         (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
+    if ( (nmlo<0.and.nmlo>=-9) .or. &
+         (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'Water bathymetry'
       call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,8125.,0,cptype)
     end if
-    if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 .and. nhstest>=0 ) then
+    if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
       lname = 'Water partial step depth'
       call attrib(idnc,dimk,ksize,'opldepth',lname,'m',0.,8125.,0,cptype)
     end if
-    if ( nhstest>=0 ) then
-      lname = 'x-component river '
-      call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
-      lname = 'y-component river '
-      call attrib(idnc,dimk,ksize,'vriver',lname,'m s-1',-6.5,6.5,0,cptype)
-    end if  
+    lname = 'x-component river '
+    call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
+    lname = 'y-component river '
+    call attrib(idnc,dimk,ksize,'vriver',lname,'m s-1',-6.5,6.5,0,cptype)
 
 !   For time varying surface fields
     if ( save_land ) then
@@ -1329,8 +1327,8 @@ if ( myid==0 .or. local ) then
     lname = 'Soil temperature lev 6'
     call attrib(idnc,dimj,jsize,'tgg6',lname,'K',100.,425.,0,cptype)
  
-    if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
-         (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
+    if ( (nmlo<0.and.nmlo>=-9) .or. &
+         (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
       lname = 'water surface height'
       call attrib(idnc,dimj,jsize,'ocheight',lname,'m',-130.,130.,0,cptype)  
       if ( itype==-1 ) then
@@ -1565,7 +1563,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'snm',lname,'mm day-1',0.,1300.,0,-1) ! -1 = long
     end if
     if ( itype/=-1 ) then  
-      if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean.and.nhstest>=0 ) then
+      if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
         lname = 'Mixed layer depth'
         call attrib(idnc,dimj,jsize,'mixdepth',lname,'m',0.,1300.,0,cptype)
       end if
@@ -1665,7 +1663,7 @@ if ( myid==0 .or. local ) then
     end if  
     
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
-    if ( abs(iaero)>=2 .and. nrad==5 .and. nhstest>=0 ) then
+    if ( abs(iaero)>=2 .and. nrad==5 ) then
       if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
         lname = 'Total column small dust optical depth VIS'
         call attrib(idnc,dimj,jsize,'sdust_vis',lname,'none',0.,13.,0,cptype)
@@ -2041,7 +2039,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'convh_ave',lname,'K day-1',-10.,20.,0,cptype)
     end if
     
-    if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+    if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
         lname = "Ocean temperature"
         call attrib(idnc,dimo,osize,"thetao",lname,'K',100.,425.,0,cptype)
@@ -2312,7 +2310,7 @@ if ( myid==0 .or. local ) then
     end if   ! (ngas>0)
 
     ! AEROSOL ---------------------------------------------------
-    if ( abs(iaero)>=2 .and. nhstest>=0 ) then  
+    if ( abs(iaero)>=2 ) then  
       if ( save_aerosols ) then        
         call attrib(idnc,dima,asize,'dms','Dimethyl sulfide','kg kg-1',0.,6.5E-7,0,cptype)
         call attrib(idnc,dima,asize,'so2','Sulfur dioxide','kg kg-1',0.,6.5E-7,0,cptype)
@@ -2363,7 +2361,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'savu2',lname,'m s-1',-1.E2,1.E2,0,cptype)
       lname= 'savv2'
       call attrib(idnc,dima,asize,'savv2',lname,'m s-1',-1.E2,1.E2,0,cptype)
-      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
         lname = "old1_uo"
         call attrib(idnc,dimo,osize,"old1_uo",lname,'m s-1',-65.,65.,0,cptype)
         lname = "old1_vo"
@@ -2375,7 +2373,7 @@ if ( myid==0 .or. local ) then
         lname = 'ipice'
         call attrib(idnc,dimj,jsize,'ipice',lname,'Pa',0.,1.E6,0,cptype)
       end if
-      if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+      if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
         lname = 'old1_uotop'
         call attrib(idnc,dimj,jsize,'old1_uotop',lname,'m s-1',-65.,65.,0,cptype)
         lname = 'old1_votop'
@@ -2397,7 +2395,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'wbice5',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil ice lev 6'
       call attrib(idnc,dimj,jsize,'wbice6',lname,'m3 m-3',0.,1.,0,cptype)
-      if ( nmlo==0 .or. abs(nmlo)>9 .or. nhstest<0 ) then ! otherwise already defined above
+      if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already defined above
         lname = 'Snow temperature lev 1'
         call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,0,cptype)
         lname = 'Snow temperature lev 2'
@@ -2521,7 +2519,7 @@ if ( myid==0 .or. local ) then
     end do
     call ccnf_put_vara(idnc,idms,1,ms,zsoil)
         
-    if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+    if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
       call mlovlevels(zocean)  ! can be sigma or z*, depending on mlosigma
       call ccnf_put_vara(idnc,idoc,1,wlev,zocean)
     end if
@@ -2592,8 +2590,8 @@ if ( myid==0 .or. local ) then
   idum = mod(ktau-nstagoff,max(abs(nstagin),1))
   idum = -idum ! new_nstagoff = new_ktau - nstagoff - idum, where new_ktau=0
   call ccnf_put_vara(idnc,'nstagoff',iarch,idum)
-  if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
-       (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
+  if ( (nmlo<0.and.nmlo>=-9) .or. &
+       (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     idum = mod(ktau-koff-nstagoffmlo,max(2*mstagf,1))
     idum = -koff - idum ! new_nstagoffmlo = new_ktau - koff - idum, where new_ktau=0
     call ccnf_put_vara(idnc,'nstagoffmlo',iarch,idum)
@@ -2641,7 +2639,7 @@ if ( myid==0 ) then
 end if
 
 ! extract data from ocean model
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,1:2) = 999. ! temp, sal
   mlodwn(:,:,3:4) = 0.   ! u, v
   mlodwn(:,:,5:6) = 0.   ! tke & eps
@@ -2684,18 +2682,16 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
     aa(:) = sfc(isoilm)*sum(zse)*1000.
     call histwrt(aa,'mrsofc',idnc,iarch,local,.true.)
   end if
-  if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
-       (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
+  if ( (nmlo<0.and.nmlo>=-9) .or. &
+       (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
-  if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 .and. nhstest>=0 ) then
+  if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
     call histwrt(opldep,'opldepth',idnc,iarch,local,.true.)
   end if
-  if ( nhstest>=0 ) then
-    call rivervector(tmpry(:,1),tmpry(:,2))
-    call histwrt(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
-    call histwrt(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
-  end if  
+  call rivervector(tmpry(:,1),tmpry(:,2))
+  call histwrt(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
+  call histwrt(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
 endif ! (ktau==0.or.itype==-1) 
 
 !**************************************************************
@@ -2758,7 +2754,7 @@ end if
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   do k = 1,ms
     ! to be depeciated and instead use missing value  
     where (.not.land(1:ifull))
@@ -2791,7 +2787,7 @@ do k=1,ms
   end where
 end do
 
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
     call histwrt(ocnheight,'ocheight',idnc,iarch,local,.true.)
     if ( itype==-1 ) then
@@ -2960,7 +2956,7 @@ if ( save_land .or. itype==-1 ) then
   call histwrt(aa,'snm',idnc,iarch,local,lwrite)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file  
-  if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean.and.nhstest>=0 ) then
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. save_ocean ) then
     aa = 0.  
     call mlodiag("mixdepth",aa,0,0)  
     call histwrt(aa,'mixdepth',idnc,iarch,local,lave)
@@ -3029,7 +3025,7 @@ if ( save_pbl .and. itype==1 ) then
 end if
 
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
-if ( abs(iaero)>=2 .and. nrad==5 .and. nhstest>=0 ) then    
+if ( abs(iaero)>=2 .and. nrad==5 ) then    
   if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
     call histwrt(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,local,lwrite)
@@ -3399,7 +3395,7 @@ if ( save_cloud ) then
   call histwrt(convh_ave,'convh_ave',idnc,iarch,local,lave)
 end if
 
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
     do k = 1,wlev
       where ( mlodwn(:,k,1)<100. .and. itype==1 )
@@ -3696,7 +3692,7 @@ if ( ngas>0 ) then
 endif  ! (ngasc>0)
 
 ! AEROSOLS ----------------------------------------------------
-if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+if ( abs(iaero)>=2 ) then
   if ( save_aerosols ) then    
     call histwrt(xtg(:,:,1), 'dms',  idnc,iarch,local,.true.)
     call histwrt(xtg(:,:,2), 'so2',  idnc,iarch,local,.true.)
@@ -3743,14 +3739,14 @@ if ( itype==-1 ) then
   call histwrt(savv1,     'savv1', idnc,iarch,local,.true.)
   call histwrt(savu2,     'savu2', idnc,iarch,local,.true.)
   call histwrt(savv2,     'savv2', idnc,iarch,local,.true.)
-  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
     call histwrt(oldu1,"old1_uo",idnc,iarch,local,.true.)
     call histwrt(oldv1,"old1_vo",idnc,iarch,local,.true.)
     call histwrt(oldu2,"old2_uo",idnc,iarch,local,.true.)
     call histwrt(oldv2,"old2_vo",idnc,iarch,local,.true.)
     call histwrt(ipice,'ipice',idnc,iarch,local,.true.)
   end if
-  if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+  if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     call histwrt(ocndwn(:,3),'old1_uotop',idnc,iarch,local,.true.)
     call histwrt(ocndwn(:,4),'old1_votop',idnc,iarch,local,.true.)      
     call histwrt(ocndwn(:,5),'old1_uobot',idnc,iarch,local,.true.)
@@ -3762,7 +3758,7 @@ if ( itype==-1 ) then
   call histwrt(wbice(:,4),'wbice4',idnc,iarch,local,.true.)
   call histwrt(wbice(:,5),'wbice5',idnc,iarch,local,.true.)
   call histwrt(wbice(:,6),'wbice6',idnc,iarch,local,.true.)
-  if ( nmlo==0 .or. abs(nmlo)>9 .or. nhstest<0 ) then ! otherwise already written above
+  if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already written above
     call histwrt(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
     call histwrt(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
     call histwrt(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
@@ -4380,7 +4376,7 @@ if ( first ) then
     if ( cordex_tier2 ) then
       lname = 'Surface roughness'
       call attrib(fncid,sdim,ssize,'zolnd',lname,'m',0.,65.,iattdaily,-1) ! -1=long
-      if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+      if ( abs(iaero)>=2 ) then
         lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
         call attrib(fncid,sdim,ssize,'od550aer',lname,'1',0.,13.,iattdaily,1)
       end if  
@@ -4617,7 +4613,7 @@ freqstore(1:ifull,25) = freqstore(1:ifull,25) + sgdclr/real(nperday)
 freqstore(1:ifull,26) = freqstore(1:ifull,26) + rtclr/real(nperday)
 freqstore(1:ifull,27) = freqstore(1:ifull,27) + rgclr/real(nperday)
 freqstore(1:ifull,28) = freqstore(1:ifull,28) + rgdclr/real(nperday)
-if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+if ( abs(iaero)>=2 ) then
   freqstore(1:ifull,29) = freqstore(1:ifull,29) + sum(opticaldepth(:,1:7,1),dim=2) &
                                                  /real(nperday)
 end if
@@ -4868,7 +4864,7 @@ if ( mod(ktau,tbave)==0 ) then
   end if
   if ( cordex_tier2 ) then
     call histwrt(zo,'zolnd',fncid,fiarch,local,lday)  
-    if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+    if ( abs(iaero)>=2 ) then
       call histwrt(freqstore(:,29),'od550aer',fncid,fiarch,local,lday)
     end if  
   end if

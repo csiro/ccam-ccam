@@ -636,7 +636,7 @@ end if
 
 !-----------------------------------------------------------------
 ! LOAD MIXED LAYER OCEAN
-if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Reading MLO bathymetry'
   if ( lncbath==1 ) then
     call surfread(depth,'depth',netcdfid=ncidbath)
@@ -714,7 +714,7 @@ call bounds(zs,corner=.true.)
 ! nsib=5 (original land surface scheme with MODIS datasets)
 ! nsib=6 (CABLE land surface scheme with internal screen diagnostics)
 ! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
-if ( (nsib==6 .or. nsib==7) .and. nhstest>=0 ) then
+if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
   ! albvisnir at this point holds soil albedo for cable initialisation  
   call cbmparm(ivs,svs,vlin,casapoint,greenup,fall,phendoy1,casapftfile)
   ! albvisnir at this point holds net albedo
@@ -845,7 +845,7 @@ end where
 ! nmlo=1 mixed layer ocean (KPP)
 ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
 ! nmlo=3 same as 2, but with horizontal and vertical advection
-if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Initialise MLO ocean model'
   where ( .not.land )
     depth = max(depth,2.*minwater)
@@ -870,20 +870,18 @@ end if
 ! iaero=0 no aerosol effects
 ! iaero=1 prescribed aerosol direct effect
 ! iaero=2 LDR prognostic aerosols 
-if ( nhstest>=0 ) then
-  select case(abs(iaero))
-    case(0)
-      ! do nothing  
-    case(1)
-      if ( myid==0 ) write(6,*)'so4total data read from file ',so4tfile
-      call readreal(so4tfile,so4t,ifull)
-    case(2)
-      call load_aerosolldr(so4tfile,oxidantfile,kdate)
-    case default
-      write(6,*) "ERROR: Unknown iaero option ",iaero
-      call ccmpi_abort(-1)
-  end select
-end if    
+select case(abs(iaero))
+  case(0)
+    ! do nothing  
+  case(1)
+    if ( myid==0 ) write(6,*)'so4total data read from file ',so4tfile
+    call readreal(so4tfile,so4t,ifull)
+  case(2)
+    call load_aerosolldr(so4tfile,oxidantfile,kdate)
+  case default
+    write(6,*) "ERROR: Unknown iaero option ",iaero
+    call ccmpi_abort(-1)
+end select
 
   
 !--------------------------------------------------------------
@@ -942,7 +940,7 @@ if ( io_in<4 ) then
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
                   ocndwn,xtgdwn)
     ! UPDATE BIOSPHERE DATA (nsib)
-    if ( (nsib==6 .or. nsib==7) .and. nhstest>=0 ) then
+    if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
       call loadtile
     end if
   end if   ! (abs(io_in)==1)
@@ -1493,7 +1491,7 @@ if ( .not.lrestart ) then
                     dumb(:,:,11),dumb(:,:,12),tggsn,smass,ssdn,               &
                     ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
       ! UPDATE BIOSPHERE DATA (nsib)
-      if ( (nsib==6 .or. nsib==7) .and. nhstest>=0 ) then
+      if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
         if ( myid==0 ) write(6,*) 'Replacing CABLE and CASA data'
         call loadtile(usedefault=.true.)
       end if
@@ -2260,7 +2258,7 @@ end if
 
 !-----------------------------------------------------------------
 ! UPDATE AEROSOL DATA (iaero)
-if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+if ( abs(iaero)>=2 ) then
   xtg(1:ifull,1:kl,1:naero) = xtgdwn(1:ifull,1:kl,1:naero)
 end if
       

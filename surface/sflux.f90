@@ -221,7 +221,7 @@ endif
 
 !--------------------------------------------------------------
 call START_LOG(sfluxwater_begin)
-if ( nmlo==0 .or. nhstest<0 ) then ! prescribed SSTs
+if ( nmlo==0 ) then ! prescribed SSTs
   !$omp barrier
   !$omp single
   call sflux_sea                                                                                 ! sea

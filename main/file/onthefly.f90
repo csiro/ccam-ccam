@@ -463,7 +463,7 @@ end if
 iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
          abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and.      &
          native_ccam==1
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   iotest = iotest .and. (wlev==ok)
 end if
 iop_test = iotest .and. ptest
@@ -1016,7 +1016,7 @@ end if ! (tss_test) ..else..
 !--------------------------------------------------------------
 ! Read ocean data for nudging (sea-ice is read below)
 ! read when nested=0 or nested=1.and.nud/=0 or nested=2 .or nested=4
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 .and. nhstest>=0 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
   ! defalt values for surface height
   ocndwn(1:ifull,2) = 0.
   if ( mlo_found ) then
@@ -1050,7 +1050,7 @@ if ( tss_test .and. iop_test ) then
   if ( zht_needed ) then
     zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
   end if
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
     if ( mlo_found ) then
       ocndwn(1:ifull,1) = ocndep_a(1:ifull)
       opldep(1:ifull) = 0.      
@@ -1155,7 +1155,7 @@ else
   end if          
   call doints4(ucc7(:,1:7),udum7(:,1:7))
   zss      = udum7(:,1)
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. nhstest>-0 ) then
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
     ocndwn(1:ifull,1) = udum7(1:ifull,2)
   end if  
   tss_l    = udum7(:,3)
@@ -1261,7 +1261,7 @@ else
   qg(1:ifull,1:kl) = qgmin
 end if ! (nested==0.or.(nested==1.and.nud_q/=0).or.nested==3)
 
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 .and. nhstest>=0 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
   ! defalt values
   do k = 1,wlev
     call mloexpdep(0,depth,k,0)
@@ -1331,7 +1331,7 @@ end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3
 
 !------------------------------------------------------------
 ! Aerosol data
-if ( abs(iaero)>=2 .and. nested/=3 .and. nhstest>=0 ) then
+if ( abs(iaero)>=2 .and. nested/=3 ) then
   if ( nested/=1 .or. nud_aero/=0 ) then
     if ( aero_found ) then  
       call gethist4a('dms',  xtgdwn(:,:,1), 5)
@@ -1441,7 +1441,7 @@ if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
 end if
 
 
-if ( abs(iaero)>=2 .and. nested/=3 .and. nhstest>=0 ) then
+if ( abs(iaero)>=2 .and. nested/=3 ) then
   if ( nested/=1.or.nud_aero/=0 ) then
     ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
     so4t(:) = 0.
@@ -1527,7 +1527,7 @@ if ( nested/=1 .and. nested/=3 ) then
         else 
           call ccnf_get_vara(ncid,idv,iarchi,ierc(7))
         end if
-        if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+        if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
             call ccnf_inq_varid(ncid,'old1_uo',idv,tst)
             if ( tst ) lrestart = .false.
@@ -1549,7 +1549,7 @@ if ( nested/=1 .and. nested/=3 ) then
             lrestart = .false.
           end if
         end if
-        if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+        if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
             call ccnf_inq_varid(ncid,'old1_uotop',idv,tst)
             if ( tst ) lrestart = .false.
@@ -1641,7 +1641,7 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Continue staggering from"
       write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
-      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
         write(6,*) "nstagoffmlo ",nstagoffmlo
       end if
     end if
@@ -1654,7 +1654,7 @@ if ( nested/=1 .and. nested/=3 ) then
   !------------------------------------------------------------------
   ! Read basic fields
   if ( nested==0 .and. lrestart ) then
-    if ( nsib==6 .or. nsib==7 ) then
+    if ( nsib==6.or.nsib==7 .and. nhstest>=0 ) then
       call gethist1('rs',rsmin)  
     end if
     call gethist1('zolnd',zo)    
@@ -1671,8 +1671,7 @@ if ( nested/=1 .and. nested/=3 ) then
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
   call gethist1('snd',snowd)
-  where ( .not.land(1:ifull) .and. (sicedep(1:ifull)<1.e-20 .or. nmlo==0 &
-          .or. nhstest<0) )
+  where ( .not.land(1:ifull) .and. (sicedep(1:ifull)<1.e-20 .or. nmlo==0) )
     snowd(1:ifull) = 0.
   end where
   if ( nested/=4 ) then
@@ -1725,7 +1724,7 @@ if ( nested/=1 .and. nested/=3 ) then
 
   !--------------------------------------------------
   ! Read MLO sea-ice data
-  if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+  if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,10) )
     micdwn(1:ifull,1) = 270.
     micdwn(1:ifull,2) = 270.
@@ -1845,7 +1844,7 @@ if ( nested/=1 .and. nested/=3 ) then
   
   !------------------------------------------------------------------
   ! Read aerosol optical depth
-  if ( abs(iaero)>=2 .and. nrad==5 .and. nhstest>=0 ) then
+  if ( abs(iaero)>=2 .and. nrad==5 ) then
     if ( nested==0 ) then
       call gethist1('sdust_vis',opticaldepth(:,1,1))
       call gethist1('ldust_vis',opticaldepth(:,2,1))
@@ -1944,7 +1943,7 @@ if ( nested/=1 .and. nested/=3 ) then
   end if
 
   ! k-eps data
-  if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9.and.nhstest>=0) ) then
+  if ( nested==0 .and. abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     mlodwn(:,:,5:6) = 0.
     if ( mlo2_found ) then
       if ( oclosure==1 ) then
@@ -2085,7 +2084,7 @@ if ( nested/=1 .and. nested/=3 ) then
     end if
 
     ! OCEAN DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+    if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
       oldu1(:,:) = 0.
       oldu2(:,:) = 0.
       oldv1(:,:) = 0.
@@ -2099,7 +2098,7 @@ if ( nested/=1 .and. nested/=3 ) then
         call gethist1('ipice',ipice)
       end if
     end if
-    if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+    if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
       ocndwn(:,3:6) = 0.
       if ( lrestart ) then
         call gethist1('old1_uotop',ocndwn(:,3))
@@ -2174,7 +2173,7 @@ deallocate( sx )
 
 ! -------------------------------------------------------------------
 ! tgg holds file surface temperature when there is no MLO
-if ( nmlo==0 .or. abs(nmlo)>9 .or. nhstest<0 ) then
+if ( nmlo==0 .or. abs(nmlo)>9 ) then
   where ( .not.land(1:ifull) )
     tgg(1:ifull,1) = tss(1:ifull)
   end where
