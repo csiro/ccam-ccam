@@ -96,7 +96,7 @@ if ( ldr/=0 ) then
   end do  
 end if   ! (ldr/=0)
       
-if ( abs(iaero)>=2 ) then
+if ( abs(iaero)>=2 .and. nhstest>=0 ) then
   do n = 1,naero 
     do k = 1,kl 
       xtgsav(1:ifull,k,n) = xtg(1:ifull,k,n)

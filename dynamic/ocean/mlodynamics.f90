@@ -33,9 +33,6 @@
 ! z* coordinates are used by the ocean to improve density gradients.
 ! Flexible nudging options are used for error correction (see
 ! nesting.f90).
-    
-! Different versions of the pressure gradient terms are avaliable and
-! are specified using mlojacobi.
 
 module mlodynamics
 
@@ -44,27 +41,26 @@ implicit none
 private
 public mlohadv,mlodyninit
 public ocneps,ocnepr,nxtrrho
-public usetide,mlojacobi,mlomfix,nodrift,mlodps,mlo_bs,mlointschf,mlomaxuv
+public usetide,mlojacobi,mlomfix,nodrift,mlodps,mlo_bs,mlointschf
 
-complex, save :: emsum
 integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode     = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
-integer, save      :: nxtrrho     = 1       ! Estimate rho at t+1 (0=off, 1=on)
+integer, save      :: nxtrrho     = 1       ! estimate rho at t+1 (0=off, 1=on)
 integer, save      :: mlojacobi   = 7       ! density gradient method (0=off, 6=dDdx=0, 7=AC2003)
-integer, save      :: nodrift     = 0       ! Remove drift from eta (0=off, 1=on)
-integer, save      :: mlomfix     = 2       ! Conserve T & S (0=off, 1=no free surface, 2=free surface)
-integer, save      :: mlodps      = 1       ! Include atmosphere pressure gradient terms (0=off, 1=on)
-integer, save      :: mlo_bs      = 3       ! Category to apply B-S advection (1=all, 2=mps, 3=uv, 4=t, 5=sal)
-integer, save      :: mlointschf  = 2       ! Direction for interpolation at depature points (0=off, 2=usual)
+integer, save      :: nodrift     = 0       ! remove drift from eta (0=off, 1=on)
+integer, save      :: mlomfix     = 2       ! conserve T & S (0=off, 1=no free surface, 2=free surface)
+integer, save      :: mlodps      = 1       ! include atmosphere pressure gradient terms (0=off, 1=on)
+integer, save      :: mlo_bs      = 3       ! category to apply B-S advection (1=all, 2=mps, 3=uv, 4=t, 5=sal)
+integer, save      :: mlointschf  = 2       ! direction for interpolation at depature points (0=off, 2=usual)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
 real, save      :: ocneps         = 0.2     ! lagrangian off-centring term for momentum
 real, save      :: ocnepr         = 1.      ! lagrangian off-centring term for density gradient
 real, parameter :: maxicefrac     = 0.999   ! maximum ice fraction
-real, parameter :: tol            = 5.E-5   ! Tolerance for SOR solver (water)
-real, parameter :: itol           = 1.E1    ! Tolerance for SOR solver (ice)
-real, save      :: mlomaxuv       = 900.    ! Limit currents after staggering
+real, parameter :: tol            = 5.E-5   ! tolerance for SOR solver (water)
+real, parameter :: itol           = 1.E1    ! tolerance for SOR solver (ice)
+complex, save   :: emsum                    ! conservation reference value
 
 contains
 
@@ -837,12 +833,12 @@ do mspec_mlo = mspeca_mlo,1,-1
   odum = 1./(1.+((1.+ocneps)*0.5*dt*fu(1:ifull))**2)
   do ii = 1,wlev
     ccu(1:ifull,ii) = ttau(:,ii)*odum*eeu(1:ifull,ii) ! staggered
-    ccu(1:ifull,ii) = max(min( ccu(1:ifull,ii), mlomaxuv),-mlomaxuv)
+    !ccu(1:ifull,ii) = max(min( ccu(1:ifull,ii), mlomaxuv),-mlomaxuv)
   end do
   odum = 1./(1.+((1.+ocneps)*0.5*dt*fv(1:ifull))**2)
   do ii = 1,wlev
     ccv(1:ifull,ii) = ttav(:,ii)*odum*eev(1:ifull,ii) ! staggered
-    ccv(1:ifull,ii) = max(min( ccv(1:ifull,ii), mlomaxuv),-mlomaxuv)
+    !ccv(1:ifull,ii) = max(min( ccv(1:ifull,ii), mlomaxuv),-mlomaxuv)
   end do
   ! ice
   ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90

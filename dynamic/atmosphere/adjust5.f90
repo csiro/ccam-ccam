@@ -594,7 +594,7 @@ end if !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
 
 !--------------------------------------------------------------
 ! Aerosol conservation
-if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 ) then
+if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 .and. nhstest>=0 ) then
   xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
   call massfix(mfix_aero,naero,xtg,xtgsav,ps,ps_sav,.true.)
   xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )

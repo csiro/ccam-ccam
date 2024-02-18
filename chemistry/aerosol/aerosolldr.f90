@@ -289,7 +289,7 @@ end if
 !$omp end parallel
 !$acc wait(1)
 !$acc update device(xtg)
-!$acc parallel loop copy(duste,dustdd)                                      &
+!$acc parallel loop copy(duste,dustdd,salte,saltdd)                         &
 !$acc   copyin(prf,erod,wg,veff,vt,snowd,locean)                            &
 !$acc   present(xtg,ttg,rhoa,dz,sig)                                        &
 !$acc   private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &

@@ -89,7 +89,7 @@ implicit none
 
 integer iq, k
 real, dimension(ifull+iextra,wlev,3) :: duma
-real, dimension(ifull+iextra,wlev,2) :: work
+real, dimension(ifull+iextra,wlev) :: ttl, ssl
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
 real, dimension(ifull+iextra,wlev) :: w_ema
@@ -106,7 +106,6 @@ real tx_fact, ty_fact
 
 call START_LOG(waterdiff_begin)
 
-work = 0.
 duma = 0.
 
 if ( abs(nmlo)>=3 ) then
@@ -198,7 +197,87 @@ if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
       duma(iq,k,3) = ( az(iq)*u(iq,k) + bz(iq)*v(iq,k) )*ee(iq,k)
     end do
   end do
-  call mlodiffcalc(duma(:,:,1:3),xfact,yfact,emi,hdif,ldif)
+  call bounds(duma(:,:,1:3))
+end if
+if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
+  ! potential temperature and salinity
+  ! MJT notes - only apply salinity diffusion to salt water
+  ttl(1:ifull,:) = tt(1:ifull,:)
+  workdata2(1:ifull,:) = ss(1:ifull,:)
+  ssl(1:ifull,:) = ss(1:ifull,:) - 34.72
+  where( workdata2(1:ifull,:)<2. )
+    ssl(1:ifull,:) = 0.
+  end where  
+  call bounds(ttl)
+  call bounds(ssl)
+end if
+
+if ( hdif>0. ) then
+  !Biharmonic version
+
+  if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
+    call mlodiffcalc(duma(:,:,1),xfact,yfact,emi,ee,hdif)
+    call mlodiffcalc(duma(:,:,2),xfact,yfact,emi,ee,hdif)
+    call mlodiffcalc(duma(:,:,3),xfact,yfact,emi,ee,hdif)
+  end if
+  if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
+    call mlodiffcalc(ttl,xfact,yfact,emi,ee,hdif)
+    call mlodiffcalc(ssl,xfact,yfact,emi,ee,hdif)
+  end if
+
+else
+  ! Laplacian version
+
+#ifdef GPU
+  !$acc data create(xfact,yfact,emi,ie,iw,in,is,iwu,isv,ee)
+  !$acc update device(xfact,yfact,emi,ie,iw,in,is,iwu,isv,ee)
+#else
+  !$omp parallel
+  !$omp sections
+#endif
+
+#ifndef GPU
+  !$omp section
+#endif
+  if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
+    call mlodifflap(duma(:,:,1),xfact,yfact,emi,ee,ldif)
+  end if
+#ifndef GPU
+  !$omp section
+#endif
+  if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
+    call mlodifflap(duma(:,:,2),xfact,yfact,emi,ee,ldif)
+  end if
+#ifndef GPU
+  !$omp section
+#endif
+  if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
+    call mlodifflap(duma(:,:,3),xfact,yfact,emi,ee,ldif)
+  end if
+#ifndef GPU
+  !$omp section
+#endif
+  if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
+    call mlodifflap(ttl,xfact,yfact,emi,ee,ldif)
+  end if
+#ifndef GPU
+  !$omp section
+#endif
+  if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
+    call mlodifflap(ssl,xfact,yfact,emi,ee,ldif)
+  end if
+
+#ifdef GPU
+  !$acc wait
+  !$acc end data
+#else
+  !$omp end sections
+  !$omp end parallel
+#endif
+
+end if  
+
+if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   do k = 1,wlev
     do iq = 1,ifull
       u(iq,k) = ax(iq)*duma(iq,k,1) + ay(iq)*duma(iq,k,2) + az(iq)*duma(iq,k,3)
@@ -206,21 +285,11 @@ if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     end do
   end do
 end if
-
 if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
-  ! potential temperature and salinity
-  ! MJT notes - only apply salinity diffusion to salt water
-  work(1:ifull,:,1) = tt(1:ifull,:)
-  workdata2(1:ifull,:) = ss(1:ifull,:)
-  work(1:ifull,:,2) = ss(1:ifull,:) - 34.72
-  where( workdata2(1:ifull,:)<2. )
-    work(1:ifull,:,2) = 0.
-  end where  
-  call mlodiffcalc(work(:,:,1:2),xfact,yfact,emi,hdif,ldif)
   do k = 1,wlev
     do iq = 1,ifull
-      tt(iq,k) = max(work(iq,k,1), -wrtemp)
-      ss(iq,k) = work(iq,k,2) + 34.72
+      tt(iq,k) = max(ttl(iq,k), -wrtemp)
+      ss(iq,k) = ssl(iq,k) + 34.72
       if ( workdata2(iq,k)<2. ) then
         ss(iq,k) = workdata2(iq,k)
       end if  
@@ -234,131 +303,143 @@ return
 end subroutine mlodiffusion_work
 
 !------------------------------------------------------------------------------
-subroutine mlodiffcalc(work,xfact,yfact,emi,hdif,ldif)
+subroutine mlodiffcalc(work,xfact,yfact,emi,ee,hdif)
 
 use cc_mpi, only : bounds, ccmpi_abort
 use indices_m
-use map_m
 use mlo
-use mlodynamicsarrays_m, only : ee
 use newmpar_m
-use parm_m, only : dt, ds
+use parm_m, only : dt
 
 implicit none
 
-integer k, iq, iqc, nc, its, ntr, nn, nits
+integer k, iq, its
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
-real, dimension(:,:,:), intent(inout) :: work
-real, dimension(ifull+iextra,wlev,size(work,3)) :: ans
-real, dimension(ifull,wlev,size(work,3)) :: work_save
-real, intent(in) :: hdif, ldif
+real, dimension(:,:), intent(inout) :: work
+real, dimension(:,:), intent(in) :: ee
+real, dimension(ifull+iextra,wlev) :: ans
+real, dimension(ifull) :: ansl
+real, dimension(ifull,wlev) :: work_save
+real, intent(in) :: hdif
 real base, xfact_iwu, yfact_isv
 
-! Bi-Harmonic and Laplacian diffusion.  iterative version.
+! Bi-Harmonic diffusion.  iterative version.
 
-ntr = size(work,3)
-ans = 0.
- 
-work_save(1:ifull,1:wlev,1:ntr) = work(1:ifull,1:wlev,1:ntr)
+ans = 0. 
+work_save(1:ifull,1:wlev) = work(1:ifull,1:wlev)
 
-if ( hdif<=0. ) then
-  nits = 1
-else
-  nits = mlodiff_numits    
-end if
-
-do its = 1,nits
+do its = 1,mlodiff_numits
   
-  ! Biharmonic diffusion
-  if ( hdif>0. ) then
-
+  if ( its>1 ) then
     call bounds(work)
+  end if
 
-    ! Estimate Laplacian at t+1
-    !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,xfact_iwu,yfact_isv,base)
-    do nn = 1,ntr
-      do k = 1,wlev
-        do iq = 1,ifull  
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = hdif*xfact(iq,k) + hdif*xfact_iwu &
-               + hdif*yfact(iq,k) + hdif*yfact_isv
-          ans(iq,k,nn) = ( -base*work(iq,k,nn) +                   &
-                           hdif*xfact(iq,k)*work(ie(iq),k,nn) +    &
-                           hdif*xfact_iwu*work(iw(iq),k,nn) +      &
-                           hdif*yfact(iq,k)*work(in(iq),k,nn) +    &
-                           hdif*yfact_isv*work(is(iq),k,nn) )      &
-                        / sqrt(emi(iq))
-        end do   
-      end do
+  ! Estimate Laplacian at t+1
+  !$omp parallel do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
+  do k = 1,wlev
+    do iq = 1,ifull  
+      xfact_iwu = xfact(iwu(iq),k)
+      yfact_isv = yfact(isv(iq),k)
+      base = hdif*xfact(iq,k) + hdif*xfact_iwu &
+           + hdif*yfact(iq,k) + hdif*yfact_isv
+      ans(iq,k) = ( -base*work(iq,k) +                    &
+                     hdif*xfact(iq,k)*work(ie(iq),k) +    &
+                     hdif*xfact_iwu*work(iw(iq),k) +      &
+                     hdif*yfact(iq,k)*work(in(iq),k) +    &
+                     hdif*yfact_isv*work(is(iq),k) )      &
+                  / sqrt(emi(iq))
+    end do   
+  end do
+  !$omp end parallel do
+
+  call bounds(ans)
+
+  ! Estimate Laplacian^2 (= Grad^4) at t+1
+  !$omp parallel do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
+  do k = 1,wlev
+    do iq = 1,ifull  
+      xfact_iwu = xfact(iwu(iq),k)
+      yfact_isv = yfact(isv(iq),k)
+      base = hdif*xfact(iq,k) + hdif*xfact_iwu &
+           + hdif*yfact(iq,k) + hdif*yfact_isv
+      work(iq,k) = work_save(iq,k) - dt*(                   &
+                    -base*ans(iq,k) +                       &
+                    hdif*xfact(iq,k)*ans(ie(iq),k) +        &
+                    hdif*xfact_iwu*ans(iw(iq),k) +          &
+                    hdif*yfact(iq,k)*ans(in(iq),k) +        &
+                    hdif*yfact_isv*ans(is(iq),k) ) / sqrt(emi(iq))
+    end do    
+    do iq = 1,ifull
+      if ( ee(iq,k)>0.5 ) then
+        work(iq,k) = work_save(iq,k)
+      end if
     end do
-    !$omp end parallel do
-
-    call bounds(ans)
-
-    ! Estimate Laplacian^2 (= Grad^4) at t+1
-    !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,xfact_iwu,yfact_isv,base)
-    do nn = 1,ntr
-      do k = 1,wlev
-        do iq = 1,ifull  
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = hdif*xfact(iq,k) + hdif*xfact_iwu &
-               + hdif*yfact(iq,k) + hdif*yfact_isv
-          work(iq,k,nn) = work_save(iq,k,nn) - dt*(                    &
-                            -base*ans(iq,k,nn) +                       &
-                            hdif*xfact(iq,k)*ans(ie(iq),k,nn) +        &
-                            hdif*xfact_iwu*ans(iw(iq),k,nn) +          &
-                            hdif*yfact(iq,k)*ans(in(iq),k,nn) +        &
-                            hdif*yfact_isv*ans(is(iq),k,nn) ) / sqrt(emi(iq))
-        end do    
-        do iq = 1,ifull
-          if ( ee(iq,k)>0.5 ) then
-            work(iq,k,nn) = work_save(iq,k,nn)
-          end if
-        end do
-      end do  
-    end do
-    !$omp end parallel do
-
-  else
-
-    work(1:ifull,1:wlev,1:ntr) = work_save(1:ifull,1:wlev,1:ntr)
-     
-  end if ! hdif>0. ..else..
-
-  ! Estimate Laplacian diffusion (Grad^2) at t+1
-  if ( ldif > 0. ) then
-    call bounds(work)
-    !$omp parallel do collapse(2) schedule(static) private(nn,k,iq,xfact_iwu,yfact_isv,base)
-    do nn = 1,ntr
-      do k = 1,wlev
-        do iq = 1,ifull
-          xfact_iwu = xfact(iwu(iq),k)
-          yfact_isv = yfact(isv(iq),k)
-          base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
-                        +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
-          ans(iq,k,nn) = ( emi(iq)*work(iq,k,nn) +                  &
-                           ldif*xfact(iq,k)**2*work(ie(iq),k,nn) +  &
-                           ldif*xfact_iwu**2*work(iw(iq),k,nn) +    &
-                           ldif*yfact(iq,k)**2*work(in(iq),k,nn) +  &
-                           ldif*yfact_isv**2*work(is(iq),k,nn) )    &
-                        / base
-        end do  
-        do iq = 1,ifull
-          if ( ee(iq,k)>0.5 ) then
-            work(iq,k,nn) = ans(iq,k,nn)
-          end if
-        end do
-      end do  
-    end do
-    !$omp end parallel do
-  end if ! ldif>0.
+  end do  
+  !$omp end parallel do
     
 end do ! its
 
 return
 end subroutine mlodiffcalc
+
+subroutine mlodifflap(work,xfact,yfact,emi,ee,ldif)
+
+use cc_acc, only : async_length
+use indices_m
+use mlo
+use newmpar_m
+
+implicit none
+
+integer k, iq
+integer, save :: async_counter = -1
+real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
+real, dimension(ifull), intent(in) :: emi
+real, dimension(:,:), intent(inout) :: work
+real, dimension(:,:), intent(in) :: ee
+real, dimension(ifull,wlev) :: ansl
+real, intent(in) :: ldif
+real base, xfact_iwu, yfact_isv
+
+! Laplacian diffusion
+
+async_counter = mod(async_counter+1, async_length)
+
+!$acc enter data create(work,ansl) async(async_counter)
+!$acc update device(work) async(async_counter)
+
+!$acc parallel loop collapse(2) present(xfact,yfact,emi,work,ansl,ie,iw,in,is,iwu,isv) &
+!$acc   async(async_counter)
+do k = 1,wlev
+  do iq = 1,ifull
+    xfact_iwu = xfact(iwu(iq),k)
+    yfact_isv = yfact(isv(iq),k)
+    base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
+                  +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
+    ansl(iq,k) = ( emi(iq)*work(iq,k) +                     &
+                   ldif*xfact(iq,k)**2*work(ie(iq),k) +     &
+                   ldif*xfact_iwu**2*work(iw(iq),k) +       &
+                   ldif*yfact(iq,k)**2*work(in(iq),k) +     &
+                   ldif*yfact_isv**2*work(is(iq),k) )       &
+                 / base
+  end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(ee,work,ansl) async(async_counter)
+do k = 1,wlev  
+  do iq = 1,ifull
+    if ( ee(iq,k)>0.5 ) then
+      work(iq,k) = ansl(iq,k)
+    end if
+  end do
+end do  
+!$acc end parallel loop
+    
+!$acc update self(work) async(async_counter)
+!$acc exit data delete(work,ansl) async(async_counter)
+
+return
+end subroutine mlodifflap
 
 end module mlodiffg

@@ -232,7 +232,7 @@ if ( mspec==1 .and. mup/=0 ) then
     call bounds(tke,nrows=2)
     call bounds(eps,nrows=2)
   endif                 ! nvmix==6 .or. nvmix==9
-  if ( abs(iaero)>=2 ) then
+  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     call bounds(xtg,nrows=2)
   end if
 end if     ! mspec==1
@@ -419,7 +419,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     tke(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     eps(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
   endif                 ! nvmix==6 .or. nvmix==9
-  if ( abs(iaero)>=2 ) then
+  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     call ints(xtg,naero,intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1

@@ -1599,7 +1599,7 @@ CONTAINS
       ! Beljaars and Holtslag (1991) for stable
       stable = -a*zeta - b*(zeta - xc/d)*EXP( -d*zeta) - b*xc/d
       x      = (1.0 + gu*ABS(zeta))**0.25
-      unstable = ALOG((1.0+x*x)*(1.0+x)**2/8) - 2.0*ATAN(x) + C%PI_C*0.5
+      unstable = LOG((1.0+x*x)*(1.0+x)**2/8) - 2.0*ATAN(x) + C%PI_C*0.5
       r = z*stable + (1.0-z)*unstable
     END FUNCTION psim
 
@@ -1640,7 +1640,7 @@ CONTAINS
       stable = -(1.+2./3.*a*stzeta)**(3./2.) -  &
            b*(stzeta-c/d)*EXP(-d*stzeta) - b*c/d + 1.
       y      = (1.0 + gu*ABS(zeta))**0.5
-      unstable = 2.0 * alog((1+y)*0.5)
+      unstable = 2.0 * log((1+y)*0.5)
       r   = z*stable + (1.0-z)*unstable
 
     END FUNCTION psis

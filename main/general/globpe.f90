@@ -472,9 +472,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! START RIVER ROUTING
   ! ***********************************************************************
     
-  call START_LOG(river_begin)
-  call rvrrouter
-  call END_LOG(river_end)
+  if ( nhstest>=0 ) then
+    call START_LOG(river_begin)
+    call rvrrouter
+    call END_LOG(river_end)
+  end if  
 
   
     
@@ -488,19 +490,19 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! nmlo=3   nmlo=2 plus 3D dynamics
   ! nmlo>9   Use external PCOM ocean model
 
-  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
     ! DYNAMICS & DIFFUSION ------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlohadv
     call END_LOG(waterdynamics_end)
-  else if ( abs(nmlo)==2 ) then
+  else if ( abs(nmlo)==2 .and. nhstest>=0 ) then
     ! DIFFUSION -----------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlodiffusion
     call END_LOG(waterdynamics_end)
   end if
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    ! SEA ICE and RIVER INFLOW --------------------------------------------  
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
+    ! SEA ICE  ------------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlonewice
     call mloexpice("fracice",fracice,0)
@@ -562,7 +564,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       cduv(js:je) = 0.
     end if     ! (ntsur<=1.or.nhstest==2) 
     ! Save aerosol concentrations for outside convective fraction of grid box
-    if ( abs(iaero)>=2 ) then
+    if ( abs(iaero)>=2 .and. nhstest>=0 ) then
       xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
     end if
     call nantest("start of physics",js,je,"all")
@@ -755,7 +757,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #endif
   ! AEROSOLS --------------------------------------------------------------
   ! Old time-split with aero_split=0
-  if ( nsib>0 ) then
+  if ( nsib>0 .and. nhstest>=0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
       call aerocalc(oxidant_update,mins,0)
@@ -822,7 +824,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #ifdef GPUPHYSICS
   !$omp end parallel
 #endif
-  if ( nsib>0 ) then
+  if ( nsib>0 .and. nhstest>=0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
       call aerocalc(oxidant_update,mins,1)
@@ -1315,44 +1317,6 @@ use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
     ,so4mtn,carbmtn,saltsmallmtn         &
     ,saltlargemtn,enhanceu10
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
-use ateb, only : energytol               & ! Urban
-    ,ateb_resmeth=>resmeth               &
-    ,ateb_zohmeth=>zohmeth               &
-    ,ateb_acmeth=>acmeth                 &
-    ,ateb_nrefl=>nrefl                   &
-    ,ateb_soilunder=>soilunder           &
-    ,ateb_scrnmeth=>scrnmeth             &
-    ,ateb_wbrelaxc=>wbrelaxc             &
-    ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_ncyits=>ncyits                 &
-    ,ateb_nfgits=>nfgits                 &
-    ,ateb_tol=>tol                       &
-    ,ateb_alpha=>alpha                   &
-    ,ateb_zosnow=>zosnow                 &
-    ,ateb_snowemiss=>snowemiss           &
-    ,ateb_maxsnowalpha=>maxsnowalpha     &
-    ,ateb_minsnowalpha=>minsnowalpha     &
-    ,ateb_maxsnowden=>maxsnowden         &
-    ,ateb_minsnowden=>minsnowden         &
-    ,ateb_refheight=>refheight           &
-    ,ateb_zomratio=>zomratio             &
-    ,zocanyon                            &
-    ,zoroof                              &
-    ,ateb_maxrfwater=>maxrfwater         &
-    ,ateb_maxrdwater=>maxrdwater         &
-    ,ateb_maxrfsn=>maxrfsn               &
-    ,ateb_maxrdsn=>maxrdsn               &
-    ,ateb_maxvwatf=>maxvwatf             &
-    ,intairtmeth                         &
-    ,intmassmeth                         &
-    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
-    ,ateb_statsmeth=>statsmeth           &
-    ,ateb_lwintmeth=>lwintmeth           &
-    ,ateb_infilmeth=>infilmeth           &
-    ,ateb_ac_heatcap=>ac_heatcap         &
-    ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor
 use bigxy4_m                               ! Grid interpolation
 use cable_ccam, only : proglai           & ! CABLE
     ,soil_struc,cable_pop,progvcmax      &
@@ -1441,6 +1405,44 @@ use tracermodule, only : tracerlist      & ! Tracer routines
     ,sitefile,shipfile,writetrpm         &
     ,init_tracer
 use tracers_m                              ! Tracer data
+use uclem, only : energytol              & ! Urban
+    ,ateb_resmeth=>resmeth               &
+    ,ateb_zohmeth=>zohmeth               &
+    ,ateb_acmeth=>acmeth                 &
+    ,ateb_nrefl=>nrefl                   &
+    ,ateb_scrnmeth=>scrnmeth             &
+    ,ateb_wbrelaxc=>wbrelaxc             &
+    ,ateb_wbrelaxr=>wbrelaxr             &
+    ,ateb_ncyits=>ncyits                 &
+    ,ateb_nfgits=>nfgits                 &
+    ,ateb_tol=>tol                       &
+    ,ateb_zosnow=>zosnow                 &
+    ,ateb_snowemiss=>snowemiss           &
+    ,ateb_maxsnowalpha=>maxsnowalpha     &
+    ,ateb_minsnowalpha=>minsnowalpha     &
+    ,ateb_maxsnowden=>maxsnowden         &
+    ,ateb_minsnowden=>minsnowden         &
+    ,ateb_refheight=>refheight           &
+    ,ateb_zomratio=>zomratio             &
+    ,zocanyon                            &
+    ,zoroof                              &
+    ,ateb_maxrfwater=>maxrfwater         &
+    ,ateb_maxrdwater=>maxrdwater         &
+    ,ateb_maxrfsn=>maxrfsn               &
+    ,ateb_maxrdsn=>maxrdsn               &
+    ,ateb_maxvwatf=>maxvwatf             &
+    ,intairtmeth                         &
+    ,intmassmeth                         &
+    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
+    ,ateb_statsmeth=>statsmeth           &
+    ,ateb_lwintmeth=>lwintmeth           &
+    ,ateb_infilmeth=>infilmeth           &
+    ,ateb_ac_heatcap=>ac_heatcap         &
+    ,ateb_ac_coolcap=>ac_coolcap         &
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor
+use uclem_ctrl, only :                   & ! Urban
+     ateb_soilunder=>soilunder
 use unn_m                                  ! Saved dynamic arrays
 use usage_m                                ! Usage message
 use uvbar_m                                ! Saved dynamic arrays
@@ -1484,7 +1486,8 @@ real ateb_zocanyon, ateb_zoroof
 real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
-real zimax                          ! depreciated namelist options
+real ateb_alpha                     ! depreciated namelist options 
+real zimax,mlomaxuv                 ! depreciated namelist options
 logical procformat                  ! depreciated namelist options
 logical unlimitedhist               ! depreciated namelist options
 character(len=1024) nmlfile
@@ -1580,9 +1583,9 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
     cable_gw_model,cable_roughness,cable_version,cable_potev,     &
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
-    ateb_acmeth,ateb_nrefl,ateb_soilunder,                        &
+    ateb_acmeth,ateb_nrefl,                                       &
     ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,                    &
-    ateb_ncyits,ateb_nfgits,ateb_tol,ateb_alpha,                  &
+    ateb_ncyits,ateb_nfgits,ateb_tol,                             &
     ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,                 &
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
@@ -1590,10 +1593,10 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
-    ateb_ac_deltat,ateb_acfactor,                                 &
+    ateb_ac_deltat,ateb_acfactor,ateb_soilunder,                  &
     siburbanfrac,                                                 &
     ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,               & ! depreciated
-    ateb_useonewall
+    ateb_useonewall,ateb_alpha
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
@@ -1601,12 +1604,11 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
     mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,delwater,      &
-    mlomaxuv,                                                     &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
     rivermd,basinmd,rivercoeff,                                   & ! River
-    mlomfix,calcinloop                                              ! Depreciated
+    mlomfix,calcinloop,mlomaxuv                                     ! Depreciated
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
@@ -1654,7 +1656,7 @@ khor                = -8
 khdif               = 2
 nhorjlm             = 1
 ngas                = 0
-ateb_energytol      = 4.
+ateb_energytol      = 0.1
 ateb_intairtmeth    = 0
 ateb_intmassmeth    = 0
 ateb_zocanyon       = zocanyon
@@ -1753,8 +1755,8 @@ if ( dt>3600. ) then
   write(6,*) "ERROR: dt must be less or equal to 3600."
   call ccmpi_abort(-1)
 end if
-if ( nvmix==9 .and. nmlo==0 ) then
-  write(6,*) "ERROR: nvmix=9 requires nmlo/=0"
+if ( nvmix==9 .and. (nmlo==0.or.nhstest<0) ) then
+  write(6,*) "ERROR: nvmix=9 requires nmlo/=0 and nhstest>=0"
   call ccmpi_abort(-1)
 end if
 if ( maxcolour/=2 .and. maxcolour/=3 ) then
@@ -1772,7 +1774,7 @@ if ( nwt<=0 ) then
   write(6,*) "ERROR: nwt must be greater than zero or nwt=-99"
   call ccmpi_abort(-1)
 end if
-if ( nmlo/=0 .and. abs(nmlo)<=9 ) then ! set ocean levels if required
+if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then ! set ocean levels if required
   ol = max( ol, 1 )
 else
   ol = 0
@@ -1801,39 +1803,37 @@ schmidt = 1. ! default schmidt factor for grid stretching (replaced with schmidt
 kl      = 18 ! default number of vertical levels (replaced with levels in eigen file)
 
 if ( myid==0 ) then
-  if ( io_in<=4 ) then
-    ! open topo file and check its dimensions
-    ! here used to supply rlong0,rlat0,schmidt
-    ! Remander of topo file is read in indata.f90
-    lnctopo = -1 ! flag indicating file not yet identified
-    ! NetCDF format
-    if ( lnctopo==-1 ) then
-      call ccnf_open(topofile,ncidtopo,ierr)
-      if ( ierr==0 ) then
-        lnctopo = 1 ! flag indicating netcdf file
-        call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
-        call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
-        call ccnf_get_attg(ncidtopo,'lon0',rlong0)
-        call ccnf_get_attg(ncidtopo,'lat0',rlat0)
-        call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
-      end if
+  ! open topo file and check its dimensions
+  ! here used to supply rlong0,rlat0,schmidt
+  ! Remander of topo file is read in indata.f90
+  lnctopo = -1 ! flag indicating file not yet identified
+  ! NetCDF format
+  if ( lnctopo==-1 ) then
+    call ccnf_open(topofile,ncidtopo,ierr)
+    if ( ierr==0 ) then
+      lnctopo = 1 ! flag indicating netcdf file
+      call ccnf_inq_dimlen(ncidtopo,'longitude',ilx)
+      call ccnf_inq_dimlen(ncidtopo,'latitude',jlx)
+      call ccnf_get_attg(ncidtopo,'lon0',rlong0)
+      call ccnf_get_attg(ncidtopo,'lat0',rlat0)
+      call ccnf_get_attg(ncidtopo,'schmidt',schmidt) 
     end if
-    ! ASCII format      
-    if ( lnctopo==-1 ) then
-      open(66,file=topofile,recl=2000,status='old',iostat=ierr)
-      if ( ierr==0 ) then
-        lnctopo = 0 ! flag indicating ASCII file  
-        read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
-      end if  
-    end if
-    ! Failed to read topo file
-    if ( lnctopo==-1 ) then
-      write(6,*) "Error opening topofile ",trim(topofile)
-      call ccmpi_abort(-1)
-    end if
-    ! specify grid size based on topography file dimensions
-    il_g = ilx        
   end if
+  ! ASCII format      
+  if ( lnctopo==-1 ) then
+    open(66,file=topofile,recl=2000,status='old',iostat=ierr)
+    if ( ierr==0 ) then
+      lnctopo = 0 ! flag indicating ASCII file  
+      read(66,*) ilx,jlx,rlong0,rlat0,schmidt,dsx,header
+    end if  
+  end if
+  ! Failed to read topo file
+  if ( lnctopo==-1 ) then
+    write(6,*) "Error opening topofile ",trim(topofile)
+    call ccmpi_abort(-1)
+  end if
+  ! specify grid size based on topography file dimensions
+  il_g = ilx        
   ! store grid dimensions for broadcast below
   temparray(1) = rlong0
   temparray(2) = rlat0
@@ -2318,7 +2318,11 @@ call savuv1_init(ifull,kl)
 call sbar_init(ifull,kl)
 call screen_init(ifull)
 call sigs_init(kl)
-call soil_init(ifull,iaero,nsib)
+if ( nhstest>=0 ) then
+  call soil_init(ifull,iaero,nsib)
+else
+  call soil_init(ifull,0,nsib)  
+end if    
 call soilsnow_init(ifull,ms,nsib)
 call tbar2d_init(ifull)
 call unn_init(ifull,kl)
@@ -2336,7 +2340,7 @@ end if
 call init_tracer
 call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
-  if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
+  if ( abs(iaero)>=2 .and. nud_aero/=0 .and. nhstest>=0 ) then
     call dav_init(ifull,kl,naero,nbd,mbd)
   else
     call dav_init(ifull,kl,0,nbd,mbd)
@@ -2363,7 +2367,7 @@ end if
 if ( myid==0 ) then
   write(6,*) "Calling indata"
 end if
-call indataf(lapsbot,isoth,nsig)
+call indataf(lapsbot,isoth,nsig,nmlfile)
 
 
 !--------------------------------------------------------------
@@ -2416,7 +2420,7 @@ end if
 if ( kbotu==0 ) kbotu = kbotdav
 
 ! fix ocean nuding levels
-if ( nmlo/=0 .and. abs(nmlo)<9 ) then
+if ( nmlo/=0 .and. abs(nmlo)<9 .and. nhstest>=0 ) then
   allocate( gosig_in(ol) )
   call mlovlevels(gosig_in,sigma=.true.)
   if ( kbotmlo<0 )  then
@@ -2562,7 +2566,7 @@ if ( nud_q==0 .and. mfix_qg==0 ) then
   write(6,*) "Model will not conserve moisture"
   call ccmpi_abort(-1)
 end if
-if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
+if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 .and. nhstest>=0 ) then
   write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
   write(6,*) "Model will not conserve aerosols"
   call ccmpi_abort(-1)
@@ -3593,19 +3597,27 @@ end subroutine broadcast_turbnml
 ! Broadcast landnml namelist
 subroutine broadcast_landnml
 
-use ateb, only : energytol               & ! Urban
+use cable_ccam, only : proglai           & ! CABLE
+    ,soil_struc,cable_pop,progvcmax      &
+    ,fwsoil_switch,cable_litter          &
+    ,gs_switch,ccycle                    &
+    ,smrf_switch,strf_switch             &
+    ,cable_gw_model,cable_roughness      &
+    ,cable_version,cable_potev
+use cc_mpi                                 ! CC MPI routines
+use kuocom_m                               ! JLM convection
+use parm_m                                 ! Model configuration
+use uclem, only : energytol              & ! Urban
     ,ateb_resmeth=>resmeth               &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
     ,ateb_nrefl=>nrefl                   &
-    ,ateb_soilunder=>soilunder           &
     ,ateb_scrnmeth=>scrnmeth             &
     ,ateb_wbrelaxc=>wbrelaxc             &
     ,ateb_wbrelaxr=>wbrelaxr             &
     ,ateb_ncyits=>ncyits                 &
     ,ateb_nfgits=>nfgits                 &
     ,ateb_tol=>tol                       &
-    ,ateb_alpha=>alpha                   &
     ,ateb_zosnow=>zosnow                 &
     ,ateb_snowemiss=>snowemiss           &
     ,ateb_maxsnowalpha=>maxsnowalpha     &
@@ -3631,49 +3643,40 @@ use ateb, only : energytol               & ! Urban
     ,ateb_ac_coolcap=>ac_coolcap         &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor
-use cable_ccam, only : proglai           & ! CABLE
-    ,soil_struc,cable_pop,progvcmax      &
-    ,fwsoil_switch,cable_litter          &
-    ,gs_switch,ccycle                    &
-    ,smrf_switch,strf_switch             &
-    ,cable_gw_model,cable_roughness      &
-    ,cable_version,cable_potev
-use cc_mpi                                 ! CC MPI routines
-use kuocom_m                               ! JLM convection
-use parm_m                                 ! Model configuration
+use uclem_ctrl, only :                   & ! Urban
+     ateb_soilunder=>soilunder
 
 implicit none
 
 integer, dimension(28) :: dumi
-real, dimension(24) :: dumr
+real, dimension(23) :: dumr
     
 dumr = 0.
 dumi = 0
 if ( myid==0 ) then
   dumr(1)  = real(energytol) 
   dumr(2)  = ateb_tol
-  dumr(3)  = ateb_alpha
-  dumr(4)  = ateb_zosnow
-  dumr(5)  = ateb_snowemiss
-  dumr(6)  = ateb_maxsnowalpha
-  dumr(7)  = ateb_minsnowalpha
-  dumr(8)  = ateb_maxsnowden
-  dumr(9)  = ateb_minsnowden
-  dumr(10) = ateb_refheight
-  dumr(11) = ateb_zomratio
-  dumr(12) = zocanyon
-  dumr(13) = zoroof
-  dumr(14) = ateb_maxrfwater
-  dumr(15) = ateb_maxrdwater
-  dumr(16) = ateb_maxrfsn
-  dumr(17) = ateb_maxrdsn
-  dumr(18) = ateb_maxvwatf
-  dumr(19) = ateb_ac_heatcap
-  dumr(20) = ateb_ac_coolcap
-  dumr(21) = ateb_ac_deltat
-  dumr(22) = ateb_acfactor
-  dumr(23) = siburbanfrac
-  dumr(24) = cable_version
+  dumr(3)  = ateb_zosnow
+  dumr(4)  = ateb_snowemiss
+  dumr(5)  = ateb_maxsnowalpha
+  dumr(6)  = ateb_minsnowalpha
+  dumr(7)  = ateb_maxsnowden
+  dumr(8)  = ateb_minsnowden
+  dumr(9) = ateb_refheight
+  dumr(10) = ateb_zomratio
+  dumr(11) = zocanyon
+  dumr(12) = zoroof
+  dumr(13) = ateb_maxrfwater
+  dumr(14) = ateb_maxrdwater
+  dumr(15) = ateb_maxrfsn
+  dumr(16) = ateb_maxrdsn
+  dumr(17) = ateb_maxvwatf
+  dumr(18) = ateb_ac_heatcap
+  dumr(19) = ateb_ac_coolcap
+  dumr(20) = ateb_ac_deltat
+  dumr(21) = ateb_acfactor
+  dumr(22) = siburbanfrac
+  dumr(23) = cable_version
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -3688,47 +3691,46 @@ if ( myid==0 ) then
   dumi(12) = ateb_zohmeth
   dumi(13) = ateb_acmeth
   dumi(14) = ateb_nrefl
-  dumi(15) = ateb_soilunder
-  dumi(16) = ateb_scrnmeth
-  dumi(17) = ateb_wbrelaxc
-  dumi(18) = ateb_wbrelaxr
-  dumi(19) = ateb_ncyits
-  dumi(20) = ateb_nfgits
-  dumi(21) = intairtmeth
-  dumi(22) = intmassmeth
-  dumi(23) = ateb_cvcoeffmeth
-  dumi(24) = ateb_statsmeth
-  dumi(25) = ateb_lwintmeth
-  dumi(26) = ateb_infilmeth
-  dumi(27) = cable_roughness
-  dumi(28) = cable_potev
+  dumi(15) = ateb_scrnmeth
+  dumi(16) = ateb_wbrelaxc
+  dumi(17) = ateb_wbrelaxr
+  dumi(18) = ateb_ncyits
+  dumi(19) = ateb_nfgits
+  dumi(20) = intairtmeth
+  dumi(21) = intmassmeth
+  dumi(22) = ateb_cvcoeffmeth
+  dumi(23) = ateb_statsmeth
+  dumi(24) = ateb_lwintmeth
+  dumi(25) = ateb_infilmeth
+  dumi(26) = cable_roughness
+  dumi(27) = cable_potev
+  dumi(28) = ateb_soilunder
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
 energytol         = real(dumr(1),8)
 ateb_tol          = dumr(2)
-ateb_alpha        = dumr(3)
-ateb_zosnow       = dumr(4)
-ateb_snowemiss    = dumr(5)
-ateb_maxsnowalpha = dumr(6)
-ateb_minsnowalpha = dumr(7)
-ateb_maxsnowden   = dumr(8)
-ateb_minsnowden   = dumr(9)
-ateb_refheight    = dumr(10) 
-ateb_zomratio     = dumr(11)
-zocanyon          = dumr(12)
-zoroof            = dumr(13)
-ateb_maxrfwater   = dumr(14)
-ateb_maxrdwater   = dumr(15)
-ateb_maxrfsn      = dumr(16)
-ateb_maxrdsn      = dumr(17)
-ateb_maxvwatf     = dumr(18) 
-ateb_ac_heatcap   = dumr(19)
-ateb_ac_coolcap   = dumr(20)
-ateb_ac_deltat    = dumr(21)
-ateb_acfactor     = dumr(22)
-siburbanfrac      = dumr(23) 
-cable_version     = dumr(24)
+ateb_zosnow       = dumr(3)
+ateb_snowemiss    = dumr(4)
+ateb_maxsnowalpha = dumr(5)
+ateb_minsnowalpha = dumr(6)
+ateb_maxsnowden   = dumr(7)
+ateb_minsnowden   = dumr(8)
+ateb_refheight    = dumr(9) 
+ateb_zomratio     = dumr(10)
+zocanyon          = dumr(11)
+zoroof            = dumr(12)
+ateb_maxrfwater   = dumr(13)
+ateb_maxrdwater   = dumr(14)
+ateb_maxrfsn      = dumr(15)
+ateb_maxrdsn      = dumr(16)
+ateb_maxvwatf     = dumr(17) 
+ateb_ac_heatcap   = dumr(18)
+ateb_ac_coolcap   = dumr(19)
+ateb_ac_deltat    = dumr(20)
+ateb_acfactor     = dumr(21)
+siburbanfrac      = dumr(22) 
+cable_version     = dumr(23)
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)
@@ -3743,20 +3745,20 @@ ateb_resmeth      = dumi(11)
 ateb_zohmeth      = dumi(12)
 ateb_acmeth       = dumi(13)
 ateb_nrefl        = dumi(14) 
-ateb_soilunder    = dumi(15)
-ateb_scrnmeth     = dumi(16)
-ateb_wbrelaxc     = dumi(17) 
-ateb_wbrelaxr     = dumi(18) 
-ateb_ncyits       = dumi(19)
-ateb_nfgits       = dumi(20) 
-intairtmeth       = dumi(21) 
-intmassmeth       = dumi(22)
-ateb_cvcoeffmeth  = dumi(23) 
-ateb_statsmeth    = dumi(24) 
-ateb_lwintmeth    = dumi(25) 
-ateb_infilmeth    = dumi(26)
-cable_roughness   = dumi(27)
-cable_potev       = dumi(28)
+ateb_scrnmeth     = dumi(15)
+ateb_wbrelaxc     = dumi(16) 
+ateb_wbrelaxr     = dumi(17) 
+ateb_ncyits       = dumi(18)
+ateb_nfgits       = dumi(19) 
+intairtmeth       = dumi(20) 
+intmassmeth       = dumi(21)
+ateb_cvcoeffmeth  = dumi(22) 
+ateb_statsmeth    = dumi(23) 
+ateb_lwintmeth    = dumi(24) 
+ateb_infilmeth    = dumi(25)
+cable_roughness   = dumi(26)
+cable_potev       = dumi(27)
+ateb_soilunder    = dumi(28)
 
 return
 end subroutine broadcast_landnml
@@ -3789,7 +3791,7 @@ use river                                  ! River routing
 implicit none
 
 integer, dimension(30) :: dumi
-real, dimension(25) :: dumr    
+real, dimension(24) :: dumr    
 
 dumr = 0.
 dumi = 0
@@ -3818,7 +3820,6 @@ if ( myid==0 ) then
   dumr(22) = fluxwgt
   dumr(23) = ocnepr
   dumr(24) = delwater
-  dumr(25) = mlomaxuv
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -3876,7 +3877,6 @@ ocnlap             = dumr(21)
 fluxwgt            = dumr(22)
 ocnepr             = dumr(23)
 delwater           = dumr(24)
-mlomaxuv           = dumr(25)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 
@@ -4219,7 +4219,7 @@ if ( ccycle/=0 ) then
   end if
 end if
 
-if ( abs(iaero)>=2 ) then
+if ( abs(iaero)>=2 .and. nhstest>=0 ) then
   duste         = 0.  ! Dust emissions
   dustdd        = 0.  ! Dust dry deposition
   dustwd        = 0.  ! Dust wet deposition
@@ -4548,7 +4548,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     end if
   end if
    
-  if ( abs(iaero)>=2 ) then
+  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     duste         = duste/min(ntau,nperavg)        ! Dust emissions
     dustdd        = dustdd/min(ntau,nperavg)       ! Dust dry deposition
     dustwd        = dustwd/min(ntau,nperavg)       ! Dust wet deposition
@@ -5228,7 +5228,7 @@ if ( tss_check ) then
   end if
 end if
 
-if ( aero_check .and. abs(iaero)>=2 ) then
+if ( aero_check .and. abs(iaero)>=2 .and. nhstest>=0 ) then
   if ( any(xtg(js:je,1:kl,1:naero)/=xtg(js:je,1:kl,1:naero)) ) then
     write(6,*) "ERROR: NaN detected in xtg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)

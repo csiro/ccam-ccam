@@ -256,7 +256,7 @@ select case(iceradmethod)
     elsewhere
       Wice(:,:) = 0.
     end where
-    reffi(:,:) = min( max( stras_rice(:,:), 18.6e-6_8 ), 130.2e-6_8 )
+    reffi(:,:) = min( max( stras_rice(:,:), 18.6e-6 ), 130.2e-6 )
 
   case(5)
     !Donner et al (1997)
@@ -285,8 +285,8 @@ select case(iceradmethod)
 end select 
   
 do k = 1,kl
-  Rdrop(:,k) = min(max(reffl(:,k), 4.2E-6_8), 16.6E-6_8) ! constrain size to acceptable range (see microphys_rad.f90)
-  Rice(:,k)  = min(max(reffi(:,k), 9.3E-6_8), 130.2E-6_8)
+  Rdrop(:,k) = min(max(reffl(:,k), 4.2E-6), 16.6E-6) ! constrain size to acceptable range (see microphys_rad.f90)
+  Rice(:,k)  = min(max(reffi(:,k), 9.3E-6), 130.2E-6)
   conl(:,k)  = scale_factor*Wliq(:,k) !kg/m^3
   coni(:,k)  = scale_factor*Wice(:,k)
 end do

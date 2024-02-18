@@ -120,44 +120,6 @@ subroutine cdfout(itype,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                          ! Aerosol interface 
 use aerosolldr                             ! LDR prognostic aerosols
-use ateb, only :                         & ! Urban
-     ateb_resmeth=>resmeth               &
-    ,ateb_zohmeth=>zohmeth               &
-    ,ateb_acmeth=>acmeth                 &
-    ,ateb_nrefl=>nrefl                   &
-    ,ateb_soilunder=>soilunder           &
-    ,ateb_scrnmeth=>scrnmeth             &
-    ,ateb_wbrelaxc=>wbrelaxc             &
-    ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_ncyits=>ncyits                 &
-    ,ateb_nfgits=>nfgits                 &
-    ,ateb_tol=>tol                       &
-    ,ateb_alpha=>alpha                   &
-    ,ateb_zosnow=>zosnow                 &
-    ,ateb_snowemiss=>snowemiss           &
-    ,ateb_maxsnowalpha=>maxsnowalpha     &
-    ,ateb_minsnowalpha=>minsnowalpha     &
-    ,ateb_maxsnowden=>maxsnowden         &
-    ,ateb_minsnowden=>minsnowden         &
-    ,ateb_refheight=>refheight           &
-    ,ateb_zomratio=>zomratio             &
-    ,ateb_zocanyon=>zocanyon             &
-    ,ateb_zoroof=>zoroof                 &
-    ,ateb_maxrfwater=>maxrfwater         &
-    ,ateb_maxrdwater=>maxrdwater         &
-    ,ateb_maxrfsn=>maxrfsn               &
-    ,ateb_maxrdsn=>maxrdsn               &
-    ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_intairtmeth=>intairtmeth       &
-    ,ateb_intmassmeth=>intmassmeth       &
-    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
-    ,ateb_statsmeth=>statsmeth           &
-    ,ateb_lwintmeth=>lwintmeth           &
-    ,ateb_infilmeth=>infilmeth           &
-    ,ateb_ac_heatcap=>ac_heatcap         &
-    ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor
 use cable_ccam, only : proglai           & ! CABLE
     ,progvcmax,soil_struc,cable_pop      &
     ,fwsoil_switch                       &
@@ -204,6 +166,42 @@ use seaesfrad_m                            ! SEA-ESF radiation
 use staguvmod                              ! Reversible grid staggering   
 use tkeeps                                 ! TKE-EPS boundary layer
 use tracers_m                              ! Tracer data
+use uclem, only :                        & ! Urban
+     ateb_resmeth=>resmeth               &
+    ,ateb_zohmeth=>zohmeth               &
+    ,ateb_acmeth=>acmeth                 &
+    ,ateb_nrefl=>nrefl                   &
+    ,ateb_scrnmeth=>scrnmeth             &
+    ,ateb_wbrelaxc=>wbrelaxc             &
+    ,ateb_wbrelaxr=>wbrelaxr             &
+    ,ateb_ncyits=>ncyits                 &
+    ,ateb_nfgits=>nfgits                 &
+    ,ateb_tol=>tol                       &
+    ,ateb_zosnow=>zosnow                 &
+    ,ateb_snowemiss=>snowemiss           &
+    ,ateb_maxsnowalpha=>maxsnowalpha     &
+    ,ateb_minsnowalpha=>minsnowalpha     &
+    ,ateb_maxsnowden=>maxsnowden         &
+    ,ateb_minsnowden=>minsnowden         &
+    ,ateb_refheight=>refheight           &
+    ,ateb_zomratio=>zomratio             &
+    ,ateb_zocanyon=>zocanyon             &
+    ,ateb_zoroof=>zoroof                 &
+    ,ateb_maxrfwater=>maxrfwater         &
+    ,ateb_maxrdwater=>maxrdwater         &
+    ,ateb_maxrfsn=>maxrfsn               &
+    ,ateb_maxrdsn=>maxrdsn               &
+    ,ateb_maxvwatf=>maxvwatf             &
+    ,ateb_intairtmeth=>intairtmeth       &
+    ,ateb_intmassmeth=>intmassmeth       &
+    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
+    ,ateb_statsmeth=>statsmeth           &
+    ,ateb_lwintmeth=>lwintmeth           &
+    ,ateb_infilmeth=>infilmeth           &
+    ,ateb_ac_heatcap=>ac_heatcap         &
+    ,ateb_ac_coolcap=>ac_coolcap         &
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor
 
 implicit none
 
@@ -821,7 +819,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_ac_deltat',ateb_ac_deltat)
     call ccnf_put_attg(idnc,'ateb_ac_heatcap',ateb_ac_heatcap)
     call ccnf_put_attg(idnc,'ateb_acfactor',ateb_acfactor)
-    call ccnf_put_attg(idnc,'ateb_alpha',ateb_alpha)
     call ccnf_put_attg(idnc,'ateb_lwintmeth',ateb_lwintmeth)   
     call ccnf_put_attg(idnc,'ateb_cvcoeffmeth',ateb_cvcoeffmeth)
     call ccnf_put_attg(idnc,'ateb_infilmeth',ateb_infilmeth)
@@ -843,7 +840,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_resmeth',ateb_resmeth)
     call ccnf_put_attg(idnc,'ateb_scrnmeth',ateb_scrnmeth)
     call ccnf_put_attg(idnc,'ateb_snowemiss',ateb_snowemiss)
-    call ccnf_put_attg(idnc,'ateb_soilunder',ateb_soilunder)
     call ccnf_put_attg(idnc,'ateb_statsmeth',ateb_statsmeth)
     call ccnf_put_attg(idnc,'ateb_tol',ateb_tol)
     call ccnf_put_attg(idnc,'ateb_wbrelaxc',ateb_wbrelaxc)
@@ -892,7 +888,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlodps',mlodps)
     call ccnf_put_attg(idnc,'mlointschf',mlointschf)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
-    call ccnf_put_attg(idnc,'mlomaxuv',mlomaxuv)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
     call ccnf_put_attg(idnc,'mlontvd',mlontvd)
@@ -991,11 +986,8 @@ subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                            
 use aerointerface                                ! Aerosol interface
 use aerosol_arrays                               ! Aerosol arrays
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebsaved, atebavetemp,       & ! Urban
-                 urbtemp, nfrac, atebmisc        
 use cable_ccam, only : savetile, savetiledef,  & ! CABLE interface
-                       cable_pop, POP_NPATCH,  &
-                       POP_NCOHORT, ccycle
+    cable_pop, POP_NPATCH, POP_NCOHORT, ccycle
 use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
 use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
@@ -1014,34 +1006,22 @@ use latlong_m                                    ! Lat/lon coordinates
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
 use mlo, only : wlev,mlosave,mlodiag,          & ! Ocean physics and prognostic arrays
-                mloexpdep,mloexport,wrtemp,    &
-                oclosure,mlovlevels,mlo_step
+    mloexpdep,mloexport,wrtemp,oclosure,       &
+    mlovlevels,mlo_step
 use mlodynamics                                  ! Ocean dynamics
 use mlodynamicsarrays_m                          ! Ocean dynamics data
 use mlostag                                      ! Ocean dynamics staggering
 use module_aux_cosp, only : clp_lmht,             &
-                            clp_phse_ice,         &
-                            clp_phse_liq,         &
-                            clp_ice,              &
-                            clp_liq,              &
-                            ncolumns,             &
-                            cls_db_b01,cls_db_b02,&
-                            cls_db_b03,cls_db_b04,&
-                            cls_db_b05,cls_db_b06,&
-                            cls_db_b07,cls_db_b08,&
-                            cls_db_b09,cls_db_b10,&
-                            cls_db_b11,cls_db_b12,&
-                            cls_db_b13,cls_db_b14,&
-                            cls_db_b15,           & 
-                            clp_sr_b01,clp_sr_b02,&
-                            clp_sr_b03,clp_sr_b04,&
-                            clp_sr_b05,clp_sr_b06,&
-                            clp_sr_b07,clp_sr_b08,&
-                            clp_sr_b09,clp_sr_b10,&
-                            clp_sr_b11,clp_sr_b12,&
-                            clp_sr_b13,clp_sr_b14,&
-                            clp_sr_b15,           &
-                            cloud_simulator_ready
+    clp_phse_ice,clp_phse_liq,clp_ice,clp_liq,    &
+    ncolumns,cls_db_b01,cls_db_b02,cls_db_b03,    &
+    cls_db_b04,cls_db_b05,cls_db_b06,cls_db_b07,  &
+    cls_db_b08,cls_db_b09,cls_db_b10,cls_db_b11,  &
+    cls_db_b12,cls_db_b13,cls_db_b14,cls_db_b15,  & 
+    clp_sr_b01,clp_sr_b02,clp_sr_b03,clp_sr_b04,  &
+    clp_sr_b05,clp_sr_b06,clp_sr_b07,clp_sr_b08,  &
+    clp_sr_b09,clp_sr_b10,clp_sr_b11,clp_sr_b12,  &
+    clp_sr_b13,clp_sr_b14,clp_sr_b15,             &
+    cloud_simulator_ready
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
@@ -1060,10 +1040,13 @@ use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
 use tkeeps, only : tke,eps,u_ema,v_ema,w_ema,  & ! TKE-EPS boundary layer
-                   thetal_ema,qv_ema,ql_ema,   &
-                   qf_ema,cf_ema,tke_ema
+    thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,    &
+    tke_ema
 use tracermodule, only : writetrpm, co2em        ! Tracer routines
 use tracers_m                                    ! Tracer data
+use uclem_ctrl, only : uclem_saved_3,          & ! Urban
+    uclem_avetemp,urbtemp,nfrac,uclem_misc,    &
+    uclem_saved_2
 use vegpar_m                                     ! Vegetation arrays
 use vvel_m                                       ! Additional vertical velocity
 use work2_m                                      ! Diagnostic arrays
@@ -1103,6 +1086,7 @@ real, dimension(ifull,wlev) :: oo
 real, dimension(ifull,wlev,6) :: mlodwn
 real, dimension(ifull,3:6) :: ocndwn
 real scale_factor
+real(kind=8), dimension(ifull) :: bb
 character(len=50) expdesc
 character(len=80) lname
 character(len=21) mnam, nnam
@@ -1226,7 +1210,8 @@ if ( myid==0 .or. local ) then
     call ccnf_def_var(idnc,'nstagoff','int',1,dima(d4:d4),idv)
     call ccnf_put_att(idnc,idv,'long_name',lname)
 
-    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+    if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
+         (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
       lname = 'ocn stag offset'
       call ccnf_def_var(idnc,'nstagoffmlo','int',1,dima(d4:d4),idv)
       call ccnf_put_att(idnc,idv,'long_name',lname)     
@@ -1258,18 +1243,21 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dimk,ksize,'mrsofc',lname,'kg m-2',0.,6500.,0,cptype)
     end if
 
-    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+    if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
+         (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
       lname = 'Water bathymetry'
       call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,8125.,0,cptype)
     end if
-    if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
+    if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 .and. nhstest>=0 ) then
       lname = 'Water partial step depth'
       call attrib(idnc,dimk,ksize,'opldepth',lname,'m',0.,8125.,0,cptype)
     end if
-    lname = 'x-component river '
-    call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
-    lname = 'y-component river '
-    call attrib(idnc,dimk,ksize,'vriver',lname,'m s-1',-6.5,6.5,0,cptype)
+    if ( nhstest>=0 ) then
+      lname = 'x-component river '
+      call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,0,cptype)
+      lname = 'y-component river '
+      call attrib(idnc,dimk,ksize,'vriver',lname,'m s-1',-6.5,6.5,0,cptype)
+    end if  
 
 !   For time varying surface fields
     if ( save_land ) then
@@ -1341,7 +1329,8 @@ if ( myid==0 .or. local ) then
     lname = 'Soil temperature lev 6'
     call attrib(idnc,dimj,jsize,'tgg6',lname,'K',100.,425.,0,cptype)
  
-    if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+    if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
+         (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
       lname = 'water surface height'
       call attrib(idnc,dimj,jsize,'ocheight',lname,'m',-130.,130.,0,cptype)  
       if ( itype==-1 ) then
@@ -1576,7 +1565,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'snm',lname,'mm day-1',0.,1300.,0,-1) ! -1 = long
     end if
     if ( itype/=-1 ) then  
-      if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
+      if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean.and.nhstest>=0 ) then
         lname = 'Mixed layer depth'
         call attrib(idnc,dimj,jsize,'mixdepth',lname,'m',0.,1300.,0,cptype)
       end if
@@ -1676,7 +1665,7 @@ if ( myid==0 .or. local ) then
     end if  
     
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
-    if ( abs(iaero)>=2 .and. nrad==5 ) then
+    if ( abs(iaero)>=2 .and. nrad==5 .and. nhstest>=0 ) then
       if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
         lname = 'Total column small dust optical depth VIS'
         call attrib(idnc,dimj,jsize,'sdust_vis',lname,'none',0.,13.,0,cptype)
@@ -1768,7 +1757,7 @@ if ( myid==0 .or. local ) then
     end if
 
     ! CABLE -----------------------------------------------------
-    if ( nsib==6 .or. nsib==7 ) then
+    if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
       if ( nextout>=1 .or. itype==-1 ) then
         if ( ccycle/=0 ) then
           lname = 'Carbon leaf pool'
@@ -1875,7 +1864,7 @@ if ( myid==0 .or. local ) then
     end if
 
     ! URBAN -----------------------------------------------------
-    if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
+    if ( nurban/=0 .and. save_urban .and. itype/=-1 .and. nhstest>=0 ) then
       lname = 'Urban anthropogenic flux'
       call attrib(idnc,dimj,jsize,'anth_ave',lname,'W m-2',0.,650.,0,cptype)
       lname = 'Urban electricity & gas flux'
@@ -1899,7 +1888,7 @@ if ( myid==0 .or. local ) then
       lname = 'Surface temperature green spaces'
       call attrib(idnc,dimj,jsize,'tsgree',lname,'K',100.,425.,0,cptype)
     end if    
-    if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
+    if ( nurban<0 .and. save_urban .and. itype/=-1 .and. nhstest>=0 ) then
       do k = 1,5  
         write(lname,'("Roof temperature lev ",I1.1)') k
         write(vname,'("rooftgg",I1.1)') k
@@ -1931,41 +1920,41 @@ if ( myid==0 .or. local ) then
         call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
       end do 
     end if    
-    if ( nurban/=0 .and. itype==-1 ) then
+    if ( nurban/=0 .and. itype==-1 .and. nhstest>=0 ) then
       do ifrac = 1,nfrac
         do k = 1,5  
           write(lname,'("Roof temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,2)
         end do
         do k = 1,5
           write(lname,'("East wall temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,2)
         end do  
         do k = 1,5
           write(lname,'("West wall temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,2)
         end do 
         do k = 1,5
           write(lname,'("Road temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,2)
         end do 
         do k = 1,5
           write(lname,'("Slab temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,2)
         end do 
         do k = 1,5
           write(lname,'("Interior mass temperature tile ",I1.1," lev ",I1.1)') ifrac,k
           write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
-          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)
+          call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,2)
         end do 
         write(lname,'("Urban room temperature tile ",I1.1," lev 1")') ifrac
         write(vname,'("t",I1.1,"_roomtgg1")') ifrac
-        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,cptype)  
+        call attrib(idnc,dimj,jsize,vname,lname,'K',100.,425.,0,2)  
         write(lname,'("Urban canyon soil moisture",I1.1)') ifrac
         write(vname,'("t",I1.1,"_urbnsmc")') ifrac
         call attrib(idnc,dimj,jsize,vname,lname,'m3 m-3',0.,1.3,0,cptype)
@@ -2052,7 +2041,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'convh_ave',lname,'K day-1',-10.,20.,0,cptype)
     end if
     
-    if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+    if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
       if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
         lname = "Ocean temperature"
         call attrib(idnc,dimo,osize,"thetao",lname,'K',100.,425.,0,cptype)
@@ -2323,7 +2312,7 @@ if ( myid==0 .or. local ) then
     end if   ! (ngas>0)
 
     ! AEROSOL ---------------------------------------------------
-    if ( abs(iaero)>=2 ) then  
+    if ( abs(iaero)>=2 .and. nhstest>=0 ) then  
       if ( save_aerosols ) then        
         call attrib(idnc,dima,asize,'dms','Dimethyl sulfide','kg kg-1',0.,6.5E-7,0,cptype)
         call attrib(idnc,dima,asize,'so2','Sulfur dioxide','kg kg-1',0.,6.5E-7,0,cptype)
@@ -2374,7 +2363,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'savu2',lname,'m s-1',-1.E2,1.E2,0,cptype)
       lname= 'savv2'
       call attrib(idnc,dima,asize,'savv2',lname,'m s-1',-1.E2,1.E2,0,cptype)
-      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
         lname = "old1_uo"
         call attrib(idnc,dimo,osize,"old1_uo",lname,'m s-1',-65.,65.,0,cptype)
         lname = "old1_vo"
@@ -2386,7 +2375,7 @@ if ( myid==0 .or. local ) then
         lname = 'ipice'
         call attrib(idnc,dimj,jsize,'ipice',lname,'Pa',0.,1.E6,0,cptype)
       end if
-      if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+      if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
         lname = 'old1_uotop'
         call attrib(idnc,dimj,jsize,'old1_uotop',lname,'m s-1',-65.,65.,0,cptype)
         lname = 'old1_votop'
@@ -2408,7 +2397,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dimj,jsize,'wbice5',lname,'m3 m-3',0.,1.,0,cptype)
       lname = 'Soil ice lev 6'
       call attrib(idnc,dimj,jsize,'wbice6',lname,'m3 m-3',0.,1.,0,cptype)
-      if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already defined above
+      if ( nmlo==0 .or. abs(nmlo)>9 .or. nhstest<0 ) then ! otherwise already defined above
         lname = 'Snow temperature lev 1'
         call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,0,cptype)
         lname = 'Snow temperature lev 2'
@@ -2478,7 +2467,7 @@ if ( myid==0 .or. local ) then
       call attrib(idnc,dima,asize,'lw_tend',lname,'K s-1',-50.,50.,0,cptype)
     endif  ! (itype==-1)
         
-    if ( nsib==6 .or. nsib==7 ) then
+    if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
       call savetiledef(idnc,local,dimj,jsize,dimc,csize,itype)
     end if
       
@@ -2532,7 +2521,7 @@ if ( myid==0 .or. local ) then
     end do
     call ccnf_put_vara(idnc,idms,1,ms,zsoil)
         
-    if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+    if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
       call mlovlevels(zocean)  ! can be sigma or z*, depending on mlosigma
       call ccnf_put_vara(idnc,idoc,1,wlev,zocean)
     end if
@@ -2603,7 +2592,8 @@ if ( myid==0 .or. local ) then
   idum = mod(ktau-nstagoff,max(abs(nstagin),1))
   idum = -idum ! new_nstagoff = new_ktau - nstagoff - idum, where new_ktau=0
   call ccnf_put_vara(idnc,'nstagoff',iarch,idum)
-  if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+  if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
+       (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
     idum = mod(ktau-koff-nstagoffmlo,max(2*mstagf,1))
     idum = -koff - idum ! new_nstagoffmlo = new_ktau - koff - idum, where new_ktau=0
     call ccnf_put_vara(idnc,'nstagoffmlo',iarch,idum)
@@ -2651,7 +2641,7 @@ if ( myid==0 ) then
 end if
 
 ! extract data from ocean model
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
   mlodwn(:,:,1:2) = 999. ! temp, sal
   mlodwn(:,:,3:4) = 0.   ! u, v
   mlodwn(:,:,5:6) = 0.   ! tke & eps
@@ -2694,15 +2684,18 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
     aa(:) = sfc(isoilm)*sum(zse)*1000.
     call histwrt(aa,'mrsofc',idnc,iarch,local,.true.)
   end if
-  if ( (nmlo<0.and.nmlo>=-9) .or. (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
+  if ( (nmlo<0.and.nmlo>=-9.and.nhstest>=0) .or. &
+       (nmlo>0.and.nmlo<=9.and.itype==-1.and.nhstest>=0) ) then
     call histwrt(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
-  if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
+  if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 .and. nhstest>=0 ) then
     call histwrt(opldep,'opldepth',idnc,iarch,local,.true.)
   end if
-  call rivervector(tmpry(:,1),tmpry(:,2))
-  call histwrt(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
-  call histwrt(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
+  if ( nhstest>=0 ) then
+    call rivervector(tmpry(:,1),tmpry(:,2))
+    call histwrt(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
+    call histwrt(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
+  end if  
 endif ! (ktau==0.or.itype==-1) 
 
 !**************************************************************
@@ -2765,7 +2758,7 @@ end if
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
   do k = 1,ms
     ! to be depeciated and instead use missing value  
     where (.not.land(1:ifull))
@@ -2798,7 +2791,7 @@ do k=1,ms
   end where
 end do
 
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
   if ( nmlo<0 .or. (nmlo>0.and.itype==-1) ) then
     call histwrt(ocnheight,'ocheight',idnc,iarch,local,.true.)
     if ( itype==-1 ) then
@@ -2967,7 +2960,7 @@ if ( save_land .or. itype==-1 ) then
   call histwrt(aa,'snm',idnc,iarch,local,lwrite)
 end if
 if ( itype/=-1 ) then  ! these not written to restart file  
-  if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean ) then
+  if ( abs(nmlo)>0.and.abs(nmlo)<=9.and.save_ocean.and.nhstest>=0 ) then
     aa = 0.  
     call mlodiag("mixdepth",aa,0,0)  
     call histwrt(aa,'mixdepth',idnc,iarch,local,lave)
@@ -3036,7 +3029,7 @@ if ( save_pbl .and. itype==1 ) then
 end if
 
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
-if ( abs(iaero)>=2 .and. nrad==5 ) then    
+if ( abs(iaero)>=2 .and. nrad==5 .and. nhstest>=0 ) then    
   if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
     call histwrt(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,local,lwrite)
@@ -3121,7 +3114,7 @@ if ( abs(iaero)>=2 .and. nrad==5 ) then
 end if
 
 ! CABLE -------------------------------------------------------
-if ( nsib==6 .or. nsib==7 ) then
+if ( (nsib==6.or.nsib==7).and.nhstest>=9 ) then
   if ( nextout>=1 .or. itype==-1 ) then
     if ( ccycle/=0 ) then
       do k=1,mplant
@@ -3170,7 +3163,7 @@ if ( nsib==6 .or. nsib==7 ) then
 endif   
 
 ! URBAN -------------------------------------------------------
-if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
+if ( nurban/=0 .and. save_urban .and. itype/=-1 .and. nhstest>=0 ) then
   call histwrt(anthropogenic_ave,'anth_ave',idnc,iarch,local,.true.) 
   call histwrt(anth_elecgas_ave,'anth_elecgas_ave',idnc,iarch,local,.true.) 
   call histwrt(anth_heating_ave,'anth_heat_ave',idnc,iarch,local,.true.) 
@@ -3197,153 +3190,153 @@ if ( nurban/=0 .and. save_urban .and. itype/=-1 ) then
   call histwrt(urban_ts,'tsskin',idnc,iarch,local,.true.)
   ! anthroheat from anth_ave
   aa = 999.
-  call atebavetemp(aa,"roadtemp1",0)  
+  call uclem_avetemp(aa,"roadtemp1",0)  
   call histwrt(aa,'tspav',idnc,iarch,local,.true.)
   aa = 999.
-  call atebavetemp(aa,"rooftemp1",0)  
+  call uclem_avetemp(aa,"rooftemp1",0)  
   call histwrt(aa,'tsroof',idnc,iarch,local,.true.)
   aa = 999.
-  call atebmisc(aa,"vegt",0)  
+  call uclem_misc(aa,"vegt",0)  
   call histwrt(aa,'tsgree',idnc,iarch,local,.true.)
 end if
-if ( nurban<0 .and. save_urban .and. itype/=-1 ) then
+if ( nurban<0 .and. save_urban .and. itype/=-1 .and. nhstest>=0 ) then
   do k = 1,5
     write(vname,'("rooftemp",I1.1)') k 
     aa = 999.
-    call atebavetemp(aa,vname,0)  
+    call uclem_avetemp(aa,vname,0)  
     write(vname,'("rooftgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do  
   do k = 1,5
     write(vname,'("walletemp",I1.1)') k  
     aa = 999.
-    call atebavetemp(aa,vname,0)  
+    call uclem_avetemp(aa,vname,0)  
     write(vname,'("waletgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("wallwtemp",I1.1)') k  
     aa = 999.
-    call atebavetemp(aa,vname,0)  
+    call uclem_avetemp(aa,vname,0)  
     write(vname,'("walwtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("roadtemp",I1.1)') k  
     aa = 999.
-    call atebavetemp(aa,vname,0)  
+    call uclem_avetemp(aa,vname,0)  
     write(vname,'("roadtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("slabtemp",I1.1)') k  
     aa = 999.
-    call atebavetemp(aa,vname,0)  
+    call uclem_avetemp(aa,vname,0)  
     write(vname,'("slabtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
   do k = 1,5
     write(vname,'("intmtemp",I1.1)') k  
     aa = 999.
-    call atebavetemp(aa,vname,0)  
+    call uclem_avetemp(aa,vname,0)  
     write(vname,'("intmtgg",I1.1)') k  
     call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
   end do
 end if    
-if ( nurban/=0 .and. itype==-1 ) then
+if ( nurban/=0 .and. itype==-1 .and. nhstest>=0 ) then
   do ifrac = 1,nfrac  
     do k = 1,5
       write(vname,'("rooftemp",I1.1)') k
-      aa = 999.
-      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      bb = 999._8
+      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
-      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+      call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do  
     do k = 1,5
       write(vname,'("walletemp",I1.1)') k  
-      aa = 999.
-      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      bb = 999._8
+      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
-      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+      call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do  
     do k = 1,5
       write(vname,'("wallwtemp",I1.1)') k  
-      aa = 999.
-      call atebsaved(aa,vname,ifrac,0,rawtemp=.true.)
+      bb = 999._8
+      call uclem_saved_3(bb,vname,ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
-      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+      call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do  
     do k = 1,5
       write(vname,'("roadtemp",I1.1)') k  
-      aa = 999.
-      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      bb = 999._8
+      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
-      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+      call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do
     do k = 1,5
       write(vname,'("slabtemp",I1.1)') k  
-      aa = 999.
-      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      bb = 999._8
+      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
-      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+      call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do
     do k = 1,5
       write(vname,'("intmtemp",I1.1)') k  
-      aa = 999.
-      call atebsaved(aa,trim(vname),ifrac,0,rawtemp=.true.)
+      bb = 999._8
+      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
-      call histwrt(aa,trim(vname),idnc,iarch,local,.true.)
+      call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do
-    aa = 999.
-    call atebsaved(aa,"roomtemp",ifrac,0)
+    bb = 999._8
+    call uclem_saved_3(bb,"roomtemp",ifrac,0)
     write(vname,'("t",I1.1,"_roomtgg1")') ifrac
-    call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
+    call histwrt(bb,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"canyonsoilmoisture",ifrac,0)
+    call uclem_saved_2(aa,"canyonsoilmoisture",ifrac,0)
     write(vname,'("t",I1.1,"_urbnsmc")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roofsoilmoisture",ifrac,0)
+    call uclem_saved_2(aa,"roofsoilmoisture",ifrac,0)
     write(vname,'("t",I1.1,"_urbnsmr")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roofsurfacewater",ifrac,0)
+    call uclem_saved_2(aa,"roofsurfacewater",ifrac,0)
     write(vname,'("t",I1.1,"_roofwtr")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roadsurfacewater",ifrac,0)
+    call uclem_saved_2(aa,"roadsurfacewater",ifrac,0)
     write(vname,'("t",I1.1,"_roadwtr")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"canyonleafwater",ifrac,0)
+    call uclem_saved_2(aa,"canyonleafwater",ifrac,0)
     write(vname,'("t",I1.1,"_urbwtrc")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roofleafwater",ifrac,0)
+    call uclem_saved_2(aa,"roofleafwater",ifrac,0)
     write(vname,'("t",I1.1,"_urbwtrr")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roofsnowdepth",ifrac,0)
+    call uclem_saved_2(aa,"roofsnowdepth",ifrac,0)
     write(vname,'("t",I1.1,"_roofsnd")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roadsnowdepth",ifrac,0)
+    call uclem_saved_2(aa,"roadsnowdepth",ifrac,0)
     write(vname,'("t",I1.1,"_roadsnd")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roofsnowdensity",ifrac,0)
+    call uclem_saved_2(aa,"roofsnowdensity",ifrac,0)
     write(vname,'("t",I1.1,"_roofden")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roadsnowdensity",ifrac,0)
+    call uclem_saved_2(aa,"roadsnowdensity",ifrac,0)
     write(vname,'("t",I1.1,"_roadden")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roofsnowalbedo",ifrac,0)
+    call uclem_saved_2(aa,"roofsnowalbedo",ifrac,0)
     write(vname,'("t",I1.1,"_roofsna")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call atebsaved(aa,"roadsnowalbedo",ifrac,0)
+    call uclem_saved_2(aa,"roadsnowalbedo",ifrac,0)
     write(vname,'("t",I1.1,"_roadsna")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
   end do  
@@ -3406,7 +3399,7 @@ if ( save_cloud ) then
   call histwrt(convh_ave,'convh_ave',idnc,iarch,local,lave)
 end if
 
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
   if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
     do k = 1,wlev
       where ( mlodwn(:,k,1)<100. .and. itype==1 )
@@ -3703,7 +3696,7 @@ if ( ngas>0 ) then
 endif  ! (ngasc>0)
 
 ! AEROSOLS ----------------------------------------------------
-if ( abs(iaero)>=2 ) then
+if ( abs(iaero)>=2 .and. nhstest>=0 ) then
   if ( save_aerosols ) then    
     call histwrt(xtg(:,:,1), 'dms',  idnc,iarch,local,.true.)
     call histwrt(xtg(:,:,2), 'so2',  idnc,iarch,local,.true.)
@@ -3750,14 +3743,14 @@ if ( itype==-1 ) then
   call histwrt(savv1,     'savv1', idnc,iarch,local,.true.)
   call histwrt(savu2,     'savu2', idnc,iarch,local,.true.)
   call histwrt(savv2,     'savv2', idnc,iarch,local,.true.)
-  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
     call histwrt(oldu1,"old1_uo",idnc,iarch,local,.true.)
     call histwrt(oldv1,"old1_vo",idnc,iarch,local,.true.)
     call histwrt(oldu2,"old2_uo",idnc,iarch,local,.true.)
     call histwrt(oldv2,"old2_vo",idnc,iarch,local,.true.)
     call histwrt(ipice,'ipice',idnc,iarch,local,.true.)
   end if
-  if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+  if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
     call histwrt(ocndwn(:,3),'old1_uotop',idnc,iarch,local,.true.)
     call histwrt(ocndwn(:,4),'old1_votop',idnc,iarch,local,.true.)      
     call histwrt(ocndwn(:,5),'old1_uobot',idnc,iarch,local,.true.)
@@ -3769,7 +3762,7 @@ if ( itype==-1 ) then
   call histwrt(wbice(:,4),'wbice4',idnc,iarch,local,.true.)
   call histwrt(wbice(:,5),'wbice5',idnc,iarch,local,.true.)
   call histwrt(wbice(:,6),'wbice6',idnc,iarch,local,.true.)
-  if ( nmlo==0 ) then ! otherwise already written above
+  if ( nmlo==0 .or. abs(nmlo)>9 .or. nhstest<0 ) then ! otherwise already written above
     call histwrt(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
     call histwrt(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
     call histwrt(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
@@ -3807,7 +3800,7 @@ if ( itype==-1 ) then
   call histwrt(lw_tend,'lw_tend',idnc,iarch,local,.true.)  
 endif  ! (itype==-1)
 
-if ( nsib==6 .or. nsib==7 ) then
+if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
   call savetile(idnc,local,iarch,itype)
 end if
 
@@ -3821,8 +3814,6 @@ subroutine freqfile_cordex
 
 use aerointerface                     ! Aerosol interface
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebavetemp,       & ! Urban
-      atebmisc
 use cc_mpi                            ! CC MPI routines
 use cc_omp, only : ntiles, imax       ! CC OpenMP routines
 use const_phys                        ! Physical constants
@@ -3851,6 +3842,8 @@ use sigs_m                            ! Atmosphere sigma levels
 use soilsnow_m                        ! Soil, snow and surface data
 use soilv_m                           ! Soil parameters
 use tracers_m                         ! Tracer data
+use uclem_ctrl, only :              & ! Urban
+    uclem_avetemp, uclem_misc
 use vvel_m                            ! Additional vertical velocity
 use work2_m                           ! Diagnostic arrays
       
@@ -4387,7 +4380,7 @@ if ( first ) then
     if ( cordex_tier2 ) then
       lname = 'Surface roughness'
       call attrib(fncid,sdim,ssize,'zolnd',lname,'m',0.,65.,iattdaily,-1) ! -1=long
-      if ( abs(iaero)>=2 ) then
+      if ( abs(iaero)>=2 .and. nhstest>=0 ) then
         lname = 'atmosphere_optical_thickness_due_to_ambient_aerosol_particles'
         call attrib(fncid,sdim,ssize,'od550aer',lname,'1',0.,13.,iattdaily,1)
       end if  
@@ -4624,7 +4617,7 @@ freqstore(1:ifull,25) = freqstore(1:ifull,25) + sgdclr/real(nperday)
 freqstore(1:ifull,26) = freqstore(1:ifull,26) + rtclr/real(nperday)
 freqstore(1:ifull,27) = freqstore(1:ifull,27) + rgclr/real(nperday)
 freqstore(1:ifull,28) = freqstore(1:ifull,28) + rgdclr/real(nperday)
-if ( abs(iaero)>=2 ) then
+if ( abs(iaero)>=2 .and. nhstest>=0 ) then
   freqstore(1:ifull,29) = freqstore(1:ifull,29) + sum(opticaldepth(:,1:7,1),dim=2) &
                                                  /real(nperday)
 end if
@@ -4875,7 +4868,7 @@ if ( mod(ktau,tbave)==0 ) then
   end if
   if ( cordex_tier2 ) then
     call histwrt(zo,'zolnd',fncid,fiarch,local,lday)  
-    if ( abs(iaero)>=2 ) then
+    if ( abs(iaero)>=2 .and. nhstest>=0 ) then
       call histwrt(freqstore(:,29),'od550aer',fncid,fiarch,local,lday)
     end if  
   end if
@@ -4980,13 +4973,13 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(freqstore(1:ifull,32),'anth_ave',fncid,fiarch,local,.true.) 
     call histwrt(urban_ts,'tsskin',fncid,fiarch,local,.true.)
     outdata = 999.
-    call atebavetemp(outdata,"roadtemp1",0)  
+    call uclem_avetemp(outdata,"roadtemp1",0)  
     call histwrt(outdata,'tspav',fncid,fiarch,local,.true.)
     outdata = 999.
-    call atebavetemp(outdata,"rooftemp1",0)  
+    call uclem_avetemp(outdata,"rooftemp1",0)  
     call histwrt(outdata,'tsroof',fncid,fiarch,local,.true.)
     outdata = 999.
-    call atebmisc(outdata,"vegt",0)  
+    call uclem_misc(outdata,"vegt",0)  
     call histwrt(outdata,'tsgree',fncid,fiarch,local,.true.)    
   end if    
 

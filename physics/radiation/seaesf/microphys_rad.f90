@@ -1911,7 +1911,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                       exp(-Lscrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
                cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*    &
                   exp(-Shallowrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
-               cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+               cldext(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
                cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
                cldextdu       = (Lsc_microphys%cldamt(:,:,k)*           &
@@ -1931,7 +1931,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                       exp(-Lscrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
                cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*    &
                   exp(-Shallowrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
-               cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+               cldsct(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
                cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
                cldasymm(:,:,k,n,1) =                                    &
@@ -1981,7 +1981,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                      exp(-Lscrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
                cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*            &
                      exp(-Shallowrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
-               abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+               abscoeff(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
                abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
             end where
           end do
@@ -2020,7 +2020,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Mesorad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*             &
                     exp(-Lscrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
-              cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldext(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
               cldextdu        = (Lsc_microphys%cldamt(:,:,k)*               &
@@ -2036,7 +2036,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Mesorad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*             &
                     exp(-Lscrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
-              cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldsct(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
               cldasymm(:,:,k,n,1) =                                  &
@@ -2077,7 +2077,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Mesorad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                &
                     exp(-Lscrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
-              abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              abscoeff(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
             end where
           end do
@@ -2111,7 +2111,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Shallowrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                &
                     exp(-Lscrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
-              cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldext(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
               cldextdu        = (Lsc_microphys%cldamt(:,:,k)*           &
@@ -2123,7 +2123,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Shallowrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                &
                     exp(-Lscrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
-              cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldsct(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
               cldasymm(:,:,k,n,1) =                                     &
@@ -2155,7 +2155,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Shallowrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Lsc_microphys%cldamt(:,:,k)/cldsum)*                  &
                     exp(-Lscrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
-              abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              abscoeff(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
             end where
           end do
@@ -2195,7 +2195,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Mesorad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*        &
                     exp(-Shallowrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
-              cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldext(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
               cldextdu        = (Shallow_microphys%cldamt(:,:,k)*   &
@@ -2211,7 +2211,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Mesorad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*        &
                     exp(-Shallowrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
-              cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldsct(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
               cldasymm(:,:,k,n,1) =                                 &
@@ -2252,7 +2252,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Mesorad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Shallow_microphys%cldamt(:,:,k)/cldsum)*                   &
                     exp(-Shallowrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
-              abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              abscoeff(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
             end where
           end do
@@ -2285,7 +2285,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Cellrad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*                &
                     exp(-Mesorad_props%cldext(:,:,k,n)*deltaz(:,:,k)/1000.)
-              cldext(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldext(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               cldext(:,:,k,n,1)=min(cldextdu,cldext(:,:,k,n,1))
 
               cldextdu        = (Cell_microphys%cldamt(:,:,k)*           &
@@ -2297,7 +2297,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Cellrad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*                &
                     exp(-Mesorad_props%cldsct(:,:,k,n)*deltaz(:,:,k)/1000.)
-              cldsct(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              cldsct(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               cldsct(:,:,k,n,1)=min(cldextdu,cldsct(:,:,k,n,1))
 
               cldasymm(:,:,k,n,1) =                                      &
@@ -2329,7 +2329,7 @@ type(microrad_properties_type), intent(in), optional :: Lscrad_props, &
                     exp(-Cellrad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
               cltau=cltau+(Meso_microphys%cldamt(:,:,k)/cldsum)*               &
                     exp(-Mesorad_props%abscoeff(:,:,k,n)*deltaz(:,:,k)/1000.)
-              abscoeff(:,:,k,n,1)=-1000.*alog(cltau)/deltaz(:,:,k)
+              abscoeff(:,:,k,n,1)=-1000.*log(cltau)/deltaz(:,:,k)
               abscoeff(:,:,k,n,1)=min(cldextdu,abscoeff(:,:,k,n,1))
             end where
           end do

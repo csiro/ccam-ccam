@@ -389,7 +389,7 @@ if ( present(outconv) ) then
 end if
 
 indirmode = abs(iaero)
-if ( aeroindir==2 ) then
+if ( aeroindir==2 .or. nhstest<0 ) then
   indirmode = 0 ! option for no indirect effects
 end if
 

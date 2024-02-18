@@ -205,7 +205,7 @@ end if          ! if(mspec==1)
 #endif
 
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  if ( abs(iaero)>=2 ) then
+  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
 #ifndef GPU
     !$omp do schedule(static) private(ntr)
 #endif

@@ -1043,9 +1043,9 @@ type(atmos_input_type), intent(in)    :: Atmos_input
 !    expression can be replaced by the quantity palog8.
 !----------------------------------------------------------------------
       else if (do_loglblint) then 
-        alogps8 = ALOG(pstd*0.8E+00)
-        palog8 = -ALOG(0.8E+00)
-        Gas_tf%a1(:,:) = (ALOG(press(:,:,KERAD+1)) - alogps8)/palog8
+        alogps8 = LOG(pstd*0.8E+00)
+        palog8 = -LOG(0.8E+00)
+        Gas_tf%a1(:,:) = (LOG(press(:,:,KERAD+1)) - alogps8)/palog8
         Gas_tf%a2(:,:) = 1.0E+00 - Gas_tf%a1(:,:)
       else 
         !call error_mesg ('gas_tf_mod', &
@@ -4201,7 +4201,7 @@ real, dimension(:), intent(in)    :: plm, pd
 !    goes to zero pressure.
 !    (special definition not needed; top pressure is nonzero)
 !------------------------------------------------------------------
-        dlogp=7.0*ALOG(press(k)/press(k+1))
+        dlogp=7.0*LOG(press(k)/press(k+1))
         nint=dlogp/delzap
         nint=nint+1
         znint=nint
@@ -4329,7 +4329,7 @@ real, intent(in)   ::  z
         if (ABS(expo) .LE. 60.) then
           x = EXP(expo)
           y = x + 1.0/x
-          zlog = ALOG(y)
+          zlog = LOG(y)
         else
           zlog = ABS(expo)
         endif
@@ -4337,7 +4337,7 @@ real, intent(in)   ::  z
         if (ABS(expp) .LE. 60.) then
           x = EXP(expp)
           y = x + 1.0/x
-          faclog = ALOG(y)
+          faclog = LOG(y)
         else
           faclog = ABS(expp)
         endif

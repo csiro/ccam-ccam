@@ -4441,7 +4441,7 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
           if (nband <= nh2obands) then
             do k = KSRAD,KERAD
               wh2o(:,:,k) = rh2o(:,:,k)*delpdig(:,:,k)*   &
-                  exp(powph2o(nband)*alog(press(:,:,k)*p0h2o(nband)))
+                  exp(powph2o(nband)*log(press(:,:,k)*p0h2o(nband)))
             end do
  
 !---------------------------------------------------------------------
@@ -4458,18 +4458,18 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
                        totco2str(i,j,k) < totco2strmax(nband))  then
                       alphaco2(i,j,k) =     &
                            c1co2(nband)*exp(c3co2(nband)* &
-                               alog((totco2(i,j,k) + c2co2(nband))))  -  &
+                               log((totco2(i,j,k) + c2co2(nband))))  -  &
                                                         c4co2(nband)
                       alphaco2str(i,j,k) = &
                         c1co2str(nband)*exp(c3co2str(nband)*  &
-                          alog((totco2str(i,j,k) + c2co2str(nband)))) - &
+                          log((totco2str(i,j,k) + c2co2str(nband)))) - &
                                                   c4co2str(nband)
                       tco2(i,j,k-1) =      &
                          (1.0 - alphaco2(i,j,k))*   &
                                         (1.0 - alphaco2str(i,j,k))/ &
                          ((1.0 - alphaco2(i,j,k-1))*    &
                                         (1.0 - alphaco2str(i,j,k-1)))
-                      efftauco2(i,j,k-1) = -cosangsolar(i,j)*alog( tco2(i,j,k-1))
+                      efftauco2(i,j,k-1) = -cosangsolar(i,j)*log( tco2(i,j,k-1))
                     else if (k > KSRAD+1) then
                       efftauco2(i,j,k-1) = efftauco2(i,j,k-2)
                     else
@@ -4491,18 +4491,18 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
                           totch4str(i,j,k) < totch4strmax(nband))  then
                         alphach4(i,j,k) =    &
                             c1ch4(nband)*exp(c3ch4(nband)*&
-                            alog((totch4(i,j,k) + c2ch4(nband))))  -   &
+                            log((totch4(i,j,k) + c2ch4(nband))))  -   &
                                                          c4ch4(nband)
                         alphach4str(i,j,k) = &
                           c1ch4str(nband)*exp(c3ch4str(nband)*  &
-                           alog((totch4str(i,j,k) + c2ch4str(nband)))) - &
+                           log((totch4str(i,j,k) + c2ch4str(nband)))) - &
                                                       c4ch4str(nband)
                         tch4(i,j,k-1) = &
                                 (1.0 - alphach4(i,j,k))*    &
                                          (1.0 - alphach4str(i,j,k))/ &
                                  ((1.0 - alphach4(i,j,k-1))*   &
                                          (1.0 - alphach4str(i,j,k-1)))
-                        efftauch4(i,j,k-1) = -cosangsolar(i,j)*alog(tch4(i,j,k-1))
+                        efftauch4(i,j,k-1) = -cosangsolar(i,j)*log(tch4(i,j,k-1))
                       else if (k > KSRAD+1) then
                         efftauch4(i,j,k-1) = efftauch4(i,j,k-2)
                       else
@@ -4527,18 +4527,18 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
                              totn2ostr(i,j,k) < totn2ostrmax(nband)) then
                         alphan2o(i,j,k) = &
                              c1n2o(nband)*exp(c3n2o(nband)* &
-                                alog((totn2o(i,j,k) +c2n2o(nband)))) -  &
+                                log((totn2o(i,j,k) +c2n2o(nband)))) -  &
                                                        c4n2o(nband)
                         alphan2ostr(i,j,k) = &
                          c1n2ostr(nband)*exp(c3n2ostr(nband)*  &
-                         alog((totn2ostr(i,j,k) + c2n2ostr(nband)))) -  &
+                         log((totn2ostr(i,j,k) + c2n2ostr(nband)))) -  &
                                                     c4n2ostr(nband)
                         tn2o(i,j,k-1) = &
                                  (1.0 - alphan2o(i,j,k)) *  &
                                            (1.0 - alphan2ostr(i,j,k))/ &
                                  (( 1.0 - alphan2o(i,j,k-1)) *  &
                                          (1.0 - alphan2ostr(i,j,k-1)))
-                        efftaun2o(i,j,k-1) = -cosangsolar(i,j)*alog(tn2o(i,j,k-1))
+                        efftaun2o(i,j,k-1) = -cosangsolar(i,j)*log(tn2o(i,j,k-1))
                       else if (k > KSRAD+1) then
                         efftaun2o(i,j,k-1) = efftaun2o(i,j,k-2)
                       else
@@ -4561,18 +4561,18 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
                     if (toto2(i,j,k) .lt. toto2max(nband) .and.   &
                         toto2str(i,j,k) .lt. toto2strmax(nband)) then
                       alphao2(i,j,k) = c1o2(nband)*exp( c3o2(nband)* &
-                                   alog((toto2(i,j,k) + c2o2(nband)))) - &
+                                   log((toto2(i,j,k) + c2o2(nband)))) - &
                                                           c4o2(nband)
                       alphao2str(i,j,k) = &
                           c1o2str(nband)*exp(c3o2str(nband)*  &
-                              alog((toto2str(i,j,k) + c2o2str(nband)))) &
+                              log((toto2str(i,j,k) + c2o2str(nband)))) &
                                                       - c4o2str(nband)
                       to2(i,j,k-1) = &
                              (1.0 - alphao2(i,j,k))*  &
                                   (1.0 - alphao2str(i,j,k) )/ &
                               ((1.0 - alphao2(i,j,k-1)) *  &
                                           (1.0 - alphao2str(i,j,k-1)))
-                      efftauo2(i,j,k-1) = -cosangsolar(i,j)*alog(to2(i,j,k-1))
+                      efftauo2(i,j,k-1) = -cosangsolar(i,j)*log(to2(i,j,k-1))
                     else if ( k>KSRAD+1 ) then
                       efftauo2(i,j,k-1) = efftauo2(i,j,k-2)
                     else
@@ -4599,11 +4599,11 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
                     if ( toto2str(i,j,k)<toto2strmaxschrun) then
                       alphao2str(i,j,k) =  &
                            c1o2strschrun*exp( c3o2strschrun*&
-                              alog((toto2str(i,j,k) + c2o2strschrun))) - &
+                              log((toto2str(i,j,k) + c2o2strschrun))) - &
                                                          c4o2strschrun
                       to2(i,j,k-1) = &
                             (1.0 - alphao2str(i,j,k))/(1.0 - alphao2str(i,j,k-1)) 
-                      efftauo2(i,j,k-1) =  -cosangsolar(i,j)*alog(to2(i,j,k-1) )
+                      efftauo2(i,j,k-1) =  -cosangsolar(i,j)*log(to2(i,j,k-1) )
                       efftauo2(i,j,k-1) = efftauo2(i,j,k-1) +     &
                                                  wo2(i,j,k-1)*herzberg_fac
                     else if (k>KSRAD+1) then
@@ -4621,11 +4621,11 @@ real, dimension(:,:,:,:,:),    intent(out)   :: gasopdep
                     if ( toto2str(i,j,k)<toto2strmaxschrun) then
                       alphao2str(i,j,k) =  &
                            c1o2strschrun*exp( c3o2strschrun*&
-                              alog((toto2str(i,j,k) + c2o2strschrun))) - &
+                              log((toto2str(i,j,k) + c2o2strschrun))) - &
                                                          c4o2strschrun
                       to2(i,j,k-1) = &
                             (1.0 - alphao2str(i,j,k))/(1.0 - alphao2str(i,j,k-1)) 
-                      efftauo2(i,j,k-1) =  -cosangsolar(i,j)*alog(to2(i,j,k-1) )
+                      efftauo2(i,j,k-1) =  -cosangsolar(i,j)*log(to2(i,j,k-1) )
                     else if (k>KSRAD+1) then
                       efftauo2(i,j,k-1) = efftauo2(i,j,k-2)
                     else

@@ -3,14 +3,17 @@
 !             and Lin et al. (Parameterization of riming intensity and its impact on ice fall speed using ARM data, 2011, MWR)
 !--- NOTE: 1) Prognose variables are: qi,PI(precipitating ice, qs, which includes snow, partially rimed snow and graupel),qw,qr
 !---       2) Sedimentation flux is based on Prudue Lin scheme 
-!---       2) PI has varying properties depending on riming intensity (Ri, diagnosed currently following Lin et al. (2011, MWR) and T 
+!---       2) PI has varying properties depending on riming intensity (Ri, diagnosed currently following Lin et al. (2011, MWR)
+!--           and T 
 !---       3) Autoconverion is based on Liu and Daum (2004)         
 !---       4) PI size distribution assuming Gamma distribution, but mu_s=0 (Exponential) currently
-!---       5) No density dependent fall speed since the V-D is derived using Best number approach, which already includes density effect 
-!---       6) Future work will include radar equivalent reflectivity using the new PI property (A-D, M-D, N(D)). If you use RIP for reflectivity 
-!---          computation, please note that snow is (1-Ri)*qs and graupel is Ri*qs. Otherwise, reflectivity will be underestimated.      
-!---       7) The Liu and Daum autoconverion is quite sensitive on Nt_c. For mixed-phase cloud and marine environment, Nt_c of 10 or 20 is suggested.
-!---          default value is 10E.6. Change accordingly for your use.
+!---       5) No density dependent fall speed since the V-D is derived using Best number approach, which already includes density
+!---          effect 
+!---       6) Future work will include radar equivalent reflectivity using the new PI property (A-D, M-D, N(D)). If you use RIP
+!---          for reflectivity computation, please note that snow is (1-Ri)*qs and graupel is Ri*qs. Otherwise, reflectivity will
+!---          be underestimated.
+!---       7) The Liu and Daum autoconverion is quite sensitive on Nt_c. For mixed-phase cloud and marine environment, Nt_c of 10
+!---          or 20 is suggested. default value is 10E.6. Change accordingly for your use.
 
 ! Zhao, X., Lin, Y., Luo, Y., Qian, Q., Liu, X., Liu, X., & Colle, B. A. (2021).
 ! A double-moment SBU-YLIN cloud microphysics scheme and its impact

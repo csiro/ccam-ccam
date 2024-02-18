@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -221,7 +221,7 @@ endif
 
 !--------------------------------------------------------------
 call START_LOG(sfluxwater_begin)
-if ( nmlo==0 ) then ! prescribed SSTs
+if ( nmlo==0 .or. nhstest<0 ) then ! prescribed SSTs
   !$omp barrier
   !$omp single
   call sflux_sea                                                                                 ! sea
@@ -241,15 +241,17 @@ call END_LOG(sfluxwater_end)
 
 !--------------------------------------------------------------      
 call START_LOG(sfluxland_begin)
-select case(nsib)                                                                                ! land
-  case(3,5)                                                                                      ! land
-    !$omp barrier
-    !$omp single
-    call sflux_land                                                                              ! land
-    !$omp end single
-  case(7)                                                                                        ! land
-    call sib4 ! call cable                                                                       ! land
-end select                                                                                       ! land
+if ( nhstest>=0 ) then                                                                           ! land
+  select case(nsib)                                                                              ! land
+    case(3,5)                                                                                    ! land
+      !$omp barrier
+      !$omp single
+      call sflux_land                                                                            ! land
+      !$omp end single
+    case(7)                                                                                      ! land
+      call sib4 ! call cable                                                                     ! land 
+    end select                                                                                   ! land
+end if                                                                                           ! land
 ! update remaining diagnostic arrays                                                             ! land
 !$omp do schedule(static) private(is,ie,iq)
 do tile = 1,ntiles                                                                               ! land
@@ -273,7 +275,7 @@ call END_LOG(sfluxland_end)
 
 
 call START_LOG(sfluxurban_begin)
-if ( nurban/=0 ) then                                                                            ! urban
+if ( nurban/=0 .and. nhstest>=0 ) then                                                                            ! urban
   call sflux_urban                                                                               ! urban
 end if                                                                                           ! urban
 !$omp do schedule(static) private(is,ie)
@@ -1019,7 +1021,6 @@ end subroutine sflux_mlo_work
 subroutine sflux_urban
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
-use ateb                           ! Urban
 use cc_mpi                         ! CC MPI routines
 use cc_omp                         ! CC OpenMP routines
 use const_phys                     ! Physical constants
@@ -1034,6 +1035,7 @@ use prec_m, only : evspsbl, sbl    ! Precipitation
 use raddiag_m                      ! Radiation diagnostic
 use savuvt_m                       ! Saved dynamic arrays
 use soilsnow_m                     ! Soil, snow and surface data
+use uclem_ctrl                     ! Urban
 use vecsuv_m                       ! Map to cartesian coordinates
 use work2_m                        ! Diagnostic arrays
 use xyzinfo_m                      ! Grid coordinate arrays
@@ -1103,7 +1105,6 @@ subroutine sflux_urban_work(oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp
                             urban_storage_flux,urban_elecgas_flux,urban_heating_flux,urban_cooling_flux,          &
                             upack,ufull)
 
-use ateb                           ! Urban
 use cc_mpi                         ! CC MPI routines
 use cc_omp                         ! CC OpenMP routines
 use const_phys                     ! Physical constants
@@ -1112,6 +1113,7 @@ use newmpar_m                      ! Grid parameters
 use parm_m                         ! Model configuration
 use parmgeom_m                     ! Coordinate data
 use sigs_m                         ! Atmosphere sigma levels
+use uclem_ctrl                     ! Urban
 
 implicit none
 
@@ -1163,8 +1165,8 @@ u_sbl = 0.                                                                      
                                                                                                  ! urban
 ! find model reference height                                                                    ! urban
 bldheight = 0.                                                                                   ! urban
-call atebdeftype_export(bldheight,"bldheight",fp,cnveg,fp_roof,fp_wall, &
-                        fp_road,fp_slab,upack,ufull,0)                                  ! urban
+call uclem_deftype_export(bldheight,"bldheight",fp,cnveg,fp_roof,fp_wall, &                      ! urban 
+                          fp_road,fp_slab,upack,ufull,0)                                         ! urban
 zg(:,1) = bet(1)*t(:,1)/grav                                                                     ! urban
 do k = 2,kl                                                                                      ! urban
   zg(:,k) = zg(:,k-1) + (bet(k)*t(:,k)+betm(k)*t(:,k-1))/grav                                    ! urban
@@ -1186,19 +1188,19 @@ do k = kl,1,-1                                                                  
   end where                                                                                      ! urban
 end do                                                                                           ! urban
                                                                                                  ! urban
-! call aTEB                                                                                      ! urban
-call atebcalc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_evspsbl,u_sbl,dt,azmin,az_roof,sgdn,   &    ! urban
-              dumrg,dumx,dums,rho,t_cany,t_roof,qg_cany,qg_roof,ps(1:imax),                 &    ! urban
-              uzon_cany,uzon_roof,vmer_cany,vmer_roof,vmodmin,                              &    ! urban
-              fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,    &    ! urban
-              roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                    ! urban
+! call UCLEM                                                                                     ! urban
+call uclem_calc(u_fg,u_eg,urban_ts,urban_wetfac,u_rn,u_evspsbl,u_sbl,dt,azmin,az_roof,sgdn,   &  ! urban
+                dumrg,dumx,dums,rho,t_cany,t_roof,qg_cany,qg_roof,ps(1:imax),                 &  ! urban
+                uzon_cany,uzon_roof,vmer_cany,vmer_roof,vmodmin,                              &  ! urban
+                fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,    &  ! urban
+                roof,room,slab,walle,wallw,cnveg,intl,upack,ufull,0,raw=.true.)                  ! urban
 u_sigma = unpack(fp%sigmau,upack,0.)                                                             ! urban
 where ( u_sigma>0. )                                                                             ! urban
   fg = (1.-u_sigma)*fg + u_sigma*u_fg                                                            ! urban
   eg = (1.-u_sigma)*eg + u_sigma*u_eg                                                            ! urban
   tss = (1.-u_sigma)*tss + u_sigma*urban_ts                                                      ! urban
   wetfac = (1.-u_sigma)*wetfac + u_sigma*urban_wetfac                                            ! urban
-  ! since ateb will blend non-urban and urban runoff, it is                                      ! urban
+  ! since uclem will blend non-urban and urban runoff, it is                                     ! urban
   ! easier to remove the new runoff and add it again after the                                   ! urban
   ! urban scheme has been updated                                                                ! urban
   runoff = oldrunoff + (1.-u_sigma)*(runoff-oldrunoff) + u_sigma*u_rn                            ! urban
@@ -1209,7 +1211,7 @@ end where                                                                       
 urban_zom = 1.e-10                                                                               ! urban
 urban_zoh = 1.e-10                                                                               ! urban
 urban_zoq = 1.e-10                                                                               ! urban
-call atebzo(urban_zom,urban_zoh,urban_zoq,0,pd,fp,upack,ufull,raw=.true.)                        ! urban
+call uclem_zo(urban_zom,urban_zoh,urban_zoq,0,pd,fp,upack,ufull,raw=.true.)                        ! urban
 ! blend zo with the urban part                                                                   ! urban
 zo_work  = sqrt((1.-u_sigma)/log(azmin/zo)**2+u_sigma/log(azmin/urban_zom)**2)                   ! urban
 zoh_work = (1.-u_sigma)/(log(azmin/zo)*log(azmin/zoh))                                  &        ! urban
@@ -1226,7 +1228,7 @@ end where                                                                       
 ! calculate ustar                                                                                ! urban
 cduv_work = cduv/vmag                                                                            ! urban
 cdtq_work = cdtq/vmag                                                                            ! urban
-call atebcd(cduv_work,cdtq_work,0,pd,fp,upack,ufull)                                             ! urban
+call uclem_cd(cduv_work,cdtq_work,0,pd,fp,upack,ufull)                                           ! urban
 where ( u_sigma>0. )                                                                             ! urban
   cduv = cduv_work*vmag                                                                          ! urban
   cdtq = cdtq_work*vmag                                                                          ! urban
@@ -1235,7 +1237,7 @@ end where                                                                       
 ! calculate snowmelt                                                                             ! urban
 newsnowmelt = snowmelt - oldsnowmelt                                                             ! urban
 newsnowmelt = newsnowmelt/dt                                                                     ! urban
-call atebhydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                                       ! urban
+call uclem_hydro(newsnowmelt,"snowmelt",0,pd,fp,upack,ufull)                                     ! urban
 newsnowmelt = newsnowmelt*dt                                                                     ! urban
 where ( u_sigma>0. )                                                                             ! urban
   snowmelt = oldsnowmelt + newsnowmelt                                                           ! urban
@@ -1246,11 +1248,11 @@ urban_elecgas_flux = 0.                                                         
 urban_heating_flux = 0.                                                                          ! urban
 urban_cooling_flux = 0.                                                                          ! urban
 urban_storage_flux = 0.                                                                          ! urban
-call atebenergy(anthropogenic_flux,"anthropogenic",0,fp,pd,rdhyd,rfhyd,upack,ufull)              ! urban
-call atebenergy(urban_elecgas_flux,"elecgas",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
-call atebenergy(urban_heating_flux,"heating",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
-call atebenergy(urban_cooling_flux,"cooling",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
-call atebenergy(urban_storage_flux,"storage",0,fp,pd,rdhyd,rfhyd,upack,ufull)                    ! urban
+call uclem_energy(anthropogenic_flux,"anthropogenic",0,fp,pd,rdhyd,rfhyd,upack,ufull)            ! urban
+call uclem_energy(urban_elecgas_flux,"elecgas",0,fp,pd,rdhyd,rfhyd,upack,ufull)                  ! urban
+call uclem_energy(urban_heating_flux,"heating",0,fp,pd,rdhyd,rfhyd,upack,ufull)                  ! urban
+call uclem_energy(urban_cooling_flux,"cooling",0,fp,pd,rdhyd,rfhyd,upack,ufull)                  ! urban
+call uclem_energy(urban_storage_flux,"storage",0,fp,pd,rdhyd,rfhyd,upack,ufull)                  ! urban
 where ( u_sigma>0. )                                                                             ! urban
   qsttg(1:imax) = qsat(ps,tss)                                                                   ! urban
   taux(1:imax) = rho(1:imax)*cduv(1:imax)*u(1:imax)                                              ! urban
@@ -1258,7 +1260,7 @@ where ( u_sigma>0. )                                                            
 end where                                                                                        ! urban
 ! calculate emissivity                                                                           ! urban
 urban_emiss = 0.                                                                                 ! urban
-call atebmisc(urban_emiss,"emissivity",0,room,fp,pd,upack,ufull)                                 ! urban
+call uclem_misc(urban_emiss,"emissivity",0,room,fp,pd,upack,ufull)                                 ! urban
 
 end subroutine sflux_urban_work
 

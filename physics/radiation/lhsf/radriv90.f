@@ -35,7 +35,6 @@
 
       use aerointerface
       use arrays_m
-      use ateb, only : atebalb1,atebccangle,atebfbeam
       use cc_mpi
       use cfrac_m
       use cldcom_m
@@ -70,6 +69,7 @@
       use swr99_m
       use tabcom_m, only : tabcom_init
       use tfcom_m
+      use uclem_ctrl, only : uclem_alb1,uclem_ccangle,uclem_fbeam
       use work3f_m
       use work3lwr_m, only : work3lwr_init
       use zenith_m
@@ -266,7 +266,7 @@ C---------------------------------------------------------------------*
       dhr = dt/3600.0
       call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),
      &            rlongg(istart:iend),dhr,imax,coszro2,taudar2)
-      call atebccangle(istart,imax,coszro2(1:imax) ! MJT urban
+      call uclem_ccangle(istart,imax,coszro2(1:imax) ! MJT urban
      & ,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt
      & ,sin(dlt)) 
 
@@ -387,8 +387,8 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
       ! URBAN -------------------------------------------------------
       ! The direct beam fraction is effectively 1 in this case to
       ! ensure energy conservation (i.e., no cloud)
-      call atebalb1(istart,imax,cuvrf(1:imax,1),0)
-      call atebalb1(istart,imax,cirrf(1:imax,1),0)
+      call uclem_alb1(istart,imax,cuvrf(1:imax,1),0)
+      call uclem_alb1(istart,imax,cirrf(1:imax,1),0)
       
       ! AEROSOLS ----------------------------------------------------
       select case(abs(iaero))
@@ -668,7 +668,7 @@ c        Save the value excluding Ts^4 part.  This is allowed to change.
          
       ! Store fraction of direct radiation in urban scheme
       fbeam = fbeamvis(istart:iend)   
-      call atebfbeam(istart,imax,fbeam,0)
+      call uclem_fbeam(istart,imax,fbeam,0)
          
 c     cloud amounts for saving
       do i=1,imax

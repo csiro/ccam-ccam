@@ -138,7 +138,6 @@ subroutine seaesfrad(koundiag)
 use aerointerface                                   ! Aerosol interface
 use aerosol_arrays                                  ! Aerosol arrays
 use arrays_m                                        ! Atmosphere dyamics prognostic arrays
-use ateb, only : atebccangle,atebalb1,atebfbeam     ! Urban
 use cc_mpi                                          ! CC MPI routines
 use cc_omp                                          ! CC OpenMP routines
 use cfrac_m                                         ! Cloud fraction
@@ -148,8 +147,8 @@ use estab                                           ! Liquid saturation function
 use infile                                          ! Input file routines
 use kuocom_m                                        ! JLM convection
 use latlong_m                                       ! Lat/lon coordinates
-use liqwpar_m, only : stras_rliq,stras_rice, &      ! Cloud water mixing ratios
-      stras_cliq, stras_cice
+use liqwpar_m, only : stras_rliq,stras_rice,       &      
+    stras_cliq, stras_cice                          ! Cloud water mixing ratios
 use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
 use module_aux_rad                                  ! Additional cloud and radiation routines
 use newmpar_m                                       ! Grid parameters
@@ -162,6 +161,8 @@ use raddiag_m                                       ! Radiation diagnostic
 use sigs_m                                          ! Atmosphere sigma levels
 use soil_m                                          ! Soil and surface data
 use soilsnow_m                                      ! Soil, snow and surface data
+use uclem_ctrl, only : uclem_ccangle, uclem_alb1,  &
+    uclem_fbeam                                     ! Urban
 use work3f_m                                        ! Grid work arrays
 use zenith_m                                        ! Astronomy routines
 
@@ -194,7 +195,7 @@ if ( diag .and. mydiag ) then
   write(6,*) "qlraddiag ",diag_temp
   diag_temp(:) = qfrad(idjd,:)
   write(6,*) "qfraddiag ",diag_temp
-  if ( abs(iaero)>=2 ) then
+  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     diag_temp(:) = xtg(idjd,:,3)  
     write(6,*) "SO4diag ",diag_temp
     diag_temp(:) = xtg(idjd,:,4)
@@ -236,7 +237,7 @@ do iq_tile = 1,ifull,imax
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.
   call zenith(fjd,r1,dlt,slag,rlatt(istart:iend),rlongg(istart:iend),dhr,imax,coszro2,taudar2)
-  call atebccangle(istart,imax,coszro2,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt,sin(dlt))
+  call uclem_ccangle(istart,imax,coszro2,rlongg(istart:iend),rlatt(istart:iend),fjd,slag,dt,sin(dlt))
 
   ! Set-up albedo
   ! Land albedo ---------------------------------------------------
@@ -287,10 +288,10 @@ do iq_tile = 1,ifull,imax
   end if
 
   ! Urban albedo --------------------------------------------------
-  call atebalb1(istart,imax,cuvrf_dir,0,split=1) ! direct
-  call atebalb1(istart,imax,cirrf_dir,0,split=1) ! direct
-  call atebalb1(istart,imax,cuvrf_dif,0,split=2) ! diffuse
-  call atebalb1(istart,imax,cirrf_dif,0,split=2) ! diffuse
+  call uclem_alb1(istart,imax,cuvrf_dir,0,split=1) ! direct
+  call uclem_alb1(istart,imax,cirrf_dir,0,split=1) ! direct
+  call uclem_alb1(istart,imax,cuvrf_dif,0,split=2) ! diffuse
+  call uclem_alb1(istart,imax,cirrf_dif,0,split=2) ! diffuse
  
   ! Call radiation --------------------------------------------------
   if ( odcalc ) then     ! Do the calculation
@@ -350,76 +351,78 @@ do iq_tile = 1,ifull,imax
       dz(:,k) = -rdry*dsig(k)*t(istart:iend,k)/(grav*sig(k))
       dz(:,k) = min( max(dz(:,k), 1.), 2.e4 )
     end do
-    select case (abs(iaero))
-      case(0)
-        ! no aerosols
-      case(1)
-        ! aerosols are read in (direct effect only)
-        do i = 1,imax
-          iq = i + iq_tile - 1
-          cosz = max( coszro(i), 1.e-4 )
-          delta = coszro(i)*0.29*8.*so4t(iq)*((1.-0.25*(cuvrf_dir(i)+cuvrf_dif(i)+cirrf_dir(i)+cirrf_dif(i)))/cosz)**2
-          cuvrf_dir(i) = min(0.99, delta+cuvrf_dir(i)) ! still broadband
-          cirrf_dir(i) = min(0.99, delta+cirrf_dir(i)) ! still broadband
-          cuvrf_dif(i) = min(0.99, delta+cuvrf_dif(i)) ! still broadband
-          cirrf_dif(i) = min(0.99, delta+cirrf_dif(i)) ! still broadband
-        end do ! i=1,imax
-      case(2,3)
-        ! prognostic aerosols
-        ! convert to units kg / m^2
-        Aerosol(mythread)%aerosol(:,:,:,:) = 0._8
-        if ( so4radmethod/=-1 ) then
-          do k = 1,kl
-            kr = kl + 1 - k
-            dzrho = rhoa(:,k)*dz(:,k)
-            ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
-            Aerosol(mythread)%aerosol(:,1,kr,1) = real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho, 8) ! so4
-          end do
-        end if
-        if ( carbonradmethod/=-1 ) then
-          do k = 1,kl
-            kr = kl + 1 - k
-            dzrho = rhoa(:,k)*dz(:,k)
-            Aerosol(mythread)%aerosol(:,1,kr,2) = real(xtg(istart:iend,k,4)*dzrho, 8)        ! bc hydrophobic
-            Aerosol(mythread)%aerosol(:,1,kr,3) = real(xtg(istart:iend,k,5)*dzrho, 8)        ! bc hydrophilic
-            Aerosol(mythread)%aerosol(:,1,kr,4) = real(xtg(istart:iend,k,6)*dzrho, 8)        ! oc hydrophobic
-            Aerosol(mythread)%aerosol(:,1,kr,5) = real(xtg(istart:iend,k,7)*dzrho, 8)        ! oc hydrophilic
-          end do
-        end if
-        if ( dustradmethod/=-1 ) then
-          do k = 1,kl
-            kr = kl + 1 - k
-            dzrho = rhoa(:,k)*dz(:,k)
-            Aerosol(mythread)%aerosol(:,1,kr,6) = real(xtg(istart:iend,k,8)*dzrho, 8)        ! dust 0.8
-            Aerosol(mythread)%aerosol(:,1,kr,7) = real(xtg(istart:iend,k,9)*dzrho, 8)        ! dust 1.0
-            Aerosol(mythread)%aerosol(:,1,kr,8) = real(xtg(istart:iend,k,10)*dzrho, 8)       ! dust 2.0
-            Aerosol(mythread)%aerosol(:,1,kr,9) = real(xtg(istart:iend,k,11)*dzrho, 8)       ! dust 4.0
-          end do
-        end if
-        if ( seasaltradmethod/=-1 ) then
-          do k = 1,kl
-            kr = kl + 1 - k
-            Aerosol(mythread)%aerosol(:,1,kr,10) = real(xtg(istart:iend,k,12)*dzrho,8)        ! Small film sea salt (0.1)
-            Aerosol(mythread)%aerosol(:,1,kr,11) = real(xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
-          end do
-        end if
+    if ( nhstest>=0 ) then
+      select case (abs(iaero))
+        case(0)
+          ! no aerosols
+        case(1)
+          ! aerosols are read in (direct effect only)
+          do i = 1,imax
+            iq = i + iq_tile - 1
+            cosz = max( coszro(i), 1.e-4 )
+            delta = coszro(i)*0.29*8.*so4t(iq)*((1.-0.25*(cuvrf_dir(i)+cuvrf_dif(i)+cirrf_dir(i)+cirrf_dif(i)))/cosz)**2
+            cuvrf_dir(i) = min(0.99, delta+cuvrf_dir(i)) ! still broadband
+            cirrf_dir(i) = min(0.99, delta+cirrf_dir(i)) ! still broadband
+            cuvrf_dif(i) = min(0.99, delta+cuvrf_dif(i)) ! still broadband
+            cirrf_dif(i) = min(0.99, delta+cirrf_dif(i)) ! still broadband
+          end do ! i=1,imax
+        case(2,3)
+          ! prognostic aerosols
+          ! convert to units kg / m^2
+          Aerosol(mythread)%aerosol(:,:,:,:) = 0._8
+          if ( so4radmethod/=-1 ) then
+            do k = 1,kl
+              kr = kl + 1 - k
+              dzrho = rhoa(:,k)*dz(:,k)
+              ! Factor of 132.14/32.06 converts from sulfur to ammmonium sulfate
+              Aerosol(mythread)%aerosol(:,1,kr,1) = real((132.14/32.06)*xtg(istart:iend,k,3)*dzrho, 8) ! so4
+            end do
+          end if
+          if ( carbonradmethod/=-1 ) then
+            do k = 1,kl
+              kr = kl + 1 - k
+              dzrho = rhoa(:,k)*dz(:,k)
+              Aerosol(mythread)%aerosol(:,1,kr,2) = real(xtg(istart:iend,k,4)*dzrho, 8)        ! bc hydrophobic
+              Aerosol(mythread)%aerosol(:,1,kr,3) = real(xtg(istart:iend,k,5)*dzrho, 8)        ! bc hydrophilic
+              Aerosol(mythread)%aerosol(:,1,kr,4) = real(xtg(istart:iend,k,6)*dzrho, 8)        ! oc hydrophobic
+              Aerosol(mythread)%aerosol(:,1,kr,5) = real(xtg(istart:iend,k,7)*dzrho, 8)        ! oc hydrophilic
+            end do
+          end if
+          if ( dustradmethod/=-1 ) then
+            do k = 1,kl
+              kr = kl + 1 - k
+              dzrho = rhoa(:,k)*dz(:,k)
+              Aerosol(mythread)%aerosol(:,1,kr,6) = real(xtg(istart:iend,k,8)*dzrho, 8)        ! dust 0.8
+              Aerosol(mythread)%aerosol(:,1,kr,7) = real(xtg(istart:iend,k,9)*dzrho, 8)        ! dust 1.0
+              Aerosol(mythread)%aerosol(:,1,kr,8) = real(xtg(istart:iend,k,10)*dzrho, 8)       ! dust 2.0
+              Aerosol(mythread)%aerosol(:,1,kr,9) = real(xtg(istart:iend,k,11)*dzrho, 8)       ! dust 4.0
+            end do
+          end if
+          if ( seasaltradmethod/=-1 ) then
+            do k = 1,kl
+              kr = kl + 1 - k
+              Aerosol(mythread)%aerosol(:,1,kr,10) = real(xtg(istart:iend,k,12)*dzrho,8)        ! Small film sea salt (0.1)
+              Aerosol(mythread)%aerosol(:,1,kr,11) = real(xtg(istart:iend,k,13)*dzrho,8)        ! Large jet sea salt (0.5)
+            end do
+          end if
         
 #ifdef debug
-        if ( any( Aerosol(mythread)%aerosol>2.e-4 ) ) then
-          write(6,*) "WARN: seaesf detects high aerosol concentration"
-          write(6,*) "xtg,maxloc ",maxval(Aerosol(mythread)%aerosol),maxloc(Aerosol(mythread)%aerosol)
-        end if  
+          if ( any( Aerosol(mythread)%aerosol>2.e-4 ) ) then
+            write(6,*) "WARN: seaesf detects high aerosol concentration"
+            write(6,*) "xtg,maxloc ",maxval(Aerosol(mythread)%aerosol),maxloc(Aerosol(mythread)%aerosol)
+          end if  
 #endif
-        Aerosol(mythread)%aerosol=min(max(Aerosol(mythread)%aerosol, 0._8), 2.e-4_8)
+          Aerosol(mythread)%aerosol=min(max(Aerosol(mythread)%aerosol, 0._8), 2.e-4_8)
         
-        !if ( Rad_control%using_im_bcsul ) then
-        !  Aerosol_props(mythread)%ivol(:,1,:) = 100-nint(100.*Aerosol(mythread)%aerosol(:,1,:,1)/ &
-        !      max(Aerosol(mythread)%aerosol(:,1,:,1)+Aerosol(mythread)%aerosol(:,1,:,2)+Aerosol(mythread)%aerosol(:,1,:,3), 1.E-30_8))
-        !  Aerosol_props(mythread)%ivol(:,1,:) = max(min(Aerosol_props(mythread)%ivol(:,1,:), 100), 0)
-        !else
-          Aerosol_props%ivol(:,:,:) = 0 ! no mixing of bc with so4
-        !end if
-    end select
+          !if ( Rad_control%using_im_bcsul ) then
+          !  Aerosol_props(mythread)%ivol(:,1,:) = 100-nint(100.*Aerosol(mythread)%aerosol(:,1,:,1)/ &
+          !      max(Aerosol(mythread)%aerosol(:,1,:,1)+Aerosol(mythread)%aerosol(:,1,:,2)+Aerosol(mythread)%aerosol(:,1,:,3), 1.E-30_8))
+          !  Aerosol_props(mythread)%ivol(:,1,:) = max(min(Aerosol_props(mythread)%ivol(:,1,:), 100), 0)
+          !else
+            Aerosol_props%ivol(:,:,:) = 0 ! no mixing of bc with so4
+          !end if
+      end select
+    end if    
 
     ! define droplet size distribution ------------------------------
     call aerodrop(istart,cd2,rhoa)
@@ -889,7 +892,7 @@ do iq_tile = 1,ifull,imax
   ! Store fraction of direct radiation in urban scheme
   fbeam = fbeamvis(istart:iend)*swrsave(istart:iend) &
         + fbeamnir(istart:iend)*(1.-swrsave(istart:iend))
-  call atebfbeam(istart,imax,fbeam,0)
+  call uclem_fbeam(istart,imax,fbeam,0)
   
   ! cloud amounts for saving --------------------------------------
   cloudtot(istart:iend) = 1. - (1.-cloudlo(istart:iend))*(1.-cloudmi(istart:iend))*(1.-cloudhi(istart:iend))
@@ -1226,7 +1229,7 @@ call START_LOG(radinit_begin)
 if ( myid==0 ) write(6,*) "Initalise SEA-ESF radiation"
 
 ! Aerosol flag
-do_aerosol_forcing = abs(iaero)>=2
+do_aerosol_forcing = abs(iaero)>=2 .and. nhstest>=0
 
 ! Set up number of minutes from beginning of year
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)

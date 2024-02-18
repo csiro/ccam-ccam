@@ -332,7 +332,6 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          mlodwn,ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
-use ateb, only : urbtemp, atebloadd, nfrac     ! Urban
 use cable_ccam, only : ccycle                  ! CABLE
 use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
@@ -375,6 +374,8 @@ use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &
     thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,   &
     tke_ema                                    ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
+use uclem_ctrl, only : urbtemp, nfrac,       &
+    uclem_loadd_2, uclem_loadd_3               ! Urban
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
 use vvel_m, only : dpsldt,sdot                 ! Additional vertical velocity
@@ -418,6 +419,7 @@ real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in ca
 real, dimension(:,:), allocatable, save :: gosig3_a
 real, dimension(kk+ok+12) :: dumr
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
+real(kind=8), dimension(ifull) :: dum6r8
 character(len=20) vname
 character(len=4) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
@@ -461,7 +463,7 @@ end if
 iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0)<iotol .and. &
          abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and.      &
          native_ccam==1
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
   iotest = iotest .and. (wlev==ok)
 end if
 iop_test = iotest .and. ptest
@@ -911,7 +913,7 @@ if ( newfile ) then
   
   ! read urban data mask
   ! read urban mask for urban and initial conditions and interpolation
-  if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iop_test ) then
+  if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iop_test .and. nhstest>=0 ) then
     if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "-> Determine urban mask"
     end if  
@@ -1014,7 +1016,7 @@ end if ! (tss_test) ..else..
 !--------------------------------------------------------------
 ! Read ocean data for nudging (sea-ice is read below)
 ! read when nested=0 or nested=1.and.nud/=0 or nested=2 .or nested=4
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 .and. nhstest>=0 ) then
   ! defalt values for surface height
   ocndwn(1:ifull,2) = 0.
   if ( mlo_found ) then
@@ -1048,7 +1050,7 @@ if ( tss_test .and. iop_test ) then
   if ( zht_needed ) then
     zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
   end if
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
     if ( mlo_found ) then
       ocndwn(1:ifull,1) = ocndep_a(1:ifull)
       opldep(1:ifull) = 0.      
@@ -1153,7 +1155,9 @@ else
   end if          
   call doints4(ucc7(:,1:7),udum7(:,1:7))
   zss      = udum7(:,1)
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) ocndwn(1:ifull,1) = udum7(1:ifull,2)
+  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. nhstest>-0 ) then
+    ocndwn(1:ifull,1) = udum7(1:ifull,2)
+  end if  
   tss_l    = udum7(:,3)
   tss_s    = udum7(:,4)
   sicedep  = udum7(:,5)
@@ -1218,6 +1222,11 @@ end if   ! newfile
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   allocate( t_a_lev(fwsize) )  
   call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
+  !if ( any(t<100.) .or. any(t>350.) .or. any(t/=t) ) then
+  !  write(6,*) "ERROR: Invalid air temperature in onthefly"
+  !  write(6,*) minval(t),maxval(t),sum(t)/real(size(t))
+  !  call ccmpi_abort(-1)
+  !end if  
 else
   t(1:ifull,1:kl) = 300.    
 end if ! (nested==0.or.(nested==1.and.retopo_test/=0).or.nested==3)
@@ -1226,6 +1235,14 @@ end if ! (nested==0.or.(nested==1.and.retopo_test/=0).or.nested==3)
 ! read for nested=0 or nested=1.and.nud_uv/=0 or nested=3
 if ( nested==0 .or. (nested==1.and.nud_uv/=0) .or. nested==3 ) then
   call gethistuv4a('u','v',u,v,3,4)
+  !if ( any(abs(u)>150.) .or. any(u/=u) ) then
+  !  write(6,*) "ERROR: Invalid u-wind in onthefly"
+  !  call ccmpi_abort(-1)
+  !end if  
+  !if ( any(abs(v)>150.) .or. any(v/=v) ) then
+  !  write(6,*) "ERROR: Invalid v-wind in onthefly"
+  !  call ccmpi_abort(-1)
+  !end if  
 else
   u(1:ifull,1:kl) = 0.
   v(1:ifull,1:kl) = 0.
@@ -1244,7 +1261,7 @@ else
   qg(1:ifull,1:kl) = qgmin
 end if ! (nested==0.or.(nested==1.and.nud_q/=0).or.nested==3)
 
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 .and. nhstest>=0 ) then
   ! defalt values
   do k = 1,wlev
     call mloexpdep(0,depth,k,0)
@@ -1314,7 +1331,7 @@ end if     ! abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3
 
 !------------------------------------------------------------
 ! Aerosol data
-if ( abs(iaero)>=2 .and. nested/=3 ) then
+if ( abs(iaero)>=2 .and. nested/=3 .and. nhstest>=0 ) then
   if ( nested/=1 .or. nud_aero/=0 ) then
     if ( aero_found ) then  
       call gethist4a('dms',  xtgdwn(:,:,1), 5)
@@ -1424,7 +1441,7 @@ if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
 end if
 
 
-if ( abs(iaero)>=2 .and. nested/=3 ) then
+if ( abs(iaero)>=2 .and. nested/=3 .and. nhstest>=0 ) then
   if ( nested/=1.or.nud_aero/=0 ) then
     ! Factor 1.e3 to convert to g/m2, x 3 to get sulfate from sulfur
     so4t(:) = 0.
@@ -1510,7 +1527,7 @@ if ( nested/=1 .and. nested/=3 ) then
         else 
           call ccnf_get_vara(ncid,idv,iarchi,ierc(7))
         end if
-        if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+        if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
           if ( ok==wlev ) then
             call ccnf_inq_varid(ncid,'old1_uo',idv,tst)
             if ( tst ) lrestart = .false.
@@ -1532,7 +1549,7 @@ if ( nested/=1 .and. nested/=3 ) then
             lrestart = .false.
           end if
         end if
-        if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+        if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
           if ( ok==wlev ) then
             call ccnf_inq_varid(ncid,'old1_uotop',idv,tst)
             if ( tst ) lrestart = .false.
@@ -1624,7 +1641,7 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "Continue staggering from"
       write(6,*) "nstag,nstagu,nstagoff ",nstag,nstagu,nstagoff
-      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+      if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
         write(6,*) "nstagoffmlo ",nstagoffmlo
       end if
     end if
@@ -1654,7 +1671,8 @@ if ( nested/=1 .and. nested/=3 ) then
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
   call gethist1('snd',snowd)
-  where ( .not.land(1:ifull) .and. (sicedep(1:ifull)<1.e-20 .or. nmlo==0) )
+  where ( .not.land(1:ifull) .and. (sicedep(1:ifull)<1.e-20 .or. nmlo==0 &
+          .or. nhstest<0) )
     snowd(1:ifull) = 0.
   end where
   if ( nested/=4 ) then
@@ -1707,7 +1725,7 @@ if ( nested/=1 .and. nested/=3 ) then
 
   !--------------------------------------------------
   ! Read MLO sea-ice data
-  if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
     if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,10) )
     micdwn(1:ifull,1) = 270.
     micdwn(1:ifull,2) = 270.
@@ -1827,7 +1845,7 @@ if ( nested/=1 .and. nested/=3 ) then
   
   !------------------------------------------------------------------
   ! Read aerosol optical depth
-  if ( abs(iaero)>=2 .and. nrad==5 ) then
+  if ( abs(iaero)>=2 .and. nrad==5 .and. nhstest>=0 ) then
     if ( nested==0 ) then
       call gethist1('sdust_vis',opticaldepth(:,1,1))
       call gethist1('ldust_vis',opticaldepth(:,2,1))
@@ -1841,24 +1859,24 @@ if ( nested/=1 .and. nested/=3 ) then
 
   !------------------------------------------------------------------
   ! Read urban data
-  if ( nurban/=0 ) then
+  if ( nurban/=0 .and. nhstest>=0 ) then
     if ( urban1_found ) then
       ! restart  
       do ifrac = 1,nfrac
         write(vname,'("t",I1.1,"_rooftgg")') ifrac   
-        call fillhist4u(vname,"rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8(vname,"rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_waletgg")') ifrac
-        call fillhist4u(vname,"walletemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8(vname,"walletemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_walwtgg")') ifrac
-        call fillhist4u(vname,"wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8(vname,"wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_roadtgg")') ifrac
-        call fillhist4u(vname,"roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8(vname,"roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_slabtgg")') ifrac
-        call fillhist4u(vname,"slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8(vname,"slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_intmtgg")') ifrac
-        call fillhist4u(vname,"intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8(vname,"intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_roomtgg1")') ifrac
-        call fillhist1u(vname,"roomtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist1ur8(vname,"roomtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_urbnsmc")') ifrac
         call fillhist1u(vname,"canyonsoilmoisture",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_urbnsmr")') ifrac
@@ -1887,12 +1905,12 @@ if ( nested/=1 .and. nested/=3 ) then
     else if ( urban2_found ) then
       ! nested with urban data  
       do ifrac = 1,nfrac  
-        call fillhist4u("rooftgg","rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4u("waletgg","walletemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4u("walwtgg","wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4u("roadtgg","roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4u("slabtgg","slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4u("intmtgg","intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8("rooftgg","rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8("waletgg","walletemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8("walwtgg","wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8("roadtgg","roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8("slabtgg","slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4ur8("intmtgg","intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
       end do  
     else
       ! nested without urban data
@@ -1905,27 +1923,28 @@ if ( nested/=1 .and. nested/=3 ) then
       where ( dum6>150. )  
         dum6 = dum6 - urbtemp
       end where
+      dum6r8 = real(dum6,8)
       do ifrac = 1,nfrac
         do k = 1,5
           write(vname,'("rooftemp",I1.1)') k
-          call atebloadd(dum6,vname,ifrac,0)
+          call uclem_loadd_3(dum6r8,vname,ifrac,0)
           write(vname,'("walletemp",I1.1)') k
-          call atebloadd(dum6,vname,ifrac,0)
+          call uclem_loadd_3(dum6r8,vname,ifrac,0)
           write(vname,'("wallwtemp",I1.1)') k
-          call atebloadd(dum6,vname,ifrac,0)
+          call uclem_loadd_3(dum6r8,vname,ifrac,0)
           write(vname,'("roadtemp",I1.1)') k
-          call atebloadd(dum6,vname,ifrac,0)
+          call uclem_loadd_3(dum6r8,vname,ifrac,0)
           write(vname,'("slabtemp",I1.1)') k
-          call atebloadd(dum6,vname,ifrac,0)
+          call uclem_loadd_3(dum6r8,vname,ifrac,0)
           write(vname,'("intmtemp",I1.1)') k
-          call atebloadd(dum6,vname,ifrac,0)
+          call uclem_loadd_3(dum6r8,vname,ifrac,0)
         end do  
       end do        
     end if    
   end if
 
   ! k-eps data
-  if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9) ) then
+  if ( nested==0 .and. (abs(nmlo)>=1.and.abs(nmlo)<=9.and.nhstest>=0) ) then
     mlodwn(:,:,5:6) = 0.
     if ( mlo2_found ) then
       if ( oclosure==1 ) then
@@ -2066,7 +2085,7 @@ if ( nested/=1 .and. nested/=3 ) then
     end if
 
     ! OCEAN DATA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+    if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
       oldu1(:,:) = 0.
       oldu2(:,:) = 0.
       oldv1(:,:) = 0.
@@ -2080,7 +2099,7 @@ if ( nested/=1 .and. nested/=3 ) then
         call gethist1('ipice',ipice)
       end if
     end if
-    if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+    if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
       ocndwn(:,3:6) = 0.
       if ( lrestart ) then
         call gethist1('old1_uotop',ocndwn(:,3))
@@ -2155,7 +2174,7 @@ deallocate( sx )
 
 ! -------------------------------------------------------------------
 ! tgg holds file surface temperature when there is no MLO
-if ( nmlo==0 .or. abs(nmlo)>9 ) then
+if ( nmlo==0 .or. abs(nmlo)>9 .or. nhstest<0 ) then
   where ( .not.land(1:ifull) )
     tgg(1:ifull,1) = tss(1:ifull)
   end where
@@ -3082,8 +3101,9 @@ end subroutine fillhistuv1o
 subroutine fillhist1u(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
 
 use cc_mpi                          ! CC MPI routines
-use ateb, only : urbtemp, atebloadd ! Urban
 use newmpar_m                       ! Grid parameters
+use uclem_ctrl, only : urbtemp,    &
+    uclem_loadd_2                    ! Urban
 
 implicit none
       
@@ -3097,7 +3117,7 @@ character(len=*), intent(in) :: uname
 
 call fillhist1(vname,varout,mask_a,fill_count)
 where ( varout>900. ) ! missing
-    varout = filldefault  
+  varout = filldefault  
 end where
 select case(fillmode)
   case(0)
@@ -3114,10 +3134,60 @@ select case(fillmode)
     write(6,*) "ERROR: Unknown fillmode in fillhist1u"
     call ccmpi_abort(-1)
 end select
-call atebloadd(varout,uname,ifrac,0)
+call uclem_loadd_2(varout,uname,ifrac,0)
 
 return
 end subroutine fillhist1u
+
+subroutine fillhist1ur8(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
+
+use cc_mpi                          ! CC MPI routines
+use darcdf_m                        ! Netcdf data
+use infile                          ! Input file routines
+use newmpar_m                       ! Grid parameters
+use uclem_ctrl, only : urbtemp,    &
+    uclem_loadd_3                   ! Urban
+
+implicit none
+      
+integer, intent(inout) :: fill_count
+integer, intent(in) :: ifrac, fillmode
+integer ierr
+real, intent(in) :: filldefault
+real, dimension(ifull) :: varoutr4
+real(kind=8), dimension(ifull) :: varout
+logical, dimension(fwsize), intent(in) :: mask_a
+character(len=*), intent(in) :: vname
+character(len=*), intent(in) :: uname
+
+if ( iotest ) then
+  call histrd(iarchi,ierr,vname,varout,ifull) 
+else
+  call fillhist1(vname,varoutr4,mask_a,fill_count)
+  varout = real(varoutr4,8)
+end if
+where ( varout>900._8 ) ! missing
+  varout = real(filldefault,8)  
+end where
+select case(fillmode)
+  case(0)
+    ! do nothing  
+  case(1)
+    where ( varout>150._8 )  
+      varout = min( max( varout, 170._8), 380._8 ) - real(urbtemp,8)
+    end where
+  case(2)
+    where( varout<1.e-20_8 )
+      varout = real(filldefault,8)
+    end where
+  case default
+    write(6,*) "ERROR: Unknown fillmode in fillhist1u"
+    call ccmpi_abort(-1)
+end select
+call uclem_loadd_3(varout,uname,ifrac,0)
+
+return
+end subroutine fillhist1ur8
 
 ! This version reads 3D fields
 subroutine gethist4(vname,varout)
@@ -3329,38 +3399,47 @@ call mloregrid(ok,gosig_3,bath,v_k,varout,0)
 return
 end subroutine fillhistuv4o
 
-subroutine fillhist4u(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
+subroutine fillhist4ur8(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
 
 use cc_mpi                          ! CC MPI routines
-use ateb, only : urbtemp, atebloadd ! Urban
+use darcdf_m                        ! Netcdf data
+use infile                          ! Input file routines
 use newmpar_m                       ! Grid parameters
+use uclem_ctrl, only : urbtemp,    &
+    uclem_loadd_3                   ! Urban
 
 implicit none
       
 integer, intent(inout) :: fill_count
 integer, intent(in) :: ifrac, fillmode
-integer k
+integer k, ierr
 real, intent(in) :: filldefault
-real, dimension(ifull,5) :: varout
+real, dimension(ifull,5) :: varoutr4
+real(kind=8), dimension(ifull,5) :: varout
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: uname
 character(len=20) lname
 
-call fillhist4(vname,varout,mask_a,fill_count)
-where ( varout>900. ) ! missing
-  varout = filldefault  
+if ( iotest ) then
+  call histrd(iarchi,ierr,vname,varout,ifull) 
+else
+  call fillhist4(vname,varoutr4,mask_a,fill_count)
+  varout = real(varoutr4,8)
+end if
+where ( varout>900._8 ) ! missing
+  varout = real(filldefault,8)  
 end where
 select case(fillmode)
   case(0)
     ! do nothing  
   case(1)
-    where ( varout>150. )  
-      varout = min( max( varout, 170.), 380. ) - urbtemp
+    where ( varout>150._8 )  
+      varout = min( max( varout, 170._8), 380._8 ) - real(urbtemp,8)
     end where
   case(2)
-    where( varout<1.e-20 )
-      varout = filldefault
+    where( varout<1.e-20_8 )
+      varout = real(filldefault,8)
     end where
   case default
     write(6,*) "ERROR: Unknown fillmode in fillhist4u"
@@ -3368,11 +3447,11 @@ select case(fillmode)
 end select
 do k = 1,5
   write(lname,'(A,I1.1)') uname,k
-  call atebloadd(varout(:,k),lname,ifrac,0)
+  call uclem_loadd_3(varout(:,k),lname,ifrac,0)
 end do
         
 return
-end subroutine fillhist4u
+end subroutine fillhist4ur8
 
 ! *****************************************************************************
 ! FILE DATA MESSAGE PASSING ROUTINES

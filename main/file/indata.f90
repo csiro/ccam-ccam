@@ -47,13 +47,12 @@ end interface datacheck
 
 contains
     
-subroutine indataf(lapsbot,isoth,nsig)
+subroutine indataf(lapsbot,isoth,nsig,nmlfile)
      
 use aerointerface                                ! Aerosol interface
 use aerosol_arrays, only : xtg,naero,itracdu     ! Aerosol arrays
 use amipsst_m                                    ! AMIP SSTs
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use ateb, ateb_energytol => energytol            ! Urban
 use bigxy4_m                                     ! Grid interpolation
 use cable_ccam, only : loadcbmparm,loadtile, &
                        cbmparm,maxtile,      &
@@ -102,6 +101,7 @@ use stime_m                                      ! File date data
 use timeseries, only : init_ts                   ! Tracer time series
 use tracermodule, only : readtracerflux          ! Tracer routines
 use tracers_m                                    ! Tracer data
+use uclem_ctrl                                   ! Urban
 use vecs_m                                       ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                                     ! Map to cartesian coordinates
 use vegpar_m                                     ! Vegetation arrays
@@ -166,6 +166,7 @@ real deli, delj, centi, distnew, distx, rhs, ril2
 real newzo, visalb, niralb
 real qd, dz, dxy, rhoa
 real urbanformat
+character(len=*), intent(in) :: nmlfile
 character(len=1024) :: surfin
 character(len=80) :: header
 character(len=20) :: vname
@@ -268,24 +269,26 @@ if ( myid==0 ) then
   dumc(3*kl+5)=0.     ! urbantypes
   dumc(3*kl+6)=-1.    ! lncveg_numpft
   dumc(3*kl+7)=-1.    ! lncveg_numsoil
-  call ccnf_open(vegfile,ncidveg,ierr)
-  if ( ierr==0 ) then
-    dumc(3*kl+1) = 1. ! lncveg
-    urbanformat = 0.
-    call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
-    if ( iernc==0 ) then
-      dumc(3*kl+4) = urbanformat  
+  if ( nhstest>=0 ) then
+    call ccnf_open(vegfile,ncidveg,ierr)
+    if ( ierr==0 ) then
+      dumc(3*kl+1) = 1. ! lncveg
+      urbanformat = 0.
+      call ccnf_get_attg(ncidveg,'atebformat',urbanformat,ierr=iernc)
+      if ( iernc==0 ) then
+        dumc(3*kl+4) = urbanformat  
+      end if
+      ateb_len = 0
+      call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len,failok=.true.)
+      dumc(3*kl+5) = real(ateb_len)
+      lncveg_numpft = -1
+      call ccnf_inq_dimlen(ncidveg,'pft',lncveg_numpft,failok=.true.)
+      dumc(3*kl+6) = real(lncveg_numpft)
+      lncveg_numsoil = -1
+      call ccnf_inq_dimlen(ncidveg,'soil',lncveg_numsoil,failok=.true.)
+      dumc(3*kl+7) = real(lncveg_numsoil)
     end if
-    ateb_len = 0
-    call ccnf_inq_dimlen(ncidveg,'ateb',ateb_len,failok=.true.)
-    dumc(3*kl+5) = real(ateb_len)
-    lncveg_numpft = -1
-    call ccnf_inq_dimlen(ncidveg,'pft',lncveg_numpft,failok=.true.)
-    dumc(3*kl+6) = real(lncveg_numpft)
-    lncveg_numsoil = -1
-    call ccnf_inq_dimlen(ncidveg,'soil',lncveg_numsoil,failok=.true.)
-    dumc(3*kl+7) = real(lncveg_numsoil)
-  end if
+  end if  
   
   ! test netcdf for MLO input
   dumc(3*kl+2) = 0.      ! lncbath 
@@ -299,7 +302,7 @@ if ( myid==0 ) then
         dumc(3*kl+3) = 1.  ! lncriver  
       end if
     end if  
-  end if
+  end if  
  
 end if ! (myid==0)
 
@@ -523,7 +526,7 @@ end if
 ! nsib=5 (original land surface scheme with MODIS datasets)
 ! nsib=6 (CABLE land surface scheme with internal screen diagnostics)
 ! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
-if ( nsib>=1 ) then
+if ( nsib>=1 .and. nhstest>=0 ) then
   call insoil
   call rdnsib
   if ( nsib==6 .or. nsib==7 ) then ! CABLE
@@ -597,7 +600,7 @@ end if   ! nsib>=1
 
 !-----------------------------------------------------------------
 ! LOAD URBAN DATA
-if ( nurban/=0 ) then
+if ( nurban/=0 .and. nhstest>=0 ) then
   if ( myid==0 ) write(6,*) 'Reading urban data'
   if ( lncveg==1 ) then
     allocate( local2d(ifull,2) )
@@ -633,7 +636,7 @@ end if
 
 !-----------------------------------------------------------------
 ! LOAD MIXED LAYER OCEAN
-if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
   if ( myid==0 ) write(6,*) 'Reading MLO bathymetry'
   if ( lncbath==1 ) then
     call surfread(depth,'depth',netcdfid=ncidbath)
@@ -646,7 +649,7 @@ end if
 !------------------------------------------------------------------
 ! LOAD RIVER DATA
 river_acc(:) = 0
-if ( lncbath==1 .and. lncriver==1 ) then
+if ( lncbath==1 .and. lncriver==1 .and. nhstest>=0 ) then
   if ( myid==0 ) write(6,*) 'Reading river data'
   call surfread(duma(:,1),'riveracc',netcdfid=ncidbath)
   river_acc(:) = nint(duma(:,1))
@@ -675,7 +678,7 @@ end if
 
 !--------------------------------------------------------------
 ! LAND SURFACE ERROR CHECKING
-if ( nsib>=1 ) then   !  check here for soil & veg mismatches
+if ( nsib>=1 .and. nhstest>=0 ) then   !  check here for soil & veg mismatches
   if ( mydiag ) write(6,*)'idjd,land,isoil,ivegt ',idjd,land(idjd),isoilm(idjd),ivegt(idjd)
   do iq=1,ifull
     if ( land(iq) ) then
@@ -711,7 +714,7 @@ call bounds(zs,corner=.true.)
 ! nsib=5 (original land surface scheme with MODIS datasets)
 ! nsib=6 (CABLE land surface scheme with internal screen diagnostics)
 ! nsib=7 (CABLE land surface scheme with CCAM screen diagnostics)
-if ( nsib==6 .or. nsib==7 ) then
+if ( (nsib==6 .or. nsib==7) .and. nhstest>=0 ) then
   ! albvisnir at this point holds soil albedo for cable initialisation  
   call cbmparm(ivs,svs,vlin,casapoint,greenup,fall,phendoy1,casapftfile)
   ! albvisnir at this point holds net albedo
@@ -723,13 +726,13 @@ end if
 ! nurban=0  no urban
 ! nurban=1  urban (save in restart file)
 ! nurban=-1 urban (save in history and restart files)
-if ( nurban/=0 ) then
+if ( nurban/=0 .and. nhstest>=0 ) then
   if ( myid==0 ) write(6,*) 'Initialise UCLEM urban scheme'
   where ( .not.land(1:ifull) )
     sigmu(:) = 0.
   end where
-  call atebinit(ifull,sigmu(:),0)
-  call atebtype(iurbant,0)  
+  call uclem_init(ifull,sigmu(:),0)
+  call uclem_type(iurbant,0)  
   allocate( atebparm(ateb_len,36) )
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
@@ -748,16 +751,16 @@ if ( nurban/=0 ) then
       call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm(:,10))
     end if
     call ccmpi_bcast(atebparm(:,1:10),0,comm_world) 
-    call atebdeftype(atebparm(:,1),iurbant,'bldheight',0)
-    call atebdeftype(atebparm(:,2),iurbant,'hwratio',0)
-    call atebdeftype(atebparm(:,3),iurbant,'sigvegc',0)
-    call atebdeftype(atebparm(:,4),iurbant,'sigmabld',0)
-    call atebdeftype(atebparm(:,5),iurbant,'industryfg',0)
-    call atebdeftype(atebparm(:,6),iurbant,'trafficfg',0)
-    call atebdeftype(atebparm(:,7),iurbant,'roofalpha',0)
-    call atebdeftype(atebparm(:,8),iurbant,'wallalpha',0)
-    call atebdeftype(atebparm(:,9),iurbant,'roadalpha',0)
-    call atebdeftype(atebparm(:,10),iurbant,'vegalphac',0)
+    call uclem_deftype(atebparm(:,1),iurbant,'bldheight',0)
+    call uclem_deftype(atebparm(:,2),iurbant,'hwratio',0)
+    call uclem_deftype(atebparm(:,3),iurbant,'sigvegc',0)
+    call uclem_deftype(atebparm(:,4),iurbant,'sigmabld',0)
+    call uclem_deftype(atebparm(:,5),iurbant,'industryfg',0)
+    call uclem_deftype(atebparm(:,6),iurbant,'trafficfg',0)
+    call uclem_deftype(atebparm(:,7),iurbant,'roofalpha',0)
+    call uclem_deftype(atebparm(:,8),iurbant,'wallalpha',0)
+    call uclem_deftype(atebparm(:,9),iurbant,'roadalpha',0)
+    call uclem_deftype(atebparm(:,10),iurbant,'vegalphac',0)
   end if
   ! extended ateb format v2
   if ( urbanformat>1.99 .and. urbanformat<3.01 ) then
@@ -788,23 +791,23 @@ if ( nurban/=0 ) then
     call ccmpi_bcast(atebparm(:,1:36),0,comm_world)
     do i = 1,4
       write(vname,'("roofthick",(I1.1))') i  
-      call atebdeftype(atebparm(:,i),iurbant,vname,0)  
+      call uclem_deftype(atebparm(:,i),iurbant,vname,0)  
       write(vname,'("roofcp",(I1.1))') i  
-      call atebdeftype(atebparm(:,4+i),iurbant,vname,0) 
+      call uclem_deftype(atebparm(:,4+i),iurbant,vname,0) 
       write(vname,'("roofcond",(I1.1))') i  
-      call atebdeftype(atebparm(:,8+i),iurbant,vname,0) 
+      call uclem_deftype(atebparm(:,8+i),iurbant,vname,0) 
       write(vname,'("wallthick",(I1.1))') i  
-      call atebdeftype(atebparm(:,12+i),iurbant,vname,0)  
+      call uclem_deftype(atebparm(:,12+i),iurbant,vname,0)  
       write(vname,'("wallcp",(I1.1))') i  
-      call atebdeftype(atebparm(:,16+i),iurbant,vname,0) 
+      call uclem_deftype(atebparm(:,16+i),iurbant,vname,0) 
       write(vname,'("wallcond",(I1.1))') i  
-      call atebdeftype(atebparm(:,20+i),iurbant,vname,0)
+      call uclem_deftype(atebparm(:,20+i),iurbant,vname,0)
       write(vname,'("roadthick",(I1.1))') i  
-      call atebdeftype(atebparm(:,24+i),iurbant,vname,0)  
+      call uclem_deftype(atebparm(:,24+i),iurbant,vname,0)  
       write(vname,'("roadcp",(I1.1))') i  
-      call atebdeftype(atebparm(:,28+i),iurbant,vname,0) 
+      call uclem_deftype(atebparm(:,28+i),iurbant,vname,0) 
       write(vname,'("roadcond",(I1.1))') i  
-      call atebdeftype(atebparm(:,32+i),iurbant,vname,0) 
+      call uclem_deftype(atebparm(:,32+i),iurbant,vname,0) 
     end do
   end if
   ! extended ateb format v3
@@ -819,16 +822,16 @@ if ( nurban/=0 ) then
       call ccnf_get_vara(ncidveg,'coolprop',nstart,ncount,atebparm(:,5))
     end if
     call ccmpi_bcast(atebparm(:,1:5),0,comm_world) 
-    call atebdeftype(atebparm(:,1),iurbant,'infilach',0)
-    call atebdeftype(atebparm(:,2),iurbant,'intgains',0)
-    call atebdeftype(atebparm(:,3),iurbant,'bldairtemp',0)
-    call atebdeftype(atebparm(:,4),iurbant,'heatprop',0)
-    call atebdeftype(atebparm(:,5),iurbant,'coolprop',0)
+    call uclem_deftype(atebparm(:,1),iurbant,'infilach',0)
+    call uclem_deftype(atebparm(:,2),iurbant,'intgains',0)
+    call uclem_deftype(atebparm(:,3),iurbant,'bldairtemp',0)
+    call uclem_deftype(atebparm(:,4),iurbant,'heatprop',0)
+    call uclem_deftype(atebparm(:,5),iurbant,'coolprop',0)
   end if
   deallocate( atebparm )
 else
   sigmu(:) = 0.
-  call atebdisable(0) ! disable urban
+  call uclem_disable(0) ! disable urban
 end if
 where ( sigmu<0.01 )
   iurbant = 0
@@ -842,7 +845,7 @@ end where
 ! nmlo=1 mixed layer ocean (KPP)
 ! nmlo=2 same as 1, but with Smag horz diffusion and river routing
 ! nmlo=3 same as 2, but with horizontal and vertical advection
-if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
+if ( nmlo/=0 .and. abs(nmlo)<=9 .and. nhstest>=0 ) then
   if ( myid==0 ) write(6,*) 'Initialise MLO ocean model'
   where ( .not.land )
     depth = max(depth,2.*minwater)
@@ -856,8 +859,10 @@ end if   ! if nmlo/=0 .and. abd(nmlo)<=9
 
 !-----------------------------------------------------------------
 ! INITIALISE RIVER ROUTING
-if ( myid==0 ) write(6,*) 'Initialise river routing'
-call rvrinit(river_acc)
+if ( nhstest>=0 ) then
+  if ( myid==0 ) write(6,*) 'Initialise river routing'
+  call rvrinit(river_acc)
+end if  
 
 
 !-----------------------------------------------------------------
@@ -865,18 +870,20 @@ call rvrinit(river_acc)
 ! iaero=0 no aerosol effects
 ! iaero=1 prescribed aerosol direct effect
 ! iaero=2 LDR prognostic aerosols 
-select case(abs(iaero))
-  case(0)
-    ! do nothing  
-  case(1)
-    if ( myid==0 ) write(6,*)'so4total data read from file ',so4tfile
-    call readreal(so4tfile,so4t,ifull)
-  case(2)
-    call load_aerosolldr(so4tfile,oxidantfile,kdate)
-  case default
-    write(6,*) "ERROR: Unknown iaero option ",iaero
-    call ccmpi_abort(-1)
-end select
+if ( nhstest>=0 ) then
+  select case(abs(iaero))
+    case(0)
+      ! do nothing  
+    case(1)
+      if ( myid==0 ) write(6,*)'so4total data read from file ',so4tfile
+      call readreal(so4tfile,so4t,ifull)
+    case(2)
+      call load_aerosolldr(so4tfile,oxidantfile,kdate)
+    case default
+      write(6,*) "ERROR: Unknown iaero option ",iaero
+      call ccmpi_abort(-1)
+  end select
+end if    
 
   
 !--------------------------------------------------------------
@@ -935,7 +942,7 @@ if ( io_in<4 ) then
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
                   ocndwn,xtgdwn)
     ! UPDATE BIOSPHERE DATA (nsib)
-    if ( nsib==6 .or. nsib==7 ) then
+    if ( (nsib==6 .or. nsib==7) .and. nhstest>=0 ) then
       call loadtile
     end if
   end if   ! (abs(io_in)==1)
@@ -1022,13 +1029,25 @@ else
   if (myid==0) then
     write(6,*) '============================================================================'  
     write(6,*)'Read IC from namelist tinit'
-  end if  
-  read (99, tin)
-  if (myid==0) then
+    open(99,file=trim(nmlfile),form="formatted",status="old",iostat=ierr)
+    read(99, tin)
+    close(99)
     write(6, tin)
     write(6,*) '============================================================================'
-  end if  
-
+  end if
+  dumc(1:kl) = qgin(1:kl)
+  dumc(kl+1:2*kl) = tbarr(1:kl)
+  dumc(2*kl+1) = tsea
+  dumc(2*kl+2) = uin
+  dumc(2*kl+3) = vin
+  dumc(2*kl+4) = thlapse
+  call ccmpi_bcast(dumc(2*kl+4),0,comm_world)
+  qgin(1:kl)  = dumc(1:kl)
+  tbarr(1:kl) = dumc(kl+1:2*kl)
+  tsea        = dumc(2*kl+1)
+  uin         = dumc(2*kl+2)
+  vin         = dumc(2*kl+3)
+  thlapse     = dumc(2*kl+4)
 endif   ! (io_in<4)
 
 
@@ -1080,8 +1099,9 @@ if ( nsib==3 ) then
 endif
 
 if ( io_in>=5 ) then
-  if ( nsib/=0 ) then
-    stop 'ERROR: io_in>=5 requiers nsib=0'
+  if ( nsib/=0 .and. nhstest>=0 ) then
+    write(6,*) 'ERROR: io_in>=5 requiers nsib=0 or nhstest<0'
+    call ccmpi_abort(-1)
   end if
   ! for rotated coordinate version, see jmcg's notes
   coslong = cos(rlong0*pi/180.)
@@ -1091,7 +1111,9 @@ if ( io_in>=5 ) then
   polenx = -coslat
   poleny = 0.
   polenz = sinlat
-  write(6,*) 'polenx,poleny,polenz ',polenx,poleny,polenz
+  if ( myid==0 ) then
+    write(6,*) 'polenx,poleny,polenz ',polenx,poleny,polenz
+  end if
   cent = .5*(il_g+1)  ! True center of face
   do k = 1,kl
     do iq = 1,ifull
@@ -1471,16 +1493,12 @@ if ( .not.lrestart ) then
                     dumb(:,:,11),dumb(:,:,12),tggsn,smass,ssdn,               &
                     ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
       ! UPDATE BIOSPHERE DATA (nsib)
-      if ( nsib==6 .or. nsib==7 ) then
-        if ( myid==0 ) then
-          write(6,*) 'Replacing CABLE and CASA data'
-        end if  
+      if ( (nsib==6 .or. nsib==7) .and. nhstest>=0 ) then
+        if ( myid==0 ) write(6,*) 'Replacing CABLE and CASA data'
         call loadtile(usedefault=.true.)
       end if
       call histclose
-      if ( myid==0 ) then
-        write(6,*) '============================================================================'
-      end if  
+      if ( myid==0 ) write(6,*) '============================================================================'
       if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
         if ( myid==0 ) then
           write(6,*) 'WARN: Could not locate correct date/time'
@@ -1696,55 +1714,36 @@ end if ! ( .not.lrestart )
 !--------------------------------------------------------------
 ! SPECIAL OPTIONS FOR TEMPERATURES (nspecial)
 
-if(nspecial==34)then      ! test for Andy Pitman & Faye
-  tgg(1:ifull,6)=tgg(1:ifull,6)+.1
-endif
-!! for CAI experiment
-!if (nspecial==42) then
-!  call caispecial
-!endif 
-!if (nspecial==43) then
-!  call caispecial
-!  do iq=1,ifull
-!    rlongd=rlongg(iq)*180./pi
-!    rlatd=rlatt(iq)*180./pi
-!    if (rlatd.ge.-6..and.rlatd.le.6.) then
-!      if (rlongd.ge.180..and.rlongd.le.290.) then
-!        if (.not.land(iq)) then
-!          tgg(iq,1)=293.16
-!          tss(iq)=293.16
-!        end if
-!      end if
-!    end if
+!if(nspecial==34)then      ! test for Andy Pitman & Faye
+!  tgg(1:ifull,6)=tgg(1:ifull,6)+.1
+!endif
+!if (nspecial==48.or.nspecial==49) then
+!  ! for Andrew Lenton SCOPEX geoengineering  
+!  do k = 1,kl
+!    if ( sig(k)<0.05 ) exit
 !  end do
+!  k = k - 1
+!  jg = il_g/2 + il_g
+!  do ig = il_g/2-2,il_g/2+2
+!    nd = (jg-1)/il_g
+!    jdf = jg - nd*il_g
+!    if ( fproc(ig,jdf,nd)==myid ) then
+!      iqg = ig + (jg-1)*il_g  
+!      call indv_mpi(iqg,ii,jj,nn)
+!      iq = indp(ii,jj,nn)
+!      rhoa = ps(iq)*sig(k)/(rdry*t(iq,k))
+!      dz = -rdry*dsig(k)*t(iq,k)/(grav*sig(k)) !m
+!      dxy = (ds/em(iq))**2 ! m2
+!      if ( nspecial==48 ) then
+!        qd = (1./5.)/(rhoa*dz*dxy) ! 1kg over 5 grid boxes
+!      else if ( nspecial==49 ) then
+!        qd = (100./5.)/(rhoa*dz*dxy) ! 100kg over 5 grid boxes  
+!      end if
+!      xtgdwn(iq,k,itracdu) = xtgdwn(iq,k,itracdu) + qd 
+!      write(6,*) "NSPECIAL==48 myid,k,sig,ig,jg,iq,qd,dz,dxy ",myid,k,sig(k),ig,jg,iq,qd,dz,dxy
+!    end if
+!  end do  
 !end if
-if (nspecial==48.or.nspecial==49) then
-  ! for Andrew Lenton SCOPEX geoengineering  
-  do k = 1,kl
-    if ( sig(k)<0.05 ) exit
-  end do
-  k = k - 1
-  jg = il_g/2 + il_g
-  do ig = il_g/2-2,il_g/2+2
-    nd = (jg-1)/il_g
-    jdf = jg - nd*il_g
-    if ( fproc(ig,jdf,nd)==myid ) then
-      iqg = ig + (jg-1)*il_g  
-      call indv_mpi(iqg,ii,jj,nn)
-      iq = indp(ii,jj,nn)
-      rhoa = ps(iq)*sig(k)/(rdry*t(iq,k))
-      dz = -rdry*dsig(k)*t(iq,k)/(grav*sig(k)) !m
-      dxy = (ds/em(iq))**2 ! m2
-      if ( nspecial==48 ) then
-        qd = (1./5.)/(rhoa*dz*dxy) ! 1kg over 5 grid boxes
-      else if ( nspecial==49 ) then
-        qd = (100./5.)/(rhoa*dz*dxy) ! 100kg over 5 grid boxes  
-      end if
-      xtgdwn(iq,k,itracdu) = xtgdwn(iq,k,itracdu) + qd 
-      write(6,*) "NSPECIAL==48 myid,k,sig,ig,jg,iq,qd,dz,dxy ",myid,k,sig(k),ig,jg,iq,qd,dz,dxy
-    end if
-  end do  
-end if
 
 
 !--------------------------------------------------------------
@@ -2261,7 +2260,7 @@ end if
 
 !-----------------------------------------------------------------
 ! UPDATE AEROSOL DATA (iaero)
-if ( abs(iaero)>=2 ) then
+if ( abs(iaero)>=2 .and. nhstest>=0 ) then
   xtg(1:ifull,1:kl,1:naero) = xtgdwn(1:ifull,1:kl,1:naero)
 end if
       

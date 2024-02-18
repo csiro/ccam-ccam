@@ -79,7 +79,6 @@ use vvel_m
 
 implicit none
 
-real, dimension(ifull+iextra,kl,4) :: work
 real, dimension(ifull+iextra,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
@@ -119,7 +118,6 @@ else
   kmax = 0
 end if
 
-work = 0.
 do k = 1,kl
   t_kh(:,k) = 0.
   xfact(:,k) = 0.
@@ -233,14 +231,13 @@ end if ! nvmix=6 .or. nvmix==9
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
   do k = 1,kl
     ! in hordifgt, need to calculate Cartesian components 
-    work(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
-    work(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
-    work(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
+    uc(1:ifull,k) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
+    vc(1:ifull,k) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
+    wc(1:ifull,k) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
-  call bounds(work(:,:,1:3))
-  uc(:,:) = work(:,:,1)
-  vc(:,:) = work(:,:,2)
-  wc(:,:) = work(:,:,3)
+  call bounds(uc)
+  call bounds(vc)
+  call bounds(wc)
 end if
 
 ! apply horz diffusion
@@ -332,11 +329,136 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 
 ! perform diffusion ---------------------------------------------------
 
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
+  do k = 1,kl
+    t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull)
+  end do
+  call bounds(t)
+end if
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then
+  call bounds(qg)
+end if
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call bounds(qlg)
+  call bounds(qfg)
+  call bounds(stratcloud)
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    call bounds(ni)
+  end if
+end if
+if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
+  call bounds(eps)
+  call bounds(tke)
+end if
+if ( nhorps==-4 .and. abs(iaero)>=2 ) then
+  call bounds(xtg)  
+end if
+
+#ifdef GPU
+  !$acc data create(xfact,yfact,emi,ie,iw,in,is,iwu,isv)
+  !$acc update device(xfact,yfact,emi,ie,iw,in,is,iwu,isv)
+#else
+  !$omp parallel
+  !$omp sections
+#endif
+
 ! momentum U, V, W - bounds updated above
+#ifndef GPU
+!$omp section
+#endif
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(uc,xfact,yfact,emi)
+end if
+#ifndef GPU
+!$omp section
+#endif
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(vc,xfact,yfact,emi)
+end if
+#ifndef GPU
+!$omp section
+#endif
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(wc,xfact,yfact,emi)
+end if  
+
+! potential temperture and water vapour
+#ifndef GPU
+!$omp section
+#endif
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
+  call hordifgt_work(t,xfact,yfact,emi)
+end if
+#ifndef GPU
+!$omp section
+#endif
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then
+  call hordifgt_work(qg,xfact,yfact,emi)
+end if  
+
+! cloud liquid & frozen water plus cloud fraction
+#ifndef GPU
+!$omp section
+#endif
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(qlg,xfact,yfact,emi)
+end if
+#ifndef GPU
+!$omp section
+#endif
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(qfg,xfact,yfact,emi)
+end if
+#ifndef GPU
+!$omp section
+#endif
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(stratcloud,xfact,yfact,emi)
+end if
+#ifndef GPU
+!$omp section
+#endif
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    call hordifgt_work(ni,xfact,yfact,emi)
+  end if
+end if
+
+! tke and eps
+#ifndef GPU
+!$omp section
+#endif
+if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
+  call hordifgt_work(eps,xfact,yfact,emi)
+end if
+#ifndef GPU
+!$omp section
+#endif
+if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
+  call hordifgt_work(tke,xfact,yfact,emi)
+end if
+
+#ifndef GPU
+!$omp end sections nowait
+#endif
+
+! prgnostic aerosols (disabled by default)
+if ( nhorps==-4 .and. abs(iaero)>=2 ) then
+  !$omp do schedule(static) private(ntr)
+  do ntr = 1,naero
+    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
+  end do
+  !$omp end do nowait
+end if  ! (nhorps==-4.and.abs(iaero)>=2)  
+
+#ifdef GPU
+!$acc wait
+!$acc end data
+#else
+!$omp end parallel
+#endif
+
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
     u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
                  + ay(1:ifull)*vc(1:ifull,k) &
@@ -346,81 +468,11 @@ if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
                  + bz(1:ifull)*wc(1:ifull,k)
   end do
 end if  
-
-
-! potential temperture and water vapour
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
-  work(:,:,1:2) = 0.  
-  do k = 1,kl
-    work(1:ifull,k,1) = t(1:ifull,k)/ptemp(1:ifull)
-    work(1:ifull,k,2) = qg(1:ifull,k)
-  end do
-  call bounds(work(:,:,1:2))
-  t(:,:)  = work(:,:,1)
-  qg(:,:) = work(:,:,2)
-  call hordifgt_work(t,xfact,yfact,emi)
-  call hordifgt_work(qg,xfact,yfact,emi)
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   do k = 1,kl
     t(1:ifull,k) = t(1:ifull,k)*ptemp(1:ifull)  
   end do
-else if ( nhorps==-5 ) then
-  call bounds(t)  
-  call hordifgt_work(t,xfact,yfact,emi)
-else if ( nhorps==-3 ) then  
-  call bounds(qg)  
-  call hordifgt_work(qg,xfact,yfact,emi)  
-end if  
-
-! cloud liquid & frozen water plus cloud fraction
-if ( nhorps==-4 .and. ldr/=0 ) then  
-  if ( ncloud>=100 .and. ncloud<200 ) then
-    work(1:ifull,:,1) = qlg(1:ifull,:)
-    work(1:ifull,:,2) = qfg(1:ifull,:)
-    work(1:ifull,:,3) = stratcloud(1:ifull,:)
-    work(1:ifull,:,4) = ni(1:ifull,:)
-    call bounds(work(:,:,1:4))
-    qlg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,1)
-    qfg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,2)
-    stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
-    ni(ifull+1:ifull+iextra,:)         = work(ifull+1:ifull+iextra,:,4)
-  else  
-    work(1:ifull,:,1) = qlg(1:ifull,:)
-    work(1:ifull,:,2) = qfg(1:ifull,:)
-    work(1:ifull,:,3) = stratcloud(1:ifull,:)
-    call bounds(work(:,:,1:3))
-    qlg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,1)
-    qfg(ifull+1:ifull+iextra,:)        = work(ifull+1:ifull+iextra,:,2)
-    stratcloud(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,3)
-  end if
-  call hordifgt_work(qlg,xfact,yfact,emi)
-  call hordifgt_work(qfg,xfact,yfact,emi)
-  call hordifgt_work(stratcloud,xfact,yfact,emi)
-  if ( ncloud>=100 .and. ncloud<200 ) then
-    call hordifgt_work(ni,xfact,yfact,emi)
-  end if
 end if
-
-
-! tke and eps
-if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
-  work(1:ifull,:,1) = tke(1:ifull,:)
-  work(1:ifull,:,2) = eps(1:ifull,:)
-  call bounds(work(:,:,1:2))
-  tke(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,1)
-  eps(ifull+1:ifull+iextra,:) = work(ifull+1:ifull+iextra,:,2)
-  call hordifgt_work(eps,xfact,yfact,emi)
-  call hordifgt_work(tke,xfact,yfact,emi)
-end if
-
-
-! prgnostic aerosols (disabled by default)
-if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  call bounds(xtg)  
-  do ntr = 1,naero
-    call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
-  end do
-end if  ! (nhorps==-4.and.abs(iaero)>=2)  
-
 
 if ( diag .and. mydiag ) then
   do k = 1,kl
@@ -437,19 +489,27 @@ end subroutine hordifgt
 
 subroutine hordifgt_work(work,xfact,yfact,emi)
 
+use cc_acc, only : async_length
 use indices_m
 use newmpar_m
 
 implicit none
 
 integer k, iq
+integer, save :: async_counter = -1
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
 real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
-!$omp parallel do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
+async_counter = mod(async_counter+1, async_length)
+
+!$acc enter data create(ans,work) async(async_counter)
+!$acc update device(work) async(async_counter)
+
+!$acc parallel loop collapse(2) present(xfact,yfact,emi,ans,work,iwu,isv,ie,iw,in,is) &
+!$acc   async(async_counter)
 do k = 1,kl
   do iq = 1,ifull  
     xfact_iwu = xfact(iwu(iq),k)
@@ -463,11 +523,18 @@ do k = 1,kl
                   yfact_isv*work(is(iq),k) )         &
                / base 
   end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
+do k = 1,kl
   do iq = 1,ifull
     work(iq,k) = ans(iq,k)
   end do
 end do
-!$omp end parallel do
+!$acc end parallel loop
+
+!$acc update self(work) async(async_counter)
+!$acc exit data delete(work,ans) async(async_counter)
 
 return
 end subroutine hordifgt_work
