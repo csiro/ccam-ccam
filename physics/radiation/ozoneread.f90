@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -658,7 +658,7 @@ real, parameter :: massratio = amo / amd
 integer :: lato3d  ! = jg  number of data latitudinal grid
 integer :: layo3d  ! = kg  number of data vertical layers
 integer :: lvlo3d  ! = lg  number of data vertical layer interfaces
-integer :: j, k, month
+integer :: j, k, month, ierr
 integer, parameter :: un = 16  ! Unit number for file
 real, dimension(kg) :: galt, gprs
 real, dimension(lg) :: gali
@@ -695,9 +695,19 @@ if (myid==0) then
   read (un,"(a)") label   ! interface altitude (km) ------>
   read (un,"(10(1pe12.5))") (gali(k),k=1,lvlo3d)
   do month = 1,mo
-    read (un,"(a)") label   ! monthly o3 vmr (ppmv) lat-alt
+    read (un,"(a)",iostat=ierr) label   ! monthly o3 vmr (ppmv) lat-alt
+    if ( ierr/=0 ) exit
     read (un,"(10(1pe12.5))") ((gdat(j,k,month),j=1,lato3d),k=1,layo3d)
   enddo
+  if (ierr/=0 .and. month>1) then
+    write(6,*) "Annual ozone data detected"
+    do month = 2,mo
+      gdat(:,:,month) = gdat(:,:,1)
+    end do
+  else if ( ierr/=0 ) then
+    write(6,*) "ERROR: Cannot read ozone file with amipo3=.true."
+    call ccmpi_abort(-1)
+  end if
   close(un)
 end if
 
