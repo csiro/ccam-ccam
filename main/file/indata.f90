@@ -505,6 +505,9 @@ else                   ! aquaplanet test -1 to -8 or -22
   zsmask(:)=0.
   he(:)=0.         
   land(:)=.false.
+  isoilm = 0
+  isoilm_in = 0
+  ivegt = 0
 endif  ! (io_in<=4.and.nhstest>=0)  ..else..
 
 if ( mydiag ) then
@@ -678,7 +681,7 @@ end if
 
 !--------------------------------------------------------------
 ! LAND SURFACE ERROR CHECKING
-if ( nsib>=1 .and. nhstest>=0 ) then   !  check here for soil & veg mismatches
+if ( nsib>=1 ) then   !  check here for soil & veg mismatches
   if ( mydiag ) write(6,*)'idjd,land,isoil,ivegt ',idjd,land(idjd),isoilm(idjd),ivegt(idjd)
   do iq=1,ifull
     if ( land(iq) ) then
