@@ -364,6 +364,7 @@ do tile = 1,ntiles
     allocate(p_g(ifrac,tile)%roof_water_runoff(ufull_g(tile)),p_g(ifrac,tile)%roof_snow_runoff(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%roof_soil_runoff(ufull_g(tile)),p_g(ifrac,tile)%road_water_runoff(ufull_g(tile)))
     allocate(p_g(ifrac,tile)%road_snow_runoff(ufull_g(tile)),p_g(ifrac,tile)%road_soil_runoff(ufull_g(tile)))
+    allocate(p_g(ifrac,tile)%ac_heat_on(ufull_g(tile)),p_g(ifrac,tile)%ac_cool_on(ufull_g(tile)))
 
     if ( ufull_g(tile)>0 ) then
 
@@ -447,6 +448,8 @@ do tile = 1,ntiles
       p_g(ifrac,tile)%road_water_runoff=0.
       p_g(ifrac,tile)%road_snow_runoff=0.
       p_g(ifrac,tile)%road_soil_runoff=0.
+      p_g(ifrac,tile)%ac_heat_on=1.
+      p_g(ifrac,tile)%ac_cool_on=1.
 
     end if
     
@@ -523,6 +526,7 @@ if ( uclem_active ) then
       deallocate(p_g(ifrac,tile)%surfstor,p_g(ifrac,tile)%snowfrac)
       deallocate(p_g(ifrac,tile)%salbedo,p_g(ifrac,tile)%calbedo)
       deallocate(p_g(ifrac,tile)%taircanyon,p_g(ifrac,tile)%delswe)
+      deallocate(p_g(ifrac,tile)%ac_heat_on,p_g(ifrac,tile)%ac_heat_on)
       
     end do  
 
@@ -3272,13 +3276,16 @@ u_evspsbl = 0.
 u_sbl = 0.
 
 do ifrac = 1,nfrac
+    
+  ! fractional interior spaces
+  call uclem_prepinterior(ifrac,fp,pd(ifrac),ufull)
 
   ! Update urban prognostic variables
   call uclem_eval(tmp_fg,tmp_eg,tmp_ts,tmp_wf,tmp_rn,tmp_evspsbl,tmp_sbl,dt,a_sg,a_rg,a_rho,a_temp,a_temproof,  &
                   a_mixr,a_mixrroof,a_ps,a_umag,a_umagroof,a_udir,a_rnd,a_snd,a_zmin,a_zroof,fp,fp_intm,        &
                   fp_road,fp_roof,fp_slab,fp_wall,intm(ifrac),pd(ifrac),rdhyd(ifrac),rfhyd(ifrac),rfveg,        &
                   road(ifrac),roof(ifrac),room(ifrac),slab(ifrac),walle(ifrac),wallw(ifrac),cnveg,intl,ufull,   &
-                  ifrac,0,diag)
+                  0,diag)
 
   u_fg = u_fg + tmp_fg*pd(ifrac)%frac_sigma
   u_eg = u_eg + tmp_eg*pd(ifrac)%frac_sigma

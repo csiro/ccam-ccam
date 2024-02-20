@@ -44,7 +44,7 @@ implicit none
 
 private
 public uclem_eval, init_lwcoeff, init_internal, getswcoeff, getnetalbedo
-public uclem_calc_alb
+public uclem_calc_alb, uclem_prepinterior
 public facetdata, facetparams, hydrodata, vegdata, intldata, fparmdata, pdiagdata
 public urbtemp,energytol,resmeth,zohmeth,acmeth,nrefl,                                 &
        scrnmeth,wbrelaxc,wbrelaxr,ncyits,nfgits,tol,                                   &
@@ -116,6 +116,7 @@ type pdiagdata
   real, dimension(:), allocatable :: delswe
   real, dimension(:), allocatable :: roof_water_runoff, roof_snow_runoff, roof_soil_runoff
   real, dimension(:), allocatable :: road_water_runoff, road_snow_runoff, road_soil_runoff
+  real, dimension(:), allocatable :: ac_heat_on, ac_cool_on
   real(kind=8), dimension(:), allocatable :: surferr, atmoserr, surferr_bias, atmoserr_bias
   real(kind=8), dimension(:), allocatable :: storage_flux
   ! real(kind=8), dimension(:,:), allocatable :: storagetot_road, storagetot_walle, storagetot_wallw, storagetot_roof
@@ -248,11 +249,11 @@ contains
 subroutine uclem_eval(u_fg,u_eg,u_ts,u_wf,u_rn,u_evspsbl,u_sbl,ddt,a_sg,a_rg,a_rho,a_temp,a_temproof, &
                       a_mixr,a_mixrroof,a_ps,a_umag,a_umagroof,a_udir,a_rnd,a_snd,a_zmin,a_zroof,fp,  &
                       fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,    &
-                      room,slab,walle,wallw,cnveg,intl,ufull,ifrac,progcalc,diag)
+                      room,slab,walle,wallw,cnveg,intl,ufull,progcalc,diag)
 
 implicit none
 
-integer, intent(in) :: ufull, ifrac, progcalc, diag
+integer, intent(in) :: ufull, progcalc, diag
 integer k
 real, intent(in) :: ddt
 real, dimension(ufull), intent(in) :: a_sg,a_rg,a_rho,a_temp,a_mixr,a_ps,a_umag,a_udir,a_rnd,a_snd,a_zmin
@@ -433,32 +434,12 @@ select case(resmeth)
 end select
   
 call getdiurnal(fp%ctime,fp%weekdayload,cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation)
-! remove statistical energy use diurnal adjustments
-if (statsmeth==0) then
-  cyc_basedemand=1.
-  cyc_proportion=1.
-  cyc_translation=0.
-end if
 ! traffic sensible heat flux
 pd%traf = fp%trafficfg*cyc_traffic
 d_traf = pd%traf/(1.-fp%sigmabld)
 ! internal gains sensible heat flux
 d_intgains_bld = (fp%intmassn+1.)*fp%intgains_flr*cyc_basedemand ! building internal gains 
 pd%intgains_full= fp%sigmabld*d_intgains_bld                     ! full domain internal gains
-! fractional interior spaces
-select case( intairtmeth + (ifrac-1)*10 )
-  case(0,1)
-    pd%frac_sigma = 1.
-  case(2)  ! heating and cooling
-    pd%frac_sigma = min( fp%heatprop, fp%coolprop )*cyc_proportion  
-  case(12) ! heating or cooling
-    pd%frac_sigma = (max( fp%heatprop, fp%coolprop ) - min( fp%heatprop, fp%coolprop ))*cyc_proportion
-  case(22) ! no conditioning
-    pd%frac_sigma = 1. - max( fp%heatprop, fp%coolprop )*cyc_proportion
-  case default
-    write(6,*) "ERROR: Invalid choice for intairtemth+(ifrac-1)*10 ",intairtmeth + (ifrac-1)*10
-    stop
-end select      
 
 ! calculate canyon fluxes
 call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,                          &
@@ -474,7 +455,7 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  int_infilflux,int_infilfg,cyc_proportion,cyc_translation,ddt,                   &
                  cnveg,fp,fp_intm,fp_road,fp_roof,fp_wall,fp_slab,intm,pd,rdhyd,rfveg,road,      &
                  roof,room,slab,walle,wallw,iroomtemp,cvcoeff_roof,cvcoeff_walle,                &
-                 cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,ifrac,ufull,diag)
+                 cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,ufull,diag)
 
 zero_flux = 0.
 
@@ -1504,10 +1485,10 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        int_infilflux,int_infilfg,cyc_proportion,cyc_translation,ddt,                   &
                        cnveg,fp,fp_intm,fp_road,fp_roof,fp_wall,fp_slab,intm,pd,rdhyd,rfveg,road,      &
                        roof,room,slab,walle,wallw,iroomtemp,cvcoeff_roof,cvcoeff_walle,                &
-                       cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,ifrac,ufull,diag)
+                       cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,ufull,diag)
 implicit none
 
-integer, intent(in) :: ifrac,ufull,diag
+integer, intent(in) :: ufull,diag
 integer k,l
 real, intent(in)    :: ddt
 real, dimension(ufull), intent(inout) :: rg_road,fg_road,eg_road,abase_road
@@ -1682,14 +1663,14 @@ do l = 1,ncyits
                                walle,wallw,slab,intm)
 
     case(1,2) ! complex internal physics (per Lipson et al., 2018) or with interior frac      
-      call interiorflux_complex(ifrac,ufull,diag,l,ddt,a_rho,we,ww,              &
+      call interiorflux_complex(ufull,diag,l,ddt,a_rho,we,ww,                    &
                                 d_intgains_bld,cyc_proportion,d_canyontemp_prev, &
                                 d_canyontemp,d_ac_canyon,d_ac_inside,d_roomstor, &
                                 iroomtemp,int_infilflux,int_infilfg,             &
                                 cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,        &
                                 cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,fp,     &
                                 fp_roof,fp_wall,fp_slab,fp_intm,roof,walle,      &
-                                wallw,slab,intm,room)
+                                wallw,slab,intm,room,pd)
     case default
       write(6,*) "ERROR: Unknown option intairtmeth = ",intairtmeth
       stop
@@ -1848,13 +1829,13 @@ end subroutine interiorflux_simple
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! solve for canyon/ internal heat fluxes and air temperatures
 
-subroutine interiorflux_complex(ifrac,ufull,diag,l,ddt,a_rho,d_weu,d_wwu,              &
+subroutine interiorflux_complex(ufull,diag,l,ddt,a_rho,d_weu,d_wwu,                    &
                                 d_intgains_bld,cyc_proportion,d_canyontemp_prev,       &
                                 d_canyontemp,d_ac_canyon,d_ac_inside,d_roomstor,       &
                                 iroomtemp,int_infilflux,int_infilfg,                   &
                                 cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab, &
                                 cvcoeff_intm1,cvcoeff_intm2,fp,fp_roof,fp_wall,        &
-                                fp_slab,fp_intm,roof,walle,wallw,slab,intm,room)
+                                fp_slab,fp_intm,roof,walle,wallw,slab,intm,room,pd)
 
 implicit none
 
@@ -1871,7 +1852,6 @@ implicit none
 !---------------------------------------------------------------------------------
 
 ! passed variables
-integer,                    intent(in) :: ifrac                   ! fractional conditioning integer
 integer,                    intent(in) :: diag                    ! diagnostic integer
 integer,                    intent(in) :: ufull                   ! tile vector length
 integer,                    intent(in) :: l                       ! ncyits loop integer
@@ -1895,12 +1875,12 @@ type(fparmdata),   intent(in) :: fp
 type(facetparams), intent(in) :: fp_roof,fp_wall,fp_slab,fp_intm
 type(facetdata),   intent(in) :: roof,walle,wallw,slab,intm
 type(facetdata),   intent(inout) :: room
+type(pdiagdata),   intent(in) :: pd
 
 ! local variables
 integer iqu
 real, dimension(ufull) :: ggint_roof, ggint_walle, ggint_wallw ! facet convection fluxes
 real, dimension(ufull) :: ggint_slab, ggext_intm, ggint_intm   ! facet convection fluxes
-real, dimension(ufull) :: ac_heat_on,ac_cool_on
 real, dimension(ufull) :: rm,rf,we,ww,sl,im1,im2,infl
 real, dimension(ufull) :: ac_coeff,d_ac_cool,d_ac_heat,ac_load
 real, dimension(ufull) :: infl_dynamic,itemp
@@ -1914,25 +1894,6 @@ if ( diag>=1 ) write(6,*) "Evaluating with varying internal air temperature"
 
 ! calculate canyon temperature for fluxes
 canyontemp_ave = infilalpha*d_canyontemp + (1.-infilalpha)*d_canyontemp_prev
-
-
-! fractional interior conditioning cases (1=on)
-select case( ifrac )
-  case(1)
-    ac_heat_on = 1.
-    ac_cool_on = 1.
-  case(2)
-    where ( fp%heatprop>fp%coolprop )
-      ac_heat_on = 1.
-      ac_cool_on = 0.
-    elsewhere
-      ac_heat_on = 0.
-      ac_cool_on = 1.
-    end where
-  case(3)
-    ac_heat_on = 0.
-    ac_cool_on = 0.
-  end select
 
 
 ! ---1.1: Estimate internal surface convection coefficients -------------
@@ -1994,13 +1955,13 @@ d_ac_heat = 0.
 where ( itemp < ac_heat_temp )
   !ac_load = rm*(ac_heat_temp-itemp)
   ac_load = (rm+rf+we+ww+sl+im1+im2+infl)*(ac_heat_temp-itemp)
-  d_ac_heat = min(ac_heatcap*fp%bldheight,ac_load)*ac_heat_on
+  d_ac_heat = min(ac_heatcap*fp%bldheight,ac_load)*pd%ac_heat_on
 end where
 ! cooling load
 where ( itemp > ac_cool_temp )
   !ac_load = rm*(itemp-ac_cool_temp)
   ac_load = (rm+rf+we+ww+sl+im1+im2+infl)*(itemp-ac_cool_temp)
-  d_ac_cool = min(ac_coolcap*fp%bldheight,ac_load)*ac_cool_on
+  d_ac_cool = min(ac_coolcap*fp%bldheight,ac_load)*pd%ac_cool_on
 end where
 
 ! modulate acfluxes to account for proportional heating/cooling area and time of day
@@ -2399,9 +2360,56 @@ icyc_basedemand  = ((1.-real_p)*cyc_base(int_p)+real_p*cyc_base(int_p+1))*fp_wee
 icyc_proportion  = ((1.-real_p)*cyc_prop(int_p)+real_p*cyc_prop(int_p+1))*fp_weekdayload
 icyc_translation = ((1.-real_p)*cyc_tran(int_p)+real_p*cyc_tran(int_p+1))
 
+! remove statistical energy use diurnal adjustments
+if (statsmeth==0) then
+  icyc_basedemand=1.
+  icyc_proportion=1.
+  icyc_translation=0.
+end if
+
 return
 end subroutine getdiurnal
 
+subroutine uclem_prepinterior(ifrac,fp,pd,ufull)
+
+implicit none
+
+integer, intent(in) :: ifrac, ufull
+type(fparmdata),   intent(in) :: fp
+type(pdiagdata),   intent(inout) :: pd
+real, dimension(ufull) :: cyc_traffic, cyc_basedemand, cyc_proportion, cyc_translation
+
+! fractional interior spaces
+call getdiurnal(fp%ctime,fp%weekdayload,cyc_traffic,cyc_basedemand,cyc_proportion,cyc_translation)
+select case( intairtmeth + (ifrac-1)*10 )
+  case(0,1)
+    pd%frac_sigma = 1.
+    pd%ac_heat_on = 1.
+    pd%ac_cool_on = 1.
+  case(2)  ! heating and cooling
+    pd%frac_sigma = min( fp%heatprop, fp%coolprop )*cyc_proportion  
+    pd%ac_heat_on = 1.
+    pd%ac_cool_on = 1.
+  case(12) ! heating or cooling
+    pd%frac_sigma = (max( fp%heatprop, fp%coolprop ) - min( fp%heatprop, fp%coolprop ))*cyc_proportion
+    where ( fp%heatprop>fp%coolprop )
+      pd%ac_heat_on = 1.
+      pd%ac_cool_on = 0.
+    elsewhere
+      pd%ac_heat_on = 0.
+      pd%ac_cool_on = 1.
+    end where      
+  case(22) ! no conditioning
+    pd%frac_sigma = 1. - max( fp%heatprop, fp%coolprop )*cyc_proportion
+    pd%ac_heat_on = 0.
+    pd%ac_cool_on = 0.
+  case default
+    write(6,*) "ERROR: Invalid choice for intairtemth+(ifrac-1)*10 ",intairtmeth + (ifrac-1)*10
+    stop
+end select
+
+return 
+end subroutine uclem_prepinterior   
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate in-canyon wind speed for walls and road
