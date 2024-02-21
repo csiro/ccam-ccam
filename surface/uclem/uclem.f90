@@ -2370,6 +2370,9 @@ end if
 return
 end subroutine getdiurnal
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Define heating and cooling for different interior model tiles
+
 subroutine uclem_prepinterior(ifrac,fp,pd,ufull)
 
 implicit none
@@ -2452,7 +2455,7 @@ where (wdir<theta1.or.wdir>pi-theta1) ! jet on wall
   wsuma=duvb*ntheta
   wsumb=durb*ntheta
   fsum=dufb*ntheta
-elsewhere                                   ! jet on road
+elsewhere                             ! jet on road
   wsuma=dura*ntheta
   wsumb=duva*ntheta
   fsum=dufa*ntheta

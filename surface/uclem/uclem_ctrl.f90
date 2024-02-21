@@ -39,7 +39,7 @@
 !     ...
 !   end do
 !   ...
-!   call uclem_saved           ! to save current state arrays (for use by tebloadm)
+!   call uclem_saved           ! to save current state arrays (for use by uclem_loadd)
 !   call uclem_end             ! to deallocate memory before quitting
 
 ! only uclem_init and uclem_calc are mandatory.  All other subroutine calls are optional.
@@ -461,7 +461,7 @@ return
 end subroutine uclem_init
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine deallocates arrays used by the TEB scheme
+! This subroutine deallocates arrays used by the UCLEM scheme
 
 subroutine uclem_end(diag)
 
@@ -549,7 +549,7 @@ return
 end subroutine uclem_end
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! general version of tebload
+! general version of uclem_load
 
 subroutine uclem_loadd_3(urban,mode,ifrac,diag)
 
@@ -2908,7 +2908,7 @@ return
 end subroutine uclem_newangle1
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This version of tebnewangle is for CCAM and TAPM
+! This version of uclem_newangle is for CCAM and TAPM
 !
 
 subroutine uclem_ccangle(is,ifin,cosin,rlon,rlat,fjd,slag,dt,sdlt)

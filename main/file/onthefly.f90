@@ -2381,12 +2381,15 @@ real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 ! use tiles to improve cache utilisation?
 
 !$omp parallel do schedule(static) private(tile,js,je,iq,mm,n,idel,xxg,jdel,yyg)       &
 !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-!$omp   private(cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)
+!$omp   private(cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)                                 &
+!$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                       &
+!$omp   private(sx_11,sx_21,sx_02,sx_12)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -2413,16 +2416,26 @@ do tile = 1,ntiles
       emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
       emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
       emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      cmin = min(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
-                 sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
-      cmax = max(sx_l(idel,  jdel,n),sx_l(idel+1,jdel,  n), &
-                 sx_l(idel,jdel+1,n),sx_l(idel+1,jdel+1,n))
-      rmul_1 = sx_l(idel,  jdel-1,n)*dmul_2 + sx_l(idel+1,jdel-1,n)*dmul_3
-      rmul_2 = sx_l(idel-1,jdel,  n)*cmul_1 + sx_l(idel,  jdel,  n)*cmul_2 + &
-               sx_l(idel+1,jdel,  n)*cmul_3 + sx_l(idel+2,jdel,  n)*cmul_4
-      rmul_3 = sx_l(idel-1,jdel+1,n)*cmul_1 + sx_l(idel,  jdel+1,n)*cmul_2 + &
-               sx_l(idel+1,jdel+1,n)*cmul_3 + sx_l(idel+2,jdel+1,n)*cmul_4
-      rmul_4 = sx_l(idel,  jdel+2,n)*dmul_2 + sx_l(idel+1,jdel+2,n)*dmul_3
+      sx_0m = sx_l(idel,  jdel-1,n)
+      sx_1m = sx_l(idel+1,jdel-1,n)
+      sx_m0 = sx_l(idel-1,jdel,  n)
+      sx_00 = sx_l(idel,  jdel,  n)
+      sx_10 = sx_l(idel+1,jdel,  n)
+      sx_20 = sx_l(idel+2,jdel,  n)
+      sx_m1 = sx_l(idel-1,jdel+1,n)
+      sx_01 = sx_l(idel,  jdel+1,n)
+      sx_11 = sx_l(idel+1,jdel+1,n)
+      sx_21 = sx_l(idel+2,jdel+1,n)
+      sx_02 = sx_l(idel,  jdel+2,n)
+      sx_12 = sx_l(idel+1,jdel+2,n)
+      cmin = min(sx_00,sx_01,sx_10,sx_11)
+      cmax = max(sx_00,sx_01,sx_10,sx_11)
+      rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+      rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+               sx_10*cmul_3 + sx_20*cmul_4
+      rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+               sx_11*cmul_3 + sx_21*cmul_4
+      rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
       sout(iq) = sout(iq) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
                                           + rmul_3*emul_3 + rmul_4*emul_4 ), &
                                       cmax )/real(m_fly) ! Bermejo & Staniforth

@@ -1778,10 +1778,6 @@ if ( nhstest<0 .and. nmlo/=0 ) then
   write(6,*) "ERROR: nhstest<0 requires nmlo=0"
   call ccmpi_abort(-1)
 end if
-if ( nhstest<0 .and. iaero/=0 ) then
-  write(6,*) "ERROR: nhstest<0 requires iaero=0"
-  call ccmpi_abort(-1)
-end if
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then ! set ocean levels if required
   ol = max( ol, 1 )
 else

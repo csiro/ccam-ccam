@@ -59,6 +59,7 @@ real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,nagg) :: sx ! unpacked tracer arra
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 call START_LOG(ints_begin)
 
@@ -141,12 +142,24 @@ if ( intsch==1 ) then
             emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
             emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
             emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-            rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-            rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-            rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
+            rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+            rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                     sx_10*cmul_3 + sx_20*cmul_4
+            rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                     sx_11*cmul_3 + sx_21*cmul_4
+            rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do      ! iq loop
         end do        ! ii loop
@@ -167,8 +180,10 @@ if ( intsch==1 ) then
         !$acc   present(xg,yg,nface) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)                                &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
 #endif
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
@@ -190,12 +205,24 @@ if ( intsch==1 ) then
             emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
             emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
             emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-            rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-            rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-            rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
+            rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+            rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                     sx_10*cmul_3 + sx_20*cmul_4
+            rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                     sx_11*cmul_3 + sx_21*cmul_4
+            rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
@@ -235,16 +262,26 @@ if ( intsch==1 ) then
             emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
             emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
             emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-            cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-            rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-            rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
+            cmin = min(sx_00,sx_01,sx_10,sx_11)
+            cmax = max(sx_00,sx_01,sx_10,sx_11)
+            rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+            rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                     sx_10*cmul_3 + sx_20*cmul_4
+            rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                     sx_11*cmul_3 + sx_21*cmul_4
+            rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
@@ -266,7 +303,9 @@ if ( intsch==1 ) then
 #else
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)                      &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
 #endif
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
@@ -288,16 +327,26 @@ if ( intsch==1 ) then
             emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
             emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
             emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-            cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            rmul_1 = sx(idel,  jdel-1,n,k,nn)*dmul_2 + sx(idel+1,jdel-1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel-1,jdel,  n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel,  n,k,nn)*cmul_3 + sx(idel+2,jdel,  n,k,nn)*cmul_4
-            rmul_3 = sx(idel-1,jdel+1,n,k,nn)*cmul_1 + sx(idel,  jdel+1,n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+2,jdel+1,n,k,nn)*cmul_4
-            rmul_4 = sx(idel,  jdel+2,n,k,nn)*dmul_2 + sx(idel+1,jdel+2,n,k,nn)*dmul_3
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
+            cmin = min(sx_00,sx_01,sx_10,sx_11)
+            cmax = max(sx_00,sx_01,sx_10,sx_11)
+            rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+            rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                     sx_10*cmul_3 + sx_20*cmul_4
+            rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                     sx_11*cmul_3 + sx_21*cmul_4
+            rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
             s(iq,k,nn-1+nstart) = min( max( cmin, &
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
@@ -395,12 +444,24 @@ else     ! if(intsch==1)then
             emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
             emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
             emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-            rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-            rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-            rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
+            rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+            rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+                     sx_01*cmul_3 + sx_02*cmul_4
+            rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+                     sx_11*cmul_3 + sx_12*cmul_4
+            rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do         ! iq loop
         end do           ! ii loop
@@ -418,9 +479,11 @@ else     ! if(intsch==1)then
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
         !$acc   present(xg,yg,nface) async(async_counter)
 #else
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)                                &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
 #endif
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
@@ -443,12 +506,24 @@ else     ! if(intsch==1)then
             emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
             emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
             emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-            rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-            rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-            rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
+            rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+            rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+                     sx_01*cmul_3 + sx_02*cmul_4
+            rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+                     sx_11*cmul_3 + sx_12*cmul_4
+            rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
@@ -489,16 +564,26 @@ else     ! if(intsch==1)then
             emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
             emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
             emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-            cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-            rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-            rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
+            cmin = min(sx_00,sx_01,sx_10,sx_11)
+            cmax = max(sx_00,sx_01,sx_10,sx_11)
+            rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+            rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+                     sx_01*cmul_3 + sx_02*cmul_4
+            rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+                     sx_11*cmul_3 + sx_12*cmul_4
+            rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
             sextra(ii)%a(iq+(nn-1)*drlen(ii)) = min( max( cmin, &
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
@@ -517,9 +602,11 @@ else     ! if(intsch==1)then
         !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
         !$acc   present(xg,yg,nface) async(async_counter)
 #else
-        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg),                       &
-        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3), &
-        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)                      &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
 #endif
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
@@ -541,16 +628,26 @@ else     ! if(intsch==1)then
             emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
             emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
             emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-            cmin = min(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            cmax = max(sx(idel,  jdel,n,k,nn),sx(idel+1,jdel,  n,k,nn), &
-                       sx(idel,jdel+1,n,k,nn),sx(idel+1,jdel+1,n,k,nn))
-            rmul_1 = sx(idel-1,jdel,  n,k,nn)*dmul_2 + sx(idel-1,jdel+1,n,k,nn)*dmul_3
-            rmul_2 = sx(idel,  jdel-1,n,k,nn)*cmul_1 + sx(idel,  jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel,  jdel+1,n,k,nn)*cmul_3 + sx(idel,  jdel+2,n,k,nn)*cmul_4
-            rmul_3 = sx(idel+1,jdel-1,n,k,nn)*cmul_1 + sx(idel+1,jdel,  n,k,nn)*cmul_2 + &
-                     sx(idel+1,jdel+1,n,k,nn)*cmul_3 + sx(idel+1,jdel+2,n,k,nn)*cmul_4
-            rmul_4 = sx(idel+2,jdel,  n,k,nn)*dmul_2 + sx(idel+2,jdel+1,n,k,nn)*dmul_3
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
+            cmin = min(sx_00,sx_01,sx_10,sx_11)
+            cmax = max(sx_00,sx_01,sx_10,sx_11)
+            rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+            rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+                     sx_01*cmul_3 + sx_02*cmul_4
+            rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+                     sx_11*cmul_3 + sx_12*cmul_4
+            rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
             s(iq,k,nn-1+nstart) = min( max( cmin, &
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do       ! iq loop

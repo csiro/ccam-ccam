@@ -1071,15 +1071,32 @@ real, intent(in) :: xxg, yyg
 real :: sx_ans
 real :: cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
 real :: rmul_1, rmul_2, rmul_3, rmul_4
+real :: sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: sx
 logical, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: wx
 logical :: bcub_water, blin_test
 
-bcub_water = all( wx(idel:idel+1,jdel-1) ) .and.        &
-             all( wx(idel-1:idel+2,jdel:jdel+1) ) .and. &
-             all( wx(idel:idel+1,jdel+2) )
+sx_0m = sx(idel,  jdel-1)
+sx_1m = sx(idel+1,jdel-1)
+sx_m0 = sx(idel-1,jdel  )
+sx_00 = sx(idel,  jdel  )
+sx_10 = sx(idel+1,jdel  )
+sx_20 = sx(idel+2,jdel  )
+sx_m1 = sx(idel-1,jdel+1)
+sx_01 = sx(idel,  jdel+1)
+sx_11 = sx(idel+1,jdel+1)
+sx_21 = sx(idel+2,jdel+1)
+sx_02 = sx(idel,  jdel+2)
+sx_12 = sx(idel+1,jdel+2)
 
-blin_test = all( sx(idel:idel+1,jdel:jdel+1)>=cxx )
+bcub_water = wx(idel,jdel-1) .and. wx(idel+1,jdel-1) .and.   &
+             wx(idel-1,jdel) .and. wx(idel,jdel) .and.       &
+             wx(idel+1,jdel) .and. wx(idel+2,jdel) .and.     &
+             wx(idel-1,jdel+1) .and. wx(idel,jdel+1) .and.   &
+             wx(idel+1,jdel+1) .and. wx(idel+2,jdel+1) .and. &
+             wx(idel,jdel+2) .and. wx(idel+1,jdel+2)
+
+blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
 
 if ( bcub_water ) then
   cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
@@ -1092,16 +1109,28 @@ if ( bcub_water ) then
   emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
   emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
   emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-  rmul_1 = sx(idel  ,jdel-1)*dmul_2 + sx(idel+1,jdel-1)*dmul_3
-  rmul_2 = sx(idel-1,jdel  )*cmul_1 + sx(idel  ,jdel  )*cmul_2 + &
-           sx(idel+1,jdel  )*cmul_3 + sx(idel+2,jdel  )*cmul_4
-  rmul_3 = sx(idel-1,jdel+1)*cmul_1 + sx(idel  ,jdel+1)*cmul_2 + &
-           sx(idel+1,jdel+1)*cmul_3 + sx(idel+2,jdel+1)*cmul_4
-  rmul_4 = sx(idel  ,jdel+2)*dmul_2 + sx(idel+1,jdel+2)*dmul_3
+  sx_0m = sx(idel,  jdel-1)
+  sx_1m = sx(idel+1,jdel-1)
+  sx_m0 = sx(idel-1,jdel  )
+  sx_00 = sx(idel,  jdel  )
+  sx_10 = sx(idel+1,jdel  )
+  sx_20 = sx(idel+2,jdel  )
+  sx_m1 = sx(idel-1,jdel+1)
+  sx_01 = sx(idel,  jdel+1)
+  sx_11 = sx(idel+1,jdel+1)
+  sx_21 = sx(idel+2,jdel+1)
+  sx_02 = sx(idel,  jdel+2)
+  sx_12 = sx(idel+1,jdel+2)
+  rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+  rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+           sx_10*cmul_3 + sx_20*cmul_4
+  rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+           sx_11*cmul_3 + sx_21*cmul_4
+  rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
   sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
 else if ( blin_test ) then
-  sx_ans = (1.-xxg)*(1.-yyg)*sx(idel,jdel) + xxg*(1.-yyg)*sx(idel+1,jdel) &
-         + (1.-xxg)*yyg*sx(idel,jdel+1) + xxg*yyg*sx(idel+1,jdel+1)
+  sx_ans = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+         + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
 else
   sx_ans = cxx - 1.
 end if
@@ -1119,15 +1148,77 @@ implicit none
 integer, intent(in) :: idel, jdel
 real, intent(in) :: xxg, yyg
 real :: sx_ans
+real :: cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
+real :: rmul_1, rmul_2, rmul_3, rmul_4
 real :: cmin, cmax
+real :: sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: sx
 logical, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: wx
+logical :: bcub_water, blin_test
 
-sx_ans = intintp1(sx,wx,idel,jdel,xxg,yyg)
-if ( sx_ans>=cxx ) then
-  cmin = min(sx(idel,jdel),sx(idel+1,jdel),sx(idel,jdel+1),sx(idel+1,jdel+1))
-  cmax = max(sx(idel,jdel),sx(idel+1,jdel),sx(idel,jdel+1),sx(idel+1,jdel+1))
+sx_0m = sx(idel,  jdel-1)
+sx_1m = sx(idel+1,jdel-1)
+sx_m0 = sx(idel-1,jdel  )
+sx_00 = sx(idel,  jdel  )
+sx_10 = sx(idel+1,jdel  )
+sx_20 = sx(idel+2,jdel  )
+sx_m1 = sx(idel-1,jdel+1)
+sx_01 = sx(idel,  jdel+1)
+sx_11 = sx(idel+1,jdel+1)
+sx_21 = sx(idel+2,jdel+1)
+sx_02 = sx(idel,  jdel+2)
+sx_12 = sx(idel+1,jdel+2)
+
+bcub_water = wx(idel,jdel-1) .and. wx(idel+1,jdel-1) .and.   &
+             wx(idel-1,jdel) .and. wx(idel,jdel) .and.       &
+             wx(idel+1,jdel) .and. wx(idel+2,jdel) .and.     &
+             wx(idel-1,jdel+1) .and. wx(idel,jdel+1) .and.   &
+             wx(idel+1,jdel+1) .and. wx(idel+2,jdel+1) .and. &
+             wx(idel,jdel+2) .and. wx(idel+1,jdel+2)
+
+blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+if ( bcub_water ) then
+  cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+  cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+  cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+  cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+  dmul_2 = (1.-xxg)
+  dmul_3 = xxg
+  emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+  emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+  emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+  emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+  sx_0m = sx(idel,  jdel-1)
+  sx_1m = sx(idel+1,jdel-1)
+  sx_m0 = sx(idel-1,jdel  )
+  sx_00 = sx(idel,  jdel  )
+  sx_10 = sx(idel+1,jdel  )
+  sx_20 = sx(idel+2,jdel  )
+  sx_m1 = sx(idel-1,jdel+1)
+  sx_01 = sx(idel,  jdel+1)
+  sx_11 = sx(idel+1,jdel+1)
+  sx_21 = sx(idel+2,jdel+1)
+  sx_02 = sx(idel,  jdel+2)
+  sx_12 = sx(idel+1,jdel+2)
+  rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+  rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+           sx_10*cmul_3 + sx_20*cmul_4
+  rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+           sx_11*cmul_3 + sx_21*cmul_4
+  rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+  sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+  cmin = min(sx_00,sx_10,sx_01,sx_11)
+  cmax = max(sx_00,sx_10,sx_01,sx_11)
   sx_ans = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth
+else if ( blin_test ) then
+  sx_ans = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+         + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+  cmin = min(sx_00,sx_10,sx_01,sx_11)
+  cmax = max(sx_00,sx_10,sx_01,sx_11)
+  sx_ans = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth
+else
+  sx_ans = cxx - 1.
 end if
 
 return
@@ -1145,16 +1236,32 @@ real, intent(in) :: xxg, yyg
 real :: sx_ans
 real :: cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
 real :: rmul_1, rmul_2, rmul_3, rmul_4
-real :: cmax, cmin
+real :: sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: sx
 logical, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: wx
 logical :: bcub_water, blin_test
 
-bcub_water = all( wx(idel:idel+1,jdel-1) ) .and.        &
-             all( wx(idel-1:idel+2,jdel:jdel+1) ) .and. &
-             all( wx(idel:idel+1,jdel+2) )
+sx_0m = sx(idel,  jdel-1)
+sx_1m = sx(idel+1,jdel-1)
+sx_m0 = sx(idel-1,jdel  )
+sx_00 = sx(idel,  jdel  )
+sx_10 = sx(idel+1,jdel  )
+sx_20 = sx(idel+2,jdel  )
+sx_m1 = sx(idel-1,jdel+1)
+sx_01 = sx(idel,  jdel+1)
+sx_11 = sx(idel+1,jdel+1)
+sx_21 = sx(idel+2,jdel+1)
+sx_02 = sx(idel,  jdel+2)
+sx_12 = sx(idel+1,jdel+2)
 
-blin_test = all( sx(idel:idel+1,jdel:jdel+1)>=cxx )
+bcub_water = wx(idel,jdel-1) .and. wx(idel+1,jdel-1) .and.   &
+             wx(idel-1,jdel) .and. wx(idel,jdel) .and.       &
+             wx(idel+1,jdel) .and. wx(idel+2,jdel) .and.     &
+             wx(idel-1,jdel+1) .and. wx(idel,jdel+1) .and.   &
+             wx(idel+1,jdel+1) .and. wx(idel+2,jdel+1) .and. &
+             wx(idel,jdel+2) .and. wx(idel+1,jdel+2)
+
+blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
 
 if ( bcub_water ) then
   cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
@@ -1167,16 +1274,28 @@ if ( bcub_water ) then
   emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
   emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
   emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-  rmul_1 = sx(idel-1,jdel  )*dmul_2 + sx(idel-1,jdel+1)*dmul_3
-  rmul_2 = sx(idel  ,jdel-1)*cmul_1 + sx(idel  ,jdel  )*cmul_2 + &
-           sx(idel  ,jdel+1)*cmul_3 + sx(idel  ,jdel+2)*cmul_4
-  rmul_3 = sx(idel+1,jdel-1)*cmul_1 + sx(idel+1,jdel  )*cmul_2 + &
-           sx(idel+1,jdel+1)*cmul_3 + sx(idel+1,jdel+2)*cmul_4
-  rmul_4 = sx(idel+2,jdel  )*dmul_2 + sx(idel+2,jdel+1)*dmul_3
+  sx_0m = sx(idel,  jdel-1)
+  sx_1m = sx(idel+1,jdel-1)
+  sx_m0 = sx(idel-1,jdel  )
+  sx_00 = sx(idel,  jdel  )
+  sx_10 = sx(idel+1,jdel  )
+  sx_20 = sx(idel+2,jdel  )
+  sx_m1 = sx(idel-1,jdel+1)
+  sx_01 = sx(idel,  jdel+1)
+  sx_11 = sx(idel+1,jdel+1)
+  sx_21 = sx(idel+2,jdel+1)
+  sx_02 = sx(idel,  jdel+2)
+  sx_12 = sx(idel+1,jdel+2)
+  rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+  rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+           sx_01*cmul_3 + sx_02*cmul_4
+  rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+           sx_11*cmul_3 + sx_12*cmul_4
+  rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
   sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
 else if ( blin_test ) then
-  sx_ans = (1.-xxg)*(1.-yyg)*sx(idel,jdel) + xxg*(1.-yyg)*sx(idel+1,jdel) &
-         + (1.-xxg)*yyg*sx(idel,jdel+1) + xxg*yyg*sx(idel+1,jdel+1)
+  sx_ans = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+         + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
 else
   sx_ans = cxx - 1.
 end if
@@ -1194,15 +1313,77 @@ implicit none
 integer, intent(in) :: idel, jdel
 real, intent(in) :: xxg, yyg
 real :: sx_ans
-real :: cmin, cmax
+real :: cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
+real :: rmul_1, rmul_2, rmul_3, rmul_4
+real :: cmax, cmin
+real :: sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: sx
 logical, dimension(-1:ipan+2,-1:jpan+2), intent(in) :: wx
+logical :: bcub_water, blin_test
 
-sx_ans = intintp0(sx,wx,idel,jdel,xxg,yyg)
-if ( sx_ans>=cxx ) then
-  cmin = min(sx(idel,jdel),sx(idel+1,jdel),sx(idel,jdel+1),sx(idel+1,jdel+1))
-  cmax = max(sx(idel,jdel),sx(idel+1,jdel),sx(idel,jdel+1),sx(idel+1,jdel+1))
+sx_0m = sx(idel,  jdel-1)
+sx_1m = sx(idel+1,jdel-1)
+sx_m0 = sx(idel-1,jdel  )
+sx_00 = sx(idel,  jdel  )
+sx_10 = sx(idel+1,jdel  )
+sx_20 = sx(idel+2,jdel  )
+sx_m1 = sx(idel-1,jdel+1)
+sx_01 = sx(idel,  jdel+1)
+sx_11 = sx(idel+1,jdel+1)
+sx_21 = sx(idel+2,jdel+1)
+sx_02 = sx(idel,  jdel+2)
+sx_12 = sx(idel+1,jdel+2)
+
+bcub_water = wx(idel,jdel-1) .and. wx(idel+1,jdel-1) .and.   &
+             wx(idel-1,jdel) .and. wx(idel,jdel) .and.       &
+             wx(idel+1,jdel) .and. wx(idel+2,jdel) .and.     &
+             wx(idel-1,jdel+1) .and. wx(idel,jdel+1) .and.   &
+             wx(idel+1,jdel+1) .and. wx(idel+2,jdel+1) .and. &
+             wx(idel,jdel+2) .and. wx(idel+1,jdel+2)
+
+blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+if ( bcub_water ) then
+  cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+  cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+  cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+  cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+  dmul_2 = (1.-yyg)
+  dmul_3 = yyg
+  emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+  emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+  emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+  emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+  sx_0m = sx(idel,  jdel-1)
+  sx_1m = sx(idel+1,jdel-1)
+  sx_m0 = sx(idel-1,jdel  )
+  sx_00 = sx(idel,  jdel  )
+  sx_10 = sx(idel+1,jdel  )
+  sx_20 = sx(idel+2,jdel  )
+  sx_m1 = sx(idel-1,jdel+1)
+  sx_01 = sx(idel,  jdel+1)
+  sx_11 = sx(idel+1,jdel+1)
+  sx_21 = sx(idel+2,jdel+1)
+  sx_02 = sx(idel,  jdel+2)
+  sx_12 = sx(idel+1,jdel+2)
+  rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+  rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+           sx_01*cmul_3 + sx_02*cmul_4
+  rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+           sx_11*cmul_3 + sx_12*cmul_4
+  rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
+  sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+  cmin = min(sx_00,sx_10,sx_01,sx_11)
+  cmax = max(sx_00,sx_10,sx_01,sx_11)
   sx_ans = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth
+else if ( blin_test ) then
+  sx_ans = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+         + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+  cmin = min(sx_00,sx_10,sx_01,sx_11)
+  cmax = max(sx_00,sx_10,sx_01,sx_11)
+  sx_ans = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth
+else
+  sx_ans = cxx - 1.
 end if
 
 return
