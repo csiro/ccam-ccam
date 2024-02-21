@@ -526,7 +526,7 @@ if ( uclem_active ) then
       deallocate(p_g(ifrac,tile)%surfstor,p_g(ifrac,tile)%snowfrac)
       deallocate(p_g(ifrac,tile)%salbedo,p_g(ifrac,tile)%calbedo)
       deallocate(p_g(ifrac,tile)%taircanyon,p_g(ifrac,tile)%delswe)
-      deallocate(p_g(ifrac,tile)%ac_heat_on,p_g(ifrac,tile)%ac_heat_on)
+      deallocate(p_g(ifrac,tile)%ac_heat_on,p_g(ifrac,tile)%ac_cool_on)
       
     end do  
 

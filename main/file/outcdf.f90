@@ -2577,7 +2577,6 @@ if ( myid==0 .or. local ) then
   ! -----------------------------------------------------------      
   
   ! set time to number of minutes since start 
-  if ( myid==0 ) write(6,*) '-> write timers'    
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
   call ccnf_put_vara(idnc,'timer',iarch,timer)   ! to be depreciated
   call ccnf_put_vara(idnc,'mtimer',iarch,mtimer) ! to be depreciated
