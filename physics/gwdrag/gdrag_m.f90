@@ -113,7 +113,7 @@ do tile = 1,ntiles
   v(js:je,:) = lv
  
 end do
-!$omp end parallel loop
+!$omp end do nowait
 
 return
 end subroutine gwdrag
