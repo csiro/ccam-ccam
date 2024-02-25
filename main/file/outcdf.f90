@@ -1044,9 +1044,8 @@ use tkeeps, only : tke,eps,u_ema,v_ema,w_ema,  & ! TKE-EPS boundary layer
     tke_ema
 use tracermodule, only : writetrpm, co2em        ! Tracer routines
 use tracers_m                                    ! Tracer data
-use uclem_ctrl, only : uclem_saved_3,          & ! Urban
-    uclem_avetemp,urbtemp,nfrac,uclem_misc,    &
-    uclem_saved_2
+use uclem_ctrl, only : uclem_saved,            & ! Urban
+    uclem_avetemp,urbtemp,nfrac,uclem_misc
 use vegpar_m                                     ! Vegetation arrays
 use vvel_m                                       ! Additional vertical velocity
 use work2_m                                      ! Diagnostic arrays
@@ -3243,95 +3242,95 @@ if ( nurban/=0 .and. itype==-1 .and. nhstest>=0 ) then
     do k = 1,5
       write(vname,'("rooftemp",I1.1)') k
       bb = 999._8
-      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
+      call uclem_saved(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_rooftgg",I1.1)') ifrac,k
       call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do  
     do k = 1,5
       write(vname,'("walletemp",I1.1)') k  
       bb = 999._8
-      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
+      call uclem_saved(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_waletgg",I1.1)') ifrac,k
       call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do  
     do k = 1,5
       write(vname,'("wallwtemp",I1.1)') k  
       bb = 999._8
-      call uclem_saved_3(bb,vname,ifrac,0,rawtemp=.true.)
+      call uclem_saved(bb,vname,ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_walwtgg",I1.1)') ifrac,k
       call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do  
     do k = 1,5
       write(vname,'("roadtemp",I1.1)') k  
       bb = 999._8
-      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
+      call uclem_saved(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_roadtgg",I1.1)') ifrac,k
       call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do
     do k = 1,5
       write(vname,'("slabtemp",I1.1)') k  
       bb = 999._8
-      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
+      call uclem_saved(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_slabtgg",I1.1)') ifrac,k
       call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do
     do k = 1,5
       write(vname,'("intmtemp",I1.1)') k  
       bb = 999._8
-      call uclem_saved_3(bb,trim(vname),ifrac,0,rawtemp=.true.)
+      call uclem_saved(bb,trim(vname),ifrac,0,rawtemp=.true.)
       write(vname,'("t",I1.1,"_intmtgg",I1.1)') ifrac,k
       call histwrt(bb,trim(vname),idnc,iarch,local,.true.)
     end do
     bb = 999._8
-    call uclem_saved_3(bb,"roomtemp",ifrac,0)
+    call uclem_saved(bb,"roomtemp",ifrac,0)
     write(vname,'("t",I1.1,"_roomtgg1")') ifrac
     call histwrt(bb,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"canyonsoilmoisture",ifrac,0)
+    call uclem_saved(aa,"canyonsoilmoisture",ifrac,0)
     write(vname,'("t",I1.1,"_urbnsmc")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roofsoilmoisture",ifrac,0)
+    call uclem_saved(aa,"roofsoilmoisture",ifrac,0)
     write(vname,'("t",I1.1,"_urbnsmr")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roofsurfacewater",ifrac,0)
+    call uclem_saved(aa,"roofsurfacewater",ifrac,0)
     write(vname,'("t",I1.1,"_roofwtr")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roadsurfacewater",ifrac,0)
+    call uclem_saved(aa,"roadsurfacewater",ifrac,0)
     write(vname,'("t",I1.1,"_roadwtr")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"canyonleafwater",ifrac,0)
+    call uclem_saved(aa,"canyonleafwater",ifrac,0)
     write(vname,'("t",I1.1,"_urbwtrc")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roofleafwater",ifrac,0)
+    call uclem_saved(aa,"roofleafwater",ifrac,0)
     write(vname,'("t",I1.1,"_urbwtrr")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roofsnowdepth",ifrac,0)
+    call uclem_saved(aa,"roofsnowdepth",ifrac,0)
     write(vname,'("t",I1.1,"_roofsnd")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roadsnowdepth",ifrac,0)
+    call uclem_saved(aa,"roadsnowdepth",ifrac,0)
     write(vname,'("t",I1.1,"_roadsnd")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roofsnowdensity",ifrac,0)
+    call uclem_saved(aa,"roofsnowdensity",ifrac,0)
     write(vname,'("t",I1.1,"_roofden")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roadsnowdensity",ifrac,0)
+    call uclem_saved(aa,"roadsnowdensity",ifrac,0)
     write(vname,'("t",I1.1,"_roadden")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roofsnowalbedo",ifrac,0)
+    call uclem_saved(aa,"roofsnowalbedo",ifrac,0)
     write(vname,'("t",I1.1,"_roofsna")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
     aa = 999.
-    call uclem_saved_2(aa,"roadsnowalbedo",ifrac,0)
+    call uclem_saved(aa,"roadsnowalbedo",ifrac,0)
     write(vname,'("t",I1.1,"_roadsna")') ifrac
     call histwrt(aa,trim(vname), idnc,iarch,local,.true.)
   end do  

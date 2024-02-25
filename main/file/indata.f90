@@ -401,7 +401,7 @@ end if
 
 #ifdef GPUPHYSICS
 !$acc update device(sig)
-!$acc update device(bet,betm,sigmh) ! convection
+!$acc update device(dsig,bet,betm,sigmh) ! convection
 #endif
 
 

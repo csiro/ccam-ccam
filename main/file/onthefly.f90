@@ -375,7 +375,7 @@ use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &
     tke_ema                                    ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
 use uclem_ctrl, only : urbtemp, nfrac,       &
-    uclem_loadd_2, uclem_loadd_3               ! Urban
+    uclem_loadd                                ! Urban
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
 use vvel_m, only : dpsldt,sdot                 ! Additional vertical velocity
@@ -1863,19 +1863,19 @@ if ( nested/=1 .and. nested/=3 ) then
       ! restart  
       do ifrac = 1,nfrac
         write(vname,'("t",I1.1,"_rooftgg")') ifrac   
-        call fillhist4ur8(vname,"rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u(vname,"rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_waletgg")') ifrac
-        call fillhist4ur8(vname,"walletemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u(vname,"walletemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_walwtgg")') ifrac
-        call fillhist4ur8(vname,"wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u(vname,"wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_roadtgg")') ifrac
-        call fillhist4ur8(vname,"roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u(vname,"roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_slabtgg")') ifrac
-        call fillhist4ur8(vname,"slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u(vname,"slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_intmtgg")') ifrac
-        call fillhist4ur8(vname,"intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u(vname,"intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_roomtgg1")') ifrac
-        call fillhist1ur8(vname,"roomtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist1u(vname,"roomtemp",ifrac,nourban_a,fill_nourban,0.,1)
         write(vname,'("t",I1.1,"_urbnsmc")') ifrac
         call fillhist1u(vname,"canyonsoilmoisture",ifrac,nourban_a,fill_nourban,0.,0)
         write(vname,'("t",I1.1,"_urbnsmr")') ifrac
@@ -1904,12 +1904,12 @@ if ( nested/=1 .and. nested/=3 ) then
     else if ( urban2_found ) then
       ! nested with urban data  
       do ifrac = 1,nfrac  
-        call fillhist4ur8("rooftgg","rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4ur8("waletgg","walletemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4ur8("walwtgg","wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4ur8("roadtgg","roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4ur8("slabtgg","slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
-        call fillhist4ur8("intmtgg","intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("rooftgg","rooftemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("waletgg","walletemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("walwtgg","wallwtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("roadtgg","roadtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("slabtgg","slabtemp",ifrac,nourban_a,fill_nourban,0.,1)
+        call fillhist4u("intmtgg","intmtemp",ifrac,nourban_a,fill_nourban,0.,1)
       end do  
     else
       ! nested without urban data
@@ -1926,17 +1926,17 @@ if ( nested/=1 .and. nested/=3 ) then
       do ifrac = 1,nfrac
         do k = 1,5
           write(vname,'("rooftemp",I1.1)') k
-          call uclem_loadd_3(dum6r8,vname,ifrac,0)
+          call uclem_loadd(dum6r8,vname,ifrac,0)
           write(vname,'("walletemp",I1.1)') k
-          call uclem_loadd_3(dum6r8,vname,ifrac,0)
+          call uclem_loadd(dum6r8,vname,ifrac,0)
           write(vname,'("wallwtemp",I1.1)') k
-          call uclem_loadd_3(dum6r8,vname,ifrac,0)
+          call uclem_loadd(dum6r8,vname,ifrac,0)
           write(vname,'("roadtemp",I1.1)') k
-          call uclem_loadd_3(dum6r8,vname,ifrac,0)
+          call uclem_loadd(dum6r8,vname,ifrac,0)
           write(vname,'("slabtemp",I1.1)') k
-          call uclem_loadd_3(dum6r8,vname,ifrac,0)
+          call uclem_loadd(dum6r8,vname,ifrac,0)
           write(vname,'("intmtemp",I1.1)') k
-          call uclem_loadd_3(dum6r8,vname,ifrac,0)
+          call uclem_loadd(dum6r8,vname,ifrac,0)
         end do  
       end do        
     end if    
@@ -3113,52 +3113,11 @@ end subroutine fillhistuv1o
 subroutine fillhist1u(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
 
 use cc_mpi                          ! CC MPI routines
-use newmpar_m                       ! Grid parameters
-use uclem_ctrl, only : urbtemp,    &
-    uclem_loadd_2                    ! Urban
-
-implicit none
-      
-integer, intent(inout) :: fill_count
-integer, intent(in) :: ifrac, fillmode
-real, intent(in) :: filldefault
-real, dimension(ifull) :: varout
-logical, dimension(fwsize), intent(in) :: mask_a
-character(len=*), intent(in) :: vname
-character(len=*), intent(in) :: uname
-
-call fillhist1(vname,varout,mask_a,fill_count)
-where ( varout>900. ) ! missing
-  varout = filldefault  
-end where
-select case(fillmode)
-  case(0)
-    ! do nothing  
-  case(1)
-    where ( varout>150. )  
-      varout = min( max( varout, 170.), 380. ) - urbtemp
-    end where
-  case(2)
-    where( varout<1.e-20 )
-      varout = filldefault
-    end where
-  case default
-    write(6,*) "ERROR: Unknown fillmode in fillhist1u"
-    call ccmpi_abort(-1)
-end select
-call uclem_loadd_2(varout,uname,ifrac,0)
-
-return
-end subroutine fillhist1u
-
-subroutine fillhist1ur8(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
-
-use cc_mpi                          ! CC MPI routines
 use darcdf_m                        ! Netcdf data
 use infile                          ! Input file routines
 use newmpar_m                       ! Grid parameters
 use uclem_ctrl, only : urbtemp,    &
-    uclem_loadd_3                   ! Urban
+    uclem_loadd                     ! Urban
 
 implicit none
       
@@ -3196,10 +3155,10 @@ select case(fillmode)
     write(6,*) "ERROR: Unknown fillmode in fillhist1u"
     call ccmpi_abort(-1)
 end select
-call uclem_loadd_3(varout,uname,ifrac,0)
+call uclem_loadd(varout,uname,ifrac,0)
 
 return
-end subroutine fillhist1ur8
+end subroutine fillhist1u
 
 ! This version reads 3D fields
 subroutine gethist4(vname,varout)
@@ -3411,14 +3370,14 @@ call mloregrid(ok,gosig_3,bath,v_k,varout,0)
 return
 end subroutine fillhistuv4o
 
-subroutine fillhist4ur8(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
+subroutine fillhist4u(vname,uname,ifrac,mask_a,fill_count,filldefault,fillmode)
 
 use cc_mpi                          ! CC MPI routines
 use darcdf_m                        ! Netcdf data
 use infile                          ! Input file routines
 use newmpar_m                       ! Grid parameters
 use uclem_ctrl, only : urbtemp,    &
-    uclem_loadd_3                   ! Urban
+    uclem_loadd                     ! Urban
 
 implicit none
       
@@ -3459,11 +3418,11 @@ select case(fillmode)
 end select
 do k = 1,5
   write(lname,'(A,I1.1)') uname,k
-  call uclem_loadd_3(varout(:,k),lname,ifrac,0)
+  call uclem_loadd(varout(:,k),lname,ifrac,0)
 end do
         
 return
-end subroutine fillhist4ur8
+end subroutine fillhist4u
 
 ! *****************************************************************************
 ! FILE DATA MESSAGE PASSING ROUTINES

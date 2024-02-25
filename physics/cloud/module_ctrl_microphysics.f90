@@ -81,8 +81,7 @@ use morepbl_m                     ! Additional boundary layer diagnostics
 use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays
 use parm_m, only : dt,idjd,     &
-      iaero,irest,ktau,nwt,     &
-      nhstest                     ! Model configuration
+      iaero,irest,ktau,nwt        ! Model configuration
 use pbl_m                         ! Boundary layer arrays
 use prec_m                        ! Precipitation
 use raddiag_m                     ! Radiation diagnostic
@@ -298,7 +297,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       faccr(js:je,:) = lqaccr(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       vi(js:je,:) = lvi
       ! backwards compatible data for aerosols
-      if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+      if ( abs(iaero)>=2 ) then
         ppfevap(js:je,:)    = lppfevap
         ppfmelt(js:je,:)    = lppfmelt
         ppfprec(js:je,:)    = lppfprec
@@ -590,7 +589,7 @@ end select
 #endif
 
 ! Aerosol feedbacks
-if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+if ( abs(iaero)>=2 ) then
   if ( interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0  ) then
     !$omp do schedule(static) private(js,je,iq,k,fcol,fr,alph)
     do tile = 1,ntiles

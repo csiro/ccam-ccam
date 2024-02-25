@@ -69,8 +69,7 @@ public uclem_init, uclem_end, uclem_calc, uclem_zo, uclem_type, uclem_alb1,     
        uclem_newangle1, uclem_ccangle, uclem_disable, uclem_cd,                        &
        uclem_scrnout, uclem_fbeam, uclem_spitter, uclem_sigmau,                        &
        uclem_deftype, uclem_hydro, uclem_energy, uclem_misc,                           &
-       uclem_deftype_export, uclem_avetemp, uclem_loadd_2, uclem_saved_2,              &
-       uclem_loadd_3, uclem_saved_3
+       uclem_deftype_export, uclem_avetemp, uclem_loadd, uclem_saved, energyrecord
 public urbtemp, refheight, soilunder
 
 public upack_g, ufull_g, nl, nfrac
@@ -133,6 +132,14 @@ end interface
 
 interface uclem_misc
   module procedure uclem_misc_standard, uclem_misc_thread
+end interface
+
+interface uclem_loadd
+  module procedure uclem_loaddr4, uclem_loaddr8
+end interface
+
+interface uclem_saved
+  module procedure uclem_savedr4, uclem_savedr8
 end interface
 
 contains
@@ -551,7 +558,23 @@ end subroutine uclem_end
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! general version of uclem_load
 
-subroutine uclem_loadd_3(urban,mode,ifrac,diag)
+subroutine uclem_loaddr4(urban,mode,ifrac,diag)
+
+implicit none
+
+integer, intent(in) :: ifrac, diag
+integer ii, tile, is, ie
+real, dimension(ifull), intent(in) :: urban
+real(kind=8), dimension(ifull) :: urbanr8
+character(len=*), intent(in) :: mode
+
+urbanr8 = real(urban,8)
+call uclem_loaddr8(urbanr8,mode,ifrac,diag)
+
+return
+end subroutine uclem_loaddr4
+
+subroutine uclem_loaddr8(urban,mode,ifrac,diag)
 
 implicit none
 
@@ -666,32 +689,13 @@ select case(mode)
     return
 end select
   
-write(6,*) "ERROR: Unknown mode for uclem_loadd ",trim(mode)
-stop
-    
-return
-end subroutine uclem_loadd_3
-
-subroutine uclem_loadd_2(urban,mode,ifrac,diag)
-
-implicit none
-
-integer, intent(in) :: ifrac, diag
-integer tile, is, ie
-real, dimension(ifull), intent(in) :: urban
-character(len=*), intent(in) :: mode
-character(len=10) :: teststr
-
-if ( diag>=1 ) write(6,*) "Load UCLEM state array"
-if (.not.uclem_active) return
-  
 select case(mode)
   case("canyonsoilmoisture")
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rdhyd_g(ifrac,tile)%soilwater=pack(urban(is:ie),upack_g(:,tile))
+        rdhyd_g(ifrac,tile)%soilwater=pack(real(urban(is:ie)),upack_g(:,tile))
       end if
     end do
     return
@@ -700,7 +704,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rfhyd_g(ifrac,tile)%soilwater=pack(urban(is:ie),upack_g(:,tile))
+        rfhyd_g(ifrac,tile)%soilwater=pack(real(urban(is:ie)),upack_g(:,tile))
       end if
     end do
     return
@@ -709,7 +713,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rdhyd_g(ifrac,tile)%surfwater=pack(urban(is:ie),upack_g(:,tile))  
+        rdhyd_g(ifrac,tile)%surfwater=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -718,7 +722,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rfhyd_g(ifrac,tile)%surfwater=pack(urban(is:ie),upack_g(:,tile))  
+        rfhyd_g(ifrac,tile)%surfwater=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -727,7 +731,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rdhyd_g(ifrac,tile)%leafwater=pack(urban(is:ie),upack_g(:,tile))  
+        rdhyd_g(ifrac,tile)%leafwater=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -736,7 +740,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rfhyd_g(ifrac,tile)%leafwater=pack(urban(is:ie),upack_g(:,tile))  
+        rfhyd_g(ifrac,tile)%leafwater=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -745,7 +749,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rdhyd_g(ifrac,tile)%snow=pack(urban(is:ie),upack_g(:,tile))  
+        rdhyd_g(ifrac,tile)%snow=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -754,7 +758,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rfhyd_g(ifrac,tile)%snow=pack(urban(is:ie),upack_g(:,tile))  
+        rfhyd_g(ifrac,tile)%snow=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -763,7 +767,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rdhyd_g(ifrac,tile)%den=pack(urban(is:ie),upack_g(:,tile))  
+        rdhyd_g(ifrac,tile)%den=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -772,7 +776,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rfhyd_g(ifrac,tile)%den=pack(urban(is:ie),upack_g(:,tile))  
+        rfhyd_g(ifrac,tile)%den=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -781,7 +785,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rdhyd_g(ifrac,tile)%snowalpha=pack(urban(is:ie),upack_g(:,tile))  
+        rdhyd_g(ifrac,tile)%snowalpha=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -790,7 +794,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        rfhyd_g(ifrac,tile)%snowalpha=pack(urban(is:ie),upack_g(:,tile))  
+        rfhyd_g(ifrac,tile)%snowalpha=pack(real(urban(is:ie)),upack_g(:,tile))  
       end if
     end do
     return
@@ -800,7 +804,7 @@ write(6,*) "ERROR: Unknown mode for uclem_loadd ",trim(mode)
 stop
 
 return
-end subroutine uclem_loadd_2
+end subroutine uclem_loaddr8
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! this subroutine loads UCLEM type arrays (not compulsory)
@@ -1781,7 +1785,29 @@ end subroutine uclem_deftype_export_thread
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! general version of uclem_save
 
-subroutine uclem_saved_3(urban,mode,ifrac,diag,rawtemp)
+subroutine uclem_savedr4(urban,mode,ifrac,diag,rawtemp)
+
+implicit none
+
+integer, intent(in) :: ifrac, diag
+real, dimension(ifull), intent(inout) :: urban
+real(kind=8), dimension(ifull) :: urbanr8
+logical, intent(in), optional :: rawtemp
+logical rawmode
+character(len=*), intent(in) :: mode
+
+rawmode = .false.
+if ( present(rawtemp) ) then
+  rawmode = rawtemp
+end if
+
+call uclem_savedr8(urbanr8,mode,ifrac,diag,rawtemp=rawmode)
+urban = real(urbanr8)
+
+return
+end subroutine uclem_savedr4
+                                       
+subroutine uclem_savedr8(urban,mode,ifrac,diag,rawtemp)
 
 implicit none
 
@@ -1889,32 +1915,13 @@ select case(mode)
     return
 end select
 
-write(6,*) "ERROR: Unknown mode for uclem_saved ",trim(mode)
-stop
-
-return
-end subroutine uclem_saved_3
-
-subroutine uclem_saved_2(urban,mode,ifrac,diag)
-
-implicit none
-
-integer, intent(in) :: ifrac, diag
-integer ii, tile, is, ie
-real, dimension(ifull), intent(inout) :: urban
-character(len=*), intent(in) :: mode
-character(len=10) :: teststr
-
-if (diag>=1) write(6,*) "Save UCLEM state array"
-if (.not.uclem_active) return
-
 select case(mode)
   case("canyonsoilmoisture")
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rdhyd_g(ifrac,tile)%soilwater,upack_g(:,tile),urban(is:ie))  
+        urban(is:ie)=unpack(real(rdhyd_g(ifrac,tile)%soilwater,8),upack_g(:,tile),urban(is:ie))  
       end if
     end do
     return
@@ -1923,7 +1930,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rfhyd_g(ifrac,tile)%soilwater,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rfhyd_g(ifrac,tile)%soilwater,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -1932,7 +1939,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rdhyd_g(ifrac,tile)%surfwater,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rdhyd_g(ifrac,tile)%surfwater,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -1941,7 +1948,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rfhyd_g(ifrac,tile)%surfwater,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rfhyd_g(ifrac,tile)%surfwater,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -1950,7 +1957,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rdhyd_g(ifrac,tile)%leafwater,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rdhyd_g(ifrac,tile)%leafwater,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -1959,7 +1966,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rfhyd_g(ifrac,tile)%leafwater,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rfhyd_g(ifrac,tile)%leafwater,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -1968,7 +1975,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rdhyd_g(ifrac,tile)%snow,upack_g(:,tile),urban(is:ie))
+        urban(is:ie)=unpack(real(rdhyd_g(ifrac,tile)%snow,8),upack_g(:,tile),urban(is:ie))
       end if
     end do
     return
@@ -1977,7 +1984,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rfhyd_g(ifrac,tile)%snow,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rfhyd_g(ifrac,tile)%snow,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -1986,7 +1993,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rdhyd_g(ifrac,tile)%den,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rdhyd_g(ifrac,tile)%den,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -1995,7 +2002,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rfhyd_g(ifrac,tile)%den,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rfhyd_g(ifrac,tile)%den,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -2004,7 +2011,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rdhyd_g(ifrac,tile)%snowalpha,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rdhyd_g(ifrac,tile)%snowalpha,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -2013,7 +2020,7 @@ select case(mode)
       is = (tile-1)*imax + 1
       ie = tile*imax
       if ( ufull_g(tile)>0 ) then
-        urban(is:ie)=unpack(rfhyd_g(ifrac,tile)%snowalpha,upack_g(:,tile),urban(is:ie))    
+        urban(is:ie)=unpack(real(rfhyd_g(ifrac,tile)%snowalpha,8),upack_g(:,tile),urban(is:ie))    
       end if
     end do
     return
@@ -2023,7 +2030,70 @@ write(6,*) "ERROR: Unknown mode for uclem_saved ",trim(mode)
 stop
 
 return
-end subroutine uclem_saved_2
+end subroutine uclem_savedr8
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! This subroutine collects and passes energy closure information to atebwrap
+
+subroutine energyrecord(o_atmoserr,o_atmoserr_bias,o_surferr,o_surferr_bias, &
+                        o_heating,o_cooling,o_intgains,o_traf,o_bldtemp,o_scrntemp)
+
+implicit none
+
+integer tile, is, ie, ifrac
+real, dimension(ifull), intent(out) :: o_atmoserr,o_atmoserr_bias,o_surferr,o_surferr_bias
+real, dimension(ifull), intent(out) :: o_heating,o_cooling,o_intgains,o_traf,o_bldtemp,o_scrntemp
+
+o_atmoserr = 0.
+o_atmoserr_bias = 0.
+o_surferr = 0.
+o_surferr_bias = 0.
+o_heating = 0.
+o_cooling = 0.
+o_intgains = 0.
+o_traf = 0.
+o_bldtemp = 0.
+o_scrntemp = 0.
+
+if ( .not.uclem_active ) return
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  if ( ufull_g(tile)>0 ) then
+      
+    do ifrac = 1,nfrac  
+      
+      p_g(ifrac,tile)%atmoserr_bias = p_g(ifrac,tile)%atmoserr_bias + p_g(ifrac,tile)%atmoserr
+      p_g(ifrac,tile)%surferr_bias = p_g(ifrac,tile)%surferr_bias + p_g(ifrac,tile)%surferr
+
+      o_atmoserr(is:ie) = o_atmoserr(is:ie)            &
+          + unpack(real(p_g(ifrac,tile)%atmoserr)*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_surferr(is:ie) = o_surferr(is:ie)              &
+          + unpack(real(p_g(ifrac,tile)%surferr)*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_atmoserr_bias(is:ie) = o_atmoserr_bias(is:ie)  &
+          + unpack(real(p_g(ifrac,tile)%atmoserr_bias)*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_surferr_bias(is:ie) = o_surferr_bias(is:ie)    &
+          + unpack(real(p_g(ifrac,tile)%surferr_bias)*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_heating(is:ie) = o_heating(is:ie)              &
+          + unpack(p_g(ifrac,tile)%bldheat*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_cooling(is:ie) = o_cooling(is:ie)              &
+          + unpack(p_g(ifrac,tile)%bldcool*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_intgains(is:ie) = o_intgains(is:ie)            &
+          + unpack(p_g(ifrac,tile)%intgains_full*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_traf(is:ie) = o_traf(is:ie)                    &
+          + unpack(p_g(ifrac,tile)%traf*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_bldtemp(is:ie) = o_bldtemp(is:ie)              &
+          + unpack((real(room_g(ifrac,tile)%nodetemp(:,1))+urbtemp)*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+      o_scrntemp(is:ie) = o_scrntemp(is:ie)            &
+          + unpack((p_g(ifrac,tile)%tscrn+urbtemp)*p_g(ifrac,tile)%frac_sigma,upack_g(:,tile),0.)
+    
+    end do  
+  end if
+end do
+
+return
+end subroutine energyrecord
 
 subroutine uclem_energy_standard(o_data,mode,diag)
 
@@ -3106,9 +3176,9 @@ end subroutine uclem_sigmau
 ! oeg = Input/Output latent heat flux (W/m^2)
 ! ots = Input/Output radiative/skin temperature (K)
 ! owf = Input/Output wetness fraction/surface water (%)
-! orn = runoff
-! oevspsbl = evapotranspiration
-! osbl = sublimation
+! orn = runoff (kg/m^2)
+! oevspsbl = evapotranspiration (kg/(m^2 s))
+! osbl = sublimation (kg/(m^2 s))
 ! diag = diagnostic message mode (0=off, 1=basic messages, 2=more detailed messages, etc)
 
 subroutine uclem_calc_standard(ofg,oeg,ots,owf,orn,oevspsbl,osbl,dt,zmin,sg,rg,rnd,snd,rho, &

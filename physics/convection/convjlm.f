@@ -378,7 +378,7 @@
         lqfg      = qfg(js:je,:)
         lu        = u(js:je,:)
         lv        = v(js:je,:) 
-        if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+        if ( abs(iaero)>=2 ) then
           lxtg    = xtg(js:je,:,:)
           ldustwd = dustwd(js:je,:)
           lso2wd  = so2wd(js:je)
@@ -412,7 +412,7 @@
         fluxtot(js:je,:) = lfluxtot
         u(js:je,:)       = lu
         v(js:je,:)       = lv
-        if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+        if ( abs(iaero)>=2 ) then
           xtg(js:je,:,:)  = lxtg
           dustwd(js:je,:) = ldustwd
           so2wd(js:je) = lso2wd
@@ -466,8 +466,7 @@
       use const_phys
       use diag_m, only : maxmin
       use estab      
-      use parm_m, only : ktau,dt,nmaxpr,diag,ds,iaero,qgmin,
-     & nhstest
+      use parm_m, only : ktau,dt,nmaxpr,diag,ds,iaero,qgmin
       use parmdyn_m
       use sigs_m
       use tracers_m, only : ngas,ntrac  ! ngas, nllp, ntrac
@@ -1987,7 +1986,7 @@ c           print *,'has tied_con=0'
       endif      ! (ngas>0)
 
       ! Convective transport of aerosols - MJT
-      if ( abs(iaero)==2 .and. nhstest>=0 ) then
+      if ( abs(iaero)==2 ) then
        do k = 1,kl
         do iq = 1,imax
          ttsto(iq,k) = t(iq,k) + factr(iq)*(tt(iq,k)-t(iq,k))
