@@ -455,6 +455,7 @@ real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
 real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
 real, dimension(imax) :: evspsbl_l, sbl_l
 real, dimension(mp), intent(in) :: sv, vl2
+real, dimension(mp) :: cc1, cc2, dumt, dump, qsatfvar, ssnowpotev
 real(kind=8) :: dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
 real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
@@ -664,6 +665,12 @@ end if
 if ( any( ssnow%tss/=ssnow%tss ) ) then
   write(6,*) "ERROR: NaN found in ssnow%tss after CABLE"
   stop -1
+end if
+if ( any( ssnow%tgg(:,1)>425. ) ) then
+  write(6,*) "WARN: tgg1>425. after CABLE"
+end if
+if ( any( ssnow%tggsn(:,1)>425. ) ) then
+  write(6,*) "WARN: tggsn1>425. after CABLE"
 end if
 #endif
 
@@ -907,10 +914,22 @@ do nb = 1,maxnb
   evspsbl_l = evspsbl_l + unpack(sv(is:ie)*real((canopy%fev(is:ie)+canopy%fesp(is:ie) &
                                 +canopy%fess(is:ie)/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
   sbl_l = sbl_l + unpack(sv(is:ie)*real(ssnow%evapsn(is:ie)/dtr8),tmap(:,nb),0.)
-  ! diagnostic
-  epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)         ! diagnostic in history file
+  ! Replace potev with Penman_monteith
+  if ( cable_potev==1 ) then
+    dumt(is:ie) = real( met%tvair(is:ie) )
+    dump(is:ie) = real( met%pmb(is:ie) )*100. ! convert from mb to Pa
+    qsatfvar(is:ie) = qsat(dump(is:ie),dumt(is:ie))
+    cc1(is:ie) = real( air%dsatdk(is:ie)/(air%dsatdk(is:ie)+air%psyc(is:ie) ) )
+    cc2(is:ie) = real( air%psyc(is:ie)/(air%dsatdk(is:ie)+air%psyc(is:ie) ) )
+    ssnowpotev(is:ie) = cc1(is:ie) * real(canopy%fns(is:ie) - canopy%ga(is:ie)) +            &
+                        cc2(is:ie) * real(air%rho(is:ie) * air%rlam(is:ie))*(qsatfvar(is:ie) &
+                        - real(met%qvair(is:ie)))/real(ssnow%rtsoil(is:ie))
+    epot = epot + unpack(sv(is:ie)*ssnowpotev(is:ie),tmap(:,nb),0.)             ! diagnostic
+  else
+    epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)      ! diagnostic in history file
+  end if
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
-  rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)     ! diagnostic in history file
+  rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)    ! diagnostic in history file
 end do
 
 if ( ccycle/=0 ) then
