@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2016-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -56,6 +56,7 @@ public hp_output, surf_cordex, output_windmax, cordex_fix
 public ensemble_mode, ensemble_period, ensemble_rsfactor
 public siglow, sigmid
 public wgcoeff, wg_tau, wg_prob, ugs_meth
+public wbclim_lonn, wbclim_lonx, wbclim_latn, wbclim_latx
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
 integer, save :: kountr=0, nrad=4, nvmix=3, nlocal=6
@@ -87,6 +88,7 @@ real, save :: sigramplow=0., sigramphigh=0., amxlsq=100., dvmodmin=1., siburbanf
 real, save :: ensemble_rsfactor=0.1
 real, save :: siglow=0.68, sigmid=0.44
 real, save :: wgcoeff=-1., wg_tau=3., wg_prob=0.5
+real, save :: wbclim_lonn=0., wbclim_lonx=0., wbclim_latn=0., wbclim_latx=0.
 logical, save :: diag=.false., synchist=.false., amipo3=.false., use_rad_year=.false., localhist=.true.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.

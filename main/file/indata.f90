@@ -1745,6 +1745,10 @@ end if ! ( .not.lrestart )
 !  end do  
 !end if
 
+if ( nspecial==51 ) then
+  ! soil moisture climatology
+  call load_sm_clim
+end if
 
 !--------------------------------------------------------------
 ! SET-UP AMIP SSTs (namip)
@@ -3192,77 +3196,106 @@ end subroutine cruf2
 !=======================================================================
 
 
-!!--------------------------------------------------------------
-!! SPECIAL FUNCTION FOR SSTs
-!subroutine caispecial
-!      
-!use cc_mpi
-!use const_phys
-!use infile
-!use latlong_m
-!use newmpar_m
-!use pbl_m
-!use soil_m
-!use soilsnow_m
-!      
-!implicit none
-!      
-!integer iq,ix
-!integer ncid,ncs,varid
-!integer, dimension(3) :: spos,npos
-!real x,r
-!real, dimension(300) :: sdata,ldata
-!logical tst
-!      
-!if (myid==0) then
-!  write(6,*) "Reading nspecial=42 SSTs"
-!  spos=1
-!  call ccnf_open('sst_djf.cdf',ncid,ncs)
-!  if (ncs/=0) then
-!    write(6,*) "ERROR: Cannot open sst_djf.cdf"
-!    call ccmpi_abort(-1)
-!  end if
-!  npos=1
-!  npos(1)=300
-!  call ccnf_inq_varid(ncid,'SST_DJF',varid,tst)
-!  if (tst) then
-!    write(6,*) "ERROR: Cannot read SST_DJF"
-!    call ccmpi_abort(-1)
-!  end if
-!  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),sdata)
-!  npos=1
-!  npos(1)=300
-!  call ccnf_inq_varid(ncid,'YT_OCEAN',varid,tst)
-!  if (tst) then
-!    write(6,*) "ERROR: Cannot read SST_DJF"
-!    call ccmpi_abort(-1)
-!  end if
-!  call ccnf_get_vara(ncid,varid,spos(1:1),npos(1:1),ldata)
-!  call ccnf_close(ncid)
-!  sdata=sdata+273.16
-!end if
-!call ccmpi_bcast(sdata,0,comm_world)
-!call ccmpi_bcast(ldata,0,comm_world)
-!      
-!do iq=1,ifull
-!  if (.not.land(iq)) then
-!    r=rlatt(iq)*180./pi
-!    if (r.lt.ldata(2)) then
-!      tss(iq)=sdata(2)
-!    elseif (r.gt.ldata(300)) then
-!      tss(iq)=sdata(300)
-!    else
-!      do ix=2,300
-!        if (ldata(ix).gt.r) exit
-!      end do
-!      x=(r-ldata(ix))/(ldata(ix+1)-ldata(ix))
-!      tss(iq)=(1.-x)*sdata(ix)+x*sdata(ix+1)
-!    end if
-!    tgg(iq,1)=tss(iq)
-!  end if
-!end do
-!      
-!return
-!end subroutine caispecial
+!--------------------------------------------------------------
+! SPECIAL FUNCTION
+subroutine load_sm_clim
+
+use amipsst_m
+use cc_mpi
+use filnames_m
+use infile
+use newmpar_m
+use parmgeom_m
+use soilsnow_m, only : wb_clim
+
+implicit none
+
+integer, parameter :: nihead = 54
+integer, parameter :: nrhead = 14
+
+integer ik, il_in, jl_in
+integer ncidx, ierr, varid
+integer k
+integer, dimension(3) :: npos, spos
+#ifdef i8r8
+integer, dimension(nihead) :: nahead
+#else
+integer(kind=4), dimension(nihead) :: nahead
+#endif
+real, dimension(nrhead) :: ahead
+real rlon_in, rlat_in, schmidt_in
+real, dimension(:), allocatable :: wb_clim_raw
+real, dimension(:,:), allocatable :: wb_clim_g
+logical :: interpolate
+character(len=8) :: vname
+
+allocate(wb_clim(ifull,ms))
+
+if ( myid==0 ) then
+  write(6,*) "Load soil moisture climatology for nspecial==51"  
+
+  call ccnf_open(wbclimfile, ncidx, ierr)
+  ! older grid definition for compatibility with one.f90
+  call ccnf_get_attg(ncidx,'int_header',nahead)
+  call ccnf_get_attg(ncidx,'real_header',ahead)
+  il_in      = nahead(1)
+  jl_in      = nahead(2)
+  rlon_in    = ahead(5)
+  rlat_in    = ahead(6)
+  schmidt_in = ahead(7)  
+
+  allocate( wb_clim_g(ifulL_g,ms) )   
+  
+  interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &
+       abs(schmidt-schmidt_in)>0.0002 )
+  ik = il_in
+
+  if ( interpolate ) then
+    write(6,*) "-> Interpolation required"  
+    call define_grid(ik,rlon_in,rlat_in,schmidt_in)
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = 1
+    allocate(wb_clim_raw(ik*ik*6))
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      !lsma_raw(:) = .false.
+      !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
+      call doints1(wb_clim_raw,wb_clim_g(:,k))
+    end do  
+    deallocate(wb_clim_raw)
+    call erase_grid
+    
+  else
+
+    write(6,*) "-> No interpolation required"  
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = 1
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+    end do
+    
+  end if    
+  
+  call ccmpi_distribute(wb_clim_g,wb_clim)
+  deallocate( wb_clim_g )
+  call ccnf_close(ncidx)
+  
+else
+  call ccmpi_distribute(wb_clim)
+end if
+
+end subroutine load_sm_clim
 
 end module indata

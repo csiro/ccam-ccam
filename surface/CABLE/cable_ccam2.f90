@@ -223,6 +223,7 @@ real, dimension(imax,mlitter) :: lclitter, lnilitter, lplitter
 real, dimension(imax,mplant) :: lcplant, lniplant, lpplant
 real, dimension(imax,msoil) :: lcsoil, lnisoil, lpsoil
 real, dimension(imax,ms) :: ltgg, lwb, lwbice
+real, dimension(imax,ms) :: lwb_clim
 real, dimension(imax,3) :: lsmass, lssdn, ltggsn
 real, dimension(imax) :: lcnbp, lcnpp, lfnee, lfpn, lfrd, lfrp, lfrpr, lfrpw, lfrs
 real, dimension(imax) :: latmco2
@@ -257,7 +258,7 @@ type(climate_save_type) :: lclimate_save
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
 !$omp private(lclimate_biome,lclimate_iveg,lclimate_min20,lclimate_max20,lclimate_alpha20,lclimate_agdd5),     &
 !$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover),                 &
-!$omp private(lplant_turnover_wood,lclimate_save)
+!$omp private(lplant_turnover_wood,lclimate_save,lwb_clim)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -303,6 +304,9 @@ do tile = 1,ntiles
         lplant_turnover_wood = plant_turnover_wood(is:ie)
       end if
     end if 
+    if ( nspecial == 51 ) then
+      lwb_clim = wb_clim(is:ie,:)
+    end if
     
     ! set co2 forcing for cable
     ! constant: atmospheric co2 = 360 ppm 
@@ -358,7 +362,7 @@ do tile = 1,ntiles
                    lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,   &
                    lssnow,lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,    &
                    lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
-                   lplant_turnover_wood,lclimate_save,imax)
+                   lplant_turnover_wood,lclimate_save,lwb_clim,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -409,7 +413,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
                      sum_flux,veg,climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,      &
                      climate_agdd5,climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,   &
-                     plant_turnover_wood,climate_save,imax)
+                     plant_turnover_wood,climate_save,wb_clim,imax)
 
 use const_phys
 use dates_m
@@ -440,6 +444,7 @@ real, dimension(imax,mlitter), intent(inout) :: clitter, nilitter, plitter
 real, dimension(imax,mplant), intent(inout) :: cplant, niplant, pplant
 real, dimension(imax,msoil), intent(inout) :: csoil, nisoil, psoil
 real, dimension(imax,ms), intent(inout) :: tgg, wb, wbice
+real, dimension(imax,ms), intent(in) :: wb_clim
 real, dimension(imax,3), intent(inout) :: smass, ssdn, tggsn
 real, dimension(imax), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisdif, albvisdir, albvissav
 real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd
@@ -456,6 +461,7 @@ real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
 real, dimension(imax) :: evspsbl_l, sbl_l
 real, dimension(mp), intent(in) :: sv, vl2
 real, dimension(mp) :: cc1, cc2, dumt, dump, qsatfvar, ssnowpotev
+real, dimension(mp) :: wbclim_pack
 real(kind=8) :: dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
 real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
@@ -822,6 +828,24 @@ if ( cable_pop==1 ) then
     casabal%Cleafmean = 0._8
     casabal%Crootmean = 0._8
   end if
+end if
+
+!--------------------------------------------------------------
+! Special
+if ( nspecial == 51 ) then
+  ! reset soil moisture to prescribed climatology  
+  do k = 1,ms
+    do nb = 1,maxnb  
+      is = tind(nb,1)
+      ie = tind(nb,2)        
+      wbclim_pack(is:ie) = pack(wb_clim(:,k),tmap(:,nb))
+    end do  
+    ! 0 >= rad%longitude >= 360 and -90 >= rad%latitude >= 90
+    where( rad%longitude>=wbclim_lonn .and. rad%longitude<=wbclim_lonx .and. &
+           rad%latitude>=wbclim_latn .and. rad%latitude<=wbclim_latx )
+      ssnow%wb(:,k) = wbclim_pack(:)
+    end where
+  end do
 end if
 
 !--------------------------------------------------------------

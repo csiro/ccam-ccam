@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,6 +29,7 @@ public osnowd,snage,sno,grpl,gflux,sgflux,snowflx,otgsoil
 public runoff,albvisnir,snowmelt,runoff_surface
 public fracice,sicedep
 public isflag
+public wb_clim
 public soilsnow_init,soilsnow_end
 
 integer, dimension(:), allocatable, save :: isflag
@@ -39,6 +40,7 @@ real, dimension(:), allocatable, save :: sicedep
 real, dimension(:), allocatable, save :: fracice, snowd
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
 real, dimension(:,:), allocatable, save :: albvisnir
+real, dimension(:,:), allocatable, save :: wb_clim ! allocated in indata.f90
 
 contains
 

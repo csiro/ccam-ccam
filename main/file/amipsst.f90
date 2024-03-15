@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -48,7 +48,7 @@ module amipsst_m
 implicit none
 
 private
-public amipsst
+public amipsst, doints1, fill_cc1, define_grid, erase_grid
 
 integer, save :: amip_mode = -1 ! 0=month (ASCII), 1=month (NetCDF), 2=day (NetCDF)
 integer, save :: ncidx          ! Netcdf
@@ -654,12 +654,9 @@ use const_phys            ! Physical constants
 use filnames_m            ! Filenames
 use infile                ! Input file routines
 use latlong_m             ! Lat/lon coordinates
-use latltoij_m            ! Lat/Lon to cubic ij conversion
 use newmpar_m             ! Grid parameters
 use parm_m                ! Model configuration
 use parmgeom_m            ! Coordinate data
-use setxyz_m              ! Define CCAM grid
-use workglob_m            ! Additional grid interpolation
 
 implicit none
       
@@ -688,11 +685,6 @@ real, dimension(nrhead) :: ahead
 real rlon_in, rlat_in, schmidt_in
 real of, sc
 real timer_r
-real, dimension(:), allocatable :: axs_a, ays_a, azs_a
-real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
-real, dimension(:), allocatable :: wts_a
-real(kind=8), dimension(:,:), pointer :: xx4, yy4
-real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
 logical ltest, tst, interpolate
 logical, dimension(:), allocatable :: lsma_g
 character(len=22) header
@@ -758,34 +750,8 @@ if ( amip_mode==1 ) then
     write(6,*) "Interpolation is required for AMIPSST"
     write(6,*) "leap_file = ",leap_file
     
-    allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
-    allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
-    write(6,*) "Defining input file grid"
-    allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
-    allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
-    allocate( x_a(ik*ik*6), y_a(ik*ik*6), z_a(ik*ik*6) )
-    allocate( wts_a(ik*ik*6) )
-    !   following setxyz call is for source data geom    ****   
-    do iq = 1,ik*ik*6
-      axs_a(iq) = real(iq)
-      ays_a(iq) = real(iq)
-      azs_a(iq) = real(iq)
-    end do 
-    call setxyz(ik,rlon_in,rlat_in,-schmidt_in,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
-                id,jd,ktau,ds)
-    deallocate( x_a, y_a, z_a ) 
-    deallocate( axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a )
-    deallocate( wts_a ) 
-    nullify( x_a, y_a, z_a )    
-    ! setup interpolation arrays
-    do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
-      call latltoij(rlong4(:,mm),rlat4(:,mm),          & !input
-                    rlon_in,rlat_in,schmidt_in,        & !input
-                    xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
-                    xx4,yy4,ik)
-    end do
-    deallocate( xx4, yy4 )    
-    nullify( xx4, yy4 )    
+    call define_grid(ik,rlon_in,rlat_in,schmidt_in)
+    
     allocate( ssta_g(ik*ik*6,5), ssta_l(ifull_g,5), lsma_g(ik*ik*6) )
     lsma_g = .false.
     ssta_g = 0.
@@ -1032,7 +998,7 @@ if ( amip_mode==1 ) then
   call ccnf_close(ncidx)
   deallocate( ssta_g, ssta_l, lsma_g )
   if ( interpolate ) then
-    deallocate( nface4, xg4, yg4 )
+    call erase_grid
   end if  
   
 else
@@ -1257,7 +1223,6 @@ use dates_m                                  ! Date data
 use filnames_m                               ! Filenames
 use infile                                   ! Input file routines
 use latlong_m                                ! Lat/lon coordinates
-use latltoij_m                               ! Lat/Lon to cubic ij conversion
 use mlo, only : mloexport,mloexpmelt,wrtemp, &
                 mloimport                    ! Ocean physics and prognostic arrays
 use newmpar_m                                ! Grid parameters
@@ -1265,10 +1230,8 @@ use nharrs_m, only : lrestart                ! Non-hydrostatic atmosphere arrays
 use parm_m                                   ! Model configuration
 use parmgeom_m                               ! Coordinate data
 use pbl_m                                    ! Boundary layer arrays
-use setxyz_m                                 ! Define CCAM grid
 use soil_m                                   ! Soil and surface data
 use soilsnow_m                               ! Soil, snow and surface data
-use workglob_m                               ! Additional grid interpolation
 
 implicit none
 
@@ -1384,34 +1347,8 @@ if ( mod(ktau,nperday)==0 ) then
       if ( interpolate ) then
         write(6,*) "Interpolation is required for AMIPSST"
     
-        allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
-        allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
-        write(6,*) "Defining input file grid"
-        allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
-        allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
-        allocate( x_a(ik*ik*6), y_a(ik*ik*6), z_a(ik*ik*6) )
-        allocate( wts_a(ik*ik*6) )
-        !   following setxyz call is for source data geom    ****   
-        do iq = 1,ik*ik*6
-          axs_a(iq) = real(iq)
-          ays_a(iq) = real(iq)
-          azs_a(iq) = real(iq)
-        end do 
-        call setxyz(ik,rlon_in,rlat_in,-schmidt_in,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
-                    id,jd,ktau,ds)
-        deallocate( x_a, y_a, z_a ) 
-        deallocate( axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a )
-        deallocate( wts_a ) 
-        nullify( x_a, y_a, z_a )
-        ! setup interpolation arrays
-        do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
-          call latltoij(rlong4(:,mm),rlat4(:,mm),          & !input
-                        rlon_in,rlat_in,schmidt_in,        & !input
-                        xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
-                        xx4,yy4,ik)
-        end do
-        deallocate( xx4, yy4 )   
-        nullify( xx4, yy4 )
+        call define_grid(ik,rlon_in,rlat_in,schmidt_in)
+        
         allocate( lsma_g(ik*ik*6) )
         lsma_g = .false.
         call ccnf_inq_varid(ncidx,'lsm',lsmid,tst)
@@ -1833,5 +1770,65 @@ end do
 
 return
 end subroutine fill_cc1
+
+subroutine define_grid(ik_in,rlon_in,rlat_in,schmidt_in)
+
+use latltoij_m            ! Lat/Lon to cubic ij conversion
+use newmpar_m             ! Grid parameters
+use parm_m                ! Model configuration
+use setxyz_m              ! Define CCAM grid
+use workglob_m            ! Additional grid interpolation
+
+implicit none
+
+integer, intent(in) :: ik_in
+integer :: ik, iq, mm
+real, intent(in) :: rlon_in, rlat_in, schmidt_in
+real, dimension(:), allocatable :: axs_a, ays_a, azs_a
+real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
+real, dimension(:), allocatable :: wts_a
+real(kind=8), dimension(:,:), pointer :: xx4, yy4
+real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
+
+ik = ik_in
+
+allocate( nface4(ifull_g,4), xg4(ifull_g,4), yg4(ifull_g,4) )
+allocate( xx4(1+4*ik,1+4*ik), yy4(1+4*ik,1+4*ik) )
+allocate( axs_a(ik*ik*6), ays_a(ik*ik*6), azs_a(ik*ik*6) )
+allocate( bxs_a(ik*ik*6), bys_a(ik*ik*6), bzs_a(ik*ik*6) )
+allocate( x_a(ik*ik*6), y_a(ik*ik*6), z_a(ik*ik*6) )
+allocate( wts_a(ik*ik*6) )
+!   following setxyz call is for source data geom    ****   
+do iq = 1,ik*ik*6
+  axs_a(iq) = real(iq)
+  ays_a(iq) = real(iq)
+  azs_a(iq) = real(iq)
+end do 
+call setxyz(ik,rlon_in,rlat_in,-schmidt_in,x_a,y_a,z_a,wts_a,axs_a,ays_a,azs_a,bxs_a,bys_a,bzs_a,xx4,yy4, &
+            id,jd,ktau,ds)
+deallocate( x_a, y_a, z_a ) 
+deallocate( axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a )
+deallocate( wts_a ) 
+nullify( x_a, y_a, z_a )    
+! setup interpolation arrays
+do mm = 1,m_fly  !  was 4, now may be set to 1 in namelist
+  call latltoij(rlong4(:,mm),rlat4(:,mm),          & !input
+                rlon_in,rlat_in,schmidt_in,        & !input
+                xg4(:,mm),yg4(:,mm),nface4(:,mm),  & !output (source)
+                xx4,yy4,ik)
+end do
+deallocate( xx4, yy4 )    
+nullify( xx4, yy4 )  
+
+return
+end subroutine define_grid
+
+subroutine erase_grid
+
+implicit none
+
+deallocate( nface4, xg4, yg4 )
+
+end subroutine erase_grid
 
 end module amipsst_m

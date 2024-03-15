@@ -1555,6 +1555,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
     surf_cordex,surf_windfarm,output_windmax,cordex_fix,          &
+    wbclimfile,                                                   &
     vegprev,vegnext,vegnext2                                        ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
@@ -1595,6 +1596,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_deltat,ateb_acfactor,ateb_soilunder,                  &
     siburbanfrac,                                                 &
+    wbclim_lonn,wbclim_lonx,wbclim_latn,wbclim_latx,              &
     ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,               & ! depreciated
     ateb_useonewall,ateb_alpha
 ! ocean namelist
@@ -2815,7 +2817,7 @@ implicit none
 
 integer i
 integer, dimension(120) :: dumi
-real, dimension(34) :: dumr
+real, dimension(38) :: dumr
     
 dumr(:) = 0.
 dumi(:) = 0
@@ -2854,6 +2856,10 @@ if ( myid==0 ) then
   dumr(32)  = ensemble_rsfactor
   dumr(33)  = zo_clearing
   dumr(34)  = maxuv
+  dumr(35)  = wbclim_lonn
+  dumr(36)  = wbclim_lonx
+  dumr(37)  = wbclim_latn
+  dumr(38)  = wbclim_latx
   dumi(1)   = ntau
   dumi(2)   = nwt
   dumi(3)   = nhorps
@@ -3011,6 +3017,10 @@ rhsat             = dumr(31)
 ensemble_rsfactor = dumr(32)
 zo_clearing       = dumr(33)
 maxuv             = dumr(34)
+wbclim_lonn       = dumr(35)
+wbclim_lonx       = dumr(36)
+wbclim_latn       = dumr(37)
+wbclim_latx       = dumr(38)
 ntau              = dumi(1)
 nwt               = dumi(2)
 nhorps            = dumi(3)
@@ -3313,6 +3323,7 @@ call ccmpi_bcast(cfc113file,0,comm_world)
 call ccmpi_bcast(hcfc22file,0,comm_world)
 !call ccmpi_bcast(o3file,0,comm_world)
 call ccmpi_bcast(freqfile,0,comm_world)
+call ccmpi_bcast(wbclimfile,0,comm_world)
 save_aerosols  = dumi(1)==1
 save_pbl       = dumi(2)==1
 save_cloud     = dumi(3)==1
