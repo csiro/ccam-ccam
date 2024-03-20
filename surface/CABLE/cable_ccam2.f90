@@ -4501,6 +4501,11 @@ if ( io_in==1 .and. .not.defaultmode ) then
     ierr_cvc  = ierr_check(6)
   end if
 end if
+
+if ( myid==0 ) then
+  write(6,*) "-> Found ierr,ierr_casa_ierr_sli ",ierr,ierr_casa,ierr_sli
+  write(6,*) "->    ierr_pop,ierr_svs,ierr_cvc ",ierr_pop,ierr_svs,ierr_cvc
+end if
   
 call defaulttile ! initially use default values before overwriting
 
@@ -4514,11 +4519,9 @@ else
   else
     do n = 1,maxtile      
       write(vname,'("t",I1.1,"_cvc")') n
-      call histrd(iarchi-1,ierr,vname,datr,ifull)
-      if ( n<=maxnb ) then
-        dati = nint(datr)  
-        call cable_pack(dati,old_cv,n)
-      end if
+      call histrd(iarchi-1,ierr,vname,dat,ifull)
+      dati = nint(dat)  
+      call cable_pack(dati,old_cv,n)
     end do
   end if
   call create_new_tile_map(old_cv,nmp)
@@ -5484,7 +5487,7 @@ implicit none
 integer k
 real totdepth
  
-if ( myid==0 ) write(6,*) "-> Check for initalisation errors"
+!if ( myid==0 ) write(6,*) "-> Check for initalisation errors"
 
 ! Some fixes for rounding errors
 if ( mp_global>0 ) then

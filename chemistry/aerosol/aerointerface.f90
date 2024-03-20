@@ -96,7 +96,7 @@ implicit none
 
 integer, intent(in) :: mins, aero_update
 integer k, j, tt, ttx, kinv, smins
-integer iq
+integer iq, ntr
 integer tile, js, je, idjd_t
 real, dimension(imax,ilev) :: loxidantnow
 real, dimension(ifull,kl) :: dz, rhoa, pccw
@@ -104,7 +104,7 @@ real, dimension(imax) :: coszro
 real, dimension(ifull) :: wg
 real, dimension(ifull,kl) :: clcon
 real, dimension(ifull) :: taudar, cldcon, u10_l
-real, dimension(imax,kl,naero) :: lxtg
+real, dimension(imax,kl) :: lxtg
 real, dimension(imax,kl,4) :: lzoxidant
 real, dimension(imax,kl) :: lrkhsave, lt, lclcon
 real, dimension(imax,kl) :: lat, lct
@@ -245,7 +245,7 @@ if ( aero_update==aero_split ) then
 
 
 #ifdef GPUPHYSICS
-!$omp parallel
+  !$omp parallel
 #endif
 
   
@@ -272,61 +272,64 @@ end if ! aero_update==aero_split
      
 if ( aero_update==1 ) then     
 
-#ifdef GPUPHYSICS
-  !$omp parallel
-#endif
-
-
   ! Aerosol mixing
-  !$omp do schedule(static) private(js,je,iq,k),      &
-  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-  !$omp private(lxtg,lrkhsave,rong,rlogs1,rlogs2),    &
-  !$omp private(rlogh1,rlog12,tmnht,dzz,gt)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    idjd_t = mod(idjd-1,imax)+1
-    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-
-    lt       = t(js:je,:)
-    lrkhsave = rkhsave(js:je,:)
-  
-    rong = rdry/grav
-    lat(:,1) = 0.
-    lct(:,kl) = 0.
-    rlogs1=log(sig(1))
-    rlogs2=log(sig(2))
-    rlogh1=log(sigmh(2))
-    rlog12=1./(rlogs1-rlogs2)
-    do iq = 1,imax
-      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
-      dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-      gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
-      lat(iq,2) = -gt/dsig(2)  
-      lct(iq,1) = -gt/dsig(1)
-    end do
-    do k = 2,kl-1
-      do iq = 1,imax
-        ! Calculate half level heights and temperatures
-        ! n.b. an approximate zh (in m) is quite adequate for this routine
-        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-        dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-        gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
-        lat(iq,k+1) = -gt/dsig(k+1)  
-        lct(iq,k) = -gt/dsig(k)
-      end do
-    end do
-  
-    lxtg = xtg(js:je,:,:)
-    call trimmix(lat,lct,lxtg,imax,kl,naero)
-    xtg(js:je,:,:) = lxtg
-  
-  end do ! tile = 1,ntiles
-  !$omp end do nowait
-
-
 #ifdef GPUPHYSICS
-  !$omp end parallel
+  !$acc parallel loop collapse(2) copy(xtg) &
+  !$acc copyin(t,rkhsave)                   &
+  !$acc private(lt,lrkhsave,lat,lct,lxtg)   &
+  !$acc present(sig,sigmh,dsig)
+#else
+  !$omp do collapse(2) schedule(static) private(js,je,iq,k) &
+  !$omp private(lt,lat,lct,idjd_t,mydiag_t,lxtg,lrkhsave)   &
+  !$omp private(rong,rlogs1,rlogs2,rlogh1,rlog12,tmnht,dzz) &
+  !$omp private(gt)
+#endif
+  do ntr = 1,naero
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      idjd_t = mod(idjd-1,imax)+1
+      mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+
+      lt       = t(js:je,:)
+      lrkhsave = rkhsave(js:je,:)
+  
+      rong = rdry/grav
+      lat(:,1) = 0.
+      lct(:,kl) = 0.
+      rlogs1 = log(sig(1))
+      rlogs2 = log(sig(2))
+      rlogh1 = log(sigmh(2))
+      rlog12 = 1./(rlogs1-rlogs2)
+      do iq = 1,imax
+        tmnht = (lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12
+        dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+        gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
+        lat(iq,2) = -gt/dsig(2)  
+        lct(iq,1) = -gt/dsig(1)
+      end do
+      do k = 2,kl-1
+        do iq = 1,imax
+          ! Calculate half level heights and temperatures
+          ! n.b. an approximate zh (in m) is quite adequate for this routine
+          tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+          dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+          gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
+          lat(iq,k+1) = -gt/dsig(k+1)  
+          lct(iq,k) = -gt/dsig(k)
+        end do
+      end do
+  
+      lxtg = xtg(js:je,:,ntr)
+      call trimmix(lat,lct,lxtg,imax,kl)
+      xtg(js:je,:,ntr) = lxtg
+  
+    end do ! tile = 1,ntiles
+  end do   ! ntr = 1,naero  
+#ifdef GPUPHYSICS
+  !$acc end parallel loop
+#else
+  !$omp end do nowait
 #endif
 
 end if

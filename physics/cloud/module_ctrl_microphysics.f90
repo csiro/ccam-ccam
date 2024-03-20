@@ -353,7 +353,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$acc   private(znc,zcdrop,znr,zni,zns,pptrain,pptsnow,pptice)                        &
     !$acc   private(zeffc1d,zeffi1d,zeffs1d,zeffr1d,zqcoll,zqaccr,zvi)                    &
     !$acc   private(zfluxr,zfluxi,zfluxs,zfluxm,zfluxf,zqevap,zqsubl,zqauto)              &
-    !$acc   private(m,k,iq,prf_temp,prf,njumps,tdt,n) vector_length(32)
+    !$acc   private(m,k,iq,prf_temp,prf,njumps,tdt,n)
 #else
     !$omp do schedule(static) private(js,je,riz,zlevv,m,zqg,zqlg,zqrg,zqfg)   &
     !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &

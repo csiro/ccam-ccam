@@ -1760,6 +1760,7 @@ return
 end subroutine pbldif
 
 pure subroutine trimmix2(a,c,rhs,imax,kl)
+!$acc routine vector
 
 implicit none
 
