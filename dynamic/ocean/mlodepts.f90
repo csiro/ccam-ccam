@@ -26,6 +26,8 @@ implicit none
 private
 public mlodeps
 
+real, parameter :: cxx = -9999. ! missing value flag
+
 contains
 
 
@@ -41,7 +43,7 @@ use cc_mpi
 use const_phys
 use indices_m
 use mlo
-use mloints
+!use mloints
 use newmpar_m
 use parm_m
 use parmhor_m
@@ -63,9 +65,11 @@ real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,3) :: sx
 real s_tot, s_count
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real xxg, yyg
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
 logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: wx
+logical bcub_water, blin_test
 
 call START_LOG(waterdeps_begin)
 
@@ -321,7 +325,6 @@ call deptsync(nface,xg,yg)
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then  
   ! Loop over points that need to be calculated for other processes
-  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,n,xxg,yyg)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -334,11 +337,57 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
+        
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
+
+        bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
+                     wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
+                     wx(idel+1,jdel,n,k) .and. wx(idel+2,jdel,n,k) .and.     &
+                     wx(idel-1,jdel+1,n,k) .and. wx(idel,jdel+1,n,k) .and.   &
+                     wx(idel+1,jdel+1,n,k) .and. wx(idel+2,jdel+1,n,k) .and. &
+                     wx(idel,jdel+2,n,k) .and. wx(idel+1,jdel+2,n,k)
+
+        blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+        if ( bcub_water ) then
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+          rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                   sx_10*cmul_3 + sx_20*cmul_4
+          rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                   sx_11*cmul_3 + sx_21*cmul_4
+          rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        else if ( blin_test ) then
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                                            + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+        else
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = cxx - 1.
+        end if
+        
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
-  !$omp end parallel do
   
   call intssync_send(3)
 
@@ -350,7 +399,10 @@ if ( intsch==1 ) then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                &
+    !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
+    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
 #endif  
     do k = 1,wlev
       do iq = 1,ifull
@@ -361,7 +413,54 @@ if ( intsch==1 ) then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
+        
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
+
+        bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
+                     wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
+                     wx(idel+1,jdel,n,k) .and. wx(idel+2,jdel,n,k) .and.     &
+                     wx(idel-1,jdel+1,n,k) .and. wx(idel,jdel+1,n,k) .and.   &
+                     wx(idel+1,jdel+1,n,k) .and. wx(idel+2,jdel+1,n,k) .and. &
+                     wx(idel,jdel+2,n,k) .and. wx(idel+1,jdel+2,n,k)
+
+        blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+        if ( bcub_water ) then
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+          rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                   sx_10*cmul_3 + sx_20*cmul_4
+          rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                   sx_11*cmul_3 + sx_21*cmul_4
+          rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        else if ( blin_test ) then
+          s(iq,k,nn) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                     + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+        else
+          s(iq,k,nn) = cxx - 1.
+        end if
+
       end do     ! iq loop
     end do
 #ifdef GPU
@@ -381,7 +480,6 @@ else     ! if(intsch==1)then
 !======================== start of intsch=2 section ====================
   
   ! For other processes
-  !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,n,xxg,yyg)
   do ii = 1,neighnum
     do nn = 1,3
       do iq = 1,drlen(ii)
@@ -393,11 +491,57 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
+        
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
+
+        bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
+                     wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
+                     wx(idel+1,jdel,n,k) .and. wx(idel+2,jdel,n,k) .and.     &
+                     wx(idel-1,jdel+1,n,k) .and. wx(idel,jdel+1,n,k) .and.   &
+                     wx(idel+1,jdel+1,n,k) .and. wx(idel+2,jdel+1,n,k) .and. &
+                     wx(idel,jdel+2,n,k) .and. wx(idel+1,jdel+2,n,k)
+
+        blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+        if ( bcub_water ) then
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+          rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+                   sx_01*cmul_3 + sx_02*cmul_4
+          rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+                   sx_11*cmul_3 + sx_12*cmul_4
+          rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        else if ( blin_test ) then
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                                            + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+        else
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = cxx - 1.
+        end if        
+        
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
-  !$omp end parallel do
 
   call intssync_send(3)
 
@@ -409,7 +553,10 @@ else     ! if(intsch==1)then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                &
+    !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
+    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
 #endif  
     do k = 1,wlev
       do iq = 1,ifull
@@ -420,7 +567,54 @@ else     ! if(intsch==1)then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
+        
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
+
+        bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
+                     wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
+                     wx(idel+1,jdel,n,k) .and. wx(idel+2,jdel,n,k) .and.     &
+                     wx(idel-1,jdel+1,n,k) .and. wx(idel,jdel+1,n,k) .and.   &
+                     wx(idel+1,jdel+1,n,k) .and. wx(idel+2,jdel+1,n,k) .and. &
+                     wx(idel,jdel+2,n,k) .and. wx(idel+1,jdel+2,n,k)
+
+        blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+        if ( bcub_water ) then
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+          rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+                   sx_01*cmul_3 + sx_02*cmul_4
+          rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+                   sx_11*cmul_3 + sx_12*cmul_4
+          rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        else if ( blin_test ) then
+          s(iq,k,nn) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                     + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+        else
+          s(iq,k,nn) = cxx - 1.
+        end if
+        
       end do
     end do
 #ifdef GPU
@@ -474,7 +668,54 @@ if ( intsch==1 ) then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
+        
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
+
+        bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
+                     wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
+                     wx(idel+1,jdel,n,k) .and. wx(idel+2,jdel,n,k) .and.     &
+                     wx(idel-1,jdel+1,n,k) .and. wx(idel,jdel+1,n,k) .and.   &
+                     wx(idel+1,jdel+1,n,k) .and. wx(idel+2,jdel+1,n,k) .and. &
+                     wx(idel,jdel+2,n,k) .and. wx(idel+1,jdel+2,n,k)
+
+        blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+        if ( bcub_water ) then
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+          rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                   sx_10*cmul_3 + sx_20*cmul_4
+          rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                   sx_11*cmul_3 + sx_21*cmul_4
+          rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        else if ( blin_test ) then
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                                            + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+        else
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = cxx - 1.
+        end if
+
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -490,7 +731,10 @@ if ( intsch==1 ) then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                &
+    !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
+    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
 #endif  
     do k = 1,wlev
       do iq = 1,ifull
@@ -501,7 +745,54 @@ if ( intsch==1 ) then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k,nn) = intintp1(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
+        
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
+
+        bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
+                     wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
+                     wx(idel+1,jdel,n,k) .and. wx(idel+2,jdel,n,k) .and.     &
+                     wx(idel-1,jdel+1,n,k) .and. wx(idel,jdel+1,n,k) .and.   &
+                     wx(idel+1,jdel+1,n,k) .and. wx(idel+2,jdel+1,n,k) .and. &
+                     wx(idel,jdel+2,n,k) .and. wx(idel+1,jdel+2,n,k)
+
+        blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+        if ( bcub_water ) then
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+          rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                   sx_10*cmul_3 + sx_20*cmul_4
+          rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                   sx_11*cmul_3 + sx_21*cmul_4
+          rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        else if ( blin_test ) then
+          s(iq,k,nn) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                     + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+        else
+          s(iq,k,nn) = cxx - 1.
+        end if
+        
       end do     ! iq loop
     end do
 #ifdef GPU
@@ -533,7 +824,54 @@ else     ! if(intsch==1)then
         k = nint(dpoints(ii)%a(iq,4))
         idel = idel - ioff
         jdel = jdel - joff
-        sextra(ii)%a(iq+(nn-1)*drlen(ii)) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
+        
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
+
+        bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
+                     wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
+                     wx(idel+1,jdel,n,k) .and. wx(idel+2,jdel,n,k) .and.     &
+                     wx(idel-1,jdel+1,n,k) .and. wx(idel,jdel+1,n,k) .and.   &
+                     wx(idel+1,jdel+1,n,k) .and. wx(idel+2,jdel+1,n,k) .and. &
+                     wx(idel,jdel+2,n,k) .and. wx(idel+1,jdel+2,n,k)
+
+        blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+        if ( bcub_water ) then
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+          rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+                   sx_01*cmul_3 + sx_02*cmul_4
+          rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+                   sx_11*cmul_3 + sx_12*cmul_4
+          rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        else if ( blin_test ) then
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                                            + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+        else
+          sextra(ii)%a(iq+(nn-1)*drlen(ii)) = cxx - 1.
+        end if
+        
       end do          ! iq loop
     end do            ! nn loop
   end do              ! ii loop
@@ -549,7 +887,10 @@ else     ! if(intsch==1)then
     async_counter = mod(nn-1,async_length)  
     !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)
+    !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                &
+    !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
+    !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+    !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
 #endif  
     do k = 1,wlev
       do iq = 1,ifull
@@ -560,7 +901,54 @@ else     ! if(intsch==1)then
         idel = min( max(idel - ioff, 0), ipan)
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
-        s(iq,k,nn) = intintp0(sx(:,:,n,k,nn),wx(:,:,n,k),idel,jdel,xxg,yyg)
+
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
+
+        bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
+                     wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
+                     wx(idel+1,jdel,n,k) .and. wx(idel+2,jdel,n,k) .and.     &
+                     wx(idel-1,jdel+1,n,k) .and. wx(idel,jdel+1,n,k) .and.   &
+                     wx(idel+1,jdel+1,n,k) .and. wx(idel+2,jdel+1,n,k) .and. &
+                     wx(idel,jdel+2,n,k) .and. wx(idel+1,jdel+2,n,k)
+
+        blin_test = sx_00>=cxx .and. sx_10>=cxx .and. sx_01>=cxx .and. sx_11>=cxx
+
+        if ( bcub_water ) then
+          cmul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          cmul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          cmul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          cmul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          dmul_2 = (1.-yyg)
+          dmul_3 = yyg
+          emul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
+          rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
+                   sx_01*cmul_3 + sx_02*cmul_4
+          rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
+                   sx_11*cmul_3 + sx_12*cmul_4
+          rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
+          s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+        else if ( blin_test ) then
+          s(iq,k,nn) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                     + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+        else
+          s(iq,k,nn) = cxx - 1.
+        end if
+
       end do
     end do
 #ifdef GPU

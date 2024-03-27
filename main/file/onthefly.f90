@@ -1666,6 +1666,8 @@ if ( nested/=1 .and. nested/=3 ) then
     call gethist1('clm',clm_ave)    
     call gethist1('clh',clh_ave)    
     call gethist1('cld',cld_ave)
+    call gethist1('sgdn_ave',sgdn_ave)
+    call gethist1('sgdc_ave',sgdc_ave)
   end if
   
   !------------------------------------------------------------------

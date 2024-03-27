@@ -1512,7 +1512,7 @@ if ( myid==0 .or. local ) then
         lname = 'Surface Upward Sensible Heat Flux'
         call attrib(idnc,dimj,jsize,'fg_ave',lname,'W m-2',-3000.,3000.,0,-1)   ! -1 = long
         lname = 'Avg net radiation'
-        call attrib(idnc,dimj,jsize,'rnet_ave',lname,'none',-3000.,3000.,0,-1) ! -1 = long
+        call attrib(idnc,dimj,jsize,'rnet_ave',lname,'none',-3000.,3000.,0,-1)  ! -1 = long
         lname = 'Avg flux into tgg1 layer'
         call attrib(idnc,dimj,jsize,'ga_ave',lname,'W m-2',-1000.,1000.,0,-1)   ! -1 = long
       end if
@@ -2993,11 +2993,11 @@ if ( itype/=-1 ) then  ! these not written to restart file
       call histwrt(sint_ave,'sint_ave',idnc,iarch,local,lave)
       call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lave)
       call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lave)
-      call histwrt(sgdn_ave,'sgdn_ave',idnc,iarch,local,lave)
+      call histwrt(sgdn_ave,'sgdn_ave',idnc,iarch,local,lave_0)
       call histwrt(sgdndir_ave,'sgdndir_ave',idnc,iarch,local,lave)
       call histwrt(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
       call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lave)
-      call histwrt(sgdc_ave,'sgdc_ave',idnc,iarch,local,lave)
+      call histwrt(sgdc_ave,'sgdc_ave',idnc,iarch,local,lave_0)
       call histwrt(sunhours,'sunhours',idnc,iarch,local,lday)
       call histwrt(dni_ave,'dni',idnc,iarch,local,lave)
     end if
