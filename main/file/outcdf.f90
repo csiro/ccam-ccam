@@ -1597,46 +1597,44 @@ if ( myid==0 .or. local ) then
       lname = 'y-component wind stress'
       call attrib(idnc,dimj,jsize,'tauy',lname,'N m-2',-50.,50.,0,cptype)
     end if
-    if ( itype/=-1 ) then
-      if ( nextout>=1 ) then
-        if ( save_radiation ) then
-          lname = 'TOA Outgoing Longwave Radiation'
-          call attrib(idnc,dimj,jsize,'rtu_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
-          lname = 'Clear sky LW at TOA'
-          call attrib(idnc,dimj,jsize,'rtc_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
-          lname = 'Surface Downwelling Longwave Radiation'
-          call attrib(idnc,dimj,jsize,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1) ! -1 = long
-          lname = 'LW net at ground (+ve up)'
-          call attrib(idnc,dimj,jsize,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
-          lname = 'Clear sky LW at ground'
-          call attrib(idnc,dimj,jsize,'rgc_ave',lname,'W m-2',-500.,1000.,0,-1)  ! -1 = long
-          lname = 'Clear sky downwelling LW radiation'
-          call attrib(idnc,dimj,jsize,'rgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
-          lname = 'TOA Incident Shortwave Radiation'
-          call attrib(idnc,dimj,jsize,'sint_ave',lname,'W m-2',0.,1600.,0,-1) ! -1 = long
-          lname = 'TOA Outgoing Shortwave Radiation'
-          call attrib(idnc,dimj,jsize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)  ! -1 = long
-          lname = 'Clear sky SW out at TOA'
-          call attrib(idnc,dimj,jsize,'soc_ave',lname,'W m-2',0.,900.,0,-1)   ! -1 = long
-          lname = 'Surface Downwelling Shortwave Radiation'
-          call attrib(idnc,dimj,jsize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
-          lname = 'Surface Direct Downwelling Shortwave Radiation'
-          call attrib(idnc,dimj,jsize,'sgdndir_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
-          lname = 'Solar net at ground (+ve down)'
-          call attrib(idnc,dimj,jsize,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
-          lname = 'Clear sky SW at ground (+ve down)'
-          call attrib(idnc,dimj,jsize,'sgc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
-          lname = 'Clear sky downwelling SW radiation'
-          call attrib(idnc,dimj,jsize,'sgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
-          lname = 'Sunshine hours per day'
-          call attrib(idnc,dimj,jsize,'sunhours',lname,'hrs',0.,24.,1,cptype) ! daily
-          lname = 'Direct normal irradiance'
-          call attrib(idnc,dimj,jsize,'dni',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
-        end if
-        lname = 'Surface pressure tendency'
-        call attrib(idnc,dimj,jsize,'dpsdt',lname,'hPa day-1',-400.,400.,0,cptype)
-      endif     ! (nextout>=1)
-    end if      ! itype/=-1
+    if ( itype==1 .or. (nextout>=1.and.save_radiation) ) then
+      lname = 'TOA Outgoing Longwave Radiation'
+      call attrib(idnc,dimj,jsize,'rtu_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
+      lname = 'Clear sky LW at TOA'
+      call attrib(idnc,dimj,jsize,'rtc_ave',lname,'W m-2',0.,800.,0,-1) ! -1 = long
+      lname = 'Surface Downwelling Longwave Radiation'
+      call attrib(idnc,dimj,jsize,'rgdn_ave',lname,'W m-2',-500.,1.e3,0,-1) ! -1 = long
+      lname = 'LW net at ground (+ve up)'
+      call attrib(idnc,dimj,jsize,'rgn_ave',lname,'W m-2',-500.,1000.,0,-1) ! -1 = long
+      lname = 'Clear sky LW at ground'
+      call attrib(idnc,dimj,jsize,'rgc_ave',lname,'W m-2',-500.,1000.,0,-1)  ! -1 = long
+      lname = 'Clear sky downwelling LW radiation'
+      call attrib(idnc,dimj,jsize,'rgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+      lname = 'TOA Incident Shortwave Radiation'
+      call attrib(idnc,dimj,jsize,'sint_ave',lname,'W m-2',0.,1600.,0,-1) ! -1 = long
+      lname = 'TOA Outgoing Shortwave Radiation'
+      call attrib(idnc,dimj,jsize,'sot_ave',lname,'W m-2',0.,1000.,0,-1)  ! -1 = long
+      lname = 'Clear sky SW out at TOA'
+      call attrib(idnc,dimj,jsize,'soc_ave',lname,'W m-2',0.,900.,0,-1)   ! -1 = long
+      lname = 'Surface Downwelling Shortwave Radiation'
+      call attrib(idnc,dimj,jsize,'sgdn_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+      lname = 'Surface Direct Downwelling Shortwave Radiation'
+      call attrib(idnc,dimj,jsize,'sgdndir_ave',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+      lname = 'Solar net at ground (+ve down)'
+      call attrib(idnc,dimj,jsize,'sgn_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+      lname = 'Clear sky SW at ground (+ve down)'
+      call attrib(idnc,dimj,jsize,'sgc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+      lname = 'Clear sky downwelling SW radiation'
+      call attrib(idnc,dimj,jsize,'sgdc_ave',lname,'W m-2',-500.,2000.,0,-1) ! -1 = long
+      lname = 'Sunshine hours per day'
+      call attrib(idnc,dimj,jsize,'sunhours',lname,'hrs',0.,24.,1,cptype) ! daily
+      lname = 'Direct normal irradiance'
+      call attrib(idnc,dimj,jsize,'dni',lname,'W m-2',-500.,2.e3,0,-1) ! -1 = long
+    end if
+    if ( itype/=-1 .and. nextout>=1 ) then
+      lname = 'Surface pressure tendency'
+      call attrib(idnc,dimj,jsize,'dpsdt',lname,'hPa day-1',-400.,400.,0,cptype)
+    end if
     if ( save_pbl .or. itype==-1 ) then
       lname = 'friction velocity'
       call attrib(idnc,dimj,jsize,'ustar',lname,'m s-1',0.,10.,0,cptype)
@@ -2980,29 +2978,26 @@ if ( save_land .or. save_ocean .or. itype==-1 ) then
   call histwrt(taux_ave,'taux',idnc,iarch,local,lave)
   call histwrt(tauy_ave,'tauy',idnc,iarch,local,lave)
 end if
-if ( itype/=-1 ) then  ! these not written to restart file
-  ! "extra" outputs
-  if ( nextout>=1 ) then
-    if ( save_radiation ) then
-      call histwrt(rtu_ave,'rtu_ave',idnc,iarch,local,lave)
-      call histwrt(rtc_ave,'rtc_ave',idnc,iarch,local,lave)
-      call histwrt(rgdn_ave,'rgdn_ave',idnc,iarch,local,lave)
-      call histwrt(rgn_ave,'rgn_ave',idnc,iarch,local,lave)
-      call histwrt(rgc_ave,'rgc_ave',idnc,iarch,local,lave)
-      call histwrt(rgdc_ave,'rgdc_ave',idnc,iarch,local,lave)
-      call histwrt(sint_ave,'sint_ave',idnc,iarch,local,lave)
-      call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lave)
-      call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lave)
-      call histwrt(sgdn_ave,'sgdn_ave',idnc,iarch,local,lave_0)
-      call histwrt(sgdndir_ave,'sgdndir_ave',idnc,iarch,local,lave)
-      call histwrt(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
-      call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lave)
-      call histwrt(sgdc_ave,'sgdc_ave',idnc,iarch,local,lave_0)
-      call histwrt(sunhours,'sunhours',idnc,iarch,local,lday)
-      call histwrt(dni_ave,'dni',idnc,iarch,local,lave)
-    end if
-    call histwrt(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
-  endif   ! nextout>=1
+if ( itype==1 .or. (nextout>=1.and.save_radiation) ) then
+  call histwrt(rtu_ave,'rtu_ave',idnc,iarch,local,lave)
+  call histwrt(rtc_ave,'rtc_ave',idnc,iarch,local,lave)
+  call histwrt(rgdn_ave,'rgdn_ave',idnc,iarch,local,lave)
+  call histwrt(rgn_ave,'rgn_ave',idnc,iarch,local,lave)
+  call histwrt(rgc_ave,'rgc_ave',idnc,iarch,local,lave)
+  call histwrt(rgdc_ave,'rgdc_ave',idnc,iarch,local,lave)
+  call histwrt(sint_ave,'sint_ave',idnc,iarch,local,lave)
+  call histwrt(sot_ave,'sot_ave',idnc,iarch,local,lave)
+  call histwrt(soc_ave,'soc_ave',idnc,iarch,local,lave)
+  call histwrt(sgdn_ave,'sgdn_ave',idnc,iarch,local,lave_0)
+  call histwrt(sgdndir_ave,'sgdndir_ave',idnc,iarch,local,lave)
+  call histwrt(sgn_ave,'sgn_ave',idnc,iarch,local,lave)
+  call histwrt(sgc_ave,'sgc_ave',idnc,iarch,local,lave)
+  call histwrt(sgdc_ave,'sgdc_ave',idnc,iarch,local,lave_0)
+  call histwrt(sunhours,'sunhours',idnc,iarch,local,lday)
+  call histwrt(dni_ave,'dni',idnc,iarch,local,lave)
+end if
+if ( itype/=-1 .and. nextout>=1 ) then
+  call histwrt(dpsdt,'dpsdt',idnc,iarch,local,lwrite)
 endif    ! (itype/=-1)
 if ( save_pbl .or. itype==-1 ) then
   call histwrt(ustar,'ustar',idnc,iarch,local,lwrite_0)
