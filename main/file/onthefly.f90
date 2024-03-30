@@ -1586,12 +1586,16 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'sgdn_amp',idv,tst)
         if ( tst ) lrestart_radiation = .false. 
+        call ccnf_inq_varid(ncid,'sgdndir_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'sgn_amp',idv,tst)
-        if ( tst ) lrestart_radiation = .false. 
+        if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'sgclr_amp',idv,tst)
         if ( tst ) lrestart_radiation = .false.
+        call ccnf_inq_varid(ncid,'sgdclr_amp',idv,tst)
+        if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'dni_amp',idv,tst)
-        if ( tst ) lrestart_radiation = .false. 
+        if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'fbeamvis',idv,tst)
         if ( tst ) lrestart_radiation = .false.
         call ccnf_inq_varid(ncid,'fbeamnir',idv,tst)
@@ -1652,7 +1656,10 @@ if ( nested/=1 .and. nested/=3 ) then
   wb_found(1:ms)      = (ierc(10+2*ms:9+3*ms)==1)
         
   !------------------------------------------------------------------
-  ! Read basic fields
+  ! Read basic fields to be avaliable at zero time-step
+  ! These values might need to be written at the zeroth time-step or
+  ! used before the physics has updated. We then need to load this
+  ! data from the restart file.
   if ( nested==0 .and. lrestart ) then
     if ( nsib==6.or.nsib==7 .and. nhstest>=0 ) then
       call gethist1('rs',rsmin)  
@@ -2150,8 +2157,10 @@ if ( nested/=1 .and. nested/=3 ) then
       call gethist1('sout_amp',sout_amp)
       call gethist1('soutclr_amp',soutclr_amp)
       call gethist1('sgdn_amp',sgdn_amp)
+      call gethist1('sgdndir_amp',sgdndir_amp)
       call gethist1('sgn_amp',sgn_amp)
       call gethist1('sgclr_amp',sgclr_amp)
+      call gethist1('sgdclr_amp',sgdclr_amp)
       call gethist1('dni_amp',dni_amp)
       call gethist1('fbeamvis',fbeamvis)
       call gethist1('fbeamnir',fbeamnir)
