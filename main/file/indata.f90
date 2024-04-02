@@ -3205,8 +3205,10 @@ use cc_mpi
 use filnames_m
 use infile
 use newmpar_m
+use nsibd_m
 use parmgeom_m
 use soilsnow_m, only : wb_clim
+use soilv_m
 
 implicit none
 
@@ -3295,6 +3297,12 @@ if ( myid==0 ) then
 else
   call ccmpi_distribute(wb_clim)
 end if
+
+! convert to soil moisture from field capacity
+do k = 1,ms
+  wb_clim(:,k) = wb_clim(:,k)*sfc(isoilm(1:ifull)) + (1.-wb_clim(:,k))*swilt(isoilm(1:ifull))
+end do  
+
 
 end subroutine load_sm_clim
 
