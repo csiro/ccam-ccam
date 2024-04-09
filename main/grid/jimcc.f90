@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2021 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -338,6 +338,7 @@ end do
 
 #else
 
+!$omp parallel do schedule(static) private(j,jp,y,i,xvec,xc,den)
 do j = 0,np-1
  jp = j + 1
  y = real(j)*d  + yadd   ! jlm allows staggered v
@@ -359,6 +360,7 @@ do j = 0,np-1
    dxc(i,jp) = xc(i,3)/den
  end do
 end do
+!$omp end parallel do
 
 #endif
 

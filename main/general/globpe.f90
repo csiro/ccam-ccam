@@ -1039,20 +1039,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! DAILY DIAGNOSTICS ----------------------------------------
   if ( mod(ktau,nperday)==0 ) then   ! re-set at the end of each 24 hours
-    !if ( ntau<10*nperday .and. nstn>0 ) then     ! print stn info
-    !  do nn = 1,nstn
-    !    if ( mystn(nn) ) then
-    !      i = istn(nn)
-    !      j = jstn(nn)
-    !      iq = i+(j-1)*il
-    !      write(6,956) ktau,iunp(nn),name_stn(nn),rnd_3hr(iq,4),rnd_3hr(iq,8), &
-    !                   tmaxscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
-    !                   tminscr(iq)-273.16+(zs(iq)/grav-zstn(nn))*stdlapse,     &
-    !                   tmaxscr(iq)-273.16,tminscr(iq)-273.16
-!956       format(i5,i3,a5,6f7.1)
-    !    end if               
-    !  end do
-    !end if  ! (ntau<10*nperday)
     call zero_nperday
   endif   ! (mod(ktau,nperday)==0)
   
@@ -2817,7 +2803,7 @@ implicit none
 
 integer i
 integer, dimension(120) :: dumi
-real, dimension(38) :: dumr
+real, dimension(34) :: dumr
     
 dumr(:) = 0.
 dumi(:) = 0
@@ -2856,10 +2842,6 @@ if ( myid==0 ) then
   dumr(32)  = ensemble_rsfactor
   dumr(33)  = zo_clearing
   dumr(34)  = maxuv
-  dumr(35)  = wbclim_lonn
-  dumr(36)  = wbclim_lonx
-  dumr(37)  = wbclim_latn
-  dumr(38)  = wbclim_latx
   dumi(1)   = ntau
   dumi(2)   = nwt
   dumi(3)   = nhorps
@@ -3017,10 +2999,6 @@ rhsat             = dumr(31)
 ensemble_rsfactor = dumr(32)
 zo_clearing       = dumr(33)
 maxuv             = dumr(34)
-wbclim_lonn       = dumr(35)
-wbclim_lonx       = dumr(36)
-wbclim_latn       = dumr(37)
-wbclim_latx       = dumr(38)
 ntau              = dumi(1)
 nwt               = dumi(2)
 nhorps            = dumi(3)
@@ -3660,7 +3638,7 @@ use uclem_ctrl, only :                   & ! Urban
 implicit none
 
 integer, dimension(28) :: dumi
-real, dimension(23) :: dumr
+real, dimension(27) :: dumr
     
 dumr = 0.
 dumi = 0
@@ -3688,6 +3666,10 @@ if ( myid==0 ) then
   dumr(21) = ateb_acfactor
   dumr(22) = siburbanfrac
   dumr(23) = cable_version
+  dumr(24)  = wbclim_lonn
+  dumr(25)  = wbclim_lonx
+  dumr(26)  = wbclim_latn
+  dumr(27)  = wbclim_latx
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -3742,6 +3724,10 @@ ateb_ac_deltat    = dumr(20)
 ateb_acfactor     = dumr(21)
 siburbanfrac      = dumr(22) 
 cable_version     = dumr(23)
+wbclim_lonn       = dumr(24)
+wbclim_lonx       = dumr(25)
+wbclim_latn       = dumr(26)
+wbclim_latx       = dumr(27)
 proglai           = dumi(1)
 ccycle            = dumi(2)
 soil_struc        = dumi(3)

@@ -34,9 +34,11 @@
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
       real, dimension(:,:,:), allocatable, save :: detrarr
 
+#ifdef GPUPHYSICS      
 !$acc declare create(mcontlnd,mcontsea,tied_b,convt_frac)
 !$acc declare create(k500,k600,k700,k900,k980)
 !$acc declare create(klon2,komega)
+#endif
 
       contains
 
@@ -307,9 +309,11 @@
        endif  ! (tied_a>1.)
       !----------------------------------------------------------------
 
+#ifdef GPUPHYSICS          
 !$acc update device(mcontlnd,mcontsea,tied_b,convt_frac)
 !$acc update device(k500,k600,k700,k900,k980)
 !$acc update device(klon2,komega)
+#endif
 
       end subroutine convjlm_init
 

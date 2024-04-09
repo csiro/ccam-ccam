@@ -32,8 +32,10 @@
       real, dimension(:), allocatable, save :: alfin, aug
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
 
-!$acc declare create(mcontlnd,mcontsea,klon2,k600,k700,tied_b)
-!$acc declare create(convt_frac,komega,k900)
+#ifdef GPUPHYSICS      
+!$acc  declare create(mcontlnd,mcontsea,klon2,k600,k700,tied_b)
+!$acc  declare create(convt_frac,komega,k900)
+#endif
 
       contains 
       
@@ -222,8 +224,10 @@
       endif  ! (tied_a>1.)
       !--------------------------------------------------------
         
-!$acc update device(mcontlnd,mcontsea,klon2,k600,k700,tied_b)
-!$acc update device(convt_frac,komega,k900)
+#ifdef GPUPHYSICS
+!$acc  update device(mcontlnd,mcontsea,klon2,k600,k700,tied_b)
+!$acc  update device(convt_frac,komega,k900)
+#endif
 
       end subroutine convjlm22_init
 

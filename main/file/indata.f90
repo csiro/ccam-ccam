@@ -3202,6 +3202,7 @@ subroutine load_sm_clim
 
 use amipsst_m
 use cc_mpi
+use dates_m
 use filnames_m
 use infile
 use newmpar_m
@@ -3217,7 +3218,7 @@ integer, parameter :: nrhead = 14
 
 integer ik, il_in, jl_in
 integer ncidx, ierr, varid
-integer k
+integer k, iyr, imo
 integer, dimension(3) :: npos, spos
 #ifdef i8r8
 integer, dimension(nihead) :: nahead
@@ -3251,8 +3252,12 @@ if ( myid==0 ) then
   interpolate = ( il_g/=il_in .or. jl_g/=jl_in .or. abs(rlong0-rlon_in)>1.e-6 .or. abs(rlat0-rlat_in)>1.e-6 .or. &
        abs(schmidt-schmidt_in)>0.0002 )
   ik = il_in
+  
+  iyr = kdate/10000
+  imo = (kdate-10000*iyr)/100
 
   if ( interpolate ) then
+
     write(6,*) "-> Interpolation required"  
     call define_grid(ik,rlon_in,rlat_in,schmidt_in)
     npos(1) = ik
@@ -3260,7 +3265,7 @@ if ( myid==0 ) then
     npos(3) = 1
     spos(1) = 1
     spos(2) = 1
-    spos(3) = 1
+    spos(3) = imo
     allocate(wb_clim_raw(ik*ik*6))
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
@@ -3281,7 +3286,7 @@ if ( myid==0 ) then
     npos(3) = 1
     spos(1) = 1
     spos(2) = 1
-    spos(3) = 1
+    spos(3) = imo
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
       call ccnf_inq_varid(ncidx,vname,varid)
@@ -3290,7 +3295,7 @@ if ( myid==0 ) then
     
   end if    
   
-  call ccmpi_distribute(wb_clim_g,wb_clim)
+  call ccmpi_distribute(wb_clim,wb_clim_g)
   deallocate( wb_clim_g )
   call ccnf_close(ncidx)
   
@@ -3302,7 +3307,6 @@ end if
 do k = 1,ms
   wb_clim(:,k) = wb_clim(:,k)*sfc(isoilm(1:ifull)) + (1.-wb_clim(:,k))*swilt(isoilm(1:ifull))
 end do  
-
 
 end subroutine load_sm_clim
 

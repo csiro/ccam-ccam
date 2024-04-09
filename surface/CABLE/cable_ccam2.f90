@@ -843,7 +843,7 @@ if ( nspecial == 51 ) then
     ! 0 >= rad%longitude >= 360 and -90 >= rad%latitude >= 90
     where( rad%longitude>=wbclim_lonn .and. rad%longitude<=wbclim_lonx .and. &
            rad%latitude>=wbclim_latn .and. rad%latitude<=wbclim_latx )
-      ssnow%wb(:,k) = wbclim_pack(:)
+      ssnow%wb(:,k) = real(wbclim_pack(:),8)
     end where
   end do
 end if

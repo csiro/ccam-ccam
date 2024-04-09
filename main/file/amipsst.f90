@@ -1782,7 +1782,7 @@ use workglob_m            ! Additional grid interpolation
 implicit none
 
 integer, intent(in) :: ik_in
-integer :: ik, iq, mm
+integer :: iq, mm
 real, intent(in) :: rlon_in, rlat_in, schmidt_in
 real, dimension(:), allocatable :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a

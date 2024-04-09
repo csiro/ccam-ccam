@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -33,7 +33,7 @@ implicit none
 
 private
 
-public nf90_netcdf4, nf90_chunked
+public nf90_netcdf4, nf90_chunked, nf90_classic_model
 public nf90_64bit_offset
 public nf90_nowrite, nf90_global, nf90_fill_short, nf90_fill_float, nf90_nofill
 public nf90_unlimited, nf90_clobber, nf90_write, nf90_share
@@ -49,7 +49,7 @@ public nf90_def_var, nf90_def_dim, nf90_def_var_deflate, nf90_def_var_chunking
 public nf90_put_att, nf90_put_var
 public nf90_copy_att
 
-public nf_netcdf4, nf_chunked
+public nf_netcdf4, nf_chunked, nf_classic_model
 public nf_64bit_offset
 public nf_unlimited
 public nf_noerr, nf_ebadid, nf_eexist, nf_einval, nf_enotindefine, nf_eindefine, nf_einvalcoords
@@ -1169,6 +1169,7 @@ integer, parameter :: nf_nofill = 256
 integer, parameter :: nf_lock = 1024
 integer, parameter :: nf_share = 2048
 integer, parameter :: nf_netcdf4 = 4096
+integer, parameter :: nf_classic_model = 256
 integer, parameter :: nf_64bit_offset = 512
 integer, parameter :: nf_sizehint_default = 0
 integer, parameter :: nf_align_chunk = -1
@@ -1213,6 +1214,7 @@ integer, parameter :: nf90_write = nf_write
 integer, parameter :: nf90_clobber = nf_clobber
 integer, parameter :: nf90_share = nf_share
 integer, parameter :: nf90_netcdf4 = nf_netcdf4
+integer, parameter :: nf90_classic_model = nf_classic_model
 integer, parameter :: nf90_chunked = nf_chunked
 integer, parameter :: nf90_64bit_offset = nf_64bit_offset
 integer, parameter :: nf90_nofill = nf_nofill
