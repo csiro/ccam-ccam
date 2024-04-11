@@ -183,9 +183,10 @@ contains
 ! CABLE-CCAM interface
 subroutine sib4
 
-use cc_omp, only : ntiles, imax
+use amipsst_m, only : time_of_month, time_interpolate
 use arrays_m
 use carbpools_m
+use cc_omp, only : ntiles, imax
 use const_phys
 use dates_m
 use estab
@@ -219,6 +220,7 @@ integer, dimension(maxtile,2) :: ltind
 integer, dimension(imax) :: lclimate_biome, lclimate_iveg, lclimate_gmd
 integer :: lmaxnb, tile, is, ie, js, je
 integer :: ico2, igas
+integer :: iyr, imo, iday, mdays, k
 real, dimension(imax,mlitter) :: lclitter, lnilitter, lplitter
 real, dimension(imax,mplant) :: lcplant, lniplant, lpplant
 real, dimension(imax,msoil) :: lcsoil, lnisoil, lpsoil
@@ -231,6 +233,7 @@ real, dimension(imax) :: lclimate_min20, lclimate_max20, lclimate_alpha20
 real, dimension(imax) :: lclimate_agdd5
 real, dimension(imax) :: lclimate_dmoist_min20, lclimate_dmoist_max20
 real, dimension(imax) :: lfevc,lplant_turnover,lplant_turnover_wood
+real :: x
 logical, dimension(imax,maxtile) :: ltmap
 type(air_type) :: lair
 type(balances_type) :: lbal
@@ -305,7 +308,13 @@ do tile = 1,ntiles
       end if
     end if 
     if ( nspecial == 51 ) then
-      lwb_clim = wb_clim(is:ie,:)
+      call time_of_month(iyr,imo,iday,mdays,kdate,mtimer,leap)
+      x = (real(iday)-0.5)/real(mdays)
+      do k = 1,ms
+        call time_interpolate(lwb_clim(:,k),wb_clim(is:ie,k,1),wb_clim(is:ie,k,2),      &
+                              wb_clim(is:ie,k,3),wb_clim(is:ie,k,4),wb_clim(is:ie,k,5), &
+                              x,24)
+      end do  
     end if
     
     ! set co2 forcing for cable

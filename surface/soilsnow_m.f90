@@ -40,7 +40,7 @@ real, dimension(:), allocatable, save :: sicedep
 real, dimension(:), allocatable, save :: fracice, snowd
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
 real, dimension(:,:), allocatable, save :: albvisnir
-real, dimension(:,:), allocatable, save :: wb_clim ! allocated in indata.f90
+real, dimension(:,:,:), allocatable, save :: wb_clim ! allocated in indata.f90
 
 contains
 

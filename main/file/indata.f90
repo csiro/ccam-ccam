@@ -3219,6 +3219,7 @@ integer, parameter :: nrhead = 14
 integer ik, il_in, jl_in
 integer ncidx, ierr, varid
 integer k, iyr, imo
+integer imo_r
 integer, dimension(3) :: npos, spos
 #ifdef i8r8
 integer, dimension(nihead) :: nahead
@@ -3232,7 +3233,7 @@ real, dimension(:,:), allocatable :: wb_clim_g
 logical :: interpolate
 character(len=8) :: vname
 
-allocate(wb_clim(ifull,ms))
+allocate(wb_clim(ifull,ms,5)) ! 5 for previous-1, previous, current, next and next+1 month
 
 if ( myid==0 ) then
   write(6,*) "Load soil moisture climatology for nspecial==51"  
@@ -3260,13 +3261,17 @@ if ( myid==0 ) then
 
     write(6,*) "-> Interpolation required"  
     call define_grid(ik,rlon_in,rlat_in,schmidt_in)
+    allocate(wb_clim_raw(ik*ik*6))
+
+    ! Previous-1 month
+    imo_r = imo - 2
+    if ( imo_r < 1 ) imo_r = imo_r + 12
     npos(1) = ik
     npos(2) = 6*ik
     npos(3) = 1
     spos(1) = 1
     spos(2) = 1
-    spos(3) = imo
-    allocate(wb_clim_raw(ik*ik*6))
+    spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
       call ccnf_inq_varid(ncidx,vname,varid)
@@ -3275,37 +3280,188 @@ if ( myid==0 ) then
       !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
       call doints1(wb_clim_raw,wb_clim_g(:,k))
     end do  
+    call ccmpi_distribute(wb_clim(:,:,1),wb_clim_g)    
+    
+    
+    ! Previous month
+    imo_r = imo - 1
+    if ( imo_r < 1 ) imo_r = 12
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = imo_r
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      !lsma_raw(:) = .false.
+      !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
+      call doints1(wb_clim_raw,wb_clim_g(:,k))
+    end do  
+    call ccmpi_distribute(wb_clim(:,:,2),wb_clim_g)    
+    
+    ! Current month
+    imo_r = imo
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = imo_r
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      !lsma_raw(:) = .false.
+      !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
+      call doints1(wb_clim_raw,wb_clim_g(:,k))
+    end do  
+    call ccmpi_distribute(wb_clim(:,:,3),wb_clim_g)      
+
+    ! Next month
+    imo_r = imo + 1
+    if ( imo_r > 12 ) imo_r = 1
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = imo_r
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      !lsma_raw(:) = .false.
+      !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
+      call doints1(wb_clim_raw,wb_clim_g(:,k))
+    end do  
+    call ccmpi_distribute(wb_clim(:,:,4),wb_clim_g)    
+
+    ! Next+1 month
+    imo_r = imo + 2
+    if ( imo_r > 12 ) imo_r = imo_r - 12
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = imo_r
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      !lsma_raw(:) = .false.
+      !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
+      call doints1(wb_clim_raw,wb_clim_g(:,k))
+    end do  
+    call ccmpi_distribute(wb_clim(:,:,5),wb_clim_g)    
+    
     deallocate(wb_clim_raw)
     call erase_grid
     
   else
 
     write(6,*) "-> No interpolation required"  
+
+    ! previous month
+    imo_r = imo - 2
+    if ( imo_r < 1 ) imo_r = imo_r + 12
     npos(1) = ik
     npos(2) = 6*ik
     npos(3) = 1
     spos(1) = 1
     spos(2) = 1
-    spos(3) = imo
+    spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
       call ccnf_inq_varid(ncidx,vname,varid)
       call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
     end do
+    call ccmpi_distribute(wb_clim(:,:,1),wb_clim_g)   
+    
+    ! previous month
+    imo_r = imo - 1
+    if ( imo_r < 1 ) imo_r = 12
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = imo_r
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+    end do
+    call ccmpi_distribute(wb_clim(:,:,2),wb_clim_g)   
+
+    ! current month
+    imo_r = imo
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = imo_r
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+    end do
+    call ccmpi_distribute(wb_clim(:,:,3),wb_clim_g)   
+
+    ! next month
+    imo_r = imo + 1
+    if ( imo_r > 12 ) imo_r = 1
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = imo_r
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+    end do
+    call ccmpi_distribute(wb_clim(:,:,4),wb_clim_g)   
+
+    ! next+1 month
+    imo_r = imo + 2
+    if ( imo_r > 12 ) imo_r = imo_r - 12
+    npos(1) = ik
+    npos(2) = 6*ik
+    npos(3) = 1
+    spos(1) = 1
+    spos(2) = 1
+    spos(3) = imo_r
+    do k = 1,ms
+      write( vname, '("wetfrac",I1.1)' ) k
+      call ccnf_inq_varid(ncidx,vname,varid)
+      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+    end do
+    call ccmpi_distribute(wb_clim(:,:,5),wb_clim_g)   
     
   end if    
   
-  call ccmpi_distribute(wb_clim,wb_clim_g)
   deallocate( wb_clim_g )
   call ccnf_close(ncidx)
   
 else
-  call ccmpi_distribute(wb_clim)
+  call ccmpi_distribute(wb_clim(:,:,1)) ! previous - 1
+  call ccmpi_distribute(wb_clim(:,:,2)) ! previous
+  call ccmpi_distribute(wb_clim(:,:,3)) ! current
+  call ccmpi_distribute(wb_clim(:,:,4)) ! next
+  call ccmpi_distribute(wb_clim(:,:,5)) ! next + 1
 end if
 
 ! convert to soil moisture from field capacity
-do k = 1,ms
-  wb_clim(:,k) = wb_clim(:,k)*sfc(isoilm(1:ifull)) + (1.-wb_clim(:,k))*swilt(isoilm(1:ifull))
+do imo_r = 1,5
+  do k = 1,ms
+    wb_clim(:,k,imo_r) = wb_clim(:,k,imo_r)*sfc(isoilm(1:ifull)) + (1.-wb_clim(:,k,imo_r))*swilt(isoilm(1:ifull))
+  end do  
 end do  
 
 end subroutine load_sm_clim

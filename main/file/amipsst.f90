@@ -48,7 +48,8 @@ module amipsst_m
 implicit none
 
 private
-public amipsst, doints1, fill_cc1, define_grid, erase_grid
+public amipsst, doints1, fill_cc1, define_grid, erase_grid, time_of_month
+public time_interpolate
 
 integer, save :: amip_mode = -1 ! 0=month (ASCII), 1=month (NetCDF), 2=day (NetCDF)
 integer, save :: ncidx          ! Netcdf
@@ -130,10 +131,8 @@ real, allocatable, save, dimension(:) :: res
 real, dimension(ifull) :: sssb, timelt, fraciceb
 real, dimension(ifull) :: old, new, delta
 real x, c2, c3, c4, rat1, rat2
-real ssta2, ssta3, ssta4
-real a0, a1, a2, aa, bb, cc, mp1, mp2
 real wgt
-integer, dimension(0:13) :: mdays
+integer mdays
 integer idjd_g, iq, k
 integer, save :: iyr, imo, iday
 integer, parameter :: curr_month = 3 ! centre of 5-points
@@ -160,39 +159,11 @@ end if
 idjd_g = id + (jd-1)*il_g
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-iyr = kdate/10000
-imo = (kdate-10000*iyr)/100
-iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
-if ( leap==0 ) then ! 365 day calendar
-  mdays = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
-else if ( leap==1 ) then ! 365/366 day calendar
-  mdays = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
-  if ( mod(iyr,4)==0 ) mdays(2) = 29
-  if ( mod(iyr,100)==0 ) mdays(2) = 28
-  if ( mod(iyr,400)==0 ) mdays(2) = 29
-else if ( leap==2 ) then ! 360 day calendar
-  mdays = (/ 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 /)  
-else
-  write(6,*) "ERROR: Invalid leap = ",leap
-  call ccmpi_abort(-1)
-end if
-do while ( iday>mdays(imo) )
-  iday = iday - mdays(imo)
-  imo = imo + 1
-  if ( imo>12 ) then
-    imo = 1
-    iyr = iyr + 1
-    if ( leap==1 ) then
-      if ( mod(iyr,4)==0 ) mdays(2) = 29
-      if ( mod(iyr,100)==0 ) mdays(2) = 28
-      if ( mod(iyr,400)==0 ) mdays(2) = 29
-    end if
-  end if
-end do
+call time_of_month(iyr,imo,iday,mdays,kdate,mtimer,leap)
 if ( namip==-1 ) then
   iyr = 0
 end if
-x = real(iday-1)/real(mdays(imo))  ! simplest at end of day
+x = real(iday-1)/real(mdays)  ! simplest at end of day
 
 ! load data for 5-point stencil.  Dummy data for unused months.
 fraciceb = 0.  
@@ -283,28 +254,30 @@ end if  ! (namip==1)
 
 ! namip=2   Use linear interpolation for SSTs and sea-ice (assumes pre-processing of monthly SSTs)
 if ( namip==2 ) then
-  !--------------------------------------------------------------------------------------------------
-  ! Linear interpolation (possibly pre-processed by AMIP tridiagonal matrix method)
-  if ( iday<mdays(imo)/2 ) then  ! 1st half of month
-    rat1 = (mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
-    rat2 = (2.*iday+mdays(imo-1))/(mdays(imo)+mdays(imo-1))
-    if ( mydiag ) write(6,*)'rat1,rat2,land: ',rat1,rat2,land(idjd)
-    do iq = 1,ifull  
-      if ( .not.land(iq) ) then
-        tgg(iq,1) = rat1*ssta(iq,curr_month-1) + rat2*ssta(iq,curr_month)  ! sea water temperature
-      end if      ! (.not.land(iq))
-    end do
-    fraciceb(:) = min( .01*(rat1*aice(:,curr_month-1)+rat2*aice(:,curr_month)), 1. ) ! convert from %
-  else                             ! 2nd half of month
-    rat1 = (mdays(imo+1)+2.*mdays(imo)-2.*iday)/(mdays(imo+1)+mdays(imo))
-    rat2 = (2.*iday-mdays(imo))/(mdays(imo+1)+mdays(imo))
-    do iq = 1,ifull  
-      if ( .not.land(iq) ) then
-        tgg(iq,1) = rat1*ssta(iq,curr_month) + rat2*ssta(iq,curr_month+1)  ! sea water temperature
-      end if      ! (.not.land(iq))
-    end do
-    fraciceb(:) = min( .01*(rat1*aice(:,curr_month)+rat2*aice(:,curr_month+1)), 1. ) ! convert from %
-  end if
+  write(6,*) "ERROR: Not currently supported"
+  stop
+!  !--------------------------------------------------------------------------------------------------
+!  ! Linear interpolation (possibly pre-processed by AMIP tridiagonal matrix method)
+!  if ( iday<mdays(imo)/2 ) then  ! 1st half of month
+!    rat1 = (mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
+!    rat2 = (2.*iday+mdays(imo-1))/(mdays(imo)+mdays(imo-1))
+!    if ( mydiag ) write(6,*)'rat1,rat2,land: ',rat1,rat2,land(idjd)
+!    do iq = 1,ifull  
+!      if ( .not.land(iq) ) then
+!        tgg(iq,1) = rat1*ssta(iq,curr_month-1) + rat2*ssta(iq,curr_month)  ! sea water temperature
+!      end if      ! (.not.land(iq))
+!    end do
+!    fraciceb(:) = min( .01*(rat1*aice(:,curr_month-1)+rat2*aice(:,curr_month)), 1. ) ! convert from %
+!  else                             ! 2nd half of month
+!    rat1 = (mdays(imo+1)+2.*mdays(imo)-2.*iday)/(mdays(imo+1)+mdays(imo))
+!    rat2 = (2.*iday-mdays(imo))/(mdays(imo+1)+mdays(imo))
+!    do iq = 1,ifull  
+!      if ( .not.land(iq) ) then
+!        tgg(iq,1) = rat1*ssta(iq,curr_month) + rat2*ssta(iq,curr_month+1)  ! sea water temperature
+!      end if      ! (.not.land(iq))
+!    end do
+!    fraciceb(:) = min( .01*(rat1*aice(:,curr_month)+rat2*aice(:,curr_month+1)), 1. ) ! convert from %
+!  end if
 end if  ! (namip==2)
 
 
@@ -314,35 +287,25 @@ end if  ! (namip==2)
 if ( namip==3 .or. namip==4 .or. namip==5 ) then
   !--------------------------------------------------------------------------------------------------
   ! Piece-wise cubic bessel interpolation
-  do iq=1,ifull  
-    if(.not.land(iq))then
-      c2=ssta(iq,curr_month-1)
-      c3=ssta(iq,curr_month-1)+ssta(iq,curr_month)
-      c4=c3+ssta(iq,curr_month+1)          
-      tgg(iq,1)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
-    endif      ! (.not.land(iq))
-  enddo
+  call time_interpolate(tgg(:,1),ssta(:,curr_month-2),ssta(:,curr_month-1),           &
+                        ssta(:,curr_month),ssta(:,curr_month+1),ssta(:,curr_month+2), &
+                        x,namip,land=land)
 endif  ! (namip==3 .or. namip==4 .or. namip==5 )
 if ( namip==3 ) then
   do iq=1,ifull  
     fraciceb(iq)=min(.01*aice(iq,curr_month),1.)
   enddo
 else if ( namip==4 .or. namip==5 ) then
-  do iq=1,ifull  
-    c2=aice(iq,curr_month-1)
-    c3=c2+aice(iq,curr_month)
-    c4=c3+aice(iq,curr_month+1)          
-    fraciceb(iq)=min(.01*(.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x),1.)
-  end do
+  call time_interpolate(fraciceb(:),aice(:,curr_month-2),aice(:,curr_month-1),         &
+                        aice(:,curr_month),aice(:,curr_month+1),aice(:,curr_month+2),  &
+                        x,namip,land=land)
+  fraciceb = min( fraciceb, 1. )
 endif  ! (namip==4 .or namip==5 )
 if ( namip==5 ) then
-  do iq=1,ifull  
-    c2=asal(iq,curr_month-1)
-    c3=c2+asal(iq,curr_month)
-    c4=c3+asal(iq,curr_month+1)          
-    sssb(iq)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
-  end do
-  sssb=max(sssb,0.)
+  call time_interpolate(sssb(:),asal(:,curr_month-2),asal(:,curr_month-1),            &
+                        asal(:,curr_month),asal(:,curr_month+1),asal(:,curr_month+2), &
+                        x,namip,land=land)
+  sssb = max( sssb, 0. )
 end if ! namip==5
 
 
@@ -361,17 +324,9 @@ end if
 if ( namip==11 .or. namip==13 .or. namip==14 .or. namip==15 ) then
   !--------------------------------------------------------------------------------------------------
   ! John McGregor 5-pt, piece-wise, cubic interpolation
-  do iq=1,ifull  
-    if(.not.land(iq))then
-      ssta2=(24.*ssta(iq,curr_month-1)-ssta(iq,curr_month-2)-ssta(iq,curr_month))/22. 
-      ssta3=(24.*ssta(iq,curr_month)-ssta(iq,curr_month-1)-ssta(iq,curr_month+1))/22. 
-      ssta4=(24.*ssta(iq,curr_month+1)-ssta(iq,curr_month)-ssta(iq,curr_month+2))/22. 
-      c2=(-ssta(iq,curr_month-2)+9*ssta2+9*ssta3-ssta(iq,curr_month+1))/16.
-      c3=(-ssta(iq,curr_month-1)+9*ssta3+9*ssta4-ssta(iq,curr_month+2))/16.
-      tgg(iq,1)=c2+(6.*ssta(iq,curr_month)-4.*c2-2.*c3)*x    &
-                 +(3.*c2+3.*c3-6.*ssta(iq,curr_month))*x*x 
-    endif      ! (.not.land(iq))
-  enddo
+  call time_interpolate(tgg(:,1),ssta(:,curr_month-2),ssta(:,curr_month-1),           &
+                        ssta(:,curr_month),ssta(:,curr_month+1),ssta(:,curr_month+2), &
+                        x,namip,land=land)
   if ( namip==11 ) then
     where ( tgg(1:ifull,1)<271.2 )
       fraciceb(1:ifull) = 1.
@@ -381,30 +336,16 @@ if ( namip==11 .or. namip==13 .or. namip==14 .or. namip==15 ) then
   else if ( namip==13 ) then
     fraciceb(1:ifull)=min(.01*aice(1:ifull,curr_month),1.)
   else if ( namip==14 .or. namip==15 ) then
-    do iq=1,ifull  
-      if(.not.land(iq))then
-        ssta2=(24.*aice(iq,curr_month-1)-aice(iq,curr_month-2)-aice(iq,curr_month))/22. 
-        ssta3=(24.*aice(iq,curr_month)-aice(iq,curr_month-1)-aice(iq,curr_month+1))/22. 
-        ssta4=(24.*aice(iq,curr_month+1)-aice(iq,curr_month)-aice(iq,curr_month+2))/22. 
-        c2=(-aice(iq,curr_month-2)+9*ssta2+9*ssta3-aice(iq,curr_month+1))/16.
-        c3=(-aice(iq,curr_month-1)+9*ssta3+9*ssta4-aice(iq,curr_month+2))/16.
-        fraciceb(iq)=min(0.01*(c2+(6.*aice(iq,curr_month)-4.*c2-2.*c3)*x    &
-                   +(3.*c2+3.*c3-6.*aice(iq,curr_month))*x*x),1.)
-      endif      ! (.not.land(iq))
-    enddo
+    call time_interpolate(fraciceb(:),aice(:,curr_month-2),aice(:,curr_month-1),         &
+                          aice(:,curr_month),aice(:,curr_month+1),aice(:,curr_month+2),  &
+                          x,namip,land=land)
+    fraciceb = min( fraciceb, 1. )
   end if
   if ( namip==15 ) then
-    do iq=1,ifull  
-      if(.not.land(iq))then
-        ssta2=(24.*asal(iq,curr_month-1)-asal(iq,curr_month-2)-asal(iq,curr_month))/22. 
-        ssta3=(24.*asal(iq,curr_month)-asal(iq,curr_month-1)-asal(iq,curr_month+1))/22. 
-        ssta4=(24.*asal(iq,curr_month+1)-asal(iq,curr_month)-asal(iq,curr_month+2))/22. 
-        c2=(-asal(iq,curr_month-2)+9*ssta2+9*ssta3-asal(iq,curr_month+1))/16.
-        c3=(-asal(iq,curr_month-1)+9*ssta3+9*ssta4-asal(iq,curr_month+2))/16.
-        sssb(iq)=max(c2+(6.*asal(iq,curr_month)-4.*c2-2.*c3)*x    &
-                   +(3.*c2+3.*c3-6.*asal(iq,curr_month))*x*x,0.)
-      endif      ! (.not.land(iq))
-    enddo
+    call time_interpolate(sssb(:),asal(:,curr_month-2),asal(:,curr_month-1),            &
+                          asal(:,curr_month),asal(:,curr_month+1),asal(:,curr_month+2), &
+                          x,namip,land=land)
+    sssb = max( sssb, 0. )
   end if  
 end if
 
@@ -423,53 +364,9 @@ end if
 if ( namip==21 .or. namip==24 .or. namip==25 ) then
   !--------------------------------------------------------------------------------------------------
   ! Approximation of piece-wise, linear AMIP interpolation
-  if ( x<0.5 ) then
-    do iq = 1,ifull
-      if ( .not.land(iq) ) then
-        a0 = 0.5*ssta(iq,curr_month-1)
-        a1 = -ssta(iq,curr_month)
-        a2 = 0.5*ssta(iq,curr_month+1)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-        a0 = 0.5*ssta(iq,curr_month)
-        a1 = -ssta(iq,curr_month+1)
-        a2 = 0.5*ssta(iq,curr_month+2)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-        c4 = 2.*ssta(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-        c2 = mp1                                        ! intercept
-        c3 = 2.*(c4-c2)                                 ! gradient
-        tgg(iq,1) = c3*x + c2
-      end if
-    end do
-  else
-    do iq = 1,ifull
-      if ( .not.land(iq) ) then
-        a0 = 0.5*ssta(iq,curr_month-1)
-        a1 = -ssta(iq,curr_month)
-        a2 = 0.5*ssta(iq,curr_month+1)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-        a0 = 0.5*ssta(iq,curr_month)
-        a1 = -ssta(iq,curr_month+1)
-        a2 = 0.5*ssta(iq,curr_month+2)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-        c4 = 2.*ssta(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-        c3 = 2.*(mp2 - c4)                              ! gradient
-        c2 = 2.*c4 - mp2                                ! intercept
-        tgg(iq,1) = c3*x + c2
-      end if
-    end do
-  end if
+  call time_interpolate(tgg(:,1),ssta(:,curr_month-2),ssta(:,curr_month-1),           &
+                        ssta(:,curr_month),ssta(:,curr_month+1),ssta(:,curr_month+2), &
+                        x,namip,land=land)
   if ( namip==21 ) then
     where ( tgg(1:ifull,1)<271.2 )
       fraciceb(1:ifull) = 1.
@@ -477,103 +374,17 @@ if ( namip==21 .or. namip==24 .or. namip==25 ) then
       fraciceb(1:ifull) = 0.
     end where
   else if ( namip==24 .or. namip==25 ) then
-    if ( x<0.5 ) then
-      do iq = 1,ifull
-        if ( .not.land(iq) ) then
-          a0 = 0.5*aice(iq,curr_month-1)
-          a1 = -aice(iq,curr_month)
-          a2 = 0.5*aice(iq,curr_month+1)
-          aa = a0 + a1 + a2
-          bb = -3.*a0 - 2.*a1 - a2
-          cc = 2.*a0
-          mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-          a0 = 0.5*aice(iq,curr_month)
-          a1 = -aice(iq,curr_month+1)
-          a2 = 0.5*aice(iq,curr_month+2)
-          aa = a0 + a1 + a2
-          bb = -3.*a0 - 2.*a1 - a2
-          cc = 2.*a0
-          mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-          c4 = 2.*aice(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-          c2 = mp1                                        ! intercept
-          c3 = 2.*(c4-c2)                                 ! gradient
-          fraciceb(iq) = min( 0.01*(c3*x + c2), 1. )
-        end if
-      end do
-    else
-      do iq = 1,ifull
-        if ( .not.land(iq) ) then
-          a0 = 0.5*aice(iq,curr_month-1)
-          a1 = -aice(iq,curr_month)
-          a2 = 0.5*aice(iq,curr_month+1)
-          aa = a0 + a1 + a2
-          bb = -3.*a0 - 2.*a1 - a2
-          cc = 2.*a0
-          mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-          a0 = 0.5*aice(iq,curr_month)
-          a1 = -aice(iq,curr_month+1)
-          a2 = 0.5*aice(iq,curr_month+2)
-          aa = a0 + a1 + a2
-          bb = -3.*a0 - 2.*a1 - a2
-          cc = 2.*a0
-          mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-          c4 = 2.*aice(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-          c3 = 2.*(mp2 - c4)                              ! gradient
-          c2 = 2.*c4 - mp2                                ! intercept
-          fraciceb(iq) = min( 0.01*(c3*x+c2), 1. )
-        end if
-      end do
-    end if
+    call time_interpolate(fraciceb(:),aice(:,curr_month-2),aice(:,curr_month-1),         &
+                          aice(:,curr_month),aice(:,curr_month+1),aice(:,curr_month+2),  &
+                          x,namip,land=land)
+    fraciceb = min( fraciceb, 1. )
   end if
   if ( namip==25 ) then
-    if ( x<0.5 ) then
-      do iq = 1,ifull
-        if ( .not.land(iq) ) then
-          a0 = 0.5*asal(iq,curr_month-1)
-          a1 = -asal(iq,curr_month)
-          a2 = 0.5*asal(iq,curr_month+1)
-          aa = a0 + a1 + a2
-          bb = -3.*a0 - 2.*a1 - a2
-          cc = 2.*a0
-          mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-          a0 = 0.5*asal(iq,curr_month)
-          a1 = -asal(iq,curr_month+1)
-          a2 = 0.5*asal(iq,curr_month+2)
-          aa = a0 + a1 + a2
-          bb = -3.*a0 - 2.*a1 - a2
-          cc = 2.*a0
-          mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-          c4 = 2.*asal(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-          c2 = mp1                                        ! intercept
-          c3 = 2.*(c4-c2)                                 ! gradient
-          sssb(iq) = max( c3*x+c2, 0. )
-        end if
-      end do
-    else
-      do iq = 1,ifull
-        if ( .not.land(iq) ) then
-          a0 = 0.5*asal(iq,curr_month-1)
-          a1 = -asal(iq,curr_month)
-          a2 = 0.5*asal(iq,curr_month+1)
-          aa = a0 + a1 + a2
-          bb = -3.*a0 - 2.*a1 - a2
-          cc = 2.*a0
-          mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-          a0 = 0.5*asal(iq,curr_month)
-          a1 = -asal(iq,curr_month+1)
-          a2 = 0.5*asal(iq,curr_month+2)
-          aa = a0 + a1 + a2
-          bb = -3.*a0 - 2.*a1 - a2
-          cc = 2.*a0
-          mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-          c4 = 2.*asal(iq,curr_month) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-          c3 = 2.*(mp2 - c4)                              ! gradient
-          c2 = 2.*c4 - mp2                                ! intercept
-          sssb(iq) = max( c3*x+c2, 0. )
-        end if
-      end do
-    end if
-  end if
+    call time_interpolate(sssb(:),asal(:,curr_month-2),asal(:,curr_month-1),            &
+                          asal(:,curr_month),asal(:,curr_month+1),asal(:,curr_month+2), &
+                          x,namip,land=land)
+    sssb = max( sssb, 0. )
+  end if      
 end if
 
 
@@ -1830,5 +1641,157 @@ implicit none
 deallocate( nface4, xg4, yg4 )
 
 end subroutine erase_grid
+
+subroutine time_of_month(iyr,imo,iday,mdays,kdate,mtimer,leap)
+
+implicit none
+
+integer, intent(in) :: kdate, leap, mtimer
+integer, intent(out) :: iyr, imo, iday, mdays
+integer, dimension(0:13) :: mdays_a
+
+iyr = kdate/10000
+imo = (kdate-10000*iyr)/100
+iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
+if ( leap==0 ) then ! 365 day calendar
+  mdays_a = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
+else if ( leap==1 ) then ! 365/366 day calendar
+  mdays_a = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
+  if ( mod(iyr,4)==0 ) mdays_a(2) = 29
+  if ( mod(iyr,100)==0 ) mdays_a(2) = 28
+  if ( mod(iyr,400)==0 ) mdays_a(2) = 29
+else if ( leap==2 ) then ! 360 day calendar
+  mdays_a = (/ 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 /)  
+else
+  write(6,*) "ERROR: Invalid leap = ",leap
+  stop
+end if
+do while ( iday>mdays_a(imo) )
+  iday = iday - mdays_a(imo)
+  imo = imo + 1
+  if ( imo>12 ) then
+    imo = 1
+    iyr = iyr + 1
+    if ( leap==1 ) then
+      if ( mod(iyr,4)==0 ) mdays_a(2) = 29
+      if ( mod(iyr,100)==0 ) mdays_a(2) = 28
+      if ( mod(iyr,400)==0 ) mdays_a(2) = 29
+    end if
+  end if
+end do
+mdays = mdays_a(imo)
+
+return
+end subroutine time_of_month
+
+subroutine time_interpolate(datout,dat_pm,dat_p,dat_c,dat_n,dat_np,x,method,land)
+
+integer, intent(in) :: method
+integer iq
+real, intent(in) :: x
+real a0, a1, a2, aa, bb, cc, mp1, mp2, c2, c3, c4
+real ssta2, ssta3, ssta4
+real, dimension(:), intent(out) :: datout
+real, dimension(:), intent(in) :: dat_pm, dat_p, dat_c, dat_n, dat_np
+logical, dimension(:), intent(in), optional :: land
+logical, dimension(size(datout)) :: land_l
+
+! dat_pm - previous month -1 (current month - 2)
+! dat_p  - previous month (current month - 1)
+! dat_c  - current month
+! dat_n  - next month ( current month + 1)
+! dat_np - next month +1 ( current month + 2 )
+
+land_l = .false.
+if ( present(land) ) then
+  land_l = land
+end if
+
+! method=3,4,5  Use PWCB interpolation
+if ( method==3 .or. method==4 .or. method==5 ) then
+  !--------------------------------------------------------------------------------------------------
+  ! Piece-wise cubic bessel interpolation
+  do iq=1,size(datout)
+    if( .not.land_l(iq) )then
+      c2=dat_p(iq)
+      c3=dat_p(iq)+dat_c(iq)
+      c4=c3+dat_n(iq)          
+      datout(iq)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
+    endif      ! (.not.land(iq))
+  enddo
+endif
+
+! method=11,13,14,15  Use JMc interpolation
+if ( method==11 .or. method==13 .or. method==14 .or. method==15 ) then
+  !--------------------------------------------------------------------------------------------------
+  ! John McGregor 5-pt, piece-wise, cubic interpolation
+  do iq=1,size(datout)
+    if ( .not.land_l(iq) ) then
+      ssta2=(24.*dat_p(iq)-dat_pm(iq)-dat_c(iq))/22. 
+      ssta3=(24.*dat_c(iq)-dat_p(iq)-dat_n(iq))/22. 
+      ssta4=(24.*dat_n(iq)-dat_c(iq)-dat_np(iq))/22. 
+      c2=(-dat_pm(iq)+9*ssta2+9*ssta3-dat_n(iq))/16.
+      c3=(-dat_p(iq)+9*ssta3+9*ssta4-dat_np(iq))/16.
+      datout(iq)=c2+(6.*dat_c(iq)-4.*c2-2.*c3)*x    &
+                 +(3.*c2+3.*c3-6.*dat_c(iq))*x*x 
+    endif      ! (.not.land(iq))
+  enddo
+end if
+
+! method=21,24,25  Use approx linear AMIP interpolation
+if ( method==21 .or. method==24 .or. method==25 ) then
+  !--------------------------------------------------------------------------------------------------
+  ! Approximation of piece-wise, linear AMIP interpolation
+  if ( x<0.5 ) then
+    do iq = 1,size(datout)
+      if ( .not.land_l(iq) ) then
+        a0 = 0.5*dat_p(iq)
+        a1 = -dat_c(iq)
+        a2 = 0.5*dat_n(iq)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*dat_c(iq)
+        a1 = -dat_n(iq)
+        a2 = 0.5*dat_np(iq)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*dat_c(iq) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c2 = mp1                              ! intercept
+        c3 = 2.*(c4-c2)                       ! gradient
+        datout(iq) = c3*x + c2
+      end if
+    end do
+  else
+    do iq = 1,size(datout)
+      if ( .not.land_l(iq) ) then
+        a0 = 0.5*dat_p(iq)
+        a1 = -dat_c(iq)
+        a2 = 0.5*dat_n(iq)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*dat_c(iq)
+        a1 = -dat_n(iq)
+        a2 = 0.5*dat_np(iq)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*dat_c(iq) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c3 = 2.*(mp2 - c4)                    ! gradient
+        c2 = 2.*c4 - mp2                      ! intercept
+        datout(iq) = c3*x + c2
+      end if
+    end do
+  end if
+end if
+
+return
+end subroutine time_interpolate
 
 end module amipsst_m
