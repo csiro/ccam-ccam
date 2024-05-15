@@ -110,9 +110,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
                       zpidw,zpiadj,zqschg,                  &
 #endif
                       zdrop,lin_aerosolmode)                  !aerosol feedback
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
 !-----------------------------------------------------------------------
 
@@ -282,8 +279,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
   real, dimension(1:imax,kts:kte)               :: n0_s, n0_r
   real, dimension(1:imax)                       :: n0_i, n0_c                  
   real, dimension(1:imax,kts:kte)               :: lami, lamc
-  real, dimension(1:imax)                       :: gg21, gg22
-  real, dimension(1:imax)                       :: gg31, gg32, gg33
+  real                                          :: gg21, gg22, gg31, gg32, gg33
   real, dimension(1:imax,kts:kte)               :: gam_ss, gam_bm_s, gam_bv_ss
   real, dimension(1:imax,kts:kte)               :: gam_bv_s
   real ratio
@@ -390,9 +386,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
     nizodt(1:imax,k)=max( 0.0,odtb*niz(1:imax,k) )
     nrzodt(1:imax,k)=max( 0.0,odtb*nrz(1:imax,k) )
     nszodt(1:imax,k)=max( 0.0,odtb*nsz(1:imax,k) )
-  end do
-
-  do k=kts,kte
+  
     qlz(1:imax,k)  =max( 0.0,qlz(1:imax,k) )
     qiz(1:imax,k)  =max( 0.0,qiz(1:imax,k) )
     qvz(1:imax,k)  =max( qvmin,qvz(1:imax,k) )
@@ -403,24 +397,19 @@ subroutine clphy1d_ylin(dt, imax,                           &
     es1d(1:imax)   =1000.*svp1*exp( svp2*temcc(1:imax,k)/(tem(1:imax,k)-svp3) )  !--- RY89 Eq(2.17)
     qswz(1:imax,k) =ep2*es1d(1:imax)/max(prez(1:imax,k)-es1d(1:imax),0.1)
  
-    do iq=1,imax
-      if (tem(iq,k) .lt. 233.15 ) then
-        es1d(iq)=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
-        qsiz(iq,k)=ep2*es1d(iq)/max(prez(iq,k)-es1d(iq),0.1)
-        qswz(iq,k)=qsiz(iq,k)
-      else if (tem(iq,k) .lt. 273.15 ) then
-        es1d(iq)=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
-        qsiz(iq,k)=ep2*es1d(iq)/max(prez(iq,k)-es1d(iq),0.1)
-      else
-        qsiz(iq,k)=qswz(iq,k)
-      endif
-    enddo
+    where (tem(1:imax,k) .lt. 233.15 )
+      es1d(1:imax)=1000.*svp1*exp( 21.8745584*(tem(1:imax,k)-273.16)/(tem(1:imax,k)-7.66) )
+      qsiz(1:imax,k)=ep2*es1d(1:imax)/max(prez(1:imax,k)-es1d(1:imax),0.1)
+      qswz(1:imax,k)=qsiz(1:imax,k)
+    elsewhere (tem(1:imax,k) .lt. 273.15 )
+      es1d(1:imax)=1000.*svp1*exp( 21.8745584*(tem(1:imax,k)-273.16)/(tem(1:imax,k)-7.66) )
+      qsiz(1:imax,k)=ep2*es1d(1:imax)/max(prez(1:imax,k)-es1d(1:imax),0.1)
+    elsewhere
+      qsiz(1:imax,k)=qswz(1:imax,k)
+    end where
 
     theiz(1:imax,k)=thz(1:imax,k)+(xlvocp*qvz(1:imax,k)-xlfocp*qiz(1:imax,k))/tothz(1:imax,k)
-  enddo
-
-  do k=kts,kte
-
+  
     n0_s(1:imax,k)     =0.
     lamc(1:imax,k)     =0.
     lami(1:imax,k)     =0.
@@ -436,8 +425,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
     !nisten(1:imax,k)   =0.
     !nrsten(1:imax,k)   =0.
     !nssten(1:imax,k)   =0.
-  end do
-
+  
   !***********************************************************************
   !*****  compute viscosity,difusivity,thermal conductivity, and    ******
   !*****  Schmidt number                                            ******
@@ -455,22 +443,19 @@ subroutine clphy1d_ylin(dt, imax,                           &
   !      xka(k)=2.43e-2 J/m/s/K in RH
   !      axka=1.4132e3 (1.414e3 in MM5) m2/s2/k = 1.4132e7 cm2/s2/k
   !------------------------------------------------------------------
-  do k=kts,kte
     viscmu(1:imax,k)=avisc*tem(1:imax,k)**1.5/(tem(1:imax,k)+120.0)
     visc(1:imax,k)=viscmu(1:imax,k)/rho(1:imax,k)
     diffwv(1:imax,k)=adiffwv*tem(1:imax,k)**1.81/prez(1:imax,k)
     schmidt(1:imax,k)=visc(1:imax,k)/diffwv(1:imax,k)
     xka(1:imax,k)=axka*viscmu(1:imax,k)
     rs0(1:imax,k)=ep2*1000.*svp1/(prez(1:imax,k)-1000.*svp1)
-  end do
-
+  
   ! ---- YLIN, set snow variables
   !
   !---- A+B in depositional growth, the first try just take from Rogers and Yau(1989)
   !         ab_s(k) = lsub*lsub*orv/(tcond(k)*temp(k))+&
   !                   rv*temp(k)/(diffu(k)*qvsi(k))
 
-  do k = kts, kte
     !tc0(1:imax)   = tem(1:imax,k)-273.15
     where( rho(1:imax,k)*qlz(1:imax,k) .gt. 1e-5 .AND. rho(1:imax,k)*qsz(1:imax,k) .gt. 1e-5  )
       Ri(1:imax,k) = 1.0/(1.0+6e-5/(rho(1:imax,k)**1.170*qlz(1:imax,k)*qsz(1:imax,k)**0.170)) 
@@ -484,9 +469,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
   !--- make sure Ri does not decrease downward in a column
   !
   do k = kte-1,kts,-1
-    do iq = 1,imax
-      Ri(iq,k) = max( Ri(iq,k), Ri(iq,k+1) )
-    end do
+    Ri(1:imax,k) = max( Ri(1:imax,k), Ri(1:imax,k+1) )
   end do
 
   !--- YLIN, get PI properties
@@ -535,7 +518,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
   do iq = 1,imax
     qrz_k(kts:kte) = qrz(iq,kts:kte)    
-    notlast=any( qrz_k(kts:kte)>1.e-8 )
+    notlast = any( qrz_k(kts:kte)>1.e-8 )
     if ( notlast ) then
       vtrold_k(kts:kte) = 0.
       n0_r_k(kts:kte) = 0.
@@ -544,12 +527,12 @@ subroutine clphy1d_ylin(dt, imax,                           &
       zz_k(0:kte) = zz(iq,0:kte)
       rho_k(kts:kte) = rho(iq,kts:kte)
       dzw_k(kts:kte) = dzw(iq,kts:kte)
-      t_del_tv=0.
-      del_tv=dtb
-      do while (notlast)
+      t_del_tv = 0.
+      del_tv = dtb
+      do while ( notlast )
         
-        min_q=kte
-        max_q=kts-1
+        min_q = kte
+        max_q = kts-1
 
         ! if no rain, --> minq>maxq --> notlast=False (only case minq>maxq)
         ! if rain --> minq<maxq (always), some vertical points norain--> no lamda, velocity
@@ -574,9 +557,9 @@ subroutine clphy1d_ylin(dt, imax,                           &
             nvtr_k(k) = av_r*gambvr1*sqrho*tmp1
             del_tv = min(del_tv,0.9*(zz_k(k)-zz_k(k-1))/vtrold_k(k))
           else
-            vtrold_k(k)=0.
-            nvtr_k(k)=0.
-            olambdar_k(k)=0.
+            vtrold_k(k) = 0.
+            nvtr_k(k) = 0.
+            olambdar_k(k) = 0.
           end if
         end do         ! k
       
@@ -586,12 +569,12 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
         if (max_q >= min_q) then
 
-          fluxin=0.
-          nfluxin=0. ! sny
-          t_del_tv=t_del_tv+del_tv
+          fluxin = 0.
+          nfluxin = 0.
+          t_del_tv = t_del_tv + del_tv
           if ( t_del_tv >= dtb ) then
-            notlast=.false.
-            del_tv=dtb+del_tv-t_del_tv
+            notlast = .false.
+            del_tv = dtb + del_tv - t_del_tv
           end if
 
           do k = max_q,min_q,-1
@@ -619,7 +602,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
           end if
 
         else
-          notlast=.false.
+          notlast = .false.
         end if ! maxq>minq
 
       END DO      ! while(notlast)
@@ -924,28 +907,24 @@ subroutine clphy1d_ylin(dt, imax,                           &
                        tmp2d == 0.)
       
       if ( mask(iq) ) then
-        !gg11(iq) = ggamma(tmp_ss(iq,k))
-        !gg12(iq) = ggamma(1.+bm_s(iq,k))
-        !gg13(iq) = ggamma(bv_s(iq,k)+tmp_ss(iq,k))
-        !gg14(iq) = ggamma(bv_s(iq,k)+1.)
-        gg21(iq) = ggamma(bv_s(iq,k)+tmp_sa(iq,k))
-        gg22(iq) = ggamma(2.5+0.5*bv_s(iq,k)+mu_s)
-        gg31(iq) = ggamma(4.+mu_c(iq,k))
-        gg32(iq) = ggamma(1.+mu_c(iq,k))
-        gg33(iq) = ggamma(6.+1.+mu_c(iq,k))
-        !gg41(iq) = ggamma(tmp_ss(iq,k))
-        !gg42(iq) = ggamma(1.+bm_s(iq,k))
-        !gg51(iq) = ggamma(4.+mu_c(iq,k))
-        !gg52(iq) = ggamma(1.+mu_c(iq,k))      
-      end if  
-    end do  
+        !gg11 = ggamma(tmp_ss(iq,k))
+        !gg12 = ggamma(1.+bm_s(iq,k))
+        !gg13 = ggamma(bv_s(iq,k)+tmp_ss(iq,k))
+        !gg14 = ggamma(bv_s(iq,k)+1.)
+        gg21 = ggamma(bv_s(iq,k)+tmp_sa(iq,k))
+        gg22 = ggamma(2.5+0.5*bv_s(iq,k)+mu_s)
+        gg31 = ggamma(4.+mu_c(iq,k))
+        gg32 = ggamma(1.+mu_c(iq,k))
+        gg33 = ggamma(6.+1.+mu_c(iq,k))
+        !gg41 = ggamma(tmp_ss(iq,k))
+        !gg42 = ggamma(1.+bm_s(iq,k))
+        !gg51 = ggamma(4.+mu_c(iq,k))
+        !gg52 = ggamma(1.+mu_c(iq,k))      
 
     !
     !! calculate terminal velocity of rain
     !    
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-
+          
         if (qrz(iq,k) .gt. 1.e-8) then
         !  tmp1=sqrt(pi*rhowater*xnor/rho(k)/qrz(k))
         !  xlambdar(k)=sqrt(tmp1)
@@ -974,15 +953,9 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
         vtr(iq,k)=vtrold(iq,k)
         
-      end if
-    end do
-    
     !!
     !!! calculate terminal velocity of snow
     !!
-   
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
 
         if (qsz(iq,k) > 1.e-8) then
           xlambdas(iq,k)=(am_s(iq,k)*gam_ss(iq,k)*nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
@@ -1009,12 +982,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
         endif
 
         vts(iq,k)=vtsold(iq,k)
-        
-      end if
-    end do
-    
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
         
         !---------- start of snow/ice processes below freezing
 
@@ -1145,7 +1112,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
             esi=exp( 0.025*temcc(iq,k) )
             tmp1 = olambdas(iq,k)**(bv_s(iq,k)+tmp_sa(iq,k))
             save1 = aa_s(iq,k)*sqrho*n0_s(iq,k)* &
-              gg21(iq)*tmp1
+              gg21*tmp1
 
             tmp1=esi*save1
             psaci(iq)=qizodt(iq)*( 1.-exp(-tmp1*dtb) )
@@ -1173,7 +1140,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
             tmp2= abi*n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
                  vf2s*schmidt(iq,k)**0.33334* &
-                 gg22(iq)*sqrt(tmp1) )
+                 gg22*sqrt(tmp1) )
             tmp3=odtb*( qvz(iq,k)-qsiz(iq,k) )
             tmp3=min(tmp3,0.)
 
@@ -1258,8 +1225,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
             esw=1.0
             tmp1 = olambdas(iq,k)**(bv_s(iq,k)+tmp_sa(iq,k))
             save1 =aa_s(iq,k)*sqrho*n0_s(iq,k)* &
-                   gg21(iq)*     &
-                   tmp1
+                   gg21*tmp1
 
             tmp1=esw*save1
             psacw(iq)=qlzodt(iq)*( 1.0-exp(-tmp1*dtb) )
@@ -1293,7 +1259,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
             tmp1= av_s(iq,k)*sqrho*olambdas(iq,k)**(5.+bv_s(iq,k)+2.*mu_s)/visc(iq,k)
             tmp2= n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
                   vf2s*schmidt(iq,k)**0.33334* &
-                  gg22(iq)*sqrt(tmp1) )
+                  gg22*sqrt(tmp1) )
             tmp3=term1*oxlf*tmp2-cwoxlf*temcc(iq,k)*( psacw(iq)+psacr(iq) )
             tmp4=min(0.0,tmp3)
             psmlt(iq)=max( tmp4,-qszodt(iq) )
@@ -1324,7 +1290,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
             tmp1=av_s(iq,k)*sqrho*olambdas(iq,k)**(5.+bv_s(iq,k)+2.*mu_s)/visc(iq,k)
             tmp2=n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
                  vf2s*schmidt(iq,k)**0.33334* &
-                 gg22(iq)*sqrt(tmp1) )
+                 gg22*sqrt(tmp1) )
             tmp3=min(0.0,tmp2)
             tmp3=max( tmp3,tmpd )
             psmltevp(iq)=max( tmp3,-qszodt(iq) )
@@ -1337,12 +1303,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
         end if      !---- end of snow/ice processes   if (tem(iq,k) .lt. 273.15) then
         !---------- end of snow/ice processes below freezing
 
-      end if
-    end do
-
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-        
         !***********************************************************************
         !*********           rain production processes                **********
         !***********************************************************************
@@ -1359,8 +1319,8 @@ subroutine clphy1d_ylin(dt, imax,                           &
         !else
         if (qlz(iq,k) > 1.e-6) then
           mu_c(iq,k) = min(15., (1000.E6/ncz(iq,k) + 2.))
-          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31(iq)/(6.*qlz(iq,k)*gg32(iq)))**(1./3)
-          Dc_liu = (gg33(iq)/gg32(iq))**(1./6.)/lamc(iq,k) !----- R6 in m
+          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31/(6.*qlz(iq,k)*gg32))**(1./3)
+          Dc_liu = (gg33/gg32)**(1./6.)/lamc(iq,k) !----- R6 in m
           if (Dc_liu > R6c) then
             disp = 1./(mu_c(iq,k)+1.)                      !--- square of relative dispersion
             eta  = (0.75/pi/(1.e-3*rhowater))**2*1.9e11*((1.+3.*disp)*(1.+4.*disp)*&
@@ -1389,12 +1349,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
         ! npraut_r(K) = MIN(npraut_r(k),npraut(k))
         ! endif
 
-      end if
-    end do
-
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-
         !
         ! (2) ACCRETION OF CLOUD WATER BY RAIN (Pracw): Lin (51)
         !
@@ -1404,12 +1358,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
         pracw(iq)=qlzodt(iq)*( 1.-exp(-tmp1*dtb) )
         npracw(iq)=tmp1*ncz(iq,k)
 
-      end if
-    end do
-
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-        
         !
         ! (3) EVAPORATION OF RAIN (Prevp): Lin (52)
         !     Prevp is negative value
@@ -1433,13 +1381,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
         else
           nprevp(iq)=prevp(iq)*xmr
         end if
-
-      end if
-    end do
-
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-    
+   
         !
         !**********************************************************************
         !*****     combine all processes together and avoid negative      *****
@@ -1641,12 +1583,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
           nsz(iq,k)=max( 0.0,nsz(iq,k)-dtb*tmp1 )
         end if    !T seperate for source and sink terms
 
-      end if
-    end do
-    
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000        
-
         !rain
         if (qrz(iq,k) > 1.e-8) then
           xlambdar(iq,k)=(pi*rhowater*nrz(iq,k)/qrz(iq,k))**(1./3.)   !zx
@@ -1661,12 +1597,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
           end if
         end if
 
-      end if
-    end do
-    
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-        
         !snow
         if (qsz(iq,k) .gt. 1.0e-8) then
           xlambdas(iq,k)=(am_s(iq,k)*gam_ss(iq,k)*     &
@@ -1684,12 +1614,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
           end if
         end if
 
-      end if
-    end do
-
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-        
         !cloud ice
         if (qiz(iq,k) >= 1.e-8) then
           lami(iq,k) = max((gam13*500.*pi/6.)*niz(iq,k)/qiz(iq,k),1.e-20)**(1./3) !fixed zdc
@@ -1704,35 +1628,23 @@ subroutine clphy1d_ylin(dt, imax,                           &
           end if
         end if
         
-      end if
-    end do
-
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-
         !cloud water zdc 20220208
         if (qlz(iq,k) >= 1.e-8) then
-          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31(iq)/(6.*qlz(iq,k)*gg32(iq)))**(1./3)
+          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31/(6.*qlz(iq,k)*gg32))**(1./3)
           if (lamc(iq,k).lt.lammini) then
             lamc(iq,k)= lammini
             tmp1 = lamc(iq,k)**(mu_c(iq,k)+4.)
-            tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31(iq))
+            tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31)
             n0_c(iq)= tmp1*tmp2
             ncz(iq,k) = n0_c(iq)/lamc(iq,k)
           else if (lamc(iq,k).gt.lammaxi) then
             lamc(iq,k)= lammaxi
             tmp1 = lamc(iq,k)**(mu_c(iq,k)+4.)
-            tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31(iq))
+            tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31)
             n0_c(iq)= tmp1*tmp2
             ncz(iq,k) = n0_c(iq)/lamc(iq,k)
           end if
         end if
-        
-      end if
-    end do
-
-    do iq = 1,imax
-      if( mask(iq) ) then !go to 2000    
         
         nimlt = 0.
         nihom = 0.
@@ -1984,11 +1896,8 @@ END SUBROUTINE clphy1d_ylin
 !---------------------------------------------------------------------
 !                         SATURATED ADJUSTMENT
 !---------------------------------------------------------------------
-pure SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
+PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
                   xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
-#ifdef GPUPHYSICS
-!$acc routine seq
-#endif
 
 !---------------------------------------------------------------------
       IMPLICIT NONE
@@ -2117,9 +2026,7 @@ END SUBROUTINE satadj
 
 !----------------------------------------------------------------
 PURE FUNCTION ggamma(X) result(ans)
-#ifdef GPUPHYSICS
-!$acc routine seq
-#endif
+
 !----------------------------------------------------------------
   IMPLICIT NONE
   !----------------------------------------------------------------

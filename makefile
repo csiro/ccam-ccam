@@ -15,7 +15,7 @@ INC = -I .
 ifeq ($(GPU),yes)
 USE_GPU=yes
 endif
-ifeq ($(GPUPHYSICS),yes)
+ifeq ($(GPUCHEMISTRY),yes)
 USE_GPU=yes
 endif
 
@@ -103,8 +103,8 @@ VTHRESH =
 ifeq ($(USE_GPU),yes)
 FFLAGS += -DGPU -foffload=nvptx-none
 endif
-ifeq ($(GPUPHYSICS),yes)
-FFLAGS += -DGPUPHYSICS
+ifeq ($(GPUCHEMISTRY),yes)
+FFLAGS += -DGPUCHEMISTRY
 endif
 ifeq ($(OMP),yes)
 FFLAGS += -fopenmp
@@ -159,8 +159,8 @@ ifeq ($(USE_GPU),yes)
 FFLAGS += -Minfo=accel -acc -gpu=cuda12.2,fastmath,flushz -DGPU
 #-ta=tesla:cc70
 endif
-ifeq ($(GPUPHYSICS),yes)
-FFLAGS += -DGPUPHYSICS
+ifeq ($(GPUCHEMISTRY),yes)
+FFLAGS += -DGPUCHEMISTRY
 endif
 ifeq ($(OMP),yes)
 FFLAGS += -mp

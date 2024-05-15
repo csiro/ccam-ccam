@@ -64,9 +64,12 @@ contains
       complex, dimension(:), intent(inout) :: drb
       real :: e, t1, t2 
       integer :: i, n
- 
-      ! expect size(drb)=2
-     
+#ifndef GPU
+      complex, dimension(size(dra,2)) :: dra_t
+#endif
+      
+#ifdef GPU
+      !$acc parallel loop copyin(dra) copy(drb)
       do n = 1,size(dra,2)
          do i = 1,size(dra,1)
             !  Compute dra + drb using Knuth's trick. 
@@ -78,6 +81,21 @@ contains
             drb(n) = cmplx (t1 + t2, t2 - ((t1 + t2) - t1)) 
          end do
       end do
+      !$acc end parallel loop
+#else
+      do i = 1,size(dra,1)
+         dra_t(:) = dra(i,:)
+         do n = 1,size(dra_t)
+            !  Compute dra + drb using Knuth's trick. 
+            t1 = real(dra_t(n)) + real(drb(n)) 
+            e = t1 - real(dra_t(n)) 
+            t2 = ((real(drb(n)) - e) + (real(dra_t(n)) - (t1 - e)))  + &
+                 aimag(dra_t(n)) + aimag(drb(n)) 
+            !    The result is t1 + t2, after normalization. 
+            drb(n) = cmplx (t1 + t2, t2 - ((t1 + t2) - t1)) 
+         end do
+      end do
+#endif
       
    end subroutine drpdr_v
 
@@ -110,8 +128,10 @@ contains
       real, dimension(:,:), intent(in)  :: array
       complex, dimension(:), intent(inout) :: local_sum
       real :: e, t1, t2 
-      real, dimension(size(array,2)) :: array_t
       integer :: i, n
+#ifndef GPU
+      real, dimension(size(array,2)) :: array_t
+#endif
       
 #ifdef GPU
       !$acc parallel loop copyin(array) copy(local_sum)

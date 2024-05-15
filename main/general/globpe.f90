@@ -34,10 +34,11 @@
 !   debug        - additional debugging checks, but runs slower
 !   scm          - single column mode
 !   i8r8         - double precision mode
-!   GPU          - target GPUs with OpenACC. additional physics enabled with GPUPHYSICS
+!   GPU          - target GPUs with OpenACC
+!   GPUCHEMISTRY - additional GPU usage, but requires more GPU memory and GPU directive
 !   csircoupled  - CSIR coupled model
 !   usempi3      - optimse communication with MPI shared memory (preferred)
-!   share_ifullg - reduce shared memory with MPI (preferred) requires usempi3 directive
+!   share_ifullg - reduce shared memory with MPI, but requires usempi3 directive
 !   vampir       - enable vampir profiling
     
 program globpe
@@ -543,6 +544,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if    
   ! aerosol timer (true indicates update oxidants, etc)
   oxidant_update = oxidant_timer<=mins-updateoxidant
+  if ( oxidant_update ) then
+    if ( nsib>0 ) then
+      call START_LOG(aerosol_begin)
+      if ( abs(iaero)>=2 ) then
+        call aerocalc_init(mins)
+      end if
+      call END_LOG(aerosol_end)
+    end if
+  end if  
 
   
   ! MISC (PARALLEL) -------------------------------------------------------
@@ -571,10 +581,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do  
   !$omp end do nowait
 
-    
-#ifdef GPUPHYSICS
-  !$omp end parallel
-#endif
   ! GWDRAG ----------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(gwdrag_begin)
@@ -583,9 +589,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(gwdrag_end)
   end if
-#ifdef GPUPHYSICS
-  !$omp parallel
-#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -607,22 +610,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
   end do
   !$omp end do nowait
-#ifdef GPUPHYSICS
-  !$omp end parallel
-#endif
   if ( nsib>0 ) then
     call START_LOG(convection_begin)
     ! Select convection scheme
     select case ( nkuo )
       case(5)
-#ifndef GPUPHYSICS
         !$omp barrier  
         !$omp single
-#endif  
         call betts(t,qg,tn,land,ps) ! not called these days
-#ifndef GPUPHYSICS
         !$omp end single
-#endif
       case(21,22)
         call convjlm22              ! split convjlm 
       case(23,24)
@@ -630,9 +626,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end select
     call END_LOG(convection_end)
   end if
-#ifdef GPUPHYSICS
-  !$omp parallel
-#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -644,17 +637,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 
   ! CLOUD MICROPHYSICS ----------------------------------------------------
-#ifdef GPUPHYSICS
-  !$omp end parallel
-#endif
   if ( nsib>0 ) then
     call START_LOG(cloud_begin)
     call ctrl_microphysics
     call END_LOG(cloud_end)
   end if
-#ifdef GPUPHYSICS
-  !$omp parallel
-#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -752,7 +739,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
 
   
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
   !$omp end parallel
 #endif
   ! AEROSOLS --------------------------------------------------------------
@@ -760,11 +747,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( nsib>0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
-      call aerocalc(oxidant_update,mins,0)
+      call aerocalc(mins,0)
     end if
     call END_LOG(aerosol_end)
   end if
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
   !$omp parallel
 #endif
   !$omp do schedule(static) private(js,je)
@@ -821,17 +808,17 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! AEROSOLS --------------------------------------------------------------
   ! New time-split with aero_split=1
   ! Includes turbulent mixing
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
   !$omp end parallel
 #endif
   if ( nsib>0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
-      call aerocalc(oxidant_update,mins,1)
+      call aerocalc(mins,1)
     end if
     call END_LOG(aerosol_end)
   end if
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
   !$omp parallel
 #endif
   !$omp do schedule(static) private(js,je)
@@ -1778,9 +1765,7 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
-#ifdef GPUPHYSICS
-!$acc update device(alphaj,dt,fc2,vmodmin,sigbot_gwd) ! gdrag
-!$acc update device(ds,iaero,qgmin) ! convection
+#ifdef GPUCHEMISTRY
 !$acc update device(enhanceu10,zvolcemi,ch_dust) ! aerosol
 !$acc update device(saltsmallmtn,saltlargemtn)   ! aerosol
 #endif
@@ -1884,7 +1869,7 @@ ifull   = il*jl                               ! total number of local horizontal
 ! second has 16. In practice these are not all distinct so there could
 ! be some optimisation.
 npan = max(1, (npanels+1)/nproc)   ! number of panels on this process
-iextra = (4*(il+jl)+24)*npan + 4   ! size of halo for MPI message passing
+iextra = (4*(il+jl)+24*npan) + 4   ! size of halo for MPI message passing (jl includes npan)
 ! nrows_rad is a subgrid decomposition for older radiation routines
 nrows_rad = max( min( maxtilesize/il, jl ), 1 ) 
 do while( mod(jl, nrows_rad) /= 0 )
@@ -1904,7 +1889,7 @@ call ccacc_init(myid,ngpus)
 ! Display model configuration information in log file
 if ( myid==0 ) then
   write(6,'(" ",A)') trim(version)
-  write(6,*) "Running for nproc                        = ",nproc
+  write(6,*) 'Running for nproc                        = ',nproc
   write(6,*) 'Using defaults for nversion              = ',nversion
 #ifdef usempi3
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
@@ -1922,9 +1907,9 @@ if ( myid==0 ) then
   write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
   write(6,*) 'kl,ol                ',kl,ol
   write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
-  write(6,*) 'Using ntiles and imax of ',ntiles,ifull/ntiles
-  write(6,*) 'il_g,jl_g,il,jl ',il_g,jl_g,il,jl
-  write(6,*) 'nxp,nyp         ',nxp,nyp
+  write(6,*) 'ntiles,imax          ',ntiles,ifull/ntiles
+  write(6,*) 'il_g,jl_g,il,jl      ',il_g,jl_g,il,jl
+  write(6,*) 'nxp,nyp              ',nxp,nyp
 end if
 
 ! some default values for unspecified parameters
@@ -2016,6 +2001,41 @@ end if
 
 ! Optimise the MPI process ranks to reduce inter-node message passing
 call ccmpi_remap
+
+! the grid size is defined by il_g grid-points
+!   il_g is the number of grid-points for the grid along the X-axis
+!   jl_g is the number of grid-points for the grid along the Y-axis,
+!     where jl_g=6*il_g due to the six panels of the cube
+!   total number of horizontal grid-points for the grid is ifull_g=il_g*jl_g
+! the grid is divided into node_dx*node_dy nodes
+!   node_dx is the number of nodes for the grid along the X-axis
+!   node_dy is the number of nodes for the grid along the Y-axis
+!   Usually node_dx*node_dy is equal to the total number of physical nodes equal to
+!   nodecaptian_nproc.  However if processes on a physical node are not fully allocated
+!   then a node can be decomposed into smaller 'virtual' nodes until all processes on
+!   a virtual node are fully allocated.
+! each node is divided into node_nx*node_ny processes
+!   nxp is the number of processes for the grid along the X-axis
+!   nyp is the number of processes for the grid along the Y-axis
+!   node_nx is the number of processes for a node along the X-axis,
+!     where node_nx=nxp/node_dx
+!   node_ny is the number of processes for a node along the Y-axis,
+!     where node_ny=nyp/node_dy
+!   il is the number of horizontal grid-points for a process along the X-axis,
+!     where il=il_g/nxp
+!   jl is the number of horizontal grid-points for a process along the Y-axis,
+!     where jl=jl_g/nyp
+!   total number of processes for the grid is nproc=nxp*nyp
+!   total number of horizontal grid-points for a process is ifull=il*jl
+! each process is divided into ntiles (only for physics and chemistry)
+!   the number of grid-points per tile is imax=ifull/ntiles
+! MPI routines use ipan, jpan and npan to decompose the grid on a process
+!   npan is the number of panels on a process ( 1>=npan>=6 )
+!   ipan=il is the numnber of grid-points for a process along the X-axis
+!   jpan=jl/npan is the number of grid-points per panel for a process along the Y-axis
+! CCAM will optimise nxp, node_nx and npan (constrained by the number of processes,
+! number of nodes and number of cubic panels, respectively) to reduce MPI message
+! size and number between processes and nodes.
 
 
 !--------------------------------------------------------------

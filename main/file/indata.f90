@@ -399,9 +399,10 @@ else
   call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,0.,nsig,bet,betm,nh)
 end if
 
-#ifdef GPUPHYSICS
 !$acc update device(sig)
-!$acc update device(dsig,bet,betm,sigmh) ! convection
+#ifdef GPUPHYSICS
+!$acc update device(sigmh,dsig,ratha,rathb)
+!$acc update device(bet,betm) ! convection
 #endif
 
 
@@ -2422,6 +2423,12 @@ if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) th
     else     
       driving_model_id = ' '
     end if  
+    call ccnf_get_attg(ncid,'driving_institution_id',driving_institution_id,ierr=ierr)
+    if ( ierr==0 ) then
+      write(6,*) "driving_institution_id       : ",trim(driving_institution_id)  
+    else     
+      driving_institution_id = ' '
+    end if  
     call ccnf_get_attg(ncid,'driving_model_ensemble_number',driving_model_ensemble_number,ierr=ierr)
     if ( ierr==0 ) then
       write(6,*) "driving_model_ensemble_number: ",trim(driving_model_ensemble_number)
@@ -2437,6 +2444,7 @@ if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) th
     end if  
   end if
   call ccmpi_bcast(driving_model_id,0,comm_world)
+  call ccmpi_bcast(driving_institution_id,0,comm_world)
   call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
   call ccmpi_bcast(driving_experiment_name,0,comm_world)  
   if ( myid==0 ) then

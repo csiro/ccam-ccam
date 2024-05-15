@@ -1760,7 +1760,6 @@ return
 end subroutine pbldif
 
 pure subroutine trimmix2(a,c,rhs,imax,kl)
-!$acc routine vector
 
 implicit none
 
@@ -1821,7 +1820,6 @@ real, dimension(imax,ndim,kl) :: e, g
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
 !   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
-
 
 ! the Thomas algorithm is used
 do n = 1,ndim

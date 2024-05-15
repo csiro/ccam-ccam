@@ -141,7 +141,7 @@ module cc_mpi
              ccmpi_gathermap_send2, ccmpi_gathermap_recv2,                  &
              ccmpi_gathermap_send3, ccmpi_gathermap_recv3, getglobalpack_v, &
              setglobalpack_v, ccmpi_gathermap_wait, deallocateglobalpack
-   public :: ccmpi_filewinget, ccmpi_filewinunpack, ccmpi_filebounds_setup, &
+   public :: ccmpi_filewinget, ccmpi_filebounds_setup,                      &
              ccmpi_filebounds, ccmpi_filedistribute, procarray,             &
              ccmpi_filewininit, ccmpi_filewinfinalize,                      &
              ccmpi_filewinfinalize_exit
@@ -2499,7 +2499,7 @@ contains
 
    end subroutine ccglobal_posneg3o
 
-   subroutine ccglobal_posneg4 (array, delpos, delneg, dsig)
+   subroutine ccglobal_posneg4(array, delpos, delneg, dsig)
       ! Calculate global sums of positive and negative values of array
       use sumdd_m
       use xyzinfo_m
@@ -10268,7 +10268,7 @@ contains
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req, donelist
       integer(kind=4), dimension(size(filemap_recv)) :: i_list      
       real, dimension(:), intent(in) :: sinp
-      real, dimension(pipan*pjpan*pnpan,size(filemap_req)), intent(out) :: abuf 
+      real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req)), intent(out) :: abuf 
       real, dimension(pipan*pjpan*pnpan,size(filemap_recv)):: bbuf 
 
       nlen = pipan*pjpan*pnpan
@@ -10313,7 +10313,6 @@ contains
             mproc = donelist(jproc)
             if ( mproc <= rreq ) then
                w = i_list(mproc)
-               ip = filemap_recv(w) + filemap_rmod(w)*fnresid
                kproc = filemap_indx(filemap_recv(w),filemap_rmod(w))
                do n = 0,pnpan-1
                   cc = n*pipan*pjpan
@@ -10329,16 +10328,11 @@ contains
       call END_LOG(mpibarrier_end)
 
       do w = 1,size(filemap_req)
-         ip = filemap_req(w) + filemap_qmod(w)*fnresid
          kproc = filemap_indx(filemap_req(w),filemap_qmod(w))
-         do n = 0,pnpan-1
-            no = n - pnoff(ip) + 1
-            ca = pioff(ip,no)
-            cb = pjoff(ip,no)
-            cc = n*pipan*pjpan
-            abuf(1+cc:pipan*pjpan+cc,w) = reshape( nodefile(:,:,n+1,1,kproc), (/ pipan*pjpan /) )
-         end do
-      end do  
+         abuf(1:pipan,1:pjpan,1:pnpan,w) = nodefile(1:pipan,1:pjpan,1:pnpan,1,kproc)
+      end do
+      
+      call abufpanelbounds(abuf(:,:,:,:))
       
       call START_LOG(mpibarrier_begin) 
       lcomm = comm_node
@@ -10364,7 +10358,7 @@ contains
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req, donelist
       integer(kind=4), dimension(size(filemap_recv)) :: i_list
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(:,:,:), intent(out) :: abuf
+      real, dimension(-1:pipan+2,-1:pjpan+2,1:pnpan,1:size(filemap_req),1:size(sinp,2)), intent(out) :: abuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),size(filemap_recv)) :: bbuf
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),mynproc) :: cbuf
 
@@ -10409,7 +10403,6 @@ contains
             mproc = donelist(jproc)
             if ( mproc <= rreq ) then
                w = i_list(mproc)
-               ip = filemap_recv(w) + filemap_rmod(w)*fnresid
                kproc = filemap_indx(filemap_recv(w),filemap_rmod(w))
                do k = 1,kx
                   do n = 0,pnpan-1
@@ -10427,19 +10420,16 @@ contains
       call END_LOG(mpibarrier_end)
 
       do w = 1,size(filemap_req)
-         ip = filemap_req(w) + filemap_qmod(w)*fnresid
          kproc = filemap_indx(filemap_req(w),filemap_qmod(w))
          do k = 1,kx
-            do n = 0,pnpan-1
-               no = n - pnoff(ip) + 1
-               ca = pioff(ip,no)
-               cb = pjoff(ip,no)
-               cc = n*pipan*pjpan
-               abuf(1+cc:pipan*pjpan+cc,w,k) = reshape( nodefile(:,:,n+1,k,kproc), (/ pipan*pjpan /) )
-            end do  
+            abuf(1:pipan,1:pjpan,1:pnpan,w,k) = nodefile(1:pipan,1:pjpan,1:pnpan,k,kproc)
          end do
       end do  
 
+      do k = 1,kx
+         call abufpanelbounds(abuf(:,:,:,:,k))
+      end do    
+      
       call START_LOG(mpibarrier_begin) 
       lcomm = comm_node
       call MPI_Barrier( lcomm, ierr )
@@ -10447,24 +10437,94 @@ contains
 
    end subroutine ccmpi_filewinget3
    
-   subroutine ccmpi_filewinunpack(sout,abuf)
-
-      integer :: w, ip, n, no, ca, cb, cc
-      real, dimension(-1:,-1:,0:), intent(inout) :: sout
-      real, dimension(:,:), intent(in) :: abuf
+   subroutine abufpanelbounds(abuf)
+   
+      integer :: w, ip, n, no, ca, cb
+      integer :: i, n_w, n_e, n_n, n_s
+      real, dimension(-1:pipan+2,-1:pjpan+2,1:pnpan,size(filemap_req)), intent(inout) :: abuf
+      real, dimension(-1:pil_g+2,-1:pil_g+2,0:npanels) :: sx_l
+      
+      sx_l = 0.
       
       do w = 1,size(filemap_req)
          ip = filemap_req(w) + filemap_qmod(w)*fnresid
-         do n = 0,pnpan-1
-            no = n - pnoff(ip) + 1
+         do n = 1,pnpan
+            no = n - pnoff(ip)
             ca = pioff(ip,no)
             cb = pjoff(ip,no)
-            cc = n*pipan*pjpan
-            sout(1+ca:pipan+ca,1+cb:pjpan+cb,no) = reshape( abuf(1+cc:pipan*pjpan+cc,w), (/ pipan, pjpan /) )
+            sx_l(1+ca:pipan+ca,1+cb:pjpan+cb,no) = abuf(1:pipan,1:pjpan,n,w)
          end do
       end do
       
-   end subroutine ccmpi_filewinunpack
+      do n = 0,npanels
+         if ( mod(n,2)==0 ) then
+            n_w = mod(n+5, 6)
+            n_e = mod(n+2, 6)
+            n_n = mod(n+1, 6)
+            n_s = mod(n+4, 6)
+            do i = 1,pil_g
+               sx_l(-1,i,n)      = sx_l(pil_g-1,i,n_w)
+               sx_l(0,i,n)       = sx_l(pil_g,i,n_w)
+               sx_l(pil_g+1,i,n) = sx_l(pil_g+1-i,1,n_e)
+               sx_l(pil_g+2,i,n) = sx_l(pil_g+1-i,2,n_e)
+               sx_l(i,-1,n)      = sx_l(pil_g-1,pil_g+1-i,n_s)
+               sx_l(i,0,n)       = sx_l(pil_g,pil_g+1-i,n_s)
+               sx_l(i,pil_g+1,n) = sx_l(i,1,n_n)
+               sx_l(i,pil_g+2,n) = sx_l(i,2,n_n)
+            end do ! i
+            sx_l(0,0,n)             = sx_l(pil_g,1,n_w)        ! ws
+            sx_l(-1,0,n)            = sx_l(pil_g,2,n_w)        ! wws
+            sx_l(0,-1,n)            = sx_l(pil_g,pil_g-1,n_s)  ! wss
+            sx_l(pil_g+1,0,n)       = sx_l(pil_g,1,n_e)        ! es  
+            sx_l(pil_g+2,0,n)       = sx_l(pil_g-1,1,n_e)      ! ees 
+            sx_l(pil_g+1,-1,n)      = sx_l(pil_g,2,n_e)        ! ess        
+            sx_l(0,pil_g+1,n)       = sx_l(pil_g,pil_g,n_w)    ! wn  
+            sx_l(-1,pil_g+1,n)      = sx_l(pil_g,pil_g-1,n_w)  ! wwn
+            sx_l(0,pil_g+2,n)       = sx_l(pil_g-1,pil_g,n_w)  ! wnn
+            sx_l(pil_g+1,pil_g+1,n) = sx_l(1,1,n_e)            ! en  
+            sx_l(pil_g+2,pil_g+1,n) = sx_l(2,1,n_e)            ! een  
+            sx_l(pil_g+1,pil_g+2,n) = sx_l(1,2,n_e)            ! enn  
+         else
+            n_w = mod(n+4, 6)
+            n_e = mod(n+1, 6)
+            n_n = mod(n+2, 6)
+            n_s = mod(n+5, 6)
+            do i = 1,pil_g
+               sx_l(-1,i,n)      = sx_l(pil_g+1-i,pil_g-1,n_w)  
+               sx_l(0,i,n)       = sx_l(pil_g+1-i,pil_g,n_w)
+               sx_l(pil_g+1,i,n) = sx_l(1,i,n_e)
+               sx_l(pil_g+2,i,n) = sx_l(2,i,n_e)
+               sx_l(i,-1,n)      = sx_l(i,pil_g-1,n_s)
+               sx_l(i,0,n)       = sx_l(i,pil_g,n_s)
+               sx_l(i,pil_g+1,n) = sx_l(1,pil_g+1-i,n_n)
+               sx_l(i,pil_g+2,n) = sx_l(2,pil_g+1-i,n_n)
+            end do ! i
+            sx_l(0,0,n)             = sx_l(pil_g,pil_g,n_w)   ! ws
+            sx_l(-1,0,n)            = sx_l(pil_g-1,pil_g,n_w) ! wws
+            sx_l(0,-1,n)            = sx_l(2,pil_g,n_s)       ! wss
+            sx_l(pil_g+1,0,n)       = sx_l(1,1,n_e)           ! es
+            sx_l(pil_g+2,0,n)       = sx_l(1,2,n_e)           ! ees
+            sx_l(pil_g+1,-1,n)      = sx_l(2,1,n_e)           ! ess
+            sx_l(0,pil_g+1,n)       = sx_l(1,pil_g,n_w)       ! wn       
+            sx_l(-1,pil_g+1,n)      = sx_l(2,pil_g,n_w)       ! wwn   
+            sx_l(0,pil_g+2,n)       = sx_l(1,pil_g-1,n_w)     ! wnn
+            sx_l(pil_g+1,pil_g+1,n) = sx_l(1,pil_g,n_e)       ! en  
+            sx_l(pil_g+2,pil_g+1,n) = sx_l(1,pil_g-1,n_e)     ! een  
+            sx_l(pil_g+1,pil_g+2,n) = sx_l(2,pil_g,n_e)       ! enn  
+         end if   ! mod(n,2)==0 ..else..
+      end do       ! n loop
+
+      do w = 1,size(filemap_req)
+         ip = filemap_req(w) + filemap_qmod(w)*fnresid
+         do n = 1,pnpan
+            no = n - pnoff(ip)
+            ca = pioff(ip,no)
+            cb = pjoff(ip,no)
+            abuf(-1:pipan+2,-1:pjpan+2,n,w) = sx_l(-1+ca:pipan+2+ca,-1+cb:pjpan+2+cb,no) 
+         end do
+      end do
+      
+   end subroutine abufpanelbounds
 
    subroutine ccmpi_filewininit(kblock)
    
@@ -11437,7 +11497,7 @@ contains
    pure subroutine file_ijnpg2ijnp(iloc,jloc,nloc,floc,iproc,ik)
       ! converts file global index to local index
       integer, intent(inout) :: iloc, jloc, nloc
-      integer, intent(in) :: floc, iproc,ik
+      integer, intent(in) :: floc, iproc, ik
       integer :: i, j, n
       integer :: ip, ca, cb
   

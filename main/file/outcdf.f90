@@ -915,6 +915,9 @@ if ( myid==0 .or. local ) then
     if ( driving_model_id /= ' ' ) then
       call ccnf_put_attg(idnc,'driving_model_id',trim(driving_model_id))
     end if
+    if ( driving_institution_id /= ' ' ) then
+      call ccnf_put_attg(idnc,'driving_institution_id',trim(driving_institution_id))
+    end if
     if ( driving_model_ensemble_number /= ' ' ) then
       call ccnf_put_attg(idnc,'driving_model_ensemble_number',trim(driving_model_ensemble_number))
     end if
@@ -4161,6 +4164,9 @@ if ( first ) then
     if ( driving_model_id /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_model_id',trim(driving_model_id))
     end if
+    if ( driving_institution_id /= ' ' ) then
+      call ccnf_put_attg(fncid,'driving_institution_id',trim(driving_institution_id))
+    end if
     if ( driving_model_ensemble_number /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_model_ensemble_number',trim(driving_model_ensemble_number))
     end if
@@ -5285,6 +5291,9 @@ if ( first ) then
     ! ensemble data
     if ( driving_model_id /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_model_id',trim(driving_model_id))
+    end if
+    if ( driving_institution_id /= ' ' ) then
+      call ccnf_put_attg(fncid,'driving_institution_id',trim(driving_institution_id))
     end if
     if ( driving_model_ensemble_number /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_model_ensemble_number',trim(driving_model_ensemble_number))

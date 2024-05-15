@@ -32,11 +32,6 @@
       real, dimension(:), allocatable, save :: alfin, aug
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
 
-#ifdef GPUPHYSICS      
-!$acc  declare create(mcontlnd,mcontsea,klon2,k600,k700,tied_b)
-!$acc  declare create(convt_frac,komega,k900)
-#endif
-
       contains 
       
       subroutine convjlm22_init
@@ -223,11 +218,6 @@
         enddo
       endif  ! (tied_a>1.)
       !--------------------------------------------------------
-        
-#ifdef GPUPHYSICS
-!$acc  update device(mcontlnd,mcontsea,klon2,k600,k700,tied_b)
-!$acc  update device(convt_frac,komega,k900)
-#endif
 
       end subroutine convjlm22_init
 
@@ -267,21 +257,11 @@
       real, dimension(imax)          :: locwd, lsaltwd
       logical :: mydiag_t
 
-#ifdef GPUPHYSICS
-!$acc  parallel loop copy(t,qg,qlg,qfg,u,v,xtg,dustwd,so2wd,so4wd)
-!$acc& copy(bcwd,ocwd,saltwd,tr,cape,condc,condx,conds,condg,precc)
-!$acc& copy(precip,aug,kbsav,ktsav)
-!$acc& copyin(dpsldt,alfin,ps,pblh,fg,wetfac,land,em,sgsave,upin)
-!$acc& copyin(upin4,downex) copyout(fluxtot,convpsav)
-!$acc& private(ldpsldt,lt,lqg,lqlg,lqfg,lu,lv,lxtg,ldustwd,lso2wd)
-!$acc& private(lso4wd,lbcwd,locwd,lsaltwd,ltr,lfluxtot)
-#else
 !$omp  do schedule(static) private(js,je),
 !$omp& private(ldpsldt,lt,lqg,lqlg,lqfg,lfluxtot),
 !$omp& private(lu,lv),
 !$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
 !$omp& private(ltr,idjd_t,mydiag_t)
-#endif
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
         je = tile*imax
@@ -346,11 +326,7 @@
         end if
         
       end do
-#ifdef GPUPHYSICS
-!$acc end parallel loop
-#else
 !$omp end do nowait
-#endif
 
       return
       end subroutine convjlm22     ! jlm convective scheme
@@ -365,9 +341,6 @@
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,rhcv,
      &       convtime,nkuo,rhsat,nevapls,
      &       tied_con,mdelay,convfact,ncvcloud,ldr,rhmois,imax,kl)
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
       !jlm convective scheme - latest and cleaned up
 !     unused switches: nevapcc, rhsat, shaltime 

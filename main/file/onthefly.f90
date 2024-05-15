@@ -53,6 +53,8 @@ integer, save :: xx4_win, yy4_win                             ! shared memory wi
 integer, save :: xy4_count = 0                                ! counter for new allocations of memory windows
 integer, dimension(3), save :: xx4save_win, yy4save_win       ! store old memory windows for later deallocation
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
+integer, dimension(:,:,:), allocatable, save :: pijn2pw       ! array for unpacking buffer
+integer, dimension(:,:,:), allocatable, save :: pijn2pn       ! array for unpacking buffer
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
 real, dimension(:,:), allocatable, save :: xg4, yg4           ! interpolation coordinate indices
@@ -64,7 +66,6 @@ real, dimension(:), allocatable, save :: sigin                ! input vertical c
 real, dimension(:), allocatable, save :: gosig_1              ! input ocean reference levels
 real, dimension(:), allocatable, save :: gosig_h              ! input ocean reference half levels
 real, dimension(:,:), allocatable, save :: gosig_3            ! input ocean 3d levels
-real, dimension(:,:,:), allocatable, save :: sx
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! shared arrays used for interpolation
 logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
@@ -265,11 +266,12 @@ if ( .not.pfall ) then
   rdum(10) = real(nsibx)
   rdum(11) = real(native_ccam)
   call ccmpi_bcast(rdum(1:11),0,comm_world)
-  if ( nested==1 ) then
-    call ccmpi_bcast(driving_model_id,0,comm_world)
-    call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
-    call ccmpi_bcast(driving_experiment_name,0,comm_world)
-  end if
+  !if ( nested==1 ) then
+  !  call ccmpi_bcast(driving_model_id,0,comm_world)
+  !  call ccmpi_bcast(driving_institution_id,0,comm_world)
+  !  call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
+  !  call ccmpi_bcast(driving_experiment_name,0,comm_world)
+  !end if
   rlong0x     = rdum(1)
   rlat0x      = rdum(2)
   schmidtx    = rdum(3)
@@ -623,7 +625,9 @@ end if ! newfile .and. .not.iop_test
 
 ! allocate working arrays
 allocate( ucc(fwsize), tss_a(fwsize), ucc7(fwsize,7) )
-allocate( sx(-1:ik+2,-1:ik+2,0:npanels) )
+
+!$acc data create(nface4,xg4,yg4,pijn2pw,pijn2pn)
+!$acc update device(nface4,xg4,yg4,pijn2pw,pijn2pn)
 
 ! -------------------------------------------------------------------
 ! read time invariant data when file is first opened
@@ -1808,7 +1812,7 @@ if ( nested/=1 .and. nested/=3 ) then
   end if ! nested/=4
 
   !------------------------------------------------------------------
-  ! Read 10m wind speeds for special sea roughness length calculations
+  ! Read 10m wind speeds for ocean roughness length calculations
   if ( nested==0 ) then
     if ( u10_found ) then
       call gethist1('u10',u10)
@@ -2175,12 +2179,13 @@ if ( nested/=1 .and. nested/=3 ) then
         
 endif    ! (nested/=1.and.nested/=3)
 
+!$acc end data
+
 !**************************************************************
 ! This is the end of reading the initial arrays
 !**************************************************************  
 
 deallocate( ucc, tss_a, ucc7 )
-deallocate( sx )
 
 ! -------------------------------------------------------------------
 ! tgg holds file surface temperature when there is no MLO
@@ -2208,7 +2213,6 @@ end subroutine onthefly_work
 ! INTERPOLATION ROUTINES                         
 
 ! Main interface
-! Note that sx is a global array for all processors
 
 subroutine doints1(s,sout)
       
@@ -2219,27 +2223,94 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer n, iq
+integer n, iq, mm, idel, jdel
+integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(pipan*pjpan*pnpan,size(filemap_req)) :: abuf
+real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req)) :: abuf
+real xxg, yyg, cmin, cmax
+real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
+real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
+real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 call START_LOG(otf_ints_begin)
 
 ! This version distributes mutli-file data
 call ccmpi_filewinget(abuf,s)
 
-sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-call ccmpi_filewinunpack(sx,abuf)
-call sxpanelbounds(sx)
-
 if ( iotest ) then
   do n = 1,npan
-    iq = (n-1)*ipan*jpan
-    sout(iq+1:iq+ipan*jpan) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
+    do j = 1,jpan
+      do i = 1,ipan
+        iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+        idel = i + ioff
+        jdel = j + joff
+        nn = n - noff
+        iin = (idel-1)/pipan
+        jjn = (jdel-1)/pjpan
+        idel_l = idel - iin*pipan
+        jdel_l = jdel - jjn*pjpan
+        w = pijn2pw(iin,jjn,nn)
+        no = pijn2pn(iin,jjn,nn)        
+        sout(iq) = abuf(idel_l,jdel_l,no,w)
+      end do
+    end do  
   end do
 else
-  call intsb(sx,sout,nface4,xg4,yg4)
+  do iq = 1,ifull
+    sout(iq) = 0.
+  end do
+  do mm = 1,m_fly       !  was 4, now may be 1
+    do iq = 1,ifull
+      ! target point
+      n = nface4(iq,mm)
+      idel = int(xg4(iq,mm))
+      xxg = xg4(iq,mm) - real(idel)
+      jdel = int(yg4(iq,mm))
+      yyg = yg4(iq,mm) - real(jdel)
+      ! grid index conversion
+      iin = (idel-1)/pipan
+      jjn = (jdel-1)/pjpan
+      idel_l = idel - iin*pipan
+      jdel_l = jdel - jjn*pjpan
+      w = pijn2pw(iin,jjn,n)
+      no = pijn2pn(iin,jjn,n)
+      ! bi-cubic
+      cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+      cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+      cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+      cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+      dmul_2 = (1.-xxg)
+      dmul_3 = xxg
+      emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+      emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+      emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+      emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+      sx_0m = abuf(idel_l,  jdel_l-1,no,w)
+      sx_1m = abuf(idel_l+1,jdel_l-1,no,w)
+      sx_m0 = abuf(idel_l-1,jdel_l,  no,w)
+      sx_00 = abuf(idel_l,  jdel_l,  no,w)
+      sx_10 = abuf(idel_l+1,jdel_l,  no,w)
+      sx_20 = abuf(idel_l+2,jdel_l,  no,w)
+      sx_m1 = abuf(idel_l-1,jdel_l+1,no,w)
+      sx_01 = abuf(idel_l,  jdel_l+1,no,w)
+      sx_11 = abuf(idel_l+1,jdel_l+1,no,w)
+      sx_21 = abuf(idel_l+2,jdel_l+1,no,w)
+      sx_02 = abuf(idel_l,  jdel_l+2,no,w)
+      sx_12 = abuf(idel_l+1,jdel_l+2,no,w)
+      cmin = min(sx_00,sx_01,sx_10,sx_11)
+      cmax = max(sx_00,sx_01,sx_10,sx_11)
+      rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+      rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+               sx_10*cmul_3 + sx_20*cmul_4
+      rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+               sx_11*cmul_3 + sx_21*cmul_4
+      rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+      sout(iq) = sout(iq) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
+                                          + rmul_3*emul_3 + rmul_4*emul_4 ), &
+                                      cmax )/real(m_fly) ! Bermejo & Staniforth
+    end do    ! iq loop
+  end do      ! mm loop
 end if
 
 call END_LOG(otf_ints_end)
@@ -2256,207 +2327,146 @@ use parm_m                 ! Model configuration
 
 implicit none
       
-integer k, kx, kb, ke, kn, n, iq, mythread
+integer k, kx, kb, ke, kn, n, iq, mm, idel, jdel
+integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(pipan*pjpan*pnpan,size(filemap_req),kblock) :: abuf
-
-call START_LOG(otf_ints_begin)
-
-kx = size(sout,2)
-
-do kb = 1,kx,kblock
-  ke = min(kb+kblock-1, kx)
-  kn = ke - kb + 1
-
-  ! This version distributes multi-file data
-  call ccmpi_filewinget(abuf(:,:,1:kn),s(:,kb:ke))
-    
-  if ( iotest ) then
-    do k = 1,kn
-      sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx,abuf(:,:,k))
-      call sxpanelbounds(sx)
-      do n = 1,npan
-        iq = (n-1)*ipan*jpan
-        sout(iq+1:iq+ipan*jpan,k+kb-1) = reshape( sx(ioff+1:ioff+ipan,joff+1:joff+jpan,n-noff), (/ ipan*jpan /) )
-      end do
-    end do
-  else
-    do k = 1,kn
-      sx(-1:ik+2,-1:ik+2,0:npanels) = 0.
-      call ccmpi_filewinunpack(sx,abuf(:,:,k))
-      call sxpanelbounds(sx)
-      call intsb(sx,sout(:,k+kb-1),nface4,xg4,yg4)
-    end do
-  end if ! iotest ..else..
-
-end do ! kb
-
-call END_LOG(otf_ints_end)
-
-return
-end subroutine doints4
-
-subroutine sxpanelbounds(sx_l)
-
-use newmpar_m
-
-implicit none
-
-integer i, n, n_w, n_e, n_n, n_s
-real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(inout) :: sx_l
-
-do n = 0,npanels
-  if ( mod(n,2)==0 ) then
-    n_w = mod(n+5, 6)
-    n_e = mod(n+2, 6)
-    n_n = mod(n+1, 6)
-    n_s = mod(n+4, 6)
-    do i = 1,ik
-      sx_l(-1,i,n)   = sx_l(ik-1,i,n_w)
-      sx_l(0,i,n)    = sx_l(ik,i,n_w)
-      sx_l(ik+1,i,n) = sx_l(ik+1-i,1,n_e)
-      sx_l(ik+2,i,n) = sx_l(ik+1-i,2,n_e)
-      sx_l(i,-1,n)   = sx_l(ik-1,ik+1-i,n_s)
-      sx_l(i,0,n)    = sx_l(ik,ik+1-i,n_s)
-      sx_l(i,ik+1,n) = sx_l(i,1,n_n)
-      sx_l(i,ik+2,n) = sx_l(i,2,n_n)
-    end do ! i
-    sx_l(0,0,n)       = sx_l(ik,1,n_w)        ! ws
-    sx_l(-1,0,n)      = sx_l(ik,2,n_w)        ! wws
-    sx_l(0,-1,n)      = sx_l(ik,ik-1,n_s)     ! wss
-    sx_l(ik+1,0,n)    = sx_l(ik,1,n_e)        ! es  
-    sx_l(ik+2,0,n)    = sx_l(ik-1,1,n_e)      ! ees 
-    sx_l(ik+1,-1,n)   = sx_l(ik,2,n_e)        ! ess        
-    sx_l(0,ik+1,n)    = sx_l(ik,ik,n_w)       ! wn  
-    sx_l(-1,ik+1,n)   = sx_l(ik,ik-1,n_w)     ! wwn
-    sx_l(0,ik+2,n)    = sx_l(ik-1,ik,n_w)     ! wnn
-    sx_l(ik+1,ik+1,n) = sx_l(1,1,n_e)         ! en  
-    sx_l(ik+2,ik+1,n) = sx_l(2,1,n_e)         ! een  
-    sx_l(ik+1,ik+2,n) = sx_l(1,2,n_e)         ! enn  
-  else
-    n_w = mod(n+4, 6)
-    n_e = mod(n+1, 6)
-    n_n = mod(n+2, 6)
-    n_s = mod(n+5, 6)
-    do i = 1,ik
-      sx_l(-1,i,n)   = sx_l(ik+1-i,ik-1,n_w)  
-      sx_l(0,i,n)    = sx_l(ik+1-i,ik,n_w)
-      sx_l(ik+1,i,n) = sx_l(1,i,n_e)
-      sx_l(ik+2,i,n) = sx_l(2,i,n_e)
-      sx_l(i,-1,n)   = sx_l(i,ik-1,n_s)
-      sx_l(i,0,n)    = sx_l(i,ik,n_s)
-      sx_l(i,ik+1,n) = sx_l(1,ik+1-i,n_n)
-      sx_l(i,ik+2,n) = sx_l(2,ik+1-i,n_n)
-    end do ! i
-    sx_l(0,0,n)       = sx_l(ik,ik,n_w)      ! ws
-    sx_l(-1,0,n)      = sx_l(ik-1,ik,n_w)    ! wws
-    sx_l(0,-1,n)      = sx_l(2,ik,n_s)       ! wss
-    sx_l(ik+1,0,n)    = sx_l(1,1,n_e)        ! es
-    sx_l(ik+2,0,n)    = sx_l(1,2,n_e)        ! ees
-    sx_l(ik+1,-1,n)   = sx_l(2,1,n_e)        ! ess
-    sx_l(0,ik+1,n)    = sx_l(1,ik,n_w)       ! wn       
-    sx_l(-1,ik+1,n)   = sx_l(2,ik,n_w)       ! wwn   
-    sx_l(0,ik+2,n)    = sx_l(1,ik-1,n_w)     ! wnn
-    sx_l(ik+1,ik+1,n) = sx_l(1,ik,n_e)       ! en  
-    sx_l(ik+2,ik+1,n) = sx_l(1,ik-1,n_e)     ! een  
-    sx_l(ik+1,ik+2,n) = sx_l(2,ik,n_e)       ! enn  
-  end if   ! mod(n,2)==0 ..else..
-end do       ! n loop
-
-return
-end subroutine sxpanelbounds
-
-subroutine intsb(sx_l,sout,nface4,xg4,yg4)
-      
-!     same as subr ints, but with sout passed back and no B-S      
-!     s is input; sout is output array
-!     later may wish to save idel etc between array calls
-!     this one does linear interp in x on outer y sides
-!     doing x-interpolation before y-interpolation
-!     This is a global routine 
-
-use cc_omp                 ! CC OpenMP routines
-use newmpar_m              ! Grid parameters
-use parm_m                 ! Model configuration
-
-implicit none
-
-integer, dimension(ifull,m_fly), intent(in) :: nface4
-integer :: idel, jdel, n, iq, mm
-integer :: js, je, tile
-real, dimension(ifull), intent(out) :: sout
-real, intent(in), dimension(ifull,m_fly) :: xg4, yg4
-real, dimension(-1:ik+2,-1:ik+2,0:npanels), intent(in) :: sx_l
+real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req),kblock) :: abuf
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
-! use tiles to improve cache utilisation?
+call START_LOG(otf_ints_begin)
 
-!$omp parallel do schedule(static) private(tile,js,je,iq,mm,n,idel,xxg,jdel,yyg)       &
-!$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-!$omp   private(cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)                                 &
-!$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                       &
-!$omp   private(sx_11,sx_21,sx_02,sx_12)
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
+kx = size(sout,2)
+    
+if ( iotest ) then
+  do kb = 1,kx,kblock
+    ke = min(kb+kblock-1, kx)
+    kn = ke - kb + 1
+    ! This version distributes multi-file data
+    call ccmpi_filewinget(abuf(:,:,:,:,1:kn),s(:,kb:ke))
+    do k = 1,kn
+      do n = 1,npan
+        do j = 1,jpan
+          do i = 1,ipan
+            iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+            idel = i + ioff
+            jdel = j + joff
+            nn = n - noff
+            iin = (idel-1)/pipan
+            jjn = (jdel-1)/pjpan
+            idel_l = idel - iin*pipan
+            jdel_l = jdel - jjn*pjpan
+            w = pijn2pw(iin,jjn,nn)
+            no = pijn2pn(iin,jjn,nn)        
+            sout(iq,k+kb-1) = abuf(idel_l,jdel_l,no,w,k)
+          end do
+        end do  
+      end do
+    end do
+  end do ! kb
+else
+#ifdef GPU
+  !$acc enter data create(sout,abuf)
+#endif
+  do kb = 1,kx,kblock
+    ke = min(kb+kblock-1, kx)
+    kn = ke - kb + 1
+    ! This version distributes multi-file data
+    call ccmpi_filewinget(abuf(:,:,:,:,1:kn),s(:,kb:ke))
+    do k = 1,kn
+      do iq = 1,ifull
+        sout(iq,k+kb-1) = 0.
+      end do
+    end do
+#ifdef GPU
+    !$acc update device(sout(:,kb:ke),abuf)
+#else
+    !$omp parallel
+#endif
+    do mm = 1,m_fly       !  was 4, now may be 1
+#ifdef GPU
+      !$acc parallel loop collapse(2) present(nface4,xg4,yg4,sout,abuf,pijn2pw,pijn2pn)
+#else
+      !$omp do schedule(static) private(n,idel,jdel,xxg,yyg,cmin,cmax,cmul_1,cmul_2,cmul_3,cmul_4) &
+      !$omp   private(dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4,rmul_1,rmul_2,rmul_3,rmul_4)       &
+      !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12)     &
+      !$omp   private(iin,jjn,idel_l,jdel_l,w,no)
+#endif
+      do k = 1,kn
+        do iq = 1,ifull
+          ! target point
+          n = nface4(iq,mm)
+          idel = int(xg4(iq,mm))
+          xxg = xg4(iq,mm) - real(idel)
+          jdel = int(yg4(iq,mm))
+          yyg = yg4(iq,mm) - real(jdel)
+          ! grid index conversion
+          iin = (idel-1)/pipan
+          jjn = (jdel-1)/pjpan
+          idel_l = idel - iin*pipan
+          jdel_l = jdel - jjn*pjpan
+          w = pijn2pw(iin,jjn,n)
+          no = pijn2pn(iin,jjn,n)
+          ! bi-cubic
+          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+          dmul_2 = (1.-xxg)
+          dmul_3 = xxg
+          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+          sx_0m = abuf(idel_l,  jdel_l-1,no,w,k)
+          sx_1m = abuf(idel_l+1,jdel_l-1,no,w,k)
+          sx_m0 = abuf(idel_l-1,jdel_l,  no,w,k)
+          sx_00 = abuf(idel_l,  jdel_l,  no,w,k)
+          sx_10 = abuf(idel_l+1,jdel_l,  no,w,k)
+          sx_20 = abuf(idel_l+2,jdel_l,  no,w,k)
+          sx_m1 = abuf(idel_l-1,jdel_l+1,no,w,k)
+          sx_01 = abuf(idel_l,  jdel_l+1,no,w,k)
+          sx_11 = abuf(idel_l+1,jdel_l+1,no,w,k)
+          sx_21 = abuf(idel_l+2,jdel_l+1,no,w,k)
+          sx_02 = abuf(idel_l,  jdel_l+2,no,w,k)
+          sx_12 = abuf(idel_l+1,jdel_l+2,no,w,k)
+          cmin = min(sx_00,sx_01,sx_10,sx_11)
+          cmax = max(sx_00,sx_01,sx_10,sx_11)
+          rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+          rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+                   sx_10*cmul_3 + sx_20*cmul_4
+          rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+                   sx_11*cmul_3 + sx_21*cmul_4
+          rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+          sout(iq,k+kb-1) = sout(iq,k+kb-1) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
+                                                            + rmul_3*emul_3 + rmul_4*emul_4 ), &
+                                                        cmax )/real(m_fly) ! Bermejo & Staniforth
+        end do    ! iq loop
+      end do      ! k loop
+#ifdef GPU
+      !$acc end parallel loop
+#else
+      !$omp end do nowait
+#endif
+    end do        ! mm loop
+#ifdef GPU
+    !$acc update self(sout(:,kb:ke))
+#else
+    !$omp end parallel
+#endif
+  end do ! kb
+#ifdef GPU
+  !$acc exit data delete(sout,abuf)
+#endif
+end if ! iotest ..else..
 
-  do iq = js,je
-    sout(iq) = 0.
-  end do
-
-  do mm = 1,m_fly     !  was 4, now may be 1
-    do iq = js,je     ! runs through list of target points
-      n = nface4(iq,mm)
-      idel = int(xg4(iq,mm))
-      xxg = xg4(iq,mm) - real(idel)
-      jdel = int(yg4(iq,mm))
-      yyg = yg4(iq,mm) - real(jdel)
-      ! bi-cubic
-      cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-      cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      dmul_2 = (1.-xxg)
-      dmul_3 = xxg
-      emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-      emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      sx_0m = sx_l(idel,  jdel-1,n)
-      sx_1m = sx_l(idel+1,jdel-1,n)
-      sx_m0 = sx_l(idel-1,jdel,  n)
-      sx_00 = sx_l(idel,  jdel,  n)
-      sx_10 = sx_l(idel+1,jdel,  n)
-      sx_20 = sx_l(idel+2,jdel,  n)
-      sx_m1 = sx_l(idel-1,jdel+1,n)
-      sx_01 = sx_l(idel,  jdel+1,n)
-      sx_11 = sx_l(idel+1,jdel+1,n)
-      sx_21 = sx_l(idel+2,jdel+1,n)
-      sx_02 = sx_l(idel,  jdel+2,n)
-      sx_12 = sx_l(idel+1,jdel+2,n)
-      cmin = min(sx_00,sx_01,sx_10,sx_11)
-      cmax = max(sx_00,sx_01,sx_10,sx_11)
-      rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
-      rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
-               sx_10*cmul_3 + sx_20*cmul_4
-      rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
-               sx_11*cmul_3 + sx_21*cmul_4
-      rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-      sout(iq) = sout(iq) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
-                                          + rmul_3*emul_3 + rmul_4*emul_4 ), &
-                                      cmax )/real(m_fly) ! Bermejo & Staniforth
-    end do    ! iq loop
-  end do      ! mm loop
-end do        ! tile loop
-!$omp end parallel do
+call END_LOG(otf_ints_end)
 
 return
-end subroutine intsb
+end subroutine doints4
 
 ! *****************************************************************************
 ! FILL ROUTINES
@@ -3452,6 +3462,7 @@ integer n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w
 integer ncount_a, ncount_b
+integer iin, jjn, no, ip
 logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(nproc*fncount) :: tempmap_send, tempmap_smod
 integer, dimension(nproc*fncount) :: tempmap_recv, tempmap_rmod
@@ -3472,6 +3483,9 @@ end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
   deallocate( bxs_w, bys_w, bzs_w )
+end if
+if ( allocated(pijn2pw) ) then
+  deallocate( pijn2pw, pijn2pn )  
 end if
 
 if ( myid==0 ) then
@@ -3600,6 +3614,28 @@ else if ( fwsize>0 ) then
   call ccmpi_filedistribute(bys_w,comm_ip)
   call ccmpi_filedistribute(bzs_w,comm_ip)
 end if
+
+! Calculate indices for unpacking
+if ( myid==0 ) then
+  write(6,*) "-> Calculate unpacking indices"
+end if
+iin = (pil_g-1)/pipan
+jjn = (pil_g-1)/pjpan
+allocate( pijn2pw(0:iin,0:jjn,0:npanels), pijn2pn(0:iin,0:jjn,0:npanels) )
+pijn2pw = -1 ! missing
+pijn2pn = -1 ! missing
+do w = 1,size(filemap_req)
+   ip = filemap_req(w) + filemap_qmod(w)*fnresid
+   do n = 1,pnpan
+      no = n - pnoff(ip)
+      idel = pioff(ip,no) + 1
+      jdel = pjoff(ip,no) + 1
+      iin = (idel-1)/pipan
+      jjn = (jdel-1)/pjpan
+      pijn2pw(iin,jjn,no) = w
+      pijn2pn(iin,jjn,no) = n
+   end do
+end do
 
 if ( myid==0 ) then
   write(6,*) "-> Finished creating control data for input file data"

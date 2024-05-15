@@ -1085,7 +1085,7 @@ do tile=1,ntiles
                         snowmelt(is:ie),lt,taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                            &
                         ustar(is:ie),v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),           &
                         evspsbl(is:ie),oldevspsbl(is:ie),sbl(is:ie),oldsbl(is:ie),anthropogenic_flux(is:ie),         &
-                        urban_ts(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),                                        &
+                        urban_ts(is:ie),urban_tas(is:ie),urban_wetfac(is:ie),urban_zom(is:ie),                       &
                         urban_zoh(is:ie),urban_zoq(is:ie),urban_emiss(is:ie),urban_storage_flux(is:ie),              &
                         urban_elecgas_flux(is:ie),urban_heating_flux(is:ie),urban_cooling_flux(is:ie),               &
                         upack_g(:,tile),ufull_g(tile))
@@ -1101,9 +1101,9 @@ subroutine sflux_urban_work(oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp
                             uzon,vmer,cdtq,cduv,                                                                  &
                             conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,runoff,sgdn,sgsave,snowmelt,               &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,evspsbl,oldevspsbl,sbl,oldsbl,       &
-                            anthropogenic_flux,urban_ts,urban_wetfac,urban_zom,urban_zoh,urban_zoq,urban_emiss,   &
-                            urban_storage_flux,urban_elecgas_flux,urban_heating_flux,urban_cooling_flux,          &
-                            upack,ufull)
+                            anthropogenic_flux,urban_ts,urban_tas,urban_wetfac,urban_zom,urban_zoh,urban_zoq,     &
+                            urban_emiss,urban_storage_flux,urban_elecgas_flux,urban_heating_flux,                 &
+                            urban_cooling_flux,upack,ufull)
 
 use cc_mpi                         ! CC MPI routines
 use cc_omp                         ! CC OpenMP routines
@@ -1125,7 +1125,7 @@ real, dimension(imax) :: u_fg, u_eg, u_rn, u_evspsbl, u_sbl
 real, dimension(imax) :: zo_work, zoh_work, zoq_work, u_sigma
 real, dimension(imax) :: cduv_work, cdtq_work
 real, dimension(imax), intent(in) :: oldrunoff, rho, vmag, oldsnowmelt, oldevspsbl, oldsbl
-real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_wetfac
+real, dimension(imax), intent(inout) :: anthropogenic_flux, urban_ts, urban_tas, urban_wetfac
 real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq, urban_emiss
 real, dimension(imax), intent(inout) :: urban_storage_flux,urban_elecgas_flux
 real, dimension(imax), intent(inout) :: urban_heating_flux,urban_cooling_flux
@@ -1260,7 +1260,14 @@ where ( u_sigma>0. )                                                            
 end where                                                                                        ! urban
 ! calculate emissivity                                                                           ! urban
 urban_emiss = 0.                                                                                 ! urban
-call uclem_misc(urban_emiss,"emissivity",0,room,fp,pd,upack,ufull)                                 ! urban
+call uclem_misc(urban_emiss,"emissivity",0,room,fp,pd,upack,ufull)                               ! urban
+! calculate 2m temperature                                                                       ! urban
+urban_tas = 0.                                                                                   ! urban
+call uclem_misc(urban_tas,"tscrn",0,room,fp,pd,upack,ufull)                                      ! urban
+!urban_hus = 0.                                                                                  ! urban
+!call uclem_misc(urban_hus,"qscrn",0,room,fp,pd,upack,ufull)                                     ! urban
+!urban_u10 = 0.                                                                                  ! urban
+!call uclem_misc(urban_u10,"u10",0,room,fp,pd,upack,ufull)                                       ! urban
 
 end subroutine sflux_urban_work
 

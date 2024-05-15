@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -42,26 +42,26 @@ public update_cloud_fraction
 public cloud_ice_method
 
 ! Physical constants
-real, parameter :: Dva=2.21    !Diffusivity of qv in air (0 deg. and 1 Pa)
-real, parameter :: rKa=2.4e-2  !Thermal conductivity of air (0 deg)
+real, parameter :: Dva = 2.21    !Diffusivity of qv in air (0 deg. and 1 Pa)
+real, parameter :: rKa = 2.4e-2  !Thermal conductivity of air (0 deg)
 
 ! Tunable parameters for qcloud scheme
 real, parameter :: ti = -40.               ! Min T for liquid water clouds in Celsius
-real, parameter :: tice=273.15+ti          !Convert ti to Kelvin
+real, parameter :: tice = 273.15+ti        ! Convert ti to Kelvin
 
 ! Parameters related to diagnosed convective cloud
-real, parameter :: wlc=0.2e-3   !LWC of deep conv cloud (kg/m**3)
-real, parameter :: ticon=238.15 !Temp at which conv cloud becomes ice
+real, parameter :: wlc = 0.2e-3   !LWC of deep conv cloud (kg/m**3)
+real, parameter :: ticon = 238.15 !Temp at which conv cloud becomes ice
 
 integer, save :: cloud_ice_method = 0   ! method for 0C to -40C (0=liq, 1=linear)
 
 contains
 
 ! This subroutine is the interface for the LDR cloud microphysics
-subroutine update_cloud_fraction(cfrac,land,                                        &
-                    ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                              &
-                    dpsldt,nettend,stratcloud,clcon,cdrop,em,pblh,idjd,mydiag,      &
-                    ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
+subroutine update_cloud_fraction(cfrac,land,                             &
+                    ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                   &
+                    dpsldt,nettend,stratcloud,clcon,em,pblh,idjd,mydiag, &
+                    ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,    &
                     vdeposition_mode,tiedtke_form,rkmsave,rkhsave)
 
 use const_phys                    ! Physical constants
@@ -80,7 +80,7 @@ real, dimension(size(t,1),size(t,2)), intent(inout) :: nettend
 real, dimension(size(t,1),size(t,2)), intent(inout) :: stratcloud
 real, dimension(size(t,1),size(t,2)), intent(out) :: qccon, cfrac
 real, dimension(size(t,1),size(t,2)), intent(in) :: dpsldt, rkmsave, rkhsave
-real, dimension(size(t,1),size(t,2)), intent(in) :: clcon, cdrop
+real, dimension(size(t,1),size(t,2)), intent(in) :: clcon
 real, dimension(size(t,1)), intent(in) :: ps
 real, dimension(size(t,1)), intent(in) :: em, pblh
 real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay

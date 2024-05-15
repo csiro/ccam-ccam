@@ -139,10 +139,6 @@ real(kind=8) tdt
 real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
 
-#ifdef GPUPHYSICS
-!$omp parallel
-#endif
-
 
 !----------------------------------------------------------------------------
 ! Prepare inputs for cloud microphysics
@@ -178,9 +174,9 @@ end do
 !----------------------------------------------------------------------------
 ! Update cloud fraction
 
-!$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac),               &
-!$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt),                          &
-!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,lrkmsave,lrkhsave)
+!$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
+!$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt)                  &
+!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -194,7 +190,6 @@ do tile = 1,ntiles
   lt       = t(js:je,:)
   ldpsldt  = dpsldt(js:je,:)
   lclcon   = clcon(js:je,:)
-  lcdrop   = cdrop(js:je,:)
   lstratcloud = stratcloud(js:je,:)
   if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
     lnettend = nettend(js:je,:)
@@ -202,10 +197,10 @@ do tile = 1,ntiles
     lrkhsave = rkhsave(js:je,:)
   end if
 
-  call update_cloud_fraction(lcfrac,land(js:je),                                       &
-              ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                         &
-              ldpsldt,lnettend,lstratcloud,lclcon,lcdrop,em(js:je),pblh(js:je),idjd_t, &
-              mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,               &
+  call update_cloud_fraction(lcfrac,land(js:je),                                &
+              ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
+              ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
+              mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
               vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
 
   cfrac(js:je,:) = lcfrac
@@ -223,19 +218,11 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait
 
-#ifdef GPUPHYSICS
-!$omp end parallel
-#endif
-
 
 !----------------------------------------------------------------------------
 ! Update cloud condensate
 select case ( interp_ncloud(ldr,ncloud) )
   case("LEON")
-
-#ifdef GPUPHYSICS
-    !$omp parallel
-#endif
 
     !$omp do schedule(static) private(js,je,idjd_t,mydiag_t),                     &
     !$omp private(lgfrac,lrfrac,lsfrac),                                          &
@@ -337,24 +324,9 @@ select case ( interp_ncloud(ldr,ncloud) )
     end do
     !$omp end do nowait
 
-#ifdef GPUPHYSICS
-    !$omp end parallel
-#endif
-
 
   case("LIN")
       
-#ifdef GPUPHYSICS
-    !$acc parallel loop copy(t,qg,qlg,qrg,qfg,qsng,qgrg,nr,ni,ns,stratcloud)              &
-    !$acc   copy(condx,conds,condg,precip) copyin(zs,ps,rhoa,dz,cdrop)                    &
-    !$acc   copyout(rfrac,sfrac,gfrac,stras_rliq,stras_rice,stras_rsno,stras_rrai)        &
-    !$acc   copyout(fluxr,fluxi,fluxs,fluxg,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr,vi) &
-    !$acc   private(riz,zlevv,zqg,zqlg,zqrg,zqfg,zqsng,tothz,thz,zrhoa,zpres,dzw)         &
-    !$acc   private(znc,zcdrop,znr,zni,zns,pptrain,pptsnow,pptice)                        &
-    !$acc   private(zeffc1d,zeffi1d,zeffs1d,zeffr1d,zqcoll,zqaccr,zvi)                    &
-    !$acc   private(zfluxr,zfluxi,zfluxs,zfluxm,zfluxf,zqevap,zqsubl,zqauto)              &
-    !$acc   private(m,k,iq,prf_temp,prf,njumps,tdt,n)
-#else
     !$omp do schedule(static) private(js,je,riz,zlevv,m,zqg,zqlg,zqrg,zqfg)   &
     !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
     !$omp private(zcdrop,znr,zni,zns,pptrain,pptsnow,pptice,njumps,tdt,n)     &
@@ -368,7 +340,6 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(zpidw,zpiadj,zqschg)                                        &
 #endif
     !$omp private(zvi)
-#endif
     do tile = 1, ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
@@ -537,15 +508,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       precip(js:je) = precip(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
 
     end do     !tile loop
-#ifdef GPUPHYSICS
-    !$acc end parallel loop
-#else
     !$omp end do nowait
-#endif
-
-#ifdef GPUPHYSICS
-    !$omp parallel
-#endif
 
     !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
     !$omp private(l_rliq,l_rice,l_cliq,l_cice,l_rliq_in,l_rice_in,l_rsno_in)
@@ -572,10 +535,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       stras_cice(js:je,:) = l_cice
     end do
     !$omp end do nowait
-      
-#ifdef GPUPHYSICS
-    !$omp end parallel
-#endif
 
   case default
     write(6,*) "ERROR: unknown mp_physics option "
@@ -583,10 +542,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       
 end select
 
-
-#ifdef GPUPHYSICS
-!$omp parallel
-#endif
 
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 ) then
@@ -653,10 +608,6 @@ if ( abs(iaero)>=2 ) then
     !$omp end do nowait
   end if   ! interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0
 end if     ! abs(iaero)>=2
-
-#ifdef GPUPHYSICS
-!$omp end parallel
-#endif
 
 
 ! update COSP cloud sat simulator if avaliable

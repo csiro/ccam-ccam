@@ -31,7 +31,7 @@ module aerointerface
 implicit none
 
 private
-public load_aerosolldr, aerocalc, aerodrop, convscav
+public load_aerosolldr, aerocalc, aerocalc_init, aerodrop, convscav
 public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppqfsedice, pprscav, pprfreeze
 public opticaldepth, updateoxidant, oxidant_timer
@@ -60,7 +60,7 @@ real, parameter :: ticeu     = 263.16           ! Temperature for freezing in co
 
 contains
 
-subroutine aerocalc(oxidant_update,mins,aero_update)
+subroutine aerocalc(mins,aero_update)
 
 use aerosol_arrays                          ! Aerosol arrays
 use aerosolldr                              ! LDR prognostic aerosols
@@ -98,87 +98,28 @@ integer, intent(in) :: mins, aero_update
 integer k, j, tt, ttx, kinv, smins
 integer iq, ntr
 integer tile, js, je, idjd_t
-real, dimension(imax,ilev) :: loxidantnow
 real, dimension(ifull,kl) :: dz, rhoa, pccw
-real, dimension(imax) :: coszro
+real, dimension(ifull) :: coszro
 real, dimension(ifull) :: wg
 real, dimension(ifull,kl) :: clcon
 real, dimension(ifull) :: taudar, cldcon, u10_l
-real, dimension(imax,kl) :: lxtg
-real, dimension(imax,kl,4) :: lzoxidant
-real, dimension(imax,kl) :: lrkhsave, lt, lclcon
+real, dimension(imax,ilev) :: loxidantnow
+real, dimension(imax,kl) :: lzoxidant
+real, dimension(imax,kl) :: lclcon
+real, dimension(imax,kl,naero) :: lxtg
+real, dimension(imax,kl) :: lrkhsave, lt
 real, dimension(imax,kl) :: lat, lct
 real dhr, fjd, r1, dlt, alp, slag
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
-logical, intent(in) :: oxidant_update
 logical mydiag_t
 logical, dimension(ifull) :: locean
 
+
 if ( aero_update==aero_split ) then
 
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
   !$omp parallel
 #endif
-
-
-  ! update prescribed oxidant fields
-  if ( oxidant_update ) then
-    !$omp do schedule(static) private(js,je),                       &
-    !$omp private(loxidantnow,lzoxidant),                           &
-    !$omp private(dhr,ttx,j,tt,smins,fjd,r1,dlt,alp,slag,coszro)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      do j = 1,4
-        loxidantnow(:,1:ilev)  = oxidantnow_g(js:je,1:ilev,j)
-        ! note levels are inverted by fieldinterpolate
-        call fieldinterpolate(lzoxidant(:,:,j),loxidantnow,rlev,imax,kl,ilev,sig,ps(js:je),interpmeth=0)
-        zoxidant_g(js:je,:,j) = lzoxidant(:,:,j)
-      end do
-      ! estimate day length (presumably to preturb day-time OH levels)
-      ttx = nint(86400./dt)
-      dhr = dt/3600.
-      zdayfac(js:je) = 0.
-      do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
-        smins = int(real(tt-1)*dt/60.) + mins
-        fjd = real(smins)/1440.
-        call solargh(fjd,bpyear,r1,dlt,alp,slag)
-        call zenith(fjd,r1,dlt,slag,rlatt(js:je),rlongg(js:je),dhr,imax,coszro,taudar(js:je))
-        where ( taudar(js:je)>0.5 )
-          zdayfac(js:je) = zdayfac(js:je) + 1.
-        end where
-      end do
-      ! taudar is for current timestep - used to indicate sunlit
-      where ( zdayfac(js:je)>0.5 )
-        zdayfac(js:je) = real(ttx)/zdayfac(js:je)
-      end where
-    end do
-    !$omp end do nowait
-  else
-    !$omp do schedule(static) private(js,je),                       &
-    !$omp private(dhr,fjd,coszro,r1,dlt,alp,slag)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      dhr = dt/3600.  
-      fjd = real(mins)/1440.
-      call solargh(fjd,bpyear,r1,dlt,alp,slag)
-      call zenith(fjd,r1,dlt,slag,rlatt(js:je),rlongg(js:je),dhr,imax,coszro,taudar(js:je))
-      ! taudar is for current timestep - used to indicate sunlit
-    end do
-    !$omp end do nowait
-  end if
-    
-  ! estimate convective cloud fraction from leoncld.f90
-  !$omp do schedule(static) private(js,je,lclcon)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    call convectivecloudfrac(lclcon,kbsav(js:je),ktsav(js:je),condc(js:je),acon,bcon, &
-                            cldcon=cldcon(js:je))
-    clcon(js:je,:) = lclcon    
-  end do
-  !$omp end do nowait
 
   ! update 10m wind speed (avoids impact of diagnostic output)
   if ( aerosol_u10==0 ) then
@@ -199,10 +140,21 @@ if ( aero_update==aero_split ) then
     !$omp end do nowait
   end if
 
-  !$omp do schedule(static) private(js,je,k,kinv)
+  !$omp do schedule(static) private(js,je,k,kinv),                       &
+  !$omp private(dhr,fjd,r1,dlt,alp,slag,lclcon)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
+    dhr = dt/3600.  
+    fjd = real(mins)/1440.
+    call solargh(fjd,bpyear,r1,dlt,alp,slag)
+    call zenith(fjd,r1,dlt,slag,rlatt(js:je),rlongg(js:je),dhr,imax,coszro(js:je),taudar(js:je))
+    ! taudar is for current timestep - used to indicate sunlit
+    
+    ! estimate convective cloud fraction from leoncld.f90
+    call convectivecloudfrac(lclcon,kbsav(js:je),ktsav(js:je),condc(js:je),acon,bcon, &
+                            cldcon=cldcon(js:je))
+    clcon(js:je,:) = lclcon    
 
     do k = 1,kl
       dz(js:je,k) = -rdry*dsig(k)*t(js:je,k)/(grav*sig(k))
@@ -229,8 +181,7 @@ if ( aero_update==aero_split ) then
   end do
   !$omp end do nowait
 
-
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
   !$omp end parallel
 #endif
   
@@ -243,12 +194,11 @@ if ( aero_update==aero_split ) then
                 ppqfsedice,pprscav,pprfreeze,ppfevap,zdayfac,kbsav,    &
                 locean)
 
-
-#ifdef GPUPHYSICS
+  
+#ifdef GPUCHEMISTRY
   !$omp parallel
 #endif
 
-  
   ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
   ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
   !$omp do schedule(static) private(js,je,k)
@@ -263,75 +213,70 @@ if ( aero_update==aero_split ) then
   end do
   !$omp end do nowait
 
-
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
   !$omp end parallel
 #endif
 
 end if ! aero_update==aero_split
      
+
 if ( aero_update==1 ) then     
 
+#ifdef GPUCHEMISTRY
+  !$omp parallel
+#endif
+
   ! Aerosol mixing
-#ifdef GPUPHYSICS
-  !$acc parallel loop collapse(2) copy(xtg) &
-  !$acc copyin(t,rkhsave)                   &
-  !$acc private(lt,lrkhsave,lat,lct,lxtg)   &
-  !$acc present(sig,sigmh,dsig)
-#else
-  !$omp do collapse(2) schedule(static) private(js,je,iq,k) &
-  !$omp private(lt,lat,lct,idjd_t,mydiag_t,lxtg,lrkhsave)   &
-  !$omp private(rong,rlogs1,rlogs2,rlogh1,rlog12,tmnht,dzz) &
-  !$omp private(gt)
-#endif
-  do ntr = 1,naero
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      idjd_t = mod(idjd-1,imax)+1
-      mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+  !$omp do schedule(static) private(js,je,iq,k),      &
+  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+  !$omp private(lxtg,lrkhsave,rong,rlogs1,rlogs2),    &
+  !$omp private(rlogh1,rlog12,tmnht,dzz,gt)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    idjd_t = mod(idjd-1,imax)+1
+    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-      lt       = t(js:je,:)
-      lrkhsave = rkhsave(js:je,:)
+    lt       = t(js:je,:)
+    lrkhsave = rkhsave(js:je,:)
   
-      rong = rdry/grav
-      lat(:,1) = 0.
-      lct(:,kl) = 0.
-      rlogs1 = log(sig(1))
-      rlogs2 = log(sig(2))
-      rlogh1 = log(sigmh(2))
-      rlog12 = 1./(rlogs1-rlogs2)
+    rong = rdry/grav
+    lat(:,1) = 0.
+    lct(:,kl) = 0.
+    rlogs1=log(sig(1))
+    rlogs2=log(sig(2))
+    rlogh1=log(sigmh(2))
+    rlog12=1./(rlogs1-rlogs2)
+    do iq = 1,imax
+      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+      dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+      gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
+      lat(iq,2) = -gt/dsig(2)  
+      lct(iq,1) = -gt/dsig(1)
+    end do
+    do k = 2,kl-1
       do iq = 1,imax
-        tmnht = (lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12
-        dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-        gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
-        lat(iq,2) = -gt/dsig(2)  
-        lct(iq,1) = -gt/dsig(1)
+        ! Calculate half level heights and temperatures
+        ! n.b. an approximate zh (in m) is quite adequate for this routine
+        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+        dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+        gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
+        lat(iq,k+1) = -gt/dsig(k+1)  
+        lct(iq,k) = -gt/dsig(k)
       end do
-      do k = 2,kl-1
-        do iq = 1,imax
-          ! Calculate half level heights and temperatures
-          ! n.b. an approximate zh (in m) is quite adequate for this routine
-          tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-          dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-          gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
-          lat(iq,k+1) = -gt/dsig(k+1)  
-          lct(iq,k) = -gt/dsig(k)
-        end do
-      end do
+    end do
   
-      lxtg = xtg(js:je,:,ntr)
-      call trimmix(lat,lct,lxtg,imax,kl)
-      xtg(js:je,:,ntr) = lxtg
+    lxtg = xtg(js:je,:,:)
+    call trimmix(lat,lct,lxtg,imax,kl,naero)
+    xtg(js:je,:,:) = lxtg
   
-    end do ! tile = 1,ntiles
-  end do   ! ntr = 1,naero  
-#ifdef GPUPHYSICS
-  !$acc end parallel loop
-#else
+  end do ! tile = 1,ntiles
   !$omp end do nowait
-#endif
 
+#ifdef GPUCHEMISTRY
+  !$omp end parallel
+#endif
+  
 end if
 
 
@@ -360,6 +305,50 @@ end if
 
 return
 end subroutine aerocalc
+
+subroutine aerocalc_init(mins)
+
+use aerosol_arrays                          ! Aerosol arrays
+use arrays_m                                ! Atmosphere dyamics prognostic arrays
+use latlong_m                               ! Lat/lon coordinates
+use newmpar_m                               ! Grid parameters
+use ozoneread                               ! Ozone input routines
+use parm_m                                  ! Model configuration
+use sigs_m                                  ! Atmosphere sigma levels
+use zenith_m                                ! Astronomy routines
+
+implicit none
+
+integer, intent(in) :: mins
+integer k, tt, ttx, j
+real dhr, smins, fjd
+real r1, dlt, alp, slag
+real, dimension(ifull) :: coszro, taudar
+
+do j = 1,4
+  ! note levels are inverted by fieldinterpolate
+  call fieldinterpolate(zoxidant_g(:,:,j),oxidantnow_g(:,1:ilev,j),rlev,ifull,kl,ilev,sig,ps(:),interpmeth=0)
+end do
+! estimate day length (presumably to preturb day-time OH levels)
+ttx = nint(86400./dt)
+dhr = dt/3600.
+zdayfac(:) = 0.
+do tt = ttx,1,-1 ! we seem to get a different answer if dhr=24. and ttx=1.
+  smins = int(real(tt-1)*dt/60.) + mins
+  fjd = real(smins)/1440.
+  call solargh(fjd,bpyear,r1,dlt,alp,slag)
+  call zenith(fjd,r1,dlt,slag,rlatt(:),rlongg(:),dhr,ifull,coszro(:),taudar(:))
+  where ( taudar(:)>0.5 )
+    zdayfac(:) = zdayfac(:) + 1.
+  end where
+end do
+! taudar is for current timestep - used to indicate sunlit
+where ( zdayfac(:)>0.5 )
+  zdayfac(:) = real(ttx)/zdayfac(:)
+end where
+  
+return
+end subroutine aerocalc_init
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Estimate cloud droplet size
@@ -857,7 +846,9 @@ end subroutine cldrop
 ! Aerosol scavenging fraction for convective clouds
 
 subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
+#ifdef GPUPHYSICS
 !$acc routine vector
+#endif
 
 use aerosol_arrays, only : naero
 

@@ -2275,6 +2275,24 @@ select case(mode)
       dtmp = dtmp + (pd(ifrac)%taircanyon+urbtemp)*pd(ifrac)%frac_sigma  
     end do    
     o_data = unpack(dtmp, upack, o_data)      
+  case("tscrn")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + (pd(ifrac)%tscrn+urbtemp)*pd(ifrac)%frac_sigma  
+    end do    
+    o_data = unpack(dtmp, upack, o_data)   
+  case("qscrn")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + (pd(ifrac)%qscrn+urbtemp)*pd(ifrac)%frac_sigma  
+    end do    
+    o_data = unpack(dtmp, upack, o_data)      
+  case("u10")
+    dtmp = 0.
+    do ifrac = 1,nfrac
+      dtmp = dtmp + (pd(ifrac)%u10+urbtemp)*pd(ifrac)%frac_sigma  
+    end do    
+    o_data = unpack(dtmp, upack, o_data)      
   case default
     write(6,*) "ERROR: Unknown uclem_misc mode ",trim(mode)
     stop
