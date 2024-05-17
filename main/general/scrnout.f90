@@ -574,7 +574,7 @@ select case(ugs_meth)
     end do
   case(3)
     wsgs(is:ie) = wgcoeff*2.185*0.4/log(10./0.03)*u10(is:ie) + u10(is:ie)  
-  case(4) ! ECMWF IFS DOCUMENTATION – Cy33r1
+  case(4) ! ECMWF IFS DOCUMENTATION ï¿½ Cy33r1
     ! https://www.ecmwf.int/sites/default/files/elibrary/2009/9227-part-iv-physical-processes.pdf
     do k = 1,kl-1
       if ( sig(k)>=0.95 .and. sig(k+1)<=0.95 ) then
@@ -761,13 +761,14 @@ u10m(:)    = sqrt(atu(is:ie)*atu(is:ie)+atv(is:ie)*atv(is:ie))
 return
 end subroutine update_u10m    
 
+
 ! Calculate CAPE and CIN
 ! This differs from the value used in convection, but is comparable with
 ! other models.  Hence we refer to this as diagnosed CAPE and CIN.
-subroutine capecalc(js,je)
+subroutine capecalc
 
 use arrays_m
-use cc_omp, only : imax
+use cc_omp, only : ntiles, imax
 use const_phys
 use estab
 use newmpar_m
@@ -776,171 +777,188 @@ use sigs_m
 
 implicit none
 
-integer, intent(in) :: js, je
+integer js, je, tile
 integer k, n, iq, icount, nloop, ktop
 integer, parameter :: kmax = 1 ! default for source parcel at surface
 real, dimension(imax,kl) :: pl, tl, pil, th, thv
-real, dimension(imax) :: th2, pil2, pl2, tl2, thv2, qv2, b2
+real, dimension(imax) :: th2, pl2, tl2, thv2, qv2, b2
 real, dimension(imax) :: narea, ql2, qi2, qt, capel, cinl
-real, dimension(imax) :: dz, frac, parea, dp, b1, qs
-real, dimension(imax) :: pl1, tl1, th1, qv1, ql1, qi1, thv1
-real, dimension(imax) :: tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf
-real, dimension(imax) :: rm, cpm, thlast, fliq, fice
-real, dimension(imax) :: qsat_save
+real, dimension(imax) :: qs
+real b1, dp, pl1, tl1, th1, qv1, ql1, qi1, thv1, thlast, pil2, fliq, fice
+real tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf, rm, cpm, qsat_save
+real dz, frac, parea
 !real, parameter :: pinc = 100. ! Pressure increment (Pa) - smaller is more accurate
 real, parameter :: pinc = 1000.
 real, parameter :: lv1 = 2501000. + (4190.-cpv)*273.15
 real, parameter :: lv2 = 4190. - cpv
 real, parameter :: ls1 = 2836017. + (2118.636-cpv)*273.15
 real, parameter :: ls2 = 2188.636 - cpv
-logical, dimension(imax) :: not_converged
-
-capel(:) = 0.
-cinl(:) = 0.
-!cape_lvl(:,:) = 0.
-!cin_lvl(:,:) = 0.
+logical not_converged
 
 ! Following code is based on Bryan (NCAR) citing
 ! Bolton 1980 MWR p1046 and Bryan and Fritsch 2004 MWR p2421
 
-ktop = 1
-do k = 1,kl
-  if ( 1.e5*sig(k)>1.e4 ) ktop = k
-end do
+#ifdef GPU
+!$acc parallel loop copyin(ps,t,ntiles,imax,kl) copyout(cape_d,cin_d) present(sig)       &
+!$acc   private(pl,tl,pil,th,thv,th2,pl2,tl2,thv2,qv2,ql2,qi2,qt,b2,narea,capel,cinl,qs) &
+!$acc   private(js,je,k,iq,tile,b1,dp,nloop,pl1,tl1,th1,qv1,ql1,qi1,thv1,thlast,pil2)    &
+!$acc   private(icount,not_converged,fliq,fice,tbarl,qvbar,qlbar,qibar,rm,cpm,qsat_save) &
+!$acc   private(dz,frac,parea,n,ktop,lhv,lhs,lhf)
+#else
+!$omp do schedule(static) private(pl,tl,pil,th,thv,th2,pl2,tl2,thv2,qv2,ql2,qi2,qt,b2) &
+!$omp   private(narea,capel,cinl,qs,js,je,k,iq,tile,b1,dp,nloop,pl1,tl1,th1,qv1,ql1)   &
+!$omp   private(qi1,thv1,thlast,pil2,icount,not_converged,fliq,fice,tbarl,qvbar,qlbar) &
+!$omp   private(qibar,rm,cpm,qsat_save,dz,frac,parea,n,ktop,lhv,lhs,lhf)
+#endif
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax    
 
-do k = 1,ktop
-  pl(:,k) = ps(js:je)*sig(k)
-  tl(:,k) = t(js:je,k)
-  pil(:,k) = (pl(:,k)/1.e5)**(rdry/cp)
-  qs(:) = qsat(pl(:,k),tl(:,k))
-  th(:,k) = tl(:,k)/pil(:,k)
-  thv(:,k) = th(:,k)*(1.+1.61*qs(:))/(1.+qs(:))
-end do  
-
-! define initial parcel properties
-th2(:) = th(:,kmax)
-pil2(:) = pil(:,kmax)
-pl2(:) = pl(:,kmax)
-tl2(:) = tl(:,kmax)
-thv2(:) = thv(:,kmax)
-qv2(:) = qsat(pl(:,kmax),tl(:,kmax))
-ql2(:) = 0.
-qi2(:) = 0.
-qt(:) = qv2(:)
-b2(:) = 0.
-narea(:) = 0.
-fliq(:) = 1.
-fice(:) = 0.
-
-! start ascent of parcel
-do k = kmax+1,ktop
-    
-  b1(:) = b2(:)  
-  dp(:) = pl(:,k-1) - pl(:,k)
-
-  nloop = 1 + int( 1.e5*(sig(k-1)-sig(k))/pinc )
-  dp(:) = (pl(:,k-1)-pl(:,k))/real(nloop)  
+  ! limit height to 10hPa
+  ktop = 1
+  do k = 1,kl
+    if ( 1.e5*sig(k)>1.e4 ) ktop = k
+  end do
   
-  do n = 1,nloop
-            
-    pl1(:) = pl2(:)
-    tl1(:) = tl2(:)
-    th1(:) = th2(:)
-    qv1(:) = qv2(:)
-    ql1(:) = ql2(:)
-    qi1(:) = qi2(:)
-    thv1(:) = thv2(:)
-     
-    pl2(:) = pl2(:) - dp(:)
-    pil2(:) = (pl2(:)/1.e5)**(rdry/cp)
-    thlast(:) = th1(:)
+  ! create local variables
+  do k = 1,ktop
+    pl(:,k) = ps(js:je)*sig(k)
+    tl(:,k) = t(js:je,k)
+    pil(:,k) = (pl(:,k)/1.e5)**(rdry/cp)
+    qs(:) = qsat(pl(:,k),tl(:,k)) 
+    th(:,k) = tl(:,k)/pil(:,k)
+    thv(:,k) = th(:,k)*(1.+1.61*qs(:))/(1.+qs(:))
+  end do  
+
+  ! define initial parcel properties
+  th2(:) = th(:,kmax)
+  !pil2(:) = pil(:,kmax)
+  pl2(:) = pl(:,kmax)
+  tl2(:) = tl(:,kmax)
+  thv2(:) = thv(:,kmax)
+  qv2(:) = qsat(pl(:,kmax),tl(:,kmax)) 
+  ql2(:) = 0.
+  qi2(:) = 0.
+  qt(:) = qv2(:)
+  b2(:) = 0.
+  narea(:) = 0.
+  capel(:) = 0.
+  cinl(:) = 0.
+  !cape_lvl(:,:) = 0.
+  !cin_lvl(:,:) = 0.
+
+  ! start ascent of parcel
+  do k = kmax+1,ktop
+    do iq = 1,imax  
       
-    icount = 0
-    not_converged(:) = .true.
-    do while( any(not_converged(:)) .and. icount<51 )
-      icount = icount + 1
-
-      where ( not_converged )
-        tl2(:) = thlast(:)*pil2(:)
-        fliq(:) = max(min((tl2(:)-233.15)/(273.15-233.15),1.),0.)
-        fice(:) = 1. - fliq(:)
-      end where
-
-      qsat_save(:) = qsat(pl2,tl2)
-
-      where ( not_converged )
-        qv2(:) = min( qt(:), qsat_save(:) )
-        qi2(:) = max( fice*(qt(:)-qv2(:)), 0. )
-        ql2(:) = max( qt(:)-qv2(:)-qi2(:), 0. )
-
-        tbarl(:) = 0.5*(tl1(:)+tl2(:))
-        qvbar(:) = 0.5*(qv1(:)+qv2(:))
-        qlbar(:) = 0.5*(ql1(:)+ql2(:))
-        qibar(:) = 0.5*(qi1(:)+qi2(:))
-
-        lhv(:) = lv1 - lv2*tbarl(:)
-        lhs(:) = ls1 - ls2*tbarl(:)
-        lhf(:) = lhs(:) - lhv(:)
-
-        rm(:) = rdry + rvap*qvbar(:)
-        cpm(:) = cp + cpv*qvbar(:) + 4190.*qlbar(:) + 2118.636*qibar(:)
-        th2(:) = th1(:)*exp( lhv(:)*(ql2(:)-ql1(:))/(cpm(:)*tbarl(:))    &
-                   +lhs(:)*(qi2(:)-qi1(:))/(cpm(:)*tbarl(:))             &
-                   +(rm(:)/cpm(:)-rdry/cp)*alog(pl2(:)/pl1(:)) )
-      end where
-
-      where ( abs(th2(:)-thlast(:))>0.0002 .and. not_converged )
-        thlast(:) = thlast(:) + 0.2*(th2(:)-thlast(:))
-      else where
-        not_converged(:) = .false.
-      end where
-
-    end do ! do while not_converged
-
-    ! pseudoadiabat
-    qt(:)  = qv2(:)
-    ql2(:) = 0.
-    qi2(:) = 0.
-
-  end do     ! n loop  
-
-  thv2(:) = th2(:)*(1.+1.61*qv2(:))/(1.+qv2(:)+ql2(:)+qi2(:))
-  b2(:) = grav*( thv2(:)-thv(:,k) )/thv(:,k)
-  dz(:) = -(cp/grav)*0.5*(thv(:,k)+thv(:,k-1))*(pil(:,k)-pil(:,k-1))
-	
-  ! calculate contributions to CAPE and CIN
-  where ( b2>=0. .and. b1<0. )
-    ! first time entering positive region
-    frac = b2/(b2-b1)
-    parea = 0.5*b2*dz*frac
-    narea = narea-0.5*b1*dz*(1.-frac)
-    cinl = cinl + narea
-    capel = capel + max(0.,parea)
-    narea = 0.
-  elsewhere ( b2<0. .and. b1>0. )  
-    ! first time entering negative region  
-    frac = b1/(b1-b2)
-    parea = 0.5*b1*dz*frac
-    narea = -0.5*b2*dz*(1.0-frac)
-    capel = capel + max(0.,parea)
-  elsewhere ( b2<0. )  
-    ! continue negative buoyancy region
-    parea = 0.
-    narea = narea-0.5*dz*(b1+b2)
-  elsewhere
-    ! continue positive buoyancy region  
-    parea = 0.5*dz*(b1+b2)
-    narea = 0.
-    capel = capel + max(0.,parea)
-  end where
+      b1 = b2(iq)
+      nloop = 1 + int( 1.e5*(sig(k-1)-sig(k))/pinc )
+      dp = (pl(iq,k-1)-pl(iq,k))/real(nloop)  
   
-  !cape_lvl(:,k) = parea
-  !cin_lvl(:,k) = narea
+      do n = 1,nloop
+            
+        pl1 = pl2(iq)
+        tl1 = tl2(iq)
+        th1 = th2(iq)
+        qv1 = qv2(iq)
+        ql1 = ql2(iq)
+        qi1 = qi2(iq)
+        thv1 = thv2(iq)
+     
+        pl2(iq) = pl2(iq) - dp
+        pil2 = (pl2(iq)/1.e5)**(rdry/cp)
+        thlast = th1
+      
+        not_converged = .true.
+        do icount = 1,50
+          if ( not_converged ) then
 
-end do ! k loop
+            tl2(iq) = thlast*pil2
+            fliq = max(min((tl2(iq)-233.15)/(273.15-233.15),1.),0.)
+            fice = 1. - fliq
+
+            qsat_save = qsat(pl2(iq),tl2(iq))
+
+            qv2(iq) = min( qt(iq), qsat_save )
+            qi2(iq) = max( fice*(qt(iq)-qv2(iq)), 0. )
+            ql2(iq) = max( qt(iq)-qv2(iq)-qi2(iq), 0. )
+
+            tbarl = 0.5*(tl1+tl2(iq))
+            qvbar = 0.5*(qv1+qv2(iq))
+            qlbar = 0.5*(ql1+ql2(iq))
+            qibar = 0.5*(qi1+qi2(iq))
+
+            lhv = lv1 - lv2*tbarl
+            lhs = ls1 - ls2*tbarl
+            lhf = lhs - lhv
+
+            rm = rdry + rvap*qvbar
+            cpm = cp + cpv*qvbar + 4190.*qlbar + 2118.636*qibar
+            th2(iq) = th1*exp( lhv*(ql2(iq)-ql1)/(cpm*tbarl)    &
+                   +lhs*(qi2(iq)-qi1)/(cpm*tbarl)               &
+                   +(rm/cpm-rdry/cp)*log(pl2(iq)/pl1) )
+
+            if ( abs(th2(iq)-thlast)>0.0002 ) then
+              thlast = thlast + 0.2*(th2(iq)-thlast)
+            else
+              not_converged = .false.
+            end if
+            
+          end if  ! not_converged  
+        end do    ! ncount
+
+        ! pseudoadiabat
+        qt(iq)  = qv2(iq)
+        ql2(iq) = 0.
+        qi2(iq) = 0.
+
+      end do     ! n loop  
+
+      thv2(iq) = th2(iq)*(1.+1.61*qv2(iq))/(1.+qv2(iq)+ql2(iq)+qi2(iq))
+      b2(iq) = grav*( thv2(iq)-thv(iq,k) )/thv(iq,k)
+      dz = -(cp/grav)*0.5*(thv(iq,k)+thv(iq,k-1))*(pil(iq,k)-pil(iq,k-1))
+
+      ! calculate contributions to CAPE and CIN
+      if ( b2(iq)>=0. .and. b1<0. ) then
+        ! first time entering positive region
+        frac = b2(iq)/(b2(iq)-b1)
+        parea = 0.5*b2(iq)*dz*frac
+        narea(iq) = narea(iq)-0.5*b1*dz*(1.-frac)
+        cinl(iq) = cinl(iq) + narea(iq)
+        capel(iq) = capel(iq) + max(0.,parea)
+        narea(iq) = 0.
+      else if ( b2(iq)<0. .and. b1>0. ) then  
+        ! first time entering negative region  
+        frac = b1/(b1-b2(iq))
+        parea = 0.5*b1*dz*frac
+        narea(iq) = -0.5*b2(iq)*dz*(1.-frac)
+        capel(iq) = capel(iq) + max(0.,parea)
+      else if ( b2(iq)<0. ) then 
+        ! continue negative buoyancy region
+        parea = 0.
+        narea(iq) = narea(iq)-0.5*dz*(b1+b2(iq))
+      else
+        ! continue positive buoyancy region  
+        parea = 0.5*dz*(b1+b2(iq))
+        narea(iq) = 0.
+        capel(iq) = capel(iq) + max(0.,parea)
+      end if
+  
+      !cape_lvl(iq,k) = parea
+      !cin_lvl(iq,k) = narea(iq)
+      
+    end do ! iq loop  
+  end do   ! k loop
     
-cape_d(js:je) = capel(:)
-cin_d(js:je) = cinl(:)
+  cape_d(js:je) = capel(:)
+  cin_d(js:je) = cinl(:)
+
+end do
+#ifdef GPU
+!$acc end parallel loop
+#else
+!$omp end do nowait
+#endif
 
 return
 end subroutine capecalc

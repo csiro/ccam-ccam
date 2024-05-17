@@ -754,13 +754,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
 #ifdef GPUCHEMISTRY
   !$omp parallel
 #endif
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax  
-    call nantest("after aerosols",js,je,"aerosols")
-  end do
-  !$omp end do nowait
+  if ( aero_split==0 ) then
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("after aerosols",js,je,"aerosols")
+    end do
+    !$omp end do nowait
+  end if  
 
     
   ! VERTICAL MIXING ------------------------------------------------------
@@ -849,6 +851,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after fixsat",js,je,"cloud")
   end do  
   !$omp end do nowait
+#ifdef GPU
+  !$omp end parallel
+#endif
   if ( rescrn>0 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -858,16 +863,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
     !$omp end do nowait
     ! CAPE only needs to be calculated for cordex output
+    ! pcc2hist will calculate CAPE for standard output
     if ( surfile/=' ' .and. mod(ktau,tbave)==0 ) then
-      !$omp do schedule(static) private(js,je)
-      do tile = 1,ntiles
-        js = (tile-1)*imax + 1
-        je = tile*imax  
-        call capecalc(js,je)
-      end do
-      !$omp end do nowait
+      call capecalc
     end if    
-  end if
+  end if  
+#ifdef GPU
+  !$omp parallel
+#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -1765,6 +1768,7 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
+
 #ifdef GPUCHEMISTRY
 !$acc update device(enhanceu10,zvolcemi,ch_dust) ! aerosol
 !$acc update device(saltsmallmtn,saltlargemtn)   ! aerosol
@@ -1892,7 +1896,11 @@ if ( myid==0 ) then
   write(6,*) 'Running for nproc                        = ',nproc
   write(6,*) 'Using defaults for nversion              = ',nversion
 #ifdef usempi3
+#ifdef share_ifullg
   write(6,*) 'Using shared memory with number of nodes = ',nodecaptain_nproc
+#else
+  write(6,*) 'Node aware with number of nodes          = ',nodecaptain_nproc
+#endif
 #endif
 #ifdef i8r8
   write(6,*) 'Using double precision mode'
@@ -2011,7 +2019,7 @@ call ccmpi_remap
 !   node_dx is the number of nodes for the grid along the X-axis
 !   node_dy is the number of nodes for the grid along the Y-axis
 !   Usually node_dx*node_dy is equal to the total number of physical nodes equal to
-!   nodecaptian_nproc.  However if processes on a physical node are not fully allocated
+!   nodecaptian_nproc.  However if processes on a node are not fully allocated
 !   then a node can be decomposed into smaller 'virtual' nodes until all processes on
 !   a virtual node are fully allocated.
 ! each node is divided into node_nx*node_ny processes
@@ -4025,31 +4033,35 @@ use sigs_m                            ! Atmosphere sigma levels
 implicit none
 
 integer, intent(in) :: js, je
-integer k
-real, dimension(js:je) :: qtot, tliq
+integer k, iq
+real qtot, tliq
 
 ! requires qg_fix>=1
-if ( qg_fix<=0 ) return
+if ( qg_fix>=1 ) then
 
-do k = 1,kl
-  qtot(js:je) = max( qg(js:je,k) + qlg(js:je,k) + qfg(js:je,k), qgmin )
-  tliq(js:je) = t(js:je,k) - hlcp*qlg(js:je,k) - hlscp*qfg(js:je,k)
+  do k = 1,kl
+    do iq = js,je  
+      qtot = max( qg(iq,k) + qlg(iq,k) + qfg(iq,k), qgmin )
+      tliq = t(iq,k) - hlcp*qlg(iq,k) - hlscp*qfg(iq,k)
   
-  qfg(js:je,k)   = max( qfg(js:je,k), 0. ) 
-  qlg(js:je,k)   = max( qlg(js:je,k), 0. )
-  qrg(js:je,k)   = max( qrg(js:je,k), 0. )
-  qsng(js:je,k)  = max( qsng(js:je,k), 0. )
-  qgrg(js:je,k)  = max( qgrg(js:je,k), 0. )
+      qfg(iq,k)   = max( qfg(iq,k), 0. ) 
+      qlg(iq,k)   = max( qlg(iq,k), 0. )
+      qrg(iq,k)   = max( qrg(iq,k), 0. )
+      qsng(iq,k)  = max( qsng(iq,k), 0. )
+      qgrg(iq,k)  = max( qgrg(iq,k), 0. )
   
-  qg(js:je,k) = max( qtot(js:je) - qlg(js:je,k) - qfg(js:je,k), qgmin )
-  t(js:je,k)  = tliq(js:je) + hlcp*qlg(js:je,k) + hlscp*qfg(js:je,k)
-  where ( qlg(js:je,k)+qfg(js:je,k)>1.E-8 )
-    stratcloud(js:je,k) = max( stratcloud(js:je,k), 1.E-8 )
-  elsewhere
-    stratcloud(js:je,k) = 0.  
-  end where
-end do
+      qg(iq,k) = max( qtot - qlg(iq,k) - qfg(iq,k), qgmin )
+      t(iq,k)  = tliq + hlcp*qlg(iq,k) + hlscp*qfg(iq,k)
+      if ( qlg(iq,k)+qfg(iq,k)>1.E-8 ) then
+        stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
+      else
+        stratcloud(iq,k) = 0.  
+      end if
+    end do  
+  end do
 
+end if ! qg_fix>=1  
+  
 return
 end subroutine fixqg    
     

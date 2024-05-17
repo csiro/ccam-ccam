@@ -36,31 +36,31 @@ ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
-FHOST = -O3 -xCORE-AVX2 -align array32byte -fimf-use-svml
+FHOST = -O3 -xCORE-AVX2 -align array32byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(SKYLAKE),yes)
-FHOST = -O3 -xSKYLAKE-AVX512 -align array64byte -fimf-use-svml
+FHOST = -O3 -xSKYLAKE-AVX512 -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(CASCADELAKE),yes)
-FHOST = -O3 -xCASCADELAKE -align array64byte -fimf-use-svml
+FHOST = -O3 -xCASCADELAKE -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(SAPPHIRERAPIDS),yes)
-FHOST = -O3 -xSAPPHIRERAPIDS -align array64byte -fimf-use-svml
+FHOST = -O3 -xSAPPHIRERAPIDS -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(ZEN3),yes)
-FHOST = -O3 -axCORE-AVX2 -align array32byte -fimf-use-svml
+FHOST = -O3 -axCORE-AVX2 -align array32byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
@@ -126,7 +126,7 @@ FCSCM = ftn
 FHOST = -march=native
 MPIFLAG =
 NCFLAG =
-FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -Dusempi3
+FFLAGS = -O3 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -Dusempi3
 LIB = -lnetcdf
 FOVERRIDE =
 ZMM =
@@ -227,7 +227,7 @@ FC = mpifort
 FCSCM = flang
 FHOST = -march=native -fopenmp -DGPU
 MPIFLAG =
-FFLAGS = -O3 -mtune=native -mveclibabi=svml $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -O3 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPOFLAG =
