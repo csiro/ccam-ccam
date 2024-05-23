@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -38,7 +38,6 @@ module cc_omp
 #endif   
 
    public ::  ccomp_init
-   public ::  ccomp_mythread
    public ::  ccomp_get_thread_num
 
    contains
@@ -63,56 +62,33 @@ module cc_omp
       maxthreads = omp_get_max_threads()
 #else
       maxthreads = 1
-#endif      
+#endif
 
-      !find a tiling at least as much as the number of threads 
-      ntiles = ifull
-      do i = maxthreads,ifull
-         if ( mod(ifull,i) == 0 ) then
-            ntiles = i
-            exit
-         end if
-      end do
-
-      !find the next biggest maxtilesize if maxtilesize isn't already a factor of ifull
-      maxtilesize = min( max( maxtilesize, 1 ), ifull )
-      tmp = maxtilesize
-      maxtilesize = -1 ! missing flag
+      !find imax if maxtilesize isn't already a factor of ifull
+      imax = min( max( maxtilesize, 1 ), ifull )
+      tmp = imax
+      imax = -1 ! missing flag
       ! first attempt to find multiple of 16
       do i = tmp,16,-1
          if ( mod(ifull,i)==0 .and. mod(i,16)==0 ) then
-            maxtilesize = i
+            imax = i
             exit
          end if
       end do
-      if ( maxtilesize<1 ) then
+      if ( imax<1 ) then
          ! second attempt if multiple of 16 is not possible
          do i = tmp,1,-1
             if ( mod(ifull,i)==0 ) then
-               maxtilesize = i
+               imax = i
                exit
             end if
          end do
       end if
 
-      !increase the number of tiles if the resultant tile size is too big
-      if ( ifull/ntiles > maxtilesize ) ntiles = ifull/maxtilesize
-
-      imax = ifull/ntiles
+      !find the number of tiles
+      ntiles = ifull/imax
       
       return
    end subroutine ccomp_init
-   
-   subroutine ccomp_mythread(mythread)
-      integer, intent(out) :: mythread
-      
-#ifdef _OPENMP
-      mythread = omp_get_thread_num()
-#else
-      mythread = 0
-#endif
-
-      return
-   end subroutine ccomp_mythread
  
 end module cc_omp

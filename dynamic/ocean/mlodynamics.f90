@@ -266,7 +266,7 @@ real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv
 real, dimension(ifull+iextra) :: sou,sov,snu,snv,squ,sqv
 real, dimension(ifull+iextra) :: tide, depdum_rho
-real, dimension(ifull+iextra) :: ipmax, spnet
+real, dimension(ifull+iextra) :: ipmax
 real, dimension(ifull+iextra) :: ibu, ibv
 real, dimension(ifull+iextra) :: bb, ff, bb3u, bb4v, ibb, ibb3u, ibb4v
 real, dimension(ifull) :: ddddxu, ddddxv, ddddyu, ddddyv
@@ -589,7 +589,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Lagrangian version of the contunity equation with D included in flux form
   !   [neta + (1+eps)*0.5*dt*(neta*(du/dx+dv/dy)+d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t+1)
   ! = [neta - (1-eps)*0.5*dt*(neta*(du/dx+dv/dy)+d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t*)
-  
+
   ! Vertical velocity is then (sum_0_sig is the integral from 0 to sig)
 
   ! dw/dsig = -(d(u*(neta+D))/dx+d(v*(neta+D))/dy) - d(neta)/dt
@@ -942,12 +942,23 @@ do mspec_mlo = mspeca_mlo,1,-1
     
     ! rho = wrtrho + rho_dash
     ! rhobar = (int_0_z rho dz)/z
-      
-    ! dPdz = grav*rho
+
+    ! Hydrostatic version
+    ! dPdz = dGdz = grav*rho
     ! dPdz* = grav*rho*(1+eta/D)
     ! P = grav*rhobar*(eta+D)*(z*)/D = grav*rhobar*(z+eta) = grav*rhobar*sig*(eta+D)
     ! dPdx = grav*sig*(eta+D)*d(rhobar)dx + grav*rhobar*d(eta)dx
-      
+
+    ! Non-Hydrostatic
+    ! dPdz = dGdz - rho*Dw/Dt
+    ! [ w + dt*(-dGdz + (1/rho)*dP/dz) ]^t+1 = w^t*
+    ! dPdz = grav*rho - rho*(w^(t+1)-w^(t*))/dt  
+    ! w = -sum_0_sig(d(u*(neta+D))/dx+d(v*(neta+D))/dy,dsig)
+    !    + sig*sum_0_1(d(u*(neta+D))/dx+d(v*(neta+D))/dy,dsig)
+    ! P = grav*rhobar*(z+eta) - int_0_z (rho*Dw/Dt) dz
+    ! P = grav*rhobar*(z+eta) - w_nh  
+    ! dPdx = grav*sig*(eta+d)*d(rhobar)dx + grav*rhobar*d(eta)dx - d(w_nh)dx   
+
     ! dGdz = grav
     ! dGdz* = grav*(D+eta)/D
     ! G = grav*z
@@ -1233,8 +1244,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   ! Normalisation factor for conserving ice flow in and out of gridbox
   call boundsuv(niu,niv,stag=-9)  
-  spnet(1:ifull) = (-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.)     &
-                    -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
+  !spnet(1:ifull) = (-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.)     &
+  !                  -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
 
   ! ADVECT ICE ------------------------------------------------------
   ! use simple upwind scheme
@@ -1255,20 +1266,20 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Horizontal advection of ice temperatures
   data_c(1:ifull,7) = i_it(1:ifull,3)*nfracice(1:ifull)*gamm(:,3)/(em(1:ifull)**2)
   data_c(1:ifull,8) = i_it(1:ifull,4)*nfracice(1:ifull)*gamm(:,3)/(em(1:ifull)**2) 
-  ! Conservation
-  data_c(1:ifull,9) = spnet(1:ifull)
-  call bounds(data_c(:,1:9))
-  spnet(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,9)
-  call upwind_iceadv(data_c(:,1:8),niu,niv,spnet,8)
+  !! Conservation
+  !data_c(1:ifull,9) = spnet(1:ifull)
+  call bounds(data_c(:,1:8))
+  !spnet(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,9)
+  call upwind_iceadv(data_c(:,1:8),niu,niv,8)
   nfracice(1:ifull) = min( max( data_c(1:ifull,1)*em(1:ifull)**2, 0. ), maxicefrac )
-  ndic(1:ifull) = data_c(1:ifull,2)*em(1:ifull)**2/max(nfracice(1:ifull),1.E-10)
-  ndsn(1:ifull) = data_c(1:ifull,3)*em(1:ifull)**2/max(nfracice(1:ifull),1.E-10)
-  nsto(1:ifull) = data_c(1:ifull,4)*em(1:ifull)**2/max(nfracice(1:ifull),1.E-10)
+  ndic(1:ifull) = max(data_c(1:ifull,2),0.)*em(1:ifull)**2/max(nfracice(1:ifull),1.E-10)
+  ndsn(1:ifull) = max(data_c(1:ifull,3),0.)*em(1:ifull)**2/max(nfracice(1:ifull),1.E-10)
+  nsto(1:ifull) = max(data_c(1:ifull,4),0.)*em(1:ifull)**2/max(nfracice(1:ifull),1.E-10)
   call mloexpgamm(gamm,ndic,ndsn,0)
-  nit(1:ifull,1) = data_c(1:ifull,5)*em(1:ifull)**2/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
-  nit(1:ifull,2) = data_c(1:ifull,6)*em(1:ifull)**2/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
-  nit(1:ifull,3) = data_c(1:ifull,7)*em(1:ifull)**2/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
-  nit(1:ifull,4) = data_c(1:ifull,8)*em(1:ifull)**2/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
+  nit(1:ifull,1) = max(data_c(1:ifull,5),0.)*em(1:ifull)**2/max(gamm(:,1)*nfracice(1:ifull),1.E-10)
+  nit(1:ifull,2) = max(data_c(1:ifull,6),0.)*em(1:ifull)**2/max(gamm(:,2)*nfracice(1:ifull),1.E-10)
+  nit(1:ifull,3) = max(data_c(1:ifull,7),0.)*em(1:ifull)**2/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
+  nit(1:ifull,4) = max(data_c(1:ifull,8),0.)*em(1:ifull)**2/max(gamm(:,3)*nfracice(1:ifull),1.E-10)
 
   ! populate grid points that have no sea ice
   nit(1:ifull,:) = min( nit(1:ifull,:), 399. )
@@ -1591,8 +1602,6 @@ else
 
   ! rhobar = int_0^sigma rho dsigma / sigma
 
-  !$omp parallel do schedule(static) private(ii,iq,absu,bbsu,absv,bbsv)            &
-  !$omp   private(dnadxu1,dnadyu1,dnadyv1,dnadxv1,dnadxu2,dnadyu2,dnadyv2,dnadxv2)
   do ii = 1,wlev
     do iq = 1,ifull
       absu = 0.5*(alpha(iq,ii)+alpha(ie(iq),ii))
@@ -1622,7 +1631,6 @@ else
       drhodyv(iq,ii) = -absv*dnadyv1 + bbsv*dnadyv2
     end do
   end do
-  !$omp end parallel do
 
   ! integrate density gradient  
   drhobardxu(:,1) = drhodxu(:,1)*godsigu(1:ifull,1)
@@ -1764,7 +1772,7 @@ end subroutine mloleap
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Advect sea-ice using simple upwind scheme
 
-subroutine upwind_iceadv(dumc,niu,niv,spnet,ntr)
+subroutine upwind_iceadv(dumc,niu,niv,ntr)
 
 use indices_m
 use map_m
@@ -1777,80 +1785,91 @@ implicit none
 integer, intent(in) :: ntr
 integer iq, n
 real, dimension(ifull+iextra,ntr), intent(inout) :: dumc
-real, dimension(ifull+iextra), intent(in) :: niu,niv,spnet
+real, dimension(ifull+iextra), intent(in) :: niu,niv
 real, dimension(ifull,ntr) :: dum_out
-real odum, tdum
+real odum, niu_w, niv_s, dumc_n, dumc_s, dumc_e, dumc_w, emu_w, emv_s
 real(kind=8) dumd
 
-
-!$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)
+!$acc parallel loop collapse(2) copyin(dumc,niu,niv,emu,emv,in,is,ie,iw,iwu,isv) copyout(dum_out) 
 do n = 1,ntr
   do iq = 1,ifull
     dumd=real(dumc(iq,n),8)
-    odum=0.5*dt*(niu(iwu(iq))*(dumc(iq,n)+dumc(iw(iq),n))    -abs(niu(iwu(iq)))*(dumc(iq,n)-dumc(iw(iq),n))    )*emu(iwu(iq))/ds
-    if ( spnet(iw(iq))>1.e-10 ) then
-      tdum=dumc(iw(iq),n)*max(niu(iwu(iq))*emu(iwu(iq)),0.)/(ds*spnet(iw(iq)))    
-      odum=min(odum,tdum)
-    else
-      odum=min(odum,0.)
-    end if
-    if ( spnet(iq)>1.e-10 ) then
-      tdum=dumc(iq,n)*min(niu(iwu(iq))*emu(iwu(iq)),0.)/(ds*spnet(iq))
-      odum=max(odum,tdum)
-    else
-      odum=max(odum,0.)
-    end if
+    niu_w = niu(iwu(iq))
+    dumc_w = dumc(iw(iq),n)
+    emu_w = emu(iwu(iq))
+    odum=0.5*dt*(niu_w*(dumc(iq,n)+dumc_w) &
+           -abs(niu_w)*(dumc(iq,n)-dumc_w))*emu_w/ds
+    !if ( spnet(iw(iq))>1.e-10 ) then
+    !  tdum=dumc(iw(iq),n)*max(niu(iwu(iq))*emu(iwu(iq)),0.)/(ds*spnet(iw(iq)))    
+    !else
+    !  tdum=0.
+    !end if
+    !odum=min(odum,tdum)
+    !if ( spnet(iq)>1.e-10 ) then
+    !  tdum=dumc(iq,n)*min(niu(iwu(iq))*emu(iwu(iq)),0.)/(ds*spnet(iq))
+    !else
+    !  tdum=0.
+    !end if
+    !odum=max(odum,tdum)
     dumd=dumd+real(odum,8)
 
-    odum=-0.5*dt*(niu(iq)*(dumc(iq,n)+dumc(ie(iq),n))+abs(niu(iq))*(dumc(iq,n)-dumc(ie(iq),n)))*emu(iq)/ds
-    if ( spnet(ie(iq))>1.e-10 ) then
-      tdum=-dumc(ie(iq),n)*min(niu(iq)*emu(iq),0.)/(ds*spnet(ie(iq)))
-      odum=min(odum,tdum)
-    else
-      odum=min(odum,0.)
-    end if
-    if ( spnet(iq)>1.e-10 ) then
-      tdum=-dumc(iq,n)*max(niu(iq)*emu(iq),0.)/(ds*spnet(iq))
-      odum=max(odum,tdum)
-    else
-      odum=max(odum,0.)
-    end if
+    dumc_e = dumc(ie(iq),n)
+    odum=-0.5*dt*(niu(iq)*(dumc(iq,n)+dumc_e) &
+            +abs(niu(iq))*(dumc(iq,n)-dumc_e))*emu(iq)/ds
+    !if ( spnet(ie(iq))>1.e-10 ) then
+    !  tdum=-dumc(ie(iq),n)*min(niu(iq)*emu(iq),0.)/(ds*spnet(ie(iq)))
+    !else
+    !  tdum=0.
+    !end if
+    !odum=min(odum,tdum)
+    !if ( spnet(iq)>1.e-10 ) then
+    !  tdum=-dumc(iq,n)*max(niu(iq)*emu(iq),0.)/(ds*spnet(iq))
+    !else
+    !  tdum=0.
+    !end if
+    !odum=max(odum,tdum)
     dumd=dumd+real(odum,8)
 
-    odum=0.5*dt*(niv(isv(iq))*(dumc(iq,n)+dumc(is(iq),n))    -abs(niv(isv(iq)))*(dumc(iq,n)-dumc(is(iq),n))    )*emv(isv(iq))/ds
-    if ( spnet(is(iq))>1.e-10 ) then
-      tdum=dumc(is(iq),n)*max(niv(isv(iq))*emv(isv(iq)),0.)/(ds*spnet(is(iq)))
-      odum=min(odum,tdum)
-    else
-      odum=min(odum,0.)
-    end if
-    if ( spnet(iq)>1.e-10 ) then
-      tdum=dumc(iq,n)*min(niv(isv(iq))*emv(isv(iq)),0.)/(ds*spnet(iq))
-      odum=max(odum,tdum)
-    else
-      odum=max(odum,0.)
-    end if
+    niv_s = niv(isv(iq))
+    dumc_s = dumc(is(iq),n)
+    emv_s = emv(isv(iq))
+    odum=0.5*dt*(niv_s*(dumc(iq,n)+dumc_s) &
+           -abs(niv_s)*(dumc(iq,n)-dumc_s))*emv_s/ds
+    !if ( spnet(is(iq))>1.e-10 ) then
+    !  tdum=dumc(is(iq),n)*max(niv(isv(iq))*emv(isv(iq)),0.)/(ds*spnet(is(iq)))
+    !else
+    !  tdum=0.
+    !end if
+    !odum=min(odum,tdum)
+    !if ( spnet(iq)>1.e-10 ) then
+    !  tdum=dumc(iq,n)*min(niv(isv(iq))*emv(isv(iq)),0.)/(ds*spnet(iq))
+    !else
+    !  tdum=0.
+    !end if
+    !odum=max(odum,tdum)
     dumd=dumd+real(odum,8)
 
-    odum=-0.5*dt*(niv(iq)*(dumc(iq,n)+dumc(in(iq),n))+abs(niv(iq))*(dumc(iq,n)-dumc(in(iq),n)))*emv(iq)/ds
-    if ( spnet(in(iq))>1.e-10 ) then
-      tdum=-dumc(in(iq),n)*min(niv(iq)*emv(iq),0.)/(ds*spnet(in(iq)))    
-      odum=min(odum,tdum)
-    else
-      odum=min(odum,0.)
-    end if
-    if ( spnet(iq)>1.e-10 ) then
-      tdum=-dumc(iq,n)*max(niv(iq)*emv(iq),0.)/(ds*spnet(iq))
-      odum=max(odum,tdum)
-    else
-      odum=max(odum,0.)
-    end if
+    dumc_n = dumc(in(iq),n)
+    odum=-0.5*dt*(niv(iq)*(dumc(iq,n)+dumc_n) &
+            +abs(niv(iq))*(dumc(iq,n)-dumc_n))*emv(iq)/ds
+    !if ( spnet(in(iq))>1.e-10 ) then
+    !  tdum=-dumc(in(iq),n)*min(niv(iq)*emv(iq),0.)/(ds*spnet(in(iq)))    
+    !else
+    !  tdum=0.
+    !end if
+    !odum=min(odum,tdum)
+    !if ( spnet(iq)>1.e-10 ) then
+    !  tdum=-dumc(iq,n)*max(niv(iq)*emv(iq),0.)/(ds*spnet(iq))
+    !else
+    !  tdum=0.
+    !end if
+    !odum=max(odum,tdum)
     dumd=dumd+real(odum,8)
 
     dum_out(iq,n)=real(max(dumd,0._8))
   end do
 end do
-!$omp end parallel do
+!$acc end parallel loop
 
 dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
   

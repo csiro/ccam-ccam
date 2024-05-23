@@ -23,10 +23,11 @@ implicit none
 
 private
 public ctrl_microphysics
-public cloud_aerosol_mode, lin_aerosolmode, maxlintime
+public cloud_aerosol_mode, lin_aerosolmode, maxlintime, lin_adv
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
 integer, save :: lin_aerosolmode    = 0     ! 0=off, 1=aerosol indirect effects for Lin microphysics
+integer, save :: lin_adv            = 0     ! 0=original, 1=flux
 real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
 
 ! ldr  = 0      Diagnosed cloud scheme (depreciated)
@@ -409,7 +410,7 @@ select case ( interp_ncloud(ldr,ncloud) )
                        zpladj,zpcli,zpimlt,zpihom,         &
                        zpidw,zpiadj,zqschg,                &
 #endif
-                       zcdrop, lin_aerosolmode)              !aerosol feedback
+                       zcdrop,lin_aerosolmode,lin_adv)
       end do
 
 

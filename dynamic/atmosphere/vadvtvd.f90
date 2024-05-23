@@ -241,7 +241,7 @@ if ( ntvd==2 ) then ! MC
   !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
 #else
   !$omp end do nowait
-  !$omp do schedule(static) privaate(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
+  !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
 #endif
   do n = 1,ntr
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
@@ -347,7 +347,7 @@ else if ( ntvd==3 ) then ! Superbee
   !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
 #else
   !$omp end do nowait
-  !$omp do schedule(static) privaate(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
+  !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
 #endif
   do n = 1,ntr
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels

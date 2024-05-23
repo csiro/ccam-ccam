@@ -232,7 +232,7 @@ do iq_tile = 1,ifull,imax
   istart = iq_tile
   iend   = istart + imax - 1
   
-  call ccomp_mythread(mythread)
+  mythread = ccomp_get_thread_num()
   
   ! Calculate zenith angle for the solarfit calculation.
   dhr = dt/3600.

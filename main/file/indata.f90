@@ -2416,7 +2416,9 @@ if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) th
   io_in = io_nest                  ! Needs to be seen by all processors
   call histopen(ncid,mesonest,ier) ! open parallel mesonest files
   call ncmsg("mesonest",ier)       ! report error messages
-  if ( myid==0 ) then
+  ! pfall indicates all processors have a parallel input file and there
+  ! is no need to broadcast metadata (see infile.f90).
+  if ( myid==0 .or. pfall ) then
     call ccnf_get_attg(ncid,'driving_model_id',driving_model_id,ierr=ierr)
     if ( ierr==0 ) then
       write(6,*) "driving_model_id             : ",trim(driving_model_id)  
@@ -2443,10 +2445,12 @@ if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) th
       driving_experiment_name = ' '
     end if  
   end if
-  call ccmpi_bcast(driving_model_id,0,comm_world)
-  call ccmpi_bcast(driving_institution_id,0,comm_world)
-  call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
-  call ccmpi_bcast(driving_experiment_name,0,comm_world)  
+  if ( .not.pfall ) then
+    call ccmpi_bcast(driving_model_id,0,comm_world)
+    call ccmpi_bcast(driving_institution_id,0,comm_world)
+    call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
+    call ccmpi_bcast(driving_experiment_name,0,comm_world)
+  end if  
   if ( myid==0 ) then
     write(6,*) '============================================================================'
   end if

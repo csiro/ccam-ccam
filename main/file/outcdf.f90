@@ -737,6 +737,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'kscsea',kscsea)
     call ccnf_put_attg(idnc,'ldr',ldr)
     call ccnf_put_attg(idnc,'leon_snowmeth',leon_snowmeth)
+    call ccnf_put_attg(idnc,'lin_adv',lin_adv)
     call ccnf_put_attg(idnc,'lin_aerosolmode',lin_aerosolmode)
     call ccnf_put_attg(idnc,'maxlintime',maxlintime)
     call ccnf_put_attg(idnc,'mbase',mbase)
@@ -923,7 +924,7 @@ if ( myid==0 .or. local ) then
     end if
     if ( driving_experiment_name /= ' ' ) then
       call ccnf_put_attg(idnc,'driving_experiment_name',trim(driving_experiment_name))
-    end if  
+    end if 
     
   else
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
@@ -1400,7 +1401,7 @@ if ( myid==0 .or. local ) then
       lname = 'Maximum CAPE'
       call attrib(idnc,dimj,jsize,'cape_max',lname,'J kg-1',0.,20000.,0,cptype)
       lname = 'Average CAPE'
-      call attrib(idnc,dimj,jsize,'cape_ave',lname,'J kg-1',0.,20000.,0,cptype)    
+      call attrib(idnc,dimj,jsize,'cape_ave',lname,'J kg-1',0.,20000.,0,cptype) 
     end if
     
     ! daily output (1=daily)
@@ -4164,9 +4165,6 @@ if ( first ) then
     if ( driving_model_id /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_model_id',trim(driving_model_id))
     end if
-    if ( driving_institution_id /= ' ' ) then
-      call ccnf_put_attg(fncid,'driving_institution_id',trim(driving_institution_id))
-    end if
     if ( driving_model_ensemble_number /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_model_ensemble_number',trim(driving_model_ensemble_number))
     end if
@@ -5291,9 +5289,6 @@ if ( first ) then
     ! ensemble data
     if ( driving_model_id /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_model_id',trim(driving_model_id))
-    end if
-    if ( driving_institution_id /= ' ' ) then
-      call ccnf_put_attg(fncid,'driving_institution_id',trim(driving_institution_id))
     end if
     if ( driving_model_ensemble_number /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_model_ensemble_number',trim(driving_model_ensemble_number))

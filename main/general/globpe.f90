@@ -851,9 +851,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after fixsat",js,je,"cloud")
   end do  
   !$omp end do nowait
-#ifdef GPU
-  !$omp end parallel
-#endif
   if ( rescrn>0 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -862,6 +859,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call autoscrn(js,je)
     end do
     !$omp end do nowait
+  end if
+#ifdef GPU
+  !$omp end parallel
+#endif
+  if ( rescrn>0 ) then
     ! CAPE only needs to be calculated for cordex output
     ! pcc2hist will calculate CAPE for standard output
     if ( surfile/=' ' .and. mod(ktau,tbave)==0 ) then
@@ -889,8 +891,16 @@ do ktau = 1,ntau   ! ****** start of main time loop
  
   !$omp end parallel
 
-
+  
   ! MISC (SINGLE) ---------------------------------------------------------
+  ! Calculate CAPE
+  if ( rescrn>0 ) then
+    ! CAPE only needs to be calculated for cordex output
+    ! pcc2hist will calculate CAPE for standard output
+    if ( surfile/=' ' .and. mod(ktau,tbave)==0 ) then
+      call capecalc
+    end if    
+  end if  
   ! Update aerosol timer
   if ( oxidant_update ) then
     oxidant_timer = mins
@@ -1541,7 +1551,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     ncvcloud,ncvmix,nevapcc,nkuo,nrhcrit,                         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,lin_aerosolmode,maxlintime,                               &
+    rcm,lin_aerosolmode,lin_adv,maxlintime,                       &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
     cloud_ice_method, leon_snowmeth
@@ -3371,7 +3381,7 @@ use parm_m                                 ! Model configuration
 
 implicit none
 
-integer, dimension(27) :: dumi
+integer, dimension(28) :: dumi
 real, dimension(35) :: dumr
     
 dumr = 0.
@@ -3439,71 +3449,73 @@ if ( myid==0 ) then
   dumi(25) = lin_aerosolmode  
   dumi(26) = cloud_ice_method
   dumi(27) = leon_snowmeth
+  dumi(28) = lin_adv
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
-alflnd           = dumr(1)
-alfsea           = dumr(2)
-cldh_lnd         = dumr(3)
-cldm_lnd         = dumr(4) 
-cldl_lnd         = dumr(5)
-cldh_sea         = dumr(6) 
-cldm_sea         = dumr(7)
-cldl_sea         = dumr(8)
-convfact         = dumr(9)
-convtime         = dumr(10)
-shaltime         = dumr(11) 
-detrain          = dumr(12)
-detrainx         = dumr(13)
-dsig2            = dumr(14)
-dsig4            = dumr(15)
-entrain          = dumr(16)
-fldown           = dumr(17)
-rhcv             = dumr(18)
-rhmois           = dumr(19)
-rhsat            = dumr(20)
-sigcb            = dumr(21)
-sigcll           = dumr(22)
-sig_ct           = dumr(23)
-sigkscb          = dumr(24)
-sigksct          = dumr(25)
-tied_con         = dumr(26)
-tied_over        = dumr(27)
-tied_rh          = dumr(28)
-acon             = dumr(29)
-bcon             = dumr(30)
-rcm              = dumr(31)
-rcrit_l          = dumr(32)
-rcrit_s          = dumr(33)
-cld_decay        = dumr(34)
-maxlintime       = dumr(35)
-iterconv         = dumi(1) 
-ksc              = dumi(2)
-kscmom           = dumi(3)
-kscsea           = dumi(4)
-ldr              = dumi(5)
-mbase            = dumi(6)
-mdelay           = dumi(7)
-methdetr         = dumi(8) 
-methprec         = dumi(9)
-nbase            = dumi(10)
-ncvcloud         = dumi(11)
-ncvmix           = dumi(12)
-nevapcc          = dumi(13)
-nkuo             = dumi(14)
-nrhcrit          = dumi(15)
-nstab_cld        = dumi(16)
-nuvconv          = dumi(17)
-ncloud           = dumi(18)
-nclddia          = dumi(19) 
-nmr              = dumi(20)
-nevapls          = dumi(21)
-vdeposition_mode = dumi(22)
-tiedtke_form     = dumi(23)
+alflnd             = dumr(1)
+alfsea             = dumr(2)
+cldh_lnd           = dumr(3)
+cldm_lnd           = dumr(4) 
+cldl_lnd           = dumr(5)
+cldh_sea           = dumr(6) 
+cldm_sea           = dumr(7)
+cldl_sea           = dumr(8)
+convfact           = dumr(9)
+convtime           = dumr(10)
+shaltime           = dumr(11) 
+detrain            = dumr(12)
+detrainx           = dumr(13)
+dsig2              = dumr(14)
+dsig4              = dumr(15)
+entrain            = dumr(16)
+fldown             = dumr(17)
+rhcv               = dumr(18)
+rhmois             = dumr(19)
+rhsat              = dumr(20)
+sigcb              = dumr(21)
+sigcll             = dumr(22)
+sig_ct             = dumr(23)
+sigkscb            = dumr(24)
+sigksct            = dumr(25)
+tied_con           = dumr(26)
+tied_over          = dumr(27)
+tied_rh            = dumr(28)
+acon               = dumr(29)
+bcon               = dumr(30)
+rcm                = dumr(31)
+rcrit_l            = dumr(32)
+rcrit_s            = dumr(33)
+cld_decay          = dumr(34)
+maxlintime         = dumr(35)
+iterconv           = dumi(1) 
+ksc                = dumi(2)
+kscmom             = dumi(3)
+kscsea             = dumi(4)
+ldr                = dumi(5)
+mbase              = dumi(6)
+mdelay             = dumi(7)
+methdetr           = dumi(8) 
+methprec           = dumi(9)
+nbase              = dumi(10)
+ncvcloud           = dumi(11)
+ncvmix             = dumi(12)
+nevapcc            = dumi(13)
+nkuo               = dumi(14)
+nrhcrit            = dumi(15)
+nstab_cld          = dumi(16)
+nuvconv            = dumi(17)
+ncloud             = dumi(18)
+nclddia            = dumi(19) 
+nmr                = dumi(20)
+nevapls            = dumi(21)
+vdeposition_mode   = dumi(22)
+tiedtke_form       = dumi(23)
 cloud_aerosol_mode = dumi(24)
 lin_aerosolmode    = dumi(25)
 cloud_ice_method   = dumi(26)
 leon_snowmeth      = dumi(27)
+lin_adv            = dumi(28)
 
 return
 end subroutine broadcast_kuonml

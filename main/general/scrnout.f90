@@ -832,7 +832,6 @@ do tile = 1,ntiles
 
   ! define initial parcel properties
   th2(:) = th(:,kmax)
-  !pil2(:) = pil(:,kmax)
   pl2(:) = pl(:,kmax)
   tl2(:) = tl(:,kmax)
   thv2(:) = thv(:,kmax)
