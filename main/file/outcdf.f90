@@ -1673,8 +1673,6 @@ if ( myid==0 .or. local ) then
         lname = 'Total column sulfate optical depth VIS'
         call attrib(idnc,dimj,jsize,'so4_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column aerosol optical depth VIS'
-        call attrib(idnc,dimj,jsize,'aero_vis',lname,'none',0.,13.,0,cptype)
-        lname = 'Total column BC optical depth VIS'
         call attrib(idnc,dimj,jsize,'bc_vis',lname,'none',0.,13.,0,cptype)
         lname = 'Total column OC optical depth VIS'
         call attrib(idnc,dimj,jsize,'oc_vis',lname,'none',0.,13.,0,cptype)
@@ -3031,12 +3029,10 @@ if ( abs(iaero)>=2 .and. nrad==5 ) then
     call histwrt(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,3,1),'so4_vis',idnc,iarch,local,lwrite)
-    call histwrt(opticaldepth(:,4,1),'aero_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,5,1),'bc_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,6,1),'oc_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,7,1),'ssalt_vis',idnc,iarch,local,lwrite)
-    aa=sum(opticaldepth(:,1:7,1),dim=2)
-    call histwrt(aa,'od550aer',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,4,1),'od550aer',idnc,iarch,local,lwrite)
   end if
   if ( nextout>=1 .and. save_aerosols .and. itype/=-1 ) then
     do k = 1,ndust
@@ -4617,8 +4613,7 @@ freqstore(1:ifull,26) = freqstore(1:ifull,26) + rtclr/real(nperday)
 freqstore(1:ifull,27) = freqstore(1:ifull,27) + rgclr/real(nperday)
 freqstore(1:ifull,28) = freqstore(1:ifull,28) + rgdclr/real(nperday)
 if ( abs(iaero)>=2 ) then
-  freqstore(1:ifull,29) = freqstore(1:ifull,29) + sum(opticaldepth(:,1:7,1),dim=2) &
-                                                 /real(nperday)
+  freqstore(1:ifull,29) = freqstore(1:ifull,29) + opticaldepth(:,4,1)/real(nperday)
 end if
 umag = sqrt(u(1:ifull,1)**2+v(1:ifull,1)**2)
 where ( u10**2 > freqstore(1:ifull,30)**2 + freqstore(1:ifull,31)**2 )

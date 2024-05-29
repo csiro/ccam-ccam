@@ -124,7 +124,7 @@ do ii = 1,6 ! 6 iterations of fill should be enough
   !$omp parallel do collapse(2) private(nn,k,iq,s_tot,s_count)
   do nn = 1,ntr
     do k = 1,wlev
-     do iq = 1,ifull
+      do iq = 1,ifull
         if ( s(iq,k,nn)<cxx ) then
           s_tot = 0.
           s_count = 0.
@@ -162,10 +162,12 @@ call bounds(s,nrows=2)
 if ( intsch==1 ) then
     
   do k = 1,wlev
-    wx(1:ipan,1:jpan,1:npan,k) = &
-      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
       do j = 1,jpan
+        do i = 1,ipan
+          iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+          wx(i,j,n,k) = wtr(iq,k)
+        end do
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         wx(0,j,n,k)      = wtr( iw(iq),k)
         wx(-1,j,n,k)     = wtr(iww(iq),k)
@@ -211,10 +213,12 @@ if ( intsch==1 ) then
     do nn = 1,nlen
       np = nn - 1 + nstart  
       do k = 1,wlev
-        sx(1:ipan,1:jpan,1:npan,k,nn) = &
-          reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
         do n = 1,npan
           do j = 1,jpan
+            do i = 1,ipan
+              iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+              sx(i,j,n,k,nn) = s(iq,k,np)
+            end do
             iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
             sx(0,j,n,k,nn)      = s( iw(iq),k,np)
             sx(-1,j,n,k,nn)     = s(iww(iq),k,np)
@@ -253,6 +257,7 @@ if ( intsch==1 ) then
   
     ! Loop over points that need to be calculated for other processes
     if ( bs_test ) then
+
       do nn = 1,nlen
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
@@ -314,11 +319,12 @@ if ( intsch==1 ) then
             else
               sextra(ii)%a(iq+(nn-1)*drlen(ii)) = cxx - 1.
             end if
-            
           end do          ! iq loop
         end do            ! ii loop
-      end do  
+      end do
+
     else
+
       do nn = 1,nlen
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
@@ -380,19 +386,22 @@ if ( intsch==1 ) then
         
           end do          ! iq loop
         end do            ! ii loop
-      end do              ! nn loop        
+      end do              ! nn loop
+
     end if                ! bs_test ..else.. 
 
     call intssync_send(nlen)
 
-    if ( bs_test ) then    
+    if ( bs_test ) then
+
 #ifndef GPU
       !$omp parallel
 #endif    
       do nn = 1,nlen
 #ifdef GPU
+        np = nn - 1 + nstart
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
+        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
@@ -452,12 +461,12 @@ if ( intsch==1 ) then
               sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
               cmin = min(sx_00,sx_10,sx_01,sx_11)
               cmax = max(sx_00,sx_10,sx_01,sx_11)
-              s(iq,k,nn-1+nstart) = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth              
+              s(iq,k,np) = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth              
             else if ( blin_test ) then
-              s(iq,k,nn-1+nstart) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
-                                  + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+              s(iq,k,np) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                         + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
             else
-              s(iq,k,nn-1+nstart) = cxx - 1.
+              s(iq,k,np) = cxx - 1.
             end if            
           end do       ! iq loop
         end do         ! k loop
@@ -472,14 +481,17 @@ if ( intsch==1 ) then
 #else
       !$omp end parallel
 #endif
+
     else
+
 #ifndef GPU
       !$omp parallel
 #endif    
       do nn = 1,nlen
 #ifdef GPU
+        np = nn - 1 + nstart
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
+        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
@@ -536,12 +548,12 @@ if ( intsch==1 ) then
               rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
                        sx_11*cmul_3 + sx_21*cmul_4
               rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-              s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+              s(iq,k,np) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
             else if ( blin_test ) then
-              s(iq,k,nn-1+nstart) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
-                                  + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+              s(iq,k,np) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                         + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
             else
-              s(iq,k,nn-1+nstart) = cxx - 1.
+              s(iq,k,np) = cxx - 1.
             end if
 
           end do       ! iq loop
@@ -557,6 +569,7 @@ if ( intsch==1 ) then
 #else
       !$omp end parallel
 #endif
+
     end if           ! bs_test ..else..
 
     call intssync_recv(s(:,:,nstart:nend))  
@@ -570,10 +583,12 @@ else     ! if(intsch==1)then
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   do k = 1,wlev
-    wx(1:ipan,1:jpan,1:npan,k) = &
-      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
       do j = 1,jpan
+        do i = 1,ipan
+          iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+          wx(i,j,n,k) = wtr(iq,k)
+        end do
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         wx(0,j,n,k)      = wtr( iw(iq),k)
         wx(-1,j,n,k)     = wtr(iww(iq),k)
@@ -619,10 +634,12 @@ else     ! if(intsch==1)then
     do nn = 1,nlen
       np = nn - 1 + nstart      
       do k = 1,wlev
-        sx(1:ipan,1:jpan,1:npan,k,nn) = &
-          reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
         do n = 1,npan
           do j = 1,jpan
+            do i = 1,ipan
+              iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+              sx(i,j,n,k,nn) = s(iq,k,np)
+            end do
             iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
             sx(0,j,n,k,nn)      = s( iw(iq),k,np)
             sx(-1,j,n,k,nn)     = s(iww(iq),k,np)
@@ -799,8 +816,9 @@ else     ! if(intsch==1)then
 #endif  
       do nn = 1,nlen
 #ifdef GPU
+        np = nn - 1 + nstart
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
+        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
@@ -860,12 +878,12 @@ else     ! if(intsch==1)then
               sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
               cmin = min(sx_00,sx_10,sx_01,sx_11)
               cmax = max(sx_00,sx_10,sx_01,sx_11)
-              s(iq,k,nn-1+nstart) = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth              
+              s(iq,k,np) = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth              
             else if ( blin_test ) then
-              s(iq,k,nn-1+nstart) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
-                                  + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+              s(iq,k,np) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                         + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
             else
-              s(iq,k,nn-1+nstart) = cxx - 1.
+              s(iq,k,np) = cxx - 1.
             end if
             
           end do
@@ -887,8 +905,9 @@ else     ! if(intsch==1)then
 #endif  
       do nn = 1,nlen        
 #ifdef GPU
+        np = nn - 1 + nstart
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
+        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
         !$acc   present(xg,yg,nface,wx) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
@@ -945,12 +964,12 @@ else     ! if(intsch==1)then
               rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
                        sx_11*cmul_3 + sx_12*cmul_4
               rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
-              s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+              s(iq,k,np) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
             else if ( blin_test ) then
-              s(iq,k,nn-1+nstart) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
-                                  + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
+              s(iq,k,np) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+                         + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
             else
-              s(iq,k,nn-1+nstart) = cxx - 1.
+              s(iq,k,np) = cxx - 1.
             end if
             
           end do
@@ -966,6 +985,7 @@ else     ! if(intsch==1)then
 #else
       !$omp end parallel
 #endif
+
     end if
 
     call intssync_recv(s(:,:,nstart:nend))  
@@ -1114,6 +1134,10 @@ if ( intsch==1 ) then
       reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
       do j = 1,jpan
+        do i = 1,ipan
+          iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+          wx(i,j,n,k) = wtr(iq,k)
+        end do
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         wx(0,j,n,k)      = wtr( iw(iq),k)
         wx(-1,j,n,k)     = wtr(iww(iq),k)
@@ -1150,10 +1174,12 @@ if ( intsch==1 ) then
   end do             ! k loop
     
   do k = 1,wlev
-    sx(1:ipan,1:jpan,1:npan,k) = &
-      reshape( s(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
       do j = 1,jpan
+        do i = 1,ipan
+          iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+          sx(i,j,n,k) = s(iq,k)
+        end do
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         sx(0,j,n,k)      = s( iw(iq),k)
         sx(-1,j,n,k)     = s(iww(iq),k)
@@ -1397,7 +1423,9 @@ if ( intsch==1 ) then
 #else
     !$omp end parallel do
 #endif
+
   else
+
 #ifdef GPU
     !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
@@ -1471,6 +1499,7 @@ if ( intsch==1 ) then
 #else
     !$omp end parallel do
 #endif
+
   end if
 
   call intssync_recv(s)  
@@ -1482,10 +1511,12 @@ else     ! if(intsch==1)then
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
   do k = 1,wlev
-    wx(1:ipan,1:jpan,1:npan,k) = &
-      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
       do j = 1,jpan
+        do i = 1,ipan
+          iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+          wx(i,j,n,k) = wtr(iq,k)
+        end do
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         wx(0,j,n,k)      = wtr( iw(iq),k)
         wx(-1,j,n,k)     = wtr(iww(iq),k)
@@ -1522,10 +1553,12 @@ else     ! if(intsch==1)then
   end do             ! k loop 
     
   do k = 1,wlev
-    sx(1:ipan,1:jpan,1:npan,k) = &
-      reshape( s(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
       do j = 1,jpan
+        do i = 1,ipan
+          iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+          sx(i,j,n,k) = s(iq,k)
+        end do
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         sx(0,j,n,k)      = s( iw(iq),k)
         sx(-1,j,n,k)     = s(iww(iq),k)
@@ -1693,6 +1726,7 @@ else     ! if(intsch==1)then
   call intssync_send(1)
 
   if ( bs_test ) then
+
 #ifdef GPU
     !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
@@ -1769,7 +1803,9 @@ else     ! if(intsch==1)then
 #else
     !$omp end parallel do
 #endif
+
   else
+
 #ifdef GPU
     !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
     !$acc   present(xg,yg,nface)
@@ -1843,6 +1879,7 @@ else     ! if(intsch==1)then
 #else
     !$omp end parallel do
 #endif
+
   end if
 
   call intssync_recv(s)  

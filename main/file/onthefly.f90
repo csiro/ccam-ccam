@@ -268,7 +268,6 @@ if ( .not.pfall ) then
   call ccmpi_bcast(rdum(1:11),0,comm_world)
   !if ( nested==1 ) then
   !  call ccmpi_bcast(driving_model_id,0,comm_world)
-  !  call ccmpi_bcast(driving_institution_id,0,comm_world)
   !  call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
   !  call ccmpi_bcast(driving_experiment_name,0,comm_world)
   !end if
@@ -2436,10 +2435,8 @@ else
           cmin = min(sx_00,sx_01,sx_10,sx_11)
           cmax = max(sx_00,sx_01,sx_10,sx_11)
           rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
-          rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
-                   sx_10*cmul_3 + sx_20*cmul_4
-          rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
-                   sx_11*cmul_3 + sx_21*cmul_4
+          rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + sx_10*cmul_3 + sx_20*cmul_4
+          rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + sx_11*cmul_3 + sx_21*cmul_4
           rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
           sout(iq,k+kb-1) = sout(iq,k+kb-1) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
                                                             + rmul_3*emul_3 + rmul_4*emul_4 ), &
@@ -2512,7 +2509,16 @@ local_count = 0
 c_io = value
 
 do while ( nrem>0 )
-  c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc) = reshape( a_io(1:fwsize), (/ pipan, pjpan, pnpan, mynproc /) )
+  do ipf = 1,mynproc
+    do n = 1,pnpan
+      do j = 1,pjpan
+        do i = 1,pipan
+          cc = i + (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+          c_io(i,j,n,ipf) = a_io(cc)
+        end do
+      end do
+    end do
+  end do  
   ncount = count( abs(a_io(1:fwsize)-value)<1.E-20 )
   call ccmpi_filebounds(c_io,comm_ip,corner=.true.)
   ! update body
@@ -2639,7 +2645,18 @@ local_count = 0
 c_io = value
 
 do while ( any(nrem(:)>0) )
-  c_io(1:pipan,1:pjpan,1:pnpan,1:mynproc,1:kx) = reshape( a_io(1:fwsize,1:kx), (/ pipan, pjpan, pnpan, mynproc, kx /) )
+  do k = 1,kx
+    do ipf = 1,mynproc
+      do n = 1,pnpan
+        do j = 1,pjpan
+          do i = 1,pipan
+            cc = i + (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
+            c_io(i,j,n,ipf,k) = a_io(cc,k)
+          end do  
+        end do
+      end do
+    end do
+  end do  
   call ccmpi_filebounds(c_io,comm_ip,corner=.true.)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body

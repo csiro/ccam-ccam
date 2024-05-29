@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -67,10 +67,10 @@ do k = 1,kl
   s(1:ifull,k,3) = wc(1:ifull,k)
 end do  
 
+call bounds_send(s,nrows=2)
+
 !$acc data create(xg,yg,nface,xx4,yy4,sx)
 !$acc update device(xx4,yy4)
-
-call bounds_send(s,nrows=2)
 
 do k = 1,kl
   x3d(1:ifull,k) = x(1:ifull) - real(uc(1:ifull,k),8) ! 1st guess
@@ -93,9 +93,12 @@ if ( intsch==1 ) then
 
   do nn = 1,3
     do k = 1,kl
-      sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,nn), (/ipan,jpan,npan/))  
       do n = 1,npan
         do j = 1,jpan
+          do i = 1,ipan
+            iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+            sx(i,j,n,k,nn) = s(iq,k,nn)
+          end do
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
@@ -132,9 +135,12 @@ else
 
   do nn = 1,3
     do k = 1,kl
-      sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,nn), (/ipan,jpan,npan/))
       do n = 1,npan
         do j = 1,jpan
+          do i = 1,ipan
+            iq = i + (j-1)*ipan + (n-1)*ipan*jpan
+            sx(i,j,n,k,nn) = s(iq,k,nn)
+          end do
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s(iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
