@@ -881,10 +881,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
     cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
     ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
     ! Microphysics diagnostic output
-    do k = 1,kl
-      riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
-      rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
-    end do
+    !do k = 1,kl
+    !  riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
+    !  rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
+    !end do
     rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   end do  
   !$omp end do nowait
@@ -4195,8 +4195,8 @@ anth_elecgas_ave(:)  = 0.
 anth_heating_ave(:)  = 0.
 anth_cooling_ave(:)  = 0.
 rnet_ave(:)          = 0.
-riwp_ave(:)          = 0.
-rlwp_ave(:)          = 0.
+!riwp_ave(:)          = 0.
+!rlwp_ave(:)          = 0.
 rhscr_ave(:)         = 0.
 tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
@@ -4518,8 +4518,8 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull)/min(ntau,nperavg)
   anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg) 
   rnet_ave(1:ifull)          = rnet_ave(1:ifull)/min(ntau,nperavg)
-  riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
-  rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
+  !riwp_ave(1:ifull)          = riwp_ave(1:ifull)/min(ntau,nperavg)
+  !rlwp_ave(1:ifull)          = rlwp_ave(1:ifull)/min(ntau,nperavg)
   tscr_ave(1:ifull)          = tscr_ave(1:ifull)/min(ntau,nperavg)
   rhscr_ave(1:ifull)         = rhscr_ave(1:ifull)/min(ntau,nperavg)
   do k = 1,ms

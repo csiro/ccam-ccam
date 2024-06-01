@@ -46,6 +46,8 @@ public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
 public comm_ip, pil_single
 public driving_model_id, driving_model_ensemble_number, driving_experiment_name
 public driving_institution_id
+public any_m, daily_m, sixhr_m, point_m, mean_m, max_m, min_m, fixed_m, sum_m
+public short_m, double_m, float_m
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
@@ -62,6 +64,20 @@ character(len=256), save :: driving_model_id = ' '
 character(len=256), save :: driving_institution_id = ' '
 character(len=256), save :: driving_model_ensemble_number = ' '
 character(len=256), save :: driving_experiment_name = ' '
+
+! define configuration for attrib
+integer, parameter :: any_m = 0
+integer, parameter :: daily_m = 1
+integer, parameter :: sixhr_m = 2
+integer, parameter :: point_m = 0
+integer, parameter :: mean_m = 1
+integer, parameter :: max_m = 2
+integer, parameter :: min_m = 3
+integer, parameter :: fixed_m = 4
+integer, parameter :: sum_m = 5
+integer, parameter :: short_m = 1
+integer, parameter :: double_m = 2
+integer, parameter :: float_m = -1
 
 interface histrd
   module procedure histrd3r4, histrd4r4, histrd5r4
@@ -2012,7 +2028,7 @@ end subroutine getzinp
 
 !--------------------------------------------------------------------
 ! DEFINE ATTRIBUTES
-subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,time_freq,itype)
+subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,time_freq,time_method,itype)
 
 use cc_mpi
 use newmpar_m
@@ -2021,7 +2037,7 @@ use parm_m
 implicit none
 
 integer, intent(in) :: cdfid, itype, ndim
-integer, intent(in) :: time_freq
+integer, intent(in) :: time_freq, time_method
 integer, dimension(ndim), intent(in) :: dim
 integer ier
 integer(kind=4) vtype, idv, lcdfid, lsize, lcompression
@@ -2101,13 +2117,32 @@ else
 endif
 ier = nf90_put_att(lcdfid,idv,'FORTRAN_format','G11.4')
 call ncmsg("FORTRAN_format",ier)
-if ( time_freq==1 ) then
+if ( time_freq==daily_m ) then
   ier = nf90_put_att(lcdfid,idv,'valid_time','daily')
   call ncmsg("valid_time",ier)
-else if ( time_freq==2 ) then
+else if ( time_freq==sixhr_m ) then
   ier = nf90_put_att(lcdfid,idv,'valid_time','6hr')
   call ncmsg("valid_time",ier)
 endif
+if ( time_method==point_m ) then
+  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: point')
+  call ncmsg("cell_methods",ier)
+else if ( time_method==mean_m ) then
+  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: mean')
+  call ncmsg("cell_methods",ier)
+else if ( time_method==max_m ) then
+  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: maximum')
+  call ncmsg("cell_methods",ier)
+else if ( time_method==min_m ) then
+  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: minimum')
+  call ncmsg("cell_methods",ier)
+else if ( time_method==fixed_m ) then
+  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: fixed')
+  call ncmsg("cell_methods",ier) 
+else if ( time_method==sum_m ) then
+  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: sum')
+  call ncmsg("cell_methods",ier) 
+end if
       
 return
 end subroutine attrib
