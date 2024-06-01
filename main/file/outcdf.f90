@@ -1843,7 +1843,7 @@ if ( myid==0 .or. local ) then
       lname = 'Urban cooling flux'
       call attrib(idnc,dimj,jsize,'anth_cool_ave',lname,'W m-2',0.,650.,any_m,mean_m,cptype)      
       lname = 'Urban near surface temperature'
-      call attrib(idnc,dimj,jsize,'urbantas',lname,'K',100.,425.,any_m,mean_m,cptype)
+      call attrib(idnc,dimj,jsize,'urbantas',lname,'K',100.,425.,any_m,point_m,cptype)
       lname = 'Maximum urban screen temperature'
       call attrib(idnc,dimj,jsize,'urbantasmax',lname,'K',100.,425.,daily_m,max_m,cptype)
       lname = 'Minimum urban screen temperature'
