@@ -849,6 +849,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
     je = tile*imax  
     call fixsat(js,je) ! if qg_fix>1, then removes supersaturated qg
     call nantest("after fixsat",js,je,"cloud")
+    ! Convection diagnostic output
+    cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
+    ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
+    ! Microphysics diagnostic output
+    !do k = 1,kl
+    !  riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
+    !  rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
+    !end do
+    rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   end do  
   !$omp end do nowait
   if ( rescrn>0 ) then
@@ -870,28 +879,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call capecalc
     end if    
   end if  
-#ifdef GPU
-  !$omp parallel
-#endif
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax  
-    ! Convection diagnostic output
-    cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
-    ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
-    ! Microphysics diagnostic output
-    !do k = 1,kl
-    !  riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
-    !  rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
-    !end do
-    rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-  end do  
-  !$omp end do nowait
- 
+#ifndef GPU
   !$omp end parallel
+#endif
 
-  
+
   ! MISC (SINGLE) ---------------------------------------------------------
   ! Calculate CAPE
   if ( rescrn>0 ) then
