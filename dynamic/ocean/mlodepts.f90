@@ -155,14 +155,11 @@ call bounds_recv(s,nrows=2)
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
+  sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
   do nn = 1,3
     do k = 1,wlev
       do n = 1,npan
         do j = 1,jpan
-          do i = 1,ipan
-            iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-            sx(i,j,n,k,nn) = s(iq,k,nn)
-          end do
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
@@ -197,12 +194,10 @@ if ( intsch==1 ) then
   end do                   ! nn loop
 
   do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
       do j = 1,jpan
-        do i = 1,ipan
-          iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-          wx(i,j,n,k) = wtr(iq,k)
-        end do
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         wx(0,j,n,k)      = wtr( iw(iq),k)
         wx(-1,j,n,k)     = wtr(iww(iq),k)
@@ -241,14 +236,11 @@ if ( intsch==1 ) then
 else
 !======================== start of intsch=2 section ====================
 
+  sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
   do nn = 1,3
     do k = 1,wlev
       do n = 1,npan
         do j = 1,jpan
-          do i = 1,ipan
-            iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-            sx(i,j,n,k,nn) = s(iq,k,nn)
-          end do
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
           sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
           sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
@@ -283,12 +275,10 @@ else
   end do               ! nn loop
 
   do k = 1,wlev
+    wx(1:ipan,1:jpan,1:npan,k) = &
+      reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
       do j = 1,jpan
-        do i = 1,ipan
-          iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-          wx(i,j,n,k) = wtr(iq,k)
-        end do
         iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
         wx(0,j,n,k)      = wtr( iw(iq),k)
         wx(-1,j,n,k)     = wtr(iww(iq),k)

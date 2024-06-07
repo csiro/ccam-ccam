@@ -55,12 +55,11 @@ integer nstart, nend, nlen, np, async_counter
 integer, dimension(ifull,kl), intent(in) :: nface        ! interpolation coordinates
 real, dimension(ifull,kl), intent(in) :: xg, yg          ! interpolation coordinates
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s ! array of tracers
-real, dimension(-1:ipan+2,-1:jpan+2,npan,kl,nagg) :: sx  ! unpacked tracer array
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,nagg) :: sx ! unpacked tracer array
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
-real sx_0m, sx_1m, sx_m0, sx_00, sx_10, sx_20
-real sx_m1, sx_01, sx_11, sx_21, sx_02, sx_12
+real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 call START_LOG(ints_begin)
 
@@ -76,6 +75,7 @@ if ( intsch==1 ) then
     ! this is intsb           EW interps done first
     ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
+    sx(1:ipan,1:jpan,1:npan,1:kl,1:nlen) = reshape(s(1:ipan*jpan*npan,1:kl,nstart:nend), (/ipan,jpan,npan,kl,nlen/))
     ! this is intsb           EW interps done first
     ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do nn = 1,nlen
@@ -83,10 +83,6 @@ if ( intsch==1 ) then
       do k = 1,kl
         do n = 1,npan
           do j = 1,jpan
-            do i = 1,ipan
-              iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-              sx(i,j,n,k,nn) = s(iq,k,np)
-            end do
             iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
             sx(0,j,n,k,nn)      = s(iw(iq),k,np)
             sx(-1,j,n,k,nn)     = s(iww(iq),k,np)
@@ -227,7 +223,7 @@ if ( intsch==1 ) then
             rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
                      sx_11*cmul_3 + sx_21*cmul_4
             rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-            s(iq,k,np) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+            s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
 #ifdef GPU
@@ -351,7 +347,7 @@ if ( intsch==1 ) then
             rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
                      sx_11*cmul_3 + sx_21*cmul_4
             rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-            s(iq,k,np) = min( max( cmin, &
+            s(iq,k,nn-1+nstart) = min( max( cmin, &
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! k loop
@@ -383,15 +379,12 @@ else     ! if(intsch==1)then
     nend = min(nstart + nagg - 1, ntr )
     nlen = nend - nstart + 1    
     
+    sx(1:ipan,1:jpan,1:npan,1:kl,1:nlen) = reshape(s(1:ipan*jpan*npan,1:kl,nstart:nend), (/ipan,jpan,npan,kl,nlen/))
     do nn = 1,nlen
       np = nn - 1 + nstart  
       do k = 1,kl
         do n = 1,npan
           do j = 1,jpan
-            do i = 1,ipan
-              iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-              sx(i,j,n,k,nn) = s(iq,k,np)
-            end do
             iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
             sx(0,j,n,k,nn)      = s(iw(iq),k,np)
             sx(-1,j,n,k,nn)     = s(iww(iq),k,np)
@@ -531,7 +524,7 @@ else     ! if(intsch==1)then
             rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
                      sx_11*cmul_3 + sx_12*cmul_4
             rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
-            s(iq,k,np) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+            s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
 #ifdef GPU
@@ -655,7 +648,7 @@ else     ! if(intsch==1)then
             rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
                      sx_11*cmul_3 + sx_12*cmul_4
             rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
-            s(iq,k,np) = min( max( cmin, &
+            s(iq,k,nn-1+nstart) = min( max( cmin, &
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do       ! iq loop
         end do         ! k loop
@@ -702,7 +695,7 @@ integer, intent(in) :: intsch
 integer, dimension(ifull,kl), intent(in) :: nface
 real xxg, yyg
 real, dimension(ifull,kl), intent(in) :: xg,yg      ! now passed through call
-real, dimension(0:ipan+1,0:jpan+1,npan,kl) :: sx
+real, dimension(0:ipan+1,0:jpan+1,1:npan,kl) :: sx
 real, dimension(ifull+iextra,kl), intent(inout) :: s
 
 !     this one does bi-linear interpolation only
@@ -714,13 +707,10 @@ call START_LOG(ints_begin)
 ! now call bounds before calling ints_bl
 !call bounds(s,corner=.true.)
 
+sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl), (/ipan,jpan,npan,kl/))
 do k = 1,kl
   do n = 1,npan
     do j = 1,jpan
-      do i = 1,ipan
-        iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-        sx(i,j,n,k) = s(iq,k)
-      end do
       sx(0,j,n,k)      = s(iw(1+(j-1)*ipan+(n-1)*ipan*jpan),k)
       sx(ipan+1,j,n,k) = s(ie(j*ipan+(n-1)*ipan*jpan),k)
     end do               ! j loop
@@ -759,7 +749,7 @@ call intssync_send
 #ifdef GPU
 !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
 #else
-!$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
+!!$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
 #endif
 do k = 1,kl
   do iq = 1,ifull
@@ -778,7 +768,7 @@ end do                    ! k
 #ifdef GPU
 !$acc end parallel loop
 #else
-!$omp end parallel do
+!!$omp end parallel do
 #endif
 
 call intssync_recv(s)
