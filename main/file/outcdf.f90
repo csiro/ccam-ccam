@@ -2245,9 +2245,12 @@ if ( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2 s-3',0.,6.5,any_m,point_m,cptype)
       end if
       if ( itype==-1 ) then
-        call attrib(idnc,dima,asize,'u_ema','x-component exponentially weighted moving average wind','m s',-150.,150.,any_m,mean_m,cptype)
-        call attrib(idnc,dima,asize,'v_ema','y-component exponentially weighted moving average wind','m s',-150.,150.,any_m,mean_m,cptype)
-        call attrib(idnc,dima,asize,'w_ema','Exponentially weighted moving average vertical wind','m s',-150.,150.,any_m,mean_m,cptype)
+        call attrib(idnc,dima,asize,'u_ema','x-component exponentially weighted moving average wind','m s',-150.,150.,any_m, &
+               mean_m,cptype)
+        call attrib(idnc,dima,asize,'v_ema','y-component exponentially weighted moving average wind','m s',-150.,150.,any_m, &
+               mean_m,cptype)
+        call attrib(idnc,dima,asize,'w_ema','Exponentially weighted moving average vertical wind','m s',-150.,150.,any_m,    &
+               mean_m,cptype)
         call attrib(idnc,dima,asize,'thetal_ema','Exponentially weighted moving average thetal','K',100.,425.,any_m,mean_m,cptype)
         call attrib(idnc,dima,asize,'qv_ema','Exponentially weighted moving average qv','kg kg-1',0.,.065,any_m,mean_m,cptype)
         call attrib(idnc,dima,asize,'ql_ema','Exponentially weighted moving average ql','kg kg-1',0.,.065,any_m,mean_m,cptype)

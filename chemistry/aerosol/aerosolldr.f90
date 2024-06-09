@@ -93,7 +93,7 @@ real, dimension(ndust), parameter :: dustreff = (/ 0.73e-6,1.4e-6,2.4e-6,4.5e-6 
 real, dimension(nsalt), parameter :: saltden = (/ 2165., 2165. /)     ! density of salt
 real, dimension(nsalt), parameter :: saltreff = (/ 0.1e-6, 0.5e-6 /)  ! radius of salt (um)
 
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc declare create(enhanceu10)
 !$acc declare create(zvolcemi,ch_dust)
 !$acc declare create(saltsmallmtn,saltlargemtn)
@@ -188,7 +188,7 @@ end if
 #endif
 
 
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc data create(xtg,ttg,rhoa,dz)
 !$acc update device(ttg,rhoa,dz) async(1)
 !$omp parallel
@@ -285,7 +285,7 @@ end if
 #endif
 
 
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$omp end parallel
 !$acc wait(1)
 !$acc update device(xtg)
@@ -361,7 +361,7 @@ do tile = 1,ntiles
   saltdd(js:je) = saltdd(js:je) + (dcola(:,1)-dcolb(:,1))/dt + salte(js:je) - oldsalte(:)  
   xtg(js:je,:,:) = lxtg
 end do
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc end parallel loop
 #else
 !$omp end do nowait
@@ -374,7 +374,7 @@ if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
 end if
 #endif
 
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
 !$acc   copyin(clcon,xtosav,qlg,qfg,stratcloud,kbsav,condc,cldcon)                 &
 !$acc   copyin(pmrate,pfprec,pfsnow,pfsubl,pmaccr,pfmelt,pqfsedice,plambs,prscav)  &
@@ -456,7 +456,7 @@ do tile = 1,ntiles
   so2so4o(js:je) = so2so4o(js:je) + so2oh + so2h2 + so2o3  ! oxidation of SO2 to SO4
   dustwd(js:je,:) = ldustwd
 end do
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc end parallel loop
 !$acc update self(xtg)
 !$acc end data
@@ -511,7 +511,7 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait
 
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$omp end parallel
 #endif
 
@@ -928,7 +928,7 @@ end subroutine xtemiss
 ! xt sink
 
 SUBROUTINE XTSINK(PTMST,xtg,imax,kl)
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc routine vector
 #endif
 
@@ -990,7 +990,7 @@ SUBROUTINE XTCHEMIE(KTOP, PTMST,zdayfac,rhodz, PMRATEP, PFPREC,                 
                     xte,so2oh,so2h2,so2o3,dmsoh,dmsn3,                               & !Outputs
                     zoxidant,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd,                    &
                     imax,kl)                                                           !Inputs
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc routine vector
 #endif
 
@@ -1738,7 +1738,7 @@ SUBROUTINE XTWETDEP(PTMST,                                                 &
                     pqfsedice,plambs,prscav,prfreeze,pfevap,pfconv,        &
                     pclcon,fracc,                                          & !Inputs
                     PXTP10, PXTP1C, PXTP1CON, xtm1, xte, wd, imax, kl)       !In & Out
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc routine vector
 #endif
 
@@ -1810,16 +1810,16 @@ real pqtmst
 integer, parameter :: ktop = 2    !Top level for wet deposition (counting from top)
 logical, parameter :: assume_convliq = .true. ! assume convective rainfall is liquid
 
-!Below-cloud collection eff. for rain
+! Below-cloud collection eff. for rain
 real, dimension(naero), parameter :: zcollefr = (/0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.10,0.20,0.40,0.05,0.10/)
-!Below-cloud collection eff. for snow
+! Below-cloud collection eff. for snow
 real, dimension(naero), parameter :: zcollefs = (/0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.02,0.04,0.08,0.01,0.02/)
-!Retention coeff. on riming
+! Retention coeff. on riming
 real, dimension(naero), parameter :: Rcoeff = (/1.00,0.62,1.00,0.00,1.00,0.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00/)
 ! Allow in-cloud scavenging in ice clouds for hydrophobic BC and OC, and dust
 real, dimension(naero), parameter :: Ecols = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/)
 ! wet deposition coefficients
-!Relative re-evaporation rate
+! Relative re-evaporation rate
 real, dimension(naero), parameter :: Evfac = (/0.25,1.00,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25,0.25/)
 
 ! Start code : ----------------------------------------------------------
@@ -2091,7 +2091,7 @@ end subroutine xtwetdep
 ! Dust settling
 
 subroutine dsettling(tdt,rhoa,tmp,delz,prf,xtg,imax,kl)
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc routine vector
 #endif
 
@@ -2172,7 +2172,7 @@ end subroutine dsettling
 
 subroutine dustem(tdt,rhoa,wg,w10m,dz1,vt,snowd,erod,duste,xtg, &
                   imax,kl)
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc routine vector
 #endif
 
@@ -2390,7 +2390,7 @@ end subroutine dustem
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt settling
 subroutine ssettling(tdt,rhoa,tmp,delz,prf,xtg,imax,kl)
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc routine vector
 #endif
 
@@ -2458,7 +2458,7 @@ end subroutine ssettling
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! sea salt emissions
 subroutine seasaltem(tdt,v10m,vt,rhoa,dz1,salte,xtg,locean,imax,kl)
-#ifdef GPUPHYSICS
+#ifdef GPUCHEMISTRY
 !$acc routine vector
 #endif
 
