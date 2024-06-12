@@ -2995,21 +2995,26 @@ contains
                   bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
                   ine(iql) = ifull + iext
                 end if
-             end if
-            if ( ien_g(iqg) == ine_g(iqg) ) then
-               ien(iql) = ine(iql)
-            else
-               iqq = ien_g(iqg)
-               ! Which processor has this point
-               rproc = qproc(iqq)
-               if ( rproc /= myid ) then ! Add to list
-                  bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                  call check_bnds_alloc(rproc, iext)
-                  bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                  ien(iql) = ifull + iext
+            end if
+            iqq = ine_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqq)
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               mycol = findcolour(iqq)
+               if ( mycol == icol ) then
+                  if ( ien_g(iqg) == ine_g(iqg) ) then
+                     ! Avoid duplicate 
+                     ien(iql) = ine(iql)
+                  else
+                     ! Add this point to request list
+                     bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
+                     ien(iql) = ifull + iext
+                  end if   
                end if
             end if
          end do
@@ -3033,21 +3038,26 @@ contains
                   bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
                   ise(iql) = ifull + iext
                 end if
-             end if
-            if ( ies_g(iqg) == ise_g(iqg) ) then
-               ies(iql) = ise(iql)
-            else
-               iqq = ies_g(iqg)
-               ! Which processor has this point
-               rproc = qproc(iqq)
-               if ( rproc /= myid ) then ! Add to list
-                  bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                  call check_bnds_alloc(rproc, iext)
-                  bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                  ies(iql) = ifull + iext
+            end if
+            iqq = ies_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqq)
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               mycol = findcolour(iqq)
+               if ( mycol == icol ) then
+                  if ( ies_g(iqg) == ise_g(iqg) ) then
+                     ! Avoid duplicate
+                     ies(iql) = ise(iql)
+                  else
+                     ! Add this point to request list    
+                     bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
+                     ies(iql) = ifull + iext
+                  end if   
                end if
             end if
          end do
@@ -3072,20 +3082,25 @@ contains
                   inw(iql) = ifull + iext
                end if
             end if
-            if ( iwn_g(iqg) == inw_g(iqg) ) then
-               iwn(iql) = inw(iql)
-            else
-               iqq = iwn_g(iqg)
-               ! Which processor has this point
-               rproc = qproc(iqq)
-               if ( rproc /= myid ) then ! Add to list
-                  bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                  call check_bnds_alloc(rproc, iext)
-                  bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                  iwn(iql) = ifull + iext
+            iqq = iwn_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqq)
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               mycol = findcolour(iqq)
+               if ( mycol == icol ) then
+                  if ( iwn_g(iqg) == inw_g(iqg) ) then
+                     ! Avoid duplicate 
+                     iwn(iql) = inw(iql)
+                  else
+                     ! Add this point to request list
+                     bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
+                     iwn(iql) = ifull + iext
+                  end if   
                end if
             end if
          end do
@@ -3110,20 +3125,25 @@ contains
                   isw(iql) = ifull + iext
                end if
             end if
-            if ( iws_g(iqg) == isw_g(iqg) ) then
-               iws(iql) = isw(iql)
-            else
-               iqq = iws_g(iqg)
-               ! Which processor has this point
-               rproc = qproc(iqq)
-               if ( rproc /= myid ) then ! Add to list
-                  bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                  call check_bnds_alloc(rproc, iext)
-                  bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                  iws(iql) = ifull + iext
+            iqq = iws_g(iqg)
+            ! Which processor has this point
+            rproc = qproc(iqq)
+            if ( rproc /= myid ) then ! Don't add points already on this proc.
+               mycol = findcolour(iqq)
+               if ( mycol == icol ) then
+                  if ( iws_g(iqg) == isw_g(iqg) ) then
+                     ! Avoid duplicate 
+                     iws(iql) = isw(iql)
+                  else
+                     ! Add this point to request list
+                     bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
+                     call check_bnds_alloc(rproc, iext)
+                     bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
+                     iws(iql) = ifull + iext
+                  end if   
                end if
             end if
          end do
@@ -8692,23 +8712,6 @@ contains
          if ( vsize > 2 ) then
             new_node_nproc = vsize
          end if
-         !if ( node_myid==0 ) then
-         !   lnode = node_nproc 
-         !   lcommin = comm_nodecaptain
-         !   call START_LOG(reduce_begin)
-         !   call MPI_Reduce(lnode, mnode, 1_4, MPI_INTEGER, MPI_MAX, 0_4, lcommin, lerr )
-         !   call END_LOG(reduce_end)
-         !end if
-         !lcommin = comm_world
-         !call MPI_Bcast(mnode, 1, MPI_INTEGER, 0_4, lcommin, lerr )
-         !do vsize = mnode,1,-1
-         !   if ( mod(nproc,vsize)==0 ) then
-         !      exit
-         !   end if
-         !end do
-         !if ( vsize > 2 ) then
-         !   new_node_nproc = vsize
-         !end if
       end if
 
       if ( new_node_nproc >= 4 ) then
