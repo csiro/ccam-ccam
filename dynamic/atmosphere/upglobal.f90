@@ -248,13 +248,13 @@ if ( mup/=0 ) then
     ! non-hydrostatic version
     bb(:,:,1) = pslx(:,:)
     bb(:,:,2) = h_nh(:,:)
-    call ints(bb(:,:,1:2),intsch,nface,xg,yg,1)      
+    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,1)      
     pslx(:,:) = bb(:,:,1)
     h_nh(:,:) = bb(:,:,2)
   else
-    call ints(pslx,intsch,nface,xg,yg,1)    
+    call ints(pslx,1,intsch,nface,xg,yg,1)    
   end if ! nh/=0
-  call ints(tx,intsch,nface,xg,yg,3)
+  call ints(tx,1,intsch,nface,xg,yg,3)
 end if    ! mup/=0
 
 do k = 1,kl
@@ -375,7 +375,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     bb(:,:,3) = qfg(:,:)
     bb(:,:,4) = stratcloud(:,:)
     bb(:,:,5) = ni(:,:)
-    call ints(bb(:,:,1:5),intsch,nface,xg,yg,4)
+    call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,4)
     qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
@@ -386,13 +386,13 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     bb(:,:,2) = qlg(:,:)
     bb(:,:,3) = qfg(:,:)
     bb(:,:,4) = stratcloud(:,:)
-    call ints(bb(:,:,1:4),intsch,nface,xg,yg,4)
+    call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,4)
     qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
   else
-    call ints(qg,intsch,nface,xg,yg,3)
+    call ints(qg,1,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
   if ( ngas>0 .or. nextout>=4 ) then
     if ( nmaxpr==1 .and. mydiag ) then
@@ -404,7 +404,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
     end if
     if ( ngas>0 ) then
-      call ints(tr(:,:,1:ngas),intsch,nface,xg,yg,5)
+      call ints(tr(:,:,1:ngas),ngas,intsch,nface,xg,yg,5)
     end if
     if ( nmaxpr==1 .and. mydiag ) then
       write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
@@ -415,12 +415,12 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( nvmix==6 .or. nvmix==9 ) then
     bb(:,:,1) = tke(:,:)
     bb(:,:,2) = eps(:,:)
-    call ints(bb(:,:,1:2),intsch,nface,xg,yg,4)
+    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,4)
     tke(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     eps(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
   endif                 ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 .and. nhstest>=0 ) then
-    call ints(xtg(:,:,1:naero),intsch,nface,xg,yg,5)
+    call ints(xtg(:,:,1:naero),naero,intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1
 
