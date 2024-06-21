@@ -186,7 +186,6 @@ subroutine sib4
 use amipsst_m, only : time_of_month, time_interpolate
 use arrays_m
 use carbpools_m
-use cc_omp, only : ntiles, imax
 use const_phys
 use dates_m
 use estab
@@ -428,7 +427,6 @@ use const_phys
 use dates_m
 use estab, only : qsat
 use infile, only : getzinp
-use newmpar_m
 use parm_m
 use sigs_m
 use soil_m, only : zmin
@@ -1061,7 +1059,6 @@ end subroutine sib4_work
 ! *************************************************************************************
 subroutine cbmemiss(trsrc,mvegt,mode,tile,imax)
   
-use newmpar_m
 use parm_m
 
 implicit none
@@ -1077,7 +1074,6 @@ end subroutine cbmemiss
 
 subroutine cbmemiss_work(trsrc,mvegt,mode,imax,tind,tmap,maxnb)
   
-use newmpar_m
 use parm_m
 
 implicit none
@@ -1132,7 +1128,6 @@ subroutine setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl2,casamet,veg,imax,tind,t
 
 use cc_mpi
 use dates_m
-use newmpar_m
 use parm_m
 
 implicit none
@@ -2086,7 +2081,6 @@ subroutine cbmparm(ivs,svs,vlin,casapoint,greenup,fall,phendoy1,fcasapft)
 
 use carbpools_m
 use cc_mpi
-use cc_omp, only : ntiles, imax
 use const_phys
 use infile
 use latlong_m
@@ -5739,7 +5733,6 @@ end subroutine redistribute_tile
 
 subroutine redistribute_work(old_sv,vdata)
 
-use cc_omp, only : ntiles, imax
 use newmpar_m
 use soil_m
 

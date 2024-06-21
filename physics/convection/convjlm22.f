@@ -600,7 +600,6 @@
           do iq=1,imax
            if(k<=kkbb(iq))then
              qplume(iq,k)=max(qplume(iq,k-1),alfin(iq)*qq(iq,k))
-	     
              splume(iq,k)=max(splume(iq,k-1),s(iq,k))
            endif
           enddo  ! iq loop

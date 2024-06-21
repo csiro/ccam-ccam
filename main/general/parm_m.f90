@@ -57,6 +57,7 @@ public ensemble_mode, ensemble_period, ensemble_rsfactor
 public siglow, sigmid
 public wgcoeff, wg_tau, wg_prob, ugs_meth
 public wbclim_lonn, wbclim_lonx, wbclim_latn, wbclim_latx
+public maxtilesize
 
 integer, save :: ngwd=-5, nrungcm=-1, newtop=1
 integer, save :: kountr=0, nrad=4, nvmix=3, nlocal=6
@@ -79,6 +80,11 @@ integer, save :: ensemble_mode=0, ensemble_period=720
 integer, save :: diaglevel_aerosols=0, diaglevel_pbl=0, diaglevel_cloud=0, diaglevel_land=0, diaglevel_maxmin=0
 integer, save :: diaglevel_ocean=0, diaglevel_radiation=0, diaglevel_urban=0, diaglevel_carbon=0, diaglevel_river=0
 integer, save :: diaglevel_pop=0
+#ifdef GPU
+integer, save :: maxtilesize=32
+#else
+integer, save :: maxtilesize=96
+#endif 
 !integer, save :: filemode=0, ioreaders=-1
 real, save :: qgmin=1.e-6, zo_clearing=0.
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02

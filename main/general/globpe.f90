@@ -1455,6 +1455,7 @@ integer ateb_conductmeth           ! depreciated namelist options
 integer ateb_useonewall            ! depreciated namelist options
 integer cable_climate              ! depreciated namelist options
 integer surf_windfarm              ! depreciated namelist options
+integer lin_adv                    ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -1543,10 +1544,11 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     ncvcloud,ncvmix,nevapcc,nkuo,nrhcrit,                         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,lin_aerosolmode,lin_adv,maxlintime,                       &
+    rcm,                                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
-    cloud_ice_method, leon_snowmeth
+    cloud_ice_method,leon_snowmeth,lin_aerosolmode,maxlintime,    &
+    lin_adv                                                         ! depreciated
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -1881,15 +1883,17 @@ nrows_rad = max( min( maxtilesize/il, jl ), 1 )
 do while( mod(jl, nrows_rad) /= 0 )
   nrows_rad = nrows_rad - 1
 end do
+call calc_phys_tiles(ntiles,maxtilesize,ifull)
+imax = ifull/ntiles
 
 #ifdef usempi3
 ! since processes might have been remapped, then use node_myid
 ! to determine GPU assigned to each process
-call ccomp_init(node_myid)
 call ccacc_init(node_myid,ngpus)
+call ccomp_init(node_myid)
 #else
-call ccomp_init(myid)
 call ccacc_init(myid,ngpus)
+call ccomp_init(myid)
 #endif
 
 ! Display model configuration information in log file
@@ -2276,6 +2280,9 @@ end if
 ! xx4 and yy4 are used for calculating depature points
 ! em_g, x_g, y_g and z_g are for the scale-selective filter (1D and 2D versions)
 #ifdef share_ifullg
+if ( myid==0 ) then
+  write(6,*) "Update global arrays with shared memory"
+end if  
 if ( node_myid==0 ) then
   call ccmpi_bcastr8(xx4,0,comm_nodecaptain)
   call ccmpi_bcastr8(yy4,0,comm_nodecaptain)
@@ -2286,6 +2293,9 @@ if ( node_myid==0 ) then
 end if
 call ccmpi_barrier(comm_node)
 #else
+if ( myid==0 ) then
+  write(6,*) "Update global arrays"
+end if
 ! make copies of global arrays on all processes
 call ccmpi_bcastr8(xx4,0,comm_world)
 call ccmpi_bcastr8(yy4,0,comm_world)
@@ -3373,7 +3383,7 @@ use parm_m                                 ! Model configuration
 
 implicit none
 
-integer, dimension(28) :: dumi
+integer, dimension(27) :: dumi
 real, dimension(35) :: dumr
     
 dumr = 0.
@@ -3441,7 +3451,6 @@ if ( myid==0 ) then
   dumi(25) = lin_aerosolmode  
   dumi(26) = cloud_ice_method
   dumi(27) = leon_snowmeth
-  dumi(28) = lin_adv
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3507,7 +3516,6 @@ cloud_aerosol_mode = dumi(24)
 lin_aerosolmode    = dumi(25)
 cloud_ice_method   = dumi(26)
 leon_snowmeth      = dumi(27)
-lin_adv            = dumi(28)
 
 return
 end subroutine broadcast_kuonml
@@ -3994,6 +4002,43 @@ nyp = nyp_test
 return
 end subroutine reducenproc
 
+!--------------------------------------------------------------
+! Find valid ntiles for physics
+subroutine calc_phys_tiles(ntiles,maxtilesize,ifull)    
+
+implicit none
+
+integer, intent(in) :: maxtilesize, ifull
+integer, intent(out) :: ntiles
+integer i, tmp, imax
+
+!find imax if maxtilesize isn't already a factor of ifull
+imax = min( max( maxtilesize, 1 ), ifull )
+tmp = imax
+imax = -1 ! missing flag
+! first attempt to find multiple of 16
+do i = tmp,16,-1
+  if ( mod(ifull,i)==0 .and. mod(i,16)==0 ) then
+    imax = i
+    exit
+  end if
+end do
+if ( imax<1 ) then
+  ! second attempt if multiple of 16 is not possible
+  do i = tmp,1,-1
+    if ( mod(ifull,i)==0 ) then
+      imax = i
+      exit
+    end if
+  end do
+end if
+
+!find the number of tiles
+ntiles = ifull/imax
+
+return
+end subroutine calc_phys_tiles
+    
 !--------------------------------------------------------------
 ! TEST GRID DECOMPOSITION - FACE   
 subroutine proctest_face(npanels,il_g,nproc,nxp,nyp)

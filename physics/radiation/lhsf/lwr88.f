@@ -30,7 +30,6 @@ c      fst88
 c 
       use co2dta_m
       use kdacom_m
-      use newmpar_m
       use parm_m
       use radisw_m
       use tfcom_m

@@ -737,7 +737,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'kscsea',kscsea)
     call ccnf_put_attg(idnc,'ldr',ldr)
     call ccnf_put_attg(idnc,'leon_snowmeth',leon_snowmeth)
-    call ccnf_put_attg(idnc,'lin_adv',lin_adv)
     call ccnf_put_attg(idnc,'lin_aerosolmode',lin_aerosolmode)
     call ccnf_put_attg(idnc,'maxlintime',maxlintime)
     call ccnf_put_attg(idnc,'mbase',mbase)
@@ -3784,7 +3783,6 @@ subroutine freqfile_cordex
 use aerointerface                     ! Aerosol interface
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
-use cc_omp, only : ntiles, imax       ! CC OpenMP routines
 use const_phys                        ! Physical constants
 use dates_m                           ! Date data
 use dpsdt_m                           ! Vertical velocity

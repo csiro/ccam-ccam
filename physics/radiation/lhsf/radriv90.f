@@ -51,7 +51,7 @@
       use liqwpar_m  ! ifullw
       use lwout_m
       use mlo        ! MJT mlo
-      use newmpar_m
+      use newmpar_m, only : ifull, iextra, kl, il, jl, nproc
       use nharrs_m 
       use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,rmc
       use ozoneread  ! MJT radiation

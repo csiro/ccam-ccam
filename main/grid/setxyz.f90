@@ -39,7 +39,7 @@ use indices_m
 use jimcc_m
 use latlong_m
 use map_m
-use newmpar_m
+use newmpar_m, only : npanels, ifull_g, il_g, jl 
 use utilities
 use workglob_m
 

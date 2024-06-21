@@ -28,14 +28,10 @@ module cc_omp
 #endif
 
    implicit none
+   
    private
 
-   integer, save, public :: maxthreads, ntiles, imax
-#ifdef GPU
-   integer, save, public :: maxtilesize = 32 ! suggested value
-#else
-   integer, save, public :: maxtilesize = 96 ! suggested value
-#endif   
+   integer, save, public :: maxthreads
 
    public ::  ccomp_init
    public ::  ccomp_get_thread_num
@@ -54,8 +50,6 @@ module cc_omp
    end function ccomp_get_thread_num
 
    subroutine ccomp_init(myid)
-      use newmpar_m, only : ifull
-      integer :: i, tmp
       integer, intent(in) :: myid
    
 #ifdef _OPENMP
@@ -63,30 +57,6 @@ module cc_omp
 #else
       maxthreads = 1
 #endif
-
-      !find imax if maxtilesize isn't already a factor of ifull
-      imax = min( max( maxtilesize, 1 ), ifull )
-      tmp = imax
-      imax = -1 ! missing flag
-      ! first attempt to find multiple of 16
-      do i = tmp,16,-1
-         if ( mod(ifull,i)==0 .and. mod(i,16)==0 ) then
-            imax = i
-            exit
-         end if
-      end do
-      if ( imax<1 ) then
-         ! second attempt if multiple of 16 is not possible
-         do i = tmp,1,-1
-            if ( mod(ifull,i)==0 ) then
-               imax = i
-               exit
-            end if
-         end do
-      end if
-
-      !find the number of tiles
-      ntiles = ifull/imax
       
       return
    end subroutine ccomp_init

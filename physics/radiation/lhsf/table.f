@@ -516,7 +516,6 @@ c       kmaxvm,                                 tabcom
 c       ao3rnd,bo3rnd,ab15                      bandta
 c       ab15wd,skc1r,sko3r,sko2d                bdwide
 c 
-      use newmpar_m
       use radisw_m
       use tabcom_m
 

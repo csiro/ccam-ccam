@@ -48,7 +48,7 @@
 module mlo
 
 #ifdef CCAM
-use cc_omp, only : imax, ntiles
+use newmpar_m, only : imax, ntiles
 #endif
 
 implicit none

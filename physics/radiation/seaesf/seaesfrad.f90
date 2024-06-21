@@ -1139,6 +1139,7 @@ end subroutine shortwave_driver
 subroutine calc_snow_albedo(coszro,cuvrf_dir,cirrf_dir,cuvrf_dif,cirrf_dif,iq_tile)
 
 use cc_omp                                          ! CC OpenMP routines
+use newmpar_m                                       ! Grid parameters
 use nsibd_m                                         ! Land-surface arrays
 use parm_m                                          ! Model configuration
 use soil_m                                          ! Soil and surface data

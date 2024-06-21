@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2017 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,7 +30,6 @@ contains
 subroutine hs_phys
 
 use arrays_m
-use cc_omp
 use latlong_m
 use newmpar_m
 
@@ -78,7 +77,6 @@ end subroutine hs_phys
 
 subroutine hs_phys_work(rlatt,t,u,v)
 
-use cc_omp, only : imax
 use newmpar_m
 use nlin_m
 use parm_m

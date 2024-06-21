@@ -58,7 +58,7 @@
 module uclem_ctrl
 
 #ifdef CCAM
-use cc_omp, only : imax, ntiles
+use newmpar_m, only : imax, ntiles
 #endif
 use uclem
 
@@ -1801,6 +1801,7 @@ if ( present(rawtemp) ) then
   rawmode = rawtemp
 end if
 
+urbanr8 = 0._8
 call uclem_savedr8(urbanr8,mode,ifrac,diag,rawtemp=rawmode)
 urban = real(urbanr8)
 

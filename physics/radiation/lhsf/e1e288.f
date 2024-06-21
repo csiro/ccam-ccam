@@ -32,7 +32,6 @@ CDIR$ TASK COMMON TFCOM
 c CDIR$ TASK COMMON VTEMP
 
       use kdacom_m
-      use newmpar_m
       use radisw_m
       use tabcom_m
       use tfcom_m

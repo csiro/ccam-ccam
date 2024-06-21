@@ -31,7 +31,6 @@ subroutine tracervmix
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use carbpools_m                     ! Carbon pools
 use cc_mpi                          ! CC MPI routines
-use cc_omp                          ! CC OpenMP routines
 use const_phys                      ! Physical constants
 use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
@@ -124,7 +123,7 @@ subroutine tracervmix_work(at,ct,t,ps,cdtq,tr,fnee,fpn,frp,frs,co2em,oh,strloss,
 
 use const_phys
 use diag_m
-use newmpar_m
+use newmpar_m, only : kl
 use parm_m
 use sigs_m
 use tracermodule, only : tracunit,numtracer
@@ -216,7 +215,7 @@ subroutine trgassflux(igas,trsrc,fnee,fpn,frp,frs,co2em,tile,imax)
 
 use cable_ccam, only : cbmemiss
 use dates_m
-use newmpar_m
+use newmpar_m, only : kl
 use tracermodule, only : tracdaytime,traclevel,numtracer
 use tracers_m, only : tracname,tractype
 
@@ -291,7 +290,7 @@ subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,mcfloss,vt,dz1, &
 
 use cc_mpi
 use const_phys
-use newmpar_m
+use newmpar_m, only : kl
 use parm_m
 use sigs_m 
 use tracermodule, only : trdep
@@ -377,7 +376,7 @@ end subroutine gasvmix
 
 subroutine trimt(a,c,rhs,imax)
 
-use newmpar_m
+use newmpar_m, only : kl
 
 implicit none
 
@@ -430,7 +429,7 @@ end subroutine trimt
 subroutine trsettling(rhoa,tmp,delz,prf,tr,imax)
 
 use const_phys
-use newmpar_m
+use newmpar_m, only : kl
 use parm_m
 use tracermodule, only : trden, trreff
 use tracers_m, only : ngas,ntrac

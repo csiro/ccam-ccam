@@ -67,7 +67,7 @@ c******************************************************************************
       use const_phys
       use kuocom_m
       use leoncld_mod
-      use newmpar_m
+      use newmpar_m, only : kl
       use parm_m
       use radisw_m  !Output various things (see above) and input coszro
       use sigs_m
@@ -854,7 +854,7 @@ c Coefficients di and fi modified to use Reff in SI units.
       subroutine slingo(reff, tau, mu0,       !inputs
      &                  refl1, refl2, abso )  !outputs
 
-      use newmpar_m
+      use newmpar_m, only : kl
       implicit none
 C Global parameters
       include 'rdparm.h'
@@ -993,7 +993,7 @@ c Lambdas modified to use Reff in SI units.
      &                  refl1, refl2, abso )  !outputs
 
       use const_phys
-      use newmpar_m
+      use newmpar_m, only : kl
       implicit none
 C Global parameters
       include 'rdparm.h'

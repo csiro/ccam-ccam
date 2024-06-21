@@ -15,8 +15,6 @@
 !     swr99p. This is necessary so that swr99p can use automatic rather
 !     than allocatable arrays.
 
-      use newmpar_m
-      
       include 'hcon.h'
       include 'rdparm.h'
 
@@ -68,8 +66,6 @@ c        output:fsw,hsw,grdflx(common block swocom).
 c===>    *********************************************************
 c
 c
-      use newmpar_m
-
       include 'hcon.h'
       include 'rdparm.h'
 
@@ -232,7 +228,6 @@ c
      &                   cirrf, cuvrf, camt, ipts,
      &                   swr ) ! MJT cable
 
-      use newmpar_m
       use parm_m
       
       include 'hcon.h'

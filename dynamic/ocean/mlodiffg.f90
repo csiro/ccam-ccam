@@ -212,6 +212,7 @@ if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
   call bounds(ssl)
 end if
 
+
 if ( hdif>0. ) then
   !Biharmonic version
 
@@ -227,55 +228,36 @@ if ( hdif>0. ) then
 
 else
   ! Laplacian version
-
-#ifdef GPU
-  !$acc data create(xfact,yfact,emi,ie,iw,in,is,iwu,isv,ee)
-  !$acc update device(xfact,yfact,emi,ie,iw,in,is,iwu,isv,ee)
-#else
+    
   !$omp parallel
   !$omp sections
-#endif
 
-#ifndef GPU
   !$omp section
-#endif
   if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     call mlodifflap(duma(:,:,1),xfact,yfact,emi,ee,ldif)
   end if
-#ifndef GPU
   !$omp section
-#endif
   if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     call mlodifflap(duma(:,:,2),xfact,yfact,emi,ee,ldif)
   end if
-#ifndef GPU
   !$omp section
-#endif
   if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     call mlodifflap(duma(:,:,3),xfact,yfact,emi,ee,ldif)
   end if
-#ifndef GPU
   !$omp section
-#endif
   if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
     call mlodifflap(ttl,xfact,yfact,emi,ee,ldif)
   end if
-#ifndef GPU
   !$omp section
-#endif
   if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
     call mlodifflap(ssl,xfact,yfact,emi,ee,ldif)
   end if
 
-#ifdef GPU
-  !$acc wait
-  !$acc end data
-#else
   !$omp end sections
   !$omp end parallel
-#endif
 
 end if  
+
 
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   do k = 1,wlev
@@ -385,7 +367,6 @@ end subroutine mlodiffcalc
 
 subroutine mlodifflap(work,xfact,yfact,emi,ee,ldif)
 
-use cc_acc, only : async_length
 use indices_m
 use mlo
 use newmpar_m
@@ -393,52 +374,36 @@ use newmpar_m
 implicit none
 
 integer k, iq
-integer, save :: async_counter = -1
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:), intent(inout) :: work
 real, dimension(:,:), intent(in) :: ee
-real, dimension(ifull,wlev) :: ansl
+real, dimension(ifull) :: ansl
 real, intent(in) :: ldif
 real base, xfact_iwu, yfact_isv
 
 ! Laplacian diffusion
 
-async_counter = mod(async_counter+1, async_length)
-
-!$acc enter data create(work,ansl) async(async_counter)
-!$acc update device(work) async(async_counter)
-
-!$acc parallel loop collapse(2) present(xfact,yfact,emi,work,ansl,ie,iw,in,is,iwu,isv) &
-!$acc   async(async_counter)
 do k = 1,wlev
   do iq = 1,ifull
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
     base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
                   +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
-    ansl(iq,k) = ( emi(iq)*work(iq,k) +                     &
-                   ldif*xfact(iq,k)**2*work(ie(iq),k) +     &
-                   ldif*xfact_iwu**2*work(iw(iq),k) +       &
-                   ldif*yfact(iq,k)**2*work(in(iq),k) +     &
-                   ldif*yfact_isv**2*work(is(iq),k) )       &
-                 / base
+    ansl(iq) = ( emi(iq)*work(iq,k) +                     &
+                 ldif*xfact(iq,k)**2*work(ie(iq),k) +     &
+                 ldif*xfact_iwu**2*work(iw(iq),k) +       &
+                 ldif*yfact(iq,k)**2*work(in(iq),k) +     &
+                 ldif*yfact_isv**2*work(is(iq),k) )       &
+               / base
   end do
-end do
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(ee,work,ansl) async(async_counter)
-do k = 1,wlev  
   do iq = 1,ifull
     if ( ee(iq,k)>0.5 ) then
-      work(iq,k) = ansl(iq,k)
+      work(iq,k) = ansl(iq)
     end if
   end do
 end do  
-!$acc end parallel loop
     
-!$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ansl) async(async_counter)
-
 return
 end subroutine mlodifflap
 

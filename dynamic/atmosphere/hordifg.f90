@@ -354,70 +354,48 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   call bounds(xtg)  
 end if
 
-#ifdef GPU
-  !$acc data create(xfact,yfact,emi,ie,iw,in,is,iwu,isv)
-  !$acc update device(xfact,yfact,emi,ie,iw,in,is,iwu,isv)
-#else
-  !$omp parallel
-  !$omp sections
-#endif
+
+!$omp parallel
+!$omp sections
 
 ! momentum U, V, W - bounds updated above
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(uc,xfact,yfact,emi)
 end if
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(vc,xfact,yfact,emi)
 end if
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(wc,xfact,yfact,emi)
 end if  
 
 ! potential temperture and water vapour
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   call hordifgt_work(t,xfact,yfact,emi)
 end if
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then
   call hordifgt_work(qg,xfact,yfact,emi)
 end if  
 
 ! cloud liquid & frozen water plus cloud fraction
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(qlg,xfact,yfact,emi)
 end if
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(qfg,xfact,yfact,emi)
 end if
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(stratcloud,xfact,yfact,emi)
 end if
-#ifndef GPU
 !$omp section
-#endif
 if ( nhorps==-4 .and. ldr/=0 ) then  
   if ( ncloud>=100 .and. ncloud<200 ) then
     call hordifgt_work(ni,xfact,yfact,emi)
@@ -425,22 +403,16 @@ if ( nhorps==-4 .and. ldr/=0 ) then
 end if
 
 ! tke and eps
-#ifndef GPU
 !$omp section
-#endif
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(eps,xfact,yfact,emi)
 end if
-#ifndef GPU
 !$omp section
-#endif
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(tke,xfact,yfact,emi)
 end if
 
-#ifndef GPU
 !$omp end sections nowait
-#endif
 
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
@@ -451,12 +423,8 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   !$omp end do nowait
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
-#ifdef GPU
-!$acc wait
-!$acc end data
-#else
 !$omp end parallel
-#endif
+
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
@@ -489,52 +457,35 @@ end subroutine hordifgt
 
 subroutine hordifgt_work(work,xfact,yfact,emi)
 
-use cc_acc, only : async_length
 use indices_m
 use newmpar_m
 
 implicit none
 
 integer k, iq
-integer, save :: async_counter = -1
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
-real, dimension(ifull,kl) :: ans
+real, dimension(ifull) :: ans
 real base, xfact_iwu, yfact_isv
 
-async_counter = mod(async_counter+1, async_length)
-
-!$acc enter data create(ans,work) async(async_counter)
-!$acc update device(work) async(async_counter)
-
-!$acc parallel loop collapse(2) present(xfact,yfact,emi,ans,work,iwu,isv,ie,iw,in,is) &
-!$acc   async(async_counter)
 do k = 1,kl
   do iq = 1,ifull  
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
                   +yfact(iq,k)+yfact_isv
-    ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                  xfact(iq,k)*work(ie(iq),k) +       &
-                  xfact_iwu*work(iw(iq),k) +         &
-                  yfact(iq,k)*work(in(iq),k) +       &
-                  yfact_isv*work(is(iq),k) )         &
-               / base 
+    ans(iq) = ( emi(iq)*work(iq,k) +               &
+                xfact(iq,k)*work(ie(iq),k) +       &
+                xfact_iwu*work(iw(iq),k) +         &
+                yfact(iq,k)*work(in(iq),k) +       &
+                yfact_isv*work(is(iq),k) )         &
+             / base 
   end do
-end do
-!$acc end parallel loop
-!$acc parallel loop collapse(2) present(work,ans) async(async_counter)
-do k = 1,kl
   do iq = 1,ifull
-    work(iq,k) = ans(iq,k)
+    work(iq,k) = ans(iq)
   end do
 end do
-!$acc end parallel loop
-
-!$acc update self(work) async(async_counter)
-!$acc exit data delete(work,ans) async(async_counter)
 
 return
 end subroutine hordifgt_work

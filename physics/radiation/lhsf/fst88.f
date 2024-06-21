@@ -72,7 +72,7 @@ c CDIR$ TASK COMMON VTEMP
       use diag_m
       use kdacom_m
       use lwout_m
-      use newmpar_m
+      use newmpar_m, only : kl
       use parm_m
       use radisw_m
       use rdflux_m

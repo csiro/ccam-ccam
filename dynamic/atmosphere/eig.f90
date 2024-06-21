@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -818,7 +818,7 @@ real(kind=rp) :: amax
 !     method of gauss-jordon pivotal elimination
 irow=0
 icol=0
-m=iabs(l)
+m=abs(l)
 d=1.0
 do i=1,kl
   ipiv(i)=0

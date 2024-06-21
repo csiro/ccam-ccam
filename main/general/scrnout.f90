@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -24,7 +24,6 @@ subroutine scrnout(zo,ustar,zoh,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,af
 
 use arrays_m
 use cc_mpi, only : mydiag,myid
-use cc_omp, only : ntiles
 use const_phys
 use diag_m
 use estab
@@ -456,7 +455,6 @@ end subroutine screencalc
 subroutine autoscrn(is,ie)
       
 use arrays_m
-use cc_omp, only : imax
 use const_phys
 use estab
 use extraout_m
@@ -700,7 +698,6 @@ end subroutine autoscrn
 subroutine update_u10m(is,ie,u10m)
       
 use arrays_m, only : t, u, v, qg, ps
-use cc_omp, only : imax
 use const_phys, only : grav
 use estab
 use mlo
@@ -768,7 +765,6 @@ end subroutine update_u10m
 subroutine capecalc
 
 use arrays_m
-use cc_omp, only : ntiles, imax
 use const_phys
 use estab
 use newmpar_m

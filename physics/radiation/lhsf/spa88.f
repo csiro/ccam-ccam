@@ -32,7 +32,6 @@ c CDIR$ TASK COMMON VTEMP
       use cldcom_m
       use kdacom_m
       use lwout_m
-      use newmpar_m
       use radisw_m
       use rdflux_m
       use srccom_m

@@ -10558,11 +10558,13 @@ contains
       if ( nodefile_count > 0 ) then
          if ( nodefile_count <= size(nodefilesave_win) ) then
             nodefilesave_win(nodefile_count) = nodefile_win
+            !call ccmpi_freeshdata(nodefile_win)
          end if   
       end if   
-      !call ccmpi_freeshdata(nodefile_win)
 #else
-      deallocate( nodefile )
+      if ( associated( nodefile ) ) then
+         deallocate( nodefile )
+      end if   
 #endif
       nullify(nodefile)
    

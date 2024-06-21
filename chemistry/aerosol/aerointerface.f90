@@ -357,7 +357,7 @@ subroutine aerodrop(istart,cdn,rhoa,outconv)
 use aerosolldr              ! LDR prognostic aerosols
 use const_phys              ! Physical constants
 use latlong_m, only : rlatt ! Lat/lon coordinates
-use newmpar_m               ! Grid parameters
+use newmpar_m, only : kl    ! Grid parameters
 use parm_m                  ! Model configuration
 use soil_m, only : land     ! Soil and surface data
 

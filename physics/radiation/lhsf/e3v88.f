@@ -15,7 +15,6 @@ c
 c CDIR$ TASK COMMON VTEMP
 
       use tabcom_m
-      use newmpar_m
 
       include 'hcon.h'
       include 'rdparm.h'

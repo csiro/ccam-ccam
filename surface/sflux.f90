@@ -45,13 +45,13 @@ real, save :: ri_max, zologbgin, ztv, z1onzt, chnsea
 real, save :: srcp
 real, dimension(:), allocatable, save :: taftfh, taftfhg
 
-integer, parameter :: ntest=0   ! ntest= 0 for diags off; ntest= 1 for diags on
-real, parameter :: bprm=5.,cms=5.,chs=2.6,vkar=.4
+integer, parameter :: ntest=0        ! ntest= 0 for diags off; ntest= 1 for diags on
+real, parameter :: bprm=5., cms=5., chs=2.6, vkar=.4
 real, parameter :: fmroot=.57735     ! was .4 till 7 Feb 1996
 
-real, dimension(:), allocatable :: vmag,azmin,uav,vav,rho
-real, dimension(:), allocatable :: oldrunoff,oldsnowmelt,oldevspsbl,oldsbl
-real, dimension(:), allocatable :: af,aft,ri
+real, dimension(:), allocatable :: vmag, azmin, uav, vav, rho
+real, dimension(:), allocatable :: oldrunoff, oldsnowmelt, oldevspsbl, oldsbl
+real, dimension(:), allocatable :: af, aft, ri
 real, dimension(:), allocatable :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(:), allocatable :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
 #ifdef csircoupled
@@ -113,7 +113,6 @@ subroutine sflux
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cable_ccam, only : sib4        ! CABLE interface
 use cc_mpi                         ! CC MPI routines
-use cc_omp, only : imax, ntiles    ! CC OpenMP routines
 use const_phys                     ! Physical constants
 use diag_m                         ! Diagnostic routines
 use estab                          ! Liquid saturation function
@@ -825,7 +824,6 @@ subroutine sflux_mlo
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
-use cc_omp                         ! CC OpenMP routines
 use const_phys                     ! Physical constants
 use estab                          ! Liquid saturation function
 use extraout_m                     ! Additional diagnostics
@@ -891,7 +889,6 @@ subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,
                           fracice,sicedep,snowd,sno,grpl,qsttg,vmod,zo,wetfac,            &
                           zoh,zoq,theta,ga,turb)
 use cc_mpi                           ! CC MPI routines
-use cc_omp                           ! CC OpenMP routines
 use const_phys                       ! Physical constants
 use estab                            ! Liquid saturation function
 use mlo, only : waterdata,icedata, & ! Ocean physics and prognostic arrays
@@ -1022,7 +1019,6 @@ subroutine sflux_urban
 
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
 use cc_mpi                         ! CC MPI routines
-use cc_omp                         ! CC OpenMP routines
 use const_phys                     ! Physical constants
 use estab                          ! Liquid saturation function
 use extraout_m                     ! Additional diagnostics
@@ -1106,7 +1102,6 @@ subroutine sflux_urban_work(oldrunoff,rho,vmag,oldsnowmelt,fp,fp_intm,fp_road,fp
                             urban_cooling_flux,upack,ufull)
 
 use cc_mpi                         ! CC MPI routines
-use cc_omp                         ! CC OpenMP routines
 use const_phys                     ! Physical constants
 use estab                          ! Liquid saturation function
 use newmpar_m                      ! Grid parameters

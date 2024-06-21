@@ -16,7 +16,6 @@ c          called by:      radmn or model routine
 c          calls    : 
 c 
       use cldcom_m
-      use newmpar_m
       use parm_m
       use radisw_m
 

@@ -22,7 +22,7 @@
       subroutine cloud (cldoff,sig,j,rhg)   ! jlm
 !     this one allows different emissivities for middle & high clouds      
       use extraout_m
-      use newmpar_m
+      use newmpar_m, only : ifull, kl
       use parm_m
       use radisw_m
       parameter (ntest=0) ! 0 to turn off test prints

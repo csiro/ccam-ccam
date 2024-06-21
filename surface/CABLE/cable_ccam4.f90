@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -17,13 +17,18 @@
 ! You should have received a copy of the GNU General Public License
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
     
+!------------------------------------------------------------------------------
+    
+! This model provides routines for packing and unpacking cable land-surface
+! and carbon cycle data
+    
 module cable_ccam4
  
-use cc_omp, only : ntiles,imax
 use cable_def_types_mod, only : air_type, balances_type, canopy_type, climate_type, met_type, radiation_type, &
                                 roughness_type, soil_parameter_type, soil_snow_type, sum_flux_type,           &
                                 veg_parameter_type, mp, r_2
 use casavariable, only : casa_balance, casa_biome, casa_flux, casa_met, casa_pool
+use newmpar_m, only : ntiles,imax
 use phenvariable, only : phen_variable
 use pop_types, only : pop_type, dp
 use cable_ccam3, only : climate_save_type
