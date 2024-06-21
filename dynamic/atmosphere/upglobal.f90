@@ -315,7 +315,7 @@ if ( diag ) then
 end if
 
 if ( mup/=0 ) then
-  call ints(uvw,intsch,nface,xg,yg,2)
+  call ints(uvw,3,intsch,nface,xg,yg,2)
 end if
 
 if ( diag ) then
