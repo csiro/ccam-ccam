@@ -42,6 +42,7 @@ private
 public mlohadv,mlodyninit
 public ocneps,ocnepr,nxtrrho
 public usetide,mlojacobi,mlomfix,nodrift,mlodps,mlo_bs,mlointschf
+public mloiceadv
 
 integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode     = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
@@ -52,6 +53,7 @@ integer, save      :: mlomfix     = 2       ! conserve T & S (0=off, 1=no free s
 integer, save      :: mlodps      = 1       ! include atmosphere pressure gradient terms (0=off, 1=on)
 integer, save      :: mlo_bs      = 3       ! category to apply B-S advection (1=all, 2=mps, 3=uv, 4=t, 5=sal)
 integer, save      :: mlointschf  = 2       ! direction for interpolation at depature points (0=off, 2=usual)
+integer, save      :: mloiceadv   = 0       ! ice advection method (0=Upwind-orig, 1=Upwind-revised)
 real, parameter :: rhosn          = 330.    ! density snow (kg m^-3)
 real, parameter :: rhoic          = 900.    ! density ice  (kg m^-3)
 real, parameter :: grav           = 9.80616 ! gravitational constant (m s^-2)
@@ -1255,11 +1257,16 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Horizontal advection of ice temperatures
   data_c(1:ifull,7) = i_it(1:ifull,3)*nfracice(1:ifull)*gamm(:,3)/(em(1:ifull)**2)
   data_c(1:ifull,8) = i_it(1:ifull,4)*nfracice(1:ifull)*gamm(:,3)/(em(1:ifull)**2) 
-  ! Conservation
-  data_c(1:ifull,9) = spnet(1:ifull)
-  call bounds(data_c(:,1:9))
-  spnet(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,9)
-  call upwind_iceadv(data_c(:,1:8),niu,niv,spnet,8)
+  if ( mloiceadv==0 ) then
+    ! Conservation (original method)
+    data_c(1:ifull,9) = spnet(1:ifull)
+    call bounds(data_c(:,1:9))
+    spnet(ifull+1:ifull+iextra) = data_c(ifull+1:ifull+iextra,9)
+  else
+    call bounds(data_c(:,1:8))
+    spnet=0.  
+  end if  
+  call upwind_iceadv(data_c(:,1:8),niu,niv,spnet)
   nfracice(1:ifull) = min( max( data_c(1:ifull,1)*em(1:ifull)**2, 0. ), maxicefrac )
   ndic(1:ifull) = data_c(1:ifull,2)*em(1:ifull)**2/max(nfracice(1:ifull),1.E-10)
   ndsn(1:ifull) = data_c(1:ifull,3)*em(1:ifull)**2/max(nfracice(1:ifull),1.E-10)
@@ -1764,8 +1771,9 @@ end subroutine mloleap
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Advect sea-ice using simple upwind scheme
 
-subroutine upwind_iceadv(dumc,niu,niv,spnet,ntr)
+subroutine upwind_iceadv(dumc,niu,niv,spnet)
 
+use cc_mpi
 use indices_m
 use map_m
 use newmpar_m
@@ -1774,86 +1782,114 @@ use parm_m
 implicit none
 
 
-integer, intent(in) :: ntr
-integer iq, n
-real, dimension(ifull+iextra,ntr), intent(inout) :: dumc
-real, dimension(ifull+iextra), intent(in) :: niu,niv,spnet
-real, dimension(ifull,ntr) :: dum_out
+integer iq, n, ntr
+real, dimension(:,:), intent(inout) :: dumc
+real, dimension(:), intent(in) :: niu,niv,spnet
+real, dimension(ifull,size(dumc,2)) :: dum_out
 real odum, tdum
 real(kind=8) dumd
 
+ntr = size(dumc,2)
 
-!$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)
-do n = 1,ntr
-  do iq = 1,ifull
-    dumd=real(dumc(iq,n),8)
-    odum=0.5*dt*(niu(iwu(iq))*(dumc(iq,n)+dumc(iw(iq),n))    -abs(niu(iwu(iq)))*(dumc(iq,n)-dumc(iw(iq),n))    )*emu(iwu(iq))/ds
-    if ( spnet(iw(iq))>1.e-10 ) then
-      tdum=dumc(iw(iq),n)*max(niu(iwu(iq))*emu(iwu(iq)),0.)/(ds*spnet(iw(iq)))    
-      odum=min(odum,tdum)
-    else
-      odum=min(odum,0.)
-    end if
-    if ( spnet(iq)>1.e-10 ) then
-      tdum=dumc(iq,n)*min(niu(iwu(iq))*emu(iwu(iq)),0.)/(ds*spnet(iq))
-      odum=max(odum,tdum)
-    else
-      odum=max(odum,0.)
-    end if
-    dumd=dumd+real(odum,8)
+select case( mloiceadv )
+  case(0) ! Original 
 
-    odum=-0.5*dt*(niu(iq)*(dumc(iq,n)+dumc(ie(iq),n))+abs(niu(iq))*(dumc(iq,n)-dumc(ie(iq),n)))*emu(iq)/ds
-    if ( spnet(ie(iq))>1.e-10 ) then
-      tdum=-dumc(ie(iq),n)*min(niu(iq)*emu(iq),0.)/(ds*spnet(ie(iq)))
-      odum=min(odum,tdum)
-    else
-      odum=min(odum,0.)
-    end if
-    if ( spnet(iq)>1.e-10 ) then
-      tdum=-dumc(iq,n)*max(niu(iq)*emu(iq),0.)/(ds*spnet(iq))
-      odum=max(odum,tdum)
-    else
-      odum=max(odum,0.)
-    end if
-    dumd=dumd+real(odum,8)
+    !$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)
+    do n = 1,ntr
+      do iq = 1,ifull
+        dumd=real(dumc(iq,n),8)
+        odum=0.5*dt*(niu(iwu(iq))*(dumc(iq,n)+dumc(iw(iq),n))    -abs(niu(iwu(iq)))*(dumc(iq,n)-dumc(iw(iq),n))    )*emu(iwu(iq))/ds
+        if ( spnet(iw(iq))>1.e-10 ) then
+          tdum=dumc(iw(iq),n)*max(niu(iwu(iq))*emu(iwu(iq)),0.)/(ds*spnet(iw(iq)))    
+          odum=min(odum,tdum)
+        else
+          odum=min(odum,0.)
+        end if
+        if ( spnet(iq)>1.e-10 ) then
+          tdum=dumc(iq,n)*min(niu(iwu(iq))*emu(iwu(iq)),0.)/(ds*spnet(iq))
+          odum=max(odum,tdum)
+        else
+          odum=max(odum,0.)
+        end if
+        dumd=dumd+real(odum,8)
 
-    odum=0.5*dt*(niv(isv(iq))*(dumc(iq,n)+dumc(is(iq),n))    -abs(niv(isv(iq)))*(dumc(iq,n)-dumc(is(iq),n))    )*emv(isv(iq))/ds
-    if ( spnet(is(iq))>1.e-10 ) then
-      tdum=dumc(is(iq),n)*max(niv(isv(iq))*emv(isv(iq)),0.)/(ds*spnet(is(iq)))
-      odum=min(odum,tdum)
-    else
-      odum=min(odum,0.)
-    end if
-    if ( spnet(iq)>1.e-10 ) then
-      tdum=dumc(iq,n)*min(niv(isv(iq))*emv(isv(iq)),0.)/(ds*spnet(iq))
-      odum=max(odum,tdum)
-    else
-      odum=max(odum,0.)
-    end if
-    dumd=dumd+real(odum,8)
+        odum=-0.5*dt*(niu(iq)*(dumc(iq,n)+dumc(ie(iq),n))+abs(niu(iq))*(dumc(iq,n)-dumc(ie(iq),n)))*emu(iq)/ds
+        if ( spnet(ie(iq))>1.e-10 ) then
+          tdum=-dumc(ie(iq),n)*min(niu(iq)*emu(iq),0.)/(ds*spnet(ie(iq)))
+          odum=min(odum,tdum)
+        else
+          odum=min(odum,0.)
+        end if
+        if ( spnet(iq)>1.e-10 ) then
+          tdum=-dumc(iq,n)*max(niu(iq)*emu(iq),0.)/(ds*spnet(iq))
+          odum=max(odum,tdum)
+        else
+          odum=max(odum,0.)
+        end if
+        dumd=dumd+real(odum,8)
 
-    odum=-0.5*dt*(niv(iq)*(dumc(iq,n)+dumc(in(iq),n))+abs(niv(iq))*(dumc(iq,n)-dumc(in(iq),n)))*emv(iq)/ds
-    if ( spnet(in(iq))>1.e-10 ) then
-      tdum=-dumc(in(iq),n)*min(niv(iq)*emv(iq),0.)/(ds*spnet(in(iq)))    
-      odum=min(odum,tdum)
-    else
-      odum=min(odum,0.)
-    end if
-    if ( spnet(iq)>1.e-10 ) then
-      tdum=-dumc(iq,n)*max(niv(iq)*emv(iq),0.)/(ds*spnet(iq))
-      odum=max(odum,tdum)
-    else
-      odum=max(odum,0.)
-    end if
-    dumd=dumd+real(odum,8)
+        odum=0.5*dt*(niv(isv(iq))*(dumc(iq,n)+dumc(is(iq),n))    -abs(niv(isv(iq)))*(dumc(iq,n)-dumc(is(iq),n))    )*emv(isv(iq))/ds
+        if ( spnet(is(iq))>1.e-10 ) then
+          tdum=dumc(is(iq),n)*max(niv(isv(iq))*emv(isv(iq)),0.)/(ds*spnet(is(iq)))
+          odum=min(odum,tdum)
+        else
+          odum=min(odum,0.)
+        end if
+        if ( spnet(iq)>1.e-10 ) then
+          tdum=dumc(iq,n)*min(niv(isv(iq))*emv(isv(iq)),0.)/(ds*spnet(iq))
+          odum=max(odum,tdum)
+        else
+          odum=max(odum,0.)
+        end if
+        dumd=dumd+real(odum,8)
 
-    dum_out(iq,n)=real(max(dumd,0._8))
-  end do
-end do
-!$omp end parallel do
+        odum=-0.5*dt*(niv(iq)*(dumc(iq,n)+dumc(in(iq),n))+abs(niv(iq))*(dumc(iq,n)-dumc(in(iq),n)))*emv(iq)/ds
+        if ( spnet(in(iq))>1.e-10 ) then
+          tdum=-dumc(in(iq),n)*min(niv(iq)*emv(iq),0.)/(ds*spnet(in(iq)))    
+          odum=min(odum,tdum)
+        else
+          odum=min(odum,0.)
+        end if
+        if ( spnet(iq)>1.e-10 ) then
+          tdum=-dumc(iq,n)*max(niv(iq)*emv(iq),0.)/(ds*spnet(iq))
+          odum=max(odum,tdum)
+        else
+          odum=max(odum,0.)
+        end if
+        dumd=dumd+real(odum,8)
 
-dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
+        dum_out(iq,n)=real(max(dumd,0._8))
+      end do
+    end do
+    !$omp end parallel do
+    dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
   
+  case(1) ! revised
+      
+    !$omp parallel do schedule(static) private(n,iq,dumd,odum)
+    do n = 1,ntr
+      do iq = 1,ifull
+        dumd = real(dumc(iq,n),8)
+        odum = 0.5*dt*(niu(iwu(iq))*(dumc(iq,n)+dumc(iw(iq),n))-abs(niu(iwu(iq)))*(dumc(iq,n)-dumc(iw(iq),n)))*emu(iwu(iq))/ds
+        dumd = dumd + real(odum,8)
+        odum = -0.5*dt*(niu(iq)*(dumc(iq,n)+dumc(ie(iq),n))+abs(niu(iq))*(dumc(iq,n)-dumc(ie(iq),n)))*emu(iq)/ds
+        dumd = dumd + real(odum,8)
+        odum = 0.5*dt*(niv(isv(iq))*(dumc(iq,n)+dumc(is(iq),n))-abs(niv(isv(iq)))*(dumc(iq,n)-dumc(is(iq),n)))*emv(isv(iq))/ds
+        dumd = dumd + real(odum,8)
+        odum = -0.5*dt*(niv(iq)*(dumc(iq,n)+dumc(in(iq),n))+abs(niv(iq))*(dumc(iq,n)-dumc(in(iq),n)))*emv(iq)/ds
+        dumd = dumd + real(odum,8)
+        dum_out(iq,n) = real(max(dumd,0._8))
+      end do
+    end do
+    !$omp end parallel do
+    dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
+      
+  case default
+    write(6,*) "ERROR: Unknown option mloiceadv = ",mloiceadv
+    call ccmpi_abort(-1)
+
+end select
+      
 return
 end subroutine upwind_iceadv
 

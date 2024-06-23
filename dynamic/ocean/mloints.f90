@@ -156,7 +156,7 @@ end do
 
 call bounds(s,nrows=2)
 
-!$acc enter data create(wx)
+!$acc enter data create(wx,sx)
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -209,7 +209,8 @@ if ( intsch==1 ) then
     nlen = nend - nstart + 1
 
     do nn = 1,nlen
-      np = nn - 1 + nstart  
+      np = nn - 1 + nstart
+      async_counter = mod(nn-1, async_length)
       do k = 1,wlev
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
@@ -249,6 +250,7 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
+      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do
   
     ! Loop over points that need to be calculated for other processes
@@ -392,8 +394,8 @@ if ( intsch==1 ) then
       do nn = 1,nlen
 #ifdef GPU
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(xg,yg,nface,wx) async(async_counter)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
         !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
@@ -479,8 +481,8 @@ if ( intsch==1 ) then
       do nn = 1,nlen
 #ifdef GPU
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(xg,yg,nface,wx) async(async_counter)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
         !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
@@ -617,7 +619,8 @@ else     ! if(intsch==1)then
     nlen = nend - nstart + 1
 
     do nn = 1,nlen
-      np = nn - 1 + nstart      
+      np = nn - 1 + nstart
+      async_counter = mod(nn-1, async_length)
       do k = 1,wlev
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
@@ -657,6 +660,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
+      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do  
   
     ! For other processes
@@ -800,8 +804,8 @@ else     ! if(intsch==1)then
       do nn = 1,nlen
 #ifdef GPU
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(xg,yg,nface,wx) async(async_counter)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
         !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
@@ -888,8 +892,8 @@ else     ! if(intsch==1)then
       do nn = 1,nlen        
 #ifdef GPU
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(xg,yg,nface,wx) async(async_counter)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
         !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
@@ -975,7 +979,7 @@ else     ! if(intsch==1)then
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
-!$acc exit data delete(wx)
+!$acc exit data delete(wx,sx)
 
 do nn = 1,ntr
   do k = 1,wlev

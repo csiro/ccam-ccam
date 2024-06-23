@@ -2996,7 +2996,7 @@ contains
                   ine(iql) = ifull + iext
                 end if
             end if
-            iqq = ine_g(iqg)
+            iqq = ien_g(iqg)
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.

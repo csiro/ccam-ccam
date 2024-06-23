@@ -65,6 +65,8 @@ call START_LOG(ints_begin)
 
 ! now call bounds before calling ints
 
+!$acc enter data create(sx)
+
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
     
@@ -75,12 +77,13 @@ if ( intsch==1 ) then
     ! this is intsb           EW interps done first
     ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
-    sx(1:ipan,1:jpan,1:npan,1:kl,1:nlen) = reshape(s(1:ipan*jpan*npan,1:kl,nstart:nend), (/ipan,jpan,npan,kl,nlen/))
     ! this is intsb           EW interps done first
     ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do nn = 1,nlen
       np = nn - 1 + nstart
+      async_counter = mod(nn-1, async_length)
       do k = 1,kl
+        sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,np), (/ipan,jpan,npan/))
         do n = 1,npan
           do j = 1,jpan
             iq = 1 + (j-1)*ipan + (n-1)*ipan*jpan
@@ -98,8 +101,6 @@ if ( intsch==1 ) then
             sx(i,jpan+1,n,k,nn) = s(in(iq),k,np)
             sx(i,jpan+2,n,k,nn) = s(inn(iq),k,np)
           end do            ! i loop
-        end do
-        do n = 1,npan
           sx(-1,0,n,k,nn)          = s(lwws(n),k,np)
           sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),k,np)
           sx(0,-1,n,k,nn)          = s(lwss(n),k,np)
@@ -114,6 +115,7 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,np)
         end do          ! n loop
       end do            ! k loop
+      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do              ! nn loop  
 
     ! Loop over points that need to be calculated for other processes
@@ -176,8 +178,8 @@ if ( intsch==1 ) then
 #ifdef GPU
         np = nn - 1 + nstart  
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
-        !$acc   present(xg,yg,nface) async(async_counter)
+        !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
+        !$acc   present(sx,xg,yg,nface) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
@@ -287,6 +289,7 @@ if ( intsch==1 ) then
           end do      ! iq loop
         end do        ! ii loop
       end do          ! nn loop
+
       ! Send messages to other processors.  We then start the calculation for this processor while waiting for
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
@@ -298,8 +301,8 @@ if ( intsch==1 ) then
 #ifdef GPU
         np = nn - 1 + nstart  
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
-        !$acc   present(xg,yg,nface) async(async_counter)
+        !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
+        !$acc   present(sx,xg,yg,nface) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
@@ -379,10 +382,11 @@ else     ! if(intsch==1)then
     nend = min(nstart + nagg - 1, ntr )
     nlen = nend - nstart + 1    
     
-    sx(1:ipan,1:jpan,1:npan,1:kl,1:nlen) = reshape(s(1:ipan*jpan*npan,1:kl,nstart:nend), (/ipan,jpan,npan,kl,nlen/))
     do nn = 1,nlen
-      np = nn - 1 + nstart  
+      np = nn - 1 + nstart
+      async_counter = mod(nn-1, async_length)
       do k = 1,kl
+        sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,np), (/ipan,jpan,npan/))  
         do n = 1,npan
           do j = 1,jpan
             iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
@@ -416,6 +420,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,np)
         end do              ! n loop
       end do                ! k loop
+      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do                  ! nn loop
 
     ! For other processes
@@ -476,8 +481,8 @@ else     ! if(intsch==1)then
 #ifdef GPU
         np = nn - 1 + nstart   
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
-        !$acc   present(xg,yg,nface) async(async_counter)
+        !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
+        !$acc   present(sx,xg,yg,nface) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
@@ -599,8 +604,8 @@ else     ! if(intsch==1)then
 #ifdef GPU
         np = nn - 1 + nstart  
         async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyin(sx(:,:,:,:,nn)) copyout(s(:,:,np))        &
-        !$acc   present(xg,yg,nface) async(async_counter)
+        !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
+        !$acc   present(sx,xg,yg,nface) async(async_counter)
 #else
         !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
         !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
@@ -672,6 +677,8 @@ else     ! if(intsch==1)then
   
 end if               ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
+
+!$acc exit data delete(sx)
 
 call END_LOG(ints_end)
 

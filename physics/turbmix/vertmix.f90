@@ -120,7 +120,6 @@ subroutine vertmix
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                          ! CC MPI routines
-use cc_omp                          ! CC OpenMP routines
 use cfrac_m                         ! Cloud fraction
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
@@ -434,7 +433,6 @@ subroutine vertmix_work(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratclou
 
 use cc_mpi, only : comm_world,       &
     ccmpi_barrier,ccmpi_abort       ! CC MPI routines
-use cc_omp                          ! CC OpenMP routines
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use estab, only : establ            ! Liquid saturation function
@@ -1320,7 +1318,6 @@ subroutine pbldif(theta,rkm,rkh,uav,vav,                &
                   )   
 
 use cc_mpi, only : mydiag, myid
-use cc_omp
 use const_phys
 use kuocom_m
 use newmpar_m

@@ -226,7 +226,6 @@
       use arrays_m   
       use aerosol_arrays
       use cc_mpi, only : mydiag
-      use cc_omp
       use cfrac_m
       use extraout_m
       use kuocom_m

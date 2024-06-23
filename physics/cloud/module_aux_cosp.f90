@@ -270,7 +270,6 @@ contains
 
   use arrays_m                      ! Atmosphere dyamics prognostic arrays
   use cc_mpi                        ! CC MPI routines
-  use cc_omp                        ! CC OpenMP routines
   use cfrac_m                       ! Cloud fraction
   use cloudmod                      ! Prognostic cloud fraction
   use const_phys                    ! Physical constants

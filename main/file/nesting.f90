@@ -50,6 +50,8 @@
 
 module nesting
 
+implicit none
+
 private
 public nestin, nestinb, mlofilterhub, mlonudge, specinit
 public mtimea, mtimeb, nestin_exit
@@ -92,8 +94,6 @@ use soil_m                       ! Soil and surface data
 use soilsnow_m                   ! Soil, snow and surface data
 use stime_m                      ! File date data
       
-implicit none
-
 integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, kdhour, kdmin, kddate
 integer khour_r, kmin_r, khour, kmin
@@ -338,7 +338,6 @@ subroutine nestinb
 use aerosol_arrays               ! Aerosol arrays
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
-use cc_omp                       ! CC OpenMP routines
 use dates_m                      ! Date data
 use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
@@ -353,8 +352,6 @@ use savuvt_m                     ! Saved dynamic arrays
 use soil_m                       ! Soil and surface data
 use soilsnow_m                   ! Soil, snow and surface data
 use stime_m                      ! File date data
- 
-implicit none
  
 integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, ntr
@@ -588,8 +585,6 @@ use vecsuv_m                     ! Map to cartesian coordinates
 use work3sav_m                   ! Water and tracer saved arrays
 use xyzinfo_m, only : x,y,z      ! Grid coordinate arrays
       
-implicit none
-
 integer iq, k, ntr, kb, kln, klx, klt
 real, dimension(ifull), intent(inout) :: pslbb
 real, dimension(ifull) :: costh,sinth
@@ -712,8 +707,6 @@ use newmpar_m         ! Grid parameters
 use parm_m            ! Model configuration
 use vecsuv_m          ! Map to cartesian coordinates
       
-implicit none
-
 integer, intent(in) :: klt, kln, klx
 integer k, n
 real, intent(in) :: cin
@@ -791,8 +784,6 @@ use map_m             ! Grid map arrays
 use newmpar_m         ! Grid parameters
 use xyzinfo_m         ! Grid coordinate arrays
       
-implicit none
-
 integer, intent(in) :: klt
 integer iq, iqg, k, n, j, i, kltp1
 real, dimension(ifull,klt), intent(out) :: tbb
@@ -874,8 +865,6 @@ use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
       
-implicit none
-      
 integer, intent(in) :: klt, kln, klx
 real, intent(in) :: cin
 real, dimension(ifull), intent(inout) :: psls
@@ -907,8 +896,6 @@ use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use vecsuv_m           ! Map to cartesian coordinates
-      
-implicit none
       
 integer, intent(in) :: klt, kln, klx
 integer i, k, ppass, ibase
@@ -1086,8 +1073,6 @@ use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use vecsuv_m           ! Map to cartesian coordinates
       
-implicit none
-      
 integer, intent(in) :: klt,kln,klx
 integer k,n
 real, intent(in) :: cin
@@ -1232,8 +1217,6 @@ subroutine fastspecmpi_work(cin,tt,klt,ppass)
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
       
-implicit none
-
 integer, intent(in) :: klt,ppass
 real, intent(in) :: cin
 real, dimension(ipan*jpan,klt), intent(inout) :: tt
@@ -1264,8 +1247,6 @@ use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use xyzinfo_m          ! Grid coordinate arrays
 
-implicit none
-      
 integer, intent(in) :: ppass, klt
 integer :: j, k, n, ipass
 integer :: jpoff, ibase
@@ -1515,8 +1496,6 @@ use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use xyzinfo_m          ! Grid coordinate arrays
 
-implicit none
-      
 integer, intent(in) :: ppass, klt
 integer j, k, n, ipass
 integer jpoff, ibase
@@ -1763,8 +1742,6 @@ end subroutine speclocal_right
 ! Map from 1D convolution to global index
 subroutine getiqa(a,b,c,ne,ipass,ppass,il_g)
       
-implicit none
-      
 integer, intent(in) :: ne,ipass,ppass,il_g
 integer, dimension(0:3), intent(out) :: a,b,c
 integer sn,sy
@@ -1960,8 +1937,6 @@ use newmpar_m                                       ! Grid parameters
 use parm_m                                          ! Model configuration
 use soil_m                                          ! Soil and surface data
 use vecsuv_m                                        ! Map to cartesian coordinates
-
-implicit none
 
 integer, intent(in) :: wl
 integer k,ka,kb,kc,kln,klx,klt,kbb
@@ -2202,8 +2177,6 @@ use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
 use vecsuv_m                ! Map to cartesian coordinates
 
-implicit none
-
 integer, intent(in) :: kd
 integer k
 real, dimension(ifull,1), intent(inout) :: diffh_l
@@ -2264,8 +2237,6 @@ use parm_m             ! Model configuration
 use parmgeom_m         ! Coordinate data
 use vecsuv_m           ! Map to cartesian coordinates
 use xyzinfo_m          ! Grid coordinate arrays
-
-implicit none
 
 integer, intent(in) :: kd
 integer iqq, iqqg, k, n, j, i, kdp1
@@ -2338,7 +2309,7 @@ call END_LOG(nestcalc_end)
 return
 end subroutine mlofilterhost
 
-! 1D filer for mlo
+! 1D filer for ocean
 subroutine mlofilterfast(diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 
 use cc_mpi                  ! CC MPI routines
@@ -2346,8 +2317,6 @@ use const_phys              ! Physical constants
 use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
 use parmgeom_m              ! Coordinate data
-
-implicit none
 
 integer, intent(in) :: kd
 real, dimension(ifull,1), intent(inout) :: diffh_l
@@ -2375,8 +2344,6 @@ use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use vecsuv_m           ! Map to cartesian coordinates
       
-implicit none
-      
 integer, intent(in) :: kd
 integer k,ppass,ibase
 real, intent(in) :: cq
@@ -2390,14 +2357,14 @@ logical, intent(in) :: lblock
 
 if (nud_sfh/=0.and.lblock) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_send2(diffh_l(:,1))        ! gather data onto global sparse array (1)
-  call ccmpi_gathermap_recv2(1)        ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_send2(diffh_l(:,1))    ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv2(1)               ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if  
 
 if (nud_sst/=0) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_send3(diff_l(:,:)) ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_send3(diff_l(:,:))     ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if
 
@@ -2412,20 +2379,20 @@ end if
 
 if (nud_sst/=0) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv3(kd,kd)          ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv3(kd,kd)           ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if  
 
 if (nud_sss/=0) then
   call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send3(diffs_l(:,:)) ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_send3(diffs_l(:,:))    ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if
 
 if (nud_sst/=0) then
   do ppass=pprocn,pprocx
-    call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
+    call copyglobalpack(kd,0,kd)              ! copy sparse array (1) to (0)
+    call mlofastspec_work(cq,qp,kd,ppass)     ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     diff_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
   end do
@@ -2433,7 +2400,7 @@ end if
 
 if (nud_sss/=0) then
   call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_recv3(kd,kd)  ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv3(kd,kd)           ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if
 
@@ -2446,14 +2413,14 @@ if (nud_ouv/=0) then
     diffw_l(:,k) = az(1:ifull)*xa_l + bz(1:ifull)*xb_l
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_send3(diffu_l(:,:))        ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_send3(diffu_l(:,:))    ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if
 
 if (nud_sss/=0) then
   do ppass = pprocn,pprocx
-    call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
+    call copyglobalpack(kd,0,kd)              ! copy sparse array (1) to (0)
+    call mlofastspec_work(cq,qp,kd,ppass)     ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     diffs_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
   end do
@@ -2461,27 +2428,27 @@ end if
 
 if (nud_ouv/=0) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv3(kd,kd) ! gather data onto global sparse array (1)
-  call ccmpi_gathermap_send3(diffv_l(:,:)) ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv3(kd,kd)           ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_send3(diffv_l(:,:))    ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
   do ppass = pprocn,pprocx
-    call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
+    call copyglobalpack(kd,0,kd)              ! copy sparse array (1) to (0)
+    call mlofastspec_work(cq,qp,kd,ppass)     ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     diffu_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv3(kd,kd) ! gather data onto global sparse array (1)
-  call ccmpi_gathermap_send3(diffw_l(:,:)) ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv3(kd,kd)           ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_send3(diffw_l(:,:))    ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
   do ppass = pprocn,pprocx
-    call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
-    call mlofastspec_work(cq,qp,kd,ppass)      ! filter sparse array (0)
+    call copyglobalpack(kd,0,kd)              ! copy sparse array (1) to (0)
+    call mlofastspec_work(cq,qp,kd,ppass)     ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     diffv_l(1+ibase:ipan*jpan+ibase,1:kd) = qp(1:ipan*jpan,1:kd)
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv3(kd,kd) ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv3(kd,kd)            ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
   do ppass = pprocn,pprocx
     call copyglobalpack(kd,0,kd)               ! copy sparse array (1) to (0)
@@ -2508,8 +2475,6 @@ use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use vecsuv_m           ! Map to cartesian coordinates
-      
-implicit none
       
 integer, intent(in) :: kd
 integer k
@@ -2608,8 +2573,6 @@ subroutine mlofastspec_work(cq,diff_g,kd,ppass)
 use cc_mpi
 use newmpar_m
 
-implicit none
-
 integer, intent(in) :: kd,ppass
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(inout) :: diff_g
@@ -2636,8 +2599,6 @@ use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use xyzinfo_m          ! Grid coordinate arrays
      
-implicit none
-      
 integer, intent(in) :: ppass, kd
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
@@ -2881,8 +2842,6 @@ use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
 use xyzinfo_m          ! Grid coordinate arrays
      
-implicit none
-      
 integer, intent(in) :: ppass, kd
 integer j, n, ipass, ns, ne, os, oe
 integer jpoff, ibase
@@ -3132,8 +3091,6 @@ use mlo, only : mloimport,mloexport, &
 use newmpar_m                            ! Grid parameters
 use parm_m                               ! Model configuration
       
-implicit none
-
 integer, intent(in) :: wl
 integer k, ka
 real, dimension(ifull), intent(in) :: sfh
@@ -3203,8 +3160,6 @@ use cc_mpi
 use newmpar_m
 use parm_m
 
-implicit none
-      
 integer ncount,ipass,ppass,me
 integer n,j,jj,sn,sy,kx,ky
 integer iqg,ng,jg,ig
@@ -3431,8 +3386,6 @@ use newmpar_m                    ! Grid parameters
 use parm_m                       ! Model configuration
 use sigs_m                       ! Atmosphere sigma levels
 
-implicit none
-
 integer klow, khigh, k
 real slow, shigh
 
@@ -3480,8 +3433,6 @@ pure function iabsdate(kdate_r,kdate) result(ans)
 
 use parm_m
 
-implicit none
-
 integer, intent(in) :: kdate_r, kdate
 integer iyear_r,iyear0,imonth_r,iday_r
 integer months,nl
@@ -3528,8 +3479,6 @@ end function iabsdate
 pure function drpdr_fast(nn,cq,xa,ya,za,at) result(out_sum)
 !$acc routine seq
 
-implicit none
-
 integer, intent(in) :: nn
 integer i, ilen
 real, intent(in) :: cq
@@ -3563,8 +3512,6 @@ end function drpdr_fast
 
 ! CPU version
 pure function drpdr_fast(nn,cq,xa,ya,za,at) result(out_sum)
-
-implicit none
 
 integer, intent(in) :: nn
 integer i, k, ilen, kx
@@ -3609,8 +3556,6 @@ end function drpdr_fast
 subroutine nestin_exit
 
 use onthefly_m
-
-implicit none
 
 call onthefly_exit
 

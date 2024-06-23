@@ -35,8 +35,6 @@ contains
 
 subroutine gdrag_init(ifull)
 
-use cc_omp
-
 implicit none
 
 integer, intent(in) :: ifull
@@ -81,7 +79,6 @@ end subroutine gdrag_end
 subroutine gwdrag
 
 use cc_mpi, only : mydiag
-use cc_omp
 use arrays_m
 use newmpar_m
 use parm_m, only : idjd
