@@ -274,12 +274,10 @@ contains
   use cloudmod                      ! Prognostic cloud fraction
   use const_phys                    ! Physical constants
   use estab
-  use filnames_m
   use kuocom_m                      ! JLM convection
   use latlong_m
   use liqwpar_m                     ! Cloud water mixing ratios
   use map_m                         ! Grid map arrays
-  !use mgcloud_m , only : mg_2cond
   use module_aux_rad                ! ...
   use morepbl_m                     ! Additional boundary layer diagnostics
   use newmpar_m                     ! Grid parameters
@@ -292,8 +290,6 @@ contains
   use pbl_m
   use prec_m                        ! Precipitation
   use raddiag_m
-  use screen_m
-  use sflux_m
   use sigs_m                        ! Atmosphere sigma levels
   use soil_m                        ! Soil and surface data
   use soilsnow_m
@@ -306,8 +302,8 @@ contains
   integer                     :: end_idx, start_idx, nPtsPerIt, iii, jjj, kkk, cnttt
   real                        :: rong, year, kdate, month
   real, dimension(imax)       :: uas, vas, umag, seaice
-  real, dimension(1:kl)       :: delh ! , sigh !, sig
-  real, dimension(imax,1:kl)  :: phalf
+  real, dimension(kl)         :: delh ! , sigh !, sig
+  real, dimension(imax,kl)    :: phalf
   real, dimension(imax,kl)    :: qsatg    !Saturation mixing ratio
   real, dimension(imax,kl,N_HYDRO) :: Reff_imax
   real :: slwp, siwp, sdrop, sice
@@ -319,10 +315,8 @@ contains
   integer                  :: ite,its,kte,kts
 
 #ifdef _OPENMP
-#ifndef GPUPHYSICS
   write(6,*) "ERROR: COSP does not support OMP"
   stop
-#endif
 #endif
   
 

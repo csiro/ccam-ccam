@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -27,9 +27,11 @@ private
 public idnc, ncid, ncidtopo, ncidveg, ncidbath
 public iarchi, lnctopo, lncveg, lncbath
 public lncveg_numpft, lncveg_numsoil
+public lncslope
 
 integer, save :: idnc, ncid, ncidtopo, ncidveg, ncidbath
 integer, save :: iarchi, lnctopo=0, lncveg=0, lncbath=0  
 integer, save :: lncveg_numpft=-1, lncveg_numsoil=-1
+integer, save :: lncslope=-1
 
 end module darcdf_m

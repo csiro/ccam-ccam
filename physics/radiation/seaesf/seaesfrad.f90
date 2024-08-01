@@ -136,7 +136,6 @@ end subroutine seaesfrad_settime
 subroutine seaesfrad(koundiag)
 
 use aerointerface                                   ! Aerosol interface
-use aerosol_arrays                                  ! Aerosol arrays
 use arrays_m                                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                          ! CC MPI routines
 use cc_omp                                          ! CC OpenMP routines
@@ -149,7 +148,7 @@ use kuocom_m                                        ! JLM convection
 use latlong_m                                       ! Lat/lon coordinates
 use liqwpar_m, only : stras_rliq,stras_rice,       &      
     stras_cliq, stras_cice                          ! Cloud water mixing ratios
-use mlo, only : mloalb4                             ! Ocean physics and prognostic arrays
+use mlo_ctrl                                        ! Ocean physics control layer
 use module_aux_rad                                  ! Additional cloud and radiation routines
 use newmpar_m                                       ! Grid parameters
 use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
@@ -1740,7 +1739,7 @@ end subroutine seaesfrad_init
 
 subroutine loadaerooptical(Aerosol_props)
 
-use aerosolldr
+use aerointerface
 use cc_mpi
 use filnames_m
 use infile

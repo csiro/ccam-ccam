@@ -41,7 +41,7 @@ contains
 subroutine mlodiffusion
 
 use cc_mpi, only : ccmpi_abort
-use mlo
+use mlo_ctrl
 use newmpar_m
 
 implicit none
@@ -77,7 +77,7 @@ use cc_mpi
 use const_phys
 use indices_m
 use map_m
-use mlo
+use mlo_ctrl
 use mlodynamicsarrays_m
 use nharrs_m, only : lrestart
 use newmpar_m
@@ -289,7 +289,7 @@ subroutine mlodiffcalc(work,xfact,yfact,emi,ee,hdif)
 
 use cc_mpi, only : bounds, ccmpi_abort
 use indices_m
-use mlo
+use mlo_ctrl
 use newmpar_m
 use parm_m, only : dt
 
@@ -368,7 +368,7 @@ end subroutine mlodiffcalc
 subroutine mlodifflap(work,xfact,yfact,emi,ee,ldif)
 
 use indices_m
-use mlo
+use mlo_ctrl
 use newmpar_m
 
 implicit none

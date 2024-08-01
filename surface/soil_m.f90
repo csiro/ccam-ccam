@@ -27,11 +27,13 @@ private
 public zoland,zmin,zolnd,zolog,albvissav,so4t,albnirsav
 public albvisdif,albnirdif,albvisdir,albnirdir
 public land
+public slope_ave, slope_std
 public soil_init,soil_end
 
 real, dimension(:), allocatable, save :: zolnd,zolog,albvissav,albnirsav
 real, dimension(:), allocatable, save :: albvisdif,albnirdif,albvisdir,albnirdir
 real, dimension(:), allocatable, save :: so4t
+real, dimension(:), allocatable, save :: slope_ave, slope_std
 real, save :: zoland,zmin
 logical, dimension(:), allocatable, save :: land
 
@@ -52,6 +54,7 @@ end if
 if (nsib==3.or.nsib==5) then
   allocate(zolog(ifull))
 end if
+allocate( slope_ave(ifull), slope_std(ifull) )
 
 zoland=0.16
 albvissav = 0.
@@ -60,6 +63,8 @@ albvisdif = 0.
 albnirdif = 0.
 albvisdir = 0.
 albnirdir = 0.
+slope_ave(1:ifull) = 0.08
+slope_std(1:ifull) = 0.03
 
 return
 end subroutine soil_init
@@ -73,6 +78,7 @@ deallocate(albvisdif,albnirdif,albvisdir,albnirdir)
 deallocate(land)
 if (allocated(so4t)) deallocate(so4t)
 if (allocated(zolog)) deallocate(zolog)
+deallocate( slope_ave, slope_std )
 
 return
 end subroutine soil_end

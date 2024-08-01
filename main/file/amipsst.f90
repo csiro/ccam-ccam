@@ -112,8 +112,7 @@ use arrays_m                                      ! Atmosphere dyamics prognosti
 use cc_mpi                                        ! CC MPI routines
 use dates_m                                       ! Date data
 use latlong_m                                     ! Lat/lon coordinates
-use mlo, only : mloexport,mloexpmelt,wrtemp,       &
-                mloimport                         ! Ocean physics and prognostic arrays
+use mlo_ctrl                                      ! Ocean physics control layer
 use newmpar_m                                     ! Grid parameters
 use nharrs_m, only : lrestart                     ! Non-hydrostatic atmosphere arrays
 use parm_m                                        ! Model configuration
@@ -1034,8 +1033,7 @@ use dates_m                                  ! Date data
 use filnames_m                               ! Filenames
 use infile                                   ! Input file routines
 use latlong_m                                ! Lat/lon coordinates
-use mlo, only : mloexport,mloexpmelt,wrtemp, &
-                mloimport                    ! Ocean physics and prognostic arrays
+use mlo_ctrl                                 ! Ocean physics control layer
 use newmpar_m                                ! Grid parameters
 use nharrs_m, only : lrestart                ! Non-hydrostatic atmosphere arrays
 use parm_m                                   ! Model configuration

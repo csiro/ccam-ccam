@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -32,7 +32,6 @@ public itracdms,itracso2,itracso4
 public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
 public dms_burden,so2_burden,so4_burden
 public itracsa,nsalt,salte,saltdd,saltwd,salt_burden
-public Ch_dust,zvolcemi,ticeu,aeroindir,so4mtn,carbmtn,saltsmallmtn,saltlargemtn
 public dustden,dustreff,saltden,saltreff
 public xtg_solub,zoxidant_g,erod,ndcls,emissfield,vso2
 

@@ -531,7 +531,7 @@ CONTAINS
 
     END IF
 
-    !comute the total mass away from full saturation
+    !compute the total mass away from full saturation
     DO k=1,ms
        DO i=1,mp
 
@@ -1021,6 +1021,7 @@ CONTAINS
     END DO
 
 
+#ifndef CCAM    
     IF( first_gw_hydro_call ) THEN
 
        DO i=1,mp
@@ -1034,6 +1035,7 @@ CONTAINS
        END DO
 
     ENDIF  ! if(.NOT.cable_runtime_coupled) and first_gw_hydro_call
+#endif
 
 
     DO i=1,mp

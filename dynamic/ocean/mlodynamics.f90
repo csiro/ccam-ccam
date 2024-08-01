@@ -36,6 +36,14 @@
 
 module mlodynamics
 
+use mlo_ctrl                                ! Ocean physics control layer
+use mlodepts                                ! Ocean depature points
+use mlodiffg                                ! Ocean dynamics horizontal diffusion
+use mlodynamicsarrays_m                     ! Ocean dynamics data
+use mloints                                 ! Ocean horizontal advection
+use mlostag                                 ! Ocean reversible staggering
+use mlovadvtvd                              ! Ocean vertical advection
+
 implicit none
 
 private
@@ -43,6 +51,25 @@ public mlohadv,mlodyninit
 public ocneps,ocnepr,nxtrrho
 public usetide,mlojacobi,mlomfix,nodrift,mlodps,mlo_bs,mlointschf
 public mloiceadv
+
+public mlodiffusion,mlodiffusion_work
+public mlodiff,ocnsmag,ocnlap,mlodiff_numits
+
+public ee, eeu, eev
+public dd, ddu, ddv
+public stwgtu, stwgtv
+public gosig, gosigh, godsig
+public godsigu, godsigv, gosighu, gosighv
+public oldu1, oldu2, oldv1, oldv2
+public ipice
+public olddrhobardxu, olddrhobardyu, olddrhobardxv, olddrhobardyv
+public oldrhobar_dash, oldrhobaru_dash, oldrhobarv_dash
+public mlodynamicsarrays_init, mlodynamicsarrays_end
+
+public mlostaguv, mlounstaguv
+public mstagf, koff, nstagoffmlo
+
+public mlovadv, mlontvd
 
 integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode     = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
@@ -74,8 +101,6 @@ subroutine mlodyninit
 use cc_mpi
 use indices_m
 use map_m
-use mlo, only : wlev,mloexpdep,mlosigma
-use mlodynamicsarrays_m
 use newmpar_m
 use parm_m
 use parmdyn_m
@@ -239,13 +264,6 @@ use infile
 use indices_m
 use latlong_m
 use map_m
-use mlo
-use mlodepts
-use mlodiffg
-use mlodynamicsarrays_m
-use mloints
-use mlostag
-use mlovadvtvd
 use newmpar_m
 use nharrs_m, only : lrestart
 use parm_m
@@ -1494,7 +1512,6 @@ end subroutine mlohadv
 
 subroutine mlorot(cou,cov,cow,x3d,y3d,z3d)
 
-use mlo
 use xyzinfo_m
 use newmpar_m
 
@@ -1546,8 +1563,6 @@ subroutine tsjacobi(nti,nsi,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
 
 use indices_m
 use map_m, only : emu, emv
-use mlo, only : wlev, wrtemp, mloexpdensity, minsal, maxsal
-use mlodynamicsarrays_m
 use newmpar_m
 use parm_m, only : ds
 
@@ -1904,7 +1919,6 @@ use cc_mpi
 use helmsolve
 use indices_m
 use map_m
-use mlodynamicsarrays_m
 use newmpar_m
 use parm_m
 

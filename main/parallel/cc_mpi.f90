@@ -618,6 +618,15 @@ contains
       em(ifull+1:ifull+iextra) = dum(ifull+1:ifull+iextra,1)
       f(ifull+1:ifull+iextra) = dum(ifull+1:ifull+iextra,2)
       deallocate( dum )
+      allocate( dumr8(ifull+iextra,3) )
+      dumr8(1:ifull,1) = x(1:ifull)
+      dumr8(1:ifull,2) = y(1:ifull)
+      dumr8(1:ifull,3) = z(1:ifull)
+      call boundsr8(dumr8(:,1:3),corner=.true.)
+      x(ifull+1:ifull+iextra) = dumr8(ifull+1:ifull+iextra,1)
+      y(ifull+1:ifull+iextra) = dumr8(ifull+1:ifull+iextra,2)
+      z(ifull+1:ifull+iextra) = dumr8(ifull+1:ifull+iextra,3)
+      deallocate( dumr8 )
       allocate( dumu(ifull+iextra,4), dumv(ifull+iextra,4) )
       dumu = 0.
       dumv = 0.

@@ -77,7 +77,7 @@ contains
 ! Called for nbd/=0
 subroutine nestin
       
-use aerosol_arrays               ! Aerosol arrays
+use aerointerface                ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
@@ -85,7 +85,7 @@ use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
-use mlo                          ! Ocean physics and prognostic arrays
+use mlo_ctrl                     ! Ocean physics control layer
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
@@ -335,7 +335,7 @@ end subroutine nestin
 ! Called for mbd/=0
 subroutine nestinb
 
-use aerosol_arrays               ! Aerosol arrays
+use aerointerface                ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
@@ -343,7 +343,7 @@ use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
-use mlo                          ! Ocean physics and prognostic arrays
+use mlo_ctrl                     ! Ocean physics control layer
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
@@ -566,7 +566,7 @@ end subroutine nestinb
 ! scale-selective filter
 subroutine getspecdata(pslbb,ubb,vbb,tbb,qbb,xtgbb)
 
-use aerosol_arrays               ! Aerosol arrays
+use aerointerface                ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use const_phys                   ! Physical constants
@@ -701,7 +701,7 @@ end subroutine getspecdata
 ! This option is an exact treatment of the filter
 subroutine slowspecmpi(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-use aerosol_arrays    ! Aerosol arrays
+use aerointerface     ! Aerosol interface
 use cc_mpi            ! CC MPI routines
 use newmpar_m         ! Grid parameters
 use parm_m            ! Model configuration
@@ -860,7 +860,7 @@ end subroutine slowspecmpi_work
 ! Four pass spectral downscaling
 subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
       
-use aerosol_arrays     ! Aerosol arrays
+use aerointerface      ! Aerosol interface
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
@@ -891,7 +891,7 @@ end subroutine specfastmpi
 ! (see spechost_n for a reduced memory version)
 subroutine spechost(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-use aerosol_arrays     ! Aerosol arrays
+use aerointerface      ! Aerosol interface
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
@@ -1067,7 +1067,7 @@ end subroutine spechost
 ! This version of spechost is for one panel per processor (reduced memory)
 subroutine spechost_n(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-use aerosol_arrays     ! Aerosol arrays
+use aerointerface      ! Aerosol interface
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
@@ -1930,9 +1930,8 @@ end subroutine getiqa
 subroutine mlofilterhub(sstb,sssb,suvb,sfh,wl)
 
 use cc_mpi                                          ! CC MPI routines
-use mlo, only : mloimport,mloexport,mloexpdep, &    ! Ocean physics and prognostic arrays
-                wlev,wrtemp,minsal,mloexpmelt
-use mlodynamicsarrays_m                             ! Ocean dynamics data
+use mlo_ctrl                                        ! Ocean physics control layer
+use mlodynamics                                     ! Ocean dynamics
 use newmpar_m                                       ! Grid parameters
 use parm_m                                          ! Model configuration
 use soil_m                                          ! Soil and surface data
@@ -3085,9 +3084,7 @@ end subroutine mlospeclocal_right
 ! Relaxtion method for mlo
 subroutine mlonudge(new,sssb,suvb,sfh,wl)
 
-use mlo, only : mloimport,mloexport, &
-                minsal,wlev,wrtemp,  &
-                mloexpmelt               ! Ocean physics and prognostic arrays
+use mlo_ctrl                             ! Ocean physics control layer
 use newmpar_m                            ! Grid parameters
 use parm_m                               ! Model configuration
       

@@ -36,10 +36,33 @@
     
 module sflux_m
 
+use cable_ccam                            ! CABLE interface
+use carbpools_m                           ! Carbon pools
+use casadimension                         ! CASA dimensions
+
 implicit none
 
 private
 public sflux, sflux_init
+
+public sib4, cable_version
+public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
+public cablesettemp, cableinflow, cbmemiss
+public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
+public fwsoil_switch, cable_litter, gs_switch
+public smrf_switch, strf_switch, cable_gw_model, cable_roughness
+public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
+public calc_wt_ave, calc_wt_flux
+
+public inyear_carb
+public fnee,fpn,frd,frp,frpw,frpr,frs
+public cnpp, cnbp
+public cplant,clitter,csoil,niplant,nisoil,nilitter
+public pplant,plitter,psoil
+public carbpools_init,carbpools_end
+public fevc,plant_turnover,plant_turnover_wood
+
+public mplant,mlitter,msoil
 
 real, save :: ri_max, zologbgin, ztv, z1onzt, chnsea
 real, save :: srcp
@@ -111,7 +134,6 @@ end subroutine sflux_init
 subroutine sflux
       
 use arrays_m                       ! Atmosphere dyamics prognostic arrays
-use cable_ccam, only : sib4        ! CABLE interface
 use cc_mpi                         ! CC MPI routines
 use const_phys                     ! Physical constants
 use diag_m                         ! Diagnostic routines
@@ -828,8 +850,7 @@ use const_phys                     ! Physical constants
 use estab                          ! Liquid saturation function
 use extraout_m                     ! Additional diagnostics
 use map_m                          ! Grid map arrays
-use mlo                            ! Ocean physics and prognostic arrays
-use mlodynamicsarrays_m            ! Ocean dynamics data
+use mlo_ctrl                       ! Ocean physics control layer
 use morepbl_m                      ! Additional boundary layer diagnostics
 use newmpar_m                      ! Grid parameters
 use parm_m                         ! Model configuration
@@ -891,11 +912,7 @@ subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,
 use cc_mpi                           ! CC MPI routines
 use const_phys                       ! Physical constants
 use estab                            ! Liquid saturation function
-use mlo, only : waterdata,icedata, & ! Ocean physics and prognostic arrays
-  dgwaterdata,dgicedata,dgscrndata,& 
-  depthdata,mloeval,               & 
-  mloexport,mloimport,mloextra,    &
-  mloexpice,turbdata,mlo_adjeta
+use mlo_ctrl                         ! Ocean physics control layer
 use newmpar_m                        ! Grid parameters
 use parm_m                           ! Model configuration
 use soil_m, only : zmin              ! Soil and surface data

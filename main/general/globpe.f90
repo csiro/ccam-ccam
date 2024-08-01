@@ -44,8 +44,6 @@
 program globpe
 
 use aerointerface                          ! Aerosol interface
-use aerosol_arrays, only : naero,xtosav, &
-    xtg                                    ! Aerosol arrays
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
@@ -53,8 +51,6 @@ use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
-use convjlm_m                              ! Convection
-use convjlm22_m                            ! Convection v2
 use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
 use diag_m                                 ! Diagnostic routines
@@ -74,9 +70,9 @@ use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
-use mlo                                    ! Ocean physics and prognostic arrays
-use mlodiffg                               ! Ocean dynamics horizontal diffusion
+use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
+use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
@@ -470,12 +466,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
     
   ! ***********************************************************************
-  ! START RIVER ROUTING
+  ! START RIVER ROUTING AND HYDROLOGY
   ! ***********************************************************************
     
   if ( nhstest>=0 ) then
     call START_LOG(river_begin)
     call rvrrouter
+    call water_table_transport
     call END_LOG(river_end)
   end if  
 
@@ -612,18 +609,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
   if ( nsib>0 ) then
     call START_LOG(convection_begin)
-    ! Select convection scheme
-    select case ( nkuo )
-      case(5)
-        !$omp barrier  
-        !$omp single
-        call betts(t,qg,tn,land,ps) ! not called these days
-        !$omp end single
-      case(21,22)
-        call convjlm22              ! split convjlm 
-      case(23,24)
-        call convjlm                ! split convjlm 
-    end select
+    call ctrl_convection 
     call END_LOG(convection_end)
   end if
   !$omp do schedule(static) private(js,je)
@@ -1289,26 +1275,16 @@ end subroutine stationa
 subroutine globpe_init
 
 use aerointerface, only : aeroindir      & ! Aerosol interface
-    ,aero_split,aerosol_u10
-use aerosol_arrays, only : naero           ! Aerosol arrays
-use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
-    ,so4mtn,carbmtn,saltsmallmtn         &
-    ,saltlargemtn,enhanceu10
+    ,aero_split,aerosol_u10, naero       &
+    ,ch_dust,zvolcemi,so4mtn,carbmtn     &
+    ,saltsmallmtn,saltlargemtn           &
+    ,enhanceu10
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
-use cable_ccam, only : proglai           & ! CABLE
-    ,soil_struc,cable_pop,progvcmax      &
-    ,fwsoil_switch,cable_litter          &
-    ,gs_switch,ccycle                    &
-    ,smrf_switch,strf_switch             &
-    ,cable_gw_model,cable_roughness      &
-    ,cable_version,cable_potev
-use carbpools_m, only : carbpools_init     ! Carbon pools
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
-use cloudmod                               ! Prognostic cloud fraction
 use const_phys                             ! Physical constants
 use darcdf_m                               ! Netcdf data
 use daviesnudge                            ! Far-field nudging
@@ -1326,26 +1302,10 @@ use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
-use leoncld_mod                            ! Rotstayn microphysics
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
-use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
-    ,factchseaice,minwater,mxd,mindep    &
-    ,alphavis_seaice,alphanir_seaice     &
-    ,alphavis_seasnw,alphanir_seasnw     &
-    ,otaumode,mlosigma,wlev,oclosure     &
-    ,pdl,pdu,k_mode,eps_mode             &
-    ,limitL,fixedce3,nops                &
-    ,nopb,fixedstabfunc,omink            &
-    ,omineps,mlovlevels                  &
-    ,usepice,ominl,omaxl                 &
-    ,mlo_timeave_length,kemaxdt          &
-    ,mlo_adjeta,mlo_limitsal,mlo_step    &
-    ,mlo_uvcoupl,fluxwgt,delwater
-use mlodiffg                               ! Ocean dynamics horizontal diffusion
+use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
-use mlostag, only : mstagf                 ! Ocean reversible staggering
-use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use module_aux_rad                         ! Additional cloud and radiation routines
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -1372,6 +1332,7 @@ use sbar_m                                 ! Saved dynamic arrays
 use screen_m                               ! Screen level diagnostics
 use seaesfrad_m                            ! SEA-ESF radiation
 use setxyz_m                               ! Define CCAM grid
+use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
@@ -1383,7 +1344,9 @@ use tracermodule, only : tracerlist      & ! Tracer routines
     ,sitefile,shipfile,writetrpm         &
     ,init_tracer
 use tracers_m                              ! Tracer data
-use uclem, only : energytol              & ! Urban
+use uclem_ctrl, only :                   & ! Urban
+     ateb_soilunder=>soilunder           &
+    ,energytol                           & 
     ,ateb_resmeth=>resmeth               &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
@@ -1419,8 +1382,6 @@ use uclem, only : energytol              & ! Urban
     ,ateb_ac_coolcap=>ac_coolcap         &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor
-use uclem_ctrl, only :                   & ! Urban
-     ateb_soilunder=>soilunder
 use unn_m                                  ! Saved dynamic arrays
 use usage_m                                ! Usage message
 use uvbar_m                                ! Saved dynamic arrays
@@ -1563,6 +1524,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
     cable_gw_model,cable_roughness,cable_version,cable_potev,     &
+    wt_transport,                                                 &
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
     ateb_acmeth,ateb_nrefl,                                       &
     ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,                    &
@@ -1586,6 +1548,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
     mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,delwater,      &
+    mloiceadv,                                                    &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -2259,7 +2222,7 @@ allocate( xx4(iquad,iquad), yy4(iquad,iquad) )
 allocate( em_g(ifull_g) )
 allocate( x_g(ifull_g), y_g(ifull_g), z_g(ifull_g) )
 #endif
-call xyzinfo_init(ifull_g,ifull,myid)
+call xyzinfo_init(ifull_g,ifull,iextra,myid)
 call map_init(ifull_g,ifull,iextra,myid)
 call latlong_init(ifull_g,ifull,myid)      
 call vecsuv_init(ifull_g,ifull,iextra,myid)
@@ -2819,9 +2782,10 @@ end subroutine change_defaults
 ! Broadcast cardin namelist
 subroutine broadcast_cardin
 
-use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
-    ,so4mtn,carbmtn,saltsmallmtn         &
-    ,saltlargemtn,enhanceu10
+use aerointerface, only : ch_dust        & ! Aerosol arrays
+    ,zvolcemi,so4mtn,carbmtn             &
+    ,saltsmallmtn,saltlargemtn           &
+    ,enhanceu10
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OpenMP routines
@@ -3179,8 +3143,8 @@ end subroutine broadcast_cardin
 subroutine broadcast_skyin
 
 use aerointerface, only : aeroindir      & ! Aerosol interface
-    ,aero_split,aerosol_u10
-use aerosolldr, only : ch_dust,zvolcemi  & ! LDR prognostic aerosols
+    ,aero_split,aerosol_u10              &
+    ,ch_dust,zvolcemi                    &
     ,so4mtn,carbmtn,saltsmallmtn         &
     ,saltlargemtn,enhanceu10
 use cc_mpi                                 ! CC MPI routines
@@ -3375,9 +3339,7 @@ end subroutine broadcast_datafile
 subroutine broadcast_kuonml
 
 use cc_mpi                                 ! CC MPI routines
-use cloudmod                               ! Prognostic cloud fraction
 use kuocom_m                               ! JLM convection
-use leoncld_mod                            ! Rotstayn microphysics
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use parm_m                                 ! Model configuration
 
@@ -3626,17 +3588,14 @@ end subroutine broadcast_turbnml
 ! Broadcast landnml namelist
 subroutine broadcast_landnml
 
-use cable_ccam, only : proglai           & ! CABLE
-    ,soil_struc,cable_pop,progvcmax      &
-    ,fwsoil_switch,cable_litter          &
-    ,gs_switch,ccycle                    &
-    ,smrf_switch,strf_switch             &
-    ,cable_gw_model,cable_roughness      &
-    ,cable_version,cable_potev
 use cc_mpi                                 ! CC MPI routines
 use kuocom_m                               ! JLM convection
 use parm_m                                 ! Model configuration
-use uclem, only : energytol              & ! Urban
+use river                                  ! River routing
+use sflux_m                                ! Surface flux routines
+use uclem_ctrl, only :                   & ! Urban
+     ateb_soilunder=>soilunder           &
+    ,energytol                           &
     ,ateb_resmeth=>resmeth               &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
@@ -3672,12 +3631,10 @@ use uclem, only : energytol              & ! Urban
     ,ateb_ac_coolcap=>ac_coolcap         &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor
-use uclem_ctrl, only :                   & ! Urban
-     ateb_soilunder=>soilunder
 
 implicit none
 
-integer, dimension(28) :: dumi
+integer, dimension(30) :: dumi
 real, dimension(27) :: dumr
     
 dumr = 0.
@@ -3738,6 +3695,8 @@ if ( myid==0 ) then
   dumi(26) = cable_roughness
   dumi(27) = cable_potev
   dumi(28) = ateb_soilunder
+  dumi(29) = wt_transport
+  dumi(30) = cable_gw_model
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3796,6 +3755,8 @@ ateb_infilmeth    = dumi(25)
 cable_roughness   = dumi(26)
 cable_potev       = dumi(27)
 ateb_soilunder    = dumi(28)
+wt_transport      = dumi(29)
+cable_gw_model    = dumi(30)
 
 return
 end subroutine broadcast_landnml
@@ -3806,28 +3767,13 @@ subroutine broadcast_mlonml
 
 use cc_mpi                                 ! CC MPI routines
 use kuocom_m                               ! JLM convection
-use mlo, only : zomode,zoseaice          & ! Ocean physics and prognostic arrays
-    ,factchseaice,minwater,mxd,mindep    &
-    ,alphavis_seaice,alphanir_seaice     &
-    ,alphavis_seasnw,alphanir_seasnw     &
-    ,otaumode,mlosigma,wlev,oclosure     &
-    ,pdl,pdu,k_mode,eps_mode             &
-    ,limitL,fixedce3,nops                &
-    ,nopb,fixedstabfunc,omink            &
-    ,omineps,mlovlevels                  &
-    ,usepice,ominl,omaxl                 &
-    ,mlo_timeave_length,kemaxdt          &
-    ,mlo_adjeta,mlo_limitsal,mlo_step    &
-    ,mlo_uvcoupl,fluxwgt,delwater
-use mlodiffg                               ! Ocean dynamics horizontal diffusion
+use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
-use mlostag, only : mstagf                 ! Ocean reversible staggering
-use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use river                                  ! River routing
 
 implicit none
 
-integer, dimension(30) :: dumi
+integer, dimension(31) :: dumi
 real, dimension(24) :: dumr    
 
 dumr = 0.
@@ -3887,6 +3833,7 @@ if ( myid==0 ) then
   dumi(28) = mlo_uvcoupl
   dumi(29) = mlointschf
   dumi(30) = nxtrrho
+  dumi(31) = mloiceadv
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3944,6 +3891,7 @@ mlo_step           = dumi(27)
 mlo_uvcoupl        = dumi(28)
 mlointschf         = dumi(29)
 nxtrrho            = dumi(30)
+mloiceadv          = dumi(31)
     
 return
 end subroutine broadcast_mlonml
@@ -4194,7 +4142,7 @@ end subroutine fixsat
 ! Reset diagnostics for averaging period    
 subroutine zero_nperavg(koundiag)
 
-use aerosol_arrays, only :               & ! Aerosol arrays
+use aerointerface, only :                & ! Aerosol interface
      duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -4203,13 +4151,13 @@ use aerosol_arrays, only :               & ! Aerosol arrays
     ,so4e,so4wd,so4dd,so4_burden         &
     ,dmsso2o,so2so4o, salte,saltdd       &
     ,saltwd,salt_burden
-use cable_ccam, only : ccycle              ! CABLE
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 use morepbl_m                              ! Additional boundary layer diagnostics
 use parm_m                                 ! Model configuration
 use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
+use sflux_m                                ! Surface flux routines
 use soilsnow_m                             ! Soil, snow and surface data
 use tracers_m                              ! Tracer data
 
@@ -4394,7 +4342,7 @@ end subroutine zero_nperday
 ! Update diagnostics for averaging period    
 subroutine calculate_timeaverage(koundiag)
 
-use aerosol_arrays, only :               & ! LDR prognostic aerosols
+use aerointerface, only :                & ! Aerosol interface
      duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -4404,14 +4352,10 @@ use aerosol_arrays, only :               & ! LDR prognostic aerosols
     ,dmsso2o,so2so4o,salte,saltdd        &
     ,saltwd,salt_burden
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
-use cable_ccam, only : ccycle              ! CABLE
-use carbpools_m, only : fnee,fpn,frd,frp & ! Carbon pools
-    ,frpw,frpr,frs,cnpp,cnbp,fevc        &
-    ,plant_turnover,plant_turnover_wood
 use const_phys                             ! Physical constants
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
-use mlo, only : mlodiag                    ! Ocean physics and prognostic arrays
+use mlo_ctrl                               ! Ocean physics control layer
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
@@ -4421,6 +4365,7 @@ use pbl_m                                  ! Boundary layer arrays
 use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
 use screen_m                               ! Screen level diagnostics
+use sflux_m                                ! Surface flux routines
 use soilsnow_m                             ! Soil, snow and surface data
 use tracers_m                              ! Tracer data
 use work3_m                                ! Mk3 land-surface diagnostic arrays
@@ -4865,7 +4810,7 @@ end subroutine write_diagnostics
 ! Check for NaN errors
 subroutine nantest(message,js,je,mode)
 
-use aerosol_arrays, only : xtg,naero  ! LDR prognostic aerosols
+use aerointerface, only : xtg,naero   ! Aerosol interface
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction

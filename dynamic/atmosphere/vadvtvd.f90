@@ -32,7 +32,7 @@ contains
 
 subroutine vadvtvd(tarr,uarr,varr,nvadh_inv_pass,nits)
 
-use aerosol_arrays
+use aerointerface
 use arrays_m
 use cc_mpi
 use cfrac_m, only : stratcloud
@@ -78,7 +78,8 @@ if ( nh/=0 ) then
   tdum(1:ifull,1:kl,5) = h_nh(1:ifull,1:kl)
 end if  
 
-if ( mspec==1 ) then 
+if ( mspec==1 ) then
+
   qdum(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
   if ( ldr/=9 ) then
     qdum(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
@@ -93,6 +94,7 @@ if ( mspec==1 ) then
     edum(1:ifull,1:kl,1) = eps(1:ifull,1:kl)
     edum(1:ifull,1:kl,2) = tke(1:ifull,1:kl)
   end if  
+
 end if
 
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
@@ -115,6 +117,7 @@ if( diag .and. mydiag )then
 endif
 
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
+
   if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then  
     call vadv_work(qdum(:,:,1:5),nvadh_inv_pass,nits)
   else if ( ldr/=0 ) then
@@ -141,9 +144,11 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
   if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     call vadv_work(xtg(:,:,1:naero),nvadh_inv_pass,nits)
   end if   ! abs(iaero)>=2
+  
   if ( ngas>0 .or. nextout>=4 ) then
     call vadv_work(tr(:,:,1:ntrac),nvadh_inv_pass,nits)
   end if        ! (nextout>=4)
+
 end if          ! if(mspec==1)
 
 !$acc wait
@@ -157,7 +162,8 @@ if ( nh/=0 ) then
   h_nh(1:ifull,1:kl) = tdum(1:ifull,1:kl,5)
 end if  
 
-if ( mspec==1 ) then 
+if ( mspec==1 ) then
+
   qg(1:ifull,1:kl) = qdum(1:ifull,1:kl,1)
   if ( ldr/=9 ) then
     qlg(1:ifull,1:kl) = qdum(1:ifull,1:kl,2)
@@ -172,6 +178,7 @@ if ( mspec==1 ) then
     eps(1:ifull,1:kl) = edum(1:ifull,1:kl,1)
     tke(1:ifull,1:kl) = edum(1:ifull,1:kl,2)
   end if
+
 end if  
 
 call END_LOG(vadv_end)
@@ -209,104 +216,85 @@ if ( ntvd==2 ) then ! MC
 #ifdef GPU
   !$acc enter data create(tarr,delt,fluxh) async(async_counter)
   !$acc update device(tarr) async(async_counter)
-  !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
 #else
-  !$omp parallel
-  !$omp do schedule(static) private(n,k,iq)
+  !$omp parallel   
 #endif
-  do n = 1,ntr
-    do k = 1,kl-1
-      do iq = 1,ifull
-        delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
-      end do
-    end do
-  end do
+  do i = 1,maxval(nits(1:ifull))
 #ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
+    !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
 #else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,iq)
+    !$omp do schedule(static) private(n,k,iq)
 #endif
-  do n = 1,ntr
-    do iq = 1,ifull
-      fluxh(iq,0,n)  = 0.
-      fluxh(iq,kl,n) = 0.
-      delt(iq,kl,n)  = 0.     ! for T,u,v
-      delt(iq,0,n)   = 0.
-    end do
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
-#endif
-  do n = 1,ntr
-    do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-      do iq = 1,ifull      
-        kp = nint(sign(1.,sdot(iq,k+1)))
-        kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-        rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
-        phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
-        fluxlo = tarr(iq,kx,n)
-        ! higher order scheme
-        fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
-        fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-      end do
-    end do
-  end do      ! k loop
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(3) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,k,iq)
-#endif
-  do n = 1,ntr
-    do k = 1,kl
-      do iq = 1,ifull
-        tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
-                               +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
-      end do
-    end do
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(nits,delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,iq,i,k,kp,kx,rat,phitvd,fluxlo,fluxhi)
-#endif
-  do n = 1,ntr
-    do iq = 1,ifull 
-      do i = 2,nits(iq)
-        do k = 1,kl-1
+    do n = 1,ntr
+      do k = 1,kl-1
+        do iq = 1,ifull
           delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
-        end do     ! k loop    
-        do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        end do
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+    !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq)
+#endif
+    do n = 1,ntr
+      do iq = 1,ifull
+        fluxh(iq,0,n)  = 0.
+        fluxh(iq,kl,n) = 0.
+        delt(iq,kl,n)  = 0.     ! for T,u,v
+        delt(iq,0,n)   = 0.
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
+#endif
+    do n = 1,ntr
+      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        do iq = 1,ifull      
           kp = nint(sign(1.,sdot(iq,k+1)))
           kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
           rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
-          phitvd = max(0., min(2.*rat, .5+.5*rat, 2.))   ! 0 for -ve rat        
+          phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
           fluxlo = tarr(iq,kx,n)
+          ! higher order scheme
           fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
           fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-        end do ! k
-        do k = 1,kl
-          tarr(iq,k,n) = tarr(iq,k,n) &
-            + (fluxh(iq,k-1,n)-fluxh(iq,k,n)+tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
         end do
-      end do   ! i
-    end do     ! iq
-  end do
+      end do
+    end do      ! k loop
 #ifdef GPU
-  !$acc end parallel loop
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,k,iq)
+#endif
+    do n = 1,ntr
+      do k = 1,kl
+        do iq = 1,ifull
+          if ( i<=nits(iq) ) then
+            tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
+                               +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+          end if  
+        end do
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+#else
+    !$omp end do nowait
+#endif
+  end do ! i=1,nits
+#ifdef GPU
   !$acc update self(tarr) async(async_counter)
   !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
 #else
-  !$omp end do nowait
   !$omp end parallel
 #endif
 
@@ -315,83 +303,47 @@ else if ( ntvd==3 ) then ! Superbee
 #ifdef GPU
   !$acc enter data create(tarr,delt,fluxh) async(async_counter)
   !$acc update device(tarr) async(async_counter)
-  !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
 #else
   !$omp parallel
-  !$omp do schedule(static) private(n,k,iq)
 #endif
-  do n = 1,ntr
-    do k = 1,kl-1
-      do iq = 1,ifull
-        delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
-      end do
-    end do
-  end do
+  do i = 1,maxval(nits(1:ifull))
 #ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
+    !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
 #else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,iq)
+    !$omp do schedule(static) private(n,iq,k)
 #endif
-  do n = 1,ntr
-    do iq = 1,ifull
-      fluxh(iq,0,n)  = 0.
-      fluxh(iq,kl,n) = 0.
-      delt(iq,kl,n)  = 0.     ! for T,u,v
-      delt(iq,0,n)   = 0.
-    end do
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
-#endif
-  do n = 1,ntr
-    do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-      do iq = 1,ifull      
-        kp = nint(sign(1.,sdot(iq,k+1)))
-        kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-        rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
-        phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        fluxlo = tarr(iq,kx,n)
-        ! higher order scheme
-        fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
-        fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-      end do
-    end do
-  end do      ! k loop
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(3) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,k,iq)
-#endif
-  do n = 1,ntr
-    do k = 1,kl
-      do iq = 1,ifull
-        tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
-                               +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
-      end do
-    end do
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(nits,delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,iq,i,k,kp,kx,rat,phitvd,fluxlo,fluxhi)
-#endif
-  do n = 1,ntr
-    do iq = 1,ifull 
-      do i = 2,nits(iq)
-        do k = 1,kl-1
+    do n = 1,ntr
+      do k = 1,kl-1
+        do iq = 1,ifull 
           delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
-        end do     ! k loop    
-        do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        end do  
+      end do     ! k loop
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+    !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq)
+#endif
+    do n = 1,ntr
+      do iq = 1,ifull
+        fluxh(iq,0,n)  = 0.
+        fluxh(iq,kl,n) = 0.
+        delt(iq,kl,n)  = 0.     ! for T,u,v
+        delt(iq,0,n)   = 0.
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq,k,kp,kx,rat,phitvd,fluxlo,fluxhi)
+#endif
+    do n = 1,ntr
+      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        do iq = 1,ifull  
           kp = nint(sign(1.,sdot(iq,k+1)))
           kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
           rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
@@ -400,20 +352,36 @@ else if ( ntvd==3 ) then ! Superbee
           ! higher order scheme
           fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
           fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-        end do ! k
-        do k = 1,kl
-          tarr(iq,k,n) = tarr(iq,k,n) &
-              + (fluxh(iq,k-1,n)-fluxh(iq,k,n)+tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
-        end do
-      end do   ! i
-    end do     ! iq
-  end do
+        end do  
+      end do ! k
+    end do
 #ifdef GPU
-  !$acc end parallel loop
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(nits,tarr,nvadh_inv_pass,fluxh,sdot) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq,k)
+#endif
+    do n = 1,ntr    
+      do k = 1,kl
+        do iq = 1,ifull
+          if ( i<=nits(iq) ) then
+            tarr(iq,k,n) = tarr(iq,k,n) &
+              + (fluxh(iq,k-1,n)-fluxh(iq,k,n)+tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+          end if  
+        end do     ! iq
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+#else
+    !$omp end do nowait
+#endif
+  end do   ! i
+#ifdef GPU
   !$acc update self(tarr) async(async_counter)
   !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
 #else
-  !$omp end do nowait
   !$omp end parallel
 #endif
     

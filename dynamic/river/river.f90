@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -31,14 +31,16 @@ module river
 implicit none
 
 private
-public basinmd, rivermd, rivercoeff
+public basinmd, rivermd, rivercoeff, wt_transport
 public rvrinit, rvrrouter
+public water_table_transport
 
 integer, dimension(:,:), allocatable, save :: xp
 logical, dimension(:,:), allocatable, save :: river_inflow
 
-integer, save :: basinmd = 1         ! basin mode (0=soil, 1=redistribute)
-integer, save :: rivermd = 0         ! river mode (0=Miller, 1=Manning, 2=Wilms)
+integer, save :: basinmd      = 1    ! basin mode (0=soil, 1=redistribute)
+integer, save :: rivermd      = 0    ! river mode (0=Miller, 1=Manning, 2=Wilms)
+integer, save :: wt_transport = 0    ! water table transport (0=off, 1=on)
 real, save :: rivercoeff = 0.02      ! river roughness coeff (Miller=0.02, A&B=0.035)
 real, parameter :: rhow = 1000.      ! density of water (kg/m^3)
 
@@ -69,14 +71,11 @@ use riverarrays_m
 use soil_m
 use xyzinfo_m
 
-implicit none
-
 integer, dimension(ifull), intent(in) :: river_accin
 integer, dimension(ifull+iextra) :: river_outloc_cc, river_acc
 integer, dimension(ifull) :: xp_i, xp_j, xp_n
 integer n, iq, iq_g, xp_g, xpb_g, i, j, ridx
 integer iqout, maxacc, testacc
-real(kind=8), dimension(ifull+iextra,3) :: xyzbc
 real(kind=8) :: dr
 real, dimension(ifull+iextra) ::  ee
 real, dimension(ifull+iextra,3) :: r_outloc
@@ -282,23 +281,15 @@ end do
 
 
 !--------------------------------------------------------------------
-! Update coordinates for distance calculations
+! calculate outflow velocity, slope and dx
 ! JLM suggests using x, y and z for calculating distances,
 ! instead of using the map factor.
-xyzbc(1:ifull,1) = x(1:ifull)
-xyzbc(1:ifull,2) = y(1:ifull)
-xyzbc(1:ifull,3) = z(1:ifull)
-call boundsr8(xyzbc,corner=.true.)
-
-
-!--------------------------------------------------------------------
-! calculate outflow velocity, slope and dx
 river_vel(:) = 0.
 river_dx(:) = 1.e-9
 do iq = 1,ifull
   if ( river_outdir(iq)>0 ) then  
     iqout = xp(iq,river_outdir(iq))
-    dr = sum(xyzbc(iq,:)*xyzbc(iqout,:))
+    dr = x(iq)*x(iqout) + y(iq)*y(iqout) + z(iq)*z(iqout)
     dr = acos(max( min( dr, 1._8 ), -1._8 ))*real(rearth,8)
     dr = max(dr, 1.e-9_8)
     slope = max( (zs(iq)-zs(iqout))/grav, 0. )/real(dr)
@@ -396,7 +387,6 @@ end subroutine rvrinit
 subroutine rvrrouter
 
 use arrays_m
-use cable_ccam 
 use cc_mpi
 use const_phys
 use indices_m
@@ -405,11 +395,10 @@ use newmpar_m
 use nsibd_m
 use parm_m
 use riverarrays_m
+use sflux_m
 use soil_m
 use soilsnow_m
 use soilv_m
-
-implicit none
 
 integer i, k, iq, iqout
 real alph_p, delpos, delneg
@@ -573,10 +562,161 @@ watbdy(1:ifull) = max( watbdy(1:ifull), 0. ) ! for rounding errors
 return
 end subroutine rvrrouter
 
+subroutine water_table_transport
+
+use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use cc_mpi                                 ! CC MPI routines
+use indices_m                              ! Grid index arrays
+use map_m                                  ! Grid map arrays
+use newmpar_m                              ! Grid parameters
+use nsibd_m                                ! Land-surface arrays
+use sflux_m                                ! Surface flux routines
+use soil_m                                 ! Soil and surface data
+use soilv_m                                ! Soil parameters
+use riverarrays_m                          ! River rarrays
+use xyzinfo_m                              ! Grid coordinate arrays
+
+integer iq, n
+real, dimension(ifull+iextra,2) :: dumw
+real, dimension(ifull+iextra) :: wth_ave, gwwb_min
+real, dimension(ifull) :: flux, wconst
+logical, save :: first_call = .true.
+
+if ( wt_transport==1 ) then
+
+  if ( cable_gw_model/=1 ) then
+    write(6,*) "ERROR: wt_transport==1 requires cable_gw_model==1"
+    call ccmpi_abort(-1)
+  end if
+  
+  ! calculate average wt height and minimum gw amount
+  call calc_wt_ave( wth_ave, gwwb_min, gwdz )
+  
+  ! initialise
+  if ( first_call ) then
+    first_call = .false. 
+    ! estimate (saturated) hydraulic conductivity (m/s)
+    k0(:) = 0.
+    do iq = 1,ifull
+      if ( land(iq) ) then
+        k0(iq) = hyds(isoilm(iq))
+      end if
+    end do  
+    ! broadcast
+    dumw(1:ifull,1) = k0(1:ifull)
+    dumw(1:ifull,2) = gwdz(1:ifull)
+    call bounds(dumw(:,1:2))
+    k0(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,1)
+    gwdz(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,2)
+  end if   
+  
+  ! update halo
+  dumw(1:ifull,1) = wth_ave(1:ifull)
+  dumw(1:ifull,2) = gwwb_min(1:ifull)
+  call bounds(dumw(:,1:2))
+  wth_ave(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,1)
+  gwwb_min(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,2)
+  
+  ! calculate gradients
+  ! gwwb_min also accounts for land-sea mask
+  flux(:) = 0.
+  wconst(:) = sqrt(0.5*tan(3.14159/8.))    ! octagon for eight directions
+  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,in)
+  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ie)
+  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,is)
+  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,iw)
+  wconst(:) = sqrt(0.5*tan(3.14159/8.))
+  if ( edge_n .and. edge_e ) then
+    do n = 1,npan
+      iq = ipan + (jpan-1)*il + (n-1)*il**2
+      wconst(iq) = 0.
+    end do
+  end if
+  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ine)
+  wconst(:) = sqrt(0.5*tan(3.14159/8.))
+  if ( edge_s .and. edge_e ) then
+    do n = 1,npan
+      iq = ipan + (n-1)*il**2
+      wconst(iq) = 0.
+    end do
+  end if
+  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ise)
+  wconst(:) = sqrt(0.5*tan(3.14159/8.))
+  if ( edge_s .and. edge_w ) then
+    do n = 1,npan
+      iq = 1 + (n-1)*il**2
+      wconst(iq) = 0.
+    end do
+  end if
+  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,isw)
+  wconst(:) = sqrt(0.5*tan(3.14159/8.))
+  if ( edge_n .and. edge_w ) then
+    do n = 1,npan
+      iq = 1 + (jpan-1)*il + (n-1)*il**2
+      wconst(iq) = 0.
+    end do
+  end if
+  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,inw)
+
+  ! losing streams (exchange between rivers and GW)
+  
+  ! distribute GWwb flux
+  call calc_wt_flux( flux )
+
+end if
+
+return
+end subroutine water_table_transport
+
+subroutine add_flux(flux,gwwb_min,wth,zs,em,wconst,x,y,z,dir)
+
+use const_phys                             ! Physical constants
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+use riverarrays_m                          ! River rarrays
+
+integer iq
+integer, dimension(ifull), intent(in) :: dir
+real wth_del, wth_ave, w, t, dx, f, k0_ave, slope, vol
+real wth_max, flux_add, dr
+real, dimension(ifull+iextra), intent(inout) :: flux
+real, dimension(ifull+iextra), intent(in) :: wth, gwwb_min, zs
+real, dimension(ifull+iextra), intent(in) :: em
+real, dimension(ifull), intent(in) :: wconst
+real(kind=8), dimension(ifull+iextra), intent(in) :: x, y, z
+real(kind=8) dotprod
+
+!wconst = sqrt(0.5*tan(3.14159/8.))    ! octagon for eight directions
+
+! Calculation based on Fan et al Water Table Observations doi: 10.1029/2006JD008111
+
+do iq = 1,ifull
+  dotprod = x(iq)*x(dir(iq)) + y(iq)*y(dir(iq)) + z(iq)*z(dir(iq))
+  dr = real( acos( max( min( dotprod, 1._8 ), -1._8 ) ) )*rearth ! distance between grid cells (m)
+  dx = 2.*ds/(em(iq)+em(dir(iq)))             ! width of grid cell (m)
+  w = dx*wconst(iq)                           ! width of cell boundary (m)
+  k0_ave = 0.5*(k0(iq)+k0(dir(iq)))           ! m/s
+  slope = abs(zs(iq)-zs(dir(iq)))/(grav*dr)   ! m/m
+  wth_del = wth(iq) - wth(dir(iq))            ! m
+  wth_ave = 0.5*(wth(iq)+wth(dir(iq)))        ! m
+  wth_max = 0.5*(zs(iq)+zs(dir(iq)))/grav     ! m
+  f = 120./(1.+150.*slope)
+  f = max( f, 5. )                            ! m
+  t = k0_ave*f*exp(min(wth_ave-wth_max,0.)/f) ! m2/s
+  flux_add = w*t*wth_del/dr                   ! m3/s
+  ! limit flux based on avaliable GW
+  flux_add = max( min( flux_add, gwwb_min(iq)*gwdz(iq)/dt ), -gwwb_min(dir(iq))*gwdz(dir(iq))/dt )
+  if ( gwdz(iq)>0. .and. gwdz(dir(iq))>0. ) then
+    flux(iq) = flux(iq) + flux_add/gwdz(iq) ! m3/m/s
+  end if
+end do
+
+return
+end subroutine add_flux
+
 subroutine wilms(INDEX1,INDEX2)
 
 use arrays_m
-use cable_ccam 
 use cc_mpi
 use const_phys
 use indices_m
@@ -585,6 +725,7 @@ use newmpar_m, only : il
 use nsibd_m
 use parm_m
 use riverarrays_m, only : watbdy_cc => watbdy, river_dx_cc => river_dx, river_discharge_cc => river_discharge
+use sflux_m
 use soil_m
 use soilsnow_m
 use soilv_m

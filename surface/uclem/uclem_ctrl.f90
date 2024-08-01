@@ -70,7 +70,7 @@ public uclem_init, uclem_end, uclem_calc, uclem_zo, uclem_type, uclem_alb1,     
        uclem_scrnout, uclem_fbeam, uclem_spitter, uclem_sigmau,                        &
        uclem_deftype, uclem_hydro, uclem_energy, uclem_misc,                           &
        uclem_deftype_export, uclem_avetemp, uclem_loadd, uclem_saved, energyrecord
-public urbtemp, refheight, soilunder
+public urbtemp, soilunder
 
 public upack_g, ufull_g, nl, nfrac
 public f_roof,f_wall,f_road,f_slab,f_intm
@@ -79,6 +79,11 @@ public road_g,roof_g,room_g,slab_g,walle_g,wallw_g,cnveg_g,intl_g
 public f_g,p_g
 public facetparams,facetdata,hydrodata,vegdata,intldata
 public fparmdata,pdiagdata
+
+public energytol,resmeth,zohmeth,acmeth,nrefl,scrnmeth,wbrelaxc,wbrelaxr,ncyits,nfgits,tol
+public zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,zomratio
+public zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,intairtmeth,intmassmeth
+public cvcoeffmeth,statsmeth,lwintmeth,infilmeth,ac_heatcap,ac_coolcap,ac_deltat,acfactor
 
 ! state arrays
 integer, save :: ifull, nfrac

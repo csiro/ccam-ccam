@@ -50,7 +50,7 @@
       use latlong_m
       use liqwpar_m  ! ifullw
       use lwout_m
-      use mlo        ! MJT mlo
+      use mlo_ctrl
       use newmpar_m, only : ifull, iextra, kl, il, jl, nproc
       use nharrs_m 
       use nsibd_m    ! rsmin,ivegt,sigmf,tgf,ssdn,rmc

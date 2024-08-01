@@ -55,7 +55,7 @@ contains
     
 subroutine hordifgt
 
-use aerosol_arrays
+use aerointerface
 use arrays_m
 use cc_mpi
 use cfrac_m

@@ -28,6 +28,9 @@
 
 module aerointerface
 
+use aerosol_arrays                          ! Aerosol arrays
+use aerosolldr                              ! LDR prognostic aerosols
+
 implicit none
 
 private
@@ -36,6 +39,21 @@ public ppfprec, ppfmelt, ppfsnow, ppfevap, ppfsubl, pplambs, ppmrate
 public ppmaccr, ppqfsedice, pprscav, pprfreeze
 public opticaldepth, updateoxidant, oxidant_timer
 public aerosol_u10, naerofamilies, aero_split, aeroindir
+
+public naero, xtosav, xtg, xtgsav
+public duste, dustwd, dustdd, dust_burden
+public bce, bcwd, bcdd, bc_burden
+public oce, ocwd, ocdd, oc_burden
+public dmse, dms_burden
+public so2e, so2wd, so2dd, so2_burden
+public so4e, so4wd, so4dd, so4_burden
+public dmsso2o, so2so4o
+public salte, saltdd, saltwd, salt_burden
+public itracbc, itracoc, itracso2
+public itracdu, ndust, itracsa, nsalt
+
+public ch_dust, zvolcemi, so4mtn, carbmtn, saltsmallmtn, saltlargemtn, enhanceu10
+public dustreff
 
 integer, save :: ilon, ilat, ilev
 integer, save :: oxidant_timer = -9999
@@ -62,8 +80,6 @@ contains
 
 subroutine aerocalc(mins,aero_update)
 
-use aerosol_arrays                          ! Aerosol arrays
-use aerosolldr                              ! LDR prognostic aerosols
 use arrays_m                                ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                  ! CC MPI routines
 use cfrac_m                                 ! Cloud fraction
@@ -307,7 +323,6 @@ end subroutine aerocalc
 
 subroutine aerocalc_init(mins)
 
-use aerosol_arrays                          ! Aerosol arrays
 use arrays_m                                ! Atmosphere dyamics prognostic arrays
 use latlong_m                               ! Lat/lon coordinates
 use newmpar_m                               ! Grid parameters
@@ -353,7 +368,6 @@ end subroutine aerocalc_init
 ! Estimate cloud droplet size
 subroutine aerodrop(istart,cdn,rhoa,outconv)
 
-use aerosolldr              ! LDR prognostic aerosols
 use const_phys              ! Physical constants
 use latlong_m, only : rlatt ! Lat/lon coordinates
 use newmpar_m, only : kl    ! Grid parameters
@@ -412,7 +426,6 @@ end subroutine aerodrop
 ! Load aerosols emissions from netcdf
 subroutine load_aerosolldr(aerofile, oxidantfile, kdatein)
       
-use aerosol_arrays      ! Aerosol arrays
 use cc_mpi              ! CC MPI routines
 use infile              ! Input file routines
 use newmpar_m           ! Grid parameters
@@ -770,10 +783,6 @@ end subroutine load_aerosolldr
 
 subroutine cldrop(istart,cdn,rhoa,convmode)
 
-use aerosol_arrays, only : xtg, xtosav, itracso4, itracbc, itracoc, &
-  itracsa
-use aerosolldr, only : so4mtn, carbmtn, saltsmallmtn, saltlargemtn
-
 implicit none
 
 integer, intent(in) :: istart
@@ -847,8 +856,6 @@ subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
 #ifdef GPUPHYSICS
 !$acc routine vector
 #endif
-
-use aerosol_arrays, only : naero
 
 implicit none
 

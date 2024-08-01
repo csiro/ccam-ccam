@@ -42,8 +42,7 @@ use cc_acc, only : async_length
 use cc_mpi
 use const_phys
 use indices_m
-use mlo
-!use mloints
+use mlo_ctrl
 use newmpar_m
 use parm_m
 use parmhor_m
@@ -79,9 +78,9 @@ do k = 1,wlev
   uc(:,k) = (ax(1:ifull)*ubar(:,k)+bx(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
   vc(:,k) = (ay(1:ifull)*ubar(:,k)+by(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
   wc(:,k) = (az(1:ifull)*ubar(:,k)+bz(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
-  x3d(:,k) = x - real(uc(:,k),8) ! 1st guess
-  y3d(:,k) = y - real(vc(:,k),8)
-  z3d(:,k) = z - real(wc(:,k),8)
+  x3d(:,k) = x(1:ifull) - real(uc(:,k),8) ! 1st guess
+  y3d(:,k) = y(1:ifull) - real(vc(:,k),8)
+  z3d(:,k) = z(1:ifull) - real(wc(:,k),8)
 end do
 
 if ( mlointschf==0 ) then
@@ -637,13 +636,13 @@ call intssync_recv(s)
 
 do k = 1,wlev
   where ( wtr(1:ifull,k) )
-    x3d(:,k) = x - 0.5_8*(real(uc(:,k),8)+real(s(1:ifull,k,1),8)) ! n+1 guess
-    y3d(:,k) = y - 0.5_8*(real(vc(:,k),8)+real(s(1:ifull,k,2),8)) ! n+1 guess
-    z3d(:,k) = z - 0.5_8*(real(wc(:,k),8)+real(s(1:ifull,k,3),8)) ! n+1 guess
+    x3d(:,k) = x(1:ifull) - 0.5_8*(real(uc(:,k),8)+real(s(1:ifull,k,1),8)) ! n+1 guess
+    y3d(:,k) = y(1:ifull) - 0.5_8*(real(vc(:,k),8)+real(s(1:ifull,k,2),8)) ! n+1 guess
+    z3d(:,k) = z(1:ifull) - 0.5_8*(real(wc(:,k),8)+real(s(1:ifull,k,3),8)) ! n+1 guess
   elsewhere
-    x3d(:,k) = x
-    y3d(:,k) = y
-    z3d(:,k) = z
+    x3d(:,k) = x(1:ifull)
+    y3d(:,k) = y(1:ifull)
+    z3d(:,k) = z(1:ifull)
   end where
 end do
 
@@ -970,13 +969,13 @@ call intssync_recv(s)
 
 do k = 1,wlev
   where (wtr(1:ifull,k))
-    x3d(:,k) = x - 0.5_8*(real(uc(:,k),8)+real(s(1:ifull,k,1),8)) ! n+1 guess
-    y3d(:,k) = y - 0.5_8*(real(vc(:,k),8)+real(s(1:ifull,k,2),8)) ! n+1 guess
-    z3d(:,k) = z - 0.5_8*(real(wc(:,k),8)+real(s(1:ifull,k,3),8)) ! n+1 guess
+    x3d(:,k) = x(1:ifull) - 0.5_8*(real(uc(:,k),8)+real(s(1:ifull,k,1),8)) ! n+1 guess
+    y3d(:,k) = y(1:ifull) - 0.5_8*(real(vc(:,k),8)+real(s(1:ifull,k,2),8)) ! n+1 guess
+    z3d(:,k) = z(1:ifull) - 0.5_8*(real(wc(:,k),8)+real(s(1:ifull,k,3),8)) ! n+1 guess
   elsewhere
-    x3d(:,k) = x
-    y3d(:,k) = y
-    z3d(:,k) = z
+    x3d(:,k) = x(1:ifull)
+    y3d(:,k) = y(1:ifull)
+    z3d(:,k) = z(1:ifull)
   end where
 end do
 
@@ -1000,7 +999,7 @@ subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
 use bigxy4_m
 use cc_mpi
-use mlo
+use mlo_ctrl
 use newmpar_m
 use parm_m
 use parmgeom_m

@@ -308,7 +308,7 @@
       subroutine convjlm
       
       use arrays_m   
-      use aerosol_arrays
+      use aerointerface
       use cc_mpi, only : mydiag
       use cfrac_m
       use extraout_m
@@ -433,9 +433,8 @@
 !     following will be unused when we remove methprec=3 option: dsig2, sigkscb, sigksct, tied_rh
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
 !     nevapcc option now affects entrainment
-      use aerointerface, only : convscav
-      use aerosol_arrays, only : itracso2,itracbc,itracoc,itracdu,ndust,
-     &                           naero,itracsa,nsalt
+      use aerointerface, only : convscav,itracso2,itracbc,itracoc,
+     &                          itracdu,ndust,naero,itracsa,nsalt
       use const_phys
       use diag_m, only : maxmin
       use estab      

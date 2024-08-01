@@ -50,13 +50,9 @@ contains
 subroutine indataf(lapsbot,isoth,nsig,nmlfile)
      
 use aerointerface                                ! Aerosol interface
-use aerosol_arrays, only : xtg,naero,itracdu     ! Aerosol arrays
 use amipsst_m                                    ! AMIP SSTs
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                                     ! Grid interpolation
-use cable_ccam, only : loadcbmparm,loadtile, &
-                       cbmparm,maxtile,      &
-                       newcbmwb                  ! CABLE interface
 use cc_mpi                                       ! CC MPI routines
 use const_phys                                   ! Physical constants
 use convjlm_m                                    ! Convection
@@ -78,7 +74,7 @@ use latlong_m                                    ! Lat/lon coordinates
 use latltoij_m                                   ! Lat/Lon to cubic ij conversion
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
-use mlo                                          ! Ocean physics and prognostic arrays
+use mlo_ctrl                                     ! Ocean physics control layer
 use mlodynamics                                  ! Ocean dynamics
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
@@ -146,7 +142,7 @@ real, dimension(ifull,3,3) :: dumi
 real, dimension(ifull,3) :: dums
 real, dimension(:,:), allocatable, save :: global2d, local2d
 real, dimension(:), allocatable, save :: davt_g
-real, dimension(3*kl+7) :: dumc
+real, dimension(3*kl+8) :: dumc
 real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin
@@ -258,6 +254,15 @@ if ( myid==0 ) then
     write(6,*) 'bam:  ',bam
   end if  
   
+  ! test netcdf for topography input
+  dumc(3*kl+8)=-1.      ! lncslope
+  if ( lnctopo==1 ) then
+    call ccnf_inq_varid(ncidtopo,'slope',idv,tst)
+    if ( .not.tst ) then
+      dumc(3*kl+8) = 1. ! lncslope
+    end if
+  end if
+  
   if ( vegfile==" " ) then
     write(6,*) "ERROR: vegfile has not been specified"
     call ccmpi_abort(-1)
@@ -307,11 +312,11 @@ if ( myid==0 ) then
 end if ! (myid==0)
 
 ! distribute vertical and vegfile data to all processors
-! dumc(1:kl)   = sig,         dumc(kl+1:2*kl) = sigmh,      dumc(2*kl+1:3*kl) = tbar
-! dumc(3*kl+1) = lncveg,      dumc(3*kl+2)    = lncbath,    dumc(3*kl+3)      = lncriver
-! dumc(3*kl+4) = urbanformat, dumc(3*kl+5)    = urbantypes, dumc(3*kl+6)      = lncveg_numpft
-! dumc(3*kl+7) = lncveg_numsoil
-call ccmpi_bcast(dumc(1:3*kl+7),0,comm_world)
+! dumc(1:kl)   = sig,           dumc(kl+1:2*kl) = sigmh,      dumc(2*kl+1:3*kl) = tbar
+! dumc(3*kl+1) = lncveg,        dumc(3*kl+2)    = lncbath,    dumc(3*kl+3)      = lncriver
+! dumc(3*kl+4) = urbanformat,   dumc(3*kl+5)    = urbantypes, dumc(3*kl+6)      = lncveg_numpft
+! dumc(3*kl+7) = lncveg_numsoil dumc(3*kl+8)    = lncslope
+call ccmpi_bcast(dumc(1:3*kl+8),0,comm_world)
 sig            = dumc(1:kl)
 sigmh          = dumc(kl+1:2*kl)
 tbar           = dumc(2*kl+1:3*kl)
@@ -322,9 +327,11 @@ urbanformat    = dumc(3*kl+4)
 ateb_len       = nint(dumc(3*kl+5))
 lncveg_numpft  = nint(dumc(3*kl+6))
 lncveg_numsoil = nint(dumc(3*kl+7))
+lncslope       = nint(dumc(3*kl+8))
 if ( myid==0 ) then
   write(6,*) "Testing for NetCDF surface files"
   write(6,*) "-> lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
+  write(6,*) "-> lncslope=               ",lncslope
   write(6,*) "Processing vertical levels"
 end if
 
@@ -399,11 +406,8 @@ else
   call eig(sig,sigmh,tbar,lapsbot,isoth,dt,0.,0.,nsig,bet,betm,nh)
 end if
 
+
 !$acc update device(sig)
-#ifdef GPUPHYSICS
-!$acc update device(sigmh,dsig,ratha,rathb)
-!$acc update device(bet,betm) ! convection
-#endif
 
 
 ! zmin here is approx height of the lowest level in the model
@@ -426,7 +430,6 @@ if ( io_in<=4 .and. nhstest>=0 ) then
       call surfread(global2d(:,2),'lsm',netcdfid=ncidtopo)
       write(6,*) 'read he from topofile'
       call surfread(global2d(:,3),'tsd',netcdfid=ncidtopo)
-      call ccnf_close(ncidtopo)
     else
       write(6,*) 'read zs from topofile'
       read(66,*,iostat=ierr) global2d(:,1)
@@ -463,6 +466,25 @@ if ( io_in<=4 .and. nhstest>=0 ) then
   end if
   if ( mydiag ) write(6,*) 'zs,zsmask,he read in from topofile',zs(idjd),zsmask(idjd),he(idjd)
 
+  ! read slope data
+  if ( lncslope==1 ) then
+    allocate( local2d(ifull,2) )    
+    if ( myid==0 ) then
+      allocate( global2d(ifull_g,2) )  
+      write(6,*) "read slope from topofile"
+      call surfread(global2d(:,1),'slope',netcdfid=ncidtopo)
+      write(6,*) "read slope_std from topofile"
+      call surfread(global2d(:,2),'slope_std',netcdfid=ncidtopo)
+      call ccmpi_distribute(local2d(:,1:2),global2d(:,1:2))
+      deallocate( global2d )
+    else
+      call ccmpi_distribute(local2d(:,1:2))  
+    end if
+    slope_ave(1:ifull) = local2d(1:ifull,1)
+    slope_std(1:ifull) = local2d(1:ifull,2)
+    deallocate( local2d )
+  end if
+  
   ! special options for orography         
   if ( nspecial==2 ) then  ! to flood Madagascar, or similar 
     do iq=1,ifull
@@ -2393,6 +2415,10 @@ endif     !  (nstn>0)
 !--------------------------------------------------------------
 ! CLOSE INPUT FILES
 if ( myid==0 ) then
+  if ( lnctopo==1 ) then
+    write(6,*) "Closing topo input file"
+    call ccnf_close(ncidtopo)
+  end if
   if ( lncveg==1 ) then
     write(6,*) "Closing veg input file"
     call ccnf_close(ncidveg)

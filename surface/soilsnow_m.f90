@@ -28,6 +28,7 @@ public tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd
 public osnowd,snage,sno,grpl,gflux,sgflux,snowflx,otgsoil 
 public runoff,albvisnir,snowmelt,runoff_surface
 public fracice,sicedep
+public wtd
 public isflag
 public wb_clim
 public soilsnow_init,soilsnow_end
@@ -38,6 +39,7 @@ real, dimension(:), allocatable, save :: osnowd,snage,sno,grpl,gflux,sgflux,snow
 real, dimension(:), allocatable, save :: runoff,snowmelt,runoff_surface
 real, dimension(:), allocatable, save :: sicedep
 real, dimension(:), allocatable, save :: fracice, snowd
+real, dimension(:), allocatable, save :: wtd
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
 real, dimension(:,:), allocatable, save :: albvisnir
 real, dimension(:,:,:), allocatable, save :: wb_clim ! allocated in indata.f90
@@ -55,6 +57,7 @@ allocate(smass(ifull,3),ssdn(ifull,3),ssdnn(ifull),snowd(ifull))
 allocate(snage(ifull),sno(ifull),grpl(ifull),gflux(ifull))
 allocate(runoff(ifull),albvisnir(ifull,2),snowmelt(ifull),runoff_surface(ifull))
 allocate(fracice(ifull),sicedep(ifull))
+allocate(wtd(ifull))
 allocate(isflag(ifull))
 if (nsib==3.or.nsib==5) then
   allocate(sgflux(ifull))
@@ -84,6 +87,7 @@ snowmelt(:)       = 0.
 runoff_surface(:) = 0.
 fracice(:)        = 0.
 sicedep(:)        = 0.
+wtd(:)            = 0.
 isflag(:)         = 0
 
 return
@@ -97,6 +101,7 @@ deallocate(tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd)
 deallocate(snage,sno,grpl,gflux)
 deallocate(runoff,albvisnir,snowmelt,runoff_surface)
 deallocate(fracice,sicedep)
+deallocate(wtd)
 deallocate(isflag)
 if (allocated(sgflux)) then
   deallocate(sgflux)

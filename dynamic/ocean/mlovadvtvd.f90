@@ -36,7 +36,7 @@ contains
 subroutine mlovadv(dtin,ww,uu,vv,ss,tt,mm,depdum,idzdum,ee,cnum)
 
 use cc_mpi
-use mlo
+use mlo_ctrl
 use newmpar_m
 
 implicit none
@@ -106,7 +106,7 @@ end subroutine mlovadv
 subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,ee)
 
 use cc_acc, only : async_length
-use mlo
+use mlo_ctrl
 use newmpar_m
 
 implicit none
@@ -135,119 +135,89 @@ if ( mlontvd==0 ) then ! MC
 #ifdef GPU
   !$acc enter data create(uu,delu,ff) async(async_counter)
   !$acc update device(uu) async(async_counter)
-  !$acc parallel loop collapse(3) present(delu,uu,ff,dzdum,ee) async(async_counter)
 #else
   !$omp parallel
-  !$omp do schedule(static) private(n,ii,iq)
 #endif
-  do n = 1,ntr
-    do ii = 1,wlev-1
-      do iq = 1,ifull
-        ff(iq,ii,n) = 0.  
-        delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
-      end do
-    end do
-  end do
+  do i = 1,maxval(its(1:ifull))
 #ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
+    !$acc parallel loop collapse(3) present(delu,uu,dzdum,ee) async(async_counter)
 #else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,iq)
+    !$omp do schedule(static) private(n,ii,iq)
 #endif
-  do n = 1,ntr
-    do iq = 1,ifull
-      ff(iq,0,n) = 0.
-      ff(iq,wlev,n) = 0.
-      delu(iq,0,n) = 0.
-      delu(iq,wlev,n) = 0.
-    end do
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
-#endif
-  do n = 1,ntr
-    do ii = 1,wlev-1
-      do iq = 1,ifull
-        ! +ve ww is downwards to the ocean floor
-        kp = nint(sign(1.,ww(iq,ii)))
-        kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-        rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
-        fl = ww(iq,ii)*uu(iq,kx,n)
-        cc = max(0.,min(2.*rr, 0.5+0.5*rr,2.)) ! MC
-        fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
-          - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
-          /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-        ff(iq,ii,n) = fl + cc*(fh-fl)
-        !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit        
-        ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
-      end do
-    end do
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(3) present(ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,ii,iq)
-#endif
-  do n = 1,ntr
-    do ii = 1,wlev
-      do iq = 1,ifull
-        if ( ee(iq,ii)>0.5 ) then  
-          uu(iq,ii,n) = uu(iq,ii,n) + dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
-                               -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)
-        end if
-      end do  
-    end do  
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(its,delu,uu,ww,ff,dtnew,depdum,dzdum,ee) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,i,ii,kp,kx,rr,fl,cc,fh)
-#endif
-  do n = 1,ntr
-    do iq = 1,ifull
-      do i = 2,its(iq)
-        do ii = 1,wlev-1
-          ff(iq,ii,n) = 0.  
+    do n = 1,ntr
+      do ii = 1,wlev-1
+        do iq = 1,ifull
           delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
         end do
-        ! TVD part
-        do ii=1,wlev-1
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+    !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq)
+#endif
+    do n = 1,ntr
+      do iq = 1,ifull
+        ff(iq,0,n) = 0.
+        ff(iq,wlev,n) = 0.
+        delu(iq,0,n) = 0.
+        delu(iq,wlev,n) = 0.
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
+#endif
+    do n = 1,ntr
+      do ii = 1,wlev-1
+        do iq = 1,ifull
           ! +ve ww is downwards to the ocean floor
           kp = nint(sign(1.,ww(iq,ii)))
           kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-          rr=delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
-          fl=ww(iq,ii)*uu(iq,kx,n)
+          rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
+          fl = ww(iq,ii)*uu(iq,kx,n)
           cc = max(0.,min(2.*rr, 0.5+0.5*rr,2.)) ! MC
-          fh=ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))              &
-            -0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
+          fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
+            - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
             /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-          ff(iq,ii,n)=fl+cc*(fh-fl)
+          ff(iq,ii,n) = fl + cc*(fh-fl)
+          !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit        
           ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
-        end do
-        do ii=1,wlev
-          if ( ee(iq,ii)>0.5 ) then  
-            uu(iq,ii,n)=uu(iq,ii,n)+dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1)) &
-                                        -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)
-          end if  
         end do
       end do
     end do
-  end do
 #ifdef GPU
-  !$acc end parallel loop
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,ii,iq)
+#endif
+    do n = 1,ntr
+      do ii = 1,wlev
+        do iq = 1,ifull
+          if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then 
+            uu(iq,ii,n) = uu(iq,ii,n) + dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
+                               -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)  
+          end if
+        end do  
+      end do  
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+#else
+    !$omp end do nowait
+#endif
+  end do ! i = 1,nits
+#ifdef GPU
   !$acc update self(uu) async(async_counter)
   !$acc exit data delete(uu,delu,ff) async(async_counter)
 #else
-  !$omp end do nowait
   !$omp end parallel
 #endif
 
@@ -256,119 +226,89 @@ else if ( mlontvd==1 ) then ! Superbee
 #ifdef GPU
   !$acc enter data create(uu,delu,ff) async(async_counter)
   !$acc update device(uu) async(async_counter)
-  !$acc parallel loop collapse(3) present(delu,uu,ff,dzdum,ee) async(async_counter)
 #else
   !$omp parallel
-  !$omp do schedule(static) private(n,ii,iq)
 #endif
-  do n = 1,ntr
-    do ii = 1,wlev-1
-      do iq = 1,ifull
-        ff(iq,ii,n) = 0.  
-        delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
-      end do
-    end do
-  end do
+  do i = 1,maxval(its(1:ifull))
 #ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
+    !$acc parallel loop collapse(3) present(delu,uu,dzdum,ee) async(async_counter)
 #else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,iq)
+    !$omp do schedule(static) private(n,ii,iq)
 #endif
-  do n = 1,ntr
-    do iq = 1,ifull
-      ff(iq,0,n) = 0.
-      ff(iq,wlev,n) = 0.
-      delu(iq,0,n) = 0.
-      delu(iq,wlev,n) = 0.
-    end do
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
-#endif
-  do n = 1,ntr
-    do ii = 1,wlev-1
-      do iq = 1,ifull
-        ! +ve ww is downwards to the ocean floor
-        kp = nint(sign(1.,ww(iq,ii)))
-        kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-        rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
-        fl = ww(iq,ii)*uu(iq,kx,n)
-        cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-        fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
-          - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
-          /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-        ff(iq,ii,n) = fl + cc*(fh-fl)
-        !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
-        ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
-      end do
-    end do
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(3) present(ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,ii,iq)
-#endif
-  do n = 1,ntr
-    do ii = 1,wlev
-      do iq = 1,ifull
-        if ( ee(iq,ii)>0.5 ) then  
-          uu(iq,ii,n)=uu(iq,ii,n)+dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
-                           -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)
-        end if
-      end do  
-    end do  
-  end do
-#ifdef GPU
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(its,delu,uu,ww,ff,dtnew,depdum,dzdum,ee) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,i,ii,kp,kx,rr,fl,cc,fh)
-#endif
-  do n = 1,ntr
-    do iq = 1,ifull
-      do i = 2,its(iq)
-        do ii = 1,wlev-1
-          ff(iq,ii,n) = 0.  
+    do n = 1,ntr
+      do ii = 1,wlev-1
+        do iq = 1,ifull
           delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
         end do
-        ! TVD part
-        do ii = 1,wlev-1
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+    !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq)
+#endif
+    do n = 1,ntr
+      do iq = 1,ifull
+        ff(iq,0,n) = 0.
+        ff(iq,wlev,n) = 0.
+        delu(iq,0,n) = 0.
+        delu(iq,wlev,n) = 0.
+      end do
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
+#endif
+    do n = 1,ntr
+      do ii = 1,wlev-1
+        do iq = 1,ifull
           ! +ve ww is downwards to the ocean floor
           kp = nint(sign(1.,ww(iq,ii)))
           kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-          rr=delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
-          fl=ww(iq,ii)*uu(iq,kx,n)
-          cc=max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-          fh=ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))          &
-            -0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
+          rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
+          fl = ww(iq,ii)*uu(iq,kx,n)
+          cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
+          fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
+            - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
             /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-          ff(iq,ii,n)=fl+cc*(fh-fl)
+          ff(iq,ii,n) = fl + cc*(fh-fl)
+          !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
           ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
-        end do
-        do ii = 1,wlev
-          if ( ee(iq,ii)>0.5 ) then  
-            uu(iq,ii,n)=uu(iq,ii,n)+dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1)) &
-                                        -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)
-          end if  
         end do
       end do
     end do
-  end do
 #ifdef GPU
-  !$acc end parallel loop
+    !$acc end parallel loop
+    !$acc parallel loop collapse(3) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
+#else
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,ii,iq)
+#endif
+    do n = 1,ntr
+      do ii = 1,wlev
+        do iq = 1,ifull
+          if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then  
+            uu(iq,ii,n)=uu(iq,ii,n)+dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
+                           -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)
+          end if
+        end do  
+      end do  
+    end do
+#ifdef GPU
+    !$acc end parallel loop
+#else
+    !$omp end do nowait
+#endif
+  end do ! i = 1,nits
+#ifdef GPU
   !$acc update self(uu) async(async_counter)
   !$acc exit data delete(uu,delu,ff) async(async_counter)
 #else
-  !$omp end do nowait
   !$omp end parallel
 #endif
     

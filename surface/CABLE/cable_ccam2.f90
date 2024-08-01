@@ -114,6 +114,7 @@ use cable_ccam4
 use cable_common_module
 use cable_data_module
 use cable_def_types_mod, cbm_ms => ms
+use cable_gw_hydro_module
 use cable_optimise_JV_module, only : optimise_JV
 use cable_radiation_module
 use cable_roughness_module
@@ -137,6 +138,7 @@ public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
+public calc_wt_ave, calc_wt_flux
 
 ! CABLE biophysical options
 real, save :: cable_version = 6608. ! expected version id for input data
@@ -212,8 +214,6 @@ use vegpar_m
 use work2_m, only : qsttg,zo,zoh,zoq,theta,vmod,wetfac
 use work3_m, only : ga
 use zenith_m
-
-implicit none
 
 integer, dimension(maxtile,2) :: ltind
 integer, dimension(imax) :: lclimate_biome, lclimate_iveg, lclimate_gmd
@@ -370,7 +370,7 @@ do tile = 1,ntiles
                    lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,   &
                    lssnow,lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,    &
                    lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
-                   lplant_turnover_wood,lclimate_save,lwb_clim,imax)
+                   lplant_turnover_wood,lclimate_save,lwb_clim,wtd(is:ie),imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -421,7 +421,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
                      sum_flux,veg,climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,      &
                      climate_agdd5,climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,   &
-                     plant_turnover_wood,climate_save,wb_clim,imax)
+                     plant_turnover_wood,climate_save,wb_clim,wtd,imax)
 
 use const_phys
 use dates_m
@@ -432,8 +432,6 @@ use sigs_m
 use soil_m, only : zmin
 use zenith_m, only : solargh, zenith
   
-implicit none
-
 integer, intent(in) :: imax, maxnb, mp
 integer, dimension(imax), intent(inout) :: climate_ivegt, climate_biome, climate_gmd
 integer jyear, jmonth, jday, jhour, jmin, idoy
@@ -462,6 +460,7 @@ real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_al
 real, dimension(imax), intent(inout) :: climate_agdd5
 real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
+real, dimension(imax), intent(out) :: wtd
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
 real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
@@ -600,7 +599,11 @@ ssnow%otss    = ssnow%tss
 ssnow%owetfac = ssnow%wetfac
 select case ( soil_struc )
   case(0)  
-    call soil_snow(dtr8,soil,ssnow,canopy,met,bal,veg)
+    if ( cable_gw_model==1 ) then
+      call soil_snow_gw(dtr8,soil,ssnow,canopy,met,bal,veg)        
+    else    
+      call soil_snow(dtr8,soil,ssnow,canopy,met,bal,veg)
+    end if  
   case(1)
     call sli_main(999,dtr8,veg,soil,ssnow,met,canopy,air,rad,0)   
   case default
@@ -900,6 +903,7 @@ end where
 evspsbl_l = 0.
 sbl_l = 0.
 tmps = 0. ! average isflag
+wtd = 0.
 
 do nb = 1,maxnb
   is = tind(nb,1)
@@ -961,6 +965,7 @@ do nb = 1,maxnb
   end if
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
   rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)    ! diagnostic in history file
+  wtd = wtd + unpack(sv(is:ie)*real(ssnow%wtd(is:ie))/1000.,tmap(:,nb),0.)  
 end do
 
 if ( ccycle/=0 ) then
@@ -1060,8 +1065,6 @@ end subroutine sib4_work
 subroutine cbmemiss(trsrc,mvegt,mode,tile,imax)
   
 use parm_m
-
-implicit none
   
 integer, intent(in) :: tile,imax
 integer, intent(in) :: mvegt,mode
@@ -1075,8 +1078,6 @@ end subroutine cbmemiss
 subroutine cbmemiss_work(trsrc,mvegt,mode,imax,tind,tmap,maxnb)
   
 use parm_m
-
-implicit none
   
 integer, intent(in) :: imax
 integer, intent(in) :: mvegt,mode
@@ -1129,8 +1130,6 @@ subroutine setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl2,casamet,veg,imax,tind,t
 use cc_mpi
 use dates_m
 use parm_m
-
-implicit none
   
 integer, intent(in) :: jmonth,jday,jhour,jmin,mp
 integer, intent(in) :: imax
@@ -1199,8 +1198,6 @@ subroutine vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
 
 use newmpar_m, only : mxvt
 use parm_m, only : nperday
-
-implicit none
 
 type(casa_biome), intent(in) :: casabiome
 type(casa_met), intent(in) :: casamet
@@ -1322,8 +1319,6 @@ end subroutine vcmax_feedback
 ! Update phenology depending on climate
 subroutine cable_phenology_clim(climate,phen,rad,veg)
 
-implicit none
-
 integer :: np, days, ivt
 integer, parameter :: ndays_raingreenup = 60
 real(kind=8) :: gdd0
@@ -1426,8 +1421,6 @@ end subroutine cable_phenology_clim
 ! POP subroutines
 subroutine casa_pop_firstcall(lalloc,casabiome,casaflux,casamet,casapool,phen,pop,soil,veg)
 
-implicit none
-
 integer, intent(in) :: lalloc
 type(casa_biome), intent(inout) :: casabiome
 type(casa_flux), intent(inout) :: casaflux
@@ -1475,8 +1468,6 @@ end subroutine casa_pop_firstcall
 
 subroutine casa_pop_secondcall(mp_POP,casaflux,pop)
 
-implicit none
-
 integer, intent(in) :: mp_POP
 type(casa_flux), intent(inout) :: casaflux
 type(pop_type), intent(inout) :: pop
@@ -1502,8 +1493,6 @@ return
 end subroutine casa_pop_secondcall
 
 subroutine POPdriver(casabal,casaflux,pop,veg)
-
-implicit none
   
 type(casa_balance), intent(in) :: casabal
 type(casa_flux), intent(in) :: casaflux
@@ -1542,8 +1531,6 @@ end subroutine POPdriver
 
 function epsif(tc,pmb) result(epsif_out)
 
-implicit none
-
 real(kind=8), dimension(mp), intent(in) :: tc, pmb
 real(kind=8), dimension(mp) :: epsif_out
 real(kind=8), dimension(mp) :: tctmp, es, desdt
@@ -1562,8 +1549,6 @@ return
 end function epsif
 
 subroutine biome1_pft(climate,rad,mp)
-
-implicit none
 
 type(climate_type), intent(inout) :: climate
 type(radiation_type), intent(in) :: rad
@@ -1808,8 +1793,6 @@ subroutine loadcbmparm(fveg,fphen,casafile, &
 use cc_mpi
 use newmpar_m
 use parm_m
-  
-implicit none
 
 integer n
 integer, dimension(ifull,maxtile), intent(out) :: ivs
@@ -1866,8 +1849,6 @@ use const_phys
 use latlong_m
 use newmpar_m
 use soil_m
-
-implicit none
 
 integer, dimension(ifull,maxtile), intent(inout) :: ivs
 integer, dimension(1) :: pos
@@ -2089,13 +2070,12 @@ use nsibd_m
 use parm_m
 use pop_constants, only : NPATCH, NLAYER, NCOHORT_MAX, HEIGHT_BINS, NDISTURB, AGEMAX
 use pbl_m
+use riverarrays_m
 use sigs_m
 use soil_m
 use soilsnow_m
 use soilv_m
 use vegpar_m
-  
-implicit none
   
 integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
@@ -2375,9 +2355,14 @@ if ( mp_global>0 ) then
     call cable_pack(svs(:,n),sv,n)
     call cable_pack(ivs(:,n),cveg,n)
     call cable_pack(isoilm,soil%isoilm,n)
+    call cable_pack(slope_ave,soil%slope,n)
+    call cable_pack(slope_std,soil%slope_std,n)
     dummy_pack = max( vlin(:,n), 0.01 )
     call cable_pack(dummy_pack,vl2,n)
   end do
+  
+  soil%slope=min(max(soil%slope,1.e-8_8),0.95_8)
+  soil%slope_std=min(max(soil%slope_std,1.e-8_8),0.95_8)
 
   ! Load CABLE biophysical arrays
   do iq = 1,ifull
@@ -2734,7 +2719,6 @@ subroutine casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
 use cc_mpi     ! CC MPI routines
 use newmpar_m
 
-implicit none
 type(veg_parameter_type), intent(in) :: veg
 type(casa_biome),         intent(inout) :: casabiome
 type(casa_pool),          intent(inout) :: casapool
@@ -3622,8 +3606,6 @@ use cc_mpi     ! CC MPI routines
 use darcdf_m   ! Netcdf data
 use infile     ! Input file routines
 
-implicit none
-
 integer k
 integer, dimension(mp_global), intent(in) :: cveg
 integer, dimension(1) :: nstart, ncount
@@ -3879,8 +3861,6 @@ use newmpar_m
 use parm_m, only : nmaxpr
 use soilv_m
 
-implicit none
-
 type(soil_parameter_type), intent(inout) :: soil
 !real, dimension(mp_global) :: ssat_bounded, rho_soil_bulk
 !real, parameter :: ssat_hi = 0.65
@@ -4000,23 +3980,26 @@ if ( mp_global>0 ) then
     soil%ssat_vec(:,k)    = soil%ssat
     soil%sfc_vec(:,k)     = soil%sfc
     soil%rhosoil_vec(:,k) = soil%rhosoil
-    soil%sucs_vec(:,k)    = soil%sucs
+    soil%sucs_vec(:,k)    = 1000._8*abs(soil%sucs)
     soil%bch_vec(:,k)     = soil%bch
-    soil%hyds_vec(:,k)    = soil%hyds
+    soil%hyds_vec(:,k)    = 1000._8*soil%hyds
     soil%watr(:,k)        = 0.01_8
     soil%cnsd_vec(:,k)    = soil%cnsd
     soil%clay_vec(:,k)    = soil%clay
     soil%sand_vec(:,k)    = soil%sand
     soil%silt_vec(:,k)    = soil%silt
+    soil%zse_vec(:,k)     = soil%zse(k)
+    soil%css_vec(:,k)     = soil%css
   end do
-  soil%GWsucs_vec    = soil%sucs*1000._8
+  soil%GWsucs_vec    = abs(soil%sucs)*1000._8
   soil%GWhyds_vec    = soil%hyds*1000._8
   soil%GWbch_vec     = soil%bch
   soil%GWrhosoil_vec = soil%rhosoil
   soil%GWssat_vec    = soil%ssat
   soil%GWwatr        = 0.01_8
   soil%GWdz          = 20._8
-  soil%GWdz = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
+  soil%GWdz          = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
+  soil%drain_dens    = 0.008_8 ! default
   
   soil%heat_cap_lower_limit = 0.01 ! recalculated in cable_soilsnow.F90
   
@@ -4064,8 +4047,6 @@ use infile
 use newmpar_m
 use parmgeom_m
 
-implicit none
-  
 character(len=*), intent(in) :: fveg
 integer, dimension(ifull,maxtile), intent(out) :: ivs
 integer, dimension(ifull_g,maxtile) :: ivsg  
@@ -4184,8 +4165,6 @@ subroutine vegtb(ivs,svs,vlin,cableformat)
 use cc_mpi
 use newmpar_m
   
-implicit none
-
 integer, dimension(ifull,maxtile), intent(out) :: ivs
 real, dimension(ifull,maxtile), intent(out) :: svs, vlin
 real, intent(out) :: cableformat
@@ -4216,8 +4195,6 @@ use soil_m
 use soilsnow_m
 use vegpar_m
   
-implicit none
-  
 integer k
 real, dimension(ifull) :: dummy_pack
 
@@ -4246,13 +4223,8 @@ if ( mp_global>0 ) then
   ssnow%rtevap_unsat = 0._8
   ssnow%satfrac = 0.5_8
   ssnow%wbliq = ssnow%wb - ssnow%wbice
-  ssnow%GWwb = 0.95_8*soil%ssat 
-  !if ( soil_struc==0 ) then
-  !  do k = 1,ms
-  !    ssnow%wb(:,k) = max(ssnow%wb(:,k), 0.5_8*soil%swilt)
-  !    ssnow%wb(:,k) = min(ssnow%wb(:,k), soil%sfc)
-  !  end do    
-  !end if
+  ssnow%GWwb = 0.5_8*soil%ssat 
+  ssnow%wtd = 20000._8
   dummy_pack = real(1-isflag)*tgg(:,1) + real(isflag)*tggsn(:,1) - 273.15
   call cable_pack(dummy_pack,ssnow%tsurface)
   ssnow%rtsoil = 50._8
@@ -4293,8 +4265,6 @@ use pbl_m
 use soil_m
 use soilsnow_m
 use vegpar_m
-  
-implicit none
   
 integer k
 
@@ -4343,8 +4313,6 @@ use soil_m
 use soilsnow_m
 use vegpar_m
   
-implicit none
-
 if ( mp_global>0 ) then
 
 ! MJT notes - may be better to use the default values for
@@ -4382,8 +4350,6 @@ subroutine newcbmwb
 
 use soilsnow_m
 
-implicit none
-
 integer k
 
 if ( mp_global>0 ) then
@@ -4407,8 +4373,6 @@ use parm_m
 use soil_m
 use soilsnow_m
 use vegpar_m
-  
-implicit none
   
 logical, intent(in), optional :: usedefault
 integer k, n, ierr, idv, ierr_casa, ierr_sli, ierr_pop, ierr_svs, ierr_cvc
@@ -4602,6 +4566,9 @@ else
     write(vname,'("t",I1.1,"_GWwb")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     call cable_pack(dat,ssnow%GWwb(:),nmp(:,n))
+    write(vname,'("t",I1.1,"_wtd")') n
+    call histrd(iarchi-1,ierr,vname,dat,ifull)
+    call cable_pack(dat,ssnow%wtd(:),nmp(:,n))
     write(vname,'("t",I1.1,"_cansto")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     call cable_pack(dat,canopy%cansto(:),nmp(:,n))
@@ -5485,8 +5452,6 @@ use soil_m
 use soilsnow_m
 use vegpar_m
   
-implicit none
-  
 integer k
 real totdepth
  
@@ -5594,8 +5559,6 @@ subroutine create_new_tile_map(old_cv,nmp)
 use cc_mpi
 use newmpar_m, only : ifull
 
-implicit none
-
 integer n, m, iq, store_n
 integer, dimension(mp_global), intent(in) :: old_cv
 integer, dimension(ifull,maxtile), intent(inout) :: nmp
@@ -5607,11 +5570,11 @@ if ( myid==0 ) write(6,*) "-> Check for tile redistribution"
 
 if ( mp_global>0 ) then
   cv_test = any( cveg/=old_cv )
-  call ccmpi_reduce(cv_test,global_cv_test,'or',0,comm_world)
 else
   cv_test = .false.
-  call ccmpi_reduce(cv_test,global_cv_test,'or',0,comm_world)  
 end if
+
+call ccmpi_reduce(cv_test,global_cv_test,'or',0,comm_world)
 
 if ( myid==0 ) then
   if ( global_cv_test ) then
@@ -5668,8 +5631,6 @@ subroutine redistribute_tile(old_sv)
 
 use cc_mpi
 
-implicit none
-
 integer k
 real, dimension(mp_global), intent(in) :: old_sv
 logical :: sv_test, global_sv_test
@@ -5678,11 +5639,11 @@ if ( myid==0 ) write(6,*) "-> Check for land-cover change"
 
 if ( mp_global>0 ) then
   sv_test = any( abs(sv-old_sv)>1.e-8 )
-  call ccmpi_reduce(sv_test,global_sv_test,'or',0,comm_world)
 else
-  sv_test = .false.
-  call ccmpi_reduce(sv_test,global_sv_test,'or',0,comm_world)  
+  sv_test = .false. 
 end if
+
+call ccmpi_reduce(sv_test,global_sv_test,'or',0,comm_world) 
 
 if ( myid==0 ) then
   if ( global_sv_test ) then
@@ -5735,8 +5696,6 @@ subroutine redistribute_work(old_sv,vdata)
 
 use newmpar_m
 use soil_m
-
-implicit none
 
 integer tile, nb, iq, is, ie
 real, dimension(mp_global), intent(in) :: old_sv
@@ -5811,8 +5770,6 @@ use cc_mpi, only : myid
 use infile
 use newmpar_m
 use parm_m, only : diaglevel_pop
-  
-implicit none
   
 integer, intent(in) :: idnc, jsize
 integer k,n
@@ -5897,7 +5854,10 @@ if (myid==0.or.local) then
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3e5,any_m,point_m,double_m)
       write(lname,'("Aquifer moisture content ",I1.1)') n
       write(vname,'("t",I1.1,"_GWwb")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3e5,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,1.3e5,any_m,point_m,double_m)
+      write(lname,'("Water table depth ",I1.1)') n
+      write(vname,'("t",I1.1,"_wtd")') n
+      call attrib(idnc,jdim,jsize,vname,lname,'m',0.,6.5e4,any_m,point_m,double_m)
       write(lname,'("cansto tile ",I1.1)') n
       write(vname,'("t",I1.1,"_cansto")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,any_m,point_m,double_m)
@@ -6485,8 +6445,6 @@ use soil_m
 use soilsnow_m
 use vegpar_m
   
-implicit none
-  
 integer, intent(in) :: idnc,iarch,itype
 integer k,n,np_pop
 integer cc,dd,hh,ll
@@ -6605,6 +6563,10 @@ if ( itype==-1 ) then !just for restart file
     dat = 0._8
     if ( n<=maxnb ) call cable_unpack(ssnow%GWwb,dat,n)
     write(vname,'("t",I1.1,"_GWwb")') n
+    call histwrt(dat,vname,idnc,iarch,local,.true.)
+    dat = 0._8
+    if ( n<=maxnb ) call cable_unpack(ssnow%wtd,dat,n)
+    write(vname,'("t",I1.1,"_wtd")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
     dat=0._8
     if (n<=maxnb) call cable_unpack(canopy%cansto,dat,n)
@@ -7690,8 +7652,6 @@ subroutine cableinflow(inflow)
 use newmpar_m
 use soil_m
 
-implicit none
-
 integer k
 real, dimension(ifull), intent(inout) :: inflow
 real, dimension(ifull) :: delflow
@@ -7725,8 +7685,6 @@ use cc_mpi
 use infile
 use newmpar_m
 use parmgeom_m
-
-implicit none
 
 integer ncstatus, ncid, varid, tilg
 integer, dimension(2) :: spos, npos
@@ -7799,8 +7757,6 @@ use infile
 use newmpar_m
 use parm_m
 
-implicit none
-
 integer, parameter :: nphen = 8
 integer ilat, ierr
 integer ncid
@@ -7868,8 +7824,6 @@ subroutine cablesettemp(tset)
 
 use newmpar_m
 
-implicit none
-
 integer k
 real, dimension(ifull), intent(in) :: tset
 
@@ -7883,6 +7837,118 @@ end do
 
 return
 end subroutine cablesettemp
+
+! Subroutines for ground water transport - average water table height
+
+subroutine calc_wt_ave(wth_ave,gwwb_min,gwdz)
+
+use arrays_m
+use const_phys
+use map_m
+use newmpar_m
+use parm_m
+
+integer nb, js, je, is, ie, ks, ke, tile, ls, le
+integer lmp, lmaxnb, k
+integer, dimension(maxtile,2) :: ltind
+real, dimension(:), intent(out) :: wth_ave, gwwb_min, gwdz
+real, dimension(size(wth_ave)) :: wtd_ave
+logical, dimension(imax,maxtile) :: ltmap
+type(soil_parameter_type) :: lsoil
+type(soil_snow_type) :: lssnow
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  lmp = tdata(tile)%mp
+  
+  wth_ave(is:ie) = 0.
+  wtd_ave(is:ie) = 0.
+  gwwb_min(is:ie) = 9.e9
+  gwdz(is:ie) = 0.
+    
+  if ( lmp>0 ) then
+
+    lmaxnb = tdata(tile)%maxnb
+    ltmap = tdata(tile)%tmap
+    js = tdata(tile)%toffset + 1
+    je = tdata(tile)%toffset + tdata(tile)%mp
+    ltind = tdata(tile)%tind - tdata(tile)%toffset  
+    call setp(soil,lsoil,tile)
+    call setp(ssnow,lssnow,tile)
+
+    ! soil layer thickness
+    do k = 1,ms
+      gwdz(is:ie) = gwdz(is:ie) + lsoil%zse(k)  
+    end do
+    
+    ! calculate water table depth and other information from tiles
+    do nb = 1,maxnb
+      ks = ltind(nb,1)
+      ke = ltind(nb,2)
+      ls = js + ks - 1
+      le = js + ke - 1
+      wtd_ave(is:ie) = wtd_ave(is:ie) + unpack( sv(ls:le)*real(lssnow%wtd(ks:ke))/1000., ltmap(:,nb), 0. )
+      gwwb_min(is:ie) = min( gwwb_min(is:ie), (ds/em(is:ie))**2*unpack( real(lssnow%GWwb(ks:ke)), ltmap(:,nb), 9.e9 ) )
+      gwdz(is:ie) = gwdz(is:ie) + unpack( sv(ls:le)*real(lsoil%GWdz(ks:ke)), ltmap(:,nb), 0. )
+    end do
+    
+  end if ! mp>0  
+
+  ! adjust water table depth for orography
+  wth_ave(is:ie) = zs(is:ie)/grav - wtd_ave(is:ie)
+
+  ! set minimum ground water to zero where undefined (e.g., ocean)
+  where ( gwwb_min(is:ie)>=1.e9 )
+    gwwb_min(is:ie) = 0.
+  end where
+
+  ! redistribute ground water across tiles within the gridbox?
+  
+end do ! tile  
+
+return
+end subroutine calc_wt_ave
+
+subroutine calc_wt_flux(flux)
+
+use parm_m
+use map_m
+use newmpar_m
+
+integer nb, is, ie, ks, ke, tile
+integer lmp, lmaxnb
+integer, dimension(maxtile,2) :: ltind
+real, dimension(:), intent(in) :: flux
+logical, dimension(imax,maxtile) :: ltmap
+type(soil_snow_type) :: lssnow
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  lmp = tdata(tile)%mp
+  
+  if ( lmp>0. ) then
+      
+    lmaxnb = tdata(tile)%maxnb
+    ltmap = tdata(tile)%tmap
+    ltind = tdata(tile)%tind - tdata(tile)%toffset
+    call setp(ssnow,lssnow,tile)
+
+    ! remove remaing flux from ground water
+    do nb = 1,lmaxnb
+      ks = ltind(nb,1)
+      ke = ltind(nb,2)
+      lssnow%GWwb(ks:ke) = lssnow%GWwb(ks:ke) - &
+          dt*pack( real((em(is:ie)/ds)**2*flux(is:ie),r_2), ltmap(:,nb) )
+    end do
+    
+  end if ! mp>0.  
+
+end do ! tile
+  
+return
+end subroutine calc_wt_flux
 
 end module cable_ccam
 

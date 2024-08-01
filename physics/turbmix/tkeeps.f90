@@ -21,7 +21,8 @@
 
 ! This module calculates the turblent kinetic energy and mixing for the boundary layer based on Hurley 2007
 ! (eddy dissipation) and Angevine et al 2010 (mass flux).  Specifically, this version is modified for
-! clouds and saturated air following Marquet and Geleyn 2012.
+! clouds and saturated air following Marquet and Geleyn 2012.  Scale aware mass flux is based on
+! Boutle et al 2014.
 
 ! Usual procedure
 
@@ -87,7 +88,7 @@ real, save :: mfbeta   = 0.15      ! Horizontal scale factor
 integer, save :: buoymeth = 1      ! Method for ED buoyancy calculation (0=D&K84, 1=M&G12, 2=Dry)
 integer, save :: stabmeth = 0      ! Method for stability calculation (0=B&H, 1=Luhar)
 integer, save :: tkemeth  = 1      ! Method for TKE calculation (0=D&K84, 1=Hurley)
-integer, save :: tcalmeth = 1      ! Method for correcting saturated air (0=Remove, 1=Retain)
+integer, save :: tcalmeth = 1      ! Method for correcting saturated air (0=Remove, 1=Retain, 2=Remove below pbl)
 real, save :: plume_alpha = 1.     ! Time-averaging factor for tke surface boundary in MF term
 real, save :: maxdts      = 120.   ! max timestep for split
 ! wind gusts
@@ -188,7 +189,7 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,ua,va,zi,fg,eg,cduv,ps,zz,zzh
                   imax,kl)
 
 #ifdef CCAM
-use mlo, only : wlev
+use mlo_ctrl, only : wlev
 #endif
                   
 implicit none
@@ -519,6 +520,46 @@ do kcount = 1,mcount
         end where
       end do  
 
+    case(2) ! correct saturated air (below pbl)
+      do k = 1,kl
+
+        templ(:) = thetal(:,k)/sigkap(k)
+        pres(:) = ps(:)*sig(k)
+        fice = max( min( qfg(:,k)/max(qfg(:,k)+qlg(:,k),1.e-8), 1. ), 0. )
+        call getqsat(qsat(:,k),templ(:),pres(:),fice,imax)
+          
+        do iq = 1,imax
+          if ( zz(iq,k)<zi(iq) ) then
+        
+            ! Check for -ve values  
+            qt(iq) = max( qfg(iq,k) + qlg(iq,k) + qvg(iq,k), 0. )
+            qc(iq) = max( qfg(iq,k) + qlg(iq,k), 0. )
+        
+            qfg(iq,k) = max( qfg(iq,k), 0. )
+            qlg(iq,k) = max( qlg(iq,k), 0. )
+    
+            ! account for saturation  
+            theta(iq,k) = thetal(iq,k) + sigkap(k)*(lv*qlg(iq,k)+ls*qfg(iq,k))/cp
+            temp(iq) = theta(iq,k)/sigkap(k)
+            lx(iq) = lv + lf*fice(iq)
+            dqsdt(iq) = qsat(iq,k)*lx(iq)/(rv*templ(iq)**2)
+            al(iq) = cp/(cp+lx(iq)*dqsdt(iq))
+            qc(iq) = max( al(iq)*(qt(iq) - qsat(iq,k)), qc(iq) )
+            if ( temp(iq)>=tice ) then
+              qfg(iq,k) = max( fice(iq)*qc(iq), 0. )  
+              qlg(iq,k) = max( qc(iq) - qfg(iq,k), 0. )
+            end if
+   
+            qvg(iq,k) = max( qt(iq) - qfg(iq,k) - qlg(iq,k), 0. )
+            theta(iq,k) = thetal(iq,k) + sigkap(k)*(lv*qlg(iq,k)+ls*qfg(iq,k))/cp
+            if ( qlg(iq,k)+qfg(iq,k)>1.E-12 ) then
+              stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
+            end if
+            
+          end if ! zz<zi
+        end do   ! iq  
+      end do     ! k
+      
   end select
 
 
@@ -1128,9 +1169,9 @@ subroutine unpack_coupled(deptho_dz,deptho_dz_hl,rad_o,                   &
                           icefg_a,wt0fb_o,ws0_o,ws0subsurf_o,i_u,i_v,     &
                           imass,fracice,cd_ice,cdbot_ice,ibot,imax,tile)
 
-use mlo, only : mloexport, mloexpdep, mlodiag, mloexpice, mlodiagice, wlev, &
-                water_g, dgwater_g, ice_g, dgice_g, depth_g, minwater,      &
-                delwater
+use mlo_ctrl, only : mloexport, mloexpdep, mlodiag, mloexpice, mlodiagice, wlev, &
+                     water_g, dgwater_g, ice_g, dgice_g, depth_g, minwater,      &
+                     delwater
 
 implicit none
 
@@ -1218,7 +1259,7 @@ end subroutine unpack_coupled
 
 subroutine pack_coupled_ts(w_t,w_s,imax,tile)
 
-use mlo, only : mloimport, mloimpice, wlev, water_g, depth_g
+use mlo_ctrl, only : mloimport, mloimpice, wlev, water_g, depth_g
 
 implicit none
 
@@ -1236,7 +1277,7 @@ end subroutine pack_coupled_ts
 
 subroutine pack_coupled_uv(w_u,w_v,i_u,i_v,imax,tile)
 
-use mlo, only : mloimport, mloimpice, wlev, water_g, ice_g, depth_g
+use mlo_ctrl, only : mloimport, mloimpice, wlev, water_g, ice_g, depth_g
 
 implicit none
 
@@ -1276,9 +1317,9 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
 #endif
                           ddts,imax,kl,tile)
 
-use mlo, only : wlev, mlo_updatekm, dgwater_g,                            &
-                mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
-                wrtrho, ice_g, mlocheck, minsfc
+use mlo_ctrl, only : wlev, mlo_updatekm, dgwater_g,                            &
+                     mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
+                     wrtrho, ice_g, mlocheck, minsfc
                           
 implicit none
 

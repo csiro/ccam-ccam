@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -39,7 +39,7 @@ contains
     
 subroutine davies    ! for globpea - only large-scale available
 
-use aerosol_arrays, only : xtg, naero
+use aerointerface, only : xtg, naero
 use arrays_m         ! t,u,v,ps
 use cc_mpi, only : mydiag
 use newmpar_m
@@ -147,7 +147,7 @@ end subroutine davies
 !=======================================================================
 subroutine davset
 
-use aerosol_arrays
+use aerointerface
 use arrays_m        ! t,u,v,ps
 use newmpar_m
 use parm_m

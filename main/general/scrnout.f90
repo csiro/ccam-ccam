@@ -459,7 +459,7 @@ use const_phys
 use estab
 use extraout_m
 use liqwpar_m
-use mlo
+use mlo_ctrl
 use morepbl_m, only : urban_tas, urban_zom, urban_zoh, urban_zoq, &
                       urban_ts, urban_wetfac, wsgs, fg, eg
 use newmpar_m
@@ -700,7 +700,7 @@ subroutine update_u10m(is,ie,u10m)
 use arrays_m, only : t, u, v, qg, ps
 use const_phys, only : grav
 use estab
-use mlo
+use mlo_ctrl
 use newmpar_m
 use parm_m
 use pbl_m, only : tss

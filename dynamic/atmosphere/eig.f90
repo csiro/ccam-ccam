@@ -25,8 +25,8 @@ implicit none
 
 private
 public eig
-integer, parameter :: rp = kind(1._8)
-!integer, parameter :: rp = kind(1._16) ! might be needed for large numbers of vertical levels
+integer, parameter :: rp = selected_real_kind(15)  ! double precision
+!integer, parameter :: rp = selected_real_kind(33) ! might be needed for large numbers of vertical levels
 
 contains
 
@@ -139,7 +139,6 @@ use parm_m, only : nmaxpr
 
 implicit none
 
-integer, parameter :: rp = kind(1._8)
 integer isoth, nh
 integer k, l, irror
 integer, dimension(kl) :: indic
@@ -236,7 +235,6 @@ end subroutine eigs
 
 subroutine flip3(a,il,jl,kl,ll)
 implicit none
-integer, parameter :: rp = kind(1._8)
 integer, intent(in) :: il,jl,kl,ll
 integer l,j,i,k
 real(kind=rp), dimension(il,jl,kl,ll), intent(inout) :: a
@@ -258,7 +256,6 @@ end subroutine flip3
 subroutine eigenp(a,evr,evi,vecr,veci,indic)
 use newmpar_m
 implicit none
-integer, parameter :: rp = kind(1._8)
 integer, dimension(kl*kl) :: iwork,local
 integer, dimension(kl) :: indic
 integer i,j,k,l,m
@@ -495,7 +492,6 @@ subroutine hesqr(a,h,evr,evi,subdia,indic,eps,ex)
 use newmpar_m
 implicit none
 
-integer, parameter :: rp = kind(1._8)
 ! the following real variables were initially single prec.-
 ! subdia, eps, ex, r, shift
 integer, dimension(kl) :: indic
@@ -799,7 +795,6 @@ end subroutine hesqr
 subroutine matinv(a,b,l,d,irror)
 use newmpar_m
 implicit none
-integer, parameter :: rp = kind(1._8)
 integer, dimension(kl,2) :: ind
 integer, dimension(kl) :: ipiv
 integer, intent(in) :: l
@@ -916,7 +911,6 @@ end subroutine matinv
 subroutine realve(m,ivec,a,vecr,evr,evi,iwork,work,indic,eps,ex)
 use newmpar_m
 implicit none
-integer, parameter :: rp = kind(1._8)
 integer, dimension(kl) :: iwork,indic
 integer m
 integer i,j,k,l
@@ -1110,7 +1104,6 @@ end subroutine realve
 subroutine scaler(a,h,prfact,enorm)
 use newmpar_m
 implicit none
-integer, parameter :: rp = kind(1._8)
 ! the following real variables were initially single prec.-
 ! bound1,bound2,enorm
 integer i,j
@@ -1216,7 +1209,6 @@ end subroutine scaler
       
 subroutine sigtosigh(sig,sigmh,kl)
 implicit none
-integer, parameter :: rp = kind(1._8)
 integer, intent(in) :: kl
 ! these routines are written from top down
 real(kind=rp), dimension(kl), intent(in) :: sig
@@ -1229,7 +1221,6 @@ end subroutine sigtosigh
       
 subroutine sightosig(sig,sigmh,kl)
 implicit none
-integer, parameter :: rp = kind(1._8)
 integer, intent(in) :: kl
 real(kind=rp), dimension(kl), intent(out) :: sig
 real(kind=rp), dimension(kl+1), intent(in) :: sigmh

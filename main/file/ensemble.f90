@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -64,11 +64,11 @@ contains
     
 subroutine update_ensemble
 
-use aerosol_arrays               ! Aerosol arrays
+use aerointerface                ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
-use mlo                          ! Ocean physics and prognostic arrays
+use mlo_ctrl                     ! Ocean physics control layer
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
@@ -135,16 +135,16 @@ if ( mtimer>mtimeb ) then
       v_rms(:) = -1.
       t_rms(:) = -1.
       dd(:) = psl(1:ifull) - pslb
-      call rmse(dd,psl_rms)
+      call rmse(dd,psl_rms) ! update psl_rms
       psl_rms = ensemble_rsfactor*psl_rms
       ee(:,:) = u(1:ifull,:) - ub
-      call rmse(ee,u_rms)
+      call rmse(ee,u_rms) ! update u_rms
       u_rms = ensemble_rsfactor*u_rms
       ee(:,:) = v(1:ifull,:) - vb
-      call rmse(ee,v_rms)
+      call rmse(ee,v_rms) ! update v_rms
       v_rms = ensemble_rsfactor*v_rms
       ee(:,:) = t(1:ifull,:) - tb
-      call rmse(ee,t_rms)
+      call rmse(ee,t_rms) ! update t_rms
       t_rms = ensemble_rsfactor*t_rms
     end if
     mtimeb = 0
@@ -228,16 +228,16 @@ if ( mtimer>=mtimeb .and. mod(nint(ktau*dt),60)==0 ) then
         write(6,*) "Update ensemble breeding"  
       end if    
       dd(:) = psl(1:ifull) - pslb
-      call rmse(dd,psl_rms)
+      call rmse(dd,psl_rms) ! adjust dd with psl_rms
       psl(1:ifull) = pslb + dd
       ee(:,:) = u(1:ifull,:) - ub
-      call rmse(ee,u_rms)
+      call rmse(ee,u_rms) ! adjust ee with u_rms
       u(1:ifull,:) = ub + ee
       ee(:,:) = v(1:ifull,:) - vb
-      call rmse(ee,v_rms)
+      call rmse(ee,v_rms) ! adjust ee with v_rms
       v(1:ifull,:) = vb + ee
       ee(:,:) = t(1:ifull,:) - tb
-      call rmse(ee,t_rms)
+      call rmse(ee,t_rms) ! adjust ee with t_rms
       t(1:ifull,:) = tb + ee
   end select  
   
@@ -303,6 +303,11 @@ real, dimension(:), intent(in) :: psl_in
 real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
 character(len=3) :: ensemblenum
 character(len=1024) :: ensemblefilename
+
+if ( num>999 ) then
+  write(6,*) "ERROR: Maximum number of ensemble members has been reached"
+  stop
+end if
 
 write(ensemblenum,'(I3.3)') num
 ensemblefilename=trim(ensembleoutfile)//'.'//ensemblenum

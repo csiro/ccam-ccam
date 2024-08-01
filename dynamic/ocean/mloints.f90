@@ -43,7 +43,7 @@ subroutine mlob2ints_bs_3(s,nface,xg,yg,wtr,bc_test,bs_test,mlointschf)
 use cc_acc
 use cc_mpi
 use indices_m
-use mlo
+use mlo_ctrl
 use newmpar_m
 use parm_m
 use parmhor_m
@@ -1008,7 +1008,7 @@ subroutine mlob2ints_bs_2(s,nface,xg,yg,wtr,bc_test,bs_test,mlointschf)
 use cc_acc
 use cc_mpi
 use indices_m
-use mlo
+use mlo_ctrl
 use newmpar_m
 use parm_m
 use parmhor_m

@@ -119,37 +119,15 @@ end subroutine outfile
 subroutine cdfout(itype,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                          ! Aerosol interface 
-use aerosolldr                             ! LDR prognostic aerosols
-use cable_ccam, only : proglai           & ! CABLE
-    ,progvcmax,soil_struc,cable_pop      &
-    ,fwsoil_switch                       &
-    ,cable_litter,gs_switch              &
-    ,POP_NPATCH,POP_NCOHORT,ccycle       &
-    ,smrf_switch,strf_switch,POP_AGEMAX  &
-    ,cable_gw_model,cable_roughness      &
-    ,cable_version, cable_potev
 use cc_mpi                                 ! CC MPI routines
-use cloudmod                               ! Prognostic cloud fraction
 use dates_m                                ! Date data
 use filnames_m                             ! Filenames
 use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
 use leoncld_mod                            ! Rotstayn microphysics
-use mlo, only : mindep                   & ! Ocean physics and prognostic arrays
-    ,minwater,mxd,zomode,zoseaice        &
-    ,factchseaice,otaumode               &
-    ,alphavis_seaice,alphanir_seaice     &
-    ,alphavis_seasnw,alphanir_seasnw     &
-    ,mlosigma,oclosure,usepice,ominl     &
-    ,omaxl,mlo_timeave_length,kemaxdt    &
-    ,omineps,omink,mlo_adjeta            &
-    ,mlo_limitsal,mlo_step,mlo_uvcoupl   &
-    ,fluxwgt,delwater
-use mlodiffg                               ! Ocean dynamics horizontal diffusion
+use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
-use mlostag, only : mstagf                 ! Ocean reversible staggering
-use mlovadvtvd, only : mlontvd             ! Ocean vertical advection
 use module_aux_rad                         ! Additional cloud and radiation routines
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use newmpar_m                              ! Grid parameters
@@ -163,10 +141,11 @@ use parmhor_m                              ! Horizontal advection parameters
 use parmvert_m                             ! Vertical advection parameters
 use river                                  ! River routing
 use seaesfrad_m                            ! SEA-ESF radiation
+use sflux_m                                ! Surface flux routines
 use staguvmod                              ! Reversible grid staggering   
 use tkeeps                                 ! TKE-EPS boundary layer
 use tracers_m                              ! Tracer data
-use uclem, only :                        & ! Urban
+use uclem_ctrl, only :                   & ! Urban
      ateb_resmeth=>resmeth               &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
@@ -864,6 +843,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'strf_switch',strf_switch)
     call ccnf_put_attg(idnc,'siburbanfrac',siburbanfrac)
     call ccnf_put_attg(idnc,'soil_struc',soil_struc)
+    call ccnf_put_attg(idnc,'wt_transport',wt_transport)
     
     ! ocean
     call ccnf_put_attg(idnc,'alphanir_seaice',alphanir_seaice)
@@ -886,6 +866,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlodiff_numits',mlodiff_numits)
     call ccnf_put_attg(idnc,'mlodps',mlodps)
+    call ccnf_put_attg(idnc,'mloiceadv',mloiceadv)
     call ccnf_put_attg(idnc,'mlointschf',mlointschf)
     call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
@@ -987,12 +968,7 @@ subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                            
                     idc,psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                                ! Aerosol interface
-use aerosol_arrays                               ! Aerosol arrays
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
-use cable_ccam, only : savetile, savetiledef,  & ! CABLE interface
-    cable_pop, POP_NPATCH, POP_NCOHORT, ccycle
-use casadimension, only : mplant, mlitter, msoil ! CASA dimensions
-use carbpools_m                                  ! Carbon pools
 use cc_mpi                                       ! CC MPI routines
 use cfrac_m                                      ! Cloud fraction
 use const_phys                                   ! Physical constants
@@ -1008,12 +984,8 @@ use kuocom_m                                     ! JLM convection
 use latlong_m                                    ! Lat/lon coordinates
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
-use mlo, only : wlev,mlosave,mlodiag,          & ! Ocean physics and prognostic arrays
-    mloexpdep,mloexport,wrtemp,oclosure,       &
-    mlovlevels,mlo_step
+use mlo_ctrl                                     ! Ocean physics control layer
 use mlodynamics                                  ! Ocean dynamics
-use mlodynamicsarrays_m                          ! Ocean dynamics data
-use mlostag                                      ! Ocean dynamics staggering
 use module_aux_cosp, only : clp_lmht,             &
     clp_phse_ice,clp_phse_liq,clp_ice,clp_liq,    &
     ncolumns,cls_db_b01,cls_db_b02,cls_db_b03,    &
@@ -1039,6 +1011,7 @@ use savuvt_m                                     ! Saved dynamic arrays
 use savuv1_m                                     ! Saved dynamic arrays
 use screen_m                                     ! Screen level diagnostics
 use sigs_m                                       ! Atmosphere sigma levels
+use sflux_m                                      ! Surface flux routines
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
@@ -1082,7 +1055,7 @@ real, dimension(ifull) :: aa, ocndep, ocnheight, opldep
 real, dimension(ifull) :: qtot, tv
 real, dimension(ms) :: zsoil
 real, dimension(wlev) :: zocean
-real, dimension(ifull,10) :: micdwn
+real, dimension(ifull,10) :: micdwn_l
 real, dimension(ifull,kl) :: tmpry, rhoa
 real, dimension(ifull,wlev) :: oo
 real, dimension(ifull,wlev,6) :: mlodwn
@@ -1729,6 +1702,8 @@ if ( myid==0 .or. local ) then
     ! CABLE -----------------------------------------------------
     if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
       if ( nextout>=1 .or. itype==-1 ) then
+        lname = 'Water table depth'
+        call attrib(idnc,dimj,jsize,'wtd',lname,'m',0.,65.,any_m,point_m,cptype)
         if ( ccycle/=0 ) then
           lname = 'Carbon leaf pool'
           call attrib(idnc,dimj,jsize,'cplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
@@ -1987,11 +1962,11 @@ if ( myid==0 .or. local ) then
     if ( itype/=-1 ) then
       if ( nextout>=4 .and. nllp==3 ) then   ! N.B. use nscrn=1 for hourly output
         lname = 'Delta latitude'
-        call attrib(idnc,dima,asize,'del_lat',lname,'deg',-60.,60.,daily_m,point_m,cptype)
+        call attrib(idnc,dima,asize,'del_lat',lname,'deg',-60.,60.,any_m,point_m,cptype)
         lname = 'Delta longitude'
-        call attrib(idnc,dima,asize,'del_lon',lname,'deg',-180.,180.,daily_m,point_m,cptype)
+        call attrib(idnc,dima,asize,'del_lon',lname,'deg',-180.,180.,any_m,point_m,cptype)
         lname = 'Delta pressure'
-        call attrib(idnc,dima,asize,'del_p',lname,'hPa',-900.,900.,daily_m,point_m,cptype)
+        call attrib(idnc,dima,asize,'del_p',lname,'hPa',-900.,900.,any_m,point_m,cptype)
       endif  ! (nextout>=4.and.nllp==3)
     end if
     lname = 'Air Temperature'
@@ -2616,15 +2591,15 @@ end if
 
 ! extract data from ocean model
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  mlodwn(:,:,1:2) = 999. ! temp, sal
-  mlodwn(:,:,3:4) = 0.   ! u, v
-  mlodwn(:,:,5:6) = 0.   ! tke & eps
-  micdwn(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
-  micdwn(:,8:10)  = 0.   ! sto, uic, vic
-  ocndep(:)       = 0.   ! ocean depth
-  ocnheight(:)    = 0.   ! free surface height
-  opldep(:)       = 0.   ! ocean partial step depth
-  call mlosave(mlodwn,ocndep,ocnheight,micdwn,0)
+  mlodwn(:,:,1:2) = 999.   ! temp, sal
+  mlodwn(:,:,3:4) = 0.     ! u, v
+  mlodwn(:,:,5:6) = 0.     ! tke & eps
+  micdwn_l(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
+  micdwn(:,8:10)  = 0.     ! sto, uic, vic
+  ocndep(:)       = 0.     ! ocean depth
+  ocnheight(:)    = 0.     ! free surface height
+  opldep(:)       = 0.     ! ocean partial step depth
+  call mlosave(mlodwn,ocndep,ocnheight,micdwn_l,0)
   call mloexpdep("depth_p",opldep,ol,0)
   ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
   ocndwn(:,3:4) = 0. ! oldutop, oldvtop
@@ -2739,13 +2714,13 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   end do
   do k = 1,3
     where (.not.land(1:ifull))
-      tggsn(:,k) = micdwn(:,k)
+      tggsn(:,k) = micdwn_l(:,k)
     end where
   end do
   where (.not.land(1:ifull))
-    fracice = micdwn(:,5)
-    sicedep = micdwn(:,6)
-    snowd   = micdwn(:,7)*1000.
+    fracice = micdwn_l(:,5)
+    sicedep = micdwn_l(:,6)
+    snowd   = micdwn_l(:,7)*1000.
   end where
 end if
 
@@ -2770,10 +2745,10 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
       call histwrt(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
       call histwrt(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)
       call histwrt(tggsn(:,3),'tggsn3',idnc,iarch,local,.true.)
-      call histwrt(micdwn(:,4),'tggsn4',idnc,iarch,local,.true.)
-      call histwrt(micdwn(:,8),'sto',idnc,iarch,local,.true.)
-      call histwrt(micdwn(:,9),'uic',idnc,iarch,local,.true.)
-      call histwrt(micdwn(:,10),'vic',idnc,iarch,local,.true.)
+      call histwrt(micdwn_l(:,4),'tggsn4',idnc,iarch,local,.true.)
+      call histwrt(micdwn_l(:,8),'sto',idnc,iarch,local,.true.)
+      call histwrt(micdwn_l(:,9),'uic',idnc,iarch,local,.true.)
+      call histwrt(micdwn_l(:,10),'vic',idnc,iarch,local,.true.)
     end if  
   end if
 end if
@@ -2943,14 +2918,6 @@ if ( itype/=-1 ) then  ! these not written to restart file
   call histwrt(rhscrn,'rhscrn',idnc,iarch,local,lwrite)
   call histwrt(uscrn,'uscrn',idnc,iarch,local,lwrite)
 end if  
-if ( itype/=-1 ) then  ! these not written to restart file
-  !if ( save_radiation ) then
-  !  call histwrt(rnet,'rnet',idnc,iarch,local,lwrite)
-  !end if
-  !if ( save_land .or. save_ocean ) then
-  !  call histwrt(epan,'epan',idnc,iarch,local,lwrite)
-  !end if
-endif    ! (itype/=-1)
 if ( save_land .or. save_ocean .or. itype==-1 ) then
   call histwrt(eg,'eg',idnc,iarch,local,lwrite_0)
   call histwrt(fg,'fg',idnc,iarch,local,lwrite_0)
@@ -3080,8 +3047,9 @@ if ( abs(iaero)>=2 .and. nrad==5 ) then
 end if
 
 ! CABLE -------------------------------------------------------
-if ( (nsib==6.or.nsib==7).and.nhstest>=9 ) then
+if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
   if ( nextout>=1 .or. itype==-1 ) then
+    call histwrt(wtd,'wtd',idnc,iarch,local,lwrite)
     if ( ccycle/=0 ) then
       do k=1,mplant
         write(vname,'("cplant",I1.1)') k

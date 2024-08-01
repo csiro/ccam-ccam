@@ -40,7 +40,7 @@
     
 module  vertmix_m
 
-use mlo, only : waterdata,icedata   ! Ocean physics and prognostic arrays
+use mlo_ctrl, only : waterdata,icedata   ! Ocean physics control layer
 
 implicit none
 
@@ -127,7 +127,7 @@ use extraout_m                      ! Additional diagnostics
 use kuocom_m                        ! JLM convection
 use liqwpar_m                       ! Cloud water mixing ratios
 use map_m                           ! Grid map arrays
-use mlo                             ! Ocean physics and prognostic arrays
+use mlo_ctrl                        ! Ocean physics control layer
 use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays

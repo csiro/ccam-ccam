@@ -19,11 +19,19 @@
     
 module module_ctrl_microphysics
 
+use cloudmod                                  ! Prognostic cloud fraction
+use leoncld_mod                               ! Prognostic cloud condensate
+use module_mp_sbu_ylin                        ! Lin cloud microphysics
+
 implicit none
 
 private
 public ctrl_microphysics
 public cloud_aerosol_mode, lin_aerosolmode, maxlintime
+
+public cloud_ice_method
+
+public leon_snowmeth
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
 integer, save :: lin_aerosolmode    = 0     ! 0=off, 1=aerosol indirect effects for Lin microphysics
@@ -64,18 +72,15 @@ use aerointerface                 ! Aerosol interface
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi                        ! CC MPI routines
 use cfrac_m                       ! Cloud fraction
-use cloudmod                      ! Prognostic cloud fraction
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
 use filnames_m                    ! Filenames
 use kuocom_m                      ! JLM convection
 use latlong_m                     ! Lat/lon coordinates
-use leoncld_mod                   ! Prognostic cloud condensate
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
 use module_aux_cosp               ! COSP cloud sat simulator
 use module_aux_rad                ! Additional cloud and radiation routines
-use module_mp_sbu_ylin            ! Lin cloud microphysics
 use morepbl_m                     ! Additional boundary layer diagnostics
 use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays

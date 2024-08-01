@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -37,16 +37,16 @@ real(kind=8), dimension(:), pointer, save :: x_g, y_g, z_g
 
 contains
 
-subroutine xyzinfo_init(ifull_g,ifull,myid)
+subroutine xyzinfo_init(ifull_g,ifull,iextra,myid)
 
 implicit none
 
-integer, intent(in) :: ifull_g, ifull, myid
+integer, intent(in) :: ifull_g, ifull, iextra, myid
 
 if ( myid==0 ) then
   allocate( wts_g(ifull_g) )  
 end if
-allocate( x(ifull), y(ifull), z(ifull) )
+allocate( x(ifull+iextra), y(ifull+iextra), z(ifull+iextra) )
 allocate( wts(ifull))
 
 return

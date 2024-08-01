@@ -85,13 +85,11 @@ subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,
 use cc_mpi           ! CC MPI routines
 use darcdf_m         ! Netcdf data
 use infile           ! Input file routines
-use mlo              ! Ocean physics and prognostic arrays
+use mlo_ctrl         ! Ocean physics control layer
 use newmpar_m        ! Grid parameters
 use parm_m           ! Model configuration
 use soil_m           ! Soil and surface data
 use stime_m          ! File date data
-
-implicit none
 
 integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14
@@ -333,8 +331,6 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
                          mlodwn,ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
-use cable_ccam, only : ccycle                  ! CABLE
-use carbpools_m                                ! Carbon pools
 use cc_mpi                                     ! CC MPI routines
 use cc_omp                                     ! CC OpenMP routines
 use cfrac_m                                    ! Cloud fraction
@@ -347,11 +343,8 @@ use infile                                     ! Input file routines
 use kuocom_m                                   ! JLM convection
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
-use mlo, only : wlev,micdwn,mloregrid,wrtemp, &
-    mloexpdep,omink,omineps,oclosure,mloimport ! Ocean physics and prognostic arrays
+use mlo_ctrl                                   ! Ocean physics control layer
 use mlodynamics                                ! Ocean dynamics
-use mlodynamicsarrays_m                        ! Ocean dynamics data
-use mlostag                                    ! Ocean dynamics staggering
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use newmpar_m                                  ! Grid parameters
 use nharrs_m, only : phi_nh,lrestart,         &
@@ -367,6 +360,7 @@ use savuvt_m                                   ! Saved dynamic arrays
 use savuv1_m                                   ! Saved dynamic arrays
 use screen_m                                   ! Screen level diagnostics
 use setxyz_m                                   ! Define CCAM grid
+use sflux_m                                    ! Surface flux routines
 use sigs_m                                     ! Atmosphere sigma levels
 use soil_m                                     ! Soil and surface data
 use soilv_m                                    ! Soil parameters
@@ -383,8 +377,6 @@ use vvel_m, only : dpsldt,sdot                 ! Additional vertical velocity
 use workglob_m                                 ! Additional grid interpolation
 use work2_m                                    ! Diagnostic arrays
 use xarrs_m, only : pslx                       ! Saved dynamic arrays
-
-implicit none
 
 real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid matching
 real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data
@@ -1657,7 +1649,14 @@ if ( nested/=1 .and. nested/=3 ) then
   tgg_found(1:ms)     = (ierc(10:9+ms)==1)
   wetfrac_found(1:ms) = (ierc(10+ms:9+2*ms)==1)
   wb_found(1:ms)      = (ierc(10+2*ms:9+3*ms)==1)
-        
+  
+  if ( myid==0 ) then
+    write(6,*) "-> Found lrestart,lrestart_radiation,lrestart_tracer ",lrestart,lrestart_radiation,lrestart_tracer
+    write(6,*) "->       u10_found,carbon_found,tgg_found            ",u10_found,carbon_found,any(tgg_found)
+    write(6,*) "->       wetfrac_found,wb_found                      ",any(wetfrac_found),any(wb_found)
+  end if
+
+  
   !------------------------------------------------------------------
   ! Read basic fields to be avaliable at zero time-step
   ! These values might need to be written at the zeroth time-step or
@@ -2220,8 +2219,6 @@ use infile                 ! Input file routines
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 
-implicit none
-      
 integer n, iq, mm, idel, jdel
 integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(fwsize), intent(in) :: s
@@ -2324,8 +2321,6 @@ use infile                 ! Input file routines
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 
-implicit none
-      
 integer k, kx, kb, ke, kn, n, iq, mm, idel, jdel
 integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(:,:), intent(in) :: s
@@ -2476,8 +2471,6 @@ subroutine fill_cc1(a_io,land_a,fill_count)
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
 
-implicit none
-
 integer, intent(inout) :: fill_count
 integer nrem, j, n
 integer ncount, cc, ipf, local_count
@@ -2603,8 +2596,6 @@ subroutine fill_cc4_3d(a_io,land_3d,fill_count)
 use cc_acc          ! CC OpenACC routines
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
-
-implicit none
 
 real, dimension(:,:), intent(inout) :: a_io
 integer, intent(inout) :: fill_count
@@ -2739,8 +2730,6 @@ end subroutine fill_cc4_3d
 
 subroutine fill_cc4_1(a_io,land_a,fill_count)
 
-implicit none
-
 integer, intent(inout) :: fill_count
 integer k
 real, dimension(:,:), intent(inout) :: a_io
@@ -2767,8 +2756,6 @@ use sigs_m                 ! Atmosphere sigma levels
       
 !     this one will ignore negative zss (i.e. over the ocean)
 
-implicit none
-      
 real, intent(in) :: siglev
 real, dimension(fwsize), intent(in) :: psl, zss, t
 real, dimension(fwsize), intent(out) :: pmsl
@@ -2790,8 +2777,6 @@ use const_phys             ! Physical constants
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 use sigs_m                 ! Atmosphere sigma levels
-      
-implicit none
       
 real, intent(in) :: siglev
 real, dimension(ifull), intent(in) :: pmsl, zss, t
@@ -2827,8 +2812,6 @@ use diag_m
 use newmpar_m
 use parm_m
 use sigs_m
-
-implicit none
 
 real, dimension(ifull), intent(inout) :: psl
 real, dimension(ifull), intent(in) :: zsold, zss
@@ -2887,8 +2870,6 @@ use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
       
-implicit none
-      
 integer k
 real, dimension(fwsize,kk), intent(inout) :: ucc, vcc
 real, dimension(fwsize,kk) :: wcc
@@ -2943,8 +2924,6 @@ use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
       
-implicit none
-
 integer, intent(inout) :: fill_count      
 real, dimension(fwsize), intent(inout) :: ucc, vcc
 real, dimension(fwsize) :: wcc
@@ -3001,8 +2980,6 @@ subroutine interpcurrent4(uct,vct,ucc,vcc,mask_3d,fill_count)
 use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
-      
-implicit none
       
 integer, intent(inout) :: fill_count
 integer k
@@ -3068,8 +3045,6 @@ use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
       
-implicit none
-
 integer ier
 real, dimension(ifull), intent(out) :: varout
 real, dimension(fwsize) :: ucc
@@ -3094,8 +3069,6 @@ use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
-      
-implicit none
       
 integer, intent(inout) :: fill_count
 integer ier
@@ -3124,8 +3097,6 @@ use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
-      
-implicit none
       
 integer, intent(inout) :: fill_count
 integer ier
@@ -3157,8 +3128,6 @@ use newmpar_m                       ! Grid parameters
 use uclem_ctrl, only : urbtemp,    &
     uclem_loadd                     ! Urban
 
-implicit none
-      
 integer, intent(inout) :: fill_count
 integer, intent(in) :: ifrac, fillmode
 integer ierr
@@ -3206,8 +3175,6 @@ use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
       
-implicit none
-
 integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,size(varout,2)) :: ucc
@@ -3233,8 +3200,6 @@ use darcdf_m             ! Netcdf data
 use infile               ! Input file routines
 use newmpar_m            ! Grid parameters
       
-implicit none
-
 integer, intent(in) :: vmode
 integer, intent(in), optional :: levkin
 integer ier
@@ -3274,8 +3239,6 @@ use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
 
-implicit none
-
 integer, intent(in) :: umode, vmode
 integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
@@ -3309,8 +3272,6 @@ use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
       
-implicit none
-      
 integer, intent(inout) :: fill_count
 integer ier
 real, dimension(:,:), intent(out) :: varout
@@ -3337,10 +3298,8 @@ subroutine fillhist4o(vname,varout,mask_3d,fill_count,bath)
 use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
-use mlo                ! Ocean physics and prognostic arrays
+use mlo_ctrl           ! Ocean physics control layer
 use newmpar_m          ! Grid parameters
-      
-implicit none
       
 integer, intent(inout) :: fill_count
 integer ier
@@ -3374,10 +3333,8 @@ subroutine fillhistuv4o(uname,vname,uarout,varout,mask_a,fill_count,bath)
 use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
-use mlo                ! Ocean physics and prognostic arrays
+use mlo_ctrl           ! Ocean physics control layer
 use newmpar_m          ! Grid parameters
-      
-implicit none
       
 integer, intent(inout) :: fill_count
 integer ier
@@ -3417,8 +3374,6 @@ use newmpar_m                       ! Grid parameters
 use uclem_ctrl, only : urbtemp,    &
     uclem_loadd                     ! Urban
 
-implicit none
-      
 integer, intent(inout) :: fill_count
 integer, intent(in) :: ifrac, fillmode
 integer k, ierr
@@ -3472,8 +3427,6 @@ use cc_mpi             ! CC MPI routines
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
-
-implicit none
 
 integer n, ipf
 integer mm, iq, idel, jdel
@@ -3664,8 +3617,6 @@ end subroutine file_wininit
 subroutine onthefly_exit
 
 use cc_mpi
-
-implicit none
 
 integer i
 
