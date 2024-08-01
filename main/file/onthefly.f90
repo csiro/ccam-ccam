@@ -343,7 +343,6 @@ use infile                                     ! Input file routines
 use kuocom_m                                   ! JLM convection
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
-use mlo_ctrl                                   ! Ocean physics control layer
 use mlodynamics                                ! Ocean dynamics
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use newmpar_m                                  ! Grid parameters
@@ -369,8 +368,6 @@ use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &
     thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,   &
     tke_ema                                    ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
-use uclem_ctrl, only : urbtemp, nfrac,       &
-    uclem_loadd                                ! Urban
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
 use vvel_m, only : dpsldt,sdot                 ! Additional vertical velocity

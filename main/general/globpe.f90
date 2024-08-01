@@ -40,7 +40,7 @@
 !   usempi3      - optimse communication with MPI shared memory (preferred)
 !   share_ifullg - reduce shared memory with MPI, but requires usempi3 directive
 !   vampir       - enable vampir profiling
-    
+
 program globpe
 
 use aerointerface                          ! Aerosol interface
@@ -70,7 +70,6 @@ use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
-use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
@@ -1304,7 +1303,6 @@ use kuocom_m                               ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
 use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
-use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
 use module_aux_rad                         ! Additional cloud and radiation routines
 use module_ctrl_microphysics               ! Interface for cloud microphysics
@@ -1344,44 +1342,6 @@ use tracermodule, only : tracerlist      & ! Tracer routines
     ,sitefile,shipfile,writetrpm         &
     ,init_tracer
 use tracers_m                              ! Tracer data
-use uclem_ctrl, only :                   & ! Urban
-     ateb_soilunder=>soilunder           &
-    ,energytol                           & 
-    ,ateb_resmeth=>resmeth               &
-    ,ateb_zohmeth=>zohmeth               &
-    ,ateb_acmeth=>acmeth                 &
-    ,ateb_nrefl=>nrefl                   &
-    ,ateb_scrnmeth=>scrnmeth             &
-    ,ateb_wbrelaxc=>wbrelaxc             &
-    ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_ncyits=>ncyits                 &
-    ,ateb_nfgits=>nfgits                 &
-    ,ateb_tol=>tol                       &
-    ,ateb_zosnow=>zosnow                 &
-    ,ateb_snowemiss=>snowemiss           &
-    ,ateb_maxsnowalpha=>maxsnowalpha     &
-    ,ateb_minsnowalpha=>minsnowalpha     &
-    ,ateb_maxsnowden=>maxsnowden         &
-    ,ateb_minsnowden=>minsnowden         &
-    ,ateb_refheight=>refheight           &
-    ,ateb_zomratio=>zomratio             &
-    ,zocanyon                            &
-    ,zoroof                              &
-    ,ateb_maxrfwater=>maxrfwater         &
-    ,ateb_maxrdwater=>maxrdwater         &
-    ,ateb_maxrfsn=>maxrfsn               &
-    ,ateb_maxrdsn=>maxrdsn               &
-    ,ateb_maxvwatf=>maxvwatf             &
-    ,intairtmeth                         &
-    ,intmassmeth                         &
-    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
-    ,ateb_statsmeth=>statsmeth           &
-    ,ateb_lwintmeth=>lwintmeth           &
-    ,ateb_infilmeth=>infilmeth           &
-    ,ateb_ac_heatcap=>ac_heatcap         &
-    ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor
 use unn_m                                  ! Saved dynamic arrays
 use usage_m                                ! Usage message
 use uvbar_m                                ! Saved dynamic arrays
@@ -1407,7 +1367,6 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, mbd_min
 integer opt, nopt
-integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 integer o3_time_interpolate        ! depreciated namelist options
 integer kmlo, calcinloop           ! depreciated namelist options
@@ -1422,8 +1381,6 @@ real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr, tscale
-real ateb_zocanyon, ateb_zoroof
-real ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
 real ateb_alpha                     ! depreciated namelist options 
@@ -1604,8 +1561,6 @@ ngas                = 0
 ateb_energytol      = 0.1
 ateb_intairtmeth    = 0
 ateb_intmassmeth    = 0
-ateb_zocanyon       = zocanyon
-ateb_zoroof         = zoroof
 lapsbot             = 0
 npa                 = 0   ! depreciated
 npb                 = 0   ! depreciated
@@ -1662,11 +1617,6 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, landnml)
   end if
-  energytol = real(ateb_energytol,8) ! note conversion from ateb_energytol to energytol
-  zocanyon = ateb_zocanyon
-  zoroof = ateb_zoroof
-  intairtmeth = ateb_intairtmeth ! note switch to UCLEM parameter
-  intmassmeth = ateb_intmassmeth ! note switch to UCLEM parameter
 end if
 call broadcast_landnml
 if ( myid==0 ) then
@@ -1853,10 +1803,10 @@ imax = ifull/ntiles
 ! since processes might have been remapped, then use node_myid
 ! to determine GPU assigned to each process
 call ccacc_init(node_myid,ngpus)
-call ccomp_init(node_myid)
+call ccomp_init()
 #else
 call ccacc_init(myid,ngpus)
-call ccomp_init(myid)
+call ccomp_init()
 #endif
 
 ! Display model configuration information in log file

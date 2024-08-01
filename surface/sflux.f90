@@ -38,7 +38,48 @@ module sflux_m
 
 use cable_ccam                            ! CABLE interface
 use carbpools_m                           ! Carbon pools
-use casadimension                         ! CASA dimensions
+use mlo_ctrl                              ! Ocean physics control layer
+use uclem_ctrl, only :                   & ! Urban
+     ateb_soilunder=>soilunder           &
+    ,ateb_energytol=>energytol           & 
+    ,ateb_resmeth=>resmeth               &
+    ,ateb_zohmeth=>zohmeth               &
+    ,ateb_acmeth=>acmeth                 &
+    ,ateb_nrefl=>nrefl                   &
+    ,ateb_scrnmeth=>scrnmeth             &
+    ,ateb_wbrelaxc=>wbrelaxc             &
+    ,ateb_wbrelaxr=>wbrelaxr             &
+    ,ateb_ncyits=>ncyits                 &
+    ,ateb_nfgits=>nfgits                 &
+    ,ateb_tol=>tol                       &
+    ,ateb_zosnow=>zosnow                 &
+    ,ateb_snowemiss=>snowemiss           &
+    ,ateb_maxsnowalpha=>maxsnowalpha     &
+    ,ateb_minsnowalpha=>minsnowalpha     &
+    ,ateb_maxsnowden=>maxsnowden         &
+    ,ateb_minsnowden=>minsnowden         &
+    ,ateb_refheight=>refheight           &
+    ,ateb_zomratio=>zomratio             &
+    ,ateb_maxrfwater=>maxrfwater         &
+    ,ateb_maxrdwater=>maxrdwater         &
+    ,ateb_maxrfsn=>maxrfsn               &
+    ,ateb_maxrdsn=>maxrdsn               &
+    ,ateb_maxvwatf=>maxvwatf             &
+    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
+    ,ateb_statsmeth=>statsmeth           &
+    ,ateb_lwintmeth=>lwintmeth           &
+    ,ateb_infilmeth=>infilmeth           &
+    ,ateb_ac_heatcap=>ac_heatcap         &
+    ,ateb_ac_coolcap=>ac_coolcap         &
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor             &
+    ,ateb_intairtmeth=>intairtmeth       &
+    ,ateb_intmassmeth=>intmassmeth       &
+    ,ateb_zocanyon=>zocanyon             &
+    ,ateb_zoroof=>zoroof                 &
+    ,urbtemp,nfrac,uclem_loadd           &
+    ,uclem_init,uclem_type               &
+    ,uclem_disable,uclem_deftype
 
 implicit none
 
@@ -63,6 +104,27 @@ public carbpools_init,carbpools_end
 public fevc,plant_turnover,plant_turnover_wood
 
 public mplant,mlitter,msoil
+
+public mlovlevels,mlonewice,mloexpice,mlosurf,mloinit,mloload,mloimport,mloexport
+public mlo_ema,mloexpdep
+public minsfc,minsal,maxsal,icemax
+public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
+public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta,mlo_limitsal
+public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,omink,omineps
+public k_mode,eps_mode,limitL,fixedce3,nops,nopb,fixedstabfunc
+public alphanir_seaice,alphanir_seasnw,alphavis_seaice,alphavis_seasnw
+public micdwn
+
+public uclem_init,uclem_type,uclem_disable,uclem_deftype
+public ateb_soilunder,ateb_energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
+public ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,ateb_ncyits,ateb_nfgits,ateb_tol
+public ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,ateb_minsnowalpha,ateb_maxsnowden
+public ateb_minsnowden,ateb_refheight,ateb_zomratio,ateb_maxrfwater
+public ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,ateb_maxvwatf
+public ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,ateb_infilmeth,ateb_ac_heatcap
+public ateb_ac_coolcap,ateb_ac_deltat,ateb_acfactor
+public ateb_intairtmeth,ateb_intmassmeth,ateb_zocanyon,ateb_zoroof
+public urbtemp,nfrac,uclem_loadd
 
 real, save :: ri_max, zologbgin, ztv, z1onzt, chnsea
 real, save :: srcp

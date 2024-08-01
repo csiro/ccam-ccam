@@ -49,8 +49,7 @@ module cc_omp
 
    end function ccomp_get_thread_num
 
-   subroutine ccomp_init(myid)
-      integer, intent(in) :: myid
+   subroutine ccomp_init()
    
 #ifdef _OPENMP
       maxthreads = omp_get_max_threads()

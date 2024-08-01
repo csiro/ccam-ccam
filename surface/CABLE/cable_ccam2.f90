@@ -139,6 +139,7 @@ public fwsoil_switch, cable_litter, gs_switch
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 public calc_wt_ave, calc_wt_flux
+public mplant,mlitter,msoil
 
 ! CABLE biophysical options
 real, save :: cable_version = 6608. ! expected version id for input data

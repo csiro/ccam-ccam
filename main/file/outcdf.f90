@@ -125,8 +125,6 @@ use filnames_m                             ! Filenames
 use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
-use leoncld_mod                            ! Rotstayn microphysics
-use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
 use module_aux_rad                         ! Additional cloud and radiation routines
 use module_ctrl_microphysics               ! Interface for cloud microphysics
@@ -145,42 +143,6 @@ use sflux_m                                ! Surface flux routines
 use staguvmod                              ! Reversible grid staggering   
 use tkeeps                                 ! TKE-EPS boundary layer
 use tracers_m                              ! Tracer data
-use uclem_ctrl, only :                   & ! Urban
-     ateb_resmeth=>resmeth               &
-    ,ateb_zohmeth=>zohmeth               &
-    ,ateb_acmeth=>acmeth                 &
-    ,ateb_nrefl=>nrefl                   &
-    ,ateb_scrnmeth=>scrnmeth             &
-    ,ateb_wbrelaxc=>wbrelaxc             &
-    ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_ncyits=>ncyits                 &
-    ,ateb_nfgits=>nfgits                 &
-    ,ateb_tol=>tol                       &
-    ,ateb_zosnow=>zosnow                 &
-    ,ateb_snowemiss=>snowemiss           &
-    ,ateb_maxsnowalpha=>maxsnowalpha     &
-    ,ateb_minsnowalpha=>minsnowalpha     &
-    ,ateb_maxsnowden=>maxsnowden         &
-    ,ateb_minsnowden=>minsnowden         &
-    ,ateb_refheight=>refheight           &
-    ,ateb_zomratio=>zomratio             &
-    ,ateb_zocanyon=>zocanyon             &
-    ,ateb_zoroof=>zoroof                 &
-    ,ateb_maxrfwater=>maxrfwater         &
-    ,ateb_maxrdwater=>maxrdwater         &
-    ,ateb_maxrfsn=>maxrfsn               &
-    ,ateb_maxrdsn=>maxrdsn               &
-    ,ateb_maxvwatf=>maxvwatf             &
-    ,ateb_intairtmeth=>intairtmeth       &
-    ,ateb_intmassmeth=>intmassmeth       &
-    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
-    ,ateb_statsmeth=>statsmeth           &
-    ,ateb_lwintmeth=>lwintmeth           &
-    ,ateb_infilmeth=>infilmeth           &
-    ,ateb_ac_heatcap=>ac_heatcap         &
-    ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor
 
 implicit none
 
@@ -2595,7 +2557,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   mlodwn(:,:,3:4) = 0.     ! u, v
   mlodwn(:,:,5:6) = 0.     ! tke & eps
   micdwn_l(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
-  micdwn(:,8:10)  = 0.     ! sto, uic, vic
+  micdwn_l(:,8:10)  = 0.   ! sto, uic, vic
   ocndep(:)       = 0.     ! ocean depth
   ocnheight(:)    = 0.     ! free surface height
   opldep(:)       = 0.     ! ocean partial step depth

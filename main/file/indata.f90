@@ -74,7 +74,6 @@ use latlong_m                                    ! Lat/lon coordinates
 use latltoij_m                                   ! Lat/Lon to cubic ij conversion
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
-use mlo_ctrl                                     ! Ocean physics control layer
 use mlodynamics                                  ! Ocean dynamics
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
@@ -97,7 +96,6 @@ use stime_m                                      ! File date data
 use timeseries, only : init_ts                   ! Tracer time series
 use tracermodule, only : readtracerflux          ! Tracer routines
 use tracers_m                                    ! Tracer data
-use uclem_ctrl                                   ! Urban
 use vecs_m                                       ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                                     ! Map to cartesian coordinates
 use vegpar_m                                     ! Vegetation arrays

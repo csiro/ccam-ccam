@@ -40,8 +40,6 @@
     
 module  vertmix_m
 
-use mlo_ctrl, only : waterdata,icedata   ! Ocean physics control layer
-
 implicit none
 
 private

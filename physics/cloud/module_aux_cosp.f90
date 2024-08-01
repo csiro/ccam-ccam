@@ -271,7 +271,6 @@ contains
   use arrays_m                      ! Atmosphere dyamics prognostic arrays
   use cc_mpi                        ! CC MPI routines
   use cfrac_m                       ! Cloud fraction
-  use cloudmod                      ! Prognostic cloud fraction
   use const_phys                    ! Physical constants
   use estab
   use kuocom_m                      ! JLM convection
