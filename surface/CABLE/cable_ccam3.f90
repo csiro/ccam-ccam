@@ -35,17 +35,17 @@ public casapool, phen, pop, c
 public climate_save, climate_save_type
 
 type climate_save_type
-  real, dimension(:), pointer :: APAR_leaf_sun
-  real, dimension(:), pointer :: APAR_leaf_shade
-  real, dimension(:), pointer :: Dleaf_sun
-  real, dimension(:), pointer :: fwsoil
-  real, dimension(:), pointer :: Dleaf_shade
-  real, dimension(:), pointer :: Tleaf_sun 
-  real, dimension(:), pointer :: Tleaf_shade
-  real, dimension(:), pointer :: cs_sun
-  real, dimension(:), pointer :: cs_shade
-  real, dimension(:), pointer :: scalex_sun
-  real, dimension(:), pointer :: scalex_shade
+  real(kind=r_2), dimension(:), pointer :: APAR_leaf_sun
+  real(kind=r_2), dimension(:), pointer :: APAR_leaf_shade
+  real(kind=r_2), dimension(:), pointer :: Dleaf_sun
+  real(kind=r_2), dimension(:), pointer :: fwsoil
+  real(kind=r_2), dimension(:), pointer :: Dleaf_shade
+  real(kind=r_2), dimension(:), pointer :: Tleaf_sun 
+  real(kind=r_2), dimension(:), pointer :: Tleaf_shade
+  real(kind=r_2), dimension(:), pointer :: cs_sun
+  real(kind=r_2), dimension(:), pointer :: cs_shade
+  real(kind=r_2), dimension(:), pointer :: scalex_sun
+  real(kind=r_2), dimension(:), pointer :: scalex_shade
 end type climate_save_type
     
 type (air_type), save            :: air
