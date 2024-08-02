@@ -4224,7 +4224,7 @@ if ( mp_global>0 ) then
   ssnow%rtevap_unsat = 0._8
   ssnow%satfrac = 0.5_8
   ssnow%wbliq = ssnow%wb - ssnow%wbice
-  ssnow%GWwb = 0.5_8*soil%ssat 
+  ssnow%GWwb = 0.95_8*soil%ssat 
   ssnow%wtd = 20000._8
   dummy_pack = real(1-isflag)*tgg(:,1) + real(isflag)*tggsn(:,1) - 273.15
   call cable_pack(dummy_pack,ssnow%tsurface)
