@@ -138,12 +138,10 @@ endif
 
 #NVFORTRAN
 ifeq ($(NVFORTRAN),yes)
-#MPIFC = nvfortran
-#MPIF77 = nvfortran
-#FC = mpifort
-#FCSCM = nvfortran
-FC = /opt/nvidia/hpc_sdk/Linux_x86_64/24.3/comm_libs/openmpi/openmpi-3.1.5/bin/mpifort
-FCSCM = /opt/nvidia/hpc_sdk/Linux_x86_64/24.3/compilers/bin/nvfortran
+MPIFC = nvfortran
+MPIF77 = nvfortran
+FC = mpifort
+FCSCM = nvfortran
 NCFLAG = -I $(NETCDF_ROOT)/include/GNU
 LIBS = -L $(NETCDF_ROOT)/lib/GNU -lnetcdf
 FHOST = -O4 -fast -tp=host
@@ -158,7 +156,7 @@ endif
 FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(USE_GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
-FFLAGS += -Minfo=accel -acc -gpu=cuda12.3,fastmath,flushz -DGPU
+FFLAGS += -Minfo=accel -acc -gpu=cuda12.2,fastmath,flushz -DGPU
 #-ta=tesla:cc70
 endif
 ifeq ($(GPUCHEMISTRY),yes)
@@ -167,7 +165,9 @@ endif
 #ifeq ($(OMP),yes)
 #FFLAGS += -mp
 #endif
+FOVERRIDE =
 ZMM =
+IPOFLAG =
 VTHRESH =
 PPFLAG90 = -cpp
 PPFLAG77 = -cpp

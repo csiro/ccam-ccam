@@ -903,7 +903,9 @@ CONTAINS
   ! Output
   !	 ssnow
   SUBROUTINE soil_snow_gw(dels, soil, ssnow, canopy, met, bal, veg)
-#ifndef CCAM
+#ifdef CCAM
+    USE parm_m, only : ktau
+#else
     USE cable_IO_vars_module, ONLY: wlogn
 #endif
 
@@ -923,14 +925,18 @@ CONTAINS
     REAL, DIMENSION(mp) :: tggsn_old,wbtot_ic,del_wbtot
     REAL(r_2), DIMENSION(mp) :: xx
     REAL                :: zsetot
+#ifndef CCAM    
     INTEGER, SAVE :: ktau =0
+#endif
     REAL(r_2) :: wb_lake_T, rnof2_T
     LOGICAL :: use_sli
     LOGICAL, SAVE :: first_gw_hydro_call = .TRUE.
 
     use_sli = .FALSE.
 
+#ifndef CCAM
     ktau = ktau +1
+#endif
 
     zsetot = SUM(soil%zse)
     ssnow%tggav = 0.
@@ -1021,8 +1027,11 @@ CONTAINS
     END DO
 
 
-#ifndef CCAM    
+#ifdef CCAM    
+    IF ( ktau <= 1 ) THEN
+#else
     IF( first_gw_hydro_call ) THEN
+#endif
 
        DO i=1,mp
           ssnow%gammzz(i,1) = MAX(soil%heat_cap_lower_limit(i,1),&
@@ -1031,11 +1040,9 @@ CONTAINS
                & + ssnow%wbliq(i,1) * C%cs_rho_wat           &
                & + ssnow%wbice(i,1) * C%cs_rho_ice ) * soil%zse(1) +   &
                & (1. - ssnow%isflag(i)) * C%cgsnow * ssnow%snowd(i)
-
        END DO
 
     ENDIF  ! if(.NOT.cable_runtime_coupled) and first_gw_hydro_call
-#endif
 
 
     DO i=1,mp

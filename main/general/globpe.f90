@@ -951,17 +951,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call log_off
 
 
-  ! WRITE DATA TO HISTORY AND RESTART FILES ---------------
+  ! WRITE DATA TO HISTORY ---------------------------------
   if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
     call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
-    if ( ktau==ntau .and. irest==1 ) then
-      ! do not include the time for writing the restart file
-      call END_LOG(maincalc_end)
-      ! write restart file
-      call outfile(19,restfile,psl,u,v,t,qg)
-      if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
-      call START_LOG(maincalc_begin)
-    endif
   endif
   ! write high temporal frequency fields
   if ( surfile/=' ' ) then
@@ -1034,6 +1026,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
 end do                  ! *** end of main time loop
   
 call END_LOG(maincalc_end)
+
+! WRITE DATA TO RESTART FILES ---------------------------
+if ( irest==1 ) then
+  ! write restart file
+  call outfile(19,restfile,psl,u,v,t,qg)
+  if ( myid==0 ) write(6,*) 'finished writing restart file in outfile'
+endif
+
 call log_off
   
   
