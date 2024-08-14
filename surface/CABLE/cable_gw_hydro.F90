@@ -397,11 +397,15 @@ CONTAINS
     !---  glacier formation
     rnof5= 0.
 
+#ifdef CCAM
+    nglacier = 0
+#else
     IF (sli_call .OR. cable_runtime%UM) THEN
        nglacier = 0
     ELSE
        nglacier = 2
     END IF
+#endif
 
     IF (nglacier == 2) THEN
        smelt1=0.

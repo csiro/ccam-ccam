@@ -387,6 +387,7 @@ end subroutine rvrinit
 subroutine rvrrouter
 
 use arrays_m
+use cable_ccam
 use cc_mpi
 use const_phys
 use indices_m
@@ -395,7 +396,6 @@ use newmpar_m
 use nsibd_m
 use parm_m
 use riverarrays_m
-use sflux_m
 use soil_m
 use soilsnow_m
 use soilv_m
@@ -565,12 +565,13 @@ end subroutine rvrrouter
 subroutine water_table_transport
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use cable_ccam                             ! CABLE interface
 use cc_mpi                                 ! CC MPI routines
 use indices_m                              ! Grid index arrays
 use map_m                                  ! Grid map arrays
 use newmpar_m                              ! Grid parameters
 use nsibd_m                                ! Land-surface arrays
-use sflux_m                                ! Surface flux routines
+use parm_m                                 ! Model configuration
 use soil_m                                 ! Soil and surface data
 use soilv_m                                ! Soil parameters
 use riverarrays_m                          ! River rarrays
@@ -579,7 +580,7 @@ use xyzinfo_m                              ! Grid coordinate arrays
 integer iq, n
 real, dimension(ifull+iextra,2) :: dumw
 real, dimension(ifull+iextra) :: wth_ave, gwwb_min
-real, dimension(ifull) :: flux, wconst
+real, dimension(ifull) :: flux, flux_m, flux_c, wconst
 logical, save :: first_call = .true.
 
 if ( wt_transport==1 ) then
@@ -620,11 +621,13 @@ if ( wt_transport==1 ) then
   ! calculate gradients
   ! gwwb_min also accounts for land-sea mask
   flux(:) = 0.
+  flux_m(:) = 0.
+  flux_c(:) = 0.
   wconst(:) = sqrt(0.5*tan(3.14159/8.))    ! octagon for eight directions
-  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,in)
-  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ie)
-  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,is)
-  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,iw)
+  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,in)
+  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ie)
+  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,is)
+  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,iw)
   wconst(:) = sqrt(0.5*tan(3.14159/8.))
   if ( edge_n .and. edge_e ) then
     do n = 1,npan
@@ -632,7 +635,7 @@ if ( wt_transport==1 ) then
       wconst(iq) = 0.
     end do
   end if
-  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ine)
+  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ine)
   wconst(:) = sqrt(0.5*tan(3.14159/8.))
   if ( edge_s .and. edge_e ) then
     do n = 1,npan
@@ -640,7 +643,7 @@ if ( wt_transport==1 ) then
       wconst(iq) = 0.
     end do
   end if
-  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ise)
+  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ise)
   wconst(:) = sqrt(0.5*tan(3.14159/8.))
   if ( edge_s .and. edge_w ) then
     do n = 1,npan
@@ -648,7 +651,7 @@ if ( wt_transport==1 ) then
       wconst(iq) = 0.
     end do
   end if
-  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,isw)
+  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,isw)
   wconst(:) = sqrt(0.5*tan(3.14159/8.))
   if ( edge_n .and. edge_w ) then
     do n = 1,npan
@@ -656,19 +659,19 @@ if ( wt_transport==1 ) then
       wconst(iq) = 0.
     end do
   end if
-  call add_flux(flux,gwwb_min,wth_ave,zs,em,wconst,x,y,z,inw)
-
+  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,inw)
+  
   ! losing streams (exchange between rivers and GW)
   
   ! distribute GWwb flux
-  call calc_wt_flux( flux )
+  call calc_wt_flux( flux, flux_m, flux_c, dt )
 
 end if
 
 return
 end subroutine water_table_transport
 
-subroutine add_flux(flux,gwwb_min,wth,zs,em,wconst,x,y,z,dir)
+subroutine add_flux(flux,flux_m,flux_c,gwwb_min,wth,zs,em,wconst,x,y,z,dir)
 
 use const_phys                             ! Physical constants
 use newmpar_m                              ! Grid parameters
@@ -679,14 +682,12 @@ integer iq
 integer, dimension(ifull), intent(in) :: dir
 real wth_del, wth_ave, w, t, dx, f, k0_ave, slope, vol
 real wth_max, flux_add, dr
-real, dimension(ifull+iextra), intent(inout) :: flux
+real, dimension(ifull), intent(inout) :: flux, flux_m, flux_c
 real, dimension(ifull+iextra), intent(in) :: wth, gwwb_min, zs
 real, dimension(ifull+iextra), intent(in) :: em
 real, dimension(ifull), intent(in) :: wconst
 real(kind=8), dimension(ifull+iextra), intent(in) :: x, y, z
 real(kind=8) dotprod
-
-!wconst = sqrt(0.5*tan(3.14159/8.))    ! octagon for eight directions
 
 ! Calculation based on Fan et al Water Table Observations doi: 10.1029/2006JD008111
 
@@ -707,7 +708,9 @@ do iq = 1,ifull
   ! limit flux based on avaliable GW
   flux_add = max( min( flux_add, gwwb_min(iq)*gwdz(iq)/dt ), -gwwb_min(dir(iq))*gwdz(dir(iq))/dt )
   if ( gwdz(iq)>0. .and. gwdz(dir(iq))>0. ) then
-    flux(iq) = flux(iq) + flux_add/gwdz(iq) ! m3/m/s
+    flux(iq) = flux(iq) + flux_add/gwdz(iq)                ! m2/s
+    flux_m(iq) = flux_m(iq) + w*t/dr/gwdz(iq)              ! m/2
+    flux_c(iq) = flux_c(iq) - w*t*wth(dir(iq))/dr/gwdz(iq) ! m2/s
   end if
 end do
 

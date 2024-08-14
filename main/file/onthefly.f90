@@ -614,9 +614,6 @@ end if ! newfile .and. .not.iop_test
 ! allocate working arrays
 allocate( ucc(fwsize), tss_a(fwsize), ucc7(fwsize,7) )
 
-!$acc data create(nface4,xg4,yg4,pijn2pw,pijn2pn)
-!$acc update device(nface4,xg4,yg4,pijn2pw,pijn2pn)
-
 ! -------------------------------------------------------------------
 ! read time invariant data when file is first opened
 if ( newfile ) then
@@ -2174,8 +2171,6 @@ if ( nested/=1 .and. nested/=3 ) then
         
 endif    ! (nested/=1.and.nested/=3)
 
-!$acc end data
-
 !**************************************************************
 ! This is the end of reading the initial arrays
 !**************************************************************  
@@ -2359,9 +2354,6 @@ if ( iotest ) then
     end do
   end do ! kb
 else
-#ifdef GPU
-  !$acc enter data create(sout,abuf)
-#endif
   do kb = 1,kx,kblock
     ke = min(kb+kblock-1, kx)
     kn = ke - kb + 1
@@ -2372,20 +2364,12 @@ else
         sout(iq,k+kb-1) = 0.
       end do
     end do
-#ifdef GPU
-    !$acc update device(sout(:,kb:ke),abuf)
-#else
     !$omp parallel
-#endif
     do mm = 1,m_fly       !  was 4, now may be 1
-#ifdef GPU
-      !$acc parallel loop collapse(2) present(nface4,xg4,yg4,sout,abuf,pijn2pw,pijn2pn)
-#else
       !$omp do schedule(static) private(n,idel,jdel,xxg,yyg,cmin,cmax,cmul_1,cmul_2,cmul_3,cmul_4) &
       !$omp   private(dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4,rmul_1,rmul_2,rmul_3,rmul_4)       &
       !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12)     &
       !$omp   private(iin,jjn,idel_l,jdel_l,w,no)
-#endif
       do k = 1,kn
         do iq = 1,ifull
           ! target point
@@ -2435,21 +2419,10 @@ else
                                                         cmax )/real(m_fly) ! Bermejo & Staniforth
         end do    ! iq loop
       end do      ! k loop
-#ifdef GPU
-      !$acc end parallel loop
-#else
       !$omp end do nowait
-#endif
     end do        ! mm loop
-#ifdef GPU
-    !$acc update self(sout(:,kb:ke))
-#else
     !$omp end parallel
-#endif
   end do ! kb
-#ifdef GPU
-  !$acc exit data delete(sout,abuf)
-#endif
 end if ! iotest ..else..
 
 call END_LOG(otf_ints_end)
@@ -2590,7 +2563,6 @@ subroutine fill_cc4_3d(a_io,land_3d,fill_count)
 ! routine fills in interior of an array which has undefined points
 ! this version is distributed over processes with input files
 
-use cc_acc          ! CC OpenACC routines
 use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
 

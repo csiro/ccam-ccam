@@ -48,6 +48,8 @@ select case ( interp_convection(nkuo) )
     call convjlm22              ! split convjlm
   case("john_conv")
     call convjlm                ! split convjlm
+  case("disable")
+    ! do nothing  
   case default
     write(6,*) "ERROR: unknown convection option nkuo=",nkuo
     call ccmpi_abort(-1) 
@@ -73,6 +75,8 @@ character(len=20) :: cv_physics
 cv_physics = "ERROR"
 
 select case(nconvection)
+  case(0)
+    cv_physics = "disable"
   case(5)
     cv_physics = "betts_conv"
   case(21,22)

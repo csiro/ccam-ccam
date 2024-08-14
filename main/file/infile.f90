@@ -230,7 +230,9 @@ implicit none
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer :: ipf, jpf, ca, cc, ip, no, n, j
+integer :: expected_ndims, dimlen, i
 integer(kind=4), dimension(4) :: start, ncount
+integer(kind=4), dimension(4) :: dimid_c
 integer(kind=4) :: idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan) :: rvar
@@ -239,6 +241,7 @@ real, dimension(:,:), allocatable :: gvar
 real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
+character(len=20) :: dimname
 
 ier = 0
 
@@ -258,9 +261,11 @@ if ( mynproc>0 ) then
       if ( resprocformat ) then  
         start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+        expected_ndims = 4
       else
         start(1:3)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+        expected_ndims = 3
       end if  
       ! obtain scaling factors and offsets from attributes
       ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
@@ -268,6 +273,22 @@ if ( mynproc>0 ) then
       ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if (ier/=nf90_noerr) lsf=1.
       ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      call ncmsg(name,ier)
+      if ( ndims>expected_ndims ) then
+        write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+        write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
+        call ccmpi_abort(-1)
+      end if
+      ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+      do i = 1,ndims
+        ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+        if ( start(i)+ncount(i)-1>dimlen ) then
+          write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
+          write(6,*) "i,dimname           ",i,trim(dimname)
+          write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
+          call ccmpi_abort(-1)
+        end if
+      end do
       ier=nf90_get_var(pncid(ipf),idv,dvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       rvar = real( dvar ) ! for floating point issues (e.g. 1.e-40 )      
@@ -385,7 +406,9 @@ implicit none
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer :: ipf, ca, jpf, ip, n, no, cc, j
+integer :: expected_ndims, dimlen, i
 integer(kind=4), dimension(4) :: start, ncount
+integer(kind=4), dimension(4) :: dimid_c
 integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:), intent(inout), optional :: var
 real(kind=8), dimension(pipan*pjpan*pnpan) :: rvar
@@ -393,6 +416,7 @@ real(kind=8), dimension(:,:), allocatable :: gvar
 real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
+character(len=20) :: dimname
 
 ier = 0
 
@@ -412,9 +436,11 @@ if ( mynproc>0 ) then
       if ( resprocformat ) then  
         start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+        expected_ndims = 4
       else
         start(1:3)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+        expected_ndims = 3
       end if 
       ! obtain scaling factors and offsets from attributes
       ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
@@ -423,6 +449,21 @@ if ( mynproc>0 ) then
       if (ier/=nf90_noerr) lsf=1.
       ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       call ncmsg(name,ier)
+      if ( ndims>expected_ndims ) then
+        write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+        write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
+        call ccmpi_abort(-1)
+      end if
+      ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+      do i = 1,ndims
+        ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+        if ( start(i)+ncount(i)-1>dimlen ) then
+          write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
+          write(6,*) "i,dimname           ",i,trim(dimname)
+          write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
+          call ccmpi_abort(-1)
+        end if
+      end do      
       ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack compressed data
@@ -538,8 +579,10 @@ implicit none
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
-integer(kind=4), dimension(5) :: start, ncount
 integer :: ipf, k, ca, jpf, ip, n, no, cc, j
+integer :: expected_ndims, dimlen, i
+integer(kind=4), dimension(5) :: start, ncount
+integer(kind=4), dimension(5) :: dimid_c
 integer(kind=4) :: idv, ndims
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan,kk) :: rvar
@@ -548,6 +591,7 @@ real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
+character(len=20) :: dimname
 
 ier = 0
 
@@ -563,9 +607,11 @@ if ( mynproc>0 ) then
       if ( resprocformat ) then  
         start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
         ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
+        expected_ndims = 5
       else
         start(1:4)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)
+        expected_ndims = 4
       end if    
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
@@ -573,6 +619,22 @@ if ( mynproc>0 ) then
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf = 1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      call ncmsg(name,ier)
+      if ( ndims>expected_ndims ) then
+        write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+        write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
+        call ccmpi_abort(-1)
+      end if
+      ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+      do i = 1,ndims
+        ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+        if ( start(i)+ncount(i)-1>dimlen ) then
+          write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
+          write(6,*) "i,dimname           ",i,trim(dimname)
+          write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
+          call ccmpi_abort(-1)
+        end if
+      end do      
       ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
@@ -581,9 +643,11 @@ if ( mynproc>0 ) then
       if ( resprocformat ) then  
         start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+        expected_ndims = 4
       else
         start(1:3) = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+        expected_ndims = 3
       end if    
       do k = 1,kk        
         write(newname,'("'//trim(name)//'",I3.3)') k
@@ -608,6 +672,22 @@ if ( mynproc>0 ) then
         ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
         if ( ier/=nf90_noerr ) lsf = 1.
         ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+        call ncmsg(name,ier)
+        if ( ndims>expected_ndims ) then
+          write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+          write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
+          call ccmpi_abort(-1)
+        end if
+        ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+        do i = 1,ndims
+          ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+          if ( start(i)+ncount(i)-1>dimlen ) then
+            write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
+            write(6,*) "i,dimname           ",i,trim(dimname)
+            write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
+            call ccmpi_abort(-1)
+          end if
+        end do          
         ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
         call ncmsg(name,ier)
         ! unpack data
@@ -726,8 +806,10 @@ implicit none
 
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
-integer(kind=4), dimension(5) :: start, ncount
 integer :: ipf, k, ca, jpf, ip, n, no, cc, j
+integer :: expected_ndims, dimlen, i
+integer(kind=4), dimension(5) :: start, ncount
+integer(kind=4), dimension(5) :: dimid_c
 integer(kind=4) :: idv, ndims
 real(kind=8), dimension(:,:), intent(inout), optional :: var
 real(kind=8), dimension(pipan*pjpan*pnpan,kk) :: rvar
@@ -736,6 +818,7 @@ real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
 character(len=80) :: newname
+character(len=20) :: dimname
 
 ier = 0
       
@@ -751,9 +834,11 @@ if ( mynproc>0 ) then
       if ( resprocformat ) then  
         start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
         ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
+        expected_ndims = 5
       else
         start(1:4)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)   
+        expected_ndims = 4
       end if    
       ! obtain scaling factors and offsets from attributes
       ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
@@ -761,6 +846,22 @@ if ( mynproc>0 ) then
       ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if ( ier/=nf90_noerr ) lsf = 1.
       ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      call ncmsg(name,ier)
+      if ( ndims>expected_ndims ) then
+        write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+        write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
+        call ccmpi_abort(-1)
+      end if
+      ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+      do i = 1,ndims
+        ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+        if ( start(i)+ncount(i)-1>dimlen ) then
+          write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
+          write(6,*) "i,dimname           ",i,trim(dimname)
+          write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
+          call ccmpi_abort(-1)
+        end if
+      end do  
       ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack data
@@ -769,9 +870,11 @@ if ( mynproc>0 ) then
       if ( resprocformat ) then  
         start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+        expected_ndims = 4
       else
         start(1:3) = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
         ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+        expected_ndims = 3
       end if    
       do k = 1,kk        
         write(newname,'("'//trim(name)//'",I3.3)') k
@@ -796,6 +899,22 @@ if ( mynproc>0 ) then
         ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
         if ( ier/=nf90_noerr ) lsf = 1.
         ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+        call ncmsg(name,ier)
+        if ( ndims>expected_ndims ) then
+          write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+          write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
+          call ccmpi_abort(-1)
+        end if
+        ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+        do i = 1,ndims
+          ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+          if ( start(i)+ncount(i)-1>dimlen ) then
+            write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
+            write(6,*) "i,dimname           ",i,trim(dimname)
+            write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
+            call ccmpi_abort(-1)
+          end if
+        end do          
         ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
         call ncmsg(name,ier)
         ! unpack data
@@ -903,7 +1022,9 @@ implicit none
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer :: ipf, ca, jpf, ip, n, no, cc, j, k, l
+integer :: expected_ndims, dimlen, i
 integer(kind=4), dimension(6) :: start, ncount
+integer(kind=4), dimension(6) :: dimid_c
 integer(kind=4) :: idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
@@ -911,6 +1032,7 @@ real, dimension(:,:,:,:), allocatable :: gvar
 real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
+character(len=20) :: dimname
 
 ier = 0
 
@@ -923,9 +1045,11 @@ if ( mynproc>0 ) then
     if ( resprocformat ) then
       start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
       ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
+      expected_ndims = 6
     else
       start(1:5)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, 1, iarchi /)
       ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
+      expected_ndims = 5
     end if    
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
@@ -933,6 +1057,22 @@ if ( mynproc>0 ) then
     ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if ( ier/=nf90_noerr ) lsf = 1.
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    call ncmsg(name,ier)
+    if ( ndims>expected_ndims ) then
+      write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+      write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
+      call ccmpi_abort(-1)
+    end if
+    ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+    do i = 1,ndims
+      ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+      if ( start(i)+ncount(i)-1>dimlen ) then
+        write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
+        write(6,*) "i,dimname           ",i,trim(dimname)
+        write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
+        call ccmpi_abort(-1)
+      end if
+    end do      
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
     ! unpack data
@@ -1039,8 +1179,10 @@ implicit none
 
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
+integer :: ipf, ca,jpf, ip, n, no, cc, j, k, l
+integer :: expected_ndims, dimlen, i
 integer(kind=4), dimension(6) :: start, ncount
-integer ipf, ca,jpf, ip, n, no, cc, j, k, l
+integer(kind=4), dimension(6) :: dimid_c
 integer(kind=4) idv, ndims
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
 real(kind=8), dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
@@ -1048,6 +1190,7 @@ real(kind=8), dimension(:,:,:,:), allocatable :: gvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
+character(len=20) :: dimname
 
 ier = 0
 
@@ -1062,9 +1205,11 @@ if ( mynproc>0 ) then
     if ( resprocformat ) then
       start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
       ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
+      expected_ndims = 6
     else
       start(1:5)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, 1, iarchi /)
       ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
+      expected_ndims = 5
     end if    
     ! obtain scaling factors and offsets from attributes
     ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
@@ -1072,6 +1217,22 @@ if ( mynproc>0 ) then
     ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
     if ( ier/=nf90_noerr ) lsf = 1.
     ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+    call ncmsg(name,ier)
+    if ( ndims>expected_ndims ) then
+      write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+      write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
+      call ccmpi_abort(-1)
+    end if
+    ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+    do i = 1,ndims
+      ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+      if ( start(i)+ncount(i)-1>dimlen ) then
+        write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
+        write(6,*) "i,dimname           ",i,trim(dimname)
+        write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
+        call ccmpi_abort(-1)
+      end if
+    end do    
     ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
     call ncmsg(name,ier)
     ! unpack data
@@ -1216,6 +1377,7 @@ if ( myid==0 ) then
     der = nf90_get_att(lncid,nf90_global,"nproc",lidum)
     if ( der==nf90_noerr ) then
       write(6,*) "ERROR: Incorrect base filename"
+      write(6,*) "Possibly incorrectly included 000000 in filename"
       call ccmpi_abort(-1)
     end if
     write(6,*) "Found single input file ",trim(ifile)
@@ -1315,6 +1477,8 @@ if ( myid==0 ) then
     end if
 
     write(6,*) "-> dmode,ptest,resprocformat ",dmode,ptest,resprocformat
+    write(6,*) "-> fnproc,pil_g,pjl_g        ",fnproc,pil_g,pjl_g
+    write(6,*) "-> pipan,pjpan,pnpan         ",pipan,pjpan,pnpan
     
   end if
 
@@ -1346,11 +1510,13 @@ if ( myid==0 ) then
     der = nf90_inq_varid(lncid,'gprocnode',lvid)  
     if ( der==nf90_noerr ) then
       ! procformat v2 format  
+      write(6,*) "-> Found procformat v2"  
       der = nf90_get_var(lncid,lvid,resprocdata_inv(:,1),start,ncount)
       der = nf90_inq_varid(lncid,'gprocoffset',lvid)    
       der = nf90_get_var(lncid,lvid,resprocdata_inv(:,2),start,ncount)
     else
       ! procformat v1 format  
+      write(6,*) "-> Found procformat v1"  
       allocate( resprocmap_inv(0:fnproc-1) )  
       der = nf90_inq_varid(lncid,'gprocessor',lvid)
       if ( der/=nf90_noerr ) then

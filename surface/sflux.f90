@@ -36,12 +36,12 @@
     
 module sflux_m
 
-use cable_ccam                            ! CABLE interface
-use carbpools_m                           ! Carbon pools
-use mlo_ctrl                              ! Ocean physics control layer
+use cable_ccam                             ! CABLE interface
+use carbpools_m                            ! Carbon pools
+use mlo_ctrl                               ! Ocean physics control layer
 use uclem_ctrl, only :                   & ! Urban
      ateb_soilunder=>soilunder           &
-    ,ateb_energytol=>energytol           & 
+    ,energytol                           & 
     ,ateb_resmeth=>resmeth               &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
@@ -73,10 +73,8 @@ use uclem_ctrl, only :                   & ! Urban
     ,ateb_ac_coolcap=>ac_coolcap         &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor             &
-    ,ateb_intairtmeth=>intairtmeth       &
-    ,ateb_intmassmeth=>intmassmeth       &
-    ,ateb_zocanyon=>zocanyon             &
-    ,ateb_zoroof=>zoroof                 &
+    ,intairtmeth,intmassmeth             &
+    ,zocanyon,zoroof                     &
     ,urbtemp,nfrac,uclem_loadd           &
     ,uclem_init,uclem_type               &
     ,uclem_disable,uclem_deftype
@@ -116,14 +114,14 @@ public alphanir_seaice,alphanir_seasnw,alphavis_seaice,alphavis_seasnw
 public micdwn
 
 public uclem_init,uclem_type,uclem_disable,uclem_deftype
-public ateb_soilunder,ateb_energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
+public ateb_soilunder,energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
 public ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,ateb_ncyits,ateb_nfgits,ateb_tol
 public ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,ateb_minsnowalpha,ateb_maxsnowden
 public ateb_minsnowden,ateb_refheight,ateb_zomratio,ateb_maxrfwater
 public ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,ateb_maxvwatf
 public ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,ateb_infilmeth,ateb_ac_heatcap
 public ateb_ac_coolcap,ateb_ac_deltat,ateb_acfactor
-public ateb_intairtmeth,ateb_intmassmeth,ateb_zocanyon,ateb_zoroof
+public intairtmeth,intmassmeth,zocanyon,zoroof
 public urbtemp,nfrac,uclem_loadd
 
 real, save :: ri_max, zologbgin, ztv, z1onzt, chnsea

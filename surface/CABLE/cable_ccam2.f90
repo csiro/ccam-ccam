@@ -606,7 +606,12 @@ select case ( soil_struc )
       call soil_snow(dtr8,soil,ssnow,canopy,met,bal,veg)
     end if  
   case(1)
-    call sli_main(999,dtr8,veg,soil,ssnow,met,canopy,air,rad,0)   
+    if ( cable_gw_model==1 ) then
+      write(6,*) "ERROR: GW model not supported with SLI?"
+      stop
+    else  
+      call sli_main(999,dtr8,veg,soil,ssnow,met,canopy,air,rad,0)   
+    end if  
   case default
     write(6,*) "ERROR: Unknown option soil_struc ",soil_struc
     stop
@@ -3870,6 +3875,9 @@ type(soil_parameter_type), intent(inout) :: soil
 !real, parameter :: rhob_lo = 810.
 integer isoil, k
 integer, dimension(1) :: nstart, ncount
+real(kind=r_2), dimension(17) :: psi_o, psi_c
+real(kind=r_2), dimension(ms) :: soil_depth
+real(kind=r_2), dimension(mp_global,ms) :: psi_tmp
 
 if ( lncveg_numsoil<1 ) then
     
@@ -3984,7 +3992,7 @@ if ( mp_global>0 ) then
     soil%sucs_vec(:,k)    = 1000._8*abs(soil%sucs)
     soil%bch_vec(:,k)     = soil%bch
     soil%hyds_vec(:,k)    = 1000._8*soil%hyds
-    soil%watr(:,k)        = 0.01_8
+    soil%watr(:,k)        = 0.05_8
     soil%cnsd_vec(:,k)    = soil%cnsd
     soil%clay_vec(:,k)    = soil%clay
     soil%sand_vec(:,k)    = soil%sand
@@ -3992,26 +4000,91 @@ if ( mp_global>0 ) then
     soil%zse_vec(:,k)     = soil%zse(k)
     soil%css_vec(:,k)     = soil%css
   end do
+  soil%GWhyds_vec    = soil%hyds*1000._8  
   soil%GWsucs_vec    = abs(soil%sucs)*1000._8
-  soil%GWhyds_vec    = soil%hyds*1000._8
   soil%GWbch_vec     = soil%bch
   soil%GWrhosoil_vec = soil%rhosoil
   soil%GWssat_vec    = soil%ssat
-  soil%GWwatr        = 0.01_8
-  soil%GWdz          = 20._8
+  soil%GWwatr        = soil%watr(:,ms) !residual water content of the aquifer [mm3/mm3]
+  soil%GWdz          = 20._8           !thickness of the aquifer   [m]
   soil%GWdz          = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
-  soil%drain_dens    = 0.008_8 ! default
+  soil%drain_dens    = 0.008_8         !  drainage density ( mean dist to rivers/streams )
   
   soil%heat_cap_lower_limit = 0.01 ! recalculated in cable_soilsnow.F90
   
-  ! UM appears to only support isoilm=2 or soilm=9
-  
-  !if ( cable_user%gw_model ) then
-  !  do k = 1,ms
-  !    soil%hyds_vec(:,k) = soil%hyds_vec(:,k) * exp(-gw_parms%hkrz*(znode(k)-gw_params%zdepth) )
+  !if ( cable_gw_model==1 ) then
+  !
+  !  ! note 17 hard coded vegetation PFTs  
+  !  psi_o(1:3)  = -66000._r_2
+  !  psi_o(4)    = -35000._r_2
+  !  psi_o(5)    = -83000._r_2
+  !  psi_o(6:17) = -74000._r_2
+  !  psi_c(1:3)  = -2550000._r_2
+  !  psi_c(4)    = -2240000._r_2
+  !  psi_c(5)    = -4280000._r_2
+  !  psi_c(6:17) = -2750000._r_2      
+  !    
+  !  soil_depth(1) = REAL(soil%zse(1),r_2)
+  !  DO k=2,ms
+  !     soil_depth(k) = soil_depth(k-1) + REAL(soil%zse(k),r_2)
+  !  END DO    
+  !  
+  !  do k=1,ms
+  !    soil%hyds_vec(:,k) = 0.0070556_r_2*10.0_r_2**(-0.884_r_2 + 0.0153_r_2*soil%sand_Vec(:,k)*100.0_r_2)* &
+  !      EXP(-gw_params%hkrz*(MAX(0._r_2,soil_depth(k)-gw_params%zdepth)))
+  !    soil%sucs_vec(:,k) = 10.0_r_2 * 10.0_r_2**(1.88_r_2 -0.0131_r_2*soil%Sand_Vec(:,k)*100.0_r_2)
+  !    soil%bch_vec(:,k) = 2.91_r_2 + 0.159_r_2*soil%Clay_Vec(:,k)*100.0_r_2
+  !    soil%ssat_vec(:,k) = 0.489_r_2 - 0.00126_r_2*soil%Sand_Vec(:,k)*100.0_r_2
+  !    soil%watr(:,k) = 0.02_r_2 + 0.00018_r_2*soil%Clay_Vec(:,k)*100.0_r_2
   !  end do
-  !  soil%hyds(:) = soil%hyds_vec(:,1)
-  !end if
+  !  !aquifer share non-organic with last layer if not found in param file
+  !  soil%GWhyds_vec(:) = soil%hyds_vec(:,ms)
+  !  soil%GWsucs_vec(:) = soil%sucs_vec(:,ms)
+  !  soil%GWbch_vec(:)  = soil%bch_vec(:,ms)
+  !  soil%GWssat_vec(:) = soil%ssat_vec(:,ms)
+  !  soil%GWwatr(:)     = soil%watr(:,ms)
+  !  !include organin impact.  fraction of grid cell where percolation through
+  !  !organic macropores dominates
+  !  !soil%Org_Vec = MAX(0._r_2,soil%Org_Vec)
+  !  !soil%Org_Vec = MIN(1._r_2,soil%Org_Vec)
+  !  !do k=1,3  !0-23.3 cm, data really is to 30cm
+  !  !  soil%hyds_vec(:,k)  = (1.-soil%Org_Vec(:,k))*soil%hyds_vec(:,k) + &
+  !  !    soil%Org_Vec(:,k)*gw_params%org%hyds_vec_organic
+  !  !  soil%sucs_vec(:,k) = (1.-soil%Org_Vec(:,k))*soil%sucs_vec(:,k) + &
+  !  !    soil%Org_Vec(:,k)*gw_params%org%sucs_vec_organic
+  !  !  soil%bch_vec(:,k) = (1.-soil%Org_Vec(:,k))*soil%bch_vec(:,k) +&
+  !  !    soil%Org_Vec(:,k)*gw_params%org%clappb_organic
+  !  !  soil%ssat_vec(:,k) = (1.-soil%Org_Vec(:,k))*soil%ssat_vec(:,k) + &
+  !  !    soil%Org_Vec(:,k)*gw_params%org%ssat_vec_organic
+  !  !  soil%watr(:,k)   = (1.-soil%Org_Vec(:,klev))*soil%watr(:,klev) + &
+  !  !    soil%Org_Vec(:,k)*gw_params%org%watr_organic
+  !  !end do
+  !
+  !  !vegetation dependent field capacity (point plants get stressed) and
+  !  !wilting point
+  !  do k = 1,ms
+  !    psi_tmp(:,k) = -psi_c(veg%iveg(:))
+  ! end do
+  ! soil%sfc_vec = (soil%ssat_vec-soil%watr) * (ABS(psi_tmp(:,:)) &
+  !    /(ABS(soil%sucs_vec)))**(-1.0/soil%bch_vec)+soil%watr
+  !  do k = 1,ms
+  !    psi_tmp(:,k) = -psi_c(veg%iveg(:))
+  !  end do
+  !  soil%swilt_vec = (soil%ssat_vec-soil%watr) * (ABS(psi_tmp(:,:)) &
+  !    /(ABS(soil%sucs_vec)))**(-1.0/soil%bch_vec)+soil%watr
+  !
+  !  !set the non-vectored values to srf value
+  !  soil%sfc(:) = REAL(soil%sfc_vec(:,1))
+  !  soil%swilt(:) = REAL(soil%swilt_vec(:,1))
+  !
+  !  !convert the units back to what default uses and GW only uses the
+  !  !vectored versions
+  !  soil%hyds = REAL(soil%hyds_vec(:,1))/1000.0
+  !  soil%sucs = REAL(soil%sucs_vec(:,1))/1000.0
+  !  soil%ssat = REAL(soil%ssat_vec(:,1))
+  !  soil%bch  = REAL(soil%bch_vec(:,1))  
+  !  
+  !end if  
   
   !if ( cable_user%soil_thermal_fix ) then
   !  do k = 1,ms
@@ -7848,6 +7921,7 @@ use const_phys
 use map_m
 use newmpar_m
 use parm_m
+use soil_m
 
 integer nb, js, je, is, ie, ks, ke, tile, ls, le
 integer lmp, lmaxnb, k
@@ -7880,7 +7954,9 @@ do tile = 1,ntiles
 
     ! soil layer thickness
     do k = 1,ms
-      gwdz(is:ie) = gwdz(is:ie) + lsoil%zse(k)  
+      where ( land(is:ie) )
+        gwdz(is:ie) = gwdz(is:ie) + lsoil%zse(k)
+      end where  
     end do
     
     ! calculate water table depth and other information from tiles
@@ -7890,7 +7966,7 @@ do tile = 1,ntiles
       ls = js + ks - 1
       le = js + ke - 1
       wtd_ave(is:ie) = wtd_ave(is:ie) + unpack( sv(ls:le)*real(lssnow%wtd(ks:ke))/1000., ltmap(:,nb), 0. )
-      gwwb_min(is:ie) = min( gwwb_min(is:ie), (ds/em(is:ie))**2*unpack( real(lssnow%GWwb(ks:ke)), ltmap(:,nb), 9.e9 ) )
+      gwwb_min(is:ie) = min( gwwb_min(is:ie), unpack( real(lssnow%GWwb(ks:ke)), ltmap(:,nb), 9.e9 ) )
       gwdz(is:ie) = gwdz(is:ie) + unpack( sv(ls:le)*real(lsoil%GWdz(ks:ke)), ltmap(:,nb), 0. )
     end do
     
@@ -7902,6 +7978,8 @@ do tile = 1,ntiles
   ! set minimum ground water to zero where undefined (e.g., ocean)
   where ( gwwb_min(is:ie)>=1.e9 )
     gwwb_min(is:ie) = 0.
+  elsewhere
+    gwwb_min(is:ie) = (ds/em(is:ie))**2*gwwb_min(is:ie)  
   end where
 
   ! redistribute ground water across tiles within the gridbox?
@@ -7911,18 +7989,64 @@ end do ! tile
 return
 end subroutine calc_wt_ave
 
-subroutine calc_wt_flux(flux)
+subroutine calc_wt_flux(flux,flux_m,flux_c,ddt)
 
-use parm_m
+use arrays_m
+use const_phys
 use map_m
 use newmpar_m
+use parm_m
 
-integer nb, is, ie, ks, ke, tile
+integer nb, is, ie, ks, ke, tile, ls, le, js, je
 integer lmp, lmaxnb
 integer, dimension(maxtile,2) :: ltind
-real, dimension(:), intent(in) :: flux
+real, intent(in) :: ddt
+real, dimension(ifull), intent(in) :: flux, flux_m, flux_c
+real(kind=r_2), dimension(ifull) :: tot_flux, flux_corr
+real(kind=r_2), dimension(ifull) :: wth, mm, cc, flux_adj, indxsq ! ifull>=mp
+real(kind=r_2), dimension(ifull,maxtile) :: new_flux              ! ifull>=mp
 logical, dimension(imax,maxtile) :: ltmap
 type(soil_snow_type) :: lssnow
+
+tot_flux(:) = 0._r_2
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  lmp = tdata(tile)%mp
+  
+  if ( lmp>0. ) then
+      
+    lmaxnb = tdata(tile)%maxnb
+    ltmap = tdata(tile)%tmap
+    js = tdata(tile)%toffset + 1
+    je = tdata(tile)%toffset + tdata(tile)%mp
+    ltind = tdata(tile)%tind(:,:) - tdata(tile)%toffset
+    call setp(ssnow,lssnow,tile)
+
+    ! remove remaing flux from ground water
+    
+    do nb = 1,lmaxnb
+      ks = ltind(nb,1)
+      ke = ltind(nb,2)
+      ls = js + ks - 1
+      le = js + ke - 1
+      wth(ks:ke) = pack( real(zs(is:ie)/grav,r_2), ltmap(:,nb) ) - lssnow%wtd(ks:ke)/1000._r_2
+      mm(ks:ke) = pack( real(flux_m(is:ie),r_2), ltmap(:,nb) )
+      cc(ks:ke) = pack( real(flux_c(is:ie),r_2), ltmap(:,nb) )
+      new_flux(ks:ke,nb) = mm(ks:ke)*wth(ks:ke) + cc(ks:ke)
+      tot_flux(is:ie) = tot_flux(is:ie) + &
+        unpack( real(sv(ls:le),r_2)*new_flux(ks:ke,nb), ltmap(:,nb), 0._r_2 )
+    end do
+    
+  end if
+end do
+
+where( abs(tot_flux)>0._r_2 )
+  flux_corr = real(abs(flux),r_2)/abs(tot_flux)
+elsewhere
+  flux_corr = 0._r_2
+end where
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -7936,15 +8060,16 @@ do tile = 1,ntiles
     ltind = tdata(tile)%tind - tdata(tile)%toffset
     call setp(ssnow,lssnow,tile)
 
-    ! remove remaing flux from ground water
     do nb = 1,lmaxnb
       ks = ltind(nb,1)
       ke = ltind(nb,2)
-      lssnow%GWwb(ks:ke) = lssnow%GWwb(ks:ke) - &
-          dt*pack( real((em(is:ie)/ds)**2*flux(is:ie),r_2), ltmap(:,nb) )
+      flux_adj(ks:ke) = pack( real(flux_corr(is:ie),r_2 ), ltmap(:,nb) )
+      indxsq(ks:ke) = pack( real((em(is:ie)/ds)**2,r_2), ltmap(:,nb) )
+      new_flux(ks:ke,nb) = new_flux(ks:ke,nb)*flux_adj(ks:ke)
+      lssnow%GWwb(ks:ke) = lssnow%GWwb(ks:ke) - real(ddt,r_2)*indxsq(ks:ke)*new_flux(ks:ke,nb)
     end do
     
-  end if ! mp>0.  
+  end if ! lmp>0.  
 
 end do ! tile
   
