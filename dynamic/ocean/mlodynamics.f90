@@ -777,7 +777,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlob2ints_bs(mps,nface,xg,yg,wtr,2,bs_test,mlointschf)
   bs_test = mlo_bs<=4
   call mlob2ints_bs(ns,nface,xg,yg,wtr,1,bs_test,mlointschf)
-
+  
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
   

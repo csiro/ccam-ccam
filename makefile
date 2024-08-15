@@ -28,33 +28,40 @@ else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
 FHOST = -O3 -xHost
+FOVERRIDE =
 ZMM =
+IPOFLAG =
 VTHRESH =
 ifeq ($(XEONPHI),yes)
 FHOST = -O3 -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -O3 -xCORE-AVX2 -align array32byte
+FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -O3 -xSKYLAKE-AVX512 -align array64byte
+FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -O3 -xCASCADELAKE -align array64byte
+FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(SAPPHIRERAPIDS),yes)
 FHOST = -O3 -xSAPPHIRERAPIDS -align array64byte
+FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(ZEN3),yes)
 FHOST = -O3 -axCORE-AVX2 -align array32byte
+FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
@@ -62,6 +69,7 @@ ifeq ($(MAGNUS),yes)
 FC = ftn
 FCSCM = ftn
 FHOST = -O3 -xHost
+FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
@@ -92,7 +100,9 @@ else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
 FFLAGS = -O3 -ftree-vectorize -fstack-arrays -lmvec $(FHOST) -fbacktrace $(MPIFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
+FOVERRIDE =
 ZMM =
+IPOFLAG =
 VTHRESH =
 ifeq ($(USE_GPU),yes)
 FFLAGS += -DGPU -foffload=nvptx-none
@@ -126,7 +136,9 @@ endif
 NCFLAG =
 FFLAGS = -O3 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -I /opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1/include
 LIB = -lnetcdf
+FOVERRIDE =
 ZMM =
+IPOFLAG =
 VTHRESH =
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
@@ -182,7 +194,9 @@ ifeq ($(CRAY),yes)
 FC = ftn
 FCSCM = ftn
 FFLAGS = -h noomp -h noacc
+FOVERRIDE =
 ZMM =
+IPOFLAG =
 VTHRESH =
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
@@ -209,7 +223,9 @@ FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(M
 #ifeq ($(OMP),yes)
 #FFLAGS += -qopenmp -qno-openmp-simd
 #endif
+FOVERRIDE = -qoverride-limits
 ZMM =
+IPOFLAG =
 VTHRESH = -vec-threshold0
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
@@ -232,7 +248,9 @@ else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
 FFLAGS = -O3 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FOVERRIDE =
 ZMM =
+IPOFLAG =
 VTHRESH =
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
@@ -389,10 +407,20 @@ cable_air.o cable_albedo.o cable_canopy.o cable_common.o cable_constants.o cable
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
 module_mp_sbu_ylin.o: module_mp_sbu_ylin.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+estab.o: estab.f90
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+helmsolve.o: helmsolve.f90
+	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
 ints.o: ints.f90
 	$(FC) -c $(FFLAGS) $(ZMM) $(PPFLAG90) $<
+leoncld.o: leoncld.f90
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 seaesfrad.o: seaesfrad.f90
 	$(FC) -c $(FFLAGS) $(VTHRESH) $(PPFLAG90) $<
+tkeeps.o: tkeeps.f90
+	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+vertmix.o: vertmix.f90
+	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 version.h: FORCE
 	rm -f tmpver
 	echo "character(len=*), parameter :: version= &" > tmpver
@@ -412,7 +440,7 @@ FORCE:
 %.o : %.mod
 
 # Dependencies
-adjust5.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o const_phys.o diag_m.o dpsdt_m.o epst_m.o helmsolve.o indices_m.o kuocom_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o nlin_m.o parm_m.o parmdyn_m.o pbl_m.o sigs_m.o staguv.o tbar2d_m.o tracers_m.o vadvtvd.o vecsuv_m.o vecs_m.o vvel_m.o work3sav_m.o xarrs_m.o xyzinfo_m.o
+adjust5.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o const_phys.o diag_m.o dpsdt_m.o epst_m.o helmsolve.o indices_m.o kuocom_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nharrs_m.o nlin_m.o parm_m.o parmdyn_m.o pbl_m.o sigs_m.o staguv.o tbar2d_m.o tracers_m.o vecsuv_m.o vecs_m.o vvel_m.o work3sav_m.o xarrs_m.o xyzinfo_m.o
 aerointerface.o : aerosol_arrays.o aerosolldr.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o extraout_m.o infile.o kuocom_m.o latlong_m.o liqwpar_m.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o ozoneread.o parm_m.o parmgeom_m.o pbl_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o vegpar_m.o vertmix.o work2_m.o zenith.o
 aerosolldr.o : aerosol_arrays.o newmpar_m.o
 amipsst.o : arrays_m.o cc_mpi.o const_phys.o dates_m.o filnames_m.o infile.o latlong_m.o latltoij.o mlo_ctrl.o newmpar_m.o nharrs_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o setxyz.o soil_m.o soilsnow_m.o workglob_m.o

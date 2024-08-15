@@ -49,7 +49,7 @@ select case ( interp_convection(nkuo) )
   case("john_conv")
     call convjlm                ! split convjlm
   case("disable")
-    ! do nothing  
+    ! do nothing
   case default
     write(6,*) "ERROR: unknown convection option nkuo=",nkuo
     call ccmpi_abort(-1) 

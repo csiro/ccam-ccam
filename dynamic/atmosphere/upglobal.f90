@@ -421,6 +421,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   end if
 end if     ! mspec==1
 
+
 do k = 2,kl
   sdot(:,k) = sbar(:,k)
 end do  

@@ -57,6 +57,9 @@ integer, dimension(ifull), intent(in) :: nits
 integer, save :: num = 0
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
+real, dimension(ifull,kl,5) :: tdum
+real, dimension(ifull,kl,5) :: qdum
+real, dimension(ifull,kl,2) :: edum
 
 call START_LOG(vadv_begin)
 
@@ -67,101 +70,112 @@ if ( num==0 ) then
   end if
 end if
 
-!$omp parallel
-!$omp sections
+tdum(1:ifull,1:kl,1) = tarr(1:ifull,1:kl)
+tdum(1:ifull,1:kl,2) = uarr(1:ifull,1:kl)
+tdum(1:ifull,1:kl,3) = varr(1:ifull,1:kl)
+tdum(1:ifull,1:kl,4) = pslx(1:ifull,1:kl)
+if ( nh/=0 ) then
+  tdum(1:ifull,1:kl,5) = h_nh(1:ifull,1:kl)
+end if  
 
-!$omp section
-call vadv_work(tarr,nvadh_inv_pass,nits)
+if ( mspec==1 ) then
+
+  qdum(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
+  if ( ldr/=9 ) then
+    qdum(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
+    qdum(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
+    qdum(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
+    if ( ncloud>=100 .and. ncloud<200 ) then
+      qdum(1:ifull,1:kl,5) = ni(1:ifull,1:kl)
+    end if  
+  end if  
+
+  if ( nvmix==6 .or. nvmix==9 ) then
+    edum(1:ifull,1:kl,1) = eps(1:ifull,1:kl)
+    edum(1:ifull,1:kl,2) = tke(1:ifull,1:kl)
+  end if  
+
+end if
+
+
+if ( nh/=0 ) then
+  call vadv_work(tdum(:,:,1:5),nvadh_inv_pass,nits)
+else
+  call vadv_work(tdum(:,:,1:4),nvadh_inv_pass,nits)  
+end if
+
+!       These diagnostics don't work with single input/output argument
 if( diag .and. mydiag )then
   write (6,"('tout',9f8.2/4x,9f8.2)") (tarr(idjd,k),k=1,kl)
   write (6,"('t#  ',9f8.2)") diagvals(tarr(:,nlv)) 
-endif
-
-!$omp section
-call vadv_work(uarr,nvadh_inv_pass,nits)
-if( diag .and. mydiag )then
   write (6,"('uout',9f8.2/4x,9f8.2)") (uarr(idjd,k),k=1,kl)
   write (6,"('u#  ',9f8.2)") diagvals(uarr(:,nlv)) 
-end if
-
-!$omp section
-call vadv_work(varr,nvadh_inv_pass,nits)
-if( diag .and. mydiag )then
   write (6,"('vout',9f8.2/4x,9f8.2)") (varr(idjd,k),k=1,kl)
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
 endif
 
-!$omp section
-if ( nh/=0 ) then  
-  call vadv_work(h_nh,nvadh_inv_pass,nits)
-end if
-
-!$omp section
 if ( mspec==1 ) then   ! advect qg and gases after preliminary step
-  call vadv_work(qg,nvadh_inv_pass,nits)
+
+  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then  
+    call vadv_work(qdum(:,:,1:5),nvadh_inv_pass,nits)
+  else if ( ldr/=0 ) then
+    call vadv_work(qdum(:,:,1:4),nvadh_inv_pass,nits)  
+  else
+    call vadv_work(qdum(:,:,1:1),nvadh_inv_pass,nits)
+  end if  
+    
   if ( diag .and. mydiag ) then
     write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
     write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
+    if (  ldr/=0 ) then
+      write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
+      write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
+      write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
+      write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv))
+    end if  
   end if
-end if
 
-!$omp section
-if ( mspec==1 .and. ldr/=0 ) then
-  call vadv_work(qlg,nvadh_inv_pass,nits)    
-  if ( diag .and. mydiag ) then
-    write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
-    write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
-  end if
-end if  
+  if ( nvmix==6 .or. nvmix==9 ) then
+    call vadv_work(edum(:,:,1:2),nvadh_inv_pass,nits)
+  end if      ! if(nvmix==6 .or. nvmix==9 )
+
+  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+    call vadv_work(xtg(:,:,1:naero),nvadh_inv_pass,nits)
+  end if   ! abs(iaero)>=2
   
-!$omp section
-if ( mspec==1 .and. ldr/=0 ) then
-  call vadv_work(qfg,nvadh_inv_pass,nits)    
-  if ( diag .and. mydiag ) then
-    write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
-    write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv))
+  if ( ngas>0 .or. nextout>=4 ) then
+    call vadv_work(tr(:,:,1:ntrac),nvadh_inv_pass,nits)
+  end if        ! (nextout>=4)
+
+end if          ! if(mspec==1)
+
+
+tarr(1:ifull,1:kl) = tdum(1:ifull,1:kl,1)
+uarr(1:ifull,1:kl) = tdum(1:ifull,1:kl,2)
+varr(1:ifull,1:kl) = tdum(1:ifull,1:kl,3)
+pslx(1:ifull,1:kl) = tdum(1:ifull,1:kl,4)
+if ( nh/=0 ) then
+  h_nh(1:ifull,1:kl) = tdum(1:ifull,1:kl,5)
+end if  
+
+if ( mspec==1 ) then
+
+  qg(1:ifull,1:kl) = qdum(1:ifull,1:kl,1)
+  if ( ldr/=9 ) then
+    qlg(1:ifull,1:kl) = qdum(1:ifull,1:kl,2)
+    qfg(1:ifull,1:kl) = qdum(1:ifull,1:kl,3)
+    stratcloud(1:ifull,1:kl) = qdum(1:ifull,1:kl,4)
+    if ( ncloud>=100 .and. ncloud<200 ) then
+      ni(1:ifull,1:kl) = qdum(1:ifull,1:kl,5)
+    end if  
   end if  
+
+  if ( nvmix==6 .or. nvmix==9 ) then
+    eps(1:ifull,1:kl) = edum(1:ifull,1:kl,1)
+    tke(1:ifull,1:kl) = edum(1:ifull,1:kl,2)
+  end if
+
 end if  
-
-!$omp section
-if ( mspec==1 .and. ldr/=0 ) then
-  call vadv_work(stratcloud,nvadh_inv_pass,nits)    
-end if  
-
-!$omp section
-if ( mspec==1 .and. ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
-  call vadv_work(ni,nvadh_inv_pass,nits)    
-end if  
-
-!$omp section
-if ( mspec==1 .and. (nvmix==6.or.nvmix==9) ) then
-  call vadv_work(tke,nvadh_inv_pass,nits)
-end if      ! if(nvmix==6 .or. nvmix==9 )
-
-!$omp section
-if ( mspec==1 .and. (nvmix==6.or.nvmix==9) ) then
-  call vadv_work(eps,nvadh_inv_pass,nits)
-end if      ! if(nvmix==6 .or. nvmix==9 )
-
-!$omp end sections nowait
-
-if ( mspec==1 .and. abs(iaero)>=2 .and. nhstest>=0 ) then
-  !$omp do schedule(static) private(ntr)  
-  do ntr = 1,naero  
-    call vadv_work(xtg(:,:,ntr),nvadh_inv_pass,nits)
-  end do
-  !$omp end do nowait
-end if   ! abs(iaero)>=2
-  
-if ( mspec==1 .and. (ngas>0.or.nextout>=4) ) then
-  !$omp do schedule(static) private(ntr)
-  do ntr = 1,ntrac
-    call vadv_work(tr(:,:,ntr),nvadh_inv_pass,nits)
-  end do
-  !$omp end do nowait
-end if        ! (nextout>=4)
-
-!$omp end parallel
 
 call END_LOG(vadv_end)
  
@@ -179,85 +193,123 @@ use vvel_m
 implicit none
       
 integer, dimension(ifull), intent(in) :: nits
-integer i, k, iq, kp, kx
-real, dimension(:,:), intent(inout) :: tarr
+integer i, k, iq, kp, kx, n, ntr
+real, dimension(:,:,:), intent(inout) :: tarr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
 real rat, phitvd, fluxhi, fluxlo
-real, dimension(ifull,0:kl) :: delt, fluxh
+real, dimension(ifull,0:kl,size(tarr,3)) :: delt, fluxh
+
+ntr = size(tarr,3)
 
 ! The first sub-step is vectorised for all points.
 
 if ( ntvd==2 ) then ! MC
 
+  !$omp parallel   
   do i = 1,maxval(nits(1:ifull))
-    do k = 1,kl-1
+    !$omp do schedule(static) private(n,k,iq)
+    do n = 1,ntr
+      do k = 1,kl-1
+        do iq = 1,ifull
+          delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
+        end do
+      end do
+    end do
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq)
+    do n = 1,ntr
       do iq = 1,ifull
-        delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
+        fluxh(iq,0,n)  = 0.
+        fluxh(iq,kl,n) = 0.
+        delt(iq,kl,n)  = 0.     ! for T,u,v
+        delt(iq,0,n)   = 0.
       end do
     end do
-    do iq = 1,ifull
-      fluxh(iq,0)  = 0.
-      fluxh(iq,kl) = 0.
-      delt(iq,kl)  = 0.     ! for T,u,v
-      delt(iq,0)   = 0.
-    end do
-    do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-      do iq = 1,ifull      
-        kp = nint(sign(1.,sdot(iq,k+1)))
-        kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-        rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-        phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
-        fluxlo = tarr(iq,kx)
-        ! higher order scheme
-        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
-        fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
+    do n = 1,ntr
+      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        do iq = 1,ifull      
+          kp = nint(sign(1.,sdot(iq,k+1)))
+          kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+          rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+          phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
+          fluxlo = tarr(iq,kx,n)
+          ! higher order scheme
+          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
+          fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+        end do
+      end do
+    end do      ! k loop
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,k,iq)
+    do n = 1,ntr
+      do k = 1,kl
+        do iq = 1,ifull
+          if ( i<=nits(iq) ) then
+            tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
+                               +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+          end if  
+        end do
       end do
     end do
-    do k = 1,kl
-      do iq = 1,ifull
-        if ( i<=nits(iq) ) then
-          tarr(iq,k) = tarr(iq,k) + (fluxh(iq,k-1)-fluxh(iq,k) &
-                       +tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
-        end if  
-      end do
-    end do
+    !$omp end do nowait
   end do ! i=1,nits
+  !$omp end parallel
 
 else if ( ntvd==3 ) then ! Superbee
 
+  !$omp parallel
   do i = 1,maxval(nits(1:ifull))
-    do k = 1,kl-1
-      do iq = 1,ifull 
-        delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
-      end do  
-    end do     ! k loop
-    do iq = 1,ifull
-      fluxh(iq,0)  = 0.
-      fluxh(iq,kl) = 0.
-      delt(iq,kl)  = 0.     ! for T,u,v
-      delt(iq,0)   = 0.
+    !$omp do schedule(static) private(n,iq,k)
+    do n = 1,ntr
+      do k = 1,kl-1
+        do iq = 1,ifull 
+          delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
+        end do  
+      end do     ! k loop
     end do
-    do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-      do iq = 1,ifull  
-        kp = nint(sign(1.,sdot(iq,k+1)))
-        kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-        rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
-        phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-        fluxlo = tarr(iq,kx)
-        ! higher order scheme
-        fluxhi = rathb(k)*tarr(iq,k) + ratha(k)*tarr(iq,k+1) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
-        fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-      end do  
-    end do ! k
-    do k = 1,kl
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq)
+    do n = 1,ntr
       do iq = 1,ifull
-        if ( i<=nits(iq) ) then
-          tarr(iq,k) = tarr(iq,k) &
-            + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
-        end if  
-      end do     ! iq
+        fluxh(iq,0,n)  = 0.
+        fluxh(iq,kl,n) = 0.
+        delt(iq,kl,n)  = 0.     ! for T,u,v
+        delt(iq,0,n)   = 0.
+      end do
     end do
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq,k,kp,kx,rat,phitvd,fluxlo,fluxhi)
+    do n = 1,ntr
+      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        do iq = 1,ifull  
+          kp = nint(sign(1.,sdot(iq,k+1)))
+          kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+          rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+          phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+          fluxlo = tarr(iq,kx,n)
+          ! higher order scheme
+          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
+          fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+        end do  
+      end do ! k
+    end do
+    !$omp end do nowait
+    !$omp do schedule(static) private(n,iq,k)
+    do n = 1,ntr    
+      do k = 1,kl
+        do iq = 1,ifull
+          if ( i<=nits(iq) ) then
+            tarr(iq,k,n) = tarr(iq,k,n) &
+              + (fluxh(iq,k-1,n)-fluxh(iq,k,n)+tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+          end if  
+        end do     ! iq
+      end do
+    end do
+    !$omp end do nowait
   end do   ! i
+  !$omp end parallel
     
 else
 

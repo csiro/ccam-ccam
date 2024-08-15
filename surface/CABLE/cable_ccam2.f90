@@ -606,12 +606,7 @@ select case ( soil_struc )
       call soil_snow(dtr8,soil,ssnow,canopy,met,bal,veg)
     end if  
   case(1)
-    if ( cable_gw_model==1 ) then
-      write(6,*) "ERROR: GW model not supported with SLI?"
-      stop
-    else  
-      call sli_main(999,dtr8,veg,soil,ssnow,met,canopy,air,rad,0)   
-    end if  
+    call sli_main(999,dtr8,veg,soil,ssnow,met,canopy,air,rad,0)   
   case default
     write(6,*) "ERROR: Unknown option soil_struc ",soil_struc
     stop
@@ -3875,9 +3870,6 @@ type(soil_parameter_type), intent(inout) :: soil
 !real, parameter :: rhob_lo = 810.
 integer isoil, k
 integer, dimension(1) :: nstart, ncount
-real(kind=r_2), dimension(17) :: psi_o, psi_c
-real(kind=r_2), dimension(ms) :: soil_depth
-real(kind=r_2), dimension(mp_global,ms) :: psi_tmp
 
 if ( lncveg_numsoil<1 ) then
     
@@ -4084,7 +4076,14 @@ if ( mp_global>0 ) then
   !  soil%ssat = REAL(soil%ssat_vec(:,1))
   !  soil%bch  = REAL(soil%bch_vec(:,1))  
   !  
-  !end if  
+  !end if 
+  
+  !if ( cable_user%gw_model ) then
+  !  do k = 1,ms
+  !    soil%hyds_vec(:,k) = soil%hyds_vec(:,k) * exp(-gw_parms%hkrz*(znode(k)-gw_params%zdepth) )
+  !  end do
+  !  soil%hyds(:) = soil%hyds_vec(:,1)
+  !end if
   
   !if ( cable_user%soil_thermal_fix ) then
   !  do k = 1,ms
@@ -4297,7 +4296,7 @@ if ( mp_global>0 ) then
   ssnow%rtevap_unsat = 0._8
   ssnow%satfrac = 0.5_8
   ssnow%wbliq = ssnow%wb - ssnow%wbice
-  ssnow%GWwb = 0.95_8*soil%ssat 
+  ssnow%GWwb = 0.5_8*soil%ssat 
   ssnow%wtd = 20000._8
   dummy_pack = real(1-isflag)*tgg(:,1) + real(isflag)*tggsn(:,1) - 273.15
   call cable_pack(dummy_pack,ssnow%tsurface)
@@ -7936,19 +7935,19 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   lmp = tdata(tile)%mp
-  
+
   wth_ave(is:ie) = 0.
   wtd_ave(is:ie) = 0.
   gwwb_min(is:ie) = 9.e9
   gwdz(is:ie) = 0.
-    
+
   if ( lmp>0 ) then
 
     lmaxnb = tdata(tile)%maxnb
     ltmap = tdata(tile)%tmap
     js = tdata(tile)%toffset + 1
     je = tdata(tile)%toffset + tdata(tile)%mp
-    ltind = tdata(tile)%tind - tdata(tile)%toffset  
+    ltind = tdata(tile)%tind - tdata(tile)%toffset
     call setp(soil,lsoil,tile)
     call setp(ssnow,lssnow,tile)
 
@@ -7956,9 +7955,9 @@ do tile = 1,ntiles
     do k = 1,ms
       where ( land(is:ie) )
         gwdz(is:ie) = gwdz(is:ie) + lsoil%zse(k)
-      end where  
+      end where
     end do
-    
+
     ! calculate water table depth and other information from tiles
     do nb = 1,maxnb
       ks = ltind(nb,1)
@@ -7969,8 +7968,8 @@ do tile = 1,ntiles
       gwwb_min(is:ie) = min( gwwb_min(is:ie), unpack( real(lssnow%GWwb(ks:ke)), ltmap(:,nb), 9.e9 ) )
       gwdz(is:ie) = gwdz(is:ie) + unpack( sv(ls:le)*real(lsoil%GWdz(ks:ke)), ltmap(:,nb), 0. )
     end do
-    
-  end if ! mp>0  
+
+  end if ! mp>0
 
   ! adjust water table depth for orography
   wth_ave(is:ie) = zs(is:ie)/grav - wtd_ave(is:ie)
@@ -7979,12 +7978,12 @@ do tile = 1,ntiles
   where ( gwwb_min(is:ie)>=1.e9 )
     gwwb_min(is:ie) = 0.
   elsewhere
-    gwwb_min(is:ie) = (ds/em(is:ie))**2*gwwb_min(is:ie)  
+    gwwb_min(is:ie) = (ds/em(is:ie))**2*gwwb_min(is:ie)
   end where
 
   ! redistribute ground water across tiles within the gridbox?
-  
-end do ! tile  
+
+end do ! tile
 
 return
 end subroutine calc_wt_ave
@@ -8014,9 +8013,9 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   lmp = tdata(tile)%mp
-  
-  if ( lmp>0. ) then
-      
+
+  if ( lmp>0 ) then
+
     lmaxnb = tdata(tile)%maxnb
     ltmap = tdata(tile)%tmap
     js = tdata(tile)%toffset + 1
@@ -8025,7 +8024,7 @@ do tile = 1,ntiles
     call setp(ssnow,lssnow,tile)
 
     ! remove remaing flux from ground water
-    
+
     do nb = 1,lmaxnb
       ks = ltind(nb,1)
       ke = ltind(nb,2)
@@ -8038,7 +8037,7 @@ do tile = 1,ntiles
       tot_flux(is:ie) = tot_flux(is:ie) + &
         unpack( real(sv(ls:le),r_2)*new_flux(ks:ke,nb), ltmap(:,nb), 0._r_2 )
     end do
-    
+
   end if
 end do
 
@@ -8052,9 +8051,9 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   lmp = tdata(tile)%mp
-  
-  if ( lmp>0. ) then
-      
+
+  if ( lmp>0 ) then
+
     lmaxnb = tdata(tile)%maxnb
     ltmap = tdata(tile)%tmap
     ltind = tdata(tile)%tind - tdata(tile)%toffset
@@ -8068,11 +8067,11 @@ do tile = 1,ntiles
       new_flux(ks:ke,nb) = new_flux(ks:ke,nb)*flux_adj(ks:ke)
       lssnow%GWwb(ks:ke) = lssnow%GWwb(ks:ke) - real(ddt,r_2)*indxsq(ks:ke)*new_flux(ks:ke,nb)
     end do
-    
-  end if ! lmp>0.  
+
+  end if ! lmp>0.
 
 end do ! tile
-  
+
 return
 end subroutine calc_wt_flux
 

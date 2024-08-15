@@ -1359,7 +1359,6 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, mbd_min
 integer opt, nopt
-integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 integer o3_time_interpolate        ! depreciated namelist options
 integer kmlo, calcinloop           ! depreciated namelist options
@@ -1373,7 +1372,6 @@ real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr, tscale
-real ateb_zocanyon, ateb_zoroof, ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
 real ateb_alpha                     ! depreciated namelist options 
@@ -1459,7 +1457,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
     cloud_ice_method,leon_snowmeth,lin_aerosolmode,maxlintime,    &
-    lin_adv                                                         ! depreciated
+    lin_adv                                                         
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -1516,7 +1514,6 @@ ateb_ac_smooth = 0.
 zimax = 0.
 tkecduv = 0.
 procformat = .true.
-nriver = 0
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
@@ -1555,8 +1552,6 @@ ngas                = 0
 ateb_energytol      = 0.1
 ateb_intairtmeth    = 0
 ateb_intmassmeth    = 0
-ateb_zocanyon       = zocanyon
-ateb_zoroof         = zoroof
 lapsbot             = 0
 npa                 = 0   ! depreciated
 npb                 = 0   ! depreciated
@@ -1613,11 +1608,6 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, landnml)
   end if
-  energytol = real(ateb_energytol,8) ! note conversion from ateb_energytol to energytol
-  zocanyon = ateb_zocanyon
-  zoroof = ateb_zoroof
-  intairtmeth = ateb_intairtmeth ! note switch to UCLEM parameter
-  intmassmeth = ateb_intmassmeth ! note switch to UCLEM parameter
 end if
 call broadcast_landnml
 if ( myid==0 ) then
@@ -3099,7 +3089,6 @@ use aerointerface, only : aeroindir      & ! Aerosol interface
     ,so4mtn,carbmtn,saltsmallmtn         &
     ,saltlargemtn,enhanceu10
 use cc_mpi                                 ! CC MPI routines
-use kuocom_m                               ! JLM convection
 use module_aux_rad                         ! Additional cloud and radiation routines
 use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
@@ -3184,7 +3173,6 @@ subroutine broadcast_datafile
 
 use cc_mpi                                 ! CC MPI routines
 use filnames_m                             ! Filenames
-use kuocom_m                               ! JLM convection
 use parm_m                                 ! Model configuration
 
 implicit none
@@ -3440,7 +3428,6 @@ end subroutine broadcast_kuonml
 subroutine broadcast_turbnml
 
 use cc_mpi                                 ! CC MPI routines
-use kuocom_m                               ! JLM convection
 use parm_m                                 ! Model configuration
 use tkeeps                                 ! TKE-EPS boundary layer
 
@@ -3542,10 +3529,47 @@ end subroutine broadcast_turbnml
 subroutine broadcast_landnml
 
 use cc_mpi                                 ! CC MPI routines
-use kuocom_m                               ! JLM convection
 use parm_m                                 ! Model configuration
 use river                                  ! River routing
 use sflux_m                                ! Surface flux routines
+use uclem_ctrl, only :                   & ! Urban
+     ateb_soilunder=>soilunder           &
+    ,energytol                           &
+    ,ateb_resmeth=>resmeth               &
+    ,ateb_zohmeth=>zohmeth               &
+    ,ateb_acmeth=>acmeth                 &
+    ,ateb_nrefl=>nrefl                   &
+    ,ateb_scrnmeth=>scrnmeth             &
+    ,ateb_wbrelaxc=>wbrelaxc             &
+    ,ateb_wbrelaxr=>wbrelaxr             &
+    ,ateb_ncyits=>ncyits                 &
+    ,ateb_nfgits=>nfgits                 &
+    ,ateb_tol=>tol                       &
+    ,ateb_zosnow=>zosnow                 &
+    ,ateb_snowemiss=>snowemiss           &
+    ,ateb_maxsnowalpha=>maxsnowalpha     &
+    ,ateb_minsnowalpha=>minsnowalpha     &
+    ,ateb_maxsnowden=>maxsnowden         &
+    ,ateb_minsnowden=>minsnowden         &
+    ,ateb_refheight=>refheight           &
+    ,ateb_zomratio=>zomratio             &
+    ,zocanyon                            &
+    ,zoroof                              &
+    ,ateb_maxrfwater=>maxrfwater         &
+    ,ateb_maxrdwater=>maxrdwater         &
+    ,ateb_maxrfsn=>maxrfsn               &
+    ,ateb_maxrdsn=>maxrdsn               &
+    ,ateb_maxvwatf=>maxvwatf             &
+    ,intairtmeth                         &
+    ,intmassmeth                         &
+    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
+    ,ateb_statsmeth=>statsmeth           &
+    ,ateb_lwintmeth=>lwintmeth           &
+    ,ateb_infilmeth=>infilmeth           &
+    ,ateb_ac_heatcap=>ac_heatcap         &
+    ,ateb_ac_coolcap=>ac_coolcap         &
+    ,ateb_ac_deltat=>ac_deltat           &
+    ,ateb_acfactor=>acfactor
 
 implicit none
 
@@ -3681,10 +3705,9 @@ end subroutine broadcast_landnml
 subroutine broadcast_mlonml
 
 use cc_mpi                                 ! CC MPI routines
-use kuocom_m                               ! JLM convection
+use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
 use river                                  ! River routing
-use sflux_m                                ! Surface flux routines
 
 implicit none
 
@@ -4270,6 +4293,7 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use const_phys                             ! Physical constants
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
+use mlo_ctrl                               ! Ocean physics control layer
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays

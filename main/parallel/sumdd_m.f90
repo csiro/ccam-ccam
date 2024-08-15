@@ -65,7 +65,7 @@ contains
       real :: e, t1, t2 
       integer :: i, n
       complex, dimension(size(dra,2)) :: dra_t
-
+      
       do i = 1,size(dra,1)
          dra_t(:) = dra(i,:)
          do n = 1,size(dra_t)
@@ -112,7 +112,7 @@ contains
       real :: e, t1, t2 
       integer :: i, n
       real, dimension(size(array,2)) :: array_t
-
+      
       do i = 1,size(array,1)
          array_t(:) = array(i,:)
          do n = 1,size(array_t)

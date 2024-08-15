@@ -387,7 +387,6 @@ end subroutine rvrinit
 subroutine rvrrouter
 
 use arrays_m
-use cable_ccam
 use cc_mpi
 use const_phys
 use indices_m
@@ -396,6 +395,7 @@ use newmpar_m
 use nsibd_m
 use parm_m
 use riverarrays_m
+use sflux_m
 use soil_m
 use soilsnow_m
 use soilv_m
@@ -589,35 +589,35 @@ if ( wt_transport==1 ) then
     write(6,*) "ERROR: wt_transport==1 requires cable_gw_model==1"
     call ccmpi_abort(-1)
   end if
-  
+
   ! calculate average wt height and minimum gw amount
   call calc_wt_ave( wth_ave, gwwb_min, gwdz )
-  
+
   ! initialise
   if ( first_call ) then
-    first_call = .false. 
+    first_call = .false.
     ! estimate (saturated) hydraulic conductivity (m/s)
     k0(:) = 0.
     do iq = 1,ifull
       if ( land(iq) ) then
         k0(iq) = hyds(isoilm(iq))
       end if
-    end do  
+    end do
     ! broadcast
     dumw(1:ifull,1) = k0(1:ifull)
     dumw(1:ifull,2) = gwdz(1:ifull)
     call bounds(dumw(:,1:2))
     k0(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,1)
     gwdz(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,2)
-  end if   
-  
+  end if
+
   ! update halo
   dumw(1:ifull,1) = wth_ave(1:ifull)
   dumw(1:ifull,2) = gwwb_min(1:ifull)
   call bounds(dumw(:,1:2))
   wth_ave(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,1)
   gwwb_min(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,2)
-  
+
   ! calculate gradients
   ! gwwb_min also accounts for land-sea mask
   flux(:) = 0.
@@ -660,9 +660,9 @@ if ( wt_transport==1 ) then
     end do
   end if
   call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,inw)
-  
+
   ! losing streams (exchange between rivers and GW)
-  
+
   ! distribute GWwb flux
   call calc_wt_flux( flux, flux_m, flux_c, dt )
 

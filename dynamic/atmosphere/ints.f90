@@ -49,8 +49,8 @@ integer, intent(in) :: intsch  ! method to interpolate panel corners
 integer, intent(in) :: nfield  ! use B&S if nfield>=mh_bs
 integer, intent(in) :: ntr     ! number of tracers to process
 integer idel, iq, jdel
-integer i, j, k, n, ii, nn, np
-integer nstart, nend, nlen
+integer i, j, k, n, ii, nn
+integer nstart, nend, nlen, np
 integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordinates
 real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s ! array of tracers
@@ -63,6 +63,7 @@ real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 call START_LOG(ints_begin)
 
 ! now call bounds before calling ints
+
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -166,12 +167,13 @@ if ( intsch==1 ) then
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
-      !$omp parallel do schedule(static) collapse(2) private(k,iq,idel,xxg,jdel,yyg)   &
-      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)                                &
-      !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
-      !$omp private(sx_11,sx_21,sx_02,sx_12)
+      !$omp parallel
       do nn = 1,nlen
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)                                &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
             idel = int(xg(iq,k))
@@ -213,8 +215,9 @@ if ( intsch==1 ) then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
+        !$omp end do nowait
       end do           ! nn loop
-      !$omp end parallel do
+      !$omp end parallel
     
     else              ! (nfield<mh_bs)
 
@@ -270,12 +273,13 @@ if ( intsch==1 ) then
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
-      !$omp parallel do schedule(static) collapse(2) private(k,iq,idel,xxg,jdel,yyg)   &
-      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)                      &
-      !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
-      !$omp private(sx_11,sx_21,sx_02,sx_12)
+      !$omp parallel
       do nn = 1,nlen
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)                      &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
             idel = int(xg(iq,k))
@@ -320,8 +324,9 @@ if ( intsch==1 ) then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! k loop
+        !$omp end do nowait
       end do          ! nn loop  
-      !$omp end parallel do
+      !$omp end parallel
 
     end if            ! (nfield<mh_bs)  .. else ..
   
@@ -429,12 +434,13 @@ else     ! if(intsch==1)then
     
       call intssync_send(nlen)
 
-      !$omp parallel do schedule(static) collapse(2) private(k,iq,idel,xxg,jdel,yyg)   &
-      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)                                &
-      !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
-      !$omp private(sx_11,sx_21,sx_02,sx_12)
+      !$omp parallel
       do nn = 1,nlen
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)                                &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
             ! Convert face index from 0:npanels to array indices
@@ -477,8 +483,9 @@ else     ! if(intsch==1)then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
+        !$omp end do nowait
       end do           ! nn loop  
-      !$omp end parallel do
+      !$omp end parallel
     
     else                 ! (nfield<mh_bs)
 
@@ -533,12 +540,13 @@ else     ! if(intsch==1)then
   
       call intssync_send(nlen)
 
-      !$omp parallel do schedule(static) collapse(2) private(k,iq,idel,xxg,jdel,yyg)   &
-      !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
-      !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)                      &
-      !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
-      !$omp private(sx_11,sx_21,sx_02,sx_12)
+      !$omp parallel
       do nn = 1,nlen
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)                      &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
             idel = int(xg(iq,k))
@@ -583,8 +591,9 @@ else     ! if(intsch==1)then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do       ! iq loop
         end do         ! k loop
+        !$omp end do nowait
       end do           ! nn loop  
-      !$omp end parallel do
+      !$omp end parallel
     
     end if            ! (nfield<mh_bs)  .. else ..
 
@@ -594,6 +603,7 @@ else     ! if(intsch==1)then
   
 end if               ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
+
 
 call END_LOG(ints_end)
 
