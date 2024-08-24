@@ -4000,7 +4000,7 @@ if ( mp_global>0 ) then
   soil%GWwatr        = soil%watr(:,ms) !residual water content of the aquifer [mm3/mm3]
   soil%GWdz          = 20._8           !thickness of the aquifer   [m]
   soil%GWdz          = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
-  soil%drain_dens    = 0.008_8         !  drainage density ( mean dist to rivers/streams )
+  soil%drain_dens    = 0.0008_8        !  drainage density ( mean dist to rivers/streams )
   
   soil%heat_cap_lower_limit = 0.01 ! recalculated in cable_soilsnow.F90
   

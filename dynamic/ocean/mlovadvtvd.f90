@@ -110,8 +110,8 @@ real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:wlev), intent(in) :: ww
 real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
 real, dimension(:,:,:), intent(inout) :: uu
-real, dimension(ifull,0:wlev,size(uu,3)) :: ff
-real, dimension(ifull,0:wlev,size(uu,3)) :: delu
+real, dimension(ifull,0:wlev) :: ff
+real, dimension(ifull,0:wlev) :: delu
 real, dimension(:,:), intent(in) :: ee
 real fl,fh,cc,rr
 
@@ -124,52 +124,40 @@ if ( mlontvd==0 ) then ! MC
 
   !$omp parallel
   do i = 1,maxval(its(1:ifull))
-    !$omp do schedule(static) private(n,ii,iq)
+    !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh,delu,ff)
     do n = 1,ntr
       do ii = 1,wlev-1
         do iq = 1,ifull
-          delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
+          delu(iq,ii) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
         end do
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq)
-    do n = 1,ntr
       do iq = 1,ifull
-        ff(iq,0,n) = 0.
-        ff(iq,wlev,n) = 0.
-        delu(iq,0,n) = 0.
-        delu(iq,wlev,n) = 0.
+        ff(iq,0) = 0.
+        ff(iq,wlev) = 0.
+        delu(iq,0) = 0.
+        delu(iq,wlev) = 0.
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
-    do n = 1,ntr
       do ii = 1,wlev-1
         do iq = 1,ifull
           ! +ve ww is downwards to the ocean floor
           kp = nint(sign(1.,ww(iq,ii)))
           kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-          rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
+          rr = delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
           fl = ww(iq,ii)*uu(iq,kx,n)
           cc = max(0.,min(2.*rr, 0.5+0.5*rr,2.)) ! MC
           fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
             - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
             /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-          ff(iq,ii,n) = fl + cc*(fh-fl)
+          ff(iq,ii) = fl + cc*(fh-fl)
           !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit        
-          ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
+          ff(iq,ii) = ff(iq,ii)*ee(iq,ii)*ee(iq,ii+1)
         end do
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,ii,iq)
-    do n = 1,ntr
       do ii = 1,wlev
         do iq = 1,ifull
           if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then 
             uu(iq,ii,n) = uu(iq,ii,n) + dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
-                               -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)  
+                               -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)  
           end if
         end do  
       end do  
@@ -182,52 +170,40 @@ else if ( mlontvd==1 ) then ! Superbee
 
   !$omp parallel
   do i = 1,maxval(its(1:ifull))
-    !$omp do schedule(static) private(n,ii,iq)
+    !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh,delu,ff)
     do n = 1,ntr
       do ii = 1,wlev-1
         do iq = 1,ifull
-          delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
+          delu(iq,ii) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
         end do
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq)
-    do n = 1,ntr
       do iq = 1,ifull
-        ff(iq,0,n) = 0.
-        ff(iq,wlev,n) = 0.
-        delu(iq,0,n) = 0.
-        delu(iq,wlev,n) = 0.
+        ff(iq,0) = 0.
+        ff(iq,wlev) = 0.
+        delu(iq,0) = 0.
+        delu(iq,wlev) = 0.
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
-    do n = 1,ntr
       do ii = 1,wlev-1
         do iq = 1,ifull
           ! +ve ww is downwards to the ocean floor
           kp = nint(sign(1.,ww(iq,ii)))
           kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-          rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
+          rr = delu(iq,ii-kp)/(delu(iq,ii)+sign(1.E-20,delu(iq,ii)))
           fl = ww(iq,ii)*uu(iq,kx,n)
           cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
           fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
             - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
             /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-          ff(iq,ii,n) = fl + cc*(fh-fl)
+          ff(iq,ii) = fl + cc*(fh-fl)
           !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
-          ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
+          ff(iq,ii) = ff(iq,ii)*ee(iq,ii)*ee(iq,ii+1)
         end do
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,ii,iq)
-    do n = 1,ntr
       do ii = 1,wlev
         do iq = 1,ifull
           if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then  
             uu(iq,ii,n)=uu(iq,ii,n)+dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
-                           -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)
+                           -ff(iq,ii)+ff(iq,ii-1))/dzdum(iq,ii)
           end if
         end do  
       end do  

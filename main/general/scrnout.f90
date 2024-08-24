@@ -795,7 +795,7 @@ logical not_converged
 ! Bolton 1980 MWR p1046 and Bryan and Fritsch 2004 MWR p2421
 
 #ifdef GPU
-!$acc parallel loop copyin(ps,t,ntiles,imax,kl) copyout(cape_d,cin_d) present(sig)       &
+!$acc parallel loop copyin(ps,t,ntiles,imax,kl,qg) copyout(cape_d,cin_d) present(sig)    &
 !$acc   private(pl,tl,pil,th,thv,th2,pl2,tl2,thv2,qv2,ql2,qi2,qt,b2,narea,capel,cinl,qs) &
 !$acc   private(js,je,k,iq,tile,b1,dp,nloop,pl1,tl1,th1,qv1,ql1,qi1,thv1,thlast,pil2)    &
 !$acc   private(icount,not_converged,fliq,fice,tbarl,qvbar,qlbar,qibar,rm,cpm,qsat_save) &
@@ -820,8 +820,10 @@ do tile = 1,ntiles
   do k = 1,ktop
     pl(:,k) = ps(js:je)*sig(k)
     tl(:,k) = t(js:je,k)
+    
     pil(:,k) = (pl(:,k)/1.e5)**(rdry/cp)
-    qs(:) = qsat(pl(:,k),tl(:,k)) 
+    !qs(:) = qsat(pl(:,k),tl(:,k))
+    qs(:) = qg(js:je,k)
     th(:,k) = tl(:,k)/pil(:,k)
     thv(:,k) = th(:,k)*(1.+1.61*qs(:))/(1.+qs(:))
   end do  
@@ -831,7 +833,8 @@ do tile = 1,ntiles
   pl2(:) = pl(:,kmax)
   tl2(:) = tl(:,kmax)
   thv2(:) = thv(:,kmax)
-  qv2(:) = qsat(pl(:,kmax),tl(:,kmax)) 
+  !qv2(:) = qsat(pl(:,kmax),tl(:,kmax))
+  qv2(:) = qg(js:je,kmax)
   ql2(:) = 0.
   qi2(:) = 0.
   qt(:) = qv2(:)
@@ -848,8 +851,8 @@ do tile = 1,ntiles
       
       b1 = b2(iq)
       nloop = 1 + int( 1.e5*(sig(k-1)-sig(k))/pinc )
-      dp = (pl(iq,k-1)-pl(iq,k))/real(nloop)  
-  
+      dp = (pl(iq,k-1)-pl(iq,k))/real(nloop)
+        
       do n = 1,nloop
             
         pl1 = pl2(iq)
@@ -872,7 +875,8 @@ do tile = 1,ntiles
             fliq = max(min((tl2(iq)-233.15)/(273.15-233.15),1.),0.)
             fice = 1. - fliq
 
-            qsat_save = qsat(pl2(iq),tl2(iq))
+            !qsat_save = qsat(pl2(iq),tl2(iq))
+            qsat_save = fliq*qsat(pl2(iq),tl2(iq)) + fice*qsati(pl2(iq),tl2(iq))
 
             qv2(iq) = min( qt(iq), qsat_save )
             qi2(iq) = max( fice*(qt(iq)-qv2(iq)), 0. )
@@ -901,12 +905,12 @@ do tile = 1,ntiles
             
           end if  ! not_converged  
         end do    ! ncount
-
+        
         ! pseudoadiabat
         qt(iq)  = qv2(iq)
         ql2(iq) = 0.
         qi2(iq) = 0.
-
+        
       end do     ! n loop  
 
       thv2(iq) = th2(iq)*(1.+1.61*qv2(iq))/(1.+qv2(iq)+ql2(iq)+qi2(iq))
@@ -938,9 +942,6 @@ do tile = 1,ntiles
         narea(iq) = 0.
         capel(iq) = capel(iq) + max(0.,parea)
       end if
-  
-      !cape_lvl(iq,k) = parea
-      !cin_lvl(iq,k) = narea(iq)
       
     end do ! iq loop  
   end do   ! k loop

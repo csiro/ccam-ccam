@@ -151,7 +151,7 @@ type dgwaterdata
   real, dimension(:), allocatable :: ws0_subsurf    ! flux for sub-surface salinity 
   real, dimension(:), allocatable :: wu0            ! flux for surface u
   real, dimension(:), allocatable :: wv0            ! flux for surface v
-  !real, dimension(:), allocatable :: deleng         ! Change in energy stored
+  !real, dimension(:), allocatable :: deleng        ! Change in energy stored
 end type dgwaterdata
 
 type dgicedata
@@ -184,7 +184,7 @@ end type dgscrndata
 
 ! model
 integer, save :: wlev         = 20        ! Number of water layers
-integer, save :: zomode       = 2         ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars)
+integer, save :: zomode       = 2         ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars, 3=Moon)
 integer, save :: otaumode     = 0         ! momentum coupling (0=Explicit, 1=Implicit)
 integer, save :: mlosigma     = 6         ! vertical levels (4=zstar-cubic, 5=zstar-quad, 6=zstar-gotm, 7=zstar-linear)
 integer, save :: oclosure     = 0         ! 0=kpp, 1=k-eps
@@ -1782,6 +1782,8 @@ real, dimension(imax) :: vmagn,egmax,d_wavail,dumwatertemp
 real ztv, umag, uoave, voave
 real consea, dumazmin, afroot, daf, fm, con, dcon, dden
 real dfm, den, dcs, sig, root, dumazmins, fh, fq
+real est_ustar, est_ustar2, est_dustar2dzo, est_dustardzo
+real u10_neutral, est_zo, est_grad
 ! momentum flux parameters
 real, parameter :: charnck = 0.018
 real, parameter :: chn10   = 0.00125
@@ -1837,7 +1839,8 @@ select case(zomode)
           dfm=2.*bprm*ri(iqw)*dden/(den**2)
           dcon=consea*dfm*vmagn(iqw)
         end if
-        dgwater%zo(iqw)=dgwater%zo(iqw)-(dgwater%zo(iqw)-con*af(iqw))/(1.-dcon*af(iqw)-con*daf)
+        dgwater%zo(iqw)=dgwater%zo(iqw)-(dgwater%zo(iqw)-con*af(iqw)) &
+                                       /(1.-dcon*af(iqw)-con*daf)
         dgwater%zo(iqw)=min(max(dgwater%zo(iqw),1.5e-5),6.)
       end do  ! iqw
     end do    ! it=1,4
@@ -1866,11 +1869,59 @@ select case(zomode)
         dgwater%zo(iqw)=min(max(dgwater%zo(iqw),1.5e-5),6.)
       end do  ! iqw
     end do    ! it=1,4
+  case(3) ! Moon
+    do iqw = 1,imax
+      dgwater%zo(iqw)=0.001    ! first guess
+      do it=1,4
+        dumazmin=max(atm_zmin(iqw),dgwater%zo(iqw)+0.2)
+        afroot=vkar/log(dumazmin/dgwater%zo(iqw))
+        af(iqw)=afroot**2
+        daf=2.*af(iqw)*afroot/(vkar*dgwater%zo(iqw))
+        if ( ri(iqw)>=0. ) then ! stable water points                                     
+          fm=1./(1.+bprm*ri(iqw))**2
+          est_ustar2 = vmagn(iqw)*fm*af(iqw)
+          est_dustar2dzo = vmagn(iqw)*fm*daf 
+          est_ustar = sqrt(est_ustar2)
+          est_dustardzo = sqrt(vmagn(iqw)*fm)*af(iqw)/(vkar*dgwater%zo(iqw))
+          u10_neutral = est_ustar*log(10./dgwater%zo(iqw))/vkar
+          if ( u10_neutral<=12.5 ) then
+            est_zo = (0.018/grav)*est_ustar2
+            est_grad = (0.018/grav)*est_dustar2dzo
+          else
+            est_zo = 0.000085*(-0.56*est_ustar2+20.255*est_ustar+2.458)-0.00058
+            est_grad = 0.000085*(-0.56*est_dustar2dzo+20.255*est_dustardzo)
+          end if
+        else                    ! unstable water points
+          den=1.+af(iqw)*cms*2.*bprm*sqrt(-ri(iqw)*dumazmin/dgwater%zo(iqw))
+          fm=1.-2.*bprm*ri(iqw)/den
+          con=consea*fm*vmagn(iqw)
+          dden=daf*cms*2.*bprm*sqrt(-ri(iqw)*dumazmin/dgwater%zo(iqw))+af(iqw)*cms*bprm*sqrt(-ri(iqw))*dumazmin &
+              /(sqrt(dumazmin/dgwater%zo(iqw))*dgwater%zo(iqw)**2)
+          dfm=2.*bprm*ri(iqw)*dden/(den**2)
+          dcon=consea*dfm*vmagn(iqw)
+          est_ustar2 = vmagn(iqw)*fm*af(iqw)
+          est_dustar2dzo = vmagn(iqw)*(fm*daf+dfm*af(iqw))
+          est_ustar = sqrt(est_ustar2)
+          est_dustardzo = sqrt(vmagn(iqw)*fm)*af(iqw)/(vkar*dgwater%zo(iqw)) + &
+                          sqrt(vmagn(iqw)/fm)*0.5*dfm*afroot
+          u10_neutral = est_ustar*log(10./dgwater%zo(iqw))/vkar
+          if ( u10_neutral<=12.5 ) then
+            est_zo = (0.018/grav)*est_ustar2
+            est_grad = (0.018/grav)*est_dustar2dzo
+          else
+            est_zo = 0.000085*(-0.56*est_ustar2+20.255*est_ustar+2.458)-0.00058
+            est_grad = 0.000085*(-0.56*est_dustar2dzo+20.255*est_dustardzo)
+          end if          
+        end if
+        dgwater%zo(iqw)=dgwater%zo(iqw)-(dgwater%zo(iqw)-est_zo)/(1.-est_grad)
+        dgwater%zo(iqw)=min(max(dgwater%zo(iqw),1.5e-5),6.)
+      end do  ! iqw
+    end do    ! it=1,4
 end select
 af=(vkar/log(max(atm_zmin,dgwater%zo+0.2)/dgwater%zo))**2
 
 select case(zomode)
-  case(0) ! Charnock CSIRO9
+  case(0,3) ! Charnock CSIRO9 & Moon
     ztv=exp(vkar/sqrt(chn10))/10.
     aft=(vkar/log(max(atm_zmins*ztv,1.)))**2
     afq=aft

@@ -644,7 +644,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! RADIATION -------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(radnet_begin)
-    if ( ncloud>=4 .and. ncloud<=13 ) then
+    if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==110 ) then
       !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
@@ -652,7 +652,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
         nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
       end do
       !$omp end do nowait
-    end if   ! (ncloud>=4 .and. nclouod<=13)
+    end if   ! (ncloud>=4.and.ncloud<=13).or.ncloud=110
     select case ( nrad )
       case(4)
         !$omp barrier  
@@ -764,7 +764,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     if ( ntsur>=1 ) then
       call vertmix
     end if  ! (ntsur>=1)
-    if ( ncloud>=4 .and. ncloud<=13 ) then
+    if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==110 ) then
       !$omp do schedule(static) private(js,je)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
@@ -772,7 +772,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
         nettend(js:je,1:kl) = nettend(js:je,1:kl) - t(js:je,1:kl)/dt
       end do
       !$omp end do nowait
-    end if   ! (ncloud>=4 .and. ncloud<=13 )
+    end if   ! (ncloud>=4.and.ncloud<=13).or.ncloud=110
     if ( nmaxpr==1 ) then
       if ( mydiag .and. ntiles==1 ) then
         !$omp master
@@ -1359,6 +1359,7 @@ integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, mbd_min
 integer opt, nopt
+integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 integer o3_time_interpolate        ! depreciated namelist options
 integer kmlo, calcinloop           ! depreciated namelist options
@@ -1372,6 +1373,7 @@ real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr, tscale
+real ateb_zocanyon, ateb_zoroof, ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
 real ateb_alpha                     ! depreciated namelist options 
@@ -1552,6 +1554,8 @@ ngas                = 0
 ateb_energytol      = 0.1
 ateb_intairtmeth    = 0
 ateb_intmassmeth    = 0
+ateb_zocanyon       = zocanyon
+ateb_zoroof         = zoroof
 lapsbot             = 0
 npa                 = 0   ! depreciated
 npb                 = 0   ! depreciated
@@ -1608,6 +1612,11 @@ if ( myid==0 ) then
     ! if namelist is not missing, then trigger an error message
     if ( .not.is_iostat_end(ierr) ) read(99, landnml)
   end if
+  energytol = real(ateb_energytol,8)
+  zocanyon = ateb_zocanyon
+  zoroof = ateb_zoroof
+  intairtmeth = ateb_intairtmeth
+  intmassmeth = ateb_intmassmeth
 end if
 call broadcast_landnml
 if ( myid==0 ) then

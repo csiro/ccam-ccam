@@ -59,7 +59,7 @@ sfrac = 0.
 gfrac = 0.
 stratcloud = 0.
 
-if ( ncloud>=4 .and. ncloud<=13 ) then
+if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==110 ) then
   allocate(nettend(ifull,kl))
   nettend = 0.
 end if

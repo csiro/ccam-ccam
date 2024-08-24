@@ -33,15 +33,19 @@
 ! nmlo>0 and mlo<=9   KPP ocean mixing
 ! nmlo>9              Use external PCOM ocean model
 ! nurban>0            Use urban scheme
+! charnock>0.         Use Charnock
+! charnock=-1.        Use Makin    
+! charnock=-2.        Use Moon
+! charnock=-20.       Use Beljaars
     
 module sflux_m
 
-use cable_ccam                            ! CABLE interface
-use carbpools_m                           ! Carbon pools
-use mlo_ctrl                              ! Ocean physics control layer
+use cable_ccam                             ! CABLE interface
+use carbpools_m                            ! Carbon pools
+use mlo_ctrl                               ! Ocean physics control layer
 use uclem_ctrl, only :                   & ! Urban
      ateb_soilunder=>soilunder           &
-    ,ateb_energytol=>energytol           & 
+    ,energytol                           & 
     ,ateb_resmeth=>resmeth               &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
@@ -73,10 +77,10 @@ use uclem_ctrl, only :                   & ! Urban
     ,ateb_ac_coolcap=>ac_coolcap         &
     ,ateb_ac_deltat=>ac_deltat           &
     ,ateb_acfactor=>acfactor             &
-    ,ateb_intairtmeth=>intairtmeth       &
-    ,ateb_intmassmeth=>intmassmeth       &
-    ,ateb_zocanyon=>zocanyon             &
-    ,ateb_zoroof=>zoroof                 &
+    ,intairtmeth                         &
+    ,intmassmeth                         &
+    ,zocanyon                            &
+    ,zoroof                              &
     ,urbtemp,nfrac,uclem_loadd           &
     ,uclem_init,uclem_type               &
     ,uclem_disable,uclem_deftype
@@ -116,14 +120,14 @@ public alphanir_seaice,alphanir_seasnw,alphavis_seaice,alphavis_seasnw
 public micdwn
 
 public uclem_init,uclem_type,uclem_disable,uclem_deftype
-public ateb_soilunder,ateb_energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
+public ateb_soilunder,energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
 public ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,ateb_ncyits,ateb_nfgits,ateb_tol
 public ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,ateb_minsnowalpha,ateb_maxsnowden
 public ateb_minsnowden,ateb_refheight,ateb_zomratio,ateb_maxrfwater
 public ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,ateb_maxvwatf
 public ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,ateb_infilmeth,ateb_ac_heatcap
 public ateb_ac_coolcap,ateb_ac_deltat,ateb_acfactor
-public ateb_intairtmeth,ateb_intmassmeth,ateb_zocanyon,ateb_zoroof
+public intairtmeth,intmassmeth,zocanyon,zoroof
 public urbtemp,nfrac,uclem_loadd
 
 real, save :: ri_max, zologbgin, ztv, z1onzt, chnsea
@@ -504,6 +508,8 @@ real afrootpan,es,constz,xx,afroot,fm,consea,con,daf,den,dden,dfm
 real dtsol,con1,conw,zminlog,drst,ri_ice,factchice,zoice,zologice
 real conh,epotice,qtgnet,qtgair,eg2,gbot,deltat,b1,deg,eg1,denha
 real denma,root,dcs,fq,afq,facqch,denqa
+real est_ustar, est_ustar2, est_dustar2dzo, est_dustardzo
+real u10_neutral, est_zo, est_grad
 
 integer, parameter :: ntss_sh=0 ! 0 for original, 3 for **3, 4 for **4
 ! Beljaars parameters
@@ -526,9 +532,8 @@ if( charnock>0. )then                                                           
   charnck(:)=charnock                                                                            ! sea
 elseif ( charnock<-10. ) then ! Beljaars                                                         ! sea
   charnck(:)=zcom1                                                                               ! sea
-elseif(charnock<-1.)then  ! zo like Moon (2004)                                                  ! sea
-  ! http://dx.doi.org/10.1175/1520-0469(2004)061<2334:EOSWOA>2.0.CO;2                            ! sea
-  charnck(:)=max(.0000386*u10(:),.000085*u10(:)-.00058)                                          ! sea
+elseif(charnock<-1.)then  ! zo like Moon (2006)                                                  ! sea
+  charnck(:)=0.018 ! see below                                                                   ! sea
 else                      ! like Makin (2002)                                                    ! sea
   charnck(:)=.008+3.e-4*(u10(:)-9.)**2/(1.+(.006+.00008*u10(:))*u10(:)**2)                       ! sea
 endif                                                                                            ! sea
@@ -615,10 +620,58 @@ do iq=1,ifull                                                                   
       afq=vkar**2/(log(zmin/zo(iq))*log(zmin/zoq(iq)))                                           ! sea
       factch(iq)=sqrt(zo(iq)/zoh(iq))                                                            ! sea
       facqch=sqrt(zo(iq)/zoq(iq))                                                                ! sea
-    else if(charnock<0.)then  ! Moon (2004) over sea                                             ! sea
-      zo(iq)=charnck(iq)                                                                         ! sea
-      afroot=vkar/log(zmin/zo(iq))                                                               ! sea
-      af(iq)=afroot**2                                                                           ! sea
+    else if ( charnock<-1. ) then  ! Moon 2006                                                   ! sea
+      zo(iq)=.001    ! .0005 better first guess                                                  ! sea
+      if(ri(iq)>0.)then             ! stable sea points                                          ! sea
+        fm=vmod(iq)/(1.+bprm*ri(iq))**2 ! N.B. this is vmod*fm                                   ! sea
+        do it=1,4                                                                                ! sea
+          afroot=vkar/log(zmin/zo(iq))                                                           ! sea
+          af(iq)=afroot**2                                                                       ! sea
+          daf=2.*af(iq)*afroot/(vkar*zo(iq))                                                     ! sea
+          est_ustar2 = vmod(iq)*fm*af(iq)                                                        ! sea
+          est_dustar2dzo = vmod(iq)*fm*daf                                                       ! sea
+          est_ustar = sqrt(est_ustar2)                                                           ! sea
+          est_dustardzo = sqrt(vmod(iq)*fm)*af(iq)/(vkar*zo(iq))                                 ! sea
+          u10_neutral = est_ustar*log(10./zo(iq))/vkar                                           ! sea
+          if ( u10_neutral<=12.5 ) then                                                          ! sea
+            est_zo = (0.018/grav)*est_ustar2                                                     ! sea
+            est_grad = (0.018/grav)*est_dustar2dzo                                               ! sea
+          else                                                                                   ! sea
+            est_zo = 0.000085*(-0.56*est_ustar2+20.255*est_ustar+2.458)-0.00058                  ! sea
+            est_grad = 0.000085*(-0.56*est_dustar2dzo+20.255*est_dustardzo)                      ! sea
+          end if                                                                                 ! sea
+          zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-est_zo)/(1.-est_grad))                                ! sea
+          zo(iq)=min(zo(iq),6.) ! JLM fix                                                        ! sea
+        enddo    ! it=1,4                                                                        ! sea
+        afroot=vkar/log(zmin/zo(iq))                                                             ! sea
+        af(iq)=afroot**2                                                                         ! sea
+      else                        ! unstable sea points                                          ! sea
+        do it=1,4                                                                                ! sea
+          afroot=vkar/log(zmin/zo(iq))                                                           ! sea
+          af(iq)=afroot**2                                                                       ! sea
+          daf=2.*af(iq)*afroot/(vkar*zo(iq))                                                     ! sea
+          con1=cms*2.*bprm*sqrt(-ri(iq)*zmin/zo(iq))                                             ! sea
+          den=1.+af(iq)*con1                                                                     ! sea
+          dden=con1*(daf-.5*af(iq)/zo(iq))                                                       ! sea
+          fm=vmod(iq)-vmod(iq)*2.*bprm*ri(iq)/den                                                ! sea
+          dfm=2.*bprm*ri(iq)*dden/den**2                                                         ! sea
+          est_ustar2 = vmod(iq)*fm*af(iq)                                                        ! sea
+          est_dustar2dzo = vmod(iq)*(fm*daf+dfm*af(iq))                                          ! sea
+          est_ustar = sqrt(est_ustar2)                                                           ! sea
+          est_dustardzo = sqrt(vmod(iq)*fm)*af(iq)/(vkar*zo(iq)) &                               ! sea
+            + sqrt(vmod(iq)/fm)*0.5*dfm*afroot                                                   ! sea
+          u10_neutral = est_ustar*log(10./zo(iq))/vkar                                           ! sea
+          if ( u10_neutral<=12.5 ) then                                                          ! sea
+            est_zo = (0.018/grav)*est_ustar2                                                     ! sea
+            est_grad = (0.018/grav)*est_dustar2dzo                                               ! sea
+          else                                                                                   ! sea
+            est_zo = 0.000085*(-0.56*est_ustar2+20.255*est_ustar+2.458)-0.00058                  ! sea
+            est_grad = 0.000085*(-0.56*est_dustar2dzo+20.255*est_dustardzo)                      ! sea
+          end if                                                                                 ! sea
+          zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-est_zo)/(1.-est_grad))                                ! sea
+          zo(iq)=min(zo(iq),6.) ! JLM fix                                                        ! sea
+        enddo  ! it=1,4                                                                          ! sea
+      endif    ! (xx>0.) .. else..                                                               ! sea
       aft(iq)=chnsea                                                                             ! sea
       afq=chnsea                                                                                 ! sea
       if ( newztsea==0 ) then ! 0 for original, 1 for different zt over sea                      ! sea
@@ -640,7 +693,7 @@ do iq=1,ifull                                                                   
           af(iq)=afroot**2                                                                       ! sea
           daf=2.*af(iq)*afroot/(vkar*zo(iq))                                                     ! sea
           zo(iq)=max(1.5e-5,zo(iq)-(zo(iq)-con*af(iq))/(1.-con*daf))                             ! sea
-          zo(iq)=min(zo(iq),9.) ! JLM fix                                                        ! sea
+          zo(iq)=min(zo(iq),6.) ! JLM fix                                                        ! sea
         enddo    ! it=1,3                                                                        ! sea
         afroot=vkar/log(zmin/zo(iq))                                                             ! sea
         af(iq)=afroot**2                                                                         ! sea
@@ -668,7 +721,7 @@ do iq=1,ifull                                                                   
         factch(iq)=sqrt(zo(iq)*ztv) ! for use in unstable fh                                     ! sea
       end if                                                                                     ! sea
       facqch=factch(iq)                                                                          ! sea
-    endif     ! (charnock<-1.) .. else ..                                                        ! sea
+    endif    ! (charnock<-10.) .. else ..                                                        ! sea
   endif      ! (land(iq)) .. else ..                                                             ! sea
 
   ! Having settled on zo & af now do actual fh and fm calcs                                      ! sea

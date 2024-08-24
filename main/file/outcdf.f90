@@ -764,8 +764,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_lwintmeth',ateb_lwintmeth)   
     call ccnf_put_attg(idnc,'ateb_cvcoeffmeth',ateb_cvcoeffmeth)
     call ccnf_put_attg(idnc,'ateb_infilmeth',ateb_infilmeth)
-    call ccnf_put_attg(idnc,'ateb_intairtmeth',ateb_intairtmeth)
-    call ccnf_put_attg(idnc,'ateb_intmassmeth',ateb_intmassmeth)
+    call ccnf_put_attg(idnc,'ateb_intairtmeth',intairtmeth)
+    call ccnf_put_attg(idnc,'ateb_intmassmeth',intmassmeth)
     call ccnf_put_attg(idnc,'ateb_maxrdsn',ateb_maxrdsn)
     call ccnf_put_attg(idnc,'ateb_maxrdwater',ateb_maxrdwater)
     call ccnf_put_attg(idnc,'ateb_maxrfsn',ateb_maxrfsn)
@@ -786,10 +786,10 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_tol',ateb_tol)
     call ccnf_put_attg(idnc,'ateb_wbrelaxc',ateb_wbrelaxc)
     call ccnf_put_attg(idnc,'ateb_wbrelaxr',ateb_wbrelaxr)
-    call ccnf_put_attg(idnc,'ateb_zocanyon',ateb_zocanyon)
+    call ccnf_put_attg(idnc,'ateb_zocanyon',zocanyon)
     call ccnf_put_attg(idnc,'ateb_zohmeth',ateb_zohmeth)
     call ccnf_put_attg(idnc,'ateb_zomratio',ateb_zomratio)
-    call ccnf_put_attg(idnc,'ateb_zoroof',ateb_zoroof)
+    call ccnf_put_attg(idnc,'ateb_zoroof',zoroof)
     call ccnf_put_attg(idnc,'ateb_zosnow',ateb_zosnow)
     call ccnf_put_attg(idnc,'cable_gw_model',cable_gw_model)
     call ccnf_put_attg(idnc,'cable_litter',cable_litter)
@@ -2004,7 +2004,7 @@ if ( myid==0 .or. local ) then
         call attrib(idnc,dima,asize,'sfrac','Snow fraction',   'none',0.,1.,any_m,point_m,cptype)
         call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,any_m,point_m,cptype)
       end if
-      if ( (ncloud>=4.and.ncloud<=13) .and. (itype==-1.or.diaglevel_cloud>5) ) then
+      if ( ((ncloud>=4.and.ncloud<=13).or.ncloud==110) .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K s-1',-50.,50.,any_m,point_m,cptype)
       end if
       if ( (ncloud>=100.and.ncloud<=120) .and. (itype==-1.or.diaglevel_cloud>5) ) then
@@ -3372,7 +3372,7 @@ if ( ldr/=0 ) then
     call histwrt(sfrac,'sfrac',idnc,iarch,local,.true.)
     call histwrt(gfrac,'gfrac',idnc,iarch,local,.true.)
   end if
-  if ( (ncloud>=4.and.ncloud<=13) .and. (itype==-1.or.diaglevel_cloud>5) ) then 
+  if ( ((ncloud>=4.and.ncloud<=13).or.ncloud==110) .and. (itype==-1.or.diaglevel_cloud>5) ) then 
     call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
   end if
   if ( (ncloud>=100.and.ncloud<=120) .and. (itype==-1.or.diaglevel_cloud>5) ) then

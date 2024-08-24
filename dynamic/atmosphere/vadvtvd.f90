@@ -197,7 +197,7 @@ integer i, k, iq, kp, kx, n, ntr
 real, dimension(:,:,:), intent(inout) :: tarr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
 real rat, phitvd, fluxhi, fluxlo
-real, dimension(ifull,0:kl,size(tarr,3)) :: delt, fluxh
+real, dimension(ifull,0:kl) :: delt, fluxh
 
 ntr = size(tarr,3)
 
@@ -207,47 +207,35 @@ if ( ntvd==2 ) then ! MC
 
   !$omp parallel   
   do i = 1,maxval(nits(1:ifull))
-    !$omp do schedule(static) private(n,k,iq)
+    !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi,delt,fluxh)
     do n = 1,ntr
       do k = 1,kl-1
         do iq = 1,ifull
-          delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
+          delt(iq,k) = tarr(iq,k+1,n) - tarr(iq,k,n)
         end do
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq)
-    do n = 1,ntr
       do iq = 1,ifull
-        fluxh(iq,0,n)  = 0.
-        fluxh(iq,kl,n) = 0.
-        delt(iq,kl,n)  = 0.     ! for T,u,v
-        delt(iq,0,n)   = 0.
+        fluxh(iq,0)  = 0.
+        fluxh(iq,kl) = 0.
+        delt(iq,kl)  = 0.     ! for T,u,v
+        delt(iq,0)   = 0.
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
-    do n = 1,ntr
       do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
         do iq = 1,ifull      
           kp = nint(sign(1.,sdot(iq,k+1)))
           kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-          rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+          rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
           phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
           fluxlo = tarr(iq,kx,n)
           ! higher order scheme
-          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
-          fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
+          fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
         end do
       end do
-    end do      ! k loop
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,k,iq)
-    do n = 1,ntr
       do k = 1,kl
         do iq = 1,ifull
           if ( i<=nits(iq) ) then
-            tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
+            tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1)-fluxh(iq,k) &
                                +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
           end if  
         end do
@@ -261,48 +249,36 @@ else if ( ntvd==3 ) then ! Superbee
 
   !$omp parallel
   do i = 1,maxval(nits(1:ifull))
-    !$omp do schedule(static) private(n,iq,k)
+    !$omp do schedule(static) private(n,iq,k,kp,kx,rat,phitvd,fluxlo,fluxhi,delt,fluxh)
     do n = 1,ntr
       do k = 1,kl-1
         do iq = 1,ifull 
-          delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
+          delt(iq,k) = tarr(iq,k+1,n) - tarr(iq,k,n)
         end do  
       end do     ! k loop
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq)
-    do n = 1,ntr
       do iq = 1,ifull
-        fluxh(iq,0,n)  = 0.
-        fluxh(iq,kl,n) = 0.
-        delt(iq,kl,n)  = 0.     ! for T,u,v
-        delt(iq,0,n)   = 0.
+        fluxh(iq,0)  = 0.
+        fluxh(iq,kl) = 0.
+        delt(iq,kl)  = 0.     ! for T,u,v
+        delt(iq,0)   = 0.
       end do
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq,k,kp,kx,rat,phitvd,fluxlo,fluxhi)
-    do n = 1,ntr
       do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
         do iq = 1,ifull  
           kp = nint(sign(1.,sdot(iq,k+1)))
           kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-          rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+          rat = delt(iq,k-kp)/(delt(iq,k)+sign(1.e-20,delt(iq,k)))
           phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
           fluxlo = tarr(iq,kx,n)
           ! higher order scheme
-          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
-          fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k)*sdot(iq,k+1)*nvadh_inv_pass(iq)
+          fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
         end do  
       end do ! k
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq,k)
-    do n = 1,ntr    
       do k = 1,kl
         do iq = 1,ifull
           if ( i<=nits(iq) ) then
             tarr(iq,k,n) = tarr(iq,k,n) &
-              + (fluxh(iq,k-1,n)-fluxh(iq,k,n)+tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+              + (fluxh(iq,k-1)-fluxh(iq,k)+tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
           end if  
         end do     ! iq
       end do

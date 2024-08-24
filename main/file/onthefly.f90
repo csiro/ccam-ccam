@@ -2014,7 +2014,7 @@ if ( nested/=1 .and. nested/=3 ) then
       gfrac(1:ifull,1:kl) = max( gfrac(1:ifull,1:kl), 0. )
       gfrac(1:ifull,1:kl) = min( gfrac(1:ifull,1:kl), 1. )
     end if
-    if ( ncloud>=4 .and. ncloud<=13 ) then
+    if ( (ncloud>=4.and.ncloud<=13).or.ncloud==110 ) then
       call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
     end if ! (ncloud>=4)
     if ( ncloud>=100 .and. ncloud<=120 ) then
