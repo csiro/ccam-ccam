@@ -1968,9 +1968,13 @@ call ccmpi_remap
 !--------------------------------------------------------------
 ! PARAMETER TESTS
 
-if ( nllp==0 .and. nextout>=4 ) then
-  write(6,*) 'need nllp=3 for nextout>=4'
-  call ccmpi_abort(-1)
+if ( nextout>=4 ) then
+  if ( nllp<3 ) then
+    if ( myid==0 ) then
+      write(6,*) "WARN: Increase nllp=3 for nextout>=4"
+    end if
+    nllp = 3
+  end if
 end if
 if ( newtop>2 ) then
   write(6,*) 'newtop>2 no longer allowed'
@@ -2279,7 +2283,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
   call tkeinit(ifull,iextra,kl)
 end if
 call init_tracer
-call work3sav_init(ifull,kl,ngas) ! must occur after tracers_init
+call work3sav_init(ifull,kl,ntrac) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
   if ( abs(iaero)>=2 .and. nud_aero/=0 ) then
     call dav_init(ifull,kl,naero,nbd,mbd)

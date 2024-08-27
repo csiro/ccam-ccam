@@ -31,7 +31,7 @@ public tractype,tracname
 public tracers_init,tracers_end
 
 ! parameters should be controlled from namelist
-integer, parameter :: nllp=0
+integer, save :: nllp=0
 integer, save :: ngas=0
 integer, save :: ntrac=0
 integer, dimension(:), allocatable, save :: npm

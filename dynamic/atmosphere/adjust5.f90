@@ -588,9 +588,9 @@ ns(1:ifull,1:kl) = max( ns(1:ifull,1:kl), 0. )
 
 !------------------------------------------------------------------------
 ! Tracer conservation
-if ( mfix_tr/=0 .and. mspec==1 .and. ngas>0 ) then
-  call massfix(mfix_tr,ngas,tr,trsav,ps,ps_sav,.true.)
-end if !  (mfix_tr/=0.and.mspec==1.and.ngas>0)
+if ( mfix_tr/=0 .and. mspec==1 .and. ntrac>0 ) then
+  call massfix(mfix_tr,ntrac,tr,trsav,ps,ps_sav,.true.)
+end if !  (mfix_tr/=0.and.mspec==1.and.ntrac>0)
 
 !--------------------------------------------------------------
 ! Aerosol conservation

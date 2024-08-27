@@ -104,13 +104,13 @@ if ( abs(iaero)>=2 .and. nhstest>=0 ) then
   end do  
 end if   ! abs(iaero)==2
 
-if ( ngas>0 ) then
-  do n = 1,ngas
+if ( ntrac>0 ) then
+  do n = 1,ntrac
     do k = 1,kl  
       trsav(1:ifull,k,n) = tr(1:ifull,k,n) ! for tr conservation in adjust5
     end do
   end do  
-end if   ! (ngas>=1)
+end if   ! (ntrac>=1)
  
 if ( diag .or. nmaxpr==1 ) then
   call bounds(ps)

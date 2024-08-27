@@ -58,7 +58,7 @@ integer ii, intsch, iq, jj, k, kk
 integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
-integer, dimension(max(naero,ngas,6)) :: nfield
+integer, dimension(max(naero,ntrac,6)) :: nfield
 real, dimension(ifull) :: nvadh_inv_pass
 real, dimension(ifull+iextra,kl,6) :: bb
 real, dimension(ifull+iextra,kl,3) :: uvw
@@ -225,7 +225,7 @@ if ( mspec==1 .and. mup/=0 ) then
   else
     call bounds(qg,nrows=2)
   end if    ! ldr/=0
-  if ( ngas>0 ) then
+  if ( ntrac>0 ) then
     call bounds(tr,nrows=2)
   end if
   if ( nvmix==6 .or. nvmix==9 ) then
@@ -391,24 +391,22 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   else
     call ints(qg,1,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
-  if ( ngas>0 .or. nextout>=4 ) then
-    if ( nmaxpr==1 .and. mydiag ) then
-      write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
-      write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
-      write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
-      write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-      write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-      write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-    end if
-    if ( ngas>0 ) then
-      call ints(tr(:,:,1:ngas),ngas,intsch,nface,xg,yg,5)
-    end if
-    if ( nmaxpr==1 .and. mydiag ) then
-      write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-      write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-      write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-    endif
-  endif  ! (ngas>0.or.nextout>=4)
+  if ( ntrac>0 ) then
+    !if ( nmaxpr==1 .and. mydiag ) then
+    !  write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
+    !  write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
+    !  write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
+    !  write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
+    !  write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
+    !  write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
+    !end if
+    call ints(tr(:,:,1:ntrac),ntrac,intsch,nface,xg,yg,5)
+    !if ( nmaxpr==1 .and. mydiag ) then
+    !  write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
+    !  write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
+    !  write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
+    !endif
+  endif  ! (ntrac>0)
   if ( nvmix==6 .or. nvmix==9 ) then
     bb(:,:,1) = tke(:,:)
     bb(:,:,2) = eps(:,:)

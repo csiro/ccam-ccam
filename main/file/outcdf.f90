@@ -2218,7 +2218,7 @@ if ( myid==0 .or. local ) then
           if (writetrpm) call attrib(idnc,dima,asize,'trpm'//trnum,lname,'ppm',0.,6.5E6,any_m,mean_m,float_m)
         end do ! igas loop
       end if
-    end if   ! (ngas>0)
+    end if   ! (ntrac>0)
 
     ! AEROSOL ---------------------------------------------------
     if ( abs(iaero)>=2 ) then  
@@ -3249,7 +3249,6 @@ if ( ngas>0 ) then
     do igas = 1,ngas
       write(trnum,'(i4.4)') igas
       call histwrt(tr(:,1,igas),'trsf'//trnum,idnc,iarch,local,.true.)
-      
       call histwrt(co2em(:,igas),'trem'//trnum,idnc,iarch,local,.true.)
     enddo ! igas loop
   end if
@@ -3590,7 +3589,7 @@ if ( ngas>0 ) then
       npm  = 0
     endif
   end if
-endif  ! (ngasc>0)
+endif  ! (ntrac>0)
 
 ! AEROSOLS ----------------------------------------------------
 if ( abs(iaero)>=2 ) then

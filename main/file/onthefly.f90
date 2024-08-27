@@ -384,7 +384,7 @@ integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(9+3*ms) :: ierc
-integer, dimension(12), save :: iers
+integer, dimension(13), save :: iers
 integer, dimension(2) :: shsize
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
@@ -407,7 +407,7 @@ real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a, opldep_a
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real, dimension(:,:), allocatable, save :: gosig3_a
-real, dimension(kk+ok+12) :: dumr
+real, dimension(kk+ok+13) :: dumr
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(ifull) :: dum6r8
 character(len=20) vname
@@ -417,7 +417,7 @@ logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_needed, zht_found, urban1_found, urban2_found
-logical aero_found, mlo3_found
+logical aero_found, mlo3_found, nllp_found
 logical, dimension(:), allocatable, save :: land_a, landlake_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 logical, dimension(:,:), allocatable, save :: landlake_3d
@@ -657,7 +657,7 @@ if ( newfile ) then
       end if
     end if
     ! check for missing data
-    iers(1:12) = 0
+    iers(1:13) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
@@ -681,7 +681,9 @@ if ( newfile ) then
     call ccnf_inq_varid(ncid,'dms',idv,tst)
     if ( tst ) iers(11) = -1
     call ccnf_inq_varid(ncid,'opldepth',idv,tst)
-    if ( tst ) iers(12) = -1    
+    if ( tst ) iers(12) = -1
+    call ccnf_inq_varid(ncid,'del_lat',idv,tst)
+    if ( tst ) iers(13) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -692,12 +694,12 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk) = sigin(1:kk)
-    dumr(kk+1:kk+12) = real(iers(1:12))
-    if ( ok>0 ) dumr(kk+13:kk+ok+12) = gosig_1(1:ok)
-    call ccmpi_bcast(dumr(1:kk+ok+12),0,comm_world)
+    dumr(kk+1:kk+13) = real(iers(1:13))
+    if ( ok>0 ) dumr(kk+14:kk+ok+13) = gosig_1(1:ok)
+    call ccmpi_bcast(dumr(1:kk+ok+13),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:12) = nint(dumr(kk+1:kk+12))
-    if ( ok>0 ) gosig_1(1:ok) = dumr(kk+13:kk+ok+12)
+    iers(1:13) = nint(dumr(kk+1:kk+13))
+    if ( ok>0 ) gosig_1(1:ok) = dumr(kk+14:kk+ok+13)
   end if
   
   mixr_found    = iers(1)==0
@@ -712,6 +714,7 @@ if ( newfile ) then
   zht_found     = iers(10)==0
   aero_found    = iers(11)==0
   mlo3_found    = iers(12)==0
+  nllp_found    = iers(13)==0
   
   ! determine whether zht needs to be read
   zht_needed = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
@@ -728,6 +731,7 @@ if ( newfile ) then
     write(6,*) "-> soilt_found,mlo_found,mlo2_found,mlo3_found    =",soilt_found,mlo_found,mlo2_found,mlo3_found
     write(6,*) "-> zht_found,mixr_found,aero_found,mloice_found   =",zht_found,mixr_found,aero_found,mloice_found
     write(6,*) "-> urban1_found,urban2_found,allowtrivialfill     =",urban1_found,urban2_found,allowtrivialfill
+    write(6,*) "-> nllp_found                                     =",nllp_found
     if ( zht_needed .and. .not.zht_found .and. .not.allowtrivialfill ) then
       write(6,*) "ERROR: Surface height is required but not found in input file"
       call ccmpi_abort(-1)
@@ -936,6 +940,7 @@ else
   zht_found     = iers(10)==0
   aero_found    = iers(11)==0
   mlo3_found    = iers(12)==0
+  nllp_found    = iers(13)==0
   zht_needed    = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
   allowtrivialfill = zht_needed .and. .not.zht_found .and.                &
@@ -1946,6 +1951,15 @@ if ( nested/=1 .and. nested/=3 ) then
       end do        
     end if    
   end if
+  
+  ! special nllp data
+  if ( nested==0 .and. nextout>=4 .and. nllp==3 ) then
+    if ( nllp_found ) then  
+      call gethist4a('del_lat',tr(:,:,ngas+1),7)  
+      call gethist4a('del_lon',tr(:,:,ngas+2),7)  
+      call gethist4a('del_p',tr(:,:,ngas+3),7)
+    end if
+  end if
 
   ! k-eps data
   if ( nested==0 .and. abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
@@ -2053,7 +2067,7 @@ if ( nested/=1 .and. nested/=3 ) then
   ! Tracer data
   if ( nested==0 .and. ngas>0 ) then
     if ( lrestart_tracer ) then  
-      do igas = 1,ngas              
+      do igas = 1,ngas
         write(trnum,'(i4.4)') igas
         call gethist4a('tr'//trnum,tr(:,:,igas),7)
       end do

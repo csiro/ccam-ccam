@@ -783,8 +783,7 @@ real, dimension(imax) :: qs
 real b1, dp, pl1, tl1, th1, qv1, ql1, qi1, thv1, thlast, pil2, fliq, fice
 real tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf, rm, cpm, qsat_save
 real dz, frac, parea
-!real, parameter :: pinc = 100. ! Pressure increment (Pa) - smaller is more accurate
-real, parameter :: pinc = 1000.
+real, parameter :: pinc = 500. ! Pressure increment (Pa) - smaller is more accurate
 real, parameter :: lv1 = 2501000. + (4190.-cpv)*273.15
 real, parameter :: lv2 = 4190. - cpv
 real, parameter :: ls1 = 2836017. + (2118.636-cpv)*273.15

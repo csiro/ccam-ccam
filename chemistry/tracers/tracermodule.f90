@@ -72,6 +72,7 @@ logical dpoflag
 
 ! check for valid tracer data
 if ( tracerlist==' ' ) then
+  ntrac = ngas + nllp  
   allocate( tr(ifull+iextra,kl,ntrac) ) ! for pgfortran  
   return
 end if    
