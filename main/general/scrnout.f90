@@ -946,7 +946,7 @@ do tile = 1,ntiles
   end do   ! k loop
     
   cape_d(js:je) = capel(:)
-  cin_d(js:je) = cinl(:)
+  cin_d(js:je) = -cinl(:)
 
 end do
 #ifdef GPU

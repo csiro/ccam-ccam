@@ -4249,7 +4249,7 @@ if ( first ) then
         lname = 'Convective Available Potential Energy'
         call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,20000.,any_m,point_m,short_m)
         lname = 'Convective Inhibition'
-        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',0.,20000.,any_m,point_m,short_m)
+        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',-20000.,0.,any_m,point_m,short_m)
       end if
     end if  
     if ( cordex_tier1 ) then
