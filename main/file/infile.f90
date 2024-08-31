@@ -2871,7 +2871,7 @@ if ( vtype==nf90_short ) then
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
     do k = 1,ll
-      do iq = 1,ifull
+      do iq = 1,ifull_g
         ipack_g(iq,k) = nint(max(min((var_g(iq,k)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
       end do
     end do
@@ -3023,7 +3023,7 @@ if ( vtype==nf90_short ) then
     ier = nf90_get_att(lidnc,mid,'add_offset',laddoff)
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
     do k = 1,ll
-      do iq = 1,ifull
+      do iq = 1,ifull_g
         ipack_g(iq,k) = nint(max(min((var_g(iq,k)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)),real(minv,8)),2)
       end do
     end do
@@ -3260,7 +3260,7 @@ if ( vtype==nf90_short ) then
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
     do l = 1,ll  
       do k = 1,kk
-        do iq = 1,ifull
+        do iq = 1,ifull_g
           ipack_g(iq,k,l) = nint(max(min((var_g(iq,k,l)-real(laddoff))/real(lscale_f),real(maxv)),real(minv)),2)
         end do
       end do
@@ -3419,7 +3419,7 @@ if ( vtype==nf90_short ) then
     ier = nf90_get_att(lidnc,mid,'scale_factor',lscale_f)
     do l = 1,ll  
       do k = 1,kk
-        do iq = 1,ifull
+        do iq = 1,ifull_g
           ipack_g(iq,k,l) = nint(max(min((var_g(iq,k,l)-real(laddoff,8))/real(lscale_f,8),real(maxv,8)), &
                                    real(minv,8)),2)
         end do

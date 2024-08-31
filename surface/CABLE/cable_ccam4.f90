@@ -104,7 +104,7 @@ subroutine cable_pack_r4_2_r4(indata,outdata)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  real(kind=4), dimension(:), intent(out) :: outdata
+  real(kind=4), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
 
   do tile = 1,ntiles
@@ -125,7 +125,7 @@ subroutine cable_pack_r4_2_r8(indata,outdata)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(out) :: outdata
+  real(kind=8), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
 
   do tile = 1,ntiles
@@ -146,7 +146,7 @@ subroutine cable_pack_r4_2_r4_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  real(kind=4), dimension(:), intent(out) :: outdata
+  real(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -167,7 +167,7 @@ subroutine cable_pack_r4_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(out) :: outdata
+  real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -188,7 +188,7 @@ subroutine cable_pack_r4_2_r4_map(indata,outdata,nmp)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  real(kind=4), dimension(:), intent(out) :: outdata
+  real(kind=4), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
   integer :: nb, is, ie, js, je, tile, iqt, iq, iqx
 
@@ -221,7 +221,7 @@ subroutine cable_pack_r4_2_r8_map(indata,outdata,nmp)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(out) :: outdata
+  real(kind=8), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
   integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
 
@@ -255,7 +255,7 @@ subroutine cable_pack_r8_2_r8(indata,outdata)
   use newmpar_m, only : ifull
   implicit none
   real(kind=8), dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(out) :: outdata
+  real(kind=8), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
 
   do tile = 1,ntiles
@@ -276,7 +276,7 @@ subroutine cable_pack_r8_2_r8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
   implicit none
   real(kind=8), dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(out) :: outdata
+  real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -297,7 +297,7 @@ subroutine cable_pack_r8_2_r8_map(indata,outdata,nmp)
   use newmpar_m, only : ifull
   implicit none
   real(kind=8), dimension(ifull), intent(in) :: indata
-  real(kind=8), dimension(:), intent(out) :: outdata
+  real(kind=8), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
   integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
 
@@ -331,7 +331,7 @@ subroutine cable_pack_i4_2_i4(indata,outdata)
   use newmpar_m, only : ifull
   implicit none
   integer, dimension(ifull), intent(in) :: indata
-  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer(kind=4), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
 
   do tile = 1,ntiles
@@ -352,7 +352,7 @@ subroutine cable_pack_i4_2_i4_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
   implicit none
   integer, dimension(ifull), intent(in) :: indata
-  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -373,7 +373,7 @@ subroutine cable_pack_i4_2_i4_map(indata,outdata,nmp)
   use newmpar_m, only : ifull
   implicit none
   integer, dimension(ifull), intent(in) :: indata
-  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
   integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
 
@@ -406,7 +406,7 @@ subroutine cable_pack_i4_2_i8_map(indata,outdata,nmp)
   use newmpar_m, only : ifull
   implicit none
   integer, dimension(ifull), intent(in) :: indata
-  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
   integer :: nb, is, ie, js, je, tile, iqx, iqt, iq
 
@@ -439,7 +439,7 @@ subroutine cable_pack_i4_2_i8(indata,outdata)
   use newmpar_m, only : ifull
   implicit none
   integer, dimension(ifull), intent(in) :: indata
-  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer(kind=8), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
 
   do tile = 1,ntiles
@@ -460,7 +460,7 @@ subroutine cable_pack_i4_2_i8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
   implicit none
   integer, dimension(ifull), intent(in) :: indata
-  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -481,7 +481,7 @@ subroutine cable_pack_r4_2_i4(indata,outdata)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer(kind=4), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
 
   do tile = 1,ntiles
@@ -502,7 +502,7 @@ subroutine cable_pack_r4_2_i4_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  integer(kind=4), dimension(:), intent(out) :: outdata
+  integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
@@ -523,7 +523,7 @@ subroutine cable_pack_r4_2_i8(indata,outdata)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer(kind=8), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
 
   do tile = 1,ntiles
@@ -544,7 +544,7 @@ subroutine cable_pack_r4_2_i8_tile(indata,outdata,inb)
   use newmpar_m, only : ifull
   implicit none
   real, dimension(ifull), intent(in) :: indata
-  integer(kind=8), dimension(:), intent(out) :: outdata
+  integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
   integer :: nb, is, ie, js, je, tile
 
