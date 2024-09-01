@@ -40,6 +40,7 @@ contains
 
 subroutine mlob2ints_bs_3(s,nface,xg,yg,wtr,bc_test,bs_test,mlointschf)
 
+use cc_acc
 use cc_mpi
 use indices_m
 use mlo_ctrl
@@ -54,6 +55,7 @@ integer, intent(in) :: bc_test
 integer idel, iq, jdel
 integer i, j, k, n, intsch, nn, np
 integer ii, ntr, nstart, nend, nlen
+integer async_counter
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg, yg
 real, dimension(:,:,:), intent(inout) :: s
@@ -156,6 +158,11 @@ end do
 call bounds(s,nrows=2)
 
 
+#ifdef GPUDYNAMIC
+!$acc enter data create(wx,sx)
+#endif
+
+
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
     
@@ -199,6 +206,11 @@ if ( intsch==1 ) then
     end do           ! n loop
   end do             ! k loop
 
+
+#ifdef GPUDYNAMIC
+  !$acc update device(wx)
+#endif
+  
   
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr)
@@ -206,6 +218,7 @@ if ( intsch==1 ) then
 
     do nn = 1,nlen
       np = nn - 1 + nstart
+      async_counter = mod(nn-1, async_length)
       do k = 1,wlev
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
@@ -245,6 +258,9 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
+#ifdef GPUDYNAMIC
+      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
+#endif
     end do
   
     ! Loop over points that need to be calculated for other processes
@@ -382,12 +398,20 @@ if ( intsch==1 ) then
     call intssync_send(nlen)
 
     if ( bs_test ) then    
+#ifndef GPUDYNAMIC
       !$omp parallel
+#endif    
       do nn = 1,nlen
+#ifdef GPUDYNAMIC
+        async_counter = mod(nn-1, async_length)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
+#else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
         !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
         !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
         !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test,cmin,cmax)
+#endif
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -449,16 +473,32 @@ if ( intsch==1 ) then
             end if            
           end do       ! iq loop
         end do         ! k loop
+#ifdef GPUDYNAMIC
+        !$acc end parallel loop
+#else
         !$omp end do nowait
+#endif
       end do
+#ifdef GPUDYNAMIC
+      !$acc wait
+#else
       !$omp end parallel
+#endif
     else
+#ifndef GPUDYNAMIC
       !$omp parallel
+#endif    
       do nn = 1,nlen
+#ifdef GPUDYNAMIC
+        async_counter = mod(nn-1, async_length)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
+#else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
         !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
         !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
         !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
+#endif
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -518,9 +558,17 @@ if ( intsch==1 ) then
 
           end do       ! iq loop
         end do         ! k loop
+#ifdef GPUDYNAMIC
+        !$acc end parallel loop
+#else
         !$omp end do nowait
+#endif
       end do             ! nn loop
+#ifdef GPUDYNAMIC
+      !$acc wait
+#else
       !$omp end parallel
+#endif
     end if           ! bs_test ..else..
 
     call intssync_recv(s(:,:,nstart:nend))  
@@ -574,12 +622,18 @@ else     ! if(intsch==1)then
   end do             ! k loop 
 
 
+#ifdef GPUDYNAMIC
+  !$acc update device(wx)
+#endif
+  
+
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr)
     nlen = nend - nstart + 1
 
     do nn = 1,nlen
       np = nn - 1 + nstart
+      async_counter = mod(nn-1, async_length)
       do k = 1,wlev
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
@@ -619,6 +673,9 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
+#ifdef GPUDYNAMIC
+      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
+#endif
     end do  
   
     ! For other processes
@@ -756,12 +813,20 @@ else     ! if(intsch==1)then
     call intssync_send(nlen)
 
     if ( bs_test ) then
+#ifndef GPUDYNAMIC
       !$omp parallel
+#endif  
       do nn = 1,nlen
+#ifdef GPUDYNAMIC
+        async_counter = mod(nn-1, async_length)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
+#else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
         !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
         !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
         !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
+#endif
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -824,16 +889,32 @@ else     ! if(intsch==1)then
             
           end do
         end do
+#ifdef GPUDYNAMIC
+        !$acc end parallel loop
+#else
         !$omp end do nowait
+#endif
       end do           ! nn loop
+#ifdef GPUDYNAMIC
+      !$acc wait
+#else
       !$omp end parallel
+#endif
     else
+#ifndef GPUDYNAMIC
       !$omp parallel
+#endif  
       do nn = 1,nlen        
+#ifdef GPUDYNAMIC
+        async_counter = mod(nn-1, async_length)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
+#else
         !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
         !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
         !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
         !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
+#endif
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -893,9 +974,17 @@ else     ! if(intsch==1)then
             
           end do
         end do
+#ifdef GPUDYNAMIC
+        !$acc end parallel loop
+#else
         !$omp end do nowait
+#endif
       end do           ! nn loop
+#ifdef GPUDYNAMIC
+      !$acc wait
+#else
       !$omp end parallel
+#endif
     end if
 
     call intssync_recv(s(:,:,nstart:nend))  
@@ -904,6 +993,11 @@ else     ! if(intsch==1)then
     
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
+
+
+#ifdef GPUDYNAMIC
+!$acc exit data delete(wx,sx)
+#endif
 
 
 do nn = 1,ntr
@@ -930,6 +1024,7 @@ end subroutine mlob2ints_bs_3
 
 subroutine mlob2ints_bs_2(s,nface,xg,yg,wtr,bc_test,bs_test,mlointschf)
 
+use cc_acc
 use cc_mpi
 use indices_m
 use mlo_ctrl
@@ -1249,10 +1344,15 @@ if ( intsch==1 ) then
   call intssync_send(1)
 
   if ( bs_test ) then
+#ifdef GPUDYNAMIC
+    !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
+    !$acc   present(xg,yg,nface)
+#else
     !$omp parallel do schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                   &
     !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
     !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
     !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test,cmin,cmax)
+#endif
     do k = 1,wlev      
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -1315,12 +1415,21 @@ if ( intsch==1 ) then
 
       end do       ! iq loop
     end do         ! k loop
+#ifdef GPUDYNAMIC
+    !$acc end parallel loop
+#else
     !$omp end parallel do
+#endif
   else
+#ifdef GPUDYNAMIC
+    !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
+    !$acc   present(xg,yg,nface)
+#else
     !$omp parallel do schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                   &
     !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
     !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
     !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
+#endif
     do k = 1,wlev      
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -1380,7 +1489,11 @@ if ( intsch==1 ) then
 
       end do       ! iq loop
     end do         ! k loop
+#ifdef GPUDYNAMIC
+    !$acc end parallel loop
+#else
     !$omp end parallel do
+#endif
   end if
 
   call intssync_recv(s)  
@@ -1603,10 +1716,15 @@ else     ! if(intsch==1)then
   call intssync_send(1)
 
   if ( bs_test ) then
+#ifdef GPUDYNAMIC
+    !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
+    !$acc   present(xg,yg,nface)
+#else
     !$omp parallel do schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                   &
     !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
     !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
     !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
+#endif
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -1669,12 +1787,21 @@ else     ! if(intsch==1)then
 
       end do
     end do
+#ifdef GPUDYNAMIC
+    !$acc end parallel loop
+#else
     !$omp end parallel do
+#endif
   else
+#ifdef GPUDYNAMIC
+    !$acc parallel loop collapse(2) copyin(sx,wx) copyout(s)        &
+    !$acc   present(xg,yg,nface)
+#else
     !$omp parallel do schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                   &
     !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
     !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
     !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
+#endif
     do k = 1,wlev
       do iq = 1,ifull
         idel = int(xg(iq,k))
@@ -1734,7 +1861,11 @@ else     ! if(intsch==1)then
         
       end do
     end do
+#ifdef GPUDYNAMIC
+    !$acc end parallel loop
+#else
     !$omp end parallel do
+#endif
   end if
 
   call intssync_recv(s)  

@@ -239,6 +239,12 @@ end if     ! mspec==1
 call END_LOG(ints_end)
 
 
+#if GPUDYNAMIC
+!$acc data create(xg,yg,nface)
+!$acc update device(xg,yg,nface)
+#endif
+
+
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
   if ( nh/=0 ) then
@@ -418,6 +424,11 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     call ints(xtg(:,:,1:naero),naero,intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1
+
+
+#ifdef GPUDYNAMIC
+!$acc end data
+#endif
 
 
 do k = 2,kl

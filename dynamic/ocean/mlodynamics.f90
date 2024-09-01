@@ -609,6 +609,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Lagrangian version of the contunity equation with D included in flux form
   !   [neta + (1+eps)*0.5*dt*(neta*(du/dx+dv/dy)+d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t+1)
   ! = [neta - (1-eps)*0.5*dt*(neta*(du/dx+dv/dy)+d(D*u)/dx+d(D*v)/dy+dw/dsig)]^(t*)
+  ! = mps/dsig
   
   ! Vertical velocity is then (sum_0_sig is the integral from 0 to sig)
 
@@ -768,6 +769,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,3) = az(1:ifull)*u_tstar(:,ii) + bz(1:ifull)*v_tstar(:,ii)
   end do
   
+  
+#ifdef GPYDYNAMNIC  
+  !$acc data create(xg,yg,nface)
+  !$acc update device(xg,yg,nface)
+#endif
+  
+  
   ! Horizontal advection for U, V, W, T, continuity and S
   bs_test = mlo_bs<=2
   call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,0,bs_test,mlointschf)
@@ -777,6 +785,12 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlob2ints_bs(mps,nface,xg,yg,wtr,2,bs_test,mlointschf)
   bs_test = mlo_bs<=4
   call mlob2ints_bs(ns,nface,xg,yg,wtr,1,bs_test,mlointschf)
+  
+  
+#ifdef GPUDYNAMIC
+  !$acc end data
+#endif
+
   
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
