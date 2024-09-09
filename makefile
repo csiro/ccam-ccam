@@ -33,40 +33,41 @@ MPIFLAG =
 else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
-FHOST = -O3 -xHost
+FOPT = -O3
+FHOST = -xHost
 FOVERRIDE =
 ZMM =
 IPOFLAG =
 VTHRESH =
 ifeq ($(XEONPHI),yes)
-FHOST = -O3 -xMIC-AVX512
+FHOST = -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
-FHOST = -O3 -xCORE-AVX2 -align array32byte
+FHOST = -xCORE-AVX2 -align array32byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(SKYLAKE),yes)
-FHOST = -O3 -xSKYLAKE-AVX512 -align array64byte
+FHOST = -xSKYLAKE-AVX512 -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(CASCADELAKE),yes)
-FHOST = -O3 -xCASCADELAKE -align array64byte
+FHOST = -xCASCADELAKE -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(SAPPHIRERAPIDS),yes)
-FHOST = -O3 -xSAPPHIRERAPIDS -align array64byte
+FHOST = -xSAPPHIRERAPIDS -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(ZEN3),yes)
-FHOST = -O3 -axCORE-AVX2 -align array32byte
+FHOST = -axCORE-AVX2 -align array32byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
@@ -74,7 +75,7 @@ endif
 ifeq ($(MAGNUS),yes)
 FC = ftn
 FCSCM = ftn
-FHOST = -O3 -xHost
+FHOST = -xHost
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
@@ -99,13 +100,14 @@ MPIFC = gfortran
 MPIF77 = gfortran
 FC = mpif90
 FCSCM = gfortran
-FHOST = -O3 -fallow-argument-mismatch -march=native
+FOPT = -O3
+FHOST = -fallow-argument-mismatch -march=native
 ifeq ($(NOMPI3),yes)
 MPIFLAG =
 else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
-FFLAGS = -O3 -ftree-vectorize -fstack-arrays -lmvec $(FHOST) -fbacktrace $(MPIFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
+FFLAGS = -ftree-vectorize -fstack-arrays -lmvec $(FHOST) -fbacktrace $(MPIFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
 FOVERRIDE =
 ZMM =
 IPOFLAG =
@@ -139,6 +141,7 @@ MPIFC = ftn
 MPIF77 = ftn
 FC = ftn
 FCSCM = ftn
+FOPT = -O3
 FHOST = -march=native
 ifeq ($(NOMPI3),yes)
 MPIFLAG =
@@ -146,7 +149,7 @@ else
 MPIFLAG = -Dusempi3
 endif
 NCFLAG =
-FFLAGS = -O3 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -I /opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1/include
+FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -I /opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1/include
 LIB = -lnetcdf
 FOVERRIDE =
 ZMM =
@@ -168,9 +171,10 @@ FC = mpifort
 FCSCM = nvfortran
 NCFLAG = -I $(NETCDF_ROOT)/include/GNU
 LIBS = -L $(NETCDF_ROOT)/lib/GNU -lnetcdf
-FHOST = -O4 -fast -tp=host
+FOPT = -O4
+FHOST = -fast -tp=host
 ifeq ($(SKYLAKE),yes)
-FHOST = -O4 -fast -tp=skylake-avx512
+FHOST = -fast -tp=skylake-avx512
 endif
 ifeq ($(NOMPI3),yes)
 MPIFLAG =
@@ -236,7 +240,8 @@ MPIFLAG =
 else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
-FHOST = -O3 -xSKYLAKE-AVX512
+FOPT = -O3
+FHOST = -xSKYLAKE-AVX512
 FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG)
 #ifeq ($(OMP),yes)
 #FFLAGS += -qopenmp -qno-openmp-simd
@@ -259,13 +264,14 @@ MPIFC = mpifort
 MPIF77 = mpif77
 FC = mpifort
 FCSCM = flang
+FOPT = -O3
 FHOST = -march=native -fopenmp
 ifeq ($(NOMPI3),yes)
 MPIFLAG =
 else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
-FFLAGS = -O3 -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
+FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
 IPOFLAG =
@@ -403,10 +409,10 @@ ifeq ($(SCM),yes)
 FC = $(FCSCM)
 FFLAGS += -Dscm
 scm: $(OBJSCM)
-	$(FC) -o scm $(FFLAGS) $(OBJSCM) $(LIBS)
+	$(FC) -o scm $(FOPT) $(FFLAGS) $(OBJSCM) $(LIBS)
 else
 globpea: $(OBJS)
-	$(FC) -o globpea $(FFLAGS) $(OBJS) $(LIBS)
+	$(FC) -o globpea $(FOPT) $(FFLAGS) $(OBJS) $(LIBS)
 endif
 
 clean:
@@ -418,27 +424,27 @@ clean:
 netcdf_m.o: netcdf_m.f90
 	$(FC) -c $(PPFLAG90) $(NCFLAG) $<
 esfsw_driver.o: esfsw_driver.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $(VTHRESH) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(VTHRESH) $<
 esfsw_parameters.o gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_tables.o longwave_params.o lw_gases_stdtf.o microphys_rad.o optical_path.o rad_utilities.o sealw99.o: %.o: %.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $<
 cable_air.o cable_albedo.o cable_canopy.o cable_common.o cable_constants.o cable_data.o cable_define_types.o cable_gw_hydro.o cable_optimiseJVratio.o cable_pft_params.o cable_psm.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o cable_soil_params.o cable_soilsnow.o casa_cnp.o casa_dimension.o casa_param.o casa_phenology.o casa_variable.o POP.o: %.o: %.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $<
 module_mp_sbu_ylin.o: module_mp_sbu_ylin.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $<
 estab.o: estab.f90
-	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 helmsolve.o: helmsolve.f90
-	$(FC) -c $(PPFLAG90) $(FFLAGS) $(FOVERRIDE) $<
+	$(FC) -c $(PPFLAG90) $(FOPT) $(FFLAGS) $(FOVERRIDE) $<
 ints.o: ints.f90
-	$(FC) -c $(FFLAGS) $(ZMM) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(ZMM) $(PPFLAG90) $<
 leoncld.o: leoncld.f90
-	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 seaesfrad.o: seaesfrad.f90
-	$(FC) -c $(FFLAGS) $(VTHRESH) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(VTHRESH) $(PPFLAG90) $<
 tkeeps.o: tkeeps.f90
-	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90) $<
 vertmix.o: vertmix.f90
-	$(FC) -c $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
 version.h: FORCE
 	rm -f tmpver
 	echo "character(len=*), parameter :: version= &" > tmpver
@@ -448,11 +454,11 @@ FORCE:
 
 
 .f90.o:
-	$(FC) -c $(FFLAGS) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90) $<
 .F90.o:
-	$(FC) -c $(FFLAGS) $(PPFLAG90F) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90F) $<
 .f.o:
-	$(FC) -c $(FFLAGS) $(PPFLAG77) $< 
+	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG77) $< 
 
 # Remove mod rule from Modula 2 so GNU make doesn't get confused
 %.o : %.mod
@@ -544,7 +550,7 @@ mlostag.o : cc_mpi.o indices_m.o mlo_ctrl.o mlodynamicsarrays_m.o newmpar_m.o pa
 mlovadvtvd.o : cc_acc.o cc_mpi.o mlo_ctrl.o newmpar_m.o
 module_aux_cosp.o : arrays_m.o cc_mpi.o cfrac_m.o const_phys.o estab.o kuocom_m.o latlong_m.o liqwpar_m.o map_m.o module_aux_rad.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o pbl_m.o prec_m.o raddiag_m.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o vvel_m.o
 module_aux_rad.o : const_phys.o parm_m.o
-module_ctrl_convection.o : arrays_m.o cc_mpi.o convjlm.o convjlm22.o kuocom_m.o nlin_m.o soil_m.o
+module_ctrl_convection.o : arrays_m.o cc_mpi.o convjlm.o convjlm22.o const_phys.o kuocom_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nlin_m.o parm_m.o prec_m.o sigs_m.o soil_m.o vvel_m.o
 module_ctrl_microphysics.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o estab.o filnames_m.o kuocom_m.o latlong_m.o leoncld.o liqwpar_m.o map_m.o module_aux_cosp.o module_aux_rad.o module_mp_sbu_ylin.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o pbl_m.o prec_m.o raddiag_m.o screen_m.o sflux.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o vvel_m.o
 module_mp_sbu_ylin.o : cc_mpi.o
 nesting.o : aerointerface.o arrays_m.o cc_acc.o cc_mpi.o const_phys.o dates_m.o daviesnudge.o darcdf_m.o diag_m.o indices_m.o kuocom_m.o latlong_m.o liqwpar_m.o map_m.o mlo_ctrl.o mlodynamics.o newmpar_m.o nharrs_m.o onthefly.o parm_m.o parmdyn_m.o parmgeom_m.o pbl_m.o savuvt_m.o savuv1_m.o sigs_m.o soil_m.o soilsnow_m.o stime_m.o vecsuv_m.o work3sav_m.o xyzinfo_m.o

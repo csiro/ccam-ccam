@@ -406,6 +406,10 @@ end if
 
 
 !$acc update device(sig)
+#ifdef GPUPHYSICS
+!$acc update device(sigmh,dsig,ratha,rathb)
+!$acc update device(bet,betm)
+#endif
 
 
 ! zmin here is approx height of the lowest level in the model
@@ -2775,7 +2779,7 @@ else
   do iq=1,ifull
     if ( mask(iq) .and. abs(fld(iq)-val)<1.e-20 ) then
       err = .true.
-      write(6,*) '  mismatch at iq=',iq,', value',val
+      write(6,*) '  mismatch at iq=',iq,', value',val,', field ',lbl
     end if
   end do
 end if

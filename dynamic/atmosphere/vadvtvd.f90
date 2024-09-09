@@ -98,7 +98,7 @@ if ( mspec==1 ) then
 end if
 
 
-#ifdef GPUDYNAMICS
+#ifdef GPUDYNAMIC
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
 !$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
 #endif
@@ -156,7 +156,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 end if          ! if(mspec==1)
 
 
-#ifdef GPUDYNAMICS
+#ifdef GPUDYNAMIC
 !$acc wait
 !$acc end data
 #endif

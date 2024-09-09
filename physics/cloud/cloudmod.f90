@@ -303,7 +303,7 @@ real, dimension(imax,kl) :: fice, qcold, rcrit
 real, dimension(imax,kl) :: pk, deles
 real, dimension(imax,kl) :: qsi, qsl
 real, dimension(kl) :: diag_temp
-real decayfac
+real decayfac, steepness
 real es, Aprpr, Bprpr, Cice
 real qi0, fd, Crate, Qfdep
 real fl, hlrvap, qs, dqsdt
@@ -402,7 +402,24 @@ end if
 
 
 ! Precompute the array of critical relative humidities
-if ( nclddia==-3 ) then
+if ( nclddia==-4 ) then
+  do k = 1,kl ! typically set rcrit_l=.805,  rcrit_s=.805
+    do iq = 1,imax
+      al = ds/(em(iq)*208498.)
+      fl = (1.+0.526)*al/(1.+0.526*al) ! nclddia=0.526
+      ! for rcit_l=.805 & nclddia=0.526 get rcrit=(0.805, 0.882, .934, .986, .993, .997, .999) for (200, 100, 50, 10, 5, 2, 1) km
+      if ( land(iq) ) then
+        rcrit(iq,k) = 1.-fl*(1.-rcrit_l)
+      else
+        rcrit(iq,k) = 1.-fl*(1.-rcrit_s)  
+      end if    
+      if ( sig(k) >= 0.8 ) then
+        steepness = 65.
+        rcrit(iq,k) = rcrit(iq,k) + (1. - rcrit(iq,k)) * 0.5 * (1.0 + tanh(steepness * (sig(k) - 0.9)))
+      end if
+    end do
+  end do
+else if ( nclddia==-3 ) then
   do k = 1,kl
     where ( land(:) )
       rcrit(:,k)=max( rcrit_l, (1.-16.*(1.-sig(k))**3) )

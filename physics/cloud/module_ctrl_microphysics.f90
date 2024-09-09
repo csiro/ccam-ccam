@@ -101,7 +101,7 @@ use vvel_m                        ! Additional vertical velocity
 implicit none
   
 integer :: tile, js, je, k, n, iq
-integer :: njumps, m, idjd_t
+integer :: njumps, idjd_t
 real, dimension(imax,kl) :: lcfrac, lgfrac
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqfg, lqlrad, lqfrad, lqrg, lqsng, lrfrac, lsfrac, lt
 real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
@@ -331,8 +331,26 @@ select case ( interp_ncloud(ldr,ncloud) )
 
 
   case("LIN")
+
+    njumps = int(dt/(maxlintime+0.01)) + 1
+    tdt    = real( dt/real(njumps), 8 )
       
-    !$omp do schedule(static) private(js,je,riz,zlevv,m,zqg,zqlg,zqrg,zqfg)   &
+#ifdef GPUPHYSICS
+    !$acc parallel loop copy(t,qg,qlg,qfg,qrg,qsng,qgrg,nr,ni,ns)       &
+    !$acc   copy(stratcloud,condx,conds,condg,precip)                   &
+    !$acc   copyin(zs,ps,rhoa,dz,cdrop,lin_aerosolmode,lin_adv)         &
+    !$acc   copyin(njumps,tdt,kl,imax,ntiles)                           &
+    !$acc   copyout(rfrac,sfrac,gfrac,fluxr,fluxi,fluxs,fluxg,fluxm)    &
+    !$acc   copyout(fluxf,fevap,fsubl,fauto,fcoll,faccr,vi,stras_rliq)  &
+    !$acc   copyout(stras_rice,stras_rsno,stras_rrai)                   &
+    !$acc   private(tile,js,je,k,iq,n,riz,zlevv,zqg,zqlg)               &
+    !$acc   private(zqrg,zqfg,zqsng,prf_temp,prf,tothz,thz,zrhoa,zpres) &
+    !$acc   private(dzw,znc,zcdrop,znr,zni,zns,pptrain,pptsnow,pptice)  &
+    !$acc   private(zeffc1d,zeffi1d,zeffs1d,zeffr1d,zfluxr,zfluxi)      &
+    !$acc   private(zfluxs,zfluxm,zfluxf,zqevap,zqsubl,zqauto,zqcoll)   &
+    !$acc   private(zqaccr,zvi) present(bet,betm,sig)
+#else
+    !$omp do schedule(static) private(js,je,riz,zlevv,zqg,zqlg,zqrg,zqfg)     &
     !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
     !$omp private(zcdrop,znr,zni,zns,pptrain,pptsnow,pptice,njumps,tdt,n)     &
     !$omp private(zeffc1d,zeffi1d,zeffs1d,zeffr1d,zfluxr,zfluxi,zfluxs)       &
@@ -345,17 +363,18 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(zpidw,zpiadj,zqschg)                                        &
 #endif
     !$omp private(zvi)
-    do tile = 1, ntiles
+#endif
+    do tile = 1,ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
 
       riz(1:imax,:) = 0._8 ! partition between snow and graupel
         
       ! pack data from ifull into imax
-      zlevv(1:imax,0)   = real( zs(js:je)/grav, 8 )
-      zlevv(1:imax,1)   = zlevv(1:imax,0) + real( bet(1)*t(js:je,1)/grav, 8 )
-      do m = 2,kl
-        zlevv(1:imax,m) = zlevv(1:imax,m-1) + real( (bet(m)*t(js:je,m)+betm(m)*t(js:je,m-1))/grav, 8 )
+      zlevv(1:imax,0) = real( zs(js:je)/grav, 8 )
+      zlevv(1:imax,1) = zlevv(1:imax,0) + real( bet(1)*t(js:je,1)/grav, 8 )
+      do k = 2,kl
+        zlevv(1:imax,k) = zlevv(1:imax,k-1) + real( (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav, 8 )
       end do
         
       zqg(1:imax,:) = real( qg(js:je,:), 8 )
@@ -366,23 +385,21 @@ select case ( interp_ncloud(ldr,ncloud) )
       ! ----------------
       do k = 1,kl
         do iq = 1,imax
-          prf_temp      = ps(iq+js-1)*sig(k)
-          prf           = 0.01*prf_temp                        ! ps is SI units
-          tothz(iq,k)   = real( (prf/1000.)**(rdry/cp), 8 )
-          thz(iq,k)     = real( t(iq+js-1,k)/tothz(iq,k), 8 )
-          zrhoa(iq,k)   = real( rhoa(iq+js-1,k), 8 )
-          !zorhoa(iq,k)  = 1._8/zrhoa(iq,k)
-          zpres(iq,k)   = real( prf_temp, 8 )
-          !sqrhoz(iq,k)  = 1._8
-          dzw(iq,k)     = real( dz(iq+js-1,k), 8 )
+          prf_temp    = ps(iq+js-1)*sig(k)
+          prf         = 0.01*prf_temp                        ! ps is SI units
+          tothz(iq,k) = real( (prf/1000.)**(rdry/cp), 8 )
+          thz(iq,k)   = real( t(iq+js-1,k)/tothz(iq,k), 8 )
+          zrhoa(iq,k) = real( rhoa(iq+js-1,k), 8 )
+          zpres(iq,k) = real( prf_temp, 8 )
+          dzw(iq,k)   = real( dz(iq+js-1,k), 8 )
         end do
       end do
 
-      znc(1:imax,:) = 0._8
       zcdrop(1:imax,:) = real( cdrop(js:je,:), 8 ) ! aerosol
-      znr(1:imax,:)  = real( nr(js:je,:), 8 )
-      zni(1:imax,:)  = real( ni(js:je,:), 8 )
-      zns(1:imax,:)  = real( ns(js:je,:), 8 )
+      znc(1:imax,:) = 0._8
+      znr(1:imax,:) = real( nr(js:je,:), 8 )
+      zni(1:imax,:) = real( ni(js:je,:), 8 )
+      zns(1:imax,:) = real( ns(js:je,:), 8 )
 
       pptrain(1:imax) = 0._8
       pptsnow(1:imax) = 0._8
@@ -390,8 +407,6 @@ select case ( interp_ncloud(ldr,ncloud) )
      
 
       ! Use sub time-step if required
-      njumps = int(dt/(maxlintime+0.01)) + 1
-      tdt    = real( dt/real(njumps), 8 )
       do n = 1,njumps
         call clphy1d_ylin(tdt, imax,                       &
                        zqg, zqlg, zqrg, zqfg, zqsng,       &
@@ -422,12 +437,12 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       !unpack data from imax to ifull.
 
-      qg(js:je,:)         = real( zqg(1:imax,:) )                        ! qv mixing ratio
-      qlg(js:je,:)        = real( zqlg(1:imax,:) )                       ! ql mixing ratio
-      qfg(js:je,:)        = real( zqfg(1:imax,:) )                       ! qf mixing ratio (ice)
-      qrg(js:je,:)        = real( zqrg(1:imax,:) )                       ! qr mixing ratio (rain)
-      qsng(js:je,:)       = real( zqsng(1:imax,:)*(1._8-riz(1:imax,:)) ) ! qs mixing ratio (snow)
-      qgrg(js:je,:)       = real( zqsng(1:imax,:)*riz(1:imax,:) )        ! qg mixing ration (graupel)
+      qg(js:je,:)   = real( zqg(1:imax,:) )                        ! qv mixing ratio
+      qlg(js:je,:)  = real( zqlg(1:imax,:) )                       ! ql mixing ratio
+      qfg(js:je,:)  = real( zqfg(1:imax,:) )                       ! qf mixing ratio (ice)
+      qrg(js:je,:)  = real( zqrg(1:imax,:) )                       ! qr mixing ratio (rain)
+      qsng(js:je,:) = real( zqsng(1:imax,:)*(1._8-riz(1:imax,:)) ) ! qs mixing ratio (snow)
+      qgrg(js:je,:) = real( zqsng(1:imax,:)*riz(1:imax,:) )        ! qg mixing ration (graupel)
 
       where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
@@ -474,7 +489,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       fauto(js:je,:) = real( zqauto(1:imax,:) )
       fcoll(js:je,:) = real( zqcoll(1:imax,:) )
       faccr(js:je,:) = real( zqaccr(1:imax,:) )
-      vi(js:je,:) = real( zvi(1:imax,:) )
+      vi(js:je,:)    = real( zvi(1:imax,:) )
 
       !if (process_rate_mode == 2) then
       !  psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
@@ -513,7 +528,11 @@ select case ( interp_ncloud(ldr,ncloud) )
       precip(js:je) = precip(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
 
     end do     !tile loop
+#ifdef GPUPHYSICS
+    !$acc end parallel loop
+#else
     !$omp end do nowait
+#endif
 
     !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
     !$omp private(l_rliq,l_rice,l_cliq,l_cice,l_rliq_in,l_rice_in,l_rsno_in)

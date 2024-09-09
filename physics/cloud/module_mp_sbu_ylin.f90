@@ -53,8 +53,10 @@ MODULE module_mp_sbu_ylin
   real, parameter :: XLS = 2.834E6
   real, parameter :: XLV = 2.5E6
   real, parameter :: XLF = XLS - XLV
-    
-  !REAL, SAVE, PUBLIC :: qi0 = 1.0e-3   
+  
+  real, parameter :: qvmin=1.e-20
+  real, parameter :: sqrho=1.
+
   real, parameter ::                                        &
              qi0 = 1.0e-3,                                  &   !--- ice aggregation to snow threshold
              xmi50 = 4.8e-10, xmi40 = 2.46e-10,             &
@@ -85,10 +87,6 @@ MODULE module_mp_sbu_ylin
              -.577191652,.988205891,-.897056937,.918206857,  &
              -.756704078,.482199394,-.193527818,.035868343 /)
   
-
-interface ggamma
-  module procedure ggamma_s, ggamma_v
-end interface
   
 contains
 
@@ -114,6 +112,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
                       zpidw,zpiadj,zqschg,                  &
 #endif
                       zdrop,lin_aerosolmode,lin_adv)
+!$acc routine vector
 
 !-----------------------------------------------------------------------
 
@@ -166,7 +165,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
 !
 !----------------------------------------------------------------------
 
-  real, parameter :: sqrho=1.
 ! new 2D declaration
   integer,                         intent(in)    :: kts, kte
   integer,                         intent(in)    :: imax
@@ -220,7 +218,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
   real, dimension(1:imax)                        :: qvoqswz, qvoqsiz
   real, dimension(1:imax)                        :: qvzodt, qlzodt, qizodt, qszodt, qrzodt
   real                                           :: tmp2d
-  real, dimension(1:imax)                        :: tmpvec
   real, dimension(1:imax,kts:kte)                :: rs0,viscmu,visc,diffwv,     &
                                                     schmidt,xka
   real, dimension(1:imax)                        :: qvsbar
@@ -256,7 +253,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
                                                    gambp6, gam3pt5, gam2pt75, gambp5o2,&
                                                    gamdp5o2, cwoxlf, ocp, xni50, es
   real                                          :: gam13
-  real, parameter                               :: qvmin=1.e-20
   real                                          :: temc1,save1,save2,xni50mx
   real, dimension(1:imax,kts:kte)               :: vtr, vts,                           &
                                                    vtrold, vtsold, vtiold,             &
@@ -285,10 +281,9 @@ subroutine clphy1d_ylin(dt, imax,                           &
   real, dimension(1:imax,kts:kte)               :: n0_s, n0_r
   real, dimension(1:imax)                       :: n0_i, n0_c                  
   real, dimension(1:imax,kts:kte)               :: lami, lamc
-  real, dimension(1:imax)                       :: gg21, gg22
-  real, dimension(1:imax)                       :: gg31, gg32, gg33
   real, dimension(1:imax,kts:kte)               :: gam_ss, gam_bm_s, gam_bv_ss
   real, dimension(1:imax,kts:kte)               :: gam_bv_s
+  real gg21, gg22, gg31, gg32, gg33
   real ratio, gg31c, gg32c, gg33c
   integer i1, i1p1  
 
@@ -503,13 +498,12 @@ subroutine clphy1d_ylin(dt, imax,                           &
     tmp_ss(1:imax,k)= bm_s(1:imax,k)+mu_s+1.
     tmp_sa(1:imax,k)= ba_s(1:imax,k)+mu_s+1.
   
-    gam_ss(:,k) = ggamma(tmp_ss(:,k))
-    tmpvec(:) = 1.+bm_s(:,k)
-    gam_bm_s(:,k) = ggamma(tmpvec(:))
-    tmpvec(:) = bv_s(:,k)+tmp_ss(:,k)
-    gam_bv_ss(:,k) = ggamma(tmpvec(:))
-    tmpvec(:) = bv_s(:,k)+1.
-    gam_bv_s(:,k) = ggamma(tmpvec(:))
+    do iq = 1,imax
+      gam_ss(iq,k) = ggamma(tmp_ss(iq,k))
+      gam_bm_s(iq,k) = ggamma(1.+bm_s(iq,k))
+      gam_bv_ss(iq,k) = ggamma(bv_s(iq,k)+tmp_ss(iq,k))
+      gam_bv_s(iq,k) = ggamma(bv_s(iq,k)+1.)
+    end do  
   end do
 
   !***********************************************************************
@@ -1031,33 +1025,27 @@ subroutine clphy1d_ylin(dt, imax,                           &
     do iq = 1,imax
       tmp2d=qiz(iq,k)+qlz(iq,k)+qsz(iq,k)+qrz(iq,k)
       mask(iq) = .not.(qvz(iq,k)+qlz(iq,k)+qiz(iq,k) < qsiz(iq,k) .and. &
-                       tmp2d==0. )
-    end do  
-      
-    where ( mask )
-      !gg11(iq) = ggamma(tmp_ss(iq,k))
-      !gg12(iq) = ggamma(1.+bm_s(iq,k))
-      !gg13(iq) = ggamma(bv_s(iq,k)+tmp_ss(iq,k))
-      !gg14(iq) = ggamma(bv_s(iq,k)+1.)
-      tmpvec(:)=bv_s(:,k)+tmp_sa(:,k)
-      gg21(:) = ggamma(tmpvec(:))
-      tmpvec(:) = 2.5+0.5*bv_s(:,k)+mu_s
-      gg22(:) = ggamma(tmpvec(:))
-      gg31(:) = gg31c
-      gg32(:) = gg32c
-      gg33(:) = gg33c
-      !gg41(iq) = ggamma(tmp_ss(iq,k))
-      !gg42(iq) = ggamma(1.+bm_s(iq,k))
-      !gg51(iq) = ggamma(4.+mu_c(iq,k))
-      !gg52(iq) = ggamma(1.+mu_c(iq,k))      
-    end where
+                       tmp2d==0. )      
+    
+      if ( mask(iq) ) then
+        !gg11(iq) = ggamma(tmp_ss(iq,k))
+        !gg12(iq) = ggamma(1.+bm_s(iq,k))
+        !gg13(iq) = ggamma(bv_s(iq,k)+tmp_ss(iq,k))
+        !gg14(iq) = ggamma(bv_s(iq,k)+1.)
+        gg21 = ggamma(bv_s(iq,k)+tmp_sa(iq,k))
+        gg22 = ggamma(2.5+0.5*bv_s(iq,k)+mu_s)
+        gg31 = gg31c
+        gg32 = gg32c
+        gg33 = gg33c
+        !gg41(iq) = ggamma(tmp_ss(iq,k))
+        !gg42(iq) = ggamma(1.+bm_s(iq,k))
+        !gg51(iq) = ggamma(4.+mu_c(iq,k))
+        !gg52(iq) = ggamma(1.+mu_c(iq,k))      
 
     !
     !! calculate terminal velocity of rain
     !    
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-
+        
         if (qrz(iq,k) .gt. 1.e-8) then
         !  tmp1=sqrt(pi*rhowater*xnor/rho(k)/qrz(k))
         !  xlambdar(k)=sqrt(tmp1)
@@ -1243,7 +1231,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
             esi=exp( 0.025*temcc(iq,k) )
             tmp1 = olambdas(iq,k)**(bv_s(iq,k)+tmp_sa(iq,k))
             save1 = aa_s(iq,k)*sqrho*n0_s(iq,k)* &
-              gg21(iq)*tmp1
+              gg21*tmp1
 
             tmp1=esi*save1
             psaci(iq)=qizodt(iq)*( 1.-exp(-tmp1*dtb) )
@@ -1271,7 +1259,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
             tmp2= abi*n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
                  vf2s*schmidt(iq,k)**0.33334* &
-                 gg22(iq)*sqrt(tmp1) )
+                 gg22*sqrt(tmp1) )
             tmp3=odtb*( qvz(iq,k)-qsiz(iq,k) )
             tmp3=min(tmp3,0.)
 
@@ -1355,7 +1343,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
           !
             esw=1.0
             tmp1 = olambdas(iq,k)**(bv_s(iq,k)+tmp_sa(iq,k))
-            save1 =aa_s(iq,k)*sqrho*n0_s(iq,k)*gg21(iq)*tmp1
+            save1 =aa_s(iq,k)*sqrho*n0_s(iq,k)*gg21*tmp1
 
             tmp1=esw*save1
             psacw(iq)=qlzodt(iq)*( 1.0-exp(-tmp1*dtb) )
@@ -1389,7 +1377,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
             tmp1= av_s(iq,k)*sqrho*olambdas(iq,k)**(5.+bv_s(iq,k)+2.*mu_s)/visc(iq,k)
             tmp2= n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
                   vf2s*schmidt(iq,k)**0.33334* &
-                  gg22(iq)*sqrt(tmp1) )
+                  gg22*sqrt(tmp1) )
             tmp3=term1*oxlf*tmp2-cwoxlf*temcc(iq,k)*( psacw(iq)+psacr(iq) )
             tmp4=min(0.0,tmp3)
             psmlt(iq)=max( tmp4,-qszodt(iq) )
@@ -1420,7 +1408,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
             tmp1=av_s(iq,k)*sqrho*olambdas(iq,k)**(5.+bv_s(iq,k)+2.*mu_s)/visc(iq,k)
             tmp2=n0_s(iq,k)*( vf1s*olambdas(iq,k)*olambdas(iq,k)+ &
                  vf2s*schmidt(iq,k)**0.33334* &
-                 gg22(iq)*sqrt(tmp1) )
+                 gg22*sqrt(tmp1) )
             tmp3=min(0.0,tmp2)
             tmp3=max( tmp3,tmpd )
             psmltevp(iq)=max( tmp3,-qszodt(iq) )
@@ -1432,9 +1420,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
           end if !          1400     continue
         end if      !---- end of snow/ice processes   if (tem(iq,k) .lt. 273.15) then
         !---------- end of snow/ice processes below freezing
-
-      end if ! mask
-    end do   ! iq
         
         !***********************************************************************
         !*********           rain production processes                **********
@@ -1445,23 +1430,16 @@ subroutine clphy1d_ylin(dt, imax,                           &
         !
 
         !---- YLIN, autoconversion use Liu and Daum (2004), unit = g cm-3 s-1, in the scheme kg/kg s-1, so
-        
-    where (mask(:) .and. qlz(:,k) > 1.e-6 )
-      mu_c(:,k) = min(15., (1000.E6/ncz(:,k) + 2.))
-      tmpvec(:) = 4.+mu_c(:,k)
-      gg31(:) = ggamma(tmpvec(:))
-      tmpvec(:) = 1.+mu_c(:,k)
-      gg32(:) = ggamma(tmpvec(:))
-      tmpvec(:) = 7.+mu_c(:,k)
-      gg33(:) = ggamma(tmpvec(:))
-    end where  
-
-    do iq = 1,imax 
-      if( mask(iq) ) then !go to 2000
-          
+                  
         if (qlz(iq,k) > 1.e-6) then
-          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31(iq)/(6.*qlz(iq,k)*gg32(iq)))**(1./3)
-          Dc_liu = (gg33(iq)/gg32(iq))**(1./6.)/lamc(iq,k) !----- R6 in m
+            
+          mu_c(iq,k) = min(15., (1000.E6/ncz(iq,k) + 2.))
+          gg31 = ggamma(4.+mu_c(iq,k))
+          gg32 = ggamma(1.+mu_c(iq,k))
+          gg33 = ggamma(7.+mu_c(iq,k))
+            
+          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31/(6.*qlz(iq,k)*gg32))**(1./3)
+          Dc_liu = (gg33/gg32)**(1./6.)/lamc(iq,k) !----- R6 in m
           if (Dc_liu > R6c) then
             disp = 1./(mu_c(iq,k)+1.)                      !--- square of relative dispersion
             eta  = (0.75/pi/(1.e-3*rhowater))**2*1.9e11*((1.+3.*disp)*(1.+4.*disp)*&
@@ -1771,17 +1749,17 @@ subroutine clphy1d_ylin(dt, imax,                           &
         
         !cloud water zdc 20220208
         if (qlz(iq,k) >= 1.e-8) then
-          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31(iq)/(6.*qlz(iq,k)*gg32(iq)))**(1./3)
+          lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31/(6.*qlz(iq,k)*gg32))**(1./3)
           if (lamc(iq,k).lt.lammini) then
             lamc(iq,k)= lammini
             tmp1 = lamc(iq,k)**(mu_c(iq,k)+4.)
-            tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31(iq))
+            tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31)
             n0_c(iq)= tmp1*tmp2
             ncz(iq,k) = n0_c(iq)/lamc(iq,k)
           else if (lamc(iq,k).gt.lammaxi) then
             lamc(iq,k)= lammaxi
             tmp1 = lamc(iq,k)**(mu_c(iq,k)+4.)
-            tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31(iq))
+            tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31)
             n0_c(iq)= tmp1*tmp2
             ncz(iq,k) = n0_c(iq)/lamc(iq,k)
           end if
@@ -2041,6 +2019,7 @@ END SUBROUTINE clphy1d_ylin
 !---------------------------------------------------------------------
 PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
                   xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
+!$acc routine seq
 
 !---------------------------------------------------------------------
   IMPLICIT NONE
@@ -2168,7 +2147,8 @@ PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
 END SUBROUTINE satadj
 
 !----------------------------------------------------------------
-PURE FUNCTION ggamma_s(X) result(ans)
+PURE FUNCTION ggamma(X) result(ans)
+!$acc routine seq
 
 !----------------------------------------------------------------
   IMPLICIT NONE
@@ -2198,44 +2178,7 @@ PURE FUNCTION ggamma_s(X) result(ans)
            + B(5)*TEMP**5 + B(6)*TEMP**6 + B(7)*TEMP**7 + B(8)*TEMP**8
   ans=PF*G1TO2
   
-END FUNCTION ggamma_s
-
-PURE FUNCTION ggamma_v(X) result(ans)
-
-!----------------------------------------------------------------
-  IMPLICIT NONE
-  !----------------------------------------------------------------
-  REAL, dimension(:), INTENT(IN   ) :: x
-  integer :: j
-  INTEGER, dimension(size(x)) ::diff
-  REAL, dimension(size(x)) :: PF, G1TO2 ,TEMP
-  real, dimension(size(x)) :: ans
-  
-  TEMP(:)=X(:)
-  diff(:) = max(int(temp(:)-2.), 0)
-  where ( temp(:)-real(diff(:)) > 2. )
-    diff(:) = diff(:) + 1
-  end where
-
-  ! Original method
-  PF(:)=1.
-  do J=1,maxval(diff)
-    where ( j<=diff(:) )  
-      TEMP(:)=TEMP(:)-1.
-      PF(:)=PF(:)*TEMP(:)
-    end where
-  end do
-
-  ! Alternative method
-  !temp = temp - real(diff)
-  !pf = gamma( x ) / gamma( temp )
-  
-  TEMP(:)=TEMP(:) - 1.
-  G1TO2(:)=1. + B(1)*TEMP(:) + B(2)*TEMP(:)**2 + B(3)*TEMP(:)**3 + B(4)*TEMP(:)**4 &
-           + B(5)*TEMP(:)**5 + B(6)*TEMP(:)**6 + B(7)*TEMP(:)**7 + B(8)*TEMP(:)**8
-  ans(:)=PF(:)*G1TO2(:)
-  
-END FUNCTION ggamma_v
+END FUNCTION ggamma
 
 !----------------------------------------------------------------
 

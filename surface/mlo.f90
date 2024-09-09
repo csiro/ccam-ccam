@@ -1894,11 +1894,9 @@ select case(zomode)
         else                    ! unstable water points
           den=1.+af(iqw)*cms*2.*bprm*sqrt(-ri(iqw)*dumazmin/dgwater%zo(iqw))
           fm=1.-2.*bprm*ri(iqw)/den
-          con=consea*fm*vmagn(iqw)
           dden=daf*cms*2.*bprm*sqrt(-ri(iqw)*dumazmin/dgwater%zo(iqw))+af(iqw)*cms*bprm*sqrt(-ri(iqw))*dumazmin &
               /(sqrt(dumazmin/dgwater%zo(iqw))*dgwater%zo(iqw)**2)
           dfm=2.*bprm*ri(iqw)*dden/(den**2)
-          dcon=consea*dfm*vmagn(iqw)
           est_ustar2 = vmagn(iqw)*fm*af(iqw)
           est_dustar2dzo = vmagn(iqw)*(fm*daf+dfm*af(iqw))
           est_ustar = sqrt(est_ustar2)
