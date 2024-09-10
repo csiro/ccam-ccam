@@ -264,11 +264,6 @@ if ( .not.pfall ) then
   rdum(10) = real(nsibx)
   rdum(11) = real(native_ccam)
   call ccmpi_bcast(rdum(1:11),0,comm_world)
-  !if ( nested==1 ) then
-  !  call ccmpi_bcast(driving_model_id,0,comm_world)
-  !  call ccmpi_bcast(driving_model_ensemble_number,0,comm_world)
-  !  call ccmpi_bcast(driving_experiment_name,0,comm_world)
-  !end if
   rlong0x     = rdum(1)
   rlat0x      = rdum(2)
   schmidtx    = rdum(3)
@@ -512,7 +507,7 @@ end if
       
 !--------------------------------------------------------------------
 ! Determine input grid coordinates and interpolation arrays
-if ( newfile .and. .not.iop_test ) then
+if ( newfile .and. .not.iotest ) then
   
 #ifdef share_ifullg
   shsize(1) = 1 + 4*ik
@@ -609,7 +604,7 @@ if ( newfile .and. .not.iop_test ) then
   ! Also deallocates axs_a, ays_a, azs_a, bxs_a, bys_a, bzs_a arrays
   call file_wininit
       
-end if ! newfile .and. .not.iop_test
+end if ! newfile .and. .not.iotest
 
 ! allocate working arrays
 allocate( ucc(fwsize), tss_a(fwsize), ucc7(fwsize,7) )
@@ -755,7 +750,7 @@ if ( newfile ) then
   ! read zht for initial conditions or nudging or land-sea mask
   if ( zht_needed ) then
     if ( zht_found ) then  
-      if ( tss_test .and. iop_test ) then
+      if ( tss_test ) then ! tss_test includes iotest=.true.
         allocate( zss_a(ifull) )
         call histrd(iarchi,ier,'zht',zss_a,ifull)
       else     
@@ -768,7 +763,7 @@ if ( newfile ) then
         end if
       end if
     else
-      if ( tss_test .and. iop_test ) then
+      if ( tss_test ) then ! tss_test includes iotest=.true.
         allocate( zss_a(ifull) )
         zss_a = 0. ! ocean everywhere
       else     
@@ -786,7 +781,7 @@ if ( newfile ) then
   ! read soilt
   if ( soilt_found ) then
     ! read soilt for land-sea mask  
-    if ( .not.(tss_test.and.iop_test) ) then
+    if ( .not.(tss_test) ) then ! tss_test includes iotest=.true.
       call histrd(iarchi,ier,'soilt',ucc,6*ik*ik)
       if ( fwsize>0 ) then
         nemi = 3
@@ -799,7 +794,7 @@ if ( newfile ) then
   ! read host ocean bathymetry data
   if ( allocated(ocndep_a) ) deallocate( ocndep_a )
   if ( mlo_found ) then
-    if ( tss_test .and. iop_test ) then
+    if ( tss_test ) then ! tss_test includes iotest=.true.
       allocate( ocndep_a(ifull) )
       call histrd(iarchi,ier,'ocndepth',ocndep_a,ifull)
     else     
@@ -828,7 +823,7 @@ if ( newfile ) then
   ! read partial depths
   if ( allocated(opldep_a) ) deallocate( opldep_a )
   if ( mlo3_found ) then
-    if ( tss_test .and. iop_test ) then
+    if ( tss_test ) then ! tss_test includes iotest=.true.
       allocate( opldep_a(ifull) )
       call histrd(iarchi,ier,'opldepth',opldep_a,ifull)
     else
@@ -893,7 +888,7 @@ if ( newfile ) then
   end if
   
   ! check that land-sea mask is definied
-  if ( fwsize>0 .and. .not.(tss_test.and.iop_test) ) then
+  if ( fwsize>0 .and. .not.(tss_test) ) then ! tss_test includes iotest=.true.
     if ( nemi==-1 ) then
       write(6,*) "ERROR: Cannot determine land-sea mask"
       write(6,*) "CCAM requires zht or soilt or ocndepth in input file"
@@ -906,7 +901,7 @@ if ( newfile ) then
   
   ! read urban data mask
   ! read urban mask for urban and initial conditions and interpolation
-  if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iop_test .and. nhstest>=0 ) then
+  if ( nurban/=0 .and. nested/=1 .and. nested/=3 .and. .not.iotest .and. nhstest>=0 ) then
     if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "-> Determine urban mask"
     end if  
@@ -974,7 +969,7 @@ if ( myid==0 ) write(6,*) "Reading prognostic fields"
 ! psf read when nested=0 or nested=1.and.retopo_test/=0 or nested=3
 psl(1:ifull) = 0.
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
-  if ( iop_test ) then
+  if ( iotest ) then
     call histrd(iarchi,ier,'psf',psl,ifull)
     if ( minval(psl(1:ifull))<-1.6 .or. maxval(psl(1:ifull))>0.4 ) then
       write(6,*) "ERROR: Input psf is out of range"
@@ -996,7 +991,7 @@ endif
 ! -------------------------------------------------------------------
 ! Read surface temperature 
 ! read global tss to diagnose sea-ice or land-sea mask
-if ( tss_test .and. iop_test ) then
+if ( tss_test ) then ! tss_test includes iotest=.true.
   call histrd(iarchi,ier,'tsu',tss,ifull)
   tss = abs(tss)
   tss = min( max( tss, 100. ), 425. )
@@ -1028,7 +1023,7 @@ end if
 !--------------------------------------------------------------
 ! read sea ice here for prescribed SSTs configuration and for
 ! mixed-layer-ocean
-if ( tss_test .and. iop_test ) then
+if ( tss_test ) then ! tss_test includes iotest=.true.
 
   call histrd(iarchi,ier,'siced',sicedep,ifull)
   call histrd(iarchi,ier,'fracice',fracice,ifull)
@@ -1180,7 +1175,7 @@ else
   deallocate( fracice_a, sicedep_a )
   deallocate( tss_l_a, tss_s_a )
   
-end if ! (tss_test .and. iop_test ) ..else..
+end if ! (tss_test ) ..else..
 
 
 ! update 3d ocean depths with partial step depths
@@ -1229,14 +1224,14 @@ end if ! (nested==0.or.(nested==1.and.retopo_test/=0).or.nested==3)
 ! read for nested=0 or nested=1.and.nud_uv/=0 or nested=3
 if ( nested==0 .or. (nested==1.and.nud_uv/=0) .or. nested==3 ) then
   call gethistuv4a('u','v',u,v,3,4)
-  !if ( any(abs(u)>150.) .or. any(u/=u) ) then
-  !  write(6,*) "ERROR: Invalid u-wind in onthefly"
-  !  call ccmpi_abort(-1)
-  !end if  
-  !if ( any(abs(v)>150.) .or. any(v/=v) ) then
-  !  write(6,*) "ERROR: Invalid v-wind in onthefly"
-  !  call ccmpi_abort(-1)
-  !end if  
+  if ( any(u(1:ifull,1:kl)/=u(1:ifull,1:kl)) ) then
+    write(6,*) "ERROR: Invalid u-wind in onthefly after gethistuv4a"
+    call ccmpi_abort(-1)
+  end if  
+  if ( any(v(1:ifull,1:kl)/=v(1:ifull,1:kl)) ) then
+    write(6,*) "ERROR: Invalid v-wind in onthefly after gethistuv4a"
+    call ccmpi_abort(-1)
+  end if  
 else
   u(1:ifull,1:kl) = 0.
   v(1:ifull,1:kl) = 0.
@@ -1417,20 +1412,16 @@ end if
 ! re-grid surface pressure by mapping to MSLP, interpolating and then map to surface pressure
 ! requires psl_a, zss, zss_a, t and t_a_lev
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
-  if ( .not.iop_test ) then
-    if ( iotest ) then
-      call doints1(psl_a,psl)    
-    else
-      if ( fwsize>0 ) then
-        ! ucc holds pmsl_a
-        call mslpx(ucc,psl_a,zss_a,t_a_lev,sigin(levkin))  ! needs pmsl (preferred)
-      end if
-      call doints1(ucc,pmsl)
-      ! invert pmsl to get psl
-      call to_pslx(pmsl,psl,zss,t(:,levk),sig(levk))  ! on target grid
-    end if ! iotest ..else..
+  if ( .not.iotest ) then
+    if ( fwsize>0 ) then
+      ! ucc holds pmsl_a
+      call mslpx(ucc,psl_a,zss_a,t_a_lev,sigin(levkin))  ! needs pmsl (preferred)
+    end if
+    call doints1(ucc,pmsl)
+    ! invert pmsl to get psl
+    call to_pslx(pmsl,psl,zss,t(:,levk),sig(levk))  ! on target grid
     deallocate( psl_a )
-  end if ! .not.iop_test
+  end if ! .not.iotest
   deallocate( t_a_lev )
 end if
 
@@ -1700,7 +1691,7 @@ if ( nested/=1 .and. nested/=3 ) then
         else
           vname="tb2"
         end if
-        if ( iop_test ) then
+        if ( iotest ) then
           if ( k==1 .and. .not.tgg_found(1) ) then
             tgg(1:ifull,k) = tss(1:ifull)
           else
@@ -1779,7 +1770,7 @@ if ( nested/=1 .and. nested/=3 ) then
         else
           vname = "wfb"
         end if
-        if ( iop_test ) then
+        if ( iotest ) then
           call histrd(iarchi,ier,vname,wb(:,k),ifull)
           if ( wetfrac_found(k) ) then
             wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
@@ -1791,7 +1782,7 @@ if ( nested/=1 .and. nested/=3 ) then
           end if
           call fill_cc1(ucc,sea_a,fill_sea)
           call doints1(ucc,wb(:,k))
-        end if ! iop_test
+        end if ! iotest
       end do
     end if
     !unpack field capacity into volumetric soil moisture
@@ -2240,80 +2231,60 @@ call START_LOG(otf_ints_begin)
 ! This version distributes mutli-file data
 call ccmpi_filewinget(abuf,s)
 
-if ( iotest ) then
-  do n = 1,npan
-    do j = 1,jpan
-      do i = 1,ipan
-        iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-        idel = i + ioff
-        jdel = j + joff
-        nn = n - noff
-        iin = (idel-1)/pipan
-        jjn = (jdel-1)/pjpan
-        idel_l = idel - iin*pipan
-        jdel_l = jdel - jjn*pjpan
-        w = pijn2pw(iin,jjn,nn)
-        no = pijn2pn(iin,jjn,nn)        
-        sout(iq) = abuf(idel_l,jdel_l,no,w)
-      end do
-    end do  
-  end do
-else
+do iq = 1,ifull
+  sout(iq) = 0.
+end do
+do mm = 1,m_fly       !  was 4, now may be 1
   do iq = 1,ifull
-    sout(iq) = 0.
-  end do
-  do mm = 1,m_fly       !  was 4, now may be 1
-    do iq = 1,ifull
-      ! target point
-      n = nface4(iq,mm)
-      idel = int(xg4(iq,mm))
-      xxg = xg4(iq,mm) - real(idel)
-      jdel = int(yg4(iq,mm))
-      yyg = yg4(iq,mm) - real(jdel)
-      ! grid index conversion
-      iin = (idel-1)/pipan
-      jjn = (jdel-1)/pjpan
-      idel_l = idel - iin*pipan
-      jdel_l = jdel - jjn*pjpan
-      w = pijn2pw(iin,jjn,n)
-      no = pijn2pn(iin,jjn,n)
-      ! bi-cubic
-      cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-      cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-      cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-      cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-      dmul_2 = (1.-xxg)
-      dmul_3 = xxg
-      emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-      emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-      emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-      emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-      sx_0m = abuf(idel_l,  jdel_l-1,no,w)
-      sx_1m = abuf(idel_l+1,jdel_l-1,no,w)
-      sx_m0 = abuf(idel_l-1,jdel_l,  no,w)
-      sx_00 = abuf(idel_l,  jdel_l,  no,w)
-      sx_10 = abuf(idel_l+1,jdel_l,  no,w)
-      sx_20 = abuf(idel_l+2,jdel_l,  no,w)
-      sx_m1 = abuf(idel_l-1,jdel_l+1,no,w)
-      sx_01 = abuf(idel_l,  jdel_l+1,no,w)
-      sx_11 = abuf(idel_l+1,jdel_l+1,no,w)
-      sx_21 = abuf(idel_l+2,jdel_l+1,no,w)
-      sx_02 = abuf(idel_l,  jdel_l+2,no,w)
-      sx_12 = abuf(idel_l+1,jdel_l+2,no,w)
-      cmin = min(sx_00,sx_01,sx_10,sx_11)
-      cmax = max(sx_00,sx_01,sx_10,sx_11)
-      rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
-      rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
-               sx_10*cmul_3 + sx_20*cmul_4
-      rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
-               sx_11*cmul_3 + sx_21*cmul_4
-      rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-      sout(iq) = sout(iq) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
-                                          + rmul_3*emul_3 + rmul_4*emul_4 ), &
-                                      cmax )/real(m_fly) ! Bermejo & Staniforth
-    end do    ! iq loop
-  end do      ! mm loop
-end if
+    ! target point
+    n = nface4(iq,mm)
+    idel = int(xg4(iq,mm))
+    xxg = xg4(iq,mm) - real(idel)
+    jdel = int(yg4(iq,mm))
+    yyg = yg4(iq,mm) - real(jdel)
+    ! grid index conversion
+    iin = (idel-1)/pipan
+    jjn = (jdel-1)/pjpan
+    idel_l = idel - iin*pipan
+    jdel_l = jdel - jjn*pjpan
+    w = pijn2pw(iin,jjn,n)
+    no = pijn2pn(iin,jjn,n)
+    ! bi-cubic
+    cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+    cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+    cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+    cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+    dmul_2 = (1.-xxg)
+    dmul_3 = xxg
+    emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+    emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+    emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+    emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+    sx_0m = abuf(idel_l,  jdel_l-1,no,w)
+    sx_1m = abuf(idel_l+1,jdel_l-1,no,w)
+    sx_m0 = abuf(idel_l-1,jdel_l,  no,w)
+    sx_00 = abuf(idel_l,  jdel_l,  no,w)
+    sx_10 = abuf(idel_l+1,jdel_l,  no,w)
+    sx_20 = abuf(idel_l+2,jdel_l,  no,w)
+    sx_m1 = abuf(idel_l-1,jdel_l+1,no,w)
+    sx_01 = abuf(idel_l,  jdel_l+1,no,w)
+    sx_11 = abuf(idel_l+1,jdel_l+1,no,w)
+    sx_21 = abuf(idel_l+2,jdel_l+1,no,w)
+    sx_02 = abuf(idel_l,  jdel_l+2,no,w)
+    sx_12 = abuf(idel_l+1,jdel_l+2,no,w)
+    cmin = min(sx_00,sx_01,sx_10,sx_11)
+    cmax = max(sx_00,sx_01,sx_10,sx_11)
+    rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+    rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
+             sx_10*cmul_3 + sx_20*cmul_4
+    rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
+             sx_11*cmul_3 + sx_21*cmul_4
+    rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+    sout(iq) = sout(iq) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
+                                        + rmul_3*emul_3 + rmul_4*emul_4 ), &
+                                    cmax )/real(m_fly) ! Bermejo & Staniforth
+  end do    ! iq loop
+end do      ! mm loop
 
 call END_LOG(otf_ints_end)
 
@@ -2341,103 +2312,75 @@ call START_LOG(otf_ints_begin)
 
 kx = size(sout,2)
     
-if ( iotest ) then
-  do kb = 1,kx,kblock
-    ke = min(kb+kblock-1, kx)
-    kn = ke - kb + 1
-    ! This version distributes multi-file data
-    call ccmpi_filewinget(abuf(:,:,:,:,1:kn),s(:,kb:ke))
-    do k = 1,kn
-      do n = 1,npan
-        do j = 1,jpan
-          do i = 1,ipan
-            iq = i + (j-1)*ipan + (n-1)*ipan*jpan
-            idel = i + ioff
-            jdel = j + joff
-            nn = n - noff
-            iin = (idel-1)/pipan
-            jjn = (jdel-1)/pjpan
-            idel_l = idel - iin*pipan
-            jdel_l = jdel - jjn*pjpan
-            w = pijn2pw(iin,jjn,nn)
-            no = pijn2pn(iin,jjn,nn)        
-            sout(iq,k+kb-1) = abuf(idel_l,jdel_l,no,w,k)
-          end do
-        end do  
-      end do
+do kb = 1,kx,kblock
+  ke = min(kb+kblock-1, kx)
+  kn = ke - kb + 1
+  ! This version distributes multi-file data
+  call ccmpi_filewinget(abuf(:,:,:,:,1:kn),s(:,kb:ke))
+  do k = 1,kn
+    do iq = 1,ifull
+      sout(iq,k+kb-1) = 0.
     end do
-  end do ! kb
-else
-  do kb = 1,kx,kblock
-    ke = min(kb+kblock-1, kx)
-    kn = ke - kb + 1
-    ! This version distributes multi-file data
-    call ccmpi_filewinget(abuf(:,:,:,:,1:kn),s(:,kb:ke))
+  end do
+  !$omp parallel
+  do mm = 1,m_fly       !  was 4, now may be 1
+    !$omp do schedule(static) private(n,idel,jdel,xxg,yyg,cmin,cmax,cmul_1,cmul_2,cmul_3,cmul_4) &
+    !$omp   private(dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4,rmul_1,rmul_2,rmul_3,rmul_4)       &
+    !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12)     &
+    !$omp   private(iin,jjn,idel_l,jdel_l,w,no)
     do k = 1,kn
       do iq = 1,ifull
-        sout(iq,k+kb-1) = 0.
-      end do
-    end do
-    !$omp parallel
-    do mm = 1,m_fly       !  was 4, now may be 1
-      !$omp do schedule(static) private(n,idel,jdel,xxg,yyg,cmin,cmax,cmul_1,cmul_2,cmul_3,cmul_4) &
-      !$omp   private(dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4,rmul_1,rmul_2,rmul_3,rmul_4)       &
-      !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12)     &
-      !$omp   private(iin,jjn,idel_l,jdel_l,w,no)
-      do k = 1,kn
-        do iq = 1,ifull
-          ! target point
-          n = nface4(iq,mm)
-          idel = int(xg4(iq,mm))
-          xxg = xg4(iq,mm) - real(idel)
-          jdel = int(yg4(iq,mm))
-          yyg = yg4(iq,mm) - real(jdel)
-          ! grid index conversion
-          iin = (idel-1)/pipan
-          jjn = (jdel-1)/pjpan
-          idel_l = idel - iin*pipan
-          jdel_l = jdel - jjn*pjpan
-          w = pijn2pw(iin,jjn,n)
-          no = pijn2pn(iin,jjn,n)
-          ! bi-cubic
-          cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-          cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-          cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-          cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-          dmul_2 = (1.-xxg)
-          dmul_3 = xxg
-          emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-          emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-          emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-          emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-          sx_0m = abuf(idel_l,  jdel_l-1,no,w,k)
-          sx_1m = abuf(idel_l+1,jdel_l-1,no,w,k)
-          sx_m0 = abuf(idel_l-1,jdel_l,  no,w,k)
-          sx_00 = abuf(idel_l,  jdel_l,  no,w,k)
-          sx_10 = abuf(idel_l+1,jdel_l,  no,w,k)
-          sx_20 = abuf(idel_l+2,jdel_l,  no,w,k)
-          sx_m1 = abuf(idel_l-1,jdel_l+1,no,w,k)
-          sx_01 = abuf(idel_l,  jdel_l+1,no,w,k)
-          sx_11 = abuf(idel_l+1,jdel_l+1,no,w,k)
-          sx_21 = abuf(idel_l+2,jdel_l+1,no,w,k)
-          sx_02 = abuf(idel_l,  jdel_l+2,no,w,k)
-          sx_12 = abuf(idel_l+1,jdel_l+2,no,w,k)
-          cmin = min(sx_00,sx_01,sx_10,sx_11)
-          cmax = max(sx_00,sx_01,sx_10,sx_11)
-          rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
-          rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + sx_10*cmul_3 + sx_20*cmul_4
-          rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + sx_11*cmul_3 + sx_21*cmul_4
-          rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-          sout(iq,k+kb-1) = sout(iq,k+kb-1) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
-                                                            + rmul_3*emul_3 + rmul_4*emul_4 ), &
-                                                        cmax )/real(m_fly) ! Bermejo & Staniforth
-        end do    ! iq loop
-      end do      ! k loop
-      !$omp end do nowait
-    end do        ! mm loop
-    !$omp end parallel
-  end do ! kb
-end if ! iotest ..else..
+        ! target point
+        n = nface4(iq,mm)
+        idel = int(xg4(iq,mm))
+        xxg = xg4(iq,mm) - real(idel)
+        jdel = int(yg4(iq,mm))
+        yyg = yg4(iq,mm) - real(jdel)
+        ! grid index conversion
+        iin = (idel-1)/pipan
+        jjn = (jdel-1)/pjpan
+        idel_l = idel - iin*pipan
+        jdel_l = jdel - jjn*pjpan
+        w = pijn2pw(iin,jjn,n)
+        no = pijn2pn(iin,jjn,n)
+        ! bi-cubic
+        cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
+        cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
+        cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
+        cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
+        dmul_2 = (1.-xxg)
+        dmul_3 = xxg
+        emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
+        emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
+        emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
+        emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
+        sx_0m = abuf(idel_l,  jdel_l-1,no,w,k)
+        sx_1m = abuf(idel_l+1,jdel_l-1,no,w,k)
+        sx_m0 = abuf(idel_l-1,jdel_l,  no,w,k)
+        sx_00 = abuf(idel_l,  jdel_l,  no,w,k)
+        sx_10 = abuf(idel_l+1,jdel_l,  no,w,k)
+        sx_20 = abuf(idel_l+2,jdel_l,  no,w,k)
+        sx_m1 = abuf(idel_l-1,jdel_l+1,no,w,k)
+        sx_01 = abuf(idel_l,  jdel_l+1,no,w,k)
+        sx_11 = abuf(idel_l+1,jdel_l+1,no,w,k)
+        sx_21 = abuf(idel_l+2,jdel_l+1,no,w,k)
+        sx_02 = abuf(idel_l,  jdel_l+2,no,w,k)
+        sx_12 = abuf(idel_l+1,jdel_l+2,no,w,k)
+        cmin = min(sx_00,sx_01,sx_10,sx_11)
+        cmax = max(sx_00,sx_01,sx_10,sx_11)
+        rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
+        rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + sx_10*cmul_3 + sx_20*cmul_4
+        rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + sx_11*cmul_3 + sx_21*cmul_4
+        rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
+        sout(iq,k+kb-1) = sout(iq,k+kb-1) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
+                                                          + rmul_3*emul_3 + rmul_4*emul_4 ), &
+                                                      cmax )/real(m_fly) ! Bermejo & Staniforth
+      end do    ! iq loop
+    end do      ! k loop
+    !$omp end do nowait
+  end do        ! mm loop
+  !$omp end parallel
+end do ! kb
 
 call END_LOG(otf_ints_end)
 
@@ -2861,42 +2804,33 @@ real, dimension(ifull,kk), intent(out) :: uct, vct
 real, dimension(ifull,kk) :: wct
 real, dimension(ifull) :: newu, newv, neww
 
-if ( iotest ) then
-    
-  call doints4(ucc,uct)  
-  call doints4(vcc,vct)
-  
-else
-    
-  if ( fwsize>0 ) then
-    do k = 1,kk
-      ! first set up winds in Cartesian "source" coords            
-      uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
-      vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
-      wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,k) + bzs_w(1:fwsize)*vcc(1:fwsize,k)
-      ! now convert to winds in "absolute" Cartesian components
-      ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-      vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-      wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
-    end do    ! k loop
-  end if      ! fwsize>0
-  ! interpolate all required arrays to new C-C positions
-  ! do not need to do map factors and Coriolis on target grid
-  call doints4(ucc, uct)
-  call doints4(vcc, vct)
-  call doints4(wcc, wct)
-  
+if ( fwsize>0 ) then
   do k = 1,kk
-    ! now convert to "target" Cartesian components (transpose used)
-    newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
-    newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
-    neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
-    ! then finally to "target" local x-y components
-    uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
-    vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
-  end do  ! k loop
+    ! first set up winds in Cartesian "source" coords            
+    uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
+    vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
+    wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,k) + bzs_w(1:fwsize)*vcc(1:fwsize,k)
+    ! now convert to winds in "absolute" Cartesian components
+    ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+    vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+    wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+  end do    ! k loop
+end if      ! fwsize>0
+! interpolate all required arrays to new C-C positions
+! do not need to do map factors and Coriolis on target grid
+call doints4(ucc, uct)
+call doints4(vcc, vct)
+call doints4(wcc, wct)
   
-end if
+do k = 1,kk
+  ! now convert to "target" Cartesian components (transpose used)
+  newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
+  newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
+  neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
+  ! then finally to "target" local x-y components
+  uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
+  vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
+end do  ! k loop
   
 return
 end subroutine interpwind4
@@ -2918,42 +2852,33 @@ real, dimension(ifull) :: newu, newv, neww
 real, dimension(ifull,3) :: newuvw
 logical, dimension(fwsize), intent(in) :: mask_a
 
-if ( iotest ) then
-    
-  call doints1(ucc,uct)  
-  call doints1(vcc,vct)
-    
-else
-
-  if ( fwsize>0 ) then
-    uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize) + bxs_w(1:fwsize)*vcc(1:fwsize)
-    vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize) + bys_w(1:fwsize)*vcc(1:fwsize)
-    wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize) + bzs_w(1:fwsize)*vcc(1:fwsize)
-    ! now convert to winds in "absolute" Cartesian components
-    ucc(1:fwsize) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-    vcc(1:fwsize) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-    wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
-    ! interpolate all required arrays to new C-C positions
-    ! do not need to do map factors and Coriolis on target grid
-    uvwcc(:,1) = ucc
-    uvwcc(:,2) = vcc
-    uvwcc(:,3) = wcc
-    call fill_cc4(uvwcc(:,1:3), mask_a, fill_count)
-  end if
-  call doints4(uvwcc(:,1:3), newuvw(:,1:3))
-  
-  ! now convert to "target" Cartesian components (transpose used)
-  uct(1:ifull) = newuvw(1:ifull,1)
-  vct(1:ifull) = newuvw(1:ifull,2)
-  wct(1:ifull) = newuvw(1:ifull,3)
-  newu(1:ifull) = uct(1:ifull)*rotpole(1,1) + vct(1:ifull)*rotpole(2,1) + wct(1:ifull)*rotpole(3,1)
-  newv(1:ifull) = uct(1:ifull)*rotpole(1,2) + vct(1:ifull)*rotpole(2,2) + wct(1:ifull)*rotpole(3,2)
-  neww(1:ifull) = uct(1:ifull)*rotpole(1,3) + vct(1:ifull)*rotpole(2,3) + wct(1:ifull)*rotpole(3,3)
-  ! then finally to "target" local x-y components
-  uct(1:ifull) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
-  vct(1:ifull) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
-  
+if ( fwsize>0 ) then
+  uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize) + bxs_w(1:fwsize)*vcc(1:fwsize)
+  vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize) + bys_w(1:fwsize)*vcc(1:fwsize)
+  wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize) + bzs_w(1:fwsize)*vcc(1:fwsize)
+  ! now convert to winds in "absolute" Cartesian components
+  ucc(1:fwsize) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+  vcc(1:fwsize) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+  wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+  ! interpolate all required arrays to new C-C positions
+  ! do not need to do map factors and Coriolis on target grid
+  uvwcc(:,1) = ucc
+  uvwcc(:,2) = vcc
+  uvwcc(:,3) = wcc
+  call fill_cc4(uvwcc(:,1:3), mask_a, fill_count)
 end if
+call doints4(uvwcc(:,1:3), newuvw(:,1:3))
+  
+! now convert to "target" Cartesian components (transpose used)
+uct(1:ifull) = newuvw(1:ifull,1)
+vct(1:ifull) = newuvw(1:ifull,2)
+wct(1:ifull) = newuvw(1:ifull,3)
+newu(1:ifull) = uct(1:ifull)*rotpole(1,1) + vct(1:ifull)*rotpole(2,1) + wct(1:ifull)*rotpole(3,1)
+newv(1:ifull) = uct(1:ifull)*rotpole(1,2) + vct(1:ifull)*rotpole(2,2) + wct(1:ifull)*rotpole(3,2)
+neww(1:ifull) = uct(1:ifull)*rotpole(1,3) + vct(1:ifull)*rotpole(2,3) + wct(1:ifull)*rotpole(3,3)
+! then finally to "target" local x-y components
+uct(1:ifull) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
+vct(1:ifull) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
 
 return
 end subroutine interpcurrent1
@@ -2974,46 +2899,37 @@ real, dimension(fwsize) :: uc, vc, wc
 real, dimension(ifull) :: newu, newv, neww
 logical, dimension(fwsize,ok), intent(in) :: mask_3d
 
-if ( iotest ) then
-    
-  call doints4(ucc, uct)  
-  call doints4(vcc, vct)
-    
-else
-
-  if ( fwsize>0 ) then
-    do k = 1,ok
-      ! first set up currents in Cartesian "source" coords            
-      uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
-      vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
-      wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,k) + bzs_w(1:fwsize)*vcc(1:fwsize,k)
-      ! now convert to winds in "absolute" Cartesian components
-      ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-      vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-      wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
-    end do  ! k loop  
-    ! interpolate all required arrays to new C-C positions
-    ! do not need to do map factors and Coriolis on target grid
-    call fill_cc4(ucc, mask_3d, fill_count)
-    call fill_cc4(vcc, mask_3d, fill_count)
-    call fill_cc4(wcc, mask_3d, fill_count)
-  end if
-  call doints4(ucc, uct)
-  call doints4(vcc, vct)
-  call doints4(wcc, wct)
-  
+if ( fwsize>0 ) then
   do k = 1,ok
-    ! now convert to "target" Cartesian components (transpose used)  
-    newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
-    newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
-    neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
-    ! then finally to "target" local x-y components
-    uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
-    vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
-  end do  ! k loop
-  
+    ! first set up currents in Cartesian "source" coords            
+    uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
+    vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
+    wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,k) + bzs_w(1:fwsize)*vcc(1:fwsize,k)
+    ! now convert to winds in "absolute" Cartesian components
+    ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
+    vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
+    wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+  end do  ! k loop  
+  ! interpolate all required arrays to new C-C positions
+  ! do not need to do map factors and Coriolis on target grid
+  call fill_cc4(ucc, mask_3d, fill_count)
+  call fill_cc4(vcc, mask_3d, fill_count)
+  call fill_cc4(wcc, mask_3d, fill_count)
 end if
-
+call doints4(ucc, uct)
+call doints4(vcc, vct)
+call doints4(wcc, wct)
+  
+do k = 1,ok
+  ! now convert to "target" Cartesian components (transpose used)  
+  newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
+  newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
+  neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
+  ! then finally to "target" local x-y components
+  uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
+  vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
+end do  ! k loop
+  
 return
 end subroutine interpcurrent4
 
@@ -3033,14 +2949,14 @@ real, dimension(ifull), intent(out) :: varout
 real, dimension(fwsize) :: ucc
 character(len=*), intent(in) :: vname
       
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call doints1(ucc, varout)
-end if ! iop_test
+end if ! iotest
 
 return
 end subroutine gethist1
@@ -3060,7 +2976,7 @@ real, dimension(fwsize) :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
       
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,vname,varout,ifull)
 else
@@ -3068,7 +2984,7 @@ else
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc1(ucc,mask_a,fill_count)
   call doints1(ucc, varout)
-end if ! iop_test
+end if ! iotest
       
 return
 end subroutine fillhist1
@@ -3088,7 +3004,7 @@ real, dimension(fwsize) :: ucc, vcc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
       
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,uname,uarout,ifull)
   call histrd(iarchi,ier,vname,varout,ifull)
@@ -3097,7 +3013,7 @@ else
   call histrd(iarchi,ier,uname,ucc,6*ik*ik)
   call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,fill_count)
-end if ! iop_test
+end if ! iotest
       
 return
 end subroutine fillhistuv1o
@@ -3163,14 +3079,14 @@ real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize,size(varout,2)) :: ucc
 character(len=*), intent(in) :: vname
 
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call doints4(ucc,varout)
-end if ! iop_test
+end if ! iotest
       
 return
 end subroutine gethist4   
@@ -3192,7 +3108,7 @@ real, dimension(fwsize,kk) :: ucc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
 
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,vname,u_k,ifull)
 else
@@ -3206,7 +3122,7 @@ else
     t_a_lev(1:fwsize) = ucc(1:fwsize,levkin)   ! store for psl calculation  
   end if
   call doints4(ucc, u_k)      
-end if ! iop_test
+end if ! iotest
 
 ! vertical interpolation
 call vertint(u_k,varout,vmode,sigin)
@@ -3229,7 +3145,7 @@ real, dimension(fwsize,kk) :: ucc, vcc
 real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,uname,u_k,ifull)
   call histrd(iarchi,ier,vname,v_k,ifull)
@@ -3238,7 +3154,7 @@ else
   call histrd(iarchi,ier,uname,ucc,6*ik*ik)
   call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpwind4(u_k,v_k,ucc,vcc)
-end if ! iop_test
+end if ! iotest
 
 ! vertical interpolation
 call vertint(u_k,uarout,umode,sigin)
@@ -3262,7 +3178,7 @@ real, dimension(fwsize,size(varout,2)) :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
 
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,vname,varout,ifull)
 else
@@ -3270,7 +3186,7 @@ else
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc4(ucc,mask_a,fill_count)
   call doints4(ucc, varout)
-end if ! iop_test
+end if ! iotest
 
 return
 end subroutine fillhist4
@@ -3293,7 +3209,7 @@ real, dimension(ifull), intent(in) :: bath
 logical, dimension(fwsize,ok), intent(in) :: mask_3d
 character(len=*), intent(in) :: vname
 
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,vname,u_k,ifull)
 else
@@ -3301,7 +3217,7 @@ else
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc4(ucc,mask_3d,fill_count)
   call doints4(ucc,u_k)
-end if ! iop_test
+end if ! iotest
 
 ! vertical interpolation
 varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
@@ -3328,7 +3244,7 @@ real, dimension(ifull), intent(in) :: bath
 logical, dimension(fwsize,ok), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
 
-if ( iop_test ) then
+if ( iotest ) then
   ! read without interpolation or redistribution
   call histrd(iarchi,ier,uname,u_k,ifull)
   call histrd(iarchi,ier,vname,v_k,ifull)
@@ -3337,7 +3253,7 @@ else
   call histrd(iarchi,ier,uname,ucc,6*ik*ik)
   call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,fill_count)
-end if ! iop_test
+end if ! iotest
 
 ! vertical interpolation
 uarout = 0.
