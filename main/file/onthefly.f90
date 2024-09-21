@@ -67,7 +67,7 @@ real, dimension(:), allocatable, save :: gosig_1              ! input ocean refe
 real, dimension(:), allocatable, save :: gosig_h              ! input ocean reference half levels
 real, dimension(:,:), allocatable, save :: gosig_3            ! input ocean 3d levels
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! shared arrays used for interpolation
-logical iotest, newfile, iop_test                             ! tests for interpolation and new metadata
+logical iotest, newfile                                       ! tests for interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
 
 interface fill_cc4
@@ -419,7 +419,6 @@ logical, dimension(:,:), allocatable, save :: landlake_3d
 
 ! iotest      indicates no interpolation required
 ! ptest       indicates the grid decomposition of the mesonest file is the same as the model, including the same number of processes
-! iop_test    indicates that both iotest and ptest are true and hence no MPI communication is required
 ! tss_test    indicates that iotest is true, as well as seaice fraction and seaice depth are present in the input file
 ! retopo_test indicates that topography adjustment for t, q and psl is required
 ! fnresid     is the number of processes reading input files.
@@ -451,14 +450,13 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   iotest = iotest .and. (wlev==ok)
 end if
-iop_test = iotest .and. ptest
 
 if ( iotest ) then
   io_in = 1   ! no interpolation
-  if ( .not.iop_test ) then
+  if ( .not.(iotest.and.ptest) ) then
     ! this is a special case, such as when the number of processes changes during an experiment  
     if ( myid==0 ) then
-      write(6,*) "Redistribution is required with iotest,iop_test,io_in =",iotest, iop_test, io_in
+      write(6,*) "Redistribution is required with iotest,ptest,io_in =",iotest, ptest, io_in
     end if
   else    
     if ( myid==0 ) then
@@ -738,10 +736,10 @@ if ( newfile ) then
   if ( myid==0 ) then
     if ( tss_test ) then
       write(6,*) "-> Surface temperature does not require interpolation"
-      write(6,*) "-> tss_test,siced_found,fracice_found,iotest,iop_test =",tss_test,siced_found,fracice_found,iotest,iop_test
+      write(6,*) "-> tss_test,siced_found,fracice_found,iotest,ptest =",tss_test,siced_found,fracice_found,iotest,ptest
     else
       write(6,*) "-> Surface temperature requires interpolation"
-      write(6,*) "-> tss_test,siced_found,fracice_found,iotest,iop_test =",tss_test,siced_found,fracice_found,iotest,iop_test
+      write(6,*) "-> tss_test,siced_found,fracice_found,iotest,ptest =",tss_test,siced_found,fracice_found,iotest,ptest
     end if
   end if
   
@@ -781,7 +779,7 @@ if ( newfile ) then
   ! read soilt
   if ( soilt_found ) then
     ! read soilt for land-sea mask  
-    if ( .not.(tss_test) ) then ! tss_test includes iotest=.true.
+    if ( .not.tss_test ) then ! tss_test includes iotest=.true.
       call histrd(iarchi,ier,'soilt',ucc,6*ik*ik)
       if ( fwsize>0 ) then
         nemi = 3
@@ -1211,11 +1209,6 @@ end if   ! newfile
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   allocate( t_a_lev(fwsize) )  
   call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
-  !if ( any(t<100.) .or. any(t>350.) .or. any(t/=t) ) then
-  !  write(6,*) "ERROR: Invalid air temperature in onthefly"
-  !  write(6,*) minval(t),maxval(t),sum(t)/real(size(t))
-  !  call ccmpi_abort(-1)
-  !end if  
 else
   t(1:ifull,1:kl) = 300.    
 end if ! (nested==0.or.(nested==1.and.retopo_test/=0).or.nested==3)
@@ -1324,83 +1317,26 @@ if ( abs(iaero)>=2 .and. nested/=3 ) then
   if ( nested/=1 .or. nud_aero/=0 ) then
     if ( aero_found ) then  
       call gethist4a('dms',  xtgdwn(:,:,1), 5)
-      if ( any(xtgdwn(:,:,1)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad DMS aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,1))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('so2',  xtgdwn(:,:,2), 5)
-      if ( any(xtgdwn(:,:,2)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad SO2 aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,2))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('so4',  xtgdwn(:,:,3), 5)
-      if ( any(xtgdwn(:,:,3)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad SO4 aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,3))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('bco',  xtgdwn(:,:,4), 5)
-      if ( any(xtgdwn(:,:,4)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad BCO aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,4))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('bci',  xtgdwn(:,:,5), 5)
-      if ( any(xtgdwn(:,:,5)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad BCI aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,5))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('oco',  xtgdwn(:,:,6), 5)
-      if ( any(xtgdwn(:,:,6)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad OCO aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,6))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('oci',  xtgdwn(:,:,7), 5)
-      if ( any(xtgdwn(:,:,7)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad OCI aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,7))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('dust1',xtgdwn(:,:,8), 5)
-      if ( any(xtgdwn(:,:,8)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad DUST1 aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,8))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('dust2',xtgdwn(:,:,9), 5)
-      if ( any(xtgdwn(:,:,9)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad DUST2 aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,9))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('dust3',xtgdwn(:,:,10),5)
-      if ( any(xtgdwn(:,:,10)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad DUST3 aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,10))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('dust4',xtgdwn(:,:,11),5)
-      if ( any(xtgdwn(:,:,11)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad DUST4 aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,11))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('salt1',xtgdwn(:,:,12),5)
-      if ( any(xtgdwn(:,:,12)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad SALT1 aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,12))
-        call ccmpi_abort(-1)
-      end if  
       call gethist4a('salt2',xtgdwn(:,:,13),5)
-      if ( any(xtgdwn(:,:,13)>aerosol_tol) ) then
-        write(6,*) "ERROR: Bad SALT2 aerosol data in host"
-        write(6,*) "Maxval ",maxval(xtgdwn(:,:,13))
-        call ccmpi_abort(-1)
-      end if  
+      do i = 1,13
+        if ( any(xtgdwn(:,:,i)>aerosol_tol) ) then
+          write(6,*) "ERROR: Bad aerosol data in host"
+          write(6,*) "Index ",i
+          write(6,*) "Maxval ",maxval(xtgdwn(:,:,i))
+          call ccmpi_abort(-1)
+        end if  
+      end do  
       xtgdwn(:,:,:) = max( xtgdwn(:,:,:), 0. )
     else
       xtgdwn(:,:,:) = 0.  

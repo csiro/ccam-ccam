@@ -770,7 +770,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
   
   
-#ifdef GPYDYNAMIC  
+#ifdef GPUDYNAMIC  
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
 #endif

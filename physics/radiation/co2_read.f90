@@ -290,17 +290,6 @@ if ( nrad==5 ) then
     csolar = 1365.
   end if  
     
-  if ( myid==0 ) then
-    write(6,*) ' CO2  mixing ratio is ',rrvco2*1e6,' ppmv'
-    write(6,*) ' CH4  mixing ratio is ',rrvch4*1e9,' ppbv'
-    write(6,*) ' N2O  mixing ratio is ',rrvn2o*1e9,' ppbv'
-    write(6,*) ' F11  mixing ratio is ',rrvf11*1e12,' pptv'
-    write(6,*) ' F12  mixing ratio is ',rrvf12*1e12,' pptv'
-    write(6,*) ' F113 mixing ratio is ',rrvf113*1e12,' pptv'
-    write(6,*) ' F22  mixing ratio is ',rrvf22*1e12,' pptv'
-    write(6,*) ' Solar constant is    ',csolar,' W/m2'
-  end if  
-
 else
       
   ! Older GFDL radiation code (LH/SF)
@@ -399,8 +388,15 @@ if ( nhstest<0 ) then
   csolar = 1365.
 end if
 
-if ( myid==0) then
-  write(6,*) ' CO2 mixing ratio is ', rrvco2*1e6,' ppmv'
+if ( myid==0 ) then
+  write(6,*) ' CO2  mixing ratio is ',rrvco2*1e6,' ppmv'
+  write(6,*) ' CH4  mixing ratio is ',rrvch4*1e9,' ppbv'
+  write(6,*) ' N2O  mixing ratio is ',rrvn2o*1e9,' ppbv'
+  write(6,*) ' F11  mixing ratio is ',rrvf11*1e12,' pptv'
+  write(6,*) ' F12  mixing ratio is ',rrvf12*1e12,' pptv'
+  write(6,*) ' F113 mixing ratio is ',rrvf113*1e12,' pptv'
+  write(6,*) ' F22  mixing ratio is ',rrvf22*1e12,' pptv'
+  write(6,*) ' Solar constant is    ',csolar,' W/m2'
 end if  
 
 return
