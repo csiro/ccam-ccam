@@ -860,8 +860,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( rescrn>0 ) then
     ! CAPE only needs to be calculated for cordex output
     ! pcc2hist will calculate CAPE for standard output
-    if ( surfile/=' ' .and. mod(ktau,tbave)==0 ) then
-      call capecalc
+    if ( surfile/=' ' ) then
+      if ( mod(ktau,tbave)==0 ) then
+        call capecalc
+      end if  
     end if    
   end if  
 #ifndef GPU
