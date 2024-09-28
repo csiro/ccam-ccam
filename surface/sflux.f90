@@ -419,7 +419,7 @@ do tile = 1,ntiles
 
   ! scrnout is the standard CCAM screen level diagnostics.
   ! autoscrn contains the newer diagnostic calculation
-  if (nmlo==0.and.(nsib==3.or.nsib==5).and.rescrn==0) then
+  if (nmlo==0.and.(nsib==3.or.nsib==5).and.nurban==0.and.rescrn==0) then
     call scrnout(zo(is:ie),ustar(is:ie),zoh(is:ie),wetfac(is:ie),qsttg(is:ie),      &
                  qgscrn(is:ie),tscrn(is:ie),uscrn(is:ie),u10(is:ie),rhscrn(is:ie),  &
                  af(is:ie),aft(is:ie),ri(is:ie),vmod(is:ie),bprm,cms,chs,chnsea,    &
