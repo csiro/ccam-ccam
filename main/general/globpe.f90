@@ -1135,6 +1135,10 @@ if ( nllp<3 ) then
   write(6,*) "ERROR: Incorrect setting of nllp",nllp
   call ccmpi_abort(-1)
 end if
+
+if ( myid==0 ) then
+  write(6,*) "Calling setllp with nllp = ",nllp
+end if
       
 do k = 1,kl
   tr(1:ifull,k,ngas+1) = rlatt(1:ifull)*180./pi
@@ -4268,10 +4272,10 @@ implicit none
 
 rndmax(:)   = 0.
 prhmax(:)   = 0.
-tmaxscr(:)  = tscrn(:) 
-tminscr(:)  = tscrn(:) 
-rhmaxscr(:) = rhscrn(:) 
-rhminscr(:) = rhscrn(:) 
+tmaxscr(:)  = 100.
+tminscr(:)  = 400.
+rhmaxscr(:) = 0.
+rhminscr(:) = 1000.
 u10max(:)   = 0.
 v10max(:)   = 0.
 u1max(:)    = 0.
@@ -4279,8 +4283,8 @@ v1max(:)    = 0.
 u2max(:)    = 0.
 v2max(:)    = 0.
 rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
-tmaxurban(:)= urban_tas
-tminurban(:)= urban_tas
+tmaxurban(:)= 100.
+tminurban(:)= 400.
 wsgsmax(:)  = 0.
 sunhours(:) = 0.
 
