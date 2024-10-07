@@ -24,16 +24,6 @@ module cloudmod
 ! This module is the Rotstayn 1997 cloud microphysics parameterisation for cloud fraction.
 ! prognostic cloud fraction scheme based on Tiedtke from GFDL-CM3.
 
-! ncloud = 0    Standard LDR cloud microphysics with water vapour, liquid cloud and ice cloud
-! ncloud = 2    Same as ncloud=0, but with prognostic rain and modified cfrac
-! ncloud = 3    Same as ncloud=2, but with prognostic graupel and snow, as well as modified cfrac
-! ncloud = 4    Use prognostic cloud fraction based on Tiedtke from GFDL-CM3
-! ncloud = 10   Same as ncloud=0 with Tiedtke from GFDL-CM3
-! ncloud = 12   Same as ncloud=2 with Tiedtke from GFDL-CM3
-! ncloud = 13   Same as ncloud=3 with Tiedtke from GFDL-CM3 (i.e., same as ncloud=4)
-! ncloud = 100  Use Lin et al 2nd moment microphysics
-! ncloud = 110  Same as ncloud=100 with Tiedtke from GFDL-CM3
-    
 implicit none
     
 private
@@ -526,7 +516,7 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
   end do
 end if  ! (nclddia<0)  .. else ..
 
-if ( (ncloud/=4 .and. ncloud<10) .or. ncloud==100 ) then
+if ( (ncloud/=4 .and. ncloud<10) .or. (ncloud>=100.and.ncloud<110) ) then
   ! usual diagnostic cloud fraction
 
   ! Calculate cloudy fraction of grid box (stratcloud) and gridbox-mean cloud water
@@ -654,7 +644,6 @@ end if ! ncloud/=4 .and. ncloud<10 ..else..
 ! Calculate deposition on cloud ice, assuming es(T) is the weighted value of the
 ! liquid and ice values.
 if ( vdeposition_mode==0 ) then
-  ! with Tk bug  
   do k = 1,kl
     do iq = 1,imax
       Tk = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/max(stratcloud(iq,k),1.e-10) !T in liq cloud
@@ -684,7 +673,7 @@ if ( vdeposition_mode==0 ) then
   end do
   
 else if ( vdeposition_mode==1 ) then
-  ! use ql/(qf+ql) for deposition (see fl and fd) - with Tk bug
+  ! use ql/(qf+ql) for deposition (see fl and fd)
   do k = 1,kl
     do iq = 1,imax
       Tk = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/max(stratcloud(iq,k),1.e-10) !T in liq cloud
@@ -712,67 +701,10 @@ else if ( vdeposition_mode==1 ) then
       end if
     end do
   end do
-  
-else if ( vdeposition_mode==2 ) then
-  ! Fixed Tk bug  
-  do k = 1,kl
-    do iq = 1,imax
-      Tk = tliq(iq,k) + (hlcp*qlg(iq,k)+(hlcp+hlfcp)*qfg(iq,k))/max(stratcloud(iq,k),1.e-10) !T in liq cloud
-      if ( stratcloud(iq,k)>0. .and. Tk<tfrz .and. qlg(iq,k)>1.e-8 ) then
-        pk(iq,k) = 100.*prf(iq,k)
-        qsi(iq,k) = qsati(pk(iq,k),Tk)
-        deles(iq,k) = (1.-fice(iq,k))*esdiffx(Tk)
-        qs        = qsi(iq,k)
-        es        = qs*pk(iq,k)/0.622 !ice value
-        Aprpr     = hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
-        Bprpr     = rvap*Tk/((Dva/pk(iq,k))*es)
-        Cice      = 1.e3*exp(12.96*deles(iq,k)/es - 0.639) !Meyers et al 1992
-        qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
-        ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
-        qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
-        fd        = 1.       !Fraction of cloud in which deposition occurs
-        Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq,k)/((Aprpr+Bprpr)*es)
-        qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
-        ! Also need this line for fully-mixed option...
-        qfdep     = qfdep - qfg(iq,k)
-        qfdep     = min(qfdep, qlg(iq,k))
-        qlg(iq,k) = qlg(iq,k) - qfdep
-        qfg(iq,k) = qfg(iq,k) + qfdep
-        fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-20)
-      end if
-    end do
-  end do
-  
-else
-  ! use ql/(qf+ql) for deposition (see fl and fd) - Fixed Tk bug
-  do k = 1,kl
-    do iq = 1,imax
-      Tk = tliq(iq,k) + (hlcp*qlg(iq,k)+(hlcp+hlfcp)*qfg(iq,k))/max(stratcloud(iq,k),1.e-10) !T in liq cloud
-      if ( stratcloud(iq,k)>0. .and. Tk<tfrz .and. qlg(iq,k)>1.e-8 ) then
-        pk(iq,k) = 100.*prf(iq,k)
-        qsi(iq,k) = qsati(pk(iq,k),Tk)
-        deles(iq,k) = (1.-fice(iq,k))*esdiffx(Tk)
-        fl        = qlg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
-        qs        = qsi(iq,k)
-        es        = qs*pk(iq,k)/0.622 !ice value
-        Aprpr     = hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
-        Bprpr     = rvap*Tk/((Dva/pk(iq,k))*es)
-        Cice      = 1.e3*exp(12.96*deles(iq,k)/es - 0.639) !Meyers et al 1992
-        qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
-        qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
-        fd        = fl      !Or, use option of adjacent ql,qf
-        Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq,k)/((Aprpr+Bprpr)*es)
-        qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
-        ! Also need this line for fully-mixed option...
-        qfdep     = qfdep - qfg(iq,k)
-        qfdep     = min(qfdep, qlg(iq,k))
-        qlg(iq,k) = qlg(iq,k) - qfdep
-        qfg(iq,k) = qfg(iq,k) + qfdep
-        fice(iq,k) = qfg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
-      end if
-    end do
-  end do
 
+else
+  write(6,*) "ERROR: Unknow vdeposition_mode ",vdeposition_mode
+  stop
 end if ! vdeposition_mode==0 ..else..
 
 
@@ -834,18 +766,6 @@ real, parameter :: u00 = 0.8
 
 ! background erosion scale in 1/secs
 erosion_scale(:,:) = erosion_scale_d
-
-!Convection is treated independently for now
-!if ( ncloud==15 ) then
-!  ! convert convective mass flux from half levels to full levels
-!  do k = 1,kl-1
-!    cmflx(:,k) = rathb(k)*fluxtot(:,k)+ratha(k)*fluxtot(:,k+1)
-!  end do
-!  cmflx(:,kl) = rathb(kl)*fluxtot(:,kl)
-!else ! ncloud==4 .or. ncloud==10 .or. ncloud==12 .or. ncloud==13
-!  ! use convective area fraction in leoncld.f, instead of convective mass flux
-!  cmflx = 0.
-!end if
 
 ! Turbulence
 do k = 1,kl
@@ -971,9 +891,6 @@ do k = 1,kl
     stratcloud(:,k) = 0.
     qc(:,k) = 0.
   end where
-
-  ! Reset tendency and mass flux for next time-step
-  nettend(:,k) = 0.
 
 end do
 

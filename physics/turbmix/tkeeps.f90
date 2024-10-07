@@ -474,20 +474,6 @@ do kcount = 1,mcount
   ! Account for phase transistions
   select case(tcalmeth)
       
-    case default ! fix rounding errors only
-      do k = 1,kl
-        ! Check for -ve values  
-        qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
-        qfg(:,k) = max( qfg(:,k), 0. )
-        qlg(:,k) = max( qlg(:,k), 0. )
-        do iq = 1,imax
-          qvg(iq,k) = max( qt(iq) - qfg(iq,k) - qlg(iq,k), 0. )
-          if ( qlg(iq,k)+qfg(iq,k)>1.E-12 ) then
-            stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
-          end if
-        end do
-      end do  
-      
     case(0) ! correct saturated air
       do k = 1,kl
         ! Check for -ve values  
@@ -520,6 +506,20 @@ do kcount = 1,mcount
         end where
       end do  
 
+    case(1) ! fix rounding errors only
+      do k = 1,kl
+        ! Check for -ve values  
+        qt(:) = max( qfg(:,k) + qlg(:,k) + qvg(:,k), 0. )
+        qfg(:,k) = max( qfg(:,k), 0. )
+        qlg(:,k) = max( qlg(:,k), 0. )
+        do iq = 1,imax
+          qvg(iq,k) = max( qt(iq) - qfg(iq,k) - qlg(iq,k), 0. )
+          if ( qlg(iq,k)+qfg(iq,k)>1.E-12 ) then
+            stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
+          end if
+        end do
+      end do  
+      
     case(2) ! correct saturated air (below pbl)
       do k = 1,kl
 
@@ -1964,7 +1964,7 @@ real, dimension(imax,3) :: tmp
 ! (A' + u v^T) t = d
 ! A' y = d
 ! A' q = u
-! x = y - {(v^t y)/(1 + (v^t q))} q
+! t = y - {(v^T y)/(1 + (v^T q))} q
 
 
 ! Construct A'

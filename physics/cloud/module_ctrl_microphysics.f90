@@ -48,8 +48,10 @@ real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
 ! ncloud = 10   Same as ncloud=0 with Tiedtke from GFDL-CM3
 ! ncloud = 12   Same as ncloud=2 with Tiedtke from GFDL-CM3
 ! ncloud = 13   Same as ncloud=3 with Tiedtke from GFDL-CM3 (i.e., same as ncloud=4)
-! ncloud = 100  Use Lin et al 2nd moment microphysics
+! ncloud = 100  Use Lin et al 2nd moment microphysics with Leon saturation adjustment
+! ncloud = 101  Use Lin et al 2nd moment microphysics without Leon saturation adjustment
 ! ncloud = 110  Same as ncloud=100 with Tiedtke from GFDL-CM3
+! ncloud = 111  Same as ncloud=101 with Tiedtke from GFDL-CM3
 
 !                            Water vapour (qg)
 !
@@ -177,52 +179,57 @@ end do
 
 
 !----------------------------------------------------------------------------
-! Update cloud fraction
+! Update cloud fraction (prior to LEON & LIN, but after LIN2)
 
-!$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
-!$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt)                  &
-!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
+select case ( interp_ncloud(ldr,ncloud) )
+  case( "LEON", "LIN" )  
+    !$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
+    !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt)                  &
+    !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
 
-  idjd_t = mod(idjd-1,imax) + 1
-  mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
+      idjd_t = mod(idjd-1,imax) + 1
+      mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
-  lqg      = qg(js:je,:)
-  lqlg     = qlg(js:je,:)
-  lqfg     = qfg(js:je,:)
-  lt       = t(js:je,:)
-  ldpsldt  = dpsldt(js:je,:)
-  lclcon   = clcon(js:je,:)
-  lstratcloud = stratcloud(js:je,:)
-  if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
-    lnettend = nettend(js:je,:)
-    lrkmsave = rkmsave(js:je,:)
-    lrkhsave = rkhsave(js:je,:)
-  end if
+      lqg      = qg(js:je,:)
+      lqlg     = qlg(js:je,:)
+      lqfg     = qfg(js:je,:)
+      lt       = t(js:je,:)
+      ldpsldt  = dpsldt(js:je,:)
+      lclcon   = clcon(js:je,:)
+      lstratcloud = stratcloud(js:je,:)
+      if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
+        lnettend = nettend(js:je,:)
+        lrkmsave = rkmsave(js:je,:)
+        lrkhsave = rkhsave(js:je,:)
+      end if
 
-  call update_cloud_fraction(lcfrac,land(js:je),                                &
-              ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
-              ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
-              mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
-              vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
+      call update_cloud_fraction(lcfrac,land(js:je),                                &
+                  ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
+                  ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
+                  mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
+                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
 
-  cfrac(js:je,:) = lcfrac
-  qccon(js:je,:) = lqccon
-  qg(js:je,:)    = lqg
-  qlg(js:je,:)   = lqlg
-  qfg(js:je,:)   = lqfg
-  qlrad(js:je,:) = lqlrad
-  qfrad(js:je,:) = lqfrad
-  t(js:je,:)     = lt
-  stratcloud(js:je,:) = lstratcloud
-  if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. ncloud==110 ) then
-    nettend(js:je,:) = lnettend
-  end if
-end do
-!$omp end do nowait
+      ! This configuration allows prognostic condensate variables to be updated 
+      cfrac(js:je,:) = lcfrac
+      qccon(js:je,:) = lqccon
+      qg(js:je,:)    = lqg
+      qlg(js:je,:)   = lqlg
+      qfg(js:je,:)   = lqfg
+      qlrad(js:je,:) = lqlrad
+      qfrad(js:je,:) = lqfrad
+      t(js:je,:)     = lt
+      stratcloud(js:je,:) = lstratcloud
+      if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. ncloud==110 ) then
+        ! Reset tendency and mass flux for next time-step  
+        nettend(js:je,:) = 0.
+      end if
+    end do
+    !$omp end do nowait
 
+end select    
 
 !----------------------------------------------------------------------------
 ! Update cloud condensate
@@ -330,7 +337,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp end do nowait
 
 
-  case("LIN")
+  case( "LIN", "LIN2" )
 
     njumps = int(dt/(maxlintime+0.01)) + 1
     tdt    = real( dt/real(njumps), 8 )
@@ -566,6 +573,56 @@ select case ( interp_ncloud(ldr,ncloud) )
       
 end select
 
+  
+!----------------------------------------------------------------------------
+! Update cloud fraction (prior to LEON & LIN, but after LIN2)
+
+select case ( interp_ncloud(ldr,ncloud) )
+  case("LIN2")  
+    !$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
+    !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt)                  &
+    !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+
+      idjd_t = mod(idjd-1,imax) + 1
+      mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
+
+      lqg      = qg(js:je,:)
+      lqlg     = qlg(js:je,:)
+      lqfg     = qfg(js:je,:)
+      lt       = t(js:je,:)
+      ldpsldt  = dpsldt(js:je,:)
+      lclcon   = clcon(js:je,:)
+      lstratcloud = stratcloud(js:je,:)
+      if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
+        lnettend = nettend(js:je,:)
+        lrkmsave = rkmsave(js:je,:)
+        lrkhsave = rkhsave(js:je,:)
+      end if
+
+      call update_cloud_fraction(lcfrac,land(js:je),                                &
+                  ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
+                  ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
+                  mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
+                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
+
+      ! This configuration does not update prognostic cloud condensate variables
+      cfrac(js:je,:) = lcfrac
+      qccon(js:je,:) = lqccon
+      qlrad(js:je,:) = lqlrad
+      qfrad(js:je,:) = lqfrad
+      stratcloud(js:je,:) = lstratcloud
+      if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. ncloud==110 ) then
+        ! Reset tendency and mass flux for next time-step  
+        nettend(js:je,:) = 0.
+      end if
+    end do
+    !$omp end do nowait
+
+end select   
+  
 
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 ) then
@@ -662,6 +719,8 @@ if ( ldr /= 0 ) then
       mp_physics = "LEON"
     case(100,110)
       mp_physics = "LIN"
+    case(101,111)
+      mp_physics = "LIN2"
   end select
 end if
 
