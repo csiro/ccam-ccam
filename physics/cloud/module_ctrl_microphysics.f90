@@ -222,7 +222,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       qfrad(js:je,:) = lqfrad
       t(js:je,:)     = lt
       stratcloud(js:je,:) = lstratcloud
-      if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. ncloud==110 ) then
+      if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. (ncloud>=110.and.ncloud<120) ) then
         ! Reset tendency and mass flux for next time-step  
         nettend(js:je,:) = 0.
       end if
@@ -231,6 +231,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 
 end select    
 
+  
 !----------------------------------------------------------------------------
 ! Update cloud condensate
 select case ( interp_ncloud(ldr,ncloud) )
@@ -309,30 +310,6 @@ select case ( interp_ncloud(ldr,ncloud) )
         pprfreeze(js:je,:)  = lpprfreeze
         pprscav(js:je,:)    = lpprscav
       end if
-    end do
-    !$omp end do nowait
-
-    !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
-    !$omp private(l_rliq,l_rice,l_cliq,l_cice)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-
-      lcfrac = cfrac(js:je,:)
-      lqlg = qlrad(js:je,:)
-      lqfg = qfrad(js:je,:)
-      lt = t(js:je,:)
-      lcdrop = cdrop(js:je,:)
-      do k = 1,kl
-        lp(:,k) = ps(js:je)*sig(k)
-      end do
-      call cloud3(l_rliq,l_rice,l_cliq,l_cice,lcfrac,lqlg,lqfg,lp,lt,lcdrop,imax,kl)
-      stras_rliq(js:je,:) = l_rliq   ! save effective radius for cosp
-      stras_rice(js:je,:) = l_rice
-      stras_rsno(js:je,:) = 0.
-      stras_rrai(js:je,:) = 0.
-      stras_cliq(js:je,:) = l_cliq
-      stras_cice(js:je,:) = l_cice
     end do
     !$omp end do nowait
 
@@ -541,32 +518,6 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp end do nowait
 #endif
 
-    !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
-    !$omp private(l_rliq,l_rice,l_cliq,l_cice,l_rliq_in,l_rice_in,l_rsno_in)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-
-      lcfrac = cfrac(js:je,:)
-      lqlg = qlrad(js:je,:)
-      lqfg = qfrad(js:je,:)
-      lt = t(js:je,:)
-      lcdrop = cdrop(js:je,:)
-      do k = 1,kl
-        lp(:,k) = ps(js:je)*sig(k)
-      end do
-      l_rliq_in = stras_rliq(js:je,:)
-      l_rice_in = stras_rice(js:je,:)
-      l_rsno_in = stras_rsno(js:je,:)
-      call cloud3(l_rliq,l_rice,l_cliq,l_cice,lcfrac,lqlg,lqfg,lp,lt,lcdrop,imax,kl, &
-                  stras_rliq=l_rliq_in,stras_rice=l_rice_in,stras_rsno=l_rsno_in)
-      stras_rliq(js:je,:) = l_rliq   ! save effective radius for cosp
-      stras_rice(js:je,:) = l_rice
-      stras_cliq(js:je,:) = l_cliq
-      stras_cice(js:je,:) = l_cice
-    end do
-    !$omp end do nowait
-
   case default
     write(6,*) "ERROR: unknown mp_physics option "
     call ccmpi_abort(-1)
@@ -615,7 +566,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       qlrad(js:je,:) = lqlrad
       qfrad(js:je,:) = lqfrad
       stratcloud(js:je,:) = lstratcloud
-      if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. ncloud==110 ) then
+      if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. (ncloud>=110.and.ncloud<120) ) then
         ! Reset tendency and mass flux for next time-step  
         nettend(js:je,:) = 0.
       end if
@@ -623,8 +574,72 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp end do nowait
 
 end select   
-  
 
+  
+!----------------------------------------------------------------------------
+! Update radiation properties
+select case ( interp_ncloud(ldr,ncloud) )
+  case("LEON")
+    !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
+    !$omp private(l_rliq,l_rice,l_cliq,l_cice)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+
+      lcfrac = cfrac(js:je,:)
+      lqlg = qlrad(js:je,:)
+      lqfg = qfrad(js:je,:)
+      lt = t(js:je,:)
+      lcdrop = cdrop(js:je,:)
+      do k = 1,kl
+        lp(:,k) = ps(js:je)*sig(k)
+      end do
+      call cloud3(l_rliq,l_rice,l_cliq,l_cice,lcfrac,lqlg,lqfg,lp,lt,lcdrop,imax,kl)
+      stras_rliq(js:je,:) = l_rliq   ! save effective radius for cosp
+      stras_rice(js:je,:) = l_rice
+      stras_rsno(js:je,:) = 0.
+      stras_rrai(js:je,:) = 0.
+      stras_cliq(js:je,:) = l_cliq
+      stras_cice(js:je,:) = l_cice
+    end do
+    !$omp end do nowait
+
+
+  case( "LIN", "LIN2" )
+    !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
+    !$omp private(l_rliq,l_rice,l_cliq,l_cice,l_rliq_in,l_rice_in,l_rsno_in)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+
+      lcfrac = cfrac(js:je,:)
+      lqlg = qlrad(js:je,:)
+      lqfg = qfrad(js:je,:)
+      lt = t(js:je,:)
+      lcdrop = cdrop(js:je,:)
+      do k = 1,kl
+        lp(:,k) = ps(js:je)*sig(k)
+      end do
+      l_rliq_in = stras_rliq(js:je,:)
+      l_rice_in = stras_rice(js:je,:)
+      l_rsno_in = stras_rsno(js:je,:)
+      call cloud3(l_rliq,l_rice,l_cliq,l_cice,lcfrac,lqlg,lqfg,lp,lt,lcdrop,imax,kl, &
+                  stras_rliq=l_rliq_in,stras_rice=l_rice_in,stras_rsno=l_rsno_in)
+      stras_rliq(js:je,:) = l_rliq   ! save effective radius for cosp
+      stras_rice(js:je,:) = l_rice
+      stras_cliq(js:je,:) = l_cliq
+      stras_cice(js:je,:) = l_cice
+    end do
+    !$omp end do nowait
+
+  case default
+    write(6,*) "ERROR: unknown mp_physics option "
+    call ccmpi_abort(-1)
+      
+end select  
+
+  
+!----------------------------------------------------------------------------  
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 ) then
   if ( interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0  ) then
@@ -692,6 +707,7 @@ if ( abs(iaero)>=2 ) then
 end if     ! abs(iaero)>=2
 
 
+!----------------------------------------------------------------------------  
 ! update COSP cloud sat simulator if avaliable
 ! (must be downloaded and compiled independently of CCAM)
 call cloud_simulator
