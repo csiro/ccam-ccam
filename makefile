@@ -541,6 +541,7 @@ longwave_tables.o : cc_mpi.o filnames_m.o longwave_params.o rad_utilities.o
 lw_gases_stdtf.o : cc_mpi.o filnames_m.o infile.o gas_tf.o newmpar_m.o rad_utilities.o
 lwr88.o : co2dta_m.o kdacom_m.o parm_m.o radisw_m.o tfcom_m.o work3lwr_m.o hcon.h rdparm.h rnddta.h
 microphys_rad.o : esfsw_parameters.o longwave_params.o rad_utilities.o
+mlo.o : newmpar_m.o
 mlo_ctrl.o : mlo.o newmpar_m.o
 mlodepts.o : bigxy4_m.o cc_acc.o cc_mpi.o const_phys.o indices_m.o mlo_ctrl.o newmpar_m.o parm_m.o parmgeom_m.o parmhor_m.o vecsuv_m.o xyzinfo_m.o
 mlodiffg.o : cc_acc.o cc_mpi.o const_phys.o indices_m.o map_m.o mlo_ctrl.o mlodynamicsarrays_m.o newmpar_m.o nharrs_m.o parm_m.o soil_m.o vecsuv_m.o
