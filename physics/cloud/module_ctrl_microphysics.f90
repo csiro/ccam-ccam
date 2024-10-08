@@ -606,7 +606,8 @@ select case ( interp_ncloud(ldr,ncloud) )
                   ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
                   ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
                   mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
-                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
+                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,                  &
+                  update_satadj=.false.)
 
       ! This configuration does not update prognostic cloud condensate variables
       cfrac(js:je,:) = lcfrac
