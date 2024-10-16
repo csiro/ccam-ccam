@@ -4584,7 +4584,11 @@ else
       do iq = 1,ifull
         if ( land(iq) .and. datms(iq,k)>400._8 ) then
           ! change in land-sea mask?
-          datms(iq,k) = tss(iq) ! use surface temperature
+          if ( k==1 ) then
+            datms(iq,k) = tss(iq) ! use surface temperature
+          else  
+            datms(iq,k) = tgg(iq,k-1)
+          end if  
         end if
       end do  
       call cable_pack(datms(:,k),ssnow%tgg(:,k),nmp(:,n))
