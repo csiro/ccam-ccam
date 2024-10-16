@@ -4000,7 +4000,7 @@ if ( mp_global>0 ) then
   soil%GWwatr        = soil%watr(:,ms) !residual water content of the aquifer [mm3/mm3]
   soil%GWdz          = 20._8           !thickness of the aquifer   [m]
   soil%GWdz          = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
-  soil%drain_dens    = 0.0008_8        !  drainage density ( mean dist to rivers/streams )
+  soil%drain_dens    = 0.008_8         !  drainage density ( mean dist to rivers/streams )
   
   soil%heat_cap_lower_limit = 0.01 ! recalculated in cable_soilsnow.F90
   
@@ -4443,6 +4443,7 @@ use infile
 use newmpar_m
 use nsibd_m, only : sigmf
 use parm_m
+use pbl_m
 use soil_m
 use soilsnow_m
 use vegpar_m
@@ -4450,7 +4451,7 @@ use vegpar_m
 logical, intent(in), optional :: usedefault
 integer k, n, ierr, idv, ierr_casa, ierr_sli, ierr_pop, ierr_svs, ierr_cvc
 integer jyear,jmonth,jday,jhour,jmin,mins, ll, cc, hh, dd
-integer np_pop
+integer np_pop, iq
 integer, dimension(6) :: ierr_check
 integer, dimension(ifull) :: dati
 integer, dimension(mp_global) :: old_cv
@@ -4580,6 +4581,12 @@ else
     write(vname,'("t",I1.1,"_tgg")') n
     call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     do k = 1,ms
+      do iq = 1,ifull
+        if ( land(iq) .and. datms(iq,k)>400._8 ) then
+          ! change in land-sea mask?
+          datms(iq,k) = tss(iq) ! use surface temperature
+        end if
+      end do  
       call cable_pack(datms(:,k),ssnow%tgg(:,k),nmp(:,n))
     end do
     write(vname,'("t",I1.1,"_wb")') n
@@ -4658,6 +4665,16 @@ else
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     call cable_pack(dat,canopy%ga(:),nmp(:,n))
   end do
+  
+  ! soil temperature check
+  if ( mp_global>0 ) then
+    if ( any(ssnow%tgg>400.) ) then
+      write(6,*) "ERROR: Invalid CABLE temperature when reading tile"
+      write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
+      stop -1
+    end if
+  end if  
+  
   if ( soil_struc==1 ) then
     if ( ierr_sli/=0 ) then
       if ( myid==0 ) write(6,*) "-> Use gridbox averaged data to initialise SLI"
@@ -6519,7 +6536,7 @@ use soilsnow_m
 use vegpar_m
   
 integer, intent(in) :: idnc,iarch,itype
-integer k,n,np_pop
+integer k,n,np_pop,iq
 integer cc,dd,hh,ll
 integer, dimension(ifull) :: dati
 real, dimension(ifull) :: datr
@@ -6561,6 +6578,12 @@ if ( itype==-1 ) then !just for restart file
     do k = 1,ms     ! soil layer
       dat = real(tgg(:,k),8)
       if ( n<=maxnb ) call cable_unpack(ssnow%tgg(:,k),dat,n)
+      if ( any( dat(1:ifull)>400._8 .and. land(1:ifull) ) ) then
+        write(6,*) "ERROR: Invalid CABLE soil temperature when writing tile"
+        write(6,*) "n,k = ",n,k
+        write(6,*) "tgg ",maxval(dat(1:ifull),mask=land(1:ifull))
+        stop -1
+      end if
       write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
