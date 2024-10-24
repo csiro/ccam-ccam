@@ -98,7 +98,7 @@ if ( mspec==1 ) then
 end if
 
 
-#ifdef GPUDYNAMIC
+#ifdef GPU
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
 !$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
 #endif
@@ -156,7 +156,7 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 end if          ! if(mspec==1)
 
 
-#ifdef GPUDYNAMIC
+#ifdef GPU
 !$acc wait
 !$acc end data
 #endif
@@ -220,14 +220,14 @@ ntr = size(tarr,3)
 
 if ( ntvd==2 ) then ! MC
 
-#ifdef GPUDYNAMIC
+#ifdef GPU
   !$acc enter data create(tarr,delt,fluxh) async(async_counter)
   !$acc update device(tarr) async(async_counter)
 #else
   !$omp parallel   
 #endif
   do i = 1,maxval(nits(1:ifull))
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
 #else
     !$omp do schedule(static) private(n,k,iq)
@@ -239,7 +239,7 @@ if ( ntvd==2 ) then ! MC
         end do
       end do
     end do
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc end parallel loop
     !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
 #else
@@ -254,7 +254,7 @@ if ( ntvd==2 ) then ! MC
         delt(iq,0,n)   = 0.
       end do
     end do
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc end parallel loop
     !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
 #else
@@ -275,7 +275,7 @@ if ( ntvd==2 ) then ! MC
         end do
       end do
     end do      ! k loop
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc end parallel loop
     !$acc parallel loop collapse(3) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
 #else
@@ -292,13 +292,13 @@ if ( ntvd==2 ) then ! MC
         end do
       end do
     end do
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc end parallel loop
 #else
     !$omp end do nowait
 #endif
   end do ! i=1,nits
-#ifdef GPUDYNAMIC
+#ifdef GPU
   !$acc update self(tarr) async(async_counter)
   !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
 #else
@@ -307,14 +307,14 @@ if ( ntvd==2 ) then ! MC
 
 else if ( ntvd==3 ) then ! Superbee
 
-#ifdef GPUDYNAMIC
+#ifdef GPU
   !$acc enter data create(tarr,delt,fluxh) async(async_counter)
   !$acc update device(tarr) async(async_counter)
 #else
   !$omp parallel
 #endif
   do i = 1,maxval(nits(1:ifull))
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
 #else
     !$omp do schedule(static) private(n,iq,k)
@@ -326,7 +326,7 @@ else if ( ntvd==3 ) then ! Superbee
         end do  
       end do     ! k loop
     end do
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc end parallel loop
     !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
 #else
@@ -341,7 +341,7 @@ else if ( ntvd==3 ) then ! Superbee
         delt(iq,0,n)   = 0.
       end do
     end do
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc end parallel loop
     !$acc parallel loop collapse(3) present(delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
 #else
@@ -362,7 +362,7 @@ else if ( ntvd==3 ) then ! Superbee
         end do  
       end do ! k
     end do
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc end parallel loop
     !$acc parallel loop collapse(3) present(nits,tarr,nvadh_inv_pass,fluxh,sdot) async(async_counter)
 #else
@@ -379,13 +379,13 @@ else if ( ntvd==3 ) then ! Superbee
         end do     ! iq
       end do
     end do
-#ifdef GPUDYNAMIC
+#ifdef GPU
     !$acc end parallel loop
 #else
     !$omp end do nowait
 #endif
   end do   ! i
-#ifdef GPUDYNAMIC
+#ifdef GPU
   !$acc update self(tarr) async(async_counter)
   !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
 #else

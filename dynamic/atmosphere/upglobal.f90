@@ -239,7 +239,7 @@ end if     ! mspec==1
 call END_LOG(ints_end)
 
 
-#if GPUDYNAMIC
+#if GPU
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
 #endif
@@ -426,7 +426,7 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
 end if     ! mspec==1
 
 
-#ifdef GPUDYNAMIC
+#ifdef GPU
 !$acc end data
 #endif
 

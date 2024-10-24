@@ -4582,13 +4582,9 @@ else
     call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
     do k = 1,ms
       do iq = 1,ifull
-        if ( land(iq) .and. datms(iq,k)>400._8 ) then
+        if ( land(iq) .and. (datms(iq,k)<100._8.or.datms(iq,k)>400._8) ) then
           ! change in land-sea mask?
-          if ( k==1 ) then
-            datms(iq,k) = tss(iq) ! use surface temperature
-          else  
-            datms(iq,k) = tgg(iq,k-1)
-          end if  
+          datms(iq,k) = tss(iq) ! use surface temperature
         end if
       end do  
       call cable_pack(datms(:,k),ssnow%tgg(:,k),nmp(:,n))

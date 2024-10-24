@@ -67,7 +67,7 @@ call START_LOG(ints_begin)
 ! now call bounds before calling ints
 
 
-#ifdef GPUDYNAMIC
+#ifdef GPU
 !$acc enter data create(sx)
 #endif
 
@@ -120,7 +120,7 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,np)
         end do          ! n loop
       end do            ! k loop
-#ifdef GPUDYNAMIC
+#ifdef GPU
       !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
 #endif
     end do              ! nn loop  
@@ -178,11 +178,11 @@ if ( intsch==1 ) then
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
-#ifndef GPUDYNAMIC
+#ifndef GPU
       !$omp parallel
 #endif
       do nn = 1,nlen
-#ifdef GPUDYNAMIC
+#ifdef GPU
         np = nn - 1 + nstart  
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
@@ -235,13 +235,13 @@ if ( intsch==1 ) then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
-#ifdef GPUDYNAMIC
+#ifdef GPU
         !$acc end parallel loop
 #else
         !$omp end do nowait
 #endif
       end do           ! nn loop
-#ifdef GPUDYNAMIC
+#ifdef GPU
       !$acc wait
 #else
       !$omp end parallel
@@ -301,11 +301,11 @@ if ( intsch==1 ) then
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
-#ifndef GPUDYNAMIC
+#ifndef GPU
       !$omp parallel
 #endif
       do nn = 1,nlen
-#ifdef GPUDYNAMIC
+#ifdef GPU
         np = nn - 1 + nstart  
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
@@ -361,13 +361,13 @@ if ( intsch==1 ) then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! k loop
-#ifdef GPUDYNAMIC
+#ifdef GPU
         !$acc end parallel loop
 #else
         !$omp end do nowait
 #endif
       end do          ! nn loop  
-#ifdef GPUDYNAMIC
+#ifdef GPU
       !$acc wait
 #else
       !$omp end parallel
@@ -427,7 +427,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,np)
         end do              ! n loop
       end do                ! k loop
-#ifdef GPUDYNAMIC
+#ifdef GPU
       !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
 #endif
     end do                  ! nn loop
@@ -483,11 +483,11 @@ else     ! if(intsch==1)then
     
       call intssync_send(nlen)
 
-#ifndef GPUDYNAMIC
+#ifndef GPU
       !$omp parallel
 #endif
       do nn = 1,nlen
-#ifdef GPUDYNAMIC
+#ifdef GPU
         np = nn - 1 + nstart   
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
@@ -541,13 +541,13 @@ else     ! if(intsch==1)then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
-#ifdef GPUDYNAMIC
+#ifdef GPU
         !$acc end parallel loop
 #else
         !$omp end do nowait
 #endif
       end do           ! nn loop  
-#ifdef GPUDYNAMIC
+#ifdef GPU
       !$acc wait
 #else
       !$omp end parallel
@@ -606,11 +606,11 @@ else     ! if(intsch==1)then
   
       call intssync_send(nlen)
 
-#ifndef GPUDYNAMIC
+#ifndef GPU
       !$omp parallel
 #endif
       do nn = 1,nlen
-#ifdef GPUDYNAMIC
+#ifdef GPU
         np = nn - 1 + nstart  
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
@@ -666,13 +666,13 @@ else     ! if(intsch==1)then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do       ! iq loop
         end do         ! k loop
-#ifdef GPUDYNAMIC
+#ifdef GPU
         !$acc end parallel loop
 #else
         !$omp end do nowait
 #endif
       end do           ! nn loop  
-#ifdef GPUDYNAMIC
+#ifdef GPU
       !$acc wait
 #else
       !$omp end parallel
@@ -688,7 +688,7 @@ end if               ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
 
-#ifdef GPUDYNAMIC
+#ifdef GPU
 !$acc exit data delete(sx)
 #endif
 
@@ -766,7 +766,7 @@ end do
 
 call intssync_send
 
-#ifdef GPUDYNAMIC
+#ifdef GPU
 !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
 #else
 !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
@@ -785,7 +785,7 @@ do k = 1,kl
             + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
-#ifdef GPUDYNAMIC
+#ifdef GPU
 !$acc end parallel loop
 #else
 !$omp end parallel do

@@ -524,7 +524,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
 
   ! MJT notes - the physics OpenACC code requires a larger heapsize like
-  ! export PGI_ACC_CUDA_HEAPSIZE=268435456 and maxtilesize=32
+  ! export PGI_ACC_CUDA_HEAPSIZE=256M and maxtilesize=32
     
   ! MISC (SINGLE) ---------------------------------------------------------
   ! radiation timer calculations
@@ -724,12 +724,12 @@ do ktau = 1,ntau   ! ****** start of main time loop
   !$omp end do nowait
 
   
+  ! AEROSOLS --------------------------------------------------------------
+  ! Old time-split with aero_split=0
 #ifdef GPUCHEMISTRY
   !$omp end parallel
 #endif
-  ! AEROSOLS --------------------------------------------------------------
-  ! Old time-split with aero_split=0
-  if ( nsib>0 ) then
+  if ( nsib>0 .and. aero_split==0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
       call aerocalc(mins,0)
@@ -748,6 +748,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
     !$omp end do nowait
   end if  
+  
 
     
   ! VERTICAL MIXING ------------------------------------------------------

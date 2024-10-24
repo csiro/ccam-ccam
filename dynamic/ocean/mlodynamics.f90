@@ -770,7 +770,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
   
   
-#ifdef GPUDYNAMIC  
+#ifdef GPU
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
 #endif
@@ -787,7 +787,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlob2ints_bs(ns,nface,xg,yg,wtr,1,bs_test,mlointschf)
   
   
-#ifdef GPUDYNAMIC
+#ifdef GPU
   !$acc end data
 #endif
 

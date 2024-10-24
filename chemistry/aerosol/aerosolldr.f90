@@ -274,6 +274,7 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait
 
+
 #ifdef debug
 if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range after xtemiss"
@@ -364,12 +365,14 @@ end do
 !$omp end do nowait
 #endif
 
+
 #ifdef debug
 if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range after settling, xtsink and em"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
 #endif
+
 
 #ifdef GPUCHEMISTRY
 !$acc parallel loop copy(dustwd,dmsso2o,so2so4o,so2wd,so4wd,bcwd,ocwd,saltwd)      &
@@ -1084,12 +1087,11 @@ real, dimension(:), intent(inout) :: saltwd
 integer jt, jk, jn
 integer jl, imax, kl
 real, dimension(size(rhodz,1),size(rhodz,2),naero) :: xto
-real, dimension(size(rhodz,1),size(rhodz,2)) :: so2oh3d, dmsoh3d, dmsn33d
 real, dimension(size(rhodz,1),size(rhodz,2)) :: ZHENRY, ZSO4, ZSO4i, ZSO4C, ZHENRYC 
 real, dimension(size(rhodz,1),size(rhodz,2),2:naero) :: ZXTP10, ZXTP1C, ZXTP1CON, zsolub
 real, dimension(size(rhodz,1),size(rhodz,2)) :: ZZOH, ZZH2O2, ZZO3, ZZNO2
 real, dimension(size(rhodz,1),size(rhodz,2)) :: zlwcic, ziwcic
-real, dimension(size(rhodz,1),2:naero) :: wd2
+real, dimension(size(rhodz,1),2:naero) :: wd
 real x,pqtmst
 real zlwcl, zlwcv, zhp, zqtp1, zrk, zrke, zxtp1
 real zh_so2, zpfac, zp_so2, zf_so2, zh_h2o2, zp_h2o2, zf_h2o2
@@ -1142,16 +1144,7 @@ dmsn3(:)=0.
 so2oh(:)=0.
 so2h2(:)=0.
 so2o3(:)=0.
-do jk = 1,kl
-  so2oh3d(:,jk)=0.
-  dmsoh3d(:,jk)=0.
-  dmsn33d(:,jk)=0.
-end do
-do jt = 1,naero
-  do jk = 1,kl
-    xte(:,jk,jt)=0.
-  end do
-end do
+xte(:,:,:)=0.
 
 ! Calculate xto, tracer mixing ratio outside convective updraughts
 ! Assumes pclcon < 1, but this shouldn't be a problem.
@@ -1553,45 +1546,45 @@ ENDDO
 !
 
 zsolub(:,:,ITRACSO2)=zhenry(:,:)
-wd2(:,ITRACSO2) = 0.
+wd(:,ITRACSO2) = 0.
 zxtp10(:,:,ITRACSO4)=zso4i(:,:)
 zxtp1c(:,:,ITRACSO4)=zso4(:,:)    
 zxtp1con(:,:,ITRACSO4)=zso4c(:,:)
 zsolub(:,:,ITRACSO4)=0.6
-wd2(:,ITRACSO4) = 0.
+wd(:,ITRACSO4) = 0.
 zxtp10(:,:,ITRACbc)=xto(:,:,ITRACbc)
 zxtp1c(:,:,ITRACbc)=xto(:,:,ITRACbc)
 zxtp1con(:,:,ITRACbc)=xtu(:,:,ITRACbc)
 zsolub(:,:,ITRACbc)=0.
-wd2(:,ITRACbc) = 0.
+wd(:,ITRACbc) = 0.
 zxtp10(:,:,ITRACBC+1)=xto(:,:,ITRACBC+1)
 zxtp1c(:,:,ITRACBC+1)=xto(:,:,ITRACBC+1)
 zxtp1con(:,:,ITRACBC+1)=xtu(:,:,ITRACBC+1)
 zsolub(:,:,ITRACBC+1)=0.2
-wd2(:,ITRACbc+1) = 0.
+wd(:,ITRACbc+1) = 0.
 zxtp10(:,:,ITRACOC)=xto(:,:,ITRACOC)
 zxtp1c(:,:,ITRACOC)=xto(:,:,ITRACOC)
 zxtp1con(:,:,ITRACOC)=xtu(:,:,ITRACOC)
 zsolub(:,:,ITRACOC)=0.
-wd2(:,ITRACOC) = 0.
+wd(:,ITRACOC) = 0.
 zxtp10(:,:,ITRACOC+1)=xto(:,:,ITRACOC+1)
 zxtp1c(:,:,ITRACOC+1)=xto(:,:,ITRACOC+1)
 zxtp1con(:,:,ITRACOC+1)=xtu(:,:,ITRACOC+1)
 zsolub(:,:,ITRACOC+1)=0.2
-wd2(:,ITRACOC+1) = 0.
+wd(:,ITRACOC+1) = 0.
 DO JT=ITRACDU,ITRACDU+NDUST-1
   zxtp10(:,:,jt)=xto(:,:,jt)
   zxtp1c(:,:,jt)=xto(:,:,jt)
   zxtp1con(:,:,jt)=xtu(:,:,jt)
   zsolub(:,:,jt)=0.05
-  wd2(:,jt) = 0.
+  wd(:,jt) = 0.
 end do  
 DO JT=ITRACSA,ITRACSA+NSALT-1
   zxtp10(:,:,jt)=xto(:,:,jt)
   zxtp1c(:,:,jt)=xto(:,:,jt)
   zxtp1con(:,:,jt)=xtu(:,:,jt)
   zsolub(:,:,jt)=0.05
-  wd2(:,jt) = 0.
+  wd(:,jt) = 0.
 end do
 
 CALL XTWETDEP( PTMST,                                &
@@ -1603,17 +1596,17 @@ CALL XTWETDEP( PTMST,                                &
                prscav,prfreeze,pfevap,pfconv,pclcon, &  
                fracc,                                & !Inputs
                ZXTP10, ZXTP1C, ZXTP1CON,             &
-               xtm1,xte,wd2)
+               xtm1,xte,wd)
 
-so2wd = so2wd + wd2(:,ITRACSO2) 
-so4wd = so4wd + wd2(:,ITRACSO4)
-bcwd = bcwd + wd2(:,ITRACBC) + wd2(:,ITRACBC+1)
-ocwd = ocwd + wd2(:,ITRACOC) + wd2(:,ITRACOC+1)
+so2wd = so2wd + wd(:,ITRACSO2) 
+so4wd = so4wd + wd(:,ITRACSO4)
+bcwd = bcwd + wd(:,ITRACBC) + wd(:,ITRACBC+1)
+ocwd = ocwd + wd(:,ITRACOC) + wd(:,ITRACOC+1)
 DO JT=ITRACDU,ITRACDU+NDUST-1
-  dustwd(:,jt-itracdu+1) = dustwd(:,jt-itracdu+1) + wd2(:,jt)
+  dustwd(:,jt-itracdu+1) = dustwd(:,jt-itracdu+1) + wd(:,jt)
 end do
 do jt = ITRACSA,ITRACSA+NSALT-1
-  saltwd = saltwd + wd2(:,jt)
+  saltwd = saltwd + wd(:,jt)
 end do
 
 #ifdef debug
@@ -1641,7 +1634,7 @@ do jk = 1,kl
       ZSO2=MAX(ZSO2,0.)
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)-ZSO2
       XTE(JL,JK,ITRACSO4)=XTE(JL,JK,ITRACSO4)+ZSO2
-      so2oh3d(jl,jk)=zso2
+      so2oh(jl)=so2oh(jl)+zso2*rhodz(jl,jk)
 
       ZXTP1DMS=XTM1(JL,JK,ITRACDMS)+XTE(JL,JK,ITRACDMS)*PTMST
       T=PTP1(JL,JK)
@@ -1657,7 +1650,7 @@ do jk = 1,kl
       ZDMS=MIN(ZDMS,ZXTP1DMS*PQTMST)
       XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
-      dmsoh3d(jl,jk)=zdms
+      dmsoh(jl)=dmsoh(jl)+zdms*rhodz(jl,jk)
     ELSE
 
       !   NIGHT-TIME CHEMISTRY
@@ -1688,7 +1681,7 @@ do jk = 1,kl
       ZDMS=MIN(ZDMS,ZXTP1DMS*PQTMST)
       XTE(JL,JK,ITRACDMS)=XTE(JL,JK,ITRACDMS)-ZDMS
       XTE(JL,JK,ITRACSO2)=XTE(JL,JK,ITRACSO2)+ZDMS
-      dmsn33d(jl,jk)=zdms
+      dmsn3(jl)=dmsn3(jl)+zdms*rhodz(jl,jk)
     ENDIF
   end do
 end do
@@ -1700,14 +1693,6 @@ if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-5 ) then
                                   maxloc(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)
 end if
 #endif
-
-
-! Calculate tendency of SO2 due to oxidation by OH (diagnostic) and ox. tendencies of DMS
-do jk = 1,kl
-  so2oh(:) = so2oh(:) + so2oh3d(:,jk)*rhodz(:,jk)
-  dmsoh(:) = dmsoh(:) + dmsoh3d(:,jk)*rhodz(:,jk)
-  dmsn3(:) = dmsn3(:) + dmsn33d(:,jk)*rhodz(:,jk)
-end do
 
 RETURN
 END subroutine xtchemie
@@ -1828,8 +1813,8 @@ end do
 
 
 !     BEGIN OF VERTICAL LOOP
-do JK = KTOP,kl
-  do ktrac = 2,naero
+do ktrac = 2,naero
+  do JK = KTOP,kl
     do i = 1,imax
         
       pdep = 0.  

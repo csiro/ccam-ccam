@@ -793,6 +793,8 @@ logical not_converged
 ! Following code is based on Bryan (NCAR) citing
 ! Bolton 1980 MWR p1046 and Bryan and Fritsch 2004 MWR p2421
 
+! Use surface, pseudo-adiabatic, including ice for CAPE and CIN calculation
+
 #ifdef GPU
 !$acc parallel loop copyin(ps,t,ntiles,imax,kl,qg) copyout(cape_d,cin_d) present(sig)    &
 !$acc   private(pl,tl,pil,th,thv,th2,pl2,tl2,thv2,qv2,ql2,qi2,qt,b2,narea,capel,cinl,qs) &
@@ -809,7 +811,7 @@ do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax    
 
-  ! limit height to 10hPa
+  ! limit height to 100hPa
   ktop = 1
   do k = 1,kl
     if ( 1.e5*sig(k)>1.e4 ) ktop = k
