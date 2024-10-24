@@ -11,7 +11,7 @@ aerosols and terrestial carbon cycle.
 ## Website
 
 For documentation, see our website at
-[https://confluence.csiro.au/display/CCAM/CCAM]
+[https://research.csiro.au/ccam/]
 
 
 ## Dependencies

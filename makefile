@@ -79,9 +79,9 @@ VTHRESH = -vec-threshold0
 endif
 # Default intel compiler options
 FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG)
-#ifeq ($(OMP),yes)
-#FFLAGS += -qopenmp -qno-openmp-simd
-#endif
+ifeq ($(OMP),yes)
+FFLAGS += -qopenmp -qno-openmp-simd
+endif
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
@@ -118,9 +118,9 @@ endif
 ifeq ($(GPUCHEMISTRY),yes)
 FFLAGS += -DGPUCHEMISTRY
 endif
-#ifeq ($(OMP),yes)
-#FFLAGS += -fopenmp
-#endif
+ifeq ($(OMP),yes)
+FFLAGS += -fopenmp
+endif
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
@@ -187,9 +187,9 @@ endif
 ifeq ($(GPUCHEMISTRY),yes)
 FFLAGS += -DGPUCHEMISTRY
 endif
-#ifeq ($(OMP),yes)
-#FFLAGS += -mp
-#endif
+ifeq ($(OMP),yes)
+FFLAGS += -mp
+endif
 FOVERRIDE =
 ZMM =
 IPOFLAG =
@@ -234,9 +234,9 @@ endif
 FOPT = -O3
 FHOST = -xSKYLAKE-AVX512
 FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG)
-#ifeq ($(OMP),yes)
-#FFLAGS += -qopenmp -qno-openmp-simd
-#endif
+ifeq ($(OMP),yes)
+FFLAGS += -qopenmp -qno-openmp-simd
+endif
 FOVERRIDE = -qoverride-limits
 ZMM =
 IPOFLAG =
