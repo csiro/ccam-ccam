@@ -65,7 +65,7 @@ subroutine grell_ccam
 ! specify module to use global variables
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use const_phys                    ! Physical constants
-use cu_gf_deep                    ! Grell convection
+!use cu_gf_deep                    ! Grell convection
 use kuocom_m                      ! JLM convection
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
@@ -136,7 +136,7 @@ integer, dimension(3) :: posmin3, posmax3
 
 real                  :: maxconvtime = 120.  ! time-step for convection
 real                  :: tdt
-qamin = qgmin
+!qamin = qgmin
 
 ! begin do loop here
   do tile=1,ntiles
