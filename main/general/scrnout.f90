@@ -775,6 +775,7 @@ implicit none
 
 integer js, je, tile
 integer k, n, iq, icount, nloop, ktop
+integer i, iter
 integer, parameter :: kmax = 1 ! default for source parcel at surface
 real, dimension(imax,kl) :: pl, tl, pil, th, thv
 real, dimension(imax) :: th2, pl2, tl2, thv2, qv2, b2
@@ -783,12 +784,19 @@ real, dimension(imax) :: qs
 real b1, dp, pl1, tl1, th1, qv1, ql1, qi1, thv1, thlast, pil2, fliq, fice
 real tbarl, qvbar, qlbar, qibar, lhv, lhs, lhf, rm, cpm, qsat_save
 real dz, frac, parea
+real, dimension(imax,kl) :: dTvK
+real, dimension(imax) :: srcq, srctheta, plcl, srcthetaeK
+real pu, pd, lidxu, lidxd, srctK, srcp, srcqs, srcrh
+real term1, term2, denom, tlclK, press, ptK, pw, ptvK, tvK, freeze
+real tovtheta, smixr, thetaK, tcheck
 real, parameter :: pinc = 500. ! Pressure increment (Pa) - smaller is more accurate
 real, parameter :: lv1 = 2501000. + (4190.-cpv)*273.15
 real, parameter :: lv2 = 4190. - cpv
 real, parameter :: ls1 = 2836017. + (2118.636-cpv)*273.15
 real, parameter :: ls2 = 2188.636 - cpv
+logical, dimension(imax) :: wflag
 logical not_converged
+logical found
 
 ! Following code is based on Bryan (NCAR) citing
 ! Bolton 1980 MWR p1046 and Bryan and Fritsch 2004 MWR p2421
@@ -843,15 +851,13 @@ do tile = 1,ntiles
   narea(:) = 0.
   capel(:) = 0.
   cinl(:) = 0.
-  !cape_lvl(:,:) = 0.
-  !cin_lvl(:,:) = 0.
 
   ! start ascent of parcel
   do k = kmax+1,ktop
+    nloop = 1 + int( 1.e5*(sig(k-1)-sig(k))/pinc )  
     do iq = 1,imax  
       
       b1 = b2(iq)
-      nloop = 1 + int( 1.e5*(sig(k-1)-sig(k))/pinc )
       dp = (pl(iq,k-1)-pl(iq,k))/real(nloop)
         
       do n = 1,nloop
@@ -923,7 +929,7 @@ do tile = 1,ntiles
         ! first time entering positive region
         frac = b2(iq)/(b2(iq)-b1)
         parea = 0.5*b2(iq)*dz*frac
-        narea(iq) = narea(iq)-0.5*b1*dz*(1.-frac)
+        narea(iq) = narea(iq) - 0.5*b1*dz*(1.-frac)
         cinl(iq) = cinl(iq) + narea(iq)
         capel(iq) = capel(iq) + max(0.,parea)
         narea(iq) = 0.
@@ -936,7 +942,7 @@ do tile = 1,ntiles
       else if ( b2(iq)<0. ) then 
         ! continue negative buoyancy region
         parea = 0.
-        narea(iq) = narea(iq)-0.5*dz*(b1+b2(iq))
+        narea(iq) = narea(iq) - 0.5*dz*(b1+b2(iq))
       else
         ! continue positive buoyancy region  
         parea = 0.5*dz*(b1+b2(iq))
@@ -957,5 +963,106 @@ end do
 !$omp end do nowait
 #endif
 
+
+! Calculate LI (from surface) - Based on WRF code
+
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax  
+
+  do i = 1,imax
+    iq = i + js - 1  
+    srctK = t(iq,1)
+    srcp = ps(iq)*sig(1)
+    srcqs = qsat(srcp,srctK)
+    srcq(i) = qg(iq,1)
+    srctheta(i) = srctK*((1.e5/srcp)**(rdry/cp))
+
+    ! calculate temperature of LCL
+    term1 = 1./(srctK-55.)
+    srcrh = (srcq(i)/srcqs)*100.
+    term2 = log(max(srcrh,0.1)/100.)/2840.
+    denom = term1 - term2
+    tlclK = 1./denom + 55.
+
+    ! calculate pressure of LCL
+    plcl(i) = srcp*((tlclK/srctK)**(rdry/cp))
+    ! calculate equivilent potential temperature
+    srcthetaeK(i) = srctK*(1.e5/srcp)**(rdry/cp)*exp(hl*srcqs/(cp*tlclK))
+    !srcthetaeK(i) = (srctK*(1.e5/srcp)**((rdry/cp)*(1.-((.28E-3)*srcq(i)*1000.))))* &
+    !            exp((((3.376/tlclK)-.00254))*(srcq(i)*1000.*(1.+(.81E-3)*srcq(i)*1000.)))
+  
+    wflag(i) = .false.  
+    li_d(iq) = -9999. ! flag for missing value
+  end do  
+  
+  do k = 1,kl
+    do i = 1,imax
+      iq = i + js - 1
+      press = ps(iq)*sig(k)
+      if ( press<=plcl(i) ) then
+        if ( wflag(i) ) then
+          !ptK = The2T( srcthetaeK(i), press )
+          ! initial guess
+          tovtheta = (press/1.e5)**(rdry/cp)
+          ptK = srcthetaeK(i)/exp(hl*.012/(cp*295.))*tovtheta
+          found = .false.
+          do iter = 1,105
+            if ( .not.found ) then  
+              smixr = qsat(press,ptK)
+              thetaK = srcthetaeK(i)/exp(hl*smixr/(cp*ptK)) ! Holton 1972
+              tcheck = thetaK*tovtheta
+              if ( abs(ptK-tcheck) < .05 ) then
+                found = .true.
+              else
+                ptK = ptK + (tcheck - ptK)*.3
+              end if
+            end if ! .not.found
+          end do   ! iter loop
+          pw = qsat(press,ptK)
+          ptvK = ptK*(1.+(srcq(i)/0.622))/(1.+srcq(i))
+          tvK = t(iq,k)*(1.+(qg(iq,k)/0.622))/(1.+qg(iq,k))
+          freeze = 0.033 * ( 263.15 - pTvK )
+          freeze = min( freeze, 1. )
+          freeze = max( freeze, 0. )
+          freeze = freeze * 333700.0 * ( srcq(i) - pw ) / 1005.7
+          pTvK = ptvK - ptvK * ( srcq(i) - pw ) + freeze
+          dTvK(i,k) = ptvK - tvK
+        else
+          ptK = srctheta(i)/((1.e5/press)**(rdry/cp))
+          ptvK = ptK*(1.+(srcq(i)/0.622))/(1.+srcq(i))
+          tvK = t(iq,k)*(1.+(qg(iq,k)/0.622))/(1.+qg(iq,k))
+          dTvK(i,k) = ptvK - tvK
+          wflag(i) = .true.
+        end if
+      else   
+        ptK = srctheta(i)/((1.e5/press)**(rdry/cp))
+        ptvK = ptK*(1.+(srcq(i)/0.622))/(1.+srcq(i))
+        tvK = t(iq,k)*(1.+(qg(iq,k)/0.622))/(1.+qg(iq,k))
+        dTvK(i,k) = ptvK - tvK
+      end if   
+    end do ! i loop  
+  end do   ! k loop
+  
+  do k = 2,kl
+    do i = 1,imax
+      iq = i + js - 1  
+      if ( li_d(iq)<-999. ) then
+        pu = ps(iq)*sig(k)
+        pd = ps(iq)*sig(k-1)
+        if ( pd <= 5.e4 ) then
+          li_d(iq) = 0.
+        else if ( pu<=5.e4 .and. pd>=5.e4 ) then
+          lidxu = -dTvK(i,k)*(pu/1.e5)**(rdry/cp)
+          lidxd = -dTvK(i,k-1)*(pd/1.e5)**(rdry/cp)
+          li_d(iq) = ( lidxu*(5.e4-pd) + lidxd*(pu-5.e4) )/(pu-pd)
+        end if
+      end if  
+    end do ! i loop 
+  end do   ! k loop
+  
+end do ! tile loop
+
 return
 end subroutine capecalc
+    

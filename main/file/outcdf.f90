@@ -4250,6 +4250,8 @@ if ( first ) then
         call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,20000.,any_m,point_m,short_m)
         lname = 'Convective Inhibition'
         call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',-20000.,0.,any_m,point_m,short_m)
+        lname = 'Lifted Index'
+        call attrib(fncid,sdim,ssize,'LI',lname,'K',-100.,100.,any_m,point_m,short_m)
       end if
     end if  
     if ( cordex_tier1 ) then
@@ -4733,6 +4735,7 @@ if ( mod(ktau,tbave)==0 ) then
       call histwrt(wsgsmax,'wsgsmax',fncid,fiarch,local,lday)
       call histwrt(cape_d,'CAPE',fncid,fiarch,local,.true.)
       call histwrt(cin_d,'CIN',fncid,fiarch,local,.true.)
+      call histwrt(li_d,'LI',fncid,fiarch,local,.true.)
     end if
   end if
   if ( cordex_tier1 ) then
