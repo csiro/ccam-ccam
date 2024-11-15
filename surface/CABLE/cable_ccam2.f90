@@ -160,11 +160,11 @@ integer, save :: cable_potev     = 1          ! 0 Penman Monteith, 1 Humidity De
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai         = 0          ! 0 prescribed, 1 prognostic LAI
-integer, save :: progvcmax       = 0          ! 0 prescribed, 1 prognostic vcmax (standard), 2 prognostic vcmax (Walker2014)
+integer, save :: progvcmax       = 0          ! 0 prescribed, 1 prognostic vcmax (standard)
 ! CABLE POP options
 integer, save :: cable_pop       = 0          ! 0 off, 1 on
-! CABLE parameters
-integer, parameter :: maxtile    = 9          ! maximum possible number of tiles
+! CABLE POP parameters
+integer, parameter :: maxtile    = 9          ! maximum possible number of tiles in a grid box
                                               ! (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
@@ -175,10 +175,12 @@ integer, save :: POP_HEIGHT_BINS = -1
 integer, save :: POP_NDISTURB    = -1
 integer, save :: POP_AGEMAX      = -1
 
-integer, save :: maxnb                        ! maximum number of actual tiles
-integer, save :: mp_global                    ! maximum number of land-points on this process
-integer, dimension(:), allocatable, target, save :: cveg
-real, dimension(:), allocatable, target, save :: sv, vl2
+integer, save :: maxnb                        ! maximum number of tiles within a gridbox
+integer, save :: mp_global                    ! maximum number of points on this process (sum of all land tiles)
+
+integer, dimension(:), allocatable, target, save :: cveg ! CABLE vegetation index for each point
+real, dimension(:), allocatable, target, save :: sv      ! area fraction for each point
+real, dimension(:), allocatable, target, save :: vl2     ! prescribed leaf area index (LAI) for point
 
 contains
 ! ****************************************************************************
@@ -217,7 +219,6 @@ use work3_m, only : ga
 use zenith_m
 
 integer, dimension(maxtile,2) :: ltind
-integer, dimension(imax) :: lclimate_biome, lclimate_iveg, lclimate_gmd
 integer :: lmaxnb, tile, is, ie, js, je
 integer :: ico2, igas
 integer :: iyr, imo, iday, mdays, k
@@ -229,9 +230,6 @@ real, dimension(imax,ms) :: lwb_clim
 real, dimension(imax,3) :: lsmass, lssdn, ltggsn
 real, dimension(imax) :: lcnbp, lcnpp, lfnee, lfpn, lfrd, lfrp, lfrpr, lfrpw, lfrs
 real, dimension(imax) :: latmco2
-real, dimension(imax) :: lclimate_min20, lclimate_max20, lclimate_alpha20
-real, dimension(imax) :: lclimate_agdd5
-real, dimension(imax) :: lclimate_dmoist_min20, lclimate_dmoist_max20
 real, dimension(imax) :: lfevc,lplant_turnover,lplant_turnover_wood
 real :: x
 logical, dimension(imax,maxtile) :: ltmap
@@ -252,16 +250,13 @@ type(soil_parameter_type) :: lsoil
 type(soil_snow_type) :: lssnow
 type(sum_flux_type) :: lsum_flux
 type(veg_parameter_type) :: lveg
-type(climate_save_type) :: lclimate_save
 
 !$omp do schedule(static) private(tile,is,ie,js,je,ltind,ltmap,lmaxnb,ico2,igas),                              &
 !$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
 !$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
 !$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,latmco2),                         &
 !$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
-!$omp private(lclimate_biome,lclimate_iveg,lclimate_min20,lclimate_max20,lclimate_alpha20,lclimate_agdd5),     &
-!$omp private(lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover),                 &
-!$omp private(lplant_turnover_wood,lclimate_save,lwb_clim)
+!$omp private(lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -356,6 +351,7 @@ do tile = 1,ntiles
         call setp(pop,lpop,tile)  
       end if    
     end if
+    !call setp(climate,lclimate,tile)  ! disable climate
 
     call sib4_work(albnirdif(is:ie),albnirdir(is:ie),albnirsav(is:ie),albvisdif(is:ie),albvisdir(is:ie),                 &
                    albvissav(is:ie),cansto(is:ie),cdtq(is:ie),cduv(is:ie),lclitter,lcnbp,                                &
@@ -369,9 +365,7 @@ do tile = 1,ntiles
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl2(js:je),vmod(is:ie),                                   &
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),evspsbl(is:ie),sbl(is:ie),lair,lbal,c,       &
                    lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,   &
-                   lssnow,lsum_flux,lveg,lclimate_iveg,lclimate_biome,lclimate_min20,lclimate_max20,lclimate_alpha20,    &
-                   lclimate_agdd5,lclimate_gmd,lclimate_dmoist_min20,lclimate_dmoist_max20,lfevc,lplant_turnover,        &
-                   lplant_turnover_wood,lclimate_save,lwb_clim,wtd(is:ie),imax)
+                   lssnow,lsum_flux,lveg,lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim,wtd(is:ie),imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -420,9 +414,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
                      ustar,vlai,vl2,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,sbl,air,bal,c,canopy,               &
                      casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
-                     sum_flux,veg,climate_ivegt,climate_biome,climate_min20,climate_max20,climate_alpha20,      &
-                     climate_agdd5,climate_gmd,climate_dmoist_min20,climate_dmoist_max20,fevc,plant_turnover,   &
-                     plant_turnover_wood,climate_save,wb_clim,wtd,imax)
+                     sum_flux,veg,fevc,plant_turnover,plant_turnover_wood,wb_clim,wtd,imax)
 
 use const_phys
 use dates_m
@@ -434,7 +426,6 @@ use soil_m, only : zmin
 use zenith_m, only : solargh, zenith
   
 integer, intent(in) :: imax, maxnb, mp
-integer, dimension(imax), intent(inout) :: climate_ivegt, climate_biome, climate_gmd
 integer jyear, jmonth, jday, jhour, jmin, idoy
 integer k, mins, nb, j
 integer is, ie, casaperiod, npercasa
@@ -457,9 +448,6 @@ real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot
 real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin, runoff
 real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, snowmelt, ssdnn, tss, ustar
 real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq, evspsbl, sbl
-real, dimension(imax), intent(inout) :: climate_min20, climate_max20, climate_alpha20
-real, dimension(imax), intent(inout) :: climate_agdd5
-real, dimension(imax), intent(inout) :: climate_dmoist_min20, climate_dmoist_max20
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(out) :: wtd
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
@@ -497,7 +485,6 @@ type(soil_parameter_type), intent(inout) :: soil
 type(soil_snow_type), intent(inout) :: ssnow
 type(sum_flux_type), intent(inout) :: sum_flux
 type(veg_parameter_type), intent(inout) :: veg
-type(climate_save_type), intent(inout) :: climate_save
 
 cansto = 0.
 fwet = 0.
@@ -1216,7 +1203,6 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
   ! initialize
   ncleafx(:) = casabiome%ratioNCplantmax(veg%iveg(:),leaf)
   npleafx(:) = casabiome%ratioNPplantmin(veg%iveg(:),leaf)
-  bjvref = 1.7_8 ! Walker 2014
 
   do np = 1,mp
     ivt = veg%iveg(np)
@@ -1258,53 +1244,51 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
         veg%ejmax = 2._8*veg%vcmax
       end do
   
-    case(2)
-      !Walker, A. P. et al.: The relationship of leaf photosynthetic traits – Vcmax and Jmax – 
-      !to leaf nitrogen, leaf phosphorus, and specific leaf area: 
-      !a meta-analysis and modeling study, Ecology and Evolution, 4, 3218-3235, 2014.
-      do np = 1,mp
-        ivt = veg%iveg(np)  
-        nleafx(np) = ncleafx(np)/casabiome%sla(ivt) ! leaf N in g N m-2 leaf
-        pleafx(np) = nleafx(np)/npleafx(np)         ! leaf P in g P m-2 leaf
-
-        if (ivt==7 .or. ivt==9  ) then
-          veg%vcmax(np) = 1.0e-5_8 ! special for C4 grass: set here to value from  parameter file
-          veg%ejmax(np) = 2.0_8 * veg%vcmax(np)
-        elseif (ivt==1) then
-          ! account here for spring recovery
-          !veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt) &
-          !               *climate%frec(np)
-          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*climate%frec(np)  
-          veg%ejmax(np) =bjvref * veg%vcmax(np)
-        else
-          !veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*casabiome%vcmax_scalar(ivt)
-          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))
-          veg%ejmax(np) =bjvref * veg%vcmax(np)
-        endif
-      end do
-
-      if ( cable_user%finite_gm ) then
-        ! vcmax and jmax modifications according to Sun et al. 2014 Table S3  
-        where( veg%iveg==1 )
-          veg%vcmax = veg%vcmax*2.2_8
-          veg%ejmax = veg%vcmax*1.1_8
-        elsewhere ( veg%iveg==2 )
-          veg%vcmax = veg%vcmax*1.9_8
-          veg%ejmax = veg%vcmax*1.2_8
-        elsewhere ( veg%iveg==3 )
-          veg%vcmax = veg%vcmax*1.4_8
-          veg%ejmax = veg%vcmax*1.5_8
-        elsewhere ( veg%iveg==4 )
-          veg%vcmax = veg%vcmax*1.45_8
-          veg%ejmax = veg%vcmax*1.3_8
-        elsewhere ( veg%iveg==5 )
-          veg%vcmax = veg%vcmax*1.7_8
-          veg%ejmax = veg%vcmax*1.2_8
-        elsewhere ( veg%iveg==6 .or. veg%iveg==8 .or. veg%iveg==9 )
-          veg%vcmax = veg%vcmax*1.6_8
-          veg%ejmax = veg%vcmax*1.2_8
-        end where
-      end if    
+!    case(2)
+!      !Walker, A. P. et al.: The relationship of leaf photosynthetic traits – Vcmax and Jmax – 
+!      !to leaf nitrogen, leaf phosphorus, and specific leaf area: 
+!      !a meta-analysis and modeling study, Ecology and Evolution, 4, 3218-3235, 2014.
+!      bjvref = 1.7_8
+!      do np = 1,mp
+!        ivt = veg%iveg(np)  
+!        nleafx(np) = ncleafx(np)/casabiome%sla(ivt) ! leaf N in g N m-2 leaf
+!        pleafx(np) = nleafx(np)/npleafx(np)         ! leaf P in g P m-2 leaf
+!
+!        if (ivt==7 .or. ivt==9  ) then
+!          veg%vcmax(np) = 1.0e-5_8 ! special for C4 grass: set here to value from  parameter file
+!          veg%ejmax(np) = 2._8*veg%vcmax(np)
+!        elseif (ivt==1) then
+!          ! account here for spring recovery
+!          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))*climate%frec(np)  
+!          veg%ejmax(np) =bjvref*veg%vcmax(np)
+!        else
+!          veg%vcmax(np) = vcmax_np(nleafx(np), pleafx(np))
+!          veg%ejmax(np) =bjvref*veg%vcmax(np)
+!        endif
+!      end do
+!
+!      if ( cable_user%finite_gm ) then
+!        ! vcmax and jmax modifications according to Sun et al. 2014 Table S3  
+!        where( veg%iveg==1 )
+!          veg%vcmax = veg%vcmax*2.2_8
+!          veg%ejmax = veg%vcmax*1.1_8
+!        elsewhere ( veg%iveg==2 )
+!          veg%vcmax = veg%vcmax*1.9_8
+!          veg%ejmax = veg%vcmax*1.2_8
+!        elsewhere ( veg%iveg==3 )
+!          veg%vcmax = veg%vcmax*1.4_8
+!          veg%ejmax = veg%vcmax*1.5_8
+!        elsewhere ( veg%iveg==4 )
+!          veg%vcmax = veg%vcmax*1.45_8
+!          veg%ejmax = veg%vcmax*1.3_8
+!        elsewhere ( veg%iveg==5 )
+!          veg%vcmax = veg%vcmax*1.7_8
+!          veg%ejmax = veg%vcmax*1.2_8
+!        elsewhere ( veg%iveg==6 .or. veg%iveg==8 .or. veg%iveg==9 )
+!          veg%vcmax = veg%vcmax*1.6_8
+!          veg%ejmax = veg%vcmax*1.2_8
+!        end where
+!      end if    
       
     case default
       write(6,*) "ERROR: Invalid progvcmax ",progvcmax
@@ -1315,108 +1299,6 @@ end if
   
 return
 end subroutine vcmax_feedback
-
-! *************************************************************************************
-! Update phenology depending on climate
-subroutine cable_phenology_clim(climate,phen,rad,veg)
-
-integer :: np, days, ivt
-integer, parameter :: ndays_raingreenup = 60
-real(kind=8) :: gdd0
-real(kind=8) :: phengdd5ramp
-real(kind=8) :: phen_tmp
-real(kind=8), parameter :: k_chilla = 0._8, k_chillb = 100._8, k_chillk = 0.05_8
-real(kind=8), parameter :: APHEN_MAX = 200._8
-type(climate_type), intent(in) :: climate
-type(phen_variable), intent(inout) :: phen
-type(radiation_type), intent(in) :: rad
-type(veg_parameter_type), intent(in) :: veg
-
-!phen%doyphase(np,1) ! DOY for greenup
-!phen%doyphase(np,2) ! DOY for steady LAI
-!phen%doyphase(np,3) ! DOY for leaf senescence
-!phen%doyphase(np,4) ! DOY for minimal LAI season
-
-do np = 1,mp
-  ivt = veg%iveg(np)  
-  phen_tmp = 1.0_8
-  
-  ! evergreen pfts
-  if ( ivt==1 .or. ivt==2 .or. ivt==5 ) then
-    phen%doyphase(np,1) = -50
-    phen%doyphase(np,2) = phen%doyphase(np,1) + 14
-    phen%doyphase(np,3) = 367
-    phen%doyphase(np,4) = phen%doyphase(np,3) + 14
-    phen%phase(np) = 2
-  end if
-
-  ! summergreen woody pfts
-  if ( ivt==3 .or. ivt==4 ) then  ! deciduous needleleaf(3) and broadleaf(4)
-    ! Calculate GDD0  base value (=gdd to bud burst) for this PFT given
-    !  current length of chilling period (Sykes et al 1996, Eqn 1)
-    gdd0 = k_chilla + k_chillb*exp(-k_chillk*real(climate%chilldays(np),8))
-    phengdd5ramp = 200._8
-    if ( climate%gdd5(np)>gdd0 .and. phen%aphen(np)<APHEN_MAX) then
-      phen_tmp = min(1._8, (climate%gdd5(np)-gdd0)/phengdd5ramp)
-    else
-      phen_tmp = 0._8  
-    end if
-  end if
-
-  ! summergreen grass or crops
-  if ( ivt>=6 .and. ivt<=10 )  then     ! grass or crops
-    if ( climate%gdd5(np)>0.1_8 ) then  
-      phengdd5ramp = 200._8
-      phen_tmp = min(1._8, climate%gdd5(np)/phengdd5ramp)
-    else
-      phen_tmp = 0._8
-    end if  
-  end if
-  
-  ! raingreen pfts
-  if ( ivt>=6 .and. ivt<=10 ) then
-    if ( climate%gmd(np)>=1 .and. climate%gmd(np)<ndays_raingreenup ) then    
-      phen_tmp = min( phen_tmp, 0.99_8 )
-    else if ( climate%gmd(np)==0 ) then
-      phen_tmp = 0._8
-    else if ( climate%gmd(np)>=ndays_raingreenup ) then
-      phen_tmp = min( phen_tmp, 1._8 )
-    end if
-  end if  
-
-  if ( (ivt==3.or.ivt==4) .or. (ivt>=6.and.ivt<=10) ) then
-
-    if (phen_tmp>0._8 .and. (phen_tmp<1._8)) then
-      phen%phase(np) = 1 ! greenup
-      phen%doyphase(np,1) = climate%doy
-    elseif (phen_tmp>=1._8) then
-      phen%phase(np) = 2 ! steady LAI
-      phen%doyphase(np,2) = climate%doy
-    elseif (phen_tmp<0.0000001_8) then
-      phen%phase(np) = 3 ! senescence
-      phen%doyphase(np,3) = climate%doy
-    endif
-
-    if ( phen%phase(np)==3 ) then
-       days = min(climate%doy,365) - phen%doyphase(np,3)
-       if ( days<0 ) days = days + 365
-       if ( days>14 ) phen%phase(np) = 0          ! mimimum LAI
-    endif
-
-    ! Update annual leaf-on sum
-    if ( (rad%latitude(np)>=0._8 .and. climate%doy==COLDEST_DAY_NHEMISPHERE) .or. &
-         (rad%latitude(np)<0._8 .and. climate%doy==COLDEST_DAY_SHEMISPHERE) ) then
-      phen%aphen(np) = 0._8
-    end if
-    phen%phen(np) = phen_tmp
-    phen%aphen(np) = phen%aphen(np) + phen%phen(np)
-
-  end if
-
-end do  ! end loop over patches
-
-return
-end subroutine cable_phenology_clim
 
 ! *************************************************************************************
 ! POP subroutines
@@ -1529,263 +1411,6 @@ end if ! CALL_POP
 
 return
 end subroutine POPdriver
-
-function epsif(tc,pmb) result(epsif_out)
-
-real(kind=8), dimension(mp), intent(in) :: tc, pmb
-real(kind=8), dimension(mp) :: epsif_out
-real(kind=8), dimension(mp) :: tctmp, es, desdt
-real(kind=8), parameter:: A = 6.106_8      ! Teten coefficients
-real(kind=8), parameter:: B = 17.27_8      ! Teten coefficients
-real(kind=8), parameter:: C = 237.3_8      ! Teten coefficients
-real(kind=8), parameter:: Rlat = 44140._8  ! lat heat evap H2O at 20C  [J/molW]
-real(kind=8), parameter:: Capp = 29.09_8   ! isobaric spec heat air    [J/molA/K]
-
-TCtmp = max( min( TC, 100._8), -40._8 ) ! constrain TC to (-40.0,100.0)
-ES    = A*exp(B*TCtmp/(C+TCtmp))        ! sat vapour pressure
-dESdT = ES*B*C/(C+TCtmp)**2             ! d(sat VP)/dT: (mb/K)
-Epsif_out = (Rlat/Capp)*dESdT/Pmb       ! dimensionless (ES/Pmb = molW/molA)
-
-return
-end function epsif
-
-subroutine biome1_pft(climate,rad,mp)
-
-type(climate_type), intent(inout) :: climate
-type(radiation_type), intent(in) :: rad
-integer, intent(in) :: mp
-integer :: iq
-integer, dimension(mp) :: npft
-integer, dimension(mp,4) :: pft_biome1
-real(kind=8) :: alpha_pt_scaled
-
-! TABLE 1 , Prentice et al. J. Biogeog., 19, 117-134, 1992
-! pft_biome1: Trees (1)tropical evergreen; (2) tropical raingreen; (3) warm temp evergreen ;
-! (4) temperate summergreen; (5) cool-temperate conifer; (6) boreal evergreen conifer;
-! (7) boreal summergreen;  
-! Non-trees: (8) sclerophyll/succulent; (9) warm grass/shrub; (10) cool grass/shrub; 
-! (11) cold grass/shrub; (12) hot desert shrub; (13) cold desert shrub.
-
-pft_biome1 = 999
-climate%biome = 999
-climate%iveg = 0
-
-do iq = 1,mp
-
-   alpha_PT_scaled =  min(climate%alpha_PT20(iq), 1._8)
-
-   ! tropical evergreen (1)
-   ! tropical raingreen (2)
-   if ( climate%mtemp_min20(iq)>=15.5_8 ) then
-     if ( alpha_PT_scaled>=0.85_8 ) then
-       pft_biome1(iq,1) = 1
-       if ( alpha_PT_scaled<=0.90_8 ) then
-         pft_biome1(iq,2) = 2
-       end if
-     else if ( alpha_PT_scaled>=0.4_8 .and. alpha_pt_scaled<0.85 ) then
-       pft_biome1(iq,1) = 2
-     end if
-   end if
-   
-   if ( climate%mtemp_min20(iq)>=5._8 .and. alpha_PT_scaled>=0.4_8 .and. &
-        pft_biome1(iq,1)==999 ) then
-     pft_biome1(iq,1) = 3
-   end if
-   
-   if ( climate%mtemp_min20(iq)>=-15._8 .and. climate%mtemp_min20(iq)<=15.5_8 .and. &
-        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>1200. .and.                  &
-        pft_biome1(iq,1)>3 ) then
-     pft_biome1(iq,1) = 4
-   end if
-   
-   if ( climate%mtemp_min20(iq)>=-19._8 .and. climate%mtemp_min20(iq)<=5._8 .and. &
-        alpha_PT_scaled>=0.35 .and. climate%agdd5(iq)>900. ) then
-     if (pft_biome1(iq,1)>4 ) then
-       pft_biome1(iq,1) = 5
-     else if (pft_biome1(iq,1)==4 ) then
-       pft_biome1(iq,2) = 5
-     end if
-   end if
-   
-   if ( climate%mtemp_min20(iq)>=-35._8 .and. climate%mtemp_min20(iq)<=-2._8 .and. &
-        alpha_PT_scaled>=0.35_8 .and. climate%agdd5(iq)>550. ) then
-     if ( pft_biome1(iq,1)==999 ) then
-       pft_biome1(iq,1) = 6
-     else if ( pft_biome1(iq,2)==999 ) then
-       pft_biome1(iq,2) = 6
-     else
-       pft_biome1(iq,3) = 6
-     end if
-   end if
-   
-   if ( climate%mtemp_min20(iq)<=5._8 .and. alpha_PT_scaled>=0.35_8 .and. &
-        climate%agdd5(iq)>550. ) then
-     if (pft_biome1(iq,1)==999 ) then
-       pft_biome1(iq,1) = 7
-     else if (pft_biome1(iq,2)==999 ) then
-       pft_biome1(iq,2) = 7
-     else if (pft_biome1(iq,3)==999 ) then
-       pft_biome1(iq,3) = 7  
-     else
-       pft_biome1(iq,4) = 7
-     end if
-   end if
-   
-   ! sclerophyll/succulent (8)     
-   if ( climate%mtemp_min20(iq)>=5._8 .and. alpha_PT_scaled>=0.2_8 .and. &
-        pft_biome1(iq,1)==999 ) then
-     pft_biome1(iq,1) = 8
-   end if
-   
-   if (climate%mtemp_max20(iq)>=22._8 .and.alpha_PT_scaled>=0.1_8 &
-        .and. pft_biome1(iq,1)==999 ) then
-     pft_biome1(iq,1) = 9
-   end if
-   
-   if ( climate%agdd5(iq)>=500. .and.alpha_PT_scaled>=0.33_8 .and. &
-        pft_biome1(iq,1)==999 ) then
-     pft_biome1(iq,1) = 10
-   end if
-   
-   if ( climate%agdd0(iq)>=100. .and. alpha_PT_scaled>=0.33_8 ) then 
-     if ( pft_biome1(iq,1)==999 ) then
-       pft_biome1(iq,1) = 11
-     else if ( pft_biome1(iq,1)==10 ) then
-       pft_biome1(iq,2) = 11
-     end if
-   end if
-   
-   ! hot desert shrub (12)
-   if ( climate%mtemp_max20(iq)>=22._8 .and. pft_biome1(iq,1)==999 ) then
-     pft_biome1(iq,1) = 12
-   end if
-   
-   if ( climate%agdd0(iq)>=100. .and. pft_biome1(iq,1)==999 ) then
-     pft_biome1(iq,1) = 13
-   end if
-   
-end do
-
-! end of evironmental constraints on pft
-npft = count( pft_biome1(:,:)/=999, dim=2 )
-  
-! MAP to Biome1 biome and CABLE pft
-  
-! (1) Tropical Rainforest
-where ( pft_biome1(:,1)==1 .and. npft==1 )
-    climate%biome(:) = 1
-    climate%iveg(:) = 2
-end where
-
-! (2) Tropical Seasonal forest
-where ( pft_biome1(:,1)==1 .and. pft_biome1(:,2)==2 .and. npft==2 )
-  climate%biome(:) = 2
-  climate%iveg(:) = 2
-end where
-
-! (3) Tropical dry forest/savanna
-where ( pft_biome1(:,1)==2 .and. npft==1 )
-  climate%biome(:) = 3
-  climate%iveg(:) = 2  ! N.B. need to include c4 grass
-end where
-
-! (4) Broad-leaved evergreen/warm mixed-forest
-where ( pft_biome1(:,1)==3 .and. npft==1 )
-  climate%biome(:) = 4
-  climate%iveg(:) = 2
-end where
-
-! (5) Temperate deciduous forest
-where ( pft_biome1(:,1)==4 .and. pft_biome1(:,2)==5 .and. &
-        pft_biome1(:,3)==7 .and. npft==3 )
-  climate%biome(:) = 5
-  climate%iveg(:) = 4
-end where
-
-! (6) Cool mixed forest
-where ( pft_biome1(:,1)==4 .and. pft_biome1(:,2)==5 .and. &
-        pft_biome1(:,3)==6 .and. pft_biome1(:,4)==7 .and. &
-        npft==4 )
-  climate%biome(:) = 6
-  climate%iveg(:) = 4
-end where
-
-! (7) Cool conifer forest
-where ( pft_biome1(:,1)==5 .and. pft_biome1(:,2)==6 .and. &
-        pft_biome1(:,3)==7 .and. npft==3 )
-  climate%biome(:) = 7
-  climate%iveg(:) = 1
-end where
-      
-! (8) Taiga
-where ( pft_biome1(:,1)==6 .and. pft_biome1(:,2)==7 .and. npft==2 )
-  climate%biome(:) = 8
-  climate%iveg(:) = 1
-end where
-
-! (9) Cold mixed forest
-where ( pft_biome1(:,1)==5 .and. pft_biome1(:,2)==7 .and. npft==2 )
-  climate%biome(:) = 9
-  climate%iveg(:) = 1
-end where
-
-! (10) Cold deciduous forest
-where ( pft_biome1(:,1)==7 .and. npft==1 )
-  climate%biome(:) = 10
-  climate%iveg(:) = 3
-end where
-
-! (11) Xerophytic woods/scrub
-where ( pft_biome1(:,1)==8 .and. npft==1 )
-  climate%biome(:) = 11
-  climate%iveg(:) = 5
-end where
-
-! (12) Warm grass/shrub
-where ( pft_biome1(:,1)==9 .and. npft==1 )
-  climate%biome(:) = 12
-  climate%iveg(:) = 5  ! include C4 grass tile ?
-end where
-
-! (13) Cool grass/shrub
-where ( pft_biome1(:,1)==10 .and. pft_biome1(:,2)==11 .and. npft==2 )
-  climate%biome(:) = 13
-  climate%iveg(:) = 5  ! include C3 grass tile ?
-end where
-
-! (14) Tundra
-where ( pft_biome1(:,1)==11 .and. npft==1 )
-  climate%biome(:) = 14
-  climate%iveg(:) = 8
-end where
-
-! (15) Hot desert
-where ( pft_biome1(:,1)==12 .and. npft==1 )
-  climate%biome(:) = 15
-  climate%iveg(:) = 14
-end where
-
-! (16) Semidesert
-where ( pft_biome1(:,1)==13 .and. npft==1 )
-  climate%biome(:) = 16
-  climate%iveg(:) = 5
-end where
-
-! (17) Ice/polar desert
-where ( climate%biome(:)==999 )
-  climate%biome(:) = 17
-  climate%iveg(:) = 17
-end where
-
-! check for DBL or NEL in SH: set to EBL instead
-where ( (climate%iveg(:)==1.or.climate%iveg(:)==3.or.climate%iveg(:)==4) .and. &
-        rad%latitude(:)<0._8 )
-  climate%iveg(:) = 2
-  climate%biome(:) = 4
-end where
-
-return
-end subroutine biome1_pft
 
 ! *************************************************************************************
 subroutine loadcbmparm(fveg,fphen,casafile, &
@@ -2193,8 +1818,8 @@ end do
 
 if ( mp_global>0 ) then
 
-   climate%nyear_average = 20
-   climate%nday_average = 31
+  climate%nyear_average = 20
+  climate%nday_average = 31
     
   allocate( sv(mp_global) )
   allocate( vl2(mp_global) )
@@ -2566,7 +2191,6 @@ if ( mp_global>0 ) then
     pplant=0.
     plitter=0.
     psoil=0.
-    !glai=0.
     do k = 1,mplant
       dummy_unpack = sv*real(casapool%cplant(:,k))  
       call cable_unpack(dummy_unpack,cplant(:,k))
@@ -2591,8 +2215,6 @@ if ( mp_global>0 ) then
       dummy_unpack = sv*real(casapool%psoil(:,k))
       call cable_unpack(dummy_unpack,psoil(:,k))
     end do
-    !dummy_unpack = sv*real(casamet%glai(:)) 
-    !call cable_unpack(dummy_unpack,glai(:))
 
     
     ! POP
@@ -3417,8 +3039,6 @@ else
     casabiome%fracligninplant(:,xroot)=(/ 0.25_8, 0.20_8, 0.20_8, 0.20_8, 0.20_8, 0.10_8, 0.10_8, 0.10_8, &
                                           0.10_8, 0.10_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.25_8, &
                                           0.10_8 /)
-    !casabiome%glaimax=(/ 7._8, 7._8, 7._8, 7._8, 3._8, 3._8, 3._8, 3._8, 6._8, 6._8,  5._8,  5._8, &
-    !                     5._8, 1._8, 6._8, 1._8, 0._8 /)
     casabiome%glaimax=(/ 10._8, 10._8, 10._8, 10._8, 10._8, 3._8, 3._8, 3._8, 6._8, 6._8,  5._8, 5._8, &
                           5._8, 1._8,  6._8,   1._8,  0._8 /)
     casabiome%glaimin=(/ 1._8,  1._8, .5_8,  .5_8, .1_8, .1_8, .1_8, .1_8, .1_8, .1_8, .05_8, .05_8, &
@@ -5644,6 +5264,8 @@ end if
 return
 end subroutine fixtile
 
+! if the vegetation class has changed for a tile, then attempt to find the tile associated
+! with the equivilent vegetation class in the restart data
 subroutine create_new_tile_map(old_cv,nmp)
 
 use cc_mpi
@@ -5654,23 +5276,23 @@ integer, dimension(mp_global), intent(in) :: old_cv
 integer, dimension(ifull,maxtile), intent(inout) :: nmp
 integer, dimension(ifull,maxtile) :: oldv_up, newv_up
 integer, dimension(maxtile) :: oldv_v, newv_v
-logical :: cv_test, global_cv_test
+logical :: cv_test
 
-if ( myid==0 ) write(6,*) "-> Check for tile redistribution"
-
+if ( myid==0 ) write(6,*) "-> Create map to vegetation types"
 if ( mp_global>0 ) then
   cv_test = any( cveg/=old_cv )
 else
   cv_test = .false.
 end if
 
-call ccmpi_reduce(cv_test,global_cv_test,'or',0,comm_world)
-
-if ( myid==0 ) then
-  if ( global_cv_test ) then
-    write(6,*) "-> Reorder vegetation types for initial conditions"
-  end if
-end if
+!#ifdef debug
+!call ccmpi_reduce(cv_test,global_cv_test,'or',0,comm_world)
+!if ( myid==0 ) then
+!  if ( global_cv_test ) then
+!    write(6,*) "-> Reorder vegetation types for initial conditions"
+!  end if
+!end if
+!#endif
 
 oldv_up = 0
 newv_up = 0
@@ -5691,10 +5313,12 @@ if ( mp_global>0 ) then
     end do     
     
     do iq = 1,ifull
-      newv_v = newv_up(iq,:)
-      oldv_v = oldv_up(iq,:)
+      newv_v = newv_up(iq,:) ! current vegetation class
+      oldv_v = oldv_up(iq,:) ! vegetation class in restart file
+      ! check each tile for mismatch
       do n = 1,maxtile
         if ( oldv_v(n)/=newv_v(n) ) then
+          ! search over all tiles for replacement
           do m = 1,maxtile
             if ( oldv_v(m)==newv_v(n) ) then
               ! shuffle tiles to keep area sum equal to 1.  
@@ -5717,55 +5341,57 @@ end if
 return
 end subroutine create_new_tile_map
 
+
+! redistribute temperature and water with a gridbox if tile area fraction changes
 subroutine redistribute_tile(old_sv)
 
 use cc_mpi
 
 integer k
 real, dimension(mp_global), intent(in) :: old_sv
-logical :: sv_test, global_sv_test
+logical :: sv_test
 
-if ( myid==0 ) write(6,*) "-> Check for land-cover change"
-
+! check if any point have land-cover change
+if ( myid==0 ) write(6,*) "-> Update land-cover change"
 if ( mp_global>0 ) then
   sv_test = any( abs(sv-old_sv)>1.e-8 )
 else
   sv_test = .false. 
 end if
 
-call ccmpi_reduce(sv_test,global_sv_test,'or',0,comm_world) 
-
-if ( myid==0 ) then
-  if ( global_sv_test ) then
-    write(6,*) "-> Detected change in land-cover area fraction"
-  end if
-end if
+!#ifdef debug
+!call ccmpi_reduce(sv_test,global_sv_test,'or',0,comm_world) 
+!if ( myid==0 ) then
+!  if ( global_sv_test ) then
+!    write(6,*) "-> Detected change in land-cover area fraction"
+!  end if
+!end if
+!#endif
 
 if ( mp_global>0 ) then
   if ( sv_test ) then
-    
-    ! assume common soil texture and soil heat capacity
+
+    ! check for errors prior to redistribution
     if ( any(ssnow%tgg>400.) ) then
       write(6,*) "ERROR: Invalid input temperature for CABLE redistribute_tile"
       write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
       call ccmpi_abort(-1)
-    end if        
+    end if     
+    
+    ! assume common soil texture and soil heat capacity
     do k = 1,ms
       call redistribute_work(old_sv,ssnow%tgg(:,k))
       call redistribute_work(old_sv,ssnow%wb(:,k))
       call redistribute_work(old_sv,ssnow%wbice(:,k))
     end do
-    if ( any(ssnow%tgg>400.) ) then
-      write(6,*) "ERROR: Invalid output temperature for CABLE redistribute_tile"
-      write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
-      call ccmpi_abort(-1)
-    end if  
     call redistribute_work(old_sv,ssnow%GWwb)
     if ( soil_struc==1 ) then
       do k = 1,ms
         call redistribute_work(old_sv,ssnow%tsoil(:,k))
       end do
     end if
+    
+    ! Do we need a special treatment for snow?
     !do k = 1,3
     !  call redistribute_work(old_sv,ssnow%tggsn(:,k))
     !  call redistribute_work(old_sv,ssnow%smass(:,k))
@@ -5775,7 +5401,14 @@ if ( mp_global>0 ) then
     !call redistribute_work(old_sv,ssnow%ssdn(:))
     !call redistribute_work(old_sv,ssnow%snowd(:))
     !call redistribute_work(old_sv,ssnow%osnowd(:))
-  
+
+    ! check for errors after redistribution
+    if ( any(ssnow%tgg>400.) ) then
+      write(6,*) "ERROR: Invalid output temperature for CABLE redistribute_tile"
+      write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
+      call ccmpi_abort(-1)
+    end if  
+    
   end if
 end if
   
@@ -5797,15 +5430,16 @@ real(kind=8), dimension(mp_global), intent(inout) :: vdata
 real(kind=8), dimension(ifull,maxnb) :: up_vdata
 real(kind=8), dimension(maxnb) :: old_vdata
 
+! update data
 up_vdata = 0._8
 up_new_svs = 0.
 up_old_svs = 0.
-
 do nb = 1,maxnb
   call cable_unpack(sv,up_new_svs(:,nb),nb)
   call cable_unpack(old_sv,up_old_svs(:,nb),nb)
   call cable_unpack(vdata,up_vdata(:,nb),nb)
 end do  
+
 svs_sum = sum(up_new_svs,dim=2)
 do nb = 1,maxnb
   where ( land(1:ifull) )  
@@ -5831,7 +5465,7 @@ do tile = 1,ntiles
     ! check adj_neg_frac_sum>0 which can occur if water has changed to land
     if ( land(iq) .and. any( abs(new_svs-old_svs)>1.e-8 ) .and. adj_neg_frac_sum>1.e-8 ) then 
       old_vdata(:) = up_vdata(iq,:)
-      ! combine tiles with decreasing area fraction into one tile
+      ! summarise tiles with decreasing area fraction with an average value
       ave_neg_vdata = sum( adj_neg_frac(:)*old_vdata(:) )/adj_neg_frac_sum
       ! Only change tiles that are increasing in area fraction
       do nb = 1,maxnb

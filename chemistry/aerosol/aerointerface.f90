@@ -102,8 +102,8 @@ use sigs_m                                  ! Atmosphere sigma levels
 use soil_m                                  ! Soil and surface data
 use soilsnow_m                              ! Soil, snow and surface data
 use soilv_m                                 ! Soil parameters
+use trimmix_m                               ! Tridiagonal solver for turbulent mixing
 use vegpar_m                                ! Vegetation arrays
-use vertmix_m                               ! Boundary layer turbulent mixing
 use work2_m                                 ! Diagnostic arrays
 use zenith_m                                ! Astronomy routines
 

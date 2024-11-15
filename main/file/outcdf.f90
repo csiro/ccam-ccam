@@ -146,9 +146,6 @@ use tracers_m                              ! Tracer data
 
 implicit none
 
-integer, parameter :: nihead=54
-integer, parameter :: nrhead=14
-integer, dimension(nihead) :: nahead
 integer, intent(in) :: itype, iout
 integer, dimension(5) :: dima, dims, dimo
 integer, dimension(6,7) :: dimc
@@ -165,7 +162,6 @@ integer, save :: idnc_hist=0, iarch_hist=0
 integer idnc, iarch, tlen
 real, dimension(:), intent(in) :: psl_in
 real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
-real, dimension(nrhead) :: ahead
 logical local
 character(len=*), intent(in) :: cdffile_in
 character(len=1024) cdffile
@@ -382,81 +378,6 @@ if ( myid==0 .or. local ) then
       call ccnf_put_att(idnc,idnt,'calendar','360_day')  
     end if
 
-    ! create the attributes of the header record of the file
-    nahead(1) = il_g       ! needed by cc2hist
-    nahead(2) = jl_g       ! needed by cc2hist
-    nahead(3) = kl         ! needed by cc2hist
-    nahead(4) = 5
-    nahead(5) = 0          ! nsd not used now
-    nahead(6) = io_in
-    nahead(7) = nbd
-    nahead(8) = 0          ! not needed now  
-    nahead(9) = mex
-    nahead(10) = mup
-    nahead(11) = 2 ! nem
-    nahead(12) = mtimer
-    nahead(13) = 0         ! nmi
-    nahead(14) = nint(dt)  ! needed by cc2hist
-    nahead(15) = 0         ! not needed now 
-    nahead(16) = nhor
-    nahead(17) = nkuo
-    nahead(18) = khdif
-    nahead(19) = kl        ! needed by cc2hist (was kwt)
-    nahead(20) = 0  !iaa
-    nahead(21) = 0  !jaa
-    nahead(22) = -4
-    nahead(23) = 0  ! not needed now      
-    nahead(24) = 0  !lbd
-    nahead(25) = nrun
-    nahead(26) = 0
-    nahead(27) = khor
-    nahead(28) = ksc
-    nahead(29) = kountr
-    nahead(30) = 1 ! ndiur
-    nahead(31) = 0  ! spare
-    nahead(32) = nhorps
-    nahead(33) = 0
-    nahead(34) = ms        ! needed by cc2hist
-    nahead(35) = ntsur
-    nahead(36) = nrad
-    nahead(37) = kuocb
-    nahead(38) = nvmix
-    nahead(39) = ntsea
-    nahead(40) = 0    
-    nahead(41) = nextout
-    nahead(42) = il
-    nahead(43) = ntrac     ! needed by cc2hist
-    nahead(44) = nsib
-    nahead(45) = nrungcm
-    nahead(46) = ncvmix
-    nahead(47) = ngwd
-    nahead(48) = lgwd
-    nahead(49) = mup
-    nahead(50) = nritch_t
-    nahead(51) = ldr
-    nahead(52) = nevapls
-    nahead(53) = nevapcc
-    nahead(54) = nt_adv
-    ahead(1) = ds
-    ahead(2) = 0.  !difknbd
-    ahead(3) = 0.  ! was rhkuo for kuo scheme
-    ahead(4) = 0.  !du
-    ahead(5) = rlong0     ! needed by cc2hist
-    ahead(6) = rlat0      ! needed by cc2hist
-    ahead(7) = schmidt    ! needed by cc2hist
-    ahead(8) = 0.  !stl2
-    ahead(9) = 0.  !relaxt
-    ahead(10) = 0.  !hourbd
-    ahead(11) = tss_sh
-    ahead(12) = vmodmin
-    ahead(13) = av_vmod
-    ahead(14) = epsp
-    if ( myid==0 .and. nmaxpr==1 ) then
-      write(6,*) "-> nahead=",nahead
-      write(6,*) "-> ahead=",ahead
-    end if
-    call ccnf_put_attg(idnc,'int_header',nahead)   ! to be depreciated
-    call ccnf_put_attg(idnc,'real_header',ahead)   ! to be depreciated
     call ccnf_def_var(idnc,'ds','float',idv)
     call ccnf_def_var(idnc,'dt','float',idv)
 
@@ -3750,9 +3671,6 @@ include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 32  ! number of variables to average
 integer, parameter :: runoffvars = 4 ! number of runoff variables
-integer, parameter :: nihead   = 54
-integer, parameter :: nrhead   = 14
-integer, dimension(nihead) :: nahead
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procnode, procoffset
 integer, dimension(5) :: adim
@@ -3782,7 +3700,6 @@ real, dimension(:,:), allocatable :: ypnt2
 real, dimension(:), allocatable :: xpnt
 real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
-real, dimension(nrhead) :: ahead
 real, dimension(kl) :: phi_local
 real, dimension(ms) :: shallow_zse, zsoil
 real xx, sig_level, shallow_sum, new_sum
@@ -3967,77 +3884,6 @@ if ( first ) then
     call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)
     call ccnf_def_var(fncid,'ktime','int',1,adim(d4:d4),idktime)
     call ccnf_def_var(fncid,'mtimer','int',1,adim(d4:d4),idmtimer)
-    ! header data
-    ahead(1)=ds
-    ahead(2)=0.  !difknbd
-    ahead(3)=0.  ! was rhkuo for kuo scheme
-    ahead(4)=0.  !du
-    ahead(5)=rlong0     ! needed by cc2hist
-    ahead(6)=rlat0      ! needed by cc2hist
-    ahead(7)=schmidt    ! needed by cc2hist
-    ahead(8)=0.  !stl2
-    ahead(9)=0.  !relaxt
-    ahead(10)=0.  !hourbd
-    ahead(11)=tss_sh
-    ahead(12)=vmodmin
-    ahead(13)=av_vmod
-    ahead(14)=epsp
-    nahead(1)=il_g       ! needed by cc2hist
-    nahead(2)=jl_g       ! needed by cc2hist
-    nahead(3)=1          ! needed by cc2hist (turns off 3D fields)
-    nahead(4)=5
-    nahead(5)=0          ! nsd not used now
-    nahead(6)=io_in
-    nahead(7)=nbd
-    nahead(8)=0          ! not needed now  
-    nahead(9)=mex
-    nahead(10)=mup
-    nahead(11)=2 ! nem
-    nahead(12)=mtimer
-    nahead(13)=0         ! nmi
-    nahead(14)=nint(dt)  ! needed by cc2hist
-    nahead(15)=0         ! not needed now 
-    nahead(16)=nhor
-    nahead(17)=nkuo
-    nahead(18)=khdif
-    nahead(19)=kl        ! needed by cc2hist (was kwt)
-    nahead(20)=0  !iaa
-    nahead(21)=0  !jaa
-    nahead(22)=-4
-    nahead(23)=0       ! not needed now      
-    nahead(24)=0  !lbd
-    nahead(25)=nrun
-    nahead(26)=0
-    nahead(27)=khor
-    nahead(28)=ksc
-    nahead(29)=kountr
-    nahead(30)=1 ! ndiur
-    nahead(31)=0  ! spare
-    nahead(32)=nhorps
-    nahead(33)=0
-    nahead(34)=ms        ! needed by cc2hist
-    nahead(35)=ntsur
-    nahead(36)=nrad
-    nahead(37)=kuocb
-    nahead(38)=nvmix
-    nahead(39)=ntsea
-    nahead(40)=0  
-    nahead(41)=nextout
-    nahead(42)=il
-    nahead(43)=ntrac     ! needed by cc2hist
-    nahead(44)=nsib
-    nahead(45)=nrungcm
-    nahead(46)=ncvmix
-    nahead(47)=ngwd
-    nahead(48)=lgwd
-    nahead(49)=mup
-    nahead(50)=nritch_t
-    nahead(51)=ldr
-    nahead(52)=nevapls
-    nahead(53)=nevapcc
-    nahead(54)=nt_adv
-    call ccnf_put_attg(fncid,'real_header',ahead)
-    call ccnf_put_attg(fncid,'int_header',nahead)
     call ccnf_put_attg(fncid,'version',trim(version))        !   Model version
 
     ! Define global grid
@@ -4962,9 +4808,6 @@ implicit none
 include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 2  ! number of variables to average
-integer, parameter :: nihead   = 54
-integer, parameter :: nrhead   = 14
-integer, dimension(nihead) :: nahead
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procnode, procoffset
 integer, dimension(5) :: adim
@@ -4989,7 +4832,6 @@ real, dimension(:,:), allocatable :: ypnt2
 real, dimension(:), allocatable :: xpnt
 real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
-real, dimension(nrhead) :: ahead
 real(kind=8) tpnt
 logical, save :: first = .true.
 logical local
@@ -5103,77 +4945,6 @@ if ( first ) then
     call ccnf_def_var(fncid,'kdate','int',1,adim(d4:d4),idkdate)
     call ccnf_def_var(fncid,'ktime','int',1,adim(d4:d4),idktime)
     call ccnf_def_var(fncid,'mtimer','int',1,adim(d4:d4),idmtimer)
-    ! header data
-    ahead(1)=ds
-    ahead(2)=0.  !difknbd
-    ahead(3)=0.  ! was rhkuo for kuo scheme
-    ahead(4)=0.  !du
-    ahead(5)=rlong0     ! needed by cc2hist
-    ahead(6)=rlat0      ! needed by cc2hist
-    ahead(7)=schmidt    ! needed by cc2hist
-    ahead(8)=0.  !stl2
-    ahead(9)=0.  !relaxt
-    ahead(10)=0.  !hourbd
-    ahead(11)=tss_sh
-    ahead(12)=vmodmin
-    ahead(13)=av_vmod
-    ahead(14)=epsp
-    nahead(1)=il_g       ! needed by cc2hist
-    nahead(2)=jl_g       ! needed by cc2hist
-    nahead(3)=1          ! needed by cc2hist (turns off 3D fields)
-    nahead(4)=5
-    nahead(5)=0          ! nsd not used now
-    nahead(6)=io_in
-    nahead(7)=nbd
-    nahead(8)=0          ! not needed now  
-    nahead(9)=mex
-    nahead(10)=mup
-    nahead(11)=2 ! nem
-    nahead(12)=mtimer
-    nahead(13)=0         ! nmi
-    nahead(14)=nint(dt)  ! needed by cc2hist
-    nahead(15)=0         ! not needed now 
-    nahead(16)=nhor
-    nahead(17)=nkuo
-    nahead(18)=khdif
-    nahead(19)=kl        ! needed by cc2hist (was kwt)
-    nahead(20)=0  !iaa
-    nahead(21)=0  !jaa
-    nahead(22)=-4
-    nahead(23)=0       ! not needed now      
-    nahead(24)=0  !lbd
-    nahead(25)=nrun
-    nahead(26)=0
-    nahead(27)=khor
-    nahead(28)=ksc
-    nahead(29)=kountr
-    nahead(30)=1 ! ndiur
-    nahead(31)=0  ! spare
-    nahead(32)=nhorps
-    nahead(33)=0
-    nahead(34)=ms        ! needed by cc2hist
-    nahead(35)=ntsur
-    nahead(36)=nrad
-    nahead(37)=kuocb
-    nahead(38)=nvmix
-    nahead(39)=ntsea
-    nahead(40)=0  
-    nahead(41)=nextout
-    nahead(42)=il
-    nahead(43)=ntrac     ! needed by cc2hist
-    nahead(44)=nsib
-    nahead(45)=nrungcm
-    nahead(46)=ncvmix
-    nahead(47)=ngwd
-    nahead(48)=lgwd
-    nahead(49)=mup
-    nahead(50)=nritch_t
-    nahead(51)=ldr
-    nahead(52)=nevapls
-    nahead(53)=nevapcc
-    nahead(54)=nt_adv
-    call ccnf_put_attg(fncid,'real_header',ahead)
-    call ccnf_put_attg(fncid,'int_header',nahead)
     call ccnf_put_attg(fncid,'version',trim(version))        !   Model version
     
     call ccnf_put_attg(fncid,'dt',dt)

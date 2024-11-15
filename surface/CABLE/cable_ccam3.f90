@@ -32,22 +32,7 @@ public air, bgc, met, bal, rad, rough, ssnow
 public sum_flux, climate, veg, soil, canopy
 public casabal, casabiome, casaflux, casamet
 public casapool, phen, pop, c
-public climate_save, climate_save_type
-
-type climate_save_type
-  real(kind=r_2), dimension(:), pointer :: APAR_leaf_sun
-  real(kind=r_2), dimension(:), pointer :: APAR_leaf_shade
-  real(kind=r_2), dimension(:), pointer :: Dleaf_sun
-  real(kind=r_2), dimension(:), pointer :: fwsoil
-  real(kind=r_2), dimension(:), pointer :: Dleaf_shade
-  real(kind=r_2), dimension(:), pointer :: Tleaf_sun 
-  real(kind=r_2), dimension(:), pointer :: Tleaf_shade
-  real(kind=r_2), dimension(:), pointer :: cs_sun
-  real(kind=r_2), dimension(:), pointer :: cs_shade
-  real(kind=r_2), dimension(:), pointer :: scalex_sun
-  real(kind=r_2), dimension(:), pointer :: scalex_shade
-end type climate_save_type
-    
+   
 type (air_type), save            :: air
 type (bgc_pool_type), save       :: bgc
 type (met_type), save            :: met
@@ -68,6 +53,5 @@ type (casa_pool), save           :: casapool
 type (phen_variable), save       :: phen
 type (pop_type), save            :: pop
 type (physical_constants), save  :: c
-type (climate_save_type), save   :: climate_save
 
 end module cable_ccam3

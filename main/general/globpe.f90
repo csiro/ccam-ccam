@@ -32,7 +32,6 @@
 ! Preprocessor directives:
 !   CCAM         - support CCAM (required)
 !   debug        - additional debugging checks, but runs slower
-!   scm          - single column mode
 !   i8r8         - double precision mode
 !   GPU          - target GPUs with OpenACC
 !   GPUCHEMISTRY - additional GPU usage, but requires more GPU memory and GPU directive
@@ -73,6 +72,7 @@ use map_m                                  ! Grid map arrays
 use mlodynamics                            ! Ocean dynamics
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
+use module_ctrl_turbmix                    ! Boundary layer turbulent mixing
 use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
@@ -101,7 +101,6 @@ use tracermodule, only : tracer_mass     & ! Tracer routines
 use tracers_m                              ! Tracer data
 use trvmix                                 ! Tracer mixing routines
 use uvbar_m                                ! Saved dynamic arrays
-use vertmix_m                              ! Boundary layer turbulent mixing
 use vvel_m                                 ! Additional vertical velocity
 use work2_m                                ! Diagnostic arrays
 use work3f_m                               ! Grid work arrays
@@ -523,7 +522,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call START_LOG(phys_begin)
 
 
-  ! MJT notes - the physics OpenACC code requires a larger heapsize like
+  ! MJT notes - the physics/chemistry OpenACC code requires a larger heapsize like
   ! export PGI_ACC_CUDA_HEAPSIZE=256M and maxtilesize=32
     
   ! MISC (SINGLE) ---------------------------------------------------------
@@ -763,7 +762,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       end if
     end if
     if ( ntsur>=1 ) then
-      call vertmix
+      call turbmix
     end if  ! (ntsur>=1)
     if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==110 ) then
       !$omp do schedule(static) private(js,je)
@@ -839,10 +838,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
     ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
     ! Microphysics diagnostic output
-    !do k = 1,kl
-    !  riwp_ave(js:je) = riwp_ave(js:je) - qfrad(js:je,k)*dsig(k)*ps(js:je)/grav ! ice water path
-    !  rlwp_ave(js:je) = rlwp_ave(js:je) - qlrad(js:je,k)*dsig(k)*ps(js:je)/grav ! liq water path
-    !end do
     rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   end do  
   !$omp end do nowait
@@ -1361,6 +1356,7 @@ implicit none
 include 'version.h'                        ! Model version data
 
 integer, dimension(:), allocatable, save :: dumi
+integer, dimension(3) :: shsize ! for share_ifullg
 integer ierr, k, new_nproc, ilx, jlx, i, ng
 integer isoth, nsig, lapsbot
 integer secs_rad, nversion
@@ -1394,10 +1390,6 @@ character(len=47) header
 character(len=10) timeval
 character(len=8) text, rundate
 character(len=1024) vegprev, vegnext, vegnext2 ! depreciated namelist options
-
-#ifdef share_ifullg
-integer, dimension(3) :: shsize
-#endif
 
 ! version namelist
 namelist/defaults/nversion
@@ -1803,6 +1795,7 @@ nrows_rad = max( min( maxtilesize/il, jl ), 1 )
 do while( mod(jl, nrows_rad) /= 0 )
   nrows_rad = nrows_rad - 1
 end do
+! tiles for newer physics routines
 call calc_phys_tiles(ntiles,maxtilesize,ifull)
 imax = ifull/ntiles
 
@@ -2479,7 +2472,7 @@ if ( nmaxpr<=ntau ) then
   end if   ! (ntrac>0)
 end if  
 
-! convection
+! convection ( for vertmix (nvmix==3) and radriv90 )
 ! sig(kuocb) occurs for level just BELOW sigcb
 kuocb = 1
 do while( sig(kuocb+1)>=sigcb )
@@ -2500,7 +2493,7 @@ if ( khor>0 ) then
     hdiff(k) = 2.*hdiff(k-1)
   end do
 elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
-  do k = 1,kl                    ! N.B. usually hdiff(k)=khdif*.1 
+  do k = 1,kl          ! N.B. usually hdiff(k)=khdif*.1 
     ! increase hdiff between sigma=.15  and sigma=0., 0 to khor
     if ( sig(k)<0.15 ) then
       hdiff(k) = .1*max(1.,(1.-sig(k)/.15)*abs(khor)) + hdiff(k)
@@ -2524,7 +2517,7 @@ if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
   call ccmpi_abort(-1)
 end if
 if ( mfix_tr==0 .and. ngas>0 ) then
-  write(6,*) "ERROR: mfix_tr=0 and ngas>0"
+  write(6,*) "ERROR: ngas>0 and mfix_tr=0"
   write(6,*) "Model will not conserve tracers"
   call ccmpi_abort(-1)
 end if

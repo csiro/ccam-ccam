@@ -179,18 +179,10 @@ end subroutine tkeinit
 subroutine tkemix(kmo,theta,qvg,qlg,qfg,stratcloud,ua,va,zi,fg,eg,cduv,ps,zz,zzh,sig,      &
                   rhos,ustar_ave,dt,qgmin,mode,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,  &
                   qf_ema,cf_ema,tke_ema,                                                   &
-#ifdef scm
-                  wthflux,wqvflux,uwflux,vwflux,mfout,buoyproduction,                      &
-                  shearproduction,totaltransport,                                          &
-#endif
-#ifdef CCAM
                   land,tile,                                                               &
-#endif
                   imax,kl)
 
-#ifdef CCAM
 use mlo_ctrl, only : wlev
-#endif
                   
 implicit none
 
@@ -233,7 +225,6 @@ real tff, cm12, cm34, ddts
 real wdash_sq, l_on_kz
 logical, dimension(imax) :: mask
 
-#ifdef CCAM
 integer, intent(in) :: tile
 integer, dimension(imax) :: ibot
 real, dimension(imax,wlev) :: deptho_dz
@@ -244,14 +235,6 @@ real, dimension(imax,wlev) :: w_t, w_s, w_u, w_v
 real, dimension(imax) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o
 real, dimension(imax) :: fracice, i_u, i_v, imass, cd_ice, cdbot_ice
 logical, dimension(imax), intent(in) :: land
-#endif
-
-#ifdef scm
-real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
-real, dimension(imax,kl), intent(out) :: buoyproduction, shearproduction
-real, dimension(imax,kl), intent(out) :: totaltransport
-real, dimension(imax,kl), intent(out) :: mfout
-#endif
 
 cm12 = 1./sqrt(cm0)
 cm34 = sqrt(sqrt(cm0**3))
@@ -321,7 +304,6 @@ end do
 ustar_ave(:) = 0.
 fg_ave(:) = 0.
 
-#ifdef CCAM
 if ( mode==2 .or. mode==3 ) then
   call unpack_coupled(deptho_dz,deptho_dz_hl,rad_o,                   &
                       w_t,w_s,w_u,w_v,cd_water,cdh_water,cdbot_water, &
@@ -329,7 +311,6 @@ if ( mode==2 .or. mode==3 ) then
                       icefg_a,wt0fb_o,ws0_o,ws0subsurf_o,i_u,i_v,     &
                       imass,fracice,cd_ice,cdbot_ice,ibot,imax,tile)
 end if
-#endif
 
 ! Main loop to prevent time splitting errors
 mcount = int(dt/(min(maxdts,12./max(m0,0.1))+0.01)) + 1
@@ -378,7 +359,6 @@ do kcount = 1,mcount
                    stratcloud,wt0,wq0,ps,ustar,                  &
                    sig,sigkap,tke,ua,va,imax,kl)
 
-#ifndef scm
     ! Turn off MF term if small grid spacing (mfbeta=0 implies MF is always non-zero)
     ! Based on Boutle et al 2014
     zturb = 0.5*(zi_save + zi)
@@ -386,7 +366,6 @@ do kcount = 1,mcount
     do k = 1,kl
       mflx(:,k) = mflx(:,k)*cgmap(:)
     end do
-#endif
 
   else
       
@@ -399,14 +378,6 @@ do kcount = 1,mcount
     
   end if
 
-#ifdef scm  
-  do k = 1,kl-1
-    mfout(:,k) = mflx(:,k)*(1.-fzzh(:,k)) &
-               + mflx(:,k+1)*fzzh(:,k)
-  end do  
-  mfout(:,kl)=0.  
-#endif
-  
   
   ! calculate tke and eps boundary condition at 1st vertical level
   z_on_l = -vkar*zz(:,1)*grav*wtv0/(thetav(:,1)*max(ustar**3,1.E-10))
@@ -427,7 +398,6 @@ do kcount = 1,mcount
                      zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,   &
                      ql_ema,qf_ema,cf_ema,tke_ema,ddts,qgmin,cm34,imax,kl)
   
-#ifdef CCAM
   if ( mode==2 .or. mode==3 ) then
     call update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
                         tlup,qvup,qlup,qfup,cfup,fg,eg,         &
@@ -441,9 +411,6 @@ do kcount = 1,mcount
                         wt0eg_o,icefg_a,wt0fb_o,ws0_o,          &
                         ws0subsurf_o,i_u,i_v,imass,fracice,     &
                         cd_ice,cdbot_ice,ibot,land,sigkap,      &
-#ifdef scm
-                        wthflux,wqvflux,uwflux,vwflux,          &
-#endif
                         ddts,imax,kl,tile)  
   else
     call update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,    &
@@ -451,22 +418,8 @@ do kcount = 1,mcount
                            eg,rhos,ustar,cduv,                  &
                            tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
                            rhoa(:,1),dz_fl(:,1),                &
-#ifdef scm
-                           wthflux,wqvflux,uwflux,vwflux,       &
-#endif
                            ddts,imax,kl)
   end if
-#else
-  call update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,    &
-                         va,tlup,qvup,qlup,qfup,cfup,fg,      &
-                         eg,rhos,ustar,cduv,                  &
-                         tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
-                         rhoa(:,1),dz_fl(:,1),                &
-#ifdef scm
-                         wthflux,wqvflux,uwflux,vwflux,       &
-#endif
-                         ddts,imax,kl)
-#endif
   
   ustar_ave = ustar_ave + ustar/real(mcount)
   fg_ave = fg_ave + fg/real(mcount)
@@ -563,11 +516,9 @@ do kcount = 1,mcount
   end select
 
 
-#ifdef CCAM
   if ( mode==2 .or. mode==3 ) then
     call pack_coupled_ts(w_t,w_s,imax,tile)
   end if
-#endif
 
   
 end do ! kcount loop
@@ -583,20 +534,10 @@ if ( tcalmeth>0 ) then
 end if  
 
 
-#ifdef CCAM
 if ( mode==2 .or. mode==3 ) then
   call pack_coupled_uv(w_u,w_v,i_u,i_v,imax,tile)  
   fg = fg_ave
 end if
-#endif
-
-#ifdef scm
-do k = 1,kl
-  buoyproduction(:,k) = ppb(:,k)
-  shearproduction(:,k) = pps(:,k)
-  totaltransport(:,k) = ppt(:,k)
-end do
-#endif
 
 return
 end subroutine tkemix
@@ -997,9 +938,6 @@ subroutine update_atmosphere(thetal,qvg,qlg,qfg,stratcloud,ua,    &
                              eg,rhos,ustar,cduv,                  &
                              tke,eps,mflx,fzzh,idzp,idzm,dz_hl,   &
                              rhoa1,dz_fl1,                        &
-#ifdef scm
-                             wthflux,wqvflux,uwflux,vwflux,       &
-#endif
                              ddts,imax,kl)
 
 implicit none
@@ -1018,12 +956,6 @@ real, dimension(imax), intent(inout) :: fg, eg, ustar
 real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv
 real, dimension(imax) :: wt0, wq0
 real, intent(in) :: ddts
-
-#ifdef scm
-integer k
-real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
-real, dimension(imax,kl) :: wthlflux, wqlflux, wqfflux
-#endif
 
 ! Calculate surface fluxes
 wt0 = fg/(rhos*cp)  ! theta flux
@@ -1110,25 +1042,6 @@ dd(:,kl) = stratcloud(:,kl) + ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*
 call thomas(stratcloud,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
 stratcloud(:,:) = min( max( stratcloud, 0. ), 1. )
     
-#ifdef scm  
-wthlflux(:,1)=wt0(:)
-wthlflux(:,2:kl)=-kmo(:,1:kl-1)*(thetal(:,2:kl)-thetal(:,1:kl-1))/dz_hl(:,1:kl-1)                    &
-                 +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1))               &
-                 +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
-wqvflux(:,1)=wq0(:)
-wqvflux(:,2:kl)=-kmo(:,1:kl-1)*(qvg(:,2:kl)-qvg(:,1:kl-1))/dz_hl(:,1:kl-1)                           &
-                +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                   &
-                +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
-wqlflux(:,1)=0.
-wqlflux(:,2:kl)=-kmo(:,1:kl-1)*(qlg(:,2:kl)-qlg(:,1:kl-1))/dz_hl(:,1:kl-1)                                &
-                +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                        &
-                +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
-wqfflux(:,1)=0.
-wqfflux(:,2:kl)=-kmo(:,1:kl-1)*(qfg(:,2:kl)-qfg(:,1:kl-1))/dz_hl(:,1:kl-1)                                &
-                +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))                        &
-                +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
-#endif
-
   
 ! momentum vertical mixing
 aa(:,2:kl)   = qq(:,2:kl)
@@ -1148,21 +1061,9 @@ call thomas(va,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
 ustar = sqrt(cduv*sqrt(ua(:,1)**2+va(:,1)**2))
 
 
-#ifdef scm
-uwflux(:,1) = 0.
-uwflux(:,2:kl) = -kmo(:,1:kl-1)*(ua(:,2:kl)-ua(:,1:kl-1))/dz_hl(:,1:kl-1)
-vwflux(:,1) = 0.
-vwflux(:,2:kl) = -kmo(:,1:kl-1)*(va(:,2:kl)-va(:,1:kl-1))/dz_hl(:,1:kl-1)
-do k = 1,kl
-  wthflux(:,k) = wthlflux(:,k) - (sigkap(k-1)*(1.-fzzh(:,k)+sigkap(k)*fzzh(:,k)) &
-                               *(lv*wqlflux(:,k)+ls*wqfflux(:,k)))
-end do
-#endif
-
 return
 end subroutine update_atmosphere
 
-#ifdef CCAM
 subroutine unpack_coupled(deptho_dz,deptho_dz_hl,rad_o,                   &
                           w_t,w_s,w_u,w_v,cd_water,cdh_water,cdbot_water, &
                           wt0rad_o,wt0melt_o,wt0eg_o,                     &
@@ -1312,9 +1213,6 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,stratcloud,ua,va,    &
                           wt0eg_o,icefg_a,wt0fb_o,ws0_o,          &
                           ws0subsurf_o,i_u,i_v,imass,fracice,     &
                           cd_ice,cdbot_ice,ibot,land,sigkap,      &
-#ifdef scm
-                          wthflux,wqvflux,uwflux,vwflux,          &
-#endif
                           ddts,imax,kl,tile)
 
 use mlo_ctrl, only : wlev, mlo_updatekm, dgwater_g,                            &
@@ -1360,11 +1258,6 @@ real, dimension(imax) :: t1, t3, t4
 real, dimension(kl), intent(in) :: sigkap
 real, intent(in) :: ddts
 logical, dimension(imax), intent(in) :: land
-
-#ifdef scm
-real, dimension(imax,kl), intent(out) :: wthflux, wqvflux, uwflux, vwflux
-real, dimension(imax,kl) :: wthlflux, wqlflux, wqfflux
-#endif
 
 call mlocheck("Before coupled-mixing",water_temp=w_t,water_sal=w_s,water_u=w_u, &
               water_v=w_v,ice_u=i_u,ice_v=i_v)
@@ -1522,12 +1415,6 @@ where ( .not.land(1:imax) )
 end where 
 call mlo_updatediag("wt0",wt0_o,0,dgwater_g(tile),depth_g(tile))
 
-#ifdef scm  
-wthlflux(:,1)=fg/(rhos*cp)  ! theta flux
-wthlflux(:,2:kl)=-kmo_a(:,1:kl-1)*(thetal(:,2:kl)-thetal(:,1:kl-1))/dz_hl(:,1:kl-1)    &
-                 +mflx(:,1:kl-1)*(tlup(:,1:kl-1)-thetal(:,1:kl-1))*(1.-fzzh(:,1:kl-1)) &
-                 +mflx(:,2:kl)*(tlup(:,2:kl)-thetal(:,2:kl))*fzzh(:,1:kl-1)
-#endif
 
 !------------------------------------------------------------------------------
 
@@ -1614,20 +1501,6 @@ do k = 1,kl
   stratcloud(:,k) = min( max( tt_a(:,kn,4), 0. ), 1. )
 end do
 
-#ifdef scm
-wqvflux(:,1)=wq0_a(:)
-wqvflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qvg(:,2:kl)-qvg(:,1:kl-1))/dz_hl(:,1:kl-1)         &
-                +mflx(:,1:kl-1)*(qvup(:,1:kl-1)-qvg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))   &
-                +mflx(:,2:kl)*(qvup(:,2:kl)-qvg(:,2:kl))*fzzh(:,1:kl-1)
-wqlflux(:,1)=0.
-wqlflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qlg(:,2:kl)-qlg(:,1:kl-1))/dz_hl(:,1:kl-1)         &
-                +mflx(:,1:kl-1)*(qlup(:,1:kl-1)-qlg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))   &
-                +mflx(:,2:kl)*(qlup(:,2:kl)-qlg(:,2:kl))*fzzh(:,1:kl-1)
-wqfflux(:,1)=0.
-wqfflux(:,2:kl)=-kmo_a(:,1:kl-1)*(qfg(:,2:kl)-qfg(:,1:kl-1))/dz_hl(:,1:kl-1)                &
-                +mflx(:,1:kl-1)*(qfup(:,1:kl-1)-qfg(:,1:kl-1))*(1.-fzzh(:,1:kl-1))          &
-                +mflx(:,2:kl)*(qfup(:,2:kl)-qfg(:,2:kl))*fzzh(:,1:kl-1)
-#endif
 
 !------------------------------------------------------------------------------
 
@@ -1799,17 +1672,6 @@ call mlo_updatediag("wv0",wv0_o,0,dgwater_g(tile),depth_g(tile))
 
 call mlocheck("Coupled-mixing",water_temp=w_t,water_sal=w_s,water_u=w_u, &
               water_v=w_v,ice_u=i_u,ice_v=i_v)
-
-#ifdef scm
-uwflux(:,1) = 0.
-uwflux(:,2:kl) = -kmo_a(:,1:kl-1)*(ua(:,2:kl)-ua(:,1:kl-1))/dz_hl(:,1:kl-1)
-vwflux(:,1) = 0.
-vwflux(:,2:kl) = -kmo_a(:,1:kl-1)*(va(:,2:kl)-va(:,1:kl-1))/dz_hl(:,1:kl-1)
-do k = 1,kl
-  wthflux(:,k) = wthlflux(:,k) - (sigkap(k-1)*(1.-fzzh(:,k)+sigkap(k)*fzzh(:,k)) &
-                               *(lv*wqlflux(:,k)+ls*wqfflux(:,k)))
-end do
-#endif
 
 return
 end subroutine update_coupled
@@ -2039,7 +1901,6 @@ tt_iv(:) = yy(:,kl+wlev+1,2) - yy(:,kl+wlev+1,3)*tmp(:,2)/(1.+tmp(:,3))
 
 return
 end subroutine solve_sherman_morrison_3
-#endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Tri-diagonal solver (array version)

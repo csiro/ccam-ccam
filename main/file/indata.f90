@@ -75,6 +75,7 @@ use latltoij_m                                   ! Lat/Lon to cubic ij conversio
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
 use mlodynamics                                  ! Ocean dynamics
+use module_ctrl_turbmix                          ! Boundary layer turbulent mixing
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
 use nharrs_m, only : lrestart                    ! Non-hydrostatic atmosphere arrays
@@ -99,7 +100,6 @@ use tracers_m                                    ! Tracer data
 use vecs_m                                       ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                                     ! Map to cartesian coordinates
 use vegpar_m                                     ! Vegetation arrays
-use vertmix_m                                    ! Boundary layer turbulent mixing
 use xyzinfo_m                                    ! Grid coordinate arrays
       
 #ifdef csircoupled
@@ -630,6 +630,7 @@ end if   ! nsib>=1
 if ( nurban/=0 .and. nhstest>=0 ) then
   if ( myid==0 ) write(6,*) 'Reading urban data'
   if ( lncveg==1 ) then
+    ! found netcdf input  
     allocate( local2d(ifull,2) )
     if ( myid==0 ) then
       allocate( global2d(ifull_g,2) )
@@ -644,10 +645,12 @@ if ( nurban/=0 .and. nhstest>=0 ) then
     iurbant(1:ifull) = max( nint(local2d(1:ifull,2)), 1 )
     deallocate( local2d )
   else if ( urbanfile/=' ' ) then
+    ! found text input  
     call surfread(sigmu,'urban',filename=urbanfile)
     sigmu(:) = 0.01*sigmu(:)
     iurbant(:) = 1
   else if ( nsib==3 ) then
+    ! use iveg data  
     if ( myid==0 ) write(6,*) "Using iveg=31 for urban"
     iurbant(:) = 1
     where ( ivegt==31 )
@@ -656,6 +659,7 @@ if ( nurban/=0 .and. nhstest>=0 ) then
       sigmu(:) = 0.
     end where
   else
+    ! could not find valid urban data  
     write(6,*) "ERROR: nurban=1 selected with no input urban data"
     call ccmpi_abort(-1)
   end if
@@ -754,16 +758,19 @@ end if
 ! nurban=1  urban (save in restart file)
 ! nurban=-1 urban (save in history and restart files)
 if ( nurban/=0 .and. nhstest>=0 ) then
-  if ( myid==0 ) write(6,*) 'Initialise UCLEM urban scheme'
+  if ( myid==0 ) then
+    write(6,*) 'Initialise UCLEM urban scheme'
+    write(6,*) '-> urbanformat,ateb_len = ',urbanformat,ateb_len
+  end if  
   where ( .not.land(1:ifull) )
     sigmu(:) = 0.
   end where
   call uclem_init(ifull,sigmu(:),0)
-  call uclem_type(iurbant,0)  
+  call uclem_type(iurbant,0)
   allocate( atebparm(ateb_len,36) )
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
-      write(6,*) "-> Using user defined UCLEM urban parameter tables with ateb_len=",ateb_len
+      write(6,*) "-> Using user defined UCLEM urban parameter tables"
       nstart(1) = 1
       ncount(1) = ateb_len
       call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(:,1))
@@ -2296,7 +2303,7 @@ end if
 
 !-----------------------------------------------------------------
 ! UPDATE VERTICAL MIXING
-call vertmix_init
+call turbmix_init
 
 
 !--------------------------------------------------------------     

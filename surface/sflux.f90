@@ -362,7 +362,7 @@ call END_LOG(sfluxland_end)
 
 
 call START_LOG(sfluxurban_begin)
-if ( nurban/=0 .and. nhstest>=0 ) then                                                                            ! urban
+if ( nurban/=0 .and. nhstest>=0 ) then                                                           ! urban
   call sflux_urban                                                                               ! urban
 end if                                                                                           ! urban
 !$omp do schedule(static) private(is,ie)
