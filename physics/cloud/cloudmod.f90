@@ -136,13 +136,13 @@ endif
 tenv(:,:) = t(:,:) ! Assume T is the same in and out of convective cloud
 do k = 1,kl
   do iq = 1,imax
-    if ( clcon(iq,k)>0. ) then
+    if ( clcon(iq,k)>1.e-10 ) then
       wcon = wlc
       !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
       prf_temp = ps(iq)*sig(k)
       qsatg = qsat(prf_temp,t(iq,k)) ! saturated mixing ratio
       qccon(iq,k)  = clcon(iq,k)*wcon/rhoa(iq,k)
-      qenv(iq,k)   = max( 1.e-8, (qg(iq,k)-clcon(iq,k)*max(qsatg,qg(iq,k)))/(1.-clcon(iq,k)) )
+      qenv(iq,k)   = max( 0., (qg(iq,k)-clcon(iq,k)*max(qsatg,qg(iq,k)))/(1.-clcon(iq,k)) )
       qcl(iq,k)    = max(qsatg,qg(iq,k))
       !qcl(iq,k)   = (qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))/clcon(iq,k)
       qlg(iq,k)    = qlg(iq,k)/(1.-clcon(iq,k))
@@ -192,7 +192,7 @@ end if
 do k = 1,kl
   do iq = 1,imax  
     qcg(iq,k)  = qlg(iq,k) + qfg(iq,k)
-    if ( qfg(iq,k) > 1.e-12 ) then
+    if ( qfg(iq,k) > 0. ) then
       fice(iq,k) = qfg(iq,k)/qcg(iq,k)
     else
       fice(iq,k) = 0.
@@ -238,7 +238,7 @@ ccov(1:imax,1:kl) = stratcloud(1:imax,1:kl)
 
 do k = 2,kl-1
   do iq = 1,imax
-    if ( stratcloud(iq,k-1)<1.e-10 .and. stratcloud(iq,k)>1.e-2 .and. stratcloud(iq,k+1)<1.e-10 ) then
+    if ( stratcloud(iq,k-1)<1.e-10 .and. stratcloud(iq,k)>1.e-10 .and. stratcloud(iq,k+1)<1.e-10 ) then
       ccov(iq,k) = sqrt(stratcloud(iq,k))
     end if
   end do
@@ -327,11 +327,11 @@ kl = size(ttg,2)
 ! Note that qcg is the total cloud water (liquid+frozen)
 
 select case(cloud_ice_method)
-  case(0)  
+  case(0) ! original
     do k = 1,kl
       where ( ttg(:,k)>=tfrz )
         fice(:,k) = 0.
-      else where ( ttg(:,k)>=tice .and. qfg(:,k)>1.e-12 )
+      else where ( ttg(:,k)>=tice .and. qfg(:,k)>0. )
         fice(:,k) = qfg(:,k)/(qfg(:,k)+qlg(:,k))
       else where ( ttg(:,k)>=tice )
         fice(:,k) = 0.
@@ -339,18 +339,18 @@ select case(cloud_ice_method)
         fice(:,k) = 1.
       end where
     end do
-  case(1)
-    do k = 1,kl
-      where ( ttg(:,k)>=tfrz )
-        fice(:,k) = 0.
-      else where ( ttg(:,k)>=tice .and. qlg(:,k)+qfg(:,k)>1.e-12 )
-        fice(:,k) = qfg(:,k)/(qfg(:,k)+qlg(:,k))
-      else where ( ttg(:,k)>=tice )
-        fice(:,k) = 1. - (ttg(:,k)-tice)/(tfrz-tice) ! MJT suggestion
-      elsewhere
-        fice(:,k) = 1.
-      end where
-    end do
+  !case(1) ! to be depreciated
+  !  do k = 1,kl
+  !    where ( ttg(:,k)>=tfrz )
+  !      fice(:,k) = 0.
+  !    else where ( ttg(:,k)>=tice .and. qlg(:,k)+qfg(:,k)>0. )
+  !      fice(:,k) = qfg(:,k)/(qfg(:,k)+qlg(:,k))
+  !    else where ( ttg(:,k)>=tice )
+  !      fice(:,k) = 1. - (ttg(:,k)-tice)/(tfrz-tice) ! MJT suggestion
+  !    elsewhere
+  !      fice(:,k) = 1.
+  !    end where
+  !  end do
   case default
     write(6,*) "ERROR: Invalid cloud_ice_method ",cloud_ice_method
     stop
@@ -590,11 +590,11 @@ if ( (ncloud/=4 .and. ncloud<10) .or. (ncloud>=100.and.ncloud<110) ) then
         stratcloud(iq,k) = 0.
         qcg(iq,k) = 0.
       else if ( qc<=0. ) then
-        stratcloud(iq,k) = max( 1.e-6, 0.5*((qc+delq)/delq)**2 )  ! for roundoff
-        qcg(iq,k) = max( 1.e-8, al*(qc+delq)**3/(6.*delq**2) )    ! for roundoff
+        stratcloud(iq,k) = max( 1.e-10, 0.5*((qc+delq)/delq)**2 )  ! for roundoff
+        qcg(iq,k) = al*(qc+delq)**3/(6.*delq**2)
       else if ( qc<delq ) then
-        stratcloud(iq,k) = max( 1.e-6, 1.-0.5*((qc-delq)/delq)**2 ) ! for roundoff
-        qcg(iq,k) = max( 1.e-8, al*(qc-(qc-delq)**3/(6.*delq**2)) ) ! for roundoff
+        stratcloud(iq,k) = max( 1.e-10, 1.-0.5*((qc-delq)/delq)**2 )  ! for roundoff
+        qcg(iq,k) = al*(qc-(qc-delq)**3/(6.*delq**2))
       else
         stratcloud(iq,k) = 1.
         qcg(iq,k) = al*qc
@@ -711,7 +711,7 @@ if ( vdeposition_mode==0 ) then
   do k = 1,kl
     do iq = 1,imax
       Tk = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/max(stratcloud(iq,k),1.e-10) !T in liq cloud
-      if ( stratcloud(iq,k)>0. .and. Tk<tfrz .and. qlg(iq,k)>1.e-8 ) then
+      if ( stratcloud(iq,k)>1.e-10 .and. Tk<tfrz .and. qlg(iq,k)>0. ) then
         pk(iq,k) = 100.*prf(iq,k)
         qsi(iq,k) = qsati(pk(iq,k),Tk)
         deles(iq,k) = (1.-fice(iq,k))*esdiffx(Tk)
@@ -740,11 +740,11 @@ else if ( vdeposition_mode==1 ) then
   do k = 1,kl
     do iq = 1,imax
       Tk = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/max(stratcloud(iq,k),1.e-10) !T in liq cloud
-      if ( stratcloud(iq,k)>0. .and. Tk<tfrz .and. qlg(iq,k)>1.e-8 ) then
+      if ( stratcloud(iq,k)>1.e-10 .and. Tk<tfrz .and. qlg(iq,k)>0. ) then
         pk(iq,k) = 100.*prf(iq,k)
         qsi(iq,k) = qsati(pk(iq,k),Tk)
         deles(iq,k) = (1.-fice(iq,k))*esdiffx(Tk)
-        fl        = qlg(iq,k)/max(qfg(iq,k)+qlg(iq,k),1.e-30)
+        fl        = qlg(iq,k)/(qfg(iq,k)+qlg(iq,k))
         qs        = qsi(iq,k)
         es        = qs*pk(iq,k)/0.622 !ice value
         Aprpr     = hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
@@ -810,6 +810,11 @@ real, parameter :: erosion_scale_t = 5.e-5
 real, parameter :: diff_threshold_t = 0.1
 real, parameter :: u00 = 0.8
 
+! calculate diagnostic cloud fraction using Smith.  This is uses for cloud initialisation
+! (0% cloud cover) or eroding from 100% cloud cover.
+
+! ...
+
 ! background erosion scale in 1/secs
 erosion_scale(:,:) = erosion_scale_d
 
@@ -826,6 +831,23 @@ end do
 !  erosion_scale(:,k) = edum*erosion_scale(:,k)
 !end do
 
+! PC2 scheme
+
+! da = da_radiation + da_microphysics + da_boundary + da_orographic + da_erosion + da_adiabatic
+
+! da_radiation = -0.5*(1-stratcloud)^2 * dqsdT*nettend_radiation / (qsat - qv)
+! da_microphysics = 
+! da_boundary = (1-stratcloud)^2 * ( dqtdt - dqsdT*nettend_boundary ) / (qsat-qv)
+! da_orographic = 0.
+! da_erosion = -0.5*(1-stratcloud)^2 * Qc/bs * dbsdt / aL*(qsat - qv )
+! da_adiabatic = 
+! Qc = ?
+! dbsdt = -2.25e-5 * exp(-3.1*Qc/(aL*qsat)
+! aL = 1/( 1 + dqsdT*L/Cp )
+
+
+
+! Tiedtke scheme
 
 ! calculate dqs = ((omega + grav*Mc)/(cp*rho)+nettend)*dqsdT*dt
 !                 -------------------------------------------------------
@@ -880,7 +902,7 @@ do k = 1,kl
 
   !cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT
   cc = (omega/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT ! neglect cmflx
-  aa = 0.5*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-10 )
+  aa = 0.5*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )
   bb = 1.+gamma*stratcloud(:,k)
   !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) / ( gamma*xf*aa ) ! GFDL style
   !dqs = min( dqs, cc/(1. + 0.5*bb) )                                 ! GFDL style
@@ -892,7 +914,7 @@ do k = 1,kl
   ! Large scale cloud destruction via erosion (B)
   where ( da>0. )
     !a_dt = xf(:,k)*da/max(1.-stratcloud(:,k),1.e-10)
-    a_dt = -xf(:,k)*dqs*0.5*(1.-stratcloud(:,k))/max( qs(:,k)-qv, 1.e-10 )
+    a_dt = -xf(:,k)*dqs*0.5*(1.-stratcloud(:,k))/max( qs(:,k)-qv, 1.e-8 )
     b_dt = 0.
   elsewhere ( qc(:,k)>1.e-10 )
     a_dt = 0.
@@ -929,7 +951,7 @@ do k = 1,kl
   stratcloud(:,k) = min( cf1, 1. )
 
   ! Change in cloud fraction
-  where ( qc(:,k)>1.e-10 )
+  where ( qc(:,k)>0. )
     stratcloud(:,k) = max( stratcloud(:,k), 1.e-10 )
   elsewhere
     ! MJT notes - cloud fraction is maintained (da=0.) while condesate evaporates (dqc<0.) until

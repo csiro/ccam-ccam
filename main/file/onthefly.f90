@@ -360,8 +360,7 @@ use soil_m                                     ! Soil and surface data
 use soilv_m                                    ! Soil parameters
 use stime_m                                    ! File date data
 use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &
-    thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,   &
-    tke_ema                                    ! TKE-EPS boundary layer
+    thetal_ema,qv_ema,tke_ema                  ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
@@ -839,7 +838,7 @@ if ( newfile ) then
         ! found z* ocean levels  
         land_3d = .false.  
         do k = 1,ok
-          land_3d(:,k) = ( land_a .or. gosig_1(k)>=ocndep_a ) 
+          land_3d(:,k) = ( land_a .or. gosig_1(k)+0.1>=ocndep_a ) 
         end do
       else
         ! found sigma ocean levels  
@@ -878,15 +877,15 @@ if ( newfile ) then
         end if
         deallocate( gosig3_a )
       end if ! mlo3_found  
-    end if
+    end if   ! mlo_found
     sea_a = .not.land_a
     do k = 1,ok
       landlake_3d(:,k) = land_3d(:,k) .or. landlake_a
     end do  
-  end if
+  end if ! fwsize>0
   
   ! check that land-sea mask is definied
-  if ( fwsize>0 .and. .not.(tss_test) ) then ! tss_test includes iotest=.true.
+  if ( fwsize>0 .and. .not.tss_test ) then ! tss_test includes iotest=.true.
     if ( nemi==-1 ) then
       write(6,*) "ERROR: Cannot determine land-sea mask"
       write(6,*) "CCAM requires zht or soilt or ocndepth in input file"
@@ -1096,7 +1095,6 @@ else
     tss_s_a(1:fwsize) = abs(tss_a(1:fwsize))
     call fill_cc1(tss_l_a,sea_a,fill_sea)
     if ( mlo3_found ) then
-      ucc7(:,1:5) = 0.  
       ucc7(:,1) = tss_s_a
       ucc7(:,2) = sicedep_a
       ucc7(:,3) = fracice_a        
@@ -1109,7 +1107,6 @@ else
       ocndep_a = ucc7(:,4)
       opldep_a = ucc7(:,5)
     else if ( mlo_found ) then
-      ucc7(:,1:4) = 0.  
       ucc7(:,1) = tss_s_a
       ucc7(:,2) = sicedep_a
       ucc7(:,3) = fracice_a        
@@ -1980,9 +1977,6 @@ if ( nested/=1 .and. nested/=3 ) then
     call gethist4a('w_ema',w_ema,5)
     call gethist4a('thetal_ema',thetal_ema,5)
     call gethist4a('qv_ema',qv_ema,5)
-    call gethist4a('ql_ema',ql_ema,5)
-    call gethist4a('qf_ema',qf_ema,5)
-    call gethist4a('cf_ema',cf_ema,5)
     call gethist4a('tke_ema',tke_ema,5)
   end if
   if ( nested==0 ) then

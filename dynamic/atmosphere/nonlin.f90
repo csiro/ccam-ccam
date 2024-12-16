@@ -93,7 +93,10 @@ if ( ldr/=0 ) then
   do k = 1,kl  
     qfgsav(1:ifull,k)  = qfg(1:ifull,k)
     qlgsav(1:ifull,k)  = qlg(1:ifull,k)
-  end do  
+    qrgsav(1:ifull,k) = qrg(1:ifull,k)
+    qsngsav(1:ifull,k) = qsng(1:ifull,k)
+    qgrgsav(1:ifull,k) = qgrg(1:ifull,k)
+  end do 
 end if   ! (ldr/=0)
       
 if ( abs(iaero)>=2 .and. nhstest>=0 ) then

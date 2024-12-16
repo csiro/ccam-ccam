@@ -769,7 +769,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
       end if
     end do        ! iq = 1,imax
     
-  else
+  else ! lin_adv==1
     ! Flux method based on Rotstayn 1997
       
     !
@@ -1151,7 +1151,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
           !!    parama1 and parama2 functions must be user supplied
           !!
 
-          if( qlz(iq,k) > 1.e-10 ) then
+          if( qlz(iq,k) > 1.e-8 ) then
             temc1=max(-30.99,temcc(iq,k))
             ! aa1=parama1(temc1)
             ! aa2=parama2(temc1)
@@ -1431,7 +1431,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
 
         !---- YLIN, autoconversion use Liu and Daum (2004), unit = g cm-3 s-1, in the scheme kg/kg s-1, so
                   
-        if (qlz(iq,k) > 1.e-6) then
+        if (qlz(iq,k) > 1.e-8) then
             
           mu_c(iq,k) = min(15., (1000.E6/ncz(iq,k) + 2.))
           gg31 = ggamma(4.+mu_c(iq,k))
@@ -1717,7 +1717,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
         end if
 
         !snow
-        if (qsz(iq,k) .gt. 1.0e-8) then
+        if (qsz(iq,k) .gt. 1.e-8) then
           xlambdas(iq,k)=(am_s(iq,k)*gam_ss(iq,k)*     &
           nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
           if (xlambdas(iq,k).lt.lammins) then
@@ -1936,7 +1936,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
       EFFI1D(1:imax,k) = 25.E-6
     end where
 
-    where (qsz(1:imax,k) > 1.0e-8) 
+    where (qsz(1:imax,k) > 1.e-8) 
       EFFS1D(1:imax,k) = 3./xlambdas(1:imax,k)/2.
     elsewhere
       EFFS1D(1:imax,k) = 25.E-6

@@ -28,9 +28,7 @@ implicit none
 private
 public ctrl_microphysics
 public cloud_aerosol_mode, lin_aerosolmode, maxlintime, lin_adv
-
 public cloud_ice_method
-
 public leon_snowmeth
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
@@ -67,7 +65,7 @@ contains
 !====================================================================================================
 ! SUBROUTINE ctrl_microphysics
 ! subroutine to call cloud microphysics
-! The current available option are LEO and LIN microphysics
+! The current available option are LEON, LIN & LIN2 microphysics
 !====================================================================================================
 subroutine ctrl_microphysics
 
@@ -191,7 +189,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       je = tile*imax
 
       idjd_t = mod(idjd-1,imax) + 1
-      mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
+      mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
       lqg      = qg(js:je,:)
       lqlg     = qlg(js:je,:)
@@ -210,7 +208,8 @@ select case ( interp_ncloud(ldr,ncloud) )
                   ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
                   ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
                   mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
-                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
+                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,                  &
+                  update_satadj=.true.)
 
       ! This configuration allows prognostic condensate variables to be updated 
       cfrac(js:je,:) = lcfrac
@@ -222,7 +221,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       qfrad(js:je,:) = lqfrad
       t(js:je,:)     = lt
       stratcloud(js:je,:) = lstratcloud
-      if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. (ncloud>=110.and.ncloud<120) ) then
+      if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. (ncloud>=110.and.ncloud<120) ) then
         ! Reset tendency and mass flux for next time-step  
         nettend(js:je,:) = 0.
       end if
@@ -443,9 +442,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       elsewhere
          gfrac(js:je,:) = 0.
       end where
-      where ( qlg(js:je,:)+qfg(js:je,:)>1.e-12 )
-        stratcloud(js:je,:) = max( stratcloud(js:je,:), 1.e-8 )
-      end where 
       
       !nc(js:je,:)        = real( znc(1:imax,:) )
       nr(js:je,:)         = real( znr(1:imax,:) )
@@ -519,7 +515,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 #endif
 
   case default
-    write(6,*) "ERROR: unknown mp_physics option "
+    write(6,*) "ERROR: unknown cloud microphysics option"
     call ccmpi_abort(-1)
       
 end select
@@ -566,7 +562,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       qlrad(js:je,:) = lqlrad
       qfrad(js:je,:) = lqfrad
       stratcloud(js:je,:) = lstratcloud
-      if ( ncloud==4 .OR. (ncloud>=10.AND.ncloud<=13) .or. (ncloud>=110.and.ncloud<120) ) then
+      if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. (ncloud>=110.and.ncloud<120) ) then
         ! Reset tendency and mass flux for next time-step  
         nettend(js:je,:) = 0.
       end if
@@ -694,7 +690,7 @@ if ( abs(iaero)>=2 ) then
           pplambs(iq,kl+1-k) = 1.6e3*10**(-0.023*max(t(iq,k)-tfrz,-200.))          
           ! Fraction rain scavenging rate in time-step  
           fcol = rfrac(iq,k)
-          Fr = fluxr(iq,k)/max(rfrac(iq,k),1.e-10)
+          Fr = fluxr(iq,k)/max(rfrac(iq,k),1.e-6)
           pprscav(iq,kl+1-k) = dt*0.24*fcol*Fr**0.75
           ! Fractional ice sedimentation in time-step
           alph = dt*vi(iq,k)/dz(iq,k)

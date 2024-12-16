@@ -95,9 +95,6 @@ select case ( interp_nvmix(nvmix) )
           sigkap(k)       = sig(k)**(-rdry/cp)
           thetal_ema(:,k) = (t(1:ifull,k)-(hl*qlg(1:ifull,k)+hls*qfg(1:ifull,k))/cp)*sigkap(k)
           qv_ema(:,k)     = qg(1:ifull,k)
-          ql_ema(:,k)     = qlg(1:ifull,k)
-          qf_ema(:,k)     = qfg(1:ifull,k)
-          cf_ema(:,k)     = stratcloud(1:ifull,k)
           u_ema(:,k)      = u(1:ifull,k)
           v_ema(:,k)      = v(1:ifull,kl)
           w_ema(:,k)      = 0.
@@ -148,12 +145,13 @@ implicit none
 integer is, ie, tile, k, iq
 integer idjd_t
 real, dimension(imax,kl) :: lt, lqg, lqfg, lqlg, lni
-real, dimension(imax,kl) :: lcfrac, lu, lv, lstratcloud
+real, dimension(imax,kl) :: lu, lv, lstratcloud
 real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
-real, dimension(imax,kl) :: lthetal_ema, lqv_ema, lql_ema, lqf_ema, lcf_ema
+real, dimension(imax,kl) :: lthetal_ema, lqv_ema
 real, dimension(imax,kl) :: ltke_ema
 real, dimension(imax,kl) :: lrkmsave, lrkhsave
 real, dimension(imax,kl) :: lat, lct
+real, dimension(imax,kl) :: lqrg, lqsng, lqgrg
 real, dimension(ifull) :: uadj, vadj
 real, dimension(imax) :: lou, lov, liu, liv, lrho
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
@@ -191,13 +189,12 @@ select case(nvmix)
   case(6,9)  
     ! k-e + MF closure scheme
     
-    !$omp do schedule(static) private(is,ie,k),             &
-    !$omp private(lt,lqg,lqfg,lqlg),                        &
-    !$omp private(lstratcloud,lu,lv,ltke,leps,lshear),      &
-    !$omp private(lrkmsave,lrkhsave,lsavu,lsavv),           &
-    !$omp private(lthetal_ema,lqv_ema,lql_ema,lqf_ema),     &
-    !$omp private(lcf_ema,ltke_ema),                        &
-    !$omp private(idjd_t,mydiag_t)
+    !$omp do schedule(static) private(is,ie,k)             &
+    !$omp private(lt,lqg,lqfg,lqlg,lni)                    &
+    !$omp private(lstratcloud,lu,lv,ltke,leps,lshear)      &
+    !$omp private(lrkmsave,lrkhsave,lsavu,lsavv)           &
+    !$omp private(lthetal_ema,lqv_ema,ltke_ema)            &
+    !$omp private(idjd_t,mydiag_t,lqrg,lqsng,lqgrg)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -209,7 +206,11 @@ select case(nvmix)
       lqg = qg(is:ie,:)
       lqfg = qfg(is:ie,:)
       lqlg = qlg(is:ie,:)
+      lni = ni(is:ie,:)
       lstratcloud = stratcloud(is:ie,:)
+      lqrg = qrg(is:ie,:)
+      lqsng = qsng(is:ie,:)
+      lqgrg = qgrg(is:ie,:)
       ltke   = tke(is:ie,:)
       leps   = eps(is:ie,:)
       lshear = shear(is:ie,:)
@@ -220,22 +221,22 @@ select case(nvmix)
       end do  
       lthetal_ema = thetal_ema(is:ie,:)
       lqv_ema     = qv_ema(is:ie,:)
-      lql_ema     = ql_ema(is:ie,:)
-      lqf_ema     = qf_ema(is:ie,:)
-      lcf_ema     = cf_ema(is:ie,:)
       ltke_ema    = tke_ema(is:ie,:)
     
-      call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),                           &
-                       ps(is:ie),lqg,lqfg,lqlg,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie),     &
-                       ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,lql_ema, &
-                       lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,f(is:ie),                   &
-                       imax,kl,tile)      
+      call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),lqg,lqfg,lqlg,   &
+                       lni,lstratcloud,lqrg,lqsng,lqgrg,cduv(is:ie),lu,lv,pblh(is:ie),        &
+                       ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,         &
+                       ltke_ema,lrkmsave,lrkhsave,f(is:ie),imax,kl,tile)      
                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
       qfg(is:ie,:)        = lqfg
       qlg(is:ie,:)        = lqlg
+      ni(is:ie,:)         = lni
       stratcloud(is:ie,:) = lstratcloud
+      qrg(is:ie,:)        = lqrg
+      qsng(is:ie,:)       = lqsng
+      qgrg(is:ie,:)       = lqgrg
       tke(is:ie,:)        = ltke
       eps(is:ie,:)        = leps
       do k = 1,kl  
@@ -244,9 +245,6 @@ select case(nvmix)
       end do  
       thetal_ema(is:ie,:) = lthetal_ema
       qv_ema(is:ie,:)     = lqv_ema
-      ql_ema(is:ie,:)     = lql_ema
-      qf_ema(is:ie,:)     = lqf_ema
-      cf_ema(is:ie,:)     = lcf_ema
       tke_ema(is:ie,:)    = ltke_ema
       rkmsave(is:ie,:)    = lrkmsave
       rkhsave(is:ie,:)    = lrkhsave  
@@ -270,10 +268,11 @@ select case(nvmix)
   case default  
     ! JLM's local Ri scheme
     
-    !$omp do schedule(static) private(is,ie,k),               &
-    !$omp private(lt,lqg,lqfg,lqlg),                          &
-    !$omp private(lcfrac,lstratcloud,lu,lv,lsavu,lsavv),      &
-    !$omp private(lrkmsave,lrkhsave,idjd_t,mydiag_t)
+    !$omp do schedule(static) private(is,ie,k)                &
+    !$omp private(lt,lqg,lqfg,lqlg,lni)                       &
+    !$omp private(lstratcloud,lu,lv,lsavu,lsavv)              &
+    !$omp private(lrkmsave,lrkhsave,idjd_t,mydiag_t)          &
+    !$omp private(lqrg,lqsng,lqgrg)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -285,8 +284,11 @@ select case(nvmix)
       lqg = qg(is:ie,:)
       lqfg = qfg(is:ie,:)
       lqlg = qlg(is:ie,:)
-      lcfrac = cfrac(is:ie,:)
+      lni = ni(is:ie,:)
       lstratcloud = stratcloud(is:ie,:)
+      lqrg = qrg(is:ie,:)
+      lqsng = qsng(is:ie,:)
+      lqgrg = qgrg(is:ie,:)      
       ! Adjustment for moving ocean surface
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
@@ -296,8 +298,8 @@ select case(nvmix)
       end do  
     
       call vertmix(lt,tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),  &
-                   ps(is:ie),lqg,lqfg,lqlg,lstratcloud,                                          &
-                   condc(is:ie),lcfrac,cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),    &
+                   ps(is:ie),lqg,lqfg,lqlg,lni,lstratcloud,lqrg,lqsng,lqgrg,                     &
+                   condc(is:ie),cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),           &
                    tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),      &
                    lrkmsave,lrkhsave,                                                            &
                    idjd_t,mydiag_t)
@@ -306,8 +308,11 @@ select case(nvmix)
       qg(is:ie,:)         = lqg
       qfg(is:ie,:)        = lqfg
       qlg(is:ie,:)        = lqlg
-      cfrac(is:ie,:)      = lcfrac
+      ni(is:ie,:)         = lni
       stratcloud(is:ie,:) = lstratcloud
+      qrg(is:ie,:)        = lqrg
+      qsng(is:ie,:)       = lqsng
+      qgrg(is:ie,:)       = lqgrg      
       rkmsave(is:ie,:)    = lrkmsave
       rkhsave(is:ie,:)    = lrkhsave  
       do k = 1,kl  
@@ -319,59 +324,6 @@ select case(nvmix)
     !$omp end do nowait
 
 end select
-
-
-! Calculate mixing of double-moment cloud microphysics
-if ( ncloud>=100 .and. ncloud<200 ) then
-  !$omp do schedule(static) private(is,ie,iq,k),      &
-  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-  !$omp private(ln,lrkhsave,rong,rlogs1,rlogs2),      &
-  !$omp private(rlogh1,rlog12,tmnht,dzz,gt) 
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    idjd_t = mod(idjd-1,imax)+1
-    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-
-    lt       = t(is:ie,:)
-    lrkhsave = rkhsave(is:ie,:)
-    lni      = ni(is:ie,:)
-  
-    rong = rdry/grav
-    lat(:,1) = 0.
-    lct(:,kl) = 0.
-    rlogs1=log(sig(1))
-    rlogs2=log(sig(2))
-    rlogh1=log(sigmh(2))
-    rlog12=1./(rlogs1-rlogs2)
-    do iq = 1,imax
-      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
-      dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-      gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
-      lat(iq,2) = -gt/dsig(2)  
-      lct(iq,1) = -gt/dsig(1)
-    end do
-    do k = 2,kl-1
-      do iq = 1,imax
-        ! Calculate half level heights and temperatures
-        ! n.b. an approximate zh (in m) is quite adequate for this routine
-        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-        dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-        gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
-        lat(iq,k+1) = -gt/dsig(k+1)  
-        lct(iq,k) = -gt/dsig(k)
-      end do
-    end do
-  
-    !call trimmix(lat,lct,lnr,imax,kl)
-    call trimmix(lat,lct,lni,imax,kl) !only advect ql and qf for now
-    !call trimmix(lat,lct,lns,imax,kl)
-
-    ni(is:ie,:) = lni
-  
-  end do ! tile = 1,ntiles
-  !$omp end do nowait
-end if
 
 return
 end subroutine turbmix
@@ -400,10 +352,9 @@ end select
 return
 end function interp_nvmix  
 
-subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,stratcloud,                         &
-                       cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,ql_ema, &
-                       qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,f,                         & 
-                       imax,kl,tile)
+subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,ni,stratcloud,qrg,qsng,qgrg,  &
+                       cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,  &
+                       tke_ema,rkmsave,rkhsave,f,imax,kl,tile)
 
 use const_phys                   ! Physical constants
 use parm_m, only : ds, nlocal, dt, qgmin, cqmix, nvmix
@@ -414,17 +365,19 @@ use tkeeps, only : tkemix        ! TKE-EPS boundary layer
 implicit none
 
 integer, intent(in) :: imax, kl, tile
-integer k
-real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
+integer k, nlocal_mode
+real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg, ni
+real, dimension(imax,kl), intent(inout) :: qrg, qsng, qgrg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(in) :: shear
-real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
+real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema
 real, dimension(imax,kl), intent(inout) :: tke_ema
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
-real, dimension(imax,kl) :: rkm, rkh
+real, dimension(imax,kl) :: rkm
+real, dimension(imax,kl,3) :: qtr
 real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg
 real, dimension(imax), intent(in) :: em, tss, ps, f
 real, dimension(imax), intent(in) :: cduv
@@ -435,7 +388,7 @@ logical, dimension(imax), intent(in) :: land
 
 
 ! estimate grid spacing for scale aware MF
-dx(:) = ds/em
+dx(:) = ds/em(:)
 
 ! Set-up potential temperature transforms
 rong = rdry/grav
@@ -469,38 +422,37 @@ select case(nvmix)
   case(6)  
     select case(nlocal)
       case(0) ! atm only, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,dt,qgmin,1,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
-                    qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
-        rkh = rkm
+        nlocal_mode = 1
       case(7) ! atm only, mass-flux counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,dt,qgmin,0,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
-                    qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
-        rkh = rkm
+        nlocal_mode = 0
     end select
   case(9)
     select case(nlocal)
       case(0) ! coupled atm-ocn, no counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,dt,qgmin,3,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
-                    qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
-        rkh = rkm        
+        nlocal_mode = 3
       case(7) ! coupled atm-ocn, mass-flux counter gradient
-        call tkemix(rkm,rhs,qg,qlg,qfg,stratcloud,u,v,pblh,fg,eg,cduv,ps,zg,zh,sig,      &
-                    rhos,ustar,dt,qgmin,2,tke,eps,shear,dx,thetal_ema,qv_ema,ql_ema,     &
-                    qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
-        rkh = rkm
+        nlocal_mode = 2
     end select
 end select
+  
+! additional cloud tracers  
+qtr(:,:,1) = qrg(:,:)  
+qtr(:,:,2) = qsng(:,:)
+qtr(:,:,3) = qgrg(:,:)
+  
+call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,qtr,u,v,pblh,fg,eg,               &
+            cduv,ps,zg,zh,sig,rhos,ustar,dt,qgmin,nlocal_mode,tke,eps,shear,   &
+            dx,thetal_ema,qv_ema,tke_ema,land,tile,imax,kl)  
+
+qrg(:,:) = qtr(:,:,1)
+qsng(:,:) = qtr(:,:,2)
+qgrg(:,:) = qtr(:,:,3)
 
 do k = 1,kl
   ! replace counter gradient term
-  rkm(:,k) = rkm(:,k)*cqmix
-  rkh(:,k) = rkh(:,k)*cqmix
   ! save Km and Kh for output
-  rkmsave(:,k) = rkm(:,k)
-  rkhsave(:,k) = rkh(:,k)
+  rkmsave(:,k) = rkm(:,k)*cqmix
+  rkhsave(:,k) = rkm(:,k)*cqmix
   ! transform winds back to Earth reference frame and theta to temp
   t(:,k) = rhs(:,k)/sigkap(k)
 enddo    !  k loop

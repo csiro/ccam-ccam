@@ -1381,6 +1381,8 @@ real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
 real ateb_alpha                     ! depreciated namelist options 
 real zimax,mlomaxuv                 ! depreciated namelist options
+real plume_alpha                    ! depreciated namelist options
+real ocnlap                         ! depreciated namelist options
 logical procformat                  ! depreciated namelist options
 logical unlimitedhist               ! depreciated namelist options
 character(len=1024) nmlfile
@@ -1486,7 +1488,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_deltat,ateb_acfactor,ateb_soilunder,                  &
-    siburbanfrac,                                                 &
+    siburbanfrac,freshwaterlake_fix,                              &
     wbclim_lonn,wbclim_lonx,wbclim_latn,wbclim_latx,              &
     ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,               & ! depreciated
     ateb_useonewall,ateb_alpha
@@ -1651,10 +1653,6 @@ if ( dt>3600. ) then
 end if
 if ( nvmix==9 .and. (nmlo==0.or.nhstest<0) ) then
   write(6,*) "ERROR: nvmix=9 requires nmlo/=0 and nhstest>=0"
-  call ccmpi_abort(-1)
-end if
-if ( maxcolour/=2 .and. maxcolour/=3 ) then
-  write(6,*) "ERROR: maxcolour must equal 2 or 3"
   call ccmpi_abort(-1)
 end if
 nagg = max( nagg, 4 ) ! use 4 for two staguv u & v arrays
@@ -2501,26 +2499,26 @@ elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
   end do
   if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
 end if
-if ( nud_p==0 .and. mfix==0 ) then
-  write(6,*) "ERROR: Both nud_p=0 and mfix=0"
-  write(6,*) "Model will not conserve mass"
-  call ccmpi_abort(-1)
-end if
-if ( nud_q==0 .and. mfix_qg==0 ) then
-  write(6,*) "ERROR: Both nud_q=0 and mfix_qg=0"
-  write(6,*) "Model will not conserve moisture"
-  call ccmpi_abort(-1)
-end if
-if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
-  write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
-  write(6,*) "Model will not conserve aerosols"
-  call ccmpi_abort(-1)
-end if
-if ( mfix_tr==0 .and. ngas>0 ) then
-  write(6,*) "ERROR: ngas>0 and mfix_tr=0"
-  write(6,*) "Model will not conserve tracers"
-  call ccmpi_abort(-1)
-end if
+!if ( nud_p==0 .and. mfix==0 ) then
+!  write(6,*) "ERROR: Both nud_p=0 and mfix=0"
+!  write(6,*) "Model will not conserve mass"
+!  call ccmpi_abort(-1)
+!end if
+!if ( nud_q==0 .and. mfix_qg==0 ) then
+!  write(6,*) "ERROR: Both nud_q=0 and mfix_qg=0"
+!  write(6,*) "Model will not conserve moisture"
+!  call ccmpi_abort(-1)
+!end if
+!if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
+!  write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
+!  write(6,*) "Model will not conserve aerosols"
+!  call ccmpi_abort(-1)
+!end if
+!if ( mfix_tr==0 .and. ngas>0 ) then
+!  write(6,*) "ERROR: ngas>0 and mfix_tr=0"
+!  write(6,*) "Model will not conserve tracers"
+!  call ccmpi_abort(-1)
+!end if
       
 
 call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
@@ -3447,7 +3445,7 @@ use tkeeps                                 ! TKE-EPS boundary layer
 implicit none
 
 integer, dimension(6) :: dumi
-real, dimension(33) :: dumr
+real, dimension(32) :: dumr
     
 dumr = 0.
 dumi = 0
@@ -3484,13 +3482,12 @@ if ( myid==0 ) then
   dumr(30) = tke_timeave_length
   dumr(31) = wg_tau
   dumr(32) = wg_prob
-  dumr(33) = plume_alpha
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
   dumi(4)  = ngwd
-  dumi(5)  = tcalmeth
-  dumi(6)  = ugs_meth
+  dumi(5)  = ugs_meth
+  dumi(6)  = tcalmeth
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3526,13 +3523,12 @@ dvmodmin           = dumr(29)
 tke_timeave_length = dumr(30)
 wg_tau             = dumr(31)
 wg_prob            = dumr(32)
-plume_alpha        = dumr(33)
 buoymeth           = dumi(1)
 stabmeth           = dumi(2)
 tkemeth            = dumi(3)
 ngwd               = dumi(4)
-tcalmeth           = dumi(5)
-ugs_meth           = dumi(6)
+ugs_meth           = dumi(5)
+tcalmeth           = dumi(6)
 
 return
 end subroutine broadcast_turbnml
@@ -3586,7 +3582,7 @@ use uclem_ctrl, only :                   & ! Urban
 
 implicit none
 
-integer, dimension(30) :: dumi
+integer, dimension(31) :: dumi
 real, dimension(27) :: dumr
     
 dumr = 0.
@@ -3649,66 +3645,68 @@ if ( myid==0 ) then
   dumi(28) = ateb_soilunder
   dumi(29) = wt_transport
   dumi(30) = cable_gw_model
+  dumi(31) = freshwaterlake_fix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
-energytol         = real(dumr(1),8)
-ateb_tol          = dumr(2)
-ateb_zosnow       = dumr(3)
-ateb_snowemiss    = dumr(4)
-ateb_maxsnowalpha = dumr(5)
-ateb_minsnowalpha = dumr(6)
-ateb_maxsnowden   = dumr(7)
-ateb_minsnowden   = dumr(8)
-ateb_refheight    = dumr(9) 
-ateb_zomratio     = dumr(10)
-zocanyon          = dumr(11)
-zoroof            = dumr(12)
-ateb_maxrfwater   = dumr(13)
-ateb_maxrdwater   = dumr(14)
-ateb_maxrfsn      = dumr(15)
-ateb_maxrdsn      = dumr(16)
-ateb_maxvwatf     = dumr(17) 
-ateb_ac_heatcap   = dumr(18)
-ateb_ac_coolcap   = dumr(19)
-ateb_ac_deltat    = dumr(20)
-ateb_acfactor     = dumr(21)
-siburbanfrac      = dumr(22) 
-cable_version     = dumr(23)
-wbclim_lonn       = dumr(24)
-wbclim_lonx       = dumr(25)
-wbclim_latn       = dumr(26)
-wbclim_latx       = dumr(27)
-proglai           = dumi(1)
-ccycle            = dumi(2)
-soil_struc        = dumi(3)
-cable_pop         = dumi(4)
-progvcmax         = dumi(5)
-fwsoil_switch     = dumi(6)
-cable_litter      = dumi(7)
-gs_switch         = dumi(8)
-smrf_switch       = dumi(9)
-strf_switch       = dumi(10)
-ateb_resmeth      = dumi(11)
-ateb_zohmeth      = dumi(12)
-ateb_acmeth       = dumi(13)
-ateb_nrefl        = dumi(14) 
-ateb_scrnmeth     = dumi(15)
-ateb_wbrelaxc     = dumi(16) 
-ateb_wbrelaxr     = dumi(17) 
-ateb_ncyits       = dumi(18)
-ateb_nfgits       = dumi(19) 
-intairtmeth       = dumi(20) 
-intmassmeth       = dumi(21)
-ateb_cvcoeffmeth  = dumi(22) 
-ateb_statsmeth    = dumi(23) 
-ateb_lwintmeth    = dumi(24) 
-ateb_infilmeth    = dumi(25)
-cable_roughness   = dumi(26)
-cable_potev       = dumi(27)
-ateb_soilunder    = dumi(28)
-wt_transport      = dumi(29)
-cable_gw_model    = dumi(30)
+energytol          = real(dumr(1),8)
+ateb_tol           = dumr(2)
+ateb_zosnow        = dumr(3)
+ateb_snowemiss     = dumr(4)
+ateb_maxsnowalpha  = dumr(5)
+ateb_minsnowalpha  = dumr(6)
+ateb_maxsnowden    = dumr(7)
+ateb_minsnowden    = dumr(8)
+ateb_refheight     = dumr(9) 
+ateb_zomratio      = dumr(10)
+zocanyon           = dumr(11)
+zoroof             = dumr(12)
+ateb_maxrfwater    = dumr(13)
+ateb_maxrdwater    = dumr(14)
+ateb_maxrfsn       = dumr(15)
+ateb_maxrdsn       = dumr(16)
+ateb_maxvwatf      = dumr(17) 
+ateb_ac_heatcap    = dumr(18)
+ateb_ac_coolcap    = dumr(19)
+ateb_ac_deltat     = dumr(20)
+ateb_acfactor      = dumr(21)
+siburbanfrac       = dumr(22) 
+cable_version      = dumr(23)
+wbclim_lonn        = dumr(24)
+wbclim_lonx        = dumr(25)
+wbclim_latn        = dumr(26)
+wbclim_latx        = dumr(27)
+proglai            = dumi(1)
+ccycle             = dumi(2)
+soil_struc         = dumi(3)
+cable_pop          = dumi(4)
+progvcmax          = dumi(5)
+fwsoil_switch      = dumi(6)
+cable_litter       = dumi(7)
+gs_switch          = dumi(8)
+smrf_switch        = dumi(9)
+strf_switch        = dumi(10)
+ateb_resmeth       = dumi(11)
+ateb_zohmeth       = dumi(12)
+ateb_acmeth        = dumi(13)
+ateb_nrefl         = dumi(14) 
+ateb_scrnmeth      = dumi(15)
+ateb_wbrelaxc      = dumi(16) 
+ateb_wbrelaxr      = dumi(17) 
+ateb_ncyits        = dumi(18)
+ateb_nfgits        = dumi(19) 
+intairtmeth        = dumi(20) 
+intmassmeth        = dumi(21)
+ateb_cvcoeffmeth   = dumi(22) 
+ateb_statsmeth     = dumi(23) 
+ateb_lwintmeth     = dumi(24) 
+ateb_infilmeth     = dumi(25)
+cable_roughness    = dumi(26)
+cable_potev        = dumi(27)
+ateb_soilunder     = dumi(28)
+wt_transport       = dumi(29)
+cable_gw_model     = dumi(30)
+freshwaterlake_fix = dumi(31)
 
 return
 end subroutine broadcast_landnml
@@ -3725,7 +3723,7 @@ use river                                  ! River routing
 implicit none
 
 integer, dimension(31) :: dumi
-real, dimension(24) :: dumr    
+real, dimension(23) :: dumr    
 
 dumr = 0.
 dumi = 0
@@ -3750,10 +3748,9 @@ if ( myid==0 ) then
   dumr(18) = kemaxdt
   dumr(19) = alphavis_seasnw
   dumr(20) = alphanir_seasnw
-  dumr(21) = ocnlap
-  dumr(22) = fluxwgt
-  dumr(23) = ocnepr
-  dumr(24) = delwater
+  dumr(21) = fluxwgt
+  dumr(22) = ocnepr
+  dumr(23) = delwater
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -3808,10 +3805,9 @@ mlo_timeave_length = dumr(17)
 kemaxdt            = dumr(18)
 alphavis_seasnw    = dumr(19)
 alphanir_seasnw    = dumr(20)
-ocnlap             = dumr(21)
-fluxwgt            = dumr(22)
-ocnepr             = dumr(23)
-delwater           = dumr(24)
+fluxwgt            = dumr(21)
+ocnepr             = dumr(22)
+delwater           = dumr(23)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 
@@ -3966,7 +3962,7 @@ return
 end subroutine proctest_face
     
 !--------------------------------------------------------------------
-! Fix water vapour mixing ratio
+! Fix water vapour mixing ratio.  Needed for JLM convection.
 subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -3989,7 +3985,7 @@ if ( qg_fix>=1 ) then
 
   do k = 1,kl
     do iq = js,je  
-      qtot = max( qg(iq,k) + qlg(iq,k) + qfg(iq,k), qgmin )
+      qtot = qg(iq,k) + qlg(iq,k) + qfg(iq,k)
       tliq = t(iq,k) - hlcp*qlg(iq,k) - hlscp*qfg(iq,k)
   
       qfg(iq,k)   = max( qfg(iq,k), 0. ) 
@@ -3998,13 +3994,8 @@ if ( qg_fix>=1 ) then
       qsng(iq,k)  = max( qsng(iq,k), 0. )
       qgrg(iq,k)  = max( qgrg(iq,k), 0. )
   
-      qg(iq,k) = max( qtot - qlg(iq,k) - qfg(iq,k), qgmin )
+      qg(iq,k) = max( qtot - qlg(iq,k) - qfg(iq,k), 0. )
       t(iq,k)  = tliq + hlcp*qlg(iq,k) + hlscp*qfg(iq,k)
-      if ( qlg(iq,k)+qfg(iq,k)>1.E-8 ) then
-        stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
-      else
-        stratcloud(iq,k) = 0.  
-      end if
     end do  
   end do
 
@@ -4013,6 +4004,7 @@ end if ! qg_fix>=1
 return
 end subroutine fixqg    
     
+! To be depreciated - Limits saturation after turbulent mixing    
 subroutine fixsat(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
@@ -4061,7 +4053,7 @@ do k = 1,kl
       if ( qfg(iq,k)>1.e-8 ) then
         fice = min( qfg(iq,k)/(qfg(iq,k)+qlg(iq,k)), 1. )
       else
-        fice= 0.
+        fice = 0.
       end if
       qsw = fice*qsi(iq) + (1.-fice)*qsl(iq)
       hlrvap = (hl+fice*hlf)/rvap
@@ -4075,11 +4067,6 @@ do k = 1,kl
 
       qg(iq,k) = max( qtot - qlg(iq,k) - qfg(iq,k), 0. )
       t(iq,k)  = tliq(iq) + hlcp*qlg(iq,k) + hlscp*qfg(iq,k)
-      if ( qlg(iq,k)+qfg(iq,k)>1.E-8 ) then
-        stratcloud(iq,k) = max( stratcloud(iq,k), 1.E-8 )
-      else
-        stratcloud(iq,k) = 0.  
-      end if
       
     end if ! zg<pblh  
   end do   ! iq 

@@ -45,19 +45,19 @@ implicit none
 
 integer, intent(in) :: ifull,iextra,kl
 
-allocate(qlg(ifull+iextra,kl),qfg(ifull+iextra,kl))
-allocate(qrg(ifull,kl),qsng(ifull,kl),qgrg(ifull,kl))
-allocate(nr(ifull,kl), ni(ifull+iextra,kl), ns(ifull,kl))
+allocate( qlg(ifull+iextra,kl), qfg(ifull+iextra,kl) )
+allocate( qrg(ifull+iextra,kl), qsng(ifull+iextra,kl), qgrg(ifull+iextra,kl) )
+allocate( nr(ifull,kl), ni(ifull+iextra,kl), ns(ifull,kl) )
 allocate(stras_rliq(ifull,kl),stras_rice(ifull,kl),stras_rsno(ifull,kl),stras_rrai(ifull,kl))
 allocate(stras_cliq(ifull,kl),stras_cice(ifull,kl))
-qlg=0.
-qfg=0.
-qrg=0.
-qsng=0.
-qgrg=0.
-nr = 0.
-ni = 0.
-ns = 0.
+qlg = 0. ! liquid water for cloud
+qfg = 0. ! frozen water for cloud
+qrg = 0. ! precipitating rain
+qsng = 0. ! precipitating snow
+qgrg = 0. ! precipitation graupel
+nr = 0. ! number concentration for rain
+ni = 0. ! number concentration for ice/graupel
+ns = 0. ! number concentration for snow
 stras_rliq = 0.
 stras_rice = 0.
 stras_rsno = 0.
@@ -72,10 +72,9 @@ subroutine liqwpar_end
 
 implicit none
 
-deallocate(qlg,qfg)
-deallocate(qrg,qsng)
-deallocate(qgrg)
-deallocate(ni,nr,ns)
+deallocate( qlg, qfg)
+deallocate( qrg, qsng, qgrg )
+deallocate( ni, nr, ns )
 deallocate(stras_rliq,stras_rice,stras_rsno,stras_rrai)
 deallocate(stras_cliq,stras_cice)
 

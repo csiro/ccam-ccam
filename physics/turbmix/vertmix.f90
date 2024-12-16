@@ -37,13 +37,10 @@ contains
     
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
-subroutine vertmix(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,stratcloud,condc,cfrac, &
+subroutine vertmix(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,ni,stratcloud,          &
+                   qrg,qsng,qgrg,condc,                                                   &
                    cduv,u,v,pblh,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,            &
                    rkmsave,rkhsave,                                                       &
-#ifdef scm
-                   wth_flux,wq_flux,uw_flux,vw_flux,mfsave,                               &
-                   buoyproduction,shearproduction,totaltransport,                         &
-#endif
                    idjd,mydiag)
 
 use cc_mpi, only : comm_world,       &
@@ -76,8 +73,9 @@ real, parameter :: vkar4=0.4                 ! coefficients for Louis scheme
 real, parameter :: bprmj=5.                  ! coefficients for Louis scheme
 real, parameter :: cmj=5.                    ! coefficients for Louis scheme
 real, parameter :: chj=2.6                   ! coefficients for Louis scheme
-real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg
-real, dimension(imax,kl), intent(inout) :: stratcloud, u, v, cfrac
+real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg, ni
+real, dimension(imax,kl), intent(inout) :: qrg, qsng, qgrg
+real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(in) :: savu, savv
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax), intent(inout) :: pblh, ustar
@@ -104,24 +102,6 @@ real denma, denha, esp, epart, tsp, qbas
 logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
 
-#ifdef scm
-real, dimension(imax,kl), intent(inout) :: wth_flux, wq_flux, uw_flux
-real, dimension(imax,kl), intent(inout) :: vw_flux
-real, dimension(imax,kl), intent(inout) :: buoyproduction, shearproduction
-real, dimension(imax,kl), intent(inout) :: totaltransport
-real, dimension(imax,kl-1), intent(inout) :: mfsave
-real, dimension(imax,kl) :: mfout
-#endif
-
-
-#ifdef scm
-! Initial flux to be added up below.
-wth_flux(:,:) = 0.
-wq_flux(:,:) = 0.
-uw_flux(:,:) = 0.
-vw_flux(:,:) = 0.
-mfsave(:,:) = 0.
-#endif
 
 w1=0.
 pk=0.
@@ -201,7 +181,7 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
         fice=qfg(iq,k)/max(qc,1.e-12)
         betaq=delta/(1.+delta*qg(iq,k)-qc)
         al=1./(1.+hlcp*dqsdt)
-        betac=cfrac(iq,k)*al * ((hlcp+fice*hlfcp)*betat - betaq/(1.-epsil) )
+        betac=stratcloud(iq,k)*al * ((hlcp+fice*hlfcp)*betat - betaq/(1.-epsil) )
         betatt(iq,k)=(betat-dqsdt*betac)/sigkap(k)  !Beta_t_tilde
         betaqt(iq,k)=betaq+betac                    !Beta_q_tilde
       enddo   ! iq loop
@@ -227,9 +207,9 @@ if ( (nvmix>0.and.nvmix<4) .or. nvmix==7 ) then
       betaq=delta/(1+delta*qg(iq,k)-qc)
       ! al=1./(1.+gam(iq,k))
       al=1./(1.+hlcp*dqsdt)
-      betac=cfrac(iq,k)*al*((hlcp+fice*hlfcp)*betat - betaq/(1.-epsil) )
+      betac=stratcloud(iq,k)*al*((hlcp+fice*hlfcp)*betat - betaq/(1.-epsil) )
       write(6,*)'k,qg,qs,qlg,qfg,qc ',k,qg(iq,k),qs(iq,k),qlg(iq,k),qfg(iq,k),qc
-      write(6,*)'t,rhs,cfrac,fice ',t(iq,k),rhs(iq,k),cfrac(iq,k),fice
+      write(6,*)'t,rhs,cfrac,fice ',t(iq,k),rhs(iq,k),stratcloud(iq,k),fice
       write(6,*)'al,delta,betaq,betac ',al,delta,betaq,betac
       write(6,*)'betat,betatt,betaqt ',betat,betatt(iq,k),betaqt(iq,k)
     endif 
@@ -460,7 +440,7 @@ do k = 1,kl-1
     write(6,*)'k,fm,dvmod,ri,csq ',k,fm(idjd),dvmod(idjd),ri(idjd,k),csq(idjd)
     write(6,*)'qfg,qfg+ ',qfg(idjd,k),qfg(idjd,k+1)
     write(6,*)'qlg,qlg+,dqtot ',qlg(idjd,k),qlg(idjd,k+1),dqtot(iq)
-    write(6,*)'cfrac,cfrac+ ',cfrac(idjd,k),cfrac(idjd,k+1)
+    write(6,*)'cfrac,cfrac+ ',stratcloud(idjd,k),stratcloud(idjd,k+1)
     write(6,*)'betatt,betatt+,betatt*delthet ',betatt(iq,k),betatt(iq,k+1),betatt(iq,k)*delthet(iq,k)
     write(6,*)'betaqt,betaqt+,betaqt*dqtot   ',betaqt(iq,k),betaqt(iq,k+1),betaqt(iq,k)*dqtot(iq)
     write(6,*)'x,zh,tmnht,dz,sighkap ',x(idjd),zh(idjd,k),tmnht(idjd,k),dz(idjd),sighkap(k)
@@ -484,12 +464,8 @@ if(nmaxpr==1.and.mydiag)then
 endif
 
 if (nlocal/=0) then
-  call pbldif(rhs,rkm,rkh,uav,vav,                   &
-              t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac  &
-#ifdef scm
-              ,wth_flux,wq_flux                      &
-#endif
-              )  ! rhs is theta or thetal
+  call pbldif(rhs,rkm,rkh,uav,vav,                        &
+              t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)  ! rhs is theta or thetal
   ! n.b. *** pbldif partially updates qg and theta (t done during trim)	 
   ! and updates rkh and rkm arrays
   if(nmaxpr==1.and.mydiag)then
@@ -833,13 +809,6 @@ end if
 rkmsave(:,:) = rkm(:,:)
 rkhsave(:,:) = rkh(:,:)
 
-#ifdef scm
-! counter-gradied included in pbldif.f90
-wth_flux(:,1) = fg(:)*rdry*t(1:imax,1)/(ps(1:imax)*cp)
-do k = 1,kl-1
-  wth_flux(:,k+1) = rkh(:,k)*(rhs(1:imax,k+1)-rhs(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
-end do    
-#endif
 
 !--------------------------------------------------------------
 ! Moisture
@@ -853,13 +822,6 @@ if ( diag .and. mydiag ) then
   write (6,"('qg ',9f7.3/(8x,9f7.3))") (1000.*qg(idjd,k),k=1,kl)
 end if
 
-#ifdef scm  
-! counter-gradied included in pbldif.f90
-wq_flux(:,1) = eg(:)*rdry*t(1:imax,1)/(ps(1:imax)*hl)
-do k = 1,kl-1
-  wq_flux(:,k+1) = rkh(:,k)*(qg(1:imax,k+1)-qg(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
-end do  
-#endif
   
 !--------------------------------------------------------------
 ! Cloud microphysics terms
@@ -868,10 +830,14 @@ if ( ldr/=0 ) then
   call trimmix(at,ct,qfg,imax,kl)
   ! now do qlg
   call trimmix(at,ct,qlg,imax,kl)
-  ! now do cfrac
-  call trimmix(at,ct,cfrac,imax,kl)
+  ! now do ni
+  call trimmix(at,ct,ni,imax,kl)
   ! now do stratcloud
   call trimmix(at,ct,stratcloud,imax,kl)
+  ! other cloud tracers
+  call trimmix(at,ct,qrg,imax,kl)
+  call trimmix(at,ct,qsng,imax,kl)
+  call trimmix(at,ct,qgrg,imax,kl)
 end if    ! (ldr/=0)
 
 !--------------------------------------------------------------
@@ -892,22 +858,10 @@ end if      ! (ntest==2)
 ! first do u
 call trimmix(au,cu,u,imax,kl)
   
-#ifdef scm
-uw_flux(:,1) = -cduv(:)*u(1:imax,1)
-do k = 1,kl-1
-  uw_flux(:,k+1) = rkm(:,k)*(u(1:imax,k+1)-u(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
-end do
-#endif
   
 ! now do v; with properly unstaggered au,cu
 call trimmix(au,cu,v,imax,kl)    ! note now that au, cu unstaggered globpea
 
-#ifdef scm
-vw_flux(:,1) = -cduv(:)*v(1:imax,1)
-do k = 1,kl-1
-  vw_flux(:,k+1) = rkm(:,k)*(v(1:imax,k+1)-v(1:imax,k))*(grav/rdry)*sig(k)/(t(1:imax,k)*dsig(k))
-end do
-#endif
   
 if ( ( diag .or. ntest>=1 ) .and. mydiag ) then
   write(6,*)'after trim in vertmix '
@@ -926,12 +880,8 @@ end if
 return
 end subroutine vertmix
 
-subroutine pbldif(theta,rkm,rkh,uav,vav,                &
-                  t,pblh,ustar,f,ps,fg,eg,qg,land,cfrac &
-#ifdef scm
-                  ,wth_flux,wq_flux                     &
-#endif
-                  )   
+subroutine pbldif(theta,rkm,rkh,uav,vav,                     &
+                  t,pblh,ustar,f,ps,fg,eg,qg,land,stratcloud)   
 
 use cc_mpi, only : mydiag, myid
 use const_phys
@@ -1007,11 +957,7 @@ real, dimension(imax), intent(in) :: fg
 real, dimension(imax), intent(in) :: eg
 real, dimension(imax,kl), intent(inout) :: qg
 logical, dimension(imax), intent(in) :: land
-real, dimension(imax,kl), intent(in) :: cfrac
-#ifdef scm
-real, dimension(imax,kl), intent(inout) :: wth_flux
-real, dimension(imax,kl), intent(inout) :: wq_flux
-#endif
+real, dimension(imax,kl), intent(in) :: stratcloud
 !
 !---------------------------Local parameters----------------------------
 !
@@ -1225,7 +1171,7 @@ if(nlocal==4)then
   ! suppress nonlocal scheme for column if cloudy layer in pbl   jlm
   do k=1,kl/2
     do iq=1,imax
-      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
+      if(zg(iq,k)<pblh(iq).and.stratcloud(iq,k)>0.)pblh(iq)=0.
     enddo
   enddo
 endif  !  (nlocal==4)
@@ -1235,7 +1181,7 @@ if(nlocal==5)then
   ! restores pblh at the bottom to have it available in convjlm/vertmix
   do k=1,kl/2
     do iq=1,imax
-      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.) pblh(iq)=-pblh(iq)  
+      if(zg(iq,k)<pblh(iq).and.stratcloud(iq,k)>0.) pblh(iq)=-pblh(iq)  
     enddo
   enddo
 endif  !  (nlocal==5)
@@ -1245,7 +1191,7 @@ if(nlocal==2)then
     ! suppress nonlocal scheme if cloudy layers in pbl   jlm
     ! note this allows layers below to be done as nonlocal
     do iq=1,imax
-      if(zg(iq,k)<pblh(iq).and.cfrac(iq,k)>0.)pblh(iq)=0.
+      if(zg(iq,k)<pblh(iq).and.stratcloud(iq,k)>0.)pblh(iq)=0.
     enddo
   end do
 endif  !  (nlocal==2)
@@ -1330,10 +1276,6 @@ do k=2,kmax-1
     sigotbkm1=sigmh(k)/(0.5*(t(iq,k-1) + t(iq,k)))
     theta(iq,k) = theta(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgh(iq,k) - sigotbkm1*rkh(iq,k-1)*cgh(iq,k-1))
     qg(iq,k) = qg(iq,k) + tmp1*(sigotbk*rkh(iq,k)*cgq(iq,k) - sigotbkm1*rkh(iq,k-1)*cgq(iq,k-1))
-#ifdef scm
-    wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
-    wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
-#endif
   end do
 end do
 k=1
@@ -1343,10 +1285,6 @@ do iq=1,imax
   sigotbk=sigmh(k+1)/(0.5*(t(iq,k+1) + t(iq,k)))
   theta(iq,k) = theta(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)
   qg(iq,k) = qg(iq,k) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)
-#ifdef scm
-  wth_flux(iq,k+1) = wth_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgh(iq,k)/dtin
-  wq_flux(iq,k+1) = wq_flux(iq,k+1) + tmp1*sigotbk*rkh(iq,k)*cgq(iq,k)/dtin
-#endif
 end do
 
 if (ntest>0.and.mydiag.and.ntiles==1) then

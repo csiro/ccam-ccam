@@ -25,13 +25,12 @@ implicit none
 
 private
 public mlodiffusion,mlodiffusion_work
-public mlodiff,ocnsmag,ocnlap,mlodiff_numits
+public mlodiff,ocnsmag,mlodiff_numits
 
 integer, save   :: mlodiff        = 0       ! diffusion (0=all laplican, 1=scalars laplcian, 2=momentum laplacian,
                                             !            10=all biharmonic, 11=scalars biharmonic, 12=momentum biharmonic )
 integer, save   :: mlodiff_numits = 10      ! Number of iterations required for bi-harmonic diffusion
 real, save      :: ocnsmag        = 1.      ! horizontal diffusion for Bilinear (2. in Griffies (2000))
-real, save      :: ocnlap         = 0.      ! horizontal diffusion for Laplacian ( 1.-1.4 in POM (Mellor 2004), 1. in SHOC )
 
 contains
 
@@ -97,8 +96,7 @@ real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
 real, dimension(ifull,wlev) :: workdata2
 real, dimension(ifull) :: dwdx, dwdy
-real hdif, ldif
-real base
+real hdif, base
 real dudx,dvdx,dudy,dvdy
 real nu,nv,nw
 real, dimension(ifull) :: emi
@@ -123,12 +121,10 @@ end if
 ! Define diffusion scale and grid spacing
 if ( mlodiff>=0 .and. mlodiff<=9 ) then
   ! Laplacian only (redefine ocnsmag)
-  hdif = 0.
-  ldif = dt*(ocnsmag/pi)**2
+  hdif = dt*(ocnsmag/pi)**2
 else if ( mlodiff>=10 .and. mlodiff<=19 ) then
   ! Biharmonic and Laplacian
   hdif = sqrt(0.125)*ocnsmag/pi
-  ldif = dt*(ocnlap/pi)**2
 else
   write(6,*) "ERROR: Unknown option mlodiff = ",mlodiff
   call ccmpi_abort(-1)
@@ -213,7 +209,7 @@ if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
 end if
 
 
-if ( hdif>0. ) then
+if ( mlodiff>=10 .and. mlodiff<20 ) then
   !Biharmonic version
 
   if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
@@ -226,7 +222,7 @@ if ( hdif>0. ) then
     call mlodiffcalc(ssl,xfact,yfact,emi,ee,hdif)
   end if
 
-else
+else if ( mlodiff>=0 .and. mlodiff<10 ) then
   ! Laplacian version
     
   !$omp parallel
@@ -234,28 +230,31 @@ else
 
   !$omp section
   if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
-    call mlodifflap(duma(:,:,1),xfact,yfact,emi,ee,ldif)
+    call mlodifflap(duma(:,:,1),xfact,yfact,emi,ee,hdif)
   end if
   !$omp section
   if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
-    call mlodifflap(duma(:,:,2),xfact,yfact,emi,ee,ldif)
+    call mlodifflap(duma(:,:,2),xfact,yfact,emi,ee,hdif)
   end if
   !$omp section
   if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
-    call mlodifflap(duma(:,:,3),xfact,yfact,emi,ee,ldif)
+    call mlodifflap(duma(:,:,3),xfact,yfact,emi,ee,hdif)
   end if
   !$omp section
   if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
-    call mlodifflap(ttl,xfact,yfact,emi,ee,ldif)
+    call mlodifflap(ttl,xfact,yfact,emi,ee,hdif)
   end if
   !$omp section
   if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
-    call mlodifflap(ssl,xfact,yfact,emi,ee,ldif)
+    call mlodifflap(ssl,xfact,yfact,emi,ee,hdif)
   end if
 
   !$omp end sections
   !$omp end parallel
 
+else  
+  write(6,*) "ERROR: Unknown mlodiff option mlodiff=",mlodiff
+  call ccmpi_abort(-1)
 end if  
 
 

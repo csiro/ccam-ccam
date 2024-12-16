@@ -881,7 +881,7 @@ end where
 ! nmlo=3 same as 2, but with horizontal and vertical advection
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Initialise MLO ocean model'
-  where ( .not.land )
+  where ( .not.land(1:ifull) )
     depth = max(depth,2.*minwater)
   elsewhere
     depth = 0.  
@@ -2705,6 +2705,13 @@ else if ( nsib>=6 ) then
     call ccmpi_distribute(local2d(:,1:3))
   end if
   isoilm_in(1:ifull)     = nint( local2d(1:ifull,1) )
+  ! define freshwater lakes for water bodies above sea-level
+  ! MJT notes - should this be part of igbpveg preprocessing?
+  if ( freshwaterlake_fix==1 ) then
+    where ( isoilm_in(1:ifull)==0 .and. zs(1:ifull)>0.01 )
+      isoilm_in(1:ifull) = -1 ! lake
+    end where
+  end if  
   albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
   deallocate( local2d )
   isoilm = max( isoilm_in, 0 )

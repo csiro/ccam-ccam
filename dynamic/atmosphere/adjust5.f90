@@ -568,23 +568,21 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
     qg(1:ifull,k) = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
     qfg(1:ifull,k) = max( qfg(1:ifull,k), 0. )
     qlg(1:ifull,k) = max( qlg(1:ifull,k), 0. )
+    qsng(1:ifull,k) = max( qsng(1:ifull,k), 0. )
+    nr(1:ifull,k) = max( nr(1:ifull,k), 0. )
+    ni(1:ifull,k) = max( ni(1:ifull,k), 0. )
+    ns(1:ifull,k) = max( ns(1:ifull,k), 0. )
   end do
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.) 
   call massfix(mfix_qg,1,qfg,qfgsav,ps,ps_sav,.true.) 
   call massfix(mfix_qg,1,qlg,qlgsav,ps,ps_sav,.true.) 
-  do k = 1,kl
-    qlg(1:ifull,k) = max( qlg(1:ifull,k), 0. )
-    qfg(1:ifull,k) = max( qfg(1:ifull,k), 0. )    
-    qg(1:ifull,k)  = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
-  end do
+  call massfix(mfix_qg,1,qrg,qrgsav,ps,ps_sav,.true.)
+  call massfix(mfix_qg,1,qsng,qsngsav,ps,ps_sav,.true.)
+  call massfix(mfix_qg,1,qgrg,qgrgsav,ps,ps_sav,.true.)
 else if ( mfix_qg/=0 .and. mspec==1 ) then
   qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.)
-  qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
 end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
-nr(1:ifull,1:kl) = max( nr(1:ifull,1:kl), 0. )
-ni(1:ifull,1:kl) = max( ni(1:ifull,1:kl), 0. )
-ns(1:ifull,1:kl) = max( ns(1:ifull,1:kl), 0. )
 
 !------------------------------------------------------------------------
 ! Tracer conservation
@@ -597,7 +595,6 @@ end if !  (mfix_tr/=0.and.mspec==1.and.ntrac>0)
 if ( mfix_aero/=0 .and. mspec==1 .and. abs(iaero)>=2 .and. nhstest>=0 ) then
   xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
   call massfix(mfix_aero,naero,xtg,xtgsav,ps,ps_sav,.true.)
-  xtg(1:ifull,1:kl,1:naero) = max( xtg(1:ifull,1:kl,1:naero), 0. )
 end if ! (mfix_aero/=0.and.mspec==1.and.abs(iaero)>=2)
 !--------------------------------------------------------------
       

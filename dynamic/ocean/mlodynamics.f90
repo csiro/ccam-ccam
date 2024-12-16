@@ -53,7 +53,7 @@ public usetide,mlojacobi,mlomfix,nodrift,mlodps,mlo_bs,mlointschf
 public mloiceadv
 
 public mlodiffusion,mlodiffusion_work
-public mlodiff,ocnsmag,ocnlap,mlodiff_numits
+public mlodiff,ocnsmag,mlodiff_numits
 
 public ee, eeu, eev
 public dd, ddu, ddv

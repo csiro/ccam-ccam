@@ -666,7 +666,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'minl',minl)
     call ccnf_put_attg(idnc,'mintke',mintke)
     call ccnf_put_attg(idnc,'ngwd',ngwd)
-    call ccnf_put_attg(idnc,'plume_alpha',plume_alpha)
     call ccnf_put_attg(idnc,'qcmf',qcmf)
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
@@ -719,6 +718,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'cable_pop',cable_pop)    
     call ccnf_put_attg(idnc,'cable_version',cable_version)
     call ccnf_put_attg(idnc,'ccycle',ccycle)
+    call ccnf_put_attg(idnc,'freshwaterlake_fix',freshwaterlake_fix)
     call ccnf_put_attg(idnc,'fwsoil_switch',fwsoil_switch)
     call ccnf_put_attg(idnc,'gs_switch',gs_switch)
     call ccnf_put_attg(idnc,'proglai',proglai)
@@ -762,7 +762,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'oclosure',oclosure)
     call ccnf_put_attg(idnc,'ocnepr',ocnepr)
     call ccnf_put_attg(idnc,'ocneps',ocneps)
-    call ccnf_put_attg(idnc,'ocnlap',ocnlap)
     call ccnf_put_attg(idnc,'ocnsmag',ocnsmag)
     call ccnf_put_attg(idnc,'omaxl',omaxl)
     call ccnf_put_attg(idnc,'omineps',omineps)
@@ -900,8 +899,7 @@ use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
 use tkeeps, only : tke,eps,u_ema,v_ema,w_ema,  & ! TKE-EPS boundary layer
-    thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,    &
-    tke_ema
+    thetal_ema,qv_ema,tke_ema
 use tracermodule, only : writetrpm, co2em        ! Tracer routines
 use tracers_m                                    ! Tracer data
 use uclem_ctrl, only : uclem_saved,            & ! Urban
@@ -2111,9 +2109,6 @@ if ( myid==0 .or. local ) then
                mean_m,cptype)
         call attrib(idnc,dima,asize,'thetal_ema','Exponentially weighted moving average thetal','K',100.,425.,any_m,mean_m,cptype)
         call attrib(idnc,dima,asize,'qv_ema','Exponentially weighted moving average qv','kg kg-1',0.,.065,any_m,mean_m,cptype)
-        call attrib(idnc,dima,asize,'ql_ema','Exponentially weighted moving average ql','kg kg-1',0.,.065,any_m,mean_m,cptype)
-        call attrib(idnc,dima,asize,'qf_ema','Exponentially weighted moving average qf','kg kg-1',0.,.065,any_m,mean_m,cptype)
-        call attrib(idnc,dima,asize,'cf_ema','Exponentially weighted moving average cf','m2 s-2',0.,65.,any_m,mean_m,cptype)        
         call attrib(idnc,dima,asize,'tke_ema','Exponentially weighted moving average te','frac',0.,1.,any_m,mean_m,cptype)        
       end if    
     end if
@@ -3473,9 +3468,6 @@ if ( nvmix==6 .or. nvmix==9 ) then
     call histwrt(w_ema,'w_ema',idnc,iarch,local,.true.)
     call histwrt(thetal_ema,'thetal_ema',idnc,iarch,local,.true.)
     call histwrt(qv_ema,'qv_ema',idnc,iarch,local,.true.)
-    call histwrt(ql_ema,'ql_ema',idnc,iarch,local,.true.)
-    call histwrt(qf_ema,'qf_ema',idnc,iarch,local,.true.)
-    call histwrt(cf_ema,'cf_ema',idnc,iarch,local,.true.)
     call histwrt(tke_ema,'tke_ema',idnc,iarch,local,.true.)
   end if  
 end if
@@ -3703,6 +3695,7 @@ real, dimension(1) :: zpnt
 real, dimension(kl) :: phi_local
 real, dimension(ms) :: shallow_zse, zsoil
 real xx, sig_level, shallow_sum, new_sum
+real press_level_hpa
 real(kind=8) tpnt
 real, parameter :: shallow_max = 0.1 ! shallow soil depth (10cm)
 logical, save :: first = .true.
@@ -3925,9 +3918,9 @@ if ( first ) then
     if ( cordex_core ) then
       lname = 'Surface geopotential'
       call attrib(fncid,sdim(1:fsize),fsize,'zht',lname,'m-2 s-2',-1000.,90.e3,any_m,fixed_m,float_m)
-      lname = 'Soil type'
     end if
     if ( cordex_tier2 ) then
+      lname = 'Soil type'        
       call attrib(fncid,sdim(1:fsize),fsize,'soilt',lname,'none',-650.,650.,any_m,fixed_m,short_m)
       lname = 'Capacity of Soil to Store Water'
       call attrib(fncid,sdim(1:fsize),fsize,'mrsofc',lname,'kg m-2',0.,6500.,any_m,fixed_m,short_m)
@@ -4620,28 +4613,23 @@ if ( mod(ktau,tbave)==0 ) then
   if ( cordex_tier1 ) then
     do j = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
       press_level = cordex_level_data(j)
+      press_level_hpa = real(press_level)*100.  
       do iq = 1,ifull
-        n = 1
-        do k = 1,kl-1
-          if ( ps(iq)*sig(k)>real(press_level)*100. ) then
-            n = k
-          else
-            exit
-          end if
-        end do   
-        xx = (log(real(press_level)*100.) - log(ps(iq)*sig(n))) &
-            /(log(ps(iq)*sig(n+1))-log(ps(iq)*sig(n)))
-        if ( xx<0. .or. xx>1. ) then
-          ! linear extrapolation  
-          xx = (real(press_level)*100. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
-        end if  
+        n = bisect(press_level_hpa,ps(iq),sig(:)) 
+        xx = (press_level_hpa - ps(iq)*sig(n)) &
+            /(ps(iq)*sig(n+1)-ps(iq)*sig(n))
+        xx = min( max( xx, 0. ), 1. )
+        ! special treatment for t
+        if ( press_level_hpa>ps(iq)*sig(1) ) then
+          ta_level(iq) = t(iq,1)*(press_level_hpa/(ps(iq)*sig(1)))**(6.5e-3*rdry/grav)
+        else
+          ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+        end if
+        hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx        
+        hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.) ! convert to specific humidity
         ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
         va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-        ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-        hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
-        hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
-        zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
-        zg_level(iq) = zg_level(iq)/grav
+        zg_level(iq) = (phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx)/grav
         sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
         wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx)
         wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*psl(iq)) * &
@@ -4665,26 +4653,22 @@ if ( mod(ktau,tbave)==0 ) then
   !if ( cordex_tier1 ) then
   !  do j = 11,cordex_levels ! 150, 100, 75, 50, 30, 20, 10
   !    press_level = cordex_level_data(j)
+  !    press_level_hpa = real(press_level)*100.
   !    do iq = 1,ifull
-  !      n = 1
-  !      do k = 1,kl-1
-  !        if ( ps(iq)*sig(k)>real(press_level)*100. ) then
-  !          n = k
-  !        else
-  !          exit
-  !        end if
-  !      end do   
-  !      xx = (log(real(press_level)*100.) - log(ps(iq)*sig(n))) &
-  !          /(log(ps(iq)*sig(n+1))-log(ps(iq)*sig(n)))
-  !      if ( xx<0. .or. xx>1. ) then
-  !        ! linear extrapolation  
-  !        xx = (real(press_level)*100. - ps(iq)*sig(n))/(ps(iq)*(sig(n+1)-sig(n)))
-  !      end if   
-  !      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-  !      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-  !      ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+  !      n = bisect(press_level_hpa,ps(iq),sig(:)) 
+  !      xx = (press_level_hpa - ps(iq)*sig(n)) &
+  !          /(ps(iq)*sig(n+1)-ps(iq)*sig(n))
+  !      xx = min( max( xx, 0. ), 1. )
+  !      ! special treatment for t
+  !      if ( press_level_hpa>ps(iq)*sig(1) ) then
+  !        ta_level(iq) = t(iq,1)*(press_level_hpa/(ps(iq)*sig(1)))**(6.5e-3*rdry/grav)
+  !      else
+  !        ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+  !      end if
   !      hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx
   !      hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.)
+  !      ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+  !      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
   !      zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
   !      zg_level(iq) = zg_level(iq)/grav
   !      sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
@@ -4924,15 +4908,15 @@ if ( first ) then
     end if
     call ccnf_def_var(fncid,'time','double',1,adim(d4:d4),idnt)
     call ccnf_put_att(fncid,idnt,'point_spacing','even')
-    icy=kdate/10000
-    icm=max(1,min(12,(kdate-icy*10000)/100))
-    icd=max(1,min(31,(kdate-icy*10000-icm*100)))
+    icy = kdate/10000
+    icm = max(1,min(12,(kdate-icy*10000)/100))
+    icd = max(1,min(31,(kdate-icy*10000-icm*100)))
     if ( icy<100 ) then
-      icy=icy+1900
+      icy = icy + 1900
     end if
-    ich=ktime/100
-    icmi=(ktime-ich*100)
-    ics=0
+    ich = ktime/100
+    icmi = ktime - ich*100
+    ics = 0
     write(timorg,'(i2.2,"-",a3,"-",i4.4,3(":",i2.2))') icd,month(icm),icy,ich,icmi,ics
     call ccnf_put_att(fncid,idnt,'time_origin',timorg)
     write(grdtim,'("minutes since ",i4.4,"-",i2.2,"-",i2.2," ",2(i2.2,":"),i2.2)') icy,icm,icd,ich,icmi,ics
@@ -5295,5 +5279,32 @@ endif    ! (ktau.eq.nwrite/2.or.ktau.eq.nwrite)
 
 return
 end subroutine soiltextfile
+
+! Find pressure level
+pure function bisect(press_target, ps, sig) result(ans)
+real, intent(in) :: press_target, ps
+real, dimension(:), intent(in) :: sig
+integer :: ans
+integer a, b, i, kx
+
+kx = size(sig)
+a = 1
+b = kx
+do while ( b-a > 1 )
+  i = (a+b)/2
+  if ( press_target > ps*sig(i) ) then
+    b = i
+  else
+    a = i
+  end if
+end do
+if ( ps*sig(a)>=press_target .and. ps*sig(b)>=press_target ) then
+  ans = b
+else
+  ans = a
+end if
+ans = min( ans, kx-1 )
+
+end function bisect
 
 end module outcdf

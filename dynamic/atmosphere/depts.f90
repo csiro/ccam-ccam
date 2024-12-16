@@ -185,11 +185,6 @@ do itr = 1,2
   if ( intsch==1 ) then
 
     ! Loop over points that need to be calculated for other processes
-    !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,xxg,yyg,n) &
-    !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)                                           &
-    !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                       &
-    !$omp   private(sx_11,sx_21,sx_02,sx_12)
     do ii = 1,neighnum
       do nn = 1,3
         do iq = 1,drlen(ii)
@@ -235,7 +230,6 @@ do itr = 1,2
         end do        ! iq loop
       end do          ! nn loop
     end do            ! ii loop
-    !$omp end parallel do
 
     call intssync_send(3)
 
@@ -311,11 +305,6 @@ do itr = 1,2
   !======================== start of intsch=2 section ====================
 
     ! For other processes
-    !$omp parallel do collapse(2) schedule(static) private(ii,nn,k,iq,idel,jdel,xxg,yyg,n) &
-    !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4) &
-    !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)                                           &
-    !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                       &
-    !$omp   private(sx_11,sx_21,sx_02,sx_12)
     do ii = 1,neighnum
       do nn = 1,3
         do iq = 1,drlen(ii)
@@ -361,7 +350,6 @@ do itr = 1,2
         end do          ! iq loop
       end do            ! nn loop
     end do              ! ii
-    !$omp end parallel do
 
     call intssync_send(3)
 

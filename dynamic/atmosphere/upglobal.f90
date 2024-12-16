@@ -60,7 +60,7 @@ integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
 integer, dimension(max(naero,ntrac,6)) :: nfield
 real, dimension(ifull) :: nvadh_inv_pass
-real, dimension(ifull+iextra,kl,6) :: bb
+real, dimension(ifull+iextra,kl,8) :: bb
 real, dimension(ifull+iextra,kl,3) :: uvw
 real, dimension(ifull+iextra,kl) :: dd
 real, dimension(ifull+iextra) :: aa
@@ -212,17 +212,26 @@ if ( mup/=0 ) then
 end if
 if ( mspec==1 .and. mup/=0 ) then
   if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    ! Lin microphysics  
     call bounds(qg,nrows=2)
     call bounds(qlg,nrows=2)
     call bounds(qfg,nrows=2)
     call bounds(stratcloud,nrows=2)
-    call bounds(ni,nrows=2)      
+    call bounds(ni,nrows=2)   
+    call bounds(qrg,nrows=2)
+    call bounds(qsng,nrows=2)
+    call bounds(qgrg,nrows=2)
   else if ( ldr/=0 ) then
+    ! Leon microphysics  
     call bounds(qg,nrows=2)
     call bounds(qlg,nrows=2)
     call bounds(qfg,nrows=2)
     call bounds(stratcloud,nrows=2)
+    call bounds(qrg,nrows=2)
+    call bounds(qsng,nrows=2)
+    call bounds(qgrg,nrows=2)
   else
+    ! diagnostic (depreciated)  
     call bounds(qg,nrows=2)
   end if    ! ldr/=0
   if ( ntrac>0 ) then
@@ -373,28 +382,43 @@ end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
+    ! Lin microphysics  
     bb(:,:,1) = qg(:,:)
     bb(:,:,2) = qlg(:,:)
     bb(:,:,3) = qfg(:,:)
     bb(:,:,4) = stratcloud(:,:)
-    bb(:,:,5) = ni(:,:)
-    call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,4)
+    bb(:,:,5) = qrg(:,:)
+    bb(:,:,6) = qsng(:,:)
+    bb(:,:,7) = qgrg(:,:)
+    bb(:,:,8) = ni(:,:)
+    call ints(bb(:,:,1:8),8,intsch,nface,xg,yg,4)
     qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
-    ni(1:ifull,1:kl) = bb(1:ifull,1:kl,5)  
+    qrg(1:ifull,1:kl) = bb(1:ifull,1:kl,5)
+    qsng(1:ifull,1:kl) = bb(1:ifull,1:kl,6)
+    qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
+    ni(1:ifull,1:kl) = bb(1:ifull,1:kl,8)  
   else if ( ldr/=0 ) then
+    ! Leon microphysics  
     bb(:,:,1) = qg(:,:)
     bb(:,:,2) = qlg(:,:)
     bb(:,:,3) = qfg(:,:)
     bb(:,:,4) = stratcloud(:,:)
-    call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,4)
+    bb(:,:,5) = qrg(:,:)
+    bb(:,:,6) = qsng(:,:)
+    bb(:,:,7) = qgrg(:,:)
+    call ints(bb(:,:,1:7),7,intsch,nface,xg,yg,4)
     qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
     qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
+    qrg(1:ifull,1:kl) = bb(1:ifull,1:kl,5)
+    qsng(1:ifull,1:kl) = bb(1:ifull,1:kl,6)
+    qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
   else
+    ! diagnostic microphysics 
     call ints(qg,1,intsch,nface,xg,yg,3)
   end if    ! ldr/=0
   if ( ntrac>0 ) then

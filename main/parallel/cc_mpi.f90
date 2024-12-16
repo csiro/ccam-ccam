@@ -318,7 +318,7 @@ module cc_mpi
    type(bounds_info), allocatable, dimension(:), save :: bnds
 
    ! partition boundary indices into colours
-   integer, dimension(:,:), allocatable, save, public :: iqx, iqn, iqe, iqw, iqs
+   integer, dimension(:,:), allocatable, save, public :: iqx
    integer, public, save :: ifull_maxcolour
    integer, dimension(:), allocatable, public, save :: ifull_colour, ifull_colour_border
 
@@ -375,9 +375,7 @@ module cc_mpi
    type(mgbndtype), dimension(:,:), allocatable, save, public :: mg_bnds
    integer, save, public :: mg_maxlevel, mg_maxlevel_local
    integer, save, public :: mg_ifull_maxcolour
-   integer, dimension(:,:), allocatable, save, public :: col_iq, col_iqn, col_iqe, col_iqs, col_iqw
-   integer, dimension(:,:), allocatable, save, public :: col_iqne, col_iqen, col_iqse, col_iqes
-   integer, dimension(:,:), allocatable, save, public :: col_iqnw, col_iqwn, col_iqsw, col_iqws
+   integer, dimension(:,:), allocatable, save, public :: col_iq
 
    ! File IO
    type filebounds_info
@@ -449,7 +447,6 @@ module cc_mpi
    integer, public, save :: allreduce_begin, allreduce_end
    integer, public, save :: mpiwait_begin, mpiwait_end
    integer, public, save :: mpibarrier_begin, mpibarrier_end
-   integer, public, save :: mgsetup_begin, mgsetup_end
    integer, public, save :: mgfine_begin, mgfine_end
    integer, public, save :: mgup_begin, mgup_end
    integer, public, save :: mgcoarse_begin, mgcoarse_end
@@ -471,7 +468,7 @@ module cc_mpi
    integer, public, save :: p15_begin, p15_end
    integer, public, save :: p16_begin, p16_end
    integer, public, save :: p17_begin, p17_end
-   integer, parameter :: nevents = 83
+   integer, parameter :: nevents = 82
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
    real(kind=8), save, public :: mpiinit_time, total_time
@@ -506,7 +503,7 @@ contains
       logical(kind=4) :: ltrue
 
       
-      if ( maxcolour/=2 .and. maxcolour/=3 ) then
+      if ( maxcolour<1 .and. maxcolour>3 ) then
          write(6,*) "ERROR: Invalid choice for maxcolour"
          call ccmpi_abort(-1)
       end if
@@ -691,10 +688,8 @@ contains
       do n = 1,maxcolour
          ifull_colour(n) = count( colourmask == n )
       end do
-      ifull_maxcolour = maxval( ifull_colour )
+      ifull_maxcolour = maxval( ifull_colour(:) )
       allocate( iqx(ifull_maxcolour,maxcolour) )
-      allocate( iqn(ifull_maxcolour,maxcolour), iqe(ifull_maxcolour,maxcolour) )
-      allocate( iqw(ifull_maxcolour,maxcolour), iqs(ifull_maxcolour,maxcolour) )
       ifull_colour = 0
       ! first process border
       do n = 1,npan
@@ -703,40 +698,24 @@ contains
           iq = indp(i,j,n)
           ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
           iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-          iqn(ifull_colour(colourmask(iq)),colourmask(iq)) = in(iq)
-          iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
-          iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
-          iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
         end do
         j = jpan
         do i = 1,ipan
           iq = indp(i,j,n)
           ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
           iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-          iqn(ifull_colour(colourmask(iq)),colourmask(iq)) = in(iq)
-          iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
-          iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
-          iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
         end do
         i = 1
         do j = 2,jpan-1
           iq = indp(i,j,n)
           ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
           iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-          iqn(ifull_colour(colourmask(iq)),colourmask(iq)) = in(iq)
-          iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
-          iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
-          iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
         end do
         i = ipan
         do j = 2,jpan-1
           iq = indp(i,j,n)
           ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
           iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-          iqn(ifull_colour(colourmask(iq)),colourmask(iq)) = in(iq)
-          iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
-          iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
-          iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
         end do
       end do
       ifull_colour_border(1:maxcolour) = ifull_colour(1:maxcolour)
@@ -747,10 +726,6 @@ contains
             iq = indp(i,j,n)
             ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
             iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-            iqn(ifull_colour(colourmask(iq)),colourmask(iq)) = in(iq)
-            iqe(ifull_colour(colourmask(iq)),colourmask(iq)) = ie(iq)
-            iqw(ifull_colour(colourmask(iq)),colourmask(iq)) = iw(iq)
-            iqs(ifull_colour(colourmask(iq)),colourmask(iq)) = is(iq)
           end do
         end do
       end do
@@ -4258,7 +4233,7 @@ contains
    subroutine check_bnds_alloc(rproc, iext)
       integer, intent(in) :: rproc
       integer, intent(in) :: iext
-      integer :: testlen
+      integer :: testlen, i
 
 !     Allocate the components of the bnds array. It's too much work to
 !     get the exact sizes, so allocate a fixed size for each case where
@@ -4277,13 +4252,20 @@ contains
          bnds(rproc)%len = maxbuflen*maxvertlen
       else
          ! Just check length
-         testlen = max( bnds(rproc)%rlenh_fn(1), bnds(rproc)%rlenh_fn(2), bnds(rproc)%rlen_fn(1), bnds(rproc)%rlen_fn(2), &
-                        bnds(rproc)%rlenx_fn(1), bnds(rproc)%rlenx_fn(2), bnds(rproc)%rlen2 )*maxvertlen
+         testlen = 0 
+         do i = 1,maxcolour 
+            testlen = max( bnds(rproc)%rlenh_fn(i), bnds(rproc)%rlen_fn(i), &
+                           bnds(rproc)%rlenx_fn(i), bnds(rproc)%rlen2,      &
+                           testlen )
+         end do   
+         testlen = testlen*maxvertlen   
          if ( testlen >  bnds(rproc)%len ) then
             write(6,*) "Error, maximum length error in check_bnds_alloc"
             write(6,*) myid, rproc, testlen,  bnds(rproc)%len, maxvertlen
-            write(6,*) bnds(rproc)%rlenh_fn(1), bnds(rproc)%rlenh_fn(2), bnds(rproc)%rlen_fn(1), bnds(rproc)%rlen_fn(2)
-            write(6,*) bnds(rproc)%rlenx_fn(1), bnds(rproc)%rlenx_fn(2), bnds(rproc)%rlen2
+            write(6,*) bnds(rproc)%rlenh_fn(1:maxcolour)
+            write(6,*) bnds(rproc)%rlen_fn(1:maxcolour)
+            write(6,*) bnds(rproc)%rlenx_fn(1:maxcolour)
+            write(6,*) bnds(rproc)%rlen2
             call ccmpi_abort(-1)
          end if
          if ( iext >= iextra ) then
@@ -6430,6 +6412,11 @@ contains
       else if ( maxcolour==2 ) then
          ! two colour mask
          icol = mod( ig + jg + ng*il_g, 2 ) + 1
+         
+      else if ( maxcolour==1 ) then
+         ! single colour 
+         icol = 1
+
       end if
    
    end function findcolour
@@ -6802,7 +6789,6 @@ contains
       call add_event(watermfix_begin,     watermfix_end,     "Water_Mfix")
       call add_event(ocnstag_begin,       ocnstag_end,       "Water_Stag")
       call add_event(river_begin,         river_end,         "River")
-      call add_event(mgsetup_begin,       mgsetup_end,       "MG_Setup")
       call add_event(mgfine_begin,        mgfine_end,        "MG_Fine")
       call add_event(mgup_begin,          mgup_end,          "MG_Up")
       call add_event(mgcoarse_begin,      mgcoarse_end,      "MG_Coarse")
@@ -9973,44 +9959,15 @@ contains
                call ccmpi_abort(-1)
             end if
          
-            allocate( col_iq(mg_ifull_maxcolour,3), col_iqn(mg_ifull_maxcolour,3), col_iqe(mg_ifull_maxcolour,3) )
-            allocate( col_iqs(mg_ifull_maxcolour,3), col_iqw(mg_ifull_maxcolour,3) )
-            allocate( col_iqne(mg_ifull_maxcolour,3), col_iqen(mg_ifull_maxcolour,3) )
-            allocate( col_iqse(mg_ifull_maxcolour,3), col_iqes(mg_ifull_maxcolour,3) )
-            allocate( col_iqnw(mg_ifull_maxcolour,3), col_iqwn(mg_ifull_maxcolour,3) )
-            allocate( col_iqsw(mg_ifull_maxcolour,3), col_iqws(mg_ifull_maxcolour,3) )
+            allocate( col_iq(mg_ifull_maxcolour,3) )
   
             mg_ifull_colour = 0
             col_iq(:,:) = 0
-            col_iqn(:,:) = 0
-            col_iqe(:,:) = 0
-            col_iqs(:,:) = 0
-            col_iqw(:,:) = 0
-            col_iqne(:,:) = 0
-            col_iqen(:,:) = 0
-            col_iqse(:,:) = 0
-            col_iqes(:,:) = 0
-            col_iqnw(:,:) = 0
-            col_iqwn(:,:) = 0
-            col_iqsw(:,:) = 0
-            col_iqws(:,:) = 0
             do iq = 1,mg(g)%ifull
                nc = mg_colourmask(iq)
                mg_ifull_colour(nc) = mg_ifull_colour(nc) + 1
                iqq = mg_ifull_colour(nc)
                col_iq(iqq,nc) = iq
-               col_iqn(iqq,nc) = mg(g)%in(iq)
-               col_iqe(iqq,nc) = mg(g)%ie(iq)
-               col_iqs(iqq,nc) = mg(g)%is(iq)
-               col_iqw(iqq,nc) = mg(g)%iw(iq)
-               col_iqne(iqq,nc) = mg(g)%ine(iq)
-               col_iqen(iqq,nc) = mg(g)%ien(iq)
-               col_iqse(iqq,nc) = mg(g)%ise(iq)
-               col_iqes(iqq,nc) = mg(g)%ies(iq)
-               col_iqnw(iqq,nc) = mg(g)%inw(iq)
-               col_iqwn(iqq,nc) = mg(g)%iwn(iq)
-               col_iqsw(iqq,nc) = mg(g)%isw(iq)
-               col_iqws(iqq,nc) = mg(g)%iws(iq)
             end do
          
             deallocate( mg_colourmask )

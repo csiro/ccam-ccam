@@ -342,6 +342,9 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   call bounds(qlg)
   call bounds(qfg)
   call bounds(stratcloud)
+  call bounds(qrg)
+  call bounds(qsng)
+  call bounds(qgrg)
   if ( ncloud>=100 .and. ncloud<200 ) then
     call bounds(ni)
   end if
@@ -394,6 +397,18 @@ end if
 !$omp section
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(stratcloud,xfact,yfact,emi)
+end if
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(qrg,xfact,yfact,emi)
+end if
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(qsng,xfact,yfact,emi)
+end if
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
+  call hordifgt_work(qgrg,xfact,yfact,emi)
 end if
 !$omp section
 if ( nhorps==-4 .and. ldr/=0 ) then  
