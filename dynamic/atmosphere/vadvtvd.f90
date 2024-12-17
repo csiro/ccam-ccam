@@ -81,7 +81,7 @@ end if
 if ( mspec==1 ) then
 
   qdum(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
-  if ( ldr/=9 ) then
+  if ( ldr/=0 ) then
     qdum(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
     qdum(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
     qdum(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
@@ -179,13 +179,15 @@ end if
 if ( mspec==1 ) then
 
   qg(1:ifull,1:kl) = qdum(1:ifull,1:kl,1)
-  if ( ldr/=9 ) then
+  if ( ldr/=0 ) then
     qlg(1:ifull,1:kl) = qdum(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = qdum(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = qdum(1:ifull,1:kl,4)
-    qrg(1:ifull,1:kl) = qdum(1:ifull,1:kl,5)    
-    qsng(1:ifull,1:kl) = qdum(1:ifull,1:kl,6)
-    qgrg(1:ifull,1:kl) = qdum(1:ifull,1:kl,7)    
+    if ( adv_precip>=1 ) then
+      qrg(1:ifull,1:kl) = qdum(1:ifull,1:kl,5)    
+      qsng(1:ifull,1:kl) = qdum(1:ifull,1:kl,6)
+      qgrg(1:ifull,1:kl) = qdum(1:ifull,1:kl,7)    
+    end if  
     if ( ncloud>=100 .and. ncloud<200 ) then
       ni(1:ifull,1:kl) = qdum(1:ifull,1:kl,8)
     end if

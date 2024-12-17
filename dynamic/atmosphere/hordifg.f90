@@ -399,15 +399,15 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   call hordifgt_work(stratcloud,xfact,yfact,emi)
 end if
 !$omp section
-if ( nhorps==-4 .and. ldr/=0 ) then  
+if ( nhorps==-4 .and. ldr/=0 .and. adv_precip>=1 ) then  
   call hordifgt_work(qrg,xfact,yfact,emi)
 end if
 !$omp section
-if ( nhorps==-4 .and. ldr/=0 ) then  
+if ( nhorps==-4 .and. ldr/=0 .and. adv_precip>=1 ) then  
   call hordifgt_work(qsng,xfact,yfact,emi)
 end if
 !$omp section
-if ( nhorps==-4 .and. ldr/=0 ) then  
+if ( nhorps==-4 .and. ldr/=0 .and. adv_precip>=1 ) then  
   call hordifgt_work(qgrg,xfact,yfact,emi)
 end if
 !$omp section

@@ -113,7 +113,7 @@ module cc_mpi
    integer, save, public :: filemap_indxlen
    real, dimension(:,:,:,:,:), pointer, save, private :: nodefile          ! node buffer for file map
    integer, save, private :: nodefile_win
-   integer, save, private, dimension(3) :: nodefilesave_win
+   integer, dimension(3), save, private :: nodefilesave_win
    integer, save, private :: nodefile_count = 0
    
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
@@ -315,15 +315,15 @@ module cc_mpi
    end type bounds_info
 
    ! bounds data
-   type(bounds_info), allocatable, dimension(:), save :: bnds
+   type(bounds_info), allocatable, dimension(:), save, private :: bnds
 
-   ! partition boundary indices into colours
+   ! partition indices into colours
    integer, dimension(:,:), allocatable, save, public :: iqx
-   integer, public, save :: ifull_maxcolour
-   integer, dimension(:), allocatable, public, save :: ifull_colour, ifull_colour_border
+   integer, save, public :: ifull_maxcolour
+   integer, dimension(:), allocatable, save, public :: ifull_colour, ifull_colour_border
 
    ! flag whether processor region edge is a face edge.
-   logical, public, save :: edge_w, edge_n, edge_s, edge_e
+   logical, save, public :: edge_w, edge_n, edge_s, edge_e
    
    type dpoints_info
       real, dimension(:,:), allocatable :: a
@@ -340,13 +340,13 @@ module cc_mpi
    end type sextra_info
    
    ! Off processor departure points
-   type(dpoints_info), allocatable, dimension(:), public, save :: dpoints ! request list from other proc
-   type(dbuf_info), allocatable, dimension(:), private, save :: dbuf      ! recv buffer
-   type(dindex_info), allocatable, dimension(:), private, save :: dindex  ! request list for my proc
-   type(sextra_info), allocatable, dimension(:), public, save :: sextra   ! send buffer
+   type(dpoints_info), allocatable, dimension(:), save, public :: dpoints ! request list from other proc
+   type(dbuf_info), allocatable, dimension(:), save, private :: dbuf      ! recv buffer
+   type(dindex_info), allocatable, dimension(:), save, private :: dindex  ! request list for my proc
+   type(sextra_info), allocatable, dimension(:), save, public :: sextra   ! send buffer
    ! Number of points for each processor.
-   integer, dimension(:), allocatable, private, save :: dslen
-   integer, dimension(:), allocatable, public, save :: drlen
+   integer, dimension(:), allocatable, save, private :: dslen
+   integer, dimension(:), allocatable, save, public :: drlen
 
    ! Multi-grid arrays
    type mgtype
@@ -385,94 +385,94 @@ module cc_mpi
       integer :: len, rlen, slen, rlenx, slenx
    end type filebounds_info
    
-   type(filebounds_info), allocatable, dimension(:), save :: filebnds
+   type(filebounds_info), allocatable, dimension(:), save, private :: filebnds
    
    ! Timer
-   integer, public, save :: ints_begin, ints_end
-   integer, public, save :: nonlin_begin, nonlin_end
-   integer, public, save :: helm_begin, helm_end
-   integer, public, save :: adjust_begin, adjust_end
-   integer, public, save :: upglobal_begin, upglobal_end
-   integer, public, save :: hordifg_begin, hordifg_end
-   integer, public, save :: vadv_begin, vadv_end
-   integer, public, save :: depts_begin, depts_end
-   integer, public, save :: stag_begin, stag_end
-   integer, public, save :: ocnstag_begin, ocnstag_end
-   integer, public, save :: mfix_begin, mfix_end
-   integer, public, save :: phys_begin, phys_end
-   integer, public, save :: outfile_begin, outfile_end
-   integer, public, save :: onthefly_begin, onthefly_end
-   integer, public, save :: otf_fill_begin, otf_fill_end
-   integer, public, save :: otf_ints_begin, otf_ints_end
-   integer, public, save :: histrd_begin, histrd_end
-   integer, public, save :: indata_begin, indata_end
-   integer, public, save :: nestin_begin, nestin_end
-   integer, public, save :: nestOTF_begin, nestOTF_end
-   integer, public, save :: nestWIN_begin, nestWIN_end
-   integer, public, save :: nestcalc_begin, nestcalc_end
-   integer, public, save :: nestcomm_begin, nestcomm_end
-   integer, public, save :: ensemble_begin, ensemble_end
-   integer, public, save :: amipsst_begin, amipsst_end
-   integer, public, save :: gwdrag_begin, gwdrag_end
-   integer, public, save :: convection_begin, convection_end
-   integer, public, save :: cloud_begin, cloud_end
-   integer, public, save :: radnet_begin, radnet_end
-   integer, public, save :: radinit_begin, radinit_end
-   integer, public, save :: radSW_begin, radSW_end
-   integer, public, save :: radLW_begin, radLW_end
-   integer, public, save :: sfluxnet_begin, sfluxnet_end
-   integer, public, save :: sfluxwater_begin, sfluxwater_end
-   integer, public, save :: sfluxland_begin, sfluxland_end
-   integer, public, save :: sfluxurban_begin, sfluxurban_end
-   integer, public, save :: vertmix_begin, vertmix_end
-   integer, public, save :: aerosol_begin, aerosol_end
-   integer, public, save :: maincalc_begin, maincalc_end
-   integer, public, save :: precon_begin, precon_end
-   integer, public, save :: waterdynamics_begin, waterdynamics_end
-   integer, public, save :: watermfix_begin, watermfix_end
-   integer, public, save :: waterdeps_begin, waterdeps_end
-   integer, public, save :: watereos_begin, watereos_end
-   integer, public, save :: waterints_begin, waterints_end
-   integer, public, save :: watervadv_begin, watervadv_end
-   integer, public, save :: waterhelm_begin, waterhelm_end
-   integer, public, save :: wateriadv_begin, wateriadv_end
-   integer, public, save :: waterdiff_begin, waterdiff_end
-   integer, public, save :: river_begin, river_end
-   integer, public, save :: bcast_begin, bcast_end
-   integer, public, save :: alltoall_begin, alltoall_end
-   integer, public, save :: allgather_begin, allgather_end
-   integer, public, save :: gather_begin, gather_end
-   integer, public, save :: scatter_begin, scatter_end
-   integer, public, save :: reduce_begin, reduce_end
-   integer, public, save :: allreduce_begin, allreduce_end
-   integer, public, save :: mpiwait_begin, mpiwait_end
-   integer, public, save :: mpibarrier_begin, mpibarrier_end
-   integer, public, save :: mgfine_begin, mgfine_end
-   integer, public, save :: mgup_begin, mgup_end
-   integer, public, save :: mgcoarse_begin, mgcoarse_end
-   integer, public, save :: mgdown_begin, mgdown_end
-   integer, public, save :: p1_begin, p1_end
-   integer, public, save :: p2_begin, p2_end
-   integer, public, save :: p3_begin, p3_end
-   integer, public, save :: p4_begin, p4_end
-   integer, public, save :: p5_begin, p5_end
-   integer, public, save :: p6_begin, p6_end
-   integer, public, save :: p7_begin, p7_end
-   integer, public, save :: p8_begin, p8_end
-   integer, public, save :: p9_begin, p9_end
-   integer, public, save :: p10_begin, p10_end
-   integer, public, save :: p11_begin, p11_end
-   integer, public, save :: p12_begin, p12_end
-   integer, public, save :: p13_begin, p13_end
-   integer, public, save :: p14_begin, p14_end
-   integer, public, save :: p15_begin, p15_end
-   integer, public, save :: p16_begin, p16_end
-   integer, public, save :: p17_begin, p17_end
+   integer, save, public :: ints_begin, ints_end
+   integer, save, public :: nonlin_begin, nonlin_end
+   integer, save, public :: helm_begin, helm_end
+   integer, save, public :: adjust_begin, adjust_end
+   integer, save, public :: upglobal_begin, upglobal_end
+   integer, save, public :: hordifg_begin, hordifg_end
+   integer, save, public :: vadv_begin, vadv_end
+   integer, save, public :: depts_begin, depts_end
+   integer, save, public :: stag_begin, stag_end
+   integer, save, public :: ocnstag_begin, ocnstag_end
+   integer, save, public :: mfix_begin, mfix_end
+   integer, save, public :: phys_begin, phys_end
+   integer, save, public :: outfile_begin, outfile_end
+   integer, save, public :: onthefly_begin, onthefly_end
+   integer, save, public :: otf_fill_begin, otf_fill_end
+   integer, save, public :: otf_ints_begin, otf_ints_end
+   integer, save, public :: histrd_begin, histrd_end
+   integer, save, public :: indata_begin, indata_end
+   integer, save, public :: nestin_begin, nestin_end
+   integer, save, public :: nestOTF_begin, nestOTF_end
+   integer, save, public :: nestWIN_begin, nestWIN_end
+   integer, save, public :: nestcalc_begin, nestcalc_end
+   integer, save, public :: nestcomm_begin, nestcomm_end
+   integer, save, public :: ensemble_begin, ensemble_end
+   integer, save, public :: amipsst_begin, amipsst_end
+   integer, save, public :: gwdrag_begin, gwdrag_end
+   integer, save, public :: convection_begin, convection_end
+   integer, save, public :: cloud_begin, cloud_end
+   integer, save, public :: radnet_begin, radnet_end
+   integer, save, public :: radinit_begin, radinit_end
+   integer, save, public :: radSW_begin, radSW_end
+   integer, save, public :: radLW_begin, radLW_end
+   integer, save, public :: sfluxnet_begin, sfluxnet_end
+   integer, save, public :: sfluxwater_begin, sfluxwater_end
+   integer, save, public :: sfluxland_begin, sfluxland_end
+   integer, save, public :: sfluxurban_begin, sfluxurban_end
+   integer, save, public :: vertmix_begin, vertmix_end
+   integer, save, public :: aerosol_begin, aerosol_end
+   integer, save, public :: maincalc_begin, maincalc_end
+   integer, save, public :: precon_begin, precon_end
+   integer, save, public :: waterdynamics_begin, waterdynamics_end
+   integer, save, public :: watermfix_begin, watermfix_end
+   integer, save, public :: waterdeps_begin, waterdeps_end
+   integer, save, public :: watereos_begin, watereos_end
+   integer, save, public :: waterints_begin, waterints_end
+   integer, save, public :: watervadv_begin, watervadv_end
+   integer, save, public :: waterhelm_begin, waterhelm_end
+   integer, save, public :: wateriadv_begin, wateriadv_end
+   integer, save, public :: waterdiff_begin, waterdiff_end
+   integer, save, public :: river_begin, river_end
+   integer, save, public :: bcast_begin, bcast_end
+   integer, save, public :: alltoall_begin, alltoall_end
+   integer, save, public :: allgather_begin, allgather_end
+   integer, save, public :: gather_begin, gather_end
+   integer, save, public :: scatter_begin, scatter_end
+   integer, save, public :: reduce_begin, reduce_end
+   integer, save, public :: allreduce_begin, allreduce_end
+   integer, save, public :: mpiwait_begin, mpiwait_end
+   integer, save, public :: mpibarrier_begin, mpibarrier_end
+   integer, save, public :: mgfine_begin, mgfine_end
+   integer, save, public :: mgup_begin, mgup_end
+   integer, save, public :: mgcoarse_begin, mgcoarse_end
+   integer, save, public :: mgdown_begin, mgdown_end
+   integer, save, public :: p1_begin, p1_end
+   integer, save, public :: p2_begin, p2_end
+   integer, save, public :: p3_begin, p3_end
+   integer, save, public :: p4_begin, p4_end
+   integer, save, public :: p5_begin, p5_end
+   integer, save, public :: p6_begin, p6_end
+   integer, save, public :: p7_begin, p7_end
+   integer, save, public :: p8_begin, p8_end
+   integer, save, public :: p9_begin, p9_end
+   integer, save, public :: p10_begin, p10_end
+   integer, save, public :: p11_begin, p11_end
+   integer, save, public :: p12_begin, p12_end
+   integer, save, public :: p13_begin, p13_end
+   integer, save, public :: p14_begin, p14_end
+   integer, save, public :: p15_begin, p15_end
+   integer, save, public :: p16_begin, p16_end
+   integer, save, public :: p17_begin, p17_end
    integer, parameter :: nevents = 82
    public :: simple_timer_finalize
-   real(kind=8), dimension(nevents), save :: tot_time = 0._8, start_time
+   real(kind=8), dimension(nevents), save, private :: tot_time = 0._8, start_time
    real(kind=8), save, public :: mpiinit_time, total_time
-   character(len=15), dimension(nevents), save :: event_name
+   character(len=15), dimension(nevents), save, private :: event_name
    
 #ifdef vampir
 #include "vt_user.inc"
@@ -684,6 +684,7 @@ contains
          end do
       end do
 
+      ! order points to allow border only updating
       allocate( ifull_colour(maxcolour), ifull_colour_border(maxcolour) )
       do n = 1,maxcolour
          ifull_colour(n) = count( colourmask == n )
@@ -699,20 +700,18 @@ contains
           ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
           iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
         end do
+        do j = 2,jpan-1
+          i = 1  
+          iq = indp(i,j,n)
+          ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
+          iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
+          i = ipan
+          iq = indp(i,j,n)
+          ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
+          iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
+        end do
         j = jpan
         do i = 1,ipan
-          iq = indp(i,j,n)
-          ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
-          iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-        end do
-        i = 1
-        do j = 2,jpan-1
-          iq = indp(i,j,n)
-          ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
-          iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-        end do
-        i = ipan
-        do j = 2,jpan-1
           iq = indp(i,j,n)
           ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
           iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq

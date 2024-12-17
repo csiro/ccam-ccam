@@ -42,7 +42,7 @@ public av_vmod, vmodmin, snmin, tss_sh, charnock, chn10, zobgin
 public rlongdn, rlongdx, rlatdn, rlatdx, ds, dt, dtin, panfg, panzo
 public bpyear, helim, fc2, sigbot_gwd, alphaj, divdamp, use_rad_year, rad_year
 public sigramplow, sigramphigh, amxlsq, dvmodmin, siburbanfrac, cqmix
-public intsch_mode, freshwaterlake_fix
+public intsch_mode, freshwaterlake_fix, adv_precip
 public diag, synchist, amipo3
 public save_aerosols, save_pbl, save_cloud, save_land, save_maxmin
 public save_ocean, save_radiation, save_urban, save_carbon, save_river
@@ -72,7 +72,7 @@ integer, save :: nurban=0, nmr=0, nmlo=0, ktopdav=0, nud_sst=0, nud_sss=0, kbotm
 integer, save :: mloalpha=0, nud_ouv=0, nud_sfh=0, kblock=-1, rescrn=0, knh=-1, iaero=0
 integer, save :: nud_aero=0, mbd_maxscale=3000, mbd_maxgrid=999999, mbd_maxscale_mlo=3000
 integer, save :: leap=0, nbarewet=0, nsigmf=1, qg_fix=2, rad_year=0, ugs_meth=0
-integer, save :: freshwaterlake_fix=1
+integer, save :: freshwaterlake_fix=1, adv_precip=0
 integer, save :: procmode=16, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
 integer, save :: nstagin=0, nstaguin=0, intsch_mode=-1

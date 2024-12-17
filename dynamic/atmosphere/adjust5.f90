@@ -576,9 +576,11 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.) 
   call massfix(mfix_qg,1,qfg,qfgsav,ps,ps_sav,.true.) 
   call massfix(mfix_qg,1,qlg,qlgsav,ps,ps_sav,.true.) 
-  call massfix(mfix_qg,1,qrg,qrgsav,ps,ps_sav,.true.)
-  call massfix(mfix_qg,1,qsng,qsngsav,ps,ps_sav,.true.)
-  call massfix(mfix_qg,1,qgrg,qgrgsav,ps,ps_sav,.true.)
+  if ( adv_precip>=1 ) then
+    call massfix(mfix_qg,1,qrg,qrgsav,ps,ps_sav,.true.)
+    call massfix(mfix_qg,1,qsng,qsngsav,ps,ps_sav,.true.)
+    call massfix(mfix_qg,1,qgrg,qgrgsav,ps,ps_sav,.true.)
+  end if  
 else if ( mfix_qg/=0 .and. mspec==1 ) then
   qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.)

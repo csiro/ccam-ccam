@@ -899,7 +899,8 @@ use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
 use tkeeps, only : tke,eps,u_ema,v_ema,w_ema,  & ! TKE-EPS boundary layer
-    thetal_ema,qv_ema,tke_ema
+    thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,    &
+    tke_ema
 use tracermodule, only : writetrpm, co2em        ! Tracer routines
 use tracers_m                                    ! Tracer data
 use uclem_ctrl, only : uclem_saved,            & ! Urban
@@ -2109,6 +2110,9 @@ if ( myid==0 .or. local ) then
                mean_m,cptype)
         call attrib(idnc,dima,asize,'thetal_ema','Exponentially weighted moving average thetal','K',100.,425.,any_m,mean_m,cptype)
         call attrib(idnc,dima,asize,'qv_ema','Exponentially weighted moving average qv','kg kg-1',0.,.065,any_m,mean_m,cptype)
+        call attrib(idnc,dima,asize,'ql_ema','Exponentially weighted moving average ql','kg kg-1',0.,.065,any_m,mean_m,cptype)
+        call attrib(idnc,dima,asize,'qf_ema','Exponentially weighted moving average qf','kg kg-1',0.,.065,any_m,mean_m,cptype)
+        call attrib(idnc,dima,asize,'cf_ema','Exponentially weighted moving average cf','m2 s-2',0.,65.,any_m,mean_m,cptype)
         call attrib(idnc,dima,asize,'tke_ema','Exponentially weighted moving average te','frac',0.,1.,any_m,mean_m,cptype)        
       end if    
     end if
@@ -3468,6 +3472,9 @@ if ( nvmix==6 .or. nvmix==9 ) then
     call histwrt(w_ema,'w_ema',idnc,iarch,local,.true.)
     call histwrt(thetal_ema,'thetal_ema',idnc,iarch,local,.true.)
     call histwrt(qv_ema,'qv_ema',idnc,iarch,local,.true.)
+    call histwrt(ql_ema,'ql_ema',idnc,iarch,local,.true.)
+    call histwrt(qf_ema,'qf_ema',idnc,iarch,local,.true.)
+    call histwrt(cf_ema,'cf_ema',idnc,iarch,local,.true.)
     call histwrt(tke_ema,'tke_ema',idnc,iarch,local,.true.)
   end if  
 end if

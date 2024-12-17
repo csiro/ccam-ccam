@@ -1414,7 +1414,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
     nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix,             &
-    always_mspeca,ntvd,tbave10,maxuv,maxcolour,                   &
+    always_mspeca,ntvd,tbave10,maxuv,maxcolour,adv_precip,        &
     procmode,compression,hp_output,pil_single,                    & ! file io
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
@@ -2499,26 +2499,26 @@ elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
   end do
   if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
 end if
-!if ( nud_p==0 .and. mfix==0 ) then
-!  write(6,*) "ERROR: Both nud_p=0 and mfix=0"
-!  write(6,*) "Model will not conserve mass"
-!  call ccmpi_abort(-1)
-!end if
-!if ( nud_q==0 .and. mfix_qg==0 ) then
-!  write(6,*) "ERROR: Both nud_q=0 and mfix_qg=0"
-!  write(6,*) "Model will not conserve moisture"
-!  call ccmpi_abort(-1)
-!end if
-!if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
-!  write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
-!  write(6,*) "Model will not conserve aerosols"
-!  call ccmpi_abort(-1)
-!end if
-!if ( mfix_tr==0 .and. ngas>0 ) then
-!  write(6,*) "ERROR: ngas>0 and mfix_tr=0"
-!  write(6,*) "Model will not conserve tracers"
-!  call ccmpi_abort(-1)
-!end if
+if ( nud_p==0 .and. mfix==0 ) then
+  write(6,*) "ERROR: Both nud_p=0 and mfix=0"
+  write(6,*) "Model will not conserve mass"
+  call ccmpi_abort(-1)
+end if
+if ( nud_q==0 .and. mfix_qg==0 ) then
+  write(6,*) "ERROR: Both nud_q=0 and mfix_qg=0"
+  write(6,*) "Model will not conserve moisture"
+  call ccmpi_abort(-1)
+end if
+if ( nud_aero==0 .and. mfix_aero==0 .and. iaero/=0 ) then
+  write(6,*) "ERROR: Both nud_aero=0 and mfix_aero=0"
+  write(6,*) "Model will not conserve aerosols"
+  call ccmpi_abort(-1)
+end if
+if ( mfix_tr==0 .and. ngas>0 ) then
+  write(6,*) "ERROR: ngas>0 and mfix_tr=0"
+  write(6,*) "Model will not conserve tracers"
+  call ccmpi_abort(-1)
+end if
       
 
 call printa('zs  ',zs,0,0,ia,ib,ja,jb,0.,.01)
@@ -2758,7 +2758,7 @@ use stime_m                                ! File date data
 implicit none
 
 integer i
-integer, dimension(120) :: dumi
+integer, dimension(121) :: dumi
 real, dimension(34) :: dumr
     
 dumr(:) = 0.
@@ -2918,6 +2918,7 @@ if ( myid==0 ) then
   dumi(118) = pil_single
   if ( localhist ) dumi(119) = 1
   dumi(120) = maxcolour
+  dumi(121) = adv_precip
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3075,6 +3076,7 @@ nagg              = dumi(117)
 pil_single        = dumi(118)
 localhist         = dumi(119)==1
 maxcolour         = dumi(120)
+adv_precip        = dumi(121)
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
   call ccmpi_bcast(jstn(1:nstn),0,comm_world)

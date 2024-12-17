@@ -360,7 +360,8 @@ use soil_m                                     ! Soil and surface data
 use soilv_m                                    ! Soil parameters
 use stime_m                                    ! File date data
 use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &
-    thetal_ema,qv_ema,tke_ema                  ! TKE-EPS boundary layer
+    thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,   &
+    tke_ema                                    ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
@@ -1977,6 +1978,9 @@ if ( nested/=1 .and. nested/=3 ) then
     call gethist4a('w_ema',w_ema,5)
     call gethist4a('thetal_ema',thetal_ema,5)
     call gethist4a('qv_ema',qv_ema,5)
+    call gethist4a('ql_ema',ql_ema,5)
+    call gethist4a('qf_ema',qf_ema,5)
+    call gethist4a('cf_ema',cf_ema,5)    
     call gethist4a('tke_ema',tke_ema,5)
   end if
   if ( nested==0 ) then

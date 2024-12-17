@@ -396,9 +396,11 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
-    qrg(1:ifull,1:kl) = bb(1:ifull,1:kl,5)
-    qsng(1:ifull,1:kl) = bb(1:ifull,1:kl,6)
-    qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
+    if ( adv_precip>=1 ) then
+      qrg(1:ifull,1:kl) = bb(1:ifull,1:kl,5)
+      qsng(1:ifull,1:kl) = bb(1:ifull,1:kl,6)
+      qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
+    end if  
     ni(1:ifull,1:kl) = bb(1:ifull,1:kl,8)  
   else if ( ldr/=0 ) then
     ! Leon microphysics  
@@ -414,9 +416,11 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
-    qrg(1:ifull,1:kl) = bb(1:ifull,1:kl,5)
-    qsng(1:ifull,1:kl) = bb(1:ifull,1:kl,6)
-    qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
+    if ( adv_precip>=1 ) then
+      qrg(1:ifull,1:kl) = bb(1:ifull,1:kl,5)
+      qsng(1:ifull,1:kl) = bb(1:ifull,1:kl,6)
+      qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
+    end if  
   else
     ! diagnostic microphysics 
     call ints(qg,1,intsch,nface,xg,yg,3)
