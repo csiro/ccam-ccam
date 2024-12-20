@@ -917,9 +917,7 @@ include 'version.h'                              ! Model version data
 integer, intent(in) :: iarch, itype, iout, idnc
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
-integer idv, iq, j, k, n, igas
-integer idum, cptype, ifrac
-integer d4, asize, osize, jsize, ksize
+integer idv, iq, j, k, n, igas, idum, cptype, ifrac, d4, asize, osize, jsize, ksize
 integer, dimension(6), intent(in) :: idc
 integer, dimension(5), intent(in) :: dima, dimo
 integer, dimension(6,7), intent(in) :: dimc
@@ -1000,10 +998,33 @@ csize(1) = d4
 csize(2) = d4 + 1
 
 
-if ( myid==0 .or. local ) then
+! extract data from ocean model
+if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
+  mlodwn(:,:,1:2) = 999.   ! temp, sal
+  mlodwn(:,:,3:4) = 0.     ! u, v
+  mlodwn(:,:,5:6) = 0.     ! tke & eps
+  micdwn_l(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
+  micdwn_l(:,8:10)  = 0.   ! sto, uic, vic
+  ocndep(:)       = 0.     ! ocean depth
+  ocnheight(:)    = 0.     ! free surface height
+  opldep(:)       = 0.     ! ocean partial step depth
+  call mlosave(mlodwn,ocndep,ocnheight,micdwn_l,0)
+  call mloexpdep("depth_p",opldep,ol,0)
+  ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
+  ocndwn(:,3:4) = 0. ! oldutop, oldvtop
+  ocndwn(:,5:6) = 0. ! oldubot, oldvbot
+  call mloexport("utop",ocndwn(:,3),0,0)
+  call mloexport("vtop",ocndwn(:,4),0,0)
+  call mloexport("ubot",ocndwn(:,5),0,0)
+  call mloexport("vbot",ocndwn(:,6),0,0)
+end if
+
 
 ! if this is the first archive, set up some global attributes
-  if ( iarch==1 ) then
+if ( iarch==1 ) then
+
+  if ( myid==0 .or. local ) then
+
 
 !   Create global attributes
 !   Model run number
@@ -1361,9 +1382,9 @@ if ( myid==0 .or. local ) then
         lname = 'Avg dew flux'
         call attrib(idnc,dimj,jsize,'dew_ave',lname,'W m-2',-100.,1000.,any_m,mean_m,cptype)
         lname = 'Avg potential "pan" evaporation'
-        call attrib(idnc,dimj,jsize,'epan_ave',lname,'W m-2',-1000.,10.e3,any_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'epan_ave',lname,'W m-2',-1000.,1.e4,any_m,mean_m,cptype)
         lname = 'Avg potential evaporation'
-        call attrib(idnc,dimj,jsize,'epot_ave',lname,'W m-2',-1000.,10.e3,any_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'epot_ave',lname,'W m-2',-1000.,1.e4,any_m,mean_m,cptype)
         lname = 'Surface Upward Latent Heat Flux'
         call attrib(idnc,dimj,jsize,'eg_ave',lname,'W m-2',-3000.,3000.,any_m,mean_m,float_m)
         lname = 'Surface Upward Sensible Heat Flux'
@@ -2355,7 +2376,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_vara(idnc,idms,1,ms,zsoil)
         
     if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-      call mlovlevels(zocean)  ! can be sigma or z*, depending on mlosigma
+      call mlovlevels(zocean)  ! z* coordinates
       call ccnf_put_vara(idnc,idoc,1,wlev,zocean)
     end if
     
@@ -2407,10 +2428,36 @@ if ( myid==0 .or. local ) then
         deallocate( cabledata )
       end if
     end if
-    
-  end if ! iarch==1
-  ! -----------------------------------------------------------      
   
+  else if ( localhist ) then
+    
+    allocate(xpnt(il),xpnt2(il,vnode_nproc))
+    do i = 1,ipan
+      xpnt(i) = real(i + ioff)
+    end do
+    call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
+    deallocate(xpnt,xpnt2)
+    allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
+    do n = 1,npan
+      do j = 1,jpan
+        i = j + (n-1)*jpan  
+        ypnt(i) = real(j + joff + (n-noff)*il_g)
+      end do
+    end do
+    call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
+    deallocate(ypnt,ypnt2)
+  
+    call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+    call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
+    
+  end if ! myid == 0 .or. local ..else.. localhist
+
+end if ! iarch==1
+! -----------------------------------------------------------      
+  
+
+if ( myid==0 .or. local ) then
+
   ! set time to number of minutes since start 
   call ccnf_put_vara(idnc,'time',iarch,real(mtimer))
   call ccnf_put_vara(idnc,'timer',iarch,timer)   ! to be depreciated
@@ -2435,32 +2482,8 @@ if ( myid==0 .or. local ) then
     write(6,*) 'timer,timeg=',timer,timeg
   end if
   
-else if ( localhist ) then
-    
-  if ( iarch==1 ) then  
+end if ! myid == 0 .or. local
 
-    allocate(xpnt(il),xpnt2(il,vnode_nproc))
-    do i = 1,ipan
-      xpnt(i) = real(i + ioff)
-    end do
-    call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
-    deallocate(xpnt,xpnt2)
-    allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
-    do n = 1,npan
-      do j = 1,jpan
-        i = j + (n-1)*jpan  
-        ypnt(i) = real(j + joff + (n-noff)*il_g)
-      end do
-    end do
-    call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
-    deallocate(ypnt,ypnt2)
-  
-    call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
-    call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
-    
-  end if ! if iarchi==1
-    
-end if ! myid == 0 .or. local ..else.. localhist
 
 if ( myid==0 ) then
   if ( iout==19 ) then
@@ -2470,27 +2493,6 @@ if ( myid==0 ) then
   else
     write(6,*) 'write variable data to ensemble'  
   end if  
-end if
-
-! extract data from ocean model
-if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  mlodwn(:,:,1:2) = 999.   ! temp, sal
-  mlodwn(:,:,3:4) = 0.     ! u, v
-  mlodwn(:,:,5:6) = 0.     ! tke & eps
-  micdwn_l(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
-  micdwn_l(:,8:10)  = 0.   ! sto, uic, vic
-  ocndep(:)       = 0.     ! ocean depth
-  ocnheight(:)    = 0.     ! free surface height
-  opldep(:)       = 0.     ! ocean partial step depth
-  call mlosave(mlodwn,ocndep,ocnheight,micdwn_l,0)
-  call mloexpdep("depth_p",opldep,ol,0)
-  ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
-  ocndwn(:,3:4) = 0. ! oldutop, oldvtop
-  ocndwn(:,5:6) = 0. ! oldubot, oldvbot
-  call mloexport("utop",ocndwn(:,3),0,0)
-  call mloexport("vtop",ocndwn(:,4),0,0)
-  call mloexport("ubot",ocndwn(:,5),0,0)
-  call mloexport("vbot",ocndwn(:,6),0,0)
 end if
 
 
@@ -2607,6 +2609,8 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   end where
 end if
 
+! MJT notes - do not use mask with snd as both land snow and
+! sea-ice snow are stored as snd.
 call histwrt(snowd,'snd',idnc,iarch,local,.true.)  ! long write
 do k=1,ms
   where ( tgg(:,k)<100. .and. itype==1 )
@@ -2636,8 +2640,8 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   end if
 end if
 
-call histwrt(watbdy(1:ifull),'swater',idnc,iarch,local,.true.)
-call histwrt(river_discharge(1:ifull),'sdischarge',idnc,iarch,local,.true.)
+call histwrt(watbdy,'swater',idnc,iarch,local,.true.)
+call histwrt(river_discharge,'sdischarge',idnc,iarch,local,.true.)
 
 ! SOIL --------------------------------------------------------
 call histwrt(wb(:,1),'wb1',idnc,iarch,local,.true.)
@@ -2752,7 +2756,6 @@ end if
 if ( itype/=-1 ) then  ! these not written to restart file
   if ( save_land .or. save_ocean ) then
     call histwrt(dew_ave,'dew_ave',idnc,iarch,local,lave)
-    !call histwrt(evap,'evap',idnc,iarch,local,lave)
     call histwrt(epan_ave,'epan_ave',idnc,iarch,local,lave)
     call histwrt(epot_ave,'epot_ave',idnc,iarch,local,lave)
     call histwrt(eg_ave,'eg_ave',idnc,iarch,local,lave)
@@ -2958,7 +2961,6 @@ if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
         write(vname,'("psoil",I1.1)') k
         call histwrt(psoil(:,k),vname,idnc,iarch,local,lday)
       end do
-      !call histwrt(glai,'glai',idnc,iarch,local,lday)
       if ( save_carbon ) then
         call histwrt(fnee_ave,'fnee_ave',idnc,iarch,local,lave)
         call histwrt(fpn_ave,'fpn_ave',idnc,iarch,local,lave)
@@ -2968,7 +2970,7 @@ if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
         call histwrt(frpr_ave,'frpr_ave',idnc,iarch,local,lave)
         call histwrt(frs_ave,'frs_ave',idnc,iarch,local,lave)
         call histwrt(cnpp_ave,'cnpp_ave',idnc,iarch,local,lave)
-        call histwrt(cnpp_ave,'cnbp_ave',idnc,iarch,local,lave)
+        call histwrt(cnbp_ave,'cnbp_ave',idnc,iarch,local,lave)
         if ( diaglevel_carbon > 0 ) then
           call histwrt(fevc_ave,'fevc_ave',idnc,iarch,local,lave)
           call histwrt(plant_turnover_ave,'cplant_turnover',idnc,iarch,local,lave)
@@ -3656,6 +3658,7 @@ use prec_m                            ! Precipitation
 use raddiag_m                         ! Radiation diagnostic
 use screen_m                          ! Screen level diagnostics
 use sigs_m                            ! Atmosphere sigma levels
+use soil_m                            ! Soil and surface data
 use soilsnow_m                        ! Soil, snow and surface data
 use soilv_m                           ! Soil parameters
 use tracers_m                         ! Tracer data
@@ -4514,7 +4517,7 @@ if ( mod(ktau,tbave)==0 ) then
     outdata = 0.
     do k = 1,ms
       outdata = outdata + wbice(:,k)*zse(k)*330.  
-    end do    
+    end do
     call histwrt(outdata,"mrfso",fncid,fiarch,local,l6hr)
     !--
     outdata = 0.

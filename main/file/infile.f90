@@ -37,7 +37,7 @@ private
 public vertint, datefix, datefix_month, getzinp, ncmsg, processdatestring
 public ptest, pfall, ncidold, resprocformat, pncid
 public histopen, histclose, histrd, surfread
-public attrib, histwrt
+public attrib, histwrt, lsmask
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
 public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
 public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
@@ -66,18 +66,18 @@ character(len=256), save :: driving_model_ensemble_number = ' '
 character(len=256), save :: driving_experiment_name = ' '
 
 ! define configuration for attrib
-integer, parameter :: any_m = 0
-integer, parameter :: daily_m = 1
-integer, parameter :: sixhr_m = 2
-integer, parameter :: point_m = 0
-integer, parameter :: mean_m = 1
-integer, parameter :: max_m = 2
-integer, parameter :: min_m = 3
-integer, parameter :: fixed_m = 4
-integer, parameter :: sum_m = 5
-integer, parameter :: short_m = 1
-integer, parameter :: double_m = 2
-integer, parameter :: float_m = -1
+integer, parameter :: any_m = 0     ! output is valid at any time-step (usually hourly)
+integer, parameter :: daily_m = 1   ! output is daily only
+integer, parameter :: sixhr_m = 2   ! output is 6-hourly only
+integer, parameter :: point_m = 0   ! output is for a point in time
+integer, parameter :: mean_m = 1    ! output is averaged in time
+integer, parameter :: max_m = 2     ! output is maximum over a time interval
+integer, parameter :: min_m = 3     ! output is minimum over a time interval
+integer, parameter :: fixed_m = 4   ! output is fixed (independent of time)
+integer, parameter :: sum_m = 5     ! output is a sum over time interval
+integer, parameter :: short_m = 1   ! output is compressed as a short
+integer, parameter :: double_m = 2  ! output is double precision
+integer, parameter :: float_m = -1  ! output is single precision (or default model precision)
 
 interface histrd
   module procedure histrd3r4, histrd4r4, histrd5r4
@@ -236,7 +236,6 @@ integer(kind=4), dimension(4) :: dimid_c
 integer(kind=4) :: idv, ndims
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan) :: rvar
-real(kind=8), dimension(pipan*pjpan*pnpan) :: dvar
 real, dimension(:,:), allocatable :: gvar 
 real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
@@ -268,20 +267,20 @@ if ( mynproc>0 ) then
         expected_ndims = 3
       end if  
       ! obtain scaling factors and offsets from attributes
-      ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
       if (ier/=nf90_noerr) laddoff=0.
-      ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
       if (ier/=nf90_noerr) lsf=1.
-      ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
       call ncmsg(name,ier)
       if ( ndims>expected_ndims ) then
         write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
         write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
         call ccmpi_abort(-1)
       end if
-      ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+      ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
       do i = 1,ndims
-        ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+        ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
         if ( start(i)+ncount(i)-1>dimlen ) then
           write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
           write(6,*) "i,dimname           ",i,trim(dimname)
@@ -289,9 +288,8 @@ if ( mynproc>0 ) then
           call ccmpi_abort(-1)
         end if
       end do
-      ier=nf90_get_var(pncid(ipf),idv,dvar,start=start(1:ndims),count=ncount(1:ndims))
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
-      rvar = real( dvar ) ! for floating point issues (e.g. 1.e-40 )      
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf) + real(laddoff)
     end if ! ier
@@ -302,6 +300,9 @@ if ( mynproc>0 ) then
       var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
     else
       ! gather-scatter
+      ! MJT notes - This could be better optimised where information is only sent
+      ! to the processes that requires it.  But this situation occurs so rarely, that
+      ! they current code might be sufficent.
       if ( myid==0 ) then
         allocate( gvar(pipan*pjpan*pnpan,fnresid) )
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
@@ -454,7 +455,7 @@ if ( mynproc>0 ) then
         write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
         call ccmpi_abort(-1)
       end if
-      ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+      ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
       do i = 1,ndims
         ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
         if ( start(i)+ncount(i)-1>dimlen ) then
@@ -464,7 +465,7 @@ if ( mynproc>0 ) then
           call ccmpi_abort(-1)
         end if
       end do      
-      ier=nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
       call ncmsg(name,ier)
       ! unpack compressed data
       rvar(:) = rvar(:)*real(lsf,8) + real(laddoff,8)
@@ -625,9 +626,9 @@ if ( mynproc>0 ) then
         write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
         call ccmpi_abort(-1)
       end if
-      ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+      ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
       do i = 1,ndims
-        ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+        ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
         if ( start(i)+ncount(i)-1>dimlen ) then
           write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
           write(6,*) "i,dimname           ",i,trim(dimname)
@@ -678,9 +679,9 @@ if ( mynproc>0 ) then
           write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
           call ccmpi_abort(-1)
         end if
-        ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+        ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
         do i = 1,ndims
-          ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+          ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
           if ( start(i)+ncount(i)-1>dimlen ) then
             write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
             write(6,*) "i,dimname           ",i,trim(dimname)
@@ -852,9 +853,9 @@ if ( mynproc>0 ) then
         write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
         call ccmpi_abort(-1)
       end if
-      ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+      ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
       do i = 1,ndims
-        ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+        ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
         if ( start(i)+ncount(i)-1>dimlen ) then
           write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
           write(6,*) "i,dimname           ",i,trim(dimname)
@@ -1063,9 +1064,9 @@ if ( mynproc>0 ) then
       write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
       call ccmpi_abort(-1)
     end if
-    ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
+    ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
     do i = 1,ndims
-      ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
+      ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
       if ( start(i)+ncount(i)-1>dimlen ) then
         write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
         write(6,*) "i,dimname           ",i,trim(dimname)
@@ -2331,9 +2332,9 @@ character(len=*), intent(in) :: sname
 logical, intent(in) :: local, lwrite
 
 if (.not.lwrite) then
-  wvar(:)=real(nf90_fill_float)
+  wvar(:) = nf90_fill_float
 else
-  wvar(:)=var(:)
+  wvar(:) = var(:)
 end if
 
 if ( local ) then
@@ -2678,7 +2679,7 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer :: ll
+integer :: ll, k
 real, dimension(:,:), intent(in) :: var
 real, dimension(ifull,size(var,2)) :: wvar
 real, dimension(1,1,1) :: var_g
@@ -5174,5 +5175,24 @@ end if
 
 return
 end subroutine ncmsg
+
+subroutine lsmask(inp,outp,msk)
+
+use newmpar_m
+
+implicit none
+
+real, dimension(ifull), intent(in) :: inp
+real, dimension(ifull), intent(out) :: outp
+logical, dimension(ifull), intent(in) :: msk
+
+where ( msk )
+  outp = inp
+elsewhere
+  outp = nf90_fill_float
+end where
+
+return
+end subroutine lsmask
 
 end module infile

@@ -837,7 +837,7 @@ if ( newfile ) then
       ! land_3d mask
       if ( any(gosig_1>1.) ) then
         ! found z* ocean levels  
-        land_3d = .false.  
+        land_3d(:,:) = .false.  
         do k = 1,ok
           land_3d(:,k) = ( land_a .or. gosig_1(k)+0.1>=ocndep_a ) 
         end do
@@ -873,7 +873,7 @@ if ( newfile ) then
           ! found z* ocean levels  
           land_3d = .false.  
           do k = 1,ok
-            land_3d(:,k) = ( land_a .or. gosig3_a(:,k)>=ocndep_a ) 
+            land_3d(:,k) = ( land_a .or. gosig3_a(:,k)+0.1>=ocndep_a ) 
           end do
         end if
         deallocate( gosig3_a )
@@ -1025,6 +1025,7 @@ if ( tss_test ) then ! tss_test includes iotest=.true.
 
   call histrd(iarchi,ier,'siced',sicedep,ifull)
   call histrd(iarchi,ier,'fracice',fracice,ifull)
+  ! check for invalid sea-ice data
   if ( any(fracice(1:ifull)>1.1) ) then
     write(6,*) "ERROR: Invalid fracice in input file"
     write(6,*) "Fracice should be between 0 and 1"
@@ -1216,11 +1217,21 @@ end if ! (nested==0.or.(nested==1.and.retopo_test/=0).or.nested==3)
 if ( nested==0 .or. (nested==1.and.nud_uv/=0) .or. nested==3 ) then
   call gethistuv4a('u','v',u,v,3,4)
   if ( any(u(1:ifull,1:kl)/=u(1:ifull,1:kl)) ) then
-    write(6,*) "ERROR: Invalid u-wind in onthefly after gethistuv4a"
+    write(6,*) "ERROR: Invalid NaN u-wind in onthefly after gethistuv4a"
+    call ccmpi_abort(-1)
+  end if  
+  if ( any(abs(u(1:ifull,1:kl))>350.) ) then
+    write(6,*) "ERROR: Invalid high u-wind in onthefly after gethistuv4a"
+    write(6,*) "u max,min ",maxval(u(1:ifull,1:kl)),minval(u(1:ifull,1:kl))
     call ccmpi_abort(-1)
   end if  
   if ( any(v(1:ifull,1:kl)/=v(1:ifull,1:kl)) ) then
-    write(6,*) "ERROR: Invalid v-wind in onthefly after gethistuv4a"
+    write(6,*) "ERROR: Invalid NaN v-wind in onthefly after gethistuv4a"
+    call ccmpi_abort(-1)
+  end if  
+  if ( any(abs(v(1:ifull,1:kl))>350.) ) then
+    write(6,*) "ERROR: Invalid high v-wind in onthefly after gethistuv4a"
+    write(6,*) "v max,min ",maxval(v(1:ifull,1:kl)),minval(v(1:ifull,1:kl))
     call ccmpi_abort(-1)
   end if  
 else
