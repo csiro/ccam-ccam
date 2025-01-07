@@ -565,7 +565,7 @@ end if
 if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   do k = 1,kl
     stratcloud(1:ifull,k) = min( max( stratcloud(1:ifull,k), 0. ), 1. )
-    qg(1:ifull,k) = max( qg(1:ifull,k), qgmin-qfg(1:ifull,k)-qlg(1:ifull,k), 0. )
+    qg(1:ifull,k) = max( qg(1:ifull,k), 0. )
     qfg(1:ifull,k) = max( qfg(1:ifull,k), 0. )
     qlg(1:ifull,k) = max( qlg(1:ifull,k), 0. )
     qsng(1:ifull,k) = max( qsng(1:ifull,k), 0. )
@@ -582,7 +582,7 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
     call massfix(mfix_qg,1,qgrg,qgrgsav,ps,ps_sav,.true.)
   end if  
 else if ( mfix_qg/=0 .and. mspec==1 ) then
-  qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), qgmin )
+  qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), 0. )
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.)
 end if !  (mfix_qg/=0.and.mspec==1.and.ldr/=0) ..else..
 

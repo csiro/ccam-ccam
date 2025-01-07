@@ -38,8 +38,7 @@ contains
 !--------------------------------------------------------------
 ! Control subroutine for vertical mixing
 subroutine vertmix(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,ni,stratcloud,          &
-                   qrg,qsng,qgrg,condc,                                                   &
-                   cduv,u,v,pblh,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,            &
+                   condc,cduv,u,v,pblh,savu,savv,land,tscrn,qgscrn,ustar,f,condx,zs,      &
                    rkmsave,rkhsave,                                                       &
                    idjd,mydiag)
 
@@ -74,7 +73,6 @@ real, parameter :: bprmj=5.                  ! coefficients for Louis scheme
 real, parameter :: cmj=5.                    ! coefficients for Louis scheme
 real, parameter :: chj=2.6                   ! coefficients for Louis scheme
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg, ni
-real, dimension(imax,kl), intent(inout) :: qrg, qsng, qgrg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(in) :: savu, savv
 real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
@@ -834,10 +832,6 @@ if ( ldr/=0 ) then
   call trimmix(at,ct,ni,imax,kl)
   ! now do stratcloud
   call trimmix(at,ct,stratcloud,imax,kl)
-  ! other cloud tracers
-  call trimmix(at,ct,qrg,imax,kl)
-  call trimmix(at,ct,qsng,imax,kl)
-  call trimmix(at,ct,qgrg,imax,kl)
 end if    ! (ldr/=0)
 
 !--------------------------------------------------------------

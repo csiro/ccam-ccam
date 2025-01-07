@@ -315,24 +315,6 @@ select case ( interp_ncloud(ldr,ncloud) )
 
   case( "LIN", "LIN2" )
 
-    njumps = int(dt/(maxlintime+0.01)) + 1
-    tdt    = real( dt/real(njumps), 8 )
-      
-#ifdef GPUPHYSICS
-    !$acc parallel loop copy(t,qg,qlg,qfg,qrg,qsng,qgrg,nr,ni,ns)       &
-    !$acc   copy(stratcloud,condx,conds,condg,precip)                   &
-    !$acc   copyin(zs,ps,rhoa,dz,cdrop,lin_aerosolmode,lin_adv)         &
-    !$acc   copyin(njumps,tdt,kl,imax,ntiles)                           &
-    !$acc   copyout(rfrac,sfrac,gfrac,fluxr,fluxi,fluxs,fluxg,fluxm)    &
-    !$acc   copyout(fluxf,fevap,fsubl,fauto,fcoll,faccr,vi,stras_rliq)  &
-    !$acc   copyout(stras_rice,stras_rsno,stras_rrai)                   &
-    !$acc   private(tile,js,je,k,iq,n,riz,zlevv,zqg,zqlg)               &
-    !$acc   private(zqrg,zqfg,zqsng,prf_temp,prf,tothz,thz,zrhoa,zpres) &
-    !$acc   private(dzw,znc,zcdrop,znr,zni,zns,pptrain,pptsnow,pptice)  &
-    !$acc   private(zeffc1d,zeffi1d,zeffs1d,zeffr1d,zfluxr,zfluxi)      &
-    !$acc   private(zfluxs,zfluxm,zfluxf,zqevap,zqsubl,zqauto,zqcoll)   &
-    !$acc   private(zqaccr,zvi) present(bet,betm,sig)
-#else
     !$omp do schedule(static) private(js,je,riz,zlevv,zqg,zqlg,zqrg,zqfg)     &
     !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
     !$omp private(zcdrop,znr,zni,zns,pptrain,pptsnow,pptice,njumps,tdt,n)     &
@@ -345,8 +327,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(zprevp,zpgfr,zpvapor,zpclw,zpladj,zpcli,zpimlt,zpihom)      &
     !$omp private(zpidw,zpiadj,zqschg)                                        &
 #endif
-    !$omp private(zvi)
-#endif
+    !$omp private(zvi,njumps,tdt)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
@@ -390,6 +371,8 @@ select case ( interp_ncloud(ldr,ncloud) )
      
 
       ! Use sub time-step if required
+      njumps = int(dt/(maxlintime+0.01)) + 1
+      tdt    = real( dt/real(njumps), 8 )
       do n = 1,njumps
         call clphy1d_ylin(tdt, imax,                       &
                        zqg, zqlg, zqrg, zqfg, zqsng,       &
@@ -508,11 +491,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       precip(js:je) = precip(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
 
     end do     !tile loop
-#ifdef GPUPHYSICS
-    !$acc end parallel loop
-#else
     !$omp end do nowait
-#endif
 
   case default
     write(6,*) "ERROR: unknown cloud microphysics option"

@@ -140,11 +140,17 @@ interface uclem_misc
 end interface
 
 interface uclem_loadd
-  module procedure uclem_loaddr4, uclem_loaddr8
+#ifndef i8r8
+  module procedure uclem_loaddr4
+#endif  
+  module procedure uclem_loaddr8
 end interface
 
 interface uclem_saved
-  module procedure uclem_savedr4, uclem_savedr8
+#ifndef i8r8
+  module procedure uclem_savedr4
+#endif
+  module procedure uclem_savedr8
 end interface
 
 contains
@@ -563,6 +569,7 @@ end subroutine uclem_end
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! general version of uclem_load
 
+#ifndef i8r8
 subroutine uclem_loaddr4(urban,mode,ifrac,diag)
 
 implicit none
@@ -578,6 +585,7 @@ call uclem_loaddr8(urbanr8,mode,ifrac,diag)
 
 return
 end subroutine uclem_loaddr4
+#endif
 
 subroutine uclem_loaddr8(urban,mode,ifrac,diag)
 
@@ -1785,11 +1793,12 @@ select case(paramname)
 end select
 
 return
-end subroutine uclem_deftype_export_thread
+                                       end subroutine uclem_deftype_export_thread
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! general version of uclem_save
 
+#ifndef i8r8                                       
 subroutine uclem_savedr4(urban,mode,ifrac,diag,rawtemp)
 
 implicit none
@@ -1812,6 +1821,7 @@ urban = real(urbanr8)
 
 return
 end subroutine uclem_savedr4
+#endif
                                        
 subroutine uclem_savedr8(urban,mode,ifrac,diag,rawtemp)
 

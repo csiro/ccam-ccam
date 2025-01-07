@@ -121,9 +121,7 @@ real, dimension(ifull) :: taudar, cldcon, u10_l
 real, dimension(imax,ilev) :: loxidantnow
 real, dimension(imax,kl) :: lzoxidant
 real, dimension(imax,kl) :: lclcon
-real, dimension(imax,kl,naero) :: lxtg
-real, dimension(imax,kl) :: lrkhsave, lt
-real, dimension(imax,kl) :: lat, lct
+real, dimension(ifull,kl) :: at, ct
 real dhr, fjd, r1, dlt, alp, slag
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical mydiag_t
@@ -131,8 +129,8 @@ logical, dimension(ifull) :: locean
 
 
 if ( aero_update==aero_split ) then
-
-#ifdef GPUCHEMISTRY
+    
+#ifdef GPU
   !$omp parallel
 #endif
 
@@ -195,8 +193,8 @@ if ( aero_update==aero_split ) then
 
   end do
   !$omp end do nowait
-
-#ifdef GPUCHEMISTRY
+  
+#ifdef GPU
   !$omp end parallel
 #endif
   
@@ -210,10 +208,10 @@ if ( aero_update==aero_split ) then
                 locean)
 
   
-#ifdef GPUCHEMISTRY
+#ifdef GPU
   !$omp parallel
 #endif
-
+  
   ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
   ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
   !$omp do schedule(static) private(js,je,k)
@@ -228,23 +226,23 @@ if ( aero_update==aero_split ) then
   end do
   !$omp end do nowait
 
-#ifdef GPUCHEMISTRY
+#ifdef GPU
   !$omp end parallel
 #endif
-
+  
 end if ! aero_update==aero_split
      
 
-if ( aero_update==1 ) then     
+if ( aero_update==1 ) then
 
-#ifdef GPUCHEMISTRY
+#ifdef GPU
   !$omp parallel
 #endif
-
+    
   ! Aerosol mixing
-  !$omp do schedule(static) private(js,je,iq,k),      &
-  !$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
-  !$omp private(lxtg,lrkhsave,rong,rlogs1,rlogs2),    &
+  !$omp do schedule(static) private(js,je,iq,k)       &
+  !$omp private(idjd_t,mydiag_t)                      &
+  !$omp private(rong,rlogs1,rlogs2)                   &
   !$omp private(rlogh1,rlog12,tmnht,dzz,gt)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -252,45 +250,41 @@ if ( aero_update==1 ) then
     idjd_t = mod(idjd-1,imax)+1
     mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-    lt       = t(js:je,:)
-    lrkhsave = rkhsave(js:je,:)
+    at(js:je,1) = 0.
+    ct(js:je,kl) = 0.
   
     rong = rdry/grav
-    lat(:,1) = 0.
-    lct(:,kl) = 0.
     rlogs1=log(sig(1))
     rlogs2=log(sig(2))
     rlogh1=log(sigmh(2))
     rlog12=1./(rlogs1-rlogs2)
-    do iq = 1,imax
-      tmnht=(lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+    do iq = js,je
+      tmnht=(t(iq,2)*rlogs1-t(iq,1)*rlogs2+(t(iq,1)-t(iq,2))*rlogh1)*rlog12  
       dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-      gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
-      lat(iq,2) = -gt/dsig(2)  
-      lct(iq,1) = -gt/dsig(1)
+      gt = rkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
+      at(iq,2) = -gt/dsig(2)  
+      ct(iq,1) = -gt/dsig(1)
     end do
     do k = 2,kl-1
-      do iq = 1,imax
+      do iq = js,je
         ! Calculate half level heights and temperatures
         ! n.b. an approximate zh (in m) is quite adequate for this routine
-        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+        tmnht = ratha(k)*t(iq,k+1) + rathb(k)*t(iq,k)
         dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-        gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
-        lat(iq,k+1) = -gt/dsig(k+1)  
-        lct(iq,k) = -gt/dsig(k)
+        gt = rkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
+        at(iq,k+1) = -gt/dsig(k+1)  
+        ct(iq,k) = -gt/dsig(k)
       end do
     end do
-  
-    lxtg = xtg(js:je,:,:)
-    call trimmix(lat,lct,lxtg,imax,kl,naero)
-    xtg(js:je,:,:) = lxtg
-  
+    
   end do ! tile = 1,ntiles
   !$omp end do nowait
+  
+  call trimmix(at,ct,xtg,imax) ! ifull arrays with imax to define tiles
 
-#ifdef GPUCHEMISTRY
+#ifdef GPU
   !$omp end parallel
-#endif
+#endif    
   
 end if
 

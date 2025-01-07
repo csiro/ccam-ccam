@@ -406,10 +406,6 @@ end if
 
 
 !$acc update device(sig)
-#ifdef GPUPHYSICS
-!$acc update device(sigmh,dsig,ratha,rathb)
-!$acc update device(bet,betm)
-#endif
 
 
 ! zmin here is approx height of the lowest level in the model

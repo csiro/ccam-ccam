@@ -175,8 +175,8 @@ end subroutine tkeinit
 ! mode=2 combined atmosphere and ocean with mass flux
 ! mode=3 combined atm-ocn and no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,ni,stratcloud,qtr,ua,va,zi,fg,eg,cduv,             &
-                  ps,zz,zzh,sig,rhos,ustar_ave,dt,qgmin,mode,tke,eps,shear,dx,thetal_ema,  &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,ni,stratcloud,ua,va,zi,fg,eg,cduv,           &
+                  ps,zz,zzh,sig,rhos,ustar_ave,dt,mode,tke,eps,shear,dx,thetal_ema,  &
                   qv_ema,ql_ema,qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
 
 use mlo_ctrl, only : wlev
@@ -184,10 +184,8 @@ use mlo_ctrl, only : wlev
 implicit none
 
 integer, intent(in) :: imax, kl, mode
-integer k, iq, ntr
-integer kcount, mcount
-real, intent(in) :: dt, qgmin
-real, dimension(:,:,:), intent(inout) :: qtr
+integer k, iq, kcount, mcount
+real, intent(in) :: dt
 real, dimension(imax,kl), intent(inout) :: theta,stratcloud,ua,va
 real, dimension(imax,kl), intent(inout) :: qvg,qlg,qfg,ni
 real, dimension(imax,kl), intent(out) :: kmo
@@ -204,7 +202,6 @@ real, dimension(kl), intent(in) :: sig
 real, dimension(imax,kl) :: km, thetav, thetal, qsat
 real, dimension(imax,kl) :: rhoa,rhoahl
 real, dimension(imax,kl) :: tlup,qvup,qlup,qfup,niup
-real, dimension(imax,kl,size(qtr,3)) :: qtrup
 real, dimension(imax,kl) :: cfup,mflx
 real, dimension(imax,kl) :: pps,ppt,ppb
 real, dimension(imax,kl) :: idzm
@@ -235,7 +232,6 @@ real, dimension(imax) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o
 real, dimension(imax) :: fracice, i_u, i_v, imass, cd_ice, cdbot_ice
 logical, dimension(imax), intent(in) :: land
 
-ntr = size(qtr,3)
 cm12 = 1./sqrt(cm0)
 cm34 = sqrt(sqrt(cm0**3))
 
@@ -351,9 +347,9 @@ do kcount = 1,mcount
     mask(:) = wtv0(:)>0.
     call plumerise(mask,                                         &
                    zi,wstar,mflx,tlup,qvup,qlup,qfup,niup,cfup,  &
-                   qtrup,zz,dz_hl,thetal,qvg,qlg,qfg,ni,         &
-                   stratcloud,qtr,wt0,wq0,ps,ustar,sig,sigkap,   &
-                   tke,ua,va,ntr,imax,kl)
+                   zz,dz_hl,thetal,qvg,qlg,qfg,ni,               &
+                   stratcloud,wt0,wq0,ps,ustar,sig,sigkap,       &
+                   tke,ua,va,imax,kl)
 
     ! Turn off MF term if small grid spacing (mfbeta=0 implies MF is always non-zero)
     ! Based on Boutle et al 2014
@@ -372,7 +368,6 @@ do kcount = 1,mcount
     qfup(:,:) = qfg(:,:)
     niup(:,:) = ni(:,:)
     cfup(:,:) = stratcloud(:,:)
-    qtrup(:,:,:) = qtr(:,:,:)
     
   end if
 
@@ -394,12 +389,12 @@ do kcount = 1,mcount
   ! Update TKE and eps terms
   call update_tkeeps(tke,eps,ppb,pps,ppt,qvg,qlg,qfg,thetal,               &
                      zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,   &
-                     ql_ema,qf_ema,cf_ema,tke_ema,ddts,qgmin,cm34,imax,kl)
+                     ql_ema,qf_ema,cf_ema,tke_ema,ddts,cm34,imax,kl)
   
   if ( mode==2 .or. mode==3 ) then
-    call update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,qtr,   &
+    call update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,       &
                         ua,va,tlup,qvup,qlup,qfup,niup,cfup,    &
-                        qtrup,fg,eg,rhos,ustar,cduv,tke,eps,    &
+                        fg,eg,rhos,ustar,cduv,tke,eps,          &
                         mflx,fzzh,idzp,idzm,dz_hl,rhoa(:,1),    &
                         dz_fl(:,1),deptho_dz,deptho_dz_hl,      &
                         rad_o,w_t,w_s,w_u,w_v,cd_water,         &
@@ -407,13 +402,13 @@ do kcount = 1,mcount
                         wt0melt_o,wt0eg_o,icefg_a,wt0fb_o,      &
                         ws0_o,ws0subsurf_o,i_u,i_v,imass,       &
                         fracice,cd_ice,cdbot_ice,ibot,land,     &
-                        sigkap,ddts,ntr,imax,kl,tile)  
+                        sigkap,ddts,imax,kl,tile)  
   else
-    call update_atmosphere(thetal,qvg,qlg,qfg,ni,stratcloud,qtr, &
+    call update_atmosphere(thetal,qvg,qlg,qfg,ni,stratcloud,     &
                            ua,va,tlup,qvup,qlup,qfup,niup,cfup,  &
-                           qtrup,fg,eg,rhos,ustar,cduv,tke,eps,  &
+                           fg,eg,rhos,ustar,cduv,tke,eps,        &
                            mflx,fzzh,idzp,idzm,dz_hl,rhoa(:,1),  &
-                           dz_fl(:,1),ddts,ntr,imax,kl)
+                           dz_fl(:,1),ddts,imax,kl)
   end if
   
   
@@ -458,7 +453,6 @@ do kcount = 1,mcount
           stratcloud(:,k) = max( stratcloud(:,k), 1.e-10 )
         end where
       end do  
-      qtr(:,:,:) = max( qtr(:,:,:), 0. )
 
     case(1) ! fix rounding errors only
       do k = 1,kl
@@ -473,7 +467,6 @@ do kcount = 1,mcount
           end if
         end do
       end do  
-      qtr(:,:,:) = max( qtr(:,:,:), 0. )
       
     case(2) ! correct saturated air (below pbl)
       do k = 1,kl
@@ -517,7 +510,6 @@ do kcount = 1,mcount
           end if ! zz<zi
         end do   ! iq  
       end do     ! k
-      qtr(:,:,:) = max( qtr(:,:,:), 0. )
       
   end select
 
@@ -551,14 +543,12 @@ end subroutine tkemix
     
 pure subroutine plumerise(mask,                                        &
                      zi,wstar,mflx,tlup,qvup,qlup,qfup,niup,cfup,      &
-                     qtrup,zz,dz_hl,thetal,qvg,qlg,qfg,ni,             &
-                     stratcloud,qtr,wt0,wq0,ps,ustar,                  &
-                     sig,sigkap,tke,ua,va,ntr,imax,kl)
+                     zz,dz_hl,thetal,qvg,qlg,qfg,ni,                   &
+                     stratcloud,wt0,wq0,ps,ustar,                      &
+                     sig,sigkap,tke,ua,va,imax,kl)
 
-integer, intent(in) :: imax, kl, ntr
-integer k, iq, iter, n
-real, dimension(imax,kl,ntr), intent(inout) :: qtrup
-real, dimension(imax,kl,ntr), intent(in) :: qtr
+integer, intent(in) :: imax, kl
+integer k, iq, iter
 real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, niup, cfup
 real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, ni, stratcloud
 real, dimension(imax,kl), intent(in) :: zz, thetal, ua, va 
@@ -600,7 +590,6 @@ do k = 1,kl
   niup(:,K) = ni(:,k)
   cfup(:,k) = stratcloud(:,k)
 end do
-qtrup(:,:,:) = qtr(:,:,:)
 
 tke(:,1) = cm12*ustar**2 + ce3*wstar**2
 tke(:,1) = max(tke(:,1), mintke)  
@@ -621,11 +610,6 @@ where ( mask(:) )
   niup(:,1) = ni(:,1)
   cfup(:,1) = stratcloud(:,1)
 end where
-do n = 1,ntr
-  where ( mask(:) )
-    qtrup(:,1,n) = qtr(:,1,n)
-  end where
-end do
 qvup(:,1) = max( qvup(:,1), 0. ) ! in case of bad land surface flux
 ! update updraft velocity and mass flux
 nn(:,1) = grav*be*wtv0(:)/(thetav(:,1)*sqrt(tke(:,1)))     ! Hurley 2007
@@ -660,11 +644,6 @@ do k = 2,kl
     niup(:,k) = (niup(:,k-1)+dzht*ent(:)*ni(:,k)    )/(1.+dzht*ent(:))
     cfup(:,k) = (cfup(:,k-1)+dzht*ent(:)*stratcloud(:,k))/(1.+dzht*ent(:))
   end where
-  do n = 1,ntr
-    where ( w2up(:,k-1)>0. .and. mask(:) )
-      qtrup(:,k,n) = (qtrup(:,k-1,n)+dzht*ent(:)*qtr(:,k,n))/(1.+dzht*ent(:))
-    end where    
-  end do
   do iq = 1,imax
     ! calculate conserved variables
     qtup = qvup(iq,k) + qlup(iq,k) + qfup(iq,k)    ! qtot,up
@@ -727,7 +706,7 @@ end subroutine plumerise
 
 subroutine update_tkeeps(tke,eps,ppb,pps,ppt,qvg,qlg,qfg,thetal,                    &
                          zzh,zz,sigkap,idzp,idzm,wstar,zi,thetal_ema,qv_ema,        &
-                         ql_ema,qf_ema,cf_ema,tke_ema,ddts,qgmin,cm34,imax,kl)
+                         ql_ema,qf_ema,cf_ema,tke_ema,ddts,cm34,imax,kl)
 
 implicit none
 
@@ -751,7 +730,7 @@ real, dimension(imax,kl-1) :: fzzh, dz_hl
 real, dimension(imax,2:kl) :: qq, aa
 real, dimension(imax), intent(in) :: wstar, zi
 real, dimension(kl), intent(in) :: sigkap
-real, intent(in) :: qgmin, ddts, cm34
+real, intent(in) :: ddts, cm34
 real :: tbb, tcc, tff, tqq, thetac, tempc, tempt, tempv, rvar, bvf, mc, dc, fc
 logical, dimension(imax,kl) :: lta
 
@@ -800,7 +779,7 @@ select case(buoymeth)
       do iq = 1,imax
           tbb = max(1.-cf_ema(iq,k),1.e-10)
           qgnc(iq,k) = (qv_ema(iq,k)-(1.-tbb)*qsatc(iq,k))/tbb  ! outside cloud value
-          qgnc(iq,k) = min(max(qgnc(iq,k),qgmin),qsatc(iq,k))
+          qgnc(iq,k) = min(max(qgnc(iq,k),0.),qsatc(iq,k))
         end do
       end do
       call updatekmo(thetalhl,thetal_ema,fzzh,imax,kl)          ! outside cloud value
@@ -957,18 +936,15 @@ end subroutine update_tkeeps
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update atmosphere only
 
-subroutine update_atmosphere(thetal,qvg,qlg,qfg,ni,stratcloud,qtr, &
+subroutine update_atmosphere(thetal,qvg,qlg,qfg,ni,stratcloud,     &
                              ua,va,tlup,qvup,qlup,qfup,niup,cfup,  &
-                             qtrup,fg,eg,rhos,ustar,cduv,tke,eps,  &
+                             fg,eg,rhos,ustar,cduv,tke,eps,        &
                              mflx,fzzh,idzp,idzm,dz_hl,rhoa1,      &
-                             dz_fl1,ddts,ntr,imax,kl)
+                             dz_fl1,ddts,imax,kl)
 
 implicit none
 
-integer, intent(in) :: imax, kl, ntr
-integer n
-real, dimension(imax,kl,ntr), intent(inout) :: qtr
-real, dimension(imax,kl,ntr), intent(in) :: qtrup
+integer, intent(in) :: imax, kl
 real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, ni, stratcloud, ua, va
 real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, niup, cfup
 real, dimension(imax,kl), intent(in) :: mflx, tke, eps
@@ -1077,19 +1053,6 @@ dd(:,kl) = stratcloud(:,kl) + ddts*(mflx(:,kl-1)*cfup(:,kl-1)*(1.-fzzh(:,kl-1))*
                                    +mflx(:,kl)*cfup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
 call thomas(stratcloud,aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
 stratcloud(:,:) = min( max( stratcloud, 0. ), 1. )
-    
-! other cloud tracers
-do n = 1,ntr
-  dd(:,1)=qtr(:,1,n)-ddts*(mflx(:,1)*qtrup(:,1,n)*(1.-fzzh(:,1))*idzp(:,1)                                 &
-                          +mflx(:,2)*qtrup(:,2,n)*fzzh(:,1)*idzp(:,1))
-  dd(:,2:kl-1)=qtr(:,2:kl-1,n)+ddts*(mflx(:,1:kl-2)*qtrup(:,1:kl-2,n)*(1.-fzzh(:,1:kl-2))*idzm(:,2:kl-1)   &
-                                    +mflx(:,2:kl-1)*qtrup(:,2:kl-1,n)*fzzh(:,1:kl-2)*idzm(:,2:kl-1)        &
-                                    -mflx(:,2:kl-1)*qtrup(:,2:kl-1,n)*(1.-fzzh(:,2:kl-1))*idzp(:,2:kl-1)   &
-                                    -mflx(:,3:kl)*qtrup(:,3:kl,n)*fzzh(:,2:kl-1)*idzp(:,2:kl-1))
-  dd(:,kl)=qtr(:,kl,n)+ddts*(mflx(:,kl-1)*qtrup(:,kl-1,n)*(1.-fzzh(:,kl-1))*idzm(:,kl)                     &
-                            +mflx(:,kl)*qtrup(:,kl,n)*fzzh(:,kl-1)*idzm(:,kl))
-   call thomas(qtr(:,:,n),aa(:,2:kl),bb(:,1:kl),cc(:,1:kl-1),dd,imax,kl)
-end do
   
 ! momentum vertical mixing
 aa(:,2:kl)   = qq(:,2:kl)
@@ -1249,9 +1212,9 @@ end subroutine pack_coupled_uv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Update coupled
 
-subroutine update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,qtr,   &
+subroutine update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,       &
                           ua,va,tlup,qvup,qlup,qfup,niup,cfup,    &
-                          qtrup,fg,eg,rhos,ustar,cduv,tke,eps,    &
+                          fg,eg,rhos,ustar,cduv,tke,eps,          &
                           mflx,fzzh,idzp,idzm,dz_hl,rhoa1,        &
                           dz_fl1,deptho_dz,deptho_dz_hl,          &
                           rad_o,w_t,w_s,w_u,w_v,cd_water,         &
@@ -1259,7 +1222,7 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,qtr,   &
                           wt0melt_o,wt0eg_o,icefg_a,wt0fb_o,      &
                           ws0_o,ws0subsurf_o,i_u,i_v,imass,       &
                           fracice,cd_ice,cdbot_ice,ibot,land,     &
-                          sigkap,ddts,ntr,imax,kl,tile)
+                          sigkap,ddts,imax,kl,tile)
 
 use mlo_ctrl, only : wlev, mlo_updatekm, dgwater_g,                            &
                      mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
@@ -1267,11 +1230,9 @@ use mlo_ctrl, only : wlev, mlo_updatekm, dgwater_g,                            &
                           
 implicit none
 
-integer, intent(in) :: imax, kl, tile, ntr
+integer, intent(in) :: imax, kl, tile
 integer, dimension(imax), intent(in) :: ibot
-integer k, kn, iq, n
-real, dimension(imax,kl,ntr), intent(inout) :: qtr
-real, dimension(imax,kl,ntr), intent(in) :: qtrup
+integer k, kn, iq
 real, dimension(imax,kl), intent(inout) :: thetal, qvg, qlg, qfg, ni, stratcloud, ua, va
 real, dimension(imax,kl), intent(in) :: tlup, qvup, qlup, qfup, niup, cfup
 real, dimension(imax,kl), intent(in) :: mflx, tke, eps
@@ -1561,20 +1522,6 @@ do k = 1,kl
   qfg(:,k) = tt_a(:,kn,3)
   ni(:,k) = tt_a(:,kn,4)
   stratcloud(:,k) = min( max( tt_a(:,kn,5), 0. ), 1. )
-end do
-
-do n = 1,ntr
-  dd_a(:,1,1)=qtr(:,kl,n)+ddts*(mflx(:,kl-1)*qtrup(:,kl-1,n)*(1.-fzzh(:,kl-1))*idzm(:,kl)     &
-                               +mflx(:,kl)*qtrup(:,kl,n)*fzzh(:,kl-1)*idzm(:,kl))
-  do k = 2,kl-1
-    kn = kl - k + 1
-    dd_a(:,k,1)=qtr(:,kn,n)+ddts*(mflx(:,kn-1)*qtrup(:,kn-1,n)*(1.-fzzh(:,kn-1))*idzm(:,kn)   &
-                                 +mflx(:,kn)*qtrup(:,kn,n)*fzzh(:,kn-1)*idzm(:,kn)            &
-                                 -mflx(:,kn)*qtrup(:,kn,n)*(1.-fzzh(:,kn))*idzp(:,kn)         &
-                                 -mflx(:,kn+1)*qtrup(:,kn+1,n)*fzzh(:,kn)*idzp(:,kn))
-  end do
-  dd_a(:,kl,1)=qtr(:,1,n)-ddts*(mflx(:,1)*qtrup(:,1,n)*(1.-fzzh(:,1))*idzp(:,1)               &
-                               +mflx(:,2)*qtrup(:,2,n)*fzzh(:,1)*idzp(:,1))
 end do
 
 

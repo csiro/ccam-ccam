@@ -153,8 +153,7 @@ real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
 real, dimension(imax,kl) :: lthetal_ema, lqv_ema, lql_ema, lqf_ema, lcf_ema
 real, dimension(imax,kl) :: ltke_ema
 real, dimension(imax,kl) :: lrkmsave, lrkhsave
-real, dimension(imax,kl) :: lat, lct
-real, dimension(imax,kl) :: lqrg, lqsng, lqgrg
+real, dimension(imax,kl) :: lat, lct, lqtr
 real, dimension(ifull) :: uadj, vadj
 real, dimension(imax) :: lou, lov, liu, liv, lrho
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
@@ -197,8 +196,7 @@ case(6,9)
     !$omp private(lstratcloud,lu,lv,ltke,leps,lshear)      &
     !$omp private(lrkmsave,lrkhsave,lsavu,lsavv)           &
     !$omp private(lthetal_ema,lqv_ema,ltke_ema)            &
-    !$omp private(idjd_t,mydiag_t,lqrg,lqsng,lqgrg)        &
-    !$omp private(lql_ema,lqf_ema,lcf_ema)
+    !$omp private(idjd_t,mydiag_t,lql_ema,lqf_ema,lcf_ema)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -212,9 +210,6 @@ case(6,9)
       lqlg = qlg(is:ie,:)
       lni = ni(is:ie,:)
       lstratcloud = stratcloud(is:ie,:)
-      lqrg = qrg(is:ie,:)
-      lqsng = qsng(is:ie,:)
-      lqgrg = qgrg(is:ie,:)
       ltke   = tke(is:ie,:)
       leps   = eps(is:ie,:)
       lshear = shear(is:ie,:)
@@ -231,7 +226,7 @@ case(6,9)
       ltke_ema    = tke_ema(is:ie,:)
     
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),lqg,lqfg,lqlg,   &
-                       lni,lstratcloud,lqrg,lqsng,lqgrg,cduv(is:ie),lu,lv,pblh(is:ie),        &
+                       lni,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie),                         &
                        ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,lql_ema, &
                        lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,f(is:ie),imax,kl,tile)      
                        
@@ -241,11 +236,6 @@ case(6,9)
       qlg(is:ie,:)        = lqlg
       ni(is:ie,:)         = lni
       stratcloud(is:ie,:) = lstratcloud
-      if ( adv_precip>=1 ) then
-        qrg(is:ie,:)        = lqrg
-        qsng(is:ie,:)       = lqsng
-        qgrg(is:ie,:)       = lqgrg
-      end if  
       tke(is:ie,:)        = ltke
       eps(is:ie,:)        = leps
       do k = 1,kl  
@@ -283,8 +273,7 @@ case(6,9)
     !$omp do schedule(static) private(is,ie,k)                &
     !$omp private(lt,lqg,lqfg,lqlg,lni)                       &
     !$omp private(lstratcloud,lu,lv,lsavu,lsavv)              &
-    !$omp private(lrkmsave,lrkhsave,idjd_t,mydiag_t)          &
-    !$omp private(lqrg,lqsng,lqgrg)
+    !$omp private(lrkmsave,lrkhsave,idjd_t,mydiag_t)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -298,9 +287,6 @@ case(6,9)
       lqlg = qlg(is:ie,:)
       lni = ni(is:ie,:)
       lstratcloud = stratcloud(is:ie,:)
-      lqrg = qrg(is:ie,:)
-      lqsng = qsng(is:ie,:)
-      lqgrg = qgrg(is:ie,:)      
       ! Adjustment for moving ocean surface
       do k = 1,kl
         lu(:,k) = u(is:ie,k) - uadj(is:ie)
@@ -310,7 +296,7 @@ case(6,9)
       end do  
     
       call vertmix(lt,tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),  &
-                   ps(is:ie),lqg,lqfg,lqlg,lni,lstratcloud,lqrg,lqsng,lqgrg,                     &
+                   ps(is:ie),lqg,lqfg,lqlg,lni,lstratcloud,                                      &
                    condc(is:ie),cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),           &
                    tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),      &
                    lrkmsave,lrkhsave,                                                            &
@@ -322,11 +308,6 @@ case(6,9)
       qlg(is:ie,:)        = lqlg
       ni(is:ie,:)         = lni
       stratcloud(is:ie,:) = lstratcloud
-      if ( adv_precip>=1 ) then
-        qrg(is:ie,:)        = lqrg
-        qsng(is:ie,:)       = lqsng
-        qgrg(is:ie,:)       = lqgrg      
-      end if  
       rkmsave(is:ie,:)    = lrkmsave
       rkhsave(is:ie,:)    = lrkhsave  
       do k = 1,kl  
@@ -338,6 +319,63 @@ case(6,9)
     !$omp end do nowait
 
 end select
+
+if ( adv_precip>=1 ) then
+  ! additional mixing
+  !$omp do schedule(static) private(is,ie,iq,k),      &
+  !$omp private(lt,lat,lct),                          &
+  !$omp private(lrkhsave,rong,rlogs1,rlogs2),         &
+  !$omp private(rlogh1,rlog12,tmnht,dzz,gt,lqtr)
+  do tile = 1,ntiles
+    is = (tile-1)*imax + 1
+    ie = tile*imax
+    !idjd_t = mod(idjd-1,imax)+1
+    !mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+
+    lt       = t(is:ie,:)
+    lrkhsave = rkhsave(is:ie,:)
+  
+    rong = rdry/grav
+    lat(:,1) = 0.
+    lct(:,kl) = 0.
+    rlogs1 = log(sig(1))
+    rlogs2 = log(sig(2))
+    rlogh1 = log(sigmh(2))
+    rlog12 = 1./(rlogs1-rlogs2)
+    do iq = 1,imax
+      tmnht = (lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
+      dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
+      gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
+      lat(iq,2) = -gt/dsig(2)  
+      lct(iq,1) = -gt/dsig(1)
+    end do
+    do k = 2,kl-1
+      do iq = 1,imax
+        ! Calculate half level heights and temperatures
+        ! n.b. an approximate zh (in m) is quite adequate for this routine
+        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
+        dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
+        gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
+        lat(iq,k+1) = -gt/dsig(k+1)  
+        lct(iq,k) = -gt/dsig(k)
+      end do
+    end do
+  
+    lqtr(:,:) = qrg(is:ie,:)
+    call trimmix(lat,lct,lqtr,imax,kl)
+    qrg(is:ie,:) = lqtr(:,:)
+    lqtr(:,:) = qsng(is:ie,:)
+    call trimmix(lat,lct,lqtr,imax,kl)
+    qsng(is:ie,:) = lqtr(:,:)
+    lqtr(:,:) = qgrg(is:ie,:)
+    call trimmix(lat,lct,lqtr,imax,kl)
+    qgrg(is:ie,:) = lqtr(:,:)
+  
+  end do ! tile = 1,ntiles
+  !$omp end do nowait
+  
+end if ! adv_precip>=1
+
 
 return
 end subroutine turbmix
@@ -366,13 +404,13 @@ end select
 return
 end function interp_nvmix  
 
-subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,ni,stratcloud,qrg,qsng,qgrg,  &
+subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,ni,stratcloud,                &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,  &
                        ql_ema,qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,f,imax,kl,    &
                        tile)
 
 use const_phys                   ! Physical constants
-use parm_m, only : ds, nlocal, dt, qgmin, cqmix, nvmix
+use parm_m, only : ds, nlocal, dt, cqmix, nvmix
                                  ! Model configuration
 use sigs_m                       ! Atmosphere sigma levels
 use tkeeps, only : tkemix        ! TKE-EPS boundary layer
@@ -382,7 +420,6 @@ implicit none
 integer, intent(in) :: imax, kl, tile
 integer k, nlocal_mode
 real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg, ni
-real, dimension(imax,kl), intent(inout) :: qrg, qsng, qgrg
 real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
 real, dimension(imax,kl), intent(inout) :: tke, eps
 real, dimension(imax,kl), intent(in) :: shear
@@ -392,7 +429,6 @@ real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
 real, dimension(imax,kl) :: rkm
-real, dimension(imax,kl,3) :: qtr
 real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg
 real, dimension(imax), intent(in) :: em, tss, ps, f
 real, dimension(imax), intent(in) :: cduv
@@ -449,20 +485,11 @@ select case(nvmix)
         nlocal_mode = 2
     end select
 end select
-  
-! additional cloud tracers  
-qtr(:,:,1) = qrg(:,:)  
-qtr(:,:,2) = qsng(:,:)
-qtr(:,:,3) = qgrg(:,:)
-  
-call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,qtr,u,v,pblh,fg,eg,               &
-            cduv,ps,zg,zh,sig,rhos,ustar,dt,qgmin,nlocal_mode,tke,eps,shear,   &
+    
+call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,                   &
+            cduv,ps,zg,zh,sig,rhos,ustar,dt,nlocal_mode,tke,eps,shear,         &
             dx,thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,tke_ema,land,tile,imax,  &
             kl)  
-
-qrg(:,:) = qtr(:,:,1)
-qsng(:,:) = qtr(:,:,2)
-qgrg(:,:) = qtr(:,:,3)
 
 do k = 1,kl
   ! replace counter gradient term

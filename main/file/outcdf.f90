@@ -1307,22 +1307,22 @@ if ( iarch==1 ) then
       call attrib(idnc,dimj,jsize,'v2max',lname,'m s-1',-99.,99.,daily_m,max_m,cptype)
       if ( l3hr ) then
         lname = '3hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd03',lname,'mm',0.,1300.,daily_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'rnd03',lname,'mm',0.,1300.,daily_m,mean_m,float_m)
         lname = '6hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd06',lname,'mm',0.,1300.,daily_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'rnd06',lname,'mm',0.,1300.,daily_m,mean_m,float_m)
         lname = '9hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd09',lname,'mm',0.,1300.,daily_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'rnd09',lname,'mm',0.,1300.,daily_m,mean_m,float_m)
         lname = '12hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd12',lname,'mm',0.,1300.,daily_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'rnd12',lname,'mm',0.,1300.,daily_m,mean_m,float_m)
         lname = '15hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd15',lname,'mm',0.,1300.,daily_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'rnd15',lname,'mm',0.,1300.,daily_m,mean_m,float_m)
         lname = '18hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd18',lname,'mm',0.,1300.,daily_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'rnd18',lname,'mm',0.,1300.,daily_m,mean_m,float_m)
         lname = '21hr precipitation'
-        call attrib(idnc,dimj,jsize,'rnd21',lname,'mm',0.,1300.,daily_m,mean_m,cptype)
+        call attrib(idnc,dimj,jsize,'rnd21',lname,'mm',0.,1300.,daily_m,mean_m,float_m)
       end if
       lname = '24hr precipitation'
-      call attrib(idnc,dimj,jsize,'rnd24',lname,'mm',0.,1300.,daily_m,mean_m,cptype)
+      call attrib(idnc,dimj,jsize,'rnd24',lname,'mm',0.,1300.,daily_m,mean_m,float_m)
       if ( nextout>=2 .and. l3hr ) then  ! 6-hourly u10, v10, tscr, rh1
         mnam ='x-component 10m wind '
         nnam ='y-component 10m wind '
@@ -1346,6 +1346,8 @@ if ( iarch==1 ) then
         call attrib(idnc,dimj,jsize,'rh1_24', nnam//'24hr','%',-9.,200.,daily_m,point_m,cptype)
       endif     ! (nextout>=2)
       if ( nextout>=3 .and. l3hr ) then  ! also 3-hourly u10, v10, tscr, rh1
+        mnam ='tscrn 3-hrly'
+        nnam ='rhum level_1 3-hrly'
         call attrib(idnc,dimj,jsize,'tscr_03',mnam//'3hr', 'K',100.,425.,daily_m,point_m,cptype)
         call attrib(idnc,dimj,jsize,'tscr_09',mnam//'9hr', 'K',100.,425.,daily_m,point_m,cptype)
         call attrib(idnc,dimj,jsize,'tscr_15',mnam//'15hr','K',100.,425.,daily_m,point_m,cptype)
@@ -2700,15 +2702,23 @@ if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
   ! to allow for intermediate zeroing of precip()
   ! but not needed from 17/9/03 with introduction of rnd24
   if ( l3hr ) then
-    call histwrt(rnd_3hr(:,1),'rnd03',idnc,iarch,local,lday)
-    call histwrt(rnd_3hr(:,2),'rnd06',idnc,iarch,local,lday)
-    call histwrt(rnd_3hr(:,3),'rnd09',idnc,iarch,local,lday)
-    call histwrt(rnd_3hr(:,4),'rnd12',idnc,iarch,local,lday)
-    call histwrt(rnd_3hr(:,5),'rnd15',idnc,iarch,local,lday)
-    call histwrt(rnd_3hr(:,6),'rnd18',idnc,iarch,local,lday)
-    call histwrt(rnd_3hr(:,7),'rnd21',idnc,iarch,local,lday)
+    aa = real(rnd_3hr(:,1))  
+    call histwrt(aa,'rnd03',idnc,iarch,local,lday)
+    aa = real(rnd_3hr(:,2))  
+    call histwrt(aa,'rnd06',idnc,iarch,local,lday)
+    aa = real(rnd_3hr(:,3))  
+    call histwrt(aa,'rnd09',idnc,iarch,local,lday)
+    aa = real(rnd_3hr(:,4))  
+    call histwrt(aa,'rnd12',idnc,iarch,local,lday)
+    aa = real(rnd_3hr(:,5))  
+    call histwrt(aa,'rnd15',idnc,iarch,local,lday)
+    aa = real(rnd_3hr(:,6))  
+    call histwrt(aa,'rnd18',idnc,iarch,local,lday)
+    aa = real(rnd_3hr(:,7))  
+    call histwrt(aa,'rnd21',idnc,iarch,local,lday)
   end if
-  call histwrt(rnd_3hr(:,8),'rnd24',idnc,iarch,local,lday)
+  aa = real(rnd_3hr(:,8))  
+  call histwrt(aa,'rnd24',idnc,iarch,local,lday)
   if ( nextout>=2 .and. l3hr ) then ! 6-hourly u10 & v10
     call histwrt( u10_3hr(:,2), 'u10_06',idnc,iarch,local,lday)
     call histwrt( v10_3hr(:,2), 'v10_06',idnc,iarch,local,lday)

@@ -230,10 +230,10 @@ implicit none
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer :: ipf, jpf, ca, cc, ip, no, n, j
-integer :: expected_ndims, dimlen, i
+integer :: expected_ndims, i
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=4), dimension(4) :: dimid_c
-integer(kind=4) :: idv, ndims
+integer(kind=4) :: idv, ndims, dimlen
 real, dimension(:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan) :: rvar
 real, dimension(:,:), allocatable :: gvar 
@@ -407,10 +407,10 @@ implicit none
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer :: ipf, ca, jpf, ip, n, no, cc, j
-integer :: expected_ndims, dimlen, i
+integer :: expected_ndims, i
 integer(kind=4), dimension(4) :: start, ncount
 integer(kind=4), dimension(4) :: dimid_c
-integer(kind=4) :: idv, ndims
+integer(kind=4) :: idv, ndims, dimlen
 real(kind=8), dimension(:), intent(inout), optional :: var
 real(kind=8), dimension(pipan*pjpan*pnpan) :: rvar
 real(kind=8), dimension(:,:), allocatable :: gvar 
@@ -581,10 +581,10 @@ implicit none
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer :: ipf, k, ca, jpf, ip, n, no, cc, j
-integer :: expected_ndims, dimlen, i
+integer :: expected_ndims, i
 integer(kind=4), dimension(5) :: start, ncount
 integer(kind=4), dimension(5) :: dimid_c
-integer(kind=4) :: idv, ndims
+integer(kind=4) :: idv, ndims, dimlen
 real, dimension(:,:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan,kk) :: rvar
 real, dimension(:,:,:), allocatable :: gvar 
@@ -808,10 +808,10 @@ implicit none
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer :: ipf, k, ca, jpf, ip, n, no, cc, j
-integer :: expected_ndims, dimlen, i
+integer :: expected_ndims, i
 integer(kind=4), dimension(5) :: start, ncount
 integer(kind=4), dimension(5) :: dimid_c
-integer(kind=4) :: idv, ndims
+integer(kind=4) :: idv, ndims, dimlen
 real(kind=8), dimension(:,:), intent(inout), optional :: var
 real(kind=8), dimension(pipan*pjpan*pnpan,kk) :: rvar
 real(kind=8), dimension(:,:,:), allocatable :: gvar
@@ -1023,10 +1023,10 @@ implicit none
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer :: ipf, ca, jpf, ip, n, no, cc, j, k, l
-integer :: expected_ndims, dimlen, i
+integer :: expected_ndims, i
 integer(kind=4), dimension(6) :: start, ncount
 integer(kind=4), dimension(6) :: dimid_c
-integer(kind=4) :: idv, ndims
+integer(kind=4) :: idv, ndims, dimlen
 real, dimension(:,:,:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
 real, dimension(:,:,:,:), allocatable :: gvar
@@ -1181,10 +1181,10 @@ implicit none
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer :: ipf, ca,jpf, ip, n, no, cc, j, k, l
-integer :: expected_ndims, dimlen, i
+integer :: expected_ndims, i
 integer(kind=4), dimension(6) :: start, ncount
 integer(kind=4), dimension(6) :: dimid_c
-integer(kind=4) idv, ndims
+integer(kind=4) idv, ndims, dimlen
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
 real(kind=8), dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
 real(kind=8), dimension(:,:,:,:), allocatable :: gvar
@@ -1879,11 +1879,8 @@ select case(n)
         t(1:ifull,k) = t(1:ifull,k) + (sig(k)-sigin(1))*6.5/.1
       end do    ! k loop
     end if
-  case(2)  
-    ! for qg do a -ve fix
-    t(1:ifull,:) = max(t(1:ifull,:), qgmin)
-  case(5)  
-    ! for qfg, qlg do a -ve fix
+  case(2,5)  
+    ! for qg, qfg, qlg do a -ve fix
     t(1:ifull,:) = max(t(1:ifull,:), 0.)
 end select    
       

@@ -675,7 +675,6 @@ real, dimension(size(tliq,1),size(tliq,2)) :: pk, qsi, deles, qcg
 real, intent(in) :: tdt, cld_decay
 real decayfac, Tk, qs, es, aprpr, bprpr, cice, qi0, fd, crate, qfdep
 real fl
-
 real, parameter :: rhoic = 700.
 real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
@@ -782,38 +781,73 @@ return
 end subroutine saturation_adjustment
 
 
-subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,t,rcrit, &
+subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,tliq,rcrit, &
                      dpsldt,nettend,stratcloud,tiedtke_form, &
                      rkmsave,rkhsave,imax,kl)
 
 use const_phys                    ! Physical constants
-use parm_m, only : qgmin          ! Model configuration
+use estab                         ! Liquid saturation function
+use sigs_m                        ! Atmosphere sigma levels
 
 implicit none
 
 integer, intent(in) :: tiedtke_form
 integer, intent(in) :: imax, kl
-integer k
+integer iq, k
 real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, t, rcrit, press
+real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, tliq, rcrit, press
 real, dimension(imax,kl), intent(in) :: dpsldt, rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: nettend
 real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax,kl) :: xf
+real, dimension(imax,kl) :: new_stratcloud
 real, dimension(imax) :: aa, bb, cc, a_dt, b_dt, cf1, cfeq, cfbar
-real, dimension(imax) :: qv, omega, hlrvap, dqsdT, gamma, dqs
+real, dimension(imax) :: qv, omega, hlrvap, dqsdt, gamma, dqs
 real, dimension(imax) :: da
+real, dimension(imax) :: dqs_omega, dqs_radiation
 real, intent(in) :: dt
 real, dimension(imax,kl) :: erosion_scale
 real, parameter :: erosion_scale_d = 1.e-6
 real, parameter :: erosion_scale_t = 5.e-5
 real, parameter :: diff_threshold_t = 0.1
 real, parameter :: u00 = 0.8
+real al, delq, qc_local
 
 ! calculate diagnostic cloud fraction using Smith.  This is uses for cloud initialisation
 ! (0% cloud cover) or eroding from 100% cloud cover.
 
-! ...
+! Calculate cloudy fraction of grid box (stratcloud) and gridbox-mean cloud water
+! using the triangular PDF of Smith (1990)
+do k = 1,kl
+  do iq = 1,imax
+    !hlrvap(iq) = (hl+fice(iq,k)*hlf)/rvap
+    !dqsdt(iq) = qs(iq,k)*hlrvap(iq)/tliq(iq,k)**2
+    !al = 1./(1.+(hlcp+fice(iq,k)*hlfcp)*dqsdt(iq))  !Smith's notation
+    qc_local = qtot(iq,k) - qs(iq,k)     ! qc_local can be negative
+    delq = (1.-rcrit(iq,k))*qs(iq,k)     !UKMO style (equivalent to above)
+    if ( qc_local<=-delq ) then
+      new_stratcloud(iq,k) = 0.
+      !new_qcg(iq,k) = 0.
+    else if ( qc_local<=0. ) then
+      new_stratcloud(iq,k) = max( 1.e-10, 0.5*((qc_local+delq)/delq)**2 )  ! for roundoff
+      !new_qcg(iq,k) = al*(qc_local+delq)**3/(6.*delq**2)
+    else if ( qc_local<delq ) then
+      new_stratcloud(iq,k) = max( 1.e-10, 1.-0.5*((qc_local-delq)/delq)**2 )  ! for roundoff
+      !new_qcg(iq,k) = al*(qc_local-(qc-delq)**3/(6.*delq**2))
+    else
+      new_stratcloud(iq,k) = 1.
+      !new_qcg(iq,k) = al*qc_local
+    end if
+  end do ! iq loop
+end do   ! k loop
+
+if ( tiedtke_form==2 ) then
+  ! use diagnostic cloud as seed for new cloud
+  where ( qc(:,:) > 1.e-20 )
+    stratcloud(:,:) = new_stratcloud(:,:)
+  end where
+end if
+
 
 ! background erosion scale in 1/secs
 erosion_scale(:,:) = erosion_scale_d
@@ -841,21 +875,29 @@ end do
 ! da_orographic = 0.
 ! da_erosion = -0.5*(1-stratcloud)^2 * Qc/bs * dbsdt / aL*(qsat - qv )
 ! da_adiabatic = 
-! Qc = ?
-! dbsdt = -2.25e-5 * exp(-3.1*Qc/(aL*qsat)
-! aL = 1/( 1 + dqsdT*L/Cp )
+! Qc = aL*(qt-qsat)
+! bs = aL*(1-rcrit)*qsat
+! dbsdt = -2.25e-5*exp(-3.1*Qc/(aL*qsat)
+! aL = 1/( 1 + dqsdT*L/Cp ) = 1/(1+gamma)
 
+! dqs = dqs_radiation + dqs_microphysics + dqs_boundary + dqs_orographic + dqs_erosion + dqs_adiabatic
+! dqs_radiation = dqsdT*nettend_radiation*dt
+! dqs_microphysics =
+! dqs_boundary = -2.*(dqtdt - dqsdT*nettend_boundary)*dt
+! dqs_orographic = 0.
+! dqs_erosion = ((qt-qsat)/bs)*dbsdt*dt
+! dqs_adiabatic =
 
 
 ! Tiedtke scheme
 
-! calculate dqs = ((omega + grav*Mc)/(cp*rho)+nettend)*dqsdT*dt
+! calculate dqs = ( (omega+grav*Mc)/(cp*rho) + nettend )*dqsdT*dt
 !                 -------------------------------------------------------
 !                 1 + (stratcloud + 0.5*da)*gamma
 ! MJT notes - GFDL AM adds (stratcloud+0.5*at*da)*gamma term
 
 ! Change in saturated volume fraction
-! da = -0.5*(1.-cf)^2*dqs/(qs-qv)
+! da = -0.5*(1.-stratcloud)^2*dqs/(qs-qv)
 ! MJT notes - Tiedtke 93 does not use 0.5
 
 ! gamma = L/cp*dqsdT
@@ -863,16 +905,18 @@ end do
 ! Follow GFDL AM approach since da=da(dqs), hence need to solve the above
 ! quadratic equation for dqs if da/=0
 
-! dqs*dqs*AA + dqs*BB + CC = 0
-! AA = 0.25*gamma*(1-cf)^2/(qs-qv)
-! BB = -(1+gamma*cf)
+! dqs**2*AA + dqs*BB + CC = 0
+! AA = 0.25*gamma*(1-stratcloud)^2/(qs-qv)
+! BB = -(1+gamma*stratcloud)
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
+
+! da = -AA*dqs
 
 select case(tiedtke_form)
   case(1) ! Original GFDL-AM4
     do k = 1,kl
       hlrvap = (hl+fice(:,k)*hlf)/rvap
-      dqsdT = qs(:,k)*hlrvap/(t(:,k)**2)
+      dqsdT = qs(:,k)*hlrvap/(tliq(:,k)**2)
       gamma = (hlcp+fice(:,k)*hlfcp)*dqsdT
       omega = press(:,k)*dpsldt(:,k)
       ! 1st estimate with da=0.
@@ -885,6 +929,8 @@ select case(tiedtke_form)
         xf(:,k) = 0.
       end where
     end do
+  case(2) ! PC2
+    xf(:,:) = 1. !?
   case default
     write(6,*) "ERROR: Unsupported tiedtke_form = ",tiedtke_form
     stop
@@ -897,12 +943,19 @@ do k = 1,kl
   ! calculate vertical velocity, dqs/dT and gamma
   omega = press(:,k)*dpsldt(:,k)
   hlrvap = (hl+fice(:,k)*hlf)/rvap
-  dqsdT = qs(:,k)*hlrvap/(t(:,k)**2)
+  dqsdT = qs(:,k)*hlrvap/(tliq(:,k)**2)
   gamma = (hlcp+fice(:,k)*hlfcp)*dqsdT
+  
+  dqs_omega = omega/(cp*rho(:,k))*dqsdT
+  dqs_radiation = nettend(:,k)*dqsdT
+  !al = 1./(1.+gamma)
+  !bs = al*(1.-rcrit(:,k))*qs(:,k)
+  !dbsdt = 
+  !dqs_erosion = (qtot(:,k)-qs(:,k))/bs)*dbsdt
 
   !cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT
-  cc = (omega/(cp*rho(:,k))+nettend(:,k))*dt*dqsdT ! neglect cmflx
-  aa = 0.5*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )
+  cc = (dqs_omega(:)+dqs_radiation(:))*dt ! neglect cmflx
+  aa = 0.5*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-20 )
   bb = 1.+gamma*stratcloud(:,k)
   !dqs = ( bb - sqrt( bb*bb - 2.*gamma*xf*aa*cc ) ) / ( gamma*xf*aa ) ! GFDL style
   !dqs = min( dqs, cc/(1. + 0.5*bb) )                                 ! GFDL style
@@ -914,11 +967,11 @@ do k = 1,kl
   ! Large scale cloud destruction via erosion (B)
   where ( da>0. )
     !a_dt = xf(:,k)*da/max(1.-stratcloud(:,k),1.e-10)
-    a_dt = -xf(:,k)*dqs*0.5*(1.-stratcloud(:,k))/max( qs(:,k)-qv, 1.e-8 )
+    a_dt = -xf(:,k)*dqs*0.5*(1.-stratcloud(:,k))/max( qs(:,k)-qv, 1.e-20 )
     b_dt = 0.
-  elsewhere ( qc(:,k)>1.e-10 )
+  elsewhere ( qc(:,k)>1.e-20 )
     a_dt = 0.
-    b_dt = stratcloud(:,k)*erosion_scale(:,k)*dt*max(qs(:,k)-qv,0.)/qc(:,k)
+    b_dt = stratcloud(:,k)*erosion_scale(:,k)*dt*max(qs(:,k)-qv,1.e-20)/qc(:,k)
   elsewhere
     a_dt = 0.
     b_dt = 0.
@@ -933,7 +986,7 @@ do k = 1,kl
   !   cfbar = cfeq - (cf(t=1) - cf(t=0))/((A+B)*dt)
   ! cfeq is the equilibrum cloud fraction that is approached with
   ! a time scale of 1/(A+B)
-  where ( a_dt>1.e-7 .or. b_dt>1.e-7 )
+  where ( a_dt+b_dt>1.e-20 )
     cfeq  = a_dt/(a_dt+b_dt)
     cf1   = cfeq + (stratcloud(:,k) - cfeq)*exp(-a_dt-b_dt)
     cfbar = cfeq + (stratcloud(:,k) - cf1 )/(a_dt+b_dt)
@@ -945,14 +998,14 @@ do k = 1,kl
 
   ! Change in condensate
   ! dqc = -dqs*(stratcloud+0.5*da)
-  qc(:,k) = max(min( qc(:,k) - dqs*(cf1+0.5*da), qtot(:,k)-qgmin), 0.)
-  !qc(:,k) = max(min( qc(:,k) - cfbar*dqs, qtot(:,k)-qgmin ), 0. )
+  qc(:,k) = max(min( qc(:,k) - dqs*(cf1+0.5*da), qtot(:,k)), 0.)
+  !qc(:,k) = max(min( qc(:,k) - cfbar*dqs, qtot(:,k) ), 0. )
 
   stratcloud(:,k) = min( cf1, 1. )
 
   ! Change in cloud fraction
   where ( qc(:,k)>0. )
-    stratcloud(:,k) = max( stratcloud(:,k), 1.e-10 )
+    stratcloud(:,k) = max( stratcloud(:,k), 1.e-20 )
   elsewhere
     ! MJT notes - cloud fraction is maintained (da=0.) while condesate evaporates (dqc<0.) until
     ! the condesate dissipates

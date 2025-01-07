@@ -32,7 +32,7 @@ public prec_init, prec_end
 real, dimension(:), allocatable, save :: evspsbl, sbl
 real, dimension(:), allocatable, save :: cape, precc, precip
 real, dimension(:), allocatable, save :: cape_d, cin_d, li_d
-real, dimension(:,:), allocatable, save :: rnd_3hr
+real(kind=8), dimension(:,:), allocatable, save :: rnd_3hr
 !real, dimension(:), allocatable, save :: evap
 
 contains
@@ -54,7 +54,7 @@ evspsbl(:)   = 0.
 sbl(:)       = 0.
 precip(:)    = 0.
 precc(:)     = 0.
-rnd_3hr(:,:) = 0.
+rnd_3hr(:,:) = 0._8
 cape(:)      = 0.
 cape_d(:)    = 0.
 cin_d(:)     = 0.

@@ -34,7 +34,6 @@
 !   debug        - additional debugging checks, but runs slower
 !   i8r8         - double precision mode
 !   GPU          - target GPUs with OpenACC
-!   GPUCHEMISTRY - additional GPU usage, but requires more GPU memory and GPU directive
 !   csircoupled  - CSIR coupled model
 !   usempi3      - optimse communication with MPI shared memory (preferred)
 !   share_ifullg - reduce shared memory with MPI, but requires usempi3 directive
@@ -725,7 +724,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
   ! AEROSOLS --------------------------------------------------------------
   ! Old time-split with aero_split=0
-#ifdef GPUCHEMISTRY
+#ifdef GPU
   !$omp end parallel
 #endif
   if ( nsib>0 .and. aero_split==0 ) then
@@ -735,7 +734,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(aerosol_end)
   end if
-#ifdef GPUCHEMISTRY
+#ifdef GPU
   !$omp parallel
 #endif
   if ( aero_split==0 ) then
@@ -795,7 +794,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! AEROSOLS --------------------------------------------------------------
   ! New time-split with aero_split=1
   ! Includes turbulent mixing
-#ifdef GPUCHEMISTRY
+#ifdef GPU
   !$omp end parallel
 #endif
   if ( nsib>0 ) then
@@ -805,7 +804,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(aerosol_end)
   end if
-#ifdef GPUCHEMISTRY
+#ifdef GPU
   !$omp parallel
 #endif
   !$omp do schedule(static) private(js,je)
@@ -838,9 +837,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
     cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
     ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
     ! Microphysics diagnostic output
-    rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + condx(js:je)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+    rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + real(condx(js:je),8)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   end do  
   !$omp end do nowait
+  
   if ( rescrn>0 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -1682,11 +1682,6 @@ minwater = max( 0., minwater )  ! limit ocean minimum water level
 seaice_albvis = alphavis_seaice
 seaice_albnir = alphanir_seaice
 
-
-#ifdef GPUCHEMISTRY
-!$acc update device(enhanceu10,zvolcemi,ch_dust) ! aerosol
-!$acc update device(saltsmallmtn,saltlargemtn)   ! aerosol
-#endif
 
 !--------------------------------------------------------------
 ! READ TOPOGRAPHY FILE TO DEFINE CONFORMAL CUBIC GRID
@@ -4265,7 +4260,7 @@ u1max(:)    = 0.
 v1max(:)    = 0.
 u2max(:)    = 0.
 v2max(:)    = 0.
-rnd_3hr(:,8)= 0.       ! i.e. rnd24(:)=0.
+rnd_3hr(:,8)= 0._8       ! i.e. rnd24(:)=0.
 tmaxurban(:)= 100.
 tminurban(:)= 400.
 wsgsmax(:)  = 0.

@@ -132,7 +132,7 @@ module cc_mpi
              bounds_recv, boundsr8, ccmpi_reinit, ccmpi_alltoall,           &
              ccmpi_procformat_init
    public :: mgbounds, mgcollect, mgbcast, mgbcastxn, mgbcasta, mg_index,   &
-             mg_fproc, mg_fproc_1
+             mg_fproc, mg_fproc_1, mgbounds_colour
    public :: indp, indg, iq2iqg, iqg2iq, indv_mpi, fproc, face_set,         &
              uniform_set, dix_set
    public :: allocateglobalpack, copyglobalpack,                            &
@@ -299,12 +299,9 @@ module cc_mpi
       ! Number of points for each processor. Also double row versions.
       ! lenx is first row plux corner points.  lenh is just the ne side.
       integer :: slen2, rlen2
-      integer, dimension(:), allocatable :: rlenh_bg, rlenh_fn
-      integer, dimension(:), allocatable :: rlen_bg, rlen_fn
-      integer, dimension(:), allocatable :: rlenx_bg, rlenx_fn
-      integer, dimension(:), allocatable :: slenh_bg, slenh_fn
-      integer, dimension(:), allocatable :: slen_bg, slen_fn
-      integer, dimension(:), allocatable :: slenx_bg, slenx_fn
+      integer, dimension(:), allocatable :: rlenh_bg, rlenh_fn, slenh_bg, slenh_fn
+      integer, dimension(:), allocatable :: rlen_bg, rlen_fn, slen_bg, slen_fn
+      integer, dimension(:), allocatable :: rlenx_bg, rlenx_fn, slenx_bg, slenx_fn
       ! Vector groups
       integer :: rlen_su_bg, rlen_ev_fn
       integer :: rlen_sv_bg, rlen_wu_fn, rlen_nv_bg, rlen_eu_fn
@@ -353,6 +350,7 @@ module cc_mpi
       integer :: ifull, iextra, ifull_fine, ifull_coarse
       integer :: merge_len, merge_row, ipan, merge_pos, nmax
       integer :: comm_merge, neighnum, npanx
+      integer :: ifull_maxcolour
       integer, dimension(:), allocatable :: merge_list
       integer, dimension(:), allocatable :: in, ie, is, iw
       integer, dimension(:), allocatable :: ine, ien, ise, ies, inw, iwn, isw, iws
@@ -360,11 +358,15 @@ module cc_mpi
       integer, dimension(:), allocatable :: fine, fine_n, fine_e, fine_ne
       integer, dimension(:), allocatable :: neighlist
       integer, dimension(:), allocatable :: procmap
+      integer, dimension(:), allocatable :: ifull_colour
+      integer, dimension(:,:), allocatable :: iqx
       real, dimension(:), allocatable :: zzn, zze, zzs, zzw, zz
    end type mgtype
 
    type mgbndtype
-      integer :: len, rlen, slen, rlenx, slenx
+      integer :: len
+      integer, dimension(:), allocatable :: rlen_bg, rlen_fn, slen_bg, slen_fn
+      integer, dimension(:), allocatable :: rlenx_bg, rlenx_fn, slenx_bg, slenx_fn      
       integer, dimension(:), allocatable :: send_list
       integer, dimension(:), allocatable :: unpack_list
       integer, dimension(:), allocatable :: request_list
@@ -374,8 +376,6 @@ module cc_mpi
    type(mgtype), dimension(:), allocatable, save, public :: mg
    type(mgbndtype), dimension(:,:), allocatable, save, public :: mg_bnds
    integer, save, public :: mg_maxlevel, mg_maxlevel_local
-   integer, save, public :: mg_ifull_maxcolour
-   integer, dimension(:,:), allocatable, save, public :: col_iq
 
    ! File IO
    type filebounds_info
@@ -679,7 +679,7 @@ contains
             do i = 1,ipan
                iq  = indp(i,j,n)  ! Local
                iqg = indg(i,j,n)  ! Global
-               colourmask(iq) = findcolour(iqg)
+               colourmask(iq) = findcolour(iqg,il_g)
             end do
          end do
       end do
@@ -687,11 +687,11 @@ contains
       ! order points to allow border only updating
       allocate( ifull_colour(maxcolour), ifull_colour_border(maxcolour) )
       do n = 1,maxcolour
-         ifull_colour(n) = count( colourmask == n )
+         ifull_colour(n) = count( colourmask(:) == n )
       end do
       ifull_maxcolour = maxval( ifull_colour(:) )
       allocate( iqx(ifull_maxcolour,maxcolour) )
-      ifull_colour = 0
+      ifull_colour(:) = 0
       ! first process border
       do n = 1,npan
         j = 1
@@ -2835,7 +2835,7 @@ contains
                ! Which processor has this point
                rproc = qproc(iqq)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
-                  mycol = findcolour(iqq)
+                  mycol = findcolour(iqq,il_g)
                   if ( mycol == icol ) then
                      iql = indp(i,j,n)  !  Local index
                      ! Add this point to request list
@@ -2858,7 +2858,7 @@ contains
                ! Which processor has this point
                rproc = qproc(iqq)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
-                  mycol = findcolour(iqq)
+                  mycol = findcolour(iqq,il_g)
                   if ( mycol == icol ) then
                      iql = indp(i,j,n)  !  Local index
                      ! Add this point to request list
@@ -2902,7 +2902,7 @@ contains
                ! Which processor has this point
                rproc = qproc(iqq)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
-                  mycol = findcolour(iqq)
+                  mycol = findcolour(iqq,il_g)
                   if ( mycol == icol ) then
                      iql = indp(i,j,n)  !  Local index
                      ! Add this point to request list
@@ -2925,7 +2925,7 @@ contains
                ! Which processor has this point
                rproc = qproc(iqq)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
-                  mycol = findcolour(iqq)
+                  mycol = findcolour(iqq,il_g)
                   if ( mycol == icol ) then
                      iql = indp(i,j,n)  !  Local index
                      ! Add this point to request list
@@ -2965,7 +2965,7 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
+               mycol = findcolour(iqq,il_g)
                if ( mycol == icol ) then
                   ! Add this point to request list
                   bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
@@ -2981,7 +2981,7 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
+               mycol = findcolour(iqq,il_g)
                if ( mycol == icol ) then
                   if ( ien_g(iqg) == ine_g(iqg) ) then
                      ! Avoid duplicate 
@@ -3008,7 +3008,7 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
+               mycol = findcolour(iqq,il_g)
                if ( mycol == icol ) then
                   ! Add this point to request list
                   bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
@@ -3024,7 +3024,7 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
+               mycol = findcolour(iqq,il_g)
                if ( mycol == icol ) then
                   if ( ies_g(iqg) == ise_g(iqg) ) then
                      ! Avoid duplicate
@@ -3051,7 +3051,7 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
+               mycol = findcolour(iqq,il_g)
                if ( mycol == icol ) then
                   ! Add this point to request list
                   bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
@@ -3067,7 +3067,7 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
+               mycol = findcolour(iqq,il_g)
                if ( mycol == icol ) then
                   if ( iwn_g(iqg) == inw_g(iqg) ) then
                      ! Avoid duplicate 
@@ -3094,7 +3094,7 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
+               mycol = findcolour(iqq,il_g)
                if ( mycol == icol ) then
                   ! Add this point to request list
                   bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
@@ -3110,7 +3110,7 @@ contains
             ! Which processor has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq)
+               mycol = findcolour(iqq,il_g)
                if ( mycol == icol ) then
                   if ( iws_g(iqg) == isw_g(iqg) ) then
                      ! Avoid duplicate 
@@ -5820,6 +5820,7 @@ contains
                  itag, lcomm, ireq(nreq), ierr )
          end if
       end do
+      
       rreq = nreq
       do iproc = neighnum,1,-1
          sproc = neighlist(iproc)  ! Send to
@@ -6377,9 +6378,9 @@ contains
    
    end function indx_indv
    
-   pure function findcolour(iqg) result(icol)
+   pure function findcolour(iqg,mil_g) result(icol)
    
-      integer, intent(in) :: iqg
+      integer, intent(in) :: iqg, mil_g
       integer icol
       integer ig, jg, ng, tg
       integer jx
@@ -6388,17 +6389,17 @@ contains
       
       ! calculate global i,j,n
       tg = iqg - 1
-      ng = tg/(il_g*il_g)
-      tg = tg - ng*il_g*il_g
+      ng = tg/(mil_g*mil_g)
+      tg = tg - ng*mil_g*mil_g
       jg = tg/il_g
-      tg = tg - jg*il_g
+      tg = tg - jg*mil_g
       ig = tg
       ig = ig + 1
       jg = jg + 1
       
       if ( maxcolour==3 ) then
          ! three colour mask
-         jx = mod( ig + jg + ng*il_g, 2 )
+         jx = mod( ig + jg + ng*mil_g, 2 )
          select case( ng + jx*(npanels+1) )
             case( 0, 1, 3, 4 )
                icol = 1
@@ -6410,7 +6411,7 @@ contains
 
       else if ( maxcolour==2 ) then
          ! two colour mask
-         icol = mod( ig + jg + ng*il_g, 2 ) + 1
+         icol = mod( ig + jg + ng*mil_g, 2 ) + 1
          
       else if ( maxcolour==1 ) then
          ! single colour 
@@ -9349,14 +9350,12 @@ contains
       use indices_m
    
       integer, intent(in) :: g, mil_g, mipan, mjpan
-      integer, dimension(:), allocatable :: mg_colourmask
       integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
-      integer, dimension(3) :: mg_ifull_colour
       integer, dimension(:,:), allocatable :: dums, dumr
       integer :: mioff, mjoff
       integer :: i, j, n, iq, iqq, iqg, mfull_g
       integer :: iext, iproc, xlen, jx, nc, xlev, rproc, sproc
-      integer :: ntest, ncount
+      integer :: ntest, ncount, icol, mycol
       integer(kind=4) :: itag=22, lproc, ierr, llen, lcomm
 #ifdef i8r8
       integer(kind=4), parameter :: ltype = MPI_INTEGER8
@@ -9398,12 +9397,22 @@ contains
       end if
       
 
-      mg_bnds(:,g)%len = 0
-      mg_bnds(:,g)%rlen = 0
-      mg_bnds(:,g)%slen = 0
-      mg_bnds(:,g)%rlenx = 0
-      mg_bnds(:,g)%slenx = 0
-
+      do n = 0,nproc-1
+         mg_bnds(n,g)%len = 0
+         allocate( mg_bnds(n,g)%rlen_bg(maxcolour), mg_bnds(n,g)%rlen_fn(maxcolour) )
+         allocate( mg_bnds(n,g)%slen_bg(maxcolour), mg_bnds(n,g)%slen_fn(maxcolour) )
+         allocate( mg_bnds(n,g)%rlenx_bg(maxcolour), mg_bnds(n,g)%rlenx_fn(maxcolour) )
+         allocate( mg_bnds(n,g)%slenx_bg(maxcolour), mg_bnds(n,g)%slenx_fn(maxcolour) )
+         mg_bnds(n,g)%rlen_bg(1:maxcolour) = 0
+         mg_bnds(n,g)%rlen_fn(1:maxcolour) = 0
+         mg_bnds(n,g)%slen_bg(1:maxcolour) = 0
+         mg_bnds(n,g)%slen_fn(1:maxcolour) = 0
+         mg_bnds(n,g)%rlenx_bg(1:maxcolour) = 0
+         mg_bnds(n,g)%rlenx_fn(1:maxcolour) = 0
+         mg_bnds(n,g)%slenx_bg(1:maxcolour) = 0
+         mg_bnds(n,g)%slenx_fn(1:maxcolour) = 0
+      end do   
+         
       ! Calculate local indices on this processor
       if ( lglob ) then
          do iq = 1,mfull_g
@@ -9423,9 +9432,27 @@ contains
          mg(g)%iextra = 0
          mg(g)%neighnum = 0
          allocate ( mg(g)%neighlist(mg(g)%neighnum) )
+         
+         ! calculate colours for global level
+         allocate( mg(g)%ifull_colour(maxcolour) )
+         mg(g)%ifull_colour(:) = 0
+         do iq = 1,mfull_g
+            mycol = findcolour(iq,mil_g) 
+            mg(g)%ifull_colour(mycol) = mg(g)%ifull_colour(mycol) + 1
+         end do
+         mg(g)%ifull_maxcolour = maxval( mg(g)%ifull_colour(:) )
+         allocate( mg(g)%iqx(mg(g)%ifull_maxcolour,maxcolour) )
+         mg(g)%ifull_colour(:) = 0
+         do iq = 1,mfull_g
+            mycol = findcolour(iq,mil_g) 
+            mg(g)%ifull_colour(mycol) = mg(g)%ifull_colour(mycol) + 1
+            mg(g)%iqx(mg(g)%ifull_colour(mycol),mycol) = iq
+         end do
+         
       else
-         mg(g)%iextra = 2*(mipan+mjpan+4)*npan ! first guess
 
+         mg(g)%iextra = 2*(mipan+mjpan+4)*npan ! first guess
+          
          ! This only occurs with grids prior to globgath.  So npan and noff are still valid.
          do n = 1,npan
             do j = 1,mjpan
@@ -9509,234 +9536,301 @@ contains
             end do
          end do
 
-
+         
          ! Calculate local indices in halo
          iext = 0
-         do n = 1,npan
-
-            !     Start with N edge
-            j = mjpan
-            do i = 1,mipan
-               iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
-               iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
-               iqq = jn_g(iqg,mil_g)
-               ! Which processor has this point
-               rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc /= myid ) then ! Don't add points already on this proc.
-                  ! Add this point to request list
-                  call mgcheck_bnds_alloc(g, rproc, iext)
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%in(iq) = mg(g)%ifull + iext
-               end if   
-            end do
-
-            !     E edge
-            i = mipan
-            do j = 1,mjpan
-               iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
-               iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
-               iqq = je_g(iqg,mil_g)
-               ! Which processor has this point
-               rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc /= myid ) then ! Don't add points already on this proc.
-                  ! Add this point to request list
-                  call mgcheck_bnds_alloc(g, rproc, iext)
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%ie(iq) = mg(g)%ifull + iext
-               end if   
-            end do
-
-            !     W edge
-            i = 1
-            do j = 1,mjpan
-               iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
-               iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
-               iqq = jw_g(iqg,mil_g)
-               ! Which processor has this point
-               rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc /= myid ) then ! Don't add points already on this proc.
-                  ! Add this point to request list
-                  call mgcheck_bnds_alloc(g, rproc, iext)
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%iw(iq) = mg(g)%ifull + iext
-               end if   
-            end do
-
-            !     S edge
-            j = 1
-            do i = 1,mipan
-               iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
-               iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
-               iqq = js_g(iqg,mil_g)
-               ! Which processor has this point
-               rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc /= myid ) then ! Don't add points already on this proc.
-                  ! Add this point to request list
-                  call mgcheck_bnds_alloc(g, rproc, iext)
-                  mg_bnds(rproc,g)%rlen = mg_bnds(rproc,g)%rlen + 1
-                  mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen) = iext
-                  mg(g)%is(iq) = mg(g)%ifull + iext
-                end if  
-            end do
-            
-         end do ! n=1,npan
          
-         mg_bnds(:,g)%rlenx = mg_bnds(:,g)%rlen
+         do n = 0,nproc-1
+            mg_bnds(n,g)%rlen_bg(1) = 1
+         end do
          
-         do n = 1,npan
+         do icol = 1,maxcolour
+         
+            do n = 1,npan
+
+               !     Start with N edge
+               j = mjpan
+               do i = 1,mipan
+                  iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+                  iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
+                  iqq = jn_g(iqg,mil_g)
+                  ! Which processor has this point
+                  rproc = mg_qproc(iqq,mil_g,g)
+                  if ( rproc /= myid ) then ! Don't add points already on this proc.
+                     mycol = findcolour(iqq,mil_g)
+                     if ( mycol == icol ) then
+                        ! Add this point to request list
+                        mg_bnds(rproc,g)%rlen_fn(icol) = mg_bnds(rproc,g)%rlen_fn(icol) + 1
+                        call mgcheck_bnds_alloc(g, rproc, iext)
+                        mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen_fn(icol)) = iqq
+                        ! Increment extended region index
+                        iext = iext + 1
+                        mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen_fn(icol)) = iext
+                        mg(g)%in(iq) = mg(g)%ifull + iext
+                     end if   
+                  end if   
+               end do
+
+               !     E edge
+               i = mipan
+               do j = 1,mjpan
+                  iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+                  iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
+                  iqq = je_g(iqg,mil_g)
+                  ! Which processor has this point
+                  rproc = mg_qproc(iqq,mil_g,g)
+                  if ( rproc /= myid ) then ! Don't add points already on this proc.
+                     mycol = findcolour(iqq,mil_g)
+                     if ( mycol == icol ) then
+                        ! Add this point to request list
+                        mg_bnds(rproc,g)%rlen_fn(icol) = mg_bnds(rproc,g)%rlen_fn(icol) + 1
+                        call mgcheck_bnds_alloc(g, rproc, iext)
+                        mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen_fn(icol)) = iqq
+                        ! Increment extended region index
+                        iext = iext + 1
+                        mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen_fn(icol)) = iext
+                        mg(g)%ie(iq) = mg(g)%ifull + iext
+                     end if   
+                  end if   
+               end do
+
+               !     W edge
+               i = 1
+               do j = 1,mjpan
+                  iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+                  iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
+                  iqq = jw_g(iqg,mil_g)
+                  ! Which processor has this point
+                  rproc = mg_qproc(iqq,mil_g,g)
+                  if ( rproc /= myid ) then ! Don't add points already on this proc.
+                     mycol = findcolour(iqq,mil_g)
+                     if ( mycol == icol ) then
+                        ! Add this point to request list
+                        mg_bnds(rproc,g)%rlen_fn(icol) = mg_bnds(rproc,g)%rlen_fn(icol) + 1
+                        call mgcheck_bnds_alloc(g, rproc, iext)
+                        mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen_fn(icol)) = iqq
+                        ! Increment extended region index
+                        iext = iext + 1
+                        mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen_fn(icol)) = iext
+                        mg(g)%iw(iq) = mg(g)%ifull + iext
+                     end if   
+                  end if   
+               end do
+
+               !     S edge
+               j = 1
+               do i = 1,mipan
+                  iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+                  iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
+                  iqq = js_g(iqg,mil_g)
+                  ! Which processor has this point
+                  rproc = mg_qproc(iqq,mil_g,g)
+                  if ( rproc /= myid ) then ! Don't add points already on this proc.
+                     mycol = findcolour(iqq,mil_g)
+                     if ( mycol == icol ) then
+                        ! Add this point to request list
+                        mg_bnds(rproc,g)%rlen_fn(icol) = mg_bnds(rproc,g)%rlen_fn(icol) + 1    
+                        call mgcheck_bnds_alloc(g, rproc, iext)
+                        mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlen_fn(icol)) = iqq
+                        ! Increment extended region index
+                        iext = iext + 1
+                        mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlen_fn(icol)) = iext
+                        mg(g)%is(iq) = mg(g)%ifull + iext
+                     end if   
+                  end if  
+               end do
             
-            ! NE, EN
-            iq = mipan + (mjpan-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
-            iqg = mipan+mioff + (mjpan+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
-            iqq = jne_g(iqg,mil_g)
-            ! Which processor has this point
-            rproc = mg_qproc(iqq,mil_g,g)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-               mg(g)%ine(iq) = mg(g)%ifull + iext
-            end if  
-            if ( jen_g(iqg,mil_g) == jne_g(iqg,mil_g) ) then
-               mg(g)%ien(iq) = mg(g)%ine(iq)
-            else
-               iqq = jen_g(iqg,mil_g)
-               ! Which processor has this point
-               rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc /= myid ) then ! Add to list
-                 ! Add this point to request list
-                 call mgcheck_bnds_alloc(g, rproc, iext)
-                 mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-                 mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-                 ! Increment extended region index
-                 iext = iext + 1
-                 mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-                 mg(g)%ien(iq) = mg(g)%ifull + iext
-               end if
-            end if
-
-            ! SE, ES
-            iq = mipan + (n-1)*mipan*mjpan                      !  Local index
-            iqg = mipan+mioff + mjoff*mil_g + (n-noff)*mil_g**2 !  Global index
-            iqq = jse_g(iqg,mil_g)
-            ! Which processor has this point
-            rproc = mg_qproc(iqq,mil_g,g)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-               mg(g)%ise(iq) = mg(g)%ifull + iext
-            end if  
-            if ( jes_g(iqg,mil_g) == jse_g(iqg,mil_g) ) then
-               mg(g)%ies(iq) = mg(g)%ise(iq)
-            else
-               iqq = jes_g(iqg,mil_g)
-               ! Which processor has this point
-               rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc /= myid ) then ! Add to list
-                 ! Add this point to request list
-                 call mgcheck_bnds_alloc(g, rproc, iext)
-                 mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-                 mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-                 ! Increment extended region index
-                 iext = iext + 1
-                 mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-                 mg(g)%ies(iq) = mg(g)%ifull + iext
-               end if
-            end if
-
-            ! NW, WN
-            iq = 1 + (mjpan-1)*mipan + (n-1)*mipan*mjpan              !  Local index
-            iqg = 1+mioff + (mjpan+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
-            iqq = jnw_g(iqg,mil_g)
-            ! Which processor has this point
-            rproc = mg_qproc(iqq,mil_g,g)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-               mg(g)%inw(iq) = mg(g)%ifull + iext
-            end if  
-            if ( jwn_g(iqg,mil_g) == jnw_g(iqg,mil_g) ) then
-               mg(g)%iwn(iq) = mg(g)%inw(iq)
-            else
-               iqq = jwn_g(iqg,mil_g)
-               ! Which processor has this point
-               rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc /= myid ) then ! Add to list
-                 ! Add this point to request list
-                 call mgcheck_bnds_alloc(g, rproc, iext)
-                 mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-                 mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-                 ! Increment extended region index
-                 iext = iext + 1
-                 mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-                 mg(g)%iwn(iq) = mg(g)%ifull + iext
-               end if
-            end if
-
-            ! SW, WS
-            iq = 1 + (n-1)*mipan*mjpan                        !  Local index
-            iqg = 1+mioff + (mjoff)*mil_g + (n-noff)*mil_g**2 !  Global index
-            iqq = jsw_g(iqg,mil_g)
-            ! Which processor has this point
-            rproc = mg_qproc(iqq,mil_g,g)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               ! Add this point to request list
-               call mgcheck_bnds_alloc(g, rproc, iext)
-               mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-               mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-               ! Increment extended region index
-               iext = iext + 1
-               mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-               mg(g)%isw(iq) = mg(g)%ifull + iext
-            end if  
-            if ( jws_g(iqg,mil_g) == jsw_g(iqg,mil_g) ) then
-               mg(g)%iws(iq) = mg(g)%isw(iq)
-            else
-               iqq = jws_g(iqg,mil_g)
-               ! Which processor has this point
-               rproc = mg_qproc(iqq,mil_g,g)
-               if ( rproc /= myid ) then ! Add to list
-                 ! Add this point to request list
-                 call mgcheck_bnds_alloc(g, rproc, iext)
-                 mg_bnds(rproc,g)%rlenx = mg_bnds(rproc,g)%rlenx + 1
-                 mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx) = iqq
-                 ! Increment extended region index
-                 iext = iext + 1
-                 mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx) = iext
-                 mg(g)%iws(iq) = mg(g)%ifull + iext
-               end if
+            end do ! n=1,npan
+            
+            if ( icol < maxcolour ) then
+               do n = 0,nproc-1
+                  mg_bnds(n,g)%rlen_bg(min(icol+1,maxcolour)) = mg_bnds(n,g)%rlen_fn(icol) + 1
+                  mg_bnds(n,g)%rlen_fn(min(icol+1,maxcolour)) = mg_bnds(n,g)%rlen_fn(icol)
+               end do
             end if
             
-         end do ! n=1,npan
+         end do ! icol = 1,maxcolour   
+         
+         do n = 0,nproc-1
+            mg_bnds(n,g)%rlenx_bg(1) = mg_bnds(n,g)%rlen_fn(maxcolour) + 1
+            mg_bnds(n,g)%rlenx_fn(1) = mg_bnds(n,g)%rlen_fn(maxcolour)
+         end do
+         
+         do icol = 1,maxcolour
+         
+            do n = 1,npan
+            
+               ! NE, EN
+               iq = mipan + (mjpan-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
+               iqg = mipan+mioff + (mjpan+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
+               iqq = jne_g(iqg,mil_g)
+               ! Which processor has this point
+               rproc = mg_qproc(iqq,mil_g,g)
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq,mil_g)
+                  if ( mycol == icol ) then
+                     ! Add this point to request list
+                     mg_bnds(rproc,g)%rlenx_fn(icol) = mg_bnds(rproc,g)%rlenx_fn(icol) + 1 
+                     call mgcheck_bnds_alloc(g, rproc, iext)
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iext
+                     mg(g)%ine(iq) = mg(g)%ifull + iext
+                  end if
+               end if
+               if ( jen_g(iqg,mil_g) == jne_g(iqg,mil_g) ) then
+                  mg(g)%ien(iq) = mg(g)%ine(iq)
+               else
+                  iqq = jen_g(iqg,mil_g)
+                  ! Which processor has this point
+                  rproc = mg_qproc(iqq,mil_g,g)
+                  if ( rproc /= myid ) then ! Add to list
+                     mycol = findcolour(iqq,mil_g)
+                     if ( mycol == icol ) then
+                        ! Add this point to request list
+                        mg_bnds(rproc,g)%rlenx_fn(icol) = mg_bnds(rproc,g)%rlenx_fn(icol) + 1 
+                        call mgcheck_bnds_alloc(g, rproc, iext)
+                        mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iqq
+                        ! Increment extended region index
+                        iext = iext + 1
+                        mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iext
+                        mg(g)%ien(iq) = mg(g)%ifull + iext
+                     end if   
+                  end if
+               end if
+
+               ! SE, ES
+               iq = mipan + (n-1)*mipan*mjpan                      !  Local index
+               iqg = mipan+mioff + mjoff*mil_g + (n-noff)*mil_g**2 !  Global index
+               iqq = jse_g(iqg,mil_g)
+               ! Which processor has this point
+               rproc = mg_qproc(iqq,mil_g,g)
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq,mil_g)
+                  if ( mycol == icol ) then
+                     ! Add this point to request list
+                     mg_bnds(rproc,g)%rlenx_fn(icol) = mg_bnds(rproc,g)%rlenx_fn(icol) + 1 
+                     call mgcheck_bnds_alloc(g, rproc, iext)
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iext
+                     mg(g)%ise(iq) = mg(g)%ifull + iext
+                  end if   
+               end if  
+               if ( jes_g(iqg,mil_g) == jse_g(iqg,mil_g) ) then
+                  mg(g)%ies(iq) = mg(g)%ise(iq)
+               else
+                  iqq = jes_g(iqg,mil_g)
+                  ! Which processor has this point
+                  rproc = mg_qproc(iqq,mil_g,g)
+                  if ( rproc /= myid ) then ! Add to list
+                     mycol = findcolour(iqq,mil_g)
+                     if ( mycol == icol ) then
+                        ! Add this point to request list
+                        mg_bnds(rproc,g)%rlenx_fn(icol) = mg_bnds(rproc,g)%rlenx_fn(icol) + 1    
+                        call mgcheck_bnds_alloc(g, rproc, iext)
+                        mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iqq
+                        ! Increment extended region index
+                        iext = iext + 1
+                        mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iext
+                        mg(g)%ies(iq) = mg(g)%ifull + iext
+                     end if   
+                  end if
+               end if
+
+               ! NW, WN
+               iq = 1 + (mjpan-1)*mipan + (n-1)*mipan*mjpan              !  Local index
+               iqg = 1+mioff + (mjpan+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
+               iqq = jnw_g(iqg,mil_g)
+               ! Which processor has this point
+               rproc = mg_qproc(iqq,mil_g,g)
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq,mil_g)
+                  if ( mycol == icol ) then
+                     ! Add this point to request list
+                     mg_bnds(rproc,g)%rlenx_fn(icol) = mg_bnds(rproc,g)%rlenx_fn(icol) + 1 
+                     call mgcheck_bnds_alloc(g, rproc, iext)
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iext
+                     mg(g)%inw(iq) = mg(g)%ifull + iext
+                  end if   
+               end if  
+               if ( jwn_g(iqg,mil_g) == jnw_g(iqg,mil_g) ) then
+                  mg(g)%iwn(iq) = mg(g)%inw(iq)
+               else
+                  iqq = jwn_g(iqg,mil_g)
+                  ! Which processor has this point
+                  rproc = mg_qproc(iqq,mil_g,g)
+                  if ( rproc /= myid ) then ! Add to list
+                     mycol = findcolour(iqq,mil_g)
+                     if ( mycol == icol ) then
+                        ! Add this point to request list
+                        mg_bnds(rproc,g)%rlenx_fn(icol) = mg_bnds(rproc,g)%rlenx_fn(icol) + 1
+                        call mgcheck_bnds_alloc(g, rproc, iext)
+                        mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iqq
+                        ! Increment extended region index
+                        iext = iext + 1
+                        mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iext
+                        mg(g)%iwn(iq) = mg(g)%ifull + iext
+                     end if   
+                  end if
+               end if
+
+               ! SW, WS
+               iq = 1 + (n-1)*mipan*mjpan                        !  Local index
+               iqg = 1+mioff + (mjoff)*mil_g + (n-noff)*mil_g**2 !  Global index
+               iqq = jsw_g(iqg,mil_g)
+               ! Which processor has this point
+               rproc = mg_qproc(iqq,mil_g,g)
+               if ( rproc /= myid ) then ! Don't add points already on this proc.
+                  mycol = findcolour(iqq,mil_g)
+                  if ( mycol == icol ) then
+                     ! Add this point to request list
+                     mg_bnds(rproc,g)%rlenx_fn(icol) = mg_bnds(rproc,g)%rlenx_fn(icol) + 1    
+                     call mgcheck_bnds_alloc(g, rproc, iext)
+                     mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iqq
+                     ! Increment extended region index
+                     iext = iext + 1
+                     mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iext
+                     mg(g)%isw(iq) = mg(g)%ifull + iext
+                  end if   
+               end if  
+               if ( jws_g(iqg,mil_g) == jsw_g(iqg,mil_g) ) then
+                  mg(g)%iws(iq) = mg(g)%isw(iq)
+               else
+                  iqq = jws_g(iqg,mil_g)
+                  ! Which processor has this point
+                  rproc = mg_qproc(iqq,mil_g,g)
+                  if ( rproc /= myid ) then ! Add to list
+                     mycol = findcolour(iqq,mil_g)
+                     if ( mycol == icol ) then
+                        ! Add this point to request list
+                        mg_bnds(rproc,g)%rlenx_fn(icol) = mg_bnds(rproc,g)%rlenx_fn(icol) + 1 
+                        call mgcheck_bnds_alloc(g, rproc, iext)
+                        mg_bnds(rproc,g)%request_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iqq
+                        ! Increment extended region index
+                        iext = iext + 1
+                        mg_bnds(rproc,g)%unpack_list(mg_bnds(rproc,g)%rlenx_fn(icol)) = iext
+                        mg(g)%iws(iq) = mg(g)%ifull + iext
+                     end if
+                  end if   
+               end if
+            
+            end do ! n=1,npan
+               
+            if ( icol < maxcolour ) then
+               do n = 0,nproc-1
+                  mg_bnds(n,g)%rlenx_bg(min(icol+1,maxcolour)) = mg_bnds(n,g)%rlenx_fn(icol) + 1
+                  mg_bnds(n,g)%rlenx_fn(min(icol+1,maxcolour)) = mg_bnds(n,g)%rlenx_fn(icol)
+               end do
+            end if
+            
+         end do ! icol = 1,maxcolour   
+
 
          mg(g)%iextra = iext
 
@@ -9783,7 +9877,12 @@ contains
       
          
          ! check neighbours
-         mg(g)%neighnum = count( mg_bnds(:,g)%rlenx > 0 )
+         mg(g)%neighnum = 0
+         do n = 0,nproc-1
+            if ( mg_bnds(n,g)%rlenx_fn(maxcolour) > 0 ) then 
+              mg(g)%neighnum = mg(g)%neighnum + 1
+            end if
+         end do
 
          ! increase size of request list if needed
          ntest = mg(g)%neighnum
@@ -9798,7 +9897,7 @@ contains
          ncount = 0
          do iproc = 1,nproc-1
             rproc = modulo( myid+iproc, nproc )
-            if ( mg_bnds(rproc,g)%rlenx > 0 ) then
+            if ( mg_bnds(rproc,g)%rlenx_fn(maxcolour) > 0 ) then
                ncount = ncount + 1
                mg(g)%neighlist(ncount) = rproc
             end if
@@ -9812,35 +9911,45 @@ contains
 
          
          ! Now, for each processor send the length of points I want.
-         allocate( dums(2,mg(g)%neighnum), dumr(2,mg(g)%neighnum) )
+         allocate( dums(2*maxcolour,mg(g)%neighnum), dumr(2*maxcolour,mg(g)%neighnum) )
          lcomm = comm_world
          nreq = 0
          do iproc = 1,mg(g)%neighnum
             rproc = mg(g)%neighlist(iproc)  ! Recv from
-            if ( mg_bnds(rproc,g)%rlenx > 0 ) then
+            if ( mg_bnds(rproc,g)%rlenx_fn(maxcolour) > 0 ) then
                nreq = nreq + 1
                lproc = rproc
-               call MPI_IRecv( dumr(:,iproc), 2_4, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+               call MPI_IRecv( dumr(:,iproc), int(2*maxcolour,4), ltype, lproc, itag, lcomm, ireq(nreq), ierr )
             end if
          end do
          do iproc = mg(g)%neighnum,1,-1
             sproc = mg(g)%neighlist(iproc)  ! Send to
-            if ( mg_bnds(sproc,g)%rlenx > 0 ) then
+            if ( mg_bnds(sproc,g)%rlenx_fn(maxcolour) > 0 ) then
                nreq = nreq + 1
-               dums(1,iproc) = mg_bnds(sproc,g)%rlenx
-               dums(2,iproc) = mg_bnds(sproc,g)%rlen
+               dums(1:maxcolour,iproc) = mg_bnds(sproc,g)%rlen_fn(1:maxcolour)
+               dums(maxcolour+1:2*maxcolour,iproc) = mg_bnds(sproc,g)%rlenx_fn(1:maxcolour)
                lproc = sproc
-               call MPI_ISend( dums(:,iproc), 2_4, ltype, lproc, itag, lcomm, ireq(nreq), ierr )
+               call MPI_ISend( dums(:,iproc), int(2*maxcolour,4), ltype, lproc, itag, lcomm, ireq(nreq), ierr )
             end if
          end do
          call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
          do iproc = 1,mg(g)%neighnum
             rproc = mg(g)%neighlist(iproc)
-            if ( mg_bnds(rproc,g)%rlenx > 0 ) then
-               mg_bnds(rproc,g)%slenx = dumr(1,iproc)
-               mg_bnds(rproc,g)%slen  = dumr(2,iproc)
+            if ( mg_bnds(rproc,g)%rlenx_fn(maxcolour) > 0 ) then
+               mg_bnds(rproc,g)%slen_fn(1:maxcolour) = dumr(1:maxcolour,iproc)
+               mg_bnds(rproc,g)%slenx_fn(1:maxcolour) = dumr(maxcolour+1:2*maxcolour,iproc)
             end if
          end do   
+         do n = 0,nproc-1
+            mg_bnds(n,g)%slen_bg(1) = 1
+            do i = 2,maxcolour
+               mg_bnds(n,g)%slen_bg(i) = mg_bnds(n,g)%slen_fn(i-1) + 1
+            end do
+            mg_bnds(n,g)%slenx_bg(1) = mg_bnds(n,g)%slen_fn(maxcolour) + 1
+            do i = 2,maxcolour
+               mg_bnds(n,g)%slenx_bg(i) = mg_bnds(n,g)%slenx_fn(i-1) + 1
+            end do
+         end do
          nreq = 0
          rreq = 0
          deallocate( dums, dumr )
@@ -9851,10 +9960,10 @@ contains
          nreq = 0
          do iproc = 1,mg(g)%neighnum
             lproc = mg(g)%neighlist(iproc)  ! Recv from
-            allocate( mg_bnds(lproc,g)%send_list(mg_bnds(lproc,g)%slenx) )
+            allocate( mg_bnds(lproc,g)%send_list(mg_bnds(lproc,g)%slenx_fn(maxcolour)) )
             nreq = nreq + 1
             ! Use the maximum size in the recv call.
-            llen = mg_bnds(lproc,g)%slenx
+            llen = mg_bnds(lproc,g)%slenx_fn(maxcolour)
             call MPI_IRecv( mg_bnds(lproc,g)%send_list(1), llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end do
@@ -9862,7 +9971,7 @@ contains
             lproc = mg(g)%neighlist(iproc)  ! Send to
             ! Send list of requests
             nreq = nreq + 1
-            llen = mg_bnds(lproc,g)%rlenx
+            llen = mg_bnds(lproc,g)%rlenx_fn(maxcolour)
             call MPI_ISend( mg_bnds(lproc,g)%request_list(1), llen, ltype, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
          end do      
@@ -9874,20 +9983,20 @@ contains
          ! At the moment send_lists use global indices. Convert these to local.
          do iproc = mg(g)%neighnum,1,-1
             sproc = mg(g)%neighlist(iproc)  ! Send to
-            do iq = 1,mg_bnds(sproc,g)%slenx
+            do iq = 1,mg_bnds(sproc,g)%slenx_fn(maxcolour)
                ! send_list(iq) is global point index, i, j, n are local
                iqq = mg_bnds(sproc,g)%send_list(iq)
                mg_bnds(sproc,g)%send_list(iq) = indx_indv(iqq,mil_g,mipan,mjpan,mioff,mjoff,noff)
             end do
          end do
-         if ( mg_bnds(myid,g)%rlenx /= 0 ) then
+         if ( mg_bnds(myid,g)%rlenx_fn(maxcolour) /= 0 ) then
             write(6,*) "ERROR: Invalid rlenx in myid"
             call ccmpi_abort(-1)
          end if   
 
          ! reduce array size where possible
          do iproc = 0,nproc-1
-            xlen = mg_bnds(iproc,g)%rlenx
+            xlen = mg_bnds(iproc,g)%rlenx_fn(maxcolour)
             if ( mg_bnds(iproc,g)%len > xlen ) then
                deallocate( mg_bnds(iproc,g)%request_list )
                dum(1:xlen) = mg_bnds(iproc,g)%unpack_list(1:xlen)
@@ -9901,7 +10010,7 @@ contains
 
             ! set up buffers
             xlev = max( kl, 1 ) ! ol is not required
-            xlen = xlev*mg_bnds(iproc,g)%rlenx
+            xlen = xlev*mg_bnds(iproc,g)%rlenx_fn(maxcolour)
             if ( bnds(iproc)%rbuflen < xlen ) then
                if ( allocated(bnds(iproc)%rbuf) ) then
                   deallocate( bnds(iproc)%rbuf )
@@ -9911,7 +10020,7 @@ contains
                allocate( bnds(iproc)%r8buf(xlen) )
                bnds(iproc)%rbuflen = xlen
             end if
-            xlen = xlev*mg_bnds(iproc,g)%slenx
+            xlen = xlev*mg_bnds(iproc,g)%slenx_fn(maxcolour)
             if ( bnds(iproc)%sbuflen < xlen ) then
                if ( allocated(bnds(iproc)%sbuf) ) then
                   deallocate( bnds(iproc)%sbuf )
@@ -9922,58 +10031,36 @@ contains
                bnds(iproc)%sbuflen = xlen
             end if
          end do
-
-      end if
-
       
-      ! calculate colours
-      if ( g == mg_maxlevel ) then
-          
-         if ( myid == 0 ) then
-  
-            allocate( mg_colourmask(6*mil_g*mil_g) ) 
-          
-            ! always a three colour mask for coarse grid
-            do n = 0,npanels
-               do j = 1,mil_g
-                  do i = 1,mil_g
-                     iqg = i + (j-1)*mil_g + n*mil_g**2 !  Global index 
-                     jx = mod( i+j+n*mil_g, 2 )
-                     select case( n+jx*(npanels+1) )
-                        case( 0, 1, 3, 4 )
-                           mg_colourmask(iqg) = 1
-                        case( 2, 5, 6, 9 )
-                           mg_colourmask(iqg) = 2
-                        case( 7, 8, 10, 11 )
-                           mg_colourmask(iqg) = 3
-                     end select
-                  end do
+         ! calculate colours per level
+         allocate( mg(g)%ifull_colour(maxcolour) )
+         mg(g)%ifull_colour(:) = 0
+         do n = 1,npan
+            do j = 1,mjpan
+               do i = 1,mipan
+                  iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              ! Local index
+                  iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 ! Global index
+                  mycol = findcolour(iqg,mil_g)
+                  mg(g)%ifull_colour(mycol) = mg(g)%ifull_colour(mycol) + 1
                end do
             end do
-  
-            mg_ifull_maxcolour = count( mg_colourmask == 1 )
-            if ( mg_ifull_maxcolour /= count( mg_colourmask == 2 ) .or.  &
-                 mg_ifull_maxcolour /= count( mg_colourmask == 3 ) ) then
-               write(6,*) "ERROR: Unbalanced MG colours"
-               call ccmpi_abort(-1)
-            end if
-         
-            allocate( col_iq(mg_ifull_maxcolour,3) )
-  
-            mg_ifull_colour = 0
-            col_iq(:,:) = 0
-            do iq = 1,mg(g)%ifull
-               nc = mg_colourmask(iq)
-               mg_ifull_colour(nc) = mg_ifull_colour(nc) + 1
-               iqq = mg_ifull_colour(nc)
-               col_iq(iqq,nc) = iq
+         end do
+         mg(g)%ifull_maxcolour = maxval( mg(g)%ifull_colour(:) )
+         allocate( mg(g)%iqx(mg(g)%ifull_maxcolour,maxcolour) )
+         mg(g)%ifull_colour(:) = 0
+         do n = 1,npan
+            do j = 1,mjpan
+               do i = 1,mipan
+                  iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              ! Local index
+                  iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 ! Global index
+                  mycol = findcolour(iqg,mil_g)
+                  mg(g)%ifull_colour(mycol) = mg(g)%ifull_colour(mycol) + 1
+                  mg(g)%iqx(mg(g)%ifull_colour(mycol),mycol) = iq
+               end do
             end do
-         
-            deallocate( mg_colourmask )
-
-         end if
-
-      end if
+         end do   
+      
+      end if   
        
    return
    end subroutine mg_index
@@ -9982,12 +10069,23 @@ contains
 
       integer, intent(in) :: iproc
       integer, intent(in) :: g, iext
+      integer :: testlen, i
 
       if ( mg_bnds(iproc,g)%len <= 0 ) then
          allocate( mg_bnds(iproc,g)%request_list(mg(g)%iextra) )
          allocate( mg_bnds(iproc,g)%unpack_list(mg(g)%iextra) )
          mg_bnds(iproc,g)%len = mg(g)%iextra
       else
+         ! Just check length 
+         testlen = 0
+         do i = 1,maxcolour
+            testlen = max( mg_bnds(iproc,g)%rlen_fn(i), mg_bnds(iproc,g)%rlenx_fn(i), &
+                           testlen )
+         end do
+         if ( testlen > mg_bnds(iproc,g)%len ) then
+            write(6,*) "ERROR: MG grid undersized in mgcheck_bnds_alloc" 
+            call ccmpi_abort(-1)
+         end if
          if ( iext>mg(g)%iextra ) then
             write(6,*) "ERROR: MG grid undersized in mgcheck_bnds_alloc"
             write(6,*) "iext,iextra,g,iproc,myid ",iext,mg(g)%iextra,g,iproc,myid
@@ -10004,7 +10102,7 @@ contains
       logical, intent(in), optional :: corner
       logical :: extra
       integer :: iproc, recv_len, send_len
-      integer :: rcount, jproc, mproc, iq
+      integer :: rcount, jproc, mproc, iq, i
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=20, llen, lproc
       integer(kind=4) :: ldone, lcomm
@@ -10022,11 +10120,15 @@ contains
       end if   
       
       if ( extra ) then
-         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlenx
-         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slenx
-      else    
-         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlen
-         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slen
+         do i = 1,mg(g)%neighnum 
+            rslen(i) = mg_bnds(mg(g)%neighlist(i),g)%rlenx_fn(maxcolour)
+            sslen(i) = mg_bnds(mg(g)%neighlist(i),g)%slenx_fn(maxcolour)
+         end do   
+      else
+         do i = 1,mg(g)%neighnum 
+            rslen(i) = mg_bnds(mg(g)%neighlist(i),g)%rlen_fn(maxcolour)
+            sslen(i) = mg_bnds(mg(g)%neighlist(i),g)%slen_fn(maxcolour)
+         end do   
       end if   
 
       !     Set up the buffers to send and recv
@@ -10088,7 +10190,7 @@ contains
       logical, intent(in), optional :: corner
       logical :: extra
       integer :: kx, iproc, recv_len, send_len
-      integer :: rcount, jproc, mproc, iq, k
+      integer :: rcount, jproc, mproc, iq, k, i
       integer, dimension(mg(g)%neighnum) :: rslen, sslen
       integer(kind=4) :: ierr, itag=20, llen, lproc
       integer(kind=4) :: ldone, lcomm
@@ -10110,15 +10212,16 @@ contains
       end if   
       
       if ( extra ) then
-         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlenx
-         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slenx
+         do i = 1,mg(g)%neighnum 
+            rslen(i) = mg_bnds(mg(g)%neighlist(i),g)%rlenx_fn(maxcolour)
+            sslen(i) = mg_bnds(mg(g)%neighlist(i),g)%slenx_fn(maxcolour)
+         end do   
       else    
-         rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlen
-         sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slen
+         do i = 1,mg(g)%neighnum    
+            rslen(i) = mg_bnds(mg(g)%neighlist(i),g)%rlen_fn(maxcolour)
+            sslen(i) = mg_bnds(mg(g)%neighlist(i),g)%slen_fn(maxcolour)
+         end do   
       end if 
-      
-      rslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%rlen
-      sslen(1:mg(g)%neighnum) = mg_bnds(mg(g)%neighlist,g)%slen
 
       !     Set up the buffers to send and recv
       lcomm = comm_world
@@ -10176,6 +10279,126 @@ contains
    return
    end subroutine mgbounds3
 
+   subroutine mgbounds_colour(g,vdat,lcolour,klim,corner)
+
+      integer, intent(in) :: g, lcolour
+      integer, intent(in), optional :: klim
+      logical, intent(in), optional :: corner
+      logical :: extra
+      integer :: kx, iproc, recv_len
+      integer :: rcount, jproc, mproc, iq, k, iqq, ibeg, iend
+      integer(kind=4) :: ierr, itag=20, llen, lproc
+      integer(kind=4) :: ldone, lcomm
+      integer(kind=4), dimension(2*mg(g)%neighnum) :: donelist
+#ifdef i8r8
+      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
+#else
+      integer(kind=4), parameter :: ltype = MPI_REAL
+#endif
+      real, dimension(:,:), intent(inout) :: vdat
+
+      kx = size(vdat,2)
+      extra = .false.
+      if (present(klim)) then
+         kx = klim
+      end if
+      if ( present(corner) ) then
+         extra = corner
+      end if   
+    
+
+      !     Set up the buffers to send and recv
+      lcomm = comm_world
+      nreq = 0
+      do iproc = 1,mg(g)%neighnum
+         lproc = mg(g)%neighlist(iproc)  ! Recv from 
+         recv_len = (mg_bnds(lproc,g)%rlen_fn(lcolour)-mg_bnds(lproc,g)%rlen_bg(lcolour)+1)*kx
+         if ( extra ) then
+            recv_len = recv_len + (mg_bnds(lproc,g)%rlenx_fn(lcolour)-mg_bnds(lproc,g)%rlenx_bg(lcolour)+1)*kx 
+         end if
+         if ( recv_len > 0 ) then
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, ltype, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = mg(g)%neighnum,1,-1
+         lproc = mg(g)%neighlist(iproc)  ! Send to
+         iqq = 0
+         ibeg = mg_bnds(lproc,g)%slen_bg(lcolour)
+         iend = mg_bnds(lproc,g)%slen_fn(lcolour)
+         if ( iend >= ibeg ) then
+            do k = 1,kx
+               do iq = 1,iend-ibeg+1
+                  bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1)) = &
+                      vdat(mg_bnds(lproc,g)%send_list(iq+ibeg-1),k)
+               end do
+            end do   
+         end if   
+         iqq = iqq + (iend-ibeg+1)*kx
+         if ( extra ) then
+            ibeg = mg_bnds(lproc,g)%slenx_bg(lcolour)
+            iend = mg_bnds(lproc,g)%slenx_fn(lcolour)
+            if ( iend >= ibeg ) then
+               do k = 1,kx
+                  do iq = 1,iend-ibeg+1
+                     bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1)) = &
+                         vdat(mg_bnds(lproc,g)%send_list(iq+ibeg-1),k)
+                  end do
+               end do   
+            end if
+            iqq = iqq + (iend-ibeg+1)*kx
+         end if   
+         if ( iqq > 0 ) then
+            nreq = nreq + 1
+            llen = iqq
+            call MPI_ISend( bnds(lproc)%sbuf, llen, ltype, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+
+      rcount = nreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwait_begin)
+         call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwait_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            if ( mproc <= rreq ) then
+               iproc = rlist(mproc)  ! Recv from
+               lproc = mg(g)%neighlist(iproc)
+               iqq = 0
+               ibeg = mg_bnds(lproc,g)%rlen_bg(lcolour)
+               iend = mg_bnds(lproc,g)%rlen_fn(lcolour)               
+               do k = 1,kx
+                  do iq = 1,iend-ibeg+1
+                     vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq+ibeg-1),k) &
+                         = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+                  end do
+               end do
+               iqq = iqq + (iend-ibeg+1)*kx
+               if ( extra ) then
+                  ibeg = mg_bnds(lproc,g)%rlenx_bg(lcolour)
+                  iend = mg_bnds(lproc,g)%rlenx_fn(lcolour)               
+                  do k = 1,kx
+                     do iq = 1,iend-ibeg+1
+                        vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq+ibeg-1),k) &
+                            = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
+                     end do
+                  end do
+                  iqq = iqq + (iend-ibeg+1)*kx 
+               end if    
+            end if    ! mproc <= rreq
+         end do
+      end do
+
+   return
+   end subroutine mgbounds_colour   
+   
    pure function mg_fproc_1(g,i,j,n) result(mg_fpout)
      ! locates processor that owns a global grid point
      integer, intent(in) :: i, j, n, g

@@ -961,7 +961,7 @@ do itr = 1,itr_mg
         end do
       end do
       !$omp end do nowait
-      !$omp do schedue(static) private(k,iq,iql)
+      !$omp do schedule(static) private(k,iq,iql)
       do k = 1,klim
         do iql = 1,ifull_colour(nc)
           iq = iqx(iql,nc)    
@@ -970,6 +970,7 @@ do itr = 1,itr_mg
       end do
       !$omp end do nowait
       !$omp end parallel
+      ! receive halo
       call bounds_colour_recv(iv,nc,klim=klim)
     end do ! nc (colour) loop
   end do   ! i (itr) loop
@@ -1050,27 +1051,30 @@ do itr = 1,itr_mg
       ! update scalar field
       ! assume zero for first guess of residual (also avoids additional bounds call)
       do k = 1,klim
-        v(1:ng,k,g) = -rhs(1:ng,k,g)/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
-      end do
-      call mgbounds(g,v(:,1:klim,g),klim=klim)
-      
-      ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
-      ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
-      ! into colours so that the number of messages is reduced.
-      do i = 2,itrbgn
-        do k = 1,klim
-          ! pre smoothing
-          do iq = 1,ng
-            w(iq,k) = ( mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
-                      + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
-                      - rhs(iq,k,g) )/( helm(iq,k,g) - mg(g)%zz(iq) )
+        v(:,k,g) = 0.
+      end do    
+      do i = 1,itrbgn
+        do nc = 1,maxcolour
+          ng = mg(g)%ifull_colour(nc)  
+          do k = 1,klim
+            ! pre smoothing
+            do iql = 1,ng
+              iq = mg(g)%iqx(iql,nc)  
+              w(iq,k) = ( mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
+                        + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
+                        - rhs(iq,k,g) )/( helm(iq,k,g) - mg(g)%zz(iq) )
+            end do
+            do iql = 1,ng
+              iq = mg(g)%iqx(iql,nc)
+              v(iq,k,g) = w(iq,k)
+            end do  
           end do
-          v(1:ng,k,g) = w(1:ng,k)
-        end do
-        call mgbounds(g,v(:,1:klim,g),klim=klim)
-      end do
+          call mgbounds_colour(g,v(:,1:klim,g),nc,klim=klim)
+        end do ! nc = 1,maxcolour  
+      end do   ! i = 2,itrbgn
     
       ng4 = mg(g)%ifull_fine
+      ng = mg(g)%ifull
       do k = 1,klim
         ! residual
         do iq = 1,ng
@@ -1124,19 +1128,22 @@ do itr = 1,itr_mg
       ! usually it takes 6 iterations for the following to converge with 35 eigenvectors
       klimc = klim
       do itrc = 1,itr_mg
-        do k = 1,klimc
+        do k = 1,klimc  
           vsavc(1:ng) = v(1:ng,k,g)
-          do nc = 1,3
-            do iql = 1,mg_ifull_maxcolour  
-              iq = col_iq(iql,nc)  
-              ! 3 colours makes it safe to update  
-              v(iq,k,g) = ( mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) &
-                          + mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) &
-                          + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
-                          + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
-                          - rhs(iq,k,g) )/(helm(iq,k,g)-mg(g)%zz(iq))
+          do nc = 1,maxcolour
+            do iql = 1,mg(g)%ifull_colour(nc)  
+              iq = mg(g)%iqx(iql,nc)  
+              w(iq,k) = ( mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) &
+                        + mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) &
+                        + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
+                        + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
+                        - rhs(iq,k,g) )/(helm(iq,k,g)-mg(g)%zz(iq))
             end do  
-          end do
+            do iql = 1,mg(g)%ifull_colour(nc)  
+              iq = mg(g)%iqx(iql,nc)  
+              v(iq,k,g) = w(iq,k)
+            end do
+          end do ! nc = 1,maxcolour  
           dsolmaxc(k) = maxval( abs( v(1:ng,k,g) - vsavc(1:ng) ) )
         end do
         ! test for convergence
@@ -1147,7 +1154,7 @@ do itr = 1,itr_mg
         end do
         klimc = knew
         if ( klimc<1 ) exit
-      end do
+      end do ! itrc = 1,itr_mg
       
       call END_LOG(mgcoarse_end)
       
@@ -1180,20 +1187,28 @@ do itr = 1,itr_mg
         ! the coarse interpolation also updates the w halo
         v(1:ng,k,g) = v(1:ng,k,g) + w(1:ng,k)
       end do
-    
+      call mgbounds(g,v(:,1:klim,g),klim=klim)
+      
       do i = 1,itrend
-        call mgbounds(g,v(:,1:klim,g),klim=klim)
-        do k = 1,klim
-          ! post smoothing - all iterations except final iteration
-          do iq = 1,ng
-            w(iq,k) = (mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g)+mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
-                     + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g)+mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
-                     - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
+        do nc = 1,maxcolour
+          ng = mg(g)%ifull_colour(nc)  
+          do k = 1,klim
+            ! post smoothing - all iterations except final iteration
+            do iql = 1,ng
+              iq = mg(g)%iqx(iql,nc)
+              w(iq,k) = (mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g)+mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
+                       + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g)+mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
+                       - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
+            end do
+            do iql = 1,ng
+              iq = mg(g)%iqx(iql,nc)
+              v(iq,k,g) = w(iq,k)
+            end do  
           end do
-          v(1:ng,k,g) = w(1:ng,k)          
-        end do
-      end do
-      call mgbounds(g,v(:,1:klim,g),klim=klim) ! for next mgbcast
+          call mgbounds_colour(g,v(:,1:klim,g),nc,klim=klim)
+        end do ! nc = 1,maxcolour
+      end do   ! i = 1,itrend 
+
     end do ! g loop over V levels
   
 
@@ -1679,41 +1694,48 @@ do itr = 1,itr_mgice
       ! possibly use colours here, although v is reset to zero every iteration
       ! assume zero for first guess of residual (also avoids additional bounds call)
       v(:,1:2,g) = 0.
-      do iq = 1,ng
-        bu = zz(iq,g) + hh(iq,g)
-        cu = -rhs(iq,g)
-        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
-      end do  
-      v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
-      call mgbounds(g,v(:,1:2,g))
       
-      do i = 2,itrbgn
-        ! ocean - post smoothing
-        do iq = 1,ng
-          bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-             + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-             + zz(iq,g) + hh(iq,g)
-          cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-             + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-             - rhs(iq,g)
-          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
-        end do
-        v(1:ng,1,g) = vnew(1:ng)
+      do i = 1,itrbgn
+        do nc = 1,maxcolour
+          ng = mg(g)%ifull_colour(nc)
+          
+          ! ocean - post smoothing
+          do iql = 1,ng
+            iq = mg(g)%iqx(iql,nc)  
+            bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
+               + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
+               + zz(iq,g) + hh(iq,g)
+            cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
+               + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
+               - rhs(iq,g)
+            vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
+          end do
+          do iql = 1,ng
+            iq = mg(g)%iqx(iql,nc)
+            v(iq,1,g) = vnew(iq)
+          end do  
         
-        ! ice - post smoothing
-        do iq = 1,ng
-          vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                       - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                       + rhsi(iq,g) ) / zzi(iq,g)
-        end do
-        v(1:ng,2,g) = vnew(1:ng)
-        call mgbounds(g,v(:,1:2,g))
-      end do
+          ! ice - post smoothing
+          do iql = 1,ng
+            iq = mg(g)%iqx(iql,nc)
+            vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                         - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
+                         + rhsi(iq,g) ) / zzi(iq,g)
+          end do
+          do iql = 1,ng
+            iq = mg(g)%iqx(iql,nc)
+            v(iq,2,g) = vnew(iq)
+          end do
+          
+          call mgbounds_colour(g,v(:,1:2,g),nc)
+        end do ! nc = 1,maxcolour  
+      end do   ! i = 1,itrbgn
     
       ! restriction
       ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
 
       ng4 = mg(g)%ifull_fine
+      ng = mg(g)%ifull
 
       ! ocean residual
       do iq = 1,ng
@@ -1852,37 +1874,37 @@ do itr = 1,itr_mgice
       ! solve non-linear water free surface and solve for ice with coloured SOR
       ! first guess
       v(:,1:2,g) = 0.
-      do iq = 1,ng
-        bu = zz(iq,g) + hh(iq,g)
-        cu = -rhs(iq,g)
-        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01))) ! ocean
-      end do  
-      v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)                        ! ice
       do itrc = 1,itr_mgice
         ! store previous guess for convegence test
         ws(1:ng,1:2) = v(1:ng,1:2,g)
-        do nc = 1,3
+        do nc = 1,maxcolour
         
           ! ocean
-          do iql = 1,mg_ifull_maxcolour  
-            iq = col_iq(iql,nc)  
+          do iql = 1,mg(g)%ifull_colour(nc)  
+            iq = mg(g)%iqx(iql,nc)  
             bu = yyn(iq,g)*v(mg(g)%in(iq),1,g) + yys(iq,g)*v(mg(g)%is(iq),1,g) &
                + yye(iq,g)*v(mg(g)%ie(iq),1,g) + yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
                + zz(iq,g) + hh(iq,g)
             cu = zzn(iq,g)*v(mg(g)%in(iq),1,g) + zzs(iq,g)*v(mg(g)%is(iq),1,g) &
                + zze(iq,g)*v(mg(g)%ie(iq),1,g) + zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
                - rhs(iq,g)
-            ! 3 colours makes it safe to update
-            v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01))) 
+            vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01))) 
+          end do  
+          do iql = 1,mg(g)%ifull_colour(nc)  
+            iq = mg(g)%iqx(iql,nc)  
+            v(iq,1,g) = vnew(iq) 
           end do  
       
           ! ice
-          do iql = 1,mg_ifull_maxcolour
-            iq = col_iq(iql,nc)
-            ! 3 colours makes it safe to update  
-            v(iq,2,g) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g)     &
-                          - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g)     &
-                          + rhsi(iq,g) ) / zzi(iq,g)
+          do iql = 1,mg(g)%ifull_colour(nc)  
+            iq = mg(g)%iqx(iql,nc)
+            vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g)     &
+                         - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g)     &
+                         + rhsi(iq,g) ) / zzi(iq,g)
+          end do
+          do iql = 1,mg(g)%ifull_colour(nc)  
+            iq = mg(g)%iqx(iql,nc)  
+            v(iq,2,g) = vnew(iq)
           end do
           
         end do
@@ -1922,31 +1944,44 @@ do itr = 1,itr_mgice
       ! No mgbounds as the v halo has already been updated and
       ! the coarse interpolation also updates the w halo
       v(1:ng,1:2,g) = v(1:ng,1:2,g) + ws(1:ng,1:2)
+      call mgbounds(g,v(:,1:2,g))  
 
       do i = 1,itrend
-        call mgbounds(g,v(:,1:2,g))  
-        ! ocean - post smoothing
-        do iq = 1,ng
-          bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-             + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-             + zz(iq,g) + hh(iq,g)
-          cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-             + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-             - rhs(iq,g)
-          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
-        end do
-        v(1:ng,1,g) = vnew(1:ng)
+        do nc = 1,maxcolour
+          ng = mg(g)%ifull_colour(nc)  
+          
+          ! ocean - post smoothing
+          do iql = 1,ng
+            iq = mg(g)%iqx(iql,nc)
+            bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
+               + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
+               + zz(iq,g) + hh(iq,g)
+            cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
+               + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
+               - rhs(iq,g)
+            vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
+          end do
+          do iql = 1,ng
+            iq = mg(g)%iqx(iql,nc)
+            v(iq,1,g) = vnew(iq)
+          end do
+          
         ! ice - post smoothing
-        do iq = 1,ng
-          vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                       - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                       + rhsi(iq,g) ) / zzi(iq,g)
-        end do
-        v(1:ng,2,g) = vnew(1:ng)
-      end do
+          do iql = 1,ng
+            iq = mg(g)%iqx(iql,nc)
+            vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                         - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
+                         + rhsi(iq,g) ) / zzi(iq,g)
+          end do
+          do iql = 1,ng
+            iq = mg(g)%iqx(iql,nc)
+            v(iq,2,g) = vnew(iq)
+          end do
+          
+          call mgbounds_colour(g,v(:,1:2,g),nc)
+        end do ! nc = 1,maxcolour  
+      end do   ! i = 1,itrend
       
-      call mgbounds(g,v(:,1:2,g)) ! for next mgbcast
-
     end do
 
     
@@ -2963,7 +2998,6 @@ mjpan = jpan                ! local number of columns
 mil_g = il_g                ! global grid size
 mxpr = il_g/ipan            ! number of processors over rows
 mypr = il_g/jpan            ! number of processors over columns
-mg_ifull_maxcolour = 0      ! set in mg_index
 mg_npan = npan
 
 ! calculate number of levels
@@ -3326,6 +3360,7 @@ do g = 1,mg_maxlevel
     deallocate( mg(g)%in, mg(g)%ie, mg(g)%is, mg(g)%iw )
     deallocate( mg(g)%ine, mg(g)%ien, mg(g)%inw, mg(g)%iwn )
     deallocate( mg(g)%ise, mg(g)%ies, mg(g)%isw, mg(g)%iws )
+    deallocate( mg(g)%ifull_colour, mg(g)%iqx )
   end if
   
 end do
