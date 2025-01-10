@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -208,8 +208,7 @@ select case ( interp_ncloud(ldr,ncloud) )
                   ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
                   ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
                   mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
-                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,                  &
-                  update_satadj=.true.)
+                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
 
       ! This configuration allows prognostic condensate variables to be updated 
       cfrac(js:je,:) = lcfrac
@@ -313,7 +312,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp end do nowait
 
 
-  case( "LIN", "LIN2" )
+  case( "LIN" )
 
     !$omp do schedule(static) private(js,je,riz,zlevv,zqg,zqlg,zqrg,zqfg)     &
     !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
@@ -498,57 +497,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       
 end select
 
- 
-!----------------------------------------------------------------------------
-! Update cloud fraction (prior to LEON & LIN, but after LIN2)
-
-select case ( interp_ncloud(ldr,ncloud) )
-  case("LIN2")  
-    !$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
-    !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt)                  &
-    !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-
-      idjd_t = mod(idjd-1,imax) + 1
-      mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
-
-      lqg      = qg(js:je,:)
-      lqlg     = qlg(js:je,:)
-      lqfg     = qfg(js:je,:)
-      lt       = t(js:je,:)
-      ldpsldt  = dpsldt(js:je,:)
-      lclcon   = clcon(js:je,:)
-      lstratcloud = stratcloud(js:je,:)
-      if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
-        lnettend = nettend(js:je,:)
-        lrkmsave = rkmsave(js:je,:)
-        lrkhsave = rkhsave(js:je,:)
-      end if
-
-      call update_cloud_fraction(lcfrac,land(js:je),                                &
-                  ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
-                  ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
-                  mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
-                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave,                  &
-                  update_satadj=.false.)
-
-      ! This configuration does not update prognostic cloud condensate variables
-      cfrac(js:je,:) = lcfrac
-      qccon(js:je,:) = lqccon
-      qlrad(js:je,:) = lqlrad
-      qfrad(js:je,:) = lqfrad
-      stratcloud(js:je,:) = lstratcloud
-      if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. (ncloud>=110.and.ncloud<120) ) then
-        ! Reset tendency and mass flux for next time-step  
-        nettend(js:je,:) = 0.
-      end if
-    end do
-    !$omp end do nowait
-
-end select   
-
   
 !----------------------------------------------------------------------------
 ! Update radiation properties
@@ -579,7 +527,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp end do nowait
 
 
-  case( "LIN", "LIN2" )
+  case( "LIN" )
     !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
     !$omp private(l_rliq,l_rice,l_cliq,l_cice,l_rliq_in,l_rice_in,l_rsno_in)
     do tile = 1,ntiles
@@ -708,10 +656,8 @@ if ( ldr /= 0 ) then
   select case(ncloud)
     case(0,2,3,4,10,12,13)
       mp_physics = "LEON"
-    case(100,110)
+    case(100,101,110,111)
       mp_physics = "LIN"
-    case(101,111)
-      mp_physics = "LIN2"
   end select
 end if
 

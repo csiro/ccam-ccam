@@ -52,8 +52,7 @@ subroutine update_cloud_fraction(cfrac,land,                             &
                     ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                   &
                     dpsldt,nettend,stratcloud,clcon,em,pblh,idjd,mydiag, &
                     ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,    &
-                    vdeposition_mode,tiedtke_form,rkmsave,rkhsave,       &
-                    update_satadj)
+                    vdeposition_mode,tiedtke_form,rkmsave,rkhsave)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -76,7 +75,6 @@ real, dimension(size(t,1)), intent(in) :: ps
 real, dimension(size(t,1)), intent(in) :: em, pblh
 real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay
 logical, intent(in) :: mydiag
-logical, intent(in), optional :: update_satadj
 logical, dimension(size(t,1)), intent(in) :: land
 
 !integer, dimension(size(t,1)) :: kbase,ktop  !Bottom and top of convective cloud
@@ -97,17 +95,10 @@ real fl, prf_temp
 real qsatg !Saturation mixing ratio
 real wcon  !Convective cloud water content (in-cloud, prescribed)
 real, dimension(size(t,2)) :: diag_temp
-logical satadj_flag
 
 
 imax = size(t,1)
 kl = size(t,2)
-
-satadj_flag = .true.
-if ( present(update_satadj) ) then
-  satadj_flag = update_satadj
-end if
-
 
 ! meterological fields
 do k = 1,kl
@@ -184,20 +175,13 @@ do k = 1,kl
   end do
 end do
 
-if ( satadj_flag ) then
-  ! Update ice fraction
-  call calc_fice(tenv,qlg,qfg)
-end if  
+! Update ice fraction
+fice = calc_fice(tenv,qlg,qfg)
 
 do k = 1,kl
   do iq = 1,imax  
     qcg(iq,k)  = qlg(iq,k) + qfg(iq,k)
-    if ( qfg(iq,k) > 0. ) then
-      fice(iq,k) = qfg(iq,k)/qcg(iq,k)
-    else
-      fice(iq,k) = 0.
-    end if
-    tliq(iq,k) = tenv(iq,k) - hlcp*qcg(iq,k) - hlfcp*qfg(iq,k)
+    tliq(iq,k) = tenv(iq,k) - (hlcp+hlfcp*fice(iq,k))*qcg(iq,k)
   end do  
 end do
 
@@ -207,13 +191,11 @@ call newcloud(dt,land,prf,rhoa,tliq,qtot,qcg,fice,      &
               mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
               tiedtke_form,rkmsave,rkhsave,imax,kl)
 
-if ( satadj_flag ) then
-  ! Update condensate
-  call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
-                             tliq,qtot,qcg,qcold,fice,      &
-                             stratcloud,prf,rhoa,           &
-                             tenv,qenv,qlg,qfg)
-end if
+! Update condensate
+call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
+                           tliq,qtot,qcg,qcold,fice,      &
+                           stratcloud,prf,rhoa,           &
+                           tenv,qenv,qlg,qfg)
 
 
 #ifdef debug
@@ -301,14 +283,14 @@ do k = 1,kl
     fl = max(0., min(1., (t(iq,k)-ticon)/(273.15-ticon)))
     qlrad(iq,k) = qlg(iq,k) + fl*qccon(iq,k)
     qfrad(iq,k) = qfg(iq,k) + (1.-fl)*qccon(iq,k)
-    cfrac(iq,k) = min( 1., ccov(iq,k)+clcon(iq,k) ) ! original
+    cfrac(iq,k) = max( 0., min( 1., ccov(iq,k)+clcon(iq,k) ) ) ! original
   end do
 end do
 
 return
 end subroutine update_cloud_fraction
 
-subroutine calc_fice(ttg,qlg,qfg)
+function calc_fice(ttg,qlg,qfg) result(fice)
 
 use const_phys                    ! Physical constants
 
@@ -355,15 +337,9 @@ select case(cloud_ice_method)
     write(6,*) "ERROR: Invalid cloud_ice_method ",cloud_ice_method
     stop
 end select
- 
-do k = 1,kl
-  qcg(:) = qlg(:,k) + qfg(:,k)
-  qfg(:,k) = fice(:,k)*qcg(:)
-  qlg(:,k) = qcg(:) - qfg(:,k)
-end do
   
 return
-end subroutine calc_fice
+end function calc_fice
   
 subroutine newcloud(tdt,land,prf,rhoa,tliq,qtot,qcg,fice,     &
                     dpsldt,nettend,stratcloud,em,pblh,idjd,   &
