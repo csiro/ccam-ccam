@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2020 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -34,11 +34,12 @@ public extraout_init,extraout_end
 
 real, dimension(:), allocatable, save :: cloudlo,cloudmi,cloudhi,cloudtot
 real, dimension(:), allocatable, save :: rgsave
-real, dimension(:), allocatable, save :: taux,tauy,taux_ave,tauy_ave
+real, dimension(:), allocatable, save :: taux,tauy
 real, dimension(:), allocatable, save :: tstar, qstar, thetavstar
 real, dimension(:), allocatable, save :: swrsave,fbeamvis,fbeamnir
 real, dimension(:), allocatable, save :: sgsave, ustar
 real, dimension(:,:), allocatable, save :: u10_3hr,v10_3hr,tscr_3hr,rh1_3hr
+real(kind=8), dimension(:), allocatable, save :: taux_ave, tauy_ave
 
 contains
 
@@ -68,8 +69,8 @@ qstar(:) = 0.
 thetavstar(:) = 0.
 taux(:) = 0.
 tauy(:) = 0.
-taux_ave(:) = 0.
-tauy_ave(:) = 0.
+taux_ave(:) = 0._8
+tauy_ave(:) = 0._8
 
 return
 end subroutine extraout_init

@@ -54,6 +54,7 @@ real rho,srcp,vfact,zscronzt,zscrr,ztv,z10
 real aft2ice,aft10ice,aft38ice,zt,zscrt,z10t
 real bprm,cms,chs,denha,denma,ri2x,root,vmag,zlog,es
 real deltaq,deltat
+real, dimension(is:ie) :: duma
 real, dimension(is:ie) :: ri,vmod,af,aft
 real, dimension(is:ie) :: qgscrn,tscrn,uscrn,u10,rhscrn
 real, dimension(is:ie) :: wetfac,zoh,qsttg,ustar,zo,theta
@@ -77,7 +78,8 @@ if(diag.or.ntest>0.and.ntiles==1)then
   call maxmin(tggsn,'tggsn',ktau,1.,3)
   call maxmin(tgg,'tgg',ktau,1.,ms)
   call maxmin(tss,'ts',ktau,1.,1)
-  call maxmin(precip,'pr',ktau,1.,1)
+  duma(is:ie) = real(precip(is:ie))
+  call maxmin(duma,'pr',ktau,1.,1)
   call maxmin(eg,'eg',ktau,1.,1)
   call maxmin(fg,'fg',ktau,1.,1)
   call maxmin(ps,'ps',ktau,.01,1)

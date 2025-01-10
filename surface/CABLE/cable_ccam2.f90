@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -23,15 +23,15 @@
 ! Subsequently modified by MJT for tile mosaic and SEAESF radiation scheme
 ! Thanks to Paul Ryan for OMP routines
     
-! - Currently all tiles have the same soil texture, but independent soil temperatures,
-!   moisture, etc.
-! - LAI can be interpolated between timesteps using a PW-linear fit to the LAI integral
-!   or LAI can be taken as constant for the month.  CASA-CNP can predict LAI and vcmax,
-!   although this can take considerable time to spin-up.
+! - Currently all tiles within a gridbox have the same soil texture, but independent soil
+!   temperatures, moisture, etc.
+! - LAI can be prescribed or using CASA-CNP can predict LAI and vcmax, but requires
+!   considerable time to spin-up.
 ! - CO2 can be constant or read from the radiation code.  A tracer CO2 is avaliable
 !   when tracers are active
 ! - The code assumes only one month at a time is integrated in RCM mode.
-! - Options exist for using SLI soil model (soil_struc=1), and the POP model (cable_pop=1)
+! - Options exist for using SLI soil model (soil_struc=1), the POP model (cable_pop=1)
+!   and the Ground Water model (cable_gw_model=1).  POPLUC has not yet been implemented.
 
 ! CSIRO PFT index
 ! 1  Evergreen Needleleaf
@@ -313,7 +313,6 @@ do tile = 1,ntiles
     end if
     
     ! set co2 forcing for cable
-    ! constant: atmospheric co2 = 360 ppm 
     ! host: atmospheric co2 follows that from CCAM radiation scheme
     ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
     latmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
@@ -445,9 +444,9 @@ real, dimension(imax,ms), intent(in) :: wb_clim
 real, dimension(imax,3), intent(inout) :: smass, ssdn, tggsn
 real, dimension(imax), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisdif, albvisdir, albvissav
 real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd
-real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin, runoff
-real, dimension(imax), intent(inout) :: runoff_surface, sigmf, snage, snowd, snowmelt, ssdnn, tss, ustar
-real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq, evspsbl, sbl
+real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin
+real, dimension(imax), intent(inout) :: sigmf, snage, snowd, ssdnn, tss, ustar
+real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
 real, dimension(imax), intent(out) :: wtd
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
@@ -457,6 +456,8 @@ real, dimension(imax) :: evspsbl_l, sbl_l
 real, dimension(mp), intent(in) :: sv, vl2
 real, dimension(mp) :: cc1, cc2, dumt, dump, qsatfvar, ssnowpotev
 real, dimension(mp) :: wbclim_pack
+real, dimension(imax), intent(inout) :: runoff, runoff_surface, snowmelt
+real, dimension(imax), intent(inout) :: evspsbl, sbl
 real(kind=8) :: dtr8
 real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
 real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
@@ -605,10 +606,6 @@ if ( soil_struc==0 ) then
   canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
   canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
   canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
-  !canopy%fhs_cor  = canopy%fhs_cor + ssnow%deltss*ssnow%dfh_dtg
-  !canopy%fes_cor  = canopy%fes_cor + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
-  !canopy%fns_cor  = canopy%fns_cor + ssnow%deltss*ssnow%dfn_dtg
-  !canopy%ga_cor   = canopy%ga_cor + ssnow%deltss*canopy%dgdtg
   ! MJT fix
   ssnow%wb(:,ms) = ssnow%wb(:,ms) - (ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg)*dtr8 &
                                    /(ssnow%cls*air%rlam*soil%zse(ms)*1000._8) 
@@ -937,7 +934,7 @@ do nb = 1,maxnb
   evspsbl_l = evspsbl_l + unpack(sv(is:ie)*real((canopy%fev(is:ie)+canopy%fesp(is:ie) &
                                 +canopy%fess(is:ie)/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
   sbl_l = sbl_l + unpack(sv(is:ie)*real(ssnow%evapsn(is:ie)/dtr8),tmap(:,nb),0.)
-  ! Replace potev with Penman_monteith
+  ! Replace potev with Penman_Monteith
   if ( cable_potev==1 ) then
     dumt(is:ie) = real( met%tvair(is:ie) )
     dump(is:ie) = real( met%pmb(is:ie) )*100. ! convert from mb to Pa

@@ -136,6 +136,7 @@ integer, dimension(3) :: posmin3, posmax3
 
 real                  :: maxconvtime = 120.  ! time-step for convection
 real                  :: tdt
+
 !qamin = qgmin
 
 ! begin do loop here
@@ -356,9 +357,7 @@ real                  :: tdt
         conds(js:je) = 0.
         condg(js:je) = 0.
         precc(js:je) = precc(js:je) + condc(js:je)
-        !condx(js:je) = condx(js:je) + condc(js:je)
-        condx(js:je) = condc(js:je)  !precc(js:je) ! if condx=0. at start of physics.
-        precip(js:je)=precip(js:je) + condx(js:je)
+        condx(js:je) = condx(js:je) + condc(js:je)
 
   end do ! end tile loop
 

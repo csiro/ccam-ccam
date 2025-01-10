@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -29,36 +29,37 @@ public eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
 public cbas_ave,ctop_ave,rndmax,prhmax,prhour
 public tmaxscr,tminscr,tscr_ave
 public rhmaxscr,rhminscr,rhscr_ave
-!public riwp_ave,rlwp_ave
 public u10max,v10max
 public u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
 public rnet_ave
 public wb_ave,wbice_ave,convh_ave
 public fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 public cnpp_ave,cnbp_ave
-public anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban
+public anthropogenic_ave, tmaxurban, tminurban
 public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 public u_max, v_max, u10m_max, v10m_max ! sub-daily maximums
 public histave_init,histave_end
 public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 
-real, dimension(:), allocatable, save :: eg_ave,fg_ave,ga_ave,epan_ave,dew_ave
-real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax,prhmax,prhour
+real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax,prhmax
 real, dimension(:), allocatable, save :: tmaxscr,tminscr,tscr_ave
 real, dimension(:), allocatable, save :: rhmaxscr,rhminscr,rhscr_ave
 !real, dimension(:), allocatable, save :: riwp_ave,rlwp_ave
 real, dimension(:), allocatable, save :: u10max,v10max
-real, dimension(:), allocatable, save :: u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave
-real, dimension(:), allocatable, save :: rnet_ave
+real, dimension(:), allocatable, save :: u1max,v1max,u2max,v2max,cape_max,cape_ave
 real, dimension(:,:), allocatable, save :: wb_ave,wbice_ave,convh_ave
 real, dimension(:), allocatable, save :: fnee_ave,fpn_ave,frd_ave,frp_ave,frpw_ave,frpr_ave,frs_ave
 real, dimension(:), allocatable, save :: cnpp_ave,cnbp_ave
-real, dimension(:), allocatable, save :: anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban
-real, dimension(:), allocatable, save :: anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
+real, dimension(:), allocatable, save :: tmaxurban, tminurban
 real, dimension(:), allocatable, save :: fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 real, dimension(:,:), allocatable, save :: u_max, v_max     ! sub-daily maximums
 real, dimension(:), allocatable, save :: u10m_max, v10m_max ! sub-daily maximums
-!real, dimension(:,:), allocatable, save :: tgg_ave
+real(kind=8), dimension(:), allocatable, save :: eg_ave, fg_ave
+real(kind=8), dimension(:), allocatable, save :: epot_ave, prhour
+real(kind=8), dimension(:), allocatable, save :: ga_ave, epan_ave, dew_ave
+real(kind=8), dimension(:), allocatable, save :: rnet_ave
+real(kind=8), dimension(:), allocatable, save :: anthropogenic_ave
+real(kind=8), dimension(:), allocatable, save :: anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 
 contains
 
@@ -78,14 +79,14 @@ allocate(u10max(ifull),v10max(ifull))
 allocate(u1max(ifull),v1max(ifull),u2max(ifull),v2max(ifull),cape_max(ifull),cape_ave(ifull),epot_ave(ifull))
 allocate(rnet_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),convh_ave(ifull,kl))
-allocate(anthropogenic_ave(ifull), urban_storage_ave(ifull), tmaxurban(ifull), tminurban(ifull))
+allocate(anthropogenic_ave(ifull), tmaxurban(ifull), tminurban(ifull))
 allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull) )
 !allocate(tgg_ave(ifull,ms))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
 rndmax(:)      = 0.
 prhmax(:)      = 0.
-prhour(:)      = 0.
+prhour(:)      = 0._8
 tmaxscr(:)     = 0.
 tminscr(:)     = 400.
 tscr_ave(:)    = 0.
@@ -100,13 +101,13 @@ u2max(:)       = 0.
 v2max(:)       = 0.
 cape_max(:)    = 0.
 cape_ave(:)    = 0.
-dew_ave(:)     = 0.
-epan_ave(:)    = 0.
-epot_ave(:)    = 0.
-eg_ave(:)      = 0.
-fg_ave(:)      = 0.
-ga_ave(:)      = 0.
-rnet_ave(:)    = 0.
+dew_ave(:)     = 0._8
+epan_ave(:)    = 0._8
+epot_ave(:)    = 0._8
+eg_ave(:)      = 0._8
+fg_ave(:)      = 0._8
+ga_ave(:)      = 0._8
+rnet_ave(:)    = 0._8
 !riwp_ave(:)    = 0.
 !rlwp_ave(:)    = 0.
 convh_ave(:,:) = 0.
@@ -114,11 +115,10 @@ cbas_ave(:)    = 0.
 ctop_ave(:)    = 0.
 wb_ave(:,:)    = 0.
 wbice_ave(:,:) = 0.
-anthropogenic_ave(:) = 0.
-urban_storage_ave(:) = 0.
-anth_elecgas_ave(:)  = 0.
-anth_heating_ave(:)  = 0.
-anth_cooling_ave(:)  = 0.
+anthropogenic_ave(:) = 0._8
+anth_elecgas_ave(:)  = 0._8
+anth_heating_ave(:)  = 0._8
+anth_cooling_ave(:)  = 0._8
 tmaxurban(:)   = 0.
 tminurban(:)   = 400.
 
@@ -173,7 +173,7 @@ deallocate(u10max,v10max)
 deallocate(u1max,v1max,u2max,v2max,cape_max,cape_ave,epot_ave)
 deallocate(rnet_ave)
 deallocate(wb_ave,wbice_ave,convh_ave)
-deallocate(anthropogenic_ave, urban_storage_ave, tmaxurban, tminurban)
+deallocate(anthropogenic_ave, tmaxurban, tminurban)
 deallocate(anth_elecgas_ave, anth_heating_ave, anth_cooling_ave)
 !deallocate(tgg_ave)
 

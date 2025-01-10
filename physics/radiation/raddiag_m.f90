@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -39,20 +39,20 @@ public soutclr_amp, sgclr_amp, sgn_amp, sgdndir_amp
 public sw_tend, lw_tend, sgdclr_amp
 public raddiag_init,raddiag_end
 
-real, dimension(:), allocatable, save :: sint_ave,sot_ave,soc_ave,sgn_ave
-real, dimension(:), allocatable, save :: sgdn_ave,rgdn_ave,sgdn,rgdn,rgn
-real, dimension(:), allocatable, save :: sgdndir_ave,sgdndir
-real, dimension(:), allocatable, save :: rtu_ave,rtc_ave,rgn_ave,rgc_ave,sgc_ave
-real, dimension(:), allocatable, save :: rgdc_ave,sgdc_ave
-real, dimension(:), allocatable, save :: cld_ave,cll_ave,clm_ave,clh_ave,dni_ave
-real, dimension(:), allocatable, save :: sunhours,sint,sout,rt,dni
-real, dimension(:), allocatable, save :: soutclr,rtclr,rgclr,sgclr
-real, dimension(:), allocatable, save :: rgdclr,sgdclr
+real, dimension(:), allocatable, save :: sgdn, sgdndir, sint, sout, rt, dni
+real, dimension(:), allocatable, save :: rgdn, rgn
+real, dimension(:), allocatable, save :: soutclr, sgclr, sgdclr
+real, dimension(:), allocatable, save :: rtclr, rgclr, rgdclr
 real, dimension(:), allocatable, save :: sgdn_amp, dni_amp, sint_amp, sout_amp
 real, dimension(:), allocatable, save :: soutclr_amp, sgclr_amp, sgn_amp, sgdndir_amp
 real, dimension(:), allocatable, save :: sgdclr_amp
 real, dimension(:,:), allocatable, save :: sw_tend, lw_tend
 real, dimension(:,:), allocatable, save :: sw_tend_amp
+real(kind=8), dimension(:), allocatable, save :: sgdn_ave, sint_ave, sot_ave, soc_ave, sgdndir_ave
+real(kind=8), dimension(:), allocatable, save :: sgn_ave, sgc_ave, sgdc_ave
+real(kind=8), dimension(:), allocatable, save :: rgdn_ave, rtu_ave, rtc_ave, rgn_ave, rgc_ave, rgdc_ave
+real(kind=8), dimension(:), allocatable, save :: cld_ave, cll_ave, clm_ave, clh_ave
+real(kind=8), dimension(:), allocatable, save :: dni_ave, sunhours
 logical, save :: odcalc = .false.
 
 contains
@@ -79,30 +79,30 @@ allocate(sw_tend(ifull,kl),lw_tend(ifull,kl))
 allocate(sw_tend_amp(ifull,kl))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
-sint_ave=0.
-sot_ave=0.
-soc_ave=0.
-sgn_ave=0.
-sgdn_ave=0.
-rgdn_ave=0.
+sint_ave=0._8
+sot_ave=0._8
+soc_ave=0._8
+sgn_ave=0._8
+sgdn_ave=0._8
+rgdn_ave=0._8
 sgdn=0.
 rgdn=0.
 rgn=0.
-sgdndir_ave=0.
+sgdndir_ave=0._8
 sgdndir=0.
-rtu_ave=0.
-rtc_ave=0.
-rgn_ave=0.
-rgc_ave=0.
-sgc_ave=0.
-rgdc_ave=0.
-sgdc_ave=0.
-cld_ave=0.
-cll_ave=0.
-clm_ave=0.
-clh_ave=0.
-dni_ave=0.
-sunhours=0.
+rtu_ave=0._8
+rtc_ave=0._8
+rgn_ave=0._8
+rgc_ave=0._8
+rgdc_ave=0._8
+sgc_ave=0._8
+sgdc_ave=0._8
+cld_ave=0._8
+cll_ave=0._8
+clm_ave=0._8
+clh_ave=0._8
+dni_ave=0._8
+sunhours=0._8
 sint=0.
 sout=0.
 rt=0.

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -355,13 +355,11 @@ do ip=1,ipland  ! all land points in this nsib=1/3 loop
   if(condspr(iq)>0.)then  ! just using ncondxpr=1 treatment now
     if(isflag(iq)==0)then
       snowd(iq)=max(snowd(iq) + condspr(iq), 0.)
-      sno(iq)=sno(iq)+condspr(iq)  ! snow precip accum in mm
       tgg(iq,1)=tgg(iq,1)+condspr(iq)*hlf/gammzz(iq,1)
       condxpr(iq)=condxpr(iq)-condspr(iq)
       condspr(iq)=0.
     else  ! i.e. isflag(iq)=1
       snowd(iq)=max(snowd(iq) + condspr(iq), 0.)
-      sno(iq)=sno(iq)+condspr(iq)  ! snow precip accum in mm
       do k=1,3
         sgamm  = ssdn(iq,k)*2105. * sdepth(iq,k)
         tggsn(iq,k)=tggsn(iq,k)+condspr(iq)*hlf*smass(iq,k)/(sgamm*osnowd(iq))

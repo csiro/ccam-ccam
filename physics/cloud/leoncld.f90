@@ -93,7 +93,7 @@ contains
 subroutine leoncld_work(condg,conds,condx,gfrac,ktsav,                                  &
                         ppfevap,ppfmelt,ppfprec,ppfsnow,ppfsubl,                        &
                         pplambs,ppmaccr,ppmrate,ppqfsedice,pprfreeze,pprscav,           &
-                        precip,ps,qfg,qg,qgrg,qlg,qrg,qsng,rfrac,sfrac,t,               &
+                        ps,qfg,qg,qgrg,qlg,qrg,qsng,rfrac,sfrac,t,                      &
                         stratcloud,cdrop,fluxr,fluxm,fluxf,fluxi,fluxs,fluxg,qevap,     &
                         qsubl,qauto,qcoll,qaccr,vi,                                     &
                         idjd,mydiag,ncloud,nevapls,ldr,rcm,imax,kl)
@@ -139,7 +139,6 @@ real, dimension(imax,kl), intent(out) :: vi
 real, dimension(imax), intent(inout) :: condg
 real, dimension(imax), intent(inout) :: conds
 real, dimension(imax), intent(inout) :: condx
-real, dimension(imax), intent(inout) :: precip
 real, dimension(imax), intent(in) :: ps
 real, intent(in) :: rcm
 logical, intent(in) :: mydiag
@@ -329,7 +328,6 @@ end if
 condx(:)  = condx(:) + precs(:)
 conds(:)  = conds(:) + preci(:)
 condg(:)  = condg(:) + precg(:)
-precip(:) = precip(:) + precs(:)
 
 return
 end subroutine leoncld_work

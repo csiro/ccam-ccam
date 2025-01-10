@@ -267,7 +267,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       call leoncld_work(condg(js:je),conds(js:je),condx(js:je),lgfrac,ktsav(js:je),           &
               lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl,                                   &
               lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav,                     &
-              precip(js:je),ps(js:je),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt,        &
+              ps(js:je),lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lrfrac,lsfrac,lt,                      &
               lstratcloud,lcdrop,lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg,lqevap,lqsubl,     &
               lqauto,lqcoll,lqaccr,lvi,                                                       &
               idjd_t,mydiag_t,ncloud,nevapls,ldr,rcm,imax,kl)
@@ -488,7 +488,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       condx(js:je)  = condx(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
       conds(js:je)  = conds(js:je) + real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax) )
       condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel
-      precip(js:je) = precip(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
 
     end do     !tile loop
     !$omp end do nowait
@@ -499,7 +498,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       
 end select
 
-  
+ 
 !----------------------------------------------------------------------------
 ! Update cloud fraction (prior to LEON & LIN, but after LIN2)
 

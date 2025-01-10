@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -936,7 +936,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     if ( n3hr>8 ) n3hr = 1
   endif    ! (mod(ktau,nperday)==nper3hr(n3hr))
   
-  
   ! Turn off log before writing output
   call log_off
 
@@ -971,8 +970,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( mod(ktau,nperavg)==0 ) then    
     ! produce some diags & reset most averages once every nperavg
     if ( nmaxpr==1 ) then
-      precavge = sum(precip(1:ifull)*wts(1:ifull))
-      evapavge = sum(evspsbl(1:ifull)*wts(1:ifull))   ! in mm/day
+      precavge = sum(real(precip(1:ifull))*wts(1:ifull))
+      evapavge = sum(real(evspsbl_ave(1:ifull))*wts(1:ifull))   ! in mm/day
       pwatr    = 0.   ! in mm
       do k = 1,kl
         pwatr = pwatr - sum(dsig(k)*wts(1:ifull)*(qg(1:ifull,k)+qlg(1:ifull,k)+qfg(1:ifull,k))*ps(1:ifull))/grav
@@ -4103,59 +4102,56 @@ integer, intent(inout) :: koundiag
 convh_ave(:,:)       = 0.
 cbas_ave(:)          = 0.
 ctop_ave(:)          = 0.
-dew_ave(:)           = 0.
-epan_ave(:)          = 0.
-epot_ave(:)          = 0.
-eg_ave(:)            = 0.
-fg_ave(:)            = 0.
-ga_ave(:)            = 0.
-anthropogenic_ave(:) = 0.
-urban_storage_ave(:) = 0.
-anth_elecgas_ave(:)  = 0.
-anth_heating_ave(:)  = 0.
-anth_cooling_ave(:)  = 0.
-rnet_ave(:)          = 0.
-!riwp_ave(:)          = 0.
-!rlwp_ave(:)          = 0.
+dew_ave(:)           = 0._8
+epan_ave(:)          = 0._8
+epot_ave(:)          = 0._8
+eg_ave(:)            = 0._8
+fg_ave(:)            = 0._8
+ga_ave(:)            = 0._8
+anthropogenic_ave(:) = 0._8
+anth_elecgas_ave(:)  = 0._8
+anth_heating_ave(:)  = 0._8
+anth_cooling_ave(:)  = 0._8
+rnet_ave(:)          = 0._8
 rhscr_ave(:)         = 0.
 tscr_ave(:)          = 0.
 wb_ave(:,:)          = 0.
 wbice_ave(:,:)       = 0.
-taux_ave(:)          = 0.
-tauy_ave(:)          = 0.
+taux_ave(:)          = 0._8
+tauy_ave(:)          = 0._8
 
 ! radiation
 koundiag             = 0
-sint_ave(:)          = 0.
-sot_ave(:)           = 0.
-soc_ave(:)           = 0.
-sgdn_ave(:)          = 0.
-sgdndir_ave(:)       = 0.
-sgn_ave(:)           = 0.
-rtu_ave(:)           = 0.
-rtc_ave(:)           = 0.
-rgdn_ave(:)          = 0.
-rgn_ave(:)           = 0.
-rgc_ave(:)           = 0.
-rgdc_ave(:)          = 0.
-sgc_ave(:)           = 0.
-sgdc_ave(:)          = 0.
-cld_ave(:)           = 0.
-cll_ave(:)           = 0.
-clm_ave(:)           = 0.
-clh_ave(:)           = 0.
-dni_ave(:)           = 0.
+sint_ave(:)          = 0._8
+sot_ave(:)           = 0._8
+soc_ave(:)           = 0._8
+sgdn_ave(:)          = 0._8
+sgdndir_ave(:)       = 0._8
+sgn_ave(:)           = 0._8
+rtu_ave(:)           = 0._8
+rtc_ave(:)           = 0._8
+rgdn_ave(:)          = 0._8
+rgn_ave(:)           = 0._8
+rgc_ave(:)           = 0._8
+rgdc_ave(:)          = 0._8
+sgc_ave(:)           = 0._8
+sgdc_ave(:)          = 0._8
+cld_ave(:)           = 0._8
+cll_ave(:)           = 0._8
+clm_ave(:)           = 0._8
+clh_ave(:)           = 0._8
+dni_ave(:)           = 0._8
 
 ! zero evap, precip, precc, sno, runoff fields each nperavg (3/12/04) 
-evspsbl(:)           = 0.  ! converted to mm/day in outcdf
-sbl(:)               = 0.  ! converted to mm/day in outcdf
-precip(:)            = 0.  ! converted to mm/day in outcdf
-precc(:)             = 0.  ! converted to mm/day in outcdf
-sno(:)               = 0.  ! converted to mm/day in outcdf
-grpl(:)              = 0.  ! converted to mm/day in outcdf
-runoff(:)            = 0.  ! converted to mm/day in outcdf
-runoff_surface(:)    = 0.  ! converted to mm/day in outcdf
-snowmelt(:)          = 0.  ! converted to mm/day in outcdf
+evspsbl_ave(:)       = 0._8  ! converted to mm/day in outcdf
+sbl_ave(:)           = 0._8  ! converted to mm/day in outcdf
+precip(:)            = 0._8  ! converted to mm/day in outcdf
+precc(:)             = 0._8  ! converted to mm/day in outcdf
+sno(:)               = 0._8  ! converted to mm/day in outcdf
+grpl(:)              = 0._8  ! converted to mm/day in outcdf
+runoff_ave(:)        = 0._8  ! converted to mm/day in outcdf
+runoff_surface_ave(:) = 0._8 ! converted to mm/day in outcdf
+snowmelt_ave(:)      = 0._8  ! converted to mm/day in outcdf
 cape_max(:)          = 0.
 cape_ave(:)          = 0.
 
@@ -4229,7 +4225,7 @@ use histave_m                              ! Time average arrays
 
 implicit none
 
-prhour(:) = 0. ! for calculating prhmax
+prhour(:) = 0._8 ! for calculating prhmax
 
 return
 end subroutine zero_nperhour
@@ -4264,7 +4260,7 @@ rnd_3hr(:,8)= 0._8       ! i.e. rnd24(:)=0.
 tmaxurban(:)= 100.
 tminurban(:)= 400.
 wsgsmax(:)  = 0.
-sunhours(:) = 0.
+sunhours(:) = 0._8
 
 if ( nextout>=4 ) then
   call setllp ! reset once per day
@@ -4311,36 +4307,45 @@ integer, intent(inout) :: koundiag
 integer iq, k
 real, dimension(ifull) :: spare1, spare2
 
+precip(1:ifull)            = precip(1:ifull) + real(condx,8)
+sno(1:ifull)               = sno(1:ifull) + real(conds,8)
+grpl(1:ifull)              = grpl(1:ifull) + real(condg,8)
+rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
+prhour(1:ifull)            = prhour(1:ifull) + real(condx/3600.,8) ! condx/dt*dt/3600 to give kg/m2/hr
+prhmax(1:ifull)            = max( prhmax(1:ifull), real(prhour) )
+
+cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
+cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
+
 tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
 tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
 rhmaxscr(1:ifull)          = max( rhmaxscr(1:ifull), rhscrn )
 rhminscr(1:ifull)          = min( rhminscr(1:ifull), rhscrn )
-rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
-prhour(1:ifull)            = prhour(1:ifull) + condx/3600. ! condx/dt*dt/3600 to give kg/m2/hr
-prhmax(1:ifull)            = max( prhmax(1:ifull), prhour )
-cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
-cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
-dew_ave(1:ifull)           = dew_ave(1:ifull) - min( 0., eg )    
-epan_ave(1:ifull)          = epan_ave(1:ifull) + epan
-epot_ave(1:ifull)          = epot_ave(1:ifull) + epot 
-eg_ave(1:ifull)            = eg_ave(1:ifull) + eg    
-fg_ave(1:ifull)            = fg_ave(1:ifull) + fg
-ga_ave(1:ifull)            = ga_ave(1:ifull) + ga
-anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + anthropogenic_flux
-urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull) + urban_storage_flux
-anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + urban_elecgas_flux
-anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull) + urban_heating_flux
-anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + urban_cooling_flux
+dew_ave(1:ifull)           = dew_ave(1:ifull) - real( min( 0., eg ), 8 )
+epan_ave(1:ifull)          = epan_ave(1:ifull) + real(epan,8)
+epot_ave(1:ifull)          = epot_ave(1:ifull) + real(epot,8) 
+eg_ave(1:ifull)            = eg_ave(1:ifull) + real(eg,8)
+fg_ave(1:ifull)            = fg_ave(1:ifull) + real(fg,8)
+ga_ave(1:ifull)            = ga_ave(1:ifull) + real(ga,8)
+anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull) + real(anthropogenic_flux,8)
+anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull) + real(urban_elecgas_flux,8)
+anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull) + real(urban_heating_flux,8)
+anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull) + real(urban_cooling_flux,8)
 tmaxurban(1:ifull)         = max( tmaxurban(1:ifull), urban_tas )
 tminurban(1:ifull)         = min( tminurban(1:ifull), urban_tas )
-rnet_ave(1:ifull)          = rnet_ave(1:ifull) + rnet
+rnet_ave(1:ifull)          = rnet_ave(1:ifull) + real(rnet,8)
 tscr_ave(1:ifull)          = tscr_ave(1:ifull) + tscrn 
 rhscr_ave(1:ifull)         = rhscr_ave(1:ifull) + rhscrn 
 wb_ave(1:ifull,1:ms)       = wb_ave(1:ifull,1:ms) + wb
 wbice_ave(1:ifull,1:ms)    = wbice_ave(1:ifull,1:ms) + wbice
-taux_ave(1:ifull)          = taux_ave(1:ifull) + taux
-tauy_ave(1:ifull)          = tauy_ave(1:ifull) + tauy
+taux_ave(1:ifull)          = taux_ave(1:ifull) + real(taux,8)
+tauy_ave(1:ifull)          = tauy_ave(1:ifull) + real(tauy,8)
 wsgsmax(1:ifull)           = max( wsgsmax(1:ifull), wsgs )
+runoff_ave(1:ifull)        = runoff_ave(1:ifull) + real(runoff,8)
+runoff_surface_ave(1:ifull) = runoff_surface_ave(1:ifull) + real(runoff_surface,8)
+snowmelt_ave(1:ifull)      = snowmelt_ave(1:ifull) + real(snowmelt,8)
+evspsbl_ave(1:ifull)       = evspsbl_ave(1:ifull) + real(evspsbl,8)
+sbl_ave(1:ifull)           = sbl_ave(1:ifull) + real(sbl,8)
 
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
@@ -4380,29 +4385,29 @@ if ( ccycle/=0 ) then
   end if
 end if
 
-sgn_ave(1:ifull)     = sgn_ave(1:ifull)  + sgsave(1:ifull)
-sgdn_ave(1:ifull)    = sgdn_ave(1:ifull) + sgdn(1:ifull)
-sgdndir_ave(1:ifull) = sgdndir_ave(1:ifull) + sgdndir(1:ifull)
+sgn_ave(1:ifull)     = sgn_ave(1:ifull)  + real(sgsave(1:ifull),8)
+sgdn_ave(1:ifull)    = sgdn_ave(1:ifull) + real(sgdn(1:ifull),8)
+sgdndir_ave(1:ifull) = sgdndir_ave(1:ifull) + real(sgdndir(1:ifull),8)
 if ( .not.always_mspeca ) then
-  sint_ave(1:ifull)  = sint_ave(1:ifull) + sint(1:ifull)
-  sot_ave(1:ifull)   = sot_ave(1:ifull)  + sout(1:ifull)
-  soc_ave(1:ifull)   = soc_ave(1:ifull)  + soutclr(1:ifull)
-  rtu_ave(1:ifull)   = rtu_ave(1:ifull)  + rt(1:ifull)
-  rtc_ave(1:ifull)   = rtc_ave(1:ifull)  + rtclr(1:ifull)
-  rgn_ave(1:ifull)   = rgn_ave(1:ifull)  + rgn(1:ifull)
-  rgc_ave(1:ifull)   = rgc_ave(1:ifull)  + rgclr(1:ifull)
-  rgdn_ave(1:ifull)  = rgdn_ave(1:ifull) + rgdn(1:ifull)
-  rgdc_ave(1:ifull)  = rgdc_ave(1:ifull) + rgdclr(1:ifull)
-  sgc_ave(1:ifull)   = sgc_ave(1:ifull)  + sgclr(1:ifull)
-  sgdc_ave(1:ifull)  = sgdc_ave(1:ifull) + sgdclr(1:ifull)
-  cld_ave(1:ifull)   = cld_ave(1:ifull)  + cloudtot(1:ifull)
-  cll_ave(1:ifull)   = cll_ave(1:ifull)  + cloudlo(1:ifull)
-  clm_ave(1:ifull)   = clm_ave(1:ifull)  + cloudmi(1:ifull)
-  clh_ave(1:ifull)   = clh_ave(1:ifull)  + cloudhi(1:ifull)
+  sint_ave(1:ifull)  = sint_ave(1:ifull) + real(sint(1:ifull),8)
+  sot_ave(1:ifull)   = sot_ave(1:ifull)  + real(sout(1:ifull),8)
+  soc_ave(1:ifull)   = soc_ave(1:ifull)  + real(soutclr(1:ifull),8)
+  rtu_ave(1:ifull)   = rtu_ave(1:ifull)  + real(rt(1:ifull),8)
+  rtc_ave(1:ifull)   = rtc_ave(1:ifull)  + real(rtclr(1:ifull),8)
+  rgn_ave(1:ifull)   = rgn_ave(1:ifull)  + real(rgn(1:ifull),8)
+  rgc_ave(1:ifull)   = rgc_ave(1:ifull)  + real(rgclr(1:ifull),8)
+  rgdn_ave(1:ifull)  = rgdn_ave(1:ifull) + real(rgdn(1:ifull),8)
+  rgdc_ave(1:ifull)  = rgdc_ave(1:ifull) + real(rgdclr(1:ifull),8)
+  sgc_ave(1:ifull)   = sgc_ave(1:ifull)  + real(sgclr(1:ifull),8)
+  sgdc_ave(1:ifull)  = sgdc_ave(1:ifull) + real(sgdclr(1:ifull),8)
+  cld_ave(1:ifull)   = cld_ave(1:ifull)  + real(cloudtot(1:ifull),8)
+  cll_ave(1:ifull)   = cll_ave(1:ifull)  + real(cloudlo(1:ifull),8)
+  clm_ave(1:ifull)   = clm_ave(1:ifull)  + real(cloudmi(1:ifull),8)
+  clh_ave(1:ifull)   = clh_ave(1:ifull)  + real(cloudhi(1:ifull),8)
 end if
-dni_ave(1:ifull)   = dni_ave(1:ifull)  + dni(1:ifull)
+dni_ave(1:ifull)   = dni_ave(1:ifull)  + real(dni(1:ifull),8)
 where ( sgdn(1:ifull)>120. )
-  sunhours(1:ifull) = sunhours(1:ifull) + dt/3600.
+  sunhours(1:ifull) = sunhours(1:ifull) + real(dt/3600.,8)
 end where
 
 if ( output_windmax/=0 ) then
@@ -4430,7 +4435,6 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   fg_ave(1:ifull)            = fg_ave(1:ifull)/min(ntau,nperavg)
   ga_ave(1:ifull)            = ga_ave(1:ifull)/min(ntau,nperavg) 
   anthropogenic_ave(1:ifull) = anthropogenic_ave(1:ifull)/min(ntau,nperavg)
-  urban_storage_ave(1:ifull) = urban_storage_ave(1:ifull)/min(ntau,nperavg)
   anth_elecgas_ave(1:ifull)  = anth_elecgas_ave(1:ifull)/min(ntau,nperavg)
   anth_heating_ave(1:ifull)  = anth_heating_ave(1:ifull)/min(ntau,nperavg)
   anth_cooling_ave(1:ifull)  = anth_cooling_ave(1:ifull)/min(ntau,nperavg) 
@@ -4482,8 +4486,8 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
     clh_ave(1:ifull)    = clh_ave(1:ifull)/min(ntau,nperavg)
   end if
   dni_ave(1:ifull)    = dni_ave(1:ifull)/min(ntau,nperavg) 
-  cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
-  ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,precc(:))  ! 1.1 for no precc
+  cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,real(precc(:)))  ! 1.1 for no precc
+  ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,real(precc(:)))  ! 1.1 for no precc
  
   if ( ngas>0 ) then
     traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)
@@ -4580,6 +4584,7 @@ implicit none
 
 integer, intent(in) :: mins_gmt, nmaxprsav
 integer iq, k, isoil
+real, dimension(ifull) :: duma
 real, dimension(ifull,kl) :: dums
 real, dimension(kl) :: spmean
 real, dimension(ifull,9) :: tmparr
@@ -4595,7 +4600,7 @@ if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
   isoil = isoilm(idjd)
   write(6,*) 'land,isoil,ivegt,isflag ',land(idjd),isoil,ivegt(idjd),isflag(idjd)
   write (6,"('snage,snowd,alb   ',f8.4,2f8.2)") snage(idjd),snowd(idjd),albvisnir(idjd,1)
-  write (6,"('sicedep,fracice,runoff ',3f8.2)") sicedep(idjd),fracice(idjd),runoff(idjd)
+  write (6,"('sicedep,fracice,runoff ',3f8.2)") sicedep(idjd),fracice(idjd),runoff_ave(idjd)
   write (6,"('tgg(1-6)   ',9f8.2)") (tgg(idjd,k),k=1,6)
   write (6,"('tggsn(1-3) ',9f8.2)") (tggsn(idjd,k),k=1,3)
   write (6,"('wb(1-6)    ',9f8.3)") (wb(idjd,k),k=1,6)
@@ -4609,7 +4614,7 @@ if ( mod(ktau,nmaxpr)==0 .and. mydiag ) then
     pwater = pwater-dsig(k)*qtot*ps(iq)/grav
   enddo
   write (6,"('pwater,condc,condx,rndmax,rmc',9f8.3)") pwater,condc(idjd),condx(idjd),rndmax(idjd),cansto(idjd)
-  write (6,"('wetfac,sno,evap,precc,precip',6f8.2)") wetfac(idjd),sno(idjd),evspsbl(idjd),precc(idjd),precip(idjd)
+  write (6,"('wetfac,sno,evap,precc,precip',6f8.2)") wetfac(idjd),sno(idjd),evspsbl_ave(idjd),precc(idjd),precip(idjd)
   write (6,"('tmin,tmax,tscr,tss,tpan',9f8.2)") tminscr(idjd),tmaxscr(idjd),tscrn(idjd),tss(idjd),tpan(idjd)
   write (6,"('u10,ustar,pblh',9f8.2)") u10(idjd),ustar(idjd),pblh(idjd)
   write (6,"('ps,qgscrn',5f8.2,f8.3)") .01*ps(idjd),1000.*qgscrn(idjd)
@@ -4685,18 +4690,21 @@ if ( mod(ktau,nmaxpr)==0 .or. ktau==ntau ) then
   call maxmin(tgg,'tg',ktau,1.,ms)
   call maxmin(tss,'ts',ktau,1.,1)
   call maxmin(pblh,'pb',ktau,1.,1)
-  call maxmin(precip,'pr',ktau,1.,1)
-  call maxmin(precc,'pc',ktau,1.,1)
+  duma = real(precip)
+  call maxmin(duma,'pr',ktau,1.,1)
+  duma = real(precc)
+  call maxmin(duma,'pc',ktau,1.,1)
   call maxmin(convpsav,'co',ktau,1.,1)
-  call maxmin(sno,'sn',ktau,1.,1)        ! as mm during timestep
+  duma = real(sno)
+  call maxmin(duma,'sn',ktau,1.,1)        ! as mm during timestep
   call maxmin(rhscrn,'rh',ktau,1.,1)
   call maxmin(ps,'ps',ktau,.01,1)
   ! MJT notes, these lines need SUMDD
   local_sum(:) = cmplx(0.,0.)
   tmparr(1:ifull,1) = ps(1:ifull)*wts(1:ifull)
   tmparr(1:ifull,2) = psl(1:ifull)*wts(1:ifull)
-  tmparr(1:ifull,3) = precc(1:ifull)*wts(1:ifull)
-  tmparr(1:ifull,4) = precip(1:ifull)*wts(1:ifull)
+  tmparr(1:ifull,3) = real(precc(1:ifull))*wts(1:ifull)
+  tmparr(1:ifull,4) = real(precip(1:ifull))*wts(1:ifull)
   ! KE calculation, not taking into account pressure weighting  
   tmparr(1:ifull,5) = 0.
   do k = 1,kl

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,24 +25,28 @@ implicit none
 
 private
 public tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd 
-public osnowd,snage,sno,grpl,gflux,sgflux,snowflx,otgsoil 
+public osnowd,snage,gflux,sgflux,snowflx,otgsoil 
 public runoff,albvisnir,snowmelt,runoff_surface
 public fracice,sicedep
 public wtd
 public isflag
 public wb_clim
+public runoff_ave, runoff_surface_ave, snowmelt_ave
+public evspsbl, sbl
 public soilsnow_init,soilsnow_end
 
 integer, dimension(:), allocatable, save :: isflag
+real, dimension(:), allocatable, save :: runoff, runoff_surface, snowmelt
+real, dimension(:), allocatable, save :: evspsbl, sbl
 real, dimension(:), allocatable, save :: ssdnn
-real, dimension(:), allocatable, save :: osnowd,snage,sno,grpl,gflux,sgflux,snowflx,otgsoil
-real, dimension(:), allocatable, save :: runoff,snowmelt,runoff_surface
+real, dimension(:), allocatable, save :: osnowd,snage,gflux,sgflux,snowflx,otgsoil
 real, dimension(:), allocatable, save :: sicedep
 real, dimension(:), allocatable, save :: fracice, snowd
 real, dimension(:), allocatable, save :: wtd
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
 real, dimension(:,:), allocatable, save :: albvisnir
 real, dimension(:,:,:), allocatable, save :: wb_clim ! allocated in indata.f90
+real(kind=8), dimension(:), allocatable, save :: runoff_ave, runoff_surface_ave, snowmelt_ave
 
 contains
 
@@ -54,8 +58,10 @@ integer, intent(in) :: ifull,ms,nsib
 
 allocate(tggsn(ifull,3),tgg(ifull,ms),wb(ifull,ms),wbice(ifull,ms))
 allocate(smass(ifull,3),ssdn(ifull,3),ssdnn(ifull),snowd(ifull))
-allocate(snage(ifull),sno(ifull),grpl(ifull),gflux(ifull))
+allocate(snage(ifull),gflux(ifull))
 allocate(runoff(ifull),albvisnir(ifull,2),snowmelt(ifull),runoff_surface(ifull))
+allocate(runoff_ave(ifull), runoff_surface_ave(ifull), snowmelt_ave(ifull) )
+allocate(evspsbl(ifull),sbl(ifull))
 allocate(fracice(ifull),sicedep(ifull))
 allocate(wtd(ifull))
 allocate(isflag(ifull))
@@ -78,17 +84,20 @@ ssdn(:,:)         = 0.
 ssdnn(:)          = 0.
 snowd(:)          = 0.
 snage(:)          = 0.
-sno(:)            = 0.
-grpl(:)           = 0.
 gflux(:)          = 0.
 runoff(:)         = 0.
 albvisnir(:,:)    = 0.
 snowmelt(:)       = 0.
 runoff_surface(:) = 0.
+evspsbl(:)        = 0.
+sbl(:)            = 0.
 fracice(:)        = 0.
 sicedep(:)        = 0.
 wtd(:)            = 0.
 isflag(:)         = 0
+runoff_ave(:)     = 0._8
+runoff_surface_ave(:) = 0._8
+snowmelt_ave(:)   = 0._8
 
 return
 end subroutine soilsnow_init
@@ -98,8 +107,10 @@ subroutine soilsnow_end
 implicit none
 
 deallocate(tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd)
-deallocate(snage,sno,grpl,gflux)
+deallocate(snage,gflux)
 deallocate(runoff,albvisnir,snowmelt,runoff_surface)
+deallocate(runoff_ave,runoff_surface_ave,snowmelt_ave)
+deallocate(evspsbl,sbl)
 deallocate(fracice,sicedep)
 deallocate(wtd)
 deallocate(isflag)

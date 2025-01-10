@@ -377,7 +377,7 @@
      &       ps(js:je),lfluxtot,convpsav(js:je),cape(js:je),
      &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd,
      &       lqlg,condc(js:je),precc(js:je),condx(js:je),
-     &       conds(js:je),condg(js:je),precip(js:je),
+     &       conds(js:je),condg(js:je),
      &       pblh(js:je),fg(js:je),wetfac(js:je),land(js:je),
      &       entrainn(js:je),lu,lv,em(js:je),
      &       kbsav(js:je),ktsav(js:je),ltr,lqfg,sgsave(js:je),
@@ -421,7 +421,7 @@
       
       subroutine convjlm_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
-     &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
+     &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,
      &       pblh,fg,wetfac,land,entrainn,u,v,em,
      &       kbsav,ktsav,tr,qfg,sgsave,
      &       upin,upin4,downex,detrarr,
@@ -514,11 +514,10 @@
       real, dimension(imax), intent(inout)             :: ocwd
       real, dimension(imax), intent(inout)             :: saltwd
       real, dimension(imax), intent(out)               :: condc
-      real, dimension(imax), intent(inout)             :: precc
+      real(kind=8), dimension(imax), intent(inout)     :: precc
       real, dimension(imax), intent(out)               :: condx
       real, dimension(imax), intent(out)               :: conds
       real, dimension(imax), intent(out)               :: condg
-      real, dimension(imax), intent(inout)             :: precip
 !      real, dimension(imax), intent(inout)             :: timeconv
       real, dimension(kl,kl), intent(in)               :: upin
       real, dimension(kl,kl), intent(in)               :: upin4
@@ -2177,12 +2176,11 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 
       qg(1:imax,:)=qq(1:imax,:)                   
       condc(1:imax)=.001*dt*rnrtc(1:imax)      ! convective precip for this timestep
-      precc(1:imax)=precc(1:imax)+condc(1:imax)       
+      precc(1:imax)=precc(1:imax)+real(condc(1:imax),8)
 !    N.B. condx used to update rnd03,...,rnd24. LS added in leoncld.f       
       condx(1:imax)=condc(1:imax)+.001*dt*rnrt(1:imax) ! total precip for this timestep
       conds(:)=0.   ! (:) here for easy use in VCAM
       condg(:)=0.   ! (:) here for easy use in VCAM
-      precip(1:imax)=precip(1:imax)+condx(1:imax)
       t(1:imax,:)=tt(1:imax,:)             
 
 
@@ -2236,8 +2234,8 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         write(6,*) 'pwater0,pwater+condx,pwater ',
      .           pwater0,pwater+condx(iq),pwater
         write(6,*) 'D condx ',condx(iq)
-        write(6,*) 'precc,precip ',
-     .           precc(iq),precip(iq)
+        write(6,*) 'precc ',
+     .           precc(iq)
        endif   ! (mydiag) needed here for maxmin
        call maxmin(rnrtc,'rc',ktau,1.,1)
       endif

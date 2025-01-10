@@ -24,16 +24,17 @@ module prec_m
 implicit none
 
 private
-public precip, precc, rnd_3hr, cape, evspsbl, sbl
+public precip, precc, rnd_3hr, cape, evspsbl_ave, sbl_ave
+public sno, grpl
 public cape_d, cin_d, li_d
 public prec_init, prec_end
-!public evap
 
-real, dimension(:), allocatable, save :: evspsbl, sbl
-real, dimension(:), allocatable, save :: cape, precc, precip
+real, dimension(:), allocatable, save :: cape
 real, dimension(:), allocatable, save :: cape_d, cin_d, li_d
+real(kind=8), dimension(:), allocatable, save :: evspsbl_ave, sbl_ave
+real(kind=8), dimension(:), allocatable, save :: precc, precip
+real(kind=8), dimension(:), allocatable, save :: sno, grpl
 real(kind=8), dimension(:,:), allocatable, save :: rnd_3hr
-!real, dimension(:), allocatable, save :: evap
 
 contains
 
@@ -44,17 +45,19 @@ implicit none
 integer, intent(in) :: ifull
 
 allocate(precip(ifull),precc(ifull),rnd_3hr(ifull,8),cape(ifull))
-allocate(evspsbl(ifull),sbl(ifull))
+allocate(sno(ifull),grpl(ifull))
+allocate(evspsbl_ave(ifull),sbl_ave(ifull))
 allocate(cape_d(ifull),cin_d(ifull),li_d(ifull))
-!allocate(evap(ifull))
+
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
-!evap(:)     = 0.
-evspsbl(:)   = 0.
-sbl(:)       = 0.
-precip(:)    = 0.
-precc(:)     = 0.
+evspsbl_ave(:) = 0._8
+sbl_ave(:)   = 0._8
+precip(:)    = 0._8
+precc(:)     = 0._8
 rnd_3hr(:,:) = 0._8
+sno(:)       = 0._8
+grpl(:)      = 0._8
 cape(:)      = 0.
 cape_d(:)    = 0.
 cin_d(:)     = 0.
@@ -68,9 +71,9 @@ subroutine prec_end
 implicit none
 
 deallocate(precip,precc,rnd_3hr,cape)
-deallocate(evspsbl,sbl)
+deallocate(sno,grpl)
+deallocate(evspsbl_ave,sbl_ave)
 deallocate(cape_d,cin_d,li_d)
-!deallocate(evap)
 
 return
 end subroutine prec_end

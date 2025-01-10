@@ -2703,11 +2703,11 @@ else if ( nsib>=6 ) then
   isoilm_in(1:ifull)     = nint( local2d(1:ifull,1) )
   ! define freshwater lakes for water bodies above sea-level
   ! MJT notes - should this be part of igbpveg preprocessing?
-  if ( freshwaterlake_fix==1 ) then
-    where ( isoilm_in(1:ifull)==0 .and. zs(1:ifull)>0.01 )
-      isoilm_in(1:ifull) = -1 ! lake
-    end where
-  end if  
+  !if ( freshwaterlake_fix==1 ) then
+  !  where ( isoilm_in(1:ifull)==0 .and. zs(1:ifull)>0.01 )
+  !    isoilm_in(1:ifull) = -1 ! lake
+  !  end where
+  !end if  
   albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
   deallocate( local2d )
   isoilm = max( isoilm_in, 0 )

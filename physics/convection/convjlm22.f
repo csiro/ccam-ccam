@@ -296,7 +296,7 @@
      &       ps(js:je),lfluxtot,convpsav(js:je),cape(js:je),
      &       lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd,
      &       lqlg,condc(js:je),precc(js:je),condx(js:je),conds(js:je),
-     &       condg(js:je),precip(js:je),
+     &       condg(js:je),
      &       pblh(js:je),fg(js:je),wetfac(js:je),land(js:je),lu,lv,
      &       em(js:je),
      &       kbsav(js:je),ktsav(js:je),ltr,lqfg,sgsave(js:je),
@@ -341,7 +341,7 @@
             
       subroutine convjlm22_work(alfin,dpsldt,t,qg,ps,
      &       fluxtot,convpsav,cape,xtg,so2wd,so4wd,bcwd,ocwd,
-     &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,precip,
+     &       dustwd,saltwd,qlg,condc,precc,condx,conds,condg,
      &       pblh,fg,wetfac,land,u,v,em,
      &       kbsav,ktsav,tr,qfg,sgsave,aug,
      &       upin,upin4,downex,
@@ -413,8 +413,7 @@
       real, dimension(imax), intent(inout)             :: condx
       real, dimension(imax), intent(inout)             :: conds
       real, dimension(imax), intent(inout)             :: condg
-      real, dimension(imax), intent(inout)             :: precc
-      real, dimension(imax), intent(inout)             :: precip
+      real(kind=8), dimension(imax), intent(inout)     :: precc
       !real, dimension(imax), intent(inout)             :: timeconv
       real, dimension(imax), intent(inout)             :: so2wd
       real, dimension(imax), intent(inout)             :: so4wd
@@ -1863,11 +1862,10 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
 
       qg(1:imax,:)=qq(1:imax,:)                   
       condc(1:imax)=.001*dt*rnrtc(1:imax)      ! convective precip for this timestep
-      precc(1:imax)=precc(1:imax)+condc(1:imax)       
+      precc(1:imax)=precc(1:imax)+real(condc(1:imax),8)
 !    N.B. condx used to update rnd03,...,rnd24. LS added in leoncld.f       
       condx(1:imax)=condc(1:imax)+.001*dt*rnrt(1:imax) ! total precip for this timestep
       conds(:)=0.   ! (:) here for easy use in VCAM
-      precip(1:imax)=precip(1:imax)+condx(1:imax)
       t(1:imax,:)=tt(1:imax,:)             
 
       if(ntest>0.or.(ktau<=2.and.nmaxpr==1))then  ! diag print near bottom
@@ -1920,8 +1918,8 @@ c         if(fluxv(iq,k)>1.)fluxtot(iq,k)=fluxtot(iq,k)+
         write(6,*) 'pwater0,pwater+condx,pwater ',
      .           pwater0,pwater+condx(iq),pwater
         write(6,*) 'D condx ',condx(iq)
-        write(6,*) 'precc,precip ',
-     .           precc(iq),precip(iq)
+        write(6,*) 'precc ',
+     .           precc(iq)
        endif   ! (mydiag) needed here for maxmin
        call maxmin(rnrtc,'rc',ktau,1.,1)
       endif

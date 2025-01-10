@@ -392,6 +392,7 @@ real, dimension(:,:), intent(out) :: ni, nr, ns
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth, opldep
+real, dimension(ifull) :: duma
 real, dimension(ifull,7) :: udum7
 real, dimension(ifull,wlev) :: oo
 real, dimension(:,:), allocatable :: ucc7
@@ -839,10 +840,11 @@ if ( newfile ) then
         ! found z* ocean levels  
         land_3d(:,:) = .false.  
         do k = 1,ok
+          ! include +0.1 to avoid rounding issues  
           land_3d(:,k) = ( land_a .or. gosig_1(k)+0.1>=ocndep_a ) 
         end do
       else
-        ! found sigma ocean levels  
+        ! found sigma ocean levels - to be depreciated
         do k = 1,ok
           land_3d(:,k) = land_a 
         end do
@@ -1602,16 +1604,22 @@ if ( nested/=1 .and. nested/=3 ) then
       call gethist1('rs',rsmin)  
     end if
     call gethist1('zolnd',zo)    
-    call gethist1('rnd',precip)
-    precip(:) = precip(:)/real(nperday)
-    call gethist1('rnc',precc)
-    precc(:) = precc(:)/real(nperday)
-    call gethist1('cll',cll_ave)    
-    call gethist1('clm',clm_ave)    
-    call gethist1('clh',clh_ave)    
-    call gethist1('cld',cld_ave)
-    call gethist1('sgdn_ave',sgdn_ave)
-    call gethist1('sgdc_ave',sgdc_ave)
+    call gethist1('rnd',duma)
+    precip(:) = real(duma/real(nperday),8)
+    call gethist1('rnc',duma)
+    precc(:) = real(duma/real(nperday),8)
+    call gethist1('cll',duma)    
+    cll_ave(:) = real(duma,8)
+    call gethist1('clm',duma)    
+    clm_ave(:) = real(duma,8)
+    call gethist1('clh',duma)    
+    clh_ave(:) = real(duma,8)
+    call gethist1('cld',duma)
+    cld_ave(:) = real(duma,8)
+    call gethist1('sgdn_ave',duma)
+    sgdn_ave(:) = real(duma,8)
+    call gethist1('sgdc_ave',duma)
+    sgdc_ave(:) = real(duma,8)
   end if
   
   !------------------------------------------------------------------
