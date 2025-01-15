@@ -104,7 +104,8 @@ integer :: tile, js, je, k, n, iq
 integer :: njumps, idjd_t
 real, dimension(imax,kl) :: lcfrac, lgfrac
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqfg, lqlrad, lqfrad, lqrg, lqsng, lrfrac, lsfrac, lt
-real, dimension(imax,kl) :: ldpsldt, lnettend, lstratcloud, lclcon, lcdrop, lrhoa
+real, dimension(imax,kl) :: ldpsldt, lstratcloud, lclcon, lcdrop, lrhoa
+real, dimension(imax,kl) :: lrad_tend, ltrb_tend, ltrb_qend
 real, dimension(imax,kl) :: lqccon
 real, dimension(imax,kl) :: lrkmsave, lrkhsave
 real, dimension(imax,kl) :: lfluxr, lfluxm, lfluxf, lfluxi, lfluxs, lfluxg
@@ -198,17 +199,18 @@ select case ( interp_ncloud(ldr,ncloud) )
       ldpsldt  = dpsldt(js:je,:)
       lclcon   = clcon(js:je,:)
       lstratcloud = stratcloud(js:je,:)
-      if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. ncloud==110 ) then
-        lnettend = nettend(js:je,:)
-        lrkmsave = rkmsave(js:je,:)
-        lrkhsave = rkhsave(js:je,:)
-      end if
+      lrad_tend = rad_tend(js:je,:)
+      ltrb_tend = trb_tend(js:je,:)
+      ltrb_qend = trb_qend(js:je,:)
+      lrkmsave = rkmsave(js:je,:)
+      lrkhsave = rkhsave(js:je,:)
 
       call update_cloud_fraction(lcfrac,land(js:je),                                &
                   ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
-                  ldpsldt,lnettend,lstratcloud,lclcon,em(js:je),pblh(js:je),idjd_t, &
-                  mydiag_t,ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,        &
-                  vdeposition_mode,tiedtke_form,lrkmsave,lrkhsave)
+                  ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
+                  em(js:je),pblh(js:je),idjd_t,mydiag_t,ncloud,nclddia,ldr,         &
+                  rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,tiedtke_form,      &
+                  lrkmsave,lrkhsave)
 
       ! This configuration allows prognostic condensate variables to be updated 
       cfrac(js:je,:) = lcfrac
@@ -220,10 +222,10 @@ select case ( interp_ncloud(ldr,ncloud) )
       qfrad(js:je,:) = lqfrad
       t(js:je,:)     = lt
       stratcloud(js:je,:) = lstratcloud
-      if ( ncloud==4 .or. (ncloud>=10.and.ncloud<=13) .or. (ncloud>=110.and.ncloud<120) ) then
-        ! Reset tendency and mass flux for next time-step  
-        nettend(js:je,:) = 0.
-      end if
+      ! Reset tendency and mass flux for next time-step  
+      rad_tend(js:je,:) = 0.
+      trb_tend(js:je,:) = 0.
+      trb_qend(js:je,:) = 0.
     end do
     !$omp end do nowait
 

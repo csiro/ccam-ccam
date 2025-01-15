@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1972,9 +1972,9 @@ if ( nested/=1 .and. nested/=3 ) then
       gfrac(1:ifull,1:kl) = max( gfrac(1:ifull,1:kl), 0. )
       gfrac(1:ifull,1:kl) = min( gfrac(1:ifull,1:kl), 1. )
     end if
-    if ( (ncloud>=4.and.ncloud<=13).or.ncloud==110 ) then
-      call gethist4a('strat_nt',nettend,5)    ! STRAT NET TENDENCY
-    end if ! (ncloud>=4)
+    call gethist4a('strat_rt',rad_tend,5)    ! STRAT RAD TENDENCY
+    call gethist4a('strat_tt',trb_tend,5)    ! STRAT TURB TENDENCY
+    call gethist4a('strat_tq',trb_qend,5)    ! STRAT TURB TENDENCY
     if ( ncloud>=100 .and. ncloud<=120 ) then
       call gethist4a('ni',ni,5)               ! Ice number concentration
       call gethist4a('nr',nr,5)               ! Rain number concentration

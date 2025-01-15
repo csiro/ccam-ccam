@@ -1930,7 +1930,7 @@ if ( iarch==1 ) then
         call attrib(idnc,dima,asize,'qsng','Snow',     'kg kg-1',0.,.065,any_m,point_m,cptype)
         call attrib(idnc,dima,asize,'qgrg','Graupel',  'kg kg-1',0.,.065,any_m,point_m,cptype)
       end if
-      call attrib(idnc,dima,asize,'cfrac','Cloud fraction',    'none',0.,1.,any_m,point_m,cptype)
+      call attrib(idnc,dima,asize,'cfrac','Cloud fraction','none',0.,1.,any_m,point_m,cptype)
       if ( itype==-1 .or. diaglevel_cloud>5 ) then
         call attrib(idnc,dima,asize,'stratcf','Strat cloud fraction','none',0.,1.,any_m,point_m,cptype)  
       end if
@@ -1941,9 +1941,9 @@ if ( iarch==1 ) then
         call attrib(idnc,dima,asize,'sfrac','Snow fraction',   'none',0.,1.,any_m,point_m,cptype)
         call attrib(idnc,dima,asize,'gfrac','Graupel fraction','none',0.,1.,any_m,point_m,cptype)
       end if
-      if ( ((ncloud>=4.and.ncloud<=13).or.ncloud==110) .and. (itype==-1.or.diaglevel_cloud>5) ) then
-        call attrib(idnc,dima,asize,'strat_nt','Strat net temp tendency','K s-1',-50.,50.,any_m,point_m,cptype)
-      end if
+      call attrib(idnc,dima,asize,'strat_rt','Strat rad temp tendency','K s-1',-50.,50.,any_m,point_m,cptype)
+      call attrib(idnc,dima,asize,'strat_tt','Strat turb temp tendency','K s-1',-50.,50.,any_m,point_m,cptype)
+      call attrib(idnc,dima,asize,'strat_tq','Strat turb qtot tendency','kg kg-1 s-1',-50.,50.,any_m,point_m,cptype)
       if ( (ncloud>=100.and.ncloud<=120) .and. (itype==-1.or.diaglevel_cloud>5) ) then
         call attrib(idnc,dima,asize,'ni','Ice number concentration','kg-1',0.,1.e10,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'nr','Rain number concentration','kg-1',0.,1.e10,any_m,point_m,float_m)
@@ -3326,9 +3326,9 @@ if ( ldr/=0 ) then
     call histwrt(sfrac,'sfrac',idnc,iarch,local,.true.)
     call histwrt(gfrac,'gfrac',idnc,iarch,local,.true.)
   end if
-  if ( ((ncloud>=4.and.ncloud<=13).or.ncloud==110) .and. (itype==-1.or.diaglevel_cloud>5) ) then 
-    call histwrt(nettend,'strat_nt',idnc,iarch,local,.true.)
-  end if
+  call histwrt(rad_tend,'strat_rt',idnc,iarch,local,.true.)
+  call histwrt(trb_tend,'strat_tt',idnc,iarch,local,.true.)
+  call histwrt(trb_qend,'strat_tq',idnc,iarch,local,.true.)
   if ( (ncloud>=100.and.ncloud<=120) .and. (itype==-1.or.diaglevel_cloud>5) ) then
     call histwrt(nr,'ni',idnc,iarch,local,.true.)  
     call histwrt(ni,'nr',idnc,iarch,local,.true.)

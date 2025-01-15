@@ -330,7 +330,7 @@
       integer :: tile, js, je
       integer :: idjd_t
       real, dimension(imax,kl,naero)   :: lxtg
-      real, dimension(imax,kl,ngas+3)  :: ltr
+      real, dimension(imax,kl,ngas)  :: ltr
       real, dimension(imax,kl)         :: ldpsldt, lt, lqg
       real, dimension(imax,kl)         :: lfluxtot
       real, dimension(imax,kl)         :: lqlg, lu, lv, lqfg
@@ -366,11 +366,8 @@
           locwd   = ocwd(js:je)
           lsaltwd = saltwd(js:je)
         end if
-        ltr(:,:,1) = qrg(js:je,:)
-        ltr(:,:,2) = qsng(js:je,:)
-        ltr(:,:,3) = qgrg(js:je,:)
         if ( ngas>0 ) then
-          ltr(:,:,4:ngas+3) = tr(js:je,:,1:ngas)
+          ltr(:,:,1:ngas) = tr(js:je,:,1:ngas)
         end if
 
         call convjlm_work(alfin(js:je),ldpsldt,lt,lqg,
@@ -404,13 +401,8 @@
           ocwd(js:je) = locwd
           saltwd(js:je) = lsaltwd
         end if
-        if ( adv_precip>= 1 ) then
-          qrg(js:je,:) = ltr(:,:,1)
-          qsng(js:je,:) = ltr(:,:,2)
-          qgrg(js:je,:) = ltr(:,:,3)
-        end if  
         if ( ngas>0 ) then
-          tr(js:je,:,1:ngas) = ltr(:,:,4:ngas+3)
+          tr(js:je,:,1:ngas) = ltr(:,:,1:ngas)
         end if
        
       end do

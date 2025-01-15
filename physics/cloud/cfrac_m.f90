@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -26,7 +26,9 @@ module cfrac_m
 ! rfrac is the total rain fraction (not including convection)
 ! sfrac is the total snow fraction
 ! gfrac is the total graupel fraction
-! nettend is the temperature tendency for prognostic cloud (ncloud>3)
+! rad_tend is the temperature tendency for radiation
+! trb_tend is the temperature tendency for turbulent mixing
+! trb_qend is the total water tendency for turbulent mixing
     
 implicit none
 
@@ -34,13 +36,13 @@ private
 public cfrac, rfrac
 public sfrac, gfrac
 public stratcloud
-public nettend
+public rad_tend, trb_tend, trb_qend
 public cfrac_init,cfrac_end
 
 real, dimension(:,:), allocatable, save :: cfrac,rfrac
 real, dimension(:,:), allocatable, save :: sfrac,gfrac
 real, dimension(:,:), allocatable, save :: stratcloud
-real, dimension(:,:), allocatable, save :: nettend
+real, dimension(:,:), allocatable, save :: rad_tend, trb_tend, trb_qend
 
 contains
 
@@ -53,16 +55,15 @@ integer, intent(in) :: ifull, iextra, kl, ncloud
 allocate(cfrac(ifull,kl),rfrac(ifull,kl))
 allocate(sfrac(ifull,kl),gfrac(ifull,kl))
 allocate(stratcloud(ifull+iextra,kl))
+allocate(rad_tend(ifull,kl),trb_tend(ifull,kl),trb_qend(ifull,kl))
 cfrac = 0.
 rfrac = 0.
 sfrac = 0.
 gfrac = 0.
 stratcloud = 0.
-
-if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==110 ) then
-  allocate(nettend(ifull,kl))
-  nettend = 0.
-end if
+rad_tend = 0.
+trb_tend = 0.
+trb_qend = 0.
 
 return
 end subroutine cfrac_init
@@ -74,10 +75,7 @@ implicit none
 deallocate(cfrac,rfrac)
 deallocate(sfrac,gfrac)
 deallocate(stratcloud)
-
-if ( allocated(nettend) ) then
-  deallocate(nettend)
-end if
+deallocate(rad_tend,trb_tend,trb_qend)
 
 return
 end subroutine cfrac_end

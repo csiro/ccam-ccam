@@ -642,15 +642,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! RADIATION -------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(radnet_begin)
-    if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==110 ) then
-      !$omp do schedule(static) private(js,je)
-      do tile = 1,ntiles
-        js = (tile-1)*imax + 1
-        je = tile*imax
-        nettend(js:je,1:kl) = nettend(js:je,1:kl) + t(js:je,1:kl)/dt
-      end do
-      !$omp end do nowait
-    end if   ! (ncloud>=4.and.ncloud<=13).or.ncloud=110
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      rad_tend(js:je,1:kl) = rad_tend(js:je,1:kl) - t(js:je,1:kl)/dt
+    end do
+    !$omp end do nowait
     select case ( nrad )
       case(4)
         !$omp barrier  
@@ -686,6 +684,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     je = tile*imax
     do k = 1,kl
       t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
+      rad_tend(js:je,k) = rad_tend(js:je,k) + t(js:je,k)/dt
     end do
     call nantest("after radiation",js,je,"radiation")    
   end do
@@ -760,18 +759,25 @@ do ktau = 1,ntau   ! ****** start of main time loop
         !$omp end master
       end if
     end if
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      trb_tend(js:je,1:kl) = trb_tend(js:je,1:kl) - t(js:je,1:kl)/dt
+      trb_qend(js:je,1:kl) = trb_qend(js:je,1:kl) - qg(js:je,1:kl)/dt - qlg(js:je,1:kl)/dt - qfg(js:je,1:kl)/dt
+    end do
+    !$omp end do nowait
     if ( ntsur>=1 ) then
       call turbmix
     end if  ! (ntsur>=1)
-    if ( (ncloud>=4.and.ncloud<=13) .or. ncloud==110 ) then
-      !$omp do schedule(static) private(js,je)
-      do tile = 1,ntiles
-        js = (tile-1)*imax + 1
-        je = tile*imax
-        nettend(js:je,1:kl) = nettend(js:je,1:kl) - t(js:je,1:kl)/dt
-      end do
-      !$omp end do nowait
-    end if   ! (ncloud>=4.and.ncloud<=13).or.ncloud=110
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      trb_tend(js:je,1:kl) = trb_tend(js:je,1:kl) + t(js:je,1:kl)/dt
+      trb_qend(js:je,1:kl) = trb_qend(js:je,1:kl) + qg(js:je,1:kl)/dt + qlg(js:je,1:kl)/dt + qfg(js:je,1:kl)/dt
+    end do
+    !$omp end do nowait
     if ( nmaxpr==1 ) then
       if ( mydiag .and. ntiles==1 ) then
         !$omp master

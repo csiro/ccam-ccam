@@ -50,9 +50,10 @@ contains
 ! This subroutine is the interface for the LDR cloud microphysics
 subroutine update_cloud_fraction(cfrac,land,                             &
                     ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                   &
-                    dpsldt,nettend,stratcloud,clcon,em,pblh,idjd,mydiag, &
-                    ncloud,nclddia,ldr,rcrit_l,rcrit_s,rcm,cld_decay,    &
-                    vdeposition_mode,tiedtke_form,rkmsave,rkhsave)
+                    dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,clcon,  &
+                    em,pblh,idjd,mydiag,ncloud,nclddia,ldr,rcrit_l,      &
+                    rcrit_s,rcm,cld_decay,vdeposition_mode,              &
+                    tiedtke_form,rkmsave,rkhsave)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -66,7 +67,7 @@ integer, intent(in) :: idjd, ncloud, nclddia, ldr, vdeposition_mode
 integer, intent(in) :: tiedtke_form
 real, dimension(size(t,1),size(t,2)), intent(inout) :: qg, qlg, qfg
 real, dimension(size(t,1),size(t,2)), intent(out) :: qlrad, qfrad
-real, dimension(size(t,1),size(t,2)), intent(inout) :: nettend
+real, dimension(size(t,1),size(t,2)), intent(inout) :: rad_tend, trb_tend, trb_qend
 real, dimension(size(t,1),size(t,2)), intent(inout) :: stratcloud
 real, dimension(size(t,1),size(t,2)), intent(out) :: qccon, cfrac
 real, dimension(size(t,1),size(t,2)), intent(in) :: dpsldt, rkmsave, rkhsave
@@ -186,10 +187,11 @@ do k = 1,kl
 end do
 
 !     Calculate cloud fraction and cloud water mixing ratios
-call newcloud(dt,land,prf,rhoa,tliq,qtot,qcg,fice,      &
-              dpsldt,nettend,stratcloud,em,pblh,idjd,   &
-              mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
-              tiedtke_form,rkmsave,rkhsave,imax,kl)
+call newcloud(dt,land,ps,prf,rhoa,tliq,qtot,qcg,fice,   &
+              dpsldt,rad_tend,trb_tend,trb_qend,        &
+              stratcloud,em,pblh,idjd,mydiag,ncloud,    &
+              nclddia,rcrit_l,rcrit_s,tiedtke_form,     &
+              rkmsave,rkhsave,imax,kl)
 
 ! Update condensate
 call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
@@ -341,10 +343,11 @@ end select
 return
 end function calc_fice
   
-subroutine newcloud(tdt,land,prf,rhoa,tliq,qtot,qcg,fice,     &
-                    dpsldt,nettend,stratcloud,em,pblh,idjd,   &
-                    mydiag,ncloud,nclddia,rcrit_l,rcrit_s,    &
-                    tiedtke_form,rkmsave,rkhsave,imax,kl)
+subroutine newcloud(tdt,land,ps,prf,rhoa,tliq,qtot,qcg,fice,  &
+                    dpsldt,rad_tend,trb_tend,trb_qend,        &
+                    stratcloud,em,pblh,idjd,mydiag,ncloud,    &
+                    nclddia,rcrit_l,rcrit_s,tiedtke_form,     &
+                    rkmsave,rkhsave,imax,kl)
 
 ! This routine is part of the prognostic cloud water scheme
 
@@ -366,9 +369,9 @@ real, dimension(imax,kl), intent(in) :: qtot
 real, dimension(imax,kl), intent(in) :: fice
 real, dimension(imax,kl), intent(inout) :: qcg
 real, dimension(imax,kl), intent(in) :: dpsldt, rkmsave, rkhsave
-real, dimension(imax,kl), intent(inout) :: nettend
+real, dimension(imax,kl), intent(inout) :: rad_tend, trb_tend, trb_qend
 real, dimension(imax,kl), intent(inout) :: stratcloud
-real, dimension(imax), intent(in) :: em, pblh
+real, dimension(imax), intent(in) :: em, pblh, ps
 real, dimension(kl) :: rfull
 real, intent(in) :: tdt
 real, intent(in) :: rcrit_l, rcrit_s
@@ -621,9 +624,9 @@ else
   qsl(:,:) = qsi(:,:) + epsil*deles(:,:)/pk(:,:) ! Liquid value
   qsw(:,:) = fice(:,:)*qsi(:,:) + (1.-fice(:,:))*qsl(:,:)  ! Weighted qs at temperature Tliq
 
-  call progcloud(tdt,qcg,qtot,prf,rhoa,fice,qsw,tliq,rcrit,  &
-                 dpsldt,nettend,stratcloud,tiedtke_form,     &
-                 rkmsave,rkhsave,imax,kl)
+  call progcloud(tdt,qcg,qtot,ps,prf,rhoa,fice,qsw,tliq,rcrit,  &
+                 dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,  &
+                 tiedtke_form,rkmsave,rkhsave,imax,kl)
 
 end if ! ncloud/=4 .and. ncloud<10 ..else..
 
@@ -747,7 +750,7 @@ end if ! vdeposition_mode==0 ..else..
 ! Calculate new values of vapour mixing ratio and temperature
 do k = 1,kl
   do iq = 1,imax
-    qtg(iq,k) = qtot(iq,k) - qcg(iq,k)
+    qtg(iq,k) = max( qtot(iq,k) - qcg(iq,k), 0. )
     ttg(iq,k) = tliq(iq,k) + hlcp*qcg(iq,k) + hlfcp*qfg(iq,k)
   end do
 end do
@@ -756,9 +759,9 @@ return
 end subroutine saturation_adjustment
 
 
-subroutine progcloud(dt,qc,qtot,press,rho,fice,qs,tliq,rcrit, &
-                     dpsldt,nettend,stratcloud,tiedtke_form, &
-                     rkmsave,rkhsave,imax,kl)
+subroutine progcloud(dt,qc,qtot,ps,press,rho,fice,qs,tliq,rcrit,   &
+                     dpsldt,rad_tend,trb_tend,trb_qend,stratcloud, &
+                     tiedtke_form,rkmsave,rkhsave,imax,kl)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -772,19 +775,19 @@ integer iq, k
 real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
 real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, tliq, rcrit, press
 real, dimension(imax,kl), intent(in) :: dpsldt, rkmsave, rkhsave
-real, dimension(imax,kl), intent(inout) :: nettend
+real, dimension(imax,kl), intent(inout) :: rad_tend, trb_tend, trb_qend
 real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax,kl) :: new_stratcloud, new_qcg
-real, dimension(imax) :: aa, bb, cc, a_dt, b_dt, cf1, cfeq
+real, dimension(imax), intent(in) :: ps
+real, dimension(imax) :: aa, bb, cc, a_dt, b_dt, cf1, cfeq, cfbar
 real, dimension(imax) :: qv, omega, hlrvap, dqsdt, gam, dqs
 real, dimension(imax) :: da
-real, dimension(imax) :: dqs_omega, dqs_radiation
+real, dimension(imax) :: dqs_adiabatic, dqs_radiation, dqs_turbulence
 real, intent(in) :: dt
 real, dimension(imax,kl) :: erosion_scale
 real, parameter :: erosion_scale_d = 1.e-6
 real, parameter :: erosion_scale_t = 5.e-5
 real, parameter :: diff_threshold_t = 0.1
-real, parameter :: u00 = 0.8
 real al, delq, qc_local
 
 ! calculate diagnostic cloud fraction using Smith.  This is uses for cloud initialisation
@@ -816,7 +819,7 @@ do k = 1,kl
   end do ! iq loop
 end do   ! k loop
 
-! use diagnostic cloud as seed for new cloud
+! use diagnostic cloud as seed for new cloud, following PC2
 where ( new_stratcloud(:,:)>1.e-10 .and. stratcloud(:,:)<=1.e-10 )
   stratcloud(:,:) = new_stratcloud(:,:)
   qc(:,:) = new_qcg(:,:)
@@ -844,9 +847,16 @@ select case(tiedtke_form)
 
   case(2)  
     ! PC2 version  
+
+    ! da_erosion = -0.5*(1-stratcloud)^2 * Qc * (1/bs)*dbsdt / aL*(qsat - qv )
+    ! Qc = aL*(qt-qsat)
+    ! (1/bs)*dbsdt = -2.25e-5*exp(-3.1*Qc/(aL*qsat)
+    ! aL = 1/( 1 + dqsdT*L/Cp ) = 1/(1+gamma)  
     do k = 1,kl
-      erosion_scale(:,k) =  -0.5*(1.-stratcloud(:,k))**2/max(stratcloud(:,k),1.e-10) &
-          *(qtot(:,k)-qs(:,k))*(-2.25e-5)*exp(-3.1*(qtot(:,k)-qs(:,k))/qs(:,k))
+      qv = qtot(:,k) - qc(:,k)   
+      erosion_scale(:,k) = 0.5*(1.-stratcloud(:,k))**2/max(stratcloud(:,k),1.e-10)  &
+          *(qtot(:,k)-qs(:,k))*(-2.25e-5)*exp(-3.1*(qtot(:,k)-qs(:,k))/qs(:,k))     &
+          /max(qs(:,k)-qv,1.e-8)
     end do
     
   case default
@@ -854,30 +864,7 @@ select case(tiedtke_form)
     stop
 end select      
 
-
-! PC2 scheme
-
-! da = da_radiation + da_microphysics + da_boundary + da_orographic + da_erosion + da_adiabatic
-
-! da_radiation = -0.5*(1-stratcloud)^2 * dqsdT*nettend_radiation / (qsat - qv)
-! da_microphysics = 
-! da_boundary = (1-stratcloud)^2 * ( dqtdt - dqsdT*nettend_boundary ) / (qsat-qv)
-! da_orographic = 0.
-! da_erosion = -0.5*(1-stratcloud)^2 * Qc * (1/bs)*dbsdt / aL*(qsat - qv )
-! da_adiabatic = 
-! Qc = aL*(qt-qsat)
-! (1/bs)*dbsdt = -2.25e-5*exp(-3.1*Qc/(aL*qsat)
-! aL = 1/( 1 + dqsdT*L/Cp ) = 1/(1+gamma)
-
-! dqs = dqs_radiation + dqs_microphysics + dqs_boundary + dqs_orographic + dqs_erosion + dqs_adiabatic
-! dqs_radiation = dqsdT*nettend_radiation*dt
-! dqs_microphysics =
-! dqs_boundary = -2.*(dqtdt - dqsdT*nettend_boundary)*dt
-! dqs_orographic = 0.
-! dqs_erosion = (qt-qsat)*( -2.25e-5)*exp(-3.1*(qt-qsat)/qsat)*dt
-! dqs_adiabatic =
-
-
+  
 ! Tiedtke scheme
 
 ! calculate dqs = ( (omega+grav*Mc)/(cp*rho) + nettend )*dqsdT*dt
@@ -899,35 +886,35 @@ end select
 ! BB = -(1+gamma*stratcloud)
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
-! da = -AA*dqs/gamma
-
 do k = 1,kl
   stratcloud(:,k) = max( min( stratcloud(:,k), 1. ), 0. )
 
   qv(:) = qtot(:,k) - qc(:,k)
   ! calculate vertical velocity, dqs/dT and gamma
-  omega(:) = press(:,k)*dpsldt(:,k)
+  omega(:) = ps(:)*dpsldt(:,k) 
   hlrvap(:) = (hl+fice(:,k)*hlf)/rvap
   dqsdT(:) = qs(:,k)*hlrvap/(tliq(:,k)**2)
   gam(:) = (hlcp+fice(:,k)*hlfcp)*dqsdT
   
-  dqs_omega(:) = omega/(cp*rho(:,k))*dqsdT
-  dqs_radiation(:) = nettend(:,k)*dqsdT
+  ! tiedtke_form==1
+  dqs_adiabatic(:) = omega/(cp*rho(:,k))*dqsdT
+  dqs_radiation(:) = rad_tend(:,k)*dqsdT
+  dqs_turbulence(:) = trb_tend(:,k)*dqsdT ! - trb_qend(:,k) in PC2
+  !dqs_convection(:) = grav*cmflx(:,k)/(cp*rho(:,k))*dqsdT
   
   !cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dqsdT
-  cc = (dqs_omega(:)+dqs_radiation(:))*dqsdT ! neglect cmflx
   aa = 0.25*gam(:)*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )
-  bb = -(1.+gam(:)*stratcloud(:,k))
-  !dqs = ( bb - sqrt( bb**2 - 4.*aa*cc ) ) / (2.*aa) ! GFDL style
+  bb = -(1.+gam(:)*stratcloud(:,k))  
+  cc = dqs_adiabatic(:) + dqs_radiation(:) + dqs_turbulence(:) ! neglect dqs_convection
   dqs = 2.*cc/( -bb + sqrt( bb**2 - 4.*aa*cc ) ) ! alternative form of quadratic equation
-  !da = -aa(:)*dqs(:)/gam(:)
-  da = -0.25*dqs*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )
+  !da = -2.*aa(:)*dqs(:)/gam(:)
+  da = -0.5*dqs*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )
 
   ! Large scale cloud formation via condensation (A)
   ! Large scale cloud destruction via erosion (B)
   where ( qc(:,k)>1.e-8 )
     !a_dt = da/max(1.-stratcloud(:,k),1.e-10)
-    a_dt = max( -dqs*0.25*(1.-stratcloud(:,k))/max( qs(:,k)-qv, 1.e-8 ), 0. )
+    a_dt = max( -0.5*dqs*(1.-stratcloud(:,k))/max( qs(:,k)-qv, 1.e-8 ), 0. )
     !a_dt = da_erosion/max(stratcloud(:,k),1.e-10)
   elsewhere
     a_dt = 0.  
@@ -946,17 +933,17 @@ do k = 1,kl
   where ( a_dt+b_dt>1.e-20 )
     cfeq  = a_dt/(a_dt+b_dt)
     cf1   = cfeq + (stratcloud(:,k) - cfeq)*exp(-(a_dt+b_dt)*dt)
-    !cfbar = cfeq + (stratcloud(:,k) - cf1 )/((a_dt+b_dt)*dt)
+    cfbar = cfeq + (stratcloud(:,k) - cf1 )/((a_dt+b_dt)*dt)
   elsewhere
     cfeq  = stratcloud(:,k)
     cf1   = stratcloud(:,k)
-    !cfbar = stratcloud(:,k)
+    cfbar = stratcloud(:,k)
   end where
   
   ! Change in condensate
   ! dqc = -dqs*(stratcloud+0.5*da)
-  qc(:,k) = max( qc(:,k) - dqs*(cf1+0.5*da)*dt, 0.)
-  !qc(:,k) = max( qc(:,k) - cfbar*dqs, 0. )
+  !qc(:,k) = min( max( qc(:,k) - dqs*(cf1+0.5*da)*dt, 0.), qtot(:,k) )
+  qc(:,k) = max( qc(:,k) - cfbar*dqs, 0. )
 
   stratcloud(:,k) = max( min( cf1, 1. ), 0. )
 
