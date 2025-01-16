@@ -53,6 +53,7 @@ public itracbc, itracoc, itracso2
 public itracdu, ndust, itracsa, nsalt
 
 public ch_dust, zvolcemi, so4mtn, carbmtn, saltsmallmtn, saltlargemtn, enhanceu10
+public scav_effl
 public dustreff
 
 integer, save :: ilon, ilat, ilev
@@ -68,6 +69,12 @@ real, dimension(:,:), allocatable, save :: pprfreeze                           !
 real, dimension(:), allocatable, save :: rlev
 real, dimension(:), allocatable, save :: zdayfac
 real, parameter :: wlc = 0.2e-3         ! LWC of deep conv cloud (kg/m**3)
+
+! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
+! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
+!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05,0.05,0.05/) ! liquid
+real, parameter, dimension(naero) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,0.3,0.3,0.3,0.3,0.05,0.05/) ! liquid
+!real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/) ! ice
 
 integer, save :: aero_split  = 0 ! Method of time-split (0 = before mixing, 1 = after mixing)
 integer, save :: aerosol_u10 = 0 ! update for 10m winds (0 = diagnostic, 1 = recalculate)
@@ -847,9 +854,6 @@ end subroutine cldrop
 ! Aerosol scavenging fraction for convective clouds
 
 subroutine convscav(fscav,xpkp1,xpold,tt,xs,rho)
-#ifdef GPUPHYSICS
-!$acc routine vector
-#endif
 
 implicit none
 
@@ -867,18 +871,23 @@ real zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
 real scav_effs
 logical, dimension(size(fscav,1),size(fscav,2)) :: bwkp1 
 
-! In-cloud scavenging efficiency for liquid and frozen convective clouds follows.
-! Note that value for SO2 (index 2) is overwritten by Henry coefficient f_so2 below.
-!real, parameter, dimension(naero) :: scav_effl = (/0.00,1.00,0.90,0.00,0.30,0.00,0.30,0.05,0.05,0.05,0.05,0.05,0.05/) ! liquid
-real, parameter, dimension(naero) :: scav_effl = (/0.0,1.0,0.9,0.0,0.3,0.0,0.3,0.3,0.3,0.3,0.3,0.05,0.05/) ! liquid
-!real, parameter, dimension(naero) :: scav_effi = (/0.00,0.00,0.00,0.05,0.00,0.05,0.00,0.05,0.05,0.05,0.05,0.05,0.05/) ! ice
-
 !bwkp1(:) = tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)
 bwkp1(:,:) = .true.        ! assume liquid for JLM convection
 
 work(:,:) = min(max(xpold(:,:)-xpkp1(:,:),0.)/max(xpold(:,:),1.E-20),1.)
 
-ntr = 1
+do ntr = 1,naero
+  !where ( bwkp1 )
+    ! Wet deposition scavenging fraction
+    fscav(:,:,ntr) = scav_effl(ntr)*work(:,:)
+  !elsewhere
+  !  fscav(:,:,ntr) = scav_effi(ntr)*work(:,:)
+  !end where
+  fscav(:,:,ntr) = min( fscav(:,:,ntr), 1. )
+end do
+
+! replace SO2
+ntr = 2
 do k = 1,size(fscav,2)
   do iq = 1,size(fscav,1)
     !if ( bwkp1(iq,k) ) then
@@ -913,16 +922,6 @@ do k = 1,size(fscav,2)
   end do
 end do
 fscav(:,:,ntr) = min( fscav(:,:,ntr), 1. )
-
-do ntr = 2,naero
-  !where ( bwkp1 )
-    ! Wet deposition scavenging fraction
-    fscav(:,:,ntr) = scav_effl(ntr)*work(:,:)
-  !elsewhere
-  !  fscav(:,:,ntr) = scav_effi(ntr)*work(:,:)
-  !end where
-  fscav(:,:,ntr) = min( fscav(:,:,ntr), 1. )
-end do
 
 return
 end subroutine convscav

@@ -11,16 +11,6 @@ VPATH += :chemistry/aerosol:chemistry/tracers
 INC = -I .
 
 
-ifeq ($(GPU),yes)
-USE_GPU=yes
-endif
-ifeq ($(GPUPHYSICS),yes)
-USE_GPU=yes
-endif
-ifeq ($(GPUCHEMISTRY),yes)
-USE_GPU=yes
-endif
-
 # Common compiler flags
 ifneq ($(CUSTOM),yes)
 NCFLAG = -I $(NETCDF_ROOT)/include
@@ -106,14 +96,8 @@ FOVERRIDE =
 ZMM =
 IPOFLAG =
 VTHRESH =
-ifeq ($(USE_GPU),yes)
+ifeq ($(GPU),yes)
 FFLAGS += -DGPU -foffload=nvptx-none
-endif
-ifeq ($(GPUPHYSICS),yes)
-FFLAG += -DGPUPHYSICS
-endif
-ifeq ($(GPUCHEMISTRY),yes)
-FFLAGS += -DGPUCHEMISTRY
 endif
 ifeq ($(OMP),yes)
 FFLAGS += -fopenmp
@@ -171,16 +155,10 @@ else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
 FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
-ifeq ($(USE_GPU),yes)
+ifeq ($(GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
 FFLAGS += -Minfo=accel -acc -gpu=cuda12.2,fastmath,flushz -DGPU
 #-ta=tesla:cc70
-endif
-ifeq ($(GPUPHYSICS),yes)
-FFLAGS += -DGPUPHYSICS
-endif
-ifeq ($(GPUCHEMISTRY),yes)
-FFLAGS += -DGPUCHEMISTRY
 endif
 ifeq ($(OMP),yes)
 FFLAGS += -mp
@@ -361,7 +339,7 @@ optical_path.o gas_tf.o lw_gases_stdtf.o \
 mlodynamics.o mlodynamicsarrays_m.o mlodiffg.o mlostag.o mlodepts.o mloints.o mlovadvtvd.o \
 darcdf_m.o dates_m.o filnames_m.o newmpar_m.o parm_m.o parmdyn_m.o parmgeom_m.o \
 parmhor_m.o soilv_m.o stime_m.o \
-netcdf_m.o parmvert_m.o module_aux_cosp.o module_ctrl_convection.o
+netcdf_m.o parmvert_m.o module_aux_cosp.o module_ctrl_convection.o 
 
 
 globpea: $(OBJS)

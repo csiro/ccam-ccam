@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -63,9 +63,12 @@ end subroutine ctrl_convection
 subroutine grell_ccam
 
 ! specify module to use global variables
+use aerointerface                 ! Aerosol interface
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use const_phys                    ! Physical constants
-!use cu_gf_deep                    ! Grell convection
+#ifdef grell
+use cu_gf_deep                    ! Grell convection
+#endif
 use kuocom_m                      ! JLM convection
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
@@ -116,8 +119,8 @@ integer, dimension(imax)         :: kbcon,ktop
 real, dimension(imax)    :: frh_out
 integer, dimension(imax)         :: ierr
 character(len=50), dimension(imax) :: ierrc                    ! CHECK THIS
-real, dimension(imax,kl,0)  :: chem3d                          ! CHECK THIS
-real, dimension(imax,0)     :: wetdpc_deep                     ! CHECK THIS
+real, dimension(imax,kl,naero)  :: chem3d                      ! CHECK THIS
+real, dimension(imax,naero)     :: wetdpc_deep                 ! CHECK THIS
 logical                     :: do_smoke_transport              ! CHECK THIS
 real, dimension(imax)    :: rand_mom,rand_vmas
 real, dimension(imax,4)  :: rand_clos
@@ -129,7 +132,7 @@ real, dimension(imax,kl) :: thz, tothz
 real prf_temp, prf
 real, dimension(imax,kl) :: zpres, zcdrop
 integer                          :: kk, i
-real                             :: fscav(0)
+real, dimension(naero)           :: fscav
 real, dimension(imax)            :: cap_suppress_j
 integer, dimension(2) :: posmin, posmax
 integer, dimension(3) :: posmin3, posmax3
@@ -137,7 +140,9 @@ integer, dimension(3) :: posmin3, posmax3
 real                  :: maxconvtime = 120.  ! time-step for convection
 real                  :: tdt
 
-!qamin = qgmin
+#ifdef grell
+qamin = qgmin
+#endif
 
 ! begin do loop here
   do tile=1,ntiles
@@ -234,11 +239,19 @@ real                  :: tdt
     frh_out    = 0.              ! fractional coverage
     ierr       = 0.              ! ierr flags are error flags, used for debugging
     ierrc      = ''              ! the following should be set to zero if not available
-    nchem      = 0
-    fscav      = 0
-    chem3d     = 0.
-    wetdpc_deep= 0.
-    do_smoke_transport  = .false.
+    if ( abs(iaero)>=2 ) then
+      nchem      = naero
+      fscav(1:naero) = scav_effl(1:naero)
+      chem3d(1:imax,1:kl,1:naero) = xtg(js:je,1:kl,1:naero)
+      wetdpc_deep(1:imax,1:naero)= 0.
+      do_smoke_transport = .false.
+    else
+      nchem       = 0
+      fscav       = 0.
+      chem3d      = 0.
+      wetdpc_deep = 0.
+      do_smoke_transport = .false.
+    end if
     rand_mom            = 0     ! for stochastics mom, if temporal and spatial patterns exist
     rand_vmas           = 0     ! for stochastics vertmass, if temporal and spatial patterns exist
     rand_clos           = 0     ! for stochastics closures, if temporal and spatial patterns exist
@@ -253,87 +266,91 @@ real                  :: tdt
     g_pre(1:imax) = 0.
     g_qfg(1:imax,1:kl) = 0.
     g_qlg(1:imax,1:kl) = 0.
+    
+    ! MJT notes - still need to include aerosol transport and scavenging
 
     ! Use sub time-step if required
     njumps = int(dtime/(maxconvtime+0.01)) + 1
     tdt    = real(dtime/real(njumps))
     do n = 1,njumps
       pre=0.
-!      call cu_gf_deep_run(   &
-!               itf           &
-!              ,ktf           &
-!              ,its           &
-!              ,ite           &
-!              ,kts           &
-!              ,kte           &
-!              ,dicycle       &  ! diurnal cycle flag
-!              ,ichoice       &  ! choice of closure, use "0" for ensemble average
-!              ,ipr           &  ! this flag can be used for debugging prints
-!              ,ccn           &  ! not well tested yet
-!              ,ccnclean      &
-!              ,tdt           &  ! dt over which forcing is applied
-!              ,imid          &  ! flag to turn on mid level convection
-!              ,kpbl          &  ! level of boundary layer height
-!              ,dhdt          &  ! boundary layer forcing (one closure for shallow)
-!              ,xland         &  ! land mask
-!              ,zo            &  ! heights above surface
-!              ,forcing       &  ! only diagnostic
-!              ,g_t           &  ! t before forcing
-!              ,g_q           &  ! q before forcing
-!              ,z1            &  ! terrain
-!              ,g_t           &  ! t including forcing
-!              ,g_q           &  ! q including forcing
-!              ,po            &  ! pressure (mb)
-!              ,psur          &  ! surface pressure (mb)
-!              ,g_us          &  ! u on mass points
-!              ,g_vs          &  ! v on mass points
-!              ,g_rho         &  ! density
-!              ,hfx           &  ! w/m2, positive upward
-!              ,qfx           &  ! w/m2, positive upward
-!              ,dx            &  ! dx is grid point dependent here
-!              ,mconv         &  ! integrated vertical advection of moisture
-!              ,omeg          &  ! omega (pa/s)
-!              ,csum          &  ! used to implement memory, set to zero if not avail
-!              ,cnvwt         &  ! gfs needs this
-!              ,zuo           &  ! nomalized updraft mass flux
-!              ,zdo           &  ! nomalized downdraft mass flux
-!              ,zdm           &  ! nomalized downdraft mass flux from mid scheme
-!              ,edto          &  !
-!              ,edtm          &  !
-!              ,xmb_out       &  ! the xmb's may be needed for dicycle
-!              ,xmbm_in       &  !
-!              ,xmbs_in       &  !
-!              ,pre           &  !
-!              ,outu          &  ! momentum tendencies at mass points
-!              ,outv          &  !
-!              ,outt          &  ! temperature tendencies
-!              ,outq          &  ! q tendencies
-!              ,outqc         &  ! ql/qice tendencies
-!              ,kbcon         &  ! lfc of parcel from k22
-!              ,ktop          &  ! cloud top
-!              ,cupclw        &  ! used for direct coupling to radiation, but with tuning factors
-!              ,frh_out       &  ! fractional coverage
-!              ,ierr          &  ! ierr flags are error flags, used for debugging
-!              ,ierrc         &  ! the following should be set to zero if not available
-!              ,nchem         &
-!              ,fscav         &
-!              ,chem3d        &
-!              ,wetdpc_deep   &
-!              ,do_smoke_transport   &
-!              ,rand_mom      &  ! for stochastics mom, if temporal and spatial patterns exist
-!              ,rand_vmas     &  ! for stochastics vertmass, if temporal and spatial patterns exist
-!              ,rand_clos     &  ! for stochastics closures, if temporal and spatial patterns exist
-!              ,nranflag      &  ! flag to what you want perturbed
-!                                !! 1 = momentum transport
-!                                !! 2 = normalized vertical mass flux profile
-!                                !! 3 = closures
-!                                !! more is possible, talk to developer or
-!                                !! implement yourself. pattern is expected to be
-!                                !! betwee -1 and +1
-!              ,do_capsuppress,cap_suppress_j    &    !
-!              ,k22                              &    !
-!              ,jmin,kdt,tropics) !                 &
-!!              ,outliqice)           !
+#ifdef grell      
+      call cu_gf_deep_run(   &
+               itf           &
+              ,ktf           &
+              ,its           &
+              ,ite           &
+              ,kts           &
+              ,kte           &
+              ,dicycle       &  ! diurnal cycle flag
+              ,ichoice       &  ! choice of closure, use "0" for ensemble average
+              ,ipr           &  ! this flag can be used for debugging prints
+              ,ccn           &  ! not well tested yet
+              ,ccnclean      &
+              ,tdt           &  ! dt over which forcing is applied
+              ,imid          &  ! flag to turn on mid level convection
+              ,kpbl          &  ! level of boundary layer height
+              ,dhdt          &  ! boundary layer forcing (one closure for shallow)
+              ,xland         &  ! land mask
+              ,zo            &  ! heights above surface
+              ,forcing       &  ! only diagnostic
+              ,g_t           &  ! t before forcing
+              ,g_q           &  ! q before forcing
+              ,z1            &  ! terrain
+              ,g_t           &  ! t including forcing
+              ,g_q           &  ! q including forcing
+              ,po            &  ! pressure (mb)
+              ,psur          &  ! surface pressure (mb)
+              ,g_us          &  ! u on mass points
+              ,g_vs          &  ! v on mass points
+              ,g_rho         &  ! density
+              ,hfx           &  ! w/m2, positive upward
+              ,qfx           &  ! w/m2, positive upward
+              ,dx            &  ! dx is grid point dependent here
+              ,mconv         &  ! integrated vertical advection of moisture
+              ,omeg          &  ! omega (pa/s)
+              ,csum          &  ! used to implement memory, set to zero if not avail
+              ,cnvwt         &  ! gfs needs this
+              ,zuo           &  ! nomalized updraft mass flux
+              ,zdo           &  ! nomalized downdraft mass flux
+              ,zdm           &  ! nomalized downdraft mass flux from mid scheme
+              ,edto          &  !
+              ,edtm          &  !
+              ,xmb_out       &  ! the xmb's may be needed for dicycle
+              ,xmbm_in       &  !
+              ,xmbs_in       &  !
+              ,pre           &  !
+              ,outu          &  ! momentum tendencies at mass points
+              ,outv          &  !
+              ,outt          &  ! temperature tendencies
+              ,outq          &  ! q tendencies
+              ,outqc         &  ! ql/qice tendencies
+              ,kbcon         &  ! lfc of parcel from k22
+              ,ktop          &  ! cloud top
+              ,cupclw        &  ! used for direct coupling to radiation, but with tuning factors
+              ,frh_out       &  ! fractional coverage
+              ,ierr          &  ! ierr flags are error flags, used for debugging
+              ,ierrc         &  ! the following should be set to zero if not available
+              ,nchem         &
+              ,fscav         &
+              ,chem3d        &
+              ,wetdpc_deep   &
+              ,do_smoke_transport   &
+              ,rand_mom      &  ! for stochastics mom, if temporal and spatial patterns exist
+              ,rand_vmas     &  ! for stochastics vertmass, if temporal and spatial patterns exist
+              ,rand_clos     &  ! for stochastics closures, if temporal and spatial patterns exist
+              ,nranflag      &  ! flag to what you want perturbed
+                                !! 1 = momentum transport
+                                !! 2 = normalized vertical mass flux profile
+                                !! 3 = closures
+                                !! more is possible, talk to developer or
+                                !! implement yourself. pattern is expected to be
+                                !! betwee -1 and +1
+              ,do_capsuppress,cap_suppress_j    &    !
+              ,k22                              &    !
+              ,jmin,kdt,tropics) !                 &
+!              ,outliqice)           !
+#endif          
 
            g_t(1:imax,:)    = g_t(1:imax,:)     + tdt*outt(1:imax,:)
            g_q(1:imax,:)    = g_q(1:imax,:)     + tdt*outq(1:imax,:)
@@ -356,8 +373,20 @@ real                  :: tdt
         condc(js:je) = g_pre(1:imax)          ! check unit,tendencies
         conds(js:je) = 0.
         condg(js:je) = 0.
-        precc(js:je) = precc(js:je) + condc(js:je)
+        precc(js:je) = precc(js:je) + real(condc(js:je),8)
         condx(js:je) = condx(js:je) + condc(js:je)
+        
+        if ( abs(iaero)>=2 ) then
+          xtg(js:je,1:kl,1:naero) = chem3d(js:je,1:kl,1:naero)
+          so2wd(js:je) = so2wd(js:je) + wetdpc_deep(js:je,itracso2)
+          so4wd(js:je) = so4wd(js:je) + wetdpc_deep(js:je,itracso2)
+          bcwd(js:je) = bcwd(js:je) + wetdpc_deep(js:je,itracbc) + wetdpc_deep(js:je,itracbc+1)
+          ocwd(js:je) = ocwd(js:je) + wetdpc_deep(js:je,itracoc) + wetdpc_deep(js:je,itracoc+1)
+          do i = 1,ndust
+            dustwd(js:je,i) = dustwd(js:je,i) + wetdpc_deep(js:je,itracdu+i-1)
+          end do
+          saltwd(js:je) = saltwd(js:je) + wetdpc_deep(js:je,itracsa) + wetdpc_deep(js:je,itracsa+1)
+        end if
 
   end do ! end tile loop
 
