@@ -2302,6 +2302,17 @@ if ( mp_global>0 ) then
 else
 
   allocate( cveg(0) )
+  call alloc_cbm_var(air, 0)
+  call alloc_cbm_var(bgc, 0)
+  call alloc_cbm_var(canopy, 0)
+  call alloc_cbm_var(met, 0)
+  call alloc_cbm_var(bal, 0)
+  call alloc_cbm_var(rad, 0)
+  call alloc_cbm_var(rough, 0)
+  call alloc_cbm_var(soil, 0)
+  call alloc_cbm_var(ssnow, 0)
+  call alloc_cbm_var(sum_flux, 0)
+  call alloc_cbm_var(veg, 0)  
   call cable_biophysic_parm(cveg)
   call cable_soil_parm(soil)
   if ( ccycle>=1 .and. ccycle<=3 ) then

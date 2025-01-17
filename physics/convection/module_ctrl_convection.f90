@@ -348,8 +348,8 @@ qamin = qgmin
                                 !! betwee -1 and +1
               ,do_capsuppress,cap_suppress_j    &    !
               ,k22                              &    !
-              ,jmin,kdt,tropics) !                 &
-!              ,outliqice)           !
+              ,jmin,kdt,tropics                 &
+              ,outliqice)
 #endif          
 
            g_t(1:imax,:)    = g_t(1:imax,:)     + tdt*outt(1:imax,:)

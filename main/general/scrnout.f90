@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -968,17 +968,27 @@ end do
 
 ! Calculate LI (from surface) - Based on WRF code
 
+#ifdef GPU
+!$acc parallel loop copyin(t,ps,qg) copyout(li_d) present(sig)                                 &
+!$acc   private(js,je,i,k,iter,iq,srctK,srcp,srcqs,srcq,srctheta,term1,srcrh,denom,tlclK,plcl) &
+!$acc   private(srcthetaeK,wflag,press,tovtheta,ptK,found,smixr,thetaK,tcheck,pw,ptvK,tvK)
+!$acc   private(freeze,dTvK,pu,pd,lidxu,lidxd)
+#else
+!$omp do schedule(static) private(js,je,i,k,iter,iq,srctK,srcp,srcqs,srcq,srctheta,term1,srcrh) &
+!$omp   private(denom,tlclK,plcl,srcthetaeK,wflag,press,tovtheta,ptK,found,smixr,thetaK,tcheck) &
+!$omp   private(pw,ptvK,tvK,freeze,dTvK,pu,pd,lidxu,lidxd)
+#endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax  
 
   do i = 1,imax
     iq = i + js - 1  
-    srctK = t(iq,1)
-    srcp = ps(iq)*sig(1)
-    srcqs = qsat(srcp,srctK)
-    srcq(i) = qg(iq,1)
-    srctheta(i) = srctK*((1.e5/srcp)**(rdry/cp))
+    srctK = t(iq,1)           ! temperature at 1st model level
+    srcp = ps(iq)*sig(1)      ! pressure at 1st model level
+    srcqs = qsat(srcp,srctK)  ! saturated mixing ratio at 1st model level
+    srcq(i) = qg(iq,1)        ! water vapour mixing ratio at 1st model level
+    srctheta(i) = srctK*((1.e5/srcp)**(rdry/cp)) ! potential temperature at 1st model level
 
     ! calculate temperature of LCL
     term1 = 1./(srctK-55.)
@@ -1001,7 +1011,7 @@ do tile = 1,ntiles
   do k = 1,kl
     do i = 1,imax
       iq = i + js - 1
-      press = ps(iq)*sig(k)
+      press = ps(iq)*sig(k) ! pressure at level k in Pa
       if ( press<=plcl(i) ) then
         if ( wflag(i) ) then
           !ptK = The2T( srcthetaeK(i), press )
@@ -1028,7 +1038,7 @@ do tile = 1,ntiles
           freeze = min( freeze, 1. )
           freeze = max( freeze, 0. )
           freeze = freeze * 333700.0 * ( srcq(i) - pw ) / 1005.7
-          pTvK = ptvK - ptvK * ( srcq(i) - pw ) + freeze
+          ptvK = ptvK - ptvK * ( srcq(i) - pw ) + freeze
           dTvK(i,k) = ptvK - tvK
         else
           ptK = srctheta(i)/((1.e5/press)**(rdry/cp))
@@ -1064,6 +1074,11 @@ do tile = 1,ntiles
   end do   ! k loop
   
 end do ! tile loop
+#ifdef GPU
+!$acc end parallel loop
+#else
+!$omp end do nowait
+#endif
 
 return
 end subroutine capecalc
