@@ -303,7 +303,7 @@
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,rhcv,
      &       convtime,nkuo,rhsat,nevapls,
      &       tied_con,mdelay,convfact,ncvcloud,ldr,rhmois,imax,kl,
-     &       ngas+3)
+     &       ngas)
 
         t(js:je,:)       = lt
         qg(js:je,:)      = lqg

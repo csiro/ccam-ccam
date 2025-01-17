@@ -971,7 +971,7 @@ end do
 #ifdef GPU
 !$acc parallel loop copyin(t,ps,qg) copyout(li_d) present(sig)                                 &
 !$acc   private(js,je,i,k,iter,iq,srctK,srcp,srcqs,srcq,srctheta,term1,srcrh,denom,tlclK,plcl) &
-!$acc   private(srcthetaeK,wflag,press,tovtheta,ptK,found,smixr,thetaK,tcheck,pw,ptvK,tvK)
+!$acc   private(srcthetaeK,wflag,press,tovtheta,ptK,found,smixr,thetaK,tcheck,pw,ptvK,tvK)     &
 !$acc   private(freeze,dTvK,pu,pd,lidxu,lidxd)
 #else
 !$omp do schedule(static) private(js,je,i,k,iter,iq,srctK,srcp,srcqs,srcq,srctheta,term1,srcrh) &

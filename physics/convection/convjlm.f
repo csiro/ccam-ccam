@@ -383,7 +383,7 @@
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,detrainx,
      &       sigkscb,dsig2,sigksct,rhcv,sig_ct,convtime,tied_con,
      &       mdelay,nevapcc,convfact,ncvcloud,ldr,rhmois,imax,kl,
-     &       ngas+3)     ! jlm convective scheme
+     &       ngas)     ! jlm convective scheme
 
         t(js:je,:)       = lt
         qg(js:je,:)      = lqg
