@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -606,6 +606,14 @@ if ( myid==0 ) then
       call ccmpi_abort(-1)
     end if
     call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,14))
+#ifdef debug    
+    if ( maxval(dumg(:,14))>1. ) then
+      write(6,*) "ERROR loading dmst in load_aerosolldr"
+      write(6,*) "maxval,minval ",maxval(dumg(:,14)),minval(dumg(:,14))
+      write(6,*) "maxloc,minloc ",maxloc(dumg(:,14)),minloc(dumg(:,14))
+      call ccmpi_abort(-1)
+    end if    
+#endif        
     if ( nmaxpr==1 ) write(6,*) "Loading emissions for natural organic"
     call ccnf_inq_varid(ncid,'ocna',varid,tst)
     if ( tst ) then

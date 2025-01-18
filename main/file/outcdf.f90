@@ -1245,6 +1245,18 @@ if ( iarch==1 ) then
     call attrib(idnc,dimj,jsize,'wb5',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
     lname = 'Soil moisture 6'
     call attrib(idnc,dimj,jsize,'wb6',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
+    lname = 'Soil ice lev 1'
+    call attrib(idnc,dimj,jsize,'wbice1',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
+    lname = 'Soil ice lev 2'
+    call attrib(idnc,dimj,jsize,'wbice2',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
+    lname = 'Soil ice lev 3'
+    call attrib(idnc,dimj,jsize,'wbice3',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
+    lname = 'Soil ice lev 4'
+    call attrib(idnc,dimj,jsize,'wbice4',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
+    lname = 'Soil ice lev 5'
+    call attrib(idnc,dimj,jsize,'wbice5',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
+    lname = 'Soil ice lev 6'
+    call attrib(idnc,dimj,jsize,'wbice6',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
     if ( itype/=-1 ) then
       lname = 'Wetness fraction layer 1' ! 5. for frozen sand
       call attrib(idnc,dimj,jsize,'wetfrac1',lname,'none',-6.5,6.5,any_m,point_m,cptype)
@@ -2231,18 +2243,6 @@ if ( iarch==1 ) then
         lname = 'old1_vobot'
         call attrib(idnc,dimj,jsize,'old1_vobot',lname,'m s-1',-65.,65.,any_m,point_m,cptype)
       end if
-      lname = 'Soil ice lev 1'
-      call attrib(idnc,dimj,jsize,'wbice1',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
-      lname = 'Soil ice lev 2'
-      call attrib(idnc,dimj,jsize,'wbice2',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
-      lname = 'Soil ice lev 3'
-      call attrib(idnc,dimj,jsize,'wbice3',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
-      lname = 'Soil ice lev 4'
-      call attrib(idnc,dimj,jsize,'wbice4',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
-      lname = 'Soil ice lev 5'
-      call attrib(idnc,dimj,jsize,'wbice5',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
-      lname = 'Soil ice lev 6'
-      call attrib(idnc,dimj,jsize,'wbice6',lname,'m3 m-3',0.,1.,any_m,point_m,cptype)
       if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already defined above
         lname = 'Snow temperature lev 1'
         call attrib(idnc,dimj,jsize,'tggsn1',lname,'K',100.,425.,any_m,point_m,cptype)
@@ -2646,6 +2646,12 @@ call histwrt(wb(:,3),'wb3',idnc,iarch,local,.true.)
 call histwrt(wb(:,4),'wb4',idnc,iarch,local,.true.)
 call histwrt(wb(:,5),'wb5',idnc,iarch,local,.true.)
 call histwrt(wb(:,6),'wb6',idnc,iarch,local,.true.)
+call histwrt(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
+call histwrt(wbice(:,2),'wbice2',idnc,iarch,local,.true.)
+call histwrt(wbice(:,3),'wbice3',idnc,iarch,local,.true.)
+call histwrt(wbice(:,4),'wbice4',idnc,iarch,local,.true.)
+call histwrt(wbice(:,5),'wbice5',idnc,iarch,local,.true.)
+call histwrt(wbice(:,6),'wbice6',idnc,iarch,local,.true.)
 if ( itype/=-1 ) then
   aa(:)=(wb(:,1)-swilt(isoilm))/(sfc(isoilm)-swilt(isoilm))
   call histwrt(aa,'wetfrac1',idnc,iarch,local,.true.)
@@ -3607,12 +3613,6 @@ if ( itype==-1 ) then
     call histwrt(ocndwn(:,5),'old1_uobot',idnc,iarch,local,.true.)
     call histwrt(ocndwn(:,6),'old1_vobot',idnc,iarch,local,.true.)      
   end if    
-  call histwrt(wbice(:,1),'wbice1',idnc,iarch,local,.true.)
-  call histwrt(wbice(:,2),'wbice2',idnc,iarch,local,.true.)
-  call histwrt(wbice(:,3),'wbice3',idnc,iarch,local,.true.)
-  call histwrt(wbice(:,4),'wbice4',idnc,iarch,local,.true.)
-  call histwrt(wbice(:,5),'wbice5',idnc,iarch,local,.true.)
-  call histwrt(wbice(:,6),'wbice6',idnc,iarch,local,.true.)
   if ( nmlo==0 .or. abs(nmlo)>9 ) then ! otherwise already written above
     call histwrt(tggsn(:,1),'tggsn1',idnc,iarch,local,.true.)
     call histwrt(tggsn(:,2),'tggsn2',idnc,iarch,local,.true.)

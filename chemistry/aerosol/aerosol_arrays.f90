@@ -197,6 +197,13 @@ else
   stop
 end if
 
+#ifdef debug
+if ( maxval(emissfield(:,14))>1. ) then
+  write(6,*) "ERROR out-of-range dmst in aldrloademiss ",maxval(emissfield(:,14))
+  stop -1
+end if
+#endif
+
 return
 end subroutine aldrloademiss
 

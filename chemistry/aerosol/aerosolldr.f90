@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -632,6 +632,15 @@ do iq = 1,imax
   end if
   gdp = 1./(rhoa(iq,1)*dz(iq,1))
   xte(iq,1,itracdms) = xte(iq,1,itracdms) + zdmsemiss*gdp
+#ifdef debug
+  if ( xtg(iq,1,itracdms)+xte(iq,1,itracdms)*ztmst>2.e-3 ) then
+    write(6,*) "xtg out-of-range in DMS emission (xtemiss)"
+    write(6,*) "xtg+xte*dt ",xtg(iq,1,itracdms)+xte(iq,1,itracdms)*ztmst
+    write(6,*) "xtg,xte ",xtg(iq,1,itracdms),xte(iq,1,itracdms)
+    write(6,*) "rhoa,dz,emissfield ",rhoa(iq,1),dz(iq,1),emissfield(iq,idmst)
+    write(6,*) "seaicem,tsm1m,zzspeed ",seaicem(iq),tsm1m(iq),zzspeed(iq)
+  end if    
+#endif
 end do
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
@@ -1117,10 +1126,10 @@ ntiles = ifull/imax
 PQTMST=1./PTMST
 
 #ifdef debug
-if ( maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)>6.5e-5 ) then
+if ( maxval(xtm1(1:ifull,:,:))>6.5e-5 ) then
   write(6,*) "xtg is out-of-range at start of xtchemie"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST), &
-                                  maxloc(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)
+  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:ifull,:,:)), &
+                                  maxloc(xtm1(1:ifull,:,:))
 end if
 #endif
 
