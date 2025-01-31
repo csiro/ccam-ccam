@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -55,6 +55,8 @@ public mloiceadv
 public mlodiffusion,mlodiffusion_work
 public mlodiff,ocnsmag,mlodiff_numits
 
+public mlomode
+
 public ee, eeu, eev
 public dd, ddu, ddv
 public stwgtu, stwgtv
@@ -69,7 +71,7 @@ public mlodynamicsarrays_init, mlodynamicsarrays_end
 public mlostaguv, mlounstaguv
 public mstagf, koff, nstagoffmlo
 
-public mlovadv, mlontvd
+public mlontvd
 
 integer, save      :: usetide     = 1       ! tidal forcing (0=off, 1=on)
 integer, parameter :: icemode     = 2       ! ice stress (0=free-drift, 1=incompressible, 2=cavitating)
@@ -2068,5 +2070,20 @@ call mgmlo(neta,ipice,yy,yyn,yys,yye,yyw,zz,zzn,zzs,zze,zzw,   &
 
 return
 end subroutine mlomg
+                 
+pure function mlomode(nmlo) result(mlo_mode)
+implicit none
+integer, intent(in) :: nmlo
+character(len=20) :: mlo_mode
+mlo_mode = "ERROR"
+if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+  mlo_mode = "ocn_dynamics" ! includes diffusion
+else if ( abs(nmlo)==2 ) then
+  mlo_mode = "ocn_diffusion"
+else
+  mlo_mode = "ocn_vcom"
+end if
+return
+end function mlomode
 
 end module mlodynamics

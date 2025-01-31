@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -194,11 +194,9 @@ end if
 call START_LOG(ints_begin)
 if ( mup/=0 ) then
   call bounds(dd,corner=.true.)
+  call bounds(pslx,nrows=2)      
   if ( nh/=0 ) then
-    call bounds(pslx,nrows=2)      
     call bounds(h_nh,nrows=2)
-  else
-    call bounds(pslx,nrows=2)      
   end if ! nh/=0
   call bounds(tx,nrows=2)
 end if    ! mup/=0
@@ -211,29 +209,18 @@ if ( mup/=0 ) then
   call bounds(uvw,nrows=2)
 end if
 if ( mspec==1 .and. mup/=0 ) then
-  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
-    ! Lin microphysics  
-    call bounds(qg,nrows=2)
-    call bounds(qlg,nrows=2)
-    call bounds(qfg,nrows=2)
-    call bounds(stratcloud,nrows=2)
-    call bounds(ni,nrows=2)   
-    call bounds(qrg,nrows=2)
-    call bounds(qsng,nrows=2)
-    call bounds(qgrg,nrows=2)
-  else if ( ldr/=0 ) then
-    ! Leon microphysics  
-    call bounds(qg,nrows=2)
+  call bounds(qg,nrows=2)
+  if ( ldr/=0 ) then
     call bounds(qlg,nrows=2)
     call bounds(qfg,nrows=2)
     call bounds(stratcloud,nrows=2)
     call bounds(qrg,nrows=2)
     call bounds(qsng,nrows=2)
     call bounds(qgrg,nrows=2)
-  else
-    ! diagnostic (depreciated)  
-    call bounds(qg,nrows=2)
-  end if    ! ldr/=0
+    if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
+      call bounds(ni,nrows=2)   
+    end if  
+  end if  
   if ( ntrac>0 ) then
     call bounds(tr,nrows=2)
   end if
@@ -248,7 +235,7 @@ end if     ! mspec==1
 call END_LOG(ints_end)
 
 
-#if GPU
+#ifdef GPU
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
 #endif
@@ -256,16 +243,16 @@ call END_LOG(ints_end)
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
+  bb(:,:,1) = pslx(:,:)
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    bb(:,:,1) = pslx(:,:)
     bb(:,:,2) = h_nh(:,:)
-    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,1)      
-    pslx(:,:) = bb(:,:,1)
+    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,1)
     h_nh(:,:) = bb(:,:,2)
   else
-    call ints(pslx,1,intsch,nface,xg,yg,1)    
-  end if ! nh/=0
+    call ints(bb(:,:,1:1),1,intsch,nface,xg,yg,1)
+  end if    
+  pslx(:,:) = bb(:,:,1)
   call ints(tx,1,intsch,nface,xg,yg,3)
 end if    ! mup/=0
 
@@ -381,38 +368,21 @@ if ( diag .and. k==nlv ) then
 end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
-  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then
-    ! Lin microphysics  
-    bb(:,:,1) = qg(:,:)
+  bb(:,:,1) = qg(:,:)  
+  if ( ldr/=0 ) then
     bb(:,:,2) = qlg(:,:)
     bb(:,:,3) = qfg(:,:)
     bb(:,:,4) = stratcloud(:,:)
     bb(:,:,5) = qrg(:,:)
     bb(:,:,6) = qsng(:,:)
     bb(:,:,7) = qgrg(:,:)
-    bb(:,:,8) = ni(:,:)
-    call ints(bb(:,:,1:8),8,intsch,nface,xg,yg,4)
-    qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
-    qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
-    qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
-    stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
-    if ( adv_precip>=1 ) then
-      qrg(1:ifull,1:kl) = bb(1:ifull,1:kl,5)
-      qsng(1:ifull,1:kl) = bb(1:ifull,1:kl,6)
-      qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
-    end if  
-    ni(1:ifull,1:kl) = bb(1:ifull,1:kl,8)  
-  else if ( ldr/=0 ) then
-    ! Leon microphysics  
-    bb(:,:,1) = qg(:,:)
-    bb(:,:,2) = qlg(:,:)
-    bb(:,:,3) = qfg(:,:)
-    bb(:,:,4) = stratcloud(:,:)
-    bb(:,:,5) = qrg(:,:)
-    bb(:,:,6) = qsng(:,:)
-    bb(:,:,7) = qgrg(:,:)
-    call ints(bb(:,:,1:7),7,intsch,nface,xg,yg,4)
-    qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
+    if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
+      bb(:,:,8) = ni(:,:)
+      call ints(bb(:,:,1:8),8,intsch,nface,xg,yg,4)
+      ni(1:ifull,1:kl) = bb(1:ifull,1:kl,8)  
+    else
+      call ints(bb(:,:,1:7),7,intsch,nface,xg,yg,4)  
+    end if
     qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
@@ -422,24 +392,11 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
     end if  
   else
-    ! diagnostic microphysics 
-    call ints(qg,1,intsch,nface,xg,yg,3)
-  end if    ! ldr/=0
+    call ints(bb(:,:,1:1),1,intsch,nface,xg,yg,4)    
+  end if
+  qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
   if ( ntrac>0 ) then
-    !if ( nmaxpr==1 .and. mydiag ) then
-    !  write (6,"('xg#',9f8.2)") diagvals(xg(:,nlv))
-    !  write (6,"('yg#',9f8.2)") diagvals(yg(:,nlv))
-    !  write (6,"('nface#',9i8)") diagvals(nface(:,nlv))
-    !  write (6,"('xlat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-    !  write (6,"('xlon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-    !  write (6,"('xpre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-    !end if
     call ints(tr(:,:,1:ntrac),ntrac,intsch,nface,xg,yg,5)
-    !if ( nmaxpr==1 .and. mydiag ) then
-    !  write (6,"('ylat#',9f8.2)") diagvals(tr(:,nlv,ngas+1))
-    !  write (6,"('ylon#',9f8.2)") diagvals(tr(:,nlv,ngas+2))
-    !  write (6,"('ypre#',9f8.2)") diagvals(tr(:,nlv,ngas+3))
-    !endif
   endif  ! (ntrac>0)
   if ( nvmix==6 .or. nvmix==9 ) then
     bb(:,:,1) = tke(:,:)

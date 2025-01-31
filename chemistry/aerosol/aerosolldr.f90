@@ -179,10 +179,6 @@ end if
 #endif
 
 
-#ifdef GPU
-!$omp parallel
-#endif
-
 !$omp do schedule(static) private(js,je,iq,thetav,wstar3,rrate)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
@@ -387,11 +383,6 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait
 
-#ifdef GPU
-!$omp end parallel
-#endif
-
-
 call xtchemie(imax, 2, dt, zdayfac, aphp2, pmrate, pfprec,           & !Inputs
               pclcover, pmlwc, prhop1, ptp1, taudar, xtm1,           & !Inputs
               pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,            & !Inputs
@@ -399,11 +390,6 @@ call xtchemie(imax, 2, dt, zdayfac, aphp2, pmrate, pfprec,           & !Inputs
               pccw,pfconv,xtu,                                       & !Inputs
               xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                & !Output
               zoxidant_g,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd)
-
-
-#ifdef GPU
-!$omp parallel
-#endif
 
 !$omp do schedule(static) private(js,je,nt,k)
 do tile = 1,ntiles
@@ -464,10 +450,6 @@ do tile = 1,ntiles
 
 end do
 !$omp end do nowait
-
-#ifdef GPU
-!$omp end parallel
-#endif
 
 return
 end subroutine aldrcalc
@@ -637,8 +619,9 @@ do iq = 1,imax
     write(6,*) "xtg out-of-range in DMS emission (xtemiss)"
     write(6,*) "xtg+xte*dt ",xtg(iq,1,itracdms)+xte(iq,1,itracdms)*ztmst
     write(6,*) "xtg,xte ",xtg(iq,1,itracdms),xte(iq,1,itracdms)
-    write(6,*) "rhoa,dz,emissfield ",rhoa(iq,1),dz(iq,1),emissfield(iq,idmst)
+    write(6,*) "rhoa,dz,emissfieldt ",rhoa(iq,1),dz(iq,1),emissfield(iq,idmst)
     write(6,*) "seaicem,tsm1m,zzspeed ",seaicem(iq),tsm1m(iq),zzspeed(iq)
+    write(6,*) "oland,emissfieldo ",loland(iq),emissfield(iq,idmso)
   end if    
 #endif
 end do
@@ -1134,7 +1117,7 @@ end if
 #endif
 
 
-#ifdef GPU
+#ifndef _OPENMP
 !$acc parallel loop copy(so2wd,so4wd,bcwd,ocwd,dustwd,saltwd)                             &
 !$acc   copyin(pclcover,pcfcover,pmlwc,pmiwc,zoxidant,prhop1,ptp1,rhodz,pccw,xtu,xtm1)    &
 !$acc   copyin(pclcon,pqfsedice,pmaccr,plambs,pfsnow,pfsubl,pfmelt,pmratep,prscav)        &
@@ -2000,7 +1983,7 @@ do tile = 1,ntiles
   end do
 
 end do ! tile = 1,ntiles
-#ifdef GPU
+#ifndef _OPENMP
 !$acc end parallel loop
 #else
 !$omp end do nowait

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2016 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2016-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -26,10 +26,40 @@ implicit none
 private
 public ktime, kdate, mtimer
 public timer, timeg
+public calendar_function
 
 integer, save :: ktime, kdate
 integer, save :: mtimer = 0
 real, save :: timer = 0.
 real, save :: timeg = 0.
+
+contains
+
+subroutine calendar_function(mdays,kdate,leap)
+
+implicit none
+
+integer, dimension(1:12), intent(out) :: mdays
+integer, intent(in) :: kdate, leap
+integer iyr, month
+
+iyr = kdate/10000
+month = (kdate-10000*iyr)/100
+if ( leap==0 ) then ! 365 day calendar
+  mdays=(/31,28,31,30,31,30,31,31,30,31,30,31/)
+else if ( leap==1 ) then ! 365/366 day calendar
+  mdays=(/31,28,31,30,31,30,31,31,30,31,30,31/)
+  if (mod(iyr,4)==0) mdays(2)=29
+  if (mod(iyr,100)==0) mdays(2)=28
+  if (mod(iyr,400)==0) mdays(2)=29
+else if ( leap==2 ) then ! 360 day calendar
+  mdays=(/30,30,30,30,30,30,30,30,30,30,30,30/)
+else
+  write(6,*) "ERROR: Unknown option for leap = ",leap
+  stop -1
+end if
+
+return
+end subroutine calendar_function
 
 end module dates_m

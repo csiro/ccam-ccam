@@ -5186,8 +5186,9 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
 !    this calculation is done only for ng=1.                 
 !----------------------------------------------------------------------c
  
-                      tt1 = 0.75 * ww1            / ( 1.0 - ( qq4 * &
-                              cosangstr(1) ) ** 2 )
+                      tmp = 1.0 - ( qq4 * cosangstr(1) ) ** 2
+                      tmp = sign(1.,tmp)*max(abs(tmp),1.e-20) ! MJT suggestion  
+                      tt1 = 0.75 * ww1 / tmp
                       tt2 = tt1 * cosangstr(1) * ( 1.0 +  &
                               ww2        * qq1 * onedi3 )
                       tt3 = tt1 * ( 1.0 + ww2        * qq1*&
@@ -5272,8 +5273,9 @@ logical, dimension(:,:,:), intent(in), optional    :: cloud
                       rsum = 0.0
                       tsum = 0.0
                       do ns = 1,NSTREAMS
-                        tt1 = 0.75 * ww1            / ( 1.0 - ( qq4 * &
-                                cosangstr(ns) ) ** 2 )
+                        tmp = 1.0 - ( qq4 * cosangstr(ns) ) ** 2
+                        tmp = sign(1.,tmp)*max(abs(tmp),1.e-20) ! MJT suggestion  
+                        tt1 = 0.75 * ww1 / tmp
                         tt2 = tt1 * cosangstr(ns) * ( 1.0 +  &
                                 ww2        * qq1 * onedi3 )
                         tt3 = tt1 * ( 1.0 + ww2        * qq1*&

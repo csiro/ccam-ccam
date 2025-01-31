@@ -501,6 +501,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'panfg',panfg)
     call ccnf_put_attg(idnc,'panzo',panzo)
     call ccnf_put_attg(idnc,'pil_single',pil_single)
+    call ccnf_put_attg(idnc,'process_rate_mode',process_rate_mode)
     call ccnf_put_attg(idnc,'precon',precon)
     call ccnf_put_attg(idnc,'qg_fix',qg_fix)
     call ccnf_put_attg(idnc,'rescrn',rescrn)
@@ -880,6 +881,7 @@ use module_aux_cosp, only : clp_lmht,             &
     clp_sr_b09,clp_sr_b10,clp_sr_b11,clp_sr_b12,  &
     clp_sr_b13,clp_sr_b14,clp_sr_b15,             &
     cloud_simulator_ready
+use module_ctrl_microphysics                     ! Interface for cloud microphysics
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
 use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
@@ -1962,7 +1964,65 @@ if ( iarch==1 ) then
         call attrib(idnc,dima,asize,'ns','Snow number concentration','kg-1',0.,1.e10,any_m,point_m,float_m)
       end if  
     end if
-    
+
+    ! process rate
+    if ( ldr/=0 ) then
+      !if (process_rate_mode == 1) then
+      !  call attrib(idnc,dima,asize,'leo_pcaut','Autoconversion to cloud water','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psaut','Autoconversion of ice to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgaut','Autoconversion of snow to graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgmlt','Melt falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgsub','Sublimation of graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgacw','Accretion of c/liquid by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgacr','Accretion of rain by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgaci','Accretion of cloud ice by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgacs','Accretion of snow by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psmlt','Melt falling snow due to rain accretion','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pssub','Sublimation of snow falling','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psacw','Accretion of cloud liquid by falling snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psacr','Accretion of rain by falling snow -->snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psaci','Accretion of cloud ice by falling snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pimlt','Melt falling ice to form cloud water','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pisub','Sublimation of ice','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_piacw','Accretion of cloud liquid by falling ice','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_piacr','Accretion of rain by falling ice --> ice','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psure','NOT SURE what process here','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_prevp','Evaporation of rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pracc','Collection of liquid cloud by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pracs','Accretion of cloud snow by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_praci','Accretion of c/ice by rain ->snow/grauple','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !end if  
+      if (process_rate_mode == 2) then
+        call attrib(idnc,dima,asize,'psnow','sum all process for snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psaut','ice crystal aggregation to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psfw','BERGERON process to transfer cloud water to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psfi','BERGERON process to transfer cloud ice to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'praci','cloud ice accretion by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'piacr','rain accretion by cloud ice','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psaci','ice crystal accretion by snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psacw','accretion of cloud water by snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psdep','deposition of snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pssub','sublimation of snow(T<0)','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pracs','accretion of snow by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psacr','accretion of rain by snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psmlt','melting of snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psmltevp','evaporation of melting snow(T>0)','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'prain','sum all process for rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'praut','autoconversion of rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pracw','accretion of cloud water by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'prevp','evaporation of rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pgfr','feezing of rain to form graupel(added to PI)','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pvapor','sum all process for water vapor to determine qvz','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pclw','sum all process for cloud liquid to determine qlz','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pladj','saturation adjustment for ql','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pcli','sum all process for cloud ice to determine qiz','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pimlt','melting of ice crystal >0.','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pihom','homogeneous nucleation <-40','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pidw','production of cloud ice by BERGERON process','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'piadj','saturation adjustment for qi','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pmidep','water vapor deposition to form snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      end if
+    end if
     
 #ifdef COSP
     ! COSP----------------------------------------------------------
@@ -3342,6 +3402,64 @@ if ( ldr/=0 ) then
   end if      
 end if
 
+! process rate
+if ( ldr/=0 ) then
+  !if (process_rate_mode == 1) then
+  !  call histwrt(leo_pcaut,'leo_pcaut',idnc,iarch,local,.true.)
+  !  call histwrt(leo_psaut,'leo_psaut',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pgaut,'leo_pgaut',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pgmlt,'leo_pgmlt',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pgsub,'leo_pgsub',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pgacw,'leo_pgacw',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pgacr,'leo_pgacr',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pgaci,'leo_pgaci',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pgacs,'leo_pgacs',idnc,iarch,local,.true.)
+  !  call histwrt(leo_psmlt,'leo_psmlt',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pssub,'leo_pssub',idnc,iarch,local,.true.)
+  !  call histwrt(leo_psacw,'leo_psacw',idnc,iarch,local,.true.)
+  !  call histwrt(leo_psacr,'leo_psacr',idnc,iarch,local,.true.)
+  !  call histwrt(leo_psaci,'leo_psaci',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pimlt,'leo_pimlt',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pisub,'leo_pisub',idnc,iarch,local,.true.)
+  !  call histwrt(leo_piacw,'leo_piacw',idnc,iarch,local,.true.)
+  !  call histwrt(leo_piacr,'leo_piacr',idnc,iarch,local,.true.)
+  !  call histwrt(leo_psure,'leo_psure',idnc,iarch,local,.true.)
+  !  call histwrt(leo_prevp,'leo_prevp',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pracc,'leo_pracc',idnc,iarch,local,.true.)
+  !  call histwrt(leo_pracs,'leo_pracs',idnc,iarch,local,.true.)
+  !  call histwrt(leo_praci,'leo_praci',idnc,iarch,local,.true.)
+  !end if  
+  if (process_rate_mode == 2) then
+    call histwrt(psnow,'psnow',idnc,iarch,local,.true.)
+    call histwrt(psaut,'psaut',idnc,iarch,local,.true.)
+    call histwrt(psfw,'psfw',idnc,iarch,local,.true.)
+    call histwrt(psfi,'psfi',idnc,iarch,local,.true.)
+    call histwrt(praci,'praci',idnc,iarch,local,.true.)
+    call histwrt(piacr,'piacr',idnc,iarch,local,.true.)
+    call histwrt(psaci,'psaci',idnc,iarch,local,.true.)
+    call histwrt(psacw,'psacw',idnc,iarch,local,.true.)
+    call histwrt(psdep,'psdep',idnc,iarch,local,.true.)
+    call histwrt(pssub,'pssub',idnc,iarch,local,.true.)
+    call histwrt(pracs,'pracs',idnc,iarch,local,.true.)
+    call histwrt(psacr,'psacr',idnc,iarch,local,.true.)
+    call histwrt(psmlt,'psmlt',idnc,iarch,local,.true.)
+    call histwrt(psmltevp,'psmltevp',idnc,iarch,local,.true.)
+    call histwrt(prain,'prain',idnc,iarch,local,.true.)
+    call histwrt(praut,'praut',idnc,iarch,local,.true.)
+    call histwrt(pracw,'pracw',idnc,iarch,local,.true.)
+    call histwrt(prevp,'prevp',idnc,iarch,local,.true.)
+    call histwrt(pgfr,'pgfr',idnc,iarch,local,.true.)
+    call histwrt(pvapor,'pvapor',idnc,iarch,local,.true.)
+    call histwrt(pclw,'pclw',idnc,iarch,local,.true.)
+    call histwrt(pladj,'pladj',idnc,iarch,local,.true.)
+    call histwrt(pcli,'pcli',idnc,iarch,local,.true.)
+    call histwrt(pimlt,'pimlt',idnc,iarch,local,.true.)
+    call histwrt(pihom,'pihom',idnc,iarch,local,.true.)
+    call histwrt(pidw,'pidw',idnc,iarch,local,.true.)
+    call histwrt(piadj,'piadj',idnc,iarch,local,.true.)
+    call histwrt(pmidep,'pmidep',idnc,iarch,local,.true.)
+  end if
+end if
 
 #ifdef COSP
 ! COSP----------------------------------------------------------

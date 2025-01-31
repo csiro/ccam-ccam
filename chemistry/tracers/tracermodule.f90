@@ -670,7 +670,7 @@ subroutine interp_tracerflux
 !     co2em123(:,1,:) contains prev month, co2em123(:,2,:) current month/year 
 !     co2em123(:,3,:) next month
 use cc_mpi, only : myid, ccmpi_abort
-use dates_m, only : kdate
+use dates_m, only : kdate, calendar_function
 use newmpar_m
 use parm_m
 
@@ -689,21 +689,9 @@ m2=0
 ! this could go in the case section but then we'd do it for
 ! every monthly tracer.  This way we do it once but may not
 ! need it.
-iyr=kdate/10000
-month=(kdate-10000*iyr)/100
-if ( leap==0 ) then ! 365 day calendar
-  mdays=(/31,31,28,31,30,31,30,31,31,30,31,30,31,31/)    
-else if ( leap==1 ) then ! 365/366 day calendar
-  mdays=(/31,31,28,31,30,31,30,31,31,30,31,30,31,31/)
-  if (mod(iyr,4)==0) mdays(2)=29
-  if (mod(iyr,100)==0) mdays(2)=28
-  if (mod(iyr,400)==0) mdays(2)=29
-else if ( leap==2 ) then ! 360 day calendar
-  mdays=(/30,30,30,30,30,30,30,30,30,30,30,30,30,30/)  
-else
-  write(6,*) "ERROR: Unknown option for leap = ",leap
-  call ccmpi_abort(-1)
-end if
+call calendar_function(mdays(1:12),kdate,leap)
+mdays(0) = mdays(12)
+mdays(13) = mdays(1)
 
 do igas=1,numtracer
   select case(tracinterp(igas))
@@ -816,36 +804,7 @@ if (writetrpm) then
   enddo
 endif
 
+return
 end subroutine tracer_mass
-
-!subroutine tracini
-!!     initial value now read from tracerlist 
-!use infile
-!use tracers_m
-!implicit none
-!integer i
-!real in(il*jl,kl)
-!
-!do i=1,ngas
-!! rml 15/11/06 facility to introduce new tracers to simulation
-!! i.e. some read from restart, others initialised here
-!  if (tracival(i).ne.-999) then
-!! rml 16/2/10 addition for TC methane to get 3d initial condition
-!      if (tracname(i)(1:7)=='methane') then
-!!             read  initial condition
-!        call ccnf_read('ch4in_cc48.nc','ch4in',in)
-!        tr(1:il*jl,1:kl,i)=in
-!      elseif (tracname(i)(1:3)=='mcf') then
-!!             read  mcf initial condition
-!        call ccnf_read('cmcfin_cc48.nc','mcfin',in)
-!        tr(1:il*jl,1:kl,i)=in
-!      else
-!        tr(:,:,i)=tracival(i)
-!      endif
-!  endif
-!enddo
-!
-!return
-!end subroutine tracini
 
 end module tracermodule

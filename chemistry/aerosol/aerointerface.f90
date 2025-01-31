@@ -137,10 +137,6 @@ logical, dimension(ifull) :: locean
 
 if ( aero_update==aero_split ) then
     
-#ifdef GPU
-  !$omp parallel
-#endif
-
   ! update 10m wind speed (avoids impact of diagnostic output)
   if ( aerosol_u10==0 ) then
     !$omp do schedule(static) private(js,je)
@@ -201,11 +197,6 @@ if ( aero_update==aero_split ) then
   end do
   !$omp end do nowait
   
-#ifdef GPU
-  !$omp end parallel
-#endif
-  
-
   ! update prognostic aerosols
   call aldrcalc(dt,sig,dz,wg,pblh,ps,tss,t,condc,snowd,taudar,fg,      &
                 eg,u10_l,ustar,zo,land,fracice,sigmf,qg,qlg,qfg,       &
@@ -213,11 +204,6 @@ if ( aero_update==aero_split ) then
                 ppfmelt,ppfsnow,ppfsubl,pplambs,ppmrate,ppmaccr,       &
                 ppqfsedice,pprscav,pprfreeze,ppfevap,zdayfac,kbsav,    &
                 locean)
-
-  
-#ifdef GPU
-  !$omp parallel
-#endif
   
   ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
   ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
@@ -233,19 +219,11 @@ if ( aero_update==aero_split ) then
   end do
   !$omp end do nowait
 
-#ifdef GPU
-  !$omp end parallel
-#endif
-  
 end if ! aero_update==aero_split
      
 
 if ( aero_update==1 ) then
-
-#ifdef GPU
-  !$omp parallel
-#endif
-    
+   
   ! Aerosol mixing
   !$omp do schedule(static) private(js,je,iq,k)       &
   !$omp private(idjd_t,mydiag_t)                      &
@@ -288,10 +266,6 @@ if ( aero_update==1 ) then
   !$omp end do nowait
   
   call trimmix(at,ct,xtg,imax) ! ifull arrays with imax to define tiles
-
-#ifdef GPU
-  !$omp end parallel
-#endif    
   
 end if
 

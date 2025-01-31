@@ -30,10 +30,12 @@ public ctrl_microphysics
 public cloud_aerosol_mode, lin_aerosolmode, maxlintime, lin_adv
 public cloud_ice_method
 public leon_snowmeth
+public process_rate_mode
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
 integer, save :: lin_aerosolmode    = 0     ! 0=off, 1=aerosol indirect effects for Lin microphysics
 integer, save :: lin_adv            = 0     ! 0=original, 1=flux
+integer, save :: process_rate_mode  = 0     ! 0-=off, 1=microphysics diagnostics
 real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
 
 ! ldr  = 0      Diagnosed cloud scheme (depreciated)
@@ -129,7 +131,6 @@ real(kind=8), dimension(imax,kl) :: zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D
 real(kind=8), dimension(imax,kl) :: zqg, zqlg, zqfg, zqrg, zqsng
 real(kind=8), dimension(imax,kl) :: zfluxr, zfluxi, zfluxs, zfluxm, zfluxf
 real(kind=8), dimension(imax,kl) :: zqevap, zqsubl, zqauto, zqcoll, zqaccr
-#ifdef debug
 real(kind=8), dimension(imax,kl) :: zpsnow, zpsaut, zpsfw, zpsfi
 real(kind=8), dimension(imax,kl) :: zpraci, zpiacr, zpsaci, zpsacw
 real(kind=8), dimension(imax,kl) :: zpsdep, zpssub, zpracs, zpsacr
@@ -138,8 +139,6 @@ real(kind=8), dimension(imax,kl) :: zpraut, zpracw, zprevp, zpgfr
 real(kind=8), dimension(imax,kl) :: zpvapor, zpclw, zpladj, zpcli
 real(kind=8), dimension(imax,kl) :: zpimlt, zpihom, zpidw, zpiadj
 real(kind=8), dimension(imax,kl) :: zqschg
-#endif
-!real, dimension(imax,kl) :: precrz, preciz, precsz
 real(kind=8), dimension(imax) :: pptrain, pptsnow, pptice
 real(kind=8) tdt
 real prf_temp, prf, fcol, fr, alph
@@ -387,7 +386,6 @@ select case ( interp_ncloud(ldr,ncloud) )
                        zfluxr,zfluxi,zfluxs,zfluxm,        &
                        zfluxf,zqevap,zqsubl,zqauto,zqcoll, &
                        zqaccr,zvi,                         & !aerosol scheme
-#ifdef diagnostic
                        zpsnow,zpsaut,zpsfw,zpsfi,zpraci,   & !process rate cloud microphysics
                        zpiacr,zpsaci,zpsacw,zpsdep,        &
                        zpssub,zpracs,zpsacr,zpsmlt,        &
@@ -395,7 +393,6 @@ select case ( interp_ncloud(ldr,ncloud) )
                        zprevp,zpgfr,zpvapor,zpclw,         &
                        zpladj,zpcli,zpimlt,zpihom,         &
                        zpidw,zpiadj,zqschg,                &
-#endif
                        zcdrop,lin_aerosolmode,lin_adv)
       end do
 
@@ -455,36 +452,36 @@ select case ( interp_ncloud(ldr,ncloud) )
       faccr(js:je,:) = real( zqaccr(1:imax,:) )
       vi(js:je,:)    = real( zvi(1:imax,:) )
 
-      !if (process_rate_mode == 2) then
-      !  psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
-      !  psaut(js:je,:)   = real( zpsaut(1:imax,:) )
-      !  psfw(js:je,:)    = real( zpsfw(1:imax,:) )
-      !  psfi(js:je,:)    = real( zpsfi(1:imax,:) )
-      !  praci(js:je,:)   = real( zpraci(1:imax,:) )
-      !  piacr(js:je,:)   = real( zpiacr(1:imax,:) )
-      !  psaci(js:je,:)   = real( zpsaci(1:imax,:) )
-      !  psacw(js:je,:)   = real( zpsacw(1:imax,:) )
-      !  psdep(js:je,:)   = real( zpsdep(1:imax,:) )
-      !  pssub(js:je,:)   = real( zpssub(1:imax,:) )
-      !  pracs(js:je,:)   = real( zpracs(1:imax,:) )
-      !  psacr(js:je,:)   = real( zpsacr(1:imax,:) )
-      !  psmlt(js:je,:)   = real( zpsmlt(1:imax,:) )
-      !  psmltevp(js:je,:)= real( zpsmltevp(1:imax,:) )
-      !  prain(js:je,:)   = real( zprain(1:imax,:) )
-      !  praut(js:je,:)   = real( zpraut(1:imax,:) )
-      !  pracw(js:je,:)   = real( zpracw(1:imax,:) )
-      !  prevp(js:je,:)   = real( zprevp(1:imax,:) )
-      !  pgfr(js:je,:)    = real( zpgfr(1:imax,:) )
-      !  pvapor(js:je,:)  = real( zpvapor(1:imax,:) )
-      !  pclw(js:je,:)    = real( zpclw(1:imax,:) )
-      !  pladj(js:je,:)   = real( zpladj(1:imax,:) )
-      !  pcli(js:je,:)    = real( zpcli(1:imax,:) )
-      !  pimlt(js:je,:)   = real( zpimlt(1:imax,:) )
-      !  pihom(js:je,:)   = real( zpihom(1:imax,:) )
-      !  pidw(js:je,:)    = real( zpidw(1:imax,:) )
-      !  piadj(js:je,:)   = real( zpiadj(1:imax,:) )
-      !  qschg(js:je,:)   = real( zqschg(1:imax,:) )
-      !end if
+      if (process_rate_mode == 2) then
+        psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
+        psaut(js:je,:)   = real( zpsaut(1:imax,:) )
+        psfw(js:je,:)    = real( zpsfw(1:imax,:) )
+        psfi(js:je,:)    = real( zpsfi(1:imax,:) )
+        praci(js:je,:)   = real( zpraci(1:imax,:) )
+        piacr(js:je,:)   = real( zpiacr(1:imax,:) )
+        psaci(js:je,:)   = real( zpsaci(1:imax,:) )
+        psacw(js:je,:)   = real( zpsacw(1:imax,:) )
+        psdep(js:je,:)   = real( zpsdep(1:imax,:) )
+        pssub(js:je,:)   = real( zpssub(1:imax,:) )
+        pracs(js:je,:)   = real( zpracs(1:imax,:) )
+        psacr(js:je,:)   = real( zpsacr(1:imax,:) )
+        psmlt(js:je,:)   = real( zpsmlt(1:imax,:) )
+        psmltevp(js:je,:)= real( zpsmltevp(1:imax,:) )
+        prain(js:je,:)   = real( zprain(1:imax,:) )
+        praut(js:je,:)   = real( zpraut(1:imax,:) )
+        pracw(js:je,:)   = real( zpracw(1:imax,:) )
+        prevp(js:je,:)   = real( zprevp(1:imax,:) )
+        pgfr(js:je,:)    = real( zpgfr(1:imax,:) )
+        pvapor(js:je,:)  = real( zpvapor(1:imax,:) )
+        pclw(js:je,:)    = real( zpclw(1:imax,:) )
+        pladj(js:je,:)   = real( zpladj(1:imax,:) )
+        pcli(js:je,:)    = real( zpcli(1:imax,:) )
+        pimlt(js:je,:)   = real( zpimlt(1:imax,:) )
+        pihom(js:je,:)   = real( zpihom(1:imax,:) )
+        pidw(js:je,:)    = real( zpidw(1:imax,:) )
+        piadj(js:je,:)   = real( zpiadj(1:imax,:) )
+        pqschg(js:je,:)  = real( zqschg(1:imax,:) )
+      end if
           
       condx(js:je)  = condx(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
       conds(js:je)  = conds(js:je) + real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax) )
@@ -650,7 +647,7 @@ implicit none
 
 integer, intent(in) :: ldr
 integer, intent(in) :: ncloud
-character(len=10) :: mp_physics
+character(len=20) :: mp_physics
 
 mp_physics = "ERROR"
 

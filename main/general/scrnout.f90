@@ -805,7 +805,7 @@ logical found
 
 ! Use surface, pseudo-adiabatic, including ice for CAPE and CIN calculation
 
-#ifdef GPU
+#ifndef _OPENMP
 !$acc parallel loop copyin(ps,t,ntiles,imax,kl,qg) copyout(cape_d,cin_d) present(sig)    &
 !$acc   private(pl,tl,pil,th,thv,th2,pl2,tl2,thv2,qv2,ql2,qi2,qt,b2,narea,capel,cinl,qs) &
 !$acc   private(js,je,k,iq,tile,b1,dp,nloop,pl1,tl1,th1,qv1,ql1,qi1,thv1,thlast,pil2)    &
@@ -959,7 +959,7 @@ do tile = 1,ntiles
   cin_d(js:je) = -cinl(:)
 
 end do
-#ifdef GPU
+#ifndef _OPENMP
 !$acc end parallel loop
 #else
 !$omp end do nowait
@@ -968,7 +968,7 @@ end do
 
 ! Calculate LI (from surface) - Based on WRF code
 
-#ifdef GPU
+#ifndef _OPENMP
 !$acc parallel loop copyin(t,ps,qg) copyout(li_d) present(sig)                                 &
 !$acc   private(js,je,i,k,iter,iq,srctK,srcp,srcqs,srcq,srctheta,term1,srcrh,denom,tlclK,plcl) &
 !$acc   private(srcthetaeK,wflag,press,tovtheta,ptK,found,smixr,thetaK,tcheck,pw,ptvK,tvK)     &
@@ -1074,7 +1074,7 @@ do tile = 1,ntiles
   end do   ! k loop
   
 end do ! tile loop
-#ifdef GPU
+#ifndef _OPENMP
 !$acc end parallel loop
 #else
 !$omp end do nowait

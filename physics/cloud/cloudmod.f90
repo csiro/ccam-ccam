@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -779,16 +779,15 @@ real, dimension(imax,kl), intent(inout) :: rad_tend, trb_tend, trb_qend
 real, dimension(imax,kl), intent(inout) :: stratcloud
 real, dimension(imax,kl) :: new_stratcloud, new_qcg
 real, dimension(imax), intent(in) :: ps
-real, dimension(imax) :: aa, bb, cc, a_dt, b_dt, cf1, cfeq, cfbar
-real, dimension(imax) :: qv, omega, hlrvap, dqsdt, gam, dqs
-real, dimension(imax) :: da
+real, dimension(imax) :: dqsdt
 real, dimension(imax) :: dqs_adiabatic, dqs_radiation, dqs_turbulence
 real, intent(in) :: dt
 real, dimension(imax,kl) :: erosion_scale
 real, parameter :: erosion_scale_d = 1.e-6
 real, parameter :: erosion_scale_t = 5.e-5
 real, parameter :: diff_threshold_t = 0.1
-real al, delq, qc_local
+real a_dt, b_dt, cf1, cfeq, cfbar, dqs, gam, qv
+real al, delq, qc_local, omega, hlrvap, aa, bb, cc
 
 ! calculate diagnostic cloud fraction using Smith.  This is uses for cloud initialisation
 ! (0% cloud cover) or eroding from 100% cloud cover.
@@ -798,8 +797,8 @@ real al, delq, qc_local
 ! using the triangular PDF of Smith (1990)
 do k = 1,kl
   do iq = 1,imax
-    hlrvap(iq) = (hl+fice(iq,k)*hlf)/rvap
-    dqsdt(iq) = qs(iq,k)*hlrvap(iq)/tliq(iq,k)**2
+    hlrvap = (hl+fice(iq,k)*hlf)/rvap
+    dqsdt(iq) = qs(iq,k)*hlrvap/tliq(iq,k)**2
     al = 1./(1.+(hlcp+fice(iq,k)*hlfcp)*dqsdt(iq))  !Smith's notation
     qc_local = qtot(iq,k) - qs(iq,k)     ! qc_local can be negative
     delq = (1.-rcrit(iq,k))*qs(iq,k)     !UKMO style (equivalent to above)
@@ -830,14 +829,16 @@ select case(tiedtke_form)
   case(1)
     ! erosion scale in 1/secs
     do k = 1,kl
-      qv = qtot(:,k) - qc(:,k)        
-      where ( 0.5*(rkmsave(:,k)+rkhsave(:,k)) > diff_threshold_t )
-        ! Turbulence          
-        erosion_scale(:,k) = erosion_scale_t*stratcloud(:,k)*max(qs(:,k)-qv,0.)/max(qc(:,k),1.e-20)
-      elsewhere
-        ! Background
-        erosion_scale(:,k) = erosion_scale_d*stratcloud(:,k)*max(qs(:,k)-qv,0.)/max(qc(:,k),1.e-20)
-      end where
+      do iq = 1,imax  
+        qv = qtot(iq,k) - qc(iq,k)        
+        if ( 0.5*(rkmsave(iq,k)+rkhsave(iq,k)) > diff_threshold_t ) then
+          ! Turbulence          
+          erosion_scale(iq,k) = erosion_scale_t*stratcloud(iq,k)*max(qs(iq,k)-qv,0.)/max(qc(iq,k),1.e-20)
+        else
+          ! Background
+          erosion_scale(iq,k) = erosion_scale_d*stratcloud(iq,k)*max(qs(iq,k)-qv,0.)/max(qc(iq,k),1.e-20)
+        end if
+      end do  
     end do
     ! Aerosols
     !do k = 1,kl
@@ -853,10 +854,13 @@ select case(tiedtke_form)
     ! (1/bs)*dbsdt = -2.25e-5*exp(-3.1*Qc/(aL*qsat)
     ! aL = 1/( 1 + dqsdT*L/Cp ) = 1/(1+gamma)  
     do k = 1,kl
-      qv = qtot(:,k) - qc(:,k)   
-      erosion_scale(:,k) = 0.5*(1.-stratcloud(:,k))**2/max(stratcloud(:,k),1.e-10)  &
-          *(qtot(:,k)-qs(:,k))*(-2.25e-5)*exp(-3.1*(qtot(:,k)-qs(:,k))/qs(:,k))     &
-          /max(qs(:,k)-qv,1.e-8)
+      do iq = 1,imax  
+        qv = qtot(iq,k) - qc(iq,k)   
+        erosion_scale(iq,k) = 0.5*(1.-stratcloud(iq,k))**2/max(stratcloud(iq,k),1.e-10)  &
+            *(qtot(iq,k)-qs(iq,k))*2.25e-5*exp(-3.1*(qtot(iq,k)-qs(iq,k))/qs(iq,k))      &
+            /max(qs(iq,k)-qv,1.e-8)
+        erosion_scale(iq,k) = max( erosion_scale(iq,k), 0. )
+      end do  
     end do
     
   case default
@@ -887,65 +891,79 @@ end select
 ! CC = ((omega + grav*mflx)/(cp*rho)+netten)*dqsdT*dt
 
 do k = 1,kl
-  stratcloud(:,k) = max( min( stratcloud(:,k), 1. ), 0. )
 
-  qv(:) = qtot(:,k) - qc(:,k)
-  ! calculate vertical velocity, dqs/dT and gamma
-  omega(:) = ps(:)*dpsldt(:,k) 
-  hlrvap(:) = (hl+fice(:,k)*hlf)/rvap
-  dqsdT(:) = qs(:,k)*hlrvap/(tliq(:,k)**2)
-  gam(:) = (hlcp+fice(:,k)*hlfcp)*dqsdT
+  do iq = 1,imax
+    stratcloud(iq,k) = max( min( stratcloud(iq,k), 1. ), 0. )
+    ! calculate dqs/dT
+    hlrvap = (hl+fice(iq,k)*hlf)/rvap
+    dqsdT(iq) = qs(iq,k)*hlrvap/(tliq(iq,k)**2)
+  end do  
   
   ! tiedtke_form==1
-  dqs_adiabatic(:) = omega/(cp*rho(:,k))*dqsdT
-  dqs_radiation(:) = rad_tend(:,k)*dqsdT
-  dqs_turbulence(:) = trb_tend(:,k)*dqsdT ! - trb_qend(:,k) in PC2
+  do iq = 1,imax
+    omega = ps(iq)*dpsldt(iq,k)   
+    dqs_adiabatic(iq) = omega/(cp*rho(iq,k))*dqsdT(iq)
+    dqs_radiation(iq) = rad_tend(iq,k)*dqsdT(iq)
+    dqs_turbulence(iq) = trb_tend(iq,k)*dqsdT(iq)
+  end do    
+  if ( tiedtke_form==2 ) then
+    do iq = 1,imax  
+      dqs_turbulence(iq) = dqs_turbulence(iq) - trb_qend(iq,k)
+    end do  
+  end if  
   !dqs_convection(:) = grav*cmflx(:,k)/(cp*rho(:,k))*dqsdT
   
-  !cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dqsdT
-  aa = 0.25*gam(:)*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )
-  bb = -(1.+gam(:)*stratcloud(:,k))  
-  cc = dqs_adiabatic(:) + dqs_radiation(:) + dqs_turbulence(:) ! neglect dqs_convection
-  dqs = 2.*cc/( -bb + sqrt( bb**2 - 4.*aa*cc ) ) ! alternative form of quadratic equation
-  !da = -2.*aa(:)*dqs(:)/gam(:)
-  da = -0.5*dqs*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )
+  do iq = 1,imax
+    qv = qtot(iq,k) - qc(iq,k)  
+    gam = (hlcp+fice(iq,k)*hlfcp)*dqsdT(iq)  
+      
+    !cc = ((omega + grav*cmflx(:,k))/(cp*rho(:,k))+nettend(:,k))*dqsdT
+    aa = 0.25*gam*(1.-stratcloud(iq,k))**2/max( qs(iq,k)-qv, 1.e-8 )
+    bb = -(1.+gam*stratcloud(iq,k))  
+    cc = dqs_adiabatic(iq) + dqs_radiation(iq) + dqs_turbulence(iq) ! neglect dqs_convection
+    dqs = 2.*cc/( -bb + sqrt( bb**2 - 4.*aa*cc ) ) ! alternative form of quadratic equation
+    
+    !da = -2.*aa*dqs/gam
+    !da(:) = -0.5*dqs*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )
 
-  ! Large scale cloud formation via condensation (A)
-  ! Large scale cloud destruction via erosion (B)
-  where ( qc(:,k)>1.e-8 )
-    !a_dt = da/max(1.-stratcloud(:,k),1.e-10)
-    a_dt = max( -0.5*dqs*(1.-stratcloud(:,k))/max( qs(:,k)-qv, 1.e-8 ), 0. )
-    !a_dt = da_erosion/max(stratcloud(:,k),1.e-10)
-  elsewhere
-    a_dt = 0.  
-  end where  
-  b_dt = erosion_scale(:,k)
+    ! Large scale cloud formation via condensation (A)
+    ! Large scale cloud destruction via erosion (B)
+    if ( qc(iq,k)>1.e-8 ) then
+      !a_dt = da/max(1.-stratcloud(:,k),1.e-10)
+      a_dt = max( -0.5*dqs*(1.-stratcloud(iq,k))/max( qs(iq,k)-qv, 1.e-8 ), 0. )
+      !a_dt = da_erosion/max(stratcloud(:,k),1.e-10)
+    else
+      a_dt = 0.  
+    end if
+    b_dt = erosion_scale(iq,k)
 
-  ! Integrate
-  !   dcf/dt = (1-cf)*A - cf*B
-  ! to give (use cf' = A-cf*(A+B))
-  !   cf(t=1) = cfeq + (cf(t=0) - cfeq)*exp(-(A+B)*dt)
-  !   cfeq = A/(A+B)
-  ! Average cloud fraction over the interval t=tau to t=tau+1
-  !   cfbar = cfeq - (cf(t=1) - cf(t=0))/((A+B)*dt)
-  ! cfeq is the equilibrum cloud fraction that is approached with
-  ! a time scale of 1/(A+B)
-  where ( a_dt+b_dt>1.e-20 )
-    cfeq  = a_dt/(a_dt+b_dt)
-    cf1   = cfeq + (stratcloud(:,k) - cfeq)*exp(-(a_dt+b_dt)*dt)
-    cfbar = cfeq + (stratcloud(:,k) - cf1 )/((a_dt+b_dt)*dt)
-  elsewhere
-    cfeq  = stratcloud(:,k)
-    cf1   = stratcloud(:,k)
-    cfbar = stratcloud(:,k)
-  end where
+    ! Integrate
+    !   dcf/dt = (1-cf)*A - cf*B
+    ! to give (use cf' = A-cf*(A+B))
+    !   cf(t=1) = cfeq + (cf(t=0) - cfeq)*exp(-(A+B)*dt)
+    !   cfeq = A/(A+B)
+    ! Average cloud fraction over the interval t=tau to t=tau+1
+    !   cfbar = cfeq - (cf(t=1) - cf(t=0))/((A+B)*dt)
+    ! cfeq is the equilibrum cloud fraction that is approached with
+    ! a time scale of 1/(A+B)
+    if ( a_dt+b_dt>1.e-20 ) then
+      cfeq  = a_dt/(a_dt+b_dt)
+      cf1   = cfeq + (stratcloud(iq,k) - cfeq)*exp(-(a_dt+b_dt)*dt)
+      cfbar = cfeq + (stratcloud(iq,k) - cf1)/((a_dt+b_dt)*dt)
+    else
+      cfeq  = stratcloud(iq,k)
+      cf1   = stratcloud(iq,k)
+      cfbar = stratcloud(iq,k)
+    end if
   
-  ! Change in condensate
-  ! dqc = -dqs*(stratcloud+0.5*da)
-  !qc(:,k) = min( max( qc(:,k) - dqs*(cf1+0.5*da)*dt, 0.), qtot(:,k) )
-  qc(:,k) = max( qc(:,k) - cfbar*dqs, 0. )
+    ! Change in condensate
+    ! dqc = -dqs*(stratcloud+0.5*da)
+    !qc(:,k) = min( max( qc(:,k) - dqs*(cf1+0.5*da)*dt, 0.), qtot(:,k) )
+    qc(iq,k) = max( qc(iq,k) - cfbar*dqs, 0. )
 
-  stratcloud(:,k) = max( min( cf1, 1. ), 0. )
+    stratcloud(iq,k) = max( min( cf1, 1. ), 0. )
+  
+  end do ! i=1,imax
 
   ! Change in cloud fraction
   where ( qc(:,k)>0. )

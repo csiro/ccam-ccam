@@ -147,7 +147,7 @@ end if
 
 #ifdef share_ifullg
 #ifndef usempi3
-write(6,*) "ERROR: CCAM -Dshare_ifullg requires -Dusempi3"
+write(6,*) "ERROR: Compiling CCAM with -Dshare_ifullg requires -Dusempi3"
 #endif
 #endif
 
@@ -167,7 +167,7 @@ end if
 
 
 !----------------------------------------------------------------
-! INITALISE TIMING LOGS, READ NAMELIST AND INITIALISE MODEL
+! INITALISE TIMING LOGS, READ NAMELIST AND READ INITIAL CONDITIONS
 call log_off
 call log_setup
 call globpe_init
@@ -247,14 +247,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
   endif
 
-  ! interpolate tracer fluxes to current timestep
-  if ( ngas>0 ) then
-    call interp_tracerflux
-  end if
-
 
   ! ***********************************************************************
-  ! START ATMOSPHERE DYNAMICS
+  ! ATMOSPHERE DYNAMICS
   ! ***********************************************************************
 
   call nantest("before atmosphere dynamics",1,ifull,"all")
@@ -415,7 +410,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     ! Update the semi-implicit solution to the augumented geopotential
     call adjust5
 
-    ! check for rounding errors
+    ! check for rounding errors and invalid data
     call fixqg(1,ifull)
     call nantest("after atmosphere dynamics",1,ifull,"dynamics")
       
@@ -463,7 +458,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
     
   ! ***********************************************************************
-  ! START RIVER ROUTING AND HYDROLOGY
+  ! RIVER ROUTING AND HYDROLOGY
   ! ***********************************************************************
     
   if ( nhstest>=0 ) then
@@ -476,27 +471,27 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
     
   ! ***********************************************************************
-  ! START OCEAN DYNAMICS
+  ! OCEAN DYNAMICS
   ! ***********************************************************************
 
   ! nmlo=0   Prescriped SSTs and sea-ice with JLM skin enhancement
   ! nmlo=1   1D mixed-layer-ocean model
   ! nmlo=2   nmlo=1 plus river-routing and horiontal diffusion
   ! nmlo=3   nmlo=2 plus 3D dynamics
-  ! nmlo>9   Use external PCOM ocean model
+  ! nmlo>9   Use external VCOM ocean model
 
-  if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
+  if ( mlomode(nmlo)=="ocn_dynamics" ) then
     ! DYNAMICS & DIFFUSION ------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlohadv
     call END_LOG(waterdynamics_end)
-  else if ( abs(nmlo)==2 ) then
+  else if ( mlomode(nmlo)=="ocn_diffusion" ) then
     ! DIFFUSION -----------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlodiffusion
     call END_LOG(waterdynamics_end)
   end if
-  if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
+  if ( mlomode(nmlo)=="ocn_dynamics" .or. mlomode(nmlo)=="ocn_diffusion" ) then
     ! SEA ICE  ------------------------------------------------------------
     call START_LOG(waterdynamics_begin)
     call mlonewice
@@ -505,25 +500,27 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call mloexpice("snowd",snowd,0)
     call mlosurf("sst",tss,0)
     call END_LOG(waterdynamics_end)
+#ifdef csircoupled
+  else
+    ! ***********************************************************************
+    ! VCOM ADVECTION
+    ! ***********************************************************************
+    call vcom_ccam_advect(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
+    ! ***********************************************************************
+    ! VCOM DIFFUSION
+    ! ***********************************************************************
+    call vcom_ccam_diffusion(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
+#endif
   end if
     
-#ifdef csircoupled
-  ! ***********************************************************************
-  ! VCOM ADVECTION
-  ! ***********************************************************************
-  call vcom_ccam_advect(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
-#endif
       
 
   ! ***********************************************************************
-  ! START PHYSICS 
+  ! PHYSICS 
   ! ***********************************************************************
   call START_LOG(phys_begin)
 
 
-  ! MJT notes - the physics/chemistry OpenACC code requires a larger heapsize like
-  ! export PGI_ACC_CUDA_HEAPSIZE=256M and maxtilesize=32
-    
   ! MISC (SINGLE) ---------------------------------------------------------
   ! radiation timer calculations
   if ( nrad==5 ) then
@@ -547,9 +544,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call END_LOG(aerosol_end)
     end if
   end if  
+  ! interpolate tracer fluxes to current timestep
+  if ( ngas>0 ) then
+    call interp_tracerflux
+  end if  
 
   
   ! MISC (PARALLEL) -------------------------------------------------------
+  ! This is an additional layer of parallel compute on top of domain decomposition
   !$omp parallel
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
@@ -723,9 +725,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
   ! AEROSOLS --------------------------------------------------------------
   ! Old time-split with aero_split=0
-#ifdef GPU
-  !$omp end parallel
-#endif
   if ( nsib>0 .and. aero_split==0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
@@ -733,9 +732,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(aerosol_end)
   end if
-#ifdef GPU
-  !$omp parallel
-#endif
   if ( aero_split==0 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -800,9 +796,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! AEROSOLS --------------------------------------------------------------
   ! New time-split with aero_split=1
   ! Includes turbulent mixing
-#ifdef GPU
-  !$omp end parallel
-#endif
   if ( nsib>0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
@@ -810,9 +803,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(aerosol_end)
   end if
-#ifdef GPU
-  !$omp parallel
-#endif
   !$omp do schedule(static) private(js,je)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
@@ -846,7 +836,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + real(condx(js:je),8)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   end do  
   !$omp end do nowait
-  
   if ( rescrn>0 ) then
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
@@ -856,9 +845,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
     !$omp end do nowait
   end if
-#ifdef GPU
-  !$omp end parallel
-#endif
   if ( rescrn>0 ) then
     ! CAPE only needs to be calculated for cordex output
     ! pcc2hist will calculate CAPE for standard output
@@ -868,9 +854,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       end if  
     end if    
   end if  
-#ifndef GPU
   !$omp end parallel
-#endif
 
 
   ! MISC (SINGLE) ---------------------------------------------------------
@@ -880,14 +864,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if
 
   call END_LOG(phys_end)
-
-
-#ifdef csircoupled
-  ! ***********************************************************************
-  ! VCOM DIFFUSION
-  ! ***********************************************************************
-  call vcom_ccam_diffusion(fracice,sicedep,tss,tgg(:,1),tggsn(:,1))
-#endif
 
   
   ! ***********************************************************************
@@ -1420,7 +1396,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
     nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix,             &
     always_mspeca,ntvd,tbave10,maxuv,maxcolour,adv_precip,        &
-    procmode,compression,hp_output,pil_single,                    & ! file io
+    procmode,compression,hp_output,pil_single,process_rate_mode,  & ! file io
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
@@ -2249,7 +2225,7 @@ call extraout_init(ifull,nextout)
 call gdrag_init(ifull)
 call histave_init(ifull,kl,ms,ccycle,output_windmax)
 call kuocom_init(ifull,kl)
-call liqwpar_init(ifull,iextra,kl)
+call liqwpar_init(ifull,iextra,kl,process_rate_mode)
 call morepbl_init(ifull,kl)
 call nharrs_init(ifull,iextra,kl)
 call nlin_init(ifull,kl)
@@ -2744,6 +2720,7 @@ use cc_omp                                 ! CC OpenMP routines
 use indata                                 ! Data initialisation
 use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
+use module_ctrl_microphysics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use parm_m                                 ! Model configuration
@@ -2758,7 +2735,7 @@ use stime_m                                ! File date data
 implicit none
 
 integer i
-integer, dimension(121) :: dumi
+integer, dimension(122) :: dumi
 real, dimension(34) :: dumr
     
 dumr(:) = 0.
@@ -2919,6 +2896,7 @@ if ( myid==0 ) then
   if ( localhist ) dumi(119) = 1
   dumi(120) = maxcolour
   dumi(121) = adv_precip
+  dumi(122) = process_rate_mode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3077,6 +3055,7 @@ pil_single        = dumi(118)
 localhist         = dumi(119)==1
 maxcolour         = dumi(120)
 adv_precip        = dumi(121)
+process_rate_mode = dumi(122)
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
   call ccmpi_bcast(jstn(1:nstn),0,comm_world)

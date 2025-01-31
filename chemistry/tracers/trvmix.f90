@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2018 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -30,7 +30,6 @@ subroutine tracervmix
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays
 use carbpools_m                     ! Carbon pools
-use cc_mpi                          ! CC MPI routines
 use const_phys                      ! Physical constants
 use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
@@ -42,7 +41,7 @@ use tracers_m                       ! Tracer data
 
 implicit none
 
-integer tile, is, ie, idjd_t
+integer tile, is, ie
 integer iq, k
 real, dimension(imax,numtracer) :: lco2em
 real, dimension(imax,kl,ntrac) :: ltr
@@ -52,10 +51,9 @@ real, dimension(imax,kl) :: lat, lct
 real, dimension(imax,kl) :: lrkhsave
 real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
 real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
-logical mydiag_t
 
 !$omp do schedule(static) private(is,ie,iq,k),      &
-!$omp private(lt,lat,lct,idjd_t,mydiag_t),          &
+!$omp private(lt,lat,lct),                          &
 !$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
 !$omp private(lrkhsave,rong,rlogs1,rlogs2),         &
 !$omp private(rlogh1,rlog12,tmnht,dz,gt,lfnee),     &
@@ -63,8 +61,6 @@ logical mydiag_t
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  idjd_t = mod(idjd-1,imax)+1
-  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
   lt       = t(is:ie,:)
   lrkhsave = rkhsave(is:ie,:)
@@ -288,7 +284,6 @@ end subroutine trgassflux
 subroutine gasvmix(temptr,fluxfact,igas,decay,trsrc,methloss,mcfloss,vt,dz1, &
                    tr,t,oh,strloss,jmcf,mcfdep,ps,imax)
 
-use cc_mpi
 use const_phys
 use newmpar_m, only : kl
 use parm_m
@@ -331,22 +326,6 @@ endif
 ! rml 16/2/10 methane loss by OH and in stratosphere
 if (methloss) then
   loss = tr(1:imax,:,igas)*dt*(koh*exp(-1775./t(1:imax,:))*oh(:,:) + strloss(:,:))
-
-!!       calculate total loss
-!  totloss_l(1) = 0.
-!  do k=1,kl
-!    do iq=1,imax
-!      totloss_l(1) = totloss_l(1) + loss(iq,k)*dsig(k)*ps(iq)*wts(iq)
-!    enddo
-!  enddo
-!  call ccmpi_allreduce(totloss_l(1:1),totloss(1:1),"sum",comm_world)
-!!       convert to TgCH4 and write out
-!  if (myid == 0) then
-!    totloss(1) = -totloss(1)*4.*pi*eradsq*fCH4_MolM/(grav*fAIR_MolM*1.e18)
-!    write(6,*) 'Total loss',ktau,totloss(1)
-!!         accumulate loss over month
-!    acloss_g(igas) = acloss_g(igas) + totloss(1)
-!  endif
   dep = 0.
 elseif (mcfloss) then
   loss = tr(1:imax,:,igas)*dt*(kohmcf*exp(-1520./t(1:imax,:))*oh(:,:) + jmcf(:,:))

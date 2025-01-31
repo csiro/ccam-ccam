@@ -102,7 +102,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
                       fluxr, fluxi, fluxs, fluxm,           &
                       fluxf, fevap, fsubl, fauto, fcoll,    &
                       faccr, vi,                            &
-#ifdef diagnostic
                       zpsnow,zpsaut,zpsfw,zpsfi,zpraci,     & !process rate 
                       zpiacr,zpsaci,zpsacw,zpsdep,          &
                       zpssub,zpracs,zpsacr,zpsmlt,          &
@@ -110,9 +109,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
                       zprevp,zpgfr,zpvapor,zpclw,           &
                       zpladj,zpcli,zpimlt,zpihom,           &
                       zpidw,zpiadj,zqschg,                  &
-#endif
                       zdrop,lin_aerosolmode,lin_adv)
-!$acc routine vector
 
 !-----------------------------------------------------------------------
 
@@ -182,7 +179,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
                                                     fluxm,fluxf,fevap,fsubl,           &
                                                     fauto,fcoll,faccr
   real, dimension(1:imax,kts:kte), intent(out)   :: vi
-#ifdef diagnostic
   real, dimension(1:imax,kts:kte), intent(out)   :: zpsnow,zpsaut,zpsfw,               &
                                                     zpsfi,zpraci,zpiacr,               &
                                                     zpsaci,zpsacw,zpsdep,              &
@@ -193,7 +189,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
                                                     zpladj,zpcli,zpimlt,               &
                                                     zpihom,zpidw,zpiadj,               &
                                                     zqschg
-#endif
   real, dimension(1:imax),         intent(inout) :: pptrain, pptsnow, pptice
   real, dimension(1:imax,kts:kte), intent(inout) :: qvz,qlz,qrz,qiz,qsz,thz
   real, dimension(1:imax,kts:kte), intent(inout) :: ncz,niz,nrz,nsz
@@ -347,9 +342,9 @@ subroutine clphy1d_ylin(dt, imax,                           &
   dp5o2   =0.5*(bv_i+5.)
     
   dcs     = 125.E-6  ! THRESHOLD SIZE FOR CLOUD ICE AUTOCONVERSION
-  xms     =pi*500.*(dcs)**3/6.   !morr =PI*RHOI*DCS**3/6.=5.11*10e-10
-  xmr     =4./3.*pi*rhowater*(500.E-6)**3
-  xmr_i   =4./3.*pi*rhowater*(25.E-6)**3
+  xms     = pi*500.*(dcs)**3/6.   !morr =PI*RHOI*DCS**3/6.=5.11*10e-10
+  xmr     = 4./3.*pi*rhowater*(500.E-6)**3
+  xmr_i   = 4./3.*pi*rhowater*(25.E-6)**3
   mi0     = 4./3.*3.14*500.*(10.e-6)**3
   !    xmc     =4.17*10e-14 !4./3.*pi*(0.00001)**3*1000.
   lammaxr = 1./20.E-6
@@ -1956,7 +1951,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
     end where
 
 
-#ifdef diagnostic
   ! save all process rate for understanding cloud microphysics
     zpsaut(1:imax,k)   = psaut(1:imax)    ! ice crystal aggregation to snow
     zpsfw(1:imax,k)    = psfw(1:imax)     ! BERGERON process to transfer cloud water to snow
@@ -1986,7 +1980,6 @@ subroutine clphy1d_ylin(dt, imax,                           &
     zpiadj(1:imax,k)   = piadj(1:imax)    ! saturation adjustment for qi
     zpsnow(1:imax,k)   = psnow(1:imax)
     zqschg(1:imax,k)   = qschg(1:imax)
-#endif
 
 
   ! save process rate for aerisol scheme
@@ -2019,7 +2012,6 @@ END SUBROUTINE clphy1d_ylin
 !---------------------------------------------------------------------
 PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
                   xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
-!$acc routine seq
 
 !---------------------------------------------------------------------
   IMPLICIT NONE
@@ -2148,7 +2140,6 @@ END SUBROUTINE satadj
 
 !----------------------------------------------------------------
 PURE FUNCTION ggamma(X) result(ans)
-!$acc routine seq
 
 !----------------------------------------------------------------
   IMPLICIT NONE
