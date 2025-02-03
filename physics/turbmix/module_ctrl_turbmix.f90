@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -370,6 +370,12 @@ if ( adv_precip>=1 ) then
     lqtr(:,:) = qgrg(is:ie,:)
     call trimmix(lat,lct,lqtr,imax,kl)
     qgrg(is:ie,:) = lqtr(:,:)
+    lqtr(:,:) = nr(is:ie,:)
+    call trimmix(lat,lct,lqtr,imax,kl)
+    nr(is:ie,:) = lqtr(:,:)
+    lqtr(:,:) = ns(is:ie,:)
+    call trimmix(lat,lct,lqtr,imax,kl)
+    ns(is:ie,:) = lqtr(:,:)
   
   end do ! tile = 1,ntiles
   !$omp end do nowait

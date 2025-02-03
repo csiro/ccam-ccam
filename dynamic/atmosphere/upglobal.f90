@@ -60,7 +60,7 @@ integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
 integer, dimension(max(naero,ntrac,6)) :: nfield
 real, dimension(ifull) :: nvadh_inv_pass
-real, dimension(ifull+iextra,kl,8) :: bb
+real, dimension(ifull+iextra,kl,10) :: bb
 real, dimension(ifull+iextra,kl,3) :: uvw
 real, dimension(ifull+iextra,kl) :: dd
 real, dimension(ifull+iextra) :: aa
@@ -218,7 +218,9 @@ if ( mspec==1 .and. mup/=0 ) then
     call bounds(qsng,nrows=2)
     call bounds(qgrg,nrows=2)
     if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
-      call bounds(ni,nrows=2)   
+      call bounds(ni,nrows=2)
+      call bounds(nr,nrows=2)
+      call bounds(ns,nrows=2)
     end if  
   end if  
   if ( ntrac>0 ) then
@@ -378,8 +380,14 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     bb(:,:,7) = qgrg(:,:)
     if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
       bb(:,:,8) = ni(:,:)
-      call ints(bb(:,:,1:8),8,intsch,nface,xg,yg,4)
+      bb(:,:,9) = nr(:,:)
+      bb(:,:,10) = ns(:,:)
+      call ints(bb(:,:,1:10),10,intsch,nface,xg,yg,4)
       ni(1:ifull,1:kl) = bb(1:ifull,1:kl,8)  
+      if ( adv_precip>=1 ) then
+        nr(1:ifull,1:kl) = bb(1:ifull,1:kl,9)
+        ns(1:ifull,1:kl) = bb(1:ifull,1:kl,10)
+      end if    
     else
       call ints(bb(:,:,1:7),7,intsch,nface,xg,yg,4)  
     end if

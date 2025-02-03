@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -347,6 +347,8 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   call bounds(qgrg)
   if ( ncloud>=100 .and. ncloud<200 ) then
     call bounds(ni)
+    call bounds(nr)
+    call bounds(ns)
   end if
 end if
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
@@ -414,6 +416,18 @@ end if
 if ( nhorps==-4 .and. ldr/=0 ) then  
   if ( ncloud>=100 .and. ncloud<200 ) then
     call hordifgt_work(ni,xfact,yfact,emi)
+  end if
+end if
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 .and. adv_precip>=1 ) then  
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    call hordifgt_work(nr,xfact,yfact,emi)
+  end if
+end if
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 .and. adv_precip>=1 ) then  
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    call hordifgt_work(ns,xfact,yfact,emi)
   end if
 end if
 
