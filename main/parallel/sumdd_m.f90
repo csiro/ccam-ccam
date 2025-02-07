@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -20,10 +20,18 @@
 !------------------------------------------------------------------------------
     
 module sumdd_m
+#ifdef usempimod
+   !use mpi_f08, only : mpi_op
+#endif
    implicit none
    public drpdr, drpdr_v, drpdr_local, drpdr_local_v
    private
+#ifdef usempimod   
+   !type(mpi_op), save, public :: MPI_SUMDR
    integer(kind=4), save, public :: MPI_SUMDR
+#else
+   integer(kind=4), save, public :: MPI_SUMDR
+#endif   
 contains
    subroutine drpdr(dra, drb, len, itype) 
 !  Modification of original codes written by David H. Bailey. 

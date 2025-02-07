@@ -180,6 +180,13 @@ if ( nwt>0 ) then
   if ( myid==0 ) write(6,*) "Calling outfile"
   call outfile(20,ofile,psl,u,v,t,qg)
 end if    ! (nwt>0)
+! CORDEX and 10min output do not currently write the zeroth time-step
+!if ( surfile/=' ' ) then
+!  call freqfile_cordex
+!end if
+!if ( freqfile/=' ' ) then
+!  call freqfile_10
+!end if
 if ( newtop<0 ) then
   ! just for outcdf to plot zs  & write fort.22      
   if ( myid==0 ) write(6,*) "newtop<0 requires a stop here"

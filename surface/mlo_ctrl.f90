@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1788,8 +1788,12 @@ if ( any(sig_tmp>1.) ) then
     end do  
   end do  
 else
-  write(6,*) "ERROR: Simga levels for MLO are no longer supported"
-  stop
+  ! found sigma levels  
+  do ii = 1,wlin
+    do iqw = 1,imax  
+      sigin(iqw,ii) = sig_tmp(iqw,ii)
+    end do  
+  end do
 end if
 
 select case(mode)
