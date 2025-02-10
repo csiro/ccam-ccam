@@ -3899,13 +3899,13 @@ integer i, tmp, imax
 imax = min( max( maxtilesize, 1 ), ifull )
 tmp = imax
 imax = -1 ! missing flag
-! first attempt to find multiple of 16
-do i = tmp,16,-1
-  if ( mod(ifull,i)==0 .and. mod(i,16)==0 ) then
-    imax = i
-    exit
-  end if
-end do
+!! first attempt to find multiple of 16
+!do i = tmp,16,-1
+!  if ( mod(ifull,i)==0 .and. mod(i,16)==0 ) then
+!    imax = i
+!    exit
+!  end if
+!end do
 if ( imax<1 ) then
   ! second attempt if multiple of 16 is not possible
   do i = tmp,1,-1

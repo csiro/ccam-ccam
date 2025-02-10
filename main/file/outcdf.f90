@@ -1968,59 +1968,88 @@ if ( iarch==1 ) then
     ! process rate
     if ( ldr/=0 ) then
       !if (process_rate_mode == 1) then
-      !  call attrib(idnc,dima,asize,'leo_pcaut','Autoconversion to cloud water','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_psaut','Autoconversion of ice to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pgaut','Autoconversion of snow to graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pcaut','Autoconversion to cloud water','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,     &
+      !              float_m)
+      !  call attrib(idnc,dima,asize,'leo_psaut','Autoconversion of ice to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,     &
+      !              float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgaut','Autoconversion of snow to graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m, &
+      !              float_m)
       !  call attrib(idnc,dima,asize,'leo_pgmlt','Melt falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
       !  call attrib(idnc,dima,asize,'leo_pgsub','Sublimation of graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pgacw','Accretion of c/liquid by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pgacr','Accretion of rain by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pgaci','Accretion of cloud ice by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pgacs','Accretion of snow by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_psmlt','Melt falling snow due to rain accretion','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pssub','Sublimation of snow falling','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_psacw','Accretion of cloud liquid by falling snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_psacr','Accretion of rain by falling snow -->snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_psaci','Accretion of cloud ice by falling snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pimlt','Melt falling ice to form cloud water','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgacw','Accretion of c/liquid by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,  &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgacr','Accretion of rain by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,      &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgaci','Accretion of cloud ice by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m, &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pgacs','Accretion of snow by falling graupel','kg kg-1 s-1',1.E-12,1.E12,any_m,      &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psmlt','Melt falling snow due to rain accretion','kg kg-1 s-1',1.E-12,1.E12,any_m,   &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pssub','Sublimation of snow falling','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,       &
+      !              float_m)
+      !  call attrib(idnc,dima,asize,'leo_psacw','Accretion of cloud liquid by falling snow','kg kg-1 s-1',1.E-12,1.E12,any_m, &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psacr','Accretion of rain by falling snow -->snow','kg kg-1 s-1',1.E-12,1.E12,any_m, &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_psaci','Accretion of cloud ice by falling snow','kg kg-1 s-1',1.E-12,1.E12,any_m,    &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pimlt','Melt falling ice to form cloud water','kg kg-1 s-1',1.E-12,1.E12,any_m,      &
+      !              point_m,float_m)
       !  call attrib(idnc,dima,asize,'leo_pisub','Sublimation of ice','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_piacw','Accretion of cloud liquid by falling ice','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_piacr','Accretion of rain by falling ice --> ice','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_piacw','Accretion of cloud liquid by falling ice','kg kg-1 s-1',1.E-12,1.E12,any_m,  &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_piacr','Accretion of rain by falling ice --> ice','kg kg-1 s-1',1.E-12,1.E12,any_m,  &
+      !              point_m,float_m)
       !  call attrib(idnc,dima,asize,'leo_psure','NOT SURE what process here','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
       !  call attrib(idnc,dima,asize,'leo_prevp','Evaporation of rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pracc','Collection of liquid cloud by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_pracs','Accretion of cloud snow by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-      !  call attrib(idnc,dima,asize,'leo_praci','Accretion of c/ice by rain ->snow/grauple','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pracc','Collection of liquid cloud by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,        &
+      !              point_m,float_m)
+      !  call attrib(idnc,dima,asize,'leo_pracs','Accretion of cloud snow by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,   &
+      !              float_m)
+      !  call attrib(idnc,dima,asize,'leo_praci','Accretion of c/ice by rain ->snow/grauple','kg kg-1 s-1',1.E-12,1.E12,any_m, &
+      !              point_m,float_m)
       !end if  
       if (process_rate_mode == 2) then
         call attrib(idnc,dima,asize,'psnow','sum all process for snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'psaut','ice crystal aggregation to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'psfw','BERGERON process to transfer cloud water to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'psfi','BERGERON process to transfer cloud ice to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psfw','BERGERON process to transfer cloud water to snow','kg kg-1 s-1',1.E-12,1.E12,      &
+                    any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psfi','BERGERON process to transfer cloud ice to snow','kg kg-1 s-1',1.E-12,1.E12,any_m,  &
+                    point_m,float_m)
         call attrib(idnc,dima,asize,'praci','cloud ice accretion by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'piacr','rain accretion by cloud ice','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'psaci','ice crystal accretion by snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'psacw','accretion of cloud water by snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psacw','accretion of cloud water by snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,       &
+                    float_m)
         call attrib(idnc,dima,asize,'psdep','deposition of snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'pssub','sublimation of snow(T<0)','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'pracs','accretion of snow by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'psacr','accretion of rain by snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'psmlt','melting of snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'psmltevp','evaporation of melting snow(T>0)','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'psmltevp','evaporation of melting snow(T>0)','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,    &
+                    float_m)
         call attrib(idnc,dima,asize,'prain','sum all process for rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'praut','autoconversion of rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'pracw','accretion of cloud water by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pracw','accretion of cloud water by rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,       &
+                    float_m)
         call attrib(idnc,dima,asize,'prevp','evaporation of rain','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'pgfr','feezing of rain to form graupel(added to PI)','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'pvapor','sum all process for water vapor to determine qvz','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'pclw','sum all process for cloud liquid to determine qlz','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pgfr','feezing of rain to form graupel(added to PI)','kg kg-1 s-1',1.E-12,1.E12,any_m,    &
+                    point_m,float_m)
+        call attrib(idnc,dima,asize,'pvapor','sum all process for water vapor to determine qvz','kg kg-1 s-1',1.E-12,1.E12,    &
+                    any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pclw','sum all process for cloud liquid to determine qlz','kg kg-1 s-1',1.E-12,1.E12,     &
+                    any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'pladj','saturation adjustment for ql','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'pcli','sum all process for cloud ice to determine qiz','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pcli','sum all process for cloud ice to determine qiz','kg kg-1 s-1',1.E-12,1.E12,any_m,  &
+                    point_m,float_m)
         call attrib(idnc,dima,asize,'pimlt','melting of ice crystal >0.','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
         call attrib(idnc,dima,asize,'pihom','homogeneous nucleation <-40','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'pidw','production of cloud ice by BERGERON process','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pidw','production of cloud ice by BERGERON process','kg kg-1 s-1',1.E-12,1.E12,any_m,     &
+            point_m,float_m)
         call attrib(idnc,dima,asize,'piadj','saturation adjustment for qi','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
-        call attrib(idnc,dima,asize,'pmidep','water vapor deposition to form snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,float_m)
+        call attrib(idnc,dima,asize,'pmidep','water vapor deposition to form snow','kg kg-1 s-1',1.E-12,1.E12,any_m,point_m,   &
+                    float_m)
       end if
     end if
     
