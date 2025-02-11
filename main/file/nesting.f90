@@ -3371,7 +3371,6 @@ else
   kx = 2*min(ky,kblock) ! extra memory for copy
 end if
 call allocateglobalpack(kx,ky)
-deallocate(specmap_ext)
       
 return
 end subroutine specinit
