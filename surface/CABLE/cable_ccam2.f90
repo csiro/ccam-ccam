@@ -1704,7 +1704,6 @@ integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer(kind=4), dimension(:), allocatable, save :: Iwood
 integer(kind=4), dimension(:,:), allocatable, save :: disturbance_interval
-integer, dimension(0:maxtile) :: stat_count, global_stat_count
 integer i,iq,n,k,ipos,ilat,ivp,is,ie
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
@@ -1715,6 +1714,7 @@ real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
 real, dimension(ifull) :: dummy_pack
 real, dimension(ifull) :: albsoil
+real, dimension(0:maxtile) :: stat_count, global_stat_count
 real, dimension(:), allocatable, save :: dummy_unpack
 logical, dimension(:), allocatable, save :: pmap_temp
 integer :: tile, popcount
@@ -2322,13 +2322,13 @@ else
 end if
   
 ! statistics
-stat_count(:) = 0
-global_stat_count(:) = 0
+stat_count(:) = 0.
+global_stat_count(:) = 0.
 do iq = 1,ifull
   if ( land(iq) ) then  
     landcount = count( svs(iq,:)>0. )
-    stat_count(landcount) = stat_count(landcount) + 1
-    stat_count(0) = stat_count(0) + 1
+    stat_count(landcount) = stat_count(landcount) + 1.
+    stat_count(0) = stat_count(0) + 1.
   end if  
 end do  
 call ccmpi_reduce(stat_count,global_stat_count,"sum",0,comm_world)
@@ -2336,7 +2336,7 @@ if ( myid==0 ) then
   write(6,*) "CABLE statistics:"
   do n = 1,maxtile
     write(6,'(A,I1.1,A,F5.1,A)') "   Percentage of gridpoints with ",n," tile(s) is ", &
-        100.*real(global_stat_count(n))/real(global_stat_count(0)),"%"
+        100.*global_stat_count(n)/global_stat_count(0),"%"
   end do  
 end if
   

@@ -194,10 +194,16 @@ end if
 call START_LOG(ints_begin)
 if ( mup/=0 ) then
   call bounds(dd,corner=.true.)
-  call bounds(pslx,nrows=2)      
+  bb(:,:,1) = pslx(:,:)
   if ( nh/=0 ) then
-    call bounds(h_nh,nrows=2)
+    ! non-hydrostatic version
+    bb(:,:,2) = h_nh(:,:)
+    call bounds(bb(:,:,1:2),nrows=2)
+    h_nh(:,:) = bb(:,:,2)
+  else
+    call bounds(bb(:,:,1:1),nrows=2)  
   end if ! nh/=0
+  pslx(:,:) = bb(:,:,1)
   call bounds(tx,nrows=2)
 end if    ! mup/=0
 do k = 1,kl
@@ -209,26 +215,48 @@ if ( mup/=0 ) then
   call bounds(uvw,nrows=2)
 end if
 if ( mspec==1 .and. mup/=0 ) then
-  call bounds(qg,nrows=2)
+  bb(:,:,1) = qg(:,:)
   if ( ldr/=0 ) then
-    call bounds(qlg,nrows=2)
-    call bounds(qfg,nrows=2)
-    call bounds(stratcloud,nrows=2)
-    call bounds(qrg,nrows=2)
-    call bounds(qsng,nrows=2)
-    call bounds(qgrg,nrows=2)
-    if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
-      call bounds(ni,nrows=2)
-      call bounds(nr,nrows=2)
-      call bounds(ns,nrows=2)
+    bb(:,:,2) = qlg(:,:)
+    bb(:,:,3) = qfg(:,:)
+    bb(:,:,4) = stratcloud(:,:)
+    bb(:,:,5) = qrg(:,:)
+    bb(:,:,6) = qsng(:,:)
+    bb(:,:,7) = qgrg(:,:)
+    if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics
+      bb(:,:,8) = ni(:,:)
+      bb(:,:,9) = nr(:,:)
+      bb(:,:,10) = ns(:,:)
+      call bounds(bb(:,:,1:10),nrows=2)
+      ni(:,:) = bb(:,:,8)
+      if ( adv_precip>=1 ) then
+        nr(:,:) = bb(:,:,9)
+        ns(:,:) = bb(:,:,10)
+      end if    
+    else
+      call bounds(bb(:,:,1:7),nrows=2)  
     end if  
+    qlg(:,:) = bb(:,:,2)
+    qfg(:,:) = bb(:,:,3)
+    stratcloud(:,:) = bb(:,:,4)
+    if ( adv_precip>=1 ) then
+      qrg(:,:) = bb(:,:,5)
+      qsng(:,:) = bb(:,:,6)
+      qgrg(:,:) = bb(:,:,7)
+    end if
+  else
+    call bounds(bb(:,:,1:1),nrows=2)
   end if  
+  qg(:,:) = bb(:,:,1)
   if ( ntrac>0 ) then
     call bounds(tr,nrows=2)
   end if
   if ( nvmix==6 .or. nvmix==9 ) then
-    call bounds(tke,nrows=2)
-    call bounds(eps,nrows=2)
+    bb(:,:,1) = tke(:,:)
+    bb(:,:,2) = eps(:,:)
+    call bounds(bb(:,:,1:2),nrows=2)
+    tke(:,:) = bb(:,:,1)
+    eps(:,:) = bb(:,:,2)
   endif                 ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     call bounds(xtg,nrows=2)
@@ -241,7 +269,6 @@ call END_LOG(ints_end)
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
 #endif
-
 
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
@@ -383,26 +410,26 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
       bb(:,:,9) = nr(:,:)
       bb(:,:,10) = ns(:,:)
       call ints(bb(:,:,1:10),10,intsch,nface,xg,yg,4)
-      ni(1:ifull,1:kl) = bb(1:ifull,1:kl,8)  
+      ni(:,:) = bb(:,:,8)
       if ( adv_precip>=1 ) then
-        nr(1:ifull,1:kl) = bb(1:ifull,1:kl,9)
-        ns(1:ifull,1:kl) = bb(1:ifull,1:kl,10)
+        nr(:,:) = bb(:,:,9)
+        ns(:,:) = bb(:,:,10)
       end if    
     else
       call ints(bb(:,:,1:7),7,intsch,nface,xg,yg,4)  
     end if
-    qlg(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
-    qfg(1:ifull,1:kl) = bb(1:ifull,1:kl,3)
-    stratcloud(1:ifull,1:kl) = bb(1:ifull,1:kl,4)
+    qlg(:,:) = bb(:,:,2)
+    qfg(:,:) = bb(:,:,3)
+    stratcloud(:,:) = bb(:,:,4)
     if ( adv_precip>=1 ) then
-      qrg(1:ifull,1:kl) = bb(1:ifull,1:kl,5)
-      qsng(1:ifull,1:kl) = bb(1:ifull,1:kl,6)
-      qgrg(1:ifull,1:kl) = bb(1:ifull,1:kl,7)
+      qrg(:,:) = bb(:,:,5)
+      qsng(:,:) = bb(:,:,6)
+      qgrg(:,:) = bb(:,:,7)
     end if  
   else
     call ints(bb(:,:,1:1),1,intsch,nface,xg,yg,4)    
   end if
-  qg(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
+  qg(:,:) = bb(:,:,1)
   if ( ntrac>0 ) then
     call ints(tr(:,:,1:ntrac),ntrac,intsch,nface,xg,yg,5)
   endif  ! (ntrac>0)
@@ -410,14 +437,13 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     bb(:,:,1) = tke(:,:)
     bb(:,:,2) = eps(:,:)
     call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,4)
-    tke(1:ifull,1:kl) = bb(1:ifull,1:kl,1)
-    eps(1:ifull,1:kl) = bb(1:ifull,1:kl,2)
+    tke(:,:) = bb(:,:,1)
+    eps(:,:) = bb(:,:,2)
   endif                 ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     call ints(xtg(:,:,1:naero),naero,intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1
-
 
 #ifdef GPU
 !$acc end data

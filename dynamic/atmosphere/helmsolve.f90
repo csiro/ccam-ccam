@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1051,27 +1051,25 @@ do itr = 1,itr_mg
       ! update scalar field
       ! assume zero for first guess of residual (also avoids additional bounds call)
       do k = 1,klim
-        v(:,k,g) = 0.
-      end do    
-      do i = 1,itrbgn
-        do nc = 1,maxcolour
-          ng = mg(g)%ifull_colour(nc)  
-          do k = 1,klim
-            ! pre smoothing
-            do iql = 1,ng
-              iq = mg(g)%iqx(iql,nc)  
-              w(iq,k) = ( mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
-                        + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
-                        - rhs(iq,k,g) )/( helm(iq,k,g) - mg(g)%zz(iq) )
-            end do
-            do iql = 1,ng
-              iq = mg(g)%iqx(iql,nc)
-              v(iq,k,g) = w(iq,k)
-            end do  
+        v(1:ng,k,g) = -rhs(1:ng,k,g)/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
+      end do
+      call mgbounds(g,v(:,1:klim,g),klim=klim)
+      
+      ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
+      ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
+      ! into colours so that the number of messages is reduced.
+      do i = 2,itrbgn
+        do k = 1,klim
+          ! pre smoothing
+          do iq = 1,ng
+            w(iq,k) = ( mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
+                      + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
+                      - rhs(iq,k,g) )/( helm(iq,k,g) - mg(g)%zz(iq) )
           end do
-          call mgbounds_colour(g,v(:,1:klim,g),nc,klim=klim)
-        end do ! nc = 1,maxcolour  
-      end do   ! i = 2,itrbgn
+        end do
+        v(1:ng,1:klim,g) = w(1:ng,1:klim)
+        call mgbounds(g,v(:,1:klim,g),klim=klim)
+      end do
     
       ng4 = mg(g)%ifull_fine
       ng = mg(g)%ifull
@@ -1168,7 +1166,7 @@ do itr = 1,itr_mg
 
       ! send coarse grid solution to processors and also bcast global smaxmin_g
       if ( itr==1 ) then
-        call mgbcastxn(g+1,v(:,1:kl,g+1),smaxmin_g(:,1:2))
+        call mgbcast(g+1,v(:,1:kl,g+1),smaxmin_g(:,1:2))
       else
         call mgbcast(g+1,v(:,1:klim,g+1),dsolmax_g(:),klim=klim)
       end if  
@@ -1187,34 +1185,28 @@ do itr = 1,itr_mg
         ! the coarse interpolation also updates the w halo
         v(1:ng,k,g) = v(1:ng,k,g) + w(1:ng,k)
       end do
-      call mgbounds(g,v(:,1:klim,g),klim=klim)
-      
+    
       do i = 1,itrend
-        do nc = 1,maxcolour
-          ng = mg(g)%ifull_colour(nc)  
-          do k = 1,klim
-            ! post smoothing - all iterations except final iteration
-            do iql = 1,ng
-              iq = mg(g)%iqx(iql,nc)
-              w(iq,k) = (mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g)+mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
-                       + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g)+mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
-                       - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
-            end do
-            do iql = 1,ng
-              iq = mg(g)%iqx(iql,nc)
-              v(iq,k,g) = w(iq,k)
-            end do  
+        call mgbounds(g,v(:,1:klim,g),klim=klim)
+        do k = 1,klim
+          ! post smoothing - all iterations except final iteration
+          do iq = 1,ng
+            w(iq,k) = (mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g)+mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
+                     + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g)+mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
+                     - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
           end do
-          call mgbounds_colour(g,v(:,1:klim,g),nc,klim=klim)
-        end do ! nc = 1,maxcolour
-      end do   ! i = 1,itrend 
+        end do
+        v(1:ng,1:klim,g) = w(1:ng,1:klim)
+      end do
+      call mgbounds(g,v(:,1:klim,g),klim=klim) ! for next mgbcast
 
     end do ! g loop over V levels
   
 
     ! broadcast coarse solution to fine grid, as well as global smaxmin_g
+    ! or convergence test dsolmax_g
     if ( itr==1 ) then
-      call mgbcastxn(2,v(:,1:kl,2),smaxmin_g(:,1:2))
+      call mgbcast(2,v(:,1:kl,2),smaxmin_g(:,1:2))
     else
       call mgbcast(2,v(:,1:klim,2),dsolmax_g(:),klim=klim)
     end if  
@@ -1240,7 +1232,7 @@ do itr = 1,itr_mg
   ! multi-grid solver bounds indices do not match standard iextra indicies, so we need to remap the halo
   if ( mg(1)%merge_len>1 ) then
     if ( itr==1 ) then
-      call mgbcastxn(1,w(:,1:kl),smaxmin_g(:,:),nobounds=.true.)  
+      call mgbcast(1,w(:,1:kl),smaxmin_g(:,:),nobounds=.true.)  
     else
       call mgbcast(1,w(:,1:klim),dsolmax_g(:),klim=klim,nobounds=.true.)
     end if  
@@ -1695,41 +1687,36 @@ do itr = 1,itr_mgice
       ! assume zero for first guess of residual (also avoids additional bounds call)
       v(:,1:2,g) = 0.
       
-      do i = 1,itrbgn
-        do nc = 1,maxcolour
-          ng = mg(g)%ifull_colour(nc)
-          
-          ! ocean - post smoothing
-          do iql = 1,ng
-            iq = mg(g)%iqx(iql,nc)  
-            bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-               + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               + zz(iq,g) + hh(iq,g)
-            cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-               + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               - rhs(iq,g)
-            vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
-          end do
-          do iql = 1,ng
-            iq = mg(g)%iqx(iql,nc)
-            v(iq,1,g) = vnew(iq)
-          end do  
+      do iq = 1,ng
+        bu = zz(iq,g) + hh(iq,g)
+        cu = -rhs(iq,g)
+        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
+      end do  
+      v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
+      call mgbounds(g,v(:,1:2,g))
+      
+      do i = 2,itrbgn
+        ! ocean - post smoothing
+        do iq = 1,ng
+          bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
+             + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
+             + zz(iq,g) + hh(iq,g)
+          cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
+             + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
+             - rhs(iq,g)
+          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
+        end do
+        v(1:ng,1,g) = vnew(1:ng)
         
-          ! ice - post smoothing
-          do iql = 1,ng
-            iq = mg(g)%iqx(iql,nc)
-            vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                         - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                         + rhsi(iq,g) ) / zzi(iq,g)
-          end do
-          do iql = 1,ng
-            iq = mg(g)%iqx(iql,nc)
-            v(iq,2,g) = vnew(iq)
-          end do
-          
-          call mgbounds_colour(g,v(:,1:2,g),nc)
-        end do ! nc = 1,maxcolour  
-      end do   ! i = 1,itrbgn
+        ! ice - post smoothing
+        do iq = 1,ng
+          vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                       - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
+                       + rhsi(iq,g) ) / zzi(iq,g)
+        end do
+        v(1:ng,2,g) = vnew(1:ng)
+        call mgbounds(g,v(:,1:2,g))
+      end do
     
       ! restriction
       ! (calculate finer grid before mgcollect as the messages sent/recv are shorter)
@@ -1924,7 +1911,7 @@ do itr = 1,itr_mgice
     do g = gmax,2,-1
 
       if ( itr==1 ) then
-        call mgbcasta(g+1,v(:,1:2,g+1))  
+        call mgbcast(g+1,v(:,1:2,g+1))  
       else
         call mgbcast(g+1,v(:,1:2,g+1),dsolmax_g(1:2))
       end if
@@ -1944,50 +1931,36 @@ do itr = 1,itr_mgice
       ! No mgbounds as the v halo has already been updated and
       ! the coarse interpolation also updates the w halo
       v(1:ng,1:2,g) = v(1:ng,1:2,g) + ws(1:ng,1:2)
-      call mgbounds(g,v(:,1:2,g))  
 
       do i = 1,itrend
-        do nc = 1,maxcolour
-          ng = mg(g)%ifull_colour(nc)  
-          
-          ! ocean - post smoothing
-          do iql = 1,ng
-            iq = mg(g)%iqx(iql,nc)
-            bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-               + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               + zz(iq,g) + hh(iq,g)
-            cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-               + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               - rhs(iq,g)
-            vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
-          end do
-          do iql = 1,ng
-            iq = mg(g)%iqx(iql,nc)
-            v(iq,1,g) = vnew(iq)
-          end do
-          
+        call mgbounds(g,v(:,1:2,g))  
+        ! ocean - post smoothing
+        do iq = 1,ng
+          bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
+             + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
+             + zz(iq,g) + hh(iq,g)
+          cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
+             + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
+             - rhs(iq,g)
+          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
+        end do
+        v(1:ng,1,g) = vnew(1:ng)
         ! ice - post smoothing
-          do iql = 1,ng
-            iq = mg(g)%iqx(iql,nc)
-            vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                         - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                         + rhsi(iq,g) ) / zzi(iq,g)
-          end do
-          do iql = 1,ng
-            iq = mg(g)%iqx(iql,nc)
-            v(iq,2,g) = vnew(iq)
-          end do
-          
-          call mgbounds_colour(g,v(:,1:2,g),nc)
-        end do ! nc = 1,maxcolour  
-      end do   ! i = 1,itrend
+        do iq = 1,ng
+          vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
+                       - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
+                       + rhsi(iq,g) ) / zzi(iq,g)
+        end do
+        v(1:ng,2,g) = vnew(1:ng)
+      end do
+      call mgbounds(g,v(:,1:2,g)) ! for next mgbcast
       
     end do
 
     
     ! fine grid
     if ( itr==1 ) then
-      call mgbcasta(2,v(:,1:2,2))  
+      call mgbcast(2,v(:,1:2,2))  
     else
       call mgbcast(2,v(:,1:2,2),dsolmax_g(1:2))
     end if
@@ -2012,7 +1985,7 @@ do itr = 1,itr_mgice
   vduma = 0.
   if ( mg(1)%merge_len>1 ) then
     if ( itr==1 ) then
-      call mgbcasta(1,ws(:,1:2),nobounds=.true.)  
+      call mgbcast(1,ws(:,1:2),nobounds=.true.)  
     else
       call mgbcast(1,ws(:,1:2),dsolmax_g(1:2),nobounds=.true.)
     end if
