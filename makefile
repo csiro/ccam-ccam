@@ -23,40 +23,46 @@ FOPT = -O3
 FHOST = -xHost
 FOVERRIDE =
 ZMM =
+IPFLAG =
 IPOFLAG =
 VTHRESH =
 ifeq ($(XEONPHI),yes)
 FHOST = -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
-FHOST = -xCORE-AVX2 -align array32byte
+FHOST = -xCORE-AVX2 -align array32byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
+IPFLAG = -ip
 endif
 ifeq ($(SKYLAKE),yes)
-FHOST = -xSKYLAKE-AVX512 -align array64byte
+FHOST = -xSKYLAKE-AVX512 -align array64byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
+IPFLAG = -ip
 endif
 ifeq ($(CASCADELAKE),yes)
-FHOST = -xCASCADELAKE -align array64byte
+FHOST = -xCASCADELAKE -align array64byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
+IPFLAG = -ip
 endif
 ifeq ($(SAPPHIRERAPIDS),yes)
-FHOST = -xSAPPHIRERAPIDS -align array64byte
+FHOST = -xSAPPHIRERAPIDS -align array64byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
+IPFLAG = -ip
 endif
 ifeq ($(ZEN3),yes)
 FHOST = -axCORE-AVX2 -align array32byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
+IPFLAG =
 endif
 ifeq ($(MAGNUS),yes)
 FC = ftn
@@ -94,6 +100,7 @@ endif
 FFLAGS = -ftree-vectorize -fstack-arrays -lmvec $(FHOST) -fbacktrace $(MPIFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
 FOVERRIDE =
 ZMM =
+IPFLAG =
 IPOFLAG =
 VTHRESH =
 ifeq ($(GPU),yes)
@@ -127,6 +134,7 @@ FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argumen
 LIB = -lnetcdf
 FOVERRIDE =
 ZMM =
+IPFLAG =
 IPOFLAG =
 VTHRESH =
 PPFLAG90 = -x f95-cpp-input
@@ -165,6 +173,7 @@ FFLAGS += -mp
 endif
 FOVERRIDE =
 ZMM =
+IPFLAG =
 IPOFLAG =
 VTHRESH =
 PPFLAG90 = -cpp
@@ -181,6 +190,7 @@ FC = ftn
 FFLAGS = -h noomp -h noacc
 FOVERRIDE =
 ZMM =
+IPFLAG =
 IPOFLAG =
 VTHRESH =
 PPFLAG90 = -eZ
@@ -210,6 +220,7 @@ FFLAGS += -qopenmp -qno-openmp-simd
 endif
 FOVERRIDE = -qoverride-limits
 ZMM =
+IPFLAG =
 IPOFLAG =
 VTHRESH = -vec-threshold0
 PPFLAG90 = -fpp
@@ -235,6 +246,7 @@ endif
 FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
 FOVERRIDE =
 ZMM =
+IPFLAG =
 IPOFLAG =
 VTHRESH =
 PPFLAG90 = -x f95-cpp-input
@@ -354,27 +366,27 @@ clean:
 netcdf_m.o: netcdf_m.f90
 	$(FC) -c $(PPFLAG90) $(NCFLAG) $<
 esfsw_driver.o: esfsw_driver.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(VTHRESH) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(VTHRESH) $(IPFLAG) $<
 esfsw_parameters.o gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_tables.o longwave_params.o lw_gases_stdtf.o microphys_rad.o optical_path.o rad_utilities.o sealw99.o: %.o: %.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(IPFLAG) $<
 cable_air.o cable_albedo.o cable_canopy.o cable_common.o cable_constants.o cable_data.o cable_define_types.o cable_gw_hydro.o cable_optimiseJVratio.o cable_pft_params.o cable_psm.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o cable_soil_params.o cable_soilsnow.o casa_cnp.o casa_dimension.o casa_param.o casa_phenology.o casa_variable.o POP.o: %.o: %.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(IPFLAG) $<
 module_mp_sbu_ylin.o: module_mp_sbu_ylin.f90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $<
+	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(IPFLAG) $<
 estab.o: estab.f90
-	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $(IPFLAG) $<
 helmsolve.o: helmsolve.f90
-	$(FC) -c $(PPFLAG90) $(FOPT) $(FFLAGS) $(FOVERRIDE) $<
+	$(FC) -c $(PPFLAG90) $(FOPT) $(FFLAGS) $(FOVERRIDE) $(IPFLAG) $<
 ints.o: ints.f90
-	$(FC) -c $(FOPT) $(FFLAGS) $(ZMM) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(ZMM) $(PPFLAG90) $(IPFLAG) $<
 leoncld.o: leoncld.f90
-	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $(IPFLAG) $<
 seaesfrad.o: seaesfrad.f90
-	$(FC) -c $(FOPT) $(FFLAGS) $(VTHRESH) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(VTHRESH) $(PPFLAG90) $(IPFLAG) $<
 tkeeps.o: tkeeps.f90
-	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90) $(IPFLAG) $<
 vertmix.o: vertmix.f90
-	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(IPOFLAG) $(PPFLAG90) $(IPFLAG) $<
 version.h: FORCE
 	rm -f tmpver
 	echo "character(len=*), parameter :: version= &" > tmpver
@@ -384,11 +396,11 @@ FORCE:
 
 
 .f90.o:
-	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90) $(IPFLAG) $<
 .F90.o:
-	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90F) $<
+	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG90F) $(IPFLAG) $<
 .f.o:
-	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG77) $< 
+	$(FC) -c $(FOPT) $(FFLAGS) $(PPFLAG77) $(IPFLAG) $< 
 
 # Remove mod rule from Modula 2 so GNU make doesn't get confused
 %.o : %.mod
