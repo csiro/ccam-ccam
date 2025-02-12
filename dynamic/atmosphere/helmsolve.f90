@@ -2959,6 +2959,7 @@ integer mipan, mjpan, hipan, hjpan, mil_g, iia, jja
 integer i, j, n, mg_npan, mxpr, mypr, sii, eii, sjj, ejj
 integer cid, ix, jx, colour, rank, ncol, nrow
 integer npanx, na, nx, ny, drow, dcol, mmx, mmy
+integer nii, njj, npos
 logical lglob
 
 if ( .not.sorfirst ) return
@@ -3036,20 +3037,33 @@ do g = 1,mg_maxlevel
         write(6,*) "ERROR: Invalid gather4"
         call ccmpi_abort(-1)
       end if
+      
+      ! check for gather16 which has larger messages but less parallel calculations
+      if ( mod(mxpr,4)==0 .and. mod(mypr,4)==0 .and. g<mg_maxlevel-1 ) then
+        mg(g)%merge_len = 16
+        mg(g)%merge_row = 4
+        mg(g)%nmax = 16
+        mxpr = mxpr/4
+        mypr = mypr/4
+        mipan = 4*mipan
+        mjpan = 4*mjpan
+        if ( myid==0 ) then
+          write(6,*) "-> Multi-grid gather16 at level          ",g,mipan,mjpan
+        end if
+      else    
+        mg(g)%merge_len = 4
+        mg(g)%merge_row = 2
+        mg(g)%nmax = 4
+        mxpr = mxpr/2
+        mypr = mypr/2
+        mipan = 2*mipan
+        mjpan = 2*mjpan
+        if ( myid==0 ) then
+          write(6,*) "-> Multi-grid gather4 at level           ",g,mipan,mjpan
+        end if
+      end if  
 
-      mg(g)%merge_len = 4
-      mg(g)%merge_row = 2
-      mg(g)%nmax = 4
-      mxpr = mxpr/2
-      mypr = mypr/2
-      mipan = 2*mipan
-      mjpan = 2*mjpan
-
-      if ( myid==0 ) then
-        write(6,*) "-> Multi-grid gather4 at level           ",g,mipan,mjpan
-      end if
-
-      allocate( mg(g)%merge_list(4) )
+      allocate( mg(g)%merge_list(mg(g)%merge_len) )
       
       nn = 1 - noff
 
@@ -3067,7 +3081,7 @@ do g = 1,mg_maxlevel
         if ( ix>0 ) exit
       end do
       if ( ix<1 ) then
-        write(6,*) "ERROR: Cannot locate processor in gather4 ",myid
+        write(6,*) "ERROR: Cannot locate processor in gather ",myid
         call ccmpi_abort(-1)
       end if
       
@@ -3075,18 +3089,23 @@ do g = 1,mg_maxlevel
       ! top left grid points.
       ii = ix
       jj = jx
-      mmx = mod( (ii-1)/hipan, 2 )
-      mmy = mod( (jj-1)/hjpan, 2 )
+      mmx = mod( (ii-1)/hipan, mg(g)%merge_row )
+      mmy = mod( (jj-1)/hjpan, mg(g)%merge_len/mg(g)%merge_row )
       ii = ii - mmx*hipan ! left corner of merge
       jj = jj - mmy*hjpan ! bottom corner of merge
       ix = ix - ii ! offset for myid from ii
       jx = jx - jj ! offset for myid from jj
        
       ! construct the list for gather with the target as the first index
-      mg(g)%merge_list(1) = mg_fproc(g,ii,      jj      ,nn)
-      mg(g)%merge_list(2) = mg_fproc(g,ii+hipan,jj      ,nn)
-      mg(g)%merge_list(3) = mg_fproc(g,ii,      jj+hjpan,nn)
-      mg(g)%merge_list(4) = mg_fproc(g,ii+hipan,jj+hjpan,nn)
+      npos = 1
+      do jja = 1,mg(g)%merge_len/mg(g)%merge_row
+        njj = jj + (jja-1)*hjpan  
+        do iia = 1,mg(g)%merge_row
+          nii = ii + (iia-1)*hipan  
+          mg(g)%merge_list(npos) = mg_fproc(g,nii,njj,nn)
+          npos = npos + 1
+        end do
+      end do
  
       ! update procmap with processor that owns this data
       do j = 1,mil_g,mjpan
@@ -3105,7 +3124,7 @@ do g = 1,mg_maxlevel
       ! need merge_pos if a gather is required at the finest grid
       ! (e.g., ipan or jpan is an odd number)      
       mg(g)%merge_pos = -1
-      do j = 1,4
+      do j = 1,mg(g)%merge_len
         if ( mg(g)%merge_list(j)==myid ) then
           mg(g)%merge_pos = j
           exit
