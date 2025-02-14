@@ -1126,14 +1126,14 @@ end if
 !$acc   private(xto,zlwcic,ziwcic,zhenry,zhenryc,zso4,zso4c,zso4i,zxtp10,zxtp1c,zxtp1con) &
 !$acc   private(zzoh,zzh2o2,zzo3,zzno2,zsolub,wd,zdepr,zdeps)
 #else
-!$omp do schedule(static) private(js,je,jl,jt,jk,iq,zlwcl,zlwcv,zhp,zqtp1,zrk,zrke2)      &
+!$omp do schedule(static) private(js,je,jl,jt,jk,iq,zlwcl,zlwcv,zhp,zqtp1,zrk)            &
 !$omp   private(zh_so2,zpfac,zp_so2,zf_so2,zh_h2o2,zp_h2o2,zf_h2o2,zrkh2o2,zxtp1,ze1,ze2) &
 !$omp   private(ze3,zfac1,zrkfac,zza,za21,za22,zph_o3,zf_o3,zdt,zh2o2m,zso2m,zso4m)       &
 !$omp   private(zsumh2o2,zsumo3,jn,zq,zso2mh,zdso2h,zso2l,zso4l,zzb,zzp,zzq,zzp2,zqhp)    &
 !$omp   private(za2,zheneff,zrko3,zso2mo,zdso2o,zdso2tot,zfac,pdep,zclr0,zmtof,ziicscav)  &
 !$omp   private(xdep,pdep,zilcscav,zbcscav,xbcscav,zstay_t,xstay,zmelt,xmelt,zicscav)     &
 !$omp   private(xicscav,zfreeze,xfreeze,zcollefc,Frc,x,zxtp1so2,ztk2,zm,zhil,zexp,ztk23b) &
-!$omp   private(zso2,zxtp1dms,t,ztk1,zdms,ztk3,zqt,zqt3,zrhoair,zkno2o3,zkn2o5aq,zrk1)    &
+!$omp   private(zso2,zxtp1dms,t,ztk1,zdms,ztk3,zqt,zqt3,zrhoair,zkno2o3,zkn2o5aq,zrx1)    &
 !$omp   private(zrx12,zkno2no3,zkn2o5,zno3)                                               &
 !$omp   private(xto,zlwcic,ziwcic,zhenry,zhenryc,zso4,zso4c,zso4i,zxtp10,zxtp1c,zxtp1con) &
 !$omp   private(zzoh,zzh2o2,zzo3,zzno2,zsolub,wd,zdepr,zdeps)

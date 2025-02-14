@@ -78,7 +78,7 @@ end do
 return
 end subroutine trimmix2
 
-pure subroutine trimmix3(a,c,rhs,imax)
+subroutine trimmix3(a,c,rhs,imax)
 
 implicit none
 

@@ -102,7 +102,7 @@ use vvel_m                        ! Additional vertical velocity
 
 implicit none
   
-integer :: tile, js, je, k, n, iq
+integer :: tile, js, je, k, n, iq, i
 integer :: njumps, idjd_t
 real, dimension(imax,kl) :: lcfrac, lgfrac
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqfg, lqlrad, lqfrad, lqrg, lqsng, lrfrac, lsfrac, lt
@@ -348,14 +348,15 @@ select case ( interp_ncloud(ldr,ncloud) )
       zqsng(1:imax,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
       ! ----------------
       do k = 1,kl
-        do iq = 1,imax
-          prf_temp    = ps(iq+js-1)*sig(k)
+        do i = 1,imax
+          iq = i + js - 1  
+          prf_temp    = ps(iq)*sig(k)
           prf         = 0.01*prf_temp                        ! ps is SI units
-          tothz(iq,k) = real( (prf/1000.)**(rdry/cp), 8 )
-          thz(iq,k)   = real( t(iq+js-1,k)/tothz(iq,k), 8 )
-          zrhoa(iq,k) = real( rhoa(iq+js-1,k), 8 )
-          zpres(iq,k) = real( prf_temp, 8 )
-          dzw(iq,k)   = real( dz(iq+js-1,k), 8 )
+          tothz(i,k) = real( (prf/1000.)**(rdry/cp), 8 )
+          thz(i,k)   = real( t(iq,k)/tothz(i,k), 8 )
+          zrhoa(i,k) = real( rhoa(iq,k), 8 )
+          zpres(i,k) = real( prf_temp, 8 )
+          dzw(i,k)   = real( dz(iq,k), 8 )
         end do
       end do
 

@@ -742,6 +742,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
               nflux=(nfluxin(iq)-nfluxout)/rho(iq,k)/dzw(iq,k)
               niz(iq,k)=niz(iq,k)+del_tv*nflux
               niz(iq,k)=max(0.,niz(iq,k))
+              niz(iq,k) = min(niz(iq,k),0.3E6/rho(iq,k))
               nfluxin(iq)=nfluxout
               !qisten(iq,k)=flux
               !nisten(iq,k)=nflux
@@ -915,6 +916,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
         nflux = nfluxin(iq)*(1.-nfthru)-nfluxout
         niz(iq,k) = niz(iq,k) + nflux/(rho(iq,k)*dzw(iq,k))
         niz(iq,k) = max(0.,niz(iq,k))
+        niz(iq,k) = min(niz(iq,k),0.3E6/rho(iq,k))
         nfluxin(iq) = nfluxout + nfluxin(iq)*nfthru
       end do ! iq  
     end do   ! k
@@ -1107,7 +1109,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
           if ((qvoqswz(iq)>=0.999.and.temcc(iq,k)<=-8.).or. &
             qvoqsiz(iq)>=1.08) then
             nidep(iq) = 5.*exp(0.304*(273.15-tem(iq,k))) ! m-3
-            nidep(iq) = min(nidep(iq), 500.e3)               !5.e8) sny ! limit to 500 L-1
+            nidep(iq) = min(nidep(iq), 500.e8)               !5.e8) sny ! limit to 500 L-1
             nidep(iq) = max(nidep(iq)/rho(iq,k), 0.)       ! convert to kg-1
             nidep(iq) = (nidep(iq) - niz(iq,k))*odtb
             midep(iq) = nidep(iq)*mi0
