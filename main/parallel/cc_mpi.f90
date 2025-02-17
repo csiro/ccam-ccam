@@ -21,14 +21,14 @@
     
 module cc_mpi
 
-! This module manages all MPI communications between processors.  The system was originally developed
+! This module manages all MPI communications between processes.  The system was originally developed
 ! by Martin Dix and subsequently modified by Marcus Thatcher.  Thanks to Aaron McDonough for developing
 ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
 ! shared memory arrays.
 
 ! MJT notes - Currently -Dusempif08 is not avaliable due to library issues with user defined reduce functions.
 
-! Preprocessor directives:
+! Preprocess directives:
 
 ! -Dusempi3      exploits MPI-3 shared memory to optmise communication between nodes
 ! -Dusempimod    uses f90 mod interface for MPI.  Requires same compiler used for MPI library.
@@ -37,8 +37,11 @@ module cc_mpi
 
    use cc_omp
 #ifdef usempimod
-   !use mpi_f08
+#ifdef usempimod_f09
+   use mpi_f08
+#else   
    use mpi
+#endif   
 #endif
    use newmpar_m
 
@@ -51,10 +54,10 @@ module cc_mpi
 #endif
    
    integer, save, public :: comm_world                                     ! global communication group
-   integer, save, public :: myid                                           ! processor rank for comm_world
-   integer, save, public :: ipan, jpan                                     ! grid size on processor
-   integer, save, public :: ioff, joff, noff                               ! offset of processor grid relative to global grid
-   integer, save, public :: nxproc, nyproc                                 ! number of processors in the x and y directions
+   integer, save, public :: myid                                           ! process rank for comm_world
+   integer, save, public :: ipan, jpan                                     ! grid size on process
+   integer, save, public :: ioff, joff, noff                               ! offset of process grid relative to global grid
+   integer, save, public :: nxproc, nyproc                                 ! number of processes in the x and y directions
    integer, save, public :: nagg = 8                                       ! maximum number of levels to aggregate
    integer, save, public :: maxcolour = 2                                  ! maximum number of colours for iterative solvers
    
@@ -75,10 +78,10 @@ module cc_mpi
 
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
-   integer, allocatable, dimension(:), save, private :: rlist              ! map of processor index from requested message index
+   integer, allocatable, dimension(:), save, private :: rlist              ! map of process index from requested message index
    
-   integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processors
-   integer, allocatable, dimension(:), save, private :: neighmap           ! map of processor to neighbour index
+   integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processes
+   integer, allocatable, dimension(:), save, private :: neighmap           ! map of process to neighbour index
    integer, save, public :: neighnum                                       ! number of neighbours
 
    integer(kind=4), allocatable, dimension(:), save, public ::              &
@@ -117,7 +120,7 @@ module cc_mpi
    integer, dimension(3), save, private :: nodefilesave_win
    integer, save, private :: nodefile_count = 0
    
-   integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processors
+   integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processes
    integer, save, public :: fileneighnum                                   ! number of file neighbours
   
    public :: ccmpi_setup, ccmpi_distribute, ccmpi_gather, ccmpi_gatherr8,   &
@@ -229,28 +232,25 @@ module cc_mpi
       module procedure ccmpi_allreduce1l, ccmpi_allreduce2l
    end interface
    interface ccmpi_bcast
-      module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i, ccmpi_bcast1r, ccmpi_bcast2r
-      module procedure ccmpi_bcast3r, ccmpi_bcast4r, ccmpi_bcast5r, ccmpi_bcast1s
+      module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i
+      module procedure ccmpi_bcast1r, ccmpi_bcast2r, ccmpi_bcast3r, ccmpi_bcast4r
+      module procedure ccmpi_bcast1s
    end interface
    interface ccmpi_bcastr8
-      module procedure ccmpi_bcast1r8, ccmpi_bcast2r8, ccmpi_bcast3r8, ccmpi_bcast4r8
+      module procedure ccmpi_bcast1r8, ccmpi_bcast2r8, ccmpi_bcast3r8
    end interface
    interface ccmpi_gatherx
-      module procedure ccmpi_gatherx2r,  ccmpi_gatherx3r,  ccmpi_gatherx4r
       module procedure ccmpi_gatherx23r, ccmpi_gatherx34r, ccmpi_gatherx45r
-      module procedure ccmpi_gatherx2i,  ccmpi_gatherx3i, ccmpi_gatherx23i
-      module procedure ccmpi_gatherx23l
+      module procedure ccmpi_gatherx12i, ccmpi_gatherx23i
    end interface
    interface ccmpi_gatherxr8
-     module procedure ccmpi_gatherx2rr8,  ccmpi_gatherx3rr8
      module procedure ccmpi_gatherx23rr8, ccmpi_gatherx34rr8, ccmpi_gatherx45rr8
    end interface
-   interface ccmpi_scatterx
-      module procedure ccmpi_scatterx2r, ccmpi_scatterx32r, ccmpi_scatterx3r
-      module procedure ccmpi_scatterx32l
-   end interface
    interface ccmpi_allgatherx
-      module procedure ccmpi_allgatherx2i, ccmpi_allgatherx2r, ccmpi_allgatherx32r
+      module procedure ccmpi_allgatherx32r
+   end interface
+   interface ccmpi_scatterx
+      module procedure ccmpi_scatterx32r
    end interface
    interface ccmpi_alltoall
       module procedure ccmpi_alltoall2l
@@ -309,7 +309,7 @@ module cc_mpi
       logical, dimension(:), allocatable :: uv_swap, send_swap
       ! Buffer length
       integer :: len, sbuflen, rbuflen
-      ! Number of points for each processor. Also double row versions.
+      ! Number of points for each process. Also double row versions.
       ! lenx is first row plux corner points.  lenh is just the ne side.
       integer :: slen2, rlen2
       integer, dimension(:), allocatable :: rlenh_bg, rlenh_fn, slenh_bg, slenh_fn
@@ -332,7 +332,7 @@ module cc_mpi
    integer, save, public :: ifull_maxcolour
    integer, dimension(:), allocatable, save, public :: ifull_colour, ifull_colour_border
 
-   ! flag whether processor region edge is a face edge.
+   ! flag whether process region edge is a face edge.
    logical, save, public :: edge_w, edge_n, edge_s, edge_e
    
    type dpoints_info
@@ -349,12 +349,12 @@ module cc_mpi
       real, dimension(:), allocatable :: a
    end type sextra_info
    
-   ! Off processor departure points
+   ! Off process departure points
    type(dpoints_info), allocatable, dimension(:), save, public :: dpoints ! request list from other proc
    type(dbuf_info), allocatable, dimension(:), save, private :: dbuf      ! recv buffer
    type(dindex_info), allocatable, dimension(:), save, private :: dindex  ! request list for my proc
    type(sextra_info), allocatable, dimension(:), save, public :: sextra   ! send buffer
-   ! Number of points for each processor.
+   ! Number of points for each process.
    integer, dimension(:), allocatable, save, private :: dslen
    integer, dimension(:), allocatable, save, public :: drlen
 
@@ -659,7 +659,7 @@ contains
       deallocate( dumu, dumv )
       
       
-      ! Off processor departure points
+      ! Off process departure points
       if ( myid==0 ) then
          write(6,*) "-> Allocate storage for departure points"
       end if
@@ -757,11 +757,11 @@ contains
       if ( myid==0 ) then
          write(6,*) "-> Create comm groups"
       end if
-      npta = max( 6/nproc, 1 )     ! number of panels per processor
-      mproc = max( nproc/6, 1 )    ! number of processors per panel
+      npta = max( 6/nproc, 1 )     ! number of panels per process
+      mproc = max( nproc/6, 1 )    ! number of processes per panel
       pprocn = myid*npta/mproc     ! start panel
       pprocx = pprocn + npta - 1   ! end panel
-      hproc = pprocn*mproc/npta    ! host processor for panel
+      hproc = pprocn*mproc/npta    ! host process for panel
 
       ! comm between work groups with captain hproc
       colour = hproc
@@ -918,7 +918,7 @@ contains
    end subroutine proc_distribute3i
   
    subroutine host_distribute4(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
+      ! Convert standard 1D arrays to face form and distribute to processes
       ! This is also used for tracers, so second dimension is not necessarily
       ! the number of levels
       real, dimension(:,:,:), intent(out) :: af
@@ -933,7 +933,7 @@ contains
       kx = size(af,2)
       lx = size(af,3)
 
-      ! map array in order of processor rank
+      ! map array in order of process rank
       do l = 1,lx 
          do k = 1,kx
             do iproc = 0,nproc-1
@@ -963,7 +963,7 @@ contains
    end subroutine host_distribute4
 
    subroutine proc_distribute4(af)
-      ! Convert standard 1D arrays to face form and distribute to processors
+      ! Convert standard 1D arrays to face form and distribute to processes
       ! This is also used for tracers, so second dimension is not necessarily
       ! the number of levels
       real, dimension(:,:,:), intent(out) :: af
@@ -988,7 +988,7 @@ contains
    end subroutine proc_distribute4
 
    subroutine host_distribute4r8(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
+      ! Convert standard 1D arrays to face form and distribute to processes
       real(kind=8), dimension(:,:,:), intent(out) :: af
       real(kind=8), dimension(:,:,:), intent(in) :: a1
       real(kind=8), dimension(ifull,size(af,2),size(af,3),0:nproc-1) :: sbuf
@@ -1001,7 +1001,7 @@ contains
       kx = size(af,2)
       lx = size(af,3)
       
-      ! map array in order of processor rank
+      ! map array in order of process rank
       do l = 1,lx  
          do k = 1,kx 
             do iproc = 0,nproc-1
@@ -1027,7 +1027,7 @@ contains
    end subroutine host_distribute4r8
    
    subroutine proc_distribute4r8(af)
-      ! Convert standard 1D arrays to face form and distribute to processors
+      ! Convert standard 1D arrays to face form and distribute to processes
       real(kind=8), dimension(:,:,:), intent(out) :: af
       real(kind=8), dimension(1,1,1,1) :: sbuf
       real(kind=8), dimension(ifull,size(af,2),size(af,3)) :: aftemp
@@ -1046,7 +1046,7 @@ contains
    end subroutine proc_distribute4r8
    
    subroutine host_distribute4i(af,a1)
-      ! Convert standard 1D arrays to face form and distribute to processors
+      ! Convert standard 1D arrays to face form and distribute to processes
       ! This is also used for tracers, so second dimension is not necessarily
       ! the number of levels
       integer, dimension(:,:,:), intent(out) :: af
@@ -1061,7 +1061,7 @@ contains
       kx = size(af,2)
       lx = size(af,3)
 
-      ! map array in order of processor rank
+      ! map array in order of process rank
       do l = 1,lx 
          do k = 1,kx
             do iproc = 0,nproc-1
@@ -1091,7 +1091,7 @@ contains
    end subroutine host_distribute4i
 
    subroutine proc_distribute4i(af)
-      ! Convert standard 1D arrays to face form and distribute to processors
+      ! Convert standard 1D arrays to face form and distribute to processes
       ! This is also used for tracers, so second dimension is not necessarily
       ! the number of levels
       integer, dimension(:,:,:), intent(out) :: af
@@ -1222,7 +1222,7 @@ contains
 #endif
       call END_LOG(gather_end)
 
-      ! map array in order of processor rank
+      ! map array in order of process rank
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do l = 1,lx
@@ -1283,7 +1283,7 @@ contains
       call MPI_Gather( atemp, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
       call END_LOG(gather_end)
 
-      ! map array in order of processor rank
+      ! map array in order of process rank
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do l = 1,lx
@@ -1355,7 +1355,7 @@ contains
 #endif
       call END_LOG(allgather_end)
 
-      ! map array in order of processor rank
+      ! map array in order of process rank
       do iproc = 0,nproc-1
          call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
          do k = 1,kx
@@ -1970,7 +1970,7 @@ contains
       logical, dimension(:), allocatable :: neigharray_g
       logical(kind=4), dimension(:,:), allocatable :: dumsl, dumrl
 
-      ! Just set values that point to values within own processors region.
+      ! Just set values that point to values within own process region.
       ! Other values are set up later
       ! Set initial values to make sure missing values are caught properly.
       in = huge(1)
@@ -2126,7 +2126,7 @@ contains
       end do
 
       ! Correct within the same face only (not necessarily the same
-      ! processor, but will be corrected later).
+      ! process, but will be corrected later).
       ieu = ie
       iwu = iw
       inv = in
@@ -2187,7 +2187,7 @@ contains
          write(6,*) "-> Calculate neighbour direction index for scalars"
       end if
 !     In the first pass through, set up list of points to be requested from
-!     other processors. These points are placed in the "iextra" region at the
+!     other processes. These points are placed in the "iextra" region at the
 !     end of arrays. The indirect indices are updated to point into this 
 !     region.
       iext = 0
@@ -2205,7 +2205,7 @@ contains
             do i = 1,ipan
                iq = indg(i,j,n)
                iqq = in_g(iq)
-               ! Which processor has this point
+               ! Which process has this point
                rproc = qproc(iqq)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
                   mycol = findcolour(iqq,il_g)
@@ -2228,7 +2228,7 @@ contains
             do j = 1,jpan
                iq = indg(i,j,n)
                iqq = ie_g(iq)
-               ! Which processor has this point
+               ! Which process has this point
                rproc = qproc(iqq)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
                   mycol = findcolour(iqq,il_g)
@@ -2272,7 +2272,7 @@ contains
                ! over 1,jpan here.
                iq = indg(i,j,n)
                iqq = iw_g(iq) ! iqq is the global index of the required neighbouring point.
-               ! Which processor has this point
+               ! Which process has this point
                rproc = qproc(iqq)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
                   mycol = findcolour(iqq,il_g)
@@ -2295,7 +2295,7 @@ contains
             do i = 1,ipan
                iq = indg(i,j,n)
                iqq = is_g(iq)
-               ! Which processor has this point
+               ! Which process has this point
                rproc = qproc(iqq)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
                   mycol = findcolour(iqq,il_g)
@@ -2335,7 +2335,7 @@ contains
             iql = indp(ipan,jpan,n)
             iqg = indg(ipan,jpan,n)
             iqq = ine_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                mycol = findcolour(iqq,il_g)
@@ -2351,7 +2351,7 @@ contains
                 end if
             end if
             iqq = ien_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                mycol = findcolour(iqq,il_g)
@@ -2378,7 +2378,7 @@ contains
             iql = indp(ipan,1,n)
             iqg = indg(ipan,1,n)
             iqq = ise_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                mycol = findcolour(iqq,il_g)
@@ -2394,7 +2394,7 @@ contains
                 end if
             end if
             iqq = ies_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                mycol = findcolour(iqq,il_g)
@@ -2421,7 +2421,7 @@ contains
             iql = indp(1,jpan,n)
             iqg = indg(1,jpan,n)
             iqq = inw_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                mycol = findcolour(iqq,il_g)
@@ -2437,7 +2437,7 @@ contains
                end if
             end if
             iqq = iwn_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                mycol = findcolour(iqq,il_g)
@@ -2464,7 +2464,7 @@ contains
             iql = indp(1,1,n)
             iqg = indg(1,1,n)
             iqq = isw_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                mycol = findcolour(iqq,il_g)
@@ -2480,7 +2480,7 @@ contains
                end if
             end if
             iqq = iws_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                mycol = findcolour(iqq,il_g)
@@ -2523,7 +2523,7 @@ contains
          do j = 1,jpan
             iq = indg(i,j,n)
             iqq = iww_g(iq)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                ! Add this point to request list
@@ -2543,7 +2543,7 @@ contains
          do i = 1,ipan
             iq = indg(i,j,n)
             iqq = inn_g(iq)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                ! Add this point to request list
@@ -2563,7 +2563,7 @@ contains
          do j = 1,jpan
             iq = indg(i,j,n)
             iqq = iee_g(iq)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                ! Add this point to request list
@@ -2583,7 +2583,7 @@ contains
          do i = 1,ipan
             iq = indg(i,j,n)
             iqq = iss_g(iq)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             if ( rproc /= myid ) then ! Don't add points already on this proc.
                ! Add this point to request list
@@ -2898,9 +2898,9 @@ contains
       deallocate( dums, dumr )
 
       
-      ! Now, for each processor send the list of points I want.
+      ! Now, for each process send the list of points I want.
       ! The state of being a neighbour is reflexive so only expect to
-      ! recv from those processors I send to (are there grid arrangements for
+      ! recv from those processes I send to (are there grid arrangements for
       ! which this would not be true?)
       if ( myid==0 ) then
          write(6,*) "-> Communicate halo request list for scalars"
@@ -2959,9 +2959,9 @@ contains
 !     Start of UV section
 
 !     In the first pass through, set up list of points to be requested from
-!     other processors. In the 1D code values on the same processor are
+!     other processes. In the 1D code values on the same process are
 !     copied only if they have to be swapped.
-!     This only makes a difference on 1, 2 or 3 processors.
+!     This only makes a difference on 1, 2 or 3 processes.
 
       if ( myid==0 ) then
          write(6,*) "-> Calculate neighbour direction index for vectors"
@@ -3003,10 +3003,10 @@ contains
          do j = 1,jpan
             iqg = indg(i,j,n)
             iqq = iw_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
-            ! Only need to add to bounds region if it's on another processor
-            ! or if it's on this processor and needs to be swapped.
+            ! Only need to add to bounds region if it's on another process
+            ! or if it's on this process and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
             swap = edge_w .and. swap_w(n-noff)
             if ( rproc /= myid .or. swap ) then
@@ -3120,7 +3120,7 @@ contains
          do j = 1,jpan
             iqg = indg(i,j,n)
             iqq = iww_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
             swap = edge_w .and. swap_w(n-noff)
             if ( rproc /= myid .or. swap ) then
@@ -3235,10 +3235,10 @@ contains
          do j = 1,jpan
             iqg = indg(i,j,n)
             iqq = iw_g(iqg)
-            ! Which processor has this point
+            ! Which process has this point
             rproc = qproc(iqq)
-            ! Only need to add to bounds region if it's on another processor
-            ! or if it's on this processor and needs to be swapped.
+            ! Only need to add to bounds region if it's on another process
+            ! or if it's on this process and needs to be swapped.
             ! Decide if u/v need to be swapped. My face is n-noff
             swap = edge_w .and. swap_w(n-noff)
             if ( rproc /= myid .or. swap ) then
@@ -3392,7 +3392,7 @@ contains
       deallocate( dumr, dums )
 
       
-      ! Now, for each processor send the list of points I want.
+      ! Now, for each process send the list of points I want.
       ! Also have to send the swap list
       if ( myid==0 ) then
          write(6,*) "-> Communicate halo request list for vectors"
@@ -3975,7 +3975,7 @@ contains
          end if
       end if
 
-      ! Split messages into corner and non-corner processors
+      ! Split messages into corner and non-corner processes
       if ( double ) then
          do n = 1,neighnum  
             rslen(n) = bnds(neighlist(n))%rlen2
@@ -4795,7 +4795,7 @@ contains
          end if
       end do
 
-      ! See if there are any points on my own processor that need
+      ! See if there are any points on my own process that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       do k = 1,kx
          do iq = 1,myrlen
@@ -4914,9 +4914,9 @@ contains
    subroutine deptsync(nface,xg,yg)
       ! Different levels will have different winds, so the list of points is
       ! different on each level.
-      ! xg ranges from 0.5 to il+0.5 on a face. A given processors range
+      ! xg ranges from 0.5 to il+0.5 on a face. A given process range
       ! is 0.5+ioff to 0.5+ipan+ioff
-      ! Assignment of points to processors needs to match what ints does
+      ! Assignment of points to processes needs to match what ints does
       ! in case there's an exact edge point.
       ! Because of the boundary region, the range [0:ipan+1) can be handled.
       ! Need floor(xxg) in range [0:ipan]
@@ -4933,7 +4933,7 @@ contains
       integer(kind=4), dimension(2*neighnum) :: donelist
       real, dimension(4,maxbuflen*maxvertlen,neighnum) :: buf_dpoints, buf_dbuf 
 
-      ! This does nothing in the one processor case
+      ! This does nothing in the one process case
       if ( neighnum < 1 ) return
       
       kx = size(nface,2)
@@ -4944,7 +4944,7 @@ contains
       itag = mod(itag + 1, 10000)
       
       ! In this case the length of each buffer is unknown and will not
-      ! be symmetric between processors. Therefore need to get the length
+      ! be symmetric between processes. Therefore need to get the length
       ! from the message status
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
@@ -4962,10 +4962,10 @@ contains
       ! Calculate request list
       do k = 1,kx
          do iq = 1,ifull
-            ! If point is on a different processor, add to a list 
+            ! If point is on a different process, add to a list 
             ip = min( il_g, max( 1, nint(xg(iq,k)) ) )
             jp = min( il_g, max( 1, nint(yg(iq,k)) ) )
-            iproc = fproc(ip,jp,nface(iq,k)) ! processor that owns global grid point
+            iproc = fproc(ip,jp,nface(iq,k)) ! process that owns global grid point
             if ( iproc/=myid ) then
                dproc = neighmap(iproc) ! returns 0 if not in neighlist
                ! Add this point to the list of requests I need to send to iproc
@@ -5166,14 +5166,14 @@ contains
       n = (iq - 1)/(il_g**2)
       j = 1 + (iq - n*il_g**2 - 1)/il_g
       i = iq - (j - 1)*il_g - n*il_g**2
-      ! Reduced to values on my processor
+      ! Reduced to values on my process
       j = j - joff
       i = i - ioff
       n = n + noff      
    end subroutine indv_mpi
 
    pure function indg(i,j,n) result(iqg)
-      ! Calculate a 1D global index from the local processors indices
+      ! Calculate a 1D global index from the local process indices
       ! n in range 1..npan
       integer, intent(in) :: i, j, n
       integer :: iqg
@@ -5183,7 +5183,7 @@ contains
    end function indg
 
    pure function indp(i,j,n) result(iq)
-      ! Calculate a 1D local index from the local processors indices
+      ! Calculate a 1D local index from the local process indices
       ! Note that face number runs from 1 here.
       integer, intent(in) :: i, j, n
       integer :: iq
@@ -5315,7 +5315,7 @@ contains
       type(bounds_info), dimension(0:), intent(inout) :: bnds
       integer :: rproc
 
-      ! Which processor has this point
+      ! Which process has this point
       rproc = qproc(iqq)
       if ( rproc /= myid ) then ! Add to list
          bnds(rproc)%rlen2 = bnds(rproc)%rlen2 + 1 
@@ -5326,7 +5326,7 @@ contains
          bnds(rproc)%unpack_list(bnds(rproc)%rlen2) = iext
          larray(n) = ifull + iext
       else
-         ! If it's on this processor, just use the local index
+         ! If it's on this process, just use the local index
          larray(n) = iqg2iq(iqq)
       end if
       
@@ -5347,7 +5347,7 @@ contains
       nd = (jd-1)/il_g ! 0: to match fproc
       jdf = jd - nd*il_g
       mydiag = ( myid == fproc(id,jdf,nd) )
-      ! Convert global indices to ones on this processors region
+      ! Convert global indices to ones on this process region
       idjd_g = id + (jd-1)*il_g
       if ( mydiag ) then
          idjd = iqg2iq(idjd_g)
@@ -5364,11 +5364,11 @@ contains
       integer, dimension(0:npanels), intent(out) :: ioff_l, joff_l 
       integer :: n
 
-      !  Processor allocation
+      !  Process allocation
       !  if  nproc_l <= npanels+1, then each gets a number of full panels
       if ( nproc_l<=npanels+1 ) then
          if ( modulo( npanels+1, nproc_l )/=0 ) then
-            write(6,*) "Error, number of processors must divide number of panels"
+            write(6,*) "Error, number of processes must divide number of panels"
             call ccmpi_abort(-1)
          end if
 !        npan_l = (npanels+1)/nproc_l
@@ -5381,12 +5381,12 @@ contains
          nyproc_l = 1
       else  ! nproc_l >= npanels+1
          if ( modulo( nproc_l, npanels+1 )/=0 ) then
-            write(6,*) "Error, number of processors must be a multiple of number of panels"
+            write(6,*) "Error, number of processes must be a multiple of number of panels"
             call ccmpi_abort(-1)
          end if
 !        npan_l = 1
          n = nproc_l/(npanels+1)
-         !  n is the number of processors on each face
+         !  n is the number of processes on each face
          !  Try to factor this into two values are close as possible.
          !  nxproc is the smaller of the 2.
          nxproc_l = nint(sqrt(real(n)))
@@ -5401,7 +5401,7 @@ contains
             call ccmpi_abort(-1)
          end if
 
-         ! Still need to check that the processor distribution is compatible
+         ! Still need to check that the process distribution is compatible
          ! with the grid.
          if ( modulo( il_gx, nxproc_l )/=0 ) then
             write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
@@ -5414,7 +5414,7 @@ contains
          ipan_l = il_gx/nxproc_l
          jpan_l = il_gx/nyproc_l
 
-         ! Set offsets for this processor
+         ! Set offsets for this process
          call proc_region_face(myid_l,ioff_l(0),joff_l(0),noff_l,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
          ioff_l(1:npanels) = ioff_l(0)
          joff_l(1:npanels) = joff_l(0)
@@ -5431,7 +5431,7 @@ contains
          write(6,*) "Error: inconsistency in proc_setup_uniform"
          call ccmpi_abort(-1)
       end if
-      !  Processor allocation: each processor gets a part of each panel
+      !  Process allocation: each process gets a part of each panel
       !  Try to factor nproc into two values are close as possible.
       !  nxproc is the smaller of the 2.
       nxproc_l = nint(sqrt(real(nproc_l)))
@@ -5449,7 +5449,7 @@ contains
          call ccmpi_abort(-1)
       end if
 
-      ! Still need to check that the processor distribution is compatible
+      ! Still need to check that the process distribution is compatible
       ! with the grid.
       if ( modulo( il_gx, nxproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
@@ -5462,7 +5462,7 @@ contains
       ipan_l = il_gx/nxproc_l
       jpan_l = il_gx/nyproc_l
 
-      ! Set offsets for this processor
+      ! Set offsets for this process
       call proc_region_dix(myid_l,ioff_l(0),joff_l(0),noff_l,nxproc_l,ipan_l,jpan_l)
       ioff_l(1:npanels)=ioff_l(0)
       joff_l(1:npanels)=joff_l(0)
@@ -5480,7 +5480,7 @@ contains
          write(6,*) "Error: inconsistency in proc_setup_uniform"
          call ccmpi_abort(-1)
       end if
-      !  Processor allocation: each processor gets a part of each panel
+      !  Process allocation: each process gets a part of each panel
       !  Try to factor nproc into two values are close as possible.
       !  nxproc is the smaller of the 2.
       nxproc_l = nint(sqrt(real(nproc_l)))
@@ -5498,7 +5498,7 @@ contains
          call ccmpi_abort(-1)
       end if
 
-      ! Still need to check that the processor distribution is compatible
+      ! Still need to check that the process distribution is compatible
       ! with the grid.
       if ( modulo( il_gx, nxproc_l )/=0 ) then
          write(6,*) "Error, il not a multiple of nxproc", il_gx, nxproc_l
@@ -5511,7 +5511,7 @@ contains
       ipan_l = il_gx/nxproc_l
       jpan_l = il_gx/nyproc_l
 
-      ! Set offsets for this processor
+      ! Set offsets for this process
       do n = 0,npanels
          call proc_region_uniform(myid_l,n,ioff_l(n),joff_l(n),noff_l,nxproc_l,nyproc_l,ipan_l,jpan_l)
       end do
@@ -5519,7 +5519,7 @@ contains
    end subroutine uniform_set
 
    pure subroutine proc_region_face(procid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l,npan_l)
-      ! Calculate the offsets for a given processor
+      ! Calculate the offsets for a given process
       integer, intent(in) :: procid, nxproc_l, nyproc_l, ipan_l, jpan_l, npan_l
       integer, intent(out) :: ipoff, jpoff, npoff
       integer :: myface, mtmp, nproc_l
@@ -5532,7 +5532,7 @@ contains
       else
          myface = procid/(nxproc_l*nyproc_l)
          npoff = 1 - myface
-         ! mtmp is the processor index on this face, 0:(nxprox*nyproc-1)
+         ! mtmp is the process index on this face, 0:(nxprox*nyproc-1)
          mtmp = procid - myface*nxproc_l*nyproc_l
          jpoff = (mtmp/nxproc_l)*jpan_l
          ipoff = modulo( mtmp, nxproc_l )*ipan_l
@@ -5541,12 +5541,12 @@ contains
    end subroutine proc_region_face
 
    pure subroutine proc_region_dix(procid,ipoff,jpoff,npoff,nxproc_l,ipan_l,jpan_l)
-      ! Calculate the offsets for a given processor
+      ! Calculate the offsets for a given process
       integer, intent(in) :: procid, nxproc_l, ipan_l, jpan_l
       integer, intent(out) :: ipoff, jpoff, npoff
 
       ! Original Dix uniform decomposition
-      ! Set offsets for this processor (same on all faces)
+      ! Set offsets for this process (same on all faces)
       npoff = 1
       jpoff = (procid/nxproc_l) * jpan_l
       ipoff = modulo(procid,nxproc_l)*ipan_l
@@ -5554,7 +5554,7 @@ contains
    end subroutine proc_region_dix
    
    pure subroutine proc_region_uniform(procid,panid,ipoff,jpoff,npoff,nxproc_l,nyproc_l,ipan_l,jpan_l)
-      ! Calculate the offsets for a given processor
+      ! Calculate the offsets for a given process
       integer, intent(in) :: procid, panid, nxproc_l, nyproc_l, ipan_l, jpan_l
       integer, intent(out) :: ipoff, jpoff, npoff
       integer il_gx
@@ -5956,237 +5956,148 @@ contains
       real, intent(in) :: ldat
       real, intent(out) :: gdat
       character(len=*), intent(in) :: op
-      integer(kind=4) :: ltype, lop, lcomm, lerr, lhost
+      real, dimension(1,1) :: ldat_l
+      real, dimension(1,1) :: gdat_l
 
-      lhost = host
-      lcomm = comm
+      ldat_l(1,1) = ldat
+      gdat_l(:,:) = 0.
+      call ccmpi_reduce3r(ldat_l,gdat_l,op,host,comm)
+      gdat = gdat_l(1,1)
       
-      select case( op )
-         case( "max" )
-            lop = MPI_MAX
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
-         case( "min" )
-            lop = MPI_MIN
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
-         case( "sum" )
-            lop = MPI_SUM
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call ccmpi_abort(-1)
-      end select
-
-      call START_LOG(reduce_begin)
-      call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
-      call END_LOG(reduce_end)
-   
    end subroutine ccmpi_reduce1r
    
    subroutine ccmpi_reduce2r(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: ltype, lop, lcomm, lerr, lsize, lhost
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
-      
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-            
-      select case( op )
-         case( "max" )
-            lop = MPI_MAX
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
-         case( "min" )
-            lop = MPI_MIN
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
-         case( "sum" )
-            lop = MPI_SUM
-#ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
-#else
-            ltype = MPI_REAL
-#endif 
-         case( "maxloc" )
-            lop = MPI_MAXLOC
-            lsize = lsize/2
-#ifdef i8r8
-            ltype = MPI_2DOUBLE_PRECISION
-#else
-            ltype = MPI_2REAL
-#endif 
-         case( "minloc" )
-            lop = MPI_MINLOC
-            lsize = lsize/2
-#ifdef i8r8
-            ltype = MPI_2DOUBLE_PRECISION
-#else
-            ltype = MPI_2REAL
-#endif 
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call ccmpi_abort(-1)
-      end select
-
-      call START_LOG(reduce_begin)
-      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
-      call END_LOG(reduce_end)
+      real, dimension(size(ldat),1) :: ldat_l
+      real, dimension(size(gdat),1) :: gdat_l
+ 
+      ldat_l(:,1) = ldat(:)
+      gdat_l(:,:) = 0.
+      call ccmpi_reduce3r(ldat_l,gdat_l,op,host,comm)
+      gdat(:) = gdat_l(:,1)
    
    end subroutine ccmpi_reduce2r
 
    subroutine ccmpi_reduce3r(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) ltype, lop, lcomm, lerr, lsize, lhost
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:,:), intent(out) :: gdat
       character(len=*), intent(in) :: op
+      integer(kind=4) :: lcomm, lerr, lsize, lhost
 
+      call START_LOG(reduce_begin)
+      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       
       select case( op )
          case( "max" )
-            lop = MPI_MAX
 #ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
+            call MPI_Reduce(ldat, gdat, lsize, MPI_DOUBLE_PRECISION, MPI_MAX, lhost, lcomm, lerr )
 #else
-            ltype = MPI_REAL
-#endif 
+            call MPI_Reduce(ldat, gdat, lsize, MPI_REAL, MPI_MAX, lhost, lcomm, lerr )
+#endif
+
          case( "min" )
-            lop = MPI_MIN
 #ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
+            call MPI_Reduce(ldat, gdat, lsize, MPI_DOUBLE_PRECISION, MPI_MIN, lhost, lcomm, lerr )
 #else
-            ltype = MPI_REAL
+            call MPI_Reduce(ldat, gdat, lsize, MPI_REAL, MPI_MIN, lhost, lcomm, lerr )
 #endif 
          case( "sum" )
-            lop = MPI_SUM
 #ifdef i8r8
-            ltype = MPI_DOUBLE_PRECISION
+            call MPI_Reduce(ldat, gdat, lsize, MPI_DOUBLE_PRECISION, MPI_SUM, lhost, lcomm, lerr )
 #else
-            ltype = MPI_REAL
+            call MPI_Reduce(ldat, gdat, lsize, MPI_REAL, MPI_SUM, lhost, lcomm, lerr )
 #endif 
          case( "maxloc" )
-            lop = MPI_MAXLOC
             lsize = lsize/2
 #ifdef i8r8
-            ltype = MPI_2DOUBLE_PRECISION
+            call MPI_Reduce(ldat, gdat, lsize, MPI_2DOUBLE_PRECISION, MPI_MAXLOC, lhost, lcomm, lerr )
 #else
-            ltype = MPI_2REAL
+            call MPI_Reduce(ldat, gdat, lsize, MPI_2REAL, MPI_MAXLOC, lhost, lcomm, lerr )
 #endif 
          case( "minloc" )
-            lop = MPI_MINLOC
             lsize = lsize/2
 #ifdef i8r8
-            ltype = MPI_2DOUBLE_PRECISION
+            call MPI_Reduce(ldat, gdat, lsize, MPI_2DOUBLE_PRECISION, MPI_MINLOC, lhost, lcomm, lerr )
 #else
-            ltype = MPI_2REAL
+            call MPI_Reduce(ldat, gdat, lsize, MPI_2REAL, MPI_MINLOC, lhost, lcomm, lerr )
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
-
       end select
-      
-      call START_LOG(reduce_begin)
-      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
+            
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_reduce3r
 
    subroutine ccmpi_reduce1c(ldat,gdat,op,host,comm)
-   
-      use sumdd_m
-      
       integer, intent(in) :: host,comm
-      integer(kind=4) :: lop, lcomm, lerr, lhost
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
-#else
-      integer(kind=4), parameter :: ltype = MPI_COMPLEX
-#endif
       complex, intent(in) :: ldat
       complex, intent(out) :: gdat
       character(len=*), intent(in) :: op
+      complex, dimension(1) :: ldat_l
+      complex, dimension(1) :: gdat_l
 
-      if ( ccomp_get_thread_num() /= 0 ) return
-      lhost = host
-      lcomm = comm
-      select case( op )
-         case( "max" )
-            lop = MPI_MAX
-         case( "min" )
-            lop = MPI_MIN
-         case( "sumdr" )
-            lop = MPI_SUMDR
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call ccmpi_abort(-1)
-      end select
-      call START_LOG(reduce_begin)
-      call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
-      call END_LOG(reduce_end)
+      ldat_l(1) = ldat
+      gdat_l(1) = cmplx( 0., 0. )
+      call ccmpi_reduce2c(ldat_l,gdat_l,op,host,comm)
+      gdat = gdat_l(1)
 
    end subroutine ccmpi_reduce1c
 
    subroutine ccmpi_reduce2c(ldat,gdat,op,host,comm)
-   
-      use sumdd_m
-   
+      use sumdd_m   
       integer, intent(in) :: host,comm
-      integer(kind=4) :: lop, lcomm, lerr, lsize, lhost
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
-#else
-      integer(kind=4), parameter :: ltype = MPI_COMPLEX
-#endif 
+      integer(kind=4) :: lcomm, lerr, lsize, lhost
       complex, dimension(:), intent(in) :: ldat
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      call START_LOG(reduce_begin)      
+      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       
       select case( op )
          case( "max" )
-            lop = MPI_MAX
+#ifdef i8r8
+            call MPI_Reduce(ldat, gdat, lsize, MPI_DOUBLE_COMPLEX, MPI_MAX, lhost, lcomm, lerr )
+#else
+            call MPI_Reduce(ldat, gdat, lsize, MPI_COMPLEX, MPI_MAX, lhost, lcomm, lerr )
+#endif
          case( "min" )
-            lop = MPI_MIN
+#ifdef i8r8
+            call MPI_Reduce(ldat, gdat, lsize, MPI_DOUBLE_COMPLEX, MPI_MIN, lhost, lcomm, lerr )
+#else
+            call MPI_Reduce(ldat, gdat, lsize, MPI_COMPLEX, MPI_MIN, lhost, lcomm, lerr )
+#endif
          case( "sum" )
-            lop = MPI_SUM
+#ifdef i8r8
+            call MPI_Reduce(ldat, gdat, lsize, MPI_DOUBLE_COMPLEX, MPI_SUM, lhost, lcomm, lerr )
+#else
+            call MPI_Reduce(ldat, gdat, lsize, MPI_COMPLEX, MPI_SUM, lhost, lcomm, lerr )
+#endif
          case( "sumdr" )
-            lop = MPI_SUMDR
+#ifdef i8r8
+            call MPI_Reduce(ldat, gdat, lsize, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lhost, lcomm, lerr )
+#else
+            call MPI_Reduce(ldat, gdat, lsize, MPI_COMPLEX, MPI_SUMDR, lhost, lcomm, lerr )
+#endif
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
       
-      call START_LOG(reduce_begin)
-      call MPI_Reduce(ldat, gdat, lsize, ltype, lop, lhost, lcomm, lerr )
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_reduce2c
@@ -6194,316 +6105,248 @@ contains
    subroutine ccmpi_reduce1rr8(ldat,gdat,op,host,comm)
    
       integer, intent(in) :: host, comm
-      integer(kind=4) :: ltype, lop, lcomm, lerr, lhost
+      integer(kind=4) :: lcomm, lerr, lhost
       real(kind=8), intent(in) :: ldat
       real(kind=8), intent(out) :: gdat
       character(len=*), intent(in) :: op
+
+      call START_LOG(reduce_begin)
       
       lhost = host
       lcomm = comm
             
       select case( op )
          case( "max" )
-            lop = MPI_MAX
-            ltype = MPI_DOUBLE_PRECISION
+            call MPI_Reduce(ldat, gdat, 1_4, MPI_DOUBLE_PRECISION, MPI_MAX, lhost, lcomm, lerr )
          case( "min" )
-            lop = MPI_MIN
-            ltype = MPI_DOUBLE_PRECISION
+            call MPI_Reduce(ldat, gdat, 1_4, MPI_DOUBLE_PRECISION, MPI_MIN, lhost, lcomm, lerr )
          case( "sum" )
-            lop = MPI_SUM
-            ltype = MPI_DOUBLE_PRECISION
+            call MPI_Reduce(ldat, gdat, 1_4, MPI_DOUBLE_PRECISION, MPI_SUM, lhost, lcomm, lerr )
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
 
-      call START_LOG(reduce_begin)
-      call MPI_Reduce(ldat, gdat, 1_4, ltype, lop, lhost, lcomm, lerr )
       call END_LOG(reduce_end)
    
    end subroutine ccmpi_reduce1rr8
    
    subroutine ccmpi_allreduce1i(ldat,gdat,op,comm)
-   
       integer, intent(in) :: comm
-      integer(kind=4) :: lop, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif 
       integer, intent(in) :: ldat
       integer, intent(out) :: gdat
       character(len=*), intent(in) :: op
-
-      lcomm = comm
+      integer, dimension(1) :: ldat_l
+      integer, dimension(1) :: gdat_l
       
-      select case( op )
-         case( "max" )
-            lop = MPI_MAX
-         case( "min" )
-            lop = MPI_MIN
-         case( "sum" )
-            lop = MPI_SUM
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call ccmpi_abort(-1)
-      end select
-      
-      call START_LOG(allreduce_begin)
-      call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
-      call END_LOG(allreduce_end)
+      ldat_l(1) = ldat
+      gdat_l(:) = 0
+      call ccmpi_allreduce2i(ldat_l,gdat_l,op,comm)
+      gdat = gdat_l(1)
    
    end subroutine ccmpi_allreduce1i
    
    subroutine ccmpi_allreduce2i(ldat,gdat,op,comm)
-   
       integer, intent(in) :: comm
-      integer(kind=4) :: lop, lcomm, lerr, lsize
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif 
+      integer(kind=4) :: lcomm, lerr, lsize
       integer, dimension(:), intent(in) :: ldat
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      call START_LOG(allreduce_begin)
+      
       lcomm = comm
       lsize = size(ldat)
       
       select case( op )
          case( "max" )
-            lop = MPI_MAX
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_MAX, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_MAX, lcomm, lerr )
+#endif 
          case( "min" )
-            lop = MPI_MIN
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_MIN, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_MIN, lcomm, lerr )
+#endif 
          case( "sum" )
-            lop = MPI_SUM
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_SUM, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_SUM, lcomm, lerr )
+#endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
       end select
       
-      call START_LOG(allreduce_begin)
-      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
    
    end subroutine ccmpi_allreduce2i
 
    subroutine ccmpi_allreduce1r(ldat,gdat,op,comm)
-   
       integer, intent(in) :: comm
-      integer(kind=4) lop, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
       real, intent(in) :: ldat
       real, intent(out) :: gdat
       character(len=*), intent(in) :: op
+      real, dimension(1) :: ldat_l
+      real, dimension(1) :: gdat_l
 
-      lcomm = comm
-      
-      select case( op )
-         case( "max" )
-            lop = MPI_MAX
-         case( "min" )
-            lop = MPI_MIN
-         case( "sum" )
-            lop = MPI_SUM
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call ccmpi_abort(-1)
-      end select
-
-      call START_LOG(allreduce_begin)
-      call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
-      call END_LOG(allreduce_end)
+      ldat_l(1) = ldat
+      gdat_l(:) = 0.
+      call ccmpi_allreduce2r(ldat_l,gdat_l,op,comm)
+      gdat = gdat_l(1)
    
    end subroutine ccmpi_allreduce1r
    
    subroutine ccmpi_allreduce2r(ldat,gdat,op,comm)
-   
       integer, intent(in) :: comm
-      integer(kind=4) lop, lcomm, lerr, lsize
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif
+      integer(kind=4) lcomm, lerr, lsize
       real, dimension(:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      call START_LOG(allreduce_begin)
+      
       lcomm = comm
       lsize = size(ldat)
       
       select case( op )
          case( "max" )
-            lop = MPI_MAX
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_DOUBLE_PRECISION, MPI_MAX, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_REAL, MPI_MAX, lcomm, lerr )
+#endif
          case( "min" )
-            lop = MPI_MIN
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_DOUBLE_PRECISION, MPI_MIN, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_REAL, MPI_MIN, lcomm, lerr )
+#endif
          case( "sum" )
-            lop = MPI_SUM
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_DOUBLE_PRECISION, MPI_SUM, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_REAL, MPI_SUM, lcomm, lerr )
+#endif
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
       end select
 
-      call START_LOG(allreduce_begin)
-      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
    
    end subroutine ccmpi_allreduce2r
   
    subroutine ccmpi_allreduce1c(ldat,gdat,op,comm)
-   
-      use sumdd_m
-   
       integer, intent(in) :: comm
-      integer(kind=4) :: lop, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
-#else
-      integer(kind=4), parameter :: ltype = MPI_COMPLEX
-#endif 
+      integer(kind=4) :: lcomm, lerr
       complex, intent(in) :: ldat
       complex, intent(out) :: gdat
       character(len=*), intent(in) :: op
-
-      lcomm = comm
+      complex, dimension(1) :: ldat_l
+      complex, dimension(1) :: gdat_l
       
-      select case( op )
-         case( "max" )
-            lop = MPI_MAX
-         case( "min" )
-            lop = MPI_MIN
-         case( "sum" )
-            lop = MPI_SUM
-         case( "sumdr" )
-            lop = MPI_SUMDR
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
-            call ccmpi_abort(-1)
-      end select
-      
-      call START_LOG(allreduce_begin)
-      call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, lerr )
-      call END_LOG(allreduce_end)
+      ldat_l(1) = ldat
+      gdat_l(:) = cmplx( 0., 0. )
+      call ccmpi_allreduce2c(ldat_l,gdat_l,op,comm)
+      gdat = gdat_l(1)
    
    end subroutine ccmpi_allreduce1c
    
    subroutine ccmpi_allreduce2c(ldat,gdat,op,comm)
-   
       use sumdd_m
-   
       integer, intent(in) :: comm
-      integer(kind=4) :: lop, lcomm, lerr, lsize
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_COMPLEX
-#else
-      integer(kind=4), parameter :: ltype = MPI_COMPLEX
-#endif 
+      integer(kind=4) :: lcomm, lerr, lsize
       complex, dimension(:), intent(in) :: ldat
       complex, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
+      call START_LOG(allreduce_begin)
+      
       lcomm = comm
       lsize = size(ldat)
       
       select case( op )
          case( "max" )
-            lop = MPI_MAX
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_DOUBLE_COMPLEX, MPI_MAX, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_COMPLEX, MPI_MAX, lcomm, lerr )
+#endif
          case( "min" )
-            lop = MPI_MIN
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_DOUBLE_COMPLEX, MPI_MIN, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_COMPLEX, MPI_MIN, lcomm, lerr )
+#endif
          case( "sum" )
-            lop = MPI_SUM
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_DOUBLE_COMPLEX, MPI_SUM, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_COMPLEX, MPI_SUM, lcomm, lerr )
+#endif
          case( "sumdr" )
-            lop = MPI_SUMDR
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_COMPLEX, MPI_SUMDR, lcomm, lerr )
+#endif
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_allreduce ",op
             call ccmpi_abort(-1)
-      end select
+      end select      
       
-      call START_LOG(allreduce_begin)
-      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, lerr )
       call END_LOG(allreduce_end)
    
    end subroutine ccmpi_allreduce2c
    
-   subroutine ccmpi_allreduce1l(ldat_in,gdat_out,op,comm)
-   
+   subroutine ccmpi_allreduce1l(ldat,gdat,op,comm)
       integer, intent(in) :: comm
       integer(kind=4) :: lop, lcomm, ierr
-      integer(kind=4), parameter :: ltype = MPI_LOGICAL
-      logical, intent(in) :: ldat_in
-      logical, intent(out) :: gdat_out
-#ifdef i8r8
-      logical(kind=4) :: ldat
-      logical(kind=4) :: gdat
-#endif
+      logical, intent(in) :: ldat
+      logical, intent(out) :: gdat
       character(len=*), intent(in) :: op
+      logical, dimension(1) :: ldat_l
+      logical, dimension(1) :: gdat_l
 
-      lcomm = comm
+      ldat_l(1) = ldat
+      gdat_l(1) = .false.
+      call ccmpi_allreduce2l(ldat_l,gdat_l,op,comm)
+      gdat = gdat_l(1)
       
-      select case( op )
-         case( "or" )
-            lop = MPI_LOR
-         case( "and" )
-            lop = MPI_LAND
-         case default
-            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
-            call ccmpi_abort(-1)
-      end select
-      
-      call START_LOG(allreduce_begin)
-#ifdef i8r8
-      ldat = ldat_in
-      call MPI_AllReduce(ldat, gdat, 1_4, ltype, lop, lcomm, ierr )
-      gdat_out = gdat
-#else
-      call MPI_AllReduce(ldat_in, gdat_out, 1_4, ltype, lop, lcomm, ierr )
-#endif
-      call END_LOG(allreduce_end)
-   
    end subroutine ccmpi_allreduce1l
-
    
    subroutine ccmpi_allreduce2l(ldat_in,gdat_out,op,comm)
-   
       integer, intent(in) :: comm
-      integer(kind=4) :: lop, lcomm, ierr, lsize
-      integer(kind=4), parameter :: ltype = MPI_LOGICAL
+      integer(kind=4) :: lcomm, ierr, lsize
       logical, dimension(:), intent(in) :: ldat_in
       logical, dimension(:), intent(out) :: gdat_out
-#ifdef i8r8
       logical(kind=4), dimension(size(ldat_in)) :: ldat
       logical(kind=4), dimension(size(gdat_out)) :: gdat
-#endif
       character(len=*), intent(in) :: op
 
+      call START_LOG(allreduce_begin)
+      
       lcomm = comm
       lsize = size(ldat_in)
-      
+      ldat = ldat_in
+
       select case( op )
          case( "or" )
-            lop = MPI_LOR
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_LOGICAL, MPI_LOR, lcomm, ierr )
          case( "and" )
-            lop = MPI_LAND
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_LOGICAL, MPI_LAND, lcomm, ierr )
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
             call ccmpi_abort(-1)
       end select
       
-      call START_LOG(allreduce_begin)
-#ifdef i8r8
-      ldat = ldat_in
-      call MPI_AllReduce(ldat, gdat, lsize, ltype, lop, lcomm, ierr )
       gdat_out = gdat
-#else
-      call MPI_AllReduce(ldat_in, gdat_out, lsize, ltype, lop, lcomm, ierr )
-#endif
+
       call END_LOG(allreduce_end)
    
    end subroutine ccmpi_allreduce2l
@@ -6522,163 +6365,100 @@ contains
 
    subroutine ccmpi_bcast1i(ldat,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4) :: ltype = MPI_INTEGER
-#endif
       integer, intent(inout) :: ldat
+      integer, dimension(1,1) :: ldat_l
 
-      lhost = host
-      lcomm = comm
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,lerr)
-      call END_LOG(bcast_end)
-         
+      ldat_l(1,1) = ldat
+      call ccmpi_bcast3i(ldat_l,host,comm)
+      ldat = ldat_l(1,1)
+      
    end subroutine ccmpi_bcast1i
 
    subroutine ccmpi_bcast2i(ldat,host,comm)
-
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr, lsize
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4) :: ltype = MPI_INTEGER
-#endif
       integer, dimension(:), intent(inout) :: ldat
+      integer, dimension(size(ldat),1) :: ldat_l
 
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(bcast_end)
+      ldat_l(:,1) = ldat(:)
+      call ccmpi_bcast3i(ldat_l,host,comm)
+      ldat(:) = ldat_l(:,1)
          
    end subroutine ccmpi_bcast2i
 
    subroutine ccmpi_bcast3i(ldat,host,comm)
-
       integer, intent(in) :: host, comm
       integer(kind=4) :: lcomm, lhost, lerr, lsize
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4) :: ltype = MPI_INTEGER
-#endif
       integer, dimension(:,:), intent(inout) :: ldat
 
+      call START_LOG(bcast_begin)
+      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
+#ifdef i8r8
+      call MPI_Bcast(ldat,lsize,MPI_INTEGER8,lhost,lcomm,lerr)
+#else
+      call MPI_Bcast(ldat,lsize,MPI_INTEGER,lhost,lcomm,lerr)
+#endif
+
       call END_LOG(bcast_end)
       
    end subroutine ccmpi_bcast3i
 
    subroutine ccmpi_bcast1r(ldat,host,comm)
-   
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
       real, intent(inout) :: ldat
+      real, dimension(1,1,1) :: ldat_l
 
-      lhost = host
-      lcomm = comm
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,lerr)
-      call END_LOG(bcast_end)
+      ldat_l(1,1,1) = ldat
+      call ccmpi_bcast4r(ldat_l,host,comm)
+      ldat = ldat_l(1,1,1)
    
    end subroutine ccmpi_bcast1r
    
-   subroutine ccmpi_bcast2r(ldat,host,comm)
-   
+   subroutine ccmpi_bcast2r(ldat,host,comm)   
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr, lsize
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
       real, dimension(:), intent(inout) :: ldat
+      real, dimension(size(ldat),1,1) :: ldat_l
 
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(bcast_end)
+      ldat_l(:,1,1) = ldat(:)
+      call ccmpi_bcast4r(ldat_l,host,comm)
+      ldat(:) = ldat_l(:,1,1)
    
    end subroutine ccmpi_bcast2r
 
-   subroutine ccmpi_bcast3r(ldat,host,comm)
-   
+   subroutine ccmpi_bcast3r(ldat,host,comm)   
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr, lsize
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
       real, dimension(:,:), intent(inout) :: ldat
+      real, dimension(size(ldat,1),size(ldat,2),1) :: ldat_l
 
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(bcast_end)
+      ldat_l(:,:,1) = ldat(:,:)
+      call ccmpi_bcast4r(ldat_l,host,comm)
+      ldat(:,:) = ldat_l(:,:,1)
    
    end subroutine ccmpi_bcast3r
 
    subroutine ccmpi_bcast4r(ldat,host,comm)
-   
       integer, intent(in) :: host, comm
       integer(kind=4) :: lcomm, lhost, lerr, lsize
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
       real, dimension(:,:,:), intent(inout) :: ldat
 
+      call START_LOG(bcast_begin)
+      
       lhost = host
       lcomm = comm
       lsize = size(ldat)
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat, lsize, ltype, lhost, lcomm, lerr)
+#ifdef i8r8
+      call MPI_Bcast(ldat, lsize, MPI_DOUBLE_PRECISION, lhost, lcomm, lerr)
+#else
+      call MPI_Bcast(ldat, lsize, MPI_REAL, lhost, lcomm, lerr)
+#endif
+
       call END_LOG(bcast_end)
    
    end subroutine ccmpi_bcast4r
 
-   subroutine ccmpi_bcast5r(ldat,host,comm)
-   
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr, lsize
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:,:,:), intent(inout) :: ldat
-
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(bcast_end)
-   
-   end subroutine ccmpi_bcast5r
-
    subroutine ccmpi_bcast1s(ldat,host,comm)
-   
       integer, intent(in) :: host, comm
       integer(kind=4) :: lcomm, lhost, lerr, lsize
       character(len=*), intent(inout) :: ldat
@@ -6708,70 +6488,42 @@ contains
    end subroutine ccmpi_bcast1s
    
    subroutine ccmpi_bcast1r8(ldat,host,comm)
-   
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, ierr
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), intent(inout) :: ldat
+      real(kind=8), dimension(1,1) :: ldat_l
       
-      lhost = host
-      lcomm = comm
-      call START_LOG(bcast_end)
-      call MPI_Bcast(ldat,1_4,ltype,lhost,lcomm,ierr)
-      call END_LOG(bcast_end)
+      ldat_l(1,1) = ldat
+      call ccmpi_bcast3r8(ldat_l,host,comm)
+      ldat = ldat_l(1,1)      
    
    end subroutine ccmpi_bcast1r8
    
    subroutine ccmpi_bcast2r8(ldat,host,comm)
-   
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, ierr, lsize
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:), intent(inout) :: ldat
+      real(kind=8), dimension(size(ldat),1) :: ldat_l
       
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(bcast_end)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
-      call END_LOG(bcast_end)
+      ldat_l(:,1) = ldat(:)
+      call ccmpi_bcast3r8(ldat_l,host,comm)
+      ldat(:) = ldat_l(:,1)
    
    end subroutine ccmpi_bcast2r8
    
    subroutine ccmpi_bcast3r8(ldat,host,comm)
-   
       integer, intent(in) :: host,comm
       integer(kind=4) :: lcomm, lhost, ierr, lsize
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:), intent(inout) :: ldat
    
       lhost = host
       lcomm = comm
       lsize = size(ldat)
       call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat, lsize, ltype, lhost, lcomm, ierr)
+      call MPI_Bcast(ldat, lsize, MPI_DOUBLE_PRECISION, lhost, lcomm, ierr)
       call END_LOG(bcast_end)
    
-   end subroutine ccmpi_bcast3r8   
-   
-   subroutine ccmpi_bcast4r8(ldat,host,comm)
-   
-      integer, intent(in) :: host,comm
-      integer(kind=4) :: lcomm, lhost, ierr, lsize
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-      real(kind=8), dimension(:,:,:), intent(inout) :: ldat
-
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(bcast_begin)
-      call MPI_Bcast(ldat,lsize,ltype,lhost,lcomm,ierr)
-      call END_LOG(bcast_end)
-   
-   end subroutine ccmpi_bcast4r8
+   end subroutine ccmpi_bcast3r8
 
    subroutine ccmpi_barrier(comm)
-   
       integer, intent(in) :: comm
       integer(kind=4) :: lcomm, ierr
       
@@ -6781,453 +6533,184 @@ contains
       call END_LOG(mpibarrier_end)
    
    end subroutine ccmpi_barrier
-   
-   subroutine ccmpi_gatherx2r(gdat,ldat,host,comm)
-
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:), intent(out) :: gdat
-      real, dimension(:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
-      
-   end subroutine ccmpi_gatherx2r
-   
-   subroutine ccmpi_gatherx3r(gdat,ldat,host,comm)
-
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(out) :: gdat
-      real, dimension(:,:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
-      
-   end subroutine ccmpi_gatherx3r
-
-   subroutine ccmpi_gatherx4r(gdat,ldat,host,comm)
-
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:,:), intent(out) :: gdat
-      real, dimension(:,:,:), intent(in) :: ldat
-      
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
-      
-   end subroutine ccmpi_gatherx4r
-  
+     
    subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
-
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
       real, dimension(:,:), intent(out) :: gdat
       real, dimension(:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
+      real, dimension(size(gdat,1),size(gdat,2),1,1) :: gdat_l
+      real, dimension(size(ldat,1),1,1) :: ldat_l
+      
+      ldat_l(:,1,1) = ldat(:)
+      gdat_l(:,:,:,:) = 0.
+      call ccmpi_gatherx45r(gdat_l,ldat_l,host,comm)
+      gdat(:,:) = gdat_l(:,:,1,1)
       
    end subroutine ccmpi_gatherx23r
    
    subroutine ccmpi_gatherx34r(gdat,ldat,host,comm)
-
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
       real, dimension(:,:,:), intent(out) :: gdat
       real, dimension(:,:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
+      real, dimension(size(gdat,1),size(gdat,2),size(gdat,3),1) :: gdat_l
+      real, dimension(size(ldat,1),size(ldat,2),1) :: ldat_l
+      
+      ldat_l(:,:,1) = ldat(:,:)
+      gdat_l(:,:,:,:) = 0.
+      call ccmpi_gatherx45r(gdat_l,ldat_l,host,comm)
+      gdat(:,:,:) = gdat_l(:,:,:,1)
       
    end subroutine ccmpi_gatherx34r
 
    subroutine ccmpi_gatherx45r(gdat,ldat,host,comm)
-
       integer, intent(in) :: host, comm
       integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
       real, dimension(:,:,:,:), intent(out) :: gdat
       real, dimension(:,:,:), intent(in) :: ldat
 
+      call START_LOG(gather_begin)
+      
       lcomm = comm
       lhost = host
       lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+
+#ifdef i8r8
+      call MPI_Gather(ldat,lsize,MPI_DOUBLE_PRECISION,gdat,lsize,MPI_DOUBLE_PRECISION,lhost,lcomm,lerr)
+#else
+      call MPI_Gather(ldat,lsize,MPI_REAL,gdat,lsize,MPI_REAL,lhost,lcomm,lerr)
+#endif
+
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx45r
    
-   subroutine ccmpi_gatherx2i(gdat,ldat,host,comm)
-
+   subroutine ccmpi_gatherx12i(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif 
       integer, dimension(:), intent(out) :: gdat
-      integer, dimension(:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
+      integer, intent(in) :: ldat
+      integer, dimension(size(gdat,1),1) :: gdat_l
+      integer, dimension(1) :: ldat_l
       
-   end subroutine ccmpi_gatherx2i
-   
-   subroutine ccmpi_gatherx3i(gdat,ldat,host,comm)
-
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif 
-      integer, dimension(:,:), intent(out) :: gdat
-      integer, dimension(:,:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
+      ldat_l(1) = ldat
+      gdat_l(:,:) = 0
+      call ccmpi_gatherx23i(gdat_l,ldat_l,host,comm)
+      gdat(:) = gdat_l(:,1)
       
-   end subroutine ccmpi_gatherx3i
+   end subroutine ccmpi_gatherx12i
 
    subroutine ccmpi_gatherx23i(gdat,ldat,host,comm)
-
       integer, intent(in) :: host, comm
       integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif 
       integer, dimension(:,:), intent(out) :: gdat
       integer, dimension(:), intent(in) :: ldat
 
+      call START_LOG(gather_begin)
+      
       lcomm = comm
       lhost = host
       lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
+
+#ifdef i8r8
+      call MPI_Gather(ldat,lsize,MPI_INTEGER8,gdat,lsize,MPI_INTEGER8,lhost,lcomm,lerr)
+#else
+      call MPI_Gather(ldat,lsize,MPI_INTEGER,gdat,lsize,MPI_INTEGER,lhost,lcomm,lerr)
+#endif
+
       call END_LOG(gather_end)
       
    end subroutine ccmpi_gatherx23i
-   
-   subroutine ccmpi_gatherx23l(gdat,ldat,host,comm)
-
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-      logical, dimension(:,:), intent(out) :: gdat
-      logical, dimension(:), intent(in) :: ldat
-#ifdef i8r8
-      logical(kind=4), dimension(size(gdat,1),size(gdat,2)) :: gdat_l
-      logical(kind=4), dimension(size(ldat)) :: ldat_l
-#endif
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-#ifdef i8r8
-      ldat_l = ldat
-      call MPI_Gather(ldat_l,lsize,MPI_LOGICAL,gdat_l,lsize,MPI_LOGICAL,lhost,lcomm,lerr)
-      gdat = gdat_l
-#else
-      call MPI_Gather(ldat,lsize,MPI_LOGICAL,gdat,lsize,MPI_LOGICAL,lhost,lcomm,lerr)
-#endif
-      call END_LOG(gather_end)
       
-   end subroutine ccmpi_gatherx23l
-   
-   subroutine ccmpi_gatherx2rr8(gdat,ldat,host,comm)
-
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-      real(kind=8), dimension(:), intent(out) :: gdat
-      real(kind=8), dimension(:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
-      
-   end subroutine ccmpi_gatherx2rr8
-   
-   subroutine ccmpi_gatherx3rr8(gdat,ldat,host,comm)
-
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-      real(kind=8), dimension(:,:), intent(out) :: gdat
-      real(kind=8), dimension(:,:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
-      
-   end subroutine ccmpi_gatherx3rr8
-   
    subroutine ccmpi_gatherx23rr8(gdat,ldat,host,comm)
-
       integer, intent(in) :: host, comm
       integer(kind=4) :: lsize, lhost, lcomm, lerr
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
-
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
+      real(kind=8), dimension(size(gdat,1),size(gdat,2),1,1) :: gdat_l
+      real(kind=8), dimension(size(ldat,1),1,1) :: ldat_l
+      
+      ldat_l(:,1,1) = ldat(:)
+      gdat_l(:,:,:,:) = 0._8
+      call ccmpi_gatherx45rr8(gdat_l,ldat_l,host,comm)
+      gdat(:,:) = gdat_l(:,:,1,1)
       
    end subroutine ccmpi_gatherx23rr8
    
    subroutine ccmpi_gatherx34rr8(gdat,ldat,host,comm)
-
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:), intent(in) :: ldat
+      real(kind=8), dimension(size(gdat,1),size(gdat,2),size(gdat,3),1) :: gdat_l
+      real(kind=8), dimension(size(ldat,1),size(ldat,2),1) :: ldat_l
       
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
+      ldat_l(:,:,1) = ldat(:,:)
+      gdat_l(:,:,:,:) = 0._8
+      call ccmpi_gatherx45rr8(gdat_l,ldat_l,host,comm)
+      gdat(:,:,:) = gdat_l(:,:,:,1)
       
    end subroutine ccmpi_gatherx34rr8
 
    subroutine ccmpi_gatherx45rr8(gdat,ldat,host,comm)
-
       integer, intent(in) :: host, comm
       integer(kind=4) :: lsize, lhost, lcomm, lerr
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
       real(kind=8), dimension(:,:,:,:), intent(out) :: gdat
       real(kind=8), dimension(:,:,:), intent(in) :: ldat
 
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
       call START_LOG(gather_begin)
-      call MPI_Gather(ldat,lsize,ltype,gdat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(gather_end)
-      
-   end subroutine ccmpi_gatherx45rr8
-   
-   subroutine ccmpi_scatterx2r(gdat,ldat,host,comm)
-   
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:), intent(in) :: gdat
-      real, dimension(:), intent(out) :: ldat
-     
+
       lcomm = comm
       lhost = host
       lsize = size(ldat)
-      call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(scatter_end)
-      
-   end subroutine ccmpi_scatterx2r
+
+      call MPI_Gather(ldat,lsize,MPI_DOUBLE_PRECISION,gdat,lsize,MPI_DOUBLE_PRECISION,lhost,lcomm,lerr)
+
+      call END_LOG(gather_end)
+   
+   end subroutine ccmpi_gatherx45rr8
 
    subroutine ccmpi_scatterx32r(gdat,ldat,host,comm)
-   
       integer, intent(in) :: host, comm
       integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
       real, dimension(:,:), intent(in) :: gdat
       real, dimension(:), intent(out) :: ldat
-      
+
+      call START_LOG(scatter_begin)
+
       lcomm = comm
       lhost = host
       lsize = size(ldat)
-      call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
+
+#ifdef i8r8
+      call MPI_Scatter(gdat,lsize,MPI_DOUBLE_PRECISION,ldat,lsize,MPI_DOUBLE_PRECISION,lhost,lcomm,lerr)
+#else
+      call MPI_Scatter(gdat,lsize,MPI_REAL,ldat,lsize,MPI_REAL,lhost,lcomm,lerr)
+#endif
+
       call END_LOG(scatter_end)
       
    end subroutine ccmpi_scatterx32r
-
-   subroutine ccmpi_scatterx3r(gdat,ldat,host,comm)
-   
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      real, dimension(:,:), intent(in) :: gdat
-      real, dimension(:,:), intent(out) :: ldat
       
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(scatter_end)
-      
-   end subroutine ccmpi_scatterx3r
-   
-   subroutine ccmpi_scatterx32l(gdat,ldat,host,comm)
-   
-      integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4) :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4) :: ltype = MPI_REAL
-#endif
-      logical, dimension(:,:), intent(in) :: gdat
-      logical, dimension(:), intent(out) :: ldat
-      
-      lcomm = comm
-      lhost = host
-      lsize = size(ldat)
-      call START_LOG(scatter_begin)
-      call MPI_Scatter(gdat,lsize,ltype,ldat,lsize,ltype,lhost,lcomm,lerr)
-      call END_LOG(scatter_end)
-      
-   end subroutine ccmpi_scatterx32l
-   
-   subroutine ccmpi_allgatherx2i(gdat,ldat,comm)
-   
+   subroutine ccmpi_allgatherx32r(gdat,ldat,comm)
       integer, intent(in) :: comm
       integer(kind=4) lsize, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_INTEGER8
-#else
-      integer(kind=4), parameter :: ltype = MPI_INTEGER
-#endif  
-      integer, dimension(:), intent(in) :: ldat
-      integer, dimension(:), intent(out) :: gdat
-      
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(allgather_begin)
-      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
-      call END_LOG(allgather_end)
-      
-   end subroutine ccmpi_allgatherx2i
-
-   subroutine ccmpi_allgatherx2r(gdat,ldat,comm)
-   
-      integer, intent(in) :: comm
-      integer(kind=4) lsize, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif  
-      real, dimension(:), intent(in) :: ldat
-      real, dimension(:), intent(out) :: gdat
-   
-      lcomm = comm
-      lsize = size(ldat)
-      call START_LOG(allgather_begin)
-      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
-      call END_LOG(allgather_end)
-      
-   end subroutine ccmpi_allgatherx2r
-   
-    subroutine ccmpi_allgatherx32r(gdat,ldat,comm)
-   
-      integer, intent(in) :: comm
-      integer(kind=4) lsize, lcomm, lerr
-#ifdef i8r8
-      integer(kind=4), parameter :: ltype = MPI_DOUBLE_PRECISION
-#else
-      integer(kind=4), parameter :: ltype = MPI_REAL
-#endif  
       real, dimension(:,:), intent(in) :: ldat
       real, dimension(:), intent(out) :: gdat
-   
+
+      call START_LOG(allgather_begin)
+      
       lcomm = comm
       lsize = size(ldat)
-      call START_LOG(allgather_begin)
-      call MPI_AllGather(ldat,lsize,ltype,gdat,lsize,ltype,lcomm,lerr)
+
+#ifdef i8r8
+      call MPI_AllGather(ldat,lsize,MPI_DOUBLE_PRECISION,gdat,lsize,MPI_DOUBLE_PRECISION,lcomm,lerr)
+#else
+      call MPI_AllGather(ldat,lsize,MPI_REAL,gdat,lsize,MPI_REAL,lcomm,lerr)
+#endif
+
       call END_LOG(allgather_end)
       
    end subroutine ccmpi_allgatherx32r
    
    subroutine ccmpi_alltoall2l(gdat,comm)
-   
       integer, intent(in) :: comm
       integer(kind=4) :: lsize, lcomm, lerr
       logical, dimension(:), intent(inout) :: gdat
@@ -7261,7 +6744,6 @@ contains
    end subroutine ccmpi_commsplit
    
    subroutine ccmpi_commfree(comm)
-   
       integer, intent(in) :: comm
       integer(kind=4) :: lcomm, lerr
       
@@ -7273,7 +6755,6 @@ contains
    end subroutine ccmpi_commfree
    
    subroutine ccmpi_init
-
       integer(kind=4) :: lerr, lproc, lid
       integer(kind=8) :: begin_time, end_time, count_rate, count_max
 #ifdef _OPENMP
@@ -7295,7 +6776,7 @@ contains
       call MPI_Init(lerr)
 #endif
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
-      call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local processor id
+      call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local process id
       nproc      = lproc
       myid       = lid
       comm_world = MPI_COMM_WORLD
@@ -7341,7 +6822,7 @@ contains
       lcommin = comm_world
       call MPI_Comm_split_type(lcommin, MPI_COMM_TYPE_SHARED, lid, MPI_INFO_NULL, lcommout, lerr)
       call MPI_Comm_size(lcommout, lproc, lerr) ! Find number of processes on node
-      call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local processor id on node
+      call MPI_Comm_rank(lcommout, lid, lerr)   ! Find local process id on node
       comm_node  = lcommout
       node_nproc = lproc
       node_myid  = lid
@@ -7473,7 +6954,7 @@ contains
          end do
          lcommin = comm_world
          call MPI_Comm_Split(lcommin, 0_4, lid, lcommout, lerr) ! redefine comm_world
-         call MPI_Comm_rank(lcommout, lid, lerr)                ! find local processor id
+         call MPI_Comm_rank(lcommout, lid, lerr)                ! find local process id
          comm_world = lcommout
          myid = lid
          if ( lcommin/=MPI_COMM_WORLD .and. lcommin/=MPI_COMM_NULL ) then
@@ -7628,8 +7109,8 @@ contains
       real, dimension((msg_len*npanx+1)*kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
-      ncol    = msg_len/nrow                ! number of points along a col per processor
+      nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per process
+      ncol    = msg_len/nrow                ! number of points along a col per process
       nrm1    = nrow - 1
       hoz_len = msg_len*npanx
       ilen = (hoz_len+1)*kx
@@ -7647,7 +7128,7 @@ contains
 #endif
       call END_LOG(gather_end)
 
-      ! unpack buffers (nmax is zero unless this is the host processor)
+      ! unpack buffers (nmax is zero unless this is the host process)
       if ( nmax > 0 ) then
          ! general case
          do yproc = 1,nmax
@@ -7671,7 +7152,7 @@ contains
    end subroutine mgcollectreduce_work
 
    subroutine mgcollect1(g,vdat,klim)
-      ! This routing collects data from other processors without a reduction (max or min) array
+      ! This routing collects data from other processes without a reduction (max or min) array
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
       integer :: kx, msg_len, ipanx, jpanx
@@ -7704,8 +7185,8 @@ contains
       real, dimension(msg_len*npanx*kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      nrow    = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per processor
-      ncol    = msg_len/nrow                     ! number of points along a col per processor
+      nrow    = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per process
+      ncol    = msg_len/nrow                     ! number of points along a col per process
       nrm1    = nrow - 1
       hoz_len = msg_len*npanx
       ilen = hoz_len*kx
@@ -7722,7 +7203,7 @@ contains
 #endif
       call END_LOG(gather_end)
 
-      ! unpack buffers (nmax is zero unless this is the host processor)
+      ! unpack buffers (nmax is zero unless this is the host process)
       if ( nmax > 0 ) then
          do yproc = 1,nmax
             ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
@@ -7779,8 +7260,8 @@ contains
       real, dimension((msg_len*npanx+2)*kx,nmax) :: tdat_g
 
       ! prep data for sending around the merge
-      nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per processor
-      ncol    = msg_len/nrow                ! number of points along a col per processor
+      nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per process
+      ncol    = msg_len/nrow                ! number of points along a col per process
       nrm1    = nrow - 1
       hoz_len = msg_len*npanx
       ilen = (hoz_len+2)*kx
@@ -7798,7 +7279,7 @@ contains
 #endif
       call END_LOG(gather_end)
 
-      ! unpack buffers (nmax is zero unless this is the host processor)
+      ! unpack buffers (nmax is zero unless this is the host process)
       if ( nmax > 0 ) then
          do yproc = 1,nmax
             ir = mod(yproc-1,mg(g)%merge_row) + 1   ! index for proc row
@@ -8019,10 +7500,10 @@ contains
       logical lflag, lglob      
 
       ! size of this grid
-      mfull_g = 6*mil_g*mil_g
+      mfull_g = 6*mil_g**2
 
 
-      ! calculate processor map in iq coordinates
+      ! calculate process map in iq coordinates
       lglob = .true.
       lflag = .true.
       mioff = 0
@@ -8067,7 +7548,7 @@ contains
          mg_bnds(n,g)%slenx_fn(0:maxcolour) = 0
       end do   
          
-      ! Calculate local indices on this processor
+      ! Calculate local indices on this process
       if ( lglob ) then
          do iq = 1,mfull_g
             mg(g)%in(iq) = jn_g(iq,mil_g)
@@ -8208,7 +7689,7 @@ contains
                   iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
                   iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                   iqq = jn_g(iqg,mil_g)
-                  ! Which processor has this point
+                  ! Which process has this point
                   rproc = mg_qproc(iqq,mil_g,g)
                   if ( rproc /= myid ) then ! Don't add points already on this proc.
                      mycol = findcolour(iqq,mil_g)
@@ -8231,7 +7712,7 @@ contains
                   iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
                   iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                   iqq = je_g(iqg,mil_g)
-                  ! Which processor has this point
+                  ! Which process has this point
                   rproc = mg_qproc(iqq,mil_g,g)
                   if ( rproc /= myid ) then ! Don't add points already on this proc.
                      mycol = findcolour(iqq,mil_g)
@@ -8254,7 +7735,7 @@ contains
                   iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
                   iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                   iqq = jw_g(iqg,mil_g)
-                  ! Which processor has this point
+                  ! Which process has this point
                   rproc = mg_qproc(iqq,mil_g,g)
                   if ( rproc /= myid ) then ! Don't add points already on this proc.
                      mycol = findcolour(iqq,mil_g)
@@ -8277,7 +7758,7 @@ contains
                   iq = i + (j-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
                   iqg = i+mioff + (j+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                   iqq = js_g(iqg,mil_g)
-                  ! Which processor has this point
+                  ! Which process has this point
                   rproc = mg_qproc(iqq,mil_g,g)
                   if ( rproc /= myid ) then ! Don't add points already on this proc.
                      mycol = findcolour(iqq,mil_g)
@@ -8318,7 +7799,7 @@ contains
                iq = mipan + (mjpan-1)*mipan + (n-1)*mipan*mjpan              !  Local index 
                iqg = mipan+mioff + (mjpan+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                iqq = jne_g(iqg,mil_g)
-               ! Which processor has this point
+               ! Which process has this point
                rproc = mg_qproc(iqq,mil_g,g)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
                   mycol = findcolour(iqq,mil_g)
@@ -8337,7 +7818,7 @@ contains
                   mg(g)%ien(iq) = mg(g)%ine(iq)
                else
                   iqq = jen_g(iqg,mil_g)
-                  ! Which processor has this point
+                  ! Which process has this point
                   rproc = mg_qproc(iqq,mil_g,g)
                   if ( rproc /= myid ) then ! Add to list
                      mycol = findcolour(iqq,mil_g)
@@ -8358,7 +7839,7 @@ contains
                iq = mipan + (n-1)*mipan*mjpan                      !  Local index
                iqg = mipan+mioff + mjoff*mil_g + (n-noff)*mil_g**2 !  Global index
                iqq = jse_g(iqg,mil_g)
-               ! Which processor has this point
+               ! Which process has this point
                rproc = mg_qproc(iqq,mil_g,g)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
                   mycol = findcolour(iqq,mil_g)
@@ -8377,7 +7858,7 @@ contains
                   mg(g)%ies(iq) = mg(g)%ise(iq)
                else
                   iqq = jes_g(iqg,mil_g)
-                  ! Which processor has this point
+                  ! Which process has this point
                   rproc = mg_qproc(iqq,mil_g,g)
                   if ( rproc /= myid ) then ! Add to list
                      mycol = findcolour(iqq,mil_g)
@@ -8398,7 +7879,7 @@ contains
                iq = 1 + (mjpan-1)*mipan + (n-1)*mipan*mjpan              !  Local index
                iqg = 1+mioff + (mjpan+mjoff-1)*mil_g + (n-noff)*mil_g**2 !  Global index
                iqq = jnw_g(iqg,mil_g)
-               ! Which processor has this point
+               ! Which process has this point
                rproc = mg_qproc(iqq,mil_g,g)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
                   mycol = findcolour(iqq,mil_g)
@@ -8417,7 +7898,7 @@ contains
                   mg(g)%iwn(iq) = mg(g)%inw(iq)
                else
                   iqq = jwn_g(iqg,mil_g)
-                  ! Which processor has this point
+                  ! Which process has this point
                   rproc = mg_qproc(iqq,mil_g,g)
                   if ( rproc /= myid ) then ! Add to list
                      mycol = findcolour(iqq,mil_g)
@@ -8438,7 +7919,7 @@ contains
                iq = 1 + (n-1)*mipan*mjpan                        !  Local index
                iqg = 1+mioff + (mjoff)*mil_g + (n-noff)*mil_g**2 !  Global index
                iqq = jsw_g(iqg,mil_g)
-               ! Which processor has this point
+               ! Which process has this point
                rproc = mg_qproc(iqq,mil_g,g)
                if ( rproc /= myid ) then ! Don't add points already on this proc.
                   mycol = findcolour(iqq,mil_g)
@@ -8457,7 +7938,7 @@ contains
                   mg(g)%iws(iq) = mg(g)%isw(iq)
                else
                   iqq = jws_g(iqg,mil_g)
-                  ! Which processor has this point
+                  ! Which process has this point
                   rproc = mg_qproc(iqq,mil_g,g)
                   if ( rproc /= myid ) then ! Add to list
                      mycol = findcolour(iqq,mil_g)
@@ -8564,7 +8045,7 @@ contains
          end if
 
          
-         ! Now, for each processor send the length of points I want.
+         ! Now, for each process send the length of points I want.
          allocate( dums(2*maxcolour,mg(g)%neighnum), dumr(2*maxcolour,mg(g)%neighnum) )
          lcomm = comm_world
          nreq = 0
@@ -8761,7 +8242,7 @@ contains
       else
          ! Just check length 
          testlen = 0
-         do i = 1,maxcolour
+         do i = 0,maxcolour
             testlen = max( mg_bnds(iproc,g)%rlen_fn(i), mg_bnds(iproc,g)%rlenx_fn(i), &
                            testlen )
          end do
@@ -8798,7 +8279,6 @@ contains
    end subroutine mgbounds2
  
    subroutine mgbounds3(g,vdat,klim,corner)
-      ! update halo for multi-grid level g
       integer, intent(in) :: g
       real, dimension(:,:), intent(inout) :: vdat
       integer, intent(in), optional :: klim
@@ -8958,7 +8438,7 @@ contains
    end subroutine mgbounds_colour3
    
    pure function mg_fproc_1(g,i,j,n) result(mg_fpout)
-     ! locates processor that owns a global grid point
+     ! locates process that owns a global grid point
      integer, intent(in) :: i, j, n, g
      integer mg_fpout, g_l, i_l, j_l
      
@@ -8973,7 +8453,7 @@ contains
    end function mg_fproc_1
    
    pure function mg_fproc(g,i,j,n) result(mg_fpout)
-     ! locates processor that owns a global grid point
+     ! locates process that owns a global grid point
      integer, intent(in) :: i, j, n, g
      integer mg_fpout, fp_l
      
@@ -8983,7 +8463,7 @@ contains
    end function mg_fproc   
    
    pure function mg_qproc(iqg,mil_g,g) result(mg_qpout)
-      ! locates processor that owns a global grid point
+      ! locates process that owns a global grid point
       integer, intent(in) :: iqg, mil_g, g
       integer :: mg_qpout, i, j, n
 
@@ -9421,7 +8901,7 @@ contains
          end do
       end do
  
-      ! identify neighbour processors
+      ! identify neighbour processes
       fileneighnum = count( filebnds(:)%rlenx > 0 )
       if ( filebnds(myid)%rlenx > 0 ) then
         fileneighnum = fileneighnum - 1
@@ -9446,7 +8926,7 @@ contains
          allocate( rlist(max(fileneighnum,1)) )
       end if
 
-      ! Now, for each processor send the length of points I want.
+      ! Now, for each process send the length of points I want.
       allocate( dumi(4,fileneighnum) )
       nreq = 0
       do jproc = 1,fileneighnum
@@ -9681,7 +9161,7 @@ contains
          end if   
       end do
 
-      ! See if there are any points on my own processor that need
+      ! See if there are any points on my own process that need
       ! to be fixed up.
       do k = 1,kx
          do iq = 1,myrlen
@@ -9742,7 +9222,7 @@ contains
    end subroutine proc_filedistribute2
 
    subroutine host_filedistribute3(af,a1,comm)
-      ! Convert standard 1D arrays to face form and distribute to processors
+      ! Convert standard 1D arrays to face form and distribute to processes
       integer, intent(in) :: comm
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in) :: a1
@@ -9753,7 +9233,7 @@ contains
       
       kx = size(af,2)
       
-      ! map array in order of processor rank
+      ! map array in order of process rank
       do iproc = 0,fnresid-1
          do k = 1,kx 
             do ipf = 0,fncount-1
@@ -9782,7 +9262,7 @@ contains
    end subroutine host_filedistribute3
 
    subroutine proc_filedistribute3(af,comm)
-      ! Convert standard 1D arrays to face form and distribute to processors
+      ! Convert standard 1D arrays to face form and distribute to processes
       integer, intent(in) :: comm
       real, dimension(:,:), intent(out) :: af
       real, dimension(1,1,1) :: sbuf
@@ -10028,7 +9508,7 @@ contains
       n = n_in
       call procarray_ijn(i,j,n)
       
-      ! determine processor that owns the grid point
+      ! determine process that owns the grid point
       do ip = 0,fnproc-1
          cc = n + pnoff(ip) - 1
          if ( cc>=0 .and. cc<=pnpan-1 ) then

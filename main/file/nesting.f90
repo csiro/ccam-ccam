@@ -873,13 +873,8 @@ real, dimension(ifull,kl), intent(inout) :: tt, qgg
 real, dimension(ifull,kl,naero), intent(inout) :: xtgg
 logical, intent(in) :: lblock
       
-if ( npta==1 ) then
-  ! face version (nproc>=6)
-  call spechost_n(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
-else
-  ! general version
-  call spechost(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
-end if
+! general version
+call spechost(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
 
 return
 end subroutine specfastmpi
@@ -1063,149 +1058,6 @@ end if
 return
 end subroutine spechost
 !---------------------------------------------------------------------------------
-
-! This version of spechost is for one panel per processor (reduced memory)
-subroutine spechost_n(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
-
-use aerointerface      ! Aerosol interface
-use cc_mpi             ! CC MPI routines
-use newmpar_m          ! Grid parameters
-use parm_m             ! Model configuration
-use vecsuv_m           ! Map to cartesian coordinates
-      
-integer, intent(in) :: klt,kln,klx
-integer k,n
-real, intent(in) :: cin
-real, dimension(ifull), intent(inout) :: pslbb
-real, dimension(ifull,kl), intent(inout) :: ubb, vbb
-real, dimension(ifull,kl), intent(inout) :: tbb, qbb
-real, dimension(ifull,kl,naero), intent(inout) :: xtgbb
-real, dimension(ifull,kln:klx) :: wbb
-real, dimension(ifull,klt) :: qt
-real, dimension(ifull) :: da, db
-logical, intent(in) :: lblock
-
-if ( nud_p>0 .and. lblock ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send(pslbb) ! gather data onto global sparse array (0)
-  call ccmpi_gathermap_recv(0)     ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if ( nud_uv==3 ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send(ubb(:,kln:klx))   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-else if ( nud_uv>0 ) then
-  do k = kln,klx
-    da(:) = ubb(:,k)
-    db(:) = vbb(:,k)
-    ubb(:,k) = ax(1:ifull)*da(:) + bx(1:ifull)*db(:)
-    vbb(:,k) = ay(1:ifull)*da(:) + by(1:ifull)*db(:)
-    wbb(:,k) = az(1:ifull)*da(:) + bz(1:ifull)*db(:)
-  end do
-  call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_send(ubb(:,kln:klx))   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if ( nud_p>0 .and. lblock ) then
-  call fastspecmpi_work(cin,qt(:,1),1,pprocn) ! filter sparse array (0)
-  pslbb(:) = qt(:,1)
-end if
-
-if ( nud_uv==3 ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_recv(klt,0)   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-  call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  ubb(:,kln:klx) = qt(:,:)
-else if ( nud_uv>0 ) then
-  call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(klt,0)   ! gather data onto global sparse array (0)
-  call ccmpi_gathermap_send(vbb(:,kln:klx))   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-  call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  ubb(:,kln:klx) = qt(:,:)
-  call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(klt,0)   ! gather data onto global sparse array (0)
-  call ccmpi_gathermap_send(wbb(:,kln:klx))   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-  call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  vbb(:,kln:klx) = qt(:,:)
-  call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(klt,0)   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if ( nud_t>0 ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send(tbb(:,kln:klx))   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if ( nud_uv>0 .and. nud_uv/=3 ) then
-  call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  wbb(:,kln:klx) = qt(:,:)
-  do k = kln,klx
-    da(:) = ax(1:ifull)*ubb(:,k) + ay(1:ifull)*vbb(:,k) + az(1:ifull)*wbb(:,k)
-    db(:) = bx(1:ifull)*ubb(:,k) + by(1:ifull)*vbb(:,k) + bz(1:ifull)*wbb(:,k)
-    ubb(:,k) = da(:)
-    vbb(:,k) = db(:)
-  end do
-end if
-
-if ( nud_t>0 ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_recv(klt,0)   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if ( nud_q>0 ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send(qbb(:,kln:klx))   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if ( nud_t>0 ) then
-  call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  tbb(:,kln:klx) = qt(:,:)
-end if
-
-if ( nud_q>0 ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_recv(klt,0)   ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if ( abs(iaero)>=2 .and. nud_aero>0 ) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send(xtgbb(:,kln:klx,1)) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end) 
-end if
-
-if ( nud_q>0 ) then
-  call fastspecmpi_work(cin,qt,klt,pprocn) ! filter sparse array (0)
-  qbb(:,kln:klx) = qt(:,:)
-end if
-
-if ( abs(iaero)>=2 .and. nud_aero>0 ) then
-  do n = 1,naero
-    call START_LOG(nestwin_begin)  
-    call ccmpi_gathermap_recv(klt,0) ! gather data onto global sparse array (0)
-    call END_LOG(nestwin_end)
-    if ( n<naero ) then
-      call START_LOG(nestwin_begin)  
-      call ccmpi_gathermap_send(xtgbb(:,kln:klx,n+1)) ! gather data onto global sparse array (0)
-      call END_LOG(nestwin_end)
-    end if  
-    call fastspecmpi_work(cin,qt,klt,pprocn)   ! filter sparse array (0)
-    xtgbb(:,kln:klx,n) = qt(:,:)
-  end do
-end if      
-
-return
-end subroutine spechost_n
 
 ! determine if panel is 'left' or 'right'.  This
 ! basically reorders the convolution so that the
@@ -2327,11 +2179,7 @@ logical, intent(in) :: lblock
 ! eventually will be replaced with mbd once full ocean coupling is complete
 cq = sqrt(4.5)*.1*real(mbd_mlo)/(pi*schmidt)
       
-if ( pprocn==pprocx ) then
-  call mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
-else
-  call mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
-end if
+call mlospechost(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
 
 return
 end subroutine mlofilterfast
@@ -2465,107 +2313,6 @@ end if
 
 return
 end subroutine mlospechost
-
-!---------------------------------------------------------------------------------
-! memory reduced version of mlospechost
-subroutine mlospechost_n(cq,diff_l,diffs_l,diffu_l,diffv_l,diffh_l,lblock,kd)
-
-use cc_mpi             ! CC MPI routines
-use newmpar_m          ! Grid parameters
-use parm_m             ! Model configuration
-use vecsuv_m           ! Map to cartesian coordinates
-      
-integer, intent(in) :: kd
-integer k
-real, intent(in) :: cq
-real, dimension(ifull,1), intent(inout) :: diffh_l
-real, dimension(ifull,kd), intent(inout) :: diff_l,diffs_l
-real, dimension(ifull,kd), intent(inout) :: diffu_l,diffv_l
-real, dimension(ifull,kd) :: diffw_l
-real, dimension(ifull) :: xa_l,xb_l
-logical, intent(in) :: lblock
-
-if (nud_sfh/=0.and.lblock) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send(diffh_l(:,1)) ! gather data onto global sparse array (0)
-  call ccmpi_gathermap_recv(0) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if (nud_sst/=0) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send(diff_l(:,:)) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if (nud_sfh/=0.and.lblock) then
-  call mlofastspec_work(cq,diffh_l(:,1),1,pprocn) ! filter sparse array (0)
-end if
-
-if (nud_sst/=0) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_recv(kd,0) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if (nud_sss/=0) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_send(diffs_l(:,:)) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if (nud_sst/=0) then
-  call mlofastspec_work(cq,diff_l,kd,pprocn)      ! filter sparse array (0)
-end if
-
-if (nud_sss/=0) then
-  call START_LOG(nestwin_begin)  
-  call ccmpi_gathermap_recv(kd,0)             ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if (nud_ouv/=0) then
-  do k = 1,kd
-    xa_l = diffu_l(:,k)
-    xb_l = diffv_l(:,k)
-    diffu_l(:,k) = ax(1:ifull)*xa_l + bx(1:ifull)*xb_l
-    diffv_l(:,k) = ay(1:ifull)*xa_l + by(1:ifull)*xb_l
-    diffw_l(:,k) = az(1:ifull)*xa_l + bz(1:ifull)*xb_l
-  end do
-  call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_send(diffu_l(:,:)) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-end if
-
-if (nud_sss/=0) then
-  call mlofastspec_work(cq,diffs_l,kd,pprocn)      ! filter sparse array (0)
-end if
-
-if (nud_ouv/=0) then
-  call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(kd,0) ! gather data onto global sparse array (0)
-  call ccmpi_gathermap_send(diffv_l(:,:)) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-  call mlofastspec_work(cq,diffu_l,kd,pprocn)      ! filter sparse array (0)
-  call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(kd,0)! gather data onto global sparse array (0)
-  call ccmpi_gathermap_send(diffw_l(:,:)) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-  call mlofastspec_work(cq,diffv_l,kd,pprocn)      ! filter sparse array (0)
-  call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(kd,0) ! gather data onto global sparse array (0)
-  call END_LOG(nestwin_end)
-  call mlofastspec_work(cq,diffw_l,kd,pprocn)      ! filter sparse array (0)
-  do k = 1,kd
-    xa_l = ax(1:ifull)*diffu_l(:,k) + ay(1:ifull)*diffv_l(:,k) + az(1:ifull)*diffw_l(:,k)
-    xb_l = bx(1:ifull)*diffu_l(:,k) + by(1:ifull)*diffv_l(:,k) + bz(1:ifull)*diffw_l(:,k)
-    diffu_l(:,k) = xa_l
-    diffv_l(:,k) = xb_l
-  end do
-endif
-
-return
-end subroutine mlospechost_n
 
 subroutine mlofastspec_work(cq,diff_g,kd,ppass)
 
@@ -3363,13 +3110,7 @@ do iproc = 0,nproc-1
 end do
    
 ky = max( kl, ol )
-if ( npta==1 ) then
-  ! face version (nproc>=6)
-  kx = min(ky,kblock)
-else
-  ! general version
-  kx = 2*min(ky,kblock) ! extra memory for copy
-end if
+kx = 2*min(ky,kblock) ! extra memory for copy
 call allocateglobalpack(kx,ky)
       
 return

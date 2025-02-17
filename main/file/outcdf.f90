@@ -2477,7 +2477,7 @@ if ( iarch==1 ) then
         end if
       else
         if ( myid==0 ) write(6,*) '-> gather virtual node ranks'  
-        call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+        call ccmpi_gatherx(vnode_dat,myid,0,comm_vnode)
       end if
       if ( myid==0 ) write(6,*) '-> gather leader ranks'  
       call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
@@ -2532,7 +2532,7 @@ if ( iarch==1 ) then
     call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
     deallocate(ypnt,ypnt2)
   
-    call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+    call ccmpi_gatherx(vnode_dat,myid,0,comm_vnode)
     call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
     
   end if ! myid == 0 .or. local ..else.. localhist
@@ -4435,7 +4435,7 @@ if ( first ) then
     if ( local ) then
       ! store local processor order in output file  
       allocate( vnode_dat(vnode_nproc) )  
-      call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+      call ccmpi_gatherx(vnode_dat,myid,0,comm_vnode)
       call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
       deallocate( vnode_dat )
       ! store file id for a given processor number in output file number 000000
@@ -4444,7 +4444,7 @@ if ( first ) then
       else
         allocate( procnode(1) ) ! not used
       end if  
-      call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+      call ccmpi_gatherx(procnode,vnode_vleaderid,0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
         call ccnf_put_vara(fncid,idgpn,(/1/),(/nproc/),procnode)  
       end if
@@ -4455,7 +4455,7 @@ if ( first ) then
       else
         allocate( procoffset(1) ) ! not used
       end if
-      call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+      call ccmpi_gatherx(procoffset,vnode_myid,0,comm_world) ! this is procoffset_inv
       if ( myid==0 ) then
         call ccnf_put_vara(fncid,idgpo,(/1/),(/nproc/),procoffset)  
       end if
@@ -4481,13 +4481,13 @@ if ( first ) then
     deallocate(ypnt,ypnt2)
     
     allocate( vnode_dat(vnode_nproc) )
-    call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+    call ccmpi_gatherx(vnode_dat,myid,0,comm_vnode)
     deallocate( vnode_dat )
     allocate(procnode(1)) ! not used
-    call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+    call ccmpi_gatherx(procnode,vnode_vleaderid,0,comm_world) ! this is procnode_inv
     deallocate(procnode)
     allocate(procoffset(1)) ! not used
-    call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+    call ccmpi_gatherx(procoffset,vnode_myid,0,comm_world) ! this is procoffset_inv
     deallocate(procoffset)
     
   end if ! myid==0 .or. local ..else.. localhist
@@ -5235,7 +5235,7 @@ if ( first ) then
     if ( local ) then
       ! store local processor order in output file  
       allocate( vnode_dat(vnode_nproc) )  
-      call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+      call ccmpi_gatherx(vnode_dat,myid,0,comm_vnode)
       call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
       deallocate( vnode_dat )
       ! store file id for a given processor number in output file number 000000
@@ -5244,7 +5244,7 @@ if ( first ) then
       else
         allocate( procnode(1) ) ! not used
       end if  
-      call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+      call ccmpi_gatherx(procnode,vnode_vleaderid,0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
         call ccnf_put_vara(fncid,idgpn,(/1/),(/nproc/),procnode)  
       end if
@@ -5255,7 +5255,7 @@ if ( first ) then
       else
         allocate( procoffset(1) ) ! not used
       end if
-      call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+      call ccmpi_gatherx(procoffset,vnode_myid,0,comm_world) ! this is procoffset_inv
       if ( myid==0 ) then
         call ccnf_put_vara(fncid,idgpo,(/1/),(/nproc/),procoffset)  
       end if
@@ -5281,13 +5281,13 @@ if ( first ) then
     deallocate(ypnt,ypnt2)
     
     allocate( vnode_dat(vnode_nproc) )
-    call ccmpi_gatherx(vnode_dat,(/myid/),0,comm_vnode)
+    call ccmpi_gatherx(vnode_dat,myid,0,comm_vnode)
     deallocate( vnode_dat )
     allocate(procnode(1)) ! not used
-    call ccmpi_gatherx(procnode,(/vnode_vleaderid/),0,comm_world) ! this is procnode_inv
+    call ccmpi_gatherx(procnode,vnode_vleaderid,0,comm_world) ! this is procnode_inv
     deallocate(procnode)
     allocate(procoffset(1)) ! not used
-    call ccmpi_gatherx(procoffset,(/vnode_myid/),0,comm_world) ! this is procoffset_inv
+    call ccmpi_gatherx(procoffset,vnode_myid,0,comm_world) ! this is procoffset_inv
     deallocate(procoffset)
     
   end if ! myid==0 .or. local ..else.. localhist

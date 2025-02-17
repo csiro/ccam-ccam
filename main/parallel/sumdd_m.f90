@@ -20,19 +20,21 @@
 !------------------------------------------------------------------------------
     
 module sumdd_m
-#ifdef usempimod
-   !use mpi_f08, only : mpi_op
+#ifdef usempimod_f08
+   use mpi_f08, only : mpi_op
 #endif
    implicit none
    public drpdr, drpdr_v, drpdr_local, drpdr_local_v
    private
-#ifdef usempimod   
-   !type(mpi_op), save, public :: MPI_SUMDR
-   integer(kind=4), save, public :: MPI_SUMDR
+#ifdef usempimod_f08
+   type(mpi_op), save, public :: MPI_SUMDR
 #else
    integer(kind=4), save, public :: MPI_SUMDR
-#endif   
+#endif 
+
+
 contains
+    
    subroutine drpdr(dra, drb, len, itype) 
 !  Modification of original codes written by David H. Bailey. 
 !  This subroutine computes drb(i) = dra(i) + drb(i) 
@@ -42,7 +44,6 @@ contains
 !  on a range of machines.
 !  Here we're more concerned with reproducibility rather than accuracy
 !  so there's no need for double precision.
-
       integer(kind=4), intent(in) :: len
       real :: e, t1, t2 
       integer :: i
@@ -67,7 +68,6 @@ contains
    ! one processor and returns the double-real sum
    ! Note that it accumulates into local_sum so this has to be zeroed
    ! before use.
-      implicit none 
       complex, dimension(:,:), intent(in)  :: dra
       complex, dimension(:), intent(inout) :: drb
       real :: e, t1, t2 
@@ -94,7 +94,6 @@ contains
    ! one processor and returns the double-real sum
    ! Note that it accumulates into local_sum so this has to be zeroed
    ! before use.
-      implicit none 
       real, dimension(:), intent(in)  :: array
       complex, intent(inout) :: local_sum
       real :: e, t1, t2 
@@ -114,7 +113,6 @@ contains
    ! one processor and returns the double-real sum
    ! Note that it accumulates into local_sum so this has to be zeroed
    ! before use.
-      implicit none 
       real, dimension(:,:), intent(in)  :: array
       complex, dimension(:), intent(inout) :: local_sum
       real :: e, t1, t2 
