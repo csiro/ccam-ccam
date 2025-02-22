@@ -2490,7 +2490,8 @@ if ( nud_period==0 ) then
   ! automatic estimate for nudging period
   secs_nud = min(nint((schmidt*112.*90./real(il_g))*8.*60.), nint(real(nwt)*dt), 3600)
   nud_period = max(nint(real(secs_nud)/60.),1)
-  do while ( (mod(60, nud_period)/=0 .or. mod(nint(real(nwt)*dt/60.), nud_period)/=0) .and. kountr>1 )
+  do while ( (mod(60, nud_period)/=0 .or. mod(nint(real(nwt)*dt/60.), nud_period)/=0 .or. &
+              mod(nud_period*60, nint(dt))/=0 ) .and. nud_period>1 )
     nud_period = nud_period - 1
   end do
 end if
