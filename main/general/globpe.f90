@@ -1349,7 +1349,7 @@ integer ierr, k, new_nproc, ilx, jlx, i, ng
 integer isoth, nsig, lapsbot
 integer secs_rad, nversion
 integer mstn, mbd_min
-integer opt, nopt
+integer opt, nopt, secs_nud
 integer ateb_intairtmeth, ateb_intmassmeth
 integer npa, npb, tkecduv, tblock  ! depreciated namelist options
 integer o3_time_interpolate        ! depreciated namelist options
@@ -1358,7 +1358,7 @@ integer fnproc_bcast_max, nriver   ! depreciated namelist options
 integer ateb_conductmeth           ! depreciated namelist options
 integer ateb_useonewall            ! depreciated namelist options
 integer cable_climate              ! depreciated namelist options
-integer surf_windfarm              ! depreciated namelist options
+integer surf_windfarm, adv_precip  ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -2482,6 +2482,21 @@ elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
   end do
   if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
 end if
+
+! nudging
+! nud_period=-1 uses input data time-step (e.g., 6-hourly)
+! nud_period=0 uses resolution dependent time-step
+if ( nud_period==0 ) then
+  ! automatic estimate for nudging period
+  secs_nud = min(nint((schmidt*112.*90./real(il_g))*8.*60.), nint(real(nwt)*dt), 3600)
+  nud_period = max(nint(real(secs_nud)/60.),1)
+  do while ( (mod(60, nud_period)/=0 .or. mod(nint(real(nwt)*dt/60.), nud_period)/=0) .and. kountr>1 )
+    nud_period = nud_period - 1
+  end do
+end if
+if ( myid==0 ) then
+  write(6,*) "Nudging will use nud_period ",nud_period
+end if
 if ( nud_p==0 .and. mfix==0 ) then
   write(6,*) "ERROR: Both nud_p=0 and mfix=0"
   write(6,*) "Model will not conserve mass"
@@ -2742,7 +2757,7 @@ use stime_m                                ! File date data
 implicit none
 
 integer i
-integer, dimension(122) :: dumi
+integer, dimension(121) :: dumi
 real, dimension(34) :: dumr
     
 dumr(:) = 0.
@@ -2902,8 +2917,7 @@ if ( myid==0 ) then
   dumi(118) = pil_single
   if ( localhist ) dumi(119) = 1
   dumi(120) = maxcolour
-  dumi(121) = adv_precip
-  dumi(122) = process_rate_mode
+  dumi(121) = process_rate_mode
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3061,8 +3075,7 @@ nagg              = dumi(117)
 pil_single        = dumi(118)
 localhist         = dumi(119)==1
 maxcolour         = dumi(120)
-adv_precip        = dumi(121)
-process_rate_mode = dumi(122)
+process_rate_mode = dumi(121)
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
   call ccmpi_bcast(jstn(1:nstn),0,comm_world)
@@ -3070,9 +3083,7 @@ if ( nstn>0 ) then
   call ccmpi_bcast(slat(1:nstn),0,comm_world)
   call ccmpi_bcast(slon(1:nstn),0,comm_world)
   call ccmpi_bcast(zstn(1:nstn),0,comm_world)
-  do i = 1,nstn
-    call ccmpi_bcast(name_stn(i),0,comm_world)
-  end do
+  call ccmpi_bcast(name_stn(1:nstn),0,comm_world)
 end if
 
 return

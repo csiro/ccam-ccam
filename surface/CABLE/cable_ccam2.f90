@@ -3766,7 +3766,6 @@ logical tst
 
 cableformat=0.
 
-write(6,*) "Reading land-use maps for CABLE"
 if ( lncveg==1 ) then
   spos(1:3) = 1
   npos(1) = il_g

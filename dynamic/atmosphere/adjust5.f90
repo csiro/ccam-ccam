@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -576,11 +576,6 @@ if ( mfix_qg/=0 .and. mspec==1 .and. ldr/=0 ) then
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.) 
   call massfix(mfix_qg,1,qfg,qfgsav,ps,ps_sav,.true.) 
   call massfix(mfix_qg,1,qlg,qlgsav,ps,ps_sav,.true.) 
-  if ( adv_precip>=1 ) then
-    call massfix(mfix_qg,1,qrg,qrgsav,ps,ps_sav,.true.)
-    call massfix(mfix_qg,1,qsng,qsngsav,ps,ps_sav,.true.)
-    call massfix(mfix_qg,1,qgrg,qgrgsav,ps,ps_sav,.true.)
-  end if  
 else if ( mfix_qg/=0 .and. mspec==1 ) then
   qg(1:ifull,1:kl) = max( qg(1:ifull,1:kl), 0. )
   call massfix(mfix_qg,1,qg,qgsav,ps,ps_sav,.false.)

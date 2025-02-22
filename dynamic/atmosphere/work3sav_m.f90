@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,12 +25,10 @@ implicit none
 
 private
 public tsav, qgsav, qfgsav, qlgsav, trsav
-public qrgsav, qsngsav, qgrgsav
 public work3sav_init, work3sav_end
 
 real, dimension(:,:), allocatable, save :: tsav
 real, dimension(:,:), allocatable, save :: qgsav, qfgsav, qlgsav
-real, dimension(:,:), allocatable, save :: qrgsav, qsngsav, qgrgsav
 real, dimension(:,:,:), allocatable, save :: trsav
 
 contains
@@ -43,7 +41,6 @@ integer, intent(in) :: ifull,kl,ntrac
 
 allocate( tsav(ifull,kl) )
 allocate( qgsav(ifull,kl), qfgsav(ifull,kl), qlgsav(ifull,kl) )
-allocate( qrgsav(ifull,kl), qsngsav(ifull,kl), qgrgsav(ifull,kl) )
 if ( ntrac>0 ) then
   allocate( trsav(ifull,kl,ntrac) )
 end if
@@ -57,7 +54,6 @@ implicit none
 
 deallocate( tsav )
 deallocate( qgsav, qfgsav, qlgsav )
-deallocate( qsngsav )
 if ( allocated(trsav) ) then
   deallocate( trsav )
 end if

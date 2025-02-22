@@ -299,6 +299,8 @@ endif
 #MPI 
 ifeq ($(MPIMOD),yes)
 FFLAGS += -Dusempimod
+# The following fails on Cray due to a possible bug in the f08 module
+#FFLAGS += -Dusempimod_f08 
 endif
 
 # COSP

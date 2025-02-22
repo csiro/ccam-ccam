@@ -58,7 +58,7 @@ integer, save :: num = 0
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
 real, dimension(ifull,kl,5) :: tdum
-real, dimension(ifull,kl,10) :: qdum
+real, dimension(ifull,kl,5) :: qdum
 real, dimension(ifull,kl,2) :: edum
 
 call START_LOG(vadv_begin)
@@ -85,13 +85,8 @@ if ( mspec==1 ) then
     qdum(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
     qdum(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
     qdum(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
-    qdum(1:ifull,1:kl,5) = qrg(1:ifull,1:kl)
-    qdum(1:ifull,1:kl,6) = qsng(1:ifull,1:kl)
-    qdum(1:ifull,1:kl,7) = qgrg(1:ifull,1:kl)
     if ( ncloud>=100 .and. ncloud<200 ) then
-      qdum(1:ifull,1:kl,8) = ni(1:ifull,1:kl)
-      qdum(1:ifull,1:kl,9) = nr(1:ifull,1:kl)
-      qdum(1:ifull,1:kl,10) = ns(1:ifull,1:kl)
+      qdum(1:ifull,1:kl,5) = ni(1:ifull,1:kl)
     end if  
   end if  
 
@@ -129,10 +124,10 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 
   if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then  
     ! Lin microphysics  
-    call vadv_work(qdum(:,:,1:10),nvadh_inv_pass,nits)
+    call vadv_work(qdum(:,:,1:5),nvadh_inv_pass,nits)
   else if ( ldr/=0 ) then
     ! Leon microphysics  
-    call vadv_work(qdum(:,:,1:7),nvadh_inv_pass,nits)  
+    call vadv_work(qdum(:,:,1:4),nvadh_inv_pass,nits)  
   else
     ! diagnostic  
     call vadv_work(qdum(:,:,1:1),nvadh_inv_pass,nits)
@@ -185,17 +180,8 @@ if ( mspec==1 ) then
     qlg(1:ifull,1:kl) = qdum(1:ifull,1:kl,2)
     qfg(1:ifull,1:kl) = qdum(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = qdum(1:ifull,1:kl,4)
-    if ( adv_precip>=1 ) then
-      qrg(1:ifull,1:kl) = qdum(1:ifull,1:kl,5)    
-      qsng(1:ifull,1:kl) = qdum(1:ifull,1:kl,6)
-      qgrg(1:ifull,1:kl) = qdum(1:ifull,1:kl,7)    
-    end if  
     if ( ncloud>=100 .and. ncloud<200 ) then
       ni(1:ifull,1:kl) = qdum(1:ifull,1:kl,8)
-      if ( adv_precip>=1 ) then
-        nr(1:ifull,1:kl) = qdum(1:ifull,1:kl,9)
-        ns(1:ifull,1:kl) = qdum(1:ifull,1:kl,10)
-      end if  
     end if
   end if  
 

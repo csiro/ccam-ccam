@@ -60,7 +60,7 @@ integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
 integer, dimension(max(naero,ntrac,6)) :: nfield
 real, dimension(ifull) :: nvadh_inv_pass
-real, dimension(ifull+iextra,kl,10) :: bb
+real, dimension(ifull+iextra,kl,5) :: bb
 real, dimension(ifull+iextra,kl,3) :: uvw
 real, dimension(ifull+iextra,kl) :: dd
 real, dimension(ifull+iextra) :: aa
@@ -220,30 +220,16 @@ if ( mspec==1 .and. mup/=0 ) then
     bb(:,:,2) = qlg(:,:)
     bb(:,:,3) = qfg(:,:)
     bb(:,:,4) = stratcloud(:,:)
-    bb(:,:,5) = qrg(:,:)
-    bb(:,:,6) = qsng(:,:)
-    bb(:,:,7) = qgrg(:,:)
     if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics
-      bb(:,:,8) = ni(:,:)
-      bb(:,:,9) = nr(:,:)
-      bb(:,:,10) = ns(:,:)
-      call bounds(bb(:,:,1:10),nrows=2)
-      ni(:,:) = bb(:,:,8)
-      if ( adv_precip>=1 ) then
-        nr(:,:) = bb(:,:,9)
-        ns(:,:) = bb(:,:,10)
-      end if    
+      bb(:,:,5) = ni(:,:)
+      call bounds(bb(:,:,1:5),nrows=2)
+      ni(:,:) = bb(:,:,5)
     else
-      call bounds(bb(:,:,1:7),nrows=2)  
+      call bounds(bb(:,:,1:4),nrows=2)  
     end if  
     qlg(:,:) = bb(:,:,2)
     qfg(:,:) = bb(:,:,3)
     stratcloud(:,:) = bb(:,:,4)
-    if ( adv_precip>=1 ) then
-      qrg(:,:) = bb(:,:,5)
-      qsng(:,:) = bb(:,:,6)
-      qgrg(:,:) = bb(:,:,7)
-    end if
   else
     call bounds(bb(:,:,1:1),nrows=2)
   end if  
@@ -402,30 +388,16 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     bb(:,:,2) = qlg(:,:)
     bb(:,:,3) = qfg(:,:)
     bb(:,:,4) = stratcloud(:,:)
-    bb(:,:,5) = qrg(:,:)
-    bb(:,:,6) = qsng(:,:)
-    bb(:,:,7) = qgrg(:,:)
     if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
-      bb(:,:,8) = ni(:,:)
-      bb(:,:,9) = nr(:,:)
-      bb(:,:,10) = ns(:,:)
-      call ints(bb(:,:,1:10),10,intsch,nface,xg,yg,4)
-      ni(:,:) = bb(:,:,8)
-      if ( adv_precip>=1 ) then
-        nr(:,:) = bb(:,:,9)
-        ns(:,:) = bb(:,:,10)
-      end if    
+      bb(:,:,5) = ni(:,:)
+      call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,4)
+      ni(:,:) = bb(:,:,5)
     else
-      call ints(bb(:,:,1:7),7,intsch,nface,xg,yg,4)  
+      call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,4)  
     end if
     qlg(:,:) = bb(:,:,2)
     qfg(:,:) = bb(:,:,3)
     stratcloud(:,:) = bb(:,:,4)
-    if ( adv_precip>=1 ) then
-      qrg(:,:) = bb(:,:,5)
-      qsng(:,:) = bb(:,:,6)
-      qgrg(:,:) = bb(:,:,7)
-    end if  
   else
     call ints(bb(:,:,1:1),1,intsch,nface,xg,yg,4)    
   end if

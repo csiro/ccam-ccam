@@ -742,7 +742,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
               nflux=(nfluxin(iq)-nfluxout)/rho(iq,k)/dzw(iq,k)
               niz(iq,k)=niz(iq,k)+del_tv*nflux
               niz(iq,k)=max(0.,niz(iq,k))
-              niz(iq,k) = min(niz(iq,k),0.3E6/rho(iq,k))
+              !niz(iq,k) = min(niz(iq,k),0.3E6/rho(iq,k))
               nfluxin(iq)=nfluxout
               !qisten(iq,k)=flux
               !nisten(iq,k)=nflux
@@ -916,7 +916,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
         nflux = nfluxin(iq)*(1.-nfthru)-nfluxout
         niz(iq,k) = niz(iq,k) + nflux/(rho(iq,k)*dzw(iq,k))
         niz(iq,k) = max(0.,niz(iq,k))
-        niz(iq,k) = min(niz(iq,k),0.3E6/rho(iq,k))
+        !niz(iq,k) = min(niz(iq,k),0.3E6/rho(iq,k))
         nfluxin(iq) = nfluxout + nfluxin(iq)*nfthru
       end do ! iq  
     end do   ! k

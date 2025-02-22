@@ -130,7 +130,7 @@ use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m                         ! Land-surface arrays
-use parm_m, only : idjd, nmlo, nvmix, dt, adv_precip
+use parm_m, only : idjd, nmlo, nvmix, dt
                                     ! Model configuration
 use pbl_m                           ! Boundary layer arrays
 use savuvt_m                        ! Saved dynamic arrays
@@ -319,69 +319,6 @@ case(6,9)
     !$omp end do nowait
 
 end select
-
-if ( adv_precip>=1 ) then
-  ! additional mixing
-  !$omp do schedule(static) private(is,ie,iq,k),      &
-  !$omp private(lt,lat,lct),                          &
-  !$omp private(lrkhsave,rong,rlogs1,rlogs2),         &
-  !$omp private(rlogh1,rlog12,tmnht,dzz,gt,lqtr)
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    !idjd_t = mod(idjd-1,imax)+1
-    !mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-
-    lt       = t(is:ie,:)
-    lrkhsave = rkhsave(is:ie,:)
-  
-    rong = rdry/grav
-    lat(:,1) = 0.
-    lct(:,kl) = 0.
-    rlogs1 = log(sig(1))
-    rlogs2 = log(sig(2))
-    rlogh1 = log(sigmh(2))
-    rlog12 = 1./(rlogs1-rlogs2)
-    do iq = 1,imax
-      tmnht = (lt(iq,2)*rlogs1-lt(iq,1)*rlogs2+(lt(iq,1)-lt(iq,2))*rlogh1)*rlog12  
-      dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
-      gt = lrkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
-      lat(iq,2) = -gt/dsig(2)  
-      lct(iq,1) = -gt/dsig(1)
-    end do
-    do k = 2,kl-1
-      do iq = 1,imax
-        ! Calculate half level heights and temperatures
-        ! n.b. an approximate zh (in m) is quite adequate for this routine
-        tmnht = ratha(k)*lt(iq,k+1) + rathb(k)*lt(iq,k)
-        dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
-        gt = lrkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
-        lat(iq,k+1) = -gt/dsig(k+1)  
-        lct(iq,k) = -gt/dsig(k)
-      end do
-    end do
-  
-    lqtr(:,:) = qrg(is:ie,:)
-    call trimmix(lat,lct,lqtr,imax,kl)
-    qrg(is:ie,:) = lqtr(:,:)
-    lqtr(:,:) = qsng(is:ie,:)
-    call trimmix(lat,lct,lqtr,imax,kl)
-    qsng(is:ie,:) = lqtr(:,:)
-    lqtr(:,:) = qgrg(is:ie,:)
-    call trimmix(lat,lct,lqtr,imax,kl)
-    qgrg(is:ie,:) = lqtr(:,:)
-    lqtr(:,:) = nr(is:ie,:)
-    call trimmix(lat,lct,lqtr,imax,kl)
-    nr(is:ie,:) = lqtr(:,:)
-    lqtr(:,:) = ns(is:ie,:)
-    call trimmix(lat,lct,lqtr,imax,kl)
-    ns(is:ie,:) = lqtr(:,:)
-  
-  end do ! tile = 1,ntiles
-  !$omp end do nowait
-  
-end if ! adv_precip>=1
-
 
 return
 end subroutine turbmix

@@ -97,7 +97,7 @@ integer, parameter :: nrhead = 14
 integer, intent(in) :: nested
 integer, intent(out) :: kdate_r, ktime_r
 integer, save :: maxarchi
-integer ierx, idvtime
+integer ierx
 integer kdate_rsav, ktime_rsav
 integer, dimension(nihead) :: nahead
 integer, dimension(:), intent(out) :: isflag
@@ -197,8 +197,7 @@ if ( myid==0 .or. pfall ) then
     end if
     ltest = .true.       ! flag indicates that the date is not yet found
     iarchi = iarchi - 1  ! move time index back one step to check current position in file
-    call ccnf_inq_varid(ncid,'time',idvtime)
-    call ccnf_get_att(ncid,idvtime,'units',datestring)
+    call ccnf_get_att(ncid,'time','units',datestring)
     call processdatestring(datestring,kdate_rsav,ktime_rsav)
     ! start search for required date/time
     do while( ltest .and. iarchi<maxarchi )
@@ -206,7 +205,7 @@ if ( myid==0 .or. pfall ) then
       iarchi = iarchi + 1
       kdate_r = kdate_rsav
       ktime_r = ktime_rsav
-      call ccnf_get_vara(ncid,idvtime,iarchi,timer)
+      call ccnf_get_vara(ncid,'time',iarchi,timer)
       mtimer = nint(timer,8)
       call datefix(kdate_r,ktime_r,mtimer)
       ! ltest = .false. when correct date is found
@@ -231,7 +230,7 @@ if ( myid==0 .or. pfall ) then
         iarchi = max( iarchi-1, 1 )
         kdate_r = kdate_rsav
         ktime_r = ktime_rsav
-        call ccnf_get_vara(ncid,idvtime,iarchi,timer)
+        call ccnf_get_vara(ncid,'time',iarchi,timer)
         mtimer = nint(timer,8)
         call datefix(kdate_r,ktime_r,mtimer)
       end if  
@@ -374,7 +373,7 @@ real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid match
 real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data
       
 integer, intent(in) :: nested, kdate_r, ktime_r
-integer idv, retopo_test, ktest
+integer retopo_test, ktest
 integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac
 integer, dimension(:), intent(out) :: isflag
@@ -407,6 +406,7 @@ real, dimension(kk+ok+13) :: dumr
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(ifull) :: dum6r8
 character(len=20) vname
+character(len=20) varname
 character(len=4) trnum
 logical, dimension(ms) :: tgg_found, wetfrac_found, wb_found
 logical tss_test, tst
@@ -617,21 +617,28 @@ if ( newfile ) then
   ! read vertical levels and missing data checks
   if ( myid==0 .or. pfall ) then
     if ( kk>1 ) then
-      call ccnf_inq_varid(ncid,'lev',idv,tst)
-      if ( tst ) call ccnf_inq_varid(ncid,'layer',idv,tst)
-      if ( tst ) call ccnf_inq_varid(ncid,'sigma',idv,tst)
+      varname = 'lev'  
+      call ccnf_inq_vartst(ncid,varname,tst)
+      if ( tst ) then
+         varname = 'layer' 
+         call ccnf_inq_vartst(ncid,varname,tst)
+      end if
+      if ( tst ) then
+         varname = 'sigma' 
+         call ccnf_inq_vartst(ncid,varname,tst)
+      end if   
       if ( tst ) then
         write(6,*) "ERORR: multiple levels expected but no sigma data found ",kk
         call ccmpi_abort(-1)
       else
-        call ccnf_get_vara(ncid,idv,1,kk,sigin)
+        call ccnf_get_vara(ncid,varname,1,kk,sigin)
         if ( myid==0 .and. nmaxpr==1 ) write(6,'(" sigin=",(9f7.4))') (sigin(k),k=1,kk)
       end if
     else
       sigin(:) = 1.       
     end if  
     if ( ok>0 ) then
-      call ccnf_inq_varid(ncid,'olev',idv,tst)
+      call ccnf_inq_vartst(ncid,'olev',tst)
       if ( tst ) then
         ! default for old code without olev  
         mxd_o = 5000.
@@ -647,38 +654,38 @@ if ( newfile ) then
         end do
       else
         ! usual  
-        call ccnf_get_vara(ncid,idv,1,ok,gosig_1)
+        call ccnf_get_vara(ncid,'olev',1,ok,gosig_1)
       end if
     end if
     ! check for missing data
     iers(1:13) = 0
-    call ccnf_inq_varid(ncid,'mixr',idv,tst)
+    call ccnf_inq_vartst(ncid,'mixr',tst)
     if ( tst ) iers(1) = -1
-    call ccnf_inq_varid(ncid,'siced',idv,tst)
+    call ccnf_inq_vartst(ncid,'siced',tst)
     if ( tst ) iers(2) = -1
-    call ccnf_inq_varid(ncid,'fracice',idv,tst)
+    call ccnf_inq_vartst(ncid,'fracice',tst)
     if ( tst ) iers(3) = -1
-    call ccnf_inq_varid(ncid,'soilt',idv,tst)
+    call ccnf_inq_vartst(ncid,'soilt',tst)
     if ( tst ) iers(4) = -1
-    call ccnf_inq_varid(ncid,'ocndepth',idv,tst)
+    call ccnf_inq_vartst(ncid,'ocndepth',tst)
     if ( tst ) iers(5) = -1
-    call ccnf_inq_varid(ncid,'thetao',idv,tst)
+    call ccnf_inq_vartst(ncid,'thetao',tst)
     if ( tst ) iers(6) = -1
-    call ccnf_inq_varid(ncid,'t1_intmtgg1',idv,tst)
+    call ccnf_inq_vartst(ncid,'t1_intmtgg1',tst)
     if ( tst ) iers(7) = -1
-    call ccnf_inq_varid(ncid,'intmtgg1',idv,tst)
+    call ccnf_inq_vartst(ncid,'intmtgg1',tst)
     if ( tst ) iers(8) = -1
-    call ccnf_inq_varid(ncid,'uic',idv,tst)
+    call ccnf_inq_vartst(ncid,'uic',tst)
     if ( tst ) iers(9) = -1
-    call ccnf_inq_varid(ncid,'zht',idv,tst)
+    call ccnf_inq_vartst(ncid,'zht',tst)
     if ( tst ) iers(10) = -1
-    call ccnf_inq_varid(ncid,'dms',idv,tst)
+    call ccnf_inq_vartst(ncid,'dms',tst)
     if ( tst ) iers(11) = -1
-    call ccnf_inq_varid(ncid,'opldepth',idv,tst)
+    call ccnf_inq_vartst(ncid,'opldepth',tst)
     if ( tst ) iers(12) = -1
-    call ccnf_inq_varid(ncid,'del_lat',idv,tst)
+    call ccnf_inq_vartst(ncid,'del_lat',tst)
     if ( tst ) iers(13) = -1
-    call ccnf_inq_varid(ncid,'tsu',idv,tst)
+    call ccnf_inq_vartst(ncid,'tsu',tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
       call ccmpi_abort(-1)
@@ -1399,18 +1406,18 @@ if ( nested/=1 .and. nested/=3 ) then
   ! check soil variables
   if ( myid==0 .or. pfall ) then
     if ( ccycle/=0 ) then
-      call ccnf_inq_varid(ncid,'nplant1',idv,tst)
+      call ccnf_inq_vartst(ncid,'nplant1',tst)
       if ( .not.tst ) ierc(9) = 1
     end if
     do k = 1,ms
       write(vname,'("tgg",I1.1)') k
-      call ccnf_inq_varid(ncid,vname,idv,tst)
+      call ccnf_inq_vartst(ncid,vname,tst)
       if ( .not.tst ) ierc(9+k) = 1
       write(vname,'("wetfrac",I1.1)') k
-      call ccnf_inq_varid(ncid,vname,idv,tst)
+      call ccnf_inq_vartst(ncid,vname,tst)
       if ( .not.tst ) ierc(9+ms+k) = 1
       write(vname,'("wb",I1.1)') k
-      call ccnf_inq_varid(ncid,vname,idv,tst)
+      call ccnf_inq_vartst(ncid,vname,tst)
       if ( .not.tst ) ierc(9+2*ms+k) = 1
     end do
   end if
@@ -1421,61 +1428,61 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( myid==0 .or. pfall ) then
       if ( kk==kl .and. iotest ) then
         lrestart = .true.
-        call ccnf_inq_varid(ncid,'dpsldt',idv,tst)
+        call ccnf_inq_vartst(ncid,'dpsldt',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'zgnhs',idv,tst)
+        call ccnf_inq_vartst(ncid,'zgnhs',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'sdot',idv,tst)
+        call ccnf_inq_vartst(ncid,'sdot',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'pslx',idv,tst)
+        call ccnf_inq_vartst(ncid,'pslx',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'savu',idv,tst)
+        call ccnf_inq_vartst(ncid,'savu',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'savv',idv,tst)
+        call ccnf_inq_vartst(ncid,'savv',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'savu1',idv,tst)
+        call ccnf_inq_vartst(ncid,'savu1',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'savv1',idv,tst)
+        call ccnf_inq_vartst(ncid,'savv1',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'savu2',idv,tst)
+        call ccnf_inq_vartst(ncid,'savu2',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'savv2',idv,tst)
+        call ccnf_inq_vartst(ncid,'savv2',tst)
         if ( tst ) lrestart = .false.
-        call ccnf_inq_varid(ncid,'nstag',idv,tst)
+        call ccnf_inq_vartst(ncid,'nstag',tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(5))
+          call ccnf_get_vara(ncid,'nstag',iarchi,ierc(5))
         end if
-        call ccnf_inq_varid(ncid,'nstagu',idv,tst)
+        call ccnf_inq_vartst(ncid,'nstagu',tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(6))
+          call ccnf_get_vara(ncid,'nstagu',iarchi,ierc(6))
         end if
-        call ccnf_inq_varid(ncid,'nstagoff',idv,tst)
+        call ccnf_inq_vartst(ncid,'nstagoff',tst)
         if ( tst ) then
           lrestart = .false.
         else 
-          call ccnf_get_vara(ncid,idv,iarchi,ierc(7))
+          call ccnf_get_vara(ncid,'nstagoff',iarchi,ierc(7))
         end if
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
-            call ccnf_inq_varid(ncid,'old1_uo',idv,tst)
+            call ccnf_inq_vartst(ncid,'old1_uo',tst)
             if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'old1_vo',idv,tst)
+            call ccnf_inq_vartst(ncid,'old1_vo',tst)
             if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'old2_uo',idv,tst)
+            call ccnf_inq_vartst(ncid,'old2_uo',tst)
             if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'old2_vo',idv,tst)
+            call ccnf_inq_vartst(ncid,'old2_vo',tst)
             if ( tst ) lrestart = .false.                
-            call ccnf_inq_varid(ncid,'ipice',idv,tst)
+            call ccnf_inq_vartst(ncid,'ipice',tst)
             if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'nstagoffmlo',idv,tst)
+            call ccnf_inq_vartst(ncid,'nstagoffmlo',tst)
             if ( tst ) then
               lrestart = .false.
             else
-              call ccnf_get_vara(ncid,idv,iarchi,ierc(8))
+              call ccnf_get_vara(ncid,'nstagoffmlo',iarchi,ierc(8))
             end if
           else
             lrestart = .false.
@@ -1483,69 +1490,69 @@ if ( nested/=1 .and. nested/=3 ) then
         end if
         if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
           if ( ok==wlev ) then
-            call ccnf_inq_varid(ncid,'old1_uotop',idv,tst)
+            call ccnf_inq_vartst(ncid,'old1_uotop',tst)
             if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'old1_votop',idv,tst)
+            call ccnf_inq_vartst(ncid,'old1_votop',tst)
             if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'old1_uobot',idv,tst)
+            call ccnf_inq_vartst(ncid,'old1_uobot',tst)
             if ( tst ) lrestart = .false.
-            call ccnf_inq_varid(ncid,'old1_vobot',idv,tst)
+            call ccnf_inq_vartst(ncid,'old1_vobot',tst)
             if ( tst ) lrestart = .false.
           else
             lrestart = .false.
           end if
         end if
         lrestart_radiation = .true.
-        call ccnf_inq_varid(ncid,'sgsave',idv,tst)
+        call ccnf_inq_vartst(ncid,'sgsave',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'rgsave',idv,tst)
+        call ccnf_inq_vartst(ncid,'rgsave',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'rtu',idv,tst)
+        call ccnf_inq_vartst(ncid,'rtu',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'rtc',idv,tst)
+        call ccnf_inq_vartst(ncid,'rtc',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'rgdn',idv,tst)
+        call ccnf_inq_vartst(ncid,'rgdn',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'rgn',idv,tst)
+        call ccnf_inq_vartst(ncid,'rgn',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'rgc',idv,tst)
+        call ccnf_inq_vartst(ncid,'rgc',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'sint_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'sint_amp',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'sout_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'sout_amp',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'soutclr_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'soutclr_amp',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'sgdn_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'sgdn_amp',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'sgdndir_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'sgdndir_amp',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'sgn_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'sgn_amp',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'sgclr_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'sgclr_amp',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'sgdclr_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'sgdclr_amp',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'dni_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'dni_amp',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'fbeamvis',idv,tst)
+        call ccnf_inq_vartst(ncid,'fbeamvis',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'fbeamnir',idv,tst)
+        call ccnf_inq_vartst(ncid,'fbeamnir',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'swrsave',idv,tst)
+        call ccnf_inq_vartst(ncid,'swrsave',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'cloudlo',idv,tst)
+        call ccnf_inq_vartst(ncid,'cloudlo',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'cloudmi',idv,tst)
+        call ccnf_inq_vartst(ncid,'cloudmi',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'cloudhi',idv,tst)
+        call ccnf_inq_vartst(ncid,'cloudhi',tst)
         if ( tst ) lrestart_radiation = .false.
-        call ccnf_inq_varid(ncid,'sw_tend_amp',idv,tst)
+        call ccnf_inq_vartst(ncid,'sw_tend_amp',tst)
         if ( tst ) lrestart_radiation = .false. 
-        call ccnf_inq_varid(ncid,'lw_tend',idv,tst)
+        call ccnf_inq_vartst(ncid,'lw_tend',tst)
         if ( tst ) lrestart_radiation = .false.
         lrestart_tracer = .true.
-        call ccnf_inq_varid(ncid,'tr0001',idv,tst)
+        call ccnf_inq_vartst(ncid,'tr0001',tst)
         if ( tst ) lrestart_tracer = .false.
       else
         lrestart = .false.
@@ -1556,7 +1563,7 @@ if ( nested/=1 .and. nested/=3 ) then
       if ( lrestart ) ierc(1) = 1
       if ( lrestart_radiation ) ierc(2) = 1
       if ( lrestart_tracer ) ierc(3) = 1
-      call ccnf_inq_varid(ncid,'u10',idv,tst)
+      call ccnf_inq_vartst(ncid,'u10',tst)
       if ( .not.tst ) ierc(4) = 1
     end if ! myid==0 .or. pfall
   end if   ! nested==0  

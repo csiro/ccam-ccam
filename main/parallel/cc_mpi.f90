@@ -234,7 +234,7 @@ module cc_mpi
    interface ccmpi_bcast
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i
       module procedure ccmpi_bcast1r, ccmpi_bcast2r, ccmpi_bcast3r, ccmpi_bcast4r
-      module procedure ccmpi_bcast1s
+      module procedure ccmpi_bcast1s, ccmpi_bcast2s
    end interface
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast1r8, ccmpi_bcast2r8, ccmpi_bcast3r8
@@ -5264,11 +5264,11 @@ contains
       
       ! calculate global i,j,n
       tg = iqg - 1
-      ng = tg/(mil_g*mil_g)
-      tg = tg - ng*mil_g*mil_g
+      ng = tg/(mil_g**2)
+      tg = tg - ng*mil_g**2
       jg = tg/il_g
       tg = tg - jg*mil_g
-      ig = tg
+      ig = tg + 1
       ig = ig + 1
       jg = jg + 1
       
@@ -6460,32 +6460,48 @@ contains
 
    subroutine ccmpi_bcast1s(ldat,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr, lsize
       character(len=*), intent(inout) :: ldat
-      integer, parameter :: maxdummysize = 1024
-      integer i
-      integer(kind=1), dimension(maxdummysize) :: dummy
+      character(len=len(ldat)), dimension(1) :: ldat_l
+
+      ldat_l(1) = ldat
+      call ccmpi_bcast2s(ldat_l,host,comm)
+      ldat = ldat_l(1)
+      
+   end subroutine ccmpi_bcast1s
+
+   subroutine ccmpi_bcast2s(ldat,host,comm)
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lhost, lerr, lsize, llen, lnum
+      character(len=*), dimension(:), intent(inout) :: ldat
+      integer :: i, j
+      integer(kind=1), dimension(:,:), allocatable :: dummy
 
       ! MJT notes - MS Windows MPI_CHARACTER seems broken
 
+      call START_LOG(bcast_begin)
+
       lhost = host
       lcomm = comm
-      lsize = len(ldat)
-      if ( lsize > maxdummysize ) then
-        write(6,*) "ERROR: Dummy array too small in ccmpi_bcast1s"
-        call ccmpi_abort(-1)
-      end if
-      do i = 1,lsize
-         dummy(i) = int(iachar(ldat(i:i)),1)
+      llen = len(ldat(1))
+      lnum = size(ldat)
+      lsize = llen*lnum
+      allocate( dummy(llen,lnum) )
+      do j = 1,lnum
+         do i = 1,llen
+            dummy(i,j) = int(iachar(ldat(j)(i:i)),1)
+         end do   
       end do
-      call START_LOG(bcast_begin)
       call MPI_Bcast(dummy,lsize,MPI_BYTE,lhost,lcomm,lerr)
-      call END_LOG(bcast_end)
-      do i = 1,lsize
-         ldat(i:i) = achar(dummy(i))
+      do j = 1,lnum
+         do i = 1,llen
+            ldat(j)(i:i) = achar(dummy(i,j))
+         end do   
       end do
-   
-   end subroutine ccmpi_bcast1s
+      deallocate( dummy )
+
+      call END_LOG(bcast_end)
+      
+   end subroutine ccmpi_bcast2s
    
    subroutine ccmpi_bcast1r8(ldat,host,comm)
       integer, intent(in) :: host, comm
