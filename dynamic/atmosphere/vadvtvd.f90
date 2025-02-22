@@ -181,7 +181,7 @@ if ( mspec==1 ) then
     qfg(1:ifull,1:kl) = qdum(1:ifull,1:kl,3)
     stratcloud(1:ifull,1:kl) = qdum(1:ifull,1:kl,4)
     if ( ncloud>=100 .and. ncloud<200 ) then
-      ni(1:ifull,1:kl) = qdum(1:ifull,1:kl,8)
+      ni(1:ifull,1:kl) = qdum(1:ifull,1:kl,5)
     end if
   end if  
 
