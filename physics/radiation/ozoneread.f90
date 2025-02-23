@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -69,7 +69,7 @@ integer, intent(in) :: year_in, month_in
 integer jyear, jmonth
 integer nlev, i, k, ierr
 integer ncstatus, ncid, tt
-integer yy, mm, nn
+integer valident, yy, mm, nn
 integer iarchi, maxarchi
 integer kdate_rsav, ktime_rsav
 integer kdate_r, ktime_r, year_r
@@ -101,28 +101,33 @@ if ( myid==0 ) then
   write(6,*) "Reading ozone ",trim(o3file)
   call ccnf_open(o3file,ncid,ncstatus) ! test for netcdf
   if ( ncstatus==0 ) then
-    call ccnf_inq_vartst(ncid,'vmro3',tst) ! test for CMIP6
+    call ccnf_inq_varid(ncid,'vmro3',valident,tst) ! test for CMIP6
     if ( .not.tst ) then
       if ( nmaxpr==1 ) write(6,*) "-> Ozone in NetCDF format (CMIP6)"
       call ccnf_inq_dimlen(ncid,'lon',ii)
       allocate( o3lon(ii) )
+      call ccnf_inq_varid(ncid,'lon',valident)
       spos(1) = 1
       npos(1) = ii
-      call ccnf_get_vara(ncid,'lon',spos(1:1),npos(1:1),o3lon)
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
       call ccnf_inq_dimlen(ncid,'lat',jj)
       allocate( o3lat(jj) )
+      call ccnf_inq_varid(ncid,'lat',valident)
       npos(1) = jj
-      call ccnf_get_vara(ncid,'lat',spos(1:1),npos(1:1),o3lat)
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
       call ccnf_inq_dimlen(ncid,'plev',kk)
       allocate( o3pres(kk) )
+      call ccnf_inq_varid(ncid,'plev',valident)
       npos(1) = kk
-      call ccnf_get_vara(ncid,'plev',spos(1:1),npos(1:1),o3pres)
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
       call ccnf_inq_dimlen(ncid,'time',tt)
+      call ccnf_inq_varid(ncid,'time',valident)
       if ( nmaxpr==1 ) write(6,*) "-> Found ozone dimensions ",ii,jj,kk,tt
       allocate( o3dum(ii,jj,kk) )
       if ( nmaxpr==1 ) write(6,*) "-> Requested date ",jyear,jmonth
       call ccnf_inq_dimlen(ncid,'time',maxarchi)
-      call ccnf_get_att(ncid,'time','units',datestring)
+      call ccnf_inq_varid(ncid,'time',valident)
+      call ccnf_get_att(ncid,valident,'units',datestring)
       call processdatestring(datestring,kdate_rsav,ktime_rsav)
       ltest = .true.
       iarchi = 1
@@ -130,7 +135,7 @@ if ( myid==0 ) then
         ! fast read  
         iarchi = 1
         kdate_r = kdate_rsav
-        call ccnf_get_vara(ncid,'time',iarchi,timer) 
+        call ccnf_get_vara(ncid,valident,iarchi,timer) 
         mtimer = int(timer,8) ! round down to start of month
         call datefix_month(kdate_r,mtimer)
         year_r = kdate_r/10000
@@ -140,7 +145,7 @@ if ( myid==0 ) then
         do while ( ltest .and. iarchi<maxarchi )
           iarchi = iarchi + 1  
           kdate_r = kdate_rsav
-          call ccnf_get_vara(ncid,'time',iarchi,timer)
+          call ccnf_get_vara(ncid,valident,iarchi,timer)
           mtimer = int(timer,8) ! round down to start of month
           call datefix_month(kdate_r,mtimer)
           ltest = (kdate_r/100-jyear*100-jmonth)<0
@@ -155,7 +160,7 @@ if ( myid==0 ) then
         iarchi = 1
         kdate_r = kdate_rsav
         ktime_r = ktime_rsav
-        call ccnf_get_vara(ncid,'time',iarchi,timer) 
+        call ccnf_get_vara(ncid,valident,iarchi,timer) 
         mtimer = nint(timer*1440.,8) ! units=days
         call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
         year_r = kdate_r/10000
@@ -166,7 +171,7 @@ if ( myid==0 ) then
           iarchi = iarchi + 1  
           kdate_r = kdate_rsav
           ktime_r = ktime_rsav
-          call ccnf_get_vara(ncid,'time',iarchi,timer)
+          call ccnf_get_vara(ncid,valident,iarchi,timer)
           mtimer = nint(timer*1440.,8) ! units=days
           call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
           ltest = (kdate_r/100-jyear*100-jmonth)<0
@@ -187,8 +192,9 @@ if ( myid==0 ) then
       npos(3) = kk
       npos(4) = 1
       if ( nmaxpr==1 ) write(6,*) "-> Reading O3"
+      call ccnf_inq_varid(ncid,'vmro3',valident,tst)
       spos(4) = iarchi
-      call ccnf_get_vara(ncid,'vmro3',spos,npos,o3dum)
+      call ccnf_get_vara(ncid,valident,spos,npos,o3dum)
       call ccnf_close(ncid)
       ! Here we fix missing values by filling down
       ! If we try to neglect these values in the
@@ -204,21 +210,25 @@ if ( myid==0 ) then
       if ( nmaxpr==1 ) write(6,*) "-> Ozone in NetCDF format (CMIP5)"
       call ccnf_inq_dimlen(ncid,'lon',ii)
       allocate( o3lon(ii) )
+      call ccnf_inq_varid(ncid,'lon',valident)
       spos(1) = 1
       npos(1) = ii
-      call ccnf_get_vara(ncid,'lon',spos(1:1),npos(1:1),o3lon)
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
       call ccnf_inq_dimlen(ncid,'lat',jj)
       allocate( o3lat(jj) )
+      call ccnf_inq_varid(ncid,'lat',valident)
       npos(1) = jj
-      call ccnf_get_vara(ncid,'lat',spos(1:1),npos(1:1),o3lat)
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
       call ccnf_inq_dimlen(ncid,'plev',kk)
       allocate( o3pres(kk) )
+      call ccnf_inq_varid(ncid,'plev',valident)
       npos(1) = kk
-      call ccnf_get_vara(ncid,'plev',spos(1:1),npos(1:1),o3pres)
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
       call ccnf_inq_dimlen(ncid,'time',tt)
-      call ccnf_get_att(ncid,'time','units',cdate)
+      call ccnf_inq_varid(ncid,'time',valident)
+      call ccnf_get_att(ncid,valident,'units',cdate)
       npos(1) = 1
-      call ccnf_get_vara(ncid,'time',spos(1:1),npos(1:1),iti)
+      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),iti)
       if ( nmaxpr==1 ) write(6,*) "-> Found ozone dimensions ",ii,jj,kk,tt
       allocate( o3dum(ii,jj,kk) )
       read(cdate(14:17),*) yy
@@ -238,8 +248,9 @@ if ( myid==0 ) then
       npos(3) = kk
       npos(4) = 1
       if ( nmaxpr==1 ) write(6,*) "-> Reading O3"
+      call ccnf_inq_varid(ncid,'O3',valident)
       spos(4) = nn
-      call ccnf_get_vara(ncid,'O3',spos,npos,o3dum)
+      call ccnf_get_vara(ncid,valident,spos,npos,o3dum)
       call ccnf_close(ncid)
       ! Here we fix missing values by filling down
       ! If we try to neglect these values in the

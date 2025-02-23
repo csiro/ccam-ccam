@@ -280,7 +280,7 @@ implicit none
 !     nflux =3 for month interp case - last month, this month, next month
 !     nflux=31*24+2 for daily, hourly, 3 hourly case
  
-integer ncidfl
+integer ncidfl,fluxid
 integer nregion,dayid
 integer nflux,iyr,imon,igas,ntime,lc,regnum,kount
 integer nprev,nnext,ncur,n1,n2,ntot,n,timx,gridid,ierr
@@ -294,7 +294,6 @@ real, dimension(2) :: dum
 real, dimension(:), allocatable :: fluxhr
 character(len=50) filename
 character(len=20) fluxtype,fluxname,fluxunit
-character(len=20) vname
 logical gridpts,tst
 
 n1=0
@@ -330,18 +329,16 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   endif
 
 !       check fluxname first otherwise default to 'flux'
-  vname = fluxname
-  call ccnf_inq_vartst(ncidfl,vname,tst)
+  call ccnf_inq_varid(ncidfl,fluxname,fluxid,tst)
   if (tst) then
-    vname = 'flux'  
-    call ccnf_inq_vartst(ncidfl,vname,tst)
+    call ccnf_inq_varid(ncidfl,'flux',fluxid,tst)
   endif
   if (tst) then
     write(6,*) 'ERROR: flux variable not found'
     call ccmpi_abort(-1)
   end if  
 !       rml 25/08/04 read flux units attribute
-  call ccnf_get_att(ncidfl,vname,'units',fluxunit)
+  call ccnf_get_att(ncidfl,fluxid,'units',fluxunit)
 ! rml 08/11/04 added radon units
 ! rml 30/4/10 exclude mcf deposition case
   if ( igas<=ngas ) then
@@ -380,7 +377,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       ncount(1)=il_g; ncount(2)=jl_g; ncount(3)=1
     end if
 !         read current month/year
-    call ccnf_get_vara(ncidfl,vname,start,ncount,fluxin_g(:,1))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,1))
     
   else if ( nflux==3 ) then
 !         monthly/annual cases !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -439,15 +436,15 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
 !         read preceeding month if needed
     if (nprev/=0) then
       start(timx)=nprev
-      call ccnf_get_vara(ncidfl,vname,start,ncount,fluxin_g(:,1))
+      call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,1))
     endif
 !         read current month/year
     start(timx)=ncur
-    call ccnf_get_vara(ncidfl,vname,start,ncount,fluxin_g(:,2))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,2))
 !         read next month
     if (nnext/=0) then
       start(timx)=nnext
-      call ccnf_get_vara(ncidfl,vname,start,ncount,fluxin_g(:,3))
+      call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,3))
     endif
   else
 !         daily, hourly, 3 hourly case !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -479,7 +476,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       start(3)=1; ncount(3)=ntot
       timx=3
     end if
-    call ccnf_get_vara(ncidfl,vname,start,ncount,fluxin_g(:,2:ntot+1))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,2:ntot+1))
 !         read in last time of prev month and first time of next month
     if ((n1==1).and.(fluxyr(n1)==0)) then
 !           loop
@@ -491,7 +488,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       nprev=n1-1
     endif
     start(timx)=nprev; ncount(timx)=1
-    call ccnf_get_vara(ncidfl,vname,start,ncount,fluxin_g(:,1))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,1))
     if ((n2==ntime).and.(fluxyr(n2)==0)) then
       nnext=1
     elseif((n2==ntime).and.(fluxyr(n2)/=0)) then
@@ -500,7 +497,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       nnext=n2+1
     endif
     start(timx)=nnext; ncount(timx)=1
-    call ccnf_get_vara(ncidfl,vname,start,ncount,fluxin_g(:,ntot+2))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,ntot+2))
 !
 !         need to make an array with the hour data in
     co2time(2:ntot+1)=fluxhr(n1:n2)
@@ -577,7 +574,7 @@ integer nfield,imon,ntime,ierr
 integer nprev,nnext,ncur,n,timx,gridid
 !     nflux =3 for month interp case - last month, this month, next month
 real ohin(il*jl,kl,nfield)
-integer ncidfl
+integer ncidfl,fluxid
 integer, dimension(:), allocatable :: ohmon
 integer, dimension(4) :: start,ncount
 real ohin_g(ifull_g,kl,nfield)
@@ -592,6 +589,8 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   call ccnf_inq_dimlen(ncidfl,'time',ntime)
   allocate(ohmon(ntime))
   call ccnf_get_vara(ncidfl,'month',ohmon)
+!       check fluxname 
+  call ccnf_inq_varid(ncidfl,varname,fluxid,tst)
 !
 !       find required records
   if (nfield==3) then
@@ -634,15 +633,15 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
 !         read preceeding month if needed
     if (nprev/=0) then
       start(timx)=nprev
-      call ccnf_get_vara(ncidfl,varname,start,ncount,ohin_g(:,:,1))
+      call ccnf_get_vara(ncidfl,fluxid,start,ncount,ohin_g(:,:,1))
     endif
 !         read current month/year
     start(timx)=ncur
-    call ccnf_get_vara(ncidfl,varname,start,ncount,ohin_g(:,:,2))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,ohin_g(:,:,2))
 !         read next month
     if (nnext/=0) then
       start(timx)=nnext
-      call ccnf_get_vara(ncidfl,varname,start,ncount,ohin_g(:,:,3))
+      call ccnf_get_vara(ncidfl,fluxid,start,ncount,ohin_g(:,:,3))
     endif
   endif
 
@@ -715,7 +714,7 @@ do igas=1,numtracer
        ratlm = (real(ktau)-a2)/(a2+a3)
        m1 = 2; m2 = 3
      endif
-     co2em(:,igas) = (1.-ratlm)*co2em123(:,m1,igas) + ratlm*co2em123(:,m2,igas)
+     co2em(:,igas) = (1.0-ratlm)*co2em123(:,m1,igas) + ratlm*co2em123(:,m2,igas)
 
    ! daily or hourly linear interpolation
    case(2)
