@@ -39,10 +39,10 @@ public ptest, pfall, ncidold, resprocformat, pncid
 public histopen, histclose, histrd, surfread
 public attrib, histwrt, lsmask
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
-public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
+public ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
 public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
 public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
-public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
+public ccnf_put_vara, ccnf_put_att, ccnf_put_attg
 public comm_ip, pil_single
 public driving_model_id, driving_model_ensemble_number, driving_experiment_name
 public driving_institution_id
@@ -3775,23 +3775,6 @@ call ncmsg("enddef",ncstatus)
 return
 end subroutine ccnf_enddef
 
-subroutine ccnf_redef(ncid)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid
-integer ncstatus
-integer(kind=4) lncid
-
-lncid=ncid
-ncstatus=nf90_redef(lncid)
-call ncmsg("redef",ncstatus)
-
-return
-end subroutine ccnf_redef
-
 subroutine ccnf_sync(ncid)
 
 use cc_mpi
@@ -4440,39 +4423,6 @@ end if
 
 return
 end subroutine ccnf_get_att_textg
-
-subroutine ccnf_read(fname,vname,vdat)
-
-use cc_mpi
-use newmpar_m
-
-implicit none
-
-integer ncstatus
-integer(kind=4) lncid, lvid
-real, dimension(ifull), intent(out) :: vdat
-real, dimension(:), allocatable :: vdat_g
-character(len=*), intent(in) :: fname
-character(len=*), intent(in) :: vname
-
-if (myid==0) then
-  allocate( vdat_g(ifull_g) )  
-  ncstatus = nf90_open(fname,nf90_nowrite,lncid)
-  call ncmsg(fname,ncstatus)
-  ncstatus = nf90_inq_varid(lncid,vname,lvid)
-  call ncmsg(fname,ncstatus)
-  ncstatus = nf90_get_var(lncid,lvid,vdat_g)
-  call ncmsg(fname,ncstatus)
-  ncstatus = nf90_close(lncid)
-  call ncmsg(fname,ncstatus)
-  call ccmpi_distribute(vdat,vdat_g)
-  deallocate( vdat_g )
-else
-  call ccmpi_distribute(vdat)
-end if
-
-return
-end subroutine ccnf_read
 
 subroutine ccnf_put_var_text2r(ncid,vid,vtxt)
 

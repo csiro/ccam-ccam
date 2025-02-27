@@ -1209,7 +1209,7 @@ end if   ! newfile
 ! read for nested=0 or nested=1.and.retopo_test/=0 or nested=3
 if ( nested==0 .or. (nested==1.and.retopo_test/=0) .or. nested==3 ) then
   allocate( t_a_lev(fwsize) )  
-  call gethist4a('temp',t,2,levkin=levkin,t_a_lev=t_a_lev)
+  call gethist4a('temp',t,1,levkin=levkin,t_a_lev=t_a_lev)
 else
   t(1:ifull,1:kl) = 300.    
 end if ! (nested==0.or.(nested==1.and.retopo_test/=0).or.nested==3)

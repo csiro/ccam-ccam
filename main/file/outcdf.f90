@@ -1540,8 +1540,10 @@ if ( iarch==1 ) then
     ! AEROSOL OPTICAL DEPTHS ------------------------------------
     if ( abs(iaero)>=2 .and. nrad==5 ) then
       if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
-        lname = 'Total column dust optical depth VIS'
-        call attrib(idnc,dimj,jsize,'dust_vis',lname,'none',0.,13.,any_m,point_m,cptype)
+        lname = 'Total column small dust optical depth VIS'
+        call attrib(idnc,dimj,jsize,'sdust_vis',lname,'none',0.,13.,any_m,point_m,cptype)
+        lname = 'Total column large dust optical depth VIS'
+        call attrib(idnc,dimj,jsize,'ldust_vis',lname,'none',0.,13.,any_m,point_m,cptype)
         lname = 'Total column sulfate optical depth VIS'
         call attrib(idnc,dimj,jsize,'so4_vis',lname,'none',0.,13.,any_m,point_m,cptype)
         lname = 'Total column aerosol optical depth VIS'
@@ -2976,8 +2978,8 @@ end if
 ! AEROSOL OPTICAL DEPTH ---------------------------------------
 if ( abs(iaero)>=2 .and. nrad==5 ) then    
   if ( itype==-1 .or. (nextout>=1.and.save_aerosols) ) then
-    aa = opticaldepth(:,1,1) + opticaldepth(:,2,1)  
-    call histwrt(aa,'dust_vis',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,1,1),'sdust_vis',idnc,iarch,local,lwrite)
+    call histwrt(opticaldepth(:,2,1),'ldust_vis',idnc,iarch,local,lwrite)    
     call histwrt(opticaldepth(:,3,1),'so4_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,5,1),'bc_vis',idnc,iarch,local,lwrite)
     call histwrt(opticaldepth(:,6,1),'oc_vis',idnc,iarch,local,lwrite)
