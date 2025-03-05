@@ -2424,7 +2424,7 @@ if ( iarch==1 ) then
         xpnt(i) = real(i + ioff)
       end do
       call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
-      call ccnf_put_vara(idnc,ixp,(/1,1/),(/il,vnode_nproc/),xpnt2)
+      call ccnf_put_vara(idnc,'longitude',(/1,1/),(/il,vnode_nproc/),xpnt2)
       deallocate(xpnt,xpnt2)
       allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
       do n = 1,npan
@@ -2434,7 +2434,7 @@ if ( iarch==1 ) then
         end do
       end do
       call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
-      call ccnf_put_vara(idnc,iyp,(/1,1/),(/jl,vnode_nproc/),ypnt2)
+      call ccnf_put_vara(idnc,'latitude',(/1,1/),(/jl,vnode_nproc/),ypnt2)
       deallocate(ypnt,ypnt2)
     else
       ! single file
@@ -2442,29 +2442,29 @@ if ( iarch==1 ) then
       do i = 1,il_g
         xpnt(i) = real(i)
       end do
-      call ccnf_put_vara(idnc,ixp,1,il_g,xpnt(1:il_g))
+      call ccnf_put_vara(idnc,'longitude',xpnt(1:il_g))
       deallocate(xpnt)
       allocate(ypnt(jl_g))
       do j = 1,jl_g
         ypnt(j) = real(j)
       end do
-      call ccnf_put_vara(idnc,iyp,1,jl_g,ypnt(1:jl_g))
+      call ccnf_put_vara(idnc,'latitude',ypnt(1:jl_g))
       deallocate(ypnt)
     endif
 
-    call ccnf_put_vara(idnc,idlev,1,kl,sig)
-    call ccnf_put_vara(idnc,'sigma',1,kl,sig)
+    call ccnf_put_vara(idnc,'lev',sig(1:kl))
+    call ccnf_put_vara(idnc,'sigma',sig(1:kl))
 
     zsoil(1)=0.5*zse(1)
     zsoil(2)=zse(1)+zse(2)*0.5
     do k = 3,ms
       zsoil(k)=sum(zse(1:k-1))+zse(k)*0.5
     end do
-    call ccnf_put_vara(idnc,idms,1,ms,zsoil)
+    call ccnf_put_vara(idnc,'zsoil',zsoil(1:ms))
         
     if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
       call mlovlevels(zocean)  ! z* coordinates
-      call ccnf_put_vara(idnc,idoc,1,wlev,zocean)
+      call ccnf_put_vara(idnc,'olev',zocean(1:wlev))
     end if
     
     ! procformat
@@ -2484,14 +2484,14 @@ if ( iarch==1 ) then
       if ( myid==0 ) write(6,*) '-> gather leader ranks'  
       call ccmpi_gatherx(procnode,(/vnode_vleaderid,vnode_myid/),0,comm_world) ! this is procnode_inv
       if ( myid==0 ) write(6,*) '-> store rank information'    
-      call ccnf_put_vara(idnc,idproc,(/1/),(/vnode_nproc/),vnode_dat)
+      call ccnf_put_vara(idnc,'processor',vnode_dat(1:vnode_nproc))
       ! store file id for a given processor number in output file number 000000
       ! store offset within a file for a given processor number in output file number 000000
       if ( myid==0 ) then
         procdata(:) = procnode(1,:)  
-        call ccnf_put_vara(idnc,idgpnode,(/1/),(/nproc/),procdata)  
+        call ccnf_put_vara(idnc,'gprocnode',procdata(1:nproc))  
         procdata(:) = procnode(2,:)
-        call ccnf_put_vara(idnc,idgpoff,(/1/),(/nproc/),procdata)  
+        call ccnf_put_vara(idnc,'gprocoffset',procdata(1:nproc))  
       end if
     end if
    
@@ -2505,13 +2505,13 @@ if ( iarch==1 ) then
         do i = 1,POP_NPATCH
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc(1),1,POP_NPATCH,cabledata)
+        call ccnf_put_vara(idnc,'cable_patch',cabledata(1:POP_NPATCH))
         deallocate( cabledata )
         allocate( cabledata(POP_NCOHORT) )
         do i = 1,POP_NCOHORT
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc(2),1,POP_NCOHORT,cabledata)
+        call ccnf_put_vara(idnc,'cable_cohort',cabledata(1:POP_NCOHORT))
         deallocate( cabledata )
       end if
     end if
@@ -4035,7 +4035,7 @@ if ( first ) then
     call ccnf_put_att(fncid,idms,'point_spacing','uneven')
     call ccnf_put_att(fncid,idms,'units','m')    
     if ( local ) then
-      call ccnf_def_var(fncid,'processor','float',1,adim(4:4),idnp)  
+      call ccnf_def_var(fncid,'processor','int',1,adim(4:4),idnp)  
       if ( myid==0 ) then
         call ccnf_def_var(fncid,'gprocnode','int',1,gpdim(1:1),idgpn)
         call ccnf_def_var(fncid,'gprocoffset','int',1,gpdim(1:1),idgpo)
@@ -4399,7 +4399,7 @@ if ( first ) then
         xpnt(i) = real(i + ioff)
       end do
       call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
-      call ccnf_put_vara(fncid,ixp,(/1,1/),(/il,vnode_nproc/),xpnt2)
+      call ccnf_put_vara(fncid,'longitude',(/1,1/),(/il,vnode_nproc/),xpnt2)
       deallocate(xpnt,xpnt2)
       allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
       do n = 1,npan
@@ -4409,36 +4409,36 @@ if ( first ) then
         end do
       end do
       call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
-      call ccnf_put_vara(fncid,iyp,(/1,1/),(/jl,vnode_nproc/),ypnt2)
+      call ccnf_put_vara(fncid,'latitude',(/1,1/),(/jl,vnode_nproc/),ypnt2)
       deallocate(ypnt,ypnt2)
     else
       allocate(xpnt(il_g))
       do i=1,il_g
         xpnt(i) = real(i)
       end do
-      call ccnf_put_vara(fncid,ixp,1,il_g,xpnt(1:il_g))
+      call ccnf_put_vara(fncid,'longitude',xpnt(1:il_g))
       deallocate(xpnt)
       allocate(ypnt(jl_g))
       do j=1,jl_g
         ypnt(j) = real(j)
       end do
-      call ccnf_put_vara(fncid,iyp,1,jl_g,ypnt(1:jl_g))
+      call ccnf_put_vara(fncid,'latitude',ypnt(1:jl_g))
       deallocate(ypnt)
     end if
     zpnt(1)=1.
-    call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
+    call ccnf_put_vara(fncid,'lev',zpnt(1:1))
     zsoil(1)=0.5*zse(1)
     zsoil(2)=zse(1)+zse(2)*0.5
     do k = 3,ms
       zsoil(k)=sum(zse(1:k-1))+zse(k)*0.5
     end do
-    call ccnf_put_vara(fncid,idms,1,ms,zsoil(1:ms))    
+    call ccnf_put_vara(fncid,'zsoil',zsoil(1:ms))    
     
     if ( local ) then
       ! store local processor order in output file  
       allocate( vnode_dat(vnode_nproc) )  
       call ccmpi_gatherx(vnode_dat,myid,0,comm_vnode)
-      call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
+      call ccnf_put_vara(fncid,'processor',vnode_dat(1:vnode_nproc))
       deallocate( vnode_dat )
       ! store file id for a given processor number in output file number 000000
       if ( myid==0 ) then
@@ -4448,7 +4448,7 @@ if ( first ) then
       end if  
       call ccmpi_gatherx(procnode,vnode_vleaderid,0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
-        call ccnf_put_vara(fncid,idgpn,(/1/),(/nproc/),procnode)  
+        call ccnf_put_vara(fncid,'gprocnode',procnode(1:nproc))  
       end if
       deallocate(procnode)
       ! store offset within a file for a given processor number in output file number 000000
@@ -4459,7 +4459,7 @@ if ( first ) then
       end if
       call ccmpi_gatherx(procoffset,vnode_myid,0,comm_world) ! this is procoffset_inv
       if ( myid==0 ) then
-        call ccnf_put_vara(fncid,idgpo,(/1/),(/nproc/),procoffset)  
+        call ccnf_put_vara(fncid,'gprocoffset',procoffset(1:nproc))  
       end if
       deallocate(procoffset)
     end if
@@ -5115,7 +5115,7 @@ if ( first ) then
     call ccnf_put_att(fncid,izp,'point_spacing','uneven')
     call ccnf_put_att(fncid,izp,'units','sigma_level')
     if ( local ) then
-      call ccnf_def_var(fncid,'processor','float',1,adim(4:4),idnp)  
+      call ccnf_def_var(fncid,'processor','int',1,adim(4:4),idnp)  
       if ( myid==0 ) then
         call ccnf_def_var(fncid,'gprocnode','int',1,gpdim(1:1),idgpn)
         call ccnf_def_var(fncid,'gprocoffset','int',1,gpdim(1:1),idgpo)
@@ -5205,7 +5205,7 @@ if ( first ) then
         xpnt(i) = real(i + ioff)
       end do
       call ccmpi_gatherx(xpnt2,xpnt,0,comm_vnode)
-      call ccnf_put_vara(fncid,ixp,(/1,1/),(/il,vnode_nproc/),xpnt2)
+      call ccnf_put_vara(fncid,'longitude',(/1,1/),(/il,vnode_nproc/),xpnt2)
       deallocate(xpnt,xpnt2)
       allocate(ypnt(jl),ypnt2(jl,vnode_nproc))
       do n = 1,npan
@@ -5215,30 +5215,30 @@ if ( first ) then
         end do
       end do
       call ccmpi_gatherx(ypnt2,ypnt,0,comm_vnode)
-      call ccnf_put_vara(fncid,iyp,(/1,1/),(/jl,vnode_nproc/),ypnt2)
+      call ccnf_put_vara(fncid,'latitude',(/1,1/),(/jl,vnode_nproc/),ypnt2)
       deallocate(ypnt,ypnt2)
     else
       allocate(xpnt(il_g))
       do i=1,il_g
         xpnt(i) = real(i)
       end do
-      call ccnf_put_vara(fncid,ixp,1,il_g,xpnt(1:il_g))
+      call ccnf_put_vara(fncid,'longitude',xpnt(1:il_g))
       deallocate(xpnt)
       allocate(ypnt(jl_g))
       do j=1,jl_g
         ypnt(j) = real(j)
       end do
-      call ccnf_put_vara(fncid,iyp,1,jl_g,ypnt(1:jl_g))
+      call ccnf_put_vara(fncid,'latitude',ypnt(1:jl_g))
       deallocate(ypnt)
     end if
     zpnt(1)=1.
-    call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
+    call ccnf_put_vara(fncid,'lev',zpnt(1:1))
     
     if ( local ) then
       ! store local processor order in output file  
       allocate( vnode_dat(vnode_nproc) )  
       call ccmpi_gatherx(vnode_dat,myid,0,comm_vnode)
-      call ccnf_put_vara(fncid,idnp,(/1/),(/vnode_nproc/),vnode_dat)
+      call ccnf_put_vara(fncid,'processor',vnode_dat(1:vnode_nproc))
       deallocate( vnode_dat )
       ! store file id for a given processor number in output file number 000000
       if ( myid==0 ) then
@@ -5248,7 +5248,7 @@ if ( first ) then
       end if  
       call ccmpi_gatherx(procnode,vnode_vleaderid,0,comm_world) ! this is procnode_inv
       if ( myid==0 ) then
-        call ccnf_put_vara(fncid,idgpn,(/1/),(/nproc/),procnode)  
+        call ccnf_put_vara(fncid,'gprocnode',procnode(1:nproc))  
       end if
       deallocate(procnode)
       ! store offset within a file for a given processor number in output file number 000000
@@ -5259,7 +5259,7 @@ if ( first ) then
       end if
       call ccmpi_gatherx(procoffset,vnode_myid,0,comm_world) ! this is procoffset_inv
       if ( myid==0 ) then
-        call ccnf_put_vara(fncid,idgpo,(/1/),(/nproc/),procoffset)  
+        call ccnf_put_vara(fncid,'gprocoffset',procoffset(1:nproc))  
       end if
       deallocate(procoffset)
     end if

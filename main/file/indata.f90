@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -255,8 +255,7 @@ if ( myid==0 ) then
   ! test netcdf for topography input
   dumc(3*kl+8)=-1.      ! lncslope
   if ( lnctopo==1 ) then
-    call ccnf_inq_varid(ncidtopo,'slope',idv,tst)
-    if ( .not.tst ) then
+    if ( ccnf_varexist(ncidtopo,'slope') ) then
       dumc(3*kl+8) = 1. ! lncslope
     end if
   end if
@@ -300,8 +299,7 @@ if ( myid==0 ) then
     call ccnf_open(bathfile,ncidbath,ierr)
     if ( ierr==0 ) then
       dumc(3*kl+2) = 1.    ! lncbath
-      call ccnf_inq_varid(ncidbath,'riveracc',idv,tst)
-      if ( .not.tst ) then
+      if ( ccnf_varexist(ncidbath,'riveracc') ) then
         dumc(3*kl+3) = 1.  ! lncriver  
       end if
     end if  
@@ -2561,7 +2559,7 @@ if ( nsib <= 3 ) then
     write(6,*) "Reading soil data"
     call readint(soilfile,iglobal2d(:,2),ifull_g)
     if ( .not.any( iglobal2d(:,2)==0 ) ) then
-      write(6,*) "-> Patch soil data"  
+      write(6,*) "-> Patch soil data (replace -1 with 0 for ocean)"
       where( iglobal2d(:,2)==-1 )
         iglobal2d(:,2) = 0
       end where
@@ -3324,8 +3322,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_raw)
       !lsma_raw(:) = .false.
       !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
       call doints1(wb_clim_raw,wb_clim_g(:,k))
@@ -3344,8 +3341,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_raw)
       !lsma_raw(:) = .false.
       !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
       call doints1(wb_clim_raw,wb_clim_g(:,k))
@@ -3362,8 +3358,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_raw)
       !lsma_raw(:) = .false.
       !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
       call doints1(wb_clim_raw,wb_clim_g(:,k))
@@ -3381,8 +3376,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_raw)
       !lsma_raw(:) = .false.
       !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
       call doints1(wb_clim_raw,wb_clim_g(:,k))
@@ -3400,8 +3394,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_raw)
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_raw)
       !lsma_raw(:) = .false.
       !call fill_cc1(wb_clim_raw,lsma_raw) ! assume one.f90 has performed fill for now
       call doints1(wb_clim_raw,wb_clim_g(:,k))
@@ -3426,8 +3419,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_g(:,k))
     end do
     call ccmpi_distribute(wb_clim(:,:,1),wb_clim_g)   
     
@@ -3442,8 +3434,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_g(:,k))
     end do
     call ccmpi_distribute(wb_clim(:,:,2),wb_clim_g)   
 
@@ -3457,8 +3448,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_g(:,k))
     end do
     call ccmpi_distribute(wb_clim(:,:,3),wb_clim_g)   
 
@@ -3473,8 +3463,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_g(:,k))
     end do
     call ccmpi_distribute(wb_clim(:,:,4),wb_clim_g)   
 
@@ -3489,8 +3478,7 @@ if ( myid==0 ) then
     spos(3) = imo_r
     do k = 1,ms
       write( vname, '("wetfrac",I1.1)' ) k
-      call ccnf_inq_varid(ncidx,vname,varid)
-      call ccnf_get_vara(ncidx,varid,spos,npos,wb_clim_g(:,k))
+      call ccnf_get_vara(ncidx,vname,spos,npos,wb_clim_g(:,k))
     end do
     call ccmpi_distribute(wb_clim(:,:,5),wb_clim_g)   
     

@@ -3804,26 +3804,22 @@ if ( lncveg==1 ) then
     svsg(:,n) = 0.
     ivsg(:,n) = 0
     write(vname,"(A,I1.1)") "lai",n
-    call ccnf_inq_varid(ncidveg,vname,varid,tst)
-    if ( .not.tst ) then
-      call ccnf_inq_varndims(ncidveg,varid,ndims)
-      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),vling(:,n)) 
+    if ( ccnf_varexist(ncidveg,vname) ) then
+      call ccnf_inq_varndims(ncidveg,vname,ndims)
+      call ccnf_get_vara(ncidveg,vname,spos(1:ndims),npos(1:ndims),vling(:,n)) 
       write(vname,"(A,I1.1)") "vegt",n
-      call ccnf_inq_varid(ncidveg,vname,varid)
-      call ccnf_inq_varndims(ncidveg,varid,ndims)
-      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n)) 
+      call ccnf_inq_varndims(ncidveg,vname,ndims)
+      call ccnf_get_vara(ncidveg,vname,spos(1:ndims),npos(1:ndims),svsg(:,n)) 
       ivsg(:,n)=nint(svsg(:,n))
       write(vname,"(A,I1.1)") "vfrac",n
-      call ccnf_inq_varid(ncidveg,vname,varid)
-      call ccnf_inq_varndims(ncidveg,varid,ndims)
-      call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),svsg(:,n))
+      call ccnf_inq_varndims(ncidveg,vname,ndims)
+      call ccnf_get_vara(ncidveg,vname,spos(1:ndims),npos(1:ndims),svsg(:,n))
     end if  
   end do
   vname="savanna"
-  call ccnf_inq_varid(ncidveg,vname,varid,tst)
-  if ( .not.tst ) then
-    call ccnf_inq_varndims(ncidveg,varid,ndims)
-    call ccnf_get_vara(ncidveg,varid,spos(1:ndims),npos(1:ndims),savannafrac_g)
+  if ( ccnf_varexist(ncidveg,vname) ) then
+    call ccnf_inq_varndims(ncidveg,vname,ndims)
+    call ccnf_get_vara(ncidveg,vname,spos(1:ndims),npos(1:ndims),savannafrac_g)
     do n = 1,maxtile
       where ( savannafrac_g>0.5*svsg(:,n) .and. ivsg(:,n)==2 )
         ivsg(:,n) = 18
@@ -4123,33 +4119,27 @@ ierr_cvc = 1
 if ( io_in==1 .and. .not.defaultmode ) then
   if ( myid==0 .or. pfall ) then
     write(testname,'("t",I1.1,"_tgg1")') maxtile  
-    call ccnf_inq_varid(ncid,testname,idv,tst)
-    if ( .not.tst ) then
+    if ( ccnf_varexist(ncid,testname) ) then
       ierr = 0
     end if
     write(testname,'("t",I1.1,"_cplant1")') maxtile  
-    call ccnf_inq_varid(ncid,testname,idv,tst)
-    if ( .not.tst ) then
+    if ( ccnf_varexist(ncid,testname) ) then
       ierr_casa = 0
     end if
     write(testname,'("t",I1.1,"_hzero")') maxtile  
-    call ccnf_inq_varid(ncid,testname,idv,tst)
-    if ( .not.tst ) then
+    if ( ccnf_varexist(ncid,testname) ) then
       ierr_sli = 0
     end if
     write(testname,'("t",I1.1,"_pop_grid_cmass_sum")') maxtile  
-    call ccnf_inq_varid(ncid,testname,idv,tst)
-    if ( .not.tst ) then
+    if ( ccnf_varexist(ncid,testname) ) then
       ierr_pop = 0
     end if
     write(testname,'("t",I1.1,"_svs")') maxtile  
-    call ccnf_inq_varid(ncid,testname,idv,tst)
-    if ( .not.tst ) then
+    if ( ccnf_varexist(ncid,testname) ) then
       ierr_svs = 0
     end if
     write(testname,'("t",I1.1,"_cvc")') maxtile  
-    call ccnf_inq_varid(ncid,testname,idv,tst)
-    if ( .not.tst ) then
+    if ( ccnf_varexist(ncid,testname) ) then
       ierr_cvc = 0
     end if
   end if
@@ -7462,20 +7452,15 @@ if ( myid==0 ) then
   npos(1) = il_g
   npos(2) = il_g*6
   write(6,*) "Loading soil order"
-  call ccnf_inq_varid(ncid,'sorder',varid,tst)
-  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,1))
+  call ccnf_get_vara(ncid,'sorder',spos,npos,dumg(:,1))
   write(6,*) "Loading N deposition rate"
-  call ccnf_inq_varid(ncid,'ndep',varid,tst)
-  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,2))
+  call ccnf_get_vara(ncid,'ndep',spos,npos,dumg(:,2))
   write(6,*) "Loading N fixation rate"
-  call ccnf_inq_varid(ncid,'nfix',varid,tst)
-  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,3))
+  call ccnf_get_vara(ncid,'nfix',spos,npos,dumg(:,3))
   write(6,*) "Loading P dust deposition"
-  call ccnf_inq_varid(ncid,'pdust',varid,tst)
-  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,4))
+  call ccnf_get_vara(ncid,'pdust',spos,npos,dumg(:,4))
   write(6,*) "Loading P weathering rate"
-  call ccnf_inq_varid(ncid,'pweather',varid,tst)
-  call ccnf_get_vara(ncid,varid,spos,npos,dumg(:,5))
+  call ccnf_get_vara(ncid,'pweather',spos,npos,dumg(:,5))
   call ccnf_close(ncid)
   call ccmpi_distribute(casapoint,dumg)
   deallocate(dumg)

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -70,10 +70,7 @@ integer jyear, jmonth
 integer nlev, i, k, ierr
 integer ncstatus, ncid, tt
 integer valident, yy, mm, nn
-integer iarchi, maxarchi
-integer kdate_rsav, ktime_rsav
-integer kdate_r, ktime_r, year_r
-integer(kind=8) mtimer
+integer iarchi
 integer, dimension(1) :: iti
 integer, dimension(4) :: spos, npos
 integer, dimension(3) :: dum
@@ -81,10 +78,8 @@ real, dimension(:,:,:), allocatable, save :: o3dum
 real, dimension(:), allocatable, save :: o3lon, o3lat
 real, dimension(:), allocatable, save :: o3pack
 real, dimension(kl) :: sigma, sigin
-real timer
 character(len=32) cdate
-character(len=80) datestring
-logical tst, ltest
+logical tst
 
 real, parameter :: sigtol = 1.e-3
 
@@ -101,100 +96,33 @@ if ( myid==0 ) then
   write(6,*) "Reading ozone ",trim(o3file)
   call ccnf_open(o3file,ncid,ncstatus) ! test for netcdf
   if ( ncstatus==0 ) then
-    call ccnf_inq_varid(ncid,'vmro3',valident,tst) ! test for CMIP6
-    if ( .not.tst ) then
+    if ( ccnf_varexist(ncid,'vmro3') ) then ! test for CMIP6
       if ( nmaxpr==1 ) write(6,*) "-> Ozone in NetCDF format (CMIP6)"
       call ccnf_inq_dimlen(ncid,'lon',ii)
       allocate( o3lon(ii) )
-      call ccnf_inq_varid(ncid,'lon',valident)
       spos(1) = 1
       npos(1) = ii
-      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
+      call ccnf_get_vara(ncid,'lon',spos(1:1),npos(1:1),o3lon)
       call ccnf_inq_dimlen(ncid,'lat',jj)
       allocate( o3lat(jj) )
-      call ccnf_inq_varid(ncid,'lat',valident)
-      npos(1) = jj
-      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
+      spos(2) = 1
+      npos(2) = jj
+      call ccnf_get_vara(ncid,'lat',spos(2:2),npos(2:2),o3lat)
       call ccnf_inq_dimlen(ncid,'plev',kk)
       allocate( o3pres(kk) )
-      call ccnf_inq_varid(ncid,'plev',valident)
-      npos(1) = kk
-      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
+      spos(3) = 1
+      npos(3) = kk
+      call ccnf_get_vara(ncid,'plev',spos(3:3),npos(3:3),o3pres)
       call ccnf_inq_dimlen(ncid,'time',tt)
-      call ccnf_inq_varid(ncid,'time',valident)
       if ( nmaxpr==1 ) write(6,*) "-> Found ozone dimensions ",ii,jj,kk,tt
       allocate( o3dum(ii,jj,kk) )
       if ( nmaxpr==1 ) write(6,*) "-> Requested date ",jyear,jmonth
-      call ccnf_inq_dimlen(ncid,'time',maxarchi)
-      call ccnf_inq_varid(ncid,'time',valident)
-      call ccnf_get_att(ncid,valident,'units',datestring)
-      call processdatestring(datestring,kdate_rsav,ktime_rsav)
-      ltest = .true.
-      iarchi = 1
-      if ( datestring(1:6)=='months' ) then
-        ! fast read  
-        iarchi = 1
-        kdate_r = kdate_rsav
-        call ccnf_get_vara(ncid,valident,iarchi,timer) 
-        mtimer = int(timer,8) ! round down to start of month
-        call datefix_month(kdate_r,mtimer)
-        year_r = kdate_r/10000
-        iarchi = (jyear - year_r)*12 ! assume 1 value per month
-        ! search
-        ltest = .true.
-        do while ( ltest .and. iarchi<maxarchi )
-          iarchi = iarchi + 1  
-          kdate_r = kdate_rsav
-          call ccnf_get_vara(ncid,valident,iarchi,timer)
-          mtimer = int(timer,8) ! round down to start of month
-          call datefix_month(kdate_r,mtimer)
-          ltest = (kdate_r/100-jyear*100-jmonth)<0
-        end do
-        if ( ltest ) then
-          write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
-          write(6,*) "kdate_r = ",kdate_r
-          call ccmpi_abort(-1)
-        end if
-      elseif ( datestring(1:4)=="days" ) then
-        ! fast read  
-        iarchi = 1
-        kdate_r = kdate_rsav
-        ktime_r = ktime_rsav
-        call ccnf_get_vara(ncid,valident,iarchi,timer) 
-        mtimer = nint(timer*1440.,8) ! units=days
-        call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
-        year_r = kdate_r/10000
-        iarchi = (jyear - year_r)*12 ! assume 1 value per month
-        ! search          
-        ltest = .true.
-        do while ( ltest .and. iarchi<maxarchi )
-          iarchi = iarchi + 1  
-          kdate_r = kdate_rsav
-          ktime_r = ktime_rsav
-          call ccnf_get_vara(ncid,valident,iarchi,timer)
-          mtimer = nint(timer*1440.,8) ! units=days
-          call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
-          ltest = (kdate_r/100-jyear*100-jmonth)<0
-        end do
-        if ( ltest ) then
-          write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
-          write(6,*) "kdate_r = ",kdate_r
-          call ccmpi_abort(-1)
-        end if
-      else
-        write(6,*) "ERROR: Unknown time unit in ",trim(o3file)
-        call ccmpi_abort(-1)
-      end if
+      call o3date(ncid,jyear,jmonth,iarchi)
       if ( nmaxpr==1 ) write(6,*) "-> Found ozone data at index ",iarchi
-      spos = 1
-      npos(1) = ii
-      npos(2) = jj
-      npos(3) = kk
-      npos(4) = 1
       if ( nmaxpr==1 ) write(6,*) "-> Reading O3"
-      call ccnf_inq_varid(ncid,'vmro3',valident,tst)
       spos(4) = iarchi
-      call ccnf_get_vara(ncid,valident,spos,npos,o3dum)
+      npos(4) = 1    
+      call ccnf_get_vara(ncid,'vmro3',spos(1:4),npos(1:4),o3dum)
       call ccnf_close(ncid)
       ! Here we fix missing values by filling down
       ! If we try to neglect these values in the
@@ -210,25 +138,21 @@ if ( myid==0 ) then
       if ( nmaxpr==1 ) write(6,*) "-> Ozone in NetCDF format (CMIP5)"
       call ccnf_inq_dimlen(ncid,'lon',ii)
       allocate( o3lon(ii) )
-      call ccnf_inq_varid(ncid,'lon',valident)
       spos(1) = 1
       npos(1) = ii
-      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lon)
+      call ccnf_get_vara(ncid,'lon',spos(1:1),npos(1:1),o3lon)
       call ccnf_inq_dimlen(ncid,'lat',jj)
       allocate( o3lat(jj) )
-      call ccnf_inq_varid(ncid,'lat',valident)
       npos(1) = jj
-      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3lat)
+      call ccnf_get_vara(ncid,'lat',spos(1:1),npos(1:1),o3lat)
       call ccnf_inq_dimlen(ncid,'plev',kk)
       allocate( o3pres(kk) )
-      call ccnf_inq_varid(ncid,'plev',valident)
       npos(1) = kk
-      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),o3pres)
+      call ccnf_get_vara(ncid,'plev',spos(1:1),npos(1:1),o3pres)
       call ccnf_inq_dimlen(ncid,'time',tt)
-      call ccnf_inq_varid(ncid,'time',valident)
-      call ccnf_get_att(ncid,valident,'units',cdate)
+      call ccnf_get_att(ncid,'time','units',cdate)
       npos(1) = 1
-      call ccnf_get_vara(ncid,valident,spos(1:1),npos(1:1),iti)
+      call ccnf_get_vara(ncid,'time',spos(1:1),npos(1:1),iti)
       if ( nmaxpr==1 ) write(6,*) "-> Found ozone dimensions ",ii,jj,kk,tt
       allocate( o3dum(ii,jj,kk) )
       read(cdate(14:17),*) yy
@@ -248,9 +172,8 @@ if ( myid==0 ) then
       npos(3) = kk
       npos(4) = 1
       if ( nmaxpr==1 ) write(6,*) "-> Reading O3"
-      call ccnf_inq_varid(ncid,'O3',valident)
       spos(4) = nn
-      call ccnf_get_vara(ncid,valident,spos,npos,o3dum)
+      call ccnf_get_vara(ncid,'O3',spos,npos,o3dum)
       call ccnf_close(ncid)
       ! Here we fix missing values by filling down
       ! If we try to neglect these values in the
@@ -330,6 +253,7 @@ if ( ii>0 ) then
   call o3regrid(o3mth,o3dum,o3lon,o3lat)
   deallocate( o3dum, o3lat, o3lon )
 else
+  ! Ozone in ASCII format (CMIP3)  
   if ( myid/=0 ) then
     allocate(dduo3n(37,kl),ddo3n2(37,kl))
     allocate(ddo3n3(37,kl),ddo3n4(37,kl))
@@ -443,7 +367,7 @@ else
 end if
       
 select case ( ozoneintp )  
-  case(0)  
+  case(0) ! simple interpolation 
 
     do iq = 1,imax
 
@@ -476,7 +400,7 @@ select case ( ozoneintp )
 
     end do
       
-  case(1)
+  case(1) ! integrate column
       !-----------------------------------------------------------
       ! Approximate integral of ozone column
 
@@ -602,7 +526,7 @@ do iq = 1,ifull
     serlat = (blat(iq)-o3lat(ilat))/(o3lat(ilat+1)-o3lat(ilat))  
   end if
 
-  ! spatial interpolation
+  ! spatial bilinear interpolation
   d(1:nlev) = o3dum(ip,ilat+1,1:nlev) - o3dum(ilon,ilat+1,1:nlev) &
             - o3dum(ip,ilat,1:nlev) + o3dum(ilon,ilat,1:nlev)
   b(1:nlev) = o3dum(ip,ilat,1:nlev) - o3dum(ilon,ilat,1:nlev)
@@ -867,5 +791,71 @@ end do
 
 return
 end subroutine o3set_amip
+
+subroutine o3date(ncid,jyear, jmonth,iarchi)
+
+use cc_mpi
+use infile
+
+integer, intent(in) :: ncid, jyear, jmonth
+integer, intent(out) :: iarchi
+integer :: maxarchi
+integer :: kdate_rsav, ktime_rsav
+integer :: kdate_r, ktime_r, year_r
+integer(kind=8) :: mtimer
+real :: timer
+logical :: ltest
+character(len=80) :: datestring
+
+
+call ccnf_inq_dimlen(ncid,'time',maxarchi)
+call ccnf_get_att(ncid,'time','units',datestring)
+call processdatestring(datestring,kdate_rsav,ktime_rsav)
+   
+! fast read  
+iarchi = 1
+kdate_r = kdate_rsav
+ktime_r = ktime_rsav
+call ccnf_get_vara(ncid,'time',iarchi,timer) 
+if ( datestring(1:6)=='months' ) then
+  mtimer = int(timer,8) ! round down to start of month
+  call datefix_month(kdate_r,mtimer)
+else if ( datestring(1:4)=="days" ) then
+  mtimer = nint(timer*1440.,8) ! units=days    
+  call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
+else
+  write(6,*) "ERROR: Unknown time unit in ozone file"
+  call ccmpi_abort(-1)
+end if  
+year_r = kdate_r/10000
+iarchi = (jyear - year_r)*12 ! assume 1 value per month
+
+! search
+ltest = .true.
+do while ( ltest .and. iarchi<maxarchi )
+  iarchi = iarchi + 1  
+  kdate_r = kdate_rsav
+  ktime_r = ktime_rsav
+  call ccnf_get_vara(ncid,'time',iarchi,timer)
+  if ( datestring(1:6)=='months' ) then
+    mtimer = int(timer,8) ! round down to start of month
+    call datefix_month(kdate_r,mtimer)
+  else if ( datestring(1:4)=="days" ) then
+    mtimer = nint(timer*1440.,8) ! units=days    
+    call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
+  else
+    write(6,*) "ERROR: Unknown time unit in ozone file"
+    call ccmpi_abort(-1)
+  end if  
+  ltest = (kdate_r/100-jyear*100-jmonth)<0
+end do
+if ( ltest ) then
+  write(6,*) "ERROR: Search failed with ltest,iarchi = ",ltest,iarchi
+  write(6,*) "kdate_r = ",kdate_r
+  call ccmpi_abort(-1)
+end if
+
+return
+end subroutine o3date
 
 end module ozoneread

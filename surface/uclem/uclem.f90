@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -55,8 +55,8 @@ public urbtemp,energytol,resmeth,zohmeth,acmeth,nrefl,                          
 public nl, vkar, waterden, pi
 
 type facetdata
-  real(kind=8), dimension(:,:), allocatable :: nodetemp        ! Temperature of node (prognostic)       [K]
-  real(kind=8), dimension(:,:), allocatable :: storage ! Facet energy storage (diagnostic)
+  real(kind=8), dimension(:,:), allocatable :: nodetemp ! Temperature of node (prognostic)       [K]
+  real(kind=8), dimension(:,:), allocatable :: storage  ! Facet energy storage (diagnostic)
 end type facetdata
 
 type facetparams
@@ -209,12 +209,13 @@ real, dimension(25), save :: cyc_tran = (/ -1.09, -1.21, -2.12, -2.77, -3.06, -2
                                             1.93,  1.41,  0.74,  0.16,  0.34,  1.48, & 
                                             1.03,  0.14, -0.74, -1.17, -1.15, -1.34, -1.09/)
 
-contains                    
+    contains                    
                     
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! urban flux calculations
 
 ! Basic loop is:
+!  --- Canyon fluxes (coupled with interior)
 !  Canyon short wave flux (nrefl reflections, depending on snow)
 !  Canyon long wave flux (nrefl reflections precomputed)
 !  Calculate canyon facet aerodynamic resistances
@@ -229,19 +230,33 @@ contains
 !    Calculate canyon air temperature
 !    Calculate canyon water vapor mixing ratio
 !  End canyon sensible and latent heat budgets loop
-!  Canyon longwave, sensible and latent heat fluxes                    
+!  Canyon longwave, sensible and latent heat fluxes
+!  --- Roof fluxes   
 !  Solve roof snow and vegetation energy budget
 !    Roof snow temperature
 !    Roof vegetation temperature
 !  End roof snow and vegetation energy budgets loop
 !  Roof longwave, sensible and latent heat fluxes
+!  --- Interior fluxes
 !  Solve interior longwave fluxes
+!  --- Conduction    
 !  Update urban roof, road and wall and slab temperatures with conduction model
-!  Update water on road and roof surfaces
-!  Update canyon and roof snow albedo and density
+!  Update sensible heat flux (implicit with conduction)
+!  --- Hydrology
+!  Update water on road surfaces
+!  Update water on roof surfaces
+!  --- Output (combine fluxes from facets)
+!  Combine drag terms for momentum fluxes
+!  Combine runoff terms
+!  Combine transpiration fluxes
+!  Combine roof fluxes
+!  Combine hydrology   
+!  Combine canyon and roof fluxes
+!  Calculate bulk snow properties
 !  Estimate bulk roughness length for heat
-!  Estimate bulk long wave flux and surface temperature
-!  Estimate bulk sensible and latent heat fluxes
+!  Calculate screen level diagnostics
+!  --- Conservation
+!  Check energy conservation
 
 ! progcalc = 0   Update prognostic and diagnostic variables
 ! progcalc = 1   Update diagnostic variables only
@@ -307,39 +322,12 @@ type(pdiagdata), intent(inout) :: pd
 if ( diag>=1 ) write(6,*) "Evaluating UCLEM"
 
 !------------------------------------------------------------------------------
-! Calculate fluxes
+! Canyon fluxes (coupled with interior)
 !------------------------------------------------------------------------------
 
 ! calculate water and snow area cover fractions
-d_roofdelta = max(rfhyd%surfwater/maxrfwater,0.)**(2./3.)
-d_roaddelta = max(rdhyd%surfwater/maxrdwater,0.)**(2./3.)
-d_vegdeltac = max(rdhyd%leafwater/max(maxvwatf*cnveg%lai,1.E-8),0.)**(2./3.)
-d_vegdeltar = max(rfhyd%leafwater/max(maxvwatf*rfveg%lai,1.E-8),0.)**(2./3.)
 d_rfsndelta = rfhyd%snow/(rfhyd%snow+maxrfsn)
 d_rdsndelta = rdhyd%snow/(rdhyd%snow+maxrdsn)
-
-! canyon level air temp and water vapor (displacement height at refheight*building height)
-pa      = a_ps*exp(-grav*a_zmin/(rd*(a_temp+urbtemp)))
-d_sigd  = a_ps
-a       = (d_sigd/pa)**(rd/aircp)
-!d_tempc = (a_temp+urbtemp)*a - urbtemp
-d_tempc = a_temp*a + urbtemp*(a-1.)
-call getqsat(qsatr,d_tempc,d_sigd)
-call getqsat(qsata,a_temp,pa)
-d_mixrc = a_mixr*qsatr/qsata
-
-! roof level air temperature and water vapor (displacement height at building height)
-pa      = a_ps*exp(-grav*a_zroof/(rd*(a_temproof+urbtemp)))
-d_sigr  = a_ps*exp(-grav*fp%bldheight*(1.-refheight)/(rd*(a_temproof+urbtemp)))
-a       = (d_sigr/pa)**(rd/aircp)
-!d_tempr = (a_temproof+urbtemp)*a - urbtemp
-d_tempr = a_temproof*a + urbtemp*(a-1.)
-call getqsat(qsatr,d_tempr,d_sigr)
-call getqsat(qsata,a_temproof,pa)
-d_mixrr = a_mixrroof*qsatr/qsata
-
-! calculate soil data
-d_totdepth = sum(fp_road%depth,2)
 
 ! variables for canyon geometry with vegetation
 fp_coeffbldheight = fp%effhwratio/fp%hwratio
@@ -441,6 +429,23 @@ d_traf = pd%traf/(1.-fp%sigmabld)
 d_intgains_bld = (fp%intmassn+1.)*fp%intgains_flr*cyc_basedemand ! building internal gains 
 pd%intgains_full= fp%sigmabld*d_intgains_bld                     ! full domain internal gains
 
+! calculate water and snow area cover fractions
+d_roaddelta = max(rdhyd%surfwater/maxrdwater,0.)**(2./3.)
+d_vegdeltac = max(rdhyd%leafwater/max(maxvwatf*cnveg%lai,1.E-8),0.)**(2./3.)
+
+! canyon level air temp and water vapor (displacement height at refheight*building height)
+pa      = a_ps*exp(-grav*a_zmin/(rd*(a_temp+urbtemp)))
+d_sigd  = a_ps
+a       = (d_sigd/pa)**(rd/aircp)
+!d_tempc = (a_temp+urbtemp)*a - urbtemp
+d_tempc = a_temp*a + urbtemp*(a-1.)
+call getqsat(qsatr,d_tempc,d_sigd)
+call getqsat(qsata,a_temp,pa)
+d_mixrc = a_mixr*qsatr/qsata
+
+! calculate soil data
+d_totdepth = sum( fp_road%depth, dim=2 )
+
 ! calculate canyon fluxes
 call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,                          &
                  sg_walle,rg_walle,fg_walle,acond_walle,abase_walle,                             &
@@ -457,7 +462,24 @@ call solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,         
                  roof,room,slab,walle,wallw,iroomtemp,cvcoeff_roof,cvcoeff_walle,                &
                  cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,ufull,diag)
 
-zero_flux = 0.
+
+!------------------------------------------------------------------------------
+! Roof fluxes
+!------------------------------------------------------------------------------
+
+! calculate water and snow area cover fractions
+d_roofdelta = max(rfhyd%surfwater/maxrfwater,0.)**(2./3.)
+d_vegdeltar = max(rfhyd%leafwater/max(maxvwatf*rfveg%lai,1.E-8),0.)**(2./3.)
+
+! roof level air temperature and water vapor (displacement height at building height)
+pa      = a_ps*exp(-grav*a_zroof/(rd*(a_temproof+urbtemp)))
+d_sigr  = a_ps*exp(-grav*fp%bldheight*(1.-refheight)/(rd*(a_temproof+urbtemp)))
+a       = (d_sigr/pa)**(rd/aircp)
+!d_tempr = (a_temproof+urbtemp)*a - urbtemp
+d_tempr = a_temproof*a + urbtemp*(a-1.)
+call getqsat(qsatr,d_tempr,d_sigr)
+call getqsat(qsata,a_temproof,pa)
+d_mixrr = a_mixrroof*qsatr/qsata
 
 ! calculate roof fluxes (fg_roof updated below)
 eg_roof = 0. ! For cray compiler
@@ -466,6 +488,11 @@ call solveroof(sg_rfsn,rg_rfsn,fg_rfsn,eg_rfsn,garfsn,rfsnmelt,rfsntemp,acond_rf
                sg_roof,rg_roof,eg_roof,acond_roof,d_roofdelta,                                  &
                a_rg,a_umagroof,a_rho,a_rnd,a_snd,d_tempr,d_mixrr,d_rfdzmin,d_tranr,d_evapr,     &
                d_sigr,ddt,fp_roof,rfhyd,rfveg,roof,fp,ufull)
+
+
+!------------------------------------------------------------------------------
+! Interior fluxes
+!------------------------------------------------------------------------------
 
 ! update interior fluxes (first estimate)
 if ( intairtmeth==0 .or. lwintmeth==0 ) then
@@ -483,12 +510,15 @@ else if ( lwintmeth==1 .or. progcalc>0 ) then
                        iskintemp,fp,intl,ufull)
 end if  
 
+
 !------------------------------------------------------------------------------
-! Update prognostic temperatures
+! Conduction
 !------------------------------------------------------------------------------
 
 if ( progcalc==0 ) then
 
+  zero_flux = 0. ! just a constant
+    
   ggext_roof = (1.-d_rfsndelta)*(sg_roof+rg_roof-eg_roof+aircp*a_rho*d_tempr*acond_roof) &
                 +d_rfsndelta*garfsn
   ggext_walle= sg_walle+rg_walle+aircp*a_rho*d_canyontemp*acond_walle*fp_coeffbldheight
@@ -505,7 +535,6 @@ if ( progcalc==0 ) then
   else
     ggext_intm = 0.
   end if  
-
 
   if ( intairtmeth/=0 .and. lwintmeth==2 ) then
     ! explicit longwave using update skin temperature from intermediate facet temp calc
@@ -598,9 +627,8 @@ if ( progcalc==0 ) then
   
 end if ! if progcalc==0 ... 
 
-!------------------------------------------------------------------------------
-! Update sensible heat fluxes
-!------------------------------------------------------------------------------
+
+! Update sensible heat fluxes (implicit with conduction)
 
 fg_roof  = aircp*a_rho*(real(roof%nodetemp(:,0))-d_tempr)*acond_roof
 fg_walle = aircp*a_rho*(real(walle%nodetemp(:,0))-d_canyontemp)*acond_walle*fp_coeffbldheight
@@ -663,9 +691,12 @@ fgtop = fp%hwratio*(fg_walle+fg_wallw) + (1.-d_rdsndelta)*(1.-cnveg%sigma)*fg_ro
       + (1.-d_rdsndelta)*cnveg%sigma*fg_vegc + d_rdsndelta*fg_rdsn                 &
       + d_traf + d_ac_canyon - int_infilfg
 
+
 !------------------------------------------------------------------------------
-! Road hydrology calculations
+! Hydrology
 !------------------------------------------------------------------------------
+
+! Road hydrology
 
 ! reset inception of leaf water
 pd%delintercept = 0.
@@ -699,10 +730,7 @@ pd%road_water_runoff = max(d_surfwater-maxrdwater,0.)
 pd%road_snow_runoff  = max(d_snow-maxrdsn,0.)
 pd%road_soil_runoff  = max(d_soilwater-fp%ssat,0.)
 
-!------------------------------------------------------------------------------
-! Update road prognostic hydrology variables
-!------------------------------------------------------------------------------
-
+! Update road prognostic variables
 if ( progcalc==0 ) then
   rdhyd%surfwater(1:ufull) = max(d_surfwater - pd%road_water_runoff,0.)
   rdhyd%soilwater(1:ufull) = max(d_soilwater - pd%road_soil_runoff,fp%swilt)
@@ -712,9 +740,7 @@ if ( progcalc==0 ) then
   rdhyd%snowalpha          = min(max(d_snowalpha,minsnowalpha),maxsnowalpha)
 end if  
 
-!------------------------------------------------------------------------------
-! Roof hydrology calculations
-!------------------------------------------------------------------------------
+! Roof hydrology
 
 d_surfwater = rfhyd%surfwater
 d_soilwater = rfhyd%soilwater
@@ -745,10 +771,7 @@ pd%roof_water_runoff = max(d_surfwater-maxrfwater,0.)
 pd%roof_snow_runoff  = max(d_snow-maxrfsn,0.)
 pd%roof_soil_runoff  = max(d_soilwater-fp%ssat,0.)
 
-!------------------------------------------------------------------------------
-! Update roof prognostic hydrology variables
-!------------------------------------------------------------------------------
-
+! Update roof prognostic variables
 if ( progcalc==0 ) then
   rfhyd%surfwater(1:ufull) = max(d_surfwater - pd%roof_water_runoff,0.)
   rfhyd%soilwater(1:ufull) = max(d_soilwater - pd%roof_soil_runoff,fp%swilt)
@@ -758,8 +781,9 @@ if ( progcalc==0 ) then
   rfhyd%snowalpha          = min(max(d_snowalpha,minsnowalpha),maxsnowalpha)
 end if
 
+
 !------------------------------------------------------------------------------
-! Calculate pd diagnostic and u_? output variables
+! Output (combine fluxes from facets)
 !------------------------------------------------------------------------------
 
 ! area weighted vegetation aerodynamic conductance
@@ -780,7 +804,7 @@ pd%surfrunoff = u_rn/ddt
 ! diagnose total vegetation transpiration [kg m-2 s-1]
 pd%transveg = (d_tranc*cnveg%sigma*(1.-fp%sigmabld) + d_tranr*rfveg%sigma*fp%sigmabld)/lv
 
-! combine snow and snow-free tiles for fluxes
+! combine roof fluxes from snow and snow-free
 d_roofrgout = a_rg-d_rfsndelta*rg_rfsn-(1.-d_rfsndelta)*((1.-rfveg%sigma)*rg_roof+rfveg%sigma*rg_vegr)
 fgrooftop   = d_rfsndelta*fg_rfsn+(1.-d_rfsndelta)*((1.-rfveg%sigma)*fg_roof+rfveg%sigma*fg_vegr)
 egrooftop   = d_rfsndelta*eg_rfsn+(1.-d_rfsndelta)*((1.-rfveg%sigma)*eg_roof+rfveg%sigma*eg_vegr)
@@ -834,7 +858,7 @@ u_wf = fp%sigmabld*(1.-d_rfsndelta)*((1.-rfveg%sigma)*d_roofdelta       &
 pd%snowmelt = fp%sigmabld*rfsnmelt + (1.-fp%sigmabld)*rdsnmelt
 u_melt = lf*(fp%sigmabld*d_rfsndelta*rfsnmelt + (1.-fp%sigmabld)*d_rdsndelta*rdsnmelt)
 
-! calculate average snow temperature and Snow water equivilent
+! calculate average snow temperature and snow water equivilent
 pd%snowt = ( (rfsntemp+urbtemp)*d_rfsndelta*(1.-fp%sigmabld) + (rdsntemp+urbtemp)*d_rdsndelta*fp%sigmabld ) / &
            max( d_rfsndelta*(1.-fp%sigmabld) + d_rdsndelta*fp%sigmabld, 1.e-10 )
 pd%swe = rfhyd%snow*d_rfsndelta*(1.-fp%sigmabld) + rdhyd%snow*d_rdsndelta*fp%sigmabld
@@ -858,6 +882,8 @@ pd%ulai = ( cnveg%lai*(1.-fp%sigmabld)*cnveg%sigma + rfveg%lai*fp%sigmabld*rfveg
 ! Save canyon air temperature
 pd%taircanyon = d_canyontemp
 
+
+! MOST calculations for bulk properties
 ! (re)calculate heat roughness length for MOST (diagnostic only)
 call getqsat(a,u_ts,d_sigd)
 a = a*u_wf + min(a_mixr,a)*(1.-u_wf)
@@ -879,8 +905,9 @@ end select
 call scrncalc(a_mixr,a_umag,a_temp,u_ts,d_tempc,d_rdsndelta,d_roaddelta,d_vegdeltac,d_sigd,a,rdsntemp,zonet, &
               cnveg,fp,pd,rdhyd,road,ufull)
 
+
 !------------------------------------------------------------------------------
-! Check energy conservation
+! Conservation
 !------------------------------------------------------------------------------
 
 if ( progcalc==0 ) then

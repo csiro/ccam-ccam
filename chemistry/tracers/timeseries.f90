@@ -264,7 +264,6 @@ end if
 !     in that case, don't write the file
 if (ngrdpts>0) then
   call ccnf_create(outfile,tsid(1))
-  call ccnf_nofill(tsid(1))
 !       define dimensions
   call ccnf_def_dim(tsid(1),'gridpts',ngrdpts,griddim)
   call ccnf_def_dim(tsid(1),'surfpts',ngrdpts1,surfdim)
@@ -310,16 +309,16 @@ if (ngrdpts>0) then
   call ccnf_enddef(tsid(1))
 !
 !     rml 19/09/07 write tracer name array
-  call ccnf_put_vara(tsid(1),tracnamid,tracname)
+  call ccnf_put_vara(tsid(1),'tracer_name',tracname)
 
 !     write grid point arrays
-  call ccnf_put_vara(tsid(1),gridid,listijk)
+  call ccnf_put_vara(tsid(1),'grid',listijk)
 ! Need explicit section of templist here, because array may have
 ! been allocated larger
-  call ccnf_put_vara(tsid(1),gridsurfid,templist(:ngrdpts1,:))
+  call ccnf_put_vara(tsid(1),'gridsurf',templist(:ngrdpts1,:))
   if ( nproc > 1 ) then
-   call ccnf_put_vara(tsid(1),gridorderid,gridorder(1:ngrdpts))
-   call ccnf_put_vara(tsid(1),surforderid,surforder(1:ngrdpts1))
+   call ccnf_put_vara(tsid(1),'gridorder',gridorder(1:ngrdpts))
+   call ccnf_put_vara(tsid(1),'surforder',surforder(1:ngrdpts1))
   end if
   call ccnf_sync(tsid(1))
   deallocate(templist)
@@ -368,7 +367,7 @@ if (ngrdpts.eq.0) return
 
 if (mod(ktau,ntsfreq).eq.0) then
   tstime = real(jyear,8) + real(mins,8)/real(365.*24.*60.,8)
-  call ccnf_put_vara(tsid(1),tsid(2),indextime,tstime)
+  call ccnf_put_vara(tsid(1),'time',indextime,tstime)
   allocate(cts(ngrdpts,ntrac))
   do n=1,ngrdpts
     iq = listijk(n,1) + (listijk(n,2)-1)*il
@@ -377,7 +376,7 @@ if (mod(ktau,ntsfreq).eq.0) then
   enddo
   start(1)=1; start(2)=1; start(3)=indextime
   ncount(1)=ngrdpts; ncount(2)=ntrac; ncount(3)=1
-  call ccnf_put_vara(tsid(1),tsid(3),start,ncount,cts)
+  call ccnf_put_vara(tsid(1),'concts',start,ncount,cts)
   deallocate(cts)
 
   do m=1,n3d
@@ -416,7 +415,7 @@ if (mod(ktau,ntsfreq).eq.0) then
     enddo
     start(1)=1; start(2)=indextime
     ncount(1)=ngrdpts; ncount(2)=1
-    call ccnf_put_vara(tsid(1),tsid(3+m),start(1:2),ncount(1:2),vts)
+    call ccnf_put_vara(tsid(1),varname3(m),start(1:2),ncount(1:2),vts)
     deallocate(vts)
   enddo
 
@@ -457,7 +456,7 @@ if (mod(ktau,ntsfreq).eq.0) then
       enddo 
       start(1)=1; start(2)=1; start(3)=indextime
       ncount(1)=ngrdpts1; ncount(2)=ntrac; ncount(3)=1
-      call ccnf_put_vara(tsid(1),tsid(3+n3d+m),start,ncount,cts)
+      call ccnf_put_vara(tsid(1),varname2(m),start,ncount,cts)
       deallocate(cts)
       surfflux=.true.
    case default
@@ -477,7 +476,7 @@ if (mod(ktau,ntsfreq).eq.0) then
       enddo
       start(1)=1; start(2)=indextime
       ncount(1)=ngrdpts1; ncount(2)=1
-      call ccnf_put_vara(tsid(1),tsid(3+n3d+m),start(1:2),ncount(1:2),vts)
+      call ccnf_put_vara(tsid(1),varname2(m),start(1:2),ncount(1:2),vts)
       deallocate(vts)
    endif
   enddo
@@ -519,21 +518,6 @@ call ccnf_inq_dimlen(inshipid(1),'npts',nshippts)
 allocate(shipdate(nshippts),shiptime(nshippts))
 call ccnf_get_vara(inshipid(1),'date',shipdate)
 call ccnf_get_vara(inshipid(1),'time',shiptime)
-call ccnf_inq_varid(inshipid(1),'loc',inshipid(2),tst)
-if (tst) then
-  write(6,*) "ERROR: Cannot locate loc"
-  call ccmpi_abort(-1)
-end if
-call ccnf_inq_varid(inshipid(1),'lev',inshipid(4),tst)
-if (tst) then
-  write(6,*) "ERROR: Cannot locate lev"
-  call ccmpi_abort(-1)
-end if
-call ccnf_inq_varid(inshipid(1),'ship',inshipid(3),tst)
-if (tst) then
-  write(6,*) "ERROR: Cannot locate ship"
-   call ccmpi_abort(-1)
-end if
 
 !     locate sample time just smaller than current time
 do i=1,nshippts
@@ -552,7 +536,6 @@ enddo
 write(chtemp,'(i8)') kdate
 outfile2 = 'ship.'//chtemp(1:4)//'.'//chtemp(5:6)//'.nc'
 call ccnf_create(outfile2,outshipid(1))
-call ccnf_nofill(outshipid(1))
 call ccnf_def_dim(outshipid(1),'nshiptrac',ntrac,tracdim)
 !    rml 18/12/03 increased dimension to include level for aircraft output
 call ccnf_def_dim(outshipid(1),'date_time_loc_ship',5,dtlsdim)
@@ -622,19 +605,19 @@ do while (moredat)
 !         match to data
     info(1) = shipdate(indship+1)
     info(2) = shiptime(indship+1)
-    call ccnf_get_vara(inshipid(1),inshipid(2),indship+1,iloc)
+    call ccnf_get_vara(inshipid(1),'loc',indship+1,iloc)
     info(3) = iloc
 !    rml 18/12/03 addition of level info to do aircraft output
-    call ccnf_get_vara(inshipid(1),inshipid(4),indship+1,ilev)
+    call ccnf_get_vara(inshipid(1),'lev',indship+1,ilev)
     info(4) = ilev
-    call ccnf_get_vara(inshipid(1),inshipid(3),indship+1,iship)
+    call ccnf_get_vara(inshipid(1),'ship',indship+1,iship)
     info(5) = iship
     start(1)=1; start(2)=nshipout
     kount(1)=5; kount(2)=1
-    call ccnf_put_vara(outshipid(1),outshipid(2),start,kount,info)
+    call ccnf_put_vara(outshipid(1),'shipinfo',start,kount,info)
     start(1)=1; start(2)=nshipout
     kount(1)=ntrac; kount(2)=1
-    call ccnf_put_vara(outshipid(1),outshipid(3),start,kount,tr(iloc,ilev,:))
+    call ccnf_put_vara(outshipid(1),'tsship',start,kount,tr(iloc,ilev,:))
 
     indship=indship+1
   else

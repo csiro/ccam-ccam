@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -38,16 +38,19 @@ public vertint, datefix, datefix_month, getzinp, ncmsg, processdatestring
 public ptest, pfall, ncidold, resprocformat, pncid
 public histopen, histclose, histrd, surfread
 public attrib, histwrt, lsmask
-public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
-public ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
-public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
-public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
+public ccnf_open, ccnf_create, ccnf_close, ccnf_sync
+public ccnf_def_dim, ccnf_def_dimu, ccnf_def_var, ccnf_enddef 
+public ccnf_inq_dimid, ccnf_inq_dimlen, ccnf_inq_varndims
+public ccnf_get_vara, ccnf_get_att, ccnf_get_attg
 public ccnf_put_vara, ccnf_put_att, ccnf_put_attg
+public ccnf_varexist
 public comm_ip, pil_single
 public driving_model_id, driving_model_ensemble_number, driving_experiment_name
 public driving_institution_id
 public any_m, daily_m, sixhr_m, point_m, mean_m, max_m, min_m, fixed_m, sum_m
 public short_m, double_m, float_m
+public vmode_temperature, vmode_moisture, vmode_u, vmode_v, vmode_tracer
+public vmode_special
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
@@ -79,6 +82,14 @@ integer, parameter :: short_m = 1   ! output is compressed as a short
 integer, parameter :: double_m = 2  ! output is double precision
 integer, parameter :: float_m = -1  ! output is single precision (or default model precision)
 
+! vertical interpolation modes
+integer, parameter :: vmode_temperature = 1
+integer, parameter :: vmode_moisture    = 2
+integer, parameter :: vmode_u           = 3
+integer, parameter :: vmode_v           = 4
+integer, parameter :: vmode_tracer      = 5
+integer, parameter :: vmode_special     = 7
+
 interface histrd
   module procedure histrd3r4, histrd4r4, histrd5r4
 #ifndef i8r8  
@@ -106,14 +117,11 @@ end interface ccnf_get_attg
 interface ccnf_get_vara
   module procedure ccnf_get_var_real, ccnf_get_var_int
   module procedure ccnf_get_vara_text_t
-  module procedure ccnf_get_vara_real1r_s, ccnf_get_vara_real1r_t
-  module procedure ccnf_get_vara_real2r_s, ccnf_get_vara_real2r_t, ccnf_get_vara_real2r
-  module procedure ccnf_get_vara_real3r_t, ccnf_get_vara_real3r, ccnf_get_vara_real4r 
-  module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i_t, ccnf_get_vara_int2i
-  module procedure ccnf_get_vara_int3i_t
+  module procedure ccnf_get_vara_real1r_t, ccnf_get_vara_real2r_t, ccnf_get_vara_real21r_t
+  module procedure ccnf_get_vara_real3r_t, ccnf_get_vara_real4r_t
+  module procedure ccnf_get_vara_int1i_t, ccnf_get_vara_int2i_t, ccnf_get_vara_int3i_t
 #ifndef i8r8
-  module procedure ccnf_get_vara_double1r_s
-  module procedure ccnf_get_vara_double2r_t, ccnf_get_vara_double4d
+  module procedure ccnf_get_vara_double1r_t, ccnf_get_vara_double2r_t, ccnf_get_vara_double4r_t
 #endif
 end interface ccnf_get_vara
 
@@ -122,7 +130,7 @@ interface ccnf_def_var
 end interface ccnf_def_var
 
 interface ccnf_put_att
-  module procedure ccnf_put_att_text, ccnf_put_att_rs
+  module procedure ccnf_put_att_text, ccnf_put_att_real
 end interface ccnf_put_att
 
 interface ccnf_put_attg
@@ -132,17 +140,13 @@ interface ccnf_put_attg
 end interface ccnf_put_attg
 
 interface ccnf_put_vara
-  module procedure ccnf_put_var_text2r
+  module procedure ccnf_put_var_real
+  module procedure ccnf_put_var_text2_t
+  module procedure ccnf_put_vara_real1r_t, ccnf_put_vara_real2r_t, ccnf_put_vara_real3r_t
+  module procedure ccnf_put_vara_int1i_t, ccnf_put_vara_int2i_t
   module procedure ccnf_put_var_int2i, ccnf_put_var_int3i
-  module procedure ccnf_put_vara_real1r_s, ccnf_put_vara_real1r_t
-  module procedure ccnf_put_vara_real2r_s, ccnf_put_vara_real2r_t
-  module procedure ccnf_put_vara_real3r_t
-  module procedure ccnf_put_vara_real2r, ccnf_put_vara_real3r
-  module procedure ccnf_put_vara_int1i_s, ccnf_put_vara_int1i_t
-  module procedure ccnf_put_vara_int2i
 #ifndef i8r8
-  module procedure ccnf_put_vara_double1r_s, ccnf_put_vara_double1r_t
-  module procedure ccnf_put_vara_double2r
+  module procedure ccnf_put_vara_double1r_t
 #endif
 end interface ccnf_put_vara
 
@@ -163,14 +167,14 @@ integer, intent(out) :: ier
 integer :: iq
 real :: vmax, vmin, vmax_g, vmin_g
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
-real, dimension(:), allocatable :: globvar
+real, dimension(:), allocatable :: globvar  ! allocate large arrays to reduce stack size
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
 
+! local arrays for interpolation or restart without interpoltion
 if ( ifull==6*pil_g**2 .or. ptest ) then
 
-  ! read local arrays
   call hr3p(iarchi,ier,name,.true.,var)
   if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
     vmax = maxval(var)
@@ -180,14 +184,17 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd3 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
+  else if ( ier==0 .and. nmaxpr==1 .and. myid==0 ) then
     write(6,'(" done histrd3 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 
-else
+else     ! ifull==6*pil_g**2 .or. ptest ..else.
 
-  ! gather and distribute (i.e., change in number of processors) 
+  ! gather and distribute (no interpolation but redistribution is required, such as change
+  ! in nproc) 
   if ( myid==0 ) then
+
+     ! host for gather 
      allocate( globvar(6*pil_g**2) )
      globvar(:) = 0.
      call hr3p(iarchi,ier,name,.false.,globvar)
@@ -203,12 +210,16 @@ else
      end if
      call ccmpi_distribute(var,globvar)
      deallocate( globvar )
-  else
+
+  else   ! myid==0 ..else..
+
+    ! distribute data to host  
     call hr3p(iarchi,ier,name,.false.)
     call ccmpi_distribute(var)
-  end if
 
-end if
+  end if ! myid==0 ..else..
+
+end if   ! ifull==6*pil_g**2 .or. ptest ..else..
 
 call END_LOG(histrd_end)
 
@@ -301,8 +312,8 @@ if ( mynproc>0 ) then
     else
       ! gather-scatter
       ! MJT notes - This could be better optimised where information is only sent
-      ! to the processes that requires it.  But this situation occurs so rarely, that
-      ! they current code might be sufficent.
+      ! to the processes that require it.  But this situation occurs so rarely, that
+      ! the current code might be sufficent.
       if ( myid==0 ) then
         allocate( gvar(pipan*pjpan*pnpan,fnresid) )
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
@@ -540,7 +551,7 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
     if ( myid==0 ) then
       write(6,'(" done histrd4 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
     end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
+  else if ( ier==0 .and. nmaxpr==1 .and. myid==0 ) then  
     write(6,'(" done histrd4 ",a48,i4,i3)') trim(name),ier,iarchi
   end if
 else 
@@ -1872,14 +1883,14 @@ do k = 1,kl
 enddo    ! k loop
 
 select case(n)
-  case(1)
+  case(vmode_temperature)
     if ( klapse/=0 ) then  ! for T lapse correction
       do k = 1,klapse
         ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
         t(1:ifull,k) = t(1:ifull,k) + (sig(k)-sigin(1))*6.5/.1
       end do    ! k loop
     end if
-  case(2,5)  
+  case(vmode_moisture,vmode_tracer)  
     ! for qg, qfg, qlg do a -ve fix
     t(1:ifull,:) = max(t(1:ifull,:), 0.)
 end select    
@@ -3449,10 +3460,6 @@ end subroutine hw5ar8
 
 subroutine ccnf_open(fname,ncid,status)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(out) :: ncid
 integer, intent(out), optional :: status
 integer ncstatus
@@ -3460,7 +3467,6 @@ integer(kind=4) lncid
 character(len=*), intent(in) :: fname
 
 lncid=0
-
 ncstatus = nf90_open(fname,nf90_nowrite,lncid)
 ncid=lncid
 
@@ -3475,14 +3481,9 @@ end subroutine ccnf_open
 
 subroutine ccnf_create(fname,ncid)
 
-use cc_mpi
-use parm_m
-
-implicit none
-
 integer, intent(out) :: ncid
 integer ncstatus
-integer(kind=4) :: lncid
+integer(kind=4) :: lncid, lomode
 character(len=*), intent(in) :: fname
 
 ncstatus = nf90_create(fname,nf90_netcdf4,lncid)
@@ -3491,15 +3492,13 @@ if ( ncstatus/=nf90_noerr ) then
   write(6,*) "ERROR: Cannot create fname = ",trim(fname)
 end if
 call ncmsg("create",ncstatus)
+ncstatus = nf90_set_fill(lncid,nf90_nofill,lomode)
+call ncmsg("create",ncstatus)
 
 return
 end subroutine ccnf_create
 
 subroutine ccnf_close(ncid)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -3512,28 +3511,7 @@ call ncmsg("close",ncstatus)
 return
 end subroutine ccnf_close
 
-subroutine ccnf_nofill(ncid)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid
-integer ncstatus
-integer(kind=4) lncid, lomode
-
-lncid = ncid
-ncstatus = nf90_set_fill(lncid,nf90_nofill,lomode)
-call ncmsg("nofill",ncstatus)
-
-return
-end subroutine ccnf_nofill
-
 subroutine ccnf_inq_dimid(ncid,dname,did,tst)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, intent(out) :: did
@@ -3560,8 +3538,6 @@ end subroutine ccnf_inq_dimid
 subroutine ccnf_inq_dimlen(ncid,dname,dlen,failok)
 
 use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, intent(inout) :: dlen
@@ -3595,48 +3571,34 @@ dlen = ldlen
 return
 end subroutine ccnf_inq_dimlen
 
-subroutine ccnf_inq_varid(ncid,vname,vid,tst)
-
-use cc_mpi
+function ccnf_varexist(ncid,vname) result(tst)
 
 implicit none
 
 integer, intent(in) :: ncid
-integer, intent(out) :: vid
 integer ncstatus
 integer(kind=4) lncid, lvid
 character(len=*), intent(in) :: vname
-logical, intent(out), optional :: tst
-logical ltst
+logical :: tst
 
-lncid=ncid
+lncid = ncid
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
-ltst=(ncstatus/=nf90_noerr)
-vid=lvid
-
-if (present(tst)) then
-  tst=ltst
-else
-  call ncmsg(vname,ncstatus)
-end if
+tst = ncstatus==nf90_noerr
 
 return
-end subroutine ccnf_inq_varid
+end function ccnf_varexist
 
+subroutine ccnf_inq_varndims(ncid,vname,ndims)
 
-subroutine ccnf_inq_varndims(ncid,vid,ndims)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
+integer, intent(in) :: ncid
 integer, intent(out) :: ndims
 integer ncstatus
 integer(kind=4) lncid, lvid, lndims
+character(len=*), intent(in) :: vname
 
 lncid=ncid
-lvid=vid
+ncstatus = nf90_inq_varid(lncid,vname,lvid)
+call ncmsg('ccnf_inq_varndims',ncstatus)
 ncstatus = nf90_inquire_variable(lncid,lvid,ndims=lndims)
 call ncmsg('ccnf_inq_varndims',ncstatus)
 ndims = lndims
@@ -3645,10 +3607,6 @@ return
 end subroutine ccnf_inq_varndims
 
 subroutine ccnf_def_dim(ncid,dname,nsize,did)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid, nsize
 integer, intent(out) :: did
@@ -3667,10 +3625,6 @@ end subroutine ccnf_def_dim
 
 subroutine ccnf_def_dimu(ncid,dname,did)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer, intent(out) :: did
 integer ncstatus
@@ -3688,8 +3642,6 @@ end subroutine ccnf_def_dimu
 subroutine ccnf_def_var_v(ncid,vname,vtype,vndim,dims,vid)
 
 use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid, vndim
 integer, intent(out) :: vid
@@ -3727,8 +3679,6 @@ subroutine ccnf_def_var_s(ncid,vname,vtype,vid)
 
 use cc_mpi
 
-implicit none
-
 integer, intent(in) :: ncid
 integer, intent(out) :: vid
 integer ncstatus
@@ -3760,10 +3710,6 @@ end subroutine ccnf_def_var_s
 
 subroutine ccnf_enddef(ncid)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer ncstatus
 integer(kind=4) lncid
@@ -3777,10 +3723,6 @@ end subroutine ccnf_enddef
 
 subroutine ccnf_sync(ncid)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer ncstatus
 integer(kind=4) lncid
@@ -3793,10 +3735,6 @@ return
 end subroutine ccnf_sync
 
 subroutine ccnf_get_var_real(ncid,vname,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -3814,10 +3752,6 @@ return
 end subroutine ccnf_get_var_real
 
 subroutine ccnf_get_vara_text_t(ncid,name,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, dimension(:), intent(in) :: start, ncount
@@ -3841,10 +3775,6 @@ end subroutine ccnf_get_vara_text_t
 
 subroutine ccnf_get_var_int(ncid,vname,vdat)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer ncstatus
 integer, dimension(:), intent(out) :: vdat
@@ -3860,36 +3790,7 @@ call ncmsg("get_var",ncstatus)
 return
 end subroutine ccnf_get_var_int
 
-subroutine ccnf_get_vara_real1r_s(ncid,vid,start,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid, start
-integer ncstatus
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart
-integer(kind=4), dimension(1) :: lncount
-real, intent(out) :: vdat
-real, dimension(1) :: lvdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=1
-ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-call ncmsg("get_vara_real1r",ncstatus)
-vdat=lvdat(1)
-
-return
-end subroutine ccnf_get_vara_real1r_s
-
 subroutine ccnf_get_vara_real1r_t(ncid,name,start,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid, start
 integer ncstatus
@@ -3912,35 +3813,28 @@ vdat=lvdat(1)
 return
 end subroutine ccnf_get_vara_real1r_t
 
-subroutine ccnf_get_vara_real2r_s(ncid,vid,start,ncount,vdat)
+subroutine ccnf_get_vara_real21r_t(ncid,name,start,ncount,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer, intent(in) :: start, ncount
+integer, intent(in) :: ncid, start, ncount
 integer ncstatus
 integer(kind=4) lncid, lvid
 integer(kind=4), dimension(1) :: lstart
 integer(kind=4), dimension(1) :: lncount
 real, dimension(:), intent(out) :: vdat
+character(len=*), intent(in) :: name
 
 lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg(name,ncstatus)
+lstart(1) = start
+lncount(1) = ncount
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("get_vara_real2r",ncstatus)
+call ncmsg("get_vara_real21r_t",ncstatus)
 
 return
-end subroutine ccnf_get_vara_real2r_s 
+end subroutine ccnf_get_vara_real21r_t 
 
 subroutine ccnf_get_vara_real2r_t(ncid,name,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, dimension(:), intent(in) :: start, ncount
@@ -3962,59 +3856,7 @@ call ncmsg("get_vara_real2r_t",ncstatus)
 return
 end subroutine ccnf_get_vara_real2r_t 
 
-subroutine ccnf_get_vara_real2r(ncid,vid,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer, dimension(:), intent(in) :: start, ncount
-integer ncstatus
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(size(start)) :: lstart
-integer(kind=4), dimension(size(ncount)) :: lncount
-real, dimension(:), intent(out) :: vdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
-ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("get_vara_real2r",ncstatus)
-
-return
-end subroutine ccnf_get_vara_real2r 
-
-subroutine ccnf_get_vara_real3r(ncid,vid,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer, dimension(:) :: start, ncount
-integer ncstatus
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(size(start)) :: lstart
-integer(kind=4), dimension(size(ncount)) :: lncount
-real, dimension(:,:), intent(out) :: vdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
-ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("get_vara_real3r",ncstatus)
-
-return
-end subroutine ccnf_get_vara_real3r
-
 subroutine ccnf_get_vara_real3r_t(ncid,name,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, dimension(:), intent(in) :: start, ncount
@@ -4036,63 +3878,54 @@ call ncmsg("get_vara_real3r_t",ncstatus)
 return
 end subroutine ccnf_get_vara_real3r_t 
 
-subroutine ccnf_get_vara_real4r(ncid,vid,start,ncount,vdat)
+subroutine ccnf_get_vara_real4r_t(ncid,name,start,ncount,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer, dimension(:) :: start, ncount
+integer, intent(in) :: ncid
+integer, dimension(:), intent(in) :: start, ncount
 integer ncstatus
-integer(kind=4) :: lncid, lvid
+integer(kind=4) lncid, lvid
 integer(kind=4), dimension(size(start)) :: lstart
 integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:,:,:), intent(out) :: vdat
+character(len=*), intent(in) :: name
 
 lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg(name,ncstatus)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("get_vara_real4r",ncstatus)
+call ncmsg("get_vara_real4r_t",ncstatus)
 
 return
-end subroutine ccnf_get_vara_real4r
+end subroutine ccnf_get_vara_real4r_t 
 
-subroutine ccnf_get_vara_int1i_s(ncid,vid,start,vdat)
+subroutine ccnf_get_vara_int1i_t(ncid,name,start,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid, start
+integer, intent(in) :: ncid, start
 integer ncstatus
 integer, intent(out) :: vdat
 integer(kind=4) :: lncid, lvid
 integer(kind=4), dimension(1) :: lstart
 integer(kind=4), dimension(1) :: lncount
 integer(kind=4), dimension(1) :: lvdat
+character(len=*), intent(in) :: name
 
 lncid=ncid
-lvid=vid
-lstart=start
-lncount=1
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+lstart(1) = start
+lncount(1) = 1
 ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-call ncmsg("get_vara_int1i",ncstatus)
+call ncmsg("get_vara_int1i_t",ncstatus)
 vdat=lvdat(1)
 
 return
-end subroutine ccnf_get_vara_int1i_s
+end subroutine ccnf_get_vara_int1i_t
 
 subroutine ccnf_get_vara_int2i_t(ncid,name,start,ncount,vdat)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
-integer, dimension(:) :: start, ncount
+integer, dimension(:), intent(in) :: start, ncount
 integer ncstatus
 integer, dimension(:), intent(out) :: vdat
 integer(kind=4) :: lncid, lvid
@@ -4110,35 +3943,7 @@ call ncmsg("get_vara_int2i_t",ncstatus)
 return
 end subroutine ccnf_get_vara_int2i_t
 
-subroutine ccnf_get_vara_int2i(ncid,vid,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer, dimension(:) :: start, ncount
-integer ncstatus
-integer, dimension(:), intent(out) :: vdat
-integer(kind=4) :: lncid, lvid
-integer(kind=4), dimension(size(start)) :: lstart
-integer(kind=4), dimension(size(ncount)) :: lncount
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
-ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("get_vara_int2i",ncstatus)
-
-return
-end subroutine ccnf_get_vara_int2i
-
 subroutine ccnf_get_vara_int3i_t(ncid,name,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, dimension(:) :: start, ncount
@@ -4160,36 +3965,30 @@ return
 end subroutine ccnf_get_vara_int3i_t
 
 #ifndef i8r8
-subroutine ccnf_get_vara_double1r_s(ncid,vid,start,vdat)
+subroutine ccnf_get_vara_double1r_t(ncid,name,start,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid, start
+integer, intent(in) :: ncid, start
 integer ncstatus
 integer(kind=4) lncid, lvid
 integer(kind=4), dimension(1) :: lstart
 integer(kind=4), dimension(1) :: lncount
 real(kind=8), intent(out) :: vdat
 real(kind=8), dimension(1) :: lvdat
+character(len=*), intent(in) :: name
 
 lncid=ncid
-lvid=vid
-lstart=start
-lncount=1
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg(name,ncstatus)
+lstart(1) = start
+lncount(1) = 1
 ncstatus=nf90_get_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-call ncmsg("get_vara_real1r",ncstatus)
+call ncmsg("get_vara_double1r_t",ncstatus)
 vdat=lvdat(1)
 
 return
-end subroutine ccnf_get_vara_double1r_s
+end subroutine ccnf_get_vara_double1r_t 
 
 subroutine ccnf_get_vara_double2r_t(ncid,name,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, dimension(:), intent(in) :: start, ncount
@@ -4211,50 +4010,48 @@ call ncmsg("get_vara_double2r_t",ncstatus)
 return
 end subroutine ccnf_get_vara_double2r_t 
 
-subroutine ccnf_get_vara_double4d(ncid,vid,start,ncount,vdat)
+subroutine ccnf_get_vara_double4r_t(ncid,name,start,ncount,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer, dimension(:) :: start, ncount
+integer, intent(in) :: ncid
+integer, dimension(:), intent(in) :: start, ncount
 integer ncstatus
-integer(kind=4) :: lncid, lvid
+integer(kind=4) lncid, lvid
 integer(kind=4), dimension(size(start)) :: lstart
 integer(kind=4), dimension(size(ncount)) :: lncount
 real(kind=8), dimension(:,:,:), intent(out) :: vdat
+character(len=*), intent(in) :: name
 
 lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg(name,ncstatus)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
 ncstatus=nf90_get_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("get_vara_double4d",ncstatus)
+call ncmsg("get_vara_double4r_t",ncstatus)
 
 return
-end subroutine ccnf_get_vara_double4d
+end subroutine ccnf_get_vara_double4r_t 
 #endif
 
-subroutine ccnf_get_att_text(ncid,vid,aname,atext,ierr)
-
-use cc_mpi
+subroutine ccnf_get_att_text(ncid,vname,aname,atext,ierr)
 
 implicit none
 
-integer, intent(in) :: ncid, vid
+integer, intent(in) :: ncid
 integer, intent(out), optional :: ierr
-integer ncstatus
-integer(kind=4) lncid, lvid
+integer :: ncstatus
+integer(kind=4) :: lncid, lvid
+character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: aname
 character(len=*), intent(out) :: atext
 
-atext=''
+atext = ''
 lncid = ncid
-lvid = vid
+ncstatus = nf90_inq_varid(lncid,vname,lvid)
+call ncmsg(vname,ncstatus)
 ncstatus = nf90_get_att(lncid,lvid,aname,atext)
-if (present(ierr)) then
-  ierr=ncstatus
+if ( present(ierr) ) then
+  ierr = ncstatus
 else
   if ( ncstatus/=nf90_noerr ) then  
     write(6,*) "ERROR: Cannot read ",aname  
@@ -4265,24 +4062,22 @@ end if
 return
 end subroutine ccnf_get_att_text
 
-subroutine ccnf_get_att_real(ncid,vid,aname,vdat,ierr)
+subroutine ccnf_get_att_real(ncid,vname,aname,vdat,ierr)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
+integer, intent(in) :: ncid
 integer, intent(out), optional :: ierr
 integer ncstatus
-integer(kind=4) lncid, lvid
+integer(kind=4) :: lncid, lvid
+character(len=*), intent(in) :: vname
 character(len=*), intent(in) :: aname
 real, intent(out) :: vdat
 
 lncid = ncid
-lvid = vid
+ncstatus = nf90_inq_varid(lncid,vname,lvid)
+call ncmsg(vname,ncstatus)
 ncstatus = nf90_get_att(lncid,lvid,aname,vdat)
-if (present(ierr)) then
-  ierr=ncstatus
+if ( present(ierr) ) then
+  ierr = ncstatus
 else
   if ( ncstatus/=nf90_noerr ) then  
     write(6,*) "ERROR: Cannot read ",aname  
@@ -4290,15 +4085,10 @@ else
   call ncmsg(aname,ncstatus)
 end if
 
-
 return
 end subroutine ccnf_get_att_real
 
 subroutine ccnf_get_att_realg1r(ncid,aname,vdat,ierr)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, intent(out), optional :: ierr
@@ -4323,10 +4113,6 @@ end subroutine ccnf_get_att_realg1r
 
 subroutine ccnf_get_att_realg2r(ncid,aname,vdat)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer ncstatus
 integer(kind=4) lncid
@@ -4344,10 +4130,6 @@ return
 end subroutine ccnf_get_att_realg2r
 
 subroutine ccnf_get_att_intg1i(ncid,aname,vdat,tst)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer, intent(out) :: vdat
@@ -4374,10 +4156,6 @@ end subroutine ccnf_get_att_intg1i
 
 subroutine ccnf_get_att_intg2i(ncid,aname,vdat)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer, dimension(:), intent(out) :: vdat
 integer ncstatus
@@ -4387,7 +4165,7 @@ character(len=*), intent(in) :: aname
 
 lncid=ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,lvdat)
-vdat=lvdat
+vdat = lvdat
 if ( ncstatus/=nf90_noerr ) then  
   write(6,*) "ERROR: Cannot read ",aname  
 end if 
@@ -4398,22 +4176,18 @@ end subroutine ccnf_get_att_intg2i
 
 subroutine ccnf_get_att_textg(ncid,aname,atext,ierr)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer, intent(out), optional :: ierr
-integer ncstatus
-integer(kind=4) lncid
+integer :: ncstatus
+integer(kind=4) :: lncid
 character(len=*), intent(in) :: aname
 character(len=*), intent(out) :: atext
 
-atext=''
-lncid=ncid
+atext = ''
+lncid = ncid
 ncstatus = nf90_get_att(lncid,nf90_global,aname,atext)
-if (present(ierr)) then
-  ierr=ncstatus
+if ( present(ierr) ) then
+  ierr = ncstatus
 else
   if ( ncstatus/=nf90_noerr ) then  
     write(6,*) "ERROR: Cannot read ",aname  
@@ -4424,57 +4198,51 @@ end if
 return
 end subroutine ccnf_get_att_textg
 
-subroutine ccnf_put_var_text2r(ncid,vid,vtxt)
+subroutine ccnf_put_var_text2_t(ncid,vname,vtxt)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
+integer, intent(in) :: ncid
 integer ncstatus
 integer(kind=4) lncid, lvid
+character(len=*), intent(in) :: vname
 character(len=*), dimension(:), intent(in) :: vtxt
 
 lncid=ncid
-lvid=vid
+ncstatus=nf90_inq_varid(lncid,vname,lvid)
+call ncmsg("put_var",ncstatus)
 ncstatus = nf90_put_var(lncid,lvid,vtxt)
 call ncmsg("put_var",ncstatus)
 
 return
-end subroutine ccnf_put_var_text2r
+end subroutine ccnf_put_var_text2_t
 
-subroutine ccnf_put_var_int2i(ncid,vid,vdat)
+subroutine ccnf_put_var_int2i(ncid,vname,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid,vid
+integer, intent(in) :: ncid
 integer ncstatus
 integer, dimension(:), intent(in) :: vdat
 integer(kind=4) lncid, lvid
+character(len=*), intent(in) :: vname
 
 lncid = ncid
-lvid = vid
+ncstatus=nf90_inq_varid(lncid,vname,lvid)
+call ncmsg("put_var",ncstatus)
 ncstatus = nf90_put_var(lncid,lvid,vdat)
 call ncmsg("put_var",ncstatus)
 
 return
 end subroutine ccnf_put_var_int2i
 
-subroutine ccnf_put_var_int3i(ncid,vid,vdat)
+subroutine ccnf_put_var_int3i(ncid,vname,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
+integer, intent(in) :: ncid
 integer ncstatus
 integer, dimension(:,:), intent(in) :: vdat
 integer(kind=4) lncid, lvid
+character(len=*), intent(in) :: vname
 
 lncid = ncid
-lvid = vid
+ncstatus=nf90_inq_varid(lncid,vname,lvid)
+call ncmsg("put_var",ncstatus)
 ncstatus = nf90_put_var(lncid,lvid,vdat)
 call ncmsg("put_var",ncstatus)
 
@@ -4482,10 +4250,6 @@ return
 end subroutine ccnf_put_var_int3i
 
 subroutine ccnf_put_vara_real1r_t(ncid,name,start,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -4509,87 +4273,29 @@ call ncmsg("put_vara_real1r",ncstatus)
 return
 end subroutine ccnf_put_vara_real1r_t
 
-subroutine ccnf_put_vara_real1r_s(ncid,vid,start,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer ncstatus
-integer, intent(in) :: start
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart
-integer(kind=4), dimension(1) :: lncount
-real, intent(in) :: vdat
-real, dimension(1) :: lvdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=1
-lvdat=vdat
-ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-call ncmsg("put_vara_real1r",ncstatus)
-
-return
-end subroutine ccnf_put_vara_real1r_s
-
-subroutine ccnf_put_vara_real2r_t(ncid,name,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
+subroutine ccnf_put_vara_real2r_t(ncid,vname,start,ncount,vdat)
 
 integer, intent(in) :: ncid
 integer ncstatus
-integer, intent(in) :: start, ncount
+integer, dimension(:), intent(in) :: start, ncount
 integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart
-integer(kind=4), dimension(1) :: lncount
+integer(kind=4), dimension(size(start)) :: lstart
+integer(kind=4), dimension(size(ncount)) :: lncount
 real, dimension(:), intent(in) :: vdat
-character(len=*), intent(in) :: name
+character(len=*), intent(in) :: vname
 
 lncid=ncid
-ncstatus=nf90_inq_varid(lncid,name,lvid)
-call ncmsg("put_vara_real2r_t"//trim(name),ncstatus)
-lstart=start
-lncount=ncount
+ncstatus=nf90_inq_varid(lncid,vname,lvid)
+call ncmsg("put_vara_real2r_t"//trim(vname),ncstatus)
+lstart(:)=start(:)
+lncount(:)=ncount(:)
 ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara_real2r_t "//trim(name),ncstatus)
+call ncmsg("put_vara_real2r_t "//trim(vname),ncstatus)
 
 return
 end subroutine ccnf_put_vara_real2r_t
 
-subroutine ccnf_put_vara_real2r_s(ncid,vid,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer ncstatus
-integer, intent(in) :: start, ncount
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart
-integer(kind=4), dimension(1) :: lncount
-real, dimension(:), intent(in) :: vdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
-ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara_real2r_s",ncstatus)
-
-return
-end subroutine ccnf_put_vara_real2r_s
-
 subroutine ccnf_put_vara_real3r_t(ncid,name,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -4611,85 +4317,29 @@ call ncmsg("put_vara_real3r_t",ncstatus)
 return
 end subroutine ccnf_put_vara_real3r_t
 
-subroutine ccnf_put_vara_real2r(ncid,vid,start,ncount,vdat)
+subroutine ccnf_put_var_real(ncid,vname,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer ncstatus
-integer, dimension(:), intent(in) :: start, ncount
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(size(start)) :: lstart
-integer(kind=4), dimension(size(ncount)) :: lncount
+integer, intent(in) :: ncid
+integer :: ncstatus
+integer(kind=4) :: lncid, lvid
+integer(kind=4), dimension(1) :: lstart
+integer(kind=4), dimension(1) :: lncount
 real, dimension(:), intent(in) :: vdat
+character(len=*), intent(in) :: vname
 
 lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
+ncstatus=nf90_inq_varid(lncid,vname,lvid)
+call ncmsg("put_vara_real2r"//trim(vname),ncstatus)
+lstart(1) = 1
+lncount(1) = size(vdat)
 ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
 call ncmsg("put_vara_real2r",ncstatus)
 
 return
-end subroutine ccnf_put_vara_real2r
-
-subroutine ccnf_put_vara_real3r(ncid,vid,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer ncstatus
-integer, dimension(:), intent(in) :: start, ncount
-integer(kind=4) :: lncid, lvid
-integer(kind=4), dimension(size(start)) :: lstart
-integer(kind=4), dimension(size(ncount)) :: lncount
-real, dimension(:,:), intent(in) :: vdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
-ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara",ncstatus)
-
-return
-end subroutine ccnf_put_vara_real3r
+end subroutine ccnf_put_var_real
 
 #ifndef i8r8
-subroutine ccnf_put_vara_double1r_s(ncid,vid,start,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid, start
-integer ncstatus
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart
-integer(kind=4), dimension(1) :: lncount
-real(kind=8), intent(in) :: vdat
-real(kind=8), dimension(1) :: lvdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=1
-lvdat=vdat
-ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-call ncmsg("put_vara",ncstatus)
-
-return
-end subroutine ccnf_put_vara_double1r_s
-
 subroutine ccnf_put_vara_double1r_t(ncid,name,start,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -4714,37 +4364,7 @@ return
 end subroutine ccnf_put_vara_double1r_t
 #endif
 
-#ifndef i8r8
-subroutine ccnf_put_vara_double2r(ncid,vid,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer ncstatus
-integer, dimension(:), intent(in) :: start, ncount
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(size(start)) :: lstart
-integer(kind=4), dimension(size(ncount)) :: lncount
-real(kind=8), dimension(:), intent(in) :: vdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=ncount
-ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara",ncstatus)
-
-return
-end subroutine ccnf_put_vara_double2r
-#endif
-
 subroutine ccnf_put_vara_int1i_t(ncid,name,start,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -4768,61 +4388,30 @@ call ncmsg("put_vara_int1i",ncstatus)
 return
 end subroutine ccnf_put_vara_int1i_t
 
-subroutine ccnf_put_vara_int1i_s(ncid,vid,start,vdat)
+subroutine ccnf_put_vara_int2i_t(ncid,name,start,ncount,vdat)
 
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
+integer, intent(in) :: ncid
 integer ncstatus
-integer, intent(in) :: start
-integer(kind=4) lncid, lvid
-integer(kind=4), dimension(1) :: lstart
-integer(kind=4), dimension(1) :: lncount
-integer, intent(in) :: vdat
-integer, dimension(1) :: lvdat
-
-lncid=ncid
-lvid=vid
-lstart=start
-lncount=1
-lvdat=vdat
-ncstatus=nf90_put_var(lncid,lvid,lvdat,start=lstart,count=lncount)
-call ncmsg("put_vara_int1i",ncstatus)
-
-return
-end subroutine ccnf_put_vara_int1i_s
-
-subroutine ccnf_put_vara_int2i(ncid,vid,start,ncount,vdat)
-
-use cc_mpi
-
-implicit none
-
-integer, intent(in) :: ncid, vid
-integer ncstatus
-integer, dimension(:), intent(in) :: start, ncount
-integer, dimension(:), intent(in) :: vdat
-integer(kind=4) lncid, lvid
+integer, dimension(:), intent(in) :: start
+integer, dimension(:), intent(in) :: ncount
+integer(kind=4) :: lncid, lvid
 integer(kind=4), dimension(size(start)) :: lstart
 integer(kind=4), dimension(size(ncount)) :: lncount
+integer, dimension(:), intent(in) :: vdat
+character(len=*), intent(in) :: name
 
 lncid=ncid
-lvid=vid
+ncstatus=nf90_inq_varid(lncid,name,lvid)
+call ncmsg("put_vara_int1i",ncstatus)
 lstart=start
 lncount=ncount
 ncstatus=nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara",ncstatus)
+call ncmsg("put_vara_int1i",ncstatus)
 
 return
-end subroutine ccnf_put_vara_int2i
+end subroutine ccnf_put_vara_int2i_t
 
 subroutine ccnf_put_att_text(ncid,vid,aname,atext)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid, vid
 integer ncstatus
@@ -4838,11 +4427,7 @@ call ncmsg("put_att",ncstatus)
 return
 end subroutine ccnf_put_att_text
 
-subroutine ccnf_put_att_rs(ncid,vid,aname,rval)
-
-use cc_mpi
-
-implicit none
+subroutine ccnf_put_att_real(ncid,vid,aname,rval)
 
 integer, intent(in) :: ncid, vid
 integer ncstatus
@@ -4856,13 +4441,9 @@ ncstatus=nf90_put_att(lncid,lvid,aname,rval)
 call ncmsg("put_att",ncstatus)
 
 return
-end subroutine ccnf_put_att_rs
+end subroutine ccnf_put_att_real
 
 subroutine ccnf_put_att_textg(ncid,aname,atext)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -4878,10 +4459,6 @@ return
 end subroutine ccnf_put_att_textg
 
 subroutine ccnf_put_att_intg1(ncid,aname,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -4900,10 +4477,6 @@ end subroutine ccnf_put_att_intg1
 
 subroutine ccnf_put_att_intg2(ncid,aname,vdat)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer ncstatus
 integer, dimension(:), intent(in) :: vdat
@@ -4921,10 +4494,6 @@ end subroutine ccnf_put_att_intg2
 
 subroutine ccnf_put_att_realg1(ncid,aname,vdat)
 
-use cc_mpi
-
-implicit none
-
 integer, intent(in) :: ncid
 integer ncstatus
 integer(kind=4) lncid
@@ -4941,10 +4510,6 @@ return
 end subroutine ccnf_put_att_realg1
 
 subroutine ccnf_put_att_realg2(ncid,aname,vdat)
-
-use cc_mpi
-
-implicit none
 
 integer, intent(in) :: ncid
 integer ncstatus
@@ -5049,10 +4614,9 @@ if ( iernc==0 ) then ! Netcdf file
   npos(1)=il_g
   npos(2)=6*il_g
   npos(3)=1
-  call ccnf_inq_varid(ncidx,vname,varid,tst)
-  if ( .not.tst ) then
-    call ccnf_inq_varndims(ncidx,varid,ndims)
-    call ccnf_get_vara(ncidx,varid,spos(1:ndims),npos(1:ndims),glob2d)
+  if ( ccnf_varexist(ncidx,vname) ) then
+    call ccnf_inq_varndims(ncidx,vname,ndims)
+    call ccnf_get_vara(ncidx,vname,spos(1:ndims),npos(1:ndims),glob2d)
   else
     glob2d(:)=0.
   end if
