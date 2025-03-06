@@ -345,7 +345,7 @@ cable_optimiseJVratio.o cable_psm.o cable_pft_params.o cable_soil_params.o cable
 cable_gw_hydro.o \
 cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o \
 casa_cnp.o casa_variable.o POP.o casa_dimension.o casa_phenology.o casa_param.o \
-uclem.o uclem_ctrl.o mlo_ctrl.o mlo.o river.o \
+uclem.o uclem_ctrl.o uclem_parameters.o uclem_types.o mlo_ctrl.o mlo.o river.o \
 module_ctrl_turbmix.o trimmix.o vertmix.o tkeeps.o \
 seaesfrad.o rad_utilities.o microphys_rad.o esfsw_driver.o esfsw_parameters.o \
 longwave_params.o sealw99.o longwave_clouds.o longwave_fluxes.o longwave_tables.o \
@@ -523,7 +523,8 @@ timeseries.o : arrays_m.o cable_define_types.o carbpools_m.o cc_mpi.o const_phys
 tkeeps.o : mlo_ctrl.o
 tracermodule.o : arrays_m.o cc_mpi.o const_phys.o dates_m.o infile.o latlong_m.o newmpar_m.o parm_m.o sigs_m.o sumdd_m.o tracers_m.o xyzinfo_m.o 
 trvmix.o : arrays_m.o cable_ccam2.o cable_define_types.o carbpools_m.o const_phys.o dates_m.o diag_m.o morepbl_m.o newmpar_m.o nsibd_m.o parm_m.o pbl_m.o sigs_m.o tracermodule.o tracers_m.o xyzinfo_m.o 
-uclem_ctrl.o : newmpar_m.o uclem.o
+uclem.o : uclem_parameters.o uclem_types.o
+uclem_ctrl.o : newmpar_m.o uclem.o uclem_parameters.o uclem_types.o
 updps.o : arrays_m.o cc_mpi.o const_phys.o diag_m.o indices_m.o map_m.o newmpar_m.o nlin_m.o parm_m.o parmdyn_m.o parmhor_m.o savuvt_m.o savuv1_m.o sigs_m.o staguv.o vecsuv_m.o vvel_m.o xarrs_m.o xyzinfo_m.o 
 upglobal.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o const_phys.o diag_m.o epst_m.o indices_m.o kuocom_m.o liqwpar_m.o map_m.o newmpar_m.o nharrs_m.o nlin_m.o parm_m.o parmdyn_m.o parmhor_m.o sbar_m.o sigs_m.o staguv.o tkeeps.o tracers_m.o unn_m.o vadvtvd.o vecsuv_m.o vvel_m.o work3f_m.o xarrs_m.o xyzinfo_m.o
 usage_m.o: cc_mpi.o

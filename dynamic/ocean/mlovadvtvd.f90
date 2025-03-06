@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -87,9 +87,7 @@ darr(1:ifull,1:wlev,5) = mm(1:ifull,1:wlev)
 !$acc update device(its,dtnew,ww,depdum,dzdum,ee)
 #endif
 
-
 call mlotvd(its,dtnew,ww,darr(:,:,1:5),depdum,dzdum,ee)
-
 
 #ifdef GPU
 !$acc wait
@@ -137,47 +135,49 @@ real fl,fh,cc,rr
 async_counter = mod( async_counter+1, async_length )
 ntr = size(uu,3)
 
-if ( mlontvd==0 ) then ! MC
-
 #ifdef GPU
-  !$acc enter data create(uu,delu,ff) async(async_counter)
-  !$acc update device(uu) async(async_counter)
+!$acc enter data create(uu,delu,ff) async(async_counter)
+!$acc update device(uu) async(async_counter)
 #else
-  !$omp parallel
+!$omp parallel
 #endif
-  do i = 1,maxval(its(1:ifull))
+do i = 1,maxval(its(1:ifull))
 #ifdef GPU
-    !$acc parallel loop collapse(3) present(delu,uu,dzdum,ee) async(async_counter)
+  !$acc parallel loop collapse(3) present(delu,uu,dzdum,ee) async(async_counter)
 #else
-    !$omp do schedule(static) private(n,ii,iq)
+  !$omp do schedule(static) private(n,ii,iq)
 #endif
-    do n = 1,ntr
-      do ii = 1,wlev-1
-        do iq = 1,ifull
-          delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
-        end do
-      end do
-    end do
-#ifdef GPU
-    !$acc end parallel loop
-    !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
-#else
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq)
-#endif
-    do n = 1,ntr
+  do n = 1,ntr
+    do ii = 1,wlev-1
       do iq = 1,ifull
-        ff(iq,0,n) = 0.
-        ff(iq,wlev,n) = 0.
-        delu(iq,0,n) = 0.
-        delu(iq,wlev,n) = 0.
+        delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
       end do
     end do
+  end do
 #ifdef GPU
-    !$acc end parallel loop
+  !$acc end parallel loop
+  !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
+#else
+  !$omp end do nowait
+  !$omp do schedule(static) private(n,iq)
+#endif
+  do n = 1,ntr
+    do iq = 1,ifull
+      ff(iq,0,n) = 0.
+      ff(iq,wlev,n) = 0.
+      delu(iq,0,n) = 0.
+      delu(iq,wlev,n) = 0.
+    end do
+  end do
+#ifdef GPU
+  !$acc end parallel loop
+#else
+  !$omp end do nowait
+#endif
+  if ( mlontvd==0 ) then ! MC
+#ifdef GPU
     !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
 #else
-    !$omp end do nowait
     !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
 #endif
     do n = 1,ntr
@@ -200,75 +200,13 @@ if ( mlontvd==0 ) then ! MC
     end do
 #ifdef GPU
     !$acc end parallel loop
-    !$acc parallel loop collapse(3) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
-#else
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,ii,iq)
-#endif
-    do n = 1,ntr
-      do ii = 1,wlev
-        do iq = 1,ifull
-          if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then 
-            uu(iq,ii,n) = uu(iq,ii,n) + dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
-                               -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)  
-          end if
-        end do  
-      end do  
-    end do
-#ifdef GPU
-    !$acc end parallel loop
 #else
     !$omp end do nowait
 #endif
-  end do ! i = 1,nits
+  else if ( mlontvd==1 ) then ! Superbee
 #ifdef GPU
-  !$acc update self(uu) async(async_counter)
-  !$acc exit data delete(uu,delu,ff) async(async_counter)
-#else
-  !$omp end parallel
-#endif
-
-else if ( mlontvd==1 ) then ! Superbee
-
-#ifdef GPU
-  !$acc enter data create(uu,delu,ff) async(async_counter)
-  !$acc update device(uu) async(async_counter)
-#else
-  !$omp parallel
-#endif
-  do i = 1,maxval(its(1:ifull))
-#ifdef GPU
-    !$acc parallel loop collapse(3) present(delu,uu,dzdum,ee) async(async_counter)
-#else
-    !$omp do schedule(static) private(n,ii,iq)
-#endif
-    do n = 1,ntr
-      do ii = 1,wlev-1
-        do iq = 1,ifull
-          delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
-        end do
-      end do
-    end do
-#ifdef GPU
-    !$acc end parallel loop
-    !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
-#else
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq)
-#endif
-    do n = 1,ntr
-      do iq = 1,ifull
-        ff(iq,0,n) = 0.
-        ff(iq,wlev,n) = 0.
-        delu(iq,0,n) = 0.
-        delu(iq,wlev,n) = 0.
-      end do
-    end do
-#ifdef GPU
-    !$acc end parallel loop
     !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
 #else
-    !$omp end do nowait
     !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
 #endif
     do n = 1,ntr
@@ -291,25 +229,31 @@ else if ( mlontvd==1 ) then ! Superbee
     end do
 #ifdef GPU
     !$acc end parallel loop
-    !$acc parallel loop collapse(3) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
 #else
     !$omp end do nowait
-    !$omp do schedule(static) private(n,ii,iq)
-#endif
-    do n = 1,ntr
-      do ii = 1,wlev
-        do iq = 1,ifull
-          if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then  
-            uu(iq,ii,n)=uu(iq,ii,n)+dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
-                           -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)
-          end if
-        end do  
-      end do  
-    end do
+#endif 
+  else
+    stop
+  end if
 #ifdef GPU
-    !$acc end parallel loop
+  !$acc parallel loop collapse(3) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
 #else
-    !$omp end do nowait
+  !$omp do schedule(static) private(n,ii,iq)
+#endif
+  do n = 1,ntr
+    do ii = 1,wlev
+      do iq = 1,ifull
+        if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then 
+          uu(iq,ii,n) = uu(iq,ii,n) + dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
+                             -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)  
+        end if
+      end do  
+    end do  
+  end do
+#ifdef GPU
+  !$acc end parallel loop
+#else
+  !$omp end do nowait
 #endif
   end do ! i = 1,nits
 #ifdef GPU
@@ -318,11 +262,6 @@ else if ( mlontvd==1 ) then ! Superbee
 #else
   !$omp end parallel
 #endif
-    
-else
-  write(6,*) "ERROR: Unknown option mlontvd ",mlontvd
-  stop
-endif
 
 return
 end subroutine mlotvd

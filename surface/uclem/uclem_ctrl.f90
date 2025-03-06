@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -60,7 +60,8 @@ module uclem_ctrl
 #ifdef CCAM
 use newmpar_m, only : imax, ntiles
 #endif
-use uclem
+use uclem_parameters
+use uclem_types
 
 implicit none
 
@@ -861,6 +862,8 @@ end subroutine uclem_type_standard
 subroutine uclem_type_thread(itype,diag,fp,cnveg,rfveg,fp_roof,fp_road,fp_wall,fp_slab, &
                              fp_intm,intl,upack,ufull)
 
+use uclem
+
 implicit none
 
 integer, intent(in) :: diag, ufull
@@ -1126,6 +1129,8 @@ end subroutine uclem_type_thread
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 subroutine uclem_deftype(paramdata,typedata,paramname,diag)
+
+use uclem
 
 implicit none
 
@@ -2885,6 +2890,8 @@ end subroutine uclem_spitter
 
 subroutine uclem_alb1(is,ifin,alb,diag,raw,split)
 
+use uclem
+
 implicit none
 
 integer, intent(in) :: is,ifin,diag
@@ -3321,6 +3328,8 @@ subroutine uclem_calc2_thread(ofg,oeg,ots,owf,orn,oevspsbl,osbl,dt,zmin,zroof,sg
                               umin,fp,fp_intm,fp_road,fp_roof,fp_slab,fp_wall,intm,pd,                    &
                               rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl,               &
                               upack,ufull,diag,raw)
+
+use uclem
 
 implicit none
 

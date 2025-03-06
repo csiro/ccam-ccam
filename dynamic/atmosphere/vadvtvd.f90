@@ -221,47 +221,49 @@ ntr = size(tarr,3)
 
 ! The first sub-step is vectorised for all points.
 
-if ( ntvd==2 ) then ! MC
-
 #ifdef GPU
-  !$acc enter data create(tarr,delt,fluxh) async(async_counter)
-  !$acc update device(tarr) async(async_counter)
+!$acc enter data create(tarr,delt,fluxh) async(async_counter)
+!$acc update device(tarr) async(async_counter)
 #else
-  !$omp parallel   
+!$omp parallel   
 #endif
-  do i = 1,maxval(nits(1:ifull))
+do i = 1,maxval(nits(1:ifull))
 #ifdef GPU
-    !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
+  !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
 #else
-    !$omp do schedule(static) private(n,k,iq)
+  !$omp do schedule(static) private(n,k,iq)
 #endif
-    do n = 1,ntr
-      do k = 1,kl-1
-        do iq = 1,ifull
-          delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
-        end do
+  do n = 1,ntr
+    do k = 1,kl-1
+      do iq = 1,ifull
+        delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
       end do
     end do
+  end do
 #ifdef GPU
-    !$acc end parallel loop
-    !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
+  !$acc end parallel loop
+  !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
+#else
+  !$omp end do nowait
+  !$omp do schedule(static) private(n,iq)
+#endif
+  do n = 1,ntr
+    do iq = 1,ifull
+      fluxh(iq,0,n)  = 0.
+      fluxh(iq,kl,n) = 0.
+      delt(iq,kl,n)  = 0.     ! for T,u,v
+      delt(iq,0,n)   = 0.
+    end do
+  end do
+#ifdef GPU
+  !$acc end parallel loop
 #else
     !$omp end do nowait
-    !$omp do schedule(static) private(n,iq)
 #endif
-    do n = 1,ntr
-      do iq = 1,ifull
-        fluxh(iq,0,n)  = 0.
-        fluxh(iq,kl,n) = 0.
-        delt(iq,kl,n)  = 0.     ! for T,u,v
-        delt(iq,0,n)   = 0.
-      end do
-    end do
+  if ( ntvd==2 ) then ! MC
 #ifdef GPU
-    !$acc end parallel loop
     !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
 #else
-    !$omp end do nowait
     !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
 #endif
     do n = 1,ntr
@@ -280,75 +282,13 @@ if ( ntvd==2 ) then ! MC
     end do      ! k loop
 #ifdef GPU
     !$acc end parallel loop
-    !$acc parallel loop collapse(3) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
-#else
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,k,iq)
-#endif
-    do n = 1,ntr
-      do k = 1,kl
-        do iq = 1,ifull
-          if ( i<=nits(iq) ) then
-            tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
-                               +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
-          end if  
-        end do
-      end do
-    end do
-#ifdef GPU
-    !$acc end parallel loop
 #else
     !$omp end do nowait
 #endif
-  end do ! i=1,nits
+  else if ( ntvd==3 ) then ! Superbee
 #ifdef GPU
-  !$acc update self(tarr) async(async_counter)
-  !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
-#else
-  !$omp end parallel
-#endif
-
-else if ( ntvd==3 ) then ! Superbee
-
-#ifdef GPU
-  !$acc enter data create(tarr,delt,fluxh) async(async_counter)
-  !$acc update device(tarr) async(async_counter)
-#else
-  !$omp parallel
-#endif
-  do i = 1,maxval(nits(1:ifull))
-#ifdef GPU
-    !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
-#else
-    !$omp do schedule(static) private(n,iq,k)
-#endif
-    do n = 1,ntr
-      do k = 1,kl-1
-        do iq = 1,ifull 
-          delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
-        end do  
-      end do     ! k loop
-    end do
-#ifdef GPU
-    !$acc end parallel loop
-    !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
-#else
-    !$omp end do nowait
-    !$omp do schedule(static) private(n,iq)
-#endif
-    do n = 1,ntr
-      do iq = 1,ifull
-        fluxh(iq,0,n)  = 0.
-        fluxh(iq,kl,n) = 0.
-        delt(iq,kl,n)  = 0.     ! for T,u,v
-        delt(iq,0,n)   = 0.
-      end do
-    end do
-#ifdef GPU
-    !$acc end parallel loop
     !$acc parallel loop collapse(3) present(delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
 #else
-    !$omp end do nowait
     !$omp do schedule(static) private(n,iq,k,kp,kx,rat,phitvd,fluxlo,fluxhi)
 #endif
     do n = 1,ntr
@@ -367,40 +307,39 @@ else if ( ntvd==3 ) then ! Superbee
     end do
 #ifdef GPU
     !$acc end parallel loop
-    !$acc parallel loop collapse(3) present(nits,tarr,nvadh_inv_pass,fluxh,sdot) async(async_counter)
 #else
     !$omp end do nowait
-    !$omp do schedule(static) private(n,iq,k)
 #endif
-    do n = 1,ntr    
-      do k = 1,kl
-        do iq = 1,ifull
-          if ( i<=nits(iq) ) then
-            tarr(iq,k,n) = tarr(iq,k,n) &
-              + (fluxh(iq,k-1,n)-fluxh(iq,k,n)+tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
-          end if  
-        end do     ! iq
+  else
+    stop  
+  end if
+#ifdef GPU
+  !$acc parallel loop collapse(3) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
+#else
+  !$omp do schedule(static) private(n,k,iq)
+#endif
+  do n = 1,ntr
+    do k = 1,kl
+      do iq = 1,ifull
+        if ( i<=nits(iq) ) then
+          tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
+                             +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+        end if  
       end do
     end do
+  end do
 #ifdef GPU
-    !$acc end parallel loop
+  !$acc end parallel loop
 #else
-    !$omp end do nowait
+  !$omp end do nowait
 #endif
-  end do   ! i
+end do ! i=1,nits
 #ifdef GPU
-  !$acc update self(tarr) async(async_counter)
-  !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
+!$acc update self(tarr) async(async_counter)
+!$acc exit data delete(tarr,delt,fluxh) async(async_counter)
 #else
-  !$omp end parallel
+!$omp end parallel
 #endif
-    
-else
-
-  write(6,*) "ERROR: Unknown option ntvd ",ntvd
-  stop
-    
-end if
 
 return
 end subroutine vadv_work
