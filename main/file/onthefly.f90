@@ -2294,6 +2294,7 @@ use cc_mpi             ! CC MPI routines
 use darcdf_m           ! Netcdf data
 use infile             ! Input file routines
 use newmpar_m          ! Grid parameters
+use soil_m             ! Soil and surface data
 
 integer, intent(inout) :: fill_sea
 integer :: ier, k
