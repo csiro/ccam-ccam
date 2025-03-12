@@ -1934,7 +1934,7 @@ contains
       local_sum(1:2*ntr) = cmplx(0.,0.)
       do i = 1,ntr
          tmparr_k(1:kx,i) = local_sum_k(1+2*kx*(i-1):kx+2*kx*(i-1))
-         tmparr_k(1:kx,i+ntr) = local_sum_k(kx+2*kx*(i-1):2*kx+2*kx*(i-1))
+         tmparr_k(1:kx,i+ntr) = local_sum_k(kx+1+2*kx*(i-1):2*kx+2*kx*(i-1))
       end do
       call drpdr_v(tmparr_k,local_sum)
       mnum = 2*ntr
