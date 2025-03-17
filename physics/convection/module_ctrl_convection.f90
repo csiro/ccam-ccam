@@ -377,15 +377,15 @@ qamin = qgmin
         condx(js:je) = condx(js:je) + condc(js:je)
         
         if ( abs(iaero)>=2 ) then
-          xtg(js:je,1:kl,1:naero) = chem3d(js:je,1:kl,1:naero)
-          so2wd(js:je) = so2wd(js:je) + wetdpc_deep(js:je,itracso2)
-          so4wd(js:je) = so4wd(js:je) + wetdpc_deep(js:je,itracso2)
-          bcwd(js:je) = bcwd(js:je) + wetdpc_deep(js:je,itracbc) + wetdpc_deep(js:je,itracbc+1)
-          ocwd(js:je) = ocwd(js:je) + wetdpc_deep(js:je,itracoc) + wetdpc_deep(js:je,itracoc+1)
+          xtg(js:je,1:kl,1:naero) = chem3d(1:imax,1:kl,1:naero)
+          so2wd(js:je) = so2wd(js:je) + wetdpc_deep(1:imax,itracso2)
+          so4wd(js:je) = so4wd(js:je) + wetdpc_deep(1:imax,itracso4)
+          bcwd(js:je) = bcwd(js:je) + wetdpc_deep(1:imax,itracbc) + wetdpc_deep(1:imax,itracbc+1)
+          ocwd(js:je) = ocwd(js:je) + wetdpc_deep(1:imax,itracoc) + wetdpc_deep(1:imax,itracoc+1)
           do i = 1,ndust
-            dustwd(js:je,i) = dustwd(js:je,i) + wetdpc_deep(js:je,itracdu+i-1)
+            dustwd(js:je,i) = dustwd(js:je,i) + wetdpc_deep(1:imax,itracdu+i-1)
           end do
-          saltwd(js:je) = saltwd(js:je) + wetdpc_deep(js:je,itracsa) + wetdpc_deep(js:je,itracsa+1)
+          saltwd(js:je) = saltwd(js:je) + wetdpc_deep(1:imax,itracsa) + wetdpc_deep(1:imax,itracsa+1)
         end if
 
   end do ! end tile loop

@@ -49,7 +49,7 @@ public so2e, so2wd, so2dd, so2_burden
 public so4e, so4wd, so4dd, so4_burden
 public dmsso2o, so2so4o
 public salte, saltdd, saltwd, salt_burden
-public itracbc, itracoc, itracso2
+public itracbc, itracoc, itracso2, itracso4
 public itracdu, ndust, itracsa, nsalt
 
 public ch_dust, zvolcemi, so4mtn, carbmtn, saltsmallmtn, saltlargemtn, enhanceu10

@@ -1676,7 +1676,7 @@ do tile = 1,ntiles
           zxtp1c(i,jk,ktrac) = zxtp1c(i,jk,ktrac) - xdep
           zdeps(i,ktrac) = zdeps(i,ktrac) + xdep*pclcover(iq,jk)*zmtof
 #ifdef debug
-          if ( PCLCOVER(iq,jk)*zxtp1c(iq,jk,ktrac)>6.5e-5 ) then
+          if ( PCLCOVER(iq,jk)*zxtp1c(i,jk,ktrac)>6.5e-5 ) then
             write(6,*) "xtg out-of-range after xtwetdep - accretion of liquid water by falling snow"
             write(6,*) "xtg maxval,maxloc ",PCLCOVER(iq,jk)*zxtp1c(i,jk,ktrac),iq,kl-jk+1,ktrac
           end if
@@ -1711,7 +1711,7 @@ do tile = 1,ntiles
           zdeps(i,ktrac) = zdeps(i,ktrac) - xstay*zclr0*zmtof
           zdeps(i,ktrac) = max( 0., zdeps(i,ktrac) )
 #ifdef debug
-          if ( (1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(iq,jk,ktrac)>6.5e-5 ) then
+          if ( (1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac)>6.5e-5 ) then
             write(6,*) "xtg out-of-range after xtwetdep - redistribution of snow that sublimates"
             write(6,*) "xtg maxval,maxloc ",(1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac),iq,kl-jk+1,ktrac
             write(6,*) "zstay_t,xstay,zclr0 ",zstay_t,xstay,zclr0
