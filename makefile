@@ -34,28 +34,28 @@ FHOST = -xCORE-AVX2 -align array32byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
-IPFLAG = -ip
+IPFLAG =
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -xSKYLAKE-AVX512 -align array64byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
-IPFLAG = -ip
+IPFLAG =
 endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -xCASCADELAKE -align array64byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
-IPFLAG = -ip
+IPFLAG =
 endif
 ifeq ($(SAPPHIRERAPIDS),yes)
 FHOST = -xSAPPHIRERAPIDS -align array64byte -fimf-use-svml
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
-IPFLAG = -ip
+IPFLAG =
 endif
 ifeq ($(ZEN3),yes)
 FHOST = -axCORE-AVX2 -align array32byte
