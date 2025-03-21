@@ -112,6 +112,7 @@ end subroutine mlovadv
 subroutine mlotvd(its,dtnew,ww,uu,depdum,dzdum,ee)
 
 use cc_acc, only : async_length
+use cc_mpi, only : ccmpi_abort
 use mlo_ctrl
 use newmpar_m
 
@@ -233,7 +234,8 @@ do i = 1,maxval(its(1:ifull))
     !$omp end do nowait
 #endif 
   else
-    stop
+    write(6,*) "ERROR: Unknown option mlontvd = ",mlontvd  
+    call ccmpi_abort(-1)
   end if
 #ifdef GPU
   !$acc parallel loop collapse(3) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)

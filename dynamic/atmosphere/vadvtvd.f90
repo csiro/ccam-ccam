@@ -201,6 +201,7 @@ end subroutine vadvtvd
 subroutine vadv_work(tarr,nvadh_inv_pass,nits)
 
 use cc_acc, only : async_length
+use cc_mpi, only : ccmpi_abort
 use newmpar_m
 use parmvert_m
 use sigs_m
@@ -311,7 +312,8 @@ do i = 1,maxval(nits(1:ifull))
     !$omp end do nowait
 #endif
   else
-    stop  
+    write(6,*) "ERROR: Unknown option ntvd = ",ntvd
+    call ccmpi_abort(-1)
   end if
 #ifdef GPU
   !$acc parallel loop collapse(3) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
