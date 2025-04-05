@@ -2093,7 +2093,7 @@ PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
     tsat=tem
     absft=1.
     !
-    do n = 1,20
+    do n = 1,20 ! MJT notes, usually 2-3 iterations are required
       denom1=1.0/(tsat-svp3)
       denom2=1.0/(tsat-7.66)
       ! qswz(k)=episp0k/prez(k)*  &
@@ -2149,8 +2149,9 @@ PURE FUNCTION ggamma(X) result(ans)
   REAL, INTENT(IN   ) :: x
   INTEGER             ::diff, j
   REAL                ::PF, G1TO2 ,TEMP
+  real                :: temp2, temp3, temp4
   real                :: ans
-  
+    
   TEMP=X
   diff = max(int(temp-2.), 0)
   if ( temp-real(diff) > 2. ) diff = diff + 1
@@ -2165,10 +2166,16 @@ PURE FUNCTION ggamma(X) result(ans)
   ! Alternative method
   !temp = temp - real(diff)
   !pf = gamma( x ) / gamma( temp )
-  
+
   TEMP=TEMP - 1.
-  G1TO2=1. + B(1)*TEMP + B(2)*TEMP**2 + B(3)*TEMP**3 + B(4)*TEMP**4 &
-           + B(5)*TEMP**5 + B(6)*TEMP**6 + B(7)*TEMP**7 + B(8)*TEMP**8
+  
+  ! method suggested by Mark Dwyer and Lindsay Brebber
+  temp2 = temp*temp
+  temp3 = temp2*temp
+  temp4 = temp2*temp2
+  
+  G1TO2=1. + B(1)*TEMP + B(2)*TEMP2 + B(3)*TEMP3 + B(4)*TEMP4 &
+           + B(5)*TEMP4*TEMP + B(6)*TEMP3*TEMP3 + B(7)*TEMP4*TEMP3 + B(8)*TEMP4*TEMP4
   ans=PF*G1TO2
   
 END FUNCTION ggamma

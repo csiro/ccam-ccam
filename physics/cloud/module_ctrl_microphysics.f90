@@ -49,9 +49,7 @@ real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
 ! ncloud = 12   Same as ncloud=2 with Tiedtke from GFDL-CM3
 ! ncloud = 13   Same as ncloud=3 with Tiedtke from GFDL-CM3 (i.e., same as ncloud=4)
 ! ncloud = 100  Use Lin et al 2nd moment microphysics with Leon saturation adjustment
-! ncloud = 101  Use Lin et al 2nd moment microphysics without Leon saturation adjustment
 ! ncloud = 110  Same as ncloud=100 with Tiedtke from GFDL-CM3
-! ncloud = 111  Same as ncloud=101 with Tiedtke from GFDL-CM3
 
 !                            Water vapour (qg)
 !
@@ -143,6 +141,7 @@ real(kind=8), dimension(imax) :: pptrain, pptsnow, pptice
 real(kind=8) tdt
 real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
+character(len=8) :: cmode
 
 
 !----------------------------------------------------------------------------
@@ -177,58 +176,56 @@ end do
 
 
 !----------------------------------------------------------------------------
-! Update cloud fraction (prior to LEON & LIN, but after LIN2)
+! Update cloud fraction
 
-select case ( interp_ncloud(ldr,ncloud) )
-  case( "LEON", "LIN" )  
-    !$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
-    !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt)                  &
-    !$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
+!$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
+!$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,cmode)            &
+!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
 
-      idjd_t = mod(idjd-1,imax) + 1
-      mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
+  idjd_t = mod(idjd-1,imax) + 1
+  mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-      lqg      = qg(js:je,:)
-      lqlg     = qlg(js:je,:)
-      lqfg     = qfg(js:je,:)
-      lt       = t(js:je,:)
-      ldpsldt  = dpsldt(js:je,:)
-      lclcon   = clcon(js:je,:)
-      lstratcloud = stratcloud(js:je,:)
-      lrad_tend = rad_tend(js:je,:)
-      ltrb_tend = trb_tend(js:je,:)
-      ltrb_qend = trb_qend(js:je,:)
-      lrkmsave = rkmsave(js:je,:)
-      lrkhsave = rkhsave(js:je,:)
+  lqg      = qg(js:je,:)
+  lqlg     = qlg(js:je,:)
+  lqfg     = qfg(js:je,:)
+  lt       = t(js:je,:)
+  ldpsldt  = dpsldt(js:je,:)
+  lclcon   = clcon(js:je,:)
+  lstratcloud = stratcloud(js:je,:)
+  lrad_tend = rad_tend(js:je,:)
+  ltrb_tend = trb_tend(js:je,:)
+  ltrb_qend = trb_qend(js:je,:)
+  lrkmsave = rkmsave(js:je,:)
+  lrkhsave = rkhsave(js:je,:)
+  
+  cmode = interp_ncldfrac(ldr,ncloud)
 
-      call update_cloud_fraction(lcfrac,land(js:je),                                &
-                  ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
-                  ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
-                  em(js:je),pblh(js:je),idjd_t,mydiag_t,ncloud,nclddia,ldr,         &
-                  rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,tiedtke_form,      &
-                  lrkmsave,lrkhsave)
+  call update_cloud_fraction(lcfrac,land(js:je),                                &
+              ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
+              ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
+              em(js:je),pblh(js:je),idjd_t,mydiag_t,nclddia,                    &
+              rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,tiedtke_form,      &
+              lrkmsave,lrkhsave,cmode)
 
-      ! This configuration allows prognostic condensate variables to be updated 
-      cfrac(js:je,:) = lcfrac
-      qccon(js:je,:) = lqccon
-      qg(js:je,:)    = lqg
-      qlg(js:je,:)   = lqlg
-      qfg(js:je,:)   = lqfg
-      qlrad(js:je,:) = lqlrad
-      qfrad(js:je,:) = lqfrad
-      t(js:je,:)     = lt
-      stratcloud(js:je,:) = lstratcloud
-      ! Reset tendency and mass flux for next time-step  
-      rad_tend(js:je,:) = 0.
-      trb_tend(js:je,:) = 0.
-      trb_qend(js:je,:) = 0.
-    end do
-    !$omp end do nowait
-
-end select    
+  ! This configuration allows prognostic condensate variables to be updated 
+  cfrac(js:je,:) = lcfrac
+  qccon(js:je,:) = lqccon
+  qg(js:je,:)    = lqg
+  qlg(js:je,:)   = lqlg
+  qfg(js:je,:)   = lqfg
+  qlrad(js:je,:) = lqlrad
+  qfrad(js:je,:) = lqfrad
+  t(js:je,:)     = lt
+  stratcloud(js:je,:) = lstratcloud
+  ! Reset tendency and mass flux for next time-step  
+  rad_tend(js:je,:) = 0.
+  trb_tend(js:je,:) = 0.
+  trb_qend(js:je,:) = 0.
+end do
+!$omp end do nowait
 
   
 !----------------------------------------------------------------------------
@@ -663,5 +660,27 @@ end if
 
 return
 end function interp_ncloud  
+
+pure function interp_ncldfrac(ldr, ncloud) result(mp_physics)
+
+implicit none
+
+integer, intent(in) :: ldr
+integer, intent(in) :: ncloud
+character(len=20) :: mp_physics
+
+mp_physics = "ERROR"
+
+if ( ldr /= 0 ) then
+  select case(ncloud)
+    case(0,2,3,100,101)
+      mp_physics = "SMITH"
+    case(4,10,12,13,110,111)
+      mp_physics = "TIEDTKE"
+  end select
+end if
+
+return
+end function interp_ncldfrac
   
 end module module_ctrl_microphysics

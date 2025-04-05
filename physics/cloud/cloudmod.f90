@@ -51,9 +51,9 @@ contains
 subroutine update_cloud_fraction(cfrac,land,                             &
                     ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                   &
                     dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,clcon,  &
-                    em,pblh,idjd,mydiag,ncloud,nclddia,ldr,rcrit_l,      &
+                    em,pblh,idjd,mydiag,nclddia,rcrit_l,                 &
                     rcrit_s,rcm,cld_decay,vdeposition_mode,              &
-                    tiedtke_form,rkmsave,rkhsave)
+                    tiedtke_form,rkmsave,rkhsave,cmode)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -63,7 +63,7 @@ use sigs_m                        ! Atmosphere sigma levels
 implicit none
 
 real, dimension(:,:), intent(inout) :: t
-integer, intent(in) :: idjd, ncloud, nclddia, ldr, vdeposition_mode
+integer, intent(in) :: idjd, nclddia, vdeposition_mode
 integer, intent(in) :: tiedtke_form
 real, dimension(size(t,1),size(t,2)), intent(inout) :: qg, qlg, qfg
 real, dimension(size(t,1),size(t,2)), intent(out) :: qlrad, qfrad
@@ -77,6 +77,7 @@ real, dimension(size(t,1)), intent(in) :: em, pblh
 real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay
 logical, intent(in) :: mydiag
 logical, dimension(size(t,1)), intent(in) :: land
+character(len=*), intent(in) :: cmode
 
 !integer, dimension(size(t,1)) :: kbase,ktop  !Bottom and top of convective cloud
 real, dimension(size(t,1),size(t,2)) :: prf      !Pressure on full levels (hPa)
@@ -189,9 +190,9 @@ end do
 !     Calculate cloud fraction and cloud water mixing ratios
 call newcloud(dt,land,ps,prf,rhoa,tliq,qtot,qcg,fice,   &
               dpsldt,rad_tend,trb_tend,trb_qend,        &
-              stratcloud,em,pblh,idjd,mydiag,ncloud,    &
+              stratcloud,em,pblh,idjd,mydiag,           &
               nclddia,rcrit_l,rcrit_s,tiedtke_form,     &
-              rkmsave,rkhsave,imax,kl)
+              rkmsave,rkhsave,imax,kl,cmode)
 
 ! Update condensate
 call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
@@ -345,9 +346,9 @@ end function calc_fice
   
 subroutine newcloud(tdt,land,ps,prf,rhoa,tliq,qtot,qcg,fice,  &
                     dpsldt,rad_tend,trb_tend,trb_qend,        &
-                    stratcloud,em,pblh,idjd,mydiag,ncloud,    &
+                    stratcloud,em,pblh,idjd,mydiag,           &
                     nclddia,rcrit_l,rcrit_s,tiedtke_form,     &
-                    rkmsave,rkhsave,imax,kl)
+                    rkmsave,rkhsave,imax,kl,cmode)
 
 ! This routine is part of the prognostic cloud water scheme
 
@@ -359,7 +360,7 @@ use sigs_m                        ! Atmosphere sigma levels
 implicit none
 
 ! Argument list
-integer, intent(in) :: idjd, ncloud, nclddia
+integer, intent(in) :: idjd, nclddia
 integer, intent(in) :: tiedtke_form
 integer, intent(in) :: imax, kl
 real, dimension(imax,kl), intent(in) :: prf
@@ -377,6 +378,7 @@ real, intent(in) :: tdt
 real, intent(in) :: rcrit_l, rcrit_s
 logical, intent(in) :: mydiag
 logical, dimension(imax), intent(in) :: land
+character(len=*), intent(in) :: cmode
 
 ! Local work arrays and variables
 real, dimension(imax,kl) :: qsw
@@ -542,14 +544,15 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
   end do
 end if  ! (nclddia<0)  .. else ..
 
-if ( (ncloud/=4 .and. ncloud<10) .or. (ncloud>=100.and.ncloud<110) ) then
+select case(cmode)
+case("SMITH")
   ! usual diagnostic cloud fraction
 
   ! Calculate cloudy fraction of grid box (stratcloud) and gridbox-mean cloud water
   ! using the triangular PDF of Smith (1990)
 
   ! Calculate qs at temperature tliq
-  pk(:,:) = 100.0*prf(:,:)
+  pk(:,:) = 100.*prf(:,:)
   qsi(:,:) = qsati(pk(:,:),tliq(:,:))             !Ice value
   deles(:,:) = esdiffx(tliq(:,:))                 ! MJT suggestion
   qsl(:,:) = qsi(:,:) + epsil*deles(:,:)/pk(:,:)  !qs over liquid
@@ -568,7 +571,7 @@ if ( (ncloud/=4 .and. ncloud<10) .or. (ncloud>=100.and.ncloud<110) ) then
         stratcloud(iq,k) = 0.
         qcg(iq,k) = 0.
       else if ( qc<=0. ) then
-        stratcloud(iq,k) = max( 1.e-10, 0.5*((qc+delq)/delq)**2 )  ! for roundoff
+        stratcloud(iq,k) = max( 1.e-10, 0.5*((qc+delq)/delq)**2 )     ! for roundoff
         qcg(iq,k) = al*(qc+delq)**3/(6.*delq**2)
       else if ( qc<delq ) then
         stratcloud(iq,k) = max( 1.e-10, 1.-0.5*((qc-delq)/delq)**2 )  ! for roundoff
@@ -615,7 +618,7 @@ if ( (ncloud/=4 .and. ncloud<10) .or. (ncloud>=100.and.ncloud<110) ) then
   endif
 #endif
 
-else
+case("TIEDTKE")
 
   ! Tiedtke prognostic cloud fraction model
   pk(:,:) = 100.*prf(:,:)
@@ -628,7 +631,12 @@ else
                  dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,  &
                  tiedtke_form,rkmsave,rkhsave,imax,kl)
 
-end if ! ncloud/=4 .and. ncloud<10 ..else..
+case default
+  write(6,*) "ERROR: Invalid cmode in cloudmod ",trim(cmode)
+  write(6,*) "Likely to be an invalid option for ncloud"
+  stop -1
+  
+end select
 
 return
 end subroutine newcloud

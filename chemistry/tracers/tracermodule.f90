@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -294,7 +294,6 @@ real, dimension(2) :: dum
 real, dimension(:), allocatable :: fluxhr
 character(len=50) filename
 character(len=20) fluxtype,fluxname,fluxunit
-character(len=20) fvname
 logical gridpts,tst
 
 n1=0
@@ -330,16 +329,16 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   endif
 
 !       check fluxname first otherwise default to 'flux'
-  fvname = fluxname
-  if ( .not.ccnf_varexist(ncidfl,fvname) ) then
-    fvname = 'flux'  
+  call ccnf_inq_varid(ncidfl,fluxname,fluxid,tst)
+  if (tst) then
+    call ccnf_inq_varid(ncidfl,'flux',fluxid,tst)
   endif
-  if ( .not.ccnf_varexist(ncidfl,fvname) ) then
+  if (tst) then
     write(6,*) 'ERROR: flux variable not found'
     call ccmpi_abort(-1)
   end if  
 !       rml 25/08/04 read flux units attribute
-  call ccnf_get_att(ncidfl,fvname,'units',fluxunit)
+  call ccnf_get_att(ncidfl,fluxid,'units',fluxunit)
 ! rml 08/11/04 added radon units
 ! rml 30/4/10 exclude mcf deposition case
   if ( igas<=ngas ) then
@@ -355,6 +354,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   if ( trim(fluxtype)=='daypulseon' ) then
 !         need to read sunset/sunrise times
     call ccnf_inq_dimlen(ncidfl,'nregion',nregion)
+    call ccnf_inq_varid(ncidfl,'daylight',dayid,tst)
   endif
 !
 !       find required records
@@ -377,7 +377,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       ncount(1)=il_g; ncount(2)=jl_g; ncount(3)=1
     end if
 !         read current month/year
-    call ccnf_get_vara(ncidfl,fvname,start,ncount,fluxin_g(:,1))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,1))
     
   else if ( nflux==3 ) then
 !         monthly/annual cases !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -436,15 +436,15 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
 !         read preceeding month if needed
     if (nprev/=0) then
       start(timx)=nprev
-      call ccnf_get_vara(ncidfl,fvname,start,ncount,fluxin_g(:,1))
+      call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,1))
     endif
 !         read current month/year
     start(timx)=ncur
-    call ccnf_get_vara(ncidfl,fvname,start,ncount,fluxin_g(:,2))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,2))
 !         read next month
     if (nnext/=0) then
       start(timx)=nnext
-      call ccnf_get_vara(ncidfl,fvname,start,ncount,fluxin_g(:,3))
+      call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,3))
     endif
   else
 !         daily, hourly, 3 hourly case !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -476,7 +476,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       start(3)=1; ncount(3)=ntot
       timx=3
     end if
-    call ccnf_get_vara(ncidfl,fvname,start,ncount,fluxin_g(:,2:ntot+1))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,2:ntot+1))
 !         read in last time of prev month and first time of next month
     if ((n1==1).and.(fluxyr(n1)==0)) then
 !           loop
@@ -488,7 +488,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       nprev=n1-1
     endif
     start(timx)=nprev; ncount(timx)=1
-    call ccnf_get_vara(ncidfl,fvname,start,ncount,fluxin_g(:,1))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,1))
     if ((n2==ntime).and.(fluxyr(n2)==0)) then
       nnext=1
     elseif((n2==ntime).and.(fluxyr(n2)/=0)) then
@@ -497,7 +497,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
       nnext=n2+1
     endif
     start(timx)=nnext; ncount(timx)=1
-    call ccnf_get_vara(ncidfl,fvname,start,ncount,fluxin_g(:,ntot+2))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,fluxin_g(:,ntot+2))
 !
 !         need to make an array with the hour data in
     co2time(2:ntot+1)=fluxhr(n1:n2)
@@ -517,7 +517,7 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
     end if
     start(1)=regnum; start(2)=imon; start(3)=1
     ncount(1)=1; ncount(2)=1; ncount(3)=2
-    call ccnf_get_vara(ncidfl,'daylight',start,ncount,tracdaytime(igas,:))
+    call ccnf_get_vara(ncidfl,dayid,start,ncount,tracdaytime(igas,:))
   end if
 
   call ccnf_close(ncidfl)
@@ -589,6 +589,8 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
   call ccnf_inq_dimlen(ncidfl,'time',ntime)
   allocate(ohmon(ntime))
   call ccnf_get_vara(ncidfl,'month',ohmon)
+!       check fluxname 
+  call ccnf_inq_varid(ncidfl,varname,fluxid,tst)
 !
 !       find required records
   if (nfield==3) then
@@ -631,15 +633,15 @@ if ( myid == 0 ) then ! Read on this processor and then distribute
 !         read preceeding month if needed
     if (nprev/=0) then
       start(timx)=nprev
-      call ccnf_get_vara(ncidfl,varname,start,ncount,ohin_g(:,:,1))
+      call ccnf_get_vara(ncidfl,fluxid,start,ncount,ohin_g(:,:,1))
     endif
 !         read current month/year
     start(timx)=ncur
-    call ccnf_get_vara(ncidfl,varname,start,ncount,ohin_g(:,:,2))
+    call ccnf_get_vara(ncidfl,fluxid,start,ncount,ohin_g(:,:,2))
 !         read next month
     if (nnext/=0) then
       start(timx)=nnext
-      call ccnf_get_vara(ncidfl,varname,start,ncount,ohin_g(:,:,3))
+      call ccnf_get_vara(ncidfl,fluxid,start,ncount,ohin_g(:,:,3))
     endif
   endif
 

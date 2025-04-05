@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -67,15 +67,16 @@ use infile                ! Input file routines
 
 implicit none
 
-integer iernc
+integer iernc, varid_time
 real timer_a, timer_b
 
 if ( amip_mode==-1 ) then
   if ( myid==0 ) then
     call ccnf_open(sstfile,ncidx,iernc)
     if ( iernc==0 ) then
-      call ccnf_get_vara(ncidx,'time',1,timer_a)
-      call ccnf_get_vara(ncidx,'time',2,timer_b)
+      call ccnf_inq_varid(ncidx,'time',varid_time)
+      call ccnf_get_vara(ncidx,varid_time,1,timer_a)
+      call ccnf_get_vara(ncidx,varid_time,2,timer_b)
       if ( timer_b-timer_a <= 1440.01 ) then
         write(6,*) "Found daily data in sstfile for AMIPSST"  
         amip_mode = 2
@@ -528,7 +529,8 @@ if ( amip_mode==1 ) then
   endif  ! (schmidtx<=0..or.schmidtx>1.)  
   call ccnf_get_attg(ncidx,'leap',leap_file,tst) ! old method
   if ( tst ) leap_file = 0                       ! old method
-  call ccnf_get_att(ncidx,'time','calendar',calendarstring,ierr)                      ! new method
+  call ccnf_inq_varid(ncidx,'time',varid_time)                                        ! new method
+  call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr)                  ! new method
   if ( ierr==0 ) then                                                                 ! new method
     select case( trim(calendarstring) )                                               ! new method
       case("365_day","noleap")                                                        ! new method
@@ -564,11 +566,16 @@ if ( amip_mode==1 ) then
     lsma_g = .false.
     ssta_g = 0.
     ssta_l = 0.
+    call ccnf_inq_varid(ncidx,'lsm',lsmid,tst)
+    if ( tst ) then
+      write(6,*) "ERROR: Cannot locate lsm"
+      call ccmpi_abort(-1)
+    end if
     npos(1) = ik
     npos(2) = 6*ik
     spos(1:2) = 1
     allocate( lsmr_g(ik*ik*6) )  
-    call ccnf_get_vara(ncidx,'lsm',spos(1:2),npos(1:2),lsmr_g(:))
+    call ccnf_get_vara(ncidx,lsmid,spos(1:2),npos(1:2),lsmr_g(:))
     lsma_g = lsmr_g >= 0.5
     deallocate( lsmr_g )
   else
@@ -583,13 +590,14 @@ if ( amip_mode==1 ) then
   iyear  = -999
   imonth = -999
   ltest = .true.
-  call ccnf_get_att(ncidx,'time','units',datestring)
+  call ccnf_inq_varid(ncidx,'time',varid_time)
+  call ccnf_get_att(ncidx,varid_time,'units',datestring)
   call processdatestring(datestring,kdate_rsav,ktime_rsav)
   do while ( ltest .and. iarchx<maxarchi )
     iarchx = iarchx + 1
     kdate_r = kdate_rsav
     ktime_r = ktime_rsav
-    call ccnf_get_vara(ncidx,'time',iarchx,timer_r)
+    call ccnf_get_vara(ncidx,varid_time,iarchx,timer_r)
     mtimer_r = nint(timer_r,8)
     call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_file)
     iyear  = kdate_r/10000
@@ -602,8 +610,13 @@ if ( amip_mode==1 ) then
     write(6,*) "       in file ",trim(sstfile)
     call ccmpi_abort(-1)
   end if
+  call ccnf_inq_varid(ncidx,'tos',varid,tst)
+  if ( tst ) then
+    write(6,*) "ERROR: Cannot locate tos"
+    call ccmpi_abort(-1)
+  end if
   unitstr = ''
-  call ccnf_get_att(ncidx,'tos','units',unitstr)
+  call ccnf_get_att(ncidx,varid,'units',unitstr)
   write(6,*) "Reading SST data from amipsst file"
   if ( trim(unitstr)=='C' ) then
     write(6,*) "Converting SSTs from degC to degK"  
@@ -617,10 +630,10 @@ if ( amip_mode==1 ) then
     if ( spos(3)>iarchx-2 .and. myid==0 ) then
       write(6,*) "Warning: Using current SSTs for previous month(s)"
     end if
-    call ccnf_get_vara(ncidx,'tos',spos,npos,ssta_g(:,1))
-    call ccnf_get_att(ncidx,'tos','add_offset',of,ierr=ierr)
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+    call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
     if ( ierr /= 0 ) of=0.
-    call ccnf_get_att(ncidx,'tos','scale_factor',sc,ierr=ierr)
+    call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
     if ( ierr /= 0 ) sc=1.
     ssta_g(:,1)=sc*ssta_g(:,1)+of
     if ( trim(unitstr) == 'C' ) ssta_g(:,1) = ssta_g(:,1) + 273.16
@@ -630,18 +643,18 @@ if ( amip_mode==1 ) then
   spos(3) = max( iarchx - 1, 1 )
   if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
-    call ccnf_get_vara(ncidx,'tos',spos,npos,ssta_g(:,2))
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
     ssta_g(:,2)=sc*ssta_g(:,2)+of
     if ( trim(unitstr) == 'C' ) ssta_g(:,2) = ssta_g(:,2) + 273.16
   else
     ssta_g(:,2)=0. ! dummy.  Should not be used.       
   end if    
   spos(3) = iarchx
-  call ccnf_get_vara(ncidx,'tos',spos,npos,ssta_g(:,3))
+  call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
   ssta_g(:,3)=sc*ssta_g(:,3)+of  
   if ( trim(unitstr) == 'C' ) ssta_g(:,3) = ssta_g(:,3) + 273.16
   spos(3) = min( iarchx + 1, maxarchi )
-  call ccnf_get_vara(ncidx,'tos',spos,npos,ssta_g(:,4))
+  call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
   ssta_g(:,4)=sc*ssta_g(:,4)+of  
   if ( trim(unitstr) == 'C' ) ssta_g(:,4) = ssta_g(:,4) + 273.16
   spos(3) = min( iarchx + 2, maxarchi )
@@ -649,7 +662,7 @@ if ( amip_mode==1 ) then
     if ( spos(3)<iarchx+2 .and. myid==0 ) then
       write(6,*) "Warning: Using current SSTs for next month(s)"
     end if
-    call ccnf_get_vara(ncidx,'tos',spos,npos,ssta_g(:,5))
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
     ssta_g(:,5)=sc*ssta_g(:,5)+of 
     if ( trim(unitstr) == 'C' ) ssta_g(:,5) = ssta_g(:,5) + 273.16
   else
@@ -670,16 +683,21 @@ if ( amip_mode==1 ) then
        namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
 
     ! NETCDF
+    call ccnf_inq_varid(ncidx,'sic',varid,tst)
+    if (tst) then
+      write(6,*) "ERROR: Cannot locate sic"
+      call ccmpi_abort(-1)
+    end if
     write(6,*) "Reading Sea Ice data from amipsst file"
     spos(3)=max( iarchx - 2, 1 )
     if ( namip>=11 .or. namip<=15 ) then
       if ( spos(3)>iarchx-2 .and. myid==0 ) then
         write(6,*) "Warning: Using current sea-ice for previous month(s)" 
       end if
-      call ccnf_get_vara(ncidx,'sic',spos,npos,ssta_g(:,1))
-      call ccnf_get_att(ncidx,'sic','add_offset',of,ierr=ierr)
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+      call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
       if (ierr/=0) of=0.
-      call ccnf_get_att(ncidx,'sic','scale_factor',sc,ierr=ierr)
+      call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
       if (ierr/=0) sc=1.
       ssta_g(:,1)=sc*ssta_g(:,1)+of
       ssta_g(:,1)=100.*ssta_g(:,1)  
@@ -689,18 +707,18 @@ if ( amip_mode==1 ) then
     spos(3)=max( iarchx - 1, 1 )
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
-      call ccnf_get_vara(ncidx,'sic',spos,npos,ssta_g(:,2))
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
       ssta_g(:,2)=sc*ssta_g(:,2)+of
       ssta_g(:,2)=100.*ssta_g(:,2)       
     else
       ssta_g(:,2)=0. ! dummy.  Should not be used.      
     end if
     spos(3)=iarchx
-    call ccnf_get_vara(ncidx,'sic',spos,npos,ssta_g(:,3))
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
     ssta_g(:,3)=sc*ssta_g(:,3)+of
     ssta_g(:,3)=100.*ssta_g(:,3)       
     spos(3)=min( iarchx + 1, maxarchi )
-    call ccnf_get_vara(ncidx,'sic',spos,npos,ssta_g(:,4))
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
     ssta_g(:,4)=sc*ssta_g(:,4)+of
     ssta_g(:,4)=100.*ssta_g(:,4)       
     spos(3)=min( iarchx + 2, maxarchi )
@@ -708,7 +726,7 @@ if ( amip_mode==1 ) then
       if ( spos(3)<iarchx+2 .and. myid==0 ) then
         write(6,*) "Warning: Using current sea-ice for next month(s)"
       end if
-      call ccnf_get_vara(ncidx,'sic',spos,npos,ssta_g(:,5))
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
       ssta_g(:,5)=sc*ssta_g(:,5)+of
       ssta_g(:,5)=100.*ssta_g(:,5)       
     else
@@ -730,16 +748,21 @@ if ( amip_mode==1 ) then
   if ( namip==5 .or. namip==15 .or. namip==25 ) then ! salinity also read
       
     ! NETCDF
+    call ccnf_inq_varid(ncidx,'sss',varid,tst)
+    if (tst) then
+      write(6,*) "ERROR: Cannot locate sss"
+      call ccmpi_abort(-1)
+    end if
     write(6,*) "Reading Salinity data from amipsst file"
     spos(3)=max( iarchx - 2, 1 )
     if ( namip>=11 .or. namip<=15 ) then
       if ( spos(3)>iarchx-2 .and. myid==0 ) then
         write(6,*) "Warning: Using current salinity for previous month(s)"
       end if
-      call ccnf_get_vara(ncidx,'sss',spos,npos,ssta_g(:,1))
-      call ccnf_get_att(ncidx,'sss','add_offset',of,ierr=ierr)
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+      call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
       if (ierr/=0) of=0.
-      call ccnf_get_att(ncidx,'sss','scale_factor',sc,ierr=ierr)
+      call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
       if (ierr/=0) sc=1.  
       ssta_g(:,1)=sc*ssta_g(:,1)+of
     else
@@ -748,23 +771,23 @@ if ( amip_mode==1 ) then
     spos(3)=max( iarchx - 1, 1 )
     if ( namip==1 .or. namip==2 .or. (namip>=3.and.namip<=5) .or. (namip>=11.and.namip<=15) .or. &
        (namip>=21.and.namip<=25) ) then
-      call ccnf_get_vara(ncidx,'sss',spos,npos,ssta_g(:,2))
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,2))
       ssta_g(:,2)=sc*ssta_g(:,2)+of
     else
       ssta_g(:,2)=0. ! dummy.  Should not be used.      
     end if
     spos(3)=iarchx
-    call ccnf_get_vara(ncidx,'sss',spos,npos,ssta_g(:,3))
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,3))
     ssta_g(:,3)=sc*ssta_g(:,3)+of
     spos(3)=min( iarchx + 1, maxarchi )
-    call ccnf_get_vara(ncidx,'sss',spos,npos,ssta_g(:,4))
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,4))
     ssta_g(:,4)=sc*ssta_g(:,4)+of
     spos(3)=min( iarchx + 2, maxarchi )
     if ( (namip>=11.and.namip<=15) .or. (namip>=21.and.namip<=25) ) then
       if ( spos(3)<iarchx+2 .and. myid==0 ) then
         write(6,*) "Warning: Using current salinity for next month"
       end if
-      call ccnf_get_vara(ncidx,'sss',spos,npos,ssta_g(:,5))
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,5))
       ssta_g(:,5)=sc*ssta_g(:,5)+of
     else
       ssta_g(:,5)=0. ! dummy.  Should not be used.    
@@ -1094,7 +1117,8 @@ if ( mod(ktau,nperday)==0 ) then
       end if  ! (schmidtx<=0..or.schmidtx>1.)  
       call ccnf_get_attg(ncidx,'leap',leap_file,tst) ! old method
       if ( tst ) leap_file = 0                       ! old method
-      call ccnf_get_att(ncidx,'time','calendar',calendarstring,ierr)      ! new method
+      call ccnf_inq_varid(ncidx,'time',varid_time)                        ! new method
+      call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr)  ! new method
       if ( ierr==0 ) then                                                 ! new method
         if ( trim(calendarstring)=="standard" ) leap_file = 1             ! new method
         if ( trim(calendarstring)=="360_day" ) leap_file = 2              ! new method
@@ -1136,19 +1160,29 @@ if ( mod(ktau,nperday)==0 ) then
         
         allocate( lsma_g(ik*ik*6) )
         lsma_g = .false.
+        call ccnf_inq_varid(ncidx,'lsm',lsmid,tst)
+        if ( tst ) then
+          write(6,*) "ERROR: Cannot locate lsm"
+          call ccmpi_abort(-1)
+        end if
         npos(1) = ik
         npos(2) = 6*ik
         spos(1:2) = 1
         allocate( lsmr_g(ik*ik*6) )  
-        call ccnf_get_vara(ncidx,'lsm',spos(1:2),npos(1:2),lsmr_g(:))
+        call ccnf_get_vara(ncidx,lsmid,spos(1:2),npos(1:2),lsmr_g(:))
         lsma_g = lsmr_g >= 0.5
         deallocate( lsmr_g )
       else
         write(6,*) "No interpolation is required for AMIPSST"
       end if
     
+      call ccnf_inq_varid(ncidx,'tos',varid,tst)
+      if ( tst ) then
+        write(6,*) "ERROR: Cannot locate tos"
+        call ccmpi_abort(-1)
+      end if
       unitstr = ''
-      call ccnf_get_att(ncidx,'tos','units',unitstr)
+      call ccnf_get_att(ncidx,varid,'units',unitstr)
     
       firstcall = .false.
     end if
@@ -1168,13 +1202,14 @@ if ( mod(ktau,nperday)==0 ) then
     imonth = -999
     iday   = -999
     ltest = .true.
-    call ccnf_get_att(ncidx,'time','units',datestring)
+    call ccnf_inq_varid(ncidx,'time',varid_time)
+    call ccnf_get_att(ncidx,varid_time,'units',datestring)
     call processdatestring(datestring,kdate_rsav,ktime_rsav)
     do while ( ltest .and. iarchx<maxarchi )
       iarchx = iarchx + 1
       kdate_r = kdate_rsav
       ktime_r = ktime_rsav
-      call ccnf_get_vara(ncidx,'time',iarchx,timer_r)
+      call ccnf_get_vara(ncidx,varid_time,iarchx,timer_r)
       mtimer_r = nint(timer_r,8)
       call datefix(kdate_r,ktime_r,mtimer_r,allleap=leap_file)
       iyear  = kdate_r/10000
@@ -1187,16 +1222,21 @@ if ( mod(ktau,nperday)==0 ) then
       write(6,*) "       in file ",trim(sstfile)
       call ccmpi_abort(-1)
     end if
+    call ccnf_inq_varid(ncidx,'tos',varid,tst)
+    if ( tst ) then
+      write(6,*) "ERROR: Cannot locate tos"
+      call ccmpi_abort(-1)
+    end if
     write(6,*) "Reading SST data from amipsst file at iarchx=",iarchx
     npos(1) = ik
     npos(2) = 6*ik
     npos(3) = 1    
     spos(1:2) = 1
     spos(3) = iarchx
-    call ccnf_get_vara(ncidx,'tos',spos,npos,ssta_g(:,1))
-    call ccnf_get_att(ncidx,'tos','add_offset',of,ierr=ierr)
+    call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+    call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
     if ( ierr /= 0 ) of = 0.
-    call ccnf_get_att(ncidx,'tos','scale_factor',sc,ierr=ierr)
+    call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
     if ( ierr /= 0 ) sc = 1.
     ssta_g(:,1) = sc*ssta_g(:,1) + of
     if ( trim(unitstr) == 'C' ) then
@@ -1215,12 +1255,17 @@ if ( mod(ktau,nperday)==0 ) then
          namip==14 .or. namip==15 .or. namip==24 .or. namip==25 ) then   ! sice also read at middle of month
 
       ! NETCDF
+      call ccnf_inq_varid(ncidx,'sic',varid,tst)
+      if (tst) then
+        write(6,*) "ERROR: Cannot locate sic"
+        call ccmpi_abort(-1)
+      end if
       write(6,*) "Reading Sea Ice data from amipsst file"
       spos(3) = iarchx
-      call ccnf_get_vara(ncidx,'sic',spos,npos,ssta_g(:,1))
-      call ccnf_get_att(ncidx,'sic','add_offset',of,ierr=ierr)
+      call ccnf_get_vara(ncidx,varid,spos,npos,ssta_g(:,1))
+      call ccnf_get_att(ncidx,varid,'add_offset',of,ierr=ierr)
       if (ierr/=0) of=0.
-      call ccnf_get_att(ncidx,'sic','scale_factor',sc,ierr=ierr)
+      call ccnf_get_att(ncidx,varid,'scale_factor',sc,ierr=ierr)
       if (ierr/=0) sc=1.
       ssta_g(:,1) = sc*ssta_g(:,1) + of
       !ssta_g(:,1) = 100.*ssta_g(:,1)  

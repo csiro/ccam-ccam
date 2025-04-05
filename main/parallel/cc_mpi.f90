@@ -75,7 +75,7 @@ module cc_mpi
    integer, save, public :: comm_vnode, vnode_nproc, vnode_myid            ! procformat communicator for node
    integer, save, public :: comm_vleader, vleader_nproc, vleader_myid      ! procformat communicator for node captain group   
    integer, save, public :: vnode_vleaderid                                ! rank of the procformat node captain
-   
+
    integer(kind=4), save, private :: nreq, rreq                            ! number of messages requested and to be received
    integer(kind=4), allocatable, dimension(:), save, private :: ireq       ! requested message index
    integer, allocatable, dimension(:), save, private :: rlist              ! map of process index from requested message index
@@ -235,7 +235,6 @@ module cc_mpi
       module procedure ccmpi_bcast1i, ccmpi_bcast2i, ccmpi_bcast3i
       module procedure ccmpi_bcast1r, ccmpi_bcast2r, ccmpi_bcast3r, ccmpi_bcast4r
       module procedure ccmpi_bcast1s, ccmpi_bcast2s
-      module procedure ccmpi_ibcast2r
    end interface
    interface ccmpi_bcastr8
       module procedure ccmpi_bcast1r8, ccmpi_bcast2r8, ccmpi_bcast3r8
@@ -440,6 +439,7 @@ module cc_mpi
    integer, save, public :: sfluxurban_begin, sfluxurban_end
    integer, save, public :: vertmix_begin, vertmix_end
    integer, save, public :: aerosol_begin, aerosol_end
+   integer, save, public :: cape_begin, cape_end
    integer, save, public :: maincalc_begin, maincalc_end
    integer, save, public :: precon_begin, precon_end
    integer, save, public :: waterdynamics_begin, waterdynamics_end
@@ -482,7 +482,7 @@ module cc_mpi
    integer, save, public :: p15_begin, p15_end
    integer, save, public :: p16_begin, p16_end
    integer, save, public :: p17_begin, p17_end
-   integer, parameter :: nevents = 82
+   integer, parameter :: nevents = 83
    public :: simple_timer_finalize
    real(kind=8), dimension(nevents), save, private :: tot_time = 0._8, start_time
    real(kind=8), save, public :: mpiinit_time, total_time
@@ -784,7 +784,7 @@ contains
       lcommin = comm_proc
       call MPI_Comm_Split( lcommin, colour, rank, lcommout, ierr )
       comm_rows = lcommout
-      
+
       if ( myid==0 ) then
          write(6,*) "-> Finish ccmpi_setup"
       end if
@@ -2813,8 +2813,7 @@ contains
       
       ! allocate arrays that depend on neighnum
       ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
-      ! 8 is for the number of GHG read in with co2_read.f90
-      allocate( ireq(max(2*neighnum,8)), rlist(max(neighnum,8)) )
+      allocate( ireq(max(2*neighnum,1)), rlist(max(neighnum,1)) )
       allocate( dums(3*maxcolour+1,neighnum), dumr(3*maxcolour+1,neighnum) )
 
       
@@ -5692,8 +5691,9 @@ contains
       call add_event(sfluxwater_begin,    sfluxwater_end,    "Sflux_water")
       call add_event(sfluxland_begin,     sfluxland_end,     "Sflux_land")
       call add_event(sfluxurban_begin,    sfluxurban_end,    "Sflux_urban")
-      call add_event(aerosol_begin,       aerosol_end,       "Aerosol")
       call add_event(vertmix_begin,       vertmix_end,       "Vertmix")
+      call add_event(aerosol_begin,       aerosol_end,       "Aerosol")
+      call add_event(cape_begin,          cape_end,          "CAPE")
       call add_event(precon_begin,        precon_end,        "Precon")
       call add_event(bcast_begin,         bcast_end,         "MPI_Bcast")
       call add_event(alltoall_begin,      alltoall_end,      "MPI_AlltoAll")
@@ -6540,40 +6540,6 @@ contains
       call END_LOG(bcast_end)
    
    end subroutine ccmpi_bcast3r8
-   
-   ! special bcast with host as a vector.  Uses ibcast to broadcast data from
-   ! different hosts.
-   subroutine ccmpi_ibcast2r(ldat,host,comm)   
-      integer, intent(in) :: comm
-      integer, dimension(:), intent(in) :: host
-      integer :: i
-      integer(kind=4) :: lhost, ierr, lcomm
-      real, dimension(:), intent(inout) :: ldat
-
-      if ( size(host) > size(ireq) ) then
-         write(6,*) "ERROR: ireq size is insufficent for ccmpi_ibcast2r"
-         call ccmpi_abort(-1)
-      end if
-
-      call START_LOG(bcast_begin)
-      
-      lcomm = comm
-      nreq = 0
-      do i = 1,size(host)
-         nreq = nreq + 1          
-         lhost = host(i)
-#ifdef i8r8
-         call MPI_IBcast(ldat(i),1_4,MPI_DOUBLE_PRECISION,lhost,lcomm,ireq(nreq),ierr)
-#else
-         call MPI_IBcast(ldat(i),1_4,MPI_REAL,lhost,lcomm,ireq(nreq),ierr)
-#endif
-      end do
-      call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
-      nreq = 0
-      
-      call END_LOG(bcast_end)
-   
-   end subroutine ccmpi_ibcast2r
 
    subroutine ccmpi_barrier(comm)
       integer, intent(in) :: comm
@@ -6585,7 +6551,7 @@ contains
       call END_LOG(mpibarrier_end)
    
    end subroutine ccmpi_barrier
-
+     
    subroutine ccmpi_gatherx23r(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
       real, dimension(:,:), intent(out) :: gdat

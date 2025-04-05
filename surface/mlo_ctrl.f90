@@ -533,11 +533,11 @@ do tile = 1,ntiles
     end where
     
     ! fix for old restart files
-    if ( any( water_g(tile)%sal<-1.e-4 .or. water_g(tile)%sal>100. ) ) then
-      write(6,*) "WARN: Salinity is out-of-range in MLO-load"
-      write(6,*) "minval,maxval ",minval(water_g(tile)%sal),maxval(water_g(tile)%sal)
-      water_g(tile)%sal = min( max( water_g(tile)%sal, 0. ), maxsal )
-    end if
+    !if ( any( water_g(tile)%sal<-1.e-4 .or. water_g(tile)%sal>100. ) ) then
+    !  write(6,*) "WARN: Salinity is out-of-range in MLO-load"
+    !  write(6,*) "minval,maxval ",minval(water_g(tile)%sal),maxval(water_g(tile)%sal)
+    !  water_g(tile)%sal = min( max( water_g(tile)%sal, 0. ), maxsal )
+    !end if
 
     call mlocheck("MLO-load",water_temp=water_g(tile)%temp,water_sal=water_g(tile)%sal, &
                   water_u=water_g(tile)%u,water_v=water_g(tile)%v,                      &

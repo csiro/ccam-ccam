@@ -46,7 +46,6 @@ use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
 use cc_mpi                                 ! CC MPI routines
-use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use dates_m                                ! Date data
@@ -154,8 +153,6 @@ write(6,*) "ERROR: Compiling CCAM with -Dshare_ifullg requires -Dusempi3"
 
 !--------------------------------------------------------------
 ! INITALISE MPI ROUTINES
-! CCAM has been optimised around MPI for parallel processing, although CCAM
-! does optionally support OMP parallel threads and OpenACC for GPUs.
 call ccmpi_init
 
 ! Start banner
@@ -857,7 +854,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     ! pcc2hist will calculate CAPE for standard output
     if ( surfile/=' ' ) then
       if ( mod(ktau,tbave)==0 ) then
+        call START_LOG(cape_begin)  
         call capecalc
+        call END_LOG(cape_end)
       end if  
     end if    
   end if  
@@ -1476,8 +1475,8 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_deltat,ateb_acfactor,ateb_soilunder,                  &
-    siburbanfrac,freshwaterlake_fix,                              &
-    wbclim_lonn,wbclim_lonx,wbclim_latn,wbclim_latx,              &
+    siburbanfrac,freshwaterlake_fix,                              & ! special options
+    wbclim_lonn,wbclim_lonx,wbclim_latn,wbclim_latx,              & 
     ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,               & ! depreciated
     ateb_useonewall,ateb_alpha
 ! ocean namelist
@@ -1780,6 +1779,7 @@ end do
 call calc_phys_tiles(ntiles,maxtilesize,ifull)
 imax = ifull/ntiles
 
+! Initalise OpenACC for GPUs and OpenMP
 #ifdef usempi3
 ! since processes might have been remapped, then use node_myid
 ! to determine GPU assigned to each process
