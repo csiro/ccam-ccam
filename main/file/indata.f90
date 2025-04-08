@@ -55,8 +55,6 @@ use arrays_m                                     ! Atmosphere dyamics prognostic
 use bigxy4_m                                     ! Grid interpolation
 use cc_mpi                                       ! CC MPI routines
 use const_phys                                   ! Physical constants
-use convjlm_m                                    ! Convection
-use convjlm22_m                                  ! Convection v2
 use darcdf_m                                     ! Netcdf data
 use dates_m                                      ! Date data
 use daviesnudge                                  ! Far-field nudging
@@ -75,6 +73,7 @@ use latltoij_m                                   ! Lat/Lon to cubic ij conversio
 use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
 use mlodynamics                                  ! Ocean dynamics
+use module_ctrl_convection                       ! Interface for convection
 use module_ctrl_turbmix                          ! Boundary layer turbulent mixing
 use morepbl_m                                    ! Additional boundary layer diagnostics
 use newmpar_m                                    ! Grid parameters
@@ -2208,12 +2207,7 @@ call gdrag_sbl
 
 !-----------------------------------------------------------------
 ! UPDATE CONVECTION
-select case ( nkuo )
-  case(21,22)
-    call convjlm22_init
-  case(23,24)
-    call convjlm_init
-end select
+call ctrl_convection_init
 
   
 !-----------------------------------------------------------------

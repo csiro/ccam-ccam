@@ -22,7 +22,7 @@ module module_ctrl_convection
 implicit none
 
 private
-public ctrl_convection
+public ctrl_convection, ctrl_convection_init
 
 contains
     
@@ -393,6 +393,37 @@ end do ! end tile loop (tile=1,ntiles)
 
 return
 end subroutine grell_ccam
+
+
+! Initialise convection if required (called from indata)
+
+subroutine ctrl_convection_init
+
+use cc_mpi                        ! CC MPI routines
+use convjlm_m                     ! Convection
+use convjlm22_m                   ! Convection v2
+use kuocom_m                      ! JLM convection
+
+implicit none
+
+select case ( interp_convection(nkuo) )
+  case("betts_conv")
+    ! do nothing
+  case("john_conv22")
+    call convjlm22_init
+  case("john_conv")
+    call convjlm_init
+  case("grell_conv")
+    ! do nothing    
+  case("disable")
+    ! do nothing
+  case default
+    write(6,*) "ERROR: Cannot initialise convection in indata with unknown option for nkuo = ",nkuo
+    call ccmpi_abort(-1)
+end select
+
+return
+end subroutine ctrl_convection_init
 
 
 !====================================================================================================
