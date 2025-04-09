@@ -136,6 +136,7 @@ end subroutine seaesfrad_settime
 subroutine seaesfrad(koundiag)
 
 use aerointerface                                   ! Aerosol interface
+use aerosol_arrays                                  ! Aerosol arrays
 use arrays_m                                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                          ! CC MPI routines
 use cc_omp                                          ! CC OpenMP routines

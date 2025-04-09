@@ -77,7 +77,8 @@ contains
 ! Called for nbd/=0
 subroutine nestin
       
-use aerointerface                ! Aerosol interface
+!use aerointerface                ! Aerosol interface\
+use aerosol_arrays                          ! Aerosol arrays
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
@@ -335,7 +336,8 @@ end subroutine nestin
 ! Called for mbd/=0
 subroutine nestinb
 
-use aerointerface                ! Aerosol interface
+!use aerointerface                ! Aerosol interface
+use aerosol_arrays                          ! Aerosol arrays
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
@@ -566,7 +568,8 @@ end subroutine nestinb
 ! scale-selective filter
 subroutine getspecdata(pslbb,ubb,vbb,tbb,qbb,xtgbb)
 
-use aerointerface                ! Aerosol interface
+!use aerointerface                ! Aerosol interface
+use aerosol_arrays                          ! Aerosol arrays
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use const_phys                   ! Physical constants
@@ -701,7 +704,8 @@ end subroutine getspecdata
 ! This option is an exact treatment of the filter
 subroutine slowspecmpi(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-use aerointerface     ! Aerosol interface
+!use aerointerface     ! Aerosol interface
+use aerosol_arrays    ! Aerosol arrays
 use cc_mpi            ! CC MPI routines
 use newmpar_m         ! Grid parameters
 use parm_m            ! Model configuration
@@ -860,7 +864,8 @@ end subroutine slowspecmpi_work
 ! Four pass spectral downscaling
 subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
       
-use aerointerface      ! Aerosol interface
+!use aerointerface      ! Aerosol interface
+use aerosol_arrays     ! Aerosol arrays
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration
@@ -886,7 +891,8 @@ end subroutine specfastmpi
 ! (see spechost_n for a reduced memory version)
 subroutine spechost(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-use aerointerface      ! Aerosol interface
+!use aerointerface      ! Aerosol interface
+use aerosol_arrays     ! Aerosol arrays
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
 use parm_m             ! Model configuration

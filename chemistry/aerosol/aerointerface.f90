@@ -40,18 +40,6 @@ public ppmaccr, ppqfsedice, pprscav, pprfreeze
 public opticaldepth, updateoxidant, oxidant_timer
 public aerosol_u10, naerofamilies, aero_split, aeroindir
 
-public naero, xtosav, xtg, xtgsav
-public duste, dustwd, dustdd, dust_burden
-public bce, bcwd, bcdd, bc_burden
-public oce, ocwd, ocdd, oc_burden
-public dmse, dms_burden
-public so2e, so2wd, so2dd, so2_burden
-public so4e, so4wd, so4dd, so4_burden
-public dmsso2o, so2so4o
-public salte, saltdd, saltwd, salt_burden
-public itracbc, itracoc, itracso2, itracso4
-public itracdu, ndust, itracsa, nsalt
-
 public ch_dust, zvolcemi, so4mtn, carbmtn, saltsmallmtn, saltlargemtn, enhanceu10
 public scav_effl
 public dustreff

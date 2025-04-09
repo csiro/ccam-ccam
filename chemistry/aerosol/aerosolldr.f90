@@ -1748,7 +1748,7 @@ do tile = 1,ntiles
           zxtp1c(i,jk,ktrac) = zxtp1c(i,jk,ktrac) - xicscav
           zdepr(i,ktrac) = zdepr(i,ktrac) + xicscav*pclcover(iq,jk)*zmtof
 #ifdef debug
-          if ( PCLCOVER(iq,jk)*zxtp1c(iq,jk,ktrac)>6.5e-5 ) then
+          if ( PCLCOVER(iq,jk)*zxtp1c(i,jk,ktrac)>6.5e-5 ) then
             write(6,*) "xtg out-of-range after xtwetdep - in-cloud scavenging by warm rain processes"
             write(6,*) "xtg maxval,maxloc ",PCLCOVER(iq,jk)*zxtp1c(i,jk,ktrac),iq,kl-jk+1,ktrac
           end if

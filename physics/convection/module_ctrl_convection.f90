@@ -64,6 +64,7 @@ subroutine grell_ccam
 
 ! specify module to use global variables
 use aerointerface                 ! Aerosol interface
+use aerosol_arrays
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use const_phys                    ! Physical constants
 #ifdef grell
@@ -445,7 +446,7 @@ select case(nconvection)
     cv_physics = "disable"
   case(5)
     cv_physics = "betts_conv"
-  case(21,22)
+  case(21,22,29)
     cv_physics = "john_conv22"
   case(23,24)
     cv_physics = "john_conv"

@@ -22,7 +22,7 @@
 
 subroutine adjust5
 
-use aerointerface          ! Aerosol interface
+use aerosol_arrays         ! Aerosol arrays
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
 use cfrac_m                ! Cloud fraction

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -50,6 +50,7 @@ contains
 subroutine indataf(lapsbot,isoth,nsig,nmlfile)
      
 use aerointerface                                ! Aerosol interface
+use aerosol_arrays                               ! Aerosol arrays
 use amipsst_m                                    ! AMIP SSTs
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                                     ! Grid interpolation
@@ -2282,6 +2283,11 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
     call mlo_ema(dt,"reset")
   end if
 end if
+      
+
+!-----------------------------------------------------------------
+! UPDATE VERTICAL MIXING
+call turbmix_init
 
 
 !-----------------------------------------------------------------
@@ -2289,11 +2295,6 @@ end if
 if ( abs(iaero)>=2 ) then
   xtg(1:ifull,1:kl,1:naero) = xtgdwn(1:ifull,1:kl,1:naero)
 end if
-      
-
-!-----------------------------------------------------------------
-! UPDATE VERTICAL MIXING
-call turbmix_init
 
 
 !--------------------------------------------------------------     

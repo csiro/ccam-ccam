@@ -852,6 +852,7 @@ subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                            
                     idc,psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                                ! Aerosol interface
+use aerosol_arrays                               ! Aerosol arrays
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                       ! CC MPI routines
 use cfrac_m                                      ! Cloud fraction
@@ -3815,6 +3816,7 @@ end subroutine openhist
 subroutine freqfile_cordex
 
 use aerointerface                     ! Aerosol interface
+use aerosol_arrays                    ! Aerosol arrays
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use const_phys                        ! Physical constants

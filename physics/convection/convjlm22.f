@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,7 +28,6 @@
       integer, save :: k500,k600,k700,k900,k950,k970,k980,klon2,komega  
       integer, save :: mcontlnd,mcontsea           
       real,save :: convt_frac,tied_a,tied_b
-      !real, dimension(:), allocatable, save :: timeconv
       real, dimension(:), allocatable, save :: alfin, aug
       real, dimension(:,:), allocatable, save :: downex,upin,upin4
 
@@ -357,17 +356,17 @@
       use parm_m, only : ktau,dt,nmaxpr,diag,ds,iaero
       use parmdyn_m
       use sigs_m
-      !use tracers_m, only : ngas,ntrac
       
       implicit none
       
-      integer itn,iq,k,kt,ntest,ntr,nums,nuv,kb
+      integer itn,iq,k,kt,ntest,ntr,nums,nuv,kb,nscheme
       integer idjd
       real convmax,delq_av,delt_av,den1,den2,den3,dprec
       real facuv,fldownn,fluxup,hbase,heatlev,pwater,pwater0,qsk
       real rnrt_k,summ,totprec,veldt,pk,dz,sumb,bbb,ccc
       real dtsol
       logical mydiag
+      parameter (nscheme=0)   ! 0 simple, 1 for y scheme, 2 for z scheme   JLM2504
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
 !     convjlm22 requires methdetr=-1,-2 or -3; entrain -ve; nbase=-10  or +ve
 !     parameter (iterconv=3)  ! to kuocom.h
@@ -451,7 +450,9 @@
       real dsk(kl),h0(kl),q0(kl),t0(kl)  
       real qplume(imax,kl),splume(imax,kl)
       integer kdown(imax)
+      integer kk                                ! JLM2504
       real factr(imax)
+      real cape_k(imax),dcape_k(imax)   ! JLM2504
       real fluxqs,fluxt_k(kl)
       real gam, dqrx, rKa, Dva, cdls, cflscon, rhodz
       real qpf, Apr, Bpr, Fr, rhoa, Vr, dtev, qr
@@ -1184,6 +1185,53 @@ c         rnrt_k=detrx(iq,k)*max(0.,qplume(iq,k)-qsk) ! max not need as such a d
 
       endif   ! nkuo==22)
 
+
+      if(nkuo==29)then  ! new cape closure    JLM2504
+!       want cape_new =0 = sum( cape_k + M*dcape_k)*dsig_k/sig_k
+!       cape_k = h_kb - hs_k
+!       dcape_k=alfqarr(iq)*hl*delq(iq,kb_sav(iq)
+!               -dels(iq,k)*(1.+hlcp*dqsdt(iq,k)
+        aa(:)=0.
+        cape_k(:)=0.
+        dcape_k(:)=0.
+        kdown(:)=1  ! here means still may be convective cloud
+        convpsav(:)=0.
+        do k=2,kl-1
+         do iq=1,imax 
+          if(k>kb_sav(iq).and.k<=kt_sav(iq))then
+           kk=kb_sav(iq)
+           cape_k(iq)=cape_k(iq)-(splume(iq,k)+hl*qplume(iq,k)
+     %          -hs(iq,k))*dsig(k)/sig(k)
+           bbb=dels(iq,kk)+alfqarr(iq)*hl*delq(iq,kk)
+           ccc=dels(iq,k)*(1.+hlcp*dqsdt(iq,k))
+!          aa gives accumulated entrainment contribs from dels & delq, working up from kb_sav+1
+!          N.B. in following line both entrain and dsig are -ve
+           if(k<kt_sav(iq))aa(iq)=aa(iq)+entrain*fluxv0(iq,k-1)*dsig(k)*
+     &                    (dels(iq,k)+hl*delq(iq,k))
+           fluxt(iq,k)=(ccc-bbb+aa(iq)/dsig(k))*dsig(k)/sig(k)   ! ** changed to +aa
+           if(fluxt(iq,k)>=0.)kdown(iq)=0  ! nk31y convective cloud not permitted, nscheme=1
+           if(nscheme==2)then
+             dcape_k(iq)=dcape_k(iq)+min(0.,fluxt(iq,k))
+           else
+             dcape_k(iq)=dcape_k(iq)+fluxt(iq,k)   ! nscheme=0 or 1
+           endif  !  (nscheme==2) .. else ..
+          endif   ! (k>kb_sav(iq).and.k<kt_sav(iq))
+         enddo     ! iq loop
+        enddo    ! k loop
+        if(nscheme==1)then                          ! JLM2504
+         do iq=1,imax 
+          if(kdown(iq)==1.and.dcape_k(iq)<0.)then   ! nk31y version
+            convpsav(iq)=-cape_k(iq)/dcape_k(iq)    ! nk31y version
+          endif                                     ! nk31y version
+         enddo    ! iq loop
+        else
+         do iq=1,imax 
+          if(dcape_k(iq)<0.)convpsav(iq)=-cape_k(iq)/dcape_k(iq)  ! nk31z version
+         enddo  ! iq loop
+        endif   ! (nscheme==1).. else ..              ! JLM2504
+      endif     ! (nkuo==29)                          ! JLM2504
+
+
       do iq=1,imax
        if(dels(iq,kb_sav(iq))+alfqarr(iq)*hl*delq(iq,kb_sav(iq))>=0.)
      &          convpsav(iq)=0. 
@@ -1414,14 +1462,40 @@ c           write(6,*)'has tied_con=0'
 !     &      convt_frac,factr(iq)
 !        endif
 
-        if(tied_b>1.)then ! typical value is 26, used directly with factr
-!         tied_b=26 gives factr [1, .964, .900, .794,.5.216] for ds = [200, 100, 50, 25,8,2} km     
-!         tied_b=10 gives factr [1, .917, .786, .611,.3,.100] for ds = [200, 100, 50, 25,8,2} km     
+         
+!                 ds = {200, 100,  50,  25,  12,   8,   5,   2,  1 } km     
+!     tied_b=99, factr:[  1,    ,    ,    ,.859,    ,    ,    ,    ]     
+!     tied_b=26, factr:[  1,.964,.900,.794,.622,.519,.399,.216,.119]     
+!     tied_b=10, factr:[  1,.917,.786,.611,    ,.314,.22 ,.100,.052]      
+
+! exp tied_b= 5, factr:[  1,   1,   1, .99,    ,.78 ,.632,.33 ,.181] 
+! exp tied_b= 4, factr:[  1,   1,   1,   1,    ,.86 ,.713,.393,.221] 
+! exp tied_b= 3, factr:[  1,   1,   1,   1,    ,.93 ,.811,.487,.283] 
+! exp tied_b= 2, factr:[  1,   1,   1,   1,    ,.982,.918,.632,.393] 
+! exp tied_b= 1, factr:[  1,   1,   1,   1,    ,   1,.993,.865,.632] 
+! not now                       tied_b= 2, factr:[  1, .75, .50, .30,.11 ,.029,    ]      
+       if(nkuo==29)then                            ! JLM2504
+!       tied_b value is ignored for nkuo=29        ! JLM2504
+        do iq=1,imax                               ! JLM2504
+         summ=ds/em(iq)                            ! JLM2504
+         factr(iq)=(1.-exp(-summ/5000.))*factr(iq) ! JLM2504
+        enddo                                      ! JLM2504
+       else                                        ! JLM2504
+         if(tied_b>9.1)then ! typical tied_b value was 26, used with factr
           do iq=1,imax
             summ=ds/(em(iq)*208498.)
             factr(iq)=factr(iq)*(1.+tied_b)*summ/(1.+tied_b*summ)
           enddo
-        endif  ! (tied_b>1.)
+         elseif(tied_b>0.)then ! new exp formula JLM 2501
+          do iq=1,imax 
+            summ=ds/em(iq)
+            factr(iq)=factr(iq)*(1.-exp(-summ/(tied_b*1000.))) 
+!           tied_b scaling here in km
+!           multiplier of factr is fraction applied of convective param, .643 for grid length = tied_b
+          enddo
+        endif  ! (tied_b>9.1) ... 
+       endif   ! (nkuo==29) .. else ..         ! JLM2504
+
         do iq=1,imax
          kbsav(iq)=kb_sav(iq)   ! just value at end of itn=1  Apr'15
          ktsav(iq)=kt_sav(iq)  

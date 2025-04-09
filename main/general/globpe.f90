@@ -34,6 +34,7 @@
 !   debug        - additional debugging checks, but runs slower
 !   i8r8         - double precision mode
 !   GPU          - target GPUs with OpenACC
+!   GPUPHYSICS   - target GPUs for physical parameterisations with OpenACC.  Requires -DGPU.    
 !   csircoupled  - CSIR coupled model
 !   usempi3      - optimse communication with MPI shared memory (preferred)
 !   share_ifullg - reduce shared memory with MPI, but requires usempi3 directive
@@ -42,6 +43,7 @@
 program globpe
 
 use aerointerface                          ! Aerosol interface
+use aerosol_arrays                         ! Aerosol arrays
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
@@ -704,7 +706,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
   
   ! SURFACE FLUXES ---------------------------------------------
-  ! (Includes ocean dynamics and mixing, as well as ice dynamics and thermodynamics)
+  ! Calculate sensible heat flux, latent heat flux, carbon cycle,
+  ! sea-ice thermodynamocs and urban physics.  Ocean tubulent
+  ! vertical mixing can be combined with vertical atmosphere
+  ! turbulent mixing below.
   if ( nsib>0 ) then
     call START_LOG(sfluxnet_begin)
     if ( diag .and. ntiles==1 ) then
@@ -728,7 +733,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   
   ! AEROSOLS --------------------------------------------------------------
-  ! Old time-split with aero_split=0
+  ! Old time-split with aero_split=0.
+  ! To be depreciated.
   if ( nsib>0 .and. aero_split==0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
@@ -747,9 +753,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if  
   
 
-    
   ! VERTICAL MIXING ------------------------------------------------------
-  ! (not including aerosols or tracers)
+  ! Turbulent mixing of atmosphere and optionally combined with ocean
   if ( nsib>0 ) then
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
@@ -799,7 +804,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
   ! AEROSOLS --------------------------------------------------------------
   ! New time-split with aero_split=1
-  ! Includes turbulent mixing
+  ! Emission driven prognostic aerosols.  Includes aerosol turbulent mixing.
   if ( nsib>0 ) then
     call START_LOG(aerosol_begin)
     if ( abs(iaero)>=2 ) then
@@ -1255,10 +1260,11 @@ end subroutine stationa
 subroutine globpe_init
 
 use aerointerface, only : aeroindir      & ! Aerosol interface
-    ,aero_split,aerosol_u10, naero       &
+    ,aero_split,aerosol_u10              &
     ,ch_dust,zvolcemi,so4mtn,carbmtn     &
     ,saltsmallmtn,saltlargemtn           &
     ,enhanceu10
+use aerosol_arrays, only : naero           ! Aerosol arrays
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
 use cc_acc                                 ! CC ACC routines
@@ -4080,7 +4086,7 @@ end subroutine fixsat
 ! Reset diagnostics for averaging period    
 subroutine zero_nperavg(koundiag)
 
-use aerointerface, only :                & ! Aerosol interface
+use aerosol_arrays, only :               & ! Aerosol arrays
      duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -4277,7 +4283,7 @@ end subroutine zero_nperday
 ! Update diagnostics for averaging period    
 subroutine calculate_timeaverage(koundiag)
 
-use aerointerface, only :                & ! Aerosol interface
+use aerosol_arrays, only :               & ! Aerosol arrays
      duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -4757,7 +4763,7 @@ end subroutine write_diagnostics
 ! Check for NaN errors
 subroutine nantest(message,js,je,mode)
 
-use aerointerface, only : xtg,naero   ! Aerosol interface
+use aerosol_arrays, only : xtg,naero  ! Aerosol arrays
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use cfrac_m                           ! Cloud fraction
