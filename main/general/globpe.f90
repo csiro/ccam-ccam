@@ -1449,7 +1449,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     ncvcloud,ncvmix,nevapcc,nkuo,nrhcrit,                         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,                                                          &
+    rcm,nscheme,                                                  &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
     cloud_ice_method,leon_snowmeth,lin_aerosolmode,maxlintime,    &
@@ -3301,7 +3301,7 @@ use parm_m                                 ! Model configuration
 
 implicit none
 
-integer, dimension(28) :: dumi
+integer, dimension(29) :: dumi
 real, dimension(35) :: dumr
     
 dumr = 0.
@@ -3370,6 +3370,7 @@ if ( myid==0 ) then
   dumi(26) = cloud_ice_method
   dumi(27) = leon_snowmeth
   dumi(28) = lin_adv
+  dumi(29) = nscheme
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3436,6 +3437,7 @@ lin_aerosolmode    = dumi(25)
 cloud_ice_method   = dumi(26)
 leon_snowmeth      = dumi(27)
 lin_adv            = dumi(28)
+nscheme            = dumi(29)
 
 return
 end subroutine broadcast_kuonml

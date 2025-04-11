@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -33,6 +33,7 @@ public detrain,detrainx,dsig2,dsig4,entrain
 public fldown,rhcv,rhmois,rhsat,shaltime
 public sigcb,sigcll,sigkscb,sig_ct,sigksct
 public tied_con,tied_over,tied_rh
+public nscheme
 public acon,bcon,rcm,rcrit_l,rcrit_s,cld_decay
 public vdeposition_mode,tiedtke_form
 public kbsav,ktsav
@@ -42,7 +43,7 @@ public kuocom_init,kuocom_end
 integer, save :: iterconv=3,ksc=-95,kscmom=1,kscsea=0,kuocb,ldr=1,mbase=101
 integer, save :: mdelay=-1,methdetr=2,methprec=8,nbase=-4,nclddia=1,ncvcloud=0,ncvmix=0
 integer, save :: nevapcc=0,nevapls=-4,nkuo=23,nrhcrit=10,nstab_cld=0,nuvconv=0,ncloud=0
-integer, save :: vdeposition_mode=0,tiedtke_form=0
+integer, save :: vdeposition_mode=0,tiedtke_form=0, nscheme=1
 integer, dimension(:), allocatable, target, save :: kbsav, ktsav
 real, save :: alflnd=1.1,alfsea=1.1,cldh_lnd=95.,cldm_lnd=85.,cldl_lnd=75.,cldh_sea=95.,cldm_sea=90.
 real, save :: cldl_sea=80.,convfact=1.02,convtime=0.33

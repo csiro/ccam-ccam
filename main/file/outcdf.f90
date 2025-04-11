@@ -617,6 +617,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nkuo',nkuo)
     call ccnf_put_attg(idnc,'nmr',nmr)
     call ccnf_put_attg(idnc,'nrhcrit',nrhcrit)
+    call ccnf_put_attg(idnc,'nscheme',nscheme)
     call ccnf_put_attg(idnc,'nstab_cld',nstab_cld)
     call ccnf_put_attg(idnc,'nuvconv',nuvconv)
     call ccnf_put_attg(idnc,'rcm',rcm)

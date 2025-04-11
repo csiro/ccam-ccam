@@ -222,8 +222,9 @@
 
       subroutine convjlm22
       
+      use aerosol_arrays
       use arrays_m   
-      use aerointerface
+      !use aerointerface
       use cc_mpi, only : mydiag
       use cfrac_m
       use extraout_m
@@ -301,8 +302,8 @@
      &       idjd_t,mydiag_t,entrain,detrain,mbase,iterconv,
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,rhcv,
      &       convtime,nkuo,rhsat,nevapls,
-     &       tied_con,mdelay,convfact,ncvcloud,ldr,rhmois,imax,kl,
-     &       ngas)
+     &       tied_con,mdelay,convfact,ncvcloud,ldr,rhmois,nscheme,
+     &       imax,kl,ngas)
 
         t(js:je,:)       = lt
         qg(js:je,:)      = lqg
@@ -339,17 +340,18 @@
      &       idjd,mydiag,entrain,detrain,mbase,iterconv,
      &       nuvconv,alfsea,methdetr,methprec,fldown,alflnd,rhcv,
      &       convtime,nkuo,rhsat,nevapls,
-     &       tied_con,mdelay,convfact,ncvcloud,ldr,rhmois,imax,kl,
-     &       ngas)
+     &       tied_con,mdelay,convfact,ncvcloud,ldr,rhmois,nscheme,
+     &       imax,kl,ngas)
 
       !jlm convective scheme - latest and cleaned up
 !     unused switches: nevapcc, rhsat, shaltime 
 !     unused switches if ksc=0:  kscmom, 
 !     unused switches if nkuo=21,22,23:  rhsat
 !     unused in convjlm22: dsig2, sigkscb, sigksct, tied_rh
-!     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))   
-      use aerointerface, only : convscav,itracso2,itracbc,itracoc,
-     &                          itracdu,ndust,naero,itracsa,nsalt
+!     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))
+      use aerointerface, only : convscav
+      use aerosol_arrays, only : itracso2,itracbc,itracoc,
+     &                           itracdu,ndust,naero,itracsa,nsalt
       use const_phys
       use diag_m, only : maxmin
       use estab      
@@ -366,7 +368,7 @@
       real rnrt_k,summ,totprec,veldt,pk,dz,sumb,bbb,ccc
       real dtsol
       logical mydiag
-      parameter (nscheme=0)   ! 0 simple, 1 for y scheme, 2 for z scheme   JLM2504
+!     parameter (nscheme=1)   ! 0 simple, 1 for y scheme, 2 for z scheme   JLM2504
       parameter (ntest=0)      ! 1 or 2 to turn on; -1 for ldr writes
 !     convjlm22 requires methdetr=-1,-2 or -3; entrain -ve; nbase=-10  or +ve
 !     parameter (iterconv=3)  ! to kuocom.h
