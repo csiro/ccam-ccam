@@ -53,7 +53,7 @@ subroutine update_cloud_fraction(cfrac,land,                             &
                     dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,clcon,  &
                     em,pblh,idjd,mydiag,nclddia,rcrit_l,                 &
                     rcrit_s,rcm,cld_decay,vdeposition_mode,              &
-                    tiedtke_form,rkmsave,rkhsave,cmode)
+                    tiedtke_form,rkmsave,rkhsave,cmode,dmode)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -77,7 +77,7 @@ real, dimension(size(t,1)), intent(in) :: em, pblh
 real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay
 logical, intent(in) :: mydiag
 logical, dimension(size(t,1)), intent(in) :: land
-character(len=*), intent(in) :: cmode
+character(len=*), intent(in) :: cmode, dmode
 
 !integer, dimension(size(t,1)) :: kbase,ktop  !Bottom and top of convective cloud
 real, dimension(size(t,1),size(t,2)) :: prf      !Pressure on full levels (hPa)
@@ -194,12 +194,29 @@ call newcloud(dt,land,ps,prf,rhoa,tliq,qtot,qcg,fice,   &
               nclddia,rcrit_l,rcrit_s,tiedtke_form,     &
               rkmsave,rkhsave,imax,kl,cmode)
 
-! Update condensate
-call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
-                           tliq,qtot,qcg,qcold,fice,      &
-                           stratcloud,prf,rhoa,           &
-                           tenv,qenv,qlg,qfg)
+if ( dmode == "LEON" ) then
+  ! Update condensate
+  call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
+                             tliq,qtot,qcg,qcold,fice,      &
+                             stratcloud,prf,rhoa,           &
+                             qlg,qfg)
+else
+  ! Update condensate  
+  do k = 1,kl
+    do iq = 1,imax
+      qfg(iq,k) = fice(iq,k)*qcg(iq,k)
+      qlg(iq,k) = qcg(iq,k) - qfg(iq,k)
+    end do
+  end do
+end if
 
+! Calculate new values of vapour mixing ratio and temperature
+do k = 1,kl
+  do iq = 1,imax
+    qenv(iq,k) = max( qtot(iq,k) - qcg(iq,k), 0. )
+    tenv(iq,k) = tliq(iq,k) + hlcp*qcg(iq,k) + hlfcp*qfg(iq,k)
+  end do
+end do
 
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
@@ -644,7 +661,7 @@ end subroutine newcloud
 subroutine saturation_adjustment(tdt,cld_decay,vdeposition_mode,    &
                                  tliq,qtot,qcg_in,qcold,fice,       &
                                  stratcloud,prf,rhoa,               &
-                                 ttg,qtg,qlg,qfg)
+                                 qlg,qfg)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -656,7 +673,7 @@ integer, intent(in) :: vdeposition_mode
 integer k, iq, imax, kl
 real, dimension(:,:), intent(in) :: tliq, qtot, qcg_in, qcold, fice, stratcloud
 real, dimension(:,:), intent(in) :: prf, rhoa
-real, dimension(:,:), intent(out) :: ttg, qtg, qlg, qfg
+real, dimension(:,:), intent(out) :: qlg, qfg
 real, dimension(size(tliq,1),size(tliq,2)) :: pk, qsi, deles, qcg
 real, intent(in) :: tdt, cld_decay
 real decayfac, Tk, qs, es, aprpr, bprpr, cice, qi0, fd, crate, qfdep
@@ -754,15 +771,6 @@ else
   stop
 end if ! vdeposition_mode==0 ..else..
 
-
-! Calculate new values of vapour mixing ratio and temperature
-do k = 1,kl
-  do iq = 1,imax
-    qtg(iq,k) = max( qtot(iq,k) - qcg(iq,k), 0. )
-    ttg(iq,k) = tliq(iq,k) + hlcp*qcg(iq,k) + hlfcp*qfg(iq,k)
-  end do
-end do
-
 return
 end subroutine saturation_adjustment
 
@@ -785,7 +793,7 @@ real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, tliq, rcrit, press
 real, dimension(imax,kl), intent(in) :: dpsldt, rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: rad_tend, trb_tend, trb_qend
 real, dimension(imax,kl), intent(inout) :: stratcloud
-real, dimension(imax,kl) :: new_stratcloud, new_qcg
+real new_stratcloud, new_qcg
 real, dimension(imax), intent(in) :: ps
 real, dimension(imax) :: dqsdt
 real, dimension(imax) :: dqs_adiabatic, dqs_radiation, dqs_turbulence
@@ -811,26 +819,28 @@ do k = 1,kl
     qc_local = qtot(iq,k) - qs(iq,k)     ! qc_local can be negative
     delq = (1.-rcrit(iq,k))*qs(iq,k)     !UKMO style (equivalent to above)
     if ( qc_local<=-delq ) then
-      new_stratcloud(iq,k) = 0.
-      new_qcg(iq,k) = 0.
+      new_stratcloud = 0.
+      new_qcg = 0.
     else if ( qc_local<=0. ) then
-      new_stratcloud(iq,k) = max( 1.e-10, 0.5*((qc_local+delq)/delq)**2 )  ! for roundoff
-      new_qcg(iq,k) = al*(qc_local+delq)**3/(6.*delq**2)
+      new_stratcloud = max( 1.e-10, 0.5*((qc_local+delq)/delq)**2 )  ! for roundoff
+      new_qcg = al*(qc_local+delq)**3/(6.*delq**2)
     else if ( qc_local<delq ) then
-      new_stratcloud(iq,k) = max( 1.e-10, 1.-0.5*((qc_local-delq)/delq)**2 )  ! for roundoff
-      new_qcg(iq,k) = al*(qc_local-(qc_local-delq)**3/(6.*delq**2))
+      new_stratcloud = max( 1.e-10, 1.-0.5*((qc_local-delq)/delq)**2 )  ! for roundoff
+      new_qcg = al*(qc_local-(qc_local-delq)**3/(6.*delq**2))
     else
-      new_stratcloud(iq,k) = 1.
-      new_qcg(iq,k) = al*qc_local
+      new_stratcloud = 1.
+      new_qcg = al*qc_local
     end if
+
+    ! use diagnostic cloud as seed for new cloud, following PC2
+    if ( new_stratcloud>1.e-10 .and. stratcloud(iq,k)<=1.e-10 ) then
+      stratcloud(iq,k) = new_stratcloud
+      qc(iq,k) = new_qcg
+    end if
+
   end do ! iq loop
 end do   ! k loop
 
-! use diagnostic cloud as seed for new cloud, following PC2
-where ( new_stratcloud(:,:)>1.e-10 .and. stratcloud(:,:)<=1.e-10 )
-  stratcloud(:,:) = new_stratcloud(:,:)
-  qc(:,:) = new_qcg(:,:)
-end where
 
 
 select case(tiedtke_form)
@@ -917,8 +927,8 @@ do k = 1,kl
   if ( tiedtke_form==2 ) then
     do iq = 1,imax  
       dqs_turbulence(iq) = dqs_turbulence(iq) - trb_qend(iq,k)
-    end do  
-  end if  
+    end do 
+  end if
   !dqs_convection(:) = grav*cmflx(:,k)/(cp*rho(:,k))*dqsdT
   
   do iq = 1,imax

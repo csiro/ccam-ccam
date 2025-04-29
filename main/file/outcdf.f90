@@ -620,6 +620,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nscheme',nscheme)
     call ccnf_put_attg(idnc,'nstab_cld',nstab_cld)
     call ccnf_put_attg(idnc,'nuvconv',nuvconv)
+    call ccnf_put_attg(idnc,'qfg_max',qfg_max)
+    call ccnf_put_attg(idnc,'qlg_max',qlg_max)
     call ccnf_put_attg(idnc,'rcm',rcm)
     call ccnf_put_attg(idnc,'rcrit_l',rcrit_l)
     call ccnf_put_attg(idnc,'rcrit_s',rcrit_s)
@@ -793,8 +795,8 @@ if ( myid==0 .or. local ) then
     
   else
     if ( myid==0 ) write(6,'(" outcdf itype,idnc,iarch,cdffile=",i5,i8,i5," ",a80)') itype,idnc,iarch,cdffile
-  endif ! ( iarch=1 ) ..else..
-endif ! (myid==0.or.local)
+  end if ! ( iarch=1 ) ..else..
+end if ! (myid==0.or.local)
 
 
 ! openhist writes some fields so needs to be called by all processes
@@ -839,8 +841,8 @@ end if    ! (myid==0.or.local)
 
 ! save history data for next call to cdfout
 if ( itype==1 ) then
-    iarch_hist = iarch 
-    idnc_hist = idnc
+  iarch_hist = iarch 
+  idnc_hist = idnc
 end if
 
 return

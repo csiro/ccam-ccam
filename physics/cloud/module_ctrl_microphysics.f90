@@ -28,15 +28,16 @@ implicit none
 private
 public ctrl_microphysics
 public cloud_aerosol_mode, lin_aerosolmode, maxlintime, lin_adv
-public cloud_ice_method
-public leon_snowmeth
-public process_rate_mode
+public cloud_ice_method, leon_snowmeth, process_rate_mode
+public qlg_max, qfg_max
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
 integer, save :: lin_aerosolmode    = 0     ! 0=off, 1=aerosol indirect effects for Lin microphysics
 integer, save :: lin_adv            = 0     ! 0=original, 1=flux
 integer, save :: process_rate_mode  = 0     ! 0-=off, 1=microphysics diagnostics
 real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
+real, save :: qlg_max               = 1.e-1 ! maximum value of qlg visible to microphysics
+real, save :: qfg_max               = 1.e-1 ! maximum value of qlg visible to microphysics
 
 ! ldr  = 0      Diagnosed cloud scheme (depreciated)
 ! ldr /= 0      Prognostic cloud condensate (different ice fall speed options)
@@ -115,6 +116,7 @@ real, dimension(imax,kl) :: l_rliq, l_rice, l_cliq, l_cice, lp
 real, dimension(imax,kl) :: l_rliq_in, l_rice_in, l_rsno_in
 real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
 real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
+real, dimension(imax,kl) :: qlg_rem, qfg_rem
 real, dimension(ifull,kl) :: clcon, cdrop
 real, dimension(ifull,kl) :: fluxr, fluxm, fluxf, fluxi, fluxs, fluxg
 real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
@@ -141,7 +143,7 @@ real(kind=8), dimension(imax) :: pptrain, pptsnow, pptice
 real(kind=8) tdt
 real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
-character(len=8) :: cmode
+character(len=8) :: cmode, dmode
 
 
 !----------------------------------------------------------------------------
@@ -202,13 +204,14 @@ do tile = 1,ntiles
   lrkhsave = rkhsave(js:je,:)
   
   cmode = interp_ncldfrac(ldr,ncloud)
+  dmode = interp_ncloud(ldr,ncloud)
 
   call update_cloud_fraction(lcfrac,land(js:je),                                &
               ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
               ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
               em(js:je),pblh(js:je),idjd_t,mydiag_t,nclddia,                    &
               rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,tiedtke_form,      &
-              lrkmsave,lrkhsave,cmode)
+              lrkmsave,lrkhsave,cmode,dmode)
 
   ! This configuration allows prognostic condensate variables to be updated 
   cfrac(js:je,:) = lcfrac
@@ -240,7 +243,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
     !$omp private(lstratcloud,lcdrop),                                            &
     !$omp private(lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg),                     &
-    !$omp private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi)
+    !$omp private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi,qlg_rem,qfg_rem)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -248,6 +251,12 @@ select case ( interp_ncloud(ldr,ncloud) )
       idjd_t = mod(idjd-1,imax) + 1
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
+      ! limit maximum cloud water visible to microphysics
+      qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
+      qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)      
+      
       lgfrac   = gfrac(js:je,:)
       lrfrac   = rfrac(js:je,:)
       lsfrac   = sfrac(js:je,:)
@@ -292,6 +301,11 @@ select case ( interp_ncloud(ldr,ncloud) )
       fcoll(js:je,:) = lqcoll(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       faccr(js:je,:) = lqaccr(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       vi(js:je,:) = lvi
+      
+      ! reapply any remaining qlg_rem or qfg_rem
+      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
+      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
+      
       ! backwards compatible data for aerosols
       if ( abs(iaero)>=2 ) then
         ppfevap(js:je,:)    = lppfevap
@@ -312,19 +326,38 @@ select case ( interp_ncloud(ldr,ncloud) )
 
   case( "LIN" )
 
+#ifdef GPUPHYSICS
+    !$acc parallel loop copy(t,qg,qlg,qfg,qrg,qsng,qgrg,nr,ni,ns,condx)       &
+    !$acc   copy(conds,condg)                                                 &
+    !$acc   copyin(zs,bet,betm,ps,sig,rhoa,dz,cdrop)                          &
+    !$acc   copyout(rfrac,sfrac,gfrac,stras_rliq,stras_rice,stras_rsno)       &
+    !$acc   copyut(stras_rrai,fluxr,fluxi,fluxs,fluxg,fluxm,fluxf,fevap)      &
+    !$acc   copyout(fsubl,fauto,fcoll,faccr,vi,psnow,psaut,psfw,psfi,praci)   &
+    !$acc   copyout(piacr,psaci,psacw,psdep,pssub,pracs,psacr,psmlt,psmltevp) &
+    !$acc   copyout(prain,praut,pracw,prwvp,pgfr,pvapor,pclw,pladj,pcli)      &
+    !$acc   copyout(pimltpihom,pidw,piadj,pqschg)                             &
+    !$acc   private(tile,js,je,k,i,iq,riz,zlev,zqg,zqlg,zqfg,zqrg,zqsng)      &
+    !$acc   private(prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,zcdrop,znc,zni)    &
+    !$acc   private(zns,pptrain,pptsnow,pptice,njumps,tdt,n,zeffc1d,zeffi1d)  &
+    !$acc   private(zeffs1d,zeffr1d,zfluxr,xfluxi,zfluxs,zfluxm,zfluxf)       &
+    !$acc   private(zqevap,zqsubl,zqauto,zqcoll,zqaccr,zvi,zpsnow,zpsaut)     &
+    !$acc   private(zpsfm,zpsfi,zpraci,zpiacr,zpsaci,zpsacw,zpsdep,zpssub)    &
+    !$acc   private(zpracs,zpsacr,zpsmlt,zpsmlevp,zprain,zpraut,zprecw)       &
+    !$acc   private(zprevp,zpgfr,zpvapour,zpclw,zpladj,zpcli,zpimlt,zpihom)   &
+    !$acc   private(zpidw,zpiadj,zqschg,qlg_rem,qfg_rem)
+#else
     !$omp do schedule(static) private(js,je,riz,zlevv,zqg,zqlg,zqrg,zqfg)     &
     !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
     !$omp private(zcdrop,znr,zni,zns,pptrain,pptsnow,pptice,njumps,tdt,n)     &
     !$omp private(zeffc1d,zeffi1d,zeffs1d,zeffr1d,zfluxr,zfluxi,zfluxs)       &
     !$omp private(zfluxm,zfluxf,zqevap,zqsubl,zqauto,zqcoll,zqaccr)           &
-#ifdef debug
     !$omp private(zpsnow,zpsaut)                                              &
     !$omp private(zpsfw,zpsfi,zpraci,zpiacr,zpsaci,zpsacw,zpsdep,zpssub)      &
     !$omp private(zpracs,zpsacr,zpsmlt,zpsmltevp,zprain,zpraut,zpracw)        &
     !$omp private(zprevp,zpgfr,zpvapor,zpclw,zpladj,zpcli,zpimlt,zpihom)      &
     !$omp private(zpidw,zpiadj,zqschg)                                        &
+    !$omp private(zvi,njumps,tdt,qlg_rem,qfg_rem)
 #endif
-    !$omp private(zvi,njumps,tdt)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
@@ -337,7 +370,13 @@ select case ( interp_ncloud(ldr,ncloud) )
       do k = 2,kl
         zlevv(1:imax,k) = zlevv(1:imax,k-1) + real( (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav, 8 )
       end do
-        
+      
+      ! limit maximum cloud water visible to microphysics
+      qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
+      qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)
+      
       zqg(1:imax,:) = real( qg(js:je,:), 8 )
       zqlg(1:imax,:) = real( qlg(js:je,:), 8 )
       zqrg(1:imax,:) = real( qrg(js:je,:), 8 )
@@ -347,8 +386,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       do k = 1,kl
         do i = 1,imax
           iq = i + js - 1  
-          prf_temp    = ps(iq)*sig(k)
-          prf         = 0.01*prf_temp                        ! ps is SI units
+          prf_temp   = ps(iq)*sig(k)
+          prf        = 0.01*prf_temp   ! ps is SI units
           tothz(i,k) = real( (prf/1000.)**(rdry/cp), 8 )
           thz(i,k)   = real( t(iq,k)/tothz(i,k), 8 )
           zrhoa(i,k) = real( rhoa(iq,k), 8 )
@@ -376,7 +415,6 @@ select case ( interp_ncloud(ldr,ncloud) )
                        zqg, zqlg, zqrg, zqfg, zqsng,       &
                        thz, tothz, zrhoa,                  &
                        zpres, zlevv, dzw,                  &
-                       !precrz, preciz, precsz,            & !zdc 20220116
                        zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D, & !zdc 20220208
                        pptrain, pptsnow, pptice,           &
                        1, kl, riz,                         &
@@ -406,6 +444,10 @@ select case ( interp_ncloud(ldr,ncloud) )
       qsng(js:je,:) = real( zqsng(1:imax,:)*(1._8-riz(1:imax,:)) ) ! qs mixing ratio (snow)
       qgrg(js:je,:) = real( zqsng(1:imax,:)*riz(1:imax,:) )        ! qg mixing ration (graupel)
 
+      ! reapply any remaining qlg_rem or qfg_rem
+      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
+      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
+      
       where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
       elsewhere
@@ -486,7 +528,11 @@ select case ( interp_ncloud(ldr,ncloud) )
       condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel
 
     end do     !tile loop
+#ifdef GPUPHYSICS
+    !$acc end parallel loop
+#else
     !$omp end do nowait
+#endif
 
   case default
     write(6,*) "ERROR: unknown cloud microphysics option"
@@ -637,7 +683,7 @@ end subroutine ctrl_microphysics
 !====================================================================================================
 ! SUBROUTINE interp_ncloud
 !   
-! subroutine to select the cloud microphysics scheme for CCAM
+! subroutine to select the cloud condensate scheme for CCAM
 !====================================================================================================
 pure function interp_ncloud(ldr, ncloud) result(mp_physics)
 
@@ -661,6 +707,11 @@ end if
 return
 end function interp_ncloud  
 
+!====================================================================================================
+! SUBROUTINE interp_ncldfrac
+!   
+! subroutine to select the cloud fraction scheme for CCAM
+!====================================================================================================
 pure function interp_ncldfrac(ldr, ncloud) result(mp_physics)
 
 implicit none

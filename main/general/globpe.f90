@@ -466,7 +466,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! ***********************************************************************
   ! RIVER ROUTING AND HYDROLOGY
   ! ***********************************************************************
-    
+
   if ( nhstest>=0 ) then
     call START_LOG(river_begin)
     call rvrrouter
@@ -474,7 +474,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call END_LOG(river_end)
   end if  
 
-  
+
     
   ! ***********************************************************************
   ! OCEAN DYNAMICS
@@ -1453,7 +1453,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
     cloud_ice_method,leon_snowmeth,lin_aerosolmode,maxlintime,    &
-    lin_adv                                                         
+    lin_adv,qlg_max,qfg_max                                                         
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -3302,7 +3302,7 @@ use parm_m                                 ! Model configuration
 implicit none
 
 integer, dimension(29) :: dumi
-real, dimension(35) :: dumr
+real, dimension(37) :: dumr
     
 dumr = 0.
 dumi = 0
@@ -3342,6 +3342,8 @@ if ( myid==0 ) then
   dumr(33) = rcrit_s
   dumr(34) = cld_decay
   dumr(35) = maxlintime
+  dumr(36) = qlg_max
+  dumr(37) = qfg_max
   dumi(1)  = iterconv
   dumi(2)  = ksc
   dumi(3)  = kscmom
@@ -3409,6 +3411,8 @@ rcrit_l            = dumr(32)
 rcrit_s            = dumr(33)
 cld_decay          = dumr(34)
 maxlintime         = dumr(35)
+qlg_max            = dumr(36)
+qfg_max            = dumr(37)
 iterconv           = dumi(1) 
 ksc                = dumi(2)
 kscmom             = dumi(3)
