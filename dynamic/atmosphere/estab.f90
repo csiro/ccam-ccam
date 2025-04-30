@@ -129,6 +129,8 @@ end interface esdiffx
 contains
 
 pure function tdiff_s(t_) result(ans)
+!$acc routine seq
+implicit none
 real, intent(in) :: t_
 real ans
 ! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
@@ -136,6 +138,8 @@ ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_s
 
 pure function tdiff_v(t_) result(ans)
+!$acc routine vector
+implicit none
 real, dimension(:), intent(in) :: t_
 real, dimension(size(t_)) :: ans
 ! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
@@ -143,6 +147,8 @@ ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_v
 
 pure function tdiff_3(t_) result(ans)
+!$acc routine vector
+implicit none
 real, dimension(:,:), intent(in) :: t_
 real, dimension(size(t_,1),size(t_,2)) :: ans
 ! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
@@ -150,27 +156,35 @@ ans=min(max( t_-123.16, 0.), 219.)
 end function tdiff_3
 
 pure function tdiffx_s(tx_) result(ans)
+!$acc routine seq
 use const_phys
+implicit none
 real, intent(in) :: tx_
 real ans
 ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_s
 
 pure function tdiffx_v(tx_) result(ans)
+!$acc routine vector
 use const_phys
+implicit none
 real, dimension(:), intent(in) :: tx_
 real, dimension(size(tx_)) :: ans
 ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_v
 
 pure function tdiffx_3(tx_) result(ans)
+!$acc routine vector
 use const_phys
+implicit none
 real, dimension(:,:), intent(in) :: tx_
 real, dimension(size(tx_,1),size(tx_,2)) :: ans
 ans=min(max( tx_-tfrz, -40.), 1.)
 end function tdiffx_3
 
 pure function establ_s(t_) result(ans)
+!$acc routine seq
+implicit none
 integer tpos
 real, intent(in) :: t_
 real ans
@@ -184,6 +198,8 @@ ans = (1.-tfrac)*table(tpos)+ tfrac*table(tpos+1)
 end function establ_s
 
 pure function establ_v(t_) result(ans)
+!$acc routine vector
+implicit none
 integer iq
 real, dimension(:), intent(in) :: t_
 real, dimension(size(t_)) :: ans
@@ -200,6 +216,8 @@ end do
 end function establ_v
 
 pure function establ_3(t_) result(ans)
+!$acc routine vector
+implicit none
 integer k, iq
 real, dimension(:,:), intent(in) :: t_
 real, dimension(size(t_,1),size(t_,2)) :: ans
@@ -218,7 +236,9 @@ end do
 end function establ_3
 
 pure function qsat_s(pp_,t_) result(ans)
+!$acc routine seq
 use const_phys
+implicit none
 real, intent(in) :: pp_, t_
 real ans      
 real tstore, estore, tfrac
@@ -233,7 +253,9 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 end function qsat_s
 
 pure function qsat_v(pp_,t_) result(ans)
+!$acc routine vector
 use const_phys
+implicit none
 real, dimension(:), intent(in) :: pp_, t_
 real, dimension(size(t_)) :: ans
 real tstore, estore, tfrac
@@ -250,7 +272,9 @@ end do
 end function qsat_v
 
 pure function qsat_3(pp_,t_) result(ans)
+!$acc routine vector
 use const_phys
+implicit none
 real, dimension(:,:), intent(in) :: pp_, t_
 real, dimension(size(t_,1),size(t_,2)) :: ans
 real tstore, estore, tfrac
@@ -269,6 +293,8 @@ end do
 end function qsat_3
 
 pure function estabi_s(t_) result(ans)
+!$acc routine seq
+implicit none
 integer tpos
 real, intent(in) :: t_
 real ans
@@ -280,6 +306,8 @@ ans = (1.-tfrac)*tablei(tpos)+ tfrac*tablei(tpos+1)
 end function estabi_s
 
 pure function estabi_v(t_) result(ans)
+!$acc routine vector
+implicit none
 integer iq
 real, dimension(:), intent(in) :: t_
 real, dimension(size(t_)) :: ans
@@ -294,6 +322,8 @@ end do
 end function estabi_v
 
 pure function estabi_3(t_) result(ans)
+!$acc routine vector
+implicit none
 integer k, iq
 real, dimension(:,:), intent(in) :: t_
 real, dimension(size(t_,1),size(t_,2)) :: ans 
@@ -310,7 +340,9 @@ end do
 end function estabi_3
 
 pure function qsati_s(pp_,t_) result(ans)
+!$acc routine seq
 use const_phys
+implicit none
 real, intent(in) :: pp_, t_
 real ans
 real estore, tstore, tfrac
@@ -325,7 +357,9 @@ ans = epsil*estore/max(pp_-estore,.1) !jlm strato
 end function qsati_s
 
 pure function qsati_v(pp_,t_) result(ans)
+!$acc routine vector
 use const_phys
+implicit none
 real, dimension(:), intent(in) :: pp_, t_
 real, dimension(size(t_)) :: ans
 real estore, tstore, tfrac
@@ -342,7 +376,9 @@ end do
 end function qsati_v
 
 pure function qsati_3(pp_,t_) result(ans)
+!$acc routine vector
 use const_phys
+implicit none
 real, dimension(:,:), intent(in) :: pp_, t_
 real, dimension(size(t_,1),size(t_,2)) :: ans
 real estore, tstore, tfrac
@@ -361,7 +397,9 @@ end do
 end function qsati_3
 
 pure function esdiffx_s(tx_) result(ans)
+!$acc routine seq
 use const_phys
+implicit none
 integer tpos
 real, intent(in) :: tx_
 real ans
@@ -373,7 +411,9 @@ ans = (1.-tfrac)*esdiff(tpos)+tfrac*esdiff(tpos+1)
 end function esdiffx_s
 
 pure function esdiffx_v(tx_) result(ans)
+!$acc routine vector
 use const_phys
+implicit none
 integer iq
 real, dimension(:), intent(in) :: tx_
 real, dimension(size(tx_)) :: ans
@@ -388,7 +428,9 @@ end do
 end function esdiffx_v
 
 pure function esdiffx_3(tx_) result(ans)
+!$acc routine vector
 use const_phys
+implicit none
 integer iq, k
 real, dimension(:,:), intent(in) :: tx_
 real, dimension(size(tx_,1),size(tx_,2)) :: ans

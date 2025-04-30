@@ -297,15 +297,16 @@ select case(nhorjlm)
     ! K-eps model + Smag
     call boundsuv(uav,vav,allvec=.true.)
     do k = 1,kl
+      hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
       do iq = 1,ifull
-        hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
         dudx = 0.5*(uav(ieu(iq),k)-uav(iwu(iq),k))*em(iq)/ds
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
         dvdx = 0.5*(vav(iev(iq),k)-vav(iwv(iq),k))*em(iq)/ds
         dvdy = 0.5*(vav(inv(iq),k)-vav(isv(iq),k))*em(iq)/ds
         r1 = (dudx-dvdy)**2+(dvdx+dudy)**2
         t_kh(iq,k) = sqrt(r1)*hdif*emi(iq)
-        t_kh(iq,k)=max( t_kh(iq,k), tke(iq,k)**2/eps(iq,k)*dt*cm0*emi(iq) )
+        t_kh(iq,k) = max( t_kh(iq,k), max(tke(iq,k),mintke)**2/ &
+                     max(eps(iq,k),mineps)*dt*cm0*emi(iq) )
       end do
     end do
 
