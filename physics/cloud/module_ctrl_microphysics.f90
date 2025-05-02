@@ -116,12 +116,13 @@ real, dimension(imax,kl) :: l_rliq, l_rice, l_cliq, l_cice, lp
 real, dimension(imax,kl) :: l_rliq_in, l_rice_in, l_rsno_in
 real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
 real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
+real, dimension(imax,kl) :: qlg_rem, qfg_rem
 real, dimension(ifull,kl) :: clcon, cdrop
 real, dimension(ifull,kl) :: fluxr, fluxm, fluxf, fluxi, fluxs, fluxg
 real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
 real, dimension(ifull,kl) :: vi
 real, dimension(ifull,kl) :: dz, rhoa
-real, dimension(ifull,kl) :: qlg_rem, qfg_rem
+
 real(kind=8), dimension(imax,0:kl) :: zlevv
 real(kind=8), dimension(imax,kl) :: riz, tothz, thz, dzw
 real(kind=8), dimension(imax,kl) :: znc, znr, zni, zns
@@ -156,12 +157,6 @@ do tile = 1,ntiles
     lrhoa(:,k) = ps(js:je)*sig(k)/(rdry*t(js:je,k))
     rhoa(js:je,k) = lrhoa(:,k)
     dz(js:je,k) = -rdry*dsig(k)*t(js:je,k)/(grav*sig(k)) 
-
-    ! limit maximum cloud water visible to microphysics
-    qlg_rem(js:je,k) = max( qlg(js:je,k)-qlg_max, 0. )
-    qlg(js:je,k) = qlg(js:je,k) - qlg_rem(js:je,k)
-    qfg_rem(js:je,k) = max( qfg(js:je,k)-qfg_max, 0. )
-    qfg(js:je,k) = qfg(js:je,k) - qfg_rem(js:je,k)
   end do
   ! Calculate droplet concentration from aerosols (for non-convective faction of grid-box)
   ! xtg is unchanged since updating GPU
@@ -256,6 +251,12 @@ select case ( interp_ncloud(ldr,ncloud) )
       idjd_t = mod(idjd-1,imax) + 1
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
+      ! limit maximum cloud water visible to microphysics
+      qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
+      qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)      
+      
       lgfrac   = gfrac(js:je,:)
       lrfrac   = rfrac(js:je,:)
       lsfrac   = sfrac(js:je,:)
@@ -300,6 +301,10 @@ select case ( interp_ncloud(ldr,ncloud) )
       fcoll(js:je,:) = lqcoll(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       faccr(js:je,:) = lqaccr(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       vi(js:je,:) = lvi
+      
+      ! reapply any remaining qlg_rem or qfg_rem
+      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
+      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
       
       ! backwards compatible data for aerosols
       if ( abs(iaero)>=2 ) then
@@ -365,6 +370,12 @@ select case ( interp_ncloud(ldr,ncloud) )
       do k = 2,kl
         zlevv(1:imax,k) = zlevv(1:imax,k-1) + real( (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav, 8 )
       end do
+      
+      ! limit maximum cloud water visible to microphysics
+      qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
+      qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)
       
       zqg(1:imax,:) = real( qg(js:je,:), 8 )
       zqlg(1:imax,:) = real( qlg(js:je,:), 8 )
@@ -433,6 +444,10 @@ select case ( interp_ncloud(ldr,ncloud) )
       qsng(js:je,:) = real( zqsng(1:imax,:)*(1._8-riz(1:imax,:)) ) ! qs mixing ratio (snow)
       qgrg(js:je,:) = real( zqsng(1:imax,:)*riz(1:imax,:) )        ! qg mixing ration (graupel)
 
+      ! reapply any remaining qlg_rem or qfg_rem
+      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
+      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
+      
       where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
       elsewhere
@@ -655,18 +670,6 @@ if ( abs(iaero)>=2 ) then
     !$omp end do nowait
   end if   ! interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0
 end if     ! abs(iaero)>=2
-
-! reapply any remaining qlg_rem or qfg_rem
-!$omp do schedule(static) private(js,je,k)
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
-  do k = 1,kl
-    qlg(js:je,k) = qlg(js:je,k) + qlg_rem(js:je,k)
-    qfg(js:je,k) = qfg(js:je,k) + qfg_rem(js:je,k)
-  end do
-end do
-!$omp end do nowait
 
 
 !----------------------------------------------------------------------------  

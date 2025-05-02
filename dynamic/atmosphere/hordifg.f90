@@ -350,8 +350,6 @@ if ( nhorps==-4 .and. ldr/=0 ) then
   call bounds(qgrg)
   if ( ncloud>=100 .and. ncloud<200 ) then
     call bounds(ni)
-    call bounds(nr)
-    call bounds(ns)
   end if
 end if
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
