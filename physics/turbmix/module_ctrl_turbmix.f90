@@ -419,6 +419,9 @@ select case(nvmix)
         nlocal_mode = 1
       case(7) ! atm only, mass-flux counter gradient
         nlocal_mode = 0
+      case default
+        write(6,*) "ERROR: Invalid nlocal = ",nlocal
+        stop -1
     end select
   case(9)
     select case(nlocal)
@@ -426,6 +429,9 @@ select case(nvmix)
         nlocal_mode = 3
       case(7) ! coupled atm-ocn, mass-flux counter gradient
         nlocal_mode = 2
+      case default
+        write(6,*) "ERROR: Invalid nlocal = ",nlocal
+        stop -1
     end select
 end select
     

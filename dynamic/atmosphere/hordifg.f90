@@ -303,7 +303,8 @@ select case(nhorjlm)
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
         dvdx = 0.5*(vav(iev(iq),k)-vav(iwv(iq),k))*em(iq)/ds
         dvdy = 0.5*(vav(inv(iq),k)-vav(isv(iq),k))*em(iq)/ds
-        r1 = (dudx-dvdy)**2+(dvdx+dudy)**2
+        !r1 = (dudx-dvdy)**2+(dvdx+dudy)**2
+        r1 = (dvdx+dudy)**2 + 0.5*dudx**2 + 0.5*dvdy**2
         t_kh(iq,k) = sqrt(r1)*hdif*emi(iq)
         t_kh(iq,k) = max( t_kh(iq,k), max(tke(iq,k),mintke)**2/ &
                      max(eps(iq,k),mineps)*dt*cm0*emi(iq) )
