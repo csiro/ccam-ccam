@@ -3729,9 +3729,6 @@ if ( mp_global>0 ) then
   !  end where  
   !end if
   
-  ! depeciated
-  !bgc%ratecp(:) = real(ratecp(:),8)/
-  !bgc%ratecs(:) = real(ratecs(:),8)
 end if
 
 return
@@ -4012,32 +4009,36 @@ use pbl_m
 use soil_m
 use soilsnow_m
 use vegpar_m
+
+integer k
   
 if ( mp_global>0 ) then
 
 ! MJT notes - may be better to use the default values for
 ! carbon pools than interpolate low resolution data
     
-!  if ( ccycle>=1 .and. ccycle<=3 ) then
-!    do k = 1,mplant
-!      call cable_pack(cplant(:,k),casapool%cplant(:,k))
-!      call cable_pack(niplant(:,k),casapool%nplant(:,k))
-!      call cable_pack(pplant(:,k),casapool%pplant(:,k))
-!    end do
-!    do k = 1,mlitter
-!      call cable_pack(clitter(:,k),casapool%clitter(:,k))
-!      call cable_pack(nilitter(:,k),casapool%nlitter(:,k))
-!      call cable_pack(plitter(:,k),casapool%plitter(:,k))
-!    end do
-!    do k = 1,msoil
-!      call cable_pack(csoil(:,k),casapool%csoil(:,k))
-!      call cable_pack(nisoil(:,k),casapool%nsoil(:,k))
-!      call cable_pack(psoil(:,k),casapool%psoil(:,k))
-!    end do
-!  else
-!    write(6,*) "ERROR: Unknown ccycle option ",ccycle
-!    call ccmpi_abort(-1)
-!  end if
+  if ( ccycle>=1 .and. ccycle<=3 ) then
+    if ( all( cplant(:,1)>0. ) ) then  
+      do k = 1,mplant
+        call cable_pack(cplant(:,k),casapool%cplant(:,k))
+        call cable_pack(niplant(:,k),casapool%nplant(:,k))
+        call cable_pack(pplant(:,k),casapool%pplant(:,k))
+      end do
+      do k = 1,mlitter
+        call cable_pack(clitter(:,k),casapool%clitter(:,k))
+        call cable_pack(nilitter(:,k),casapool%nlitter(:,k))
+        call cable_pack(plitter(:,k),casapool%plitter(:,k))
+      end do
+      do k = 1,msoil
+        call cable_pack(csoil(:,k),casapool%csoil(:,k))
+        call cable_pack(nisoil(:,k),casapool%nsoil(:,k))
+        call cable_pack(psoil(:,k),casapool%psoil(:,k))
+      end do
+    end if  
+  else
+    write(6,*) "ERROR: Unknown ccycle option ",ccycle
+    call ccmpi_abort(-1)
+  end if
  
   call fixtile
   
@@ -5292,15 +5293,6 @@ else
   cv_test = .false.
 end if
 
-!#ifdef debug
-!call ccmpi_reduce(cv_test,global_cv_test,'or',0,comm_world)
-!if ( myid==0 ) then
-!  if ( global_cv_test ) then
-!    write(6,*) "-> Reorder vegetation types for initial conditions"
-!  end if
-!end if
-!#endif
-
 oldv_up = 0
 newv_up = 0
 
@@ -5365,15 +5357,6 @@ if ( mp_global>0 ) then
 else
   sv_test = .false. 
 end if
-
-!#ifdef debug
-!call ccmpi_reduce(sv_test,global_sv_test,'or',0,comm_world) 
-!if ( myid==0 ) then
-!  if ( global_sv_test ) then
-!    write(6,*) "-> Detected change in land-cover area fraction"
-!  end if
-!end if
-!#endif
 
 if ( mp_global>0 ) then
   if ( sv_test ) then

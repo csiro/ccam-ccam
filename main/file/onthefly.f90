@@ -1809,6 +1809,32 @@ if ( nested/=1 .and. nested/=3 ) then
       call gethist1('od550aer',opticaldepth(:,4,1))
     end if    
   end if    
+  
+  !------------------------------------------------------------------
+  ! Read carbon cycle data
+  if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
+    if ( ccycle/=0 .and. carbon_found ) then
+      call fillhist4('cplant',cplant,sea_a,fill_sea)
+      call fillhist4('nplant',niplant,sea_a,fill_sea)
+      call fillhist4('pplant',pplant,sea_a,fill_sea)
+      call fillhist4('clitter',clitter,sea_a,fill_sea)
+      call fillhist4('nlitter',nilitter,sea_a,fill_sea)
+      call fillhist4('plitter',plitter,sea_a,fill_sea)
+      call fillhist4('csoil',csoil,sea_a,fill_sea)
+      call fillhist4('nsoil',nisoil,sea_a,fill_sea)
+      call fillhist4('psoil',psoil,sea_a,fill_sea)
+    else
+      cplant = 0.
+      niplant = 0.
+      pplant = 0.
+      clitter = 0.
+      nilitter = 0.
+      plitter = 0.
+      csoil = 0.
+      nisoil = 0.
+      psoil = 0.
+    end if
+  end if
 
   !------------------------------------------------------------------
   ! Read urban data

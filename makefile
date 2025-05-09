@@ -311,7 +311,7 @@ LIBS += -lcosp -lsubcol -L $(VPATH)
 endif
 
 # CABLE, MLO, aTEB, etc
-FFLAGS += -DCCAM $(INC)
+FFLAGS += -DCCAM -Dgrell $(INC)
 
 
 # Object files for dynamical model
@@ -353,7 +353,8 @@ optical_path.o gas_tf.o lw_gases_stdtf.o \
 mlodynamics.o mlodynamicsarrays_m.o mlodiffg.o mlostag.o mlodepts.o mloints.o mlovadvtvd.o \
 darcdf_m.o dates_m.o filnames_m.o newmpar_m.o parm_m.o parmdyn_m.o parmgeom_m.o \
 parmhor_m.o soilv_m.o stime_m.o \
-netcdf_m.o parmvert_m.o module_aux_cosp.o module_ctrl_convection.o 
+netcdf_m.o parmvert_m.o module_aux_cosp.o module_ctrl_convection.o \
+cu_gf_deep.o
 
 
 globpea: $(OBJS)
@@ -495,7 +496,7 @@ mlostag.o : cc_mpi.o indices_m.o mlo_ctrl.o mlodynamicsarrays_m.o newmpar_m.o pa
 mlovadvtvd.o : cc_acc.o cc_mpi.o mlo_ctrl.o newmpar_m.o
 module_aux_cosp.o : arrays_m.o cc_mpi.o cfrac_m.o const_phys.o estab.o kuocom_m.o latlong_m.o liqwpar_m.o map_m.o module_aux_rad.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o pbl_m.o prec_m.o raddiag_m.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o vvel_m.o
 module_aux_rad.o : const_phys.o parm_m.o
-module_ctrl_convection.o : aerointerface.o aerosol_arrays.o arrays_m.o cc_mpi.o convjlm.o convjlm22.o const_phys.o kuocom_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nlin_m.o parm_m.o prec_m.o sigs_m.o soil_m.o vvel_m.o
+module_ctrl_convection.o : aerointerface.o aerosol_arrays.o arrays_m.o cc_mpi.o convjlm.o convjlm22.o const_phys.o cu_gf_deep.o kuocom_m.o liqwpar_m.o map_m.o morepbl_m.o newmpar_m.o nlin_m.o parm_m.o prec_m.o sigs_m.o soil_m.o vvel_m.o
 module_ctrl_microphysics.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o estab.o filnames_m.o kuocom_m.o latlong_m.o leoncld.o liqwpar_m.o map_m.o module_aux_cosp.o module_aux_rad.o module_mp_sbu_ylin.o morepbl_m.o newmpar_m.o nharrs_m.o parm_m.o pbl_m.o prec_m.o raddiag_m.o screen_m.o sflux.o sigs_m.o soil_m.o soilsnow_m.o work3f_m.o vvel_m.o
 module_ctrl_turbmix.o : arrays_m.o cc_mpi.o cfrac_m.o const_phys.o diag_m.o extraout_m.o kuocom_m.o liqwpar_m.o map_m.o mlo_ctrl.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o pbl_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o trimmix.o work2_m.o vertmix.o
 module_mp_sbu_ylin.o : cc_mpi.o

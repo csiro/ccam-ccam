@@ -265,8 +265,8 @@ do tile = 1,ntiles
   kdt                 = 0
   tropics             = 0
   g_pre(1:imax) = 0.
-  g_qfg(1:imax,1:kl) = 0.
-  g_qlg(1:imax,1:kl) = 0.
+  g_qfg(1:imax,1:kl) = qfg(js:je,1:kl)
+  g_qlg(1:imax,1:kl) = qlg(js:je,1:kl)
   
   ! MJT notes - still need to include aerosol transport and scavenging
 

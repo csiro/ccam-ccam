@@ -331,19 +331,19 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$acc   copy(conds,condg)                                                 &
     !$acc   copyin(zs,bet,betm,ps,sig,rhoa,dz,cdrop)                          &
     !$acc   copyout(rfrac,sfrac,gfrac,stras_rliq,stras_rice,stras_rsno)       &
-    !$acc   copyut(stras_rrai,fluxr,fluxi,fluxs,fluxg,fluxm,fluxf,fevap)      &
+    !$acc   copyout(stras_rrai,fluxr,fluxi,fluxs,fluxg,fluxm,fluxf,fevap)     &
     !$acc   copyout(fsubl,fauto,fcoll,faccr,vi,psnow,psaut,psfw,psfi,praci)   &
     !$acc   copyout(piacr,psaci,psacw,psdep,pssub,pracs,psacr,psmlt,psmltevp) &
-    !$acc   copyout(prain,praut,pracw,prwvp,pgfr,pvapor,pclw,pladj,pcli)      &
-    !$acc   copyout(pimltpihom,pidw,piadj,pqschg)                             &
-    !$acc   private(tile,js,je,k,i,iq,riz,zlev,zqg,zqlg,zqfg,zqrg,zqsng)      &
+    !$acc   copyout(prain,praut,pracw,prevp,pgfr,pvapor,pclw,pladj,pcli)      &
+    !$acc   copyout(pimlt,pihom,pidw,piadj,pqschg)                            &
+    !$acc   private(tile,js,je,k,i,iq,riz,zlevv,zqg,zqlg,zqfg,zqrg,zqsng)     &
     !$acc   private(prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,zcdrop,znc,zni)    &
     !$acc   private(zns,pptrain,pptsnow,pptice,njumps,tdt,n,zeffc1d,zeffi1d)  &
-    !$acc   private(zeffs1d,zeffr1d,zfluxr,xfluxi,zfluxs,zfluxm,zfluxf)       &
+    !$acc   private(zeffs1d,zeffr1d,zfluxr,zfluxi,zfluxs,zfluxm,zfluxf)       &
     !$acc   private(zqevap,zqsubl,zqauto,zqcoll,zqaccr,zvi,zpsnow,zpsaut)     &
-    !$acc   private(zpsfm,zpsfi,zpraci,zpiacr,zpsaci,zpsacw,zpsdep,zpssub)    &
-    !$acc   private(zpracs,zpsacr,zpsmlt,zpsmlevp,zprain,zpraut,zprecw)       &
-    !$acc   private(zprevp,zpgfr,zpvapour,zpclw,zpladj,zpcli,zpimlt,zpihom)   &
+    !$acc   private(zpsfw,zpsfi,zpraci,zpiacr,zpsaci,zpsacw,zpsdep,zpssub)    &
+    !$acc   private(zpracs,zpsacr,zpsmlt,zpsmltevp,zprain,zpraut,zpracw)      &
+    !$acc   private(zprevp,zpgfr,zpvapor,zpclw,zpladj,zpcli,zpimlt,zpihom)    &
     !$acc   private(zpidw,zpiadj,zqschg,qlg_rem,qfg_rem)
 #else
     !$omp do schedule(static) private(js,je,riz,zlevv,zqg,zqlg,zqrg,zqfg)     &

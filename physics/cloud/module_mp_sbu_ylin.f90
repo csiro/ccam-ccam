@@ -110,6 +110,7 @@ subroutine clphy1d_ylin(dt, imax,                           &
                       zpladj,zpcli,zpimlt,zpihom,           &
                       zpidw,zpiadj,zqschg,                  &
                       zdrop,lin_aerosolmode,lin_adv)
+!$acc routine vector
 
 !-----------------------------------------------------------------------
 
@@ -1427,7 +1428,11 @@ subroutine clphy1d_ylin(dt, imax,                           &
         !
 
         !---- YLIN, autoconversion use Liu and Daum (2004), unit = g cm-3 s-1, in the scheme kg/kg s-1, so
-                  
+
+        praut(iq) = 0.0
+        npraut(iq) = 0.0
+        npraut_r(iq) = 0.0
+        
         if (qlz(iq,k) > 1.e-8) then
             
           mu_c(iq,k) = min(15., (1000.E6/ncz(iq,k) + 2.))
@@ -1438,24 +1443,17 @@ subroutine clphy1d_ylin(dt, imax,                           &
           lamc(iq,k) = (ncz(iq,k)*rhowater*pi*gg31/(6.*qlz(iq,k)*gg32))**(1./3)
           Dc_liu = (gg33/gg32)**(1./6.)/lamc(iq,k) !----- R6 in m
           if (Dc_liu > R6c) then
-            disp = 1./(mu_c(iq,k)+1.)                      !--- square of relative dispersion
+            disp = 1./(mu_c(iq,k)+1.)              !--- square of relative dispersion
             eta  = (0.75/pi/(1.e-3*rhowater))**2*1.9e11*((1.+3.*disp)*(1.+4.*disp)*&
                    (1.+5.*disp)/(1.+disp)/(1.+2.*disp))
             praut(iq) = eta*(1.e-3*rho(iq,k)*qlz(iq,k))**3/(1.e-6*ncz(iq,k))  !--- g cm-3 s-1
             praut(iq) = praut(iq)/(1.e-3*rho(iq,k))                           !--- kg kg-1 s-1
-            npraut_r(iq) = praut(iq)/xmr                                                !--- kg kg-1 s-1
-            npraut(iq) = praut(iq)/qlz(iq,k)*ncz(iq,k)                                        !--- kg kg-1 s-1
-            npraut(iq) = praut(iq)/xmr                                                  !--- kg kg-1 s-1
-          else
-            praut(iq) = 0.0
-            npraut(iq) = 0.0
-            npraut_r(iq) = 0.0
-          endif
-        else
-          praut(iq) = 0.0
-          npraut(iq) = 0.0
-          npraut_r(iq) = 0.0
-        endif
+            npraut_r(iq) = praut(iq)/xmr                                      !--- kg kg-1 s-1
+            npraut(iq) = praut(iq)/qlz(iq,k)*ncz(iq,k)                        !--- kg kg-1 s-1
+            npraut(iq) = praut(iq)/xmr                                        !--- kg kg-1 s-1
+          end if
+
+        end if
         ! if (qlz(k) .gt. 1e-6) then
         ! praut(k)=1350.*qlz(k)**2.47*  &
         ! (ncz(k)/1.e6*rho(k))**(-1.79)
@@ -2014,6 +2012,7 @@ END SUBROUTINE clphy1d_ylin
 !---------------------------------------------------------------------
 PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
                   xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
+!$acc routine seq
 
 !---------------------------------------------------------------------
   IMPLICIT NONE
@@ -2142,6 +2141,7 @@ END SUBROUTINE satadj
 
 !----------------------------------------------------------------
 PURE FUNCTION ggamma(X) result(ans)
+!$acc routine seq
 
 !----------------------------------------------------------------
   IMPLICIT NONE
@@ -2152,27 +2152,27 @@ PURE FUNCTION ggamma(X) result(ans)
   real                :: temp2, temp3, temp4
   real                :: ans
     
-  TEMP=X
+  TEMP = X
   diff = max(int(temp-2.), 0)
   if ( temp-real(diff) > 2. ) diff = diff + 1
 
   ! Original method
-  PF=1.
-  do J=1,diff
-    TEMP=TEMP-1.
-    PF=PF*TEMP
+  PF = 1.
+  do J = 1,diff
+    TEMP = TEMP - 1.
+    PF = PF*TEMP
   end do
 
   ! Alternative method
   !temp = temp - real(diff)
   !pf = gamma( x ) / gamma( temp )
 
-  TEMP=TEMP - 1.
+  TEMP = TEMP - 1.
   
   ! method suggested by Mark Dwyer and Lindsay Brebber
-  temp2 = temp*temp
-  temp3 = temp2*temp
-  temp4 = temp2*temp2
+  TEMP2 = TEMP*TEMP
+  TEMP3 = TEMP2*TEMP
+  TEMP4 = TEMP2*TEMP2
   
   G1TO2=1. + B(1)*TEMP + B(2)*TEMP2 + B(3)*TEMP3 + B(4)*TEMP4 &
            + B(5)*TEMP4*TEMP + B(6)*TEMP3*TEMP3 + B(7)*TEMP4*TEMP3 + B(8)*TEMP4*TEMP4
