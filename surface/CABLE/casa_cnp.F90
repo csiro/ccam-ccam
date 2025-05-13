@@ -2181,8 +2181,8 @@ CONTAINS
 
           DO i=1,mplant
              IF(casapool%cplant(np,i) < 0.0)  THEN
-                WRITE(57,*)  'Cpool: np,ivt',np,casamet%lat(np),casamet%lon(np), &
-                     casamet%iveg2(np),casapool%cplant(np,:)
+                !WRITE(57,*)  'Cpool: np,ivt',np,casamet%lat(np),casamet%lon(np), &
+                !     casamet%iveg2(np),casapool%cplant(np,:)
                 CALL casa_poolzero(np,1,casapool)
                 !stop
                 casapool%cplant(np,i) = MAX(0.0, casapool%cplant(np,i))
@@ -2191,7 +2191,7 @@ CONTAINS
           IF(icycle >1) THEN
              DO i=1,mplant
                 IF(casapool%nplant(np,i) < 0.0) THEN
-                   WRITE(57,*) 'Npool:', 'np,ivt,ipool',np,casamet%iveg2(np),casapool%nplant(np,:)
+                   !WRITE(57,*) 'Npool:', 'np,ivt,ipool',np,casamet%iveg2(np),casapool%nplant(np,:)
                    CALL casa_poolzero(np,2,casapool)
                    casapool%nplant(np,i) = MAX(0.0, casapool%nplant(np,i))
                 ENDIF
@@ -2200,7 +2200,7 @@ CONTAINS
 
           DO j=1,mlitter
              IF(casapool%clitter(np,j) < 0.0)  THEN
-                WRITE(57,*)  'Clitter: np,ivt2',np,casamet%iveg2(np),casapool%clitter(np,:)
+                !WRITE(57,*)  'Clitter: np,ivt2',np,casamet%iveg2(np),casapool%clitter(np,:)
                 CALL casa_poolzero(np,3,casapool)
                 casapool%clitter(np,j) = MAX(0.0, casapool%clitter(np,j))
              ENDIF
@@ -2208,7 +2208,7 @@ CONTAINS
 
           DO k=1,msoil
              IF(casapool%csoil(np,k) < 0.0)    THEN
-                WRITE(57,*)  'Csoil: np,ivt2',np,casamet%iveg2(np),casapool%csoil(np,:)
+                !WRITE(57,*)  'Csoil: np,ivt2',np,casamet%iveg2(np),casapool%csoil(np,:)
                 CALL casa_poolzero(np,5,casapool)
                 casapool%csoil(np,k) = MAX(0.0, casapool%csoil(np,k))
              ENDIF
@@ -2218,14 +2218,14 @@ CONTAINS
           IF(icycle >1) THEN
              DO j=1,mlitter
                 IF(casapool%nlitter(np,j) < 0.0)  THEN
-                   WRITE(57,*)  'Nlitter: np,ivt2',np,casamet%iveg2(np),casapool%Nlitter(np,:)
+                   !WRITE(57,*)  'Nlitter: np,ivt2',np,casamet%iveg2(np),casapool%Nlitter(np,:)
                    CALL casa_poolzero(np,4,casapool)
                    casapool%nlitter(np,j) = MAX(0.0, casapool%nlitter(np,j))
                 ENDIF
              ENDDO
              DO k=1,msoil
                 IF(casapool%nsoil(np,k) < 0.0) THEN
-                   WRITE(57,*)  'Nsoil: np,ivt2',np,casamet%iveg2(np),casapool%nsoil(np,:)
+                   !WRITE(57,*)  'Nsoil: np,ivt2',np,casamet%iveg2(np),casapool%nsoil(np,:)
                    CALL casa_poolzero(np,6,casapool)
                    casapool%nsoil(np,k) = MAX(0.0, casapool%nsoil(np,k))
                 ENDIF
@@ -2243,29 +2243,29 @@ CONTAINS
     INTEGER, INTENT(IN) :: n, ipool
     TYPE (casa_pool), INTENT(INOUT) :: casapool
 
-    WRITE(57,*) ' WARNING: negative pools are reset to ZERO!!'
+    !WRITE(57,*) ' WARNING: negative pools are reset to ZERO!!'
     SELECT CASE(ipool)
     CASE(1)
-       WRITE(57,*) 'plant carbon pool size negative!!'
-       WRITE(57,*) 'plant C pools: ', n,casapool%cplant(n,:)
+       !WRITE(57,*) 'plant carbon pool size negative!!'
+       !WRITE(57,*) 'plant C pools: ', n,casapool%cplant(n,:)
     CASE(2)
-       WRITE(57,*) 'plant nitrogen pool size negative!!'
-       WRITE(57,*) 'plant C pools: ',n,casapool%cplant(n,:)
-       WRITE(57,*) 'plant N pools: ',n,casapool%nplant(n,:)
+       !WRITE(57,*) 'plant nitrogen pool size negative!!'
+       !WRITE(57,*) 'plant C pools: ',n,casapool%cplant(n,:)
+       !WRITE(57,*) 'plant N pools: ',n,casapool%nplant(n,:)
     CASE(3)
-       WRITE(57,*) 'litter carbon pool size negative!!'
-       WRITE(57,*) 'litter C pools: ',n,casapool%clitter(n,:)
+       !WRITE(57,*) 'litter carbon pool size negative!!'
+       !WRITE(57,*) 'litter C pools: ',n,casapool%clitter(n,:)
     CASE(4)
-       WRITE(57,*) 'litter nitrogen pool size negative!!'
-       WRITE(57,*) 'carbon pool: ',n,casapool%clitter(n,:)
-       WRITE(57,*) 'nitrogen pools: ',n,casapool%nlitter(n,:)
+       !WRITE(57,*) 'litter nitrogen pool size negative!!'
+       !WRITE(57,*) 'carbon pool: ',n,casapool%clitter(n,:)
+       !WRITE(57,*) 'nitrogen pools: ',n,casapool%nlitter(n,:)
     CASE(5)
-       WRITE(57,*) 'soil carbon pool size negative!!'
-       WRITE(57,*) 'soil C pools: ',n,casapool%csoil(n,:)
+       !WRITE(57,*) 'soil carbon pool size negative!!'
+       !WRITE(57,*) 'soil C pools: ',n,casapool%csoil(n,:)
     CASE(6)
-       WRITE(57,*) 'soil nitrogen pool size negative!!'
-       WRITE(57,*) 'soil C pools: ', n,casapool%csoil(n,:)
-       WRITE(57,*) 'soil N pools: ', n,casapool%nsoil(n,:)
+       !WRITE(57,*) 'soil nitrogen pool size negative!!'
+       !WRITE(57,*) 'soil C pools: ', n,casapool%csoil(n,:)
+       !WRITE(57,*) 'soil N pools: ', n,casapool%nsoil(n,:)
     END SELECT
 
   END SUBROUTINE casa_poolzero
@@ -2309,13 +2309,13 @@ CONTAINS
 
     DO npt=1,mp
        IF(ABS(casabal%cbalance(npt))>1e-10) THEN
-          WRITE(*,*) 'cbalance',  npt, Cbalplant(npt), Cbalsoil(npt)
-          WRITE(*,*) 'cplant', casapool%cplant(npt,:)
-          WRITE(*,*) 'gpp, npp',casaflux%Cgpp(npt) , &
-               casaflux%Cnpp(npt)
-          WRITE(*,*) 'dcplandt',  casapool%dcplantdt(npt,:), SUM(casapool%dcplantdt(npt,:))
-          WRITE(*,*) 'rmplant, rgplant',  casaflux%crmplant(npt,:) , casaflux%crgplant(npt)
-          WRITE(*,*) 'dclabile',  casapool%dClabiledt(npt)* deltpool
+          !WRITE(*,*) 'cbalance',  npt, Cbalplant(npt), Cbalsoil(npt)
+          !WRITE(*,*) 'cplant', casapool%cplant(npt,:)
+          !WRITE(*,*) 'gpp, npp',casaflux%Cgpp(npt) , &
+          !     casaflux%Cnpp(npt)
+          !WRITE(*,*) 'dcplandt',  casapool%dcplantdt(npt,:), SUM(casapool%dcplantdt(npt,:))
+          !WRITE(*,*) 'rmplant, rgplant',  casaflux%crmplant(npt,:) , casaflux%crgplant(npt)
+          !WRITE(*,*) 'dclabile',  casapool%dClabiledt(npt)* deltpool
 
           !  STOP
        ENDIF

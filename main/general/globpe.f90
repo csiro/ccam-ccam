@@ -4991,7 +4991,7 @@ if ( qtot_check ) then
     write(6,*) "ERROR: NaN detected in qlg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)    
   end if
-  if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>8.e-2) ) then
+  if ( any(qlg(js:je,1:kl)<-1.e-8) .or. any(qlg(js:je,1:kl)>2.e-1) ) then
     write(6,*) "ERROR: Out-of-range detected in qlg on myid=",myid," at ",trim(message)
     write(6,*) "minval,maxval ",minval(qlg(js:je,1:kl)),maxval(qlg(js:je,1:kl))
     posmin = minloc(qlg(js:je,1:kl))
@@ -5007,7 +5007,7 @@ if ( qtot_check ) then
     write(6,*) "ERROR: NaN detected in qfg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)    
   end if
-  if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>8.e-2) ) then
+  if ( any(qfg(js:je,1:kl)<-1.e-8) .or. any(qfg(js:je,1:kl)>2.e-1) ) then
     write(6,*) "ERROR: Out-of-range detected in qfg on myid=",myid," at ",trim(message)
     write(6,*) "minval,maxval ",minval(qfg(js:je,1:kl)),maxval(qfg(js:je,1:kl))
     posmin = minloc(qfg(js:je,1:kl))

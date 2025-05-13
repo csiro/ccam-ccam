@@ -219,8 +219,9 @@ do tile = 1,ntiles
   qg(js:je,:)    = lqg
   qlg(js:je,:)   = lqlg
   qfg(js:je,:)   = lqfg
-  qlrad(js:je,:) = lqlrad
-  qfrad(js:je,:) = lqfrad
+  ! Limit maximum cloud water visible to radiation
+  qlrad(js:je,:) = min( lqlrad, qlg_max )
+  qfrad(js:je,:) = min( lqfrad, qfg_max )
   t(js:je,:)     = lt
   stratcloud(js:je,:) = lstratcloud
   ! Reset tendency and mass flux for next time-step  
@@ -251,7 +252,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       idjd_t = mod(idjd-1,imax) + 1
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
-      ! limit maximum cloud water visible to microphysics
+      ! Limit maximum cloud water visible to microphysics
       qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
       qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
       qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )

@@ -4011,12 +4011,14 @@ use soilsnow_m
 use vegpar_m
 
 integer k
+
+if ( ccycle==0 ) return
   
 if ( mp_global>0 ) then
 
 ! MJT notes - may be better to use the default values for
 ! carbon pools than interpolate low resolution data
-    
+  
   if ( ccycle>=1 .and. ccycle<=3 ) then
     if ( all( cplant(:,1)>0. ) ) then  
       do k = 1,mplant
