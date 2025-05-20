@@ -135,7 +135,7 @@ public sib4, cable_version
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
-public fwsoil_switch, cable_litter, gs_switch
+public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 public calc_wt_ave, calc_wt_flux
@@ -157,6 +157,7 @@ integer, save :: strf_switch     = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 
 integer, save :: cable_gw_model  = 0          ! 0 off, 1 GW_Hydro
 integer, save :: cable_roughness = 0          ! 0 default, 1 new
 integer, save :: cable_potev     = 1          ! 0 Penman Monteith, 1 Humidity Deficit
+integer, save :: cable_enablefao = 1          ! 0 off, 1 on when calculating potential evaporation
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai         = 0          ! 0 prescribed, 1 prognostic LAI
@@ -935,7 +936,7 @@ do nb = 1,maxnb
                                 +canopy%fess(is:ie)/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
   sbl_l = sbl_l + unpack(sv(is:ie)*real(ssnow%evapsn(is:ie)/dtr8),tmap(:,nb),0.)
   ! Replace potev with Penman_Monteith
-  if ( cable_potev==1 ) then
+  if ( cable_potev==1 .and. cable_enablefao==1 ) then
     dumt(is:ie) = real( met%tvair(is:ie) )
     dump(is:ie) = real( met%pmb(is:ie) )*100. ! convert from mb to Pa
     qsatfvar(is:ie) = qsat(dump(is:ie),dumt(is:ie))
@@ -1023,16 +1024,16 @@ end if
 ! rsmin is typically used by CTM
 
 where ( land(1:imax) )
-  zo        = zmin*exp(-1./sqrt(zo))
-  zoh       = zo/7.4
-  zoq       = zoh
-  ustar     = sqrt(cduv)*vmod  
-  cduv      = cduv*vmod           ! cduv is Cd*vmod in CCAM
-  cdtq      = cdtq*vmod
-  tss       = tss**0.25
-  rsmin     = 1./rsmin
-  evspsbl   = evspsbl + dt*evspsbl_l
-  sbl       = sbl + dt*sbl_l
+  zo      = zmin*exp(-1./sqrt(zo))
+  zoh     = zo/7.4
+  zoq     = zoh
+  ustar   = sqrt(cduv)*vmod  
+  cduv    = cduv*vmod           ! cduv is Cd*vmod in CCAM
+  cdtq    = cdtq*vmod
+  tss     = tss**0.25
+  rsmin   = 1./rsmin
+  evspsbl = evspsbl + dt*evspsbl_l
+  sbl     = sbl + dt*sbl_l
   ! update albedo and tss before calculating net radiation
   albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
   albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4 

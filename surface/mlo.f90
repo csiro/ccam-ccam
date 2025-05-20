@@ -3585,7 +3585,7 @@ if ( present( water_temp ) ) then
 end if 
 
 if ( present( water_sal ) ) then
-  if ( any( water_sal<-1.e-4 .or. water_sal>100. ) ) then
+  if ( any( water_sal<-1.e-4 .or. water_sal>120. ) ) then
     write(6,*) "ERROR: water_sal is out-of-range in ",trim(message)
     write(6,*) "minval,maxval ",minval(water_sal),maxval(water_sal)
     write(6,*) "minloc,maxloc ",minloc(water_sal),maxloc(water_sal)

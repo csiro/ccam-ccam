@@ -1468,7 +1468,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
     cable_gw_model,cable_roughness,cable_version,cable_potev,     &
-    wt_transport,                                                 &
+    wt_transport, cable_enablefao,                                &
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
     ateb_acmeth,ateb_nrefl,                                       &
     ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,                    &
@@ -3594,7 +3594,7 @@ use uclem_ctrl, only :                   & ! Urban
 
 implicit none
 
-integer, dimension(31) :: dumi
+integer, dimension(32) :: dumi
 real, dimension(27) :: dumr
     
 dumr = 0.
@@ -3658,6 +3658,7 @@ if ( myid==0 ) then
   dumi(29) = wt_transport
   dumi(30) = cable_gw_model
   dumi(31) = freshwaterlake_fix
+  dumi(32) = cable_enablefao
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3719,6 +3720,7 @@ ateb_soilunder     = dumi(28)
 wt_transport       = dumi(29)
 cable_gw_model     = dumi(30)
 freshwaterlake_fix = dumi(31)
+cable_enablefao    = dumi(32)
 
 return
 end subroutine broadcast_landnml

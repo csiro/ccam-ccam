@@ -715,6 +715,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_zomratio',ateb_zomratio)
     call ccnf_put_attg(idnc,'ateb_zoroof',zoroof)
     call ccnf_put_attg(idnc,'ateb_zosnow',ateb_zosnow)
+    call ccnf_put_attg(idnc,'cable_enablefao',cable_enablefao)
     call ccnf_put_attg(idnc,'cable_gw_model',cable_gw_model)
     call ccnf_put_attg(idnc,'cable_litter',cable_litter)
     call ccnf_put_attg(idnc,'cable_roughness',cable_roughness)
@@ -4240,7 +4241,7 @@ if ( first ) then
       lname = 'Frozen Water Content in Upper Portion of Soil Column'
       call attrib(fncid,sdim,ssize,'mrfsos',lname,'kg m-2',0.,6500.,any_m,point_m,float_m)
       lname = 'Evaporation'
-      call attrib(fncid,sdim,ssize,'evspsbl',lname,'mm day-1',0.,1300.,any_m,mean_m,float_m)
+      call attrib(fncid,sdim,ssize,'evspsbl',lname,'mm day-1',-1300.,1300.,any_m,mean_m,float_m)
       lname = 'Surface runoff'
       call attrib(fncid,sdim,ssize,'mrros',lname,'mm day-1',0.,1300.,sixhr_m,mean_m,float_m)
       lname = 'Runoff' ! mrro after pcc2hist
@@ -4574,10 +4575,10 @@ where ( u10**2 > real(freqstore(1:ifull,30))**2 + real(freqstore(1:ifull,31))**2
   freqstore(1:ifull,31) = real(u10(:)*v(1:ifull,1)/max(0.001,umag),8)
 end where
 freqstore(1:ifull,32) = freqstore(1:ifull,32) + real(anthropogenic_flux/real(tbave),8)
-freqstore(1:ifull,33) = freqstore(1:ifull,33) + real(runoff/real(tbave),8)
-freqstore(1:ifull,34) = freqstore(1:ifull,34) + real(runoff_surface/real(tbave),8)
+freqstore(1:ifull,33) = freqstore(1:ifull,33) + real(runoff*(86400./dt/real(tbave)),8)
+freqstore(1:ifull,34) = freqstore(1:ifull,34) + real(runoff_surface*(86400./dt/real(tbave)),8)
 freqstore(1:ifull,35) = freqstore(1:ifull,35) + real(snowmelt/real(tbave),8)
-freqstore(1:ifull,36) = freqstore(1:ifull,36) + real(evspsbl/real(tbave),8)
+freqstore(1:ifull,36) = freqstore(1:ifull,36) + real(evspsbl*(86400./dt/real(tbave)),8)
 
 shallow_zse(:) = 0.
 shallow_sum = 0.
@@ -4874,8 +4875,8 @@ if ( mod(ktau,tbave)==0 ) then
         va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
         zg_level(iq) = (phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx)/grav
         sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
-        wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx)
-        wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*psl(iq)) * &
+        wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx) ! omega
+        wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*ps(iq)) * &
                        ( wa_level(iq) - sig_level*dpsdt(iq)/864. ) ! convert dpsdt to Pa/s
       end do
       call cordex_name(vname,"ua",press_level)

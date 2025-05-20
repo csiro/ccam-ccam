@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -94,7 +94,7 @@ public sib4, cable_version
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
-public fwsoil_switch, cable_litter, gs_switch
+public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 public calc_wt_ave, calc_wt_flux

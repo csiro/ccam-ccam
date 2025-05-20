@@ -182,7 +182,8 @@ end do
 
 !$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,cmode)            &
-!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
+!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)  &
+!$omp private(qlg_rem,qfg_rem)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -190,6 +191,12 @@ do tile = 1,ntiles
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
+  ! Limit maximum cloud water visible to microphysics
+  qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
+  qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
+  qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
+  qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)    
+  
   lqg      = qg(js:je,:)
   lqlg     = qlg(js:je,:)
   lqfg     = qfg(js:je,:)
@@ -219,6 +226,11 @@ do tile = 1,ntiles
   qg(js:je,:)    = lqg
   qlg(js:je,:)   = lqlg
   qfg(js:je,:)   = lqfg
+  
+  ! reapply any remaining qlg_rem or qfg_rem
+  qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
+  qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)  
+  
   ! Limit maximum cloud water visible to radiation
   qlrad(js:je,:) = min( lqlrad, qlg_max )
   qfrad(js:je,:) = min( lqfrad, qfg_max )

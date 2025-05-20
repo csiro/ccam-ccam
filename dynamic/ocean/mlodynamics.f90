@@ -1428,7 +1428,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     select case( mlomfix )
       case(1) ! no free surface
         do ii = 1,wlev
-          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )
+          ns(1:ifull,ii) = min( max( ns(1:ifull,ii), 0. ), 100. )
           mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
@@ -1441,7 +1441,7 @@ do mspec_mlo = mspeca_mlo,1,-1
           elsewhere
             ns(1:ifull,ii) = w_s(1:ifull,ii)  
           end where
-          ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )
+          ns(1:ifull,ii) = min( max( ns(1:ifull,ii), 0. ), 100. )
         end do  
       case(2) ! include free surface
         do ii = 1,wlev

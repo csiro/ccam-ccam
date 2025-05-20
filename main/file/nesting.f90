@@ -77,7 +77,7 @@ contains
 ! Called for nbd/=0
 subroutine nestin
       
-use aerointerface                ! Aerosol interface\
+use aerointerface                ! Aerosol interface
 use aerosol_arrays               ! Aerosol arrays
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
