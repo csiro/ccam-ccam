@@ -805,18 +805,13 @@ logical found
 
 ! Use surface, pseudo-adiabatic, including ice for CAPE and CIN calculation
 
-#ifndef _OPENMP
-!$acc parallel loop copyin(ps,t,ntiles,imax,kl,qg) copyout(cape_d,cin_d) present(sig)    &
+!$acc data create(t,ps,qg)
+!$acc update device(t,ps,qg)
+!$acc parallel loop copyin(ntiles,imax,kl) copyout(cape_d,cin_d) present(t,ps,qg,sig)    &
 !$acc   private(pl,tl,pil,th,thv,th2,pl2,tl2,thv2,qv2,ql2,qi2,qt,b2,narea,capel,cinl,qs) &
 !$acc   private(js,je,k,iq,tile,b1,dp,nloop,pl1,tl1,th1,qv1,ql1,qi1,thv1,thlast,pil2)    &
 !$acc   private(icount,not_converged,fliq,fice,tbarl,qvbar,qlbar,qibar,rm,cpm,qsat_save) &
 !$acc   private(dz,frac,parea,n,ktop,lhv,lhs,lhf)
-#else
-!$omp do schedule(static) private(pl,tl,pil,th,thv,th2,pl2,tl2,thv2,qv2,ql2,qi2,qt,b2) &
-!$omp   private(narea,capel,cinl,qs,js,je,k,iq,tile,b1,dp,nloop,pl1,tl1,th1,qv1,ql1)   &
-!$omp   private(qi1,thv1,thlast,pil2,icount,not_converged,fliq,fice,tbarl,qvbar,qlbar) &
-!$omp   private(qibar,rm,cpm,qsat_save,dz,frac,parea,n,ktop,lhv,lhs,lhf)
-#endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax    
@@ -959,25 +954,15 @@ do tile = 1,ntiles
   cin_d(js:je) = -cinl(:)
 
 end do
-#ifndef _OPENMP
 !$acc end parallel loop
-#else
-!$omp end do nowait
-#endif
 
 
 ! Calculate LI (from surface) - Based on WRF code
 
-#ifndef _OPENMP
-!$acc parallel loop copyin(t,ps,qg) copyout(li_d) present(sig)                                 &
+!$acc parallel loop copyout(li_d) present(t,ps,qg,sig)                                         &
 !$acc   private(js,je,i,k,iter,iq,srctK,srcp,srcqs,srcq,srctheta,term1,srcrh,denom,tlclK,plcl) &
 !$acc   private(srcthetaeK,wflag,press,tovtheta,ptK,found,smixr,thetaK,tcheck,pw,ptvK,tvK)     &
 !$acc   private(freeze,dTvK,pu,pd,lidxu,lidxd)
-#else
-!$omp do schedule(static) private(js,je,i,k,iter,iq,srctK,srcp,srcqs,srcq,srctheta,term1,srcrh) &
-!$omp   private(denom,tlclK,plcl,srcthetaeK,wflag,press,tovtheta,ptK,found,smixr,thetaK,tcheck) &
-!$omp   private(pw,ptvK,tvK,freeze,dTvK,pu,pd,lidxu,lidxd)
-#endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax  
@@ -1074,11 +1059,8 @@ do tile = 1,ntiles
   end do   ! k loop
   
 end do ! tile loop
-#ifndef _OPENMP
 !$acc end parallel loop
-#else
-!$omp end do nowait
-#endif
+!$acc end data
 
 return
 end subroutine capecalc

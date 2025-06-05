@@ -82,17 +82,13 @@ darr(1:ifull,1:wlev,4) = tt(1:ifull,1:wlev)
 darr(1:ifull,1:wlev,5) = mm(1:ifull,1:wlev)
 
 
-#ifdef GPU
 !$acc data create(its,dtnew,ww,depdum,dzdum,ee)
 !$acc update device(its,dtnew,ww,depdum,dzdum,ee)
-#endif
 
 call mlotvd(its,dtnew,ww,darr(:,:,1:5),depdum,dzdum,ee)
 
-#ifdef GPU
 !$acc wait
 !$acc end data
-#endif
 
 
 uu(1:ifull,1:wlev) = darr(1:ifull,1:wlev,1)
@@ -136,18 +132,10 @@ real fl,fh,cc,rr
 async_counter = mod( async_counter+1, async_length )
 ntr = size(uu,3)
 
-#ifdef GPU
 !$acc enter data create(uu,delu,ff) async(async_counter)
 !$acc update device(uu) async(async_counter)
-#else
-!$omp parallel
-#endif
 do i = 1,maxval(its(1:ifull))
-#ifdef GPU
   !$acc parallel loop collapse(3) present(delu,uu,dzdum,ee) async(async_counter)
-#else
-  !$omp do schedule(static) private(n,ii,iq)
-#endif
   do n = 1,ntr
     do ii = 1,wlev-1
       do iq = 1,ifull
@@ -155,13 +143,8 @@ do i = 1,maxval(its(1:ifull))
       end do
     end do
   end do
-#ifdef GPU
   !$acc end parallel loop
   !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,iq)
-#endif
   do n = 1,ntr
     do iq = 1,ifull
       ff(iq,0,n) = 0.
@@ -170,17 +153,9 @@ do i = 1,maxval(its(1:ifull))
       delu(iq,wlev,n) = 0.
     end do
   end do
-#ifdef GPU
   !$acc end parallel loop
-#else
-  !$omp end do nowait
-#endif
   if ( mlontvd==0 ) then ! MC
-#ifdef GPU
     !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
-#else
-    !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
-#endif
     do n = 1,ntr
       do ii = 1,wlev-1
         do iq = 1,ifull
@@ -199,17 +174,9 @@ do i = 1,maxval(its(1:ifull))
         end do
       end do
     end do
-#ifdef GPU
     !$acc end parallel loop
-#else
-    !$omp end do nowait
-#endif
   else if ( mlontvd==1 ) then ! Superbee
-#ifdef GPU
     !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
-#else
-    !$omp do schedule(static) private(n,ii,iq,kp,kx,rr,fl,cc,fh)
-#endif
     do n = 1,ntr
       do ii = 1,wlev-1
         do iq = 1,ifull
@@ -228,20 +195,12 @@ do i = 1,maxval(its(1:ifull))
         end do
       end do
     end do
-#ifdef GPU
     !$acc end parallel loop
-#else
-    !$omp end do nowait
-#endif 
   else
     write(6,*) "ERROR: Unknown option mlontvd = ",mlontvd  
     call ccmpi_abort(-1)
   end if
-#ifdef GPU
   !$acc parallel loop collapse(3) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
-#else
-  !$omp do schedule(static) private(n,ii,iq)
-#endif
   do n = 1,ntr
     do ii = 1,wlev
       do iq = 1,ifull
@@ -252,18 +211,10 @@ do i = 1,maxval(its(1:ifull))
       end do  
     end do  
   end do
-#ifdef GPU
   !$acc end parallel loop
-#else
-  !$omp end do nowait
-#endif
   end do ! i = 1,nits
-#ifdef GPU
   !$acc update self(uu) async(async_counter)
   !$acc exit data delete(uu,delu,ff) async(async_counter)
-#else
-  !$omp end parallel
-#endif
 
 return
 end subroutine mlotvd

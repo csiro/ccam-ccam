@@ -797,7 +797,7 @@ real, dimension(ifull_g) :: xa, ya, za ! large working array
 real, dimension(klt+1) :: local_sum
 real, intent(in) :: cq
 real, dimension(ifull_g,klt+1) :: tt_l
-#ifdef GPU
+#ifdef _OPENACC
 real, dimension(ifull,klt+1) :: tbb_l
 #endif
 
@@ -817,7 +817,7 @@ do k = 1,klt
 end do
 tt_l(:,klt+1) = sm(:)
 
-#ifdef GPU
+#ifdef _OPENACC
 
 ! GPU version
 !$acc parallel loop collapse(2) copyin(cq,klt,kltp1,xa,ya,za,tt_l) &
@@ -840,7 +840,6 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do schedule(static) private(iqg,iq,local_sum,i,j,n)
 do iq = 1,ifull
   n = 1 + (iq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iq - (n-1)*(ipan*jpan) - 1) / ipan
@@ -850,7 +849,6 @@ do iq = 1,ifull
   local_sum(1:kltp1) = drpdr_fast(iqg,cq,xa,ya,za,tt_l)
   tbb(iq,1:klt) = local_sum(1:klt)/local_sum(kltp1)
 end do
-!$omp end parallel do
 
 #endif
 
@@ -1121,7 +1119,7 @@ real, dimension(il_g) :: at, asum             ! subset of sparse array
 real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za ! subset of shared array
 real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l         ! subset of sparse array
-#ifdef GPU
+#ifdef _OPENACC
 integer :: async_counter
 real, dimension(jpan,klt+1,ipan) :: qt_l
 #endif
@@ -1147,9 +1145,6 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
-  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
   do j = 1,jpan
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1171,13 +1166,10 @@ do ipass = 0,2
       at_l(sn:sn+il_g-1,klt+1,j) = asum      
     end do
   end do
-#ifndef GPU
-  !$omp end parallel do
-#endif
     
   ! start convolution
 
-#ifdef GPU
+#ifdef _OPENACC
 
   async_counter = mod(ipass,async_length)
   !$acc parallel loop collapse(3) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_l(1:me,:,1:jpan)) &
@@ -1195,7 +1187,6 @@ do ipass = 0,2
 
 #else
 
-  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,ibase,k,local_sum)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
@@ -1206,13 +1197,12 @@ do ipass = 0,2
       end do  
     end do 
   end do 
-  !$omp end parallel do
 
 #endif
 
 end do ! ipass
 
-#ifdef GPU
+#ifdef _OPENACC
 !$acc wait
 #endif
 
@@ -1274,9 +1264,6 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
 do j = 1,ipan    
   ! pack from sparse arrays
   jj = j + ns - 1
@@ -1298,12 +1285,9 @@ do j = 1,ipan
     at_l(sn:sn+il_g-1,klt+1,j) = asum
   end do
 end do
-#ifndef GPU
-!$omp end parallel do
-#endif
   
 ! start convolution
-#ifdef GPU
+#ifdef _OPENACC
 
 ! GPU version
 !$acc parallel loop collapse(3) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),at_l(1:me,:,1:ipan)) &
@@ -1328,7 +1312,6 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
@@ -1336,7 +1319,6 @@ do j = 1,ipan
     qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
 end do
-!$omp end parallel do
 
 #endif
 
@@ -1370,7 +1352,7 @@ real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l
-#ifdef GPU
+#ifdef _OPENACC
 integer async_counter
 real, dimension(ipan,klt+1,jpan) :: qt_l
 #endif
@@ -1396,9 +1378,6 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
-  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -1420,13 +1399,10 @@ do ipass = 0,2
       at_l(sn:sn+il_g-1,klt+1,j) = asum
     end do
   end do
-#ifndef GPU
-  !$omp end parallel do
-#endif
   
   ! start convolution
 
-#ifdef GPU
+#ifdef _OPENACC
 
   ! GPU version
   async_counter = mod(ipass,async_length)
@@ -1445,7 +1421,6 @@ do ipass = 0,2
 #else
 
   ! CPU version
-  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
@@ -1455,13 +1430,12 @@ do ipass = 0,2
       end do  
     end do
   end do
-  !$omp end parallel do
 
 #endif
 
 end do ! ipass
 
-#ifdef GPU
+#ifdef _OPENACC
 !$acc wait
 #endif
 
@@ -1523,9 +1497,6 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,at)
-#endif
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -1548,13 +1519,10 @@ do j = 1,jpan
     at_l(sn:sn+il_g-1,klt+1,j) = asum    
   end do
 end do
-#ifndef GPU
-!$omp end parallel do
-#endif
 
 ! start convolution
 
-#ifdef GPU
+#ifdef _OPENACC
 
 ! GPU version
 !$acc parallel loop collapse(3) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),at_l(1:me,:,1:jpan)) &
@@ -1579,7 +1547,6 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
@@ -1587,7 +1554,6 @@ do j = 1,jpan
     qt(n+ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
   end do
 end do
-!$omp end parallel do
 
 #endif
 
@@ -2104,7 +2070,7 @@ real, dimension(ifull_g) :: xa, ya, za
 real, dimension(kd+1) :: local_sum
 real cq
 real, dimension(ifull_g,kd+1) :: diff_g_l ! large common array
-#ifdef GPU
+#ifdef _OPENACC
 real, dimension(ifull,kd+1) :: dd_l
 #endif
 
@@ -2124,7 +2090,7 @@ do k = 1,kd
 end do  
 diff_g_l(:,kd+1) = sm(:)
 
-#ifdef GPU
+#ifdef _OPENACC
 
 ! GPU version
 !$acc parallel loop collapse(2) copyin(cq,xa,ya,za,diff_g_l) &
@@ -2148,7 +2114,6 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do schedule(static) private(iqqg,iqq,local_sum,i,j,n)
 do iqq = 1,ifull
   n = 1 + (iqq-1)/(ipan*jpan)  ! In range 1 .. npan
   j = 1 + ( iqq - (n-1)*(ipan*jpan) - 1) / ipan
@@ -2157,7 +2122,6 @@ do iqq = 1,ifull
   local_sum(1:kd+1) = drpdr_fast(iqqg,cq,xa,ya,za,diff_g_l)
   dd(iqq,1:kd) = local_sum(1:kd)/max(local_sum(kd+1),1.e-8)
 end do
-!$omp end parallel do
 
 #endif
 
@@ -2366,7 +2330,7 @@ real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(4*il_g,kd+1,max(ipan,jpan)) :: ap_l
-#ifdef GPU
+#ifdef _OPENACC
 integer async_counter
 real, dimension(jpan,kd+1,ipan) :: qp_l
 #endif
@@ -2389,9 +2353,6 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
-  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
   do j = 1,jpan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2414,13 +2375,10 @@ do ipass = 0,2
       ap_l(sn:sn+il_g-1,kd+1,j) = asum      
     end do
   end do
-#ifndef GPU
-  !$omp end parallel do
-#endif
     
   ! start convolution
 
-#ifdef GPU
+#ifdef _OPENACC
 
   async_counter = mod(ipass,async_length)
   !$acc parallel loop collapse(3) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_l(1:me,:,1:jpan)) &
@@ -2437,7 +2395,6 @@ do ipass = 0,2
 
 #else
 
-  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
@@ -2447,13 +2404,12 @@ do ipass = 0,2
       end do  
     end do
   end do
-  !$omp end parallel do
 
 #endif
 
 end do ! ipass
 
-#ifdef GPU
+#ifdef _OPENACC
 !$acc wait
 #endif
 
@@ -2515,9 +2471,6 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
 do j = 1,ipan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -2540,12 +2493,9 @@ do j = 1,ipan
     ap_l(sn:sn+il_g-1,kd+1,j) = asum    
   end do
 end do
-#ifndef GPU
-!$omp end parallel do
-#endif
 
 ! start convolution
-#ifdef GPU
+#ifdef _OPENACC
 
 !$acc parallel loop collapse(3) copyin(xa(1:me,1:ipan),ya(1:me,1:ipan),za(1:me,1:ipan),ap_l(1:me,:,1:ipan)) &
 !$acc   copyout(qp_l) private(j,n,nn)
@@ -2568,7 +2518,6 @@ end do
 
 #else
 
-!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
@@ -2576,7 +2525,6 @@ do j = 1,ipan
     qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/max(local_sum(kd+1),1.e-8)
   end do
 end do
-!$omp end parallel do
 
 #endif
 
@@ -2609,7 +2557,7 @@ real, dimension(ipan*jpan*(kd+1),0:2) :: yy
 real, dimension(kd+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
 real, dimension(4*il_g,kd+1,max(ipan,jpan)) :: ap_l
-#ifdef GPU
+#ifdef _OPENACC
 integer async_counter
 real, dimension(ipan,kd+1,jpan) :: qp_l
 #endif
@@ -2632,9 +2580,6 @@ do ipass = 0,2
   me = maps(ipass)
   call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
-#ifndef GPU
-  !$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
   do j = 1,ipan      
     ! pack data from sparse arrays
     jj = j + ns - 1
@@ -2656,13 +2601,10 @@ do ipass = 0,2
       ap_l(sn:sn+il_g-1,kd+1,j) = asum      
     end do
   end do
-#ifndef GPU
-  !$omp end parallel do
-#endif
     
   ! start convolution
 
-#ifdef GPU
+#ifdef _OPENACC
 
 ! GPU version
   async_counter = mod(ipass,async_length)
@@ -2681,7 +2623,6 @@ do ipass = 0,2
 #else
 
   ! CPU version
-  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
@@ -2692,13 +2633,12 @@ do ipass = 0,2
       end do  
     end do    
   end do
-  !$omp end parallel do
 
 #endif
 
 end do ! ipass
 
-#ifdef GPU
+#ifdef _OPENACC
 !$acc wait
 #endif
 
@@ -2760,9 +2700,6 @@ call getiqa(astr,bstr,cstr,me,ipass,ppass,il_g)
 
 call START_LOG(nestcalc_begin)
 
-#ifndef GPU
-!$omp parallel do schedule(static) private(j,jj,sn,sy,a,b,c,ibeg,iend,asum,k,ap)
-#endif
 do j = 1,jpan    
   ! pack data from sparse arrays
   jj = j + ns - 1
@@ -2785,13 +2722,10 @@ do j = 1,jpan
     ap_l(sn:sn+il_g-1,kd+1,j) = asum    
   end do
 end do
-#ifndef GPU
-!$omp end parallel do
-#endif
   
 ! start convolution
 
-#ifdef GPU
+#ifdef _OPENACC
 
 ! GPU version
 !$acc parallel loop collapse(3) copyin(xa(1:me,1:jpan),ya(1:me,1:jpan),za(1:me,1:jpan),ap_l(1:me,:,1:jpan)) &
@@ -2816,7 +2750,6 @@ end do
 #else
 
 ! CPU version
-!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
@@ -2824,7 +2757,6 @@ do j = 1,jpan
     qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/max(local_sum(kd+1), 1.e-8)  
   end do  
 end do
-!$omp end parallel do
 
 #endif
 
@@ -3216,7 +3148,7 @@ ans = ans + iday_r
 end function iabsdate
 
 
-#ifdef GPU
+#ifdef _OPENACC
 
 ! GPU version
 pure function drpdr_fast(nn,cq,xa,ya,za,at) result(out_sum)

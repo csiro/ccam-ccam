@@ -98,10 +98,8 @@ if ( mspec==1 ) then
 end if
 
 
-#ifdef GPU
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
 !$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
-#endif
 
 
 if ( nh/=0 ) then
@@ -159,10 +157,8 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
 end if          ! if(mspec==1)
 
 
-#ifdef GPU
 !$acc wait
 !$acc end data
-#endif
 
 
 tarr(1:ifull,1:kl) = tdum(1:ifull,1:kl,1)
@@ -222,18 +218,10 @@ ntr = size(tarr,3)
 
 ! The first sub-step is vectorised for all points.
 
-#ifdef GPU
 !$acc enter data create(tarr,delt,fluxh) async(async_counter)
 !$acc update device(tarr) async(async_counter)
-#else
-!$omp parallel   
-#endif
 do i = 1,maxval(nits(1:ifull))
-#ifdef GPU
   !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
-#else
-  !$omp do schedule(static) private(n,k,iq)
-#endif
   do n = 1,ntr
     do k = 1,kl-1
       do iq = 1,ifull
@@ -241,13 +229,8 @@ do i = 1,maxval(nits(1:ifull))
       end do
     end do
   end do
-#ifdef GPU
   !$acc end parallel loop
   !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
-#else
-  !$omp end do nowait
-  !$omp do schedule(static) private(n,iq)
-#endif
   do n = 1,ntr
     do iq = 1,ifull
       fluxh(iq,0,n)  = 0.
@@ -256,17 +239,9 @@ do i = 1,maxval(nits(1:ifull))
       delt(iq,0,n)   = 0.
     end do
   end do
-#ifdef GPU
   !$acc end parallel loop
-#else
-    !$omp end do nowait
-#endif
   if ( ntvd==2 ) then ! MC
-#ifdef GPU
     !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
-#else
-    !$omp do schedule(static) private(n,k,iq,kp,kx,rat,phitvd,fluxlo,fluxhi)
-#endif
     do n = 1,ntr
       do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
         do iq = 1,ifull      
@@ -281,17 +256,9 @@ do i = 1,maxval(nits(1:ifull))
         end do
       end do
     end do      ! k loop
-#ifdef GPU
     !$acc end parallel loop
-#else
-    !$omp end do nowait
-#endif
   else if ( ntvd==3 ) then ! Superbee
-#ifdef GPU
     !$acc parallel loop collapse(3) present(delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
-#else
-    !$omp do schedule(static) private(n,iq,k,kp,kx,rat,phitvd,fluxlo,fluxhi)
-#endif
     do n = 1,ntr
       do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
         do iq = 1,ifull  
@@ -306,20 +273,12 @@ do i = 1,maxval(nits(1:ifull))
         end do  
       end do ! k
     end do
-#ifdef GPU
     !$acc end parallel loop
-#else
-    !$omp end do nowait
-#endif
   else
     write(6,*) "ERROR: Unknown option ntvd = ",ntvd
     call ccmpi_abort(-1)
   end if
-#ifdef GPU
   !$acc parallel loop collapse(3) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
-#else
-  !$omp do schedule(static) private(n,k,iq)
-#endif
   do n = 1,ntr
     do k = 1,kl
       do iq = 1,ifull
@@ -330,18 +289,10 @@ do i = 1,maxval(nits(1:ifull))
       end do
     end do
   end do
-#ifdef GPU
   !$acc end parallel loop
-#else
-  !$omp end do nowait
-#endif
 end do ! i=1,nits
-#ifdef GPU
 !$acc update self(tarr) async(async_counter)
 !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
-#else
-!$omp end parallel
-#endif
 
 return
 end subroutine vadv_work

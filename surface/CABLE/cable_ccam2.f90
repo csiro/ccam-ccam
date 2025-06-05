@@ -433,7 +433,6 @@ integer lalloc
 integer mp_POP
 integer, dimension(maxtile,2), intent(in) :: tind
 integer, dimension(imax), intent(inout) :: isflag
-integer, dimension(13), parameter :: ndoy=(/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 0 /) 
 real fjd, r1, dlt, slag, dhr, alp
 real, dimension(imax), intent(in) :: atmco2
 real, dimension(imax), intent(in) :: qg, t
@@ -673,6 +672,9 @@ if ( any( ssnow%tgg(:,1)>425. ) ) then
 end if
 if ( any( ssnow%tggsn(:,1)>425. ) ) then
   write(6,*) "WARN: tggsn1>425. after CABLE"
+end if
+if ( any( canopy%tv(:)>425. ) ) then
+  write(6,*) "WARN: tv>425. after CABLE" 
 end if
 #endif
 
@@ -4012,37 +4014,44 @@ use soilsnow_m
 use vegpar_m
 
 integer k
+real(kind=8), dimension(ifull) :: tmp
 
+! only popoulate if carbon cycle is active
 if ( ccycle==0 ) return
   
+! must include land points
 if ( mp_global>0 ) then
 
-! MJT notes - may be better to use the default values for
-! carbon pools than interpolate low resolution data
+  ! 1) Default values of carbon unpacked into grid box average cplant, etc arrays (cbmparm)
+  ! 2) Grid box averaged values loaded into cplant, etc arrays in onthefly.f90
+  ! 3) CABLE tiles updated with grid box average below from cplant, etc
+  ! 4) Local tiles updated from restart file (loadtile)
+    
+  do k = 1,mplant
+    tmp = real( cplant(:,k), 8 )  
+    call cable_pack(tmp,casapool%cplant(:,k))
+    tmp = real( niplant(:,k), 8 )
+    call cable_pack(tmp,casapool%nplant(:,k))
+    tmp = real( pplant(:,k), 8 )
+    call cable_pack(tmp,casapool%pplant(:,k))
+  end do
+  do k = 1,mlitter
+    tmp = real( clitter(:,k), 8 )  
+    call cable_pack(tmp,casapool%clitter(:,k))
+    tmp = real( nilitter(:,k), 8 )
+    call cable_pack(tmp,casapool%nlitter(:,k))
+    tmp = real( plitter(:,k), 8 )
+    call cable_pack(tmp,casapool%plitter(:,k))
+  end do
+  do k = 1,msoil
+    tmp = real( csoil(:,k), 8 )  
+    call cable_pack(tmp,casapool%csoil(:,k))
+    tmp = real( nisoil(:,k), 8 )
+    call cable_pack(tmp,casapool%nsoil(:,k))
+    tmp = real( psoil(:,k), 8 )
+    call cable_pack(tmp,casapool%psoil(:,k))
+  end do
   
-  if ( ccycle>=1 .and. ccycle<=3 ) then
-    if ( all( cplant(:,1)>0. ) ) then  
-      do k = 1,mplant
-        call cable_pack(cplant(:,k),casapool%cplant(:,k))
-        call cable_pack(niplant(:,k),casapool%nplant(:,k))
-        call cable_pack(pplant(:,k),casapool%pplant(:,k))
-      end do
-      do k = 1,mlitter
-        call cable_pack(clitter(:,k),casapool%clitter(:,k))
-        call cable_pack(nilitter(:,k),casapool%nlitter(:,k))
-        call cable_pack(plitter(:,k),casapool%plitter(:,k))
-      end do
-      do k = 1,msoil
-        call cable_pack(csoil(:,k),casapool%csoil(:,k))
-        call cable_pack(nisoil(:,k),casapool%nsoil(:,k))
-        call cable_pack(psoil(:,k),casapool%psoil(:,k))
-      end do
-    end if  
-  else
-    write(6,*) "ERROR: Unknown ccycle option ",ccycle
-    call ccmpi_abort(-1)
-  end if
- 
   call fixtile
   
 end if
@@ -5113,21 +5122,6 @@ else
       deallocate( dat_out, dati_out )
     end if      
   end if    
-  ! CABLE correction terms
-  !do n = 1,maxtile
-  !  write(vname,'("t",I1.1,"_fhscor")') n
-  !  call histrd(iarchi-1,ierr,vname,dat,ifull)
-  !  if ( n<=maxnb ) call cable_pack(dat,canopy%fhs_cor,n)
-  !  write(vname,'("t",I1.1,"_fescor")') n
-  !  call histrd(iarchi-1,ierr,vname,dat,ifull)
-  !  if ( n<=maxnb ) call cable_pack(dat,canopy%fes_cor,n)
-  !  write(vname,'("t",I1.1,"_fnscor")') n
-  !  call histrd(iarchi-1,ierr,vname,dat,ifull)
-  !  if ( n<=maxnb ) call cable_pack(dat,canopy%fns_cor,n)
-  !  write(vname,'("t",I1.1,"_gacor")') n
-  !  call histrd(iarchi-1,ierr,vname,dat,ifull)
-  !  if ( n<=maxnb ) call cable_pack(dat,canopy%ga_cor,n)
-  !end do
   ! albvisdir, albvisdif, albnirdir, albnirdif are used when nrad=5
   vname = 'albvisdir'
   call histrd(iarchi-1,ierr,vname,albvisdir,ifull)
@@ -5176,8 +5170,6 @@ use vegpar_m
 integer k
 real totdepth
  
-!if ( myid==0 ) write(6,*) "-> Check for initalisation errors"
-
 ! Some fixes for rounding errors
 if ( mp_global>0 ) then
 
@@ -5212,10 +5204,7 @@ if ( mp_global>0 ) then
         + (1.-ssnow%isflag)*2090._8*ssnow%snowd
   end do
 
-  if ( ccycle == 0 ) then
-    !bgc%cplant = max(bgc%cplant,0.)
-    !bgc%csoil = max(bgc%csoil,0.)
-  else
+  if ( ccycle > 0 ) then
     casapool%cplant     = max(0._8,casapool%cplant)
     casapool%clitter    = max(0._8,casapool%clitter)
     casapool%csoil      = max(0._8,casapool%csoil)
@@ -5269,6 +5258,28 @@ if ( mp_global>0 ) then
     casabal%FPleachyear  = 0._8
     casabal%FPlossyear   = 0._8
     !casamet%glai         = max(min( casamet%glai, casabiome%glaimax(veg%iveg)), casabiome%glaimin(veg%iveg))
+    
+    where ( .not.( casamet%iveg2==forest.or.casamet%iveg2==shrub ) )
+      casapool%cplant(:,wood)  = 0._8
+      casapool%clitter(:,cwd)  = 0._8
+      casapool%nplant(:,wood)  = 0._8
+      casapool%nlitter(:,cwd)  = 0._8
+      casapool%pplant(:,wood)  = 0._8
+      casapool%plitter(:,cwd)  = 0._8
+    end where
+
+    ! initializing glai in case not reading pool file (eg. during spin)
+    casapool%ratioNClitter = casapool%nlitter/(casapool%clitter+1.0e-10_8)
+    casapool%ratioNPlitter = casapool%nlitter/(casapool%plitter+1.0e-10_8)
+    casapool%ratioPClitter = casapool%plitter/(casapool%clitter+1.0e-10_8)
+
+    if ( ccycle<2 ) then
+      casapool%Nplant = casapool%Cplant*casapool%ratioNCplant
+      casapool%Nsoil  = casapool%ratioNCsoil*casapool%Csoil
+    else if ( ccycle<3 ) then
+      casapool%Psoil  = casapool%Nsoil/casapool%ratioNPsoil
+    end if
+    
   end if
 end if
   

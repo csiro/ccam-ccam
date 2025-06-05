@@ -64,12 +64,10 @@ subroutine grell_ccam
 
 ! specify module to use global variables
 use aerointerface                 ! Aerosol interface
-use aerosol_arrays
+use aerosol_arrays                ! Aerosol arrays
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use const_phys                    ! Physical constants
-#ifdef grell
 use cu_gf_deep                    ! Grell convection
-#endif
 use kuocom_m                      ! JLM convection
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
@@ -138,6 +136,14 @@ integer, dimension(3) :: posmin3, posmax3
 real :: maxconvtime = 120.  ! time-step for convection
 real :: tdt
 
+! calculate qtot
+! do k = 1,kl
+!   rhoa(:) = ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k))
+!   qtot(:,k) = qg(1:ifull,k)*rhoa(:,k) +  &
+!               qlg(1:ifull,k)*rhoa(:,k) + &
+!               qfg(1:ifull,k)*rhoa(:,k) + &
+!               qrg(1:ifull,k)*rhoa(:,k) + 
+
 !$omp do schedule(static) private(tile,js,je,qamin,k,iq,prf_temp,prf,itf,ktf,its,ite,kts,kte) &
 !$omp private(dicycle,ichoice,ipr,ccn,ccnclean,dtime,imid,dhdt,rothz,thz,rhoa,zpres,xland,zo) &
 !$omp private(zo,kpbl,forcing,g_t,g_q,z1,tn,qo,po,psur,g_us,g_vs,g_rho,hfx,qfx,dx,mconv,omeg) &
@@ -149,9 +155,7 @@ do tile = 1,ntiles
   js = (tile-1)*imax+1      ! js:je inside 1:ifull
   je = tile*imax            ! len(js:je) = imax
 
-#ifdef grell
   qamin = qgmin
-#endif
   
   ! working in ifull (js:je), need to unpack/devide to imax, e.g., t1(1:imax,:)=t(js:je,:)
 
@@ -216,8 +220,6 @@ do tile = 1,ntiles
   mconv(:) = 0.
   do k = 1,kl                 ! integrated vertical advection of moisture
     mconv(1:imax) = mconv(1:imax) + dsig(k)*qg(js:je,k)             ! CHECK this one in !  dsig = delta sigma
-  end do
-  do k = 1,kl
     omeg(1:imax,k) =  ps(js:je)*dpsldt(js:je,k)         ! omega (pa/s)
   end do
   csum       = 0.              ! used to implement memory, set to zero if not avail
@@ -265,17 +267,14 @@ do tile = 1,ntiles
   kdt                 = 0
   tropics             = 0
   g_pre(1:imax) = 0.
-  g_qfg(1:imax,1:kl) = qfg(js:je,1:kl)
+  g_qfg(1:imax,1:kl) = qfg(js:je,1:kl) ! MJT suggestion
   g_qlg(1:imax,1:kl) = qlg(js:je,1:kl)
   
-  ! MJT notes - still need to include aerosol transport and scavenging
-
   ! Use sub time-step if required
   njumps = int(dtime/(maxconvtime+0.01)) + 1
   tdt    = real(dtime/real(njumps))
   do n = 1,njumps
     pre = 0.
-#ifdef grell      
     call cu_gf_deep_run(   &
              itf           &
             ,ktf           &
@@ -351,7 +350,6 @@ do tile = 1,ntiles
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
             ,outliqice)
-#endif          
 
     g_t(1:imax,:)   = g_t(1:imax,:)   + tdt*outt(1:imax,:)
     g_q(1:imax,:)   = g_q(1:imax,:)   + tdt*outq(1:imax,:)

@@ -2165,14 +2165,14 @@ subroutine esfsw_driver_init
           if (nbands == 18) then
             if ( n /= 4) then
               totco2strmax(n) = ( (1.0/c1co2str(n) ) + c2co2str(n) ** &
-                                 c3co2str(n) ) ** (1.0/c3co2str(n) ) - &
+                                 c3co2str(n) ) ** (1.0/max(c3co2str(n),1.e-99) ) - &
                                 c2co2str(n)
             else 
               totco2strmax(n) = HUGE (c4o2strschrun) 
             endif
           else
               totco2strmax(n) = ( (1.0/c1co2str(n) ) + c2co2str(n) ** &
-                                 c3co2str(n) ) ** (1.0/c3co2str(n) ) - &
+                                 c3co2str(n) ) ** (1.0/max(c3co2str(n),1.e-99) ) - &
                                 c2co2str(n)
           endif
         else
@@ -2191,14 +2191,14 @@ subroutine esfsw_driver_init
           if (nbands == 18) then
             if ( n /= 4) then
               toto2strmax(n) = ( (1.0/c1o2str(n) ) + c2o2str(n) ** &
-                                c3o2str(n) ) ** (1.0/c3o2str(n) ) - &
+                                c3o2str(n) ) ** (1.0/max(c3o2str(n),1.e-99) ) - &
                                 c2o2str(n)
             else
               toto2strmax(n) = HUGE (c4o2strschrun) 
             endif
           else
               toto2strmax(n) = ( (1.0/c1o2str(n) ) + c2o2str(n) ** &
-                                c3o2str(n) ) ** (1.0/c3o2str(n) ) - &
+                                c3o2str(n) ) ** (1.0/max(c3o2str(n),1.e-99) ) - &
                                 c2o2str(n)
           endif
         else
@@ -2216,7 +2216,7 @@ subroutine esfsw_driver_init
           totch4max(n) = ( (1.0/c1ch4(n) ) + c2ch4(n) ** c3ch4(n) ) ** &
                            (1.0/c3ch4(n) ) - c2ch4(n)
           totch4strmax(n) = ( (1.0/c1ch4str(n) ) + c2ch4str(n) ** &
-                            c3ch4str(n) ) ** (1.0/c3ch4str(n) ) - &
+                            c3ch4str(n) ) ** (1.0/max(c3ch4str(n),1.e-99) ) - &
                             c2ch4str(n)
         else
           c4ch4(n) = 0.
@@ -2234,7 +2234,7 @@ subroutine esfsw_driver_init
           totn2omax(n) = ( (1.0/c1n2o(n) ) + c2n2o(n) ** c3n2o(n) ) ** &
                            (1.0/c3n2o(n) ) - c2n2o(n)
           totn2ostrmax(n) = ( (1.0/c1n2ostr(n) ) + c2n2ostr(n) ** &
-                               c3n2ostr(n) ) ** (1.0/c3n2ostr(n) ) - &
+                               c3n2ostr(n) ) ** (1.0/max(c3n2ostr(n),1.e-99) ) - &
                                c2n2ostr(n)
         else
           c4n2o(n) = 0.
@@ -2247,7 +2247,7 @@ subroutine esfsw_driver_init
 
       c4o2strschrun = c1o2strschrun * c2o2strschrun ** c3o2strschrun
       toto2strmaxschrun = ( (1.0/c1o2strschrun) + c2o2strschrun ** &
-                             c3o2strschrun) ** (1.0/c3o2strschrun) - &
+                             c3o2strschrun) ** (1.0/max(c3o2strschrun,1.e-99)) - &
                              c2o2strschrun
 
 !----------------------------------------------------------------------

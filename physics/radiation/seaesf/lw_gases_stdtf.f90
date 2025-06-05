@@ -4036,10 +4036,10 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
 !           ca(k)=(1.0 - trns_val(k,k-2))**(uexp(k)/sexp(k))/upatha(k)
 !------------------------------------------------------------------
             if (do_co2_bug) then 
-              ca(k)=EXP((uexp(k)/sexp(k))*   &
+              ca(k)=EXP((uexp(k)/max(sexp(k),1.e-99))*   &
                   log((1.0 - trns_val(k,k-2))))/upatha(k)
             else     
-              ca(k)=EXP((uexp(k)/sexp(k))*   &
+              ca(k)=EXP((uexp(k)/max(sexp(k),1.e-99))*   &
                   log((abs_val(k,k-2))))/upatha(k)
               f(k) = 0.0
               fprime(k) = 1.0
@@ -4058,11 +4058,11 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
 !                   (xxlog(k) + LOG(upatha(k)))
 !------------------------------------------------------------------
             if (do_co2_bug) then 
-              ca(k)=EXP((uexp(k)/sexp(k))*   &
+              ca(k)=EXP((uexp(k)/max(sexp(k),1.e-99))*   &
                  log((1.0 - trns_val(k,k-2))))/   &
                       (xxlog(k) + LOG(upatha(k)))
             else 
-              ca(k)=EXP((uexp(k)/sexp(k))*   &
+              ca(k)=EXP((uexp(k)/max(sexp(k),1.e-99))*   &
                   log((abs_val(k,k-2))))/   &
                        (xxlog(k) + LOG(upatha(k)))
               f(k) = 0.0

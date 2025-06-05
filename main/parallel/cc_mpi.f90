@@ -37,7 +37,7 @@ module cc_mpi
 
    use cc_omp
 #ifdef usempimod
-#ifdef usempimod_f09
+#ifdef usempimod_f08
    use mpi_f08
 #else   
    use mpi
@@ -506,9 +506,9 @@ contains
       use xyzinfo_m
       integer, intent(in) :: id, jd
       integer, intent(out) :: idjd
-      integer iproc, dproc, iq, iqg, i, j, n
+      integer :: iproc, dproc, iq, iqg, i, j, n
+      integer :: colourmask
       integer(kind=4) :: ierr, colour, rank, lcommin, lcommout
-      integer, dimension(ifull) :: colourmask
       real, intent(in) :: dt
       real, dimension(:,:), allocatable :: dum
       real, dimension(:,:), allocatable :: dumu, dumv
@@ -560,9 +560,10 @@ contains
       if ( myid==0 ) then
          write(6,*) "-> Distribute global arrays"
       end if
-      allocate( dumr(ifull,23), dumr8(ifull,3) )
+      allocate( dumr(ifull,23) )
+      ! combine 2d arrays into a single 3d arrary for distribute
       if ( myid == 0 ) then
-         allocate( dumr_g(ifull_g,23), dumr8_g(ifull_g,3) ) 
+         allocate( dumr_g(ifull_g,23) ) 
          dumr_g(1:ifull_g,1)  = wts_g(1:ifull_g)
          dumr_g(1:ifull_g,2)  = em_g(1:ifull_g)
          dumr_g(1:ifull_g,3)  = emu_g(1:ifull_g)
@@ -580,16 +581,12 @@ contains
          dumr_g(1:ifull_g,15) = rlongg_g(1:ifull_g)
          dumr_g(1:ifull_g,16:19) = rlat4(1:ifull_g,1:4)
          dumr_g(1:ifull_g,20:23) = rlong4(1:ifull_g,1:4)
-         dumr8_g(1:ifull_g,1) = x_g(1:ifull_g)
-         dumr8_g(1:ifull_g,2) = y_g(1:ifull_g)
-         dumr8_g(1:ifull_g,3) = z_g(1:ifull_g)
          call ccmpi_distribute(dumr(:,1:23),dumr_g(:,1:23)) 
-         call ccmpi_distributer8(dumr8(:,1:3),dumr8_g(:,1:3)) 
-         deallocate( dumr_g, dumr8_g )
+         deallocate( dumr_g )
       else
          call ccmpi_distribute(dumr(:,1:23))
-         call ccmpi_distributer8(dumr8(:,1:3))
       end if
+      ! update 3d array into 2d arrays
       wts(1:ifull)    = dumr(1:ifull,1)
       em(1:ifull)     = dumr(1:ifull,2)
       emu(1:ifull)    = dumr(1:ifull,3)
@@ -607,10 +604,25 @@ contains
       rlongg(1:ifull) = dumr(1:ifull,15)
       rlat4_l(1:ifull,1:4)  = dumr(1:ifull,16:19)
       rlong4_l(1:ifull,1:4) = dumr(1:ifull,20:23)
+      deallocate( dumr )
+      allocate( dumr8(ifull,3) )
+      ! combine 2d arrays into a single 3d arrary for distribute
+      if ( myid == 0 ) then
+         allocate( dumr8_g(ifull_g,3) ) 
+         dumr8_g(1:ifull_g,1) = x_g(1:ifull_g)
+         dumr8_g(1:ifull_g,2) = y_g(1:ifull_g)
+         dumr8_g(1:ifull_g,3) = z_g(1:ifull_g)
+         call ccmpi_distributer8(dumr8(:,1:3),dumr8_g(:,1:3)) 
+         deallocate( dumr8_g )
+      else
+         call ccmpi_distributer8(dumr8(:,1:3))
+      end if
+      ! update 3d array into 2d arrays
       x(1:ifull) = dumr8(1:ifull,1)
       y(1:ifull) = dumr8(1:ifull,2)
       z(1:ifull) = dumr8(1:ifull,3)
-      deallocate( dumr, dumr8 )
+      deallocate( dumr8 )
+
       
       ! Configure halos
       if ( myid==0 ) then
@@ -662,7 +674,7 @@ contains
       
       ! Off process departure points
       if ( myid==0 ) then
-         write(6,*) "-> Allocate storage for departure points"
+         write(6,*) "-> Allocate memory for departure points"
       end if
       allocate( dpoints(neighnum) )
       allocate( dbuf(0:neighnum) )
@@ -689,59 +701,68 @@ contains
       if ( myid==0 ) then
          write(6,*) "-> Define colour indices"
       end if
+      allocate( ifull_colour(maxcolour) )
+      ifull_colour(:) = 0
       do n = 1,npan
          do j = 1,jpan
             do i = 1,ipan
                iq  = indp(i,j,n)  ! Local
                iqg = indg(i,j,n)  ! Global
-               colourmask(iq) = findcolour(iqg,il_g)
+               colourmask = findcolour(iqg,il_g)
+               ifull_colour(colourmask) = ifull_colour(colourmask) + 1 
             end do
          end do
       end do
+      ifull_maxcolour = maxval( ifull_colour(:) )
 
       ! order points to allow border only updating
-      allocate( ifull_colour(maxcolour), ifull_colour_border(maxcolour) )
-      do n = 1,maxcolour
-         ifull_colour(n) = count( colourmask(:) == n )
-      end do
-      ifull_maxcolour = maxval( ifull_colour(:) )
-      allocate( iqx(ifull_maxcolour,maxcolour) )
+      allocate( ifull_colour_border(maxcolour), iqx(ifull_maxcolour,maxcolour) )
       ifull_colour(:) = 0
       ! first process border
       do n = 1,npan
-        j = 1
-        do i = 1,ipan
-          iq = indp(i,j,n)
-          ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
-          iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-        end do
-        do j = 2,jpan-1
-          i = 1  
-          iq = indp(i,j,n)
-          ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
-          iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-          i = ipan
-          iq = indp(i,j,n)
-          ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
-          iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-        end do
-        j = jpan
-        do i = 1,ipan
-          iq = indp(i,j,n)
-          ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
-          iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-        end do
+         j = 1
+         do i = 1,ipan
+            iq  = indp(i,j,n)  ! Local
+            iqg = indg(i,j,n)  ! Global
+            colourmask = findcolour(iqg,il_g)
+            ifull_colour(colourmask) = ifull_colour(colourmask) + 1
+            iqx(ifull_colour(colourmask),colourmask) = iq
+         end do
+         do j = 2,jpan-1
+            i = 1  
+            iq  = indp(i,j,n)  ! Local
+            iqg = indg(i,j,n)  ! Global
+            colourmask = findcolour(iqg,il_g)
+            ifull_colour(colourmask) = ifull_colour(colourmask) + 1
+            iqx(ifull_colour(colourmask),colourmask) = iq
+            i = ipan
+            iq  = indp(i,j,n)  ! Local
+            iqg = indg(i,j,n)  ! Global
+            colourmask = findcolour(iqg,il_g)
+            ifull_colour(colourmask) = ifull_colour(colourmask) + 1
+            iqx(ifull_colour(colourmask),colourmask) = iq
+         end do
+         j = jpan
+         do i = 1,ipan
+            iq  = indp(i,j,n)  ! Local
+            iqg = indg(i,j,n)  ! Global
+            colourmask = findcolour(iqg,il_g)
+            ifull_colour(colourmask) = ifull_colour(colourmask) + 1
+            iqx(ifull_colour(colourmask),colourmask) = iq
+         end do
       end do
       ifull_colour_border(1:maxcolour) = ifull_colour(1:maxcolour)
       ! next process interior
       do n = 1,npan
-        do j = 2,jpan-1
-          do i = 2,ipan-1
-            iq = indp(i,j,n)
-            ifull_colour(colourmask(iq)) = ifull_colour(colourmask(iq)) + 1
-            iqx(ifull_colour(colourmask(iq)),colourmask(iq)) = iq
-          end do
-        end do
+         do j = 2,jpan-1
+            do i = 2,ipan-1
+               iq  = indp(i,j,n)  ! Local
+               iqg = indg(i,j,n)  ! Global
+               colourmask = findcolour(iqg,il_g)
+               ifull_colour(colourmask) = ifull_colour(colourmask) + 1
+               iqx(ifull_colour(colourmask),colourmask) = iq
+            end do
+         end do
       end do
 
 
@@ -8031,8 +8052,9 @@ contains
          
          ! check neighbours
          mg(g)%neighnum = 0
-         do n = 0,nproc-1
-            if ( mg_bnds(n,g)%rlenx_fn(maxcolour) > 0 ) then 
+         do iproc = 1,nproc-1
+            rproc = modulo( myid+iproc, nproc ) 
+            if ( mg_bnds(rproc,g)%rlenx_fn(maxcolour) > 0 ) then 
               mg(g)%neighnum = mg(g)%neighnum + 1
             end if
          end do
@@ -8058,7 +8080,12 @@ contains
       
          if ( ncount/=mg(g)%neighnum ) then
             write(6,*) "ERROR: Multi-grid neighnum mismatch"
-            write(6,*) "neighnum, ncount ",mg(g)%neighnum, ncount
+            write(6,*) "myid, neighnum, ncount ",myid,mg(g)%neighnum, ncount
+            do n = 0,nproc-1
+              if ( mg_bnds(n,g)%rlenx_fn(maxcolour) > 0 ) then
+                 write(6,*) "myid,n,rlenx ",myid,n,mg_bnds(n,g)%rlenx_fn(maxcolour) 
+              end if
+            end do  
             call ccmpi_abort(-1)
          end if
 

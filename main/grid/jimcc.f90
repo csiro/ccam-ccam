@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -91,9 +91,9 @@ real, dimension(3,0:5), save :: f
 real, dimension(3,0:11), save :: e
 real, dimension(3,3), save :: txe
 real, dimension(3,3,0:47), save :: rotg
-complex, save :: ci, cip4, cip3oss
-
-!$acc declare create(ci,igofkg,cip3oss,rotg)
+complex, parameter :: ci = cmplx(0.,1.)
+complex, save :: cip4, cip3oss
+!$acc declare create(igofkg,cip3oss,rotg)
 
 contains
 
@@ -294,7 +294,7 @@ real, parameter :: stretch=1.
 real, parameter :: stretchm=1.-stretch
 real, dimension(np,np), intent(out) :: xe, ye, ze
 real, dimension(np,np), intent(out) :: dxa,dxb,dxc,em4
-#ifdef GPU
+#ifdef _OPENACC
 real, dimension(3) :: xc
 #else
 real, dimension(np,3) :: xc
@@ -312,9 +312,9 @@ if(ngr==2.or.ngr==4)then
   yadd=.5*d
 end if
 
-#ifdef GPU
+#ifdef _OPENACC
 
-!$acc update device(ci,igofkg,cip3oss,rotg)
+!$acc update device(igofkg,cip3oss,rotg)
 !$acc parallel loop collapse(2) copyout(xe,ye,ze,em4,dxa,dxb,dxc) private(xc)
 do j = 1,np
   do i = 1,np
@@ -338,7 +338,6 @@ end do
 
 #else
 
-!$omp parallel do schedule(static) private(j,jp,y,i,xvec,xc,den)
 do j = 0,np-1
  jp = j + 1
  y = real(j)*d  + yadd   ! jlm allows staggered v
@@ -360,7 +359,6 @@ do j = 0,np-1
    dxc(i,jp) = xc(i,3)/den
  end do
 end do
-!$omp end parallel do
 
 #endif
 
@@ -409,7 +407,7 @@ R6O3=R6/3.
 R6O6=R6/6.
 R3O6=R3/6.
 SS=R2
-CI=CMPLX(0.,1.)
+!CI=CMPLX(0.,1.)
 CIP4=CI**FOURTH
 CIP3OSS=CI**THIRD/SS
 F(1,0)=-R6O3
@@ -488,7 +486,7 @@ end subroutine inhedra
 !  -->    IPANEL map-panel index
 !  <--    XC     standard earth-centered cartesian coordinates
 !----------------------------------------------------------------------------
-#ifdef GPU
+#ifdef _OPENACC
 subroutine vmtoc(xx, yy, ipanel, xc, yc, zc)
 !$acc routine seq
 implicit none
@@ -629,7 +627,7 @@ end subroutine vmtoc
 !  <-- em4   map-factor at this point
 !  <-- DFDX x- and y-derivatives of map-factor here
 !---------------------------------------------------------------------------
-#ifdef GPU
+#ifdef _OPENACC
 subroutine vmtocd(xx, yy, ipanel, xci, em4)
 !$acc routine seq
 implicit none

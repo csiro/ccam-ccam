@@ -61,7 +61,7 @@ contains
 !! This is Grell-Freitas deep convection scheme module
 !> @{
    integer function my_maxloc1d(A,N)
-!$acc routine vector
+!!$acc routine vector
       implicit none
       real(kind_phys), intent(in) :: A(:)
       integer, intent(in) :: N
@@ -71,7 +71,7 @@ contains
 
       imaxval = MAXVAL(A)
       my_maxloc1d = 1
-!$acc loop
+!!$acc loop
       do i = 1, N
          if ( A(i) == imaxval ) then
             my_maxloc1d = i
@@ -166,16 +166,16 @@ contains
         ,intent (in  )                   ::  rand_clos
      real(kind=kind_phys),  dimension (its:ite)                   &
         ,intent (in  )                   ::  rand_mom,rand_vmas
-!$acc declare copyin(rand_clos,rand_mom,rand_vmas)
+!!$acc declare copyin(rand_clos,rand_mom,rand_vmas)
 
      integer, intent(in) :: do_capsuppress
      real(kind=kind_phys), intent(in), dimension(:) :: cap_suppress_j
-!$acc declare create(cap_suppress_j)
+!!$acc declare create(cap_suppress_j)
   !
   ! 
   !
       real(kind=kind_phys),    dimension (its:ite,1:maxens3) :: xf_ens,pr_ens
-!$acc declare create(xf_ens,pr_ens)
+!!$acc declare create(xf_ens,pr_ens)
   ! outtem = output temp tendency (per s)
   ! outq   = output q tendency (per s)
   ! outqc  = output qc tendency (per s)
@@ -189,19 +189,19 @@ contains
      real(kind=kind_phys),    dimension (its:ite)                      &
         ,intent (inout  )                   ::                         &
         pre,xmb_out
-!$acc declare copy(cnvwt,outu,outv,outt,outq,outqc,cupclw,frh_out,pre,xmb_out)
+!!$acc declare copy(cnvwt,outu,outv,outt,outq,outqc,cupclw,frh_out,pre,xmb_out)
      real(kind=kind_phys),    dimension (its:ite)                      &
         ,intent (in  )                   ::                            &
         hfx,qfx,xmbm_in,xmbs_in
-!$acc declare copyin(hfx,qfx,xmbm_in,xmbs_in)
+!!$acc declare copyin(hfx,qfx,xmbm_in,xmbs_in)
      integer,    dimension (its:ite)                                   &
         ,intent (inout  )                ::                            &
         kbcon,ktop
-!$acc declare copy(kbcon,ktop)
+!!$acc declare copy(kbcon,ktop)
      integer,    dimension (its:ite)                                   &
         ,intent (in  )                   ::                            &
         kpbl,tropics
-!$acc declare copyin(kpbl,tropics)
+!!$acc declare copyin(kpbl,tropics)
   !
   ! basic environmental input includes moisture convergence (mconv)
   ! omega (omeg), windspeed (us,vs), and a flag (ierr) to turn off
@@ -210,23 +210,23 @@ contains
      real(kind=kind_phys),    dimension (its:ite,kts:kte)              &
         ,intent (in   )                   ::                           &
         dhdt,rho,t,po,us,vs,tn
-!$acc declare copyin(dhdt,rho,t,po,us,vs,tn)
+!!$acc declare copyin(dhdt,rho,t,po,us,vs,tn)
      real(kind=kind_phys),    dimension (its:ite,kts:kte)              &
         ,intent (inout   )                ::                           &
         omeg
-!$acc declare copy(omeg)
+!!$acc declare copy(omeg)
      real(kind=kind_phys),    dimension (its:ite,kts:kte)              &
         ,intent (inout)                   ::                           &
          q,qo,zuo,zdo,zdm
-!$acc declare copy(q,qo,zuo,zdo,zdm)
+!!$acc declare copy(q,qo,zuo,zdo,zdm)
      real(kind=kind_phys), dimension (its:ite)                         &
         ,intent (in   )                   ::                           &
         dx,z1,psur,xland
-!$acc declare copyin(dx,z1,psur,xland)
+!!$acc declare copyin(dx,z1,psur,xland)
      real(kind=kind_phys), dimension (its:ite)                         &
         ,intent (inout   )                ::                           &
         mconv,ccn
-!$acc declare copy(mconv,ccn)
+!!$acc declare copy(mconv,ccn)
      real(kind=kind_phys), dimension (:,:,:)                           &
         ,intent (inout)                   ::                           &
         chem3d
@@ -234,7 +234,7 @@ contains
      real(kind=kind_phys), dimension (:,:)                             &
          , intent (out) :: wetdpc_deep
      real(kind=kind_phys), intent (in) :: fscav(nchem)
-!$acc declare copy(chem3d) copyout(wetdpc_deep) copyin(fscav)
+!!$acc declare copy(chem3d) copyout(wetdpc_deep) copyin(fscav)
 
      real(kind=kind_phys)                                              &
         ,intent (in   )                   ::                           &
@@ -252,7 +252,7 @@ contains
         edtc
      real(kind=kind_phys),    dimension (its:ite,kts:kte,1) ::          &
         dellat_ens,dellaqc_ens,dellaq_ens,pwo_ens
-!$acc declare create(xaa0_ens,edtc,dellat_ens,dellaqc_ens,dellaq_ens,pwo_ens)
+!!$acc declare create(xaa0_ens,edtc,dellat_ens,dellaqc_ens,dellaq_ens,pwo_ens)
 !
 !
 !
@@ -328,8 +328,8 @@ contains
      real(kind=kind_phys), dimension (kts:kte) :: trac,trcflx_in,trcflx_out,trc,trco
      real(kind=kind_phys), dimension (its:ite,kts:kte) :: pwdper, massflx
      integer :: nv
-!$acc declare create(chem,chem_cup,chem_up,chem_down,dellac,dellac2,chem_c,chem_pw,chem_pwd,   &
-!$acc                         chem_pwav,chem_psum,pwdper,massflux)
+!!$acc declare create(chem,chem_cup,chem_up,chem_down,dellac,dellac2,chem_c,chem_pw,chem_pwd,   &
+!!$acc                         chem_pwav,chem_psum,pwdper,massflux)
 
      real(kind=kind_phys),    dimension (its:ite,kts:kte) ::            &
         entr_rate_2d,mentrd_rate_2d,he,hes,qes,z, heo,heso,qeso,zo,     &                    
@@ -349,17 +349,17 @@ contains
 
         cd,cdd,dellah,dellaq,dellat,dellaqc,                            &
         u_cup,v_cup,uc,vc,ucd,vcd,dellu,dellv
-!$acc declare create( &
-!$acc        entr_rate_2d,mentrd_rate_2d,he,hes,qes,z, heo,heso,qeso,zo,     &                    
-!$acc        xhe,xhes,xqes,xz,xt,xq,qes_cup,q_cup,he_cup,hes_cup,z_cup,      &
-!$acc        p_cup,gamma_cup,t_cup, qeso_cup,qo_cup,heo_cup,heso_cup,        &
-!$acc        zo_cup,po_cup,gammao_cup,tn_cup,                                &    
-!$acc        xqes_cup,xq_cup,xhe_cup,xhes_cup,xz_cup,                        &
-!$acc        xt_cup, dby,hc,zu,clw_all,                                      &
-!$acc        dbyo,qco,qrcdo,pwdo,pwo,hcdo,qcdo,dbydo,hco,qrco,               &
-!$acc        dbyt,xdby,xhc,xzu,                                              &
-!$acc        cd,cdd,dellah,dellaq,dellat,dellaqc,                            &
-!$acc        u_cup,v_cup,uc,vc,ucd,vcd,dellu,dellv)
+!!$acc declare create( &
+!!$acc        entr_rate_2d,mentrd_rate_2d,he,hes,qes,z, heo,heso,qeso,zo,     &                    
+!!$acc        xhe,xhes,xqes,xz,xt,xq,qes_cup,q_cup,he_cup,hes_cup,z_cup,      &
+!!$acc        p_cup,gamma_cup,t_cup, qeso_cup,qo_cup,heo_cup,heso_cup,        &
+!!$acc        zo_cup,po_cup,gammao_cup,tn_cup,                                &    
+!!$acc        xqes_cup,xq_cup,xhe_cup,xhes_cup,xz_cup,                        &
+!!$acc        xt_cup, dby,hc,zu,clw_all,                                      &
+!!$acc        dbyo,qco,qrcdo,pwdo,pwo,hcdo,qcdo,dbydo,hco,qrco,               &
+!!$acc        dbyt,xdby,xhc,xzu,                                              &
+!!$acc        cd,cdd,dellah,dellaq,dellat,dellaqc,                            &
+!!$acc        u_cup,v_cup,uc,vc,ucd,vcd,dellu,dellv)
 
   ! aa0 cloud work function for downdraft
   ! edt = epsilon
@@ -379,18 +379,18 @@ contains
      integer,    dimension (its:ite) ::                                  &
        kzdown,kdet,k22,jmin,kstabi,kstabm,k22x,xland1,                   &
        ktopdby,kbconx,ierr2,ierr3,kbmax
-!$acc declare create(edt,edto,edtm,aa1,aa0,xaa0,hkb,                     &
-!$acc       hkbo,xhkb,                                                   &
-!$acc       xmb,pwavo,ccnloss,                                           &
-!$acc       pwevo,bu,bud,cap_max,                                        &
-!$acc       cap_max_increment,closure_n,psum,psumh,sig,sigd,             &
-!$acc       axx,edtmax,edtmin,entr_rate,                                 &
-!$acc       kzdown,kdet,k22,jmin,kstabi,kstabm,k22x,xland1,              &
-!$acc       ktopdby,kbconx,ierr2,ierr3,kbmax)
+!!$acc declare create(edt,edto,edtm,aa1,aa0,xaa0,hkb,                     &
+!!$acc       hkbo,xhkb,                                                   &
+!!$acc       xmb,pwavo,ccnloss,                                           &
+!!$acc       pwevo,bu,bud,cap_max,                                        &
+!!$acc       cap_max_increment,closure_n,psum,psumh,sig,sigd,             &
+!!$acc       axx,edtmax,edtmin,entr_rate,                                 &
+!!$acc       kzdown,kdet,k22,jmin,kstabi,kstabm,k22x,xland1,              &
+!!$acc       ktopdby,kbconx,ierr2,ierr3,kbmax)
 
      integer,  dimension (its:ite), intent(inout) :: ierr
      integer,  dimension (its:ite), intent(in) :: csum
-!$acc declare copy(ierr) copyin(csum)
+!!$acc declare copy(ierr) copyin(csum)
      integer                              ::                             &
        iloop,nens3,ki,kk,i,k
      real(kind=kind_phys)                 ::                             &
@@ -402,11 +402,11 @@ contains
       detup,subdown,entdoj,entupk,detupk,totmas
 
      real(kind=kind_phys), dimension (its:ite) :: lambau,flux_tun,zws,ztexec,zqexec
-!$acc declare create(lambau,flux_tun,zws,ztexec,zqexec)
+!!$acc declare create(lambau,flux_tun,zws,ztexec,zqexec)
 
      integer :: jprnt,jmini,start_k22
      logical :: keep_going,flg(its:ite)
-!$acc declare create(flg)
+!!$acc declare create(flg)
      
      character*50 :: ierrc(its:ite)
      character*4  :: cumulus
@@ -415,12 +415,12 @@ contains
       ,up_massentro,up_massdetro,dd_massentro,dd_massdetro
      real(kind=kind_phys),    dimension (its:ite,kts:kte) ::              &
        up_massentru,up_massdetru,dd_massentru,dd_massdetru
-!$acc declare create(up_massentr,up_massdetr,c1d,up_massentro,up_massdetro,dd_massentro,dd_massdetro, &
-!$acc                up_massentru,up_massdetru,dd_massentru,dd_massdetru)
+!!$acc declare create(up_massentr,up_massdetr,c1d,up_massentro,up_massdetro,dd_massentro,dd_massdetro, &
+!!$acc                up_massentru,up_massdetru,dd_massentru,dd_massdetru)
      real(kind=kind_phys) c1_max,buo_flux,pgcon,pgc,blqe
     
      real(kind=kind_phys) :: xff_mid(its:ite,2)
-!$acc declare create(xff_mid)
+!!$acc declare create(xff_mid)
      integer :: iversion=1
      real(kind=kind_phys) :: denom,h_entr,umean,t_star,dq
      integer, intent(in) :: dicycle
@@ -430,48 +430,48 @@ contains
                                               ,gammao_cup_bl,tn_cup_bl,hco_bl,dbyo_bl
      real(kind=kind_phys), dimension(kts:kte) :: tmp_po_cup, tmp_zdo
      real(kind=kind_phys), dimension(its:ite) :: xf_dicycle
-!$acc declare create(aa1_bl,hkbo_bl,tau_bl,tau_ecmwf,wmean,             &
-!$acc                tn_bl, qo_bl, qeso_bl, heo_bl, heso_bl,            &
-!$acc                qeso_cup_bl,qo_cup_bl, heo_cup_bl,heso_cup_bl,     &
-!$acc                gammao_cup_bl,tn_cup_bl,hco_bl,dbyo_bl,xf_dicycle)
+!!$acc declare create(aa1_bl,hkbo_bl,tau_bl,tau_ecmwf,wmean,             &
+!!$acc                tn_bl, qo_bl, qeso_bl, heo_bl, heso_bl,            &
+!!$acc                qeso_cup_bl,qo_cup_bl, heo_cup_bl,heso_cup_bl,     &
+!!$acc                gammao_cup_bl,tn_cup_bl,hco_bl,dbyo_bl,xf_dicycle)
      real(kind=kind_phys), intent(inout), dimension(its:ite,10) :: forcing
-!$acc declare copy(forcing)
+!!$acc declare copy(forcing)
      integer :: turn,pmin_lev(its:ite),start_level(its:ite),ktopkeep(its:ite)
      real(kind=kind_phys),    dimension (its:ite,kts:kte) :: dtempdz
      integer, dimension (its:ite,kts:kte) ::  k_inv_layers 
      real(kind=kind_phys),    dimension (its:ite) :: c0  ! HCB
      real(kind=kind_phys),    dimension (its:ite,kts:kte) :: c0t3d    ! hli for smoke/dust wet scavenging
-!$acc declare create(pmin_lev,start_level,ktopkeep,dtempdz,k_inv_layers,c0,c0t3d)
+!!$acc declare create(pmin_lev,start_level,ktopkeep,dtempdz,k_inv_layers,c0,c0t3d)
  
 ! rainevap from sas
      real(kind=kind_phys) zuh2(40)
      real(kind=kind_phys), dimension (its:ite) :: rntot,delqev,delq2,qevap,rn,qcond
-!$acc declare create(zuh2,rntot,delqev,delq2,qevap,rn,qcond)
+!!$acc declare create(zuh2,rntot,delqev,delq2,qevap,rn,qcond)
      real(kind=kind_phys) :: rain,t1,q1,elocp,evef,el2orc,evfact,evfactl,g_rain,e_dn,c_up
      real(kind=kind_phys) :: pgeoh,dts,fp,fpi,pmin,x_add,beta,beta_u
      real(kind=kind_phys) :: cbeg,cmid,cend,const_a,const_b,const_c
 !---meltglac-------------------------------------------------
 
      real(kind=kind_phys),    dimension (its:ite,kts:kte) ::  p_liq_ice,melting_layer,melting
-!$acc declare create(p_liq_ice,melting_layer,melting)
+!!$acc declare create(p_liq_ice,melting_layer,melting)
 
      integer :: itemp
 
 
 !---meltglac-------------------------------------------------
-!$acc kernels
+!!$acc kernels
       melting_layer(:,:)=0.
       melting(:,:)=0.
       flux_tun(:)=fluxtune
-!$acc end kernels
+!!$acc end kernels
 !      if(imid.eq.1)flux_tun(:)=fluxtune+.5
       cumulus='deep'
       if(imid.eq.1)cumulus='mid'
       pmin=150.
       if(imid.eq.1)pmin=75.
-!$acc kernels
+!!$acc kernels
       ktopdby(:)=0
-!$acc end kernels
+!!$acc end kernels
       c1_max=c1
       elocp=xlv/cp
       el2orc=xlv*xlv/(r_v*cp)
@@ -485,21 +485,21 @@ contains
 !
 ! ecmwf
        pgcon=0.
-!$acc kernels
+!!$acc kernels
        lambau(:)=2.0
        if(imid.eq.1)lambau(:)=2.0
 ! here random must be between -1 and 1
        if(nranflag == 1)then
            lambau(:)=1.5+rand_mom(:)
        endif
-!$acc end kernels
+!!$acc end kernels
 ! sas
 !     lambau=0.
 !     pgcon=-.55
 !
 !---------------------------------------------------- ! HCB
 ! Set cloud water to rain water conversion rate (c0)
-!$acc kernels
+!!$acc kernels
       c0(:)=0.004
       do i=its,itf
          xland1(i)=int(xland(i)+.0001) ! 1.
@@ -511,10 +511,10 @@ contains
            c0(i)=0.002
          endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!$acc kernels
+!!$acc kernels
       ztexec(:)     = 0.
       zqexec(:)     = 0.
       zws(:)        = 0.
@@ -539,9 +539,9 @@ contains
          zws(i) = 1.2*zws(i)**.3333
          zws(i) = zws(i)*rho(i,kpbl(i)) !check if zrho is correct
       enddo
-!$acc end kernels
+!!$acc end kernels
       cap_maxs=75. ! 150.
-!$acc kernels
+!!$acc kernels
       do i=its,itf
         edto(i)=0.
         closure_n(i)=16.
@@ -561,15 +561,15 @@ contains
         ierrc(i)=" "
 #endif
       enddo
-!$acc end kernels
+!!$acc end kernels
       if(use_excess == 0 )then
-!$acc kernels
+!!$acc kernels
        ztexec(:)=0
        zqexec(:)=0
-!$acc end kernels
+!!$acc end kernels
       endif
       if(do_capsuppress == 1) then
-!$acc kernels
+!!$acc kernels
          do i=its,itf
             cap_max(i)=cap_maxs
             if (abs(cap_suppress_j(i) - 1.0 ) < 0.1 ) then
@@ -578,18 +578,18 @@ contains
                cap_max(i)=10.0
             endif
          enddo
-!$acc end kernels
+!!$acc end kernels
       endif
 !
 !--- initial entrainment rate (these may be changed later on in the
 !--- program
 !
-!$acc kernels
+!!$acc kernels
       start_level(:)=kte
-!$acc end kernels
+!!$acc end kernels
 
-!$acc kernels
-!$acc loop private(radius,frh)
+!!$acc kernels
+!!$acc loop private(radius,frh)
       do i=its,ite
          c1d(i,:)= 0. !c1 ! 0. ! c1 ! max(.003,c1+float(csum(i))*.0001)
 
@@ -609,7 +609,7 @@ contains
          if(forcing(i,7).eq.0.)sig(i)=1.
          frh_out(i) = frh*sig(i)
       enddo
-!$acc end kernels
+!!$acc end kernels
       sig_thresh = (1.-frh_thresh)**2
 
       
@@ -619,7 +619,7 @@ contains
 !
 !--- initial detrainmentrates
 !
-!$acc kernels
+!!$acc kernels
       do k=kts,ktf
       do i=its,itf
         cnvwt(i,k)=0.
@@ -636,17 +636,17 @@ contains
         dellaqc(i,k)=0.
       enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 !--- max/min allowed value for epsilon (ratio downdraft base mass flux/updraft
 !    base mass flux
 !
-!$acc kernels
+!!$acc kernels
       edtmax(:)=1.
 !      if(imid.eq.1)edtmax(:)=.15
       edtmin(:)=.1
 !      if(imid.eq.1)edtmin(:)=.05
-!$acc end kernels
+!!$acc end kernels
 !
 !--- minimum depth (m), clouds must have
 !
@@ -658,7 +658,7 @@ contains
 !--- maximum depth (mb) of capping 
 !--- inversion (larger cap = no convection)
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
         kbmax(i)=1
         aa0(i)=0.
@@ -668,7 +668,7 @@ contains
         ierr2(i)=0
         ierr3(i)=0
       enddo
-!$acc end kernels
+!!$acc end kernels
       x_add=0.
 !
 !--- max height(m) above ground where updraft air can originate
@@ -688,14 +688,14 @@ contains
 !
 !--- environmental conditions, first heights
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
             do k=1,maxens3
                xf_ens(i,k)=0.
                pr_ens(i,k)=0.
             enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 !> - Call cup_env() to calculate moist static energy, heights, qes
 !
@@ -727,7 +727,7 @@ contains
                                  itf,ktf,its,ite,kts,kte,cumulus)
       outliqice = p_liq_ice                      ! sny added
 !---meltglac-------------------------------------------------
-!$acc kernels
+!!$acc kernels
       do i=its,itf
         if(ierr(i).eq.0)then
           if(kpbl(i).gt.5 .and. imid.eq.1)cap_max(i)=po_cup(i,kpbl(i))
@@ -761,7 +761,7 @@ contains
 !
         endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 !
 !
@@ -769,7 +769,7 @@ contains
 !> - Determine level with highest moist static energy content (\p k22)
 !
       start_k22=2
-!$acc parallel loop
+!!$acc parallel loop
        do 36 i=its,itf
          if(ierr(i).eq.0)then
             k22(i)=maxloc(heo_cup(i,start_k22:kbmax(i)+2),1)+start_k22-1
@@ -784,13 +784,13 @@ contains
            endif
          endif
  36   continue
-!$acc end parallel
+!!$acc end parallel
 
 !
 !> - call get_cloud_bc() and cup_kbcon() to determine the 
 !! level of convective cloud base (\p kbcon)
 !
-!$acc parallel loop private(x_add)
+!!$acc parallel loop private(x_add)
       do i=its,itf
        if(ierr(i).eq.0)then
          x_add = xlv*zqexec(i)+cp*ztexec(i)
@@ -798,7 +798,7 @@ contains
          call get_cloud_bc(kte,heo_cup (i,1:kte),hkbo (i),k22(i),x_add)
        endif ! ierr
       enddo
-!$acc end parallel
+!!$acc end parallel
 
       jprnt=0
       iloop=1
@@ -815,7 +815,7 @@ contains
       call cup_minimi(heso_cup,kbcon,kstabm,kstabi,ierr,                        &
            itf,ktf,                                                             &
            its,ite, kts,kte)
-!$acc parallel loop private(frh,x_add)
+!!$acc parallel loop private(frh,x_add)
       do i=its,itf
          if(ierr(i) == 0)then
            frh = min(qo_cup(i,kbcon(i))/qeso_cup(i,kbcon(i)),1.)
@@ -827,7 +827,7 @@ contains
 !    never go too low...
 !
            x_add=0.
-!$acc loop seq
+!!$acc loop seq
            do k=kbcon(i)+1,ktf
              if(po(i,kbcon(i))-po(i,k) > pmin+x_add)then
                 pmin_lev(i)=k
@@ -842,7 +842,7 @@ contains
             call get_cloud_bc(kte,he_cup (i,1:kte),hkb (i),k22(i),x_add)
          endif
       enddo
-!$acc end parallel
+!!$acc end parallel
 
 !
 !> - Call get_inversion_layer() to get inversion layers for mid level cloud tops
@@ -851,7 +851,7 @@ contains
       call get_inversion_layers(ierr,p_cup,t_cup,z_cup,q_cup,qes_cup,k_inv_layers, &
                                kbcon,kstabi,dtempdz,itf,ktf,its,ite, kts,kte)
       endif
-!$acc kernels
+!!$acc kernels
       do i=its,itf
          if(kstabi(i).lt.kbcon(i))then
            kbcon(i)=1
@@ -873,7 +873,7 @@ contains
                  ktop(i)=min(kstabi(i),k_inv_layers(i,2))
                  ktopdby(i)=ktop(i)
                else
-!$acc loop seq
+!!$acc loop seq
                  do k=kbcon(i)+1,ktf
                   if((po_cup(i,k22(i))-po_cup(i,k)).gt.500.)then
                     ktop(i)=k
@@ -886,7 +886,7 @@ contains
 
           endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 !
 !> - Call rates_up_pdf() to get normalized mass flux, entrainment and detrainmentrates for updraft
@@ -904,24 +904,24 @@ contains
 !
 !
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
        if(ierr(i).eq.0)then
 
          if(k22(i).gt.1)then
-!$acc loop independent
+!!$acc loop independent
             do k=1,k22(i) -1
               zuo(i,k)=0.
               zu (i,k)=0.
               xzu(i,k)=0.
             enddo
          endif
-!$acc loop independent
+!!$acc loop independent
          do k=k22(i),ktop(i)
           xzu(i,k)= zuo(i,k)
           zu (i,k)= zuo(i,k)
          enddo
-!$acc loop independent
+!!$acc loop independent
          do k=ktop(i)+1,kte
            zuo(i,k)=0.
            zu (i,k)=0.
@@ -929,7 +929,7 @@ contains
          enddo
         endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 !> - Call get_lateral_massflux() to calculate mass entrainment and detrainment
 !
@@ -950,7 +950,7 @@ contains
 !   note: ktop here already includes overshooting, ktopdby is without
 !   overshooting
 !
-!$acc kernels
+!!$acc kernels
       do k=kts,ktf
        do i=its,itf
          uc  (i,k)=0.
@@ -976,19 +976,19 @@ contains
          hco(i,k)=hkbo(i)
        endif 
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 !---meltglac-------------------------------------------------
      !
      !--- 1st guess for moist static energy and dbyo (not including ice phase)
      !
-!$acc parallel loop private(denom,kk,ki)
+!!$acc parallel loop private(denom,kk,ki)
       do i=its,itf
        ktopkeep(i)=0
        dbyt(i,:)=0.
        if(ierr(i) /= 0) cycle                 
        ktopkeep(i)=ktop(i)
-!$acc loop seq
+!!$acc loop seq
        do k=start_level(i) +1,ktop(i)  !mass cons option
          
           denom=zuo(i,k-1)-.5*up_massdetro(i,k-1)+up_massentro(i,k-1)
@@ -1002,7 +1002,7 @@ contains
           dbyo(i,k)=hco(i,k)-heso_cup(i,k)
        enddo
        ! for now no overshooting (only very little)
-!$acc loop seq
+!!$acc loop seq
        do k=ktop(i)-1,kbcon(i),-1
            if(dbyo(i,k).gt.0.)then
               ktopkeep(i)=k+1
@@ -1010,16 +1010,16 @@ contains
            endif
         enddo
       enddo
-!$acc end parallel
+!!$acc end parallel
 
-!$acc kernels
+!!$acc kernels
       do 37 i=its,itf
          kzdown(i)=0
          if(ierr(i).eq.0)then
             zktop=(zo_cup(i,ktop(i))-z1(i))*.6
             if(imid.eq.1)zktop=(zo_cup(i,ktop(i))-z1(i))*.4
             zktop=min(zktop+z1(i),zcutdown+z1(i))
-!$acc loop seq
+!!$acc loop seq
             do k=kts,ktf
               if(zo_cup(i,k).gt.zktop)then
                  kzdown(i)=k
@@ -1029,7 +1029,7 @@ contains
               enddo
          endif
  37   continue
-!$acc end kernels
+!!$acc end kernels
 
 !
 !> - Call cup_minimi() to calculate downdraft originating level (\p jmin)
@@ -1037,7 +1037,7 @@ contains
       call cup_minimi(heso_cup,k22,kzdown,jmin,ierr, &
            itf,ktf, &
            its,ite, kts,kte)
-!$acc kernels
+!!$acc kernels
       do 100 i=its,itf
          if(ierr(i).eq.0)then
 !
@@ -1058,7 +1058,7 @@ contains
            hcdo(i,ki)=heso_cup(i,ki)
            dz=zo_cup(i,ki+1)-zo_cup(i,ki)
            dh=0.
-!$acc loop seq
+!!$acc loop seq
            do k=ki-1,1,-1
              hcdo(i,k)=heso_cup(i,jmini)
              dz=zo_cup(i,k+1)-zo_cup(i,k)
@@ -1088,13 +1088,13 @@ contains
 100   continue
       do i=its,itf
        if(ierr(i) /= 0) cycle                 
-!$acc loop independent
+!!$acc loop independent
        do k=ktop(i)+1,ktf
            hco(i,k)=heso_cup(i,k)
            dbyo(i,k)=0.
        enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
      !
 !> - Call cup_up_moisture() to calculate moisture properties of updraft
      !
@@ -1115,14 +1115,14 @@ contains
      endif
 !---meltglac-------------------------------------------------
 
-!$acc kernels
+!!$acc kernels
       do i=its,itf
 
        ktopkeep(i)=0
        dbyt(i,:)=0.
        if(ierr(i) /= 0) cycle                 
        ktopkeep(i)=ktop(i)
-!$acc loop seq
+!!$acc loop seq
        do k=start_level(i) +1,ktop(i)  !mass cons option
          
           denom=zuo(i,k-1)-.5*up_massdetro(i,k-1)+up_massentro(i,k-1)
@@ -1164,7 +1164,7 @@ contains
        kk=maxloc(dbyt(i,:),1)
        ki=maxloc(zuo(i,:),1)
 !
-!$acc loop seq
+!!$acc loop seq
         do k=ktop(i)-1,kbcon(i),-1
            if(dbyo(i,k).gt.0.)then
               ktopkeep(i)=k+1
@@ -1172,10 +1172,10 @@ contains
            endif
         enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 41    continue
-!$acc kernels
+!!$acc kernels
       do i=its,itf
        if(ierr(i) /= 0) cycle                 
        do k=ktop(i)+1,ktf
@@ -1206,12 +1206,12 @@ contains
               ktop(i)=0
         endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 ! - must have at least depth_min m between cloud convective base
 !     and cloud top.
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
          if(ierr(i).eq.0)then
             if ( jmin(i) - 1 .lt. kdet(i)   ) kdet(i) = jmin(i)-1
@@ -1223,13 +1223,13 @@ contains
             endif
          endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 !
 !--- normalized downdraft mass flux profile,also work on bottom detrainment
 !--- in this routine
 !
-!$acc kernels
+!!$acc kernels
       do k=kts,ktf
       do i=its,itf
        zdo(i,k)=0.
@@ -1245,9 +1245,9 @@ contains
        mentrd_rate_2d(i,k)=entr_rate(i)
       enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
 
-!$acc parallel loop private(beta,itemp,dzo,h_entr)
+!!$acc parallel loop private(beta,itemp,dzo,h_entr)
       do i=its,itf
         if(ierr(i)/=0)cycle
         beta=max(.025,.055-float(csum(i))*.0015)  !.02
@@ -1308,7 +1308,7 @@ contains
             dbydo(i,jmin(i))=hcdo(i,jmin(i))-heso_cup(i,jmin(i))
             bud(i)=dbydo(i,jmin(i))*(zo_cup(i,jmin(i)+1)-zo_cup(i,jmin(i)))
             ucd(i,jmin(i)+1)=.5*(uc(i,jmin(i)+1)+u_cup(i,jmin(i)+1))
-!$acc loop seq
+!!$acc loop seq
             do ki=jmin(i)  ,1,-1
              dzo=zo_cup(i,ki+1)-zo_cup(i,ki)
              h_entr=.5*(heo(i,ki)+.5*(hco(i,ki)+hco(i,ki+1)))
@@ -1337,7 +1337,7 @@ contains
 #endif
         endif
       enddo
-!$acc end parallel
+!!$acc end parallel
 
 !
 !> - Call cup_dd_moisture() to calculate moisture properties of downdraft
@@ -1348,7 +1348,7 @@ contains
            itf,ktf,                                                              &
            its,ite, kts,kte)
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
         if(ierr(i)/=0)cycle
         do k=kts+1,ktop(i)
@@ -1357,7 +1357,7 @@ contains
           cnvwt(i,k)=zuo(i,k)*cupclw(i,k)*g/dp
         enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 !> - Call cup_up_aa0() to calculate workfunctions for updrafts
 !
@@ -1370,7 +1370,7 @@ contains
            itf,ktf,                                                              &
            its,ite, kts,kte)
 
-!$acc kernels
+!!$acc kernels
       do i=its,itf
         if(ierr(i)/=0)cycle
            if(aa1(i).eq.0.)then
@@ -1380,17 +1380,17 @@ contains
 #endif
            endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 !
 !--- diurnal cycle closure 
 !
       !--- aa1 from boundary layer (bl) processes only
-!$acc kernels
+!!$acc kernels
       aa1_bl       (:) = 0.0
       xf_dicycle   (:) = 0.0
       tau_ecmwf    (:) = 0.
-!$acc end kernels
+!!$acc end kernels
       !- way to calculate the fraction of cape consumed by shallow convection
       !iversion=1 ! ecmwf
       iversion=0 ! orig
@@ -1400,7 +1400,7 @@ contains
 ! wmean is of no meaning over land....
 ! still working on replacing it over water
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
             if(ierr(i).eq.0)then
                 !- mean vertical velocity 
@@ -1413,11 +1413,11 @@ contains
             endif
       enddo
       tau_bl(:)     = 0.
-!$acc end kernels
+!!$acc end kernels
 
       !
       if(dicycle == 1) then
-!$acc kernels
+!!$acc kernels
         do i=its,itf
             
             if(ierr(i).eq.0)then
@@ -1432,8 +1432,8 @@ contains
 
             endif
         enddo
-!$acc end kernels
-!$acc kernels
+!!$acc end kernels
+!!$acc kernels
           !-get the profiles modified only by bl tendencies
           do i=its,itf
            tn_bl(i,:)=0.;qo_bl(i,:)=0.
@@ -1446,7 +1446,7 @@ contains
             qo_bl(i,kbcon(i)+1:ktf) = q(i,kbcon(i)+1:ktf)
            endif
           enddo
-!$acc end kernels
+!!$acc end kernels
           !> - Call cup_env() to calculate moist static energy, heights, qes, ... only by bl tendencies
           call cup_env(zo,qeso_bl,heo_bl,heso_bl,tn_bl,qo_bl,po,z1,                              &
                      psur,ierr,tcrit,-1,                                                         &
@@ -1467,7 +1467,7 @@ contains
                               zo_cup,zuo,dbyo_bl,gammao_cup_bl,tn_cup_bl,        &
                               kbcon,ktop,ierr,                                   &
                               itf,ktf,its,ite, kts,kte)
-!$acc kernels
+!!$acc kernels
             do i=its,itf
 
             if(ierr(i).eq.0)then
@@ -1482,13 +1482,13 @@ contains
                !endif 
             endif
             enddo
-!$acc end kernels
+!!$acc end kernels
             
         else
         
           !- version for real cloud-work function
           
-!$acc kernels
+!!$acc kernels
           do i=its,itf
             if(ierr(i).eq.0)then
                hkbo_bl(i)=heo_cup_bl(i,k22(i)) 
@@ -1526,12 +1526,12 @@ contains
                enddo
             endif
           enddo
-!$acc end kernels
+!!$acc end kernels
           !> - Call cup_ip_aa0() to calculate workfunctions for updrafts
           call cup_up_aa0(aa1_bl,zo,zuo,dbyo_bl,gammao_cup_bl,tn_cup_bl,        &
                         kbcon,ktop,ierr,                                        &
                         itf,ktf,its,ite, kts,kte)
-!$acc kernels
+!!$acc kernels
           do i=its,itf
             
             if(ierr(i).eq.0)then
@@ -1549,13 +1549,13 @@ contains
 #endif  
             endif
            enddo
-!$acc end kernels
+!!$acc end kernels
         endif
      endif  ! version of implementation
 
-!$acc kernels
+!!$acc kernels
        axx(:)=aa1(:)
-!$acc end kernels
+!!$acc end kernels
 
 !
 !> - Call cup_dd_edt() to determine downdraft strength in terms of windshear
@@ -1573,7 +1573,7 @@ contains
      call get_melting_profile(ierr,tn_cup,po_cup, p_liq_ice,melting_layer,qrco    &
                              ,pwo,edto,pwdo,melting                                &
                              ,itf,ktf,its,ite, kts,kte, cumulus                    )
-!$acc kernels
+!!$acc kernels
         do k=kts,ktf
         do i=its,itf
            dellat_ens (i,k,1)=0.
@@ -1597,7 +1597,7 @@ contains
         dellaqc(i,k)=0.
       enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 !----------------------------------------------  cloud level ktop
 !
@@ -1637,7 +1637,7 @@ contains
 !----------------------------------------------  cloud level 2
 !
 !- - - - - - - - - - - - - - - - - - - - - - - - model level 1
-!$acc kernels
+!!$acc kernels
       do i=its,itf
         if(ierr(i)/=0)cycle
          dp=100.*(po_cup(i,1)-po_cup(i,2))
@@ -1778,7 +1778,7 @@ contains
         endif
 
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 444   format(1x,i2,1x,7e12.4) !,1x,f7.2,2x,e13.5)
 
@@ -1788,7 +1788,7 @@ contains
 !--- using dellas, calculate changed environmental profiles
 !
       mbdt=.1
-!$acc kernels
+!!$acc kernels
       do i=its,itf
       xaa0_ens(i,1)=0.
       enddo
@@ -1826,7 +1826,7 @@ contains
       xt(i,ktf)=tn(i,ktf)
       endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 ! MJT notes - code above needed refactoring for ifx compiler..........
 
@@ -1851,15 +1851,15 @@ contains
 !
 !--- moist static energy inside cloud
 !
-!$acc kernels
+!!$acc kernels
       do k=kts,ktf
       do i=its,itf
          xhc(i,k)=0.
          xdby(i,k)=0.
       enddo
       enddo
-!$acc end kernels
-!$acc parallel loop private(x_add,k)
+!!$acc end kernels
+!!$acc parallel loop private(x_add,k)
       do i=its,itf
         if(ierr(i).eq.0)then
          x_add = xlv*zqexec(i)+cp*ztexec(i)
@@ -1871,13 +1871,13 @@ contains
          xhc(i,k)=xhkb(i)
         endif !ierr
       enddo
-!$acc end parallel
+!!$acc end parallel
 !
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
        if(ierr(i).eq.0)then
-!$acc loop seq
+!!$acc loop seq
         do k=start_level(i)  +1,ktop(i)
          xhc(i,k)=(xhc(i,k-1)*xzu(i,k-1)-.5*up_massdetro(i,k-1)*xhc(i,k-1)  + &
                                             up_massentro(i,k-1)*xhe(i,k-1)) / &
@@ -1893,14 +1893,14 @@ contains
 
          xdby(i,k)=xhc(i,k)-xhes_cup(i,k)
         enddo
-!$acc loop independent
+!!$acc loop independent
         do k=ktop(i)+1,ktf
            xhc (i,k)=xhes_cup(i,k)
            xdby(i,k)=0.
         enddo
        endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 !> - Call cup_up_aa0() to calculate workfunctions for updraft
 !
@@ -1908,13 +1908,13 @@ contains
            kbcon,ktop,ierr,                              &
            itf,ktf,                                      &
            its,ite, kts,kte)
-!$acc parallel loop
+!!$acc parallel loop
       do i=its,itf 
          if(ierr(i).eq.0)then
            xaa0_ens(i,1)=xaa0(i)
-!$acc loop seq
+!!$acc loop seq
            do k=kts,ktop(i)
-!$acc loop independent
+!!$acc loop independent
                  do nens3=1,maxens3
                  if(nens3.eq.7)then
 !--- b=0
@@ -1950,7 +1950,7 @@ contains
          enddo
          endif
       enddo
-!$acc end parallel
+!!$acc end parallel
  200  continue
 !
 !--- large scale forcing
@@ -1960,13 +1960,13 @@ contains
 !        ensemble is chosen
 !
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
          ierr2(i)=ierr(i)
          ierr3(i)=ierr(i)
          k22x(i)=k22(i)
       enddo
-!$acc end kernels
+!!$acc end kernels
         call cup_maximi(heo_cup,2,kbmax,k22x,ierr,                        &
              itf,ktf,                                                     &
              its,ite, kts,kte)
@@ -1987,18 +1987,18 @@ contains
 !
 !> - Call cup_forcing_ens_3d() to calculate cloud base mass flux
 !
-!$acc kernels
+!!$acc kernels
       do i = its,itf
         mconv(i) = 0
         if(ierr(i)/=0)cycle
-!$acc loop independent
+!!$acc loop independent
         do k=1,ktop(i)
           dq=(qo_cup(i,k+1)-qo_cup(i,k))
-!$acc atomic update
+!!$acc atomic update
           mconv(i)=mconv(i)+omeg(i,k)*dq/g
         enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
       call cup_forcing_ens_3d(closure_n,xland1,aa0,aa1,xaa0_ens,mbdt,dtime, &
            ierr,ierr2,ierr3,xf_ens,axx,forcing,                             &
            maxens3,mconv,rand_clos,                                         &
@@ -2008,7 +2008,7 @@ contains
            its,ite, kts,kte,                                                &
            dicycle,tau_ecmwf,aa1_bl,xf_dicycle)
 !
-!$acc kernels
+!!$acc kernels
       do k=kts,ktf
       do i=its,itf
         if(ierr(i).eq.0)then
@@ -2024,14 +2024,14 @@ contains
         endif
       enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
 
  250  continue
 !
 !--- feedback
 !
        if(imid.eq.1 .and. ichoice .le.2)then
-!$acc kernels
+!!$acc kernels
          do i=its,itf
           !-boundary layer qe 
           xff_mid(i,1)=0.
@@ -2052,7 +2052,7 @@ contains
              forcing(i,2)=xff_mid(i,2)
           endif
          enddo
-!$acc end kernels
+!!$acc end kernels
        endif
 
 !pre(i)=0.01
@@ -2082,7 +2082,7 @@ contains
 ! initialize tracers if they exist
 !
          chem (:,:,:) = 0.
-!$acc kernels
+!!$acc kernels
          do nv = 1,nchem
           do k = 1, ktf
            do i = 1, itf
@@ -2202,7 +2202,7 @@ contains
       dellac2(:,:,:)=0.
       massflx(:,:)=0.
       do nv=1,nchem
-!$acc loop private(trcflx_in)
+!!$acc loop private(trcflx_in)
       do i=its,itf
         if(ierr(i).eq.0)then
          trcflx_in(:)=0.
@@ -2248,12 +2248,12 @@ contains
           wetdpc_deep(i,nv)=max(wetdpc_deep(i,nv),qamin)
          enddo
         enddo
-!$acc end kernels
+!!$acc end kernels
 
       endif ! nchem > 0
 
       k=1
-!$acc kernels
+!!$acc kernels
       do i=its,itf
           !ierr(i)=0.                                                      ! SYN testing
           if(ierr(i).eq.0 .and.pre(i).gt.0.) then
@@ -2277,11 +2277,11 @@ contains
              enddo
           endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 ! rain evaporation as in sas
 !
       if(irainevap.eq.1)then
-!$acc kernels
+!!$acc kernels
       do i = its,itf
        rntot(i) = 0.
        delqev(i) = 0.
@@ -2290,10 +2290,10 @@ contains
        rntot(i)    = 0.
        rain=0.
        if(ierr(i).eq.0)then
-!$acc loop independent
+!!$acc loop independent
          do k = ktop(i), 1, -1
               rain =  pwo(i,k) + edto(i) * pwdo(i,k)
-!$acc atomic
+!!$acc atomic
               rntot(i) = rntot(i) + rain * xmb(i)* .001 * dtime
          enddo
        endif
@@ -2304,7 +2304,7 @@ contains
          if(ierr(i).eq.0)then
          evef = edt(i) * evfact * sig(i)**2
          if(xland(i).gt.0.5 .and. xland(i).lt.1.5) evef = edt(i) * evfactl * sig(i)**2
-!$acc loop seq
+!!$acc loop seq
          do k = ktop(i), 1, -1
               rain =  pwo(i,k) + edto(i) * pwdo(i,k)
               rn(i) = rn(i) + rain * xmb(i) * .001 * dtime
@@ -2339,10 +2339,10 @@ contains
 !       pre(i)=1000.*rn(i)/dtime
       endif
       enddo
-!$acc end kernels
+!!$acc end kernels
       endif
 
-!$acc kernels
+!!$acc kernels
       do i=its,itf
          if(ierr(i).eq.0) then
             if(aeroevap.gt.1)then
@@ -2352,12 +2352,12 @@ contains
             endif
          endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 !
 !> - Since kinetic energy is being dissipated, add heating accordingly (from ecmwf)
 !
-!$acc kernels
+!!$acc kernels
       do i=its,itf
           if(ierr(i).eq.0) then
              dts=0.
@@ -2377,7 +2377,7 @@ contains
              endif
           endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 !
 !---------------------------done------------------------------
@@ -2389,7 +2389,7 @@ contains
 !> Calculates tracer fluxes due to subsidence, only up-stream differencing
 !! is currently used but flux corrected transport can be turn on.
    subroutine fct1d3 (ktop,n,dt,z,tracr,massflx,trflx_in,dellac,g)
-!$acc routine vector
+!!$acc routine vector
 ! --- modify a 1-D array of tracer fluxes for the purpose of maintaining
 ! --- monotonicity (including positive-definiteness) in the tracer field
 ! --- during tracer transport.
@@ -2589,8 +2589,8 @@ contains
    real(kind=kind_phys), dimension(its:ite,kts:kte),intent(in)    :: po_cup,qo_cup,qes_cup
    real(kind=kind_phys), dimension(its:ite)        ,intent(inout) :: pre
    real(kind=kind_phys), dimension(its:ite,kts:kte),intent(inout) :: outt,outq  !,outbuoy
-!$acc declare copyin(ierr,kbcon,psur,xland,pwavo,edto,pwevo,xmb,po_cup,qo_cup,qes_cup)
-!$acc declare copy(pre,outt,outq)
+!!$acc declare copyin(ierr,kbcon,psur,xland,pwavo,edto,pwevo,xmb,po_cup,qo_cup,qes_cup)
+!!$acc declare copy(pre,outt,outq)
 
   !real,    dimension(its:ite)        ,intent(out)      :: tot_evap_bcb
   !real,    dimension(its:ite,kts:kte),intent(out) :: evap_bcb,net_prec_bcb
@@ -2600,9 +2600,9 @@ contains
    real(kind=kind_phys) :: RH_cr , del_t,del_q,dp,q_deficit
    real(kind=kind_phys),  dimension(its:ite,kts:kte) :: evap_bcb,net_prec_bcb
    real(kind=kind_phys),  dimension(its:ite)         :: tot_evap_bcb
-!$acc declare create(evap_bcb,net_prec_bcb,tot_evap_bcb)
+!!$acc declare create(evap_bcb,net_prec_bcb,tot_evap_bcb)
 
-!$acc kernels
+!!$acc kernels
    do i=its,itf
      evap_bcb    (i,:)= 0.0
      net_prec_bcb(i,:)= 0.0
@@ -2620,7 +2620,7 @@ contains
      net_prec_bcb(i,k) = pre(i)
 
 
-!$acc loop seq
+!!$acc loop seq
      do k=kbcon(i)-1, kts, -1
 
        q_deficit = max(0.,(RH_cr*qes_cup(i,k) -qo_cup(i,k)))
@@ -2659,7 +2659,7 @@ contains
 
       enddo
     enddo
-!$acc end kernels
+!!$acc end kernels
 
    end subroutine rain_evap_below_cloudbase
 
@@ -2705,8 +2705,8 @@ contains
      integer, dimension (its:ite)                            &
         ,intent (inout)                   ::                 &
         ierr
-!$acc declare copyin(rho,us,vs,z,p,pw,pwav,pwev,psum2,psumh,edtmax,edtmin,ktop,kbcon)
-!$acc declare copyout(edtc,edt) copy(ccn,ierr)
+!!$acc declare copyin(rho,us,vs,z,p,pw,pwav,pwev,psum2,psumh,edtmax,edtmin,ktop,kbcon)
+!!$acc declare copyout(edtc,edt) copy(ccn,ierr)
 !
 !  local variables in this routine
 !
@@ -2715,7 +2715,7 @@ contains
      real(kind=kind_phys)    einc,pef,pefb,prezk,zkbc
      real(kind=kind_phys),    dimension (its:ite)         ::                 &
       vshear,sdp,vws
-!$acc declare create(vshear,sdp,vws)
+!!$acc declare create(vshear,sdp,vws)
      real(kind=kind_phys) :: prop_c,aeroadd,alpha3,beta3
      prop_c=0. !10.386
      alpha3 = 0.75
@@ -2729,7 +2729,7 @@ contains
 !
 ! */ calculate an average wind shear over the depth of the cloud
 !
-!$acc kernels
+!!$acc kernels
        do i=its,itf
         edt(i)=0.
         vws(i)=0.
@@ -2805,7 +2805,7 @@ contains
                if(edtc(i,1).lt.edtmin(i))edtc(i,1)=edtmin(i)
          endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
    end subroutine cup_dd_edt
 
@@ -2843,25 +2843,25 @@ contains
         ,intent (in   )                   ::            &
         zd,hes_cup,hcd,qes_cup,q_cup,z_cup,             &
         dd_massentr,dd_massdetr,gamma_cup,q,he,p_cup
-!$acc declare copyin(zd,hes_cup,hcd,qes_cup,q_cup,z_cup,dd_massentr,dd_massdetr,gamma_cup,q,he)
+!!$acc declare copyin(zd,hes_cup,hcd,qes_cup,q_cup,z_cup,dd_massentr,dd_massdetr,gamma_cup,q,he)
      integer                                            &
         ,intent (in   )                   ::            &
         iloop
      integer, dimension (its:ite)                       &
         ,intent (in   )                   ::            &
         jmin
-!$acc declare copyin(jmin)
+!!$acc declare copyin(jmin)
      integer, dimension (its:ite)                       &
         ,intent (inout)                   ::            &
         ierr
-!$acc declare copy(ierr)
+!!$acc declare copy(ierr)
      real(kind=kind_phys),    dimension (its:ite,kts:kte)&
         ,intent (out  )                   ::            &
         qcd,qrcd,pwd
      real(kind=kind_phys),    dimension (its:ite)&
         ,intent (out  )                   ::            &
         pwev,bu
-!$acc declare copyout(qcd,qrcd,pwd,pwev,bu)
+!!$acc declare copyout(qcd,qrcd,pwd,pwev,bu)
      character*50 :: ierrc(its:ite)
 !
 !  local variables in this routine
@@ -2872,7 +2872,7 @@ contains
      real(kind=kind_phys)                                 ::            &
         denom,dp,dh,dz,dqeva
 
-!$acc kernels
+!!$acc kernels
       do i=its,itf
          bu(i)=0.
          pwev(i)=0.
@@ -2905,7 +2905,7 @@ contains
       pwev(i)=pwev(i)+pwd(i,jmin(i))*g/dp ! *dz
 !
       bu(i)=dz*dh
-!$acc loop seq
+!!$acc loop seq
       do ki=jmin(i)-1,1,-1
          dz=z_cup(i,ki+1)-z_cup(i,ki)
          dp=-100.*(p_cup(i,ki+1)-p_cup(i,ki))
@@ -2961,7 +2961,7 @@ contains
        endif
       endif
 100    continue
-!$acc end kernels
+!!$acc end kernels
 
    end subroutine cup_dd_moisture
 
@@ -2983,23 +2983,23 @@ contains
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                &
         ,intent (in   )                   ::             &
         p,t,q
-!$acc declare copyin(p,t,q)
+!!$acc declare copyin(p,t,q)
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                &
         ,intent (out  )                   ::             &
         hes,qes
-!$acc declare copyout(hes,qes)
+!!$acc declare copyout(hes,qes)
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                &
         ,intent (inout)                   ::             &
         he,z
-!$acc declare copy(he,z)
+!!$acc declare copy(he,z)
      real(kind=kind_phys),    dimension (its:ite)                        &
         ,intent (in   )                   ::             &
         psur,z1
-!$acc declare copyin(psur,z1)
+!!$acc declare copyin(psur,z1)
      integer, dimension (its:ite)                        &
         ,intent (inout)                   ::             &
         ierr
-!$acc declare copy(ierr)
+!!$acc declare copy(ierr)
      integer                                             &
         ,intent (in   )                   ::             &
         itest
@@ -3011,7 +3011,7 @@ contains
        i,k
 !     real(kind=kind_phys), dimension (1:2) :: ae,be,ht
       real(kind=kind_phys), dimension (its:ite,kts:kte) :: tv
-!$acc declare create(tv)
+!!$acc declare create(tv)
       real(kind=kind_phys) :: tcrit,e,tvbar
 !     real(kind=kind_phys), external :: satvap
 !     real(kind=kind_phys) :: satvap
@@ -3023,7 +3023,7 @@ contains
 !      ae(1)=be(1)/273.+alog(610.71)
 !      be(2)=.622*ht(2)/.286
 !      ae(2)=be(2)/273.+alog(610.71)
-!$acc parallel loop collapse(2) private(e)
+!!$acc parallel loop collapse(2) private(e)
       do k=kts,ktf
       do i=its,itf
         if(ierr(i).eq.0)then
@@ -3044,13 +3044,13 @@ contains
         endif
       enddo
       enddo
-!$acc end parallel
+!!$acc end parallel
 !
 !--- z's are calculated with changed h's and q's and t's
 !--- if itest=2
 !
       if(itest.eq.1 .or. itest.eq.0)then
-!$acc kernels
+!!$acc kernels
          do i=its,itf
            if(ierr(i).eq.0)then
              z(i,1)=max(0.,z1(i))-(log(p(i,1))- &
@@ -3059,9 +3059,9 @@ contains
          enddo
 
 ! --- calculate heights
-!$acc loop seq
+!!$acc loop seq
          do k=kts+1,ktf
-!$acc loop private(tvbar)
+!!$acc loop private(tvbar)
          do i=its,itf
            if(ierr(i).eq.0)then
               tvbar=.5*tv(i,k)+.5*tv(i,k-1)
@@ -3070,9 +3070,9 @@ contains
            endif
          enddo
          enddo
-!$acc end kernels
+!!$acc end kernels
       else if(itest.eq.2)then
-!$acc kernels
+!!$acc kernels
          do k=kts,ktf
          do i=its,itf
            if(ierr(i).eq.0)then
@@ -3081,14 +3081,14 @@ contains
            endif
          enddo
          enddo
-!$acc end kernels
+!!$acc end kernels
       else if(itest.eq.-1)then
       endif
 !
 !--- calculate moist static energy - he
 !    saturated moist static energy - hes
 !
-!$acc kernels
+!!$acc kernels
        do k=kts,ktf
        do i=its,itf
          if(ierr(i).eq.0)then
@@ -3098,7 +3098,7 @@ contains
          endif
       enddo
       enddo
-!$acc end kernels
+!!$acc end kernels
 
    end subroutine cup_env
 
@@ -3138,19 +3138,19 @@ contains
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                        &
         ,intent (in   )                   ::                     &
         qes,q,he,hes,z,p,t
-!$acc declare copyin(qes,q,he,hes,z,p,t)
+!!$acc declare copyin(qes,q,he,hes,z,p,t)
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                        &
         ,intent (out  )                   ::                     &
         qes_cup,q_cup,he_cup,hes_cup,z_cup,p_cup,gamma_cup,t_cup
-!$acc declare copyout(qes_cup,q_cup,he_cup,hes_cup,z_cup,p_cup,gamma_cup,t_cup)
+!!$acc declare copyout(qes_cup,q_cup,he_cup,hes_cup,z_cup,p_cup,gamma_cup,t_cup)
      real(kind=kind_phys),    dimension (its:ite)                                &
         ,intent (in   )                   ::                     &
         psur,z1
-!$acc declare copyin(psur,z1)
+!!$acc declare copyin(psur,z1)
      integer, dimension (its:ite)                                &
         ,intent (inout)                   ::                     &
         ierr
-!$acc declare copy(ierr)
+!!$acc declare copy(ierr)
 !
 !  local variables in this routine
 !
@@ -3158,7 +3158,7 @@ contains
      integer                              ::                     &
        i,k
 
-!$acc kernels
+!!$acc kernels
       do k=kts,ktf
       do i=its,itf
         qes_cup(i,k)=0.
@@ -3204,7 +3204,7 @@ contains
                        *t_cup(i,1)))*qes_cup(i,1)
         endif
       enddo
-!$acc end kernels
+!!$acc end kernels
    end subroutine cup_env_clev
 
 !> Calculates an ensemble of closures and the resulting ensemble 
@@ -3252,7 +3252,7 @@ contains
      real(kind=kind_phys),    dimension (its:ite,1:maxens3)                            &
         ,intent (inout  )                 ::                           &
         xf_ens
-!$acc declare copy(pr_ens,xf_ens)
+!!$acc declare copy(pr_ens,xf_ens)
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                              &
         ,intent (in   )                   ::                           &
         zd,zu,p_cup,zdm
@@ -3271,11 +3271,11 @@ contains
      real(kind=kind_phys),    dimension (its:ite)                                      &
         ,intent (in   )                   ::                           &
         mconv,axx
-!$acc declare copyin(zd,zu,p_cup,zdm,omeg,xaa0,rand_clos,aa1,edt,edtm,mconv,axx)
+!!$acc declare copyin(zd,zu,p_cup,zdm,omeg,xaa0,rand_clos,aa1,edt,edtm,mconv,axx)
      real(kind=kind_phys),    dimension (its:ite)                                      &
         ,intent (inout)                   ::                           &
         aa0,closure_n
-!$acc declare copy(aa0,closure_n)
+!!$acc declare copy(aa0,closure_n)
      real(kind=kind_phys)                                                              &
         ,intent (in   )                   ::                           &
         mbdt
@@ -3291,7 +3291,7 @@ contains
      integer, dimension (its:ite)                                      &
         ,intent (inout)                   ::                           &
         ierr,ierr2,ierr3
-!$acc declare copy(k22,kbcon,ktop,ierr,ierr2,ierr3) copyin(xland)
+!!$acc declare copy(k22,kbcon,ktop,ierr,ierr2,ierr3) copyin(xland)
      integer                                                           &
         ,intent (in   )                   ::                           &
         ichoice
@@ -3299,7 +3299,7 @@ contains
       real(kind=kind_phys),    intent(in)   , dimension (its:ite) :: aa1_bl,tau_ecmwf
       real(kind=kind_phys),    intent(inout), dimension (its:ite) :: xf_dicycle
       real(kind=kind_phys),    intent(inout), dimension (its:ite,10) :: forcing
-!$acc declare copyin(aa1_bl,tau_ecmwf) copy(xf_dicycle,forcing)
+!!$acc declare copyin(aa1_bl,tau_ecmwf) copy(xf_dicycle,forcing)
       !- local var
       real(kind=kind_phys)  :: xff_dicycle
 !
@@ -3320,20 +3320,20 @@ contains
        a1,a_ave,xff0,xomg!,aclim1,aclim2,aclim3,aclim4
 
      real(kind=kind_phys), dimension (its:ite) :: ens_adj
-!$acc declare create(kloc,ens_adj)
+!!$acc declare create(kloc,ens_adj)
 
 
 
 !
-!$acc kernels
+!!$acc kernels
        ens_adj(:)=1.
-!$acc end kernels
+!!$acc end kernels
        xff_dicycle = 0.
 
 !--- large scale forcing
 !
-!$acc kernels
-!$acc loop private(xff_ens3,xk)
+!!$acc kernels
+!!$acc loop private(xff_ens3,xk)
        do 100 i=its,itf
           kloc(i)=1
           if(ierr(i).eq.0)then
@@ -3573,15 +3573,15 @@ contains
              enddo
           endif ! ierror
  100   continue
- !$acc end kernels
+ !!$acc end kernels
 
 
 !-
 !- diurnal cycle mass flux
 !-              
 if(dicycle == 1 )then
-!$acc kernels
-!$acc loop private(xk)
+!!$acc kernels
+!!$acc loop private(xk)
        do i=its,itf           
           xf_dicycle(i) = 0.
           if(ierr(i) /=  0)cycle
@@ -3598,11 +3598,11 @@ if(dicycle == 1 )then
             xf_dicycle(i)= xf_ens(i,10)-xf_dicycle(i)
 !            forcing(i,6)=xf_dicycle(i)
        enddo
-!$acc end kernels
+!!$acc end kernels
 else
-!$acc kernels
+!!$acc kernels
        xf_dicycle(:) = 0.
-!$acc end kernels
+!!$acc end kernels
 endif
 !---------
 
@@ -3635,31 +3635,31 @@ endif
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                              &
         ,intent (in   )                   ::                           &
         he_cup,hes_cup,p_cup
-!$acc declare copyin(he_cup,hes_cup,p_cup)
+!!$acc declare copyin(he_cup,hes_cup,p_cup)
      real(kind=kind_phys),    dimension (its:ite)                                      &
         ,intent (in   )                   ::                           &
         entr_rate,ztexec,zqexec,cap_inc,cap_max
-!$acc declare copyin(entr_rate,ztexec,zqexec,cap_inc,cap_max)
+!!$acc declare copyin(entr_rate,ztexec,zqexec,cap_inc,cap_max)
      real(kind=kind_phys),    dimension (its:ite)                                      &
         ,intent (inout   )                   ::                        &
         hkb !,cap_max
-!$acc declare copy(hkb)
+!!$acc declare copy(hkb)
      integer, dimension (its:ite)                                      &
         ,intent (in   )                   ::                           &
         kbmax
-!$acc declare copyin(kbmax)
+!!$acc declare copyin(kbmax)
      integer, dimension (its:ite)                                      &
         ,intent (inout)                   ::                           &
         kbcon,k22,ierr
-!$acc declare copy(kbcon,k22,ierr)
+!!$acc declare copy(kbcon,k22,ierr)
      integer                                                           &
         ,intent (in   )                   ::                           &
         iloop_in
      character*50 :: ierrc(its:ite)
      real(kind=kind_phys), dimension (its:ite,kts:kte),intent (in) :: z_cup,heo
-!$acc declare copyin(z_cup,heo)
+!!$acc declare copyin(z_cup,heo)
      integer, dimension (its:ite)      ::     iloop,start_level
-!$acc declare create(iloop,start_level)
+!!$acc declare create(iloop,start_level)
 !
 !  local variables in this routine
 !
@@ -3669,16 +3669,16 @@ endif
      real(kind=kind_phys)                                ::                           &
         x_add,pbcdif,plus,hetest,dz
      real(kind=kind_phys), dimension (its:ite,kts:kte) ::hcot
-!$acc declare create(hcot)
+!!$acc declare create(hcot)
 
 !
 !--- determine the level of convective cloud base  - kbcon
 !
-!$acc kernels
+!!$acc kernels
       iloop(:)=iloop_in
-!$acc end kernels
+!!$acc end kernels
 
-!$acc parallel loop
+!!$acc parallel loop
        do 27 i=its,itf
       kbcon(i)=1
 !
@@ -3692,7 +3692,7 @@ endif
 !      if(iloop_in.eq.5)start_level(i)=kbcon(i)
        !== including entrainment for hetest
         hcot(i,1:start_level(i)) = hkb(i)
-!$acc loop seq
+!!$acc loop seq
         do k=start_level(i)+1,kbmax(i)+3
            dz=z_cup(i,k)-z_cup(i,k-1)
            hcot(i,k)= ( (1.-0.5*entr_rate(i)*dz)*hcot(i,k-1)   &
@@ -3742,7 +3742,7 @@ endif
         start_level(i)=k22(i)
 !        if(iloop_in.eq.5)start_level(i)=kbcon(i)
         hcot(i,1:start_level(i)) = hkb(i)
-!$acc loop seq
+!!$acc loop seq
         do k=start_level(i)+1,kbmax(i)+3
            dz=z_cup(i,k)-z_cup(i,k-1)
 
@@ -3765,7 +3765,7 @@ endif
         go to 32
       endif
  27   continue
- !$acc end parallel
+ !!$acc end parallel
 
    end subroutine cup_kbcon
 
@@ -3793,33 +3793,33 @@ endif
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                              &
         ,intent (in   )                   ::                           &
          array
-!$acc declare copyin(array)
+!!$acc declare copyin(array)
      integer, dimension (its:ite)                                      &
         ,intent (in   )                   ::                           &
          ierr,ke
-!$acc declare copyin(ierr,ke)
+!!$acc declare copyin(ierr,ke)
      integer                                                           &
         ,intent (in   )                   ::                           &
          ks
      integer, dimension (its:ite)                                      &
         ,intent (out  )                   ::                           &
          maxx
-!$acc declare copyout(maxx)
+!!$acc declare copyout(maxx)
      real(kind=kind_phys),    dimension (its:ite)         ::                           &
          x
-!$acc declare create(x)
+!!$acc declare create(x)
      real(kind=kind_phys)                                ::                           &
          xar
      integer                              ::                           &
          i,k
 
-!$acc kernels
+!!$acc kernels
        do 200 i=its,itf
        maxx(i)=ks
        if(ierr(i).eq.0)then
       x(i)=array(i,ks)
 !
-!$acc loop seq
+!!$acc loop seq
        do 100 k=ks,ke(i)
          xar=array(i,k)
          if(xar.ge.x(i)) then
@@ -3829,7 +3829,7 @@ endif
  100  continue
       endif
  200  continue
- !$acc end kernels
+ !!$acc end kernels
 
    end subroutine cup_maximi
 
@@ -3856,29 +3856,29 @@ endif
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                    &
         ,intent (in   )                   ::                 &
          array
-!$acc declare copyin(array)
+!!$acc declare copyin(array)
      integer, dimension (its:ite)                            &
         ,intent (in   )                   ::                 &
          ierr,ks,kend
-!$acc declare copyin(ierr,ks,kend)
+!!$acc declare copyin(ierr,ks,kend)
      integer, dimension (its:ite)                            &
         ,intent (out  )                   ::                 &
          kt
-!$acc declare copyout(kt)
+!!$acc declare copyout(kt)
      real(kind=kind_phys),    dimension (its:ite)         ::                 &
          x
-!$acc declare create(x)
+!!$acc declare create(x)
      integer                              ::                 &
          i,k,kstop
 
-!$acc kernels
+!!$acc kernels
        do 200 i=its,itf
       kt(i)=ks(i)
       if(ierr(i).eq.0)then
       x(i)=array(i,ks(i))
        kstop=max(ks(i)+1,kend(i))
 !
-!$acc loop seq
+!!$acc loop seq
        do 100 k=ks(i)+1,kstop
          if(array(i,k).lt.x(i)) then
               x(i)=array(i,k)
@@ -3887,7 +3887,7 @@ endif
  100  continue
       endif
  200  continue
- !$acc end kernels
+ !!$acc end kernels
 
    end subroutine cup_minimi
 
@@ -3922,7 +3922,7 @@ endif
      integer, dimension (its:ite)                             &
         ,intent (in   )                   ::                  &
         kbcon,ktop
-!$acc declare copyin(z,zu,gamma_cup,t_cup,dby,kbcon,ktop)
+!!$acc declare copyin(z,zu,gamma_cup,t_cup,dby,kbcon,ktop)
 !
 ! input and output
 !
@@ -3931,11 +3931,11 @@ endif
      integer, dimension (its:ite)                             &
         ,intent (inout)                   ::                  &
         ierr
-!$acc declare copy(ierr)
+!!$acc declare copy(ierr)
      real(kind=kind_phys),    dimension (its:ite)                             &
         ,intent (out  )                   ::                  &
         aa0
-!$acc declare copyout(aa0)
+!!$acc declare copyout(aa0)
 !
 !  local variables in this routine
 !
@@ -3945,7 +3945,7 @@ endif
      real(kind=kind_phys)                                 ::                  &
         dz,da
 !
-!$acc kernels
+!!$acc kernels
         do i=its,itf
          aa0(i)=0.
         enddo
@@ -3963,7 +3963,7 @@ endif
            if(aa0(i).lt.0.)aa0(i)=0.
           enddo
         enddo
-!$acc end kernels
+!!$acc end kernels
 
    end subroutine cup_up_aa0
 
@@ -3986,7 +3986,7 @@ endif
      real(kind=kind_phys), dimension (its:ite  )                            ,                 &
       intent(inout   ) ::                                                     &
        pret
-!$acc declare copy(outq,outt,outqc,outu,outv,q,pret)
+!!$acc declare copy(outq,outt,outqc,outu,outv,q,pret)
       character *(*), intent (in)         ::                                  &
        name
      real(kind=kind_phys)                                                                     &
@@ -4007,14 +4007,14 @@ endif
         names=1.
       endif
       scalef=86400.
-!$acc kernels
-!$acc loop private(qmemf,qmem,icheck)
+!!$acc kernels
+!!$acc loop private(qmemf,qmem,icheck)
       do i=its,itf
       if(ktop(i) <= 2)cycle
       icheck=0
       qmemf=1.
       qmem=0.
-!$acc loop reduction(min:qmemf)
+!!$acc loop reduction(min:qmemf)
       do k=kts,ktop(i)
          qmem=(outt(i,k))*86400.
          if(qmem.gt.thresh)then
@@ -4042,7 +4042,7 @@ endif
       enddo
       pret(i)=pret(i)*qmemf 
       enddo
-!$acc end kernels
+!!$acc end kernels
 !      return
 !
 ! check whether routine produces negative q's. this can happen, since 
@@ -4053,12 +4053,12 @@ endif
 !      return
 !      write(14,*)'return'
       thresh=1.e-32
-!$acc kernels
-!$acc loop private(qmemf,qmem,icheck)
+!!$acc kernels
+!!$acc loop private(qmemf,qmem,icheck)
       do i=its,itf
       if(ktop(i) <= 2)cycle
       qmemf=1.
-!$acc loop reduction(min:qmemf)
+!!$acc loop reduction(min:qmemf)
       do k=kts,ktop(i)
          qmem=outq(i,k)
          if(abs(qmem).gt.0. .and. q(i,k).gt.1.e-6)then
@@ -4083,7 +4083,7 @@ endif
       enddo
       pret(i)=pret(i)*qmemf 
       enddo
-!$acc end kernels
+!!$acc end kernels
    end subroutine neg_check
 
 !> This subroutine calculates final output fields including
@@ -4156,8 +4156,8 @@ endif
         ierr,ierr2,ierr3
      integer, intent(in) :: dicycle
      real(kind=kind_phys),    intent(in), dimension (its:ite) :: xf_dicycle
-!$acc declare copyin(zu,pwd,p_cup,sig,xmbm_in,xmbs_in,edt,xff_mid,dellat,dellaqc,dellaq,pw,ktop,xland1,xf_dicycle)
-!$acc declare copy(xf_ens,pr_ens,outtem,outq,outqc,pre,xmb,closure_n,ierr,ierr2,ierr3)
+!!$acc declare copyin(zu,pwd,p_cup,sig,xmbm_in,xmbs_in,edt,xff_mid,dellat,dellaqc,dellaq,pw,ktop,xland1,xf_dicycle)
+!!$acc declare copy(xf_ens,pr_ens,outtem,outq,outqc,pre,xmb,closure_n,ierr,ierr2,ierr3)
 !
 !  local variables in this routine
 !
@@ -4168,13 +4168,13 @@ endif
         clos_wei,dtt,dp,dtq,dtqc,dtpw,dtpwd
      real(kind=kind_phys),    dimension (its:ite)         ::                           &
        pre2,xmb_ave,pwtot
-!$acc declare create(pre2,xmb_ave,pwtot)
+!!$acc declare create(pre2,xmb_ave,pwtot)
 !
       character *(*), intent (in)         ::                           &
        name
 
 !
-!$acc kernels
+!!$acc kernels
       do k=kts,kte
       do i=its,ite
         outtem (i,k)=0.
@@ -4195,7 +4195,7 @@ endif
         enddo
         endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 !
 !--- calculate ensemble average mass fluxes
 !
@@ -4205,12 +4205,12 @@ endif
 !
 !!!!! deep convection !!!!!!!!!!
       if(imid.eq.0)then
-!$acc kernels
+!!$acc kernels
       do i=its,itf
         if(ierr(i).eq.0)then
          k=0
          xmb_ave(i)=0.
-!$acc loop seq
+!!$acc loop seq
          do n=1,maxens3
           k=k+1
           xmb_ave(i)=xmb_ave(i)+xf_ens(i,n)
@@ -4244,10 +4244,10 @@ endif
 
         endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 !!!!! not so deep convection !!!!!!!!!!
       else  ! imid == 1
-!$acc kernels
+!!$acc kernels
          do i=its,itf
          xmb_ave(i)=0.
          if(ierr(i).eq.0)then
@@ -4257,7 +4257,7 @@ endif
               xmb_ave(i)=sig(i)*xff_mid(i,ichoice)
            else if(ichoice.gt.2)then
               k=0
-!$acc loop seq
+!!$acc loop seq
               do n=1,maxens3
                     k=k+1
                     xmb_ave(i)=xmb_ave(i)+xf_ens(i,n)
@@ -4278,10 +4278,10 @@ endif
            endif   ! dicycle=1,2
          endif     ! ierr >0
          enddo     ! i
-!$acc end kernels
+!!$acc end kernels
       endif        ! imid=1
 
-!$acc kernels
+!!$acc kernels
        do i=its,itf
          if(ierr(i).eq.0)then
              dtpw=0.
@@ -4337,12 +4337,12 @@ endif
           endif
        enddo
 
-!$acc end kernels
+!!$acc end kernels
 
 
  return
 
-!$acc kernels
+!!$acc kernels
       do i=its,itf
         pwtot(i)=0.
         pre2(i)=0.
@@ -4387,7 +4387,7 @@ endif
 125     format(1x,2e13.4)
 #endif
       enddo
-!$acc end kernels
+!!$acc end kernels
 
 
 
@@ -4437,8 +4437,8 @@ endif
      integer, dimension (its:ite)                                 &
         ,intent (in   )                   ::                      &
         kbcon,ktop,k22,xland1
-!$acc declare copyin(p_cup,rho,q,zu,gamma_cup,qe_cup,up_massentr,up_massdetr,dby,qes_cup,z_cup,zqexec,c0,kbcon,ktop,k22,xland1)
-!$acc declare copy(c0t3d)
+!!$acc declare copyin(p_cup,rho,q,zu,gamma_cup,qe_cup,up_massentr,up_massdetr,dby,qes_cup,z_cup,zqexec,c0,kbcon,ktop,k22,xland1)
+!!$acc declare copy(c0t3d)
      real(kind=kind_phys),    intent (in  ) ::                    & ! HCB
         ccnclean
 !
@@ -4450,7 +4450,7 @@ endif
      integer, dimension (its:ite)                                  &
         ,intent (inout)                   ::                       &
         ierr
-!$acc declare copy(ierr)
+!!$acc declare copy(ierr)
       character *(*), intent (in)         ::                       &
        name
    ! qc = cloud q (including liquid water) after entrainment
@@ -4463,25 +4463,25 @@ endif
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                          &
         ,intent (out  )                   ::                       &
         qc,qrc,pw,clw_all
-!$acc declare copy(qc,qrc,pw,clw_all)
+!!$acc declare copy(qc,qrc,pw,clw_all)
      real(kind=kind_phys),    dimension (its:ite,kts:kte)                          &
         ,intent (inout)                   ::                       &
         c1d
-!$acc declare copy(c1d)
+!!$acc declare copy(c1d)
      real(kind=kind_phys),    dimension (its:ite,kts:kte) ::                       &
         qch,qrcb,pwh,clw_allh,c1d_b,t
-!$acc declare create(qch,qrcb,pwh,clw_allh,c1d_b,t)
+!!$acc declare create(qch,qrcb,pwh,clw_allh,c1d_b,t)
      real(kind=kind_phys),    dimension (its:ite)         ::                       &
         pwavh
-!$acc declare create(pwavh)
+!!$acc declare create(pwavh)
      real(kind=kind_phys),    dimension (its:ite)                                  &
         ,intent (out  )                   ::                       &
         pwav,psum,psumh
-!$acc declare copyout(pwav,psum,psumh)
+!!$acc declare copyout(pwav,psum,psumh)
      real(kind=kind_phys),    dimension (its:ite)                                  &
         ,intent (in  )                    ::                       &
         ccn
-!$acc declare copyin(ccn)
+!!$acc declare copyin(ccn)
 !
 !  local variables in this routine
 !
@@ -4489,7 +4489,7 @@ endif
      integer                              ::                       &
         iprop,iall,i,k
      integer :: start_level(its:ite),kklev(its:ite)
-!$acc declare create(start_level,kklev)
+!!$acc declare create(start_level,kklev)
      real(kind=kind_phys)                                 ::              &
         prop_ave,qrcb_h,dp,rhoc,qrch,qaver,clwdet,                        &
         dz,berryc0,q1,berryc
@@ -4499,7 +4499,7 @@ endif
         prop_b
      real(kind=kind_phys),    dimension (its:ite)         ::              &
         bdsp
-!$acc declare create(prop_b)
+!!$acc declare create(prop_b)
 !
      real(kind=kind_phys), parameter:: zero = 0
      logical :: is_mid, is_deep
@@ -4509,17 +4509,17 @@ endif
         is_mid = (name == 'mid')
         is_deep = (name == 'deep')
 
-!$acc kernels
+!!$acc kernels
         prop_b(kts:kte)=0
-!$acc end kernels
+!!$acc end kernels
         iall=0
         clwdet=0.1 !0.02
         c0_iceconv=0.01
         c1d_b=c1d
         bdsp(:)=bdispm
-!$acc kernels
+!!$acc kernels
         c0t3d = 0.
-!$acc end kernels
+!!$acc end kernels
 
 !
 !--- no precip for small clouds
@@ -4527,7 +4527,7 @@ endif
 !        if(name.eq.'shallow')then
 !            c0=0.002
 !        endif
-!$acc kernels
+!!$acc kernels
         do i=its,itf
           pwav(i)=0.
           pwavh(i)=0.
@@ -4552,9 +4552,9 @@ endif
           qrcb(i,k)=0.
         enddo
         enddo
-!$acc end kernels
+!!$acc end kernels
 
-!$acc parallel loop private(start_level,qaver,k)
+!!$acc parallel loop private(start_level,qaver,k)
       do i=its,itf
       if(ierr(i).eq.0)then
          start_level=k22(i)
@@ -4572,10 +4572,10 @@ endif
 !
       endif
       enddo
-!$acc end parallel
+!!$acc end parallel
 
 
-!$acc kernels
+!!$acc kernels
        do 100 i=its,itf
          !c0=.004 HCB tuning
          if(ierr(i).eq.0)then
@@ -4583,7 +4583,7 @@ endif
 ! below lfc, but maybe above lcl
 !
 !            if(name == "deep" )then
-!$acc loop seq
+!!$acc loop seq
             do k=k22(i)+1,kbcon(i)
               if(t(i,k) > 273.16) then
                c0t = c0(i)
@@ -4624,7 +4624,7 @@ endif
 !now do the rest
 !
             kklev(i)=maxloc(zu(i,:),1)
-!$acc loop seq
+!!$acc loop seq
             do k=kbcon(i)+1,ktop(i)
                if(t(i,k) > 273.16) then
                   c0t = c0(i)
@@ -4758,9 +4758,9 @@ endif
                psum(i)=psum(i)+pw(i,k)*g/dp ! HCB
             enddo ! k=kbcon,ktop
 ! do not include liquid/ice in qc
-!$acc loop independent
+!!$acc loop independent
        do k=k22(i)+1,ktop(i)
-!$acc atomic
+!!$acc atomic
            qc(i,k)=qc(i,k)-qrc(i,k)
        enddo
       endif ! ierr
@@ -4768,15 +4768,15 @@ endif
 !--- integrated normalized ondensate
 !
  100     continue
-!$acc end kernels
+!!$acc end kernels
        prop_ave=0.
        iprop=0
-!$acc parallel loop reduction(+:prop_ave,iprop)
+!!$acc parallel loop reduction(+:prop_ave,iprop)
        do k=kts,kte
         prop_ave=prop_ave+prop_b(k)
         if(prop_b(k).gt.0)iprop=iprop+1
        enddo
-!$acc end parallel
+!!$acc end parallel
        iprop=max(iprop,1)
 
  end subroutine cup_up_moisture
@@ -4784,7 +4784,7 @@ endif
 !--------------------------------------------------------------------
 !> Calculates saturation vapor pressure.
  real function satvap(temp2)
-!$acc routine seq
+!!$acc routine seq
       implicit none
       real(kind=kind_phys) :: temp2, temp, toot, toto, eilog, tsot,            &
      &        ewlog, ewlog2, ewlog3, ewlog4
@@ -4810,7 +4810,7 @@ endif
 !--------------------------------------------------------------------
 !> Calculates the average value of a variable at the updraft originating level.
  subroutine get_cloud_bc(mzp,array,x_aver,k22,add)
-!$acc routine seq
+!!$acc routine seq
     implicit none
     integer, intent(in)     :: mzp,k22
     real(kind=kind_phys)   , dimension(:), intent(in)     :: array
@@ -4847,18 +4847,18 @@ endif
      real(kind=kind_phys), dimension(kts:kte) :: tmp_p_cup, tmp_zuo ! MJT - for array tmpry
      integer, dimension (its:ite),intent (in) :: kstabi,k22,kpbl,csum,xland,pmin_lev
      integer, dimension (its:ite),intent (inout) :: kbcon,ierr,ktop,ktopdby
-!$acc declare copy(entr_rate_2d,zuo,kbcon,ierr,ktop,ktopdby) &
-!$acc         copyin(p_cup, heo,heso_cup,z_cup,hkbo,rand_vmas,kstabi,k22,kpbl,csum,xland,pmin_lev)
+!!$acc declare copy(entr_rate_2d,zuo,kbcon,ierr,ktop,ktopdby) &
+!!$acc         copyin(p_cup, heo,heso_cup,z_cup,hkbo,rand_vmas,kstabi,k22,kpbl,csum,xland,pmin_lev)
 
      !-local vars
      real(kind=kind_phys), dimension (its:ite,kts:kte) :: hcot
-!$acc declare create(hcot)
+!!$acc declare create(hcot)
      real(kind=kind_phys) :: entr_init,beta_u,dz,dbythresh,dzh2,zustart,zubeg,massent,massdetr
      real(kind=kind_phys) :: dby(kts:kte),dbm(kts:kte),zux(kts:kte)
      real(kind=kind_phys) zuh2(40),zh2(40)
      integer :: kklev,i,kk,kbegin,k,kfinalzu
      integer, dimension (its:ite) :: start_level
-!$acc declare create(start_level)
+!!$acc declare create(start_level)
      logical :: is_deep, is_mid, is_shallow
      !
      zustart=.1
@@ -4871,7 +4871,7 @@ endif
       is_mid = (name .eq. 'mid')
       is_shallow = (name .eq. 'shallow')
 
-!$acc parallel loop private(beta_u,entr_init,dz,massent,massdetr,zubeg,kklev,kfinalzu,dby,dbm,zux,zuh2,zh2)
+!!$acc parallel loop private(beta_u,entr_init,dz,massent,massdetr,zubeg,kklev,kfinalzu,dby,dbm,zux,zuh2,zh2)
      do i=its,itf
       if(ierr(i) > 0 )cycle
       zux(:)=0.
@@ -4884,7 +4884,7 @@ endif
        zuo(i,start_level(i))=zustart
         zux(start_level(i))=zustart
         entr_init=entr_rate_2d(i,kts)
-!$acc loop seq
+!!$acc loop seq
         do k=start_level(i)+1,kbcon(i)
           dz=z_cup(i,k)-z_cup(i,k-1)
           massent=dz*entr_rate_2d(i,k-1)*zuo(i,k-1)
@@ -4898,7 +4898,7 @@ endif
         ktop(i)=0
         hcot(i,start_level(i))=hkbo(i)
         dz=z_cup(i,start_level(i))-z_cup(i,start_level(i)-1)
-!$acc loop seq
+!!$acc loop seq
         do k=start_level(i)+1,ktf-2
            dz=z_cup(i,k)-z_cup(i,k-1)
 
@@ -4910,7 +4910,7 @@ endif
         enddo
         ktopdby(i)=maxloc(dby(:),1)
         kklev=maxloc(dbm(:),1)
-!$acc loop seq
+!!$acc loop seq
         do k=maxloc(dby(:),1)+1,ktf-2
           if(dby(k).lt.dbythresh*maxval(dby))then
               kfinalzu=k  - 1
@@ -4968,13 +4968,13 @@ endif
          endif
          endif ! shal
      enddo
-!$acc end parallel loop
+!!$acc end parallel loop
 
   end subroutine rates_up_pdf
 !-------------------------------------------------------------------------
 !> Calculates a normalized mass-flux profile for updrafts and downdrafts using the beta function.
  subroutine get_zu_zd_pdf_fim(kklev,p,rand_vmas,zubeg,ipr,xland,zuh2,draft,ierr,kb,kt,zu,kts,kte,ktf,max_mass,kpbli,csum,pmin_lev)
-!$acc routine vector
+!!$acc routine vector
 
  implicit none
 ! real(kind=kind_phys), parameter :: beta_deep=1.3,g_beta_deep=0.8974707
@@ -5285,23 +5285,23 @@ endif
      real(kind=kind_phys)                                 ::                           &
         dz,da
 !
-!$acc kernels
+!!$acc kernels
         do i=its,itf
          aa0(i)=0.
         enddo
         do i=its,itf
-!$acc loop independent
+!!$acc loop independent
           do k=kts,kbcon(i)
             if(ierr(i).ne.0 ) cycle
 !           if(k.gt.kbcon(i)) cycle
 
             dz = (z_cup (i,k+1)-z_cup (i,k))*g
             da = dz*(tn(i,k)*(1.+0.608*qo(i,k))-t(i,k)*(1.+0.608*q(i,k)))/dtime
-!$acc atomic
+!!$acc atomic
             aa0(i)=aa0(i)+da
           enddo
         enddo
-!$acc end kernels
+!!$acc end kernels
 
  end subroutine cup_up_aa1bl
 !---------------------------------------------------------------------- 
@@ -5312,15 +5312,15 @@ endif
         implicit none
         integer                      ,intent (in ) :: itf,ktf,its,ite,kts,kte
         integer, dimension (its:ite) ,intent (in ) :: ierr,kstart,kend
-!$acc declare copyin(ierr,kstart,kend)
+!!$acc declare copyin(ierr,kstart,kend)
         integer, dimension (its:ite) :: kend_p3
-!$acc declare create(kend_p3)
+!!$acc declare create(kend_p3)
                     
         real(kind=kind_phys),    dimension (its:ite,kts:kte), intent (in ) :: p_cup,t_cup,z_cup,qo_cup,qeso_cup                            
         real(kind=kind_phys),    dimension (its:ite,kts:kte), intent (out) :: dtempdz                    
         integer, dimension (its:ite,kts:kte), intent (out) :: k_inv_layers
-!$acc declare copyin(p_cup,t_cup,z_cup,qo_cup,qeso_cup)
-!$acc declare copyout(dtempdz,k_inv_layers)
+!!$acc declare copyin(p_cup,t_cup,z_cup,qo_cup,qeso_cup)
+!!$acc declare copyout(dtempdz,k_inv_layers)
         !-local vars
         real(kind=kind_phys)   :: dp,l_mid,l_shal,first_deriv(kts:kte),sec_deriv(kts:kte)
         integer:: ken,kadd,kj,i,k,ilev,kk,ix,k800,k550,mid,shal
@@ -5328,10 +5328,10 @@ endif
         !-initialize k_inv_layers as undef
         l_mid=300.
         l_shal=100.
-!$acc kernels
+!!$acc kernels
         k_inv_layers(:,:) = 1
-!$acc end kernels
-!$acc parallel loop private(first_deriv,sec_deriv,ilev,ix,k,kadd,ken)
+!!$acc end kernels
+!!$acc parallel loop private(first_deriv,sec_deriv,ilev,ix,k,kadd,ken)
          do i = its,itf
            if(ierr(i) == 0)then
            sec_deriv(:)=0.
@@ -5357,7 +5357,7 @@ endif
          ix=1
          k=ilev
          do while (ilev < kend_p3(i)) !(z_cup(i,ilev)<15000.)
-!$acc loop seq
+!!$acc loop seq
            do kk=k,kend_p3(i)+2 !k,ktf-2
              
              if(sec_deriv(kk) <        sec_deriv(kk+1) .and.  &
@@ -5374,7 +5374,7 @@ endif
         !- 2nd criteria
          kadd=0
          ken=maxloc(k_inv_layers(i,:),1)
-!$acc loop seq
+!!$acc loop seq
          do k=1,ken
            kk=k_inv_layers(i,k+kadd)
            if(kk.eq.1)exit
@@ -5390,10 +5390,10 @@ endif
          enddo
         endif
         enddo
-!$acc end parallel
+!!$acc end parallel
 100 format(1x,16i3)        
         !- find the locations of inversions around 800 and 550 hpa
-!$acc parallel loop private(sec_deriv,shal,mid)
+!!$acc parallel loop private(sec_deriv,shal,mid)
         do i = its,itf
          if(ierr(i) /= 0) cycle
 
@@ -5418,7 +5418,7 @@ endif
          k_inv_layers(i,mid )=k_inv_layers(i,k550) ! this is for mid/congestus convection
          k_inv_layers(i,mid+1:kte)=-1
         enddo
-!$acc end parallel
+!!$acc end parallel
         
  end subroutine get_inversion_layers
 !-----------------------------------------------------------------------------------
@@ -5426,7 +5426,7 @@ endif
 !!!!>\ingroup cu_gf_deep_group
 !!!!> This function calcualtes
 !!! function deriv3(xx, xi, yi, ni, m)
-!!!!$acc routine vector
+!!!!!$acc routine vector
 !!!    !============================================================================*/
 !!!    ! evaluate first- or second-order derivatives 
 !!!    ! using three-point lagrange interpolation 
@@ -5519,7 +5519,7 @@ endif
      integer, intent (in) :: draft
      integer, intent(in):: itf,ktf, its,ite, kts,kte
      integer, intent(in)   , dimension(its:ite)         :: ierr,ktop,kbcon,k22
-!$acc declare copyin(ierr,ktop,kbcon,k22)
+!!$acc declare copyin(ierr,ktop,kbcon,k22)
     !real(kind=kind_phys),    intent(in),  optional , dimension(its:ite):: lambau
      real(kind=kind_phys),    intent(inout),  optional , dimension(its:ite):: lambau
      real(kind=kind_phys),    intent(in)   , dimension(its:ite,kts:kte) :: zo_cup,zuo
@@ -5528,13 +5528,13 @@ endif
                                                           ,up_massentr,  up_massdetr
      real(kind=kind_phys),    intent(  out), dimension(its:ite,kts:kte),  optional ::                  &
                                                           up_massentru,up_massdetru
-!$acc declare copy(lambau,cd,entr_rate_2d) copyin(zo_cup,zuo) copyout(up_massentro, up_massdetro,up_massentr,  up_massdetr)
-!$acc declare copyout(up_massentro, up_massdetro,up_massentr,  up_massdetr, up_massentru,up_massdetru)
+!!$acc declare copy(lambau,cd,entr_rate_2d) copyin(zo_cup,zuo) copyout(up_massentro, up_massdetro,up_massentr,  up_massdetr)
+!!$acc declare copyout(up_massentro, up_massdetro,up_massentr,  up_massdetr, up_massentru,up_massdetru)
      !-- local vars
      integer :: i,k, incr1,incr2,turn
      real(kind=kind_phys) :: dz,trash,trash2
      
-!$acc kernels
+!!$acc kernels
      do k=kts,kte
       do i=its,ite
          up_massentro(i,k)=0.
@@ -5543,22 +5543,22 @@ endif
          up_massdetr (i,k)=0.
       enddo
      enddo
-!$acc end kernels
+!!$acc end kernels
      if(present(up_massentru) .and. present(up_massdetru))then
-!$acc kernels
+!!$acc kernels
        do k=kts,kte
         do i=its,ite
           up_massentru(i,k)=0.
           up_massdetru(i,k)=0.
         enddo
        enddo
-!$acc end kernels
+!!$acc end kernels
      endif
-!$acc parallel loop
+!!$acc parallel loop
      do i=its,itf
        if(ierr(i).eq.0)then
 
-!$acc loop private(dz)
+!!$acc loop private(dz)
           do k=max(2,k22(i)+1),maxloc(zuo(i,:),1)
            !=> below maximum value zu -> change entrainment
            dz=zo_cup(i,k)-zo_cup(i,k-1)
@@ -5572,7 +5572,7 @@ endif
            endif
            if(zuo(i,k-1).gt.0.)entr_rate_2d(i,k-1)=(up_massentro(i,k-1))/(dz*zuo(i,k-1))
          enddo
-!$acc loop private(dz)
+!!$acc loop private(dz)
          do k=maxloc(zuo(i,:),1)+1,ktop(i)
            !=> above maximum value zu -> change detrainment
            dz=zo_cup(i,k)-zo_cup(i,k-1)
@@ -5637,7 +5637,7 @@ endif
   
        endif
     enddo
-!$acc end parallel
+!!$acc end parallel
  end subroutine get_lateral_massflux
 !---meltglac-------------------------------------------------
 !------------------------------------------------------------------------------------
@@ -5649,23 +5649,23 @@ endif
      integer  ,intent (in   )	                          :: itf,ktf, its,ite, kts,kte
      real(kind=kind_phys),     intent (in   ), dimension(its:ite,kts:kte) :: tn,po_cup
      real(kind=kind_phys),     intent (inout), dimension(its:ite,kts:kte) :: p_liq_ice,melting_layer
-!$acc declare copyin(tn,po_cup) copy(p_liq_ice,melting_layer)
+!!$acc declare copyin(tn,po_cup) copy(p_liq_ice,melting_layer)
      integer  , intent (in  ), dimension(its:ite) :: ierr
-!$acc declare copyin(ierr)
+!!$acc declare copyin(ierr)
      integer :: i,k
      real(kind=kind_phys)    :: dp     
      real(kind=kind_phys), dimension(its:ite) :: norm
-!$acc declare create(norm) 
+!!$acc declare create(norm) 
      real(kind=kind_phys), parameter ::  t1=276.16    
      
      ! hli initialize at the very beginning
-!$acc kernels
+!!$acc kernels
         p_liq_ice     (:,:) = 1.
         melting_layer(:,:) = 0.
-!$acc end kernels
+!!$acc end kernels
      !-- get function of t for partition of total condensate into liq and ice phases.     
      if(melt_glac .and. cumulus == 'deep') then
-!$acc kernels
+!!$acc kernels
           do i=its,itf
            if(ierr(i).eq.0)then
            do k=kts,ktf
@@ -5708,10 +5708,10 @@ endif
         !do k=kts,ktf
           do i=its,itf
            if(ierr(i).eq.0)then
-!$acc loop independent
+!!$acc loop independent
            do k=kts,ktf-1
              dp = 100.*(po_cup(i,k)-po_cup(i,k+1)) 
-!$acc atomic update
+!!$acc atomic update
              norm(i) = norm(i) + melting_layer(i,k)*dp/g
           enddo
           endif
@@ -5732,12 +5732,12 @@ endif
 !             !print*,"n=",i,k,norm(i)
 !          enddo
 !        enddo
-!$acc end kernels    
+!!$acc end kernels    
      else
-!$acc kernels
+!!$acc kernels
         p_liq_ice     (:,:) = 1.
         melting_layer(:,:) = 0.
-!$acc end kernels
+!!$acc end kernels
      endif
    end  subroutine get_partition_liq_ice
 
@@ -5754,15 +5754,15 @@ endif
      real(kind=kind_phys)     ,intent (in   ), dimension(its:ite,kts:kte) :: tn_cup,po_cup,qrco,pwo &
                                                             ,pwdo,p_liq_ice,melting_layer
      real(kind=kind_phys)     ,intent (inout), dimension(its:ite,kts:kte) :: melting
-!$acc declare copyin(ierr,edto,tn_cup,po_cup,qrco,pwo,pwdo,p_liq_ice,melting_layer,melting)
+!!$acc declare copyin(ierr,edto,tn_cup,po_cup,qrco,pwo,pwdo,p_liq_ice,melting_layer,melting)
      integer :: i,k
      real(kind=kind_phys)    :: dp     
      real(kind=kind_phys), dimension(its:ite) :: norm,total_pwo_solid_phase
      real(kind=kind_phys), dimension(its:ite,kts:kte) :: pwo_solid_phase,pwo_eff
-!$acc declare create(norm,total_pwo_solid_phase,pwo_solid_phase,pwo_eff)
+!!$acc declare create(norm,total_pwo_solid_phase,pwo_solid_phase,pwo_eff)
      
      if(melt_glac .and. cumulus == 'deep') then
-!$acc kernels
+!!$acc kernels
         !-- set melting mixing ratio to zero for columns that do not have deep convection
         do i=its,itf
             if(ierr(i) > 0) melting(i,:) = 0.
@@ -5810,12 +5810,12 @@ endif
 !         print*,"cons=",i,norm(i),total_pwo_solid_phase(i)
 !        enddo
 !--        
-!$acc end kernels
+!!$acc end kernels
      else
-!$acc kernels
+!!$acc kernels
         !-- no melting allowed in this run
         melting     (:,:) = 0.
-!$acc end kernels
+!!$acc end kernels
      endif
    end  subroutine get_melting_profile
 !---meltglac-------------------------------------------------
@@ -5830,15 +5830,15 @@ endif
      real(kind=kind_phys), dimension (its:ite),intent (in) :: hkbo
      integer, dimension (its:ite),intent (in) :: kstabi,k22,kbcon,kpbl,klcl
      integer, dimension (its:ite),intent (inout) :: ierr,ktop
-!$acc declare copy(entr_rate_2d,zuo,ierr,ktop) copyin(p_cup, heo,heso_cup,z_cup,hkbo,kstabi,k22,kbcon,kpbl,klcl)
+!!$acc declare copy(entr_rate_2d,zuo,ierr,ktop) copyin(p_cup, heo,heso_cup,z_cup,hkbo,kstabi,k22,kbcon,kpbl,klcl)
      real(kind=kind_phys), dimension (its:ite,kts:kte) :: hcot
-!$acc declare create(hcot)
+!!$acc declare create(hcot)
      character *(*), intent (in) ::    name
      real(kind=kind_phys) :: dz,dh, dbythresh
      real(kind=kind_phys) :: dby(kts:kte)
      integer :: i,k,ipr,kdefi,kstart,kbegzu,kfinalzu
      integer, dimension (its:ite) :: start_level
-!$acc declare create(start_level)
+!!$acc declare create(start_level)
      integer,parameter :: find_ktop_option = 1 !0=original, 1=new
      
      dbythresh=0.8 !0.95  ! the range of this parameter is 0-1, higher => lower
@@ -5849,7 +5849,7 @@ endif
          dbythresh=1.0
      endif
      !         print*,"================================cumulus=",name; call flush(6)
-!$acc parallel loop private(dby,kfinalzu,dz)
+!!$acc parallel loop private(dby,kfinalzu,dz)
      do i=its,itf
        kfinalzu=ktf-2
        ktop(i)=kfinalzu
@@ -5864,7 +5864,7 @@ endif
        dby(start_level(i))=(hcot(i,start_level(i))-heso_cup(i,start_level(i)))*dz
        
        !print*,'hco1=',start_level(i),kbcon(i),hcot(i,start_level(i))/heso_cup(i,start_level(i))
-!$acc loop seq
+!!$acc loop seq
        do k=start_level(i)+1,ktf-2
            dz=z_cup(i,k)-z_cup(i,k-1)
 
@@ -5904,7 +5904,7 @@ endif
       !
       endif
      enddo
-!$acc end parallel
+!!$acc end parallel
   end subroutine get_cloud_top
 !------------------------------------------------------------------------------------
 !> @}

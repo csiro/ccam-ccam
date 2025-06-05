@@ -165,8 +165,7 @@ endif
 FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
-FFLAGS += -Minfo=accel -acc -gpu=cuda12.2,fastmath,flushz -DGPU
-#-ta=tesla:cc70
+FFLAGS += -Minfo=accel -acc -gpu=cuda12.8,fastmath,flushz -DGPU
 endif
 ifeq ($(OMP),yes)
 FFLAGS += -mp
@@ -311,7 +310,7 @@ LIBS += -lcosp -lsubcol -L $(VPATH)
 endif
 
 # CABLE, MLO, aTEB, etc
-FFLAGS += -DCCAM -Dgrell $(INC)
+FFLAGS += -DCCAM $(INC)
 
 
 # Object files for dynamical model

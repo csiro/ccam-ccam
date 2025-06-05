@@ -87,7 +87,7 @@ use morepbl_m                     ! Additional boundary layer diagnostics
 use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays
 use parm_m, only : dt,idjd,     &
-      iaero,irest,ktau,nwt        ! Model configuration
+      iaero,irest,ktau,nwt,ntau   ! Model configuration
 use pbl_m                         ! Boundary layer arrays
 use prec_m                        ! Precipitation
 use raddiag_m                     ! Radiation diagnostic
@@ -116,7 +116,7 @@ real, dimension(imax,kl) :: l_rliq, l_rice, l_cliq, l_cice, lp
 real, dimension(imax,kl) :: l_rliq_in, l_rice_in, l_rsno_in
 real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
 real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
-real, dimension(imax,kl) :: qlg_rem, qfg_rem
+real, dimension(ifull,kl) :: qlg_rem, qfg_rem
 real, dimension(ifull,kl) :: clcon, cdrop
 real, dimension(ifull,kl) :: fluxr, fluxm, fluxf, fluxi, fluxs, fluxg
 real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
@@ -124,7 +124,8 @@ real, dimension(ifull,kl) :: vi
 real, dimension(ifull,kl) :: dz, rhoa
 
 real(kind=8), dimension(imax,0:kl) :: zlevv
-real(kind=8), dimension(imax,kl) :: riz, tothz, thz, dzw
+real(kind=8), dimension(imax,kl) :: riz
+real(kind=8), dimension(imax,kl) :: tothz, thz, dzw
 real(kind=8), dimension(imax,kl) :: znc, znr, zni, zns
 real(kind=8), dimension(imax,kl) :: zpres, zrhoa, zcdrop, zvi
 real(kind=8), dimension(imax,kl) :: zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D
@@ -140,7 +141,7 @@ real(kind=8), dimension(imax,kl) :: zpvapor, zpclw, zpladj, zpcli
 real(kind=8), dimension(imax,kl) :: zpimlt, zpihom, zpidw, zpiadj
 real(kind=8), dimension(imax,kl) :: zqschg
 real(kind=8), dimension(imax) :: pptrain, pptsnow, pptice
-real(kind=8) tdt
+real(kind=8) tdt, zmaxlintime
 real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
 character(len=8) :: cmode, dmode
@@ -182,8 +183,7 @@ end do
 
 !$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
 !$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,cmode)            &
-!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)  &
-!$omp private(qlg_rem,qfg_rem)
+!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -191,11 +191,11 @@ do tile = 1,ntiles
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-  ! Limit maximum cloud water visible to microphysics
-  qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
-  qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
-  qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
-  qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)    
+  ! limit maximum cloud water visible to microphysics
+  qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+  qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+  qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+  qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
   
   lqg      = qg(js:je,:)
   lqlg     = qlg(js:je,:)
@@ -226,20 +226,19 @@ do tile = 1,ntiles
   qg(js:je,:)    = lqg
   qlg(js:je,:)   = lqlg
   qfg(js:je,:)   = lqfg
-  
-  ! reapply any remaining qlg_rem or qfg_rem
-  qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
-  qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)  
-  
-  ! Limit maximum cloud water visible to radiation
-  qlrad(js:je,:) = min( lqlrad, qlg_max )
-  qfrad(js:je,:) = min( lqfrad, qfg_max )
+  qlrad(js:je,:) = lqlrad
+  qfrad(js:je,:) = lqfrad
   t(js:je,:)     = lt
   stratcloud(js:je,:) = lstratcloud
   ! Reset tendency and mass flux for next time-step  
   rad_tend(js:je,:) = 0.
   trb_tend(js:je,:) = 0.
   trb_qend(js:je,:) = 0.
+  
+  ! reapply any remaining qlg_rem or qfg_rem
+  qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
+  qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
+  
 end do
 !$omp end do nowait
 
@@ -264,11 +263,11 @@ select case ( interp_ncloud(ldr,ncloud) )
       idjd_t = mod(idjd-1,imax) + 1
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
-      ! Limit maximum cloud water visible to microphysics
-      qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
-      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
-      qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
-      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)      
+      ! limit maximum cloud water visible to microphysics
+      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)      
       
       lgfrac   = gfrac(js:je,:)
       lrfrac   = rfrac(js:je,:)
@@ -316,8 +315,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       vi(js:je,:) = lvi
       
       ! reapply any remaining qlg_rem or qfg_rem
-      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
-      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
+      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
+      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
       
       ! backwards compatible data for aerosols
       if ( abs(iaero)>=2 ) then
@@ -339,26 +338,6 @@ select case ( interp_ncloud(ldr,ncloud) )
 
   case( "LIN" )
 
-#ifdef GPUPHYSICS
-    !$acc parallel loop copy(t,qg,qlg,qfg,qrg,qsng,qgrg,nr,ni,ns,condx)       &
-    !$acc   copy(conds,condg)                                                 &
-    !$acc   copyin(zs,bet,betm,ps,sig,rhoa,dz,cdrop)                          &
-    !$acc   copyout(rfrac,sfrac,gfrac,stras_rliq,stras_rice,stras_rsno)       &
-    !$acc   copyout(stras_rrai,fluxr,fluxi,fluxs,fluxg,fluxm,fluxf,fevap)     &
-    !$acc   copyout(fsubl,fauto,fcoll,faccr,vi,psnow,psaut,psfw,psfi,praci)   &
-    !$acc   copyout(piacr,psaci,psacw,psdep,pssub,pracs,psacr,psmlt,psmltevp) &
-    !$acc   copyout(prain,praut,pracw,prevp,pgfr,pvapor,pclw,pladj,pcli)      &
-    !$acc   copyout(pimlt,pihom,pidw,piadj,pqschg)                            &
-    !$acc   private(tile,js,je,k,i,iq,riz,zlevv,zqg,zqlg,zqfg,zqrg,zqsng)     &
-    !$acc   private(prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,zcdrop,znc,zni)    &
-    !$acc   private(zns,pptrain,pptsnow,pptice,njumps,tdt,n,zeffc1d,zeffi1d)  &
-    !$acc   private(zeffs1d,zeffr1d,zfluxr,zfluxi,zfluxs,zfluxm,zfluxf)       &
-    !$acc   private(zqevap,zqsubl,zqauto,zqcoll,zqaccr,zvi,zpsnow,zpsaut)     &
-    !$acc   private(zpsfw,zpsfi,zpraci,zpiacr,zpsaci,zpsacw,zpsdep,zpssub)    &
-    !$acc   private(zpracs,zpsacr,zpsmlt,zpsmltevp,zprain,zpraut,zpracw)      &
-    !$acc   private(zprevp,zpgfr,zpvapor,zpclw,zpladj,zpcli,zpimlt,zpihom)    &
-    !$acc   private(zpidw,zpiadj,zqschg,qlg_rem,qfg_rem)
-#else
     !$omp do schedule(static) private(js,je,riz,zlevv,zqg,zqlg,zqrg,zqfg)     &
     !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
     !$omp private(zcdrop,znr,zni,zns,pptrain,pptsnow,pptice,njumps,tdt,n)     &
@@ -370,7 +349,6 @@ select case ( interp_ncloud(ldr,ncloud) )
     !$omp private(zprevp,zpgfr,zpvapor,zpclw,zpladj,zpcli,zpimlt,zpihom)      &
     !$omp private(zpidw,zpiadj,zqschg)                                        &
     !$omp private(zvi,njumps,tdt,qlg_rem,qfg_rem)
-#endif
     do tile = 1,ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
@@ -541,11 +519,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel
 
     end do     !tile loop
-#ifdef GPUPHYSICS
-    !$acc end parallel loop
-#else
     !$omp end do nowait
-#endif
 
   case default
     write(6,*) "ERROR: unknown cloud microphysics option"

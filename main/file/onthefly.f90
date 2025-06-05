@@ -327,7 +327,6 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
 use cc_mpi                                     ! CC MPI routines
-use cc_omp                                     ! CC OpenMP routines
 use cfrac_m                                    ! Cloud fraction
 use const_phys                                 ! Physical constants
 use darcdf_m                                   ! Netcdf data
@@ -1823,16 +1822,6 @@ if ( nested/=1 .and. nested/=3 ) then
       call fillhist4('csoil',csoil,sea_a,fill_sea)
       call fillhist4('nsoil',nisoil,sea_a,fill_sea)
       call fillhist4('psoil',psoil,sea_a,fill_sea)
-    else
-      cplant = 0.
-      niplant = 0.
-      pplant = 0.
-      clitter = 0.
-      nilitter = 0.
-      plitter = 0.
-      csoil = 0.
-      nisoil = 0.
-      psoil = 0.
     end if
   end if
 
@@ -2301,12 +2290,7 @@ do kb = 1,kx,kblock
       sout(iq,k+kb-1) = 0.
     end do
   end do
-  !$omp parallel
   do mm = 1,m_fly       !  was 4, now may be 1
-    !$omp do schedule(static) private(n,idel,jdel,xxg,yyg,cmin,cmax,cmul_1,cmul_2,cmul_3,cmul_4) &
-    !$omp   private(dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4,rmul_1,rmul_2,rmul_3,rmul_4)       &
-    !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12)     &
-    !$omp   private(iin,jjn,idel_l,jdel_l,w,no)
     do k = 1,kn
       do iq = 1,ifull
         ! target point
@@ -2356,9 +2340,7 @@ do kb = 1,kx,kblock
                                                       cmax )/real(m_fly) ! Bermejo & Staniforth
       end do    ! iq loop
     end do      ! k loop
-    !$omp end do nowait
   end do        ! mm loop
-  !$omp end parallel
 end do ! kb
 
 call END_LOG(otf_ints_end)
@@ -2422,7 +2404,6 @@ do while ( nrem>0 )
   call ccmpi_filebounds(c_io,comm_ip,corner=.true.)
   ! update body
   if ( ncount>0 ) then
-    !$omp parallel do collapse(3) schedule(static) private(ipf,n,j,i,cc,csum,ccount)
     do ipf = 1,mynproc
       do n = 1,pnpan
         do j = 1,pjpan
@@ -2471,7 +2452,6 @@ do while ( nrem>0 )
         end do
       end do
     end do
-    !$omp end parallel do
     ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )  
   end if  
   ! test for convergence
@@ -2556,7 +2536,6 @@ do while ( any(nrem(:)>0) )
   call ccmpi_filebounds(c_io,comm_ip,corner=.true.)
   ncount(1:kx) = count( abs(a_io(1:fwsize,1:kx)-value)<1.E-6, dim=1 )
   ! update body
-  !$omp parallel do schedule(static) private(k,ipf,n,j,i,cc,csum,ccount)
   do k = 1,kx
     if ( ncount(k)>0 ) then
       do ipf = 1,mynproc
@@ -2610,7 +2589,6 @@ do while ( any(nrem(:)>0) )
       ncount(k) = count( abs(a_io(1:fwsize,k)-value)<1.E-6 )
     end if
   end do
-  !$omp end parallel do
   ! test for convergence
   local_count = local_count + 1
   if ( local_count==fill_count ) then

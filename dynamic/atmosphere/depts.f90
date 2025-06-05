@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2023 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -233,20 +233,9 @@ do itr = 1,2
 
     call intssync_send(3)
 
-#ifndef GPU
-    !$omp parallel
-#endif
     do nn = 1,3
-#ifdef GPU
       async_counter = mod(nn-1,async_length)  
       !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
-#else
-      !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                  &
-      !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
-      !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)                                             &
-      !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                         &
-      !$omp   private(sx_11,sx_21,sx_02,sx_12)
-#endif
       do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           idel = int(xg(iq,k))
@@ -288,17 +277,9 @@ do itr = 1,2
           s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do   ! iq loop
       end do     ! k loop
-#ifdef GPU
       !$acc end parallel loop
-#else
-      !$omp end do nowait
-#endif
     end do       ! nn loop
-#ifdef GPU
     !$acc wait  
-#else
-    !$omp end parallel
-#endif
             
   !========================   end of intsch=1 section ====================
   else     ! if(intsch==1)then
@@ -353,20 +334,9 @@ do itr = 1,2
 
     call intssync_send(3)
 
-#ifndef GPU
-    !$omp parallel
-#endif
     do nn = 1,3
-#ifdef GPU
       async_counter = mod(nn-1,async_length)  
       !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
-#else
-      !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,xxg,yyg,n)                  &
-      !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
-      !$omp   private(rmul_1,rmul_2,rmul_3,rmul_4)                                             &
-      !$omp   private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                         &
-      !$omp   private(sx_11,sx_21,sx_02,sx_12)
-#endif
       do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           ! Convert face index from 0:npanels to array indices
@@ -409,17 +379,9 @@ do itr = 1,2
           s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do          ! iq loop
       end do     ! k loop
-#ifdef GPU
       !$acc end parallel loop
-#else
-      !$omp end do nowait
-#endif
     end do       ! nn loop
-#ifdef GPU
     !$acc wait  
-#else
-    !$omp end parallel
-#endif
   
   endif                     ! (intsch==1) .. else ..
   !========================   end of intsch=1 section ====================
@@ -493,12 +455,7 @@ real(kind=8) den
 alf      = (1._8-real(schmidt,8)**2)/(1._8+real(schmidt,8)**2)
 alfonsch = 2._8*real(schmidt,8)/(1._8+real(schmidt,8)**2)  ! same but bit more accurate
 
-#ifdef GPU
 !$acc parallel loop collapse(2) copyin(x3d,y3d,z3d) present(xg,yg,nface,xx4,yy4)
-#else
-!$omp parallel do schedule(static) private(k,iq,denxyz,xstr,ystr,zstr,xd,yd,zd) &
-!$omp   private(ri,rj,loop,i,j,is,js,dxx,dxy,dyx,dyy,den)
-#endif
 do k = 1,kl
   do iq = 1,ifull    
     den  = 1._8 - alf*z3d(iq,k)
@@ -587,11 +544,7 @@ do k = 1,kl
     yg(iq,k) = 0.25*(rj+3.) - 0.5  ! -.5 for stag  
   end do
 end do
-#ifdef GPU
 !$acc end parallel loop
-#else
-!$omp end parallel do
-#endif
 
 return
 end subroutine toij5

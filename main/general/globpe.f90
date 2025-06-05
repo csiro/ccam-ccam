@@ -854,28 +854,26 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end do
     !$omp end do nowait
   end if
-  if ( rescrn>0 ) then
-    ! CAPE only needs to be calculated for cordex output
-    ! pcc2hist will calculate CAPE for standard output
-    if ( surfile/=' ' ) then
-      if ( mod(ktau,tbave)==0 ) then
-        call START_LOG(cape_begin)  
-        call capecalc
-        call END_LOG(cape_end)
-      end if  
-    end if    
-  end if  
   !$omp end parallel
 
-
+  call END_LOG(phys_end)
+  
+  
   ! MISC (SINGLE) ---------------------------------------------------------
+  ! Diagnose CAPE, CIN and LI for cordex output  
+  ! pcc2hist can calculate CAPE for standard output
+  if ( rescrn>0 .and. surfile/=' ' ) then
+    if ( mod(ktau,tbave)==0 ) then
+      call START_LOG(cape_begin)  
+      call capecalc
+      call END_LOG(cape_end)
+    end if  
+  end if  
   ! Update aerosol timer
   if ( oxidant_update ) then
     oxidant_timer = mins
   end if
-
-  call END_LOG(phys_end)
-
+  
   
   ! ***********************************************************************
   ! DIAGNOSTICS AND OUTPUT
@@ -1010,6 +1008,7 @@ end do                  ! *** end of main time loop
 call END_LOG(maincalc_end)
 
 ! WRITE DATA TO RESTART FILES ---------------------------
+ktau = ntau
 if ( irest==1 ) then
   ! write restart file
   call outfile(19,restfile,psl,u,v,t,qg)

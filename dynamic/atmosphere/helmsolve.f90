@@ -900,13 +900,11 @@ do k = 1,kl
   smaxmin_g(k+kl,2) = 0. 
 end do
 
-!$omp parallel do schedule(static) private(k,iq)
 do k = 1,kl
   do iq = 1,ifull
     irhs(iq,k) = jrhs(iq,k)
   end do
 end do
-!$omp end parallel do
 
 
 ! solver assumes boundaries have been updated
@@ -948,8 +946,6 @@ do itr = 1,itr_mg
       end do
       call bounds_colour_send(iv_new,nc,klim=klim)
       ! calculate non-boundary grid points while waiting for halo to update
-      !$omp parallel
-      !$omp do schedule(static) private(k,iq,iql)
       do k = 1,klim
         do iql = ifull_colour_border(nc)+1,ifull_colour(nc)
           iq = iqx(iql,nc)  
@@ -960,22 +956,17 @@ do itr = 1,itr_mg
                          - irhs(iq,k) )/(ihelm(iq,k)-izz(iq))
         end do
       end do
-      !$omp end do nowait
-      !$omp do schedule(static) private(k,iq,iql)
       do k = 1,klim
         do iql = 1,ifull_colour(nc)
           iq = iqx(iql,nc)    
           iv(iq,k) = iv_new(iq,k)
         end do  
       end do
-      !$omp end do nowait
-      !$omp end parallel
       ! receive halo
       call bounds_colour_recv(iv,nc,klim=klim)
     end do ! nc (colour) loop
   end do   ! i (itr) loop
 
-  !$omp parallel do schedule(static) private(k,iq)
   do k = 1,klim
     do iq = 1,ifull
       ! residual        
@@ -986,18 +977,15 @@ do itr = 1,itr_mg
     ! test for convergence
     dsolmax_g(k) = maxval( abs(iv(1:ifull,k)-iv_old(1:ifull,k)) ) ! cannot vectorise with -fp-precise
   end do
-  !$omp end parallel do
   
   ! For when the inital grid cannot be upscaled
   if ( itr==1 ) then
-    !$omp parallel do schedule(static) private(k,iq)
     do k = 1,kl
       do iq = 1,ifull
         ! also include ihelm weights for upscaled grid
         w(iq,k+kl) = ihelm(iq,k)
       end do  
     end do
-    !$omp end parallel do
     call mgcollect(1,w(:,1:2*kl),smaxmin_g(1:2*kl,1:2))
   else
     call mgcollect(1,w(:,1:klim),dsolmax_g(1:klim),klim=klim)
@@ -1274,8 +1262,6 @@ do itr = 1,itr_mg
         end do  
       end do
       call bounds_colour_send(iv_new,nc,klim=klim)
-      !$omp parallel
-      !$omp do schedule(static) private(k,iq,iql)
       do k = 1,klim
         do iql = ifull_colour_border(nc) + 1,ifull_colour(nc)
           iq = iqx(iql,nc)  
@@ -1286,16 +1272,12 @@ do itr = 1,itr_mg
                          - irhs(iq,k) )/(ihelm(iq,k)-izz(iq))
         end do  
       end do
-      !$omp end do nowait
-      !$omp do schedule(static) private(k,iq,iql)
       do k = 1,klim
         do iql = 1,ifull_colour(nc)
           iq = iqx(iql,nc)  
           iv(iq,k) = iv_new(iq,k)
         end do  
       end do
-      !$omp end do nowait
-      !$omp end parallel
       call bounds_colour_recv(iv,nc,klim=klim)
     end do ! nc (colour) loop
   end do   ! i (itr) loop
@@ -1309,13 +1291,11 @@ do itr = 1,itr_mg
       iv(:,k) = iv(:,k) - savg(k)
     end do
     ! re-pack colour arrays at fine level to remove offsets
-    !$omp parallel do schedule(static) private(nc,k,iq)
     do nc = 1,maxcolour
       do k = 1,kl  
         irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)  
       end do ! k loop
     end do 
-    !$omp end parallel do
   else
     ! test for convergence.  Test lags by one iteration, due to combining
     ! multi-grid and convergence communications.
@@ -1484,9 +1464,6 @@ do itr = 1,itr_mgice
     
       ! update interior
 
-      !$omp parallel sections
-      
-      !$omp section
       ! ocean
       do iql = ifull_colour_border(nc)+1,ifull_colour(nc)
         iq = iqx(iql,nc)  
@@ -1500,7 +1477,6 @@ do itr = 1,itr_mgice
            -2.*cu/(bu+sqrt(max(bu**2-4.*iyy(iq)*cu,0.01))) )
       end do
         
-      !$omp section
       ! ice (cavitating fluid)
       do iql = ifull_colour_border(nc)+1,ifull_colour(nc)
         iq = iqx(iql,nc)  
@@ -1510,16 +1486,11 @@ do itr = 1,itr_mgice
             + irhs(iq,2) ) / izz(iq,2) ))
       end do  
       
-      !$omp end parallel sections
-      
       call bounds_colour_recv(dumc(:,1:2),nc)
     
     end do
   end do
   
-  !$omp parallel sections
-  
-  !$omp section
   ! residual - ocean
   dsolmax_g(1)   = maxval( abs( dumc(1:ifull,1) - neta(1:ifull) ) )
   neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)
@@ -1540,7 +1511,6 @@ do itr = 1,itr_mgice
                 + iyye*neta(ie) + iyyw*neta(iw)     &
                 + iyy*neta(1:ifull) + ihh
   
-  !$omp section
   ! residual ice
   dsolmax_g(2)   = maxval( abs( dumc(1:ifull,2) - ipice(1:ifull) ) )
   ipice(1:ifull+iextra) = dumc(1:ifull+iextra,2)  
@@ -1550,8 +1520,6 @@ do itr = 1,itr_mgice
   where ( ipice(1:ifull)>=ipmax(1:ifull) )
     w(1:ifull,8) = 0. ! improves convergence
   end where
-  
-  !$omp end parallel sections
   
   if ( itr==1 ) then
     w(1:ifull,9)  = iyy(1:ifull)
@@ -2057,9 +2025,7 @@ do itr = 1,itr_mgice
       call bounds_colour_send(dumc,nc)
     
       ! update interior
-      !$omp parallel sections
 
-      !$omp section
       ! ocean
       do iql = ifull_colour_border(nc) + 1,ifull_colour(nc)
         iq = iqx(iql,nc)  
@@ -2073,7 +2039,6 @@ do itr = 1,itr_mgice
            -2.*cu/(bu+sqrt(max(bu**2-4.*iyy(iq)*cu,0.01))) )
       end do
  
-      !$omp section
       ! ice (cavitating fluid)
       do iql = ifull_colour_border(nc) + 1,ifull_colour(nc)
         iq = iqx(iql,nc)  
@@ -2082,8 +2047,6 @@ do itr = 1,itr_mgice
              -izze(iq,2)*dumc_e(iq,2) - izzw(iq,2)*dumc_w(iq,2)      &
             + irhs(iq,2) ) / izz(iq,2) ))
       end do
-
-      !$omp end parallel sections      
       
       call bounds_colour_recv(dumc,nc)
     
