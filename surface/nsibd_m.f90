@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -26,10 +26,12 @@ implicit none
 private
 public rsmin,sigmf,tgf,sigmu
 public ivegt,isoilm,isoilm_in,iurbant
+public carb_plant, carb_litter, carb_soil
 public nsibd_init,nsibd_end
 
 real, dimension(:), allocatable, save :: rsmin,tgf,sigmu
 real, dimension(:), allocatable, save :: sigmf
+real, dimension(:,:,:,:), allocatable, save :: carb_plant, carb_litter, carb_soil
 integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in,iurbant
 
 contains
@@ -55,6 +57,8 @@ if (nsib==3.or.nsib==5) then
   allocate(tgf(ifull))
   tgf=293.
 end if
+
+! carb_plant, carb_litter, carb_soil is allocated in onthefly and deallocated in cable_ccam2
 
 return
 end subroutine nsibd_init

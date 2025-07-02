@@ -126,6 +126,7 @@ real, dimension(3) :: temparray, gtemparray
 real aa, bb, cc
 real hourst, evapavge, precavge
 real pwatr, bb_2, cc_2, rat
+real(kind=8) :: tt_r8
 logical oxidant_update
 character(len=10) timeval
 
@@ -646,7 +647,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do  
   !$omp end do nowait
   
-
   ! RADIATION -------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(radnet_begin)
@@ -930,11 +930,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! Turn off log before writing output
   call log_off
 
-
   ! WRITE DATA TO HISTORY ---------------------------------
   if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
     call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
-  endif
+  end if
   ! write high temporal frequency fields
   if ( surfile/=' ' ) then
     call freqfile_cordex
@@ -1027,8 +1026,8 @@ if ( myid==0 ) then
   write(6,*) "End of time loop ", timeval
   write(6,*) "Normal termination of run"
   write(6,*) "End time ", timeval
-  aa = sum( real(tvals2(5:8)-tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
-  if ( aa<0. ) aa = aa + 86400.
+  call time_diff(tt_r8,tvals1,tvals2)
+  aa = real( tt_r8 )
   write(6,*) "Model time in main loop",aa
 end if
   
@@ -1043,8 +1042,7 @@ call vcom_finialize
 #endif
   
 call date_and_time(values=times_total_b)
-total_time = sum( real(times_total_b(5:8)-times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
-if ( total_time<0 ) total_time = total_time + 86400.
+call time_diff(total_time,times_total_a,times_total_b)
   
 ! report subroutine timings
 call simple_timer_finalize
@@ -1099,7 +1097,38 @@ write(6,*) "====================================================================
 
 return
 end subroutine finishbanner
-    
+
+!--------------------------------------------------------------
+! SIMULATION TIME
+! This version should be valid for at least 28 days
+subroutine time_diff(t_diff,tcal1,tcal2)
+
+use dates_m            ! Date data
+
+implicit none
+
+integer month, year, day, kdate_l
+integer, dimension(12) :: mdays
+integer, dimension(8), intent(in) :: tcal1, tcal2
+real(kind=8), intent(out) :: t_diff
+real(kind=8) day_diff
+
+t_diff = sum( real(tcal2(5:8)-tcal1(5:8),8)*(/ 3600._8, 60._8, 1._8, 0.001_8 /) )
+
+year = int( tcal1(1) )
+month = int( tcal1(2) )
+day = int( tcal1(3) )
+kdate_l = year*10000 + month*100 + day
+call calendar_function(mdays,kdate_l,cal_leap)
+
+day_diff = real(tcal2(3) - tcal1(3),8)
+if ( day_diff < 0._8 ) then
+  day_diff = day_diff + real(mdays(month),8)
+end if
+t_diff = t_diff + day_diff*86400._8
+
+return
+end subroutine time_diff
     
 !--------------------------------------------------------------
 ! PREPARE SPECIAL TRACER ARRAYS
@@ -4325,6 +4354,7 @@ integer iq, k
 real, dimension(ifull) :: spare1, spare2
 
 precip(1:ifull)            = precip(1:ifull) + real(condx,8)
+!precc(1:ifull)            = precc(1:ifull) + real(condc,8) ! currently inside convection parameterisations
 sno(1:ifull)               = sno(1:ifull) + real(conds,8)
 grpl(1:ifull)              = grpl(1:ifull) + real(condg,8)
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )

@@ -98,6 +98,7 @@ public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 public calc_wt_ave, calc_wt_flux
+public cable_casatile
 
 public inyear_carb
 public fnee,fpn,frd,frp,frpw,frpr,frs

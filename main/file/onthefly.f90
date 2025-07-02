@@ -342,7 +342,8 @@ use morepbl_m                                  ! Additional boundary layer diagn
 use newmpar_m                                  ! Grid parameters
 use nharrs_m, only : phi_nh,lrestart,         &
     lrestart_radiation, lrestart_tracer        ! Non-hydrostatic atmosphere arrays
-use nsibd_m, only : isoilm,isoilm_in,rsmin     ! Land-surface arrays
+use nsibd_m, only : isoilm,isoilm_in,rsmin,   &
+    carb_plant,carb_litter,carb_soil           ! Land-surface arrays
 use parm_m                                     ! Model configuration
 use parmdyn_m                                  ! Dynamics parmaters
 use parmgeom_m                                 ! Coordinate data
@@ -375,9 +376,9 @@ real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data
 integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, retopo_test, ktest
 integer levk, levkin, ier, igas
-integer i, j, k, mm, iq, ifrac
+integer i, j, k, mm, iq, ifrac, n
 integer, dimension(:), intent(out) :: isflag
-integer, dimension(9+3*ms) :: ierc
+integer, dimension(10+3*ms) :: ierc
 integer, dimension(13), save :: iers
 integer, dimension(2) :: shsize
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
@@ -412,7 +413,7 @@ logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_needed, zht_found, urban1_found, urban2_found
-logical aero_found, mlo3_found, nllp_found
+logical aero_found, mlo3_found, nllp_found, carbon2_found
 logical, dimension(:), allocatable, save :: land_a, landlake_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 logical, dimension(:,:), allocatable, save :: landlake_3d
@@ -1400,17 +1401,19 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( ccycle/=0 ) then
       call ccnf_inq_varid(ncid,'nplant1',idv,tst)
       if ( .not.tst ) ierc(9) = 1
-    end if
+      call ccnf_inq_varid(ncid,'p01_nplant1',idv,tst)
+      if ( .not.tst ) ierc(10) = 1
+    end if ! ccycle/=0
     do k = 1,ms
       write(vname,'("tgg",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(9+k) = 1
+      if ( .not.tst ) ierc(10+k) = 1
       write(vname,'("wetfrac",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(9+ms+k) = 1
+      if ( .not.tst ) ierc(10+ms+k) = 1
       write(vname,'("wb",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(9+2*ms+k) = 1
+      if ( .not.tst ) ierc(10+2*ms+k) = 1
     end do
   end if
   
@@ -1561,7 +1564,7 @@ if ( nested/=1 .and. nested/=3 ) then
   end if   ! nested==0  
     
   if ( .not.pfall ) then
-    call ccmpi_bcast(ierc(1:9+3*ms),0,comm_world)
+    call ccmpi_bcast(ierc(1:10+3*ms),0,comm_world)
   end if
   
   lrestart  = (ierc(1)==1)
@@ -1581,15 +1584,16 @@ if ( nested/=1 .and. nested/=3 ) then
       end if
     end if
   end if
-  carbon_found        = (ierc(9)==1)
-  tgg_found(1:ms)     = (ierc(10:9+ms)==1)
-  wetfrac_found(1:ms) = (ierc(10+ms:9+2*ms)==1)
-  wb_found(1:ms)      = (ierc(10+2*ms:9+3*ms)==1)
+  carbon_found        = ierc(9)==1
+  carbon2_found       = ierc(10)==1
+  tgg_found(1:ms)     = ierc(11:10+ms)==1
+  wetfrac_found(1:ms) = ierc(11+ms:10+2*ms)==1
+  wb_found(1:ms)      = ierc(11+2*ms:10+3*ms)==1
   
   if ( myid==0 ) then
-    write(6,*) "-> Found lrestart,lrestart_radiation,lrestart_tracer ",lrestart,lrestart_radiation,lrestart_tracer
-    write(6,*) "->       u10_found,carbon_found,tgg_found            ",u10_found,carbon_found,any(tgg_found)
-    write(6,*) "->       wetfrac_found,wb_found                      ",any(wetfrac_found),any(wb_found)
+    write(6,*) "-> Found lrestart,lrestart_radiation,lrestart_tracer = ",lrestart,lrestart_radiation,lrestart_tracer
+    write(6,*) "->       u10_found,carbon_found,carbon2_found        = ",u10_found,carbon_found,carbon2_found
+    write(6,*) "->       tgg_found,wetfrac_found,wb_found            = ",any(tgg_found),any(wetfrac_found),any(wb_found)
   end if
 
   
@@ -1811,20 +1815,71 @@ if ( nested/=1 .and. nested/=3 ) then
   
   !------------------------------------------------------------------
   ! Read carbon cycle data
+
+  !if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
+  !  if ( ccycle/=0 .and. carbon_found ) then
+  !    call fillhist4('cplant',cplant,sea_a,fill_sea)
+  !    call fillhist4('nplant',niplant,sea_a,fill_sea)
+  !    call fillhist4('pplant',pplant,sea_a,fill_sea)
+  !    call fillhist4('clitter',clitter,sea_a,fill_sea)
+  !    call fillhist4('nlitter',nilitter,sea_a,fill_sea)
+  !    call fillhist4('plitter',plitter,sea_a,fill_sea)
+  !    call fillhist4('csoil',csoil,sea_a,fill_sea)
+  !    call fillhist4('nsoil',nisoil,sea_a,fill_sea)
+  !    call fillhist4('psoil',psoil,sea_a,fill_sea)
+  !  end if
+  !end if
+
   if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
-    if ( ccycle/=0 .and. carbon_found ) then
-      call fillhist4('cplant',cplant,sea_a,fill_sea)
-      call fillhist4('nplant',niplant,sea_a,fill_sea)
-      call fillhist4('pplant',pplant,sea_a,fill_sea)
-      call fillhist4('clitter',clitter,sea_a,fill_sea)
-      call fillhist4('nlitter',nilitter,sea_a,fill_sea)
-      call fillhist4('plitter',plitter,sea_a,fill_sea)
-      call fillhist4('csoil',csoil,sea_a,fill_sea)
-      call fillhist4('nsoil',nisoil,sea_a,fill_sea)
-      call fillhist4('psoil',psoil,sea_a,fill_sea)
+    if ( ccycle/=0 .and. carbon2_found ) then
+      allocate( carb_plant(ifull,mplant,3,14) )
+      allocate( carb_litter(ifull,mlitter,3,14) )
+      allocate( carb_soil(ifull,msoil,3,14) )
+      carb_plant(:,:,:,:) = 0.
+      carb_litter(:,:,:,:) = 0.
+      carb_soil(:,:,:,:) = 0.
+      do n = 1,10
+        write(vname,'("p",I2.2,"_cplant")') n
+        call fillhist4(vname,carb_plant(:,:,1,n),sea_a,fill_sea)
+        write(vname,'("p",I2.2,"_nplant")') n
+        call fillhist4(vname,carb_plant(:,:,2,n),sea_a,fill_sea)
+        write(vname,'("p",I2.2,"_pplant")') n
+        call fillhist4(vname,carb_plant(:,:,3,n),sea_a,fill_sea)
+        write(vname,'("p",I2.2,"_clitter")') n
+        call fillhist4(vname,carb_litter(:,:,1,n),sea_a,fill_sea)
+        write(vname,'("p",I2.2,"_nlitter")') n
+        call fillhist4(vname,carb_litter(:,:,2,n),sea_a,fill_sea)
+        write(vname,'("p",I2.2,"_plitter")') n
+        call fillhist4(vname,carb_litter(:,:,3,n),sea_a,fill_sea)
+        write(vname,'("p",I2.2,"_csoil")') n
+        call fillhist4(vname,carb_soil(:,:,1,n),sea_a,fill_sea)
+        write(vname,'("p",I2.2,"_nsoil")') n
+        call fillhist4(vname,carb_soil(:,:,2,n),sea_a,fill_sea)
+        write(vname,'("p",I2.2,"_psoil")') n
+        call fillhist4(vname,carb_soil(:,:,3,n),sea_a,fill_sea)
+      end do
+      n = 14
+      write(vname,'("p",I2.2,"_cplant")') n
+      call fillhist4(vname,carb_plant(:,:,1,n),sea_a,fill_sea)
+      write(vname,'("p",I2.2,"_nplant")') n
+      call fillhist4(vname,carb_plant(:,:,2,n),sea_a,fill_sea)
+      write(vname,'("p",I2.2,"_pplant")') n
+      call fillhist4(vname,carb_plant(:,:,3,n),sea_a,fill_sea)
+      write(vname,'("p",I2.2,"_clitter")') n
+      call fillhist4(vname,carb_litter(:,:,1,n),sea_a,fill_sea)
+      write(vname,'("p",I2.2,"_nlitter")') n
+      call fillhist4(vname,carb_litter(:,:,2,n),sea_a,fill_sea)
+      write(vname,'("p",I2.2,"_plitter")') n
+      call fillhist4(vname,carb_litter(:,:,3,n),sea_a,fill_sea)
+      write(vname,'("p",I2.2,"_csoil")') n
+      call fillhist4(vname,carb_soil(:,:,1,n),sea_a,fill_sea)
+      write(vname,'("p",I2.2,"_nsoil")') n
+      call fillhist4(vname,carb_soil(:,:,2,n),sea_a,fill_sea)
+      write(vname,'("p",I2.2,"_psoil")') n
+      call fillhist4(vname,carb_soil(:,:,3,n),sea_a,fill_sea)
     end if
   end if
-
+  
   !------------------------------------------------------------------
   ! Read urban data
   if ( nurban/=0 .and. nhstest>=0 ) then

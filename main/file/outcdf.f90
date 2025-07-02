@@ -1681,6 +1681,13 @@ if ( iarch==1 ) then
         call attrib(idnc,dimj,jsize,'psoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
         lname = 'Phosphor pass pool'
         call attrib(idnc,dimj,jsize,'psoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+        if ( diaglevel_carbon>2 ) then
+          do n = 1,10
+            call carbonpools_attrib(idnc,dimj,jsize,cptype,n)  
+          end do
+          n = 14
+          call carbonpools_attrib(idnc,dimj,jsize,cptype,n)
+        end if
       end if
       if ( nextout>=1 .or. itype==-1 ) then
         if ( ccycle/=0 ) then  
@@ -1726,10 +1733,10 @@ if ( iarch==1 ) then
             ! Plant Turnover Wood Dist
             ! Plant Turnover Wood Crowding
             ! Plant Turnover Wood Resource Lim
-          end if
-        end if
-      end if
-    end if
+          end if ! save_carbon
+        end if   ! ccycle/=0
+      end if     ! nextout>=1 .or. itype==-1
+    end if       ! (nsib==6.or.nsib==7).and.nhstest>=0
 
     ! URBAN -----------------------------------------------------
     if ( nurban/=0 .and. save_urban .and. itype/=-1 .and. nhstest>=0 ) then
@@ -3109,6 +3116,13 @@ if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
       write(vname,'("psoil",I1.1)') k
       call histwrt(psoil(:,k),vname,idnc,iarch,local,lday)
     end do
+    if ( diaglevel_carbon>2 ) then
+      do n = 1,10
+        call carbonpools(n,idnc,iarch,local,lday)
+      end do
+      n = 14
+      call carbonpools(n,idnc,iarch,local,lday)
+    end if
   end if    
   if ( nextout>=1 .or. itype==-1 ) then
     if ( ccycle/=0 ) then    
@@ -3834,6 +3848,165 @@ end if
 return
 end subroutine openhist
 
+subroutine carbonpools_attrib(idnc,dimj,jsize,cptype,n)
+
+use infile, only : daily_m, point_m, attrib
+
+implicit none
+
+integer, intent(in) :: idnc, jsize, cptype, n
+integer, dimension(4), intent(in) :: dimj
+character(len=20) vname
+character(len=80) lname
+
+write(vname,'("p",I2.2,"_cplant1")') n
+lname = 'Carbon leaf pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_cplant2")') n
+lname = 'Carbon wood pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,65000.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_cplant3")') n
+lname = 'Carbon root pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nplant1")') n
+lname = 'Nitrogen leaf pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nplant2")') n
+lname = 'Nitrogen wood pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,65000.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nplant3")') n
+lname = 'Nitrogen root pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_pplant1")') n
+lname = 'Phosphor leaf pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_pplant2")') n
+lname = 'Phosphor wood pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,65000.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_pplant3")') n
+lname = 'Phosphor root pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_clitter1")') n
+lname = 'Carbon met pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_clitter2")') n
+lname = 'Carbon str pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_clitter3")') n
+lname = 'Carbon CWD pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nlitter1")') n
+lname = 'Nitrogen met pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nlitter2")') n
+lname = 'Nitrogen str pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nlitter3")') n
+lname = 'Nitrogen CWD pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_plitter1")') n
+lname = 'Phosphor met pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_plitter2")') n
+lname = 'Phosphor str pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_plitter3")') n
+lname = 'Phosphor CWD pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_csoil1")') n
+lname = 'Carbon mic pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_csoil2")') n
+lname = 'Carbon slow pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_csoil3")') n
+lname = 'Carbon pass pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nsoil1")') n
+lname = 'Nitrogen mic pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nsoil2")') n
+lname = 'Nitrogen slow pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_nsoil3")') n
+lname = 'Nitrogen pass pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_psoil1")') n
+lname = 'Phosphor mic pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_psoil2")') n
+lname = 'Phosphor slow pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+write(vname,'("p",I2.2,"_psoil3")') n
+lname = 'Phosphor pass pool'
+call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,cptype)
+
+return
+end subroutine carbonpools_attrib
+                    
+subroutine carbonpools(n,idnc,iarch,local,lday)
+
+use infile
+use sflux_m
+use newmpar_m
+
+implicit none
+
+integer, intent(in) :: n, idnc, iarch
+integer k
+real, dimension(ifull) :: dummy_pack
+logical, intent(in) :: local, lday
+character(len=20) vname
+                    
+do k = 1,mplant
+  call cable_casatile(dummy_pack,'cplant',k,n)
+  write(vname,'("p",I2.2,"_cplant",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+do k = 1,mplant
+  call cable_casatile(dummy_pack,'nplant',k,n)
+  write(vname,'("p",I2.2,"_nplant",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+do k = 1,mplant
+  call cable_casatile(dummy_pack,'pplant',k,n)
+  write(vname,'("p",I2.2,"_pplant",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+do k = 1,mlitter
+  call cable_casatile(dummy_pack,'clitter',k,n)
+  write(vname,'("p",I2.2,"_clitter",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+do k = 1,mlitter
+  call cable_casatile(dummy_pack,'nlitter',k,n)
+  write(vname,'("p",I2.2,"_nlitter",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+do k = 1,mlitter
+  call cable_casatile(dummy_pack,'plitter',k,n)
+  write(vname,'("p",I2.2,"_plitter",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+do k = 1,msoil
+  call cable_casatile(dummy_pack,'csoil',k,n)
+  write(vname,'("p",I2.2,"_csoil",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+do k = 1,msoil
+  call cable_casatile(dummy_pack,'nsoil',k,n)
+  write(vname,'("p",I2.2,"_nsoil",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+do k = 1,msoil
+  call cable_casatile(dummy_pack,'psoil',k,n)
+  write(vname,'("p",I2.2,"_psoil",I1.1)') n,k
+  call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
+end do
+
+return
+end subroutine carbonpools
+                    
 !--------------------------------------------------------------
 ! HIGH FREQUENCY OUTPUT FILES
       
