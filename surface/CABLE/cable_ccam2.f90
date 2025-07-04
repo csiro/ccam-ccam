@@ -4318,16 +4318,16 @@ if ( ccycle/=0 ) then
         call loadtile_carbonpools(carb_soil(:,:,2,m),casapool%nsoil(:,:),m)
         call loadtile_carbonpools(carb_soil(:,:,3,m),casapool%psoil(:,:),m)
       end do   ! mm = 1,10
-      m = 14
-      call loadtile_carbonpools(carb_plant(:,:,1,m),casapool%cplant(:,:),m)
-      call loadtile_carbonpools(carb_plant(:,:,2,m),casapool%nplant(:,:),m)
-      call loadtile_carbonpools(carb_plant(:,:,3,m),casapool%pplant(:,:),m)
-      call loadtile_carbonpools(carb_litter(:,:,1,m),casapool%clitter(:,:),m)
-      call loadtile_carbonpools(carb_litter(:,:,2,m),casapool%nlitter(:,:),m)
-      call loadtile_carbonpools(carb_litter(:,:,3,m),casapool%plitter(:,:),m)
-      call loadtile_carbonpools(carb_soil(:,:,1,m),casapool%csoil(:,:),m)
-      call loadtile_carbonpools(carb_soil(:,:,2,m),casapool%nsoil(:,:),m)
-      call loadtile_carbonpools(carb_soil(:,:,3,m),casapool%psoil(:,:),m)
+      m = 14 ! use index 11 to store pft 14
+      call loadtile_carbonpools(carb_plant(:,:,1,11),casapool%cplant(:,:),m)
+      call loadtile_carbonpools(carb_plant(:,:,2,11),casapool%nplant(:,:),m)
+      call loadtile_carbonpools(carb_plant(:,:,3,11),casapool%pplant(:,:),m)
+      call loadtile_carbonpools(carb_litter(:,:,1,11),casapool%clitter(:,:),m)
+      call loadtile_carbonpools(carb_litter(:,:,2,11),casapool%nlitter(:,:),m)
+      call loadtile_carbonpools(carb_litter(:,:,3,11),casapool%plitter(:,:),m)
+      call loadtile_carbonpools(carb_soil(:,:,1,11),casapool%csoil(:,:),m)
+      call loadtile_carbonpools(carb_soil(:,:,2,11),casapool%nsoil(:,:),m)
+      call loadtile_carbonpools(carb_soil(:,:,3,11),casapool%psoil(:,:),m)
       deallocate( carb_plant, carb_litter, carb_soil )
     end if  
   else
@@ -5136,20 +5136,19 @@ use newmpar_m
 implicit none
 
 integer, intent(in) :: mm
-integer n, k, msize
+integer nb, k, msize
 real, dimension(:,:), intent(in) :: dat_in
 real(kind=8), dimension(:,:), intent(inout) :: dat_out
 real(kind=8), dimension(size(dat_out,1)) :: dummy_unpack
 
 msize = size(dat_in,2)
 
-dummy_unpack(:) = 0._8
-
 do k = 1,msize
-  do n = 1,maxtile
-    call cable_pack(dat_in(:,k),dummy_unpack(:),n)
+  do nb = 1,maxnb
+    dummy_unpack(:) = 0._8  
+    call cable_pack(dat_in(:,k),dummy_unpack(:),nb)
   end do
-  where ( veg%iveg(:)==mm .and. dummy_unpack(:)>0._8 )
+  where ( veg%iveg(:)==mm .and. dummy_unpack(:)>1.e-8_8 )
     dat_out(:,k) = dummy_unpack(:)
   end where
 end do
@@ -7474,7 +7473,7 @@ select case(vname)
         dat_out(:) = real(cwood(n))
       case(3)
         dat_out(:) = real(cfroot(n))
-    end select    
+    end select  
     call cable_casatile_work(n,casapool%cplant(:,k),dat_out)
   case("nplant")
     select case(k)
@@ -7570,20 +7569,18 @@ use newmpar_m
 implicit none
 
 integer, intent(in) :: n
-integer ntile
+integer nb
 real, dimension(:), intent(inout) :: dat_out
 real(kind=8), dimension(:), intent(in) :: dat_in
 integer, dimension(size(dat_out)) :: iveg_local
 real, dimension(size(dat_out)) :: dat_local
 
-dat_out(:) = 0.
-
-do ntile = 1,maxtile
-  if ( n<=maxnb ) then
-    call cable_unpack(veg%iveg,iveg_local,ntile)
-    call cable_unpack(dat_in,dat_local,ntile)
-  end if
-  where ( iveg_local(:)==n )
+do nb = 1,maxnb
+  iveg_local(:) = 0  
+  call cable_unpack(veg%iveg,iveg_local,nb)
+  dat_local(:) = 0.
+  call cable_unpack(dat_in,dat_local,nb)
+  where ( iveg_local(:)==n .and. dat_local(:)>1.e-8 )
     dat_out(:) = dat_local(:)
   end where
 end do

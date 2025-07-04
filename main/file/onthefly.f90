@@ -1832,9 +1832,12 @@ if ( nested/=1 .and. nested/=3 ) then
 
   if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
     if ( ccycle/=0 .and. carbon2_found ) then
-      allocate( carb_plant(ifull,mplant,3,14) )
-      allocate( carb_litter(ifull,mlitter,3,14) )
-      allocate( carb_soil(ifull,msoil,3,14) )
+      if ( myid==0 ) then
+        write(6,*) "-> Read CASA carbon tiles for each PFT"
+      end if  
+      allocate( carb_plant(ifull,mplant,3,11) )
+      allocate( carb_litter(ifull,mlitter,3,11) )
+      allocate( carb_soil(ifull,msoil,3,11) )
       carb_plant(:,:,:,:) = 0.
       carb_litter(:,:,:,:) = 0.
       carb_soil(:,:,:,:) = 0.
@@ -1858,25 +1861,25 @@ if ( nested/=1 .and. nested/=3 ) then
         write(vname,'("p",I2.2,"_psoil")') n
         call fillhist4(vname,carb_soil(:,:,3,n),sea_a,fill_sea)
       end do
-      n = 14
+      n = 14 ! use index 11 to store pft 14
       write(vname,'("p",I2.2,"_cplant")') n
-      call fillhist4(vname,carb_plant(:,:,1,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_plant(:,:,1,11),sea_a,fill_sea)
       write(vname,'("p",I2.2,"_nplant")') n
-      call fillhist4(vname,carb_plant(:,:,2,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_plant(:,:,2,11),sea_a,fill_sea)
       write(vname,'("p",I2.2,"_pplant")') n
-      call fillhist4(vname,carb_plant(:,:,3,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_plant(:,:,3,1),sea_a,fill_sea)
       write(vname,'("p",I2.2,"_clitter")') n
-      call fillhist4(vname,carb_litter(:,:,1,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_litter(:,:,1,11),sea_a,fill_sea)
       write(vname,'("p",I2.2,"_nlitter")') n
-      call fillhist4(vname,carb_litter(:,:,2,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_litter(:,:,2,11),sea_a,fill_sea)
       write(vname,'("p",I2.2,"_plitter")') n
-      call fillhist4(vname,carb_litter(:,:,3,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_litter(:,:,3,11),sea_a,fill_sea)
       write(vname,'("p",I2.2,"_csoil")') n
-      call fillhist4(vname,carb_soil(:,:,1,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_soil(:,:,1,11),sea_a,fill_sea)
       write(vname,'("p",I2.2,"_nsoil")') n
-      call fillhist4(vname,carb_soil(:,:,2,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_soil(:,:,2,11),sea_a,fill_sea)
       write(vname,'("p",I2.2,"_psoil")') n
-      call fillhist4(vname,carb_soil(:,:,3,n),sea_a,fill_sea)
+      call fillhist4(vname,carb_soil(:,:,3,11),sea_a,fill_sea)
     end if
   end if
   
