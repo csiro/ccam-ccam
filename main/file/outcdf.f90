@@ -5049,8 +5049,10 @@ if ( mod(ktau,tbave)==0 ) then
         zg_level(iq) = (phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx)/grav
         sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
         wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx) ! omega
-        wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*ps(iq)) * &
-                       ( wa_level(iq) - sig_level*dpsdt(iq)/864. ) ! convert dpsdt to Pa/s
+        !wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*ps(iq)) * &
+        !               ( wa_level(iq) - sig_level*dpsdt(iq)/864. ) ! convert dpsdt to Pa/s
+        ! MJT use NCAR formula for consistancy
+        wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*ps(iq)) * wa_level(iq)
       end do
       call cordex_name(vname,"ua",press_level)
       call histwrt(ua_level,trim(vname),fncid,fiarch,local,l6hr) 
@@ -5090,8 +5092,7 @@ if ( mod(ktau,tbave)==0 ) then
   !      zg_level(iq) = zg_level(iq)/grav
   !      sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
   !      wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx)
-  !      wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*psl(iq)) * &
-  !                     ( wa_level(iq) - sig_level*dpsdt(iq)/864. ) ! convert dpsdt to Pa/s
+  !      wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*psl(iq)) * wa_level(iq)
   !    end do
   !    call cordex_name(vname,"ua",press_level)
   !    call histwrt(ua_level,trim(vname),fncid,fiarch,local,l6hr) 
