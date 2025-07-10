@@ -776,12 +776,6 @@ select case (ccycle)
     else
       lalloc = 0  
     end if
-    !if ( abs(mod(real(casaperiod),dt))>1.e-20 ) then
-    !  write(6,*) "ERROR: Invalid casaperiod ",casaperiod
-    !  write(6,*) "Period must be an integer multiple of the time-step dt ",dt
-    !  write(6,*) "Please adjust deltpool from CABLE CASA-CNP accordingly"
-    !  stop
-    !end if
     casamet%tairk = casamet%tairk + met%tk
     casamet%tsoil = casamet%tsoil + ssnow%tgg
     casamet%moist = casamet%moist + ssnow%wb
@@ -1294,7 +1288,7 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
     if ( casamet%iveg2(np)/=icewater .and. casamet%glai(np)>casabiome%glaimin(ivt) .and. &
          casapool%cplant(np,leaf)>0._8 ) then
 
-      if (icycle>1 .and. casapool%cplant(np,leaf)>0._8) then
+      if (ccycle>1 .and. casapool%cplant(np,leaf)>0._8) then
          ncleafx(np) = min( casabiome%ratioNCplantmax(ivt,leaf),                  &
                        max( casabiome%ratioNCplantmin(ivt,leaf),                  &
                             casapool%nplant(np,leaf)/casapool%cplant(np,leaf) ) )
@@ -1901,6 +1895,8 @@ do tile = 1,ntiles
   tdata(tile)%maxnb = 0
 end do
 
+icycle = ccycle
+
 if ( mp_global>0 ) then
 
   climate%nyear_average = 20
@@ -2495,16 +2491,8 @@ if ( fflag == 1  ) then
   if ( myid == 0 ) then
     write(6,*) "-> Using user defined CASA PFT parameter tables"
     open(86,file=fcasapft,status='old',action='read',iostat=ierr)
-  end if
-  call ccmpi_bcast(ierr,0,comm_world)
-  if ( ierr/=0 ) then
-    if ( myid == 0 ) then
-      write(6,*) "ERROR: Cannot open casapftfile=",trim(fcasapft)
-    end if
     call ccmpi_abort(-1)
-  end if
 
-  if ( myid == 0 ) then
     write(6,*) "-> Reading ",trim(fcasapft)
 
     do i=1,3
@@ -2597,6 +2585,18 @@ if ( fflag == 1  ) then
         call ccmpi_abort(-1)
        end if
     enddo
+    
+    if ( cable_pop==1 ) then
+      if ( cwood(1)>0.02_8 ) then
+        write(6,*) "ERROR: casapftfile is not configured for POP"
+        call ccmpi_abort(-1)
+      end if
+    else
+      if ( cwood(1)<0.02_8 ) then
+        write(6,*) "ERROR: casapftfile is configured for POP"
+        call ccmpi_abort(-1)          
+      end if
+    end if
 
     read(86,*)
     read(86,*)
@@ -3115,7 +3115,7 @@ if ( mp_global>0 ) then
   casabiome%soilrate(:,pass)   = deltcasa/passage
   casabiome%xkleafcoldmax      = deltcasa*xxkleafcoldmax
   casabiome%xkleafdrymax       = deltcasa*xxkleafdrymax
-  casabiome%rmplant            = casabiome%rmplant*deltcasa
+  casabiome%rmplant            = deltcasa*casabiome%rmplant
   casabiome%kclabrate          = deltcasa/clabileage
 
   casabiome%xnpmax(:)          = xxnpmax(:)
@@ -7483,7 +7483,7 @@ select case(vname)
         dat_out(:) = real(nwood(n))
       case(3)
         dat_out(:) = real(nfroot(n))
-    end select         
+    end select
     call cable_casatile_work(n,casapool%nplant(:,k),dat_out)
   case("pplant")
     select case(k)
