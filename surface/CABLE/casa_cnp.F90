@@ -453,19 +453,10 @@ CONTAINS
 
 
     ! normalization the allocation fraction to ensure they sum up to 1
-#ifdef CCAM
-    totfracCalloc(:) = sum(casaflux%fracCalloc(:,:),2)
-    where ( totfracCalloc(:) > 0. )
-      casaflux%fracCalloc(:,leaf) = casaflux%fracCalloc(:,leaf)/totfracCalloc(:)
-      casaflux%fracCalloc(:,wood) = casaflux%fracCalloc(:,wood)/totfracCalloc(:)
-      casaflux%fracCalloc(:,froot) = casaflux%fracCalloc(:,froot)/totfracCalloc(:)
-    end where  
-#else
     totfracCalloc(:) = sum(casaflux%fracCalloc(:,:),2)
     casaflux%fracCalloc(:,leaf) = casaflux%fracCalloc(:,leaf)/totfracCalloc(:)
     casaflux%fracCalloc(:,wood) = casaflux%fracCalloc(:,wood)/totfracCalloc(:)
     casaflux%fracCalloc(:,froot) = casaflux%fracCalloc(:,froot)/totfracCalloc(:)
-#endif
 
   END SUBROUTINE casa_allocation
 
@@ -568,10 +559,6 @@ CONTAINS
     casaflux%crgplant = 0.0
     casaflux%clabloss = 0.0
 
-#ifdef CCAM
-    casaflux%Cnpp = 0.
-#endif
-
     IF (cable_user%CALL_climate) THEN
        ! coefficients required to implement T-acclimation of autotrophic respiration (Ticket # 110)
        ! adapted from Atkin et al., New Phyt., 2015)
@@ -587,24 +574,6 @@ CONTAINS
           ELSE
              vcmaxmax(npt) = vcmax_np(nleaf(npt), pleaf(npt))
           ENDIF
-	  
-#ifdef CCAM
-        if (cable_user%finite_gm) then
-           if (ivt.eq.1) then
-              vcmaxmax(npt) = vcmaxmax(npt) * 2.2
-           elseif (ivt.eq.2) then
-              vcmaxmax(npt) = vcmaxmax(npt) * 1.9
-           elseif (ivt.eq.3) then
-              vcmaxmax(npt) = vcmaxmax(npt) * 1.4
-           elseif (ivt.eq.4) then
-              vcmaxmax(npt) = vcmaxmax(npt) * 1.45
-           elseif (ivt.eq.5) then
-              vcmaxmax(npt) = vcmaxmax(npt) * 1.7
-           elseif (ivt.eq.6 .OR. ivt.eq.8  .OR. ivt.eq.9) then
-              vcmaxmax(npt) = vcmaxmax(npt) * 1.6
-           endif
-        endif
-#endif
 	  
 	  
           IF (veg%iveg(npt).EQ.2 .OR. veg%iveg(npt).EQ. 4  ) THEN
