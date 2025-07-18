@@ -136,14 +136,6 @@ integer, dimension(3) :: posmin3, posmax3
 real :: maxconvtime = 120.  ! time-step for convection
 real :: tdt
 
-! calculate qtot
-! do k = 1,kl
-!   rhoa(:) = ps(1:ifull)*sig(k)/(rdry*t(1:ifull,k))
-!   qtot(:,k) = qg(1:ifull,k)*rhoa(:,k) +  &
-!               qlg(1:ifull,k)*rhoa(:,k) + &
-!               qfg(1:ifull,k)*rhoa(:,k) + &
-!               qrg(1:ifull,k)*rhoa(:,k) + 
-
 !$omp do schedule(static) private(tile,js,je,qamin,k,iq,prf_temp,prf,itf,ktf,its,ite,kts,kte) &
 !$omp private(dicycle,ichoice,ipr,ccn,ccnclean,dtime,imid,dhdt,rothz,thz,rhoa,zpres,xland,zo) &
 !$omp private(zo,kpbl,forcing,g_t,g_q,z1,tn,qo,po,psur,g_us,g_vs,g_rho,hfx,qfx,dx,mconv,omeg) &
@@ -174,7 +166,7 @@ do tile = 1,ntiles
   ! add input for convection for each imax section of the tile
   ! RHS: js to je, from ifull ! LHS: a section of imax (1:imax) --> goes to cumulus subroutine
   itf       = imax            ! not sure why sometime it goes from its --> itf
-  ktf       = kl-1            ! MJT suggestion to avoid bug on line 1874
+  ktf       = kl-1            ! MJT suggestion to avoid bug on line 1874 of cu_gf_deep.F90
   its       = 1               ! this for its:ite in dims
   ite       = imax
   kts       = 1               ! this for kts:kte in dims
@@ -193,6 +185,7 @@ do tile = 1,ntiles
   elsewhere
     xland(1:imax) = 0.
   end where
+  po = zpres
   zo(1:imax,1) = bet(1)*t(js:je,1)/grav ! heights above surface
   do k = 2,kl
     zo(1:imax,k) = zo(1:imax,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav ! heights above surface
@@ -206,10 +199,9 @@ do tile = 1,ntiles
   forcing    = 0.             ! only diagnostic
   g_t        = t(js:je,:)     ! t before forcing   ! check whether abs t or potential (t/sigkap(k)) or take tothz above
   g_q        = qg(js:je,:)    ! q before forcing
+  tn         = g_t
+  qo         = g_q
   z1         = zs(js:je)/grav ! terrain                                             ! elevation
-  tn         = t(js:je,:)     ! t including forcing
-  qo         = qg(js:je,:)    ! q including forcing
-  po         = zpres(1:imax,:)*0.01 ! pressure (mb)
   psur       = ps(js:je)*0.01      ! surface pressure (mb)
   g_us       = u(js:je,:)     ! u on mass points
   g_vs       = v(js:je,:)     ! v on mass points
@@ -217,9 +209,8 @@ do tile = 1,ntiles
   hfx        = fg(js:je)      ! w/m2, positive upward
   qfx        = eg(js:je)      ! w/m2, positive upward
   dx         = ds/em(js:je)   ! dx is grid point dependent here     ! CHECK IF THIS KM OR NOT, ds/em(js:je) IS IN METER
-  mconv(:) = 0.
-  do k = 1,kl                 ! integrated vertical advection of moisture
-    mconv(1:imax) = mconv(1:imax) + dsig(k)*qg(js:je,k)             ! CHECK this one in !  dsig = delta sigma
+  mconv(:)   = 0.             ! integrated vertical advection of moisture
+  do k = 1,kl                 
     omeg(1:imax,k) =  ps(js:je)*dpsldt(js:je,k)         ! omega (pa/s)
   end do
   csum       = 0.              ! used to implement memory, set to zero if not avail
@@ -274,7 +265,7 @@ do tile = 1,ntiles
   njumps = int(dtime/(maxconvtime+0.01)) + 1
   tdt    = real(dtime/real(njumps))
   do n = 1,njumps
-    pre = 0.
+    pre = 0. ! mm/s?
     call cu_gf_deep_run(   &
              itf           &
             ,ktf           &
@@ -297,8 +288,8 @@ do tile = 1,ntiles
             ,g_t           &  ! t before forcing
             ,g_q           &  ! q before forcing
             ,z1            &  ! terrain
-            ,g_t           &  ! t including forcing
-            ,g_q           &  ! q including forcing
+            ,tn            &  ! t including forcing
+            ,qo            &  ! q including forcing
             ,po            &  ! pressure (mb)
             ,psur          &  ! surface pressure (mb)
             ,g_us          &  ! u on mass points

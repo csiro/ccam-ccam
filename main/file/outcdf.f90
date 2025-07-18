@@ -4292,6 +4292,9 @@ if ( first ) then
     if ( driving_experiment_name /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_experiment_name',trim(driving_experiment_name))
     end if 
+    
+    ! solar data
+    call ccnf_put_attg(fncid,'bpyear',bpyear)
 
     ! define variables
     if ( local ) then
@@ -5372,6 +5375,9 @@ if ( first ) then
     if ( driving_experiment_name /= ' ' ) then
       call ccnf_put_attg(fncid,'driving_experiment_name',trim(driving_experiment_name))
     end if 
+    
+    ! solar data
+    call ccnf_put_attg(fncid,'bpyear',bpyear)
     
     ! define variables
     if ( local ) then
