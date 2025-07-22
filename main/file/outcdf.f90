@@ -4497,8 +4497,9 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'snd',lname,'mm',0.,6500.,sixhr_m,point_m,float_m)
     end if
     if ( cordex_tier1 ) then
+      ! fracice / siconca is supposed to be daily.  But we use 6hourly to make a sensible output for AXIOM
       lname = 'Sea ice fraction'
-      call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,daily_m,point_m,short_m)
+      call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,sixhr_m,point_m,short_m)
       lname = 'Sunshine hours per day'
       call attrib(fncid,sdim,ssize,'sunhours',lname,'hrs',0.,24.,daily_m,sum_m,short_m)
     end if
