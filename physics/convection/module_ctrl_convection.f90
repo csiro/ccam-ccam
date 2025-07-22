@@ -185,7 +185,7 @@ do tile = 1,ntiles
   elsewhere
     xland(1:imax) = 0.
   end where
-  po(1:imax) = zpres(1:imax)*0.01 ! mb
+  po(1:imax,:) = zpres(1:imax,:)*0.01 ! mb
   zo(1:imax,1) = bet(1)*t(js:je,1)/grav ! heights above surface
   do k = 2,kl
     zo(1:imax,k) = zo(1:imax,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav ! heights above surface
