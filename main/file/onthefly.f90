@@ -1835,6 +1835,7 @@ if ( nested/=1 .and. nested/=3 ) then
       if ( myid==0 ) then
         write(6,*) "-> Read CASA carbon tiles for each PFT"
       end if  
+      ! allocated here to be used in cable_ccam2.f90 where it is deallocated
       allocate( carb_plant(ifull,mplant,3,11) )
       allocate( carb_litter(ifull,mlitter,3,11) )
       allocate( carb_soil(ifull,msoil,3,11) )

@@ -177,15 +177,15 @@ do tile = 1,ntiles
   ccn       = 0.              ! not well tested yet
   ccnclean  = 0.
   dtime     = dt              ! dt over which forcing is applied
-  imid      = 1               ! flag to turn on mid level convection                ! == 1 turn on
-  dhdt(:,:) = 0.              ! boundary layer forcing (one closure for shallow)
+  imid      = 0               ! flag to turn on mid level convection                ! == 1 turn on
+  dhdt(:,:) = 0.              ! boundary layer forcing (one closure for shallow)    ! required for imid=1
 
   where ( land(js:je) )       ! land mask
     xland(1:imax) = 1.
   elsewhere
     xland(1:imax) = 0.
   end where
-  po = zpres
+  po(1:imax) = zpres(1:imax)*0.01 ! mb
   zo(1:imax,1) = bet(1)*t(js:je,1)/grav ! heights above surface
   do k = 2,kl
     zo(1:imax,k) = zo(1:imax,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav ! heights above surface
@@ -202,7 +202,7 @@ do tile = 1,ntiles
   tn         = g_t
   qo         = g_q
   z1         = zs(js:je)/grav ! terrain                                             ! elevation
-  psur       = ps(js:je)*0.01      ! surface pressure (mb)
+  psur       = ps(js:je)*0.01 ! surface pressure (mb)
   g_us       = u(js:je,:)     ! u on mass points
   g_vs       = v(js:je,:)     ! v on mass points
   g_rho      = rhoa(1:imax,:)  ! density

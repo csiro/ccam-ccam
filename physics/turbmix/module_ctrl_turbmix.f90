@@ -188,7 +188,7 @@ else
 end if
 
 select case(nvmix)
-case(6,9)  
+  case(6,9)  
     ! k-e + MF closure scheme
     
     !$omp do schedule(static) private(is,ie,k)             &
