@@ -199,8 +199,6 @@ do tile = 1,ntiles
   forcing    = 0.             ! only diagnostic
   g_t        = t(js:je,:)     ! t before forcing   ! check whether abs t or potential (t/sigkap(k)) or take tothz above
   g_q        = qg(js:je,:)    ! q before forcing
-  tn         = g_t
-  qo         = g_q
   z1         = zs(js:je)/grav ! terrain                                             ! elevation
   psur       = ps(js:je)*0.01 ! surface pressure (mb)
   g_us       = u(js:je,:)     ! u on mass points
@@ -265,6 +263,8 @@ do tile = 1,ntiles
   njumps = int(dtime/(maxconvtime+0.01)) + 1
   tdt    = real(dtime/real(njumps))
   do n = 1,njumps
+    tn = g_t
+    qo = g_q
     pre = 0. ! mm/s?
     call cu_gf_deep_run(   &
              itf           &
