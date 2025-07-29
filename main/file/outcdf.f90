@@ -471,6 +471,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nmlo',nmlo)
     call ccnf_put_attg(idnc,'nrad',nrad)
     call ccnf_put_attg(idnc,'nritch_t',nritch_t)
+    call ccnf_put_attg(idnc,'nrungcm',nrungcm)
     call ccnf_put_attg(idnc,'nsemble',nsemble)
     call ccnf_put_attg(idnc,'nsib',nsib)
     call ccnf_put_attg(idnc,'nsigmf',nsigmf)

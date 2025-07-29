@@ -5003,7 +5003,7 @@ if ( qv_check ) then
     write(6,*) "ERROR: NaN detected in qg on myid=",myid," at ",trim(message)
     call ccmpi_abort(-1)
   end if
-  if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>8.e-2) ) then
+  if ( any(qg(js:je,1:kl)<-1.e-8) .or. any(qg(js:je,1:kl)>9.e-2) ) then
     write(6,*) "ERROR: Out-of-range detected in qg on myid=",myid," at ",trim(message)
     write(6,*) "minval,maxval ",minval(qg(js:je,1:kl)),maxval(qg(js:je,1:kl))
     posmin = minloc(qg(js:je,1:kl))
