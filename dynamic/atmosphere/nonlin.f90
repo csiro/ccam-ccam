@@ -149,9 +149,7 @@ if ( diag .or. nmaxpr==1 ) then
 end if
 
 if ( nhstest==1 ) then ! Held and Suarez test case
-  !$omp parallel
   call hs_phys
-  !$omp end parallel
 endif
 
 if ( diag ) then

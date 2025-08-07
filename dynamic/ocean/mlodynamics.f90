@@ -304,6 +304,8 @@ real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull) :: sdiv, imu, imv
 real, dimension(ifull) :: oeu_iwu, oev_isv
 real, dimension(ifull) :: bu, bv, cu, cv
+real, dimension(ifull,wlev,6) :: s_store
+real, dimension(ifull+iextra,wlev,4) :: s_work
 real, dimension(ifull+iextra,wlev,3) :: cou
 real, dimension(ifull+iextra,wlev) :: cc
 real, dimension(ifull+iextra,wlev) :: eou, eov, ccu, ccv
@@ -772,26 +774,53 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
   
   
-#ifdef GPU
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
-#endif
   
+  s_store(1:ifull,1:wlev,1) = mps(1:ifull,1:wlev)
+  s_store(1:ifull,1:wlev,2:4) = cou(1:ifull,1:wlev,1:3)
+  s_store(1:ifull,1:wlev,5) = nt(1:ifull,1:wlev)
+  s_store(1:ifull,1:wlev,6) = ns(1:ifull,1:wlev)
+  
+  call mlofill(mps,wtr,mlo_zero)
+  call mlofill(cou(:,:,1:3),wtr,mlo_fill)
+  call mlofill(nt,wtr,mlo_fill)
+  call mlofill(ns,wtr,mlo_sal)
   
   ! Horizontal advection for U, V, W, T, continuity and S
-  bs_test = mlo_bs<=2
-  call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,0,bs_test,mlointschf)
-  bs_test = mlo_bs<=3
-  call mlob2ints_bs(nt,nface,xg,yg,wtr,0,bs_test,mlointschf)
-  bs_test = mlo_bs<=1
-  call mlob2ints_bs(mps,nface,xg,yg,wtr,2,bs_test,mlointschf)
-  bs_test = mlo_bs<=4
-  call mlob2ints_bs(ns,nface,xg,yg,wtr,1,bs_test,mlointschf)
+  if ( mlo_bs<1 .or. mlo_bs>=2 ) then
+    bs_test = mlo_bs<=2
+    s_work(:,:,1) = mps(:,:)
+    s_work(:,:,2:4) = cou(:,:,1:3)
+    call mlob2ints_bs(s_work(:,:,1:4),nface,xg,yg,wtr,bs_test,mlointschf)
+    mps(:,:) = s_work(:,:,1)
+    cou(:,:,1:3) = s_work(:,:,2:4)
+  else
+    bs_test = mlo_bs<=1
+    call mlob2ints_bs(mps,nface,xg,yg,wtr,bs_test,mlointschf)
+    bs_test = mlo_bs<=2
+    call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,bs_test,mlointschf)
+  end if
+  if ( mlo_bs<3 .or. mlo_bs>=4 ) then
+    bs_test = mlo_bs<=4
+    s_work(:,:,1) = nt(:,:)
+    s_work(:,:,2) = ns(:,:)
+    call mlob2ints_bs(s_work(:,:,1:2),nface,xg,yg,wtr,bs_test,mlointschf)
+    nt(:,:) = s_work(:,:,1)
+    ns(:,:) = s_work(:,:,2)
+  else
+    bs_test = mlo_bs<=3
+    call mlob2ints_bs(nt,nface,xg,yg,wtr,bs_test,mlointschf)
+    bs_test = mlo_bs<=4
+    call mlob2ints_bs(ns,nface,xg,yg,wtr,bs_test,mlointschf)
+  end if
   
+  call mloclean(mps,s_store(:,:,1),wtr,mlo_zero)
+  call mloclean(cou(:,:,1:3),s_store(:,:,2:4),wtr,mlo_fill)
+  call mloclean(nt,s_store(:,:,5),wtr,mlo_fill)
+  call mloclean(ns,s_store(:,:,6),wtr,mlo_sal)
   
-#ifdef GPU
   !$acc end data
-#endif
 
   
   ! Rotate vector to arrival point

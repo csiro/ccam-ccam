@@ -150,7 +150,6 @@ character(len=8) :: cmode, dmode
 !----------------------------------------------------------------------------
 ! Prepare inputs for cloud microphysics
 
-!$omp do schedule(static) private(js,je,k,lrhoa,lcdrop)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -164,10 +163,7 @@ do tile = 1,ntiles
   call aerodrop(js,lcdrop,lrhoa,outconv=.true.)
   cdrop(js:je,:) = lcdrop(:,:)
 end do
-!$omp end do nowait
 
-
-!$omp do schedule(static) private(js,je,lclcon)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -175,15 +171,11 @@ do tile = 1,ntiles
   call convectivecloudfrac(lclcon,kbsav(js:je),ktsav(js:je),condc(js:je),acon,bcon)
   clcon(js:je,:) = lclcon(:,:)
 end do
-!$omp end do nowait
 
 
 !----------------------------------------------------------------------------
 ! Update cloud fraction
 
-!$omp do schedule(static) private(js,je,idjd_t,mydiag_t,lcfrac)       &
-!$omp private(lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,cmode)            &
-!$omp private(ldpsldt,lnettend,lstratcloud,lclcon,lrkmsave,lrkhsave)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -240,7 +232,6 @@ do tile = 1,ntiles
   qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
   
 end do
-!$omp end do nowait
 
   
 !----------------------------------------------------------------------------
@@ -248,14 +239,6 @@ end do
 select case ( interp_ncloud(ldr,ncloud) )
   case("LEON")
 
-    !$omp do schedule(static) private(js,je,idjd_t,mydiag_t),                     &
-    !$omp private(lgfrac,lrfrac,lsfrac),                                          &
-    !$omp private(lppfevap,lppfmelt,lppfprec,lppfsnow,lppfsubl),                  &
-    !$omp private(lpplambs,lppmaccr,lppmrate,lppqfsedice,lpprfreeze,lpprscav),    &
-    !$omp private(lqfg,lqg,lqgrg,lqlg,lqrg,lqsng,lt),                             &
-    !$omp private(lstratcloud,lcdrop),                                            &
-    !$omp private(lfluxr,lfluxm,lfluxf,lfluxi,lfluxs,lfluxg),                     &
-    !$omp private(lqevap,lqsubl,lqauto,lqcoll,lqaccr,lvi,qlg_rem,qfg_rem)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -333,22 +316,10 @@ select case ( interp_ncloud(ldr,ncloud) )
         pprscav(js:je,:)    = lpprscav
       end if
     end do
-    !$omp end do nowait
 
 
   case( "LIN" )
 
-    !$omp do schedule(static) private(js,je,riz,zlevv,zqg,zqlg,zqrg,zqfg)     &
-    !$omp private(zqsng,k,iq,prf_temp,prf,tothz,thz,zrhoa,zpres,dzw,znc)      &
-    !$omp private(zcdrop,znr,zni,zns,pptrain,pptsnow,pptice,njumps,tdt,n)     &
-    !$omp private(zeffc1d,zeffi1d,zeffs1d,zeffr1d,zfluxr,zfluxi,zfluxs)       &
-    !$omp private(zfluxm,zfluxf,zqevap,zqsubl,zqauto,zqcoll,zqaccr)           &
-    !$omp private(zpsnow,zpsaut)                                              &
-    !$omp private(zpsfw,zpsfi,zpraci,zpiacr,zpsaci,zpsacw,zpsdep,zpssub)      &
-    !$omp private(zpracs,zpsacr,zpsmlt,zpsmltevp,zprain,zpraut,zpracw)        &
-    !$omp private(zprevp,zpgfr,zpvapor,zpclw,zpladj,zpcli,zpimlt,zpihom)      &
-    !$omp private(zpidw,zpiadj,zqschg)                                        &
-    !$omp private(zvi,njumps,tdt,qlg_rem,qfg_rem)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
@@ -519,7 +490,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel
 
     end do     !tile loop
-    !$omp end do nowait
 
   case default
     write(6,*) "ERROR: unknown cloud microphysics option"
@@ -532,8 +502,6 @@ end select
 ! Update radiation properties
 select case ( interp_ncloud(ldr,ncloud) )
   case("LEON")
-    !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
-    !$omp private(l_rliq,l_rice,l_cliq,l_cice)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -554,12 +522,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       stras_cliq(js:je,:) = l_cliq
       stras_cice(js:je,:) = l_cice
     end do
-    !$omp end do nowait
-
 
   case( "LIN" )
-    !$omp do schedule(static) private(js,je,iq,k,lcfrac,lqlg,lqfg,lt,lcdrop,lp) &
-    !$omp private(l_rliq,l_rice,l_cliq,l_cice,l_rliq_in,l_rice_in,l_rsno_in)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -582,7 +546,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       stras_cliq(js:je,:) = l_cliq
       stras_cice(js:je,:) = l_cice
     end do
-    !$omp end do nowait
 
   case default
     write(6,*) "ERROR: unknown mp_physics option "
@@ -595,7 +558,6 @@ end select
 ! Aerosol feedbacks
 if ( abs(iaero)>=2 ) then
   if ( interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0  ) then
-    !$omp do schedule(static) private(js,je,iq,k,fcol,fr,alph)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -654,7 +616,6 @@ if ( abs(iaero)>=2 ) then
         end do  
       end do
     end do ! tile
-    !$omp end do nowait
   end if   ! interp_ncloud(ldr,ncloud)/="LEON".or.cloud_aerosol_mode>0
 end if     ! abs(iaero)>=2
 

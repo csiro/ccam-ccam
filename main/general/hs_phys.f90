@@ -39,8 +39,6 @@ integer :: tile, is, ie
 real, dimension(imax) :: lrlatt
 real, dimension(imax,kl) :: lt, lu, lv
 
-!$omp do schedule(static) private(is,ie), &
-!$omp private(lrlatt,lt,lu,lv)
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -57,7 +55,6 @@ do tile=1,ntiles
   v(is:ie,:) = lv
   
 end do
-!$omp end do nowait
 
 return
 end subroutine hs_phys

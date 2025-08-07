@@ -101,7 +101,6 @@ ntiles = ifull/imax
 
 ! the Thomas algorithm is used
 
-!$omp do schedule(static) private(js,je,n,i,iq,b,temp)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -145,7 +144,6 @@ do tile = 1,ntiles
   end do
   
 end do ! tile = 1,ntiles
-!$omp end do nowait
 
 return
 end subroutine trimmix3

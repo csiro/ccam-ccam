@@ -323,7 +323,7 @@ leoncld.o cloudmod.o latltoij.o module_aux_rad.o module_ctrl_microphysics.o \
 module_mp_sbu_ylin.o \
 cldblk.o clddia.o clo89.o cloud.o cloud2.o co2_read.o e1e288.o \
 e3v88.o fst88.o hconst.o lwr88.o ozoneread.o spa88.o \
-swr99.o table.o zenith.o cc_acc.o cc_mpi.o cc_omp.o diag_m.o sumdd_m.o daviesnudge.o \
+swr99.o table.o zenith.o cc_acc.o cc_mpi.o diag_m.o sumdd_m.o daviesnudge.o \
 utilities.o onthefly.o tracermodule.o timeseries.o \
 trvmix.o getopt_m.o usage_m.o const_phys.o \
 betts.o bett_cuc.o bettinit.o bettrain.o bettspli.o \
@@ -444,7 +444,7 @@ casa_dimension.o : cable_define_types.o
 casa_param.o : casa_dimension.o
 casa_phenology.o : casa_dimension.o
 casa_variable.o : cable_define_types.o casa_dimension.o casa_param.o
-cc_mpi.o : cc_omp.o const_phys.o indices_m.o latlong_m.o map_m.o newmpar_m.o sumdd_m.o vecsuv_m.o workglob_m.o xyzinfo_m.o
+cc_mpi.o : const_phys.o indices_m.o latlong_m.o map_m.o newmpar_m.o sumdd_m.o vecsuv_m.o workglob_m.o xyzinfo_m.o
 clddia.o : arrays_m.o cc_mpi.o const_phys.o kuocom_m.o map_m.o morepbl_m.o newmpar_m.o parm_m.o pbl_m.o sigs_m.o soil_m.o vvel_m.o
 clo89.o : cldcom_m.o parm_m.o radisw_m.o rdparm.h
 cloud2.o : diag_m.o cc_mpi.o const_phys.o kuocom_m.o leoncld.o newmpar_m.o parm_m.o radisw_m.o sigs_m.o hcon.h rdparm.h
@@ -467,7 +467,7 @@ fst88.o : cc_mpi.o cldcom_m.o diag_m.o kdacom_m.o lwout_m.o newmpar_m.o parm_m.o
 gas_tf.o : longwave_params.o rad_utilities.o
 gdrag_m.o : cc_mpi.o arrays_m.o const_phys.o newmpar_m.o nharrs_m.o parm_m.o pbl_m.o sigs_m.o
 gettin.o : arrays_m.o newmpar_m.o savuvt_m.o
-globpe.o : aerointerface.o aerosol_arrays.o amipsst.o arrays_m.o bigxy4_m.o cc_acc.o cc_mpi.o cc_omp.o cfrac_m.o cloudmod.o const_phys.o darcdf_m.o dates_m.o daviesnudge.o diag_m.o dpsdt_m.o ensemble.o epst_m.o estab.o extraout_m.o filnames_m.o gdrag_m.o getopt_m.o histave_m.o hordifg.o hs_phys.o indata.o indices_m.o infile.o kuocom_m.o latlong_m.o liqwpar_m.o map_m.o mlodynamics.o module_aux_rad.o module_ctrl_convection.o module_ctrl_microphysics.o module_ctrl_turbmix.o morepbl_m.o nesting.o newmpar_m.o nharrs_m.o nlin_m.o nsibd_m.o outcdf.o ozoneread.o parm_m.o parmdyn_m.o parmgeom_m.o parmhdff_m.o parmhor_m.o parmvert_m.o pbl_m.o permsurf_m.o prec_m.o raddiag_m.o river.o savuvt_m.o savuv1_m.o sbar_m.o screen_m.o seaesfrad.o setxyz.o sflux.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o staguv.o stime_m.o tbar2d_m.o timeseries.o tkeeps.o tracermodule.o tracers_m.o trvmix.o unn_m.o usage_m.o uvbar_m.o vecs_m.o vecsuv_m.o vegpar_m.o vvel_m.o workglob_m.o work2_m.o work3_m.o work3f_m.o work3sav_m.o xarrs_m.o xyzinfo_m.o version.h
+globpe.o : aerointerface.o aerosol_arrays.o amipsst.o arrays_m.o bigxy4_m.o cc_acc.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o darcdf_m.o dates_m.o daviesnudge.o diag_m.o dpsdt_m.o ensemble.o epst_m.o estab.o extraout_m.o filnames_m.o gdrag_m.o getopt_m.o histave_m.o hordifg.o hs_phys.o indata.o indices_m.o infile.o kuocom_m.o latlong_m.o liqwpar_m.o map_m.o mlodynamics.o module_aux_rad.o module_ctrl_convection.o module_ctrl_microphysics.o module_ctrl_turbmix.o morepbl_m.o nesting.o newmpar_m.o nharrs_m.o nlin_m.o nsibd_m.o outcdf.o ozoneread.o parm_m.o parmdyn_m.o parmgeom_m.o parmhdff_m.o parmhor_m.o parmvert_m.o pbl_m.o permsurf_m.o prec_m.o raddiag_m.o river.o savuvt_m.o savuv1_m.o sbar_m.o screen_m.o seaesfrad.o setxyz.o sflux.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o staguv.o stime_m.o tbar2d_m.o timeseries.o tkeeps.o tracermodule.o tracers_m.o trvmix.o unn_m.o usage_m.o uvbar_m.o vecs_m.o vecsuv_m.o vegpar_m.o vvel_m.o workglob_m.o work2_m.o work3_m.o work3f_m.o work3sav_m.o xarrs_m.o xyzinfo_m.o version.h
 hconst.o : hcon.h
 helmsolve.o : cc_mpi.o diag_m.o indices_m.o newmpar_m.o parm_m.o parmdyn_m.o parmgeom_m.o sumdd_m.o vecs_m.o
 histave_m.o: parm_m.o
@@ -489,7 +489,7 @@ mlo.o : newmpar_m.o
 mlo_ctrl.o : mlo.o newmpar_m.o
 mlodepts.o : bigxy4_m.o cc_acc.o cc_mpi.o const_phys.o indices_m.o mlo_ctrl.o newmpar_m.o parm_m.o parmgeom_m.o parmhor_m.o vecsuv_m.o xyzinfo_m.o
 mlodiffg.o : cc_acc.o cc_mpi.o const_phys.o indices_m.o map_m.o mlo_ctrl.o mlodynamicsarrays_m.o newmpar_m.o nharrs_m.o parm_m.o soil_m.o vecsuv_m.o
-mlodynamics.o : arrays_m.o bigxy4_m.o cc_acc.o cc_mpi.o cc_omp.o const_phys.o helmsolve.o indices_m.o infile.o latlong_m.o map_m.o mlo_ctrl.o mlodepts.o mlodiffg.o mlodynamicsarrays_m.o mloints.o mlostag.o mlovadvtvd.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o parmgeom_m.o parmhor_m.o soil_m.o soilsnow_m.o soilv_m.o sumdd_m.o vecsuv_m.o xyzinfo_m.o 
+mlodynamics.o : arrays_m.o bigxy4_m.o cc_acc.o cc_mpi.o const_phys.o helmsolve.o indices_m.o infile.o latlong_m.o map_m.o mlo_ctrl.o mlodepts.o mlodiffg.o mlodynamicsarrays_m.o mloints.o mlostag.o mlovadvtvd.o newmpar_m.o nharrs_m.o parm_m.o parmdyn_m.o parmgeom_m.o parmhor_m.o soil_m.o soilsnow_m.o soilv_m.o sumdd_m.o vecsuv_m.o xyzinfo_m.o 
 mloints.o : cc_acc.o cc_mpi.o indices_m.o mlo_ctrl.o newmpar_m.o parm_m.o parmhor_m.o
 mlostag.o : cc_mpi.o indices_m.o mlo_ctrl.o mlodynamicsarrays_m.o newmpar_m.o parm_m.o
 mlovadvtvd.o : cc_acc.o cc_mpi.o mlo_ctrl.o newmpar_m.o
@@ -509,10 +509,10 @@ radriv90.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o cldcom_m.o co2_read.o
 river.o : arrays_m.o cc_mpi.o const_phys.o indices_m.o map_m.o newmpar_m.o nsibd_m.o parm_m.o riverarrays_m.o sflux.o soil_m.o soilsnow_m.o soilv_m.o xyzinfo_m.o 
 riverarrays_m.o : newmpar_m.o
 scrnout.o : arrays_m.o cc_mpi.o const_phys.o diag_m.o estab.o extraout_m.o liqwpar_m.o mlo_ctrl.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o pbl_m.o permsurf_m.o prec_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o tkeeps.o work2_m.o
-seaesfrad.o : aerointerface.o aerosol_arrays.o arrays_m.o cc_mpi.o cc_omp.o cfrac_m.o co2_read.o const_phys.o esfsw_driver.o esfsw_parameters.o estab.o extraout_m.o filnames_m.o infile.o kuocom_m.o latlong_m.o longwave_params.o microphys_rad.o mlo_ctrl.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o ozoneread.o pbl_m.o raddiag_m.o radisw_m.o rad_utilities.o sealw99.o sigs_m.o soil_m.o soilsnow_m.o uclem_ctrl.o work3f_m.o zenith.o
+seaesfrad.o : aerointerface.o aerosol_arrays.o arrays_m.o cc_mpi.o cfrac_m.o co2_read.o const_phys.o esfsw_driver.o esfsw_parameters.o estab.o extraout_m.o filnames_m.o infile.o kuocom_m.o latlong_m.o longwave_params.o microphys_rad.o mlo_ctrl.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o ozoneread.o pbl_m.o raddiag_m.o radisw_m.o rad_utilities.o sealw99.o sigs_m.o soil_m.o soilsnow_m.o uclem_ctrl.o work3f_m.o zenith.o
 sealw99.o : cc_mpi.o filnames_m.o gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_params.o longwave_tables.o lw_gases_stdtf.o optical_path.o rad_utilities.o
 setxyz.o : cc_mpi.o const_phys.o indices_m.o jimcc.o latlong_m.o map_m.o newmpar_m.o utilities.o workglob_m.o 
-sflux.o : arrays_m.o cable_ccam2.o cc_mpi.o cc_omp.o const_phys.o dates_m.o diag_m.o estab.o extraout_m.o gdrag_m.o latlong_m.o liqwpar_m.o map_m.o mlo_ctrl.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o prec_m.o raddiag_m.o riverarrays_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o uclem_ctrl.o vecsuv_m.o vegpar_m.o work2_m.o work3_m.o xyzinfo_m.o 
+sflux.o : arrays_m.o cable_ccam2.o cc_mpi.o const_phys.o dates_m.o diag_m.o estab.o extraout_m.o gdrag_m.o latlong_m.o liqwpar_m.o map_m.o mlo_ctrl.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o prec_m.o raddiag_m.o riverarrays_m.o savuvt_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o uclem_ctrl.o vecsuv_m.o vegpar_m.o work2_m.o work3_m.o xyzinfo_m.o 
 soilsnow.o : arrays_m.o cc_mpi.o const_phys.o diag_m.o morepbl_m.o newmpar_m.o nsibd_m.o parm_m.o permsurf_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o work2_m.o work3_m.o work3b_m.o 
 soilv_m.o : newmpar_m.o
 spa88.o :  cldcom_m.o kdacom_m.o lwout_m.o radisw_m.o rdflux_m.o srccom_m.o tfcom_m.o hcon.h rdparm.h rnddta.h

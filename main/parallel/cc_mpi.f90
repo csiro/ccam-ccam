@@ -35,7 +35,6 @@ module cc_mpi
 ! -Dvampir       is for coupling with VAMPIR for tracers
 ! -Di8r8         is for running in double precision mode
 
-   use cc_omp
 #ifdef usempimod
 #ifdef usempimod_f08
    use mpi_f08
@@ -625,9 +624,6 @@ contains
 
       
       ! Configure halos
-      if ( myid==0 ) then
-         write(6,*) "-> Call bounds_setup"
-      end if
       call bounds_setup(dt)
       if ( myid==0 ) then
          write(6,*) "-> Update halos for constant arrays"
@@ -805,10 +801,6 @@ contains
       lcommin = comm_proc
       call MPI_Comm_Split( lcommin, colour, rank, lcommout, ierr )
       comm_rows = lcommout
-
-      if ( myid==0 ) then
-         write(6,*) "-> Finish ccmpi_setup"
-      end if
             
    return
    end subroutine ccmpi_setup
@@ -2041,7 +2033,7 @@ contains
       lnne = huge(1)
 
       if ( myid==0 ) then
-         write(6,*) "-> Calculate local direction index"
+         write(6,*) "-> Calculate local direction index for scalars"
       end if
       do n = 1,npan
          do j = 1,jpan
@@ -3684,10 +3676,6 @@ contains
          call check_set( lnne(n), "LNNE", 1, 1, n, 1)
       end do
 
-      if ( myid==0 ) then
-         write(6,*) "-> Finished bounds_setup"
-      end if
-
    end subroutine bounds_setup
 
    subroutine check_bnds_alloc(rproc, iext)
@@ -3971,8 +3959,6 @@ contains
       integer(kind=4) :: ierr, llen, lproc, ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist
 
-      if ( ccomp_get_thread_num() /= 0 ) return
-
       kx = size(t, 2)
       ntr = size(t, 3)
       double = .false.
@@ -4132,8 +4118,6 @@ contains
       integer :: l, ntr
       integer(kind=4), save :: itag=4
       integer(kind=4) :: ierr, llen, lproc, lcomm
-
-      if ( ccomp_get_thread_num() /= 0 ) return
 
       if ( colour<0 .or. colour>maxcolour ) then
          write(6,*) "ERROR: Invalid colour for bounds_colour_send"
@@ -4340,8 +4324,6 @@ contains
       integer :: l, ntr
       integer(kind=4) :: ierr, lproc, ldone
       integer(kind=4), dimension(2*neighnum) :: donelist
-
-      if ( ccomp_get_thread_num() /= 0 ) return
       
       if ( colour<0 .or. colour>maxcolour ) then
          write(6,*) "ERROR: Invalid colour for bounds_colour_recv"
@@ -4616,8 +4598,6 @@ contains
       integer(kind=4) :: ierr, llen, lproc
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist  
-
-      if ( ccomp_get_thread_num() /= 0 ) return
 
       kx = size(u, 2)
       extra = .false.
@@ -5622,7 +5602,6 @@ contains
    subroutine start_log ( event )
       integer, intent(in) :: event
       integer(kind=8) :: begin_time, count_rate, count_max
-      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_START(event_name(event))
 #endif
@@ -5633,7 +5612,6 @@ contains
    subroutine end_log ( event )
       integer, intent(in) :: event
       integer(kind=8) :: end_time, count_rate, count_max
-      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
@@ -6803,17 +6781,7 @@ contains
       call system_clock( begin_time, count_rate, count_max )
 
       ! Global communicator
-#ifdef _OPENMP
-      call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
-      !call MPI_Init_Thread(MPI_THREAD_MULTIPLE, lprovided, lerr) ! recommended for DUG system
-      if ( lprovided < MPI_THREAD_FUNNELED ) then
-         write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
-         write(6,*) "       Unable to support hybrid MPI+OpenMP"
-         call ccmpi_abort(-1)
-      end if
-#else
       call MPI_Init(lerr)
-#endif
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local process id
       nproc      = lproc
@@ -7020,8 +6988,6 @@ contains
       integer(kind=4) :: colour, lcomm, lrank
       integer(kind=4) :: lcommout, lerr, lsize
 #endif
-
-      if ( ccomp_get_thread_num() /= 0 ) return
 
       if ( localhist ) then
 #ifdef usempi3

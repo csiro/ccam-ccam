@@ -22,8 +22,9 @@
 module aerosol_arrays
 
 private
+public naero
 public aldrinit,aldrend,aldrloademiss,aldrloaderod
-public xtg,xtgsav,xtosav,naero
+public xtg,xtgsav,xtosav
 public itracdu,ndust
 public dustdd,dustwd,duste,dust_burden
 public itracbc,bce,bcdd,bcwd,bc_burden

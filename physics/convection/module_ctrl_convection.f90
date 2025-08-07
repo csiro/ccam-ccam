@@ -40,10 +40,7 @@ implicit none
 
 select case ( interp_convection(nkuo) )
   case("betts_conv")
-    !$omp barrier
-    !$omp single
     call betts(t,qg,tn,land,ps) ! not called these days
-    !$omp end single
   case("john_conv22")
     call convjlm22              ! split convjlm
   case("john_conv")
@@ -136,13 +133,6 @@ integer, dimension(3) :: posmin3, posmax3
 real :: maxconvtime = 120.  ! time-step for convection
 real :: tdt
 
-!$omp do schedule(static) private(tile,js,je,qamin,k,iq,prf_temp,prf,itf,ktf,its,ite,kts,kte) &
-!$omp private(dicycle,ichoice,ipr,ccn,ccnclean,dtime,imid,dhdt,rothz,thz,rhoa,zpres,xland,zo) &
-!$omp private(zo,kpbl,forcing,g_t,g_q,z1,tn,qo,po,psur,g_us,g_vs,g_rho,hfx,qfx,dx,mconv,omeg) &
-!$omp private(csum,cnvwt,zui,zdo,zdm,edto,edtm,xmb_out,xmbm_in,xmbs_in,pre,outu,outv,outt)    &
-!$omp private(outq,outq,kbcon,ktop,cupclw,frh_out,ierr,ierrc,nchem,fscav,chem3d,wetdpc_deep)  &
-!$omp private(do_smoke_transport,rand_mom,rand_clos,nranflag,do_capsuppress,cap_suppress_j)   &
-!$omp private(k22,jmin,kdt,tropics,g_pre,g_qfg,g_qlg,njumps,tdt,n,i)
 do tile = 1,ntiles
   js = (tile-1)*imax+1      ! js:je inside 1:ifull
   je = tile*imax            ! len(js:je) = imax
@@ -185,7 +175,7 @@ do tile = 1,ntiles
   elsewhere
     xland(1:imax) = 0.
   end where
-  po(1:imax,:) = zpres(1:imax,:)*0.01 ! mb
+  po(1:imax,:) = zpres(1:imax,:)*0.01   ! pressure mb
   zo(1:imax,1) = bet(1)*t(js:je,1)/grav ! heights above surface
   do k = 2,kl
     zo(1:imax,k) = zo(1:imax,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav ! heights above surface
@@ -265,7 +255,13 @@ do tile = 1,ntiles
   do n = 1,njumps
     tn = g_t
     qo = g_q
-    pre = 0. ! mm/s?
+    pre   = 0. ! mm/s?
+    outt  = 0.
+    outq  = 0.
+    outqc = 0.
+    outu  = 0.
+    outv  = 0.
+    outliqice = 0.
     call cu_gf_deep_run(   &
              itf           &
             ,ktf           &
@@ -341,7 +337,7 @@ do tile = 1,ntiles
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
             ,outliqice)
-
+    
     g_t(1:imax,:)   = g_t(1:imax,:)   + tdt*outt(1:imax,:)
     g_q(1:imax,:)   = g_q(1:imax,:)   + tdt*outq(1:imax,:)
     g_qlg(1:imax,:) = g_qlg(1:imax,:) + tdt*outqc(1:imax,:)*outliqice(1:imax,:)
@@ -379,7 +375,6 @@ do tile = 1,ntiles
   end if
 
 end do ! end tile loop (tile=1,ntiles)
-!$omp end do nowait
 
 return
 end subroutine grell_ccam

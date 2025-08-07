@@ -160,7 +160,6 @@ real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical mydiag_t
 
 if ( nmlo/=0 .and. nvmix/=9 ) then
-  !$omp do schedule(static) private(is,ie,lou,lov,liu,liv)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
@@ -175,28 +174,19 @@ if ( nmlo/=0 .and. nvmix/=9 ) then
     uadj(is:ie) = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
     vadj(is:ie) = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
   end do
-  !$omp end do nowait
 else
-  !$omp do schedule(static) private(is,ie)
   do tile = 1,ntiles
     is = (tile-1)*imax + 1
     ie = tile*imax
     uadj(is:ie) = 0.
     vadj(is:ie) = 0.
   end do
-  !$omp end do nowait  
 end if
 
 select case(nvmix)
   case(6,9)  
     ! k-e + MF closure scheme
     
-    !$omp do schedule(static) private(is,ie,k)             &
-    !$omp private(lt,lqg,lqfg,lqlg,lni)                    &
-    !$omp private(lstratcloud,lu,lv,ltke,leps,lshear)      &
-    !$omp private(lrkmsave,lrkhsave,lsavu,lsavv)           &
-    !$omp private(lthetal_ema,lqv_ema,ltke_ema)            &
-    !$omp private(idjd_t,mydiag_t,lql_ema,lqf_ema,lcf_ema)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -255,25 +245,18 @@ select case(nvmix)
       tauy(is:ie) = lrho(1:imax)*cduv(is:ie)*(v(is:ie,1)-vadj(is:ie))
 
     end do ! tile = 1,ntiles
-    !$omp end do nowait
 
     if ( nmlo/=0 .and. nvmix==9 ) then  
-      !$omp do schedule(static) private(is,ie)      
       do tile = 1,ntiles
         is = (tile-1)*imax + 1
         ie = tile*imax
         call mlosurf("sst",tss(is:ie),0,water_g(tile),ice_g(tile),depth_g(tile))
       end do
-      !$omp end do nowait      
     end if
     
   case default  
     ! JLM's local Ri scheme
     
-    !$omp do schedule(static) private(is,ie,k)                &
-    !$omp private(lt,lqg,lqfg,lqlg,lni)                       &
-    !$omp private(lstratcloud,lu,lv,lsavu,lsavv)              &
-    !$omp private(lrkmsave,lrkhsave,idjd_t,mydiag_t)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -316,7 +299,6 @@ select case(nvmix)
       end do  
 
     end do ! tile = 1,ntiles
-    !$omp end do nowait
 
 end select
 

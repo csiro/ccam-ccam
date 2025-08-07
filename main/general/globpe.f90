@@ -115,7 +115,7 @@ implicit none
      
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
-integer iq, k, js, je, tile
+integer iq, k
 integer mins_gmt, mspeca, mtimer_in
 integer nlx, nmaxprsav, n3hr
 integer nwtsav, mtimer_sav
@@ -528,7 +528,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call START_LOG(phys_begin)
 
 
-  ! MISC (SINGLE) ---------------------------------------------------------
+  ! MISC ------------------------------------------------------------------
+
   ! radiation timer calculations
   if ( nrad==5 ) then
     if ( nhstest<0 ) then      ! aquaplanet test -1 to -8  
@@ -556,34 +557,25 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call interp_tracerflux
   end if  
 
-  
-  ! MISC (PARALLEL) -------------------------------------------------------
-  ! This is an additional layer of parallel compute on top of domain decomposition
-  !$omp parallel
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    ! initialse surface rainfall to zero (also initialised in convection)
-    condc(js:je) = 0. ! default convective rainfall (assumed to be rain)
-    condx(js:je) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
-    conds(js:je) = 0. ! default total ice + snow (convection and large scale)
-    condg(js:je) = 0. ! default total graupel (convection and large scale)
-    ! Held & Suarez or no surf fluxes
-    if ( ntsur<=1 .or. nhstest==2 ) then 
-      eg(js:je)   = 0.
-      fg(js:je)   = 0.
-      cdtq(js:je) = 0.
-      cduv(js:je) = 0.
-    end if     ! (ntsur<=1.or.nhstest==2) 
-    ! Save aerosol concentrations for outside convective fraction of grid box
-    if ( abs(iaero)>=2 ) then
-      xtosav(js:je,1:kl,1:naero) = xtg(js:je,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
-    end if
-    call nantest("start of physics",js,je,"all")
-  end do  
-  !$omp end do nowait
+  ! initialse surface rainfall to zero (also initialised in convection)
+  condc(1:ifull) = 0. ! default convective rainfall (assumed to be rain)
+  condx(1:ifull) = 0. ! default total precip = rain + ice + snow + graupel (convection and large scale)
+  conds(1:ifull) = 0. ! default total ice + snow (convection and large scale)
+  condg(1:ifull) = 0. ! default total graupel (convection and large scale)
+  ! Held & Suarez or no surf fluxes
+  if ( ntsur<=1 .or. nhstest==2 ) then 
+    eg(1:ifull)   = 0.
+    fg(1:ifull)   = 0.
+    cdtq(1:ifull) = 0.
+    cduv(1:ifull) = 0.
+  end if     ! (ntsur<=1.or.nhstest==2) 
+  ! Save aerosol concentrations for outside convective fraction of grid box
+  if ( abs(iaero)>=2 ) then
+    xtosav(1:ifull,1:kl,1:naero) = xtg(1:ifull,1:kl,1:naero) ! Aerosol mixing ratio outside convective cloud
+  end if
+  call nantest("start of physics",1,ifull,"all")
 
+  
   ! GWDRAG ----------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(gwdrag_begin)
@@ -592,40 +584,22 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(gwdrag_end)
   end if
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    call nantest("after gravity wave drag",js,je,"gwdrag")
-  end do  
-  !$omp end do nowait
+  call nantest("after gravity wave drag",1,ifull,"gwdrag")
 
 
   ! CONVECTION ------------------------------------------------------------
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    do k = 1,kl  
-      do iq = js,je
-        convh_ave(iq,k) = convh_ave(iq,k) - t(iq,k)*real(nperday)/real(nperavg)
-      end do  
-    end do
+  do k = 1,kl  
+    do iq = 1,ifull
+      convh_ave(iq,k) = convh_ave(iq,k) - t(iq,k)*real(nperday)/real(nperavg)
+    end do  
   end do
-  !$omp end do nowait
   if ( nsib>0 ) then
     call START_LOG(convection_begin)
     call ctrl_convection 
     call END_LOG(convection_end)
   end if
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    call fixqg(js,je)
-    call nantest("after convection",js,je,"conv")
-  end do  
-  !$omp end do nowait
+  call fixqg(1,ifull)
+  call nantest("after convection",1,ifull,"conv")
 
 
   ! CLOUD MICROPHYSICS ----------------------------------------------------
@@ -634,33 +608,19 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call ctrl_microphysics
     call END_LOG(cloud_end)
   end if
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    do k = 1,kl  
-      do iq = js,je
-        convh_ave(iq,k) = convh_ave(iq,k) + t(iq,k)*real(nperday)/real(nperavg)
-      end do  
-    end do
-    call nantest("after cloud microphysics",js,je,"cloud") 
-  end do  
-  !$omp end do nowait
+  do k = 1,kl  
+    do iq = 1,ifull
+      convh_ave(iq,k) = convh_ave(iq,k) + t(iq,k)*real(nperday)/real(nperavg)
+    end do  
+  end do
+  call nantest("after cloud microphysics",1,ifull,"cloud") 
   
   ! RADIATION -------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(radnet_begin)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      rad_tend(js:je,1:kl) = rad_tend(js:je,1:kl) - t(js:je,1:kl)/dt
-    end do
-    !$omp end do nowait
+    rad_tend(1:ifull,1:kl) = rad_tend(1:ifull,1:kl) - t(1:ifull,1:kl)/dt
     select case ( nrad )
       case(4)
-        !$omp barrier  
-        !$omp single  
         ! Fels-Schwarzkopf radiation
         if ( nhstest<0 ) then    ! aquaplanet test -1 to -8  
           mtimer_sav = mtimer
@@ -670,33 +630,20 @@ do ktau = 1,ntau   ! ****** start of main time loop
         else
           call radrive(il*nrows_rad)  
         end if    ! (nhstest<0)
-        !$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
         call seaesfrad(koundiag)
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
-        !$omp do schedule(static) private(js,je)
-        do tile = 1,ntiles
-          js = (tile-1)*imax + 1
-          je = tile*imax
-          slwa(js:je) = -real(10*nrad)
-        end do
-        !$omp end do nowait
+        slwa(1:ifull) = -real(10*nrad)
     end select
     call END_LOG(radnet_end)
   end if ! ( nsib>0 )  
-  !$omp do schedule(static) private(js,je)  
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax
-    do k = 1,kl
-      t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
-      rad_tend(js:je,k) = rad_tend(js:je,k) + t(js:je,k)/dt
-    end do
-    call nantest("after radiation",js,je,"radiation")    
+  do k = 1,kl
+    t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
+    rad_tend(1:ifull,k) = rad_tend(1:ifull,k) + t(1:ifull,k)/dt
   end do
-  !$omp end do nowait
+  call nantest("after radiation",1,ifull,"radiation")    
     
   
   ! HELD & SUAREZ ---------------------------------------------------------
@@ -723,13 +670,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     endif   ! (ntsur>1)    
     call END_LOG(sfluxnet_end)
   end if
-  !$omp do schedule(static) private(js,je)  
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax 
-    call nantest("after surface fluxes",js,je,"surface")
-  end do  
-  !$omp end do nowait
+  call nantest("after surface fluxes",1,ifull,"surface")
 
   
   ! AEROSOLS --------------------------------------------------------------
@@ -743,13 +684,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call END_LOG(aerosol_end)
   end if
   if ( aero_split==0 ) then
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call nantest("after aerosols",js,je,"aerosols")
-    end do
-    !$omp end do nowait
+    call nantest("after aerosols",1,ifull,"aerosols")
   end if  
   
 
@@ -759,47 +694,25 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
       if ( mydiag .and. ntiles==1 ) then
-        !$omp master
         write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-        !$omp end master
       end if
     end if
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      trb_tend(js:je,1:kl) = trb_tend(js:je,1:kl) - t(js:je,1:kl)/dt
-      trb_qend(js:je,1:kl) = trb_qend(js:je,1:kl) - qg(js:je,1:kl)/dt - qlg(js:je,1:kl)/dt - qfg(js:je,1:kl)/dt
-    end do
-    !$omp end do nowait
+    trb_tend(1:ifull,1:kl) = trb_tend(1:ifull,1:kl) - t(1:ifull,1:kl)/dt
+    trb_qend(1:ifull,1:kl) = trb_qend(1:ifull,1:kl) - qg(1:ifull,1:kl)/dt - qlg(1:ifull,1:kl)/dt - qfg(1:ifull,1:kl)/dt
     if ( ntsur>=1 ) then
       call turbmix
     end if  ! (ntsur>=1)
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      trb_tend(js:je,1:kl) = trb_tend(js:je,1:kl) + t(js:je,1:kl)/dt
-      trb_qend(js:je,1:kl) = trb_qend(js:je,1:kl) + qg(js:je,1:kl)/dt + qlg(js:je,1:kl)/dt + qfg(js:je,1:kl)/dt
-    end do
-    !$omp end do nowait
+    trb_tend(1:ifull,1:kl) = trb_tend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
+    trb_qend(1:ifull,1:kl) = trb_qend(1:ifull,1:kl) + qg(1:ifull,1:kl)/dt + qlg(1:ifull,1:kl)/dt + qfg(1:ifull,1:kl)/dt
     if ( nmaxpr==1 ) then
       if ( mydiag .and. ntiles==1 ) then
-        !$omp master
         write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
-        !$omp end master
       end if
     end if
     call END_LOG(vertmix_end)
   end if
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax  
-    call fixqg(js,je)
-    call nantest("after PBL mixing",js,je,"vmixing")
-  end do  
-  !$omp end do nowait
+  call fixqg(1,ifull)
+  call nantest("after PBL mixing",1,ifull,"vmixing")
 
   
   ! AEROSOLS --------------------------------------------------------------
@@ -812,13 +725,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
     call END_LOG(aerosol_end)
   end if
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax  
-    call nantest("after aerosols",js,je,"aerosols")
-  end do  
-  !$omp end do nowait
+  call nantest("after aerosols",1,ifull,"aerosols")
 
   
   ! TRACERS ---------------------------------------------------------------
@@ -830,36 +737,22 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if
 
   
-  ! MISC (PARALLEL) -------------------------------------------------------
+  ! MISC ------------------------------------------------------------------
   ! Update diagnostics for consistancy in history file
-  !$omp do schedule(static) private(js,je)
-  do tile = 1,ntiles
-    js = (tile-1)*imax + 1
-    je = tile*imax  
-    call fixsat(js,je) ! if qg_fix>1, then removes supersaturated qg
-    call nantest("after fixsat",js,je,"cloud")
-    ! Convection diagnostic output
-    cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
-    ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
-    ! Microphysics diagnostic output
-    rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + real(condx(js:je),8)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
-  end do  
-  !$omp end do nowait
+  call fixsat(1,ifull) ! if qg_fix>1, then removes supersaturated qg
+  call nantest("after fixsat",1,ifull,"cloud")
+  ! Convection diagnostic output
+  cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
+  ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
+  ! Microphysics diagnostic output
+  rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + real(condx(1:ifull),8)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
   if ( rescrn>0 ) then
-    !$omp do schedule(static) private(js,je)
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax  
-      call autoscrn(js,je)
-    end do
-    !$omp end do nowait
+    call autoscrn(1,ifull)
   end if
-  !$omp end parallel
 
   call END_LOG(phys_end)
+
   
-  
-  ! MISC (SINGLE) ---------------------------------------------------------
   ! Diagnose CAPE, CIN and LI for cordex output  
   ! pcc2hist can calculate CAPE for standard output
   if ( rescrn>0 .and. surfile/=' ' ) then
@@ -1297,7 +1190,6 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use bigxy4_m                               ! Grid interpolation
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
-use cc_omp                                 ! CC OpenMP routines
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use darcdf_m                               ! Netcdf data
@@ -1818,10 +1710,8 @@ imax = ifull/ntiles
 ! since processes might have been remapped, then use node_myid
 ! to determine GPU assigned to each process
 call ccacc_init(node_myid,ngpus)
-call ccomp_init()
 #else
 call ccacc_init(myid,ngpus)
-call ccomp_init()
 #endif
 
 ! Display model configuration information in log file
@@ -1838,9 +1728,6 @@ if ( myid==0 ) then
 #endif
 #ifdef i8r8
   write(6,*) 'Using double precision mode'
-#endif
-#ifdef _OPENMP
-  write(6,*) 'Using OpenMP with number of threads      = ',maxthreads
 #endif
 #ifdef _OPENACC
   write(6,*) 'Using OpenACC with GPUs per node         = ',ngpus  
@@ -2773,7 +2660,6 @@ use aerointerface, only : ch_dust        & ! Aerosol arrays
     ,enhanceu10
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
-use cc_omp                                 ! CC OpenMP routines
 use indata                                 ! Data initialisation
 use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection

@@ -337,12 +337,6 @@ type(soil_snow_type) :: lssnow
 type(sum_flux_type) :: lsum_flux
 type(veg_parameter_type) :: lveg
 
-!$omp do schedule(static) private(tile,is,ie,js,je,ltind,ltmap,lmaxnb,ico2,igas),                              &
-!$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
-!$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
-!$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,latmco2),                         &
-!$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
-!$omp private(lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -486,7 +480,6 @@ do tile = 1,ntiles
   end if ! mp>0
 
 end do
-!$omp end do nowait
 
 return
 end subroutine sib4

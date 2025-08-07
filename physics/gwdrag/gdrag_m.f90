@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -91,8 +91,6 @@ integer idjd_t
 real, dimension(imax,kl) :: lt, lu, lv
 logical mydiag_t
 
-!$omp do schedule(static) private(js,je),        &
-!$omp private(lt,lu,lv,idjd_t,mydiag_t)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -110,7 +108,6 @@ do tile = 1,ntiles
   v(js:je,:) = lv
  
 end do
-!$omp end do nowait
 
 return
 end subroutine gwdrag
