@@ -703,6 +703,7 @@ contains
            psur,ierr,tcrit,-1,                                     &
            itf,ktf,                                                &
            its,ite, kts,kte)
+
       call cup_env(zo,qeso,heo,heso,tn,qo,po,z1,                   &
            psur,ierr,tcrit,-1,                                     &
            itf,ktf,                                                &
@@ -716,11 +717,13 @@ contains
            ierr,z1,                                                &
            itf,ktf,                                                &
            its,ite, kts,kte)
+
       call cup_env_clev(tn,qeso,qo,heo,heso,zo,po,qeso_cup,qo_cup, &
            heo_cup,heso_cup,zo_cup,po_cup,gammao_cup,tn_cup,psur,  &
            ierr,z1,                                                &
            itf,ktf,                                                &
            its,ite, kts,kte)
+
 !---meltglac-------------------------------------------------
 !> - Call get_partition_liq_ice() to calculate partition between liq/ice cloud contents
       call get_partition_liq_ice(ierr,tn,po_cup,p_liq_ice,melting_layer,&
@@ -2328,8 +2331,8 @@ contains
               if(rn(i).gt.0..and.qevap(i).gt.0.) then
                 outq(i,k) = outq(i,k) + qevap(i)/dtime
                 outt(i,k) = outt(i,k) - elocp * qevap(i)/dtime
-                rn(i) = max(0.,rn(i) - .001 * qevap(i) * dp / g)
-                pre(i) = pre(i) - qevap(i) * dp /g/dtime
+                rn(i) = max(0.,rn(i) - .001 * qevap(i) * dp / g)               
+                pre(i) = pre(i) - qevap(i) * dp /g/dtime               
                 pre(i)=max(pre(i),0.)
                 delqev(i) = delqev(i) + .001*dp*qevap(i)/g
               endif
@@ -4265,6 +4268,7 @@ endif
               xmb_ave(i)=xmb_ave(i)/float(k)
            else if(ichoice == 0)then
               xmb_ave(i)=.5*sig(i)*(xff_mid(i,1)+xff_mid(i,2))
+              
            endif   ! ichoice gt.2
 ! which dicycle method
            if(dicycle == 2 )then
@@ -4275,6 +4279,7 @@ endif
               xmb(i)=max(0.,xmb_ave(i))
            else if (dicycle == 0) then
               xmb(i)=max(0.,xmb_ave(i))
+
            endif   ! dicycle=1,2
          endif     ! ierr >0
          enddo     ! i
@@ -4287,52 +4292,12 @@ endif
              dtpw=0.
              do k=kts,ktop(i)
                dtpw=dtpw+pw(i,k,1)
-               outtem(i,k)= xmb(i)* dellat  (i,k,1)
-               outq  (i,k)= xmb(i)* dellaq  (i,k,1)
+               outtem(i,k)= xmb(i)* dellat(i,k,1)
+               outq  (i,k)= xmb(i)* dellaq(i,k,1)
                outqc (i,k)= xmb(i)* dellaqc(i,k,1)
             enddo
+
             PRE(I)=PRE(I)+XMB(I)*dtpw
-
-
-            !PRE(I)=PRE(I)+XMB(I)*dtpw*10.
-
-! if off PRE(I)=PRE(I)+XMB(I)*dtpw, ====> no more convective precipitation
-! if off              !XMB(I)*dtpw  ====> also no convective precip
-! so now iether xmb or dtpw,        ====> found pw actually is pwo_ens
-! changed pwo_ens=pwo_ens*10 in pwo_ens(i,k,1) after cup_forcing_ens_3d
-                                !   ====> produced exactly the same results, increase precip.
-                                ! confirmed the same results and  they are due to pwo_ens
-                                ! in this line pwo_ens    (i,k,1)=pwo(i,k) +edto(i)*pwdo(i,k)
-! Values pwo is located in sub: "cup_up_moisture" ===> name pw.
-                                ! so this value need to be larger to get more convective precip.
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! pw(i,k)=c0t*dz*qrc(i,k)*zu(i,k)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   ! qc = cloud water mixing ratio including liquid water after entrainment
-   ! qrch = saturation cloud water mixing ratio in cloud
-   ! qrc = liquid water content in cloud after rainout (after removed supersaturation
-   ! pw = condensate that will fall out at that level, THIS LARGE, MEANT MORE PRECIPITATION
-   ! pwav = totan normalized integrated condensate (i1)
-   ! c0 = conversion rate (cloud to rain)
-   ! zu : updraft normalized mass flux
-!
-!   dz=z_cup(i,k)-z_cup(i,k-1) UNIT meter
-!   qrc(i,k)=(qc(i,k)-qrch)/(1.+c0t*dz)       
-          ! qc(i,k)=   (qc(i,k-1)*zu(i,k-1)-.5*up_massdetr(i,k-1)* qc(i,k-1)+ &
-          !               up_massentr(i,k-1)*q(i,k-1))   /                       &
-          !               (zu(i,k-1)-.5*up_massdetr(i,k-1)+up_massentr(i,k-1))
-!         ! qrch=qes_cup(i,k)
-          ! qrch=qes_cup(i,k)+(1./xlv)*(gamma_cup(i,k)                       &
-          !       /(1.+gamma_cup(i,k)))*dby(i,k)
-          ! qrc(i,k)=(qc(i,k)-qrch)/(1.+c0t*dz)
-!IF c0t is larger, get more precip, but it appears both denominator/nominator
-!IF qrc is larger, meant larger difference between mixing ratio and saturation mixing ratio
-!   dz should not be change, 
-! zu: need to check further how this calculate. 
-      !now try to increase entrainment rate and see how the model change.
-
-!            PRE(I)=PRE(I) + 0.01 ! if this reproduce the same plot, then XMB or dtpw IS too low 
-!pre(i)=0.01 this value will make the convective precip very high sny SNY
 
           endif
        enddo
@@ -4377,9 +4342,6 @@ endif
 !           write(15,124)k,dellaqc(i,k,1),dtqc,-pwd(i,k)*edt(i),dtpwd
           enddo
           pre(i)=-pre(i)+xmb(i)*pwtot(i)
-
-
-!pre(i)=0.01 sny SNY this value does not affect precipitation much
 
         endif
 #ifndef _OPENACC
@@ -4513,8 +4475,8 @@ endif
         prop_b(kts:kte)=0
 !!$acc end kernels
         iall=0
-        clwdet=0.1 !0.02
-        c0_iceconv=0.01
+        clwdet= 0.02 !0.1 !0.02  
+        c0_iceconv=0.01        
         c1d_b=c1d
         bdsp(:)=bdispm
 !!$acc kernels
@@ -4676,10 +4638,10 @@ endif
                clw_allh(i,k)=max(0.,qch(i,k)-qrch) 
                qrcb(i,k)=max(0.,(qch(i,k)-qrch)) ! /(1.+c0(i)*dz*zu(i,k))
                if(is_deep)then
-                 clwdet=0.1 !0.02                 ! 05/11/2021
+                 clwdet=0.02 !0.1 !0.02                 ! 05/11/2021
                  !if(k.lt.kklev(i)) clwdet=0.    ! 05/05/2021
                else
-                 clwdet=0.1 !0.02                  ! 05/05/2021
+                 clwdet=0.02 !0.1 !0.02                  ! 05/05/2021
                  !if(k.lt.kklev(i)) clwdet=0.     ! 05/25/2021
                endif
                if(k.gt.kbcon(i)+1)c1d(i,k)=clwdet*up_massdetr(i,k-1)

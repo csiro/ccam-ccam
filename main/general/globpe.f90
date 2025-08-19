@@ -47,6 +47,7 @@ use aerosol_arrays                         ! Aerosol arrays
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
+use calculate_mconv_m                      ! Calculate moisture divergence
 use cc_mpi                                 ! CC MPI routines
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
@@ -126,10 +127,8 @@ real, dimension(3) :: temparray, gtemparray
 real aa, bb, cc
 real hourst, evapavge, precavge
 real pwatr, bb_2, cc_2, rat
-real(kind=8) :: tt_r8
 logical oxidant_update
 character(len=10) timeval
-
 
 ! Start model timer
 call date_and_time(values=times_total_a)
@@ -254,6 +253,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
     end if
   endif
 
+  ! calculate MSE before dynamic (e.g. start of the advection)
+  call calculate_dhdt_mse(1,ifull,mse_t1)
 
   ! ***********************************************************************
   ! ATMOSPHERE DYNAMICS
@@ -463,6 +464,14 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after atm horizontal diffusion",1,ifull,"dynamics")        
   end if  
 
+  ! calculate MSE after dynamic (advection)
+  call calculate_dhdt_mse(1,ifull,mse_t2)
+  dmsedt_adv = (mse_t2-mse_t1)/dt
+  
+  
+  ! CALCULATE DIAGNOSTICS
+  !
+  call calculate_mconv 
     
   ! ***********************************************************************
   ! RIVER ROUTING AND HYDROLOGY
@@ -647,6 +656,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do  
   !$omp end do nowait
   
+  ! calculate MSE before radiation
+  call calculate_dhdt_mse(1,ifull,mse_t1)
+
   ! RADIATION -------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(radnet_begin)
@@ -698,6 +710,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do
   !$omp end do nowait
     
+  ! calculate MSE after radiation
+  call calculate_dhdt_mse(1,ifull,mse_t2)
+  dmsedt_rad = (mse_t2 - mse_t1)/dt
   
   ! HELD & SUAREZ ---------------------------------------------------------
   if ( nhstest==2 ) then
@@ -753,6 +768,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end if  
   
 
+  ! calculate MSE before vertical mixing
+  call calculate_dhdt_mse(1,ifull,mse_t1)
+
   ! VERTICAL MIXING ------------------------------------------------------
   ! Turbulent mixing of atmosphere and optionally combined with ocean
   if ( nsib>0 ) then
@@ -801,7 +819,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do  
   !$omp end do nowait
 
-  
+  ! calculate MSE before radiation
+  call calculate_dhdt_mse(1,ifull,mse_t2)
+  dmsedt_pbl = (mse_t2 - mse_t1)/dt
+
   ! AEROSOLS --------------------------------------------------------------
   ! New time-split with aero_split=1
   ! Emission driven prognostic aerosols.  Includes aerosol turbulent mixing.
@@ -930,10 +951,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! Turn off log before writing output
   call log_off
 
+
   ! WRITE DATA TO HISTORY ---------------------------------
   if ( ktau==ntau .or. mod(ktau,nwt)==0 ) then
     call outfile(20,ofile,psl,u,v,t,qg)  ! which calls outcdf
-  end if
+  endif
   ! write high temporal frequency fields
   if ( surfile/=' ' ) then
     call freqfile_cordex
@@ -1026,8 +1048,8 @@ if ( myid==0 ) then
   write(6,*) "End of time loop ", timeval
   write(6,*) "Normal termination of run"
   write(6,*) "End time ", timeval
-  call time_diff(tt_r8,tvals1,tvals2)
-  aa = real( tt_r8 )
+  aa = sum( real(tvals2(5:8)-tvals1(5:8))*(/ 3600., 60., 1., 0.001 /) )
+  if ( aa<0. ) aa = aa + 86400.
   write(6,*) "Model time in main loop",aa
 end if
   
@@ -1042,7 +1064,8 @@ call vcom_finialize
 #endif
   
 call date_and_time(values=times_total_b)
-call time_diff(total_time,times_total_a,times_total_b)
+total_time = sum( real(times_total_b(5:8)-times_total_a(5:8))*(/ 3600., 60., 1., 0.001 /) )
+if ( total_time<0 ) total_time = total_time + 86400.
   
 ! report subroutine timings
 call simple_timer_finalize
@@ -1097,38 +1120,7 @@ write(6,*) "====================================================================
 
 return
 end subroutine finishbanner
-
-!--------------------------------------------------------------
-! SIMULATION TIME
-! This version should be valid for at least 28 days
-subroutine time_diff(t_diff,tcal1,tcal2)
-
-use dates_m            ! Date data
-
-implicit none
-
-integer month, year, day, kdate_l
-integer, dimension(12) :: mdays
-integer, dimension(8), intent(in) :: tcal1, tcal2
-real(kind=8), intent(out) :: t_diff
-real(kind=8) day_diff
-
-t_diff = sum( real(tcal2(5:8)-tcal1(5:8),8)*(/ 3600._8, 60._8, 1._8, 0.001_8 /) )
-
-year = int( tcal1(1) )
-month = int( tcal1(2) )
-day = int( tcal1(3) )
-kdate_l = year*10000 + month*100 + day
-call calendar_function(mdays,kdate_l,cal_leap)
-
-day_diff = real(tcal2(3) - tcal1(3),8)
-if ( day_diff < 0._8 ) then
-  day_diff = day_diff + real(mdays(month),8)
-end if
-t_diff = t_diff + day_diff*86400._8
-
-return
-end subroutine time_diff
+    
     
 !--------------------------------------------------------------
 ! PREPARE SPECIAL TRACER ARRAYS
@@ -4354,7 +4346,6 @@ integer iq, k
 real, dimension(ifull) :: spare1, spare2
 
 precip(1:ifull)            = precip(1:ifull) + real(condx,8)
-!precc(1:ifull)            = precc(1:ifull) + real(condc,8) ! currently inside convection parameterisations
 sno(1:ifull)               = sno(1:ifull) + real(conds,8)
 grpl(1:ifull)              = grpl(1:ifull) + real(condg,8)
 rndmax(1:ifull)            = max( rndmax(1:ifull), condx )
@@ -5273,3 +5264,32 @@ end if
 
 return
 end subroutine nantest
+
+
+subroutine calculate_dhdt_mse(js,je,mse_t1)
+
+  use arrays_m       
+  use const_phys 
+  use sigs_m          
+  use newmpar_m                              ! Grid parameters
+  
+  implicit none 
+  
+  integer, intent(in) :: js, je
+  integer             :: iq, k
+  real, dimension(js:je, kl), intent(out) :: mse_t1
+  real, dimension(js:je, kl) :: zo
+
+  zo(js:je,1) = bet(1)*t(js:je,1)/grav ! heights above surface
+  do k = 2,kl
+    zo(js:je,k) = zo(js:je,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav ! heights above surface
+  end do
+
+  do k = 1,kl
+    do iq = js,je
+      mse_t1(iq,k)=grav*zo(iq,k)+cp*t(iq,k)+hl*qg(iq,k)
+    end do
+  end do
+
+  return
+end subroutine calculate_dhdt_mse

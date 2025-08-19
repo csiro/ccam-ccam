@@ -1421,9 +1421,9 @@ end if     ! (nhstest<0)
 !                    -4  read_in            | not written  (usual for netCDF input)
 !                    -5  read_in (not wb)   |     written  (should be good)
 !                    -6  same as -1 bit tapered wb over dry interio of Aust
-!                    -7  depreciate  (for ocean data without clobbering soil data)
+!                    -7  read_in (not land) | not written  (for ocean data without clobbering soil data)
 !                   -14  same as -4, but ignores date (usual for climatology) and requires netcdf format
-!                   -17  depreciate (usual for climatology without bisosphere)
+!                   -17  same as -7, but ignores date (usual for climatology without bisosphere) and requires netcdf
 !                   -24  same as -4, but requires netcdf format
 !                    >5  like -1 but sets most wb percentages
 
@@ -1523,8 +1523,7 @@ if ( .not.lrestart ) then
       ! UPDATE BIOSPHERE DATA (nsib)
       if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
         if ( myid==0 ) write(6,*) 'Replacing CABLE and CASA data'
-        !call loadtile(usedefault=.true.)
-        call loadtile
+        call loadtile(usedefault=.true.)
       end if
       call histclose
       if ( myid==0 ) write(6,*) '============================================================================'
@@ -1570,9 +1569,39 @@ if ( .not.lrestart ) then
   ! ocean and aerosol recycle
   if ( nrungcm==-7 .or. nrungcm==-17 ) then
     if ( myid==0 ) then
-      write(6,*) "ERROR: depeciated option for nrungcm = ",nrungcm
+      write(6,*) '============================================================================'  
+      write(6,*) 'Opening surface data input from ',trim(surf_00)
     end if
-    call ccmpi_abort(-1)
+    call histopen(ncid,surf_00,ier,fileerror=.true.)
+    ! NETCDF file format
+    ! clobber ifile surface data with surfin surface data
+    kdate_s = kdate_sav
+    ktime_s = ktime_sav
+    if ( myid==0 ) then
+      write(6,*) 'Replacing surface data (ignore biosphere) with input from ',trim(surf_00)
+    end if
+    call onthefly(4,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),duma(:,4),  &
+                  duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),          &
+                  dumb(:,:,4),dumca(:,:,1),dumca(:,:,2),dumca(:,:,3),     &
+                  dums(:,1),dumb(:,:,5),dumb(:,:,6),                      &
+                  dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumb(:,:,10),       &
+                  dumb(:,:,11),dumb(:,:,12),dumi(:,:,1),                  &
+                  dumi(:,:,2),dumi(:,:,3),                                &
+                  dums(:,2),dums(:,3),dumf,mlodwn,ocndwn,xtgdwn)
+    call histclose
+    if ( myid==0 ) then
+      write(6,*) '============================================================================'
+    end if  
+    if ( kdate/=kdate_sav .or. ktime/=ktime_sav ) then
+      if ( myid==0 ) then
+        write(6,*) 'WARN: Could not locate correct date/time'
+        write(6,*) '      Using infile surface data'
+        write(6,*) "kdate,    ktime     ",kdate,ktime
+        write(6,*) "kdate_sav,ktime_sav ",kdate_sav,ktime_sav
+      end if
+      kdate = kdate_sav
+      ktime = ktime_sav
+    endif
   end if ! nrungcm==-7 .or. nrungcm==-17
 
   if ( nrungcm==4 ) then !  wb fix for ncep input 
@@ -2179,7 +2208,7 @@ call gdrag_sbl
 
 !-----------------------------------------------------------------
 ! UPDATE CONVECTION
-call ctrl_convection_init
+!call ctrl_convection_init
 
   
 !-----------------------------------------------------------------
