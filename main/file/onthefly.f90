@@ -341,7 +341,8 @@ use mlodynamics                                ! Ocean dynamics
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use newmpar_m                                  ! Grid parameters
 use nharrs_m, only : phi_nh,lrestart,         &
-    lrestart_radiation, lrestart_tracer        ! Non-hydrostatic atmosphere arrays
+    lrestart_radiation, lrestart_tracer,      &
+    lrestart_convection                        ! Non-hydrostatic atmosphere arrays
 use nsibd_m, only : isoilm,isoilm_in,rsmin,   &
     carb_plant,carb_litter,carb_soil           ! Land-surface arrays
 use parm_m                                     ! Model configuration
@@ -378,7 +379,7 @@ integer idv, retopo_test, ktest
 integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac, n
 integer, dimension(:), intent(out) :: isflag
-integer, dimension(10+3*ms) :: ierc
+integer, dimension(11+3*ms) :: ierc
 integer, dimension(13), save :: iers
 integer, dimension(2) :: shsize
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
@@ -1407,13 +1408,13 @@ if ( nested/=1 .and. nested/=3 ) then
     do k = 1,ms
       write(vname,'("tgg",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(10+k) = 1
+      if ( .not.tst ) ierc(11+k) = 1
       write(vname,'("wetfrac",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(10+ms+k) = 1
+      if ( .not.tst ) ierc(11+ms+k) = 1
       write(vname,'("wb",I1.1)') k
       call ccnf_inq_varid(ncid,vname,idv,tst)
-      if ( .not.tst ) ierc(10+2*ms+k) = 1
+      if ( .not.tst ) ierc(11+2*ms+k) = 1
     end do
   end if
   
@@ -1546,31 +1547,39 @@ if ( nested/=1 .and. nested/=3 ) then
         if ( tst ) lrestart_radiation = .false. 
         call ccnf_inq_varid(ncid,'lw_tend',idv,tst)
         if ( tst ) lrestart_radiation = .false.
+        lrestart_convection = .true.
+        call ccnf_inq_varid(ncid,'dmsedt_rad',idv,tst)
+        if ( tst ) lrestart_convection = .false.
+        call ccnf_inq_varid(ncid,'dmsedt_pbl',idv,tst)
+        if ( tst ) lrestart_convection = .false.
         lrestart_tracer = .true.
         call ccnf_inq_varid(ncid,'tr0001',idv,tst)
         if ( tst ) lrestart_tracer = .false.
       else
         lrestart = .false.
         lrestart_radiation = .false.
+        lrestart_convection = .false.
         lrestart_tracer = .false.
       end if ! kk=kl .and. iotest
-      ierc(1:4) = 0
+      ierc(1:5) = 0
       if ( lrestart ) ierc(1) = 1
       if ( lrestart_radiation ) ierc(2) = 1
       if ( lrestart_tracer ) ierc(3) = 1
       call ccnf_inq_varid(ncid,'u10',idv,tst)
       if ( .not.tst ) ierc(4) = 1
+      if ( lrestart_convection ) ierc(11) = 1
     end if ! myid==0 .or. pfall
   end if   ! nested==0  
     
   if ( .not.pfall ) then
-    call ccmpi_bcast(ierc(1:10+3*ms),0,comm_world)
+    call ccmpi_bcast(ierc(1:11+3*ms),0,comm_world)
   end if
   
   lrestart  = (ierc(1)==1)
   lrestart_radiation = (ierc(2)==1)
   lrestart_tracer = (ierc(3)==1)  
   u10_found = (ierc(4)==1)
+  lrestart_convection = (ierc(11)==1)
   if ( lrestart ) then
     nstag       = ierc(5)
     nstagu      = ierc(6)
@@ -1586,9 +1595,9 @@ if ( nested/=1 .and. nested/=3 ) then
   end if
   carbon_found        = ierc(9)==1
   carbon2_found       = ierc(10)==1
-  tgg_found(1:ms)     = ierc(11:10+ms)==1
-  wetfrac_found(1:ms) = ierc(11+ms:10+2*ms)==1
-  wb_found(1:ms)      = ierc(11+2*ms:10+3*ms)==1
+  tgg_found(1:ms)     = ierc(12:11+ms)==1
+  wetfrac_found(1:ms) = ierc(12+ms:11+2*ms)==1
+  wb_found(1:ms)      = ierc(12+2*ms:11+3*ms)==1
   
   if ( myid==0 ) then
     write(6,*) "-> Found lrestart,lrestart_radiation,lrestart_tracer = ",lrestart,lrestart_radiation,lrestart_tracer
@@ -2198,6 +2207,10 @@ if ( nested/=1 .and. nested/=3 ) then
       call gethist1('cloudhi',cloudhi)
       call gethist4('sw_tend_amp',sw_tend_amp)
       call gethist4('lw_tend',lw_tend)
+    end if
+    if ( lrestart_convection ) then
+      call gethist4('dmsedt_rad',dmsedt_rad)
+      call gethist4('dmsedt_pbl',dmsedt_pbl)
     end if
   end if
         

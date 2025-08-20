@@ -47,6 +47,7 @@ use aerosol_arrays                         ! Aerosol arrays
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
+use calculate_mconv_m                      ! Calculate moisture divergence
 use cc_mpi                                 ! CC MPI routines
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
@@ -255,6 +256,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   endif
 
 
+  ! calculate MSE before dynamic (e.g. start of the advection)
+  call calculate_dhdt_mse(1,ifull,mse_t1)
+
+  
   ! ***********************************************************************
   ! ATMOSPHERE DYNAMICS
   ! ***********************************************************************
@@ -463,7 +468,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call nantest("after atm horizontal diffusion",1,ifull,"dynamics")        
   end if  
 
-    
+
+  ! calculate MSE after dynamic (advection)
+  call calculate_dhdt_mse(1,ifull,mse_t2)
+  dmsedt_adv = (mse_t2-mse_t1)/dt  
+  
+  ! CALCULATE ATMOSPHERE DIAGNOSTICS
+  call calculate_mconv   
+
+
   ! ***********************************************************************
   ! RIVER ROUTING AND HYDROLOGY
   ! ***********************************************************************
@@ -615,7 +628,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do
   call nantest("after cloud microphysics",1,ifull,"cloud") 
   
+  
   ! RADIATION -------------------------------------------------------------
+  ! calculate MSE before radiation
+  call calculate_dhdt_mse(1,ifull,mse_t1)  
   if ( nsib>0 ) then
     call START_LOG(radnet_begin)
     rad_tend(1:ifull,1:kl) = rad_tend(1:ifull,1:kl) - t(1:ifull,1:kl)/dt
@@ -643,7 +659,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
     t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
     rad_tend(1:ifull,k) = rad_tend(1:ifull,k) + t(1:ifull,k)/dt
   end do
-  call nantest("after radiation",1,ifull,"radiation")    
+  ! calculate MSE after radiation
+  call calculate_dhdt_mse(1,ifull,mse_t2)
+  dmsedt_rad = (mse_t2 - mse_t1)/dt  
+  call nantest("after radiation",1,ifull,"radiation")
     
   
   ! HELD & SUAREZ ---------------------------------------------------------
@@ -690,6 +709,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   ! VERTICAL MIXING ------------------------------------------------------
   ! Turbulent mixing of atmosphere and optionally combined with ocean
+  ! calculate MSE before vertical mixing
+  call calculate_dhdt_mse(1,ifull,mse_t1)  
   if ( nsib>0 ) then
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
@@ -712,6 +733,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call END_LOG(vertmix_end)
   end if
   call fixqg(1,ifull)
+  ! calculate MSE after vertical mixing
+  call calculate_dhdt_mse(1,ifull,mse_t2)
+  dmsedt_pbl = (mse_t2 - mse_t1)/dt  
   call nantest("after PBL mixing",1,ifull,"vmixing")
 
   
@@ -1322,18 +1346,18 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     vmodmin,zobgin,rlong0,rlat0,schmidt,kbotdav,kbotu,nud_p,      &
     nud_q,nud_t,nud_uv,nud_hrs,nudu_hrs,sigramplow,sigramphigh,   &
     nlocal,nbarewet,nsigmf,io_in,io_nest,io_out,io_rest,          &
-    tblock,tbave,localhist,unlimitedhist,synchist,m_fly,          &
+    tblock,tbave,localhist,synchist,m_fly,                        &
     nurban,ktopdav,mbd_mlo,mbd_maxscale_mlo,nud_sst,nud_sss,      &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
     nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix,             &
-    always_mspeca,ntvd,tbave10,maxuv,maxcolour,adv_precip,        &
+    always_mspeca,ntvd,tbave10,maxuv,maxcolour,                   &
     procmode,compression,hp_output,pil_single,process_rate_mode,  & ! file io
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
     npa,npb,cgmap_offset,cgmap_scale,procformat,fnproc_bcast_max, & ! depreciated
-    nriver                                                          ! depreciated
+    nriver,unlimitedhist,adv_precip                                 ! depreciated
 ! radiation and aerosol namelist
 namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
@@ -1430,6 +1454,8 @@ ateb_ac_smooth = 0.
 zimax = 0.
 tkecduv = 0.
 procformat = .true.
+unlimitedhist = .false.
+adv_precip = 0
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
@@ -5159,3 +5185,33 @@ end if
 
 return
 end subroutine nantest
+
+!-------------------------------------------------------------------- 
+! Check for NaN errors
+subroutine calculate_dhdt_mse(js,je,mse_t1)
+
+use arrays_m       
+use const_phys 
+use sigs_m          
+use newmpar_m                              ! Grid parameters
+  
+implicit none 
+  
+integer, intent(in) :: js, je
+integer             :: iq, k
+real, dimension(js:je, kl), intent(out) :: mse_t1
+real, dimension(js:je, kl) :: zo
+
+zo(js:je,1) = bet(1)*t(js:je,1)/grav ! heights above surface
+do k = 2,kl
+  zo(js:je,k) = zo(js:je,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav ! heights above surface
+end do
+
+do k = 1,kl
+  do iq = js,je
+    mse_t1(iq,k)=grav*zo(iq,k)+cp*t(iq,k)+hl*qg(iq,k)
+  end do
+end do
+
+return
+end subroutine calculate_dhdt_mse

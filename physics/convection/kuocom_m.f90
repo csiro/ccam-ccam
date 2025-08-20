@@ -38,6 +38,9 @@ public acon,bcon,rcm,rcrit_l,rcrit_s,cld_decay
 public vdeposition_mode,tiedtke_form
 public kbsav,ktsav
 public convpsav,fluxtot
+public mconv_save
+public mse_t1, mse_t2
+public dmsedt_adv, dmsedt_rad, dmsedt_pbl
 public kuocom_init,kuocom_end
 
 integer, save :: iterconv=3,ksc=-95,kscmom=1,kscsea=0,kuocb,ldr=1,mbase=101
@@ -53,6 +56,9 @@ real, save :: sigcb=1.,sigcll=0.95,sigkscb=0.95,sig_ct=1.,sigksct=0.8
 real, save :: tied_con=2.,tied_over=0.,tied_rh=0.75
 real, save :: acon=0.2,bcon=0.07,rcm=0.92e-5,rcrit_l=0.75,rcrit_s=0.85,cld_decay=7200.
 real, dimension(:,:), allocatable, save :: fluxtot
+real, dimension(:,:), allocatable, save :: mconv_save
+real, dimension(:,:), allocatable, save :: mse_t1, mse_t2
+real, dimension(:,:), allocatable, save :: dmsedt_adv, dmsedt_rad, dmsedt_pbl
 real, dimension(:), allocatable, save :: convpsav
 
 contains
@@ -65,10 +71,20 @@ integer, intent(in) :: ifull,kl
 
 allocate(kbsav(ifull),ktsav(ifull))
 allocate(convpsav(ifull),fluxtot(ifull,kl))
+allocate(mconv_save(ifull,kl))
+allocate(mse_t1(ifull,kl))
+allocate(mse_t2(ifull,kl))
+allocate(dmsedt_adv(ifull,kl), dmsedt_rad(ifull,kl), dmsedt_pbl(ifull,kl))
 kbsav=kl-1
 ktsav=kl-1
 convpsav=0.
 fluxtot=0.
+mconv_save=0.
+mse_t1=0.
+mse_t2=0.
+dmsedt_adv=0.
+dmsedt_rad=0.
+dmsedt_pbl=0.
 
 return
 end subroutine kuocom_init
@@ -79,6 +95,9 @@ implicit none
 
 deallocate(kbsav,ktsav)
 deallocate(convpsav,fluxtot)
+deallocate(mconv_save)
+deallocate(mse_t1,mse_t2)
+deallocate(dmsedt_adv, dmsedt_rad, dmsedt_pbl)
 
 return
 end subroutine kuocom_end

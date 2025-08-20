@@ -167,9 +167,12 @@ do tile = 1,ntiles
   ccn       = 0.              ! not well tested yet
   ccnclean  = 0.
   dtime     = dt              ! dt over which forcing is applied
-  imid      = 0               ! flag to turn on mid level convection                ! == 1 turn on
-  dhdt(:,:) = 0.              ! boundary layer forcing (one closure for shallow)    ! required for imid=1
-
+  imid      = 1               ! flag to turn on mid level convection                ! == 1 turn on
+  do k = 1,kl
+    ! boundary layer forcing (one closure for shallow)      
+    dhdt(1:imax,k) = dmsedt_adv(js:je,k) + dmsedt_rad(js:je,k) + dmsedt_pbl(js:je,k)    
+  end do
+  
   where ( land(js:je) )       ! land mask
     xland(1:imax) = 1.
   elsewhere
@@ -199,6 +202,7 @@ do tile = 1,ntiles
   dx         = ds/em(js:je)   ! dx is grid point dependent here     ! CHECK IF THIS KM OR NOT, ds/em(js:je) IS IN METER
   mconv(:)   = 0.             ! integrated vertical advection of moisture
   do k = 1,kl                 
+    mconv(1:imax) = mconv(1:imax) - dsig(k)*mconv_save(js:je,k)      
     omeg(1:imax,k) =  ps(js:je)*dpsldt(js:je,k)         ! omega (pa/s)
   end do
   csum       = 0.              ! used to implement memory, set to zero if not avail

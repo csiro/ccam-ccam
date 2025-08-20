@@ -116,7 +116,7 @@ real, dimension(imax,kl) :: l_rliq, l_rice, l_cliq, l_cice, lp
 real, dimension(imax,kl) :: l_rliq_in, l_rice_in, l_rsno_in
 real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
 real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
-real, dimension(ifull,kl) :: qlg_rem, qfg_rem
+real, dimension(imax,kl) :: qlg_rem, qfg_rem
 real, dimension(ifull,kl) :: clcon, cdrop
 real, dimension(ifull,kl) :: fluxr, fluxm, fluxf, fluxi, fluxs, fluxg
 real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
@@ -184,10 +184,10 @@ do tile = 1,ntiles
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
   ! limit maximum cloud water visible to microphysics
-  qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
-  qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
-  qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
-  qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
+  qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
+  qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
+  qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
+  qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)   
   
   lqg      = qg(js:je,:)
   lqlg     = qlg(js:je,:)
@@ -228,8 +228,8 @@ do tile = 1,ntiles
   trb_qend(js:je,:) = 0.
   
   ! reapply any remaining qlg_rem or qfg_rem
-  qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
-  qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
+  qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
+  qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
   
 end do
 
@@ -247,10 +247,10 @@ select case ( interp_ncloud(ldr,ncloud) )
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
       ! limit maximum cloud water visible to microphysics
-      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
-      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
-      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
-      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)      
+      qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
+      qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)      
       
       lgfrac   = gfrac(js:je,:)
       lrfrac   = rfrac(js:je,:)
@@ -298,8 +298,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       vi(js:je,:) = lvi
       
       ! reapply any remaining qlg_rem or qfg_rem
-      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
-      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
+      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
+      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
       
       ! backwards compatible data for aerosols
       if ( abs(iaero)>=2 ) then
