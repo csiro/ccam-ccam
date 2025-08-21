@@ -471,6 +471,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nmlo',nmlo)
     call ccnf_put_attg(idnc,'nrad',nrad)
     call ccnf_put_attg(idnc,'nritch_t',nritch_t)
+    call ccnf_put_attg(idnc,'nrungcm',nrungcm)
     call ccnf_put_attg(idnc,'nsemble',nsemble)
     call ccnf_put_attg(idnc,'nsib',nsib)
     call ccnf_put_attg(idnc,'nsigmf',nsigmf)
@@ -2422,6 +2423,10 @@ if ( iarch==1 ) then
       call attrib(idnc,dima,asize,'sw_tend_amp',lname,'K s-1',-50.,50.,any_m,point_m,cptype)
       lname = 'LW tendency'
       call attrib(idnc,dima,asize,'lw_tend',lname,'K s-1',-50.,50.,any_m,point_m,cptype)
+      lname = 'Change in moist static energy (Radiation)'
+      call attrib(idnc,dima,asize,'dmsedt_rad',lname,'W kg-1',-50.,50.,any_m,point_m,cptype)
+      lname = 'Change in moist static energy (Boundary mixing)'
+      call attrib(idnc,dima,asize,'dmsedt_pbl',lname,'W kg-1',-50.,50.,any_m,point_m,cptype)
     endif  ! (itype==-1)
         
     if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
@@ -3813,7 +3818,7 @@ if ( itype==-1 ) then
   call histwrt(ssdn(:,2), 'ssdn2', idnc,iarch,local,.true.)
   call histwrt(ssdn(:,3), 'ssdn3', idnc,iarch,local,.true.)
   call histwrt(snage,     'snage', idnc,iarch,local,.true.)
-  aa(:) = isflag(:)
+  aa(:) = real(isflag(:))
   call histwrt(aa,'sflag', idnc,iarch,local,.true.)
   call histwrt(sgsave,'sgsave',idnc,iarch,local,.true.)  
   call histwrt(rgsave,'rgsave',idnc,iarch,local,.true.)
@@ -3838,7 +3843,9 @@ if ( itype==-1 ) then
   call histwrt(cloudmi,'cloudmi',idnc,iarch,local,.true.)
   call histwrt(cloudhi,'cloudhi',idnc,iarch,local,.true.)
   call histwrt(sw_tend,'sw_tend_amp',idnc,iarch,local,.true.)
-  call histwrt(lw_tend,'lw_tend',idnc,iarch,local,.true.)  
+  call histwrt(lw_tend,'lw_tend',idnc,iarch,local,.true.)
+  call histwrt(dmsedt_rad,'dmsedt_rad',idnc,iarch,local,.true.)
+  call histwrt(dmsedt_pbl,'dmsedt_pbl',idnc,iarch,local,.true.)
 endif  ! (itype==-1)
 
 if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
@@ -4497,8 +4504,9 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'snd',lname,'mm',0.,6500.,sixhr_m,point_m,float_m)
     end if
     if ( cordex_tier1 ) then
+      ! fracice / siconca is supposed to be daily.  But we use 6hourly to make a sensible output for AXIOM
       lname = 'Sea ice fraction'
-      call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,daily_m,point_m,short_m)
+      call attrib(fncid,sdim,ssize,'fracice',lname,'none',0.,1.,sixhr_m,point_m,short_m)
       lname = 'Sunshine hours per day'
       call attrib(fncid,sdim,ssize,'sunhours',lname,'hrs',0.,24.,daily_m,sum_m,short_m)
     end if

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -26,10 +26,12 @@ implicit none
 private
 public phi,phi_nh,h_nh
 public lrestart, lrestart_radiation, lrestart_tracer, always_mspeca
+public lrestart_convection
 public nharrs_init,nharrs_end
 
 real, dimension(:,:), allocatable, save :: phi,phi_nh,h_nh
 logical, save :: lrestart, lrestart_radiation, lrestart_tracer, always_mspeca
+logical, save :: lrestart_convection
 
 contains
 
@@ -45,6 +47,7 @@ phi_nh = 0.
 lrestart = .false.
 lrestart_radiation = .false.
 lrestart_tracer = .false.
+lrestart_convection = .false.
 always_mspeca = .false.
 
 return
