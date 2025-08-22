@@ -92,7 +92,6 @@ use pbl_m                         ! Boundary layer arrays
 use prec_m                        ! Precipitation
 use raddiag_m                     ! Radiation diagnostic
 use screen_m                      ! Screen level diagnostics
-use sflux_m                       ! Surface flux routines
 use sigs_m                        ! Atmosphere sigma levels
 use soil_m                        ! Soil and surface data
 use soilsnow_m                    ! Soil, snow and surface data

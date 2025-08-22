@@ -661,7 +661,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do
   ! calculate MSE after radiation
   call calculate_dhdt_mse(1,ifull,mse_t2)
-  dmsedt_rad = (mse_t2 - mse_t1)/dt  
+  dmsedt_rad(:,:) = (mse_t2 (:,:)- mse_t1(:,:))/dt  
   call nantest("after radiation",1,ifull,"radiation")
     
   
@@ -735,7 +735,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call fixqg(1,ifull)
   ! calculate MSE after vertical mixing
   call calculate_dhdt_mse(1,ifull,mse_t2)
-  dmsedt_pbl = (mse_t2 - mse_t1)/dt  
+  dmsedt_pbl(:,:) = (mse_t2(:,:) - mse_t1(:,:))/dt  
   call nantest("after PBL mixing",1,ifull,"vmixing")
 
   
@@ -5187,7 +5187,7 @@ return
 end subroutine nantest
 
 !-------------------------------------------------------------------- 
-! Check for NaN errors
+! Calculate change in moist static energy
 subroutine calculate_dhdt_mse(js,je,mse_t1)
 
 use arrays_m       

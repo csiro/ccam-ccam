@@ -1601,7 +1601,8 @@ if ( nested/=1 .and. nested/=3 ) then
   
   if ( myid==0 ) then
     write(6,*) "-> Found lrestart,lrestart_radiation,lrestart_tracer = ",lrestart,lrestart_radiation,lrestart_tracer
-    write(6,*) "->       u10_found,carbon_found,carbon2_found        = ",u10_found,carbon_found,carbon2_found
+    write(6,*) "->       lrestart_convection,u10_found               = ",lrestart_convection,u10_found
+    write(6,*) "->       carbon_found,carbon2_found                  = ",carbon_found,carbon2_found
     write(6,*) "->       tgg_found,wetfrac_found,wb_found            = ",any(tgg_found),any(wetfrac_found),any(wb_found)
   end if
 

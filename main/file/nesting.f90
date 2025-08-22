@@ -77,7 +77,6 @@ contains
 ! Called for nbd/=0
 subroutine nestin
       
-use aerointerface                ! Aerosol interface
 use aerosol_arrays               ! Aerosol arrays
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
@@ -336,8 +335,7 @@ end subroutine nestin
 ! Called for mbd/=0
 subroutine nestinb
 
-!use aerointerface                ! Aerosol interface
-use aerosol_arrays                          ! Aerosol arrays
+use aerosol_arrays               ! Aerosol arrays
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
@@ -568,8 +566,8 @@ end subroutine nestinb
 ! scale-selective filter
 subroutine getspecdata(pslbb,ubb,vbb,tbb,qbb,xtgbb)
 
-!use aerointerface                ! Aerosol interface
-use aerosol_arrays                          ! Aerosol arrays
+!use aerointerface               ! Aerosol interface
+use aerosol_arrays               ! Aerosol arrays
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use const_phys                   ! Physical constants
@@ -645,7 +643,7 @@ do kb = kbotdav,ktopdav,kblock
   endif  ! (nud_uv==9) .. else ..
   !-----------------------------------------------------------------------
         
-end do
+end do ! kb loop
 
       
 if ( nud_p>0 ) then
@@ -704,7 +702,6 @@ end subroutine getspecdata
 ! This option is an exact treatment of the filter
 subroutine slowspecmpi(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-!use aerointerface     ! Aerosol interface
 use aerosol_arrays    ! Aerosol arrays
 use cc_mpi            ! CC MPI routines
 use newmpar_m         ! Grid parameters
@@ -859,37 +856,10 @@ end subroutine slowspecmpi_work
 !---------------------------------------------------------------------------------
 
 !---------------------------------------------------------------------------------
-! Four pass spectral downscaling
-subroutine specfastmpi(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
-      
-!use aerointerface      ! Aerosol interface
-use aerosol_arrays     ! Aerosol arrays
-use cc_mpi             ! CC MPI routines
-use newmpar_m          ! Grid parameters
-use parm_m             ! Model configuration
-      
-integer, intent(in) :: klt, kln, klx
-real, intent(in) :: cin
-real, dimension(ifull), intent(inout) :: psls
-real, dimension(ifull,kl), intent(inout) :: uu, vv
-real, dimension(ifull,kl), intent(inout) :: tt, qgg
-real, dimension(ifull,kl,naero), intent(inout) :: xtgg
-logical, intent(in) :: lblock
-      
-! general version
-call spechost(cin,psls,uu,vv,tt,qgg,xtgg,lblock,klt,kln,klx)
-
-return
-end subroutine specfastmpi
-!---------------------------------------------------------------------------------
-
-
-!---------------------------------------------------------------------------------
 ! This is the main routine for the scale-selective filter
 ! (see spechost_n for a reduced memory version)
-subroutine spechost(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
+subroutine specfastmpi(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-!use aerointerface      ! Aerosol interface
 use aerosol_arrays     ! Aerosol arrays
 use cc_mpi             ! CC MPI routines
 use newmpar_m          ! Grid parameters
@@ -910,14 +880,14 @@ logical, intent(in) :: lblock
 
 if ( nud_p>0 .and. lblock ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_send(pslbb)        ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_send(pslbb)            ! gather data onto global sparse array (1)
   call ccmpi_gathermap_recv(1)
   call END_LOG(nestwin_end)
 end if
 
 if ( nud_uv==3 ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_send(ubb(:,kln:klx))        ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_send(ubb(:,kln:klx))   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 else if ( nud_uv>0 ) then
   do k = kln,klx
@@ -934,8 +904,8 @@ end if
 
 if ( nud_p>0 .and. lblock ) then
   do ppass = pprocn,pprocx
-    call copyglobalpack(1,0,1)            ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,1,ppass) ! filter sparse array (0)
+    call copyglobalpack(1,0,1)                ! copy sparse array data (1) to (0)
+    call fastspecmpi_work(cin,qt,1,ppass)     ! filter sparse array (0)
     ibase=ipan*jpan*(ppass-pprocn)
     pslbb(1+ibase:ipan*jpan+ibase) = qt(1:ipan*jpan,1)
   end do
@@ -943,11 +913,11 @@ end if
 
 if ( nud_uv==3 ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(klt,klt)        ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv(klt,klt)          ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
   do ppass = pprocn,pprocx
-    call copyglobalpack(klt,0,klt)               ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,klt,ppass)      ! filter sparse array (0)
+    call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
+    call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
@@ -957,8 +927,8 @@ else if ( nud_uv>0 ) then
   call ccmpi_gathermap_send(vbb(:,kln:klx))   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
   do ppass = pprocn,pprocx
-    call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
+    call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
+    call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     ubb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
@@ -967,13 +937,13 @@ else if ( nud_uv>0 ) then
   call ccmpi_gathermap_send(wbb(:,kln:klx))   ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
   do ppass = pprocn,pprocx
-    call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
+    call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
+    call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     vbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(klt,klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv(klt,klt)          ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if
 
@@ -985,8 +955,8 @@ end if
 
 if ( nud_uv>0 .and. nud_uv/=3 ) then
   do ppass = pprocn,pprocx
-    call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
+    call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
+    call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     wbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
@@ -1000,7 +970,7 @@ endif
 
 if ( nud_t>0 ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(klt,klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv(klt,klt)          ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if  
 
@@ -1012,8 +982,8 @@ end if
 
 if ( nud_t>0 ) then
   do ppass = pprocn,pprocx
-    call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
+    call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
+    call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     tbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
@@ -1021,7 +991,7 @@ end if
 
 if ( nud_q>0 ) then
   call START_LOG(nestwin_begin)
-  call ccmpi_gathermap_recv(klt,klt)   ! gather data onto global sparse array (1)
+  call ccmpi_gathermap_recv(klt,klt)          ! gather data onto global sparse array (1)
   call END_LOG(nestwin_end)
 end if  
 
@@ -1033,8 +1003,8 @@ end if
 
 if ( nud_q>0 ) then
   do ppass = pprocn,pprocx
-    call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
-    call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
+    call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
+    call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
     ibase = ipan*jpan*(ppass-pprocn)
     qbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1) = qt(1:ipan*jpan,1:klt)
   end do
@@ -1043,7 +1013,7 @@ end if
 if ( abs(iaero)>=2 .and. nud_aero>0 ) then
   do i = 1,naero
     call START_LOG(nestwin_begin)  
-    call ccmpi_gathermap_recv(klt,klt) ! gather data onto global sparse array (1)
+    call ccmpi_gathermap_recv(klt,klt)        ! gather data onto global sparse array (1)
     call END_LOG(nestwin_end)
     if ( i<naero ) then
       call START_LOG(nestwin_begin)  
@@ -1051,8 +1021,8 @@ if ( abs(iaero)>=2 .and. nud_aero>0 ) then
       call END_LOG(nestwin_end)
     end if    
     do ppass = pprocn,pprocx
-      call copyglobalpack(klt,0,klt)            ! copy sparse array data (1) to (0)
-      call fastspecmpi_work(cin,qt,klt,ppass)   ! filter sparse array (0)
+      call copyglobalpack(klt,0,klt)          ! copy sparse array data (1) to (0)
+      call fastspecmpi_work(cin,qt,klt,ppass) ! filter sparse array (0)
       ibase = ipan*jpan*(ppass-pprocn)
       xtgbb(1+ibase:ipan*jpan+ibase,kln:kln+klt-1,i) = qt(1:ipan*jpan,1:klt)
     end do
@@ -1060,7 +1030,7 @@ if ( abs(iaero)>=2 .and. nud_aero>0 ) then
 end if      
 
 return
-end subroutine spechost
+end subroutine specfastmpi
 !---------------------------------------------------------------------------------
 
 ! determine if panel is 'left' or 'right'.  This
@@ -1118,7 +1088,7 @@ real, dimension(ipan*jpan*(klt+1),0:2) :: ff
 real, dimension(il_g) :: at, asum             ! subset of sparse array
 real, dimension(klt+1) :: local_sum
 real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za ! subset of shared array
-real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l         ! subset of sparse array
+real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l ! subset of sparse array
 #ifdef _OPENACC
 integer :: async_counter
 real, dimension(jpan,klt+1,ipan) :: qt_l
@@ -1202,9 +1172,7 @@ do ipass = 0,2
 
 end do ! ipass
 
-#ifdef _OPENACC
 !$acc wait
-#endif
 
 call END_LOG(nestcalc_end)
 
@@ -1435,9 +1403,7 @@ do ipass = 0,2
 
 end do ! ipass
 
-#ifdef _OPENACC
 !$acc wait
-#endif
 
 call END_LOG(nestcalc_end)
 
@@ -2409,9 +2375,7 @@ do ipass = 0,2
 
 end do ! ipass
 
-#ifdef _OPENACC
 !$acc wait
-#endif
 
 call END_LOG(nestcalc_end)
 
@@ -2638,9 +2602,7 @@ do ipass = 0,2
 
 end do ! ipass
 
-#ifdef _OPENACC
 !$acc wait
-#endif
 
 call END_LOG(nestcalc_end)
 

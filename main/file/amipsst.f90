@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -48,8 +48,7 @@ module amipsst_m
 implicit none
 
 private
-public amipsst, doints1, fill_cc1, define_grid, erase_grid, time_of_month
-public time_interpolate
+public amipsst, doints1, fill_cc1, define_grid, erase_grid
 
 integer, save :: amip_mode = -1 ! 0=month (ASCII), 1=month (NetCDF), 2=day (NetCDF)
 integer, save :: ncidx          ! Netcdf
@@ -111,8 +110,10 @@ subroutine amipsst_month
 use arrays_m                                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                        ! CC MPI routines
 use dates_m                                       ! Date data
+use infile                                        ! Input file routines
 use latlong_m                                     ! Lat/lon coordinates
 use mlo_ctrl                                      ! Ocean physics control layer
+use nesting                                       ! Nesting and assimilation
 use newmpar_m                                     ! Grid parameters
 use nharrs_m, only : lrestart                     ! Non-hydrostatic atmosphere arrays
 use parm_m                                        ! Model configuration
@@ -129,6 +130,8 @@ real, allocatable, save, dimension(:,:) :: asal
 real, allocatable, save, dimension(:) :: res
 real, dimension(ifull) :: sssb, timelt, fraciceb
 real, dimension(ifull) :: old, new, delta
+real, dimension(ifull,wlev) :: duma, dumb, dumd
+real, dimension(ifull,wlev,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
 real wgt
 integer mdays
@@ -253,30 +256,8 @@ end if  ! (namip==1)
 
 ! namip=2   Use linear interpolation for SSTs and sea-ice (assumes pre-processing of monthly SSTs)
 if ( namip==2 ) then
-  write(6,*) "ERROR: Not currently supported"
+  write(6,*) "ERROR: namip=2 is not currently supported"
   stop
-!  !--------------------------------------------------------------------------------------------------
-!  ! Linear interpolation (possibly pre-processed by AMIP tridiagonal matrix method)
-!  if ( iday<mdays(imo)/2 ) then  ! 1st half of month
-!    rat1 = (mdays(imo)-2.*iday)/(mdays(imo)+mdays(imo-1))
-!    rat2 = (2.*iday+mdays(imo-1))/(mdays(imo)+mdays(imo-1))
-!    if ( mydiag ) write(6,*)'rat1,rat2,land: ',rat1,rat2,land(idjd)
-!    do iq = 1,ifull  
-!      if ( .not.land(iq) ) then
-!        tgg(iq,1) = rat1*ssta(iq,curr_month-1) + rat2*ssta(iq,curr_month)  ! sea water temperature
-!      end if      ! (.not.land(iq))
-!    end do
-!    fraciceb(:) = min( .01*(rat1*aice(:,curr_month-1)+rat2*aice(:,curr_month)), 1. ) ! convert from %
-!  else                             ! 2nd half of month
-!    rat1 = (mdays(imo+1)+2.*mdays(imo)-2.*iday)/(mdays(imo+1)+mdays(imo))
-!    rat2 = (2.*iday-mdays(imo))/(mdays(imo+1)+mdays(imo))
-!    do iq = 1,ifull  
-!      if ( .not.land(iq) ) then
-!        tgg(iq,1) = rat1*ssta(iq,curr_month) + rat2*ssta(iq,curr_month+1)  ! sea water temperature
-!      end if      ! (.not.land(iq))
-!    end do
-!    fraciceb(:) = min( .01*(rat1*aice(:,curr_month)+rat2*aice(:,curr_month+1)), 1. ) ! convert from %
-!  end if
 end if  ! (namip==2)
 
 
@@ -426,30 +407,51 @@ if ( nmlo==0 ) then
     enddo
   end if  
 elseif ( ktau>0 ) then
-  if ( nud_hrs<=0 ) then
-    write(6,*) "ERROR: namip/=0 has been selected with in-line ocean model (nmlo/=0)"  
-    write(6,*) "nud_hrs>0 must be specified for relaxiation of SSTs"
-    call ccmpi_abort(-1)
-  end if
+    
   old = tgg(:,1)
   call mloexpmelt(timelt)
   timelt = min(timelt+0.01,tgg(:,1))
   new = tgg(:,1)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
-  wgt = dt/real(nud_hrs*3600)
-  call mloexport("temp",old,1,0)
-  delta = new - old
-  do k = 1,kbotmlo
-    old = 273.16 - wrtemp  
-    call mloexport("temp",old,k,0)
-    old = old + max( wgt*delta, 271.16-wrtemp-old )
-    call mloimport("temp",old,k,0)
-  end do  
+    
+  if ( mbd_mlo/=0 ) then
+      
+    if ( nud_sst/=0 ) then
+      if ( mod(mtimer,nud_period)==0 ) then  
+        duma(:,:) = 0.
+        dumb(:,:) = 0.
+        dumc(:,:,:) = 0.
+        dumd(:,:) = 0.
+        duma(:,1) = new(:)
+        call mlofilterhub(duma,dumb,dumc,dumd,1)
+      end if  
+    end if
+    
+  else ! mbd_mlo ..else..  
+
+    if ( nud_hrs<=0 ) then
+      write(6,*) "ERROR: namip/=0 has been selected with in-line ocean model (nmlo/=0)"  
+      write(6,*) "nud_hrs>0 must be specified for relaxiation of SSTs"
+      call ccmpi_abort(-1)
+    end if
+    wgt = dt/real(nud_hrs*3600)
+    call mloexport("temp",old,1,0)
+    delta = new - old
+    do k = 1,kbotmlo
+      old = 273.16 - wrtemp  
+      call mloexport("temp",old,k,0)
+      old = old + max( wgt*delta, 271.16-wrtemp-old )
+      call mloimport("temp",old,k,0)
+    end do  
+  
+  end if ! mbd_mlo ..else..
+  
   do k = 1,ms
     call mloexport("temp",tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
   end do
+  
 end if ! if (nmlo==0) ..else..
 
 
@@ -527,8 +529,6 @@ if ( amip_mode==1 ) then
     rlat_in    = ahead(7)
     schmidt_in = ahead(8)
   endif  ! (schmidtx<=0..or.schmidtx>1.)  
-  call ccnf_get_attg(ncidx,'leap',leap_file,tst) ! old method
-  if ( tst ) leap_file = 0                       ! old method
   call ccnf_inq_varid(ncidx,'time',varid_time)                                        ! new method
   call ccnf_get_att(ncidx,varid_time,'calendar',calendarstring,ierr)                  ! new method
   if ( ierr==0 ) then                                                                 ! new method
@@ -544,11 +544,10 @@ if ( amip_mode==1 ) then
         write(6,*) "Found calendar = ",trim(calendarstring)                           ! new method
         write(6,*) "Valid options are 365_day, noleap, 360_day or standard"           ! new method
     end select                                                                        ! new method
-  else                                                                                ! new method
-    write(6,*) "ERROR: calendar is not defined in AMIPSST file"                       ! new method
-    write(6,*) "Please define calendar with standard, 365_day, noleap or 360_day"     ! new method 
-    call ccmpi_abort(-1)                                                              ! new method 
-  end if                                                                              ! new method
+  else
+    call ccnf_get_attg(ncidx,'leap',leap_file,tst) ! old method
+    if ( tst ) leap_file = 0                       ! old method
+  end if
       
   call ccnf_inq_dimlen(ncidx,'time',maxarchi)
          
@@ -1034,6 +1033,7 @@ use filnames_m                               ! Filenames
 use infile                                   ! Input file routines
 use latlong_m                                ! Lat/lon coordinates
 use mlo_ctrl                                 ! Ocean physics control layer
+use nesting                                  ! Nesting and assimilation
 use newmpar_m                                ! Grid parameters
 use nharrs_m, only : lrestart                ! Non-hydrostatic atmosphere arrays
 use parm_m                                   ! Model configuration
@@ -1067,6 +1067,8 @@ real of, sc
 real timer_r, wgt
 real, dimension(nrhead) :: ahead
 real, dimension(ifull) :: oldsst, newsst, deltasst, timelt
+real, dimension(ifull,wlev) :: duma, dumb, dumd
+real, dimension(ifull,wlev,2) :: dumc
 real, dimension(:), allocatable :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
 real, dimension(:), allocatable :: wts_a
@@ -1339,30 +1341,52 @@ if ( nmlo==0 ) then
     enddo
   end if  
 elseif ( ktau>0 ) then
-  if ( nud_hrs<=0 ) then
-    write(6,*) "ERROR: namip/=0 has been selected with in-line ocean model (nmlo/=0)"  
-    write(6,*) "nud_hrs>0 must be specified for relaxiation of SSTs"
-    call ccmpi_abort(-1)
-  end if
+    
   oldsst = ssta
   call mloexpmelt(timelt)
   timelt = min(timelt+0.01,ssta)
   newsst = ssta*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
-  wgt = dt/real(nud_hrs*3600)
-  call mloexport("temp",oldsst,1,0)
-  deltasst = newsst - oldsst
-  do k = 1,kbotmlo
-    oldsst = 273.16 - wrtemp  
-    call mloexport("temp",oldsst,k,0)
-    newsst = oldsst + max( wgt*deltasst, 271.16-wrtemp-oldsst )
-    call mloimport("temp",newsst,k,0)
-  end do  
+    
+  if ( mbd_mlo/=0 ) then
+      
+    if ( nud_sst/=0 ) then
+      if ( mod(mtimer,nud_period)==0 ) then  
+        duma(:,:) = 0.
+        dumb(:,:) = 0.
+        dumc(:,:,:) = 0.
+        dumd(:,:) = 0.
+        duma(:,1) = newsst(:)
+        call mlofilterhub(duma,dumb,dumc,dumd,1)
+      end if  
+    end if
+    
+  else ! mbd_mlo/=0 ..else..  
+    
+    if ( nud_hrs<=0 ) then
+      write(6,*) "ERROR: namip/=0 has been selected with in-line ocean model (nmlo/=0)"  
+      write(6,*) "nud_hrs>0 must be specified for relaxiation of SSTs"
+      call ccmpi_abort(-1)
+    end if
+
+    wgt = dt/real(nud_hrs*3600)
+    call mloexport("temp",oldsst,1,0)
+    deltasst = newsst - oldsst
+    do k = 1,kbotmlo
+      oldsst = 273.16 - wrtemp  
+      call mloexport("temp",oldsst,k,0)
+      newsst = oldsst + max( wgt*deltasst, 271.16-wrtemp-oldsst )
+      call mloimport("temp",newsst,k,0)
+    end do  
+    
+ end if ! mbd_mlo/=0 ..else..  
+    
   do k = 1,ms
     call mloexport("temp",tgg(:,k),k,0)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
   end do
+
 end if ! if (nmlo==0) ..else..
 
 return
@@ -1639,157 +1663,5 @@ implicit none
 deallocate( nface4, xg4, yg4 )
 
 end subroutine erase_grid
-
-subroutine time_of_month(iyr,imo,iday,mdays,kdate,mtimer,leap)
-
-implicit none
-
-integer, intent(in) :: kdate, leap, mtimer
-integer, intent(out) :: iyr, imo, iday, mdays
-integer, dimension(0:13) :: mdays_a
-
-iyr = kdate/10000
-imo = (kdate-10000*iyr)/100
-iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
-if ( leap==0 ) then ! 365 day calendar
-  mdays_a = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
-else if ( leap==1 ) then ! 365/366 day calendar
-  mdays_a = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
-  if ( mod(iyr,4)==0 ) mdays_a(2) = 29
-  if ( mod(iyr,100)==0 ) mdays_a(2) = 28
-  if ( mod(iyr,400)==0 ) mdays_a(2) = 29
-else if ( leap==2 ) then ! 360 day calendar
-  mdays_a = (/ 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 /)  
-else
-  write(6,*) "ERROR: Invalid leap = ",leap
-  stop
-end if
-do while ( iday>mdays_a(imo) )
-  iday = iday - mdays_a(imo)
-  imo = imo + 1
-  if ( imo>12 ) then
-    imo = 1
-    iyr = iyr + 1
-    if ( leap==1 ) then
-      if ( mod(iyr,4)==0 ) mdays_a(2) = 29
-      if ( mod(iyr,100)==0 ) mdays_a(2) = 28
-      if ( mod(iyr,400)==0 ) mdays_a(2) = 29
-    end if
-  end if
-end do
-mdays = mdays_a(imo)
-
-return
-end subroutine time_of_month
-
-subroutine time_interpolate(datout,dat_pm,dat_p,dat_c,dat_n,dat_np,x,method,land)
-
-integer, intent(in) :: method
-integer iq
-real, intent(in) :: x
-real a0, a1, a2, aa, bb, cc, mp1, mp2, c2, c3, c4
-real ssta2, ssta3, ssta4
-real, dimension(:), intent(out) :: datout
-real, dimension(:), intent(in) :: dat_pm, dat_p, dat_c, dat_n, dat_np
-logical, dimension(:), intent(in), optional :: land
-logical, dimension(size(datout)) :: land_l
-
-! dat_pm - previous month -1 (current month - 2)
-! dat_p  - previous month (current month - 1)
-! dat_c  - current month
-! dat_n  - next month ( current month + 1)
-! dat_np - next month +1 ( current month + 2 )
-
-land_l = .false.
-if ( present(land) ) then
-  land_l = land
-end if
-
-! method=3,4,5  Use PWCB interpolation
-if ( method==3 .or. method==4 .or. method==5 ) then
-  !--------------------------------------------------------------------------------------------------
-  ! Piece-wise cubic bessel interpolation
-  do iq=1,size(datout)
-    if( .not.land_l(iq) )then
-      c2=dat_p(iq)
-      c3=dat_p(iq)+dat_c(iq)
-      c4=c3+dat_n(iq)          
-      datout(iq)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
-    endif      ! (.not.land(iq))
-  enddo
-endif
-
-! method=11,13,14,15  Use JMc interpolation
-if ( method==11 .or. method==13 .or. method==14 .or. method==15 ) then
-  !--------------------------------------------------------------------------------------------------
-  ! John McGregor 5-pt, piece-wise, cubic interpolation
-  do iq=1,size(datout)
-    if ( .not.land_l(iq) ) then
-      ssta2=(24.*dat_p(iq)-dat_pm(iq)-dat_c(iq))/22. 
-      ssta3=(24.*dat_c(iq)-dat_p(iq)-dat_n(iq))/22. 
-      ssta4=(24.*dat_n(iq)-dat_c(iq)-dat_np(iq))/22. 
-      c2=(-dat_pm(iq)+9*ssta2+9*ssta3-dat_n(iq))/16.
-      c3=(-dat_p(iq)+9*ssta3+9*ssta4-dat_np(iq))/16.
-      datout(iq)=c2+(6.*dat_c(iq)-4.*c2-2.*c3)*x    &
-                 +(3.*c2+3.*c3-6.*dat_c(iq))*x*x 
-    endif      ! (.not.land(iq))
-  enddo
-end if
-
-! method=21,24,25  Use approx linear AMIP interpolation
-if ( method==21 .or. method==24 .or. method==25 ) then
-  !--------------------------------------------------------------------------------------------------
-  ! Approximation of piece-wise, linear AMIP interpolation
-  if ( x<0.5 ) then
-    do iq = 1,size(datout)
-      if ( .not.land_l(iq) ) then
-        a0 = 0.5*dat_p(iq)
-        a1 = -dat_c(iq)
-        a2 = 0.5*dat_n(iq)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-        a0 = 0.5*dat_c(iq)
-        a1 = -dat_n(iq)
-        a2 = 0.5*dat_np(iq)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-        c4 = 2.*dat_c(iq) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-        c2 = mp1                              ! intercept
-        c3 = 2.*(c4-c2)                       ! gradient
-        datout(iq) = c3*x + c2
-      end if
-    end do
-  else
-    do iq = 1,size(datout)
-      if ( .not.land_l(iq) ) then
-        a0 = 0.5*dat_p(iq)
-        a1 = -dat_c(iq)
-        a2 = 0.5*dat_n(iq)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-        a0 = 0.5*dat_c(iq)
-        a1 = -dat_n(iq)
-        a2 = 0.5*dat_np(iq)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-        c4 = 2.*dat_c(iq) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-        c3 = 2.*(mp2 - c4)                    ! gradient
-        c2 = 2.*c4 - mp2                      ! intercept
-        datout(iq) = c3*x + c2
-      end if
-    end do
-  end if
-end if
-
-return
-end subroutine time_interpolate
 
 end module amipsst_m

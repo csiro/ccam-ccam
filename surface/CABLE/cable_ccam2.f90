@@ -274,7 +274,6 @@ contains
 ! CABLE-CCAM interface
 subroutine sib4
 
-use amipsst_m, only : time_of_month, time_interpolate
 use arrays_m
 use carbpools_m
 use const_phys

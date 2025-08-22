@@ -39,10 +39,13 @@ public ptest, pfall, ncidold, resprocformat, pncid
 public histopen, histclose, histrd, surfread
 public attrib, histwrt, lsmask
 public ccnf_open, ccnf_create, ccnf_close, ccnf_sync, ccnf_enddef
-public ccnf_redef, ccnf_nofill, ccnf_inq_varid, ccnf_inq_dimid
-public ccnf_inq_dimlen, ccnf_inq_varndims, ccnf_def_dim, ccnf_def_dimu
-public ccnf_def_var, ccnf_get_vara, ccnf_get_att, ccnf_get_attg
-public ccnf_read, ccnf_put_vara, ccnf_put_att, ccnf_put_attg
+public ccnf_redef, ccnf_nofill
+public ccnf_inq_varid, ccnf_inq_dimid, ccnf_inq_dimlen, ccnf_inq_varndims
+public ccnf_inq_exist
+public ccnf_def_dim, ccnf_def_dimu, ccnf_def_var
+public ccnf_get_vara, ccnf_get_att, ccnf_get_attg
+public ccnf_put_vara, ccnf_put_att, ccnf_put_attg
+public ccnf_read
 public comm_ip, pil_single
 
 public driving_model_id, driving_model_ensemble_number, driving_experiment_name
@@ -50,6 +53,8 @@ public driving_institution_id
 
 public any_m, daily_m, sixhr_m, point_m, mean_m, max_m, min_m, fixed_m, sum_m
 public short_m, double_m, float_m
+
+public time_of_month, time_interpolate
 
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
@@ -108,16 +113,19 @@ interface ccnf_get_attg
 end interface ccnf_get_attg
 
 interface ccnf_get_vara
-  module procedure ccnf_get_var_real, ccnf_get_var_int
   module procedure ccnf_get_vara_text_t
-  module procedure ccnf_get_vara_real1r_s, ccnf_get_vara_real1r_t
-  module procedure ccnf_get_vara_real2r_s, ccnf_get_vara_real2r_t, ccnf_get_vara_real2r
-  module procedure ccnf_get_vara_real3r_t, ccnf_get_vara_real3r, ccnf_get_vara_real4r 
-  module procedure ccnf_get_vara_int1i_s, ccnf_get_vara_int2i_t, ccnf_get_vara_int2i
-  module procedure ccnf_get_vara_int3i_t
+  module procedure ccnf_get_var_real
+  module procedure ccnf_get_vara_real2r, ccnf_get_vara_real3r, ccnf_get_vara_real4r
+  module procedure ccnf_get_vara_real1r_s, ccnf_get_vara_real2r_s
+  module procedure ccnf_get_vara_real1r_t, ccnf_get_vara_real2r_t, ccnf_get_vara_real3r_t
+  module procedure ccnf_get_var_int  
+  module procedure ccnf_get_vara_int2i
+  module procedure ccnf_get_vara_int1i_s
+  module procedure ccnf_get_vara_int2i_t, ccnf_get_vara_int3i_t
 #ifndef i8r8
   module procedure ccnf_get_vara_double1r_s
-  module procedure ccnf_get_vara_double2r_t, ccnf_get_vara_double4d
+  module procedure ccnf_get_vara_double2r_t
+  module procedure ccnf_get_vara_double4d  
 #endif
 end interface ccnf_get_vara
 
@@ -160,8 +168,6 @@ use cc_mpi, only : myid, ccmpi_reduce, histrd_begin, histrd_end, fnresid, &
                    start_log, end_log, ccmpi_distribute, pil_g
 use parm_m
 
-implicit none
-      
 integer, intent(in) :: iarchi,ifull
 integer, intent(out) :: ier
 integer :: iq
@@ -229,8 +235,6 @@ subroutine hr3p(iarchi,ier,name,qtest,var)
 
 use cc_mpi
       
-implicit none
-
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer :: ipf, jpf, ca, cc, ip, no, n, j
@@ -346,8 +350,6 @@ use cc_mpi, only : myid, ccmpi_reducer8, histrd_begin, histrd_end, fnresid, &
                    start_log, end_log, ccmpi_distributer8, pil_g
 use parm_m
 
-implicit none
-      
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer :: iq
@@ -406,8 +408,6 @@ subroutine hr3pr8(iarchi,ier,name,qtest,var)
 
 use cc_mpi
       
-implicit none
-
 integer, intent(in) :: iarchi
 integer, intent(out) :: ier
 integer :: ipf, ca, jpf, ip, n, no, cc, j
@@ -519,8 +519,6 @@ use cc_mpi, only : myid, ccmpi_reduce, histrd_begin, histrd_end, fnresid, &
                    start_log, end_log, ccmpi_distribute, ccmpi_abort, pil_g
 use parm_m
       
-implicit none
-      
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer iq, kk
@@ -580,8 +578,6 @@ subroutine hr4p(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
       
-implicit none
-
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer :: ipf, k, ca, jpf, ip, n, no, cc, j
@@ -746,8 +742,6 @@ use cc_mpi, only : myid, ccmpi_reducer8, histrd_begin, histrd_end, fnresid, &
                    start_log, end_log, ccmpi_distributer8, ccmpi_abort, pil_g
 use parm_m
       
-implicit none
-      
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer iq, kk
@@ -807,8 +801,6 @@ subroutine hr4pr8(iarchi,ier,name,kk,qtest,var)
 
 use cc_mpi
       
-implicit none
-
 integer, intent(in) :: iarchi, kk
 integer, intent(out) :: ier
 integer :: ipf, k, ca, jpf, ip, n, no, cc, j
@@ -831,7 +823,7 @@ if ( mynproc>0 ) then
 
   do ipf = 0,mynproc-1
       
-    rvar = 0. ! default for missing field  
+    rvar = 0._8 ! default for missing field  
     
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -973,8 +965,6 @@ use cc_mpi, only : myid, ccmpi_reduce, histrd_begin, histrd_end, start_log, end_
                    ccmpi_distribute, ccmpi_abort, pil_g
 use parm_m
       
-implicit none
-      
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer kk, ll
@@ -1022,8 +1012,6 @@ subroutine hr5p(iarchi,ier,name,kk,ll,qtest,var)
 
 use cc_mpi
       
-implicit none
-
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer :: ipf, ca, jpf, ip, n, no, cc, j, k, l
@@ -1044,6 +1032,8 @@ ier = 0
 if ( mynproc>0 ) then
       
   do ipf = 0,mynproc-1
+      
+    rvar(:,:,:) = 0. ! default for missing field  
     
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -1131,8 +1121,6 @@ use cc_mpi, only : myid, ccmpi_reducer8, histrd_begin, histrd_end, start_log, en
                    ccmpi_distributer8, ccmpi_abort, pil_g
 use parm_m
       
-implicit none
-      
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer kk, ll
@@ -1180,8 +1168,6 @@ subroutine hr5pr8(iarchi,ier,name,kk,ll,qtest,var)
 
 use cc_mpi
       
-implicit none
-
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer :: ipf, ca,jpf, ip, n, no, cc, j, k, l
@@ -1203,7 +1189,7 @@ if ( mynproc>0 ) then
       
   do ipf = 0,mynproc-1
     
-    rvar(:,:,:) = 0.  
+    rvar(:,:,:) = 0._8  
     
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
@@ -1290,8 +1276,6 @@ subroutine histopen(ncid,ifile,ier,fileerror)
 use cc_mpi
 use newmpar_m
 use parm_m
-      
-implicit none
       
 integer, parameter :: nihead = 54
       
@@ -1896,6 +1880,7 @@ end subroutine vertint
 subroutine datefix(kdate_r,ktime_r,mtimer_r,allleap,silent)
 
 use cc_mpi
+use dates_m
 use parm_m
 
 implicit none
@@ -1904,6 +1889,7 @@ integer, intent(inout) :: kdate_r,ktime_r
 integer(kind=8), intent(inout) :: mtimer_r
 integer, intent(in), optional :: allleap
 integer(kind=8), dimension(12) :: mdays
+integer, dimension(12) :: mdays4
 integer leap_l
 integer(kind=8) iyr,imo,iday,ihr,imins
 integer(kind=8) mtimerh,mtimerm
@@ -1935,19 +1921,8 @@ if ( myid==0 .and. .not.quiet ) then
   write(6,'(A,I4,I4,I8)') ' -> ihr,imins,mtimer_r: ',ihr,imins,int(mtimer_r)
 end if
 
-if ( leap_l==0 ) then ! 365 day calendar
-  mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)  
-else if ( leap_l==1 ) then ! 365/366 day calendar  
-  mdays = (/31_8,28_8,31_8,30_8,31_8,30_8,31_8,31_8,30_8,31_8,30_8,31_8/)
-  if ( mod(iyr,4_8)==0   ) mdays(2)=29_8
-  if ( mod(iyr,100_8)==0 ) mdays(2)=28_8
-  if ( mod(iyr,400_8)==0 ) mdays(2)=29_8
-else if ( leap_l==2 ) then ! 360 day calendar
-  mdays(:)=30_8  
-else
-  write(6,*) "ERROR: Unknown option for leap = ",leap_l
-  call ccmpi_abort(-1)
-end if
+call calendar_function(mdays4,kdate_r,leap_l)
+mdays(:) = int( mdays4(:) )
 do while ( mtimer_r>minsday*mdays(imo) )
   mtimer_r=mtimer_r-minsday*mdays(imo)
   imo=imo+1_8
@@ -3599,6 +3574,20 @@ end if
 return
 end subroutine ccnf_inq_varid
 
+subroutine ccnf_inq_exist(ncid,vname,tst)
+
+integer, intent(in) :: ncid
+integer ncstatus
+integer(kind=4) lncid, lvid
+character(len=*), intent(in) :: vname
+logical, intent(out) :: tst
+
+lncid = ncid
+ncstatus = nf90_inq_varid(lncid,vname,lvid)
+tst = (ncstatus/=nf90_noerr)
+
+return
+end subroutine ccnf_inq_exist
 
 subroutine ccnf_inq_varndims(ncid,vid,ndims)
 
@@ -4936,5 +4925,157 @@ end where
 
 return
 end subroutine lsmask
+
+subroutine time_of_month(iyr,imo,iday,mdays,kdate,mtimer,leap)
+
+implicit none
+
+integer, intent(in) :: kdate, leap, mtimer
+integer, intent(out) :: iyr, imo, iday, mdays
+integer, dimension(0:13) :: mdays_a
+
+iyr = kdate/10000
+imo = (kdate-10000*iyr)/100
+iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
+if ( leap==0 ) then ! 365 day calendar
+  mdays_a = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
+else if ( leap==1 ) then ! 365/366 day calendar
+  mdays_a = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
+  if ( mod(iyr,4)==0 ) mdays_a(2) = 29
+  if ( mod(iyr,100)==0 ) mdays_a(2) = 28
+  if ( mod(iyr,400)==0 ) mdays_a(2) = 29
+else if ( leap==2 ) then ! 360 day calendar
+  mdays_a = (/ 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 /)  
+else
+  write(6,*) "ERROR: Invalid leap = ",leap
+  stop
+end if
+do while ( iday>mdays_a(imo) )
+  iday = iday - mdays_a(imo)
+  imo = imo + 1
+  if ( imo>12 ) then
+    imo = 1
+    iyr = iyr + 1
+    if ( leap==1 ) then
+      if ( mod(iyr,4)==0 ) mdays_a(2) = 29
+      if ( mod(iyr,100)==0 ) mdays_a(2) = 28
+      if ( mod(iyr,400)==0 ) mdays_a(2) = 29
+    end if
+  end if
+end do
+mdays = mdays_a(imo)
+
+return
+end subroutine time_of_month
+
+subroutine time_interpolate(datout,dat_pm,dat_p,dat_c,dat_n,dat_np,x,method,land)
+
+integer, intent(in) :: method
+integer iq
+real, intent(in) :: x
+real a0, a1, a2, aa, bb, cc, mp1, mp2, c2, c3, c4
+real ssta2, ssta3, ssta4
+real, dimension(:), intent(out) :: datout
+real, dimension(:), intent(in) :: dat_pm, dat_p, dat_c, dat_n, dat_np
+logical, dimension(:), intent(in), optional :: land
+logical, dimension(size(datout)) :: land_l
+
+! dat_pm - previous month -1 (current month - 2)
+! dat_p  - previous month (current month - 1)
+! dat_c  - current month
+! dat_n  - next month ( current month + 1)
+! dat_np - next month +1 ( current month + 2 )
+
+land_l = .false.
+if ( present(land) ) then
+  land_l = land
+end if
+
+! method=3,4,5  Use PWCB interpolation
+if ( method==3 .or. method==4 .or. method==5 ) then
+  !--------------------------------------------------------------------------------------------------
+  ! Piece-wise cubic bessel interpolation
+  do iq=1,size(datout)
+    if( .not.land_l(iq) )then
+      c2=dat_p(iq)
+      c3=dat_p(iq)+dat_c(iq)
+      c4=c3+dat_n(iq)          
+      datout(iq)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
+    endif      ! (.not.land(iq))
+  enddo
+endif
+
+! method=11,13,14,15  Use JMc interpolation
+if ( method==11 .or. method==13 .or. method==14 .or. method==15 ) then
+  !--------------------------------------------------------------------------------------------------
+  ! John McGregor 5-pt, piece-wise, cubic interpolation
+  do iq=1,size(datout)
+    if ( .not.land_l(iq) ) then
+      ssta2=(24.*dat_p(iq)-dat_pm(iq)-dat_c(iq))/22. 
+      ssta3=(24.*dat_c(iq)-dat_p(iq)-dat_n(iq))/22. 
+      ssta4=(24.*dat_n(iq)-dat_c(iq)-dat_np(iq))/22. 
+      c2=(-dat_pm(iq)+9*ssta2+9*ssta3-dat_n(iq))/16.
+      c3=(-dat_p(iq)+9*ssta3+9*ssta4-dat_np(iq))/16.
+      datout(iq)=c2+(6.*dat_c(iq)-4.*c2-2.*c3)*x    &
+                 +(3.*c2+3.*c3-6.*dat_c(iq))*x*x 
+    endif      ! (.not.land(iq))
+  enddo
+end if
+
+! method=21,24,25  Use approx linear AMIP interpolation
+if ( method==21 .or. method==24 .or. method==25 ) then
+  !--------------------------------------------------------------------------------------------------
+  ! Approximation of piece-wise, linear AMIP interpolation
+  if ( x<0.5 ) then
+    do iq = 1,size(datout)
+      if ( .not.land_l(iq) ) then
+        a0 = 0.5*dat_p(iq)
+        a1 = -dat_c(iq)
+        a2 = 0.5*dat_n(iq)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*dat_c(iq)
+        a1 = -dat_n(iq)
+        a2 = 0.5*dat_np(iq)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*dat_c(iq) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c2 = mp1                              ! intercept
+        c3 = 2.*(c4-c2)                       ! gradient
+        datout(iq) = c3*x + c2
+      end if
+    end do
+  else
+    do iq = 1,size(datout)
+      if ( .not.land_l(iq) ) then
+        a0 = 0.5*dat_p(iq)
+        a1 = -dat_c(iq)
+        a2 = 0.5*dat_n(iq)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
+        a0 = 0.5*dat_c(iq)
+        a1 = -dat_n(iq)
+        a2 = 0.5*dat_np(iq)
+        aa = a0 + a1 + a2
+        bb = -3.*a0 - 2.*a1 - a2
+        cc = 2.*a0
+        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
+        c4 = 2.*dat_c(iq) - 0.5*mp1 - 0.5*mp2 ! mid-point value
+        c3 = 2.*(mp2 - c4)                    ! gradient
+        c2 = 2.*c4 - mp2                      ! intercept
+        datout(iq) = c3*x + c2
+      end if
+    end do
+  end if
+end if
+
+return
+end subroutine time_interpolate
 
 end module infile
