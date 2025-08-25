@@ -96,15 +96,17 @@ real                     :: ccnclean, dtime
 integer                  :: imid                 ! flag to turn on mid level convection
 integer, dimension(imax) :: kpbl, tropics        ! level of boundary layer height
 real, dimension(imax,kl) :: dhdt,g_rho,g_t,g_q,po,g_us,g_vs,tn
-real, dimension(imax)    :: dx,z1,psur,xland
+real, dimension(imax)    :: dx,z1,psur,xland,dq
 real, dimension(imax,kl) :: zo
 real, dimension(imax,10) :: forcing
 real, dimension(imax,kl) :: q,qo,zuo,zdo,zdm, g_qfg, g_qlg
-real, dimension(imax)    :: hfx,qfx,xmbm_in,xmbs_in, pre, xmb_out,g_pre
+real, dimension(imax)    :: hfx,qfx,xmbm_in,xmbs_in, xmb_out,g_pre
+real, dimension(imax)    :: pre_mid, pre_deep
 real, dimension(imax,kl) :: omeg
 integer, dimension(imax) :: csum
-real, dimension(imax,kl) :: cnvwt,outu,outv,outt,outq,outqc,cupclw
-real, dimension(imax,kl) :: outliqice
+real, dimension(imax,kl) :: cnvwt,cupclw
+real, dimension(imax,kl) :: outu_mid,outv_mid,outt_mid,outq_mid,outqc_mid,outliqice_mid
+real, dimension(imax,kl) :: outu_deep,outv_deep,outt_deep,outq_deep,outqc_deep,outliqice_deep
 real, dimension(imax)    :: edto,edtm,hkbo,xhkb,xmb,pwavo,ccnloss,             &
                             pwevo,bu,bud,cap_max,                              &
                             cap_max_increment,closure_n,psum,psumh,sigd
@@ -167,7 +169,6 @@ do tile = 1,ntiles
   ccn       = 0.              ! not well tested yet
   ccnclean  = 0.
   dtime     = dt              ! dt over which forcing is applied
-  imid      = 1               ! flag to turn on mid level convection                ! == 1 turn on
   do k = 1,kl
     ! boundary layer forcing (one closure for shallow)      
     dhdt(1:imax,k) = dmsedt_adv(js:je,k) + dmsedt_rad(js:je,k) + dmsedt_pbl(js:je,k)    
@@ -200,10 +201,13 @@ do tile = 1,ntiles
   hfx        = fg(js:je)      ! w/m2, positive upward
   qfx        = eg(js:je)      ! w/m2, positive upward
   dx         = ds/em(js:je)   ! dx is grid point dependent here     ! CHECK IF THIS KM OR NOT, ds/em(js:je) IS IN METER
-  mconv(:)   = 0.             ! integrated vertical advection of moisture
   do k = 1,kl                 
-    mconv(1:imax) = mconv(1:imax) - dsig(k)*mconv_save(js:je,k)      
     omeg(1:imax,k) =  ps(js:je)*dpsldt(js:je,k)         ! omega (pa/s)
+  end do
+  mconv(:) = 0.                ! integrated vertical advection of moisture
+  do k = 1,kl-1
+    dq(1:imax) = qg(js:je,k+1) - qg(js:je,k)
+    mconv(1:imax) =mconv(1:imax)+omeg(1:imax,k)*dq(1:imax)/grav
   end do
   csum       = 0.              ! used to implement memory, set to zero if not avail
   cnvwt      = 0.              ! gfs needs this
@@ -215,11 +219,6 @@ do tile = 1,ntiles
   xmb_out    = 0.              ! the xmb's may be needed for dicycle
   xmbm_in    = 0.              !
   xmbs_in    = 0.              !
-  outu       = 0.              ! momentum tendencies at mass points
-  outv       = 0.              !
-  outt       = 0.              ! temperature tendencies
-  outq       = 0.              ! q tendencies
-  outqc      = 0.              ! ql/qice tendencies
   kbcon      = 0.              ! lfc of parcel from k22
   ktop       = 0.              ! cloud top
   cupclw     = 0.              ! used for direct coupling to radiation, but with tuning factors
@@ -259,13 +258,23 @@ do tile = 1,ntiles
   do n = 1,njumps
     tn = g_t
     qo = g_q
-    pre   = 0. ! mm/s?
-    outt  = 0.
-    outq  = 0.
-    outqc = 0.
-    outu  = 0.
-    outv  = 0.
-    outliqice = 0.
+
+    pre_mid   = 0. ! mm/s?
+    outt_mid  = 0.
+    outq_mid  = 0.
+    outqc_mid = 0.
+    outu_mid  = 0.
+    outv_mid  = 0.
+    outliqice_mid = 0.
+    pre_deep   = 0. ! mm/s?
+    outt_deep  = 0.
+    outq_deep  = 0.
+    outqc_deep = 0.
+    outu_deep  = 0.
+    outv_deep  = 0.
+    outliqice_deep = 0.
+
+    ! imid=1
     call cu_gf_deep_run(   &
              itf           &
             ,ktf           &
@@ -279,7 +288,7 @@ do tile = 1,ntiles
             ,ccn           &  ! not well tested yet
             ,ccnclean      &
             ,tdt           &  ! dt over which forcing is applied
-            ,imid          &  ! flag to turn on mid level convection
+            ,1             &  ! flag to turn on mid level convection
             ,kpbl          &  ! level of boundary layer height
             ,dhdt          &  ! boundary layer forcing (one closure for shallow)
             ,xland         &  ! land mask
@@ -310,12 +319,12 @@ do tile = 1,ntiles
             ,xmb_out       &  ! the xmb's may be needed for dicycle
             ,xmbm_in       &  !
             ,xmbs_in       &  !
-            ,pre           &  !
-            ,outu          &  ! momentum tendencies at mass points
-            ,outv          &  !
-            ,outt          &  ! temperature tendencies
-            ,outq          &  ! q tendencies
-            ,outqc         &  ! ql/qice tendencies
+            ,pre_mid       &  !
+            ,outu_mid      &  ! momentum tendencies at mass points
+            ,outv_mid      &  !
+            ,outt_mid      &  ! temperature tendencies
+            ,outq_mid      &  ! q tendencies
+            ,outqc_mid     &  ! ql/qice tendencies
             ,kbcon         &  ! lfc of parcel from k22
             ,ktop          &  ! cloud top
             ,cupclw        &  ! used for direct coupling to radiation, but with tuning factors
@@ -340,15 +349,94 @@ do tile = 1,ntiles
             ,do_capsuppress,cap_suppress_j    &    !
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
-            ,outliqice)
+            ,outliqice_mid)
+
+    ! imid=0
+    call cu_gf_deep_run(   &
+             itf           &
+            ,ktf           &
+            ,its           &
+            ,ite           &
+            ,kts           &
+            ,kte           &
+            ,dicycle       &  ! diurnal cycle flag
+            ,ichoice       &  ! choice of closure, use "0" for ensemble average
+            ,ipr           &  ! this flag can be used for debugging prints
+            ,ccn           &  ! not well tested yet
+            ,ccnclean      &
+            ,tdt           &  ! dt over which forcing is applied
+            ,0             &  ! flag to turn on mid level convection
+            ,kpbl          &  ! level of boundary layer height
+            ,dhdt          &  ! boundary layer forcing (one closure for shallow)
+            ,xland         &  ! land mask
+            ,zo            &  ! heights above surface
+            ,forcing       &  ! only diagnostic
+            ,g_t           &  ! t before forcing
+            ,g_q           &  ! q before forcing
+            ,z1            &  ! terrain
+            ,tn            &  ! t including forcing
+            ,qo            &  ! q including forcing
+            ,po            &  ! pressure (mb)
+            ,psur          &  ! surface pressure (mb)
+            ,g_us          &  ! u on mass points
+            ,g_vs          &  ! v on mass points
+            ,g_rho         &  ! density
+            ,hfx           &  ! w/m2, positive upward
+            ,qfx           &  ! w/m2, positive upward
+            ,dx            &  ! dx is grid point dependent here
+            ,mconv         &  ! integrated vertical advection of moisture
+            ,omeg          &  ! omega (pa/s)
+            ,csum          &  ! used to implement memory, set to zero if not avail
+            ,cnvwt         &  ! gfs needs this
+            ,zuo           &  ! nomalized updraft mass flux
+            ,zdo           &  ! nomalized downdraft mass flux
+            ,zdm           &  ! nomalized downdraft mass flux from mid scheme
+            ,edto          &  !
+            ,edtm          &  !
+            ,xmb_out       &  ! the xmb's may be needed for dicycle
+            ,xmbm_in       &  !
+            ,xmbs_in       &  !
+            ,pre_deep      &  !
+            ,outu_deep     &  ! momentum tendencies at mass points
+            ,outv_deep     &  !
+            ,outt_deep     &  ! temperature tendencies
+            ,outq_deep     &  ! q tendencies
+            ,outqc_deep    &  ! ql/qice tendencies
+            ,kbcon         &  ! lfc of parcel from k22
+            ,ktop          &  ! cloud top
+            ,cupclw        &  ! used for direct coupling to radiation, but with tuning factors
+            ,frh_out       &  ! fractional coverage
+            ,ierr          &  ! ierr flags are error flags, used for debugging
+            ,ierrc         &  ! the following should be set to zero if not available
+            ,nchem         &
+            ,fscav         &
+            ,chem3d        &
+            ,wetdpc_deep   &
+            ,do_smoke_transport   &
+            ,rand_mom      &  ! for stochastics mom, if temporal and spatial patterns exist
+            ,rand_vmas     &  ! for stochastics vertmass, if temporal and spatial patterns exist
+            ,rand_clos     &  ! for stochastics closures, if temporal and spatial patterns exist
+            ,nranflag      &  ! flag to what you want perturbed
+                              !! 1 = momentum transport
+                              !! 2 = normalized vertical mass flux profile
+                              !! 3 = closures
+                              !! more is possible, talk to developer or
+                              !! implement yourself. pattern is expected to be
+                              !! betwee -1 and +1
+            ,do_capsuppress,cap_suppress_j    &    !
+            ,k22                              &    !
+            ,jmin,kdt,tropics                 &
+            ,outliqice_deep)
     
-    g_t(1:imax,:)   = g_t(1:imax,:)   + tdt*outt(1:imax,:)
-    g_q(1:imax,:)   = g_q(1:imax,:)   + tdt*outq(1:imax,:)
-    g_qlg(1:imax,:) = g_qlg(1:imax,:) + tdt*outqc(1:imax,:)*outliqice(1:imax,:)
-    g_qfg(1:imax,:) = g_qfg(1:imax,:) + tdt*outqc(1:imax,:)*(1. - outliqice(1:imax,:))
-    g_us(1:imax,:)  = g_us(1:imax,:)  + tdt*outu(1:imax,:)
-    g_vs(1:imax,:)  = g_vs(1:imax,:)  + tdt*outv(1:imax,:)
-    g_pre(1:imax)   = g_pre(1:imax)   + tdt*pre(1:imax)
+    g_t(1:imax,:)   = g_t(1:imax,:)   + tdt*(outt_mid(1:imax,:)+outt_deep(1:imax,:))
+    g_q(1:imax,:)   = g_q(1:imax,:)   + tdt*(outq_mid(1:imax,:)+outq_deep(1:imax,:))
+    g_qlg(1:imax,:) = g_qlg(1:imax,:) + tdt*(outqc_mid(1:imax,:)*outliqice_mid(1:imax,:)           &
+                                            +outqc_deep(1:imax,:)*outliqice_deep(1:imax,:))
+    g_qfg(1:imax,:) = g_qfg(1:imax,:) + tdt*(outqc_mid(1:imax,:)*(1. - outliqice_mid(1:imax,:))    &
+                                            +outqc_deep(1:imax,:)*(1. - outliqice_deep(1:imax,:)))
+    g_us(1:imax,:)  = g_us(1:imax,:)  + tdt*(outu_mid(1:imax,:)+outu_deep(1:imax,:))
+    g_vs(1:imax,:)  = g_vs(1:imax,:)  + tdt*(outv_mid(1:imax,:)+outv_deep(1:imax,:))
+    g_pre(1:imax)   = g_pre(1:imax)   + tdt*(pre_mid(1:imax)+pre_deep(1:imax))
 
   end do ! smaller time step ( n=1,njumps )
 

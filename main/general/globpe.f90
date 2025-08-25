@@ -47,7 +47,6 @@ use aerosol_arrays                         ! Aerosol arrays
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
-use calculate_mconv_m                      ! Calculate moisture divergence
 use cc_mpi                                 ! CC MPI routines
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
@@ -473,9 +472,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call calculate_dhdt_mse(1,ifull,mse_t2)
   dmsedt_adv = (mse_t2-mse_t1)/dt  
   
-  ! CALCULATE ATMOSPHERE DIAGNOSTICS
-  call calculate_mconv   
-
 
   ! ***********************************************************************
   ! RIVER ROUTING AND HYDROLOGY
