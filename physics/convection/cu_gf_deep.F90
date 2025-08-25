@@ -1,6 +1,18 @@
 !>\file cu_gf_deep.F90 
 !! This file is the Grell-Freitas deep convection scheme.
 
+! Please cite the following references if you use the Grell–Freitas (GF)
+! convection parameterization in your study:
+!
+! Grell, G. A., and S. R. Freitas, 2014: A scale and aerosol aware stochastic
+! convective parameterization for use in weather and air quality modeling.
+! Atmospheric Chemistry and Physics, 14, 5233–5250, https://doi.org/10.5194/acp-14-5233-2014
+!
+! Freitas, S. R., G. A. Grell, and H. Li, 2021: The Grell–Freitas (GF) convection
+! parameterization: recent developments, extensions, and applications.
+! Geoscientific Model Development, 14, 5393–5411, https://doi.org/10.5194/gmd-14-5393-2021
+
+
 module cu_gf_deep
 
      implicit none                                                 ! sny
