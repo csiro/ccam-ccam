@@ -67,6 +67,7 @@ use aerointerface                 ! Aerosol interface
 use aerosol_arrays                ! Aerosol arrays
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use const_phys                    ! Physical constants
+use cc_mpi
 use cu_gf_deep                    ! Grell convection
 use kuocom_m                      ! JLM convection
 use liqwpar_m                     ! Cloud water mixing ratios
@@ -79,6 +80,7 @@ use sigs_m                        ! Atmosphere sigma levels
 use soil_m                        ! Soil and surface data
 use vvel_m                        ! Additional vertical velocity
 use latlong_m
+
 implicit none
 
 ! declare all the variables being use here, remove those are not used
@@ -272,7 +274,28 @@ do tile = 1,ntiles
   g_pre(1:imax) = 0.
   g_qfg(1:imax,1:kl) = qfg(js:je,1:kl) ! MJT suggestion
   g_qlg(1:imax,1:kl) = qlg(js:je,1:kl)
-  
+ 
+if (myid==0) then   ! print only on root MPI rank to avoid flood
+  write(6,*) "====== ENTERING cu_gf_deep_run ======"
+  write(6,*) "Tile:", tile, " n =", n, " njumps =", njumps
+  write(6,*) "ichoice =", ichoice, " dicycle =", dicycle, " imid =", imid
+  write(6,*) "t      min/max:", minval(g_t),   maxval(g_t)
+  write(6,*) "q      min/max:", minval(g_q),   maxval(g_q)
+  write(6,*) "u      min/max:", minval(g_us),  maxval(g_us)
+  write(6,*) "v      min/max:", minval(g_vs),  maxval(g_vs)
+  write(6,*) "rho    min/max:", minval(g_rho), maxval(g_rho)
+  write(6,*) "zo     min/max:", minval(zo),    maxval(zo)
+  write(6,*) "po     min/max:", minval(po),    maxval(po)
+  write(6,*) "psur   min/max:", minval(psur),  maxval(psur)
+  write(6,*) "omeg   min/max:", minval(omeg),  maxval(omeg)
+  write(6,*) "dhdt   min/max:", minval(dhdt),  maxval(dhdt)
+  write(6,*) "forcing min/max:", minval(forcing), maxval(forcing)
+  write(6,*) "hfx    min/max:", minval(hfx),   maxval(hfx)
+  write(6,*) "qfx    min/max:", minval(qfx),   maxval(qfx)
+  write(6,*) "dx     min/max:", minval(dx),    maxval(dx)
+  write(6,*) "kpbl   min/max:", minval(kpbl),  maxval(kpbl)
+end if
+
   ! Use sub time-step if required
   njumps = int(dtime/(maxconvtime+0.01)) + 1
   tdt    = real(dtime/real(njumps))
@@ -363,6 +386,29 @@ do tile = 1,ntiles
     g_pre(1:imax)   = g_pre(1:imax)   + tdt*pre(1:imax)
 
   end do ! smaller time step ( n=1,njumps )
+
+
+if (myid==0) then
+  write(6,*) "====== EXITING cu_gf_deep_run ======"
+  write(6,*) "Tile:", tile, " n =", n, " njumps =", njumps
+  write(6,*) "ichoice =", ichoice, " dicycle =", dicycle, " imid =", imid
+  write(6,*) "t      min/max:", minval(g_t),   maxval(g_t)
+  write(6,*) "q      min/max:", minval(g_q),   maxval(g_q)
+  write(6,*) "u      min/max:", minval(g_us),  maxval(g_us)
+  write(6,*) "v      min/max:", minval(g_vs),  maxval(g_vs)
+  write(6,*) "rho    min/max:", minval(g_rho), maxval(g_rho)
+  write(6,*) "zo     min/max:", minval(zo),    maxval(zo)
+  write(6,*) "po     min/max:", minval(po),    maxval(po)
+  write(6,*) "psur   min/max:", minval(psur),  maxval(psur)
+  write(6,*) "omeg   min/max:", minval(omeg),  maxval(omeg)
+  write(6,*) "dhdt   min/max:", minval(dhdt),  maxval(dhdt)
+  write(6,*) "forcing min/max:", minval(forcing), maxval(forcing)
+  write(6,*) "hfx    min/max:", minval(hfx),   maxval(hfx)
+  write(6,*) "qfx    min/max:", minval(qfx),   maxval(qfx)
+  write(6,*) "dx     min/max:", minval(dx),    maxval(dx)
+  write(6,*) "kpbl   min/max:", minval(kpbl),  maxval(kpbl)
+end if
+
 
   t(js:je,:)       = g_t(1:imax,:)
   qg(js:je,:)      = g_q(1:imax,:)
