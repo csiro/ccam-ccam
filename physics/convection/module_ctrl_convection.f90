@@ -75,7 +75,7 @@ use prec_m                        ! Precipitation
 use sigs_m                        ! Atmosphere sigma levels
 use soil_m                        ! Soil and surface data
 use vvel_m                        ! Additional vertical velocity
-
+use cc_mpi
 implicit none
 
 ! declare all the variables being use here, remove those are not used
@@ -163,12 +163,13 @@ do tile = 1,ntiles
   ite       = imax
   kts       = 1               ! this for kts:kte in dims
   kte       = kl
-  dicycle   = 0               ! diurnal cycle flag                                  ! affect xmb calculations
+  dicycle   = 1               ! diurnal cycle flag                                  ! affect xmb calculations
   ichoice   = 0               ! choice of closure, use "0" for ensemble average     ! affect xmb_ave calculations
   ipr       = 0               ! this flag can be used for debugging prints
   ccn       = 0.              ! not well tested yet
   ccnclean  = 0.
   dtime     = dt              ! dt over which forcing is applied
+  imid      = 1               ! 1=enable congestus, 0=disable
   do k = 1,kl
     ! boundary layer forcing (one closure for shallow)      
     dhdt(1:imax,k) = dmsedt_adv(js:je,k) + dmsedt_rad(js:je,k) + dmsedt_pbl(js:je,k)    
@@ -198,8 +199,8 @@ do tile = 1,ntiles
   g_us       = u(js:je,:)     ! u on mass points
   g_vs       = v(js:je,:)     ! v on mass points
   g_rho      = rhoa(1:imax,:)  ! density
-  hfx        = fg(js:je)      ! w/m2, positive upward
-  qfx        = eg(js:je)      ! w/m2, positive upward
+  hfx        = -fg(js:je)      ! w/m2, positive upward
+  qfx        = -eg(js:je)      ! w/m2, positive upward
   dx         = ds/em(js:je)   ! dx is grid point dependent here     ! CHECK IF THIS KM OR NOT, ds/em(js:je) IS IN METER
   do k = 1,kl                 
     omeg(1:imax,k) =  ps(js:je)*dpsldt(js:je,k)         ! omega (pa/s)
@@ -209,6 +210,7 @@ do tile = 1,ntiles
     dq(1:imax) = qg(js:je,k+1) - qg(js:je,k)
     mconv(1:imax) =mconv(1:imax)+omeg(1:imax,k)*dq(1:imax)/grav
   end do
+  !where (mconv(1:imax) < 0.0 ) mconv(1:imax) = 0.0
   csum       = 0.              ! used to implement memory, set to zero if not avail
   cnvwt      = 0.              ! gfs needs this
   zuo        = 0.              ! nomalized updraft mass flux
@@ -251,7 +253,29 @@ do tile = 1,ntiles
   g_pre(1:imax) = 0.
   g_qfg(1:imax,1:kl) = qfg(js:je,1:kl) ! MJT suggestion
   g_qlg(1:imax,1:kl) = qlg(js:je,1:kl)
-  
+ 
+if (myid==-10) then   ! print only on root MPI rank to avoid flood
+  write(6,*) "====== ENTERING cu_gf_deep_run ======"
+  write(6,*) "Tile:", tile, " n =", n, " njumps =", njumps
+  write(6,*) "ichoice =", ichoice, " dicycle =", dicycle, " imid =", imid
+  write(6,*) "t      min/max:", minval(g_t),   maxval(g_t)
+  write(6,*) "q      min/max:", minval(g_q),   maxval(g_q)
+  write(6,*) "u      min/max:", minval(g_us),  maxval(g_us)
+  write(6,*) "v      min/max:", minval(g_vs),  maxval(g_vs)
+  write(6,*) "rho    min/max:", minval(g_rho), maxval(g_rho)
+  write(6,*) "zo     min/max:", minval(zo),    maxval(zo)
+  write(6,*) "po     min/max:", minval(po),    maxval(po)
+  write(6,*) "psur   min/max:", minval(psur),  maxval(psur)
+  write(6,*) "omeg   min/max:", minval(omeg),  maxval(omeg)
+  write(6,*) "dhdt   min/max:", minval(dhdt),  maxval(dhdt)
+  write(6,*) "forcing min/max:", minval(forcing), maxval(forcing)
+  write(6,*) "hfx    min/max:", minval(hfx),   maxval(hfx)
+  write(6,*) "qfx    min/max:", minval(qfx),   maxval(qfx)
+  write(6,*) "dx     min/max:", minval(dx),    maxval(dx)
+  write(6,*) "kpbl   min/max:", minval(kpbl),  maxval(kpbl)
+end if
+
+
   ! Use sub time-step if required
   njumps = int(dtime/(maxconvtime+0.01)) + 1
   tdt    = real(dtime/real(njumps))
@@ -275,6 +299,7 @@ do tile = 1,ntiles
     outliqice_deep = 0.
 
     ! imid=1
+    if (imid == 1) then
     call cu_gf_deep_run(   &
              itf           &
             ,ktf           &
@@ -288,7 +313,7 @@ do tile = 1,ntiles
             ,ccn           &  ! not well tested yet
             ,ccnclean      &
             ,tdt           &  ! dt over which forcing is applied
-            ,1             &  ! flag to turn on mid level convection
+            ,imid          &  ! flag to turn on mid level convection
             ,kpbl          &  ! level of boundary layer height
             ,dhdt          &  ! boundary layer forcing (one closure for shallow)
             ,xland         &  ! land mask
@@ -350,7 +375,7 @@ do tile = 1,ntiles
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
             ,outliqice_mid)
-
+    end if
     ! imid=0
     call cu_gf_deep_run(   &
              itf           &
@@ -427,7 +452,33 @@ do tile = 1,ntiles
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
             ,outliqice_deep)
-    
+
+    where (g_q(1:imax,:) < qgmin ) g_q(1:imax,:) = qgmin
+    where (g_qlg(1:imax,:) < 0 ) g_qlg(1:imax,:) = 0.0
+    where (g_qfg(1:imax,:) < 0 ) g_qfg(1:imax,:) = 0.0
+    where (outliqice_mid < 0.0 ) outliqice_mid = 0.0
+    where (outliqice_mid > 1.0 ) outliqice_mid = 1.0
+    where (outliqice_deep < 0.0 ) outliqice_deep = 0.0
+    where (outliqice_deep > 1.0 ) outliqice_deep = 1.0
+
+
+    if (myid==-10) then
+write(6,*) "====== AAAAAAAAAAAAAAAAAAA ======"
+!write(6,*) "outqc_mid     min/max:", minval(outqc_mid), maxval(outqc_mid)
+!write(6,*) "outqc_deep    min/max:", minval(outqc_deep), maxval(outqc_deep)
+write(6,*) " g_q           min/max:", minval(qg), maxval(qg)
+write(6,*) "====== AAAAAAAAAAAAAAAAAAA ======"
+    end if 
+
+
+    do k =1,kl
+      do i =1,imax
+        if ( g_q(i,k) > 0.05 .or. g_q(i,k) < 0.0 ) then
+          write(6,'(A,3I8,1P,E12.4)') 'BAD g_q at tile, i, k:', tile, i, k, g_q(i,k)
+        end if
+      end do
+    end do
+
     g_t(1:imax,:)   = g_t(1:imax,:)   + tdt*(outt_mid(1:imax,:)+outt_deep(1:imax,:))
     g_q(1:imax,:)   = g_q(1:imax,:)   + tdt*(outq_mid(1:imax,:)+outq_deep(1:imax,:))
     g_qlg(1:imax,:) = g_qlg(1:imax,:) + tdt*(outqc_mid(1:imax,:)*outliqice_mid(1:imax,:)           &
@@ -439,6 +490,29 @@ do tile = 1,ntiles
     g_pre(1:imax)   = g_pre(1:imax)   + tdt*(pre_mid(1:imax)+pre_deep(1:imax))
 
   end do ! smaller time step ( n=1,njumps )
+
+if (myid==-10) then
+  write(6,*) "====== EXITING cu_gf_deep_run ======"
+  write(6,*) "Tile:", tile, " n =", n, " njumps =", njumps
+  write(6,*) "ichoice =", ichoice, " dicycle =", dicycle, " imid =", imid
+  write(6,*) "t      min/max:", minval(g_t),   maxval(g_t)
+  write(6,*) "q      min/max:", minval(g_q),   maxval(g_q)
+  write(6,*) "u      min/max:", minval(g_us),  maxval(g_us)
+  write(6,*) "v      min/max:", minval(g_vs),  maxval(g_vs)
+  write(6,*) "rho    min/max:", minval(g_rho), maxval(g_rho)
+  write(6,*) "zo     min/max:", minval(zo),    maxval(zo)
+  write(6,*) "po     min/max:", minval(po),    maxval(po)
+  write(6,*) "psur   min/max:", minval(psur),  maxval(psur)
+  write(6,*) "omeg   min/max:", minval(omeg),  maxval(omeg)
+  write(6,*) "dhdt   min/max:", minval(dhdt),  maxval(dhdt)
+  write(6,*) "forcing min/max:", minval(forcing), maxval(forcing)
+  write(6,*) "hfx    min/max:", minval(hfx),   maxval(hfx)
+  write(6,*) "qfx    min/max:", minval(qfx),   maxval(qfx)
+  write(6,*) "dx     min/max:", minval(dx),    maxval(dx)
+  write(6,*) "kpbl   min/max:", minval(kpbl),  maxval(kpbl)
+end if
+
+
 
   t(js:je,:)       = g_t(1:imax,:)
   qg(js:je,:)      = g_q(1:imax,:)
