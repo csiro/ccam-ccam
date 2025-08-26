@@ -75,7 +75,7 @@ use prec_m                        ! Precipitation
 use sigs_m                        ! Atmosphere sigma levels
 use soil_m                        ! Soil and surface data
 use vvel_m                        ! Additional vertical velocity
-use cc_mpi
+
 implicit none
 
 ! declare all the variables being use here, remove those are not used
@@ -135,6 +135,8 @@ integer, dimension(3) :: posmin3, posmax3
 real :: maxconvtime = 120.  ! time-step for convection
 real :: tdt
 
+integer, dimension(imax) :: ktop_mid, ktop_deep
+
 do tile = 1,ntiles
   js = (tile-1)*imax+1      ! js:je inside 1:ifull
   je = tile*imax            ! len(js:je) = imax
@@ -163,13 +165,12 @@ do tile = 1,ntiles
   ite       = imax
   kts       = 1               ! this for kts:kte in dims
   kte       = kl
-  dicycle   = 1               ! diurnal cycle flag                                  ! affect xmb calculations
+  dicycle   = 0               ! diurnal cycle flag                                  ! affect xmb calculations
   ichoice   = 0               ! choice of closure, use "0" for ensemble average     ! affect xmb_ave calculations
   ipr       = 0               ! this flag can be used for debugging prints
   ccn       = 0.              ! not well tested yet
   ccnclean  = 0.
   dtime     = dt              ! dt over which forcing is applied
-  imid      = 1               ! 1=enable congestus, 0=disable
   do k = 1,kl
     ! boundary layer forcing (one closure for shallow)      
     dhdt(1:imax,k) = dmsedt_adv(js:je,k) + dmsedt_rad(js:je,k) + dmsedt_pbl(js:je,k)    
@@ -199,8 +200,8 @@ do tile = 1,ntiles
   g_us       = u(js:je,:)     ! u on mass points
   g_vs       = v(js:je,:)     ! v on mass points
   g_rho      = rhoa(1:imax,:)  ! density
-  hfx        = -fg(js:je)      ! w/m2, positive upward
-  qfx        = -eg(js:je)      ! w/m2, positive upward
+  hfx        = fg(js:je)      ! w/m2, positive upward
+  qfx        = eg(js:je)      ! w/m2, positive upward
   dx         = ds/em(js:je)   ! dx is grid point dependent here     ! CHECK IF THIS KM OR NOT, ds/em(js:je) IS IN METER
   do k = 1,kl                 
     omeg(1:imax,k) =  ps(js:je)*dpsldt(js:je,k)         ! omega (pa/s)
@@ -210,7 +211,6 @@ do tile = 1,ntiles
     dq(1:imax) = qg(js:je,k+1) - qg(js:je,k)
     mconv(1:imax) =mconv(1:imax)+omeg(1:imax,k)*dq(1:imax)/grav
   end do
-  !where (mconv(1:imax) < 0.0 ) mconv(1:imax) = 0.0
   csum       = 0.              ! used to implement memory, set to zero if not avail
   cnvwt      = 0.              ! gfs needs this
   zuo        = 0.              ! nomalized updraft mass flux
@@ -253,29 +253,7 @@ do tile = 1,ntiles
   g_pre(1:imax) = 0.
   g_qfg(1:imax,1:kl) = qfg(js:je,1:kl) ! MJT suggestion
   g_qlg(1:imax,1:kl) = qlg(js:je,1:kl)
- 
-if (myid==-10) then   ! print only on root MPI rank to avoid flood
-  write(6,*) "====== ENTERING cu_gf_deep_run ======"
-  write(6,*) "Tile:", tile, " n =", n, " njumps =", njumps
-  write(6,*) "ichoice =", ichoice, " dicycle =", dicycle, " imid =", imid
-  write(6,*) "t      min/max:", minval(g_t),   maxval(g_t)
-  write(6,*) "q      min/max:", minval(g_q),   maxval(g_q)
-  write(6,*) "u      min/max:", minval(g_us),  maxval(g_us)
-  write(6,*) "v      min/max:", minval(g_vs),  maxval(g_vs)
-  write(6,*) "rho    min/max:", minval(g_rho), maxval(g_rho)
-  write(6,*) "zo     min/max:", minval(zo),    maxval(zo)
-  write(6,*) "po     min/max:", minval(po),    maxval(po)
-  write(6,*) "psur   min/max:", minval(psur),  maxval(psur)
-  write(6,*) "omeg   min/max:", minval(omeg),  maxval(omeg)
-  write(6,*) "dhdt   min/max:", minval(dhdt),  maxval(dhdt)
-  write(6,*) "forcing min/max:", minval(forcing), maxval(forcing)
-  write(6,*) "hfx    min/max:", minval(hfx),   maxval(hfx)
-  write(6,*) "qfx    min/max:", minval(qfx),   maxval(qfx)
-  write(6,*) "dx     min/max:", minval(dx),    maxval(dx)
-  write(6,*) "kpbl   min/max:", minval(kpbl),  maxval(kpbl)
-end if
-
-
+  
   ! Use sub time-step if required
   njumps = int(dtime/(maxconvtime+0.01)) + 1
   tdt    = real(dtime/real(njumps))
@@ -299,7 +277,6 @@ end if
     outliqice_deep = 0.
 
     ! imid=1
-    if (imid == 1) then
     call cu_gf_deep_run(   &
              itf           &
             ,ktf           &
@@ -313,7 +290,7 @@ end if
             ,ccn           &  ! not well tested yet
             ,ccnclean      &
             ,tdt           &  ! dt over which forcing is applied
-            ,imid          &  ! flag to turn on mid level convection
+            ,1             &  ! flag to turn on mid level convection
             ,kpbl          &  ! level of boundary layer height
             ,dhdt          &  ! boundary layer forcing (one closure for shallow)
             ,xland         &  ! land mask
@@ -375,7 +352,10 @@ end if
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
             ,outliqice_mid)
-    end if
+
+    ktop_mid = ktop
+    call neg_check('mid',tdt,g_q,outq_mid,outt_mid,outu_mid,outv_mid,      &
+                        outqc_mid,pre_mid,its,ite,kts,kte,itf,ktf,ktop_mid)
     ! imid=0
     call cu_gf_deep_run(   &
              itf           &
@@ -452,32 +432,17 @@ end if
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
             ,outliqice_deep)
+    ktop_deep=ktop
+    call neg_check('deep',tdt,g_q,outq_deep,outt_deep,outu_deep,outv_deep,   &
+                        outqc_deep,pre_deep,its,ite,kts,kte,itf,ktf,ktop_deep)
 
     where (g_q(1:imax,:) < qgmin ) g_q(1:imax,:) = qgmin
-    where (g_qlg(1:imax,:) < 0 ) g_qlg(1:imax,:) = 0.0
-    where (g_qfg(1:imax,:) < 0 ) g_qfg(1:imax,:) = 0.0
-    where (outliqice_mid < 0.0 ) outliqice_mid = 0.0
-    where (outliqice_mid > 1.0 ) outliqice_mid = 1.0
-    where (outliqice_deep < 0.0 ) outliqice_deep = 0.0
-    where (outliqice_deep > 1.0 ) outliqice_deep = 1.0
-
-
-    if (myid==-10) then
-write(6,*) "====== AAAAAAAAAAAAAAAAAAA ======"
-!write(6,*) "outqc_mid     min/max:", minval(outqc_mid), maxval(outqc_mid)
-!write(6,*) "outqc_deep    min/max:", minval(outqc_deep), maxval(outqc_deep)
-write(6,*) " g_q           min/max:", minval(qg), maxval(qg)
-write(6,*) "====== AAAAAAAAAAAAAAAAAAA ======"
-    end if 
-
-
-    do k =1,kl
-      do i =1,imax
-        if ( g_q(i,k) > 0.05 .or. g_q(i,k) < 0.0 ) then
-          write(6,'(A,3I8,1P,E12.4)') 'BAD g_q at tile, i, k:', tile, i, k, g_q(i,k)
-        end if
-      end do
-    end do
+    where (g_qlg(1:imax,:) < 0. ) g_qlg(1:imax,:) = 0.
+    where (g_qfg(1:imax,:) < 0. ) g_qfg(1:imax,:) = 0.
+    where (outliqice_mid < 0. ) outliqice_mid = 0.
+    where (outliqice_mid > 1. ) outliqice_mid = 1.
+    where (outliqice_deep < 0. ) outliqice_deep = 0.
+    where (outliqice_deep > 1. ) outliqice_deep = 1.
 
     g_t(1:imax,:)   = g_t(1:imax,:)   + tdt*(outt_mid(1:imax,:)+outt_deep(1:imax,:))
     g_q(1:imax,:)   = g_q(1:imax,:)   + tdt*(outq_mid(1:imax,:)+outq_deep(1:imax,:))
@@ -490,29 +455,6 @@ write(6,*) "====== AAAAAAAAAAAAAAAAAAA ======"
     g_pre(1:imax)   = g_pre(1:imax)   + tdt*(pre_mid(1:imax)+pre_deep(1:imax))
 
   end do ! smaller time step ( n=1,njumps )
-
-if (myid==-10) then
-  write(6,*) "====== EXITING cu_gf_deep_run ======"
-  write(6,*) "Tile:", tile, " n =", n, " njumps =", njumps
-  write(6,*) "ichoice =", ichoice, " dicycle =", dicycle, " imid =", imid
-  write(6,*) "t      min/max:", minval(g_t),   maxval(g_t)
-  write(6,*) "q      min/max:", minval(g_q),   maxval(g_q)
-  write(6,*) "u      min/max:", minval(g_us),  maxval(g_us)
-  write(6,*) "v      min/max:", minval(g_vs),  maxval(g_vs)
-  write(6,*) "rho    min/max:", minval(g_rho), maxval(g_rho)
-  write(6,*) "zo     min/max:", minval(zo),    maxval(zo)
-  write(6,*) "po     min/max:", minval(po),    maxval(po)
-  write(6,*) "psur   min/max:", minval(psur),  maxval(psur)
-  write(6,*) "omeg   min/max:", minval(omeg),  maxval(omeg)
-  write(6,*) "dhdt   min/max:", minval(dhdt),  maxval(dhdt)
-  write(6,*) "forcing min/max:", minval(forcing), maxval(forcing)
-  write(6,*) "hfx    min/max:", minval(hfx),   maxval(hfx)
-  write(6,*) "qfx    min/max:", minval(qfx),   maxval(qfx)
-  write(6,*) "dx     min/max:", minval(dx),    maxval(dx)
-  write(6,*) "kpbl   min/max:", minval(kpbl),  maxval(kpbl)
-end if
-
-
 
   t(js:je,:)       = g_t(1:imax,:)
   qg(js:je,:)      = g_q(1:imax,:)
@@ -608,3 +550,111 @@ return
 end function interp_convection  
   
 end module module_ctrl_convection
+
+!> Checks for negative or excessive tendencies and corrects in a mass
+!! conversing way by adjusting the cloud base mass-flux.
+   subroutine neg_check(name,dt,q,outq,outt,outu,outv,                      &
+                        outqc,pret,its,ite,kts,kte,itf,ktf,ktop)
+   integer, parameter :: kind_phys = kind(1.)
+   integer,      intent(in   ) ::            its,ite,kts,kte,itf,ktf
+   integer, dimension (its:ite  ),   intent(in   ) ::  ktop
+
+     real(kind=kind_phys), dimension (its:ite,kts:kte  )                    ,                 &
+      intent(inout   ) ::                                                     &
+       outq,outt,outqc,outu,outv
+     real(kind=kind_phys), dimension (its:ite,kts:kte  )                    ,                 &
+      intent(inout   ) ::                                                     &
+       q
+     real(kind=kind_phys), dimension (its:ite  )                            ,                 &
+      intent(inout   ) ::                                                     &
+       pret
+      character *(*), intent (in)         ::                                  &
+       name
+     real(kind=kind_phys)                                                                     &
+        ,intent (in  )                   ::                                   &
+        dt
+     real(kind=kind_phys) :: names,scalef,thresh,qmem,qmemf,qmem2,qtest,qmem1
+     integer :: icheck
+     integer :: i, k                ! sny
+!
+! first do check on vertical heating rate
+!
+      thresh=300.01
+!      thresh=200.01        !ss
+!      thresh=250.01
+      names=1.
+      if(name == 'shallow' .or. name == 'mid')then
+        thresh=148.01
+        names=1.
+      endif
+      scalef=86400.
+      do i=its,itf
+      if(ktop(i) <= 2)cycle
+      icheck=0
+      qmemf=1.
+      qmem=0.
+      do k=kts,ktop(i)
+         qmem=(outt(i,k))*86400.
+         if(qmem.gt.thresh)then
+           qmem2=thresh/qmem
+           qmemf=min(qmemf,qmem2)
+      icheck=1
+!
+!
+!          print *,'1',' adjusted massflux by factor ',i,j,k,qmem,qmem2,qmemf,dt
+         endif
+         if(qmem.lt.-.5*thresh*names)then
+           qmem2=-.5*names*thresh/qmem
+           qmemf=min(qmemf,qmem2)
+      icheck=2
+!
+!
+         endif
+      enddo
+      do k=kts,ktop(i)
+         outq(i,k)=outq(i,k)*qmemf
+         outt(i,k)=outt(i,k)*qmemf
+         outu(i,k)=outu(i,k)*qmemf
+         outv(i,k)=outv(i,k)*qmemf
+         outqc(i,k)=outqc(i,k)*qmemf
+      enddo
+      pret(i)=pret(i)*qmemf
+      enddo
+!      return
+!
+! check whether routine produces negative q's. this can happen, since
+! tendencies are calculated based on forced q's. this should have no
+! influence on conservation properties, it scales linear through all
+! tendencies
+!
+!      return
+!      write(14,*)'return'
+      thresh=1.e-32
+      do i=its,itf
+      if(ktop(i) <= 2)cycle
+      qmemf=1.
+      do k=kts,ktop(i)
+         qmem=outq(i,k)
+         if(abs(qmem).gt.0. .and. q(i,k).gt.1.e-6)then
+         qtest=q(i,k)+(outq(i,k))*dt
+         if(qtest.lt.thresh)then
+!
+! qmem2 would be the maximum allowable tendency
+!
+           qmem1=abs(outq(i,k))
+           qmem2=abs((thresh-q(i,k))/dt)
+           qmemf=min(qmemf,qmem2/qmem1)
+           qmemf=max(0.,qmemf)
+         endif
+         endif
+      enddo
+      do k=kts,ktop(i)
+         outq(i,k)=outq(i,k)*qmemf
+         outt(i,k)=outt(i,k)*qmemf
+         outu(i,k)=outu(i,k)*qmemf
+         outv(i,k)=outv(i,k)*qmemf
+         outqc(i,k)=outqc(i,k)*qmemf
+      enddo
+      pret(i)=pret(i)*qmemf
+      enddo
+   end subroutine neg_check
