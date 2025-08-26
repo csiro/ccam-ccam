@@ -4126,8 +4126,10 @@ end if
 call defaulttile ! initially use default values before overwriting
 
 ! default
-old_sv = sv
-old_cv = cveg
+if ( mp_global>0 ) then
+  old_sv(:) = sv(:)
+  old_cv(:) = cveg(:)
+end if  
 
 ! check for changes
 if ( ierr_cvc==0 ) then
