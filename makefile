@@ -30,28 +30,28 @@ ifeq ($(XEONPHI),yes)
 FHOST = -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
-FHOST = -xCORE-AVX2 -align array32byte -fimf-use-svml
+FHOST = -xCORE-AVX2 -align array32byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(SKYLAKE),yes)
-FHOST = -xSKYLAKE-AVX512 -align array64byte -fimf-use-svml
+FHOST = -xSKYLAKE-AVX512 -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(CASCADELAKE),yes)
-FHOST = -xCASCADELAKE -align array64byte -fimf-use-svml
+FHOST = -xCASCADELAKE -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(SAPPHIRERAPIDS),yes)
-FHOST = -xSAPPHIRERAPIDS -align array64byte -fimf-use-svml
+FHOST = -xSAPPHIRERAPIDS -align array64byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0

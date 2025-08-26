@@ -116,6 +116,7 @@ integer, dimension(imax) :: ierr
 character(len=50), dimension(imax) :: ierrc                ! CHECK THIS
 real, dimension(imax,kl,naero) :: chem3d                   ! CHECK THIS
 real, dimension(imax,naero)    :: wetdpc_deep              ! CHECK THIS
+real, dimension(imax,naero)    :: wetdpc_mid
 logical                  :: do_smoke_transport             ! CHECK THIS
 real, dimension(imax)    :: rand_mom,rand_vmas
 real, dimension(imax,4)  :: rand_clos
@@ -166,7 +167,7 @@ do tile = 1,ntiles
   dicycle   = 0               ! diurnal cycle flag                                  ! affect xmb calculations
   ichoice   = 0               ! choice of closure, use "0" for ensemble average     ! affect xmb_ave calculations
   ipr       = 0               ! this flag can be used for debugging prints
-  ccn       = 0.              ! not well tested yet
+  ccn       = 150.            ! not well tested yet
   ccnclean  = 0.
   dtime     = dt              ! dt over which forcing is applied
   do k = 1,kl
@@ -207,8 +208,9 @@ do tile = 1,ntiles
   mconv(:) = 0.                ! integrated vertical advection of moisture
   do k = 1,kl-1
     dq(1:imax) = qg(js:je,k+1) - qg(js:je,k)
-    mconv(1:imax) =mconv(1:imax)+omeg(1:imax,k)*dq(1:imax)/grav
+    mconv(1:imax) = mconv(1:imax) + omeg(1:imax,k)*dq(1:imax)/grav
   end do
+  mconv(1:imax) = max( mconv(1:imax), 0. )
   csum       = 0.              ! used to implement memory, set to zero if not avail
   cnvwt      = 0.              ! gfs needs this
   zuo        = 0.              ! nomalized updraft mass flux
@@ -223,12 +225,11 @@ do tile = 1,ntiles
   ktop       = 0.              ! cloud top
   cupclw     = 0.              ! used for direct coupling to radiation, but with tuning factors
   frh_out    = 0.              ! fractional coverage
-  ierr       = 0.              ! ierr flags are error flags, used for debugging
-  ierrc      = ''              ! the following should be set to zero if not available
   if ( abs(iaero)>=2 ) then
     nchem      = naero
     fscav(1:naero) = scav_effl(1:naero)
     chem3d(1:imax,1:kl,1:naero) = xtg(js:je,1:kl,1:naero)
+    wetdpc_mid(1:imax,1:naero)= 0.
     wetdpc_deep(1:imax,1:naero)= 0.
     do_smoke_transport = .false.
   else
@@ -256,6 +257,10 @@ do tile = 1,ntiles
   njumps = int(dtime/(maxconvtime+0.01)) + 1
   tdt    = real(dtime/real(njumps))
   do n = 1,njumps
+      
+    ierr       = 0                ! ierr flags are error flags, used for debugging
+    ierrc      = ' '              ! the following should be set to zero if not available
+      
     tn = g_t
     qo = g_q
 
@@ -334,7 +339,7 @@ do tile = 1,ntiles
             ,nchem         &
             ,fscav         &
             ,chem3d        &
-            ,wetdpc_deep   &
+            ,wetdpc_mid    &
             ,do_smoke_transport   &
             ,rand_mom      &  ! for stochastics mom, if temporal and spatial patterns exist
             ,rand_vmas     &  ! for stochastics vertmass, if temporal and spatial patterns exist
@@ -456,14 +461,20 @@ do tile = 1,ntiles
         
   if ( abs(iaero)>=2 ) then
     xtg(js:je,1:kl,1:naero) = chem3d(1:imax,1:kl,1:naero)
-    so2wd(js:je) = so2wd(js:je) + wetdpc_deep(1:imax,itracso2)
-    so4wd(js:je) = so4wd(js:je) + wetdpc_deep(1:imax,itracso4)
-    bcwd(js:je) = bcwd(js:je) + wetdpc_deep(1:imax,itracbc) + wetdpc_deep(1:imax,itracbc+1)
-    ocwd(js:je) = ocwd(js:je) + wetdpc_deep(1:imax,itracoc) + wetdpc_deep(1:imax,itracoc+1)
+    so2wd(js:je) = so2wd(js:je) + wetdpc_mid(1:imax,itracso2)  &
+                                + wetdpc_deep(1:imax,itracso2)
+    so4wd(js:je) = so4wd(js:je) + wetdpc_mid(1:imax,itracso4)  &
+                                + wetdpc_deep(1:imax,itracso4)
+    bcwd(js:je) = bcwd(js:je) + wetdpc_mid(1:imax,itracbc) + wetdpc_mid(1:imax,itracbc+1)   &
+                              + wetdpc_deep(1:imax,itracbc) + wetdpc_deep(1:imax,itracbc+1)
+    ocwd(js:je) = ocwd(js:je) + wetdpc_mid(1:imax,itracoc) + wetdpc_mid(1:imax,itracoc+1)   &
+                              + wetdpc_deep(1:imax,itracoc) + wetdpc_deep(1:imax,itracoc+1)        
     do i = 1,ndust
-      dustwd(js:je,i) = dustwd(js:je,i) + wetdpc_deep(1:imax,itracdu+i-1)
+      dustwd(js:je,i) = dustwd(js:je,i) + wetdpc_mid(1:imax,itracdu+i-1)  &
+                                        + wetdpc_deep(1:imax,itracdu+i-1)
     end do
-    saltwd(js:je) = saltwd(js:je) + wetdpc_deep(1:imax,itracsa) + wetdpc_deep(1:imax,itracsa+1)
+    saltwd(js:je) = saltwd(js:je) + wetdpc_mid(1:imax,itracsa) + wetdpc_mid(1:imax,itracsa+1)   &
+                                  + wetdpc_deep(1:imax,itracsa) + wetdpc_deep(1:imax,itracsa+1)        
   end if
 
 end do ! end tile loop (tile=1,ntiles)
