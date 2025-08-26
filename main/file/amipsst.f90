@@ -416,7 +416,7 @@ elseif ( ktau>0 ) then
   if ( mbd_mlo/=0 ) then
       
     if ( nud_sst/=0 ) then
-      if ( mod(mtimer,nud_period)==0 ) then  
+      if ( mod(mtimer,nud_period)==0 .and. mod(nint(ktau*dt),60)==0 ) then  
         duma(:,:) = 0.
         dumb(:,:) = 0.
         dumc(:,:,:) = 0.
@@ -1350,7 +1350,7 @@ elseif ( ktau>0 ) then
   if ( mbd_mlo/=0 ) then
       
     if ( nud_sst/=0 ) then
-      if ( mod(mtimer,nud_period)==0 ) then  
+      if ( mod(mtimer,nud_period)==0 .and. mod(nint(ktau*dt),60)==0 ) then  
         duma(:,:) = 0.
         dumb(:,:) = 0.
         dumc(:,:,:) = 0.
