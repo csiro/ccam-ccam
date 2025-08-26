@@ -130,7 +130,8 @@ real, allocatable, save, dimension(:,:) :: asal
 real, allocatable, save, dimension(:) :: res
 real, dimension(ifull) :: sssb, timelt, fraciceb
 real, dimension(ifull) :: old, new, delta
-real, dimension(ifull,wlev) :: duma, dumb, dumd
+real, dimension(ifull) :: dumd
+real, dimension(ifull,wlev) :: duma, dumb
 real, dimension(ifull,wlev,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
 real wgt
@@ -149,6 +150,11 @@ if ( .not.allocated(ssta) ) then
   ssta(:,:) = 300.
   aice(:,:) = 0.
   asal(:,:) = 0.
+  if ( mbd_mlo/=0 ) then
+    if ( nud_sst/=0 ) then  
+      call specinit  
+    end if
+  end if  
 else if ( mod(ktau,nperday)==0 ) then
   if ( myid==0 ) then
     write(6,*) "amipsst called at end of day for ktau,mtimer,namip ",ktau,mtimer,namip
@@ -420,7 +426,7 @@ elseif ( ktau>0 ) then
         duma(:,:) = 0.
         dumb(:,:) = 0.
         dumc(:,:,:) = 0.
-        dumd(:,:) = 0.
+        dumd(:) = 0.
         duma(:,1) = new(:)
         call mlofilterhub(duma,dumb,dumc,dumd,1)
       end if  
@@ -1067,7 +1073,8 @@ real of, sc
 real timer_r, wgt
 real, dimension(nrhead) :: ahead
 real, dimension(ifull) :: oldsst, newsst, deltasst, timelt
-real, dimension(ifull,wlev) :: duma, dumb, dumd
+real, dimension(ifull) :: dumd
+real, dimension(ifull,wlev) :: duma, dumb
 real, dimension(ifull,wlev,2) :: dumc
 real, dimension(:), allocatable :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
@@ -1087,6 +1094,11 @@ character(len=10) calendarstring
 
 if ( .not.allocated(ssta) ) then
   allocate(ssta(ifull),fraciceb(ifull))
+  if ( mbd_mlo/=0 ) then
+    if ( nud_sst/=0 ) then  
+      call specinit  
+    end if
+  end if  
 end if
 
 if ( mod(ktau,nperday)==0 ) then
@@ -1354,7 +1366,7 @@ elseif ( ktau>0 ) then
         duma(:,:) = 0.
         dumb(:,:) = 0.
         dumc(:,:,:) = 0.
-        dumd(:,:) = 0.
+        dumd(:) = 0.
         duma(:,1) = newsst(:)
         call mlofilterhub(duma,dumb,dumc,dumd,1)
       end if  
