@@ -5,7 +5,7 @@ module cu_gf_deep
 
      implicit none                                                 ! sny
      private                                                       ! sny
-     public cu_gf_deep_run                                         ! sny
+     public cu_gf_deep_run, neg_check                              ! sny
      public qamin
  
      integer, parameter :: kind_phys = kind(1.)
@@ -428,7 +428,7 @@ contains
      real(kind=kind_phys), dimension (its:ite,kts:kte) :: tn_bl, qo_bl, qeso_bl, heo_bl, heso_bl             &
                                               ,qeso_cup_bl,qo_cup_bl, heo_cup_bl,heso_cup_bl &
                                               ,gammao_cup_bl,tn_cup_bl,hco_bl,dbyo_bl
-     real(kind=kind_phys), dimension(kts:kte) :: tmp_po_cup, tmp_zdo
+     real(kind=kind_phys), dimension(kts:kte) :: tmp_po_cup, tmp_zdo ! MJT
      real(kind=kind_phys), dimension(its:ite) :: xf_dicycle
 !!$acc declare create(aa1_bl,hkbo_bl,tau_bl,tau_ecmwf,wmean,             &
 !!$acc                tn_bl, qo_bl, qeso_bl, heo_bl, heso_bl,            &
@@ -1820,11 +1820,11 @@ contains
       enddo
 
       do i=its,itf
-      if(ierr(i).eq.0)then
-      xhe(i,ktf)=heo(i,ktf)
-      xq(i,ktf)=qo(i,ktf)
-      xt(i,ktf)=tn(i,ktf)
-      endif
+       if(ierr(i).eq.0)then
+        xhe(i,ktf)=heo(i,ktf)
+        xq(i,ktf)=qo(i,ktf)
+        xt(i,ktf)=tn(i,ktf)
+       endif
       enddo
 !!$acc end kernels
 
@@ -4948,7 +4948,7 @@ endif
            ktopdby(i)=ktop(i)+1
            tmp_p_cup(:) = p_cup(i,:)   ! MJT - for array tmpry
            tmp_zuo(:) = zuo(i,kts:kte) ! MJT - for array tmpry
-          call get_zu_zd_pdf_fim(kklev,tmp_p_cup,rand_vmas(i),zubeg,ipr,xland(i),zuh2,3, &
+           call get_zu_zd_pdf_fim(kklev,tmp_p_cup,rand_vmas(i),zubeg,ipr,xland(i),zuh2,3, &
             ierr(i),k22(i),ktopdby(i)+1,tmp_zuo,kts,kte,ktf,beta_u,kbcon(i),csum(i),pmin_lev(i))
            zuo(i,kts:kte) = tmp_zuo(:) ! MJT - for array tmpry
        endif
@@ -5316,7 +5316,7 @@ endif
         integer, dimension (its:ite) :: kend_p3
 !!$acc declare create(kend_p3)
                     
-        real(kind=kind_phys),    dimension (its:ite,kts:kte), intent (in ) :: p_cup,t_cup,z_cup,qo_cup,qeso_cup                            
+        real(kind=kind_phys),    dimension (its:ite,kts:kte), intent (in ) :: p_cup,t_cup,z_cup,qo_cup,qeso_cup
         real(kind=kind_phys),    dimension (its:ite,kts:kte), intent (out) :: dtempdz                    
         integer, dimension (its:ite,kts:kte), intent (out) :: k_inv_layers
 !!$acc declare copyin(p_cup,t_cup,z_cup,qo_cup,qeso_cup)
@@ -5337,13 +5337,16 @@ endif
            sec_deriv(:)=0.
            kend_p3(i)=kend(i)+3
            do k = kts+1,kend_p3(i)+4
+            if ( k<kte ) then ! MJT   
             !-  get the 1st der
             if ( (z_cup(i,k+1)-z_cup(i,k-1)) /= 0. ) then          ! SNY
               first_deriv(k)= (t_cup(i,k+1)-t_cup(i,k-1))/(z_cup(i,k+1)-z_cup(i,k-1))        
               dtempdz(i,k)=first_deriv(k)
             end if                                                 ! SNY
+            end if ! MJT
            enddo
            do k = kts+2,kend_p3(i)+3
+            if ( k<kte) then ! MJT  
             !  get the 2nd der
 !            sec_deriv(k)= (first_deriv(k+1)-first_deriv(k-1))/(z_cup(i,k+1)-z_cup(i,k-1))        
 !            sec_deriv(k)= abs(sec_deriv(k))      
@@ -5351,6 +5354,7 @@ endif
                sec_deriv(k)= (first_deriv(k+1)-first_deriv(k-1))/(z_cup(i,k+1)-z_cup(i,k-1))
                sec_deriv(k)= abs(sec_deriv(k))
              endif                                                  ! SNY
+            end if ! MJT 
            enddo
         
          ilev=max(kts+3,kstart(i)+1)
@@ -5359,7 +5363,7 @@ endif
          do while (ilev < kend_p3(i)) !(z_cup(i,ilev)<15000.)
 !!$acc loop seq
            do kk=k,kend_p3(i)+2 !k,ktf-2
-             
+             if ( kk<kte ) then ! MJT
              if(sec_deriv(kk) <        sec_deriv(kk+1) .and.  &
                 sec_deriv(kk) < sec_deriv(kk-1)        ) then
               k_inv_layers(i,ix)=kk
@@ -5367,8 +5371,9 @@ endif
               ilev=kk+1
               exit   
              endif
+             end if ! MJT 
               ilev=kk+1
-               enddo
+           enddo
            k=ilev
          enddo         
         !- 2nd criteria

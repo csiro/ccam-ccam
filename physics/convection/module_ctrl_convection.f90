@@ -111,6 +111,7 @@ real, dimension(imax)    :: edto,edtm,hkbo,xhkb,xmb,pwavo,ccnloss,             &
                             pwevo,bu,bud,cap_max,                              &
                             cap_max_increment,closure_n,psum,psumh,sigd
 integer, dimension(imax) :: kbcon,ktop
+integer, dimension(imax) :: ktop_mid, ktop_deep
 real, dimension(imax)    :: frh_out
 integer, dimension(imax) :: ierr
 character(len=50), dimension(imax) :: ierrc                ! CHECK THIS
@@ -271,6 +272,7 @@ do tile = 1,ntiles
     outu_mid  = 0.
     outv_mid  = 0.
     outliqice_mid = 0.
+
     pre_deep   = 0. ! mm/s?
     outt_deep  = 0.
     outq_deep  = 0.
@@ -279,83 +281,87 @@ do tile = 1,ntiles
     outv_deep  = 0.
     outliqice_deep = 0.
 
-    ! imid=1
-    call cu_gf_deep_run(   &
-             itf           &
-            ,ktf           &
-            ,its           &
-            ,ite           &
-            ,kts           &
-            ,kte           &
-            ,dicycle       &  ! diurnal cycle flag
-            ,ichoice       &  ! choice of closure, use "0" for ensemble average
-            ,ipr           &  ! this flag can be used for debugging prints
-            ,ccn           &  ! not well tested yet
-            ,ccnclean      &
-            ,tdt           &  ! dt over which forcing is applied
-            ,1             &  ! flag to turn on mid level convection
-            ,kpbl          &  ! level of boundary layer height
-            ,dhdt          &  ! boundary layer forcing (one closure for shallow)
-            ,xland         &  ! land mask
-            ,zo            &  ! heights above surface
-            ,forcing       &  ! only diagnostic
-            ,g_t           &  ! t before forcing
-            ,g_q           &  ! q before forcing
-            ,z1            &  ! terrain
-            ,tn            &  ! t including forcing
-            ,qo            &  ! q including forcing
-            ,po            &  ! pressure (mb)
-            ,psur          &  ! surface pressure (mb)
-            ,g_us          &  ! u on mass points
-            ,g_vs          &  ! v on mass points
-            ,g_rho         &  ! density
-            ,hfx           &  ! w/m2, positive upward
-            ,qfx           &  ! w/m2, positive upward
-            ,dx            &  ! dx is grid point dependent here
-            ,mconv         &  ! integrated vertical advection of moisture
-            ,omeg          &  ! omega (pa/s)
-            ,csum          &  ! used to implement memory, set to zero if not avail
-            ,cnvwt         &  ! gfs needs this
-            ,zuo           &  ! nomalized updraft mass flux
-            ,zdo           &  ! nomalized downdraft mass flux
-            ,zdm           &  ! nomalized downdraft mass flux from mid scheme
-            ,edto          &  !
-            ,edtm          &  !
-            ,xmb_out       &  ! the xmb's may be needed for dicycle
-            ,xmbm_in       &  !
-            ,xmbs_in       &  !
-            ,pre_mid       &  !
-            ,outu_mid      &  ! momentum tendencies at mass points
-            ,outv_mid      &  !
-            ,outt_mid      &  ! temperature tendencies
-            ,outq_mid      &  ! q tendencies
-            ,outqc_mid     &  ! ql/qice tendencies
-            ,kbcon         &  ! lfc of parcel from k22
-            ,ktop          &  ! cloud top
-            ,cupclw        &  ! used for direct coupling to radiation, but with tuning factors
-            ,frh_out       &  ! fractional coverage
-            ,ierr          &  ! ierr flags are error flags, used for debugging
-            ,ierrc         &  ! the following should be set to zero if not available
-            ,nchem         &
-            ,fscav         &
-            ,chem3d        &
-            ,wetdpc_mid    &
-            ,do_smoke_transport   &
-            ,rand_mom      &  ! for stochastics mom, if temporal and spatial patterns exist
-            ,rand_vmas     &  ! for stochastics vertmass, if temporal and spatial patterns exist
-            ,rand_clos     &  ! for stochastics closures, if temporal and spatial patterns exist
-            ,nranflag      &  ! flag to what you want perturbed
-                              !! 1 = momentum transport
-                              !! 2 = normalized vertical mass flux profile
-                              !! 3 = closures
-                              !! more is possible, talk to developer or
-                              !! implement yourself. pattern is expected to be
-                              !! betwee -1 and +1
-            ,do_capsuppress,cap_suppress_j    &    !
-            ,k22                              &    !
-            ,jmin,kdt,tropics                 &
-            ,outliqice_mid)
-
+    !! imid=1
+    !call cu_gf_deep_run(   &
+    !         itf           &
+    !        ,ktf           &
+    !        ,its           &
+    !       ,ite           &
+    !        ,kts           &
+    !        ,kte           &
+    !        ,dicycle       &  ! diurnal cycle flag
+    !        ,ichoice       &  ! choice of closure, use "0" for ensemble average
+    !        ,ipr           &  ! this flag can be used for debugging prints
+    !        ,ccn           &  ! not well tested yet
+    !        ,ccnclean      &
+    !        ,tdt           &  ! dt over which forcing is applied
+    !        ,1             &  ! flag to turn on mid level convection
+    !        ,kpbl          &  ! level of boundary layer height
+    !        ,dhdt          &  ! boundary layer forcing (one closure for shallow)
+    !        ,xland         &  ! land mask
+    !        ,zo            &  ! heights above surface
+    !        ,forcing       &  ! only diagnostic
+    !        ,g_t           &  ! t before forcing
+    !        ,g_q           &  ! q before forcing
+    !        ,z1            &  ! terrain
+    !        ,tn            &  ! t including forcing
+    !        ,qo            &  ! q including forcing
+    !        ,po            &  ! pressure (mb)
+    !        ,psur          &  ! surface pressure (mb)
+    !        ,g_us          &  ! u on mass points
+    !        ,g_vs          &  ! v on mass points
+    !        ,g_rho         &  ! density
+    !        ,hfx           &  ! w/m2, positive upward
+    !        ,qfx           &  ! w/m2, positive upward
+    !        ,dx            &  ! dx is grid point dependent here
+    !        ,mconv         &  ! integrated vertical advection of moisture
+    !        ,omeg          &  ! omega (pa/s)
+    !        ,csum          &  ! used to implement memory, set to zero if not avail
+    !        ,cnvwt         &  ! gfs needs this
+    !        ,zuo           &  ! nomalized updraft mass flux
+    !        ,zdo           &  ! nomalized downdraft mass flux
+    !        ,zdm           &  ! nomalized downdraft mass flux from mid scheme
+    !        ,edto          &  !
+    !        ,edtm          &  !
+    !        ,xmb_out       &  ! the xmb's may be needed for dicycle
+    !        ,xmbm_in       &  !
+    !        ,xmbs_in       &  !
+    !        ,pre_mid       &  !
+    !        ,outu_mid      &  ! momentum tendencies at mass points
+    !        ,outv_mid      &  !
+    !        ,outt_mid      &  ! temperature tendencies
+    !        ,outq_mid      &  ! q tendencies
+    !        ,outqc_mid     &  ! ql/qice tendencies
+    !        ,kbcon         &  ! lfc of parcel from k22
+    !        ,ktop          &  ! cloud top
+    !        ,cupclw        &  ! used for direct coupling to radiation, but with tuning factors
+    !        ,frh_out       &  ! fractional coverage
+    !        ,ierr          &  ! ierr flags are error flags, used for debugging
+    !        ,ierrc         &  ! the following should be set to zero if not available
+    !        ,nchem         &
+    !        ,fscav         &
+    !        ,chem3d        &
+    !        ,wetdpc_mid    &
+    !        ,do_smoke_transport   &
+    !        ,rand_mom      &  ! for stochastics mom, if temporal and spatial patterns exist
+    !        ,rand_vmas     &  ! for stochastics vertmass, if temporal and spatial patterns exist
+    !        ,rand_clos     &  ! for stochastics closures, if temporal and spatial patterns exist
+    !        ,nranflag      &  ! flag to what you want perturbed
+    !                          !! 1 = momentum transport
+    !                          !! 2 = normalized vertical mass flux profile
+    !                          !! 3 = closures
+    !                          !! more is possible, talk to developer or
+    !                          !! implement yourself. pattern is expected to be
+    !                          !! betwee -1 and +1
+    !        ,do_capsuppress,cap_suppress_j    &    !
+    !        ,k22                              &    !
+    !        ,jmin,kdt,tropics                 &
+    !        ,outliqice_mid)
+    !
+    !ktop_mid = ktop
+    !call neg_check('mid',1,tdt,g_q,outq_mid,outt_mid,outu_mid,outv_mid,      &
+    !                    outqc_mid,pre_mid,its,ite,kts,kte,itf,ktf,ktop_mid)
+    
     ! imid=0
     call cu_gf_deep_run(   &
              itf           &
@@ -432,6 +438,10 @@ do tile = 1,ntiles
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
             ,outliqice_deep)
+    
+    ktop_deep=ktop
+    call neg_check('deep',1,tdt,g_q,outq_deep,outt_deep,outu_deep,outv_deep,   &
+                        outqc_deep,pre_deep,its,ite,kts,kte,itf,ktf,ktop_deep)
     
     g_t(1:imax,:)   = g_t(1:imax,:)   + tdt*(outt_mid(1:imax,:)+outt_deep(1:imax,:))
     g_q(1:imax,:)   = g_q(1:imax,:)   + tdt*(outq_mid(1:imax,:)+outq_deep(1:imax,:))
