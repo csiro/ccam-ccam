@@ -126,7 +126,7 @@ integer, dimension(imax) :: k22,jmin
 real, dimension(imax,kl) :: thz, tothz
 real prf_temp, prf
 real, dimension(imax,kl) :: zpres, zcdrop
-integer                  :: kk, i
+integer                  :: kk, i, j
 real, dimension(naero)   :: fscav
 real, dimension(imax)    :: cap_suppress_j
 integer, dimension(2) :: posmin, posmax
@@ -171,6 +171,7 @@ do tile = 1,ntiles
   ccn       = 0.              ! not well tested yet
   ccnclean  = 0.
   dtime     = dt              ! dt over which forcing is applied
+  imid      = 0
   do k = 1,kl
     ! boundary layer forcing (one closure for shallow)      
     dhdt(1:imax,k) = dmsedt_adv(js:je,k) + dmsedt_rad(js:je,k) + dmsedt_pbl(js:je,k)    
@@ -211,6 +212,7 @@ do tile = 1,ntiles
     dq(1:imax) = qg(js:je,k+1) - qg(js:je,k)
     mconv(1:imax) =mconv(1:imax)+omeg(1:imax,k)*dq(1:imax)/grav
   end do
+  where (mconv(1:imax) < 0.) mconv(1:imax) = 0.
   csum       = 0.              ! used to implement memory, set to zero if not avail
   cnvwt      = 0.              ! gfs needs this
   zuo        = 0.              ! nomalized updraft mass flux
@@ -277,6 +279,7 @@ do tile = 1,ntiles
     outliqice_deep = 0.
 
     ! imid=1
+    if (imid==1) then
     call cu_gf_deep_run(   &
              itf           &
             ,ktf           &
@@ -352,10 +355,10 @@ do tile = 1,ntiles
             ,k22                              &    !
             ,jmin,kdt,tropics                 &
             ,outliqice_mid)
-
     ktop_mid = ktop
-    call neg_check('mid',tdt,g_q,outq_mid,outt_mid,outu_mid,outv_mid,      &
+    call neg_check('mid',j,tdt,g_q,outq_mid,outt_mid,outu_mid,outv_mid,      &
                         outqc_mid,pre_mid,its,ite,kts,kte,itf,ktf,ktop_mid)
+    end if
     ! imid=0
     call cu_gf_deep_run(   &
              itf           &
@@ -433,7 +436,7 @@ do tile = 1,ntiles
             ,jmin,kdt,tropics                 &
             ,outliqice_deep)
     ktop_deep=ktop
-    call neg_check('deep',tdt,g_q,outq_deep,outt_deep,outu_deep,outv_deep,   &
+    call neg_check('deep',j,tdt,g_q,outq_deep,outt_deep,outu_deep,outv_deep,   &
                         outqc_deep,pre_deep,its,ite,kts,kte,itf,ktf,ktop_deep)
 
     where (g_q(1:imax,:) < qgmin ) g_q(1:imax,:) = qgmin
@@ -551,110 +554,3 @@ end function interp_convection
   
 end module module_ctrl_convection
 
-!> Checks for negative or excessive tendencies and corrects in a mass
-!! conversing way by adjusting the cloud base mass-flux.
-   subroutine neg_check(name,dt,q,outq,outt,outu,outv,                      &
-                        outqc,pret,its,ite,kts,kte,itf,ktf,ktop)
-   integer, parameter :: kind_phys = kind(1.)
-   integer,      intent(in   ) ::            its,ite,kts,kte,itf,ktf
-   integer, dimension (its:ite  ),   intent(in   ) ::  ktop
-
-     real(kind=kind_phys), dimension (its:ite,kts:kte  )                    ,                 &
-      intent(inout   ) ::                                                     &
-       outq,outt,outqc,outu,outv
-     real(kind=kind_phys), dimension (its:ite,kts:kte  )                    ,                 &
-      intent(inout   ) ::                                                     &
-       q
-     real(kind=kind_phys), dimension (its:ite  )                            ,                 &
-      intent(inout   ) ::                                                     &
-       pret
-      character *(*), intent (in)         ::                                  &
-       name
-     real(kind=kind_phys)                                                                     &
-        ,intent (in  )                   ::                                   &
-        dt
-     real(kind=kind_phys) :: names,scalef,thresh,qmem,qmemf,qmem2,qtest,qmem1
-     integer :: icheck
-     integer :: i, k                ! sny
-!
-! first do check on vertical heating rate
-!
-      thresh=300.01
-!      thresh=200.01        !ss
-!      thresh=250.01
-      names=1.
-      if(name == 'shallow' .or. name == 'mid')then
-        thresh=148.01
-        names=1.
-      endif
-      scalef=86400.
-      do i=its,itf
-      if(ktop(i) <= 2)cycle
-      icheck=0
-      qmemf=1.
-      qmem=0.
-      do k=kts,ktop(i)
-         qmem=(outt(i,k))*86400.
-         if(qmem.gt.thresh)then
-           qmem2=thresh/qmem
-           qmemf=min(qmemf,qmem2)
-      icheck=1
-!
-!
-!          print *,'1',' adjusted massflux by factor ',i,j,k,qmem,qmem2,qmemf,dt
-         endif
-         if(qmem.lt.-.5*thresh*names)then
-           qmem2=-.5*names*thresh/qmem
-           qmemf=min(qmemf,qmem2)
-      icheck=2
-!
-!
-         endif
-      enddo
-      do k=kts,ktop(i)
-         outq(i,k)=outq(i,k)*qmemf
-         outt(i,k)=outt(i,k)*qmemf
-         outu(i,k)=outu(i,k)*qmemf
-         outv(i,k)=outv(i,k)*qmemf
-         outqc(i,k)=outqc(i,k)*qmemf
-      enddo
-      pret(i)=pret(i)*qmemf
-      enddo
-!      return
-!
-! check whether routine produces negative q's. this can happen, since
-! tendencies are calculated based on forced q's. this should have no
-! influence on conservation properties, it scales linear through all
-! tendencies
-!
-!      return
-!      write(14,*)'return'
-      thresh=1.e-32
-      do i=its,itf
-      if(ktop(i) <= 2)cycle
-      qmemf=1.
-      do k=kts,ktop(i)
-         qmem=outq(i,k)
-         if(abs(qmem).gt.0. .and. q(i,k).gt.1.e-6)then
-         qtest=q(i,k)+(outq(i,k))*dt
-         if(qtest.lt.thresh)then
-!
-! qmem2 would be the maximum allowable tendency
-!
-           qmem1=abs(outq(i,k))
-           qmem2=abs((thresh-q(i,k))/dt)
-           qmemf=min(qmemf,qmem2/qmem1)
-           qmemf=max(0.,qmemf)
-         endif
-         endif
-      enddo
-      do k=kts,ktop(i)
-         outq(i,k)=outq(i,k)*qmemf
-         outt(i,k)=outt(i,k)*qmemf
-         outu(i,k)=outu(i,k)*qmemf
-         outv(i,k)=outv(i,k)*qmemf
-         outqc(i,k)=outqc(i,k)*qmemf
-      enddo
-      pret(i)=pret(i)*qmemf
-      enddo
-   end subroutine neg_check
