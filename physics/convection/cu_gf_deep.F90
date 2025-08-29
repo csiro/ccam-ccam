@@ -17,7 +17,7 @@ module cu_gf_deep
 
      implicit none                                                 ! sny
      private                                                       ! sny
-     public cu_gf_deep_run                                         ! sny
+     public cu_gf_deep_run, neg_check                             ! sny
      public qamin
  
      integer, parameter :: kind_phys = kind(1.)
