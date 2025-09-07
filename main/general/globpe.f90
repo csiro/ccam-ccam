@@ -1302,6 +1302,7 @@ integer kmlo, calcinloop           ! depreciated namelist options
 integer fnproc_bcast_max, nriver   ! depreciated namelist options
 integer ateb_conductmeth           ! depreciated namelist options
 integer ateb_useonewall            ! depreciated namelist options
+integer ateb_ncyits                ! depreciated namelist options 
 integer cable_climate              ! depreciated namelist options
 integer surf_windfarm, adv_precip  ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
@@ -1412,7 +1413,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
     ateb_acmeth,ateb_nrefl,                                       &
     ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,                    &
-    ateb_ncyits,ateb_nfgits,ateb_tol,                             &
+    ateb_nfgits,ateb_tol,                                         &
     ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,                 &
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
@@ -1423,7 +1424,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_ac_deltat,ateb_acfactor,ateb_soilunder,                  &
     siburbanfrac,freshwaterlake_fix,                              & ! special options
     wbclim_lonn,wbclim_lonx,wbclim_latn,wbclim_latx,              & 
-    ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,               & ! depreciated
+    ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,ateb_ncyits,   & ! depreciated
     ateb_useonewall,ateb_alpha
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
@@ -3499,7 +3500,6 @@ use uclem_ctrl, only :                   & ! Urban
     ,ateb_scrnmeth=>scrnmeth             &
     ,ateb_wbrelaxc=>wbrelaxc             &
     ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_ncyits=>ncyits                 &
     ,ateb_nfgits=>nfgits                 &
     ,ateb_tol=>tol                       &
     ,ateb_zosnow=>zosnow                 &
@@ -3530,7 +3530,7 @@ use uclem_ctrl, only :                   & ! Urban
 
 implicit none
 
-integer, dimension(32) :: dumi
+integer, dimension(31) :: dumi
 real, dimension(27) :: dumr
     
 dumr = 0.
@@ -3580,21 +3580,20 @@ if ( myid==0 ) then
   dumi(15) = ateb_scrnmeth
   dumi(16) = ateb_wbrelaxc
   dumi(17) = ateb_wbrelaxr
-  dumi(18) = ateb_ncyits
-  dumi(19) = ateb_nfgits
-  dumi(20) = intairtmeth
-  dumi(21) = intmassmeth
-  dumi(22) = ateb_cvcoeffmeth
-  dumi(23) = ateb_statsmeth
-  dumi(24) = ateb_lwintmeth
-  dumi(25) = ateb_infilmeth
-  dumi(26) = cable_roughness
-  dumi(27) = cable_potev
-  dumi(28) = ateb_soilunder
-  dumi(29) = wt_transport
-  dumi(30) = cable_gw_model
-  dumi(31) = freshwaterlake_fix
-  dumi(32) = cable_enablefao
+  dumi(18) = ateb_nfgits
+  dumi(19) = intairtmeth
+  dumi(20) = intmassmeth
+  dumi(21) = ateb_cvcoeffmeth
+  dumi(22) = ateb_statsmeth
+  dumi(23) = ateb_lwintmeth
+  dumi(24) = ateb_infilmeth
+  dumi(25) = cable_roughness
+  dumi(26) = cable_potev
+  dumi(27) = ateb_soilunder
+  dumi(28) = wt_transport
+  dumi(20) = cable_gw_model
+  dumi(30) = freshwaterlake_fix
+  dumi(31) = cable_enablefao
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3642,21 +3641,20 @@ ateb_nrefl         = dumi(14)
 ateb_scrnmeth      = dumi(15)
 ateb_wbrelaxc      = dumi(16) 
 ateb_wbrelaxr      = dumi(17) 
-ateb_ncyits        = dumi(18)
-ateb_nfgits        = dumi(19) 
-intairtmeth        = dumi(20) 
-intmassmeth        = dumi(21)
-ateb_cvcoeffmeth   = dumi(22) 
-ateb_statsmeth     = dumi(23) 
-ateb_lwintmeth     = dumi(24) 
-ateb_infilmeth     = dumi(25)
-cable_roughness    = dumi(26)
-cable_potev        = dumi(27)
-ateb_soilunder     = dumi(28)
-wt_transport       = dumi(29)
-cable_gw_model     = dumi(30)
-freshwaterlake_fix = dumi(31)
-cable_enablefao    = dumi(32)
+ateb_nfgits        = dumi(18) 
+intairtmeth        = dumi(19) 
+intmassmeth        = dumi(20)
+ateb_cvcoeffmeth   = dumi(21) 
+ateb_statsmeth     = dumi(22) 
+ateb_lwintmeth     = dumi(23) 
+ateb_infilmeth     = dumi(24)
+cable_roughness    = dumi(25)
+cable_potev        = dumi(26)
+ateb_soilunder     = dumi(27)
+wt_transport       = dumi(28)
+cable_gw_model     = dumi(29)
+freshwaterlake_fix = dumi(30)
+cable_enablefao    = dumi(31)
 
 return
 end subroutine broadcast_landnml
@@ -5186,10 +5184,10 @@ end subroutine nantest
 ! Calculate change in moist static energy
 subroutine calculate_dhdt_mse(js,je,mse_t1)
 
-use arrays_m       
-use const_phys 
-use sigs_m          
+use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use const_phys                             ! Physical constants
 use newmpar_m                              ! Grid parameters
+use sigs_m                                 ! Atmosphere sigma levels
   
 implicit none 
   

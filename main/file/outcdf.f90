@@ -700,7 +700,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_maxvwatf',ateb_maxvwatf)
     call ccnf_put_attg(idnc,'ateb_minsnowalpha',ateb_minsnowalpha)
     call ccnf_put_attg(idnc,'ateb_minsnowden',ateb_minsnowden)
-    call ccnf_put_attg(idnc,'ateb_ncyits',ateb_ncyits)
     call ccnf_put_attg(idnc,'ateb_nfgits',ateb_nfgits)
     call ccnf_put_attg(idnc,'ateb_nrefl',ateb_nrefl)
     call ccnf_put_attg(idnc,'ateb_refheight',ateb_refheight)

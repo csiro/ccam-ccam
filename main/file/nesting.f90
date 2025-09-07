@@ -69,6 +69,7 @@ real, dimension(:,:), allocatable, save :: tb, ub, vb, qb, ocndep
 real, dimension(:,:,:), allocatable, save :: sssb, xtghostb
 real, dimension(:,:,:), allocatable, save :: sssa, xtghosta
 
+logical, save :: first_specinit = .true.
 
 contains
 
@@ -877,6 +878,11 @@ real, dimension(ifull,kln:klx) :: wbb
 real, dimension(ipan*jpan,klt) :: qt
 real, dimension(ifull) :: da, db
 logical, intent(in) :: lblock
+
+if ( first_specinit ) then
+  write(6,*) "ERROR: spectral filter requires initialisation with specinit"
+  call ccmpi_abort(-1)
+end if
 
 if ( nud_p>0 .and. lblock ) then
   call START_LOG(nestwin_begin)
@@ -1740,6 +1746,11 @@ logical lblock
 logical, dimension(ifull,wlev) :: wtr
 real nudgewgt
  
+if ( first_specinit ) then
+  write(6,*) "ERROR: spectral filter requires initialisation with specinit"
+  call ccmpi_abort(-1)
+end if
+
 ka = 0
 kb = 0
 kc = min(kbotmlo, ktopmlo+wl-1)
@@ -2812,11 +2823,10 @@ integer iproc
 integer, dimension(0:3) :: maps
 integer, dimension(0:3) :: astr,bstr,cstr
 logical, dimension(0:nproc-1) :: lproc, lproc_t
-logical, save :: first = .true.
       
 ! can be called from nestinb or amipsst
-if ( .not.first ) return
-first = .false.
+if ( .not.first_specinit ) return
+first_specinit = .false.
 
 if ( myid==0 ) then
   write(6,*) "Create map for spectral nudging data"

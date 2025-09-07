@@ -81,7 +81,7 @@ public f_g,p_g
 public facetparams,facetdata,hydrodata,vegdata,intldata
 public fparmdata,pdiagdata
 
-public energytol,resmeth,zohmeth,acmeth,nrefl,scrnmeth,wbrelaxc,wbrelaxr,ncyits,nfgits,tol
+public energytol,resmeth,zohmeth,acmeth,nrefl,scrnmeth,wbrelaxc,wbrelaxr,nfgits,tol
 public zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,zomratio
 public zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,intairtmeth,intmassmeth
 public cvcoeffmeth,statsmeth,lwintmeth,infilmeth,ac_heatcap,ac_coolcap,ac_deltat,acfactor
@@ -1040,7 +1040,7 @@ end if
 
 tsigveg = csigvegc(itmp)
 tsigmabld = csigmabld(itmp)
-cnveg%sigma = max(min(tsigveg/(1.-tsigmabld),1.),0.)
+cnveg%sigma = max(min(tsigveg/max(1.-tsigmabld,0.001),1.),0.)
 rfveg%sigma = max(min(csigvegr(itmp),1.),0.)
 fp%sigmabld = max(min(tsigmabld,1.),0.)
 fp%hwratio = chwratio(itmp)

@@ -22,18 +22,19 @@ Although CCAM is written in fortran, it links with the NetCDF C library.
 
 ## Building CCAM
 
-To build CCAM with the intel, gnu and cray fortran compiler use
+To build CCAM with the Intel (default), Nvidia, GNU or Cray fortran compiler use the corresponding build option below
 
 ```
 make
+make NVIDIA=yes
 make GFORTRAN=yes
 make CRAY=yes
 ```
 
-CCAM also has limited support for GPUs and OpenMP, which can be enabled with
+CCAM also has limited support for GPUs, which can be enabled with
 
 ```
-make GPU=yes OMP=yes
+make GPU=yes
 ```
 
 Debugging is also enabled with
