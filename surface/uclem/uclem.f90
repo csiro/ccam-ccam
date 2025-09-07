@@ -1650,12 +1650,12 @@ end where
 f1 = (1.+ff)/(ff+cnveg%rsmin*cnveg%lai/5000.)
 f2 = max(0.5*(fp%sfc-fp%swilt)/max(rdhyd%soilwater-fp%swilt,1.E-9),1.)
 f3 = max(1.-0.00025*(vegqsat-d_canyonmix)*d_sigd/0.622,0.5) ! increased limit from 0.05 to 0.5 following Mk3.6    
-f4 = max(1.-0.0016*(298.-urbtemp-d_canyontemp)**2,0.05)     ! 0.2 in Mk3.6
+f4 = max(1.-0.0016*(298.-urbtemp-canyontemp_ave)**2,0.05)     ! 0.2 in Mk3.6
 res = max(30.,cnveg%rsmin*f1*f2/(f3*f4))
 
 ! solve for vegetation and snow sensible heat fluxes
-fg_vegc = aircp*a_rho*(cnveg%temp-d_canyontemp)*acond_vegc
-fg_rdsn = aircp*a_rho*(rdsntemp-d_canyontemp)*acond_rdsn
+fg_vegc = aircp*a_rho*(cnveg%temp-canyontemp_ave)*acond_vegc
+fg_rdsn = aircp*a_rho*(rdsntemp-canyontemp_ave)*acond_rdsn
 
 ! calculate longwave radiation for vegetation and snow
 rg_vegc = cnveg%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(cnveg%temp+urbtemp)**4)    &
