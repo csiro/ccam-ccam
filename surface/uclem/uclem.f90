@@ -1630,7 +1630,7 @@ end where
 
 ! calculate canyon road latent heat flux
 aa = rdhyd%surfwater/ddt + a_rnd + rdsnmelt
-eg_road = lv*min( a_rho*d_roaddelta*(roadqsat-d_canyonmix)*acond_road, aa )
+eg_road = lv*min( a_rho*dumroaddelta*(roadqsat-d_canyonmix)*acond_road, aa )
   
 ! Calculate longwave radiation emitted from the canyon floor
 ! MJT notes - This could be included within the iterative solver for snow and vegetation temperatures.
