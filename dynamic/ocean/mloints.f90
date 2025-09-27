@@ -66,7 +66,6 @@ integer, intent(in) :: mlointschf
 integer idel, iq, jdel
 integer i, j, k, n, intsch, nn, np
 integer ii, ntr, nstart, nend, nlen
-integer async_counter
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg, yg
 real, dimension(:,:,:), intent(inout) :: s
@@ -97,6 +96,7 @@ end if
 ! bounds(nrows=2) must be called prior
 
 !$acc enter data create(wx,sx)
+
 
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
@@ -140,9 +140,7 @@ if ( intsch==1 ) then
       wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop
-
-  !$acc update device(wx)
-  
+  !$acc update device(wx) async(0)
   
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr)
@@ -150,7 +148,6 @@ if ( intsch==1 ) then
 
     do nn = 1,nlen
       np = nn - 1 + nstart
-      async_counter = mod(nn-1, async_length)
       do k = 1,wlev
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
@@ -190,8 +187,8 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
-      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do
+    !$acc update device(sx) async(0)
   
     ! Loop over points that need to be calculated for other processes
     if ( bs_test ) then
@@ -260,7 +257,9 @@ if ( intsch==1 ) then
           end do          ! iq loop
         end do            ! ii loop
       end do  
+
     else
+
       do nn = 1,nlen
         do ii = 1,neighnum
           do iq = 1,drlen(ii)
@@ -328,10 +327,9 @@ if ( intsch==1 ) then
     call intssync_send(nlen)
 
     if ( bs_test ) then    
+      !$acc wait  
+      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
       do nn = 1,nlen
-        async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -393,14 +391,14 @@ if ( intsch==1 ) then
             end if            
           end do       ! iq loop
         end do         ! k loop
-        !$acc end parallel loop
       end do
-      !$acc wait
+      !$acc end parallel loop
+
     else
+
+      !$acc wait  
+      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
       do nn = 1,nlen
-        async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -460,9 +458,8 @@ if ( intsch==1 ) then
 
           end do       ! iq loop
         end do         ! k loop
-        !$acc end parallel loop
       end do             ! nn loop
-      !$acc wait
+      !$acc end parallel loop
     end if           ! bs_test ..else..
 
     call intssync_recv(s(:,:,nstart:nend))  
@@ -514,8 +511,7 @@ else     ! if(intsch==1)then
       wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop 
-
-  !$acc update device(wx)
+  !$acc update device(wx) async(0)
   
 
   do nstart = 1,ntr,nagg
@@ -524,7 +520,6 @@ else     ! if(intsch==1)then
 
     do nn = 1,nlen
       np = nn - 1 + nstart
-      async_counter = mod(nn-1, async_length)
       do k = 1,wlev
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
@@ -564,8 +559,8 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
-      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do  
+    !$acc update device(sx) async(0)
   
     ! For other processes
     if ( bs_test ) then
@@ -634,7 +629,9 @@ else     ! if(intsch==1)then
           end do          ! iq loop
         end do            ! ii loop
       end do  
+
     else
+
       do nn = 1,nlen
         do ii = neighnum,1,-1
           do iq = 1,drlen(ii)
@@ -697,15 +694,16 @@ else     ! if(intsch==1)then
           end do          ! iq loop
         end do            ! ii loop
       end do              ! nn loop  
+
     end if                ! bs_test ..else..       
 
     call intssync_send(nlen)
 
     if ( bs_test ) then
+        
+      !$acc wait  
+      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
       do nn = 1,nlen
-        async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -768,14 +766,14 @@ else     ! if(intsch==1)then
             
           end do
         end do
-        !$acc end parallel loop
       end do           ! nn loop
-      !$acc wait
+      !$acc end parallel loop
+
     else
+
+      !$acc wait
+      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
       do nn = 1,nlen        
-        async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
-        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -835,9 +833,9 @@ else     ! if(intsch==1)then
             
           end do
         end do
-        !$acc end parallel loop
       end do           ! nn loop
-      !$acc wait
+      !$acc end parallel loop
+
     end if
 
     call intssync_recv(s(:,:,nstart:nend))  
@@ -932,7 +930,6 @@ if ( need_fill ) then
   do ii = 1,6 ! 6 iterations of fill should be enough
     s_old(1:ifull,:,:) = s(1:ifull,:,:)
     call bounds(s_old)
-    !$omp parallel do collapse(2) private(nn,k,iq,s_tot,s_count)
     do nn = 1,ntr
       do k = 1,wlev
         do iq = 1,ifull
@@ -962,9 +959,8 @@ if ( need_fill ) then
         end do  ! iq loop
       end do    ! k loop
     end do      ! nn loop
-    !$omp end parallel do
   end do ! ii loop
-end if   ! need_)fill
+end if   ! need_fill
 
 call bounds(s,nrows=2)
 

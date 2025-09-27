@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -88,6 +88,7 @@ implicit none
 
 integer iq, k
 real, dimension(ifull+iextra,wlev,3) :: duma
+real, dimension(ifull+iextra,wlev,2) :: dumb
 real, dimension(ifull+iextra,wlev) :: ttl, ssl
 real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
@@ -203,9 +204,12 @@ if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
   ssl(1:ifull,:) = ss(1:ifull,:) - 34.72
   where( workdata2(1:ifull,:)<2. )
     ssl(1:ifull,:) = 0.
-  end where  
-  call bounds(ttl)
-  call bounds(ssl)
+  end where
+  dumb(:,:,1) = ttl(:,:)
+  dumb(:,:,2) = ssl(:,:)
+  call bounds(dumb(:,:,1:2))
+  ttl(:,:) = dumb(:,:,1)
+  ssl(:,:) = dumb(:,:,2)
 end if
 
 
@@ -225,32 +229,16 @@ if ( mlodiff>=10 .and. mlodiff<20 ) then
 else if ( mlodiff>=0 .and. mlodiff<10 ) then
   ! Laplacian version
     
-  !$omp parallel
-  !$omp sections
-
-  !$omp section
   if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     call mlodifflap(duma(:,:,1),xfact,yfact,emi,ee,hdif)
-  end if
-  !$omp section
-  if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     call mlodifflap(duma(:,:,2),xfact,yfact,emi,ee,hdif)
-  end if
-  !$omp section
-  if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     call mlodifflap(duma(:,:,3),xfact,yfact,emi,ee,hdif)
   end if
-  !$omp section
   if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
     call mlodifflap(ttl,xfact,yfact,emi,ee,hdif)
-  end if
-  !$omp section
-  if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
     call mlodifflap(ssl,xfact,yfact,emi,ee,hdif)
   end if
 
-  !$omp end sections
-  !$omp end parallel
 
 else  
   write(6,*) "ERROR: Unknown mlodiff option mlodiff=",mlodiff
@@ -317,7 +305,6 @@ do its = 1,mlodiff_numits
   end if
 
   ! Estimate Laplacian at t+1
-  !$omp parallel do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
   do k = 1,wlev
     do iq = 1,ifull  
       xfact_iwu = xfact(iwu(iq),k)
@@ -332,12 +319,10 @@ do its = 1,mlodiff_numits
                   / sqrt(emi(iq))
     end do   
   end do
-  !$omp end parallel do
 
   call bounds(ans)
 
   ! Estimate Laplacian^2 (= Grad^4) at t+1
-  !$omp parallel do schedule(static) private(k,iq,xfact_iwu,yfact_isv,base)
   do k = 1,wlev
     do iq = 1,ifull  
       xfact_iwu = xfact(iwu(iq),k)
@@ -357,7 +342,6 @@ do its = 1,mlodiff_numits
       end if
     end do
   end do  
-  !$omp end parallel do
     
 end do ! its
 

@@ -3591,7 +3591,7 @@ if ( myid==0 ) then
   dumi(26) = cable_potev
   dumi(27) = ateb_soilunder
   dumi(28) = wt_transport
-  dumi(20) = cable_gw_model
+  dumi(29) = cable_gw_model
   dumi(30) = freshwaterlake_fix
   dumi(31) = cable_enablefao
 end if

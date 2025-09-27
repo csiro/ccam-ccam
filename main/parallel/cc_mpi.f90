@@ -26,14 +26,13 @@ module cc_mpi
 ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
 ! shared memory arrays.
 
-! MJT notes - Currently -Dusempif08 is not avaliable due to library issues with user defined reduce functions.
-
 ! Preprocess directives:
 
-! -Dusempi3      exploits MPI-3 shared memory to optmise communication between nodes
-! -Dusempimod    uses f90 mod interface for MPI.  Requires same compiler used for MPI library.
-! -Dvampir       is for coupling with VAMPIR for tracers
-! -Di8r8         is for running in double precision mode
+! -Dusempi3        exploits MPI-3 shared memory to optmise communication between nodes
+! -Dusempimod      uses f90 mod interface for MPI.
+! -Dusempimod_f09  uses f09 mod interface for MPI.  Requires -Dusempimod
+! -Dvampir         is for coupling with VAMPIR for tracers
+! -Di8r8           is for running in double precision mode
 
 #ifdef usempimod
 #ifdef usempimod_f08
@@ -8710,8 +8709,8 @@ contains
       if ( nodefile_count > 0 ) then
          if ( nodefile_count <= size(nodefilesave_win) ) then
             nodefilesave_win(nodefile_count) = nodefile_win
-            !call ccmpi_freeshdata(nodefile_win)
          end if   
+         !call ccmpi_freeshdata(nodefile_win)         
       end if   
 #else
       if ( associated( nodefile ) ) then

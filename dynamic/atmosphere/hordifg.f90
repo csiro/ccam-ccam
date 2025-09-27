@@ -80,7 +80,8 @@ use vvel_m
 
 implicit none
 
-real, dimension(ifull+iextra,kl) :: uc, vc, wc
+real, dimension(ifull+iextra,kl,4) :: bb
+real, dimension(ifull+iextra,kl,3) :: uvwc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: ww, dwdx, dwdy
@@ -125,9 +126,9 @@ do k = 1,kl
   yfact(:,k) = 0.
   uav(:,k) = 0.
   vav(:,k) = 0.
-  uc(:,k) = 0.
-  vc(:,k) = 0.
-  wc(:,k) = 0.  
+  uvwc(:,k,1) = 0.
+  uvwc(:,k,2) = 0.
+  uvwc(:,k,3) = 0.  
 end do
 emi(1:ifull) = ps(1:ifull)/em(1:ifull)
 !ptemp(1:ifull) = ps(1:ifull)**.286
@@ -232,13 +233,11 @@ end if ! nvmix=6 .or. nvmix==9
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
   do k = 1,kl
     ! in hordifgt, need to calculate Cartesian components 
-    uc(1:ifull,k) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
-    vc(1:ifull,k) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
-    wc(1:ifull,k) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
+    uvwc(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
+    uvwc(1:ifull,k,2) = ay(1:ifull)*u(1:ifull,k) + by(1:ifull)*v(1:ifull,k)
+    uvwc(1:ifull,k,3) = az(1:ifull)*u(1:ifull,k) + bz(1:ifull)*v(1:ifull,k)
   end do
-  call bounds(uc)
-  call bounds(vc)
-  call bounds(wc)
+  call bounds(uvwc(:,:,1:3))
 end if
 
 ! apply horz diffusion
@@ -269,9 +268,9 @@ select case(nhorjlm)
     do k = 1,kl
       hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1  
       do iq = 1,ifull
-        cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
-             (vc(ie(iq),k)-vc(iw(iq),k))**2 + (vc(in(iq),k)-vc(is(iq),k))**2 + &
-             (wc(ie(iq),k)-wc(iw(iq),k))**2 + (wc(in(iq),k)-wc(is(iq),k))**2
+        cc = (uvwc(ie(iq),k,1)-uvwc(iw(iq),k,1))**2 + (uvwc(in(iq),k,1)-uvwc(is(iq),k,1))**2 + &
+             (uvwc(ie(iq),k,2)-uvwc(iw(iq),k,2))**2 + (uvwc(in(iq),k,2)-uvwc(is(iq),k,2))**2 + &
+             (uvwc(ie(iq),k,3)-uvwc(iw(iq),k,3))**2 + (uvwc(in(iq),k,3)-uvwc(is(iq),k,3))**2
         ! N.B. using double grid length
         t_kh(iq,k)= 0.5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
@@ -280,11 +279,11 @@ select case(nhorjlm)
   case(2)
     ! jlm deformation scheme using 3D uc, vc, wc and omega (1st rough scheme)
     do k = 1,kl
+      hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
       do iq = 1,ifull
-        hdif = dt*hdiff(k)/ds ! N.B.  hdiff(k)=khdif*.1
-        cc = (uc(ie(iq),k)-uc(iw(iq),k))**2 + (uc(in(iq),k)-uc(is(iq),k))**2 + &
-             (vc(ie(iq),k)-vc(iw(iq),k))**2 + (vc(in(iq),k)-vc(is(iq),k))**2 + &
-             (wc(ie(iq),k)-wc(iw(iq),k))**2 + (wc(in(iq),k)-wc(is(iq),k))**2 + &
+        cc = (uvwc(ie(iq),k,1)-uvwc(iw(iq),k,1))**2 + (uvwc(in(iq),k,1)-uvwc(is(iq),k,1))**2 + &
+             (uvwc(ie(iq),k,2)-uvwc(iw(iq),k,2))**2 + (uvwc(in(iq),k,2)-uvwc(is(iq),k,2))**2 + &
+             (uvwc(ie(iq),k,3)-uvwc(iw(iq),k,3))**2 + (uvwc(in(iq),k,3)-uvwc(is(iq),k,3))**2 + &
              .01*(dpsldt(ie(iq),k)*ps(ie(iq))-dpsldt(iw(iq),k)*ps(iw(iq)))**2+ &
              .01*(dpsldt(in(iq),k)*ps(in(iq))-dpsldt(is(iq),k)*ps(is(iq)))**2 
         ! approx 1 Pa/s = .1 m/s     
@@ -303,11 +302,12 @@ select case(nhorjlm)
         dudy = 0.5*(uav(inu(iq),k)-uav(isu(iq),k))*em(iq)/ds
         dvdx = 0.5*(vav(iev(iq),k)-vav(iwv(iq),k))*em(iq)/ds
         dvdy = 0.5*(vav(inv(iq),k)-vav(isv(iq),k))*em(iq)/ds
-        !r1 = (dudx-dvdy)**2+(dvdx+dudy)**2
-        r1 = (dvdx+dudy)**2 + 0.5*dudx**2 + 0.5*dvdy**2
+        r1 = (dudx-dvdy)**2+(dvdx+dudy)**2
+        !r1 = (dvdx+dudy)**2 + 0.5*dudx**2 + 0.5*dvdy**2
         t_kh(iq,k) = sqrt(r1)*hdif*emi(iq)
-        t_kh(iq,k) = max( t_kh(iq,k), max(tke(iq,k),mintke)**2/ &
-                     max(eps(iq,k),mineps)*dt*cm0*emi(iq) )
+        t_kh(iq,k) = max( t_kh(iq,k),                               &
+                     max(tke(iq,k),mintke)**2/max(eps(iq,k),mineps) &
+                     *dt*cm0*emi(iq) )
       end do
     end do
 
@@ -332,114 +332,99 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 
 ! perform diffusion ---------------------------------------------------
 
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
+  do k = 1,kl
+    t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull)
+  end do
+  bb(:,:,1) = t(:,:)
+  bb(:,:,2) = qg(:,:)
+  call bounds(bb(:,:,1:2))  
+  t(:,:) = bb(:,:,1)
+  qg(:,:) = bb(:,:,2)
+else if ( nhorps==-5 ) then
   do k = 1,kl
     t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull)
   end do
   call bounds(t)
-end if
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then
+else if ( nhorps==-3 ) then
   call bounds(qg)
 end if
-if ( nhorps==-4 .and. ldr/=0 ) then  
-  call bounds(qlg)
-  call bounds(qfg)
-  call bounds(stratcloud)
-  call bounds(qrg)
-  call bounds(qsng)
-  call bounds(qgrg)
+if ( nhorps==-4 .and. ldr/=0 ) then
+  bb(:,:,1) = qlg(:,:)
+  bb(:,:,2) = qfg(:,:)
+  bb(:,:,3) = stratcloud(:,:)
   if ( ncloud>=100 .and. ncloud<200 ) then
-    call bounds(ni)
+    bb(:,:,4) = ni(:,:)
+    call bounds(bb(:,:,1:4))
+    ni(:,:) = bb(:,:,4)
+  else
+    call bounds(bb(:,:,1:3))  
   end if
+  qlg(:,:) = bb(:,:,1)
+  qfg(:,:) = bb(:,:,2)
+  stratcloud(:,:) = bb(:,:,3)
 end if
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
-  call bounds(eps)
-  call bounds(tke)
+  bb(:,:,1) = eps(:,:)
+  bb(:,:,2) = tke(:,:)
+  call bounds(bb(:,:,1:2))
+  eps(:,:) = bb(:,:,1)
+  tke(:,:) = bb(:,:,2)
 end if
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   call bounds(xtg)  
 end if
 
 
-!$omp parallel
-!$omp sections
-
 ! momentum U, V, W - bounds updated above
-!$omp section
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  call hordifgt_work(uc,xfact,yfact,emi)
-end if
-!$omp section
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  call hordifgt_work(vc,xfact,yfact,emi)
-end if
-!$omp section
-if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
-  call hordifgt_work(wc,xfact,yfact,emi)
+  call hordifgt_work(uvwc(:,:,1),xfact,yfact,emi)
+  call hordifgt_work(uvwc(:,:,2),xfact,yfact,emi)
+  call hordifgt_work(uvwc(:,:,3),xfact,yfact,emi)
 end if  
 
 ! potential temperture and water vapour
-!$omp section
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
+  call hordifgt_work(t,xfact,yfact,emi)  
+  call hordifgt_work(qg,xfact,yfact,emi)
+else if ( nhorps==-5 ) then
   call hordifgt_work(t,xfact,yfact,emi)
-end if
-!$omp section
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then
+else if ( nhorps==-3 ) then
   call hordifgt_work(qg,xfact,yfact,emi)
 end if  
 
 ! cloud liquid & frozen water plus cloud fraction
-!$omp section
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(qlg,xfact,yfact,emi)
-end if
-!$omp section
-if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(qfg,xfact,yfact,emi)
-end if
-!$omp section
-if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(stratcloud,xfact,yfact,emi)
-end if
-!$omp section
-if ( nhorps==-4 .and. ldr/=0 ) then  
   if ( ncloud>=100 .and. ncloud<200 ) then
     call hordifgt_work(ni,xfact,yfact,emi)
   end if
 end if
 
 ! tke and eps
-!$omp section
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(eps,xfact,yfact,emi)
-end if
-!$omp section
-if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(tke,xfact,yfact,emi)
 end if
 
-!$omp end sections nowait
-
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
-  !$omp do schedule(static) private(ntr)
   do ntr = 1,naero
     call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
   end do
-  !$omp end do nowait
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
-
-!$omp end parallel
 
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
-    u(1:ifull,k) = ax(1:ifull)*uc(1:ifull,k) &
-                 + ay(1:ifull)*vc(1:ifull,k) &
-                 + az(1:ifull)*wc(1:ifull,k)
-    v(1:ifull,k) = bx(1:ifull)*uc(1:ifull,k) &
-                 + by(1:ifull)*vc(1:ifull,k) &
-                 + bz(1:ifull)*wc(1:ifull,k)
+    u(1:ifull,k) = ax(1:ifull)*uvwc(1:ifull,k,1) &
+                 + ay(1:ifull)*uvwc(1:ifull,k,2) &
+                 + az(1:ifull)*uvwc(1:ifull,k,3)
+    v(1:ifull,k) = bx(1:ifull)*uvwc(1:ifull,k,1) &
+                 + by(1:ifull)*uvwc(1:ifull,k,2) &
+                 + bz(1:ifull)*uvwc(1:ifull,k,3)
   end do
 end if  
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
@@ -453,7 +438,8 @@ if ( diag .and. mydiag ) then
     write(6,*) 'k,id,jd,idjd ',k,id,jd,idjd
     write(6,*) 'k, xfact, xfactw ',k,xfact(idjd,k),xfact(iwu(idjd),k)
     write(6,*) 'k, yfact, yfacts ',k,yfact(idjd,k),yfact(isv(idjd),k)
-    write(6,*) 'k, uc,uce,ucw,ucn,ucs ',k,uc(idjd,k),uc(ie(idjd),k),uc(iw(idjd),k),uc(in(idjd),k),uc(is(idjd),k)
+    write(6,*) 'k, uc,uce,ucw,ucn,ucs ',k,uvwc(idjd,k,1),uvwc(ie(idjd),k,1),uvwc(iw(idjd),k,1), &
+                                        uvwc(in(idjd),k,1),uvwc(is(idjd),k,1)
     write(6,*) 'k,u,v ',k,u(idjd,k),v(idjd,k)
   end do
 endif

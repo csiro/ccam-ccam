@@ -52,7 +52,6 @@ integer, intent(in) :: ntr     ! number of tracers to process
 integer idel, iq, jdel
 integer i, j, k, n, ii, nn
 integer nstart, nend, nlen, np
-integer async_counter
 integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordinates
 real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s ! array of tracers
@@ -65,7 +64,6 @@ real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 call START_LOG(ints_begin)
 
 ! now call bounds before calling ints
-
 
 !$acc enter data create(sx)
 
@@ -84,7 +82,6 @@ if ( intsch==1 ) then
     ! first extend s arrays into sx - this one -1:il+2 & -1:il+2
     do nn = 1,nlen
       np = nn - 1 + nstart
-      async_counter = mod(nn-1, async_length)
       do k = 1,kl
         sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,np), (/ipan,jpan,npan/))
         do n = 1,npan
@@ -118,9 +115,9 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,np)
         end do          ! n loop
       end do            ! k loop
-      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do              ! nn loop  
-
+    !$acc update device(sx) async(0)
+    
     ! Loop over points that need to be calculated for other processes
     if ( nfield<mh_bs ) then
 
@@ -169,16 +166,14 @@ if ( intsch==1 ) then
           end do      ! iq loop
         end do        ! ii loop
       end do          ! nn loop  
-
+      
       ! Send messages to other processors.  We then start the calculation for this processor while waiting for
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
+      !$acc wait
+      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface)
       do nn = 1,nlen
-        np = nn - 1 + nstart  
-        async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
-        !$acc   present(sx,xg,yg,nface) async(async_counter)
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
             idel = int(xg(iq,k))
@@ -220,10 +215,9 @@ if ( intsch==1 ) then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
-        !$acc end parallel loop
       end do           ! nn loop
-      !$acc wait
-    
+      !$acc end parallel loop
+      
     else              ! (nfield<mh_bs)
 
       do nn = 1,nlen  
@@ -278,11 +272,9 @@ if ( intsch==1 ) then
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
+      !$acc wait
+      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface)
       do nn = 1,nlen
-        np = nn - 1 + nstart  
-        async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
-        !$acc   present(sx,xg,yg,nface) async(async_counter)
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
             idel = int(xg(iq,k))
@@ -327,10 +319,9 @@ if ( intsch==1 ) then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! k loop
-        !$acc end parallel loop
       end do          ! nn loop  
-      !$acc wait
-
+      !$acc end parallel loop
+      
     end if            ! (nfield<mh_bs)  .. else ..
   
     call intssync_recv(s(:,:,nstart:nend))  
@@ -349,7 +340,6 @@ else     ! if(intsch==1)then
     
     do nn = 1,nlen
       np = nn - 1 + nstart
-      async_counter = mod(nn-1, async_length)
       do k = 1,kl
         sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,np), (/ipan,jpan,npan/))  
         do n = 1,npan
@@ -385,8 +375,8 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,np)
         end do              ! n loop
       end do                ! k loop
-      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do                  ! nn loop
+    !$acc update device(sx) async(0)
 
     ! For other processes
     if ( nfield < mh_bs ) then
@@ -439,11 +429,9 @@ else     ! if(intsch==1)then
     
       call intssync_send(nlen)
 
+      !$acc wait
+      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface)
       do nn = 1,nlen
-        np = nn - 1 + nstart   
-        async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
-        !$acc   present(sx,xg,yg,nface) async(async_counter)
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
             ! Convert face index from 0:npanels to array indices
@@ -486,9 +474,8 @@ else     ! if(intsch==1)then
             s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
-        !$acc end parallel loop
       end do           ! nn loop  
-      !$acc wait
+      !$acc end parallel loop
     
     else                 ! (nfield<mh_bs)
 
@@ -543,11 +530,9 @@ else     ! if(intsch==1)then
   
       call intssync_send(nlen)
 
+      !$acc wait
+      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface)
       do nn = 1,nlen
-        np = nn - 1 + nstart  
-        async_counter = mod(nn-1, async_length)
-        !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
-        !$acc   present(sx,xg,yg,nface) async(async_counter)
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
             idel = int(xg(iq,k))
@@ -592,9 +577,8 @@ else     ! if(intsch==1)then
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do       ! iq loop
         end do         ! k loop
-        !$acc end parallel loop
       end do           ! nn loop  
-      !$acc wait
+      !$acc end parallel loop
     
     end if            ! (nfield<mh_bs)  .. else ..
 
@@ -607,7 +591,6 @@ end if               ! (intsch==1) .. else ..
 
 
 !$acc exit data delete(sx)
-
 
 call END_LOG(ints_end)
 
@@ -643,6 +626,9 @@ call START_LOG(ints_begin)
 ! now call bounds before calling ints_bl
 !call bounds(s,corner=.true.)
 
+!$acc enter data create(sx)
+
+
 sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl), (/ipan,jpan,npan,kl/))
 do k = 1,kl
   do n = 1,npan
@@ -663,6 +649,8 @@ do k = 1,kl
   end do                 ! n loop
 end do                   ! k loop
 
+!$acc update device(sx) async(0)
+
 ! Loop over points that need to be calculated for other processes
 do ii = 1,neighnum
   do iq = 1,drlen(ii)
@@ -682,7 +670,8 @@ end do
 
 call intssync_send
 
-!$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
+!$acc wait
+!$acc parallel loop collapse(2) copyout(s) present(sx,xg,yg,nface)
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
@@ -700,6 +689,8 @@ end do                    ! k
 !$acc end parallel loop
 
 call intssync_recv(s)
+
+!$acc exit data delete(sx)
 
 call END_LOG(ints_end)
 

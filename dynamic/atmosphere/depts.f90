@@ -40,7 +40,6 @@ implicit none
 integer, intent(in) :: intsch
 integer iq, k, idel, jdel, nn, itr
 integer i, j, n, ii
-integer async_counter
 real xxg, yyg
 real, dimension(ifull,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl,3) :: s
@@ -56,6 +55,9 @@ real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 call START_LOG(depts_begin)
 
+!$acc data create(xg,yg,nface,xx4,yy4,sx)
+!$acc update device(xx4,yy4) async(0)
+
 do k = 1,kl
   ! departure point x, y, z is called x3d, y3d, z3d
   ! first find corresponding cartesian vels
@@ -67,9 +69,6 @@ do k = 1,kl
   s(1:ifull,k,3) = wc(1:ifull,k)
 end do  
 
-!$acc data create(xg,yg,nface,xx4,yy4,sx)
-!$acc update device(xx4,yy4)
-
 call bounds_send(s,nrows=2)
 
 do k = 1,kl
@@ -78,12 +77,16 @@ do k = 1,kl
   z3d(1:ifull,k) = z(1:ifull) - real(wc(1:ifull,k),8)
 end do
 
+!$acc wait
+
 ! convert to grid point numbering
 call toij5(x3d,y3d,z3d)
 
-!$acc update self(xg,yg,nface)
+!$acc update self(xg,yg,nface) async(0)
 
 call bounds_recv(s,nrows=2)
+
+!$acc wait
 
 ! Share off processor departure points.
 call deptsync(nface,xg,yg)
@@ -168,7 +171,7 @@ else
 
 end if
 
-!$acc update device(sx)
+!$acc update device(sx) async(0)
 
 if ( diag .and. mydiag ) then
   write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
@@ -233,9 +236,9 @@ do itr = 1,2
 
     call intssync_send(3)
 
+    !$acc wait
+    !$acc parallel loop collapse(3) copyout(s) present(sx,xg,yg,nface)
     do nn = 1,3
-      async_counter = mod(nn-1,async_length)  
-      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
       do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           idel = int(xg(iq,k))
@@ -277,9 +280,8 @@ do itr = 1,2
           s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do   ! iq loop
       end do     ! k loop
-      !$acc end parallel loop
     end do       ! nn loop
-    !$acc wait  
+    !$acc end parallel loop
             
   !========================   end of intsch=1 section ====================
   else     ! if(intsch==1)then
@@ -334,9 +336,9 @@ do itr = 1,2
 
     call intssync_send(3)
 
+    !$acc wait
+    !$acc parallel loop collapse(3) copyout(s) present(sx,xg,yg,nface)
     do nn = 1,3
-      async_counter = mod(nn-1,async_length)  
-      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) present(sx,xg,yg,nface) async(async_counter)
       do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           ! Convert face index from 0:npanels to array indices
@@ -379,9 +381,8 @@ do itr = 1,2
           s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do          ! iq loop
       end do     ! k loop
-      !$acc end parallel loop
     end do       ! nn loop
-    !$acc wait  
+    !$acc end parallel loop
   
   endif                     ! (intsch==1) .. else ..
   !========================   end of intsch=1 section ====================
@@ -389,12 +390,14 @@ do itr = 1,2
   call intssync_recv(s)
 
   do k = 1,kl
-    x3d(1:ifull,k) = x(1:ifull) - 0.5_8*(real(uc(1:ifull,k),8)+real(s(1:ifull,k,1),8)) ! 3rd guess
-    y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! 3rd guess
-    z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! 3rd guess
+    x3d(1:ifull,k) = x(1:ifull) - 0.5_8*(real(uc(1:ifull,k),8)+real(s(1:ifull,k,1),8)) ! n+1 guess
+    y3d(1:ifull,k) = y(1:ifull) - 0.5_8*(real(vc(1:ifull,k),8)+real(s(1:ifull,k,2),8)) ! n+1 guess
+    z3d(1:ifull,k) = z(1:ifull) - 0.5_8*(real(wc(1:ifull,k),8)+real(s(1:ifull,k,3),8)) ! n+1 guess
   end do
 
   call toij5(x3d,y3d,z3d)
+
+  !$acc update self(xg,yg,nface)  
 
   select case(itr)
     case(1)  
@@ -412,7 +415,6 @@ do itr = 1,2
   end select    
 
   ! Share off processor departure points.
-  !$acc update self(xg,yg,nface)
   call deptsync(nface,xg,yg)
 
 end do ! itr

@@ -171,15 +171,12 @@ logical, dimension(:), intent(in) :: land   ! land/water mask (t=land).  Water i
 logical, dimension(:), intent(in) :: locean ! sea mask without lakes (t=ocean)
 integer nt,k,iq,tile,js,je
 
-#ifdef debug
 if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range at start of aldrcalc"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
-#endif
 
 
-!$omp do schedule(static) private(js,je,iq,thetav,wstar3,rrate)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -202,43 +199,35 @@ do tile = 1,ntiles
     Vgust_deep(iq) = (19.8*rrate**2/(1.5+rrate+rrate**2))**0.4
   end do
 end do
-!$omp end do nowait
 
 ! Calculate effective 10m wind (Eq. 15)
 ! These can plausibly be added in quadrature, or linearly, the latter giving a much larger
 ! effect (Lunt & Valdes, JGR, 2002).
 select case(enhanceu10)
   case(0)
-    !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       veff(js:je) = v10m(js:je)
       vefn(js:je) = v10n(js:je)
     end do
-    !$omp end do nowait
   case(1)
-    !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       veff(js:je) = sqrt( v10m(js:je)**2 + Vgust_free(js:je)**2 + Vgust_deep(js:je)**2 )
       vefn(js:je) = sqrt( v10n(js:je)**2 + Vgust_free(js:je)**2 + Vgust_deep(js:je)**2 )
     end do
-    !$omp end do nowait
   case(2)
-    !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       veff(js:je) = v10m(js:je) + Vgust_free(js:je) + Vgust_deep(js:je)
       vefn(js:je) = v10n(js:je) + Vgust_free(js:je) + Vgust_deep(js:je)
     end do
-    !$omp end do nowait
 end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
-!$omp do schedule(static) private(js,je,nt,k,lrhoa,ldz,lemissfield,lxtg)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -251,7 +240,7 @@ do tile = 1,ntiles
                lxte, lxtem, bbem(js:je),                                          & !Outputs
                lemissfield,vso2(js:je),dmse(js:je),so2e(js:je),so4e(js:je),       & !Outputs
                bce(js:je),oce(js:je),lxtg,so2dd(js:je),so4dd(js:je),bcdd(js:je),  & !Output
-               ocdd(js:je))                                                             !Inputs
+               ocdd(js:je))                                                         !Inputs
   !xtem(js:je,:) = lxtem
   do nt = 1,naero
     do k = 1,kl
@@ -259,19 +248,14 @@ do tile = 1,ntiles
     end do
   end do
 end do
-!$omp end do nowait
 
 
-#ifdef debug
 if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range after xtemiss"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
-#endif
 
 
-!$omp do schedule(static) private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
-!$omp   private(dcola,dcolb,oldsalte)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -335,18 +319,14 @@ do tile = 1,ntiles
   saltdd(js:je) = saltdd(js:je) + (dcola(:,1)-dcolb(:,1))/dt + salte(js:je) - oldsalte(:)  
   xtg(js:je,:,:) = lxtg
 end do
-!$omp end do nowait
 
 
-#ifdef debug
 if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range after settling, xtsink and em"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
-#endif
 
 
-!$omp do schedule(static) private(js,je,nt,k,iq,qtot)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -381,7 +361,6 @@ do tile = 1,ntiles
     end do
   end do
 end do
-!$omp end do nowait
 
 call xtchemie(imax, 2, dt, zdayfac, aphp2, pmrate, pfprec,           & !Inputs
               pclcover, pmlwc, prhop1, ptp1, taudar, xtm1,           & !Inputs
@@ -391,7 +370,6 @@ call xtchemie(imax, 2, dt, zdayfac, aphp2, pmrate, pfprec,           & !Inputs
               xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                & !Output
               zoxidant_g,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd)
 
-!$omp do schedule(static) private(js,je,nt,k)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax  
@@ -403,18 +381,14 @@ do tile = 1,ntiles
   dmsso2o(js:je) = dmsso2o(js:je) + dmsoh(js:je) + dmsn3(js:je)          ! oxidation of DMS to SO2
   so2so4o(js:je) = so2so4o(js:je) + so2oh(js:je) + so2h2(js:je) + so2o3(js:je)  ! oxidation of SO2 to SO4
 end do
-!$omp end do nowait
 
 
-#ifdef debug
 if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg out-of-range after xtchemie"
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
-#endif
 
 
-!$omp do schedule(static) private(js,je,nt,iq,k,burden)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -449,7 +423,6 @@ do tile = 1,ntiles
   end do
 
 end do
-!$omp end do nowait
 
 return
 end subroutine aldrcalc
@@ -622,7 +595,7 @@ do iq = 1,imax
     write(6,*) "rhoa,dz,emissfieldt ",rhoa(iq,1),dz(iq,1),emissfield(iq,idmst)
     write(6,*) "seaicem,tsm1m,zzspeed ",seaicem(iq),tsm1m(iq),zzspeed(iq)
     write(6,*) "oland,emissfieldo ",loland(iq),emissfield(iq,idmso)
-  end if    
+  end if
 #endif
 end do
 
@@ -1117,7 +1090,6 @@ end if
 #endif
 
 
-#ifndef _OPENMP
 !$acc parallel loop copy(so2wd,so4wd,bcwd,ocwd,dustwd,saltwd)                             &
 !$acc   copyin(pclcover,pcfcover,pmlwc,pmiwc,zoxidant,prhop1,ptp1,rhodz,pccw,xtu,xtm1)    &
 !$acc   copyin(pclcon,pqfsedice,pmaccr,plambs,pfsnow,pfsubl,pfmelt,pmratep,prscav)        &
@@ -1125,19 +1097,6 @@ end if
 !$acc   copyout(dmsoh,dmsn3,so2oh,so2h2,so2o3,xte)                                        &
 !$acc   private(xto,zlwcic,ziwcic,zhenry,zhenryc,zso4,zso4c,zso4i,zxtp10,zxtp1c,zxtp1con) &
 !$acc   private(zzoh,zzh2o2,zzo3,zzno2,zsolub,wd,zdepr,zdeps)
-#else
-!$omp do schedule(static) private(js,je,jl,jt,jk,iq,zlwcl,zlwcv,zhp,zqtp1,zrk)            &
-!$omp   private(zh_so2,zpfac,zp_so2,zf_so2,zh_h2o2,zp_h2o2,zf_h2o2,zrkh2o2,zxtp1,ze1,ze2) &
-!$omp   private(ze3,zfac1,zrkfac,zza,za21,za22,zph_o3,zf_o3,zdt,zh2o2m,zso2m,zso4m)       &
-!$omp   private(zsumh2o2,zsumo3,jn,zq,zso2mh,zdso2h,zso2l,zso4l,zzb,zzp,zzq,zzp2,zqhp)    &
-!$omp   private(za2,zheneff,zrko3,zso2mo,zdso2o,zdso2tot,zfac,pdep,zclr0,zmtof,ziicscav)  &
-!$omp   private(xdep,pdep,zilcscav,zbcscav,xbcscav,zstay_t,xstay,zmelt,xmelt,zicscav)     &
-!$omp   private(xicscav,zfreeze,xfreeze,zcollefc,Frc,x,zxtp1so2,ztk2,zm,zhil,zexp,ztk23b) &
-!$omp   private(zso2,zxtp1dms,t,ztk1,zdms,ztk3,zqt,zqt3,zrhoair,zkno2o3,zkn2o5aq,zrx1)    &
-!$omp   private(zrx12,zkno2no3,zkn2o5,zno3)                                               &
-!$omp   private(xto,zlwcic,ziwcic,zhenry,zhenryc,zso4,zso4c,zso4i,zxtp10,zxtp1c,zxtp1con) &
-!$omp   private(zzoh,zzh2o2,zzo3,zzno2,zsolub,wd,zdepr,zdeps)
-#endif
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -1883,17 +1842,15 @@ do tile = 1,ntiles
     bcwd(iq) = bcwd(iq) + wd(jl,ITRACBC) + wd(jl,ITRACBC+1)
     ocwd(iq) = ocwd(iq) + wd(jl,ITRACOC) + wd(jl,ITRACOC+1)
   end do
-  !$acc loop seq
+  !$acc loop collapse(2) vector
   DO JT=ITRACDU,ITRACDU+NDUST-1
-    !$acc loop vector
     do jl = 1,imax
       iq = jl + js - 1
       dustwd(iq,jt-itracdu+1) = dustwd(iq,jt-itracdu+1) + wd(jl,jt)
     end do  
   end do
-  !$acc loop seq
+  !$acc loop collapse(2) vector
   do jt = ITRACSA,ITRACSA+NSALT-1
-    !$acc loop vector
     do jl = 1,imax
       iq = jl + js - 1
       saltwd(iq) = saltwd(iq) + wd(jl,jt)
@@ -1901,15 +1858,11 @@ do tile = 1,ntiles
   end do
 
 #ifdef debug
-end do
-if ( any(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST>6.5e-5) ) then
-  write(6,*) "xtg out-of-range after xtwetdep"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST), &
-                                  maxloc(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)
-end if
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax    
+  if ( any(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST>6.5e-5) ) then
+    write(6,*) "xtg out-of-range after xtwetdep"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST), &
+                                    maxloc(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST)
+  end if
 #endif
 
   !$acc loop collapse(2) vector
@@ -1982,21 +1935,16 @@ do tile = 1,ntiles
     end do
   end do
 
-end do ! tile = 1,ntiles
-#ifndef _OPENMP
-!$acc end parallel loop
-#else
-!$omp end do nowait
-#endif
-
-
 #ifdef debug
-if ( maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)>6.5e-5 ) then
-  write(6,*) "xtg out-of-range after day/night chemistry"
-  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST), &
-                                  maxloc(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)
-end if
+  if ( maxval(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST)>6.5e-5 ) then
+    write(6,*) "xtg out-of-range after day/night chemistry"
+    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST), &
+                                    maxloc(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST)
+  end if
 #endif
+  
+end do ! tile = 1,ntiles
+!$acc end parallel loop
 
 RETURN
 END subroutine xtchemie
