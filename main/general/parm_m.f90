@@ -53,6 +53,7 @@ public procmode, compression, localhist
 public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
 public nstagin, nstaguin
 public hp_output, surf_cordex, output_windmax, cordex_fix
+public shep_cordex
 public ensemble_mode, ensemble_period, ensemble_rsfactor
 public siglow, sigmid
 public wgcoeff, wg_tau, wg_prob, ugs_meth
@@ -77,6 +78,7 @@ integer, save :: procmode=16, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
 integer, save :: nstagin=0, nstaguin=0, intsch_mode=-1
 integer, save :: hp_output=0, surf_cordex=0, output_windmax=0, cordex_fix=0
+integer, save :: shep_cordex=0
 integer, save :: ensemble_mode=0, ensemble_period=720
 integer, save :: diaglevel_aerosols=0, diaglevel_pbl=0, diaglevel_cloud=0, diaglevel_land=0, diaglevel_maxmin=0
 integer, save :: diaglevel_ocean=0, diaglevel_radiation=0, diaglevel_urban=0, diaglevel_carbon=0, diaglevel_river=0

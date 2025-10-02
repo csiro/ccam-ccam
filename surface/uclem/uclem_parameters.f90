@@ -27,7 +27,7 @@ implicit none
 
 private
 public urbtemp,energytol,resmeth,zohmeth,acmeth,nrefl,                                 &
-       scrnmeth,wbrelaxc,wbrelaxr,nfgits,tol,infilalpha,                               &
+       scrnmeth,wbrelaxc,wbrelaxr,ncyits,nfgits,tol,infilalpha,                        &
        zosnow,snowemiss,maxsnowalpha,minsnowalpha,maxsnowden,minsnowden,refheight,     &
        zomratio,zocanyon,zoroof,maxrfwater,maxrdwater,maxrfsn,maxrdsn,maxvwatf,        &
        intairtmeth,intmassmeth,statsmeth,lwintmeth,cvcoeffmeth,infilmeth,acfactor,     &
@@ -53,7 +53,8 @@ integer, save      :: lwintmeth=2          ! Interior longwave flux method (0=of
 integer, parameter :: nl=4                 ! Number of layers (default 4, must be a multiple of 4)
 integer, save      :: iqt=314              ! Diagnostic point (in terms of host grid)
 ! sectant solver parameters
-integer, save      :: nfgits=8             ! Number of iterations for balancing canyon energy budgets (default=6)
+integer, save      :: ncyits=6             ! Number of iterations for balancing canyon sensible and latent heat fluxes (default=6)
+integer, save      :: nfgits=3             ! Number of iterations for balancing veg and snow energy budgets (default=3)
 real, save         :: tol=0.001            ! Sectant method tolerance for sensible heat flux (default=0.001)
 real, save         :: infilalpha=0.5       ! Weighting for dampening factor when calculating internal infiltration
 real(kind=8), save :: energytol=0.005_8    ! Tolerance for acceptable energy closure in each timestep

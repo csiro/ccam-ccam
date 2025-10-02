@@ -326,7 +326,8 @@ if ( intsch==1 ) then
 
     call intssync_send(nlen)
 
-    if ( bs_test ) then    
+    if ( bs_test ) then
+
       !$acc wait  
       !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
       do nn = 1,nlen
@@ -888,12 +889,10 @@ real, dimension(:,:,:), intent(inout) :: s
 real, dimension(ifull+iextra,wlev,size(s,3)) :: s_old
 real s_tot, s_count
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
-logical need_fill
 
 call START_LOG(waterints_begin)
 
 ntr = size(s,3)
-need_fill = .true.
 
 select case(bc_test)
   case(mlo_fill) ! fill
@@ -904,7 +903,6 @@ select case(bc_test)
         end where
       end do
     end do
-    need_fill = .false.
   case(mlo_sal) ! salinity + fill
     do nn = 1,ntr
       do k = 1,wlev  
@@ -913,7 +911,6 @@ select case(bc_test)
         end where
       end do
     end do
-    need_fill = .true.
   case(mlo_zero) ! zero
     do nn = 1,ntr
       do k = 1,wlev
@@ -922,11 +919,10 @@ select case(bc_test)
         end where
       end do
     end do
-    need_fill = .false.
 end select
 
 ! fill
-if ( need_fill ) then
+if ( any(s(1:ifull,1:wlev,1:ntr)<cxx) ) then
   do ii = 1,6 ! 6 iterations of fill should be enough
     s_old(1:ifull,:,:) = s(1:ifull,:,:)
     call bounds(s_old)

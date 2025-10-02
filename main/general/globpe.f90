@@ -697,9 +697,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call aerocalc(mins,0)
     end if
     call END_LOG(aerosol_end)
-  end if
-  if ( aero_split==0 ) then
-    call nantest("after aerosols",1,ifull,"aerosols")
+    call nantest("after aerosols",1,ifull,"aerosols (old)")
   end if  
   
 
@@ -744,8 +742,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call aerocalc(mins,1)
     end if
     call END_LOG(aerosol_end)
+    call nantest("after aerosols",1,ifull,"aerosols")
   end if
-  call nantest("after aerosols",1,ifull,"aerosols")
 
   
   ! TRACERS ---------------------------------------------------------------
@@ -775,8 +773,8 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
   ! Diagnose CAPE, CIN and LI for cordex output  
   ! pcc2hist can calculate CAPE for standard output
-  if ( rescrn>0 .and. surfile/=' ' ) then
-    if ( mod(ktau,tbave)==0 ) then
+  if ( rescrn>0 .and. (surfile/=' '.or.freqfile/=' ') ) then
+    if ( mod(ktau,tbave)==0 .or. mod(ktau,tbave10)==0 ) then
       call START_LOG(cape_begin)  
       call capecalc
       call END_LOG(cape_end)
@@ -1302,7 +1300,6 @@ integer kmlo, calcinloop           ! depreciated namelist options
 integer fnproc_bcast_max, nriver   ! depreciated namelist options
 integer ateb_conductmeth           ! depreciated namelist options
 integer ateb_useonewall            ! depreciated namelist options
-integer ateb_ncyits                ! depreciated namelist options 
 integer cable_climate              ! depreciated namelist options
 integer surf_windfarm, adv_precip  ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
@@ -1380,7 +1377,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
     surf_cordex,surf_windfarm,output_windmax,cordex_fix,          &
-    wbclimfile,                                                   &
+    wbclimfile,shep_cordex,                                       &
     vegprev,vegnext,vegnext2                                        ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
@@ -3131,7 +3128,7 @@ use parm_m                                 ! Model configuration
 
 implicit none
 
-integer, dimension(24) :: dumi
+integer, dimension(25) :: dumi
     
 dumi = 0
 if ( myid==0 ) then
@@ -3159,6 +3156,7 @@ if ( myid==0 ) then
   dumi(22) = surf_cordex
   dumi(23) = output_windmax
   dumi(24) = cordex_fix
+  dumi(25) = shep_cordex
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -3223,6 +3221,7 @@ diaglevel_pop       = dumi(21)
 surf_cordex         = dumi(22)
 output_windmax      = dumi(23)
 cordex_fix          = dumi(24)
+shep_cordex         = dumi(25)
 
 return
 end subroutine broadcast_datafile
@@ -3490,47 +3489,10 @@ use cc_mpi                                 ! CC MPI routines
 use parm_m                                 ! Model configuration
 use river                                  ! River routing
 use sflux_m                                ! Surface flux routines
-use uclem_ctrl, only :                   & ! Urban
-     ateb_soilunder=>soilunder           &
-    ,energytol                           &
-    ,ateb_resmeth=>resmeth               &
-    ,ateb_zohmeth=>zohmeth               &
-    ,ateb_acmeth=>acmeth                 &
-    ,ateb_nrefl=>nrefl                   &
-    ,ateb_scrnmeth=>scrnmeth             &
-    ,ateb_wbrelaxc=>wbrelaxc             &
-    ,ateb_wbrelaxr=>wbrelaxr             &
-    ,ateb_nfgits=>nfgits                 &
-    ,ateb_tol=>tol                       &
-    ,ateb_zosnow=>zosnow                 &
-    ,ateb_snowemiss=>snowemiss           &
-    ,ateb_maxsnowalpha=>maxsnowalpha     &
-    ,ateb_minsnowalpha=>minsnowalpha     &
-    ,ateb_maxsnowden=>maxsnowden         &
-    ,ateb_minsnowden=>minsnowden         &
-    ,ateb_refheight=>refheight           &
-    ,ateb_zomratio=>zomratio             &
-    ,zocanyon                            &
-    ,zoroof                              &
-    ,ateb_maxrfwater=>maxrfwater         &
-    ,ateb_maxrdwater=>maxrdwater         &
-    ,ateb_maxrfsn=>maxrfsn               &
-    ,ateb_maxrdsn=>maxrdsn               &
-    ,ateb_maxvwatf=>maxvwatf             &
-    ,intairtmeth                         &
-    ,intmassmeth                         &
-    ,ateb_cvcoeffmeth=>cvcoeffmeth       &
-    ,ateb_statsmeth=>statsmeth           &
-    ,ateb_lwintmeth=>lwintmeth           &
-    ,ateb_infilmeth=>infilmeth           &
-    ,ateb_ac_heatcap=>ac_heatcap         &
-    ,ateb_ac_coolcap=>ac_coolcap         &
-    ,ateb_ac_deltat=>ac_deltat           &
-    ,ateb_acfactor=>acfactor
 
 implicit none
 
-integer, dimension(31) :: dumi
+integer, dimension(32) :: dumi
 real, dimension(27) :: dumr
     
 dumr = 0.
@@ -3594,6 +3556,7 @@ if ( myid==0 ) then
   dumi(29) = cable_gw_model
   dumi(30) = freshwaterlake_fix
   dumi(31) = cable_enablefao
+  dumi(32) = ateb_ncyits
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3655,6 +3618,7 @@ wt_transport       = dumi(28)
 cable_gw_model     = dumi(29)
 freshwaterlake_fix = dumi(30)
 cable_enablefao    = dumi(31)
+ateb_ncyits        = dumi(32)
 
 return
 end subroutine broadcast_landnml

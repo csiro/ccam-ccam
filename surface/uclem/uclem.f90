@@ -1361,7 +1361,7 @@ subroutine solvecanyon(sg_road,rg_road,fg_road,eg_road,acond_road,abase_road,   
                        sg_wallw,rg_wallw,fg_wallw,acond_wallw,abase_wallw,                             &
                        sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,abase_vegc,                          &
                        sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,abase_rdsn,rdsntemp,rdsnmelt,gardsn, &
-                       a_umag,a_rho,a_rg,a_rnd,a_snd,d_we,d_ww,                                        &
+                       a_umag,a_rho,a_rg,a_rnd,a_snd,we,ww,                                            &
                        d_canyontemp,d_canyonmix,d_tempc,d_mixrc,d_sigd,d_topu,d_netrad,                &
                        d_roaddelta,d_vegdeltac,d_rdsndelta,d_ac_canyon,d_traf,d_ac_inside,             &
                        d_canyonrgout,d_tranc,d_evapc,d_cwa,d_cra,d_cw0,d_cww,d_crw,d_crr,              &
@@ -1385,7 +1385,7 @@ real, dimension(ufull), intent(inout) :: rg_wallw,fg_wallw,abase_wallw
 real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,abase_vegc
 real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,abase_rdsn,rdsntemp,rdsnmelt,gardsn
 real, dimension(ufull), intent(in) :: sg_road,sg_walle,sg_wallw,sg_vegc,sg_rdsn
-real, dimension(ufull), intent(in) :: a_umag,a_rho,a_rg,a_rnd,a_snd,d_sigd,d_we,d_ww
+real, dimension(ufull), intent(in) :: a_umag,a_rho,a_rg,a_rnd,a_snd,d_sigd,we,ww
 real, dimension(ufull), intent(out) :: d_canyontemp,d_canyonmix,d_topu,d_netrad
 real, dimension(ufull), intent(out) :: d_ac_inside
 real, dimension(ufull), intent(inout) :: d_tempc,d_mixrc
@@ -1399,16 +1399,18 @@ real, dimension(ufull), intent(out) :: iroomtemp
 real, dimension(ufull), intent(out) :: cvcoeff_roof, cvcoeff_walle, cvcoeff_wallw, cvcoeff_slab
 real, dimension(ufull), intent(out) :: cvcoeff_intm1, cvcoeff_intm2
 real, dimension(ufull), intent(out) :: d_roomstor
-real, dimension(ufull), intent(in) :: cyc_proportion,cyc_translation
 real, dimension(ufull) :: newval,sndepth,snlambda,ldratio,roadqsat,vegqsat,rdsnqsat
 real, dimension(ufull) :: cu,topinvres,dts,dtt,cduv,z_on_l,dumroaddelta,dumvegdelta,res
 real, dimension(ufull) :: aa,bb,cc,dd,ee,ff
+real, dimension(ufull) :: cyc_proportion,cyc_translation
 real, dimension(ufull,2) :: evct,evctx,oldval
 real, dimension(ufull) :: d_canyontemp_prev, fp_coeffbldheight
-type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_wall, fp_slab
+type(facetparams), intent(in) :: fp_intm, fp_road, fp_roof, fp_wall,fp_slab
+type(facetdata), intent(in) :: intm
 type(hydrodata), intent(in) :: rdhyd
 type(vegdata), intent(inout) :: cnveg, rfveg
-type(facetdata), intent(inout) :: road, room, walle, wallw, roof, slab, intm
+type(facetdata), intent(in) :: roof, slab
+type(facetdata), intent(inout) :: road, room, walle, wallw
 type(fparmdata), intent(in) :: fp
 type(pdiagdata), intent(inout) :: pd
 
@@ -1422,31 +1424,36 @@ snlambda = icelambda*(rdhyd%den/waterden)**1.88
 
 ! first guess for canyon and room air temperature 
 ! also guess for canyon veg, snow temperatures and water vapour mixing ratio
-d_canyontemp      = d_tempc
+d_canyontemp    = d_tempc
 d_canyontemp_prev = d_tempc
-d_canyonmix       = d_mixrc
-cnveg%temp        = d_tempc
-rdsntemp          = real(road%nodetemp(:,1))
-iroomtemp         = real(room%nodetemp(:,1))
+d_canyonmix     = d_mixrc
+cnveg%temp      = d_tempc
+rdsntemp        = real(road%nodetemp(:,1))
+iroomtemp       = real(room%nodetemp(:,1))
+
 rdsnmelt        = 0.
 dumvegdelta     = 0. ! cray compiler bug
+d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                                  &
+        +(1.-d_rdsndelta)*(1.-cnveg%sigma)*fp_road%emiss*(real(road%nodetemp(:,0))+urbtemp)**4 &
+        +(1.-d_rdsndelta)*cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4)
 
-!  solve for aerodynamical resistance between canyon and atmosphere  
-! assume zoh=zom when coupling to canyon air temperature
-pd%lzoh = pd%lzom
-dts    = d_canyontemp + (d_canyontemp+urbtemp)*0.61*d_canyonmix
-dtt    = d_tempc + (d_tempc+urbtemp)*0.61*d_mixrc
-call getinvres(topinvres,cduv,z_on_l,pd%lzoh,pd%lzom,pd%cndzmin,dts,dtt,a_umag,3)
-call gettopu(d_topu,a_umag,z_on_l,fp%bldheight,cduv,pd%cndzmin,fp%hwratio,ufull)
+! Solve for canyon air temperature and water vapour mixing ratio
+do l = 1,ncyits
+  !  solve for aerodynamical resistance between canyon and atmosphere  
+  ! assume zoh=zom when coupling to canyon air temperature
+  pd%lzoh = pd%lzom
+  dts    = d_canyontemp + (d_canyontemp+urbtemp)*0.61*d_canyonmix
+  dtt    = d_tempc + (d_tempc+urbtemp)*0.61*d_mixrc
+  call getinvres(topinvres,cduv,z_on_l,pd%lzoh,pd%lzom,pd%cndzmin,dts,dtt,a_umag,3)
+  call gettopu(d_topu,a_umag,z_on_l,fp%bldheight,cduv,pd%cndzmin,fp%hwratio,ufull)
 
-select case(resmeth)
-  case(0)
+  if ( resmeth==0 ) then
     acond_road  = (11.8+4.2*sqrt((d_topu*abase_road)**2+cduv*a_umag**2))/(aircp*a_rho)  ! From Rowley, et al (1930)
     acond_walle = acond_road
     acond_wallw = acond_road
     acond_rdsn  = acond_road
     acond_vegc  = acond_road
-  case(2)  
+  else if ( resmeth==2 ) then
     cu = abase_road*d_topu
     where (cu<=5.)
       acond_road = (6.15+4.18*cu)/(aircp*a_rho)
@@ -1457,66 +1464,119 @@ select case(resmeth)
     acond_wallw = acond_road
     acond_rdsn  = acond_road
     acond_vegc  = acond_road
-  case default
+  else
     acond_road  = d_topu*abase_road  
     acond_walle = d_topu*abase_walle
     acond_wallw = d_topu*abase_wallw
     acond_vegc  = d_topu*abase_vegc
     acond_rdsn  = d_topu*abase_rdsn
-end select
+  end if
 
+  ! saturated mixing ratio for road
+  call getqsatr8(roadqsat,road%nodetemp(:,0),d_sigd)   ! evaluate using pressure at displacement height
   
-! solve for road snow and canyon veg temperatures -------------------------------
-d_canyontemp_prev = d_canyontemp
-ldratio  = 0.5*( sndepth/snlambda + fp_road%depth(:,1)/fp_road%lambda(:,1) )
-cnveg%temp = cnveg%temp + 0.1 ! 1st guess
-rdsntemp   = rdsntemp + 0.1   ! 1st guess
-oldval(:,1) = cnveg%temp
-oldval(:,2) = rdsntemp
-call canyonflux(evct,eg_road,acond_road,roadqsat,dumroaddelta,                                &
-                sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,           &
-                sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
-                a_rg,a_rho,a_rnd,a_snd,d_canyontemp,d_canyontemp_prev,                        &
-                d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                                  &
-                d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,d_rdsndelta,d_roaddelta,d_mixrc,     &
-                d_intgains_bld,d_ac_canyon,d_ac_inside,d_roomstor,d_we,d_ww,d_tempc,d_traf,   &
-                topinvres,ldratio,cyc_translation,cyc_proportion,iroomtemp,                   &
-                int_infilflux,int_infilfg,                                                    &
-                cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,          &
-                cvcoeff_intm2,acond_walle,acond_wallw,                                        &
-                ddt,cnveg,rfveg,fp,fp_wall,fp_road,fp_roof,fp_slab,fp_intm,rdhyd,             &
-                road,walle,wallw,roof,slab,intm,room,                                         &
-                pd,ufull,diag)
-cnveg%temp = cnveg%temp - 0.1 ! 2nd guess
-rdsntemp   = rdsntemp - 0.1   ! 2nd guess
-do k = 1,nfgits ! sectant
-  evctx = evct
-  call canyonflux(evct,eg_road,acond_road,roadqsat,dumroaddelta,                                &
-                  sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,           &
+  ! correction for dew
+  where (roadqsat<d_canyonmix)
+    dumroaddelta=1.
+  elsewhere
+    dumroaddelta=d_roaddelta
+  end where
+  
+  ! calculate canyon road latent heat flux
+  aa=rdhyd%surfwater/ddt+a_rnd+rdsnmelt
+  eg_road=lv*min(a_rho*d_roaddelta*(roadqsat-d_canyonmix)*acond_road,aa)
+  
+  ! Calculate longwave radiation emitted from the canyon floor
+  ! MJT notes - This could be included within the iterative solver for snow and vegetation temperatures.
+  ! However, it creates a (weak) coupling between these two variables and therefore could require
+  ! a multivariate root finding method (e.g,. Broyden's method). Instead we explicitly solve for d_netrad, 
+  ! which allows us to decouple the solutions for snow and vegetation temperatures.
+  d_netrad=sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                                   &
+          +(1.-d_rdsndelta)*((1.-cnveg%sigma)*fp_road%emiss*(real(road%nodetemp(:,0))+urbtemp)**4 &
+          +cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4))
+  
+  
+  ! solve for road snow and canyon veg temperatures -------------------------------
+  ldratio  = 0.5*( sndepth/snlambda + fp_road%depth(:,1)/fp_road%lambda(:,1) )
+  cnveg%temp = cnveg%temp + 0.5 ! 1st guess
+  rdsntemp   = rdsntemp + 0.5  
+  oldval(:,1) = cnveg%temp
+  oldval(:,2) = rdsntemp
+  call canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,      &
                   sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
-                  a_rg,a_rho,a_rnd,a_snd,d_canyontemp,d_canyontemp_prev,                        &
-                  d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                                  &
-                  d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,d_rdsndelta,d_roaddelta,d_mixrc,     &
-                  d_intgains_bld,d_ac_canyon,d_ac_inside,d_roomstor,d_we,d_ww,d_tempc,d_traf,   &
-                  topinvres,ldratio,cyc_translation,cyc_proportion,iroomtemp,                   &
-                  int_infilflux,int_infilfg,acond_walle,acond_wallw,                            &
-                  cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,          &
-                  cvcoeff_intm2,                                                                &
-                  ddt,cnveg,rfveg,fp,fp_wall,fp_road,fp_roof,fp_slab,fp_intm,rdhyd,             &
-                  road,walle,wallw,roof,slab,intm,room,                                         &
-                  pd,ufull,diag)  
-  evctx = evct - evctx
-  where ( abs(evctx(:,1))>tol )
-    newval      = max(min(cnveg%temp-evct(:,1)*(cnveg%temp-oldval(:,1))/evctx(:,1),400.-urbtemp),200.-urbtemp)
-    oldval(:,1) = cnveg%temp
-    cnveg%temp  = newval
-  end where
-  where ( abs(evctx(:,2))>tol )
-    newval      = max(min(rdsntemp-evct(:,2)*(rdsntemp-oldval(:,2))/evctx(:,2), 300.-urbtemp),100.-urbtemp)
-    oldval(:,2) = rdsntemp
-    rdsntemp    = newval
-  end where
-end do ! k = 1,nfgits
+                  a_rg,a_rho,a_rnd,a_snd,                                                       &
+                  d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
+                  d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,ldratio,ddt,                         &
+                  cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
+  cnveg%temp = cnveg%temp - 0.5 ! 2nd guess
+  rdsntemp   = rdsntemp - 0.5
+  do k = 1,nfgits ! sectant
+    evctx = evct
+    call canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,      &
+                    sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat, &
+                    a_rg,a_rho,a_rnd,a_snd,                                                       &
+                    d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                     &
+                    d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,ldratio,ddt,                         &
+                    cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
+    evctx = evct - evctx
+    where ( abs(evctx(:,1))>tol )
+      newval      = max(min(cnveg%temp-evct(:,1)*(cnveg%temp-oldval(:,1))/evctx(:,1),400.-urbtemp),200.-urbtemp)
+      oldval(:,1) = cnveg%temp
+      cnveg%temp  = newval
+    end where
+    where ( abs(evctx(:,2))>tol )
+      newval      = max(min(rdsntemp-evct(:,2)*(rdsntemp-oldval(:,2))/evctx(:,2), 300.-urbtemp),100.-urbtemp)
+      oldval(:,2) = rdsntemp
+      rdsntemp    = newval
+    end where
+  end do
+
+  ! balance canyon latent heat budget
+  aa = d_rdsndelta*acond_rdsn
+  bb = (1.-d_rdsndelta)*(1.-cnveg%sigma)*dumroaddelta*acond_road
+  cc = (1.-d_rdsndelta)*cnveg%sigma*(dumvegdelta*acond_vegc+(1.-dumvegdelta)/(1./max(acond_vegc,1.e-10)+res))
+  dd = topinvres
+  d_canyonmix = (aa*rdsnqsat+bb*roadqsat+cc*vegqsat+dd*d_mixrc)/(aa+bb+cc+dd)
+
+  !!!!!!!!!!!!!!!!!!!! start interior models !!!!!!!!!!!!!!!!!!!!!!!!!!
+  select case(intairtmeth)
+    case(0) ! simple internal physics (per Thatcher and Hurley, 2012)
+      call interiorflux_simple(ufull,diag,l,ddt,                                 &
+                               d_intgains_bld,cyc_translation,                   &
+                               d_canyontemp,d_ac_canyon,d_ac_inside,d_roomstor,  &
+                               iroomtemp,int_infilflux,int_infilfg,              &
+                               cvcoeff_roof,cvcoeff_walle,                       &
+                               cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,         &
+                               cvcoeff_intm2,fp,fp_roof,fp_wall,rfveg,roof,      &
+                               walle,wallw,slab,intm)
+
+    case(1,2) ! complex internal physics (per Lipson et al., 2018) or with interior frac      
+      call interiorflux_complex(ufull,diag,l,ddt,a_rho,we,ww,                    &
+                                d_intgains_bld,cyc_proportion,d_canyontemp_prev, &
+                                d_canyontemp,d_ac_canyon,d_ac_inside,d_roomstor, &
+                                iroomtemp,int_infilflux,int_infilfg,             &
+                                cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,        &
+                                cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,fp,     &
+                                fp_roof,fp_wall,fp_slab,fp_intm,roof,walle,      &
+                                wallw,slab,intm,room,pd)
+    case default
+      write(6,*) "ERROR: Unknown option intairtmeth = ",intairtmeth
+      stop
+  end select
+
+  d_canyontemp_prev = d_canyontemp  
+    
+  ! update canyon temperature estimate
+  aa = aircp*a_rho*topinvres
+  bb = d_rdsndelta*aircp*a_rho*acond_rdsn
+  cc = (1.-d_rdsndelta)*(1.-cnveg%sigma)*aircp*a_rho*acond_road
+  dd = (1.-d_rdsndelta)*cnveg%sigma*aircp*a_rho*acond_vegc
+  ee = fp%effhwratio*aircp*a_rho*acond_walle
+  ff = fp%effhwratio*aircp*a_rho*acond_wallw
+  d_canyontemp = (aa*d_tempc+bb*rdsntemp+cc*real(road%nodetemp(:,0))+dd*cnveg%temp+ee*real(walle%nodetemp(:,0)) & 
+                +ff*real(wallw%nodetemp(:,0))+d_traf+d_ac_canyon-int_infilfg)/(aa+bb+cc+dd+ee+ff)
+
+end do
 
 room%nodetemp(:,1) = real(iroomtemp,8)
 
@@ -1556,188 +1616,11 @@ d_canyonrgout = a_rg-d_rdsndelta*rg_rdsn-(1.-d_rdsndelta)*((1.-cnveg%sigma)*rg_r
 return
 end subroutine solvecanyon
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! solve for canyon veg and snow fluxes
-                     
-subroutine canyonflux(evct,eg_road,acond_road,roadqsat,dumroaddelta,                                 &
-                      sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,            &
-                      sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat,  &
-                      a_rg,a_rho,a_rnd,a_snd,d_canyontemp,d_canyontemp_prev,                         &
-                      d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                                   &
-                      d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,d_rdsndelta,d_roaddelta,d_mixrc,      &
-                      d_intgains_bld,d_ac_canyon,d_ac_inside,d_roomstor,d_we,d_ww,d_tempc,d_traf,    &
-                      topinvres,ldratio,cyc_translation,cyc_proportion,iroomtemp,                    &
-                      int_infilflux,int_infilfg,                                                     &
-                      cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,           &
-                      cvcoeff_intm2,acond_walle,acond_wallw,                                         &
-                      ddt,cnveg,rfveg,fp,fp_wall,fp_road,fp_roof,fp_slab,fp_intm,rdhyd,              &
-                      road,walle,wallw,roof,slab,intm,room,                                          &
-                      pd,ufull,diag)
-
-use uclem_parameters
-use uclem_types
-
-implicit none
-
-integer, intent(in) :: ufull, diag
-real, intent(in) :: ddt
-real, dimension(ufull,2), intent(out) :: evct
-real, dimension(ufull), intent(inout) :: eg_road,acond_road,roadqsat,dumroaddelta
-real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta
-real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat
-real, dimension(ufull), intent(in) :: sg_vegc,sg_rdsn
-real, dimension(ufull), intent(in) :: a_rg,a_rho,a_rnd,a_snd,d_sigd
-real, dimension(ufull), intent(in) :: topinvres,ldratio,cyc_translation,cyc_proportion
-real, dimension(ufull), intent(out) :: int_infilflux,int_infilfg
-real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyontemp_prev,d_canyonmix
-real, dimension(ufull), intent(inout) :: d_netrad,d_tranc,d_evapc
-real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,d_rdsndelta
-real, dimension(ufull), intent(inout) :: d_roaddelta,d_mixrc,d_intgains_bld,d_ac_canyon,d_ac_inside
-real, dimension(ufull), intent(inout) :: d_roomstor,d_tempc,d_traf
-real, dimension(ufull), intent(in) :: d_we,d_ww
-real, dimension(ufull), intent(inout) :: iroomtemp
-real, dimension(ufull), intent(out) :: cvcoeff_roof, cvcoeff_walle, cvcoeff_wallw, cvcoeff_slab
-real, dimension(ufull), intent(out) :: cvcoeff_intm1, cvcoeff_intm2
-real, dimension(ufull), intent(in) :: acond_walle, acond_wallw
-real, dimension(ufull) :: f1,f2,f3,f4,aa,bb,cc,dd,ee,ff
-real, dimension(ufull) :: snevap,canyontemp_ave
-type(vegdata), intent(in) :: cnveg, rfveg
-type(facetparams), intent(in) :: fp_wall, fp_road, fp_roof, fp_slab, fp_intm
-type(hydrodata), intent(in) :: rdhyd
-type(facetdata), intent(inout) :: road, walle, wallw, roof, slab, intm, room
-type(fparmdata), intent(in) :: fp
-type(pdiagdata), intent(inout) :: pd
-
-! calculate average canyon temperature over iterations for fluxes
-canyontemp_ave = infilalpha*d_canyontemp + (1.-infilalpha)*d_canyontemp_prev
-
-! saturated mixing ratio for road, vegetation and snow
-call getqsatr8(roadqsat,road%nodetemp(:,0),d_sigd)
-call getqsat(vegqsat,cnveg%temp,d_sigd)
-call getqsat(rdsnqsat,rdsntemp,d_sigd)
-
-! correction for dew
-where (roadqsat < d_canyonmix)
-  dumroaddelta = 1.
-elsewhere
-  dumroaddelta = d_roaddelta
-end where
-where (vegqsat < d_canyonmix)
-  dumvegdelta = 1.
-elsewhere
-  dumvegdelta = d_vegdeltac
-end where
-
-! calculate canyon road latent heat flux
-aa = rdhyd%surfwater/ddt + a_rnd + rdsnmelt
-eg_road = lv*min( a_rho*dumroaddelta*(roadqsat-d_canyonmix)*acond_road, aa )
-  
-! Calculate longwave radiation emitted from the canyon floor
-! MJT notes - This could be included within the iterative solver for snow and vegetation temperatures.
-! However, it creates a (weak) coupling between these two variables and therefore could require
-! a multivariate root finding method (e.g,. Broyden's method). Instead we explicitly solve for d_netrad, 
-! which allows us to decouple the solutions for snow and vegetation temperatures.
-d_netrad = sbconst*(d_rdsndelta*snowemiss*(rdsntemp+urbtemp)**4                                   &
-         + (1.-d_rdsndelta)*((1.-cnveg%sigma)*fp_road%emiss*(real(road%nodetemp(:,0))+urbtemp)**4 &
-         + cnveg%sigma*cnveg%emiss*(cnveg%temp+urbtemp)**4))
-  
-! vegetation transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
-where (cnveg%zo < 0.5)
-  ff = 1.1*sg_vegc/max(cnveg%lai*150.,1.E-8)
-elsewhere
-  ff = 1.1*sg_vegc/max(cnveg%lai*30.,1.E-8)
-end where
-f1 = (1.+ff)/(ff+cnveg%rsmin*cnveg%lai/5000.)
-f2 = max(0.5*(fp%sfc-fp%swilt)/max(rdhyd%soilwater-fp%swilt,1.E-9),1.)
-f3 = max(1.-0.00025*(vegqsat-d_canyonmix)*d_sigd/0.622,0.5) ! increased limit from 0.05 to 0.5 following Mk3.6    
-f4 = max(1.-0.0016*(298.-urbtemp-canyontemp_ave)**2,0.05)     ! 0.2 in Mk3.6
-res = max(30.,cnveg%rsmin*f1*f2/(f3*f4))
-
-! solve for vegetation and snow sensible heat fluxes
-fg_vegc = aircp*a_rho*(cnveg%temp-canyontemp_ave)*acond_vegc
-fg_rdsn = aircp*a_rho*(rdsntemp-canyontemp_ave)*acond_rdsn
-
-! calculate longwave radiation for vegetation and snow
-rg_vegc = cnveg%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(cnveg%temp+urbtemp)**4)    &
-                    +sbconst*fp_wall%emiss*((real(walle%nodetemp(:,0))+urbtemp)**4    &
-                    +(real(wallw%nodetemp(:,0))+urbtemp)**4)*d_crw)
-rg_rdsn = snowemiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(rdsntemp+urbtemp)**4)        &
-                    +sbconst*fp_wall%emiss*((real(walle%nodetemp(:,0))+urbtemp)**4    &
-                    +(real(wallw%nodetemp(:,0))+urbtemp)**4)*d_crw)
-
-! estimate snow melt
-rdsnmelt = min(max(0.,rdsntemp+(urbtemp-273.16))*icecp*rdhyd%snow/(ddt*lf),rdhyd%snow/ddt)
-
-! calculate latent heat of transpiration and evaporation of in-canyon vegetation
-d_tranc = lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_canyonmix)/(1./max(acond_vegc,1.e-10)+res),0.), &
-                 max((rdhyd%soilwater-fp%swilt)*d_totdepth*waterden/ddt,0.))
-d_evapc = lv*min(dumvegdelta*a_rho*(vegqsat-d_canyonmix)*acond_vegc,rdhyd%leafwater/ddt+a_rnd)
-eg_vegc = d_evapc + d_tranc
-
-! calculate canyon snow latent heat and ground fluxes
-snevap = min(a_rho*max(0.,rdsnqsat-d_canyonmix)*acond_rdsn,rdhyd%snow/ddt+a_snd-rdsnmelt)
-eg_rdsn = lv*snevap
-rdsnmelt = rdsnmelt+snevap
-gardsn = (rdsntemp-real(road%nodetemp(:,0)))/ldratio ! use road temperature to represent canyon bottom surface temperature
-                                                     ! (i.e., we have omitted soil under vegetation temperature)
-
-! vegetation energy budget error term
-evct(:,1) = sg_vegc + rg_vegc - fg_vegc - eg_vegc
-
-! road snow energy balance error term
-evct(:,2) = sg_rdsn + rg_rdsn - fg_rdsn - eg_rdsn - lf*rdsnmelt - gardsn*(1.-cnveg%sigma)
-
-!!!!!!!!!!!!!!!!!!!! start interior models !!!!!!!!!!!!!!!!!!!!!!!!!!
-select case(intairtmeth)
-  case(0) ! simple internal physics (per Thatcher and Hurley, 2012)
-    call interiorflux_simple(ufull,diag,ddt,                                    &
-                             d_intgains_bld,cyc_translation,                    &
-                             canyontemp_ave,d_ac_canyon,d_ac_inside,d_roomstor, &
-                             iroomtemp,int_infilflux,int_infilfg,               &
-                             cvcoeff_roof,cvcoeff_walle,                        &
-                             cvcoeff_wallw,cvcoeff_slab,cvcoeff_intm1,          &
-                             cvcoeff_intm2,fp,fp_roof,fp_wall,rfveg,roof,       &
-                             walle,wallw,slab,intm)
-
-  case(1,2) ! complex internal physics (per Lipson et al., 2018) or with interior frac      
-    call interiorflux_complex(ufull,diag,ddt,a_rho,d_we,d_ww,                  &
-                              d_intgains_bld,cyc_proportion,canyontemp_ave,    &
-                              d_ac_canyon,d_ac_inside,d_roomstor,              &
-                              iroomtemp,int_infilflux,int_infilfg,             &
-                              cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,        &
-                              cvcoeff_slab,cvcoeff_intm1,cvcoeff_intm2,fp,     &
-                              fp_roof,fp_wall,fp_slab,fp_intm,roof,walle,      &
-                              wallw,slab,intm,room,pd)
-  case default
-    write(6,*) "ERROR: Unknown option intairtmeth = ",intairtmeth
-    stop
-end select
-
-! balance canyon latent heat budget
-aa = d_rdsndelta*acond_rdsn
-bb = (1.-d_rdsndelta)*(1.-cnveg%sigma)*dumroaddelta*acond_road
-cc = (1.-d_rdsndelta)*cnveg%sigma*(dumvegdelta*acond_vegc+(1.-dumvegdelta)/(1./max(acond_vegc,1.e-10)+res))
-dd = topinvres
-d_canyonmix = (aa*rdsnqsat+bb*roadqsat+cc*vegqsat+dd*d_mixrc)/(aa+bb+cc+dd)
-  
-! update canyon temperature estimate
-d_canyontemp_prev = d_canyontemp  
-aa = aircp*a_rho*topinvres
-bb = d_rdsndelta*aircp*a_rho*acond_rdsn
-cc = (1.-d_rdsndelta)*(1.-cnveg%sigma)*aircp*a_rho*acond_road
-dd = (1.-d_rdsndelta)*cnveg%sigma*aircp*a_rho*acond_vegc
-ee = fp%effhwratio*aircp*a_rho*acond_walle
-ff = fp%effhwratio*aircp*a_rho*acond_wallw
-d_canyontemp = (aa*d_tempc+bb*rdsntemp+cc*real(road%nodetemp(:,0))+dd*cnveg%temp+ee*real(walle%nodetemp(:,0)) & 
-              +ff*real(wallw%nodetemp(:,0))+d_traf+d_ac_canyon-int_infilfg)/(aa+bb+cc+dd+ee+ff)
-
-return
-end subroutine canyonflux
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! solve for canyon/ internal heat fluxes and air temperatures
 
-subroutine interiorflux_simple(ufull,diag,ddt,                                        &
+subroutine interiorflux_simple(ufull,diag,l,ddt,                                      &
                                d_intgains_bld,cyc_translation,                        &
                                d_canyontemp,d_ac_canyon,d_ac_inside,d_roomstor,       &
                                iroomtemp,int_infilflux,int_infilfg,                   &
@@ -1763,6 +1646,7 @@ implicit none
 ! passed variables
 integer,                    intent(in) :: diag
 integer,                    intent(in) :: ufull
+integer,                    intent(in) :: l
 real,                       intent(in) :: ddt
 real, dimension(ufull),     intent(in) :: d_intgains_bld
 real, dimension(ufull),     intent(in) :: cyc_translation
@@ -1836,9 +1720,9 @@ end subroutine interiorflux_simple
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! solve for canyon/ internal heat fluxes and air temperatures
 
-subroutine interiorflux_complex(ufull,diag,ddt,a_rho,d_weu,d_wwu,                      &
-                                d_intgains_bld,cyc_proportion,canyontemp_ave,          &
-                                d_ac_canyon,d_ac_inside,d_roomstor,                    &
+subroutine interiorflux_complex(ufull,diag,l,ddt,a_rho,d_weu,d_wwu,                    &
+                                d_intgains_bld,cyc_proportion,d_canyontemp_prev,       &
+                                d_canyontemp,d_ac_canyon,d_ac_inside,d_roomstor,       &
                                 iroomtemp,int_infilflux,int_infilfg,                   &
                                 cvcoeff_roof,cvcoeff_walle,cvcoeff_wallw,cvcoeff_slab, &
                                 cvcoeff_intm1,cvcoeff_intm2,fp,fp_roof,fp_wall,        &
@@ -1864,12 +1748,14 @@ implicit none
 ! passed variables
 integer,                    intent(in) :: diag                    ! diagnostic integer
 integer,                    intent(in) :: ufull                   ! tile vector length
+integer,                    intent(in) :: l                       ! ncyits loop integer
 real,                       intent(in) :: ddt                     ! timestep
 real, dimension(ufull),     intent(in) :: a_rho                   ! atmospheric air density
 real, dimension(ufull),     intent(in) :: d_weu,d_wwu             ! wind speed wall east and west
 real, dimension(ufull),     intent(in) :: d_intgains_bld          ! internal gain flux for building
 real, dimension(ufull),     intent(in) :: cyc_proportion          ! cyclic proportion of conditioning units
-real, dimension(ufull),     intent(in) :: canyontemp_ave          ! canyon air temperature (diagnostic)
+real, dimension(ufull),     intent(in) :: d_canyontemp            ! canyon air temperature (diagnostic)
+real, dimension(ufull),     intent(in) :: d_canyontemp_prev       ! previous canyon air temperature
 real, dimension(ufull),     intent(out) :: d_ac_canyon            ! conditioning flux into canyon
 real, dimension(ufull),     intent(inout) :: d_ac_inside          ! conditioning flux inside
 real, dimension(ufull),     intent(inout) :: iroomtemp            ! update of room air temperature
@@ -1895,10 +1781,14 @@ real, dimension(ufull) :: infl_dynamic,itemp
 real, dimension(ufull) :: ac_heat_temp,ac_cool_temp
 real, dimension(ufull) :: int_airden
 real, dimension(ufull) :: d_openwindows
-real, dimension(ufull) :: dummy, tempr4
+real, dimension(ufull) :: dummy, canyontemp_ave, tempr4
 
 
 if ( diag>=1 ) write(6,*) "Evaluating with varying internal air temperature"
+
+! calculate canyon temperature for fluxes
+canyontemp_ave = infilalpha*d_canyontemp + (1.-infilalpha)*d_canyontemp_prev
+
 
 ! ---1.1: Estimate internal surface convection coefficients -------------
 tempr4 = real(room%nodetemp(:,1))
@@ -2006,9 +1896,9 @@ d_roomstor = (iroomtemp - real(room%nodetemp(:,1)))*(aircp*int_airden*fp%bldheig
 
 where ( d_ac_cool>0. )
   ! original UCLEM COP calculation (Lipson et al., 2018)
-  ! ac_coeff = max(acfactor*(canyontemp_ave-iroomtemp)/(iroomtemp+urbtemp), 1./ac_copmax) ! T&H2012 Eq. 10
+  ! ac_coeff = max(acfactor*(d_canyontemp-iroomtemp)/(iroomtemp+urbtemp), 1./ac_copmax) ! T&H2012 Eq. 10
   ! modified UCLEM COP calculation (based on "Coefficient of performance for finite speed heat pump" - Blanchard 1980)
-  ac_coeff = max( acfactor*(canyontemp_ave+30.-iroomtemp)/(iroomtemp+30.+urbtemp), 0. )
+  ac_coeff = max( acfactor*(d_canyontemp+30.-iroomtemp)/(iroomtemp+30.+urbtemp), 0. )
 elsewhere 
   ac_coeff = 0.
 end where
@@ -2024,8 +1914,110 @@ select case(acmeth) ! AC heat pump into canyon (0=Off, 1=On, 2=Reversible)
     stop
 end select
 
+! ! COP printout when canyon air is >35°C
+! if ( l==ncyits ) then
+!   if (( (d_canyontemp(1) + urbtemp) > (35. + 273.15) ) .and. ( (d_canyontemp(1) + urbtemp) < (36. + 273.15) )) then
+!     if ( ac_coeff(1) > 0 ) then 
+!       write(6,*) 'COP:', 1./ac_coeff
+!     end if
+!   end if
+! end if
+
 return
 end subroutine interiorflux_complex
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! solve for canyon veg and snow fluxes
+                     
+subroutine canyonflux(evct,sg_vegc,rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta,       &
+                      sg_rdsn,rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat,  &
+                      a_rg,a_rho,a_rnd,a_snd,                                                        &
+                      d_canyontemp,d_canyonmix,d_sigd,d_netrad,d_tranc,d_evapc,                      &
+                      d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac,ldratio,ddt,                          &
+                      cnveg,fp,fp_wall,rdhyd,road,walle,wallw,ufull)
+
+use uclem_parameters
+use uclem_types
+
+implicit none
+
+integer, intent(in) :: ufull
+real, intent(in) :: ddt
+real, dimension(ufull,2), intent(out) :: evct
+real, dimension(ufull), intent(inout) :: rg_vegc,fg_vegc,eg_vegc,acond_vegc,vegqsat,res,dumvegdelta
+real, dimension(ufull), intent(inout) :: rg_rdsn,fg_rdsn,eg_rdsn,acond_rdsn,rdsntemp,gardsn,rdsnmelt,rdsnqsat
+real, dimension(ufull), intent(in) :: sg_vegc,sg_rdsn
+real, dimension(ufull), intent(in) :: a_rg,a_rho,a_rnd,a_snd,d_sigd
+real, dimension(ufull), intent(in) :: ldratio
+real, dimension(ufull), intent(inout) :: d_canyontemp,d_canyonmix,d_netrad,d_tranc,d_evapc
+real, dimension(ufull), intent(inout) :: d_cra,d_crr,d_crw,d_totdepth,d_vegdeltac
+real, dimension(ufull) :: ff,f1,f2,f3,f4
+real, dimension(ufull) :: snevap
+type(vegdata), intent(in) :: cnveg
+type(facetparams), intent(in) :: fp_wall
+type(hydrodata), intent(in) :: rdhyd
+type(facetdata), intent(in) :: road, walle, wallw
+type(fparmdata), intent(in) :: fp
+
+! estimate mixing ratio for vegetation and snow
+call getqsat(vegqsat,cnveg%temp,d_sigd)
+call getqsat(rdsnqsat,rdsntemp,d_sigd)
+
+! correction for dew
+where (vegqsat<d_canyonmix)
+  dumvegdelta=1.
+elsewhere
+  dumvegdelta=d_vegdeltac
+end where
+  
+! vegetation transpiration terms (developed by Eva in CCAM sflux.f and CSIRO9)
+where (cnveg%zo<0.5)
+  ff=1.1*sg_vegc/max(cnveg%lai*150.,1.E-8)
+elsewhere
+  ff=1.1*sg_vegc/max(cnveg%lai*30.,1.E-8)
+end where
+f1=(1.+ff)/(ff+cnveg%rsmin*cnveg%lai/5000.)
+f2=max(0.5*(fp%sfc-fp%swilt)/max(rdhyd%soilwater-fp%swilt,1.E-9),1.)
+f3=max(1.-0.00025*(vegqsat-d_canyonmix)*d_sigd/0.622,0.5) ! increased limit from 0.05 to 0.5 following Mk3.6    
+f4=max(1.-0.0016*(298.-urbtemp-d_canyontemp)**2,0.05)     ! 0.2 in Mk3.6
+res=max(30.,cnveg%rsmin*f1*f2/(f3*f4))
+
+! solve for vegetation and snow sensible heat fluxes
+fg_vegc=aircp*a_rho*(cnveg%temp-d_canyontemp)*acond_vegc
+fg_rdsn=aircp*a_rho*(rdsntemp-d_canyontemp)*acond_rdsn
+
+! calculate longwave radiation for vegetation and snow
+rg_vegc=cnveg%emiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(cnveg%temp+urbtemp)**4)    &
+                  +sbconst*fp_wall%emiss*((real(walle%nodetemp(:,0))+urbtemp)**4          &
+                  +(real(wallw%nodetemp(:,0))+urbtemp)**4)*d_crw)
+rg_rdsn=snowemiss*(a_rg*d_cra+(d_netrad*d_crr-sbconst*(rdsntemp+urbtemp)**4)        &
+                  +sbconst*fp_wall%emiss*((real(walle%nodetemp(:,0))+urbtemp)**4          &
+                  +(real(wallw%nodetemp(:,0))+urbtemp)**4)*d_crw)
+
+! estimate snow melt
+rdsnmelt=min(max(0.,rdsntemp+(urbtemp-273.16))*icecp*rdhyd%snow/(ddt*lf),rdhyd%snow/ddt)
+
+! calculate latent heat of transpiration and evaporation of in-canyon vegetation
+d_tranc=lv*min(max((1.-dumvegdelta)*a_rho*(vegqsat-d_canyonmix)/(1./max(acond_vegc,1.e-10)+res),0.), &
+               max((rdhyd%soilwater-fp%swilt)*d_totdepth*waterden/ddt,0.))
+d_evapc=lv*min(dumvegdelta*a_rho*(vegqsat-d_canyonmix)*acond_vegc,rdhyd%leafwater/ddt+a_rnd)
+eg_vegc=d_evapc+d_tranc
+
+! calculate canyon snow latent heat and ground fluxes
+snevap=min(a_rho*max(0.,rdsnqsat-d_canyonmix)*acond_rdsn,rdhyd%snow/ddt+a_snd-rdsnmelt)
+eg_rdsn=lv*snevap
+rdsnmelt=rdsnmelt+snevap
+gardsn=(rdsntemp-real(road%nodetemp(:,0)))/ldratio ! use road temperature to represent canyon bottom surface temperature
+                                                   ! (i.e., we have omitted soil under vegetation temperature)
+
+! vegetation energy budget error term
+evct(:,1) = sg_vegc+rg_vegc-fg_vegc-eg_vegc
+
+! road snow energy balance error term
+evct(:,2) = sg_rdsn+rg_rdsn-fg_rdsn-eg_rdsn-lf*rdsnmelt-gardsn*(1.-cnveg%sigma)
+
+return
+end subroutine canyonflux
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Solve for roof fluxes
@@ -3055,7 +3047,7 @@ implicit none
 type(fparmdata), intent(inout) :: fp
 real :: floor_height = 3. ! assumed average floor to floor height (m)
 
-fp%bldwidth = fp%sigmabld*(fp%bldheight/fp%hwratio)/max(1.-fp%sigmabld,0.001)
+fp%bldwidth = fp%sigmabld*(fp%bldheight/fp%hwratio)/(1.-fp%sigmabld)
 ! define number of internal mass floors (based on building height)
 select case(intmassmeth)
   case(0) ! no internal mass

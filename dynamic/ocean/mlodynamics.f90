@@ -1851,7 +1851,6 @@ ntr = size(dumc,2)
 select case( mloiceadv )
   case(0) ! Original 
 
-    !$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)
     do n = 1,ntr
       do iq = 1,ifull
         dumd=real(dumc(iq,n),8)
@@ -1918,12 +1917,10 @@ select case( mloiceadv )
         dum_out(iq,n)=real(max(dumd,0._8))
       end do
     end do
-    !$omp end parallel do
     dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
   
   case(1) ! revised
       
-    !$omp parallel do schedule(static) private(n,iq,dumd,odum)
     do n = 1,ntr
       do iq = 1,ifull
         dumd = real(dumc(iq,n),8)
@@ -1938,7 +1935,6 @@ select case( mloiceadv )
         dum_out(iq,n) = real(max(dumd,0._8))
       end do
     end do
-    !$omp end parallel do
     dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
       
   case default

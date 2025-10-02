@@ -1157,8 +1157,9 @@ do tile = 1,ntiles
     end do  
   end do
 
-  !$acc loop collapse(2) vector
+  !$acc loop seq
   do jk = ktop,kl
+    !$acc loop vector  
     do jl = 1,imax
       iq = jl + js - 1
       !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
@@ -1387,8 +1388,9 @@ do tile = 1,ntiles
 
   ! Repeat the aqueous oxidation calculation for convective clouds.
   
-  !$acc loop collapse(2) vector
+  !$acc loop seq
   do jk = ktop,kl
+    !$acc loop vector
     do jl = 1,imax
       iq = jl + js - 1
       !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
@@ -1842,15 +1844,17 @@ do tile = 1,ntiles
     bcwd(iq) = bcwd(iq) + wd(jl,ITRACBC) + wd(jl,ITRACBC+1)
     ocwd(iq) = ocwd(iq) + wd(jl,ITRACOC) + wd(jl,ITRACOC+1)
   end do
-  !$acc loop collapse(2) vector
+  !$acc loop seq
   DO JT=ITRACDU,ITRACDU+NDUST-1
+    !$acc loop vector  
     do jl = 1,imax
       iq = jl + js - 1
       dustwd(iq,jt-itracdu+1) = dustwd(iq,jt-itracdu+1) + wd(jl,jt)
     end do  
   end do
-  !$acc loop collapse(2) vector
+  !$acc loop seq
   do jt = ITRACSA,ITRACSA+NSALT-1
+    !$acc loop vector  
     do jl = 1,imax
       iq = jl + js - 1
       saltwd(iq) = saltwd(iq) + wd(jl,jt)
@@ -1865,8 +1869,9 @@ do tile = 1,ntiles
   end if
 #endif
 
-  !$acc loop collapse(2) vector
+  !$acc loop seq
   do jk = 1,kl
+    !$acc loop vector  
     do jl = 1,imax
       iq = jl + js - 1
       X=PRHOP1(iq,JK)      

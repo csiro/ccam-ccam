@@ -223,75 +223,74 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
   real, dimension(1:ifull,kts:kte)               :: viscmu
   real                                           :: qvsbar
 !--- microphysical processes
-  real                                          :: psacw, psaut, psfw, psfi, praci
-  real                                          :: piacr, psaci, psdep, pssub
-  real                                          :: psacr, psmlt, psmltevp, prain, praut
-  real                                          :: pracw, prevp, pvapor, pclw, pladj
-  real                                          :: pcli, pimlt, pihom, pidw, piadj
-  real                                          :: pgfr, psnow, qschg, pracs
+  real                                           :: psacw, psaut, psfw, psfi, praci
+  real                                           :: piacr, psaci, psdep, pssub
+  real                                           :: psacr, psmlt, psmltevp, prain, praut
+  real                                           :: pracw, prevp, pvapor, pclw, pladj
+  real                                           :: pcli, pimlt, pihom, pidw, piadj
+  real                                           :: pgfr, psnow, qschg, pracs
 !---- new snow parameters
-  real, parameter                               :: vf1s = 0.65,vf2s = 0.44,            &
-                                                   vf1r =0.78,vf2r = 0.31 
-  real, parameter                               :: am_c1=0.004,am_c2= 6e-5,  am_c3=0.15
-  real, parameter                               :: bm_c1=1.85, bm_c2= 0.003, bm_c3=1.25
-  real, parameter                               :: aa_c1=1.28, aa_c2= -0.012,aa_c3=-0.6
-  real, parameter                               :: ba_c1=1.5,  ba_c2= 0.0075,ba_c3=0.5
-  real, parameter                               :: best_a=1.08 ,  best_b = 0.499
-  real                                          :: disp, Dc_liu, eta, R6c        !--- for Liu's autoconversion
-  real                                          :: tc0
-  real                                          :: mu_c
-  !real, dimension(kts:kte)                     :: ab_s,ab_r,ab_riming 
-  real                                          :: cap_s    !---- capacitance of snow
-  real, dimension(1:ifull,kts:kte)              :: am_s,bm_s,av_s,bv_s
-  real                                          :: tmp_ss
-  real, dimension(1:ifull,kts:kte)              :: aa_s,tmp_sa
-  real                                          :: ba_s
-  real                                          :: mu_s=0.,mu_i=0.,mu_r=0.
+  real, parameter                                :: vf1s = 0.65,vf2s = 0.44,            &
+                                                    vf1r =0.78,vf2r = 0.31 
+  real, parameter                                :: am_c1=0.004,am_c2= 6e-5,  am_c3=0.15
+  real, parameter                                :: bm_c1=1.85, bm_c2= 0.003, bm_c3=1.25
+  real, parameter                                :: aa_c1=1.28, aa_c2= -0.012,aa_c3=-0.6
+  real, parameter                                :: ba_c1=1.5,  ba_c2= 0.0075,ba_c3=0.5
+  real, parameter                                :: best_a=1.08 ,  best_b = 0.499
+  real                                           :: disp, Dc_liu, eta, R6c        !--- for Liu's autoconversion
+  real                                           :: tc0
+  real                                           :: mu_c
+  !real, dimension(kts:kte)                      :: ab_s,ab_r,ab_riming 
+  real                                           :: cap_s    !---- capacitance of snow
+  real, dimension(1:ifull,kts:kte)               :: am_s,bm_s,av_s,bv_s
+  real                                           :: tmp_ss
+  real, dimension(1:ifull,kts:kte)               :: aa_s,tmp_sa
+  real                                           :: ba_s
+  real                                           :: mu_s=0.,mu_i=0.,mu_r=0.
  
   ! Adding variable Riz, which will duplicate Ri but be a copy passed upward
-  real                                          :: episp0k, dtb, odtb, pi, pio4,       &
-                                                   pio6, oxLf, xLvocp, xLfocp, av_r,   &
-                                                   av_i, ocdrag, gambp4, gamdp4,       &
-                                                   gam4pt5, Cpor, oxmi, gambp3, gamdp3,&
-                                                   gambp6, gam3pt5, gam2pt75, gambp5o2,&
-                                                   gamdp5o2, cwoxlf, ocp, xni50, es
-  real                                          :: gam13
-  real                                          :: temc1,save1,save2,xni50mx
-  real                                          :: vtr, vts
-  real, dimension(1:ifull,kts:kte)              :: vtrold, vtsold, vtiold
-  real                                          :: xlambdar, xlambdas
-  real                                          :: olambdar, olambdas
+  real                                           :: episp0k, dtb, odtb, pi, pio4,       &
+                                                    pio6, oxLf, xLvocp, xLfocp, av_r,   &
+                                                    av_i, ocdrag, gambp4, gamdp4,       &
+                                                    gam4pt5, Cpor, oxmi, gambp3, gamdp3,&
+                                                    gambp6, gam3pt5, gam2pt75, gambp5o2,&
+                                                    gamdp5o2, cwoxlf, ocp, xni50, es
+  real                                           :: gam13
+  real                                           :: temc1,save1,save2,xni50mx
+  real                                           :: vtr, vts
+  real, dimension(1:ifull,kts:kte)               :: vtrold, vtsold, vtiold
+  real                                           :: xlambdar, xlambdas
+  real                                           :: olambdar, olambdas
   ! for terminal velocity flux
-  real                                          :: xmr,xms,xmc,dcs,xmr_i
-  real                                          :: lamminr, lammaxr,lammins,           &
-                                                   lammaxs,lammini, lammaxi
-  real                                          :: gambvr1
-  real                                          :: lvap
-  real                                          :: mi0
+  real                                           :: xmr,xms,xmc,dcs,xmr_i
+  real                                           :: lamminr, lammaxr,lammins,           &
+                                                    lammaxs,lammini, lammaxi
+  real                                           :: gambvr1
+  real                                           :: lvap
+  real                                           :: mi0
   real t_del_tv,del_tv
   real flux, fluxout
   real nflux, nfluxout
-  real, dimension(1:ifull)                      :: fluxin, nfluxin
-  integer                                       :: min_q, max_q
-  logical                                       :: notlast
-  logical                                       :: mask
-  real                                          :: nimlt, nihom, npgfr
-  real                                          :: npsacw, npsaut, npraci, npiacr, npsaci
-  real                                          :: npsdep, npsacr, npsmlt, npsmltevp
-  real                                          :: npraut, npraut_r, npracw, nprevp
-  real                                          :: nidep, midep
-  real, dimension(1:ifull,kts:kte)              :: nvtr, nvts
-  real, dimension(1:ifull,kts:kte)              :: n0_s 
-  real                                          :: n0_r, n0_i, n0_c                  
-  real                                          :: lami, lamc
-  real, dimension(1:ifull,kts:kte)              :: gam_ss, gam_bm_s, gam_bv_ss
-  real, dimension(1:ifull,kts:kte)              :: gam_bv_s
-  real gg21, gg22, gg31, gg32, gg33
-  real ratio, gg31c, gg32c, gg33c, mu_c_s
-  integer i1, i1p1  
-
-  real fout, fthru, nfout, nfthru, alph
-  real qnew
+  real, dimension(1:ifull)                       :: fluxin, nfluxin
+  integer                                        :: min_q, max_q
+  logical                                        :: notlast
+  logical                                        :: mask
+  real                                           :: nimlt, nihom, npgfr
+  real                                           :: npsacw, npsaut, npraci, npiacr, npsaci
+  real                                           :: npsdep, npsacr, npsmlt, npsmltevp
+  real                                           :: npraut, npraut_r, npracw, nprevp
+  real                                           :: nidep, midep
+  real, dimension(1:ifull,kts:kte)               :: nvtr, nvts
+  real, dimension(1:ifull,kts:kte)               :: n0_s 
+  real                                           :: n0_r, n0_i, n0_c                  
+  real                                           :: lami, lamc
+  real, dimension(1:ifull,kts:kte)               :: gam_ss, gam_bm_s, gam_bv_ss
+  real, dimension(1:ifull,kts:kte)               :: gam_bv_s
+  real                                           :: gg21, gg22, gg31, gg32, gg33
+  real                                           :: ratio, gg31c, gg32c, gg33c, mu_c_s
+  integer                                        :: i1, i1p1  
+  real                                           :: fout, fthru, nfout, nfthru, alph
+  real                                           :: qnew
   
   !------------------------------------------------------------------------------------
 
@@ -367,9 +366,9 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
       js = (tile-1)*imax + 1
       je = tile*imax  
   
-      vtrold(js:je,:)=0.
-      vtsold(js:je,:)=0.
-      vtiold(js:je,:)=0.
+      vtrold(js:je,:) = 0.
+      vtsold(js:je,:) = 0.
+      vtiold(js:je,:) = 0.
 
       !
       !     qsw         saturated mixing ratio on water surface
@@ -402,26 +401,27 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
         nrz(js:je,k) = max( 0.0,nrz(js:je,k) )
         nsz(js:je,k) = max( 0.0,nsz(js:je,k) )
 
-        qlz(js:je,k)  =max( 0.0,qlz(js:je,k) )
-        qiz(js:je,k)  =max( 0.0,qiz(js:je,k) )
-        qvz(js:je,k)  =max( qvmin,qvz(js:je,k) )
-        qsz(js:je,k)  =max( 0.0,qsz(js:je,k) )
-        qrz(js:je,k)  =max( 0.0,qrz(js:je,k) )
-        tem(js:je,k)  =thz(js:je,k)*tothz(js:je,k)
+        qlz(js:je,k) = max( 0.0,qlz(js:je,k) )
+        qiz(js:je,k) = max( 0.0,qiz(js:je,k) )
+        qvz(js:je,k) = max( qvmin,qvz(js:je,k) )
+        qsz(js:je,k) = max( 0.0,qsz(js:je,k) )
+        qrz(js:je,k) = max( 0.0,qrz(js:je,k) )
 
-        n0_s(js:je,k)     =0.
-        xlambdar =0.
-        xlambdas =0.
-        vtr      =0.
-        vts      =0.
-        vtiold(js:je,k)   =0.
+        tem(js:je,k) = thz(js:je,k)*tothz(js:je,k)
 
-        !qisten(js:je,k)   =0.
-        !qrsten(js:je,k)   =0.
-        !qssten(js:je,k)   =0.
-        !nisten(js:je,k)   =0.
-        !nrsten(js:je,k)   =0.
-        !nssten(js:je,k)   =0.
+        n0_s(js:je,k) = 0.
+        xlambdar = 0.
+        xlambdas = 0.
+        vtr      = 0.
+        vts      = 0.
+        vtiold(js:je,k) = 0.
+
+        !qisten(js:je,k) = 0.
+        !qrsten(js:je,k) = 0.
+        !qssten(js:je,k) = 0.
+        !nisten(js:je,k) = 0.
+        !nrsten(js:je,k) = 0.
+        !nssten(js:je,k) = 0.
 
         !***********************************************************************
         !*****  compute viscosity,difusivity,thermal conductivity, and    ******
@@ -440,7 +440,7 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
         !      xka(k)=2.43e-2 J/m/s/K in RH
         !      axka=1.4132e3 (1.414e3 in MM5) m2/s2/k = 1.4132e7 cm2/s2/k
         !------------------------------------------------------------------
-        viscmu(js:je,k)=avisc*tem(js:je,k)**1.5/(tem(js:je,k)+120.0)
+        viscmu(js:je,k) = avisc*tem(js:je,k)**1.5/(tem(js:je,k)+120.0)
 
         ! ---- YLIN, set snow variables
         !
@@ -449,7 +449,7 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
         !                   rv*temp(k)/(diffu(k)*qvsi(k))
 
         !tc0(js:je)   = tem(js:je,k)-273.15
-        where( rho(js:je,k)*qlz(js:je,k) .gt. 1e-5 .AND. rho(js:je,k)*qsz(js:je,k) .gt. 1e-5  )
+        where( rho(js:je,k)*qlz(js:je,k) > 1e-5 .AND. rho(js:je,k)*qsz(js:je,k) > 1e-5  )
           Ri(js:je,k) = 1.0/(1.0+6e-5/(rho(js:je,k)**1.170*qlz(js:je,k)*qsz(js:je,k)**0.170)) 
         elsewhere
           Ri(js:je,k) = 0.
@@ -510,6 +510,7 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
       end do ! k
     end do ! tile  
     !$acc end parallel loop
+    ! The following variables are needed for the calculation of precipitation fluxes
     !$acc update self(am_s,bm_s,av_s,bv_s,gam_ss,gam_bm_s,gam_bv_ss)
       
     !***********************************************************************
@@ -951,6 +952,10 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
         
     end if  ! if lin_adv==0 ..else..  
 
+    !***********************************************************************
+    ! Microphysics processes
+    !***********************************************************************
+    
     !$acc parallel loop collapse(2) copy(ncz,niz,nrz,nsz,thz,qvz,qlz,qiz,qsz,qrz)  &
     !$acc   copyin(n0_s)                                                           &
     !$acc   present(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)   &
@@ -964,11 +969,8 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
         
         !$acc loop vector private(theiz)
         do iq = js,je
-
-          ! Microphpysics processes
           
           temcc = tem(iq,k)-273.15  
-        
           es1d =1000.*svp1*exp( svp2*temcc/(tem(iq,k)-svp3) )  !--- RY89 Eq(2.17)
           qswz =ep2*es1d/max(prez(iq,k)-es1d,0.1)
  
@@ -988,13 +990,13 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
           nrzodt = max( 0.0,odtb*nrz(iq,k) )
           nszodt = max( 0.0,odtb*nsz(iq,k) )
 
-          qvoqswz  =qvz(iq,k)/qswz
-          qvoqsiz  =qvz(iq,k)/qsiz
-          qvzodt=max( 0.,odtb*qvz(iq,k) )
-          qlzodt=max( 0.,odtb*qlz(iq,k) )
-          qizodt=max( 0.,odtb*qiz(iq,k) )
-          qszodt=max( 0.,odtb*qsz(iq,k) )
-          qrzodt=max( 0.,odtb*qrz(iq,k) )
+          qvoqswz = qvz(iq,k)/qswz
+          qvoqsiz = qvz(iq,k)/qsiz
+          qvzodt = max( 0.,odtb*qvz(iq,k) )
+          qlzodt = max( 0.,odtb*qlz(iq,k) )
+          qizodt = max( 0.,odtb*qiz(iq,k) )
+          qszodt = max( 0.,odtb*qsz(iq,k) )
+          qrzodt = max( 0.,odtb*qrz(iq,k) )
         
           theiz = thz(iq,k)+(xlvocp*qvz(iq,k)-xlfocp*qiz(iq,k))/tothz(iq,k)
         
@@ -1024,14 +1026,14 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
           !
           !
 
-          n0_r     = 0.
-          n0_i     = 0.
-          n0_c     = 0.
+          n0_r = 0.
+          n0_i = 0.
+          n0_c = 0.
         
           mu_c = mu_c_s
         
-          lamc =0.
-          lami =0.
+          lamc = 0.
+          lami = 0.
 
           xlambdar = 0.
           xlambdas = 0.
@@ -1039,34 +1041,34 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
           olambdar = 0.
           olambdas = 0.
 
-          psacw   =0.                  ! accretion of cloud water by snow
-          psaut   =0.                  ! ice crystal aggregation to snow
-          psfw    =0.                  ! BERGERON process to transfer cloud water to snow
-          psfi    =0.                  ! BERGERON process to transfer cloud ice to snow
-          praci   =0.                  ! cloud ice accretion by rain
-          piacr   =0.                  ! rain accretion by cloud ice
-          psaci   =0.                  ! ice crystal accretion by snow
-          psdep   =0.                  ! deposition of snow
-          pssub   =0.                  ! sublimation of snow (T<0)
-          psacr   =0.                  ! accretion of rain by snow
-          psmlt   =0.                  ! melting of snow
-          psmltevp=0.                  ! evaporation of melting snow (T>0)
-          prain   =0.                  ! sum all process for rain
-          praut   =0.                  ! autoconversion of rain
-          pracw   =0.                  ! accretion of cloud water by rain
-          prevp   =0.                  ! evaporation of rain
-          pvapor  =0.                  ! sum all process for water vapor to determine qvz
-          pclw    =0.                  ! sum all process for cloud liquid to determine qlz
-          pladj   =0.                  ! saturation adjustment for ql
-          pcli    =0.                  ! sum all process for cloud ice to determine qiz
-          pimlt   =0.                  ! melting of ice crystal >0.
-          pihom   =0.                  ! homogeneous nucleation <-40
-          pidw    =0.                  ! production of cloud ice by BERGERON process
-          piadj   =0.                  ! saturation adjustment for qi
-          pgfr    =0.                  ! feezing of rain to form graupel (added to PI)
-          psnow   =0.                  ! sum all process for snow
-          qschg   =0.                  ! = psnow / unsure
-          pracs   =0.
+          psacw    = 0.                  ! accretion of cloud water by snow
+          psaut    = 0.                  ! ice crystal aggregation to snow
+          psfw     = 0.                  ! BERGERON process to transfer cloud water to snow
+          psfi     = 0.                  ! BERGERON process to transfer cloud ice to snow
+          praci    = 0.                  ! cloud ice accretion by rain
+          piacr    = 0.                  ! rain accretion by cloud ice
+          psaci    = 0.                  ! ice crystal accretion by snow
+          psdep    = 0.                  ! deposition of snow
+          pssub    = 0.                  ! sublimation of snow (T<0)
+          psacr    = 0.                  ! accretion of rain by snow
+          psmlt    = 0.                  ! melting of snow
+          psmltevp = 0.                  ! evaporation of melting snow (T>0)
+          prain    = 0.                  ! sum all process for rain
+          praut    = 0.                  ! autoconversion of rain
+          pracw    = 0.                  ! accretion of cloud water by rain
+          prevp    = 0.                  ! evaporation of rain
+          pvapor   = 0.                  ! sum all process for water vapor to determine qvz
+          pclw     = 0.                  ! sum all process for cloud liquid to determine qlz
+          pladj    = 0.                  ! saturation adjustment for ql
+          pcli     = 0.                  ! sum all process for cloud ice to determine qiz
+          pimlt    = 0.                  ! melting of ice crystal >0.
+          pihom    = 0.                  ! homogeneous nucleation <-40
+          pidw     = 0.                  ! production of cloud ice by BERGERON process
+          piadj    = 0.                  ! saturation adjustment for qi
+          pgfr     = 0.                  ! feezing of rain to form graupel (added to PI)
+          psnow    = 0.                  ! sum all process for snow
+          qschg    = 0.                  ! = psnow / unsure
+          pracs    = 0.
 
           nidep = 0.
           midep = 0.
@@ -1090,9 +1092,8 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
           fluxi(iq,k) = qizodt*dzw(iq,k)*rho(iq,k)
           fluxs(iq,k) = qszodt*dzw(iq,k)*rho(iq,k)
           
-          tmp2d=qiz(iq,k)+qlz(iq,k)+qsz(iq,k)+qrz(iq,k)
-          mask = .not.(qvz(iq,k)+qlz(iq,k)+qiz(iq,k) < qsiz .and. &
-                       tmp2d==0. )      
+          tmp2d = qiz(iq,k)+qlz(iq,k)+qsz(iq,k)+qrz(iq,k)
+          mask = .not.(qvz(iq,k)+qlz(iq,k)+qiz(iq,k) < qsiz .and. tmp2d==0. )      
     
           if ( mask ) then
             !gg11(iq) = ggamma(tmp_ss(iq,k))
@@ -1113,7 +1114,7 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
             !! calculate terminal velocity of rain
             !    
         
-            if (qrz(iq,k) .gt. 1.e-8) then
+            if (qrz(iq,k) > 1.e-8) then
               !  tmp1=sqrt(pi*rhowater*xnor/rho(k)/qrz(k))
               !  xlambdar=sqrt(tmp1)
               !  olambdar=1.0/xlambdar
@@ -2077,8 +2078,8 @@ subroutine clphy1d_ylin(dt_in, ifull, imax,                 &
     je = tile*imax  
     DO k = kts,kte
       do iq = js,je
-        vi(iq,k)    = vtiold(iq,k)
-        !vs(iq,k)    = vtsold(iq,k)
+        vi(iq,k) = vtiold(iq,k)
+        !vs(iq,k) = vtsold(iq,k)
       end do
     end do
   end do  
@@ -2229,8 +2230,8 @@ PURE FUNCTION ggamma(X) result(ans)
   REAL, INTENT(IN   ) :: x
   INTEGER             ::diff, j
   REAL                ::PF, G1TO2 ,TEMP
-  real                :: temp2, temp3, temp4
   real                :: ans
+  real, dimension(8)  :: ta
     
   TEMP = X
   diff = max(int(temp-2.), 0)
@@ -2250,13 +2251,17 @@ PURE FUNCTION ggamma(X) result(ans)
   TEMP = TEMP - 1.
   
   ! method suggested by Mark Dwyer and Lindsay Brebber
-  TEMP2 = TEMP*TEMP
-  TEMP3 = TEMP2*TEMP
-  TEMP4 = TEMP2*TEMP2
+  ta(1) = temp
+  ta(2) = temp**2
+  ta(3) = ta(2)*temp
+  ta(4) = ta(3)*temp
+  ta(5) = ta(4)*temp
+  ta(6) = ta(5)*temp
+  ta(7) = ta(6)*temp
+  ta(8) = ta(7)*temp
   
-  G1TO2=1. + B(1)*TEMP + B(2)*TEMP2 + B(3)*TEMP3 + B(4)*TEMP4 &
-           + B(5)*TEMP4*TEMP + B(6)*TEMP3*TEMP3 + B(7)*TEMP4*TEMP3 + B(8)*TEMP4*TEMP4
-  ans=PF*G1TO2
+  G1TO2 = 1. + dot_product( b(:), ta(:) )
+  ans = PF*G1TO2
   
 END FUNCTION ggamma
 

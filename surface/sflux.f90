@@ -53,6 +53,7 @@ use uclem_ctrl, only :                   & ! Urban
     ,ateb_scrnmeth=>scrnmeth             &
     ,ateb_wbrelaxc=>wbrelaxc             &
     ,ateb_wbrelaxr=>wbrelaxr             &
+    ,ateb_ncyits=>ncyits                 &
     ,ateb_nfgits=>nfgits                 &
     ,ateb_tol=>tol                       &
     ,ateb_zosnow=>zosnow                 &
@@ -121,7 +122,7 @@ public micdwn
 
 public uclem_init,uclem_type,uclem_disable,uclem_deftype
 public ateb_soilunder,energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
-public ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,ateb_nfgits,ateb_tol
+public ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,ateb_ncyits,ateb_nfgits,ateb_tol
 public ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,ateb_minsnowalpha,ateb_maxsnowden
 public ateb_minsnowden,ateb_refheight,ateb_zomratio,ateb_maxrfwater
 public ateb_maxrdwater,ateb_maxrfsn,ateb_maxrdsn,ateb_maxvwatf
