@@ -127,7 +127,7 @@ real aa, bb, cc
 real hourst, evapavge, precavge
 real pwatr, bb_2, cc_2, rat
 real(kind=8) :: tt_r8
-logical oxidant_update
+logical oxidant_update, ltest
 character(len=10) timeval
 
 
@@ -773,8 +773,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
   
   ! Diagnose CAPE, CIN and LI for cordex output  
   ! pcc2hist can calculate CAPE for standard output
-  if ( rescrn>0 .and. (surfile/=' '.or.freqfile/=' ') ) then
-    if ( mod(ktau,tbave)==0 .or. mod(ktau,tbave10)==0 ) then
+  if ( rescrn>0 ) then
+    ltest = .false.
+    if ( surfile/=' ' ) then
+      ltest = ltest .or. mod(ktau,tbave)==0
+    end if
+    if ( freqfile/=' ' ) then
+      ltest = ltest .or. mod(ktau,tbave10)==0  
+    end if  
+    if ( ltest ) then
       call START_LOG(cape_begin)  
       call capecalc
       call END_LOG(cape_end)
@@ -1882,6 +1889,8 @@ call ccmpi_remap
 !   npan is the number of panels on a process ( 1>=npan>=6 )
 !   ipan=il is the numnber of grid-points for a process along the X-axis
 !   jpan=jl/npan is the number of grid-points per panel for a process along the Y-axis
+!   nxproc is the number of processes per panel along the X-axis (nxproc=nxp)
+!   nyproc is the number of processes per panel along the Y-axis (6*nyproc=nyp)
 ! CCAM will optimise nxp, node_nx and npan (constrained by the number of processes,
 ! number of nodes and number of cubic panels, respectively) to reduce MPI message
 ! size and number between processes and nodes.
