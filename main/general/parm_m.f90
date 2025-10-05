@@ -53,7 +53,7 @@ public procmode, compression, localhist
 public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
 public nstagin, nstaguin
 public hp_output, surf_cordex, output_windmax, cordex_fix
-public shep_cordex
+public shep_cordex, chunk_time
 public ensemble_mode, ensemble_period, ensemble_rsfactor
 public siglow, sigmid
 public wgcoeff, wg_tau, wg_prob, ugs_meth
@@ -78,7 +78,7 @@ integer, save :: procmode=16, compression=1
 integer, save :: nud_period=-1, mins_rad=-1, nalpha=1, jalbfix=1, irest=1, nwrite=0
 integer, save :: nstagin=0, nstaguin=0, intsch_mode=-1
 integer, save :: hp_output=0, surf_cordex=0, output_windmax=0, cordex_fix=0
-integer, save :: shep_cordex=0
+integer, save :: shep_cordex=0, chunk_time=1
 integer, save :: ensemble_mode=0, ensemble_period=720
 integer, save :: diaglevel_aerosols=0, diaglevel_pbl=0, diaglevel_cloud=0, diaglevel_land=0, diaglevel_maxmin=0
 integer, save :: diaglevel_ocean=0, diaglevel_radiation=0, diaglevel_urban=0, diaglevel_carbon=0, diaglevel_river=0
@@ -88,7 +88,6 @@ integer, save :: maxtilesize=32
 #else
 integer, save :: maxtilesize=96
 #endif 
-!integer, save :: filemode=0, ioreaders=-1
 real, save :: qgmin=1.e-6, zo_clearing=0.
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02
 real, save :: rlongdn=0., rlongdx=0., rlatdn=0., rlatdx=0., ds=0., dt=0., dtin=0., panfg=4., panzo=0.001
@@ -101,6 +100,5 @@ real, save :: wbclim_lonn=0., wbclim_lonx=0., wbclim_latn=0., wbclim_latx=0.
 logical, save :: diag=.false., synchist=.false., amipo3=.false., use_rad_year=.false., localhist=.true.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
-!logical, save :: pio=.false., mpiio=.true., npio=.false., useiobuffer=.false.
 
 end module parm_m

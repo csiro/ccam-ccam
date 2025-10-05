@@ -1354,6 +1354,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix,             &
     always_mspeca,ntvd,tbave10,maxuv,maxcolour,                   &
     procmode,compression,hp_output,pil_single,process_rate_mode,  & ! file io
+    chunk_time,                                                   &
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
     ensemble_mode,ensemble_period,ensemble_rsfactor,              & ! ensemble
     ch_dust,helim,fc2,sigbot_gwd,alphaj,nmr,qgmin,mstn,           & ! backwards compatible
@@ -2707,7 +2708,7 @@ use stime_m                                ! File date data
 implicit none
 
 integer i
-integer, dimension(121) :: dumi
+integer, dimension(122) :: dumi
 real, dimension(34) :: dumr
     
 dumr(:) = 0.
@@ -2868,6 +2869,7 @@ if ( myid==0 ) then
   if ( localhist ) dumi(119) = 1
   dumi(120) = maxcolour
   dumi(121) = process_rate_mode
+  dumi(122) = chunk_time
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3026,6 +3028,7 @@ pil_single        = dumi(118)
 localhist         = dumi(119)==1
 maxcolour         = dumi(120)
 process_rate_mode = dumi(121)
+chunk_time        = dumi(122)
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
   call ccmpi_bcast(jstn(1:nstn),0,comm_world)

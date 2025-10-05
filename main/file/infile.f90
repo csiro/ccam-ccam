@@ -2219,7 +2219,7 @@ if ( localhist .and. ndim>3 ) then
       chunks = (/ il, jl, ldlen, min(vnode_nproc,node_nx), 1 /)
     case(4)
       ier = nf90_inquire_dimension(lcdfid,ldim(4),len=tlen)
-      ltlen = 72
+      ltlen = chunk_time
       do while ( mod(tlen,ltlen)/=0 .and. ltlen>1 )
         ltlen = ltlen - 1
       end do
