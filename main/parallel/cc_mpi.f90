@@ -56,6 +56,9 @@ module cc_mpi
    integer, save, public :: ipan, jpan                                     ! grid size on process
    integer, save, public :: ioff, joff, noff                               ! offset of process grid relative to global grid
    integer, save, public :: nxproc, nyproc                                 ! number of processes in the x and y directions
+                                                                           ! for the global grid
+   integer, save, public :: node_nx, node_ny                               ! number of processes in the x and y directions
+                                                                           ! on a node
    integer, save, public :: nagg = 8                                       ! maximum number of levels to aggregate
    integer, save, public :: maxcolour = 2                                  ! maximum number of colours for iterative solvers
    
@@ -6876,23 +6879,23 @@ contains
    
    subroutine ccmpi_remap
       ! redefine comm_world for optimal internode communicsation
-      integer :: node_nx, node_ny, node_dx, node_dy
+      integer :: node_dx, node_dy
       integer :: oldrank, ty, cy, tx, cx
       integer :: new_node_nproc
-      integer :: testid, newid
       integer :: vsize
       integer(kind=4) :: ref_nodecaptain_nproc
       integer(kind=4) :: lerr, lid, lcommin, lcommout
       integer(kind=4), dimension(:), allocatable :: nodesize
       integer(kind=4), dimension(1) :: lnode
 
-#ifdef usempi3
-      node_nx = 0
-      node_ny = 0
+      node_nx = 1
+      node_ny = 1
       node_dx = nxp
       node_dy = nyp
-      new_node_nproc = -1
       
+#ifdef usempi3
+      new_node_nproc = -1
+
       ! communicate number of nodes to all processes
       ref_nodecaptain_nproc = nodecaptain_nproc
       lcommin = comm_world      
@@ -6943,23 +6946,15 @@ contains
             write(6,*) "Remapping ranks using node_nx,node_ny ",node_nx,node_ny
             write(6,*) "with node_dx,node_dy                  ",node_dx,node_dy
          end if
-         do testid = 0,nproc-1
-            oldrank = testid 
-            ty = oldrank/(node_ny*node_dx*node_nx) ! node position in y
-            oldrank = oldrank - ty*node_ny*node_dx*node_nx
-            cy = oldrank/(node_dx*node_nx)         ! y-row position in node
-            oldrank = oldrank - cy*node_dx*node_nx
-            tx = oldrank/node_nx                   ! node position in x
-            oldrank = oldrank - tx*node_nx
-            cx = oldrank                           ! x-column position in node
-            newid = ty*node_dx*node_nx*node_ny + tx*node_nx*node_ny + cy*node_nx + cx
-            if ( newid == myid ) then
-               lid = testid
-               exit
-            end if   
-         end do
+         !myid = ty*node_ny*node_dx*node_nx + tx*node_dx*node_nx + cy*node_nx + cx
+         ty = myid/(node_dx*node_nx*node_ny)
+         tx = (myid-ty*node_dx*node_nx*node_ny)/(node_nx*node_ny)
+         cy = (myid-ty*node_dx*node_nx*node_ny-tx*node_nx*node_ny)/node_nx
+         cx = myid-ty*node_dx*node_nx*node_ny-tx*node_nx*node_ny-cy*node_nx
+         lid = ty*node_ny*node_dx*node_nx + tx*node_nx + cy*node_dx*node_nx + cx
          lcommin = comm_world
          call MPI_Comm_Split(lcommin, 0_4, lid, lcommout, lerr) ! redefine comm_world
+         ! The next line is not needed since lid is already the correct rank
          call MPI_Comm_rank(lcommout, lid, lerr)                ! find local process id
          comm_world = lcommout
          myid = lid
@@ -7009,10 +7004,17 @@ contains
             end if
          else
             ! user specified procmode>0 
-            procmode = max(procmode, 1) 
-            do while ( mod(node_nproc,procmode) /= 0 )
-               procmode = procmode - 1 ! can be different on different nodes
-            end do  
+            procmode = max(procmode, 1)
+            if ( procmode >= node_nx ) then
+               do while ( mod(node_nproc,procmode)/=0 .and. mod(procmode,node_nx)/=0 .and. procmode>=node_nx )
+                  procmode = procmode - 1 ! can be different on different nodes
+               end do  
+            end if    
+            if ( procmode < node_nx ) then
+               do while ( mod(node_nproc,procmode)/=0 .and. mod(node_nx,procmode)/=0 .and. procmode>0 )
+                  procmode = procmode - 1 ! can be different on different nodes
+               end do  
+            end if
             if ( myid == 0 ) then
                write(6,*) "Configure procformat output with procmode=",procmode
             end if
@@ -7023,7 +7025,7 @@ contains
             call MPI_Comm_Split(lcomm, colour, lrank, lcommout, lerr)
             comm_vnode = lcommout
             call MPI_Comm_Size(lcommout, lsize, lerr)
-            vnode_nproc = lsize
+            vnode_nproc = lsize ! should equal procmode
             call MPI_Comm_Rank(lcommout, lrank, lerr)
             vnode_myid = lrank
             ! Inter-procmode communicator
