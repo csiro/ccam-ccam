@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -360,26 +360,26 @@ select case(mlo_step)
       depth_hlout(:) = 0.
     end if    
 
-  case(2)
-    ! partial step version (cell point at midpoint)
-    if ( depin>1.e-4 ) then      
-      do ii = 1,wlin
-        depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
-        ! avoid thin layers by extending the previous layer
-        if ( depth_hlout(ii+1)-depth_hlout(ii)<mindep .and. &
-             depth_hlout(ii+1)-depth_hlout(ii)>1.e-4  .and. &
-             ii>1 ) then
-          depth_hlout(ii) = depth_hlout(ii+1)
-        end if
-      end do
-      do ii = 1,wlev
-        if ( depth_hlout(ii+1)-depth_hlout(ii)>1.e-4 ) then
-          depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
-        end if  
-      end do      
-    else
-      depth_hlout(:) = 0.
-    end if
+  !case(2) - depectiated
+  !  ! partial step version (cell point at midpoint)
+  !  if ( depin>1.e-4 ) then      
+  !    do ii = 1,wlin
+  !      depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
+  !      ! avoid thin layers by extending the previous layer
+  !      if ( depth_hlout(ii+1)-depth_hlout(ii)<mindep .and. &
+  !           depth_hlout(ii+1)-depth_hlout(ii)>1.e-4  .and. &
+  !           ii>1 ) then
+  !        depth_hlout(ii) = depth_hlout(ii+1)
+  !      end if
+  !    end do
+  !    do ii = 1,wlev
+  !      if ( depth_hlout(ii+1)-depth_hlout(ii)>1.e-4 ) then
+  !        depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
+  !      end if  
+  !    end do      
+  !  else
+  !    depth_hlout(:) = 0.
+  !  end if
 
   case default
     write(6,*) "ERROR: Unknown option mlo_step = ",mlo_step

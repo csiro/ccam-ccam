@@ -783,12 +783,12 @@ do mspec_mlo = mspeca_mlo,1,-1
   s_store(1:ifull,1:wlev,6) = ns(1:ifull,1:wlev)
   
   call mlofill(mps,wtr,mlo_zero)
-  call mlofill(cou(:,:,1:3),wtr,mlo_fill)
+  call mlofill(cou(:,:,1:3),wtr,mlo_zero)
   call mlofill(nt,wtr,mlo_fill)
   call mlofill(ns,wtr,mlo_sal)
   
   ! Horizontal advection for U, V, W, T, continuity and S
-  if ( mlo_bs<1 .or. mlo_bs>=2 ) then
+  if ( mlo_bs<=1 .or. mlo_bs>2 ) then
     bs_test = mlo_bs<=2
     s_work(:,:,1) = mps(:,:)
     s_work(:,:,2:4) = cou(:,:,1:3)
@@ -801,7 +801,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     bs_test = mlo_bs<=2
     call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,bs_test,mlointschf)
   end if
-  if ( mlo_bs<3 .or. mlo_bs>=4 ) then
+  if ( mlo_bs<=3 .or. mlo_bs>4 ) then
     bs_test = mlo_bs<=4
     s_work(:,:,1) = nt(:,:)
     s_work(:,:,2) = ns(:,:)

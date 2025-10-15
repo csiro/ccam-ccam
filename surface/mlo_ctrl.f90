@@ -1800,13 +1800,13 @@ select case(mode)
   case(0,1) ! interpolate to depth
     do iqw = 1,imax
       dpin(1:wlin) = min( sigin(iqw,1:wlin)*depin(iqw), depin(iqw) )  
-      if ( wlev==wlin ) then
-        if ( all( abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))/depth%depth(iqw,1:wlev)<1.e-6 ) ) then
-          mlodat(iqw,1:wlev) = mloin(iqw,1:wlev)
-          cycle
-        end if
-      end if
       do ii = 1,wlev
+        if ( wlev==wlin ) then
+          if ( abs(depth%depth(iqw,ii)-dpin(ii))/depth%depth(iqw,ii)<1.e-6 ) then
+            mlodat(iqw,ii) = mloin(iqw,ii)
+            cycle
+          end if
+        end if
         if ( depth%depth(iqw,ii)<=dpin(1) ) then
           mlodat(iqw,ii) = mloin(iqw,1)
         else
@@ -1831,13 +1831,13 @@ select case(mode)
   case(2,3) ! interpolate to sigma level
     do iqw = 1,imax
       sig = depth%depth(iqw,:)/max(depth%depth_hl(iqw,wlev),1.e-20)
-      if ( wlev==wlin ) then
-        if ( all( abs(sig(1:wlev)-sigin(iqw,1:wlev))<1.e-6 ) ) then
-          mlodat(iqw,1:wlev) = mloin(iqw,1:wlev)
-          cycle
-        end if
-      end if
       do ii = 1,wlev
+        if ( wlev==wlin ) then
+          if ( abs(sig(ii)-sigin(iqw,ii))<1.e-6 ) then
+            mlodat(iqw,ii) = mloin(iqw,ii)
+            cycle
+          end if
+        end if
         if ( sig(ii)>=sigin(iqw,wlin) ) then
           mlodat(iqw,ii) = mloin(iqw,wlin)
         else if ( sig(ii)<=sigin(iqw,1) ) then
@@ -1957,13 +1957,13 @@ select case(mode)
     where ( depth%dz(:,1)>=1.e-4 )  
       odep = depth%depth(:,ilev)
     end where 
-  case("depth_p")
-    do iqw = 1,imax
-      ii = depth%ibot(iqw)
-      if ( depth%dz(iqw,ii)>=1.e-4 ) then
-        odep(iqw) = depth%depth(iqw,ii)
-      end if
-    end do
+  !case("depth_p") - depreciated
+  !  do iqw = 1,imax
+  !    ii = depth%ibot(iqw)
+  !    if ( depth%dz(iqw,ii)>=1.e-4 ) then
+  !      odep(iqw) = depth%depth(iqw,ii)
+  !    end if
+  !  end do
   case default
     write(6,*) "ERROR: Unknown option for mlo_export_depth with mode = ",trim(mode)
     stop

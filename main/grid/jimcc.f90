@@ -59,7 +59,7 @@ integer, dimension(8,6), save :: igofkg
 real, save :: ss
 real, parameter :: third = 1./3.
 real, parameter :: fourth = 1./4.
-real, dimension(30), parameter :: a =                              &
+real, dimension(30) :: a =                                         &
       (/ 1.47713062600964, -0.38183510510174, -0.05573058001191,   &
         -0.00895883606818, -0.00791315785221, -0.00486625437708,   &
         -0.00329251751279, -0.00235481488325, -0.00175870527475,   &
@@ -81,7 +81,7 @@ real, dimension(30), parameter :: a =                              &
 !         0.00119042140226, 0.00109804711790, 0.00101642216628,     &
 !         0.00094391366522, 0.00087919021224, 0.00082115710311,     &
 !         0.00076890728775, 0.00072168382969, 0.00067885087750 /)
-real, dimension(2,2,8), parameter :: flip8 =                                &
+real, dimension(2,2,8) :: flip8 =                                           &
            reshape ( (/ 1.0,0.0,0.0,1.0,  -1.0,0.0,0.0,1.0,                 &
                         1.0,0.0,0.0,-1.0,  -1.0,0.0,0.0,-1.0,               &
                         0.0,1.0,1.0,0.0,  0.0,-1.0,1.0,0.0,                 &
@@ -93,7 +93,7 @@ real, dimension(3,3), save :: txe
 real, dimension(3,3,0:47), save :: rotg
 complex, parameter :: ci = cmplx(0.,1.)
 complex, save :: cip4, cip3oss
-!$acc declare create(igofkg,cip3oss,rotg)
+!$acc declare create(igofkg,cip3oss,rotg,flip8,a)
 
 contains
 
@@ -314,7 +314,7 @@ end if
 
 #ifdef _OPENACC
 
-!$acc update device(igofkg,cip3oss,rotg)
+!$acc update device(igofkg,cip3oss,rotg,flip8,a)
 !$acc parallel loop collapse(2) copyout(xe,ye,ze,em4,dxa,dxb,dxc) private(xc)
 do j = 1,np
   do i = 1,np

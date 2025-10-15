@@ -587,17 +587,13 @@ do iq = 1,imax
   end if
   gdp = 1./(rhoa(iq,1)*dz(iq,1))
   xte(iq,1,itracdms) = xte(iq,1,itracdms) + zdmsemiss*gdp
-#ifdef debug
-  if ( xtg(iq,1,itracdms)+xte(iq,1,itracdms)*ztmst>2.e-3 ) then
-    write(6,*) "xtg out-of-range in DMS emission (xtemiss)"
-    write(6,*) "xtg+xte*dt ",xtg(iq,1,itracdms)+xte(iq,1,itracdms)*ztmst
-    write(6,*) "xtg,xte ",xtg(iq,1,itracdms),xte(iq,1,itracdms)
-    write(6,*) "rhoa,dz,emissfieldt ",rhoa(iq,1),dz(iq,1),emissfield(iq,idmst)
-    write(6,*) "seaicem,tsm1m,zzspeed ",seaicem(iq),tsm1m(iq),zzspeed(iq)
-    write(6,*) "oland,emissfieldo ",loland(iq),emissfield(iq,idmso)
-  end if
-#endif
 end do
+
+if ( any(xtg(1:imax,1,itracdms)+xte(1:imax,1,itracdms)*ztmst>2.e-3) ) then
+  write(6,*) "xtg out-of-range after DMS emission (xtemiss)"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:imax,1,itracdms)+xte(1:imax,1,itracdms)*ztmst), &
+                                  maxloc(xtg(1:imax,1,itracdms)+xte(1:imax,1,itracdms)*ztmst)
+end if
 
 ! Other biomass emissions of SO2 are done below (with the non-surface S emissions)
 PXTEMS(:,ITRACSO2)  =(EMISSFIELD(:,iso2a1)+EMISSFIELD(:,iso2b1))*0.97
@@ -1008,7 +1004,7 @@ real, dimension(imax,size(rhodz,2)) :: ZZOH, ZZH2O2, ZZO3, ZZNO2
 real, dimension(imax,size(rhodz,2)) :: zlwcic, ziwcic
 real, dimension(imax,2:naero) :: wd
 real x,pqtmst
-real zlwcl, zlwcv, zhp, zqtp1, zrk, zrke, zxtp1
+real zlwcl, zlwcv, zhp, zqtp1, zrk, zrke
 real zh_so2, zpfac, zp_so2, zf_so2, zh_h2o2, zp_h2o2, zf_h2o2
 real ZRKH2O2
 real ze1,ze2,ze3,zfac1,zrkfac
@@ -1050,12 +1046,13 @@ real, parameter :: ZAVO=6.022E+23
 real, parameter :: ZNAMAIR=1.E-03*ZAVO/ZMOLGAIR
 
 real, dimension(imax,2:naero) :: ZDEPS, ZDEPR
-real PDEP
-real ZMTOF, ZCLR0, zcollefc
-real zilcscav, ziicscav,xdep,plambda,zbcscav,xbcscav,zstay_t,xstay,frc
-real zmelt,xmelt,zicscav,xicscav
-real xfreeze, zfreeze
-real ZDXTE
+real, dimension(imax) :: PDEP, ZMTOF, ZCLR0
+real, dimension(imax) :: zilcscav, xdep, plambda
+real, dimension(imax) :: zbcscav, xbcscav, zstay_t
+real, dimension(imax) :: xstay, zmelt, xmelt
+real, dimension(imax) :: zicscav, xicscav, ziicscav
+real, dimension(imax) :: xfreeze, zfreeze, zcollefc
+real, dimension(imax) :: frc, ZDXTE, zxtp1
 
 logical, parameter :: assume_convliq = .true. ! assume convective rainfall is liquid
 
@@ -1081,38 +1078,39 @@ ntiles = ifull/imax
 !    CONSTANTS
 PQTMST=1./PTMST
 
-#ifdef debug
 if ( maxval(xtm1(1:ifull,:,:))>6.5e-5 ) then
   write(6,*) "xtg is out-of-range at start of xtchemie"
   write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:ifull,:,:)), &
                                   maxloc(xtm1(1:ifull,:,:))
 end if
-#endif
 
+!$acc data create(prhop1,ptp1,rhodz,xtm1,xte,zoxidant)
+!$acc update device(prhop1,ptp1,rhodz,xtm1,zoxidant)
 
 !$acc parallel loop copy(so2wd,so4wd,bcwd,ocwd,dustwd,saltwd)                             &
-!$acc   copyin(pclcover,pcfcover,pmlwc,pmiwc,zoxidant,prhop1,ptp1,rhodz,pccw,xtu,xtm1)    &
+!$acc   copyin(pclcover,pcfcover,pmlwc,pmiwc,pccw,xtu)                                    &
 !$acc   copyin(pclcon,pqfsedice,pmaccr,plambs,pfsnow,pfsubl,pfmelt,pmratep,prscav)        &
-!$acc   copyin(pfevap,pfprec,prfreeze,fracc,pfconv,taudar,zdayfac)                        &
-!$acc   copyout(dmsoh,dmsn3,so2oh,so2h2,so2o3,xte)                                        &
+!$acc   copyin(pfevap,pfprec,prfreeze,fracc,pfconv)                                       &
+!$acc   copyout(so2h2,so2o3)                                                              &
 !$acc   private(xto,zlwcic,ziwcic,zhenry,zhenryc,zso4,zso4c,zso4i,zxtp10,zxtp1c,zxtp1con) &
-!$acc   private(zzoh,zzh2o2,zzo3,zzno2,zsolub,wd,zdepr,zdeps)
+!$acc   private(zzh2o2,zzo3,zsolub,wd,zdepr,zdeps,pdep,zclr0,zmtof,zilcscav)              &
+!$acc   private(xdep,plambda,zbcscav,xbcscav,xstay,zmelt,xmelt,zicscav,xicscav,ziicscav)  &
+!$acc   private(xfreeze,zfreeze,zcollefc,frc,zdxte,zxtp1)                                 &
+!$acc   present(prhop1,ptp1,rhodz,xtm1,xte,zoxidant)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
   
   !$acc loop vector
   do jl = js,je
-    dmsoh(jl)=0.
-    dmsn3(jl)=0.
-    so2oh(jl)=0.
     so2h2(jl)=0.
     so2o3(jl)=0.
   end do
 
-  !$acc loop collapse(3) vector
+  !$acc loop collapse(2) seq
   do jt = 1,naero
     do jk = 1,kl
+      !$acc loop vector  
       do jl = 1,imax
         iq = jl + js - 1
         xte(iq,jk,jt)=0.
@@ -1124,8 +1122,9 @@ do tile = 1,ntiles
     end do
   end do
 
-  !$acc loop collapse(2) vector
+  !$acc loop seq
   do jk = 1,kl
+    !$acc loop vector  
     do jl = 1,imax
       iq = jl + js - 1  
 
@@ -1141,10 +1140,8 @@ do tile = 1,ntiles
 
       !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
       ! -- levels are already inverted --
-      ZZOH(jl,jk)   = ZOXIDANT(iq,jk,1)
       ZZH2O2(jl,jk) = ZOXIDANT(iq,jk,2)*PRHOP1(iq,jk)*1.e-3
       ZZO3(jl,jk)   = ZOXIDANT(iq,jk,3)*PRHOP1(iq,jk)*1.e-3
-      ZZNO2(jl,jk)  = ZOXIDANT(iq,jk,4)*PRHOP1(iq,jk)*1.e-3
   
       zhenry(jl,jk)=0.
       zhenryc(jl,jk)=0.
@@ -1186,10 +1183,10 @@ do tile = 1,ntiles
       end if
 
       !   HETEROGENEOUS CHEMISTRY
-      ZXTP1         = XTO(JL,JK,ITRACSO2)
+      ZXTP1(jl)              = XTO(JL,JK,ITRACSO2)
       ZXTP10(JL,JK,ITRACSO2) = XTO(JL,JK,ITRACSO2)
       ZXTP1C(JL,JK,ITRACSO2) = XTO(JL,JK,ITRACSO2)
-      IF ( ZXTP1>ZMIN .AND. ZLWCIC(JL,JK)>ZMIN ) THEN
+      IF ( ZXTP1(jl)>ZMIN .AND. ZLWCIC(JL,JK)>ZMIN ) THEN
 
         ZQTP1=1./PTP1(iq,JK)-ZQ298
         ZE1=ZE1K*EXP(ZE1H*ZQTP1)
@@ -1212,7 +1209,7 @@ do tile = 1,ntiles
         ZDT=PTMST/5.
 
         ZH2O2M=ZZH2O2(JL,JK)
-        ZSO2M=ZXTP1*PRHOP1(iq,JK)*6.022E+20/ZMOLGS
+        ZSO2M=ZXTP1(jl)*PRHOP1(iq,JK)*6.022E+20/ZMOLGS
         ZSO4M=ZSO4(JL,JK)*PRHOP1(iq,JK)*6.022E+20/ZMOLGS
 
         ZSUMH2O2=0.
@@ -1255,9 +1252,9 @@ do tile = 1,ntiles
           ZSUMO3=ZSUMO3+ZDSO2O
         end do  !End of iteration loop
 
-        ZDSO2TOT=ZXTP1-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(iq,JK))
-        ZDSO2TOT=MIN(ZDSO2TOT,ZXTP1)
-        ZXTP1C(JL,JK,ITRACSO2)=ZXTP1-ZDSO2TOT
+        ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(iq,JK))
+        ZDSO2TOT=MIN(ZDSO2TOT,ZXTP1(jl))
+        ZXTP1C(JL,JK,ITRACSO2)=ZXTP1(jl)-ZDSO2TOT
         ZSO4(JL,JK)=ZSO4(JL,JK)+ZDSO2TOT
 
         ZHENRY(JL,JK)=ZF_SO2
@@ -1417,8 +1414,8 @@ do tile = 1,ntiles
       end if
 
       !   HETEROGENEOUS CHEMISTRY
-      ZXTP1=XTU(iq,JK,ITRACSO2)
-      IF(ZXTP1>ZMIN.AND.PCCW(iq,JK)>ZMIN) THEN
+      ZXTP1(jl)=XTU(iq,JK,ITRACSO2)
+      IF(ZXTP1(jl)>ZMIN.AND.PCCW(iq,JK)>ZMIN) THEN
 
         ZQTP1=1./PTP1(iq,JK)-ZQ298
         ZE1=ZE1K*EXP(ZE1H*ZQTP1)
@@ -1441,7 +1438,7 @@ do tile = 1,ntiles
         ZDT=PTMST/5.
 
         ZH2O2M=ZZH2O2(JL,JK)
-        ZSO2M=ZXTP1*PRHOP1(iq,JK)*6.022E+20/ZMOLGS
+        ZSO2M=ZXTP1(jl)*PRHOP1(iq,JK)*6.022E+20/ZMOLGS
         ZSO4M=ZSO4C(JL,JK)*PRHOP1(iq,JK)*6.022E+20/ZMOLGS
 
         ZSUMH2O2=0.
@@ -1484,8 +1481,8 @@ do tile = 1,ntiles
           ZSUMO3=ZSUMO3+ZDSO2O
         END DO  !End of iteration loop
 
-        ZDSO2TOT=ZXTP1-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(iq,JK))
-        ZDSO2TOT=MIN(ZDSO2TOT,ZXTP1)
+        ZDSO2TOT=ZXTP1(jl)-ZSO2M*ZMOLGS/(6.022E+20*PRHOP1(iq,JK))
+        ZDSO2TOT=MIN(ZDSO2TOT,ZXTP1(jl))
         ZXTP1CON(JL,JK,ITRACSO2)=ZXTP1CON(JL,JK,ITRACSO2)-ZDSO2TOT
         ZSO4C(JL,JK)=ZSO4C(JL,JK)+ZDSO2TOT
         ZHENRYC(JL,JK)=ZF_SO2
@@ -1504,8 +1501,9 @@ do tile = 1,ntiles
   !    (True for all except DMS)
   !
 
-  !$acc loop collapse(2) vector
+  !$acc loop seq
   do jk = 1,kl
+    !$acc loop vector  
     do jl = 1,imax
       iq = jl + js - 1  
       zsolub(jl,jk,ITRACSO2)=zhenry(jl,jk)
@@ -1542,8 +1540,9 @@ do tile = 1,ntiles
   end do  
   !$acc loop seq
   DO JT=ITRACDU,ITRACDU+NDUST-1
-    !$acc loop collapse(2) vector    
+    !$acc loop seq
     do jk = 1,kl
+      !$acc loop vector  
       do jl = 1,imax
         iq = jl + js - 1  
         zxtp10(jl,jk,jt)=xto(jl,jk,jt)
@@ -1559,8 +1558,9 @@ do tile = 1,ntiles
   end do
   !$acc loop seq
   DO JT=ITRACSA,ITRACSA+NSALT-1
-    !$acc loop collapse(2) vector    
+    !$acc loop seq  
     do jk = 1,kl
+      !$acc loop vector
       do jl = 1,imax
         iq = jl + js - 1  
         zxtp10(jl,jk,jt)=xto(jl,jk,jt)
@@ -1575,8 +1575,9 @@ do tile = 1,ntiles
     end do
   end do
 
-  !$acc loop collapse(2) vector
+  !$acc loop seq
   do ktrac = 2,naero
+    !$acc loop vector  
     do i = 1,imax
       zdepr(i,ktrac) = 0.
       zdeps(i,ktrac) = 0.
@@ -1594,247 +1595,191 @@ do tile = 1,ntiles
   !     BEGIN OF VERTICAL LOOP
   !$acc loop seq
   do JK = KTOP,kl
-    !$acc loop collapse(2) vector      
     do ktrac = 2,naero
-      do i = 1,imax
-        iq = i + js - 1  
         
-        pdep = 0.  
+      pdep(1:imax) = 0.  
       
-        ! zdepr(i) = zdepr(i) + zdepr_save(i,jk)
-        ! zdeps(i) = zdeps(i) + zdeps_save(i,jk)
-        ! zdepr_save(i,jk) = 0.
-        ! zdeps_save(i,jk) = 0.
+      ! zdepr(i) = zdepr(i) + zdepr_save(i,jk)
+      ! zdeps(i) = zdeps(i) + zdeps_save(i,jk)
+      ! zdepr_save(i,jk) = 0.
+      ! zdeps_save(i,jk) = 0.
 
-        !ZCLEAR = 1. - PCLCOVER(i,JK) - pcfcover(i,jk) - pclcon(i,jk)
-        ZCLR0 = max( 1. - PCLCOVER(iq,jk) - pclcon(iq,jk), 0. ) !Clear air or ice cloud (applies to zxtp10)
-        ZMTOF = rhodz(iq,jk)*pqtmst
-        ZXTP1C(i,JK,ktrac) = MAX( 0., ZXTP1C(i,JK,ktrac) )
-        ZXTP10(i,JK,ktrac) = MAX( 0., ZXTP10(i,JK,ktrac) )
+      !ZCLEAR = 1. - PCLCOVER(i,JK) - pcfcover(i,jk) - pclcon(i,jk)
+      ZCLR0(:) = max( 1. - PCLCOVER(js:je,jk) - pclcon(js:je,jk), 0. ) !Clear air or ice cloud (applies to zxtp10)
+      ZMTOF(:) = rhodz(js:je,jk)*pqtmst
+      ZXTP1C(:,JK,ktrac) = MAX( 0., ZXTP1C(:,JK,ktrac) )
+      ZXTP10(:,JK,ktrac) = MAX( 0., ZXTP10(:,JK,ktrac) )
 
-        ! In-cloud ice scavenging (vertical redistribution when snow falls into a layer).
-        if ( zclr0>zmin ) then
-          ziicscav = Ecols(ktrac)*pqfsedice(iq,jk) !qfsedice is the fractional sedimentation in dt
-          ziicscav = max( min( ziicscav, 1. ), 0. )
-          xdep = max( zxtp10(i,jk,ktrac)*ziicscav, 0.)
-          pdep = pdep + xdep*pcfcover(iq,jk)
-          zxtp10(i,jk,ktrac) = zxtp10(i,jk,ktrac) - xdep*pcfcover(iq,jk)/zclr0 ! MJT suggestion
-          zdeps(i,ktrac) = zdeps(i,ktrac) + xdep*pcfcover(iq,jk)*zmtof
-#ifdef debug
-          if ( (1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac)>6.5e-5 ) then
-            write(6,*) "xtg out-of-range after xtwetdep - incloud scavenging"
-            write(6,*) "xtg maxval,maxloc ",(1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac),iq,kl-jk+1,ktrac
-          end if
-#endif      
-        end if
+      ! In-cloud ice scavenging (vertical redistribution when snow falls into a layer).
+      where ( zclr0(:)>zmin )
+        ziicscav(:) = Ecols(ktrac)*pqfsedice(js:je,jk) !qfsedice is the fractional sedimentation in dt
+        ziicscav(:) = max( min( ziicscav(:), 1. ), 0. )
+        xdep(:) = max( zxtp10(1:imax,jk,ktrac)*ziicscav(:), 0.)
+        pdep(:) = pdep(:) + xdep(:)*pcfcover(js:je,jk)
+        zxtp10(:,jk,ktrac) = zxtp10(:,jk,ktrac) - xdep(:)*pcfcover(js:je,jk)/zclr0(:) ! MJT suggestion
+        zdeps(:,ktrac) = zdeps(:,ktrac) + xdep(:)*pcfcover(js:je,jk)*zmtof(:)
+      end where  
 
-        ! This loop does riming (accretion of liquid water by falling snow)
-        if ( pmlwc(iq,jk)>zmin ) then
-          zilcscav = Rcoeff(ktrac)*zsolub(i,jk,ktrac)*pmaccr(iq,jk)*ptmst/pmlwc(iq,jk)
-          zilcscav = max( min( zilcscav, 1. ), 0. )
-          xdep = max( zxtp1c(i,jk,ktrac)*zilcscav, 0. )
-          pdep = pdep + xdep*pclcover(iq,jk)
-          zxtp1c(i,jk,ktrac) = zxtp1c(i,jk,ktrac) - xdep
-          zdeps(i,ktrac) = zdeps(i,ktrac) + xdep*pclcover(iq,jk)*zmtof
-#ifdef debug
-          if ( PCLCOVER(iq,jk)*zxtp1c(i,jk,ktrac)>6.5e-5 ) then
-            write(6,*) "xtg out-of-range after xtwetdep - accretion of liquid water by falling snow"
-            write(6,*) "xtg maxval,maxloc ",PCLCOVER(iq,jk)*zxtp1c(i,jk,ktrac),iq,kl-jk+1,ktrac
-          end if
-#endif  
-        end if
+      ! This loop does riming (accretion of liquid water by falling snow)
+      where ( pmlwc(js:je,jk)>zmin )
+        zilcscav(:) = Rcoeff(ktrac)*zsolub(:,jk,ktrac)*pmaccr(js:je,jk)*ptmst/pmlwc(js:je,jk)
+        zilcscav(:) = max( min( zilcscav(:), 1. ), 0. )
+        xdep(:) = max( zxtp1c(:,jk,ktrac)*zilcscav, 0. )
+        pdep(:) = pdep(:) + xdep(:)*pclcover(js:Je,jk)
+        zxtp1c(:,jk,ktrac) = zxtp1c(:,jk,ktrac) - xdep(:)
+        zdeps(:,ktrac) = zdeps(:,ktrac) + xdep(:)*pclcover(js:Je,jk)*zmtof(:)
+      end where
 
-        ! Below-cloud scavenging by snow
-        plambda = min( plambs(iq,jk), 8.e3 ) !Cut it off at about -30 deg. C
-        zbcscav = zcollefs(ktrac)*plambda*pfsnow(iq,jk)*ptmst/(2.*rhos)
-        zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
-        xbcscav = max( zbcscav*zxtp10(i,jk,ktrac), 0. )
-        pdep = pdep + xbcscav*zclr0
-        zxtp10(i,jk,ktrac) = zxtp10(i,jk,ktrac) - xbcscav
-        zdeps(i,ktrac) = zdeps(i,ktrac) + xbcscav*zclr0*zmtof
-#ifdef debug
-        if ( (1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac)>6.5e-5 ) then
-          write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by snow"
-          write(6,*) "xtg maxval,maxloc ",(1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac),i,kl-jk+1,ktrac
-        end if
-#endif   
+      ! Below-cloud scavenging by snow
+      plambda(:) = min( plambs(js:Je,jk), 8.e3 ) !Cut it off at about -30 deg. C
+      zbcscav(:) = zcollefs(ktrac)*plambda(:)*pfsnow(js:je,jk)*ptmst/(2.*rhos)
+      zbcscav(:) = max( min( 1., zbcscav(:)/(1.+0.5*zbcscav(:)) ), 0. ) !Time-centred
+      xbcscav(:) = max( zbcscav(:)*zxtp10(:,jk,ktrac), 0. )
+      pdep(:) = pdep(:) + xbcscav(:)*zclr0(:)
+      zxtp10(:,jk,ktrac) = zxtp10(:,jk,ktrac) - xbcscav(:)
+      zdeps(:,ktrac) = zdeps(:,ktrac) + xbcscav(:)*zclr0(:)*zmtof(:)
 
-        ! Redistribution by snow that evaporates
-        if ( pfsubl(iq,jk)>zmin .and. pfsnow(iq,jk)>zmin .and. zclr0>zmin ) then
-          !zstay_t = (pfsubl(i,jk)+pfstayice(i,jk))/pfsnow(i,jk)        
-          zstay_t = pfsubl(iq,jk)/pfsnow(iq,jk) ! MJT suggestion
-          zstay_t = max( min( 1., zstay_t ), 0. )
-          xstay = max( zdeps(i,ktrac)*zstay_t/zmtof, 0. )
-          !limit sublimation to prevent crash - MJT suggestion
-          xstay = max( min( xstay, 6.e-6/(1.-pclcover(iq,jk)-pclcon(iq,jk)) - zxtp10(i,jk,ktrac) ), 0. )
-          pdep = pdep - xstay*zclr0
-          zxtp10(i,jk,ktrac) = zxtp10(i,jk,ktrac) + xstay
-          zdeps(i,ktrac) = zdeps(i,ktrac) - xstay*zclr0*zmtof
-          zdeps(i,ktrac) = max( 0., zdeps(i,ktrac) )
-#ifdef debug
-          if ( (1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac)>6.5e-5 ) then
-            write(6,*) "xtg out-of-range after xtwetdep - redistribution of snow that sublimates"
-            write(6,*) "xtg maxval,maxloc ",(1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac),iq,kl-jk+1,ktrac
-            write(6,*) "zstay_t,xstay,zclr0 ",zstay_t,xstay,zclr0
-            write(6,*) "zmtof ",zmtof
-          end if
-#endif         
-        end if
+      ! Redistribution by snow that evaporates
+      where ( pfsubl(js:je,jk)>zmin .and. pfsnow(js:je,jk)>zmin .and. zclr0(:)>zmin )
+        !zstay_t(:) = (pfsubl(js:je,jk)+pfstayice(js:je,jk))/pfsnow(js:je,jk)
+        zstay_t(:) = pfsubl(js:je,jk)/pfsnow(js:je,jk) ! MJT suggestion
+        zstay_t(:) = max( min( 1., zstay_t(:) ), 0. )
+        xstay(:) = max( zdeps(:,ktrac)*zstay_t(:)/zmtof(:), 0. )
+        !limit sublimation to prevent crash - MJT suggestion
+        xstay(:) = max( min( xstay(:), 6.e-6/(1.-pclcover(js:Je,jk)-pclcon(js:je,jk)) - zxtp10(:,jk,ktrac) ), 0. )
+        pdep(:) = pdep(:) - xstay(:)*zclr0(:)
+        zxtp10(:,jk,ktrac) = zxtp10(:,jk,ktrac) + xstay(:)
+        zdeps(:,ktrac) = zdeps(:,ktrac) - xstay(:)*zclr0(:)*zmtof(:)
+        zdeps(:,ktrac) = max( 0., zdeps(:,ktrac) )
+      end where
     
-        ! Redistribution by snow that stays in layer
-        !if ( pfstayice(i,jk)>zmin .and. zclr0>zmin ) then
-        !  zstay_t = pfstayice(i,jk)/(pfsnow(i,jk)+pfstayice(i,jk))
-        !  zstay_t = max( min( 1., zstay_t ), 0. )
-        !  xstay = max( zdeps(i,ktrac)*zstay_t/zmtof, 0. )
-        !  pdep = pdep - xstay*zclr0
-        !  zdeps_save(i,jk,ktrac) = zdeps_save(i,jk,ktrac) + xstay*zclr0*zmtof
-        !  zdeps(i,ktrac) = zdeps(i,ktrac) - xstay*zclr0*zmtof
-        !  zdeps(i,ktrac) = max( 0., zdeps(i,ktrac) )
-        !end if    
+      ! Redistribution by snow that stays in layer
+      !if ( pfstayice(i,jk)>zmin .and. zclr0>zmin ) then
+      !  zstay_t = pfstayice(i,jk)/(pfsnow(i,jk)+pfstayice(i,jk))
+      !  zstay_t = max( min( 1., zstay_t ), 0. )
+      !  xstay = max( zdeps(i,ktrac)*zstay_t/zmtof, 0. )
+      !  pdep = pdep - xstay*zclr0
+      !  zdeps_save(i,jk,ktrac) = zdeps_save(i,jk,ktrac) + xstay*zclr0*zmtof
+      !  zdeps(i,ktrac) = zdeps(i,ktrac) - xstay*zclr0*zmtof
+      !  zdeps(i,ktrac) = max( 0., zdeps(i,ktrac) )
+      !end if    
 
-        ! Melting of snow... 
-        zmelt = pfmelt(iq,jk)/max(pfsnow(iq,jk)+pfmelt(iq,jk),zmin) 
-        zmelt = max( min( 1., zmelt ), 0. )
-        xmelt = zmelt*zdeps(i,ktrac)
-        zdepr(i,ktrac) = zdepr(i,ktrac) + xmelt
-        zdeps(i,ktrac) = zdeps(i,ktrac) - xmelt
-        zdeps(i,ktrac) = max( 0., zdeps(i,ktrac) )
+      ! Melting of snow... 
+      zmelt(:) = pfmelt(js:je,jk)/max(pfsnow(js:je,jk)+pfmelt(js:je,jk),zmin) 
+      zmelt(:) = max( min( 1., zmelt(:) ), 0. )
+      xmelt(:) = zmelt(:)*zdeps(:,ktrac)
+      zdepr(:,ktrac) = zdepr(:,ktrac) + xmelt(:)
+      zdeps(:,ktrac) = zdeps(:,ktrac) - xmelt(:)
+      zdeps(:,ktrac) = max( 0., zdeps(:,ktrac) )
   
-        !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
-        if ( pmlwc(iq,jk)>zmin ) then ! MJT suggestion
-          zicscav = zsolub(i,jk,ktrac)*pmratep(iq,jk)*ptmst/pmlwc(iq,jk)
-          zicscav = max( min( zicscav, 1. ), 0. )
-          xicscav = max( zxtp1c(i,jk,ktrac)*zicscav, 0. )
-          pdep = pdep + xicscav*pclcover(iq,jk)
-          zxtp1c(i,jk,ktrac) = zxtp1c(i,jk,ktrac) - xicscav
-          zdepr(i,ktrac) = zdepr(i,ktrac) + xicscav*pclcover(iq,jk)*zmtof
-#ifdef debug
-          if ( PCLCOVER(iq,jk)*zxtp1c(i,jk,ktrac)>6.5e-5 ) then
-            write(6,*) "xtg out-of-range after xtwetdep - in-cloud scavenging by warm rain processes"
-            write(6,*) "xtg maxval,maxloc ",PCLCOVER(iq,jk)*zxtp1c(i,jk,ktrac),iq,kl-jk+1,ktrac
-          end if
-#endif        
-        end if
+      !  In-cloud scavenging by warm-rain processes (autoconversion and collection)
+      where ( pmlwc(js:je,jk)>zmin ) ! MJT suggestion
+        zicscav(:) = zsolub(:,jk,ktrac)*pmratep(js:Je,jk)*ptmst/pmlwc(js:je,jk)
+        zicscav(:) = max( min( zicscav(:), 1. ), 0. )
+        xicscav(:) = max( zxtp1c(:,jk,ktrac)*zicscav(:), 0. )
+        pdep(:) = pdep(:) + xicscav(:)*pclcover(js:je,jk)
+        zxtp1c(:,jk,ktrac) = zxtp1c(:,jk,ktrac) - xicscav(:)
+        zdepr(:,ktrac) = zdepr(:,ktrac) + xicscav(:)*pclcover(js:je,jk)*zmtof(:)
+      end where
  
-        ! Below-cloud scavenging by stratiform rain (conv done below)
-        zbcscav = zcollefr(ktrac)*prscav(iq,jk)
-        zbcscav = max( min( 1., zbcscav/(1.+0.5*zbcscav) ), 0. ) !Time-centred
-        xbcscav = max( zbcscav*zxtp10(i,jk,ktrac), 0. )
-        pdep = pdep + xbcscav*zclr0
-        zxtp10(i,jk,ktrac) = zxtp10(i,jk,ktrac) - xbcscav 
-        zdepr(i,ktrac) = zdepr(i,ktrac) + xbcscav*zclr0*zmtof
-#ifdef debug
-        if ( (1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac)>6.5e-5 ) then
-          write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by stratiform rain"
-          write(6,*) "xtg maxval,maxloc,ktrac ",(1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac),iq,kl-jk,ktrac
-          write(6,*) "pclcover,pclcon,tot ",pclcover(iq,jk),pclcon(iq,jk),(1.-pclcover(iq,jk)-pclcon(iq,jk))
-          write(6,*) "xbcscav,zbcscav,prscav ",xbcscav,zbcscav,prscav(iq,jk)
-        end if
-#endif   
+      ! Below-cloud scavenging by stratiform rain (conv done below)
+      zbcscav(:) = zcollefr(ktrac)*prscav(js:je,jk)
+      zbcscav(:) = max( min( 1., zbcscav(:)/(1.+0.5*zbcscav(:)) ), 0. ) !Time-centred
+      xbcscav(:) = max( zbcscav(:)*zxtp10(:,jk,ktrac), 0. )
+      pdep(:) = pdep(:) + xbcscav(:)*zclr0(:)
+      zxtp10(:,jk,ktrac) = zxtp10(:,jk,ktrac) - xbcscav(:) 
+      zdepr(:,ktrac) = zdepr(:,ktrac) + xbcscav(:)*zclr0(:)*zmtof(:)
 
-        ! MJT - suggestion (only include evaporation)
-        ! Redistribution by rain that evaporates or stays in layer
-        if ( pfevap(iq,jk)>zmin .and. pfprec(iq,jk)>zmin .and. zclr0>zmin ) then
-          !zstay_t = (pfevap(i,jk)+pfstayliq(i,jk))/pfprec(i,jk)  
-          zstay_t = pfevap(iq,jk)/pfprec(iq,jk) ! MJT suggestion
-          zstay_t = max( min( 1., zstay_t ), 0. )
-          xstay = max( zdepr(i,ktrac)*zstay_t*evfac(ktrac)/zmtof, 0. )
-          !limit sublimation to prevent crash - MJT suggestion
-          xstay = max( min( xstay, 6.e-6/(1.-pclcover(iq,jk)-pclcon(iq,jk)) - zxtp10(i,jk,ktrac) ), 0. )
-          pdep = pdep - xstay*zclr0
-          zxtp10(i,jk,ktrac) = zxtp10(i,jk,ktrac) + xstay
-          zdepr(i,ktrac) = zdepr(i,ktrac) - xstay*zclr0*zmtof
-          zdepr(i,ktrac) = max( 0., zdepr(i,ktrac) )
-#ifdef debug
-          if ( (1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac)>6.5e-5 ) then
-            write(6,*) "xtg out-of-range after xtwetdep - redistribution of rain that evaporates"
-            write(6,*) "xtg maxval,maxloc,ktrac ",(1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac),iq,kl-jk+1,ktrac
-          end if
-#endif         
-        end if
+      ! MJT - suggestion (only include evaporation)
+      ! Redistribution by rain that evaporates or stays in layer
+      where ( pfevap(js:Je,jk)>zmin .and. pfprec(js:je,jk)>zmin .and. zclr0(:)>zmin )
+        !zstay_t(:) = (pfevap(js:Je,jk)+pfstayliq(js:je,jk))/pfprec(js:je,jk)  
+        zstay_t(:) = pfevap(js:je,jk)/pfprec(js:je,jk) ! MJT suggestion
+        zstay_t(:) = max( min( 1., zstay_t(:) ), 0. )
+        xstay(:) = max( zdepr(:,ktrac)*zstay_t(:)*evfac(ktrac)/zmtof(:), 0. )
+        !limit sublimation to prevent crash - MJT suggestion
+        xstay(:) = max( min( xstay(:), 6.e-6/(1.-pclcover(js:je,jk)-pclcon(js:Je,jk)) - zxtp10(:,jk,ktrac) ), 0. )
+        pdep(:) = pdep(:) - xstay(:)*zclr0(:)
+        zxtp10(:,jk,ktrac) = zxtp10(:,jk,ktrac) + xstay(:)
+        zdepr(:,ktrac) = zdepr(:,ktrac) - xstay(:)*zclr0(:)*zmtof(:)
+        zdepr(:,ktrac) = max( 0., zdepr(:,ktrac) )
+      end where
     
-        ! Redistribution by rain that evaporates or stays in layer
-        !if ( pfstayliq(i,jk)>zmin .and. zclr0>zmin ) then
-        !  zstay_t = pfstayliq(i,jk)/(pfprec(i,jk)+pfstayliq(i,jk))
-        !  zstay_t = max( min( 1., zstay_t ), 0. )
-        !  xstay = max( zdepr(i,ktrac)*zstay_t/zmtof, 0. )
-        !  pdep = pdep - xstay*zclr0
-        !  zdepr_save(i,jk,ktrac) = zdepr_save(i,jk,ktrac) + xstay*zclr0*zmtof
-        !  zdepr(i,ktrac) = zdepr(i,ktrac) - xstay*zclr0*zmtof
-        !  zdepr(i,ktrac) = max( 0., zdepr(i,ktrac) )
-        !end if
+      ! Redistribution by rain that evaporates or stays in layer
+      !if ( pfstayliq(i,jk)>zmin .and. zclr0>zmin ) then
+      !  zstay_t = pfstayliq(i,jk)/(pfprec(i,jk)+pfstayliq(i,jk))
+      !  zstay_t = max( min( 1., zstay_t ), 0. )
+      !  xstay = max( zdepr(i,ktrac)*zstay_t/zmtof, 0. )
+      !  pdep = pdep - xstay*zclr0
+      !  zdepr_save(i,jk,ktrac) = zdepr_save(i,jk,ktrac) + xstay*zclr0*zmtof
+      !  zdepr(i,ktrac) = zdepr(i,ktrac) - xstay*zclr0*zmtof
+      !  zdepr(i,ktrac) = max( 0., zdepr(i,ktrac) )
+      !end if
 
-        ! Freezing of rain... 
-        zfreeze = prfreeze(iq,jk)/max(pfprec(iq,jk)+prfreeze(iq,jk),zmin) 
-        zfreeze = max( min( 1., zfreeze ), 0. )
-        xfreeze = zfreeze*zdepr(i,ktrac)
-        zdeps(i,ktrac) = zdeps(i,ktrac) + xfreeze
-        zdepr(i,ktrac) = zdepr(i,ktrac) - xfreeze
-        zdepr(i,ktrac) = max( 0., zdepr(i,ktrac) )
+      ! Freezing of rain... 
+      zfreeze(:) = prfreeze(js:Je,jk)/max(pfprec(js:Je,jk)+prfreeze(js:je,jk),zmin) 
+      zfreeze(:) = max( min( 1., zfreeze(:) ), 0. )
+      xfreeze(:) = zfreeze(:)*zdepr(:,ktrac)
+      zdeps(:,ktrac) = zdeps(:,ktrac) + xfreeze(:)
+      zdepr(:,ktrac) = zdepr(:,ktrac) - xfreeze(:)
+      zdepr(:,ktrac) = max( 0., zdepr(:,ktrac) )
 
+      ! Now do the convective below-cloud bit...
+      ! In-cloud convective bit was done in convjlm.
 
-        ! Now do the convective below-cloud bit...
-        ! In-cloud convective bit was done in convjlm.
+      ! Use collection efficiencies for rain below melting level, snow above
 
-        ! Use collection efficiencies for rain below melting level, snow above
+      ! MJT notes - Assume rain for JLM convection
+      where ( ptp1(js:je,jk)>273.15 .or. assume_convliq )
+        zcollefc(:) = zcollefr(ktrac)
+      else where
+        zcollefc(:) = zcollefs(ktrac)
+      end where
 
-        ! MJT notes - Assume rain for JLM convection
-        if ( ptp1(iq,jk)>273.15 .or. assume_convliq ) then
-          zcollefc = zcollefr(ktrac)
-        else
-          zcollefc = zcollefs(ktrac)
-        end if
+      ! Below-cloud scavenging by convective precipitation
+      where ( fracc(js:je)>zmin )
+        Frc(:) = max( 0., pfconv(js:je,jk-1)/fracc(js:je) )
+        zbcscav(:) = zcollefc(:)*fracc(js:je)*0.24*ptmst*sqrt(Frc(:)*sqrt(Frc(:)))
+        !zbcscav(:) = min( 1., zbcscav(:)/(1.+0.5*zbcscav(:)) ) !Time-centred
+        zbcscav(:) = max( min( 1., zbcscav(:) ), 0. ) ! MJT suggestion
+        xbcscav(:) = max( zbcscav(:)*zxtp10(:,jk,ktrac), 0. )
+        pdep(:) = pdep(:) + xbcscav(:)*zclr0(:)
+        zxtp10(:,jk,ktrac) = zxtp10(:,jk,ktrac) - xbcscav(:)
+        !conwd(js:je,ktrac) = conwd(js:je,ktrac) + xbcscav(:)*zclr0(:)*zmtof(:)
+      end where
 
-        ! Below-cloud scavenging by convective precipitation
-        if ( fracc(iq)>zmin ) then
-          Frc = max( 0., pfconv(iq,jk-1)/fracc(iq) )
-          zbcscav = zcollefc*fracc(iq)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
-          !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
-          zbcscav = max( min( 1., zbcscav ), 0. ) ! MJT suggestion
-          xbcscav = max( zbcscav*zxtp10(i,jk,ktrac), 0. )
-          pdep = pdep + xbcscav*zclr0
-          zxtp10(i,jk,ktrac) = zxtp10(i,jk,ktrac) - xbcscav
-          !conwd(iq,ktrac) = conwd(iq,ktrac) + xbcscav*zclr0*zmtof
-#ifdef debug
-          if ( (1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac)>6.5e-5 ) then
-            write(6,*) "xtg out-of-range after xtwetdep - below cloud scavenging by convective precipitation"
-            write(6,*) "xtg maxval,maxloc,ktrac ",(1.-pclcover(iq,jk)-pclcon(iq,jk))*zxtp10(i,jk,ktrac),iq,kl-jk+1,ktrac
-          end if
-#endif       
-        end if
+      ! Below-cloud reevaporation of convective rain
+      ! This never triggers for JLM convection because pcevap=0.
+      ! lmask(:) = jk>kbase(:) .and. pfconv(:,jk-1)>zmin .and. zclr0(:)>zmin
+      ! where ( lmask(:) )
+      !   pcevap = pfconv(:,jk-1) - pfconv(:,jk)
+      !   zevap = pcevap/pfconv(:,jk-1)
+      ! elsewhere
+      !   zevap(:)=0.
+      ! end where
+      ! where ( lmask(:) .and. zevap<1. )
+      !   zevap = Evfac(ktrac)*zevap
+      ! end where
+      ! where ( lmask(:) )
+      !   zevap = max( 0., min( 1., zevap ) )
+      !   xevap = max( conwd(:,ktrac)*zevap/zmtof(:), 0. ) !xevap is the grid-box-mean m.r. change
+      !   pdep = pdep - xevap*zclr0
+      !   zxtp10(:,jk,ktrac) = zxtp10(:,jk,ktrac) + xevap
+      !   conwd(:,ktrac) = conwd(:,ktrac) - xevap*zclr0*zmtof(:)
+      !   conwd(:,ktrac) = max( 0., conwd(:,ktrac) )
+      ! end where
 
-        ! Below-cloud reevaporation of convective rain
-        ! This never triggers for JLM convection because pcevap=0.
-        ! lmask(:) = jk>kbase(:) .and. pfconv(:,jk-1)>zmin .and. zclr0(:)>zmin
-        ! where ( lmask(:) )
-        !   pcevap = pfconv(:,jk-1) - pfconv(:,jk)
-        !   zevap = pcevap/pfconv(:,jk-1)
-        ! elsewhere
-        !   zevap(:)=0.
-        ! end where
-        ! where ( lmask(:) .and. zevap<1. )
-        !   zevap = Evfac(ktrac)*zevap
-        ! end where
-        ! where ( lmask(:) )
-        !   zevap = max( 0., min( 1., zevap ) )
-        !   xevap = max( conwd(:,ktrac)*zevap/zmtof(:), 0. ) !xevap is the grid-box-mean m.r. change
-        !   pdep = pdep - xevap*zclr0
-        !   zxtp10(:,jk,ktrac) = zxtp10(:,jk,ktrac) + xevap
-        !   conwd(:,ktrac) = conwd(:,ktrac) - xevap*zclr0*zmtof(:)
-        !   conwd(:,ktrac) = max( 0., conwd(:,ktrac) )
-        ! end where
+      ZXTP1(:)=(1.-pclcover(js:je,jk)-pclcon(js:je,jk))*ZXTP10(:,JK,ktrac)+ &
+                PCLCOVER(js:je,JK)*ZXTP1C(:,JK,ktrac)+                      &
+                pclcon(js:je,jk)*zxtp1con(:,jk,ktrac)
+      zxtp1(:)=max(zxtp1(:),0.)
+      ZDXTE(:)=(ZXTP1(:)-XTM1(js:je,JK,ktrac))*PQTMST  !Total tendency (Dep + chem)
+      !    CHANGE THE TOTAL TENDENCIES
+      xte(js:je,jk,ktrac) = xte(js:je,jk,ktrac) + zdxte(:)
+      wd(:,ktrac) = wd(:,ktrac) + pqtmst*pdep(:)*rhodz(js:je,jk)
 
-        ZXTP1=(1.-pclcover(iq,jk)-pclcon(iq,jk))*ZXTP10(i,JK,ktrac)+ &
-                  PCLCOVER(iq,JK)*ZXTP1C(i,JK,ktrac)+               &
-                  pclcon(iq,jk)*zxtp1con(i,jk,ktrac)
-        zxtp1=max(zxtp1,0.)
-        ZDXTE=(ZXTP1-XTM1(iq,JK,ktrac))*PQTMST  !Total tendency (Dep + chem)
-        !    CHANGE THE TOTAL TENDENCIES
-        xte(iq,jk,ktrac) = xte(iq,jk,ktrac) + zdxte
-        wd(i,ktrac) = wd(i,ktrac) + pqtmst*pdep*rhodz(iq,jk)
-      end do  
-    end do
-  end do ! ktrac = 2,naero
+    end do ! ktrac = 2,naero
+  end do   ! jk = top,kl
 
   !$acc loop vector
   do jl = 1,imax
@@ -1860,15 +1805,46 @@ do tile = 1,ntiles
       saltwd(iq) = saltwd(iq) + wd(jl,jt)
     end do  
   end do
+  
+end do ! tile = 1,ntiles
+!$acc end parallel loop
 
-#ifdef debug
-  if ( any(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST>6.5e-5) ) then
-    write(6,*) "xtg out-of-range after xtwetdep"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST), &
-                                    maxloc(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST)
-  end if
-#endif
+!!$acc update self(xte)
+!if ( maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)>6.5e-5 ) then
+!  write(6,*) "xtg out-of-range after xtwetdep"
+!  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST), &
+!                                  maxloc(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)
+!end if
 
+!$acc parallel loop copyin(taudar,zdayfac) copyout(dmsoh,dmsn3,so2oh)          &
+!$acc   private(zzoh,zzo3,zzno2) present(prhop1,ptp1,rhodz,xtm1,xte,zoxidant)
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+
+  !$acc loop vector
+  do jl = js,je
+    dmsoh(jl)=0.
+    dmsn3(jl)=0.
+    so2oh(jl)=0.    
+  end do  
+  
+  !$acc loop seq
+  do jk = 1,kl
+    !$acc loop vector  
+    do jl = 1,imax
+      iq = jl + js - 1  
+
+      !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
+      ! -- levels are already inverted --
+      ZZOH(jl,jk) = ZOXIDANT(iq,jk,1)
+      ZZO3(jl,jk) = ZOXIDANT(iq,jk,3)*PRHOP1(iq,jk)*1.e-3
+      ZZNO2(jl,jk) = ZOXIDANT(iq,jk,4)*PRHOP1(iq,jk)*1.e-3
+  
+    end do  
+  end do
+  
+  
   !$acc loop seq
   do jk = 1,kl
     !$acc loop vector  
@@ -1939,17 +1915,18 @@ do tile = 1,ntiles
       ENDIF
     end do
   end do
-
-#ifdef debug
-  if ( maxval(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST)>6.5e-5 ) then
-    write(6,*) "xtg out-of-range after day/night chemistry"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST), &
-                                    maxloc(xtm1(js:je,:,:)+xte(js:je,:,:)*PTMST)
-  end if
-#endif
   
 end do ! tile = 1,ntiles
 !$acc end parallel loop
+
+!$acc update self(xte)
+!$acc end data
+
+if ( maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)>6.5e-5 ) then
+  write(6,*) "xtg is out-of-range at end of xtchemie"
+  write(6,*) "xtg maxval,maxloc ",maxval(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST), &
+                                  maxloc(xtm1(1:ifull,:,:)+xte(1:ifull,:,:)*PTMST)
+end if
 
 RETURN
 END subroutine xtchemie
