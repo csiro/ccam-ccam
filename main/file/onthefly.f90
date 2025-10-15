@@ -652,7 +652,7 @@ if ( newfile ) then
       end if
     end if
     ! check for missing data
-    iers(1:13) = 0
+    iers(1:12) = 0
     call ccnf_inq_varid(ncid,'mixr',idv,tst)
     if ( tst ) iers(1) = -1
     call ccnf_inq_varid(ncid,'siced',idv,tst)
