@@ -450,7 +450,7 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
          abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and.      &
          native_ccam==1
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  iotest = iotest .and. (wlev==ok)
+  iotest = iotest .and. wlev==ok
 end if
 
 if ( iotest ) then
@@ -1134,7 +1134,7 @@ else
   end if ! fwsize>0
 
   if ( fwsize>0 ) then
-    ucc6(:,1:7) = 0.
+    ucc6(:,1:6) = 0.
     if ( zht_needed ) ucc6(:,1) = zss_a
     if ( mlo_found )  ucc6(:,2) = ocndep_a
     ucc6(:,3) = tss_l_a
