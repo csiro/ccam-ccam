@@ -1438,7 +1438,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
     ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
     mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,delwater,      &
-    mloiceadv,                                                    &
+    mloiceadv,minsal,maxsal,                                      &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     mlo_timeave_length,kemaxdt,                                   &
@@ -3647,7 +3647,7 @@ use river                                  ! River routing
 implicit none
 
 integer, dimension(31) :: dumi
-real, dimension(23) :: dumr    
+real, dimension(25) :: dumr    
 
 dumr = 0.
 dumi = 0
@@ -3675,6 +3675,8 @@ if ( myid==0 ) then
   dumr(21) = fluxwgt
   dumr(22) = ocnepr
   dumr(23) = delwater
+  dumr(24) = minsal
+  dumr(25) = maxsal
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -3732,6 +3734,8 @@ alphanir_seasnw    = dumr(20)
 fluxwgt            = dumr(21)
 ocnepr             = dumr(22)
 delwater           = dumr(23)
+minsal             = dumr(24)
+maxsal             = dumr(25)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 
