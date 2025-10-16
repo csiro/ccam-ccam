@@ -783,7 +783,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   s_store(1:ifull,1:wlev,6) = ns(1:ifull,1:wlev)
   
   call mlofill(mps,wtr,mlo_zero)
-  call mlofill(cou(:,:,1:3),wtr,mlo_zero)
+  call mlofill(cou(:,:,1:3),wtr,mlo_fill)
   call mlofill(nt,wtr,mlo_fill)
   call mlofill(ns,wtr,mlo_sal)
   
@@ -1252,14 +1252,6 @@ do mspec_mlo = mspeca_mlo,1,-1
           kku(iq,ii),oou(iq,ii)*oeu(iq),mmu(iq,ii)*detadxu(iq), &
           - 0.5*stwgtu(iq,ii)*(tnu(iq)-tsu(iq))*emu(iq)/ds      &
           + cc3u(iq,ii)*oeu(iq)
-        write(6,*) " neta,n,s,e,w ",neta(iq),neta(in(iq)),neta(is(iq)),neta(ie(iq)),neta(iw(iq))
-        write(6,*) " neta,ne,se   ",neta(iq),neta(ine(iq)),neta(ise(iq))
-        write(6,*) " ee,n,s,e,w ",ee(iq,ii),ee(in(iq),ii),ee(is(iq),ii),ee(ie(iq),ii),ee(iw(iq),ii)
-        write(6,*) " ee,ne,se   ",ee(iq,ii),ee(ine(iq),ii),ee(ise(iq),ii)
-        write(6,*) " to,n,s,e,w ",nt(iq,ii),nt(in(iq),ii),nt(is(iq),ii),nt(ie(iq),ii),nt(iw(iq),ii)
-        write(6,*) " to,ne,se   ",nt(iq,ii),nt(ine(iq),ii),nt(ise(iq),ii)
-        write(6,*) " so,n,s,e,w ",ns(iq,ii),ns(in(iq),ii),ns(is(iq),ii),ns(ie(iq),ii),ns(iw(iq),ii)
-        write(6,*) " so,ne,se   ",ns(iq,ii),ns(ine(iq),ii),ns(ise(iq),ii)  
       end if
       if ( abs(nv(iq,ii))>40. ) then
         tev(iq) = 0.5*( cc(ie(iq),ii)*ff(ie(iq))*neta(ie(iq)) + cc(ien(iq),ii)*ff(ien(iq))*neta(ien(iq)) )
@@ -1269,14 +1261,6 @@ do mspec_mlo = mspeca_mlo,1,-1
           kkv(iq,ii),oov(iq,ii)*oev(iq),mmv(iq,ii)*detadyv(iq), &
           + 0.5*stwgtv(iq,ii)*(tev(iq)-twv(iq))*emv(iq)/ds      &
           + cc4v(iq,ii)*oev(iq)
-        write(6,*) " neta,n,s,e,w ",neta(iq),neta(in(iq)),neta(is(iq)),neta(ie(iq)),neta(iw(iq))
-        write(6,*) " neta,en,wn   ",neta(iq),neta(ien(iq)),neta(iwn(iq))
-        write(6,*) " ee,n,s,e,w ",ee(iq,ii),ee(in(iq),ii),ee(is(iq),ii),ee(ie(iq),ii),ee(iw(iq),ii)
-        write(6,*) " ee,en,wn   ",ee(iq,ii),ee(ien(iq),ii),ee(iwn(iq),ii)
-        write(6,*) " to,n,s,e,w ",nt(iq,ii),nt(in(iq),ii),nt(is(iq),ii),nt(ie(iq),ii),nt(iw(iq),ii)
-        write(6,*) " to,en,wn   ",nt(iq,ii),nt(ien(iq),ii),nt(iwn(iq),ii)
-        write(6,*) " so,n,s,e,w ",ns(iq,ii),ns(in(iq),ii),ns(is(iq),ii),ns(ie(iq),ii),ns(iw(iq),ii)
-        write(6,*) " so,en,wn   ",ns(iq,ii),ns(ien(iq),ii),ns(iwn(iq),ii)  
       end if
     end do
   end do

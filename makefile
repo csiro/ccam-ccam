@@ -73,6 +73,9 @@ VTHRESH = -vec-threshold0
 endif
 # Default intel compiler options
 FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG)
+ifeq ($(OMP),yes)
+FFLAGS += -qopenmp -qno-openmp-simd
+endif
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
@@ -103,6 +106,9 @@ VTHRESH =
 ifeq ($(GPU),yes)
 FFLAGS += -DGPU -foffload=nvptx-none
 endif
+ifeq ($(OMP),yes)
+FFLAGS += -fopenmp
+endif
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
@@ -125,9 +131,6 @@ MPIFLAG = -Dusempi3
 endif
 NCFLAG =
 FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -I /opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1/include
-ifeq ($(GPU),yes)
-FFLAGS += -fopenacc
-endif
 LIB = -lnetcdf
 FOVERRIDE =
 ZMM =
@@ -164,6 +167,9 @@ ifeq ($(GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
 FFLAGS += -Minfo=accel -acc -gpu=cuda12.8,fastmath,flushz -DGPU
 endif
+ifeq ($(OMP),yes)
+FFLAGS += -mp
+endif
 FOVERRIDE =
 ZMM =
 IPFLAG =
@@ -180,16 +186,12 @@ endif
 # CRAY compiler options
 ifeq ($(CRAY),yes)
 FC = ftn
-FHOST =
-FFLAGS = $(FHOST) -mtune=native -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch
+FFLAGS = -h noomp -h noacc
 FOVERRIDE =
 ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
-ifeq ($(GPU),yes)
-FFLAGS += -fopenacc
-endif
 PPFLAG90 = -eZ
 PPFLAG77 = -eZ
 PPFLAG90F = -eZ

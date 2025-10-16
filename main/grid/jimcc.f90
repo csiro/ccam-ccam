@@ -93,7 +93,7 @@ real, dimension(3,3), save :: txe
 real, dimension(3,3,0:47), save :: rotg
 complex, parameter :: ci = cmplx(0.,1.)
 complex, save :: cip4, cip3oss
-!$acc declare create(igofkg,cip3oss,rotg,flip8,a)
+!$acc declare create(igofkg,cip3oss,rotg,a,flip8)
 
 contains
 
@@ -314,7 +314,7 @@ end if
 
 #ifdef _OPENACC
 
-!$acc update device(igofkg,cip3oss,rotg,flip8,a)
+!$acc update device(igofkg,cip3oss,rotg,a,flip8)
 !$acc parallel loop collapse(2) copyout(xe,ye,ze,em4,dxa,dxb,dxc) private(xc)
 do j = 1,np
   do i = 1,np

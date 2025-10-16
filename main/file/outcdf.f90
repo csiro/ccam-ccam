@@ -987,7 +987,7 @@ end if
 ! dimo is for 4-D ocean (3 dimensions+time)
 ! dimj is for 3-D (2 dimensions+time)
 ! dimk is for 2-D (2 dimension without time)
-! dimc is for 4-D/5-D cable POP npatch (3 dimensions+time / 4 dimensions+time)
+! dimc is for cable POP npatch (3 dimensions+time)
 if ( localhist ) then
   dimj(1:2) = dima(1:2)
   dimj(3:4) = dima(4:5)
@@ -1010,16 +1010,16 @@ csize(2) = d4 + 1
 
 ! extract data from ocean model
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  mlodwn(:,:,1:2)  = 999. ! temp, sal
-  mlodwn(:,:,3:4)  = 0.   ! u, v
-  mlodwn(:,:,5:6)  = 0.   ! tke & eps
-  micdwn_l(:,1:7)  = 999. ! tggsn1-4, fracice, siced, snowd
-  micdwn_l(:,8:10) = 0.   ! sto, uic, vic
-  ocndep(:)    = 0.       ! ocean depth
-  ocnheight(:) = 0.       ! free surface height
-  !opldep(:)    = 0.       ! ocean partial step depth
+  mlodwn(:,:,1:2) = 999.   ! temp, sal
+  mlodwn(:,:,3:4) = 0.     ! u, v
+  mlodwn(:,:,5:6) = 0.     ! tke & eps
+  micdwn_l(:,1:7)   = 999. ! tggsn1-4, fracice, siced, snowd
+  micdwn_l(:,8:10)  = 0.   ! sto, uic, vic
+  ocndep(:)       = 0.     ! ocean depth
+  ocnheight(:)    = 0.     ! free surface height
+  opldep(:)       = 0.     ! ocean partial step depth
   call mlosave(mlodwn,ocndep,ocnheight,micdwn_l,0)
-  !call mloexpdep("depth_p",opldep,ol,0)
+  call mloexpdep("depth_p",opldep,ol,0)
   ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
   ocndwn(:,3:4) = 0. ! oldutop, oldvtop
   ocndwn(:,5:6) = 0. ! oldubot, oldvbot
@@ -1137,10 +1137,10 @@ if ( iarch==1 ) then
       lname = 'Water bathymetry'
       call attrib(idnc,dimk,ksize,'ocndepth',lname,'m',0.,8125.,any_m,fixed_m,cptype)
     end if
-    !if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
-    !  lname = 'Water partial step depth'
-    !  call attrib(idnc,dimk,ksize,'opldepth',lname,'m',0.,8125.,any_m,fixed_m,cptype)
-    !end if
+    if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
+      lname = 'Water partial step depth'
+      call attrib(idnc,dimk,ksize,'opldepth',lname,'m',0.,8125.,any_m,fixed_m,cptype)
+    end if
     lname = 'x-component river '
     call attrib(idnc,dimk,ksize,'uriver',lname,'m s-1',-6.5,6.5,any_m,fixed_m,cptype)
     lname = 'y-component river '
@@ -2632,9 +2632,9 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
        (nmlo>0.and.nmlo<=9.and.itype==-1) ) then
     call histwrt(ocndep,'ocndepth',idnc,iarch,local,.true.)
   end if
-  !if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
-  !  call histwrt(opldep,'opldepth',idnc,iarch,local,.true.)
-  !end if
+  if ( abs(nmlo)>0.and.abs(nmlo)<=9 .and. mlo_step==2 ) then
+    call histwrt(opldep,'opldepth',idnc,iarch,local,.true.)
+  end if
   call rivervector(tmpry(:,1),tmpry(:,2))
   call histwrt(tmpry(:,1),'uriver',idnc,iarch,local,.true.)
   call histwrt(tmpry(:,2),'vriver',idnc,iarch,local,.true.)
@@ -5739,7 +5739,7 @@ if ( mod(ktau,tbave10)==0 ) then
   
   freqstore(:,:) = 0._8
 
-end if ! mod(ktau,tbave10)==0
+end if
 
 if ( myid==0 .or. local ) then
   ! close file at end of run
