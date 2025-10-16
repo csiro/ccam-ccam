@@ -71,11 +71,12 @@ FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
+ifeq ($(CASCADE),yes)
+FOPT = -O3 -march=core-avx2 -align array32byte -qoverride-limits -vec-threshold0
+FHOST =
+endif
 # Default intel compiler options
 FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG)
-ifeq ($(OMP),yes)
-FFLAGS += -qopenmp -qno-openmp-simd
-endif
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
@@ -106,9 +107,6 @@ VTHRESH =
 ifeq ($(GPU),yes)
 FFLAGS += -DGPU -foffload=nvptx-none
 endif
-ifeq ($(OMP),yes)
-FFLAGS += -fopenmp
-endif
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
@@ -131,6 +129,9 @@ MPIFLAG = -Dusempi3
 endif
 NCFLAG =
 FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -I /opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1/include
+ifeq ($(GPU),yes)
+FFLAGS += -DGPU -fopenacc
+endif
 LIB = -lnetcdf
 FOVERRIDE =
 ZMM =
@@ -166,9 +167,6 @@ FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
 FFLAGS += -Minfo=accel -acc -gpu=cuda12.8,fastmath,flushz -DGPU
-endif
-ifeq ($(OMP),yes)
-FFLAGS += -mp
 endif
 FOVERRIDE =
 ZMM =
@@ -214,9 +212,6 @@ endif
 FOPT = -O3
 FHOST = -xSKYLAKE-AVX512
 FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG)
-ifeq ($(OMP),yes)
-FFLAGS += -qopenmp -qno-openmp-simd
-endif
 FOVERRIDE = -qoverride-limits
 ZMM =
 IPFLAG =
