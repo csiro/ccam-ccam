@@ -2234,7 +2234,7 @@ do ii = 1,wlev
           /(cp0*wrtrho*depth%dz(iqw,ii)*d_zcr(iqw))
       ! MJT notes - remove salt flux between ice and water for now
       water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
-                          /(wrtrho*depth%dz(iqw,ii)*d_zcr(iqw)))
+                          /(wrtrho*max(depth%dz(iqw,ii)*d_zcr(iqw),1.e-4)))
       dsf(iqw) = dsf(iqw) + deldz
     end if
   end do
@@ -3591,6 +3591,11 @@ if ( present( water_sal ) ) then
     write(6,*) "minloc,maxloc ",minloc(water_sal),maxloc(water_sal)
     stop -1
   end if
+  !if ( any( water_sal>maxsal ) ) then
+  !  write(6,*) "WARN: water_sal is greater than maxsal in ",trim(message)
+  !  write(6,*) "maxval ",maxval(water_sal)
+  !  write(6,*) "maxloc ",maxloc(water_sal)
+  !end if
 end if
 
 if ( present( water_u ) .and. present( water_v ) ) then
