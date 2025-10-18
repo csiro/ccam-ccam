@@ -606,9 +606,9 @@ where ( depth%dz(:,1)>1.e-4 )
   rhs(:,1) = ks_hl(:,2)*gammas(:,2)/(depth%dz(:,1)*d_zcr)
 end where
 do ii = 2,wlev-1
-  where ( depth%dz(:,ii)>1.e-4 )  
+  where ( depth%dz(:,ii)>1.e-4 )
     rhs(:,ii) = (ks_hl(:,ii+1)*gammas(:,ii+1)-ks_hl(:,ii)*gammas(:,ii))/(depth%dz(:,ii)*d_zcr)
-  end where  
+  end where
 end do
 where ( depth%dz(:,wlev)>1.e-4 )
   rhs(:,wlev) = -ks_hl(:,wlev)*gammas(:,wlev)/(depth%dz(:,wlev)*d_zcr)
@@ -618,20 +618,20 @@ end where
 ! Diffusion term for scalars (aa,bb,cc)
 where ( depth%dz(:,2)*depth%dz(:,1)>1.e-4 )
   cc(:,1) = -dt*ks_hl(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr**2)
-end where  
+end where
 bb(:,1) = 1. - cc(:,1)
 do ii = 2,wlev-1
-  where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )  
+  where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )
     aa(:,ii) = -dt*ks_hl(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr**2)
   end where
   where ( depth%dz(:,ii+1)*depth%dz(:,ii)>1.e-4 )
     cc(:,ii) = -dt*ks_hl(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr**2)
-  end where  
+  end where
   bb(:,ii) = 1. - aa(:,ii) - cc(:,ii)
 end do
 where ( depth%dz(:,wlev-1)*depth%dz(:,wlev)>1.e-4 )
   aa(:,wlev) = -dt*ks_hl(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr**2)
-end where  
+end where
 bb(:,wlev) = 1. - aa(:,wlev)
 
 
@@ -648,7 +648,7 @@ do ii = 1,wlev
   dd(:,ii) = water%temp(:,ii) + dt*rhs(:,ii)*dumt0
   where ( depth%dz(:,ii)>1.e-4 )
     dd(:,ii) = dd(:,ii) - dt*dgwater%rad(:,ii)/(depth%dz(:,ii)*d_zcr)
-  end where  
+  end where
 end do
 where ( depth%dz(:,1)>=1.e-4 )
   dd(:,1) = dd(:,1) - dt*dgwater%wt0/(depth%dz(:,1)*d_zcr)
@@ -663,9 +663,9 @@ do ii = 1,wlev
   deltaz = max( min( depth%dz(:,ii)*d_zcr, targetdepth-fulldepth ), 0.)
   fulldepth = fulldepth + deltaz
   !dd(:,ii) = water%sal(:,ii) - dt*dgwater%ws0_subsurf*deltaz/max(depth%dz(:,ii)*d_zcr*targetdepth,1.e-4)
-  !dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0  
+  !dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0
   dd(:,ii) = water%sal(:,ii)
-  dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0*water%sal(:,1) 
+  dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0*water%sal(:,1)
   bb(:,ii) = bb(:,ii) + dt*dgwater%ws0_subsurf*deltaz/max(depth%dz(:,ii)*d_zcr*targetdepth,1.e-4)
 end do
 where ( depth%dz(:,1)>=1.e-4 )
@@ -694,17 +694,17 @@ if ( otaumode==1 ) then
   where ( depth%dz(:,1)>=1.e-4 )
     bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd        &
                         /(wrtrho*depth%dz(:,1)*d_zcr)             ! implicit
-  end where  
+  end where
 else
-  bb(:,1) = 1. - cc(:,1)                                          ! explicit  
+  bb(:,1) = 1. - cc(:,1)                                          ! explicit
 end if
 do ii = 2,wlev-1
-  where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )  
+  where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )
     aa(:,ii) = -dt*km_hl(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr**2)
   end where
   where ( depth%dz(:,ii+1)*depth%dz(:,ii)>1.e-4 )
     cc(:,ii) = -dt*km_hl(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr**2)
-  end where  
+  end where
   bb(:,ii) = 1. - aa(:,ii) - cc(:,ii)
 end do
 where ( depth%dz(:,wlev-1)*depth%dz(:,wlev)>1.e-4 )
@@ -713,7 +713,7 @@ end where
 bb(:,wlev) = 1. - aa(:,wlev)
 ! bottom drag
 do iqw = 1,imax
-  ii = depth%ibot(iqw)  
+  ii = depth%ibot(iqw)
   if ( depth%dz(iqw,ii)>=1.e-4 ) then
     bb(iqw,ii) = bb(iqw,ii) + dt*dgwater%cd_bot(iqw)/(depth%dz(iqw,ii)*d_zcr(iqw))
   end if
@@ -772,8 +772,8 @@ end if
 !end do
 
 call mlocheck("MLO-mixing",water_temp=water%temp,water_sal=water%sal,water_u=water%u, &
-              water_v=water%v)  
-  
+              water_v=water%v)
+
 return
 end subroutine mlocalc
 

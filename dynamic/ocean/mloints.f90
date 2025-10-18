@@ -905,7 +905,7 @@ select case(bc_test)
         end where
       end do
     end do
-    need_fill = .true.
+    need_fill = .false.
   case(mlo_sal) ! salinity + fill
     do nn = 1,ntr
       do k = 1,wlev  
