@@ -392,21 +392,20 @@ select case ( interp_ncloud(ldr,ncloud) )
     
     ! Use sub time-step if required
     njumps = int(dt/(maxlintime+0.01)) + 1
-    tdt    = real( dt/real(njumps), 8 )
-    do n = 1,njumps
-      call clphy1d_ylin(tdt, ifull,                      &
-                     zqg, zqlg, zqrg, zqfg, zqsng,       &
-                     thz, tothz, zrhoa,                  &
-                     zpres, zlevv, dzw,                  &
-                     zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D, & !zdc 20220208
-                     pptrain, pptsnow, pptice,           &
-                     1, kl, riz,                         &
-                     znc, znr, zni, zns,                 &
-                     zfluxr,zfluxi,zfluxs,zfluxm,        &
-                     zfluxf,zqevap,zqsubl,zqauto,zqcoll, &
-                     zqaccr,zvi,                         & !aerosol scheme
-                     zcdrop,lin_aerosolmode,lin_adv)
-    end do
+    tdt    = real(dt,8)
+    call clphy1d_ylin(tdt, ifull,                      &
+                   zqg, zqlg, zqrg, zqfg, zqsng,       &
+                   thz, tothz, zrhoa,                  &
+                   zpres, zlevv, dzw,                  &
+                   zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D, & !zdc 20220208
+                   pptrain, pptsnow, pptice,           &
+                   1, kl, riz,                         &
+                   znc, znr, zni, zns,                 &
+                   zfluxr,zfluxi,zfluxs,zfluxm,        &
+                   zfluxf,zqevap,zqsubl,zqauto,zqcoll, &
+                   zqaccr,zvi,                         & !aerosol scheme
+                   zcdrop,lin_aerosolmode,lin_adv,     &
+                   njumps)
     
     do tile = 1,ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
@@ -529,30 +528,29 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       ! Use sub time-step if required
       njumps = int(dt/(maxlintime+0.01)) + 1
-      tdt    = real( dt/real(njumps), 8 )
-      do n = 1,njumps
-        call clphy1d_ylin(tdt, imax,                       &
-                       zqg, zqlg, zqrg, zqfg, zqsng,       &
-                       thz, tothz, zrhoa,                  &
-                       zpres, zlevv, dzw,                  &
-                       zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D, & !zdc 20220208
-                       pptrain, pptsnow, pptice,           &
-                       1, kl, riz,                         &
-                       znc, znr, zni, zns,                 &
-                       zfluxr,zfluxi,zfluxs,zfluxm,        &
-                       zfluxf,zqevap,zqsubl,zqauto,zqcoll, &
-                       zqaccr,zvi,                         & !aerosol scheme
-                       zpsnow,zpsaut,zpsfw,zpsfi,zpraci,   & !process rate cloud microphysics
-                       zpiacr,zpsaci,zpsacw,zpsdep,        &
-                       zpssub,zpracs,zpsacr,zpsmlt,        &
-                       zpsmltevp,zprain,zpraut,zpracw,     &
-                       zprevp,zpgfr,zpvapor,zpclw,         &
-                       zpladj,zpcli,zpimlt,zpihom,         &
-                       zpidw,zpiadj,zqschg,                &
-                       zcdrop,lin_aerosolmode,lin_adv)
-      end do
+      tdt    = real(dt,8)
+      call clphy1d_ylin(tdt, imax,                       &
+                     zqg, zqlg, zqrg, zqfg, zqsng,       &
+                     thz, tothz, zrhoa,                  &
+                     zpres, zlevv, dzw,                  &
+                     zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D, & !zdc 20220208
+                     pptrain, pptsnow, pptice,           &
+                     1, kl, riz,                         &
+                     znc, znr, zni, zns,                 &
+                     zfluxr,zfluxi,zfluxs,zfluxm,        &
+                     zfluxf,zqevap,zqsubl,zqauto,zqcoll, &
+                     zqaccr,zvi,                         & !aerosol scheme
+                     zpsnow,zpsaut,zpsfw,zpsfi,zpraci,   & !process rate cloud microphysics
+                     zpiacr,zpsaci,zpsacw,zpsdep,        &
+                     zpssub,zpracs,zpsacr,zpsmlt,        &
+                     zpsmltevp,zprain,zpraut,zpracw,     &
+                     zprevp,zpgfr,zpvapor,zpclw,         &
+                     zpladj,zpcli,zpimlt,zpihom,         &
+                     zpidw,zpiadj,zqschg,                &
+                     zcdrop,lin_aerosolmode,lin_adv,     &
+                     njumps)
 
-
+      
       t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
 
       !unpack data from imax to ifull.
