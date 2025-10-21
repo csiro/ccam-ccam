@@ -64,8 +64,6 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 real, dimension(:), allocatable, save :: gosig_1              ! input ocean reference levels
-real, dimension(:), allocatable, save :: gosig_h              ! input ocean reference half levels
-real, dimension(:,:), allocatable, save :: gosig_3            ! input ocean 3d levels
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! shared arrays used for interpolation
 logical iotest, newfile                                       ! tests for horizontal interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
@@ -381,7 +379,7 @@ integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac, n
 integer, dimension(:), intent(out) :: isflag
 integer, dimension(11+3*ms) :: ierc
-integer, dimension(13), save :: iers
+integer, dimension(12), save :: iers
 integer, dimension(2) :: shsize
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(out) :: mlodwn
@@ -393,20 +391,19 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(:,:), intent(out) :: ni, nr, ns
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
-real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth, opldep
+real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
 real, dimension(ifull) :: duma
-real, dimension(ifull,7) :: udum7
+real, dimension(ifull,6) :: udum6
 real, dimension(ifull,wlev) :: oo
 real, dimension(wlev) :: zocean
 real, dimension(kk+ok+13) :: dumr
-real, dimension(:,:), allocatable :: ucc7
+real, dimension(:,:), allocatable :: ucc6
 real, dimension(:), allocatable :: ucc
 real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
-real, dimension(:), allocatable, save :: zss_a, ocndep_a, opldep_a
+real, dimension(:), allocatable, save :: zss_a, ocndep_a
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
-real, dimension(:,:), allocatable, save :: gosig3_a
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(ifull) :: dum6r8
 character(len=20) vname
@@ -416,7 +413,7 @@ logical tss_test, tst
 logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_needed, zht_found, urban1_found, urban2_found
-logical aero_found, mlo3_found, nllp_found, carbon2_found
+logical aero_found, nllp_found, carbon2_found
 logical, dimension(:), allocatable, save :: land_a, landlake_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
 logical, dimension(:,:), allocatable, save :: landlake_3d
@@ -483,14 +480,11 @@ end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
     deallocate( sigin, gosig_1, land_a, landlake_a, land_3d, landlake_3d, sea_a, nourban_a )
-    deallocate( gosig_3, gosig_h )
   end if
   allocate( sigin(kk), gosig_1(ok), land_a(fwsize), landlake_a(fwsize), land_3d(fwsize,ok) )
   allocate( landlake_3d(fwsize,ok), sea_a(fwsize), nourban_a(fwsize) )
-  allocate( gosig_3(ifull,ok), gosig_h(0:ok) )
   sigin       = 1.
   gosig_1     = 1.
-  gosig_3     = 1.
   land_a      = .false.
   landlake_a  = .false.
   land_3d     = .false.
@@ -609,7 +603,7 @@ if ( newfile .and. .not.iotest ) then
 end if ! newfile .and. .not.iotest
 
 ! allocate working arrays
-allocate( ucc(fwsize), tss_a(fwsize), ucc7(fwsize,7) )
+allocate( ucc(fwsize), tss_a(fwsize), ucc6(fwsize,6) )
 
 ! -------------------------------------------------------------------
 ! read time invariant data when file is first opened
@@ -677,10 +671,8 @@ if ( newfile ) then
     if ( tst ) iers(10) = -1
     call ccnf_inq_varid(ncid,'dms',idv,tst)
     if ( tst ) iers(11) = -1
-    call ccnf_inq_varid(ncid,'opldepth',idv,tst)
-    if ( tst ) iers(12) = -1
     call ccnf_inq_varid(ncid,'del_lat',idv,tst)
-    if ( tst ) iers(13) = -1
+    if ( tst ) iers(12) = -1
     call ccnf_inq_varid(ncid,'tsu',idv,tst)
     if ( tst ) then
       write(6,*) "ERROR: Cannot locate tsu in input file"
@@ -691,12 +683,12 @@ if ( newfile ) then
   ! bcast data to all processors unless all processes are reading input files
   if ( .not.pfall ) then
     dumr(1:kk) = sigin(1:kk)
-    dumr(kk+1:kk+13) = real(iers(1:13))
-    if ( ok>0 ) dumr(kk+14:kk+ok+13) = gosig_1(1:ok)
-    call ccmpi_bcast(dumr(1:kk+ok+13),0,comm_world)
+    dumr(kk+1:kk+12) = real(iers(1:12))
+    if ( ok>0 ) dumr(kk+13:kk+ok+12) = gosig_1(1:ok)
+    call ccmpi_bcast(dumr(1:kk+ok+12),0,comm_world)
     sigin(1:kk) = dumr(1:kk)
-    iers(1:13) = nint(dumr(kk+1:kk+13))
-    if ( ok>0 ) gosig_1(1:ok) = dumr(kk+14:kk+ok+13)
+    iers(1:12) = nint(dumr(kk+1:kk+12))
+    if ( ok>0 ) gosig_1(1:ok) = dumr(kk+13:kk+ok+12)
   end if
   
   mixr_found    = iers(1)==0
@@ -710,8 +702,7 @@ if ( newfile ) then
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
   aero_found    = iers(11)==0
-  mlo3_found    = iers(12)==0
-  nllp_found    = iers(13)==0
+  nllp_found    = iers(12)==0
   
   ! determine vertical inteprolation
   atmlvl_test = .false.
@@ -752,7 +743,7 @@ if ( newfile ) then
       write(6,*) "-> Surface height is not required with zht_needed =",zht_needed
     end if
     write(6,'(A,2I4)') " -> nested,retopo_test                             =",nested,retopo_test
-    write(6,*) "-> soilt_found,mlo_found,mlo2_found,mlo3_found    =",soilt_found,mlo_found,mlo2_found,mlo3_found
+    write(6,*) "-> soilt_found,mlo_found,mlo2_found               =",soilt_found,mlo_found,mlo2_found
     write(6,*) "-> zht_found,mixr_found,aero_found,mloice_found   =",zht_found,mixr_found,aero_found,mloice_found
     write(6,*) "-> urban1_found,urban2_found,allowtrivialfill     =",urban1_found,urban2_found,allowtrivialfill
     write(6,*) "-> nllp_found                                     =",nllp_found
@@ -837,30 +828,9 @@ if ( newfile ) then
         end if  
       end if
     end if
-    ! calculate ocean half levels for mlo3_found=.true.
-    gosig_h(0) = 0.
-    do k = 1,ok
-      ! 0.5*(gosig_h(k-1)+gosig_h(k)) = gosig_1(k)  
-      gosig_h(k) = 2.*gosig_1(k) - gosig_h(k-1) 
-    end do  
-    ! default 3d ocean depths
-    do k = 1,ok
-      gosig_3(:,k) = gosig_1(k)
-    end do
   end if
   
-  ! read partial depths
-  if ( allocated(opldep_a) ) deallocate( opldep_a )
-  if ( mlo3_found ) then
-    if ( tss_test ) then ! tss_test includes iotest=.true.
-      allocate( opldep_a(ifull) )
-      call histrd(iarchi,ier,'opldepth',opldep_a,ifull)
-    else
-      allocate( opldep_a(fwsize) )
-      call histrd(iarchi,ier,'opldepth',opldep_a,6*ik*ik)  
-    end if    
-  end if    
-  
+ 
   ! set-up 3d-depth, land_3d mask for z* ocean
   ! and set-up sea_a array
   if ( fwsize>0 ) then
@@ -878,39 +848,8 @@ if ( newfile ) then
         do k = 1,ok
           land_3d(:,k) = land_a 
         end do
-      end if  ! mlo_found ..else..      
-      if ( mlo3_found ) then
-        allocate( gosig3_a(fwsize,ok) )  
-        ! 3d-depth  
-        do k = 1,ok
-          gosig3_a(:,k) = gosig_1(:)
-        end do
-        do iq = 1,fwsize
-          if ( opldep_a(iq)>1.e-4 ) then
-            ! find ocean floor  
-            ktest = 1  
-            do k = 1,ok
-              if ( gosig_h(k-1)<opldep_a(iq) ) then
-                ktest = k
-              else
-                exit
-              end if
-            end do
-            ! update 3d-depth with partial depth
-            gosig3_a(iq,ktest) = opldep_a(iq)
-          end if
-        end do
-        ! update land_3d mask
-        if ( any(gosig_1>1.) ) then
-          ! found z* ocean levels  
-          land_3d = .false.  
-          do k = 1,ok
-            land_3d(:,k) = ( land_a .or. gosig3_a(:,k)+0.1>=ocndep_a ) 
-          end do
-        end if
-        deallocate( gosig3_a )
-      end if ! mlo3_found  
-    end if   ! mlo_found
+      end if  ! any(gosig_1>1.)..else..      
+    end if    ! mlo_found
     sea_a = .not.land_a
     do k = 1,ok
       landlake_3d(:,k) = land_3d(:,k) .or. landlake_a
@@ -964,8 +903,7 @@ else
   mloice_found  = iers(9)==0
   zht_found     = iers(10)==0
   aero_found    = iers(11)==0
-  mlo3_found    = iers(12)==0
-  nllp_found    = iers(13)==0
+  nllp_found    = iers(12)==0
   zht_needed    = nested==0 .or. (nested==1.and.retopo_test/=0) .or.      &
       nested==3 .or. .not.(soilt_found.or.mlo_found)
   allowtrivialfill = zht_needed .and. .not.zht_found .and.                &
@@ -1073,11 +1011,7 @@ if ( tss_test ) then ! tss_test includes iotest=.true.
   if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
     if ( mlo_found ) then
       ocndwn(1:ifull,1) = ocndep_a(1:ifull)
-      opldep(1:ifull) = 0.      
     end if
-    if ( mlo3_found ) then
-      opldep(1:ifull) = opldep_a(1:ifull)
-    end if  
   end if    
 
 else
@@ -1128,59 +1062,45 @@ else
     tss_l_a(1:fwsize) = abs(tss_a(1:fwsize))
     tss_s_a(1:fwsize) = abs(tss_a(1:fwsize))
     call fill_cc1(tss_l_a,sea_a,fill_sea)
-    if ( mlo3_found ) then
-      ucc7(:,1) = tss_s_a
-      ucc7(:,2) = sicedep_a
-      ucc7(:,3) = fracice_a        
-      ucc7(:,4) = ocndep_a
-      ucc7(:,5) = opldep_a
-      call fill_cc4(ucc7(:,1:5),land_a,fill_land)
-      tss_s_a   = ucc7(:,1)
-      sicedep_a = ucc7(:,2)
-      fracice_a = ucc7(:,3)
-      ocndep_a = ucc7(:,4)
-      opldep_a = ucc7(:,5)
-    else if ( mlo_found ) then
-      ucc7(:,1) = tss_s_a
-      ucc7(:,2) = sicedep_a
-      ucc7(:,3) = fracice_a        
-      ucc7(:,4) = ocndep_a
-      call fill_cc4(ucc7(:,1:4),land_a,fill_land)
-      tss_s_a   = ucc7(:,1)
-      sicedep_a = ucc7(:,2)
-      fracice_a = ucc7(:,3)
-      ocndep_a = ucc7(:,4)
+    if ( mlo_found ) then
+      ucc6(:,1) = tss_s_a
+      ucc6(:,2) = sicedep_a
+      ucc6(:,3) = fracice_a        
+      ucc6(:,4) = ocndep_a
+      call fill_cc4(ucc6(:,1:4),land_a,fill_land)
+      tss_s_a   = ucc6(:,1)
+      sicedep_a = ucc6(:,2)
+      fracice_a = ucc6(:,3)
+      ocndep_a = ucc6(:,4)
     else    
-      ucc7(:,1) = tss_s_a
-      ucc7(:,2) = sicedep_a
-      ucc7(:,3) = fracice_a        
-      call fill_cc4(ucc7(:,1:3),land_a,fill_land)
-      tss_s_a   = ucc7(:,1)
-      sicedep_a = ucc7(:,2)
-      fracice_a = ucc7(:,3)
+      ucc6(:,1) = tss_s_a
+      ucc6(:,2) = sicedep_a
+      ucc6(:,3) = fracice_a        
+      call fill_cc4(ucc6(:,1:3),land_a,fill_land)
+      tss_s_a   = ucc6(:,1)
+      sicedep_a = ucc6(:,2)
+      fracice_a = ucc6(:,3)
     end if  
   end if ! fwsize>0
 
   if ( fwsize>0 ) then
-    ucc7(:,1:7) = 0.
-    if ( zht_needed ) ucc7(:,1) = zss_a
-    if ( mlo_found )  ucc7(:,2) = ocndep_a
-    ucc7(:,3) = tss_l_a
-    ucc7(:,4) = tss_s_a
-    ucc7(:,5) = sicedep_a
-    ucc7(:,6) = fracice_a
-    if ( mlo3_found ) ucc7(:,7) = opldep_a
+    ucc6(:,1:6) = 0.
+    if ( zht_needed ) ucc6(:,1) = zss_a
+    if ( mlo_found )  ucc6(:,2) = ocndep_a
+    ucc6(:,3) = tss_l_a
+    ucc6(:,4) = tss_s_a
+    ucc6(:,5) = sicedep_a
+    ucc6(:,6) = fracice_a
   end if          
-  call doints4(ucc7(:,1:7),udum7(:,1:7))
-  zss      = udum7(:,1)
+  call doints4(ucc6(:,1:6),udum6(:,1:6))
+  zss      = udum6(:,1)
   if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    ocndwn(1:ifull,1) = udum7(1:ifull,2)
+    ocndwn(1:ifull,1) = udum6(1:ifull,2)
   end if  
-  tss_l    = udum7(:,3)
-  tss_s    = udum7(:,4)
-  sicedep  = udum7(:,5)
-  fracice  = udum7(:,6)
-  opldep   = udum7(:,7)
+  tss_l    = udum6(:,3)
+  tss_s    = udum6(:,4)
+  sicedep  = udum6(:,5)
+  fracice  = udum6(:,6)
 
   !   incorporate other target land mask effects
   where ( land(1:ifull) )
@@ -1205,31 +1125,6 @@ else
   deallocate( tss_l_a, tss_s_a )
   
 end if ! (tss_test ) ..else..
-
-
-! update 3d ocean depths with partial step depths
-if ( newfile ) then
-  if ( mlo_found ) then
-    do k = 1,ok
-      gosig_3(:,k) = gosig_1(k)
-    end do
-  end if ! mlo_found
-  if ( mlo3_found ) then
-    do iq = 1,ifull
-      if ( opldep(iq)>1.e-4 ) then        
-        ktest = 1  
-        do k = 1,ok
-          if ( gosig_h(k-1)<opldep(iq) ) then
-            ktest = k
-          else
-            exit  
-          end if
-        end do
-        gosig_3(iq,ktest) = opldep(iq)
-      end if
-    end do
-  end if ! mlo3_found
-end if   ! newfile
 
 
 ! -------------------------------------------------------------------
@@ -2250,7 +2145,7 @@ endif    ! (nested/=1.and.nested/=3)
 ! This is the end of reading the initial arrays
 !**************************************************************  
 
-deallocate( ucc, tss_a, ucc7 )
+deallocate( ucc, tss_a, ucc6 )
 
 ! -------------------------------------------------------------------
 ! tgg holds file surface temperature when there is no MLO
@@ -3290,7 +3185,7 @@ end if ! iotest
 ! vertical interpolation
 if ( .not.ocnlvl_test ) then
   varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
-  call mloregrid(ok,gosig_3,bath,u_k,varout,0) ! should use mode 3 or 4?
+  call mloregrid(ok,gosig_1,bath,u_k,varout,0) ! should use mode 3 or 4?
 else
   varout(:,:) = u_k(:,:)  
 end if
@@ -3331,8 +3226,8 @@ end if ! iotest
 if ( .not.ocnlvl_test ) then
   uarout = 0.
   varout = 0.
-  call mloregrid(ok,gosig_3,bath,u_k,uarout,0)
-  call mloregrid(ok,gosig_3,bath,v_k,varout,0)
+  call mloregrid(ok,gosig_1,bath,u_k,uarout,0)
+  call mloregrid(ok,gosig_1,bath,v_k,varout,0)
 else
   uarout(:,:) = u_k(:,:)
   varout(:,:) = v_k(:,:)

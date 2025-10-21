@@ -1729,11 +1729,12 @@ implicit none
 
 integer, intent(in) :: wlin,mode
 integer tile, is, ie
-real, dimension(:,:), intent(in) :: sigin
+real, dimension(:), intent(in) :: sigin
 real, dimension(:), intent(in) :: depin
 real, dimension(:,:), intent(in) :: mloin
 real, dimension(:,:), intent(inout) :: mlodat
-real, dimension(imax,wlin) :: mloin_tmp, sigin_tmp
+real, dimension(wlin) :: sigin_tmp
+real, dimension(imax,wlin) :: mloin_tmp
 real, dimension(imax,wlev) :: mlodat_tmp
 
 if ( .not.mlo_active ) return
@@ -1741,7 +1742,7 @@ if ( .not.mlo_active ) return
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  sigin_tmp(1:imax,1:wlin) = sigin(is:ie,1:wlin)
+  sigin_tmp(1:wlin) = sigin(1:wlin)
   mloin_tmp(1:imax,1:wlin) = mloin(is:ie,1:wlin)
   mlodat_tmp(1:imax,1:wlev) = mlodat(is:ie,1:wlev)
   call mloregrid_work(wlin,sigin_tmp,depin(is:ie),mloin_tmp,mlodat_tmp,mode, &
@@ -1759,7 +1760,7 @@ implicit none
 
 integer, intent(in) :: wlin,mode
 integer iqw,ii,jj,jj_found,pos(1)
-real, dimension(imax,wlin), intent(in) :: sig_tmp
+real, dimension(wlin), intent(in) :: sig_tmp
 real, dimension(imax), intent(in) :: depin
 real, dimension(imax,wlin), intent(in) :: mloin
 real, dimension(imax,wlev), intent(inout) :: mlodat
@@ -1772,26 +1773,24 @@ type(depthdata), intent(in) :: depth
 if ( .not.mlo_active ) return
 if ( .not.depth%data_allocated ) return
 
-do iqw = 1,imax
-  if ( sig_tmp(iqw,1)>sig_tmp(iqw,wlin) ) then
-    write(6,*) "ERROR: Input levels for MLO are in reverse order"
-    write(6,*) "sig_tmp ",sig_tmp(iqw,:)
-    stop
-  end if
-end do  
+if ( sig_tmp(1)>sig_tmp(wlin) ) then
+  write(6,*) "ERROR: Input levels for MLO are in reverse order"
+  write(6,*) "sig_tmp ",sig_tmp(:)
+  stop
+end if
 
 if ( any(sig_tmp>1.) ) then
   ! found z* levels
   do ii = 1,wlin
     do iqw = 1,imax  
-      depthin(iqw,ii) = sig_tmp(iqw,ii)
+      depthin(iqw,ii) = sig_tmp(ii)
     end do  
   end do  
 else
   ! found sigma levels  
   do ii = 1,wlin
     do iqw = 1,imax  
-      depthin(iqw,ii) = sig_tmp(iqw,ii)*depin(iqw)
+      depthin(iqw,ii) = sig_tmp(ii)*depin(iqw)
     end do  
   end do
 end if

@@ -191,7 +191,7 @@ integer, save :: oclosure     = 0         ! 0=kpp, 1=k-eps
 integer, save :: usepice      = 0         ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save :: mlo_adjeta   = 1         ! allow adjustment to surface outside dynamics (0=off, 1=all)
 integer, save :: mlo_limitsal = 0         ! limit salinity to maxsal when loading data ( 0=off, 1=limit )
-integer, save :: mlo_step     = 0         ! ocean floor (0=full-step, 1=pseduo partial-step, 2=partial-step)
+integer, save :: mlo_step     = 0         ! ocean floor (0=full-step, 1=pseduo partial-step)
 integer, save :: mlo_uvcoupl  = 1         ! wind coupling (0=off, 1=on)
 real, save :: pdu    = 2.7                ! zoom factor near the surface for mlosigma==gotm
 real, save :: pdl    = 0.0                ! zoom factor near the bottom for mlosigma==gotm
@@ -360,26 +360,26 @@ select case(mlo_step)
       depth_hlout(:) = 0.
     end if    
 
-  case(2)
-    ! partial step version (cell point at midpoint)
-    if ( depin>1.e-4 ) then      
-      do ii = 1,wlin
-        depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
-        ! avoid thin layers by extending the previous layer
-        if ( depth_hlout(ii+1)-depth_hlout(ii)<mindep .and. &
-             depth_hlout(ii+1)-depth_hlout(ii)>1.e-4  .and. &
-             ii>1 ) then
-          depth_hlout(ii) = depth_hlout(ii+1)
-        end if
-      end do
-      do ii = 1,wlev
-        if ( depth_hlout(ii+1)-depth_hlout(ii)>1.e-4 ) then
-          depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
-        end if  
-      end do      
-    else
-      depth_hlout(:) = 0.
-    end if
+  !case(2)
+  !  ! partial step version (cell point at midpoint)
+  !  if ( depin>1.e-4 ) then      
+  !    do ii = 1,wlin
+  !      depth_hlout(ii+1) = min( depth_hlout(ii+1), max(depin,depthout(1)+0.1) )
+  !      ! avoid thin layers by extending the previous layer
+  !      if ( depth_hlout(ii+1)-depth_hlout(ii)<mindep .and. &
+  !           depth_hlout(ii+1)-depth_hlout(ii)>1.e-4  .and. &
+  !           ii>1 ) then
+  !        depth_hlout(ii) = depth_hlout(ii+1)
+  !      end if
+  !    end do
+  !    do ii = 1,wlev
+  !      if ( depth_hlout(ii+1)-depth_hlout(ii)>1.e-4 ) then
+  !        depthout(ii) = 0.5*(depth_hlout(ii)+depth_hlout(ii+1))
+  !      end if  
+  !    end do      
+  !  else
+  !    depth_hlout(:) = 0.
+  !  end if
 
   case default
     write(6,*) "ERROR: Unknown option mlo_step = ",mlo_step
@@ -606,9 +606,9 @@ where ( depth%dz(:,1)>1.e-4 )
   rhs(:,1) = ks_hl(:,2)*gammas(:,2)/(depth%dz(:,1)*d_zcr)
 end where
 do ii = 2,wlev-1
-  where ( depth%dz(:,ii)>1.e-4 )
+  where ( depth%dz(:,ii)>1.e-4 )  
     rhs(:,ii) = (ks_hl(:,ii+1)*gammas(:,ii+1)-ks_hl(:,ii)*gammas(:,ii))/(depth%dz(:,ii)*d_zcr)
-  end where
+  end where  
 end do
 where ( depth%dz(:,wlev)>1.e-4 )
   rhs(:,wlev) = -ks_hl(:,wlev)*gammas(:,wlev)/(depth%dz(:,wlev)*d_zcr)
@@ -618,20 +618,20 @@ end where
 ! Diffusion term for scalars (aa,bb,cc)
 where ( depth%dz(:,2)*depth%dz(:,1)>1.e-4 )
   cc(:,1) = -dt*ks_hl(:,2)/(depth%dz_hl(:,2)*depth%dz(:,1)*d_zcr**2)
-end where
+end where  
 bb(:,1) = 1. - cc(:,1)
 do ii = 2,wlev-1
-  where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )
+  where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )  
     aa(:,ii) = -dt*ks_hl(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr**2)
   end where
   where ( depth%dz(:,ii+1)*depth%dz(:,ii)>1.e-4 )
     cc(:,ii) = -dt*ks_hl(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr**2)
-  end where
+  end where  
   bb(:,ii) = 1. - aa(:,ii) - cc(:,ii)
 end do
 where ( depth%dz(:,wlev-1)*depth%dz(:,wlev)>1.e-4 )
   aa(:,wlev) = -dt*ks_hl(:,wlev)/(depth%dz_hl(:,wlev)*depth%dz(:,wlev)*d_zcr**2)
-end where
+end where  
 bb(:,wlev) = 1. - aa(:,wlev)
 
 
@@ -648,7 +648,7 @@ do ii = 1,wlev
   dd(:,ii) = water%temp(:,ii) + dt*rhs(:,ii)*dumt0
   where ( depth%dz(:,ii)>1.e-4 )
     dd(:,ii) = dd(:,ii) - dt*dgwater%rad(:,ii)/(depth%dz(:,ii)*d_zcr)
-  end where
+  end where  
 end do
 where ( depth%dz(:,1)>=1.e-4 )
   dd(:,1) = dd(:,1) - dt*dgwater%wt0/(depth%dz(:,1)*d_zcr)
@@ -663,9 +663,9 @@ do ii = 1,wlev
   deltaz = max( min( depth%dz(:,ii)*d_zcr, targetdepth-fulldepth ), 0.)
   fulldepth = fulldepth + deltaz
   !dd(:,ii) = water%sal(:,ii) - dt*dgwater%ws0_subsurf*deltaz/max(depth%dz(:,ii)*d_zcr*targetdepth,1.e-4)
-  !dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0
+  !dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0  
   dd(:,ii) = water%sal(:,ii)
-  dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0*water%sal(:,1)
+  dd(:,ii) = dd(:,ii) + dt*rhs(:,ii)*dgwater%ws0*water%sal(:,1) 
   bb(:,ii) = bb(:,ii) + dt*dgwater%ws0_subsurf*deltaz/max(depth%dz(:,ii)*d_zcr*targetdepth,1.e-4)
 end do
 where ( depth%dz(:,1)>=1.e-4 )
@@ -694,17 +694,17 @@ if ( otaumode==1 ) then
   where ( depth%dz(:,1)>=1.e-4 )
     bb(:,1) = bb(:,1) + dt*(1.-ice%fracice)*rho*dgwater%cd        &
                         /(wrtrho*depth%dz(:,1)*d_zcr)             ! implicit
-  end where
+  end where  
 else
-  bb(:,1) = 1. - cc(:,1)                                          ! explicit
+  bb(:,1) = 1. - cc(:,1)                                          ! explicit  
 end if
 do ii = 2,wlev-1
-  where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )
+  where ( depth%dz(:,ii-1)*depth%dz(:,ii)>1.e-4 )  
     aa(:,ii) = -dt*km_hl(:,ii)/(depth%dz_hl(:,ii)*depth%dz(:,ii)*d_zcr**2)
   end where
   where ( depth%dz(:,ii+1)*depth%dz(:,ii)>1.e-4 )
     cc(:,ii) = -dt*km_hl(:,ii+1)/(depth%dz_hl(:,ii+1)*depth%dz(:,ii)*d_zcr**2)
-  end where
+  end where  
   bb(:,ii) = 1. - aa(:,ii) - cc(:,ii)
 end do
 where ( depth%dz(:,wlev-1)*depth%dz(:,wlev)>1.e-4 )
@@ -713,7 +713,7 @@ end where
 bb(:,wlev) = 1. - aa(:,wlev)
 ! bottom drag
 do iqw = 1,imax
-  ii = depth%ibot(iqw)
+  ii = depth%ibot(iqw)  
   if ( depth%dz(iqw,ii)>=1.e-4 ) then
     bb(iqw,ii) = bb(iqw,ii) + dt*dgwater%cd_bot(iqw)/(depth%dz(iqw,ii)*d_zcr(iqw))
   end if
@@ -772,8 +772,8 @@ end if
 !end do
 
 call mlocheck("MLO-mixing",water_temp=water%temp,water_sal=water%sal,water_u=water%u, &
-              water_v=water%v)
-
+              water_v=water%v)  
+  
 return
 end subroutine mlocalc
 
@@ -1568,14 +1568,14 @@ dgwater%wt0_eg = -(1.-ice%fracice)*(-dgwater%eg)/(wrtrho*cp0)
 dgwater%wt0_rad = -(1.-ice%fracice)*(atm_rg-sbconst*(water%temp(:,1)+wrtemp)**4)/(wrtrho*cp0)
 dgwater%wt0_melt = (1.-ice%fracice)*lf*atm_snd/(wrtrho*cp0) ! melting snow
 dgwater%wt0 = -(1.-ice%fracice)*(-dgwater%fg)/(wrtrho*cp0) + dgwater%wt0_eg + dgwater%wt0_rad + dgwater%wt0_melt
-!dgwater%ws0 = (1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/wrtrho
-!dgwater%ws0_subsurf = atm_inflow*water%sal(:,1)/wrtrho ! inflow under ice
-dgwater%ws0 = (1.-ice%fracice)*(atm_rnd+atm_snd)/wrtrho
+!dgwater%ws0 = (1.-ice%fracice)*(atm_rnd+atm_snd-dgwater%eg/lv)*water%sal(:,1)/wrtrho ! explicit
+dgwater%ws0 = (1.-ice%fracice)*(atm_rnd+atm_snd)/wrtrho                               ! implicit
 ! MJT - patch for situations where there is no fresh water inflow
 where ( water%sal(:,1)<maxsal ) 
   dgwater%ws0 = dgwater%ws0 - (1.-ice%fracice)*(dgwater%eg/lv)/wrtrho
 end where  
-dgwater%ws0_subsurf = atm_inflow/wrtrho ! inflow under ice
+!dgwater%ws0_subsurf = atm_inflow*water%sal(:,1)/wrtrho ! inflow under ice (explicit)
+dgwater%ws0_subsurf = atm_inflow/wrtrho                 ! inflow under ice (implicit)
 
 if ( mlo_adjeta>0 ) then
   d_neta = d_neta + dt*(atm_inflow+(1.-ice%fracice)*(atm_rnd+atm_snd))/wrtrho
@@ -2109,8 +2109,10 @@ call seaicecalc(dt,d_ftop,d_tb,d_fb,d_timelt,d_salflx,d_nk,d_wavail,diag, &
 ice%thick=min(ice%thick, icemax)  
 ! no temperature or salinity conservation
 
-!dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/wrtrho
-dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx/wrtrho
+where ( water%sal(:,1)<maxsal ) 
+  !dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx*water%sal(:,1)/wrtrho ! explicit
+  dgwater%ws0_subsurf = dgwater%ws0_subsurf - ice%fracice*d_salflx/wrtrho                 ! implicit
+end where  
 
 if ( mlo_adjeta>0 ) then
   d_neta = d_neta - dt*ice%fracice*d_salflx/wrtrho
@@ -2143,9 +2145,9 @@ d_neta = water%eta
 d_wavail=max(depth%depth_hl(:,wlev+1)+d_neta-minwater,0.)
 d_wavail=min( d_wavail, max(delwater+d_neta,0.) )
 where ( ice%fracice<0.999 )
-  maxnewice=d_wavail*wrtrho/rhoic/(1.-ice%fracice)
+  maxnewice = d_wavail*wrtrho/rhoic/(1.-ice%fracice)
 elsewhere
-  maxnewice=0.
+  maxnewice = 0.
 end where
 
 ! search for water temperatures that are below freezing
@@ -2183,18 +2185,18 @@ do ii = 1,wlev
     water%temp(:,ii)=water%temp(:,ii)+(1.-ice%fracice)*qice*sdic(:,ii) &
         /(cp0*wrtrho*max(depth%dz(:,ii)*d_zcr,1.e-4))
     ! MJT notes - remove salt flux between ice and water for now
-    water%sal(:,ii) =water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
+    water%sal(:,ii)=water%sal(:,ii)*(1.+(1.-ice%fracice)*sdic(:,ii)*rhoic &
                       /(wrtrho*max(depth%dz(:,ii)*d_zcr,1.e-4)))
   end where
 end do
 
 ! form new sea-ice
 where ( newdic>icemin )
-  ice%thick(:)=ice%thick(:)*ice%fracice(:)+newdic(:)*(1.-ice%fracice(:))
-  ice%tsurf(:)=ice%tsurf(:)*ice%fracice(:)+d_timelt(:)*(1.-ice%fracice(:))
-  ice%store(:)=ice%store(:)*ice%fracice(:)
-  ice%snowd(:)=ice%snowd(:)*ice%fracice(:)
-  ice%fracice(:)=1.
+  ice%thick(:) = ice%thick(:)*ice%fracice(:) + newdic(:)*(1.-ice%fracice(:))
+  ice%tsurf(:) = ice%tsurf(:)*ice%fracice(:) + d_timelt(:)*(1.-ice%fracice(:))
+  ice%store(:) = ice%store(:)*ice%fracice(:)
+  ice%snowd(:) = ice%snowd(:)*ice%fracice(:)
+  ice%fracice(:) = 1.
 end where
 
 ! Ice depth limitation for poor initial conditions
@@ -2231,7 +2233,7 @@ do ii = 1,wlev
       deldz = min(aa,bb)
       sdic(iqw,ii) = newdic(iqw)*deldz/minsfc
       water%temp(iqw,ii) = water%temp(iqw,ii)-delt(iqw)*(deldz/minsfc) &
-          /(cp0*wrtrho*depth%dz(iqw,ii)*d_zcr(iqw))
+          /(cp0*wrtrho*max(depth%dz(iqw,ii)*d_zcr(iqw),1.e-4))
       ! MJT notes - remove salt flux between ice and water for now
       water%sal(iqw,ii) = water%sal(iqw,ii)/(1.+ice%fracice(iqw)*sdic(iqw,ii)*rhoic &
                           /(wrtrho*max(depth%dz(iqw,ii)*d_zcr(iqw),1.e-4)))
