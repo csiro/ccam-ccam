@@ -725,15 +725,15 @@ if ( newfile ) then
   end if
   if ( myid==0 ) then
     if ( .not.atmlvl_test ) then
-      write(6,*) "-> Atmosphere vertical interpolation is required with atmlvl_test = ",atmlvl_test
+      write(6,*) "-> Atmosphere vertical interpolation is required with atmlvl_test     = ",atmlvl_test
     else
       write(6,*) "-> Atmosphere vertical interpolation is not required with atmlvl_test = ",atmlvl_test  
     end if
     if ( ok>0 ) then
       if ( .not.ocnlvl_test ) then
-        write(6,*) "-> Ocean vertical interpolation is required with atmlvl_test = ",ocnlvl_test
+        write(6,*) "-> Ocean vertical interpolation is required with ocnlvl_test          = ",ocnlvl_test
       else
-        write(6,*) "-> Ocean vertical interpolation is not required with atmlvl_test = ",ocnlvl_test  
+        write(6,*) "-> Ocean vertical interpolation is not required with ocnlvl_test      = ",ocnlvl_test  
       end if
     end if
   end if
