@@ -719,10 +719,12 @@ if ( newfile ) then
     atmlvl_test = all( abs(sigin(1:kk)-sig(1:kl))<0.0001 )
   end if
   ocnlvl_test = .false.
-  if ( ok==wlev ) then
-    call mlovlevels(zocean)  
-    ocnlvl_test = all( abs(gosig_1(1:ok)-zocean(1:wlev))<0.0001 )
-  end if
+  if ( ok>0 ) then
+    if ( ok==wlev ) then
+      call mlovlevels(zocean)  
+      ocnlvl_test = all( abs(gosig_1(1:ok)-zocean(1:wlev))<0.0001 )
+    end if
+  end if  
   if ( myid==0 ) then
     if ( .not.atmlvl_test ) then
       write(6,*) "-> Atmosphere vertical interpolation is required with atmlvl_test     = ",atmlvl_test
@@ -835,7 +837,7 @@ if ( newfile ) then
         end if  
       end if
     end if
-    ! calculate ocean half levels
+    ! calculate ocean half levels for mlo3_found=.true.
     gosig_h(0) = 0.
     do k = 1,ok
       ! 0.5*(gosig_h(k-1)+gosig_h(k)) = gosig_1(k)  
