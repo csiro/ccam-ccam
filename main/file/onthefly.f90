@@ -67,8 +67,9 @@ real, dimension(:), allocatable, save :: gosig_1              ! input ocean refe
 real, dimension(:), allocatable, save :: gosig_h              ! input ocean reference half levels
 real, dimension(:,:), allocatable, save :: gosig_3            ! input ocean 3d levels
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! shared arrays used for interpolation
-logical iotest, newfile                                       ! tests for interpolation and new metadata
+logical iotest, newfile                                       ! tests for horizontal interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
+logical, save :: atmlvl_test, ocnlvl_test                     ! tests for vertical interpolation
 
 interface fill_cc4
   module procedure fill_cc4_3d, fill_cc4_1
@@ -396,6 +397,8 @@ real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth, opldep
 real, dimension(ifull) :: duma
 real, dimension(ifull,7) :: udum7
 real, dimension(ifull,wlev) :: oo
+real, dimension(wlev) :: zocean
+real, dimension(kk+ok+13) :: dumr
 real, dimension(:,:), allocatable :: ucc7
 real, dimension(:), allocatable :: ucc
 real, dimension(:), allocatable :: fracice_a, sicedep_a
@@ -404,7 +407,6 @@ real, dimension(:), allocatable :: t_a_lev, psl_a
 real, dimension(:), allocatable, save :: zss_a, ocndep_a, opldep_a
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real, dimension(:,:), allocatable, save :: gosig3_a
-real, dimension(kk+ok+13) :: dumr
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
 real(kind=8), dimension(ifull) :: dum6r8
 character(len=20) vname
@@ -710,6 +712,31 @@ if ( newfile ) then
   aero_found    = iers(11)==0
   mlo3_found    = iers(12)==0
   nllp_found    = iers(13)==0
+  
+  ! determine vertical inteprolation
+  atmlvl_test = .false.
+  if ( kk==kl ) then
+    atmlvl_test = all( abs(sigin(1:kk)-sig(1:kl))<0.0001 )
+  end if
+  ocnlvl_test = .false.
+  if ( ok==wlev ) then
+    call mlovlevels(zocean)  
+    ocnlvl_test = all( abs(gosig_1(1:ok)-zocean(1:wlev))<0.0001 )
+  end if
+  if ( myid==0 ) then
+    if ( .not.atmlvl_test ) then
+      write(6,*) "-> Atmosphere vertical interpolation is required with atmlvl_test = ",atmlvl_test
+    else
+      write(6,*) "-> Atmosphere vertical interpolation is not required with atmlvl_test = ",atmlvl_test  
+    end if
+    if ( ok>0 ) then
+      if ( .not.ocnlvl_test ) then
+        write(6,*) "-> Ocean vertical interpolation is required with atmlvl_test = ",ocnlvl_test
+      else
+        write(6,*) "-> Ocean vertical interpolation is not required with atmlvl_test = ",ocnlvl_test  
+      end if
+    end if
+  end if
   
   ! determine whether zht needs to be read
   zht_needed = nested==0 .or. (nested==1.and.retopo_test/=0) .or.          &
@@ -3155,7 +3182,11 @@ else
 end if ! iotest
 
 ! vertical interpolation
-call vertint(u_k,varout,vmode,sigin)
+if ( .not.atmlvl_test ) then
+  call vertint(u_k,varout,vmode,sigin)
+else
+  varout(:,:) = u_k(:,:)  
+end if
       
 return
 end subroutine gethist4a  
@@ -3187,8 +3218,13 @@ else
 end if ! iotest
 
 ! vertical interpolation
-call vertint(u_k,uarout,umode,sigin)
-call vertint(v_k,varout,vmode,sigin)
+if ( .not.atmlvl_test ) then
+  call vertint(u_k,uarout,umode,sigin)
+  call vertint(v_k,varout,vmode,sigin)
+else
+  uarout(:,:) = u_k(:,:)
+  varout(:,:) = v_k(:,:)
+end if
       
 return
 end subroutine gethistuv4a  
@@ -3250,8 +3286,12 @@ else
 end if ! iotest
 
 ! vertical interpolation
-varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
-call mloregrid(ok,gosig_3,bath,u_k,varout,0) ! should use mode 3 or 4?
+if ( .not.ocnlvl_test ) then
+  varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
+  call mloregrid(ok,gosig_3,bath,u_k,varout,0) ! should use mode 3 or 4?
+else
+  varout(:,:) = u_k(:,:)  
+end if
 
 return
 end subroutine fillhist4o
@@ -3286,10 +3326,15 @@ else
 end if ! iotest
 
 ! vertical interpolation
-uarout = 0.
-varout = 0.
-call mloregrid(ok,gosig_3,bath,u_k,uarout,0)
-call mloregrid(ok,gosig_3,bath,v_k,varout,0)
+if ( .not.ocnlvl_test ) then
+  uarout = 0.
+  varout = 0.
+  call mloregrid(ok,gosig_3,bath,u_k,uarout,0)
+  call mloregrid(ok,gosig_3,bath,v_k,varout,0)
+else
+  uarout(:,:) = u_k(:,:)
+  varout(:,:) = v_k(:,:)
+end if
 
 return
 end subroutine fillhistuv4o
