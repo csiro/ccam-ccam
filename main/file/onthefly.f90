@@ -460,17 +460,17 @@ if ( iotest ) then
   if ( .not.(iotest.and.ptest) ) then
     ! this is a special case, such as when the number of processes changes during an experiment  
     if ( myid==0 ) then
-      write(6,*) "Redistribution is required with iotest,ptest,io_in =",iotest, ptest, io_in
+      write(6,*) "Horizontal redistribution is required with iotest,ptest,io_in =",iotest, ptest, io_in
     end if
   else    
     if ( myid==0 ) then
-      write(6,*) "Interpolation is not required with iotest,io_in =",iotest, io_in
+      write(6,*) "Horizontal interpolation is not required with iotest,io_in =",iotest, io_in
     end if
   end if  
 else
   io_in = -1  ! interpolation
   if ( myid==0 ) then
-    write(6,*) "Interpolation is required with iotest,io_in =",iotest, io_in
+    write(6,*) "Horizontal interpolation is required with iotest,io_in =",iotest, io_in
   end if  
 end if
   

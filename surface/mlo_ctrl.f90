@@ -1763,9 +1763,9 @@ real, dimension(imax,wlin), intent(in) :: sig_tmp
 real, dimension(imax), intent(in) :: depin
 real, dimension(imax,wlin), intent(in) :: mloin
 real, dimension(imax,wlev), intent(inout) :: mlodat
-real, dimension(wlin) :: dpin, sigin_tmp
+real, dimension(wlin) :: sgin, dpin
 real, dimension(wlev) :: sig
-real, dimension(imax,wlin) :: sigin
+real, dimension(imax,wlin) :: depthin
 real x
 type(depthdata), intent(in) :: depth
 
@@ -1784,14 +1784,14 @@ if ( any(sig_tmp>1.) ) then
   ! found z* levels
   do ii = 1,wlin
     do iqw = 1,imax  
-      sigin(iqw,ii) = sig_tmp(iqw,ii)/max(depin(iqw),1.e-8)
+      depthin(iqw,ii) = sig_tmp(iqw,ii)
     end do  
   end do  
 else
   ! found sigma levels  
   do ii = 1,wlin
     do iqw = 1,imax  
-      sigin(iqw,ii) = sig_tmp(iqw,ii)
+      depthin(iqw,ii) = sig_tmp(iqw,ii)*depin(iqw)
     end do  
   end do
 end if
@@ -1799,7 +1799,7 @@ end if
 select case(mode)
   case(0,1) ! interpolate to depth
     do iqw = 1,imax
-      dpin(1:wlin) = min( sigin(iqw,1:wlin)*depin(iqw), depin(iqw) )  
+      dpin(1:wlin) = depthin(iqw,1:wlin)
       if ( wlev==wlin ) then
         if ( all( abs(depth%depth(iqw,1:wlev)-dpin(1:wlev))/depth%depth(iqw,1:wlev)<1.e-6 ) ) then
           mlodat(iqw,1:wlev) = mloin(iqw,1:wlev)
@@ -1809,6 +1809,12 @@ select case(mode)
       do ii = 1,wlev
         if ( depth%depth(iqw,ii)<=dpin(1) ) then
           mlodat(iqw,ii) = mloin(iqw,1)
+        else if ( depth%depth(iqw,ii) >= depin(iqw) ) then
+          if ( ii==1 ) then
+            mlodat(iqw,ii) = mloin(iqw,1)  
+          else
+            mlodat(iqw,ii) = mlodat(iqw,ii-1)  
+          end if
         else
           ! search down column.  May have multiple levels with same depth, so
           ! we want the first level of the same depth.
@@ -1831,22 +1837,22 @@ select case(mode)
   case(2,3) ! interpolate to sigma level
     do iqw = 1,imax
       sig = depth%depth(iqw,:)/max(depth%depth_hl(iqw,wlev),1.e-20)
+      sgin = depthin(iqw,1:wlin)/max(depin(iqw),1.e-20)
       if ( wlev==wlin ) then
-        if ( all( abs(sig(1:wlev)-sigin(iqw,1:wlev))<1.e-6 ) ) then
+        if ( all( abs(sig(1:wlev)-sgin(1:wlev))<1.e-6 ) ) then
           mlodat(iqw,1:wlev) = mloin(iqw,1:wlev)
           cycle
         end if
       end if
       do ii = 1,wlev
-        if ( sig(ii)>=sigin(iqw,wlin) ) then
+        if ( sig(ii)>=sgin(wlin) ) then
           mlodat(iqw,ii) = mloin(iqw,wlin)
-        else if ( sig(ii)<=sigin(iqw,1) ) then
+        else if ( sig(ii)<=sgin(1) ) then
           mlodat(iqw,ii) = mloin(iqw,1)
         else
-          sigin_tmp = sigin(iqw,:)  
-          pos = maxloc(sigin_tmp,sigin_tmp<sig(ii))
+          pos = maxloc(sgin,sgin<sig(ii))
           pos(1) = max(1,min(wlin-1,pos(1)))
-          x = (sig(ii)-sigin(iqw,pos(1)))/max(sigin(iqw,pos(1)+1)-sigin(iqw,pos(1)),1.e-20)
+          x = (sig(ii)-sgin(pos(1)))/max(sgin(pos(1)+1)-sgin(pos(1)),1.e-20)
           x = max(0.,min(1.,x))
           mlodat(iqw,ii) = mloin(iqw,pos(1)+1)*x+mloin(iqw,pos(1))*(1.-x)
         end if
