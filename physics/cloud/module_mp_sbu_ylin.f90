@@ -293,7 +293,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
   
   !------------------------------------------------------------------------------------
   
-  dt = dt_in/real(njumps)  
+  dt     = dt_in/real(njumps)  
   
   mu_c_s = MIN(15., (1000.E6/Nt_c + 2.))
   gg31c = ggamma(4.+mu_c_s)

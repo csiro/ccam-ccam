@@ -232,7 +232,7 @@ do tile = 1,ntiles
               ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
               em(js:je),pblh(js:je),idjd_t,mydiag_t,nclddia,                    &
               rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,tiedtke_form,      &
-              lrkmsave,lrkhsave,cmode,dmode)
+              lrkmsave,lrkhsave,cmode)
 
   ! This configuration allows prognostic condensate variables to be updated 
   cfrac(js:je,:) = lcfrac
@@ -548,16 +548,16 @@ select case ( interp_ncloud(ldr,ncloud) )
         end do
       end do
 
-      zcdrop(1:imax,:) = real( cdrop(js:je,:), 8 ) ! aerosol
-      znc(1:imax,:) = 0._8
-      znr(1:imax,:) = real( nr(js:je,:), 8 )
-      zni(1:imax,:) = real( ni(js:je,:), 8 )
-      zns(1:imax,:) = real( ns(js:je,:), 8 )
+      zcdrop(1:imax,:) = real( cdrop(js:je,:), 8 ) ! indirect aerosol effect
+      znc(1:imax,:) = 0._8                         ! updated in clphy1d_ylin - diagnostic
+      znr(1:imax,:) = real( nr(js:je,:), 8 )       ! updated in clphy1d_ylin - prognostic
+      zni(1:imax,:) = real( ni(js:je,:), 8 )       ! updated in clphy1d_ylin - prognostic
+      zns(1:imax,:) = real( ns(js:je,:), 8 )       ! updated in clphy1d_ylin - prognostic
 
       pptrain(1:imax) = 0._8
       pptsnow(1:imax) = 0._8
       pptice(1:imax)  = 0._8
-     
+
 
       ! Use sub time-step if required
       njumps = int(dt/(maxlintime+0.01)) + 1
@@ -583,12 +583,12 @@ select case ( interp_ncloud(ldr,ncloud) )
                      zcdrop,lin_aerosolmode,lin_adv,     &
                      njumps)
 
-      
+
       t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
+      ! apply any remaining zqsng_rem
       zqsng(js:je,:) = zqsng(js:je,:) + zqsng_rem(js:je,:)      
 
       !unpack data from imax to ifull.
-
       qg(js:je,:)   = real( zqg(1:imax,:) )                        ! qv mixing ratio
       qlg(js:je,:)  = real( zqlg(1:imax,:) )                       ! ql mixing ratio
       qfg(js:je,:)  = real( zqfg(1:imax,:) )                       ! qf mixing ratio (ice)
@@ -596,13 +596,14 @@ select case ( interp_ncloud(ldr,ncloud) )
       qsng(js:je,:) = real( zqsng(1:imax,:)*(1._8-riz(1:imax,:)) ) ! qs mixing ratio (snow)
       qgrg(js:je,:) = real( zqsng(1:imax,:)*riz(1:imax,:) )        ! qg mixing ration (graupel)
 
-      ! reapply any remaining qlg_rem or qfg_rem
+      ! apply any remaining qlg_rem or qfg_rem
       qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
       qrg(js:je,:) = qrg(js:je,:) + qrg_rem(js:je,:)
       qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
       qsng(js:je,:) = qsng(js:je,:) + qsng_rem(js:je,:)
       qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(js:je,:)
       
+      ! estimate area fraction for rain, snow and graupel.  To be depreciated.
       where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
       elsewhere
@@ -619,6 +620,7 @@ select case ( interp_ncloud(ldr,ncloud) )
          gfrac(js:je,:) = 0.
       end where
       
+      ! uppack other variables and calculate fluxes
       !nc(js:je,:)        = real( znc(1:imax,:) )
       nr(js:je,:)         = real( znr(1:imax,:) )
       ni(js:je,:)         = real( zni(1:imax,:) )
@@ -647,8 +649,9 @@ select case ( interp_ncloud(ldr,ncloud) )
       faccr(js:je,:) = real( zqaccr(1:imax,:) )
       vi(js:je,:)    = real( zvi(1:imax,:) )
 
+      ! optional process rate to understand cloud microphysics
       if (process_rate_mode == 2) then
-        psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
+        psnow(js:je,:)   = real( zpsnow(1:imax,:) ) 
         psaut(js:je,:)   = real( zpsaut(1:imax,:) )
         psfw(js:je,:)    = real( zpsfw(1:imax,:) )
         psfi(js:je,:)    = real( zpsfi(1:imax,:) )
@@ -677,7 +680,8 @@ select case ( interp_ncloud(ldr,ncloud) )
         piadj(js:je,:)   = real( zpiadj(1:imax,:) )
         pqschg(js:je,:)  = real( zqschg(1:imax,:) )
       end if
-          
+      
+      ! unpack precipitation for total, snow/ice and graupel
       condx(js:je)  = condx(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
       conds(js:je)  = conds(js:je) + real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax) )
       condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel

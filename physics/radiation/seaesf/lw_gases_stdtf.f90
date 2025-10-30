@@ -1,4 +1,4 @@
-                  module lw_gases_stdtf_mod
+module lw_gases_stdtf_mod
 ! <CONTACT EMAIL="Fei.Liu@noaa.gov">
 !  fil
 ! </CONTACT>
@@ -5805,7 +5805,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
       character(len=80) input_lbln2oname(nfreq_bands_sea_n2o,number_std_n2o_vmrs)
       character(len=80) name_lo
       character(len=80) name_hi
-      character(len=1024) filename, ncname
+      character(len=2048) filename, ncname
 
       integer        :: n, nt, ierr
       
@@ -6064,7 +6064,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
       character(len=24) input_lbln2oname(nfreq_bands_sea_n2o,7)
       character(len=24) name_lo
       character(len=24) name_hi
-      character(len=110) filename, ncname
+      character(len=2048) filename, ncname
 
       integer        :: n
       
@@ -6299,6 +6299,6 @@ end subroutine deallocate_interp_arrays
 
 
 
-             end module lw_gases_stdtf_mod
+end module lw_gases_stdtf_mod
 
 
