@@ -372,16 +372,13 @@ select case ( interp_ncloud(ldr,ncloud) )
       qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
       qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
       qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
-      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
-      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
-      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
-      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)  
       
       zqg(js:je,:) = real( qg(js:je,:), 8 )
       zqlg(js:je,:) = real( qlg(js:je,:), 8 )
       zqrg(js:je,:) = real( qrg(js:je,:), 8 )
       zqfg(js:je,:) = real( qfg(js:je,:), 8 )
       zqsng(js:je,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
+
       zqsng_rem(js:je,:) = max( zqsng(js:je,:) - qfg_max, 0._8 )
       zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
 
@@ -447,8 +444,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
       qrg(js:je,:) = qrg(js:je,:) + qrg_rem(js:je,:)
       qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
-      qsng(js:je,:) = qsng(js:je,:) + qsng_rem(js:je,:)
-      qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(js:je,:)
       
       where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
@@ -521,16 +516,13 @@ select case ( interp_ncloud(ldr,ncloud) )
       qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
       qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
       qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
-      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
-      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
-      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
-      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)   
       
       zqg(1:imax,:) = real( qg(js:je,:), 8 )
       zqlg(1:imax,:) = real( qlg(js:je,:), 8 )
       zqrg(1:imax,:) = real( qrg(js:je,:), 8 )
       zqfg(1:imax,:) = real( qfg(js:je,:), 8 )
       zqsng(1:imax,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
+
       zqsng_rem(js:je,:) = max( zqsng(js:je,:) - qfg_max, 0._8 )
       zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
       
@@ -600,8 +592,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
       qrg(js:je,:) = qrg(js:je,:) + qrg_rem(js:je,:)
       qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
-      qsng(js:je,:) = qsng(js:je,:) + qsng_rem(js:je,:)
-      qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(js:je,:)
       
       ! estimate area fraction for rain, snow and graupel.  To be depreciated.
       where ( qrg(js:je,:)>0. )

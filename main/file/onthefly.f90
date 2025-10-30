@@ -3082,7 +3082,7 @@ end if ! iotest
 if ( .not.atmlvl_test ) then
   call vertint(u_k,varout,vmode,sigin)
 else
-  varout(:,:) = u_k(:,:)  
+  varout(1:ifull,:) = u_k(1:ifull,:)
 end if
       
 return
@@ -3119,8 +3119,8 @@ if ( .not.atmlvl_test ) then
   call vertint(u_k,uarout,umode,sigin)
   call vertint(v_k,varout,vmode,sigin)
 else
-  uarout(:,:) = u_k(:,:)
-  varout(:,:) = v_k(:,:)
+  uarout(1:ifull,:) = u_k(1:ifull,:)
+  varout(1:ifull,:) = v_k(1:ifull,:)
 end if
       
 return
@@ -3187,7 +3187,7 @@ if ( .not.ocnlvl_test ) then
   varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
   call mloregrid(ok,gosig_1,bath,u_k,varout,0) ! should use mode 3 or 4?
 else
-  varout(:,:) = u_k(:,:)  
+  varout(1:ifull,:) = u_k(1:ifull,:)  
 end if
 
 return
@@ -3229,8 +3229,8 @@ if ( .not.ocnlvl_test ) then
   call mloregrid(ok,gosig_1,bath,u_k,uarout,0)
   call mloregrid(ok,gosig_1,bath,v_k,varout,0)
 else
-  uarout(:,:) = u_k(:,:)
-  varout(:,:) = v_k(:,:)
+  uarout(1:ifull,:) = u_k(1:ifull,:)
+  varout(1:ifull,:) = v_k(1:ifull,:)
 end if
 
 return
