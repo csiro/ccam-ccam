@@ -523,8 +523,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       zqfg(1:imax,:) = real( qfg(js:je,:), 8 )
       zqsng(1:imax,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
 
-      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - qfg_max, 0._8 )
-      zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
+      zqsng_rem(js:je,:) = max( zqsng(1:imax,:) - qfg_max, 0._8 )
+      zqsng(1:imax,:) = zqsng(1:imax,:) - zqsng_rem(js:je,:)
       
       ! ----------------
       do k = 1,kl
@@ -578,7 +578,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
       ! apply any remaining zqsng_rem
-      zqsng(js:je,:) = zqsng(js:je,:) + zqsng_rem(js:je,:)      
+      zqsng(1;imax,:) = zqsng(1:imax,:) + zqsng_rem(js:je,:)      
 
       !unpack data from imax to ifull.
       qg(js:je,:)   = real( zqg(1:imax,:) )                        ! qv mixing ratio
