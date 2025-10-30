@@ -578,7 +578,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
       ! apply any remaining zqsng_rem
-      zqsng(1;imax,:) = zqsng(1:imax,:) + zqsng_rem(js:je,:)      
+      zqsng(1:imax,:) = zqsng(1:imax,:) + zqsng_rem(js:je,:)      
 
       !unpack data from imax to ifull.
       qg(js:je,:)   = real( zqg(1:imax,:) )                        ! qv mixing ratio
