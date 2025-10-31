@@ -401,7 +401,7 @@ subroutine mloeval_work(dt,atm_zmin,atm_zmins,atm_sg,atm_rg,atm_rnd,atm_snd,atm_
 implicit none
 
 integer, intent(in) :: diag, calcprog
-integer iqw, ii
+integer ii
 real, intent(in) :: dt
 real, dimension(imax), intent(in) :: atm_sg, atm_rg, atm_rnd, atm_snd, atm_u, atm_v
 real, dimension(imax), intent(in) :: atm_temp, atm_qg, atm_ps

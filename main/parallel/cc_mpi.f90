@@ -6246,7 +6246,6 @@ contains
   
    subroutine ccmpi_allreduce1c(ldat,gdat,op,comm)
       integer, intent(in) :: comm
-      integer(kind=4) :: lcomm, lerr
       complex, intent(in) :: ldat
       complex, intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6309,7 +6308,6 @@ contains
    
    subroutine ccmpi_allreduce1l(ldat,gdat,op,comm)
       integer, intent(in) :: comm
-      integer(kind=4) :: lop, lcomm, ierr
       logical, intent(in) :: ldat
       logical, intent(out) :: gdat
       character(len=*), intent(in) :: op
@@ -6641,7 +6639,6 @@ contains
       
    subroutine ccmpi_gatherx23rr8(gdat,ldat,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lsize, lhost, lcomm, lerr
       real(kind=8), dimension(:,:), intent(out) :: gdat
       real(kind=8), dimension(:), intent(in) :: ldat
       real(kind=8), dimension(size(gdat,1),size(gdat,2),1,1) :: gdat_l
@@ -6880,7 +6877,7 @@ contains
    subroutine ccmpi_remap
       ! redefine comm_world for optimal internode communicsation
       integer :: node_dx, node_dy
-      integer :: oldrank, ty, cy, tx, cx
+      integer :: ty, cy, tx, cx
       integer :: new_node_nproc
       integer :: vsize
       integer(kind=4) :: ref_nodecaptain_nproc
@@ -7500,7 +7497,7 @@ contains
       integer, dimension(:,:), allocatable :: dums, dumr
       integer :: mioff, mjoff
       integer :: i, j, n, iq, iqq, iqg, mfull_g
-      integer :: iext, iproc, xlen, jx, nc, xlev, rproc, sproc
+      integer :: iext, iproc, xlen, xlev, rproc, sproc
       integer :: ntest, ncount, icol, mycol
       integer(kind=4) :: itag=22, lproc, ierr, llen, lcomm
       logical lflag, lglob      
@@ -8506,7 +8503,7 @@ contains
       real, dimension(pipan*pjpan*pnpan,size(sinp,2),mynproc) :: cbuf
       integer :: n, w, nlen, kx, cc, ipf
       integer :: rcount, jproc, kproc
-      integer :: k, ip, no, ca, cb
+      integer :: k
       integer(kind=4) :: lcomm, ldone, lsize, ierr, lproc, mproc
       integer(kind=4) :: itag = 51
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req, donelist

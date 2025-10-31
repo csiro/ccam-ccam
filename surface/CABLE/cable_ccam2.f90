@@ -641,10 +641,10 @@ rough%za_uv    = rough%za_tq
 rad%fbeam(:,3) = 0._8            ! dummy for now
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
-call setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl2,casamet,veg,imax,tind,tmap,maxnb)
+call setlai(sigmf,mp,sv,vl2,casamet,veg,imax,tind,tmap,maxnb)
 
 ! Calculate vcmax
-call vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
+call vcmax_feedback(casabiome,casamet,casapool,veg)
 
 !--------------------------------------------------------------
 ! CABLE
@@ -720,27 +720,27 @@ ssnow%wbice = max( ssnow%wbice, 0._8 )
 !write(6,*) "bal%wbal ",minval(bal%wbal),maxval(bal%wbal)
 
 #ifdef debug
-if ( any( canopy%fhv/=canopy%fhv ) ) then
+if ( any( abs(canopy%fhv-canopy%fhv)>1.e-20 ) ) then
   write(6,*) "ERROR: NaN found in canopy%fhv after CABLE"
   stop -1
 end if
-if ( any( canopy%fhs/=canopy%fhs ) ) then
+if ( any( abs(canopy%fhs-canopy%fhs)>1.e-20 ) ) then
   write(6,*) "ERROR: NaN found in canopy%fhs after CABLE"
   stop -1
 end if
-if ( any( canopy%fev/=canopy%fev ) ) then
+if ( any( abs(canopy%fev-canopy%fev)>1.e-20 ) ) then
   write(6,*) "ERROR: NaN found in canopy%fev after CABLE"
   stop -1
 end if
-if ( any( canopy%fes/=canopy%fes ) ) then
+if ( any( abs(canopy%fes-canopy%fes)>1.e-20 ) ) then
   write(6,*) "ERROR: NaN found in canopy%fes after CABLE"
   stop -1
 end if
-if ( any( canopy%tv/=canopy%tv ) ) then
+if ( any( abs(canopy%tv-canopy%tv)>1.e-20 ) ) then
   write(6,*) "ERROR: NaN found in canopy%tv after CABLE"
   stop -1
 end if
-if ( any( ssnow%tss/=ssnow%tss ) ) then
+if ( any( abs(ssnow%tss-ssnow%tss)>1.e-20 ) ) then
   write(6,*) "ERROR: NaN found in ssnow%tss after CABLE"
   stop -1
 end if
@@ -1184,24 +1184,21 @@ return
 end subroutine cbmemiss_work
 
 ! *************************************************************************************
-subroutine setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl2,casamet,veg,imax,tind,tmap,maxnb)
+subroutine setlai(sigmf,mp,sv,vl2,casamet,veg,imax,tind,tmap,maxnb)
 
 use cc_mpi
 use dates_m
 use parm_m
   
-integer, intent(in) :: jmonth,jday,jhour,jmin,mp
+integer, intent(in) :: mp
 integer, intent(in) :: imax
 integer, optional :: maxnb
-integer monthstart, nb, is, ie
-integer, dimension(12), parameter :: imonth = (/ 31,28,31,30,31,30,31,31,30,31,30,31 /)
+integer nb, is, ie
 integer, dimension(maxtile,2), intent(in), optional :: tind
 real, dimension(mp), intent(in) :: sv, vl2
 real, parameter :: vextkn = 0.4
 real, dimension(imax), intent(out) :: sigmf
-real, dimension(mp) :: a0, a1, a2, aa, bb, cc, mp1, mp2, c2, c3, c4
 real, dimension(mp) :: dummy_unpack
-real x
 logical, dimension(imax,maxtile), intent(in), optional :: tmap
 type(casa_met), intent(in) :: casamet
 type(veg_parameter_type), intent(inout) :: veg
@@ -1253,20 +1250,16 @@ end subroutine setlai
 
 ! *************************************************************************************
 ! Calculate prognostic vcmax from CASA-CNP
-subroutine vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
+subroutine vcmax_feedback(casabiome,casamet,casapool,veg)
 
 use newmpar_m, only : mxvt
-use parm_m, only : nperday
 
 type(casa_biome), intent(in) :: casabiome
 type(casa_met), intent(in) :: casamet
 type(casa_pool), intent(in) :: casapool
 type(veg_parameter_type), intent(inout) :: veg
-type(climate_type), intent(in) :: climate
-integer, intent(in) :: ktau
 integer np, ivt
-real(kind=8) bjvref
-real(kind=8), dimension(mp) :: ncleafx, npleafx, pleafx, nleafx
+real(kind=8), dimension(mp) :: ncleafx, npleafx
 real(kind=8), dimension(mxvt), parameter :: xnslope = (/ 0.8,1.,2.,1.,1.,1.,0.5,1.,0.34,1.,1.,1.,1.,1.,1.,1.,1. /)
 
 if ( progvcmax>0 .and. ccycle>=2 ) then
@@ -1779,7 +1772,6 @@ integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer(kind=4), dimension(:), allocatable, save :: Iwood
 integer(kind=4), dimension(:,:), allocatable, save :: disturbance_interval
 integer i,iq,n,k,ipos,ilat,ivp,is,ie
-integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
 integer(kind=4) mp_POP
 real ivmax, landsum
@@ -1983,11 +1975,11 @@ if ( mp_global>0 ) then
     case(3)
       cable_user%SMRF_NAME = "TRIFFID"
     case(4)
-      cable_user%SMRF_NAME = "Trudinger2016"
+      cable_user%SMRF_NAME = "Trudinger2" !2016 - SMRF_NAME only has 10 characters
     case(5)
       cable_user%SMRF_NAME = "DAMM"
     case default
-      cable_user%SMRF_NAME = "Trudinger2016"
+      cable_user%SMRF_NAME = "Trudinger2"
   end select
   select case ( strf_switch )
     case(1)
@@ -2357,8 +2349,7 @@ if ( mp_global>0 ) then
   
   ! Calculate LAI and veg fraction diagnostics
   ! (needs to occur after CASA-CNP in case prognostic LAI is required)
-  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jmonth,jday,jhour,jmin,mp_global,sv,vl2,casamet,veg,ifull)
+  call setlai(sigmf,mp_global,sv,vl2,casamet,veg,ifull)
   vlai(:) = 0.
   dummy_unpack(1:mp_global) = sv(1:mp_global)*real(veg%vlai(1:mp_global))
   call cable_unpack(dummy_unpack,vlai)
@@ -3746,7 +3737,7 @@ integer, dimension(ifull,maxtile), intent(out) :: ivs
 integer, dimension(ifull_g,maxtile) :: ivsg  
 integer, dimension(3) :: spos,npos
 integer n,iq,ilx,jlx,iad 
-integer ncidx,iernc,varid,ndims
+integer iernc,varid,ndims
 real, dimension(ifull,maxtile), intent(out) :: svs, vlin
 real, dimension(ifull_g,maxtile) :: svsg, vling
 real, dimension(ifull_g) :: savannafrac_g
@@ -4022,7 +4013,7 @@ use vegpar_m
   
 logical, intent(in), optional :: usedefault
 integer k, n, ierr, idv, ierr_casa, ierr_sli, ierr_pop, ierr_svs, ierr_cvc
-integer jyear,jmonth,jday,jhour,jmin,mins, ll, cc, hh, dd
+integer ll, cc, hh, dd
 integer np_pop, iq, m
 integer, dimension(6) :: ierr_check
 integer, dimension(ifull) :: dati
@@ -5114,8 +5105,7 @@ call fixtile
 vlai(:) = 0.
 sigmf(:) = 0.
 if ( mp_global>0 ) then
-  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jmonth,jday,jhour,jmin,mp_global,sv,vl2,casamet,veg,ifull)
+  call setlai(sigmf,mp_global,sv,vl2,casamet,veg,ifull)
   dummy_unpack = sv*real(veg%vlai)
   call cable_unpack(dummy_unpack,vlai)
 end if
@@ -6241,9 +6231,8 @@ use soilsnow_m
 use vegpar_m
   
 integer, intent(in) :: idnc,iarch,itype
-integer k,n,np_pop,iq
+integer k,n,np_pop
 integer cc,dd,hh,ll
-integer, dimension(ifull) :: dati
 real, dimension(ifull) :: datr
 real(kind=8), dimension(ifull) :: dat
 real(kind=8), dimension(mp_global) :: dummy_unpack
@@ -7818,7 +7807,7 @@ do tile = 1,ntiles
     ! soil layer thickness
     do k = 1,ms
       where ( land(is:ie) )
-        gwdz(is:ie) = gwdz(is:ie) + lsoil%zse(k)
+        gwdz(is:ie) = gwdz(is:ie) + real(lsoil%zse(k))
       end where
     end do
 

@@ -23,7 +23,7 @@ module cc_acc
 
 #ifdef _OPENACC
    use openacc, only : acc_get_device_type, acc_get_device_type, &
-                       acc_get_num_devices, acc_set_device_num, &
+                       acc_get_num_devices, acc_set_device_num,  &
                        acc_get_device_num, acc_device_kind
 #endif
 
@@ -44,8 +44,8 @@ module cc_acc
 
      integer, intent(in) :: myid
      integer, intent(inout) :: ngpus
-     integer(kind=4) :: lmyid, lngpus, lgpuid
 #ifdef _OPENACC
+     integer(kind=4) :: lmyid, lngpus, lgpuid
      integer(kind=4) :: device_num
      integer(acc_device_kind) :: devicetype
 
@@ -58,7 +58,9 @@ module cc_acc
         call acc_set_device_num(mod(lmyid,lngpus),devicetype)
         lgpuid = acc_get_device_num(devicetype)
         gpuid = lgpuid
-     end if   
+     end if
+#else
+     ngpus = 0
 #endif
 
    end subroutine ccacc_init

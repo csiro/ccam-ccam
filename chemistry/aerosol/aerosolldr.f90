@@ -159,12 +159,11 @@ real thetav, Wstar3, rrate, qtot
 real, dimension(imax,kl) :: aphp1
 real, dimension(imax,kl) :: lrhoa, ldz, lttg
 real, dimension(imax,kl,naero) :: lxte, lxtg
-real, dimension(imax,kl,4) :: lzoxidant
 real, dimension(imax,naero) :: lxtem
 real, dimension(imax,15) :: lemissfield
 real, dimension(imax,ndcls) :: lerod
 real, dimension(imax,ndust) :: dcola,dcolb
-real, dimension(imax,ndust) :: oldduste,ldustwd,lduste
+real, dimension(imax,ndust) :: oldduste,lduste
 real, dimension(imax) :: oldsalte
 real, dimension(imax,naero) :: burden
 logical, dimension(:), intent(in) :: land   ! land/water mask (t=land).  Water includes lakes and ocean
@@ -1781,6 +1780,31 @@ do tile = 1,ntiles
       end do  ! i = 1,imax
     end do ! ktrac = 2,naero  
   end do   ! k = ktop,kl
+  
+  !$acc vector
+  do i = 1,imax
+    iq = i + js - 1
+    so2wd(iq) = so2wd(iq) + wd(i,ITRACSO2) 
+    so4wd(iq) = so4wd(iq) + wd(i,ITRACSO4)
+    bcwd(iq) = bcwd(iq) + wd(i,ITRACBC) + wd(i,ITRACBC+1)
+    ocwd(iq) = ocwd(iq) + wd(i,ITRACOC) + wd(i,ITRACOC+1)
+  end do
+  !$acc loop seq
+  DO JT=ITRACDU,ITRACDU+NDUST-1
+    !$acc loop vector
+    do i = 1,imax
+      iq = i + js - 1
+      dustwd(iq,jt-itracdu+1) = dustwd(iq,jt-itracdu+1) + wd(i,jt)
+    end do  
+  end do
+  !$acc loop seq
+  do jt = ITRACSA,ITRACSA+NSALT-1
+    !$acc loop vector
+    do i = 1,imax
+      iq = i + js - 1
+      saltwd(iq) = saltwd(iq) + wd(i,jt)
+    end do  
+  end do
 
 end do ! tile = 1,ntiles
 !$acc end parallel loop
@@ -1908,6 +1932,7 @@ end if
 
 RETURN
 END subroutine xtchemie
+
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Dust settling

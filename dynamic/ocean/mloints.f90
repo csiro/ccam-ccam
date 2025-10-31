@@ -84,6 +84,7 @@ call START_LOG(waterints_begin)
 
 ntr = size(s,3)
 
+intsch = 0
 if ( mlointschf==0 ) then
   intsch = 0
 else if ( mlointschf>0 ) then

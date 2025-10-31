@@ -2927,6 +2927,11 @@ logical lglob
 
 if ( .not.sorfirst ) return
 
+drow = 0
+dcol = 0
+nrow = 0
+ncol = 0
+
 ! Begin full initialisation
 mg_maxsize = ifull + iextra ! first guess of maximum grid size
 lglob = nproc==1            ! Global gather flag

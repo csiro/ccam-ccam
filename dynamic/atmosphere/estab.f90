@@ -114,73 +114,13 @@ interface establ
   module procedure establ_s, establ_v, establ_3
 end interface establ
 interface estabi
-  module procedure estabi_s, estabi_v, establ_3
+  module procedure estabi_s, estabi_v, estabi_3
 end interface estabi
-interface tdiff
-  module procedure tdiff_s, tdiff_v, tdiff_3
-end interface tdiff
-interface tdiffx
-  module procedure tdiffx_s, tdiffx_v, tdiffx_3
-end interface tdiffx
 interface esdiffx
   module procedure esdiffx_s, esdiffx_v, esdiffx_3
 end interface esdiffx
 
 contains
-
-pure function tdiff_s(t_) result(ans)
-!$acc routine seq
-implicit none
-real, intent(in) :: t_
-real ans
-! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-ans=min(max( t_-123.16, 0.), 219.)
-end function tdiff_s
-
-pure function tdiff_v(t_) result(ans)
-!$acc routine vector
-implicit none
-real, dimension(:), intent(in) :: t_
-real, dimension(size(t_)) :: ans
-! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-ans=min(max( t_-123.16, 0.), 219.)
-end function tdiff_v
-
-pure function tdiff_3(t_) result(ans)
-!$acc routine vector
-implicit none
-real, dimension(:,:), intent(in) :: t_
-real, dimension(size(t_,1),size(t_,2)) :: ans
-! TDIFF is difference between T and 123.16, subject to 0 <= TDIFF <= 220
-ans=min(max( t_-123.16, 0.), 219.)
-end function tdiff_3
-
-pure function tdiffx_s(tx_) result(ans)
-!$acc routine seq
-use const_phys
-implicit none
-real, intent(in) :: tx_
-real ans
-ans=min(max( tx_-tfrz, -40.), 1.)
-end function tdiffx_s
-
-pure function tdiffx_v(tx_) result(ans)
-!$acc routine vector
-use const_phys
-implicit none
-real, dimension(:), intent(in) :: tx_
-real, dimension(size(tx_)) :: ans
-ans=min(max( tx_-tfrz, -40.), 1.)
-end function tdiffx_v
-
-pure function tdiffx_3(tx_) result(ans)
-!$acc routine vector
-use const_phys
-implicit none
-real, dimension(:,:), intent(in) :: tx_
-real, dimension(size(tx_,1),size(tx_,2)) :: ans
-ans=min(max( tx_-tfrz, -40.), 1.)
-end function tdiffx_3
 
 pure function establ_s(t_) result(ans)
 !$acc routine seq
@@ -447,4 +387,3 @@ end do
 end function esdiffx_3
 
 end module estab
-

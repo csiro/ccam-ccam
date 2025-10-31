@@ -2176,7 +2176,7 @@ end if
 allocate( dums(ifull,kl) )
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,nsib,ccycle)
-call cfrac_init(ifull,iextra,kl,ncloud)
+call cfrac_init(ifull,iextra,kl)
 call dpsdt_init(ifull,epsp)
 call epst_init(ifull)
 call extraout_init(ifull,nextout)

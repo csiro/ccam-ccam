@@ -38,7 +38,6 @@ contains
 subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
 
 use bigxy4_m
-use cc_acc, only : async_length
 use cc_mpi
 use const_phys
 use indices_m
@@ -85,6 +84,7 @@ do k = 1,wlev
   z3d(:,k) = z(1:ifull) - real(wc(:,k),8)
 end do
 
+intsch = 0
 if ( mlointschf==0 ) then
   intsch = 0
 else if ( mlointschf>0 ) then

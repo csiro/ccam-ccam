@@ -111,12 +111,10 @@ use sumdd_m
 
 implicit none
 
-integer ii, iq
+integer ii
 real, dimension(ifull) :: odum
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
-real, dimension(3*wlev) :: dumz,gdumz
-real, dimension(ifull+iextra,wlev,2) :: dumf
 logical, dimension(ifull+iextra,wlev) :: wtr
 complex lsum
 
@@ -287,7 +285,7 @@ real, dimension(2) :: delpos, delneg
 real, dimension(ifull+iextra) :: neta,pice,imass
 real, dimension(ifull+iextra) :: nfracice,ndic,ndsn,nsto,niu,niv
 real, dimension(ifull+iextra) :: sou,sov,snu,snv,squ,sqv
-real, dimension(ifull+iextra) :: tide, depdum_rho
+real, dimension(ifull+iextra) :: tide
 real, dimension(ifull+iextra) :: ipmax, spnet
 real, dimension(ifull+iextra) :: ibu, ibv
 real, dimension(ifull+iextra) :: bb, ff, bb3u, bb4v, ibb, ibb3u, ibb4v
@@ -316,7 +314,7 @@ real, dimension(ifull,wlev+1) :: tau, tav, ttau, ttav
 real, dimension(ifull,wlev) :: u_tstar, v_tstar
 real, dimension(ifull,wlev) :: cc3u, cc4v
 real, dimension(ifull,wlev) :: w_u, w_v, w_t, w_s
-real, dimension(ifull,wlev) :: nuh, nvh, xg, yg, uau, uav
+real, dimension(ifull,wlev) :: nuh, nvh, xg, yg
 real, dimension(ifull,wlev) :: kku, kkv, oou, oov, mmu, mmv
 real, dimension(ifull,wlev) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
 real, dimension(ifull,wlev) :: rhou_dash, rhov_dash, rho_dash
@@ -1200,8 +1198,8 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Iterative loop to estimate ice 'pressure'
   if ( precon<-9999 ) then
     ! Multi-grid
-    call mlomg(neta,sou,sov,snu,snv,squ,sqv,bb,bb3u,bb4v,xps, &
-               niu,niv,ibu,ibv,ibb,ibb3u,ibb4v,               &
+    call mlomg(neta,sou,sov,snu,snv,squ,sqv,bb3u,bb4v,xps,    &
+               niu,niv,ibu,ibv,ibb3u,ibb4v,                   &
                ipmax,totits,maxglobseta,maxglobip)
   else
     ! Usual SOR
@@ -1949,8 +1947,8 @@ end subroutine upwind_iceadv
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Use multi-grid to solve for free surface and ice pressure
 
-subroutine mlomg(neta,sou,sov,snu,snv,squ,sqv,bb,bb3u,bb4v,xps, &
-                 niu,niv,ibu,ibv,ibb,ibb3u,ibb4v,               &
+subroutine mlomg(neta,sou,sov,snu,snv,squ,sqv,bb3u,bb4v,xps,    &
+                 niu,niv,ibu,ibv,ibb3u,ibb4v,                   &
                  ipmax,totits,maxglobseta,maxglobip)
 
 use cc_mpi
@@ -1968,8 +1966,8 @@ real, intent(out) :: maxglobseta, maxglobip
 real, dimension(ifull), intent(in) :: xps
 real, dimension(ifull+iextra), intent(inout) :: neta
 real, dimension(ifull+iextra), intent(in) :: ipmax
-real, dimension(ifull+iextra), intent(in) :: sou, sov, snu, snv, squ, sqv, bb, bb3u, bb4v
-real, dimension(ifull+iextra), intent(in) :: niu, niv, ibu, ibv, ibb, ibb3u, ibb4v
+real, dimension(ifull+iextra), intent(in) :: sou, sov, snu, snv, squ, sqv, bb3u, bb4v
+real, dimension(ifull+iextra), intent(in) :: niu, niv, ibu, ibv, ibb3u, ibb4v
 real, dimension(ifull,2) :: zz, zzn, zzs, zze, zzw, rhs
 real :: odiv_d, odiv_n
 real, dimension(ifull) :: hh

@@ -374,7 +374,7 @@ real, parameter :: iotol = 1.E-5               ! tolarance for iotest grid match
 real, parameter :: aerosol_tol = 1.e-4         ! tolarance for aerosol data
       
 integer, intent(in) :: nested, kdate_r, ktime_r
-integer idv, retopo_test, ktest
+integer idv, retopo_test
 integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac, n
 integer, dimension(:), intent(out) :: isflag
@@ -2182,7 +2182,7 @@ use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 
 integer n, iq, mm, idel, jdel
-integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
+integer iin, jjn, idel_l, jdel_l, no, w
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
 real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req)) :: abuf
@@ -2264,7 +2264,7 @@ use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 
 integer k, kx, kb, ke, kn, n, iq, mm, idel, jdel
-integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
+integer iin, jjn, idel_l, jdel_l, no, w
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
 real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req),kblock) :: abuf

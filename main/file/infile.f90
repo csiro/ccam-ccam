@@ -2211,19 +2211,21 @@ if ( localhist .and. ndim>3 ) then
   ! However, here we simplify the code and PR reports that the performance is
   ! similar
   select case(ndim)
-    case(6)
+    case(6) ! 4 dimensions + tme
       ier = nf90_inquire_dimension(lcdfid,ldim(3),len=ldlen)
       chunks = (/ il, jl, ldlen, 1, min(vnode_nproc,node_nx), 1 /)
-    case(5)
+    case(5) ! 3 dimensions + time
       ier = nf90_inquire_dimension(lcdfid,ldim(3),len=ldlen)
       chunks = (/ il, jl, ldlen, min(vnode_nproc,node_nx), 1 /)
-    case(4)
+    case(4) ! 2 dimensions + time
       ier = nf90_inquire_dimension(lcdfid,ldim(4),len=tlen)
-      ltlen = chunk_time
+      ltlen = chunk_time ! user defined chunk size.  Roughly same size as kl/ol (i.e., ldlen above).
       do while ( mod(tlen,ltlen)/=0 .and. ltlen>1 )
         ltlen = ltlen - 1
       end do
       chunks = (/ il, jl, min(vnode_nproc,node_nx), ltlen /)
+    !case(3) ! 2 dimensions without time
+    !  chunks = (/ il, jl, min(vnode_nproc,node_nx) /)  
     case default
       write(6,*) "ERROR: Invalid ndim in attrib ",ndim
       call ccmpi_abort(-1)
@@ -2663,7 +2665,7 @@ use parm_m              ! Model configuration
 implicit none
 
 integer, intent(in) :: idnc, iarch
-integer :: ll, k
+integer :: ll
 real, dimension(:,:), intent(in) :: var
 real, dimension(ifull,size(var,2)) :: wvar
 real, dimension(1,1,1) :: var_g
@@ -4834,9 +4836,9 @@ if ( iernc==0 ) then ! Netcdf file
     write(6,*) 'wrong data file supplied'
     if ( ilx/=il_g ) write(6,*) "ilx,il_g ",ilx,il_g
     if ( jlx/=jl_g ) write(6,*) "jlx,jl_g ",jlx,jl_g
-    if ( rlong0x/=rlong0 ) write(6,*) "rlong0x,rlong0 ",rlong0x,rlong0
-    if ( rlat0x/=rlat0 ) write(6,*) "rlat0x,rlat0 ",rlat0x,rlat0
-    if ( schmidtx/=schmidt ) write(6,*) "schmidtx,schmidt ",schmidtx,schmidt
+    if ( abs(rlong0x-rlong0)>=1.e-20 ) write(6,*) "rlong0x,rlong0 ",rlong0x,rlong0
+    if ( abs(rlat0x-rlat0)>=1.e-20 ) write(6,*) "rlat0x,rlat0 ",rlat0x,rlat0
+    if ( abs(schmidtx-schmidt)>1.e-20 ) write(6,*) "schmidtx,schmidt ",schmidtx,schmidt
     call ccmpi_abort(-1)
   end if
   spos(1:3)=1

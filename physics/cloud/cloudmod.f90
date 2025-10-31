@@ -52,7 +52,7 @@ subroutine update_cloud_fraction(cfrac,land,                             &
                     ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                   &
                     dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,clcon,  &
                     em,pblh,idjd,mydiag,nclddia,rcrit_l,                 &
-                    rcrit_s,rcm,cld_decay,vdeposition_mode,              &
+                    rcrit_s,cld_decay,vdeposition_mode,                  &
                     tiedtke_form,rkmsave,rkhsave,cmode)
 
 use const_phys                    ! Physical constants
@@ -74,7 +74,7 @@ real, dimension(size(t,1),size(t,2)), intent(in) :: dpsldt, rkmsave, rkhsave
 real, dimension(size(t,1),size(t,2)), intent(in) :: clcon
 real, dimension(size(t,1)), intent(in) :: ps
 real, dimension(size(t,1)), intent(in) :: em, pblh
-real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay
+real, intent(in) :: rcrit_l, rcrit_s, cld_decay
 logical, intent(in) :: mydiag
 logical, dimension(size(t,1)), intent(in) :: land
 character(len=*), intent(in) :: cmode
@@ -193,7 +193,7 @@ call newcloud(dt,land,ps,prf,rhoa,tliq,qtot,qcg,fice,   &
 
 ! Update condensate
 call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
-                           tliq,qtot,qcg,qcold,fice,      &
+                           tliq,qcg,qcold,fice,           &
                            stratcloud,prf,rhoa,           &
                            qlg,qfg)
 
@@ -308,7 +308,6 @@ integer k, kl
 real, dimension(:,:), intent(in) :: ttg
 real, dimension(:,:), intent(inout) :: qlg, qfg
 real, dimension(size(ttg,1),size(ttg,2)) :: fice
-real, dimension(size(ttg,1)) :: qcg
 
 kl = size(ttg,2)
 
@@ -392,17 +391,11 @@ real, dimension(imax,kl) :: pk, deles
 real, dimension(imax,kl) :: qsi, qsl
 real, dimension(kl) :: diag_temp
 real steepness
-real es, Aprpr, Bprpr, Cice
-real qi0, fd, Crate, Qfdep
 real fl, hlrvap, qs, dqsdt
-real al, qc, delq, qfnew
+real al, qc, delq
 real tk
-real decayfac
 
 integer k, iq
-
-real, parameter :: rhoic = 700.
-real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
 ! Start code : ----------------------------------------------------------
 
@@ -632,7 +625,7 @@ select case(cmode)
     qsl(:,:) = qsi(:,:) + epsil*deles(:,:)/pk(:,:) ! Liquid value
     qsw(:,:) = fice(:,:)*qsi(:,:) + (1.-fice(:,:))*qsl(:,:)  ! Weighted qs at temperature Tliq
 
-    call progcloud(tdt,qcg,qtot,ps,prf,rhoa,fice,qsw,tliq,rcrit,  &
+    call progcloud(tdt,qcg,qtot,ps,rhoa,fice,qsw,tliq,rcrit,      &
                    dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,  &
                    tiedtke_form,rkmsave,rkhsave,imax,kl)
 
@@ -647,19 +640,18 @@ return
 end subroutine newcloud
 
 subroutine saturation_adjustment(tdt,cld_decay,vdeposition_mode,    &
-                                 tliq,qtot,qcg_in,qcold,fice,       &
+                                 tliq,qcg_in,qcold,fice,            &
                                  stratcloud,prf,rhoa,               &
                                  qlg,qfg)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
-use parm_m, only : diag           ! Model configuration
 
 implicit none
 
 integer, intent(in) :: vdeposition_mode
 integer k, iq, imax, kl
-real, dimension(:,:), intent(in) :: tliq, qtot, qcg_in, qcold, fice, stratcloud
+real, dimension(:,:), intent(in) :: tliq, qcg_in, qcold, fice, stratcloud
 real, dimension(:,:), intent(in) :: prf, rhoa
 real, dimension(:,:), intent(out) :: qlg, qfg
 real, dimension(size(tliq,1),size(tliq,2)) :: pk, qsi, deles
@@ -764,7 +756,7 @@ return
 end subroutine saturation_adjustment
 
 
-subroutine progcloud(dt,qc,qtot,ps,press,rho,fice,qs,tliq,rcrit,   &
+subroutine progcloud(dt,qc,qtot,ps,rho,fice,qs,tliq,rcrit,         &
                      dpsldt,rad_tend,trb_tend,trb_qend,stratcloud, &
                      tiedtke_form,rkmsave,rkhsave,imax,kl)
 
@@ -778,7 +770,7 @@ integer, intent(in) :: tiedtke_form
 integer, intent(in) :: imax, kl
 integer iq, k
 real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, tliq, rcrit, press
+real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, tliq, rcrit
 real, dimension(imax,kl), intent(in) :: dpsldt, rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: rad_tend, trb_tend, trb_qend
 real, dimension(imax,kl), intent(inout) :: stratcloud

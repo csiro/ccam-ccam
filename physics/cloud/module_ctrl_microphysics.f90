@@ -231,7 +231,7 @@ do tile = 1,ntiles
               ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
               ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
               em(js:je),pblh(js:je),idjd_t,mydiag_t,nclddia,                    &
-              rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,tiedtke_form,      &
+              rcrit_l,rcrit_s,cld_decay,vdeposition_mode,tiedtke_form,          &
               lrkmsave,lrkhsave,cmode)
 
   ! This configuration allows prognostic condensate variables to be updated 

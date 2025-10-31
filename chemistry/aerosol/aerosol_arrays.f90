@@ -92,13 +92,11 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Initialisation
 
-subroutine aldrinit(ifull,iextra,kl,sig)
+subroutine aldrinit(ifull,iextra,kl)
 
 implicit none
 
 integer, intent(in) :: ifull,iextra,kl
-integer k
-real, dimension(kl), intent(in) :: sig
 
 allocate(xtg(ifull+iextra,kl,naero),xtgsav(ifull,kl,naero))
 allocate(xtosav(ifull,kl,naero),vso2(ifull))
