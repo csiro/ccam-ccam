@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -680,7 +680,7 @@ use riverarrays_m                          ! River rarrays
 
 integer iq
 integer, dimension(ifull), intent(in) :: dir
-real wth_del, wth_ave, w, t, dx, f, k0_ave, slope, vol
+real wth_del, wth_ave, w, t, dx, f, k0_ave, slope
 real wth_max, flux_add, dr
 real, dimension(ifull), intent(inout) :: flux, flux_m, flux_c
 real, dimension(ifull+iextra), intent(in) :: wth, gwwb_min, zs

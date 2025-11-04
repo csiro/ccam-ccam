@@ -133,7 +133,7 @@ real, dimension(ifull) :: old, new, delta
 real, dimension(ifull) :: dumd
 real, dimension(ifull,wlev) :: duma, dumb
 real, dimension(ifull,wlev,2) :: dumc
-real x, c2, c3, c4, rat1, rat2
+real x, c2, c3, c4
 real wgt
 integer mdays
 integer idjd_g, iq, k
@@ -486,7 +486,7 @@ integer imonth, iyear, il_in, jl_in, iyr_m, imo_m, ierr, leap_file
 integer varid, iarchx, maxarchi, lsmid, varid_time
 integer kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
-integer iq, mm, k
+integer k
 integer, dimension(3) :: spos, npos
 #ifdef i8r8
 integer, dimension(nihead) :: nahead
@@ -1054,7 +1054,7 @@ integer, parameter :: nihead = 54
 integer, parameter :: nrhead = 14
 
 integer il_in, jl_in
-integer iq, k, mm, varid, varid_time, lsmid, ierr
+integer iq, k, varid, varid_time, lsmid, ierr
 integer iyear, imonth, iday, iyr_m, imo_m, idy_m
 integer kdate_r, ktime_r
 integer kdate_rsav, ktime_rsav
@@ -1076,14 +1076,9 @@ real, dimension(ifull) :: oldsst, newsst, deltasst, timelt
 real, dimension(ifull) :: dumd
 real, dimension(ifull,wlev) :: duma, dumb
 real, dimension(ifull,wlev,2) :: dumc
-real, dimension(:), allocatable :: axs_a, ays_a, azs_a
-real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
-real, dimension(:), allocatable :: wts_a
 real, dimension(:), allocatable :: lsmr_g
 real, dimension(:,:), allocatable :: ssta_g, ssta_l
 real, dimension(:), allocatable, save :: fraciceb, ssta
-real(kind=8), dimension(:,:), pointer :: xx4, yy4
-real(kind=8), dimension(:), pointer :: z_a, x_a, y_a
 logical tst, ltest
 logical, save :: firstcall = .true.
 logical, save :: interpolate = .false.

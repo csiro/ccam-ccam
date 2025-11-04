@@ -1781,7 +1781,7 @@ do tile = 1,ntiles
     end do ! ktrac = 2,naero  
   end do   ! k = ktop,kl
   
-  !$acc vector
+  !$acc loop vector
   do i = 1,imax
     iq = i + js - 1
     so2wd(iq) = so2wd(iq) + wd(i,ITRACSO2) 
