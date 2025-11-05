@@ -1352,7 +1352,7 @@ namelist/cardin/comment,dt,ntau,nwt,nhorps,nperavg,ia,ib,         &
     mfix_tr,mfix_aero,kbotmlo,ktopmlo,mloalpha,nud_ouv,nud_sfh,   &
     rescrn,helmmeth,nmlo,ol,knh,kblock,nud_aero,                  &
     nud_period,mfix_t,zo_clearing,intsch_mode,qg_fix,             &
-    always_mspeca,ntvd,tbave10,maxuv,maxcolour,                   &
+    always_mspeca,ntvd,tbave10,maxuv,maxcolour,estab_bug_fix,     &
     procmode,compression,hp_output,pil_single,process_rate_mode,  & ! file io
     chunk_time,                                                   &
     maxtilesize,async_length,nagg,                                & ! MPI, OMP & ACC
@@ -2691,6 +2691,7 @@ use aerointerface, only : ch_dust        & ! Aerosol arrays
     ,enhanceu10
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
+use estab                                  ! Liquid saturation function
 use indata                                 ! Data initialisation
 use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
@@ -2709,7 +2710,7 @@ use stime_m                                ! File date data
 implicit none
 
 integer i
-integer, dimension(122) :: dumi
+integer, dimension(123) :: dumi
 real, dimension(34) :: dumr
     
 dumr(:) = 0.
@@ -2871,6 +2872,7 @@ if ( myid==0 ) then
   dumi(120) = maxcolour
   dumi(121) = process_rate_mode
   dumi(122) = chunk_time
+  dumi(123) = estab_bug_fix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -3030,6 +3032,7 @@ localhist         = dumi(119)==1
 maxcolour         = dumi(120)
 process_rate_mode = dumi(121)
 chunk_time        = dumi(122)
+estab_bug_fix     = dumi(123)
 if ( nstn>0 ) then
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
   call ccmpi_bcast(jstn(1:nstn),0,comm_world)

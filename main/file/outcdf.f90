@@ -121,6 +121,7 @@ subroutine cdfout(itype,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
 use aerointerface                          ! Aerosol interface 
 use cc_mpi                                 ! CC MPI routines
 use dates_m                                ! Date data
+use estab                                  ! Liquid saturation function
 use filnames_m                             ! Filenames
 use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
@@ -420,6 +421,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'epsh',epsh)
     call ccnf_put_attg(idnc,'epsp',epsp)
     call ccnf_put_attg(idnc,'epsu',epsu)
+    call ccnf_put_attg(idnc,'estab_bug_fix',estab_bug_fix)
     call ccnf_put_attg(idnc,'helmmeth',helmmeth)
     call ccnf_put_attg(idnc,'hp_output',hp_output)
     call ccnf_put_attg(idnc,'iaero',iaero)   

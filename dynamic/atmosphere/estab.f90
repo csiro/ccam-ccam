@@ -28,6 +28,9 @@ implicit none
 private
 public establ,estabi,qsat,qsati
 public esdiffx
+public estab_bug_fix
+
+integer, save :: estab_bug_fix=0 ! 0=bug in estabi, 1=Fix for stabli
 
 real, dimension(0:220), parameter :: table = &
 (/ 1.e-9, 1.e-9, 2.e-9, 3.e-9, 4.e-9,                                    & !-146C
@@ -269,14 +272,20 @@ real, dimension(:,:), intent(in) :: t_
 real, dimension(size(t_,1),size(t_,2)) :: ans 
 real tfrac, tstore
 integer tpos
-do k = 1,size(t_,2)
-  do iq = 1,size(t_,1)
-    tstore = min(max( t_(iq,k)-123.16, 0.), 219.)  
-    tfrac = tstore - aint(tstore)
-    tpos = int(tstore)
-    ans(iq,k) = (1.-tfrac)*tablei(tpos) + tfrac*tablei(tpos+1)
+if ( estab_bug_fix==0 ) then
+  ! bug with calling liquid instead of ice.  Included here for backwards compatibility
+  ! use establ_bug_fix=1 to remove bug
+  ans = establ_3(t_)
+else
+  do k = 1,size(t_,2)
+    do iq = 1,size(t_,1)
+      tstore = min(max( t_(iq,k)-123.16, 0.), 219.)  
+      tfrac = tstore - aint(tstore)
+      tpos = int(tstore)
+      ans(iq,k) = (1.-tfrac)*tablei(tpos) + tfrac*tablei(tpos+1)
+    end do
   end do
-end do
+end if
 end function estabi_3
 
 pure function qsati_s(pp_,t_) result(ans)
