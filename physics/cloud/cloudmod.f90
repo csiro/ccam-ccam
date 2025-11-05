@@ -52,8 +52,8 @@ subroutine update_cloud_fraction(cfrac,land,                             &
                     ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                   &
                     dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,clcon,  &
                     em,pblh,idjd,mydiag,nclddia,rcrit_l,                 &
-                    rcrit_s,cld_decay,vdeposition_mode,                  &
-                    tiedtke_form,rkmsave,rkhsave,cmode)
+                    rcrit_s,rcm,cld_decay,vdeposition_mode,              &
+                    tiedtke_form,rkmsave,rkhsave,cmode,dmode)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
@@ -74,10 +74,10 @@ real, dimension(size(t,1),size(t,2)), intent(in) :: dpsldt, rkmsave, rkhsave
 real, dimension(size(t,1),size(t,2)), intent(in) :: clcon
 real, dimension(size(t,1)), intent(in) :: ps
 real, dimension(size(t,1)), intent(in) :: em, pblh
-real, intent(in) :: rcrit_l, rcrit_s, cld_decay
+real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay
 logical, intent(in) :: mydiag
 logical, dimension(size(t,1)), intent(in) :: land
-character(len=*), intent(in) :: cmode
+character(len=*), intent(in) :: cmode, dmode
 
 !integer, dimension(size(t,1)) :: kbase,ktop  !Bottom and top of convective cloud
 real, dimension(size(t,1),size(t,2)) :: prf      !Pressure on full levels (hPa)
@@ -129,16 +129,14 @@ endif
 tenv(:,:) = t(:,:) ! Assume T is the same in and out of convective cloud
 do k = 1,kl
   do iq = 1,imax
-    if ( clcon(iq,k)>0. ) then
+    if ( clcon(iq,k)>1.e-10 ) then
       wcon = wlc
       !ccw=wcon(iq)/rhoa(iq,k)  !In-cloud l.w. mixing ratio
       prf_temp = ps(iq)*sig(k)
       qsatg = qsat(prf_temp,t(iq,k)) ! saturated mixing ratio
       qccon(iq,k)  = clcon(iq,k)*wcon/rhoa(iq,k)
-      qenv(iq,k)   = max( 1.e-8, (qg(iq,k)-clcon(iq,k)*max(qsatg,qg(iq,k)))/(1.-clcon(iq,k)) )
-      qcl(iq,k)    = (qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))/clcon(iq,k)
-      !qcl(iq,k)    = max(qsatg,qg(iq,k))
-      !qenv(iq,k)   = max( 0., (qg(iq,k)-clcon(iq,k)*qcl(iq,k))/(1.-clcon(iq,k)) )
+      qcl(iq,k)    = max(qsatg,qg(iq,k))
+      qenv(iq,k)   = max( 0., (qg(iq,k)-clcon(iq,k)*qcl(iq,k))/(1.-clcon(iq,k)) )
       !qcl(iq,k)   = (qg(iq,k)-(1.-clcon(iq,k))*qenv(iq,k))/clcon(iq,k)
       qlg(iq,k)    = qlg(iq,k)/(1.-clcon(iq,k))
       qfg(iq,k)    = qfg(iq,k)/(1.-clcon(iq,k))
@@ -172,15 +170,20 @@ endif
 #endif
 
 
+do k = 1,kl
+  do iq = 1,imax
+    qtot(iq,k)  = qenv(iq,k) + qlg(iq,k) + qfg(iq,k)
+    qcold(iq,k) = qlg(iq,k) + qfg(iq,k)
+  end do
+end do
+
 ! Update ice fraction
 fice = calc_fice(tenv,qlg,qfg)
 
 do k = 1,kl
   do iq = 1,imax  
-    qtot(iq,k)  = qenv(iq,k) + qlg(iq,k) + qfg(iq,k)
-    qcg(iq,k)   = qlg(iq,k) + qfg(iq,k)
-    qcold(iq,k) = qcg(iq,k)
-    tliq(iq,k)  = tenv(iq,k) - (hlcp+hlfcp*fice(iq,k))*qcg(iq,k)
+    qcg(iq,k)  = qlg(iq,k) + qfg(iq,k)
+    tliq(iq,k) = tenv(iq,k) - (hlcp+hlfcp*fice(iq,k))*qcg(iq,k)
   end do  
 end do
 
@@ -191,16 +194,25 @@ call newcloud(dt,land,ps,prf,rhoa,tliq,qtot,qcg,fice,   &
               nclddia,rcrit_l,rcrit_s,tiedtke_form,     &
               rkmsave,rkhsave,imax,kl,cmode)
 
-! Update condensate
-call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
-                           tliq,qcg,qcold,fice,           &
-                           stratcloud,prf,rhoa,           &
-                           qlg,qfg)
+if ( dmode == "LEON" ) then
+  ! Update condensate
+  call saturation_adjustment(dt,cld_decay,vdeposition_mode, &
+                             tliq,qtot,qcg,qcold,fice,      &
+                             stratcloud,prf,rhoa,           &
+                             qlg,qfg)
+else
+  ! Update condensate  
+  do k = 1,kl
+    do iq = 1,imax
+      qfg(iq,k) = fice(iq,k)*qcg(iq,k)
+      qlg(iq,k) = qcg(iq,k) - qfg(iq,k)
+    end do
+  end do
+end if
 
 ! Calculate new values of vapour mixing ratio and temperature
 do k = 1,kl
   do iq = 1,imax
-    qcg(iq,k) = qlg(iq,k) + qfg(iq,k)  
     qenv(iq,k) = max( qtot(iq,k) - qcg(iq,k), 0. )
     tenv(iq,k) = tliq(iq,k) + hlcp*qcg(iq,k) + hlfcp*qfg(iq,k)
   end do
@@ -228,7 +240,7 @@ ccov(1:imax,1:kl) = stratcloud(1:imax,1:kl)
 
 do k = 2,kl-1
   do iq = 1,imax
-    if ( stratcloud(iq,k-1)<1.e-10 .and. stratcloud(iq,k)>1.e-2 .and. stratcloud(iq,k+1)<1.e-10 ) then
+    if ( stratcloud(iq,k-1)<1.e-10 .and. stratcloud(iq,k)>1.e-10 .and. stratcloud(iq,k+1)<1.e-10 ) then
       ccov(iq,k) = sqrt(stratcloud(iq,k))
     end if
   end do
@@ -308,6 +320,7 @@ integer k, kl
 real, dimension(:,:), intent(in) :: ttg
 real, dimension(:,:), intent(inout) :: qlg, qfg
 real, dimension(size(ttg,1),size(ttg,2)) :: fice
+real, dimension(size(ttg,1)) :: qcg
 
 kl = size(ttg,2)
 
@@ -320,8 +333,8 @@ select case(cloud_ice_method)
     do k = 1,kl
       where ( ttg(:,k)>=tfrz )
         fice(:,k) = 0.
-      else where ( ttg(:,k)>=tice .and. qfg(:,k)>1.e-12 )
-        fice(:,k) = min( qfg(:,k)/(qfg(:,k)+qlg(:,k)), 1. )
+      else where ( ttg(:,k)>=tice .and. qfg(:,k)>0. )
+        fice(:,k) = qfg(:,k)/(qfg(:,k)+qlg(:,k))
       else where ( ttg(:,k)>=tice )
         fice(:,k) = 0.
       elsewhere
@@ -391,11 +404,17 @@ real, dimension(imax,kl) :: pk, deles
 real, dimension(imax,kl) :: qsi, qsl
 real, dimension(kl) :: diag_temp
 real steepness
+real es, Aprpr, Bprpr, Cice
+real qi0, fd, Crate, Qfdep
 real fl, hlrvap, qs, dqsdt
-real al, qc, delq
+real al, qc, delq, qfnew
 real tk
+real decayfac
 
 integer k, iq
+
+real, parameter :: rhoic = 700.
+real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 
 ! Start code : ----------------------------------------------------------
 
@@ -543,96 +562,96 @@ else if ( nclddia>7 ) then  ! e.g. 12    JLM
 end if  ! (nclddia<0)  .. else ..
 
 select case(cmode)
-  case("SMITH")
-    ! usual diagnostic cloud fraction
+case("SMITH")
+  ! usual diagnostic cloud fraction
 
-    ! Calculate cloudy fraction of grid box (stratcloud) and gridbox-mean cloud water
-    ! using the triangular PDF of Smith (1990)
+  ! Calculate cloudy fraction of grid box (stratcloud) and gridbox-mean cloud water
+  ! using the triangular PDF of Smith (1990)
 
-    ! Calculate qs at temperature tliq
-    pk(:,:) = 100.*prf(:,:)
-    qsi(:,:) = qsati(pk(:,:),tliq(:,:))             !Ice value
-    deles(:,:) = esdiffx(tliq(:,:))                 ! MJT suggestion
-    qsl(:,:) = qsi(:,:) + epsil*deles(:,:)/pk(:,:)  !qs over liquid
-    qsw(:,:) = fice(:,:)*qsi(:,:) +    &
-               (1.-fice(:,:))*qsl(:,:)    !Weighted qs at temperature Tliq
+  ! Calculate qs at temperature tliq
+  pk(:,:) = 100.*prf(:,:)
+  qsi(:,:) = qsati(pk(:,:),tliq(:,:))             !Ice value
+  deles(:,:) = esdiffx(tliq(:,:))                 ! MJT suggestion
+  qsl(:,:) = qsi(:,:) + epsil*deles(:,:)/pk(:,:)  !qs over liquid
+  qsw(:,:) = fice(:,:)*qsi(:,:) +    &
+             (1.-fice(:,:))*qsl(:,:)    !Weighted qs at temperature Tliq
+  do k = 1,kl
+    do iq = 1,imax
+      ! Calculate gam=(L/cp)*dqsdt at temperature tliq
+      hlrvap = (hl+fice(iq,k)*hlf)/rvap
+      qs = qsw(iq,k)
+      dqsdt = qs*hlrvap/tliq(iq,k)**2
+      al = 1./(1.+(hlcp+fice(iq,k)*hlfcp)*dqsdt)  !Smith's notation
+      qc = qtot(iq,k) - qs
+      delq = (1.-rcrit(iq,k))*qs     !UKMO style (equivalent to above)
+      if ( qc<=-delq ) then
+        stratcloud(iq,k) = 0.
+        qcg(iq,k) = 0.
+      else if ( qc<=0. ) then
+        stratcloud(iq,k) = max( 1.e-10, 0.5*((qc+delq)/delq)**2 )     ! for roundoff
+        qcg(iq,k) = al*(qc+delq)**3/(6.*delq**2)
+      else if ( qc<delq ) then
+        stratcloud(iq,k) = max( 1.e-10, 1.-0.5*((qc-delq)/delq)**2 )  ! for roundoff
+        qcg(iq,k) = al*(qc-(qc-delq)**3/(6.*delq**2))
+      else
+        stratcloud(iq,k) = 1.
+        qcg(iq,k) = al*qc
+      end if
+    end do ! iq loop
+  end do   ! k loop
+
+  if ( nclddia==3 ) then
     do k = 1,kl
       do iq = 1,imax
-        ! Calculate gam=(L/cp)*dqsdt at temperature tliq
-        hlrvap = (hl+fice(iq,k)*hlf)/rvap
-        qs = qsw(iq,k)
-        dqsdt = qs*hlrvap/tliq(iq,k)**2
-        al = 1./(1.+(hlcp+fice(iq,k)*hlfcp)*dqsdt)  !Smith's notation
-        qc = qtot(iq,k) - qs
-        delq = (1.-rcrit(iq,k))*qs     !UKMO style (equivalent to above)
-        if ( qc<=-delq ) then
-          stratcloud(iq,k) = 0.
-          qcg(iq,k) = 0.
-        else if ( qc<=0. ) then
-          stratcloud(iq,k) = max( 1.e-6, 0.5*((qc+delq)/delq)**2 )     ! for roundoff
-          qcg(iq,k) = max( 1.e-8, al*(qc+delq)**3/(6.*delq**2) )
-        else if ( qc<delq ) then
-          stratcloud(iq,k) = max( 1.e-6, 1.-0.5*((qc-delq)/delq)**2 )  ! for roundoff
-          qcg(iq,k) = max( 1.e-8, al*(qc-(qc-delq)**3/(6.*delq**2)) )
-        else
-          stratcloud(iq,k) = 1.
-          qcg(iq,k) = al*qc
-        end if
-      end do ! iq loop
-    end do   ! k loop
-
-    if ( nclddia==3 ) then
-      do k = 1,kl
-        do iq = 1,imax
-          tk = min(1.,ds/(em(iq)*40000.)) ! used to increase rcrit linearly for ds<40 km
-          rcrit(iq,k) = rfull(k)-tk*(rfull(k)-rcrit(iq,k))
-          stratcloud(iq,k) = max(0.,min(1.,(qtot(iq,k)/qsw(iq,k)-rcrit(iq,k))/(rfull(k)-rcrit(iq,k)+0.001)))
-        end do
+        tk = min(1.,ds/(em(iq)*40000.)) ! used to increase rcrit linearly for ds<40 km
+        rcrit(iq,k) = rfull(k)-tk*(rfull(k)-rcrit(iq,k))
+        stratcloud(iq,k) = max(0.,min(1.,(qtot(iq,k)/qsw(iq,k)-rcrit(iq,k))/(rfull(k)-rcrit(iq,k)+0.001)))
       end do
-    end if
+    end do
+  end if
 
 #ifdef debug
-    if ( diag .and. mydiag ) then
-      diag_temp(:) = rcrit(idjd,:)
-      write(6,*) 'rcrit ',diag_temp
-      diag_temp(:) = qtot(idjd,:)
-      write(6,*) 'qtot ',diag_temp
-      !diag_temp(:) = qsi(idjd,:)
-      !write(6,*) 'qsi',diag_temp
-      diag_temp(:) = tliq(idjd,:)
-      write(6,*) 'tliq',diag_temp
-      !diag_temp(:) = qsl(idjd,:)
-      !write(6,*) 'qsl ',diag_temp
-      diag_temp(:) = qsw(idjd,:)
-      write(6,*) 'qsw ',diag_temp
-      diag_temp(:) = stratcloud(idjd,:)
-      write(6,*) 'stratcloud',diag_temp
-      diag_temp(:) = qtot(idjd,:)-qsw(idjd,:)
-      write(6,*) 'qc  ',diag_temp
-      diag_temp(:) = qcg(idjd,:)
-      write(6,*) 'qcg ',diag_temp
-      diag_temp(:) = (1.-rcrit(idjd,:))*qsw(idjd,:)
-      write(6,*) 'delq ',diag_temp
-    endif
+  if ( diag .and. mydiag ) then
+    diag_temp(:) = rcrit(idjd,:)
+    write(6,*) 'rcrit ',diag_temp
+    diag_temp(:) = qtot(idjd,:)
+    write(6,*) 'qtot ',diag_temp
+    !diag_temp(:) = qsi(idjd,:)
+    !write(6,*) 'qsi',diag_temp
+    diag_temp(:) = tliq(idjd,:)
+    write(6,*) 'tliq',diag_temp
+    !diag_temp(:) = qsl(idjd,:)
+    !write(6,*) 'qsl ',diag_temp
+    diag_temp(:) = qsw(idjd,:)
+    write(6,*) 'qsw ',diag_temp
+    diag_temp(:) = stratcloud(idjd,:)
+    write(6,*) 'stratcloud',diag_temp
+    diag_temp(:) = qtot(idjd,:)-qsw(idjd,:)
+    write(6,*) 'qc  ',diag_temp
+    diag_temp(:) = qcg(idjd,:)
+    write(6,*) 'qcg ',diag_temp
+    diag_temp(:) = (1.-rcrit(idjd,:))*qsw(idjd,:)
+    write(6,*) 'delq ',diag_temp
+  endif
 #endif
 
-  case("TIEDTKE")
+case("TIEDTKE")
 
-    ! Tiedtke prognostic cloud fraction model
-    pk(:,:) = 100.*prf(:,:)
-    qsi(:,:) = qsati(pk(:,:),tliq(:,:))             ! Ice value
-    deles(:,:) = esdiffx(tliq(:,:))
-    qsl(:,:) = qsi(:,:) + epsil*deles(:,:)/pk(:,:) ! Liquid value
-    qsw(:,:) = fice(:,:)*qsi(:,:) + (1.-fice(:,:))*qsl(:,:)  ! Weighted qs at temperature Tliq
+  ! Tiedtke prognostic cloud fraction model
+  pk(:,:) = 100.*prf(:,:)
+  qsi(:,:) = qsati(pk(:,:),tliq(:,:))             ! Ice value
+  deles(:,:) = esdiffx(tliq(:,:))
+  qsl(:,:) = qsi(:,:) + epsil*deles(:,:)/pk(:,:) ! Liquid value
+  qsw(:,:) = fice(:,:)*qsi(:,:) + (1.-fice(:,:))*qsl(:,:)  ! Weighted qs at temperature Tliq
 
-    call progcloud(tdt,qcg,qtot,ps,rhoa,fice,qsw,tliq,rcrit,      &
-                   dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,  &
-                   tiedtke_form,rkmsave,rkhsave,imax,kl)
+  call progcloud(tdt,qcg,qtot,ps,prf,rhoa,fice,qsw,tliq,rcrit,  &
+                 dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,  &
+                 tiedtke_form,rkmsave,rkhsave,imax,kl)
 
-  case default
-    write(6,*) "ERROR: Invalid cmode in cloudmod ",trim(cmode)
-    write(6,*) "Likely to be an invalid option for ncloud"
-    stop -1
+case default
+  write(6,*) "ERROR: Invalid cmode in cloudmod ",trim(cmode)
+  write(6,*) "Likely to be an invalid option for ncloud"
+  stop -1
   
 end select
 
@@ -640,21 +659,22 @@ return
 end subroutine newcloud
 
 subroutine saturation_adjustment(tdt,cld_decay,vdeposition_mode,    &
-                                 tliq,qcg_in,qcold,fice,            &
+                                 tliq,qtot,qcg_in,qcold,fice,       &
                                  stratcloud,prf,rhoa,               &
                                  qlg,qfg)
 
 use const_phys                    ! Physical constants
 use estab                         ! Liquid saturation function
+use parm_m, only : diag           ! Model configuration
 
 implicit none
 
 integer, intent(in) :: vdeposition_mode
 integer k, iq, imax, kl
-real, dimension(:,:), intent(in) :: tliq, qcg_in, qcold, fice, stratcloud
+real, dimension(:,:), intent(in) :: tliq, qtot, qcg_in, qcold, fice, stratcloud
 real, dimension(:,:), intent(in) :: prf, rhoa
 real, dimension(:,:), intent(out) :: qlg, qfg
-real, dimension(size(tliq,1),size(tliq,2)) :: pk, qsi, deles
+real, dimension(size(tliq,1),size(tliq,2)) :: pk, qsi, deles, qcg
 real, intent(in) :: tdt, cld_decay
 real decayfac, Tk, qs, es, aprpr, bprpr, cice, qi0, fd, crate, qfdep
 real fl
@@ -664,6 +684,8 @@ real, parameter :: cm0 = 1.e-12 !Initial crystal mass
 imax = size(tliq,1)
 kl = size(tliq,2)
 
+qcg(:,:) = qcg_in(:,:)
+
 ! Assume condensation or evaporation retains ice fraction fice.
 ! Introduce a time-decay factor for cirrus (as suggested by results of Khvorostyanov & Sassen,
 ! JAS, 55, 1822-1845, 1998). Their suggested range for the time constant is 0.5 to 2 hours.
@@ -671,13 +693,14 @@ kl = size(tliq,2)
 decayfac = exp ( -tdt/cld_decay )  ! Try cld_decay=2 hrs (decayfac=0. is instant adjustment for the old scheme)
 do k = 1,kl
   do iq = 1,imax
-    Tk = tliq(iq,k) + hlcp*qcg_in(iq,k) + hlfcp*fice(iq,k)*qcg_in(iq,k)  
+    Tk = tliq(iq,k) + hlcp*qcg(iq,k) + hlfcp*fice(iq,k)*qcg(iq,k)  
     if ( Tk>=Tice ) then
-      qfg(iq,k) = fice(iq,k)*qcg_in(iq,k)
-      qlg(iq,k) = qcg_in(iq,k) - qfg(iq,k)
+      qfg(iq,k) = fice(iq,k)*qcg(iq,k)
+      qlg(iq,k) = qcg(iq,k) - qfg(iq,k)
     else                                 ! Cirrus T range
-      qfg(iq,k) = qcold(iq,k)*decayfac + qcg_in(iq,k)*(1.-decayfac)
+      qfg(iq,k) = qcold(iq,k)*decayfac + qcg(iq,k)*(1.-decayfac)
       qlg(iq,k) = 0.
+      qcg(iq,k) = qfg(iq,k)
     end if
   end do
 end do
@@ -689,30 +712,28 @@ end do
 if ( vdeposition_mode==0 ) then
   do k = 1,kl
     do iq = 1,imax
-      if ( stratcloud(iq,k)>0. ) then  
-        Tk = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/stratcloud(iq,k) !T in liq cloud
-        if ( Tk<tfrz .and. qlg(iq,k)>1.e-8 ) then
-          pk(iq,k) = 100.*prf(iq,k)
-          qsi(iq,k) = qsati(pk(iq,k),Tk)
-          deles(iq,k) = (1.-fice(iq,k))*esdiffx(Tk)
-          qs        = qsi(iq,k)
-          es        = qs*pk(iq,k)/0.622 !ice value
-          Aprpr     = hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
-          Bprpr     = rvap*Tk/((Dva/pk(iq,k))*es)
-          Cice      = 1.e3*exp(12.96*deles(iq,k)/es - 0.639) !Meyers et al 1992
-          qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
-          ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
-          qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
-          fd        = 1.       !Fraction of cloud in which deposition occurs
-          Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq,k)/((Aprpr+Bprpr)*es)
-          qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
-          ! Also need this line for fully-mixed option...
-          qfdep     = qfdep - qfg(iq,k)
-          qfdep     = min(qfdep, qlg(iq,k))
-          qlg(iq,k) = qlg(iq,k) - qfdep
-          qfg(iq,k) = qfg(iq,k) + qfdep
-        end if
-      end if  
+      Tk = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/max(stratcloud(iq,k),1.e-10) !T in liq cloud
+      if ( stratcloud(iq,k)>1.e-10 .and. Tk<tfrz .and. qlg(iq,k)>0. ) then
+        pk(iq,k) = 100.*prf(iq,k)
+        qsi(iq,k) = qsati(pk(iq,k),Tk)
+        deles(iq,k) = (1.-fice(iq,k))*esdiffx(Tk)
+        qs        = qsi(iq,k)
+        es        = qs*pk(iq,k)/0.622 !ice value
+        Aprpr     = hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
+        Bprpr     = rvap*Tk/((Dva/pk(iq,k))*es)
+        Cice      = 1.e3*exp(12.96*deles(iq,k)/es - 0.639) !Meyers et al 1992
+        qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
+        ! Next 2 lines are for assumption of fully mixed ql and qf (also a line further down).
+        qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
+        fd        = 1.       !Fraction of cloud in which deposition occurs
+        Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq,k)/((Aprpr+Bprpr)*es)
+        qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
+        ! Also need this line for fully-mixed option...
+        qfdep     = qfdep - qfg(iq,k)
+        qfdep     = min(qfdep, qlg(iq,k))
+        qlg(iq,k) = qlg(iq,k) - qfdep
+        qfg(iq,k) = qfg(iq,k) + qfdep
+      end if
     end do
   end do
   
@@ -720,29 +741,27 @@ else if ( vdeposition_mode==1 ) then
   ! use ql/(qf+ql) for deposition (see fl and fd)
   do k = 1,kl
     do iq = 1,imax
-      if ( stratcloud(iq,k)>0. ) then  
-        Tk = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/stratcloud(iq,k) !T in liq cloud
-        if ( Tk<tfrz .and. qlg(iq,k)>1.e-8 ) then
-          pk(iq,k) = 100.*prf(iq,k)
-          qsi(iq,k) = qsati(pk(iq,k),Tk)
-          deles(iq,k) = (1.-fice(iq,k))*esdiffx(Tk)
-          fl        = qlg(iq,k)/(qfg(iq,k)+qlg(iq,k))
-          qs        = qsi(iq,k)
-          es        = qs*pk(iq,k)/0.622 !ice value
-          Aprpr     = hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
-          Bprpr     = rvap*Tk/((Dva/pk(iq,k))*es)
-          Cice      = 1.e3*exp(12.96*deles(iq,k)/es - 0.639) !Meyers et al 1992
-          qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
-          qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
-          fd        = fl      !Or, use option of adjacent ql,qf
-          Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq,k)/((Aprpr+Bprpr)*es)
-          qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
-          ! Also need this line for fully-mixed option...
-          qfdep     = qfdep - qfg(iq,k)
-          qfdep     = min(qfdep, qlg(iq,k))
-          qlg(iq,k) = qlg(iq,k) - qfdep
-          qfg(iq,k) = qfg(iq,k) + qfdep
-        end if  
+      Tk = tliq(iq,k) + hlcp*(qlg(iq,k)+qfg(iq,k))/max(stratcloud(iq,k),1.e-10) !T in liq cloud
+      if ( stratcloud(iq,k)>1.e-10 .and. Tk<tfrz .and. qlg(iq,k)>0. ) then
+        pk(iq,k) = 100.*prf(iq,k)
+        qsi(iq,k) = qsati(pk(iq,k),Tk)
+        deles(iq,k) = (1.-fice(iq,k))*esdiffx(Tk)
+        fl        = qlg(iq,k)/(qfg(iq,k)+qlg(iq,k))
+        qs        = qsi(iq,k)
+        es        = qs*pk(iq,k)/0.622 !ice value
+        Aprpr     = hl/(rKa*Tk)*(hls/(rvap*Tk)-1.)
+        Bprpr     = rvap*Tk/((Dva/pk(iq,k))*es)
+        Cice      = 1.e3*exp(12.96*deles(iq,k)/es - 0.639) !Meyers et al 1992
+        qi0       = cm0*Cice/rhoa(iq,k) !Initial ice mixing ratio
+        qi0       = max(qi0, qfg(iq,k)/stratcloud(iq,k)) !Assume all qf and ql are mixed
+        fd        = fl      !Or, use option of adjacent ql,qf
+        Crate     = 7.8*((Cice/rhoa(iq,k))**2/rhoic)**(1./3.)*deles(iq,k)/((Aprpr+Bprpr)*es)
+        qfdep     = fd*stratcloud(iq,k)*sqrt(((2./3.)*Crate*tdt+qi0**(2./3.))**3)
+        ! Also need this line for fully-mixed option...
+        qfdep     = qfdep - qfg(iq,k)
+        qfdep     = min(qfdep, qlg(iq,k))
+        qlg(iq,k) = qlg(iq,k) - qfdep
+        qfg(iq,k) = qfg(iq,k) + qfdep
       end if
     end do
   end do
@@ -756,7 +775,7 @@ return
 end subroutine saturation_adjustment
 
 
-subroutine progcloud(dt,qc,qtot,ps,rho,fice,qs,tliq,rcrit,         &
+subroutine progcloud(dt,qc,qtot,ps,press,rho,fice,qs,tliq,rcrit,   &
                      dpsldt,rad_tend,trb_tend,trb_qend,stratcloud, &
                      tiedtke_form,rkmsave,rkhsave,imax,kl)
 
@@ -770,7 +789,7 @@ integer, intent(in) :: tiedtke_form
 integer, intent(in) :: imax, kl
 integer iq, k
 real, dimension(imax,kl), intent(inout) :: qc ! condensate = qf + ql
-real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, tliq, rcrit
+real, dimension(imax,kl), intent(in) :: qtot, rho, fice, qs, tliq, rcrit, press
 real, dimension(imax,kl), intent(in) :: dpsldt, rkmsave, rkhsave
 real, dimension(imax,kl), intent(inout) :: rad_tend, trb_tend, trb_qend
 real, dimension(imax,kl), intent(inout) :: stratcloud
