@@ -235,7 +235,7 @@ do tile = 1,ntiles
               ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
               ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
               em(js:je),pblh(js:je),idjd_t,mydiag_t,nclddia,                    &
-              rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,tiedtke_form,      &
+              rcrit_l,rcrit_s,cld_decay,vdeposition_mode,tiedtke_form,      &
               lrkmsave,lrkhsave,cmode,dmode)
 
   ! This configuration allows prognostic condensate variables to be updated 
@@ -393,8 +393,9 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       do k = 1,kl
         do iq = js,je
-          zqsng_rem(iq,k) = max( zqsng(iq,k)-real(qfg_max,8), 0._8 )
-          zqsng(iq,k) = zqsng(iq,k) - zqsng_rem(iq,k)   
+          i = iq - js + 1  
+          zqsng_rem(iq,k) = max( zqsng(i,k)-real(qfg_max,8), 0._8 )
+          zqsng(i,k) = zqsng(i,k) - zqsng_rem(iq,k)   
         end do
       end do
 
@@ -545,8 +546,9 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       do k = 1,kl
         do iq = js,je
-          zqsng_rem(iq,k) = max( zqsng(iq,k)-real(qfg_max,8), 0._8 )
-          zqsng(iq,k) = zqsng(iq,k) - zqsng_rem(iq,k)   
+          i = iq - js + 1  
+          zqsng_rem(iq,k) = max( zqsng(i,k)-real(qfg_max,8), 0._8 )
+          zqsng(i,k) = zqsng(i,k) - zqsng_rem(iq,k)   
         end do
       end do
       
