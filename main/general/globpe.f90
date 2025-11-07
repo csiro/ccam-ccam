@@ -1399,7 +1399,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
     cloud_ice_method,leon_snowmeth,lin_aerosolmode,maxlintime,    &
-    lin_adv,qlg_max,qfg_max
+    lin_adv,qlg_max,qfg_max                                                         
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -1458,7 +1458,6 @@ tkecduv = 0.
 procformat = .true.
 unlimitedhist = .false.
 adv_precip = 0
-mlomaxuv = 0.
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
@@ -2177,7 +2176,7 @@ end if
 allocate( dums(ifull,kl) )
 call arrays_init(ifull,iextra,kl)
 call carbpools_init(ifull,nsib,ccycle)
-call cfrac_init(ifull,iextra,kl)
+call cfrac_init(ifull,iextra,kl,ncloud)
 call dpsdt_init(ifull,epsp)
 call epst_init(ifull)
 call extraout_init(ifull,nextout)

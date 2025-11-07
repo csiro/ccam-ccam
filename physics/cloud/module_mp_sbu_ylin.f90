@@ -293,7 +293,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
   
   !------------------------------------------------------------------------------------
   
-  dt     = dt_in/real(njumps)  
+  dt = dt_in/real(njumps)  
   
   mu_c_s = MIN(15., (1000.E6/Nt_c + 2.))
   gg31c = ggamma(4.+mu_c_s)
@@ -341,7 +341,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
   xmr     = 4./3.*pi*rhowater*(500.E-6)**3
   xmr_i   = 4./3.*pi*rhowater*(25.E-6)**3
   mi0     = 4./3.*3.14*500.*(10.e-6)**3
-  !xmc     =4.17*10e-14 !4./3.*pi*(0.00001)**3*1000.
+  !    xmc     =4.17*10e-14 !4./3.*pi*(0.00001)**3*1000.
   lammaxr = 1./20.E-6
   !lamminr = 1./500.E-6
   lamminr = 1./2800.E-6
@@ -926,14 +926,6 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     vi(:,:)    = vtiold(:,:)
     !vs(:,:)    = vtsold(:,:)
 
-    do k = kts,kte
-      do iq = 1,imax
-            if ( tem(iq,k) < 100 ) then
-              print *,"0 tem ",tem(iq,k),iq,k
-            end if      
-      end do
-    end do
-    
     !$acc parallel loop collapse(2) copy(ncz,niz,nrz,nsz,thz,qvz,qlz,qiz,qsz,qrz)  &
     !$acc   copyin(n0_s)                                                           &
     !$acc   present(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)   &
@@ -1240,7 +1232,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
               psfi=min(tmp1,qizodt)
             end if
         
-            if(qrz(iq,k) > 0.) then
+            if(qrz(iq,k) > 0.) then  ! go to 1000
 
               !
               ! Processes (4) and (5) only need when qrz > 0.0
@@ -1262,9 +1254,9 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
               piacr=min( tmp2,qrzodt )
               tmp1 = olambdar**bp3 
               npiacr=pio4*eri*nrz(iq,k)*av_r*niz(iq,k)*gambp3*tmp1 !--wdm6
-            end if
+            end if !1000    continue
 
-            if(qsz(iq,k) > 0.) then
+            if(qsz(iq,k) > 0.) then !go to 1200
               !
               ! Compute the following processes only when qsz > 0.0
               !
@@ -1369,8 +1361,8 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                   pgfr=0
                   npgfr=0.
                 endif
-              end if
-            end if
+              end if ! for the go to 1200
+            end if   !1200    continue
 
           else ! if ( tem(iq,k) .lt. 273.15) ..else..
 
@@ -1722,6 +1714,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                      ! 3. melting of snow to form rain (+)
             tem(iq,k)=tem(iq,k)+tmp1*dtb
             !bugfix 20191126
+
             !tem(k)=tem(k)+tmp1*dtb
             temcc=tem(iq,k)-273.15
             thz(iq,k)=tem(iq,k)/tothz(iq,k)
@@ -1851,6 +1844,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             thz(iq,k)=theiz-(xLvocp*qvz(iq,k)-xLfocp*qiz(iq,k))/tothz(iq,k)
             tem(iq,k)=thz(iq,k)*tothz(iq,k)
             temcc=tem(iq,k)-273.15
+
             es=1000.*svp1*exp( svp2*temcc/(tem(iq,k)-svp3) )
             qswz=ep2*es/max(prez(iq,k)-es,0.1)
             if (tem(iq,k) < 273.15 ) then
@@ -1927,6 +1921,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
               temcc=tem(iq,k)-273.15
               es=1000.*svp1*exp( svp2*temcc/(tem(iq,k)-svp3) )
               qswz=ep2*es/max(prez(iq,k)-es,0.1)
+
               if (tem(iq,k) < 273.15 ) then
                 es=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
                 qsiz=ep2*es/max(prez(iq,k)-es,0.1)
@@ -2130,10 +2125,10 @@ PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
     tsat=tem
     absft=1.
     !
-    do n = 1,20
+    do n = 1,20 ! MJT notes, usually 2-3 iterations are required
       denom1=1.0/(tsat-svp3)
       denom2=1.0/(tsat-7.66)
-      ! qswz=episp0k/prez*  &
+      ! qswz(k)=episp0k/prez(k)*  &
       ! exp( svp2*denom1*(tsat-273.15) )
       es=1000.*svp1*exp( svp2*denom1*(tsat-svpt0) )
       qswz=ep2*es/max(prez-es,0.1)
@@ -2148,7 +2143,8 @@ PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
         qsiz=qswz
       endif
       qvsbar = ratql*qswz + ratqi*qsiz
-      if( absft >= 0.01 .and. n <= 3 ) then
+      ! if( absft .lt. 0.01 .and. n .gt. 3 ) go to 300
+      if( absft >= 0.01 ) then !go to 300
         dqvsbar=ratql*qswz*svp2*243.5*denom1*denom1+  &
                 ratqi*qsiz*21.8745584*265.5*denom2*denom2
         ftsat=tsat+(xlvocp+ratqi*xlfocp)*qvsbar-  &
@@ -2158,8 +2154,10 @@ PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
         absft=abs(ftsat)
       else   ! original
         exit ! original
-      end if
-    end do
+      end if !300   continue
+    end do !200   continue
+    !9020  format(1x,'point can not converge, absft,n=',e12.5,i5)
+    !300   continue
 
     if( qpz > qvsbar ) then
       qvz=qvsbar

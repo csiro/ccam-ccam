@@ -52,7 +52,7 @@ subroutine update_cloud_fraction(cfrac,land,                             &
                     ps,qccon,qfg,qfrad,qg,qlg,qlrad,t,                   &
                     dpsldt,rad_tend,trb_tend,trb_qend,stratcloud,clcon,  &
                     em,pblh,idjd,mydiag,nclddia,rcrit_l,                 &
-                    rcrit_s,cld_decay,vdeposition_mode,                  &
+                    rcrit_s,rcm,cld_decay,vdeposition_mode,              &
                     tiedtke_form,rkmsave,rkhsave,cmode,dmode)
 
 use const_phys                    ! Physical constants
@@ -74,7 +74,7 @@ real, dimension(size(t,1),size(t,2)), intent(in) :: dpsldt, rkmsave, rkhsave
 real, dimension(size(t,1),size(t,2)), intent(in) :: clcon
 real, dimension(size(t,1)), intent(in) :: ps
 real, dimension(size(t,1)), intent(in) :: em, pblh
-real, intent(in) :: rcrit_l, rcrit_s, cld_decay
+real, intent(in) :: rcrit_l, rcrit_s, rcm, cld_decay
 logical, intent(in) :: mydiag
 logical, dimension(size(t,1)), intent(in) :: land
 character(len=*), intent(in) :: cmode, dmode

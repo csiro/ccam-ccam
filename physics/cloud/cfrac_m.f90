@@ -46,11 +46,11 @@ real, dimension(:,:), allocatable, save :: rad_tend, trb_tend, trb_qend
 
 contains
 
-subroutine cfrac_init(ifull,iextra,kl)
+subroutine cfrac_init(ifull,iextra,kl,ncloud)
 
 implicit none
 
-integer, intent(in) :: ifull, iextra, kl
+integer, intent(in) :: ifull, iextra, kl, ncloud
 
 allocate(cfrac(ifull,kl),rfrac(ifull,kl))
 allocate(sfrac(ifull,kl),gfrac(ifull,kl))

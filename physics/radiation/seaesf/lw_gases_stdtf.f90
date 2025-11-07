@@ -1,4 +1,4 @@
-module lw_gases_stdtf_mod
+                  module lw_gases_stdtf_mod
 ! <CONTACT EMAIL="Fei.Liu@noaa.gov">
 !  fil
 ! </CONTACT>
@@ -715,12 +715,12 @@ integer,           intent(in)  :: phase
               
             if ( myid==origin ) then  
               if (trim(Lw_control%linecatalog_form) == 'hitran_2012' ) then  
-                call read_lbltfs('ch4', callrctrns_ch4, nstd_ch4_lo, &
-                                 nstd_ch4_hi, nf, ntbnd_ch4,         & 
-                                 trns_std_hi_nf, trns_std_lo_nf )
+                call read_lbltfs ('ch4', callrctrns_ch4, nstd_ch4_lo, &
+                                  nstd_ch4_hi, nf, ntbnd_ch4, & 
+                                  trns_std_hi_nf, trns_std_lo_nf )
               else
-                call read_lbltfs_old('ch4', callrctrns_ch4, nstd_ch4_lo, &
-                                  nstd_ch4_hi, nf, ntbnd_ch4,            & 
+                call read_lbltfs_old ('ch4', callrctrns_ch4, nstd_ch4_lo, &
+                                  nstd_ch4_hi, nf, ntbnd_ch4, & 
                                   trns_std_hi_nf, trns_std_lo_nf )
               end if  
               do_lyrcalc_ch4    = do_lyrcalc_ch4_nf(nf)
@@ -736,10 +736,10 @@ integer,           intent(in)  :: phase
                   if (callrctrns_ch4) then
                     trns_std_lo = trns_std_lo_nf(:,:,nt)
                   endif
-                  call gasint(gas_type,                          &
+                  call gasint(gas_type,           &
                               ch4_vmr, ch4_std_lo, ch4_std_hi,   &
-                              callrctrns_ch4,                    &
-                              do_lvlcalc_ch4, do_lvlctscalc_ch4, &
+                              callrctrns_ch4,   &
+                              do_lvlcalc_ch4, do_lvlctscalc_ch4,    &
                               do_lyrcalc_ch4, nf, nt)
                   trns_interp_lyr_ps_nf(:,:,nt) = trns_interp_lyr_ps(:,:)
                   trns_interp_lyr_ps8_nf(:,:,nt) = trns_interp_lyr_ps8(:,:)
@@ -752,8 +752,8 @@ integer,           intent(in)  :: phase
 !    perform final processing for each frequency band.
 !--------------------------------------------------------------------
               if (ch4_vmr /= 0.0) then
-                call gasins(gas_type, do_lvlcalc_ch4, do_lvlctscalc_ch4,                                                 &
-                            do_lyrcalc_ch4, nf, ntbnd_ch4(nf), ndimkp, ndimk,                                            &
+                call gasins(gas_type, do_lvlcalc_ch4, do_lvlctscalc_ch4,      &
+                            do_lyrcalc_ch4, nf, ntbnd_ch4(nf), ndimkp, ndimk, &
                             dgasdt10_lvl(:,:,nf_offset), dgasdt10_lvlcts(:,nf_offset), dgasdt10_lyr(:,:,nf_offset),      &
                             gasp10_lvl(:,:,nf_offset), gasp10_lvlcts(:,nf_offset), gasp10_lyr(:,:,nf_offset),            &
                             d2gast10_lvl(:,:,nf_offset), d2gast10_lvlcts(:,nf_offset), d2gast10_lyr(:,:,nf_offset),      &
@@ -789,12 +789,12 @@ integer,           intent(in)  :: phase
             call ccmpi_bcastr8(d2gast10_lyr(:,:,nf_offset),origin,comm_world)
             call ccmpi_bcastr8(d2gast8_lyr(:,:,nf_offset),origin,comm_world)
            
-            call put_ch4_stdtf_for_gas_tf(gasp10_lyr(:,:,nf_offset), gasp8_lyr(:,:,nf_offset),      &
-                                          dgasdt10_lyr(:,:,nf_offset), dgasdt8_lyr(:,:,nf_offset),  &
-                                          d2gast10_lyr(:,:,nf_offset),  d2gast8_lyr(:,:,nf_offset))
+            call put_ch4_stdtf_for_gas_tf (gasp10_lyr(:,:,nf_offset), gasp8_lyr(:,:,nf_offset),      &
+                                           dgasdt10_lyr(:,:,nf_offset), dgasdt8_lyr(:,:,nf_offset),  &
+                                           d2gast10_lyr(:,:,nf_offset),  d2gast8_lyr(:,:,nf_offset))
           end if ! phase==1 .or. phase==-1
          
-        end do  !  frequency band loop
+        enddo  !  frequency band loop
         
 !--------------------------------------------------------------------
 !    deallocate pressure, index arrays used in rctrns (if needed)
@@ -1065,7 +1065,7 @@ integer,          intent(in)     :: phase
                                  nf, ntbnd_co2,                             &
                                  trns_std_hi_nf, trns_std_lo_nf )
               else
-                call read_lbltfs_old('co2',                                 &
+                call read_lbltfs_old('co2',                                     &
                                  callrctrns_co2, nstd_co2_lo, nstd_co2_hi,  &
                                  nf, ntbnd_co2,                             &
                                  trns_std_hi_nf, trns_std_lo_nf )
@@ -1087,7 +1087,7 @@ integer,          intent(in)     :: phase
                               co2_vmr, co2_std_lo, co2_std_hi,      &
                               callrctrns_co2,                       & 
                               do_lvlcalc_co2, do_lvlctscalc_co2,    &
-                              do_lyrcalc_co2,                       &
+                              do_lyrcalc_co2,   &
                               nf, nt)
                   
                   trns_interp_lyr_ps_nf(:,:,nt) = trns_interp_lyr_ps(:,:)
@@ -1096,7 +1096,7 @@ integer,          intent(in)     :: phase
                   trns_interp_lvl_ps8_nf(:,:,nt) = trns_interp_lvl_ps8(:,:)
                 enddo        !  temperature structure loop
  
-              end if
+              endif
 !--------------------------------------------------------------------
 !    perform final processing for each frequency band.
 !--------------------------------------------------------------------
@@ -1448,7 +1448,7 @@ integer,          intent(in)   :: phase
                                  ntbnd_n2o,                                   &
                                  trns_std_hi_nf, trns_std_lo_nf )
               else
-                call read_lbltfs_old('n2o',                                   &   
+                call read_lbltfs_old('n2o',                                       &   
                                  callrctrns_n2o, nstd_n2o_lo, nstd_n2o_hi, nf,&
                                  ntbnd_n2o,                                   &
                                  trns_std_hi_nf, trns_std_lo_nf )
@@ -1467,8 +1467,8 @@ integer,          intent(in)   :: phase
                     trns_std_lo = trns_std_lo_nf(:,:,nt)
                   endif
                   call gasint(gas_type, n2o_vmr, n2o_std_lo, n2o_std_hi,    &
-                              callrctrns_n2o,                               &
-                              do_lvlcalc_n2o, do_lvlctscalc_n2o,            &
+                              callrctrns_n2o,     &
+                              do_lvlcalc_n2o, do_lvlctscalc_n2o,    &
                               do_lyrcalc_n2o, nf, nt)
                   trns_interp_lyr_ps_nf(:,:,nt) = trns_interp_lyr_ps(:,:)
                   trns_interp_lyr_ps8_nf(:,:,nt) = trns_interp_lyr_ps8(:,:)
@@ -1481,15 +1481,15 @@ integer,          intent(in)   :: phase
 !    perform final processing for each frequency band.
 !--------------------------------------------------------------------
               if (n2o_vmr /= 0.0) then
-                call gasins('n2o',                                                                                    &
-                            do_lvlcalc_n2o, do_lvlctscalc_n2o,                                                        &
-                            do_lyrcalc_n2o, nf, ntbnd_n2o(nf),                                                        &
-                            ndimkp,ndimk,                                                                             &
+                call gasins('n2o',                                        &
+                            do_lvlcalc_n2o, do_lvlctscalc_n2o,   &
+                            do_lyrcalc_n2o, nf, ntbnd_n2o(nf),   &
+                            ndimkp,ndimk,                               &
                             dgasdt10_lvl(:,:,nf_offset), dgasdt10_lvlcts(:,nf_offset), dgasdt10_lyr(:,:,nf_offset),   &
-                            gasp10_lvl(:,:,nf_offset), gasp10_lvlcts(:,nf_offset), gasp10_lyr(:,:,nf_offset),         &
-                            d2gast10_lvl(:,:,nf_offset), d2gast10_lvlcts(:,nf_offset), d2gast10_lyr(:,:,nf_offset),   &  
-                            dgasdt8_lvl(:,:,nf_offset),  dgasdt8_lvlcts(:,nf_offset),  dgasdt8_lyr(:,:,nf_offset) ,   &
-                            gasp8_lvl(:,:,nf_offset),  gasp8_lvlcts(:,nf_offset),  gasp8_lyr(:,:,nf_offset) ,         &
+                            gasp10_lvl(:,:,nf_offset), gasp10_lvlcts(:,nf_offset), gasp10_lyr(:,:,nf_offset),      &
+                            d2gast10_lvl(:,:,nf_offset), d2gast10_lvlcts(:,nf_offset), d2gast10_lyr(:,:,nf_offset),  &  
+                            dgasdt8_lvl(:,:,nf_offset),  dgasdt8_lvlcts(:,nf_offset),  dgasdt8_lyr(:,:,nf_offset) ,    &
+                            gasp8_lvl(:,:,nf_offset),  gasp8_lvlcts(:,nf_offset),  gasp8_lyr(:,:,nf_offset) ,      &
                             d2gast8_lvl(:,:,nf_offset),  d2gast8_lvlcts(:,nf_offset),  d2gast8_lyr(:,:,nf_offset) )
               else
 !15
@@ -5994,7 +5994,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
 !--------------------------------------------------------------------
 !    if necessary, read in tfs of lower standard gas concentration
 !-------------------------------------------------------------------
-        filename = trim(cnsdir) // '/' // trim(name_lo)
+        filename = trim(cnsdir) // '/' // trim(name_lo )
         ncname = trim(filename) // '.nc'
 
         startpos(:) = 1
@@ -6031,7 +6031,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
 
 end subroutine read_lbltfs
 
-subroutine read_lbltfs_old(gas_type, callrctrns, nstd_lo, nstd_hi, nf,   &
+subroutine read_lbltfs_old (gas_type, callrctrns, nstd_lo, nstd_hi, nf,   &
                         ntbnd, trns_std_hi_nf, trns_std_lo_nf )
  
 use cc_mpi
@@ -6073,8 +6073,8 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
       logical tst
  
       data (input_lblco2name(n,1),n=1,5)/            &
-        'cns_0_490850     ', 'cns_0_490630     ', 'cns_0_630700     ', &
-        'cns_0_700850     ', 'cns_0_43um       '/
+        'cns_0_490850   ', 'cns_0_490630   ', 'cns_0_630700   ',       &
+        'cns_0_700850   ', 'cns_0_43um     '/
       data (input_lblco2name(n,2),n=1,5)/            &
         'cns_165_490850   ', 'cns_165_490630   ', 'cns_165_630700   ', &
         'cns_165_700850   ', 'cns_165_43um     '/
@@ -6107,11 +6107,11 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
         'cns_1600_700850  ', 'cns_1600_43um    '/
  
       data (input_lblch4name(n,1),n=1,nfreq_bands_sea_ch4)/          &
-        'cns_0_12001400   '/
+        'cns_0_12001400'/
       data (input_lblch4name(n,2),n=1,nfreq_bands_sea_ch4)/          &
-        'cns_300_12001400 '/
+        'cns_300_12001400'/
       data (input_lblch4name(n,3),n=1,nfreq_bands_sea_ch4)/          &
-        'cns_700_12001400 '/
+        'cns_700_12001400'/
       data (input_lblch4name(n,4),n=1,nfreq_bands_sea_ch4)/          &
         'cns_1250_12001400'/
       data (input_lblch4name(n,5),n=1,nfreq_bands_sea_ch4)/          &
@@ -6124,7 +6124,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
         'cns_4000_12001400'/
  
       data (input_lbln2oname(n,1),n=1,nfreq_bands_sea_n2o)/           &
-        'cns_0_12001400   ', 'cns_0_10701200   ', 'cns_0_560630     '/
+        'cns_0_12001400 ', 'cns_0_10701200 ', 'cns_0_560630   '/
       data (input_lbln2oname(n,2),n=1,nfreq_bands_sea_n2o)/           &
         'cns_180_12001400 ', 'cns_180_10701200 ', 'cns_180_560630   '/
       data (input_lbln2oname(n,3),n=1,nfreq_bands_sea_n2o)/           &
@@ -6200,7 +6200,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
 !--------------------------------------------------------------------
 !    if necessary, read in tfs of lower standard gas concentration
 !-------------------------------------------------------------------
-        filename = trim(cnsdir) // '/' // trim(name_lo)
+        filename = trim(cnsdir) // '/' // trim(name_lo )
         ncname = trim(filename) // '.nc'
 
         startpos(:) = 1
@@ -6299,6 +6299,6 @@ end subroutine deallocate_interp_arrays
 
 
 
-end module lw_gases_stdtf_mod
+             end module lw_gases_stdtf_mod
 
 

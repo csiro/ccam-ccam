@@ -954,7 +954,7 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
-  call sflux_mlo_work(ri(is:ie),srcp,ri_max,bprm,chs,chnsea,rho(is:ie),azmin(is:ie),                     &
+  call sflux_mlo_work(ri(is:ie),srcp,vmag(is:ie),ri_max,bprm,chs,ztv,chnsea,rho(is:ie),azmin(is:ie),     &
                       uav(is:ie),vav(is:ie),                                                             &
                       ps(is:ie),t(is:ie,1),qg(is:ie,1),sgdn(is:ie),sgsave(is:ie),rgsave(is:ie),          &
                       swrsave(is:ie),fbeamvis(is:ie),fbeamnir(is:ie),taux(is:ie),tauy(is:ie),            &
@@ -982,7 +982,7 @@ end do
 return
 end subroutine sflux_mlo
 
-subroutine sflux_mlo_work(ri,srcp,ri_max,bprm,chs,chnsea,rho,azmin,uav,vav,               &
+subroutine sflux_mlo_work(ri,srcp,vmag,ri_max,bprm,chs,ztv,chnsea,rho,azmin,uav,vav,      &
                           ps,t,qg,sgdn,sgsave,rgsave,swrsave,fbeamvis,fbeamnir,taux,tauy, &
                           ustar,water,depth,dgice,dgscrn,dgwater,ice,                     &
                           tpan,epan,condx,conds,condg,fg,eg,evspsbl,sbl,epot,             &
@@ -1000,13 +1000,13 @@ use soil_m, only : zmin              ! Soil and surface data
 implicit none
 
 integer iq, calcprog
-real oflow
-real, intent(in) :: srcp, ri_max, bprm, chs, chnsea
+real root, denha, esatf, oflow
+real, intent(in) :: srcp, ri_max, bprm, chs, ztv, chnsea
 real, dimension(imax), intent(in) :: t, qg
 real, dimension(imax), intent(inout) :: ri, taux, tauy, ustar, tpan, epan
 real, dimension(imax), intent(inout) :: fg, eg, epot, tss, cduv, cdtq, watbdy, fracice, sicedep
 real, dimension(imax), intent(inout) :: snowd, qsttg, zo, wetfac, zoh, zoq, ga
-real, dimension(imax), intent(in) :: rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
+real, dimension(imax), intent(in) :: vmag, rho, azmin, uav, vav, ps, sgdn, sgsave, rgsave, swrsave
 real, dimension(imax), intent(in) :: fbeamvis, fbeamnir, condx, conds, condg, vmod, theta
 real, dimension(imax) :: neta, dumw, dumrg, dumx, dums, fhd
 real, dimension(imax) :: umod, umag
@@ -1171,7 +1171,7 @@ do tile=1,ntiles
                         slab_g(:,tile),walle_g(:,tile),wallw_g(:,tile),cnveg_g(tile),intl_g(tile),                   &
                         luzon,lvmer,cdtq(is:ie),cduv(is:ie),conds(is:ie),                                            &
                         condg(is:ie),condx(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),lqg,                                 &
-                        qsttg(is:ie),rgsave(is:ie),runoff(is:ie),sgdn(is:ie),                                        &
+                        qsttg(is:ie),rgsave(is:ie),runoff(is:ie),sgdn(is:ie),sgsave(is:ie),                          &
                         snowmelt(is:ie),lt,taux(is:ie),tauy(is:ie),tss(is:ie),u(is:ie,1),                            &
                         ustar(is:ie),v(is:ie,1),vmod(is:ie),wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),           &
                         evspsbl(is:ie),sbl(is:ie),anthropogenic_flux(is:ie),                                         &
@@ -1188,7 +1188,7 @@ end subroutine sflux_urban
 subroutine sflux_urban_work(rho,vmag,fp,fp_intm,fp_road,fp_roof,                                                  &
                             fp_slab,fp_wall,intm,pd,rdhyd,rfhyd,rfveg,road,roof,room,slab,walle,wallw,cnveg,intl, &
                             uzon,vmer,cdtq,cduv,                                                                  &
-                            conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,runoff,sgdn,snowmelt,                      &
+                            conds,condg,condx,eg,fg,ps,qg,qsttg,rgsave,runoff,sgdn,sgsave,snowmelt,               &
                             t,taux,tauy,tss,u,ustar,v,vmod,wetfac,zo,zoh,zoq,evspsbl,sbl,                         &
                             anthropogenic_flux,urban_ts,urban_tas,urban_wetfac,urban_zom,urban_zoh,urban_zoq,     &
                             urban_emiss,urban_storage_flux,urban_elecgas_flux,urban_heating_flux,                 &
@@ -1218,7 +1218,7 @@ real, dimension(imax), intent(inout) :: urban_zom, urban_zoh, urban_zoq, urban_e
 real, dimension(imax), intent(inout) :: urban_storage_flux,urban_elecgas_flux
 real, dimension(imax), intent(inout) :: urban_heating_flux,urban_cooling_flux
 real, dimension(imax), intent(in) :: conds, condg, condx
-real, dimension(imax), intent(in) :: ps, rgsave, sgdn, vmod
+real, dimension(imax), intent(in) :: ps, rgsave, sgdn, sgsave, vmod
 real, dimension(imax), intent(inout) :: cdtq, cduv
 real, dimension(imax), intent(inout) :: eg, fg, qsttg
 real, dimension(imax), intent(inout) :: taux, tauy, tss, ustar, wetfac

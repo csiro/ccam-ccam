@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -383,7 +383,7 @@ subroutine cable_pack_i4_2_i4_map(indata,outdata,nmp)
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(is:ie) = pack(int(indata(js:je),4),tdata(tile)%tmap(:,nb))
+        outdata(is:ie) = pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
       end if  
     else    
       do iq = js,je
@@ -416,7 +416,7 @@ subroutine cable_pack_i4_2_i8_map(indata,outdata,nmp)
       is = tdata(tile)%tind(nb,1)
       ie = tdata(tile)%tind(nb,2)
       if ( is<=ie ) then
-        outdata(is:ie) = pack(int(indata(js:je),8),tdata(tile)%tmap(:,nb))
+        outdata(is:ie) = pack(real(indata(js:je),4),tdata(tile)%tmap(:,nb))
       end if  
     else    
       do iq = js,je
@@ -1565,10 +1565,10 @@ subroutine setp_pop(pop,lpop,tile)
   ie = tdata(tile)%poffset + tdata(tile)%np
 
   if ( is<=ie ) then
-    lpop%pop_grid => pop%pop_grid(is:ie)
-    lpop%it_pop => pop%it_pop(is:ie)
+    !lpop%pop_grid => pop%pop_grid(is:ie)
+    !lpop%it_pop => pop%it_pop(is:ie)
     lpop%np = tdata(tile)%np
-    lpop%Iwood => pop%Iwood(is:ie)
+    !lpop%Iwood => pop%Iwood(is:ie)
   end if  
 
 end subroutine setp_pop

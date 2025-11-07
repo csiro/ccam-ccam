@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -74,7 +74,7 @@ real, save :: maxl     = 1000.     ! max value for L   (500. in TAPM)
 ! model MF constants
 real, save :: be       = 0.1       ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
 real, save :: ent0     = 0.25      ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
-real, save :: ent1     = 0.25      ! As above but ent0 controls the bottom of the BL and ent1 controls the top of the BL
+real, save :: ent1     = 0.25
 real, save :: ent_min  = 0.        ! Minimum entrainment
 real, save :: ezmin    = 100.      ! Limits entrainment at plume top
 real, save :: entc0    = 2.e-3     ! Saturated entrainment constant for mass flux
@@ -218,6 +218,7 @@ real, dimension(imax) :: templ, fice, qc, qt
 real, dimension(imax) :: temp, lx, dqsdt, al
 real, dimension(kl) :: sigkap
 real tff, cm12, cm34, ddts
+real wdash_sq, l_on_kz
 logical, dimension(imax) :: mask
 
 integer, intent(in) :: tile
@@ -547,7 +548,7 @@ pure subroutine plumerise(mask,                                        &
                      sig,sigkap,tke,ua,va,imax,kl)
 
 integer, intent(in) :: imax, kl
-integer k, iq
+integer k, iq, iter
 real, dimension(imax,kl), intent(inout) :: mflx, tlup, qvup, qlup, qfup, niup, cfup
 real, dimension(imax,kl), intent(in) :: qvg, qlg, qfg, ni, stratcloud
 real, dimension(imax,kl), intent(in) :: zz, thetal, ua, va 
@@ -1226,7 +1227,7 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,       &
 use mlo_ctrl, only : wlev, mlo_updatekm, dgwater_g,                            &
                      mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
                      wrtrho, ice_g, mlocheck, minsfc
-                          
+
 implicit none
 
 integer, intent(in) :: imax, kl, tile
@@ -1285,7 +1286,7 @@ rr(:,1:kl-1)=-ddts*kmo_a(:,1:kl-1)*idzp(:,1:kl-1)/dz_hl(:,1:kl-1)
 ! k=1 is top of atmosphere and k=kl is bottom of atmosphere
 cc_a(:,1) = qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
 do k = 2,kl-1
-  kn = kl - k + 1  
+  kn = kl - k + 1
   aa_a(:,k) = rr(:,kn)-ddts*mflx(:,kn+1)*fzzh(:,kn)*idzp(:,kn)
   cc_a(:,k) = qq(:,kn)+ddts*mflx(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)
 end do
@@ -1309,9 +1310,9 @@ where ( deptho_dz(:,1)>1.e-4 )
   rhs_o(:,1) = ks_o(:,2)*gammas_o(:,2)/deptho_dz(:,1)
 end where
 do k = 2,wlev-1
-  where ( deptho_dz(:,k)>1.e-4 )  
+  where ( deptho_dz(:,k)>1.e-4 )
     rhs_o(:,k) = (ks_o(:,k+1)*gammas_o(:,k+1)-ks_o(:,k)*gammas_o(:,k))/deptho_dz(:,k)
-  end where  
+  end where
 end do
 where ( deptho_dz(:,wlev)>1.e-4 )
   rhs_o(:,wlev) = -ks_o(:,wlev)*gammas_o(:,wlev)/deptho_dz(:,wlev)
@@ -1326,7 +1327,7 @@ do k = 2,wlev-1
   end where
   where ( deptho_dz(:,k+1)*deptho_dz(:,k)>1.e-4 )
     cc_o(:,k) = -ddts*ks_o(:,k+1)/(deptho_dz_hl(:,k+1)*deptho_dz(:,k))
-  end where  
+  end where
 end do
 where ( deptho_dz(:,wlev)*deptho_dz(:,wlev)>1.e-4 )
   aa_o(:,wlev) = -ddts*ks_o(:,wlev)/(deptho_dz_hl(:,wlev)*deptho_dz(:,wlev))
@@ -1354,7 +1355,7 @@ bb_a(:,1) = 1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
 dd_a(:,1,1) = thetal(:,kl)+ddts*(mflx(:,kl-1)*tlup(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)   &
                                 +mflx(:,kl)*tlup(:,kl)*fzzh(:,kl-1)*idzm(:,kl))
 do k = 2,kl-1
-  kn = kl - k + 1  
+  kn = kl - k + 1
   bb_a(:,k) = 1.-qq(:,kn)-rr(:,kn)+ddts*(mflx(:,kn)*fzzh(:,kn-1)*idzm(:,kn)               &
                                         -mflx(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn))
   dd_a(:,k,1) = thetal(:,kn)+ddts*(mflx(:,kn-1)*tlup(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn) &
@@ -1366,24 +1367,24 @@ bb_a(:,kl) = 1.-rr(:,1)-ddts*mflx(:,1)*(1.-fzzh(:,1))*idzp(:,1)
 dd_a(:,kl,1) = thetal(:,1)-ddts*(mflx(:,1)*tlup(:,1)*(1.-fzzh(:,1))*idzp(:,1)             &
                                 +mflx(:,2)*tlup(:,2)*fzzh(:,1)*idzp(:,1))
 where ( land(1:imax) )
-  wt0_a = fg/(rhos*cp)  ! theta flux    
+  wt0_a = fg/(rhos*cp)  ! theta flux
   dd_a(:,kl,1) = dd_a(:,kl,1)+ddts*rhos*wt0_a/(rhoa1(:)*dz_fl1(:))
 elsewhere
-  bb_a(:,kl) = bb_a(:,kl)+ddts*t1(:)*(1.-fracice(:))/cp/(rhoa1(:)*dz_fl1(:)) 
+  bb_a(:,kl) = bb_a(:,kl)+ddts*t1(:)*(1.-fracice(:))/cp/(rhoa1(:)*dz_fl1(:))
   dd_a(:,kl,1) = dd_a(:,kl,1)-ddts*t1(:)*(1.-fracice(:))/cp*sigkap(1)                     &
                     *(lv*qlg(:,1)+ls*qfg(:,1))/cp/(rhoa1(:)*dz_fl1(:))
   dd_a(:,kl,1) = dd_a(:,kl,1)+ddts*t1(:)*(1.-fracice(:))*wrtemp/cp/(rhoa1(:)*dz_fl1(:))
   dd_a(:,kl,1) = dd_a(:,kl,1)+ddts*(fracice*icefg_a/cp)/(rhoa1(:)*dz_fl1(:))
-end where  
+end where
 
 bb_o(:,1) = 1. - cc_o(:,1)
-dd_o(:,1,1) = w_t(:,1) 
+dd_o(:,1,1) = w_t(:,1)
 where ( deptho_dz(:,1)>1.e-4 )
   dd_o(:,1,1) = dd_o(:,1,1) + ddts*rhs_o(:,1) - ddts*rad_o(:,1)/deptho_dz(:,1)
 end where
 do k = 2,wlev-1
   bb_o(:,k) = 1. - aa_o(:,k) - cc_o(:,k)
-  dd_o(:,k,1) = w_t(:,k) 
+  dd_o(:,k,1) = w_t(:,k)
   where ( deptho_dz(:,k)>1.e-4 )
     dd_o(:,k,1) = dd_o(:,k,1) + ddts*rhs_o(:,k) - ddts*rad_o(:,k)/deptho_dz(:,k)
   end where
@@ -1401,11 +1402,11 @@ where ( .not.land(1:imax) )
   dd_o(:,1,1) = dd_o(:,1,1) - ddts*wt0fb_o/deptho_dz(:,1)
   f_ao(:) = -ddts*t1(:)*(1.-fracice(:))/cp/(rhoa1(:)*dz_fl1(:))
   f_oa(:) = -ddts*t1(:)*(1.-fracice(:))/(wrtrho*cp0*deptho_dz(:,1))
-end where  
+end where
 call solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a(:,:,1),tt_a(:,:,1),  &
                             aa_o,bb_o,cc_o,dd_o(:,:,1),w_t,          &
                             f_ao,f_oa,                               &
-                            imax,kl,wlev) 
+                            imax,kl,wlev)
 do k = 1,kl
   kn = kl - k + 1
   thetal(:,k) = tt_a(:,kn,1)
@@ -1418,7 +1419,7 @@ where ( .not.land(1:imax) )
       + fracice*icefg_a
   wt0_o = wt0rad_o + wt0melt_o + wt0eg_o + wt0fb_o &
          + (1.-fracice)*t1*(w_t(:,1)+wrtemp-thetal(:,1)-sigkap(1)*(lv*qlg(:,1)+ls*qfg(:,1))/cp)/(wrtrho*cp0)
-end where 
+end where
 call mlo_updatediag("wt0",wt0_o,0,dgwater_g(tile),depth_g(tile))
 
 
@@ -1429,9 +1430,9 @@ call mlo_updatediag("wt0",wt0_o,0,dgwater_g(tile),depth_g(tile))
 bb_a(:,1) = 1.-qq(:,kl)+ddts*mflx(:,kl)*fzzh(:,kl-1)*idzm(:,kl)
 cc_a(:,1) = qq(:,kl)+ddts*mflx(:,kl-1)*(1.-fzzh(:,kl-1))*idzm(:,kl)
 do k = 2,kl-1
-  kn = kl - k + 1  
+  kn = kl - k + 1
   aa_a(:,k) = rr(:,kn)-ddts*mflx(:,kn+1)*fzzh(:,kn)*idzp(:,kn)
-  
+
   bb_a(:,k) = 1.-qq(:,kn)-rr(:,kn)+ddts*(mflx(:,kn)*fzzh(:,kn-1)*idzm(:,kn)         &
                                         -mflx(:,kn)*(1.-fzzh(:,kn))*idzp(:,kn))
   cc_a(:,k) = qq(:,kn)+ddts*mflx(:,kn-1)*(1.-fzzh(:,kn-1))*idzm(:,kn)
@@ -1513,7 +1514,7 @@ call thomas(tt_a(:,:,1:5),aa_a(:,2:kl),bb_a(:,1:kl),cc_a(:,1:kl-1),dd_a(:,1:kl,1
             imax,kl,5)
 
 do k = 1,kl
-  kn = kl - k + 1  
+  kn = kl - k + 1
   qvg(:,k) = tt_a(:,kn,1)
   qlg(:,k) = tt_a(:,kn,2)
   qfg(:,k) = tt_a(:,kn,3)
@@ -1531,8 +1532,8 @@ where ( deptho_dz(:,2)*deptho_dz(:,1)>1.e-4 )
 end where
 bb_o(:,1) = 1. - cc_o(:,1)
 do k = 2,wlev-1
-  where ( deptho_dz(:,k-1)*deptho_dz(:,k)>1.e-4 )  
-    aa_o(:,k) = -ddts*ks_o(:,k)/(deptho_dz_hl(:,k)*deptho_dz(:,k)) 
+  where ( deptho_dz(:,k-1)*deptho_dz(:,k)>1.e-4 )
+    aa_o(:,k) = -ddts*ks_o(:,k)/(deptho_dz_hl(:,k)*deptho_dz(:,k))
   end where
   where ( deptho_dz(:,k+1)*deptho_dz(:,k)>1.e-4 )
     cc_o(:,k) = -ddts*ks_o(:,k+1)/(deptho_dz_hl(:,k+1)*deptho_dz(:,k))
@@ -1552,7 +1553,7 @@ do k = 1,wlev
   !dd_o(:,k,1) = w_s(:,k) + ddts*rhs_o(:,k)*ws0_o
   dd_o(:,k,1) = w_s(:,k)
   where ( deptho_dz(:,k)>1.e-4 )
-    dd_o(:,k,1) = dd_o(:,k,1) + ddts*rhs_o(:,k)*ws0_o*w_s(:,1)  
+    dd_o(:,k,1) = dd_o(:,k,1) + ddts*rhs_o(:,k)*ws0_o*w_s(:,1)
     deltazo = max( min( deptho_dz(:,k), targetdeptho-fulldeptho ), 0. )
     fulldeptho = fulldeptho + deltazo
     !dd_o(:,k,1) = dd_o(:,k,1) - ddts*ws0subsurf_o*deltazo/max(deptho_dz(:,k)*targetdeptho,1.e-4)
@@ -1583,7 +1584,7 @@ t4 = wrtrho*cdbot_ice
 bb_a(:,1) = 1.-qq(:,kl)
 cc_a(:,1) = qq(:,kl)
 do k = 2,kl-1
-  kn = kl - k + 1  
+  kn = kl - k + 1
   aa_a(:,k) = rr(:,kn)
   bb_a(:,k) = 1.-qq(:,kn)-rr(:,kn)
   cc_a(:,k) = qq(:,kn)
@@ -1591,18 +1592,18 @@ end do
 aa_a(:,kl) = rr(:,1)
 bb_a(:,kl) = 1.-rr(:,1)
 where ( land(1:imax) )
-  bb_a(:,kl) = bb_a(:,kl) + ddts*rhos*cduv/(rhoa1(:)*dz_fl1(:)) ! implicit  
+  bb_a(:,kl) = bb_a(:,kl) + ddts*rhos*cduv/(rhoa1(:)*dz_fl1(:)) ! implicit
 elsewhere
   bb_a(:,kl) = bb_a(:,kl) + ddts*(t1(:)*(1.-fracice(:))+t3(:)*fracice(:))/(rhoa1(:)*dz_fl1(:))
-end where  
+end where
 
 where ( deptho_dz(:,2)*deptho_dz(:,1) > 1.e-4 )
   cc_o(:,1) = -ddts*km_o(:,2)/(deptho_dz_hl(:,2)*deptho_dz(:,1))
 end where
 bb_o(:,1) = 1. - cc_o(:,1)
 do k = 2,wlev-1
-  where ( deptho_dz(:,k-1)*deptho_dz(:,k) > 1.e-4 )  
-    aa_o(:,k) = -ddts*km_o(:,k)/(deptho_dz_hl(:,k)*deptho_dz(:,k)) 
+  where ( deptho_dz(:,k-1)*deptho_dz(:,k) > 1.e-4 )
+    aa_o(:,k) = -ddts*km_o(:,k)/(deptho_dz_hl(:,k)*deptho_dz(:,k))
   end where
   where ( deptho_dz(:,k+1)*deptho_dz(:,k) > 1.e-4 )
     cc_o(:,k) = -ddts*km_o(:,k+1)/(deptho_dz_hl(:,k+1)*deptho_dz(:,k))
@@ -1618,12 +1619,12 @@ where ( .not.land(1:imax) )
 end where
 ! bottom drag
 do iq = 1,imax
-  if ( .not.land(iq) ) then  
+  if ( .not.land(iq) ) then
     k = ibot(iq)
     if ( deptho_dz(iq,k)>=1.e-4 ) then
       ! cdbot_water is cd*|u|
-      bb_o(iq,k) = bb_o(iq,k) + ddts*cdbot_water(iq)/deptho_dz(iq,k) 
-    end if  
+      bb_o(iq,k) = bb_o(iq,k) + ddts*cdbot_water(iq)/deptho_dz(iq,k)
+    end if
   end if
 end do
 
@@ -1639,13 +1640,13 @@ where ( .not.land(1:imax) )
   f_ia(:) = -ddts*t3(:)/imass
   f_oi(:) = -ddts*t4(:)*fracice(:)/(wrtrho*deptho_dz(:,1))
   f_io(:) = -ddts*t4(:)/imass
-end where  
+end where
 
 ! ua, uo, ui - coupled ----
 ! va, vo, vi - coupled ----
 ! k=1 is top of atmosphere and k=kl is bottom of atmosphere
 do k = 1,kl
-  kn = kl - k + 1  
+  kn = kl - k + 1
   dd_a(:,k,1) = ua(:,kn)
   dd_a(:,k,2) = va(:,kn)
 end do
@@ -1667,7 +1668,7 @@ call solve_sherman_morrison(aa_a,bb_a,cc_a,dd_a(:,:,1),dd_a(:,:,2),  &
                             i_u,i_v,                                 &
                             f_ao,f_oa,f_ai,f_ia,                     &
                             f_oi,f_io,                               &
-                            imax,kl,wlev) 
+                            imax,kl,wlev)
 do k = 1,kl
   kn = kl - k + 1
   ua(:,k) = tt_a(:,kn,1)

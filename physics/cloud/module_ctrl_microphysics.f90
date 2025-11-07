@@ -87,7 +87,7 @@ use morepbl_m                     ! Additional boundary layer diagnostics
 use newmpar_m                     ! Grid parameters
 use nharrs_m                      ! Non-hydrostatic atmosphere arrays
 use parm_m, only : dt,idjd,     &
-      iaero,ds                    ! Model configuration
+      iaero,irest,ktau,nwt,ntau   ! Model configuration
 use pbl_m                         ! Boundary layer arrays
 use prec_m                        ! Precipitation
 use raddiag_m                     ! Radiation diagnostic
@@ -100,7 +100,7 @@ use vvel_m                        ! Additional vertical velocity
 
 implicit none
   
-integer :: tile, js, je, k, iq, i
+integer :: tile, js, je, k, n, iq, i
 integer :: njumps, idjd_t
 real, dimension(imax,kl) :: lcfrac, lgfrac
 real, dimension(imax,kl) :: lqg, lqgrg, lqlg, lqfg, lqlrad, lqfrad, lqrg, lqsng, lrfrac, lsfrac, lt
@@ -119,7 +119,7 @@ real, dimension(ifull,kl) :: qlg_rem, qfg_rem
 real, dimension(ifull,kl) :: qrg_rem, qsng_rem, qgrg_rem
 real, dimension(ifull,kl) :: clcon, cdrop
 real, dimension(ifull,kl) :: fluxr, fluxm, fluxf, fluxi, fluxs, fluxg
-real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr
+real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
 real, dimension(ifull,kl) :: vi
 real, dimension(ifull,kl) :: dz, rhoa
 
@@ -163,10 +163,10 @@ real(kind=8), dimension(imax,kl) :: zqschg
 real(kind=8), dimension(imax) :: pptrain, pptsnow, pptice
 #endif
 real(kind=8), dimension(ifull,kl) :: zqsng_rem
-real(kind=8) tdt
+real(kind=8) tdt, zmaxlintime
 real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
-character(len=20) :: cmode, dmode
+character(len=8) :: cmode, dmode
 
 
 !----------------------------------------------------------------------------
@@ -206,14 +206,10 @@ do tile = 1,ntiles
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
   ! limit maximum cloud water visible to microphysics
-  do k = 1,kl
-    do iq = js,je
-      qlg_rem(iq,k) = max( qlg(iq,k)-qlg_max, 0. ) 
-      qlg(iq,k) = qlg(iq,k) - qlg_rem(iq,k)
-      qfg_rem(iq,k) = max( qfg(iq,k)-qfg_max, 0. )
-      qfg(iq,k) = qfg(iq,k) - qfg_rem(iq,k)   
-    end do
-  end do
+  qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+  qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+  qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+  qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
   
   lqg      = qg(js:je,:)
   lqlg     = qlg(js:je,:)
@@ -235,7 +231,7 @@ do tile = 1,ntiles
               ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
               ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
               em(js:je),pblh(js:je),idjd_t,mydiag_t,nclddia,                    &
-              rcrit_l,rcrit_s,cld_decay,vdeposition_mode,tiedtke_form,      &
+              rcrit_l,rcrit_s,rcm,cld_decay,vdeposition_mode,tiedtke_form,      &
               lrkmsave,lrkhsave,cmode,dmode)
 
   ! This configuration allows prognostic condensate variables to be updated 
@@ -273,20 +269,16 @@ select case ( interp_ncloud(ldr,ncloud) )
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
       ! limit maximum cloud water visible to microphysics
-      do k = 1,kl
-        do iq = js,je
-          qlg_rem(iq,k) = max( qlg(iq,k)-qlg_max, 0. ) 
-          qlg(iq,k) = qlg(iq,k) - qlg_rem(iq,k)
-          qrg_rem(iq,k) = max( qrg(iq,k)-qlg_max, 0. ) 
-          qrg(iq,k) = qrg(iq,k) - qrg_rem(iq,k)
-          qfg_rem(iq,k) = max( qfg(iq,k)-qfg_max, 0. )
-          qfg(iq,k) = qfg(iq,k) - qfg_rem(iq,k)   
-          qsng_rem(iq,k) = max( qsng(iq,k)-qfg_max, 0. )
-          qsng(iq,k) = qsng(iq,k) - qsng_rem(iq,k)   
-          qgrg_rem(iq,k) = max( qgrg(iq,k)-qfg_max, 0. )
-          qgrg(iq,k) = qgrg(iq,k) - qgrg_rem(iq,k)   
-        end do
-      end do
+      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlg_max, 0. )
+      qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
+      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
+      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
+      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
+      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
+      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)   
       
       lgfrac   = gfrac(js:je,:)
       lrfrac   = rfrac(js:je,:)
@@ -374,30 +366,24 @@ select case ( interp_ncloud(ldr,ncloud) )
       end do
       
       ! limit maximum cloud water visible to microphysics
-      do k = 1,kl
-        do iq = js,je
-          qlg_rem(iq,k) = max( qlg(iq,k)-qlg_max, 0. ) 
-          qlg(iq,k) = qlg(iq,k) - qlg_rem(iq,k)
-          qrg_rem(iq,k) = max( qrg(iq,k)-qlg_max, 0. ) 
-          qrg(iq,k) = qrg(iq,k) - qrg_rem(iq,k)
-          qfg_rem(iq,k) = max( qfg(iq,k)-qfg_max, 0. )
-          qfg(iq,k) = qfg(iq,k) - qfg_rem(iq,k)   
-        end do
-      end do
-
+      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlg_max, 0. )
+      qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
+      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
+      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
+      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
+      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
+      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)  
+      
       zqg(js:je,:) = real( qg(js:je,:), 8 )
       zqlg(js:je,:) = real( qlg(js:je,:), 8 )
       zqrg(js:je,:) = real( qrg(js:je,:), 8 )
       zqfg(js:je,:) = real( qfg(js:je,:), 8 )
       zqsng(js:je,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
-
-      do k = 1,kl
-        do iq = js,je
-          i = iq - js + 1  
-          zqsng_rem(iq,k) = max( zqsng(i,k)-real(qfg_max,8), 0._8 )
-          zqsng(i,k) = zqsng(i,k) - zqsng_rem(iq,k)   
-        end do
-      end do
+      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - qfg_max, 0._8 )
+      zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
 
       ! ----------------
       do k = 1,kl
@@ -461,6 +447,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
       qrg(js:je,:) = qrg(js:je,:) + qrg_rem(js:je,:)
       qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
+      qsng(js:je,:) = qsng(js:je,:) + qsng_rem(js:je,:)
+      qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(js:je,:)
       
       where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
@@ -527,30 +515,24 @@ select case ( interp_ncloud(ldr,ncloud) )
       end do
       
       ! limit maximum cloud water visible to microphysics
-      do k = 1,kl
-        do iq = js,je
-          qlg_rem(iq,k) = max( qlg(iq,k)-qlg_max, 0. ) 
-          qlg(iq,k) = qlg(iq,k) - qlg_rem(iq,k)
-          qrg_rem(iq,k) = max( qrg(iq,k)-qlg_max, 0. ) 
-          qrg(iq,k) = qrg(iq,k) - qrg_rem(iq,k)
-          qfg_rem(iq,k) = max( qfg(iq,k)-qfg_max, 0. )
-          qfg(iq,k) = qfg(iq,k) - qfg_rem(iq,k)   
-        end do
-      end do
+      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlg_max, 0. )
+      qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
+      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
+      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
+      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
+      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
+      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)   
       
       zqg(1:imax,:) = real( qg(js:je,:), 8 )
       zqlg(1:imax,:) = real( qlg(js:je,:), 8 )
       zqrg(1:imax,:) = real( qrg(js:je,:), 8 )
       zqfg(1:imax,:) = real( qfg(js:je,:), 8 )
       zqsng(1:imax,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
-
-      do k = 1,kl
-        do iq = js,je
-          i = iq - js + 1  
-          zqsng_rem(iq,k) = max( zqsng(i,k)-real(qfg_max,8), 0._8 )
-          zqsng(i,k) = zqsng(i,k) - zqsng_rem(iq,k)   
-        end do
-      end do
+      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - qfg_max, 0._8 )
+      zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
       
       ! ----------------
       do k = 1,kl
@@ -566,16 +548,16 @@ select case ( interp_ncloud(ldr,ncloud) )
         end do
       end do
 
-      zcdrop(1:imax,:) = real( cdrop(js:je,:), 8 ) ! indirect aerosol effect
-      znc(1:imax,:) = 0._8                         ! updated in clphy1d_ylin - diagnostic
-      znr(1:imax,:) = real( nr(js:je,:), 8 )       ! updated in clphy1d_ylin - prognostic
-      zni(1:imax,:) = real( ni(js:je,:), 8 )       ! updated in clphy1d_ylin - prognostic
-      zns(1:imax,:) = real( ns(js:je,:), 8 )       ! updated in clphy1d_ylin - prognostic
+      zcdrop(1:imax,:) = real( cdrop(js:je,:), 8 ) ! aerosol
+      znc(1:imax,:) = 0._8
+      znr(1:imax,:) = real( nr(js:je,:), 8 )
+      zni(1:imax,:) = real( ni(js:je,:), 8 )
+      zns(1:imax,:) = real( ns(js:je,:), 8 )
 
       pptrain(1:imax) = 0._8
       pptsnow(1:imax) = 0._8
       pptice(1:imax)  = 0._8
-
+     
 
       ! Use sub time-step if required
       njumps = int(dt/(maxlintime+0.01)) + 1
@@ -601,12 +583,12 @@ select case ( interp_ncloud(ldr,ncloud) )
                      zcdrop,lin_aerosolmode,lin_adv,     &
                      njumps)
 
-
+      
       t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
-      ! apply any remaining zqsng_rem
-      zqsng(1:imax,:) = zqsng(1:imax,:) + zqsng_rem(js:je,:)      
+      zqsng(js:je,:) = zqsng(js:je,:) + zqsng_rem(js:je,:)      
 
       !unpack data from imax to ifull.
+
       qg(js:je,:)   = real( zqg(1:imax,:) )                        ! qv mixing ratio
       qlg(js:je,:)  = real( zqlg(1:imax,:) )                       ! ql mixing ratio
       qfg(js:je,:)  = real( zqfg(1:imax,:) )                       ! qf mixing ratio (ice)
@@ -614,12 +596,13 @@ select case ( interp_ncloud(ldr,ncloud) )
       qsng(js:je,:) = real( zqsng(1:imax,:)*(1._8-riz(1:imax,:)) ) ! qs mixing ratio (snow)
       qgrg(js:je,:) = real( zqsng(1:imax,:)*riz(1:imax,:) )        ! qg mixing ration (graupel)
 
-      ! apply any remaining qlg_rem or qfg_rem
+      ! reapply any remaining qlg_rem or qfg_rem
       qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
       qrg(js:je,:) = qrg(js:je,:) + qrg_rem(js:je,:)
       qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
+      qsng(js:je,:) = qsng(js:je,:) + qsng_rem(js:je,:)
+      qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(js:je,:)
       
-      ! estimate area fraction for rain, snow and graupel.  To be depreciated.
       where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
       elsewhere
@@ -636,7 +619,6 @@ select case ( interp_ncloud(ldr,ncloud) )
          gfrac(js:je,:) = 0.
       end where
       
-      ! uppack other variables and calculate fluxes
       !nc(js:je,:)        = real( znc(1:imax,:) )
       nr(js:je,:)         = real( znr(1:imax,:) )
       ni(js:je,:)         = real( zni(1:imax,:) )
@@ -665,9 +647,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       faccr(js:je,:) = real( zqaccr(1:imax,:) )
       vi(js:je,:)    = real( zvi(1:imax,:) )
 
-      ! optional process rate to understand cloud microphysics
       if (process_rate_mode == 2) then
-        psnow(js:je,:)   = real( zpsnow(1:imax,:) ) 
+        psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
         psaut(js:je,:)   = real( zpsaut(1:imax,:) )
         psfw(js:je,:)    = real( zpsfw(1:imax,:) )
         psfi(js:je,:)    = real( zpsfi(1:imax,:) )
@@ -696,8 +677,7 @@ select case ( interp_ncloud(ldr,ncloud) )
         piadj(js:je,:)   = real( zpiadj(1:imax,:) )
         pqschg(js:je,:)  = real( zqschg(1:imax,:) )
       end if
-      
-      ! unpack precipitation for total, snow/ice and graupel
+          
       condx(js:je)  = condx(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
       conds(js:je)  = conds(js:je) + real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax) )
       condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel

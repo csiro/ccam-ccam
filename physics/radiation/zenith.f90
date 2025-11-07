@@ -106,8 +106,11 @@ contains
       sni    = sin(angin)
 
 !   tropical or calendar year in mean solar days is cyear
-      cyear = 365.
-      if ( leap==2 ) then ! 360 day calendar
+      if ( leap==0 ) then ! 365 day calendar
+         cyear = 365.
+      else if ( leap==1 ) then ! 365/366 day calendar
+         cyear = 365. ! repeat extra day
+      else if ( leap==2 ) then ! 360 day calendar
          cyear = 360.
       end if
       day = mod( day_of_year, cyear )

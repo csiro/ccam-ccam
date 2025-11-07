@@ -78,6 +78,7 @@ use indices_m
 use map_m
 use mlo_ctrl
 use mlodynamicsarrays_m
+use nharrs_m, only : lrestart
 use newmpar_m
 use parm_m
 use soil_m
@@ -90,15 +91,17 @@ real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev,2) :: dumb
 real, dimension(ifull+iextra,wlev) :: ttl, ssl
 real, dimension(ifull+iextra,wlev) :: uau,uav
-real, dimension(ifull+iextra,wlev) :: xfact,yfact
+real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
 real, dimension(ifull+iextra,wlev) :: w_ema
 real, dimension(ifull+iextra,wlev+1) :: t_kh
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
 real, dimension(ifull,wlev) :: workdata2
 real, dimension(ifull) :: dwdx, dwdy
-real hdif
+real hdif, base
 real dudx,dvdx,dudy,dvdy
+real nu,nv,nw
 real, dimension(ifull) :: emi
+real tx_fact, ty_fact
 
 call START_LOG(waterdiff_begin)
 
@@ -285,6 +288,7 @@ real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:), intent(inout) :: work
 real, dimension(:,:), intent(in) :: ee
 real, dimension(ifull+iextra,wlev) :: ans
+real, dimension(ifull) :: ansl
 real, dimension(ifull,wlev) :: work_save
 real, intent(in) :: hdif
 real base, xfact_iwu, yfact_isv

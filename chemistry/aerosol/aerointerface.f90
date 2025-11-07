@@ -105,14 +105,16 @@ use zenith_m                                ! Astronomy routines
 implicit none
 
 integer, intent(in) :: mins, aero_update
-integer k, kinv
-integer iq
+integer k, j, tt, ttx, kinv, smins
+integer iq, ntr
 integer tile, js, je, idjd_t
 real, dimension(ifull,kl) :: dz, rhoa, pccw
 real, dimension(ifull) :: coszro
 real, dimension(ifull) :: wg
 real, dimension(ifull,kl) :: clcon
 real, dimension(ifull) :: taudar, cldcon, u10_l
+real, dimension(imax,ilev) :: loxidantnow
+real, dimension(imax,kl) :: lzoxidant
 real, dimension(imax,kl) :: lclcon
 real, dimension(ifull,kl) :: at, ct
 real dhr, fjd, r1, dlt, alp, slag
@@ -281,7 +283,7 @@ use zenith_m                                ! Astronomy routines
 implicit none
 
 integer, intent(in) :: mins
-integer tt, ttx, j
+integer k, tt, ttx, j
 real dhr, smins, fjd
 real r1, dlt, alp, slag
 real, dimension(ifull) :: coszro, taudar
@@ -425,7 +427,7 @@ zdayfac = 0.
 opticaldepth = 0.
 
 if ( myid==0 ) write(6,*) "-> Allocate prognostic arrays"
-call aldrinit(ifull,iextra,kl)
+call aldrinit(ifull,iextra,kl,sig)
 
 if ( myid==0 ) then
   allocate( dumg(ifull_g,16) )
@@ -822,6 +824,7 @@ real, dimension(size(fscav,1),size(fscav,2)) :: work
 real f_so2,scav_eff
 real zqtp1,ze2,ze3,zfac,zso4l,zso2l,zqhp
 real zza,zzb,zzp,zzq,zzp2,zhp,zheneff,p_so2
+real scav_effs
 logical, dimension(size(fscav,1),size(fscav,2)) :: bwkp1 
 
 !bwkp1(:) = tt(:)>=ticeu ! condensate in parcel is liquid (true) or ice (false)

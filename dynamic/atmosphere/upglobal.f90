@@ -54,10 +54,11 @@ use xyzinfo_m              ! Grid coordinate arrays
 implicit none
 
 integer, parameter :: ntest=0       ! ~8+ for diagnostic stability tests
-integer ii, intsch, iq, jj, k
-integer idjdd
+integer ii, intsch, iq, jj, k, kk
+integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
+integer, dimension(max(naero,ntrac,6)) :: nfield
 real, dimension(ifull) :: nvadh_inv_pass
 real, dimension(ifull+iextra,kl,5) :: bb
 real, dimension(ifull+iextra,kl,3) :: uvw
