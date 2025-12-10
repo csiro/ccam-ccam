@@ -623,8 +623,8 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'nscheme',nscheme)
     call ccnf_put_attg(idnc,'nstab_cld',nstab_cld)
     call ccnf_put_attg(idnc,'nuvconv',nuvconv)
-    call ccnf_put_attg(idnc,'qfg_max',qfg_max)
-    call ccnf_put_attg(idnc,'qlg_max',qlg_max)
+    call ccnf_put_attg(idnc,'qfgrho_max',qfgrho_max)
+    call ccnf_put_attg(idnc,'qlgrho_max',qlgrho_max)
     call ccnf_put_attg(idnc,'rcm',rcm)
     call ccnf_put_attg(idnc,'rcrit_l',rcrit_l)
     call ccnf_put_attg(idnc,'rcrit_s',rcrit_s)
@@ -818,15 +818,15 @@ if ( synchist ) then
   end if
 end if
 
-if ( myid==0 ) then
-  if ( iout==19 ) then  
-    write(6,*) "finished writing to restart" 
-  else if ( iout==20 ) then  
-    write(6,*) "finished writing to ofile"  
-  else
-    write(6,*) "finished writing to ensemble"
-  end if  
-end if
+!if ( myid==0 ) then
+!  if ( iout==19 ) then  
+!    write(6,*) "finished writing to restart" 
+!  else if ( iout==20 ) then  
+!    write(6,*) "finished writing to ofile"  
+!  else
+!    write(6,*) "finished writing to ensemble"
+!  end if  
+!end if
 
 ! close netcdf file if required
 if ( myid==0 .or. local ) then
