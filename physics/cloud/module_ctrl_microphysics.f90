@@ -29,15 +29,15 @@ private
 public ctrl_microphysics
 public cloud_aerosol_mode, lin_aerosolmode, maxlintime, lin_adv
 public cloud_ice_method, leon_snowmeth, process_rate_mode
-public qlgrho_max, qfgrho_max
+public qlg_max, qfg_max
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
 integer, save :: lin_aerosolmode    = 0     ! 0=off, 1=aerosol indirect effects for Lin microphysics
 integer, save :: lin_adv            = 0     ! 0=original, 1=flux
 integer, save :: process_rate_mode  = 0     ! 0-=off, 1=microphysics diagnostics
 real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
-real, save :: qlgrho_max            = 1.e-1 ! maximum value of qlg visible to microphysics
-real, save :: qfgrho_max            = 1.e-1 ! maximum value of qlg visible to microphysics
+real, save :: qlg_max               = 1.e-1 ! maximum value of qlg visible to microphysics
+real, save :: qfg_max               = 1.e-1 ! maximum value of qlg visible to microphysics
 
 ! ldr  = 0      Diagnosed cloud scheme (depreciated)
 ! ldr /= 0      Prognostic cloud condensate (different ice fall speed options)
@@ -206,9 +206,9 @@ do tile = 1,ntiles
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
   ! limit maximum cloud water visible to microphysics
-  qlg_rem(js:je,:) = max( qlg(js:je,:)-qlgrho_max/rhoa(js:je,:), 0. )
+  qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
   qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
-  qfg_rem(js:je,:) = max( qfg(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+  qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
   qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
   
   lqg = qg(js:je,:)
@@ -269,15 +269,15 @@ select case ( interp_ncloud(ldr,ncloud) )
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
       ! limit maximum cloud water visible to microphysics
-      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlgrho_max/rhoa(js:je,:), 0. )
+      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
       qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
-      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlgrho_max/rhoa(js:je,:), 0. )
+      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlg_max, 0. )
       qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
-      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
       qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
-      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
       qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
-      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
       qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)   
       
       lgfrac   = gfrac(js:je,:)
@@ -366,15 +366,15 @@ select case ( interp_ncloud(ldr,ncloud) )
 !      end do
 !      
 !      ! limit maximum cloud water visible to microphysics
-!      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlgrho_max/rhoa(js:je,:), 0. )
+!      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
 !      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
-!      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlgrho_max/rhoa(js:je,:), 0. )
+!      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlg_max, 0. )
 !      qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
-!      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+!      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
 !      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
-!      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+!      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
 !      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
-!      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+!      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
 !      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)  
 !      
 !      zqg(js:je,:) = real( qg(js:je,:), 8 )
@@ -382,7 +382,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 !      zqrg(js:je,:) = real( qrg(js:je,:), 8 )
 !      zqfg(js:je,:) = real( qfg(js:je,:), 8 )
 !      zqsng(js:je,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
-!      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - real(qfgrho_max/rhoa(js:je,:),8), 0._8 )
+!      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - real(qfg_max,8), 0._8 )
 !      zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
 !
 !      ! ----------------
@@ -515,15 +515,15 @@ select case ( interp_ncloud(ldr,ncloud) )
       end do
       
       ! limit maximum cloud water visible to microphysics
-      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlgrho_max/rhoa(js:je,:), 0. )
+      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
       qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
-      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlgrho_max/rhoa(js:je,:), 0. )
+      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlg_max, 0. )
       qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
-      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
       qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
-      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
       qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
-      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfgrho_max/rhoa(js:je,:), 0. )
+      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
       qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)   
       
       zqg(1:imax,:) = real( qg(js:je,:), 8 )
@@ -531,7 +531,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       zqrg(1:imax,:) = real( qrg(js:je,:), 8 )
       zqfg(1:imax,:) = real( qfg(js:je,:), 8 )
       zqsng(1:imax,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
-      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - real(qfgrho_max/rhoa(js:je,:),8), 0._8 )
+      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - real(qfg_max,8), 0._8 )
       zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
       
       ! ----------------

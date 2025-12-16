@@ -28,7 +28,6 @@ module infile
 ! supplied in parallel and then makes this data avaliable to all processors for interpolation. The code can also identify
 ! restart files, in which case no additional message passing is required.
 
-! use netcdf.inc interface (default) or C interface (-Dncclib)
 use netcdf_m
 
 implicit none
@@ -170,8 +169,6 @@ use parm_m
 
 integer, intent(in) :: iarchi,ifull
 integer, intent(out) :: ier
-integer :: iq
-real :: vmax, vmin, vmax_g, vmin_g
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 real, dimension(:), allocatable :: globvar
 character(len=*), intent(in) :: name
@@ -182,17 +179,6 @@ if ( ifull==6*pil_g**2 .or. ptest ) then
 
   ! read local arrays
   call hr3p(iarchi,ier,name,.true.,var)
-  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
-    vmax = maxval(var)
-    vmin = minval(var) 
-    call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
-    call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
-    if ( myid==0 ) then
-      write(6,'(" done histrd3 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
-    end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
-    write(6,'(" done histrd3 ",a48,i4,i3)') trim(name),ier,iarchi
-  end if
 
 else
 
@@ -201,23 +187,19 @@ else
      allocate( globvar(6*pil_g**2) )
      globvar(:) = 0.
      call hr3p(iarchi,ier,name,.false.,globvar)
-     if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-       vmax = maxval(globvar)
-       vmin = minval(globvar)
-       iq = id + (jd-1)*pil_g
-       if ( iq<=size(globvar) ) then
-         write(6,'(" done histrd3 ",a8,i4,i3,3e14.6)') trim(name),ier,iarchi,vmin,vmax,globvar(iq)
-       else
-         write(6,'(" done histrd3 ",a20,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
-       end if
-     end if
      call ccmpi_distribute(var,globvar)
      deallocate( globvar )
   else
     call hr3p(iarchi,ier,name,.false.)
     call ccmpi_distribute(var)
   end if
+  
+end if ! ifull==6*pil_g**2 .or. ptest ..else..
 
+if ( ier==0 .and. myid==0 ) then
+  write(6,'(" done histrd3 ",a8,i4,i3)') trim(name),ier,iarchi
+else if ( myid==0 ) then
+  write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
 call END_LOG(histrd_end)
@@ -260,11 +242,7 @@ if ( mynproc>0 ) then
   
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
-    if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 ) then
-        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-      end if
-    else
+    if ( ier==nf90_noerr ) then
       if ( resprocformat ) then  
         start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
@@ -352,8 +330,6 @@ use parm_m
 
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
-integer :: iq
-real(kind=8) :: vmax, vmin, vmax_g, vmin_g
 real(kind=8), dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
 real(kind=8), dimension(:), allocatable :: globvar
 character(len=*), intent(in) :: name
@@ -361,35 +337,17 @@ character(len=*), intent(in) :: name
 call START_LOG(histrd_begin)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
+
   ! read local arrays without gather and distribute (e.g., restart file)
   call hr3pr8(iarchi,ier,name,.true.,var)
-  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
-    vmax = maxval(var)
-    vmin = minval(var) 
-    call ccmpi_reducer8(vmax,vmax_g,"max",0,comm_ip)
-    call ccmpi_reducer8(vmin,vmin_g,"min",0,comm_ip)
-    if ( myid==0 ) then
-      write(6,'(" done histrd3r8 ",a8,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
-    end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then
-    write(6,'(" done histrd3r8 ",a46,i4,i3)') trim(name),ier,iarchi
-  end if
+
 else
+
   ! read local arrays with gather and distribute (i.e., change in number of processors) 
   if ( myid==0 ) then
     allocate( globvar(6*pil_g**2) )
     globvar(:) = 0.
     call hr3pr8(iarchi,ier,name,.false.,globvar)
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-      vmax = maxval(globvar)
-      vmin = minval(globvar)
-      iq = id+(jd-1)*pil_g
-      if ( iq<=size(globvar) ) then
-        write(6,'(" done histrd3r8 ",a8,i4,i3,3e14.6)') trim(name),ier,iarchi,vmin,vmax,globvar(iq)
-      else
-        write(6,'(" done histrd3r8 ",a18,i4,i3,2e14.6)') trim(name),ier,iarchi,vmin,vmax
-      end if
-    end if
     call ccmpi_distributer8(var,globvar)
     deallocate( globvar )
   else
@@ -397,12 +355,18 @@ else
     call ccmpi_distributer8(var)
   end if
 
+end if ! ifull==6*pil_g**2 .or. ptest ..else..
+
+if ( ier==0 .and. myid==0 ) then
+  write(6,'(" done histrd3r8 ",a8,i4,i3)') trim(name),ier,iarchi
+else if ( myid==0 ) then
+  write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
 call END_LOG(histrd_end)
 
 return
-end subroutine histrd3r8   
+end subroutine histrd3r8
 
 subroutine hr3pr8(iarchi,ier,name,qtest,var)
 
@@ -433,11 +397,7 @@ if ( mynproc>0 ) then
   
     ! get variable idv
     ier=nf90_inq_varid(pncid(ipf),name,idv)
-    if ( ier/=nf90_noerr ) then
-      if ( myid==0 .and. ipf==0 ) then
-        write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-      end if
-    else
+    if ( ier==nf90_noerr ) then
       if ( resprocformat ) then  
         start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
         ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
@@ -521,10 +481,9 @@ use parm_m
       
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
-integer iq, kk
+integer kk
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real, dimension(:,:), allocatable :: globvar
-real :: vmax, vmin, vmax_g, vmin_g
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
@@ -532,41 +491,30 @@ call START_LOG(histrd_begin)
 kk = size(var,2)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
+
   ! read local arrays without gather and distribute
   call hr4p(iarchi,ier,name,kk,.true.,var)
-  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
-    vmax = maxval(var)
-    vmin = minval(var) 
-    call ccmpi_reduce(vmax,vmax_g,"max",0,comm_ip)
-    call ccmpi_reduce(vmin,vmin_g,"min",0,comm_ip)
-    if ( myid==0 ) then
-      write(6,'(" done histrd4 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
-    end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
-    write(6,'(" done histrd4 ",a48,i4,i3)') trim(name),ier,iarchi
-  end if
+
 else 
+
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
     allocate( globvar(6*pil_g**2,kk) )
     globvar(:,:) = 0.
     call hr4p(iarchi,ier,name,kk,.false.,globvar)     
-    if( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-      vmax = maxval(globvar)
-      vmin = minval(globvar)
-      iq = id+(jd-1)*pil_g
-      if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-        write(6,'(" done histrd4 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*pil_g,nlv)
-      else
-        write(6,'(" done histrd4 ",a18,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
-      end if
-    end if
     call ccmpi_distribute(var,globvar)
     deallocate( globvar )
   else 
     call hr4p(iarchi,ier,name,kk,.false.)
     call ccmpi_distribute(var)
   end if
+
+end if
+
+if ( ier==0 .and. myid==0 ) then
+  write(6,'(" done histrd4 ",a8,i4,i3)') trim(name),ier,iarchi
+else if ( myid==0 ) then
+  write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
 call END_LOG(histrd_end)
@@ -662,9 +610,6 @@ if ( mynproc>0 ) then
           ier = nf90_inq_varid(pncid(ipf),newname,idv)          
         end if
         if ( ier/=nf90_noerr ) then
-          if ( myid==0 .and. ipf==0 ) then
-            write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-          end if
           exit
         end if
         ! obtain scaling factors and offsets from attributes
@@ -744,10 +689,9 @@ use parm_m
       
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
-integer iq, kk
+integer kk
 real(kind=8), dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real(kind=8), dimension(:,:), allocatable :: globvar
-real(kind=8) :: vmax, vmin, vmax_g, vmin_g
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
@@ -755,41 +699,30 @@ call START_LOG(histrd_begin)
 kk = size(var,2)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
+
   ! read local arrays without gather and distribute
   call hr4pr8(iarchi,ier,name,kk,.true.,var)
-  if ( ier==0 .and. nmaxpr==1 .and. myid<fnresid ) then
-    vmax = maxval(var)
-    vmin = minval(var) 
-    call ccmpi_reducer8(vmax,vmax_g,"max",0,comm_ip)
-    call ccmpi_reducer8(vmin,vmin_g,"min",0,comm_ip)
-    if ( myid==0 ) then
-      write(6,'(" done histrd4r8 ",a6,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
-    end if
-  else if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
-    write(6,'(" done histrd4r8 ",a46,i4,i3)') trim(name),ier,iarchi
-  end if
+
 else
+    
   ! gather and distribute
   if ( myid==0 ) then
     allocate( globvar(6*pil_g**2,kk) )
     globvar(:,:) = 0._8
     call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
-    if( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-      vmax = maxval(globvar)
-      vmin = minval(globvar)
-      iq = id+(jd-1)*pil_g
-      if ( iq>=1 .and. iq<=size(globvar,1) .and. nlv>=1 .and. nlv<=size(globvar,2) ) then
-        write(6,'(" done histrd4r8 ",a6,i3,i4,i3,3f12.4)') trim(name),kk,ier,iarchi,vmin,vmax,globvar(id+(jd-1)*pil_g,nlv)
-      else
-        write(6,'(" done histrd4r8 ",a16,i3,i4,i3,2f12.4)') trim(name),kk,ier,iarchi,vmin,vmax
-      end if
-    end if
     call ccmpi_distributer8(var,globvar)
     deallocate( globvar )
   else 
     call hr4pr8(iarchi,ier,name,kk,.false.)
     call ccmpi_distributer8(var)
   end if
+
+end if
+
+if ( ier==0 .and. myid==0 ) then
+  write(6,'(" done histrd4r8 ",a8,i4,i3)') trim(name),ier,iarchi
+else if ( myid==0 ) then
+  write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
 call END_LOG(histrd_end)
@@ -885,9 +818,6 @@ if ( mynproc>0 ) then
           ier = nf90_inq_varid(pncid(ipf),newname,idv)          
         end if
         if ( ier/=nf90_noerr ) then
-          if ( myid==0 .and. ipf==0 ) then
-            write(6,*) '***absent field for ncid,name,ier: ',pncid(0),name,ier
-          end if
           exit
         end if
         ! obtain scaling factors and offsets from attributes
@@ -970,7 +900,6 @@ integer, intent(out) :: ier
 integer kk, ll
 real, dimension(:,:,:), intent(inout) :: var ! may be dummy argument from myid/=0
 real, dimension(:,:,:), allocatable :: globvar
-real :: vmax, vmin
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
@@ -979,28 +908,30 @@ kk = size(var,2)
 ll = size(var,3)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
+
   ! read local arrays without gather and distribute
   call hr5p(iarchi,ier,name,kk,ll,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
-    write(6,'(" done histrd5 ",a48,i4,i3)') trim(name),ier,iarchi
-  end if
+
 else    
+
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
     allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0.
     call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-      vmax = maxval(globvar)
-      vmin = minval(globvar)
-      write(6,'(" done histrd5 ",a18,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
-    end if
     call ccmpi_distribute(var,globvar)
     deallocate( globvar )
   else 
     call hr5p(iarchi,ier,name,kk,ll,.false.)
     call ccmpi_distribute(var)
   end if
+
+end if
+
+if ( ier==0 .and. myid==0 ) then
+  write(6,'(" done histrd5 ",a8,i4,i3)') trim(name),ier,iarchi
+else if ( myid==0 ) then
+  write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
 call END_LOG(histrd_end)
@@ -1126,7 +1057,6 @@ integer, intent(out) :: ier
 integer kk, ll
 real(kind=8), dimension(:,:,:), intent(inout) :: var
 real(kind=8), dimension(:,:,:), allocatable :: globvar
-real(kind=8) :: vmax, vmin
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
@@ -1135,28 +1065,30 @@ kk = size(var,2)
 ll = size(var,3)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
+
   ! read local arrays without gather and distribute
   call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
-  if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. myid==0 .and. nmaxpr==1 ) then  
-    write(6,'(" done histrd5r8 ",a46,i4,i3)') trim(name),ier,iarchi
-  end if
+
 else    
+
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
     allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0._8
-    call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)     
-    if ( ier==0 .and. mod(ktau,nmaxpr)==0 .and. nmaxpr==1 ) then
-      vmax = maxval(globvar)
-      vmin = minval(globvar)
-      write(6,'(" done histrd5r8 ",a16,2i3,i4,i3,2f12.4)') trim(name),kk,ll,ier,iarchi,vmin,vmax
-    end if
+    call hr5pr8(iarchi,ier,name,kk,ll,.false.,globvar)
     call ccmpi_distributer8(var,globvar)
     deallocate( globvar )
   else 
     call hr5pr8(iarchi,ier,name,kk,ll,.false.)
     call ccmpi_distributer8(var)
   end if
+
+end if
+
+if ( ier==0 .and. myid==0 ) then
+  write(6,'(" done histrd5r8 ",a8,i4,i3)') trim(name),ier,iarchi
+else if ( myid==0 ) then
+  write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
 call END_LOG(histrd_end)
@@ -3592,6 +3524,7 @@ logical, intent(out) :: tst
 
 lncid = ncid
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
+! true if varid is not found
 tst = (ncstatus/=nf90_noerr)
 
 return
