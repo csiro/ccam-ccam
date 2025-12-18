@@ -161,6 +161,7 @@ real(kind=8), dimension(imax,kl) :: zpvapor, zpclw, zpladj, zpcli
 real(kind=8), dimension(imax,kl) :: zpimlt, zpihom, zpidw, zpiadj
 real(kind=8), dimension(imax,kl) :: zqschg
 real(kind=8), dimension(imax) :: pptrain, pptsnow, pptice
+real(kind=8), dimension(imax) :: pptrainrad, pptsnowrad
 !#endif
 real(kind=8), dimension(ifull,kl) :: zqsng_rem
 real(kind=8) tdt, zmaxlintime
@@ -324,6 +325,11 @@ select case ( interp_ncloud(ldr,ncloud) )
       fcoll(js:je,:) = lqcoll(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       faccr(js:je,:) = lqaccr(:,:)*rhoa(js:je,:)*dz(js:je,:)/dt
       vi(js:je,:) = lvi
+
+      stras_rsno(js:je,:) = 0.
+      stras_rrai(js:je,:) = 0.
+      stras_rrai_surf(js:je) = 0.
+      stras_rsno_surf(js:je) = 0.
       
       ! reapply any remaining qlg_rem or qfg_rem
       qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
@@ -558,6 +564,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       pptsnow(1:imax) = 0._8
       pptice(1:imax)  = 0._8
      
+      pptrainrad(1:imax) = 0._8
+      pptsnowrad(1:imax) = 0._8
 
       ! Use sub time-step if required
       njumps = int(dt/(maxlintime+0.01)) + 1
@@ -568,6 +576,7 @@ select case ( interp_ncloud(ldr,ncloud) )
                      zpres, zlevv, dzw,                  &
                      zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D, & !zdc 20220208
                      pptrain, pptsnow, pptice,           &
+                     pptrainrad, pptsnowrad,             &
                      1, kl, riz,                         &
                      znc, znr, zni, zns,                 &
                      zfluxr,zfluxi,zfluxs,zfluxm,        &
@@ -627,6 +636,16 @@ select case ( interp_ncloud(ldr,ncloud) )
       stras_rice(js:je,:) = real( zEFFI1D(1:imax,:) )
       stras_rsno(js:je,:) = real( zEFFS1D(1:imax,:) )
       stras_rrai(js:je,:) = real( zEFFR1D(1:imax,:) )
+      where ( pptrain(1:imax) > 1.e-10_8 )
+        stras_rrai_surf(js:je) = real( pptrainrad(1:imax)/pptrain(1:imax) )
+      elsewhere
+        stras_rrai_surf(js:je) = 25.e-6  
+      end where
+      where ( pptsnow(1:imax) > 1.e-10_8 )
+        stras_rsno_surf(js:je) = real( pptsnowrad(1:imax)/pptsnow(1:imax) )
+      elsewhere
+        stras_rsno_surf(js:je) = 25.e-6  
+      end where
 
       fluxr(js:je,1)      = real( pptrain(1:imax) )
       fluxr(js:je,2:kl)   = real( zfluxr(1:imax,1:kl-1) )  ! flux for aerosol calculation
@@ -684,7 +703,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 
     end do     !tile loop
 !#endif    
-
+    
   case default
     write(6,*) "ERROR: unknown cloud microphysics option"
     call ccmpi_abort(-1)
@@ -695,7 +714,7 @@ end select
 !----------------------------------------------------------------------------
 ! Update radiation properties
 select case ( interp_ncloud(ldr,ncloud) )
-  case("LEON")
+  case( "LEON" )
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
@@ -711,8 +730,6 @@ select case ( interp_ncloud(ldr,ncloud) )
       call cloud3(l_rliq,l_rice,l_cliq,l_cice,lcfrac,lqlg,lqfg,lp,lt,lcdrop,imax,kl)
       stras_rliq(js:je,:) = l_rliq   ! save effective radius for cosp
       stras_rice(js:je,:) = l_rice
-      stras_rsno(js:je,:) = 0.
-      stras_rrai(js:je,:) = 0.
       stras_cliq(js:je,:) = l_cliq
       stras_cice(js:je,:) = l_cice
     end do

@@ -29,6 +29,7 @@ public qrg,qsng,qgrg                  ! rain, snow, graupel
 public nr, ni, ns                     ! 2nd moment terms
 public stras_rliq, stras_rice, stras_rsno, stras_rrai ! droplet radius
 public stras_cliq, stras_cice
+public stras_rrai_surf, stras_rsno_surf
 public liqwpar_init,liqwpar_end
 
 !sny added
@@ -46,11 +47,12 @@ public psnow,psaut,psfw,psfi,praci, &
        pladj,pcli,pimlt,pihom,      &
        pidw,piadj,pmidep,pqschg
 
-real, dimension(:,:), allocatable, save :: qlg,qfg
-real, dimension(:,:), allocatable, save :: qrg,qsng,qgrg
+real, dimension(:,:), allocatable, save :: qlg, qfg
+real, dimension(:,:), allocatable, save :: qrg, qsng, qgrg
 real, dimension(:,:), allocatable, save :: nr, ni, ns
 real, dimension(:,:), allocatable, save :: stras_rliq, stras_rice, stras_rsno, stras_rrai
 real, dimension(:,:), allocatable, save :: stras_cliq, stras_cice
+real, dimension(:), allocatable, save :: stras_rrai_surf, stras_rsno_surf
 
 !sny added
 !real, dimension(:,:), allocatable, save :: leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&
@@ -78,8 +80,9 @@ integer, intent(in) :: ifull,iextra,kl,process_rate_mode
 allocate( qlg(ifull+iextra,kl), qfg(ifull+iextra,kl) )
 allocate( qrg(ifull+iextra,kl), qsng(ifull+iextra,kl), qgrg(ifull+iextra,kl) )
 allocate( nr(ifull+iextra,kl), ni(ifull+iextra,kl), ns(ifull+iextra,kl) )
-allocate(stras_rliq(ifull,kl),stras_rice(ifull,kl),stras_rsno(ifull,kl),stras_rrai(ifull,kl))
-allocate(stras_cliq(ifull,kl),stras_cice(ifull,kl))
+allocate( stras_rliq(ifull,kl), stras_rice(ifull,kl), stras_rsno(ifull,kl), stras_rrai(ifull,kl) )
+allocate( stras_cliq(ifull,kl), stras_cice(ifull,kl) )
+allocate( stras_rrai_surf(ifull), stras_rsno_surf(ifull) )
 qlg = 0. ! liquid water for cloud
 qfg = 0. ! frozen water for cloud
 qrg = 0. ! precipitating rain
@@ -94,6 +97,8 @@ stras_rsno = 0.
 stras_rrai = 0.
 stras_cliq = 0.
 stras_cice = 0.
+stras_rrai_surf = 0.
+stras_rsno_surf = 0.
 
 !if (process_rate_mode == 1) then     !sny added
 !  allocate(leo_pcaut(ifull,kl),leo_psaut(ifull,kl),leo_pgaut(ifull,kl),leo_pgmlt(ifull,kl),&
@@ -175,8 +180,9 @@ implicit none
 deallocate( qlg, qfg)
 deallocate( qrg, qsng, qgrg )
 deallocate( ni, nr, ns )
-deallocate(stras_rliq,stras_rice,stras_rsno,stras_rrai)
-deallocate(stras_cliq,stras_cice)
+deallocate( stras_rliq, stras_rice, stras_rsno, stras_rrai )
+deallocate( stras_cliq, stras_cice )
+deallocate( stras_rrai_surf, stras_rsno_surf )
 
 !if ( allocated(leo_pcaut) ) then
 !  deallocate(leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&

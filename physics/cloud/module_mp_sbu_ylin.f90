@@ -95,13 +95,14 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                       thz, tothz, rho,                      &
                       prez, zz, dzw,                        &
                       EFFC1D, EFFI1D, EFFS1D, EFFR1D,       & !zdc 20220208
-                      pptrain, pptsnow,pptice,              &
+                      pptrain, pptsnow, pptice,             &
+                      pptrainrad, pptsnowrad,               &    
                       kts, kte, Ri,                         &
                       ncz, nrz, niz, nsz,                   &
                       fluxr, fluxi, fluxs, fluxm,           &
                       fluxf, fevap, fsubl, fauto, fcoll,    &
                       faccr, vi,                            &
-#ifndef GPU    
+!#ifndef GPU    
                       zpsnow,zpsaut,zpsfw,zpsfi,zpraci,     & !process rate 
                       zpiacr,zpsaci,zpsacw,zpsdep,          &
                       zpssub,zpracs,zpsacr,zpsmlt,          &
@@ -109,7 +110,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                       zprevp,zpgfr,zpvapor,zpclw,           &
                       zpladj,zpcli,zpimlt,zpihom,           &
                       zpidw,zpiadj,zqschg,                  &
-#endif                          
+!#endif                          
                       zdrop,lin_aerosolmode,lin_adv,        &
                       njumps)
 
@@ -179,7 +180,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                                                      fluxm,fluxf,fevap,fsubl,           &
                                                      fauto,fcoll,faccr
   real, dimension(1:imax,kts:kte), intent(out)    :: vi
-#ifndef GPU  
+!#ifndef GPU  
   real, dimension(1:imax,kts:kte), intent(out)    :: zpsnow,zpsaut,zpsfw,               &
                                                      zpsfi,zpraci,zpiacr,               &
                                                      zpsaci,zpsacw,zpsdep,              &
@@ -190,8 +191,9 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                                                      zpladj,zpcli,zpimlt,               &
                                                      zpihom,zpidw,zpiadj,               &
                                                      zqschg
-#endif  
+!#endif  
   real, dimension(1:imax),         intent(inout)  :: pptrain, pptsnow, pptice
+  real, dimension(1:imax),         intent(inout)  :: pptrainrad, pptsnowrad
   real, dimension(1:imax,kts:kte), intent(inout)  :: qvz,qlz,qrz,qiz,qsz,thz
   real, dimension(1:imax,kts:kte), intent(inout)  :: ncz,niz,nrz,nsz
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -290,6 +292,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
   real fout, fthru, nfout, nfthru, alph
   real qnew
+  real, dimension(imax) :: effrad
   
   !------------------------------------------------------------------------------------
   
@@ -350,11 +353,11 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
   lammaxi = 1./1.E-6
   lammini = 1./(2.*dcs+100.E-6)
 
-  !$acc data create(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa, &
-  !$acc             gam_ss,gam_bm_s,gam_bv_ss,                                        &
-  !$acc             fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr,      &
-  !$acc             effc1d,effr1d,effs1d,effi1d)
-  !$acc update device(prez,tothz,rho,dzw)
+  !!$acc data create(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa, &
+  !!$acc             gam_ss,gam_bm_s,gam_bv_ss,                                        &
+  !!$acc             fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr,      &
+  !!$acc             effc1d,effr1d,effs1d,effi1d)
+  !!$acc update device(prez,tothz,rho,dzw)
 
   do n = 1,njumps
   
@@ -393,26 +396,26 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       nrz(:,k) = max( 0.0,nrz(:,k) )
       nsz(:,k) = max( 0.0,nsz(:,k) )
 
-      qlz(:,k)  =max( 0.0,qlz(:,k) )
-      qiz(:,k)  =max( 0.0,qiz(:,k) )
-      qvz(:,k)  =max( qvmin,qvz(:,k) )
-      qsz(:,k)  =max( 0.0,qsz(:,k) )
-      qrz(:,k)  =max( 0.0,qrz(:,k) )
-      tem(:,k)  =thz(:,k)*tothz(:,k)
+      qlz(:,k) = max( 0.0,qlz(:,k) )
+      qiz(:,k) = max( 0.0,qiz(:,k) )
+      qvz(:,k) = max( qvmin,qvz(:,k) )
+      qsz(:,k) = max( 0.0,qsz(:,k) )
+      qrz(:,k) = max( 0.0,qrz(:,k) )
+      tem(:,k) = thz(:,k)*tothz(:,k)
 
-      n0_s(:,k)     =0.
-      xlambdar =0.
-      xlambdas =0.
-      vtr      =0.
-      vts      =0.
-      vtiold(:,k)   =0.
+      n0_s(:,k) = 0.
+      xlambdar = 0.
+      xlambdas = 0.
+      vtr      = 0.
+      vts      = 0.
+      vtiold(:,k) = 0.
 
-      !qisten(:,k)   =0.
-      !qrsten(:,k)   =0.
-      !qssten(:,k)   =0.
-      !nisten(:,k)   =0.
-      !nrsten(:,k)   =0.
-      !nssten(:,k)   =0.
+      !qisten(:,k) = 0.
+      !qrsten(:,k) = 0.
+      !qssten(:,k) = 0.
+      !nisten(:,k) = 0.
+      !nrsten(:,k) = 0.
+      !nssten(:,k) = 0.
 
       !***********************************************************************
       !*****  compute viscosity,difusivity,thermal conductivity, and    ******
@@ -455,11 +458,11 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       Ri(:,k) = max( Ri(:,k), Ri(:,k+1) )
     end do
 
-    !$acc update device(Ri,tem,viscmu)
-    !$acc parallel loop collapse(2) copyout(n0_s,gam_bv_s)                    &
-    !$acc   present(tem,rho,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa,gam_ss) &
-    !$acc   present(gam_bm_s,gam_bv_ss)
-    do k = kts, kte
+    !!$acc update device(Ri,tem,viscmu)
+    !!$acc parallel loop collapse(2) copyout(n0_s,gam_bv_s)                    &
+    !!$acc   present(tem,rho,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa,gam_ss) &
+    !!$acc   present(gam_bm_s,gam_bv_ss)
+    do k = kts,kte
       do iq = 1,imax
 
         !--- YLIN, get PI properties
@@ -491,10 +494,10 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
       end do  ! iq
     end do ! k
-    !$acc end parallel loop
+    !!$acc end parallel loop
 
     ! The following variables are needed for the calculation of precipitation fluxes
-    !$acc update self(am_s,bm_s,av_s,bv_s,gam_ss,gam_bm_s,gam_bv_ss)
+    !!$acc update self(am_s,bm_s,av_s,bv_s,gam_ss,gam_bm_s,gam_bv_ss)
 
     !***********************************************************************
     ! Calculate precipitation fluxes due to terminal velocities.
@@ -520,6 +523,8 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
         
             min_q = kte
             max_q = kts-1
+            
+            effrad(iq) = 2.5e-6 ! default droplet radius
 
             ! if no rain, --> minq>maxq --> notlast=False (only case minq>maxq)
             ! if rain --> minq<maxq (always), some vertical points norain--> no lamda, velocity
@@ -543,6 +548,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                 vtrold(iq,k) = o6*av_r*gambp4*sqrho*tmp1
                 nvtr(iq,k) = av_r*gambvr1*sqrho*tmp1
                 del_tv = min(del_tv,0.9*(zz(iq,k)-zz(iq,k-1))/vtrold(iq,k))
+                effrad(iq) = 3./xlambdar/2. ! droplet radius                
               else
                 vtrold(iq,k)=0.
                 nvtr(iq,k)=0.
@@ -581,6 +587,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
               if ( min_q == 1 ) then
                 pptrain(iq) = pptrain(iq) + fluxin(iq)*del_tv  
+                pptrainrad(iq) = pptrainrad(iq) + effrad(iq)*fluxin(iq)*del_tv ! weighted sum
               else      
                 qrz(iq,min_q-1)=qrz(iq,min_q-1)+del_tv*  &
                                fluxin(iq)/rho(iq,min_q-1)/dzw(iq,min_q-1)
@@ -600,34 +607,36 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       !-- snow
       !
       do iq = 1,imax
-        notlast=any( qsz(iq,kts:kte)>1.e-8 )
+        notlast = any( qsz(iq,kts:kte)>1.e-8 )
         if ( notlast ) then
           vtsold(iq,kts:kte) = 0.
-          t_del_tv=0.
-          del_tv=dtb
-          do while (notlast)
+          t_del_tv = 0.
+          del_tv = dtb
+          do while ( notlast )
 
-            min_q=kte
-            max_q=kts-1
+            min_q = kte
+            max_q = kts-1
+            
+            effrad(iq) = 2.5e-6 ! default droplet radius
 
-            do k=kts,kte-1
+            do k = kts,kte-1
               if (qsz(iq,k) > 1.e-8) then
                 min_q = min(min_q,k)
                 max_q = max(max_q,k)
                 ! Zhao 2022 - Row 2 Table 2 or Lin 2011 - Formula A3
-                xlambdas=(am_s(iq,k)*gam_ss(iq,k)*nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
+                xlambdas = (am_s(iq,k)*gam_ss(iq,k)*nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
                 ! Zhao 2022 - Row 1 Table 2
-                n0_s(iq,k)=nsz(iq,k)*xlambdas
-                if (xlambdas<lammins) then
-                  xlambdas= lammins
+                n0_s(iq,k) = nsz(iq,k)*xlambdas
+                if ( xlambdas < lammins ) then
+                  xlambdas = lammins
                   n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qsz(iq,k)/gam_bm_s(iq,k)/am_s(iq,k)
                   nsz(iq,k) = n0_s(iq,k)/xlambdas
-                else if (xlambdas>lammaxs) then
+                else if ( xlambdas > lammaxs ) then
                   xlambdas = lammaxs
                   n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qsz(iq,k)/gam_bm_s(iq,k)/am_s(iq,k)
                   nsz(iq,k) = n0_s(iq,k)/xlambdas
                 end if
-                olambdas=1./xlambdas
+                olambdas = 1./xlambdas
                 tmp1 = olambdas**bv_s(iq,k)
                 ! Zhao 2022 - Row 3 Table 2
                 vtsold(iq,k)= sqrho*av_s(iq,k)*gam_bv_ss(iq,k)/ &
@@ -635,6 +644,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                 ! Zhao 2022 - Row 4 Table 2
                 nvts(iq,k)=sqrho*av_s(iq,k)*gam_bv_s(iq,k)*tmp1
                 del_tv=min(del_tv,0.9*(zz(iq,k)-zz(iq,k-1))/vtsold(iq,k))
+                effrad(iq) = 3./xlambdas/2.
               else
                 vtsold(iq,k)=0.
                 nvts(iq,k)=0.
@@ -672,7 +682,8 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
               end do       ! k
 
               if ( min_q == 1 ) then
-                pptsnow(iq) = pptsnow(iq) + fluxin(iq)*del_tv  
+                pptsnow(iq) = pptsnow(iq) + fluxin(iq)*del_tv
+                pptsnowrad(iq) = pptsnowrad(iq) + effrad(iq)*fluxin(iq)*del_tv ! weighted sum
               else
                 qsz(iq,min_q-1)=qsz(iq,min_q-1)+del_tv*  &
                          fluxin(iq)/rho(iq,min_q-1)/dzw(iq,min_q-1)
@@ -773,6 +784,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       nfluxin(:) = 0.
       do k = kte-1,kts,-1
         do iq = 1,imax
+          effrad(iq) = 2.5e-6 ! default droplet radius  
           ! if no rain, --> minq>maxq --> notlast=False (only case minq>maxq)
           ! if rain --> minq<maxq (always), some vertical points norain--> no lamda, velocity
           qnew = qrz(iq,k) + fluxin(iq)/rho(iq,k)  
@@ -797,7 +809,8 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             fthru = 1. - fout/alph
             alph = dtb*nvtr(iq,k)/dzw(iq,k)
             nfout = 1. - exp(-alph)
-            nfthru = 1. - nfout/alph           
+            nfthru = 1. - nfout/alph
+            effrad(iq) = 3./xlambdar/2.
           else
             olambdar = 0.
             vtrold(iq,k) = 0.
@@ -819,6 +832,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       end do   ! k
       do iq = 1,imax
         pptrain(iq) = pptrain(iq) + fluxin(iq)
+        pptrainrad(iq) = pptrainrad(iq) + effrad(iq)*fluxin(iq)
       end do ! iq
     
       !
@@ -829,17 +843,18 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       nfluxin(:) = 0. ! sny
       do k = kte-1,kts,-1
         do iq = 1,imax
+          effrad(iq) = 2.5e-6 ! default droplet radius
           qnew = qsz(iq,k) + fluxin(iq)/rho(iq,k)  
           if ( qnew > 1.e-8 ) then
             ! Zhao 2022 - Row 2 Table 2 or Lin 2011 - Formula A3
             xlambdas = (am_s(iq,k)*gam_ss(iq,k)*nsz(iq,k)/qnew)**(1./bm_s(iq,k))
             ! Zhao 2022 - Row 1 Table 2
             n0_s(iq,k) = nsz(iq,k)*xlambdas
-            if ( xlambdas<lammins ) then
-              xlambdas= lammins
+            if ( xlambdas < lammins ) then
+              xlambdas = lammins
               n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qnew/gam_bm_s(iq,k)/am_s(iq,k)
               nsz(iq,k) = n0_s(iq,k)/xlambdas
-            else if (xlambdas>lammaxs) then
+            else if (xlambdas > lammaxs) then
               xlambdas = lammaxs
               n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qnew/gam_bm_s(iq,k)/am_s(iq,k)
               nsz(iq,k) = n0_s(iq,k)/xlambdas
@@ -855,7 +870,8 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             fthru = 1. - fout/alph
             alph = dtb*nvts(iq,k)/dzw(iq,k)
             nfout = 1. - exp(-alph)
-            nfthru = 1. - nfout/alph  
+            nfthru = 1. - nfout/alph
+            effrad(iq) = 3./xlambdas/2.
           else
             olambdas = 0.
             vtsold(iq,k) = 0.
@@ -878,6 +894,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       end do   ! k
       do iq = 1,imax
         pptsnow(iq) = pptsnow(iq) + fluxin(iq)
+        pptsnowrad(iq) = pptsnowrad(iq) + effrad(iq)*fluxin(iq)
       end do
  
       !
@@ -926,12 +943,12 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     vi(:,:)    = vtiold(:,:)
     !vs(:,:)    = vtsold(:,:)
 
-    !$acc parallel loop collapse(2) copy(ncz,niz,nrz,nsz,thz,qvz,qlz,qiz,qsz,qrz)  &
-    !$acc   copyin(n0_s)                                                           &
-    !$acc   present(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)   &
-    !$acc   present(effc1d,effr1d,effs1d,effi1d)                                   &
-    !$acc   present(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s)     &
-    !$acc   present(tmp_sa,gam_ss,gam_bm_s,gam_bv_ss)
+    !!$acc parallel loop collapse(2) copy(ncz,niz,nrz,nsz,thz,qvz,qlz,qiz,qsz,qrz)  &
+    !!$acc   copyin(n0_s)                                                           &
+    !!$acc   present(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)   &
+    !!$acc   present(effc1d,effr1d,effs1d,effi1d)                                   &
+    !!$acc   present(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s)     &
+    !!$acc   present(tmp_sa,gam_ss,gam_bm_s,gam_bv_ss)
     do k = kts,kte
       do iq = 1,imax
 
@@ -1088,13 +1105,13 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             !  xlambdar=sqrt(tmp1)
             !  olambdar=1.0/xlambdar
             !  vtr=o6*av_r*gambp4*sqrho*olambdar**bv_r
-            xlambdar=(pi*rhowater*nrz(iq,k)/qrz(iq,k))**(1./3.)   !zx
-            n0_r=nrz(iq,k)*xlambdar
-            if (xlambdar<lamminr) then
+            xlambdar = (pi*rhowater*nrz(iq,k)/qrz(iq,k))**(1./3.)   !zx
+            n0_r = nrz(iq,k)*xlambdar
+            if ( xlambdar < lamminr ) then
               xlambdar = lamminr
               n0_r = xlambdar**4*qrz(iq,k)/(pi*rhowater)
               nrz(iq,k) = n0_r/xlambdar
-            else if (xlambdar>lammaxr) then
+            else if ( xlambdar > lammaxr ) then
               xlambdar = lammaxr
               n0_r = xlambdar**4*qrz(iq,k)/(pi*rhowater)
               nrz(iq,k) = n0_r/xlambdar
@@ -1115,13 +1132,13 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
           !!
 
           if (qsz(iq,k) > 1.e-8) then
-            xlambdas=(am_s(iq,k)*gam_ss(iq,k)*nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
-            n0_s(iq,k)=nsz(iq,k)*xlambdas
-            if (xlambdas.lt.lammins) then
-              xlambdas= lamminS
+            xlambdas = (am_s(iq,k)*gam_ss(iq,k)*nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
+            n0_s(iq,k) = nsz(iq,k)*xlambdas
+            if ( xlambdas .lt. lammins ) then
+              xlambdas = lammins
               n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1)*qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k)
               nsz(iq,k) = n0_s(iq,K)/xlambdas
-            else if (xlambdas.gt.lammaxs) then
+            else if ( xlambdas .gt. lammaxs ) then
               xlambdas = lammaxs
               n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1)*qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k)
               nsz(iq,k) = n0_s(iq,K)/xlambdas
@@ -1735,12 +1752,12 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
           !rain
           if (qrz(iq,k) > 1.e-8) then
-            xlambdar=(pi*rhowater*nrz(iq,k)/qrz(iq,k))**(1./3.)   !zx
-            if (xlambdar.lt.lamminr) then
+            xlambdar = (pi*rhowater*nrz(iq,k)/qrz(iq,k))**(1./3.)   !zx
+            if ( xlambdar .lt. lamminr ) then
               xlambdar = lamminr
               n0_r = xlambdar**4*qrz(iq,k)/(pi*rhowater)
               nrz(iq,k) = n0_r/xlambdar
-            else if (xlambdar.gt.lammaxr) then
+            else if ( xlambdar .gt. lammaxr ) then
               xlambdar = lammaxr
               n0_r = xlambdar**4*qrz(iq,k)/(pi*rhowater)
               nrz(iq,k) = n0_r/xlambdar
@@ -1749,14 +1766,14 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
           !snow
           if (qsz(iq,k) .gt. 1.e-8) then
-            xlambdas=(am_s(iq,k)*gam_ss(iq,k)*     &
+            xlambdas = (am_s(iq,k)*gam_ss(iq,k)*     &
             nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
-            if (xlambdas.lt.lammins) then
-              xlambdas= lamminS
+            if ( xlambdas .lt. lammins ) then
+              xlambdas = lammins
               n0_s(iq,K) = xlambdas**(bm_s(iq,k)+1.)*      &
                              qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k)
               nsz(iq,K) = n0_s(iq,K)/xlambdas
-            else if (xlambdas.gt.lammaxs) then
+            else if ( xlambdas .gt. lammaxs ) then
               xlambdas = lammaxs
               n0_s(iq,K) = xlambdas**(bm_s(iq,k)+1.)*      & 
                              qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k)
@@ -1941,7 +1958,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
         end if   ! mask
     
-#ifndef GPU      
+!#ifndef GPU      
         ! save all process rate for understanding cloud microphysics
         zpsaut(iq,k)   = psaut    ! ice crystal aggregation to snow
         zpsfw(iq,k)    = psfw     ! BERGERON process to transfer cloud water to snow
@@ -1971,7 +1988,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
         zpiadj(iq,k)   = piadj    ! saturation adjustment for qi
         zpsnow(iq,k)   = psnow
         zqschg(iq,k)   = qschg
-#endif      
+!#endif      
 
         ! save process rate for aerisol scheme
         fluxm(iq,k) = -1.*psmlt*dzw(iq,k)*rho(iq,k)         ! - ice melting flux in layer k (kg/m2/s)
@@ -2028,14 +2045,14 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
       end do     ! iq  
     END DO       ! k
-    !$acc end parallel loop
+    !!$acc end parallel loop
   
   end do ! n = 1,njumps
   
-  !$acc update self(Ri)
-  !$acc update self(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)
-  !$acc update self(effc1d,effr1d,effs1d,effi1d)
-  !$acc end data
+  !!$acc update self(Ri)
+  !!$acc update self(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)
+  !!$acc update self(effc1d,effr1d,effs1d,effi1d)
+  !!$acc end data
 
 END SUBROUTINE clphy1d_ylin
 
@@ -2046,7 +2063,7 @@ END SUBROUTINE clphy1d_ylin
 !---------------------------------------------------------------------
 PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
                   xLvocp, xLfocp, episp0k, EP2,SVP1,SVP2,SVP3,SVPT0)
-  !$acc routine seq
+
 !---------------------------------------------------------------------
   IMPLICIT NONE
 !---------------------------------------------------------------------
@@ -2174,7 +2191,7 @@ END SUBROUTINE satadj
 
 !----------------------------------------------------------------
 PURE FUNCTION ggamma(X) result(ans)
-  !$acc routiine seq
+
 !----------------------------------------------------------------
   IMPLICIT NONE
   !----------------------------------------------------------------

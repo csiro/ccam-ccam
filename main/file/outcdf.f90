@@ -1202,6 +1202,10 @@ if ( iarch==1 ) then
       lname = 'Fraction of canopy that is wet'
       call attrib(idnc,dimj,jsize,'fwet',lname,'none',0.,1.,any_m,point_m,cptype)
     end if
+    lname = 'Rain effective radius'
+    call attrib(idnc,dimj,jsize,'rndrad',lname,'m',0.,1.3e-2,any_m,point_m,float_m)
+    lname = 'Snow effective radius'
+    call attrib(idnc,dimj,jsize,'snorad',lname,'m',0.,1.3e-2,any_m,point_m,float_m)
 
     lname = 'Snow Depth' ! liquid water
     call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,any_m,point_m,float_m)
@@ -2699,12 +2703,15 @@ end if
 if ( save_land .and. diaglevel_land>5 ) then
   call histwrt(fwet,'fwet',idnc,iarch,local,lwrite)
 end if
+! This output might be set to zero for Leon cloud microphysics.
+call histwrt(stras_rrai_surf,'rndrad',idnc,iarch,local,lwrite)
+call histwrt(stras_rsno_surf,'snorad',idnc,iarch,local,lwrite)
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   do k = 1,ms
-    ! to be depeciated and instead use missing value  
+    ! tgg over water is to be depeciated and instead use missing value  
     where (.not.land(1:ifull))
       tgg(:,k) = mlodwn(:,k,1)
     end where
