@@ -84,7 +84,7 @@ real, dimension(ifull+iextra,kl,4) :: bb
 real, dimension(ifull+iextra,kl,3) :: uvwc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
-real, dimension(ifull,kl) :: ww, dwdx, dwdy
+real, dimension(ifull,kl) :: dwdx, dwdy
 real, dimension(ifull) :: emi
 real, dimension(ifull,kl) :: zg
 real, dimension(ifull) :: zgh_a, zgh_b
@@ -151,20 +151,21 @@ do k = 1,kl
   vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*savv(1:ifull,k)
 end do
 
+! calculate vertical velocity in m/s - used in hodiff and later in CCAM code
+! omega = ps*dpsldt
+! wvel = -R/g * (T+Tnhs) * dpsldt/sig
+do k = 1,kl
+  do iq = 1,ifull  
+    tv = t(iq,k)*(1.+0.61*qg(iq,k)-qlg(iq,k)-qfg(iq,k))
+    !tnhs(iq,k) = (phi_nh(iq,k)-phi_nh(iq,k-1)-betm(k)*tnhs(iq,k-1))/bet(k)
+    wvel(iq,k) = (dpsldt(iq,k)/sig(k)-dpsdt(iq)/(864.*ps(iq))) &
+                 *(-rdry/grav)*tv
+  end do  
+end do
+call bounds(wvel)
+
 ! Calculate shear for tke
 if ( nvmix==6 .or. nvmix==9 ) then
-
-  ! calculate vertical velocity in m/s
-  ! omega = ps*dpsldt
-  ! ww = -R/g * (T+Tnhs) * dpsldt/sig
-  do k = 1,kl
-    do iq = 1,ifull  
-      tv = t(iq,k)*(1.+0.61*qg(iq,k)-qlg(iq,k)-qfg(iq,k))
-      !tnhs(iq,k) = (phi_nh(iq,k)-phi_nh(iq,k-1)-betm(k)*tnhs(iq,k-1))/bet(k)
-      ww(iq,k) = (dpsldt(iq,k)/sig(k)-dpsdt(iq)/(864.*ps(iq))) &
-                 *(-rdry/grav)*tv
-    end do  
-  end do
 
   ! calculate height on full levels (hydrostatic terms)
   zg(:,1) = (zs(1:ifull)+bet(1)*t(1:ifull,1))/grav
@@ -174,7 +175,7 @@ if ( nvmix==6 .or. nvmix==9 ) then
   !zg = zg + phi_nh(1:ifull,:)/grav
 
   ! time averaging of source terms for tke-eps
-  call update_ema(ww,w_ema,dt)
+  call update_ema(wvel,w_ema,dt)
   call update_ema(uav,u_ema,dt)
   call update_ema(vav,v_ema,dt)
   

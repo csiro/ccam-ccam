@@ -29,7 +29,8 @@ public qrg,qsng,qgrg                  ! rain, snow, graupel
 public nr, ni, ns                     ! 2nd moment terms
 public stras_rliq, stras_rice, stras_rsno, stras_rrai ! droplet radius
 public stras_cliq, stras_cice
-public stras_rrai_surf, stras_rsno_surf
+public dhail1, dhail2, dhail3, dhail4, dhail5, wdur
+public hailrad_ave, hailrad_max, hailrad_sd
 public liqwpar_init,liqwpar_end
 
 !sny added
@@ -52,7 +53,8 @@ real, dimension(:,:), allocatable, save :: qrg, qsng, qgrg
 real, dimension(:,:), allocatable, save :: nr, ni, ns
 real, dimension(:,:), allocatable, save :: stras_rliq, stras_rice, stras_rsno, stras_rrai
 real, dimension(:,:), allocatable, save :: stras_cliq, stras_cice
-real, dimension(:), allocatable, save :: stras_rrai_surf, stras_rsno_surf
+real, dimension(:), allocatable, save :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur 
+real, dimension(:), allocatable, save :: hailrad_ave, hailrad_max, hailrad_sd
 
 !sny added
 !real, dimension(:,:), allocatable, save :: leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&
@@ -82,7 +84,8 @@ allocate( qrg(ifull+iextra,kl), qsng(ifull+iextra,kl), qgrg(ifull+iextra,kl) )
 allocate( nr(ifull+iextra,kl), ni(ifull+iextra,kl), ns(ifull+iextra,kl) )
 allocate( stras_rliq(ifull,kl), stras_rice(ifull,kl), stras_rsno(ifull,kl), stras_rrai(ifull,kl) )
 allocate( stras_cliq(ifull,kl), stras_cice(ifull,kl) )
-allocate( stras_rrai_surf(ifull), stras_rsno_surf(ifull) )
+allocate( dhail1(ifull), dhail2(ifull), dhail3(ifull), dhail4(ifull), dhail5(ifull), wdur(ifull) )
+allocate( hailrad_ave(ifull), hailrad_max(ifull), hailrad_sd(ifull) )
 qlg = 0. ! liquid water for cloud
 qfg = 0. ! frozen water for cloud
 qrg = 0. ! precipitating rain
@@ -97,8 +100,15 @@ stras_rsno = 0.
 stras_rrai = 0.
 stras_cliq = 0.
 stras_cice = 0.
-stras_rrai_surf = 0.
-stras_rsno_surf = 0.
+dhail1 = 0.
+dhail2 = 0.
+dhail3 = 0.
+dhail4 = 0.
+dhail5 = 0.
+wdur = 0.
+hailrad_ave = 0.
+hailrad_max = 0.
+hailrad_sd = 0.
 
 !if (process_rate_mode == 1) then     !sny added
 !  allocate(leo_pcaut(ifull,kl),leo_psaut(ifull,kl),leo_pgaut(ifull,kl),leo_pgmlt(ifull,kl),&
@@ -182,7 +192,8 @@ deallocate( qrg, qsng, qgrg )
 deallocate( ni, nr, ns )
 deallocate( stras_rliq, stras_rice, stras_rsno, stras_rrai )
 deallocate( stras_cliq, stras_cice )
-deallocate( stras_rrai_surf, stras_rsno_surf )
+deallocate( dhail1, dhail2, dhail3, dhail4, dhail5, wdur )
+deallocate( hailrad_ave, hailrad_max, hailrad_sd )
 
 !if ( allocated(leo_pcaut) ) then
 !  deallocate(leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&

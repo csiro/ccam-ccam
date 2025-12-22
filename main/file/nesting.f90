@@ -103,7 +103,7 @@ real, dimension(ifull,kl,8) :: dumv
 real, dimension(ifull,wlev,4) :: dumaa
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,3,3) :: dums
-real, dimension(ifull,3) :: duma
+real, dimension(ifull,9) :: duma
 real, dimension(ifull) :: zsb, timelt
 real, dimension(2) :: depthcheck
 real timerm, cona, conb
@@ -140,7 +140,8 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                     dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          & !unused
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                     duma(:,2),duma(:,3),dumm,                     & !unused
-                    sssb,ocndep,xtghostb)
+                    sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
+                    duma(:,6),duma(:,7),duma(:,8),duma(:,9))
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
       !qb = max(qb,0.)
@@ -187,7 +188,8 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                   dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          & !unused
                   dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                   duma(:,2),duma(:,3),dumm,                     & !unused
-                  sssb,ocndep,xtghostb)
+                  sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
+                  duma(:,6),duma(:,7),duma(:,8),duma(:,9))
     call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
@@ -363,7 +365,7 @@ real, dimension(ifull,wlev,4) :: sssc
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,3,3) :: dums
 real, dimension(ifull,kl) :: tc, uc, vc, qc
-real, dimension(ifull,3) :: duma
+real, dimension(ifull,9) :: duma
 real, dimension(ifull) :: pslc
 real, dimension(ifull) :: zsb, timelt
 real, dimension(2) :: depthcheck
@@ -402,7 +404,8 @@ if ( mtimer>mtimeb ) then
                     dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          & !unused
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                     duma(:,2),duma(:,3),dumm,                     & !unused
-                    sssb,ocndep,xtghostb)
+                    sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
+                    duma(:,6),duma(:,7),duma(:,8),duma(:,9))
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
     else
@@ -450,7 +453,8 @@ if ( mtimer>mtimeb ) then
                   dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          & !unused
                   dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                   duma(:,2),duma(:,3),dumm,                     & !unused
-                  sssb,ocndep,xtghostb)
+                  sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
+                  duma(:,6),duma(:,7),duma(:,8),duma(:,9))
     call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'

@@ -1566,6 +1566,7 @@ real vec2x,vec2y,vec2z,vecdot
 real vec3x,vec3y,vec3z,vdot1,vdot2
 real(kind=8), dimension(ifull,size(cou,2)), intent(in) :: x3d,y3d,z3d
 
+!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,x,y,z) copy(cou,cov,cow)
 do k = 1,wlev
   do iq = 1,ifull
     !         cross product n1xn2 into vec1
@@ -1591,6 +1592,7 @@ do k = 1,wlev
     end if
   end do ! iq
 end do   ! k
+!$acc end parallel loop
 
 return
 end subroutine mlorot

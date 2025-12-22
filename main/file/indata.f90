@@ -130,7 +130,7 @@ integer, dimension(1) :: nstart, ncount
 integer, dimension(ifull) :: dumf
 real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
-real, dimension(ifull,5) :: duma
+real, dimension(ifull,11) :: duma
 real, dimension(ifull,6) :: ocndwn
 real, dimension(ifull,wlev,6) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
@@ -968,7 +968,8 @@ if ( io_in<4 ) then
                   qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsng,qgrg,     &
                   ni,nr,ns,                                        &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
-                  ocndwn,xtgdwn)
+                  ocndwn,xtgdwn,dhail1,dhail2,dhail3,dhail4,       &
+                  dhail5,wdur)
     ! UPDATE BIOSPHERE DATA (nsib)
     if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
       call loadtile
@@ -1519,7 +1520,8 @@ if ( .not.lrestart ) then
                     dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),dumb(:,:,6),   &
                     dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumb(:,:,10),         &
                     dumb(:,:,11),dumb(:,:,12),tggsn,smass,ssdn,               &
-                    ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+                    ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn,duma(:,6),        &
+                    duma(:,7),duma(:,8),duma(:,9),duma(:,10),duma(:,11))
       ! UPDATE BIOSPHERE DATA (nsib)
       if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
         if ( myid==0 ) write(6,*) 'Replacing CABLE and CASA data'

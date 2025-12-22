@@ -70,6 +70,7 @@ real denb, vecdot, vdot1, vdot2
 real vec1x, vec1y, vec1z
 real vec2x, vec2y, vec2z
 real vec3x, vec3y, vec3z
+real uvw1, uvw2, uvw3
 real, dimension(kl) :: factr
 real(kind=8), dimension(ifull,kl) :: x3d, y3d, z3d
 #ifdef debug
@@ -338,6 +339,7 @@ if ( diag ) then
 end if
 
 ! rotate wind vector to arrival point
+!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,x,y,z,uvw) copyout(ux,vx)
 do k = 1,kl
   do iq = 1,ifull
     ! the following normalization may be done, but has ~zero effect
@@ -352,6 +354,9 @@ do k = 1,kl
     denb = vec1x**2 + vec1y**2 + vec1z**2
     ! N.B. rotation formula is singular for small denb,
     ! but the rotation is unnecessary in this case
+    uvw1 = uvw(iq,k,1)
+    uvw2 = uvw(iq,k,2)
+    uvw3 = uvw(iq,k,3)
     if ( denb>1.e-4 ) then
       vecdot = real(x3d(iq,k)*x(iq) + y3d(iq,k)*y(iq) + z3d(iq,k)*z(iq))
       vec2x = real(x3d(iq,k)*vecdot - x(iq))
@@ -360,18 +365,19 @@ do k = 1,kl
       vec3x = real(x3d(iq,k) - vecdot*x(iq))
       vec3y = real(y3d(iq,k) - vecdot*y(iq))
       vec3z = real(z3d(iq,k) - vecdot*z(iq))
-      vdot1 = (vec1x*uvw(iq,k,1) + vec1y*uvw(iq,k,2) + vec1z*uvw(iq,k,3))/denb
-      vdot2 = (vec2x*uvw(iq,k,1) + vec2y*uvw(iq,k,2) + vec2z*uvw(iq,k,3))/denb
-      uvw(iq,k,1) = vdot1*vec1x + vdot2*vec3x
-      uvw(iq,k,2) = vdot1*vec1y + vdot2*vec3y
-      uvw(iq,k,3) = vdot1*vec1z + vdot2*vec3z
+      vdot1 = (vec1x*uvw1 + vec1y*uvw2 + vec1z*uvw3)/denb
+      vdot2 = (vec2x*uvw1 + vec2y*uvw2 + vec2z*uvw3)/denb
+      uvw1 = vdot1*vec1x + vdot2*vec3x
+      uvw2 = vdot1*vec1y + vdot2*vec3y
+      uvw3 = vdot1*vec1z + vdot2*vec3z
     end if ! (denb>1.e-4)
     ! convert back to conformal-cubic velocity components (unstaggered)
     ! globpea: this can be sped up later
-    ux(iq,k) = ax(iq)*uvw(iq,k,1) + ay(iq)*uvw(iq,k,2) + az(iq)*uvw(iq,k,3)
-    vx(iq,k) = bx(iq)*uvw(iq,k,1) + by(iq)*uvw(iq,k,2) + bz(iq)*uvw(iq,k,3)
+    ux(iq,k) = ax(iq)*uvw1 + ay(iq)*uvw2 + az(iq)*uvw3
+    vx(iq,k) = bx(iq)*uvw1 + by(iq)*uvw2 + bz(iq)*uvw3
   end do   ! iq
 end do     ! k
+!$acc end parallel loop
 
 
 if ( diag .and. k==nlv ) then

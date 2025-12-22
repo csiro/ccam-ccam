@@ -1399,7 +1399,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
     cloud_ice_method,leon_snowmeth,lin_aerosolmode,maxlintime,    &
-    lin_adv,qlg_max,qfg_max                                                         
+    lin_adv,qlg_max,qfg_max                                                       
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -2206,7 +2206,7 @@ call unn_init(ifull,kl)
 call uvbar_init(ifull,kl)
 call vecs_init(kl)
 call vegpar_init(ifull)
-call vvel_init(ifull,kl)
+call vvel_init(ifull,iextra,kl)
 call work2_init(ifull,nsib)
 call work3_init(ifull,nsib)
 call work3f_init(ifull,kl)

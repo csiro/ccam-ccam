@@ -90,7 +90,7 @@ real, dimension(ifull) :: zsb, timelt
 real, dimension(ifull) :: psl_pos, psl_neg
 real, dimension(:), allocatable, save :: u_rms, v_rms
 real, dimension(:), allocatable, save :: t_rms
-real, dimension(ifull,3) :: duma
+real, dimension(ifull,9) :: duma
 real, dimension(ifull,6) :: dumd
 real, dimension(ifull,kl) :: ee
 real, dimension(ifull,kl) :: u_pos, v_pos, t_pos
@@ -123,7 +123,9 @@ if ( mtimer>mtimeb ) then
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
                     dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          &
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
-                    duma(:,2),duma(:,3),dumm,dumo,dumd,dumr)
+                    duma(:,2),duma(:,3),dumm,dumo,dumd,dumr,      &
+                    duma(:,4),duma(:,5),duma(:,6),duma(:,7),      &
+                    duma(:,8),duma(:,9))
       call retopo(pslb,zsb,zs,tb,qb)
     else
       write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
@@ -166,7 +168,9 @@ if ( mtimer>mtimeb ) then
                     dumv(:,:,3),dumv(:,:,4),dumv(:,:,5),          &
                     dumv(:,:,6),dumv(:,:,7),dumv(:,:,8),          &
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          &
-                    duma(:,2),duma(:,3),dumm,dumo,dumd,dumr)
+                    duma(:,2),duma(:,3),dumm,dumo,dumd,dumr,      &
+                    duma(:,4),duma(:,5),duma(:,6),duma(:,7),      &
+                    duma(:,8),duma(:,9))
     else
       write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
       call ccmpi_abort(-1)

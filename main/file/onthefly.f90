@@ -78,8 +78,9 @@ contains
 ! *****************************************************************************
 ! Main interface for input data that reads grid metadata
     
-subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg, &
-                    qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,  &
+                    qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn, &
+                    dhail1,dhail2,dhail3,dhail4,dhail5,wdur)
 
 use cc_mpi           ! CC MPI routines
 use darcdf_m         ! Netcdf data
@@ -111,6 +112,7 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(:,:), intent(out) :: ni, nr, ns
 real, dimension(:), intent(out) :: psl, zss, tss, fracice, snowd
 real, dimension(:), intent(out) :: sicedep, ssdnn, snage
+real, dimension(:), intent(out) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
 real, dimension(nrhead) :: ahead
 real, dimension(11) :: rdum
 logical, save :: firstcall = .true.
@@ -303,7 +305,7 @@ end if
 
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                    snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag, &
-                   mlodwn,ocndwn,xtgdwn)
+                   mlodwn,ocndwn,xtgdwn,dhail1,dhail2,dhail3,dhail4,dhail5,wdur)
 
 if ( myid==0 ) write(6,*) "Leaving onthefly"
 
@@ -322,7 +324,7 @@ end subroutine onthefly
 ! no need for message passing.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
                          snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag, &
-                         mlodwn,ocndwn,xtgdwn)
+                         mlodwn,ocndwn,xtgdwn,dhail1,dhail2,dhail3,dhail4,dhail5,wdur)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
 use cc_mpi                                     ! CC MPI routines
@@ -391,6 +393,7 @@ real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
 real, dimension(:,:), intent(out) :: ni, nr, ns
 real, dimension(:), intent(out) :: psl, zss, tss, fracice
 real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
+real, dimension(:), intent(out) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
 real, dimension(ifull) :: duma
 real, dimension(ifull,6) :: udum6
@@ -1545,6 +1548,12 @@ if ( nested/=1 .and. nested/=3 ) then
     precip(:) = real(duma/real(nperday),8)
     call gethist1('rnc',duma)
     precc(:) = real(duma/real(nperday),8)
+    call gethist1('dhail1',dhail1)
+    call gethist1('dhail2',dhail2)  
+    call gethist1('dhail3',dhail3)  
+    call gethist1('dhail4',dhail4)  
+    call gethist1('dhail5',dhail5)
+    call gethist1('wdur',wdur)
     call gethist1('cll',duma)    
     cll_ave(:) = real(duma,8)
     call gethist1('clm',duma)    

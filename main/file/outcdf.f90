@@ -1202,10 +1202,26 @@ if ( iarch==1 ) then
       lname = 'Fraction of canopy that is wet'
       call attrib(idnc,dimj,jsize,'fwet',lname,'none',0.,1.,any_m,point_m,cptype)
     end if
-    lname = 'Rain effective radius'
-    call attrib(idnc,dimj,jsize,'rndrad',lname,'m',0.,1.3e-2,any_m,point_m,float_m)
-    lname = 'Snow effective radius'
-    call attrib(idnc,dimj,jsize,'snorad',lname,'m',0.,1.3e-2,any_m,point_m,float_m)
+    if ( itype==-1 ) then  
+      lname = 'Hail radius 1'
+      call attrib(idnc,dimj,jsize,'dhail1',lname,'m',0.,1.3,any_m,point_m,cptype)  
+      lname = 'Hail radius 2'
+      call attrib(idnc,dimj,jsize,'dhail2',lname,'m',0.,1.3,any_m,point_m,cptype)  
+      lname = 'Hail radius 3'
+      call attrib(idnc,dimj,jsize,'dhail3',lname,'m',0.,1.3,any_m,point_m,cptype)  
+      lname = 'Hail radius 4'
+      call attrib(idnc,dimj,jsize,'dhail4',lname,'m',0.,1.3,any_m,point_m,cptype)  
+      lname = 'Hail radius 5'
+      call attrib(idnc,dimj,jsize,'dhail5',lname,'m',0.,1.3,any_m,point_m,cptype)  
+      lname = 'Duration of updraft'
+      call attrib(idnc,dimj,jsize,'wdur',lname,'s',0.,86400.,any_m,point_m,cptype)  
+    end if
+    lname = 'Hail average radius'
+    call attrib(idnc,dimj,jsize,'hailradave',lname,'m',0.,1.3e-2,any_m,point_m,float_m)
+    lname = 'Hail maximum radius'
+    call attrib(idnc,dimj,jsize,'hailradmax',lname,'m',0.,1.3e-2,any_m,point_m,float_m)    
+    lname = 'Hail radius standard deviation'
+    call attrib(idnc,dimj,jsize,'hailradsd',lname,'m',0.,1.3e-2,any_m,point_m,float_m)    
 
     lname = 'Snow Depth' ! liquid water
     call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,any_m,point_m,float_m)
@@ -2704,8 +2720,17 @@ if ( save_land .and. diaglevel_land>5 ) then
   call histwrt(fwet,'fwet',idnc,iarch,local,lwrite)
 end if
 ! This output might be set to zero for Leon cloud microphysics.
-call histwrt(stras_rrai_surf,'rndrad',idnc,iarch,local,lwrite)
-call histwrt(stras_rsno_surf,'snorad',idnc,iarch,local,lwrite)
+if ( itype==-1 ) then
+  call histwrt(dhail1,'dhail1',idnc,iarch,local,lwrite)
+  call histwrt(dhail2,'dhail2',idnc,iarch,local,lwrite)
+  call histwrt(dhail3,'dhail3',idnc,iarch,local,lwrite)
+  call histwrt(dhail4,'dhail4',idnc,iarch,local,lwrite)
+  call histwrt(dhail5,'dhail5',idnc,iarch,local,lwrite)
+  call histwrt(dhail5,'wdur',idnc,iarch,local,lwrite)
+end if
+call histwrt(hailrad_ave,'hailradave',idnc,iarch,local,lwrite)  
+call histwrt(hailrad_max,'hailradmax',idnc,iarch,local,lwrite)  
+call histwrt(hailrad_sd,'hailradsd',idnc,iarch,local,lwrite)  
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
@@ -2731,7 +2756,7 @@ end if
 ! MJT notes - do not use mask with snd as both land snow and
 ! sea-ice snow are stored as snd.
 call histwrt(snowd,'snd',idnc,iarch,local,.true.)  ! long write
-do k=1,ms
+do k = 1,ms
   where ( tgg(:,k)<100. .and. itype==1 )
     aa(:) = tgg(:,k) + wrtemp
   elsewhere

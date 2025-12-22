@@ -24,22 +24,25 @@ module vvel_m
 implicit none
 
 private
-public sdot,dpsldt
+public sdot,dpsldt,wvel
 public vvel_init,vvel_end
 
 real, dimension(:,:), allocatable, save :: sdot,dpsldt
+real, dimension(:,:), allocatable, save :: wvel
 
 contains
 
-subroutine vvel_init(ifull,kl)
+subroutine vvel_init(ifull,iextra,kl)
 
 implicit none
 
-integer, intent(in) :: ifull,kl
+integer, intent(in) :: ifull,iextra,kl
 
 allocate(sdot(ifull,kl+1),dpsldt(ifull,kl))
+allocate(wvel(ifull+iextra,kl))
 sdot=0.
 dpsldt=0.
+wvel=0.
 
 return
 end subroutine vvel_init
@@ -49,6 +52,7 @@ subroutine vvel_end
 implicit none
 
 deallocate(sdot,dpsldt)
+deallocate(wvel)
 
 return
 end subroutine vvel_end
