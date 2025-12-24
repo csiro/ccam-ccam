@@ -4089,6 +4089,8 @@ runoff_surface_ave(:) = 0._8 ! converted to mm/day in outcdf
 snowmelt_ave(:)      = 0._8  ! converted to mm/day in outcdf
 cape_max(:)          = 0.
 cape_ave(:)          = 0.
+hailradave_ave(:)    = 0.
+hailradmax_max(:)    = 0.
 
 if ( ngas>0 ) then
   traver = 0.
@@ -4221,6 +4223,7 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use const_phys                             ! Physical constants
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
+use liqwpar_m                              ! Cloud water mixing ratios
 use mlo_ctrl                               ! Ocean physics control layer
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
@@ -4282,6 +4285,8 @@ runoff_surface_ave(1:ifull) = runoff_surface_ave(1:ifull) + real(runoff_surface,
 snowmelt_ave(1:ifull)      = snowmelt_ave(1:ifull) + real(snowmelt,8)
 evspsbl_ave(1:ifull)       = evspsbl_ave(1:ifull) + real(evspsbl,8)
 sbl_ave(1:ifull)           = sbl_ave(1:ifull) + real(sbl,8)
+hailradave_ave(1:ifull)    = hailradave_ave(1:ifull) + hailrad_ave
+hailradmax_max(1:ifull)    = max( hailradmax_max(1:ifull), hailrad_max )
 
 spare1(:) = u(1:ifull,1)**2 + v(1:ifull,1)**2
 spare2(:) = u(1:ifull,2)**2 + v(1:ifull,2)**2
@@ -4424,6 +4429,7 @@ if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   dni_ave(1:ifull)    = dni_ave(1:ifull)/min(ntau,nperavg) 
   cbas_ave(1:ifull)   = 1.1 - cbas_ave(1:ifull)/max(1.e-4,real(precc(:)))  ! 1.1 for no precc
   ctop_ave(1:ifull)   = 1.1 - ctop_ave(1:ifull)/max(1.e-4,real(precc(:)))  ! 1.1 for no precc
+  hailradave_ave(1:ifull) = hailradave_ave(1:ifull)/min(ntau,nperavg)
  
   if ( ngas>0 ) then
     traver(1:ifull,1:kl,1:ngas) = traver(1:ifull,1:kl,1:ngas)/min(ntau,nperavg)

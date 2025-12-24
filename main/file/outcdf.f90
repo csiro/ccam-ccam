@@ -1220,8 +1220,6 @@ if ( iarch==1 ) then
     call attrib(idnc,dimj,jsize,'hailradave',lname,'m',0.,1.3e-2,any_m,point_m,float_m)
     lname = 'Hail maximum radius'
     call attrib(idnc,dimj,jsize,'hailradmax',lname,'m',0.,1.3e-2,any_m,point_m,float_m)    
-    lname = 'Hail radius standard deviation'
-    call attrib(idnc,dimj,jsize,'hailradsd',lname,'m',0.,1.3e-2,any_m,point_m,float_m)    
 
     lname = 'Snow Depth' ! liquid water
     call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,any_m,point_m,float_m)
@@ -2728,9 +2726,8 @@ if ( itype==-1 ) then
   call histwrt(dhail5,'dhail5',idnc,iarch,local,lwrite)
   call histwrt(dhail5,'wdur',idnc,iarch,local,lwrite)
 end if
-call histwrt(hailrad_ave,'hailradave',idnc,iarch,local,lwrite)  
-call histwrt(hailrad_max,'hailradmax',idnc,iarch,local,lwrite)  
-call histwrt(hailrad_sd,'hailradsd',idnc,iarch,local,lwrite)  
+call histwrt(hailradave_ave,'hailradave',idnc,iarch,local,lwrite)  
+call histwrt(hailradmax_max,'hailradmax',idnc,iarch,local,lwrite)  
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
@@ -5961,5 +5958,91 @@ end if
 ans = min( ans, kx-1 )
 
 end function bisect
+
+subroutine uh_calc(uh)
+
+use arrays_m
+use cc_mpi
+use const_phys
+use indices_m
+use liqwpar_m
+use map_m
+use newmpar_m
+use parm_m
+use staguvmod
+use sigs_m
+use vvel_m
+
+implicit none
+
+integer iq, k
+real, parameter :: min_zg = 2000.
+real, parameter :: max_zg = 5000.
+real dx, dvdx, dudy, tv, dz, z1, z2
+real, dimension(kl) :: delh
+real, dimension(ifull,0:kl) :: zg_h
+real, dimension(ifull), intent(out) :: uh
+real, dimension(ifull+iextra,kl) :: us, vs
+
+call staguv(u,v,us,vs)
+call boundsuv(us,vs,allvec=.true.)
+
+do k = 1,kl
+  delh(k) = -(rdry/grav)*dsig(k)/sig(k)
+end do
+
+do iq = 1,ifull
+  uh(iq) = 0.
+end do
+
+do iq = 1,ifull  
+  zg_h(iq,0) = 0.  
+  zg_h(iq,1) = t(iq,1)*delh(k)
+end do
+do k = 2,kl
+  do iq = 1,ifull
+    zg_h(iq,k) = zg_h(iq,k-1) + t(iq,k)*delh(k)
+  end do
+end do
+
+do k = 1,kl
+  do iq = 1,ifull  
+
+    z1 = zg_h(iq,k-1)
+    z2 = zg_h(iq,k)
+    
+    
+    if ( z2>min_zg .and. z1<=max_zg ) then
+
+      ! overlap
+      if ( z1<=min_zg .and. z2>max_zg ) then
+        !dz is larger than max_zg-min_zg
+        dz = max_zg - min_zg
+      else if ( z1>min_zg .and. z2<=max_zg ) then
+        ! dz is within max_zg-min_zg
+        dz = z2 - z1
+      else if ( z1>min_zg ) then
+        ! z2 is above max_zg
+        dz = max_zg - z1
+      else ! z2<=max_zg
+        ! z1 is below min_zg
+        dz = z2 - min_zg
+      end if  
+      
+      dx = ds/em(iq)  ! =dy
+      dvdx = (vs(iq,k) - vs(iwv(iq),k))/dx
+      dudy = (us(iq,k) - us(isu(iq),k))/dx
+  
+      tv = t(iq,k)*(1.+0.61*qg(iq,k)-qlg(iq,k)-qfg(iq,k))
+    
+      uh(iq) = uh(iq) + wvel(iq,k)*(dvdx-dudy)*dz
+
+    end if ! z2>min_zg .and. z1<=max_zg
+    
+  end do  ! iq
+end do    ! k
+  
+return
+end subroutine uh_calc
 
 end module outcdf

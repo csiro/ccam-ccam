@@ -38,8 +38,10 @@ public cnpp_ave,cnbp_ave
 public anthropogenic_ave, tmaxurban, tminurban
 public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 public u_max, v_max, u10m_max, v10m_max ! sub-daily maximums
-public histave_init,histave_end
 public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
+public hailradave_ave, hailradmax_max
+public histave_init,histave_end
+
 
 real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax,prhmax
 real, dimension(:), allocatable, save :: tmaxscr,tminscr,tscr_ave
@@ -54,6 +56,7 @@ real, dimension(:), allocatable, save :: tmaxurban, tminurban
 real, dimension(:), allocatable, save :: fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 real, dimension(:,:), allocatable, save :: u_max, v_max     ! sub-daily maximums
 real, dimension(:), allocatable, save :: u10m_max, v10m_max ! sub-daily maximums
+real, dimension(:), allocatable, save :: hailradave_ave, hailradmax_max
 real(kind=8), dimension(:), allocatable, save :: eg_ave, fg_ave
 real(kind=8), dimension(:), allocatable, save :: epot_ave, prhour
 real(kind=8), dimension(:), allocatable, save :: ga_ave, epan_ave, dew_ave
@@ -80,7 +83,8 @@ allocate(u1max(ifull),v1max(ifull),u2max(ifull),v2max(ifull),cape_max(ifull),cap
 allocate(rnet_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),convh_ave(ifull,kl))
 allocate(anthropogenic_ave(ifull), tmaxurban(ifull), tminurban(ifull))
-allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull) )
+allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull))
+allocate(hailradave_ave(ifull), hailradmax_max(ifull))
 !allocate(tgg_ave(ifull,ms))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
@@ -121,6 +125,8 @@ anth_heating_ave(:)  = 0._8
 anth_cooling_ave(:)  = 0._8
 tmaxurban(:)   = 0.
 tminurban(:)   = 400.
+hailradave_ave(:) = 0.
+hailradmax_max(:) = 0.
 
 if ( ccycle/=0 ) then
   allocate(fnee_ave(ifull))  
@@ -175,6 +181,7 @@ deallocate(rnet_ave)
 deallocate(wb_ave,wbice_ave,convh_ave)
 deallocate(anthropogenic_ave, tmaxurban, tminurban)
 deallocate(anth_elecgas_ave, anth_heating_ave, anth_cooling_ave)
+deallocate(hailradave_ave, hailradmax_max)
 !deallocate(tgg_ave)
 
 if ( allocated(fpn_ave) ) then
