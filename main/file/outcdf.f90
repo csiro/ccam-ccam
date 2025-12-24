@@ -1217,9 +1217,9 @@ if ( iarch==1 ) then
       call attrib(idnc,dimj,jsize,'wdur',lname,'s',0.,86400.,any_m,point_m,cptype)  
     end if
     lname = 'Hail average radius'
-    call attrib(idnc,dimj,jsize,'hailradave',lname,'m',0.,1.3e-2,any_m,point_m,float_m)
+    call attrib(idnc,dimj,jsize,'hailradave',lname,'m',0.,1.3e-2,any_m,mean_m,float_m)
     lname = 'Hail maximum radius'
-    call attrib(idnc,dimj,jsize,'hailradmax',lname,'m',0.,1.3e-2,any_m,point_m,float_m)    
+    call attrib(idnc,dimj,jsize,'hailradmax',lname,'m',0.,1.3e-2,any_m,max_m,float_m)    
 
     lname = 'Snow Depth' ! liquid water
     call attrib(idnc,dimj,jsize,'snd',lname,'mm',0.,6500.,any_m,point_m,float_m)
@@ -1912,6 +1912,11 @@ if ( iarch==1 ) then
       end if
     end if   ! (ngas>0)
 
+    
+    ! This diagnostic requires some MPI communication
+    lname = 'Updraft helicity (2-5km)'
+    call attrib(idnc,dimj,jsize,'uh',lname,'m2 s-2',-520.,520.,any_m,point_m,cptype)
+    
         
     ! STANDARD 3D VARIABLES -------------------------------------
     if ( itype/=-1 ) then
@@ -3383,6 +3388,10 @@ if ( ngas>0 ) then
   end if
 endif  ! (ngasc>0)
 
+
+! This diagnostic requires some MPI communication
+call uh_calc(aa)
+call histwrt(aa,'uh',idnc,iarch,local,.true.)
 
 
 ! **************************************************************
