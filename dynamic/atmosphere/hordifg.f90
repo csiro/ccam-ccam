@@ -93,7 +93,6 @@ real dudx, dudy, dvdx, dvdy, dudz, dvdz
 real r1, r2, cc, base
 real ucc, vcc, wcc
 real delphi, hdif
-real tv
 integer iq, k, nhora, nhorx
 integer nstart, nend, nt, ntr, kmax
 integer, parameter :: nf=2
@@ -151,18 +150,16 @@ do k = 1,kl
   vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*savv(1:ifull,k)
 end do
 
-! calculate vertical velocity in m/s - used in hodiff and later in CCAM code
+! calculate vertical velocity in m/s - used in hordifg and later in CCAM code
 ! omega = ps*dpsldt
 ! wvel = -R/g * (T+Tnhs) * dpsldt/sig
 do k = 1,kl
   do iq = 1,ifull  
-    tv = t(iq,k)*(1.+0.61*qg(iq,k)-qlg(iq,k)-qfg(iq,k))
+    !tv = t(iq,k)*(1.+0.61*qg(iq,k)-qlg(iq,k)-qfg(iq,k))
     !tnhs(iq,k) = (phi_nh(iq,k)-phi_nh(iq,k-1)-betm(k)*tnhs(iq,k-1))/bet(k)
-    wvel(iq,k) = (dpsldt(iq,k)/sig(k)-dpsdt(iq)/(864.*ps(iq))) &
-                 *(-rdry/grav)*tv
+    wvel(iq,k) = (-rdry/grav)*t(iq,k)*dpsldt(iq,k)/sig(k)
   end do  
 end do
-call bounds(wvel)
 
 ! Calculate shear for tke
 if ( nvmix==6 .or. nvmix==9 ) then

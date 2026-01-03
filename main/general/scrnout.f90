@@ -1002,12 +1002,12 @@ do tile = 1,ntiles
           !ptK = The2T( srcthetaeK(i), press )
           ! initial guess
           tovtheta = (press/1.e5)**(rdry/cp)
-          ptK = srcthetaeK(i)/exp(hl*.012/(cp*295.))*tovtheta
+          ptK = srcthetaeK(i)*exp(-hl*.012/(cp*295.))*tovtheta
           found = .false.
           do iter = 1,105
             if ( .not.found ) then  
               smixr = qsat(press,ptK)
-              thetaK = srcthetaeK(i)/exp(hl*smixr/(cp*ptK)) ! Holton 1972
+              thetaK = srcthetaeK(i)*exp(-hl*smixr/(cp*ptK)) ! Holton 1972
               tcheck = thetaK*tovtheta
               if ( abs(ptK-tcheck) < .05 ) then
                 found = .true.
@@ -1064,4 +1064,5 @@ end do ! tile loop
 
 return
 end subroutine capecalc
+
     

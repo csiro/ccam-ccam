@@ -2201,28 +2201,32 @@ call sflux_init
 ! UPDATE MIXED LAYER OCEAN DATA (nmlo)
 if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   if ( myid==0 ) write(6,*) 'Importing MLO data'
+
   ! Ocean fill
   ! This may trigger if there is a change in land-sea mask with the same grid
   ! e.g., patching Samoa
-  !do iq = 1,ifull
-  !  if ( mlodwn(iq,1,1)+wrtemp>400. .or. mlodwn(iq,1,2)>maxsal ) then
-  !    ocndwn(iq,2) = 0.
-  !    mlodwn(iq,1,1) = 288. - wrtemp
-  !    mlodwn(iq,1,2) = 34.72
-  !    mlodwn(iq,1,3) = 0.
-  !    mlodwn(iq,1,4) = 0.
-  !  end if
-  !  do k = 2,wlev
-  !    if ( mlodwn(iq,k,1)+wrtemp>400. .or. mlodwn(iq,k,2)>maxsal ) then
-  !      mlodwn(iq,k,1) = mlodwn(iq,k-1,1)
-  !      mlodwn(iq,k,2) = mlodwn(iq,k-1,2)
-  !      mlodwn(iq,k,3) = mlodwn(iq,k-1,3)
-  !      mlodwn(iq,k,4) = mlodwn(iq,k-1,4)
-  !    end if
-  !  end do
-  !end do  
-  !mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
-  !micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
+  do iq = 1,ifull
+    if ( mlodwn(iq,1,1)+wrtemp>400. .or. mlodwn(iq,1,2)>maxsal ) then
+      write(6,*) "WARN: Repair MLO due to major failure at ",myid,iq,1
+      ocndwn(iq,2) = 0.
+      mlodwn(iq,1,1) = 288. - wrtemp
+      mlodwn(iq,1,2) = 34.72
+      mlodwn(iq,1,3) = 0.
+      mlodwn(iq,1,4) = 0.
+    end if
+    do k = 2,wlev
+      if ( mlodwn(iq,k,1)+wrtemp>400. .or. mlodwn(iq,k,2)>maxsal ) then
+        write(6,*) "WARN: Repair MLO due to major failure at ",myid,iq,k
+        mlodwn(iq,k,1) = mlodwn(iq,k-1,1)
+        mlodwn(iq,k,2) = mlodwn(iq,k-1,2)
+        mlodwn(iq,k,3) = mlodwn(iq,k-1,3)
+        mlodwn(iq,k,4) = mlodwn(iq,k-1,4)
+      end if
+    end do
+  end do  
+  mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
+  micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
+
   if ( .not.lrestart ) then
     ocndwn(:,2) = min( max( ocndwn(:,2), -20.), 20. )
     mlodwn(1:ifull,1:wlev,3) = min( max( mlodwn(1:ifull,1:wlev,3), -5.), 5. )

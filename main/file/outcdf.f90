@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -3390,8 +3390,10 @@ endif  ! (ngasc>0)
 
 
 ! This diagnostic requires some MPI communication
-call uh_calc(aa)
-call histwrt(aa,'uh',idnc,iarch,local,.true.)
+if ( lwrite ) then
+  call uh_calc(aa)
+end if  
+call histwrt(aa,'uh',idnc,iarch,local,lwrite)
 
 
 ! **************************************************************
@@ -4132,7 +4134,7 @@ real, dimension(:), allocatable :: ypnt
 real, dimension(1) :: zpnt
 real, dimension(kl) :: phi_local
 real, dimension(ms) :: shallow_zse, zsoil
-real xx, sig_level, shallow_sum, new_sum
+real xx, shallow_sum, new_sum
 real press_level_pa
 real(kind=8) tpnt
 real, parameter :: shallow_max = 0.1 ! shallow soil depth (10cm)
@@ -4642,6 +4644,10 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'v10m_max',lname,'m s-1',-99.,99.,any_m,max_m,short_m) ! sub-daily
     end if
     
+    ! This diagnostic requires some MPI communication
+    lname = 'Updraft helicity (2-5km)'
+    call attrib(fncid,sdim,ssize,'uh',lname,'m2 s-2',-520.,520.,any_m,point_m,short_m)
+    
     ! end definition mode
     call ccnf_enddef(fncid)
     if ( local ) then
@@ -5100,12 +5106,7 @@ if ( mod(ktau,tbave)==0 ) then
         ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
         va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
         zg_level(iq) = (phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx)/grav
-        sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
-        wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx) ! omega
-        !wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*ps(iq)) * &
-        !               ( wa_level(iq) - sig_level*dpsdt(iq)/864. ) ! convert dpsdt to Pa/s
-        ! MJT use NCAR formula for consistancy
-        wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*ps(iq)) * wa_level(iq)
+        wa_level(iq) = wvel(iq,n)*(1.-xx) + wvel(iq,n+1)*xx
       end do
       call cordex_name(vname,"ua",press_level)
       call histwrt(ua_level,trim(vname),fncid,fiarch,local,l6hr) 
@@ -5143,9 +5144,7 @@ if ( mod(ktau,tbave)==0 ) then
   !      va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
   !      zg_level(iq) = phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx
   !      zg_level(iq) = zg_level(iq)/grav
-  !      sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
-  !      wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx)
-  !      wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*psl(iq)) * wa_level(iq)
+  !      wa_level(iq) = wvel(iq,n)*(1.-xx) + wvel(iq,n+1)*xx
   !    end do
   !    call cordex_name(vname,"ua",press_level)
   !    call histwrt(ua_level,trim(vname),fncid,fiarch,local,l6hr) 
@@ -5196,6 +5195,10 @@ if ( mod(ktau,tbave)==0 ) then
     outdata = real(freqstore(1:ifull,31))
     call histwrt(outdata,'v10m_max',fncid,fiarch,local,.true.)
   end if
+  
+  ! This diagnostic requires some MPI communication
+  call uh_calc(outdata)
+  call histwrt(outdata,'uh',fncid,fiarch,local,.true.)
   
   freqstore(:,1:17) = 0._8
   if ( cordex_fix==0 ) then
@@ -5755,12 +5758,7 @@ if ( mod(ktau,tbave10)==0 ) then
         ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
         va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
         zg_level(iq) = (phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx)/grav
-        sig_level = sig(n)*(1.-xx) + sig(n+1)*xx
-        wa_level(iq) = ps(iq)*(dpsldt(iq,n)*(1.-xx) + dpsldt(iq,n+1)*xx) ! omega
-        !wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*ps(iq)) * &
-        !               ( wa_level(iq) - sig_level*dpsdt(iq)/864. ) ! convert dpsdt to Pa/s
-        ! MJT use NCAR formula for consistancy
-        wa_level(iq) = -(rdry/grav)*ta_level(iq)/(sig_level*100.*ps(iq)) * wa_level(iq)
+        wa_level(iq) = wvel(iq,n)*(1.-xx) + wvel(iq,n+1)*xx
       end do
       call cordex_name(vname,"ua",press_level)
       call histwrt(ua_level,trim(vname),fncid,fiarch,local,.true.) 
@@ -5978,7 +5976,6 @@ use liqwpar_m
 use map_m
 use newmpar_m
 use parm_m
-use staguvmod
 use sigs_m
 use vvel_m
 
@@ -5987,14 +5984,12 @@ implicit none
 integer iq, k
 real, parameter :: min_zg = 2000.
 real, parameter :: max_zg = 5000.
-real dx, dvdx, dudy, tv, dz, z1, z2
+real dvdx, dudy, dz, z1, z2
 real, dimension(kl) :: delh
 real, dimension(ifull,0:kl) :: zg_h
 real, dimension(ifull), intent(out) :: uh
-real, dimension(ifull+iextra,kl) :: us, vs
 
-call staguv(u,v,us,vs)
-call boundsuv(us,vs,allvec=.true.)
+call boundsuv(u,v,allvec=.true.)
 
 do k = 1,kl
   delh(k) = -(rdry/grav)*dsig(k)/sig(k)
@@ -6038,12 +6033,11 @@ do k = 1,kl
         dz = z2 - min_zg
       end if  
       
-      dx = ds/em(iq)  ! =dy
-      dvdx = (vs(iq,k) - vs(iwv(iq),k))/dx
-      dudy = (us(iq,k) - us(isu(iq),k))/dx
-  
-      tv = t(iq,k)*(1.+0.61*qg(iq,k)-qlg(iq,k)-qfg(iq,k))
-    
+      dvdx = 0.5*(v(iev(iq),k)-v(iq,k))*emu(iq)/ds + &
+             0.5*(v(iq,k)-v(iwv(iq),k))*emu(iwu(iq))/ds
+      dudy = 0.5*(u(inu(iq),k)-u(iq,k))*emv(iq)/ds + &
+             0.5*(u(iq,k)-u(isu(iq),k))*emv(isv(iq))/ds
+      
       uh(iq) = uh(iq) + wvel(iq,k)*(dvdx-dudy)*dz
 
     end if ! z2>min_zg .and. z1<=max_zg
