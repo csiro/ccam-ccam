@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -39,7 +39,6 @@ public anthropogenic_ave, tmaxurban, tminurban
 public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 public u_max, v_max, u10m_max, v10m_max ! sub-daily maximums
 public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
-public hailradave_ave, hailradmax_max
 public histave_init,histave_end
 
 
@@ -84,7 +83,6 @@ allocate(rnet_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),convh_ave(ifull,kl))
 allocate(anthropogenic_ave(ifull), tmaxurban(ifull), tminurban(ifull))
 allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull))
-allocate(hailradave_ave(ifull), hailradmax_max(ifull))
 !allocate(tgg_ave(ifull,ms))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
@@ -125,8 +123,6 @@ anth_heating_ave(:)  = 0._8
 anth_cooling_ave(:)  = 0._8
 tmaxurban(:)   = 0.
 tminurban(:)   = 400.
-hailradave_ave(:) = 0.
-hailradmax_max(:) = 0.
 
 if ( ccycle/=0 ) then
   allocate(fnee_ave(ifull))  
@@ -181,7 +177,6 @@ deallocate(rnet_ave)
 deallocate(wb_ave,wbice_ave,convh_ave)
 deallocate(anthropogenic_ave, tmaxurban, tminurban)
 deallocate(anth_elecgas_ave, anth_heating_ave, anth_cooling_ave)
-deallocate(hailradave_ave, hailradmax_max)
 !deallocate(tgg_ave)
 
 if ( allocated(fpn_ave) ) then

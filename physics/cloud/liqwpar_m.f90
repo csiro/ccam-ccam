@@ -30,7 +30,7 @@ public nr, ni, ns                     ! 2nd moment terms
 public stras_rliq, stras_rice, stras_rsno, stras_rrai ! droplet radius
 public stras_cliq, stras_cice
 public dhail1, dhail2, dhail3, dhail4, dhail5, wdur
-public hailrad_ave, hailrad_max, hailrad_sd
+public hailrad_ave, hailrad_max
 public liqwpar_init,liqwpar_end
 
 !sny added
@@ -54,7 +54,7 @@ real, dimension(:,:), allocatable, save :: nr, ni, ns
 real, dimension(:,:), allocatable, save :: stras_rliq, stras_rice, stras_rsno, stras_rrai
 real, dimension(:,:), allocatable, save :: stras_cliq, stras_cice
 real, dimension(:), allocatable, save :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur 
-real, dimension(:), allocatable, save :: hailrad_ave, hailrad_max, hailrad_sd
+real, dimension(:), allocatable, save :: hailrad_ave, hailrad_max
 
 !sny added
 !real, dimension(:,:), allocatable, save :: leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&
@@ -85,7 +85,7 @@ allocate( nr(ifull+iextra,kl), ni(ifull+iextra,kl), ns(ifull+iextra,kl) )
 allocate( stras_rliq(ifull,kl), stras_rice(ifull,kl), stras_rsno(ifull,kl), stras_rrai(ifull,kl) )
 allocate( stras_cliq(ifull,kl), stras_cice(ifull,kl) )
 allocate( dhail1(ifull), dhail2(ifull), dhail3(ifull), dhail4(ifull), dhail5(ifull), wdur(ifull) )
-allocate( hailrad_ave(ifull), hailrad_max(ifull), hailrad_sd(ifull) )
+allocate( hailrad_ave(ifull), hailrad_max(ifull) )
 qlg = 0. ! liquid water for cloud
 qfg = 0. ! frozen water for cloud
 qrg = 0. ! precipitating rain
@@ -108,7 +108,6 @@ dhail5 = 0.
 wdur = 0.
 hailrad_ave = 0.
 hailrad_max = 0.
-hailrad_sd = 0.
 
 !if (process_rate_mode == 1) then     !sny added
 !  allocate(leo_pcaut(ifull,kl),leo_psaut(ifull,kl),leo_pgaut(ifull,kl),leo_pgmlt(ifull,kl),&
@@ -193,7 +192,7 @@ deallocate( ni, nr, ns )
 deallocate( stras_rliq, stras_rice, stras_rsno, stras_rrai )
 deallocate( stras_cliq, stras_cice )
 deallocate( dhail1, dhail2, dhail3, dhail4, dhail5, wdur )
-deallocate( hailrad_ave, hailrad_max, hailrad_sd )
+deallocate( hailrad_ave, hailrad_max )
 
 !if ( allocated(leo_pcaut) ) then
 !  deallocate(leo_pcaut,leo_psaut,leo_pgaut,leo_pgmlt,&

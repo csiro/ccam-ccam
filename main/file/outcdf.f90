@@ -2731,8 +2731,8 @@ if ( itype==-1 ) then
   call histwrt(dhail5,'dhail5',idnc,iarch,local,lwrite)
   call histwrt(dhail5,'wdur',idnc,iarch,local,lwrite)
 end if
-call histwrt(hailradave_ave,'hailradave',idnc,iarch,local,lwrite)  
-call histwrt(hailradmax_max,'hailradmax',idnc,iarch,local,lwrite)  
+call histwrt(hailrad_ave,'hailradave',idnc,iarch,local,lwrite)  
+call histwrt(hailrad_max,'hailradmax',idnc,iarch,local,lwrite)  
 
 ! MLO ---------------------------------------------------------      
 ! Export ocean data
