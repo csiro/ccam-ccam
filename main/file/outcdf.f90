@@ -1216,9 +1216,9 @@ if ( iarch==1 ) then
       lname = 'Duration of updraft'
       call attrib(idnc,dimj,jsize,'wdur',lname,'s',0.,86400.,any_m,point_m,cptype)  
     end if
-    lname = 'Hail average radius'
+    lname = 'Hail average diameter'
     call attrib(idnc,dimj,jsize,'hailradave',lname,'m',0.,1.3e-2,any_m,mean_m,float_m)
-    lname = 'Hail maximum radius'
+    lname = 'Hail maximum diameter'
     call attrib(idnc,dimj,jsize,'hailradmax',lname,'m',0.,1.3e-2,any_m,max_m,float_m)    
 
     lname = 'Snow Depth' ! liquid water
