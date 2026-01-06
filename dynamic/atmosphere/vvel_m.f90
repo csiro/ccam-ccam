@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -24,11 +24,13 @@ module vvel_m
 implicit none
 
 private
-public sdot,dpsldt,wvel
-public vvel_init,vvel_end
+public sdot, dpsldt, wvel
+public updraft_helicity
+public vvel_init, vvel_end
 
 real, dimension(:,:), allocatable, save :: sdot,dpsldt
 real, dimension(:,:), allocatable, save :: wvel
+real, dimension(:), allocatable, save :: updraft_helicity
 
 contains
 
@@ -38,11 +40,13 @@ implicit none
 
 integer, intent(in) :: ifull,iextra,kl
 
-allocate(sdot(ifull,kl+1),dpsldt(ifull,kl))
-allocate(wvel(ifull+iextra,kl))
-sdot=0.
-dpsldt=0.
-wvel=0.
+allocate( sdot(ifull,kl+1), dpsldt(ifull,kl) )
+allocate( wvel(ifull,kl) )
+allocate( updraft_helicity(ifull) )
+sdot = 0.
+dpsldt = 0.
+wvel = 0.
+updraft_helicity = 0.
 
 return
 end subroutine vvel_init
@@ -51,8 +55,9 @@ subroutine vvel_end
 
 implicit none
 
-deallocate(sdot,dpsldt)
-deallocate(wvel)
+deallocate( sdot, dpsldt )
+deallocate( wvel )
+deallocate( updraft_helicity )
 
 return
 end subroutine vvel_end

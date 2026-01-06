@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -93,6 +93,7 @@ use ozoneread                               ! Ozone input routines
 use parm_m                                  ! Model configuration
 use pbl_m                                   ! Boundary layer arrays
 use screen_m                                ! Screen level diagnostics
+use scrnout_m                               ! Calculate diagnostics
 use sigs_m                                  ! Atmosphere sigma levels
 use soil_m                                  ! Soil and surface data
 use soilsnow_m                              ! Soil, snow and surface data

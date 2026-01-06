@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -18,7 +18,14 @@
 ! along with CCAM.  If not, see <http://www.gnu.org/licenses/>.
 
 !------------------------------------------------------------------------------
+
+module scrnout_m
+
+private
+public scrnout, autoscrn, update_u10m, capecalc, uh_calc
     
+contains
+
 subroutine scrnout(zo,ustar,zoh,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod, &
                    bprm,cms,chs,chnsea,is,ie)
 
@@ -1065,4 +1072,85 @@ end do ! tile loop
 return
 end subroutine capecalc
 
+! Calculate updraft helicity    
+subroutine uh_calc
+
+use arrays_m
+use cc_mpi
+use const_phys
+use indices_m
+use liqwpar_m
+use map_m
+use newmpar_m
+use parm_m
+use sigs_m
+use vvel_m
+
+implicit none
+
+integer iq, k
+real, parameter :: min_zg = 2000.
+real, parameter :: max_zg = 5000.
+real dvdx, dudy, dz, z1, z2
+real, dimension(kl) :: delh
+real, dimension(ifull,0:kl) :: zg_h
+
+call boundsuv(u,v,allvec=.true.)
+
+do k = 1,kl
+  delh(k) = -(rdry/grav)*dsig(k)/sig(k)
+end do
+
+do iq = 1,ifull
+  updraft_helicity(iq) = 0.
+end do
+
+do iq = 1,ifull  
+  zg_h(iq,0) = 0.  
+  zg_h(iq,1) = t(iq,1)*delh(k)
+end do
+do k = 2,kl
+  do iq = 1,ifull
+    zg_h(iq,k) = zg_h(iq,k-1) + t(iq,k)*delh(k)
+  end do
+end do
+
+do k = 1,kl
+  do iq = 1,ifull  
+
+    z1 = zg_h(iq,k-1)
+    z2 = zg_h(iq,k)
     
+    if ( z2>min_zg .and. z1<=max_zg ) then
+
+      ! overlap
+      if ( z1<=min_zg .and. z2>max_zg ) then
+        !dz is larger than max_zg-min_zg
+        dz = max_zg - min_zg
+      else if ( z1>min_zg .and. z2<=max_zg ) then
+        ! dz is within max_zg-min_zg
+        dz = z2 - z1
+      else if ( z1>min_zg ) then
+        ! z2 is above max_zg
+        dz = max_zg - z1
+      else ! z2<=max_zg
+        ! z1 is below min_zg
+        dz = z2 - min_zg
+      end if  
+      
+      dvdx = 0.5*(v(iev(iq),k)-v(iq,k))*emu(iq)/ds + &
+             0.5*(v(iq,k)-v(iwv(iq),k))*emu(iwu(iq))/ds
+      dudy = 0.5*(u(inu(iq),k)-u(iq,k))*emv(iq)/ds + &
+             0.5*(u(iq,k)-u(isu(iq),k))*emv(isv(iq))/ds
+      
+      updraft_helicity(iq) = updraft_helicity(iq) + wvel(iq,k)*(dvdx-dudy)*dz
+
+    end if ! z2>min_zg .and. z1<=max_zg
+    
+  end do  ! iq
+end do    ! k
+  
+return
+end subroutine uh_calc
+
+end module scrnout_m

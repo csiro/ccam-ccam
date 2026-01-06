@@ -39,6 +39,7 @@ public anthropogenic_ave, tmaxurban, tminurban
 public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 public u_max, v_max, u10m_max, v10m_max ! sub-daily maximums
 public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
+public updraft_helicity_max, updraft_helicity_min
 public histave_init,histave_end
 
 
@@ -55,7 +56,7 @@ real, dimension(:), allocatable, save :: tmaxurban, tminurban
 real, dimension(:), allocatable, save :: fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 real, dimension(:,:), allocatable, save :: u_max, v_max     ! sub-daily maximums
 real, dimension(:), allocatable, save :: u10m_max, v10m_max ! sub-daily maximums
-real, dimension(:), allocatable, save :: hailradave_ave, hailradmax_max
+real, dimension(:), allocatable, save :: updraft_helicity_max, updraft_helicity_min
 real(kind=8), dimension(:), allocatable, save :: eg_ave, fg_ave
 real(kind=8), dimension(:), allocatable, save :: epot_ave, prhour
 real(kind=8), dimension(:), allocatable, save :: ga_ave, epan_ave, dew_ave
@@ -83,6 +84,7 @@ allocate(rnet_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),convh_ave(ifull,kl))
 allocate(anthropogenic_ave(ifull), tmaxurban(ifull), tminurban(ifull))
 allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull))
+allocate(updraft_helicity_max(ifull), updraft_helicity_min(ifull) )
 !allocate(tgg_ave(ifull,ms))
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
@@ -123,6 +125,8 @@ anth_heating_ave(:)  = 0._8
 anth_cooling_ave(:)  = 0._8
 tmaxurban(:)   = 0.
 tminurban(:)   = 400.
+updraft_helicity_max = -9.e9
+updraft_helicity_min = 9.e9
 
 if ( ccycle/=0 ) then
   allocate(fnee_ave(ifull))  
@@ -177,6 +181,7 @@ deallocate(rnet_ave)
 deallocate(wb_ave,wbice_ave,convh_ave)
 deallocate(anthropogenic_ave, tmaxurban, tminurban)
 deallocate(anth_elecgas_ave, anth_heating_ave, anth_cooling_ave)
+deallocate(updraft_helicity_max, updraft_helicity_min)
 !deallocate(tgg_ave)
 
 if ( allocated(fpn_ave) ) then

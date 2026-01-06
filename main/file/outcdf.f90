@@ -1913,9 +1913,12 @@ if ( iarch==1 ) then
     end if   ! (ngas>0)
 
     
-    ! This diagnostic requires some MPI communication
     lname = 'Updraft helicity (2-5km)'
     call attrib(idnc,dimj,jsize,'uh',lname,'m2 s-2',-520.,520.,any_m,point_m,cptype)
+    lname = 'Maximum updraft helicity (2-5km)'
+    call attrib(idnc,dimj,jsize,'uhmax',lname,'m2 s-2',-520.,520.,any_m,max_m,cptype)
+    lname = 'Minimum updraft helicity (2-5km)'
+    call attrib(idnc,dimj,jsize,'uhmin',lname,'m2 s-2',-520.,520.,any_m,max_m,cptype)
     
         
     ! STANDARD 3D VARIABLES -------------------------------------
@@ -3389,11 +3392,9 @@ if ( ngas>0 ) then
 endif  ! (ngasc>0)
 
 
-! This diagnostic requires some MPI communication
-if ( lwrite ) then
-  call uh_calc(aa)
-end if  
-call histwrt(aa,'uh',idnc,iarch,local,lwrite)
+call histwrt(updraft_helicity,'uh',idnc,iarch,local,lwrite)
+call histwrt(updraft_helicity_max,'uhmax',idnc,iarch,local,lwrite)
+call histwrt(updraft_helicity_min,'uhmin',idnc,iarch,local,lwrite)
 
 
 ! **************************************************************
@@ -4103,7 +4104,7 @@ implicit none
 
 include 'version.h'                   ! Model version data
 
-integer, parameter :: freqvars = 36  ! number of variables to average
+integer, parameter :: freqvars = 38  ! number of variables to average
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procnode, procoffset
 integer, dimension(5) :: adim
@@ -4230,7 +4231,9 @@ if ( first ) then
     write(6,*) "Initialise CORDEX output"
   end if
   allocate(freqstore(ifull,freqvars))
-  freqstore(:,:) = 0._8
+  freqstore(:,1:36) = 0._8
+  freqstore(:,37) = -9.e9
+  freqstore(:,38) =  9.e9
   if ( local ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), vnode_vleaderid
   else
@@ -4644,9 +4647,12 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'v10m_max',lname,'m s-1',-99.,99.,any_m,max_m,short_m) ! sub-daily
     end if
     
-    ! This diagnostic requires some MPI communication
     lname = 'Updraft helicity (2-5km)'
     call attrib(fncid,sdim,ssize,'uh',lname,'m2 s-2',-520.,520.,any_m,point_m,short_m)
+    lname = 'Maximum updraft helicity (2-5km)'
+    call attrib(fncid,sdim,ssize,'uhmax',lname,'m2 s-2',-520.,520.,any_m,max_m,short_m)
+    lname = 'Minimum updraft helicity (2-5km)'
+    call attrib(fncid,sdim,ssize,'uhmin',lname,'m2 s-2',-520.,520.,any_m,min_m,short_m)
     
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -4811,6 +4817,8 @@ freqstore(1:ifull,33) = freqstore(1:ifull,33) + real(runoff*(86400./dt/real(tbav
 freqstore(1:ifull,34) = freqstore(1:ifull,34) + real(runoff_surface*(86400./dt/real(tbave)),8)
 freqstore(1:ifull,35) = freqstore(1:ifull,35) + real(snowmelt/real(tbave),8)
 freqstore(1:ifull,36) = freqstore(1:ifull,36) + real(evspsbl*(86400./dt/real(tbave)),8)
+freqstore(1:ifull,37) = max( freqstore(1:ifull,37), real(updraft_helicity,8) )
+freqstore(1:ifull,38) = max( freqstore(1:ifull,38), real(updraft_helicity,8) )
 
 shallow_zse(:) = 0.
 shallow_sum = 0.
@@ -5196,9 +5204,9 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(outdata,'v10m_max',fncid,fiarch,local,.true.)
   end if
   
-  ! This diagnostic requires some MPI communication
-  call uh_calc(outdata)
-  call histwrt(outdata,'uh',fncid,fiarch,local,.true.)
+  call histwrt(updraft_helicity,'uh',fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,37),'uhmax',fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,38),'uhmin',fncid,fiarch,local,.true.)
   
   freqstore(:,1:17) = 0._8
   if ( cordex_fix==0 ) then
@@ -5211,6 +5219,8 @@ if ( mod(ktau,tbave)==0 ) then
   freqstore(:,30:32) = 0._8
   if ( l6hr ) freqstore(:,33:35) = 0._8
   freqstore(:,36) = 0._8
+  freqstore(:,37) = -9.e9
+  freqstore(:,38) = 9.e9
   
 end if
 
@@ -5965,87 +5975,5 @@ end if
 ans = min( ans, kx-1 )
 
 end function bisect
-
-subroutine uh_calc(uh)
-
-use arrays_m
-use cc_mpi
-use const_phys
-use indices_m
-use liqwpar_m
-use map_m
-use newmpar_m
-use parm_m
-use sigs_m
-use vvel_m
-
-implicit none
-
-integer iq, k
-real, parameter :: min_zg = 2000.
-real, parameter :: max_zg = 5000.
-real dvdx, dudy, dz, z1, z2
-real, dimension(kl) :: delh
-real, dimension(ifull,0:kl) :: zg_h
-real, dimension(ifull), intent(out) :: uh
-
-call boundsuv(u,v,allvec=.true.)
-
-do k = 1,kl
-  delh(k) = -(rdry/grav)*dsig(k)/sig(k)
-end do
-
-do iq = 1,ifull
-  uh(iq) = 0.
-end do
-
-do iq = 1,ifull  
-  zg_h(iq,0) = 0.  
-  zg_h(iq,1) = t(iq,1)*delh(k)
-end do
-do k = 2,kl
-  do iq = 1,ifull
-    zg_h(iq,k) = zg_h(iq,k-1) + t(iq,k)*delh(k)
-  end do
-end do
-
-do k = 1,kl
-  do iq = 1,ifull  
-
-    z1 = zg_h(iq,k-1)
-    z2 = zg_h(iq,k)
-    
-    
-    if ( z2>min_zg .and. z1<=max_zg ) then
-
-      ! overlap
-      if ( z1<=min_zg .and. z2>max_zg ) then
-        !dz is larger than max_zg-min_zg
-        dz = max_zg - min_zg
-      else if ( z1>min_zg .and. z2<=max_zg ) then
-        ! dz is within max_zg-min_zg
-        dz = z2 - z1
-      else if ( z1>min_zg ) then
-        ! z2 is above max_zg
-        dz = max_zg - z1
-      else ! z2<=max_zg
-        ! z1 is below min_zg
-        dz = z2 - min_zg
-      end if  
-      
-      dvdx = 0.5*(v(iev(iq),k)-v(iq,k))*emu(iq)/ds + &
-             0.5*(v(iq,k)-v(iwv(iq),k))*emu(iwu(iq))/ds
-      dudy = 0.5*(u(inu(iq),k)-u(iq,k))*emv(iq)/ds + &
-             0.5*(u(iq,k)-u(isu(iq),k))*emv(isv(iq))/ds
-      
-      uh(iq) = uh(iq) + wvel(iq,k)*(dvdx-dudy)*dz
-
-    end if ! z2>min_zg .and. z1<=max_zg
-    
-  end do  ! iq
-end do    ! k
-  
-return
-end subroutine uh_calc
 
 end module outcdf
