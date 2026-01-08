@@ -38,7 +38,6 @@ contains
 subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
 
 use bigxy4_m
-use cc_acc, only : async_length
 use cc_mpi
 use const_phys
 use indices_m

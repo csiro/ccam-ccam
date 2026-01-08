@@ -52,7 +52,6 @@ contains
 
 subroutine mlob2ints_bs_3(s,nface,xg,yg,wtr,bs_test,mlointschf)
 
-use cc_acc
 use cc_mpi
 use indices_m
 use mlo_ctrl

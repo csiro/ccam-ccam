@@ -29,14 +29,9 @@ module cc_acc
 
    implicit none
    private
+   public ccacc_init
 
    integer, save, public :: async_length = 2
-#ifdef _OPENACC
-   integer, save, private :: gpuid = -1
-#endif
-
-   public ::  ccacc_init
-
    
    contains
 
@@ -44,7 +39,7 @@ module cc_acc
 
      integer, intent(in) :: myid
      integer, intent(inout) :: ngpus
-     integer(kind=4) :: lmyid, lngpus, lgpuid
+     integer(kind=4) :: lmyid, lngpus
 #ifdef _OPENACC
      integer(kind=4) :: device_num
      integer(acc_device_kind) :: devicetype
@@ -56,8 +51,7 @@ module cc_acc
 
      if ( ngpus > 0 ) then
         call acc_set_device_num(mod(lmyid,lngpus),devicetype)
-        lgpuid = acc_get_device_num(devicetype)
-        gpuid = lgpuid
+        !lgpuid = acc_get_device_num(devicetype)
      end if   
 #endif
 

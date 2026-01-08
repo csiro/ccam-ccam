@@ -44,6 +44,20 @@ public ch_dust, zvolcemi, so4mtn, carbmtn, saltsmallmtn, saltlargemtn, enhanceu1
 public scav_effl
 public dustreff
 
+! aerosol_arrays
+public naero
+public aldrinit,aldrend,aldrloademiss,aldrloaderod
+public xtg,xtgsav,xtosav
+public itracdu,ndust
+public dustdd,dustwd,duste,dust_burden
+public itracbc,bce,bcdd,bcwd,bc_burden
+public itracoc,oce,ocdd,ocwd,oc_burden
+public itracdms,itracso2,itracso4
+public dmse,dmsso2o,so2e,so2so4o,so2dd,so2wd,so4e,so4dd,so4wd
+public dms_burden,so2_burden,so4_burden
+public itracsa,nsalt,salte,saltdd,saltwd,salt_burden
+public xtg_solub,zoxidant_g,erod,ndcls,emissfield,vso2
+
 integer, save :: ilon, ilat, ilev
 integer, save :: oxidant_timer = -9999
 integer, parameter :: naerofamilies = 7      ! Number of aerosol families for optical depth

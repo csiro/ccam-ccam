@@ -37,7 +37,6 @@
     
 subroutine ints(s,ntr,intsch,nface,xg,yg,nfield)
 
-use cc_acc             ! CC OpenACC routines
 use cc_mpi             ! CC MPI routines
 use indices_m          ! Grid index arrays
 use newmpar_m          ! Grid parameters

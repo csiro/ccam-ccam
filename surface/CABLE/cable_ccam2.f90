@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -5583,124 +5583,124 @@ if (myid==0.or.local) then
     do n = 1,maxtile  
       write(lname,'("Veg type tile ",I1.1)') n
       write(vname,'("t",I1.1,"_cvc")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.,any_m,point_m,land_m,double_m)
     end do      
     do n = 1,maxtile
       write(lname,'("Veg fraction tile ",I1.1)') n
       write(vname,'("t",I1.1,"_svs")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.,any_m,point_m,land_m,double_m)
       do k = 1,ms
         write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
-        call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,any_m,point_m,land_m,double_m)
       end do
       do k = 1,ms
         write(lname,'("Soil moisture tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_wb",I1.1)') n,k 
-        call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,any_m,point_m,land_m,double_m)
       end do
       do k = 1,ms
         write(lname,'("Soil ice tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_wbice",I1.1)') n,k 
-        call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,any_m,point_m,land_m,double_m)
       end do
       do k = 1,3
         write(lname,'("Snow temperature tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_tggsn",I1.1)') n,k
-        call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,any_m,point_m,land_m,double_m)
       end do
       do k = 1,3
         write(lname,'("Snow mass tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_smass",I1.1)') n,k 
-        call attrib(idnc,jdim,jsize,vname,lname,'K',0.,650.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'K',0.,650.,any_m,point_m,land_m,double_m)
       end do
       do k = 1,3
         write(lname,'("Snow density tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_ssdn",I1.1)') n,k 
-        call attrib(idnc,jdim,jsize,vname,lname,'kg/m3',0.,650.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'kg/m3',0.,650.,any_m,point_m,land_m,double_m)
       end do
       do k = 1,3
         write(lname,'("Snow depth tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_sdepth",I1.1)') n,k 
-        call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,any_m,point_m,land_m,double_m)
       end do
       do k = 1,3
         write(lname,'("Snow sconds tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_sconds",I1.1)') n,k 
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6.5,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6.5,any_m,point_m,land_m,double_m)
       end do
       write(lname,'("Snow ssdnn tile ",I1.1)') n
       write(vname,'("t",I1.1,"_ssdnn")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'kg/m3',0.,650.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'kg/m3',0.,650.,any_m,point_m,land_m,double_m)
       write(lname,'("Snow flag tile ",I1.1)') n
       write(vname,'("t",I1.1,"_sflag")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6.5,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6.5,any_m,point_m,land_m,double_m)
       write(lname,'("Snow depth tile ",I1.1)') n
       write(vname,'("t",I1.1,"_snd")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,any_m,point_m,land_m,double_m)
       write(lname,'("Old snow depth tile ",I1.1)') n
       write(vname,'("t",I1.1,"_osnd")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'mm',0.,6500.,any_m,point_m,land_m,double_m)
       write(lname,'("Snow age tile ",I1.1)') n
       write(vname,'("t",I1.1,"_snage")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,26.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,26.,any_m,point_m,land_m,double_m)
       write(lname,'("Soil turbulent resistance tile ",I1.1)') n
       write(vname,'("t",I1.1,"_rtsoil")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3e5,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3e5,any_m,point_m,land_m,double_m)
       write(lname,'("Aquifer moisture content ",I1.1)') n
       write(vname,'("t",I1.1,"_GWwb")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,1.3e5,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,1.3e5,any_m,point_m,land_m,double_m)
       write(lname,'("Water table depth ",I1.1)') n
       write(vname,'("t",I1.1,"_wtd")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'m',0.,6.5e4,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'m',0.,6.5e4,any_m,point_m,land_m,double_m)
       write(lname,'("cansto tile ",I1.1)') n
       write(vname,'("t",I1.1,"_cansto")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,any_m,point_m,land_m,double_m)
       write(lname,'("us tile ",I1.1)') n
       write(vname,'("t",I1.1,"_us")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'m/s',0.,13.,any_m,point_m,double_m) 
+      call attrib(idnc,jdim,jsize,vname,lname,'m/s',0.,13.,any_m,point_m,land_m,double_m) 
       write(lname,'("pudsto tile ",I1.1)') n
       write(vname,'("t",I1.1,"_pudsto")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,13.,any_m,point_m,land_m,double_m)
       write(lname,'("wetfac tile ",I1.1)') n
       write(vname,'("t",I1.1,"_wetfac")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6.5,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6.5,any_m,point_m,land_m,double_m)
       write(lname,'("ga tile ",I1.1)') n
       write(vname,'("t",I1.1,"_ga")') n
-      call attrib(idnc,jdim,jsize,vname,lname,'none',-6500.,6500.,any_m,point_m,double_m)
+      call attrib(idnc,jdim,jsize,vname,lname,'none',-6500.,6500.,any_m,point_m,land_m,double_m)
     end do
     if ( soil_struc==1 ) then
       do n = 1,maxtile  
         write(lname,'("hzero tile ",I1.1)') n
         write(vname,'("t",I1.1,"_hzero")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         do k = 1,ms
           write(lname,'("S tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_s",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,ms
           write(lname,'("tsoil tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,ms
           write(lname,'("thetai tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do  
         write(lname,'("snowliq tile ",I1.1," lev ",I1.1)') n,1
         write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("tsurface tile ",I1.1)') n
         write(vname,'("t",I1.1,"_tsurface")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("nsnow tile ",I1.1)') n
         write(vname,'("t",I1.1,"_nsnow")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("fwsoil tile ",I1.1)') n
         write(vname,'("t",I1.1,"_fwsoil")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
       end do
     end if
     if ( ccycle/=0 ) then
@@ -5708,119 +5708,119 @@ if (myid==0.or.local) then
         do k = 1,mplant
           write(lname,'("C leaf pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,mplant
           write(lname,'("N leaf pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,mplant
           write(lname,'("P leaf pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,mlitter
           write(lname,'("C litter pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,mlitter
           write(lname,'("N litter pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,mlitter
           write(lname,'("P litter pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,msoil
           write(lname,'("C soil pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,msoil
           write(lname,'("N soil pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         do k = 1,msoil
           write(lname,'("P soil pool tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         write(lname,'("Prognostic LAI tile ",I1.1)') n
         write(vname,'("t",I1.1,"_glai")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("Leaf phenology phen tile ",I1.1)') n
         write(vname,'("t",I1.1,"_phen")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("Leaf phenology rainfall ",I1.1)') n
         write(vname,'("t",I1.1,"_aphen")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("Leaf phenology phase tile ",I1.1)') n
         write(vname,'("t",I1.1,"_phenphase")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("Leaf phenology doyphase3 tile ",I1.1)') n
         write(vname,'("t",I1.1,"_doyphase3")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("C labile tile ",I1.1)') n
         write(vname,'("t",I1.1,"_clabile")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("N soilmin tile ",I1.1)') n
         write(vname,'("t",I1.1,"_nsoilmin")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("P soillab tile ",I1.1)') n
         write(vname,'("t",I1.1,"_psoillab")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("P soilsorb tile ",I1.1)') n
         write(vname,'("t",I1.1,"_psoilsorb")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("P soilocc tile ",I1.1)') n
         write(vname,'("t",I1.1,"_psoilocc")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         do k = 1,mplant
           write(lname,'("crmplant tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_crmplant",I1.1)') n,k
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
         write(lname,'("frac_sapwood tile ",I1.1)') n
         write(vname,'("t",I1.1,"_fracsapwood")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("sapwoodarea tile ",I1.1)') n
         write(vname,'("t",I1.1,"_sapwoodarea")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("crsoil tile ",I1.1)') n
         write(vname,'("t",I1.1,"_crsoil")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("cnpp tile ",I1.1)') n
         write(vname,'("t",I1.1,"_cnpp")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("clabloss tile ",I1.1)') n
         write(vname,'("t",I1.1,"_clabloss")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("crgplant tile ",I1.1)') n
         write(vname,'("t",I1.1,"_crgplant")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("stemnpp tile ",I1.1)') n
         write(vname,'("t",I1.1,"_stemnpp")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("LAImax tile ",I1.1)') n
         write(vname,'("t",I1.1,"_LAImax")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("Cleafmean tile ",I1.1)') n
         write(vname,'("t",I1.1,"_Cleafmean")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("Crootmean tile ",I1.1)') n
         write(vname,'("t",I1.1,"_Crootmean")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("fpn ",I1.1)') n
         write(vname,'("t",I1.1,"_fpn")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         write(lname,'("frday ",I1.1)') n
         write(vname,'("t",I1.1,"_frday")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
       end do
     end if
   end if ! itype==-1
@@ -5831,128 +5831,128 @@ if (myid==0.or.local) then
       if ( diaglevel_pop > 0 ) then
         write(lname,'("t",I1.1,"_pop_grid_cmass_sum")') n
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
       end if
       if ( itype==-1 ) then !just for restart file
         write(lname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n
         write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n
         write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_csapwood_sum")') n
         write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n
         write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_densindiv")') n
         write(vname,'("t",I1.1,"_pop_grid_densindiv")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_height_mean")') n
         write(vname,'("t",I1.1,"_pop_grid_height_mean")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_height_max")') n
         write(vname,'("t",I1.1,"_pop_grid_height_max")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_basal_area")') n
         write(vname,'("t",I1.1,"_pop_grid_basal_area")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_sapwood_loss")') n
         write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_stress_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_crowding_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_fire_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_cat_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_res_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_growth")') n
         write(vname,'("t",I1.1,"_pop_grid_growth")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_area_growth")') n
         write(vname,'("t",I1.1,"_pop_grid_area_growth")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_crown_cover")') n
         write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_crown_area")') n
         write(vname,'("t",I1.1,"_pop_grid_crown_area")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_crown_volume")') n
         write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_sapwood_area")') n
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n
         write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_KClump")') n
         write(vname,'("t",I1.1,"_pop_grid_KClump")') n
-        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_freq_age")') n
         write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
-        call attrib(idnc,cdim(:,7),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,7),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_biomass_age")') n
         write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
-        call attrib(idnc,cdim(:,7),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,7),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         do ll = 1,POP_NLAYER
           write(lname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
           write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do      
         do ll = 1,POP_NLAYER
           write(lname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
           write(vname,'("t",I1.1,"_pop_grid_density",I1.1)') n,ll
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER
           write(lname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll
           write(vname,'("t",I1.1,"_pop_grid_hmean",I1.1)') n,ll
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do         
         do ll = 1,POP_NLAYER
           write(lname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
           write(vname,'("t",I1.1,"_pop_grid_hmax",I1.1)') n,ll
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do   
         do hh = 1,POP_HEIGHT_BINS
           write(lname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh
           write(vname,'("t",I1.1,"_pop_grid_cmass_stem_bin",I2.2)') n,hh
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do   
         do hh = 1,POP_HEIGHT_BINS
           write(lname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
           write(vname,'("t",I1.1,"_pop_grid_densindiv_bin",I2.2)') n,hh
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do         
         do hh = 1,POP_HEIGHT_BINS
           write(lname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
           write(vname,'("t",I1.1,"_pop_grid_height_bin",I2.2)') n,hh
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do         
         do hh = 1,POP_HEIGHT_BINS
           write(lname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
           write(vname,'("t",I1.1,"_pop_grid_diameter_bin",I2.2)') n,hh
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do         
         do dd = 1,POP_NDISTURB
           write(lname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd
           write(vname,'("t",I1.1,"_pop_grid_n_age",I1.1)') n,dd
-          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do         
       end if
       ! Convention for POP variables are of the form t<n>_pop_grid_<......>
@@ -5960,236 +5960,236 @@ if (myid==0.or.local) then
       if ( itype==-1 .or. diaglevel_pop>=9 ) then !just for restart file
         write(lname,'("t",I1.1,"_pop_grid_patch_id")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_freq")') n
         write(vname,'("t",I1.1,"_pop_grid_freq")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_freq_old")') n
         write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_pgap")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_lai")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_biomass")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_cpc")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_mortality")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_growth")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
         write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
-        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+        call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         do dd = 1,POP_NDISTURB  
           write(lname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
           write(vname,'("t",I1.1,"_pop_grid_patch_disturbance_interval",I1.1)') n,dd
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do  
         do dd = 1,POP_NDISTURB  
           write(lname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
           write(vname,'("t",I1.1,"_pop_grid_patch_first_disturbance_year",I1.1)') n,dd
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do  
         do dd = 1,POP_NDISTURB  
           write(lname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
           write(vname,'("t",I1.1,"_pop_grid_patch_age",I1.1)') n,dd
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do dd = 1,POP_NDISTURB  
           write(lname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
           write(vname,'("t",I1.1,"_pop_grid_ranked_age_unique",I1.1)') n,dd
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do dd = 1,POP_NDISTURB  
           write(lname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
           write(vname,'("t",I1.1,"_pop_grid_freq_ranked_age_unique",I1.1)') n,dd
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_ncohort")') n,ll
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_biomass")') n,ll
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_density")') n,ll
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmean")') n,ll
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_hmax")') n,ll
-          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,1),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_age")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_id")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_biomass")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_density")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_resource_uptake")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_light_uptake")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_interception")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_respiration")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_frac_NPP")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_respiration_scalar")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_crown_area")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Pgap")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_height")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_diameter")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_heartwood")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_sapwood_area")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_basal_area")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_LAI")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Cleaf")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
         do ll = 1,POP_NLAYER  
           write(lname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
           write(vname,'("t",I1.1,"_pop_grid_patch_layer",I1.1,"_cohort_Croot")') n,ll
-          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,double_m)
+          call attrib(idnc,cdim(:,2),csize(2),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         end do
       end if
     end do  
@@ -6198,29 +6198,29 @@ if (myid==0.or.local) then
     !do n=1,maxtile
       !write(lname,'("Sensible correction term ",I1.1)') n
       !write(vname,'("t",I1.1,"_fhscor")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,any_m,point_m,double_m)
+      !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,any_m,point_m,land_m,double_m)
       !write(lname,'("Latent correction term ",I1.1)') n
       !write(vname,'("t",I1.1,"_fescor")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,any_m,point_m,double_m)
+      !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,any_m,point_m,land_m,double_m)
     !end do
     lname='DIR VIS albedo'
     vname='albvisdir'
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,double_m)
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,land_m,double_m)
     lname='DIF VIS albedo'
     vname='albvisdif'
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,double_m)
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,land_m,double_m)
     lname='DIR NIR albedo'
     vname='albnirdir'
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,double_m)
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,land_m,double_m)
     lname='DIF NIR albedo'
     vname='albnirdif'
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,double_m)
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,land_m,double_m)
     lname='VIS albedo'
     vname='albvis'
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,double_m)
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,land_m,double_m)
     lname='NIR albedo'
     vname='albnir'
-    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,double_m)
+    call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,land_m,double_m)
   end if
 end if
   

@@ -34,16 +34,14 @@
 !   debug        - additional debugging checks, but runs slower
 !   i8r8         - double precision mode
 !   GPU          - target GPUs with OpenACC
-!   GPUPHYSICS   - target GPUs for physical parameterisations with OpenACC.  Requires -DGPU.    
 !   csircoupled  - CSIR coupled model
 !   usempi3      - optimse communication with MPI shared memory (preferred)
-!   share_ifullg - reduce shared memory with MPI, but requires usempi3 directive
+!   share_ifullg - use shared memory with MPI, but requires usempi3 directive
 !   vampir       - enable vampir profiling
 
 program globpe
 
 use aerointerface                          ! Aerosol interface
-use aerosol_arrays                         ! Aerosol arrays
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
@@ -90,7 +88,6 @@ use river                                  ! River routing
 use savuvt_m                               ! Saved dynamic arrays
 use savuv1_m                               ! Saved dynamic arrays
 use sbar_m                                 ! Saved dynamic arrays
-use screen_m                               ! Screen level diagnostics
 use scrnout_m                              ! Calculate diagnostics
 use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
@@ -1116,7 +1113,7 @@ use parm_m             ! Model configuration
 use parmgeom_m         ! Coordinate data
 use pbl_m              ! Boundary layer arrays
 use prec_m             ! Precipitation
-use screen_m           ! Screen level diagnostics
+use scrnout_m          ! Calculate diagnostics
 use sigs_m             ! Atmosphere sigma levels
 use soil_m             ! Soil and surface data
 use soilsnow_m         ! Soil, snow and surface data
@@ -1208,7 +1205,6 @@ subroutine fixqg(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use const_phys                        ! Physical constants
-use cfrac_m                           ! Cloud fraction
 use estab                             ! Liquid saturation function
 use liqwpar_m                         ! Cloud water mixing ratios
 use newmpar_m                         ! Grid parameters
@@ -1250,7 +1246,6 @@ subroutine fixsat(js,je)
 
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use const_phys                        ! Physical constants
-use cfrac_m                           ! Cloud fraction
 use estab                             ! Liquid saturation function
 use liqwpar_m                         ! Cloud water mixing ratios
 use morepbl_m                         ! Additional boundary layer diagnostics
@@ -1321,7 +1316,7 @@ end subroutine fixsat
 ! Reset diagnostics for averaging period    
 subroutine zero_nperavg(koundiag)
 
-use aerosol_arrays, only :               & ! Aerosol arrays
+use aerointerface, only :                & ! Aerosol interface
      duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -1496,7 +1491,7 @@ use morepbl_m                              ! Additional boundary layer diagnosti
 use parm_m                                 ! Model configuration
 use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
-use screen_m                               ! Screen level diagnostics
+use scrnout_m                              ! Calculate diagnostics
 
 implicit none
 
@@ -1529,7 +1524,7 @@ end subroutine zero_nperday
 ! Update diagnostics for averaging period    
 subroutine calculate_timeaverage(koundiag)
 
-use aerosol_arrays, only :               & ! Aerosol arrays
+use aerointerface, only :                & ! Aerosol interface
      duste,dustwd,dustdd,dust_burden     &
     ,bce,bcwd,bcdd,bc_burden             &
     ,oce,ocwd,ocdd,oc_burden             &
@@ -1552,7 +1547,7 @@ use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
 use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
-use screen_m                               ! Screen level diagnostics
+use scrnout_m                              ! Calculate diagnostics
 use sflux_m                                ! Surface flux routines
 use soilsnow_m                             ! Soil, snow and surface data
 use tracers_m                              ! Tracer data
@@ -1830,7 +1825,7 @@ use parm_m                                 ! Model configuration
 use pbl_m                                  ! Boundary layer arrays
 use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
-use screen_m                               ! Screen level diagnostics
+use scrnout_m                              ! Calculate diagnostics
 use sigs_m                                 ! Atmosphere sigma levels
 use soil_m                                 ! Soil and surface data
 use soilsnow_m                             ! Soil, snow and surface data
@@ -2015,18 +2010,18 @@ end subroutine write_diagnostics
 ! Check for NaN errors
 subroutine nantest(message,js,je,mode)
 
-use aerosol_arrays, only : xtg,naero  ! Aerosol arrays
-use arrays_m                          ! Atmosphere dyamics prognostic arrays
-use cc_mpi                            ! CC MPI routines
-use cfrac_m                           ! Cloud fraction
-use extraout_m                        ! Additional diagnostics
-use liqwpar_m                         ! Cloud water mixing ratios
-use morepbl_m                         ! Additional boundary layer diagnostics
-use newmpar_m                         ! Grid parameters
-use parm_m                            ! Model configuration
-use pbl_m                             ! Boundary layer arrays
-use work2_m                           ! Diagnostic arrays
-use work3f_m                          ! Grid work arrays
+use aerointerface, only : xtg,naero     ! Aerosol interface
+use arrays_m                            ! Atmosphere dyamics prognostic arrays
+use cc_mpi                              ! CC MPI routines
+use cfrac_m                             ! Cloud fraction
+use extraout_m                          ! Additional diagnostics
+use liqwpar_m                           ! Cloud water mixing ratios
+use morepbl_m                           ! Additional boundary layer diagnostics
+use newmpar_m                           ! Grid parameters
+use parm_m                              ! Model configuration
+use pbl_m                               ! Boundary layer arrays
+use work2_m                             ! Diagnostic arrays
+use work3f_m                            ! Grid work arrays
 
 implicit none
 
@@ -2490,7 +2485,7 @@ return
 end subroutine nantest
 
 !-------------------------------------------------------------------- 
-! Calculate change in moist static energy
+! Calculate change in moist static energy - used by GF convection
 subroutine calculate_dhdt_mse(js,je,mse_t1)
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays

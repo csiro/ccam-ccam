@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -50,8 +50,8 @@ public comm_ip, pil_single
 public driving_model_id, driving_model_ensemble_number, driving_experiment_name
 public driving_institution_id
 
-public any_m, daily_m, sixhr_m, point_m, mean_m, max_m, min_m, fixed_m, sum_m
-public short_m, double_m, float_m
+public any_m, daily_m, sixhr_m, point_m, tmean_m, max_m, min_m, fixed_m, sum_m
+public short_m, double_m, float_m, anotdef_m, amean_m, land_m, sea_m, seaice_m
 
 public time_of_month, time_interpolate
 
@@ -74,18 +74,23 @@ character(len=256), save :: driving_model_ensemble_number = ' '
 character(len=256), save :: driving_experiment_name = ' '
 
 ! define configuration for attrib
-integer, parameter :: any_m = 0     ! output is valid at any time-step (usually hourly)
-integer, parameter :: daily_m = 1   ! output is daily only
-integer, parameter :: sixhr_m = 2   ! output is 6-hourly only
-integer, parameter :: point_m = 0   ! output is for a point in time
-integer, parameter :: mean_m = 1    ! output is averaged in time
-integer, parameter :: max_m = 2     ! output is maximum over a time interval
-integer, parameter :: min_m = 3     ! output is minimum over a time interval
-integer, parameter :: fixed_m = 4   ! output is fixed (independent of time)
-integer, parameter :: sum_m = 5     ! output is a sum over time interval
-integer, parameter :: short_m = 1   ! output is compressed as a short
-integer, parameter :: double_m = 2  ! output is double precision
-integer, parameter :: float_m = -1  ! output is single precision (or default model precision)
+integer, parameter :: any_m = 0      ! output is valid at any time-step (usually hourly)
+integer, parameter :: daily_m = 1    ! output is daily only
+integer, parameter :: sixhr_m = 2    ! output is 6-hourly only
+integer, parameter :: point_m = 0    ! output is for a point in time
+integer, parameter :: tmean_m = 1    ! output is averaged in time
+integer, parameter :: max_m = 2      ! output is maximum over a time interval
+integer, parameter :: min_m = 3      ! output is minimum over a time interval
+integer, parameter :: fixed_m = 4    ! output is fixed (independent of time)
+integer, parameter :: sum_m = 5      ! output is a sum over time interval
+integer, parameter :: short_m = 1    ! output is compressed as a short
+integer, parameter :: double_m = 2   ! output is double precision
+integer, parameter :: float_m = -1   ! output is single precision (or default model precision)
+integer, parameter :: anotdef_m = -1 ! output has no area mean (e.g., index)
+integer, parameter :: amean_m = 0    ! output is mean over area
+integer, parameter :: land_m = 1     ! output is mean over land
+integer, parameter :: sea_m = 2      ! output is mean over sea
+integer, parameter :: seaice_m = 3   ! output is mean over sea_ice
 
 interface histrd
   module procedure histrd3r4, histrd4r4, histrd5r4
@@ -170,31 +175,32 @@ use parm_m
 integer, intent(in) :: iarchi,ifull
 integer, intent(out) :: ier
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
-real, dimension(:), allocatable :: globvar
+real, dimension(size(var),1,1) :: lvar
+real, dimension(:,:,:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
 
+lvar(:,1,1) = var(:)  
+
 if ( ifull==6*pil_g**2 .or. ptest ) then
-
   ! read local arrays
-  call hr3p(iarchi,ier,name,.true.,var)
-
+  call hr5p(iarchi,ier,name,1,1,.true.,lvar)
 else
-
   ! gather and distribute (i.e., change in number of processors) 
   if ( myid==0 ) then
-     allocate( globvar(6*pil_g**2) )
-     globvar(:) = 0.
-     call hr3p(iarchi,ier,name,.false.,globvar)
-     call ccmpi_distribute(var,globvar)
+     allocate( globvar(6*pil_g**2,1,1) )
+     globvar(:,:,:) = 0.
+     call hr5p(iarchi,ier,name,1,1,.false.,globvar)
+     call ccmpi_distribute(lvar,globvar)
      deallocate( globvar )
   else
-    call hr3p(iarchi,ier,name,.false.)
-    call ccmpi_distribute(var)
+    call hr5p(iarchi,ier,name,1,1,.false.)
+    call ccmpi_distribute(lvar)
   end if
-  
 end if ! ifull==6*pil_g**2 .or. ptest ..else..
+
+var(:) = lvar(:,1,1)
 
 if ( ier==0 .and. myid==0 ) then
   write(6,'(" done histrd3 ",a8,i4,i3)') trim(name),ier,iarchi
@@ -206,118 +212,6 @@ call END_LOG(histrd_end)
 
 return
 end subroutine histrd3r4   
-
-!--------------------------------------------------------------
-! This subroutine reads 2D+time input files
-      
-! when qtest=.true. the input grid decomposition should
-! match the current processor decomposition.  We can then
-! skip the MPI gather and distribute steps.
-subroutine hr3p(iarchi,ier,name,qtest,var)
-
-use cc_mpi
-      
-integer, intent(in) :: iarchi
-integer, intent(out) :: ier
-integer :: ipf, jpf, ca, cc, ip, no, n, j
-integer :: expected_ndims, i
-integer(kind=4), dimension(4) :: start, ncount
-integer(kind=4), dimension(4) :: dimid_c
-integer(kind=4) :: idv, ndims, dimlen
-real, dimension(:), intent(inout), optional :: var
-real, dimension(pipan*pjpan*pnpan) :: rvar
-real, dimension(:,:), allocatable :: gvar 
-real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
-character(len=*), intent(in) :: name
-character(len=20) :: dimname
-
-ier = 0
-
-if ( mynproc>0 ) then
-         
-  do ipf = 0,mynproc-1  
-    
-    rvar(:) = 0. ! default for missing field
-  
-    ! get variable idv
-    ier = nf90_inq_varid(pncid(ipf),name,idv)
-    if ( ier==nf90_noerr ) then
-      if ( resprocformat ) then  
-        start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
-        ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
-        expected_ndims = 4
-      else
-        start(1:3)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
-        ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
-        expected_ndims = 3
-      end if  
-      ! obtain scaling factors and offsets from attributes
-      ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-      if (ier/=nf90_noerr) laddoff=0.
-      ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-      if (ier/=nf90_noerr) lsf=1.
-      ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      call ncmsg(name,ier)
-      if ( ndims>expected_ndims ) then
-        write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
-        write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
-        call ccmpi_abort(-1)
-      end if
-      ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
-      do i = 1,ndims
-        ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
-        if ( start(i)+ncount(i)-1>dimlen ) then
-          write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
-          write(6,*) "i,dimname           ",i,trim(dimname)
-          write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
-          call ccmpi_abort(-1)
-        end if
-      end do
-      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-      call ncmsg(name,ier)
-      ! unpack compressed data
-      rvar(:) = rvar(:)*real(lsf) + real(laddoff)
-    end if ! ier
-      
-    if ( qtest ) then
-      ! usual
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
-    else
-      ! gather-scatter
-      ! MJT notes - This could be better optimised where information is only sent
-      ! to the processes that requires it.  But this situation occurs so rarely, that
-      ! they current code might be sufficent.
-      if ( myid==0 ) then
-        allocate( gvar(pipan*pjpan*pnpan,fnresid) )
-        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-        do jpf = 1,fnresid
-          ip = ipf*fnresid + jpf - 1
-          do n = 0,pnpan-1
-            no = n - pnoff(ip) + 1
-            ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g**2
-            cc = n*pipan*pjpan - pipan
-            do j = 1,pjpan
-              var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
-            end do
-          end do
-        end do
-        deallocate( gvar )
-      else
-        allocate( gvar(1,1) )  
-        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-        deallocate( gvar )
-      end if
-      
-    end if ! qtest
-
-  end do ! ipf
-  
-end if ! mynproc>0
-
-return
-end subroutine hr3p
 
 #ifndef i8r8
 !--------------------------------------------------------------
@@ -331,31 +225,32 @@ use parm_m
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 real(kind=8), dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
-real(kind=8), dimension(:), allocatable :: globvar
+real(kind=8), dimension(size(var),1,1) :: lvar
+real(kind=8), dimension(:,:,:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
 
+lvar(:,1,1) = var(:)
+
 if ( ifull==6*pil_g**2 .or. ptest ) then
-
   ! read local arrays without gather and distribute (e.g., restart file)
-  call hr3pr8(iarchi,ier,name,.true.,var)
-
+  call hr5pr8(iarchi,ier,name,1,1,.true.,lvar)
 else
-
   ! read local arrays with gather and distribute (i.e., change in number of processors) 
   if ( myid==0 ) then
-    allocate( globvar(6*pil_g**2) )
-    globvar(:) = 0.
-    call hr3pr8(iarchi,ier,name,.false.,globvar)
-    call ccmpi_distributer8(var,globvar)
+    allocate( globvar(6*pil_g**2,1,1) )
+    globvar(:,:,:) = 0.
+    call hr5pr8(iarchi,ier,name,1,1,.false.,globvar)
+    call ccmpi_distributer8(lvar,globvar)
     deallocate( globvar )
   else
-    call hr3pr8(iarchi,ier,name,.false.)
-    call ccmpi_distributer8(var)
+    call hr5pr8(iarchi,ier,name,1,1,.false.)
+    call ccmpi_distributer8(lvar)
   end if
-
 end if ! ifull==6*pil_g**2 .or. ptest ..else..
+
+var(:) = lvar(:,1,1)
 
 if ( ier==0 .and. myid==0 ) then
   write(6,'(" done histrd3r8 ",a8,i4,i3)') trim(name),ier,iarchi
@@ -367,108 +262,6 @@ call END_LOG(histrd_end)
 
 return
 end subroutine histrd3r8
-
-subroutine hr3pr8(iarchi,ier,name,qtest,var)
-
-use cc_mpi
-      
-integer, intent(in) :: iarchi
-integer, intent(out) :: ier
-integer :: ipf, ca, jpf, ip, n, no, cc, j
-integer :: expected_ndims, i
-integer(kind=4), dimension(4) :: start, ncount
-integer(kind=4), dimension(4) :: dimid_c
-integer(kind=4) :: idv, ndims, dimlen
-real(kind=8), dimension(:), intent(inout), optional :: var
-real(kind=8), dimension(pipan*pjpan*pnpan) :: rvar
-real(kind=8), dimension(:,:), allocatable :: gvar 
-real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
-character(len=*), intent(in) :: name
-character(len=20) :: dimname
-
-ier = 0
-
-if ( mynproc>0 ) then
-
-  do ipf = 0,mynproc-1   
-    
-    rvar(:) = 0._8 ! default for missing field
-  
-    ! get variable idv
-    ier=nf90_inq_varid(pncid(ipf),name,idv)
-    if ( ier==nf90_noerr ) then
-      if ( resprocformat ) then  
-        start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
-        ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
-        expected_ndims = 4
-      else
-        start(1:3)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
-        ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
-        expected_ndims = 3
-      end if 
-      ! obtain scaling factors and offsets from attributes
-      ier=nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-      if (ier/=nf90_noerr) laddoff=0.
-      ier=nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-      if (ier/=nf90_noerr) lsf=1.
-      ier=nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      call ncmsg(name,ier)
-      if ( ndims>expected_ndims ) then
-        write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
-        write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
-        call ccmpi_abort(-1)
-      end if
-      ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
-      do i = 1,ndims
-        ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
-        if ( start(i)+ncount(i)-1>dimlen ) then
-          write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
-          write(6,*) "i,dimname           ",i,trim(dimname)
-          write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
-          call ccmpi_abort(-1)
-        end if
-      end do      
-      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-      call ncmsg(name,ier)
-      ! unpack compressed data
-      rvar(:) = rvar(:)*real(lsf,8) + real(laddoff,8)
-    end if ! ier
-      
-    if ( qtest ) then
-      ! usual
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca) = rvar(:)
-    else
-      ! gather-scatter
-      if ( myid==0 ) then
-        allocate( gvar(pipan*pjpan*pnpan,fnresid) )
-        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-        do jpf = 1,fnresid
-          ip = ipf*fnresid + jpf - 1
-          do n = 0,pnpan-1
-            no = n - pnoff(ip) + 1
-            ca = pioff(ip,no) + (pjoff(ip,no)-1)*pil_g + no*pil_g**2
-            cc = n*pipan*pjpan - pipan
-            do j = 1,pjpan
-              var(1+j*pil_g+ca:pipan+j*pil_g+ca) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,jpf)
-            end do
-          end do
-        end do
-        deallocate( gvar )
-      else
-        allocate( gvar(1,1) )  
-        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-        deallocate( gvar )
-      end if
-    end if ! qtest
-
-  end do ! ipf
-  
-end if ! mynproc>0
-
-return
-end subroutine hr3pr8
 #endif
 
 !--------------------------------------------------------------   
@@ -483,33 +276,34 @@ integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer kk
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-real, dimension(:,:), allocatable :: globvar
+real, dimensioN(size(var,1),size(var,2),1) :: lvar
+real, dimension(:,:,:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
 
 kk = size(var,2)
 
+lvar(:,:,1) = var(:,:)
+
 if ( ifull==6*pil_g**2 .or. ptest ) then
-
   ! read local arrays without gather and distribute
-  call hr4p(iarchi,ier,name,kk,.true.,var)
-
+  call hr5p(iarchi,ier,name,kk,1,.true.,lvar)
 else 
-
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
-    allocate( globvar(6*pil_g**2,kk) )
-    globvar(:,:) = 0.
-    call hr4p(iarchi,ier,name,kk,.false.,globvar)     
-    call ccmpi_distribute(var,globvar)
+    allocate( globvar(6*pil_g**2,kk,1) )
+    globvar(:,:,:) = 0.
+    call hr5p(iarchi,ier,name,kk,1,.false.,globvar)     
+    call ccmpi_distribute(lvar,globvar)
     deallocate( globvar )
   else 
-    call hr4p(iarchi,ier,name,kk,.false.)
-    call ccmpi_distribute(var)
+    call hr5p(iarchi,ier,name,kk,1,.false.)
+    call ccmpi_distribute(lvar)
   end if
-
 end if
+
+var(:,:) = lvar(:,:,1)
 
 if ( ier==0 .and. myid==0 ) then
   write(6,'(" done histrd4 ",a8,i4,i3)') trim(name),ier,iarchi
@@ -521,162 +315,6 @@ call END_LOG(histrd_end)
 
 return
 end subroutine histrd4r4
-
-subroutine hr4p(iarchi,ier,name,kk,qtest,var)
-
-use cc_mpi
-      
-integer, intent(in) :: iarchi, kk
-integer, intent(out) :: ier
-integer :: ipf, k, ca, jpf, ip, n, no, cc, j
-integer :: expected_ndims, i
-integer(kind=4), dimension(5) :: start, ncount
-integer(kind=4), dimension(5) :: dimid_c
-integer(kind=4) :: idv, ndims, dimlen
-real, dimension(:,:), intent(inout), optional :: var
-real, dimension(pipan*pjpan*pnpan,kk) :: rvar
-real, dimension(:,:,:), allocatable :: gvar 
-real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
-character(len=*), intent(in) :: name
-character(len=80) :: newname
-character(len=20) :: dimname
-
-ier = 0
-
-if ( mynproc>0 ) then
-
-  do ipf = 0,mynproc-1
-      
-    rvar = 0. ! default for missing field
-    
-    ! get variable idv
-    ier = nf90_inq_varid(pncid(ipf),name,idv)
-    if ( ier==nf90_noerr ) then
-      if ( resprocformat ) then  
-        start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
-        ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
-        expected_ndims = 5
-      else
-        start(1:4)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, iarchi /)
-        ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)
-        expected_ndims = 4
-      end if    
-      ! obtain scaling factors and offsets from attributes
-      ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-      if ( ier/=nf90_noerr ) laddoff = 0.
-      ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-      if ( ier/=nf90_noerr ) lsf = 1.
-      ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      call ncmsg(name,ier)
-      if ( ndims>expected_ndims ) then
-        write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
-        write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
-        call ccmpi_abort(-1)
-      end if
-      ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
-      do i = 1,ndims
-        ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
-        if ( start(i)+ncount(i)-1>dimlen ) then
-          write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
-          write(6,*) "i,dimname           ",i,trim(dimname)
-          write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
-          call ccmpi_abort(-1)
-        end if
-      end do      
-      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-      call ncmsg(name,ier)
-      ! unpack data
-      rvar(:,:) = rvar(:,:)*real(lsf) + real(laddoff)
-    else
-      if ( resprocformat ) then  
-        start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
-        ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
-        expected_ndims = 4
-      else
-        start(1:3) = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
-        ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
-        expected_ndims = 3
-      end if    
-      do k = 1,kk        
-        write(newname,'("'//trim(name)//'",I3.3)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)
-        if ( ier/=nf90_noerr .and. k<100 ) then
-          write(newname,'("'//trim(name)//'",I2.2)') k
-          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-        end if
-        if ( ier/=nf90_noerr .and. k<10 ) then
-          write(newname,'("'//trim(name)//'",I1.1)') k
-          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-        end if
-        if ( ier/=nf90_noerr ) then
-          exit
-        end if
-        ! obtain scaling factors and offsets from attributes
-        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-        if ( ier/=nf90_noerr ) laddoff = 0.
-        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-        if ( ier/=nf90_noerr ) lsf = 1.
-        ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-        call ncmsg(name,ier)
-        if ( ndims>expected_ndims ) then
-          write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
-          write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
-          call ccmpi_abort(-1)
-        end if
-        ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
-        do i = 1,ndims
-          ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
-          if ( start(i)+ncount(i)-1>dimlen ) then
-            write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
-            write(6,*) "i,dimname           ",i,trim(dimname)
-            write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
-            call ccmpi_abort(-1)
-          end if
-        end do          
-        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
-        call ncmsg(name,ier)
-        ! unpack data
-        rvar(:,k) = rvar(:,k)*real(lsf) + real(laddoff)      
-      end do
-    end if ! ier
-
-    if ( qtest ) then
-      ! usual
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
-    else
-      ! gather-scatter
-      if ( myid==0 ) then
-        allocate( gvar(pipan*pjpan*pnpan,size(rvar,2),fnresid) )
-        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-        do jpf = 1,fnresid
-          ip = ipf*fnresid + jpf - 1   ! local file number
-          do k = 1,kk
-            do n = 0,pnpan-1
-              no = n - pnoff(ip) + 1   ! global panel number of local file
-              ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g**2 - pil_g
-              cc = n*pipan*pjpan - pipan
-              do j = 1,pjpan
-                var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
-              end do
-            end do
-          end do
-        end do
-        deallocate( gvar )
-      else
-        allocate( gvar(1,1,1) )  
-        call ccmpi_gatherx(gvar,rvar,0,comm_ip)
-        deallocate( gvar )
-      end if
-    end if ! qtest
-
-  end do ! ipf
-  
-end if ! mynproc>0
-
-return
-end subroutine hr4p
 
 #ifndef i8r8
 !--------------------------------------------------------------   
@@ -691,33 +329,34 @@ integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer kk
 real(kind=8), dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-real(kind=8), dimension(:,:), allocatable :: globvar
+real(kind=8), dimensioN(size(var,1),size(var,2),1) :: lvar
+real(kind=8), dimension(:,:,:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
 
 kk = size(var,2)
 
+lvar(:,:,1) = var(:,:)
+
 if ( ifull==6*pil_g**2 .or. ptest ) then
-
   ! read local arrays without gather and distribute
-  call hr4pr8(iarchi,ier,name,kk,.true.,var)
-
+  call hr5pr8(iarchi,ier,name,kk,1,.true.,lvar)
 else
-    
   ! gather and distribute
   if ( myid==0 ) then
-    allocate( globvar(6*pil_g**2,kk) )
-    globvar(:,:) = 0._8
-    call hr4pr8(iarchi,ier,name,kk,.false.,globvar)     
-    call ccmpi_distributer8(var,globvar)
+    allocate( globvar(6*pil_g**2,kk,1) )
+    globvar(:,:,:) = 0._8
+    call hr5pr8(iarchi,ier,name,kk,1,.false.,globvar)
+    call ccmpi_distributer8(lvar,globvar)
     deallocate( globvar )
   else 
-    call hr4pr8(iarchi,ier,name,kk,.false.)
-    call ccmpi_distributer8(var)
+    call hr5pr8(iarchi,ier,name,kk,1,.false.)
+    call ccmpi_distributer8(lvar)
   end if
-
 end if
+
+var(:,:) = lvar(:,:,1)
 
 if ( ier==0 .and. myid==0 ) then
   write(6,'(" done histrd4r8 ",a8,i4,i3)') trim(name),ier,iarchi
@@ -729,164 +368,6 @@ call END_LOG(histrd_end)
 
 return
 end subroutine histrd4r8
-
-subroutine hr4pr8(iarchi,ier,name,kk,qtest,var)
-
-use cc_mpi
-      
-integer, intent(in) :: iarchi, kk
-integer, intent(out) :: ier
-integer :: ipf, k, ca, jpf, ip, n, no, cc, j
-integer :: expected_ndims, i
-integer(kind=4), dimension(5) :: start, ncount
-integer(kind=4), dimension(5) :: dimid_c
-integer(kind=4) :: idv, ndims, dimlen
-real(kind=8), dimension(:,:), intent(inout), optional :: var
-real(kind=8), dimension(pipan*pjpan*pnpan,kk) :: rvar
-real(kind=8), dimension(:,:,:), allocatable :: gvar
-real(kind=4) :: laddoff, lsf
-logical, intent(in) :: qtest
-character(len=*), intent(in) :: name
-character(len=80) :: newname
-character(len=20) :: dimname
-
-ier = 0
-      
-if ( mynproc>0 ) then
-
-  do ipf = 0,mynproc-1
-      
-    rvar = 0._8 ! default for missing field  
-    
-    ! get variable idv
-    ier = nf90_inq_varid(pncid(ipf),name,idv)
-    if ( ier==nf90_noerr ) then
-      if ( resprocformat ) then  
-        start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
-        ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
-        expected_ndims = 5
-      else
-        start(1:4)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, iarchi /)
-        ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)   
-        expected_ndims = 4
-      end if    
-      ! obtain scaling factors and offsets from attributes
-      ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-      if ( ier/=nf90_noerr ) laddoff = 0.
-      ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-      if ( ier/=nf90_noerr ) lsf = 1.
-      ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-      call ncmsg(name,ier)
-      if ( ndims>expected_ndims ) then
-        write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
-        write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
-        call ccmpi_abort(-1)
-      end if
-      ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
-      do i = 1,ndims
-        ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
-        if ( start(i)+ncount(i)-1>dimlen ) then
-          write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
-          write(6,*) "i,dimname           ",i,trim(dimname)
-          write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
-          call ccmpi_abort(-1)
-        end if
-      end do  
-      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-      call ncmsg(name,ier)
-      ! unpack data
-      rvar(:,:) = rvar(:,:)*real(lsf,8) + real(laddoff,8)
-    else
-      if ( resprocformat ) then  
-        start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
-        ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
-        expected_ndims = 4
-      else
-        start(1:3) = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
-        ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
-        expected_ndims = 3
-      end if    
-      do k = 1,kk        
-        write(newname,'("'//trim(name)//'",I3.3)') k
-        ier = nf90_inq_varid(pncid(ipf),newname,idv)
-        if ( ier/=nf90_noerr .and. k<100 ) then
-          write(newname,'("'//trim(name)//'",I2.2)') k
-          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-        end if
-        if ( ier/=nf90_noerr .and. k<10 ) then
-          write(newname,'("'//trim(name)//'",I1.1)') k
-          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
-        end if
-        if ( ier/=nf90_noerr ) then
-          exit
-        end if
-        ! obtain scaling factors and offsets from attributes
-        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-        if ( ier/=nf90_noerr ) laddoff = 0.
-        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-        if ( ier/=nf90_noerr ) lsf = 1.
-        ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-        call ncmsg(name,ier)
-        if ( ndims>expected_ndims ) then
-          write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
-          write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
-          call ccmpi_abort(-1)
-        end if
-        ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
-        do i = 1,ndims
-          ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
-          if ( start(i)+ncount(i)-1>dimlen ) then
-            write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
-            write(6,*) "i,dimname           ",i,trim(dimname)
-            write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
-            call ccmpi_abort(-1)
-          end if
-        end do          
-        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k),start=start(1:ndims),count=ncount(1:ndims))
-        call ncmsg(name,ier)
-        ! unpack data
-        rvar(:,k) = rvar(:,k)*real(lsf,8) + real(laddoff,8)      
-      end do
-    end if ! ier
-
-    if ( qtest ) then
-      ! e.g., restart file or nogather=.true.
-      ca = pipan*pjpan*pnpan*ipf
-      var(1+ca:pipan*pjpan*pnpan+ca,1:kk) = rvar(:,:)
-    else
-      ! e.g., mesonest file
-      if ( myid==0 .and. fnproc==1 ) then
-        var(1:pipan*pjpan*pnpan,1:kk) = rvar(1:pipan*pjpan*pnpan,1:kk)
-      else if ( myid==0 ) then
-        allocate( gvar(pipan*pjpan*pnpan,size(rvar,2),fnresid) )
-        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-        do jpf = 1,fnresid
-          ip = ipf*fnresid + jpf - 1   ! local file number
-          do k = 1,kk
-            do n = 0,pnpan-1
-              no = n - pnoff(ip) + 1   ! global panel number of local file
-              ca = pioff(ip,no) + pjoff(ip,no)*pil_g + no*pil_g**2 - pil_g
-              cc = n*pipan*pjpan - pipan
-              do j = 1,pjpan
-                var(1+j*pil_g+ca:pipan+j*pil_g+ca,k) = gvar(1+j*pipan+cc:pipan+j*pipan+cc,k,jpf)
-              end do
-            end do
-          end do
-        end do
-        deallocate( gvar )
-      else
-        allocate( gvar(1,1,1) )
-        call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
-        deallocate( gvar )
-      end if
-    end if ! qtest
-
-  end do ! ipf
-  
-end if ! mynproc>0
-
-return
-end subroutine hr4pr8
 #endif
 
 subroutine histrd5r4(iarchi,ier,name,var,ifull)
@@ -908,24 +389,20 @@ kk = size(var,2)
 ll = size(var,3)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
-
   ! read local arrays without gather and distribute
   call hr5p(iarchi,ier,name,kk,ll,.true.,var)
-
 else    
-
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
     allocate( globvar(6*pil_g**2,kk,ll) )
     globvar(:,:,:) = 0.
-    call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)     
+    call hr5p(iarchi,ier,name,kk,ll,.false.,globvar)
     call ccmpi_distribute(var,globvar)
     deallocate( globvar )
   else 
     call hr5p(iarchi,ier,name,kk,ll,.false.)
     call ccmpi_distribute(var)
   end if
-
 end if
 
 if ( ier==0 .and. myid==0 ) then
@@ -939,6 +416,12 @@ call END_LOG(histrd_end)
 return
 end subroutine histrd5r4
 
+!--------------------------------------------------------------
+! This subroutine reads 2D/3D/4D+time input files
+      
+! when qtest=.true. the input grid decomposition should
+! match the current processor decomposition.  We can then
+! skip the MPI gather and distribute steps.
 subroutine hr5p(iarchi,ier,name,kk,ll,qtest,var)
 
 use cc_mpi
@@ -946,17 +429,15 @@ use cc_mpi
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer :: ipf, ca, jpf, ip, n, no, cc, j, k, l
-integer :: expected_ndims, i
 integer(kind=4), dimension(6) :: start, ncount
-integer(kind=4), dimension(6) :: dimid_c
-integer(kind=4) :: idv, ndims, dimlen
+integer(kind=4) :: idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
 real, dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
 real, dimension(:,:,:,:), allocatable :: gvar
 real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
-character(len=20) :: dimname
+character(len=80) :: newname
 
 ier = 0
 
@@ -968,41 +449,92 @@ if ( mynproc>0 ) then
     
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
-    if ( resprocformat ) then
-      start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
-      ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
-      expected_ndims = 6
-    else
-      start(1:5)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, 1, iarchi /)
-      ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
-      expected_ndims = 5
-    end if    
-    ! obtain scaling factors and offsets from attributes
-    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff = 0.
-    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf = 1.
-    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    call ncmsg(name,ier)
-    if ( ndims>expected_ndims ) then
-      write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
-      write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
-      call ccmpi_abort(-1)
-    end if
-    ier = nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
-    do i = 1,ndims
-      ier = nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
-      if ( start(i)+ncount(i)-1>dimlen ) then
-        write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
-        write(6,*) "i,dimname           ",i,trim(dimname)
-        write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
-        call ccmpi_abort(-1)
-      end if
-    end do      
-    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack data
-    rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
+    if ( ier == nf90_noerr ) then
+      ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      call ncmsg(name,ier)        
+      if ( resprocformat ) then
+        select case(ndims)
+          case(3)
+            start(1:3)  = (/ 1, 1, pprid(ipf) /)
+            ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+          case(4)
+            start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
+            ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+          case(5)
+            start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
+            ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
+          case(6)
+            start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
+            ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
+          case default
+            write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+            write(6,*) "ndims = ",ndims
+            call ccmpi_abort(-1)
+        end select    
+      else
+        select case(ndims)
+          case(2)
+            start(1:2)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g /)
+            ncount(1:2) = (/ pipan, pjpan*pnpan /)   
+          case(3)
+            start(1:3)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
+            ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)   
+          case(4)
+            start(1:4)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, iarchi /)
+            ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)   
+          case(5)
+            start(1:5)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, 1, iarchi /)
+            ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
+          case default
+            write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+            write(6,*) "ndims = ",ndims
+            call ccmpi_abort(-1)
+        end select            
+      end if    
+      ! obtain scaling factors and offsets from attributes
+      ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if ( ier/=nf90_noerr ) laddoff = 0.
+      ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if ( ier/=nf90_noerr ) lsf = 1.
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      call ncmsg(name,ier)
+      ! unpack data
+      rvar(:,:,:) = rvar(:,:,:)*real(lsf) + real(laddoff)
+    else ! ier==nf_noerr ..else..
+      if ( resprocformat ) then  
+        start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
+        ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+        ndims = 4
+      else
+        start(1:3) = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
+        ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+        ndims = 3
+      end if    
+      do k = 1,kk        
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)
+        if ( ier/=nf90_noerr .and. k<100 ) then
+          write(newname,'("'//trim(name)//'",I2.2)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr .and. k<10 ) then
+          write(newname,'("'//trim(name)//'",I1.1)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr ) then
+          exit
+        end if
+        ! obtain scaling factors and offsets from attributes
+        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if ( ier/=nf90_noerr ) laddoff = 0.
+        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if ( ier/=nf90_noerr ) lsf = 1.
+        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k,1),start=start(1:ndims),count=ncount(1:ndims))
+        call ncmsg(name,ier)
+        ! unpack data
+        rvar(:,k,1) = rvar(:,k,1)*real(lsf) + real(laddoff)      
+      end do
+    end if ! ier==nf_noerr ..else. 
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
@@ -1011,7 +543,7 @@ if ( mynproc>0 ) then
     else
       ! e.g., mesonest file
       if ( myid==0 ) then
-        allocate( gvar(pipan*pjpan*pnpan,size(var,2),size(var,3),fnresid) )
+        allocate( gvar(pipan*pjpan*pnpan,kk,ll,fnresid) )
         call ccmpi_gatherx(gvar,rvar,0,comm_ip)
         do jpf = 1,fnresid
           ip = ipf*fnresid + jpf - 1   ! local file number
@@ -1065,12 +597,9 @@ kk = size(var,2)
 ll = size(var,3)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
-
   ! read local arrays without gather and distribute
   call hr5pr8(iarchi,ier,name,kk,ll,.true.,var)
-
 else    
-
   ! read local arrays with gather and distribute
   if ( myid==0 ) then
     allocate( globvar(6*pil_g**2,kk,ll) )
@@ -1082,7 +611,6 @@ else
     call hr5pr8(iarchi,ier,name,kk,ll,.false.)
     call ccmpi_distributer8(var)
   end if
-
 end if
 
 if ( ier==0 .and. myid==0 ) then
@@ -1103,9 +631,7 @@ use cc_mpi
 integer, intent(in) :: iarchi, kk, ll
 integer, intent(out) :: ier
 integer :: ipf, ca,jpf, ip, n, no, cc, j, k, l
-integer :: expected_ndims, i
 integer(kind=4), dimension(6) :: start, ncount
-integer(kind=4), dimension(6) :: dimid_c
 integer(kind=4) idv, ndims, dimlen
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
 real(kind=8), dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
@@ -1113,7 +639,7 @@ real(kind=8), dimension(:,:,:,:), allocatable :: gvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
 character(len=*), intent(in) :: name
-character(len=20) :: dimname
+character(len=80) :: newname
 
 ier = 0
 
@@ -1125,41 +651,92 @@ if ( mynproc>0 ) then
     
     ! get variable idv
     ier = nf90_inq_varid(pncid(ipf),name,idv)
-    if ( resprocformat ) then
-      start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
-      ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
-      expected_ndims = 6
+    if ( ier==nf90_noerr ) then
+      ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
+      call ncmsg(name,ier)        
+      if ( resprocformat ) then
+        select case(ndims)  
+          case(3)
+            start(1:3)  = (/ 1, 1, pprid(ipf) /)
+            ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+          case(4)
+            start(1:4)  = (/ 1, 1, pprid(ipf), iarchi /)
+            ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+          case(5)  
+            start(1:5)  = (/ 1, 1, 1, pprid(ipf), iarchi /)
+            ncount(1:5) = (/ pipan, pjpan*pnpan, kk, 1, 1 /)
+          case(6)  
+            start(1:6)  = (/ 1, 1, 1, 1, pprid(ipf), iarchi /)
+            ncount(1:6) = (/ pipan, pjpan*pnpan, kk, ll, 1, 1 /)
+          case default
+            write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+            write(6,*) "ndims = ",ndims
+            call ccmpi_abort(-1)
+        end select            
+      else
+        select case(ndims)
+          case(2)
+            start(1:2)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g /)
+            ncount(1:2) = (/ pipan, pjpan*pnpan /)
+          case(3)  
+            start(1:3)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
+            ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)   
+          case(4)  
+            start(1:4)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, iarchi /)
+            ncount(1:4) = (/ pipan, pjpan*pnpan, kk, 1 /)   
+          case(5)  
+            start(1:5)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, 1, iarchi /)
+            ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
+          case default
+            write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
+            write(6,*) "ndims = ",ndims
+            call ccmpi_abort(-1)
+        end select            
+      end if    
+      ! obtain scaling factors and offsets from attributes
+      ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+      if ( ier/=nf90_noerr ) laddoff = 0.
+      ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+      if ( ier/=nf90_noerr ) lsf = 1.
+      ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
+      call ncmsg(name,ier)
+      ! unpack data
+      rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
     else
-      start(1:5)  = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, 1, 1, iarchi /)
-      ncount(1:5) = (/ pipan, pjpan*pnpan, kk, ll, 1 /)   
-      expected_ndims = 5
-    end if    
-    ! obtain scaling factors and offsets from attributes
-    ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
-    if ( ier/=nf90_noerr ) laddoff = 0.
-    ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
-    if ( ier/=nf90_noerr ) lsf = 1.
-    ier = nf90_inquire_variable(pncid(ipf),idv,ndims=ndims)
-    call ncmsg(name,ier)
-    if ( ndims>expected_ndims ) then
-      write(6,*) "ERROR: Unexpected number of dimensions reading ",trim(name)
-      write(6,*) "ndims,expected_ndims = ",ndims,expected_ndims
-      call ccmpi_abort(-1)
-    end if
-    ier=nf90_inquire_variable(pncid(ipf),idv,dimids=dimid_c(1:ndims))
-    do i = 1,ndims
-      ier=nf90_inquire_dimension(pncid(ipf),dimid_c(i),name=dimname,len=dimlen)
-      if ( start(i)+ncount(i)-1>dimlen ) then
-        write(6,*) "ERROR: Index out-of-bounds reading ",trim(name)
-        write(6,*) "i,dimname           ",i,trim(dimname)
-        write(6,*) "dimlen,start,ncount ",dimlen,start(i),ncount(i)
-        call ccmpi_abort(-1)
-      end if
-    end do    
-    ier = nf90_get_var(pncid(ipf),idv,rvar,start=start(1:ndims),count=ncount(1:ndims))
-    call ncmsg(name,ier)
-    ! unpack data
-    rvar(:,:,:) = rvar(:,:,:)*real(lsf,8) + real(laddoff,8)
+      if ( resprocformat ) then  
+        start(1:4) = (/ 1, 1, pprid(ipf), iarchi /)
+        ncount(1:4) = (/ pipan, pjpan*pnpan, 1, 1 /)
+        ndims = 4
+      else
+        start(1:3) = (/ ppiid(ipf), ppjid(ipf)+ppanid(ipf)*pil_g, iarchi /)
+        ncount(1:3) = (/ pipan, pjpan*pnpan, 1 /)
+        ndims = 3
+      end if    
+      do k = 1,kk        
+        write(newname,'("'//trim(name)//'",I3.3)') k
+        ier = nf90_inq_varid(pncid(ipf),newname,idv)
+        if ( ier/=nf90_noerr .and. k<100 ) then
+          write(newname,'("'//trim(name)//'",I2.2)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr .and. k<10 ) then
+          write(newname,'("'//trim(name)//'",I1.1)') k
+          ier = nf90_inq_varid(pncid(ipf),newname,idv)          
+        end if
+        if ( ier/=nf90_noerr ) then
+          exit
+        end if
+        ! obtain scaling factors and offsets from attributes
+        ier = nf90_get_att(pncid(ipf),idv,'add_offset',laddoff)
+        if ( ier/=nf90_noerr ) laddoff = 0.
+        ier = nf90_get_att(pncid(ipf),idv,'scale_factor',lsf)
+        if ( ier/=nf90_noerr ) lsf = 1.
+        ier = nf90_get_var(pncid(ipf),idv,rvar(:,k,1),start=start(1:ndims),count=ncount(1:ndims))
+        call ncmsg(name,ier)
+        ! unpack data
+        rvar(:,k,1) = rvar(:,k,1)*real(lsf,8) + real(laddoff,8)
+      end do
+    end if ! ier==nf_noerr
 
     if ( qtest ) then
       ! e.g., restart file or nogather=.true.
@@ -1168,7 +745,7 @@ if ( mynproc>0 ) then
     else
       ! e.g., mesonest file
       if ( myid==0 ) then
-        allocate( gvar(pipan*pjpan*pnpan,size(rvar,2),size(rvar,3),fnresid) )
+        allocate( gvar(pipan*pjpan*pnpan,kk,ll,fnresid) )
         call ccmpi_gatherxr8(gvar,rvar,0,comm_ip)
         do jpf = 1,fnresid
           ip = ipf*fnresid + jpf - 1   ! local file number
@@ -1746,8 +1323,8 @@ real, dimension(:), allocatable, save :: wta
 kk = size(told,2)
 
 if ( kk==kl ) then
-  if ( all(abs(sig-sigin)<0.0001) ) then
-    t(1:ifull,1:kl) = told(:,:)
+  if ( all(abs(sig(1:kl)-sigin(1:kl))<0.0001) ) then
+    t(1:ifull,1:kl) = told(1:ifull,1:kl)
     return
   end if
 end if
@@ -1764,8 +1341,8 @@ if ( kk_save/=kk ) then
   end if
 end if
 
-if ( any(abs(sigin-sigin_save)>=0.0001) ) then
-  sigin_save = sigin
+if ( any(abs(sigin(1:kk)-sigin_save(1:kk))>=0.0001) ) then
+  sigin_save(1:kk) = sigin(1:kk)
   klapse = 0
   kin    = 2
   do k = 1,kl
@@ -1787,13 +1364,12 @@ if ( any(abs(sigin-sigin_save)>=0.0001) ) then
 end if
 
 do k = 1,kl
-  ! N.B. "a" denotes "above", "b" denotes "below"
   t(1:ifull,k) = wta(k)*told(:,ka(k)) + (1.-wta(k))*told(:,ka(k)-1)
 enddo    ! k loop
 
 select case(n)
   case(1)
-    if ( klapse/=0 ) then  ! for T lapse correction
+    if ( klapse>0 ) then  ! for T lapse correction
       do k = 1,klapse
         ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
         t(1:ifull,k) = t(1:ifull,k) + (sig(k)-sigin(1))*6.5/.1
@@ -2103,7 +1679,7 @@ end subroutine getzinp
 
 !--------------------------------------------------------------------
 ! DEFINE ATTRIBUTES
-subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,time_freq,time_method,itype)
+subroutine attrib(cdfid,dim,ndim,name,lname,units,xmin,xmax,time_freq,time_method,area_method,itype)
 
 use cc_mpi
 use newmpar_m
@@ -2112,7 +1688,7 @@ use parm_m
 implicit none
 
 integer, intent(in) :: cdfid, itype, ndim
-integer, intent(in) :: time_freq, time_method
+integer, intent(in) :: time_freq, time_method, area_method
 integer, dimension(ndim), intent(in) :: dim
 integer ier
 integer(kind=4) vtype, idv, lcdfid, lsize, lcompression
@@ -2124,6 +1700,7 @@ real(kind=4) lscalef, laddoff
 character(len=*), intent(in) :: name
 character(len=*), intent(in) :: lname
 character(len=*), intent(in) :: units
+character(len=80) :: cell_methods, cell_methods_area, cell_methods_time
 
 if ( itype==1 ) then
   vtype = nf90_short
@@ -2207,25 +1784,47 @@ else if ( time_freq==sixhr_m ) then
   ier = nf90_put_att(lcdfid,idv,'valid_time','6hr')
   call ncmsg("valid_time",ier)
 endif
-if ( time_method==point_m ) then
-  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: point')
-  call ncmsg("cell_methods",ier)
-else if ( time_method==mean_m ) then
-  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: mean')
-  call ncmsg("cell_methods",ier)
-else if ( time_method==max_m ) then
-  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: maximum')
-  call ncmsg("cell_methods",ier)
-else if ( time_method==min_m ) then
-  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: minimum')
-  call ncmsg("cell_methods",ier)
-else if ( time_method==fixed_m ) then
-  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: fixed')
-  call ncmsg("cell_methods",ier) 
-else if ( time_method==sum_m ) then
-  ier = nf90_put_att(lcdfid,idv,'cell_methods','time: sum')
-  call ncmsg("cell_methods",ier) 
+
+cell_methods_area = ''
+select case(area_method)
+  case(amean_m)
+    cell_methods_area = 'area: mean'
+  case(land_m)
+    cell_methods_area = 'area: mean where land'
+  case(sea_m)
+    cell_methods_area = 'area: mean where sea'
+  case(seaice_m)
+    cell_methods_area = 'area: mean where sea_ice'
+ end select
+
+cell_methods_time = ''
+select case(time_method)
+  case(point_m)
+    cell_methods_time = 'time: point'
+  case(tmean_m)  
+    cell_methods_time = 'time: mean'
+  case(max_m)    
+    cell_methods_time = 'time: maximum'
+  case(min_m)  
+    cell_methods_time = 'time: minimum'
+  case(fixed_m)    
+    cell_methods_time = 'time: fixed'
+  case(sum_m)  
+    cell_methods_time = 'time: sum'
+end select    
+
+cell_methods = ''
+if ( len_trim(cell_methods_area)>0 .and. len_trim(cell_methods_time)>0 ) then
+  cell_methods = trim(cell_methods_area) // ' ' // trim(cell_methods_time)
+else if ( len_trim(cell_methods_area)>0 ) then
+  cell_methods = trim(cell_methods_area)
+else if ( len_trim(cell_methods_time)>0 ) then
+  cell_methods = trim(cell_methods_time)
 end if
+if ( len_trim(cell_methods)>0 ) then
+  ier = nf90_put_att(lcdfid,idv,'cell_methods',cell_methods)
+  call ncmsg("cell_methods",ier) 
+end if    
       
 return
 end subroutine attrib

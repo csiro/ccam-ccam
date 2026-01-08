@@ -21,9 +21,15 @@
 
 module scrnout_m
 
+use screen_m
+
 private
 public scrnout, autoscrn, update_u10m, capecalc, uh_calc
-    
+
+! screen_m
+public tscrn,qgscrn,uscrn,rhscrn,u10
+public screen_init,screen_end
+
 contains
 
 subroutine scrnout(zo,ustar,zoh,wetfac,qsttg,qgscrn,tscrn,uscrn,u10,rhscrn,af,aft,ri,vmod, &
@@ -477,7 +483,6 @@ use nsibd_m, only : sigmu
 use parm_m
 use pbl_m
 use permsurf_m
-use screen_m
 use sigs_m
 use soil_m
 use soilsnow_m
