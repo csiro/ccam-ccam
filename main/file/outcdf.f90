@@ -5277,8 +5277,10 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(freqstore(:,37),'uhmax',fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,38),'uhmin',fncid,fiarch,local,.true.)
 
-  call histwrt(freqstore(:,44),'hailradave',fncid,fiarch,local,.true.)  
-  call histwrt(freqstore(:,45),'hailradmax',fncid,fiarch,local,.true.)  
+  outdata = real(freqstore(:,44))
+  call histwrt(outdata,'hailradave',fncid,fiarch,local,.true.)  
+  outdata = real(freqstore(:,45))
+  call histwrt(outdata,'hailradmax',fncid,fiarch,local,.true.)  
   
   freqstore(:,1:17) = 0._8
   if ( cordex_fix==0 ) then
