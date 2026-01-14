@@ -517,18 +517,17 @@ if ( io_in<=4 .and. nhstest>=0 ) then
          zs(iq)=.2*zs(iq)
     enddo
   endif
-
-  land(1:ifull) = zsmask(1:ifull)>=0.5
  
 else                   ! aquaplanet test -1 to -8 or -22
   zs(:)=0.             ! or pgb from June 2003
   zsmask(:)=0.
   he(:)=0.         
-  land(:)=.false.
   isoilm = 0
   isoilm_in = 0
   ivegt = 0
 endif  ! (io_in<=4.and.nhstest>=0)  ..else..
+
+land(1:ifull) = zsmask(1:ifull)>=0.5
 
 if ( mydiag ) then
   write(6,"('zs#_topof ',9f8.1)") diagvals(zs)

@@ -139,7 +139,7 @@ public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
-public calc_wt_ave, calc_wt_flux
+!public calc_wt_ave, calc_wt_flux
 public mplant,mlitter,msoil
 public cable_casatile
 
@@ -443,7 +443,7 @@ do tile = 1,ntiles
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl2(js:je),vmod(is:ie),                                   &
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),evspsbl(is:ie),sbl(is:ie),lair,lbal,c,       &
                    lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,   &
-                   lssnow,lsum_flux,lveg,lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim,wtd(is:ie),imax)
+                   lssnow,lsum_flux,lveg,lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -491,7 +491,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
                      ustar,vlai,vl2,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,sbl,air,bal,c,canopy,               &
                      casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
-                     sum_flux,veg,fevc,plant_turnover,plant_turnover_wood,wb_clim,wtd,imax)
+                     sum_flux,veg,fevc,plant_turnover,plant_turnover_wood,wb_clim,imax)
 
 use const_phys
 use dates_m
@@ -525,7 +525,6 @@ real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, r
 real, dimension(imax), intent(inout) :: sigmf, snage, snowd, ssdnn, tss, ustar
 real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
-real, dimension(imax), intent(out) :: wtd
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
 real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
@@ -962,7 +961,7 @@ end where
 evspsbl_l = 0.
 sbl_l = 0.
 tmps = 0. ! average isflag
-wtd = 0.
+!wtd = 0.
 
 do nb = 1,maxnb
   is = tind(nb,1)
@@ -1023,8 +1022,8 @@ do nb = 1,maxnb
     epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)      ! diagnostic in history file
   end if
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
-  rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)    ! diagnostic in history file
-  wtd = wtd + unpack(sv(is:ie)*real(ssnow%wtd(is:ie))/1000.,tmap(:,nb),0.)  
+  rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)    ! diagnostic in history file  
+  !wtd = wtd + unpack(sv(is:ie)*real(ssnow%wtd(is:ie))/1000.,tmap(:,nb),0.)  
 end do
 
 if ( ccycle/=0 ) then
@@ -2483,6 +2482,7 @@ if ( fflag == 1  ) then
   if ( myid == 0 ) then
     write(6,*) "-> Using user defined CASA PFT parameter tables"
     open(86,file=fcasapft,status='old',action='read',iostat=ierr)
+    write(6,*) "ERROR: CASA PFT not supported for user file ",trim(fcasapft)
     call ccmpi_abort(-1)
 
     write(6,*) "-> Reading ",trim(fcasapft)
@@ -6283,12 +6283,6 @@ if ( itype==-1 ) then !just for restart file
     do k = 1,ms     ! soil layer
       dat = real(tgg(:,k),8)
       if ( n<=maxnb ) call cable_unpack(ssnow%tgg(:,k),dat,n)
-      if ( any( dat(1:ifull)>400._8 .and. land(1:ifull) ) ) then
-        write(6,*) "ERROR: Invalid CABLE soil temperature when writing tile"
-        write(6,*) "n,k = ",n,k
-        write(6,*) "tgg ",maxval(dat(1:ifull),mask=land(1:ifull))
-        stop -1
-      end if
       write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
@@ -7777,167 +7771,140 @@ end subroutine cablesettemp
 
 ! Subroutines for ground water transport - average water table height
 
-subroutine calc_wt_ave(wth_ave,gwwb_min,gwdz)
+!subroutine calc_wt_ave(wth_ave)
+!
+!use arrays_m
+!use const_phys
+!se map_m
+!use newmpar_m
+!use parm_m
+!use soil_m
+!
+!integer nb, js, je, is, ie, ks, ke, tile, ls, le
+!integer lmp, lmaxnb, k
+!integer, dimension(maxtile,2) :: ltind
+!real, dimension(:), intent(out) :: wth_ave
+!logical, dimension(imax,maxtile) :: ltmap
+!type(soil_snow_type) :: lssnow
+!
+!do tile = 1,ntiles
+!  is = (tile-1)*imax + 1
+!  ie = tile*imax
+!  lmp = tdata(tile)%mp
+!
+!  wth_ave(is:ie) = 0.
+!
+!  if ( lmp>0 ) then
+!
+!    lmaxnb = tdata(tile)%maxnb
+!    ltmap = tdata(tile)%tmap
+!    js = tdata(tile)%toffset + 1
+!    je = tdata(tile)%toffset + tdata(tile)%mp
+!    ltind = tdata(tile)%tind - tdata(tile)%toffset
+!    call setp(ssnow,lssnow,tile)
+!
+!    ! calculate water table depth and other information from tiles
+!    do nb = 1,maxnb
+!      ks = ltind(nb,1)
+!      ke = ltind(nb,2)
+!      ls = js + ks - 1
+!      le = js + ke - 1
+!      wth_ave(is:ie) = wtd_ave(is:ie) + unpack( sv(ls:le)*real(lssnow%wtd(ks:ke))/1000., ltmap(:,nb), 0. )
+!    end do
+!
+!  end if ! mp>0
+!
+!end do ! tile
+!
+!return
+!end subroutine calc_wt_ave
 
-use arrays_m
-use const_phys
-use map_m
-use newmpar_m
-use parm_m
-use soil_m
-
-integer nb, js, je, is, ie, ks, ke, tile, ls, le
-integer lmp, lmaxnb, k
-integer, dimension(maxtile,2) :: ltind
-real, dimension(:), intent(out) :: wth_ave, gwwb_min, gwdz
-real, dimension(size(wth_ave)) :: wtd_ave
-logical, dimension(imax,maxtile) :: ltmap
-type(soil_parameter_type) :: lsoil
-type(soil_snow_type) :: lssnow
-
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  lmp = tdata(tile)%mp
-
-  wth_ave(is:ie) = 0.
-  wtd_ave(is:ie) = 0.
-  gwwb_min(is:ie) = 9.e9
-  gwdz(is:ie) = 0.
-
-  if ( lmp>0 ) then
-
-    lmaxnb = tdata(tile)%maxnb
-    ltmap = tdata(tile)%tmap
-    js = tdata(tile)%toffset + 1
-    je = tdata(tile)%toffset + tdata(tile)%mp
-    ltind = tdata(tile)%tind - tdata(tile)%toffset
-    call setp(soil,lsoil,tile)
-    call setp(ssnow,lssnow,tile)
-
-    ! soil layer thickness
-    do k = 1,ms
-      where ( land(is:ie) )
-        gwdz(is:ie) = gwdz(is:ie) + lsoil%zse(k)
-      end where
-    end do
-
-    ! calculate water table depth and other information from tiles
-    do nb = 1,maxnb
-      ks = ltind(nb,1)
-      ke = ltind(nb,2)
-      ls = js + ks - 1
-      le = js + ke - 1
-      wtd_ave(is:ie) = wtd_ave(is:ie) + unpack( sv(ls:le)*real(lssnow%wtd(ks:ke))/1000., ltmap(:,nb), 0. )
-      gwwb_min(is:ie) = min( gwwb_min(is:ie), unpack( real(lssnow%GWwb(ks:ke)), ltmap(:,nb), 9.e9 ) )
-      gwdz(is:ie) = gwdz(is:ie) + unpack( sv(ls:le)*real(lsoil%GWdz(ks:ke)), ltmap(:,nb), 0. )
-    end do
-
-  end if ! mp>0
-
-  ! adjust water table depth for orography
-  wth_ave(is:ie) = zs(is:ie)/grav - wtd_ave(is:ie)
-
-  ! set minimum ground water to zero where undefined (e.g., ocean)
-  where ( gwwb_min(is:ie)>=1.e9 )
-    gwwb_min(is:ie) = 0.
-  elsewhere
-    gwwb_min(is:ie) = (ds/em(is:ie))**2*gwwb_min(is:ie)
-  end where
-
-  ! redistribute ground water across tiles within the gridbox?
-
-end do ! tile
-
-return
-end subroutine calc_wt_ave
-
-subroutine calc_wt_flux(flux,flux_m,flux_c,ddt)
-
-use arrays_m
-use const_phys
-use map_m
-use newmpar_m
-use parm_m
-
-integer nb, is, ie, ks, ke, tile, ls, le, js, je
-integer lmp, lmaxnb
-integer, dimension(maxtile,2) :: ltind
-real, intent(in) :: ddt
-real, dimension(ifull), intent(in) :: flux, flux_m, flux_c
-real(kind=r_2), dimension(ifull) :: tot_flux, flux_corr
-real(kind=r_2), dimension(ifull) :: wth, mm, cc, flux_adj, indxsq ! ifull>=mp
-real(kind=r_2), dimension(ifull,maxtile) :: new_flux              ! ifull>=mp
-logical, dimension(imax,maxtile) :: ltmap
-type(soil_snow_type) :: lssnow
-
-tot_flux(:) = 0._r_2
-
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  lmp = tdata(tile)%mp
-
-  if ( lmp>0 ) then
-
-    lmaxnb = tdata(tile)%maxnb
-    ltmap = tdata(tile)%tmap
-    js = tdata(tile)%toffset + 1
-    je = tdata(tile)%toffset + tdata(tile)%mp
-    ltind = tdata(tile)%tind(:,:) - tdata(tile)%toffset
-    call setp(ssnow,lssnow,tile)
-
-    ! remove remaing flux from ground water
-
-    do nb = 1,lmaxnb
-      ks = ltind(nb,1)
-      ke = ltind(nb,2)
-      ls = js + ks - 1
-      le = js + ke - 1
-      wth(ks:ke) = pack( real(zs(is:ie)/grav,r_2), ltmap(:,nb) ) - lssnow%wtd(ks:ke)/1000._r_2
-      mm(ks:ke) = pack( real(flux_m(is:ie),r_2), ltmap(:,nb) )
-      cc(ks:ke) = pack( real(flux_c(is:ie),r_2), ltmap(:,nb) )
-      new_flux(ks:ke,nb) = mm(ks:ke)*wth(ks:ke) + cc(ks:ke)
-      tot_flux(is:ie) = tot_flux(is:ie) + &
-        unpack( real(sv(ls:le),r_2)*new_flux(ks:ke,nb), ltmap(:,nb), 0._r_2 )
-    end do
-
-  end if
-end do
-
-where( abs(tot_flux)>0._r_2 )
-  flux_corr = real(abs(flux),r_2)/abs(tot_flux)
-elsewhere
-  flux_corr = 0._r_2
-end where
-
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  lmp = tdata(tile)%mp
-
-  if ( lmp>0 ) then
-
-    lmaxnb = tdata(tile)%maxnb
-    ltmap = tdata(tile)%tmap
-    ltind = tdata(tile)%tind - tdata(tile)%toffset
-    call setp(ssnow,lssnow,tile)
-
-    do nb = 1,lmaxnb
-      ks = ltind(nb,1)
-      ke = ltind(nb,2)
-      flux_adj(ks:ke) = pack( real(flux_corr(is:ie),r_2 ), ltmap(:,nb) )
-      indxsq(ks:ke) = pack( real((em(is:ie)/ds)**2,r_2), ltmap(:,nb) )
-      new_flux(ks:ke,nb) = new_flux(ks:ke,nb)*flux_adj(ks:ke)
-      lssnow%GWwb(ks:ke) = lssnow%GWwb(ks:ke) - real(ddt,r_2)*indxsq(ks:ke)*new_flux(ks:ke,nb)
-    end do
-
-  end if ! lmp>0.
-
-end do ! tile
-
-return
-end subroutine calc_wt_flux
+!subroutine calc_wt_flux(flux,flux_m,flux_c,ddt)
+!
+!use arrays_m
+!use const_phys
+!use map_m
+!use newmpar_m
+!use parm_m
+!
+!integer nb, is, ie, ks, ke, tile, ls, le, js, je
+!integer lmp, lmaxnb
+!integer, dimension(maxtile,2) :: ltind
+!real, intent(in) :: ddt
+!real, dimension(ifull), intent(in) :: flux, flux_m, flux_c
+!real(kind=r_2), dimension(ifull) :: tot_flux, flux_corr
+!real(kind=r_2), dimension(ifull) :: wth, mm, cc, flux_adj, indxsq ! ifull>=mp
+!real(kind=r_2), dimension(ifull,maxtile) :: new_flux              ! ifull>=mp
+!logical, dimension(imax,maxtile) :: ltmap
+!type(soil_snow_type) :: lssnow
+!
+!tot_flux(:) = 0._r_2
+!
+!do tile = 1,ntiles
+!  is = (tile-1)*imax + 1
+!  ie = tile*imax
+!  lmp = tdata(tile)%mp
+!
+!  if ( lmp>0 ) then
+!
+!    lmaxnb = tdata(tile)%maxnb
+!    ltmap = tdata(tile)%tmap
+!    js = tdata(tile)%toffset + 1
+!    je = tdata(tile)%toffset + tdata(tile)%mp
+!    ltind = tdata(tile)%tind(:,:) - tdata(tile)%toffset
+!    call setp(ssnow,lssnow,tile)
+!
+!    ! remove remaing flux from ground water
+!
+!    do nb = 1,lmaxnb
+!      ks = ltind(nb,1)
+!      ke = ltind(nb,2)
+!      ls = js + ks - 1
+!      le = js + ke - 1
+!      wth(ks:ke) = - lssnow%wtd(ks:ke)/1000._r_2
+!      mm(ks:ke) = pack( real(flux_m(is:ie),r_2), ltmap(:,nb) )
+!      cc(ks:ke) = pack( real(flux_c(is:ie),r_2), ltmap(:,nb) )
+!      new_flux(ks:ke,nb) = mm(ks:ke)*wth(ks:ke) + cc(ks:ke)
+!      tot_flux(is:ie) = tot_flux(is:ie) + &
+!        unpack( real(sv(ls:le),r_2)*new_flux(ks:ke,nb), ltmap(:,nb), 0._r_2 )
+!    end do
+!
+!  end if
+!end do
+!
+!where( abs(tot_flux)>0._r_2 )
+!  flux_corr = real(abs(flux),r_2)/abs(tot_flux)
+!elsewhere
+!  flux_corr = 0._r_2
+!end where
+!
+!do tile = 1,ntiles
+!  is = (tile-1)*imax + 1
+!  ie = tile*imax
+!  lmp = tdata(tile)%mp
+!
+!  if ( lmp>0 ) then
+!
+!    lmaxnb = tdata(tile)%maxnb
+!    ltmap = tdata(tile)%tmap
+!    ltind = tdata(tile)%tind - tdata(tile)%toffset
+!    call setp(ssnow,lssnow,tile)
+!
+!    do nb = 1,lmaxnb
+!      ks = ltind(nb,1)
+!      ke = ltind(nb,2)
+!      flux_adj(ks:ke) = pack( real(flux_corr(is:ie),r_2 ), ltmap(:,nb) )
+!      indxsq(ks:ke) = pack( real((em(is:ie)/ds)**2,r_2), ltmap(:,nb) )
+!      new_flux(ks:ke,nb) = new_flux(ks:ke,nb)*flux_adj(ks:ke)
+!      lssnow%GWwb(ks:ke) = lssnow%GWwb(ks:ke) - real(ddt,r_2)*indxsq(ks:ke)*new_flux(ks:ke,nb)
+!    end do
+!
+!  end if ! lmp>0.
+!
+!end do ! tile
+!
+!return
+!end subroutine calc_wt_flux
 
 end module cable_ccam
 

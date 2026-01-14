@@ -40,9 +40,12 @@ public anth_elecgas_ave, anth_heating_ave, anth_cooling_ave
 public u_max, v_max, u10m_max, v10m_max ! sub-daily maximums
 public fevc_ave,plant_turnover_ave,plant_turnover_wood_ave
 public updraft_helicity_max, updraft_helicity_min
+public dhail1_max, dhail2_max, dhail3_max, dhail4_max, dhail5_max
+public convpsav_ave,convpsav_avep,sig_kb_ave,sig_kt_ave,kount_conv ! JLMP2508
 public histave_init,histave_end
 
 
+integer, dimension(:), allocatable, save :: kount_conv                   ! JLMP2508
 real, dimension(:), allocatable, save :: cbas_ave,ctop_ave,rndmax,prhmax
 real, dimension(:), allocatable, save :: tmaxscr,tminscr,tscr_ave
 real, dimension(:), allocatable, save :: rhmaxscr,rhminscr,rhscr_ave
@@ -57,6 +60,9 @@ real, dimension(:), allocatable, save :: fevc_ave,plant_turnover_ave,plant_turno
 real, dimension(:,:), allocatable, save :: u_max, v_max     ! sub-daily maximums
 real, dimension(:), allocatable, save :: u10m_max, v10m_max ! sub-daily maximums
 real, dimension(:), allocatable, save :: updraft_helicity_max, updraft_helicity_min
+real, dimension(:), allocatable, save :: dhail1_max, dhail2_max, dhail3_max, dhail4_max, dhail5_max
+real, dimension(:), allocatable, save :: convpsav_ave,convpsav_avep      ! JLMP2508
+real, dimension(:), allocatable, save :: sig_kb_ave,sig_kt_ave           ! JLMP2508
 real(kind=8), dimension(:), allocatable, save :: eg_ave, fg_ave
 real(kind=8), dimension(:), allocatable, save :: epot_ave, prhour
 real(kind=8), dimension(:), allocatable, save :: ga_ave, epan_ave, dew_ave
@@ -84,8 +90,12 @@ allocate(rnet_ave(ifull))
 allocate(wb_ave(ifull,ms),wbice_ave(ifull,ms),convh_ave(ifull,kl))
 allocate(anthropogenic_ave(ifull), tmaxurban(ifull), tminurban(ifull))
 allocate(anth_elecgas_ave(ifull), anth_heating_ave(ifull), anth_cooling_ave(ifull))
-allocate(updraft_helicity_max(ifull), updraft_helicity_min(ifull) )
+allocate(updraft_helicity_max(ifull), updraft_helicity_min(ifull))
+allocate(dhail1_max(ifull), dhail2_max(ifull), dhail3_max(ifull), dhail4_max(ifull), dhail5_max(ifull))
 !allocate(tgg_ave(ifull,ms))
+allocate(convpsav_ave(ifull),convpsav_avep(ifull))              ! JLMP2508
+allocate(sig_kb_ave(ifull),sig_kt_ave(ifull),kount_conv(ifull)) ! JLMP2508
+
 
 ! needs to be initialised here for zeroth time-step in outcdf.f90
 rndmax(:)      = 0.
@@ -127,6 +137,17 @@ tmaxurban(:)   = 0.
 tminurban(:)   = 400.
 updraft_helicity_max = -9.e9
 updraft_helicity_min = 9.e9
+dhail1_max(:) = 0.
+dhail2_max(:) = 0.
+dhail3_max(:) = 0.
+dhail4_max(:) = 0.
+dhail5_max(:) = 0.
+
+convpsav_ave(:) = 0.  ! JLMP2508
+convpsav_avep(:) = 0. ! JLMP2508
+sig_kb_ave(:) = 0.    ! JLMP2508
+sig_kt_ave(:) = 0.    ! JLMP2508
+kount_conv(:) = 0     ! JLMP2508
 
 if ( ccycle/=0 ) then
   allocate(fnee_ave(ifull))  
@@ -182,7 +203,9 @@ deallocate(wb_ave,wbice_ave,convh_ave)
 deallocate(anthropogenic_ave, tmaxurban, tminurban)
 deallocate(anth_elecgas_ave, anth_heating_ave, anth_cooling_ave)
 deallocate(updraft_helicity_max, updraft_helicity_min)
+deallocate(dhail1_max, dhail2_max, dhail3_max, dhail4_max, dhail5_max)
 !deallocate(tgg_ave)
+deallocate(convpsav_ave,convpsav_avep,sig_kb_ave,sig_kt_ave,kount_conv) ! JLMP2508
 
 if ( allocated(fpn_ave) ) then
   deallocate(fnee_ave)  

@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -1645,7 +1645,10 @@ if ( nested/=1 .and. nested/=3 ) then
   
   !------------------------------------------------------------------
   ! Read river data
-  call gethist1('swater',watbdy)
+  if ( lrestart ) then
+    call gethist1('swater',watbdy)
+    call gethist1('wtd',wtd)
+  end if  
 
   !------------------------------------------------------------------
   ! Read soil moisture
@@ -1976,12 +1979,12 @@ if ( nested/=1 .and. nested/=3 ) then
     call gethist4a('stratcf',stratcloud,5)
     stratcloud(1:ifull,1:kl) = max( stratcloud(1:ifull,1:kl), 0. )
     stratcloud(1:ifull,1:kl) = min( stratcloud(1:ifull,1:kl), 1. )
-    if ( ncloud>=2 ) then
+    if ( ncloud>=2 .and. ncloud<100 ) then
       call gethist4a('rfrac',rfrac,5)         ! RAIN FRACTION
       rfrac(1:ifull,1:kl) = max( rfrac(1:ifull,1:kl), 0. )
       rfrac(1:ifull,1:kl) = min( rfrac(1:ifull,1:kl), 1. )
     end if
-    if ( ncloud>=3 ) then
+    if ( ncloud>=3 .and. ncloud<100 ) then
       call gethist4a('sfrac',sfrac,5)         ! SNOW FRACTION
       sfrac(1:ifull,1:kl) = max( sfrac(1:ifull,1:kl), 0. )
       sfrac(1:ifull,1:kl) = min( sfrac(1:ifull,1:kl), 1. )
@@ -3493,6 +3496,93 @@ end if
 
 return
 end subroutine file_wininit
+
+!--------------------------------------------------------------
+! transforms 3d array from dimension kk in vertical to kl
+
+! This version of vertint can interpolate from host models with
+! a greater number of vertical levels than the nested model.
+subroutine vertint(told,t,n,sigin)
+
+use sigs_m
+use newmpar_m
+use parm_m
+
+implicit none
+
+integer, intent(in) :: n
+integer k, kin, kk
+integer, dimension(:), allocatable, save :: ka
+integer, save :: kk_save = -1
+integer, save :: klapse = 0
+real, dimension(:,:), intent(out) :: t
+real, dimension(:,:), intent(in) :: told
+real, dimension(:), intent(in) :: sigin
+real, dimension(:), allocatable, save :: sigin_save
+real, dimension(:), allocatable, save :: wta
+      
+kk = size(told,2)
+
+if ( kk==kl ) then
+  if ( all(abs(sig(1:kl)-sigin(1:kl))<0.0001) ) then
+    t(1:ifull,1:kl) = told(1:ifull,1:kl)
+    return
+  end if
+end if
+
+if ( kk_save/=kk ) then
+  if ( allocated(sigin_save) ) then
+    deallocate(sigin_save)
+  end if
+  allocate(sigin_save(kk))
+  sigin_save = 0.
+  kk_save    = kk
+  if ( .not.allocated(wta) ) then
+    allocate(wta(kl),ka(kl))
+  end if
+end if
+
+if ( any(abs(sigin(1:kk)-sigin_save(1:kk))>=0.0001) ) then
+  sigin_save(1:kk) = sigin(1:kk)
+  klapse = 0
+  kin    = 2
+  do k = 1,kl
+    if ( sig(k)>=sigin(1) ) then
+      ka(k) = 2
+      wta(k) = 0.
+      klapse = k   ! i.e. T lapse correction for k<=klapse
+    else if ( sig(k)<=sigin(kk) ) then   ! at top
+      ka(k) = kk
+      wta(k) = 1.
+    else
+      do while ( sig(k)<=sigin(kin) .and. kin<kk )
+        kin = kin + 1
+      end do
+      ka(k) = kin
+      wta(k) = (sigin(kin-1)-sig(k))/(sigin(kin-1)-sigin(kin))
+    endif  !  (sig(k)>=sigin(1)) ... ...
+  end do   !  k loop
+end if
+
+do k = 1,kl
+  t(1:ifull,k) = wta(k)*told(:,ka(k)) + (1.-wta(k))*told(:,ka(k)-1)
+enddo    ! k loop
+
+select case(n)
+  case(1)
+    if ( klapse>0 ) then  ! for T lapse correction
+      do k = 1,klapse
+        ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
+        t(1:ifull,k) = t(1:ifull,k) + (sig(k)-sigin(1))*6.5/.1
+      end do    ! k loop
+    end if
+  case(2,5)  
+    ! for qg, qfg, qlg do a -ve fix
+    t(1:ifull,:) = max(t(1:ifull,:), 0.)
+end select    
+      
+return
+end subroutine vertint
 
 subroutine onthefly_exit
 

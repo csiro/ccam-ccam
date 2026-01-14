@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,7 +28,6 @@ public tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd
 public osnowd,snage,gflux,sgflux,snowflx,otgsoil 
 public runoff,albvisnir,snowmelt,runoff_surface
 public fracice,sicedep
-public wtd
 public isflag
 public wb_clim
 public runoff_ave, runoff_surface_ave, snowmelt_ave
@@ -42,7 +41,6 @@ real, dimension(:), allocatable, save :: ssdnn
 real, dimension(:), allocatable, save :: osnowd,snage,gflux,sgflux,snowflx,otgsoil
 real, dimension(:), allocatable, save :: sicedep
 real, dimension(:), allocatable, save :: fracice, snowd
-real, dimension(:), allocatable, save :: wtd
 real, dimension(:,:), allocatable, save :: tggsn,tgg,wb,wbice,smass,ssdn
 real, dimension(:,:), allocatable, save :: albvisnir
 real, dimension(:,:,:), allocatable, save :: wb_clim ! allocated in indata.f90
@@ -63,7 +61,6 @@ allocate(runoff(ifull),albvisnir(ifull,2),snowmelt(ifull),runoff_surface(ifull))
 allocate(runoff_ave(ifull), runoff_surface_ave(ifull), snowmelt_ave(ifull) )
 allocate(evspsbl(ifull),sbl(ifull))
 allocate(fracice(ifull),sicedep(ifull))
-allocate(wtd(ifull))
 allocate(isflag(ifull))
 if (nsib==3.or.nsib==5) then
   allocate(sgflux(ifull))
@@ -93,7 +90,6 @@ evspsbl(:)        = 0.
 sbl(:)            = 0.
 fracice(:)        = 0.
 sicedep(:)        = 0.
-wtd(:)            = 0.
 isflag(:)         = 0
 runoff_ave(:)     = 0._8
 runoff_surface_ave(:) = 0._8
@@ -112,7 +108,6 @@ deallocate(runoff,albvisnir,snowmelt,runoff_surface)
 deallocate(runoff_ave,runoff_surface_ave,snowmelt_ave)
 deallocate(evspsbl,sbl)
 deallocate(fracice,sicedep)
-deallocate(wtd)
 deallocate(isflag)
 if (allocated(sgflux)) then
   deallocate(sgflux)

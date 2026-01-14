@@ -1270,6 +1270,8 @@ if ( iarch==1 ) then
 
     lname = 'River water depth'
     call attrib(idnc,dimj,jsize,'swater',lname,'mm',0.,6.5E3,any_m,point_m,land_m,float_m)
+    lname = 'Water table depth'
+    call attrib(idnc,dimj,jsize,'wtd',lname,'m',0.,65.,any_m,point_m,land_m,float_m)
     if ( save_land ) then
       lname = 'River discharge'
       call attrib(idnc,dimj,jsize,'sdischarge',lname,'m3 s-1',0.,6.5E3,any_m,point_m,land_m,float_m)
@@ -1335,6 +1337,16 @@ if ( iarch==1 ) then
       call attrib(idnc,dimj,jsize,'cape_max',lname,'J kg-1',0.,20000.,any_m,max_m,amean_m,cptype)
       lname = 'Average CAPE'
       call attrib(idnc,dimj,jsize,'cape_ave',lname,'J kg-1',0.,20000.,any_m,tmean_m,amean_m,cptype) 
+      if ( nkuo>=20 .and. nkuo<=30 ) then ! JLM convection
+        lname = 'Conv mass flux ave' ! suggest plot sqrt()                                             !JLMP250
+        call attrib(idnc,dimj,jsize,'convpsav_ave',lname,'none',0.,.001,any_m,tmean_m,amean_m,cptype)  !JLMP2508
+        lname = 'Conv mass flux ave_p' ! ave  of values where convpsav>0                               !JLMP250
+        call attrib(idnc,dimj,jsize,'convpsav_avep',lname,'none',0.,.001,any_m,tmean_m,amean_m,cptype) !JLMP2508
+        lname = 'Sig_kb ave_p' ! ave  of values where convpsav>0                                       !JLMP2508
+        call attrib(idnc,dimj,jsize,'sig_kb_ave',lname,'none',0.,1.,any_m,tmean_m,amean_m,cptype)      !JLMP2508
+        lname = 'Sig_kt ave_p' ! ave  of values where convpsav>0                                       !JLMP2508
+        call attrib(idnc,dimj,jsize,'sig_kt_ave',lname,'none',0.,1.,any_m,tmean_m,amean_m,cptype)      !JLMP2508
+      end if
     end if
     
     ! daily output
@@ -1662,10 +1674,6 @@ if ( iarch==1 ) then
 
     ! CABLE -----------------------------------------------------
     if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
-      if ( nextout>=1 .or. itype==-1 ) then
-        lname = 'Water table depth'
-        call attrib(idnc,dimj,jsize,'wtd',lname,'m',0.,65.,any_m,point_m,land_m,cptype)
-      end if  
       if ( ccycle/=0 ) then
         lname = 'Carbon leaf pool'
         call attrib(idnc,dimj,jsize,'cplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
@@ -2828,6 +2836,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
 end if
 
 call histwrt(watbdy,'swater',idnc,iarch,local,.true.)
+call histwrt(wtd,'wtd',idnc,iarch,local,.true.)
 if ( save_land ) then
   call histwrt(river_discharge,'sdischarge',idnc,iarch,local,.true.)
 end if  
@@ -2874,6 +2883,12 @@ call histwrt(u10,'u10',idnc,iarch,local,.true.)
 if ( save_cloud ) then
   call histwrt(cape_max,'cape_max',idnc,iarch,local,lwrite)
   call histwrt(cape_ave,'cape_ave',idnc,iarch,local,lwrite)
+  if ( nkuo>=20 .and. nkuo<=30 ) then ! JLM convection
+    call histwrt(convpsav_ave,'convpsav_ave',idnc,iarch,local,lwrite)   ! JLMP2508
+    call histwrt(convpsav_avep,'convpsav_avep',idnc,iarch,local,lwrite) ! JLMP2508
+    call histwrt(sig_kb_ave,'sig_kb_ave',idnc,iarch,local,lwrite)       ! JLMP2508
+    call histwrt(sig_kt_ave,'sig_kt_ave',idnc,iarch,local,lwrite)       ! JLMP2508
+  end if
 end if
       
 if ( itype/=-1 .and. save_maxmin ) then  ! these not written to restart file
@@ -3162,9 +3177,6 @@ end if
 
 ! CABLE -------------------------------------------------------
 if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
-  if ( nextout>=1 .or. itype==-1 ) then
-    call histwrt(wtd,'wtd',idnc,iarch,local,lwrite)
-  end if  
   if ( ccycle/=0 ) then
     do k=1,mplant
       write(vname,'("cplant",I1.1)') k
@@ -4144,7 +4156,7 @@ implicit none
 
 include 'version.h'                   ! Model version data
 
-integer, parameter :: freqvars = 38  ! number of variables to average
+integer, parameter :: freqvars = 45  ! number of variables to average
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procnode, procoffset
 integer, dimension(5) :: adim
@@ -4566,6 +4578,8 @@ if ( first ) then
     end if  
     if ( cordex_tier2 ) then        
       if ( rescrn>0 ) then
+        lname = 'Near-Surface Wind Speed of Gust'
+        call attrib(fncid,sdim,ssize,'wsgs',lname,'m s-1',0.,350.,any_m,point_m,amean_m,short_m)
         lname = 'Daily Maximum Near-Surface Wind Speed of Gust'
         call attrib(fncid,sdim,ssize,'wsgsmax',lname,'m s-1',0.,350.,daily_m,max_m,amean_m,short_m)
         lname = 'Convective Available Potential Energy'
@@ -4693,6 +4707,11 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'uhmax',lname,'m2 s-2',-520.,520.,any_m,max_m,amean_m,short_m)
     lname = 'Minimum updraft helicity (2-5km)'
     call attrib(fncid,sdim,ssize,'uhmin',lname,'m2 s-2',-520.,520.,any_m,min_m,amean_m,short_m)
+
+    lname = 'Hail average diameter'
+    call attrib(fncid,sdim,ssize,'hailradave',lname,'m',0.,1.3e-2,any_m,tmean_m,amean_m,float_m)
+    lname = 'Hail maximum diameter'
+    call attrib(fncid,sdim,ssize,'hailradmax',lname,'m',0.,1.3e-2,any_m,max_m,amean_m,float_m)
     
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -4859,6 +4878,15 @@ freqstore(1:ifull,35) = freqstore(1:ifull,35) + real(snowmelt/real(tbave),8)
 freqstore(1:ifull,36) = freqstore(1:ifull,36) + real(evspsbl*(86400./dt/real(tbave)),8)
 freqstore(1:ifull,37) = max( freqstore(1:ifull,37), real(updraft_helicity,8) )
 freqstore(1:ifull,38) = max( freqstore(1:ifull,38), real(updraft_helicity,8) )
+freqstore(1:ifull,39) = max( freqstore(1:ifull,39), real(dhail1,8) )
+freqstore(1:ifull,40) = max( freqstore(1:ifull,40), real(dhail2,8) )
+freqstore(1:ifull,41) = max( freqstore(1:ifull,41), real(dhail3,8) )
+freqstore(1:ifull,42) = max( freqstore(1:ifull,42), real(dhail4,8) )
+freqstore(1:ifull,43) = max( freqstore(1:ifull,43), real(dhail5,8) )
+freqstore(1:ifull,44) = freqstore(1:ifull,44) + 0.2*( freqstore(:,39) + freqstore(:,40) + &
+    freqstore(:,41) + freqstore(:,42) + freqstore(:,43) )
+freqstore(1:ifull,45) = max( freqstore(:,39), freqstore(:,40), freqstore(:,41), freqstore(:,42), &
+    freqstore(:,43), freqstore(:,45) )
 
 shallow_zse(:) = 0.
 shallow_sum = 0.
@@ -5094,6 +5122,7 @@ if ( mod(ktau,tbave)==0 ) then
   end if
   if ( cordex_tier2 ) then
     if ( rescrn>0 ) then
+      call histwrt(wsgs,'wsgs',fncid,fiarch,local,.true.)  
       call histwrt(wsgsmax,'wsgsmax',fncid,fiarch,local,lday)
       call histwrt(cape_d,'CAPE',fncid,fiarch,local,.true.)
       call histwrt(cin_d,'CIN',fncid,fiarch,local,.true.)
@@ -5247,6 +5276,9 @@ if ( mod(ktau,tbave)==0 ) then
   call histwrt(updraft_helicity,'uh',fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,37),'uhmax',fncid,fiarch,local,.true.)
   call histwrt(freqstore(:,38),'uhmin',fncid,fiarch,local,.true.)
+
+  call histwrt(freqstore(:,44),'hailradave',fncid,fiarch,local,.true.)  
+  call histwrt(freqstore(:,45),'hailradmax',fncid,fiarch,local,.true.)  
   
   freqstore(:,1:17) = 0._8
   if ( cordex_fix==0 ) then
@@ -5259,8 +5291,9 @@ if ( mod(ktau,tbave)==0 ) then
   freqstore(:,30:32) = 0._8
   if ( l6hr ) freqstore(:,33:35) = 0._8
   freqstore(:,36) = 0._8
-  freqstore(:,37) = -9.e9
-  freqstore(:,38) = 9.e9
+  freqstore(:,37) = -9.e9_8
+  freqstore(:,38) = 9.e9_8
+  freqstore(:,39:45) = 0._8
   
 end if
 
@@ -5578,6 +5611,8 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',-20000.,0.,any_m,point_m,amean_m,short_m)
       lname = 'Lifted Index'
       call attrib(fncid,sdim,ssize,'LI',lname,'K',-100.,100.,any_m,point_m,amean_m,short_m)      
+      lname = 'Near-Surface Wind Speed of Gust'
+      call attrib(fncid,sdim,ssize,'wsgs',lname,'m s-1',0.,350.,any_m,point_m,amean_m,short_m)
       do k = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
         press_level = cordex_level_data(k)
         call cordex_name(lname,"x-component ",press_level,"hPa wind")
@@ -5789,6 +5824,7 @@ if ( mod(ktau,tbave10)==0 ) then
     call histwrt(cape_d,"CAPE",fncid,fiarch,local,.true.)
     call histwrt(cin_d,"CIN",fncid,fiarch,local,.true.)
     call histwrt(li_d,"LI",fncid,fiarch,local,.true.)
+    call histwrt(wsgs,'wsgs',fncid,fiarch,local,.true.)  
     do k = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
       press_level = cordex_level_data(k)
       press_level_pa = real(press_level)*100.  

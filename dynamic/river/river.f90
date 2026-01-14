@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -20,37 +20,27 @@
 !------------------------------------------------------------------------------
     
 ! This is the river routing which links to mlo.f90 and mlodynamics.f90
-! ocean/lake model
+! ocean/lake model.  We also include a simple ground water model, based in part
+! on WRF Hydro.
 
-! This version uses FAM to determine the river flow direction.  The river
-! velocity is based on Miller or a modified Manning approach.  Future work
-! will focus on wetlands.
+! This version of river rouuting uses FAM to determine the river flow direction.
+! The river velocity is based on Miller or a modified Manning approach.
     
 module river
 
 implicit none
 
 private
-public basinmd, rivermd, rivercoeff, wt_transport
+public basinmd, rivermd, rivercoeff
 public rvrinit, rvrrouter
-public water_table_transport
 
 integer, dimension(:,:), allocatable, save :: xp
 logical, dimension(:,:), allocatable, save :: river_inflow
 
 integer, save :: basinmd      = 1    ! basin mode (0=soil, 1=redistribute)
-integer, save :: rivermd      = 0    ! river mode (0=Miller, 1=Manning, 2=Wilms)
-integer, save :: wt_transport = 0    ! water table transport (0=off, 1=on)
+integer, save :: rivermd      = 0    ! river mode (0=Miller, 1=Manning)
 real, save :: rivercoeff = 0.02      ! river roughness coeff (Miller=0.02, A&B=0.035)
 real, parameter :: rhow = 1000.      ! density of water (kg/m^3)
-
-! Arrays for rivermd=2 (Wilms)
-integer, save :: total_keys = 0
-integer, save :: count_inflows = 0
-integer, dimension(:,:), allocatable, save :: indices_list
-integer, dimension(:,:), allocatable, save :: river_inflow_keys
-integer, dimension(:,:,:), allocatable, save :: river_outloc
-real, dimension(:,:), allocatable, save :: riverwidth
 
 contains
 
@@ -299,92 +289,25 @@ do iq = 1,ifull
   end if
 end do
 
+return
+end subroutine rvrinit
 
-! initialise arrays for Wilms
-if ( rivermd==2 ) then
-  total_keys = count( land(1:ifull) )
-  allocate( indices_list(total_keys,2) )
-  total_keys = 0
-  do iq = 1,ifull
-    if ( land(iq) ) then
-      total_keys = total_keys + 1  
-      indices_list(total_keys,1) = mod(iq-1,il)+1
-      indices_list(total_keys,2) = (iq-1)/il + 1
-      ! iq = indices_list(:,1) + (indices_list(:,2)-1)*il
-    end if
-  end do  
-  count_inflows = 0
-  do iq = 1,ifull
-    if ( any( river_inflow(iq,:) ) ) then
-      count_inflows = count_inflows + 1  
-    end if
-  end do  
-  allocate( river_inflow_keys(2,count_inflows) )
-  count_inflows = 0
-  do j = 1,jl
-    do i = 1,il
-      iq = i + (j-1)*il  
-      if ( any( river_inflow(iq,:) ) ) then
-        count_inflows = count_inflows + 1
-        river_inflow_keys(1,count_inflows) = i
-        river_inflow_keys(2,count_inflows) = j
-      end if    
-    end do    
-  end do
-  allocate( riverwidth(il,jl) )
-  !the width through which water may move is equal to sqrt of area of cell (yes, i know...)
-  !should try linking this to the waterheight.
-  do j = 1,jl
-    do i = 1,il
-      iq = i + (j-1)*il
-      grid_area = (ds/em(iq))**2
-      riverwidth(i,j) = sqrt(grid_area)
-    end do
-  end do  
-  allocate( river_outloc(2,il,jl) )
-  do j = 1,jl
-    do i = 1,il
-      iq = i + (j-1)*il
-      select case(river_outdir(iq))
-        case(1) !n
-          river_outloc(1,i,j) = i
-          river_outloc(2,i,j) = j + 1
-        case(2) !e
-          river_outloc(1,i,j) = i + 1
-          river_outloc(2,i,j) = j
-        case(3) !s
-          river_outloc(1,i,j) = i
-          river_outloc(2,i,j) = j - 1
-        case(4) !w
-          river_outloc(1,i,j) = i - 1
-          river_outloc(2,i,j) = j
-        case(5) !ne
-          river_outloc(1,i,j) = i + 1
-          river_outloc(2,i,j) = j + 1
-        case(6) !se
-          river_outloc(1,i,j) = i + 1
-          river_outloc(2,i,j) = j - 1
-        case(7) !sw
-          river_outloc(1,i,j) = i - 1
-          river_outloc(2,i,j) = j - 1
-        case(8) !nw
-          river_outloc(1,i,j) = i - 1
-          river_outloc(2,i,j) = j + 1
-        case default
-          river_outloc(1,i,j) = 0
-          river_outloc(2,i,j) = 0
-      end select    
-    end do
-  end do  
+subroutine rvrrouter
+
+use parm_m
+
+call rvrrouter_work
+if ( wt_transport==1 ) then 
+  call water_table_transport    
 end if
 
 return
-end subroutine rvrinit
+end subroutine rvrrouter
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! This subroutine calculates the river routing.
 !
-subroutine rvrrouter
+subroutine rvrrouter_work
 
 use arrays_m
 use cc_mpi
@@ -402,6 +325,7 @@ use soilv_m
 
 integer i, k, iq, iqout
 real alph_p, delpos, delneg
+real excess
 real, dimension(ifull+iextra) :: outflow
 real, dimension(ifull) :: inflow, vel, river_slope
 real, dimension(ifull) :: tmpry, tmprysave, deltmpry, ll
@@ -411,86 +335,91 @@ logical, dimension(ifull) :: basin_mask
 
 tmpry(:) = 0. ! for cray compiler
 
+! Basic expression
 
-if ( rivermd==2 ) then
+! m = mass/area
+! vel = sqrt(slope) * K
+! dx=Length, K=coeff, slope=delzs/dx
+! outflow = dt/dx*vel*m
+! m(t+1)-m(t) = sum(inflow)-outflow
 
-  ! call Josefine Wilms method
-  call wilms(il,jl)
+! Approximating Manning's formula
+!
+! h*W = (m/1000)*dx
+! W = width of the river and h = height of the river cross-section
+! vel = K*sqrt(slope)*(A/P)^(2/3)
+! A = area and P = perimeter of river cross-section
+! vel = K*sqrt(slope)*(h*W/(2*W+2*h))^(2/3)
+! Assume W>>h
+! vel = K*sqrt(slope)*(h/2)^(2/3)
+! Assume dx=W (approx)
+! vel = K*sqrt(slope)*(m/2000)^(2/3)
 
-else
   
-  ! Basic expression
-
-  ! m = mass/area
-  ! vel = sqrt(slope) * K
-  ! dx=Length, K=coeff, slope=delzs/dx
-  ! outflow = dt/dx*vel*m
-  ! m(t+1)-m(t) = sum(inflow)-outflow
-
-  ! Approximating Manning's formula
-  !
-  ! h*W = (m/1000)*dx
-  ! W = width of the river and h = height of the river cross-section
-  ! vel = K*sqrt(slope)*(A/P)^(2/3)
-  ! A = area and P = perimeter of river cross-section
-  ! vel = K*sqrt(slope)*(h*W/(2*W+2*h))^(2/3)
-  ! Assume W>>h
-  ! vel = K*sqrt(slope)*(h/2)^(2/3)
-  ! Assume dx=W (approx)
-  ! vel = K*sqrt(slope)*(m/2000)^(2/3)
-
-  !--------------------------------------------------------------------
-  ! calculate slope
-  river_slope(:) = 0.
-  do iq = 1,ifull
-    if ( river_outdir(iq)>0 ) then  
-      iqout = xp(iq,river_outdir(iq))
-      river_slope(iq) = max( (zs(iq)-zs(iqout))/grav, 0. )/river_dx(iq)
+! move excess ground water to river inflow  
+if ( wt_transport==1 ) then 
+  do iq = 1,ifull  
+    if ( land(iq) ) then  
+      excess = max( wtd(iq)-zs(iq)/grav, 0. )
+      ! add excess above ground level to rivers
+      watbdy(iq) = watbdy(iq) + excess*1000.
+      ! remove excess from ground water
+      wtd(iq) = wtd(iq) - excess
     end if
-  end do
+  end do        
+end if    
+    
 
-  !--------------------------------------------------------------------
-  ! calculate outflow
-  outflow(1:ifull) = 0.
-  select case(rivermd)
-    case(0) ! Miller
-      where ( river_outdir(1:ifull)>0 )  
-        vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))
-        vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )
-        outflow(1:ifull) = (dt/river_dx(1:ifull))*vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
-      end where
-    case(1) ! Manning ( approximated )
-      where ( river_outdir(1:ifull)>0 )  
-        vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))
-        vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )*max(watbdy(1:ifull)/(2.*1000.),0.)**(2./3.)
-        vel(1:ifull) = max( 0.15, vel(1:ifull) )
-        outflow(1:ifull) = (dt/river_dx(1:ifull))*vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
-      end where
-    case default
-      write(6,*) "ERROR: Unknown option for rivermd=",rivermd
-      call ccmpi_abort(-1)
-  end select
-  outflow(1:ifull) = max( 0., min( watbdy(1:ifull), outflow(1:ifull) ) )
-  call bounds(outflow,corner=.true.)
+!--------------------------------------------------------------------
+! calculate slope
+river_slope(:) = 0.
+do iq = 1,ifull
+  if ( river_outdir(iq)>0 ) then  
+    iqout = xp(iq,river_outdir(iq))
+    river_slope(iq) = max( (zs(iq)-zs(iqout))/grav, 0. )/river_dx(iq)
+  end if
+end do
 
-
-  river_discharge(1:ifull) = outflow(1:ifull)*ds**2/(em(1:ifull)**2*dt*rhow)
-
-
-  !--------------------------------------------------------------------
-  ! calculate inflow
-  inflow(:) = 0.
-  do i = 1,8
-    where ( river_inflow(1:ifull,i) )
-      ! adjust for change in grid-box area when calculating inflows
-      inflow(1:ifull) = inflow(1:ifull) + outflow(xp(1:ifull,i))*(em(1:ifull)/em(xp(1:ifull,i)))**2
+!--------------------------------------------------------------------
+! calculate outflow
+outflow(1:ifull) = 0.
+select case(rivermd)
+  case(0) ! Miller
+    where ( river_outdir(1:ifull)>0 )  
+      vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))
+      vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )
+      outflow(1:ifull) = (dt/river_dx(1:ifull))*vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
     end where
-  end do
+  case(1) ! Manning ( approximated )
+    where ( river_outdir(1:ifull)>0 )  
+      vel(1:ifull) = rivercoeff*sqrt(river_slope(1:ifull))
+      vel(1:ifull) = max( 0.15, min( 5., vel(1:ifull) ) )*max(watbdy(1:ifull)/(2.*1000.),0.)**(2./3.)
+      vel(1:ifull) = max( 0.15, vel(1:ifull) )
+      outflow(1:ifull) = (dt/river_dx(1:ifull))*vel(1:ifull)*watbdy(1:ifull) ! (kg/m^2)
+    end where
+  case default
+    write(6,*) "ERROR: Unknown option for rivermd=",rivermd
+    call ccmpi_abort(-1)
+end select
+outflow(1:ifull) = max( 0., min( watbdy(1:ifull), outflow(1:ifull) ) )
+call bounds(outflow,corner=.true.)
 
-  watbdy(1:ifull) = watbdy(1:ifull) - outflow(1:ifull) + inflow(1:ifull)
+
+river_discharge(1:ifull) = outflow(1:ifull)*ds**2/(em(1:ifull)**2*dt*rhow)
+
+
+!--------------------------------------------------------------------
+! calculate inflow
+inflow(:) = 0.
+do i = 1,8
+  where ( river_inflow(1:ifull,i) )
+    ! adjust for change in grid-box area when calculating inflows
+    inflow(1:ifull) = inflow(1:ifull) + outflow(xp(1:ifull,i))*(em(1:ifull)/em(xp(1:ifull,i)))**2
+  end where
+end do
+
+watbdy(1:ifull) = watbdy(1:ifull) - outflow(1:ifull) + inflow(1:ifull)
   
-end if
-
 
 !--------------------------------------------------------------------
 ! Water losses over land basins
@@ -560,13 +489,14 @@ end select
 watbdy(1:ifull) = max( watbdy(1:ifull), 0. ) ! for rounding errors
 
 return
-end subroutine rvrrouter
+end subroutine rvrrouter_work
 
 subroutine water_table_transport
 
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use cable_ccam                             ! CABLE interface
 use cc_mpi                                 ! CC MPI routines
+use const_phys                             ! Physical constants
 use indices_m                              ! Grid index arrays
 use map_m                                  ! Grid map arrays
 use newmpar_m                              ! Grid parameters
@@ -579,99 +509,97 @@ use xyzinfo_m                              ! Grid coordinate arrays
 
 integer iq, n
 real, dimension(ifull+iextra,2) :: dumw
-real, dimension(ifull+iextra) :: wth_ave, gwwb_min
-real, dimension(ifull) :: flux, flux_m, flux_c, wconst
+real, dimension(ifull+iextra) :: wth_ave
+real, dimension(ifull) :: flux, wconst
 logical, save :: first_call = .true.
 
-if ( wt_transport==1 ) then
+!if ( cable_gw_model==1 ) then
+!  ! calculate average wt height and minimum gw amount
+!  call calc_wt_ave( wth )
+!end if
 
-  if ( cable_gw_model/=1 ) then
-    write(6,*) "ERROR: wt_transport==1 requires cable_gw_model==1"
-    call ccmpi_abort(-1)
-  end if
+wth_ave(1:ifull) = wtd(1:ifull)
 
-  ! calculate average wt height and minimum gw amount
-  call calc_wt_ave( wth_ave, gwwb_min, gwdz )
-
-  ! initialise
-  if ( first_call ) then
-    first_call = .false.
-    ! estimate (saturated) hydraulic conductivity (m/s)
-    k0(:) = 0.
-    do iq = 1,ifull
-      if ( land(iq) ) then
-        k0(iq) = hyds(isoilm(iq))
-      end if
-    end do
-    ! broadcast
-    dumw(1:ifull,1) = k0(1:ifull)
-    dumw(1:ifull,2) = gwdz(1:ifull)
-    call bounds(dumw(:,1:2))
-    k0(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,1)
-    gwdz(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,2)
-  end if
-
-  ! update halo
-  dumw(1:ifull,1) = wth_ave(1:ifull)
-  dumw(1:ifull,2) = gwwb_min(1:ifull)
-  call bounds(dumw(:,1:2))
-  wth_ave(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,1)
-  gwwb_min(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,2)
-
-  ! calculate gradients
-  ! gwwb_min also accounts for land-sea mask
-  flux(:) = 0.
-  flux_m(:) = 0.
-  flux_c(:) = 0.
-  wconst(:) = sqrt(0.5*tan(3.14159/8.))    ! octagon for eight directions
-  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,in)
-  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ie)
-  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,is)
-  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,iw)
-  wconst(:) = sqrt(0.5*tan(3.14159/8.))
-  if ( edge_n .and. edge_e ) then
-    do n = 1,npan
-      iq = ipan + (jpan-1)*il + (n-1)*il**2
-      wconst(iq) = 0.
-    end do
-  end if
-  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ine)
-  wconst(:) = sqrt(0.5*tan(3.14159/8.))
-  if ( edge_s .and. edge_e ) then
-    do n = 1,npan
-      iq = ipan + (n-1)*il**2
-      wconst(iq) = 0.
-    end do
-  end if
-  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,ise)
-  wconst(:) = sqrt(0.5*tan(3.14159/8.))
-  if ( edge_s .and. edge_w ) then
-    do n = 1,npan
-      iq = 1 + (n-1)*il**2
-      wconst(iq) = 0.
-    end do
-  end if
-  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,isw)
-  wconst(:) = sqrt(0.5*tan(3.14159/8.))
-  if ( edge_n .and. edge_w ) then
-    do n = 1,npan
-      iq = 1 + (jpan-1)*il + (n-1)*il**2
-      wconst(iq) = 0.
-    end do
-  end if
-  call add_flux(flux,flux_m,flux_c,gwwb_min,wth_ave,zs,em,wconst,x,y,z,inw)
-
-  ! losing streams (exchange between rivers and GW)
-
-  ! distribute GWwb flux
-  call calc_wt_flux( flux, flux_m, flux_c, dt )
-
+! initialise
+if ( first_call ) then
+  first_call = .false.
+  ! estimate (saturated) hydraulic conductivity (m/s)
+  k0(:) = 0.
+  do iq = 1,ifull
+    if ( land(iq) ) then
+      k0(iq) = hyds(isoilm(iq))
+    end if
+  end do
+  where ( land(1:ifull) ) ! land-sea mask
+    gwmask(1:ifull) = 1.
+  elsewhere
+    gwmask(1:ifull) = 0.
+  end where
+  ! broadcast
+  dumw(1:ifull,1) = k0(1:ifull)
+  dumw(1:ifull,2) = gwmask(1:ifull)
+  call bounds(dumw(:,1:2),corner=.true.)
+  k0(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,1)
+  gwmask(ifull+1:ifull+iextra) = dumw(ifull+1:ifull+iextra,2)
 end if
 
+! update halo
+call bounds(wth_ave,corner=.true.)
+
+! calculate gradients
+! gwwb_min also accounts for land-sea mask
+flux(:) = 0.
+wconst(:) = sqrt(0.5*tan(3.14159/8.))    ! octagon for eight directions
+call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,in)
+call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,ie)
+call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,is)
+call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,iw)
+wconst(:) = sqrt(0.5*tan(3.14159/8.))
+if ( edge_n .and. edge_e ) then
+  do n = 1,npan
+    iq = ipan + (jpan-1)*il + (n-1)*il**2
+    wconst(iq) = 0.
+  end do
+end if
+call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,ine)
+wconst(:) = sqrt(0.5*tan(3.14159/8.))
+if ( edge_s .and. edge_e ) then
+  do n = 1,npan
+    iq = ipan + (n-1)*il**2
+    wconst(iq) = 0.
+  end do
+end if
+call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,ise)
+wconst(:) = sqrt(0.5*tan(3.14159/8.))
+if ( edge_s .and. edge_w ) then
+  do n = 1,npan
+    iq = 1 + (n-1)*il**2
+    wconst(iq) = 0.
+  end do
+end if
+call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,isw)
+wconst(:) = sqrt(0.5*tan(3.14159/8.))
+if ( edge_n .and. edge_w ) then
+  do n = 1,npan
+    iq = 1 + (jpan-1)*il + (n-1)*il**2
+    wconst(iq) = 0.
+  end do
+end if
+call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,inw)
+
+!if ( cable_gw_model==1 ) then
+!  ! distribute GWwb flux
+!  !call calc_wt_flux( flux, flux_m, flux_c, dt )
+!else
+  where ( land(1:ifull) )
+    wtd(1:ifull) = wtd(1:ifull) + flux(1:ifull)*dt
+  end where  
+!end if
+  
 return
 end subroutine water_table_transport
 
-subroutine add_flux(flux,flux_m,flux_c,gwwb_min,wth,zs,em,wconst,x,y,z,dir)
+subroutine add_flux(flux,wth,zs,em,wconst,x,y,z,dir)
 
 use const_phys                             ! Physical constants
 use newmpar_m                              ! Grid parameters
@@ -681,9 +609,9 @@ use riverarrays_m                          ! River rarrays
 integer iq
 integer, dimension(ifull), intent(in) :: dir
 real wth_del, wth_ave, w, t, dx, f, k0_ave, slope, vol
-real wth_max, flux_add, dr
-real, dimension(ifull), intent(inout) :: flux, flux_m, flux_c
-real, dimension(ifull+iextra), intent(in) :: wth, gwwb_min, zs
+real wth_max, flux_add, dr, area
+real, dimension(ifull), intent(inout) :: flux
+real, dimension(ifull+iextra), intent(in) :: wth, zs
 real, dimension(ifull+iextra), intent(in) :: em
 real, dimension(ifull), intent(in) :: wconst
 real(kind=8), dimension(ifull+iextra), intent(in) :: x, y, z
@@ -692,308 +620,33 @@ real(kind=8) dotprod
 ! Calculation based on Fan et al Water Table Observations doi: 10.1029/2006JD008111
 
 do iq = 1,ifull
-  dotprod = x(iq)*x(dir(iq)) + y(iq)*y(dir(iq)) + z(iq)*z(dir(iq))
-  dr = real( acos( max( min( dotprod, 1._8 ), -1._8 ) ) )*rearth ! distance between grid cells (m)
-  dx = 2.*ds/(em(iq)+em(dir(iq)))             ! width of grid cell (m)
-  w = dx*wconst(iq)                           ! width of cell boundary (m)
-  k0_ave = 0.5*(k0(iq)+k0(dir(iq)))           ! m/s
-  slope = abs(zs(iq)-zs(dir(iq)))/(grav*dr)   ! m/m
-  wth_del = wth(iq) - wth(dir(iq))            ! m
-  wth_ave = 0.5*(wth(iq)+wth(dir(iq)))        ! m
-  wth_max = 0.5*(zs(iq)+zs(dir(iq)))/grav     ! m
-  f = 120./(1.+150.*slope)
-  f = max( f, 5. )                            ! m
-  t = k0_ave*f*exp(min(wth_ave-wth_max,0.)/f) ! m2/s
-  flux_add = w*t*wth_del/dr                   ! m3/s
-  ! limit flux based on avaliable GW
-  flux_add = max( min( flux_add, gwwb_min(iq)*gwdz(iq)/dt ), -gwwb_min(dir(iq))*gwdz(dir(iq))/dt )
-  if ( gwdz(iq)>0. .and. gwdz(dir(iq))>0. ) then
-    flux(iq) = flux(iq) + flux_add/gwdz(iq)                ! m2/s
-    flux_m(iq) = flux_m(iq) + w*t/dr/gwdz(iq)              ! m/2
-    flux_c(iq) = flux_c(iq) - w*t*wth(dir(iq))/dr/gwdz(iq) ! m2/s
+  ! check both points are land
+  if ( gwmask(iq)>0. .and. gwmask(dir(iq))>0. ) then
+    dotprod = x(iq)*x(dir(iq)) + y(iq)*y(dir(iq)) + z(iq)*z(dir(iq))
+    dr = real( acos( max( min( dotprod, 1._8 ), -1._8 ) ) )*rearth ! distance between grid cells (m)
+    dx = 2.*ds/(em(iq)+em(dir(iq)))               ! width of grid cell (m)
+    w = dx*wconst(iq)                             ! width of cell boundary (m)
+    k0_ave = 0.5*(k0(iq)+k0(dir(iq)))             ! m/s
+    slope = abs(zs(iq)-zs(dir(iq)))/(grav*dr)     ! m/m
+    wth_del = wth(iq) - wth(dir(iq))              ! m
+    wth_ave = 0.5*(wth(iq)+wth(dir(iq)))          ! m
+    wth_max = 0.5*(zs(iq)+zs(dir(iq)))/grav       ! m
+    f = 120./(1.+150.*slope)
+    f = max( f, 5. )                              ! m
+    t = k0_ave*f*exp(min(wth_ave-wth_max,0.)/f)   ! m2/s
+    flux_add = w*t*wth_del/dr                     ! m3/s
+    area = (ds/em(iq))**2
+    flux(iq) = flux(iq) + flux_add/area           ! m/s
+    !flux_m(iq) = flux_m(iq) + w*t/dr/area
+    !flux_c(iq) = flux_c(iq) - w*t*wth(dir(iq))/dr/area
+  else
+    flux(iq) = 0.
+    !flux_m(iq) = 0.
+    !flux_c(iq) = 0.
   end if
 end do
 
 return
 end subroutine add_flux
-
-subroutine wilms(INDEX1,INDEX2)
-
-use arrays_m
-use cc_mpi
-use const_phys
-use indices_m
-use map_m
-use newmpar_m, only : il
-use nsibd_m
-use parm_m
-use riverarrays_m, only : watbdy_cc => watbdy, river_dx_cc => river_dx, river_discharge_cc => river_discharge
-use sflux_m
-use soil_m
-use soilsnow_m
-use soilv_m
-
-implicit none
-
-integer, intent(in) :: INDEX1, INDEX2
-integer idx1, idx2, count_keys
-integer key1, key2, val1, val2
-integer iq, nb1, nb2, count_nb
-real, dimension(INDEX1,INDEX2) :: watbdy, discharge_minimum, inflow
-real, dimension(INDEX1,INDEX2) :: river_discharge, discharge_factor, ocean_discharge
-real, dimension(INDEX1,INDEX2) :: grid_area
-real, dimension(0:INDEX1+1,0:INDEX2+1) :: z_dem, watbdy_height, outflow
-real river_dx, slope
-real, parameter :: n = 0.025    ! manning constant
-real, parameter :: rho = 1000.  ! density of water
-
-! convert CCAM grid to INDEX1, INDEX2
-watbdy(1:INDEX1,1:INDEX2)    = reshape( watbdy_cc(1:INDEX1*INDEX2),  (/ INDEX1, INDEX2 /) )
-grid_area(1:INDEX1,1:INDEX2) = reshape( (ds/em(1:INDEX1*INDEX2))**2, (/ INDEX1, INDEX2 /) )
-watbdy(1:INDEX1,1:INDEX2)    = watbdy(1:INDEX1,1:INDEX2)*grid_area(1:INDEX1,1:INDEX2)
-! copy halo data into z_dem (zs halo already updated during CCAM initialisation in indata.f90)
-call ccreshape(z_dem,zs)
-
-discharge_minimum = 0.0
-inflow = 0.0
-outflow = 0.0
-river_discharge = 0.0
-discharge_factor = 0.0
-ocean_discharge = 0.0
-
-!add runoff (allready as a volume) to waterbody for this day
-do idx1=1,INDEX1
-    do idx2=1,INDEX2
-        if (z_dem(idx1,idx2) < 0) z_dem(idx1,idx2) = 0.0
-        ! runoff has already been included in sflux.f90
-        ! watbdy(idx1,idx2) =  watbdy(idx1,idx2) + runoffavg(day,idx1,idx2)
-        !calculate the new waterbody height by dividing the volume of water through the area of that cell
-        watbdy_height(idx1,idx2) = watbdy(idx1,idx2)/grid_area(idx1,idx2) 
-    end do!do idx2
-end do!do idx1
-
-
-! need to update halo between CCAM processes since it uses val1 and val2
-call updatehalo(watbdy_height)
-
-
-!calculate volume of water that leaves a cell:
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-do count_keys=1,total_keys
-
-    key1 = indices_list(count_keys,1) 
-    key2 = indices_list(count_keys,2) 
-                
-    discharge_minimum(key1,key2) = 0.15*riverwidth(key1,key2)*watbdy_height(key1,key2) 
-
-
-    discharge_factor(key1, key2) = (watbdy_height(key1,key2) * riverwidth(key1,key2) * &
-                                  &(watbdy_height(key1,key2) * riverwidth(key1,key2) / &
-                                  & (riverwidth(key1,key2) + 2. * watbdy_height(key1,key2))) ** ( &
-                                  2.0 / 3.0)) / n
-                                                    
-    val1 = river_outloc(1,key1,key2)
-    val2 = river_outloc(2,key1,key2)
-    
-    ! replace the following with the calculation for river_dx
-    !temp_lon1 = x(key1)
-    !temp_lat1 = y(key2)
-    !temp_lon2 = x(val1)
-    !temp_lat2 = y(val2)
-    !call haversine(temp_lon1,temp_lat1,temp_lon2,temp_lat2,river_dx)
-    river_dx = river_dx_cc(key1+(key2-1)*il)
-    
-   
-    !calculate the slope
-    slope = (z_dem(key1,key2) + watbdy_height(key1,key2)/rho - z_dem(val1,val2) - &
-            & watbdy_height(val1,val2) / rho) / river_dx  
-                
-                
-    !calculate the volume of water that leaves the cell
-    if (slope>0.) then
-        river_discharge(key1,key2) = discharge_factor(key1,key2) * sqrt(slope)
-    else 
-        river_discharge(key1,key2) = discharge_minimum(key1,key2)
-    endif
-                
-    outflow(key1,key2) = river_discharge(key1,key2)*dt !outflow in m^3 for the entire timestep
-                
-    !if the amount that should flow out is larger than volume of water cell has to give, set outflow
-    !to the amount the cell has to give and recalculate the discharge
-    if (outflow(key1,key2) > watbdy(key1,key2)) then 
-        outflow(key1,key2) = watbdy(key1,key2)
-        river_discharge(key1,key2) = outflow(key1,key2)/dt
-    endif
-                
-                
-    !now we know how much water leaves the cell
-end do!count_keys
-            
-
-! need to update halo between CCAM processes since it uses val1 and val2
-call updatehalo(outflow)
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!proceed to check what the inflows are
-do count_keys=1,count_inflows !now we calculate the inflows
-               
-    key1 = river_inflow_keys(1,count_keys)
-    key2 = river_inflow_keys(2,count_keys)
-    !in_arr = (/ key1, key2 /)
-    !call neighbours (in_arr, neighbour_list)
-    
-    iq = key1 + (key2-1)*il    
-    
-    do count_nb = 1,8
-        
-        !nb1 = neighbour_list(1,count_nb)
-        !nb2 = neighbour_list(2,count_nb)
-        !            
-        !rv_out1 = river_outloc(1, nb1, nb2)
-        !rv_out2 = river_outloc(2, nb1, nb2)
-        !   
-        !if (rv_out1==key1 .and. rv_out2==key2) then
-        !   
-        !    inflow(key1, key2) = inflow(key1, key2) + outflow(nb1, nb2)
-        !                
-        !endif
-
-        if ( river_inflow(iq,count_nb) ) then
-            select case(count_nb)
-                case(1) !n
-                    nb1 = key1
-                    nb2 = key2 + 1
-                case(2) !e    
-                    nb1 = key1 + 1
-                    nb2 = key2
-                case(3) !s
-                    nb1 = key1
-                    nb2 = key2 - 1
-                case(4) !w
-                    nb1 = key1 - 1
-                    nb2 = key2
-                case(5) !ne
-                    nb1 = key1 + 1
-                    nb2 = key2 + 1
-                case(6) !se
-                    nb1 = key1 + 1
-                    nb2 = key2 - 1
-                case(7) !sw
-                    nb1 = key1 - 1
-                    nb2 = key2 - 1
-                case(8) !nw
-                    nb1 = key1 - 1
-                    nb2 = key2 + 1
-            end select      
-                
-            inflow(key1, key2) = inflow(key1, key2) + outflow(nb1, nb2)
-
-        end if     
-            
-    end do !(count_nb = 1,8)
-
-end do !(do count_keys=1,count_inflows)
-            
-!update waterbody   
-do idx1=1,INDEX1
-    do idx2=1,INDEX2
-        watbdy(idx1,idx2) =  watbdy(idx1,idx2) + inflow(idx1,idx2)-outflow(idx1,idx2)
-    end do!do idx2
-end do!do idx1
-   
-! The following lines are handled by the basinmd options in the subroutine rvrrouter (above)
-!!now handle instances where a grid point doesn't have an output but still receives water...this may include some coastal points
-!!too.
-!do count_keys=1,count_inflows 
-!    key1 = river_inflow_keys(1,count_keys)
-!    key2 = river_inflow_keys(2,count_keys)
-!    if (river_outloc(1, key1, key2) == 0) then !if no output loc, dump into the ocean
-!        watbdy_ocn(key1, key2)=watbdy(key1, key2) 
-!        watbdy(key1, key2) = 0.0    ! now set watbdy of this cell to 0
-!                    
-!    endif
-!end do !(do count_keys=1,count_inflows )
-
-! The following lines are handled by sflux.f90
-!!now handle instances where the grid point is located on the coast
-!!each of the coast_keys are located on the coast of Africa.  Determined with python's basemap.
-!do coast_keys = 1, 2450
-!    key1 = coast_list(coast_keys,1)
-!    key2 = coast_list(coast_keys,2)
-!    !if we did not give water to this coastal point during the previous iteration we'll do the following.  
-!    !However, if we did give water from a point with no outflow the job has already been done since each grid point donates only
-!    !to one neighbour.
-!    if (watbdy_ocn(key1, key2)==0.0) then 
-!        watbdy_ocn(key1, key2) = watbdy(key1, key2)
-!        ocean_discharge(key1, key2) = watbdy_ocn(key1, key1)/dt !determine how fast it flows into the ocean.
-!        watbdy(key1, key2) = 0.0 ! I'm giving all of the water away to the ocean so need to set the watbdy to zero for the point
-!                                 ! that gave its water. (Probably not such a great idea?)
-!                    
-!    endif !(if (watbdy_ocn(key1, key2)==0.0))
-!end do !(do coast_keys = 1, 2450)
-
-
-! convert arrays back for CCAM
-watbdy(1:INDEX1,1:INDEX2)           = watbdy(1:INDEX1,1:INDEX2)/grid_area(1:INDEX1,1:INDEX2)
-watbdy_cc(1:INDEX1*INDEX2)          = reshape( watbdy(1:INDEX1,1:INDEX2),          (/ INDEX1*INDEX2 /) )
-river_discharge_cc(1:INDEX1*INDEX2) = reshape( river_discharge(1:INDEX1,1:INDEX2), (/ INDEX1*INDEX2 /) )
-
-return
-end subroutine wilms
-
-subroutine ccreshape(outdata,indata)
-
-use indices_m
-use newmpar_m
-
-implicit none
-
-integer i, j, iq
-real, dimension(ifull+iextra), intent(in) :: indata
-real, dimension(0:il+1,0:jl+1), intent(out) :: outdata
-
-outdata(1:il,1:jl) = reshape( indata(1:il*jl), (/ il, jl /) )
-do i = 1,il
-  iq = i
-  outdata(i,0) = indata(is(iq))
-  iq = i + (jl-1)*il
-  outdata(i,jl+1) = indata(in(iq))
-end do
-do j = 1,jl
-  iq = 1 + (j-1)*il
-  outdata(0,j) = indata(iw(iq))
-  iq = il + (j-1)*il
-  outdata(il+1,j) = indata(ie(iq))
-end do
-iq = 1
-outdata(0,0) = indata(isw(iq))
-iq = il
-outdata(il+1,0) = indata(ise(iq))
-iq = 1 + (jl-1)*il
-outdata(0,jl+1) = indata(inw(iq))
-iq = il + (jl-1)*il
-outdata(il+1,jl+1) = indata(ine(iq))
-
-return
-end subroutine ccreshape
-
-subroutine updatehalo(val)
-
-use cc_mpi
-use newmpar_m
-
-implicit none
-
-real, dimension(0:il+1,0:jl+1), intent(inout) :: val
-real, dimension(ifull+iextra) :: val_cc
-
-val_cc(1:il*jl) = reshape( val(1:il,1:jl), (/ il*jl /) )
-call bounds(val_cc,corner=.true.)
-
-call ccreshape(val,val_cc)
-
-return
-end subroutine updatehalo
 
 end module river

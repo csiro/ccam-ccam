@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -27,14 +27,14 @@ private
 public watbdy, outflowmask
 public river_vel, river_outdir, river_dx
 public river_discharge
-public k0, gwdz
+public k0, gwmask, wtd
 public riverarrays_init, riverarrays_end, rivervector
 
 integer, dimension(:), allocatable, save :: river_outdir
 real, dimension(:), allocatable, save :: watbdy
 real, dimension(:), allocatable, save :: river_vel, river_dx
 real, dimension(:), allocatable, save :: river_discharge
-real, dimension(:), allocatable, save :: k0, gwdz
+real, dimension(:), allocatable, save :: k0, gwmask, wtd
 logical, dimension(:), allocatable, save :: outflowmask
 
 contains
@@ -50,7 +50,7 @@ allocate( outflowmask(ifull) )
 allocate( river_vel(ifull), river_dx(ifull) )
 allocate( river_discharge(ifull) )
 allocate( river_outdir(ifull) )
-allocate( k0(ifull+iextra), gwdz(ifull+iextra) )
+allocate( k0(ifull+iextra), gwmask(ifull+iextra), wtd(ifull+iextra) )
 watbdy(1:ifull+iextra) = 0.
 outflowmask(1:ifull) = .false.
 river_vel(1:ifull) = 0.
@@ -58,7 +58,8 @@ river_dx(1:ifull) = 1.e-9
 river_discharge(1:ifull) = 0.
 river_outdir(1:ifull) = -1
 k0(1:ifull) = 0.
-gwdz(1:ifull) = 0.
+gwmask(1:ifull) = 0.
+wtd(1:ifull) = 0.
   
 return
 end subroutine riverarrays_init
@@ -72,7 +73,7 @@ deallocate( outflowmask )
 deallocate( river_vel, river_dx )
 deallocate( river_discharge )
 deallocate( river_outdir )
-deallocate( k0, gwdz )
+deallocate( k0, gwmask, wtd )
 
 return
 end subroutine riverarrays_end

@@ -479,7 +479,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( nhstest>=0 ) then
     call START_LOG(river_begin)
     call rvrrouter
-    call water_table_transport
     call END_LOG(river_end)
   end if  
 
@@ -1396,11 +1395,16 @@ runoff_surface_ave(:) = 0._8 ! converted to mm/day in outcdf
 snowmelt_ave(:)      = 0._8  ! converted to mm/day in outcdf
 cape_max(:)          = 0.
 cape_ave(:)          = 0.
-dhail1(:)            = 0.
-dhail2(:)            = 0.
-dhail3(:)            = 0.
-dhail4(:)            = 0.
-dhail5(:)            = 0.
+kount_conv(:)  = 0                   ! JLMP_2508
+convpsav_ave(:)= 0.                  ! JLMP_2508
+convpsav_avep(:)= 0.                 ! JLMP_2508
+sig_kb_ave(:)  = 1.                  ! JLMP_2508
+sig_kt_ave(:)  = 1.                  ! JLMP_2508
+dhail1_max(:)        = 0.
+dhail2_max(:)        = 0.
+dhail3_max(:)        = 0.
+dhail4_max(:)        = 0.
+dhail5_max(:)        = 0.
 hailrad_ave(:)       = 0.
 hailrad_max(:)       = 0.
 updraft_helicity_max(:) = -9.e9
@@ -1537,6 +1541,7 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use const_phys                             ! Physical constants
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
+use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
 use mlo_ctrl                               ! Ocean physics control layer
 use morepbl_m                              ! Additional boundary layer diagnostics
@@ -1549,6 +1554,7 @@ use prec_m                                 ! Precipitation
 use raddiag_m                              ! Radiation diagnostic
 use scrnout_m                              ! Calculate diagnostics
 use sflux_m                                ! Surface flux routines
+use sigs_m                                 ! Atmosphere sigma levels
 use soilsnow_m                             ! Soil, snow and surface data
 use tracers_m                              ! Tracer data
 use vvel_m                                 ! Additional vertical velocity
@@ -1570,6 +1576,20 @@ prhmax(1:ifull)            = max( prhmax(1:ifull), real(prhour) )
 
 cape_max(1:ifull)          = max( cape_max(1:ifull), cape )
 cape_ave(1:ifull)          = cape_ave(1:ifull) + cape
+do iq=1,ifull                                       ! JLMP2508
+ convpsav_ave(iq)=convpsav_ave(iq)+convpsav(iq)     ! JLMP2508
+ if ( convpsav(iq)>0. ) then                        ! JLMP2508
+  kount_conv(iq) = kount_conv(iq) + 1               ! JLMP2508
+  convpsav_avep(iq)=convpsav_avep(iq)+convpsav(iq)  ! JLMP2508
+  if(kount_conv(iq)==1)then                         ! JLMP2508
+    sig_kb_ave(iq)=sig(kbsav(iq))                   ! JLMP2508
+    sig_kt_ave(iq)=sig(ktsav(iq))                   ! JLMP2508
+  else                                              ! JLMP2508
+    sig_kb_ave(iq)=sig_kb_ave(iq)+sig(kbsav(iq))    ! JLMP2508
+    sig_kt_ave(iq)=sig_kt_ave(iq)+sig(ktsav(iq))    ! JLMP2508
+  endif                                             ! JLMP2508
+ endif                                              ! JLMP2508
+end do                                              ! JLMP2508
 
 tmaxscr(1:ifull)           = max( tmaxscr(1:ifull), tscrn )
 tminscr(1:ifull)           = min( tminscr(1:ifull), tscrn )
@@ -1664,6 +1684,16 @@ where ( sgdn(1:ifull)>120. )
   sunhours(1:ifull) = sunhours(1:ifull) + real(dt/3600.,8)
 end where
 
+dhail1_max(1:ifull) = max( dhail1_max(1:ifull), dhail1(1:ifull) )
+dhail2_max(1:ifull) = max( dhail2_max(1:ifull), dhail2(1:ifull) )
+dhail3_max(1:ifull) = max( dhail3_max(1:ifull), dhail3(1:ifull) )
+dhail4_max(1:ifull) = max( dhail4_max(1:ifull), dhail4(1:ifull) )
+dhail5_max(1:ifull) = max( dhail5_max(1:ifull), dhail5(1:ifull) )
+hailrad_ave(1:ifull) = hailrad_ave(1:ifull) + 0.2*(dhail1_max(1:ifull)+dhail2_max(1:ifull) &
+    +dhail3_max(1:ifull)+dhail4_max(1:ifull)+dhail5_max(1:ifull))
+hailrad_max(1:ifull) = max( dhail1_max(1:ifull), dhail2_max(1:ifull), dhail3_max(1:ifull), &
+    dhail4_max(1:ifull), dhail5_max(1:ifull), hailrad_max(1:ifull) )
+
 if ( output_windmax/=0 ) then
   do k = 1,kl
     spare1 = u(1:ifull,k)**2 + v(1:ifull,k)**2
@@ -1682,6 +1712,18 @@ end if
 
 if ( ktau==ntau .or. mod(ktau,nperavg)==0 ) then
   cape_ave(1:ifull)          = cape_ave(1:ifull)/min(ntau,nperavg)
+  do iq=1,ifull                                             ! JLMP2508
+   convpsav_ave(iq)=convpsav_ave(iq)/min(ntau,nperavg)      ! JLMP2508
+   convpsav_avep(iq)=convpsav_avep(iq)/max(1,kount_conv(iq))! JLMP2508
+   if(kount_conv(iq)==0)then                                ! JLMP2508
+     sig_kb_ave(iq)=1.                                      ! JLMP2508
+     sig_kt_ave(iq)=1.                                      ! JLMP2508
+   else                                                     ! JLMP2508
+     sig_kb_ave(iq)=sig_kb_ave(iq)/kount_conv(iq)           ! JLMP2508
+     sig_kt_ave(iq)=sig_kt_ave(iq)/kount_conv(iq)           ! JLMP2508
+   endif                                                    ! JLMP2508
+  enddo                                                     ! JLMP2508
+  
   dew_ave(1:ifull)           = dew_ave(1:ifull)/min(ntau,nperavg)
   epan_ave(1:ifull)          = epan_ave(1:ifull)/min(ntau,nperavg)
   epot_ave(1:ifull)          = epot_ave(1:ifull)/min(ntau,nperavg)

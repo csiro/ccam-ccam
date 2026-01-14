@@ -97,7 +97,7 @@ public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
-public calc_wt_ave, calc_wt_flux
+!public calc_wt_ave, calc_wt_flux
 public cable_casatile
 
 public inyear_carb
@@ -411,7 +411,14 @@ do tile = 1,ntiles
   ! ----------------------------------------------------------------------
   
   ! Update runoff for river routing
-  watbdy(is:ie) = watbdy(is:ie) + runoff(is:ie) ! runoff in mm
+  if ( wt_transport==1 ) then
+    ! surface runoff to rivers  
+    watbdy(is:ie) = watbdy(is:ie) + runoff_surface(is:ie)
+    ! sub-surface runoff to ground water (mm -> m)
+    wtd(is:ie) = wtd(is:ie) + (runoff(is:ie)-runoff_surface(is:ie))/1000.
+  else
+    watbdy(is:ie) = watbdy(is:ie) + runoff(is:ie) ! runoff in mm
+  end if  
   
   !! correct longwave radiation due to change in tss
   !if ( odcalc ) then
@@ -1064,9 +1071,9 @@ else                                                                            
 end if                                                                                         ! MLO
                                                                                                ! MLO
 ! Ocean mixing                                                                                 ! MLO
-dumrg(:)=-rgsave(:)                                                                            ! MLO
-dumx(:)=condx(:)/dt ! total precip                                                             ! MLO
-dums(:)=(conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
+dumrg(:) = -rgsave(:)                                                                            ! MLO
+dumx(:) = condx(:)/dt ! total precip                                                             ! MLO
+dums(:) = (conds(:)+condg(:))/dt  ! ice, snow and graupel precip                                 ! MLO
 call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,levspsbl,lsbl,wetfac,epot,epan,fracice,sicedep,     & ! MLO
              snowd,dt,azmin,azmin,sgdn,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),         & ! MLO
              ps(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,calcprog,                           & ! MLO

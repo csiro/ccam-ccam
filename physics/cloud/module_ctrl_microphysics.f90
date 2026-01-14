@@ -900,20 +900,14 @@ do tile = 1,ntiles
                              wdur(iq), kl,                         &    
                              dh1_l, dh2_l, dh3_l, dh4_l, dh5_l )    
 
-      dhail1(iq) = max( dhail1(iq), dh1_l/1000. )
-      dhail2(iq) = max( dhail2(iq), dh2_l/1000. )
-      dhail3(iq) = max( dhail3(iq), dh3_l/1000. )
-      dhail4(iq) = max( dhail4(iq), dh4_l/1000. )
-      dhail5(iq) = max( dhail5(iq), dh5_l/1000. )
+      dhail1(iq) = dh1_l/1000.
+      dhail2(iq) = dh2_l/1000.
+      dhail3(iq) = dh3_l/1000.
+      dhail4(iq) = dh4_l/1000.
+      dhail5(iq) = dh5_l/1000.
     
     end if ! wdur > 900.    
     
-    hailrad_ave(iq) = hailrad_ave(iq) + 0.2*(dhail1(iq)+dhail2(iq)+dhail3(iq)+dhail4(iq)+dhail5(iq))
-    hailrad_max(iq) = max( dhail1(iq), dhail2(iq), dhail3(iq), dhail4(iq), dhail5(iq), hailrad_max(iq) )
-    !hailrad_sd(iq)  = sqrt( (dhail1(iq)-hailrad_ave(iq))**2 + (dhail2(iq)-hailrad_ave(iq))**2 + &
-    !                        (dhail3(iq)-hailrad_ave(iq))**2 + (dhail4(iq)-hailrad_ave(iq))**2 + &
-    !                        (dhail5(iq)-hailrad_ave(iq))**2 ) / 4.
-
   end do ! i    
 
 end do   ! tile 
