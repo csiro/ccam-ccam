@@ -2035,11 +2035,15 @@ integer, intent(in) :: idnc, iarch
 integer iq, k, ier, v, kk, l, ll
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(6) :: start, ncount
+integer(kind=2), dimension(:,:,:,:), allocatable :: ipack_g
 real, dimension(:,:,:), intent(in) :: var
 real, dimension(:,:,:,:), allocatable :: var_g
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:,:,:), allocatable :: ipack_g
+#ifndef i8r8  
+real(kind=8), dimension(:,:,:,:), allocatable :: dpack_g
+#endif
+
 
 kk = size(var,2)
 ll = size(var,3)
@@ -2089,6 +2093,13 @@ if ( vtype==nf90_short ) then
   end if
   ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
   deallocate( ipack_g )
+#ifndef i8r8  
+else if ( vtype==nf90_double ) then
+  allocate( dpack_g(ifull,kk,ll,vnode_nproc) )
+  dpack_g = real(var_g,8)
+  ier = nf90_put_var(lidnc,mid,dpack_g,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( dpack_g )
+#endif  
 else
   ier = nf90_put_var(lidnc,mid,var_g,start=start(1:ndims),count=ncount(1:ndims))
 end if
@@ -2111,11 +2122,14 @@ integer, intent(in) :: idnc, iarch
 integer iq, k, ier, kk, l, ll
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
+integer(kind=2), dimension(:,:,:), allocatable :: ipack_g
 real, dimension(:,:,:), intent(in) :: var
 real, dimension(:,:,:), allocatable :: var_g
 real(kind=4) laddoff, lscale_f
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:,:), allocatable :: ipack_g
+#ifndef i8r8
+real(kind=8), dimension(:,:,:), allocatable :: dpack_g
+#endif
 
 kk = size(var,2)
 ll = size(var,3)
@@ -2163,6 +2177,13 @@ if ( vtype==nf90_short ) then
   end if
   ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
   deallocate( ipack_g )
+#ifndef i8r8  
+else if ( vtype==nf90_double ) then
+  allocate( dpack_g(ifull,kk,ll) )
+  dpack_g = real(var_g,8)
+  ier = nf90_put_var(lidnc,mid,dpack_g,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( dpack_g )
+#endif  
 else
   ier = nf90_put_var(lidnc,mid,var_g,start=start(1:ndims),count=ncount(1:ndims))
 end if
@@ -2187,11 +2208,13 @@ integer, intent(in) :: idnc, iarch
 integer :: iq, k, ier, v, kk, l, ll
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(6) :: start, ncount
+integer(kind=2), dimension(:,:,:,:), allocatable :: ipack_g
 real(kind=8), dimension(:,:,:), intent(in) :: var
 real(kind=8), dimension(:,:,:,:), allocatable :: var_g
 real(kind=4) :: laddoff, lscale_f
+real(kind=4), dimension(:,:,:,:), allocatable :: fpack_g
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:,:,:), allocatable :: ipack_g
+
 
 kk = size(var,2)
 ll = size(var,3)
@@ -2242,6 +2265,11 @@ if ( vtype==nf90_short ) then
   end if
   ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
   deallocate( ipack_g )
+else if ( vtype==nf90_float ) then
+  allocate( fpack_g(ifull,kk,ll,vnode_nproc) )
+  fpack_g = real(var_g,4)
+  ier = nf90_put_var(lidnc,mid,fpack_g,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( fpack_g )
 else
   ier = nf90_put_var(lidnc,mid,var_g,start=start(1:ndims),count=ncount(1:ndims))
 end if
@@ -2264,11 +2292,12 @@ integer, intent(in) :: idnc, iarch
 integer :: iq, k, ier, kk, l, ll
 integer(kind=4) mid, vtype, lidnc, ndims
 integer(kind=4), dimension(5) :: start, ncount
+integer(kind=2), dimension(:,:,:), allocatable :: ipack_g
 real(kind=8), dimension(:,:,:), intent(in) :: var
 real(kind=8), dimension(:,:,:), allocatable :: var_g
 real(kind=4) :: laddoff, lscale_f
+real(kind=4), dimension(:,:,:), allocatable :: fpack_g
 character(len=*), intent(in) :: sname
-integer(kind=2), dimension(:,:,:), allocatable :: ipack_g
 
 kk = size(var,2)
 ll = size(var,3)
@@ -2317,6 +2346,11 @@ if ( vtype==nf90_short ) then
   end if
   ier = nf90_put_var(lidnc,mid,ipack_g,start=start(1:ndims),count=ncount(1:ndims))
   deallocate( ipack_g )
+else if ( vtype==nf90_float ) then
+  allocate( fpack_g(ifull,kk,ll) )
+  fpack_g = real(var_g,4)
+  ier = nf90_put_var(lidnc,mid,fpack_g,start=start(1:ndims),count=ncount(1:ndims))
+  deallocate( fpack_g )
 else
   ier = nf90_put_var(lidnc,mid,var_g,start=start(1:ndims),count=ncount(1:ndims))
 end if
