@@ -840,7 +840,6 @@ do tile = 1,ntiles
     tl(:,k) = t(js:je,k)
     
     pil(:,k) = (pl(:,k)/1.e5)**(rdry/cp)
-    !qs(:) = qsat(pl(:,k),tl(:,k))
     qs(:) = qg(js:je,k)
     th(:,k) = tl(:,k)/pil(:,k)
     thv(:,k) = th(:,k)*(1.+1.61*qs(:))/(1.+qs(:))
@@ -851,7 +850,6 @@ do tile = 1,ntiles
   pl2(:) = pl(:,kmax)
   tl2(:) = tl(:,kmax)
   thv2(:) = thv(:,kmax)
-  !qv2(:) = qsat(pl(:,kmax),tl(:,kmax))
   qv2(:) = qg(js:je,kmax)
   ql2(:) = 0.
   qi2(:) = 0.
@@ -1112,7 +1110,7 @@ end do
 
 do iq = 1,ifull  
   zg_h(iq,0) = 0.  
-  zg_h(iq,1) = t(iq,1)*delh(k)
+  zg_h(iq,1) = t(iq,1)*delh(1)
 end do
 do k = 2,kl
   do iq = 1,ifull
