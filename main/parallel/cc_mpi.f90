@@ -188,6 +188,7 @@ module cc_mpi
              bounds_send, bounds_recv, boundsr8, deptsync, intssync_send,   &
              intssync_recv
    public :: drlen, dpoints, sextra
+   public :: neighlist, neighnum
 
 contains
 
