@@ -41,7 +41,7 @@ implicit none
 integer, intent(in) :: ifull,iextra,kl
 
 allocate( sdot(ifull,kl+1), dpsldt(ifull,kl) )
-allocate( wvel(ifull,kl) )
+allocate( wvel(ifull+iextra,kl) )
 allocate( updraft_helicity(ifull) )
 sdot = 0.
 dpsldt = 0.
