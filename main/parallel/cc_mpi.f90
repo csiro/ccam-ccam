@@ -42,10 +42,6 @@ module cc_mpi
    
    private
    
-   integer, allocatable, dimension(:), save, public :: neighlist           ! list of neighbour processes
-   integer, allocatable, dimension(:), save, private :: neighmap           ! map of process to neighbour index
-   integer, save, public :: neighnum                                       ! number of neighbours
-
    public :: ccmpi_setup, ccmpi_init, ccmpi_reinit, ccmpi_finalize,         &
              ccmpi_procformat_init, ccmpi_remap 
 
