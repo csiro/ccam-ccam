@@ -534,8 +534,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       zqrg(1:imax,:) = real( qrg(js:je,:), 8 )
       zqfg(1:imax,:) = real( qfg(js:je,:), 8 )
       zqsng(1:imax,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
-      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - real(qfg_max,8), 0._8 )
-      zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
+      zqsng_rem(js:je,:) = max( zqsng(1:imax,:) - real(qfg_max,8), 0._8 )
+      zqsng(1:imax,:) = zqsng(1:imax,:) - zqsng_rem(js:je,:)
       
       ! ----------------
       do k = 1,kl
