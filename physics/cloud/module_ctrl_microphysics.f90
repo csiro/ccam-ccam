@@ -587,7 +587,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       
       t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
-      zqsng(js:je,:) = zqsng(js:je,:) + zqsng_rem(js:je,:)      
+      zqsng(1:imax,:) = zqsng(1:imax,:) + zqsng_rem(js:je,:)      
 
       !unpack data from imax to ifull.
 
