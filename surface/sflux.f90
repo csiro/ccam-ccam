@@ -90,7 +90,8 @@ implicit none
 private
 public sflux, sflux_init
 
-public sib4, cable_version
+public sib4
+!public cable_version
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev

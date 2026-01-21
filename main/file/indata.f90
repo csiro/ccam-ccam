@@ -50,7 +50,6 @@ contains
 subroutine indataf(lapsbot,isoth,nsig,nmlfile)
      
 use aerointerface                                ! Aerosol interface
-use aerosol_arrays                               ! Aerosol arrays
 use amipsst_m                                    ! AMIP SSTs
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                                     ! Grid interpolation
@@ -760,7 +759,7 @@ if ( nurban/=0 .and. nhstest>=0 ) then
   where ( .not.land(1:ifull) )
     sigmu(:) = 0.
   end where
-  call uclem_init(ifull,sigmu(:),0)
+  call uclem_init(ifull,ntiles,sigmu(:),0)
   call uclem_type(iurbant,0)
   allocate( atebparm(ateb_len,36) )
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
@@ -881,7 +880,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   elsewhere
     depth = 0.  
   end where
-  call mloinit(ifull,depth,f,0)
+  call mloinit(ifull,ntiles,depth,f,0)
   call mlodyninit
 end if   ! if nmlo/=0 .and. abd(nmlo)<=9
 
@@ -2220,6 +2219,14 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
           mlodwn(iq,k,2) = mlodwn(iq,k-1,2)
           mlodwn(iq,k,3) = mlodwn(iq,k-1,3)
           mlodwn(iq,k,4) = mlodwn(iq,k-1,4)
+        end if
+      end do
+      if ( micdwn(iq,1)<100. .or. micdwn(iq,1)>300. ) then
+        micdwn(iq,1) = 273.
+      end if
+      do k = 2,4
+        if ( micdwn(iq,k)<100. .or. micdwn(iq,k)>300. ) then
+          micdwn(iq,k) = micdwn(iq,k-1)
         end if
       end do
     end if  

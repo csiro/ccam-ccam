@@ -1605,7 +1605,7 @@ integer, intent(in) :: time_freq, time_method, area_method
 integer, dimension(ndim), intent(in) :: dim
 integer ier
 integer(kind=4) vtype, idv, lcdfid, lsize, lcompression
-integer(kind=4) ldlen, ltlen, tlen
+integer(kind=4) ldlen, ltlen, tlen, lil, ljl, lvnode
 integer(kind=4), dimension(ndim) :: ldim
 integer(kind=4), dimension(ndim) :: chunks
 real, intent(in) :: xmin, xmax
@@ -1632,20 +1632,23 @@ if ( localhist .and. ndim>3 ) then
   ! MJT notes - PR identified (/il, jl, kl, vnode_nproc, min(10, tlen)/) as optimal.
   ! However, here we simplify the code and PR reports that the performance is
   ! similar
+  lil = int(il,kind=4)
+  ljl = int(jl,kind=4)
+  lvnode = int( min(vnode_nproc,node_nx) ,kind=4)
   select case(ndim)
     case(6)
       ier = nf90_inquire_dimension(lcdfid,ldim(3),len=ldlen)
-      chunks = (/ il, jl, ldlen, 1, min(vnode_nproc,node_nx), 1 /)
+      chunks = (/ lil, ljl, ldlen, 1_4, lvnode, 1_4 /)
     case(5)
       ier = nf90_inquire_dimension(lcdfid,ldim(3),len=ldlen)
-      chunks = (/ il, jl, ldlen, min(vnode_nproc,node_nx), 1 /)
+      chunks = (/ lil, ljl, ldlen, lvnode, 1_4 /)
     case(4)
       ier = nf90_inquire_dimension(lcdfid,ldim(4),len=tlen)
-      ltlen = chunk_time
+      ltlen = int( chunk_time, kind=4)
       do while ( mod(tlen,ltlen)/=0 .and. ltlen>1 )
         ltlen = ltlen - 1
       end do
-      chunks = (/ il, jl, min(vnode_nproc,node_nx), ltlen /)
+      chunks = (/ lil, ljl, lvnode, ltlen /)
     case default
       write(6,*) "ERROR: Invalid ndim in attrib ",ndim
       call ccmpi_abort(-1)

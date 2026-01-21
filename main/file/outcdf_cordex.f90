@@ -25,6 +25,8 @@ module outcdf_cordex_m
 
 use outcdf_common_m
 
+implicit none
+
 private
 public freqfile_cordex
 
@@ -36,7 +38,6 @@ contains
 subroutine freqfile_cordex
 
 use aerointerface                     ! Aerosol interface
-use aerosol_arrays                    ! Aerosol arrays
 use arrays_m                          ! Atmosphere dyamics prognostic arrays
 use cc_mpi                            ! CC MPI routines
 use const_phys                        ! Physical constants
@@ -72,8 +73,6 @@ use vvel_m                            ! Additional vertical velocity
 use work2_m                           ! Diagnostic arrays
       
 implicit none
-
-include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 45  ! number of variables to average
 integer, dimension(:), allocatable :: vnode_dat

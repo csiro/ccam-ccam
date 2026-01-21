@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -47,10 +47,6 @@
 
 module mlo
 
-#ifdef CCAM
-use newmpar_m, only : imax, ntiles
-#endif
-
 implicit none
 
 private
@@ -59,7 +55,7 @@ public mlonewice_work, mlo_ema_uvw, mlo_ema_ts, mlo_ema_reset
 
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta,mlo_limitsal
-public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater
+public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,imax
 public alphavis_seaice, alphanir_seaice
 public alphavis_seasnw, alphanir_seasnw
 public omink,omineps
@@ -183,6 +179,7 @@ type dgscrndata
 end type dgscrndata
 
 ! model
+integer, save :: imax         = 0         ! Number of horizontal grid points
 integer, save :: wlev         = 20        ! Number of water layers
 integer, save :: zomode       = 2         ! roughness calculation (0=Charnock (CSIRO9), 1=Charnock (zot=zom), 2=Beljaars, 3=Moon)
 integer, save :: otaumode     = 0         ! momentum coupling (0=Explicit, 1=Implicit)
@@ -1797,7 +1794,7 @@ real, parameter :: zcom2 = 0.11
 real, parameter :: zcoh2 = 0.40
 real, parameter :: zcoq2 = 0.62
 
-if (diag>=1.and.ntiles==1) write(6,*) "Calculate ocean fluxes"
+if (diag>=1) write(6,*) "Calculate ocean fluxes"
 
 ! for gfortran
 fm = 0.

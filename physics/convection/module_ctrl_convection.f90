@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -61,7 +61,6 @@ subroutine grell_ccam
 
 ! specify module to use global variables
 use aerointerface                 ! Aerosol interface
-use aerosol_arrays                ! Aerosol arrays
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use const_phys                    ! Physical constants
 use cu_gf_deep                    ! Grell convection

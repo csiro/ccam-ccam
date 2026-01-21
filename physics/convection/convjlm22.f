@@ -222,9 +222,8 @@
 
       subroutine convjlm22
       
-      use aerosol_arrays
+      use aerointerface
       use arrays_m   
-      !use aerointerface
       use cc_mpi, only : mydiag
       use cfrac_m
       use extraout_m
@@ -343,8 +342,7 @@
 !     unused switches if nkuo=21,22,23:  rhsat
 !     unused in convjlm22: dsig2, sigkscb, sigksct, tied_rh
 !     has +ve fldownn depending on delta sigma; (-ve fldown descends from sig=.6))
-      use aerointerface, only : convscav
-      use aerosol_arrays, only : itracso2,itracbc,itracoc,
+      use aerointerface, only : convscav,itracso2,itracbc,itracoc,
      &                           itracdu,ndust,naero,itracsa,nsalt
       use const_phys
       use diag_m, only : maxmin

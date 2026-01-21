@@ -27,6 +27,7 @@ private
 public month, cordex_levels, height_levels
 public cordex_level_data, height_level_data
 public mslp, cordex_name, bisect
+public version
 
 character(len=3), dimension(12), parameter :: month = (/'jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'/)
 integer, parameter :: cordex_levels = 17
@@ -35,6 +36,8 @@ integer, dimension(cordex_levels) :: cordex_level_data = &
 integer, parameter :: height_levels = 6
 integer, dimension(height_levels) :: height_level_data = &
     (/ 50, 100, 150, 200, 250, 300 /)
+
+include 'version.h'                              ! Model version data
 
 contains
 

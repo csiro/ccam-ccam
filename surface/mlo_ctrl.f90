@@ -47,9 +47,6 @@
 
 module mlo_ctrl
 
-#ifdef CCAM
-use newmpar_m, only : imax, ntiles
-#endif
 use mlo
 
 implicit none
@@ -82,10 +79,8 @@ public nops,nopb,fixedstabfunc
 
 ! parameters
 integer, save :: ifull                                  ! Grid size
-#ifndef CCAM
-integer, save :: ntiles = 1                             ! Emulate OMP
-integer, save :: imax = 0                               ! Emulate OMP
-#endif
+integer, save :: ntiles = 1                             ! Decompose grid size into tiles
+                                                        ! each tile is imax=ifull/ntiles
 ! model arrays
 logical, save :: mlo_active = .false.                   ! Flag if MLO has been initialised
 real, dimension(:,:), allocatable, save :: micdwn       ! This variable is for CCAM onthefly.f
@@ -154,11 +149,11 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !  Initialise MLO
 
-subroutine mloinit(ifin,depin,f,diag)
+subroutine mloinit(ifin,ntilesin,depin,f,diag)
 
 implicit none
 
-integer, intent(in) :: ifin, diag
+integer, intent(in) :: ifin, ntilesin, diag
 integer iqw, ii, is, ie, tile
 real, dimension(ifin), intent(in) :: depin, f
 real, dimension(ifin) :: deptmp
@@ -171,19 +166,19 @@ if (diag>=1) write(6,*) "Initialising MLO"
 mlo_active = .false.
 
 ifull = ifin
+ntiles = ntilesin
 
 if ( ntiles<1 ) then
   write(6,*) "ERROR: Invalid ntiles ",ntiles
   stop
 end if
 
-#ifndef CCAM
-imax = ifull/ntiles
 if ( mod(ifull,ntiles)/=0 ) then
   write(6,*) "ERROR: Invalid ntiles ",ntiles," for ifull ",ifull
   stop
 end if
-#endif
+
+imax = ifull/ntiles
 
 if ( minsfc>minwater ) then
   write(6,*) "ERROR: MLO parameters are invalid.  minsfc>minwater"

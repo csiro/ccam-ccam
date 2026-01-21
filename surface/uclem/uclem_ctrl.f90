@@ -1,6 +1,6 @@
 ! UCLEM urban canopy model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the UCLEM urban canopy model
 !
@@ -57,9 +57,6 @@
 
 module uclem_ctrl
 
-#ifdef CCAM
-use newmpar_m, only : imax, ntiles
-#endif
 use uclem_parameters
 use uclem_types
 
@@ -88,10 +85,8 @@ public cvcoeffmeth,statsmeth,lwintmeth,infilmeth,ac_heatcap,ac_coolcap,ac_deltat
 
 ! state arrays
 integer, save :: ifull, nfrac
-#ifndef CCAM
-integer, save :: ntiles = 1     ! Emulate OMP
-integer, save :: imax = 0       ! Emulate OMP
-#endif
+integer, save :: ntiles = 1
+integer, save :: imax = 0
 integer, dimension(:), allocatable, save :: ufull_g
 logical, save :: uclem_active = .false.
 logical, dimension(:,:), allocatable, save :: upack_g
@@ -161,11 +156,11 @@ contains
 ! This is a compulsory subroutine that must be called during
 ! model initialisation
 
-subroutine uclem_init(ifin,sigu,diag)
+subroutine uclem_init(ifin,ntilesin,sigu,diag)
 
 implicit none
 
-integer, intent(in) :: ifin,diag
+integer, intent(in) :: ifin,ntilesin,diag
 integer, dimension(:), allocatable, save :: utype
 integer tile, is, ie, ifrac
 real, dimension(ifin), intent(in) :: sigu
@@ -175,19 +170,19 @@ if ( diag>=1 ) write(6,*) "Initialising UCLEM"
 uclem_active = .true.
 
 ifull = ifin
+ntiles = ntilesin
 
 if ( ntiles<1 ) then
   write(6,*) "ERROR: Invalid ntiles ",ntiles
   stop
 end if
 
-#ifndef CCAM
-imax = ifull/ntiles
 if ( mod(ifull,ntiles)/=0 ) then
   write(6,*) "ERROR: Invalid ntiles ",ntiles," for ifull ",ifull
   stop
 end if
-#endif
+
+imax = ifull/ntiles
 
 allocate( f_roof(ntiles), f_road(ntiles), f_wall(ntiles), f_slab(ntiles), f_intm(ntiles) )
 allocate( cnveg_g(ntiles), rfveg_g(ntiles) )

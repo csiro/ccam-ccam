@@ -19,10 +19,10 @@
 
 !------------------------------------------------------------------------------
 
-module config_m
+module config
 
 private
-public globpe_init
+public globpe_init, globpe_finalize
 
 contains
 
@@ -34,8 +34,7 @@ use aerointerface, only : aeroindir      & ! Aerosol interface
     ,aero_split,aerosol_u10              &
     ,ch_dust,zvolcemi,so4mtn,carbmtn     &
     ,saltsmallmtn,saltlargemtn           &
-    ,enhanceu10
-use aerosol_arrays, only : naero           ! Aerosol arrays
+    ,enhanceu10,naero
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
 use bigxy4_m                               ! Grid interpolation
 use cc_acc                                 ! CC ACC routines
@@ -142,7 +141,7 @@ real targetlev, dsx, pwatr_l, pwatr, tscale
 real ateb_zocanyon, ateb_zoroof, ateb_energytol
 real cgmap_offset, cgmap_scale      ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
-real ateb_alpha                     ! depreciated namelist options 
+real ateb_alpha, cable_version      ! depreciated namelist options 
 real zimax,mlomaxuv                 ! depreciated namelist options
 real plume_alpha                    ! depreciated namelist options
 real ocnlap                         ! depreciated namelist options
@@ -238,7 +237,7 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL s
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,cable_climate,smrf_switch,strf_switch,              &
-    cable_gw_model,cable_roughness,cable_version,cable_potev,     &
+    cable_gw_model,cable_roughness,cable_potev,                   &
     wt_transport, cable_enablefao,                                &
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
     ateb_acmeth,ateb_nrefl,                                       &
@@ -255,7 +254,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     siburbanfrac,freshwaterlake_fix,                              & ! special options
     wbclim_lonn,wbclim_lonx,wbclim_latn,wbclim_latx,              & 
     ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,ateb_ncyits,   & ! depreciated
-    ateb_useonewall,ateb_alpha
+    ateb_useonewall,ateb_alpha,cable_version
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
@@ -2333,7 +2332,7 @@ use sflux_m                                ! Surface flux routines
 implicit none
 
 integer, dimension(32) :: dumi
-real, dimension(27) :: dumr
+real, dimension(26) :: dumr
     
 dumr = 0.
 dumi = 0
@@ -2360,11 +2359,10 @@ if ( myid==0 ) then
   dumr(20) = ateb_ac_deltat
   dumr(21) = ateb_acfactor
   dumr(22) = siburbanfrac
-  dumr(23) = cable_version
-  dumr(24) = wbclim_lonn
-  dumr(25) = wbclim_lonx
-  dumr(26) = wbclim_latn
-  dumr(27) = wbclim_latx
+  dumr(23) = wbclim_lonn
+  dumr(24) = wbclim_lonx
+  dumr(25) = wbclim_latn
+  dumr(26) = wbclim_latx
   dumi(1)  = proglai
   dumi(2)  = ccycle
   dumi(3)  = soil_struc
@@ -2422,11 +2420,10 @@ ateb_ac_coolcap    = dumr(19)
 ateb_ac_deltat     = dumr(20)
 ateb_acfactor      = dumr(21)
 siburbanfrac       = dumr(22) 
-cable_version      = dumr(23)
-wbclim_lonn        = dumr(24)
-wbclim_lonx        = dumr(25)
-wbclim_latn        = dumr(26)
-wbclim_latx        = dumr(27)
+wbclim_lonn        = dumr(23)
+wbclim_lonx        = dumr(24)
+wbclim_latn        = dumr(25)
+wbclim_latx        = dumr(26)
 proglai            = dumi(1)
 ccycle             = dumi(2)
 soil_struc         = dumi(3)
@@ -2716,5 +2713,41 @@ end if
 
 return
 end subroutine proctest_face
+
+subroutine globpe_finalize
+
+use cc_mpi                                 ! CC MPI routines
+use bigxy4_m                               ! Grid interpolation
+use map_m                                  ! Grid map arrays
+use parm_m                                 ! Model configuration
+use xyzinfo_m                              ! Grid coordinate arrays
+
+implicit none
+
+#ifdef share_ifullg
+call ccmpi_freeshdata(xx4_win)
+call ccmpi_freeshdata(yy4_win)
+call ccmpi_freeshdata(em_g_win)
+call ccmpi_freeshdata(x_g_win)
+call ccmpi_freeshdata(y_g_win)
+call ccmpi_freeshdata(z_g_win)
+#else
+deallocate(xx4, yy4)
+deallocate(em_g)
+deallocate(x_g, y_g, z_g)
+#endif
+call ccmpi_filewinfinalize_exit
+if ( mbd/=0 .and. nud_uv/=9 ) then
+  call deallocateglobalpack
+end if
+nullify(xx4, yy4)
+nullify(em_g)
+nullify(x_g, y_g, z_g)
+
+! finalize MPI comms
+call ccmpi_finalize
+
+return
+end subroutine globpe_finalize
     
-end module config_m
+end module config

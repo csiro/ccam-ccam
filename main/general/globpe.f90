@@ -44,10 +44,9 @@ program globpe
 use aerointerface                          ! Aerosol interface
 use amipsst_m                              ! AMIP SSTs
 use arrays_m                               ! Atmosphere dyamics prognostic arrays
-use bigxy4_m                               ! Grid interpolation
 use cc_mpi                                 ! CC MPI routines
 use cfrac_m                                ! Cloud fraction
-use config_m                               ! CCAM parameter initialisation
+use config                                 ! CCAM parameter initialisation
 use const_phys                             ! Physical constants
 use dates_m                                ! Date data
 use daviesnudge                            ! Far-field nudging
@@ -67,7 +66,6 @@ use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
 use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
-use map_m                                  ! Grid map arrays
 use mlodynamics                            ! Ocean dynamics
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
@@ -931,8 +929,7 @@ if ( irest==1 ) then
 endif
 
 call log_off
-  
-  
+
 !------------------------------------------------------------------
 ! SIMULATION COMPLETE
   
@@ -970,32 +967,10 @@ if ( myid==0 ) then
   call finishbanner
 end if
 
-#ifdef share_ifullg
-call ccmpi_freeshdata(xx4_win)
-call ccmpi_freeshdata(yy4_win)
-call ccmpi_freeshdata(em_g_win)
-call ccmpi_freeshdata(x_g_win)
-call ccmpi_freeshdata(y_g_win)
-call ccmpi_freeshdata(z_g_win)
-#else
-deallocate(xx4, yy4)
-deallocate(em_g)
-deallocate(x_g, y_g, z_g)
-#endif
-call ccmpi_filewinfinalize_exit
-call nestin_exit
-if ( mbd/=0 .and. nud_uv/=9 ) then
-  call deallocateglobalpack
-end if
-nullify(xx4, yy4)
-nullify(em_g)
-nullify(x_g, y_g, z_g)
-
-  
 !****************************************************************
 
-! finalize MPI comms
-call ccmpi_finalize
+call nestin_exit
+call globpe_finalize
 
 end program
     
@@ -1543,7 +1518,7 @@ use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 use kuocom_m                               ! JLM convection
 use liqwpar_m                              ! Cloud water mixing ratios
-use mlo_ctrl                               ! Ocean physics control layer
+use mlodynamics                            ! Ocean dynamics
 use morepbl_m                              ! Additional boundary layer diagnostics
 use newmpar_m                              ! Grid parameters
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays

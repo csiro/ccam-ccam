@@ -23,6 +23,8 @@ module outcdf_standard_m
 
 use outcdf_common_m
 
+implicit none
+
 private
 public cdfout
 
@@ -638,7 +640,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'cable_roughness',cable_roughness)
     call ccnf_put_attg(idnc,'cable_potev',cable_potev)
     call ccnf_put_attg(idnc,'cable_pop',cable_pop)    
-    call ccnf_put_attg(idnc,'cable_version',cable_version)
+    !call ccnf_put_attg(idnc,'cable_version',cable_version)
     call ccnf_put_attg(idnc,'ccycle',ccycle)
     call ccnf_put_attg(idnc,'freshwaterlake_fix',freshwaterlake_fix)
     call ccnf_put_attg(idnc,'fwsoil_switch',fwsoil_switch)
@@ -775,7 +777,6 @@ subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                            
                     idc,psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                                ! Aerosol interface
-use aerosol_arrays                               ! Aerosol arrays
 use arrays_m                                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                       ! CC MPI routines
 use cfrac_m                                      ! Cloud fraction
@@ -837,8 +838,6 @@ use work2_m                                      ! Diagnostic arrays
 use xarrs_m, only : pslx                         ! Saved dynamic arrays
 
 implicit none
-
-include 'version.h'                              ! Model version data
 
 integer, intent(in) :: iarch, itype, iout, idnc
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff

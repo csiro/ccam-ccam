@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -136,7 +136,6 @@ end subroutine seaesfrad_settime
 subroutine seaesfrad(koundiag)
 
 use aerointerface                                   ! Aerosol interface
-use aerosol_arrays                                  ! Aerosol arrays
 use arrays_m                                        ! Atmosphere dyamics prognostic arrays
 use cc_mpi                                          ! CC MPI routines
 use cfrac_m                                         ! Cloud fraction

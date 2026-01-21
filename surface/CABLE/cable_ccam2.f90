@@ -118,7 +118,6 @@ public cablesettemp, newcbmwb, cableinflow, cbmemiss, cable_casatile
 !public calc_wt_ave, calc_wt_flux
 
 ! Imported from cable_ccam_common
-public cable_version
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
@@ -130,6 +129,7 @@ public loadtile, defaulttile, savetiledef, savetile
 
 ! Imported from cable_ccam_setup
 public loadcbmparm, cbmparm
+!public cable_version
 
 contains
 ! ****************************************************************************
@@ -1179,35 +1179,39 @@ type(pop_type), intent(inout) :: pop
 type(soil_parameter_type), intent(inout) :: soil
 type(veg_parameter_type), intent(inout) :: veg
 
-call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
+if ( mp_global>0 ) then
 
-if ( POP%np>0 ) then
+  call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
 
-  where ( pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
-    casaflux%frac_sapwood(POP%Iwood) = real( POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum, 8)
-    casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
-    veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
-    where ( pop%pop_grid(:)%LU==2 )
-      casaflux%kplant(POP%Iwood,2) = real( 1._dp -            &
-        (1._dp-  max( min((POP%pop_grid(:)%stress_mortality + &
-        POP%pop_grid(:)%crowding_mortality                    &
-        + POP%pop_grid(:)%fire_mortality )                    &
-        /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
-        1._dp/veg%disturbance_interval(POP%Iwood,1), 0.99_dp), 0._dp))**(1._dp/365._dp), 8)
+  if ( POP%np>0 ) then
+
+    where ( pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
+      casaflux%frac_sapwood(POP%Iwood) = real( POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum, 8)
+      casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
+      veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
+      where ( pop%pop_grid(:)%LU==2 )
+        casaflux%kplant(POP%Iwood,2) = real( 1._dp -            &
+          (1._dp-  max( min((POP%pop_grid(:)%stress_mortality + &
+          POP%pop_grid(:)%crowding_mortality                    &
+          + POP%pop_grid(:)%fire_mortality )                    &
+          /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
+          1._dp/veg%disturbance_interval(POP%Iwood,1), 0.99_dp), 0._dp))**(1._dp/365._dp), 8)
+      elsewhere
+        casaflux%kplant(POP%Iwood,2) = real( 1._dp -                        &
+          (1._dp-  max( min((POP%pop_grid(:)%stress_mortality +             &
+          POP%pop_grid(:)%crowding_mortality                                &
+          + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
+          /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_dp), 0._dp))**(1._dp/365._dp), 8)
+      end where
+      veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
     elsewhere
-      casaflux%kplant(POP%Iwood,2) = real( 1._dp -                        &
-        (1._dp-  max( min((POP%pop_grid(:)%stress_mortality +             &
-        POP%pop_grid(:)%crowding_mortality                                &
-        + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
-        /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_dp), 0._dp))**(1._dp/365._dp), 8)
+      casaflux%frac_sapwood(POP%Iwood) = 1._8
+      casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
+      casaflux%kplant(POP%Iwood,2) = 0._8
+      veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
     end where
-    veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
-  elsewhere
-    casaflux%frac_sapwood(POP%Iwood) = 1._8
-    casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
-    casaflux%kplant(POP%Iwood,2) = 0._8
-    veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
-  end where
+  
+  end if
   
 end if
 

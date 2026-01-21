@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,7 +28,7 @@ use cable_def_types_mod, only : air_type, balances_type, canopy_type, climate_ty
                                 roughness_type, soil_parameter_type, soil_snow_type, sum_flux_type,           &
                                 veg_parameter_type, mp, r_2
 use casavariable, only : casa_balance, casa_biome, casa_flux, casa_met, casa_pool
-use newmpar_m, only : ntiles,imax
+use newmpar_m, only : ntiles,imax,ifull
 use phenvariable, only : phen_variable
 use pop_types, only : pop_type, dp
 
@@ -99,8 +99,6 @@ end interface
 contains
 
 subroutine cable_pack_r4_2_r4(indata,outdata)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   real(kind=4), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
@@ -120,8 +118,6 @@ subroutine cable_pack_r4_2_r4(indata,outdata)
 end subroutine cable_pack_r4_2_r4
 
 subroutine cable_pack_r4_2_r8(indata,outdata)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
@@ -141,8 +137,6 @@ subroutine cable_pack_r4_2_r8(indata,outdata)
 end subroutine cable_pack_r4_2_r8
 
 subroutine cable_pack_r4_2_r4_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   real(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -162,8 +156,6 @@ subroutine cable_pack_r4_2_r4_tile(indata,outdata,inb)
 end subroutine cable_pack_r4_2_r4_tile
 
 subroutine cable_pack_r4_2_r8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -183,8 +175,6 @@ subroutine cable_pack_r4_2_r8_tile(indata,outdata,inb)
 end subroutine cable_pack_r4_2_r8_tile
 
 subroutine cable_pack_r4_2_r4_map(indata,outdata,nmp)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   real(kind=4), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
@@ -216,8 +206,6 @@ subroutine cable_pack_r4_2_r4_map(indata,outdata,nmp)
 end subroutine cable_pack_r4_2_r4_map
 
 subroutine cable_pack_r4_2_r8_map(indata,outdata,nmp)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
@@ -250,8 +238,6 @@ end subroutine cable_pack_r4_2_r8_map
 
 #ifndef i8r8
 subroutine cable_pack_r8_2_r8(indata,outdata)
-  use newmpar_m, only : ifull
-  implicit none
   real(kind=8), dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
@@ -271,8 +257,6 @@ subroutine cable_pack_r8_2_r8(indata,outdata)
 end subroutine cable_pack_r8_2_r8
 
 subroutine cable_pack_r8_2_r8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   real(kind=8), dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -292,8 +276,6 @@ subroutine cable_pack_r8_2_r8_tile(indata,outdata,inb)
 end subroutine cable_pack_r8_2_r8_tile
 
 subroutine cable_pack_r8_2_r8_map(indata,outdata,nmp)
-  use newmpar_m, only : ifull
-  implicit none
   real(kind=8), dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
@@ -326,8 +308,6 @@ end subroutine cable_pack_r8_2_r8_map
 #endif
 
 subroutine cable_pack_i4_2_i4(indata,outdata)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
@@ -347,8 +327,6 @@ subroutine cable_pack_i4_2_i4(indata,outdata)
 end subroutine cable_pack_i4_2_i4
 
 subroutine cable_pack_i4_2_i4_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -368,8 +346,6 @@ subroutine cable_pack_i4_2_i4_tile(indata,outdata,inb)
 end subroutine cable_pack_i4_2_i4_tile
 
 subroutine cable_pack_i4_2_i4_map(indata,outdata,nmp)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
@@ -401,8 +377,6 @@ subroutine cable_pack_i4_2_i4_map(indata,outdata,nmp)
 end subroutine cable_pack_i4_2_i4_map
 
 subroutine cable_pack_i4_2_i8_map(indata,outdata,nmp)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
@@ -434,8 +408,6 @@ subroutine cable_pack_i4_2_i8_map(indata,outdata,nmp)
 end subroutine cable_pack_i4_2_i8_map
 
 subroutine cable_pack_i4_2_i8(indata,outdata)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
@@ -455,8 +427,6 @@ subroutine cable_pack_i4_2_i8(indata,outdata)
 end subroutine cable_pack_i4_2_i8
 
 subroutine cable_pack_i4_2_i8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -476,8 +446,6 @@ subroutine cable_pack_i4_2_i8_tile(indata,outdata,inb)
 end subroutine cable_pack_i4_2_i8_tile
 
 subroutine cable_pack_r4_2_i4(indata,outdata)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
@@ -497,8 +465,6 @@ subroutine cable_pack_r4_2_i4(indata,outdata)
 end subroutine cable_pack_r4_2_i4
 
 subroutine cable_pack_r4_2_i4_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -518,8 +484,6 @@ subroutine cable_pack_r4_2_i4_tile(indata,outdata,inb)
 end subroutine cable_pack_r4_2_i4_tile
 
 subroutine cable_pack_r4_2_i8(indata,outdata)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer :: nb, is, ie, js, je, tile
@@ -539,8 +503,6 @@ subroutine cable_pack_r4_2_i8(indata,outdata)
 end subroutine cable_pack_r4_2_i8
 
 subroutine cable_pack_r4_2_i8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   real, dimension(ifull), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -560,10 +522,6 @@ subroutine cable_pack_r4_2_i8_tile(indata,outdata,inb)
 end subroutine cable_pack_r4_2_i8_tile
 
 subroutine cable_unpack_r4_2_r4(indata,outdata)
-  use newmpar_m, only : ifull
-
-  implicit none
-
   real(kind=4), dimension(:), intent(in) :: indata
   real, dimension(ifull), intent(inout) :: outdata
   integer :: is, ie, js, je, tile, nb
@@ -583,10 +541,6 @@ subroutine cable_unpack_r4_2_r4(indata,outdata)
 end subroutine cable_unpack_r4_2_r4
 
 subroutine cable_unpack_r8_2_r4(indata,outdata)
-  use newmpar_m, only : ifull
-
-  implicit none
-
   real(kind=8), dimension(:), intent(in) :: indata
   real, dimension(ifull), intent(inout) :: outdata
   integer :: is, ie, js, je, tile, nb
@@ -606,10 +560,6 @@ subroutine cable_unpack_r8_2_r4(indata,outdata)
 end subroutine cable_unpack_r8_2_r4
 
 subroutine cable_unpack_r4_2_r4_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-
-  implicit none
-
   real(kind=4), dimension(:), intent(in) :: indata
   real, dimension(ifull), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -629,10 +579,6 @@ subroutine cable_unpack_r4_2_r4_tile(indata,outdata,inb)
 end subroutine cable_unpack_r4_2_r4_tile
 
 subroutine cable_unpack_r8_2_r4_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-
-  implicit none
-
   real(kind=8), dimension(:), intent(in) :: indata
   real, dimension(ifull), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -652,8 +598,6 @@ subroutine cable_unpack_r8_2_r4_tile(indata,outdata,inb)
 end subroutine cable_unpack_r8_2_r4_tile
 
 subroutine cable_unpack_i4_2_i4_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(:), intent(in) :: indata
   integer, dimension(ifull), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -674,10 +618,6 @@ end subroutine cable_unpack_i4_2_i4_tile
 
 #ifndef i8r8
 subroutine cable_unpack_r4_2_r8(indata,outdata)
-  use newmpar_m, only : ifull
-
-  implicit none
-
   real(kind=4), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(inout) :: outdata
   integer :: is, ie, js, je, tile, nb
@@ -697,10 +637,6 @@ subroutine cable_unpack_r4_2_r8(indata,outdata)
 end subroutine cable_unpack_r4_2_r8
 
 subroutine cable_unpack_r8_2_r8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-
-  implicit none
-
   real(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -721,8 +657,6 @@ end subroutine cable_unpack_r8_2_r8_tile
 #endif
 
 subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   real(kind=8), dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -742,8 +676,6 @@ subroutine pop_pack_r8_2_r8_tile(indata,outdata,inb)
 end subroutine pop_pack_r8_2_r8_tile
 
 subroutine pop_pack_r8_2_r8_map(indata,outdata,nmp)
-  use newmpar_m, only : ifull
-  implicit none
   real(kind=8), dimension(ifull), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
@@ -775,8 +707,6 @@ subroutine pop_pack_r8_2_r8_map(indata,outdata,nmp)
 end subroutine pop_pack_r8_2_r8_map
 
 subroutine pop_pack_i4_2_i4_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -796,8 +726,6 @@ subroutine pop_pack_i4_2_i4_tile(indata,outdata,inb)
 end subroutine pop_pack_i4_2_i4_tile
 
 subroutine pop_pack_i4_2_i4_map(indata,outdata,nmp)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
@@ -829,8 +757,6 @@ subroutine pop_pack_i4_2_i4_map(indata,outdata,nmp)
 end subroutine pop_pack_i4_2_i4_map
 
 subroutine pop_pack_i4_2_i8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: inb
@@ -850,8 +776,6 @@ subroutine pop_pack_i4_2_i8_tile(indata,outdata,inb)
 end subroutine pop_pack_i4_2_i8_tile
 
 subroutine pop_pack_i4_2_i8_map(indata,outdata,nmp)
-  use newmpar_m, only : ifull
-  implicit none
   integer, dimension(ifull), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, dimension(ifull), intent(in) :: nmp
@@ -883,8 +807,6 @@ subroutine pop_pack_i4_2_i8_map(indata,outdata,nmp)
 end subroutine pop_pack_i4_2_i8_map
 
 subroutine pop_unpack_r8_2_r8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   real(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(out) :: outdata
   integer, intent(in) :: inb
@@ -904,8 +826,6 @@ subroutine pop_unpack_r8_2_r8_tile(indata,outdata,inb)
 end subroutine pop_unpack_r8_2_r8_tile
 
 subroutine pop_unpack_i4_2_r8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   integer(kind=4), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(out) :: outdata
   integer, intent(in) :: inb
@@ -925,8 +845,6 @@ subroutine pop_unpack_i4_2_r8_tile(indata,outdata,inb)
 end subroutine pop_unpack_i4_2_r8_tile
 
 subroutine pop_unpack_i8_2_r8_tile(indata,outdata,inb)
-  use newmpar_m, only : ifull
-  implicit none
   integer(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(ifull), intent(out) :: outdata
   integer, intent(in) :: inb
@@ -946,7 +864,6 @@ subroutine pop_unpack_i8_2_r8_tile(indata,outdata,inb)
 end subroutine pop_unpack_i8_2_r8_tile
 
 subroutine setp_air(air,lair,tile)
-  implicit none
   type(air_type), intent(in) :: air
   type(air_type), intent(inout) :: lair
   integer, intent(in) :: tile
@@ -972,8 +889,6 @@ subroutine setp_air(air,lair,tile)
 end subroutine setp_air
 
 subroutine setp_bal(bal,lbal,tile)
-  implicit none
-
   type(balances_type), intent(in) :: bal
   type(balances_type), intent(inout) :: lbal
   integer, intent(in) :: tile
@@ -1021,8 +936,6 @@ subroutine setp_bal(bal,lbal,tile)
 end subroutine setp_bal
 
 subroutine setp_canopy(canopy,lcanopy,tile)
-  implicit none
-
   type(canopy_type), intent(in) :: canopy
   type(canopy_type), intent(inout) :: lcanopy
   integer, intent(in) :: tile
@@ -1125,8 +1038,6 @@ subroutine setp_canopy(canopy,lcanopy,tile)
 end subroutine setp_canopy
 
 subroutine setp_casabal(casabal,lcasabal,tile)
-  implicit none
-
   type(casa_balance), intent(in) :: casabal
   type(casa_balance), intent(inout) :: lcasabal
   integer, intent(in) :: tile
@@ -1193,8 +1104,6 @@ subroutine setp_casabal(casabal,lcasabal,tile)
 end subroutine setp_casabal
 
 subroutine setp_casaflux(casaflux,lcasaflux,tile)
-  implicit none
-
   type(casa_flux), intent(in) :: casaflux
   type(casa_flux), intent(inout) :: lcasaflux
   integer, intent(in) :: tile
@@ -1289,8 +1198,6 @@ subroutine setp_casaflux(casaflux,lcasaflux,tile)
 end subroutine setp_casaflux
 
 subroutine setp_casamet(casamet,lcasamet,tile)
-  implicit none
-
   type(casa_met), intent(in) :: casamet
   type(casa_met), intent(inout) :: lcasamet
   integer, intent(in) :: tile
@@ -1342,8 +1249,6 @@ subroutine setp_casamet(casamet,lcasamet,tile)
 end subroutine setp_casamet
 
 subroutine setp_casapool(casapool,lcasapool,tile)
-  implicit none
-
   type(casa_pool), intent(in) :: casapool
   type(casa_pool), intent(inout) :: lcasapool
   integer, intent(in) :: tile
@@ -1406,8 +1311,6 @@ subroutine setp_casapool(casapool,lcasapool,tile)
 end subroutine setp_casapool
 
 subroutine setp_climate(climate,lclimate,tile)
-  implicit none
-
   type(climate_type), intent(in) :: climate
   type(climate_type), intent(inout) :: lclimate
   integer, intent(in) :: tile
@@ -1485,8 +1388,6 @@ subroutine setp_climate(climate,lclimate,tile)
 end subroutine setp_climate
 
 subroutine setp_met(met,lmet,tile)
-  implicit none
-
   type(met_type), intent(in) :: met
   type(met_type), intent(inout) :: lmet
   integer, intent(in) :: tile
@@ -1554,8 +1455,6 @@ subroutine setp_phen(phen,lphen,tile)
 end subroutine setp_phen
 
 subroutine setp_pop(pop,lpop,tile)
-  implicit none
-
   type(pop_type), intent(in) :: pop
   type(pop_type), intent(inout) :: lpop
   integer, intent(in) :: tile
@@ -1565,17 +1464,15 @@ subroutine setp_pop(pop,lpop,tile)
   ie = tdata(tile)%poffset + tdata(tile)%np
 
   if ( is<=ie ) then
-    !lpop%pop_grid => pop%pop_grid(is:ie)
-    !lpop%it_pop => pop%it_pop(is:ie)
+    lpop%pop_grid => pop%pop_grid(is:ie)
+    lpop%it_pop => pop%it_pop(is:ie)
     lpop%np = tdata(tile)%np
-    !lpop%Iwood => pop%Iwood(is:ie)
+    lpop%Iwood => pop%Iwood(is:ie)
   end if  
 
 end subroutine setp_pop
 
 subroutine setp_rad(rad,lrad,tile)
-  implicit none
-
   type(radiation_type), intent(in) :: rad
   type(radiation_type), intent(inout) :: lrad
   integer, intent(in) :: tile
@@ -1624,8 +1521,6 @@ subroutine setp_rad(rad,lrad,tile)
 end subroutine setp_rad
 
 subroutine setp_rough(rough,lrough,tile)
-  implicit none
-
   type(roughness_type), intent(in) :: rough
   type(roughness_type), intent(inout) :: lrough
   integer, intent(in) :: tile
@@ -1667,8 +1562,6 @@ subroutine setp_rough(rough,lrough,tile)
 end subroutine setp_rough
 
 subroutine setp_soil(soil,lsoil,tile)
-  implicit none
-
   type(soil_parameter_type), intent(in) :: soil
   type(soil_parameter_type), intent(inout) :: lsoil
   integer, intent(in) :: tile
@@ -1743,8 +1636,6 @@ subroutine setp_soil(soil,lsoil,tile)
 end subroutine setp_soil
 
 subroutine setp_ssnow(ssnow,lssnow,tile)
-  implicit none
-
   type(soil_snow_type), intent(in) :: ssnow
   type(soil_snow_type), intent(inout) :: lssnow
   integer, intent(in) :: tile
@@ -1891,8 +1782,6 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
 end subroutine setp_ssnow
 
 subroutine setp_sumflux(sum_flux,lsum_flux,tile)
-  implicit none
-
   type(sum_flux_type), intent(in) :: sum_flux
   type(sum_flux_type), intent(inout) :: lsum_flux
   integer, intent(in) :: tile
@@ -1921,8 +1810,6 @@ subroutine setp_sumflux(sum_flux,lsum_flux,tile)
 end subroutine setp_sumflux
 
 subroutine setp_veg(veg,lveg,tile)
-  implicit none
-
   type(veg_parameter_type), intent(in) :: veg
   type(veg_parameter_type), intent(inout) :: lveg
   integer, intent(in) :: tile

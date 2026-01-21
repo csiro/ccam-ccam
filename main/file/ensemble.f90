@@ -64,8 +64,7 @@ contains
     
 subroutine update_ensemble
 
-!use aerointerface                ! Aerosol interface
-use aerosol_arrays               ! Aerosol arrays
+use aerointerface                ! Aerosol interface
 use arrays_m                     ! Atmosphere dyamics prognostic arrays
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data

@@ -32,7 +32,7 @@ contains
 
 subroutine vadvtvd(tarr,uarr,varr,nvadh_inv_pass,nits)
 
-use aerosol_arrays
+use aerointerface
 use arrays_m
 use cc_mpi
 use cfrac_m, only : stratcloud

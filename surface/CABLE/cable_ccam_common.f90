@@ -50,10 +50,6 @@ use sli_main_mod
 implicit none
 
 ! CABLE biophysical options
-real, save :: cable_version = 6608. ! expected version id for input data
-                                    ! 6608 includes update to ice albedo
-                                    ! 3939 had fixes for soil albedo
-
 integer, save :: soil_struc      = 0          ! 0 default, 1 SLI soil model
 integer, save :: fwsoil_switch   = 0          ! 0 default, 1 non-linear, 2 Lai and Ktaul, 3 Haverd2013
 integer, save :: cable_litter    = 0          ! 0 off, 1 on
@@ -73,8 +69,6 @@ integer, save :: progvcmax       = 0          ! 0 prescribed, 1 prognostic vcmax
 ! CABLE POP options
 integer, save :: cable_pop       = 0          ! 0 off, 1 on
 ! CABLE POP parameters
-integer, parameter :: maxtile    = 9          ! maximum possible number of tiles in a grid box
-                                              ! (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
 integer, save :: POP_NPATCH      = -1
@@ -84,6 +78,9 @@ integer, save :: POP_HEIGHT_BINS = -1
 integer, save :: POP_NDISTURB    = -1
 integer, save :: POP_AGEMAX      = -1
 
+! Number of tiles, number of gridpoints and fraction of gridbox
+integer, parameter :: maxtile    = 9          ! maximum possible number of tiles in a grid box
+                                              ! (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
 integer, save :: maxnb                        ! maximum number of tiles within a gridbox
 integer, save :: mp_global                    ! maximum number of points on this process (sum of all land tiles)
 

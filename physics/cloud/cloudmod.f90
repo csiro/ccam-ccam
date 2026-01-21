@@ -79,7 +79,7 @@ logical, intent(in) :: mydiag
 logical, dimension(size(t,1)), intent(in) :: land
 character(len=*), intent(in) :: cmode, dmode
 
-!integer, dimension(size(t,1)) :: kbase,ktop  !Bottom and top of convective cloud
+!integer, dimension(size(t,1)) :: kbase,ktop     !Bottom and top of convective cloud
 real, dimension(size(t,1),size(t,2)) :: prf      !Pressure on full levels (hPa)
 real, dimension(size(t,1),size(t,2)) :: rhoa     !Air density (kg/m3)
 real, dimension(size(t,1),size(t,2)) :: ccov     !Cloud cover (may differ from cloud frac if vertically subgrid)
@@ -939,7 +939,7 @@ do k = 1,kl
     aa = 0.25*gam*(1.-stratcloud(iq,k))**2/max( qs(iq,k)-qv, 1.e-8 )
     bb = -(1.+gam*stratcloud(iq,k))  
     cc = dqs_adiabatic(iq) + dqs_radiation(iq) + dqs_turbulence(iq) ! neglect dqs_convection
-    dqs = 2.*cc/( -bb + sqrt( bb**2 - 4.*aa*cc ) ) ! alternative form of quadratic equation
+    dqs = 2.*cc/( -bb + sqrt( max(bb**2 - 4.*aa*cc,1.e-20) ) ) ! alternative form of quadratic equation
     
     !da = -2.*aa*dqs/gam
     !da(:) = -0.5*dqs*(1.-stratcloud(:,k))**2/max( qs(:,k)-qv, 1.e-8 )

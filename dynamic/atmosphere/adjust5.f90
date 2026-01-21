@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -22,7 +22,7 @@
 
 subroutine adjust5
 
-use aerosol_arrays         ! Aerosol arrays
+use aerointerface          ! Aerosol interface
 use arrays_m               ! Atmosphere dyamics prognostic arrays
 use cc_mpi                 ! CC MPI routines
 use cfrac_m                ! Cloud fraction
@@ -323,7 +323,7 @@ if ( nh/=0 .and. ktau<=-knh .and. .not.lrestart ) then  ! e.g. knh=-10, divdamp=
   if ( nmaxpr==1 .and. mydiag ) then
     write(6,*) 'div damping'
     write(6,*) 'cc,cc-,dd,dd-', cc(idjd,nlv)/emu(idjd),cc(iwu(idjd),nlv)/emu(iwu(idjd)), &
-                                            dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
+                                dd(idjd,nlv)/emv(idjd),dd(isv(idjd),nlv)/emv(isv(idjd))      
     write(6,*) 'd',d(idjd,:)
   end if
   call bounds(d)

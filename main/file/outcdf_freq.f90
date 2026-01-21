@@ -25,6 +25,8 @@ module outcdf_freq_m
     
 use outcdf_common_m
 
+implicit none
+
 private
 public freqfile_10
 
@@ -62,8 +64,6 @@ use tracers_m                         ! Tracer data
 use vvel_m                            ! Additional vertical velocity
       
 implicit none
-
-include 'version.h'                   ! Model version data
 
 integer, parameter :: freqvars = 13  ! number of variables to average
 integer, dimension(:), allocatable :: vnode_dat

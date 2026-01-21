@@ -36,7 +36,7 @@ contains
 ! This subroutine loads CABLE tile data
 subroutine defaulttile
 
-use carbpools_m
+!use carbpools_m
 use cc_mpi
 use darcdf_m
 use infile
@@ -105,7 +105,7 @@ end subroutine defaulttile
 
 subroutine defaulttile_sli
 
-use carbpools_m
+!use carbpools_m
 use cc_mpi
 use darcdf_m
 use infile
@@ -152,7 +152,7 @@ end subroutine defaulttile_sli
 
 subroutine loadtile(usedefault)
 
-use carbpools_m
+!use carbpools_m
 use cc_mpi
 use darcdf_m
 use infile
@@ -1296,7 +1296,7 @@ end subroutine loadtile_carbonpools
 
 subroutine fixtile
 
-use carbpools_m
+!use carbpools_m
 use cc_mpi
 use darcdf_m
 use infile
@@ -1704,7 +1704,7 @@ end subroutine redistribute_work
 ! This subroutine saves CABLE tile data
 subroutine savetiledef(idnc,local,jdim,jsize,cdim,csize,itype)
 
-use carbpools_m
+!use carbpools_m
 use cc_mpi, only : myid
 use infile
 use newmpar_m
@@ -2375,7 +2375,7 @@ end subroutine savetiledef
 ! This subroutine saves CABLE tile data
 subroutine savetile(idnc,local,iarch,itype)
 
-use carbpools_m
+!use carbpools_m
 use cc_mpi, only : ccmpi_abort
 use infile
 use newmpar_m

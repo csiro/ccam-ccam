@@ -43,7 +43,7 @@ subroutine vertmix(t,tss,eg,fg,kbsav,ktsav,convpsav,ps,qg,qfg,qlg,ni,stratcloud,
                    idjd,mydiag)
 
 use cc_mpi, only : comm_world,       &
-    ccmpi_barrier,ccmpi_abort       ! CC MPI routines
+    ccmpi_barrier                   ! CC MPI routines
 use const_phys                      ! Physical constants
 use diag_m                          ! Diagnostic routines
 use estab, only : establ            ! Liquid saturation function

@@ -39,7 +39,7 @@ contains
     
 subroutine davies    ! for globpea - only large-scale available
 
-use aerosol_arrays, only : xtg, naero
+use aerointerface, only : xtg, naero
 use arrays_m         ! t,u,v,ps
 use cc_mpi, only : mydiag
 use newmpar_m

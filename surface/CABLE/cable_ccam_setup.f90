@@ -30,6 +30,10 @@ implicit none
 private
 public loadcbmparm, cbmparm
 
+!! Expected CABLE input data version
+!real, save :: cable_version = 6608. ! expected version id for input data
+!                                    ! 6608 includes update to ice albedo
+!                                    ! 3939 had fixes for soil albedo
 
 contains
 
@@ -940,7 +944,17 @@ else
   call cable_biophysic_parm(cveg)
   call cable_soil_parm(soil)
   if ( ccycle>=1 .and. ccycle<=3 ) then
+    call alloc_casavariable(casabiome,casapool,casaflux,casamet,casabal,0)
+    call alloc_phenvariable(phen,0)
     call casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
+    if ( cable_pop==1 ) then
+      mp_POP = 0
+      allocate( pmap_temp(0) )      
+      allocate( Iwood(0), disturbance_interval(0,2) )
+      call POP_init(POP, disturbance_interval, 0, Iwood) 
+      deallocate( pmap_temp )
+      deallocate( Iwood, disturbance_interval )
+    end if
   end if
   
 end if
@@ -2323,20 +2337,20 @@ if ( lncveg==1 ) then
     write(6,*) 'wrong data file supplied ',trim(fveg)
     call ccmpi_abort(-1)
   end if
-  call ccnf_get_attg(ncidveg,'cableversion',cablever,ierr=iernc)
-  if (iernc/=0) then
-    write(6,*) "Missing version of CABLE data"
-    write(6,*) "Regenerate land-use data with up-to-date version of igbpveg"
-    call ccmpi_abort(-1)
-  end if
-  if (abs(cablever-cable_version)>1.e-20 .and. abs(cablever-6608.)>1.e-20 .and. &
-      abs(cablever-3939.)>1.e-20 ) then
-    write(6,*) "Wrong version of CABLE data"
-    write(6,*) "Expecting 3939. or 6608. or ",cable_version
-    write(6,*) "Found     ",cablever
-    write(6,*) "Please upgrade igbpveg to fix this error"
-    call ccmpi_abort(-1)
-  end if
+  !call ccnf_get_attg(ncidveg,'cableversion',cablever,ierr=iernc)
+  !if (iernc/=0) then
+  !  write(6,*) "Missing version of CABLE data"
+  !  write(6,*) "Regenerate land-use data with up-to-date version of igbpveg"
+  !  call ccmpi_abort(-1)
+  !end if
+  !if (abs(cablever-cable_version)>1.e-20 .and. abs(cablever-6608.)>1.e-20 .and. &
+  !    abs(cablever-3939.)>1.e-20 ) then
+  !  write(6,*) "Wrong version of CABLE data"
+  !  write(6,*) "Expecting 3939. or 6608. or ",cable_version
+  !  write(6,*) "Found     ",cablever
+  !  write(6,*) "Please upgrade igbpveg to fix this error"
+  !  call ccmpi_abort(-1)
+  !end if
   call ccnf_get_attg(ncidveg,'cableformat',cableformat,ierr=iernc)
   if ( iernc/=0 ) then
     cableformat=0.
