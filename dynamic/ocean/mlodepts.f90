@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -38,6 +38,7 @@ contains
 subroutine mlodeps(ubar,vbar,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
 
 use bigxy4_m
+use cc_acc
 use cc_mpi
 use const_phys
 use indices_m
@@ -70,7 +71,7 @@ logical bcub_water, blin_test
 
 call START_LOG(waterdeps_begin)
 
-!$acc data create(xg,yg,nface,xx4,yy4,sx,wx)
+!$acc data create(xg,yg,nface,xx4,yy4,wx)
 !$acc update device(xx4,yy4) async(0)
 
 ! departure point x, y, z is called x3d, y3d, z3d
@@ -320,7 +321,7 @@ else
   
 end if
 
-!$acc update device(sx,wx) async(0)
+!$acc update device(wx)
 
 do itr = 1,2
 
@@ -393,9 +394,9 @@ do itr = 1,2
   
     call intssync_send(3)
 
-    !$acc wait
-    !$acc parallel loop collapse(3) copyout(s) present(sx,wx,xg,yg,nface)
     do nn = 1,3  
+      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) copyin(sx(:,:,:,:,nn)) &
+      !$acc   present(wx,xg,yg,nface) async(mod(nn,async_length))  
       do k = 1,wlev
         do iq = 1,ifull
           idel = int(xg(iq,k))
@@ -455,8 +456,9 @@ do itr = 1,2
 
         end do     ! iq loop
       end do
+      !$acc end parallel loop
     end do       ! nn loop
-    !$acc end parallel loop
+    !$acc wait
        
   !========================   end of intsch=1 section ====================
   else     ! if(intsch==1)then
@@ -528,9 +530,9 @@ do itr = 1,2
 
     call intssync_send(3)
 
-    !$acc wait
-    !$acc parallel loop collapse(3) copyout(s) present(sx,wx,xg,yg,nface)
     do nn = 1,3  
+      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) copyin(sx(:,:,:,:,nn)) &
+      !$acc   present(wx,xg,yg,nface) async(mod(nn,async_length))  
       do k = 1,wlev
         do iq = 1,ifull
           idel = int(xg(iq,k))
@@ -590,8 +592,9 @@ do itr = 1,2
         
         end do
       end do
+      !$acc end parallel loop
     end do       ! nn loop
-    !$acc end parallel loop
+    !$acc wait
 
   end if                     ! (intsch==1) .. else ..
   !========================   end of intsch=1 section ====================

@@ -19,9 +19,9 @@
 
 !------------------------------------------------------------------------------
 
-module outcdf_standard_m
+module outcdf_standard
 
-use outcdf_common_m
+use outcdf_common
 
 implicit none
 
@@ -520,7 +520,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ldr',ldr)
     call ccnf_put_attg(idnc,'leon_snowmeth',leon_snowmeth)
     call ccnf_put_attg(idnc,'lin_adv',lin_adv)
-    call ccnf_put_attg(idnc,'lin_aerosolmode',lin_aerosolmode)
     call ccnf_put_attg(idnc,'maxlintime',maxlintime)
     call ccnf_put_attg(idnc,'mbase',mbase)
     call ccnf_put_attg(idnc,'mdelay',mdelay)
@@ -4024,4 +4023,4 @@ end do
 return
 end subroutine carbonpools
 
-end module outcdf_standard_m
+end module outcdf_standard

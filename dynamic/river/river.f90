@@ -292,22 +292,10 @@ end do
 return
 end subroutine rvrinit
 
-subroutine rvrrouter
-
-use parm_m
-
-call rvrrouter_work
-if ( wt_transport==1 ) then 
-  call water_table_transport    
-end if
-
-return
-end subroutine rvrrouter
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! This subroutine calculates the river routing.
+! This subroutine calculates the river routing and ground water.
 !
-subroutine rvrrouter_work
+subroutine rvrrouter
 
 use arrays_m
 use cc_mpi
@@ -488,8 +476,12 @@ end select
 
 watbdy(1:ifull) = max( watbdy(1:ifull), 0. ) ! for rounding errors
 
+if ( wt_transport==1 ) then 
+  call water_table_transport    
+end if
+
 return
-end subroutine rvrrouter_work
+end subroutine rvrrouter
 
 subroutine water_table_transport
 

@@ -171,12 +171,13 @@ use parm_m
 integer, intent(in) :: iarchi,ifull
 integer, intent(out) :: ier
 real, dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
-real, dimension(size(var),1,1) :: lvar
+real, dimension(:,:,:), allocatable :: lvar
 real, dimension(:,:,:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
 
+allocate( lvar(size(var),1,1) )
 lvar(:,1,1) = var(:)  
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
@@ -204,6 +205,8 @@ else if ( myid==0 ) then
   write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
+deallocate( lvar )
+
 call END_LOG(histrd_end)
 
 return
@@ -221,12 +224,13 @@ use parm_m
 integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 real(kind=8), dimension(:), intent(inout) :: var ! may be dummy argument from myid/=0
-real(kind=8), dimension(size(var),1,1) :: lvar
+real(kind=8), dimension(:,:,:), allocatable :: lvar
 real(kind=8), dimension(:,:,:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
 call START_LOG(histrd_begin)
 
+allocate( lvar(size(var),1,1) )
 lvar(:,1,1) = var(:)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
@@ -254,6 +258,8 @@ else if ( myid==0 ) then
   write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
+deallocate( lvar )
+
 call END_LOG(histrd_end)
 
 return
@@ -272,7 +278,7 @@ integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer kk
 real, dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-real, dimensioN(size(var,1),size(var,2),1) :: lvar
+real, dimensioN(:,:,:), allocatable :: lvar
 real, dimension(:,:,:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
@@ -280,6 +286,7 @@ call START_LOG(histrd_begin)
 
 kk = size(var,2)
 
+allocate( lvar(size(var,1),kk,1) )
 lvar(:,:,1) = var(:,:)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
@@ -307,6 +314,8 @@ else if ( myid==0 ) then
   write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
 
+deallocate( lvar )
+
 call END_LOG(histrd_end)
 
 return
@@ -325,7 +334,7 @@ integer, intent(in) :: iarchi, ifull
 integer, intent(out) :: ier
 integer kk
 real(kind=8), dimension(:,:), intent(inout) :: var ! may be dummy argument from myid/=0
-real(kind=8), dimensioN(size(var,1),size(var,2),1) :: lvar
+real(kind=8), dimensioN(:,:,:), allocatable :: lvar
 real(kind=8), dimension(:,:,:), allocatable :: globvar
 character(len=*), intent(in) :: name
 
@@ -333,6 +342,7 @@ call START_LOG(histrd_begin)
 
 kk = size(var,2)
 
+allocate( lvar(size(var,1),kk,1) )
 lvar(:,:,1) = var(:,:)
 
 if ( ifull==6*pil_g**2 .or. ptest ) then
@@ -359,6 +369,8 @@ if ( ier==0 .and. myid==0 ) then
 else if ( myid==0 ) then
   write(6,'("***absent field for name,ier: ",a8,i4)') trim(name),ier
 end if
+
+deallocate( lvar )
 
 call END_LOG(histrd_end)
 
@@ -480,7 +492,7 @@ integer :: ipf, ca, jpf, ip, n, no, cc, j, k, l
 integer(kind=4), dimension(6) :: start, ncount
 integer(kind=4) :: idv, ndims
 real, dimension(:,:,:), intent(inout), optional :: var
-real, dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
+real, dimension(:,:,:), allocatable :: rvar
 real, dimension(:,:,:,:), allocatable :: gvar
 real(kind=4) :: laddoff, lsf
 logical, intent(in) :: qtest
@@ -490,7 +502,9 @@ character(len=80) :: newname
 ier = 0
 
 if ( mynproc>0 ) then
-      
+
+  allocate( rvar(pipan*pjpan*pnpan,kk,ll) )
+    
   do ipf = 0,mynproc-1
       
     rvar(:,:,:) = 0. ! default for missing field  
@@ -617,6 +631,8 @@ if ( mynproc>0 ) then
     end if ! qtest
 
   end do ! ipf
+
+  deallocate(rvar)
   
 end if ! mynproc>0
 
@@ -634,7 +650,7 @@ integer :: ipf, ca,jpf, ip, n, no, cc, j, k, l
 integer(kind=4), dimension(6) :: start, ncount
 integer(kind=4) idv, ndims, dimlen
 real(kind=8), dimension(:,:,:), intent(inout), optional :: var
-real(kind=8), dimension(pipan*pjpan*pnpan,kk,ll) :: rvar
+real(kind=8), dimension(:,:,:), allocatable :: rvar
 real(kind=8), dimension(:,:,:,:), allocatable :: gvar
 real(kind=4) laddoff, lsf
 logical, intent(in) :: qtest
@@ -645,6 +661,8 @@ ier = 0
 
 if ( mynproc>0 ) then
       
+  allocate( rvar(pipan*pjpan*pnpan,kk,ll) )  
+    
   do ipf = 0,mynproc-1
     
     rvar(:,:,:) = 0._8  
@@ -771,6 +789,8 @@ if ( mynproc>0 ) then
     end if ! qtest
 
   end do ! ipf
+  
+  deallocate( rvar )
   
 end if ! mynproc>0
 

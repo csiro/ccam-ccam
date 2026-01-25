@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -175,7 +175,7 @@ end subroutine tkeinit
 ! mode=2 combined atmosphere and ocean with mass flux
 ! mode=3 combined atm-ocn and no mass flux
 
-subroutine tkemix(kmo,theta,qvg,qlg,qfg,ni,stratcloud,ua,va,zi,fg,eg,cduv,           &
+subroutine tkemix(kmo,theta,qvg,qlg,qfg,ni,stratcloud,ua,va,zi,fg,eg,tss,cduv,       &
                   ps,zz,zzh,sig,rhos,ustar_ave,dt,mode,tke,eps,shear,dx,thetal_ema,  &
                   qv_ema,ql_ema,qf_ema,cf_ema,tke_ema,land,tile,imax,kl)
 
@@ -195,7 +195,7 @@ real, dimension(imax,kl), intent(inout) :: tke
 real, dimension(imax,kl), intent(inout) :: eps
 real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
 real, dimension(imax,kl), intent(inout) :: tke_ema
-real, dimension(imax), intent(inout) :: zi,fg,eg
+real, dimension(imax), intent(inout) :: zi,fg,eg,tss
 real, dimension(imax), intent(in) :: cduv,ps,rhos,dx
 real, dimension(imax), intent(out) :: ustar_ave
 real, dimension(kl), intent(in) :: sig
@@ -392,9 +392,10 @@ do kcount = 1,mcount
                      ql_ema,qf_ema,cf_ema,tke_ema,ddts,cm34,imax,kl)
   
   if ( mode==2 .or. mode==3 ) then
+    ! atmosphere + ocean version  
     call update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,       &
                         ua,va,tlup,qvup,qlup,qfup,niup,cfup,    &
-                        fg,eg,rhos,ustar,cduv,tke,eps,          &
+                        fg,eg,tss,rhos,ustar,cduv,tke,eps,      &
                         mflx,fzzh,idzp,idzm,dz_hl,rhoa(:,1),    &
                         dz_fl(:,1),deptho_dz,deptho_dz_hl,      &
                         rad_o,w_t,w_s,w_u,w_v,cd_water,         &
@@ -404,6 +405,7 @@ do kcount = 1,mcount
                         fracice,cd_ice,cdbot_ice,ibot,land,     &
                         sigkap,ddts,imax,kl,tile)  
   else
+    ! atmosphere only version  
     call update_atmosphere(thetal,qvg,qlg,qfg,ni,stratcloud,     &
                            ua,va,tlup,qvup,qlup,qfup,niup,cfup,  &
                            fg,eg,rhos,ustar,cduv,tke,eps,        &
@@ -1214,7 +1216,7 @@ end subroutine pack_coupled_uv
 
 subroutine update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,       &
                           ua,va,tlup,qvup,qlup,qfup,niup,cfup,    &
-                          fg,eg,rhos,ustar,cduv,tke,eps,          &
+                          fg,eg,tss,rhos,ustar,cduv,tke,eps,      &
                           mflx,fzzh,idzp,idzm,dz_hl,rhoa1,        &
                           dz_fl1,deptho_dz,deptho_dz_hl,          &
                           rad_o,w_t,w_s,w_u,w_v,cd_water,         &
@@ -1226,7 +1228,7 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,       &
 
 use mlo_ctrl, only : wlev, mlo_updatekm, dgwater_g,                            &
                      mlo_updatediag, water_g, turb_g, wrtemp, cp0, depth_g,    &
-                     wrtrho, ice_g, mlocheck, minsfc
+                     wrtrho, ice_g, mlocheck, minsfc, mlosurf
 
 implicit none
 
@@ -1255,7 +1257,7 @@ real, dimension(imax,wlev,2) :: dd_o
 real, dimension(imax,wlev) :: gammas_o
 real, dimension(imax) :: bb_i
 real, dimension(imax,2) :: dd_i
-real, dimension(imax), intent(inout) :: fg, eg, ustar
+real, dimension(imax), intent(inout) :: fg, eg, ustar, tss
 real, dimension(imax), intent(in) :: rhos, rhoa1, dz_fl1, cduv
 real, dimension(imax), intent(in) :: icefg_a, wt0fb_o, ws0_o, ws0subsurf_o
 real, dimension(imax), intent(in) :: fracice, imass, cd_ice, cdbot_ice
@@ -1690,6 +1692,7 @@ wu0_o = wu0_o + fracice*cdbot_ice*(w_u(:,1)-i_u(:))
 wv0_o = wv0_o + fracice*cdbot_ice*(w_v(:,1)-i_v(:))
 call mlo_updatediag("wu0",wu0_o,0,dgwater_g(tile),depth_g(tile))
 call mlo_updatediag("wv0",wv0_o,0,dgwater_g(tile),depth_g(tile))
+call mlosurf("sst",tss,0,water_g(tile),ice_g(tile),depth_g(tile))
 
 call mlocheck("Coupled-mixing",water_temp=w_t,water_sal=w_s,water_u=w_u, &
               water_v=w_v,ice_u=i_u,ice_v=i_v)

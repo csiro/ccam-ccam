@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -22,6 +22,7 @@
 subroutine depts1(x3d,y3d,z3d,intsch)  ! input ubar,vbar are unstaggered vels for level k
 
 use bigxy4_m
+use cc_acc
 use cc_mpi
 use const_phys
 use indices_m
@@ -54,7 +55,7 @@ real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 call START_LOG(depts_begin)
 
-!$acc data create(xg,yg,nface,xx4,yy4,sx)
+!$acc data create(xg,yg,nface,xx4,yy4)
 !$acc update device(xx4,yy4) async(0)
 
 do k = 1,kl
@@ -170,8 +171,6 @@ else
 
 end if
 
-!$acc update device(sx) async(0)
-
 if ( diag .and. mydiag ) then
   write(6,*) 'ubar,vbar ',ubar(idjd,nlv),vbar(idjd,nlv)
   write(6,*) 'uc,vc,wc ',uc(idjd,nlv),vc(idjd,nlv),wc(idjd,nlv)
@@ -235,9 +234,9 @@ do itr = 1,2
 
     call intssync_send(3)
 
-    !$acc wait
-    !$acc parallel loop collapse(3) copyout(s) present(sx,xg,yg,nface)
     do nn = 1,3
+      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) copyin(sx(:,:,:,:,nn)) &
+      !$acc   present(xg,yg,nface) async(mod(nn,async_length)) 
       do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           idel = int(xg(iq,k))
@@ -279,8 +278,9 @@ do itr = 1,2
           s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do   ! iq loop
       end do     ! k loop
+      !$acc end parallel loop
     end do       ! nn loop
-    !$acc end parallel loop
+    !$acc wait
             
   !========================   end of intsch=1 section ====================
   else     ! if(intsch==1)then
@@ -335,9 +335,9 @@ do itr = 1,2
 
     call intssync_send(3)
 
-    !$acc wait
-    !$acc parallel loop collapse(3) copyout(s) present(sx,xg,yg,nface)
     do nn = 1,3
+      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) copyin(sx(:,:,:,:,nn)) &
+      !$acc   present(xg,yg,nface) async(mod(nn,async_length)) 
       do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           ! Convert face index from 0:npanels to array indices
@@ -380,8 +380,9 @@ do itr = 1,2
           s(iq,k,nn) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
         end do          ! iq loop
       end do     ! k loop
+      !$acc end parallel loop
     end do       ! nn loop
-    !$acc end parallel loop
+    !$acc wait
   
   endif                     ! (intsch==1) .. else ..
   !========================   end of intsch=1 section ====================

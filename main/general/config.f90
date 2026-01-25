@@ -133,6 +133,7 @@ integer ateb_conductmeth           ! depreciated namelist options
 integer ateb_useonewall            ! depreciated namelist options
 integer cable_climate              ! depreciated namelist options
 integer surf_windfarm, adv_precip  ! depreciated namelist options
+integer lin_aerosolmode            ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -222,8 +223,9 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     rcm,nscheme,                                                  &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
-    cloud_ice_method,leon_snowmeth,lin_aerosolmode,maxlintime,    &
-    lin_adv,qlg_max,qfg_max                                                       
+    cloud_ice_method,leon_snowmeth,maxlintime,lin_adv,qlg_max,    &
+    qfg_max,                                                      &
+    lin_aerosolmode                                                 ! depreciated
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
@@ -1003,6 +1005,7 @@ call carbpools_init(ifull,nsib,ccycle)
 call cfrac_init(ifull,iextra,kl,ncloud)
 call dpsdt_init(ifull,epsp)
 call epst_init(ifull)
+call establ_init
 call extraout_init(ifull,nextout)
 call gdrag_init(ifull)
 call histave_init(ifull,kl,ms,ccycle,output_windmax)
@@ -2076,7 +2079,7 @@ use parm_m                                 ! Model configuration
 
 implicit none
 
-integer, dimension(29) :: dumi
+integer, dimension(28) :: dumi
 real, dimension(37) :: dumr
     
 dumr = 0.
@@ -2143,11 +2146,10 @@ if ( myid==0 ) then
   dumi(22) = vdeposition_mode
   dumi(23) = tiedtke_form
   dumi(24) = cloud_aerosol_mode
-  dumi(25) = lin_aerosolmode  
-  dumi(26) = cloud_ice_method
-  dumi(27) = leon_snowmeth
-  dumi(28) = lin_adv
-  dumi(29) = nscheme
+  dumi(25) = cloud_ice_method
+  dumi(26) = leon_snowmeth
+  dumi(27) = lin_adv
+  dumi(28) = nscheme
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2212,11 +2214,10 @@ nevapls            = dumi(21)
 vdeposition_mode   = dumi(22)
 tiedtke_form       = dumi(23)
 cloud_aerosol_mode = dumi(24)
-lin_aerosolmode    = dumi(25)
-cloud_ice_method   = dumi(26)
-leon_snowmeth      = dumi(27)
-lin_adv            = dumi(28)
-nscheme            = dumi(29)
+cloud_ice_method   = dumi(25)
+leon_snowmeth      = dumi(26)
+lin_adv            = dumi(27)
+nscheme            = dumi(28)
 
 return
 end subroutine broadcast_kuonml

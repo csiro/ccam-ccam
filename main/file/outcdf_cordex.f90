@@ -21,9 +21,9 @@
 
 ! Output for CORDEX data.  Usually hourly.
     
-module outcdf_cordex_m
+module outcdf_cordex
 
-use outcdf_common_m
+use outcdf_common
 
 implicit none
 
@@ -1229,4 +1229,4 @@ call END_LOG(outfile_end)
 return
 end subroutine freqfile_cordex
 
-end module outcdf_cordex_m
+end module outcdf_cordex

@@ -21,7 +21,7 @@
 
 ! Common data and tools for outcdf
     
-module outcdf_common_m
+module outcdf_common
     
 private
 public month, cordex_levels, height_levels
@@ -154,4 +154,4 @@ ans = min( ans, kx-1 )
 
 end function bisect
 
-end module outcdf_common_m
+end module outcdf_common

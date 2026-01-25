@@ -5,7 +5,8 @@ model used for weather and climate research.  CCAM is typically used for downsca
 forecasting.  CCAM's variable resolution grid can be multiply nested for
 downscaling without lateral boundaries.  The model also supports various
 Earth system components including an implicitly coupled ocean model, prognostic
-aerosols and terrestial carbon cycle.
+aerosols and terrestial carbon cycle. Urban and vegetation data can be
+customised for adaptation simulations.
 
 
 ## Website
@@ -16,8 +17,8 @@ For documentation, see our website at
 
 ## Dependencies
 
-CCAM requires the NetCDF and Message Passing Interface (MPI) libraries.
-Although CCAM is written in fortran, it links with the NetCDF C library.
+CCAM requires NetCDF and Message Passing Interface (MPI) libraries.
+Although CCAM is written in Fortran, it links with the NetCDF C library.
 
 
 ## Building CCAM

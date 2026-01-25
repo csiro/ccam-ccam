@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -125,7 +125,6 @@ use extraout_m                      ! Additional diagnostics
 use kuocom_m                        ! JLM convection
 use liqwpar_m                       ! Cloud water mixing ratios
 use map_m                           ! Grid map arrays
-use mlo_ctrl                        ! Ocean physics control layer
 use morepbl_m                       ! Additional boundary layer diagnostics
 use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
@@ -154,46 +153,18 @@ real, dimension(imax,kl) :: lthetal_ema, lqv_ema, lql_ema, lqf_ema, lcf_ema
 real, dimension(imax,kl) :: ltke_ema
 real, dimension(imax,kl) :: lrkmsave, lrkhsave
 real, dimension(imax,kl) :: lat, lct, lqtr
-real, dimension(ifull) :: uadj, vadj
 real, dimension(imax) :: lou, lov, liu, liv, lrho
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical mydiag_t
 
-if ( nmlo/=0 .and. nvmix/=9 ) then
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    lou = 0.
-    lov = 0.
-    liu = 0.
-    liv = 0.
-    call mloexport("u",lou,1,0,water_g(tile),depth_g(tile))
-    call mloexport("v",lov,1,0,water_g(tile),depth_g(tile))
-    call mloexpice("u",liu,0,ice_g(tile),depth_g(tile))
-    call mloexpice("v",liv,0,ice_g(tile),depth_g(tile))
-    uadj(is:ie) = (1.-fracice(is:ie))*lou + fracice(is:ie)*liu
-    vadj(is:ie) = (1.-fracice(is:ie))*lov + fracice(is:ie)*liv
-  end do
-else
-  do tile = 1,ntiles
-    is = (tile-1)*imax + 1
-    ie = tile*imax
-    uadj(is:ie) = 0.
-    vadj(is:ie) = 0.
-  end do
-end if
-
-select case(nvmix)
-  case(6,9)  
+select case ( interp_nvmix(nvmix) )
+  case("TKE-EPS")  
     ! k-e + MF closure scheme
-    
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-
       idjd_t = mod(idjd-1,imax)+1
       mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-  
       lt = t(is:ie,:)
       lqg = qg(is:ie,:)
       lqfg = qfg(is:ie,:)
@@ -203,23 +174,18 @@ select case(nvmix)
       ltke   = tke(is:ie,:)
       leps   = eps(is:ie,:)
       lshear = shear(is:ie,:)
-      ! Adjustment for moving ocean surface
-      do k = 1,kl
-        lu(:,k) = u(is:ie,k) - uadj(is:ie)
-        lv(:,k) = v(is:ie,k) - vadj(is:ie)
-      end do  
+      lu     = u(is:ie,:)
+      lv     = v(is:ie,:)
       lthetal_ema = thetal_ema(is:ie,:)
       lqv_ema     = qv_ema(is:ie,:)
       lql_ema     = ql_ema(is:ie,:)
       lqf_ema     = qf_ema(is:ie,:)
       lcf_ema     = cf_ema(is:ie,:)
       ltke_ema    = tke_ema(is:ie,:)
-    
       call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),lqg,lqfg,lqlg,   &
                        lni,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie),                         &
                        ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,lql_ema, &
                        lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,f(is:ie),imax,kl,tile)      
-                       
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
       qfg(is:ie,:)        = lqfg
@@ -228,10 +194,8 @@ select case(nvmix)
       stratcloud(is:ie,:) = lstratcloud
       tke(is:ie,:)        = ltke
       eps(is:ie,:)        = leps
-      do k = 1,kl  
-        u(is:ie,k) = lu(:,k) + uadj(is:ie)
-        v(is:ie,k) = lv(:,k) + vadj(is:ie)
-      end do  
+      u(is:ie,:)          = lu
+      v(is:ie,:)          = lv
       thetal_ema(is:ie,:) = lthetal_ema
       qv_ema(is:ie,:)     = lqv_ema
       ql_ema(is:ie,:)     = lql_ema
@@ -241,50 +205,34 @@ select case(nvmix)
       rkmsave(is:ie,:)    = lrkmsave
       rkhsave(is:ie,:)    = lrkhsave  
       lrho(1:imax) = ps(is:ie)/(rdry*tss(is:ie))
-      taux(is:ie) = lrho(1:imax)*cduv(is:ie)*(u(is:ie,1)-uadj(is:ie))
-      tauy(is:ie) = lrho(1:imax)*cduv(is:ie)*(v(is:ie,1)-vadj(is:ie))
-
+      taux(is:ie) = lrho(1:imax)*cduv(is:ie)*u(is:ie,1)
+      tauy(is:ie) = lrho(1:imax)*cduv(is:ie)*v(is:ie,1)
     end do ! tile = 1,ntiles
 
-    if ( nmlo/=0 .and. nvmix==9 ) then  
-      do tile = 1,ntiles
-        is = (tile-1)*imax + 1
-        ie = tile*imax
-        call mlosurf("sst",tss(is:ie),0,water_g(tile),ice_g(tile),depth_g(tile))
-      end do
-    end if
     
-  case default  
+  case("localRI")
     ! JLM's local Ri scheme
-    
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-
       idjd_t = mod(idjd-1,imax)+1
       mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-  
       lt = t(is:ie,:)
       lqg = qg(is:ie,:)
       lqfg = qfg(is:ie,:)
       lqlg = qlg(is:ie,:)
       lni = ni(is:ie,:)
       lstratcloud = stratcloud(is:ie,:)
-      ! Adjustment for moving ocean surface
-      do k = 1,kl
-        lu(:,k) = u(is:ie,k) - uadj(is:ie)
-        lv(:,k) = v(is:ie,k) - vadj(is:ie)
-        lsavu(:,k) = savu(is:ie,k) - uadj(is:ie)
-        lsavv(:,k) = savv(is:ie,k) - vadj(is:ie)
-      end do  
-    
+      lu = u(is:ie,:)
+      lv = v(is:ie,:)
+      lsavu = savu(is:ie,:)
+      lsavv = savv(is:ie,:)
       call vertmix(lt,tss(is:ie),eg(is:ie),fg(is:ie),kbsav(is:ie),ktsav(is:ie),convpsav(is:ie),  &
                    ps(is:ie),lqg,lqfg,lqlg,lni,lstratcloud,                                      &
                    condc(is:ie),cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),           &
                    tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),      &
                    lrkmsave,lrkhsave,                                                            &
                    idjd_t,mydiag_t)
-                        
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
       qfg(is:ie,:)        = lqfg
@@ -293,11 +241,8 @@ select case(nvmix)
       stratcloud(is:ie,:) = lstratcloud
       rkmsave(is:ie,:)    = lrkmsave
       rkhsave(is:ie,:)    = lrkhsave  
-      do k = 1,kl  
-        u(is:ie,k) = lu(:,k) + uadj(is:ie)
-        v(is:ie,k) = lv(:,k) + vadj(is:ie)
-      end do  
-
+      u(is:ie,:)          = lu
+      v(is:ie,:)          = lv
     end do ! tile = 1,ntiles
 
 end select
@@ -329,6 +274,7 @@ end select
 return
 end function interp_nvmix  
 
+
 subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,ni,stratcloud,                &
                        cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,  &
                        ql_ema,qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,f,imax,kl,    &
@@ -354,8 +300,8 @@ real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
 real, dimension(imax,kl) :: zh
 real, dimension(imax,kl) :: rhs, zg
 real, dimension(imax,kl) :: rkm
-real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg
-real, dimension(imax), intent(in) :: em, tss, ps, f
+real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg, tss
+real, dimension(imax), intent(in) :: em, ps, f
 real, dimension(imax), intent(in) :: cduv
 real, dimension(imax) :: rhos, dx
 real, dimension(kl) :: sigkap, delh
@@ -377,7 +323,7 @@ end do      ! k loop
 ! However, nvmix=6 or nvmix=9 supports its own shallow
 ! convection options with nlocal=7
 
-! calculate height on full levels (neglect surface height)
+! calculate height on full levels AGL
 zg(:,1) = bet(1)*t(:,1)/grav
 zh(:,1) = t(:,1)*delh(1)
 do k = 2,kl
@@ -417,7 +363,7 @@ select case(nvmix)
     end select
 end select
     
-call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,                   &
+call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,tss,               &
             cduv,ps,zg,zh,sig,rhos,ustar,dt,nlocal_mode,tke,eps,shear,         &
             dx,thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,tke_ema,land,tile,imax,  &
             kl)  

@@ -21,9 +21,9 @@
 
 ! Output for high-frequency data.  Usually 10min
     
-module outcdf_freq_m
+module outcdf_freq
     
-use outcdf_common_m
+use outcdf_common
 
 implicit none
 
@@ -598,4 +598,4 @@ call END_LOG(outfile_end)
 return
 end subroutine freqfile_10
 
-end module outcdf_freq_m
+end module outcdf_freq

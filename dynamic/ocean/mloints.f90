@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -52,6 +52,7 @@ contains
 
 subroutine mlob2ints_bs_3(s,nface,xg,yg,wtr,bs_test,mlointschf)
 
+use cc_acc
 use cc_mpi
 use indices_m
 use mlo_ctrl
@@ -94,7 +95,7 @@ end if
 
 ! bounds(nrows=2) must be called prior
 
-!$acc enter data create(wx,sx)
+!$acc enter data create(wx)
 
 
 !======================== start of intsch=1 section ====================
@@ -139,7 +140,7 @@ if ( intsch==1 ) then
       wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop
-  !$acc update device(wx) async(0)
+  !$acc update device(wx)
   
   do nstart = 1,ntr,nagg
     nend = min(nstart + nagg - 1, ntr)
@@ -187,7 +188,6 @@ if ( intsch==1 ) then
         end do           ! n loop
       end do             ! k loop
     end do
-    !$acc update device(sx) async(0)
   
     ! Loop over points that need to be calculated for other processes
     if ( bs_test ) then
@@ -327,9 +327,9 @@ if ( intsch==1 ) then
 
     if ( bs_test ) then
 
-      !$acc wait  
-      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
       do nn = 1,nlen
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart)) copyin(sx(:,:,:,:,nn)) &
+        !$acc   present(xg,yg,nface,wx) async(mod(nn,async_length))
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -391,14 +391,15 @@ if ( intsch==1 ) then
             end if            
           end do       ! iq loop
         end do         ! k loop
+        !$acc end parallel loop
       end do
-      !$acc end parallel loop
+      !$acc wait
 
     else
 
-      !$acc wait  
-      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
       do nn = 1,nlen
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart)) copyin(sx(:,:,:,:,nn)) &
+        !$acc   present(xg,yg,nface,wx) async(mod(nn,async_length))
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -458,13 +459,15 @@ if ( intsch==1 ) then
 
           end do       ! iq loop
         end do         ! k loop
+        !$acc end parallel loop
       end do             ! nn loop
-      !$acc end parallel loop
+      !$acc wait
+
     end if           ! bs_test ..else..
 
     call intssync_recv(s(:,:,nstart:nend))  
     
-  end do ! ntr
+  end do ! nstart
 
 !========================   end of intsch=1 section ====================
 else     ! if(intsch==1)then
@@ -511,7 +514,7 @@ else     ! if(intsch==1)then
       wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop 
-  !$acc update device(wx) async(0)
+  !$acc update device(wx)
   
 
   do nstart = 1,ntr,nagg
@@ -560,7 +563,6 @@ else     ! if(intsch==1)then
         end do           ! n loop
       end do             ! k loop
     end do  
-    !$acc update device(sx) async(0)
   
     ! For other processes
     if ( bs_test ) then
@@ -701,9 +703,9 @@ else     ! if(intsch==1)then
 
     if ( bs_test ) then
         
-      !$acc wait  
-      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
       do nn = 1,nlen
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart)) copyin(sx(:,:,:,:,nn)) &
+        !$acc   present(xg,yg,nface,wx) async(mod(nn,async_length))
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -766,14 +768,15 @@ else     ! if(intsch==1)then
             
           end do
         end do
+        !$acc end parallel loop
       end do           ! nn loop
-      !$acc end parallel loop
+      !$acc wait
 
     else
 
-      !$acc wait
-      !$acc parallel loop collapse(3) copyout(s(:,:,nstart:nend)) present(sx,xg,yg,nface,wx)
-      do nn = 1,nlen        
+      do nn = 1,nlen
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart)) copyin(sx(:,:,:,:,nn)) &
+        !$acc   present(xg,yg,nface,wx) async(mod(nn,async_length))
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -833,8 +836,9 @@ else     ! if(intsch==1)then
             
           end do
         end do
+        !$acc end parallel loop
       end do           ! nn loop
-      !$acc end parallel loop
+      !$acc wait
 
     end if
 
@@ -845,7 +849,7 @@ else     ! if(intsch==1)then
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
-!$acc exit data delete(wx,sx)
+!$acc exit data delete(wx)
 
 call END_LOG(waterints_end)
 

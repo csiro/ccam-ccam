@@ -37,10 +37,10 @@
     
 module outcdf
 
-use outcdf_common_m
-use outcdf_cordex_m
-use outcdf_freq_m
-use outcdf_standard_m
+use outcdf_common
+use outcdf_cordex
+use outcdf_freq
+use outcdf_standard
 
 private
 public outfile, freqfile_cordex, freqfile_10, mslp

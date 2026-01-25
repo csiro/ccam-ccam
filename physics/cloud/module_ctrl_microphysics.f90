@@ -20,19 +20,18 @@
 module module_ctrl_microphysics
 
 use cloudmod                                  ! Prognostic cloud fraction
-use leoncld_mod                               ! Prognostic cloud condensate
-use module_mp_sbu_ylin                        ! Lin cloud microphysics
+use leoncld_mod                               ! Leon cloud microphysics (single moment)
+use module_mp_sbu_ylin                        ! Lin cloud microphysics (double moment)
 
 implicit none
 
 private
 public ctrl_microphysics
-public cloud_aerosol_mode, lin_aerosolmode, maxlintime, lin_adv
+public cloud_aerosol_mode, maxlintime, lin_adv
 public cloud_ice_method, leon_snowmeth, process_rate_mode
 public qlg_max, qfg_max
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
-integer, save :: lin_aerosolmode    = 0     ! 0=off, 1=aerosol indirect effects for Lin microphysics
 integer, save :: lin_adv            = 0     ! 0=original, 1=flux
 integer, save :: process_rate_mode  = 0     ! 0=off, 1=microphysics diagnostics
 real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
@@ -416,7 +415,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     ! Use sub time-step if required
     njumps = int(dt/(maxlintime+0.01)) + 1
     tdt    = real(dt,8)
-    call clphy1d_ylin(tdt, ifull,                      &
+    call clphy1d_ylin(tdt, ifull, imax,                &
                    zqg, zqlg, zqrg, zqfg, zqsng,       &
                    thz, tothz, zrhoa,                  &
                    zpres, zlevv, dzw,                  &
@@ -427,8 +426,7 @@ select case ( interp_ncloud(ldr,ncloud) )
                    zfluxr,zfluxi,zfluxs,zfluxm,        &
                    zfluxf,zqevap,zqsubl,zqauto,zqcoll, &
                    zqaccr,zvi,                         & !aerosol scheme
-                   zcdrop,lin_aerosolmode,lin_adv,     &
-                   njumps)
+                   zcdrop,lin_adv,njumps)
     
     do tile = 1,ntiles
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
@@ -582,8 +580,7 @@ select case ( interp_ncloud(ldr,ncloud) )
                      zprevp,zpgfr,zpvapor,zpclw,         &
                      zpladj,zpcli,zpimlt,zpihom,         &
                      zpidw,zpiadj,zqschg,                &
-                     zcdrop,lin_aerosolmode,lin_adv,     &
-                     njumps)
+                     zcdrop,lin_adv,njumps)
 
       
       t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )

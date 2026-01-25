@@ -110,8 +110,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                       zpladj,zpcli,zpimlt,zpihom,           &
                       zpidw,zpiadj,zqschg,                  &
 #endif                          
-                      zdrop,lin_aerosolmode,lin_adv,        &
-                      njumps)
+                      zdrop,lin_adv,njumps)
 
 !-----------------------------------------------------------------------
 
@@ -167,7 +166,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 ! new 2D declaration
   integer,                          intent(in)    :: kts, kte
   integer,                          intent(in)    :: imax, njumps
-  integer,                          intent(in)    :: lin_aerosolmode, lin_adv
+  integer,                          intent(in)    :: lin_adv
   real,                             intent(in)    :: dt_in
   real, dimension(1:imax,kts:kte), intent(in)     :: zdrop
   real, dimension(1:imax,kts:kte), intent(inout)  :: Ri
@@ -358,10 +357,6 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
   do n = 1,njumps
   
-    vtrold(:,:)=0.
-    vtsold(:,:)=0.
-    vtiold(:,:)=0.
-
     !
     !     qsw         saturated mixing ratio on water surface
     !     qsi         saturated mixing ratio on ice surface
@@ -373,22 +368,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     !     qizodt      qi/dt
     !     qszodt      qs/dt
 
-    select case( lin_aerosolmode )
-      case(0)
-        do k=kts,kte
-          !ncz(k) = 250.*1.E6/rho(k)
-          ncz(:,k) = Nt_c/rho(:,k)
-        end do
-      case(1)
-        do k=kts,kte
-          ncz(:,k) = zdrop(:,k)/rho(:,k)
-        end do
-      !case default
-      !  write(6,*) "ERROR: Unknown option aerosolmode"
-      !  stop
-    end select
-
     do k = kts,kte
+
+      vtrold(:,k) = 0.
+      vtsold(:,k) = 0.
+      vtiold(:,k) = 0.
+        
+      !ncz(:,k) = Nt_c/rho(:,k)  
+      ncz(:,k) = zdrop(:,k)/rho(:,k)  
+        
       niz(:,k) = min(niz(:,k),0.3E6/rho(:,k))
       nrz(:,k) = max( 0.0,nrz(:,k) )
       nsz(:,k) = max( 0.0,nsz(:,k) )
@@ -401,11 +389,6 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       tem(:,k) = thz(:,k)*tothz(:,k)
 
       n0_s(:,k) = 0.
-      xlambdar = 0.
-      xlambdas = 0.
-      vtr      = 0.
-      vts      = 0.
-      vtiold(:,k) = 0.
 
       !qisten(:,k) = 0.
       !qrsten(:,k) = 0.
@@ -431,7 +414,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       !      xka(k)=2.43e-2 J/m/s/K in RH
       !      axka=1.4132e3 (1.414e3 in MM5) m2/s2/k = 1.4132e7 cm2/s2/k
       !------------------------------------------------------------------
-      viscmu(:,k)=avisc*tem(:,k)**1.5/(tem(:,k)+120.0)
+      viscmu(:,k) = avisc*tem(:,k)**1.5/(tem(:,k)+120.0)
 
       ! ---- YLIN, set snow variables
       !
@@ -440,7 +423,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       !                   rv*temp(k)/(diffu(k)*qvsi(k))
 
       !tc0(:)   = tem(:,k)-273.15
-      where( rho(:,k)*qlz(:,k) .gt. 1e-5 .AND. rho(:,k)*qsz(:,k) .gt. 1e-5  )
+      where( rho(:,k)*qlz(:,k)>1e-5 .AND. rho(:,k)*qsz(:,k)>1e-5 )
         Ri(:,k) = 1.0/(1.0+6e-5/(rho(:,k)**1.170*qlz(:,k)*qsz(:,k)**0.170)) 
       elsewhere
         Ri(:,k) = 0.
@@ -465,7 +448,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
         !--- YLIN, get PI properties
         Ri(iq,k) = max(0.,min(Ri(iq,k),1.0))
 
-        tc0    = min(-0.1, tem(iq,k)-273.15)
+        tc0 = min(-0.1, tem(iq,k)-273.15)
         n0_s(iq,k) = min(2.0E8, 2.0E6*exp(-0.12*tc0))
         am_s(iq,k) = am_c1+am_c2*tc0+am_c3*Ri(iq,k)*Ri(iq,k)    !--- Heymsfield 2007
         am_s(iq,k) = max(0.000023,am_s(iq,k))                   !--- use the a_min in table 1 of Heymsfield
