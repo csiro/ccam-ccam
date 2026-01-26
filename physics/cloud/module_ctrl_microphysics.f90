@@ -415,7 +415,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     ! Use sub time-step if required
     njumps = int(dt/(maxlintime+0.01)) + 1
     tdt    = real(dt,8)
-    call clphy1d_ylin(tdt, ifull, imax,                &
+    call clphy1d_ylin(tdt, ifull,                      &
                    zqg, zqlg, zqrg, zqfg, zqsng,       &
                    thz, tothz, zrhoa,                  &
                    zpres, zlevv, dzw,                  &

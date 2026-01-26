@@ -40,6 +40,7 @@ implicit none
 integer, intent(in) :: intsch
 integer iq, k, idel, jdel, nn, itr
 integer i, j, n, ii
+integer async_counter
 real xxg, yyg
 real, dimension(ifull,kl) :: uc, vc, wc
 real, dimension(ifull+iextra,kl,3) :: s
@@ -55,7 +56,7 @@ real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 call START_LOG(depts_begin)
 
-!$acc data create(xg,yg,nface,xx4,yy4)
+!$acc data create(xg,yg,nface,xx4,yy4,sx)
 !$acc update device(xx4,yy4) async(0)
 
 do k = 1,kl
@@ -95,6 +96,7 @@ call deptsync(nface,xg,yg)
 if ( intsch==1 ) then
 
   do nn = 1,3
+    async_counter = mod(nn-1, async_length)  
     do k = 1,kl
       sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,nn), (/ipan,jpan,npan/))  
       do n = 1,npan
@@ -128,12 +130,14 @@ if ( intsch==1 ) then
         sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),k,nn)
       end do          ! n loop
     end do            ! k loop
+    !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
   end do              ! nn loop
   
 else
 !======================== start of intsch=2 section ====================
 
   do nn = 1,3
+    async_counter = mod(nn-1, async_length)    
     do k = 1,kl
       sx(1:ipan,1:jpan,1:npan,k,nn) = reshape(s(1:ipan*jpan*npan,k,nn), (/ipan,jpan,npan/))
       do n = 1,npan
@@ -167,6 +171,7 @@ else
         sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),k,nn)
       end do              ! n loop
     end do                ! k loop
+    !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
   end do                  ! nn loop
 
 end if
@@ -235,8 +240,9 @@ do itr = 1,2
     call intssync_send(3)
 
     do nn = 1,3
-      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) copyin(sx(:,:,:,:,nn)) &
-      !$acc   present(xg,yg,nface) async(mod(nn,async_length)) 
+      async_counter = mod(nn-1,async_length)  
+      !$acc parallel loop collapse(2) copyout(s(:,:,nn))    &
+      !$acc   present(sx,xg,yg,nface) async(async_counter)
       do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           idel = int(xg(iq,k))
@@ -336,8 +342,9 @@ do itr = 1,2
     call intssync_send(3)
 
     do nn = 1,3
-      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) copyin(sx(:,:,:,:,nn)) &
-      !$acc   present(xg,yg,nface) async(mod(nn,async_length)) 
+      async_counter = mod(nn-1,async_length)  
+      !$acc parallel loop collapse(2) copyout(s(:,:,nn))   &
+      !$acc   present(sx,xg,yg,nface) async(async_counter)
       do k = 1,kl
         do iq = 1,ifull    ! non Berm-Stan option
           ! Convert face index from 0:npanels to array indices

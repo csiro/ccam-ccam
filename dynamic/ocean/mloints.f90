@@ -66,6 +66,7 @@ integer, intent(in) :: mlointschf
 integer idel, iq, jdel
 integer i, j, k, n, intsch, nn, np
 integer ii, ntr, nstart, nend, nlen
+integer async_counter
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg, yg
 real, dimension(:,:,:), intent(inout) :: s
@@ -95,7 +96,7 @@ end if
 
 ! bounds(nrows=2) must be called prior
 
-!$acc enter data create(wx)
+!$acc enter data create(wx,sx)
 
 
 !======================== start of intsch=1 section ====================
@@ -148,6 +149,7 @@ if ( intsch==1 ) then
 
     do nn = 1,nlen
       np = nn - 1 + nstart
+      async_counter = mod(nn-1, async_length)
       do k = 1,wlev
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
@@ -187,6 +189,7 @@ if ( intsch==1 ) then
           sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
+      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do
   
     ! Loop over points that need to be calculated for other processes
@@ -328,8 +331,10 @@ if ( intsch==1 ) then
     if ( bs_test ) then
 
       do nn = 1,nlen
-        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart)) copyin(sx(:,:,:,:,nn)) &
-        !$acc   present(xg,yg,nface,wx) async(mod(nn,async_length))
+        np = nn - 1 + nstart    
+        async_counter = mod(nn-1, async_length)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -382,12 +387,12 @@ if ( intsch==1 ) then
               sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
               cmin = min(sx_00,sx_10,sx_01,sx_11)
               cmax = max(sx_00,sx_10,sx_01,sx_11)
-              s(iq,k,nn-1+nstart) = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth              
+              s(iq,k,np) = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth              
             else if ( blin_test ) then
-              s(iq,k,nn-1+nstart) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+              s(iq,k,np) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
                                   + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
             else
-              s(iq,k,nn-1+nstart) = cxx - 1.
+              s(iq,k,np) = cxx - 1.
             end if            
           end do       ! iq loop
         end do         ! k loop
@@ -398,8 +403,10 @@ if ( intsch==1 ) then
     else
 
       do nn = 1,nlen
-        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart)) copyin(sx(:,:,:,:,nn)) &
-        !$acc   present(xg,yg,nface,wx) async(mod(nn,async_length))
+        np = nn - 1 + nstart    
+        async_counter = mod(nn-1, async_length)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev      
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -449,12 +456,12 @@ if ( intsch==1 ) then
               rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
                        sx_11*cmul_3 + sx_21*cmul_4
               rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-              s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+              s(iq,k,np) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
             else if ( blin_test ) then
-              s(iq,k,nn-1+nstart) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+              s(iq,k,np) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
                                   + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
             else
-              s(iq,k,nn-1+nstart) = cxx - 1.
+              s(iq,k,np) = cxx - 1.
             end if
 
           end do       ! iq loop
@@ -523,6 +530,7 @@ else     ! if(intsch==1)then
 
     do nn = 1,nlen
       np = nn - 1 + nstart
+      async_counter = mod(nn-1, async_length)
       do k = 1,wlev
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
@@ -562,6 +570,7 @@ else     ! if(intsch==1)then
           sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,np)
         end do           ! n loop
       end do             ! k loop
+      !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
     end do  
   
     ! For other processes
@@ -704,8 +713,10 @@ else     ! if(intsch==1)then
     if ( bs_test ) then
         
       do nn = 1,nlen
-        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart)) copyin(sx(:,:,:,:,nn)) &
-        !$acc   present(xg,yg,nface,wx) async(mod(nn,async_length))
+        np = nn - 1 + nstart  
+        async_counter = mod(nn-1, async_length)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -758,12 +769,12 @@ else     ! if(intsch==1)then
               sx_ans = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
               cmin = min(sx_00,sx_10,sx_01,sx_11)
               cmax = max(sx_00,sx_10,sx_01,sx_11)
-              s(iq,k,nn-1+nstart) = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth              
+              s(iq,k,np) = min( max( cmin, sx_ans ), cmax ) ! Bermejo & Staniforth              
             else if ( blin_test ) then
-              s(iq,k,nn-1+nstart) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+              s(iq,k,np) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
                                   + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
             else
-              s(iq,k,nn-1+nstart) = cxx - 1.
+              s(iq,k,np) = cxx - 1.
             end if
             
           end do
@@ -775,8 +786,10 @@ else     ! if(intsch==1)then
     else
 
       do nn = 1,nlen
-        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart)) copyin(sx(:,:,:,:,nn)) &
-        !$acc   present(xg,yg,nface,wx) async(mod(nn,async_length))
+        np = nn - 1 + nstart  
+        async_counter = mod(nn-1, async_length)
+        !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
+        !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
         do k = 1,wlev
           do iq = 1,ifull
             idel = int(xg(iq,k))
@@ -826,12 +839,12 @@ else     ! if(intsch==1)then
               rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
                        sx_11*cmul_3 + sx_12*cmul_4
               rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
-              s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+              s(iq,k,np) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
             else if ( blin_test ) then
-              s(iq,k,nn-1+nstart) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
+              s(iq,k,np) = (1.-xxg)*(1.-yyg)*sx_00 + xxg*(1.-yyg)*sx_10 &
                                   + (1.-xxg)*yyg*sx_01 + xxg*yyg*sx_11
             else
-              s(iq,k,nn-1+nstart) = cxx - 1.
+              s(iq,k,np) = cxx - 1.
             end if
             
           end do
@@ -849,7 +862,7 @@ else     ! if(intsch==1)then
 end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
-!$acc exit data delete(wx)
+!$acc exit data delete(wx,sx)
 
 call END_LOG(waterints_end)
 

@@ -53,6 +53,7 @@ implicit none
 
 integer, intent(in) :: mlointschf
 integer iq,i,j,k,n,nn,idel,jdel,intsch,ii,itr
+integer async_counter
 integer, dimension(ifull,wlev), intent(out) :: nface
 real, dimension(ifull,wlev), intent(in) :: ubar,vbar
 real, dimension(ifull,wlev), intent(out) :: xg,yg
@@ -71,7 +72,7 @@ logical bcub_water, blin_test
 
 call START_LOG(waterdeps_begin)
 
-!$acc data create(xg,yg,nface,xx4,yy4,wx)
+!$acc data create(xg,yg,nface,xx4,yy4,wx,sx)
 !$acc update device(xx4,yy4) async(0)
 
 ! departure point x, y, z is called x3d, y3d, z3d
@@ -160,44 +161,6 @@ call deptsync(nface,xg,yg)
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
-  sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
-  do nn = 1,3
-    do k = 1,wlev
-      do n = 1,npan
-        do j = 1,jpan
-          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
-          sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
-          sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
-          iq = j*ipan+(n-1)*ipan*jpan
-          sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
-          sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
-        end do
-        do i = 1,ipan
-          iq = i+(n-1)*ipan*jpan
-          sx(i,0,n,k,nn)      = s( is(iq),k,nn)
-          sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
-          iq = i-ipan+n*ipan*jpan
-          sx(i,jpan+1,n,k,nn) = s( in(iq),k,nn)
-          sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
-        end do
-      end do
-      do n = 1,npan
-        sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
-        sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
-        sx(0,-1,n,k,nn)          = s(lwss(n),k,nn)
-        sx(ipan+1,0,n,k,nn)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
-        sx(ipan+2,0,n,k,nn)      = s(lees(n),k,nn)
-        sx(ipan+1,-1,n,k,nn)     = s(less(n),k,nn)
-        sx(-1,jpan+1,n,k,nn)     = s(lwwn(n),k,nn)
-        sx(0,jpan+2,n,k,nn)      = s(lwnn(n),k,nn)
-        sx(ipan+2,jpan+1,n,k,nn) = s(leen(n),k,nn)
-        sx(ipan+1,jpan+2,n,k,nn) = s(lenn(n),k,nn)
-        sx(0,jpan+1,n,k,nn)      = s(iwn(1-ipan+n*ipan*jpan),k,nn)
-        sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),       k,nn)
-      end do               ! n loop
-    end do                 ! k loop
-  end do                   ! nn loop
-
   do k = 1,wlev
     wx(1:ipan,1:jpan,1:npan,k) = &
       reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
@@ -236,13 +199,12 @@ if ( intsch==1 ) then
       wx(0,jpan+1,n,k)      = wtr(iwn(1-ipan+n*ipan*jpan),  k)
       wx(ipan+1,jpan+1,n,k) = wtr(ien(n*ipan*jpan),         k)
     end do           ! n loop
-  end do             ! k loop
-  
-else
-!======================== start of intsch=2 section ====================
-
+  end do             ! k loop    
+  !$acc update device(wx)
+    
   sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
   do nn = 1,3
+    async_counter = mod(nn-1, async_length)  
     do k = 1,wlev
       do n = 1,npan
         do j = 1,jpan
@@ -252,7 +214,7 @@ else
           iq = j*ipan+(n-1)*ipan*jpan
           sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
           sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
-        end do            ! j loop
+        end do
         do i = 1,ipan
           iq = i+(n-1)*ipan*jpan
           sx(i,0,n,k,nn)      = s( is(iq),k,nn)
@@ -260,24 +222,28 @@ else
           iq = i-ipan+n*ipan*jpan
           sx(i,jpan+1,n,k,nn) = s( in(iq),k,nn)
           sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
-        end do            ! i loop
+        end do
       end do
       do n = 1,npan
-        sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
-        sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
-        sx(0,-1,n,k,nn)          = s(lssw(n),k,nn)
-        sx(ipan+2,0,n,k,nn)      = s(lsee(n),k,nn)
-        sx(ipan+1,-1,n,k,nn)     = s(lsse(n),k,nn)
-        sx(-1,jpan+1,n,k,nn)     = s(lnww(n),k,nn)
-        sx(0,jpan+1,n,k,nn)      = s(inw(1-ipan+n*ipan*jpan),k,nn)
-        sx(0,jpan+2,n,k,nn)      = s(lnnw(n),k,nn)
-        sx(ipan+2,jpan+1,n,k,nn) = s(lnee(n),k,nn)
-        sx(ipan+1,jpan+2,n,k,nn) = s(lnne(n),k,nn)
-        sx(ipan+1,0,n,k,nn)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
-        sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,nn)
-      end do           ! n loop
-    end do             ! k loop
-  end do               ! nn loop
+        sx(-1,0,n,k,nn)          = s(lwws(n),k,nn)
+        sx(0,0,n,k,nn)           = s(iws(1+(n-1)*ipan*jpan),   k,nn)
+        sx(0,-1,n,k,nn)          = s(lwss(n),k,nn)
+        sx(ipan+1,0,n,k,nn)      = s(ies(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(ipan+2,0,n,k,nn)      = s(lees(n),k,nn)
+        sx(ipan+1,-1,n,k,nn)     = s(less(n),k,nn)
+        sx(-1,jpan+1,n,k,nn)     = s(lwwn(n),k,nn)
+        sx(0,jpan+2,n,k,nn)      = s(lwnn(n),k,nn)
+        sx(ipan+2,jpan+1,n,k,nn) = s(leen(n),k,nn)
+        sx(ipan+1,jpan+2,n,k,nn) = s(lenn(n),k,nn)
+        sx(0,jpan+1,n,k,nn)      = s(iwn(1-ipan+n*ipan*jpan),k,nn)
+        sx(ipan+1,jpan+1,n,k,nn) = s(ien(n*ipan*jpan),       k,nn)
+      end do               ! n loop
+    end do                 ! k loop
+    !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
+  end do                   ! nn loop
+ 
+else
+!======================== start of intsch=2 section ====================
 
   do k = 1,wlev
     wx(1:ipan,1:jpan,1:npan,k) = &
@@ -318,6 +284,48 @@ else
       wx(ipan+1,jpan+1,n,k) = wtr(ine(n*ipan*jpan),         k)
     end do           ! n loop
   end do             ! k loop 
+  !$acc update device(wx)
+    
+  sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
+  do nn = 1,3
+    async_counter = mod(nn-1, async_length)    
+    do k = 1,wlev
+      do n = 1,npan
+        do j = 1,jpan
+          iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
+          sx(0,j,n,k,nn)      = s( iw(iq),k,nn)
+          sx(-1,j,n,k,nn)     = s(iww(iq),k,nn)
+          iq = j*ipan+(n-1)*ipan*jpan
+          sx(ipan+1,j,n,k,nn) = s( ie(iq),k,nn)
+          sx(ipan+2,j,n,k,nn) = s(iee(iq),k,nn)
+        end do            ! j loop
+        do i = 1,ipan
+          iq = i+(n-1)*ipan*jpan
+          sx(i,0,n,k,nn)      = s( is(iq),k,nn)
+          sx(i,-1,n,k,nn)     = s(iss(iq),k,nn)
+          iq = i-ipan+n*ipan*jpan
+          sx(i,jpan+1,n,k,nn) = s( in(iq),k,nn)
+          sx(i,jpan+2,n,k,nn) = s(inn(iq),k,nn)
+        end do            ! i loop
+      end do
+      do n = 1,npan
+        sx(-1,0,n,k,nn)          = s(lsww(n),k,nn)
+        sx(0,0,n,k,nn)           = s(isw(1+(n-1)*ipan*jpan),k,nn)
+        sx(0,-1,n,k,nn)          = s(lssw(n),k,nn)
+        sx(ipan+2,0,n,k,nn)      = s(lsee(n),k,nn)
+        sx(ipan+1,-1,n,k,nn)     = s(lsse(n),k,nn)
+        sx(-1,jpan+1,n,k,nn)     = s(lnww(n),k,nn)
+        sx(0,jpan+1,n,k,nn)      = s(inw(1-ipan+n*ipan*jpan),k,nn)
+        sx(0,jpan+2,n,k,nn)      = s(lnnw(n),k,nn)
+        sx(ipan+2,jpan+1,n,k,nn) = s(lnee(n),k,nn)
+        sx(ipan+1,jpan+2,n,k,nn) = s(lnne(n),k,nn)
+        sx(ipan+1,0,n,k,nn)      = s(ise(ipan+(n-1)*ipan*jpan),k,nn)
+        sx(ipan+1,jpan+1,n,k,nn) = s(ine(n*ipan*jpan),         k,nn)
+      end do           ! n loop
+    end do             ! k loop
+    !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
+  end do               ! nn loop
+
   
 end if
 
@@ -395,8 +403,9 @@ do itr = 1,2
     call intssync_send(3)
 
     do nn = 1,3  
-      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) copyin(sx(:,:,:,:,nn)) &
-      !$acc   present(wx,xg,yg,nface) async(mod(nn,async_length))  
+      async_counter = mod(nn-1,async_length)    
+      !$acc parallel loop collapse(2) copyout(s(:,:,nn))      &
+      !$acc   present(sx,wx,xg,yg,nface) async(async_counter)
       do k = 1,wlev
         do iq = 1,ifull
           idel = int(xg(iq,k))
@@ -531,8 +540,8 @@ do itr = 1,2
     call intssync_send(3)
 
     do nn = 1,3  
-      !$acc parallel loop collapse(2) copyout(s(:,:,nn)) copyin(sx(:,:,:,:,nn)) &
-      !$acc   present(wx,xg,yg,nface) async(mod(nn,async_length))  
+      !$acc parallel loop collapse(2) copyout(s(:,:,nn))             &
+      !$acc   present(sx,wx,xg,yg,nface) async(mod(nn,async_length))  
       do k = 1,wlev
         do iq = 1,ifull
           idel = int(xg(iq,k))
