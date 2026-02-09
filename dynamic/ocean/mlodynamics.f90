@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -69,7 +69,7 @@ public oldrhobar_dash, oldrhobaru_dash, oldrhobarv_dash
 public mlodynamicsarrays_init, mlodynamicsarrays_end
 
 public mlostaguv, mlounstaguv
-public mstagf, koff, nstagoffmlo
+public mstagf, koff, nstagoffmlo, mprecond
 
 public mlontvd
 
@@ -1657,8 +1657,8 @@ else
 
   ! rhobar = int_0^sigma rho dsigma / sigma
 
-  !$omp parallel do schedule(static) private(ii,iq,absu,bbsu,absv,bbsv)            &
-  !$omp   private(dnadxu1,dnadyu1,dnadyv1,dnadxv1,dnadxu2,dnadyu2,dnadyv2,dnadxv2)
+  !$acc parallel loop collapse(2) copyin(alpha,beta,ie,in,is,iw,ine,ise,ien,iwn,na,emu,emv) &
+  !$acc   copyout(drhodxu,drhodxv,drhodyu,drhodyv)  
   do ii = 1,wlev
     do iq = 1,ifull
       absu = 0.5*(alpha(iq,ii)+alpha(ie(iq),ii))
@@ -1688,7 +1688,7 @@ else
       drhodyv(iq,ii) = -absv*dnadyv1 + bbsv*dnadyv2
     end do
   end do
-  !$omp end parallel do
+  !$acc end parallel loop
 
   ! integrate density gradient  
   drhobardxu(:,1) = drhodxu(:,1)*godsigu(1:ifull,1)
@@ -1937,7 +1937,11 @@ select case( mloiceadv )
         dum_out(iq,n) = real(max(dumd,0._8))
       end do
     end do
-    dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
+    do n = 1,ntr
+      do iq = 1,ifull
+        dumc(iq,n) = dum_out(iq,n)
+      end do
+    end do
       
   case default
     write(6,*) "ERROR: Unknown option mloiceadv = ",mloiceadv

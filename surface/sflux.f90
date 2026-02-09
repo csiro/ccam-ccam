@@ -44,8 +44,7 @@ use cable_ccam                             ! CABLE interface
 use carbpools_m                            ! Carbon pools
 use mlo_ctrl                               ! Ocean physics control layer
 use uclem_ctrl, only :                   & ! Urban
-     ateb_soilunder=>soilunder           &
-    ,energytol                           & 
+     energytol                           & 
     ,ateb_resmeth=>resmeth               &
     ,ateb_zohmeth=>zohmeth               &
     ,ateb_acmeth=>acmeth                 &
@@ -115,14 +114,14 @@ public mlovlevels,mlonewice,mloexpice,mlosurf,mloinit,mloload,mloimport,mloexpor
 public mlo_ema,mloexpdep
 public minsfc,minsal,maxsal,icemax
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
-public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta,mlo_limitsal
+public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
 public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,omink,omineps
 public k_mode,eps_mode,limitL,fixedce3,nops,nopb,fixedstabfunc
 public alphanir_seaice,alphanir_seasnw,alphavis_seaice,alphavis_seasnw
 public micdwn
 
 public uclem_init,uclem_type,uclem_disable,uclem_deftype
-public ateb_soilunder,energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
+public energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
 public ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,ateb_ncyits,ateb_nfgits,ateb_tol
 public ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,ateb_minsnowalpha,ateb_maxsnowden
 public ateb_minsnowden,ateb_refheight,ateb_zomratio,ateb_maxrfwater
@@ -1035,16 +1034,16 @@ umod = vmod ! this is vmod, but accounts for moving surface                     
 ! only update fluxes if using coupled mixing (calcprog=.false.)                                ! MLO
 ! prognostic variables are then updated in tkeeps.f90                                          ! MLO
 if ( nvmix/=9 ) then                                                                           ! MLO
-  calcprog=0 ! update ocean and sea-ice                                                        ! MLO
+  calcprog = 0 ! update ocean and sea-ice                                                        ! MLO
 else                                                                                           ! MLO
-  calcprog=3 ! update sea-ice thermodynamics only                                              ! MLO
+  calcprog = 3 ! update sea-ice thermodynamics only                                              ! MLO
 end if                                                                                         ! MLO
                                                                                                ! MLO
 ! inflow and outflow model for rivers                                                          ! MLO
 if ( abs(nmlo)==1 ) then                                                                       ! MLO
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
-  neta=0.                                                                                      ! MLO
+  neta = 0.                                                                                      ! MLO
   call mloimport("eta",neta,0,0,water,depth)                                                   ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO  
 else if ( abs(nmlo)>=2 ) then                                                                  ! MLO

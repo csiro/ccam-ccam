@@ -54,7 +54,7 @@ public mloeval_work, mlo_calc_k, vgrid, calcdensity, calcmelt, mlocheck
 public mlonewice_work, mlo_ema_uvw, mlo_ema_ts, mlo_ema_reset
 
 public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
-public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta,mlo_limitsal
+public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
 public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,imax
 public alphavis_seaice, alphanir_seaice
 public alphavis_seasnw, alphanir_seasnw
@@ -187,7 +187,6 @@ integer, save :: mlosigma     = 6         ! vertical levels (4=zstar-cubic, 5=zs
 integer, save :: oclosure     = 0         ! 0=kpp, 1=k-eps
 integer, save :: usepice      = 0         ! include ice in surface pressure (0=without ice, 1=with ice)
 integer, save :: mlo_adjeta   = 1         ! allow adjustment to surface outside dynamics (0=off, 1=all)
-integer, save :: mlo_limitsal = 0         ! limit salinity to maxsal when loading data ( 0=off, 1=limit )
 integer, save :: mlo_step     = 0         ! ocean floor (0=full-step, 1=pseduo partial-step)
 integer, save :: mlo_uvcoupl  = 1         ! wind coupling (0=off, 1=on)
 real, save :: pdu    = 2.7                ! zoom factor near the surface for mlosigma==gotm
@@ -432,11 +431,6 @@ do ii = 1,wlev
   end where
 end do
 
-! impose limits for rounding errors
-if ( mlo_limitsal==1 ) then
-  water%sal = min( water%sal, maxsal )
-end if  
-
 ! adjust levels for free surface
 where ( depth%dz(:,1)>1.e-4 )
   d_zcr = max(1.+max(water%eta,-delwater)/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
@@ -466,10 +460,10 @@ call getrho(atm_ps,depth,ice,dgwater,water)
 dgice%imass = max(rhoic*ice%thick+rhosn*ice%snowd, minicemass) 
 
 ! split adjustment of free surface and ice thickness to ensure conservation
-d_ndsn=ice%snowd
-d_ndic=ice%thick
-d_nsto=ice%store
-d_neta=water%eta
+d_ndsn = ice%snowd
+d_ndic = ice%thick
+d_nsto = ice%store
+d_neta = water%eta
 
 ! water fluxes
 call fluxcalc(dt,atm_u,atm_v,atm_temp,atm_qg,atm_ps,atm_zmin,atm_zmins,d_neta,     &

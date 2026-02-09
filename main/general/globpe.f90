@@ -1655,7 +1655,8 @@ if ( .not.always_mspeca ) then
   clh_ave(1:ifull)   = clh_ave(1:ifull)  + real(cloudhi(1:ifull),8)
 end if
 dni_ave(1:ifull)   = dni_ave(1:ifull)  + real(dni(1:ifull),8)
-where ( sgdn(1:ifull)>120. )
+! sunhours should be based on direct beam radiation
+where ( sgdndir(1:ifull)>120. )
   sunhours(1:ifull) = sunhours(1:ifull) + real(dt/3600.,8)
 end where
 

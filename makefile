@@ -58,7 +58,7 @@ VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(ZEN3),yes)
-FHOST = -axCORE-AVX2 -align array32byte
+FHOST = -axCORE-AVX2 -align array32byte -Ddebug
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0

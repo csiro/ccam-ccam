@@ -405,6 +405,7 @@ real, dimension(:), allocatable :: ucc
 real, dimension(:), allocatable :: fracice_a, sicedep_a
 real, dimension(:), allocatable :: tss_l_a, tss_s_a, tss_a
 real, dimension(:), allocatable :: t_a_lev, psl_a
+real, dimension(:,:), allocatable :: carb_data
 real, dimension(:), allocatable, save :: zss_a, ocndep_a
 real, dimension(:), allocatable, save :: wts_a  ! not used here or defined in call setxyz
 real(kind=8), dimension(:), pointer, save :: z_a, x_a, y_a
@@ -1329,7 +1330,7 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( ccycle/=0 ) then
       call ccnf_inq_varid(ncid,'nplant1',idv,tst)
       if ( .not.tst ) ierc(9) = 1
-      call ccnf_inq_varid(ncid,'p01_nplant1',idv,tst)
+      call ccnf_inq_varid(ncid,'p_nplant1',idv,tst)
       if ( .not.tst ) ierc(10) = 1
     end if ! ccycle/=0
     do k = 1,ms
@@ -1489,6 +1490,7 @@ if ( nested/=1 .and. nested/=3 ) then
         lrestart_tracer = .false.
       end if ! kk=kl .and. iotest
       ierc(1:5) = 0
+      ierc(12) = 0
       if ( lrestart ) ierc(1) = 1
       if ( lrestart_radiation ) ierc(2) = 1
       if ( lrestart_tracer ) ierc(3) = 1
@@ -1527,6 +1529,7 @@ if ( nested/=1 .and. nested/=3 ) then
   wb_found(1:ms)      = ierc(12+2*ms:11+3*ms)==1
   
   if ( myid==0 ) then
+    write(6,*) "Reading additional input data for initialisation"  
     write(6,*) "-> Found lrestart,lrestart_radiation,lrestart_tracer = ",lrestart,lrestart_radiation,lrestart_tracer
     write(6,*) "->       lrestart_convection,u10_found               = ",lrestart_convection,u10_found
     write(6,*) "->       carbon_found,carbon2_found                  = ",carbon_found,carbon2_found
@@ -1648,7 +1651,7 @@ if ( nested/=1 .and. nested/=3 ) then
   if ( lrestart ) then
     call gethist1('swater',watbdy)
     call gethist1('wtd',wtd)
-  end if  
+  end if
 
   !------------------------------------------------------------------
   ! Read soil moisture
@@ -1777,56 +1780,66 @@ if ( nested/=1 .and. nested/=3 ) then
   !end if
 
   if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
-    if ( ccycle/=0 .and. carbon2_found ) then
-      if ( myid==0 ) then
-        write(6,*) "-> Read CASA carbon tiles for each PFT"
-      end if  
-      ! allocated here to be used in cable_ccam2.f90 where it is deallocated
-      allocate( carb_plant(ifull,mplant,3,11) )
-      allocate( carb_litter(ifull,mlitter,3,11) )
-      allocate( carb_soil(ifull,msoil,3,11) )
-      carb_plant(:,:,:,:) = 0.
-      carb_litter(:,:,:,:) = 0.
-      carb_soil(:,:,:,:) = 0.
-      do n = 1,10
-        write(vname,'("p",I2.2,"_cplant")') n
-        call fillhist4(vname,carb_plant(:,:,1,n),sea_a,fill_sea)
-        write(vname,'("p",I2.2,"_nplant")') n
-        call fillhist4(vname,carb_plant(:,:,2,n),sea_a,fill_sea)
-        write(vname,'("p",I2.2,"_pplant")') n
-        call fillhist4(vname,carb_plant(:,:,3,n),sea_a,fill_sea)
-        write(vname,'("p",I2.2,"_clitter")') n
-        call fillhist4(vname,carb_litter(:,:,1,n),sea_a,fill_sea)
-        write(vname,'("p",I2.2,"_nlitter")') n
-        call fillhist4(vname,carb_litter(:,:,2,n),sea_a,fill_sea)
-        write(vname,'("p",I2.2,"_plitter")') n
-        call fillhist4(vname,carb_litter(:,:,3,n),sea_a,fill_sea)
-        write(vname,'("p",I2.2,"_csoil")') n
-        call fillhist4(vname,carb_soil(:,:,1,n),sea_a,fill_sea)
-        write(vname,'("p",I2.2,"_nsoil")') n
-        call fillhist4(vname,carb_soil(:,:,2,n),sea_a,fill_sea)
-        write(vname,'("p",I2.2,"_psoil")') n
-        call fillhist4(vname,carb_soil(:,:,3,n),sea_a,fill_sea)
-      end do
-      n = 14 ! use index 11 to store pft 14
-      write(vname,'("p",I2.2,"_cplant")') n
-      call fillhist4(vname,carb_plant(:,:,1,11),sea_a,fill_sea)
-      write(vname,'("p",I2.2,"_nplant")') n
-      call fillhist4(vname,carb_plant(:,:,2,11),sea_a,fill_sea)
-      write(vname,'("p",I2.2,"_pplant")') n
-      call fillhist4(vname,carb_plant(:,:,3,1),sea_a,fill_sea)
-      write(vname,'("p",I2.2,"_clitter")') n
-      call fillhist4(vname,carb_litter(:,:,1,11),sea_a,fill_sea)
-      write(vname,'("p",I2.2,"_nlitter")') n
-      call fillhist4(vname,carb_litter(:,:,2,11),sea_a,fill_sea)
-      write(vname,'("p",I2.2,"_plitter")') n
-      call fillhist4(vname,carb_litter(:,:,3,11),sea_a,fill_sea)
-      write(vname,'("p",I2.2,"_csoil")') n
-      call fillhist4(vname,carb_soil(:,:,1,11),sea_a,fill_sea)
-      write(vname,'("p",I2.2,"_nsoil")') n
-      call fillhist4(vname,carb_soil(:,:,2,11),sea_a,fill_sea)
-      write(vname,'("p",I2.2,"_psoil")') n
-      call fillhist4(vname,carb_soil(:,:,3,11),sea_a,fill_sea)
+    if ( ccycle/=0 ) then
+      if ( carbon2_found ) then
+        if ( myid==0 ) then
+          write(6,*) "-> Read CASA carbon tiles for each PFT"
+        end if  
+        ! allocated here to be used in cable_ccam2.f90 where it is deallocated
+        allocate( carb_plant(ifull,mplant,3,11) )
+        allocate( carb_litter(ifull,mlitter,3,11) )
+        allocate( carb_soil(ifull,msoil,3,11) )
+        carb_plant(:,:,:,:) = 0.
+        carb_litter(:,:,:,:) = 0.
+        carb_soil(:,:,:,:) = 0.          
+        allocate( carb_data(ifull,11) )
+        do k = 1,mplant
+          write(vname,'("p_cplant",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_plant(:,k,1,:) = carb_data(:,:)
+        end do  
+        do k = 1,mplant
+          write(vname,'("p_nplant",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_plant(:,k,2,:) = carb_data(:,:)
+        end do  
+        do k = 1,mplant
+          write(vname,'("p_pplant",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_plant(:,k,3,:) = carb_data(:,:)
+        end do  
+        do k = 1,mlitter
+          write(vname,'("p_clitter",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_litter(:,k,1,:) = carb_data(:,:)
+        end do  
+        do k = 1,mlitter
+          write(vname,'("p_nlitter",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_litter(:,k,2,:) = carb_data(:,:)
+        end do  
+        do k = 1,mlitter
+          write(vname,'("p_plitter",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_litter(:,k,3,:) = carb_data(:,:)
+        end do  
+        do k = 1,msoil
+          write(vname,'("p_csoil",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_soil(:,k,1,:) = carb_data(:,:)
+        end do  
+        do k = 1,msoil
+          write(vname,'("p_nsoil",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_soil(:,k,2,:) = carb_data(:,:)
+        end do  
+        do k = 1,msoil
+          write(vname,'("p_psoil",I1.1)') k
+          call fillcarb(carb_data,vname,sea_a,fill_sea)
+          carb_soil(:,k,1,:) = carb_data(:,:)
+        end do  
+        deallocate( carb_data )
+      end if  ! carbon2_found
     end if
   end if
   
@@ -3138,7 +3151,7 @@ end if
 return
 end subroutine gethistuv4a  
 
-! This version reads, fills a 3D field for the ocean
+! This version reads, fills a 3D field
 subroutine fillhist4(vname,varout,mask_a,fill_count)
   
 use cc_mpi             ! CC MPI routines
@@ -3299,6 +3312,32 @@ end do
         
 return
 end subroutine fillhist4u
+
+subroutine fillcarb(varout,vname,mask_a,fill_count)
+
+use darcdf_m                        ! Netcdf data
+use infile                          ! Input file routines
+use newmpar_m                       ! Grid parameters
+
+integer, intent(inout) :: fill_count
+integer ier
+real, dimension(ifull,11), intent(out) :: varout
+real, dimension(fwsize,11) :: ucc
+logical, dimension(fwsize), intent(in) :: mask_a
+character(len=*), intent(in) :: vname
+
+if ( iotest ) then
+  ! read without interpolation or redistribution
+  call histrd(iarchi,ier,vname,varout,ifull)
+else
+  ! for multiple input files
+  call histrd(iarchi,ier,vname,ucc,6*ik*ik)
+  call fill_cc4(ucc(:,:),mask_a,fill_count)
+  call doints4(ucc(:,:),varout(:,:))
+end if ! iotest
+
+return
+end subroutine fillcarb
 
 ! *****************************************************************************
 ! FILE DATA MESSAGE PASSING ROUTINES

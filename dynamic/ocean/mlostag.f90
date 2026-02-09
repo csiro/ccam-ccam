@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -25,10 +25,11 @@ implicit none
 
 private
 public mlostaguv, mlounstaguv
-public mstagf, koff, nstagoffmlo
+public mstagf, koff, nstagoffmlo, mprecond
 
 integer, save      :: nstagoffmlo = 0       ! staggering offset
 integer, save      :: mstagf      = 30      ! alternating staggering (0=off left, -1=off right, >0 alternating)
+integer, save      :: mprecond    = 1       ! MLO stag precondition (0=off, 1=on)
 integer, parameter :: koff        = 1       ! time split stagger relative to A-grid (koff=0) or C-grid (koff=1)
 integer, parameter :: itnmax      = 6       ! number of interations for reversible staggering
 
@@ -58,7 +59,7 @@ real, dimension(:,:,:), allocatable, save :: wtul,wtvl
 real, dimension(:,:,:), allocatable, save :: wtur,wtvr
 real, dimension(:,:,:), allocatable, save :: dtul,dtvl
 real, dimension(:,:,:), allocatable, save :: dtur,dtvr
-real, dimension(:,:), allocatable :: nwtu,nwtv
+real, dimension(:,:,:), allocatable :: nwtu,nwtv
 real, dimension(:,:), allocatable, save :: stul,stvl
 real, dimension(:,:), allocatable, save :: stur,stvr
 logical euetest,euwtest,evntest,evstest
@@ -69,14 +70,20 @@ call START_LOG(ocnstag_begin)
 
 if (.not.allocated(wtul)) then
 
-  allocate(wtul(ifull+iextra,wlev,0:3),wtvl(ifull+iextra,wlev,0:3))
-  allocate(wtur(ifull+iextra,wlev,0:3),wtvr(ifull+iextra,wlev,0:3))
+  if ( mprecond==0 ) then
+    allocate(wtul(ifull,wlev,0:2),wtvl(ifull,wlev,0:2))
+    allocate(wtur(ifull,wlev,0:2),wtvr(ifull,wlev,0:2))      
+  else
+    allocate(wtul(ifull,wlev,0:3),wtvl(ifull,wlev,0:3))
+    allocate(wtur(ifull,wlev,0:3),wtvr(ifull,wlev,0:3))
+  end if
   allocate(dtul(ifull,wlev,3),dtvl(ifull,wlev,3))
   allocate(dtur(ifull,wlev,3),dtvr(ifull,wlev,3))
-  allocate(stul(ifull,wlev),stvl(ifull,wlev))
-  allocate(stur(ifull,wlev),stvr(ifull,wlev))
-
-  allocate( nwtu(ifull,0:3), nwtv(ifull,0:3) )
+  
+  wtul = 0.
+  wtvl = 0.
+  wtur = 0.
+  wtvr = 0.
   
   ! assign land arrays
   do k = 1,wlev
@@ -98,7 +105,6 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=-0.5
         wtul(iq,k,2)=-0.1
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.1
         dtul(iq,k,2)=1.
         dtul(iq,k,3)=0.5
@@ -109,7 +115,6 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=-0.5
         wtul(iq,k,2)=0.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.1
         dtul(iq,k,2)=1.
         dtul(iq,k,3)=0.5
@@ -120,7 +125,6 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=0.
         wtul(iq,k,2)=0.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=1.
         dtul(iq,k,3)=1./3.
@@ -131,16 +135,14 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=0.
         wtul(iq,k,2)=0.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=0.5
         dtul(iq,k,3)=0.5
 
       else
-        wtul(iq,k,0)=0.
+        wtul(iq,k,0)=1.
         wtul(iq,k,1)=0.
         wtul(iq,k,2)=0.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=0.
         dtul(iq,k,3)=0.            
@@ -150,7 +152,6 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=-0.5
         wtvl(iq,k,2)=-0.1
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.1
         dtvl(iq,k,2)=1.
         dtvl(iq,k,3)=0.5
@@ -158,7 +159,6 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=-0.5
         wtvl(iq,k,2)=0.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.1
         dtvl(iq,k,2)=1.
         dtvl(iq,k,3)=0.5
@@ -166,7 +166,6 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=0.
         wtvl(iq,k,2)=0.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0. 
         dtvl(iq,k,2)=1.
         dtvl(iq,k,3)=1./3.
@@ -174,93 +173,75 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=0.
         wtvl(iq,k,2)=0.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.
         dtvl(iq,k,2)=0.5
         dtvl(iq,k,3)=0.5
       else
-        wtvl(iq,k,0)=0.
+        wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=0.
         wtvl(iq,k,2)=0.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.
         dtvl(iq,k,2)=0.
         dtvl(iq,k,3)=0.
       end if
     end do
   end do
-    
-  ! Apply JLM's preconditioner
-  do i = 0,3
-    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10)
-  end do  
-  do k = 1,wlev
-    where (abs(wtul(ieu,k,0))>1.E-4.and.abs(wtul(1:ifull,k,1))>1.E-4)
-      stul(1:ifull,k)=-wtul(1:ifull,k,1)/wtul(ieu,k,0)
-      nwtu(1:ifull,0)=wtul(1:ifull,k,0)+stul(:,k)*wtul(ieu,k,2)
-      nwtu(1:ifull,1)=wtul(1:ifull,k,1)+stul(:,k)*wtul(ieu,k,0)
-      nwtu(1:ifull,2)=wtul(1:ifull,k,2)
-      nwtu(1:ifull,3)=wtul(1:ifull,k,3)-stul(:,k)*wtul(ieu,k,1)
-    elsewhere
-      stul(1:ifull,k)=0.
-      nwtu(1:ifull,0)=wtul(1:ifull,k,0)
-      nwtu(1:ifull,1)=wtul(1:ifull,k,1)
-      nwtu(1:ifull,2)=wtul(1:ifull,k,2)
-      nwtu(1:ifull,3)=wtul(1:ifull,k,3)
-    end where
-    where (abs(wtvl(inv,k,0))>1.E-4.and.abs(wtvl(1:ifull,k,1))>1.E-4)
-      stvl(1:ifull,k)=-wtvl(1:ifull,k,1)/wtvl(inv,k,0)
-      nwtv(1:ifull,0)=wtvl(1:ifull,k,0)+stvl(:,k)*wtvl(inv,k,2)
-      nwtv(1:ifull,1)=wtvl(1:ifull,k,1)+stvl(:,k)*wtvl(inv,k,0)
-      nwtv(1:ifull,2)=wtvl(1:ifull,k,2)
-      nwtv(1:ifull,3)=wtvl(1:ifull,k,3)-stvl(:,k)*wtvl(inv,k,1)
-    elsewhere
-      stvl(1:ifull,k)=0.
-      nwtv(1:ifull,0)=wtvl(1:ifull,k,0)
-      nwtv(1:ifull,1)=wtvl(1:ifull,k,1)
-      nwtv(1:ifull,2)=wtvl(1:ifull,k,2)
-      nwtv(1:ifull,3)=wtvl(1:ifull,k,3)
-    end where
-    where (abs(wtul(1:ifull,k,0))<1.E-4)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-    elsewhere
-      wtul(1:ifull,k,0)=nwtu(1:ifull,0)
-      wtul(1:ifull,k,1)=nwtu(1:ifull,1)
-      wtul(1:ifull,k,2)=nwtu(1:ifull,2)
-      wtul(1:ifull,k,3)=nwtu(1:ifull,3)
-    end where
-    where (abs(wtvl(1:ifull,k,0))<1.E-4)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-    elsewhere
-      wtvl(1:ifull,k,0)=nwtv(1:ifull,0)
-      wtvl(1:ifull,k,1)=nwtv(1:ifull,1)
-      wtvl(1:ifull,k,2)=nwtv(1:ifull,2)
-      wtvl(1:ifull,k,3)=nwtv(1:ifull,3)
-    end where
-  end do
-    
-  ! normalise
-  do i = 0,3
-    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-10)
-  end do  
-  do k = 1,wlev
-    do i=1,3
-      dtul(1:ifull,k,i)=dtul(1:ifull,k,i)/wtul(1:ifull,k,0)
-      dtvl(1:ifull,k,i)=dtvl(1:ifull,k,i)/wtvl(1:ifull,k,0)
-      wtul(1:ifull,k,i)=wtul(1:ifull,k,i)/wtul(1:ifull,k,0)
-      wtvl(1:ifull,k,i)=wtvl(1:ifull,k,i)/wtvl(1:ifull,k,0)
+
+  if ( mprecond==1 ) then
+
+    ! Apply JLM's preconditioner
+
+    allocate( stul(ifull,wlev), stvl(ifull,wlev) )
+    allocate( nwtu(ifull+iextra,wlev,0:3), nwtv(ifull+iextra,wlev,0:3) )  
+      
+    do i = 0,3
+      nwtu(1:ifull,1:wlev,i) = wtul(1:ifull,1:wlev,i)
+      nwtv(1:ifull,1:wlev,i) = wtvl(1:ifull,1:wlev,i)
+      call boundsuv(nwtu(:,:,i),nwtv(:,:,i),stag=-10)
+    end do  
+    do k = 1,wlev
+      where (abs(nwtu(ieu,k,0))>1.E-4.and.abs(nwtu(1:ifull,k,1))>1.E-4)
+        stul(1:ifull,k)=-nwtu(1:ifull,k,1)/nwtu(ieu,k,0)
+        wtul(1:ifull,k,0)=nwtu(1:ifull,k,0)+stul(:,k)*nwtu(ieu,k,2)
+        wtul(1:ifull,k,1)=nwtu(1:ifull,k,1)+stul(:,k)*nwtu(ieu,k,0)
+        wtul(1:ifull,k,2)=nwtu(1:ifull,k,2)
+        wtul(1:ifull,k,3)=nwtu(1:ifull,k,3)-stul(:,k)*nwtu(ieu,k,1)
+      elsewhere
+        stul(1:ifull,k)=0.
+      end where
+      where (abs(nwtv(inv,k,0))>1.E-4.and.abs(nwtv(1:ifull,k,1))>1.E-4)
+        stvl(1:ifull,k)=-nwtv(1:ifull,k,1)/nwtv(inv,k,0)
+        wtvl(1:ifull,k,0)=nwtv(1:ifull,k,0)+stvl(:,k)*nwtv(inv,k,2)
+        wtvl(1:ifull,k,1)=nwtv(1:ifull,k,1)+stvl(:,k)*nwtv(inv,k,0)
+        wtvl(1:ifull,k,2)=nwtv(1:ifull,k,2)
+        wtvl(1:ifull,k,3)=nwtv(1:ifull,k,3)-stvl(:,k)*nwtv(inv,k,1)
+      elsewhere
+        stvl(1:ifull,k)=0.
+      end where
     end do
-    stul(1:ifull,k)=stul(1:ifull,k)*wtul(ieu,k,0)/wtul(1:ifull,k,0)
-    stvl(1:ifull,k)=stvl(1:ifull,k)*wtvl(inv,k,0)/wtvl(1:ifull,k,0)
-    wtul(1:ifull,k,0)=1.
-    wtvl(1:ifull,k,0)=1.
-  end do  
+    
+    ! normalise
+    do i = 0,3
+      nwtu(1:ifull,1:wlev,i) = wtul(1:ifull,1:wlev,i)
+      nwtv(1:ifull,1:wlev,i) = wtvl(1:ifull,1:wlev,i)
+    end do  
+    call boundsuv(nwtu(:,:,0),nwtv(:,:,0),stag=-10)
+    do k = 1,wlev
+      do i=1,3
+        dtul(1:ifull,k,i)=dtul(1:ifull,k,i)/nwtu(1:ifull,k,0)
+        dtvl(1:ifull,k,i)=dtvl(1:ifull,k,i)/nwtv(1:ifull,k,0)
+        wtul(1:ifull,k,i)=nwtu(1:ifull,k,i)/nwtu(1:ifull,k,0)
+        wtvl(1:ifull,k,i)=nwtv(1:ifull,k,i)/nwtv(1:ifull,k,0)
+      end do
+      stul(1:ifull,k)=stul(1:ifull,k)*nwtu(ieu,k,0)/nwtu(1:ifull,k,0)
+      stvl(1:ifull,k)=stvl(1:ifull,k)*nwtv(inv,k,0)/nwtv(1:ifull,k,0)
+      wtul(1:ifull,k,0)=1.
+      wtvl(1:ifull,k,0)=1.
+    end do 
+    
+    deallocate( nwtu, nwtv )
+    
+  end if ! mprecond==1
 
   ! assign weights (right)
   do k = 1,wlev
@@ -280,7 +261,6 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=-0.1
         wtur(iq,k,2)=-0.5
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.1
         dtur(iq,k,2)=1.
         dtur(iq,k,3)=0.5
@@ -291,7 +271,6 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=0.
         wtur(iq,k,2)=-0.5
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.1
         dtur(iq,k,2)=1.
         dtur(iq,k,3)=0.5
@@ -302,7 +281,6 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=0.
         wtur(iq,k,2)=0.
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=1.
         dtur(iq,k,3)=1./3.
@@ -313,16 +291,14 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=0.
         wtur(iq,k,2)=0.
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=0.5
         dtur(iq,k,3)=0.5
 
       else
-        wtur(iq,k,0)=0.
+        wtur(iq,k,0)=1.
         wtur(iq,k,1)=0.
         wtur(iq,k,2)=0.
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=0.
         dtur(iq,k,3)=0.
@@ -332,7 +308,6 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=-0.1
         wtvr(iq,k,2)=-0.5
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.1
         dtvr(iq,k,2)=1.
         dtvr(iq,k,3)=0.5
@@ -340,7 +315,6 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=0.
         wtvr(iq,k,2)=-0.5
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.1
         dtvr(iq,k,2)=1.
         dtvr(iq,k,3)=0.5
@@ -348,7 +322,6 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=0.
         wtvr(iq,k,2)=0.
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=1.
         dtvr(iq,k,3)=1./3.
@@ -356,95 +329,75 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=0.
         wtvr(iq,k,2)=0.
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=0.5
         dtvr(iq,k,3)=0.5
       else
-        wtvr(iq,k,0)=0.
+        wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=0.
         wtvr(iq,k,2)=0.
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=0.
         dtvr(iq,k,3)=0.
       end if
     end do
   end do  
+  
+  if ( mprecond==1 ) then
 
-  ! Apply JLM's preconditioner
-  do i = 0,3
-    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9)
-  end do  
-  do k = 1,wlev
-    where (abs(wtur(iwu,k,0))>1.E-4.and.abs(wtur(1:ifull,k,2))>1.E-4)
-      stur(1:ifull,k)=-wtur(1:ifull,k,2)/wtur(iwu,k,0)
-      nwtu(1:ifull,0)=wtur(1:ifull,k,0)+stur(:,k)*wtur(iwu,k,1)
-      nwtu(1:ifull,1)=wtur(1:ifull,k,1)
-      nwtu(1:ifull,2)=wtur(1:ifull,k,2)+stur(:,k)*wtur(iwu,k,0)
-      nwtu(1:ifull,3)=wtur(1:ifull,k,3)-stur(:,k)*wtur(iwu,k,2)
-    elsewhere
-      stur(1:ifull,k)=0.
-      nwtu(1:ifull,0)=wtur(1:ifull,k,0)
-      nwtu(1:ifull,1)=wtur(1:ifull,k,1)
-      nwtu(1:ifull,2)=wtur(1:ifull,k,2)
-      nwtu(1:ifull,3)=wtur(1:ifull,k,3)
-    end where
-    where (abs(wtvr(isv,k,0))>1.E-4.and.abs(wtvr(1:ifull,k,2))>1.E-4)
-      stvr(1:ifull,k)=-wtvr(1:ifull,k,2)/wtvr(isv,k,0)
-      nwtv(1:ifull,0)=wtvr(1:ifull,k,0)+stvr(:,k)*wtvr(isv,k,1)
-      nwtv(1:ifull,1)=wtvr(1:ifull,k,1)
-      nwtv(1:ifull,2)=wtvr(1:ifull,k,2)+stvr(:,k)*wtvr(isv,k,0)
-      nwtv(1:ifull,3)=wtvr(1:ifull,k,3)-stvr(:,k)*wtvr(isv,k,2)
-    elsewhere
-      stvr(1:ifull,k)=0.
-      nwtv(1:ifull,0)=wtvr(1:ifull,k,0)
-      nwtv(1:ifull,1)=wtvr(1:ifull,k,1)
-      nwtv(1:ifull,2)=wtvr(1:ifull,k,2)
-      nwtv(1:ifull,3)=wtvr(1:ifull,k,3)
-    end where
-    where (abs(wtur(1:ifull,k,0))<1.E-4)
+    ! Apply JLM's preconditioner
+      
+    allocate( stur(ifull,wlev), stvr(ifull,wlev) )
+    allocate( nwtu(ifull+iextra,wlev,0:3), nwtv(ifull+iextra,wlev,0:3) )  
+
+    do i = 0,3
+      nwtu(1:ifull,1:wlev,i) = wtur(1:ifull,1:wlev,i)
+      nwtv(1:ifull,1:wlev,i) = wtvr(1:ifull,1:wlev,i)
+      call boundsuv(nwtu(:,:,i),nwtv(:,:,i),stag=-9)
+    end do  
+    do k = 1,wlev
+      where (abs(nwtu(iwu,k,0))>1.E-4.and.abs(nwtu(1:ifull,k,2))>1.E-4)
+        stur(1:ifull,k)=-nwtu(1:ifull,k,2)/nwtu(iwu,k,0)
+        wtur(1:ifull,k,0)=nwtu(1:ifull,k,0)+stur(:,k)*nwtu(iwu,k,1)
+        wtur(1:ifull,k,1)=nwtu(1:ifull,k,1)
+        wtur(1:ifull,k,2)=nwtu(1:ifull,k,2)+stur(:,k)*nwtu(iwu,k,0)
+        wtur(1:ifull,k,3)=nwtu(1:ifull,k,3)-stur(:,k)*nwtu(iwu,k,2)
+      elsewhere
+        stur(1:ifull,k)=0.
+      end where
+      where (abs(nwtv(isv,k,0))>1.E-4.and.abs(nwtv(1:ifull,k,2))>1.E-4)
+        stvr(1:ifull,k)=-nwtv(1:ifull,k,2)/nwtv(isv,k,0)
+        wtvr(1:ifull,k,0)=nwtv(1:ifull,k,0)+stvr(:,k)*nwtv(isv,k,1)
+        wtvr(1:ifull,k,1)=nwtv(1:ifull,k,1)
+        wtvr(1:ifull,k,2)=nwtv(1:ifull,k,2)+stvr(:,k)*nwtv(isv,k,0)
+        wtvr(1:ifull,k,3)=nwtv(1:ifull,k,3)-stvr(:,k)*nwtv(isv,k,2)
+      elsewhere
+        stvr(1:ifull,k)=0.
+      end where
+    end do  
+
+    ! normalise
+    do i = 0,3
+      nwtu(1:ifull,1:wlev,i) = wtur(1:ifull,1:wlev,i)
+      nwtv(1:ifull,1:wlev,i) = wtvr(1:ifull,1:wlev,i)
+    end do  
+    call boundsuv(nwtu(:,:,0),nwtv(:,:,0),stag=-9)
+    do k = 1,wlev
+      do i = 1,3
+        dtur(1:ifull,k,i)=dtur(1:ifull,k,i)/nwtu(1:ifull,k,0)
+        dtvr(1:ifull,k,i)=dtvr(1:ifull,k,i)/nwtv(1:ifull,k,0)
+        wtur(1:ifull,k,i)=nwtu(1:ifull,k,i)/nwtu(1:ifull,k,0)
+        wtvr(1:ifull,k,i)=nwtv(1:ifull,k,i)/nwtv(1:ifull,k,0)
+      end do
+      stur(1:ifull,k)=stur(1:ifull,k)*nwtu(iwu,k,0)/nwtu(1:ifull,k,0)
+      stvr(1:ifull,k)=stvr(1:ifull,k)*nwtv(isv,k,0)/nwtv(1:ifull,k,0)
       wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-    elsewhere
-      wtur(1:ifull,k,0)=nwtu(1:ifull,0)
-      wtur(1:ifull,k,1)=nwtu(1:ifull,1)
-      wtur(1:ifull,k,2)=nwtu(1:ifull,2)
-      wtur(1:ifull,k,3)=nwtu(1:ifull,3)
-    end where
-    where (abs(wtvr(1:ifull,k,0))<1.E-4)
       wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-    elsewhere
-      wtvr(1:ifull,k,0)=nwtv(1:ifull,0)
-      wtvr(1:ifull,k,1)=nwtv(1:ifull,1)
-      wtvr(1:ifull,k,2)=nwtv(1:ifull,2)
-      wtvr(1:ifull,k,3)=nwtv(1:ifull,3)
-    end where
-  end do  
+    end do  
 
-  ! normalise
-  do i = 0,3
-    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-9)
-  end do  
-  do k = 1,wlev
-    do i = 1,3
-      dtur(1:ifull,k,i)=dtur(1:ifull,k,i)/wtur(1:ifull,k,0)
-      dtvr(1:ifull,k,i)=dtvr(1:ifull,k,i)/wtvr(1:ifull,k,0)
-      wtur(1:ifull,k,i)=wtur(1:ifull,k,i)/wtur(1:ifull,k,0)
-      wtvr(1:ifull,k,i)=wtvr(1:ifull,k,i)/wtvr(1:ifull,k,0)
-    end do
-    stur(1:ifull,k)=stur(1:ifull,k)*wtur(iwu,k,0)/wtur(1:ifull,k,0)
-    stvr(1:ifull,k)=stvr(1:ifull,k)*wtvr(isv,k,0)/wtvr(1:ifull,k,0)
-    wtur(1:ifull,k,0)=1.
-    wtvr(1:ifull,k,0)=1.
-  end do  
-
-  deallocate( nwtu, nwtv )
+    deallocate( nwtu, nwtv )
+    
+  end if ! mprecond==1
 
 end if
 
@@ -472,175 +425,221 @@ end if
 if ( ltest ) then
 
   call boundsuv(uin,vin,stag=1)
-  !$omp parallel
-  !$omp do schedule(static) private(k,iq)
   do k = 1,kn
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,k,1)*uin(ieeu(iq),k)+dtul(iq,k,2)*uin(ieu(iq),k)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(innv(iq),k)+dtvl(iq,k,2)*vin(inv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)
   do k = kn+1,kx
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,1,1)*uin(ieeu(iq),k)+dtul(iq,1,2)*uin(ieu(iq),k)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(innv(iq),k)+dtvl(iq,1,2)*vin(inv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
     end do  
   end do
-  !$omp end do
 
-  call boundsuv(ud,vd,stag=-10)
-  !$omp barrier
-  !$omp do schedule(static) private(k,iq)  
-  do k = 1,kn
+  if ( mprecond==0 ) then
+
+    ! No preconditioner  
+    do k = 1,kx
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)
+        va(iq,k) = vd(iq,k)
+      end do  
+    end do
+    
+    do itn = 1,itnmax
+      call boundsuv(ua,va)
+      do k = 1,kn
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)
+        end do  
+      end do
+      call boundsuv(uin,vin)
+      do k = 1,kn
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)
+        end do  
+      end do
+    end do                 ! itn=1,itnmax
+    
+  else
+
     ! Apply JLM's preconditioner
-    ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,k)*ud(ieu,k)
-    va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,k)*vd(inv,k)
-    ud(1:ifull,k) = ua(1:ifull,k)
-    vd(1:ifull,k) = va(1:ifull,k)
-  end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)  
-  do k = kn+1,kx
-    ! Apply JLM's preconditioner
-    ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,1)*ud(ieu,k)
-    va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,1)*vd(inv,k)
-    ud(1:ifull,k) = ua(1:ifull,k)
-    vd(1:ifull,k) = va(1:ifull,k)
-  end do
-  !$omp end do
-
-  ! There are many ways to handle staggering near coastlines.
-  ! This version supports the following properties:
-  ! - Staggering is exactly reversible for the staggered (C grid) frame
-  ! - Zero flux at land boundaries
-  ! - The wave amplitude should be preserved
-
-  do itn = 1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)     
+    call boundsuv(ud,vd,stag=-10)
     do k = 1,kn
       do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
-      end do  
+        ua(iq,k) = ud(iq,k)-stul(iq,k)*ud(ieu(iq),k)
+        va(iq,k) = vd(iq,k)-stvl(iq,k)*vd(inv(iq),k)
+      end do
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
     do k = kn+1,kx
       do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
-      end do  
+        ua(iq,k) = ud(iq,k)-stul(iq,1)*ud(ieu(iq),k)
+        va(iq,k) = vd(iq,k)-stvl(iq,1)*vd(inv(iq),k)
+      end do
     end do
-    !$omp end do
-    call boundsuv(uin,vin,stag=2)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)        
-    do k = 1,kn
+    do k = 1,kx
       do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(innv(iq),k)
+        ud(iq,k) = ua(iq,k)
+        vd(iq,k) = va(iq,k)
       end do  
     end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)        
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(innv(iq),k)
-      end do  
-    end do
-    !$omp end do
-  end do                 ! itn=1,itnmax
-  
-  !$omp end parallel
- 
+    
+    do itn = 1,itnmax
+      call boundsuv(ua,va,stag=2)
+      do k = 1,kn
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(ieeu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(innv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(ieeu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(innv(iq),k)
+        end do  
+      end do
+      call boundsuv(uin,vin,stag=2)
+      do k = 1,kn
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(ieeu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(innv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(ieeu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(innv(iq),k)
+        end do  
+      end do
+    end do                 ! itn=1,itnmax
+
+  end if  ! mprecond==0 ..else..
+
 else
 
   call boundsuv(uin,vin)
-  !$omp parallel 
-  !$omp do schedule(static) private(k,iq)      
   do k = 1,kn
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,k,1)*uin(iwu(iq),k)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*uin(ieu(iq),k)
       vd(iq,k)=dtvr(iq,k,1)*vin(isv(iq),k)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*vin(inv(iq),k)
     end do  
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)     
   do k = kn+1,kx
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,1,1)*uin(iwu(iq),k)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*uin(ieu(iq),k)
       vd(iq,k)=dtvr(iq,1,1)*vin(isv(iq),k)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*vin(inv(iq),k)
     end do  
   end do
-  !$omp end do
-
-  call boundsuv(ud,vd,stag=-9)
-  !$omp barrier
-  !$omp do schedule(static) private(k,iq)   
-  do k = 1,kn
-    ! Apply JLM's preconditioner
-    ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,k)*ud(iwu,k)
-    va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,k)*vd(isv,k)
-    ud(1:ifull,k) = ua(1:ifull,k)
-    vd(1:ifull,k) = va(1:ifull,k)    
-  end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)      
-  do k = kn+1,kx
-    ! Apply JLM's preconditioner
-    ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,1)*ud(iwu,k)
-    va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(isv,k)
-    ud(1:ifull,k) = ua(1:ifull,k)
-    vd(1:ifull,k) = va(1:ifull,k)
-  end do
-  !$omp end do
-
-  do itn = 1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)       
-    do k = 1,kn
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    call boundsuv(uin,vin,stag=3)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)      
-    do k = 1,kn
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(issv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(issv(iq),k)
-      end do  
-    end do
-    !$omp end do
-  end do                 ! itn=1,itnmax
   
-  !$omp end parallel
+  if ( mprecond==0 ) then
+      
+    ! No preconditioner  
+    do k = 1,kx
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)
+        va(iq,k) = vd(iq,k)
+      end do  
+    end do
 
+    do itn = 1,itnmax
+      call boundsuv(ua,va)
+      do k = 1,kn
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)
+        end do  
+      end do
+      call boundsuv(uin,vin)
+      do k = 1,kn
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)
+        end do  
+      end do
+    end do                 ! itn=1,itnmax
+      
+  else
+
+    ! Apply JLM's preconditioner
+    call boundsuv(ud,vd,stag=-9)
+    do k = 1,kn
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)-stur(iq,k)*ud(iwu(iq),k)
+        va(iq,k) = vd(iq,k)-stvr(iq,k)*vd(isv(iq),k)
+      end do
+    end do
+    do k = kn+1,kx
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)-stur(iq,1)*ud(iwu(iq),k)
+        va(iq,k) = vd(iq,k)-stvr(iq,1)*vd(isv(iq),k)
+      end do
+    end do
+    do k = 1,kx
+      do iq = 1,ifull  
+        ud(iq,k) = ua(iq,k)
+        vd(iq,k) = va(iq,k)
+      end do  
+    end do
+
+    do itn = 1,itnmax
+      call boundsuv(ua,va,stag=3)
+      do k = 1,kn
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(iwwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(issv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(iwwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(issv(iq),k)
+        end do  
+      end do
+      call boundsuv(uin,vin,stag=3)
+      do k = 1,kn
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(iwwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(issv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(iwwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(issv(iq),k)
+        end do  
+      end do
+    end do                 ! itn=1,itnmax
+
+  end if ! mprecond==0 ..else..
+  
 end if
 
 do k = 1,kn
@@ -678,7 +677,7 @@ real, dimension(:,:), intent(out) :: uout,vout
 real, dimension(ifull+iextra,size(u,2)) :: uin,vin
 real, dimension(ifull+iextra,size(u,2)) :: ua,va
 real, dimension(ifull+iextra,size(u,2)) :: ud,vd
-real, dimension(:,:), allocatable :: nwtu,nwtv
+real, dimension(:,:,:), allocatable :: nwtu,nwtv
 real, dimension(:,:,:), allocatable, save :: wtul,wtvl
 real, dimension(:,:,:), allocatable, save :: wtur,wtvr
 real, dimension(:,:,:), allocatable, save :: dtul,dtvl
@@ -695,15 +694,21 @@ logical ltest
 call START_LOG(ocnstag_begin)
 
 if (.not.allocated(wtul)) then
-  allocate(wtul(ifull+iextra,wlev,0:3),wtvl(ifull+iextra,wlev,0:3))
-  allocate(wtur(ifull+iextra,wlev,0:3),wtvr(ifull+iextra,wlev,0:3))
+  if ( mprecond==0 ) then
+    allocate(wtul(ifull,wlev,0:2),wtvl(ifull,wlev,0:2))
+    allocate(wtur(ifull,wlev,0:2),wtvr(ifull,wlev,0:2))      
+  else
+    allocate(wtul(ifull,wlev,0:3),wtvl(ifull,wlev,0:3))
+    allocate(wtur(ifull,wlev,0:3),wtvr(ifull,wlev,0:3))
+  end if
   allocate(dtul(ifull,wlev,3),dtvl(ifull,wlev,3))
   allocate(dtur(ifull,wlev,3),dtvr(ifull,wlev,3))
-  allocate(stul(ifull,wlev),stvl(ifull,wlev))
-  allocate(stur(ifull,wlev),stvr(ifull,wlev))
 
-  allocate( nwtu(ifull,0:3), nwtv(ifull,0:3) )
-
+  wtul = 0.
+  wtvl = 0.
+  wtur = 0.
+  wtvr = 0.
+  
   do k = 1,wlev
     do iq = 1,ifull
       ! assign land arrays
@@ -729,7 +734,6 @@ if (.not.allocated(wtul)) then
       wtul(iq,k,0)=1.
       wtul(iq,k,1)=-0.1
       wtul(iq,k,2)=-0.5
-      wtul(iq,k,3)=0.
       dtul(iq,k,1)=0.1
       dtul(iq,k,2)=1.
       dtul(iq,k,3)=0.5
@@ -740,7 +744,6 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=-0.1
         wtul(iq,k,2)=-0.5
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=1.
         dtul(iq,k,3)=0.5
@@ -751,7 +754,6 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=0.
         wtul(iq,k,2)=-1./3.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=1.
         dtul(iq,k,3)=0.
@@ -762,7 +764,6 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=-1./3.
         wtul(iq,k,2)=0.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=0.
         dtul(iq,k,3)=1.
@@ -773,7 +774,6 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=0.
         wtul(iq,k,2)=0.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=0.
         dtul(iq,k,3)=1.
@@ -784,16 +784,14 @@ if (.not.allocated(wtul)) then
         wtul(iq,k,0)=1.
         wtul(iq,k,1)=0.
         wtul(iq,k,2)=0.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=1.
         dtul(iq,k,3)=0.
 
       else
-        wtul(iq,k,0)=0.
+        wtul(iq,k,0)=1.
         wtul(iq,k,1)=0.
         wtul(iq,k,2)=0.
-        wtul(iq,k,3)=0.
         dtul(iq,k,1)=0.
         dtul(iq,k,2)=0.
         dtul(iq,k,3)=0.    
@@ -803,7 +801,6 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=-0.1
         wtvl(iq,k,2)=-0.5
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.1
         dtvl(iq,k,2)=1.
         dtvl(iq,k,3)=0.5
@@ -811,7 +808,6 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=-0.1
         wtvl(iq,k,2)=-0.5
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.
         dtvl(iq,k,2)=1.
         dtvl(iq,k,3)=0.5
@@ -819,7 +815,6 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=0.
         wtvl(iq,k,2)=-1./3.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.
         dtvl(iq,k,2)=1.
         dtvl(iq,k,3)=0.
@@ -827,7 +822,6 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=-1./3.
         wtvl(iq,k,2)=0.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.
         dtvl(iq,k,2)=0.
         dtvl(iq,k,3)=1.
@@ -835,7 +829,6 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=0.
         wtvl(iq,k,2)=0.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.
         dtvl(iq,k,2)=0.
         dtvl(iq,k,3)=1.
@@ -843,15 +836,13 @@ if (.not.allocated(wtul)) then
         wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=0.
         wtvl(iq,k,2)=0.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.
         dtvl(iq,k,2)=1.
         dtvl(iq,k,3)=0.
       else
-        wtvl(iq,k,0)=0.
+        wtvl(iq,k,0)=1.
         wtvl(iq,k,1)=0.
         wtvl(iq,k,2)=0.
-        wtvl(iq,k,3)=0.
         dtvl(iq,k,1)=0.
         dtvl(iq,k,2)=0.
         dtvl(iq,k,3)=0.
@@ -859,77 +850,60 @@ if (.not.allocated(wtul)) then
     end do
   end do  
     
-  ! Apply JLM's preconditioner
-  do i = 0,3
-    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9)
-  end do   
-  do k = 1,wlev
-    where (abs(wtul(iwu,k,0))>1.E-4.and.abs(wtul(1:ifull,k,2))>1.E-4)
-      stul(1:ifull,k)=-wtul(1:ifull,k,2)/wtul(iwu,k,0)
-      nwtu(1:ifull,0)=wtul(1:ifull,k,0)+stul(:,k)*wtul(iwu,k,1)
-      nwtu(1:ifull,1)=wtul(1:ifull,k,1)
-      nwtu(1:ifull,2)=wtul(1:ifull,k,2)+stul(:,k)*wtul(iwu,k,0)
-      nwtu(1:ifull,3)=wtul(1:ifull,k,3)-stul(:,k)*wtul(iwu,k,2)
-    elsewhere
-      stul(1:ifull,k)=0.
-      nwtu(1:ifull,0)=wtul(1:ifull,k,0)
-      nwtu(1:ifull,1)=wtul(1:ifull,k,1)
-      nwtu(1:ifull,2)=wtul(1:ifull,k,2)
-      nwtu(1:ifull,3)=wtul(1:ifull,k,3)
-    end where
-    where (abs(wtvl(isv,k,0))>1.E-4.and.abs(wtvl(1:ifull,k,2))>1.E-4)
-      stvl(1:ifull,k)=-wtvl(1:ifull,k,2)/wtvl(isv,k,0)
-      nwtv(1:ifull,0)=wtvl(1:ifull,k,0)+stvl(:,k)*wtvl(isv,k,1)
-      nwtv(1:ifull,1)=wtvl(1:ifull,k,1)
-      nwtv(1:ifull,2)=wtvl(1:ifull,k,2)+stvl(:,k)*wtvl(isv,k,0)
-      nwtv(1:ifull,3)=wtvl(1:ifull,k,3)-stvl(:,k)*wtvl(isv,k,2)
-    elsewhere
-      stvl(1:ifull,k)=0.
-      nwtv(1:ifull,0)=wtvl(1:ifull,k,0)
-      nwtv(1:ifull,1)=wtvl(1:ifull,k,1)
-      nwtv(1:ifull,2)=wtvl(1:ifull,k,2)
-      nwtv(1:ifull,3)=wtvl(1:ifull,k,3)
-    end where
-    where (abs(wtul(1:ifull,k,0))<1.E-4)
-      wtul(1:ifull,k,0)=1.
-      wtul(1:ifull,k,1)=0.
-      wtul(1:ifull,k,2)=0.
-      wtul(1:ifull,k,3)=0.
-    elsewhere
-      wtul(1:ifull,k,0)=nwtu(1:ifull,0)
-      wtul(1:ifull,k,1)=nwtu(1:ifull,1)
-      wtul(1:ifull,k,2)=nwtu(1:ifull,2)
-      wtul(1:ifull,k,3)=nwtu(1:ifull,3)
-    end where
-    where (abs(wtvl(1:ifull,k,0))<1.E-4)
-      wtvl(1:ifull,k,0)=1.
-      wtvl(1:ifull,k,1)=0.
-      wtvl(1:ifull,k,2)=0.
-      wtvl(1:ifull,k,3)=0.
-    elsewhere
-      wtvl(1:ifull,k,0)=nwtv(1:ifull,0)
-      wtvl(1:ifull,k,1)=nwtv(1:ifull,1)
-      wtvl(1:ifull,k,2)=nwtv(1:ifull,2)
-      wtvl(1:ifull,k,3)=nwtv(1:ifull,3)
-    end where
-  end do  
+  if ( mprecond==1 ) then
 
-  ! normalise
-  do i = 0,3
-    call boundsuv(wtul(:,:,i),wtvl(:,:,i),stag=-9)
-  end do  
-  do k = 1,wlev
-    do i = 1,3
-      wtul(1:ifull,k,i)=wtul(1:ifull,k,i)/wtul(1:ifull,k,0)
-      wtvl(1:ifull,k,i)=wtvl(1:ifull,k,i)/wtvl(1:ifull,k,0)
-      dtul(1:ifull,k,i)=dtul(1:ifull,k,i)/wtul(1:ifull,k,0)
-      dtvl(1:ifull,k,i)=dtvl(1:ifull,k,i)/wtvl(1:ifull,k,0)
-    end do
-    stul(1:ifull,k)=stul(1:ifull,k)*wtul(iwu,k,0)/wtul(1:ifull,k,0)
-    stvl(1:ifull,k)=stvl(1:ifull,k)*wtvl(isv,k,0)/wtvl(1:ifull,k,0)
-    wtul(1:ifull,k,0)=1.
-    wtvl(1:ifull,k,0)=1.
-  end do  
+    ! Apply JLM's preconditioner      
+    allocate( stul(ifull,wlev), stvl(ifull,wlev) )
+    allocate( nwtu(ifull+iextra,wlev,0:3), nwtv(ifull+iextra,wlev,0:3) )
+  
+    do i = 0,3
+      nwtu(1:ifull,1:wlev,i) = wtul(1:ifull,1:wlev,i)
+      nwtv(1:ifull,1:wlev,i) = wtvl(1:ifull,1:wlev,i)
+      call boundsuv(nwtu(:,:,i),nwtv(:,:,i),stag=-9)
+    end do   
+    do k = 1,wlev
+      where (abs(nwtu(iwu,k,0))>1.E-4.and.abs(nwtu(1:ifull,k,2))>1.E-4)
+        stul(1:ifull,k)=-nwtu(1:ifull,k,2)/nwtu(iwu,k,0)
+        wtul(1:ifull,k,0)=nwtu(1:ifull,k,0)+stul(:,k)*nwtu(iwu,k,1)
+        wtul(1:ifull,k,1)=nwtu(1:ifull,k,1)
+        wtul(1:ifull,k,2)=nwtu(1:ifull,k,2)+stul(:,k)*nwtu(iwu,k,0)
+        wtul(1:ifull,k,3)=nwtu(1:ifull,k,3)-stul(:,k)*nwtu(iwu,k,2)
+      elsewhere
+        stul(1:ifull,k)=0.
+      end where
+      where (abs(nwtv(isv,k,0))>1.E-4.and.abs(nwtv(1:ifull,k,2))>1.E-4)
+        stvl(1:ifull,k)=-nwtv(1:ifull,k,2)/nwtv(isv,k,0)
+        wtvl(1:ifull,k,0)=nwtv(1:ifull,k,0)+stvl(:,k)*nwtv(isv,k,1)
+        wtvl(1:ifull,k,1)=nwtv(1:ifull,k,1)
+        wtvl(1:ifull,k,2)=nwtv(1:ifull,k,2)+stvl(:,k)*nwtv(isv,k,0)
+        wtvl(1:ifull,k,3)=nwtv(1:ifull,k,3)-stvl(:,k)*nwtv(isv,k,2)
+      elsewhere
+        stvl(1:ifull,k)=0.
+      end where
+    end do  
+
+    ! normalise
+    do i = 0,3
+      nwtu(1:ifull,1:wlev,i) = wtul(1:ifull,1:wlev,i)
+      nwtv(1:ifull,1:wlev,i) = wtvl(1:ifull,1:wlev,i)
+    end do  
+    call boundsuv(nwtu(:,:,0),nwtv(:,:,0),stag=-9)
+    do k = 1,wlev
+      do i = 1,3
+        wtul(1:ifull,k,i)=nwtu(1:ifull,k,i)/nwtu(1:ifull,k,0)
+        wtvl(1:ifull,k,i)=nwtv(1:ifull,k,i)/nwtv(1:ifull,k,0)
+        dtul(1:ifull,k,i)=dtul(1:ifull,k,i)/nwtu(1:ifull,k,0)
+        dtvl(1:ifull,k,i)=dtvl(1:ifull,k,i)/nwtv(1:ifull,k,0)
+      end do
+      stul(1:ifull,k)=stul(1:ifull,k)*nwtu(iwu,k,0)/nwtu(1:ifull,k,0)
+      stvl(1:ifull,k)=stvl(1:ifull,k)*nwtv(isv,k,0)/nwtv(1:ifull,k,0)
+      wtul(1:ifull,k,0)=1.
+      wtvl(1:ifull,k,0)=1.
+    end do  
+    
+    deallocate( nwtu, nwtv )
+  
+  end if ! mprecond==1
 
   ! assign weights (right) 
   do k = 1,wlev
@@ -957,7 +931,6 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=-0.5
         wtur(iq,k,2)=-0.1
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.1
         dtur(iq,k,2)=1.
         dtur(iq,k,3)=0.5
@@ -968,7 +941,6 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=-0.5
         wtur(iq,k,2)=-0.1
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=1.
         dtur(iq,k,3)=0.5
@@ -979,7 +951,6 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=-1./3.
         wtur(iq,k,2)=0.
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=1.
         dtur(iq,k,3)=0.
@@ -990,7 +961,6 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=0.
         wtur(iq,k,2)=-1./3.
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=0.
         dtur(iq,k,3)=1.
@@ -1001,7 +971,6 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=0.
         wtur(iq,k,2)=0.
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=0.
         dtur(iq,k,3)=1.
@@ -1012,15 +981,13 @@ if (.not.allocated(wtul)) then
         wtur(iq,k,0)=1.
         wtur(iq,k,1)=0.
         wtur(iq,k,2)=0.
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=1.
         dtur(iq,k,3)=0.
       else
-        wtur(iq,k,0)=0.
+        wtur(iq,k,0)=1.
         wtur(iq,k,1)=0.
         wtur(iq,k,2)=0.
-        wtur(iq,k,3)=0.
         dtur(iq,k,1)=0.
         dtur(iq,k,2)=0.
         dtur(iq,k,3)=0.
@@ -1030,7 +997,6 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=-0.5
         wtvr(iq,k,2)=-0.1
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.1
         dtvr(iq,k,2)=1.
         dtvr(iq,k,3)=0.5
@@ -1038,7 +1004,6 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=-0.5
         wtvr(iq,k,2)=-0.1
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=1.
         dtvr(iq,k,3)=0.5
@@ -1046,7 +1011,6 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=-1./3.
         wtvr(iq,k,2)=0.
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=1.
         dtvr(iq,k,3)=0.
@@ -1054,7 +1018,6 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=0.
         wtvr(iq,k,2)=-1./3.
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=0.
         dtvr(iq,k,3)=1.
@@ -1062,7 +1025,6 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=0.
         wtvr(iq,k,2)=0.
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=0.
         dtvr(iq,k,3)=1.
@@ -1070,15 +1032,13 @@ if (.not.allocated(wtul)) then
         wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=0.
         wtvr(iq,k,2)=0.
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=1.
         dtvr(iq,k,3)=0.
       else
-        wtvr(iq,k,0)=0.
+        wtvr(iq,k,0)=1.
         wtvr(iq,k,1)=0.
         wtvr(iq,k,2)=0.
-        wtvr(iq,k,3)=0.
         dtvr(iq,k,1)=0.
         dtvr(iq,k,2)=0.
         dtvr(iq,k,3)=0.
@@ -1086,79 +1046,60 @@ if (.not.allocated(wtul)) then
     end do
   end do  
 
-  ! Apply JLM's preconditioner
-  do i = 0,3
-    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10)
-  end do  
-  do k = 1,wlev
-    where (abs(wtur(ieu,k,0))>1.E-4.and.abs(wtur(1:ifull,k,1))>1.E-4)
-      stur(1:ifull,k)=-wtur(1:ifull,k,1)/wtur(ieu,k,0)
-      nwtu(1:ifull,0)=wtur(1:ifull,k,0)+stur(:,k)*wtur(ieu,k,2)
-      nwtu(1:ifull,1)=wtur(1:ifull,k,1)+stur(:,k)*wtur(ieu,k,0)
-      nwtu(1:ifull,2)=wtur(1:ifull,k,2)
-      nwtu(1:ifull,3)=wtur(1:ifull,k,3)-stur(:,k)*wtur(ieu,k,1)
-    elsewhere
-      stur(1:ifull,k)=0.
-      nwtu(1:ifull,0)=wtur(1:ifull,k,0)
-      nwtu(1:ifull,1)=wtur(1:ifull,k,1)
-      nwtu(1:ifull,2)=wtur(1:ifull,k,2)
-      nwtu(1:ifull,3)=wtur(1:ifull,k,3)
-    end where
-    where (abs(wtvr(inv,k,0))>1.E-4.and.abs(wtvr(1:ifull,k,1))>1.E-4)
-      stvr(1:ifull,k)=-wtvr(1:ifull,k,1)/wtvr(inv,k,0)
-      nwtv(1:ifull,0)=wtvr(1:ifull,k,0)+stvr(:,k)*wtvr(inv,k,2)
-      nwtv(1:ifull,1)=wtvr(1:ifull,k,1)+stvr(:,k)*wtvr(inv,k,0)
-      nwtv(1:ifull,2)=wtvr(1:ifull,k,2)
-      nwtv(1:ifull,3)=wtvr(1:ifull,k,3)-stvr(:,k)*wtvr(inv,k,1)
-    elsewhere
-      stvr(1:ifull,k)=0.
-      nwtv(1:ifull,0)=wtvr(1:ifull,k,0)
-      nwtv(1:ifull,1)=wtvr(1:ifull,k,1)
-      nwtv(1:ifull,2)=wtvr(1:ifull,k,2)
-      nwtv(1:ifull,3)=wtvr(1:ifull,k,3)
-    end where
-    where (abs(wtur(1:ifull,k,0))<1.E-4)
+  if ( mprecond==1 ) then
+
+    ! Apply JLM's preconditioner
+    allocate( stur(ifull,wlev), stvr(ifull,wlev) )
+    allocate( nwtu(ifull+iextra,wlev,0:3), nwtv(ifull+iextra,wlev,0:3) )
+
+    do i = 0,3
+      nwtu(1:ifull,1:wlev,i) = wtur(1:ifull,1:wlev,i)
+      nwtv(1:ifull,1:wlev,i) = wtvr(1:ifull,1:wlev,i)
+      call boundsuv(nwtu(:,:,i),nwtv(:,:,i),stag=-10)
+    end do  
+    do k = 1,wlev
+      where (abs(nwtu(ieu,k,0))>1.E-4.and.abs(nwtu(1:ifull,k,1))>1.E-4)
+        stur(1:ifull,k)=-nwtu(1:ifull,k,1)/nwtu(ieu,k,0)
+        wtur(1:ifull,k,0)=nwtu(1:ifull,k,0)+stur(:,k)*nwtu(ieu,k,2)
+        wtur(1:ifull,k,1)=nwtu(1:ifull,k,1)+stur(:,k)*nwtu(ieu,k,0)
+        wtur(1:ifull,k,2)=nwtu(1:ifull,k,2)
+        wtur(1:ifull,k,3)=nwtu(1:ifull,k,3)-stur(:,k)*nwtu(ieu,k,1)
+      elsewhere
+        stur(1:ifull,k)=0.
+      end where
+      where (abs(nwtv(inv,k,0))>1.E-4.and.abs(nwtv(1:ifull,k,1))>1.E-4)
+        stvr(1:ifull,k)=-nwtv(1:ifull,k,1)/nwtv(inv,k,0)
+        wtvr(1:ifull,k,0)=nwtv(1:ifull,k,0)+stvr(:,k)*nwtv(inv,k,2)
+        wtvr(1:ifull,k,1)=nwtv(1:ifull,k,1)+stvr(:,k)*nwtv(inv,k,0)
+        wtvr(1:ifull,k,2)=nwtv(1:ifull,k,2)
+        wtvr(1:ifull,k,3)=nwtv(1:ifull,k,3)-stvr(:,k)*nwtv(inv,k,1)
+      elsewhere
+        stvr(1:ifull,k)=0.
+      end where
+    end do  
+
+    ! normalise
+    do i = 0,3
+      nwtu(1:ifull,1:wlev,i) = wtur(1:ifull,1:wlev,i)
+      nwtv(1:ifull,1:wlev,i) = wtvr(1:ifull,1:wlev,i)
+    end do  
+    call boundsuv(nwtu(:,:,0),nwtv(:,:,0),stag=-10)
+    do k = 1,wlev
+      do i = 1,3
+        wtur(1:ifull,k,i)=nwtu(1:ifull,k,i)/nwtu(1:ifull,k,0)
+        wtvr(1:ifull,k,i)=nwtv(1:ifull,k,i)/nwtv(1:ifull,k,0)
+        dtur(1:ifull,k,i)=dtur(1:ifull,k,i)/nwtu(1:ifull,k,0)
+        dtvr(1:ifull,k,i)=dtvr(1:ifull,k,i)/nwtv(1:ifull,k,0)
+      end do
+      stur(1:ifull,k)=stur(1:ifull,k)*nwtu(ieu,k,0)/nwtu(1:ifull,k,0)
+      stvr(1:ifull,k)=stvr(1:ifull,k)*nwtv(inv,k,0)/nwtv(1:ifull,k,0)
       wtur(1:ifull,k,0)=1.
-      wtur(1:ifull,k,1)=0.
-      wtur(1:ifull,k,2)=0.
-      wtur(1:ifull,k,3)=0.
-    elsewhere
-      wtur(1:ifull,k,0)=nwtu(1:ifull,0)
-      wtur(1:ifull,k,1)=nwtu(1:ifull,1)
-      wtur(1:ifull,k,2)=nwtu(1:ifull,2)
-      wtur(1:ifull,k,3)=nwtu(1:ifull,3)
-    end where
-    where (abs(wtvr(1:ifull,k,0))<1.E-4)
       wtvr(1:ifull,k,0)=1.
-      wtvr(1:ifull,k,1)=0.
-      wtvr(1:ifull,k,2)=0.
-      wtvr(1:ifull,k,3)=0.
-    elsewhere
-      wtvr(1:ifull,k,0)=nwtv(1:ifull,0)
-      wtvr(1:ifull,k,1)=nwtv(1:ifull,1)
-      wtvr(1:ifull,k,2)=nwtv(1:ifull,2)
-      wtvr(1:ifull,k,3)=nwtv(1:ifull,3)
-    end where
-  end do  
+    end do  
 
-  ! normalise
-  do i = 0,3
-    call boundsuv(wtur(:,:,i),wtvr(:,:,i),stag=-10)
-  end do  
-  do k = 1,wlev
-    do i = 1,3
-      wtur(1:ifull,k,i)=wtur(1:ifull,k,i)/wtur(1:ifull,k,0)
-      wtvr(1:ifull,k,i)=wtvr(1:ifull,k,i)/wtvr(1:ifull,k,0)
-      dtur(1:ifull,k,i)=dtur(1:ifull,k,i)/wtur(1:ifull,k,0)
-      dtvr(1:ifull,k,i)=dtvr(1:ifull,k,i)/wtvr(1:ifull,k,0)
-    end do
-    stur(1:ifull,k)=stur(1:ifull,k)*wtur(ieu,k,0)/wtur(1:ifull,k,0)
-    stvr(1:ifull,k)=stvr(1:ifull,k)*wtvr(inv,k,0)/wtvr(1:ifull,k,0)
-    wtur(1:ifull,k,0)=1.
-    wtvr(1:ifull,k,0)=1.
-  end do  
-
-  deallocate( nwtu, nwtv )
+    deallocate( nwtu, nwtv )
+  
+  end if ! mprecond==1
 
 end if
 
@@ -1190,169 +1131,221 @@ end if
 if (ltest) then
   
   call boundsuv(uin,vin,stag=5)
-  !$omp parallel 
-  !$omp do schedule(static) private(k,iq)   
   do k = 1,kn
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,k,1)*uin(iwwu(iq),k)+dtul(iq,k,2)*uin(iwu(iq),k)+dtul(iq,k,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,k,1)*vin(issv(iq),k)+dtvl(iq,k,2)*vin(isv(iq),k)+dtvl(iq,k,3)*vin(iq,k)
     end do  
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)       
   do k = kn+1,kx
     do iq = 1,ifull  
       ud(iq,k)=dtul(iq,1,1)*uin(iwwu(iq),k)+dtul(iq,1,2)*uin(iwu(iq),k)+dtul(iq,1,3)*uin(iq,k)
       vd(iq,k)=dtvl(iq,1,1)*vin(issv(iq),k)+dtvl(iq,1,2)*vin(isv(iq),k)+dtvl(iq,1,3)*vin(iq,k)
     end do  
   end do
-  !$omp end do
-
-  call boundsuv(ud,vd,stag=-9)
-  !$omp barrier
-  !$omp do schedule(static) private(k,iq)    
-  do k=1,kn
-    ! Apply JLM's preconditioner
-    ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,k)*ud(iwu,k)
-    va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,k)*vd(isv,k)
-    ud(1:ifull,k) = ua(1:ifull,k)
-    vd(1:ifull,k) = va(1:ifull,k)    
-  end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)   
-  do k = kn+1,kx
-    ! Apply JLM's preconditioner
-    ua(1:ifull,k) = ud(1:ifull,k)-stul(1:ifull,1)*ud(iwu,k)
-    va(1:ifull,k) = vd(1:ifull,k)-stvl(1:ifull,1)*vd(isv,k)
-    ud(1:ifull,k) = ua(1:ifull,k)
-    vd(1:ifull,k) = va(1:ifull,k)    
-  end do
-  !$omp end do
-
-  do itn = 1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=3)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)      
-    do k = 1,kn
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)      
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    call boundsuv(uin,vin,stag=3)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)     
-    do k = 1,kn
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(issv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(iwwu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(issv(iq),k)
-      end do  
-    end do
-    !$omp end do
-  end do                  ! itn=1,itnmax
   
-  !$omp end parallel
+  if ( mprecond==0 ) then
+
+    ! No preconditioner
+    do k = 1,kx
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)
+        va(iq,k) = vd(iq,k)    
+      end do
+    end do
+
+    do itn = 1,itnmax
+      call boundsuv(ua,va)
+      do k = 1,kn
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)
+        end do  
+      end do
+      call boundsuv(uin,vin)
+      do k = 1,kn
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)
+        end do  
+      end do
+    end do                  ! itn=1,itnmax
+      
+  else
+
+    ! Apply JLM's preconditioner
+    call boundsuv(ud,vd,stag=-9)
+    do k = 1,kn
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)-stul(iq,k)*ud(iwu(iq),k)
+        va(iq,k) = vd(iq,k)-stvl(iq,k)*vd(isv(iq),k)
+      end do
+    end do
+    do k = kn+1,kx
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)-stul(iq,1)*ud(iwu(iq),k)
+        va(iq,k) = vd(iq,k)-stvl(iq,1)*vd(isv(iq),k)
+      end do
+    end do
+    do k = 1,kx
+      do iq = 1,ifull  
+        ud(iq,k) = ua(iq,k)
+        vd(iq,k) = va(iq,k)    
+      end do
+    end do
+
+    do itn = 1,itnmax
+      call boundsuv(ua,va,stag=3)
+      do k = 1,kn
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtul(iq,k,1)*ua(ieu(iq),k)+wtul(iq,k,2)*ua(iwu(iq),k)+wtul(iq,k,3)*ua(iwwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvl(iq,k,1)*va(inv(iq),k)+wtvl(iq,k,2)*va(isv(iq),k)+wtvl(iq,k,3)*va(issv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtul(iq,1,1)*ua(ieu(iq),k)+wtul(iq,1,2)*ua(iwu(iq),k)+wtul(iq,1,3)*ua(iwwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvl(iq,1,1)*va(inv(iq),k)+wtvl(iq,1,2)*va(isv(iq),k)+wtvl(iq,1,3)*va(issv(iq),k)
+        end do  
+      end do
+      call boundsuv(uin,vin,stag=3)
+      do k = 1,kn
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtul(iq,k,1)*uin(ieu(iq),k)+wtul(iq,k,2)*uin(iwu(iq),k)+wtul(iq,k,3)*uin(iwwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvl(iq,k,1)*vin(inv(iq),k)+wtvl(iq,k,2)*vin(isv(iq),k)+wtvl(iq,k,3)*vin(issv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtul(iq,1,1)*uin(ieu(iq),k)+wtul(iq,1,2)*uin(iwu(iq),k)+wtul(iq,1,3)*uin(iwwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvl(iq,1,1)*vin(inv(iq),k)+wtvl(iq,1,2)*vin(isv(iq),k)+wtvl(iq,1,3)*vin(issv(iq),k)
+        end do  
+      end do
+    end do                  ! itn=1,itnmax
+
+  end if ! mprecond==0 ..else..  
   
 else
 
   call boundsuv(uin,vin)
-  !$omp parallel 
-  !$omp do schedule(static) private(k,iq)   
   do k = 1,kn
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,k,1)*uin(ieu(iq),k)+dtur(iq,k,2)*uin(iq,k)+dtur(iq,k,3)*uin(iwu(iq),k)
       vd(iq,k)=dtvr(iq,k,1)*vin(inv(iq),k)+dtvr(iq,k,2)*vin(iq,k)+dtvr(iq,k,3)*vin(isv(iq),k)
     end do  
   end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)   
   do k = kn+1,kx
     do iq = 1,ifull  
       ud(iq,k)=dtur(iq,1,1)*uin(ieu(iq),k)+dtur(iq,1,2)*uin(iq,k)+dtur(iq,1,3)*uin(iwu(iq),k)
       vd(iq,k)=dtvr(iq,1,1)*vin(inv(iq),k)+dtvr(iq,1,2)*vin(iq,k)+dtvr(iq,1,3)*vin(isv(iq),k)
     end do  
   end do
-  !$omp end do
-
-  call boundsuv(ud,vd,stag=-10)
-  !$omp barrier
-  !$omp do schedule(static) private(k,iq)     
-  do k = 1,kn
-    ! Apply JLM's preconditioner
-    ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,k)*ud(ieu,k)
-    va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,k)*vd(inv,k)
-    ud(1:ifull,k) = ua(1:ifull,k)
-    vd(1:ifull,k) = va(1:ifull,k)     
-  end do
-  !$omp end do nowait
-  !$omp do schedule(static) private(k,iq)    
-  do k = kn+1,kx
-    ! Apply JLM's preconditioner
-    ua(1:ifull,k) = ud(1:ifull,k)-stur(1:ifull,1)*ud(ieu,k)
-    va(1:ifull,k) = vd(1:ifull,k)-stvr(1:ifull,1)*vd(inv,k)
-    ud(1:ifull,k) = ua(1:ifull,k)
-    vd(1:ifull,k) = va(1:ifull,k)    
-  end do
-  !$omp end do
-
-  do itn = 1,itnmax        ! each loop is a double iteration
-    call boundsuv(ua,va,stag=2)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)      
-    do k = 1,kn
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)       
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
-        vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
-      end do  
-    end do
-    !$omp end do
-    call boundsuv(uin,vin,stag=2)
-    !$omp barrier
-    !$omp do schedule(static) private(k,iq)   
-    do k = 1,kn
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(innv(iq),k)
-      end do  
-    end do
-    !$omp end do nowait
-    !$omp do schedule(static) private(k,iq)     
-    do k = kn+1,kx
-      do iq = 1,ifull  
-        ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(ieeu(iq),k)
-        va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(innv(iq),k)
-      end do  
-    end do
-    !$omp end do
-  end do                  ! itn=1,itnmax
   
-  !$omp end parallel
+  if ( mprecond==0 ) then
+      
+    ! No preconditioner
+    do k = 1,kx
+      do iq = 1,ifull
+        ua(iq,k) = ud(iq,k)
+        va(iq,k) = vd(iq,k)    
+      end do
+    end do
 
+    do itn = 1,itnmax
+      call boundsuv(ua,va)
+      do k = 1,kn
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)
+        end do  
+      end do
+      call boundsuv(uin,vin)
+      do k = 1,kn
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)
+        end do  
+      end do
+    end do                  ! itn=1,itnmax
+      
+  else
+
+    ! Apply JLM's preconditioner
+    call boundsuv(ud,vd,stag=-10)
+    do k = 1,kn
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)-stur(iq,k)*ud(ieu(iq),k)
+        va(iq,k) = vd(iq,k)-stvr(iq,k)*vd(inv(iq),k)
+      end do
+    end do
+    do k = kn+1,kx
+      do iq = 1,ifull  
+        ua(iq,k) = ud(iq,k)-stur(iq,1)*ud(ieu(iq),k)
+        va(iq,k) = vd(iq,k)-stvr(iq,1)*vd(inv(iq),k)
+      end do
+    end do
+    do k = 1,kx
+      do iq = 1,ifull
+        ud(iq,k) = ua(iq,k)
+        vd(iq,k) = va(iq,k)    
+      end do
+    end do
+
+    do itn = 1,itnmax        ! each loop is a double iteration
+      call boundsuv(ua,va,stag=2)
+      do k = 1,kn
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtur(iq,k,1)*ua(ieu(iq),k)+wtur(iq,k,2)*ua(iwu(iq),k)+wtur(iq,k,3)*ua(ieeu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvr(iq,k,1)*va(inv(iq),k)+wtvr(iq,k,2)*va(isv(iq),k)+wtvr(iq,k,3)*va(innv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          uin(iq,k)=ud(iq,k)+wtur(iq,1,1)*ua(ieu(iq),k)+wtur(iq,1,2)*ua(iwu(iq),k)+wtur(iq,1,3)*ua(ieeu(iq),k)
+          vin(iq,k)=vd(iq,k)+wtvr(iq,1,1)*va(inv(iq),k)+wtvr(iq,1,2)*va(isv(iq),k)+wtvr(iq,1,3)*va(innv(iq),k)
+        end do  
+      end do
+      call boundsuv(uin,vin,stag=2)
+      do k = 1,kn
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtur(iq,k,1)*uin(ieu(iq),k)+wtur(iq,k,2)*uin(iwu(iq),k)+wtur(iq,k,3)*uin(ieeu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvr(iq,k,1)*vin(inv(iq),k)+wtvr(iq,k,2)*vin(isv(iq),k)+wtvr(iq,k,3)*vin(innv(iq),k)
+        end do  
+      end do
+      do k = kn+1,kx
+        do iq = 1,ifull  
+          ua(iq,k)=ud(iq,k)+wtur(iq,1,1)*uin(ieu(iq),k)+wtur(iq,1,2)*uin(iwu(iq),k)+wtur(iq,1,3)*uin(ieeu(iq),k)
+          va(iq,k)=vd(iq,k)+wtvr(iq,1,1)*vin(inv(iq),k)+wtvr(iq,1,2)*vin(isv(iq),k)+wtvr(iq,1,3)*vin(innv(iq),k)
+        end do  
+      end do
+    end do                  ! itn=1,itnmax
+    
+  end if ! mprecond==0 ..else..  
+  
 end if
 
 do k = 1,kn

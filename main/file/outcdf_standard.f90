@@ -65,13 +65,13 @@ implicit none
 
 integer, intent(in) :: itype, iout
 integer, dimension(5) :: dima, dims, dimo
-integer, dimension(6,7) :: dimc
+integer, dimension(6,4) :: dimc
 integer, dimension(2) :: dimpx, dimpy
 integer, dimension(1) :: dimpg
-integer, dimension(6) :: idc ! 1=idcp, 2=idc2p, 3=idc91p, 4=idc31p, 5=idc20y, 6=idc5d
+integer, dimension(4) :: idc ! 1=idcp, 2=idc2p, 3=idca, 4=idpft
 integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgpnode, idgpoff
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
-integer cpdim, c2pdim, c91pdim, c31pdim, c20ydim, c5ddim, cadim
+integer cpdim, c2pdim, cadim, cpftdim
 integer icy, icm, icd, ich, icmi, ics, idv
 integer namipo3, nalways_mspeca, ndo_co2_10um, ndo_quench
 integer nremain_rayleigh_bug, nuse_rad_year
@@ -156,11 +156,8 @@ if ( myid==0 .or. local ) then
     ! Create additional dimensions for CABLE
     cpdim = 0
     c2pdim = 0
-    c91pdim = 0
-    c31pdim = 0
-    c20ydim = 0
-    c5ddim = 0
     cadim = 0
+    cpftdim = 0
     if ( itype==-1 .or. diaglevel_pop>= 9 ) then
       if ( cable_pop==1 ) then
         call ccnf_def_dim(idnc,'cable_patch',POP_NPATCH,cpdim)  
@@ -172,6 +169,9 @@ if ( myid==0 .or. local ) then
         call ccnf_def_dim(idnc,'cable_agemax',POP_AGEMAX,cadim)  
       end if
     end if  
+    if ( ccycle>0 ) then
+      call ccnf_def_dim(idnc,'casa_pft',11,cpftdim)    
+    end if
     
     ! set-up multi-dimensional arrays
     if ( local ) then
@@ -188,11 +188,8 @@ if ( myid==0 .or. local ) then
       ! cable dimensions
       dimc(:,1) = (/ xdim, ydim, cpdim, pdim, tdim, 0 /)
       dimc(:,2) = (/ xdim, ydim, cpdim, c2pdim, pdim, tdim /)
-      dimc(:,3) = (/ xdim, ydim, c91pdim, pdim, tdim, 0 /)
-      dimc(:,4) = (/ xdim, ydim, c31pdim, pdim, tdim, 0 /)
-      dimc(:,5) = (/ xdim, ydim, c20ydim, pdim, tdim, 0 /)
-      dimc(:,6) = (/ xdim, ydim, c5ddim, pdim, tdim, 0 /)
-      dimc(:,7) = (/ xdim, ydim, cadim, pdim, tdim, 0 /)
+      dimc(:,3) = (/ xdim, ydim, cadim, pdim, tdim, 0 /)
+      dimc(:,4) = (/ xdim, ydim, cpftdim, pdim, tdim, 0 /)
     else
       ! atmosphere dimensions
       dima = (/ xdim, ydim, zdim, tdim, 0 /)
@@ -207,11 +204,8 @@ if ( myid==0 .or. local ) then
       ! cable dimensions
       dimc(:,1) = (/ xdim, ydim, cpdim, tdim, 0, 0 /)
       dimc(:,2) = (/ xdim, ydim, cpdim, c2pdim, tdim, 0 /)
-      dimc(:,3) = (/ xdim, ydim, c91pdim, tdim, 0, 0 /)
-      dimc(:,4) = (/ xdim, ydim, c31pdim, tdim, 0, 0 /)
-      dimc(:,5) = (/ xdim, ydim, c20ydim, tdim, 0, 0 /)
-      dimc(:,6) = (/ xdim, ydim, c5ddim, tdim, 0, 0 /)
-      dimc(:,7) = (/ xdim, ydim, cadim, tdim, 0, 0 /)
+      dimc(:,3) = (/ xdim, ydim, cadim, tdim, 0, 0 /)
+      dimc(:,4) = (/ xdim, ydim, cpftdim, tdim, 0, 0 /)
     end if
 
     ! Define coords.
@@ -278,7 +272,13 @@ if ( myid==0 .or. local ) then
       end if
     end if
     if ( itype==-1 ) then
+      if ( cable_pop==1 ) then  
+        call ccnf_def_var(idnc,'cable_agemax','float',1,dimc(3:3,3),idc(3))
+      end if
     end if    
+    if ( ccycle>0 ) then
+      call ccnf_def_var(idnc,'casa_pft','float',1,dimc(3:3,4),idc(4))  
+    end if
 
     icy = kdate/10000
     icm = max(1, min(12, (kdate-icy*10000)/100))
@@ -622,7 +622,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'ateb_nrefl',ateb_nrefl)
     call ccnf_put_attg(idnc,'ateb_refheight',ateb_refheight)
     call ccnf_put_attg(idnc,'ateb_resmeth',ateb_resmeth)
-    call ccnf_put_attg(idnc,'ateb_scrnmeth',ateb_scrnmeth)
     call ccnf_put_attg(idnc,'ateb_snowemiss',ateb_snowemiss)
     call ccnf_put_attg(idnc,'ateb_statsmeth',ateb_statsmeth)
     call ccnf_put_attg(idnc,'ateb_tol',ateb_tol)
@@ -668,7 +667,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'minwater',minwater)
     call ccnf_put_attg(idnc,'mlo_adjeta',mlo_adjeta)
     call ccnf_put_attg(idnc,'mlo_bs',mlo_bs)
-    call ccnf_put_attg(idnc,'mlo_limitsal',mlo_limitsal)
     call ccnf_put_attg(idnc,'mlo_step',mlo_step)
     call ccnf_put_attg(idnc,'mlo_timeave_length',mlo_timeave_length)
     call ccnf_put_attg(idnc,'mlo_uvcoupl',mlo_uvcoupl)
@@ -681,6 +679,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlomfix',mlomfix)
     call ccnf_put_attg(idnc,'mlosigma',mlosigma)
     call ccnf_put_attg(idnc,'mlontvd',mlontvd)
+    call ccnf_put_attg(idnc,'mprecond',mprecond)
     call ccnf_put_attg(idnc,'mstagf',mstagf)
     call ccnf_put_attg(idnc,'mxd',mxd)
     call ccnf_put_attg(idnc,'nodrift',nodrift)
@@ -842,9 +841,9 @@ integer, intent(in) :: iarch, itype, iout, idnc
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idum, cptype, ifrac, d4, asize, osize, jsize, ksize
-integer, dimension(6), intent(in) :: idc
+integer, dimension(4), intent(in) :: idc
 integer, dimension(5), intent(in) :: dima, dimo
-integer, dimension(6,7), intent(in) :: dimc
+integer, dimension(6,4), intent(in) :: dimc
 integer, dimension(4) :: dimj
 integer, dimension(3) :: dimk
 integer, dimension(2) :: csize
@@ -1642,11 +1641,7 @@ if ( iarch==1 ) then
         lname = 'Phosphor pass pool'
         call attrib(idnc,dimj,jsize,'psoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
         if ( diaglevel_carbon>2 ) then
-          do n = 1,10
-            call carbonpools_attrib(idnc,dimj,jsize,cptype,n)  
-          end do
-          n = 14
-          call carbonpools_attrib(idnc,dimj,jsize,cptype,n)
+          call carbonpools_attrib(idnc,dimc(:,4),csize(1),cptype)  
         end if
       end if
       if ( nextout>=1 .or. itype==-1 ) then
@@ -2514,7 +2509,6 @@ if ( iarch==1 ) then
     
     if ( itype==-1 .or. diaglevel_pop>=9 ) then
       if ( cable_pop==1 ) then
-        if ( myid==0 ) write(6,*) '-> write land tile data'  
         allocate( cabledata(POP_NPATCH) )
         do i = 1,POP_NPATCH
           cabledata(i) = real(i)
@@ -2528,6 +2522,25 @@ if ( iarch==1 ) then
         call ccnf_put_vara(idnc,idc(2),1,POP_NCOHORT,cabledata)
         deallocate( cabledata )
       end if
+    end if
+    if ( itype==-1 ) then
+      if ( cable_pop==1 ) then
+        allocate( cabledata(POP_AGEMAX) )
+        do i = 1,POP_AGEMAX
+          cabledata(i) = real(i)
+        end do  
+        call ccnf_put_vara(idnc,idc(3),1,POP_AGEMAX,cabledata)
+        deallocate( cabledata )
+      end if
+    end if
+    if ( ccycle>0 ) then
+      allocate( cabledata(11) )
+      do i = 1,10
+        cabledata(i) = real(i)
+      end do  
+      cabledata(11) = 14.
+      call ccnf_put_vara(idnc,idc(4),1,11,cabledata)
+      deallocate( cabledata )
     end if
   
   else if ( localhist ) then
@@ -3127,11 +3140,7 @@ if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
       call histwrt(psoil(:,k),vname,idnc,iarch,local,lday)
     end do
     if ( diaglevel_carbon>2 ) then
-      do n = 1,10
-        call carbonpools(n,idnc,iarch,local,lday)
-      end do
-      n = 14
-      call carbonpools(n,idnc,iarch,local,lday)
+      call carbonpools(idnc,iarch,local,lday)
     end if
   end if    
   if ( nextout>=1 .or. itype==-1 ) then
@@ -3864,103 +3873,75 @@ end if
 return
 end subroutine openhist
 
-subroutine carbonpools_attrib(idnc,dimj,jsize,cptype,n)
+subroutine carbonpools_attrib(idnc,dimc,csize,cptype)
 
 use infile, only : daily_m, point_m, attrib, land_m
 
 implicit none
 
-integer, intent(in) :: idnc, jsize, cptype, n
-integer, dimension(4), intent(in) :: dimj
-character(len=20) vname
+integer, intent(in) :: idnc, csize, cptype
+integer, dimension(6), intent(in) :: dimc
 character(len=80) lname
 
-write(vname,'("p",I2.2,"_cplant1")') n
 lname = 'Carbon leaf pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_cplant2")') n
+call attrib(idnc,dimc,csize,'p_cplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Carbon wood pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_cplant3")') n
+call attrib(idnc,dimc,csize,'p_cplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
 lname = 'Carbon root pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nplant1")') n
+call attrib(idnc,dimc,csize,'p_cplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen leaf pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nplant2")') n
+call attrib(idnc,dimc,csize,'p_nplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen wood pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nplant3")') n
+call attrib(idnc,dimc,csize,'p_nplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen root pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_pplant1")') n
+call attrib(idnc,dimc,csize,'p_nplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor leaf pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_pplant2")') n
+call attrib(idnc,dimc,csize,'p_pplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor wood pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_pplant3")') n
+call attrib(idnc,dimc,csize,'p_pplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor root pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_clitter1")') n
+call attrib(idnc,dimc,csize,'p_pplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Carbon met pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_clitter2")') n
+call attrib(idnc,dimc,csize,'p_clitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Carbon str pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_clitter3")') n
+call attrib(idnc,dimc,csize,'p_clitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Carbon CWD pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nlitter1")') n
+call attrib(idnc,dimc,csize,'p_clitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen met pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nlitter2")') n
+call attrib(idnc,dimc,csize,'p_nlitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen str pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nlitter3")') n
+call attrib(idnc,dimc,csize,'p_nlitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen CWD pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_plitter1")') n
+call attrib(idnc,dimc,csize,'p_nlitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor met pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_plitter2")') n
+call attrib(idnc,dimc,csize,'p_plitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor str pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_plitter3")') n
+call attrib(idnc,dimc,csize,'p_plitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor CWD pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_csoil1")') n
+call attrib(idnc,dimc,csize,'p_plitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Carbon mic pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_csoil2")') n
+call attrib(idnc,dimc,csize,'p_csoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Carbon slow pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_csoil3")') n
+call attrib(idnc,dimc,csize,'p_csoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Carbon pass pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nsoil1")') n
+call attrib(idnc,dimc,csize,'p_csoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen mic pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nsoil2")') n
+call attrib(idnc,dimc,csize,'p_nsoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen slow pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_nsoil3")') n
+call attrib(idnc,dimc,csize,'p_nsoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Nitrogen pass pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_psoil1")') n
+call attrib(idnc,dimc,csize,'p_nsoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor mic pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_psoil2")') n
+call attrib(idnc,dimc,csize,'p_psoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor slow pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-write(vname,'("p",I2.2,"_psoil3")') n
+call attrib(idnc,dimc,csize,'p_psoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 lname = 'Phosphor pass pool'
-call attrib(idnc,dimj,jsize,vname,lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+call attrib(idnc,dimc,csize,'p_psoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
 
 return
 end subroutine carbonpools_attrib
                     
-subroutine carbonpools(n,idnc,iarch,local,lday)
+subroutine carbonpools(idnc,iarch,local,lday)
 
 use infile
 use sflux_m
@@ -3968,55 +3949,92 @@ use newmpar_m
 
 implicit none
 
-integer, intent(in) :: n, idnc, iarch
-integer k
-real, dimension(ifull) :: dummy_pack
+integer, intent(in) :: idnc, iarch
+integer k, n
+real, dimension(ifull,11) :: dummy_pack
 logical, intent(in) :: local, lday
 character(len=20) vname
-                    
+
+dummy_pack = 0.
 do k = 1,mplant
-  call cable_casatile(dummy_pack,'cplant',k,n)
-  write(vname,'("p",I2.2,"_cplant",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'cplant',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'cplant',k,n)
+  write(vname,'("p_cplant",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 do k = 1,mplant
-  call cable_casatile(dummy_pack,'nplant',k,n)
-  write(vname,'("p",I2.2,"_nplant",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'nplant',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'nplant',k,n)
+  write(vname,'("p_nplant",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 do k = 1,mplant
-  call cable_casatile(dummy_pack,'pplant',k,n)
-  write(vname,'("p",I2.2,"_pplant",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'pplant',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'pplant',k,n)
+  write(vname,'("p_pplant",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 do k = 1,mlitter
-  call cable_casatile(dummy_pack,'clitter',k,n)
-  write(vname,'("p",I2.2,"_clitter",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'clitter',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'clitter',k,n)
+  write(vname,'("p_clitter",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 do k = 1,mlitter
-  call cable_casatile(dummy_pack,'nlitter',k,n)
-  write(vname,'("p",I2.2,"_nlitter",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'nlitter',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'nlitter',k,n)
+  write(vname,'("p_nlitter",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 do k = 1,mlitter
-  call cable_casatile(dummy_pack,'plitter',k,n)
-  write(vname,'("p",I2.2,"_plitter",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'plitter',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'plitter',k,n)
+  write(vname,'("p_plitter",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 do k = 1,msoil
-  call cable_casatile(dummy_pack,'csoil',k,n)
-  write(vname,'("p",I2.2,"_csoil",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'csoil',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'csoil',k,n)
+  write(vname,'("p_csoil",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 do k = 1,msoil
-  call cable_casatile(dummy_pack,'nsoil',k,n)
-  write(vname,'("p",I2.2,"_nsoil",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'nsoil',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'nsoil',k,n)
+  write(vname,'("p_nsoil",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 do k = 1,msoil
-  call cable_casatile(dummy_pack,'psoil',k,n)
-  write(vname,'("p",I2.2,"_psoil",I1.1)') n,k
+  do n = 1,10    
+    call cable_casatile(dummy_pack(:,n),'psoil',k,n)
+  end do
+  n = 14
+  call cable_casatile(dummy_pack(:,11),'psoil',k,n)
+  write(vname,'("p_psoil",I1.1)') k
   call histwrt(dummy_pack,vname,idnc,iarch,local,lday)
 end do
 

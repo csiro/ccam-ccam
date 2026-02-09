@@ -111,7 +111,7 @@ use darcdf_m
 use infile
 use newmpar_m
 use parm_m
-use pbl_m
+!use pbl_m
 use soil_m
 use soilsnow_m
 use vegpar_m
@@ -1715,7 +1715,7 @@ integer k,n
 integer ll,dd,hh
 integer, dimension(2), intent(in) :: csize
 integer, dimension(jsize), intent(in) :: jdim  
-integer, dimension(6,7), intent(in) :: cdim
+integer, dimension(6,4), intent(in) :: cdim
 character(len=80) vname
 character(len=80) lname
 logical, intent(in) :: local
@@ -2049,10 +2049,10 @@ if (myid==0.or.local) then
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_freq_age")') n
         write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
-        call attrib(idnc,cdim(:,7),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
+        call attrib(idnc,cdim(:,3),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         write(lname,'("t",I1.1,"_pop_grid_biomass_age")') n
         write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
-        call attrib(idnc,cdim(:,7),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
+        call attrib(idnc,cdim(:,3),csize(1),vname,lname,'none',0.,6500.,any_m,point_m,land_m,double_m)
         do ll = 1,POP_NLAYER
           write(lname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll
           write(vname,'("t",I1.1,"_pop_grid_biomass",I1.1)') n,ll

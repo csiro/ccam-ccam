@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -28,7 +28,6 @@ module aerosolldr
 use aerosol_arrays, only : ndust, nsalt, naero, ndcls,     &
   itracdms, itracso2, itracso4, itracbc, itracoc, itracdu, &
   itracsa
-  
 
 implicit none
 
@@ -1590,8 +1589,8 @@ do tile = 1,ntiles
 
   !     BEGIN OF VERTICAL LOOP
   !$acc loop seq collapse(2)
-  do JK = KTOP,kl
-    do ktrac = 2,naero
+  do ktrac = 2,naero
+    do JK = KTOP,kl
       !$acc loop vector  
       do i = 1,imax
         iq = i + js - 1  
@@ -1778,8 +1777,8 @@ do tile = 1,ntiles
         xte(iq,jk,ktrac) = xte(iq,jk,ktrac) + zdxte
         wd(i,ktrac) = wd(i,ktrac) + pqtmst*pdep*rhodz(iq,jk)
       end do  ! i = 1,imax
-    end do ! ktrac = 2,naero  
-  end do   ! k = ktop,kl
+    end do   ! k = ktop,kl
+  end do ! ktrac = 2,naero  
   
   !$acc loop vector
   do i = 1,imax

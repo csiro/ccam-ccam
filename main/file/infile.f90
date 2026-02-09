@@ -2545,8 +2545,8 @@ logical, intent(out) :: tst
 
 lncid = ncid
 ncstatus = nf90_inq_varid(lncid,vname,lvid)
-! true if varid is not found
-tst = (ncstatus/=nf90_noerr)
+! true if varid is found
+tst = (ncstatus==nf90_noerr)
 
 return
 end subroutine ccnf_inq_exist

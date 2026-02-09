@@ -134,6 +134,8 @@ integer ateb_useonewall            ! depreciated namelist options
 integer cable_climate              ! depreciated namelist options
 integer surf_windfarm, adv_precip  ! depreciated namelist options
 integer lin_aerosolmode            ! depreciated namelist options
+integer mlo_limitsal               ! depreciated namelist options
+integer ateb_soilunder             ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -238,13 +240,13 @@ namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL s
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
-    gs_switch,cable_climate,smrf_switch,strf_switch,              &
+    gs_switch,smrf_switch,strf_switch,                            &
     cable_gw_model,cable_roughness,cable_potev,                   &
-    wt_transport, cable_enablefao,                                &
+    cable_enablefao,                                              &
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
     ateb_acmeth,ateb_nrefl,                                       &
-    ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,                    &
-    ateb_nfgits,ateb_tol,                                         &
+    ateb_wbrelaxc,ateb_wbrelaxr,                                  &
+    ateb_nfgits,ateb_ncyits,ateb_tol,                             &
     ateb_zosnow,ateb_snowemiss,ateb_maxsnowalpha,                 &
     ateb_minsnowalpha,ateb_maxsnowden,ateb_minsnowden,            &
     ateb_refheight,ateb_zomratio,ateb_zocanyon,ateb_zoroof,       &
@@ -252,24 +254,26 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_maxvwatf,ateb_intairtmeth,ateb_intmassmeth,              &
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
-    ateb_ac_deltat,ateb_acfactor,ateb_soilunder,                  &
-    siburbanfrac,freshwaterlake_fix,                              & ! special options
+    ateb_ac_deltat,ateb_acfactor,                                 &
+    siburbanfrac,                                                 & ! special options
     wbclim_lonn,wbclim_lonx,wbclim_latn,wbclim_latx,              & 
-    ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,ateb_ncyits,   & ! depreciated
-    ateb_useonewall,ateb_alpha,cable_version
+    ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,               & ! depreciated
+    ateb_useonewall,ateb_alpha,cable_version,cable_climate,       &
+    ateb_scrnmeth,ateb_soilunder
 ! ocean namelist
 namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     factchseaice,minwater,mxd,mindep,otaumode,alphavis_seaice,    &
     alphanir_seaice,mlojacobi,usepice,mlosigma,nodrift,           &
-    kmlo,mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,  &
-    ocnlap,mlo_adjeta,mstagf,mlodps,mlo_limitsal,nxtrrho,mlo_bs,  &
+    mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,       &
+    mlo_adjeta,mstagf,mlodps,nxtrrho,mlo_bs,                      &
     mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,delwater,      &
-    mloiceadv,minsal,maxsal,                                      &
+    mloiceadv,minsal,maxsal,mprecond,mlomfix,                     &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
-    mlo_timeave_length,kemaxdt,                                   &
+    mlo_timeave_length,kemaxdt,freshwaterlake_fix,                &
     rivermd,basinmd,rivercoeff,                                   & ! River
-    mlomfix,calcinloop,mlomaxuv                                     ! Depreciated
+    wt_transport,                                                 & ! Ground water
+    calcinloop,mlomaxuv,ocnlap,kmlo,mlo_limitsal                    ! Depreciated
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
@@ -284,6 +288,8 @@ tkecduv = 0.
 procformat = .true.
 unlimitedhist = .false.
 adv_precip = 0
+mlomaxuv = 0.
+ocnlap = 0.
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
@@ -2332,7 +2338,7 @@ use sflux_m                                ! Surface flux routines
 
 implicit none
 
-integer, dimension(32) :: dumi
+integer, dimension(29) :: dumi
 real, dimension(26) :: dumr
     
 dumr = 0.
@@ -2390,12 +2396,9 @@ if ( myid==0 ) then
   dumi(24) = ateb_infilmeth
   dumi(25) = cable_roughness
   dumi(26) = cable_potev
-  dumi(27) = ateb_soilunder
-  dumi(28) = wt_transport
-  dumi(29) = cable_gw_model
-  dumi(30) = freshwaterlake_fix
-  dumi(31) = cable_enablefao
-  dumi(32) = ateb_ncyits
+  dumi(27) = cable_gw_model
+  dumi(28) = cable_enablefao
+  dumi(29) = ateb_ncyits
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2451,12 +2454,9 @@ ateb_lwintmeth     = dumi(23)
 ateb_infilmeth     = dumi(24)
 cable_roughness    = dumi(25)
 cable_potev        = dumi(26)
-ateb_soilunder     = dumi(27)
-wt_transport       = dumi(28)
-cable_gw_model     = dumi(29)
-freshwaterlake_fix = dumi(30)
-cable_enablefao    = dumi(31)
-ateb_ncyits        = dumi(32)
+cable_gw_model     = dumi(27)
+cable_enablefao    = dumi(28)
+ateb_ncyits        = dumi(29)
 
 return
 end subroutine broadcast_landnml
@@ -2468,11 +2468,12 @@ subroutine broadcast_mlonml
 use cc_mpi                                 ! CC MPI routines
 use mlo_ctrl                               ! Ocean physics control layer
 use mlodynamics                            ! Ocean dynamics
+use parm_m                                 ! Model configuration
 use river                                  ! River routing
 
 implicit none
 
-integer, dimension(31) :: dumi
+integer, dimension(33) :: dumi
 real, dimension(25) :: dumr    
 
 dumr = 0.
@@ -2527,13 +2528,15 @@ if ( myid==0 ) then
   dumi(22) = mlo_adjeta
   dumi(23) = mstagf
   dumi(24) = mlodps
-  dumi(25) = mlo_limitsal
-  dumi(26) = mlo_bs
-  dumi(27) = mlo_step
-  dumi(28) = mlo_uvcoupl
-  dumi(29) = mlointschf
-  dumi(30) = nxtrrho
-  dumi(31) = mloiceadv
+  dumi(25) = mlo_bs
+  dumi(26) = mlo_step
+  dumi(27) = mlo_uvcoupl
+  dumi(28) = mlointschf
+  dumi(29) = nxtrrho
+  dumi(30) = mloiceadv
+  dumi(31) = mprecond
+  dumi(32) = wt_transport  
+  dumi(33) = freshwaterlake_fix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2586,14 +2589,16 @@ mlodiff_numits     = dumi(21)
 mlo_adjeta         = dumi(22)
 mstagf             = dumi(23)
 mlodps             = dumi(24)
-mlo_limitsal       = dumi(25)
-mlo_bs             = dumi(26)
-mlo_step           = dumi(27)
-mlo_uvcoupl        = dumi(28)
-mlointschf         = dumi(29)
-nxtrrho            = dumi(30)
-mloiceadv          = dumi(31)
-    
+mlo_bs             = dumi(25)
+mlo_step           = dumi(26)
+mlo_uvcoupl        = dumi(27)
+mlointschf         = dumi(28)
+nxtrrho            = dumi(29)
+mloiceadv          = dumi(30)
+mprecond           = dumi(31)
+wt_transport       = dumi(32)
+freshwaterlake_fix = dumi(33)
+
 return
 end subroutine broadcast_mlonml
     

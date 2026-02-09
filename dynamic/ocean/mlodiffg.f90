@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -86,7 +86,7 @@ use vecsuv_m
 
 implicit none
 
-integer iq, k
+integer iq, k, its
 real, dimension(ifull+iextra,wlev,3) :: duma
 real, dimension(ifull+iextra,wlev,2) :: dumb
 real, dimension(ifull+iextra,wlev) :: ttl, ssl
@@ -94,6 +94,8 @@ real, dimension(ifull+iextra,wlev) :: uau,uav
 real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
 real, dimension(ifull+iextra,wlev) :: w_ema
 real, dimension(ifull+iextra,wlev+1) :: t_kh
+real, dimension(ifull,wlev,3) :: duma_save
+real, dimension(ifull,wlev) :: ttl_save, ssl_save
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
 real, dimension(ifull,wlev) :: workdata2
 real, dimension(ifull) :: dwdx, dwdy
@@ -182,8 +184,6 @@ else
 end if
 call boundsuv(xfact,yfact,stag=-9)
 
-
-! perform diffusion
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   ! UX, VX, WX
   ! Laplacian diffusion terms (closure #1)
@@ -194,7 +194,6 @@ if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
       duma(iq,k,3) = ( az(iq)*u(iq,k) + bz(iq)*v(iq,k) )*ee(iq,k)
     end do
   end do
-  call bounds(duma(:,:,1:3))
 end if
 if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
   ! potential temperature and salinity
@@ -205,46 +204,101 @@ if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
   where( workdata2(1:ifull,:)<2. )
     ssl(1:ifull,:) = 0.
   end where
-  dumb(:,:,1) = ttl(:,:)
-  dumb(:,:,2) = ssl(:,:)
-  call bounds(dumb(:,:,1:2))
-  ttl(:,:) = dumb(:,:,1)
-  ssl(:,:) = dumb(:,:,2)
 end if
 
+! perform diffusion
 
 if ( mlodiff>=10 .and. mlodiff<20 ) then
   !Biharmonic version
 
-  if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
-    call mlodiffcalc(duma(:,:,1),xfact,yfact,emi,ee,hdif)
-    call mlodiffcalc(duma(:,:,2),xfact,yfact,emi,ee,hdif)
-    call mlodiffcalc(duma(:,:,3),xfact,yfact,emi,ee,hdif)
+  if ( mlodiff==10 .or. mlodiff==12 ) then
+    duma_save(1:ifull,:,1:3) = duma(1:ifull,:,1:3)  
   end if
-  if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
-    call mlodiffcalc(ttl,xfact,yfact,emi,ee,hdif)
-    call mlodiffcalc(ssl,xfact,yfact,emi,ee,hdif)
+  if ( mlodiff==10 .or. mlodiff==11 ) then
+    ttl_save(1:ifull,:) = ttl(1:ifull,:)
+    ssl_save(1:ifull,:) = ssl(1:ifull,:)
   end if
+  
+  do its = 1,mlodiff_numits
+
+    if ( mlodiff==10 .or. mlodiff==12 ) then
+      call bounds(duma(:,:,1:3))
+    end if
+    if ( mlodiff==10 .or. mlodiff==11 ) then
+      dumb(:,:,1) = ttl(:,:)
+      dumb(:,:,2) = ssl(:,:)
+      call bounds(dumb(:,:,1:2))
+      ttl(:,:) = dumb(:,:,1)
+      ssl(:,:) = dumb(:,:,2)
+    end if
+    
+    if ( mlodiff==10 .or. mlodiff==12 ) then
+      call mlodiffcalc1(duma(:,:,1),xfact,yfact,emi,hdif)
+      call mlodiffcalc1(duma(:,:,2),xfact,yfact,emi,hdif)
+      call mlodiffcalc1(duma(:,:,3),xfact,yfact,emi,hdif)
+    end if
+    if ( mlodiff==10 .or. mlodiff==11 ) then
+      call mlodiffcalc1(ttl,xfact,yfact,emi,hdif)
+      call mlodiffcalc1(ssl,xfact,yfact,emi,hdif)
+    end if
+
+    if ( mlodiff==10 .or. mlodiff==12 ) then
+      call bounds(duma(:,:,1:3))
+    end if
+    if ( mlodiff==10 .or. mlodiff==11 ) then
+      dumb(:,:,1) = ttl(:,:)
+      dumb(:,:,2) = ssl(:,:)
+      call bounds(dumb(:,:,1:2))
+      ttl(:,:) = dumb(:,:,1)
+      ssl(:,:) = dumb(:,:,2)
+    end if
+    
+    if ( mlodiff==10 .or. mlodiff==12 ) then
+      call mlodiffcalc2(duma(:,:,1),duma_save(:,:,1),xfact,yfact,emi,ee,hdif)
+      call mlodiffcalc2(duma(:,:,2),duma_save(:,:,2),xfact,yfact,emi,ee,hdif)
+      call mlodiffcalc2(duma(:,:,3),duma_save(:,:,3),xfact,yfact,emi,ee,hdif)
+    end if
+    if ( mlodiff==10 .or. mlodiff==11 ) then
+      call mlodiffcalc2(ttl,ttl_save,xfact,yfact,emi,ee,hdif)
+      call mlodiffcalc2(ssl,ssl_save,xfact,yfact,emi,ee,hdif)
+    end if
+    
+  end do  
 
 else if ( mlodiff>=0 .and. mlodiff<10 ) then
   ! Laplacian version
-    
-  if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
+
+  if ( mlodiff==0 .or. mlodiff==2 ) then
+    call bounds(duma(:,:,1:3))
+  end if
+  if ( mlodiff==0 .or. mlodiff==1 ) then
+    dumb(:,:,1) = ttl(:,:)
+    dumb(:,:,2) = ssl(:,:)
+    call bounds(dumb(:,:,1:2))
+    ttl(:,:) = dumb(:,:,1)
+    ssl(:,:) = dumb(:,:,2)
+  end if
+
+  !$acc data create(xfact,yfact,emi,ee,iwu,isv,in,is,ie,iw)
+  !$acc update device(xfact,yfact,emi,ee,iwu,isv,in,is,ie,iw)
+  
+  if ( mlodiff==0 .or. mlodiff==2 ) then
     call mlodifflap(duma(:,:,1),xfact,yfact,emi,ee,hdif)
     call mlodifflap(duma(:,:,2),xfact,yfact,emi,ee,hdif)
     call mlodifflap(duma(:,:,3),xfact,yfact,emi,ee,hdif)
   end if
-  if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
+  if ( mlodiff==0 .or. mlodiff==1 ) then
     call mlodifflap(ttl,xfact,yfact,emi,ee,hdif)
     call mlodifflap(ssl,xfact,yfact,emi,ee,hdif)
   end if
 
-
+  !$acc wait
+  !$acc end data
+  
 else  
   write(6,*) "ERROR: Unknown mlodiff option mlodiff=",mlodiff
   call ccmpi_abort(-1)
 end if  
-
 
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   do k = 1,wlev
@@ -272,84 +326,9 @@ return
 end subroutine mlodiffusion_work
 
 !------------------------------------------------------------------------------
-subroutine mlodiffcalc(work,xfact,yfact,emi,ee,hdif)
+subroutine mlodiffcalc1(work,xfact,yfact,emi,hdif)
 
 use cc_mpi, only : bounds, ccmpi_abort
-use indices_m
-use mlo_ctrl
-use newmpar_m
-use parm_m, only : dt
-
-implicit none
-
-integer k, iq, its
-real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
-real, dimension(ifull), intent(in) :: emi
-real, dimension(:,:), intent(inout) :: work
-real, dimension(:,:), intent(in) :: ee
-real, dimension(ifull+iextra,wlev) :: ans
-real, dimension(ifull) :: ansl
-real, dimension(ifull,wlev) :: work_save
-real, intent(in) :: hdif
-real base, xfact_iwu, yfact_isv
-
-! Bi-Harmonic diffusion.  iterative version.
-
-ans = 0. 
-work_save(1:ifull,1:wlev) = work(1:ifull,1:wlev)
-
-do its = 1,mlodiff_numits
-  
-  if ( its>1 ) then
-    call bounds(work)
-  end if
-
-  ! Estimate Laplacian at t+1
-  do k = 1,wlev
-    do iq = 1,ifull  
-      xfact_iwu = xfact(iwu(iq),k)
-      yfact_isv = yfact(isv(iq),k)
-      base = hdif*xfact(iq,k) + hdif*xfact_iwu &
-           + hdif*yfact(iq,k) + hdif*yfact_isv
-      ans(iq,k) = ( -base*work(iq,k) +                    &
-                     hdif*xfact(iq,k)*work(ie(iq),k) +    &
-                     hdif*xfact_iwu*work(iw(iq),k) +      &
-                     hdif*yfact(iq,k)*work(in(iq),k) +    &
-                     hdif*yfact_isv*work(is(iq),k) )      &
-                  / sqrt(emi(iq))
-    end do   
-  end do
-
-  call bounds(ans)
-
-  ! Estimate Laplacian^2 (= Grad^4) at t+1
-  do k = 1,wlev
-    do iq = 1,ifull  
-      xfact_iwu = xfact(iwu(iq),k)
-      yfact_isv = yfact(isv(iq),k)
-      base = hdif*xfact(iq,k) + hdif*xfact_iwu &
-           + hdif*yfact(iq,k) + hdif*yfact_isv
-      work(iq,k) = work_save(iq,k) - dt*(                   &
-                    -base*ans(iq,k) +                       &
-                    hdif*xfact(iq,k)*ans(ie(iq),k) +        &
-                    hdif*xfact_iwu*ans(iw(iq),k) +          &
-                    hdif*yfact(iq,k)*ans(in(iq),k) +        &
-                    hdif*yfact_isv*ans(is(iq),k) ) / sqrt(emi(iq))
-    end do    
-    do iq = 1,ifull
-      if ( ee(iq,k)>0.5 ) then
-        work(iq,k) = work_save(iq,k)
-      end if
-    end do
-  end do  
-    
-end do ! its
-
-return
-end subroutine mlodiffcalc
-
-subroutine mlodifflap(work,xfact,yfact,emi,ee,ldif)
-
 use indices_m
 use mlo_ctrl
 use newmpar_m
@@ -360,33 +339,137 @@ integer k, iq
 real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:), intent(inout) :: work
+real, dimension(ifull) :: ans
+real, intent(in) :: hdif
+real base, xfact_iwu, yfact_isv
+
+! Bi-Harmonic diffusion.  iterative version.
+
+! Estimate Laplacian at t+1
+
+do k = 1,wlev
+  do iq = 1,ifull  
+    xfact_iwu = xfact(iwu(iq),k)
+    yfact_isv = yfact(isv(iq),k)
+    base = hdif*xfact(iq,k) + hdif*xfact_iwu &
+         + hdif*yfact(iq,k) + hdif*yfact_isv
+    ans(iq) = ( -base*work(iq,k) +                    &
+                 hdif*xfact(iq,k)*work(ie(iq),k) +    &
+                 hdif*xfact_iwu*work(iw(iq),k) +      &
+                 hdif*yfact(iq,k)*work(in(iq),k) +    &
+                 hdif*yfact_isv*work(is(iq),k) )      &
+              / sqrt(emi(iq))
+  end do   
+  do iq = 1,ifull
+    work(iq,k) = ans(iq)
+  end do
+end do  
+
+return
+end subroutine mlodiffcalc1
+
+subroutine mlodiffcalc2(work,work_save,xfact,yfact,emi,ee,hdif)
+
+use cc_mpi, only : bounds, ccmpi_abort
+use indices_m
+use mlo_ctrl
+use newmpar_m
+use parm_m, only : dt
+
+implicit none
+
+integer k, iq
+real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
+real, dimension(ifull), intent(in) :: emi
+real, dimension(:,:), intent(inout) :: work
 real, dimension(:,:), intent(in) :: ee
-real, dimension(ifull) :: ansl
+real, dimension(ifull) :: ans
+real, dimension(:,:), intent(in) :: work_save
+real, intent(in) :: hdif
+real base, xfact_iwu, yfact_isv
+
+! Bi-Harmonic diffusion.  iterative version.
+
+! Estimate Laplacian^2 (= Grad^4) at t+1
+
+do k = 1,wlev
+  do iq = 1,ifull  
+    xfact_iwu = xfact(iwu(iq),k)
+    yfact_isv = yfact(isv(iq),k)
+    base = hdif*xfact(iq,k) + hdif*xfact_iwu &
+         + hdif*yfact(iq,k) + hdif*yfact_isv
+    ans(iq) = work_save(iq,k) - dt*(                     &
+                -base*work(iq,k) +                       &
+                hdif*xfact(iq,k)*work(ie(iq),k) +        &
+                hdif*xfact_iwu*work(iw(iq),k) +          &
+                hdif*yfact(iq,k)*work(in(iq),k) +        &
+                hdif*yfact_isv*work(is(iq),k) ) / sqrt(emi(iq))
+  end do
+  do iq = 1,ifull
+    if ( ee(iq,k)>0.5 ) then
+      work(iq,k) = work_save(iq,k)
+    else
+      work(iq,k) = ans(iq)
+    end if
+  end do
+end do  
+
+return
+end subroutine mlodiffcalc2
+
+subroutine mlodifflap(work,xfact,yfact,emi,ee,ldif)
+
+use cc_acc, only : async_length
+use indices_m
+use mlo_ctrl
+use newmpar_m
+
+implicit none
+
+integer k, iq
+integer, save :: async_counter = -1
+real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
+real, dimension(ifull), intent(in) :: emi
+real, dimension(:,:), intent(inout) :: work
+real, dimension(:,:), intent(in) :: ee
+real, dimension(ifull,wlev) :: ans
 real, intent(in) :: ldif
 real base, xfact_iwu, yfact_isv
 
 ! Laplacian diffusion
 
+async_counter = mod(async_counter+1, async_length)
+
+!$acc enter data create(work,ans) async(async_counter)
+!$acc update device(work) async(async_counter)
+!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi) &
+!$acc   present(iwu,isv,in,is,ie,iw) async(async_counter)
 do k = 1,wlev
   do iq = 1,ifull
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
     base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
                   +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
-    ansl(iq) = ( emi(iq)*work(iq,k) +                     &
-                 ldif*xfact(iq,k)**2*work(ie(iq),k) +     &
-                 ldif*xfact_iwu**2*work(iw(iq),k) +       &
-                 ldif*yfact(iq,k)**2*work(in(iq),k) +     &
-                 ldif*yfact_isv**2*work(is(iq),k) )       &
-               / base
+    ans(iq,k) = ( emi(iq)*work(iq,k) +                     &
+                  ldif*xfact(iq,k)**2*work(ie(iq),k) +     &
+                  ldif*xfact_iwu**2*work(iw(iq),k) +       &
+                  ldif*yfact(iq,k)**2*work(in(iq),k) +     &
+                  ldif*yfact_isv**2*work(is(iq),k) )       &
+                / base
   end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(2) copyout(work) present(ans,ee) async(async_counter)
+do k = 1,wlev
   do iq = 1,ifull
     if ( ee(iq,k)>0.5 ) then
-      work(iq,k) = ansl(iq)
+      work(iq,k) = ans(iq,k)
     end if
   end do
 end do  
-    
+!$acc end parallel do
+!$acc exit data delete(work,ans) async(async_counter)
+
 return
 end subroutine mlodifflap
 

@@ -584,6 +584,13 @@ if ( mod(ktau,tbave10)==0 ) then
   
   freqstore(:,:) = 0._8
 
+  ! flush output buffers
+  if ( synchist ) then
+    if ( myid==0 .or. local ) then
+      call ccnf_sync(fncid)
+    end if
+  end if
+  
 end if
 
 if ( myid==0 .or. local ) then

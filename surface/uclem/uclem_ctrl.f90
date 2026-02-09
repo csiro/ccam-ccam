@@ -68,7 +68,7 @@ public uclem_init, uclem_end, uclem_calc, uclem_zo, uclem_type, uclem_alb1,     
        uclem_scrnout, uclem_fbeam, uclem_spitter, uclem_sigmau,                        &
        uclem_deftype, uclem_hydro, uclem_energy, uclem_misc,                           &
        uclem_deftype_export, uclem_avetemp, uclem_loadd, uclem_saved, energyrecord
-public urbtemp, soilunder
+public urbtemp
 
 public upack_g, ufull_g, nl, nfrac
 public f_roof,f_wall,f_road,f_slab,f_intm
@@ -98,9 +98,6 @@ type(facetparams), dimension(:), allocatable, save :: f_roof, f_road, f_wall, f_
 type(vegdata), dimension(:), allocatable,     save :: cnveg_g, rfveg_g
 type(intldata), dimension(:), allocatable,    save :: intl_g
 type(fparmdata), dimension(:), allocatable,   save :: f_g
-
-integer, save      :: soilunder=1          ! Modify road heat capacity to extend under
-                                           ! (0=road only, 1=canveg, 2=bld, 3=canveg & bld)
 
 interface uclem_calc
   module procedure uclem_calc_standard, uclem_calc_thread
@@ -1065,19 +1062,8 @@ do ii = 1,nl
   fp_road%lambda(:,ii) = croadlambda(itmp,ii)
   fp_roof%volcp(:,ii) = croofcp(itmp,ii)
   fp_wall%volcp(:,ii) = cwallcp(itmp,ii)
-  select case(soilunder)
-    case(0) ! storage under road only
-      fp_road%volcp(:,ii) = croadcp(itmp,ii)
-    case(1) ! storage under road and canveg
-      fp_road%volcp(:,ii) = croadcp(itmp,ii)/(1.-cnveg%sigma)
-    case(2) ! storage under road and bld
-      fp_road%volcp(:,ii) = croadcp(itmp,ii)*(1./(1.-cnveg%sigma)*(1./(1.-fp%sigmabld)-1.) +1.)
-    case(3) ! storage under road and canveg and bld (100% of grid point)
-      fp_road%volcp(:,ii) = croadcp(itmp,ii)/(1.-cnveg%sigma)/(1.-fp%sigmabld)
-    case DEFAULT
-      write(6,*) "ERROR: Unknown soilunder mode ",soilunder
-      stop
-  end select
+  ! storage under road and canveg
+  fp_road%volcp(:,ii) = croadcp(itmp,ii)/(1.-cnveg%sigma)
 end do
 cnveg%zo = czovegc(itmp)
 cnveg%lai = cvegrlaic(itmp)
@@ -1115,7 +1101,7 @@ if ( diag>0 ) then
   write(6,*) 'hwratio, eff',fp%hwratio, fp%effhwratio
   write(6,*) 'bldheight, eff',fp%bldheight, fp_coeffbldheight
   write(6,*) 'sigmabld, sigmavegc', fp%sigmabld, cnveg%sigma
-  write(6,*) 'roadcp multiple for soilunder:', soilunder,fp_road%volcp(itmp,1)/croadcp(itmp,1)
+  write(6,*) 'roadcp multiple:',fp_road%volcp(itmp,1)/croadcp(itmp,1)
 end if
 
 return

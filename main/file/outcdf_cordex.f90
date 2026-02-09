@@ -1215,6 +1215,13 @@ if ( mod(ktau,tbave)==0 ) then
   freqstore(:,38) = 9.e9_8
   freqstore(:,39:45) = 0._8
   
+  ! flush output buffers
+  if ( synchist ) then
+    if ( myid==0 .or. local ) then
+      call ccnf_sync(fncid)
+    end if
+  end if
+  
 end if
 
 if ( myid==0 .or. local ) then
