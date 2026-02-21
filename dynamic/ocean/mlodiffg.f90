@@ -467,7 +467,7 @@ do k = 1,wlev
     end if
   end do
 end do  
-!$acc end parallel do
+!$acc end parallel loop
 !$acc exit data delete(work,ans) async(async_counter)
 
 return
