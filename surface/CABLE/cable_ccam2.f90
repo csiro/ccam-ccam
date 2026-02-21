@@ -21,7 +21,6 @@
 
 ! CABLE interface originally developed by the CABLE group
 ! Subsequently modified by MJT for tile mosaic and SEAESF radiation scheme
-! Thanks to Paul Ryan for OMP routines
     
 ! - Currently all tiles within a gridbox have the same soil texture, but independent soil
 !   temperatures, moisture, etc.
@@ -115,7 +114,6 @@ implicit none
 private
 public sib4
 public cablesettemp, newcbmwb, cableinflow, cbmemiss, cable_casatile
-!public calc_wt_ave, calc_wt_flux
 
 ! Imported from cable_ccam_common
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
@@ -129,7 +127,6 @@ public loadtile, defaulttile, savetiledef, savetile
 
 ! Imported from cable_ccam_setup
 public loadcbmparm, cbmparm
-!public cable_version
 
 contains
 ! ****************************************************************************
@@ -156,6 +153,7 @@ use permsurf_m
 use prec_m
 use raddiag_m
 use radisw_m
+use riverarrays_m
 use screen_m
 use sigs_m
 use soil_m
@@ -304,9 +302,9 @@ do tile = 1,ntiles
                    sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),                     &
                    sv(js:je),sgdn(is:ie),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                 &
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl2(js:je),vmod(is:ie),                                   &
-                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),evspsbl(is:ie),sbl(is:ie),lair,lbal,c,       &
-                   lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,   &
-                   lssnow,lsum_flux,lveg,lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim,imax)
+                   lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),evspsbl(is:ie),sbl(is:ie),wtd(is:ie),lair,   &
+                   lbal,c,lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,  &
+                   lsoil,lssnow,lsum_flux,lveg,lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim,imax)
 
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
@@ -352,7 +350,7 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
                      frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,           &
                      psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sigmf,smass,           &
                      snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
-                     ustar,vlai,vl2,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,sbl,air,bal,c,canopy,               &
+                     ustar,vlai,vl2,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,sbl,wtd,air,bal,c,canopy,           &
                      casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
                      sum_flux,veg,fevc,plant_turnover,plant_turnover_wood,wb_clim,imax)
 
@@ -388,6 +386,7 @@ real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, r
 real, dimension(imax), intent(inout) :: sigmf, snage, snowd, ssdnn, tss, ustar
 real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
 real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
+real, dimension(imax), intent(inout) :: wtd
 real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
 real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
 real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
@@ -501,6 +500,14 @@ met%ua         = max(met%ua, c%umin)
 met%coszen     = max(met%coszen, 1.e-8_8) 
 rough%za_uv    = rough%za_tq
 rad%fbeam(:,3) = 0._8            ! dummy for now
+
+if ( cable_gw_model==1 ) then
+  do nb = 1,maxnb
+    is = tind(nb,1)
+    ie = tind(nb,2)
+    ssnow%wtd(is:ie) = real( pack(wtd, tmap(:,nb))*1000., 8)
+  end do  
+end if
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
 call setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl2,casamet,veg,imax,tind,tmap,maxnb)
@@ -763,7 +770,7 @@ end if
 
 !--------------------------------------------------------------
 ! Special
-if ( nspecial == 51 ) then
+if ( nspecial==51 ) then
   ! reset soil moisture to prescribed climatology  
   do k = 1,ms
     do nb = 1,maxnb  
@@ -824,7 +831,6 @@ end where
 evspsbl_l = 0.
 sbl_l = 0.
 tmps = 0. ! average isflag
-!wtd = 0.
 
 do nb = 1,maxnb
   is = tind(nb,1)
@@ -886,8 +892,16 @@ do nb = 1,maxnb
   end if
   vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
   rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)    ! diagnostic in history file  
-  !wtd = wtd + unpack(sv(is:ie)*real(ssnow%wtd(is:ie))/1000.,tmap(:,nb),0.)  
 end do
+
+if ( cable_gw_model==1 ) then
+  wtd = 0.    
+  do nb = 1,maxnb
+    is = tind(nb,1)
+    ie = tind(nb,2)
+    wtd = wtd + unpack(sv(is:ie)*real(ssnow%wtd(is:ie))/1000.,tmap(:,nb),0.)  
+  end do  
+end if ! wt_transport==1
 
 if ( ccycle/=0 ) then
   cplant = 0.
@@ -1179,39 +1193,35 @@ type(pop_type), intent(inout) :: pop
 type(soil_parameter_type), intent(inout) :: soil
 type(veg_parameter_type), intent(inout) :: veg
 
-if ( mp_global>0 ) then
+call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
 
-  call casa_allocation(veg,soil,casabiome,casaflux,casapool,casamet,phen,lalloc)
+if ( POP%np>0 ) then
 
-  if ( POP%np>0 ) then
-
-    where ( pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
-      casaflux%frac_sapwood(POP%Iwood) = real( POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum, 8)
-      casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
-      veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
-      where ( pop%pop_grid(:)%LU==2 )
-        casaflux%kplant(POP%Iwood,2) = real( 1._dp -            &
-          (1._dp-  max( min((POP%pop_grid(:)%stress_mortality + &
-          POP%pop_grid(:)%crowding_mortality                    &
-          + POP%pop_grid(:)%fire_mortality )                    &
-          /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
-          1._dp/veg%disturbance_interval(POP%Iwood,1), 0.99_dp), 0._dp))**(1._dp/365._dp), 8)
-      elsewhere
-        casaflux%kplant(POP%Iwood,2) = real( 1._dp -                        &
-          (1._dp-  max( min((POP%pop_grid(:)%stress_mortality +             &
-          POP%pop_grid(:)%crowding_mortality                                &
-          + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
-          /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_dp), 0._dp))**(1._dp/365._dp), 8)
-      end where
-      veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
+  where ( pop%pop_grid(:)%cmass_sum_old>0.001_8 .and. pop%pop_grid(:)%cmass_sum>0.001_8 )
+    casaflux%frac_sapwood(POP%Iwood) = real( POP%pop_grid(:)%csapwood_sum/ POP%pop_grid(:)%cmass_sum, 8)
+    casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
+    veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
+    where ( pop%pop_grid(:)%LU==2 )
+      casaflux%kplant(POP%Iwood,2) = real( 1._dp -            &
+        (1._dp-  max( min((POP%pop_grid(:)%stress_mortality + &
+        POP%pop_grid(:)%crowding_mortality                    &
+        + POP%pop_grid(:)%fire_mortality )                    &
+        /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth) + &
+        1._dp/veg%disturbance_interval(POP%Iwood,1), 0.99_dp), 0._dp))**(1._dp/365._dp), 8)
     elsewhere
-      casaflux%frac_sapwood(POP%Iwood) = 1._8
-      casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
-      casaflux%kplant(POP%Iwood,2) = 0._8
-      veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
+      casaflux%kplant(POP%Iwood,2) = real( 1._dp -                        &
+        (1._dp-  max( min((POP%pop_grid(:)%stress_mortality +             &
+        POP%pop_grid(:)%crowding_mortality                                &
+        + POP%pop_grid(:)%fire_mortality+POP%pop_grid(:)%cat_mortality  ) &
+        /(POP%pop_grid(:)%cmass_sum+POP%pop_grid(:)%growth), 0.99_dp), 0._dp))**(1._dp/365._dp), 8)
     end where
-  
-  end if
+    veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
+  elsewhere
+    casaflux%frac_sapwood(POP%Iwood) = 1._8
+    casaflux%sapwood_area(POP%Iwood) = real( max(POP%pop_grid(:)%sapwood_area/10000._dp, 1.e-6_dp), 8)
+    casaflux%kplant(POP%Iwood,2) = 0._8
+    veg%hc(POP%Iwood) = real( POP%pop_grid(:)%height_max, 8)
+  end where
   
 end if
 
@@ -1482,143 +1492,6 @@ end do
 
 return
 end subroutine cablesettemp
-
-! Subroutines for ground water transport - average water table height
-
-!subroutine calc_wt_ave(wth_ave)
-!
-!use arrays_m
-!use const_phys
-!se map_m
-!use newmpar_m
-!use parm_m
-!use soil_m
-!
-!integer nb, js, je, is, ie, ks, ke, tile, ls, le
-!integer lmp, lmaxnb, k
-!integer, dimension(maxtile,2) :: ltind
-!real, dimension(:), intent(out) :: wth_ave
-!logical, dimension(imax,maxtile) :: ltmap
-!type(soil_snow_type) :: lssnow
-!
-!do tile = 1,ntiles
-!  is = (tile-1)*imax + 1
-!  ie = tile*imax
-!  lmp = tdata(tile)%mp
-!
-!  wth_ave(is:ie) = 0.
-!
-!  if ( lmp>0 ) then
-!
-!    lmaxnb = tdata(tile)%maxnb
-!    ltmap = tdata(tile)%tmap
-!    js = tdata(tile)%toffset + 1
-!    je = tdata(tile)%toffset + tdata(tile)%mp
-!    ltind = tdata(tile)%tind - tdata(tile)%toffset
-!    call setp(ssnow,lssnow,tile)
-!
-!    ! calculate water table depth and other information from tiles
-!    do nb = 1,maxnb
-!      ks = ltind(nb,1)
-!      ke = ltind(nb,2)
-!      ls = js + ks - 1
-!      le = js + ke - 1
-!      wth_ave(is:ie) = wtd_ave(is:ie) + unpack( sv(ls:le)*real(lssnow%wtd(ks:ke))/1000., ltmap(:,nb), 0. )
-!    end do
-!
-!  end if ! mp>0
-!
-!end do ! tile
-!
-!return
-!end subroutine calc_wt_ave
-
-!subroutine calc_wt_flux(flux,flux_m,flux_c,ddt)
-!
-!use arrays_m
-!use const_phys
-!use map_m
-!use newmpar_m
-!use parm_m
-!
-!integer nb, is, ie, ks, ke, tile, ls, le, js, je
-!integer lmp, lmaxnb
-!integer, dimension(maxtile,2) :: ltind
-!real, intent(in) :: ddt
-!real, dimension(ifull), intent(in) :: flux, flux_m, flux_c
-!real(kind=r_2), dimension(ifull) :: tot_flux, flux_corr
-!real(kind=r_2), dimension(ifull) :: wth, mm, cc, flux_adj, indxsq ! ifull>=mp
-!real(kind=r_2), dimension(ifull,maxtile) :: new_flux              ! ifull>=mp
-!logical, dimension(imax,maxtile) :: ltmap
-!type(soil_snow_type) :: lssnow
-!
-!tot_flux(:) = 0._r_2
-!
-!do tile = 1,ntiles
-!  is = (tile-1)*imax + 1
-!  ie = tile*imax
-!  lmp = tdata(tile)%mp
-!
-!  if ( lmp>0 ) then
-!
-!    lmaxnb = tdata(tile)%maxnb
-!    ltmap = tdata(tile)%tmap
-!    js = tdata(tile)%toffset + 1
-!    je = tdata(tile)%toffset + tdata(tile)%mp
-!    ltind = tdata(tile)%tind(:,:) - tdata(tile)%toffset
-!    call setp(ssnow,lssnow,tile)
-!
-!    ! remove remaing flux from ground water
-!
-!    do nb = 1,lmaxnb
-!      ks = ltind(nb,1)
-!      ke = ltind(nb,2)
-!      ls = js + ks - 1
-!      le = js + ke - 1
-!      wth(ks:ke) = - lssnow%wtd(ks:ke)/1000._r_2
-!      mm(ks:ke) = pack( real(flux_m(is:ie),r_2), ltmap(:,nb) )
-!      cc(ks:ke) = pack( real(flux_c(is:ie),r_2), ltmap(:,nb) )
-!      new_flux(ks:ke,nb) = mm(ks:ke)*wth(ks:ke) + cc(ks:ke)
-!      tot_flux(is:ie) = tot_flux(is:ie) + &
-!        unpack( real(sv(ls:le),r_2)*new_flux(ks:ke,nb), ltmap(:,nb), 0._r_2 )
-!    end do
-!
-!  end if
-!end do
-!
-!where( abs(tot_flux)>0._r_2 )
-!  flux_corr = real(abs(flux),r_2)/abs(tot_flux)
-!elsewhere
-!  flux_corr = 0._r_2
-!end where
-!
-!do tile = 1,ntiles
-!  is = (tile-1)*imax + 1
-!  ie = tile*imax
-!  lmp = tdata(tile)%mp
-!
-!  if ( lmp>0 ) then
-!
-!    lmaxnb = tdata(tile)%maxnb
-!    ltmap = tdata(tile)%tmap
-!    ltind = tdata(tile)%tind - tdata(tile)%toffset
-!    call setp(ssnow,lssnow,tile)
-!
-!    do nb = 1,lmaxnb
-!      ks = ltind(nb,1)
-!      ke = ltind(nb,2)
-!      flux_adj(ks:ke) = pack( real(flux_corr(is:ie),r_2 ), ltmap(:,nb) )
-!      indxsq(ks:ke) = pack( real((em(is:ie)/ds)**2,r_2), ltmap(:,nb) )
-!      new_flux(ks:ke,nb) = new_flux(ks:ke,nb)*flux_adj(ks:ke)
-!      lssnow%GWwb(ks:ke) = lssnow%GWwb(ks:ke) - real(ddt,r_2)*indxsq(ks:ke)*new_flux(ks:ke,nb)
-!    end do
-!
-!  end if ! lmp>0.
-!
-!end do ! tile
-!
-!return
-!end subroutine calc_wt_flux
 
 end module cable_ccam
 

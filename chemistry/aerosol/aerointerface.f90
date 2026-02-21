@@ -121,7 +121,7 @@ implicit none
 
 integer, intent(in) :: mins, aero_update
 integer k, j, tt, ttx, kinv, smins
-integer iq, ntr
+integer i, iq, ntr
 integer tile, js, je, idjd_t
 real, dimension(ifull,kl) :: dz, rhoa, pccw
 real, dimension(ifull) :: coszro
@@ -131,7 +131,8 @@ real, dimension(ifull) :: taudar, cldcon, u10_l
 real, dimension(imax,ilev) :: loxidantnow
 real, dimension(imax,kl) :: lzoxidant
 real, dimension(imax,kl) :: lclcon
-real, dimension(ifull,kl) :: at, ct
+real, dimension(imax,kl,naero) :: lxtg
+real, dimension(imax,kl) :: at, ct
 real dhr, fjd, r1, dlt, alp, slag
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical mydiag_t
@@ -225,36 +226,40 @@ if ( aero_update==1 ) then
     idjd_t = mod(idjd-1,imax)+1
     mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-    at(js:je,1) = 0.
-    ct(js:je,kl) = 0.
+    at(:,1) = 0.
+    ct(:,kl) = 0.
   
     rong = rdry/grav
     rlogs1=log(sig(1))
     rlogs2=log(sig(2))
     rlogh1=log(sigmh(2))
     rlog12=1./(rlogs1-rlogs2)
-    do iq = js,je
+    do i = 1,imax
+      iq = i + js - 1
       tmnht=(t(iq,2)*rlogs1-t(iq,1)*rlogs2+(t(iq,1)-t(iq,2))*rlogh1)*rlog12  
       dzz = -tmnht*rong*((sig(2)-sig(1))/sigmh(2))  ! this is z(k+1)-z(k)
       gt = rkhsave(iq,1)*dt*(sig(2)-sig(1))/(dzz**2)
-      at(iq,2) = -gt/dsig(2)  
-      ct(iq,1) = -gt/dsig(1)
+      at(i,2) = -gt/dsig(2)  
+      ct(i,1) = -gt/dsig(1)
     end do
     do k = 2,kl-1
-      do iq = js,je
+      do i = 1,imax
+        iq = i + js - 1
         ! Calculate half level heights and temperatures
         ! n.b. an approximate zh (in m) is quite adequate for this routine
         tmnht = ratha(k)*t(iq,k+1) + rathb(k)*t(iq,k)
         dzz = -tmnht*rong*((sig(k+1)-sig(k))/sigmh(k+1))  ! this is z(k+1)-z(k)
         gt = rkhsave(iq,k)*dt*(sig(k+1)-sig(k))/(dzz**2)
-        at(iq,k+1) = -gt/dsig(k+1)  
-        ct(iq,k) = -gt/dsig(k)
+        at(i,k+1) = -gt/dsig(k+1)  
+        ct(i,k) = -gt/dsig(k)
       end do
     end do
+
+    lxtg(:,:,:) = xtg(js:je,:,:)
+    call trimmix(at,ct,lxtg) 
+    xtg(js:je,:,:) = lxtg(:,:,:)
     
   end do ! tile = 1,ntiles
-  
-  call trimmix(at,ct,xtg,imax) ! ifull arrays with imax to define tiles
   
 end if
 

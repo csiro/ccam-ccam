@@ -58,7 +58,7 @@ VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(ZEN3),yes)
-FHOST = -axCORE-AVX2 -align array32byte -Ddebug
+FHOST = -axCORE-AVX2 -align array32byte
 FOVERRIDE = -qoverride-limits
 ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
@@ -370,8 +370,6 @@ netcdf_m.o: netcdf_m.f90
 esfsw_driver.o esfsw_parameters.o gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_tables.o longwave_params.o lw_gases_stdtf.o microphys_rad.o optical_path.o optical_path_data.o rad_utilities.o sealw99.o: %.o: %.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(IPFLAG) $<
 cable_air.o cable_albedo.o cable_canopy.o cable_common.o cable_constants.o cable_data.o cable_define_types.o cable_gw_hydro.o cable_optimiseJVratio.o cable_pft_params.o cable_psm.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o cable_soil_params.o cable_soilsnow.o casa_cnp.o casa_dimension.o casa_param.o casa_phenology.o casa_variable.o POP.o: %.o: %.F90
-	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(IPFLAG) $<
-module_mp_sbu_ylin.o: module_mp_sbu_ylin.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(IPFLAG) $<
 version.h: FORCE
 	rm -f tmpver

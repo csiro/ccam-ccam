@@ -789,7 +789,7 @@ end if      ! (ntest==2)
 ! Temperature
 if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_inx',9f8.3/8x,9f8.3)") rhs(idjd,:)
 rhs(:,1) = rhs(:,1) - (conflux/cp)*fg(:)/ps(1:imax)
-call trimmix(at,ct,rhs,imax,kl)   ! for t
+call trimmix(at,ct,rhs)   ! for t
 if ( nmaxpr==1 .and. mydiag ) write (6,"('thet_out',9f8.3/8x,9f8.3)") rhs(idjd,:)
 do k = 1,kl
   t(1:imax,k) = rhs(:,k)/sigkap(k)
@@ -813,7 +813,7 @@ rkhsave(:,:) = rkh(:,:)
 rhs = qg(1:imax,:)
 rhs(:,1) = rhs(:,1) - (conflux/hl)*eg/ps(1:imax)
 ! could add extra sfce moisture flux term for crank-nicholson
-call trimmix(at,ct,rhs,imax,kl)    ! for qg
+call trimmix(at,ct,rhs)    ! for qg
 qg(1:imax,:) = rhs
 if ( diag .and. mydiag ) then
   write(6,*)'vertmix rhs & qg after trim ',(rhs(idjd,k),k=1,kl)
@@ -825,13 +825,13 @@ end if
 ! Cloud microphysics terms
 if ( ldr/=0 ) then
   ! now do qfg
-  call trimmix(at,ct,qfg,imax,kl)
+  call trimmix(at,ct,qfg)
   ! now do qlg
-  call trimmix(at,ct,qlg,imax,kl)
+  call trimmix(at,ct,qlg)
   ! now do ni
-  call trimmix(at,ct,ni,imax,kl)
+  call trimmix(at,ct,ni)
   ! now do stratcloud
-  call trimmix(at,ct,stratcloud,imax,kl)
+  call trimmix(at,ct,stratcloud)
 end if    ! (ldr/=0)
 
 !--------------------------------------------------------------
@@ -850,11 +850,11 @@ if ( ( diag .or. ntest==2 ) .and. mydiag ) then
 end if      ! (ntest==2)
 
 ! first do u
-call trimmix(au,cu,u,imax,kl)
+call trimmix(au,cu,u)
   
   
 ! now do v; with properly unstaggered au,cu
-call trimmix(au,cu,v,imax,kl)    ! note now that au, cu unstaggered globpea
+call trimmix(au,cu,v)    ! note now that au, cu unstaggered globpea
 
   
 if ( ( diag .or. ntest>=1 ) .and. mydiag ) then

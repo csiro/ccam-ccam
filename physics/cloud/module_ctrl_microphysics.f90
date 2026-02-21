@@ -123,46 +123,46 @@ real, dimension(ifull,kl) :: vi
 real, dimension(ifull,kl) :: dz, rhoa
 
 #ifdef GPU
-real(kind=8), dimension(ifull,0:kl) :: zlevv
-real(kind=8), dimension(ifull,kl) :: riz
-real(kind=8), dimension(ifull,kl) :: tothz, thz, dzw
-real(kind=8), dimension(ifull,kl) :: znc, znr, zni, zns
-real(kind=8), dimension(ifull,kl) :: zpres, zrhoa, zcdrop, zvi
-real(kind=8), dimension(ifull,kl) :: zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D
-real(kind=8), dimension(ifull,kl) :: zqg, zqlg, zqfg, zqrg, zqsng
-real(kind=8), dimension(ifull,kl) :: zfluxr, zfluxi, zfluxs, zfluxm, zfluxf
-real(kind=8), dimension(ifull,kl) :: zqevap, zqsubl, zqauto, zqcoll, zqaccr
-real(kind=8), dimension(ifull,kl) :: zpsnow, zpsaut, zpsfw, zpsfi
-real(kind=8), dimension(ifull,kl) :: zpraci, zpiacr, zpsaci, zpsacw
-real(kind=8), dimension(ifull,kl) :: zpsdep, zpssub, zpracs, zpsacr
-real(kind=8), dimension(ifull,kl) :: zpsmlt, zpsmltevp, zprain
-real(kind=8), dimension(ifull,kl) :: zpraut, zpracw, zprevp, zpgfr
-real(kind=8), dimension(ifull,kl) :: zpvapor, zpclw, zpladj, zpcli
-real(kind=8), dimension(ifull,kl) :: zpimlt, zpihom, zpidw, zpiadj
-real(kind=8), dimension(ifull,kl) :: zqschg
-real(kind=8), dimension(ifull) :: pptrain, pptsnow, pptice
+real, dimension(ifull,0:kl) :: zlevv
+real, dimension(ifull,kl) :: riz
+real, dimension(ifull,kl) :: tothz, thz, dzw
+real, dimension(ifull,kl) :: znc, znr, zni, zns
+real, dimension(ifull,kl) :: zpres, zrhoa, zcdrop, zvi
+real, dimension(ifull,kl) :: zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D
+real, dimension(ifull,kl) :: zqg, zqlg, zqfg, zqrg, zqsng
+real, dimension(ifull,kl) :: zfluxr, zfluxi, zfluxs, zfluxm, zfluxf
+real, dimension(ifull,kl) :: zqevap, zqsubl, zqauto, zqcoll, zqaccr
+real, dimension(ifull,kl) :: zpsnow, zpsaut, zpsfw, zpsfi
+real, dimension(ifull,kl) :: zpraci, zpiacr, zpsaci, zpsacw
+real, dimension(ifull,kl) :: zpsdep, zpssub, zpracs, zpsacr
+real, dimension(ifull,kl) :: zpsmlt, zpsmltevp, zprain
+real, dimension(ifull,kl) :: zpraut, zpracw, zprevp, zpgfr
+real, dimension(ifull,kl) :: zpvapor, zpclw, zpladj, zpcli
+real, dimension(ifull,kl) :: zpimlt, zpihom, zpidw, zpiadj
+real, dimension(ifull,kl) :: zqschg
+real, dimension(ifull) :: pptrain, pptsnow, pptice
 #else
-real(kind=8), dimension(imax,0:kl) :: zlevv
-real(kind=8), dimension(imax,kl) :: riz
-real(kind=8), dimension(imax,kl) :: tothz, thz, dzw
-real(kind=8), dimension(imax,kl) :: znc, znr, zni, zns
-real(kind=8), dimension(imax,kl) :: zpres, zrhoa, zcdrop, zvi
-real(kind=8), dimension(imax,kl) :: zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D
-real(kind=8), dimension(imax,kl) :: zqg, zqlg, zqfg, zqrg, zqsng
-real(kind=8), dimension(imax,kl) :: zfluxr, zfluxi, zfluxs, zfluxm, zfluxf
-real(kind=8), dimension(imax,kl) :: zqevap, zqsubl, zqauto, zqcoll, zqaccr
-real(kind=8), dimension(imax,kl) :: zpsnow, zpsaut, zpsfw, zpsfi
-real(kind=8), dimension(imax,kl) :: zpraci, zpiacr, zpsaci, zpsacw
-real(kind=8), dimension(imax,kl) :: zpsdep, zpssub, zpracs, zpsacr
-real(kind=8), dimension(imax,kl) :: zpsmlt, zpsmltevp, zprain
-real(kind=8), dimension(imax,kl) :: zpraut, zpracw, zprevp, zpgfr
-real(kind=8), dimension(imax,kl) :: zpvapor, zpclw, zpladj, zpcli
-real(kind=8), dimension(imax,kl) :: zpimlt, zpihom, zpidw, zpiadj
-real(kind=8), dimension(imax,kl) :: zqschg
-real(kind=8), dimension(imax) :: pptrain, pptsnow, pptice
+real, dimension(imax,0:kl) :: zlevv
+real, dimension(imax,kl) :: riz
+real, dimension(imax,kl) :: tothz, thz, dzw
+real, dimension(imax,kl) :: znc, znr, zni, zns
+real, dimension(imax,kl) :: zpres, zrhoa, zcdrop, zvi
+real, dimension(imax,kl) :: zEFFC1D, zEFFI1D, zEFFS1D, zEFFR1D
+real, dimension(imax,kl) :: zqg, zqlg, zqfg, zqrg, zqsng
+real, dimension(imax,kl) :: zfluxr, zfluxi, zfluxs, zfluxm, zfluxf
+real, dimension(imax,kl) :: zqevap, zqsubl, zqauto, zqcoll, zqaccr
+real, dimension(imax,kl) :: zpsnow, zpsaut, zpsfw, zpsfi
+real, dimension(imax,kl) :: zpraci, zpiacr, zpsaci, zpsacw
+real, dimension(imax,kl) :: zpsdep, zpssub, zpracs, zpsacr
+real, dimension(imax,kl) :: zpsmlt, zpsmltevp, zprain
+real, dimension(imax,kl) :: zpraut, zpracw, zprevp, zpgfr
+real, dimension(imax,kl) :: zpvapor, zpclw, zpladj, zpcli
+real, dimension(imax,kl) :: zpimlt, zpihom, zpidw, zpiadj
+real, dimension(imax,kl) :: zqschg
+real, dimension(imax) :: pptrain, pptsnow, pptice
 #endif
-real(kind=8), dimension(ifull,kl) :: zqsng_rem
-real(kind=8) tdt, zmaxlintime
+real, dimension(ifull,kl) :: zqsng_rem
+real tdt, zmaxlintime
 real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
 character(len=8) :: cmode, dmode
@@ -361,10 +361,10 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       riz(js:je,:) = 0._8 ! partition between snow and graupel
 
-      zlevv(js:je,0) = real( zs(js:je)/grav, 8 )
-      zlevv(js:je,1) = zlevv(js:je,0) + real( bet(1)*t(js:je,1)/grav, 8 )
+      zlevv(js:je,0) = zs(js:je)/grav
+      zlevv(js:je,1) = zlevv(js:je,0) + bet(1)*t(js:je,1)/grav
       do k = 2,kl
-        zlevv(js:je,k) = zlevv(js:je,k-1) + real( (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav, 8 )
+        zlevv(js:je,k) = zlevv(js:je,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav
       end do
       
       ! limit maximum cloud water visible to microphysics
@@ -379,12 +379,12 @@ select case ( interp_ncloud(ldr,ncloud) )
       qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
       qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)  
       
-      zqg(js:je,:) = real( qg(js:je,:), 8 )
-      zqlg(js:je,:) = real( qlg(js:je,:), 8 )
-      zqrg(js:je,:) = real( qrg(js:je,:), 8 )
-      zqfg(js:je,:) = real( qfg(js:je,:), 8 )
-      zqsng(js:je,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
-      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - real(qfg_max,8), 0._8 )
+      zqg(js:je,:) = qg(js:je,:)
+      zqlg(js:je,:) = qlg(js:je,:)
+      zqrg(js:je,:) = qrg(js:je,:)
+      zqfg(js:je,:) = qfg(js:je,:)
+      zqsng(js:je,:) = qsng(js:je,:) + qgrg(js:je,:)
+      zqsng_rem(js:je,:) = max( zqsng(js:je,:) - qfg_max, 0. )
       zqsng(js:je,:) = zqsng(js:je,:) - zqsng_rem(js:je,:)
 
       ! ----------------
@@ -392,29 +392,29 @@ select case ( interp_ncloud(ldr,ncloud) )
         do iq = js,je
           prf_temp    = ps(iq)*sig(k)
           prf         = 0.01*prf_temp   ! ps is SI units
-          tothz(iq,k) = real( (prf/1000.)**(rdry/cp), 8 )
-          thz(iq,k)   = real( t(iq,k)/tothz(iq,k), 8 )
-          zpres(iq,k) = real( prf_temp, 8 )
+          tothz(iq,k) = (prf/1000.)**(rdry/cp)
+          thz(iq,k)   = t(iq,k)/tothz(iq,k)
+          zpres(iq,k) = prf_temp
         end do
       end do
 
-      zrhoa(js:je,:) = real( rhoa(js:je,:), 8 )
-      dzw(js:je,:) = real( dz(js:je,:), 8 )
-      zcdrop(js:je,:) = real( cdrop(js:je,:), 8 ) ! aerosol
+      zrhoa(js:je,:) = rhoa(js:je,:)
+      dzw(js:je,:) = dz(js:je,:)
+      zcdrop(js:je,:) = cdrop(js:je,:) ! aerosol
       znc(js:je,:) = 0._8
-      znr(js:je,:) = real( nr(js:je,:), 8 )
-      zni(js:je,:) = real( ni(js:je,:), 8 )
-      zns(js:je,:) = real( ns(js:je,:), 8 )
+      znr(js:je,:) = nr(js:je,:)
+      zni(js:je,:) = ni(js:je,:)
+      zns(js:je,:) = ns(js:je,:)
 
-      pptrain(js:je) = 0._8
-      pptsnow(js:je) = 0._8
-      pptice(js:je)  = 0._8
+      pptrain(js:je) = 0.
+      pptsnow(js:je) = 0.
+      pptice(js:je)  = 0.
       
     end do  
     
     ! Use sub time-step if required
     njumps = int(dt/(maxlintime+0.01)) + 1
-    tdt    = real(dt,8)
+    tdt    = dt
     call clphy1d_ylin(tdt, ifull,                      &
                    zqg, zqlg, zqrg, zqfg, zqsng,       &
                    thz, tothz, zrhoa,                  &
@@ -432,17 +432,17 @@ select case ( interp_ncloud(ldr,ncloud) )
       js = (tile-1)*imax + 1 ! js:je inside 1:ifull
       je = tile*imax         ! len(js:je) = imax
       
-      t(js:je,:) = real( thz(js:je,:)*tothz(js:je,:) )
+      t(js:je,:) = thz(js:je,:)*tothz(js:je,:)
       zqsng(js:je,:) = zqsng(js:je,:) + zqsng_rem(js:je,:)
 
       !unpack data from imax to ifull.
 
-      qg(js:je,:)   = real( zqg(js:je,:) )                        ! qv mixing ratio
-      qlg(js:je,:)  = real( zqlg(js:je,:) )                       ! ql mixing ratio
-      qfg(js:je,:)  = real( zqfg(js:je,:) )                       ! qf mixing ratio (ice)
-      qrg(js:je,:)  = real( zqrg(js:je,:) )                       ! qr mixing ratio (rain)
-      qsng(js:je,:) = real( zqsng(js:Je,:)*(1._8-riz(js:je,:)) )  ! qs mixing ratio (snow)
-      qgrg(js:je,:) = real( zqsng(js:je,:)*riz(js:je,:) )         ! qg mixing ratio (graupel)
+      qg(js:je,:)   = zqg(js:je,:)                        ! qv mixing ratio
+      qlg(js:je,:)  = zqlg(js:je,:)                       ! ql mixing ratio
+      qfg(js:je,:)  = zqfg(js:je,:)                       ! qf mixing ratio (ice)
+      qrg(js:je,:)  = zqrg(js:je,:)                       ! qr mixing ratio (rain)
+      qsng(js:je,:) = zqsng(js:Je,:)*(1.-riz(js:je,:))    ! qs mixing ratio (snow)
+      qgrg(js:je,:) = zqsng(js:je,:)*riz(js:je,:)         ! qg mixing ratio (graupel)
 
       ! reapply any remaining qlg_rem or qfg_rem
       qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
@@ -467,37 +467,37 @@ select case ( interp_ncloud(ldr,ncloud) )
          gfrac(js:je,:) = 0.
       end where
       
-      !nc(js:je,:)        = real( znc(js:je,:) )
-      nr(js:je,:)         = real( znr(js:je,:) )
-      ni(js:je,:)         = real( zni(js:je,:) )
-      ns(js:je,:)         = real( zns(js:je,:) )
-      stras_rliq(js:je,:) = real( zEFFC1D(js:je,:) )   ! save effective radius for cosp
-      stras_rice(js:je,:) = real( zEFFI1D(js:je,:) )
-      stras_rsno(js:je,:) = real( zEFFS1D(js:je,:) )
-      stras_rrai(js:je,:) = real( zEFFR1D(js:je,:) )
+      !nc(js:je,:)        = znc(js:je,:)
+      nr(js:je,:)         = znr(js:je,:)
+      ni(js:je,:)         = zni(js:je,:)
+      ns(js:je,:)         = zns(js:je,:)
+      stras_rliq(js:je,:) = zEFFC1D(js:je,:)   ! save effective radius for cosp
+      stras_rice(js:je,:) = zEFFI1D(js:je,:)
+      stras_rsno(js:je,:) = zEFFS1D(js:je,:)
+      stras_rrai(js:je,:) = zEFFR1D(js:je,:)
 
-      fluxr(js:je,1)      = real( pptrain(js:je) )
-      fluxr(js:je,2:kl)   = real( zfluxr(js:je,1:kl-1) )  ! flux for aerosol calculation
-      fluxi(js:je,1)      = real( pptice(js:je) )
-      fluxi(js:je,2:kl)   = real( zfluxi(js:je,1:kl-1) )
-      fluxs(js:je,1)      = real( pptsnow(js:je)*(1._8-riz(js:je,1)) )
-      fluxs(js:je,2:kl)   = real( zfluxs(js:je,1:kl-1)*(1._8-riz(js:je,1:kl-1)) )
-      fluxg(js:je,1)      = real( pptsnow(js:je)*riz(js:je,1) )
-      fluxg(js:je,2:kl)   = real( zfluxs(js:je,1:kl-1)*riz(js:je,1:kl-1) )
-      fluxm(js:je,1:kl-1) = real( zfluxm(js:je,1:kl-1) )
+      fluxr(js:je,1)      = pptrain(js:je)
+      fluxr(js:je,2:kl)   = zfluxr(js:je,1:kl-1)  ! flux for aerosol calculation
+      fluxi(js:je,1)      = pptice(js:je)
+      fluxi(js:je,2:kl)   = zfluxi(js:je,1:kl-1)
+      fluxs(js:je,1)      = pptsnow(js:je)*(1._8-riz(js:je,1))
+      fluxs(js:je,2:kl)   = zfluxs(js:je,1:kl-1)*(1.-riz(js:je,1:kl-1))
+      fluxg(js:je,1)      = pptsnow(js:je)*riz(js:je,1)
+      fluxg(js:je,2:kl)   = zfluxs(js:je,1:kl-1)*riz(js:je,1:kl-1)
+      fluxm(js:je,1:kl-1) = zfluxm(js:je,1:kl-1)
       fluxm(js:je,kl)     = 0.
-      fluxf(js:je,1:kl-1) = real( zfluxf(js:je,1:kl-1) )
+      fluxf(js:je,1:kl-1) = zfluxf(js:je,1:kl-1)
       fluxf(js:je,kl)     = 0.
-      fevap(js:je,:) = real( zqevap(js:je,:) )
-      fsubl(js:je,:) = real( zqsubl(js:je,:) )
-      fauto(js:je,:) = real( zqauto(js:je,:) )
-      fcoll(js:je,:) = real( zqcoll(js:je,:) )
-      faccr(js:je,:) = real( zqaccr(js:je,:) )
-      vi(js:je,:)    = real( zvi(js:je,:) )
+      fevap(js:je,:) = zqevap(js:je,:)
+      fsubl(js:je,:) = zqsubl(js:je,:)
+      fauto(js:je,:) = zqauto(js:je,:)
+      fcoll(js:je,:) = zqcoll(js:je,:)
+      faccr(js:je,:) = zqaccr(js:je,:)
+      vi(js:je,:)    = zvi(js:je,:)
 
-      condx(js:je)  = condx(js:je) + real( pptrain(js:je) + pptsnow(js:je) + pptice(js:je) )
-      conds(js:je)  = conds(js:je) + real( pptsnow(js:je)*(1._8-riz(js:je,1)) + pptice(js:je) )
-      condg(js:je)  = condg(js:je) + real( pptsnow(js:je)*riz(js:je,1) ) ! for graupel
+      condx(js:je)  = condx(js:je) + pptrain(js:je) + pptsnow(js:je) + pptice(js:je)
+      conds(js:je)  = conds(js:je) + pptsnow(js:je)*(1._8-riz(js:je,1)) + pptice(js:je)
+      condg(js:je)  = condg(js:je) + pptsnow(js:je)*riz(js:je,1) ! for graupel
 
     end do     !tile loop    
 #else
@@ -509,10 +509,10 @@ select case ( interp_ncloud(ldr,ncloud) )
       riz(1:imax,:) = 0._8 ! partition between snow and graupel
         
       ! pack data from ifull into imax
-      zlevv(1:imax,0) = real( zs(js:je)/grav, 8 )
-      zlevv(1:imax,1) = zlevv(1:imax,0) + real( bet(1)*t(js:je,1)/grav, 8 )
+      zlevv(1:imax,0) = zs(js:je)/grav
+      zlevv(1:imax,1) = zlevv(1:imax,0) + bet(1)*t(js:je,1)/grav
       do k = 2,kl
-        zlevv(1:imax,k) = zlevv(1:imax,k-1) + real( (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav, 8 )
+        zlevv(1:imax,k) = zlevv(1:imax,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav
       end do
       
       ! limit maximum cloud water visible to microphysics
@@ -527,12 +527,12 @@ select case ( interp_ncloud(ldr,ncloud) )
       qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
       qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)   
       
-      zqg(1:imax,:) = real( qg(js:je,:), 8 )
-      zqlg(1:imax,:) = real( qlg(js:je,:), 8 )
-      zqrg(1:imax,:) = real( qrg(js:je,:), 8 )
-      zqfg(1:imax,:) = real( qfg(js:je,:), 8 )
-      zqsng(1:imax,:) = real( qsng(js:je,:), 8 ) + real( qgrg(js:je,:), 8 )
-      zqsng_rem(js:je,:) = max( zqsng(1:imax,:) - real(qfg_max,8), 0._8 )
+      zqg(1:imax,:) = qg(js:je,:)
+      zqlg(1:imax,:) = qlg(js:je,:)
+      zqrg(1:imax,:) = qrg(js:je,:)
+      zqfg(1:imax,:) = qfg(js:je,:)
+      zqsng(1:imax,:) = qsng(js:je,:) + qgrg(js:je,:)
+      zqsng_rem(js:je,:) = max( zqsng(1:imax,:) - qfg_max, 0. )
       zqsng(1:imax,:) = zqsng(1:imax,:) - zqsng_rem(js:je,:)
       
       ! ----------------
@@ -541,27 +541,27 @@ select case ( interp_ncloud(ldr,ncloud) )
           iq = i + js - 1  
           prf_temp   = ps(iq)*sig(k)
           prf        = 0.01*prf_temp   ! ps is SI units
-          tothz(i,k) = real( (prf/1000.)**(rdry/cp), 8 )
-          thz(i,k)   = real( t(iq,k)/tothz(i,k), 8 )
-          zrhoa(i,k) = real( rhoa(iq,k), 8 )
-          zpres(i,k) = real( prf_temp, 8 )
-          dzw(i,k)   = real( dz(iq,k), 8 )
+          tothz(i,k) = (prf/1000.)**(rdry/cp)
+          thz(i,k)   = t(iq,k)/tothz(i,k)
+          zrhoa(i,k) = rhoa(iq,k)
+          zpres(i,k) = prf_temp
+          dzw(i,k)   = dz(iq,k)
         end do
       end do
 
-      zcdrop(1:imax,:) = real( cdrop(js:je,:), 8 ) ! aerosol
-      znc(1:imax,:) = 0._8
-      znr(1:imax,:) = real( nr(js:je,:), 8 )
-      zni(1:imax,:) = real( ni(js:je,:), 8 )
-      zns(1:imax,:) = real( ns(js:je,:), 8 )
+      zcdrop(1:imax,:) = cdrop(js:je,:) ! aerosol
+      znc(1:imax,:) = 0.
+      znr(1:imax,:) = nr(js:je,:)
+      zni(1:imax,:) = ni(js:je,:)
+      zns(1:imax,:) = ns(js:je,:)
 
-      pptrain(1:imax) = 0._8
-      pptsnow(1:imax) = 0._8
-      pptice(1:imax)  = 0._8
+      pptrain(1:imax) = 0.
+      pptsnow(1:imax) = 0.
+      pptice(1:imax)  = 0.
 
       ! Use sub time-step if required
       njumps = int(dt/(maxlintime+0.01)) + 1
-      tdt    = real(dt,8)
+      tdt    = dt
       call clphy1d_ylin(tdt, imax,                       &
                      zqg, zqlg, zqrg, zqfg, zqsng,       &
                      thz, tothz, zrhoa,                  &
@@ -583,17 +583,17 @@ select case ( interp_ncloud(ldr,ncloud) )
                      zcdrop,lin_adv,njumps)
 
       
-      t(js:je,:) = real( thz(1:imax,:)*tothz(1:imax,:) )
+      t(js:je,:) = thz(1:imax,:)*tothz(1:imax,:)
       zqsng(1:imax,:) = zqsng(1:imax,:) + zqsng_rem(js:je,:)      
 
       !unpack data from imax to ifull.
 
-      qg(js:je,:)   = real( zqg(1:imax,:) )                        ! qv mixing ratio
-      qlg(js:je,:)  = real( zqlg(1:imax,:) )                       ! ql mixing ratio
-      qfg(js:je,:)  = real( zqfg(1:imax,:) )                       ! qf mixing ratio (ice)
-      qrg(js:je,:)  = real( zqrg(1:imax,:) )                       ! qr mixing ratio (rain)
-      qsng(js:je,:) = real( zqsng(1:imax,:)*(1._8-riz(1:imax,:)) ) ! qs mixing ratio (snow)
-      qgrg(js:je,:) = real( zqsng(1:imax,:)*riz(1:imax,:) )        ! qg mixing ration (graupel)
+      qg(js:je,:)   = zqg(1:imax,:)                        ! qv mixing ratio
+      qlg(js:je,:)  = zqlg(1:imax,:)                       ! ql mixing ratio
+      qfg(js:je,:)  = zqfg(1:imax,:)                       ! qf mixing ratio (ice)
+      qrg(js:je,:)  = zqrg(1:imax,:)                       ! qr mixing ratio (rain)
+      qsng(js:je,:) = zqsng(1:imax,:)*(1.-riz(1:imax,:))   ! qs mixing ratio (snow)
+      qgrg(js:je,:) = zqsng(1:imax,:)*riz(1:imax,:)        ! qg mixing ration (graupel)
 
       ! reapply any remaining qlg_rem or qfg_rem
       qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
@@ -618,68 +618,68 @@ select case ( interp_ncloud(ldr,ncloud) )
          gfrac(js:je,:) = 0.
       end where
       
-      !nc(js:je,:)        = real( znc(1:imax,:) )
-      nr(js:je,:)         = real( znr(1:imax,:) )
-      ni(js:je,:)         = real( zni(1:imax,:) )
-      ns(js:je,:)         = real( zns(1:imax,:) )
-      stras_rliq(js:je,:) = real( zEFFC1D(1:imax,:) )   ! save effective radius for cosp
-      stras_rice(js:je,:) = real( zEFFI1D(1:imax,:) )
-      stras_rsno(js:je,:) = real( zEFFS1D(1:imax,:) )
-      stras_rrai(js:je,:) = real( zEFFR1D(1:imax,:) )
+      !nc(js:je,:)        = znc(1:imax,:)
+      nr(js:je,:)         = znr(1:imax,:)
+      ni(js:je,:)         = zni(1:imax,:)
+      ns(js:je,:)         = zns(1:imax,:)
+      stras_rliq(js:je,:) = zEFFC1D(1:imax,:)   ! save effective radius for cosp
+      stras_rice(js:je,:) = zEFFI1D(1:imax,:)
+      stras_rsno(js:je,:) = zEFFS1D(1:imax,:)
+      stras_rrai(js:je,:) = zEFFR1D(1:imax,:)
 
-      fluxr(js:je,1)      = real( pptrain(1:imax) )
-      fluxr(js:je,2:kl)   = real( zfluxr(1:imax,1:kl-1) )  ! flux for aerosol calculation
-      fluxi(js:je,1)      = real( pptice(1:imax) )
-      fluxi(js:je,2:kl)   = real( zfluxi(1:imax,1:kl-1) )
-      fluxs(js:je,1)      = real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) )
-      fluxs(js:je,2:kl)   = real( zfluxs(1:imax,1:kl-1)*(1._8-riz(1:imax,1:kl-1)) )
-      fluxg(js:je,1)      = real( pptsnow(1:imax)*riz(1:imax,1) )
-      fluxg(js:je,2:kl)   = real( zfluxs(1:imax,1:kl-1)*riz(1:imax,1:kl-1) )
-      fluxm(js:je,1:kl-1) = real( zfluxm(1:imax,1:kl-1) )
+      fluxr(js:je,1)      = pptrain(1:imax)
+      fluxr(js:je,2:kl)   = zfluxr(1:imax,1:kl-1)  ! flux for aerosol calculation
+      fluxi(js:je,1)      = pptice(1:imax)
+      fluxi(js:je,2:kl)   = zfluxi(1:imax,1:kl-1)
+      fluxs(js:je,1)      = pptsnow(1:imax)*(1._8-riz(1:imax,1))
+      fluxs(js:je,2:kl)   = zfluxs(1:imax,1:kl-1)*(1._8-riz(1:imax,1:kl-1))
+      fluxg(js:je,1)      = pptsnow(1:imax)*riz(1:imax,1)
+      fluxg(js:je,2:kl)   = zfluxs(1:imax,1:kl-1)*riz(1:imax,1:kl-1)
+      fluxm(js:je,1:kl-1) = zfluxm(1:imax,1:kl-1)
       fluxm(js:je,kl)     = 0.
-      fluxf(js:je,1:kl-1) = real( zfluxf(1:imax,1:kl-1) )
+      fluxf(js:je,1:kl-1) = zfluxf(1:imax,1:kl-1)
       fluxf(js:je,kl)     = 0.
-      fevap(js:je,:) = real( zqevap(1:imax,:) )
-      fsubl(js:je,:) = real( zqsubl(1:imax,:) )
-      fauto(js:je,:) = real( zqauto(1:imax,:) )
-      fcoll(js:je,:) = real( zqcoll(1:imax,:) )
-      faccr(js:je,:) = real( zqaccr(1:imax,:) )
-      vi(js:je,:)    = real( zvi(1:imax,:) )
+      fevap(js:je,:) = zqevap(1:imax,:)
+      fsubl(js:je,:) = zqsubl(1:imax,:)
+      fauto(js:je,:) = zqauto(1:imax,:)
+      fcoll(js:je,:) = zqcoll(1:imax,:)
+      faccr(js:je,:) = zqaccr(1:imax,:)
+      vi(js:je,:)    = zvi(1:imax,:)
 
       if (process_rate_mode == 2) then
-        psnow(js:je,:)   = real( zpsnow(1:imax,:) ) !process rate to understand cloud microphysics
-        psaut(js:je,:)   = real( zpsaut(1:imax,:) )
-        psfw(js:je,:)    = real( zpsfw(1:imax,:) )
-        psfi(js:je,:)    = real( zpsfi(1:imax,:) )
-        praci(js:je,:)   = real( zpraci(1:imax,:) )
-        piacr(js:je,:)   = real( zpiacr(1:imax,:) )
-        psaci(js:je,:)   = real( zpsaci(1:imax,:) )
-        psacw(js:je,:)   = real( zpsacw(1:imax,:) )
-        psdep(js:je,:)   = real( zpsdep(1:imax,:) )
-        pssub(js:je,:)   = real( zpssub(1:imax,:) )
-        pracs(js:je,:)   = real( zpracs(1:imax,:) )
-        psacr(js:je,:)   = real( zpsacr(1:imax,:) )
-        psmlt(js:je,:)   = real( zpsmlt(1:imax,:) )
-        psmltevp(js:je,:)= real( zpsmltevp(1:imax,:) )
-        prain(js:je,:)   = real( zprain(1:imax,:) )
-        praut(js:je,:)   = real( zpraut(1:imax,:) )
-        pracw(js:je,:)   = real( zpracw(1:imax,:) )
-        prevp(js:je,:)   = real( zprevp(1:imax,:) )
-        pgfr(js:je,:)    = real( zpgfr(1:imax,:) )
-        pvapor(js:je,:)  = real( zpvapor(1:imax,:) )
-        pclw(js:je,:)    = real( zpclw(1:imax,:) )
-        pladj(js:je,:)   = real( zpladj(1:imax,:) )
-        pcli(js:je,:)    = real( zpcli(1:imax,:) )
-        pimlt(js:je,:)   = real( zpimlt(1:imax,:) )
-        pihom(js:je,:)   = real( zpihom(1:imax,:) )
-        pidw(js:je,:)    = real( zpidw(1:imax,:) )
-        piadj(js:je,:)   = real( zpiadj(1:imax,:) )
-        pqschg(js:je,:)  = real( zqschg(1:imax,:) )
+        psnow(js:je,:)   = zpsnow(1:imax,:) !process rate to understand cloud microphysics
+        psaut(js:je,:)   = zpsaut(1:imax,:)
+        psfw(js:je,:)    = zpsfw(1:imax,:)
+        psfi(js:je,:)    = zpsfi(1:imax,:)
+        praci(js:je,:)   = zpraci(1:imax,:)
+        piacr(js:je,:)   = zpiacr(1:imax,:)
+        psaci(js:je,:)   = zpsaci(1:imax,:)
+        psacw(js:je,:)   = zpsacw(1:imax,:)
+        psdep(js:je,:)   = zpsdep(1:imax,:)
+        pssub(js:je,:)   = zpssub(1:imax,:)
+        pracs(js:je,:)   = zpracs(1:imax,:)
+        psacr(js:je,:)   = zpsacr(1:imax,:)
+        psmlt(js:je,:)   = zpsmlt(1:imax,:)
+        psmltevp(js:je,:)= zpsmltevp(1:imax,:)
+        prain(js:je,:)   = zprain(1:imax,:)
+        praut(js:je,:)   = zpraut(1:imax,:)
+        pracw(js:je,:)   = zpracw(1:imax,:)
+        prevp(js:je,:)   = zprevp(1:imax,:)
+        pgfr(js:je,:)    = zpgfr(1:imax,:)
+        pvapor(js:je,:)  = zpvapor(1:imax,:)
+        pclw(js:je,:)    = zpclw(1:imax,:)
+        pladj(js:je,:)   = zpladj(1:imax,:)
+        pcli(js:je,:)    = zpcli(1:imax,:)
+        pimlt(js:je,:)   = zpimlt(1:imax,:)
+        pihom(js:je,:)   = zpihom(1:imax,:)
+        pidw(js:je,:)    = zpidw(1:imax,:)
+        piadj(js:je,:)   = zpiadj(1:imax,:)
+        pqschg(js:je,:)  = zqschg(1:imax,:)
       end if
           
-      condx(js:je)  = condx(js:je) + real( pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax) )
-      conds(js:je)  = conds(js:je) + real( pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax) )
-      condg(js:je)  = condg(js:je) + real( pptsnow(1:imax)*riz(1:imax,1) ) ! for graupel
+      condx(js:je)  = condx(js:je) + pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax)
+      conds(js:je)  = conds(js:je) + pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax)
+      condg(js:je)  = condg(js:je) + pptsnow(1:imax)*riz(1:imax,1) ! for graupel
 
     end do     !tile loop
 #endif    

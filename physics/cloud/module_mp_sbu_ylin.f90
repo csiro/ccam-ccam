@@ -278,9 +278,9 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
   real                                          :: nidep, midep
   real, dimension(1:imax,kts:kte)               :: nvtr, nvts
   real, dimension(1:imax,kts:kte)               :: n0_s 
-  real                                          :: n0_r, n0_i, n0_c                  
+  real                                          :: n0_r, n0_i, n0_c
   real                                          :: lami, lamc
-  real, dimension(1:imax,kts:kte)               :: gam_ss, gam_bm_s, gam_bv_ss
+  real, dimension(1:imax,kts:kte)               :: gam_ss, gam_bv_ss
   real, dimension(1:imax,kts:kte)               :: gam_bv_s
   real gg21, gg22, gg31, gg32, gg33
   real ratio, gg31c, gg32c, gg33c, mu_c_s
@@ -350,14 +350,13 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
   lammini = 1./(2.*dcs+100.E-6)
 
   !$acc data create(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa, &
-  !$acc             gam_ss,gam_bm_s,gam_bv_ss,                                        &
+  !$acc             gam_ss,gam_bv_ss,                                                 &
   !$acc             fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr,      &
   !$acc             effc1d,effr1d,effs1d,effi1d)
   !$acc update device(prez,tothz,rho,dzw)
 
   do n = 1,njumps
-  
-    !
+
     !     qsw         saturated mixing ratio on water surface
     !     qsi         saturated mixing ratio on ice surface
     !     episp0k     RH*e*saturated pressure at 273.15 K  = 611.2 hPa (Rogers and Yau 1989)
@@ -441,7 +440,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     !$acc update device(Ri,tem,viscmu)
     !$acc parallel loop collapse(2) copyout(n0_s,gam_bv_s)                    &
     !$acc   present(tem,rho,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa,gam_ss) &
-    !$acc   present(gam_bm_s,gam_bv_ss)
+    !$acc   present(gam_bv_ss)
     do k = kts,kte
       do iq = 1,imax
 
@@ -468,7 +467,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
         tmp_sa(iq,k)= ba_s+mu_s+1.
       
         gam_ss(iq,k) = ggamma(tmp_ss)
-        gam_bm_s(iq,k) = ggamma(1.+bm_s(iq,k))
+        !gam_bm_s(iq,k) = ggamma(1.+bm_s(iq,k))
         gam_bv_ss(iq,k) = ggamma(bv_s(iq,k)+tmp_ss)
         gam_bv_s(iq,k) = ggamma(bv_s(iq,k)+1.)
 
@@ -477,7 +476,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     !$acc end parallel loop
 
     ! The following variables are needed for the calculation of precipitation fluxes
-    !$acc update self(am_s,bm_s,av_s,bv_s,gam_ss,gam_bm_s,gam_bv_ss)
+    !$acc update self(am_s,bm_s,av_s,bv_s,gam_ss,gam_bv_ss)
 
     !***********************************************************************
     ! Calculate precipitation fluxes due to terminal velocities.
@@ -603,11 +602,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                 n0_s(iq,k) = nsz(iq,k)*xlambdas
                 if ( xlambdas < lammins ) then
                   xlambdas = lammins
-                  n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qsz(iq,k)/gam_bm_s(iq,k)/am_s(iq,k)
+                  !n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qsz(iq,k)/gam_bm_s(iq,k)/am_s(iq,k) ! original
+                  n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
+                                 qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
                   nsz(iq,k) = n0_s(iq,k)/xlambdas
                 else if ( xlambdas > lammaxs ) then
                   xlambdas = lammaxs
-                  n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qsz(iq,k)/gam_bm_s(iq,k)/am_s(iq,k)
+                  !n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qsz(iq,k)/gam_bm_s(iq,k)/am_s(iq,k) ! original
+                  n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
+                                 qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
                   nsz(iq,k) = n0_s(iq,k)/xlambdas
                 end if
                 olambdas = 1./xlambdas
@@ -820,11 +823,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             n0_s(iq,k) = nsz(iq,k)*xlambdas
             if ( xlambdas < lammins ) then
               xlambdas = lammins
-              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qnew/gam_bm_s(iq,k)/am_s(iq,k)
+              !n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qnew/gam_bm_s(iq,k)/am_s(iq,k) ! original
+              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
+                             qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
               nsz(iq,k) = n0_s(iq,k)/xlambdas
             else if (xlambdas > lammaxs) then
               xlambdas = lammaxs
-              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qnew/gam_bm_s(iq,k)/am_s(iq,k)
+              !n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*qnew/gam_bm_s(iq,k)/am_s(iq,k) ! original
+              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
+                             qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
               nsz(iq,k) = n0_s(iq,k)/xlambdas
             end if
             olambdas = 1./xlambdas
@@ -914,7 +921,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     !$acc   present(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)   &
     !$acc   present(effc1d,effr1d,effs1d,effi1d)                                   &
     !$acc   present(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s)     &
-    !$acc   present(tmp_sa,gam_ss,gam_bm_s,gam_bv_ss)
+    !$acc   present(tmp_sa,gam_ss,gam_bv_ss)
     do k = kts,kte
       do iq = 1,imax
 
@@ -1102,11 +1109,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             n0_s(iq,k) = nsz(iq,k)*xlambdas
             if ( xlambdas .lt. lammins ) then
               xlambdas = lammins
-              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1)*qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k)
+              !n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1)*qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k) ! original
+              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
+                             qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
               nsz(iq,k) = n0_s(iq,K)/xlambdas
             else if ( xlambdas .gt. lammaxs ) then
               xlambdas = lammaxs
-              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1)*qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k)
+              !n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1)*qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k) ! original
+              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
+                             qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
               nsz(iq,k) = n0_s(iq,K)/xlambdas
             end if
             olambdas=1.0/xlambdas
@@ -1736,13 +1747,17 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             nsz(iq,k)/qsz(iq,k))**(1./bm_s(iq,k))
             if ( xlambdas .lt. lammins ) then
               xlambdas = lammins
-              n0_s(iq,K) = xlambdas**(bm_s(iq,k)+1.)*      &
-                             qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k)
+              !n0_s(iq,K) = xlambdas**(bm_s(iq,k)+1.)*      &
+              !               qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k) ! original
+              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
+                             qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
               nsz(iq,K) = n0_s(iq,K)/xlambdas
             else if ( xlambdas .gt. lammaxs ) then
               xlambdas = lammaxs
-              n0_s(iq,K) = xlambdas**(bm_s(iq,k)+1.)*      & 
-                             qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k)
+              !n0_s(iq,K) = xlambdas**(bm_s(iq,k)+1.)*      & 
+              !               qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k) ! original
+              n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
+                             qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
               nsz(iq,K) = n0_s(iq,K)/xlambdas
             end if
           end if
@@ -1752,11 +1767,13 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             lami = max((gam13*500.*pi/6.)*niz(iq,k)/qiz(iq,k),1.e-20)**(1./3) !fixed zdc
             if (lami.lt.lammini) then
               lami= lammini
-              n0_i = lami**4./gam13*500.*pi/6.
+              !n0_i = lami**4./gam13*500.*pi/6. ! original
+              n0_i = lami**4*qiz(iq,k)/(gam13*500.*pi/6.)
               niz(iq,K) = n0_i/lami
             else if (lami.gt.lammaxi) then
               lami = lammaxi
-              n0_i = lami**4./gam13*500.*pi/6.
+              !n0_i = lami**4./gam13*500.*pi/6. ! original
+              n0_i = lami**4*qiz(iq,k)/(gam13*500.*pi/6.)
               niz(iq,K) = n0_i/lami
             end if
           end if
@@ -1766,15 +1783,17 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             lamc = (ncz(iq,k)*rhowater*pi*gg31/(6.*qlz(iq,k)*gg32))**(1./3)
             if (lamc.lt.lammini) then
               lamc= lammini
-              tmp1 = lamc**(mu_c+4.)
+              !tmp1 = lamc**(mu_c+4.)                  ! original
+              tmp1 = lamc**4*gg32
               tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31)
-              n0_c= tmp1*tmp2
+              n0_c = tmp1*tmp2
               ncz(iq,k) = n0_c/lamc
             else if (lamc.gt.lammaxi) then
               lamc= lammaxi
-              tmp1 = lamc**(mu_c+4.)
+              !tmp1 = lamc**(mu_c+4.)                 ! original
+              tmp1 = lamc**4*gg32
               tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31)
-              n0_c= tmp1*tmp2
+              n0_c = tmp1*tmp2
               ncz(iq,k) = n0_c/lamc
             end if
           end if
@@ -2167,6 +2186,8 @@ PURE FUNCTION ggamma(X) result(ans)
   INTEGER             ::diff, j
   REAL                ::PF, G1TO2 ,TEMP
   real                :: temp2, temp3, temp4
+  real                :: temp5, temp6, temp7
+  real                :: temp8
   real                :: ans
     
   TEMP = X
@@ -2190,9 +2211,13 @@ PURE FUNCTION ggamma(X) result(ans)
   TEMP2 = TEMP*TEMP
   TEMP3 = TEMP2*TEMP
   TEMP4 = TEMP2*TEMP2
+  TEMP5 = TEMP3*TEMP2
+  TEMP6 = TEMP3*TEMP3
+  TEMP7 = TEMP4*TEMP3
+  TEMP8 = TEMP4*TEMP4
   
   G1TO2=1. + B(1)*TEMP + B(2)*TEMP2 + B(3)*TEMP3 + B(4)*TEMP4 &
-           + B(5)*TEMP4*TEMP + B(6)*TEMP3*TEMP3 + B(7)*TEMP4*TEMP3 + B(8)*TEMP4*TEMP4
+           + B(5)*TEMP5 + B(6)*TEMP6 + B(7)*TEMP7 + B(8)*TEMP8
   ans=PF*G1TO2
   
 END FUNCTION ggamma

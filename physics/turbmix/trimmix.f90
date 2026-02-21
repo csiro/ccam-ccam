@@ -32,21 +32,24 @@ end interface trimmix
 
 contains
     
-pure subroutine trimmix2(a,c,rhs,imax,kl)
+pure subroutine trimmix2(a,c,rhs)
 
 implicit none
 
-integer, intent(in) :: imax, kl
+integer imax, kl
 integer k, iq
-real, dimension(imax,kl), intent(in) :: a, c
-real, dimension(imax,kl), intent(inout) :: rhs
-real, dimension(imax,kl) :: e, g
+real, dimension(:,:), intent(in) :: a, c
+real, dimension(:,:), intent(inout) :: rhs
+real, dimension(size(rhs,1),size(rhs,2)) :: e, g
 real temp, b
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
 !   with  b(k)*u(k)+c(k)*u(k+1)=rhs(k)          for k=1
 !   and   a(k)*u(k-1)+b(k)*u(k)=rhs(k)          for k=kl
+
+imax = size(rhs,1)
+kl = size(rhs,2)
 
 ! the Thomas algorithm is used
 do iq = 1,imax
@@ -78,21 +81,19 @@ end do
 return
 end subroutine trimmix2
 
-subroutine trimmix3(a,c,rhs,imax)
+subroutine trimmix3(a,c,rhs)
 
 implicit none
 
-integer, intent(in) :: imax
-integer k, iq, n, ntiles, js, je, ndim, kl, ifull, i, tile
+integer n, k, ndim, iq, imax, kl
 real, dimension(:,:), intent(in) :: a, c
 real, dimension(:,:,:), intent(inout) :: rhs
-real, dimension(imax,size(rhs,3),size(a,2)) :: e, g
+real, dimension(size(rhs,1),size(rhs,3),size(rhs,2)) :: e, g ! note order is changed
 real temp, b
 
-ifull = size(a,1) ! use a for ifull as rhs might include iextra
+imax = size(a,1) 
 kl = size(a,2)
 ndim = size(rhs,3)
-ntiles = ifull/imax
 
 ! this routine solves the system
 !   a(k)*u(k-1)+b(k)*u(k)+c(k)*u(k+1)=rhs(k)    for k=2,kl-1
@@ -101,49 +102,39 @@ ntiles = ifull/imax
 
 ! the Thomas algorithm is used
 
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
-
-  do n = 1,ndim
-    do i = 1,imax
-      iq = i + js - 1  
-      b = 1./(1.-a(iq,1)-c(iq,1))
-      e(i,n,1) = c(iq,1)*b
-      g(i,n,1) = rhs(iq,1,n)*b
-    end do
+do n = 1,ndim
+  do iq = 1,imax
+    b = 1./(1.-a(iq,1)-c(iq,1))
+    e(iq,n,1) = c(iq,1)*b
+    g(iq,n,1) = rhs(iq,1,n)*b
   end do
-  do k = 2,kl-1
-    do n = 1,ndim
-      do i = 1,imax
-        iq = i + js - 1
-        b = 1.-a(iq,k)-c(iq,k)
-        temp = 1./(b-a(iq,k)*e(i,n,k-1))
-        e(i,n,k) = c(iq,k)*temp
-        g(i,n,k) = (rhs(iq,k,n)-a(iq,k)*g(i,n,k-1))*temp
-      end do  
-    end do
-  end do
-
-  ! do back substitution to give answer
+end do
+do k = 2,kl-1
   do n = 1,ndim
-    do i = 1,imax
-      iq = i + js - 1
-      b = 1.-a(iq,kl)-c(iq,kl)
-      temp = 1./(b-a(iq,kl)*e(i,n,kl-1))
-      rhs(iq,kl,n) = (rhs(iq,kl,n)-a(iq,kl)*g(i,n,kl-1))*temp
+    do iq = 1,imax
+      b = 1.-a(iq,k)-c(iq,k)
+      temp = 1./(b-a(iq,k)*e(iq,n,k-1))
+      e(iq,n,k) = c(iq,k)*temp
+      g(iq,n,k) = (rhs(iq,k,n)-a(iq,k)*g(iq,n,k-1))*temp
     end do  
   end do
-  do k = kl-1,1,-1
-    do n = 1,ndim
-      do i = 1,imax
-        iq = i + js - 1
-        rhs(iq,k,n) = g(i,n,k)-e(i,n,k)*rhs(iq,k+1,n)
-      end do  
-    end do
+end do
+
+! do back substitution to give answer
+do n = 1,ndim
+  do iq = 1,imax
+    b = 1.-a(iq,kl)-c(iq,kl)
+    temp = 1./(b-a(iq,kl)*e(iq,n,kl-1))
+    rhs(iq,kl,n) = (rhs(iq,kl,n)-a(iq,kl)*g(iq,n,kl-1))*temp
+  end do  
+end do
+do k = kl-1,1,-1
+  do n = 1,ndim
+    do iq = 1,imax
+      rhs(iq,k,n) = g(iq,n,k)-e(iq,n,k)*rhs(iq,k+1,n)
+    end do  
   end do
-  
-end do ! tile = 1,ntiles
+end do
 
 return
 end subroutine trimmix3
