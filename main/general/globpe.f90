@@ -2501,33 +2501,3 @@ end if
 
 return
 end subroutine nantest
-
-!-------------------------------------------------------------------- 
-! Calculate change in moist static energy - used by GF convection
-subroutine calculate_dhdt_mse(js,je,mse_t1)
-
-use arrays_m                               ! Atmosphere dyamics prognostic arrays
-use const_phys                             ! Physical constants
-use newmpar_m                              ! Grid parameters
-use sigs_m                                 ! Atmosphere sigma levels
-  
-implicit none 
-  
-integer, intent(in) :: js, je
-integer             :: iq, k
-real, dimension(js:je, kl), intent(out) :: mse_t1
-real, dimension(js:je, kl) :: zo
-
-zo(js:je,1) = bet(1)*t(js:je,1)/grav ! heights above surface
-do k = 2,kl
-  zo(js:je,k) = zo(js:je,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav ! heights above surface
-end do
-
-do k = 1,kl
-  do iq = js,je
-    mse_t1(iq,k)=grav*zo(iq,k)+cp*t(iq,k)+hl*qg(iq,k)
-  end do
-end do
-
-return
-end subroutine calculate_dhdt_mse

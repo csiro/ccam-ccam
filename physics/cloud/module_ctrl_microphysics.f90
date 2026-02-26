@@ -480,7 +480,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       fluxr(js:je,2:kl)   = zfluxr(js:je,1:kl-1)  ! flux for aerosol calculation
       fluxi(js:je,1)      = pptice(js:je)
       fluxi(js:je,2:kl)   = zfluxi(js:je,1:kl-1)
-      fluxs(js:je,1)      = pptsnow(js:je)*(1._8-riz(js:je,1))
+      fluxs(js:je,1)      = pptsnow(js:je)*(1.-riz(js:je,1))
       fluxs(js:je,2:kl)   = zfluxs(js:je,1:kl-1)*(1.-riz(js:je,1:kl-1))
       fluxg(js:je,1)      = pptsnow(js:je)*riz(js:je,1)
       fluxg(js:je,2:kl)   = zfluxs(js:je,1:kl-1)*riz(js:je,1:kl-1)
@@ -496,7 +496,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       vi(js:je,:)    = zvi(js:je,:)
 
       condx(js:je)  = condx(js:je) + pptrain(js:je) + pptsnow(js:je) + pptice(js:je)
-      conds(js:je)  = conds(js:je) + pptsnow(js:je)*(1._8-riz(js:je,1)) + pptice(js:je)
+      conds(js:je)  = conds(js:je) + pptsnow(js:je)*(1.-riz(js:je,1)) + pptice(js:je)
       condg(js:je)  = condg(js:je) + pptsnow(js:je)*riz(js:je,1) ! for graupel
 
     end do     !tile loop    
@@ -631,8 +631,8 @@ select case ( interp_ncloud(ldr,ncloud) )
       fluxr(js:je,2:kl)   = zfluxr(1:imax,1:kl-1)  ! flux for aerosol calculation
       fluxi(js:je,1)      = pptice(1:imax)
       fluxi(js:je,2:kl)   = zfluxi(1:imax,1:kl-1)
-      fluxs(js:je,1)      = pptsnow(1:imax)*(1._8-riz(1:imax,1))
-      fluxs(js:je,2:kl)   = zfluxs(1:imax,1:kl-1)*(1._8-riz(1:imax,1:kl-1))
+      fluxs(js:je,1)      = pptsnow(1:imax)*(1.-riz(1:imax,1))
+      fluxs(js:je,2:kl)   = zfluxs(1:imax,1:kl-1)*(1.-riz(1:imax,1:kl-1))
       fluxg(js:je,1)      = pptsnow(1:imax)*riz(1:imax,1)
       fluxg(js:je,2:kl)   = zfluxs(1:imax,1:kl-1)*riz(1:imax,1:kl-1)
       fluxm(js:je,1:kl-1) = zfluxm(1:imax,1:kl-1)
@@ -678,7 +678,7 @@ select case ( interp_ncloud(ldr,ncloud) )
       end if
           
       condx(js:je)  = condx(js:je) + pptrain(1:imax) + pptsnow(1:imax) + pptice(1:imax)
-      conds(js:je)  = conds(js:je) + pptsnow(1:imax)*(1._8-riz(1:imax,1)) + pptice(1:imax)
+      conds(js:je)  = conds(js:je) + pptsnow(1:imax)*(1.-riz(1:imax,1)) + pptice(1:imax)
       condg(js:je)  = condg(js:je) + pptsnow(1:imax)*riz(1:imax,1) ! for graupel
 
     end do     !tile loop
@@ -854,12 +854,13 @@ do tile = 1,ntiles
 
   do k = 1,kl
     do iq = js,je
-      test(iq) = test(iq) .or.                                                              &
-                 wvel(iq,k)>10. .or. wvel(in(iq),k)>10. .or. wvel(ie(iq),k)>10. .or.        &
-                 wvel(is(iq),k)>10. .or. wvel(iw(iq),k)>10. .or. wvel(ine(iq),k)>10. .or.   &
-                 wvel(ien(iq),k)>10. .or. wvel(ise(iq),k)>10. .or. wvel(ies(iq),k)>10. .or. &
-                 wvel(inw(iq),k)>10. .or. wvel(iwn(iq),k)>10. .or. wvel(isw(iq),k)>10. .or. &
-                 wvel(ies(iq),k)>10.
+      test(iq) = test(iq) .or. wvel(iq,k)>10. .or.                   &
+                 wvel(in(iq),k)>10. .or. wvel(ie(iq),k)>10. .or.     &
+                 wvel(is(iq),k)>10. .or. wvel(iw(iq),k)>10. .or.     &
+                 wvel(ine(iq),k)>10. .or. wvel(ien(iq),k)>10. .or.   &
+                 wvel(ise(iq),k)>10. .or. wvel(ies(iq),k)>10. .or.   &
+                 wvel(inw(iq),k)>10. .or. wvel(iwn(iq),k)>10. .or.   &
+                 wvel(isw(iq),k)>10. .or. wvel(ies(iq),k)>10.
     end do
   end do
     

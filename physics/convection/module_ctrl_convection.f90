@@ -23,6 +23,7 @@ implicit none
 
 private
 public ctrl_convection, ctrl_convection_init
+public calculate_dhdt_mse
 
 contains
     
@@ -57,6 +58,8 @@ end select
 return
 end subroutine ctrl_convection
 
+!------------------------------------------------------------------------------
+! Interface for G-F convection
 subroutine grell_ccam
 
 ! specify module to use global variables
@@ -495,11 +498,41 @@ return
 end subroutine grell_ccam
 
 
-! Initialise convection if required (called from indata)
+!-------------------------------------------------------------------- 
+! Calculate change in moist static energy - used by GF convection
+subroutine calculate_dhdt_mse(js,je,mse_t1)
 
+use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use const_phys                             ! Physical constants
+use newmpar_m                              ! Grid parameters
+use sigs_m                                 ! Atmosphere sigma levels
+  
+implicit none 
+  
+integer, intent(in) :: js, je
+integer             :: iq, k
+real, dimension(js:je, kl), intent(out) :: mse_t1
+real, dimension(js:je, kl) :: zo
+
+zo(js:je,1) = bet(1)*t(js:je,1)/grav ! heights above surface
+do k = 2,kl
+  zo(js:je,k) = zo(js:je,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav ! heights above surface
+end do
+
+do k = 1,kl
+  do iq = js,je
+    mse_t1(iq,k)=grav*zo(iq,k)+cp*t(iq,k)+hl*qg(iq,k)
+  end do
+end do
+
+return
+end subroutine calculate_dhdt_mse
+
+
+!------------------------------------------------------------------------------
+! Initialise convection if required (called from indata)
 subroutine ctrl_convection_init
 
-use cc_mpi                        ! CC MPI routines
 use convjlm_m                     ! Convection
 use convjlm22_m                   ! Convection v2
 use kuocom_m                      ! JLM convection
@@ -507,19 +540,10 @@ use kuocom_m                      ! JLM convection
 implicit none
 
 select case ( interp_convection(nkuo) )
-  case("betts_conv")
-    ! do nothing
   case("john_conv22")
     call convjlm22_init
   case("john_conv")
     call convjlm_init
-  case("grell_conv")
-    ! do nothing    
-  case("disable")
-    ! do nothing
-  case default
-    write(6,*) "ERROR: Cannot initialise convection in indata with unknown option for nkuo = ",nkuo
-    call ccmpi_abort(-1)
 end select
 
 return

@@ -340,7 +340,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
   xmr     = 4./3.*pi*rhowater*(500.E-6)**3
   xmr_i   = 4./3.*pi*rhowater*(25.E-6)**3
   mi0     = 4./3.*3.14*500.*(10.e-6)**3
-  !    xmc     =4.17*10e-14 !4./3.*pi*(0.00001)**3*1000.
+  !xmc     =4.17*10e-14 !4./3.*pi*(0.00001)**3*1000.
   lammaxr = 1./20.E-6
   !lamminr = 1./500.E-6
   lamminr = 1./2800.E-6
@@ -1300,11 +1300,13 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                 pssub=0.0
               end if
               if(qsz(iq,k) >= 0.) then
-                !npssub=pssub*nsz(iq,k)/qsz(iq,k)
-                npsdep=npsdep*nsz(iq,k)/qsz(iq,k)
+                !npssub=pssub*nsz(iq,k)/qsz(iq,k)  ! not used
+                !npsdep=npsdep*nsz(iq,k)/qsz(iq,k) ! original
+                npsdep=psdep*nsz(iq,k)/qsz(iq,k)
               else
-                !npssub=pssub/xms
-                npsdep=npsdep/xms
+                !npssub=pssub/xms  ! not used
+                !npsdep=npsdep/xms ! original
+                npsdep=psdep/xms
               end if
 
               if (qrz(iq,k) > 0.) then !go to 1200
@@ -1751,14 +1753,14 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
               !               qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k) ! original
               n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
                              qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
-              nsz(iq,K) = n0_s(iq,K)/xlambdas
+              nsz(iq,K) = n0_s(iq,k)/xlambdas
             else if ( xlambdas .gt. lammaxs ) then
               xlambdas = lammaxs
               !n0_s(iq,K) = xlambdas**(bm_s(iq,k)+1.)*      & 
               !               qsz(iq,K)/gam_bm_s(iq,k)/am_s(iq,k) ! original
               n0_s(iq,k) = xlambdas**(bm_s(iq,k)+1.)*           &
                              qsz(iq,k)/(gam_ss(iq,k)*am_s(iq,k))
-              nsz(iq,K) = n0_s(iq,K)/xlambdas
+              nsz(iq,K) = n0_s(iq,k)/xlambdas
             end if
           end if
 
@@ -1769,12 +1771,12 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
               lami= lammini
               !n0_i = lami**4./gam13*500.*pi/6. ! original
               n0_i = lami**4*qiz(iq,k)/(gam13*500.*pi/6.)
-              niz(iq,K) = n0_i/lami
+              niz(iq,k) = n0_i/lami
             else if (lami.gt.lammaxi) then
               lami = lammaxi
               !n0_i = lami**4./gam13*500.*pi/6. ! original
               n0_i = lami**4*qiz(iq,k)/(gam13*500.*pi/6.)
-              niz(iq,K) = n0_i/lami
+              niz(iq,k) = n0_i/lami
             end if
           end if
         
@@ -1783,14 +1785,14 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             lamc = (ncz(iq,k)*rhowater*pi*gg31/(6.*qlz(iq,k)*gg32))**(1./3)
             if (lamc.lt.lammini) then
               lamc= lammini
-              !tmp1 = lamc**(mu_c+4.)                  ! original
+              !tmp1 = lamc**(mu_c+4.) ! original
               tmp1 = lamc**4*gg32
               tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31)
               n0_c = tmp1*tmp2
               ncz(iq,k) = n0_c/lamc
             else if (lamc.gt.lammaxi) then
               lamc= lammaxi
-              !tmp1 = lamc**(mu_c+4.)                 ! original
+              !tmp1 = lamc**(mu_c+4.) ! original
               tmp1 = lamc**4*gg32
               tmp2 = 6.*qlz(iq,k)/(pi*rhowater*gg31)
               n0_c = tmp1*tmp2

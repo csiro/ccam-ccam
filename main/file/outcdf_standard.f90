@@ -1640,9 +1640,9 @@ if ( iarch==1 ) then
         call attrib(idnc,dimj,jsize,'psoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
         lname = 'Phosphor pass pool'
         call attrib(idnc,dimj,jsize,'psoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        if ( diaglevel_carbon>2 ) then
+        !if ( diaglevel_carbon>2 ) then
           call carbonpools_attrib(idnc,dimc(:,4),csize(1),cptype)  
-        end if
+        !end if
       end if
       if ( nextout>=1 .or. itype==-1 ) then
         if ( ccycle/=0 ) then  
@@ -3139,9 +3139,9 @@ if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
       write(vname,'("psoil",I1.1)') k
       call histwrt(psoil(:,k),vname,idnc,iarch,local,lday)
     end do
-    if ( diaglevel_carbon>2 ) then
+    !if ( diaglevel_carbon>2 ) then
       call carbonpools(idnc,iarch,local,lday)
-    end if
+    !end if
   end if    
   if ( nextout>=1 .or. itype==-1 ) then
     if ( ccycle/=0 ) then    
