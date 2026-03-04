@@ -1586,63 +1586,61 @@ if ( iarch==1 ) then
     ! CABLE -----------------------------------------------------
     if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
       if ( ccycle/=0 ) then
-        lname = 'Carbon leaf pool'
-        call attrib(idnc,dimj,jsize,'cplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Carbon wood pool'
-        call attrib(idnc,dimj,jsize,'cplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
-        lname = 'Carbon root pool'
-        call attrib(idnc,dimj,jsize,'cplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen leaf pool'
-        call attrib(idnc,dimj,jsize,'nplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen wood pool'
-        call attrib(idnc,dimj,jsize,'nplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen root pool'
-        call attrib(idnc,dimj,jsize,'nplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor leaf pool'
-        call attrib(idnc,dimj,jsize,'pplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor wood pool'
-        call attrib(idnc,dimj,jsize,'pplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor root pool'
-        call attrib(idnc,dimj,jsize,'pplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Carbon met pool'
-        call attrib(idnc,dimj,jsize,'clitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Carbon str pool'
-        call attrib(idnc,dimj,jsize,'clitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Carbon CWD pool'
-        call attrib(idnc,dimj,jsize,'clitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen met pool'
-        call attrib(idnc,dimj,jsize,'nlitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen str pool'
-        call attrib(idnc,dimj,jsize,'nlitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen CWD pool'
-        call attrib(idnc,dimj,jsize,'nlitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor met pool'
-        call attrib(idnc,dimj,jsize,'plitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor str pool'
-        call attrib(idnc,dimj,jsize,'plitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor CWD pool'
-        call attrib(idnc,dimj,jsize,'plitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Carbon mic pool'
-        call attrib(idnc,dimj,jsize,'csoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Carbon slow pool'
-        call attrib(idnc,dimj,jsize,'csoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Carbon pass pool'
-        call attrib(idnc,dimj,jsize,'csoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen mic pool'
-        call attrib(idnc,dimj,jsize,'nsoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen slow pool'
-        call attrib(idnc,dimj,jsize,'nsoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Nitrogen pass pool'
-        call attrib(idnc,dimj,jsize,'nsoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor mic pool'
-        call attrib(idnc,dimj,jsize,'psoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor slow pool'
-        call attrib(idnc,dimj,jsize,'psoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        lname = 'Phosphor pass pool'
-        call attrib(idnc,dimj,jsize,'psoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
-        !if ( diaglevel_carbon>2 ) then
-          call carbonpools_attrib(idnc,dimc(:,4),csize(1),cptype)  
-        !end if
+        !lname = 'Carbon leaf pool'
+        !call attrib(idnc,dimj,jsize,'cplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Carbon wood pool'
+        !call attrib(idnc,dimj,jsize,'cplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
+        !name = 'Carbon root pool'
+        !call attrib(idnc,dimj,jsize,'cplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen leaf pool'
+        !call attrib(idnc,dimj,jsize,'nplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen wood pool'
+        !call attrib(idnc,dimj,jsize,'nplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen root pool'
+        !call attrib(idnc,dimj,jsize,'nplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor leaf pool'
+        !call attrib(idnc,dimj,jsize,'pplant1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor wood pool'
+        !call attrib(idnc,dimj,jsize,'pplant2',lname,'gC m-2',0.,65000.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor root pool'
+        !call attrib(idnc,dimj,jsize,'pplant3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Carbon met pool'
+        !call attrib(idnc,dimj,jsize,'clitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Carbon str pool'
+        !call attrib(idnc,dimj,jsize,'clitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Carbon CWD pool'
+        !call attrib(idnc,dimj,jsize,'clitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen met pool'
+        !call attrib(idnc,dimj,jsize,'nlitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen str pool'
+        !call attrib(idnc,dimj,jsize,'nlitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen CWD pool'
+        !call attrib(idnc,dimj,jsize,'nlitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor met pool'
+        !call attrib(idnc,dimj,jsize,'plitter1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor str pool'
+        !call attrib(idnc,dimj,jsize,'plitter2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor CWD pool'
+        !call attrib(idnc,dimj,jsize,'plitter3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Carbon mic pool'
+        !call attrib(idnc,dimj,jsize,'csoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Carbon slow pool'
+        !call attrib(idnc,dimj,jsize,'csoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Carbon pass pool'
+        !call attrib(idnc,dimj,jsize,'csoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen mic pool'
+        !call attrib(idnc,dimj,jsize,'nsoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen slow pool'
+        !call attrib(idnc,dimj,jsize,'nsoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Nitrogen pass pool'
+        !call attrib(idnc,dimj,jsize,'nsoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor mic pool'
+        !call attrib(idnc,dimj,jsize,'psoil1',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor slow pool'
+        !call attrib(idnc,dimj,jsize,'psoil2',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        !lname = 'Phosphor pass pool'
+        !call attrib(idnc,dimj,jsize,'psoil3',lname,'gC m-2',0.,6500.,daily_m,point_m,land_m,cptype)
+        call carbonpools_attrib(idnc,dimc(:,4),csize(1),cptype)  
       end if
       if ( nextout>=1 .or. itype==-1 ) then
         if ( ccycle/=0 ) then  
@@ -3103,45 +3101,43 @@ end if
 ! CABLE -------------------------------------------------------
 if ( (nsib==6.or.nsib==7).and.nhstest>=0 ) then
   if ( ccycle/=0 ) then
-    do k=1,mplant
-      write(vname,'("cplant",I1.1)') k
-      call histwrt(cplant(:,k),vname,idnc,iarch,local,lday)
-    end do   
-    do k=1,mplant
-      write(vname,'("nplant",I1.1)') k
-      call histwrt(niplant(:,k),vname,idnc,iarch,local,lday)
-    end do
-    do k=1,mplant
-      write(vname,'("pplant",I1.1)') k
-      call histwrt(pplant(:,k),vname,idnc,iarch,local,lday)
-    end do
-    do k=1,mlitter
-      write(vname,'("clitter",I1.1)') k
-      call histwrt(clitter(:,k),vname,idnc,iarch,local,lday)
-    end do
-    do k=1,mlitter
-      write(vname,'("nlitter",I1.1)') k
-      call histwrt(nilitter(:,k),vname,idnc,iarch,local,lday)
-    end do
-    do k=1,mlitter
-      write(vname,'("plitter",I1.1)') k
-      call histwrt(plitter(:,k),vname,idnc,iarch,local,lday)
-    end do
-    do k=1,msoil
-      write(vname,'("csoil",I1.1)') k
-      call histwrt(csoil(:,k),vname,idnc,iarch,local,lday)
-    end do
-    do k=1,msoil
-      write(vname,'("nsoil",I1.1)') k
-      call histwrt(nisoil(:,k),vname,idnc,iarch,local,lday)
-    end do
-    do k=1,msoil
-      write(vname,'("psoil",I1.1)') k
-      call histwrt(psoil(:,k),vname,idnc,iarch,local,lday)
-    end do
-    !if ( diaglevel_carbon>2 ) then
-      call carbonpools(idnc,iarch,local,lday)
-    !end if
+    !do k=1,mplant
+    !  write(vname,'("cplant",I1.1)') k
+    !  call histwrt(cplant(:,k),vname,idnc,iarch,local,lday)
+    !end do   
+    !do k=1,mplant
+    !  write(vname,'("nplant",I1.1)') k
+    !  call histwrt(niplant(:,k),vname,idnc,iarch,local,lday)
+    !end do
+    !do k=1,mplant
+    !  write(vname,'("pplant",I1.1)') k
+    !  call histwrt(pplant(:,k),vname,idnc,iarch,local,lday)
+    !end do
+    !do k=1,mlitter
+    !  write(vname,'("clitter",I1.1)') k
+    !  call histwrt(clitter(:,k),vname,idnc,iarch,local,lday)
+    !end do
+    !do k=1,mlitter
+    !  write(vname,'("nlitter",I1.1)') k
+    !  call histwrt(nilitter(:,k),vname,idnc,iarch,local,lday)
+    !end do
+    !do k=1,mlitter
+    !  write(vname,'("plitter",I1.1)') k
+    !  call histwrt(plitter(:,k),vname,idnc,iarch,local,lday)
+    !end do
+    !do k=1,msoil
+    !  write(vname,'("csoil",I1.1)') k
+    !  call histwrt(csoil(:,k),vname,idnc,iarch,local,lday)
+    !end do
+    !do k=1,msoil
+    !  write(vname,'("nsoil",I1.1)') k
+    !  call histwrt(nisoil(:,k),vname,idnc,iarch,local,lday)
+    !end do
+    !do k=1,msoil
+    !  write(vname,'("psoil",I1.1)') k
+    !  call histwrt(psoil(:,k),vname,idnc,iarch,local,lday)
+    !end do
+    call carbonpools(idnc,iarch,local,lday)
   end if    
   if ( nextout>=1 .or. itype==-1 ) then
     if ( ccycle/=0 ) then    
