@@ -2210,13 +2210,25 @@ integer n, iq, mm, idel, jdel
 integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req)) :: abuf
+real, dimension(:,:,:,:), allocatable, save :: abuf
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 call START_LOG(otf_ints_begin)
+
+
+if ( allocated(abuf) ) then
+  if ( size(abuf,1)/=pipan+4 .or. size(abuf,2)/=pjpan+4           .or. &
+       size(abuf,3)/=pnpan   .or. size(abuf,4)/=size(filemap_req) ) then
+    deallocate( abuf )  
+  end if
+end if
+if ( .not.allocated(abuf) ) then
+  allocate( abuf(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req)) )
+end if
+
 
 ! This version distributes mutli-file data
 call ccmpi_filewinget(abuf,s)
@@ -2292,13 +2304,26 @@ integer k, kx, kb, ke, kn, n, iq, mm, idel, jdel
 integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req),kblock) :: abuf
+real, dimension(:,:,:,:,:), allocatable, save :: abuf
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 
 call START_LOG(otf_ints_begin)
+
+
+if ( allocated(abuf) ) then
+  if ( size(abuf,1)/=pipan+4 .or. size(abuf,2)/=pjpan+4           .or. &
+       size(abuf,3)/=pnpan   .or. size(abuf,4)/=size(filemap_req) .or. &
+       size(abuf,5)/=kblock ) then
+    deallocate( abuf )  
+  end if
+end if
+if ( .not.allocated(abuf) ) then
+  allocate( abuf(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req),kblock) )
+end if
+
 
 kx = size(sout,2)
     
