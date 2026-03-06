@@ -173,7 +173,8 @@ module cc_mpi
    public :: ccmpi_filewinget, ccmpi_filebounds_setup,                      &
              ccmpi_filebounds, ccmpi_filedistribute, procarray,             &
              ccmpi_filewininit, ccmpi_filewinfinalize,                      &
-             ccmpi_filewinfinalize_exit
+             ccmpi_filewinfinalize_exit, ccmpi_filewinunpack,               &
+             ccmpi_filewinwait
    public :: pipan, pjpan, pnpan
    public :: pil_g, pjl_g, pka_g, pko_g
    public :: fnproc, fnresid, fncount, mynproc

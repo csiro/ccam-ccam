@@ -53,7 +53,8 @@ module cc_mpi_file
    public :: ccmpi_filewinget, ccmpi_filebounds_setup,                      &
              ccmpi_filebounds, ccmpi_filedistribute, procarray,             &
              ccmpi_filewininit, ccmpi_filewinfinalize,                      &
-             ccmpi_filewinfinalize_exit
+             ccmpi_filewinfinalize_exit, ccmpi_filewinunpack,               &
+             ccmpi_filewinwait
    
    interface ccmpi_filebounds
       module procedure ccmpi_filebounds2, ccmpi_filebounds3
@@ -63,7 +64,10 @@ module cc_mpi_file
       module procedure host_filedistribute3, proc_filedistribute3
    end interface ccmpi_filedistribute
    interface ccmpi_filewinget
-     module procedure ccmpi_filewinget2, ccmpi_filewinget3
+     module procedure ccmpi_filewinget3
+   end interface
+   interface ccmpi_filewinunpack
+      module procedure ccmpi_filewinunpack3
    end interface
 
    ! File IO
@@ -78,24 +82,11 @@ module cc_mpi_file
 
 contains
 
-   subroutine ccmpi_filewinget2(abuf,sinp)   
-      real, dimension(:), intent(in) :: sinp
-      real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req)), intent(out) :: abuf 
-      real, dimension(size(sinp),1) :: sinp_l
-      real, dimension(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req),1) :: abuf_l
-
-      sinp_l(:,1) = sinp(:)
-      call ccmpi_filewinget3(abuf_l,sinp_l)
-      abuf(:,:,:,:) = abuf_l(:,:,:,:,1)
-      
-   end subroutine ccmpi_filewinget2
-
-   subroutine ccmpi_filewinget3(abuf,sinp)
+   subroutine ccmpi_filewinget3(sinp)
       ! broadcast file data to processes using shared memory for efficent data transfer
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(-1:pipan+2,-1:pjpan+2,1:pnpan,1:size(filemap_req),1:size(sinp,2)), intent(out) :: abuf
-      real, dimension(pipan*pjpan*pnpan,size(sinp,2),size(filemap_recv)) :: bbuf
-      real, dimension(pipan*pjpan*pnpan,size(sinp,2),mynproc) :: cbuf
+      real, dimension(:,:,:), allocatable :: bbuf
+      real, dimension(:,:,:), allocatable :: cbuf
       integer :: n, w, nlen, kx, cc, ipf
       integer :: rcount, jproc, kproc
       integer :: k, ip, no, ca, cb
@@ -108,7 +99,10 @@ contains
       nlen = pipan*pjpan*pnpan
       lsize = nlen*kx
       lcomm = comm_world
-
+      
+      allocate( bbuf(pipan*pjpan*pnpan,kx,size(filemap_recv)) )
+      allocate( cbuf(pipan*pjpan*pnpan,kx,mynproc) )
+      
       !     Set up the buffers to recv
       nreq = 0
       do w = 1,size(filemap_recv)
@@ -163,35 +157,48 @@ contains
             end if
          end do
       end do
+      
+      deallocate( bbuf )
+      deallocate( cbuf )
 
       call START_LOG(mpibarrier_begin) 
       lcomm = comm_node
       call MPI_Barrier( lcomm, ierr )
       call END_LOG(mpibarrier_end)
+      
+   end subroutine ccmpi_filewinget3
+   
+   subroutine ccmpi_filewinunpack3(abuf,k)
+      integer, intent(in) :: k
+      integer :: w, kproc
+      real, dimension(-1:pipan+2,-1:pjpan+2,1:pnpan,1:size(filemap_req)), intent(out) :: abuf
 
       do w = 1,size(filemap_req)
          kproc = filemap_indx(filemap_req(w),filemap_qmod(w))
-         do k = 1,kx
-            abuf(1:pipan,1:pjpan,1:pnpan,w,k) = nodefile(1:pipan,1:pjpan,1:pnpan,k,kproc)
-         end do
+         abuf(1:pipan,1:pjpan,1:pnpan,w) = nodefile(1:pipan,1:pjpan,1:pnpan,k,kproc)
       end do  
 
-      do k = 1,kx
-         call abufpanelbounds(abuf(:,:,:,:,k))
-      end do    
-      
+      call abufpanelbounds(abuf(:,:,:,:))
+   
+   end subroutine ccmpi_filewinunpack3
+   
+   subroutine ccmpi_filewinwait
+      integer(kind=4) :: lcomm, ierr
+   
       call START_LOG(mpibarrier_begin) 
       lcomm = comm_node
       call MPI_Barrier( lcomm, ierr )
       call END_LOG(mpibarrier_end)
-
-   end subroutine ccmpi_filewinget3
+   
+   end subroutine ccmpi_filewinwait
    
    subroutine abufpanelbounds(abuf)
       real, dimension(-1:pipan+2,-1:pjpan+2,1:pnpan,size(filemap_req)), intent(inout) :: abuf
-      real, dimension(-1:pil_g+2,-1:pil_g+2,0:npanels) :: sx_l
+      real, dimension(:,:,:), allocatable :: sx_l
       integer :: w, ip, n, no, ca, cb
       integer :: i, n_w, n_e, n_n, n_s
+      
+      allocate( sx_l(-1:pil_g+2,-1:pil_g+2,0:npanels) )
       
       sx_l = 0.
       
@@ -272,6 +279,8 @@ contains
             abuf(-1:pipan+2,-1:pjpan+2,n,w) = sx_l(-1+ca:pipan+2+ca,-1+cb:pjpan+2+cb,no) 
          end do
       end do
+      
+      deallocate( sx_l )
       
    end subroutine abufpanelbounds
 
