@@ -64,6 +64,7 @@ real, dimension(:), allocatable, save :: axs_w, ays_w, azs_w  ! vector rotation 
 real, dimension(:), allocatable, save :: bxs_w, bys_w, bzs_w  ! vector rotation data (multiple files)
 real, dimension(:), allocatable, save :: sigin                ! input vertical coordinates
 real, dimension(:), allocatable, save :: gosig_1              ! input ocean reference levels
+real, dimension(:,:,:,:,:), allocatable, save :: abuf         ! memory buffer for interpolating input files
 real(kind=8), dimension(:,:), pointer, save :: xx4, yy4       ! shared arrays used for interpolation
 logical iotest, newfile                                       ! tests for horizontal interpolation and new metadata
 logical allowtrivialfill                                      ! special case where trivial data is allowed
@@ -2171,6 +2172,9 @@ endif    ! (nested/=1.and.nested/=3)
 !**************************************************************  
 
 deallocate( ucc, tss_a, ucc6 )
+if ( allocated( abuf ) ) then
+  deallocate( abuf )
+end if
 
 ! -------------------------------------------------------------------
 ! tgg holds file surface temperature when there is no MLO
@@ -2201,94 +2205,17 @@ end subroutine onthefly_work
 
 subroutine doints1(s,sout)
       
-use cc_mpi                 ! CC MPI routines
-use infile                 ! Input file routines
 use newmpar_m              ! Grid parameters
-use parm_m                 ! Model configuration
 
-integer n, iq, mm, idel, jdel
-integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(:,:,:,:), allocatable, save :: abuf
-real xxg, yyg, cmin, cmax
-real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
-real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
-real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
+real, dimension(fwsize,1) :: sl
+real, dimension(ifull,1) :: soutl
 
-call START_LOG(otf_ints_begin)
-
-
-if ( allocated(abuf) ) then
-  if ( size(abuf,1)/=pipan+4 .or. size(abuf,2)/=pjpan+4           .or. &
-       size(abuf,3)/=pnpan   .or. size(abuf,4)/=size(filemap_req) ) then
-    deallocate( abuf )  
-  end if
-end if
-if ( .not.allocated(abuf) ) then
-  allocate( abuf(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req)) )
-end if
-
-
-! This version distributes mutli-file data
-call ccmpi_filewinget(abuf,s)
-
-do iq = 1,ifull
-  sout(iq) = 0.
-end do
-do mm = 1,m_fly       !  was 4, now may be 1
-  do iq = 1,ifull
-    ! target point
-    n = nface4(iq,mm)
-    idel = int(xg4(iq,mm))
-    xxg = xg4(iq,mm) - real(idel)
-    jdel = int(yg4(iq,mm))
-    yyg = yg4(iq,mm) - real(jdel)
-    ! grid index conversion
-    iin = (idel-1)/pipan
-    jjn = (jdel-1)/pjpan
-    idel_l = idel - iin*pipan
-    jdel_l = jdel - jjn*pjpan
-    w = pijn2pw(iin,jjn,n)
-    no = pijn2pn(iin,jjn,n)
-    ! bi-cubic
-    cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
-    cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
-    cmul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
-    cmul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-    dmul_2 = (1.-xxg)
-    dmul_3 = xxg
-    emul_1 = (1.-yyg)*(2.-yyg)*(-yyg)/6.
-    emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
-    emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
-    emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-    sx_0m = abuf(idel_l,  jdel_l-1,no,w)
-    sx_1m = abuf(idel_l+1,jdel_l-1,no,w)
-    sx_m0 = abuf(idel_l-1,jdel_l,  no,w)
-    sx_00 = abuf(idel_l,  jdel_l,  no,w)
-    sx_10 = abuf(idel_l+1,jdel_l,  no,w)
-    sx_20 = abuf(idel_l+2,jdel_l,  no,w)
-    sx_m1 = abuf(idel_l-1,jdel_l+1,no,w)
-    sx_01 = abuf(idel_l,  jdel_l+1,no,w)
-    sx_11 = abuf(idel_l+1,jdel_l+1,no,w)
-    sx_21 = abuf(idel_l+2,jdel_l+1,no,w)
-    sx_02 = abuf(idel_l,  jdel_l+2,no,w)
-    sx_12 = abuf(idel_l+1,jdel_l+2,no,w)
-    cmin = min(sx_00,sx_01,sx_10,sx_11)
-    cmax = max(sx_00,sx_01,sx_10,sx_11)
-    rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
-    rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
-             sx_10*cmul_3 + sx_20*cmul_4
-    rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
-             sx_11*cmul_3 + sx_21*cmul_4
-    rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-    sout(iq) = sout(iq) + min( max( cmin, rmul_1*emul_1 + rmul_2*emul_2    &
-                                        + rmul_3*emul_3 + rmul_4*emul_4 ), &
-                                    cmax )/real(m_fly) ! Bermejo & Staniforth
-  end do    ! iq loop
-end do      ! mm loop
-
-call END_LOG(otf_ints_end)
+sl(:,1) = s(:)
+soutl(:,1) = sout(:)
+call doints4(sl,soutl)
+sout(:) = soutl(:,1)
 
 return
 end subroutine doints1
@@ -2304,7 +2231,6 @@ integer k, kx, kb, ke, kn, n, iq, mm, idel, jdel
 integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(:,:,:,:,:), allocatable, save :: abuf
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
