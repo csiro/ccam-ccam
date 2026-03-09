@@ -136,7 +136,6 @@ use savuvt_m                        ! Saved dynamic arrays
 use screen_m                        ! Screen level diagnostics
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
-use soilsnow_m, only : fracice      ! Soil, snow and surface data
 use tkeeps                          ! TKE-EPS boundary layer
 use trimmix_m                       ! Tridiagonal solver for turbulent mixing
 use work2_m                         ! Diagnostic arrays
@@ -148,67 +147,15 @@ integer is, ie, tile, k, iq
 integer idjd_t
 real, dimension(imax,kl) :: lt, lqg, lqfg, lqlg, lni
 real, dimension(imax,kl) :: lu, lv, lstratcloud
-real, dimension(imax,kl) :: lsavu, lsavv, ltke, leps, lshear
-real, dimension(imax,kl) :: lthetal_ema, lqv_ema, lql_ema, lqf_ema, lcf_ema
-real, dimension(imax,kl) :: ltke_ema
+real, dimension(imax,kl) :: lsavu, lsavv
 real, dimension(imax,kl) :: lrkmsave, lrkhsave
-real, dimension(imax,kl) :: lat, lct, lqtr
-real, dimension(imax) :: lou, lov, liu, liv, lrho
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 logical mydiag_t
 
 select case ( interp_nvmix(nvmix) )
   case("TKE-EPS")  
     ! k-e + MF closure scheme
-    do tile = 1,ntiles
-      is = (tile-1)*imax + 1
-      ie = tile*imax
-      idjd_t = mod(idjd-1,imax)+1
-      mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
-      lt = t(is:ie,:)
-      lqg = qg(is:ie,:)
-      lqfg = qfg(is:ie,:)
-      lqlg = qlg(is:ie,:)
-      lni = ni(is:ie,:)
-      lstratcloud = stratcloud(is:ie,:)
-      ltke   = tke(is:ie,:)
-      leps   = eps(is:ie,:)
-      lshear = shear(is:ie,:)
-      lu     = u(is:ie,:)
-      lv     = v(is:ie,:)
-      lthetal_ema = thetal_ema(is:ie,:)
-      lqv_ema     = qv_ema(is:ie,:)
-      lql_ema     = ql_ema(is:ie,:)
-      lqf_ema     = qf_ema(is:ie,:)
-      lcf_ema     = cf_ema(is:ie,:)
-      ltke_ema    = tke_ema(is:ie,:)
-      call tkeeps_work(lt,em(is:ie),tss(is:ie),eg(is:ie),fg(is:ie),ps(is:ie),lqg,lqfg,lqlg,   &
-                       lni,lstratcloud,cduv(is:ie),lu,lv,pblh(is:ie),                         &
-                       ustar(is:ie),ltke,leps,lshear,land(is:ie),lthetal_ema,lqv_ema,lql_ema, &
-                       lqf_ema,lcf_ema,ltke_ema,lrkmsave,lrkhsave,f(is:ie),imax,kl,tile)      
-      t(is:ie,:)          = lt
-      qg(is:ie,:)         = lqg
-      qfg(is:ie,:)        = lqfg
-      qlg(is:ie,:)        = lqlg
-      ni(is:ie,:)         = lni
-      stratcloud(is:ie,:) = lstratcloud
-      tke(is:ie,:)        = ltke
-      eps(is:ie,:)        = leps
-      u(is:ie,:)          = lu
-      v(is:ie,:)          = lv
-      thetal_ema(is:ie,:) = lthetal_ema
-      qv_ema(is:ie,:)     = lqv_ema
-      ql_ema(is:ie,:)     = lql_ema
-      qf_ema(is:ie,:)     = lqf_ema
-      cf_ema(is:ie,:)     = lcf_ema      
-      tke_ema(is:ie,:)    = ltke_ema
-      rkmsave(is:ie,:)    = lrkmsave
-      rkhsave(is:ie,:)    = lrkhsave  
-      lrho(1:imax) = ps(is:ie)/(rdry*tss(is:ie))
-      taux(is:ie) = lrho(1:imax)*cduv(is:ie)*u(is:ie,1)
-      tauy(is:ie) = lrho(1:imax)*cduv(is:ie)*v(is:ie,1)
-    end do ! tile = 1,ntiles
-
+    call tkeeps_work      
     
   case("localRI")
     ! JLM's local Ri scheme
@@ -231,8 +178,7 @@ select case ( interp_nvmix(nvmix) )
                    ps(is:ie),lqg,lqfg,lqlg,lni,lstratcloud,                                      &
                    condc(is:ie),cduv(is:ie),lu,lv,pblh(is:ie),lsavu,lsavv,land(is:ie),           &
                    tscrn(is:ie),qgscrn(is:ie),ustar(is:ie),f(is:ie),condx(is:ie),zs(is:ie),      &
-                   lrkmsave,lrkhsave,                                                            &
-                   idjd_t,mydiag_t)
+                   lrkmsave,lrkhsave,idjd_t,mydiag_t)
       t(is:ie,:)          = lt
       qg(is:ie,:)         = lqg
       qfg(is:ie,:)        = lqfg
@@ -275,42 +221,40 @@ return
 end function interp_nvmix  
 
 
-subroutine tkeeps_work(t,em,tss,eg,fg,ps,qg,qfg,qlg,ni,stratcloud,                &
-                       cduv,u,v,pblh,ustar,tke,eps,shear,land,thetal_ema,qv_ema,  &
-                       ql_ema,qf_ema,cf_ema,tke_ema,rkmsave,rkhsave,f,imax,kl,    &
-                       tile)
+subroutine tkeeps_work
 
-use const_phys                   ! Physical constants
+use arrays_m                        ! Atmosphere dyamics prognostic arrays
+use cfrac_m                         ! Cloud fraction
+use const_phys                      ! Physical constants
+use extraout_m                      ! Additional diagnostics
+use liqwpar_m                       ! Cloud water mixing ratios
+use map_m                           ! Grid map arrays
+use morepbl_m                       ! Additional boundary layer diagnostics
+use newmpar_m                       ! Grid parameters
 use parm_m, only : ds, nlocal, dt, cqmix, nvmix
-                                 ! Model configuration
-use sigs_m                       ! Atmosphere sigma levels
-use tkeeps, only : tkemix        ! TKE-EPS boundary layer
+                                    ! Model configuration
+use pbl_m                           ! Boundary layer arrays
+use sigs_m                          ! Atmosphere sigma levels
+use soil_m, only : land             ! Soil and surface data
+use tkeeps, only : tkemix, tke, eps, shear, thetal_ema, &
+    qv_ema, ql_ema, qf_ema, cf_ema, tke_ema
+                                    ! TKE-EPS boundary layer
 
 implicit none
 
-integer, intent(in) :: imax, kl, tile
 integer k, nlocal_mode
-real, dimension(imax,kl), intent(inout) :: t, qg, qfg, qlg, ni
-real, dimension(imax,kl), intent(inout) :: stratcloud, u, v
-real, dimension(imax,kl), intent(inout) :: tke, eps
-real, dimension(imax,kl), intent(in) :: shear
-real, dimension(imax,kl), intent(inout) :: thetal_ema, qv_ema, ql_ema, qf_ema, cf_ema
-real, dimension(imax,kl), intent(inout) :: tke_ema
-real, dimension(imax,kl), intent(out) :: rkmsave, rkhsave
+integer tile, js, je
 real, dimension(imax,kl) :: zh
-real, dimension(imax,kl) :: rhs, zg
+real, dimension(imax,kl) :: zg
 real, dimension(imax,kl) :: rkm
-real, dimension(imax), intent(inout) :: pblh, ustar, eg, fg, tss
-real, dimension(imax), intent(in) :: em, ps, f
-real, dimension(imax), intent(in) :: cduv
+real, dimension(imax,kl) :: lqg, lqfg, lqlg, lstratcloud, lni
+real, dimension(imax,kl) :: ltke, leps, lshear, lu, lv
+real, dimension(imax,kl) :: lqv_ema, lql_ema, lqf_ema, lcf_ema, ltke_ema, lthetal_ema
+real, dimension(imax,kl) :: rhs
 real, dimension(imax) :: rhos, dx
+real, dimension(imax) :: lrho
 real, dimension(kl) :: sigkap, delh
 real rong
-logical, dimension(imax), intent(in) :: land
-
-
-! estimate grid spacing for scale aware MF
-dx(:) = ds/em(:)
 
 ! Set-up potential temperature transforms
 rong = rdry/grav
@@ -318,26 +262,6 @@ do k = 1,kl
   delh(k)   = -rong*dsig(k)/sig(k)  ! sign of delh defined so always +ve
   sigkap(k) = sig(k)**(-rdry/cp)
 end do      ! k loop
-      
-! note ksc/=0 options are clobbered when nvmix=6 or nvmix=9
-! However, nvmix=6 or nvmix=9 supports its own shallow
-! convection options with nlocal=7
-
-! calculate height on full levels AGL
-zg(:,1) = bet(1)*t(:,1)/grav
-zh(:,1) = t(:,1)*delh(1)
-do k = 2,kl
-  zg(:,k) = zg(:,k-1) + (bet(k)*t(:,k)+betm(k)*t(:,k-1))/grav
-  zh(:,k) = zh(:,k-1) + t(:,k)*delh(k)
-end do ! k  loop
-       
-! near surface air density (see sflux.f and cable_ccam2.f90)
-rhos(:) = ps(:)/(rdry*tss(:))
-    
-! transform to ocean reference frame and temp to theta
-do k = 1,kl
-  rhs(:,k) = t(:,k)*sigkap(k) ! theta
-end do
 
 ! Evaluate EDMF scheme
 select case(nvmix)
@@ -362,20 +286,91 @@ select case(nvmix)
         stop -1
     end select
 end select
-    
-call tkemix(rkm,rhs,qg,qlg,qfg,ni,stratcloud,u,v,pblh,fg,eg,tss,               &
-            cduv,ps,zg,zh,sig,rhos,ustar,dt,nlocal_mode,tke,eps,shear,         &
-            dx,thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,tke_ema,land,tile,imax,  &
-            kl)  
 
-do k = 1,kl
-  ! replace counter gradient term
-  ! save Km and Kh for output
-  rkmsave(:,k) = rkm(:,k)*cqmix
-  rkhsave(:,k) = rkm(:,k)*cqmix
-  ! transform winds back to Earth reference frame and theta to temp
-  t(:,k) = rhs(:,k)/sigkap(k)
-enddo    !  k loop
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+
+  ! estimate grid spacing for scale aware MF
+  dx(:) = ds/em(js:je)
+     
+  ! note ksc/=0 options are clobbered when nvmix=6 or nvmix=9
+  ! However, nvmix=6 or nvmix=9 supports its own shallow
+  ! convection options with nlocal=7
+
+  ! calculate height on full levels AGL
+  zg(:,1) = bet(1)*t(js:je,1)/grav
+  zh(:,1) = t(js:je,1)*delh(1)
+  do k = 2,kl
+    zg(:,k) = zg(:,k-1) + (bet(k)*t(js:je,k)+betm(k)*t(js:je,k-1))/grav
+    zh(:,k) = zh(:,k-1) + t(js:je,k)*delh(k)
+  end do ! k  loop
+       
+  ! near surface air density (see sflux.f and cable_ccam2.f90)
+  rhos(:) = ps(js:je)/(rdry*tss(js:je))
+    
+  lqg = qg(js:je,:)
+  lqfg = qfg(js:je,:)
+  lqlg = qlg(js:je,:)
+  lni = ni(js:je,:)
+  lstratcloud = stratcloud(js:je,:)
+  
+  ltke   = tke(js:je,:)
+  leps   = eps(js:je,:)
+  lshear = shear(js:je,:)
+  
+  lu     = u(js:je,:)
+  lv     = v(js:je,:)
+  
+  lthetal_ema = thetal_ema(js:je,:)
+  lqv_ema     = qv_ema(js:je,:)
+  lql_ema     = ql_ema(js:je,:)
+  lqf_ema     = qf_ema(js:je,:)
+  lcf_ema     = cf_ema(js:je,:)
+  ltke_ema    = tke_ema(js:je,:)
+  
+  ! transform to ocean reference frame and temp to theta
+  do k = 1,kl
+    rhs(:,k) = t(js:je,k)*sigkap(k) ! theta
+  end do
+   
+  call tkemix(rkm,rhs,lqg,lqlg,lqfg,lni,lstratcloud,lu,lv,pblh(js:je),           &
+              fg(js:je),eg(js:je),tss(js:je),cduv(js:je),ps(js:je),zg,zh,sig,    &
+              rhos,ustar(js:je),dt,nlocal_mode,ltke,leps,lshear,dx,lthetal_ema,  &
+              lqv_ema,lql_ema,lqf_ema,lcf_ema,ltke_ema,land(js:je),tile,imax,kl)  
+  
+  qg(js:je,:)         = lqg
+  qfg(js:je,:)        = lqfg
+  qlg(js:je,:)        = lqlg
+  ni(js:je,:)         = lni
+  stratcloud(js:je,:) = lstratcloud
+
+  tke(js:je,:)        = ltke
+  eps(js:je,:)        = leps
+
+  u(js:je,:)          = lu
+  v(js:je,:)          = lv
+
+  thetal_ema(js:je,:) = lthetal_ema
+  qv_ema(js:je,:)     = lqv_ema
+  ql_ema(js:je,:)     = lql_ema
+  qf_ema(js:je,:)     = lqf_ema
+  cf_ema(js:je,:)     = lcf_ema      
+  tke_ema(js:je,:)    = ltke_ema
+  
+  do k = 1,kl
+    ! replace counter gradient term
+    ! save Km and Kh for output
+    rkmsave(js:je,k) = rkm(:,k)*cqmix
+    rkhsave(js:je,k) = rkm(:,k)*cqmix
+    ! transform winds back to Earth reference frame and theta to temp
+    t(js:je,k) = rhs(:,k)/sigkap(k)
+  enddo    !  k loop
+  
+  lrho(1:imax) = ps(js:je)/(rdry*tss(js:je))
+  taux(js:je) = lrho(1:imax)*cduv(js:je)*u(js:je,1)
+  tauy(js:je) = lrho(1:imax)*cduv(js:je)*v(js:je,1)
+end do ! tile = 1,ntiles
 
 return
 end subroutine tkeeps_work

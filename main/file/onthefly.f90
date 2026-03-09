@@ -53,8 +53,6 @@ integer, save :: xx4_win, yy4_win                             ! shared memory wi
 integer, save :: xy4_count = 0                                ! counter for new allocations of memory windows
 integer, dimension(3), save :: xx4save_win, yy4save_win       ! store old memory windows for later deallocation
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
-integer, dimension(:,:,:), allocatable, save :: pijn2pw       ! array for unpacking buffer
-integer, dimension(:,:,:), allocatable, save :: pijn2pn       ! array for unpacking buffer
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
 real, dimension(:,:), allocatable, save :: xg4, yg4           ! interpolation coordinate indices
@@ -2205,13 +2203,17 @@ use newmpar_m              ! Grid parameters
 
 real, dimension(fwsize), intent(in) :: s
 real, dimension(ifull), intent(inout) :: sout
-real, dimension(fwsize,1) :: sl
+real, dimension(:,:), allocatable :: sl
 real, dimension(ifull,1) :: soutl
+
+allocate( sl(fwsize,1) )
 
 sl(:,1) = s(:)
 soutl(:,1) = sout(:)
 call doints4(sl,soutl)
 sout(:) = soutl(:,1)
+
+deallocate( sl )
 
 return
 end subroutine doints1
@@ -2224,18 +2226,18 @@ use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 
 integer k, kx, kb, ke, kn, n, iq, mm, idel, jdel
-integer iin, jjn, idel_l, jdel_l, no, w, i, j, nn
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(:,:,:,:), allocatable :: abuf
+real, dimension(:,:,:), allocatable :: sx
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
-real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
+real sx_0m, sx_1m, sx_m0, sx_00, sx_10, sx_20, sx_m1, sx_01
+real sx_11, sx_21, sx_02, sx_12
 
 call START_LOG(otf_ints_begin)
 
-allocate( abuf(-1:pipan+2,-1:pjpan+2,pnpan,size(filemap_req)) )
+allocate( sx(-1:pil_g+2,-1:pil_g+2,0:npanels) )
 
 kx = size(sout,2)
     
@@ -2248,7 +2250,7 @@ do kb = 1,kx,kblock
     do iq = 1,ifull
       sout(iq,k+kb-1) = 0.
     end do
-    call ccmpi_filewinunpack(abuf,k)  
+    call ccmpi_filewinunpack(k,sx)  
     do mm = 1,m_fly       !  was 4, now may be 1
       do iq = 1,ifull
         ! target point
@@ -2257,13 +2259,6 @@ do kb = 1,kx,kblock
         xxg = xg4(iq,mm) - real(idel)
         jdel = int(yg4(iq,mm))
         yyg = yg4(iq,mm) - real(jdel)
-        ! grid index conversion
-        iin = (idel-1)/pipan
-        jjn = (jdel-1)/pjpan
-        idel_l = idel - iin*pipan
-        jdel_l = jdel - jjn*pjpan
-        w = pijn2pw(iin,jjn,n)
-        no = pijn2pn(iin,jjn,n)
         ! bi-cubic
         cmul_1 = (1.-xxg)*(2.-xxg)*(-xxg)/6.
         cmul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
@@ -2275,18 +2270,18 @@ do kb = 1,kx,kblock
         emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
         emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        sx_0m = abuf(idel_l,  jdel_l-1,no,w)
-        sx_1m = abuf(idel_l+1,jdel_l-1,no,w)
-        sx_m0 = abuf(idel_l-1,jdel_l,  no,w)
-        sx_00 = abuf(idel_l,  jdel_l,  no,w)
-        sx_10 = abuf(idel_l+1,jdel_l,  no,w)
-        sx_20 = abuf(idel_l+2,jdel_l,  no,w)
-        sx_m1 = abuf(idel_l-1,jdel_l+1,no,w)
-        sx_01 = abuf(idel_l,  jdel_l+1,no,w)
-        sx_11 = abuf(idel_l+1,jdel_l+1,no,w)
-        sx_21 = abuf(idel_l+2,jdel_l+1,no,w)
-        sx_02 = abuf(idel_l,  jdel_l+2,no,w)
-        sx_12 = abuf(idel_l+1,jdel_l+2,no,w)
+        sx_0m = sx(idel,  jdel-1,n)
+        sx_1m = sx(idel+1,jdel-1,n)
+        sx_m0 = sx(idel-1,jdel,  n)
+        sx_00 = sx(idel,  jdel,  n)
+        sx_10 = sx(idel+1,jdel,  n)
+        sx_20 = sx(idel+2,jdel,  n)
+        sx_m1 = sx(idel-1,jdel+1,n)
+        sx_01 = sx(idel,  jdel+1,n)
+        sx_11 = sx(idel+1,jdel+1,n)
+        sx_21 = sx(idel+2,jdel+1,n)
+        sx_02 = sx(idel,  jdel+2,n)
+        sx_12 = sx(idel+1,jdel+2,n)
         cmin = min(sx_00,sx_01,sx_10,sx_11)
         cmax = max(sx_00,sx_01,sx_10,sx_11)
         rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
@@ -2302,7 +2297,7 @@ do kb = 1,kx,kblock
   call ccmpi_filewinwait
 end do ! kb
 
-deallocate( abuf )
+deallocate( sx )
 
 call END_LOG(otf_ints_end)
 
@@ -2321,14 +2316,11 @@ use cc_mpi          ! CC MPI routines
 use infile          ! Input file routines
 
 integer, intent(inout) :: fill_count
-integer nrem, j, n
-integer ncount, cc, ipf, local_count
-integer i
-real, parameter :: value=999.       ! missing value flag
+integer ncount, nrem
 real, dimension(fwsize), intent(inout) :: a_io
-real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc) :: c_io
-real csum, ccount
+real, dimension(:,:), allocatable :: al_io
 logical, dimension(fwsize), intent(in) :: land_a
+logical, dimension(:,:), allocatable :: land_3d
 
 ! only perform fill on processors reading input files
 if ( fwsize==0 ) return
@@ -2340,97 +2332,16 @@ if ( allowtrivialfill ) then
   if ( nrem==0 .or. nrem==6*ik*ik ) return
 end if
 
-call START_LOG(otf_fill_begin)
+allocate( al_io(fwsize,1) )
+allocate( land_3d(fwsize,1) )
 
-where ( land_a(1:fwsize) )
-  a_io(1:fwsize) = value
-end where
+al_io(:,1) = a_io(:)
+land_3d(:,1) = land_a(:)
+call fill_cc4_3d(al_io,land_3d,fill_count)
+a_io(:) = al_io(:,1)
 
-nrem = 1
-local_count = 0
-c_io = value
-
-do while ( nrem>0 )
-  do ipf = 1,mynproc
-    do n = 1,pnpan
-      do j = 1,pjpan
-        do i = 1,pipan
-          cc = i + (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-          c_io(i,j,n,ipf) = a_io(cc)
-        end do
-      end do
-    end do
-  end do  
-  ncount = count( abs(a_io(1:fwsize)-value)<1.E-20 )
-  call ccmpi_filebounds(c_io,comm_ip,corner=.true.)
-  ! update body
-  if ( ncount>0 ) then
-    do ipf = 1,mynproc
-      do n = 1,pnpan
-        do j = 1,pjpan
-          do i = 1,pipan
-            cc = (j-1)*pipan + (n-1)*pipan*pjpan + (ipf-1)*pipan*pjpan*pnpan
-            if ( abs(a_io(cc+i)-value)<1.e-20 ) then
-              csum = 0.
-              ccount = 0.
-              if ( abs(c_io(i-1,j-1,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j-1,n,ipf)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i,j-1,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i,j-1,n,ipf)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j-1,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j-1,n,ipf)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i-1,j,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j,n,ipf)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j,n,ipf)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i-1,j+1,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i-1,j+1,n,ipf)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i,j+1,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i,j+1,n,ipf)
-                ccount = ccount + 1.
-              end if
-              if ( abs(c_io(i+1,j+1,n,ipf)-value)>=1.e-20 ) then
-                csum = csum + c_io(i+1,j+1,n,ipf)
-                ccount = ccount + 1.
-              end if
-              if ( ccount>0. ) then        
-                a_io(cc+i) = csum/ccount
-              end if
-            end if
-          end do
-        end do
-      end do
-    end do
-    ncount = count( abs(a_io(1:fwsize)-value)<1.E-6 )  
-  end if  
-  ! test for convergence
-  local_count = local_count + 1
-  if ( local_count==fill_count ) then
-    nrem = 0
-  else if ( local_count>fill_count ) then
-    call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
-    if ( nrem==6*ik*ik ) then
-      ! Cannot perform fill as all points are trivial    
-      nrem = 0
-    end if
-  end if  
-end do
-      
-fill_count = local_count
-
-call END_LOG(otf_fill_end)
+deallocate( al_io )
+deallocate( land_3d )
 
 return
 end subroutine fill_cc1
@@ -2450,7 +2361,7 @@ integer cc, ipf, local_count
 integer i
 integer, dimension(size(a_io,2)) :: ncount, nrem
 real, parameter :: value=999.       ! missing value flag
-real, dimension(0:pipan+1,0:pjpan+1,pnpan,mynproc,size(a_io,2)) :: c_io
+real, dimension(:,:,:,:,:), allocatable :: c_io
 real csum, ccount
 logical, dimension(:,:), intent(in) :: land_3d
 
@@ -2470,6 +2381,7 @@ end if
 
 call START_LOG(otf_fill_begin)
 
+allocate( c_io(0:pipan+1,0:pjpan+1,pnpan,mynproc,kx) )
 
 do k = 1,kx
   where ( land_3d(1:fwsize,k) )
@@ -2567,6 +2479,8 @@ end do
 
 fill_count = local_count
 
+deallocate( c_io )
+
 call END_LOG(otf_fill_end)
 
 return
@@ -2578,12 +2492,14 @@ integer, intent(inout) :: fill_count
 integer k
 real, dimension(:,:), intent(inout) :: a_io
 logical, dimension(:), intent(in) :: land_a
-logical, dimension(size(a_io,1),size(a_io,2)) :: land_3d
+logical, dimension(:,:), allocatable :: land_3d
 
+allocate( land_3d(size(a_io,1),size(a_io,2)) )
 do k = 1,size(a_io,2)
-  land_3d(:,k) = land_a
+  land_3d(:,k) = land_a(:)
 end do
 call fill_cc4_3d(a_io,land_3d,fill_count)
+deallocate( land_3d )
 
 return
 end subroutine fill_cc4_1
@@ -2600,16 +2516,19 @@ use sigs_m                 ! Atmosphere sigma levels
       
 !     this one will ignore negative zss (i.e. over the ocean)
 
+integer iq
 real, intent(in) :: siglev
 real, dimension(fwsize), intent(in) :: psl, zss, t
 real, dimension(fwsize), intent(out) :: pmsl
-real, dimension(fwsize) :: dlnps, phi1, tav, tsurf
+real dlnps, phi1, tav, tsurf
 
-phi1(1:fwsize)  = t(1:fwsize)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
-tsurf(1:fwsize) = t(1:fwsize)+phi1(1:fwsize)*stdlapse/grav
-tav(1:fwsize)   = tsurf(1:fwsize)+max(0.,zss(1:fwsize))*.5*stdlapse/grav
-dlnps(1:fwsize) = max(0.,zss(1:fwsize))/(rdry*tav(1:fwsize))
-pmsl(1:fwsize)  = 1.e5*exp(psl(1:fwsize)+dlnps(1:fwsize))
+do iq = 1,fwsize
+  phi1  = t(iq)*rdry*(1.-siglev)/siglev ! phi of sig(lev) above sfce
+  tsurf = t(iq)+phi1*stdlapse/grav
+  tav   = tsurf+max(0.,zss(iq))*.5*stdlapse/grav
+  dlnps = max(0.,zss(iq))/(rdry*tav)
+  pmsl(iq)  = 1.e5*exp(psl(iq)+dlnps)
+end do
 
 return
 end subroutine mslpx
@@ -2621,17 +2540,20 @@ use const_phys             ! Physical constants
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 use sigs_m                 ! Atmosphere sigma levels
-      
+
+integer iq
 real, intent(in) :: siglev
 real, dimension(ifull), intent(in) :: pmsl, zss, t
 real, dimension(ifull), intent(out) :: psl
-real, dimension(ifull) :: dlnps, phi1, tav, tsurf
+real dlnps, phi1, tav, tsurf
 
-phi1(1:ifull)  = t(1:ifull)*rdry*(1.-siglev)/siglev ! phi of sig(levk) above sfce
-tsurf(1:ifull) = t(1:ifull) + phi1(1:ifull)*stdlapse/grav
-tav(1:ifull)   = tsurf(1:ifull) + max( 0., zss(1:ifull) )*.5*stdlapse/grav
-dlnps(1:ifull) = max( 0., zss(1:ifull))/(rdry*tav(1:ifull) )
-psl(1:ifull)   = log(1.e-5*pmsl(1:ifull)) - dlnps(1:ifull)
+do iq = 1,ifull
+  phi1  = t(iq)*rdry*(1.-siglev)/siglev ! phi of sig(levk) above sfce
+  tsurf = t(iq) + phi1*stdlapse/grav
+  tav   = tsurf + max( 0., zss(iq) )*.5*stdlapse/grav
+  dlnps = max( 0., zss(iq))/(rdry*tav )
+  psl(iq)   = log(1.e-5*pmsl(iq)) - dlnps
+end do
 
 #ifdef debug
 if ( nmaxpr==1 .and. mydiag ) then
@@ -2660,29 +2582,29 @@ use sigs_m
 real, dimension(ifull), intent(inout) :: psl
 real, dimension(ifull), intent(in) :: zsold, zss
 real, dimension(:,:), intent(inout) :: t, qg
-real, dimension(ifull) :: psnew, psold, pslold
+real psnew, psold
 real, dimension(kl) :: told, qgold
 real sig2
 integer iq, k, kk, kold
 
-pslold(1:ifull) = psl(1:ifull)
-psold(1:ifull)  = 1.e5*exp(psl(1:ifull))
-psl(1:ifull)    = psl(1:ifull) + (zsold(1:ifull)-zss(1:ifull))/(rdry*t(1:ifull,1))
-psnew(1:ifull)  = 1.e5*exp(psl(1:ifull))
-
 !     now alter temperatures to compensate for new topography
 if ( ktau<100 .and. mydiag ) then
-  write(6,*) 'retopo: zsold,zs,psold,psnew ',zsold(idjd),zss(idjd),psold(idjd),psnew(idjd)
+  write(6,*) 'retopo: zsold,zs ',zsold(idjd),zss(idjd)
   write(6,*) 'retopo: old t ',(t(idjd,k),k=1,kl)
   write(6,*) 'retopo: old qg ',(qg(idjd,k),k=1,kl)
 end if  ! (ktau.lt.100)
 
 do iq = 1,ifull
+
+  psold   = 1.e5*exp(psl(iq))
+  psl(iq) = psl(iq) + (zsold(iq)-zss(iq))/(rdry*t(iq,1))
+  psnew   = 1.e5*exp(psl(iq))
+    
   qgold(1:kl) = qg(iq,1:kl)
   told(1:kl)  = t(iq,1:kl)
   kold = 2
   do k = 1,kl ! MJT suggestion
-    sig2 = sig(k)*psnew(iq)/psold(iq)
+    sig2 = sig(k)*psnew/psold
     if ( sig2>=sig(1) ) then
       ! assume 6.5 deg/km, with dsig=.1 corresponding to 1 km
       t(iq,k) = told(1) + (sig2-sig(1))*6.5/0.1  
@@ -2714,24 +2636,28 @@ use cc_mpi           ! CC MPI routines
 use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
       
-integer k
+integer k, iq
 real, dimension(fwsize,kk), intent(inout) :: ucc, vcc
-real, dimension(fwsize,kk) :: wcc
-real, dimension(fwsize) :: uc, vc, wc
+real, dimension(:,:), allocatable :: wcc
+real uc, vc, wc
 real, dimension(ifull,kk), intent(out) :: uct, vct
 real, dimension(ifull,kk) :: wct
-real, dimension(ifull) :: newu, newv, neww
+real newu, newv, neww
+
+allocate( wcc(fwsize,kk) )
 
 if ( fwsize>0 ) then
   do k = 1,kk
-    ! first set up winds in Cartesian "source" coords            
-    uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
-    vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
-    wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,k) + bzs_w(1:fwsize)*vcc(1:fwsize,k)
-    ! now convert to winds in "absolute" Cartesian components
-    ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-    vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-    wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+    do iq = 1,fwsize  
+      ! first set up winds in Cartesian "source" coords            
+      uc = axs_w(iq)*ucc(iq,k) + bxs_w(iq)*vcc(iq,k)
+      vc = ays_w(iq)*ucc(iq,k) + bys_w(iq)*vcc(iq,k)
+      wc = azs_w(iq)*ucc(iq,k) + bzs_w(iq)*vcc(iq,k)
+      ! now convert to winds in "absolute" Cartesian components
+      ucc(iq,k) = uc*rotpoles(1,1) + vc*rotpoles(1,2) + wc*rotpoles(1,3)
+      vcc(iq,k) = uc*rotpoles(2,1) + vc*rotpoles(2,2) + wc*rotpoles(2,3)
+      wcc(iq,k) = uc*rotpoles(3,1) + vc*rotpoles(3,2) + wc*rotpoles(3,3)
+    end do  ! iq loop  
   end do    ! k loop
 end if      ! fwsize>0
 ! interpolate all required arrays to new C-C positions
@@ -2741,15 +2667,19 @@ call doints4(vcc, vct)
 call doints4(wcc, wct)
   
 do k = 1,kk
-  ! now convert to "target" Cartesian components (transpose used)
-  newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
-  newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
-  neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
-  ! then finally to "target" local x-y components
-  uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
-  vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
-end do  ! k loop
-  
+  do iq = 1,ifull  
+    ! now convert to "target" Cartesian components (transpose used)
+    newu = uct(iq,k)*rotpole(1,1) + vct(iq,k)*rotpole(2,1) + wct(iq,k)*rotpole(3,1)
+    newv = uct(iq,k)*rotpole(1,2) + vct(iq,k)*rotpole(2,2) + wct(iq,k)*rotpole(3,2)
+    neww = uct(iq,k)*rotpole(1,3) + vct(iq,k)*rotpole(2,3) + wct(iq,k)*rotpole(3,3)
+    ! then finally to "target" local x-y components
+    uct(iq,k) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
+    vct(iq,k) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
+  end do ! iq loop 
+end do   ! k loop
+
+deallocate( wcc )
+
 return
 end subroutine interpwind4
 
@@ -2760,43 +2690,44 @@ use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
       
 integer, intent(inout) :: fill_count      
+integer iq
 real, dimension(fwsize), intent(inout) :: ucc, vcc
-real, dimension(fwsize) :: wcc
-real, dimension(fwsize) :: uc, vc, wc
-real, dimension(fwsize,3) :: uvwcc
+real uc, vc, wc
+real, dimension(:,:), allocatable :: uvwcc
 real, dimension(ifull), intent(out) :: uct, vct
-real, dimension(ifull) :: wct
-real, dimension(ifull) :: newu, newv, neww
+real newu, newv, neww
 real, dimension(ifull,3) :: newuvw
 logical, dimension(fwsize), intent(in) :: mask_a
 
+allocate( uvwcc(fwsize,3) )
+
 if ( fwsize>0 ) then
-  uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize) + bxs_w(1:fwsize)*vcc(1:fwsize)
-  vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize) + bys_w(1:fwsize)*vcc(1:fwsize)
-  wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize) + bzs_w(1:fwsize)*vcc(1:fwsize)
-  ! now convert to winds in "absolute" Cartesian components
-  ucc(1:fwsize) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-  vcc(1:fwsize) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-  wcc(1:fwsize) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+  do iq = 1,fwsize  
+    uc = axs_w(iq)*ucc(iq) + bxs_w(iq)*vcc(iq)
+    vc = ays_w(iq)*ucc(iq) + bys_w(iq)*vcc(iq)
+    wc = azs_w(iq)*ucc(iq) + bzs_w(iq)*vcc(iq)
+    ! now convert to winds in "absolute" Cartesian components
+    uvwcc(iq,1) = uc*rotpoles(1,1) + vc*rotpoles(1,2) + wc*rotpoles(1,3)
+    uvwcc(iq,2) = uc*rotpoles(2,1) + vc*rotpoles(2,2) + wc*rotpoles(2,3)
+    uvwcc(iq,3) = uc*rotpoles(3,1) + vc*rotpoles(3,2) + wc*rotpoles(3,3)
+  end do ! iq loop
   ! interpolate all required arrays to new C-C positions
   ! do not need to do map factors and Coriolis on target grid
-  uvwcc(:,1) = ucc
-  uvwcc(:,2) = vcc
-  uvwcc(:,3) = wcc
   call fill_cc4(uvwcc(:,1:3), mask_a, fill_count)
 end if
 call doints4(uvwcc(:,1:3), newuvw(:,1:3))
   
-! now convert to "target" Cartesian components (transpose used)
-uct(1:ifull) = newuvw(1:ifull,1)
-vct(1:ifull) = newuvw(1:ifull,2)
-wct(1:ifull) = newuvw(1:ifull,3)
-newu(1:ifull) = uct(1:ifull)*rotpole(1,1) + vct(1:ifull)*rotpole(2,1) + wct(1:ifull)*rotpole(3,1)
-newv(1:ifull) = uct(1:ifull)*rotpole(1,2) + vct(1:ifull)*rotpole(2,2) + wct(1:ifull)*rotpole(3,2)
-neww(1:ifull) = uct(1:ifull)*rotpole(1,3) + vct(1:ifull)*rotpole(2,3) + wct(1:ifull)*rotpole(3,3)
-! then finally to "target" local x-y components
-uct(1:ifull) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
-vct(1:ifull) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
+do iq = 1,ifull
+  ! now convert to "target" Cartesian components (transpose used)
+  newu = newuvw(iq,1)*rotpole(1,1) + newuvw(iq,2)*rotpole(2,1) + newuvw(iq,3)*rotpole(3,1)
+  newv = newuvw(iq,1)*rotpole(1,2) + newuvw(iq,2)*rotpole(2,2) + newuvw(iq,3)*rotpole(3,2)
+  neww = newuvw(iq,1)*rotpole(1,3) + newuvw(iq,2)*rotpole(2,3) + newuvw(iq,3)*rotpole(3,3)
+  ! then finally to "target" local x-y components
+  uct(iq) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
+  vct(iq) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
+end do ! iq loop
+
+deallocate( uvwcc )
 
 return
 end subroutine interpcurrent1
@@ -2808,25 +2739,29 @@ use newmpar_m        ! Grid parameters
 use vecsuv_m         ! Map to cartesian coordinates
       
 integer, intent(inout) :: fill_count
-integer k
+integer k, iq
 real, dimension(fwsize,ok), intent(inout) :: ucc, vcc
-real, dimension(fwsize,ok) :: wcc
+real, dimension(:,:), allocatable :: wcc
 real, dimension(ifull,ok), intent(out) :: uct, vct
 real, dimension(ifull,ok) :: wct
-real, dimension(fwsize) :: uc, vc, wc
-real, dimension(ifull) :: newu, newv, neww
+real uc, vc, wc
+real newu, newv, neww
 logical, dimension(fwsize,ok), intent(in) :: mask_3d
+
+allocate( wcc(fwsize,ok) )
 
 if ( fwsize>0 ) then
   do k = 1,ok
-    ! first set up currents in Cartesian "source" coords            
-    uc(1:fwsize) = axs_w(1:fwsize)*ucc(1:fwsize,k) + bxs_w(1:fwsize)*vcc(1:fwsize,k)
-    vc(1:fwsize) = ays_w(1:fwsize)*ucc(1:fwsize,k) + bys_w(1:fwsize)*vcc(1:fwsize,k)
-    wc(1:fwsize) = azs_w(1:fwsize)*ucc(1:fwsize,k) + bzs_w(1:fwsize)*vcc(1:fwsize,k)
-    ! now convert to winds in "absolute" Cartesian components
-    ucc(1:fwsize,k) = uc(1:fwsize)*rotpoles(1,1) + vc(1:fwsize)*rotpoles(1,2) + wc(1:fwsize)*rotpoles(1,3)
-    vcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(2,1) + vc(1:fwsize)*rotpoles(2,2) + wc(1:fwsize)*rotpoles(2,3)
-    wcc(1:fwsize,k) = uc(1:fwsize)*rotpoles(3,1) + vc(1:fwsize)*rotpoles(3,2) + wc(1:fwsize)*rotpoles(3,3)
+    do iq = 1,fwsize 
+      ! first set up currents in Cartesian "source" coords            
+      uc = axs_w(iq)*ucc(iq,k) + bxs_w(iq)*vcc(iq,k)
+      vc = ays_w(iq)*ucc(iq,k) + bys_w(iq)*vcc(iq,k)
+      wc = azs_w(iq)*ucc(iq,k) + bzs_w(iq)*vcc(iq,k)
+      ! now convert to winds in "absolute" Cartesian components
+      ucc(iq,k) = uc*rotpoles(1,1) + vc*rotpoles(1,2) + wc*rotpoles(1,3)
+      vcc(iq,k) = uc*rotpoles(2,1) + vc*rotpoles(2,2) + wc*rotpoles(2,3)
+      wcc(iq,k) = uc*rotpoles(3,1) + vc*rotpoles(3,2) + wc*rotpoles(3,3)
+    end do ! iq loop  
   end do  ! k loop  
   ! interpolate all required arrays to new C-C positions
   ! do not need to do map factors and Coriolis on target grid
@@ -2839,15 +2774,19 @@ call doints4(vcc, vct)
 call doints4(wcc, wct)
   
 do k = 1,ok
-  ! now convert to "target" Cartesian components (transpose used)  
-  newu(1:ifull) = uct(1:ifull,k)*rotpole(1,1) + vct(1:ifull,k)*rotpole(2,1) + wct(1:ifull,k)*rotpole(3,1)
-  newv(1:ifull) = uct(1:ifull,k)*rotpole(1,2) + vct(1:ifull,k)*rotpole(2,2) + wct(1:ifull,k)*rotpole(3,2)
-  neww(1:ifull) = uct(1:ifull,k)*rotpole(1,3) + vct(1:ifull,k)*rotpole(2,3) + wct(1:ifull,k)*rotpole(3,3)
-  ! then finally to "target" local x-y components
-  uct(1:ifull,k) = ax(1:ifull)*newu(1:ifull) + ay(1:ifull)*newv(1:ifull) + az(1:ifull)*neww(1:ifull)
-  vct(1:ifull,k) = bx(1:ifull)*newu(1:ifull) + by(1:ifull)*newv(1:ifull) + bz(1:ifull)*neww(1:ifull)
+  do iq = 1,ifull  
+    ! now convert to "target" Cartesian components (transpose used)  
+    newu = uct(iq,k)*rotpole(1,1) + vct(iq,k)*rotpole(2,1) + wct(iq,k)*rotpole(3,1)
+    newv = uct(iq,k)*rotpole(1,2) + vct(iq,k)*rotpole(2,2) + wct(iq,k)*rotpole(3,2)
+    neww = uct(iq,k)*rotpole(1,3) + vct(iq,k)*rotpole(2,3) + wct(iq,k)*rotpole(3,3)
+    ! then finally to "target" local x-y components
+    uct(iq,k) = ax(iq)*newu + ay(iq)*newv + az(iq)*neww
+    vct(iq,k) = bx(iq)*newu + by(iq)*newv + bz(iq)*neww
+  end do ! iq loop  
 end do  ! k loop
   
+deallocate( wcc )
+
 return
 end subroutine interpcurrent4
 
@@ -2864,7 +2803,7 @@ use newmpar_m          ! Grid parameters
       
 integer ier
 real, dimension(ifull), intent(out) :: varout
-real, dimension(fwsize) :: ucc
+real, dimension(:), allocatable :: ucc
 character(len=*), intent(in) :: vname
       
 if ( iotest ) then
@@ -2872,8 +2811,10 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize) )  
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call doints1(ucc, varout)
+  deallocate( ucc )
 end if ! iotest
 
 return
@@ -2890,7 +2831,7 @@ use newmpar_m          ! Grid parameters
 integer, intent(inout) :: fill_count
 integer ier
 real, dimension(ifull), intent(out) :: varout
-real, dimension(fwsize) :: ucc
+real, dimension(:), allocatable :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
       
@@ -2899,9 +2840,11 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize) )  
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc1(ucc,mask_a,fill_count)
   call doints1(ucc, varout)
+  deallocate( ucc )
 end if ! iotest
       
 return
@@ -2918,7 +2861,7 @@ use newmpar_m          ! Grid parameters
 integer, intent(inout) :: fill_count
 integer ier
 real, dimension(ifull), intent(out) :: uarout, varout
-real, dimension(fwsize) :: ucc, vcc
+real, dimension(:), allocatable :: ucc, vcc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: uname, vname
       
@@ -2928,9 +2871,11 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize), vcc(fwsize) )  
   call histrd(iarchi,ier,uname,ucc,6*ik*ik)
   call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpcurrent1(uarout,varout,ucc,vcc,mask_a,fill_count)
+  deallocate( ucc, vcc )
 end if ! iotest
       
 return
@@ -2994,7 +2939,7 @@ use newmpar_m          ! Grid parameters
       
 integer ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(fwsize,size(varout,2)) :: ucc
+real, dimension(:,:), allocatable :: ucc
 character(len=*), intent(in) :: vname
 
 if ( iotest ) then
@@ -3002,8 +2947,10 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize,size(varout,2)) )  
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call doints4(ucc,varout)
+  deallocate( ucc )
 end if ! iotest
       
 return
@@ -3022,7 +2969,7 @@ integer, intent(in), optional :: levkin
 integer ier
 real, dimension(:,:), intent(out) :: varout
 real, dimension(fwsize), intent(out), optional :: t_a_lev
-real, dimension(fwsize,kk) :: ucc
+real, dimension(:,:), allocatable :: ucc
 real, dimension(ifull,kk) :: u_k
 character(len=*), intent(in) :: vname
 
@@ -3031,6 +2978,7 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,u_k,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize,kk) )  
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   if ( fwsize>0.and.present(levkin).and.present(t_a_lev) ) then
     if ( levkin<1 .or. levkin>kk ) then
@@ -3039,7 +2987,8 @@ else
     end if
     t_a_lev(1:fwsize) = ucc(1:fwsize,levkin)   ! store for psl calculation  
   end if
-  call doints4(ucc, u_k)      
+  call doints4(ucc, u_k)    
+  deallocate( ucc )
 end if ! iotest
 
 ! vertical interpolation
@@ -3063,7 +3012,7 @@ use newmpar_m          ! Grid parameters
 integer, intent(in) :: umode, vmode
 integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
-real, dimension(fwsize,kk) :: ucc, vcc
+real, dimension(:,:), allocatable :: ucc, vcc
 real, dimension(ifull,kk) :: u_k, v_k
 character(len=*), intent(in) :: uname, vname
 
@@ -3073,9 +3022,11 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,v_k,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize,kk), vcc(fwsize,kk) )  
   call histrd(iarchi,ier,uname,ucc,6*ik*ik)
   call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpwind4(u_k,v_k,ucc,vcc)
+  deallocate( ucc, vcc )
 end if ! iotest
 
 ! vertical interpolation
@@ -3101,7 +3052,7 @@ use newmpar_m          ! Grid parameters
 integer, intent(inout) :: fill_count
 integer ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(fwsize,size(varout,2)) :: ucc
+real, dimension(:,:), allocatable :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
 
@@ -3110,9 +3061,11 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize,size(varout,2)) )  
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc4(ucc,mask_a,fill_count)
   call doints4(ucc, varout)
+  deallocate( ucc )
 end if ! iotest
 
 return
@@ -3130,7 +3083,7 @@ use newmpar_m          ! Grid parameters
 integer, intent(inout) :: fill_count
 integer ier
 real, dimension(:,:), intent(out) :: varout
-real, dimension(fwsize,ok) :: ucc
+real, dimension(:,:), allocatable :: ucc
 real, dimension(ifull,ok) :: u_k
 real, dimension(ifull), intent(in) :: bath
 logical, dimension(fwsize,ok), intent(in) :: mask_3d
@@ -3141,9 +3094,11 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,u_k,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize,ok) )  
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc4(ucc,mask_3d,fill_count)
   call doints4(ucc,u_k)
+  deallocate( ucc )
 end if ! iotest
 
 ! vertical interpolation
@@ -3169,7 +3124,7 @@ use newmpar_m          ! Grid parameters
 integer, intent(inout) :: fill_count
 integer ier
 real, dimension(:,:), intent(out) :: uarout, varout
-real, dimension(fwsize,ok) :: ucc, vcc
+real, dimension(:,:), allocatable :: ucc, vcc
 real, dimension(ifull,ok) :: u_k, v_k
 real, dimension(ifull), intent(in) :: bath
 logical, dimension(fwsize,ok), intent(in) :: mask_a
@@ -3181,9 +3136,11 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,v_k,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize,ok), vcc(fwsize,ok) )
   call histrd(iarchi,ier,uname,ucc,6*ik*ik)
   call histrd(iarchi,ier,vname,vcc,6*ik*ik)
   call interpcurrent4(u_k,v_k,ucc,vcc,mask_a,fill_count)
+  deallocate( ucc, vcc )
 end if ! iotest
 
 ! vertical interpolation
@@ -3260,8 +3217,8 @@ use newmpar_m                       ! Grid parameters
 
 integer, intent(inout) :: fill_count
 integer ier
-real, dimension(ifull,11), intent(out) :: varout
-real, dimension(fwsize,11) :: ucc
+real, dimension(:,:), intent(out) :: varout
+real, dimension(:,:), allocatable :: ucc
 logical, dimension(fwsize), intent(in) :: mask_a
 character(len=*), intent(in) :: vname
 
@@ -3270,9 +3227,11 @@ if ( iotest ) then
   call histrd(iarchi,ier,vname,varout,ifull)
 else
   ! for multiple input files
+  allocate( ucc(fwsize,size(varout,2)) )  
   call histrd(iarchi,ier,vname,ucc,6*ik*ik)
   call fill_cc4(ucc(:,:),mask_a,fill_count)
   call doints4(ucc(:,:),varout(:,:))
+  deallocate( ucc )
 end if ! iotest
 
 return
@@ -3293,7 +3252,6 @@ integer n, ipf
 integer mm, iq, idel, jdel
 integer ncount, w
 integer ncount_a, ncount_b
-integer iin, jjn, no, ip
 logical, dimension(0:fnproc-1) :: lfile
 integer, dimension(nproc*fncount) :: tempmap_send, tempmap_smod
 integer, dimension(nproc*fncount) :: tempmap_recv, tempmap_rmod
@@ -3314,9 +3272,6 @@ end if
 if ( allocated(axs_w) ) then
   deallocate( axs_w, ays_w, azs_w )
   deallocate( bxs_w, bys_w, bzs_w )
-end if
-if ( allocated(pijn2pw) ) then
-  deallocate( pijn2pw, pijn2pn )  
 end if
 
 if ( myid==0 ) then
@@ -3445,28 +3400,6 @@ else if ( fwsize>0 ) then
   call ccmpi_filedistribute(bys_w,comm_ip)
   call ccmpi_filedistribute(bzs_w,comm_ip)
 end if
-
-! Calculate indices for unpacking
-if ( myid==0 ) then
-  write(6,*) "-> Calculate unpacking indices"
-end if
-iin = (pil_g-1)/pipan
-jjn = (pil_g-1)/pjpan
-allocate( pijn2pw(0:iin,0:jjn,0:npanels), pijn2pn(0:iin,0:jjn,0:npanels) )
-pijn2pw = -1 ! missing
-pijn2pn = -1 ! missing
-do w = 1,size(filemap_req)
-   ip = filemap_req(w) + filemap_qmod(w)*fnresid
-   do n = 1,pnpan
-      no = n - pnoff(ip)
-      idel = pioff(ip,no) + 1
-      jdel = pjoff(ip,no) + 1
-      iin = (idel-1)/pipan
-      jjn = (jdel-1)/pjpan
-      pijn2pw(iin,jjn,no) = w
-      pijn2pn(iin,jjn,no) = n
-   end do
-end do
 
 if ( myid==0 ) then
   write(6,*) "-> Finished creating control data for input file data"

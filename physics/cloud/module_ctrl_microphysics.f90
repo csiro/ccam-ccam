@@ -903,7 +903,15 @@ do tile = 1,ntiles
       dhail3(iq) = dh3_l/1000.
       dhail4(iq) = dh4_l/1000.
       dhail5(iq) = dh5_l/1000.
+      
+    else  
     
+      dhail1(iq) = 0.
+      dhail2(iq) = 0.
+      dhail3(iq) = 0.
+      dhail4(iq) = 0.
+      dhail5(iq) = 0.
+       
     end if ! wdur > 900.    
     
   end do ! i    

@@ -168,17 +168,83 @@ contains
       
    end subroutine ccmpi_filewinget3
    
-   subroutine ccmpi_filewinunpack3(abuf,k)
+   subroutine ccmpi_filewinunpack3(k,sx)
       integer, intent(in) :: k
       integer :: w, kproc
-      real, dimension(-1:pipan+2,-1:pjpan+2,1:pnpan,1:size(filemap_req)), intent(out) :: abuf
-
+      integer :: ip, n, no, ca, cb
+      integer :: i, n_w, n_e, n_n, n_s
+      real, dimension(-1:pil_g+2,-1:pil_g+2,0:npanels), intent(out) :: sx
+      
+      sx = 0.
+      
       do w = 1,size(filemap_req)
-         kproc = filemap_indx(filemap_req(w),filemap_qmod(w))
-         abuf(1:pipan,1:pjpan,1:pnpan,w) = nodefile(1:pipan,1:pjpan,1:pnpan,k,kproc)
-      end do  
-
-      call abufpanelbounds(abuf(:,:,:,:))
+         kproc = filemap_indx(filemap_req(w),filemap_qmod(w)) 
+         ip = filemap_req(w) + filemap_qmod(w)*fnresid
+         do n = 1,pnpan
+            no = n - pnoff(ip)
+            ca = pioff(ip,no)
+            cb = pjoff(ip,no)
+            sx(1+ca:pipan+ca,1+cb:pjpan+cb,no) = nodefile(1:pipan,1:pjpan,n,k,kproc)
+         end do
+      end do
+      
+      do n = 0,npanels
+         if ( mod(n,2)==0 ) then
+            n_w = mod(n+5, 6)
+            n_e = mod(n+2, 6)
+            n_n = mod(n+1, 6)
+            n_s = mod(n+4, 6)
+            do i = 1,pil_g
+               sx(-1,i,n)      = sx(pil_g-1,i,n_w)
+               sx(0,i,n)       = sx(pil_g,i,n_w)
+               sx(pil_g+1,i,n) = sx(pil_g+1-i,1,n_e)
+               sx(pil_g+2,i,n) = sx(pil_g+1-i,2,n_e)
+               sx(i,-1,n)      = sx(pil_g-1,pil_g+1-i,n_s)
+               sx(i,0,n)       = sx(pil_g,pil_g+1-i,n_s)
+               sx(i,pil_g+1,n) = sx(i,1,n_n)
+               sx(i,pil_g+2,n) = sx(i,2,n_n)
+            end do ! i
+            sx(0,0,n)             = sx(pil_g,1,n_w)        ! ws
+            sx(-1,0,n)            = sx(pil_g,2,n_w)        ! wws
+            sx(0,-1,n)            = sx(pil_g,pil_g-1,n_s)  ! wss
+            sx(pil_g+1,0,n)       = sx(pil_g,1,n_e)        ! es  
+            sx(pil_g+2,0,n)       = sx(pil_g-1,1,n_e)      ! ees 
+            sx(pil_g+1,-1,n)      = sx(pil_g,2,n_e)        ! ess        
+            sx(0,pil_g+1,n)       = sx(pil_g,pil_g,n_w)    ! wn  
+            sx(-1,pil_g+1,n)      = sx(pil_g,pil_g-1,n_w)  ! wwn
+            sx(0,pil_g+2,n)       = sx(pil_g-1,pil_g,n_w)  ! wnn
+            sx(pil_g+1,pil_g+1,n) = sx(1,1,n_e)            ! en  
+            sx(pil_g+2,pil_g+1,n) = sx(2,1,n_e)            ! een  
+            sx(pil_g+1,pil_g+2,n) = sx(1,2,n_e)            ! enn  
+         else
+            n_w = mod(n+4, 6)
+            n_e = mod(n+1, 6)
+            n_n = mod(n+2, 6)
+            n_s = mod(n+5, 6)
+            do i = 1,pil_g
+               sx(-1,i,n)      = sx(pil_g+1-i,pil_g-1,n_w)  
+               sx(0,i,n)       = sx(pil_g+1-i,pil_g,n_w)
+               sx(pil_g+1,i,n) = sx(1,i,n_e)
+               sx(pil_g+2,i,n) = sx(2,i,n_e)
+               sx(i,-1,n)      = sx(i,pil_g-1,n_s)
+               sx(i,0,n)       = sx(i,pil_g,n_s)
+               sx(i,pil_g+1,n) = sx(1,pil_g+1-i,n_n)
+               sx(i,pil_g+2,n) = sx(2,pil_g+1-i,n_n)
+            end do ! i
+            sx(0,0,n)             = sx(pil_g,pil_g,n_w)   ! ws
+            sx(-1,0,n)            = sx(pil_g-1,pil_g,n_w) ! wws
+            sx(0,-1,n)            = sx(2,pil_g,n_s)       ! wss
+            sx(pil_g+1,0,n)       = sx(1,1,n_e)           ! es
+            sx(pil_g+2,0,n)       = sx(1,2,n_e)           ! ees
+            sx(pil_g+1,-1,n)      = sx(2,1,n_e)           ! ess
+            sx(0,pil_g+1,n)       = sx(1,pil_g,n_w)       ! wn       
+            sx(-1,pil_g+1,n)      = sx(2,pil_g,n_w)       ! wwn   
+            sx(0,pil_g+2,n)       = sx(1,pil_g-1,n_w)     ! wnn
+            sx(pil_g+1,pil_g+1,n) = sx(1,pil_g,n_e)       ! en  
+            sx(pil_g+2,pil_g+1,n) = sx(1,pil_g-1,n_e)     ! een  
+            sx(pil_g+1,pil_g+2,n) = sx(2,pil_g,n_e)       ! enn  
+         end if   ! mod(n,2)==0 ..else..
+      end do       ! n loop
    
    end subroutine ccmpi_filewinunpack3
    
@@ -191,98 +257,6 @@ contains
       call END_LOG(mpibarrier_end)
    
    end subroutine ccmpi_filewinwait
-   
-   subroutine abufpanelbounds(abuf)
-      real, dimension(-1:pipan+2,-1:pjpan+2,1:pnpan,size(filemap_req)), intent(inout) :: abuf
-      real, dimension(:,:,:), allocatable :: sx_l
-      integer :: w, ip, n, no, ca, cb
-      integer :: i, n_w, n_e, n_n, n_s
-      
-      allocate( sx_l(-1:pil_g+2,-1:pil_g+2,0:npanels) )
-      
-      sx_l = 0.
-      
-      do w = 1,size(filemap_req)
-         ip = filemap_req(w) + filemap_qmod(w)*fnresid
-         do n = 1,pnpan
-            no = n - pnoff(ip)
-            ca = pioff(ip,no)
-            cb = pjoff(ip,no)
-            sx_l(1+ca:pipan+ca,1+cb:pjpan+cb,no) = abuf(1:pipan,1:pjpan,n,w)
-         end do
-      end do
-      
-      do n = 0,npanels
-         if ( mod(n,2)==0 ) then
-            n_w = mod(n+5, 6)
-            n_e = mod(n+2, 6)
-            n_n = mod(n+1, 6)
-            n_s = mod(n+4, 6)
-            do i = 1,pil_g
-               sx_l(-1,i,n)      = sx_l(pil_g-1,i,n_w)
-               sx_l(0,i,n)       = sx_l(pil_g,i,n_w)
-               sx_l(pil_g+1,i,n) = sx_l(pil_g+1-i,1,n_e)
-               sx_l(pil_g+2,i,n) = sx_l(pil_g+1-i,2,n_e)
-               sx_l(i,-1,n)      = sx_l(pil_g-1,pil_g+1-i,n_s)
-               sx_l(i,0,n)       = sx_l(pil_g,pil_g+1-i,n_s)
-               sx_l(i,pil_g+1,n) = sx_l(i,1,n_n)
-               sx_l(i,pil_g+2,n) = sx_l(i,2,n_n)
-            end do ! i
-            sx_l(0,0,n)             = sx_l(pil_g,1,n_w)        ! ws
-            sx_l(-1,0,n)            = sx_l(pil_g,2,n_w)        ! wws
-            sx_l(0,-1,n)            = sx_l(pil_g,pil_g-1,n_s)  ! wss
-            sx_l(pil_g+1,0,n)       = sx_l(pil_g,1,n_e)        ! es  
-            sx_l(pil_g+2,0,n)       = sx_l(pil_g-1,1,n_e)      ! ees 
-            sx_l(pil_g+1,-1,n)      = sx_l(pil_g,2,n_e)        ! ess        
-            sx_l(0,pil_g+1,n)       = sx_l(pil_g,pil_g,n_w)    ! wn  
-            sx_l(-1,pil_g+1,n)      = sx_l(pil_g,pil_g-1,n_w)  ! wwn
-            sx_l(0,pil_g+2,n)       = sx_l(pil_g-1,pil_g,n_w)  ! wnn
-            sx_l(pil_g+1,pil_g+1,n) = sx_l(1,1,n_e)            ! en  
-            sx_l(pil_g+2,pil_g+1,n) = sx_l(2,1,n_e)            ! een  
-            sx_l(pil_g+1,pil_g+2,n) = sx_l(1,2,n_e)            ! enn  
-         else
-            n_w = mod(n+4, 6)
-            n_e = mod(n+1, 6)
-            n_n = mod(n+2, 6)
-            n_s = mod(n+5, 6)
-            do i = 1,pil_g
-               sx_l(-1,i,n)      = sx_l(pil_g+1-i,pil_g-1,n_w)  
-               sx_l(0,i,n)       = sx_l(pil_g+1-i,pil_g,n_w)
-               sx_l(pil_g+1,i,n) = sx_l(1,i,n_e)
-               sx_l(pil_g+2,i,n) = sx_l(2,i,n_e)
-               sx_l(i,-1,n)      = sx_l(i,pil_g-1,n_s)
-               sx_l(i,0,n)       = sx_l(i,pil_g,n_s)
-               sx_l(i,pil_g+1,n) = sx_l(1,pil_g+1-i,n_n)
-               sx_l(i,pil_g+2,n) = sx_l(2,pil_g+1-i,n_n)
-            end do ! i
-            sx_l(0,0,n)             = sx_l(pil_g,pil_g,n_w)   ! ws
-            sx_l(-1,0,n)            = sx_l(pil_g-1,pil_g,n_w) ! wws
-            sx_l(0,-1,n)            = sx_l(2,pil_g,n_s)       ! wss
-            sx_l(pil_g+1,0,n)       = sx_l(1,1,n_e)           ! es
-            sx_l(pil_g+2,0,n)       = sx_l(1,2,n_e)           ! ees
-            sx_l(pil_g+1,-1,n)      = sx_l(2,1,n_e)           ! ess
-            sx_l(0,pil_g+1,n)       = sx_l(1,pil_g,n_w)       ! wn       
-            sx_l(-1,pil_g+1,n)      = sx_l(2,pil_g,n_w)       ! wwn   
-            sx_l(0,pil_g+2,n)       = sx_l(1,pil_g-1,n_w)     ! wnn
-            sx_l(pil_g+1,pil_g+1,n) = sx_l(1,pil_g,n_e)       ! en  
-            sx_l(pil_g+2,pil_g+1,n) = sx_l(1,pil_g-1,n_e)     ! een  
-            sx_l(pil_g+1,pil_g+2,n) = sx_l(2,pil_g,n_e)       ! enn  
-         end if   ! mod(n,2)==0 ..else..
-      end do       ! n loop
-
-      do w = 1,size(filemap_req)
-         ip = filemap_req(w) + filemap_qmod(w)*fnresid
-         do n = 1,pnpan
-            no = n - pnoff(ip)
-            ca = pioff(ip,no)
-            cb = pjoff(ip,no)
-            abuf(-1:pipan+2,-1:pjpan+2,n,w) = sx_l(-1+ca:pipan+2+ca,-1+cb:pjpan+2+cb,no) 
-         end do
-      end do
-      
-      deallocate( sx_l )
-      
-   end subroutine abufpanelbounds
 
    subroutine ccmpi_filewininit(kblock)
       integer, intent(in) :: kblock
