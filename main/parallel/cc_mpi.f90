@@ -249,7 +249,7 @@ contains
          ! only one boundary can be sent from a process 
          maxbuflen = (max(ipan,jpan)+4)*3*2 + 4
       end if    
-      maxvertlen = max( kl, ol, 15 )
+      maxvertlen = max( kl, ol )
 
       !$acc update device(ipan,jpan)
       

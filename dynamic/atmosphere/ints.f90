@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2024 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -55,8 +55,8 @@ integer nstart, nend, nlen, np
 integer async_counter
 integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordinates
 real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
-real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s ! array of tracers
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,nagg) :: sx ! unpacked tracer array
+real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s  ! array of tracers
+real, dimension(:,:,:,:,:), allocatable :: sx ! unpacked tracer array
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -66,6 +66,7 @@ call START_LOG(ints_begin)
 
 ! now call bounds before calling ints
 
+allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,kl,nagg) )
 
 !$acc enter data create(sx)
 
@@ -608,6 +609,7 @@ end if               ! (intsch==1) .. else ..
 
 !$acc exit data delete(sx)
 
+deallocate( sx )
 
 call END_LOG(ints_end)
 
@@ -631,7 +633,7 @@ integer, intent(in) :: intsch
 integer, dimension(ifull,kl), intent(in) :: nface
 real xxg, yyg
 real, dimension(ifull,kl), intent(in) :: xg,yg      ! now passed through call
-real, dimension(0:ipan+1,0:jpan+1,1:npan,kl) :: sx
+real, dimension(:,:,:,:), allocatable :: sx
 real, dimension(ifull+iextra,kl), intent(inout) :: s
 
 !     this one does bi-linear interpolation only
@@ -639,6 +641,8 @@ real, dimension(ifull+iextra,kl), intent(inout) :: s
 !                    but for bi-linear only need 0:il+1 &  0:il+1
 
 call START_LOG(ints_begin)
+
+allocate( sx(0:ipan+1,0:jpan+1,1:npan,kl) )
 
 ! now call bounds before calling ints_bl
 !call bounds(s,corner=.true.)
@@ -700,6 +704,8 @@ end do                    ! k
 !$acc end parallel loop
 
 call intssync_recv(s)
+
+deallocate( sx )
 
 call END_LOG(ints_end)
 

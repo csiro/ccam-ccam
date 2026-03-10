@@ -70,20 +70,23 @@ integer async_counter
 integer, dimension(ifull,wlev), intent(in) :: nface
 real, dimension(ifull,wlev), intent(in) :: xg, yg
 real, dimension(:,:,:), intent(inout) :: s
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,size(s,3)) :: sx
+real, dimension(:,:,:,:,:), allocatable :: sx
 real xxg, yyg
 real cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
 real rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real sx_ans, cmin, cmax
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
-logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: wx
+logical, dimension(:,:,:,:), allocatable :: wx
 logical, intent(in) :: bs_test
 logical bcub_water, blin_test
 
 call START_LOG(waterints_begin)
 
 ntr = size(s,3)
+
+allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,wlev,ntr) )
+allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,wlev) )
 
 if ( mlointschf==0 ) then
   intsch = 0
@@ -863,6 +866,9 @@ end if                     ! (intsch==1) .. else ..
 !========================   end of intsch=1 section ====================
 
 !$acc exit data delete(wx,sx)
+
+deallocate( sx )
+deallocate( wx )
 
 call END_LOG(waterints_end)
 

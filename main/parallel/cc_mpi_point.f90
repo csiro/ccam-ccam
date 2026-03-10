@@ -3057,7 +3057,7 @@ contains
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*neighnum) :: status
       integer(kind=4), dimension(2*neighnum) :: donelist
-      real, dimension(4,maxbuflen*maxvertlen,neighnum) :: buf_dpoints, buf_dbuf 
+      real, dimension(:,:,:), allocatable :: buf_dpoints, buf_dbuf 
 
       ! This does nothing in the one process case
       if ( neighnum < 1 ) return
@@ -3068,6 +3068,9 @@ contains
       dproc = 0
       lcomm = comm_world
       itag = mod(itag + 1, 10000)
+      
+      allocate( buf_dpoints(4,maxbuflen*maxvertlen,neighnum) )
+      allocate( buf_dbuf(4,maxbuflen*maxvertlen,neighnum) )
       
       ! In this case the length of each buffer is unknown and will not
       ! be symmetric between processes. Therefore need to get the length
@@ -3179,6 +3182,9 @@ contains
             end if
          end do
       end do
+      
+      deallocate( buf_dpoints )
+      deallocate( buf_dbuf )
 
    end subroutine deptsync
 
