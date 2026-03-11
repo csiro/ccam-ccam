@@ -3051,7 +3051,7 @@ contains
       integer :: iproc, jproc, dproc
       integer :: ip, jp, xn, kx
       integer :: iq, k
-      integer :: rcount
+      integer :: rcount, nmaxsize
       integer(kind=4), save :: itag=99
       integer(kind=4) :: ierr, llen, ncount, lproc
       integer(kind=4) :: ldone, lcomm
@@ -3070,7 +3070,6 @@ contains
       itag = mod(itag + 1, 10000)
       
       allocate( buf_dpoints(4,maxbuflen*maxvertlen,neighnum) )
-      allocate( buf_dbuf(4,maxbuflen*maxvertlen,neighnum) )
       
       ! In this case the length of each buffer is unknown and will not
       ! be symmetric between processes. Therefore need to get the length
@@ -3144,6 +3143,9 @@ contains
             call checksize( dslen(dproc), bnds(iproc)%len, "Deptsync" )
          end if
       end do
+      
+      nmaxsize = maxval( dslen(1:neighnum) )
+      allocate( buf_dbuf(4,nmaxsize,neighnum) )
 
       ! Send request list
       do iproc = 1,neighnum

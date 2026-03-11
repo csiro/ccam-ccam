@@ -48,7 +48,7 @@ module cc_mpi_common
                                                                    ! for the global grid
    integer, save :: node_nx, node_ny                               ! number of processes in the x and y directions
                                                                    ! on a node
-   integer, save :: nagg = 8                                       ! maximum number of levels to aggregate
+   integer, save :: nagg = 4                                       ! maximum number of levels to aggregate
    integer, save :: maxcolour = 2                                  ! maximum number of colours for iterative solvers
    
    integer, save :: maxbuflen, maxvertlen                          ! bounds buffer size   
@@ -245,7 +245,12 @@ module cc_mpi_common
    integer, save :: p15_begin, p15_end
    integer, save :: p16_begin, p16_end
    integer, save :: p17_begin, p17_end
-   integer, parameter :: nevents = 83
+   integer, save :: p18_begin, p18_end
+   integer, save :: p19_begin, p19_end
+   integer, save :: p20_begin, p20_end
+   integer, save :: p21_begin, p21_end
+   integer, save :: p22_begin, p22_end
+   integer, parameter :: nevents = 88
    real(kind=8), dimension(nevents), save, private :: tot_time = 0._8, start_time
    real(kind=8), save :: mpiinit_time, total_time
    character(len=15), dimension(nevents), save, private :: event_name
@@ -783,6 +788,11 @@ contains
       call add_event(p15_begin,           p15_end,           "Probe15")
       call add_event(p16_begin,           p16_end,           "Probe16")
       call add_event(p17_begin,           p17_end,           "Probe17")
+      call add_event(p18_begin,           p18_end,           "Probe18")
+      call add_event(p19_begin,           p19_end,           "Probe19")
+      call add_event(p20_begin,           p20_end,           "Probe20")
+      call add_event(p21_begin,           p21_end,           "Probe21")
+      call add_event(p22_begin,           p22_end,           "Probe22")
       
    end subroutine log_setup
 
