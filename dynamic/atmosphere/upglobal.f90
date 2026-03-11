@@ -339,7 +339,8 @@ if ( diag ) then
 end if
 
 ! rotate wind vector to arrival point
-!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,x,y,z,uvw) copyout(ux,vx)
+!$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,x,y,z,uvw,ax,ay,az,bx,by,bz) &
+!$acc   copyout(ux,vx)
 do k = 1,kl
   do iq = 1,ifull
     ! the following normalization may be done, but has ~zero effect
