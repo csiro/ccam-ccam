@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -79,8 +79,8 @@ use vvel_m
 
 implicit none
 
-real, dimension(ifull+iextra,kl,4) :: bb
-real, dimension(ifull+iextra,kl,3) :: uvwc
+real, dimension(:,:,:), allocatable :: bb
+real, dimension(:,:,:), allocatable :: uvwc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: dwdx, dwdy
@@ -124,9 +124,6 @@ do k = 1,kl
   yfact(:,k) = 0.
   uav(:,k) = 0.
   vav(:,k) = 0.
-  uvwc(:,k,1) = 0.
-  uvwc(:,k,2) = 0.
-  uvwc(:,k,3) = 0.  
 end do
 emi(1:ifull) = ps(1:ifull)/em(1:ifull)
 !ptemp(1:ifull) = ps(1:ifull)**.286
@@ -228,6 +225,7 @@ end if ! nvmix=6 .or. nvmix==9
       
 ! usual deformation for nhorjlm=1 or nhorjlm=2
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
+  allocate( uvwc(ifull+iextra,kl,3) )
   do k = 1,kl
     ! in hordifgt, need to calculate Cartesian components 
     uvwc(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
@@ -285,7 +283,7 @@ select case(nhorjlm)
              .01*(dpsldt(in(iq),k)*ps(in(iq))-dpsldt(is(iq),k)*ps(is(iq)))**2 
         ! approx 1 Pa/s = .1 m/s     
         ! N.B. using double grid length
-        t_kh(iq,k)= 0.5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
+        t_kh(iq,k) = 0.5*sqrt(cc)*hdif*ps(iq) ! this one without em in D terms
       end do
     enddo
 
@@ -326,6 +324,8 @@ end do
 call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
                                    ! only update iwu and isv values
 
+
+allocate( bb(ifull+iextra,kl,4) )
 
 ! perform diffusion ---------------------------------------------------
 
@@ -372,6 +372,11 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   call bounds(xtg)  
 end if
 
+deallocate( bb )
+
+
+!$acc data create(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
+!$acc update device(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
 
 ! momentum U, V, W - bounds updated above
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
@@ -413,6 +418,8 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   end do
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
+!$acc wait
+!$acc end data
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl
@@ -423,6 +430,9 @@ if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
                  + by(1:ifull)*uvwc(1:ifull,k,2) &
                  + bz(1:ifull)*uvwc(1:ifull,k,3)
   end do
+end if  
+if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
+  deallocate( uvwc )
 end if  
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   do k = 1,kl
@@ -446,35 +456,49 @@ end subroutine hordifgt
 
 subroutine hordifgt_work(work,xfact,yfact,emi)
 
+use cc_acc, only : async_length
 use indices_m
 use newmpar_m
 
 implicit none
 
 integer k, iq
+integer, save :: async_counter = -1
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
-real, dimension(ifull) :: ans
+real, dimension(ifull,kl) :: ans
 real base, xfact_iwu, yfact_isv
 
+async_counter = mod(async_counter+1, async_length)
+
+!$acc enter data create(work,ans) async(async_counter)
+!$acc update device(work) async(async_counter)
+!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi) &
+!$acc   present(iwu,isv,in,is,ie,iw) async(async_counter)
 do k = 1,kl
   do iq = 1,ifull  
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
                   +yfact(iq,k)+yfact_isv
-    ans(iq) = ( emi(iq)*work(iq,k) +               &
-                xfact(iq,k)*work(ie(iq),k) +       &
-                xfact_iwu*work(iw(iq),k) +         &
-                yfact(iq,k)*work(in(iq),k) +       &
-                yfact_isv*work(is(iq),k) )         &
-             / base 
-  end do
-  do iq = 1,ifull
-    work(iq,k) = ans(iq)
+    ans(iq,k) = ( emi(iq)*work(iq,k) +               &
+                  xfact(iq,k)*work(ie(iq),k) +       &
+                  xfact_iwu*work(iw(iq),k) +         &
+                  yfact(iq,k)*work(in(iq),k) +       &
+                  yfact_isv*work(is(iq),k) )         &
+               / base 
   end do
 end do
+!$acc end parallel loop
+!$acc parallel loop collapse(2) copyout(work) present(ans) async(async_counter)
+do k = 1,kl
+  do iq = 1,ifull
+    work(iq,k) = ans(iq,k)
+  end do
+end do
+!$acc end parallel do
+!$acc exit data delete(work,ans) async(async_counter)
 
 return
 end subroutine hordifgt_work

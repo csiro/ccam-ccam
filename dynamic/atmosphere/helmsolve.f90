@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -22,14 +22,6 @@
 ! This module solves for the atmosphere Helmholtz equation and the ocean free
 ! surface equation using a SOR, conjugate gradient or multi-grid approach.
 
-! Design notes:
-
-! The solution to the Helmholtz equation is currently the limiting factor on
-! the model scaling with increasing cores.  However, the mass-flux,
-! split-explicit dynamical core should avoid the use of an implicit solution
-! and hence this bottleneck should be avoided with the next generation of
-! CCAM.
-    
 ! Notes on the geometric multigrid method:
     
 ! Note that the solver can be greatly optimised for grids that permit many
@@ -49,7 +41,7 @@ implicit none
 private
 public helmsor
 public helmsol
-public mghelm,mgmlo,mgsor_init,mgzz_init
+public mghelm, mgmlo, mgsor_init, mgzz_init
 
 ! Congujate gradient
 
@@ -860,9 +852,9 @@ real, dimension(ifull+iextra) :: vdum
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
-real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
-real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
-real, dimension(mg_maxsize,2*kl) :: w
+real, dimension(:,:,:), allocatable :: rhs
+real, dimension(:,:,:), allocatable :: v, helm
+real, dimension(:,:), allocatable :: w
 real, dimension(mg_minsize) :: vsavc
 real, dimension(2*kl,2) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g, savg, sdif, dsolmaxc, sdifc
@@ -884,6 +876,11 @@ end if
 ! as for the V-cycle.
 
 call START_LOG(helm_begin)
+
+allocate( rhs(mg_maxsize,2*kl,2:gmax+1) )
+allocate( v(mg_maxsize,kl,gmax+1) )
+allocate( helm(mg_maxsize,kl,gmax+1) )
+allocate( w(mg_maxsize,2*kl) )
 
 ng  = 0
 ng4 = 0
@@ -1325,6 +1322,11 @@ if ( myid==0 ) then
     end do
   end if
 end if
+
+deallocate( rhs )
+deallocate( v )
+deallocate( helm )
+deallocate( w )
 
 call END_LOG(helm_end)
 

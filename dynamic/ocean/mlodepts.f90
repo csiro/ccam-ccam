@@ -59,18 +59,23 @@ real, dimension(ifull,wlev), intent(in) :: ubar,vbar
 real, dimension(ifull,wlev), intent(out) :: xg,yg
 real(kind=8), dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,wlev) :: uc,vc,wc
-real, dimension(ifull+iextra,wlev,3) :: s, s_old
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev,3) :: sx
+real, dimension(:,:,:), allocatable :: s, s_old
+real, dimension(:,:,:,:,:), allocatable :: sx
 real s_tot, s_count
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real xxg, yyg
 logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
-logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,wlev) :: wx
+logical, dimension(:,:,:,:), allocatable :: wx
 logical bcub_water, blin_test
 
 call START_LOG(waterdeps_begin)
+
+allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,wlev,3) )
+allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,wlev) )
+allocate( s(ifull+iextra,wlev,3) )
+allocate( s_old(ifull+iextra,wlev,3) )
 
 !$acc data create(xg,yg,nface,xx4,yy4,wx,sx)
 !$acc update device(xx4,yy4) async(0)
@@ -632,6 +637,11 @@ do itr = 1,2
 end do ! itr
 
 !$acc end data
+
+deallocate( sx )
+deallocate( wx )
+deallocate( s )
+deallocate( s_old )
 
 call END_LOG(waterdeps_end)
 

@@ -304,9 +304,9 @@ real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull) :: sdiv, imu, imv
 real, dimension(ifull) :: oeu_iwu, oev_isv
 real, dimension(ifull) :: bu, bv, cu, cv
-real, dimension(ifull,wlev,6) :: s_store
-real, dimension(ifull+iextra,wlev,4) :: s_work
-real, dimension(ifull+iextra,wlev,3) :: cou
+real, dimension(:,:,:), allocatable :: s_store
+real, dimension(:,:,:), allocatable :: s_work
+real, dimension(:,:,:), allocatable :: cou
 real, dimension(ifull+iextra,wlev) :: cc
 real, dimension(ifull+iextra,wlev) :: eou, eov, ccu, ccv
 real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns, mps
@@ -373,7 +373,6 @@ niv      = 0.            ! new v component of ice velocity
 nfracice = 0.            ! new ice fraction
 ndic     = 0.            ! new ice thickness 
 ndsn     = 0.            ! new ice snow depth 
-cou      = 0.            ! working array
 data_c   = 0.            ! working array
 data_d   = 0.            ! working array
 eou      = 0.            ! working array
@@ -765,6 +764,12 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
 
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
+
+  
+  allocate( cou(ifull+iextra,wlev,3) )
+  allocate( s_store(ifull,wlev,6) )
+  allocate( s_work(ifull+iextra,wlev,4) )
+  
   
   do ii = 1,wlev
     ! Convert (u,v) to cartesian coordinates (U,V,W)  
@@ -773,7 +778,7 @@ do mspec_mlo = mspeca_mlo,1,-1
     cou(1:ifull,ii,3) = az(1:ifull)*u_tstar(:,ii) + bz(1:ifull)*v_tstar(:,ii)
   end do
   
-  
+
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
   
@@ -838,6 +843,11 @@ do mspec_mlo = mspeca_mlo,1,-1
     ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )
   end do
 
+  deallocate( cou )
+  deallocate( s_store )
+  deallocate( s_work )
+  
+  
   workdata = nt(1:ifull,:)
   workdata2 = ns(1:ifull,:)
   call mlocheck("horizontal advection",water_temp=workdata,water_sal=workdata2)

@@ -86,7 +86,7 @@ integer, save :: diaglevel_pop=0
 #ifdef GPU
 integer, save :: maxtilesize=32
 #else
-integer, save :: maxtilesize=96
+integer, save :: maxtilesize=48
 #endif 
 real, save :: qgmin=1.e-6, zo_clearing=0.
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02

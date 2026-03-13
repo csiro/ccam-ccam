@@ -87,14 +87,14 @@ use vecsuv_m
 implicit none
 
 integer iq, k, its
-real, dimension(ifull+iextra,wlev,3) :: duma
-real, dimension(ifull+iextra,wlev,2) :: dumb
+real, dimension(:,:,:), allocatable :: duma
+real, dimension(:,:,:), allocatable :: dumb
 real, dimension(ifull+iextra,wlev) :: ttl, ssl
 real, dimension(ifull+iextra,wlev) :: uau,uav
-real, dimension(ifull+iextra,wlev) :: xfact,yfact,dep
+real, dimension(ifull+iextra,wlev) :: xfact, yfact, dep
 real, dimension(ifull+iextra,wlev) :: w_ema
 real, dimension(ifull+iextra,wlev+1) :: t_kh
-real, dimension(ifull,wlev,3) :: duma_save
+real, dimension(:,:,:), allocatable :: duma_save
 real, dimension(ifull,wlev) :: ttl_save, ssl_save
 real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
 real, dimension(ifull,wlev) :: workdata2
@@ -106,8 +106,6 @@ real, dimension(ifull) :: emi
 real tx_fact, ty_fact
 
 call START_LOG(waterdiff_begin)
-
-duma = 0.
 
 if ( abs(nmlo)>=3 ) then
   do k = 1,wlev  
@@ -184,6 +182,9 @@ else
 end if
 call boundsuv(xfact,yfact,stag=-9)
 
+
+allocate( duma(ifull+iextra,wlev,3) )
+
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   ! UX, VX, WX
   ! Laplacian diffusion terms (closure #1)
@@ -206,10 +207,15 @@ if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
   end where
 end if
 
+
+allocate( dumb(ifull+iextra,wlev,2) )
+
 ! perform diffusion
 
 if ( mlodiff>=10 .and. mlodiff<20 ) then
   !Biharmonic version
+    
+  allocate( duma_save(ifull,wlev,3) )
 
   if ( mlodiff==10 .or. mlodiff==12 ) then
     duma_save(1:ifull,:,1:3) = duma(1:ifull,:,1:3)  
@@ -264,6 +270,8 @@ if ( mlodiff>=10 .and. mlodiff<20 ) then
     end if
     
   end do  
+  
+  deallocate( duma_save )
 
 else if ( mlodiff>=0 .and. mlodiff<10 ) then
   ! Laplacian version
@@ -300,6 +308,9 @@ else
   call ccmpi_abort(-1)
 end if  
 
+deallocate( dumb )
+
+
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   do k = 1,wlev
     do iq = 1,ifull
@@ -308,6 +319,8 @@ if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     end do
   end do
 end if
+deallocate( duma )
+
 if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
   do k = 1,wlev
     do iq = 1,ifull
@@ -467,7 +480,7 @@ do k = 1,wlev
     end if
   end do
 end do  
-!$acc end parallel loop
+!$acc end parallel do
 !$acc exit data delete(work,ans) async(async_counter)
 
 return

@@ -58,10 +58,10 @@ integer ii, intsch, iq, jj, k, kk
 integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
-integer, dimension(max(naero,ntrac,6)) :: nfield
+integer, dimension(max(naero,ntrac,5)) :: nfield
 real, dimension(ifull) :: nvadh_inv_pass
-real, dimension(ifull+iextra,kl,5) :: bb
-real, dimension(ifull+iextra,kl,3) :: uvw
+real, dimension(:,:,:), allocatable :: bb
+real, dimension(:,:,:), allocatable :: uvw
 real, dimension(ifull+iextra,kl) :: dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
@@ -189,6 +189,10 @@ if ( nmaxpr==1 .and. nproc==1 ) then
   write (6,"(i6,8i8)") (ii,ii=id-4,id+4)
   write (6,"(9f8.4)") ((pslx(max(min(ii+jj*il,ifull),1),nlv),ii=idjd-4,idjd+4),jj=2,-2,-1)
 end if
+
+
+allocate( bb(ifull+iextra,kl,5) )
+allocate( uvw(ifull+iextra,kl,3) )
 
 
 ! call bounds before calling ints
@@ -423,6 +427,9 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
 end if     ! mspec==1
 
 !$acc end data
+
+deallocate( bb )
+deallocate( uvw )
 
 
 do k = 2,kl
