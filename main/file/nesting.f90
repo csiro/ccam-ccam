@@ -359,11 +359,11 @@ use stime_m                      ! File date data
 integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, ntr
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
-real, dimension(ifull,kl,naero) :: xtghostc
-real, dimension(ifull,kl,8) :: dumv
-real, dimension(ifull,wlev,4) :: sssc
-real, dimension(ifull,ms,3) :: dumg
-real, dimension(ifull,3,3) :: dums
+real, dimension(:,:,:), allocatable :: xtghostc
+real, dimension(:,:,:), allocatable :: dumv
+real, dimension(:,:,:), allocatable :: sssc
+real, dimension(:,:,:), allocatable :: dumg
+real, dimension(:,:,:), allocatable :: dums
 real, dimension(ifull,kl) :: tc, uc, vc, qc
 real, dimension(ifull,9) :: duma
 real, dimension(ifull) :: pslc
@@ -396,6 +396,9 @@ if ( mtimer>mtimeb ) then
     xtghostb = 0.
     if ( abs(io_in)==1 ) then
       call START_LOG(nestotf_begin)
+      allocate( dumv(ifull,kl,8) )
+      allocate( dumg(ifull,ms,3) )
+      allocate( dums(ifull,3,3) )
       call onthefly(1,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -406,6 +409,9 @@ if ( mtimer>mtimeb ) then
                     duma(:,2),duma(:,3),dumm,                     & !unused
                     sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
                     duma(:,6),duma(:,7),duma(:,8),duma(:,9))
+      deallocate( dumv )
+      deallocate( dumg )
+      deallocate( dums )
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
     else
@@ -445,6 +451,9 @@ if ( mtimer>mtimeb ) then
   ! read tb etc  - for globpea, straight into tb etc
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
+    allocate( dumv(ifull,kl,8) )
+    allocate( dumg(ifull,ms,3) )
+    allocate( dums(ifull,3,3) )
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -455,6 +464,9 @@ if ( mtimer>mtimeb ) then
                   duma(:,2),duma(:,3),dumm,                     & !unused
                   sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
                   duma(:,6),duma(:,7),duma(:,8),duma(:,9))
+    deallocate( dumv )
+    deallocate( dumg )
+    deallocate( dums )
     call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
@@ -504,6 +516,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
   ! atmospheric nudging if required
   if ( mbd/=0 ) then
     if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
+      allocate( xtghostc(ifull,kl,naero) )  
       pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
       uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
       vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
@@ -515,6 +528,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
         end do
       end if
       call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
+      deallocate( xtghostc )
     end if
   end if  
 
@@ -537,6 +551,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
       ! nudge Mixed-Layer-Ocean
       if ( mbd_mlo/=0 ) then  
         if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
+          allocate( sssc(ifull,wlev,4) )  
           sssc(:,:,1:4) = cona*sssa(:,:,1:4) + (1.-cona)*sssb(:,:,1:4)  
           ! check host for 2D or 3D data
           if ( wl<1 ) then
@@ -556,6 +571,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
             sssc(:,1,1) = sssc(:,1,1) - wrtemp
           end if
           call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
+          deallocate( sssc )
         end if
       end if  
     end if ! (nmlo==0) ..else..

@@ -147,7 +147,7 @@ real, dimension(:,:), intent(in) :: pfevap                         ! from LDR pr
 real, dimension(ifull) :: cgssnowd,bbem
 real, dimension(ifull) :: veff,vefn,v10n
 real, dimension(ifull) :: Vgust_free,Vgust_deep
-real, dimension(ifull,kl,naero) :: xte, xtm1, xtu
+real, dimension(:,:,:), allocatable :: xte, xtm1, xtu
 real, dimension(ifull,kl) :: prhop1,ptp1,pclcon
 real, dimension(ifull,kl) :: pclcover,pcfcover,pmlwc,pmiwc,pfconv
 real, dimension(ifull,kl) :: aphp2
@@ -174,6 +174,10 @@ if ( maxval(xtg(1:ifull,:,:))>2.e-3 ) then
   write(6,*) "xtg maxval,maxloc ",maxval(xtg(1:ifull,:,:)),maxloc(xtg(1:ifull,:,:))
 end if
 
+
+allocate( xte(ifull,kl,naero) )
+allocate( xtm1(ifull,kl,naero) )
+allocate( xtu(ifull,kl,naero) )
 
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
@@ -421,6 +425,10 @@ do tile = 1,ntiles
   end do
 
 end do
+
+deallocate( xte )
+deallocate( xtm1 )
+deallocate( xtu )
 
 return
 end subroutine aldrcalc

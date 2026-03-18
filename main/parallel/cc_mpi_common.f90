@@ -49,7 +49,7 @@ module cc_mpi_common
    integer, save :: node_nx, node_ny                               ! number of processes in the x and y directions
                                                                    ! on a node
    integer, save :: nagg = 4                                       ! maximum number of levels to aggregate
-   integer, save :: maxcolour = 2                                  ! maximum number of colours for iterative solvers
+   integer, save :: maxcolour = 3                                  ! maximum number of colours for iterative solvers
    
    integer, save :: maxbuflen, maxvertlen                          ! bounds buffer size   
    logical, save :: mydiag                                         ! true if diagnostic point id, jd is in my region
