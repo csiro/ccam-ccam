@@ -53,6 +53,7 @@ public procmode, compression, localhist
 public nud_period, mins_rad, nalpha, jalbfix, irest, nwrite
 public nstagin, nstaguin
 public hp_output, surf_cordex, output_windmax, cordex_fix
+public ml_cordex, ml_freq
 public shep_cordex, chunk_time
 public ensemble_mode, ensemble_period, ensemble_rsfactor
 public siglow, sigmid
@@ -100,5 +101,6 @@ real, save :: wbclim_lonn=0., wbclim_lonx=0., wbclim_latn=0., wbclim_latx=0.
 logical, save :: diag=.false., synchist=.false., amipo3=.false., use_rad_year=.false., localhist=.true.
 logical, save :: save_aerosols=.true., save_pbl=.true., save_cloud=.true., save_land=.true., save_maxmin=.true.
 logical, save :: save_ocean=.true., save_radiation=.true., save_urban=.true., save_carbon=.true., save_river=.true.
+logical, save :: ml_cordex=.false., ml_freq=.false.
 
 end module parm_m

@@ -77,13 +77,14 @@ integer icy,icm,icd,ich,icmi,ics
 integer i,j,n,fiarch,k,iq
 integer idnp, idgpn, idgpo
 integer press_level, tlenhf
-integer d4, ssize, fsize
+integer d4, ssize, fsize, asize
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
 integer, save :: idktime = 0
 integer, save :: idmtimer = 0
 real(kind=8), dimension(:,:), allocatable, save :: freqstore
+real, dimension(ifull,kl) :: tmpry
 real, dimension(ifull) :: umag, outdata, pmsl
 real, dimension(ifull) :: ua_level, va_level, ta_level, hus_level, zg_level
 real, dimension(ifull) :: wa_level
@@ -116,9 +117,11 @@ local = localhist .and. vnode_myid==0
 if ( localhist ) then
   d4    = 5
   ssize = 4
+  asize = 5
 else
   d4    = 4
   ssize = 3
+  asize = 4
 end if
 fsize = ssize - 1 ! size of fixed variables
 
@@ -166,7 +169,11 @@ if ( first ) then
       call ccnf_def_dim(fncid,'longitude',il_g,adim(1))
       call ccnf_def_dim(fncid,'latitude',jl_g,adim(2))
     endif
-    call ccnf_def_dim(fncid,'lev',1,adim(3))
+    if ( ml_freq ) then
+      call ccnf_def_dim(fncid,'lev',kl,adim(3))  
+    else
+      call ccnf_def_dim(fncid,'lev',1,adim(3))
+    end if  
     if ( local ) then
       call ccnf_def_dim(fncid,'processor',vnode_nproc,adim(4)) 
       if ( myid==0 ) then
@@ -326,36 +333,51 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'fg_ave',lname,'W m-2',-3000.,3000.,any_m,tmean_m,amean_m,float_m)
       lname = 'Height of Boundary Layer'
       call attrib(fncid,sdim,ssize,'pblh',lname,'m',0.,13000.,any_m,point_m,amean_m,short_m)
-      lname = 'Convective Available Potential Energy'
-      call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,20000.,any_m,point_m,amean_m,short_m)
-      lname = 'Convective Inhibition'
-      call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',-20000.,0.,any_m,point_m,amean_m,short_m)
-      lname = 'Lifted Index'
-      call attrib(fncid,sdim,ssize,'LI',lname,'K',-100.,100.,any_m,point_m,amean_m,short_m)      
+      if ( .not.ml_freq ) then
+        lname = 'Convective Available Potential Energy'
+        call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,20000.,any_m,point_m,amean_m,short_m)
+        lname = 'Convective Inhibition'
+        call attrib(fncid,sdim,ssize,'CIN',lname,'J kg-1',-20000.,0.,any_m,point_m,amean_m,short_m)
+        lname = 'Lifted Index'
+        call attrib(fncid,sdim,ssize,'LI',lname,'K',-100.,100.,any_m,point_m,amean_m,short_m)
+      end if  
       lname = 'Near-Surface Wind Speed of Gust'
       call attrib(fncid,sdim,ssize,'wsgs',lname,'m s-1',0.,350.,any_m,point_m,amean_m,short_m)
-      do k = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
-        press_level = cordex_level_data(k)
-        call cordex_name(lname,"x-component ",press_level,"hPa wind")
-        call cordex_name(vname,"ua",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,any_m,point_m,amean_m,short_m)
-        call cordex_name(lname,"y-component ",press_level,"hPa wind")
-        call cordex_name(vname,"va",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,any_m,point_m,amean_m,short_m)
-        lname = 'Air Temperature'     
-        call cordex_name(vname,"ta",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,425.,any_m,point_m,amean_m,short_m)
-        lname = 'Specific Humidity'
-        call cordex_name(vname,"hus",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,any_m,point_m,amean_m,short_m)
-        lname = 'Geopotential Height'
-        call cordex_name(vname,"zg",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m',0.,130000.,any_m,point_m,amean_m,short_m)
-        lname = 'Upward Air Velocity'
-        call cordex_name(vname,"wa",press_level)
-        call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,any_m,point_m,amean_m,short_m)
-      end do 
-    end if
+      if ( ml_freq ) then
+        lname = 'Air Temperature'
+        call attrib(fncid,adim,asize,'temp',lname,'K',100.,425.,any_m,point_m,amean_m,short_m)
+        lname = 'Water mixing ratio'
+        call attrib(fncid,adim,asize,'mixr',lname,'kg kg-1',0.,.065,any_m,point_m,amean_m,short_m)
+        lname = 'x-component wind'
+        call attrib(fncid,adim,asize,'u',lname,'m s-1',-150.,150.,any_m,point_m,amean_m,short_m)
+        lname = 'y-component wind'
+        call attrib(fncid,adim,asize,'v',lname,'m s-1',-150.,150.,any_m,point_m,amean_m,short_m)
+        lname = 'vertical velocity'
+        call attrib(fncid,adim,asize,'omega',lname,'Pa s-1',-65.,65.,any_m,point_m,amean_m,short_m)
+      else    
+        do k = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
+          press_level = cordex_level_data(k)
+          call cordex_name(lname,"x-component ",press_level,"hPa wind")
+          call cordex_name(vname,"ua",press_level)
+          call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,any_m,point_m,amean_m,short_m)
+          call cordex_name(lname,"y-component ",press_level,"hPa wind")
+          call cordex_name(vname,"va",press_level)
+          call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,any_m,point_m,amean_m,short_m)
+          lname = 'Air Temperature'     
+          call cordex_name(vname,"ta",press_level)
+          call attrib(fncid,sdim,ssize,trim(vname),lname,'K',100.,425.,any_m,point_m,amean_m,short_m)
+          lname = 'Specific Humidity'
+          call cordex_name(vname,"hus",press_level)
+          call attrib(fncid,sdim,ssize,trim(vname),lname,'1',0.,0.06,any_m,point_m,amean_m,short_m)
+          lname = 'Geopotential Height'
+          call cordex_name(vname,"zg",press_level)
+          call attrib(fncid,sdim,ssize,trim(vname),lname,'m',0.,130000.,any_m,point_m,amean_m,short_m)
+          lname = 'Upward Air Velocity'
+          call cordex_name(vname,"wa",press_level)
+          call attrib(fncid,sdim,ssize,trim(vname),lname,'m s-1',-130.,130.,any_m,point_m,amean_m,short_m)
+        end do
+      end if  
+    end if ! ml_freq ..else..
 
     ! end definition mode
     call ccnf_enddef(fncid)
@@ -392,8 +414,12 @@ if ( first ) then
       call ccnf_put_vara(fncid,iyp,1,jl_g,ypnt(1:jl_g))
       deallocate(ypnt)
     end if
-    zpnt(1)=1.
-    call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
+    if ( ml_freq ) then
+      call ccnf_put_vara(fncid,izp,1,kl,sig)  
+    else
+      zpnt(1)=1.
+      call ccnf_put_vara(fncid,izp,1,1,zpnt(1:1))
+    end if  
     
     if ( local ) then
       ! store local processor order in output file  
@@ -462,7 +488,7 @@ if ( first ) then
   end if    
   
   first=.false.
-  if ( myid==0 ) write(6,*) "Finished initialising sub hourly output"
+  if ( myid==0 ) write(6,*) "Finished initialising sub-hourly output"
  
 end if
 
@@ -542,44 +568,58 @@ if ( mod(ktau,tbave10)==0 ) then
     outdata = real(freqstore(:,13))
     call histwrt(outdata,"fg_ave",fncid,fiarch,local,.true.)
     call histwrt(pblh,"pblh",fncid,fiarch,local,.true.)
-    call histwrt(cape_d,"CAPE",fncid,fiarch,local,.true.)
-    call histwrt(cin_d,"CIN",fncid,fiarch,local,.true.)
-    call histwrt(li_d,"LI",fncid,fiarch,local,.true.)
-    call histwrt(wsgs,'wsgs',fncid,fiarch,local,.true.)  
-    do k = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
-      press_level = cordex_level_data(k)
-      press_level_pa = real(press_level)*100.  
-      do iq = 1,ifull
-        n = bisect(press_level_pa,ps(iq),sig(:)) 
-        xx = (press_level_pa - ps(iq)*sig(n)) &
-            /(ps(iq)*sig(n+1)-ps(iq)*sig(n))
-        xx = min( max( xx, 0. ), 1. )
-        ! special treatment for t
-        if ( press_level_pa>ps(iq)*sig(1) ) then
-          ta_level(iq) = t(iq,1)*(press_level_pa/(ps(iq)*sig(1)))**(6.5e-3*rdry/grav)
-        else
-          ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
-        end if
-        hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx        
-        hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.) ! convert to specific humidity
-        ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
-        va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
-        zg_level(iq) = (phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx)/grav
-        wa_level(iq) = wvel(iq,n)*(1.-xx) + wvel(iq,n+1)*xx
+    if ( .not.ml_freq ) then
+      call histwrt(cape_d,"CAPE",fncid,fiarch,local,.true.)
+      call histwrt(cin_d,"CIN",fncid,fiarch,local,.true.)
+      call histwrt(li_d,"LI",fncid,fiarch,local,.true.)
+    end if  
+    call histwrt(wsgs,'wsgs',fncid,fiarch,local,.true.)
+    if ( ml_freq ) then
+      call histwrt(t,'temp',fncid,fiarch,local,.true.)
+      call histwrt(qg,'mixr',fncid,fiarch,local,.true.)
+      call histwrt(u,'u',fncid,fiarch,local,.true.)
+      call histwrt(v,'v',fncid,fiarch,local,.true.)
+      do k = 1,kl
+        tmpry(1:ifull,k) = ps(1:ifull)*dpsldt(1:ifull,k)
+      enddo
+      call histwrt(tmpry(:,1:kl),'omega',fncid,fiarch,local,.true.)
+    else
+      do k = 1,10 ! 1000, 925, 850, 700, 600, 500, 400, 300, 250, 200
+        press_level = cordex_level_data(k)
+        press_level_pa = real(press_level)*100.
+        do iq = 1,ifull
+          n = bisect(press_level_pa,ps(iq),sig(:)) 
+          xx = (press_level_pa - ps(iq)*sig(n)) &
+              /(ps(iq)*sig(n+1)-ps(iq)*sig(n))
+          xx = min( max( xx, 0. ), 1. )
+          ! special treatment for t
+          if ( press_level_pa>ps(iq)*sig(1) ) then
+            ta_level(iq) = t(iq,1)*(press_level_pa/(ps(iq)*sig(1)))**(6.5e-3*rdry/grav)
+          else
+            ta_level(iq) = t(iq,n)*(1.-xx) + t(iq,n+1)*xx
+          end if
+          hus_level(iq) = qg(iq,n)*(1.-xx) + qg(iq,n+1)*xx        
+          hus_level(iq) = hus_level(iq)/(hus_level(iq)+1.) ! convert to specific humidity
+          ua_level(iq) = u(iq,n)*(1.-xx) + u(iq,n+1)*xx
+          va_level(iq) = v(iq,n)*(1.-xx) + v(iq,n+1)*xx
+          zg_level(iq) = (phi(iq,n)*(1.-xx) + phi(iq,n+1)*xx)/grav
+          wa_level(iq) = wvel(iq,n)*(1.-xx) + wvel(iq,n+1)*xx
+        end do
+        call cordex_name(vname,"ua",press_level)
+        call histwrt(ua_level,trim(vname),fncid,fiarch,local,.true.) 
+        call cordex_name(vname,"va",press_level)
+        call histwrt(va_level,trim(vname),fncid,fiarch,local,.true.) 
+        call cordex_name(vname,"ta",press_level)
+        call histwrt(ta_level,trim(vname),fncid,fiarch,local,.true.) 
+        call cordex_name(vname,"hus",press_level)
+        call histwrt(hus_level,trim(vname),fncid,fiarch,local,.true.) 
+        call cordex_name(vname,"zg",press_level)
+        call histwrt(zg_level,trim(vname),fncid,fiarch,local,.true.) 
+        call cordex_name(vname,"wa",press_level)
+        call histwrt(wa_level,trim(vname),fncid,fiarch,local,.true.) 
       end do
-      call cordex_name(vname,"ua",press_level)
-      call histwrt(ua_level,trim(vname),fncid,fiarch,local,.true.) 
-      call cordex_name(vname,"va",press_level)
-      call histwrt(va_level,trim(vname),fncid,fiarch,local,.true.) 
-      call cordex_name(vname,"ta",press_level)
-      call histwrt(ta_level,trim(vname),fncid,fiarch,local,.true.) 
-      call cordex_name(vname,"hus",press_level)
-      call histwrt(hus_level,trim(vname),fncid,fiarch,local,.true.) 
-      call cordex_name(vname,"zg",press_level)
-      call histwrt(zg_level,trim(vname),fncid,fiarch,local,.true.) 
-      call cordex_name(vname,"wa",press_level)
-      call histwrt(wa_level,trim(vname),fncid,fiarch,local,.true.) 
-    end do  
+    end if
+
   end if
   
   freqstore(:,:) = 0._8
@@ -590,7 +630,7 @@ if ( mod(ktau,tbave10)==0 ) then
       call ccnf_sync(fncid)
     end if
   end if
-  
+
 end if
 
 if ( myid==0 .or. local ) then

@@ -125,31 +125,28 @@ integer secs_rad, nversion
 integer mstn, mbd_min
 integer opt, nopt, secs_nud
 integer ateb_intairtmeth, ateb_intmassmeth
-integer npa, npb, tkecduv, tblock  ! depreciated namelist options
-integer o3_time_interpolate        ! depreciated namelist options
-integer kmlo, calcinloop           ! depreciated namelist options
-integer fnproc_bcast_max, nriver   ! depreciated namelist options
-integer ateb_conductmeth           ! depreciated namelist options
-integer ateb_useonewall            ! depreciated namelist options
-integer cable_climate              ! depreciated namelist options
-integer surf_windfarm, adv_precip  ! depreciated namelist options
-integer lin_aerosolmode            ! depreciated namelist options
-integer mlo_limitsal               ! depreciated namelist options
-integer ateb_soilunder             ! depreciated namelist options
+integer npa, npb, tkecduv, tblock    ! depreciated namelist options
+integer o3_time_interpolate          ! depreciated namelist options
+integer kmlo, calcinloop             ! depreciated namelist options
+integer fnproc_bcast_max, nriver     ! depreciated namelist options
+integer ateb_conductmeth             ! depreciated namelist options
+integer ateb_useonewall              ! depreciated namelist options
+integer cable_climate                ! depreciated namelist options
+integer surf_windfarm, adv_precip    ! depreciated namelist options
+integer lin_aerosolmode              ! depreciated namelist options
+integer ateb_soilunder, mlo_limitsal ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr, tscale
 real ateb_zocanyon, ateb_zoroof, ateb_energytol
-real cgmap_offset, cgmap_scale      ! depreciated namelist options
-real ateb_ac_smooth, ateb_ac_copmax ! depreciated namelist options
-real ateb_alpha, cable_version      ! depreciated namelist options 
-real zimax,mlomaxuv                 ! depreciated namelist options
-real plume_alpha                    ! depreciated namelist options
-real ocnlap                         ! depreciated namelist options
-logical procformat                  ! depreciated namelist options
-logical unlimitedhist               ! depreciated namelist options
+real cgmap_offset, cgmap_scale       ! depreciated namelist options
+real ateb_ac_smooth, ateb_ac_copmax  ! depreciated namelist options
+real ateb_alpha, cable_version       ! depreciated namelist options 
+real zimax, mlomaxuv                 ! depreciated namelist options
+real plume_alpha, ocnlap             ! depreciated namelist options
+logical procformat, unlimitedhist    ! depreciated namelist options
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
 character(len=60) comm, comment
@@ -212,7 +209,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
     surf_cordex,surf_windfarm,output_windmax,cordex_fix,          &
-    wbclimfile,shep_cordex,                                       &
+    wbclimfile,shep_cordex,ml_cordex,ml_freq,                     &
     vegprev,vegnext,vegnext2                                        ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
@@ -596,7 +593,7 @@ if ( myid==0 ) then
   write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt
   write(6,*) 'kl,ol                ',kl,ol
   write(6,*) 'lapsbot,isoth,nsig   ',lapsbot,isoth,nsig
-  write(6,*) 'ntiles,imax          ',ntiles,ifull/ntiles
+  write(6,*) 'ntiles,imax          ',ntiles,imax
   write(6,*) 'il_g,jl_g,il,jl      ',il_g,jl_g,il,jl
   write(6,*) 'nxp,nyp              ',nxp,nyp
 end if
@@ -1976,20 +1973,20 @@ use parm_m                                 ! Model configuration
 
 implicit none
 
-integer, dimension(25) :: dumi
+integer, dimension(27) :: dumi
     
 dumi = 0
 if ( myid==0 ) then
-  if ( save_aerosols ) dumi(1)=1
-  if ( save_pbl ) dumi(2)=1
-  if ( save_cloud ) dumi(3)=1
-  if ( save_land ) dumi(4)=1
-  if ( save_maxmin ) dumi(5)=1
-  if ( save_ocean ) dumi(6)=1
+  if ( save_aerosols )  dumi(1)=1
+  if ( save_pbl )       dumi(2)=1
+  if ( save_cloud )     dumi(3)=1
+  if ( save_land )      dumi(4)=1
+  if ( save_maxmin )    dumi(5)=1
+  if ( save_ocean )     dumi(6)=1
   if ( save_radiation ) dumi(7)=1
-  if ( save_urban ) dumi(8)=1
-  if ( save_carbon ) dumi(9)=1
-  if ( save_river ) dumi(10)=1
+  if ( save_urban )     dumi(8)=1
+  if ( save_carbon )    dumi(9)=1
+  if ( save_river )     dumi(10)=1
   dumi(11) = diaglevel_aerosols
   dumi(12) = diaglevel_pbl
   dumi(13) = diaglevel_cloud
@@ -2005,6 +2002,8 @@ if ( myid==0 ) then
   dumi(23) = output_windmax
   dumi(24) = cordex_fix
   dumi(25) = shep_cordex
+  if ( ml_cordex) dumi(26)=1
+  if ( ml_freq )  dumi(27)=1
 end if
 call ccmpi_bcast(dumi,0,comm_world)
 call ccmpi_bcast(ifile,0,comm_world)
@@ -2070,6 +2069,8 @@ surf_cordex         = dumi(22)
 output_windmax      = dumi(23)
 cordex_fix          = dumi(24)
 shep_cordex         = dumi(25)
+ml_cordex           = dumi(26)==1
+ml_freq             = dumi(27)==1
 
 return
 end subroutine broadcast_datafile

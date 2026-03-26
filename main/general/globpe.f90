@@ -653,7 +653,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
   end do
   ! calculate MSE after radiation
   call calculate_dhdt_mse(1,ifull,mse_t2)
-  dmsedt_rad(:,:) = (mse_t2 (:,:)- mse_t1(:,:))/dt  
+  dmsedt_rad(:,:) = (mse_t2 (:,:) - mse_t1(:,:))/dt  
   call nantest("after radiation",1,ifull,"radiation")
     
   
@@ -771,10 +771,10 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! pcc2hist can calculate CAPE for standard output
   ltest = .false.
   if ( surfile/=' ' ) then
-    ltest = ltest .or. mod(ktau,tbave)==0
+    ltest = ltest .or. ( mod(ktau,tbave)==0 .and. .not.ml_cordex )
   end if
   if ( freqfile/=' ' ) then
-    ltest = ltest .or. mod(ktau,tbave10)==0  
+    ltest = ltest .or. ( mod(ktau,tbave10)==0 .and. .not.ml_freq )  
   end if  
   if ( ltest ) then
     call START_LOG(cape_begin)  

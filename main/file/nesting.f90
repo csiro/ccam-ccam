@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -99,10 +99,10 @@ integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, kdhour, kdmin, kddate
 integer khour_r, kmin_r, khour, kmin
 integer :: num=0
-real, dimension(ifull,kl,8) :: dumv
-real, dimension(ifull,wlev,4) :: dumaa
-real, dimension(ifull,ms,3) :: dumg
-real, dimension(ifull,3,3) :: dums
+real, dimension(:,:,:), allocatable :: dumv
+real, dimension(:,:,:), allocatable :: dumaa
+real, dimension(:,:,:), allocatable :: dumg
+real, dimension(:,:,:), allocatable :: dums
 real, dimension(ifull,9) :: duma
 real, dimension(ifull) :: zsb, timelt
 real, dimension(2) :: depthcheck
@@ -132,6 +132,9 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
     if ( abs(io_in)==1 ) then
       call START_LOG(nestotf_begin)
+      allocate( dumv(ifull,kl,8) )
+      allocate( dumg(ifull,ms,3) )
+      allocate( dums(ifull,3,3) )
       call onthefly(1,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -142,6 +145,9 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                     duma(:,2),duma(:,3),dumm,                     & !unused
                     sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
                     duma(:,6),duma(:,7),duma(:,8),duma(:,9))
+      deallocate( dumv )
+      deallocate( dumg )
+      deallocate( dums )
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
       !qb = max(qb,0.)
@@ -180,6 +186,9 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   ! Read host atmospheric and ocean data for nudging      
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
+    allocate( dumv(ifull,kl,8) )
+    allocate( dumg(ifull,ms,3) )
+    allocate( dums(ifull,3,3) )
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -190,6 +199,9 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                   duma(:,2),duma(:,3),dumm,                     & !unused
                   sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
                   duma(:,6),duma(:,7),duma(:,8),duma(:,9))
+    deallocate( dumv )
+    deallocate( dumg )
+    deallocate( dums )
     call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
@@ -301,6 +313,7 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
     end where  ! (.not.land)
   else
     if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
+      allocate( dumaa(ifull,wlev,4) )  
       ! nudge mlo
       dumaa = cona*sssa(:,:,1:4) + conb*sssb(:,:,1:4)
       if ( wl<1 ) then
@@ -322,6 +335,7 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
     end if  ! nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0
+    deallocate( dumaa )
   endif     ! nmlo==0 ..else..
 endif       ! namip==0
      

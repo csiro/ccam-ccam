@@ -116,9 +116,11 @@ real, dimension(ifull) :: odum
 real, dimension(ifull,0:wlev) :: dephl
 real, dimension(ifull,wlev) :: dep,dz
 real, dimension(3*wlev) :: dumz,gdumz
-real, dimension(ifull+iextra,wlev,2) :: dumf
+real, dimension(:,:,:), allocatable :: dumf
 logical, dimension(ifull+iextra,wlev) :: wtr
 complex lsum
+
+allocate( dumf(ifull+iextra,wlev,2) )
 
 ! calculate depths
 allocate( dd(ifull+iextra) )
@@ -245,6 +247,8 @@ odum = ee(1:ifull,1)*em(1:ifull)**2
 lsum = cmplx( 0., 0. )
 call drpdr_local(odum,lsum)
 call ccmpi_allreduce(lsum,emsum,"sumdr",comm_world)
+
+deallocate( dumf )
 
 return
 end subroutine mlodyninit
