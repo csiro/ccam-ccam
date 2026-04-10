@@ -94,11 +94,11 @@ real, dimension(ifull,6) :: dumd
 real, dimension(ifull,kl) :: ee
 real, dimension(ifull,kl) :: u_pos, v_pos, t_pos
 real, dimension(ifull,kl) :: u_neg, v_neg, t_neg
-real, dimension(:,:,:), allocatable :: dumg
-real, dimension(:,:,:), allocatable :: dumv
-real, dimension(:,:,:), allocatable :: dums
-real, dimension(:,:,:), allocatable :: dumo
-real, dimension(:,:,:), allocatable :: dumr
+real, dimension(ifull,ms,3) :: dumg
+real, dimension(ifull,kl,8) :: dumv
+real, dimension(ifull,3,3) :: dums
+real, dimension(ifull,ol,8) :: dumo
+real, dimension(ifull,kl,naero) :: dumr
 real, save :: psl_rms
 
 if ( mtimer>mtimeb ) then
@@ -115,11 +115,6 @@ if ( mtimer>mtimeb ) then
     v_rms(:) = 1.
     t_rms(:) = 1.
     if ( abs(io_in)==1 ) then
-      allocate( dumg(ifull,ms,3) )
-      allocate( dumv(ifull,kl,8) )
-      allocate( dums(ifull,3,3) )
-      allocate( dumo(ifull,wlev,8) )
-      allocate( dumr(ifull,kl,naero) )
       call onthefly(3,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
@@ -130,11 +125,6 @@ if ( mtimer>mtimeb ) then
                     duma(:,2),duma(:,3),dumm,dumo,dumd,dumr,      &
                     duma(:,4),duma(:,5),duma(:,6),duma(:,7),      &
                     duma(:,8),duma(:,9))
-      deallocate( dumg )
-      deallocate( dumv )
-      deallocate( dums )
-      deallocate( dumo )
-      deallocate( dumr )
       call retopo(pslb,zsb,zs,tb,qb)
     else
       write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
@@ -170,11 +160,6 @@ if ( mtimer>mtimeb ) then
   mtimeb_old = mtimeb
   do while ( mtimeb-mtimeb_old  < ensemble_period )
     if ( abs(io_in)==1 ) then
-      allocate( dumg(ifull,ms,3) )
-      allocate( dumv(ifull,kl,8) )
-      allocate( dums(ifull,3,3) )
-      allocate( dumo(ifull,wlev,8) )
-      allocate( dumr(ifull,kl,naero) )
       call onthefly(3,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          &
@@ -185,11 +170,6 @@ if ( mtimer>mtimeb ) then
                     duma(:,2),duma(:,3),dumm,dumo,dumd,dumr,      &
                     duma(:,4),duma(:,5),duma(:,6),duma(:,7),      &
                     duma(:,8),duma(:,9))
-      deallocate( dumg )
-      deallocate( dumv )
-      deallocate( dums )
-      deallocate( dumo )
-      deallocate( dumr )
     else
       write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
       call ccmpi_abort(-1)
@@ -296,16 +276,16 @@ if ( namip==0 ) then  ! namip SSTs/sea-ice take precedence
       call ccmpi_abort(-1)
     end if
     old = cona*tssa + conb*tssb
-    call mloexpmelt(timelt)
+    call mloexpmelt(timelt,ifull,imax)
     timelt = min(timelt,271.2)
     new = (cona*tssa + conb*tssb)*(1.-fraciceb(:)) + timelt*fraciceb(:) - wrtemp
     wgt = dt/real(nud_hrs*3600)
-    call mloexport("temp",old,1,0)
+    call mloexport("temp",old,1,0,ifull,imax)
     delta = new - old
-    do k = 1,wlev
-      call mloexport("temp",old,k,0)
+    do k = 1,ol
+      call mloexport("temp",old,k,0,ifull,imax)
       old = wgt*delta + old
-      call mloimport("temp",old,k,0)
+      call mloimport("temp",old,k,0,ifull,imax)
     end do  
   end if ! (nmlo==0) ..else..
 end if   ! (namip==0)

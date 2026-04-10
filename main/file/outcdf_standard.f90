@@ -668,7 +668,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'mlo_adjeta',mlo_adjeta)
     call ccnf_put_attg(idnc,'mlo_bs',mlo_bs)
     call ccnf_put_attg(idnc,'mlo_step',mlo_step)
-    call ccnf_put_attg(idnc,'mlo_timeave_length',mlo_timeave_length)
     call ccnf_put_attg(idnc,'mlo_uvcoupl',mlo_uvcoupl)
     call ccnf_put_attg(idnc,'mlodiff',mlodiff)
     call ccnf_put_attg(idnc,'mlodiff_numits',mlodiff_numits)
@@ -858,11 +857,11 @@ real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
 real, dimension(ifull) :: aa, ocndep, ocnheight, opldep
 real, dimension(ifull) :: qtot, tv
 real, dimension(ms) :: zsoil
-real, dimension(wlev) :: zocean
+real, dimension(ol) :: zocean
 real, dimension(ifull,10) :: micdwn_l
 real, dimension(ifull,kl) :: tmpry, rhoa
-real, dimension(ifull,wlev) :: oo
-real, dimension(ifull,wlev,6) :: mlodwn
+real, dimension(ifull,ol) :: oo
+real, dimension(ifull,ol,6) :: mlodwn
 real, dimension(ifull,3:6) :: ocndwn
 real scale_factor
 real(kind=8), dimension(ifull) :: bb
@@ -931,15 +930,15 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   ocndep(:)       = 0.     ! ocean depth
   ocnheight(:)    = 0.     ! free surface height
   opldep(:)       = 0.     ! ocean partial step depth
-  call mlosave(mlodwn,ocndep,ocnheight,micdwn_l,0)
-  call mloexpdep("depth_p",opldep,ol,0)
+  call mlosave(mlodwn,ocndep,ocnheight,micdwn_l,0,ifull,imax,ol)
+  call mloexpdep("depth_p",opldep,ol,0,ifull,imax)
   ocnheight(:) = min(max(ocnheight(:), -130.), 130.)
   ocndwn(:,3:4) = 0. ! oldutop, oldvtop
   ocndwn(:,5:6) = 0. ! oldubot, oldvbot
-  call mloexport("utop",ocndwn(:,3),0,0)
-  call mloexport("vtop",ocndwn(:,4),0,0)
-  call mloexport("ubot",ocndwn(:,5),0,0)
-  call mloexport("vbot",ocndwn(:,6),0,0)
+  call mloexport("utop",ocndwn(:,3),0,0,ifull,imax)
+  call mloexport("vtop",ocndwn(:,4),0,0,ifull,imax)
+  call mloexport("ubot",ocndwn(:,5),0,0,ifull,imax)
+  call mloexport("vbot",ocndwn(:,6),0,0,ifull,imax)
 end if
 
 
@@ -1897,18 +1896,6 @@ if ( iarch==1 ) then
             lname = "Ocean Eddy dissipation rate"
             call attrib(idnc,dimo,osize,"epso",lname,'m2 s-3',0.,6.5,any_m,point_m,sea_m,cptype)
           end if
-          if ( itype==-1 ) then
-            lname = "x-component exponential weighted current"
-            call attrib(idnc,dimo,osize,"uo_ema",lname,'m s-1',-65.,65.,any_m,tmean_m,sea_m,cptype)
-            lname = "y-component exponential weighted current"
-            call attrib(idnc,dimo,osize,"vo_ema",lname,'m s-1',-65.,65.,any_m,tmean_m,sea_m,cptype)
-            lname = "exponential weighted vertical current"
-            call attrib(idnc,dimo,osize,"wo_ema",lname,'m s-1',-6.5,6.5,any_m,tmean_m,sea_m,cptype)
-            lname = "Exponential weighted temp"
-            call attrib(idnc,dimo,osize,"temp_ema",lname,'K',100.,425.,any_m,tmean_m,sea_m,cptype)
-            lname = "Exponential weighted sal"
-            call attrib(idnc,dimo,osize,"sal_ema",lname,'PSU',0.,130.,any_m,tmean_m,sea_m,cptype)
-          end if  
         end if
       end if  
     end if
@@ -2471,7 +2458,7 @@ if ( iarch==1 ) then
         
     if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
       call mlovlevels(zocean)  ! z* coordinates
-      call ccnf_put_vara(idnc,idoc,1,wlev,zocean)
+      call ccnf_put_vara(idnc,idoc,1,ol,zocean)
     end if
     
     ! procformat
@@ -2942,7 +2929,7 @@ end if
 if ( itype/=-1 ) then  ! these not written to restart file  
   if ( abs(nmlo)>0 .and. abs(nmlo)<=9 .and. save_ocean ) then
     aa = 0.  
-    call mlodiag("mixdepth",aa,0,0)  
+    call mlodiag("mixdepth",aa,0,0,ifull,imax)  
     call histwrt(aa,'mixdepth',idnc,iarch,local,lave)
   end if
 end if
@@ -3407,7 +3394,7 @@ end if
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
   if ( (nmlo<0.and.save_ocean) .or. (nmlo>0.and.itype==-1) ) then
-    do k = 1,wlev
+    do k = 1,ol
       where ( mlodwn(:,k,1)<100. .and. itype==1 )
         oo(:,k) = mlodwn(:,k,1) + wrtemp
       elsewhere
@@ -3418,42 +3405,15 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
     call histwrt(mlodwn(:,:,2),"so",idnc,iarch,local,.true.)
     call histwrt(mlodwn(:,:,3),"uo",idnc,iarch,local,.true.)
     call histwrt(mlodwn(:,:,4),"vo",idnc,iarch,local,.true.)
-    do k = 1,wlev  
+    do k = 1,ol  
       oo(:,k) = 0.  
-      call mloexport("w",oo(:,k),k,0)
+      call mloexport("w",oo(:,k),k,0,ifull,imax)
     end do  
     call histwrt(oo,"wo",idnc,iarch,local,.true.)
     if ( oclosure==1 ) then
       if ( diaglevel_ocean>5 .or. itype==-1 ) then
         call histwrt(mlodwn(:,:,5),'tkeo',idnc,iarch,local,.true.)
         call histwrt(mlodwn(:,:,6),'epso',idnc,iarch,local,.true.)
-      end if
-      if ( itype==-1 ) then  
-        do k = 1,wlev  
-          oo(:,k) = 0.  
-          call mloexport("u_ema",oo(:,k),k,0)
-        end do  
-        call histwrt(oo,'uo_ema',idnc,iarch,local,.true.)
-        do k = 1,wlev  
-          oo(:,k) = 0.  
-          call mloexport("v_ema",oo(:,k),k,0)
-        end do  
-        call histwrt(oo,'vo_ema',idnc,iarch,local,.true.)
-        do k = 1,wlev  
-          oo(:,k) = 0.  
-          call mloexport("w_ema",oo(:,k),k,0)
-        end do  
-        call histwrt(oo,'wo_ema',idnc,iarch,local,.true.)
-        do k = 1,wlev  
-          oo(:,k) = 0.  
-          call mloexport("temp_ema",oo(:,k),k,0)
-        end do  
-        call histwrt(oo,'temp_ema',idnc,iarch,local,.true.)
-        do k = 1,wlev  
-          oo(:,k) = 0.  
-          call mloexport("sal_ema",oo(:,k),k,0)
-        end do  
-        call histwrt(oo,'sal_ema',idnc,iarch,local,.true.)
       end if
     end if  
   end if

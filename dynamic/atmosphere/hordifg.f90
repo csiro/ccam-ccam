@@ -72,8 +72,7 @@ use parmdyn_m
 use parmhdff_m
 use savuvt_m
 use sigs_m
-use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl, &
-                   u_ema,v_ema,w_ema,update_ema
+use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
 use vecsuv_m
 use vvel_m
 
@@ -167,16 +166,11 @@ if ( nvmix==6 .or. nvmix==9 ) then
   end do ! k  loop
   !zg = zg + phi_nh(1:ifull,:)/grav
 
-  ! time averaging of source terms for tke-eps
-  call update_ema(wvel,w_ema,dt)
-  call update_ema(uav,u_ema,dt)
-  call update_ema(vav,v_ema,dt)
-  
-  call bounds(w_ema)
+  call bounds(wvel)
   do k = 1,kl
     do iq = 1,ifull  
-      dwdx(iq,k) = 0.5*(w_ema(ie(iq),k)-w_ema(iw(iq),k))*em(iq)/ds
-      dwdy(iq,k) = 0.5*(w_ema(in(iq),k)-w_ema(is(iq),k))*em(iq)/ds
+      dwdx(iq,k) = 0.5*(wvel(ie(iq),k)-wvel(iw(iq),k))*em(iq)/ds
+      dwdy(iq,k) = 0.5*(wvel(in(iq),k)-wvel(is(iq),k))*em(iq)/ds
     end do
   end do
   do k = 1,kmax
@@ -189,11 +183,11 @@ if ( nvmix==6 .or. nvmix==9 ) then
   ! calculate vertical gradients
   do iq = 1,ifull
     zgh_b(iq) = ratha(1)*zg(iq,2) + rathb(1)*zg(iq,1) ! upper half level
-    r1 = u_ema(iq,1)
-    r2 = ratha(1)*u_ema(iq,2) + rathb(1)*u_ema(iq,1)          
+    r1 = uav(iq,1)
+    r2 = ratha(1)*uav(iq,2) + rathb(1)*uav(iq,1)          
     dudz = (r2-r1)/(zgh_b(iq)-zg(iq,1))
-    r1 = v_ema(iq,1)
-    r2 = ratha(1)*v_ema(iq,2) + rathb(1)*v_ema(iq,1)          
+    r1 = vav(iq,1)
+    r2 = ratha(1)*vav(iq,2) + rathb(1)*vav(iq,1)          
     dvdz = (r2-r1)/(zgh_b(iq)-zg(iq,1))
     shear(iq,1) = (dudz+dwdx(iq,1))**2 + (dvdz+dwdy(iq,1))**2
   end do
@@ -201,22 +195,22 @@ if ( nvmix==6 .or. nvmix==9 ) then
     do iq = 1,ifull
       zgh_a(iq) = zgh_b(iq) ! lower half level
       zgh_b(iq) = ratha(k)*zg(iq,k+1) + rathb(k)*zg(iq,k)     ! upper half level
-      r1 = ratha(k-1)*u_ema(iq,k) + rathb(k-1)*u_ema(iq,k-1)
-      r2 = ratha(k)*u_ema(iq,k+1) + rathb(k)*u_ema(iq,k)          
+      r1 = ratha(k-1)*uav(iq,k) + rathb(k-1)*uav(iq,k-1)
+      r2 = ratha(k)*uav(iq,k+1) + rathb(k)*uav(iq,k)          
       dudz = (r2-r1)/(zgh_b(iq)-zgh_a(iq))
-      r1 = ratha(k-1)*v_ema(iq,k) + rathb(k-1)*v_ema(iq,k-1)
-      r2 = ratha(k)*v_ema(iq,k+1) + rathb(k)*v_ema(iq,k)          
+      r1 = ratha(k-1)*vav(iq,k) + rathb(k-1)*vav(iq,k-1)
+      r2 = ratha(k)*vav(iq,k+1) + rathb(k)*vav(iq,k)          
       dvdz = (r2-r1)/(zgh_b(iq)-zgh_a(iq))
       shear(iq,k) = (dudz+dwdx(iq,k))**2 + (dvdz+dwdy(iq,k))**2
     end do
   end do
   do iq = 1,ifull
     zgh_a(iq) = zgh_b(iq) ! lower half level
-    r1 = ratha(kl-1)*u_ema(iq,kl) + rathb(kl-1)*u_ema(iq,kl-1)
-    r2 = u_ema(iq,kl)          
+    r1 = ratha(kl-1)*uav(iq,kl) + rathb(kl-1)*uav(iq,kl-1)
+    r2 = uav(iq,kl)          
     dudz = (r2-r1)/(zg(iq,kl)-zgh_a(iq))
-    r1 = ratha(kl-1)*v_ema(iq,kl) + rathb(kl-1)*v_ema(iq,kl-1)
-    r2 = v_ema(iq,kl)          
+    r1 = ratha(kl-1)*vav(iq,kl) + rathb(kl-1)*vav(iq,kl-1)
+    r2 = vav(iq,kl)          
     dvdz = (r2-r1)/(zg(iq,kl)-zgh_a(iq))
     shear(iq,kl) = (dudz+dwdx(iq,kl))**2 + (dvdz+dwdy(iq,kl))**2
   end do

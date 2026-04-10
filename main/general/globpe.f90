@@ -506,11 +506,11 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( mlomode(nmlo)=="ocn_dynamics" .or. mlomode(nmlo)=="ocn_diffusion" ) then
     ! SEA ICE  ------------------------------------------------------------
     call START_LOG(waterdynamics_begin)
-    call mlonewice
-    call mloexpice("fracice",fracice,0)
-    call mloexpice("thick",sicedep,0)
-    call mloexpice("snowd",snowd,0)
-    call mlosurf("sst",tss,0)
+    call mlonewice(ifull,imax,ol)
+    call mloexpice("fracice",fracice,0,ifull,imax)
+    call mloexpice("thick",sicedep,0,ifull,imax)
+    call mloexpice("snowd",snowd,0,ifull,imax)
+    call mlosurf("sst",tss,0,ifull,imax)
     call END_LOG(waterdynamics_end)
 #ifdef csircoupled
   else

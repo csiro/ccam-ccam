@@ -45,24 +45,24 @@ use newmpar_m
 
 implicit none
 
-real, dimension(ifull,wlev) :: u,v,tt,ss
+real, dimension(ifull,ol) :: u,v,tt,ss
 
 ! extract data from MLO
 u=0.
 v=0.
 tt=0.
 ss=0.
-call mloexport3d(0,tt,0)
-call mloexport3d(1,ss,0)
-call mloexport3d(2,u,0)
-call mloexport3d(3,v,0)
+call mloexport3d(0,tt,0,ifull,imax,ol)
+call mloexport3d(1,ss,0,ifull,imax,ol)
+call mloexport3d(2,u,0,ifull,imax,ol)
+call mloexport3d(3,v,0,ifull,imax,ol)
 
 call mlodiffusion_work(u,v,tt,ss)
 
-call mloimport3d(0,tt,0)
-call mloimport3d(1,ss,0)
-call mloimport3d(2,u,0)
-call mloimport3d(3,v,0)
+call mloimport3d(0,tt,0,ifull,imax,ol)
+call mloimport3d(1,ss,0,ifull,imax,ol)
+call mloimport3d(2,u,0,ifull,imax,ol)
+call mloimport3d(3,v,0,ifull,imax,ol)
 
 return
 end subroutine mlodiffusion
@@ -89,15 +89,15 @@ implicit none
 integer iq, k, its
 real, dimension(:,:,:), allocatable :: duma
 real, dimension(:,:,:), allocatable :: dumb
-real, dimension(ifull+iextra,wlev) :: ttl, ssl
-real, dimension(ifull+iextra,wlev) :: uau,uav
-real, dimension(ifull+iextra,wlev) :: xfact, yfact, dep
-real, dimension(ifull+iextra,wlev) :: w_ema
-real, dimension(ifull+iextra,wlev+1) :: t_kh
+real, dimension(ifull+iextra,ol) :: ttl, ssl
+real, dimension(ifull+iextra,ol) :: uau,uav
+real, dimension(ifull+iextra,ol) :: xfact, yfact, dep
+real, dimension(ifull+iextra,ol) :: w_o
+real, dimension(ifull+iextra,ol+1) :: t_kh
 real, dimension(:,:,:), allocatable :: duma_save
-real, dimension(ifull,wlev) :: ttl_save, ssl_save
-real, dimension(ifull,wlev), intent(inout) :: u,v,tt,ss
-real, dimension(ifull,wlev) :: workdata2
+real, dimension(ifull,ol) :: ttl_save, ssl_save
+real, dimension(ifull,ol), intent(inout) :: u,v,tt,ss
+real, dimension(ifull,ol) :: workdata2
 real, dimension(ifull) :: dwdx, dwdy
 real hdif, base
 real dudx,dvdx,dudy,dvdy
@@ -108,12 +108,12 @@ real tx_fact, ty_fact
 call START_LOG(waterdiff_begin)
 
 if ( abs(nmlo)>=3 ) then
-  do k = 1,wlev  
+  do k = 1,ol  
     uau(1:ifull,k) = (av_vmod*u(1:ifull,k)+(1.-av_vmod)*oldu1(1:ifull,k))*ee(1:ifull,k)
     uav(1:ifull,k) = (av_vmod*v(1:ifull,k)+(1.-av_vmod)*oldv1(1:ifull,k))*ee(1:ifull,k)
   end do  
 else
-  do k = 1,wlev  
+  do k = 1,ol  
     uau(1:ifull,k) = u(1:ifull,k)*ee(1:ifull,k)
     uav(1:ifull,k) = v(1:ifull,k)*ee(1:ifull,k)
   end do
@@ -134,26 +134,25 @@ end if
 emi(1:ifull) = 1./em(1:ifull)
 
 ! calculate shear for EMA
-call mlo_ema(dt,"uvw")
-w_ema = 0.
-do k = 1,wlev
-  call mloexport("w_ema",w_ema(:,k),k,0)
+w_o = 0.
+do k = 1,ol
+  call mloexport("w",w_o(:,k),k,0,ifull,imax)
 end do
-call bounds(w_ema)
-do k = 2,wlev-1
+call bounds(w_o)
+do k = 2,ol-1
   do iq = 1,ifull  
-    dwdx(iq) = 0.5*((w_ema(ie(iq),k)-w_ema(iq,k))*emu(iq)*eeu(iq,k) &
-                   +(w_ema(iq,k)-w_ema(iw(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
-    dwdy(iq) = 0.5*((w_ema(in(iq),k)-w_ema(iq,k))*emv(iq)*eev(iq,k) &
-                   +(w_ema(iq,k)-w_ema(is(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
+    dwdx(iq) = 0.5*((w_o(ie(iq),k)-w_o(iq,k))*emu(iq)*eeu(iq,k) &
+                   +(w_o(iq,k)-w_o(iw(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
+    dwdy(iq) = 0.5*((w_o(in(iq),k)-w_o(iq,k))*emv(iq)*eev(iq,k) &
+                   +(w_o(iq,k)-w_o(is(iq),k))*emv(isv(iq))*eev(isv(iq),k))/ds
   end do  
-  call mloimport("dwdx",dwdx,k,0)  
-  call mloimport("dwdy",dwdy,k,0)  
+  call mloimport("dwdx",dwdx,k,0,ifull,imax)  
+  call mloimport("dwdy",dwdy,k,0,ifull,imax)  
 end do
 
 ! calculate diffusion following Smagorinsky
 call boundsuv(uau,uav,allvec=.true.)
-do k = 1,wlev
+do k = 1,ol
   do iq = 1,ifull
     dudx = 0.5*((uau(ieu(iq),k)-uau(iq,k))*emu(iq)*eeu(iq,k)                &
                +(uau(iq,k)-uau(iwu(iq),k))*emu(iwu(iq))*eeu(iwu(iq),k))/ds
@@ -166,7 +165,7 @@ do k = 1,wlev
     t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*emi(iq)*ee(iq,k)
   end do
 end do
-call bounds(t_kh(:,1:wlev),nehalf=.true.)
+call bounds(t_kh(:,1:ol),nehalf=.true.)
 
 
 ! reduce diffusion errors where bathymetry gradients are steep
@@ -175,7 +174,7 @@ if ( mlosigma>=0 .and. mlosigma<=3 ) then
   call ccmpi_abort(-1)
 else
   ! z* levels
-  do k = 1,wlev
+  do k = 1,ol
     xfact(1:ifull,k) = sqrt(0.5*(t_kh(1:ifull,k)+t_kh(ie,k)))*eeu(1:ifull,k)
     yfact(1:ifull,k) = sqrt(0.5*(t_kh(1:ifull,k)+t_kh(in,k)))*eev(1:ifull,k)
   end do
@@ -183,12 +182,12 @@ end if
 call boundsuv(xfact,yfact,stag=-9)
 
 
-allocate( duma(ifull+iextra,wlev,3) )
+allocate( duma(ifull+iextra,ol,3) )
 
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   ! UX, VX, WX
   ! Laplacian diffusion terms (closure #1)
-  do k = 1,wlev
+  do k = 1,ol
     do iq = 1,ifull
       duma(iq,k,1) = ( ax(iq)*u(iq,k) + bx(iq)*v(iq,k) )*ee(iq,k)
       duma(iq,k,2) = ( ay(iq)*u(iq,k) + by(iq)*v(iq,k) )*ee(iq,k)
@@ -208,14 +207,14 @@ if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
 end if
 
 
-allocate( dumb(ifull+iextra,wlev,2) )
+allocate( dumb(ifull+iextra,ol,2) )
 
 ! perform diffusion
 
 if ( mlodiff>=10 .and. mlodiff<20 ) then
   !Biharmonic version
     
-  allocate( duma_save(ifull,wlev,3) )
+  allocate( duma_save(ifull,ol,3) )
 
   if ( mlodiff==10 .or. mlodiff==12 ) then
     duma_save(1:ifull,:,1:3) = duma(1:ifull,:,1:3)  
@@ -312,7 +311,7 @@ deallocate( dumb )
 
 
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
-  do k = 1,wlev
+  do k = 1,ol
     do iq = 1,ifull
       u(iq,k) = ax(iq)*duma(iq,k,1) + ay(iq)*duma(iq,k,2) + az(iq)*duma(iq,k,3)
       v(iq,k) = bx(iq)*duma(iq,k,1) + by(iq)*duma(iq,k,2) + bz(iq)*duma(iq,k,3)
@@ -322,7 +321,7 @@ end if
 deallocate( duma )
 
 if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
-  do k = 1,wlev
+  do k = 1,ol
     do iq = 1,ifull
       tt(iq,k) = max(ttl(iq,k), -wrtemp)
       ss(iq,k) = ssl(iq,k) + 34.72
@@ -349,7 +348,7 @@ use newmpar_m
 implicit none
 
 integer k, iq
-real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
+real, dimension(ifull+iextra,ol), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:), intent(inout) :: work
 real, dimension(ifull) :: ans
@@ -360,7 +359,7 @@ real base, xfact_iwu, yfact_isv
 
 ! Estimate Laplacian at t+1
 
-do k = 1,wlev
+do k = 1,ol
   do iq = 1,ifull  
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
@@ -392,7 +391,7 @@ use parm_m, only : dt
 implicit none
 
 integer k, iq
-real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
+real, dimension(ifull+iextra,ol), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:), intent(inout) :: work
 real, dimension(:,:), intent(in) :: ee
@@ -405,7 +404,7 @@ real base, xfact_iwu, yfact_isv
 
 ! Estimate Laplacian^2 (= Grad^4) at t+1
 
-do k = 1,wlev
+do k = 1,ol
   do iq = 1,ifull  
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
@@ -441,11 +440,11 @@ implicit none
 
 integer k, iq
 integer, save :: async_counter = -1
-real, dimension(ifull+iextra,wlev), intent(in) :: xfact, yfact
+real, dimension(ifull+iextra,ol), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:), intent(inout) :: work
 real, dimension(:,:), intent(in) :: ee
-real, dimension(ifull,wlev) :: ans
+real, dimension(ifull,ol) :: ans
 real, intent(in) :: ldif
 real base, xfact_iwu, yfact_isv
 
@@ -457,7 +456,7 @@ async_counter = mod(async_counter+1, async_length)
 !$acc update device(work) async(async_counter)
 !$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi) &
 !$acc   present(iwu,isv,in,is,ie,iw) async(async_counter)
-do k = 1,wlev
+do k = 1,ol
   do iq = 1,ifull
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
@@ -473,7 +472,7 @@ do k = 1,wlev
 end do
 !$acc end parallel loop
 !$acc parallel loop collapse(2) copyout(work) present(ans,ee) async(async_counter)
-do k = 1,wlev
+do k = 1,ol
   do iq = 1,ifull
     if ( ee(iq,k)>0.5 ) then
       work(iq,k) = ans(iq,k)

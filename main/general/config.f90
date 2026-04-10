@@ -135,6 +135,7 @@ integer cable_climate                ! depreciated namelist options
 integer surf_windfarm, adv_precip    ! depreciated namelist options
 integer lin_aerosolmode              ! depreciated namelist options
 integer ateb_soilunder, mlo_limitsal ! depreciated namelist options
+integer tke_timeave_length           ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -146,6 +147,7 @@ real ateb_ac_smooth, ateb_ac_copmax  ! depreciated namelist options
 real ateb_alpha, cable_version       ! depreciated namelist options 
 real zimax, mlomaxuv                 ! depreciated namelist options
 real plume_alpha, ocnlap             ! depreciated namelist options
+real mlo_timeave_length              ! depreciated namelist options
 logical procformat, unlimitedhist    ! depreciated namelist options
 character(len=1024) nmlfile
 character(len=MAX_ARGLEN) optarg
@@ -445,7 +447,6 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then ! set ocean levels if required
 else
   ol = 0
 end if
-wlev     = ol                   ! set nmlo and nmlodynamics ocean levels
 mindep   = max( 0., mindep )    ! limit ocean minimum depth below sea-level
 minwater = max( 0., minwater )  ! limit ocean minimum water level
 ! Update radiation sea-ice albedo to match MLO albedo values
@@ -2240,7 +2241,7 @@ use tkeeps                                 ! TKE-EPS boundary layer
 implicit none
 
 integer, dimension(6) :: dumi
-real, dimension(32) :: dumr
+real, dimension(31) :: dumr
     
 dumr = 0.
 dumi = 0
@@ -2274,9 +2275,8 @@ if ( myid==0 ) then
   dumr(27) = ent_min
   dumr(28) = mfbeta
   dumr(29) = dvmodmin
-  dumr(30) = tke_timeave_length
-  dumr(31) = wg_tau
-  dumr(32) = wg_prob
+  dumr(30) = wg_tau
+  dumr(31) = wg_prob
   dumi(1)  = buoymeth
   dumi(2)  = stabmeth
   dumi(3)  = tkemeth
@@ -2315,9 +2315,8 @@ alphaj             = dumr(26)
 ent_min            = dumr(27)
 mfbeta             = dumr(28)
 dvmodmin           = dumr(29)
-tke_timeave_length = dumr(30)
-wg_tau             = dumr(31)
-wg_prob            = dumr(32)
+wg_tau             = dumr(30)
+wg_prob            = dumr(31)
 buoymeth           = dumi(1)
 stabmeth           = dumi(2)
 tkemeth            = dumi(3)
@@ -2475,7 +2474,7 @@ use river                                  ! River routing
 implicit none
 
 integer, dimension(33) :: dumi
-real, dimension(25) :: dumr    
+real, dimension(24) :: dumr    
 
 dumr = 0.
 dumi = 0
@@ -2496,15 +2495,14 @@ if ( myid==0 ) then
   dumr(14) = omineps
   dumr(15) = ominl
   dumr(16) = omaxl
-  dumr(17) = mlo_timeave_length
-  dumr(18) = kemaxdt
-  dumr(19) = alphavis_seasnw
-  dumr(20) = alphanir_seasnw
-  dumr(21) = fluxwgt
-  dumr(22) = ocnepr
-  dumr(23) = delwater
-  dumr(24) = minsal
-  dumr(25) = maxsal
+  dumr(17) = kemaxdt
+  dumr(18) = alphavis_seasnw
+  dumr(19) = alphanir_seasnw
+  dumr(20) = fluxwgt
+  dumr(21) = ocnepr
+  dumr(22) = delwater
+  dumr(23) = minsal
+  dumr(24) = maxsal
   dumi(1)  = mlodiff
   dumi(2)  = usetide
   dumi(3)  = zomode
@@ -2557,15 +2555,14 @@ omink              = dumr(13)
 omineps            = dumr(14)
 ominl              = dumr(15)
 omaxl              = dumr(16)
-mlo_timeave_length = dumr(17)
-kemaxdt            = dumr(18)
-alphavis_seasnw    = dumr(19)
-alphanir_seasnw    = dumr(20)
-fluxwgt            = dumr(21)
-ocnepr             = dumr(22)
-delwater           = dumr(23)
-minsal             = dumr(24)
-maxsal             = dumr(25)
+kemaxdt            = dumr(17)
+alphavis_seasnw    = dumr(18)
+alphanir_seasnw    = dumr(19)
+fluxwgt            = dumr(20)
+ocnepr             = dumr(21)
+delwater           = dumr(22)
+minsal             = dumr(23)
+maxsal             = dumr(24)
 mlodiff            = dumi(1)
 usetide            = dumi(2) 
 zomode             = dumi(3) 

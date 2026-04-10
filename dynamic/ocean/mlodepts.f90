@@ -54,11 +54,11 @@ implicit none
 integer, intent(in) :: mlointschf
 integer iq,i,j,k,n,nn,idel,jdel,intsch,ii,itr
 integer async_counter
-integer, dimension(ifull,wlev), intent(out) :: nface
-real, dimension(ifull,wlev), intent(in) :: ubar,vbar
-real, dimension(ifull,wlev), intent(out) :: xg,yg
-real(kind=8), dimension(ifull,wlev), intent(out) :: x3d,y3d,z3d
-real, dimension(ifull,wlev) :: uc,vc,wc
+integer, dimension(ifull,ol), intent(out) :: nface
+real, dimension(ifull,ol), intent(in) :: ubar,vbar
+real, dimension(ifull,ol), intent(out) :: xg,yg
+real(kind=8), dimension(ifull,ol), intent(out) :: x3d,y3d,z3d
+real, dimension(ifull,ol) :: uc,vc,wc
 real, dimension(:,:,:), allocatable :: s, s_old
 real, dimension(:,:,:,:,:), allocatable :: sx
 real s_tot, s_count
@@ -66,23 +66,23 @@ real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real xxg, yyg
-logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(ifull+iextra,ol), intent(in) :: wtr
 logical, dimension(:,:,:,:), allocatable :: wx
 logical bcub_water, blin_test
 
 call START_LOG(waterdeps_begin)
 
-allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,wlev,3) )
-allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,wlev) )
-allocate( s(ifull+iextra,wlev,3) )
-allocate( s_old(ifull+iextra,wlev,3) )
+allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,ol,3) )
+allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,ol) )
+allocate( s(ifull+iextra,ol,3) )
+allocate( s_old(ifull+iextra,ol,3) )
 
 !$acc data create(xg,yg,nface,xx4,yy4,wx,sx)
 !$acc update device(xx4,yy4) async(0)
 
 ! departure point x, y, z is called x3d, y3d, z3d
 ! first find corresponding cartesian vels
-do k = 1,wlev
+do k = 1,ol
   uc(:,k) = (ax(1:ifull)*ubar(:,k)+bx(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
   vc(:,k) = (ay(1:ifull)*ubar(:,k)+by(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
   wc(:,k) = (az(1:ifull)*ubar(:,k)+bz(1:ifull)*vbar(:,k))*dt/rearth ! unit sphere 
@@ -100,7 +100,7 @@ else
   call ccmpi_abort(-1)
 end if
 
-do k = 1,wlev
+do k = 1,ol
   where (wtr(1:ifull,k))
     s(1:ifull,k,1) = uc(1:ifull,k) 
     s(1:ifull,k,2) = vc(1:ifull,k)
@@ -117,7 +117,7 @@ do ii = 1,6 ! 6 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
   call bounds(s_old)
   do nn = 1,3
-    do k = 1,wlev
+    do k = 1,ol
       do iq = 1,ifull
         if ( s(iq,k,nn)<cxx ) then
           s_tot = 0.
@@ -166,7 +166,7 @@ call deptsync(nface,xg,yg)
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
 
-  do k = 1,wlev
+  do k = 1,ol
     wx(1:ipan,1:jpan,1:npan,k) = &
       reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
@@ -207,10 +207,10 @@ if ( intsch==1 ) then
   end do             ! k loop    
   !$acc update device(wx)
     
-  sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
+  sx(1:ipan,1:jpan,1:npan,1:ol,1:3) = reshape( s(1:ipan*jpan*npan,1:ol,1:3), (/ ipan, jpan, npan, ol, 3 /) )
   do nn = 1,3
     async_counter = mod(nn-1, async_length)  
-    do k = 1,wlev
+    do k = 1,ol
       do n = 1,npan
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
@@ -250,7 +250,7 @@ if ( intsch==1 ) then
 else
 !======================== start of intsch=2 section ====================
 
-  do k = 1,wlev
+  do k = 1,ol
     wx(1:ipan,1:jpan,1:npan,k) = &
       reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
@@ -291,10 +291,10 @@ else
   end do             ! k loop 
   !$acc update device(wx)
     
-  sx(1:ipan,1:jpan,1:npan,1:wlev,1:3) = reshape( s(1:ipan*jpan*npan,1:wlev,1:3), (/ ipan, jpan, npan, wlev, 3 /) )
+  sx(1:ipan,1:jpan,1:npan,1:ol,1:3) = reshape( s(1:ipan*jpan*npan,1:ol,1:3), (/ ipan, jpan, npan, ol, 3 /) )
   do nn = 1,3
     async_counter = mod(nn-1, async_length)    
-    do k = 1,wlev
+    do k = 1,ol
       do n = 1,npan
         do j = 1,jpan
           iq = 1+(j-1)*ipan+(n-1)*ipan*jpan
@@ -411,7 +411,7 @@ do itr = 1,2
       async_counter = mod(nn-1,async_length)    
       !$acc parallel loop collapse(2) copyout(s(:,:,nn))      &
       !$acc   present(sx,wx,xg,yg,nface) async(async_counter)
-      do k = 1,wlev
+      do k = 1,ol
         do iq = 1,ifull
           idel = int(xg(iq,k))
           xxg  = xg(iq,k) - real(idel)
@@ -547,7 +547,7 @@ do itr = 1,2
     do nn = 1,3  
       !$acc parallel loop collapse(2) copyout(s(:,:,nn))             &
       !$acc   present(sx,wx,xg,yg,nface) async(mod(nn,async_length))  
-      do k = 1,wlev
+      do k = 1,ol
         do iq = 1,ifull
           idel = int(xg(iq,k))
           xxg = xg(iq,k) - real(idel)
@@ -615,7 +615,7 @@ do itr = 1,2
 
   call intssync_recv(s)
 
-  do k = 1,wlev
+  do k = 1,ol
     where ( wtr(1:ifull,k) )
       x3d(:,k) = x(1:ifull) - 0.5_8*(real(uc(:,k),8)+real(s(1:ifull,k,1),8)) ! n+1 guess
       y3d(:,k) = y(1:ifull) - 0.5_8*(real(vc(:,k),8)+real(s(1:ifull,k,2),8)) ! n+1 guess
@@ -666,12 +666,12 @@ implicit none
 
 integer loop,iq,i,j,is,js
 integer ii
-integer, dimension(ifull,wlev), intent(out) :: nface
-real, dimension(ifull,wlev), intent(out) :: xg,yg
+integer, dimension(ifull,ol), intent(out) :: nface
+real, dimension(ifull,ol), intent(out) :: xg,yg
 real xstr,ystr,zstr
 real denxyz,xd,yd,zd
 real ri,rj
-real(kind=8), dimension(ifull,wlev), intent(inout) :: x3d,y3d,z3d
+real(kind=8), dimension(ifull,ol), intent(inout) :: x3d,y3d,z3d
 real(kind=8) den
 real(kind=8) alf,alfonsch
 real(kind=8) dxx,dxy,dyx,dyy
@@ -681,7 +681,7 @@ alf = (1._8-schmidt**2)/(1._8+schmidt**2)
 alfonsch = 2._8*schmidt/(1._8+schmidt**2)
 
 !$acc parallel loop collapse(2) copyin(x3d,y3d,z3d) present(xg,yg,nface,xx4,yy4)
-do ii = 1,wlev
+do ii = 1,ol
   do iq = 1,ifull
 
     !     if necessary, transform (x3d, y3d, z3d) to equivalent

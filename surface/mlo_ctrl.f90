@@ -55,12 +55,12 @@ private
 public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlodiag,mloalb2,mloalb4, &
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d,mlovlevels,mlocheck,mlodiagice,mlo_updatediag,mlo_updatekm,           &
-       mlosurf,mlonewice,mlo_ema
+       mlosurf,mlonewice,mloexpturb,mloimpturb
 public micdwn
 public minsfc,minsal,maxsal,icemax
-public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
+public zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
-public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater
+public kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater
 
 #ifdef CCAM
 public water_g,ice_g
@@ -77,10 +77,6 @@ public k_mode,eps_mode,limitL,fixedce3
 public nops,nopb,fixedstabfunc
 #endif
 
-! parameters
-integer, save :: ifull                                  ! Grid size
-integer, save :: ntiles = 1                             ! Decompose grid size into tiles
-                                                        ! each tile is imax=ifull/ntiles
 ! model arrays
 logical, save :: mlo_active = .false.                   ! Flag if MLO has been initialised
 real, dimension(:,:), allocatable, save :: micdwn       ! This variable is for CCAM onthefly.f
@@ -105,12 +101,20 @@ interface mloexport
   module procedure mlo_export_ifull, mlo_export_imax
 end interface
 
-interface mloimpice
-   module procedure mlo_impice_ifull, mlo_impice_imax
+interface mloimpturb
+  module procedure mlo_impturb_ifull, mlo_impturb_imax
+end interface
+
+interface mloexpturb
+  module procedure mlo_expturb_ifull, mlo_expturb_imax
 end interface
 
 interface mloexpice
   module procedure mlo_expice_ifull, mlo_expice_imax
+end interface
+
+interface mloimpice
+   module procedure mlo_impice_ifull, mlo_impice_imax
 end interface
 
 interface mloextra
@@ -124,10 +128,6 @@ end interface
 
 interface mlosurf
   module procedure mlo_surf_ifull, mlo_surf_imax
-end interface
-
-interface mlo_updatekm
-  module procedure mlo_updatekm_imax
 end interface
 
 interface mlodiag
@@ -149,12 +149,12 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !  Initialise MLO
 
-subroutine mloinit(ifin,ntilesin,depin,f,diag)
+subroutine mloinit(ifin,ntiles,wlev,depin,f,diag)
 
 implicit none
 
-integer, intent(in) :: ifin, ntilesin, diag
-integer iqw, ii, is, ie, tile
+integer, intent(in) :: ifin, ntiles, wlev, diag
+integer iqw, ii, is, ie, tile, imax
 real, dimension(ifin), intent(in) :: depin, f
 real, dimension(ifin) :: deptmp
 real, dimension(wlev) :: dumdf
@@ -165,20 +165,17 @@ if (diag>=1) write(6,*) "Initialising MLO"
 
 mlo_active = .false.
 
-ifull = ifin
-ntiles = ntilesin
-
 if ( ntiles<1 ) then
   write(6,*) "ERROR: Invalid ntiles ",ntiles
   stop
 end if
 
-if ( mod(ifull,ntiles)/=0 ) then
-  write(6,*) "ERROR: Invalid ntiles ",ntiles," for ifull ",ifull
+if ( mod(ifin,ntiles)/=0 ) then
+  write(6,*) "ERROR: Invalid ntiles ",ntiles," for ifull ",ifin
   stop
 end if
 
-imax = ifull/ntiles
+imax = ifin/ntiles
 
 if ( minsfc>minwater ) then
   write(6,*) "ERROR: MLO parameters are invalid.  minsfc>minwater"
@@ -207,10 +204,6 @@ do tile = 1,ntiles
     allocate(water_g(tile)%eta(imax))
     allocate(water_g(tile)%ubot(imax),water_g(tile)%vbot(imax))
     allocate(water_g(tile)%utop(imax),water_g(tile)%vtop(imax))
-    allocate(water_g(tile)%u_ema(imax,wlev),water_g(tile)%v_ema(imax,wlev))
-    allocate(water_g(tile)%w_ema(imax,wlev))
-    allocate(water_g(tile)%temp_ema(imax,wlev),water_g(tile)%sal_ema(imax,wlev))
-    allocate(water_g(tile)%dudz(imax,wlev),water_g(tile)%dvdz(imax,wlev))
     allocate(water_g(tile)%dwdx(imax,wlev),water_g(tile)%dwdy(imax,wlev))
     allocate(ice_g(tile)%temp(imax,0:2),ice_g(tile)%thick(imax),ice_g(tile)%snowd(imax))
     allocate(ice_g(tile)%fracice(imax),ice_g(tile)%tsurf(imax),ice_g(tile)%store(imax))
@@ -223,20 +216,19 @@ do tile = 1,ntiles
     allocate(dgwater_g(tile)%fg(imax),dgwater_g(tile)%eg(imax))
     allocate(dgwater_g(tile)%mixdepth(imax),dgwater_g(tile)%bf(imax))
     allocate(dgwater_g(tile)%taux(imax),dgwater_g(tile)%tauy(imax))
-    allocate(dgwater_g(tile)%rho(imax,wlev),dgwater_g(tile)%alpha(imax,wlev))
-    allocate(dgwater_g(tile)%beta(imax,wlev),dgwater_g(tile)%rad(imax,wlev))
+    allocate(dgwater_g(tile)%rad(imax,wlev))
     allocate(dgwater_g(tile)%wt0(imax),dgwater_g(tile)%wt0_rad(imax))
     allocate(dgwater_g(tile)%wt0_melt(imax),dgwater_g(tile)%wt0_eg(imax))
     allocate(dgwater_g(tile)%ws0(imax),dgwater_g(tile)%wu0(imax))
     allocate(dgwater_g(tile)%ws0_subsurf(imax))
     allocate(dgwater_g(tile)%wv0(imax),dgwater_g(tile)%wt0_fb(imax))
-    allocate(dgwater_g(tile)%cd_bot(imax))
+    allocate(dgwater_g(tile)%cd_bot(imax),dgwater_g(tile)%mixind(imax))
     allocate(dgice_g(tile)%visdiralb(imax),dgice_g(tile)%visdifalb(imax))
     allocate(dgice_g(tile)%nirdiralb(imax),dgice_g(tile)%nirdifalb(imax))
     allocate(dgice_g(tile)%cd(imax),dgice_g(tile)%cdh(imax),dgice_g(tile)%cdq(imax))
     allocate(dgice_g(tile)%umod(imax))
     allocate(dgice_g(tile)%fg(imax),dgice_g(tile)%eg(imax))
-    allocate(dgice_g(tile)%wetfrac(imax),dgwater_g(tile)%mixind(imax))
+    allocate(dgice_g(tile)%wetfrac(imax))
     allocate(dgice_g(tile)%tauxica(imax),dgice_g(tile)%tauyica(imax))
     allocate(dgice_g(tile)%tauxicw(imax),dgice_g(tile)%tauyicw(imax))
     allocate(dgice_g(tile)%imass(imax))
@@ -258,13 +250,6 @@ do tile = 1,ntiles
     water_g(tile)%vbot=0.             ! m/s
     water_g(tile)%utop=0.             ! m/s
     water_g(tile)%vtop=0.             ! m/s
-    water_g(tile)%u_ema=0.            ! m/s
-    water_g(tile)%v_ema=0.            ! m/s
-    water_g(tile)%w_ema=0.            ! m/s
-    water_g(tile)%temp_ema=0.         ! K
-    water_g(tile)%sal_ema=0.          ! PSU
-    water_g(tile)%dudz=0.
-    water_g(tile)%dvdz=0.
     water_g(tile)%dwdx=0.
     water_g(tile)%dwdy=0.
   
@@ -296,9 +281,6 @@ do tile = 1,ntiles
     dgwater_g(tile)%mixind=wlev-1
     dgwater_g(tile)%taux=0.
     dgwater_g(tile)%tauy=0.
-    dgwater_g(tile)%rho=wrtrho
-    dgwater_g(tile)%alpha=0.
-    dgwater_g(tile)%beta=0.
     dgwater_g(tile)%wt0=0.
     dgwater_g(tile)%wt0_rad=0.
     dgwater_g(tile)%wt0_melt=0.
@@ -395,11 +377,14 @@ end subroutine mloinit
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Deallocate MLO arrays
 
-subroutine mloend
+subroutine mloend(ifull,imax)
 
 implicit none
 
-integer tile
+integer, intent(in) :: ifull, imax
+integer tile, ntiles
+
+ntiles = ifull/imax
 
 if ( mlo_active ) then
 
@@ -412,10 +397,6 @@ if ( mlo_active ) then
       deallocate(water_g(tile)%eta)
       deallocate(water_g(tile)%ubot,water_g(tile)%vbot)
       deallocate(water_g(tile)%utop,water_g(tile)%vtop)
-      deallocate(water_g(tile)%u_ema,water_g(tile)%v_ema)
-      deallocate(water_g(tile)%w_ema)
-      deallocate(water_g(tile)%temp_ema,water_g(tile)%sal_ema)
-      deallocate(water_g(tile)%dudz,water_g(tile)%dvdz)    
       deallocate(water_g(tile)%dwdx,water_g(tile)%dwdy)    
       deallocate(ice_g(tile)%temp,ice_g(tile)%thick,ice_g(tile)%snowd)
       deallocate(ice_g(tile)%fracice,ice_g(tile)%tsurf,ice_g(tile)%store)
@@ -429,8 +410,7 @@ if ( mlo_active ) then
       deallocate(dgwater_g(tile)%cdh,dgwater_g(tile)%fg,dgwater_g(tile)%eg)
       deallocate(dgwater_g(tile)%umod)
       deallocate(dgwater_g(tile)%taux,dgwater_g(tile)%tauy)
-      deallocate(dgwater_g(tile)%rho,dgwater_g(tile)%alpha)
-      deallocate(dgwater_g(tile)%beta,dgwater_g(tile)%rad)
+      deallocate(dgwater_g(tile)%rad)
       deallocate(dgwater_g(tile)%wt0,dgwater_g(tile)%wt0_rad)
       deallocate(dgwater_g(tile)%wt0_melt,dgwater_g(tile)%wt0_eg)
       deallocate(dgwater_g(tile)%ws0,dgwater_g(tile)%wu0)
@@ -477,18 +457,20 @@ end subroutine mloend
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Load MLO data
 
-subroutine mloload(datain,shin,icein,diag)
+subroutine mloload(datain,shin,icein,diag,ifull,imax,wlev)
 
 implicit none
 
-integer, intent(in) :: diag
-integer ii, tile, is, ie
+integer, intent(in) :: ifull, imax, wlev, diag
+integer ii, tile, is, ie, ntiles
 real, dimension(ifull,wlev,6), intent(in) :: datain
 real, dimension(ifull,10), intent(in) :: icein
 real, dimension(ifull), intent(in) :: shin
 
 if (diag>=1) write(6,*) "Load MLO data"
 if (.not.mlo_active) return
+
+ntiles = ifull/imax
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -548,12 +530,12 @@ end subroutine mloload
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Save MLO data
 
-subroutine mlosave(dataout,depout,shout,iceout,diag)
+subroutine mlosave(dataout,depout,shout,iceout,diag,ifull,imax,wlev)
 
 implicit none
 
-integer, intent(in) :: diag
-integer ii, tile, is, ie
+integer, intent(in) :: ifull, imax, wlev, diag
+integer ii, tile, is, ie, ntiles
 real, dimension(ifull,wlev,6), intent(inout) :: dataout
 real, dimension(ifull,10), intent(inout) :: iceout
 real, dimension(ifull), intent(inout) :: depout,shout
@@ -565,6 +547,8 @@ depout=0.
 shout=0.
 
 if (.not.mlo_active) return
+
+ntiles = ifull/imax
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -611,32 +595,34 @@ end subroutine mlosave
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Import sst for nudging
 
-subroutine mlo_import_ifull(mode,sst,ilev,diag)
+subroutine mlo_import_ifull(mode,sst,ilev,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: ilev,diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, ilev, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(in) :: sst
 character(len=*), intent(in) :: mode
 
 if (diag>=1) write(6,*) "Import MLO data"
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlo_import_imax(mode,sst(is:ie),ilev,diag,water_g(tile),depth_g(tile))
+  call mlo_import_imax(mode,sst(is:ie),ilev,diag,water_g(tile),depth_g(tile),imax)
 end do
       
 return
 end subroutine mlo_import_ifull
 
-subroutine mlo_import_imax(mode,sst,ilev,diag,water,depth)
+subroutine mlo_import_imax(mode,sst,ilev,diag,water,depth,imax)
 
 implicit none
 
-integer, intent(in) :: ilev, diag
+integer, intent(in) :: imax, ilev, diag
 real, dimension(imax), intent(in) :: sst
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
@@ -697,36 +683,6 @@ select case(mode)
     where ( depth%dz(:,1)>=1.e-4 )  
       water%vbot=sst
     end where  
-  case("u_ema")
-    where ( depth%dz(:,ilev)>=1.e-4 )
-      water%u_ema(:,ilev)=sst
-    elsewhere
-      water%u_ema(:,ilev) = 0.
-    end where
-  case("v_ema")
-    where ( depth%dz(:,ilev)>=1.e-4 )
-      water%v_ema(:,ilev)=sst
-    elsewhere
-      water%v_ema(:,ilev) = 0.
-    end where
-  case("w_ema")
-    where ( depth%dz(:,ilev)>=1.e-4 )
-      water%w_ema(:,ilev)=sst
-    elsewhere
-      water%w_ema(:,ilev) = 0.
-    end where
-  case("temp_ema")
-    where ( depth%dz(:,ilev)>=1.e-4 )
-      water%temp_ema(:,ilev)=sst
-    elsewhere
-      water%temp_ema(:,ilev) = 0.
-    end where    
-  case("sal_ema")
-    where ( depth%dz(:,ilev)>=1.e-4 )
-      water%sal_ema(:,ilev)=sst
-    elsewhere
-      water%sal_ema(:,ilev) = 0.
-    end where 
   case("dwdx")
     where ( depth%dz(:,ilev)>=1.e-4 )
       water%dwdx(:,ilev)=sst
@@ -747,16 +703,76 @@ end select
 return
 end subroutine mlo_import_imax
 
-subroutine mloimport3d(mode,sst,diag)
+subroutine mlo_impturb_ifull(mode,sst,ilev,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: mode,diag
-integer ii, tile, is, ie
+integer, intent(in) :: ifull, imax, ilev, diag
+integer tile, is, ie, ntiles
+real, dimension(:), intent(in) :: sst
+character(len=*), intent(in) :: mode
+
+if (diag>=1) write(6,*) "Import MLO data"
+if (.not.mlo_active) return
+
+ntiles = ifull/imax
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  call mlo_impturb_imax(mode,sst(is:ie),ilev,diag,turb_g(tile),depth_g(tile),imax)
+end do
+      
+return
+end subroutine mlo_impturb_ifull
+
+subroutine mlo_impturb_imax(mode,sst,ilev,diag,turb,depth,imax)
+
+implicit none
+
+integer, intent(in) :: imax, ilev, diag
+real, dimension(imax), intent(in) :: sst
+type(turbdata), intent(inout) :: turb
+type(depthdata), intent(in) :: depth
+character(len=*), intent(in) :: mode
+
+if (diag>=2) write(6,*) "THREAD: Import MLO data"
+if ( .not.mlo_active ) return
+if ( .not.depth%data_allocated ) return
+
+select case(mode)
+  case("tke")
+    where ( depth%dz(:,ilev)>=1.e-4 )
+      turb%k(:,ilev)=sst
+    elsewhere
+      turb%k(:,ilev) = 1.e-8
+    end where
+  case("eps")
+    where( depth%dz(:,ilev)>=1.e-4 )
+      turb%eps(:,ilev)=sst
+    elsewhere
+      turb%eps(:,ilev) = 1.e-11
+    end where
+  case default
+    write(6,*) "ERROR: Invalid mode for mloimpturb ",trim(mode)
+    stop
+end select
+
+return
+end subroutine mlo_impturb_imax
+
+subroutine mloimport3d(mode,sst,diag,ifull,imax,wlev)
+
+implicit none
+
+integer, intent(in) :: ifull, imax, wlev, mode, diag
+integer ii, tile, is, ie, ntiles
 real, dimension(:,:), intent(in) :: sst
 
 if (diag>=1) write(6,*) "Import 3D MLO data"
 if (.not.mlo_active) return
+
+ntiles = ifull/imax
 
 select case(mode)
   case(0)
@@ -824,32 +840,34 @@ end subroutine mloimport3d
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Import ice temp
 
-subroutine mlo_impice_ifull(mode,tsn,diag)
+subroutine mlo_impice_ifull(mode,tsn,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(in) :: tsn
 character(len=*), intent(in) :: mode
 
 if (diag>=1) write(6,*) "Import MLO ice data"
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlo_impice_imax(mode,tsn(is:ie),diag,ice_g(tile),depth_g(tile))
+  call mlo_impice_imax(mode,tsn(is:ie),diag,ice_g(tile),depth_g(tile),imax)
 end do
 
 return
 end subroutine mlo_impice_ifull
 
-subroutine mlo_impice_imax(mode,tsn,diag,ice,depth)
+subroutine mlo_impice_imax(mode,tsn,diag,ice,depth,imax)
 
 implicit none
 
-integer, intent(in) :: diag
+integer, intent(in) :: imax, diag
 real, dimension(imax), intent(in) :: tsn
 type(icedata), intent(inout) :: ice
 type(depthdata), intent(in) :: depth
@@ -911,32 +929,34 @@ end subroutine mlo_impice_imax
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export sst for nudging
 
-subroutine mlo_export_ifull(mode,sst,ilev,diag)
+subroutine mlo_export_ifull(mode,sst,ilev,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: ilev,diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, ilev, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(inout) :: sst
 character(len=*), intent(in) :: mode
 
 if (diag>=1) write(6,*) "Export MLO SST data"
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlo_export_imax(mode,sst(is:ie),ilev,diag,water_g(tile),depth_g(tile))
+  call mlo_export_imax(mode,sst(is:ie),ilev,diag,water_g(tile),depth_g(tile),imax)
 end do
 
 return
 end subroutine mlo_export_ifull
 
-subroutine mlo_export_imax(mode,sst,ilev,diag,water,depth)
+subroutine mlo_export_imax(mode,sst,ilev,diag,water,depth,imax)
 
 implicit none
 
-integer, intent(in) :: ilev,diag
+integer, intent(in) :: imax, ilev, diag
 real, dimension(imax), intent(inout) :: sst
 type(waterdata), intent(in) :: water
 type(depthdata), intent(in) :: depth
@@ -990,61 +1010,105 @@ select case(mode)
   case("ibot")
     where ( depth%dz(:,1)>=1.e-4 )      
       sst=real(depth%ibot)
-    end where  
-  case("u_ema")
-    where ( depth%dz(:,1)>=1.e-4 )
-      sst=water%u_ema(:,ilev)
     end where
-  case("v_ema")
+  case("dwdx")
     where ( depth%dz(:,1)>=1.e-4 )
-      sst=water%v_ema(:,ilev)
-    end where  
-  case("w_ema")
+      sst=water%dwdx(:,ilev)
+    end where 
+  case("dwdy")
     where ( depth%dz(:,1)>=1.e-4 )
-      sst=water%w_ema(:,ilev)
-    end where
-  case("temp_ema")
-    where ( depth%dz(:,1)>=1.e-4 )
-      sst=water%temp_ema(:,ilev)
-    end where
-  case("sal_ema")
-    where ( depth%dz(:,1)>=1.e-4 )
-      sst=water%sal_ema(:,ilev)
-    end where
+      sst=water%dwdy(:,ilev)
+    end where 
   case DEFAULT
-    write(6,*) "ERROR: Invalid mode ",trim(mode)
+    write(6,*) "ERROR: Invalid mode for mloexport ",trim(mode)
     stop    
 end select
 
 return
 end subroutine mlo_export_imax
 
-subroutine mlo_surf_ifull(mode,sst,diag)
+subroutine mlo_expturb_ifull(mode,sst,ilev,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, ilev, diag
+integer tile, is, ie, ntiles
+real, dimension(:), intent(inout) :: sst
+character(len=*), intent(in) :: mode
+
+if (diag>=1) write(6,*) "Export MLO turbulence data"
+if (.not.mlo_active) return
+
+ntiles = ifull/imax
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  call mlo_expturb_imax(mode,sst(is:ie),ilev,diag,turb_g(tile),depth_g(tile),imax)
+end do
+
+return
+end subroutine mlo_expturb_ifull
+
+subroutine mlo_expturb_imax(mode,sst,ilev,diag,turb,depth,imax)
+
+implicit none
+
+integer, intent(in) :: imax, ilev, diag
+real, dimension(imax), intent(inout) :: sst
+type(turbdata), intent(in) :: turb
+type(depthdata), intent(in) :: depth
+character(len=*), intent(in) :: mode
+
+if (diag>=2) write(6,*) "THREAD: Export MLO turbulence data"
+if ( .not.mlo_active ) return
+if ( .not.depth%data_allocated ) return
+
+select case(mode)
+  case("tke")
+    where ( depth%dz(:,1)>=1.e-4 )
+      sst=turb%k(:,ilev)
+    end where 
+  case("eps")
+    where ( depth%dz(:,1)>=1.e-4 )
+      sst=turb%eps(:,ilev)
+    end where 
+  case DEFAULT
+    write(6,*) "ERROR: Invalid mode for mloexpturb ",trim(mode)
+    stop    
+end select
+
+return
+end subroutine mlo_expturb_imax
+
+subroutine mlo_surf_ifull(mode,sst,diag,ifull,imax)
+
+implicit none
+
+integer, intent(in) :: ifull, imax, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(inout) :: sst
 character(len=*), intent(in) :: mode
 
 if (diag>=1) write(6,*) "Export MLO surf data"
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlo_surf_imax(mode,sst(is:ie),diag,water_g(tile),ice_g(tile),depth_g(tile))
+  call mlo_surf_imax(mode,sst(is:ie),diag,water_g(tile),ice_g(tile),depth_g(tile),imax)
 end do
 
 return
 end subroutine mlo_surf_ifull
 
-subroutine mlo_surf_imax(mode,sst,diag,water,ice,depth)
+subroutine mlo_surf_imax(mode,sst,diag,water,ice,depth,imax)
 
 implicit none
 
-integer, intent(in) :: diag
+integer, intent(in) :: imax, diag
 real, dimension(imax), intent(inout) :: sst
 type(waterdata), intent(in) :: water
 type(icedata), intent(in) :: ice
@@ -1067,16 +1131,18 @@ end select
 return
 end subroutine mlo_surf_imax
 
-subroutine mloexport3d(mode,sst,diag)
+subroutine mloexport3d(mode,sst,diag,ifull,imax,wlev)
 
 implicit none
 
-integer, intent(in) :: mode,diag
-integer ii, tile, is, ie
+integer, intent(in) :: ifull, imax, wlev, mode, diag
+integer ii, tile, is, ie, ntiles
 real, dimension(:,:), intent(inout) :: sst
 
 if (diag>=1) write(6,*) "Export 3D MLO data"
 if (.not.mlo_active) return
+
+ntiles = ifull/imax
 
 select case(mode)
   case(0)
@@ -1135,32 +1201,34 @@ end subroutine mloexport3d
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ice temp
 
-subroutine mlo_expice_ifull(mode,tsn,diag)
+subroutine mlo_expice_ifull(mode,tsn,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(inout) :: tsn
 character(len=*), intent(in) :: mode
 
 if (diag>=1) write(6,*) "Export MLO ice data"
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlo_expice_imax(mode,tsn(is:ie),diag,ice_g(tile),depth_g(tile))
+  call mlo_expice_imax(mode,tsn(is:ie),diag,ice_g(tile),depth_g(tile),imax)
 end do
 
 return
 end subroutine mlo_expice_ifull
 
-subroutine mlo_expice_imax(mode,tsn,diag,ice,depth)
+subroutine mlo_expice_imax(mode,tsn,diag,ice,depth,imax)
 
 implicit none
 
-integer, intent(in) :: diag
+integer, intent(in) :: imax, diag
 real, dimension(imax), intent(inout) :: tsn
 type(icedata), intent(in) :: ice
 type(depthdata), intent(in) :: depth
@@ -1222,17 +1290,19 @@ end subroutine mlo_expice_imax
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Return mixed layer depth
 
-subroutine mlodiag_old(mld,diag)
+subroutine mlodiag_old(mld,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(out) :: mld
 
 if (diag>=1) write(6,*) "Export MLO mixed layer depth"
 mld=0.
 if (.not.mlo_active) return
+
+ntiles = ifull/imax
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -1247,32 +1317,34 @@ end do
 return
 end subroutine mlodiag_old
 
-subroutine mlo_diag_ifull(mode,mld,ilev,diag)
+subroutine mlo_diag_ifull(mode,mld,ilev,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: ilev,diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, ilev, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(inout) :: mld
 character(len=*), intent(in) :: mode
 
 if (diag>=1) write(6,*) "Export MLO diagnostic data"
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlo_diag_imax(mode,mld(is:ie),ilev,diag,dgwater_g(tile),depth_g(tile))
+  call mlo_diag_imax(mode,mld(is:ie),ilev,diag,dgwater_g(tile),depth_g(tile),imax)
 end do
 
 return
 end subroutine mlo_diag_ifull
 
-subroutine mlo_diag_imax(mode,mld,ilev,diag,dgwater,depth)
+subroutine mlo_diag_imax(mode,mld,ilev,diag,dgwater,depth,imax)
 
 implicit none
 
-integer, intent(in) :: ilev, diag
+integer, intent(in) :: imax, ilev, diag
 integer :: iqw
 real, dimension(imax), intent(inout) :: mld
 real, dimension(imax) :: work
@@ -1288,11 +1360,15 @@ if ( .not.depth%data_allocated ) return
 select case(mode)
   case("mixdepth")
     where ( depth%dz(:,1)>1.e-4 )  
-      mld=dgwater%mixdepth
+      mld = dgwater%mixdepth
+    end where
+  case("mixind")
+    where ( depth%dz(:,1)>1.e-4 )  
+      mld = real(dgwater%mixind)
     end where  
   case("rad")
     where ( depth%dz(:,1)>=1.e-4 )
-      mld=dgwater%rad(:,ilev)
+      mld = dgwater%rad(:,ilev)
     end where
   case("t0")
     if ( incradgam>0 ) then
@@ -1348,6 +1424,22 @@ select case(mode)
     where ( depth%dz(:,1)>=1.e-4 )  
       mld = dgwater%ws0_subsurf
     end where  
+  case("wu0")
+    where ( depth%dz(:,1)>=1.e-4 )  
+      mld = dgwater%wu0
+    end where
+  case("wv0")
+    where ( depth%dz(:,1)>=1.e-4 )  
+      mld = dgwater%wv0
+    end where
+  case("zo")
+    where ( depth%dz(:,1)>=1.e-4 )  
+      mld = dgwater%zo
+    end where  
+  case("bf")
+    where ( depth%dz(:,1)>=1.e-4 )  
+      mld = dgwater%bf
+    end where  
   case default
     write(6,*) "ERROR: Invalid mode for mlodiag with mode = ",trim(mode)
     stop
@@ -1356,11 +1448,11 @@ end select
 return
 end subroutine mlo_diag_imax
 
-subroutine mlo_update_diag_imax(mode,dat,diag,dgwater,depth)
+subroutine mlo_update_diag_imax(mode,dat,diag,dgwater,depth,imax)
 
 implicit none
 
-integer, intent(in) :: diag
+integer, intent(in) :: imax, diag
 real, dimension(imax), intent(in) :: dat
 type(dgwaterdata), intent(inout) :: dgwater
 type(depthdata), intent(in) :: depth
@@ -1388,32 +1480,34 @@ end select
 return
 end subroutine mlo_update_diag_imax
 
-subroutine mlo_diagice_ifull(mode,mld,diag)
+subroutine mlo_diagice_ifull(mode,mld,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(inout) :: mld
 character(len=*), intent(in) :: mode
 
 if (diag>=1) write(6,*) "Export MLO diagnostic data"
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlo_diagice_imax(mode,mld(is:ie),diag,dgice_g(tile),depth_g(tile))
+  call mlo_diagice_imax(mode,mld(is:ie),diag,dgice_g(tile),depth_g(tile),imax)
 end do
 
 return
 end subroutine mlo_diagice_ifull
 
-subroutine mlo_diagice_imax(mode,mld,diag,dgice,depth)
+subroutine mlo_diagice_imax(mode,mld,diag,dgice,depth,imax)
 
 implicit none
 
-integer, intent(in) :: diag
+integer, intent(in) :: imax, diag
 real, dimension(imax), intent(inout) :: mld
 type(dgicedata), intent(in) :: dgice
 type(depthdata), intent(in) :: depth
@@ -1452,12 +1546,12 @@ end subroutine mlo_diagice_imax
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Return roughness length for heat
 
-subroutine mloextra_ifull(mode,zoh,zmin,diag)
+subroutine mloextra_ifull(mode,zoh,zmin,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: mode,diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, mode, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(out) :: zoh
 real, dimension(:), intent(in) :: zmin
 
@@ -1465,22 +1559,24 @@ if (diag>=1) write(6,*) "Export additional MLO data"
 zoh=0.
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
   call mloextra_imax(mode,zoh(is:ie),zmin(is:ie),diag,          &
                      dgwater_g(tile),dgice_g(tile),ice_g(tile), &
-                     depth_g(tile))
+                     depth_g(tile),imax)
 end do
 
 return
 end subroutine mloextra_ifull
 
-subroutine mloextra_imax(mode,zoh,zmin,diag,dgwater,dgice,ice,depth)
+subroutine mloextra_imax(mode,zoh,zmin,diag,dgwater,dgice,ice,depth,imax)
 
 implicit none
 
-integer, intent(in) :: mode,diag
+integer, intent(in) :: imax, mode, diag
 real, dimension(imax), intent(out) :: zoh
 real, dimension(imax), intent(in) :: zmin
 type(dgwaterdata), intent(in) :: dgwater
@@ -1538,16 +1634,18 @@ end subroutine mloextra_imax
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate screen diagnostics
 
-subroutine mloscrnout(tscrn,qgscrn,uscrn,u10,diag)
+subroutine mloscrnout(tscrn,qgscrn,uscrn,u10,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(inout) :: tscrn,qgscrn,uscrn,u10
 
 if (diag>=1) write(6,*) "Export MLO 2m diagnostics"
 if (.not.mlo_active) return
+
+ntiles = ifull/imax
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -1568,12 +1666,12 @@ end subroutine mloscrnout
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate albedo data (VIS + NIR)
 
-subroutine mloalb2(istart,ifin,coszro,ovisalb,oniralb,diag)
+subroutine mloalb2(istart,ifin,coszro,ovisalb,oniralb,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: istart,ifin,diag
-integer ifinish,ib,ie
+integer, intent(in) :: istart, ifin, ifull, imax, diag
+integer ifinish, ib, ie, ntiles
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, dimension(ifin), intent(in) :: coszro
 real, dimension(ifin), intent(inout) :: ovisalb,oniralb
@@ -1584,6 +1682,7 @@ if (diag>=1) write(6,*) "Export MLO albedo data vis/nir"
 if (.not.mlo_active) return
 
 ifinish = istart + ifin - 1
+ntiles = ifull/imax
 
 do tile = 1,ntiles
   js = (tile-1)*imax + 1 ! js:je is the tile portion of 1:ifull
@@ -1641,12 +1740,12 @@ end subroutine mloalb2
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Calculate albedo data (VIS-DIR, VIS-DIF, NIR-DIR & NIR-DIF)
 
-subroutine mloalb4(istart,ifin,coszro,ovisdir,ovisdif,onirdir,onirdif,diag)
+subroutine mloalb4(istart,ifin,coszro,ovisdir,ovisdif,onirdir,onirdif,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: istart,ifin,diag
-integer ifinish,ib,ie
+integer, intent(in) :: istart, ifin, ifull, imax, diag
+integer ifinish, ib, ie, ntiles
 integer tile, js, je, kstart, kfinish, jstart, jfinish
 real, dimension(ifin), intent(in) :: coszro
 real, dimension(ifin), intent(inout) :: ovisdir,ovisdif,onirdir,onirdif
@@ -1656,6 +1755,7 @@ if (diag>=1) write(6,*) "Export MLO albedo vis/nir/dir/dif"
 if (.not.mlo_active) return
 
 ifinish = istart + ifin - 1 ! istart:ifinish is the requested portion of 1:ifull
+ntiles = ifull/imax
 
 do tile = 1,ntiles
   js = (tile-1)*imax + 1 ! js:je is the tile portion of 1:ifull
@@ -1718,12 +1818,12 @@ end subroutine mloalb4
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Regrid MLO data
 
-subroutine mloregrid(wlin,sigin,depin,mloin,mlodat,mode)
+subroutine mloregrid(wlin,sigin,depin,mloin,mlodat,mode,ifull,imax,wlev)
 
 implicit none
 
-integer, intent(in) :: wlin,mode
-integer tile, is, ie
+integer, intent(in) :: wlin, ifull, imax, wlev, mode
+integer tile, is, ie, ntiles
 real, dimension(:), intent(in) :: sigin
 real, dimension(:), intent(in) :: depin
 real, dimension(:,:), intent(in) :: mloin
@@ -1734,6 +1834,8 @@ real, dimension(imax,wlev) :: mlodat_tmp
 
 if ( .not.mlo_active ) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -1741,7 +1843,7 @@ do tile = 1,ntiles
   mloin_tmp(1:imax,1:wlin) = mloin(is:ie,1:wlin)
   mlodat_tmp(1:imax,1:wlev) = mlodat(is:ie,1:wlev)
   call mloregrid_work(wlin,sigin_tmp,depin(is:ie),mloin_tmp,mlodat_tmp,mode, &
-                      depth_g(tile))
+                      depth_g(tile),imax,wlev)
   mlodat(is:ie,1:wlev) = mlodat_tmp(1:imax,1:wlev)
 end do
 
@@ -1749,11 +1851,11 @@ return
 end subroutine mloregrid
 
 subroutine mloregrid_work(wlin,sig_tmp,depin,mloin,mlodat,mode, &
-                          depth)
+                          depth,imax,wlev)
 
 implicit none
 
-integer, intent(in) :: wlin,mode
+integer, intent(in) :: wlin, imax, wlev, mode
 integer iqw,ii,jj,jj_found,pos(1)
 real, dimension(wlin), intent(in) :: sig_tmp
 real, dimension(imax), intent(in) :: depin
@@ -1863,17 +1965,19 @@ end subroutine mloregrid_work
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Export ocean depth data
 
-subroutine mloexpdep_old(mode,odep,ii,diag)
+subroutine mloexpdep_old(mode,odep,ii,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: mode,ii,diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, mode, ii, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(out) :: odep
 
 if (diag>=1) write(6,*) "Export MLO ocean depth data"
 odep=0.
 if (.not.mlo_active) return
+
+ntiles = ifull/imax
 
 select case(mode)
   case(0)
@@ -1904,32 +2008,34 @@ end select
 return
 end subroutine mloexpdep_old
 
-subroutine mlo_export_depth_ifull(mode,odep,ilev,diag)
+subroutine mlo_export_depth_ifull(mode,odep,ilev,diag,ifull,imax)
 
 implicit none
 
-integer, intent(in) :: ilev,diag
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, ilev, diag
+integer tile, is, ie, ntiles
 real, dimension(:), intent(out) :: odep
 character(len=*), intent(in) :: mode
 
 if (diag>=1) write(6,*) "Export MLO depth data"
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlo_export_depth_imax(mode,odep(is:ie),ilev,diag,depth_g(tile))
+  call mlo_export_depth_imax(mode,odep(is:ie),ilev,diag,depth_g(tile),imax)
 end do
       
 return
 end subroutine mlo_export_depth_ifull
 
-subroutine mlo_export_depth_imax(mode,odep,ilev,diag,depth)
+subroutine mlo_export_depth_imax(mode,odep,ilev,diag,depth,imax)
 
 implicit none
 
-integer, intent(in) :: ilev,diag
+integer, intent(in) :: imax, ilev, diag
 integer iqw, ii
 real, dimension(imax), intent(out) :: odep
 type(depthdata), intent(in) :: depth
@@ -2006,29 +2112,33 @@ end subroutine mloexpdensity
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Extract melting temperature
 
-subroutine mloexpmelt(omelt)
+subroutine mloexpmelt(omelt,ifull,imax)
 
 implicit none
 
-integer tile, is, ie
+integer, intent(in) :: ifull, imax
+integer tile, is, ie, ntiles
 real, dimension(:), intent(out) :: omelt
 
 omelt=273.16
 if (.not.mlo_active) return
 
+ntiles = ifull/imax
+
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mloexpmelt_work(omelt(is:ie),water_g(tile),depth_g(tile))
+  call mloexpmelt_work(omelt(is:ie),water_g(tile),depth_g(tile),imax)
 end do
 
 return
 end subroutine mloexpmelt
     
-subroutine mloexpmelt_work(omelt,water,depth)
+subroutine mloexpmelt_work(omelt,water,depth,imax)
 
 implicit none
 
+integer, intent(in) :: imax
 real, dimension(imax), intent(inout) :: omelt
 real, dimension(imax) :: tmelt
 type(waterdata), intent(in) :: water
@@ -2037,7 +2147,7 @@ type(depthdata), intent(in) :: depth
 if ( .not.mlo_active ) return
 if ( .not.depth%data_allocated ) return
 
-call calcmelt(tmelt,water)
+call calcmelt(tmelt,water,imax)
 where ( depth%dz(:,1)>=1.e-4 ) 
   omelt = tmelt
 end where  
@@ -2056,9 +2166,9 @@ integer, intent(in) :: diag
 real, dimension(:), intent(in) :: ip_dic, ip_dsn
 real, dimension(:,:), intent(out) :: gamm
 
-gamm(1:ifull,1)=gammi
-gamm(1:ifull,2)=max(ip_dsn(1:ifull),0.)*cps
-gamm(1:ifull,3)=max(ip_dic(1:ifull),0.)*0.5*cpi
+gamm(:,1) = gammi
+gamm(:,2) = max(ip_dsn(:),0.)*cps
+gamm(:,3) = max(ip_dic(:),0.)*0.5*cpi
 
 return
 end subroutine mloexpgamm
@@ -2070,8 +2180,9 @@ subroutine mlovlevels(ans,sigma)
 
 implicit none
 
-real, dimension(wlev), intent(out) :: ans
-real, dimension(wlev+1) :: ans_hl
+integer wlev
+real, dimension(:), intent(out) :: ans
+real, dimension(size(ans)+1) :: ans_hl
 logical, intent(in), optional :: sigma
 logical usesigma
 
@@ -2079,6 +2190,8 @@ usesigma = .false.
 if ( present(sigma) ) then
   usesigma = sigma
 end if
+
+wlev = size(ans)
 
 select case(mlosigma)
   case(4,5,6,7)
@@ -2104,15 +2217,17 @@ end subroutine mlovlevels
 
 subroutine mloeval_standard(sst,zo,cd,cds,umod,fg,eg,evspsbl,sbl,wetfac,epot,epan,fracice, &
                    siced,snowd,dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,       &
-                   visnirratio,fbvis,fbnir,inflow,diag,calcprog)                   
+                   visnirratio,fbvis,fbnir,inflow,diag,calcprog,ifull,imax,wlev)                   
 
 implicit none
 
-integer, intent(in) :: diag, calcprog
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, wlev, diag, calcprog
+integer tile, is, ie, ntiles
 real, intent(in) :: dt
 real, dimension(:), intent(in) :: sg,rg,precp,precs,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
 real, dimension(:), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,evspsbl,sbl,wetfac,fracice,siced,epot,epan,snowd
+
+ntiles = ifull/imax
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
@@ -2124,7 +2239,7 @@ do tile = 1,ntiles
                      temp(is:ie),qg(is:ie),ps(is:ie),visnirratio(is:ie),fbvis(is:ie),               &
                      fbnir(is:ie),inflow(is:ie),diag,calcprog,                                      &
                      depth_g(tile),dgice_g(tile),dgscrn_g(tile),dgwater_g(tile),                    &
-                     ice_g(tile),water_g(tile),turb_g(tile))
+                     ice_g(tile),water_g(tile),turb_g(tile),imax,wlev)
 end do
 
 return
@@ -2134,11 +2249,11 @@ subroutine mloeval_thread(sst,zo,cd,cds,umod,fg,eg,evspsbl,sbl,wetfac,epot,epan,
                    siced,snowd,dt,zmin,zmins,sg,rg,precp,precs,uatm,vatm,temp,qg,ps,       &
                    visnirratio,fbvis,fbnir,inflow,diag,calcprog,                           &
                    depth,dgice,dgscrn,dgwater,ice,water,                                   &
-                   turb)                   
+                   turb,imax,wlev)                   
 
 implicit none
 
-integer, intent(in) :: diag, calcprog
+integer, intent(in) :: imax, wlev, diag, calcprog
 real, intent(in) :: dt
 real, dimension(imax), intent(in) :: sg,rg,precp,precs,uatm,vatm,temp,qg,ps,visnirratio,fbvis,fbnir,inflow,zmin,zmins
 real, dimension(imax), intent(inout) :: sst,zo,cd,cds,umod,fg,eg,evspsbl,sbl,wetfac,fracice,siced,epot,epan,snowd
@@ -2160,7 +2275,8 @@ atm_snd = precs
 call mloeval_work(dt,zmin,zmins,sg,rg,atm_rnd,atm_snd,uatm,vatm,          &
                    temp,qg,ps,                                            &
                    visnirratio,fbvis,fbnir,inflow,diag,                   &
-                   calcprog,depth,dgice,dgscrn,dgwater,ice,water,turb)
+                   calcprog,depth,dgice,dgscrn,dgwater,ice,water,turb,    &
+                   imax,wlev)
 
 workb  =emisice**0.25*ice%tsurf
 dumazmin=max(zmin,dgwater%zo+0.2,zoseaice+0.2)
@@ -2186,90 +2302,108 @@ end where
 return
 end subroutine mloeval_thread
 
-subroutine mlo_updatekm_imax(km_o,ks_o,gammas_o,dt,diag, &
-                             depth,ice,dgwater,water,turb)                   
+subroutine mlo_updatekm(km_o,ks_o,gammas_o,dt,diag,        &
+                        depth,depth_hl,dz,dz_hl,ibot,      &
+                        data_allocated,                    &
+                        temp,sal,u,v,                      &
+                        ubot,vbot,utop,vtop,               &
+                        dwdx,dwdy,wu0,wv0,zo,              &
+                        bf,mixdepth,mixind,                &
+                        wt0,rad,                           &
+                        k,eps,imax,wlev)
 
 implicit none
 
-integer, intent(in) :: diag
+integer, intent(in) :: imax, wlev, diag
 integer ii, iqw
 real, intent(in) :: dt
 real, dimension(imax,wlev), intent(out) :: km_o, ks_o, gammas_o
 real, dimension(imax,wlev) :: gammas, km_hl, ks_hl
-real, dimension(imax) :: d_zcr, t0
-type(icedata), intent(in) :: ice
-type(dgwaterdata), intent(inout) :: dgwater
-type(waterdata), intent(inout) :: water
-type(depthdata), intent(in) :: depth
-type(turbdata), intent(inout) :: turb
+real, dimension(imax) :: t0
+real, dimension(imax,wlev), intent(in) :: depth, dz
+real, dimension(imax,wlev+1), intent(in) :: depth_hl
+real, dimension(imax,2:wlev), intent(in) :: dz_hl
+integer, dimension(imax), intent(in) :: ibot
+logical, intent(in) :: data_allocated
+real, dimension(imax,wlev), intent(inout) :: temp, sal
+real, dimension(imax,wlev), intent(inout) :: u, v
+real, dimension(imax), intent(inout) :: ubot, vbot, utop, vtop
+real, dimension(imax,wlev), intent(in) :: dwdx, dwdy
+real, dimension(imax), intent(in) :: wu0, wv0, zo
+real, dimension(imax), intent(in) :: bf, mixdepth
+integer, dimension(imax), intent(in) :: mixind
+real, dimension(imax), intent(in) :: wt0
+real, dimension(imax,wlev), intent(in) :: rad
+real, dimension(imax,wlev), intent(inout) :: k, eps
 
 if (diag>=2) write(6,*) "THREAD: Update diffuion coeff"
 km_o = 0.
 ks_o = 0.
 gammas_o = 0.
-if ( .not.mlo_active .or. .not.depth%data_allocated ) return
+if ( .not.mlo_active .or. .not.data_allocated ) return
 
 km_hl = 0.
 ks_hl = 0.
 gammas = 0.
-where ( depth%dz(:,1)>1.e-4 )
-  d_zcr = max(1.+max(water%eta,-delwater)/depth%depth_hl(:,wlev+1),minwater/depth%depth_hl(:,wlev+1))
-elsewhere
-  d_zcr = 1.
-end where
 
-call mlo_calc_k(km_hl,ks_hl,gammas,dt,d_zcr,depth,dgwater,water,turb)
+call mlo_calc_k(km_hl,ks_hl,gammas,dt,k,eps,depth,depth_hl,dz,dz_hl, &
+                ibot,wu0,wv0,zo,temp,sal,u,v,ubot,vbot,utop,vtop,    &
+                dwdx,dwdy,bf,mixdepth,mixind,imax,wlev)
 
 do ii = 1,wlev
-  where ( depth%dz(:,ii)>=1.e-4 )
+  where ( dz(:,ii)>=1.e-4 )
     km_o(:,ii) = km_hl(:,ii) ! half levels
     ks_o(:,ii) = ks_hl(:,ii)
   end where  
 end do
+
 if ( oclosure==0 ) then
   if ( incradgam>0 ) then
     ! include radiation in counter-gradient term
     do iqw = 1,imax
-      t0(iqw) = dgwater%wt0(iqw) + sum(dgwater%rad(iqw,1:dgwater%mixind(iqw)))
+      t0(iqw) = wt0(iqw) + sum(rad(iqw,1:mixind(iqw)))
     end do
   else
-    t0 = dgwater%wt0
+    t0(:) = wt0(:)
   end if    
   do ii = 1,wlev
-    where ( depth%dz(:,ii)>=1.e-4 )
+    where ( dz(:,ii)>=1.e-4 )
       gammas(:,ii) = gammas(:,ii)*t0
       gammas_o(:,ii) = gammas(:,ii)
     end where
   end do  
 else
-  gammas_o = 0.
+  gammas_o(:,:) = 0.
 end if
 
 return
-end subroutine mlo_updatekm_imax
+end subroutine mlo_updatekm
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Form seaice before flux calculations
 
-subroutine mlonewice
+subroutine mlonewice(ifull,imax,wlev)
 
 implicit none
 
-integer tile, is, ie
+integer, intent(in) :: ifull, imax, wlev
+integer tile, is, ie, ntiles
+
+ntiles = ifull/imax
 
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
-  call mlonewice_thread(0,depth_g(tile),ice_g(tile),water_g(tile))  
+  call mlonewice_thread(0,depth_g(tile),ice_g(tile),water_g(tile),imax,wlev)  
 end do
 
 end subroutine mlonewice
 
-subroutine mlonewice_thread(diag,depth,ice,water)
+subroutine mlonewice_thread(diag,depth,ice,water,imax,wlev)
 
 implicit none
 
-integer, intent(in) :: diag
+integer, intent(in) :: imax, wlev, diag
 type(icedata), intent(inout) :: ice
 type(waterdata), intent(inout) :: water
 type(depthdata), intent(in) :: depth
@@ -2277,53 +2411,8 @@ type(depthdata), intent(in) :: depth
 if (diag>=1) write(6,*) "Form new ice"
 if ( .not.mlo_active .or. .not.depth%data_allocated ) return
 
-call mlonewice_work(depth,ice,water)
+call mlonewice_work(depth,ice,water,imax,wlev)
 
 end subroutine mlonewice_thread
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! Update exponential weighted moving average
-
-subroutine mlo_ema(dt,mode)
-
-implicit none
-
-integer tile, is, ie
-real, intent(in) :: dt
-character(len=*), intent(in) :: mode
-
-do tile = 1,ntiles
-  is = (tile-1)*imax + 1
-  ie = tile*imax
-  call mlo_ema_thread(dt,water_g(tile),depth_g(tile),mode)  
-end do
-
-end subroutine mlo_ema
-
-subroutine mlo_ema_thread(dt,water,depth,mode)
-
-implicit none
-
-real, intent(in) :: dt
-type(waterdata), intent(inout) :: water
-type(depthdata), intent(in) :: depth
-character(len=*), intent(in) :: mode
-
-if ( .not.mlo_active .or. .not.depth%data_allocated ) return
-
-select case(mode)
-  case("uvw")
-    call mlo_ema_uvw(dt,water,depth)
-  case("ts")
-    call mlo_ema_ts(dt,water,depth)  
-  case("reset")
-    call mlo_ema_reset(dt,water,depth)
-  case default
-    write(6,*) "ERROR: Unknown option for mlo_ema ",trim(mode)
-    stop
-end select
-  
-return
-end subroutine mlo_ema_thread
 
 end module mlo_ctrl

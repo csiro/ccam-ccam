@@ -67,8 +67,8 @@ integer idel, iq, jdel
 integer i, j, k, n, intsch, nn, np
 integer ii, ntr, nstart, nend, nlen
 integer async_counter
-integer, dimension(ifull,wlev), intent(in) :: nface
-real, dimension(ifull,wlev), intent(in) :: xg, yg
+integer, dimension(ifull,ol), intent(in) :: nface
+real, dimension(ifull,ol), intent(in) :: xg, yg
 real, dimension(:,:,:), intent(inout) :: s
 real, dimension(:,:,:,:,:), allocatable :: sx
 real xxg, yyg
@@ -76,7 +76,7 @@ real cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emu
 real rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real sx_ans, cmin, cmax
-logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(ifull+iextra,ol), intent(in) :: wtr
 logical, dimension(:,:,:,:), allocatable :: wx
 logical, intent(in) :: bs_test
 logical bcub_water, blin_test
@@ -85,8 +85,8 @@ call START_LOG(waterints_begin)
 
 ntr = size(s,3)
 
-allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,wlev,ntr) )
-allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,wlev) )
+allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,ol,ntr) )
+allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,ol) )
 
 if ( mlointschf==0 ) then
   intsch = 0
@@ -105,7 +105,7 @@ end if
 !======================== start of intsch=1 section ====================
 if ( intsch==1 ) then
     
-  do k = 1,wlev
+  do k = 1,ol
     wx(1:ipan,1:jpan,1:npan,k) = &
       reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
@@ -153,7 +153,7 @@ if ( intsch==1 ) then
     do nn = 1,nlen
       np = nn - 1 + nstart
       async_counter = mod(nn-1, async_length)
-      do k = 1,wlev
+      do k = 1,ol
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
         do n = 1,npan
@@ -338,7 +338,7 @@ if ( intsch==1 ) then
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
-        do k = 1,wlev      
+        do k = 1,ol      
           do iq = 1,ifull
             idel = int(xg(iq,k))
             xxg = xg(iq,k) - real(idel)
@@ -410,7 +410,7 @@ if ( intsch==1 ) then
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
-        do k = 1,wlev      
+        do k = 1,ol      
           do iq = 1,ifull
             idel = int(xg(iq,k))
             xxg = xg(iq,k) - real(idel)
@@ -485,7 +485,7 @@ else     ! if(intsch==1)then
 !       this is intsc           NS interps done first
 !       first extend s arrays into sx - this one -1:il+2 & -1:il+2
 
-  do k = 1,wlev
+  do k = 1,ol
     wx(1:ipan,1:jpan,1:npan,k) = &
       reshape( wtr(1:ipan*jpan*npan,k), (/ ipan, jpan, npan /) )
     do n = 1,npan
@@ -534,7 +534,7 @@ else     ! if(intsch==1)then
     do nn = 1,nlen
       np = nn - 1 + nstart
       async_counter = mod(nn-1, async_length)
-      do k = 1,wlev
+      do k = 1,ol
         sx(1:ipan,1:jpan,1:npan,k,nn) = &
           reshape( s(1:ipan*jpan*npan,k,np), (/ ipan, jpan, npan /) )
         do n = 1,npan
@@ -720,7 +720,7 @@ else     ! if(intsch==1)then
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
-        do k = 1,wlev
+        do k = 1,ol
           do iq = 1,ifull
             idel = int(xg(iq,k))
             xxg = xg(iq,k) - real(idel)
@@ -793,7 +793,7 @@ else     ! if(intsch==1)then
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,nn-1+nstart))        &
         !$acc   present(sx,xg,yg,nface,wx) async(async_counter)
-        do k = 1,wlev
+        do k = 1,ol
           do iq = 1,ifull
             idel = int(xg(iq,k))
             xxg = xg(iq,k) - real(idel)
@@ -883,11 +883,11 @@ use newmpar_m
 implicit none
 
 integer, intent(in) :: mlointschf
-integer, dimension(ifull,wlev), intent(in) :: nface
-real, dimension(ifull,wlev), intent(in) :: xg, yg
+integer, dimension(ifull,ol), intent(in) :: nface
+real, dimension(ifull,ol), intent(in) :: xg, yg
 real, dimension(:,:), intent(inout) :: s
 real, dimension(size(s,1),size(s,2),1) :: s_work
-logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(ifull+iextra,ol), intent(in) :: wtr
 logical, intent(in) :: bs_test
 
 s_work(:,:,1) = s(:,:)
@@ -910,7 +910,7 @@ integer ntr, nn, k, ii, iq
 real, dimension(:,:,:), intent(inout) :: s
 real, dimension(:,:,:), allocatable :: s_old
 real s_tot, s_count
-logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(ifull+iextra,ol), intent(in) :: wtr
 logical need_fill
 
 call START_LOG(waterints_begin)
@@ -921,7 +921,7 @@ need_fill = .false.
 select case(bc_test)
   case(mlo_fill) ! fill
     do nn = 1,ntr
-      do k = 1,wlev
+      do k = 1,ol
         where (.not.wtr(1:ifull,k))
           s(1:ifull,k,nn) = cxx - 1. ! missing value flag
         end where
@@ -930,7 +930,7 @@ select case(bc_test)
     need_fill = .false.
   case(mlo_sal) ! salinity + fill
     do nn = 1,ntr
-      do k = 1,wlev  
+      do k = 1,ol  
         where ( s(1:ifull,k,nn)<2. .or. .not.wtr(1:ifull,k) )
           s(1:ifull,k,nn) = cxx - 1. ! missing value flag
         end where
@@ -939,7 +939,7 @@ select case(bc_test)
     need_fill = .true.
   case(mlo_zero) ! zero
     do nn = 1,ntr
-      do k = 1,wlev
+      do k = 1,ol
         where (.not.wtr(1:ifull,k))
           s(1:ifull,k,nn) = 0.
         end where
@@ -950,12 +950,12 @@ end select
 
 ! fill
 if ( need_fill ) then
-  allocate( s_old(ifull+iextra,wlev,ntr) )  
+  allocate( s_old(ifull+iextra,ol,ntr) )  
   do ii = 1,6 ! 6 iterations of fill should be enough
     s_old(1:ifull,:,:) = s(1:ifull,:,:)
     call bounds(s_old)
     do nn = 1,ntr
-      do k = 1,wlev
+      do k = 1,ol
         do iq = 1,ifull
           if ( s(iq,k,nn)<cxx ) then
             s_tot = 0.
@@ -1003,7 +1003,7 @@ implicit none
 integer, intent(in) :: bc_test
 real, dimension(:,:), intent(inout) :: s
 real, dimension(size(s,1),size(s,2),1) :: s_work
-logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(ifull+iextra,ol), intent(in) :: wtr
 
 s_work(:,:,1) = s(:,:)
 call mlofill_3(s_work,wtr,bc_test)
@@ -1023,21 +1023,21 @@ integer, intent(in) :: bc_test
 integer nn, ntr
 real, dimension(:,:,:), intent(inout) :: s
 real, dimension(:,:,:), intent(in) :: s_store
-logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(ifull+iextra,ol), intent(in) :: wtr
 
 call START_LOG(waterints_begin)
 
 ntr = size(s,3)
 
 do nn = 1,ntr
-  where ( .not.wtr(1:ifull,1:wlev) .or. s(1:ifull,1:wlev,nn)<cxx )
-    s(1:ifull,1:wlev,nn) = s_store(1:ifull,1:wlev,nn)
+  where ( .not.wtr(1:ifull,1:ol) .or. s(1:ifull,1:ol,nn)<cxx )
+    s(1:ifull,1:ol,nn) = s_store(1:ifull,1:ol,nn)
   end where
 end do
 if ( bc_test==1 ) then
   do nn = 1,ntr
-    where ( s_store(1:ifull,1:wlev,nn)<2. )
-      s(1:ifull,1:wlev,nn) = s_store(1:ifull,1:wlev,nn)  
+    where ( s_store(1:ifull,1:ol,nn)<2. )
+      s(1:ifull,1:ol,nn) = s_store(1:ifull,1:ol,nn)  
     end where
   end do
 end if
@@ -1058,7 +1058,7 @@ real, dimension(:,:), intent(inout) :: s
 real, dimension(:,:), intent(in) :: s_store
 real, dimension(size(s,1),size(s,2),1) :: s_work
 real, dimension(size(s_store,1),size(s_store,2),1) :: s_store_work
-logical, dimension(ifull+iextra,wlev), intent(in) :: wtr
+logical, dimension(ifull+iextra,ol), intent(in) :: wtr
 
 s_work(:,:,1) = s(:,:)
 s_store_work(:,:,1) = s_store(:,:)

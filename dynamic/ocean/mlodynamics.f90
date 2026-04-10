@@ -113,45 +113,43 @@ implicit none
 
 integer ii, iq
 real, dimension(ifull) :: odum
-real, dimension(ifull,0:wlev) :: dephl
-real, dimension(ifull,wlev) :: dep,dz
-real, dimension(3*wlev) :: dumz,gdumz
-real, dimension(:,:,:), allocatable :: dumf
-logical, dimension(ifull+iextra,wlev) :: wtr
+real, dimension(ifull,0:ol) :: dephl
+real, dimension(ifull,ol) :: dep,dz
+real, dimension(3*ol) :: dumz,gdumz
+real, dimension(ifull+iextra,ol,2) :: dumf
+logical, dimension(ifull+iextra,ol) :: wtr
 complex lsum
-
-allocate( dumf(ifull+iextra,wlev,2) )
 
 ! calculate depths
 allocate( dd(ifull+iextra) )
 dd(:) = 0.
 dep(:,:) = 0.
 dz(:,:) = 0.
-do ii = 1,wlev
-  call mloexpdep("depth_fl",dep(:,ii),ii,0)
-  call mloexpdep("depth_dz_fl",dz(:,ii),ii,0)
+do ii = 1,ol
+  call mloexpdep("depth_fl",dep(:,ii),ii,0,ifull,imax)
+  call mloexpdep("depth_dz_fl",dz(:,ii),ii,0,ifull,imax)
 end do
 dephl(:,0) = 0.
 dephl(:,1) = dz(:,1)
-do ii = 2,wlev
+do ii = 2,ol
   dephl(:,ii) = dephl(:,ii-1) + dz(:,ii)
 end do
-dd(1:ifull) = max(dephl(:,wlev), 1.E-8)
+dd(1:ifull) = max(dephl(:,ol), 1.E-8)
 call bounds(dd,nrows=2)
 
 ! prep land-sea mask
-allocate( ee(ifull+iextra,wlev) )
-allocate( eeu(ifull+iextra,wlev), eev(ifull+iextra,wlev) )
+allocate( ee(ifull+iextra,ol) )
+allocate( eeu(ifull+iextra,ol), eev(ifull+iextra,ol) )
 ee  = 0.
 eeu = 0.
 eev = 0. 
-do ii = 1,wlev
+do ii = 1,ol
   where ( dz(:,ii)>1.e-4 .and. .not.land(1:ifull) )
     ee(1:ifull,ii) = 1.
   end where
 end do  
 call bounds(ee,nrows=2)
-do ii = 1,wlev
+do ii = 1,ol
   where ( ee(:,ii)>1.5 .or. ee(:,ii)<=0.5 )
     ee(:,ii) = 0.
   end where 
@@ -184,14 +182,14 @@ call boundsuv(ddu,ddv)
 
 
 ! allocate memory for mlo dynamics arrays
-call mlodynamicsarrays_init(ifull,iextra,wlev)
+call mlodynamicsarrays_init(ifull,iextra,ol)
 
 if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
   ! Precompute weights for calculating staggered gradients
-  allocate(stwgtu(ifull,wlev),stwgtv(ifull,wlev))
+  allocate(stwgtu(ifull,ol),stwgtv(ifull,ol))
   stwgtu = 0.
   stwgtv = 0.
-  do ii = 1,wlev
+  do ii = 1,ol
     where ( wtr(in,ii) .and. wtr(ine,ii) .and. wtr(is,ii) .and. wtr(ise,ii) .and. &
             wtr(1:ifull,ii) .and. wtr(ie,ii) )
       stwgtu(1:ifull,ii) = 1.
@@ -205,15 +203,15 @@ if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
 end if ! abs(nmlo)>=3.and.abs(nmlo)<=9
 
 ! vertical levels (using sigma notation)
-allocate(gosig(1:ifull+iextra,wlev),gosigh(1:ifull,wlev),godsig(1:ifull+iextra,wlev))
-allocate(godsigu(1:ifull+iextra,wlev),godsigv(1:ifull+iextra,wlev))
-allocate(gosighu(1:ifull,wlev),gosighv(1:ifull,wlev))
+allocate(gosig(1:ifull+iextra,ol),gosigh(1:ifull,ol),godsig(1:ifull+iextra,ol))
+allocate(godsigu(1:ifull+iextra,ol),godsigv(1:ifull+iextra,ol))
+allocate(gosighu(1:ifull,ol),gosighv(1:ifull,ol))
 gosig = 0.
 gosigh = 0.
 godsig = 0.
 godsigu = 0.
 godsigv = 0.
-do ii = 1,wlev
+do ii = 1,ol
   gosig(1:ifull,ii)  = max(dep(1:ifull,ii),1.e-8)/dd(1:ifull)
   gosigh(1:ifull,ii) = max(dephl(1:ifull,ii),1.e-8)/dd(1:ifull)
   godsig(1:ifull,ii) = dz(1:ifull,ii)/dd(1:ifull)*ee(1:ifull,ii)
@@ -225,7 +223,7 @@ else
   ! z* levels
   call bounds(gosig,nrows=2)
   call bounds(godsig,nrows=2)
-  do ii = 1,wlev
+  do ii = 1,ol
     godsigu(1:ifull,ii) = min(dd(1:ifull)*godsig(1:ifull,ii),dd(ie)*godsig(ie,ii))/ddu(1:ifull)
     godsigv(1:ifull,ii) = min(dd(1:ifull)*godsig(1:ifull,ii),dd(in)*godsig(in,ii))/ddv(1:ifull)
   end do  
@@ -233,11 +231,11 @@ end if
 call boundsuv(godsigu,godsigv)
 gosighu(:,1) = godsigu(1:ifull,1)
 gosighv(:,1) = godsigv(1:ifull,1)
-do ii = 2,wlev
+do ii = 2,ol
   gosighu(1:ifull,ii) = gosighu(1:ifull,ii-1) + godsigu(1:ifull,ii)
   gosighv(1:ifull,ii) = gosighv(1:ifull,ii-1) + godsigv(1:ifull,ii)
 end do
-do ii = 1,wlev
+do ii = 1,ol
   gosighu(1:ifull,ii) = max(gosighu(1:ifull,ii),1.e-8/ddu(1:ifull))
   gosighv(1:ifull,ii) = max(gosighv(1:ifull,ii),1.e-8/ddv(1:ifull))
 end do
@@ -247,8 +245,6 @@ odum = ee(1:ifull,1)*em(1:ifull)**2
 lsum = cmplx( 0., 0. )
 call drpdr_local(odum,lsum)
 call ccmpi_allreduce(lsum,emsum,"sumdr",comm_world)
-
-deallocate( dumf )
 
 return
 end subroutine mlodyninit
@@ -284,7 +280,7 @@ implicit none
 integer ii,totits
 integer jyear,jmonth,jday,jhour,jmin,mins
 integer tyear,jstart, iq, mspec_mlo, mspeca_mlo
-integer, dimension(ifull,wlev) :: nface
+integer, dimension(ifull,ol) :: nface
 real maxglobseta,maxglobip,hdt,dtin_mlo
 real alph_p, delta, rone
 real, dimension(2) :: delpos, delneg
@@ -311,29 +307,29 @@ real, dimension(ifull) :: bu, bv, cu, cv
 real, dimension(:,:,:), allocatable :: s_store
 real, dimension(:,:,:), allocatable :: s_work
 real, dimension(:,:,:), allocatable :: cou
-real, dimension(ifull+iextra,wlev) :: cc
-real, dimension(ifull+iextra,wlev) :: eou, eov, ccu, ccv
-real, dimension(ifull+iextra,wlev) :: nu, nv, nt, ns, mps
+real, dimension(ifull+iextra,ol) :: cc
+real, dimension(ifull+iextra,ol) :: eou, eov, ccu, ccv
+real, dimension(ifull+iextra,ol) :: nu, nv, nt, ns, mps
 real, dimension(ifull+iextra,9) :: data_c, data_d
 real, dimension(ifull+iextra,4) :: nit
-real, dimension(ifull,wlev+1) :: tau, tav, ttau, ttav
-real, dimension(ifull,wlev) :: u_tstar, v_tstar
-real, dimension(ifull,wlev) :: cc3u, cc4v
-real, dimension(ifull,wlev) :: w_u, w_v, w_t, w_s
-real, dimension(ifull,wlev) :: nuh, nvh, xg, yg, uau, uav
-real, dimension(ifull,wlev) :: kku, kkv, oou, oov, mmu, mmv
-real, dimension(ifull,wlev) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
-real, dimension(ifull,wlev) :: rhou_dash, rhov_dash, rho_dash
-real, dimension(ifull,wlev) :: depdum,dzdum,mfixdum
-real, dimension(ifull,wlev) :: workdata, workdata2, worku, workv
-real, dimension(ifull,wlev) :: w_ocn
-real, dimension(ifull,wlev) :: gosigu, gosigv
-real, dimension(ifull,0:wlev) :: nw
+real, dimension(ifull,ol+1) :: tau, tav, ttau, ttav
+real, dimension(ifull,ol) :: u_tstar, v_tstar
+real, dimension(ifull,ol) :: cc3u, cc4v
+real, dimension(ifull,ol) :: w_u, w_v, w_t, w_s
+real, dimension(ifull,ol) :: nuh, nvh, xg, yg, uau, uav
+real, dimension(ifull,ol) :: kku, kkv, oou, oov, mmu, mmv
+real, dimension(ifull,ol) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
+real, dimension(ifull,ol) :: rhou_dash, rhov_dash, rho_dash
+real, dimension(ifull,ol) :: depdum,dzdum,mfixdum
+real, dimension(ifull,ol) :: workdata, workdata2, worku, workv
+real, dimension(ifull,ol) :: w_ocn
+real, dimension(ifull,ol) :: gosigu, gosigv
+real, dimension(ifull,0:ol) :: nw
 real, dimension(ifull,4) :: i_it
 real, dimension(ifull,3) :: gamm
-real(kind=8), dimension(ifull,wlev) :: x3d,y3d,z3d
+real(kind=8), dimension(ifull,ol) :: x3d,y3d,z3d
 logical lleap, bs_test
-logical, dimension(ifull+iextra,wlev) :: wtr
+logical, dimension(ifull+iextra,ol) :: wtr
 complex lsum, gsum
 
 ! Vertical coordinates are defined as:
@@ -383,21 +379,21 @@ eou      = 0.            ! working array
 eov      = 0.            ! working array
 
 ! EXPORT WATER AND ICE DATA FROM MLO ------------------------------------------
-call mloexport3d(0,w_t,0)
-call mloexport3d(1,w_s,0)
-call mloexport3d(2,w_u,0)
-call mloexport3d(3,w_v,0)
-call mloexport("eta",w_e,0,0)
-call mloexpice("tsurf",i_it(:,1),0)
-call mloexpice("temp0",i_it(:,2),0)
-call mloexpice("temp1",i_it(:,3),0)
-call mloexpice("temp2",i_it(:,4),0)
-call mloexpice("fracice",nfracice,0)
-call mloexpice("thick",ndic,0)
-call mloexpice("snowd",ndsn,0)
-call mloexpice("store",i_sto,0)
-call mloexpice("u",i_u,0)
-call mloexpice("v",i_v,0)
+call mloexport3d(0,w_t,0,ifull,imax,ol)
+call mloexport3d(1,w_s,0,ifull,imax,ol)
+call mloexport3d(2,w_u,0,ifull,imax,ol)
+call mloexport3d(3,w_v,0,ifull,imax,ol)
+call mloexport("eta",w_e,0,0,ifull,imax)
+call mloexpice("tsurf",i_it(:,1),0,ifull,imax)
+call mloexpice("temp0",i_it(:,2),0,ifull,imax)
+call mloexpice("temp1",i_it(:,3),0,ifull,imax)
+call mloexpice("temp2",i_it(:,4),0,ifull,imax)
+call mloexpice("fracice",nfracice,0,ifull,imax)
+call mloexpice("thick",ndic,0,ifull,imax)
+call mloexpice("snowd",ndsn,0,ifull,imax)
+call mloexpice("store",i_sto,0,ifull,imax)
+call mloexpice("u",i_u,0,ifull,imax)
+call mloexpice("v",i_v,0,ifull,imax)
 where ( wtr(1:ifull,1) )
   fracice(1:ifull) = nfracice(1:ifull)  
   sicedep(1:ifull) = ndic(1:ifull)
@@ -571,7 +567,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   cv(1:ifull) = -bv(1:ifull)*(1.+ocneps)*0.5*dt*fv(1:ifull)
 
   ! Calculate adjusted depths and thicknesses
-  do ii = 1,wlev
+  do ii = 1,ol
     do iq = 1,ifull
       depdum(iq,ii) = gosig(iq,ii)*max( dd(iq)+neta(iq), minwater ) !-neta(iq)
       dzdum(iq,ii)  = godsig(iq,ii)*max( dd(iq)+neta(iq), minwater )
@@ -631,12 +627,12 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! positive nw is moving downwards to the ocean floor
   ! Assume Boussinesq fluid and treat density in continuity equation as constant
   ! true vertical velocity = nw-u*((1-sig)*deta/dx-sig*d(dd)/dx)-v*((1-sig)*deta/dy-sig*d(dd)/dy)-(1-sig)*deta/dt
-  call mlostaguv(nu(:,1:wlev),nv(:,1:wlev),eou(:,1:wlev),eov(:,1:wlev))
-  call boundsuv(eou(:,1:wlev),eov(:,1:wlev),stag=-9)
+  call mlostaguv(nu(:,1:ol),nv(:,1:ol),eou(:,1:ol),eov(:,1:ol))
+  call boundsuv(eou(:,1:ol),eov(:,1:ol),stag=-9)
   ! vertically integrate currents
   ccu(:,1) = eou(:,1)*godsigu(:,1)
   ccv(:,1) = eov(:,1)*godsigv(:,1)
-  do ii = 2,wlev
+  do ii = 2,ol
     ccu(:,ii) = ccu(:,ii-1) + eou(:,ii)*godsigu(:,ii)
     ccv(:,ii) = ccv(:,ii-1) + eov(:,ii)*godsigv(:,ii)
   end do
@@ -647,10 +643,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   oeu_iwu(1:ifull) = 0.5*(neta(iw)+neta(1:ifull))*eeu(iwu,1)
   oev_isv(1:ifull) = 0.5*(neta(is)+neta(1:ifull))*eev(isv,1)
   ! calculate divergence for use with vertical velocity
-  sdiv(:) = (ccu(1:ifull,wlev)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)    &
-            -ccu(iwu,wlev)*(ddu(iwu)+oeu_iwu)/emu(iwu)                     &
-            +ccv(1:ifull,wlev)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)    &
-            -ccv(isv,wlev)*(ddv(isv)+oev_isv)/emv(isv))*em(1:ifull)**2/ds
+  sdiv(:) = (ccu(1:ifull,ol)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)    &
+            -ccu(iwu,ol)*(ddu(iwu)+oeu_iwu)/emu(iwu)                     &
+            +ccv(1:ifull,ol)*(ddv(1:ifull)+oev(1:ifull))/emv(1:ifull)    &
+            -ccv(isv,ol)*(ddv(isv)+oev_isv)/emv(isv))*em(1:ifull)**2/ds
 
   ! calculate gradients for neta and dd
   detadxu = (neta(ie)-neta(1:ifull))*emu(1:ifull)/ds
@@ -671,7 +667,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ddddy = (ddv(1:ifull)-ddv(isv))*em(1:ifull)/ds
 
   ! calculate vertical velocity (use flux form)
-  do ii = 1,wlev-1
+  do ii = 1,ol-1
     nw(:,ii) = ee(1:ifull,ii)*ee(1:ifull,ii+1)*(sdiv(:)*gosigh(1:ifull,ii)  &
                - (ccu(1:ifull,ii)*(ddu(1:ifull)+oeu(1:ifull))/emu(1:ifull)  &
                  -ccu(iwu,ii)*(ddu(iwu)+oeu_iwu(:))/emu(iwu)                &
@@ -680,11 +676,11 @@ do mspec_mlo = mspeca_mlo,1,-1
                )*em(1:ifull)**2/ds)
   end do
   !nw(:,0) = 0.
-  !nw(:,wlev) = 0.
+  !nw(:,ol) = 0.
 
   ! compute contunity equation horizontal transport terms
   ! Include dsig terms before advection
-  do ii = 1,wlev
+  do ii = 1,ol
     mps(1:ifull,ii) = neta(1:ifull)*godsig(1:ifull,ii) - (1.-ocneps)*0.5*dt                              &
                         *((eou(1:ifull,ii)*(ddu(1:ifull)+neta(1:ifull))/emu(1:ifull)*godsigu(1:ifull,ii) &
                           -eou(iwu,ii)*(ddu(iwu)+neta(1:ifull))/emu(iwu)*godsigu(iwu,ii)                 &
@@ -694,7 +690,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
 
   ! calculate vertical velocity at full levels for diagnostic output
-  do ii = 1,wlev
+  do ii = 1,ol
     w_ocn(:,ii) = ee(1:ifull,ii)*(0.5*(nw(:,ii-1)+nw(:,ii))                                         &
                 - nu(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetadx(:) - gosig(1:ifull,ii)*ddddx(:))   &
                 - nv(1:ifull,ii)*((1.-gosig(1:ifull,ii))*dnetady(:) - gosig(1:ifull,ii)*ddddy(:)))  &
@@ -704,7 +700,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! ocean
   ! Prepare pressure gradient terms at time t and incorporate into velocity field
-  do ii = 1,wlev
+  do ii = 1,ol
     tau(:,ii) = (1.-ocneps)*0.5*dt*grav*detadxu                                                           & ! staggered
               + (1.-ocnepr)*0.5*dt*grav*gosigu(:,ii)*(ddu(1:ifull)+oeu(1:ifull))*drhobardxu(:,ii)/wrtrho  &
               + (1.-ocnepr)*0.5*dt*dpsdxu/wrtrho + (1.-ocnepr)*0.5*dt*grav*dttdxu
@@ -718,7 +714,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! include rho_dash/wrtrho terms (i.e., sig*dD/dx and (1-sig)*d(eta)/dx )
   select case(mlojacobi)
     case(7)
-      do ii = 1,wlev
+      do ii = 1,ol
         tau(:,ii) = tau(:,ii) + (1.-ocneps)*0.5*dt*grav*rhou_dash(:,ii)/wrtrho*detadxu*(1.-gosigu(:,ii)) &
                   + (1.-ocneps)*0.5*dt*grav*rhou_dash(:,ii)/wrtrho*ddddxu*gosigu(:,ii)*oeu(1:ifull)/ddu(1:ifull) ! staggered
         tav(:,ii) = tav(:,ii) + (1.-ocneps)*0.5*dt*grav*rhov_dash(:,ii)/wrtrho*detadyv*(1.-gosigv(:,ii)) &
@@ -729,19 +725,19 @@ do mspec_mlo = mspeca_mlo,1,-1
   end select    
     
   ! ice
-  !tau(:,wlev+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
-  !tav(:,wlev+1)=grav*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
-  call mlounstaguv(tau(:,1:wlev),tav(:,1:wlev),ttau(:,1:wlev),ttav(:,1:wlev),toff=1)
+  !tau(:,ol+1)=grav*(neta(ie)-neta(1:ifull))*emu(1:ifull)/ds ! staggered
+  !tav(:,ol+1)=grav*(neta(in)-neta(1:ifull))*emv(1:ifull)/ds
+  call mlounstaguv(tau(:,1:ol),tav(:,1:ol),ttau(:,1:ol),ttav(:,1:ol),toff=1)
   ! ocean
-  do ii = 1,wlev
+  do ii = 1,ol
     u_tstar(:,ii) = nu(1:ifull,ii) + (1.-ocneps)*0.5*dt*f(1:ifull)*nv(1:ifull,ii) - ttau(:,ii) ! unstaggered
     u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)
     v_tstar(:,ii) = nv(1:ifull,ii) - (1.-ocneps)*0.5*dt*f(1:ifull)*nu(1:ifull,ii) - ttav(:,ii)
     v_tstar(:,ii) = v_tstar(:,ii)*ee(1:ifull,ii)
   end do
   ! ice
-  snu(1:ifull) = i_u !-dt*ttau(:,wlev+1)
-  snv(1:ifull) = i_v !-dt*ttav(:,wlev+1)
+  snu(1:ifull) = i_u !-dt*ttau(:,ol+1)
+  snv(1:ifull) = i_v !-dt*ttav(:,ol+1)
   
 
   ! Vertical advection (first call for 0.5*dt)
@@ -753,7 +749,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlocheck("first vertical advection",water_temp=workdata,water_sal=workdata2)
 
   ! Calculate depature points for horizontal advection
-  do ii = 1,wlev
+  do ii = 1,ol
     ! Estimate currents at t+1/2 for semi-Lagrangian advection
     nuh(:,ii) = (15.*nu(1:ifull,ii)-10.*oldu1(:,ii)+3.*oldu2(:,ii))*ee(1:ifull,ii)/8. ! U at t+1/2
     nvh(:,ii) = (15.*nv(1:ifull,ii)-10.*oldv1(:,ii)+3.*oldv2(:,ii))*ee(1:ifull,ii)/8. ! V at t+1/2
@@ -770,12 +766,12 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
 
   
-  allocate( cou(ifull+iextra,wlev,3) )
-  allocate( s_store(ifull,wlev,6) )
-  allocate( s_work(ifull+iextra,wlev,4) )
+  allocate( cou(ifull+iextra,ol,3) )
+  allocate( s_store(ifull,ol,6) )
+  allocate( s_work(ifull+iextra,ol,4) )
   
   
-  do ii = 1,wlev
+  do ii = 1,ol
     ! Convert (u,v) to cartesian coordinates (U,V,W)  
     cou(1:ifull,ii,1) = ax(1:ifull)*u_tstar(:,ii) + bx(1:ifull)*v_tstar(:,ii)
     cou(1:ifull,ii,2) = ay(1:ifull)*u_tstar(:,ii) + by(1:ifull)*v_tstar(:,ii)
@@ -786,10 +782,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   !$acc data create(xg,yg,nface)
   !$acc update device(xg,yg,nface)
   
-  s_store(1:ifull,1:wlev,1) = mps(1:ifull,1:wlev)
-  s_store(1:ifull,1:wlev,2:4) = cou(1:ifull,1:wlev,1:3)
-  s_store(1:ifull,1:wlev,5) = nt(1:ifull,1:wlev)
-  s_store(1:ifull,1:wlev,6) = ns(1:ifull,1:wlev)
+  s_store(1:ifull,1:ol,1) = mps(1:ifull,1:ol)
+  s_store(1:ifull,1:ol,2:4) = cou(1:ifull,1:ol,1:3)
+  s_store(1:ifull,1:ol,5) = nt(1:ifull,1:ol)
+  s_store(1:ifull,1:ol,6) = ns(1:ifull,1:ol)
   
   call mlofill(mps,wtr,mlo_zero)
   call mlofill(cou(:,:,1:3),wtr,mlo_fill)
@@ -835,7 +831,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! Rotate vector to arrival point
   call mlorot(cou(:,:,1),cou(:,:,2),cou(:,:,3),x3d,y3d,z3d)
   
-  do ii = 1,wlev
+  do ii = 1,ol
     ! Convert (U,V,W) back to conformal cubic coordinates  
     u_tstar(:,ii) = ax(1:ifull)*cou(1:ifull,ii,1) + ay(1:ifull)*cou(1:ifull,ii,2) + az(1:ifull)*cou(1:ifull,ii,3)
     u_tstar(:,ii) = u_tstar(:,ii)*ee(1:ifull,ii)    
@@ -870,7 +866,7 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! dsig terms are included before advection 
   xps(:) = mps(1:ifull,1)
-  do ii = 2,wlev
+  do ii = 2,ol
     xps(:) = xps(:) + mps(1:ifull,ii)
   end do
   xps(:) = xps(:)*ee(1:ifull,1) ! only needed for sigma levels
@@ -894,32 +890,32 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Precompute U,V current and integral terms at t+1
   ! ocean
-  do ii = 1,wlev
+  do ii = 1,ol
     tau(:,ii) = u_tstar(:,ii) + (1.+ocneps)*0.5*dt*f(1:ifull)*v_tstar(:,ii) ! unstaggered
     tav(:,ii) = v_tstar(:,ii) - (1.+ocneps)*0.5*dt*f(1:ifull)*u_tstar(:,ii)
   end do
   ! ice
-  tau(:,wlev+1) = snu(1:ifull) + dt*f(1:ifull)*snv(1:ifull) ! unstaggered
-  tav(:,wlev+1) = snv(1:ifull) - dt*f(1:ifull)*snu(1:ifull)
-  call mlostaguv(tau(:,1:wlev+1),tav(:,1:wlev+1),ttau(:,1:wlev+1),ttav(:,1:wlev+1))
+  tau(:,ol+1) = snu(1:ifull) + dt*f(1:ifull)*snv(1:ifull) ! unstaggered
+  tav(:,ol+1) = snv(1:ifull) - dt*f(1:ifull)*snu(1:ifull)
+  call mlostaguv(tau(:,1:ol+1),tav(:,1:ol+1),ttau(:,1:ol+1),ttav(:,1:ol+1))
   
   ! Set-up calculation of ocean and ice at t+1
   ! ocean
   ! ccu and ccv have the correct magnitude for the advected current
   odum = 1./(1.+((1.+ocneps)*0.5*dt*fu(1:ifull))**2)
-  do ii = 1,wlev
+  do ii = 1,ol
     ccu(1:ifull,ii) = ttau(:,ii)*odum*eeu(1:ifull,ii) ! staggered
     !ccu(1:ifull,ii) = max(min( ccu(1:ifull,ii), mlomaxuv),-mlomaxuv)
   end do
   odum = 1./(1.+((1.+ocneps)*0.5*dt*fv(1:ifull))**2)
-  do ii = 1,wlev
+  do ii = 1,ol
     ccv(1:ifull,ii) = ttav(:,ii)*odum*eev(1:ifull,ii) ! staggered
     !ccv(1:ifull,ii) = max(min( ccv(1:ifull,ii), mlomaxuv),-mlomaxuv)
   end do
   ! ice
   ! niu and niv hold the free drift solution (staggered).  Wind stress terms are updated in mlo.f90
-  niu(1:ifull) = ttau(:,wlev+1)/(1.+(dt*fu(1:ifull))**2) ! staggered
-  niv(1:ifull) = ttav(:,wlev+1)/(1.+(dt*fv(1:ifull))**2)
+  niu(1:ifull) = ttau(:,ol+1)/(1.+(dt*fu(1:ifull))**2) ! staggered
+  niv(1:ifull) = ttav(:,ol+1)/(1.+(dt*fv(1:ifull))**2)
   
 
   ! calculate 5-point stencil for free surface
@@ -929,22 +925,22 @@ do mspec_mlo = mspeca_mlo,1,-1
   bb(:) = (1.+ocneps)*0.5*dt/(1.+((1.+ocneps)*0.5*dt*f(:))**2) ! unstaggered
   ff(:) = (1.+ocneps)*0.5*dt*f(:)
 
-  do ii = 1,wlev
+  do ii = 1,ol
     cc(:,ii) = grav*bb(:)
   end do
 
   ! include rho_dash/wrtrho terms (i.e., sig*dD/dx and (1-sig)*d(eta)/dx )
   select case(mlojacobi)
     case(7)
-      do ii = 1,wlev  
+      do ii = 1,ol  
         cc(1:ifull,ii) = cc(1:ifull,ii) + grav*ee(1:ifull,ii)*bb(1:ifull) &
             *(1.-gosig(1:ifull,ii))*rho_dash(:,ii)/wrtrho
       end do
-      call bounds(cc(:,1:wlev),corner=.true.)
+      call bounds(cc(:,1:ol),corner=.true.)
   end select
 
   ! update cc, cc3u, cc4v terms with f terms
-  do ii = 1,wlev
+  do ii = 1,ol
     cc3u(:,ii) = 0.
     cc4v(:,ii) = 0.
     do iq = 1,ifull
@@ -961,7 +957,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   bb(:) = 0.
   bb3u(:) = 0.
   bb4v(:) = 0.
-  do ii = 1,wlev
+  do ii = 1,ol
     bb(:) = bb(:) + cc(:,ii)*godsig(:,ii)
     bb3u(1:ifull) = bb3u(1:ifull) + cc3u(1:ifull,ii)*godsigu(1:ifull,ii)
     bb4v(1:ifull) = bb4v(1:ifull) + cc4v(1:ifull,ii)*godsigv(1:ifull,ii)
@@ -981,7 +977,7 @@ do mspec_mlo = mspeca_mlo,1,-1
  
   
   rone = (1.+ocnepr)/(1.+ocneps)
-  do ii = 1,wlev
+  do ii = 1,ol
     ! Create arrays to calcuate u and v at t+1, based on pressure gradient at t+1
     
     ! note explicit drhobardx, dttdx, dpsdx terms are treated as t+1 with ocneps=1.
@@ -1090,7 +1086,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! include rho_dash/wrtrho terms (i.e., sig*(eta/D)*dD/dx and (1-sig)*d(eta)/dx )
   select case(mlojacobi)
     case(7)
-      do ii = 1,wlev
+      do ii = 1,ol
         oou(:,ii) = oou(:,ii) + bu*grav*rhou_dash(:,ii)/wrtrho*ddddxu*gosigu(:,ii)/ddu(1:ifull) &
                   + cu*grav*rhou_dash(:,ii)/wrtrho*ddddyu*gosigu(:,ii)/ddu(1:ifull)
         mmu(:,ii) = mmu(:,ii) + grav*bu*(1.-gosigu(:,ii))*rhou_dash(:,ii)/wrtrho
@@ -1108,7 +1104,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! partial step correction
   ! -(1/wrtho)dPdz* + dGdz* = grav*rho_dash*(1+eta/D)
   if ( mlo_step==2 ) then
-    do ii = 1,wlev
+    do ii = 1,ol
       do iq = 1,ifull
         tnu(iq) = 0.5*( gosig(in(iq),ii)*dd(in(iq)) + gosig(ine(iq),ii)*dd(ine(iq)) )
         tsu(iq) = 0.5*( gosig(is(iq),ii)*dd(is(iq)) + gosig(ise(iq),ii)*dd(ise(iq)) )
@@ -1151,7 +1147,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   snv = 0.
   squ = 0.
   sqv = 0.
-  do ii = 1,wlev
+  do ii = 1,ol
     sou(1:ifull) = sou(1:ifull) + kku(:,ii)*godsigu(1:ifull,ii)
     snu(1:ifull) = snu(1:ifull) + oou(:,ii)*godsigu(1:ifull,ii)
     squ(1:ifull) = squ(1:ifull) + mmu(:,ii)*godsigu(1:ifull,ii)
@@ -1238,7 +1234,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   oeu(1:ifull) = 0.5*(neta(ie)+neta(1:ifull))
   oev(1:ifull) = 0.5*(neta(in)+neta(1:ifull))
   ff(:) = (1.+ocneps)*0.5*dt*f(:)
-  do ii = 1,wlev
+  do ii = 1,ol
     ! update currents (staggered)
     do iq = 1,ifull
       tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq))*neta(in(iq)) + cc(ine(iq),ii)*ff(ine(iq))*neta(ine(iq)) )
@@ -1256,7 +1252,7 @@ do mspec_mlo = mspeca_mlo,1,-1
   
 
   ! error checking
-  do ii = 1,wlev
+  do ii = 1,ol
     do iq = 1,ifull
       if ( abs(nu(iq,ii))>40. ) then
         tnu(iq) = 0.5*( cc(in(iq),ii)*ff(in(iq))*neta(in(iq)) + cc(ine(iq),ii)*ff(ine(iq))*neta(ine(iq)) )
@@ -1372,15 +1368,15 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   
   ! unstagged currents and ice velocity
-  ttau(:,1:wlev) = nu(1:ifull,:)
-  ttav(:,1:wlev) = nv(1:ifull,:)
-  ttau(:,wlev+1) = niu(1:ifull)
-  ttav(:,wlev+1) = niv(1:ifull)
-  call mlounstaguv(ttau(:,1:wlev+1),ttav(:,1:wlev+1),tau(:,1:wlev+1),tav(:,1:wlev+1))
-  nu(1:ifull,:) = tau(:,1:wlev)
-  nv(1:ifull,:) = tav(:,1:wlev)
-  niu(1:ifull) = tau(:,wlev+1)
-  niv(1:ifull) = tav(:,wlev+1)
+  ttau(:,1:ol) = nu(1:ifull,:)
+  ttav(:,1:ol) = nv(1:ifull,:)
+  ttau(:,ol+1) = niu(1:ifull)
+  ttav(:,ol+1) = niv(1:ifull)
+  call mlounstaguv(ttau(:,1:ol+1),ttav(:,1:ol+1),tau(:,1:ol+1),tav(:,1:ol+1))
+  nu(1:ifull,:) = tau(:,1:ol)
+  nv(1:ifull,:) = tav(:,1:ol)
+  niu(1:ifull) = tau(:,ol+1)
+  niv(1:ifull) = tav(:,ol+1)
   
   worku = nu(1:ifull,:)
   workv = nv(1:ifull,:)
@@ -1424,13 +1420,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     delneg(1) = 0.
     select case( mlomfix )
       case(1)  ! no free surface
-        do ii = 1,wlev
+        do ii = 1,ol
           nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
           mfixdum(:,ii) = (nt(1:ifull,ii)-w_t(:,ii))*dd(1:ifull)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
-        do ii = 1,wlev
+        do ii = 1,ol
           where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
             nt(1:ifull,ii) = w_t(1:ifull,ii)                                              &
                              +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
@@ -1440,13 +1436,13 @@ do mspec_mlo = mspeca_mlo,1,-1
           end where
         end do  
       case(2)  ! include free surface
-        do ii = 1,wlev
+        do ii = 1,ol
           nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
           mfixdum(:,ii) = (nt(1:ifull,ii)-w_t(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
-        do ii = 1,wlev
+        do ii = 1,ol
           where(wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20)
             nt(1:ifull,ii) = w_t(1:ifull,ii)                                              &
                              +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
@@ -1456,7 +1452,7 @@ do mspec_mlo = mspeca_mlo,1,-1
           end where
         end do  
       case default  
-        do ii = 1,wlev
+        do ii = 1,ol
           nt(1:ifull,ii) = min( max( nt(1:ifull,ii), 150.-wrtemp ), 375.-wrtemp )
         end do  
     end select
@@ -1470,13 +1466,13 @@ do mspec_mlo = mspeca_mlo,1,-1
     delneg(1) = 0.
     select case( mlomfix )
       case(1) ! no free surface
-        do ii = 1,wlev
+        do ii = 1,ol
           ns(1:ifull,ii) = min( max( ns(1:ifull,ii), 0. ), 100. )
           mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*dd(1:ifull)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
-        do ii = 1,wlev
+        do ii = 1,ol
           where ( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )   
             ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
                            +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
@@ -1487,12 +1483,12 @@ do mspec_mlo = mspeca_mlo,1,-1
           ns(1:ifull,ii) = min( max( ns(1:ifull,ii), 0. ), 100. )
         end do  
       case(2) ! include free surface
-        do ii = 1,wlev
+        do ii = 1,ol
           mfixdum(:,ii) = (ns(1:ifull,ii)-w_s(:,ii))*max(dd(1:ifull)+w_e(1:ifull),minwater)*ee(1:ifull,ii)
         end do
         call ccglobal_posneg(mfixdum,delpos(1),delneg(1),godsig)
         alph_p = sqrt(-delneg(1)/max(delpos(1),1.e-20))
-        do ii = 1,wlev
+        do ii = 1,ol
           where ( wtr(1:ifull,ii) .and. abs(alph_p)>1.e-20 )
             ns(1:ifull,ii) = w_s(1:ifull,ii)                                            &
                            +(max(0.,mfixdum(:,ii))*alph_p+min(0.,mfixdum(:,ii))/alph_p) &
@@ -1502,7 +1498,7 @@ do mspec_mlo = mspeca_mlo,1,-1
           end where
         end do
       case default
-        do ii = 1,wlev
+        do ii = 1,ol
           ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )  
         end do  
     end select
@@ -1536,24 +1532,24 @@ call mlocheck("after diffusion",water_temp=w_t,water_sal=w_s,water_u=w_u,water_v
 
 
 ! STORE WATER AND ICE DATA IN MLO ------------------------------------------
-do ii = 1,wlev
-  call mloimport("temp",w_t(:,ii),ii,0)
-  call mloimport("sal",w_s(:,ii),ii,0)
-  call mloimport("u",w_u(:,ii),ii,0)
-  call mloimport("v",w_v(:,ii),ii,0)
-  call mloimport("w",w_ocn(:,ii),ii,0)
+do ii = 1,ol
+  call mloimport("temp",w_t(:,ii),ii,0,ifull,imax)
+  call mloimport("sal",w_s(:,ii),ii,0,ifull,imax)
+  call mloimport("u",w_u(:,ii),ii,0,ifull,imax)
+  call mloimport("v",w_v(:,ii),ii,0,ifull,imax)
+  call mloimport("w",w_ocn(:,ii),ii,0,ifull,imax)
 end do    
-call mloimport("eta",neta(1:ifull),0,0)
-call mloimpice("tsurf",nit(1:ifull,1),0)
-call mloimpice("temp0",nit(1:ifull,2),0)
-call mloimpice("temp1",nit(1:ifull,3),0)
-call mloimpice("temp2",nit(1:ifull,4),0)
-call mloimpice("fracice",nfracice(1:ifull),0)
-call mloimpice("thick",ndic(1:ifull),0)
-call mloimpice("snowd",ndsn(1:ifull),0)
-call mloimpice("store",nsto(1:ifull),0)
-call mloimpice("u",niu(1:ifull),0)
-call mloimpice("v",niv(1:ifull),0)
+call mloimport("eta",neta(1:ifull),0,0,ifull,imax)
+call mloimpice("tsurf",nit(1:ifull,1),0,ifull,imax)
+call mloimpice("temp0",nit(1:ifull,2),0,ifull,imax)
+call mloimpice("temp1",nit(1:ifull,3),0,ifull,imax)
+call mloimpice("temp2",nit(1:ifull,4),0,ifull,imax)
+call mloimpice("fracice",nfracice(1:ifull),0,ifull,imax)
+call mloimpice("thick",ndic(1:ifull),0,ifull,imax)
+call mloimpice("snowd",ndsn(1:ifull),0,ifull,imax)
+call mloimpice("store",nsto(1:ifull),0,ifull,imax)
+call mloimpice("u",niu(1:ifull),0,ifull,imax)
+call mloimpice("v",niv(1:ifull),0,ifull,imax)
 where ( wtr(1:ifull,1) )
   fracice = nfracice(1:ifull)
   sicedep = ndic(1:ifull)
@@ -1574,14 +1570,14 @@ use newmpar_m
 implicit none
 
 integer iq, k
-real, dimension(ifull+iextra,wlev), intent(inout) :: cou,cov,cow
+real, dimension(ifull+iextra,ol), intent(inout) :: cou,cov,cow
 real vec1x,vec1y,vec1z,denb
 real vec2x,vec2y,vec2z,vecdot
 real vec3x,vec3y,vec3z,vdot1,vdot2
 real(kind=8), dimension(ifull,size(cou,2)), intent(in) :: x3d,y3d,z3d
 
 !$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,x,y,z) copy(cou,cov,cow)
-do k = 1,wlev
+do k = 1,ol
   do iq = 1,ifull
     !         cross product n1xn2 into vec1
     vec1x = real(y3d(iq,k)*z(iq) - y(iq)*z3d(iq,k))
@@ -1627,20 +1623,20 @@ use parm_m, only : ds
 implicit none
 
 integer iq, ii
-real, dimension(ifull+iextra,wlev), intent(in) :: nti, nsi
-real, dimension(ifull,wlev), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
-real, dimension(ifull,wlev), intent(out) :: rhou_dash, rhov_dash, rho_dash
-real, dimension(ifull,wlev) :: drhodxu, drhodyu, drhodxv, drhodyv
+real, dimension(ifull+iextra,ol), intent(in) :: nti, nsi
+real, dimension(ifull,ol), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
+real, dimension(ifull,ol), intent(out) :: rhou_dash, rhov_dash, rho_dash
+real, dimension(ifull,ol) :: drhodxu, drhodyu, drhodxv, drhodyv
 real, dimension(ifull+iextra), intent(in) :: pice
-real, dimension(ifull+iextra,wlev,2) :: na
-real, dimension(ifull+iextra,wlev) :: alpha, beta, lrho_dash, dzdum_rho
+real, dimension(ifull+iextra,ol,2) :: na
+real, dimension(ifull+iextra,ol) :: alpha, beta, lrho_dash, dzdum_rho
 real absu, bbsu, absv, bbsv
 real dnadxu1, dnadxv1, dnadyu1, dnadyv1
 real dnadxu2, dnadxv2, dnadyu2, dnadyv2
 
 ! rho(x) = rho0 + rho_dash(x), where rho0 is a constant equal to wrtrho
 
-do ii = 1,wlev
+do ii = 1,ol
   ! neglect neta for calculating density  
   dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
 end do
@@ -1654,7 +1650,7 @@ elsewhere
 end where  
 
 if ( mlojacobi==0 ) then !off
-  do ii = 1,wlev
+  do ii = 1,ol
     drhobardxu(1:ifull,ii) = 0.
     drhobardxv(1:ifull,ii) = 0.
     drhobardyu(1:ifull,ii) = 0.
@@ -1673,7 +1669,7 @@ else
 
   !$acc parallel loop collapse(2) copyin(alpha,beta,ie,in,is,iw,ine,ise,ien,iwn,na,emu,emv) &
   !$acc   copyout(drhodxu,drhodxv,drhodyu,drhodyv)  
-  do ii = 1,wlev
+  do ii = 1,ol
     do iq = 1,ifull
       absu = 0.5*(alpha(iq,ii)+alpha(ie(iq),ii))
       bbsu = 0.5*(beta(iq,ii) +beta(ie(iq),ii) )
@@ -1712,7 +1708,7 @@ else
   rho_dash(:,1) = lrho_dash(1:ifull,1)
   rhou_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(ie,1))
   rhov_dash(:,1) = 0.5*(lrho_dash(1:ifull,1)+lrho_dash(in,1))
-  do ii = 2,wlev
+  do ii = 2,ol
     drhobardxu(:,ii) = drhobardxu(:,ii-1) + drhodxu(:,ii)*godsigu(1:ifull,ii)
     drhobardxv(:,ii) = drhobardxv(:,ii-1) + drhodxv(:,ii)*godsigv(1:ifull,ii)
     drhobardyu(:,ii) = drhobardyu(:,ii-1) + drhodyu(:,ii)*godsigu(1:ifull,ii)
@@ -1721,7 +1717,7 @@ else
     rhou_dash(:,ii) = 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(ie,ii))
     rhov_dash(:,ii) = 0.5*(lrho_dash(1:ifull,ii)+lrho_dash(in,ii))
   end do
-  do ii = 1,wlev
+  do ii = 1,ol
     drhobardxu(:,ii) = drhobardxu(:,ii)/gosighu(:,ii)
     drhobardxv(:,ii) = drhobardxv(:,ii)/gosighv(:,ii)
     drhobardyu(:,ii) = drhobardyu(:,ii)/gosighu(:,ii)

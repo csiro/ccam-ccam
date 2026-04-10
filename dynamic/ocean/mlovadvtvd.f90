@@ -46,11 +46,11 @@ integer ii,iq,its_g
 integer, dimension(ifull) :: its
 real, intent(in) :: dtin
 real, dimension(ifull) :: dtnew
-real, dimension(ifull,0:wlev), intent(in) :: ww
-real, dimension(ifull,wlev), intent(in) :: depdum,idzdum
+real, dimension(ifull,0:ol), intent(in) :: ww
+real, dimension(ifull,ol), intent(in) :: depdum,idzdum
 real, dimension(:,:), intent(inout) :: uu,vv,ss,tt,mm
 real, dimension(:,:), intent(in) :: ee
-real, dimension(ifull,wlev) :: dzdum
+real, dimension(ifull,ol) :: dzdum
 
 call START_LOG(watervadv_begin)
 
@@ -58,7 +58,7 @@ dzdum = max(idzdum(:,:),1.E-10)
   
 ! reduce time step to ensure stability
 dtnew(:) = dtin
-do ii = 1,wlev-1
+do ii = 1,ol-1
   do iq = 1,ifull    
     if ( ee(iq,ii)>0.5 ) then
       ! this trick works if dzdum(iq,ii)<dzdum(iq,ii+1)
@@ -109,11 +109,11 @@ integer ii, i, iq, kp, kx
 integer, save :: async_counter = -1
 integer, dimension(ifull), intent(in) :: its
 real, dimension(ifull), intent(in) :: dtnew
-real, dimension(ifull,0:wlev), intent(in) :: ww
-real, dimension(ifull,wlev), intent(in) :: depdum,dzdum
+real, dimension(ifull,0:ol), intent(in) :: ww
+real, dimension(ifull,ol), intent(in) :: depdum,dzdum
 real, dimension(:,:), intent(inout) :: uu
-real, dimension(ifull,0:wlev) :: ff
-real, dimension(ifull,0:wlev) :: delu
+real, dimension(ifull,0:ol) :: ff
+real, dimension(ifull,0:ol) :: delu
 real, dimension(:,:), intent(in) :: ee
 real fl, fh, cc, rr
 
@@ -126,7 +126,7 @@ async_counter = mod( async_counter+1, async_length )
 !$acc update device(uu) async(async_counter)
 do i = 1,maxval(its(1:ifull))
   !$acc parallel loop collapse(2) present(delu,uu,dzdum,ee) async(async_counter)
-  do ii = 1,wlev-1
+  do ii = 1,ol-1
     do iq = 1,ifull
       delu(iq,ii) = (uu(iq,ii+1) - uu(iq,ii))*ee(iq,ii)*ee(iq,ii+1)
     end do
@@ -135,14 +135,14 @@ do i = 1,maxval(its(1:ifull))
   !$acc parallel loop present(ff,delu) async(async_counter)
   do iq = 1,ifull
     ff(iq,0) = 0.
-    ff(iq,wlev) = 0.
+    ff(iq,ol) = 0.
     delu(iq,0) = 0.
-    delu(iq,wlev) = 0.
+    delu(iq,ol) = 0.
   end do
   !$acc end parallel loop
   if ( mlontvd==0 ) then ! MC
     !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
-    do ii = 1,wlev-1
+    do ii = 1,ol-1
       do iq = 1,ifull
         ! +ve ww is downwards to the ocean floor
         kp = nint(sign(1.,ww(iq,ii)))
@@ -161,7 +161,7 @@ do i = 1,maxval(its(1:ifull))
     !$acc end parallel loop
   else if ( mlontvd==1 ) then ! Superbee
     !$acc parallel loop collapse(2) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
-    do ii = 1,wlev-1
+    do ii = 1,ol-1
       do iq = 1,ifull
         ! +ve ww is downwards to the ocean floor
         kp = nint(sign(1.,ww(iq,ii)))
@@ -183,7 +183,7 @@ do i = 1,maxval(its(1:ifull))
     call ccmpi_abort(-1)
   end if
   !$acc parallel loop collapse(2) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
-  do ii = 1,wlev
+  do ii = 1,ol
     do iq = 1,ifull
       if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then 
         uu(iq,ii) = uu(iq,ii) + dtnew(iq)*(uu(iq,ii)*(ww(iq,ii)-ww(iq,ii-1))   &

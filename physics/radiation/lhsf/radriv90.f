@@ -382,7 +382,8 @@ c	     cc=min(1.,snr/max(snr+2.*z0m(iq),0.02))
       end if
       
       ! MLO ---------------------------------------------------------
-      call mloalb2(istart,imax,coszro2,cuvrf(:,1),cirrf(:,1),0)
+      call mloalb2(istart,imax,coszro2,cuvrf(:,1),cirrf(:,1),0,ifull,
+     &             imax)
 
       ! URBAN -------------------------------------------------------
       ! The direct beam fraction is effectively 1 in this case to

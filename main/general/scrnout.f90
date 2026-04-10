@@ -511,10 +511,10 @@ iv(is:ie) = 0.
 ou(is:ie) = 0.
 ov(is:ie) = 0.
 if ( nmlo/=0 ) then
-  call mloexport("u",ou(is:ie),1,0,water_g(tile),depth_g(tile))
-  call mloexport("v",ov(is:ie),1,0,water_g(tile),depth_g(tile))
-  call mloexpice("u",iu(is:ie),0,ice_g(tile),depth_g(tile))
-  call mloexpice("v",iv(is:ie),0,ice_g(tile),depth_g(tile))
+  call mloexport("u",ou(is:ie),1,0,water_g(tile),depth_g(tile),imax)
+  call mloexport("v",ov(is:ie),1,0,water_g(tile),depth_g(tile),imax)
+  call mloexpice("u",iu(is:ie),0,ice_g(tile),depth_g(tile),imax)
+  call mloexpice("v",iv(is:ie),0,ice_g(tile),depth_g(tile),imax)
   ou(is:ie) = (1.-fracice(is:ie))*ou(is:ie) + fracice(is:ie)*iu(is:ie)
   ov(is:ie) = (1.-fracice(is:ie))*ov(is:ie) + fracice(is:ie)*iv(is:ie)
 end if
@@ -743,10 +743,10 @@ if ( nmlo/=0 ) then
   iv(is:ie) = 0.
   ou(is:ie) = 0.
   ov(is:ie) = 0.
-  call mloexport("u",ou(is:ie),1,0,water_g(tile),depth_g(tile))
-  call mloexport("v",ov(is:ie),1,0,water_g(tile),depth_g(tile))
-  call mloexpice("u",iu(is:ie),0,ice_g(tile),depth_g(tile))
-  call mloexpice("v",iv(is:ie),0,ice_g(tile),depth_g(tile))
+  call mloexport("u",ou(is:ie),1,0,water_g(tile),depth_g(tile),imax)
+  call mloexport("v",ov(is:ie),1,0,water_g(tile),depth_g(tile),imax)
+  call mloexpice("u",iu(is:ie),0,ice_g(tile),depth_g(tile),imax)
+  call mloexpice("v",iv(is:ie),0,ice_g(tile),depth_g(tile),imax)
   ou(is:ie) = (1.-fracice(is:ie))*ou(is:ie) + fracice(is:ie)*iu(is:ie)
   ov(is:ie) = (1.-fracice(is:ie))*ov(is:ie) + fracice(is:ie)*iv(is:ie)
 else

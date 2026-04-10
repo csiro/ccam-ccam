@@ -180,7 +180,7 @@ real, dimension(imax) :: cuvrf_dir, cirrf_dir, cuvrf_dif, cirrf_dif, fbeam
 real, dimension(imax) :: sgn
 real, dimension(kl+1) :: sigh
 real, dimension(kl) :: diag_temp
-real dhr, cosz, delta
+real dhr, cosz, delta, tnew
 
 real(kind=8), dimension(1,1,1,1) :: r
 
@@ -272,7 +272,7 @@ do iq_tile = 1,ifull,imax
     end where
   elseif (abs(nmlo)<=9) then
     ! MLO albedo ----------------------------------------------------
-    call mloalb4(istart,imax,coszro2,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0)
+    call mloalb4(istart,imax,coszro2,cuvrf_dir,cuvrf_dif,cirrf_dir,cirrf_dif,0,ifull,imax)
   else
     write(6,*) "ERROR: PCOM albedo is required in seaesfrad"
     call ccmpi_abort(-1)
@@ -678,7 +678,28 @@ do iq_tile = 1,ifull,imax
       lw_tend(istart:iend,kl+1-k) = -real(Lw_output%heatra(:,1,k)/86400._8)
     end do
     
-#ifdef debug
+    do k = 1,kl
+      do iq = istart,iend
+        tnew = t(iq,k) - dt*(sw_tend(iq,k)+lw_tend(iq,k))
+        if ( tnew<75. .and. tnew>450. ) then
+          write(6,*) "WARN: tnew is out-of-range"
+          write(6,*) "tnew,t,sw_tend,lw_tend ",tnew,t(iq,k),sw_tend(iq,k),lw_tend(iq,k)
+          write(6,*) "iq,k,myid ",iq,k,myid
+          write(6,*) "qv,size_drop,size_ice ",qg(iq,k),stras_rliq(iq,k),stras_rice(iq,k)
+          write(6,*) "conc_drop,conc_ice,cfrac ",stras_cliq(iq,k),stras_cice(iq,k),cfrac(iq,k)
+          write(6,*) "alb ",cuvrf_dir(iq-istart+1),cirrf_dir(iq-istart+1), &
+                            cuvrf_dif(iq-istart+1),cirrf_dif(iq-istart+1)
+          write(6,*) "cosz,tau,ps ",coszro(iq-istart+1),taudar(iq-istart+1),ps(iq)
+          write(6,*) "ozone ",duo3n(iq-istart+1,k)
+          if ( abs(iaero)==2 .or. abs(iaero)==3 ) then
+            do nr = 1,naero
+              write(6,*) "aerosol ",nr,xtg(iq,k,nr)
+            end do
+          end if
+        end if
+      end do
+    end do
+    
     if ( any(Sw_output%hsw(:,1,:,1)/=Sw_output%hsw(:,1,:,1)) ) then
       write(6,*) "ERROR: NaN detected in hsw for seaesfrad on myid=",myid
       call ccmpi_abort(-1)
@@ -699,7 +720,6 @@ do iq_tile = 1,ifull,imax
       write(6,*) "minloc,maxloc ",minloc(Lw_output%heatra(:,1,:)),maxloc(Lw_output%heatra(:,1,:))
       call ccmpi_abort(-1)
     end if
-#endif
 
     ! aerosol optical depths ----------------------------------------
     if ( do_aerosol_forcing ) then

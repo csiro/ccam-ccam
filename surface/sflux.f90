@@ -90,14 +90,12 @@ private
 public sflux, sflux_init
 
 public sib4
-!public cable_version
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cablesettemp, cableinflow, cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
-!public calc_wt_ave, calc_wt_flux
 public cable_casatile
 
 public inyear_carb
@@ -111,11 +109,11 @@ public fevc,plant_turnover,plant_turnover_wood
 public mplant,mlitter,msoil
 
 public mlovlevels,mlonewice,mloexpice,mlosurf,mloinit,mloload,mloimport,mloexport
-public mlo_ema,mloexpdep
+public mloexpdep
 public minsfc,minsal,maxsal,icemax
-public wlev,zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
+public zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
-public mlo_timeave_length,kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,omink,omineps
+public kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,omink,omineps
 public k_mode,eps_mode,limitL,fixedce3,nops,nopb,fixedstabfunc
 public alphanir_seaice,alphanir_seasnw,alphavis_seaice,alphavis_seasnw
 public micdwn
@@ -976,14 +974,14 @@ do tile = 1,ntiles
                       zoh(is:ie),zoq(is:ie),theta(is:ie),ga(is:ie),turb_g(tile))
   
   do k = 1,ms 
-    call mloexport("temp",tgg(is:ie,k),k,0,water_g(tile),depth_g(tile)) 
+    call mloexport("temp",tgg(is:ie,k),k,0,water_g(tile),depth_g(tile),imax) 
     where ( tgg(is:ie,k)<100. )     
       tgg(is:ie,k) = tgg(is:ie,k) + wrtemp 
     end where                 
   end do          
-  call mloexpice("tsurf",tggsn(is:ie,1),0,ice_g(tile),depth_g(tile)) 
-  call mloexpice("temp0",tggsn(is:ie,2),0,ice_g(tile),depth_g(tile)) 
-  call mloexpice("temp1",tggsn(is:ie,3),0,ice_g(tile),depth_g(tile)) 
+  call mloexpice("tsurf",tggsn(is:ie,1),0,ice_g(tile),depth_g(tile),imax) 
+  call mloexpice("temp0",tggsn(is:ie,2),0,ice_g(tile),depth_g(tile),imax) 
+  call mloexpice("temp1",tggsn(is:ie,3),0,ice_g(tile),depth_g(tile),imax) 
 
 end do
 
@@ -1044,7 +1042,7 @@ if ( abs(nmlo)==1 ) then                                                        
   ! Single column                                                                              ! MLO
   ! set free surface to zero when water is not conserved                                       ! MLO
   neta = 0.                                                                                      ! MLO
-  call mloimport("eta",neta,0,0,water,depth)                                                   ! MLO
+  call mloimport("eta",neta,0,0,water,depth,imax)                                                   ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO  
 else if ( abs(nmlo)>=2 ) then                                                                  ! MLO
   ! river inflow                                                                               ! MLO
@@ -1056,7 +1054,7 @@ else if ( abs(nmlo)>=2 ) then                                                   
   if ( mlo_adjeta>0 ) then                                                                     ! MLO
     ! lake outflow                                                                             ! MLO
     neta(1:imax) = 0.                                                                          ! MLO
-    call mloexport("eta",neta,0,0,water,depth)                                                 ! MLO
+    call mloexport("eta",neta,0,0,water,depth,imax)                                                 ! MLO
     do iq = 1,imax                                                                             ! MLO
       if ( outflowmask(iq) ) then                                                              ! MLO
         oflow = max( neta(iq), 0. )                                                            ! MLO
@@ -1064,7 +1062,7 @@ else if ( abs(nmlo)>=2 ) then                                                   
         neta(iq) = neta(iq) - oflow                                                            ! MLO
       end if                                                                                   ! MLO
     end do                                                                                     ! MLO
-    call mloimport("eta",neta,0,0,water,depth)                                                 ! MLO
+    call mloimport("eta",neta,0,0,water,depth,imax)                                                 ! MLO
   end if                                                                                       ! MLO
 else                                                                                           ! MLO
   dumw(1:imax) = 0.                                                                            ! MLO
@@ -1077,11 +1075,11 @@ dums(:) = (conds(:)+condg(:))/dt  ! ice, snow and graupel precip                
 call mloeval(tss,zo,cduv,cdtq,umod,fg,eg,levspsbl,lsbl,wetfac,epot,epan,fracice,sicedep,     & ! MLO
              snowd,dt,azmin,azmin,sgdn,dumrg,dumx,dums,uav,vav,t(1:imax),qg(1:imax),         & ! MLO
              ps(1:imax),swrsave,fbeamvis,fbeamnir,dumw,0,calcprog,                           & ! MLO
-             depth,dgice,dgscrn,dgwater,ice,water,turb)                                        ! MLO
-call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,depth)                                           ! MLO
-call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,depth)                                           ! MLO
-call mloextra(1,taux,azmin,0,dgwater,dgice,ice,depth)                                          ! MLO
-call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,depth)                                          ! MLO
+             depth,dgice,dgscrn,dgwater,ice,water,turb,imax,ol)                                        ! MLO
+call mloextra(0,zoh,azmin,0,dgwater,dgice,ice,depth,imax)                                           ! MLO
+call mloextra(3,zoq,azmin,0,dgwater,dgice,ice,depth,imax)                                           ! MLO
+call mloextra(1,taux,azmin,0,dgwater,dgice,ice,depth,imax)                                          ! MLO
+call mloextra(2,tauy,azmin,0,dgwater,dgice,ice,depth,imax)                                          ! MLO
                                                                                                ! MLO
 where ( .not.land(1:imax) )                                                                    ! MLO
   tpan = tss(:) ! assume tss_sh=0.                                                             ! MLO

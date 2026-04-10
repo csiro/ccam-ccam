@@ -51,6 +51,7 @@ integer, save :: fill_nourban = 0                             ! number of iterat
 integer, save :: native_ccam = 0                              ! is host CCAM (native_ccam=1) or cdfivdar (native_ccam=0)
 integer, save :: xx4_win, yy4_win                             ! shared memory windows
 integer, save :: xy4_count = 0                                ! counter for new allocations of memory windows
+integer, parameter :: ncarbon = 11                            ! Number of CASA-CNP carbon pools
 integer, dimension(3), save :: xx4save_win, yy4save_win       ! store old memory windows for later deallocation
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
@@ -395,8 +396,8 @@ real, dimension(:), intent(out) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
 real, dimension(ifull) :: duma
 real, dimension(ifull,6) :: udum6
-real, dimension(ifull,wlev) :: oo
-real, dimension(wlev) :: zocean
+real, dimension(ifull,ol) :: oo
+real, dimension(ol) :: zocean
 real, dimension(kk+ok+13) :: dumr
 real, dimension(:,:), allocatable :: ucc6
 real, dimension(:), allocatable :: ucc
@@ -451,7 +452,7 @@ iotest = 6*ik*ik==ifull_g .and. abs(rlong0x-rlong0)<iotol .and. abs(rlat0x-rlat0
          abs(schmidtx-schmidt)<iotol .and. (nsib==nsibx.or.nested==1.or.nested==3) .and.      &
          native_ccam==1
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-  iotest = iotest .and. (wlev==ok)
+  iotest = iotest .and. (ol==ok)
 end if
 
 if ( iotest ) then
@@ -634,10 +635,10 @@ if ( newfile ) then
       if ( tst ) then
         ! default for old code without olev  
         mxd_o = 5000.
-        x_o = real(wlev)
+        x_o = real(ol)
         al_o = mxd_o*(x_o/mxd_o-1.)/(x_o-x_o*x_o*x_o)         ! sigma levels
         bt_o = mxd_o*(x_o*x_o*x_o/mxd_o-1.)/(x_o*x_o*x_o-x_o) ! sigma levels 
-        do k = 1,wlev
+        do k = 1,ol
           x_o = real(k-1)
           y_o = real(k)
           depth_hl_xo = (al_o*x_o**3+bt_o*x_o)/mxd_o ! ii is for half level ii-0.5
@@ -713,9 +714,9 @@ if ( newfile ) then
   end if
   ocnlvl_test = .false.
   if ( ok>0 ) then
-    if ( ok==wlev ) then
+    if ( ok==ol ) then
       call mlovlevels(zocean)  
-      ocnlvl_test = all( abs(gosig_1(1:ok)-zocean(1:wlev))<0.0001 )
+      ocnlvl_test = all( abs(gosig_1(1:ok)-zocean(1:ol))<0.0001 )
     end if
   end if  
   if ( myid==0 ) then
@@ -1183,8 +1184,8 @@ end if ! (nested==0.or.(nested==1.and.nud_q/=0).or.nested==3)
 
 if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
   ! defalt values
-  do k = 1,wlev
-    call mloexpdep(0,depth,k,0)
+  do k = 1,ol
+    call mloexpdep(0,depth,k,0,ifull,imax)
     ! This polynomial fit is from MOM3, based on Levitus
     where (depth(:)<2000.)
       mlodwn(1:ifull,k,1) = 18.4231944       &
@@ -1220,8 +1221,8 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
       else
         call fillhist4o('tgg',mlodwn(:,:,1),land_3d,fill_floor,ocndwn(:,1))
       end if  
-      where ( mlodwn(1:ifull,1:wlev,1)>100. )
-        mlodwn(1:ifull,1:wlev,1) = mlodwn(1:ifull,1:wlev,1) - wrtemp ! remove temperature offset for precision
+      where ( mlodwn(1:ifull,1:ol,1)>100. )
+        mlodwn(1:ifull,1:ol,1) = mlodwn(1:ifull,1:ol,1) - wrtemp ! remove temperature offset for precision
       end where
     end if ! (nestesd/=1.or.nud_sst/=0) ..else..
     ! ocean salinity
@@ -1231,12 +1232,12 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
       else    
         call fillhist4o('sal',mlodwn(:,:,2),land_3d,fill_floorlake,ocndwn(:,1))
       end if  
-      do k = 1,wlev
+      do k = 1,ol
         where ( isoilm_in == -1 )
           mlodwn(1:ifull,k,2) = 0. ! freshwater lakes
         end where
       end do  
-      mlodwn(1:ifull,1:wlev,2) = max( mlodwn(1:ifull,1:wlev,2), 0. )
+      mlodwn(1:ifull,1:ol,2) = max( mlodwn(1:ifull,1:ol,2), 0. )
     end if ! (nestesd/=1.or.nud_sss/=0) ..else..
     ! ocean currents
     if ( (nested/=1.or.nud_ouv/=0) .and. ok>0 ) then
@@ -1389,7 +1390,7 @@ if ( nested/=1 .and. nested/=3 ) then
           call ccnf_get_vara(ncid,idv,iarchi,ierc(7))
         end if
         if ( abs(nmlo)>=3 .and. abs(nmlo)<=9 ) then
-          if ( ok==wlev ) then
+          if ( ok==ol ) then
             call ccnf_inq_varid(ncid,'old1_uo',idv,tst)
             if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'old1_vo',idv,tst)
@@ -1411,7 +1412,7 @@ if ( nested/=1 .and. nested/=3 ) then
           end if
         end if
         if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-          if ( ok==wlev ) then
+          if ( ok==ol ) then
             call ccnf_inq_varid(ncid,'old1_uotop',idv,tst)
             if ( tst ) lrestart = .false.
             call ccnf_inq_varid(ncid,'old1_votop',idv,tst)
@@ -1784,13 +1785,13 @@ if ( nested/=1 .and. nested/=3 ) then
           write(6,*) "-> Read CASA carbon tiles for each PFT"
         end if  
         ! allocated here to be used in cable_ccam2.f90 where it is deallocated
-        allocate( carb_plant(ifull,mplant,3,11) )
-        allocate( carb_litter(ifull,mlitter,3,11) )
-        allocate( carb_soil(ifull,msoil,3,11) )
+        allocate( carb_plant(ifull,mplant,3,ncarbon) )
+        allocate( carb_litter(ifull,mlitter,3,ncarbon) )
+        allocate( carb_soil(ifull,msoil,3,ncarbon) )
         carb_plant(:,:,:,:) = 0.
         carb_litter(:,:,:,:) = 0.
         carb_soil(:,:,:,:) = 0.          
-        allocate( carb_data(ifull,11) )
+        allocate( carb_data(ifull,ncarbon) )
         do k = 1,mplant
           write(vname,'("p_cplant",I1.1)') k
           call fillcarb(carb_data,vname,sea_a,fill_sea)
@@ -1943,26 +1944,6 @@ if ( nested/=1 .and. nested/=3 ) then
       if ( oclosure==1 ) then
         call fillhist4o('tkeo',mlodwn(:,:,5),land_3d,fill_floor,ocndwn(:,1))  
         call fillhist4o('epso',mlodwn(:,:,6),land_3d,fill_floor,ocndwn(:,1))
-        call fillhist4o('uo_ema',oo,land_3d,fill_floor,ocndwn(:,1))
-        do k = 1,wlev
-          call mloimport('u_ema',oo(:,k),k,0)
-        end do  
-        call fillhist4o('vo_ema',oo,land_3d,fill_floor,ocndwn(:,1))
-        do k = 1,wlev
-          call mloimport('v_ema',oo(:,k),k,0)
-        end do  
-        call fillhist4o('wo_ema',oo,land_3d,fill_floor,ocndwn(:,1))
-        do k = 1,wlev
-          call mloimport('w_ema',oo(:,k),k,0)
-        end do         
-        call fillhist4o('temp_ema',oo,land_3d,fill_floor,ocndwn(:,1))
-        do k = 1,wlev
-          call mloimport('temp_ema',oo(:,k),k,0)
-        end do  
-        call fillhist4o('sal_ema',oo,land_3d,fill_floor,ocndwn(:,1))
-        do k = 1,wlev
-          call mloimport('sal_ema',oo(:,k),k,0)
-        end do  
       end if  
     end if  
   end if
@@ -2322,29 +2303,37 @@ real, dimension(:,:), allocatable :: al_io
 logical, dimension(fwsize), intent(in) :: land_a
 logical, dimension(:,:), allocatable :: land_3d
 
-! only perform fill on processors reading input files
-if ( fwsize==0 ) return
-
-! ignore fill if land_a is trivial
-if ( allowtrivialfill ) then
-  ncount = count( .not.land_a(1:fwsize) )
-  call ccmpi_allreduce(ncount,nrem,'sum',comm_ip)
-  if ( nrem==0 .or. nrem==6*ik*ik ) return
-end if
-
-allocate( al_io(fwsize,1) )
-allocate( land_3d(fwsize,1) )
+allocate( al_io(fwsize,1), land_3d(fwsize,1) )
 
 al_io(:,1) = a_io(:)
 land_3d(:,1) = land_a(:)
 call fill_cc4_3d(al_io,land_3d,fill_count)
 a_io(:) = al_io(:,1)
 
-deallocate( al_io )
-deallocate( land_3d )
+deallocate( al_io, land_3d )
 
 return
 end subroutine fill_cc1
+
+subroutine fill_cc4_1(a_io,land_a,fill_count)
+
+integer, intent(inout) :: fill_count
+integer k
+real, dimension(:,:), intent(inout) :: a_io
+logical, dimension(:), intent(in) :: land_a
+logical, dimension(:,:), allocatable :: land_3d
+
+allocate( land_3d(size(a_io,1),size(a_io,2)) )
+
+do k = 1,size(a_io,2)
+  land_3d(:,k) = land_a(:)
+end do
+call fill_cc4_3d(a_io,land_3d,fill_count)
+
+deallocate( land_3d )
+
+return
+end subroutine fill_cc4_1
 
 subroutine fill_cc4_3d(a_io,land_3d,fill_count)
       
@@ -2485,24 +2474,6 @@ call END_LOG(otf_fill_end)
 
 return
 end subroutine fill_cc4_3d
-
-subroutine fill_cc4_1(a_io,land_a,fill_count)
-
-integer, intent(inout) :: fill_count
-integer k
-real, dimension(:,:), intent(inout) :: a_io
-logical, dimension(:), intent(in) :: land_a
-logical, dimension(:,:), allocatable :: land_3d
-
-allocate( land_3d(size(a_io,1),size(a_io,2)) )
-do k = 1,size(a_io,2)
-  land_3d(:,k) = land_a(:)
-end do
-call fill_cc4_3d(a_io,land_3d,fill_count)
-deallocate( land_3d )
-
-return
-end subroutine fill_cc4_1
 
 ! *****************************************************************************
 ! OROGRAPHIC ADJUSTMENT ROUTINES
@@ -3104,7 +3075,7 @@ end if ! iotest
 ! vertical interpolation
 if ( .not.ocnlvl_test ) then
   varout(:,:) = 0.5*(minval(u_k)+maxval(u_k)) ! easier for debuging
-  call mloregrid(ok,gosig_1,bath,u_k,varout,0) ! should use mode 3 or 4?
+  call mloregrid(ok,gosig_1,bath,u_k,varout,0,ifull,imax,ol) ! should use mode 3 or 4?
 else
   varout(1:ifull,:) = u_k(1:ifull,:)  
 end if
@@ -3147,8 +3118,8 @@ end if ! iotest
 if ( .not.ocnlvl_test ) then
   uarout = 0.
   varout = 0.
-  call mloregrid(ok,gosig_1,bath,u_k,uarout,0)
-  call mloregrid(ok,gosig_1,bath,v_k,varout,0)
+  call mloregrid(ok,gosig_1,bath,u_k,uarout,0,ifull,imax,ol)
+  call mloregrid(ok,gosig_1,bath,v_k,varout,0,ifull,imax,ol)
 else
   uarout(1:ifull,:) = u_k(1:ifull,:)
   varout(1:ifull,:) = v_k(1:ifull,:)

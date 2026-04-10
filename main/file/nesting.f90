@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -99,10 +99,10 @@ integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, kdhour, kdmin, kddate
 integer khour_r, kmin_r, khour, kmin
 integer :: num=0
-real, dimension(:,:,:), allocatable :: dumv
-real, dimension(:,:,:), allocatable :: dumaa
-real, dimension(:,:,:), allocatable :: dumg
-real, dimension(:,:,:), allocatable :: dums
+real, dimension(ifull,kl,8) :: dumv
+real, dimension(ifull,ol,4) :: dumaa
+real, dimension(ifull,ms,3) :: dumg
+real, dimension(ifull,3,3) :: dums
 real, dimension(ifull,9) :: duma
 real, dimension(ifull) :: zsb, timelt
 real, dimension(2) :: depthcheck
@@ -124,7 +124,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     allocate( tb(ifull,kl), ub(ifull,kl), vb(ifull,kl), qb(ifull,kl) )
     allocate( psla(ifull), pslb(ifull), tssa(ifull), tssb(ifull) )
     allocate( sicedepb(ifull), fraciceb(ifull) )
-    allocate( sssa(ifull,wlev,4), sssb(ifull,wlev,8), ocndep(ifull,6) )
+    allocate( sssa(ifull,ol,4), sssb(ifull,ol,8), ocndep(ifull,6) )
     sssb = 0.
     allocate( xtghosta(ifull,kl,naero) )
     allocate( xtghostb(ifull,kl,naero) )
@@ -132,9 +132,6 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
     if ( abs(io_in)==1 ) then
       call START_LOG(nestotf_begin)
-      allocate( dumv(ifull,kl,8) )
-      allocate( dumg(ifull,ms,3) )
-      allocate( dums(ifull,3,3) )
       call onthefly(1,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -145,9 +142,6 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                     duma(:,2),duma(:,3),dumm,                     & !unused
                     sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
                     duma(:,6),duma(:,7),duma(:,8),duma(:,9))
-      deallocate( dumv )
-      deallocate( dumg )
-      deallocate( dums )
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
       !qb = max(qb,0.)
@@ -186,9 +180,6 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   ! Read host atmospheric and ocean data for nudging      
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
-    allocate( dumv(ifull,kl,8) )
-    allocate( dumg(ifull,ms,3) )
-    allocate( dums(ifull,3,3) )
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -199,9 +190,6 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                   duma(:,2),duma(:,3),dumm,                     & !unused
                   sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
                   duma(:,6),duma(:,7),duma(:,8),duma(:,9))
-    deallocate( dumv )
-    deallocate( dumg )
-    deallocate( dums )
     call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
@@ -313,7 +301,6 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
     end where  ! (.not.land)
   else
     if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-      allocate( dumaa(ifull,wlev,4) )  
       ! nudge mlo
       dumaa = cona*sssa(:,:,1:4) + conb*sssb(:,:,1:4)
       if ( wl<1 ) then
@@ -323,11 +310,11 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
         if ( depthcheck(2)<0.5 ) then
           wl = 1
         else
-          wl = wlev
+          wl = ol
         end if
       end if
       if ( wl==1 ) then ! switch to 2D if 3D data is missing
-        call mloexpmelt(timelt)
+        call mloexpmelt(timelt,ifull,imax)
         !timelt = min( timelt, 271.2, tgg(:,1) )
         timelt = min( timelt+0.01, tgg(:,1) )
         dumaa(:,1,1) = (cona*tssa+conb*tssb)*(1.-fraciceb) + timelt*fraciceb
@@ -335,7 +322,6 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
     end if  ! nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0
-    deallocate( dumaa )
   endif     ! nmlo==0 ..else..
 endif       ! namip==0
      
@@ -373,11 +359,11 @@ use stime_m                      ! File date data
 integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, ntr
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
-real, dimension(:,:,:), allocatable :: xtghostc
-real, dimension(:,:,:), allocatable :: dumv
-real, dimension(:,:,:), allocatable :: sssc
-real, dimension(:,:,:), allocatable :: dumg
-real, dimension(:,:,:), allocatable :: dums
+real, dimension(ifull,kl,naero) :: xtghostc
+real, dimension(ifull,kl,8) :: dumv
+real, dimension(ifull,ol,4) :: sssc
+real, dimension(ifull,ms,3) :: dumg
+real, dimension(ifull,3,3) :: dums
 real, dimension(ifull,kl) :: tc, uc, vc, qc
 real, dimension(ifull,9) :: duma
 real, dimension(ifull) :: pslc
@@ -402,17 +388,14 @@ if ( mtimer>mtimeb ) then
     allocate( psla(ifull), tssa(ifull) )
     allocate( sicedepb(ifull) )
     allocate( ocndep(ifull,6) )
-    allocate( sssb(ifull,wlev,8) )
-    allocate( sssa(ifull,wlev,4) )
+    allocate( sssb(ifull,ol,8) )
+    allocate( sssa(ifull,ol,4) )
     sssb = 0.
     allocate( xtghostb(ifull,kl,naero) )
     allocate( xtghosta(ifull,kl,naero) )
     xtghostb = 0.
     if ( abs(io_in)==1 ) then
       call START_LOG(nestotf_begin)
-      allocate( dumv(ifull,kl,8) )
-      allocate( dumg(ifull,ms,3) )
-      allocate( dums(ifull,3,3) )
       call onthefly(1,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -423,9 +406,6 @@ if ( mtimer>mtimeb ) then
                     duma(:,2),duma(:,3),dumm,                     & !unused
                     sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
                     duma(:,6),duma(:,7),duma(:,8),duma(:,9))
-      deallocate( dumv )
-      deallocate( dumg )
-      deallocate( dums )
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
     else
@@ -465,9 +445,6 @@ if ( mtimer>mtimeb ) then
   ! read tb etc  - for globpea, straight into tb etc
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
-    allocate( dumv(ifull,kl,8) )
-    allocate( dumg(ifull,ms,3) )
-    allocate( dums(ifull,3,3) )
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -478,9 +455,6 @@ if ( mtimer>mtimeb ) then
                   duma(:,2),duma(:,3),dumm,                     & !unused
                   sssb,ocndep,xtghostb,duma(:,4),duma(:,5),     &
                   duma(:,6),duma(:,7),duma(:,8),duma(:,9))
-    deallocate( dumv )
-    deallocate( dumg )
-    deallocate( dums )
     call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
@@ -530,7 +504,6 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
   ! atmospheric nudging if required
   if ( mbd/=0 ) then
     if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
-      allocate( xtghostc(ifull,kl,naero) )  
       pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
       uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
       vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
@@ -542,7 +515,6 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
         end do
       end if
       call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
-      deallocate( xtghostc )
     end if
   end if  
 
@@ -565,7 +537,6 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
       ! nudge Mixed-Layer-Ocean
       if ( mbd_mlo/=0 ) then  
         if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
-          allocate( sssc(ifull,wlev,4) )  
           sssc(:,:,1:4) = cona*sssa(:,:,1:4) + (1.-cona)*sssb(:,:,1:4)  
           ! check host for 2D or 3D data
           if ( wl<1 ) then
@@ -574,18 +545,17 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
             if ( depthcheck(2)<0.5 ) then
               wl = 1
             else
-              wl = wlev
+              wl = ol
             end if
           end if
           if ( wl==1 ) then ! switch to 2D data if 3D is missing
-            call mloexpmelt(timelt)
+            call mloexpmelt(timelt,ifull,imax)
             !timelt(:) = min( timelt(:), 271.2, tgg(:,1) )
             timelt(:) = min( timelt(:)+0.01, tgg(:,1) )
             sssc(:,1,1) = (cona*tssa(:) + (1.-cona)*tssb(:))*(1.-fraciceb(:)) + timelt*fraciceb(:)
             sssc(:,1,1) = sssc(:,1,1) - wrtemp
           end if
           call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
-          deallocate( sssc )
         end if
       end if  
     end if ! (nmlo==0) ..else..
@@ -1769,14 +1739,14 @@ use vecsuv_m                                        ! Map to cartesian coordinat
 integer, intent(in) :: wl
 integer k,ka,kb,kc,kln,klx,klt,kbb
 real, dimension(ifull), intent(in) :: sfh
-real, dimension(ifull,wlev), intent(in) :: sstb,sssb
-real, dimension(ifull,wlev,2), intent(in) :: suvb
+real, dimension(ifull,ol), intent(in) :: sstb,sssb
+real, dimension(ifull,ol,2), intent(in) :: suvb
 real, dimension(ifull,1) :: diffh_l
 real, dimension(ifull,kblock) :: diff_l,diffs_l
 real, dimension(ifull,kblock) :: diffu_l,diffv_l
 real, dimension(ifull) :: dz, old
 logical lblock
-logical, dimension(ifull,wlev) :: wtr
+logical, dimension(ifull,ol) :: wtr
 real nudgewgt
  
 if ( first_specinit ) then
@@ -1797,9 +1767,9 @@ else
 end if
 
 wtr(:,:) = .false.
-do k = 1,wlev
+do k = 1,ol
   dz(:) = 0.  
-  call mloexpdep(1,dz(:),k,0)
+  call mloexpdep(1,dz(:),k,0,ifull,imax)
   where ( dz(:)>1.e-4 )
     wtr(:,k) = .true.  
   end where  
@@ -1808,7 +1778,7 @@ end do
 
 if ( nud_sfh/=0 ) then
   old = sfh
-  call mloexport("eta",old,0,0)
+  call mloexport("eta",old,0,0,ifull,imax)
   where ( wtr(:,1) )
     diffh_l(:,1) = sfh - old
   elsewhere
@@ -1827,7 +1797,7 @@ do kbb = ktopmlo,kc,kblock
     do k = kln,klx
       kb = k - kln + 1
       old = sstb(:,k)
-      call mloexport("temp",old,k,0)
+      call mloexport("temp",old,k,0,ifull,imax)
       where ( wtr(:,k) )
         diff_l(:,kb) = sstb(:,k) - old
       elsewhere
@@ -1840,7 +1810,7 @@ do kbb = ktopmlo,kc,kblock
     do k = kln,klx
       kb = k - kln + 1
       old = sssb(:,k)
-      call mloexport("sal",old,k,0)
+      call mloexport("sal",old,k,0,ifull,imax)
       where ( wtr(:,k) .and. old>minsal .and. sssb(:,k)>minsal )
         diffs_l(:,kb) = sssb(:,k) - old
       elsewhere
@@ -1853,14 +1823,14 @@ do kbb = ktopmlo,kc,kblock
     do k = kln,klx
       kb = k - kln + 1
       old = suvb(:,k,1)
-      call mloexport("u",old,k,0)
+      call mloexport("u",old,k,0,ifull,imax)
       where ( wtr(:,k) )
         diffu_l(:,kb) = suvb(:,k,1) - old
       elsewhere
         diffu_l(:,kb) = 0.
       end where
       old = suvb(:,k,2)
-      call mloexport("v",old,k,0)
+      call mloexport("v",old,k,0,ifull,imax)
       where ( wtr(:,k) )
         diffv_l(:,kb) = suvb(:,k,2) - old
       elsewhere
@@ -1899,16 +1869,16 @@ do kbb = ktopmlo,kc,kblock
       ka = min(wl, k)
       kb = k - kln + 1
       old = sstb(:,ka)
-      call mloexport("temp",old,k,0)
+      call mloexport("temp",old,k,0,ifull,imax)
       old = old + min( max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old ), 373.16-wrtemp-old )
-      call mloimport("temp",old,k,0)
+      call mloimport("temp",old,k,0,ifull,imax)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sstb(:,ka)
-        call mloexport("temp",old,k,0)
+        call mloexport("temp",old,k,0,ifull,imax)
         old = old + min( max( diff_l(:,kb)*nudgewgt, 271.16-wrtemp-old ), 373.16-wrtemp-old )
-        call mloimport("temp",old,k,0)
+        call mloimport("temp",old,k,0,ifull,imax)
       end do
     end if
   end if
@@ -1918,22 +1888,22 @@ do kbb = ktopmlo,kc,kblock
       ka = min(wl, k)
       kb = k-kln+1
       old = sssb(:,ka)
-      call mloexport("sal",old,k,0)
+      call mloexport("sal",old,k,0,ifull,imax)
       where ( old>minsal )
         diffs_l(:,kb) = max( diffs_l(:,kb), (minsal-old)/nudgewgt )
         old = old + diffs_l(:,kb)*nudgewgt
       end where  
-      call mloimport("sal",old,k,0)
+      call mloimport("sal",old,k,0,ifull,imax)
     end do
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = sssb(:,ka)
-        call mloexport("sal",old,k,0)
+        call mloexport("sal",old,k,0,ifull,imax)
         where ( old>minsal )
           diffs_l(:,kb) = max( diffs_l(:,kb), (minsal-old)/nudgewgt )  
           old = old + diffs_l(:,kb)*nudgewgt ! kb saved from above loop
         end where  
-        call mloimport("sal",old,k,0)
+        call mloimport("sal",old,k,0,ifull,imax)
       end do
     end if
   end if
@@ -1943,9 +1913,9 @@ do kbb = ktopmlo,kc,kblock
       ka = min(wl, k)
       kb = k - kln + 1
       old = suvb(:,ka,1)
-      call mloexport("u",old,k,0)
+      call mloexport("u",old,k,0,ifull,imax)
       old = old + diffu_l(:,kb)*nudgewgt
-      call mloimport("u",old,k,0)
+      call mloimport("u",old,k,0,ifull,imax)
       if ( allocated(oldu1) ) then
         oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*nudgewgt
         oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*nudgewgt
@@ -1954,9 +1924,9 @@ do kbb = ktopmlo,kc,kblock
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = suvb(:,ka,1)
-        call mloexport("u",old,k,0)
+        call mloexport("u",old,k,0,ifull,imax)
         old = old + diffu_l(:,kb)*nudgewgt ! kb saved from above loop
-        call mloimport("u",old,k,0)
+        call mloimport("u",old,k,0,ifull,imax)
         if ( allocated(oldu1) ) then
           oldu1(:,k) = oldu1(:,k) + diffu_l(:,kb)*nudgewgt
           oldu2(:,k) = oldu2(:,k) + diffu_l(:,kb)*nudgewgt
@@ -1967,9 +1937,9 @@ do kbb = ktopmlo,kc,kblock
       ka = min(wl, k)
       kb = k - kln + 1
       old = suvb(:,ka,2)
-      call mloexport("v",old,k,0)
+      call mloexport("v",old,k,0,ifull,imax)
       old = old + diffv_l(:,kb)*nudgewgt
-      call mloimport("v",old,k,0)
+      call mloimport("v",old,k,0,ifull,imax)
       if ( allocated(oldv1) ) then
         oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*nudgewgt
         oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*nudgewgt
@@ -1978,9 +1948,9 @@ do kbb = ktopmlo,kc,kblock
     if ( klx==kc ) then
       do k = kc+1,kbotmlo
         old = suvb(:,ka,2)
-        call mloexport("v",old,k,0)
+        call mloexport("v",old,k,0,ifull,imax)
         old = old + diffv_l(:,kb)*nudgewgt
-        call mloimport("v",old,k,0)
+        call mloimport("v",old,k,0,ifull,imax)
         if ( allocated(oldv1) ) then
           oldv1(:,k) = oldv1(:,k) + diffv_l(:,kb)*nudgewgt
           oldv2(:,k) = oldv2(:,k) + diffv_l(:,kb)*nudgewgt
@@ -1993,9 +1963,9 @@ end do
      
 if ( nud_sfh/=0 ) then
   old = sfh
-  call mloexport("eta",old,0,0)
+  call mloexport("eta",old,0,0,ifull,imax)
   old = old + diffh_l(:,1)*nudgewgt
-  call mloimport("eta",old,0,0)
+  call mloimport("eta",old,0,0,ifull,imax)
 end if
 
 return
@@ -2782,8 +2752,8 @@ use parm_m                               ! Model configuration
 integer, intent(in) :: wl
 integer k, ka
 real, dimension(ifull), intent(in) :: sfh
-real, dimension(ifull,wlev), intent(in) :: new,sssb
-real, dimension(ifull,wlev,2), intent(in) :: suvb
+real, dimension(ifull,ol), intent(in) :: new,sssb
+real, dimension(ifull,ol,2), intent(in) :: suvb
 real, dimension(ifull) :: old
 real wgt
       
@@ -2794,10 +2764,10 @@ if (nud_sst/=0) then
   do k=ktopmlo,kbotmlo
     ka=min(k,wl)
     old=new(:,ka)
-    call mloexport("temp",old,k,0)
+    call mloexport("temp",old,k,0,ifull,imax)
     !old=old*(1.-wgt)+max(new(:,ka),275.16-wrtemp)*wgt
     old=old*(1.-wgt)+max(new(:,ka),271.16-wrtemp)*wgt
-    call mloimport("temp",old,k,0)
+    call mloimport("temp",old,k,0,ifull,imax)
   end do
 end if
       
@@ -2805,12 +2775,12 @@ if (nud_sss/=0) then
   do k=ktopmlo,kbotmlo
     ka=min(k,wl)
     old=sssb(:,ka)
-    call mloexport("sal",old,k,0)
+    call mloexport("sal",old,k,0,ifull,imax)
     where ( old>minsal .and. sssb(:,ka)>minsal )
       old=old*(1.-wgt)+sssb(:,ka)*wgt
       old=max(old,0.)
     end where  
-    call mloimport("sal",old,k,0)
+    call mloimport("sal",old,k,0,ifull,imax)
   end do
 end if
       
@@ -2818,22 +2788,22 @@ if (nud_ouv/=0) then
   do k=ktopmlo,kbotmlo
     ka=min(k,wl)
     old=suvb(:,ka,1)
-    call mloexport("u",old,k,0)
+    call mloexport("u",old,k,0,ifull,imax)
     old=old*(1.-wgt)+suvb(:,ka,1)*wgt
-    call mloimport("u",old,k,0)
+    call mloimport("u",old,k,0,ifull,imax)
     ka=min(k,wl)
     old=suvb(:,ka,2)
-    call mloexport("v",old,k,0)
+    call mloexport("v",old,k,0,ifull,imax)
     old=old*(1.-wgt)+suvb(:,ka,2)*wgt
-    call mloimport("v",old,k,0) 
+    call mloimport("v",old,k,0,ifull,imax) 
   end do
 end if
 
 if (nud_sfh/=0) then
   old=sfh
-  call mloexport("eta",old,0,0)
+  call mloexport("eta",old,0,0,ifull,imax)
   old=old*(1.-wgt)+sfh*wgt
-  call mloimport("eta",old,0,0)
+  call mloimport("eta",old,0,0,ifull,imax)
 end if
       
 return

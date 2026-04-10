@@ -131,8 +131,8 @@ real, allocatable, save, dimension(:) :: res
 real, dimension(ifull) :: sssb, timelt, fraciceb
 real, dimension(ifull) :: old, new, delta
 real, dimension(ifull) :: dumd
-real, dimension(ifull,wlev) :: duma, dumb
-real, dimension(ifull,wlev,2) :: dumc
+real, dimension(ifull,ol) :: duma, dumb
+real, dimension(ifull,ol,2) :: dumc
 real x, c2, c3, c4, rat1, rat2
 real wgt
 integer mdays
@@ -415,7 +415,7 @@ if ( nmlo==0 ) then
 elseif ( ktau>0 ) then
     
   old = tgg(:,1)
-  call mloexpmelt(timelt)
+  call mloexpmelt(timelt,ifull,imax)
   timelt = min(timelt+0.01,tgg(:,1))
   new = tgg(:,1)*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
     
@@ -440,19 +440,19 @@ elseif ( ktau>0 ) then
       call ccmpi_abort(-1)
     end if
     wgt = dt/real(nud_hrs*3600)
-    call mloexport("temp",old,1,0)
+    call mloexport("temp",old,1,0,ifull,imax)
     delta = new - old
     do k = 1,kbotmlo
       old = 273.16 - wrtemp  
-      call mloexport("temp",old,k,0)
+      call mloexport("temp",old,k,0,ifull,imax)
       old = old + max( wgt*delta, 271.16-wrtemp-old )
-      call mloimport("temp",old,k,0)
+      call mloimport("temp",old,k,0,ifull,imax)
     end do  
   
   end if ! mbd_mlo ..else..
   
   do k = 1,ms
-    call mloexport("temp",tgg(:,k),k,0)
+    call mloexport("temp",tgg(:,k),k,0,ifull,imax)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
@@ -1074,8 +1074,8 @@ real timer_r, wgt
 real, dimension(nrhead) :: ahead
 real, dimension(ifull) :: oldsst, newsst, deltasst, timelt
 real, dimension(ifull) :: dumd
-real, dimension(ifull,wlev) :: duma, dumb
-real, dimension(ifull,wlev,2) :: dumc
+real, dimension(ifull,ol) :: duma, dumb
+real, dimension(ifull,ol,2) :: dumc
 real, dimension(:), allocatable :: axs_a, ays_a, azs_a
 real, dimension(:), allocatable :: bxs_a, bys_a, bzs_a
 real, dimension(:), allocatable :: wts_a
@@ -1355,7 +1355,7 @@ if ( nmlo==0 ) then
 elseif ( ktau>0 ) then
     
   oldsst = ssta
-  call mloexpmelt(timelt)
+  call mloexpmelt(timelt,ifull,imax)
   timelt = min(timelt+0.01,ssta)
   newsst = ssta*(1.-fraciceb(:)) + timelt(:)*fraciceb(:) - wrtemp
     
@@ -1381,19 +1381,19 @@ elseif ( ktau>0 ) then
     end if
 
     wgt = dt/real(nud_hrs*3600)
-    call mloexport("temp",oldsst,1,0)
+    call mloexport("temp",oldsst,1,0,ifull,imax)
     deltasst = newsst - oldsst
     do k = 1,kbotmlo
       oldsst = 273.16 - wrtemp  
-      call mloexport("temp",oldsst,k,0)
+      call mloexport("temp",oldsst,k,0,ifull,imax)
       newsst = oldsst + max( wgt*deltasst, 271.16-wrtemp-oldsst )
-      call mloimport("temp",newsst,k,0)
+      call mloimport("temp",newsst,k,0,ifull,imax)
     end do  
     
  end if ! mbd_mlo/=0 ..else..  
     
   do k = 1,ms
-    call mloexport("temp",tgg(:,k),k,0)
+    call mloexport("temp",tgg(:,k),k,0,ifull,imax)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    

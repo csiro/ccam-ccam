@@ -131,7 +131,7 @@ real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,11) :: duma
 real, dimension(ifull,6) :: ocndwn
-real, dimension(ifull,wlev,6) :: mlodwn
+real, dimension(ifull,ol,6) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,12) :: dumb
 real, dimension(ifull,ms,3) :: dumca
@@ -880,7 +880,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
   elsewhere
     depth = 0.  
   end where
-  call mloinit(ifull,ntiles,depth,f,0)
+  call mloinit(ifull,ntiles,ol,depth,f,0)
   call mlodyninit
 end if   ! if nmlo/=0 .and. abd(nmlo)<=9
 
@@ -2205,7 +2205,7 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
  ! ! e.g., patching Samoa
  ! do iq = 1,ifull
  !   if ( .not.land(iq) ) then  
- !     if ( mlodwn(iq,1,1)+wrtemp>400. .or. mlodwn(iq,1,2)>maxsal ) then
+ !     if ( mlodwn(iq,1,1)+wrtemp>400. .or. mlodwn(iq,1,2)>100. ) then
  !       write(6,*) "WARN: Repair MLO due to major failure at myid,iq=",myid,iq
  !       ocndwn(iq,2) = 0.
  !       mlodwn(iq,1,1) = 288. - wrtemp
@@ -2213,8 +2213,8 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
  !       mlodwn(iq,1,3) = 0.
  !       mlodwn(iq,1,4) = 0.
  !     end if
- !     do k = 2,wlev
- !       if ( mlodwn(iq,k,1)+wrtemp>400. .or. mlodwn(iq,k,2)>maxsal ) then
+ !     do k = 2,ol
+ !       if ( mlodwn(iq,k,1)+wrtemp>400. .or. mlodwn(iq,k,2)>100. ) then
  !         mlodwn(iq,k,1) = mlodwn(iq,k-1,1)
  !         mlodwn(iq,k,2) = mlodwn(iq,k-1,2)
  !         mlodwn(iq,k,3) = mlodwn(iq,k-1,3)
@@ -2231,41 +2231,34 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
  !     end do
  !   end if  
  ! end do  
- ! !mlodwn(1:ifull,1:wlev,2) = max(mlodwn(1:ifull,1:wlev,2),0.)
+ ! !mlodwn(1:ifull,1:ol,2) = max(mlodwn(1:ifull,1:ol,2),0.)
  ! !micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
 
   if ( .not.lrestart ) then
     ocndwn(:,2) = min( max( ocndwn(:,2), -20.), 20. )
-    mlodwn(1:ifull,1:wlev,3) = min( max( mlodwn(1:ifull,1:wlev,3), -5.), 5. )
-    mlodwn(1:ifull,1:wlev,4) = min( max( mlodwn(1:ifull,1:wlev,4), -5.), 5. )
+    mlodwn(1:ifull,1:ol,3) = min( max( mlodwn(1:ifull,1:ol,3), -5.), 5. )
+    mlodwn(1:ifull,1:ol,4) = min( max( mlodwn(1:ifull,1:ol,4), -5.), 5. )
   end if
   where ( .not.land(1:ifull) )
     fracice(1:ifull) = micdwn(1:ifull,5)
     sicedep(1:ifull) = micdwn(1:ifull,6)
     snowd(1:ifull) = micdwn(1:ifull,7)*1000.
   end where   
-  call mloload(mlodwn,ocndwn(:,2),micdwn,0)
-  call mloimport("utop",ocndwn(:,3),0,0)
-  call mloimport("vtop",ocndwn(:,4),0,0)
-  call mloimport("ubot",ocndwn(:,5),0,0)
-  call mloimport("vbot",ocndwn(:,6),0,0)
+  call mloload(mlodwn,ocndwn(:,2),micdwn,0,ifull,imax,ol)
+  call mloimport("utop",ocndwn(:,3),0,0,ifull,imax)
+  call mloimport("vtop",ocndwn(:,4),0,0,ifull,imax)
+  call mloimport("ubot",ocndwn(:,5),0,0,ifull,imax)
+  call mloimport("vbot",ocndwn(:,6),0,0,ifull,imax)
   deallocate(micdwn)
   do k = 1,ms
-    call mloexport("temp",tgg(:,k),k,0)
+    call mloexport("temp",tgg(:,k),k,0,ifull,imax)
     where ( tgg(:,k)<100. )
       tgg(:,k) = tgg(:,k) + wrtemp
     end where    
   end do
-  call mloexpice("tsurf",tggsn(:,1),0)
-  call mloexpice("temp0",tggsn(:,2),0)
-  call mloexpice("temp1",tggsn(:,3),0)
-  ! time averaging for turbulent mixing
-  if ( .not.lrestart ) then
-    if ( myid==0 ) then
-      write(6,*) "Reset EMA for mlo"  
-    end if    
-    call mlo_ema(dt,"reset")
-  end if
+  call mloexpice("tsurf",tggsn(:,1),0,ifull,imax)
+  call mloexpice("temp0",tggsn(:,2),0,ifull,imax)
+  call mloexpice("temp1",tggsn(:,3),0,ifull,imax)
 end if
       
 
@@ -2657,6 +2650,12 @@ else if ( nsib>=6 ) then
     if ( lncveg == 1 ) then
       write(6,*) "Reading soil data"
       call surfread(global2d(:,1),'soilt', netcdfid=ncidveg)
+      if ( minval(global2d(:,1))<-1. .or. maxval(global2d(:,1))>real(lncveg_numsoil) ) then
+        write(6,*) "ERROR: Soil class is out-of-range"
+        write(6,*) "lncveg_numsoil = ",lncveg_numsoil
+        write(6,*) "isoilm nx = ",minval(global2d(:,1)),maxval(global2d(:,1))
+        call ccmpi_abort(-1)
+      end if
       if ( .not.any( nint(global2d(:,1))==0 ) ) then
         write(6,*) "-> Patch soil data"  
         where( abs(global2d(:,1)+1.)<1.e-8 )
