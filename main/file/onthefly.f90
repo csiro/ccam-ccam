@@ -360,9 +360,7 @@ use sigs_m                                     ! Atmosphere sigma levels
 use soil_m                                     ! Soil and surface data
 use soilv_m                                    ! Soil parameters
 use stime_m                                    ! File date data
-use tkeeps, only : tke,eps,u_ema,v_ema,w_ema, &
-    thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,   &
-    tke_ema                                    ! TKE-EPS boundary layer
+use tkeeps, only : tke,eps                     ! TKE-EPS boundary layer
 use tracers_m                                  ! Tracer data
 use utilities                                  ! Grid utilities
 use vecsuv_m                                   ! Map to cartesian coordinates
@@ -2004,15 +2002,6 @@ if ( nested/=1 .and. nested/=3 ) then
     if ( all(tke(1:ifull,:)<1.e-20) ) tke(1:ifull,:)=1.5E-4
     call gethist4a('eps',eps,5)
     if  (all(eps(1:ifull,:)<1.e-20) ) eps(1:ifull,:)=1.E-7
-    call gethist4a('u_ema',u_ema,5)
-    call gethist4a('v_ema',v_ema,5)
-    call gethist4a('w_ema',w_ema,5)
-    call gethist4a('thetal_ema',thetal_ema,5)
-    call gethist4a('qv_ema',qv_ema,5)
-    call gethist4a('ql_ema',ql_ema,5)
-    call gethist4a('qf_ema',qf_ema,5)
-    call gethist4a('cf_ema',cf_ema,5)    
-    call gethist4a('tke_ema',tke_ema,5)
   end if
   if ( nested==0 ) then
     call gethist4a('rkm',rkmsave,5)  

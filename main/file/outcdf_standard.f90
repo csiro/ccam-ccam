@@ -592,7 +592,6 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'sigbot_gwd',sigbot_gwd)    
     call ccnf_put_attg(idnc,'stabmeth',stabmeth)
     call ccnf_put_attg(idnc,'tcalmeth',tcalmeth)
-    call ccnf_put_attg(idnc,'tke_timeave_length',tke_timeave_length)
     call ccnf_put_attg(idnc,'tkemeth',tkemeth)
     call ccnf_put_attg(idnc,'ugs_meth',ugs_meth)
     call ccnf_put_attg(idnc,'wg_prob',wg_prob)
@@ -822,9 +821,7 @@ use sflux_m                                      ! Surface flux routines
 use soil_m                                       ! Soil and surface data
 use soilsnow_m                                   ! Soil, snow and surface data
 use soilv_m                                      ! Soil parameters
-use tkeeps, only : tke,eps,u_ema,v_ema,w_ema,  & ! TKE-EPS boundary layer
-    thetal_ema,qv_ema,ql_ema,qf_ema,cf_ema,    &
-    tke_ema
+use tkeeps, only : tke,eps                       ! TKE-EPS boundary layer
 use tracermodule, only : writetrpm, co2em        ! Tracer routines
 use tracers_m                                    ! Tracer data
 use uclem_ctrl, only : uclem_saved,            & ! Urban
@@ -2203,26 +2200,6 @@ if ( iarch==1 ) then
         call attrib(idnc,dima,asize,'tke','Turbulent Kinetic Energy','m2 s-2',0.,65.,any_m,point_m,amean_m,cptype)
         call attrib(idnc,dima,asize,'eps','Eddy dissipation rate','m2 s-3',0.,6.5,any_m,point_m,amean_m,cptype)
       end if
-      if ( itype==-1 ) then
-        call attrib(idnc,dima,asize,'u_ema','x-component exponentially weighted moving average wind','m s',-150.,150.,any_m, &
-                    tmean_m,amean_m,cptype)
-        call attrib(idnc,dima,asize,'v_ema','y-component exponentially weighted moving average wind','m s',-150.,150.,any_m, &
-                    tmean_m,amean_m,cptype)
-        call attrib(idnc,dima,asize,'w_ema','Exponentially weighted moving average vertical wind','m s',-150.,150.,any_m,    &
-                    tmean_m,amean_m,cptype)
-        call attrib(idnc,dima,asize,'thetal_ema','Exponentially weighted moving average thetal','K',100.,425.,any_m, &
-                    tmean_m,amean_m,cptype)
-        call attrib(idnc,dima,asize,'qv_ema','Exponentially weighted moving average qv','kg kg-1',0.,.065,any_m, &
-                    tmean_m,amean_m,cptype)
-        call attrib(idnc,dima,asize,'ql_ema','Exponentially weighted moving average ql','kg kg-1',0.,.065,any_m, &
-                    tmean_m,amean_m,cptype)
-        call attrib(idnc,dima,asize,'qf_ema','Exponentially weighted moving average qf','kg kg-1',0.,.065,any_m, &
-                    tmean_m,amean_m,cptype)
-        call attrib(idnc,dima,asize,'cf_ema','Exponentially weighted moving average cf','m2 s-2',0.,65.,any_m, &
-                    tmean_m,amean_m,cptype)
-        call attrib(idnc,dima,asize,'tke_ema','Exponentially weighted moving average te','frac',0.,1.,any_m, &
-                    tmean_m,amean_m,cptype)
-      end if    
     end if
     if ( itype==-1 ) then
       call attrib(idnc,dima,asize,'rkm','Diffusion coefficient for momentum','m2 s-1',0.,1.,any_m,point_m,amean_m,cptype)
@@ -3673,17 +3650,6 @@ if ( nvmix==6 .or. nvmix==9 ) then
   if ( diaglevel_pbl>5 .or. itype==-1 ) then
     call histwrt(tke,'tke',idnc,iarch,local,.true.)
     call histwrt(eps,'eps',idnc,iarch,local,.true.)
-  end if  
-  if ( itype==-1 ) then
-    call histwrt(u_ema,'u_ema',idnc,iarch,local,.true.)
-    call histwrt(v_ema,'v_ema',idnc,iarch,local,.true.)
-    call histwrt(w_ema,'w_ema',idnc,iarch,local,.true.)
-    call histwrt(thetal_ema,'thetal_ema',idnc,iarch,local,.true.)
-    call histwrt(qv_ema,'qv_ema',idnc,iarch,local,.true.)
-    call histwrt(ql_ema,'ql_ema',idnc,iarch,local,.true.)
-    call histwrt(qf_ema,'qf_ema',idnc,iarch,local,.true.)
-    call histwrt(cf_ema,'cf_ema',idnc,iarch,local,.true.)
-    call histwrt(tke_ema,'tke_ema',idnc,iarch,local,.true.)
   end if  
 end if
 if ( itype==-1 ) then
