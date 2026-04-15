@@ -135,7 +135,6 @@ integer cable_climate                ! depreciated namelist options
 integer surf_windfarm, adv_precip    ! depreciated namelist options
 integer lin_aerosolmode              ! depreciated namelist options
 integer ateb_soilunder, mlo_limitsal ! depreciated namelist options
-integer tke_timeave_length           ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: dumr, gosig_in
 real, dimension(8) :: temparray
@@ -147,6 +146,7 @@ real ateb_ac_smooth, ateb_ac_copmax  ! depreciated namelist options
 real ateb_alpha, cable_version       ! depreciated namelist options 
 real zimax, mlomaxuv                 ! depreciated namelist options
 real plume_alpha, ocnlap             ! depreciated namelist options
+real tke_timeave_length              ! depreciated namelist options
 real mlo_timeave_length              ! depreciated namelist options
 logical procformat, unlimitedhist    ! depreciated namelist options
 character(len=1024) nmlfile
@@ -231,11 +231,11 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
-    tke_timeave_length,plume_alpha,tcalmeth,                      &
+    plume_alpha,tcalmeth,                                         &
     wg_tau,wg_prob,ugs_meth,                                      & ! wind gusts
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
-    tkecduv,zimax                                                   ! depreciated
+    tkecduv,zimax,tke_timeave_length                                ! depreciated
 ! land, urban and carbon namelist
 namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
@@ -269,10 +269,11 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     mloiceadv,minsal,maxsal,mprecond,mlomfix,                     &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
-    mlo_timeave_length,kemaxdt,freshwaterlake_fix,                &
+    kemaxdt,freshwaterlake_fix,                                   &
     rivermd,basinmd,rivercoeff,                                   & ! River
     wt_transport,                                                 & ! Ground water
-    calcinloop,mlomaxuv,ocnlap,kmlo,mlo_limitsal                    ! Depreciated
+    calcinloop,mlomaxuv,ocnlap,kmlo,mlo_limitsal,                 & ! Depreciated
+    mlo_timeave_length                                              ! Depreciated
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
 
