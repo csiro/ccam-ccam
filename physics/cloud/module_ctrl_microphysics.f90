@@ -886,7 +886,7 @@ do tile = 1,ntiles
       qr_L(:) = qrg(iq,:)
       qs_l(:) = qsng(iq,:)  
       qg_l(:) = qgrg(iq,:)
-      w_l(:) = wvel(iq,:)
+      w_l(:) = max( wvel(iq,:), 1.e-10 )
    
       call hailstone_driver( t_l(:), zg_l(:), zs(iq), pa_l(:),     &
                              rhoa_l(:), qv_l(:), qf_l(:), ql_l(:), &    
