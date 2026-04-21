@@ -167,6 +167,10 @@ sdmx(:) = maxval(abs(sdot), 2)
 nits(:) = int(1.+sdmx(:)/2.)
 nvadh_inv_pass(:) = 0.5/real(nits(:)) ! use - for nvadu
 call vadvtvd(tx,ux,vx,nvadh_inv_pass,nits)
+if ( any(tx(1:ifull,1:kl)<75.) .or. any(tx(1:ifull,1:kl)>450.) ) then
+  write(6,*) "WARN: Out-of-range detected in tx on myid=",myid," at vadvtvd(1)"
+  write(6,*) "minval,maxval ",minval(tx(1:ifull,1:kl)),maxval(tx(1:ifull,1:kl))
+end if
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv1'
   write (6,"('tx_a',9f8.2)")   tx(idjd,:)
@@ -278,6 +282,11 @@ do k = 1,kl
   tx(1:ifull,k)   = tx(1:ifull,k)   - dd(1:ifull,k)*factr(k)
 end do
 
+if ( any(tx(1:ifull,1:kl)<75.) .or. any(tx(1:ifull,1:kl)>450.) ) then
+  write(6,*) "WARN: Out-of-range detected in tx on myid=",myid," at ints"
+  write(6,*) "minval,maxval ",minval(tx(1:ifull,1:kl)),maxval(tx(1:ifull,1:kl))
+end if
+    
 !------------------------------------------------------------------
 if ( nmaxpr==1 .and. nproc==1 ) then
   write(6,*) 'pslx_3p & dd after advection'
@@ -448,6 +457,10 @@ endif
 
 call vadvtvd(tx,ux,vx,nvadh_inv_pass,nits)
 
+if ( any(tx(1:ifull,1:kl)<75.) .or. any(tx(1:ifull,1:kl)>450.) ) then
+  write(6,*) "WARN: Out-of-range detected in tx on myid=",myid," at vadvtvd(2)"
+  write(6,*) "minval,maxval ",minval(tx(1:ifull,1:kl)),maxval(tx(1:ifull,1:kl))
+end if
 
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,*) 'in upglobal after vadv2'
