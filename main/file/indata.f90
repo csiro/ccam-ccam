@@ -2650,12 +2650,12 @@ else if ( nsib>=6 ) then
     if ( lncveg == 1 ) then
       write(6,*) "Reading soil data"
       call surfread(global2d(:,1),'soilt', netcdfid=ncidveg)
-      if ( minval(global2d(:,1))<-1. .or. maxval(global2d(:,1))>real(lncveg_numsoil) ) then
-        write(6,*) "ERROR: Soil class is out-of-range"
-        write(6,*) "lncveg_numsoil = ",lncveg_numsoil
-        write(6,*) "isoilm nx = ",minval(global2d(:,1)),maxval(global2d(:,1))
-        call ccmpi_abort(-1)
-      end if
+      !if ( minval(global2d(:,1))<-1. .or. maxval(global2d(:,1))>9. ) then
+      !  write(6,*) "ERROR: Soil class is out-of-range"
+      !  write(6,*) "lncveg_numsoil = ",lncveg_numsoil
+      !  write(6,*) "isoilm nx = ",minval(global2d(:,1)),maxval(global2d(:,1))
+      !  call ccmpi_abort(-1)
+      !end if
       if ( .not.any( nint(global2d(:,1))==0 ) ) then
         write(6,*) "-> Patch soil data"  
         where( abs(global2d(:,1)+1.)<1.e-8 )

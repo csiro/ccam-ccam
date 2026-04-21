@@ -333,6 +333,10 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'fg_ave',lname,'W m-2',-3000.,3000.,any_m,tmean_m,amean_m,float_m)
       lname = 'Height of Boundary Layer'
       call attrib(fncid,sdim,ssize,'pblh',lname,'m',0.,13000.,any_m,point_m,amean_m,short_m)
+      
+      lname = 'Updraft helicity (2-5km)'
+      call attrib(fncid,sdim,ssize,'uh',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,short_m)
+      
       if ( .not.ml_freq ) then
         lname = 'Convective Available Potential Energy'
         call attrib(fncid,sdim,ssize,'CAPE',lname,'J kg-1',0.,20000.,any_m,point_m,amean_m,short_m)
@@ -568,6 +572,9 @@ if ( mod(ktau,tbave10)==0 ) then
     outdata = real(freqstore(:,13))
     call histwrt(outdata,"fg_ave",fncid,fiarch,local,.true.)
     call histwrt(pblh,"pblh",fncid,fiarch,local,.true.)
+    
+    call histwrt(updraft_helicity,'uh',fncid,fiarch,local,.true.)    
+    
     if ( .not.ml_freq ) then
       call histwrt(cape_d,"CAPE",fncid,fiarch,local,.true.)
       call histwrt(cin_d,"CIN",fncid,fiarch,local,.true.)

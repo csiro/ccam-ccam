@@ -930,15 +930,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
         temcc = tem(iq,k)-273.15  
         
         es1d =1000.*svp1*exp( svp2*temcc/(tem(iq,k)-svp3) )  !--- RY89 Eq(2.17)
-        qswz =ep2*es1d/max(prez(iq,k)-es1d,0.1)
+        qswz =ep2*es1d/max(prez(iq,k)-es1d,1.e-3)
  
         if (tem(iq,k) .lt. 233.15 ) then
           es1d=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
-          qsiz=ep2*es1d/max(prez(iq,k)-es1d,0.1)
+          qsiz=ep2*es1d/max(prez(iq,k)-es1d,1.e-03)
           qswz=qsiz
         else if (tem(iq,k) .lt. 273.15 ) then
           es1d=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
-          qsiz=ep2*es1d/max(prez(iq,k)-es1d,0.1)
+          qsiz=ep2*es1d/max(prez(iq,k)-es1d,1.e-3)
         else
           qsiz=qswz
         endif
@@ -958,7 +958,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
         
         theiz = thz(iq,k)+(xlvocp*qvz(iq,k)-xlfocp*qiz(iq,k))/tothz(iq,k)
         
-        rs0 = ep2*1000.*svp1/(prez(iq,k)-1000.*svp1)
+        rs0 = ep2*1000.*svp1/max(prez(iq,k)-1000.*svp1,1.e-3)
         visc = viscmu(iq,k)/rho(iq,k)
         xka = axka*viscmu(iq,k)
         diffwv = adiffwv*tem(iq,k)**1.81/prez(iq,k)
@@ -1717,7 +1717,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
             !===================================================================
             es=1000.*svp1*exp( svp2*temcc/(tem(iq,k)-svp3) )
-            qswz=ep2*es/max(prez(iq,k)-es,0.1)
+            qswz=ep2*es/max(prez(iq,k)-es,1.e-3)
             qsiz=qswz
             qvsbar=qswz
             ! tmp1=-(npraut+npsacw+npracw)
@@ -1850,10 +1850,10 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             temcc=tem(iq,k)-273.15
 
             es=1000.*svp1*exp( svp2*temcc/(tem(iq,k)-svp3) )
-            qswz=ep2*es/max(prez(iq,k)-es,0.1)
+            qswz=ep2*es/max(prez(iq,k)-es,1.e-3)
             if (tem(iq,k) < 273.15 ) then
               es=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
-              qsiz=ep2*es/max(prez(iq,k)-es,0.1)
+              qsiz=ep2*es/max(prez(iq,k)-es,1.e-3)
               if (temcc < -40.) qswz=qsiz
             else
               qsiz=qswz
@@ -1924,11 +1924,11 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
               tem(iq,k)=thz(iq,k)*tothz(iq,k)
               temcc=tem(iq,k)-273.15
               es=1000.*svp1*exp( svp2*temcc/(tem(iq,k)-svp3) )
-              qswz=ep2*es/max(prez(iq,k)-es,0.1)
+              qswz=ep2*es/max(prez(iq,k)-es,1.e-3)
 
               if (tem(iq,k) < 273.15 ) then
                 es=1000.*svp1*exp( 21.8745584*(tem(iq,k)-273.16)/(tem(iq,k)-7.66) )
-                qsiz=ep2*es/max(prez(iq,k)-es,0.1)
+                qsiz=ep2*es/max(prez(iq,k)-es,1.e-3)
                 if (temcc < -40.0) qswz=qsiz
               else
                 qsiz=qswz
@@ -2088,7 +2088,7 @@ PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
   ! qsat=episp0k/prez*  &
   ! exp( svp2*(tem-273.15)/(tem-svp3) )
     es=1000.*svp1*exp( svp2*(tem-svpt0)/(tem-svp3) )
-    qsat=ep2*es/max(prez-es,0.1)
+    qsat=ep2*es/max(prez-es,1.e-3)
   else
     qsat=episp0k/prez*  &
     exp( 21.8745584*(tem-273.15)/(tem-7.66) )
@@ -2136,14 +2136,14 @@ PURE SUBROUTINE satadj(qvz, qlz, qiz, prez, theiz, thz, tothz,      &
       ! qswz(k)=episp0k/prez(k)*  &
       ! exp( svp2*denom1*(tsat-273.15) )
       es=1000.*svp1*exp( svp2*denom1*(tsat-svpt0) )
-      qswz=ep2*es/max(prez-es,0.1)
+      qswz=ep2*es/max(prez-es,1.e-3)
       if (tem < 233.15 ) then
         es=1000.*svp1*exp( 21.8745584*denom2*(tsat-273.15) )
-        qsiz=ep2*es/max(prez-es,0.1)
+        qsiz=ep2*es/max(prez-es,1.e-3)
         qswz=qsiz
       else if (tem < 273.15) then
         es=1000.*svp1*exp( 21.8745584*denom2*(tsat-273.15) )
-        qsiz=ep2*es/max(prez-es,0.1)
+        qsiz=ep2*es/max(prez-es,1.e-3)
       else
         qsiz=qswz
       endif

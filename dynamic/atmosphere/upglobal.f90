@@ -58,7 +58,6 @@ integer ii, intsch, iq, jj, k, kk
 integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
-integer, dimension(max(naero,ntrac,5)) :: nfield
 real, dimension(ifull) :: nvadh_inv_pass
 real, dimension(:,:,:), allocatable :: bb
 real, dimension(:,:,:), allocatable :: uvw

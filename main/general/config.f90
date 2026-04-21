@@ -136,7 +136,7 @@ integer surf_windfarm, adv_precip    ! depreciated namelist options
 integer lin_aerosolmode              ! depreciated namelist options
 integer ateb_soilunder, mlo_limitsal ! depreciated namelist options
 real, dimension(:,:), allocatable, save :: dums
-real, dimension(:), allocatable, save :: dumr, gosig_in
+real, dimension(:), allocatable, save :: gosig_in
 real, dimension(8) :: temparray
 real, dimension(1) :: gtemparray
 real targetlev, dsx, pwatr_l, pwatr, tscale

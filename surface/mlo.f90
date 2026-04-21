@@ -1186,7 +1186,7 @@ do step = 1,nsteps
   
   !solve using thomas algorithm
   call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
-   
+ 
   !limit k & eps
   do ii = 1,wlev
     do iqw = 1,imax
