@@ -114,10 +114,13 @@ real, dimension(imax,kl) :: l_rliq, l_rice, l_cliq, l_cice, lp
 real, dimension(imax,kl) :: l_rliq_in, l_rice_in, l_rsno_in
 real, dimension(imax,kl) :: lppfevap, lppfmelt, lppfprec, lppfsnow, lppfsubl
 real, dimension(imax,kl) :: lpplambs, lppmaccr, lppmrate, lppqfsedice, lpprfreeze, lpprscav
+real, dimension(ifull,kl) :: qlg_rem, qfg_rem
+real, dimension(ifull,kl) :: qrg_rem, qsng_rem, qgrg_rem
+real, dimension(ifull,kl) :: clcon, cdrop
 real, dimension(ifull,kl) :: fluxr, fluxm, fluxf, fluxi, fluxs, fluxg
 real, dimension(ifull,kl) :: fevap, fsubl, fauto, fcoll, faccr, faccf
 real, dimension(ifull,kl) :: vi
-real, dimension(ifull,kl) :: dz, rhoa, cdrop
+real, dimension(ifull,kl) :: dz, rhoa
 
 #ifdef GPU
 real, dimension(ifull,0:kl) :: zlevv
@@ -137,9 +140,6 @@ real, dimension(ifull,kl) :: zpraut, zpracw, zprevp, zpgfr
 real, dimension(ifull,kl) :: zpvapor, zpclw, zpladj, zpcli
 real, dimension(ifull,kl) :: zpimlt, zpihom, zpidw, zpiadj
 real, dimension(ifull,kl) :: zqschg
-real, dimension(ifull,kl) :: qlg_rem, qfg_rem
-real, dimension(ifull,kl) :: qrg_rem, qsng_rem, qgrg_rem
-real, dimension(ifull,kl) :: zqsng_rem
 real, dimension(ifull) :: pptrain, pptsnow, pptice
 #else
 real, dimension(imax,0:kl) :: zlevv
@@ -159,11 +159,9 @@ real, dimension(imax,kl) :: zpraut, zpracw, zprevp, zpgfr
 real, dimension(imax,kl) :: zpvapor, zpclw, zpladj, zpcli
 real, dimension(imax,kl) :: zpimlt, zpihom, zpidw, zpiadj
 real, dimension(imax,kl) :: zqschg
-real, dimension(imax,kl) :: qlg_rem, qfg_rem
-real, dimension(imax,kl) :: qrg_rem, qsng_rem, qgrg_rem
-real, dimension(imax,kl) :: zqsng_rem
 real, dimension(imax) :: pptrain, pptsnow, pptice
 #endif
+real, dimension(ifull,kl) :: zqsng_rem
 real tdt, zmaxlintime
 real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
@@ -187,6 +185,14 @@ do tile = 1,ntiles
   cdrop(js:je,:) = lcdrop(:,:)
 end do
 
+do tile = 1,ntiles
+  js = (tile-1)*imax + 1
+  je = tile*imax
+  ! Calculate convective cloud fraction
+  call convectivecloudfrac(lclcon,kbsav(js:je),ktsav(js:je),condc(js:je),acon,bcon)
+  clcon(js:je,:) = lclcon(:,:)
+end do
+
 
 !----------------------------------------------------------------------------
 ! Update cloud fraction
@@ -198,20 +204,18 @@ do tile = 1,ntiles
   idjd_t = mod(idjd-1,imax) + 1
   mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
-  ! Calculate convective cloud fraction
-  call convectivecloudfrac(lclcon,kbsav(js:je),ktsav(js:je),condc(js:je),acon,bcon)
-  
   ! limit maximum cloud water visible to microphysics
-  qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
-  qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
-  qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
-  qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)   
+  qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+  qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+  qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+  qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
   
   lqg = qg(js:je,:)
   lqlg = qlg(js:je,:)
   lqfg = qfg(js:je,:)
   lt = t(js:je,:)
   ldpsldt = dpsldt(js:je,:)
+  lclcon = clcon(js:je,:)
   lstratcloud = stratcloud(js:je,:)
   lrad_tend = rad_tend(js:je,:)
   ltrb_tend = trb_tend(js:je,:)
@@ -245,8 +249,8 @@ do tile = 1,ntiles
   trb_qend(js:je,:) = 0.
   
   ! reapply any remaining qlg_rem or qfg_rem
-  qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
-  qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
+  qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
+  qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
   
 end do
 
@@ -264,16 +268,16 @@ select case ( interp_ncloud(ldr,ncloud) )
       mydiag_t = ((idjd-1)/imax==tile-1).AND.mydiag
 
       ! limit maximum cloud water visible to microphysics
-      qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
-      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
-      qrg_rem(1:imax,:) = max( qrg(js:je,:)-qlg_max, 0. )
-      qrg(js:je,:) = qrg(js:je,:) - qrg_rem(1:imax,:)
-      qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
-      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)   
-      qsng_rem(1:imax,:) = max( qsng(js:je,:)-qfg_max, 0. )
-      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(1:imax,:)   
-      qgrg_rem(1:imax,:) = max( qgrg(js:je,:)-qfg_max, 0. )
-      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(1:imax,:)   
+      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlg_max, 0. )
+      qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
+      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
+      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
+      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
+      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
+      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)   
       
       lgfrac   = gfrac(js:je,:)
       lrfrac   = rfrac(js:je,:)
@@ -324,11 +328,11 @@ select case ( interp_ncloud(ldr,ncloud) )
       stras_rrai(js:je,:) = 0.
       
       ! reapply any remaining qlg_rem or qfg_rem
-      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
-      qrg(js:je,:) = qrg(js:je,:) + qrg_rem(1:imax,:)
-      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
-      qsng(js:je,:) = qsng(js:je,:) + qsng_rem(1:imax,:)
-      qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(1:imax,:)
+      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
+      qrg(js:je,:) = qrg(js:je,:) + qrg_rem(js:je,:)
+      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
+      qsng(js:je,:) = qsng(js:je,:) + qsng_rem(js:je,:)
+      qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(js:je,:)
       
       ! backwards compatible data for aerosols
       if ( abs(iaero)>=2 ) then
@@ -512,24 +516,24 @@ select case ( interp_ncloud(ldr,ncloud) )
       end do
       
       ! limit maximum cloud water visible to microphysics
-      qlg_rem(1:imax,:) = max( qlg(js:je,:)-qlg_max, 0. )
-      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(1:imax,:)
-      qrg_rem(1:imax,:) = max( qrg(js:je,:)-qlg_max, 0. )
-      qrg(js:je,:) = qrg(js:je,:) - qrg_rem(1:imax,:)
-      qfg_rem(1:imax,:) = max( qfg(js:je,:)-qfg_max, 0. )
-      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(1:imax,:)   
-      qsng_rem(1:imax,:) = max( qsng(js:je,:)-qfg_max, 0. )
-      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(1:imax,:)   
-      qgrg_rem(1:imax,:) = max( qgrg(js:je,:)-qfg_max, 0. )
-      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(1:imax,:)   
+      qlg_rem(js:je,:) = max( qlg(js:je,:)-qlg_max, 0. )
+      qlg(js:je,:) = qlg(js:je,:) - qlg_rem(js:je,:)
+      qrg_rem(js:je,:) = max( qrg(js:je,:)-qlg_max, 0. )
+      qrg(js:je,:) = qrg(js:je,:) - qrg_rem(js:je,:)
+      qfg_rem(js:je,:) = max( qfg(js:je,:)-qfg_max, 0. )
+      qfg(js:je,:) = qfg(js:je,:) - qfg_rem(js:je,:)   
+      qsng_rem(js:je,:) = max( qsng(js:je,:)-qfg_max, 0. )
+      qsng(js:je,:) = qsng(js:je,:) - qsng_rem(js:je,:)   
+      qgrg_rem(js:je,:) = max( qgrg(js:je,:)-qfg_max, 0. )
+      qgrg(js:je,:) = qgrg(js:je,:) - qgrg_rem(js:je,:)   
       
       zqg(1:imax,:) = qg(js:je,:)
       zqlg(1:imax,:) = qlg(js:je,:)
       zqrg(1:imax,:) = qrg(js:je,:)
       zqfg(1:imax,:) = qfg(js:je,:)
       zqsng(1:imax,:) = qsng(js:je,:) + qgrg(js:je,:)
-      zqsng_rem(1:imax,:) = max( zqsng(1:imax,:) - qfg_max, 0. )
-      zqsng(1:imax,:) = zqsng(1:imax,:) - zqsng_rem(1:imax,:)
+      zqsng_rem(js:je,:) = max( zqsng(1:imax,:) - qfg_max, 0. )
+      zqsng(1:imax,:) = zqsng(1:imax,:) - zqsng_rem(js:je,:)
       
       ! ----------------
       do k = 1,kl
@@ -580,7 +584,7 @@ select case ( interp_ncloud(ldr,ncloud) )
 
       
       t(js:je,:) = thz(1:imax,:)*tothz(1:imax,:)
-      zqsng(1:imax,:) = zqsng(1:imax,:) + zqsng_rem(1:imax,:)      
+      zqsng(1:imax,:) = zqsng(1:imax,:) + zqsng_rem(js:je,:)      
 
       !unpack data from imax to ifull.
 
@@ -592,11 +596,11 @@ select case ( interp_ncloud(ldr,ncloud) )
       qgrg(js:je,:) = zqsng(1:imax,:)*riz(1:imax,:)        ! qg mixing ration (graupel)
 
       ! reapply any remaining qlg_rem or qfg_rem
-      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(1:imax,:)
-      qrg(js:je,:) = qrg(js:je,:) + qrg_rem(1:imax,:)
-      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(1:imax,:)
-      qsng(js:je,:) = qsng(js:je,:) + qsng_rem(1:imax,:)
-      qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(1:imax,:)
+      qlg(js:je,:) = qlg(js:je,:) + qlg_rem(js:je,:)
+      qrg(js:je,:) = qrg(js:je,:) + qrg_rem(js:je,:)
+      qfg(js:je,:) = qfg(js:je,:) + qfg_rem(js:je,:)
+      qsng(js:je,:) = qsng(js:je,:) + qsng_rem(js:je,:)
+      qgrg(js:je,:) = qgrg(js:je,:) + qgrg_rem(js:je,:)
       
       where ( qrg(js:je,:)>0. )
          rfrac(js:je,:) = 1.
@@ -814,12 +818,12 @@ call cloud_simulator
 
 !----------------------------------------------------------------------------  
 ! update hailcast for hail radius
-call calc_hailcast(rhoa)
+call calc_hailcast
 
 return
 end subroutine ctrl_microphysics
 
-subroutine calc_hailcast(rhoa)
+subroutine calc_hailcast
 
 use arrays_m
 use const_phys
@@ -834,7 +838,6 @@ use vvel_m
 implicit none
 
 integer tile, js, je, iq, k, i, n
-real, dimension(:,:), intent(in) :: rhoa
 real dh1_l, dh2_l, dh3_l, dh4_l, dh5_l
 real, dimension(kl) :: t_l, zg_l, pa_l, rhoa_l, w_l
 real, dimension(kl) :: qv_l, ql_l, qf_l, qr_l, qs_l, qg_l
@@ -846,6 +849,11 @@ do tile = 1,ntiles
 
   do iq = js,je    
     test(iq) = .false.    
+    dhail1(iq) = 0.
+    dhail2(iq) = 0.
+    dhail3(iq) = 0.
+    dhail4(iq) = 0.
+    dhail5(iq) = 0.    
   end do
 
   do k = 1,kl
@@ -879,14 +887,14 @@ do tile = 1,ntiles
         zg_l(k) = zg_l(k-1) + (bet(k)*t(iq,k)+betm(k)*t(iq,k-1))/grav
       end do
       pa_l(:) = sig(:)*ps(iq) ! total pressure
-      rhoa_l(:) = rhoa(iq,:)
+      rhoa_l(:) = pa_l(:)/(rdry*t_l(:))
       qv_l(:) = qg(iq,:)
       ql_l(:) = qlg(iq,:)
       qf_l(:) = qfg(iq,:)
       qr_L(:) = qrg(iq,:)
       qs_l(:) = qsng(iq,:)  
       qg_l(:) = qgrg(iq,:)
-      w_l(:) = max( wvel(iq,:), 1.e-10 )
+      w_l(:) = max(wvel(iq,:), 1.e-10)
    
       call hailstone_driver( t_l(:), zg_l(:), zs(iq), pa_l(:),     &
                              rhoa_l(:), qv_l(:), qf_l(:), ql_l(:), &    
@@ -900,14 +908,6 @@ do tile = 1,ntiles
       dhail4(iq) = dh4_l/1000.
       dhail5(iq) = dh5_l/1000.
       
-    else  
-    
-      dhail1(iq) = 0.
-      dhail2(iq) = 0.
-      dhail3(iq) = 0.
-      dhail4(iq) = 0.
-      dhail5(iq) = 0.
-       
     end if ! wdur > 900.    
     
   end do ! i    
