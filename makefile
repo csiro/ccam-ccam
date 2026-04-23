@@ -198,34 +198,34 @@ INT8FLAG = -s integer64
 DEBUGFLAG = -g -R b -K trap=fp
 endif
 
-# MAUI compiler options
-ifeq ($(MAUI),yes)
-MPIFC = ftn
-MPIF77 = ftn
-FC = ftn
-NCFLAG = -I $(NETCDF_ROOT)/include
-ifeq ($(NOMPI3),yes)
-MPIFLAG =
-else
-MPIFLAG = -Dusempi3 -Dshare_ifullg
-endif
-FOPT = -O3
-FHOST = -xSKYLAKE-AVX512
-FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG)
-FOVERRIDE = -qoverride-limits
-ZMM =
-IPFLAG =
-IPOFLAG =
-VTHRESH = -vec-threshold0
-PPFLAG90 = -fpp
-PPFLAG77 = -fpp
-PPFLAG90F = -fpp
-REAL8FLAG = -r8
-INT8FLAG = -i8
-DEBUGFLAG = -check all -debug all -fpe0
-endif
+## MAUI compiler options
+#ifeq ($(MAUI),yes)
+#MPIFC = ftn
+#MPIF77 = ftn
+#FC = ftn
+#NCFLAG = -I $(NETCDF_ROOT)/include
+#ifeq ($(NOMPI3),yes)
+#MPIFLAG =
+#else
+#MPIFLAG = -Dusempi3 -Dshare_ifullg
+#endif
+#FOPT = -O3
+#FHOST = -xSKYLAKE-AVX512
+#FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG)
+#FOVERRIDE = -qoverride-limits
+#ZMM =
+#IPFLAG =
+#IPOFLAG =
+#VTHRESH = -vec-threshold0
+#PPFLAG90 = -fpp
+#PPFLAG77 = -fpp
+#PPFLAG90F = -fpp
+#REAL8FLAG = -r8
+#INT8FLAG = -i8
+#DEBUGFLAG = -check all -debug all -fpe0
+#endif
 
-# llvm compiler options
+# FLAG compiler options
 ifeq ($(FLANG),yes)
 MPIFC = mpifort
 MPIF77 = mpif77
@@ -254,21 +254,6 @@ INT8FLAG = -i8
 endif
 
 
-# IBM compiler options
-#ifeq ($(IBM),yes)
-#FC = xlf
-#MPIFLAG = -Dusempi3 -Dshare_ifullg
-#FFLAGS = -O3 -qstrict -qarch=pwr8 -qtune=pwr8 -qextname $(MPIFLAG)
-#LIBS = -L $(NETCDF_ROOT)/lib -L /opt/ibmhpc/pecurrent/mpich/xlf/lib64 -lnetcdf -lnetcdff -lmpi -lmpigf
-#PPFLAG90 = -qsuffix=ccp=f90
-#PPFLAG77 = -qsuffix=ccp=f
-#PPFLAG90F = qsuffix=ccp=F90
-#REAL8FLAG = -qrealsize=8
-#INT8FLAG = -qintsize=8
-#DEBUGFLAG = -q
-#endif
-
-
 # Options for building with VAMPIRTrace
 ifeq ($(VT),yes)
 FC = vtfort -vt:fc mpif90 -vt:inst manual
@@ -285,12 +270,12 @@ ifeq ($(I8R8),yes)
 FFLAGS += $(REAL8FLAG) $(INT8FLAG) -Di8r8
 endif
 
-# Use Netcdf3
+# Use Netcdf3 instead of default (usually NetCDF4)
 ifeq ($(NETCDF3),yes)
 FFLAGS += -Dusenc3
 endif
 
-#MPI 
+#MPI f90 interface
 ifeq ($(MPIMOD),yes)
 FFLAGS += -Dusempimod
 # The following fails on Cray due to a possible bug in the f08 module

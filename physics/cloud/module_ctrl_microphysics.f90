@@ -883,9 +883,7 @@ do tile = 1,ntiles
       t_l(:) = t(iq,:)   ! air temperature
       ! calculate geopotential height
       zg_l(1) = bet(1)*t(iq,1)/grav
-      do k = 2,kl
-        zg_l(k) = zg_l(k-1) + (bet(k)*t(iq,k)+betm(k)*t(iq,k-1))/grav
-      end do
+      zg_l(2:kl) = zg_l(1:kl-1) + (bet(2:kl)*t(iq,2:kl)+betm(2:kl)*t(iq,1:kl-1))/grav
       pa_l(:) = sig(:)*ps(iq) ! total pressure
       rhoa_l(:) = pa_l(:)/(rdry*t_l(:))
       qv_l(:) = qg(iq,:)
@@ -894,7 +892,7 @@ do tile = 1,ntiles
       qr_L(:) = qrg(iq,:)
       qs_l(:) = qsng(iq,:)  
       qg_l(:) = qgrg(iq,:)
-      w_l(:) = max(wvel(iq,:), 1.e-10)
+      w_l(:) = wvel(iq,:)
    
       call hailstone_driver( t_l(:), zg_l(:), zs(iq), pa_l(:),     &
                              rhoa_l(:), qv_l(:), qf_l(:), ql_l(:), &    

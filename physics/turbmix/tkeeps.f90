@@ -156,7 +156,9 @@ subroutine tkemix(kmo,theta,qvg,qlg,qfg,ni,stratcloud,ua,va,zi,fg,eg,cduv,      
                   bf_o,mixdepth_o,mixind_o,rad_o,                                      &
                   i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,                      &
                   imax,kl,ol)
-                  
+
+use mlo_ctrl, only : mlo_updatekm
+
 implicit none
 
 integer, intent(in) :: imax, kl, ol, mode
@@ -212,6 +214,7 @@ real, dimension(imax), intent(inout) :: i_u, i_v
 real, dimension(imax), intent(in) :: fracice
 real, dimension(imax), intent(in) :: icefg_a, imass, cd_ice, cdbot_ice
 real, dimension(imax,ol), intent(inout) :: w_tke, w_eps
+real, dimension(imax,ol) :: km_o, ks_o, gammas_o
 logical, dimension(imax), intent(in) :: land
 
 cm12 = 1./sqrt(cm0)
@@ -358,21 +361,26 @@ do kcount = 1,mcount
                      stratcloud,ddts,cm34,imax,kl)
     
   if ( mode==2 .or. mode==3 ) then
+    ! ocean TKE and eps
+    call mlo_updatekm(km_o,ks_o,gammas_o,ddts,0,                                          &
+                      deptho_depth,deptho_depth_hl,deptho_dz,deptho_dz_hl,ibot,.true.,    &
+                      w_t,w_s,w_u,w_v,ubot_o,vbot_o,utop_o,vtop_o,dwdx_o,dwdy_o,wu0_o,    &
+                      wv0_o,zo_o,bf_o,mixdepth_o,mixind_o,wt0_o,rad_o,w_tke,w_eps,imax,ol)      
+      
     ! atmosphere + ocean version  
     call update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,       & ! atmosphere
                         ua,va,tlup,qvup,qlup,qfup,niup,cfup,    & ! atmosphere
                         fg,eg,rhos,ustar,cduv,tke,eps,          & ! atmosphere
                         mflx,fzzh,idzp,idzm,dz_hl,rhoa(:,1),    & ! atmosphere
                         dz_fl(:,1),                             & ! atmosphere
-                        deptho_dz,deptho_dz_hl,deptho_depth,    & ! ocean
-                        deptho_depth_hl,rad_o,w_t,w_s,w_u,w_v,  & ! ocean
-                        ubot_o,vbot_o,utop_o,vtop_o,            & ! ocean
-                        dwdx_o,dwdy_o,cd_water,cdh_water,       & ! ocean
+                        deptho_dz,deptho_dz_hl,                 & ! ocean
+                        rad_o,w_t,w_s,w_u,w_v,                  & ! ocean
+                        cd_water,cdh_water,                     & ! ocean
                         cdbot_water,wt0rad_o,wt0melt_o,wt0eg_o, & ! ocean
                         icefg_a,wt0fb_o,ws0_o,ws0subsurf_o,     & ! ocean
                         i_u,i_v,imass,fracice,cd_ice,cdbot_ice, & ! sea-ice
-                        ibot,land,wu0_o,wv0_o,zo_o,bf_o,        & ! ocean/ice
-                        mixdepth_o,mixind_o,wt0_o,w_tke,w_eps,  & ! ocean/ice
+                        ibot,land,wu0_o,wv0_o,wt0_o,            & ! ocean
+                        km_o,ks_o,gammas_o,                     & ! ocean
                         sigkap,ddts,imax,kl,ol)  
   else
     ! atmosphere only version  
@@ -1045,21 +1053,19 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,ni,stratcloud,       &
                           ua,va,tlup,qvup,qlup,qfup,niup,cfup,    &
                           fg,eg,rhos,ustar,cduv,tke,eps,          &
                           mflx,fzzh,idzp,idzm,dz_hl,rhoa1,        &
-                          dz_fl1,deptho_dz,deptho_dz_hl,          &
-                          deptho_depth,deptho_depth_hl,           &
+                          dz_fl1,                                 &
+                          deptho_dz,deptho_dz_hl,                 &
                           rad_o,w_t,w_s,w_u,w_v,                  &
-                          w_ubot,w_vbot,w_utop,w_vtop,            &
-                          w_dwdx,w_dwdy,                          & 
                           cd_water,                               &
                           cdh_water,cdbot_water,wt0rad_o,         &
                           wt0melt_o,wt0eg_o,icefg_a,wt0fb_o,      &
                           ws0_o,ws0subsurf_o,i_u,i_v,imass,       &
                           fracice,cd_ice,cdbot_ice,ibot,land,     &
-                          wu0_o,wv0_o,wzo_o,bf_o,                 &
-                          mixdepth_o,mixind_o,wt0_o,              &
-                          tke_o,eps_o,sigkap,ddts,imax,kl,ol)
+                          wu0_o,wv0_o,wt0_o,                      &
+                          km_o,ks_o,gammas_o,                     &
+                          sigkap,ddts,imax,kl,ol)
 
-use mlo_ctrl, only : mlo_updatekm, mlocheck, minsfc, cp0, wrtemp, wrtrho
+use mlo_ctrl, only : mlocheck, minsfc, cp0, wrtemp, wrtrho
 
 implicit none
 
@@ -1078,18 +1084,19 @@ real, dimension(imax,2:kl) :: qq, aa_a
 real, dimension(imax), intent(in) :: cd_water, cdh_water, cdbot_water, wt0rad_o, wt0melt_o
 real, dimension(imax,ol), intent(in) :: deptho_dz
 real, dimension(imax,2:ol), intent(in) :: deptho_dz_hl
-real, dimension(imax,ol), intent(in) :: deptho_depth
-real, dimension(imax,ol+1), intent(in) :: deptho_depth_hl
+!real, dimension(imax,ol), intent(in) :: deptho_depth
+!real, dimension(imax,ol+1), intent(in) :: deptho_depth_hl
 real, dimension(imax,ol), intent(in) :: rad_o
 real, dimension(imax) :: wt0eg_o
 real, dimension(imax,ol), intent(inout) :: w_t, w_s, w_u, w_v
-real, dimension(imax,ol), intent(in) :: w_dwdx, w_dwdy
-real, dimension(imax), intent(inout) :: w_ubot, w_vbot, w_utop, w_vtop
-real, dimension(imax,ol) :: km_o, ks_o, rhs_o
+!real, dimension(imax,ol), intent(in) :: w_dwdx, w_dwdy
+!real, dimension(imax), intent(inout) :: w_ubot, w_vbot, w_utop, w_vtop
+real, dimension(imax,ol), intent(in) :: km_o, ks_o
+real, dimension(imax,ol) :: rhs_o
 real, dimension(imax,ol) :: bb_o, cc_o
 real, dimension(imax,2:ol) :: aa_o
 real, dimension(imax,ol) :: dd1_o, dd2_o
-real, dimension(imax,ol) :: gammas_o
+real, dimension(imax,ol), intent(in) :: gammas_o
 real, dimension(imax) :: bb_i
 real, dimension(imax) :: dd1_i, dd2_i
 real, dimension(imax), intent(inout) :: fg, eg, ustar
@@ -1104,11 +1111,12 @@ real, dimension(kl), intent(in) :: sigkap
 real, intent(in) :: ddts
 real deltazo
 real, dimension(imax), intent(inout) :: wu0_o, wv0_o
-real, dimension(imax), intent(in) :: wzo_o
-real, dimension(imax), intent(in) :: bf_o, mixdepth_o
+!real, dimension(imax), intent(in) :: wzo_o
+!real, dimension(imax), intent(in) :: bf_o
+!real, dimension(imax), intent(in) mixdepth_o
 real, dimension(imax), intent(inout) :: wt0_o
-real, dimension(imax,ol), intent(inout) :: tke_o, eps_o
-integer, dimension(imax), intent(in) :: mixind_o
+!real, dimension(imax,ol), intent(inout) :: tke_o, eps_o
+!integer, dimension(imax), intent(in) :: mixind_o
 logical, dimension(imax), intent(in) :: land
 
 call mlocheck("Before coupled-mixing",water_temp=w_t,water_sal=w_s,water_u=w_u, &
@@ -1159,9 +1167,9 @@ end do
 
 
 ! calculate eddy diffusivity for ocean
-km_o = 0.
-ks_o = 0.
-gammas_o = 0.
+!km_o = 0.
+!ks_o = 0.
+!gammas_o = 0.
 aa_o = 0.
 bb_o = 1.
 cc_o = 0.
@@ -1169,13 +1177,13 @@ dd1_o = 0.
 dd2_o = 0.
 rhs_o = 0.
 
-! update ocean eddy diffusivity possibly including prognostic tke and eps
-call mlo_updatekm(km_o,ks_o,gammas_o,ddts,0,                                          &
-                  deptho_depth,deptho_depth_hl,deptho_dz,deptho_dz_hl,ibot,.true.,    &
-                  w_t,w_s,w_u,w_v,                                                    &
-                  w_ubot,w_vbot,w_utop,w_vtop,w_dwdx,w_dwdy,                          &
-                  wu0_o,wv0_o,wzo_o,bf_o,mixdepth_o,mixind_o,                         &
-                  wt0_o,rad_o,tke_o,eps_o,imax,ol)
+!! update ocean eddy diffusivity possibly including prognostic tke and eps
+!call mlo_updatekm(km_o,ks_o,gammas_o,ddts,0,                                          &
+!                  deptho_depth,deptho_depth_hl,deptho_dz,deptho_dz_hl,ibot,.true.,    &
+!                  w_t,w_s,w_u,w_v,                                                    &
+!                  w_ubot,w_vbot,w_utop,w_vtop,w_dwdx,w_dwdy,                          &
+!                  wu0_o,wv0_o,wzo_o,bf_o,mixdepth_o,mixind_o,                         &
+!                  wt0_o,rad_o,tke_o,eps_o,imax,ol)
 
 do iq = 1,imax
   if ( deptho_dz(iq,1)>1.e-4 ) then
@@ -1891,10 +1899,10 @@ do k = 2,kl-1
 end do
 do iq = 1,imax
   aad(iq,kl) = aa_a(iq,kl)
-  bbd(iq,kl) = bb_a(iq,kl)  + f_ai(iq)*f_ia(iq) ! due to u v^T matrix
-  ccd(iq,kl) = f_ao(iq)     + f_ai(iq)*f_io(iq) ! due to u v^T matrix
-  aad(iq,kl+1) = f_oa(iq)   + f_oi(iq)*f_ia(iq) ! due to u v^T matrix
-  bbd(iq,kl+1) = bb_o(iq,1) + f_oi(iq)*f_io(iq) ! due to u v^T matrix
+  bbd(iq,kl) = bb_a(iq,kl)  + f_ai(iq)*f_ia(iq) ! due to u v^T
+  ccd(iq,kl) = f_ao(iq)     + f_ai(iq)*f_io(iq) ! due to u v^T
+  aad(iq,kl+1) = f_oa(iq)   + f_oi(iq)*f_ia(iq) ! due to u v^T
+  bbd(iq,kl+1) = bb_o(iq,1) + f_oi(iq)*f_io(iq) ! due to u v^T
   ccd(iq,kl+1) = cc_o(iq,1)
 end do
 do k = 2,ol-1
@@ -1909,7 +1917,7 @@ do iq = 1,imax
   bbd(iq,kl+ol) = bb_o(iq,ol)
   ccd(iq,kl+ol) = 0.
   aad(iq,kl+ol+1) = 0.
-  bbd(iq,kl+ol+1) = bb_i(iq) + 1. ! note +1. due to u v^T matrix
+  bbd(iq,kl+ol+1) = bb_i(iq) + 1. ! note +1. due to u v^T
 end do
 
 ! Construct u
@@ -1933,6 +1941,7 @@ call thomas(yyu(:,1:kl+ol+1),aad(:,2:kl+ol+1),bbd(:,1:kl+ol+1),ccd(:,1:kl+ol),uu
 
 ! tmpu = v^t q
 do iq = 1,imax
+  !tmpu(iq) = vv(iq,kl)*yyu(iq,kl) + vv(iq,kl+1)*yyu(iq,kl+1) + vv(iq,kl+ol+1)*yyu(iq,kl+ol+1)  
   tmpu(iq) = (-f_ia(iq))*yyu(iq,kl) + (-f_io(iq))*yyu(iq,kl+1) + (1.)*yyu(iq,kl+ol+1)
 end do
 

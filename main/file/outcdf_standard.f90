@@ -1840,11 +1840,11 @@ if ( iarch==1 ) then
 
     
     lname = 'Updraft helicity (2-5km)'
-    call attrib(idnc,dimj,jsize,'uh',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,cptype)
+    call attrib(idnc,dimj,jsize,'helicity',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,cptype)
     lname = 'Maximum updraft helicity (2-5km)'
-    call attrib(idnc,dimj,jsize,'uhmax',lname,'m2 s-2',-520.,520.,any_m,max_m,amean_m,cptype)
+    call attrib(idnc,dimj,jsize,'helicitymax',lname,'m2 s-2',-520.,520.,any_m,max_m,amean_m,cptype)
     lname = 'Minimum updraft helicity (2-5km)'
-    call attrib(idnc,dimj,jsize,'uhmin',lname,'m2 s-2',-520.,520.,any_m,min_m,amean_m,cptype)
+    call attrib(idnc,dimj,jsize,'helicitymin',lname,'m2 s-2',-520.,520.,any_m,min_m,amean_m,cptype)
     
         
     ! STANDARD 3D VARIABLES -------------------------------------

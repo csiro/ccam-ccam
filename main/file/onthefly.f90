@@ -99,19 +99,19 @@ integer, save :: maxarchi
 integer ierx, idvtime
 integer kdate_rsav, ktime_rsav
 integer, dimension(nihead) :: nahead
-integer, dimension(:), intent(out) :: isflag
+integer, dimension(:), intent(inout) :: isflag
 integer(kind=8) mtimer
 real(kind=8) timer
-real, dimension(:,:,:), intent(out) :: mlodwn
-real, dimension(:,:,:), intent(out) :: xtgdwn
-real, dimension(:,:), intent(out) :: wb, wbice, tgg
-real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
-real, dimension(:,:), intent(out) :: ocndwn
-real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
-real, dimension(:,:), intent(out) :: ni, nr, ns
-real, dimension(:), intent(out) :: psl, zss, tss, fracice, snowd
-real, dimension(:), intent(out) :: sicedep, ssdnn, snage
-real, dimension(:), intent(out) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
+real, dimension(:,:,:), intent(inout) :: mlodwn
+real, dimension(:,:,:), intent(inout) :: xtgdwn
+real, dimension(:,:), intent(inout) :: wb, wbice, tgg
+real, dimension(:,:), intent(inout) :: tggsn, smass, ssdn
+real, dimension(:,:), intent(inout) :: ocndwn
+real, dimension(:,:), intent(inout) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
+real, dimension(:,:), intent(inout) :: ni, nr, ns
+real, dimension(:), intent(inout) :: psl, zss, tss, fracice, snowd
+real, dimension(:), intent(inout) :: sicedep, ssdnn, snage
+real, dimension(:), intent(inout) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
 real, dimension(nrhead) :: ahead
 real, dimension(11) :: rdum
 logical, save :: firstcall = .true.
@@ -376,21 +376,21 @@ integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, retopo_test, ktest
 integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac, n
-integer, dimension(:), intent(out) :: isflag
+integer, dimension(:), intent(inout) :: isflag
 integer, dimension(11+3*ms) :: ierc
 integer, dimension(12), save :: iers
 integer, dimension(2) :: shsize
 real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
-real, dimension(:,:,:), intent(out) :: mlodwn
-real, dimension(:,:,:), intent(out) :: xtgdwn
-real, dimension(:,:), intent(out) :: ocndwn
-real, dimension(:,:), intent(out) :: wb, wbice, tgg
-real, dimension(:,:), intent(out) :: tggsn, smass, ssdn
-real, dimension(:,:), intent(out) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
-real, dimension(:,:), intent(out) :: ni, nr, ns
-real, dimension(:), intent(out) :: psl, zss, tss, fracice
-real, dimension(:), intent(out) :: snowd, sicedep, ssdnn, snage
-real, dimension(:), intent(out) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
+real, dimension(:,:,:), intent(inout) :: mlodwn
+real, dimension(:,:,:), intent(inout) :: xtgdwn
+real, dimension(:,:), intent(inout) :: ocndwn
+real, dimension(:,:), intent(inout) :: wb, wbice, tgg
+real, dimension(:,:), intent(inout) :: tggsn, smass, ssdn
+real, dimension(:,:), intent(inout) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
+real, dimension(:,:), intent(inout) :: ni, nr, ns
+real, dimension(:), intent(inout) :: psl, zss, tss, fracice
+real, dimension(:), intent(inout) :: snowd, sicedep, ssdnn, snage
+real, dimension(:), intent(inout) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
 real, dimension(ifull) :: duma
 real, dimension(ifull,6) :: udum6

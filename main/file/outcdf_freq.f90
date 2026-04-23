@@ -335,7 +335,7 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'pblh',lname,'m',0.,13000.,any_m,point_m,amean_m,short_m)
       
       lname = 'Updraft helicity (2-5km)'
-      call attrib(fncid,sdim,ssize,'uh',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,short_m)
+      call attrib(fncid,sdim,ssize,'helicity',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,short_m)
       
       if ( .not.ml_freq ) then
         lname = 'Convective Available Potential Energy'

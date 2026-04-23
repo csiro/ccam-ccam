@@ -446,8 +446,8 @@ CONTAINS
 !!!! See Adams-Selin and Ziegler 2016, MWR for further documentation.
 !!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE hailstone_driver ( TCA, h1d, ht, PA, rho1d,&
-                                RA, qi1d,qc1d,qr1d,qs1d,qg1d,   &
+  SUBROUTINE hailstone_driver ( TCA, h1d, ht, PA, rho1d,            &
+                                RA, qi1d,qc1d,qr1d,qs1d,qg1d,       &
                                 VUU, wdur,                          &
                                 nz,dhail1,dhail2,dhail3,dhail4,     &
                                 dhail5                             )
@@ -1169,13 +1169,14 @@ CONTAINS
              !MEAN CLOUD DROPLET RADIUS, ASSUME CLOUD DROPLET CONC OF 3E8 M-3 (300 CM-3)
              DC = (0.74*XW / (3.14159*1000.*3.E8))**0.33333333 * 1.E6 !MICRONS
              !!! FIND THE STOKES NUMBER  (rasmussen heymsfield 1985)
-             NS = 2*VT*100.*(DC*1.E-4)**2. / (9*ANU*D*50)  !need hail radius in cm
+             NS = 2.*VT*100.*(DC*1.E-4)**2. / (9*ANU*D*50)  !need hail radius in cm
              !!! FIND IMPACT VELOCITY (rasmussen heymsfield 1985)
-             W = LOG10(NS)
+             W = 0.
              IF (RE.GT.200) THEN
                 IF (NS.LT.0.1) THEN
                    VIMP = 0.0
                 ELSEIF ((NS.GE.0.1).AND.(NS.LE.10)) THEN
+                   W = LOG10(NS) 
                    VIMP = (0.356 + 0.4738*W - 0.1233*W**2. &
                            -0.1618*W**3. + 0.0807*W**4.)*VT
                 ELSEIF (NS.GT.10) THEN
@@ -1185,6 +1186,7 @@ CONTAINS
                 IF (NS.LT.0.1) THEN
                    VIMP = 0.0
                 ELSEIF ((NS.GE.0.1).AND.(NS.LE.10)) THEN
+                   W = LOG10(NS) 
                    VIMP = (0.3272 + 0.4907*W - 0.09452*W**2. &
                            -0.1906*W**3. + 0.07105*W**4.)*VT
                 ELSEIF (NS.GT.10) THEN
@@ -1194,6 +1196,7 @@ CONTAINS
                 IF (NS.LT.0.1) THEN
                    VIMP = 0.0
                 ELSEIF ((NS.GE.0.1).AND.(NS.LE.10)) THEN
+                   W = LOG10(NS) 
                    VIMP = (0.2927 + 0.5085*W - 0.03453*W**2. &
                            -0.2184*W**3. + 0.03595*W**4.)*VT
                 ELSEIF (NS.GT.10) THEN
@@ -1203,6 +1206,7 @@ CONTAINS
                 IF (NS.LT.0.4) THEN
                    VIMP = 0.0
                 ELSEIF ((NS.GE.0.4).AND.(NS.LE.10)) THEN
+                   W = LOG10(NS)
                    VIMP = (0.1701 + 0.7246*W + 0.2257*W**2. &
                            -1.13*W**3. + 0.5756*W**4.)*VT
                 ELSEIF (NS.GT.10) THEN

@@ -582,11 +582,11 @@ if ( first ) then
     end if
     
     lname = 'Updraft helicity (2-5km)'
-    call attrib(fncid,sdim,ssize,'uh',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,short_m)
+    call attrib(fncid,sdim,ssize,'helicity',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,short_m)
     lname = 'Maximum updraft helicity (2-5km)'
-    call attrib(fncid,sdim,ssize,'uhmax',lname,'m2 s-2',-520.,520.,any_m,max_m,amean_m,short_m)
+    call attrib(fncid,sdim,ssize,'helicitymax',lname,'m2 s-2',-520.,520.,any_m,max_m,amean_m,short_m)
     lname = 'Minimum updraft helicity (2-5km)'
-    call attrib(fncid,sdim,ssize,'uhmin',lname,'m2 s-2',-520.,520.,any_m,min_m,amean_m,short_m)
+    call attrib(fncid,sdim,ssize,'helicitymin',lname,'m2 s-2',-520.,520.,any_m,min_m,amean_m,short_m)
 
     lname = 'Hail average diameter'
     call attrib(fncid,sdim,ssize,'hailradave',lname,'m',0.,1.3e-2,any_m,tmean_m,amean_m,float_m)
