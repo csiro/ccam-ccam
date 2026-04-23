@@ -129,11 +129,11 @@ integer, dimension(1) :: nstart, ncount
 integer, dimension(ifull) :: dumf
 real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
-real, dimension(ifull,11) :: duma
+real, dimension(ifull,5) :: duma
 real, dimension(ifull,6) :: ocndwn
 real, dimension(ifull,ol,6) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
-real, dimension(ifull,kl,12) :: dumb
+real, dimension(ifull,kl,4) :: dumb
 real, dimension(ifull,ms,3) :: dumca
 real, dimension(ifull,3,3) :: dumi
 real, dimension(ifull,3) :: dums
@@ -963,11 +963,9 @@ if ( io_in<4 ) then
   zss = zs(1:ifull)
   if ( abs(io_in)==1 ) then
     call onthefly(0,kdate,ktime,psl,zss,tss,sicedep,fracice,t,u,v, &
-                  qg,tgg,wb,wbice,snowd,qfg,qlg,qrg,qsng,qgrg,     &
-                  ni,nr,ns,                                        &
+                  qg,tgg,wb,wbice,snowd,                           &
                   tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,      &
-                  ocndwn,xtgdwn,dhail1,dhail2,dhail3,dhail4,       &
-                  dhail5,wdur)
+                  ocndwn,xtgdwn)
     ! UPDATE BIOSPHERE DATA (nsib)
     if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
       call loadtile
@@ -1515,11 +1513,8 @@ if ( .not.lrestart ) then
       end if
       call onthefly(2,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),duma(:,4),    &
                     duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),            &
-                    dumb(:,:,4),tgg,wb,wbice,snowd,dumb(:,:,5),dumb(:,:,6),   &
-                    dumb(:,:,7),dumb(:,:,8),dumb(:,:,9),dumb(:,:,10),         &
-                    dumb(:,:,11),dumb(:,:,12),tggsn,smass,ssdn,               &
-                    ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn,duma(:,6),        &
-                    duma(:,7),duma(:,8),duma(:,9),duma(:,10),duma(:,11))
+                    dumb(:,:,4),tgg,wb,wbice,snowd,tggsn,smass,ssdn,          &
+                    ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
       ! UPDATE BIOSPHERE DATA (nsib)
       if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
         if ( myid==0 ) write(6,*) 'Replacing CABLE and CASA data'

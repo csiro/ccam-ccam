@@ -573,7 +573,7 @@ if ( mod(ktau,tbave10)==0 ) then
     call histwrt(outdata,"fg_ave",fncid,fiarch,local,.true.)
     call histwrt(pblh,"pblh",fncid,fiarch,local,.true.)
     
-    call histwrt(updraft_helicity,'uh',fncid,fiarch,local,.true.)    
+    call histwrt(updraft_helicity,'helicity',fncid,fiarch,local,.true.)    
     
     if ( .not.ml_freq ) then
       call histwrt(cape_d,"CAPE",fncid,fiarch,local,.true.)

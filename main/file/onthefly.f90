@@ -77,9 +77,8 @@ contains
 ! *****************************************************************************
 ! Main interface for input data that reads grid metadata
     
-subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice,snowd,qfg,  &
-                    qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn, &
-                    dhail1,dhail2,dhail3,dhail4,dhail5,wdur)
+subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
+                    snowd,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
 use cc_mpi           ! CC MPI routines
 use darcdf_m         ! Netcdf data
@@ -107,11 +106,9 @@ real, dimension(:,:,:), intent(inout) :: xtgdwn
 real, dimension(:,:), intent(inout) :: wb, wbice, tgg
 real, dimension(:,:), intent(inout) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(inout) :: ocndwn
-real, dimension(:,:), intent(inout) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
-real, dimension(:,:), intent(inout) :: ni, nr, ns
+real, dimension(:,:), intent(inout) :: t, u, v, qg
 real, dimension(:), intent(inout) :: psl, zss, tss, fracice, snowd
 real, dimension(:), intent(inout) :: sicedep, ssdnn, snage
-real, dimension(:), intent(inout) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
 real, dimension(nrhead) :: ahead
 real, dimension(11) :: rdum
 logical, save :: firstcall = .true.
@@ -303,8 +300,7 @@ end if
 ! the output array
 
 call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                   snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag, &
-                   mlodwn,ocndwn,xtgdwn,dhail1,dhail2,dhail3,dhail4,dhail5,wdur)
+                   snowd,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
 
 if ( myid==0 ) write(6,*) "Leaving onthefly"
 
@@ -322,8 +318,7 @@ end subroutine onthefly
 ! by many processes.  In the case of restart files, then there is
 ! no need for message passing.
 subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                         snowd,qfg,qlg,qrg,qsng,qgrg,ni,nr,ns,tggsn,smass,ssdn,ssdnn,snage,isflag, &
-                         mlodwn,ocndwn,xtgdwn,dhail1,dhail2,dhail3,dhail4,dhail5,wdur)
+                         snowd,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
 use cc_mpi                                     ! CC MPI routines
@@ -337,6 +332,7 @@ use infile                                     ! Input file routines
 use kuocom_m                                   ! JLM convection
 use latlong_m                                  ! Lat/lon coordinates
 use latltoij_m                                 ! Lat/Lon to cubic ij conversion
+use liqwpar_m                                  ! Cloud water mixing ratios
 use mlodynamics                                ! Ocean dynamics
 use morepbl_m                                  ! Additional boundary layer diagnostics
 use newmpar_m                                  ! Grid parameters
@@ -386,11 +382,9 @@ real, dimension(:,:,:), intent(inout) :: xtgdwn
 real, dimension(:,:), intent(inout) :: ocndwn
 real, dimension(:,:), intent(inout) :: wb, wbice, tgg
 real, dimension(:,:), intent(inout) :: tggsn, smass, ssdn
-real, dimension(:,:), intent(inout) :: t, u, v, qg, qfg, qlg, qrg, qsng, qgrg
-real, dimension(:,:), intent(inout) :: ni, nr, ns
+real, dimension(:,:), intent(inout) :: t, u, v, qg
 real, dimension(:), intent(inout) :: psl, zss, tss, fracice
 real, dimension(:), intent(inout) :: snowd, sicedep, ssdnn, snage
-real, dimension(:), intent(inout) :: dhail1, dhail2, dhail3, dhail4, dhail5, wdur
 real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
 real, dimension(ifull) :: duma
 real, dimension(ifull,6) :: udum6

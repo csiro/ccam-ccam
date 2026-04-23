@@ -577,7 +577,8 @@ CONTAINS
     !Find the cloud base for end-of-algorithm purposes.
     KBAS=nz
     !KFZL=nz
-    DO k=1,nz
+    !DO k=1,nz
+    DO k=2,nz ! MJT suggestion to avoid bug with h1d(k-1)
          cwitot = qi1d(k) + qc1d(k)
          !No longer include graupel in in-cloud ice amounts
          !RIA(k) = qi1d(k) + qs1d(k) + qg1d(k)

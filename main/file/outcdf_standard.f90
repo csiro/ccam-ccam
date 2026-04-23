@@ -3325,9 +3325,9 @@ if ( ngas>0 ) then
 endif  ! (ngasc>0)
 
 
-call histwrt(updraft_helicity,'uh',idnc,iarch,local,lwrite)
-call histwrt(updraft_helicity_max,'uhmax',idnc,iarch,local,lwrite)
-call histwrt(updraft_helicity_min,'uhmin',idnc,iarch,local,lwrite)
+call histwrt(updraft_helicity,'helicity',idnc,iarch,local,lwrite)
+call histwrt(updraft_helicity_max,'helicitymax',idnc,iarch,local,lwrite)
+call histwrt(updraft_helicity_min,'helicitymin',idnc,iarch,local,lwrite)
 
 
 ! **************************************************************

@@ -1148,9 +1148,9 @@ if ( mod(ktau,tbave)==0 ) then
     call histwrt(outdata,'v10m_max',fncid,fiarch,local,.true.)
   end if
   
-  call histwrt(updraft_helicity,'uh',fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,37),'uhmax',fncid,fiarch,local,.true.)
-  call histwrt(freqstore(:,38),'uhmin',fncid,fiarch,local,.true.)
+  call histwrt(updraft_helicity,'helicity',fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,37),'helicitymax',fncid,fiarch,local,.true.)
+  call histwrt(freqstore(:,38),'helicitymin',fncid,fiarch,local,.true.)
 
   outdata = real(freqstore(:,44))
   call histwrt(outdata,'hailradave',fncid,fiarch,local,.true.)  
