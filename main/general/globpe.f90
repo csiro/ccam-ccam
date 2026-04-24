@@ -426,19 +426,16 @@ do ktau = 1,ntau   ! ****** start of main time loop
     ! NESTING ---------------------------------------------------------------
     ! nesting now after mass fixers
     if ( mspec==1 ) then
+      call START_LOG(nestin_begin)
       if ( mbd/=0 .or. (mbd_mlo/=0.and.namip==0) ) then
         ! scale-selective filter
-        call START_LOG(nestin_begin)
         call nestinb
-        call END_LOG(nestin_end)
-        call nantest("after nesting",1,ifull,"nesting")        
       else if ( nbd/=0 ) then
         ! Newtonian relaxiation
-        call START_LOG(nestin_begin)
         call davies
-        call END_LOG(nestin_end)
-        call nantest("after nesting",1,ifull,"nesting")        
       end if
+      call END_LOG(nestin_end)
+      call nantest("after nesting",1,ifull,"nesting")
     end if
     
       
@@ -2372,6 +2369,51 @@ if ( qtot_check ) then
     posmin(1) = iq2iqg(posmin(1))
     posmax(1) = iq2iqg(posmax(1))
     write(6,*) "minloc,maxloc ",posmin,posmax
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(dhail1(js:je)/=dhail1(js:je)) ) then
+    write(6,*) "ERROR: NaN detected in dhail1 on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if  
+  if ( any(dhail1(js:je)<1.e-8) .or. any(dhail1(js:je)>1.) ) then
+    write(6,*) "ERROR: Out-of-range detected in dhail1 on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(dhail1(js:je)),maxval(dhail1(js:je))
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(dhail2(js:je)/=dhail2(js:je)) ) then
+    write(6,*) "ERROR: NaN detected in dhail2 on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if  
+  if ( any(dhail2(js:je)<1.e-8) .or. any(dhail2(js:je)>1.) ) then
+    write(6,*) "ERROR: Out-of-range detected in dhail1 on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(dhail2(js:je)),maxval(dhail2(js:je))
+    call ccmpi_abort(-1) 
+  end if  
+  if ( any(dhail3(js:je)/=dhail3(js:je)) ) then
+    write(6,*) "ERROR: NaN detected in dhail3 on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if  
+  if ( any(dhail3(js:je)<1.e-8) .or. any(dhail3(js:je)>1.) ) then
+    write(6,*) "ERROR: Out-of-range detected in dhail3 on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(dhail3(js:je)),maxval(dhail3(js:je))
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(dhail4(js:je)/=dhail4(js:je)) ) then
+    write(6,*) "ERROR: NaN detected in dhail4 on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if  
+  if ( any(dhail4(js:je)<1.e-8) .or. any(dhail4(js:je)>1.) ) then
+    write(6,*) "ERROR: Out-of-range detected in dhail4 on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(dhail4(js:je)),maxval(dhail4(js:je))
+    call ccmpi_abort(-1) 
+  end if
+  if ( any(dhail5(js:je)/=dhail5(js:je)) ) then
+    write(6,*) "ERROR: NaN detected in dhail5 on myid=",myid," at ",trim(message)
+    call ccmpi_abort(-1)    
+  end if  
+  if ( any(dhail5(js:je)<1.e-8) .or. any(dhail5(js:je)>1.) ) then
+    write(6,*) "ERROR: Out-of-range detected in dhail5 on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(dhail5(js:je)),maxval(dhail5(js:je))
     call ccmpi_abort(-1) 
   end if
 end if

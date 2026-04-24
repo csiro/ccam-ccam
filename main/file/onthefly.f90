@@ -1619,21 +1619,21 @@ if ( nested/=1 .and. nested/=3 ) then
   !--------------------------------------------------
   ! Read MLO sea-ice data
   if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-    if ( .not.allocated(micdwn) ) allocate( micdwn(ifull,10) )
-    micdwn(1:ifull,1) = 270.
-    micdwn(1:ifull,2) = 270.
-    micdwn(1:ifull,3) = 270.
-    micdwn(1:ifull,4) = 270.
-    micdwn(1:ifull,5) = fracice(1:ifull) ! read above with nudging arrays
-    micdwn(1:ifull,6) = sicedep(1:ifull) ! read above with nudging arrays
-    micdwn(1:ifull,7) = snowd(1:ifull)*1.e-3
-    micdwn(1:ifull,8) = 0.  ! sto
-    micdwn(1:ifull,9) = 0.  ! uic
-    micdwn(1:ifull,10) = 0. ! vic
     if ( mloice_found ) then
-      call fillhist4('tggsn',micdwn(:,1:4),land_a,fill_land)
-      call fillhist1('sto',micdwn(:,8),land_a,fill_land)
-      call fillhistuv1o('uic','vic',micdwn(:,9),micdwn(:,10),land_a,fill_land)
+      call fillhist4('tggsn',udum6(:,1:4),land_a,fill_land)
+      call mloimpice("tsurf",udum6(:,1),0,ifull,imax)
+      call mloimpice("temp0",udum6(:,2),0,ifull,imax)
+      call mloimpice("temp1",udum6(:,3),0,ifull,imax)
+      call mloimpice("temp2",udum6(:,4),0,ifull,imax)
+      call mloimpice("fracice",fracice,0,ifull,imax)
+      call mloimpice("thick",sicedep,0,ifull,imax)
+      duma = snowd(1:ifull)*1.e-3
+      call mloimpice("snowd",duma,0,ifull,imax)
+      call fillhist1('sto',duma,land_a,fill_land)
+      call mloimpice("store",duma,0,ifull,imax)
+      call fillhistuv1o('uic','vic',udum6(:,1),udum6(:,2),land_a,fill_land)
+      call mloimpice("u",udum6(:,1),0,ifull,imax)
+      call mloimpice("v",udum6(:,2),0,ifull,imax)      
     end if
   end if
   
@@ -1931,11 +1931,17 @@ if ( nested/=1 .and. nested/=3 ) then
 
   ! k-eps data
   if ( nested==0 .and. abs(nmlo)>=1 .and. abs(nmlo)<=9 ) then
-    mlodwn(:,:,5:6) = 0.
+    oo = 0.
     if ( mlo2_found ) then
       if ( oclosure==1 ) then
-        call fillhist4o('tkeo',mlodwn(:,:,5),land_3d,fill_floor,ocndwn(:,1))  
-        call fillhist4o('epso',mlodwn(:,:,6),land_3d,fill_floor,ocndwn(:,1))
+        call fillhist4o('tkeo',oo,land_3d,fill_floor,ocndwn(:,1))  
+        do k = 1,ol
+          call mloimpturb("tke",oo(:,k),k,0,ifull,imax)
+        end do  
+        call fillhist4o('epso',oo,land_3d,fill_floor,ocndwn(:,1))
+        do k = 1,ol
+          call mloimpturb("eps",oo(:,k),k,0,ifull,imax)
+        end do  
       end if  
     end if  
   end if
@@ -2057,12 +2063,16 @@ if ( nested/=1 .and. nested/=3 ) then
       end if
     end if
     if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
-      ocndwn(:,3:6) = 0.
+      duma = 0.
       if ( lrestart ) then
-        call gethist1('old1_uotop',ocndwn(:,3))
-        call gethist1('old1_votop',ocndwn(:,4))
-        call gethist1('old1_uobot',ocndwn(:,5))
-        call gethist1('old1_vobot',ocndwn(:,6))
+        call gethist1('old1_uotop',duma)
+        call mloimport("utop",duma,0,0,ifull,imax)
+        call gethist1('old1_votop',duma)
+        call mloimport("vtop",duma,0,0,ifull,imax)
+        call gethist1('old1_uobot',duma)
+        call mloimport("ubot",duma,0,0,ifull,imax)
+        call gethist1('old1_vobot',duma)
+        call mloimport("vbot",duma,0,0,ifull,imax)
       end if  
     end if    
        

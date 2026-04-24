@@ -56,7 +56,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d,mlovlevels,mlocheck,mlodiagice,mlo_updatediag,mlo_updatekm,           &
        mlosurf,mlonewice,mloexpturb,mloimpturb
-public micdwn
+!public micdwn
 public minsfc,minsal,maxsal,icemax
 public zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
@@ -79,7 +79,7 @@ public nops,nopb,fixedstabfunc
 
 ! model arrays
 logical, save :: mlo_active = .false.                   ! Flag if MLO has been initialised
-real, dimension(:,:), allocatable, save :: micdwn       ! This variable is for CCAM onthefly.f
+!real, dimension(:,:), allocatable, save :: micdwn       ! This variable is for CCAM onthefly.f
 
 type(waterdata), dimension(:), allocatable, save :: water_g
 type(icedata), dimension(:), allocatable, save :: ice_g
@@ -2163,12 +2163,14 @@ pure subroutine mloexpgamm(gamm,ip_dic,ip_dsn,diag)
 implicit none
 
 integer, intent(in) :: diag
+integer nx
 real, dimension(:), intent(in) :: ip_dic, ip_dsn
 real, dimension(:,:), intent(out) :: gamm
 
-gamm(:,1) = gammi
-gamm(:,2) = max(ip_dsn(:),0.)*cps
-gamm(:,3) = max(ip_dic(:),0.)*0.5*cpi
+nx = size(gamm,1)
+gamm(1:nx,1) = gammi
+gamm(1:nx,2) = max(ip_dsn(1:nx),0.)*cps
+gamm(1:nx,3) = max(ip_dic(1:nx),0.)*0.5*cpi
 
 return
 end subroutine mloexpgamm

@@ -90,13 +90,13 @@ real, dimension(ifull) :: psl_pos, psl_neg
 real, dimension(:), allocatable, save :: u_rms, v_rms
 real, dimension(:), allocatable, save :: t_rms
 real, dimension(ifull,3) :: duma
-real, dimension(ifull,6) :: dumd
+real, dimension(ifull,2) :: dumd
 real, dimension(ifull,kl) :: ee
 real, dimension(ifull,kl) :: u_pos, v_pos, t_pos
 real, dimension(ifull,kl) :: u_neg, v_neg, t_neg
 real, dimension(ifull,ms,3) :: dumg
 real, dimension(ifull,3,3) :: dums
-real, dimension(ifull,ol,8) :: dumo
+real, dimension(ifull,ol,4) :: dumo
 real, dimension(ifull,kl,naero) :: dumr
 real, save :: psl_rms
 

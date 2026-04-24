@@ -207,6 +207,7 @@ if ( first ) then
   freqstore(:,1:36) = 0._8
   freqstore(:,37) = -9.e9
   freqstore(:,38) =  9.e9
+  freqstore(:,39:freqvars) = 0._8
   if ( local ) then
     write(ffile,"(a,'.',i6.6)") trim(surfile), vnode_vleaderid
   else
@@ -589,9 +590,9 @@ if ( first ) then
     call attrib(fncid,sdim,ssize,'helicitymin',lname,'m2 s-2',-520.,520.,any_m,min_m,amean_m,short_m)
 
     lname = 'Hail average diameter'
-    call attrib(fncid,sdim,ssize,'hailradave',lname,'m',0.,1.3e-2,any_m,tmean_m,amean_m,float_m)
+    call attrib(fncid,sdim,ssize,'hailradave',lname,'m',0.,1.3,any_m,tmean_m,amean_m,float_m)
     lname = 'Hail maximum diameter'
-    call attrib(fncid,sdim,ssize,'hailradmax',lname,'m',0.,1.3e-2,any_m,max_m,amean_m,float_m)
+    call attrib(fncid,sdim,ssize,'hailradmax',lname,'m',0.,1.3,any_m,max_m,amean_m,float_m)
 
     if ( ml_cordex ) then
       if ( cordex_tier1 ) then

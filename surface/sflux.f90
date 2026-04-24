@@ -109,6 +109,7 @@ public fevc,plant_turnover,plant_turnover_wood
 public mplant,mlitter,msoil
 
 public mlovlevels,mlonewice,mloexpice,mlosurf,mloinit,mloload,mloimport,mloexport
+public mloimpturb, mloimpice
 public mloexpdep
 public minsfc,minsal,maxsal,icemax
 public zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
@@ -116,7 +117,7 @@ public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
 public kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,omink,omineps
 public k_mode,eps_mode,limitL,fixedce3,nops,nopb,fixedstabfunc
 public alphanir_seaice,alphanir_seasnw,alphavis_seaice,alphavis_seasnw
-public micdwn
+!public micdwn
 
 public uclem_init,uclem_type,uclem_disable,uclem_deftype
 public energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl

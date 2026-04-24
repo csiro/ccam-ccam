@@ -1870,6 +1870,37 @@ else
   allocate( gswmin(lncveg_numpft), conkc0(lncveg_numpft), conko0(lncveg_numpft), ekc(lncveg_numpft), eko(lncveg_numpft) )
   allocate( g0(lncveg_numpft), g1(lncveg_numpft), zr(lncveg_numpft), clitt(lncveg_numpft) )
 
+  ! set default values to prevent false float invalid when calling Bcast.
+  csiropft = 0.
+  hc = 0.
+  xfang = 0.
+  leaf_w = 0.
+  leaf_l = 0.
+  canst1 = 0.
+  shelrb = 0.
+  extkn = 0.
+  refl = 0.
+  taul = 0.
+  vcmax = 0.
+  rpcoef = 0.
+  rootbeta = 0.
+  c4frac = 0.
+  vbeta = 0.
+  a1gs = 0.
+  d0gs = 0.
+  alpha = 0.
+  convex = 0.
+  cfrd = 0.
+  gswmin = 0.
+  conkc0 = 0.
+  conko0 = 0.
+  ekc = 0.
+  eko = 0.
+  g0 = 0.
+  g1 = 0.
+  zr = 0.
+  clitt = 0.
+  
   if ( myid==0 ) then
     nstart(1) = 1
     ncount(1) = lncveg_numpft

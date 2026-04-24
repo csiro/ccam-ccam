@@ -130,8 +130,8 @@ integer, dimension(ifull) :: dumf
 real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,5) :: duma
-real, dimension(ifull,6) :: ocndwn
-real, dimension(ifull,ol,6) :: mlodwn
+real, dimension(ifull,2) :: ocndwn
+real, dimension(ifull,ol,4) :: mlodwn
 real, dimension(ifull,kl,naero) :: xtgdwn
 real, dimension(ifull,kl,4) :: dumb
 real, dimension(ifull,ms,3) :: dumca
@@ -2216,35 +2216,22 @@ if ( nmlo/=0 .and. abs(nmlo)<=9 ) then
  !         mlodwn(iq,k,4) = mlodwn(iq,k-1,4)
  !       end if
  !     end do
- !     if ( micdwn(iq,1)<100. .or. micdwn(iq,1)>300. ) then
- !       micdwn(iq,1) = 273.
- !     end if
- !     do k = 2,4
- !       if ( micdwn(iq,k)<100. .or. micdwn(iq,k)>300. ) then
- !         micdwn(iq,k) = micdwn(iq,k-1)
- !       end if
- !     end do
  !   end if  
  ! end do  
  ! !mlodwn(1:ifull,1:ol,2) = max(mlodwn(1:ifull,1:ol,2),0.)
- ! !micdwn(1:ifull,1:4) = min(max(micdwn(1:ifull,1:4),100.),300.)
 
   if ( .not.lrestart ) then
     ocndwn(:,2) = min( max( ocndwn(:,2), -20.), 20. )
     mlodwn(1:ifull,1:ol,3) = min( max( mlodwn(1:ifull,1:ol,3), -5.), 5. )
     mlodwn(1:ifull,1:ol,4) = min( max( mlodwn(1:ifull,1:ol,4), -5.), 5. )
   end if
-  where ( .not.land(1:ifull) )
-    fracice(1:ifull) = micdwn(1:ifull,5)
-    sicedep(1:ifull) = micdwn(1:ifull,6)
-    snowd(1:ifull) = micdwn(1:ifull,7)*1000.
-  end where   
-  call mloload(mlodwn,ocndwn(:,2),micdwn,0,ifull,imax,ol)
-  call mloimport("utop",ocndwn(:,3),0,0,ifull,imax)
-  call mloimport("vtop",ocndwn(:,4),0,0,ifull,imax)
-  call mloimport("ubot",ocndwn(:,5),0,0,ifull,imax)
-  call mloimport("vbot",ocndwn(:,6),0,0,ifull,imax)
-  deallocate(micdwn)
+  do k = 1,ol
+    call mloimport("temp",mlodwn(:,k,1),k,0,ifull,imax)
+    call mloimport("sal",mlodwn(:,k,2),k,0,ifull,imax)
+    call mloimport("u",mlodwn(:,k,3),k,0,ifull,imax)
+    call mloimport("v",mlodwn(:,k,4),k,0,ifull,imax)
+  end do
+  call mloimport("eta",ocndwn(:,2),0,0,ifull,imax)
   do k = 1,ms
     call mloexport("temp",tgg(:,k),k,0,ifull,imax)
     where ( tgg(:,k)<100. )
