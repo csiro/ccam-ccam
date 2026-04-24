@@ -2371,51 +2371,6 @@ if ( qtot_check ) then
     write(6,*) "minloc,maxloc ",posmin,posmax
     call ccmpi_abort(-1) 
   end if
-  if ( any(dhail1(js:je)/=dhail1(js:je)) ) then
-    write(6,*) "ERROR: NaN detected in dhail1 on myid=",myid," at ",trim(message)
-    call ccmpi_abort(-1)    
-  end if  
-  if ( any(dhail1(js:je)<1.e-8) .or. any(dhail1(js:je)>1.) ) then
-    write(6,*) "ERROR: Out-of-range detected in dhail1 on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(dhail1(js:je)),maxval(dhail1(js:je))
-    call ccmpi_abort(-1) 
-  end if
-  if ( any(dhail2(js:je)/=dhail2(js:je)) ) then
-    write(6,*) "ERROR: NaN detected in dhail2 on myid=",myid," at ",trim(message)
-    call ccmpi_abort(-1)    
-  end if  
-  if ( any(dhail2(js:je)<1.e-8) .or. any(dhail2(js:je)>1.) ) then
-    write(6,*) "ERROR: Out-of-range detected in dhail1 on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(dhail2(js:je)),maxval(dhail2(js:je))
-    call ccmpi_abort(-1) 
-  end if  
-  if ( any(dhail3(js:je)/=dhail3(js:je)) ) then
-    write(6,*) "ERROR: NaN detected in dhail3 on myid=",myid," at ",trim(message)
-    call ccmpi_abort(-1)    
-  end if  
-  if ( any(dhail3(js:je)<1.e-8) .or. any(dhail3(js:je)>1.) ) then
-    write(6,*) "ERROR: Out-of-range detected in dhail3 on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(dhail3(js:je)),maxval(dhail3(js:je))
-    call ccmpi_abort(-1) 
-  end if
-  if ( any(dhail4(js:je)/=dhail4(js:je)) ) then
-    write(6,*) "ERROR: NaN detected in dhail4 on myid=",myid," at ",trim(message)
-    call ccmpi_abort(-1)    
-  end if  
-  if ( any(dhail4(js:je)<1.e-8) .or. any(dhail4(js:je)>1.) ) then
-    write(6,*) "ERROR: Out-of-range detected in dhail4 on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(dhail4(js:je)),maxval(dhail4(js:je))
-    call ccmpi_abort(-1) 
-  end if
-  if ( any(dhail5(js:je)/=dhail5(js:je)) ) then
-    write(6,*) "ERROR: NaN detected in dhail5 on myid=",myid," at ",trim(message)
-    call ccmpi_abort(-1)    
-  end if  
-  if ( any(dhail5(js:je)<1.e-8) .or. any(dhail5(js:je)>1.) ) then
-    write(6,*) "ERROR: Out-of-range detected in dhail5 on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(dhail5(js:je)),maxval(dhail5(js:je))
-    call ccmpi_abort(-1) 
-  end if
 end if
   
 if ( qrad_check ) then
