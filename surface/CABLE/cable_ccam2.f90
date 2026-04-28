@@ -612,13 +612,13 @@ if ( any( ssnow%tss/=ssnow%tss ) ) then
   write(6,*) "ERROR: NaN found in ssnow%tss after CABLE"
   stop -1
 end if
-if ( any( ssnow%tgg(:,1)>425. ) ) then
-  write(6,*) "WARN: tgg1>425. after CABLE"
+if ( any( ssnow%tgg>425. ) ) then
+  write(6,*) "WARN: tgg>425. after CABLE"
 end if
-if ( any( ssnow%tggsn(:,1)>425. ) ) then
-  write(6,*) "WARN: tggsn1>425. after CABLE"
+if ( any( ssnow%tggsn>425. ) ) then
+  write(6,*) "WARN: tggsn>425. after CABLE"
 end if
-if ( any( canopy%tv(:)>425. ) ) then
+if ( any( canopy%tv>425. ) ) then
   write(6,*) "WARN: tv>425. after CABLE" 
 end if
 

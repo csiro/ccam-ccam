@@ -1127,7 +1127,7 @@ if (Rad_control%do_totcld_forcing) then
   Sw_output%hswcf (:,:,:,:) = 0.0_8
   Sw_output%dfsw_dir_sfc_clr = 0.0_8
   Sw_output%dfsw_dif_sfc_clr  = 0.0_8
-  Sw_output%bdy_flx_clr (:,:,:,:) = 0.0_8
+  Sw_output%bdy_flx_clr(:,:,:,:) = 0.0_8
 end if
 
 if (do_aerosol_forcing) then
@@ -1239,15 +1239,22 @@ do_aerosol_forcing = abs(iaero)>=2
 
 ! Set up number of minutes from beginning of year
 call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-fjd = real(mod(mins, 525600))/1440. ! restrict to 365 day calendar
+
+! Define radiative forcing date
+if ( use_rad_year ) then
+  if ( myid==0 ) write(6,*) "-> Override radiative forcings with rad_year = ",rad_year
+  jyear = rad_year
+end if
+
 ! Calculate sun position
+fjd = real(mod(mins, 525600))/1440. ! restrict to 365 day calendar
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
 
 ! initialise co2
 call co2_read(sig,jyear,csolar)
 rrco2 = rrvco2*ratco2mw
 
-! fixes
+! fixes for out-of-range GHG
 if ( trim(linecatalog_form)=="hitran_2000" ) then
   if ( rrvco2 > 1600.e-6 ) then
     write(6,*) "ERROR: CO2 concentration is above maximum of 1600 ppmv"

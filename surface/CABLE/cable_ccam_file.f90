@@ -2411,7 +2411,7 @@ if ( itype==-1 ) then !just for restart file
   
   ! soil temperature check
   if ( mp_global>0 ) then
-    if ( any(ssnow%tgg>400.) ) then
+    if ( any(ssnow%tgg>425.) ) then
       write(6,*) "ERROR: Invalid CABLE temperature when writing tile"
       write(6,*) "ssnow%tgg ",maxval(ssnow%tgg)
       stop -1

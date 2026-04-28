@@ -1200,8 +1200,6 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     end where    
     mlodwn(1:ifull,k,3) = 0.      ! uoc
     mlodwn(1:ifull,k,4) = 0.      ! voc
-    mlodwn(1:ifull,k,5) = omink   ! tke
-    mlodwn(1:ifull,k,6) = omineps ! eps
   end do  
   if ( mlo_found ) then
     ! ocean potential temperature
