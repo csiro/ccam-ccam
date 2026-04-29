@@ -930,7 +930,7 @@ do iq_tile = 1,ifull,imax
   do k = 1,kl
     do iq = istart,iend
       tnew = t(iq,k) - dt*(sw_tend(iq,k)+lw_tend(iq,k))
-      if ( tnew<75. .and. tnew>450. ) then
+      if ( tnew<75. .or. tnew>450. ) then
         write(6,*) "WARN: tnew is out-of-range"
         write(6,*) "tnew,t,sw_tend,lw_tend ",tnew,t(iq,k),sw_tend(iq,k),lw_tend(iq,k)
         write(6,*) "sw_tend_amp ",sw_tend_amp(iq,k)
