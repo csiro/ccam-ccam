@@ -37,6 +37,7 @@ public rgdclr, sgdclr
 public sgdn_amp, dni_amp, sw_tend_amp, sint_amp, sout_amp
 public soutclr_amp, sgclr_amp, sgn_amp, sgdndir_amp
 public sw_tend, lw_tend, sgdclr_amp
+public tradmax
 public raddiag_init,raddiag_end
 
 real, dimension(:), allocatable, save :: sgdn, sgdndir, sint, sout, rt, dni
@@ -53,6 +54,7 @@ real(kind=8), dimension(:), allocatable, save :: sgn_ave, sgc_ave, sgdc_ave
 real(kind=8), dimension(:), allocatable, save :: rgdn_ave, rtu_ave, rtc_ave, rgn_ave, rgc_ave, rgdc_ave
 real(kind=8), dimension(:), allocatable, save :: cld_ave, cll_ave, clm_ave, clh_ave
 real(kind=8), dimension(:), allocatable, save :: dni_ave, sunhours
+real, save :: tradmax = 500. ! default maximum temperature from radiation tendency
 logical, save :: odcalc = .false.
 
 contains

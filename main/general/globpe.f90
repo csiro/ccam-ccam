@@ -645,7 +645,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call END_LOG(radnet_end)
   end if ! ( nsib>0 )  
   do k = 1,kl
-    t(1:ifull,k) = t(1:ifull,k) - dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k))
+    ! tradmax limits maximum warming in case  
+    t(1:ifull,k) = t(1:ifull,k) - max( dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k)), &
+                                       min(t(1:ifull,k)-tradmax,0.) )
     rad_tend(1:ifull,k) = rad_tend(1:ifull,k) + t(1:ifull,k)/dt
   end do
   ! calculate MSE after radiation

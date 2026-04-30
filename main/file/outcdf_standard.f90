@@ -54,6 +54,7 @@ use parmgeom_m                             ! Coordinate data
 use parmhdff_m                             ! Horizontal diffusion parameters
 use parmhor_m                              ! Horizontal advection parameters
 use parmvert_m                             ! Vertical advection parameters
+use raddiag_m                              ! Radiation diagnostic
 use river                                  ! River routing
 use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
@@ -488,6 +489,7 @@ if ( myid==0 .or. local ) then
     else
       nuse_rad_year = 0
     end if
+    call ccnf_put_attg(idnc,'tradmax',tradmax)
     call ccnf_put_attg(idnc,'use_rad_year',nuse_rad_year)
     call ccnf_put_attg(idnc,'zvolcemi',zvolcemi)
     
@@ -1133,9 +1135,9 @@ if ( iarch==1 ) then
 
     if ( save_cloud ) then
       lname = 'Hail average diameter'
-      call attrib(idnc,dimj,jsize,'hailradave',lname,'m',0.,1.3e-2,any_m,tmean_m,amean_m,float_m)
+      call attrib(idnc,dimj,jsize,'hailradave',lname,'m',0.,1.3,any_m,tmean_m,amean_m,float_m)
       lname = 'Hail maximum diameter'
-      call attrib(idnc,dimj,jsize,'hailradmax',lname,'m',0.,1.3e-2,any_m,max_m,amean_m,float_m)    
+      call attrib(idnc,dimj,jsize,'hailradmax',lname,'m',0.,1.3,any_m,max_m,amean_m,float_m)    
     end if
 
     lname = 'Snow Depth' ! liquid water
