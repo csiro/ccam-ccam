@@ -48,8 +48,8 @@ module cc_mpi_common
                                                                    ! for the global grid
    integer, save :: node_nx, node_ny                               ! number of processes in the x and y directions
                                                                    ! on a node
-   integer, save :: nagg = 4                                       ! maximum number of levels to aggregate
-   integer, save :: maxcolour = 3                                  ! maximum number of colours for iterative solvers
+   integer, save :: nagg = 8                                       ! maximum number of levels to aggregate
+   integer, save :: maxcolour = 2                                  ! maximum number of colours for iterative solvers
    
    integer, save :: maxbuflen, maxvertlen                          ! bounds buffer size   
    logical, save :: mydiag                                         ! true if diagnostic point id, jd is in my region
@@ -222,7 +222,9 @@ module cc_mpi_common
    integer, save :: scatter_begin, scatter_end
    integer, save :: reduce_begin, reduce_end
    integer, save :: allreduce_begin, allreduce_end
-   integer, save :: mpiwait_begin, mpiwait_end
+   integer, save :: mpiwaitpoint_begin, mpiwaitpoint_end
+   integer, save :: mpiwaitsync_begin, mpiwaitsync_end
+   integer, save :: mpiwaitcollect_begin, mpiwaitcollect_end
    integer, save :: mpibarrier_begin, mpibarrier_end
    integer, save :: mgfine_begin, mgfine_end
    integer, save :: mgup_begin, mgup_end
@@ -250,7 +252,7 @@ module cc_mpi_common
    integer, save :: p20_begin, p20_end
    integer, save :: p21_begin, p21_end
    integer, save :: p22_begin, p22_end
-   integer, parameter :: nevents = 88
+   integer, parameter :: nevents = 90
    real(kind=8), dimension(nevents), save, private :: tot_time = 0._8, start_time
    real(kind=8), save :: mpiinit_time, total_time
    character(len=15), dimension(nevents), save, private :: event_name
@@ -769,7 +771,9 @@ contains
       call add_event(scatter_begin,       scatter_end,       "MPI_Scatter")
       call add_event(allreduce_begin,     allreduce_end,     "MPI_AllReduce")
       call add_event(reduce_begin,        reduce_end,        "MPI_Reduce")
-      call add_event(mpiwait_begin,       mpiwait_end,       "MPI_Wait")
+      call add_event(mpiwaitpoint_begin,  mpiwaitpoint_end,  "MPI_WaitPoint")
+      call add_event(mpiwaitsync_begin,   mpiwaitsync_end,   "MPI_WaitSync")
+      call add_event(mpiwaitcollect_begin,mpiwaitcollect_end,"MPI_WaitCollect")
       call add_event(mpibarrier_begin,    mpibarrier_end,    "MPI_Barrier")
       call add_event(p1_begin,            p1_end,            "Probe1")
       call add_event(p2_begin,            p2_end,            "Probe2")

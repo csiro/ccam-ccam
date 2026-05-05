@@ -90,6 +90,7 @@ contains
       integer :: n, w, nlen, kx, cc, ipf
       integer :: rcount, jproc, kproc
       integer :: k, ip, no, ca, cb
+      integer :: nrecv, nsend
       integer(kind=4) :: lcomm, ldone, lsize, ierr, lproc, mproc
       integer(kind=4) :: itag = 51
       integer(kind=4), dimension(size(filemap_recv)+size(filemap_send)) :: i_req, donelist
@@ -99,13 +100,15 @@ contains
       nlen = pipan*pjpan*pnpan
       lsize = nlen*kx
       lcomm = comm_world
+      nrecv = size(filemap_recv)
+      nsend = size(filemap_send)
       
-      allocate( bbuf(pipan*pjpan*pnpan,kx,size(filemap_recv)) )
-      allocate( cbuf(pipan*pjpan*pnpan,kx,mynproc) )
+      allocate( bbuf(nlen,kx,nrecv) )
+      allocate( cbuf(nlen,kx,mynproc) )
       
       !     Set up the buffers to recv
       nreq = 0
-      do w = 1,size(filemap_recv)
+      do w = 1,nrecv
          ipf = filemap_rmod(w)
          itag = 51 + ipf
          nreq  = nreq + 1
@@ -124,7 +127,7 @@ contains
          cc = nlen*ipf 
          cbuf(1:nlen,1:kx,ipf+1) = sinp(1+cc:nlen+cc,1:kx)
       end do
-      do w = 1,size(filemap_send)
+      do w = 1,nsend
          ipf = filemap_smod(w)
          itag = 51 + ipf
          nreq  = nreq + 1
@@ -139,9 +142,9 @@ contains
       ! Unpack incomming messages
       rcount = nreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwait_begin) 
+         call START_LOG(mpiwaitcollect_begin) 
          call MPI_Waitsome( nreq, i_req, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
+         call END_LOG(mpiwaitcollect_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
@@ -763,9 +766,9 @@ contains
       ! Unpack incomming messages
       rcount = nreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwait_begin)
+         call START_LOG(mpiwaitpoint_begin)
          call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
+         call END_LOG(mpiwaitpoint_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)

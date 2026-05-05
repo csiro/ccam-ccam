@@ -768,9 +768,9 @@ contains
          ! Unpack incomming messages into shared memory (nodepack)
          rcount = nreq
          do while ( rcount > 0 )
-            call START_LOG(mpiwait_begin) 
+            call START_LOG(mpiwaitcollect_begin) 
             call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwait_end)
+            call END_LOG(mpiwaitcollect_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
                mproc = donelist(jproc)
@@ -1172,7 +1172,7 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
-      real, dimension(:,:), allocatable :: tmparr
+      real, dimension(ifull,2*size(array,2)*size(array,3)) :: tmparr
       integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
@@ -1181,9 +1181,6 @@ contains
 
       kx  = size(array,2)
       ntr = size(array,3)
-      
-      allocate( tmparr(ifull,2*kx*ntr) )
-      
       local_sum_k(1:2*kx*ntr) = cmplx(0., 0.)
       do i = 1,ntr
          do k = 1,kx
@@ -1211,8 +1208,6 @@ contains
       delpos(1:ntr) = real(global_sum(1:ntr))
       delneg(1:ntr) = real(global_sum(ntr+1:2*ntr))
 
-      deallocate( tmparr )
-      
    end subroutine ccglobal_posneg4
    
    subroutine ccglobal_posneg4o(array, delpos, delneg, dsig)
@@ -1222,7 +1217,7 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
-      real, dimension(:,:), allocatable :: tmparr
+      real, dimension(ifull,2*size(array,2)*size(array,3)) :: tmparr
       integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
@@ -1231,9 +1226,6 @@ contains
 
       kx  = size(array,2)
       ntr = size(array,3)
-      
-      allocate( tmparr(ifull,2*kx*ntr) )
-      
       local_sum_k(1:2*kx*ntr) = cmplx(0., 0.)
       do i = 1,ntr
          do k = 1,kx
@@ -1260,8 +1252,6 @@ contains
       call END_LOG(allreduce_end)
       delpos(1:ntr) = real(global_sum(1:ntr))
       delneg(1:ntr) = real(global_sum(ntr+1:2*ntr))
-      
-      deallocate( tmparr )
 
    end subroutine ccglobal_posneg4o
 

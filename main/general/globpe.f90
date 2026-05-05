@@ -1207,11 +1207,6 @@ if ( qg_fix>=1 ) then
       qg(iq,k) = max( qtot - qlg(iq,k) - qfg(iq,k), 0. )
       t(iq,k)  = tliq + hlcp*qlg(iq,k) + hlscp*qfg(iq,k)
       
-      if ( t(iq,k)<75. .or. t(iq,k)>450. ) then
-        write(6,*) "WARN: Out-of-range detected in t at fixqg"
-        write(6,*) "t,iq,k,qg,qlg,qfg ",t(iq,k),iq,k,qg(iq,k),qlg(iq,k),qfg(iq,k)
-      end if
-      
     end do  
   end do
 
@@ -2194,6 +2189,10 @@ if ( t_check ) then
     write(6,*) "minloc,maxloc ",posmin,posmax
     call ccmpi_abort(-1)
   end if
+  if ( any(t(js:je,1:kl)>400.) ) then
+    write(6,*) "WARN: Out-of-range detected in t on myid=",myid," at ",trim(message)
+    write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
+  end if    
 end if  
 
 if ( uv_check ) then

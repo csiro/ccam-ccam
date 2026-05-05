@@ -435,15 +435,6 @@ do k = 1,kl
   dpsldt(1:ifull,k) = omgfnl(1:ifull,k)/(1.+epst(1:ifull)) + omgf(1:ifull,k)
   t(1:ifull,k) = tx(1:ifull,k) + hdt*(1.+epst(1:ifull))*tbar2d(1:ifull)*omgf(1:ifull,k)*roncp/sig(k) ! Eq 121 F26
 end do     ! k  loop
-if ( any(t(1:ifull,1:kl)<75.) .or. any(t(1:ifull,1:kl)>450.) ) then
-  write(6,*) "WARN: Out-of-range detected in t on myid=",myid," at helmsolve"
-  pos = minloc(t(1:ifull,1:kl))
-  write(6,*) "min t,iq,k,tx ",t(pos(1),pos(2)),pos(1),pos(2),tx(pos(1),pos(2))
-  write(6,*) "min epst,tbar2d,omgf ",epst(pos(1)),tbar2d(pos(1)),omgf(pos(1),pos(2))
-  pos = maxloc(t(1:ifull,1:kl))
-  write(6,*) "max t,iq,k,tx ",t(pos(1),pos(2)),pos(1),pos(2),tx(pos(1),pos(2))
-  write(6,*) "max epst,tbar2d,omgf ",epst(pos(1)),tbar2d(pos(1)),omgf(pos(1),pos(2))
-end if
 
 if ( (diag.or.nmaxpr==1) .and. mydiag ) then
   write(6,"('omgf_a2',10f8.3)") ps(idjd)*dpsldt(idjd,1:kl)

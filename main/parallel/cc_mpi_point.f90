@@ -2174,9 +2174,9 @@ contains
          ! Unpack incomming messages
          rcount = nreq
          do while ( rcount > 0 )
-            call START_LOG(mpiwait_begin)
+            call START_LOG(mpiwaitpoint_begin)
             call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-            call END_LOG(mpiwait_end)
+            call END_LOG(mpiwaitpoint_end)
             rcount = rcount - ldone
             do jproc = 1,ldone
                mproc = donelist(jproc)
@@ -2488,9 +2488,9 @@ contains
       ! Unpack incomming messages
       rcount = nreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwait_begin)
+         call START_LOG(mpiwaitpoint_begin)
          call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
+         call END_LOG(mpiwaitpoint_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
@@ -2946,9 +2946,9 @@ contains
       ! Unpack incomming messages
       rcount = nreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwait_begin)
+         call START_LOG(mpiwaitpoint_begin)
          call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
+         call END_LOG(mpiwaitpoint_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
@@ -3166,9 +3166,9 @@ contains
       nreq = 2*neighnum
       rcount = nreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwait_begin)
+         call START_LOG(mpiwaitsync_begin)
          call MPI_Waitsome( nreq, ireq, ldone, donelist, status, ierr )
-         call END_LOG(mpiwait_end)
+         call END_LOG(mpiwaitsync_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             iproc = donelist(jproc)
@@ -3271,9 +3271,9 @@ contains
       ! Unpack incomming messages
       rcount = nreq
       do while ( rcount > 0 )
-         call START_LOG(mpiwait_begin)
+         call START_LOG(mpiwaitsync_begin)
          call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
+         call END_LOG(mpiwaitsync_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)

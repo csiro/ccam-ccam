@@ -927,6 +927,8 @@ do iq_tile = 1,ifull,imax
     end do
   end if  
 
+
+#ifdef debug
   do k = 1,kl
     do iq = istart,iend
       tnew = t(iq,k) - dt*(sw_tend(iq,k)+lw_tend(iq,k))
@@ -949,6 +951,8 @@ do iq_tile = 1,ifull,imax
       end if
     end do
   end do  
+#endif
+
   
 end do  ! iq_tile = 1,ifull,imax
 

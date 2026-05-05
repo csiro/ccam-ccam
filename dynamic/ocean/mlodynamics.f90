@@ -583,15 +583,18 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! (Assume free surface correction is small so that changes in the compression 
   ! effect due to neta can be neglected.  Consequently, the neta dependence is 
   ! separable in the iterative loop)
-  call bounds(nt,corner=.true.)
-  call bounds(ns,corner=.true.)
+  allocate( s_work(ifull+iextra,ol,2) )
+  s_work(1:ifull,1:ol,1) = nt(1:ifull,1:ol)
+  s_work(1:ifull,1:ol,2) = ns(1:ifull,1:ol)
+  call bounds(s_work(:,:,1:2),corner=.true.)
 
   ! rho(x) = wrtrho + rho_dash(x), where wrtrho is a constant
   
   ! Calculate normalised density gradients
   ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
-  call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
+  call tsjacobi(s_work,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                 rho_dash,rhou_dash,rhov_dash)
+  deallocate( s_work )
   
   call END_LOG(watereos_end)
 
@@ -876,11 +879,14 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
   if ( nxtrrho==1 ) then
-    call bounds(nt,corner=.true.)
-    call bounds(ns,corner=.true.)
+    allocate( s_work(ifull+iextra,ol,2) )
+    s_work(1:ifull,1:ol,1) = nt(1:ifull,1:ol)
+    s_work(1:ifull,1:ol,2) = ns(1:ifull,1:ol)
+    call bounds(s_work(:,:,1:2),corner=.true.)
     ! update normalised density gradients
-    call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
+    call tsjacobi(s_work,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                   rho_dash,rhou_dash,rhov_dash)
+    deallocate( s_work )
   end if
 
   call END_LOG(watereos_end)
@@ -1612,7 +1618,7 @@ end subroutine mlorot
 ! Use potential temperature and salinity Jacobians to calculate
 ! density Jacobian
 
-subroutine tsjacobi(nti,nsi,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
+subroutine tsjacobi(na,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                     rho_dash,rhou_dash,rhov_dash)
 
 use indices_m
@@ -1623,12 +1629,11 @@ use parm_m, only : ds
 implicit none
 
 integer iq, ii
-real, dimension(ifull+iextra,ol), intent(in) :: nti, nsi
 real, dimension(ifull,ol), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
 real, dimension(ifull,ol), intent(out) :: rhou_dash, rhov_dash, rho_dash
 real, dimension(ifull,ol) :: drhodxu, drhodyu, drhodxv, drhodyv
 real, dimension(ifull+iextra), intent(in) :: pice
-real, dimension(ifull+iextra,ol,2) :: na
+real, dimension(ifull+iextra,ol,2), intent(inout) :: na
 real, dimension(ifull+iextra,ol) :: alpha, beta, lrho_dash, dzdum_rho
 real absu, bbsu, absv, bbsv
 real dnadxu1, dnadxv1, dnadyu1, dnadyv1
@@ -1640,13 +1645,13 @@ do ii = 1,ol
   ! neglect neta for calculating density  
   dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
 end do
-call mloexpdensity(lrho_dash,alpha,beta,nti,nsi,dzdum_rho,pice,0,rawrho=.true.)
+call mloexpdensity(lrho_dash,alpha,beta,na(:,:,1),na(:,:,2),dzdum_rho,pice,0,rawrho=.true.)
 
-na(:,:,1) = min(max(271.-wrtemp,nti),373.-wrtemp)
-where ( nsi<2. )
+na(:,:,1) = min(max(271.-wrtemp,na(:,:,1)),373.-wrtemp)
+where ( na(:,:,2)<2. )
   na(:,:,2) = 0. ! 34.72 PSU with offset
 elsewhere  
-  na(:,:,2) = min(max(minsal, nsi),maxsal)-34.72
+  na(:,:,2) = min(max(minsal, na(:,:,2)),maxsal)-34.72
 end where  
 
 if ( mlojacobi==0 ) then !off
