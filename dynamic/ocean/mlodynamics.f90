@@ -583,18 +583,13 @@ do mspec_mlo = mspeca_mlo,1,-1
   ! (Assume free surface correction is small so that changes in the compression 
   ! effect due to neta can be neglected.  Consequently, the neta dependence is 
   ! separable in the iterative loop)
-  allocate( s_work(ifull+iextra,ol,2) )
-  s_work(1:ifull,1:ol,1) = nt(1:ifull,1:ol)
-  s_work(1:ifull,1:ol,2) = ns(1:ifull,1:ol)
-  call bounds(s_work(:,:,1:2),corner=.true.)
 
   ! rho(x) = wrtrho + rho_dash(x), where wrtrho is a constant
   
   ! Calculate normalised density gradients
   ! method 2: Use potential temperature and salinity Jacobians (see Shchepetkin and McWilliams 2003)
-  call tsjacobi(s_work,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
+  call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                 rho_dash,rhou_dash,rhov_dash)
-  deallocate( s_work )
   
   call END_LOG(watereos_end)
 
@@ -879,14 +874,9 @@ do mspec_mlo = mspeca_mlo,1,-1
 
   ! Approximate normalised density rhobar at t+1 (unstaggered, using T and S at t+1)
   if ( nxtrrho==1 ) then
-    allocate( s_work(ifull+iextra,ol,2) )
-    s_work(1:ifull,1:ol,1) = nt(1:ifull,1:ol)
-    s_work(1:ifull,1:ol,2) = ns(1:ifull,1:ol)
-    call bounds(s_work(:,:,1:2),corner=.true.)
     ! update normalised density gradients
-    call tsjacobi(s_work,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
+    call tsjacobi(nt,ns,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                   rho_dash,rhou_dash,rhov_dash)
-    deallocate( s_work )
   end if
 
   call END_LOG(watereos_end)
@@ -1618,9 +1608,10 @@ end subroutine mlorot
 ! Use potential temperature and salinity Jacobians to calculate
 ! density Jacobian
 
-subroutine tsjacobi(na,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
+subroutine tsjacobi(nti,nsi,pice,drhobardxu,drhobardyu,drhobardxv,drhobardyv, &
                     rho_dash,rhou_dash,rhov_dash)
 
+use cc_mpi
 use indices_m
 use map_m, only : emu, emv
 use newmpar_m
@@ -1629,15 +1620,23 @@ use parm_m, only : ds
 implicit none
 
 integer iq, ii
+real, dimension(ifull+iextra,ol), intent(in) :: nti, nsi
 real, dimension(ifull,ol), intent(out) :: drhobardxu, drhobardyu, drhobardxv, drhobardyv
 real, dimension(ifull,ol), intent(out) :: rhou_dash, rhov_dash, rho_dash
 real, dimension(ifull,ol) :: drhodxu, drhodyu, drhodxv, drhodyv
 real, dimension(ifull+iextra), intent(in) :: pice
-real, dimension(ifull+iextra,ol,2), intent(inout) :: na
+real, dimension(ifull+iextra,ol) :: nt_l, ns_l
 real, dimension(ifull+iextra,ol) :: alpha, beta, lrho_dash, dzdum_rho
 real absu, bbsu, absv, bbsv
 real dnadxu1, dnadxv1, dnadyu1, dnadyv1
 real dnadxu2, dnadxv2, dnadyu2, dnadyv2
+
+nt_l = 0.
+ns_l = 0.
+nt_l(1:ifull,:) = nti(1:ifull,:)
+ns_l(1:ifull,:) = nsi(1:ifull,:)
+call bounds(nt_l,corner=.true.)
+call bounds(ns_l,corner=.true.)
 
 ! rho(x) = rho0 + rho_dash(x), where rho0 is a constant equal to wrtrho
 
@@ -1645,13 +1644,13 @@ do ii = 1,ol
   ! neglect neta for calculating density  
   dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
 end do
-call mloexpdensity(lrho_dash,alpha,beta,na(:,:,1),na(:,:,2),dzdum_rho,pice,0,rawrho=.true.)
+call mloexpdensity(lrho_dash,alpha,beta,nt_l,ns_l,dzdum_rho,pice,0,rawrho=.true.)
 
-na(:,:,1) = min(max(271.-wrtemp,na(:,:,1)),373.-wrtemp)
-where ( na(:,:,2)<2. )
-  na(:,:,2) = 0. ! 34.72 PSU with offset
+nt_l(:,:) = min(max(271.-wrtemp,nt_l(:,:)),373.-wrtemp)
+where ( ns_l(:,:)<2. )
+  ns_l(:,:) = 0. ! 34.72 PSU with offset
 elsewhere  
-  na(:,:,2) = min(max(minsal, na(:,:,2)),maxsal)-34.72
+  ns_l(:,:) = min(max(minsal, ns_l(:,:)),maxsal)-34.72
 end where  
 
 if ( mlojacobi==0 ) then !off
@@ -1672,7 +1671,7 @@ else
 
   ! rhobar = int_0^sigma rho dsigma / sigma
 
-  !$acc parallel loop collapse(2) copyin(alpha,beta,ie,in,is,iw,ine,ise,ien,iwn,na,emu,emv) &
+  !$acc parallel loop collapse(2) copyin(alpha,beta,ie,in,is,iw,ine,ise,ien,iwn,nt_l,ns_l,emu,emv) &
   !$acc   copyout(drhodxu,drhodxv,drhodyu,drhodyv)  
   do ii = 1,ol
     do iq = 1,ifull
@@ -1681,21 +1680,21 @@ else
       absv = 0.5*(alpha(iq,ii)+alpha(in(iq),ii))
       bbsv = 0.5*(beta(iq,ii) +beta(in(iq),ii) )
       ! process staggered u locations  
-      dnadxu1=(na(ie(iq),ii,1)-na(iq,ii,1))*emu(iq)/ds
-      dnadyu1=0.25*emu(iq)/ds*(na(in(iq),ii,1)-na(is(iq),ii,1) &
-                              +na(ine(iq),ii,1)-na(ise(iq),ii,1))
+      dnadxu1=(nt_l(ie(iq),ii)-nt_l(iq,ii))*emu(iq)/ds
+      dnadyu1=0.25*emu(iq)/ds*(nt_l(in(iq),ii)-nt_l(is(iq),ii) &
+                              +nt_l(ine(iq),ii)-nt_l(ise(iq),ii))
       ! process staggered v locations
-      dnadyv1=(na(in(iq),ii,1)-na(iq,ii,1))*emv(iq)/ds
-      dnadxv1=0.25*emv(iq)/ds*(na(ie(iq),ii,1)-na(iw(iq),ii,1) &
-                              +na(ien(iq),ii,1)-na(iwn(iq),ii,1))
+      dnadyv1=(nt_l(in(iq),ii)-nt_l(iq,ii))*emv(iq)/ds
+      dnadxv1=0.25*emv(iq)/ds*(nt_l(ie(iq),ii)-nt_l(iw(iq),ii) &
+                              +nt_l(ien(iq),ii)-nt_l(iwn(iq),ii))
       ! process staggered u locations  
-      dnadxu2=(na(ie(iq),ii,2)-na(iq,ii,2))*emu(iq)/ds
-      dnadyu2=0.25*emu(iq)/ds*(na(in(iq),ii,2)-na(is(iq),ii,2) &
-                              +na(ine(iq),ii,2)-na(ise(iq),ii,2))
+      dnadxu2=(ns_l(ie(iq),ii)-ns_l(iq,ii))*emu(iq)/ds
+      dnadyu2=0.25*emu(iq)/ds*(ns_l(in(iq),ii)-ns_l(is(iq),ii) &
+                              +ns_l(ine(iq),ii)-ns_l(ise(iq),ii))
       ! process staggered v locations
-      dnadyv2=(na(in(iq),ii,2)-na(iq,ii,2))*emv(iq)/ds
-      dnadxv2=0.25*emv(iq)/ds*(na(ie(iq),ii,2)-na(iw(iq),ii,2) &
-                              +na(ien(iq),ii,2)-na(iwn(iq),ii,2))
+      dnadyv2=(ns_l(in(iq),ii)-ns_l(iq,ii))*emv(iq)/ds
+      dnadxv2=0.25*emv(iq)/ds*(ns_l(ie(iq),ii)-ns_l(iw(iq),ii) &
+                              +ns_l(ien(iq),ii)-ns_l(iwn(iq),ii))
       ! This relationship neglects compression effects due to neta from the EOS.
       drhodxu(iq,ii) = -absu*dnadxu1 + bbsu*dnadxu2
       drhodxv(iq,ii) = -absv*dnadxv1 + bbsv*dnadxv2
@@ -1729,7 +1728,7 @@ else
     drhobardyv(:,ii) = drhobardyv(:,ii)/gosighv(:,ii)
   end do
 end if
-  
+
 return
 end subroutine tsjacobi
 

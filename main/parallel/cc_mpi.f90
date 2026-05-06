@@ -135,7 +135,9 @@ module cc_mpi
    public :: scatter_begin, scatter_end
    public :: reduce_begin, reduce_end
    public :: allreduce_begin, allreduce_end
-   public :: mpiwait_begin, mpiwait_end
+   public :: mpiwaitpoint_begin, mpiwaitpoint_end
+   public :: mpiwaitsync_begin, mpiwaitsync_end
+   public :: mpiwaitcollect_begin, mpiwaitcollect_end
    public :: mpibarrier_begin, mpibarrier_end
    public :: mgfine_begin, mgfine_end
    public :: mgup_begin, mgup_end
@@ -158,6 +160,11 @@ module cc_mpi
    public :: p15_begin, p15_end
    public :: p16_begin, p16_end
    public :: p17_begin, p17_end   
+   public :: p18_begin, p18_end 
+   public :: p19_begin, p19_end 
+   public :: p20_begin, p20_end 
+   public :: p21_begin, p21_end 
+   public :: p22_begin, p22_end 
    public :: mpiinit_time, total_time
 #ifdef usempi3
    public :: ccmpi_allocshdata, ccmpi_allocshdatar8
@@ -219,6 +226,9 @@ contains
          call ccmpi_abort(-1)
       end if
       
+      if ( myid==0 ) then
+         write(6,*) "-> Aggregate messages with nagg=",nagg
+      end if
       
       ! Allocate arrays for boundary information
       nreq = 0

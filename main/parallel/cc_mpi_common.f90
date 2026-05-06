@@ -252,7 +252,7 @@ module cc_mpi_common
    integer, save :: p20_begin, p20_end
    integer, save :: p21_begin, p21_end
    integer, save :: p22_begin, p22_end
-   integer, parameter :: nevents = 90
+   integer, parameter :: nevents = 88
    real(kind=8), dimension(nevents), save, private :: tot_time = 0._8, start_time
    real(kind=8), save :: mpiinit_time, total_time
    character(len=15), dimension(nevents), save, private :: event_name
@@ -773,7 +773,7 @@ contains
       call add_event(reduce_begin,        reduce_end,        "MPI_Reduce")
       call add_event(mpiwaitpoint_begin,  mpiwaitpoint_end,  "MPI_WaitPoint")
       call add_event(mpiwaitsync_begin,   mpiwaitsync_end,   "MPI_WaitSync")
-      call add_event(mpiwaitcollect_begin,mpiwaitcollect_end,"MPI_WaitCollect")
+      call add_event(mpiwaitcollect_begin,mpiwaitcollect_end,"MPI_WaitColl")
       call add_event(mpibarrier_begin,    mpibarrier_end,    "MPI_Barrier")
       call add_event(p1_begin,            p1_end,            "Probe1")
       call add_event(p2_begin,            p2_end,            "Probe2")

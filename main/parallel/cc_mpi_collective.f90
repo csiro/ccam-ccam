@@ -731,9 +731,9 @@ contains
       integer(kind=4) :: ierr
       
       if ( nreq > 0 ) then
-         call START_LOG(mpiwait_begin) 
+         call START_LOG(mpiwaitcollect_begin) 
          call MPI_Waitall( nreq, ireq, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwait_end)
+         call END_LOG(mpiwaitcollect_end)
          nreq = 0
       end if   
 

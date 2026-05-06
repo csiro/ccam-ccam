@@ -2189,10 +2189,6 @@ if ( t_check ) then
     write(6,*) "minloc,maxloc ",posmin,posmax
     call ccmpi_abort(-1)
   end if
-  if ( any(t(js:je,1:kl)>400.) ) then
-    write(6,*) "WARN: Out-of-range detected in t on myid=",myid," at ",trim(message)
-    write(6,*) "minval,maxval ",minval(t(js:je,1:kl)),maxval(t(js:je,1:kl))
-  end if    
 end if  
 
 if ( uv_check ) then

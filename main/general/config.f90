@@ -725,9 +725,10 @@ call ccmpi_remap
 !   jpan=jl/npan is the number of grid-points per panel for a process along the Y-axis
 !   nxproc is the number of processes per panel along the X-axis (nxproc=nxp)
 !   nyproc is the number of processes per panel along the Y-axis (6*nyproc=nyp)
-! CCAM will optimise nxp, node_nx and npan (constrained by the number of processes,
-! number of nodes and number of cubic panels, respectively) to reduce MPI message
-! size and number between processes and nodes.
+! CCAM will optimise nxp and node_nx (constrained by the number of processes, and
+! number of nodes), to reduce MPI message size and number between processes and
+! nodes. If the number of processes is less than six, then CCAM will increase npan
+! to ensure the grid can be decomponsed.
 
 
 !--------------------------------------------------------------
