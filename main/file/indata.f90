@@ -2406,26 +2406,26 @@ if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) th
   if ( myid==0 .or. pfall ) then
     call ccnf_get_attg(ncid,'driving_model_id',driving_model_id,ierr=ierr)
     if ( ierr==0 ) then
-      write(6,*) "driving_model_id             : ",trim(driving_model_id)  
+      write(6,*) "-> driving_model_id             : ",trim(driving_model_id)  
     else     
       driving_model_id = ' '
     end if  
     call ccnf_get_attg(ncid,'driving_institution_id',driving_institution_id,ierr=ierr)
     if ( ierr==0 ) then
-      write(6,*) "driving_institution_id       : ",trim(driving_institution_id)  
+      write(6,*) "-> driving_institution_id       : ",trim(driving_institution_id)  
     else     
       driving_institution_id = ' '
     end if  
     call ccnf_get_attg(ncid,'driving_model_ensemble_number',driving_model_ensemble_number,ierr=ierr)
     if ( ierr==0 ) then
-      write(6,*) "driving_model_ensemble_number: ",trim(driving_model_ensemble_number)
+      write(6,*) "-> driving_model_ensemble_number: ",trim(driving_model_ensemble_number)
     else    
       driving_model_ensemble_number = ' '
     end if  
     call ccnf_get_attg(ncid,'driving_experiment_name',driving_experiment_name,ierr=ierr)
     if ( ierr==0 ) then
       ! MJT notes - this should be checked against GHG forcing data  
-      write(6,*) "driving_experiment_name      : ",trim(driving_experiment_name)
+      write(6,*) "-> driving_experiment_name      : ",trim(driving_experiment_name)
     else
       driving_experiment_name = ' '
     end if  

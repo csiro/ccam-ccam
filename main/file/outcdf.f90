@@ -42,6 +42,8 @@ use outcdf_cordex
 use outcdf_freq
 use outcdf_standard
 
+implicit none
+
 private
 public outfile, freqfile_cordex, freqfile_10, mslp
 

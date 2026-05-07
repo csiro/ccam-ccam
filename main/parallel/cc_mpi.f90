@@ -21,24 +21,26 @@
     
 module cc_mpi
 
-! This module manages all MPI communications between processes.  The system was originally developed
-! by Martin Dix and subsequently modified by Marcus Thatcher.  Thanks to Aaron McDonough for developing
-! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
-! shared memory arrays.
+  ! This module manages all MPI communications between processes.  The system was originally developed
+  ! by Martin Dix and subsequently modified by Marcus Thatcher.  Thanks to Aaron McDonough for developing
+  ! the Vampir trace routines and upgrading the timer calls.  Thanks to Paul Ryan for the design of the
+  ! shared memory arrays.
 
-! Preprocess directives:
+  ! Preprocess directives:
 
-! -Dusempi3        exploits MPI-3 shared memory to optmise communication between nodes
-! -Dusempimod      uses f90 mod interface for MPI.
-! -Dusempimod_f09  uses f09 mod interface for MPI.  Requires -Dusempimod
-! -Dvampir         is for coupling with VAMPIR for tracers
-! -Di8r8           is for running in double precision mode
+  ! -Dusempi3        exploits MPI-3 shared memory to optmise communication between nodes
+  ! -Dusempimod      uses f90 mod interface for MPI.
+  ! -Dusempimod_f09  uses f09 mod interface for MPI.  Requires -Dusempimod
+  ! -Dvampir         is for coupling with VAMPIR for tracers
+  ! -Di8r8           is for running in double precision mode
 
    use cc_mpi_collective
    use cc_mpi_common
    use cc_mpi_file
    use cc_mpi_multigrid
    use cc_mpi_point
+  
+   implicit none
    
    private
    
@@ -60,7 +62,7 @@ module cc_mpi
    public :: comm_world
    public :: comm_node, node_myid, node_nproc
    public :: comm_nodecaptain, nodecaptain_myid, nodecaptain_nproc,         &
-             nodecaptainid
+             node_captainid
    public :: comm_proc, comm_rows, comm_cols, hproc, mproc, npta, pprocn,   &
              pprocx
    public :: comm_vnode, vnode_nproc, vnode_myid
@@ -187,8 +189,7 @@ module cc_mpi
    public :: fnproc, fnresid, fncount, mynproc
    public :: pnoff, pioff, pjoff
    public :: filemap_req, filemap_qmod, filemap_recv, filemap_rmod,         &
-             filemap_send, filemap_smod, filemap_indx, filemap_indxlen,     &
-             nodefile_win, nodefilesave_win, nodefile_count
+             filemap_send, filemap_smod, filemap_indx, filemap_indxlen
    public :: fileneighnum
 
    ! Imported from cc_mpi_point
