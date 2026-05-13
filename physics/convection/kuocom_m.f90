@@ -36,6 +36,7 @@ public tied_con,tied_over,tied_rh
 public nscheme
 public acon,bcon,rcm,rcrit_l,rcrit_s,cld_decay
 public vdeposition_mode,tiedtke_form
+public gf_imid
 public kbsav,ktsav
 public convpsav,fluxtot
 public mse_t1, mse_t2
@@ -58,6 +59,10 @@ real, dimension(:,:), allocatable, save :: fluxtot
 real, dimension(:,:), allocatable, save :: mse_t1, mse_t2
 real, dimension(:,:), allocatable, save :: dmsedt_adv, dmsedt_rad, dmsedt_pbl
 real, dimension(:), allocatable, save :: convpsav
+
+! grell
+integer, save :: gf_imid=0
+
 
 contains
 

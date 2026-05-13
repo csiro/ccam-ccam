@@ -515,6 +515,7 @@ if ( myid==0 .or. local ) then
     call ccnf_put_attg(idnc,'dsig4',dsig4)
     call ccnf_put_attg(idnc,'entrain',entrain)
     call ccnf_put_attg(idnc,'fldown',fldown)
+    call ccnf_put_attg(idnc,'gf_imid',gf_imid)
     call ccnf_put_attg(idnc,'iterconv',iterconv)
     call ccnf_put_attg(idnc,'ksc',ksc)
     call ccnf_put_attg(idnc,'kscmom',kscmom)
@@ -1032,16 +1033,19 @@ if ( iarch==1 ) then
     if ( save_urban ) then
       lname = 'Urban fraction'
       call attrib(idnc,dimk,ksize,'sigmu',lname,'none',0.,3.25,any_m,fixed_m,land_m,cptype)
-      lname = 'Urban type'
-      call attrib(idnc,dimk,ksize,'urbant',lname,'none',0.,650.,any_m,fixed_m,anotdef_m,cptype)
+      ! urban types combined in vegt ( with 100 added to index )
+      !lname = 'Urban type'
+      !call attrib(idnc,dimk,ksize,'urbant',lname,'none',0.,650.,any_m,fixed_m,anotdef_m,cptype)
     end if
     
     lname = 'Soil type'
     call attrib(idnc,dimk,ksize,'soilt',lname,'none',-650.,650.,any_m,fixed_m,anotdef_m,cptype)
+    call attrib_soilt(idnc,isoilm_name)
     
     if ( save_land ) then
       lname = 'Vegetation type'
       call attrib(idnc,dimk,ksize,'vegt',lname,'none',0.,650.,any_m,fixed_m,anotdef_m,cptype)
+      call attrib_vegt(idnc,ivegt_name,iurbant_name)
       lname = 'Capacity of Soil to Store Water'
       call attrib(idnc,dimk,ksize,'mrsofc',lname,'kg m-2',0.,6500.,any_m,fixed_m,amean_m,cptype)
     end if
@@ -2585,13 +2589,18 @@ if ( ktau==0 .or. itype==-1 ) then  ! also for restart file
   call histwrt(f,'cor',idnc,iarch,local,.true.)
   if ( save_urban ) then
     call histwrt(sigmu,'sigmu',idnc,iarch,local,.true.)
-    aa(:) = real(iurbant(:))
-    call histwrt(aa,'urbant',idnc,iarch,local,.true.)
+    ! urban types combined in vegt ( with 100 added to index )
+    !aa(:) = real(iurbant(:))
+    !call histwrt(aa,'urbant',idnc,iarch,local,.true.)
   end if
   aa(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
   call histwrt(aa,'soilt',idnc,iarch,local,.true.) ! also defines land-sea mask
   if ( save_land ) then
-    aa(:) = real(ivegt(:))
+    where ( sigmu(:)>0.5 )
+      aa(:) = real(iurbant(:)+100)
+    elsewhere
+      aa(:) = real(ivegt(:))    
+    end where
     call histwrt(aa,'vegt',idnc,iarch,local,.true.)
     aa(:) = sfc(isoilm)*sum(zse)*1000.
     call histwrt(aa,'mrsofc',idnc,iarch,local,.true.)

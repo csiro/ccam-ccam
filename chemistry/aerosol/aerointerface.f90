@@ -122,20 +122,17 @@ implicit none
 integer, intent(in) :: mins, aero_update
 integer k, j, tt, ttx, kinv, smins
 integer i, iq, ntr
-integer tile, js, je, idjd_t
+integer tile, js, je
 real, dimension(ifull,kl) :: dz, rhoa, pccw
 real, dimension(ifull) :: coszro
 real, dimension(ifull) :: wg
 real, dimension(ifull,kl) :: clcon
 real, dimension(ifull) :: taudar, cldcon, u10_l
-real, dimension(imax,ilev) :: loxidantnow
-real, dimension(imax,kl) :: lzoxidant
 real, dimension(imax,kl) :: lclcon
-real, dimension(imax,kl,naero) :: lxtg
+real, dimension(imax,kl) :: lxtg
 real, dimension(imax,kl) :: at, ct
 real dhr, fjd, r1, dlt, alp, slag
 real tmnht, dzz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
-logical mydiag_t
 logical, dimension(ifull) :: locean
 
 
@@ -220,11 +217,11 @@ end if ! aero_update==aero_split
 if ( aero_update==1 ) then
    
   ! Aerosol mixing
+  !$acc parallel loop copy(xtg) copyin(rkhsave,t,sig,sigmh,dsig,ratha,rathb) &
+  !$acc   private(at,ct)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
-    idjd_t = mod(idjd-1,imax)+1
-    mydiag_t = ((idjd-1)/imax==tile-1).and.mydiag
 
     at(:,1) = 0.
     ct(:,kl) = 0.
@@ -255,11 +252,14 @@ if ( aero_update==1 ) then
       end do
     end do
 
-    lxtg(:,:,:) = xtg(js:je,:,:)
-    call trimmix(at,ct,lxtg) 
-    xtg(js:je,:,:) = lxtg(:,:,:)
+    do ntr = 1,naero
+      lxtg(:,:) = xtg(js:je,:,ntr)
+      call trimmix(at,ct,lxtg) 
+      xtg(js:je,:,ntr) = lxtg(:,:)
+    end do  
     
   end do ! tile = 1,ntiles
+  !$acc end parallel loop
   
 end if
 

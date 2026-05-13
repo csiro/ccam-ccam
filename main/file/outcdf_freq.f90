@@ -283,6 +283,10 @@ if ( first ) then
       call attrib(fncid,sdim(1:fsize),fsize,'zht',lname,'m-2 s-2',-1000.,90.e3,any_m,fixed_m,amean_m,float_m)
       lname = 'Soil type'        
       call attrib(fncid,sdim(1:fsize),fsize,'soilt',lname,'none',-650.,650.,any_m,fixed_m,anotdef_m,short_m)
+      call attrib_soilt(fncid,isoilm_name)
+      lname = 'Vegetation type'
+      call attrib(fncid,sdim(1:fsize),fsize,'vegt',lname,'none',0.,650.,any_m,fixed_m,anotdef_m,short_m)
+      call attrib_vegt(fncid,ivegt_name,iurbant_name)
     end if
     if ( freq_core ) then
       lname='x-component 10m wind'
@@ -489,6 +493,12 @@ if ( first ) then
     call histwrt(zs,'zht',fncid,fiarch,local,.true.)
     outdata(:) = real(isoilm_in(:))  ! use the raw soil data here to classify inland water bodies
     call histwrt(outdata,'soilt',fncid,fiarch,local,.true.) ! also defines land-sea mask
+    where ( sigmu(:)>0.5 )
+      outdata(:) = real(iurbant(:)+100)
+    elsewhere
+      outdata(:) = real(ivegt(:))    
+    end where
+    call histwrt(outdata,'vegt',fncid,fiarch,local,.true.)
   end if    
   
   first=.false.

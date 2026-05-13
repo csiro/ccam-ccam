@@ -257,6 +257,7 @@ real, parameter :: cms=5.                 ! 7.4 in rams
 real, parameter :: fmroot=0.57735
 real, parameter :: rimax=(1./fmroot-1.)/bprm
 
+!$acc declare create(maxsal)
 
 contains
 
@@ -767,8 +768,8 @@ real, dimension(imax,wlev+1), intent(in) :: depth_hl
 real, dimension(imax,2:wlev), intent(in) :: dz_hl
 integer, dimension(imax), intent(in) :: ibot
 real, dimension(imax), intent(in) :: wu0, wv0, zo
-real, dimension(imax,wlev), intent(inout) :: temp, sal
-real, dimension(imax,wlev), intent(inout) :: u, v
+real, dimension(imax,wlev), intent(in) :: temp, sal
+real, dimension(imax,wlev), intent(in) :: u, v
 real, dimension(imax), intent(inout) :: ubot, vbot, utop, vtop
 real, dimension(imax,wlev), intent(in) :: dwdx, dwdy
 real, dimension(imax), intent(in) :: bf, mixdepth
@@ -825,16 +826,16 @@ real, dimension(imax,wlev+1), intent(in) :: depth_hl
 real, dimension(imax,2:wlev), intent(in) :: dz_hl
 integer, dimension(imax), intent(in) :: ibot
 real, dimension(imax), intent(in) :: wu0, wv0, zo
-real, dimension(imax,wlev), intent(inout) :: temp, sal
-real, dimension(imax,wlev), intent(inout) :: u, v
+real, dimension(imax,wlev), intent(in) :: temp, sal
+real, dimension(imax,wlev), intent(in) :: u, v
 real, dimension(imax), intent(inout) :: ubot, vbot
 real, dimension(imax,wlev), intent(in) :: dwdx, dwdy
 real, intent(in) :: dt
 
-real, dimension(imax,wlev) :: aa  !lower diagnonal
-real, dimension(imax,wlev) :: bb  !diagnoal
-real, dimension(imax,wlev) :: cc  !upper diagonal
-real, dimension(imax,wlev) :: dd  !right hand side
+real, dimension(imax,wlev,2) :: aa  !lower diagnonal
+real, dimension(imax,wlev,2) :: bb  !diagnoal
+real, dimension(imax,wlev,2) :: cc  !upper diagonal
+real, dimension(imax,wlev,2) :: dd  !right hand side
 real, dimension(imax,wlev) :: km  !km on full level
 real, dimension(imax,wlev) :: ks  !ks on full level
 real, dimension(imax,wlev) :: ps  !shear production
@@ -1068,29 +1069,29 @@ do step = 1,nsteps
   !setup diagonals
   do ii = 1,wlev
     do iqw = 1,imax
-      aa(iqw,ii) = 0.
-      bb(iqw,ii) = 1.
-      cc(iqw,ii) = 0.
-      dd(iqw,ii) = eps(iqw,ii)
+      aa(iqw,ii,1) = 0.
+      bb(iqw,ii,1) = 1.
+      cc(iqw,ii,1) = 0.
+      dd(iqw,ii,1) = eps(iqw,ii)
     end do
   end do
   do ii = 2,wlev-1
     do iqw = 1,imax  
       if ( dz(iqw,ii)*dz(iqw,ii-1  )>1.e-4 .and. ibot(iqw)>ii ) then
-        aa(iqw,ii) = -dtt*km_hl(iqw,ii)/(dz(iqw,ii)*dz_hl(iqw,ii)*sigmaeps)
+        aa(iqw,ii,1) = -dtt*km_hl(iqw,ii)/(dz(iqw,ii)*dz_hl(iqw,ii)*sigmaeps)
       end if
       if ( dz(iqw,ii)*dz(iqw,ii+1)>1.e-4 .and. ibot(iqw)>ii ) then
-        cc(iqw,ii) = -dtt*km_hl(iqw,ii+1)/(dz(iqw,ii)*dz_hl(iqw,ii+1)*sigmaeps)
+        cc(iqw,ii,1) = -dtt*km_hl(iqw,ii+1)/(dz(iqw,ii)*dz_hl(iqw,ii+1)*sigmaeps)
       end if
-      bb(iqw,ii) = 1. - aa(iqw,ii) - cc(iqw,ii)
+      bb(iqw,ii,1) = 1. - aa(iqw,ii,1) - cc(iqw,ii,1)
     end do  
   end do
   if ( eps_mode==0 ) then !explicit eps
     do ii = 2,wlev-1
       do iqw = 1,imax
         if ( dz(iqw,ii)>1.e-4 .and. ibot(iqw)>ii ) then
-          dd(iqw,ii) = dd(iqw,ii) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce1*ps(iqw,ii) &
-                                  + ce3(iqw,ii)*pb(iqw,ii) - ce2*eps(iqw,ii))
+          dd(iqw,ii,1) = dd(iqw,ii,1) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce1*ps(iqw,ii) &
+                                      + ce3(iqw,ii)*pb(iqw,ii) - ce2*eps(iqw,ii))
         end if
       end do  
     end do  
@@ -1098,9 +1099,9 @@ do step = 1,nsteps
     do ii = 2,wlev-1
       do iqw = 1,imax
         if ( dz(iqw,ii)>1.e-4 .and. ibot(iqw)>ii ) then
-          bb(iqw,ii) = bb(iqw,ii) + dtt*ce2*eps(iqw,ii)/k(iqw,ii)
-          dd(iqw,ii) = dd(iqw,ii) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce1*ps(iqw,ii) &
-                                  + ce3(iqw,ii)*pb(iqw,ii))
+          bb(iqw,ii,1) = bb(iqw,ii,1) + dtt*ce2*eps(iqw,ii)/k(iqw,ii)
+          dd(iqw,ii,1) = dd(iqw,ii,1) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce1*ps(iqw,ii) &
+                                      + ce3(iqw,ii)*pb(iqw,ii))
         end if
       end do  
     end do  
@@ -1109,50 +1110,50 @@ do step = 1,nsteps
       do iqw = 1,imax
         if ( dz(iqw,ii)>1.e-4 .and. (ce1*ps(iqw,ii)+ce3(iqw,ii)*pb(iqw,ii))>0. .and. &
              ibot(iqw)>ii ) then
-          bb(iqw,ii) = bb(iqw,ii) + dtt*ce2*eps(iqw,ii)/k(iqw,ii)
-          dd(iqw,ii) = dd(iqw,ii) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce1*ps(iqw,ii) &
-                                  + ce3(iqw,ii)*pb(iqw,ii))
+          bb(iqw,ii,1) = bb(iqw,ii,1) + dtt*ce2*eps(iqw,ii)/k(iqw,ii)
+          dd(iqw,ii,1) = dd(iqw,ii,1) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce1*ps(iqw,ii) &
+                                      + ce3(iqw,ii)*pb(iqw,ii))
         else if ( dz(iqw,ii)>1.e-4 .and. ibot(iqw)>ii ) then
-          bb(iqw,ii) = bb(iqw,ii) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce2 - ce3(iqw,ii)*pb(iqw,ii)/eps(iqw,ii))
-          dd(iqw,ii) = dd(iqw,ii) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce1*ps(iqw,ii))
+          bb(iqw,ii,1) = bb(iqw,ii,1) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce2 - ce3(iqw,ii)*pb(iqw,ii)/eps(iqw,ii))
+          dd(iqw,ii,1) = dd(iqw,ii,1) + dtt*eps(iqw,ii)/k(iqw,ii)*(ce1*ps(iqw,ii))
         end if
       end do  
     end do  
   end if
   do iqw = 1,imax
-    dd(iqw,2     ) = dd(iqw,2     ) - aa(iqw,2     )*eps(iqw,1)
-    dd(iqw,wlev-1) = dd(iqw,wlev-1) - cc(iqw,wlev-1)*eps(iqw,wlev)
+    dd(iqw,2     ,1) = dd(iqw,2     ,1) - aa(iqw,2     ,1)*eps(iqw,1)
+    dd(iqw,wlev-1,1) = dd(iqw,wlev-1,1) - cc(iqw,wlev-1,1)*eps(iqw,wlev)
   end do  
   
   !solve using thomas algorithm
-  call thomas(eps(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
+  call thomas(eps(:,2:wlev-1),aa(:,3:wlev-1,1),bb(:,2:wlev-1,1),cc(:,2:wlev-2,1),dd(:,2:wlev-1,1))
   
   !solve k
   !setup diagonals
   do ii = 1,wlev
     do iqw = 1,imax
-      aa(iqw,ii) = 0.
-      bb(iqw,ii) = 1.
-      cc(iqw,ii) = 0.
-      dd(iqw,ii) = k(iqw,ii)
+      aa(iqw,ii,2) = 0.
+      bb(iqw,ii,2) = 1.
+      cc(iqw,ii,2) = 0.
+      dd(iqw,ii,2) = k(iqw,ii)
     end do
   end do
   do ii = 2,wlev-1
     do iqw = 1,imax
       if ( dz(iqw,ii)*dz(iqw,ii-1)>1.e-4 .and. ibot(iqw)>ii ) then
-        aa(iqw,ii) = -dtt*km_hl(iqw,ii  )/(dz(iqw,ii)*dz_hl(iqw,ii  ))
+        aa(iqw,ii,2) = -dtt*km_hl(iqw,ii  )/(dz(iqw,ii)*dz_hl(iqw,ii  ))
       end if
       if ( dz(iqw,ii)*dz(iqw,ii+1)>1.e-4 .and. ibot(iqw)>ii ) then
-        cc(iqw,ii) = -dtt*km_hl(iqw,ii+1)/(dz(iqw,ii)*dz_hl(iqw,ii+1))
+        cc(iqw,ii,2) = -dtt*km_hl(iqw,ii+1)/(dz(iqw,ii)*dz_hl(iqw,ii+1))
       end if
-      bb(iqw,ii) = 1. - aa(iqw,ii) - cc(iqw,ii)
+      bb(iqw,ii,2) = 1. - aa(iqw,ii,2) - cc(iqw,ii,2)
     end do  
   end do
   if ( k_mode==0 ) then !explicit eps
     do ii = 2,wlev-1
       do iqw = 1,imax
         if ( dz(iqw,ii)>1.e-4 .and. ibot(iqw)>ii ) then
-          dd(iqw,ii) = dd(iqw,ii) + dtt*(ps(iqw,ii) + pb(iqw,ii) - eps(iqw,ii))
+          dd(iqw,ii,2) = dd(iqw,ii,2) + dtt*(ps(iqw,ii) + pb(iqw,ii) - eps(iqw,ii))
         end if
       end do  
     end do    
@@ -1160,8 +1161,8 @@ do step = 1,nsteps
     do ii = 2,wlev-1
       do iqw = 1,imax
         if ( dz(iqw,ii)>1.e-4 .and. ibot(iqw)>ii ) then
-          bb(iqw,ii) = bb(iqw,ii) + dtt*eps(iqw,ii)/k(iqw,ii)
-          dd(iqw,ii) = dd(iqw,ii) + dtt*(ps(iqw,ii) + pb(iqw,ii))
+          bb(iqw,ii,2) = bb(iqw,ii,2) + dtt*eps(iqw,ii)/k(iqw,ii)
+          dd(iqw,ii,2) = dd(iqw,ii,2) + dtt*(ps(iqw,ii) + pb(iqw,ii))
         end if
       end do  
     end do    
@@ -1170,22 +1171,22 @@ do step = 1,nsteps
       do iqw = 1,imax
         if ( dz(iqw,ii)>1.e-4 .and. (ps(iqw,ii)+pb(iqw,ii))>0. .and. &
              ibot(iqw)>ii ) then
-          bb(iqw,ii) = bb(iqw,ii) + dtt*eps(iqw,ii)/k(iqw,ii)
-          dd(iqw,ii) = dd(iqw,ii) + dtt*(ps(iqw,ii) + pb(iqw,ii))
+          bb(iqw,ii,2) = bb(iqw,ii,2) + dtt*eps(iqw,ii)/k(iqw,ii)
+          dd(iqw,ii,2) = dd(iqw,ii,2) + dtt*(ps(iqw,ii) + pb(iqw,ii))
         else if ( dz(iqw,ii)>1.e-4 .and. ibot(iqw)>ii ) then
-          bb(iqw,ii) = bb(iqw,ii) + dtt/k(iqw,ii)*(eps(iqw,ii) - pb(iqw,ii))
-          dd(iqw,ii) = dd(iqw,ii) + dtt*ps(iqw,ii)
+          bb(iqw,ii,2) = bb(iqw,ii,2) + dtt/k(iqw,ii)*(eps(iqw,ii) - pb(iqw,ii))
+          dd(iqw,ii,2) = dd(iqw,ii,2) + dtt*ps(iqw,ii)
         end if
       end do  
     end do
   end if
   do iqw = 1,imax
-    dd(iqw,2) = dd(iqw,2) - aa(iqw,2)*k(iqw,1)
-    dd(iqw,wlev-1) = dd(iqw,wlev-1) - cc(iqw,wlev-1)*k(iqw,wlev)
+    dd(iqw,2,2) = dd(iqw,2,2) - aa(iqw,2,2)*k(iqw,1)
+    dd(iqw,wlev-1,2) = dd(iqw,wlev-1,2) - cc(iqw,wlev-1,2)*k(iqw,wlev)
   end do  
   
   !solve using thomas algorithm
-  call thomas(k(:,2:wlev-1),aa(:,3:wlev-1),bb(:,2:wlev-1),cc(:,2:wlev-2),dd(:,2:wlev-1))
+  call thomas(k(:,2:wlev-1),aa(:,3:wlev-1,2),bb(:,2:wlev-1,2),cc(:,2:wlev-2,2),dd(:,2:wlev-1,2))
  
   !limit k & eps
   do ii = 1,wlev
@@ -1717,6 +1718,7 @@ end subroutine getwflux
 !     Atmospheric and Oceanic Technology, Vol 12, 381-389,  April 1995
                     
 subroutine calcdensity(d_rho,d_alpha,d_beta,tt,ss,ddz,pxtr)
+!!$acc routine vector
 
 implicit none
 
@@ -1733,9 +1735,14 @@ real drhodt,drhods,rs0
 wlx = size(tt,2)
 ifx = size(tt,1)
 
-ptot = pxtr*1.E-5 ! convert Pa to bars
+!$acc loop vector
+do iqw = 1,ifx
+  ptot(iqw) = pxtr(iqw)*1.E-5 ! convert Pa to bars
+end do
 
+!$acc loop seq
 do ii = 1,wlx
+  !$acc loop vector  
   do iqw = 1,ifx
     t = min(max(tt(iqw,ii)+(wrtemp-273.16),-2.2),100.)
     s = min(max(ss(iqw,ii),0.),maxsal)
@@ -3169,11 +3176,13 @@ do ii = 2,nlev-1
     dd(iqw,ii) = (ddi(iqw,ii)-dd(iqw,ii-1)*aai(iqw,ii))/n
   end do  
 end do
+
 do iqw = 1,size(outo,1)
   n = bbi(iqw,nlev)-cc(iqw,nlev-1)*aai(iqw,nlev)
   dd(iqw,nlev) = (ddi(iqw,nlev)-dd(iqw,nlev-1)*aai(iqw,nlev))/n
   outo(iqw,nlev) = dd(iqw,nlev)
 end do
+
 do ii = nlev-1,1,-1
   do iqw = 1,size(outo,1)
     outo(iqw,ii) = dd(iqw,ii) - cc(iqw,ii)*outo(iqw,ii+1)

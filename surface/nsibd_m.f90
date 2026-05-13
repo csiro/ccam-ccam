@@ -27,12 +27,14 @@ private
 public rsmin,sigmf,tgf,sigmu
 public ivegt,isoilm,isoilm_in,iurbant
 public carb_plant, carb_litter, carb_soil
+public ivegt_name, isoilm_name, iurbant_name
 public nsibd_init,nsibd_end
 
+integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in,iurbant
 real, dimension(:), allocatable, save :: rsmin,tgf,sigmu
 real, dimension(:), allocatable, save :: sigmf
 real, dimension(:,:,:,:), allocatable, save :: carb_plant, carb_litter, carb_soil
-integer, dimension(:), allocatable, save :: ivegt,isoilm,isoilm_in,iurbant
+character(len=50), dimension(:), allocatable, save :: ivegt_name, isoilm_name, iurbant_name
 
 contains
 
@@ -74,6 +76,16 @@ deallocate(rsmin,isoilm_in)
 if (allocated(tgf)) then
   deallocate(tgf)
 end if
+
+if (allocated(ivegt_name)) then
+  deallocate(ivegt_name)
+end if  
+if (allocated(isoilm_name)) then
+  deallocate(isoilm_name)
+end if  
+if (allocated(iurbant_name)) then
+  deallocate(iurbant_name)
+end if  
 
 return
 end subroutine nsibd_end

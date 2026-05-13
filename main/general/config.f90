@@ -226,6 +226,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
     cloud_ice_method,leon_snowmeth,maxlintime,lin_adv,qlg_max,    &
     qfg_max,                                                      &
+    gf_imid,                                                      & ! grell
     lin_aerosolmode                                                 ! depreciated
 ! boundary layer turbulence and gravity wave namelist
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
@@ -2094,7 +2095,7 @@ use parm_m                                 ! Model configuration
 
 implicit none
 
-integer, dimension(28) :: dumi
+integer, dimension(29) :: dumi
 real, dimension(37) :: dumr
     
 dumr = 0.
@@ -2165,6 +2166,7 @@ if ( myid==0 ) then
   dumi(26) = leon_snowmeth
   dumi(27) = lin_adv
   dumi(28) = nscheme
+  dumi(29) = gf_imid
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2233,6 +2235,7 @@ cloud_ice_method   = dumi(25)
 leon_snowmeth      = dumi(26)
 lin_adv            = dumi(27)
 nscheme            = dumi(28)
+gf_imid            = dumi(29)
 
 return
 end subroutine broadcast_kuonml

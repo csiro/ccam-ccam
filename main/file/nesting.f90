@@ -1831,18 +1831,18 @@ do kbb = ktopmlo,kc,kblock
   if ( (nud_uv/=9.and.abs(nmlo)/=1) .or. namip/=0 ) then
     if (myid==0) then
       if (klt==1) then
-        write(6,*) "MLO 1D filter - Single level         ",kbb,min(kbb+kblock-1,kc)
+        write(6,*) "OCN 1D filter - Single level         ",kbb,min(kbb+kblock-1,kc)
       else
-        write(6,*) "MLO 1D filter - Multiple level       ",kbb,min(kbb+kblock-1,kc)
+        write(6,*) "OCN 1D filter - Multiple level       ",kbb,min(kbb+kblock-1,kc)
       end if
     end if
     call mlofilterfast(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),lblock,klt)
   else
     if (myid==0) then
       if (klt==1) then
-        write(6,*) "MLO 2D filter - Single level         ",kbb,min(kbb+kblock-1,kc)
+        write(6,*) "OCN 2D filter - Single level         ",kbb,min(kbb+kblock-1,kc)
       else
-        write(6,*) "MLO 2D filter - Multiple level       ",kbb,min(kbb+kblock-1,kc)
+        write(6,*) "OCN 2D filter - Multiple level       ",kbb,min(kbb+kblock-1,kc)
       end if
     end if
     call mlofilter(diff_l(:,1:klt),diffs_l(:,1:klt),diffu_l(:,1:klt),diffv_l(:,1:klt),diffh_l(:,1),lblock,klt)

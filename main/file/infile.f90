@@ -54,6 +54,8 @@ public short_m, double_m, float_m, anotdef_m, amean_m, land_m, sea_m, seaice_m
 
 public time_of_month, time_interpolate
 
+public attrib_soilt, attrib_vegt
+
 integer(kind=4), dimension(:), allocatable, save :: pncid
 integer, dimension(:), allocatable, save :: pprid
 integer, dimension(:), allocatable, save :: ppanid, ppiid, ppjid
@@ -4039,5 +4041,53 @@ end if
 
 return
 end subroutine time_interpolate
+
+subroutine attrib_soilt(ncid,isoilm_name)
+
+implicit none
+
+integer, intent(in) :: ncid
+integer k
+character(len=50), dimension(:), intent(in) :: isoilm_name
+character(len=4096) msg
+character(len=2) cnum
+
+msg = "-01:freshwater"
+msg = trim(msg)//" 00:water"
+do k = 1,size(isoilm_name)
+  write(cnum,'(I2.2)') k
+  msg = trim(msg)//" "//cnum//":"//trim(isoilm_name(k))
+end do
+
+call ccnf_put_att_textg(ncid,'soilt_description',msg)
+
+return
+end subroutine attrib_soilt
+
+subroutine attrib_vegt(ncid,ivegt_name,iurbant_name)
+
+implicit none
+
+integer, intent(in) :: ncid
+integer k
+character(len=50), dimension(:), intent(in) :: ivegt_name
+character(len=50), dimension(:), intent(in) :: iurbant_name
+character(len=4096) msg
+character(len=3) cnum
+
+msg = "000:water"
+do k = 1,size(ivegt_name)
+  write(cnum,'(I3.3)') k
+  msg = trim(msg)//" "//cnum//":"//trim(ivegt_name(k))
+end do
+do k = 1,size(iurbant_name)
+  write(cnum,'(I3.3)') k+100
+  msg = trim(msg)//" "//cnum//":"//trim(iurbant_name(k))
+end do
+
+call ccnf_put_att_textg(ncid,'vegt_description',msg)
+
+return
+end subroutine attrib_vegt
 
 end module infile

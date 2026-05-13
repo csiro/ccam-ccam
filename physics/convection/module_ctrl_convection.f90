@@ -173,7 +173,7 @@ do tile = 1,ntiles
   ccn       = 150.            ! not well tested yet
   ccnclean  = 0.
   dtime     = dt              ! dt over which forcing is applied
-  imid      = 0
+  imid      = gf_imid
   do k = 1,kl
     ! boundary layer forcing (one closure for shallow)      
     dhdt(1:imax,k) = dmsedt_adv(js:je,k) + dmsedt_rad(js:je,k) + dmsedt_pbl(js:je,k)    
@@ -202,7 +202,7 @@ do tile = 1,ntiles
   psur       = ps(js:je)*0.01 ! surface pressure (mb)
   g_us       = u(js:je,:)     ! u on mass points
   g_vs       = v(js:je,:)     ! v on mass points
-  g_rho      = rhoa(1:imax,:)  ! density
+  g_rho      = rhoa(1:imax,:) ! density
   hfx        = fg(js:je)      ! w/m2, positive upward
   qfx        = eg(js:je)      ! w/m2, positive upward
   dx         = ds/em(js:je)   ! dx is grid point dependent here     ! CHECK IF THIS KM OR NOT, ds/em(js:je) IS IN METER

@@ -125,7 +125,7 @@ integer lncriver, iernc, ateb_len
 integer, dimension(ifull) :: river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
-integer, dimension(1) :: nstart, ncount
+integer, dimension(2) :: nstart, ncount
 integer, dimension(ifull) :: dumf
 real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
@@ -542,7 +542,7 @@ end if
 
 
 !--------------------------------------------------------------
-! READ SURFACE DATA (nsib and nspecial)
+! READ VEGETATION DATA (nsib and nspecial)
 ! nsib=3 (original land surface scheme with original 1deg+Dean's datasets)
 ! nsib=5 (original land surface scheme with MODIS datasets)
 ! nsib=6 (CABLE land surface scheme with internal screen diagnostics)
@@ -762,9 +762,18 @@ if ( nurban/=0 .and. nhstest>=0 ) then
   call uclem_init(ifull,ntiles,sigmu(:),0)
   call uclem_type(iurbant,0)
   allocate( atebparm(ateb_len,36) )
+  allocate( iurbant_name(ateb_len) )
+  iurbant_name = ""
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
       write(6,*) "-> Using user defined UCLEM urban parameter tables"
+      do k = 1,ateb_len
+        nstart(1) = 1
+        nstart(2) = k
+        ncount(1) = 50 ! should check chid dimension length
+        ncount(2) = 1
+        call ccnf_get_vara(ncidveg,'atebname',nstart,ncount,iurbant_name(k))
+      end do  
       nstart(1) = 1
       ncount(1) = ateb_len
       call ccnf_get_vara(ncidveg,'bldheight',nstart,ncount,atebparm(:,1))
@@ -778,6 +787,12 @@ if ( nurban/=0 .and. nhstest>=0 ) then
       call ccnf_get_vara(ncidveg,'roadalpha',nstart,ncount,atebparm(:,9))
       call ccnf_get_vara(ncidveg,'vegalphac',nstart,ncount,atebparm(:,10))
     end if
+    do k = 1,ateb_len
+      if ( myid==0 ) then
+        write(6,*) " -> Found ",trim(iurbant_name(k))
+      end if
+      call ccmpi_bcast(iurbant_name(k),0,comm_world)  
+    end do    
     call ccmpi_bcast(atebparm(:,1:10),0,comm_world) 
     call uclem_deftype(atebparm(:,1),iurbant,'bldheight',0)
     call uclem_deftype(atebparm(:,2),iurbant,'hwratio',0)

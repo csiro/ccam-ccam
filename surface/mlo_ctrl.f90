@@ -56,7 +56,7 @@ public mloinit,mloend,mloeval,mloimport,mloexport,mloload,mlosave,mloregrid,mlod
        mloscrnout,mloextra,mloimpice,mloexpice,mloexpdep,mloexpdensity,mloexpmelt,mloexpgamm,        &
        mloimport3d,mloexport3d,mlovlevels,mlocheck,mlodiagice,mlo_updatediag,mlo_updatekm,           &
        mlosurf,mlonewice,mloexpturb,mloimpturb
-!public micdwn
+public micdwn
 public minsfc,minsal,maxsal,icemax
 public zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
@@ -75,11 +75,12 @@ public turbdata
 public omink,omineps
 public k_mode,eps_mode,limitL,fixedce3
 public nops,nopb,fixedstabfunc
+public calcdensity
 #endif
 
 ! model arrays
 logical, save :: mlo_active = .false.                   ! Flag if MLO has been initialised
-!real, dimension(:,:), allocatable, save :: micdwn       ! This variable is for CCAM onthefly.f
+real, dimension(:,:), allocatable, save :: micdwn       ! This variable is for CCAM onthefly.f
 
 type(waterdata), dimension(:), allocatable, save :: water_g
 type(icedata), dimension(:), allocatable, save :: ice_g
@@ -136,7 +137,7 @@ interface mlodiag
 end interface
 
 interface mlo_updatediag
-  module procedure mlo_update_diag_imax
+  module procedure mlo_update_diag_ifull, mlo_update_diag_imax
 end interface
 
 interface mlodiagice
@@ -1448,6 +1449,29 @@ end select
 return
 end subroutine mlo_diag_imax
 
+subroutine mlo_update_diag_ifull(mode,mld,diag,ifull,imax)
+
+implicit none
+
+integer, intent(in) :: ifull, imax, diag
+integer tile, is, ie, ntiles
+real, dimension(:), intent(in) :: mld
+character(len=*), intent(in) :: mode
+
+if (diag>=1) write(6,*) "Export MLO diagnostic data"
+if (.not.mlo_active) return
+
+ntiles = ifull/imax
+
+do tile = 1,ntiles
+  is = (tile-1)*imax + 1
+  ie = tile*imax
+  call mlo_update_diag_imax(mode,mld(is:ie),diag,dgwater_g(tile),depth_g(tile),imax)
+end do
+
+return
+end subroutine mlo_update_diag_ifull
+
 subroutine mlo_update_diag_imax(mode,dat,diag,dgwater,depth,imax)
 
 implicit none
@@ -2086,9 +2110,8 @@ subroutine mloexpdensity(odensity,alpha,beta,tt,ss,ddz,pxtr,diag,rawrho)
 implicit none
 
 integer, intent(in) :: diag
-real, dimension(:,:), intent(in) :: tt
 real, dimension(:), intent(in) :: pxtr
-real, dimension(:,:), intent(in) :: ss,ddz
+real, dimension(:,:), intent(in) :: tt,ss,ddz
 real, dimension(:,:), intent(out) :: odensity,alpha,beta
 logical, intent(in), optional :: rawrho
 logical rawmode
@@ -2168,6 +2191,7 @@ real, dimension(:), intent(in) :: ip_dic, ip_dsn
 real, dimension(:,:), intent(out) :: gamm
 
 nx = size(gamm,1)
+
 gamm(1:nx,1) = gammi
 gamm(1:nx,2) = max(ip_dsn(1:nx),0.)*cps
 gamm(1:nx,3) = max(ip_dic(1:nx),0.)*0.5*cpi
@@ -2327,8 +2351,8 @@ real, dimension(imax,wlev+1), intent(in) :: depth_hl
 real, dimension(imax,2:wlev), intent(in) :: dz_hl
 integer, dimension(imax), intent(in) :: ibot
 logical, intent(in) :: data_allocated
-real, dimension(imax,wlev), intent(inout) :: temp, sal
-real, dimension(imax,wlev), intent(inout) :: u, v
+real, dimension(imax,wlev), intent(in) :: temp, sal
+real, dimension(imax,wlev), intent(in) :: u, v
 real, dimension(imax), intent(inout) :: ubot, vbot, utop, vtop
 real, dimension(imax,wlev), intent(in) :: dwdx, dwdy
 real, dimension(imax), intent(in) :: wu0, wv0, zo

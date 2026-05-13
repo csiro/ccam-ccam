@@ -222,36 +222,10 @@ use tkeeps, only : tkemix, tke, eps, shear
 implicit none
 
 integer k, nlocal_mode
-integer tile, js, je
-#ifdef GPU
-integer, dimension(ifull) :: ibot, mixind_o
-real, dimension(ifull,kl) :: zh, zg
-real, dimension(ifull,kl) :: rkm
-real, dimension(ifull,kl) :: lqg, lqfg, lqlg, lstratcloud, lni
-real, dimension(ifull,kl) :: ltke, leps, lshear, lu, lv
-real, dimension(ifull,kl) :: rhs
-real, dimension(ifull) :: rhos, dx
-real, dimension(ifull) :: lrho
+real rong
 real, dimension(kl) :: sigkap, delh
-real, dimension(ifull,ol) :: w_t, w_s, w_u, w_v
-real, dimension(ifull,ol) :: w_tke, w_eps
-real, dimension(ifull,ol) :: dwdx_o, dwdy_o
-real, dimension(ifull,ol) :: deptho_depth
-real, dimension(ifull,ol+1) :: deptho_depth_hl
-real, dimension(ifull,ol) :: deptho_dz
-real, dimension(ifull,2:ol) :: deptho_dz_hl
-real, dimension(ifull) :: w_e, d_zcr, deptho_max, rbot
-real, dimension(ifull) :: ubot_o, vbot_o, utop_o, vtop_o
-real, dimension(ifull) :: cd_water, cdh_water, cdbot_water
-real, dimension(ifull) :: wt0_o, wt0rad_o, wt0melt_o, wt0eg_o, wt0fb_o
-real, dimension(ifull) :: ws0_o, ws0subsurf_o
-real, dimension(ifull) :: wu0_o, wv0_o, zo_o
-real, dimension(ifull) :: bf_o, mixdepth_o
-real, dimension(ifull,ol) :: rad_o
-real, dimension(ifull) :: i_u, i_v
-real, dimension(ifull) :: icefg_a, imass, cd_ice, cdbot_ice
-#else
-integer, dimension(imax) :: ibot, mixind_o
+integer tile, js, je
+integer, dimension(imax) :: ibot
 real, dimension(imax,kl) :: zh, zg
 real, dimension(imax,kl) :: rkm
 real, dimension(imax,kl) :: lqg, lqfg, lqlg, lstratcloud, lni
@@ -259,7 +233,6 @@ real, dimension(imax,kl) :: ltke, leps, lshear, lu, lv
 real, dimension(imax,kl) :: rhs
 real, dimension(imax) :: rhos, dx
 real, dimension(imax) :: lrho
-real, dimension(kl) :: sigkap, delh
 real, dimension(imax,ol) :: w_t, w_s, w_u, w_v
 real, dimension(imax,ol) :: w_tke, w_eps
 real, dimension(imax,ol) :: dwdx_o, dwdy_o
@@ -267,19 +240,15 @@ real, dimension(imax,ol) :: deptho_depth
 real, dimension(imax,ol+1) :: deptho_depth_hl
 real, dimension(imax,ol) :: deptho_dz
 real, dimension(imax,2:ol) :: deptho_dz_hl
+real, dimension(imax,ol) :: rad_o
 real, dimension(imax) :: w_e, d_zcr, deptho_max, rbot
 real, dimension(imax) :: ubot_o, vbot_o, utop_o, vtop_o
 real, dimension(imax) :: cd_water, cdh_water, cdbot_water
 real, dimension(imax) :: wt0_o, wt0rad_o, wt0melt_o, wt0eg_o, wt0fb_o
 real, dimension(imax) :: ws0_o, ws0subsurf_o
 real, dimension(imax) :: wu0_o, wv0_o, zo_o
-real, dimension(imax) :: bf_o, mixdepth_o
-real, dimension(imax,ol) :: rad_o
 real, dimension(imax) :: i_u, i_v
 real, dimension(imax) :: icefg_a, imass, cd_ice, cdbot_ice
-#endif
-real rong
-
 
 ! Set-up potential temperature transforms
 rong = rdry/grav
@@ -312,43 +281,7 @@ select case(nvmix)
     end select
 end select
 
-#ifdef GPU  
-! GPU version
-
-! estimate grid spacing for scale aware MF
-dx(1:ifull) = ds/em(1:ifull)
-     
-! note ksc/=0 options are clobbered when nvmix=6 or nvmix=9
-! However, nvmix=6 or nvmix=9 supports its own shallow
-! convection options with nlocal=7
-
-! calculate height on full levels AGL
-zg(1:ifull,1) = bet(1)*t(1:ifull,1)/grav
-zh(1:ifull,1) = t(1:ifull,1)*delh(1)
-do k = 2,kl
-  zg(1:ifull,k) = zg(1:ifull,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
-  zh(1:ifull,k) = zh(1:ifull,k-1) + t(1:ifull,k)*delh(k)
-end do ! k  loop
-       
-! near surface air density (see sflux.f and cable_ccam2.f90)
-rhos(1:ifull) = ps(1:ifull)/(rdry*tss(1:ifull))
-    
-lqg  = qg(1:ifull,:)
-lqfg = qfg(1:ifull,:)
-lqlg = qlg(1:ifull,:)
-lni  = ni(1:ifull,:)
-lstratcloud = stratcloud(1:ifull,:)
-ltke   = tke(1:ifull,:)
-leps   = eps(1:ifull,:)
-lshear = shear(1:ifull,:)
-lu     = u(1:ifull,:)
-lv     = v(1:ifull,:)
-    
-! transform to ocean reference frame and temp to theta
-do k = 1,kl
-  rhs(1:ifull,k) = t(1:ifull,k)*sigkap(k) ! theta
-end do
-  
+! default ocean data in case ocean is disabled  
 w_e = 0.
 deptho_max = 0.
 d_zcr = 1.
@@ -380,9 +313,6 @@ ws0subsurf_o = 0.
 wu0_o = 0.
 wv0_o = 0.
 zo_o = 0. 
-bf_o = 0.
-mixdepth_o = 0.
-mixind_o = ol
 rad_o = 0.
 w_tke = 1.e-8
 w_eps = 1.e-11
@@ -392,138 +322,8 @@ icefg_a = 0.
 imass = 100.
 cd_ice = 0.
 cdbot_ice = 0.
-if ( nlocal_mode==2 .or. nlocal_mode==3 ) then
-  ! export ocean data before mixing  
-  call mloexport("eta",w_e,0,0,ifull,imax)
-  call mloexpdep("depth_hl",deptho_max,ol+1,0,ifull,imax)
-  d_zcr(:) = max( 1. + max(w_e(:),-delwater)/max(deptho_max(:),1.e-4), minwater/max(deptho_max(:),1.e-4) )
-  do k = 1,ol
-    call mloexpdep("depth_fl",deptho_depth(:,k),k,0,ifull,imax)
-    deptho_depth(:,k) = deptho_depth(:,k)*d_zcr(:)
-  end do
-  do k = 1,ol+1
-    call mloexpdep("depth_hl",deptho_depth_hl(:,k),k,0,ifull,imax)
-    deptho_depth_hl(:,k) = deptho_depth_hl(:,k)*d_zcr(:)
-  end do
-  do k = 1,ol
-    call mloexpdep("depth_dz_fl",deptho_dz(:,k),k,0,ifull,imax)
-    deptho_dz(:,k) = deptho_dz(:,k)*d_zcr(:)
-  end do
-  do k = 2,ol
-    call mloexpdep("depth_dz_hl",deptho_dz_hl(:,k),k,0,ifull,imax)
-    deptho_dz_hl(:,k) = deptho_dz_hl(:,k)*d_zcr(:)
-  end do
-  do k = 1,ol
-    call mloexport("temp",w_t(:,k),k,0,ifull,imax)
-    call mloexport("sal",w_s(:,k),k,0,ifull,imax)
-    call mloexport("u",w_u(:,k),k,0,ifull,imax)
-    call mloexport("v",w_v(:,k),k,0,ifull,imax)
-    call mloexport("dwdx",dwdx_o(:,k),k,0,ifull,imax)
-    call mloexport("dwdy",dwdy_o(:,k),k,0,ifull,imax)  
-  end do
-  rbot(:) = real(ibot(:))
-  call mloexport("ibot",rbot(:),0,0,ifull,imax)
-  ibot(:) = nint(rbot(:))
-  call mloexport("ubot",ubot_o(:),0,0,ifull,imax)
-  call mloexport("vbot",vbot_o(:),0,0,ifull,imax)
-  call mloexport("utop",utop_o(:),0,0,ifull,imax)
-  call mloexport("vtop",vtop_o(:),0,0,ifull,imax)
-  call mlodiag("cd",cd_water(:),0,0,ifull,imax)
-  call mlodiag("cdh",cdh_water(:),0,0,ifull,imax)
-  call mlodiag("cd_bot",cdbot_water(:),0,0,ifull,imax)
-  call mlodiag("wt0",wt0_o(:),0,0,ifull,imax)
-  call mlodiag("wt0_rad",wt0rad_o(:),0,0,ifull,imax)
-  call mlodiag("wt0_melt",wt0melt_o(:),0,0,ifull,imax)
-  call mlodiag("wt0_eg",wt0eg_o(:),0,0,ifull,imax)
-  call mlodiag("wt0_fb",wt0fb_o(:),0,0,ifull,imax)
-  call mlodiag("ws0",ws0_o(:),0,0,ifull,imax)
-  call mlodiag("ws0_subsurf",ws0subsurf_o(:),0,0,ifull,imax)
-  call mlodiag("wu0",wu0_o(:),0,0,ifull,imax)
-  call mlodiag("wv0",wv0_o(;),0,0,ifull,imax)
-  call mlodiag("zo",zo_o(:),0,0,ifull,imax)   
-  call mlodiag("bf",bf_o(:),0,0,ifull,imax)
-  call mlodiag("mixdepth",mixdepth_o(:),0,0,ifull,imax)
-  rbot(:) = real(mixind_o(:))
-  call mlodiag("mixind",rbot(:),0,0,ifull,imax)
-  mixind_o(:) = nint(rbot(:))
-  do k = 1,ol
-    call mlodiag("rad",rad_o(:,k),k,0,ifull,imax)
-  end do    
-  do k = 1,ol
-    call mloexpturb("tke",w_tke(:,k),k,0,ifull,imax)
-    call mloexpturb("eps",w_eps(:,k),k,0,ifull,imax)
-  end do
-  call mloexpice("u",i_u,0,ifull,imax)
-  call mloexpice("v",i_v,0,ifull,imax)
-  call mlodiagice("fg",ifull,imax)
-  call mlodiagice("mass",imass,0,ifull,imax)
-  call mlodiagice("cd",cd_ice,0,ifull,imax)
-  call mlodiagice("cd_bot",cdbot_ice,0,ifull,imax)    
-end if
-   
-call tkemix(rkm,rhs,lqg,lqlg,lqfg,lni,lstratcloud,lu,lv,pblh,                  &
-            fg,eg,cduv,ps,zg,zh,sig,                                           &
-            rhos,ustar,dt,nlocal_mode,ltke,leps,lshear,dx,land,                &
-            w_t,w_s,w_u,w_v,w_tke,w_eps,deptho_depth,deptho_depth_hl,          &
-            deptho_dz,deptho_dz_hl,dwdx_o,dwdy_o,ibot,ubot_o,vbot_o,           &
-            utop_o,vtop_o,cd_water,cdh_water,cdbot_water,wt0_o,wt0rad_o,       &
-            wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,wu0_o,wv0_o,zo_o,     &
-            bf_o,mixdepth_o,mixind_o,rad_o,                                    &
-            i_u,i_v,fracice,icefg_a,imass,cd_ice,cdbot_ice,                    &
-            ifull,kl,ol)  
-  
-qg(1:ifull,:)         = lqg
-qfg(1:ifull,:)        = lqfg
-qlg(1:ifull,:)        = lqlg
-ni(1:ifull,:)         = lni
-stratcloud(1:ifull,:) = lstratcloud
-tke(1:ifull,:)        = ltke
-eps(1:ifull,:)        = leps
-u(1:ifull,:)          = lu
-v(1:ifull,:)          = lv
-  
-do k = 1,kl
-  ! replace counter gradient term with cqmix
-  ! save Km and Kh for output
-  rkmsave(:,k) = rkm(:,k)*cqmix
-  rkhsave(:,k) = rkm(:,k)*cqmix
-  ! transform winds back to Earth reference frame and theta to temp
-  t(1:ifull,k) = rhs(1:ifull,k)/sigkap(k)
-enddo    !  k loop
-  
-lrho(1:ifull) = ps(1:ifull)/(rdry*tss(1:ifull))
-taux(1:ifull) = lrho(1:ifull)*cduv(1:ifull)*u(1:ifull,1)
-tauy(1:ifull) = lrho(1:ifull)*cduv(1:ifull)*v(1:ifull,1)
-  
-if ( nlocal_mode==2 .or. nlocal_mode==3 ) then
-  ! import ocean data after mixing  
-  do k = 1,ol
-    call mloimport("temp",w_t(:,k),k,0,ifull,imax)
-    call mloimport("sal",w_s(:,k),k,0,ifull,imax)
-    call mloimport("u",w_u(:,k),k,0,ifull,imax)
-    call mloimport("v",w_v(:,k),k,0,ifull,imax)
-  end do
-  call mloimport("ubot",ubot_o,0,0,ifull,imax)
-  call mloimport("vbot",vbot_o,0,0,ifull,imax)
-  call mloimport("utop",utop_o,0,0,ifull,imax)
-  call mloimport("vtop",vtop_o,0,0,ifull,imax)
-  call mlo_updatediag("wu0",wu0_o,0,ifull,imax)
-  call mlo_updatediag("wv0",wv0_o,0,ifull,imax)
-  call mlo_updatediag("wt0",wt0_o,0,ifull,imax)    
-  do k = 1,ol
-    call mloimpturb("tke",w_tke(:,k),k,0,ifull,imax)
-    call mloimpturb("eps",w_eps(:,k),k,0,ifull,imax)
-  end do  
-  call mloimpice("u",i_u,0,ifull,imax)
-  call mloimpice("v",i_v,0,ifull,imax)    
-  call mloimpice("fracice",fracice(js:je),0,ifull,imax)        
-  ! export ocean SST
-  call mlosurf("sst",tss(js:je),0,ifull,imax)
-end if
 
-#else
 
-! CPU version
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -564,49 +364,6 @@ do tile = 1,ntiles
     rhs(:,k) = t(js:je,k)*sigkap(k) ! theta
   end do
   
-  w_e = 0.
-  deptho_max = 0.
-  d_zcr = 1.
-  deptho_depth = 0.
-  deptho_depth_hl = 0.
-  deptho_dz = 0.
-  deptho_dz_hl = 0.
-  w_t = 0.
-  w_s = 0.
-  w_u = 0.
-  w_v = 0.
-  dwdx_o = 0.
-  dwdy_o = 0.
-  ibot = ol
-  ubot_o = 0.
-  vbot_o = 0.
-  utop_o = 0.
-  vtop_o = 0.
-  cd_water = 0.
-  cdh_water = 0.
-  cdbot_water = 0.
-  wt0_o = 0.
-  wt0rad_o = 0.
-  wt0melt_o = 0.
-  wt0eg_o = 0.
-  wt0fb_o = 0.
-  ws0_o = 0.
-  ws0subsurf_o = 0.
-  wu0_o = 0.
-  wv0_o = 0.
-  zo_o = 0. 
-  bf_o = 0.
-  mixdepth_o = 0.
-  mixind_o = ol
-  rad_o = 0.
-  w_tke = 1.e-8
-  w_eps = 1.e-11
-  i_u = 0.
-  i_v = 0.
-  icefg_a = 0.
-  imass = 100.
-  cd_ice = 0.
-  cdbot_ice = 0.
   if ( nlocal_mode==2 .or. nlocal_mode==3 ) then
     ! export ocean data before mixing  
     call mloexport("eta",w_e,0,0,water_g(tile),depth_g(tile),imax)
@@ -656,11 +413,6 @@ do tile = 1,ntiles
     call mlodiag("wu0",wu0_o,0,0,dgwater_g(tile),depth_g(tile),imax)
     call mlodiag("wv0",wv0_o,0,0,dgwater_g(tile),depth_g(tile),imax)
     call mlodiag("zo",zo_o,0,0,dgwater_g(tile),depth_g(tile),imax)   
-    call mlodiag("bf",bf_o,0,0,dgwater_g(tile),depth_g(tile),imax)
-    call mlodiag("mixdepth",mixdepth_o,0,0,dgwater_g(tile),depth_g(tile),imax)
-    rbot = real(mixind_o)
-    call mlodiag("mixind",rbot,0,0,dgwater_g(tile),depth_g(tile),imax)
-    mixind_o = nint(rbot)
     do k = 1,ol
       call mlodiag("rad",rad_o(:,k),k,0,dgwater_g(tile),depth_g(tile),imax)
     end do    
@@ -683,8 +435,7 @@ do tile = 1,ntiles
               deptho_dz,deptho_dz_hl,dwdx_o,dwdy_o,ibot,ubot_o,vbot_o,           &
               utop_o,vtop_o,cd_water,cdh_water,cdbot_water,wt0_o,wt0rad_o,       &
               wt0melt_o,wt0eg_o,wt0fb_o,ws0_o,ws0subsurf_o,wu0_o,wv0_o,zo_o,     &
-              bf_o,mixdepth_o,mixind_o,rad_o,                                    &
-              i_u,i_v,fracice(js:je),icefg_a,imass,cd_ice,cdbot_ice,             &
+              rad_o,i_u,i_v,fracice(js:je),icefg_a,imass,cd_ice,cdbot_ice,       &
               imax,kl,ol)  
   
   qg(js:je,:)         = lqg
@@ -739,7 +490,6 @@ do tile = 1,ntiles
   end if
   
 end do ! tile = 1,ntiles
-#endif
 
 return
 end subroutine tkeeps_work

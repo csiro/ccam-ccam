@@ -1793,10 +1793,11 @@ subroutine cable_biophysic_parm(cveg)
 use cc_mpi     ! CC MPI routines
 use darcdf_m   ! Netcdf data
 use infile     ! Input file routines
+use nsibd_m    ! Land-surface arrays
 
 integer k
 integer, dimension(mp_global), intent(in) :: cveg
-integer, dimension(1) :: nstart, ncount
+integer, dimension(2) :: nstart, ncount
 integer, dimension(:), allocatable, save :: csiropft
 real totdepth
 real, dimension(:), allocatable, save :: hc, xfang, leaf_w, leaf_l, canst1
@@ -1821,6 +1822,8 @@ if ( lncveg_numpft<1 ) then
   allocate( a1gs(lncveg_numpft), d0gs(lncveg_numpft), alpha(lncveg_numpft), convex(lncveg_numpft), cfrd(lncveg_numpft) )
   allocate( gswmin(lncveg_numpft), conkc0(lncveg_numpft), conko0(lncveg_numpft), ekc(lncveg_numpft), eko(lncveg_numpft) )
   allocate( g0(lncveg_numpft), g1(lncveg_numpft), zr(lncveg_numpft), clitt(lncveg_numpft) )
+  allocate( ivegt_name(lncveg_numpft) )
+  
   csiropft=(/ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 2 /)
   hc    =(/   17.,  35.,  15.5,  20.,   0.6, 0.567, 0.567, 0.567, 0.55, 0.55, 0.567,  0.2, 6.017,  0.2,  0.2,  0.2,  0.2, 17. /)
   xfang =(/  0.01,  0.1,  0.01, 0.25,  0.01,  -0.3,  -0.3,  -0.3, -0.3, -0.3,  -0.3,  0.1,    0.,   0.,   0.,   0.,   0., 0.1 /)
@@ -1856,6 +1859,32 @@ if ( lncveg_numpft<1 ) then
   zr=(/ 1.8, 3., 2., 2., 2.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.8, 3.1, 3., 1., 1., 1., 1., 3. /)
   clitt=(/ 20., 6., 10., 13., 2., 2., 0.3, 0.3, 0., 0., 2., 2., 0., 0., 0., 0., 0., 6. /) 
   
+  !ivegt_name(0) = "water"
+  ivegt_name(1) = "evergreen_needleleaf"
+  ivegt_name(2) = "evergreen_broadleaf"
+  ivegt_name(3) = "deciduous_needleleaf"
+  ivegt_name(4) = "deciduous_broadleaf"
+  ivegt_name(5) = "shrub"
+  ivegt_name(6) = "C3_grassland"
+  ivegt_name(7) = "C4_grassland"
+  ivegt_name(8) = "tundra"
+  ivegt_name(9) = "C3_cropland"
+  ivegt_name(10) = "C4_cropland"
+  ivegt_name(11) = "wetland"
+  ivegt_name(12) = "empty"
+  ivegt_name(13) = "empty"
+  ivegt_name(14) = "barren"
+  ivegt_name(15) = "urban"
+  ivegt_name(16) = "lakes"
+  ivegt_name(17) = "ice"
+  ivegt_name(18) = "evergreen_broadleaf_sava"
+  
+  do k = 1,lncveg_numpft
+    if ( myid==0 ) then
+      write(6,*) " -> Define ",trim(ivegt_name(k))
+    end if
+  end do  
+  
 else
 
   ! user defined biophysical parameter tables  
@@ -1869,6 +1898,7 @@ else
   allocate( a1gs(lncveg_numpft), d0gs(lncveg_numpft), alpha(lncveg_numpft), convex(lncveg_numpft), cfrd(lncveg_numpft) )
   allocate( gswmin(lncveg_numpft), conkc0(lncveg_numpft), conko0(lncveg_numpft), ekc(lncveg_numpft), eko(lncveg_numpft) )
   allocate( g0(lncveg_numpft), g1(lncveg_numpft), zr(lncveg_numpft), clitt(lncveg_numpft) )
+  allocate( ivegt_name(lncveg_numpft) )
 
   ! set default values to prevent false float invalid when calling Bcast.
   csiropft = 0.
@@ -1900,8 +1930,16 @@ else
   g1 = 0.
   zr = 0.
   clitt = 0.
+  ivegt_name = ""
   
   if ( myid==0 ) then
+    do k = 1,lncveg_numpft
+      nstart(1) = 1
+      nstart(2) = k
+      ncount(1) = 50 ! should check chid dimension length
+      ncount(2) = 1
+      call ccnf_get_vara(ncidveg,'pftname',nstart,ncount,ivegt_name(k))
+    end do      
     nstart(1) = 1
     ncount(1) = lncveg_numpft
     call ccnf_get_vara(ncidveg,'csiropft',nstart,ncount,csiropft)
@@ -1937,6 +1975,12 @@ else
     call ccnf_get_vara(ncidveg,'clitt',nstart,ncount,clitt)
   end if
   call ccmpi_bcast(csiropft,0,comm_world)  
+  do k = 1,lncveg_numpft
+    if ( myid==0 ) then
+      write(6,*) " -> Found ",trim(ivegt_name(k))
+    end if
+    call ccmpi_bcast(ivegt_name(k),0,comm_world)  
+  end do
   call ccmpi_bcast(hc,0,comm_world)
   call ccmpi_bcast(xfang,0,comm_world)
   call ccmpi_bcast(leaf_w,0,comm_world)
@@ -2077,6 +2121,7 @@ use cc_mpi     ! CC MPI routines
 use darcdf_m   ! Netcdf data
 use infile     ! Input file routines
 use newmpar_m
+use nsibd_m    ! Land-surface arrays
 use parm_m, only : nmaxpr
 use soilv_m
 
@@ -2087,7 +2132,7 @@ type(soil_parameter_type), intent(inout) :: soil
 !real, parameter :: rhob_hi = 2300.
 !real, parameter :: rhob_lo = 810.
 integer isoil, k
-integer, dimension(1) :: nstart, ncount
+integer, dimension(2) :: nstart, ncount
 
 if ( lncveg_numsoil<1 ) then
     
@@ -2096,6 +2141,8 @@ if ( lncveg_numsoil<1 ) then
     write(6,*) "-> Using default CABLE soil parameter tables"
   end if
 
+  lncveg_numsoil = 9
+  
   ! redefine rhos
   rhos=(/ 1600., 1600., 1381., 1373., 1476., 1521., 1373., 1537.,  910., 2600., 2600., 2600., 2600. /)
 
@@ -2104,7 +2151,23 @@ if ( lncveg_numsoil<1 ) then
       write(6,"('isoil,ssat,sfc,swilt,hsbh ',i2,3f7.3,e11.4)") isoil,ssat(isoil),sfc(isoil),swilt(isoil),hsbh(isoil)
     end do
   end if
-
+  
+  allocate( isoilm_name(lncveg_numsoil) )
+  isoilm_name(1) = "Coarse_sand/Loamy_sand"
+  isoilm_name(2) = "Medium_clay_loam/silty_clay_loam/silt_loam"
+  isoilm_name(3) = "Fine_clay"
+  isoilm_name(4) = "Coarse-medium_sandy_loam/loam"
+  isoilm_name(5) = "Coarse-fine_sandy_clay"
+  isoilm_name(6) = "Medium-fine_silty_clay"
+  isoilm_name(7) = "Coarse-medium-fine_sandy_clay_loam"
+  isoilm_name(8) = "Organc_peat"  
+  isoilm_name(9) = "Permanent_ice"
+  do k = 1,lncveg_numsoil
+    if ( myid==0 ) then
+      write(6,*) " -> Define ",trim(isoilm_name(k))
+    end if 
+  end do  
+  
 else
 
   ! user defined soil parameter tables  
@@ -2115,6 +2178,9 @@ else
     write(6,*) "ERROR: Number of soil types larger than maximum, mxst,numsoil:",mxst,lncveg_numsoil
     call ccmpi_abort(-1)
   end if
+  
+  allocate( isoilm_name(lncveg_numsoil) )
+  isoilm_name = ""
 
   silt = 0.
   clay = 0.
@@ -2132,8 +2198,15 @@ else
   ssat(0) = 2.
 
   if ( myid==0 ) then
+    do k = 1,lncveg_numsoil  
+      nstart(1) = 1
+      nstart(2) = k
+      ncount(1) = 50 ! should check chid dimension length
+      ncount(2) = 1
+      call ccnf_get_vara(ncidveg,'soilname',nstart,ncount,isoilm_name(k))
+    end do  
     nstart(1) = 1
-    ncount(1) = lncveg_numsoil
+    ncount(1) = lncveg_numsoil    
     call ccnf_get_vara(ncidveg,'silt',nstart,ncount,silt(1:lncveg_numsoil))
     call ccnf_get_vara(ncidveg,'clay',nstart,ncount,clay(1:lncveg_numsoil))
     call ccnf_get_vara(ncidveg,'sand',nstart,ncount,sand(1:lncveg_numsoil))
@@ -2146,6 +2219,12 @@ else
     call ccnf_get_vara(ncidveg,'rhosoil',nstart,ncount,rhos(1:lncveg_numsoil))
     call ccnf_get_vara(ncidveg,'css',nstart,ncount,css(1:lncveg_numsoil))
   end if
+  do k = 1,lncveg_numsoil
+    if ( myid==0 ) then
+      write(6,*) " -> Found ",trim(isoilm_name(k))
+    end if
+    call ccmpi_bcast(isoilm_name(k),0,comm_world)  
+  end do     
   call ccmpi_bcast(silt,0,comm_world)
   call ccmpi_bcast(clay,0,comm_world)
   call ccmpi_bcast(sand,0,comm_world)
