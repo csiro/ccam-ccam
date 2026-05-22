@@ -1283,9 +1283,9 @@ contains
           if(dd_massentro(i,ki).lt.0.)then
              dd_massentro(i,ki)=0.
              dd_massdetro(i,ki)=zdo(i,ki+1)-zdo(i,ki)
-             if(zdo(i,ki+1).gt.0.)cdd(i,ki)=dd_massdetro(i,ki)/(dzo*zdo(i,ki+1))
+             if(dzo*zdo(i,ki+1).gt.0.)cdd(i,ki)=dd_massdetro(i,ki)/(dzo*zdo(i,ki+1))
           endif
-          if(zdo(i,ki+1).gt.0.)mentrd_rate_2d(i,ki)=dd_massentro(i,ki)/(dzo*zdo(i,ki+1))
+          if(dzo*zdo(i,ki+1).gt.0.)mentrd_rate_2d(i,ki)=dd_massentro(i,ki)/(dzo*zdo(i,ki+1))
         enddo
         mentrd_rate_2d(i,1)=0.
         do ki=itemp-1,1,-1
@@ -1296,9 +1296,9 @@ contains
           if(dd_massdetro(i,ki).lt.0.)then
             dd_massdetro(i,ki)=0.
             dd_massentro(i,ki)=zdo(i,ki)-zdo(i,ki+1)
-            if(zdo(i,ki+1).gt.0.)mentrd_rate_2d(i,ki)=dd_massentro(i,ki)/(dzo*zdo(i,ki+1))
+            if(dzo*zdo(i,ki+1).gt.0.)mentrd_rate_2d(i,ki)=dd_massentro(i,ki)/(dzo*zdo(i,ki+1))
           endif
-          if(zdo(i,ki+1).gt.0.)cdd(i,ki)= dd_massdetro(i,ki)/(dzo*zdo(i,ki+1))
+          if(dzo*zdo(i,ki+1).gt.0.)cdd(i,ki)= dd_massdetro(i,ki)/(dzo*zdo(i,ki+1))
         enddo
 !
 !> - Compute downdraft moist static energy + moisture budget

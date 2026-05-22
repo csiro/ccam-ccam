@@ -39,7 +39,7 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use bigxy4_m                               ! Grid interpolation
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
-use cc_omp
+use cc_omp                                 ! CC OMP routines
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use darcdf_m                               ! Netcdf data

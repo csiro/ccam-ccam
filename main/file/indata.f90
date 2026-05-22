@@ -131,12 +131,9 @@ real, dimension(ifull) :: zss, aa, zsmask
 real, dimension(ifull) :: rlai, depth
 real, dimension(ifull,5) :: duma
 real, dimension(ifull,2) :: ocndwn
-real, dimension(ifull,ol,4) :: mlodwn
-real, dimension(ifull,kl,naero) :: xtgdwn
-real, dimension(ifull,kl,4) :: dumb
-real, dimension(ifull,ms,3) :: dumca
-real, dimension(ifull,3,3) :: dumi
-real, dimension(ifull,3) :: dums
+real, dimension(:,:,:), allocatable :: mlodwn
+real, dimension(:,:,:), allocatable :: xtgdwn
+real, dimension(:,:,:), allocatable :: dumb
 real, dimension(:,:), allocatable, save :: global2d, local2d
 real, dimension(:), allocatable, save :: davt_g
 real, dimension(3*kl+8) :: dumc
@@ -967,6 +964,9 @@ end do   ! iq loop
 ipsice = indexs - 1
 
 
+allocate( mlodwn(ifull,ol,4), xtgdwn(ifull,kl,naero) )
+
+
 !-----------------------------------------------------------------
 ! READ INITIAL CONDITIONS FROM IFILE (io_in)
 ncid = -1  ! initialise nc handle with no files open
@@ -1528,10 +1528,12 @@ if ( .not.lrestart ) then
       if ( myid==0 ) then
         write(6,*) 'Replacing surface data with input from ',trim(surf_00)
       end if
+      allocate( dumb(ifull,kl,4) )
       call onthefly(2,kdate,ktime,duma(:,1),duma(:,2),duma(:,3),duma(:,4),    &
                     duma(:,5),dumb(:,:,1),dumb(:,:,2),dumb(:,:,3),            &
                     dumb(:,:,4),tgg,wb,wbice,snowd,tggsn,smass,ssdn,          &
                     ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+      deallocate( dumb )
       ! UPDATE BIOSPHERE DATA (nsib)
       if ( (nsib==6.or.nsib==7) .and. nhstest>=0 ) then
         if ( myid==0 ) write(6,*) 'Replacing CABLE and CASA data'
@@ -2271,6 +2273,9 @@ call turbmix_init
 if ( abs(iaero)>=2 ) then
   xtg(1:ifull,1:kl,1:naero) = xtgdwn(1:ifull,1:kl,1:naero)
 end if
+
+
+deallocate( mlodwn, xtgdwn )
 
 
 !--------------------------------------------------------------     
