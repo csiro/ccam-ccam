@@ -1098,7 +1098,8 @@ real dvdx, dudy, dz, z1, z2
 real, dimension(kl) :: delh
 real, dimension(ifull,0:kl) :: zg_h
 
-call boundsuv(u,v,allvec=.true.)
+! boundsuv moved to globpe.f90
+!call boundsuv(u,v,allvec=.true.)
 
 do k = 1,kl
   delh(k) = -(rdry/grav)*dsig(k)/sig(k)
@@ -1139,7 +1140,7 @@ do k = 1,kl
       else ! z2<=max_zg
         ! z1 is below min_zg
         dz = z2 - min_zg
-      end if  
+      end if
       
       dvdx = 0.5*(v(iev(iq),k)-v(iq,k))*emu(iq)/ds + &
              0.5*(v(iq,k)-v(iwv(iq),k))*emu(iwu(iq))/ds

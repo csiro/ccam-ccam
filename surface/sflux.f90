@@ -249,6 +249,7 @@ real, dimension(imax) :: qsat_tmp
 !     degdt is degdt (was ceva in surfupa/b)
   
 ! allocated arrays
+!$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax  
@@ -288,6 +289,7 @@ do tile = 1,ntiles
     vmod(is:ie) = vmag(is:ie)  
   end if
 end do
+!$omp end do nowait
 
 if (diag.or.ntest==1) then
   if (mydiag) then
@@ -306,15 +308,20 @@ endif
 !--------------------------------------------------------------
 call START_LOG(sfluxwater_begin)
 if ( nmlo==0 ) then ! prescribed SSTs
+  !$omp barrier
+  !$omp single
   call sflux_sea                                                                                 ! sea
+  !$omp end single                                                                               ! sea
 elseif (abs(nmlo)>=1.and.abs(nmlo)<=9) then ! prognostic SSTs                                    ! sea
   call sflux_mlo                                                                                 ! sea
 end if                                                                                           ! sea
+!$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles                                                                               ! sea
   is = (tile-1)*imax + 1                                                                         ! sea
   ie = tile*imax                                                                                 ! sea
   call nantest("after sflux_water",is,ie,"surface")                                              ! sea
 end do                                                                                           ! sea
+!$omp end do nowait                                                                                         ! sea
 call END_LOG(sfluxwater_end)
 
 
@@ -323,12 +330,16 @@ call START_LOG(sfluxland_begin)
 if ( nhstest>=0 ) then                                                                           ! land
   select case(nsib)                                                                              ! land
     case(3,5)                                                                                    ! land
+      !$omp barrier
+      !$omp single
       call sflux_land                                                                            ! land
+      !$omp end single                                                                       ! land
     case(7)                                                                                      ! land
       call sib4 ! call cable                                                                     ! land 
     end select                                                                                   ! land
 end if                                                                                           ! land
 ! update remaining diagnostic arrays                                                             ! land
+!$omp do schedule(static) private(is,ie,iq)
 do tile = 1,ntiles                                                                               ! land
   is = (tile-1)*imax + 1                                                                         ! land
   ie = tile*imax                                                                                 ! land
@@ -342,6 +353,7 @@ do tile = 1,ntiles                                                              
   end do                                                                                         ! land
   call nantest("after sflux_land",is,ie,"surface")                                               ! land
 end do                                                                                           ! land
+!$omp end do nowait                                                                                          ! land
 call END_LOG(sfluxland_end)
 !----------------------------------------------------------
 
@@ -349,12 +361,14 @@ call END_LOG(sfluxland_end)
 call START_LOG(sfluxurban_begin)
 if ( nurban/=0 .and. nhstest>=0 ) then                                                           ! urban
   call sflux_urban                                                                               ! urban
+  !$omp do schedule(static) private(is,ie)
+  do tile = 1,ntiles                                                                             ! urban
+    is = (tile-1)*imax + 1                                                                       ! urban
+    ie = tile*imax                                                                               ! urban
+    call nantest("after sflux_urban",is,ie,"surface")                                            ! urban
+  end do                                                                                         ! urban
+  !$omp end do nowait                                                                                        ! urban
 end if                                                                                           ! urban
-do tile = 1,ntiles                                                                               ! urban
-  is = (tile-1)*imax + 1                                                                         ! urban
-  ie = tile*imax                                                                                 ! urban
-  call nantest("after sflux_urban",is,ie,"surface")                                              ! urban
-end do                                                                                           ! urban
 call END_LOG(sfluxurban_end)
 ! ----------------------------------------------------------------------
 
@@ -392,6 +406,7 @@ end if                                                                          
 ! ----------------------------------------------------------------------
 
 
+!$omp do schedule(static) private(is,ie)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax  
@@ -432,6 +447,7 @@ do tile = 1,ntiles
   !***  end of surface updating loop
   ! ----------------------------------------------------------------------
 end do
+!$omp end do nowait
   
 if(diag.or.ntest==1)then
   if ( mydiag ) then
@@ -957,6 +973,8 @@ implicit none
 
 integer tile, is, ie, k
 
+
+!$omp do schedule(static) private(is,ie,k)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -985,6 +1003,7 @@ do tile = 1,ntiles
   call mloexpice("temp1",tggsn(is:ie,3),0,ice_g(tile),depth_g(tile),imax) 
 
 end do
+!$omp end do nowait
 
 return
 end subroutine sflux_mlo
@@ -1146,6 +1165,8 @@ real, dimension(imax) :: costh, sinth, zonx, zony, zonz
 real, dimension(imax) :: luav, lvav
 real, dimension(imax,kl) :: luzon, lvmer, lt, lqg
 
+!$omp do schedule(static) private(is,ie),                                 &
+!$omp private(luzon, lvmer, costh, sinth, zonx, zony, zonz) 
 do tile=1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -1188,6 +1209,7 @@ do tile=1,ntiles
                         upack_g(:,tile),ufull_g(tile))
 
 end do
+!$omp end do nowait
 
 return
 end subroutine sflux_urban

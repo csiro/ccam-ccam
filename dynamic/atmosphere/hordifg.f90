@@ -368,52 +368,81 @@ end if
 
 deallocate( bb )
 
+!$omp parallel
+!$omp sections
 
 !$acc data create(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
 !$acc update device(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
 
 ! momentum U, V, W - bounds updated above
+!$omp section
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(uvwc(:,:,1),xfact,yfact,emi)
+end if  
+!$omp section
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(uvwc(:,:,2),xfact,yfact,emi)
+end if  
+!$omp section
+if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   call hordifgt_work(uvwc(:,:,3),xfact,yfact,emi)
 end if  
 
 ! potential temperture and water vapour
-if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
+!$omp section
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   call hordifgt_work(t,xfact,yfact,emi)  
-  call hordifgt_work(qg,xfact,yfact,emi)
-else if ( nhorps==-5 ) then
-  call hordifgt_work(t,xfact,yfact,emi)
-else if ( nhorps==-3 ) then
+end if  
+!$omp section
+if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-3 .or. nhorps==-4 .or. nhorps==-6 ) then  
   call hordifgt_work(qg,xfact,yfact,emi)
 end if  
 
 ! cloud liquid & frozen water plus cloud fraction
+!$omp section
 if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(qlg,xfact,yfact,emi)
+end if
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(qfg,xfact,yfact,emi)
+end if
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
   call hordifgt_work(stratcloud,xfact,yfact,emi)
+end if
+!$omp section
+if ( nhorps==-4 .and. ldr/=0 ) then  
   if ( ncloud>=100 .and. ncloud<200 ) then
     call hordifgt_work(ni,xfact,yfact,emi)
   end if
 end if
 
 ! tke and eps
+!$omp section
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(eps,xfact,yfact,emi)
+end if
+!$omp section
+if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
   call hordifgt_work(tke,xfact,yfact,emi)
 end if
 
+!$omp end sections nowait
+
 ! prgnostic aerosols (disabled by default)
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
+  !$omp do schedule(static)
   do ntr = 1,naero
     call hordifgt_work(xtg(:,:,ntr),xfact,yfact,emi)
   end do
+  !$omp end do nowait
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
 !$acc wait
 !$acc end data
+
+!$omp end parallel
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
   do k = 1,kl

@@ -68,14 +68,23 @@ if ( num==0 ) then
 end if
 
 
+!$omp parallel
+!$omp sections
+
+
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
 !$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
 
 
+!$omp section
 call vadv_work(tarr,nvadh_inv_pass,nits)
+!$omp section
 call vadv_work(uarr,nvadh_inv_pass,nits)
+!$omp section
 call vadv_work(varr,nvadh_inv_pass,nits)
+!$omp section
 call vadv_work(pslx,nvadh_inv_pass,nits)
+!$omp section
 if ( nh/=0 ) then
   call vadv_work(h_nh,nvadh_inv_pass,nits)  
 end if  
@@ -90,51 +99,74 @@ if( diag .and. mydiag )then
   write (6,"('v#  ',9f8.2)") diagvals(varr(:,nlv)) 
 endif
 
+!$omp section
 if ( mspec==1 ) then
+  call vadv_work(qg,nvadh_inv_pass,nits)
+end if
 
-  call vadv_work(qg,nvadh_inv_pass,nits)  
-  if ( ldr/=0 ) then
-    call vadv_work(qlg,nvadh_inv_pass,nits)
-    call vadv_work(qfg,nvadh_inv_pass,nits)
-    call vadv_work(stratcloud,nvadh_inv_pass,nits)
-    if ( ncloud>=100 .and. ncloud<200 ) then
-      call vadv_work(ni,nvadh_inv_pass,nits)
-    end if  
+!$omp section
+if ( mspec==1 .and. ldr/=0 ) then
+  call vadv_work(qlg,nvadh_inv_pass,nits)
+end if
+!$omp section
+if ( mspec==1 .and. ldr/=0 ) then
+  call vadv_work(qfg,nvadh_inv_pass,nits)
+end if
+!$omp section
+if ( mspec==1 .and. ldr/=0 ) then
+  call vadv_work(stratcloud,nvadh_inv_pass,nits)
+end if
+!$omp section
+if ( mspec==1 .and. ldr/=0 ) then
+  if ( ncloud>=100 .and. ncloud<200 ) then
+    call vadv_work(ni,nvadh_inv_pass,nits)
   end if  
+end if  
 
-  if ( nvmix==6 .or. nvmix==9 ) then
-    call vadv_work(eps,nvadh_inv_pass,nits)
-    call vadv_work(tke,nvadh_inv_pass,nits)
-  end if  
+!$omp section
+if ( nvmix==6 .or. nvmix==9 ) then
+  call vadv_work(eps,nvadh_inv_pass,nits)
+end if
+!$omp section
+if ( nvmix==6 .or. nvmix==9 ) then
+  call vadv_work(tke,nvadh_inv_pass,nits)
+end if  
     
-  if ( diag .and. mydiag ) then
-    write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
-    write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
-    if (  ldr/=0 ) then
-      write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
-      write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
-      write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
-      write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv))
-    end if  
-  end if
+if ( diag .and. mydiag ) then
+  write (6,"('qout',9f8.2/4x,9f8.2)") (1000.*qg(idjd,k),k=1,kl)
+  write (6,"('qg# ',9f8.2)") diagvals(qg(:,nlv)) 
+  if (  ldr/=0 ) then
+    write (6,"('lout',9f8.2/4x,9f8.2)") (1000.*qlg(idjd,k),k=1,kl)
+    write (6,"('qlg#',9f8.2)") diagvals(qlg(:,nlv)) 
+    write (6,"('fout',9f8.2/4x,9f8.2)") (1000.*qfg(idjd,k),k=1,kl)
+    write (6,"('qfg#',9f8.2)") diagvals(qfg(:,nlv))
+  end if  
+end if
 
-  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
-    do n = 1,naero
-      call vadv_work(xtg(:,:,n),nvadh_inv_pass,nits)
-    end do  
-  end if   ! abs(iaero)>=2
+!$omp end sections nowait
+
+if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+  !$omp do schedule(static)  
+  do n = 1,naero
+    call vadv_work(xtg(:,:,n),nvadh_inv_pass,nits)
+  end do  
+  !$omp end do nowait
+end if   ! abs(iaero)>=2
   
-  if ( ntrac>0 ) then
-    do n = 1,ntrac
-      call vadv_work(tr(:,:,n),nvadh_inv_pass,nits)
-    end do  
-  end if        ! (nextout>=4)
-
-end if          ! if(mspec==1)
+if ( ntrac>0 ) then
+  !$omp do schedule(static)
+  do n = 1,ntrac
+    call vadv_work(tr(:,:,n),nvadh_inv_pass,nits)
+  end do  
+  !$omp end do nowait
+end if        ! (nextout>=4)
 
 
 !$acc wait
 !$acc end data
+
+
+!$omp end parallel
 
 
 call END_LOG(vadv_end)

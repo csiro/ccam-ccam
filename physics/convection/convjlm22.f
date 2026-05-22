@@ -255,6 +255,11 @@
       real, dimension(imax)           :: locwd, lsaltwd
       logical :: mydiag_t
 
+!$omp  do schedule(static) private(js,je),
+!$omp& private(ldpsldt,lt,lqg,lqlg,lqfg,lfluxtot),
+!$omp& private(lu,lv),
+!$omp& private(lxtg,lso2wd,lso4wd,lbcwd,locwd,ldustwd,lsaltwd),
+!$omp& private(ltr,idjd_t,mydiag_t)
       do tile = 1,ntiles
         js = (tile-1)*imax + 1
         je = tile*imax
@@ -320,6 +325,7 @@
         end if
         
       end do
+!$omp end do nowait      
 
       return
       end subroutine convjlm22     ! jlm convective scheme

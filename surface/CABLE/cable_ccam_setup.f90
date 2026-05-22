@@ -1795,7 +1795,7 @@ use darcdf_m   ! Netcdf data
 use infile     ! Input file routines
 use nsibd_m    ! Land-surface arrays
 
-integer k
+integer k, chid_len
 integer, dimension(mp_global), intent(in) :: cveg
 integer, dimension(2) :: nstart, ncount
 integer, dimension(:), allocatable, save :: csiropft
@@ -1933,10 +1933,12 @@ else
   ivegt_name = ""
   
   if ( myid==0 ) then
+    chid_len = 0  
+    call ccnf_inq_dimlen(ncidveg,'chid',chid_len,failok=.true.)
     do k = 1,lncveg_numpft
       nstart(1) = 1
       nstart(2) = k
-      ncount(1) = 50 ! should check chid dimension length
+      ncount(1) = chid_len
       ncount(2) = 1
       call ccnf_get_vara(ncidveg,'pftname',nstart,ncount,ivegt_name(k))
     end do      
@@ -2131,7 +2133,7 @@ type(soil_parameter_type), intent(inout) :: soil
 !real, parameter :: ssat_lo = 0.15
 !real, parameter :: rhob_hi = 2300.
 !real, parameter :: rhob_lo = 810.
-integer isoil, k
+integer isoil, k, chid_len
 integer, dimension(2) :: nstart, ncount
 
 if ( lncveg_numsoil<1 ) then
@@ -2198,10 +2200,12 @@ else
   ssat(0) = 2.
 
   if ( myid==0 ) then
+    chid_len = 0  
+    call ccnf_inq_dimlen(ncidveg,'chid',chid_len,failok=.true.)
     do k = 1,lncveg_numsoil  
       nstart(1) = 1
       nstart(2) = k
-      ncount(1) = 50 ! should check chid dimension length
+      ncount(1) = chid_len
       ncount(2) = 1
       call ccnf_get_vara(ncidveg,'soilname',nstart,ncount,isoilm_name(k))
     end do  

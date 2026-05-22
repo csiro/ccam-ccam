@@ -125,21 +125,18 @@ else
 end if
 fsize = ssize - 1 ! size of fixed variables
 
-freq_core = .false.
+freq_core = .true.
 freq_standard = .false.
 freq_shep = .false.
 
 select case ( shep_cordex )
   case(0)
-    freq_core = .true.
     freq_standard = .true.
     freq_shep = .false.
   case(1)
-    freq_core = .true.
     freq_standard = .false.
     freq_shep = .true.
   case(2)
-    freq_core = .true.
     freq_standard = .true.
     freq_shep = .true.
   case default

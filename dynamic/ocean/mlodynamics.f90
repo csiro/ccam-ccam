@@ -1671,8 +1671,13 @@ else
 
   ! rhobar = int_0^sigma rho dsigma / sigma
 
+#ifdef _OPENACC
   !$acc parallel loop collapse(2) copyin(alpha,beta,ie,in,is,iw,ine,ise,ien,iwn,nt_l,ns_l,emu,emv) &
-  !$acc   copyout(drhodxu,drhodxv,drhodyu,drhodyv)  
+  !$acc   copyout(drhodxu,drhodxv,drhodyu,drhodyv)
+#else
+  !$omp parallel do schedule(static) private(ii,iq,absu,bbsu,absv,bbsv)            &
+  !$omp   private(dnadxu1,dnadyu1,dnadyv1,dnadxv1,dnadxu2,dnadyu2,dnadyv2,dnadxv2)
+#endif
   do ii = 1,ol
     do iq = 1,ifull
       absu = 0.5*(alpha(iq,ii)+alpha(ie(iq),ii))
@@ -1702,7 +1707,11 @@ else
       drhodyv(iq,ii) = -absv*dnadyv1 + bbsv*dnadyv2
     end do
   end do
+#ifdef _OPENACC
   !$acc end parallel loop
+#else
+  !$omp end parallel do
+#endif
 
   ! integrate density gradient  
   drhobardxu(:,1) = drhodxu(:,1)*godsigu(1:ifull,1)
@@ -1867,6 +1876,7 @@ ntr = size(dumc,2)
 select case( mloiceadv )
   case(0) ! Original 
 
+    !$omp parallel do schedule(static) private(n,iq,dumd,odum,tdum)  
     do n = 1,ntr
       do iq = 1,ifull
         dumd=real(dumc(iq,n),8)
@@ -1933,10 +1943,12 @@ select case( mloiceadv )
         dum_out(iq,n)=real(max(dumd,0._8))
       end do
     end do
+    !$omp end parallel do
     dumc(1:ifull,1:ntr) = dum_out(1:ifull,1:ntr)
   
   case(1) ! revised
       
+    !$omp parallel do schedule(static) private(n,iq,dumd,odum)  
     do n = 1,ntr
       do iq = 1,ifull
         dumd = real(dumc(iq,n),8)
@@ -1951,6 +1963,7 @@ select case( mloiceadv )
         dum_out(iq,n) = real(max(dumd,0._8))
       end do
     end do
+    !$omp end parallel do
     do n = 1,ntr
       do iq = 1,ifull
         dumc(iq,n) = dum_out(iq,n)

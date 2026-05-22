@@ -121,7 +121,7 @@ integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
 integer nface, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg, jdf, nd
 integer isav, jsav, ier, lapsbot, idv
-integer lncriver, iernc, ateb_len
+integer lncriver, iernc, ateb_len, chid_len
 integer, dimension(ifull) :: river_acc
 integer, dimension(ifull,maxtile) :: ivs
 integer, dimension(271,mxvt) :: greenup, fall, phendoy1
@@ -767,10 +767,12 @@ if ( nurban/=0 .and. nhstest>=0 ) then
   if ( urbanformat>0.99 .and. urbanformat<3.01 ) then
     if ( myid==0 ) then
       write(6,*) "-> Using user defined UCLEM urban parameter tables"
+      chid_len = 0
+      call ccnf_inq_dimlen(ncidveg,'chid',chid_len,failok=.true.)
       do k = 1,ateb_len
         nstart(1) = 1
         nstart(2) = k
-        ncount(1) = 50 ! should check chid dimension length
+        ncount(1) = chid_len
         ncount(2) = 1
         call ccnf_get_vara(ncidveg,'atebname',nstart,ncount,iurbant_name(k))
       end do  

@@ -116,6 +116,7 @@ end do
 do ii = 1,6 ! 6 iterations of fill should be enough
   s_old(1:ifull,:,:) = s(1:ifull,:,:)
   call bounds(s_old)
+  !$omp parallel do collapse(2) private(nn,k,iq,s_tot,s_count)
   do nn = 1,3
     do k = 1,ol
       do iq = 1,ifull
@@ -145,6 +146,7 @@ do ii = 1,6 ! 6 iterations of fill should be enough
       end do
     end do
   end do
+  !$omp end parallel do
 end do ! ii loop
 
 call bounds_send(s,nrows=2)
@@ -407,10 +409,18 @@ do itr = 1,2
   
     call intssync_send(3)
 
+    !$omp parallel
     do nn = 1,3  
+#ifdef _OPENACC
       async_counter = mod(nn-1,async_length)    
       !$acc parallel loop collapse(2) copyout(s(:,:,nn))      &
       !$acc   present(sx,wx,xg,yg,nface) async(async_counter)
+#else
+      !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                &
+      !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
+      !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+      !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
+#endif
       do k = 1,ol
         do iq = 1,ifull
           idel = int(xg(iq,k))
@@ -470,9 +480,14 @@ do itr = 1,2
 
         end do     ! iq loop
       end do
+#ifdef _OPENACC
       !$acc end parallel loop
+#else
+      !$omp end do nowait
+#endif
     end do       ! nn loop
     !$acc wait
+    !$omp end parallel
        
   !========================   end of intsch=1 section ====================
   else     ! if(intsch==1)then
@@ -544,9 +559,17 @@ do itr = 1,2
 
     call intssync_send(3)
 
+    !$omp parallel
     do nn = 1,3  
+#ifdef _OPENACC
       !$acc parallel loop collapse(2) copyout(s(:,:,nn))             &
-      !$acc   present(sx,wx,xg,yg,nface) async(mod(nn,async_length))  
+      !$acc   present(sx,wx,xg,yg,nface) async(mod(nn,async_length))
+#else
+      !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                &
+      !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
+      !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
+      !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
+#endif
       do k = 1,ol
         do iq = 1,ifull
           idel = int(xg(iq,k))
@@ -606,9 +629,14 @@ do itr = 1,2
         
         end do
       end do
+#ifdef _OPENACC
       !$acc end parallel loop
+#else
+      !$omp end do nowait
+#endif
     end do       ! nn loop
     !$acc wait
+    !$omp end parallel
 
   end if                     ! (intsch==1) .. else ..
   !========================   end of intsch=1 section ====================
@@ -680,7 +708,12 @@ integer, parameter :: nmaploop = 3
 alf = (1._8-schmidt**2)/(1._8+schmidt**2)
 alfonsch = 2._8*schmidt/(1._8+schmidt**2)
 
+#ifdef _OPENACC
 !$acc parallel loop collapse(2) copyin(x3d,y3d,z3d) present(xg,yg,nface,xx4,yy4)
+#else
+!$omp parallel do schedule(static) private(ii,iq,den,xstr,ystr,zstr,denxyz,xd,yd,zd) &
+!$omp   private(ri,rj,loop,i,j,is,js,dxx,dxy,dyx,dyy)
+#endif
 do ii = 1,ol
   do iq = 1,ifull
 
@@ -756,7 +789,11 @@ do ii = 1,ol
 
   end do
 end do
+#ifdef _OPENACC
 !$acc end parallel loop
+#else
+!$omp end parallel do
+#endif
 
 return
 end subroutine mlotoij5

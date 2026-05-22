@@ -1172,29 +1172,23 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
-      real, dimension(ifull,2*size(array,2)*size(array,3)) :: tmparr
+      real, dimension(:,:), allocatable :: tmparr
       integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
-      complex, dimension(size(array,2),2*size(array,3)) :: tmparr_k
-      complex, dimension(2*size(array,2)*size(array,3)) :: local_sum_k
 
       kx  = size(array,2)
       ntr = size(array,3)
-      local_sum_k(1:2*kx*ntr) = cmplx(0., 0.)
-      do i = 1,ntr
-         do k = 1,kx
-            tmparr(1:ifull,k+2*kx*(i-1)) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
-            tmparr(1:ifull,k+kx+2*kx*(i-1)) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
-         end do ! k loop
+      local_sum(1:2*ntr) = cmplx(0., 0.)
+      allocate( tmparr(ifull,2*ntr) )
+      do k = 1,kx
+        do i = 1,ntr
+            tmparr(1:ifull,i) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull,i+ntr) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
+        end do ! i loop
+        call drpdr_local_v(tmparr(:,:),local_sum(:))
       end do
-      call drpdr_local_v(tmparr,local_sum_k)
-      local_sum(1:2*ntr) = cmplx(0.,0.)      
-      do i = 1,ntr
-         tmparr_k(1:kx,i) = local_sum_k(1+2*kx*(i-1):kx+2*kx*(i-1))
-         tmparr_k(1:kx,i+ntr) = local_sum_k(kx+1+2*kx*(i-1):2*kx+2*kx*(i-1))
-      end do
-      call drpdr_v(tmparr_k,local_sum)
+      deallocate( tmparr )
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
       lcomm = comm_world
@@ -1217,29 +1211,23 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
-      real, dimension(ifull,2*size(array,2)*size(array,3)) :: tmparr
+      real, dimension(:,:), allocatable :: tmparr
       integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
-      complex, dimension(size(array,2),2*size(array,3)) :: tmparr_k
-      complex, dimension(2*size(array,2)*size(array,3)) :: local_sum_k
 
       kx  = size(array,2)
       ntr = size(array,3)
-      local_sum_k(1:2*kx*ntr) = cmplx(0., 0.)
-      do i = 1,ntr
-         do k = 1,kx
-            tmparr(1:ifull,k+2*kx*(i-1)) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
-            tmparr(1:ifull,k+kx+2*kx*(i-1)) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
-         end do ! k loop
+      local_sum(1:2*ntr) = cmplx(0., 0.)
+      allocate( tmparr(ifull,2*ntr) )
+      do k = 1,kx
+         do i = 1,ntr
+            tmparr(1:ifull,i) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull,i+ntr) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
+         end do ! i loop
+         call drpdr_local_v(tmparr(:,:),local_sum(:))   
       end do
-      call drpdr_local_v(tmparr,local_sum_k)
-      local_sum(1:2*ntr) = cmplx(0.,0.)
-      do i = 1,ntr
-         tmparr_k(1:kx,i) = local_sum_k(1+2*kx*(i-1):kx+2*kx*(i-1))
-         tmparr_k(1:kx,i+ntr) = local_sum_k(kx+1+2*kx*(i-1):2*kx+2*kx*(i-1))
-      end do
-      call drpdr_v(tmparr_k,local_sum)
+      deallocate( tmparr )
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
       lcomm = comm_world

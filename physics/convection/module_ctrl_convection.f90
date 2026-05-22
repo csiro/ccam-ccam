@@ -85,7 +85,6 @@ implicit none
 integer :: tile, js, je, k, n, iq
 integer :: njumps, m, idjd_t
 real, dimension(imax,kl) :: lqg
-real, dimension(imax,kl) :: rhoa
 
 integer :: itf,ktf,its,ite, kts,kte, kdt   ! check itf and ktf
 integer :: dicycle                         ! flag, set = 1 will turn on if
@@ -139,6 +138,13 @@ integer, dimension(3) :: posmin3, posmax3
 real :: maxconvtime = 120.  ! time-step for convection
 real :: tdt
 
+!$omp do schedule(static) private(tile,js,je,qamin,k,iq,prf_temp,prf,itf,ktf,its,ite,kts,kte) &
+!$omp private(dicycle,ichoice,ipr,ccn,ccnclean,dtime,imid,dhdt,thz,zpres,xland,zo)            &
+!$omp private(kpbl,forcing,g_t,g_q,z1,tn,qo,po,psur,g_us,g_vs,g_rho,hfx,qfx,dx,mconv,omeg)    &
+!$omp private(csum,cnvwt,zdo,zdm,edto,edtm,xmb_out,xmbm_in,xmbs_in)                           &
+!$omp private(kbcon,ktop,cupclw,frh_out,ierr,ierrc,nchem,fscav,chem3d,wetdpc_deep)            &
+!$omp private(do_smoke_transport,rand_mom,rand_clos,nranflag,do_capsuppress,cap_suppress_j)   &
+!$omp private(k22,jmin,kdt,tropics,g_pre,g_qfg,g_qlg,njumps,tdt,n,i)
 do tile = 1,ntiles
   js = (tile-1)*imax+1      ! js:je inside 1:ifull
   je = tile*imax            ! len(js:je) = imax
@@ -153,7 +159,7 @@ do tile = 1,ntiles
       prf           = 0.01*prf_temp           ! ps is SI units
       tothz(iq,k)   = (prf/1000.)**(rdry/cp)
       thz(iq,k)     = t(iq+js-1,k)/tothz(iq,k)
-      rhoa(iq,k)    = prf_temp/(rdry*t(iq+js-1,k))
+      g_rho(iq,k)   = prf_temp/(rdry*t(iq+js-1,k)) ! density
       zpres(iq,k)   = prf_temp
       !dzw(iq,k)     = dz(iq+js-1,k)
     end do
@@ -202,7 +208,6 @@ do tile = 1,ntiles
   psur       = ps(js:je)*0.01 ! surface pressure (mb)
   g_us       = u(js:je,:)     ! u on mass points
   g_vs       = v(js:je,:)     ! v on mass points
-  g_rho      = rhoa(1:imax,:) ! density
   hfx        = fg(js:je)      ! w/m2, positive upward
   qfx        = eg(js:je)      ! w/m2, positive upward
   dx         = ds/em(js:je)   ! dx is grid point dependent here     ! CHECK IF THIS KM OR NOT, ds/em(js:je) IS IN METER
@@ -493,6 +498,7 @@ do tile = 1,ntiles
   end if
 
 end do ! end tile loop (tile=1,ntiles)
+!$omp end do nowait
 
 return
 end subroutine grell_ccam

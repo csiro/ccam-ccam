@@ -32,9 +32,10 @@ module cc_mpi_point
    integer, save, public :: neighnum                                       ! number of neighbours
 
    public :: bounds_setup 
-   public :: bounds, boundsuv, bounds_colour_send, bounds_colour_recv,      &
-             bounds_send, bounds_recv, boundsr8, deptsync, intssync_send,   &
-             intssync_recv
+   public :: bounds, bounds_colour_send, bounds_colour_recv,      &
+             bounds_send, bounds_recv, boundsr8
+   public :: boundsuv, boundsuv_send, boundsuv_recv
+   public :: deptsync, intssync_send, intssync_recv
 
    interface bounds
       module procedure bounds2, bounds3, bounds4
@@ -57,6 +58,12 @@ module cc_mpi_point
    interface boundsuv
       module procedure boundsuv2, boundsuv3
    end interface
+   interface boundsuv_send
+      module procedure boundsuv_send3
+   end interface   
+   interface boundsuv_recv
+      module procedure boundsuv_recv3
+   end interface   
    interface intssync_send
       module procedure intssync_send3, intssync_send4
    end interface
@@ -2070,6 +2077,7 @@ contains
    end subroutine bounds4
    
    subroutine bounds4r8(t, nrows, klim, corner, nehalf)
+      use cc_omp
       ! Copy the boundary regions.
       real(kind=8), dimension(:,:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
@@ -2083,6 +2091,8 @@ contains
       integer(kind=4) :: ierr, llen, lproc, ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist
 
+      if ( ccomp_get_thread_num() /= 0 ) return
+      
       kx = size(t, 2)
       ntr = size(t, 3)
       double = .false.
@@ -2231,6 +2241,7 @@ contains
    end subroutine bounds_colour_send3
    
    subroutine bounds_colour_send4(t, colour, nrows, klim, corner, nehalf)
+      use cc_omp
       ! Copy the boundary regions. This version allows supports updating
       ! different gridpoint colours
       real, dimension(:,:,:), intent(in) :: t
@@ -2243,6 +2254,8 @@ contains
       integer(kind=4), save :: itag=4
       integer(kind=4) :: ierr, llen, lproc, lcomm
 
+      if ( ccomp_get_thread_num() /= 0 ) return      
+      
       if ( colour<0 .or. colour>maxcolour ) then
          write(6,*) "ERROR: Invalid colour for bounds_colour_send"
          call ccmpi_abort(-1)
@@ -2404,6 +2417,7 @@ contains
    end subroutine bounds_colour_send4
    
    subroutine bounds_colour_recv3(t, colour, nrows, klim, corner, nehalf)
+      use cc_omp
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in) :: colour
       integer, intent(in), optional :: nrows, klim
@@ -2411,6 +2425,8 @@ contains
       real, dimension(size(t,1),size(t,2),1) :: t_l
       integer :: nrows_l, klim_l
       logical :: corner_l, nehalf_l
+      
+      if ( ccomp_get_thread_num() /= 0 ) return      
       
       klim_l = size(t, 2)
       if ( present(klim) ) then
@@ -2702,13 +2718,39 @@ contains
       end if
       u_l(:,1) = u(:)
       v_l(:,1) = v(:)
-      call boundsuv3(u_l, v_l, stag=stag_l, allvec=allvec_l)
+      call boundsuv_send3(u_l, v_l, stag=stag_l, allvec=allvec_l)
+      call boundsuv_recv3(u_l, v_l, stag=stag_l, allvec=allvec_l)
       u(:) = u_l(:,1)
       v(:) = v_l(:,1)
 
    end subroutine boundsuv2
 
    subroutine boundsuv3(u, v, stag, allvec)
+      use cc_omp
+      ! Copy the boundary regions of u and v. This doesn't require the
+      ! diagonal points like (0,0), but does have to take care of the
+      ! direction changes.
+      real, dimension(:,:), intent(inout) :: u, v
+      integer, intent(in), optional :: stag
+      logical, intent(in), optional :: allvec
+      integer :: stag_l
+      logical :: allvec_l      
+
+      stag_l = 0
+      allvec_l = .false.
+      if ( present(stag) ) then
+         stag_l = stag
+      end if
+      if ( present(allvec) ) then
+         allvec_l = allvec
+      end if
+      call boundsuv_send3(u, v, stag=stag_l, allvec=allvec_l)
+      call boundsuv_recv3(u, v, stag=stag_l, allvec=allvec_l)
+      
+   end subroutine boundsuv3
+
+   subroutine boundsuv_send3(u, v, stag, allvec)
+      use cc_omp
       ! Copy the boundary regions of u and v. This doesn't require the
       ! diagonal points like (0,0), but does have to take care of the
       ! direction changes.
@@ -2717,12 +2759,13 @@ contains
       logical, intent(in), optional :: allvec
       logical :: extra, fsvwu, fnveu, fssvwwu, fnnveeu, fsuev
       integer :: iq, iqz, iproc, kx, rproc, sproc, iqq, recv_len
-      integer :: rcount, myrlen, jproc, mproc, stagmode, k, iqlen
+      integer :: jproc, mproc, stagmode, k, iqlen
       integer(kind=4), save :: itag=6
       integer(kind=4) :: ierr, llen, lproc
-      integer(kind=4) :: ldone, lcomm
-      integer(kind=4), dimension(2*neighnum) :: donelist  
+      integer(kind=4) :: lcomm
 
+      if ( ccomp_get_thread_num() /= 0 ) return      
+      
       kx = size(u, 2)
       extra = .false.
       stagmode = 0
@@ -2782,7 +2825,6 @@ contains
          fnnveeu = .false.
          fsuev = .false.
       end if
-      myrlen = bnds(myid)%rlen_ev_fn
       
       itag = mod(itag + 1, 10000)
 
@@ -2921,6 +2963,91 @@ contains
          end if
       end do
 
+   end subroutine boundsuv_send3
+
+   subroutine boundsuv_recv3(u, v, stag, allvec)
+      use cc_omp
+      ! Copy the boundary regions of u and v. This doesn't require the
+      ! diagonal points like (0,0), but does have to take care of the
+      ! direction changes.
+      real, dimension(:,:), intent(inout) :: u, v
+      integer, intent(in), optional :: stag
+      logical, intent(in), optional :: allvec
+      logical :: extra, fsvwu, fnveu, fssvwwu, fnnveeu, fsuev
+      integer :: iq, iqz, iproc, kx, rproc, sproc, iqq, recv_len
+      integer :: rcount, myrlen, jproc, mproc, stagmode, k, iqlen
+      integer(kind=4), save :: itag=6
+      integer(kind=4) :: ierr, llen, lproc
+      integer(kind=4) :: ldone, lcomm
+      integer(kind=4), dimension(2*neighnum) :: donelist  
+
+      if ( ccomp_get_thread_num() /= 0 ) return      
+      
+      kx = size(u, 2)
+      extra = .false.
+      stagmode = 0
+      if ( present(stag) ) then
+         stagmode = stag
+      end if
+      if ( present(allvec) ) then
+         extra = allvec
+      end if
+
+      if ( extra ) then
+         fsvwu = .true.
+         fnveu = .true.
+         fssvwwu = .false.
+         fnnveeu = .false.
+         fsuev = .true.
+      else if ( stagmode == 1 ) then
+         fsvwu = .false.
+         fnveu = .true.
+         fssvwwu = .false.
+         fnnveeu = .true.
+         fsuev = .false.
+      else if ( stagmode == 2 ) then
+         fsvwu = .true.
+         fnveu = .true.
+         fssvwwu = .false.
+         fnnveeu = .true. ! fnnveeu requires fnveu
+         fsuev = .false.
+      else if ( stagmode == 3 ) then
+         fsvwu = .true.
+         fnveu = .true.
+         fssvwwu = .true. ! fssvwwu requires fsvwu
+         fnnveeu = .false.
+         fsuev = .false.
+      else if ( stagmode == 5 ) then
+         fsvwu = .true.
+         fnveu = .false.
+         fssvwwu = .true.
+         fnnveeu = .false.
+         fsuev = .false.
+      else if ( stagmode == -9 ) then
+         fsvwu = .true.
+         fnveu = .false.
+         fssvwwu = .false.
+         fnnveeu = .false.
+         fsuev = .false.
+      else if ( stagmode == -10 ) then
+         fsvwu = .false.
+         fnveu = .true.
+         fssvwwu = .false.
+         fnnveeu = .false.
+         fsuev = .false.
+      else
+         fsvwu = .true.
+         fnveu = .true.
+         fssvwwu = .false.
+         fnnveeu = .false.
+         fsuev = .false.
+      end if
+      myrlen = bnds(myid)%rlen_ev_fn
+      
+      itag = mod(itag + 1, 10000)
+
+      lcomm = comm_world
+
       ! See if there are any points on my own process that need
       ! to be fixed up. This will only be in the case when nproc < npanels.
       do k = 1,kx
@@ -3035,7 +3162,7 @@ contains
          end do
       end do
 
-   end subroutine boundsuv3
+   end subroutine boundsuv_recv3
    
    subroutine deptsync(nface,xg,yg)
       ! Different levels will have different winds, so the list of points is

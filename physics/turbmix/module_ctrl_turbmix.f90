@@ -137,6 +137,10 @@ select case ( interp_nvmix(nvmix) )
     
   case("localRI")
     ! JLM's local Ri scheme
+    !$omp do schedule(static) private(is,ie,k)                &
+    !$omp private(lt,lqg,lqfg,lqlg,lni)                       &
+    !$omp private(lstratcloud,lu,lv,lsavu,lsavv)              &
+    !$omp private(lrkmsave,lrkhsave,idjd_t,mydiag_t)      
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
@@ -168,6 +172,7 @@ select case ( interp_nvmix(nvmix) )
       u(is:ie,:)          = lu
       v(is:ie,:)          = lv
     end do ! tile = 1,ntiles
+    !$omp end do nowait
 
 end select
 
@@ -249,85 +254,50 @@ real, dimension(imax) :: ws0_o, ws0subsurf_o
 real, dimension(imax) :: wu0_o, wv0_o, zo_o
 real, dimension(imax) :: i_u, i_v
 real, dimension(imax) :: icefg_a, imass, cd_ice, cdbot_ice
+logical use_ocean
 
-! Set-up potential temperature transforms
-rong = rdry/grav
-do k = 1,kl
-  delh(k)   = -rong*dsig(k)/sig(k)  ! sign of delh defined so always +ve
-  sigkap(k) = sig(k)**(-rdry/cp)
-end do      ! k loop
-
-! Evaluate EDMF scheme
-select case(nvmix)
-  case(6)  
-    select case(nlocal)
-      case(0) ! atm only, no counter gradient
-        nlocal_mode = 1
-      case(7) ! atm only, mass-flux counter gradient
-        nlocal_mode = 0
-      case default
-        write(6,*) "ERROR: Invalid nlocal = ",nlocal
-        stop -1
-    end select
-  case(9)
-    select case(nlocal)
-      case(0) ! coupled atm-ocn, no counter gradient
-        nlocal_mode = 3
-      case(7) ! coupled atm-ocn, mass-flux counter gradient
-        nlocal_mode = 2
-      case default
-        write(6,*) "ERROR: Invalid nlocal = ",nlocal
-        stop -1
-    end select
-end select
-
-! default ocean data in case ocean is disabled  
-w_e = 0.
-deptho_max = 0.
-d_zcr = 1.
-deptho_depth = 0.
-deptho_depth_hl = 0.
-deptho_dz = 0.
-deptho_dz_hl = 0.
-w_t = 0.
-w_s = 0.
-w_u = 0.
-w_v = 0.
-dwdx_o = 0.
-dwdy_o = 0.
-ibot = ol
-ubot_o = 0.
-vbot_o = 0.
-utop_o = 0.
-vtop_o = 0.
-cd_water = 0.
-cdh_water = 0.
-cdbot_water = 0.
-wt0_o = 0.
-wt0rad_o = 0.
-wt0melt_o = 0.
-wt0eg_o = 0.
-wt0fb_o = 0.
-ws0_o = 0.
-ws0subsurf_o = 0.
-wu0_o = 0.
-wv0_o = 0.
-zo_o = 0. 
-rad_o = 0.
-w_tke = 1.e-8
-w_eps = 1.e-11
-i_u = 0.
-i_v = 0.
-icefg_a = 0.
-imass = 100.
-cd_ice = 0.
-cdbot_ice = 0.
-
-
+!$omp do schedule(static) private(js,je,k,rong,delh,sigkap,nlocal_mode,dx,zg,zh) &
+!$omp   private(rhos,lqg,lqfg,lqlg,lni,lstratcloud,ltke,leps,lshear,lu,lv,rhs)   &
+!$omp   private(w_e,deptho_max,d_zcr,deptho_depth,deptho_depth_hl,deptho_dz_hl)  &
+!$omp   private(w_t,w_s,w_u,w_v,dwdx_o,dwdy_o,ibot,ubot_o,vbot_o,utop_o,vtop_o)  &
+!$omp   private(cd_water,cdh_water,cdbot_water,wt0_o,wt0rad_o,wt0melt_o,wt0eg_o) &
+!$omp   private(wt0fb_o,ws0_o,ws0subsurf_o,wu0_o,wv0_o,zo_o,rad_o,w_tke,w_eps)   &
+!$omp   private(i_u,i_v,icefg_a,imass,cd_ice,cdbot_ice,rbot,lrho)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
 
+  ! Set-up potential temperature transforms
+  rong = rdry/grav
+  do k = 1,kl
+    delh(k)   = -rong*dsig(k)/sig(k)  ! sign of delh defined so always +ve
+    sigkap(k) = sig(k)**(-rdry/cp)
+  end do      ! k loop
+
+  ! Evaluate EDMF scheme
+  select case(nvmix)
+    case(6)  
+      select case(nlocal)
+        case(0) ! atm only, no counter gradient
+          nlocal_mode = 1
+        case(7) ! atm only, mass-flux counter gradient
+          nlocal_mode = 0
+        case default
+          write(6,*) "ERROR: Invalid nlocal = ",nlocal
+          stop -1
+      end select
+    case(9)
+      select case(nlocal)
+        case(0) ! coupled atm-ocn, no counter gradient
+          nlocal_mode = 3
+        case(7) ! coupled atm-ocn, mass-flux counter gradient
+          nlocal_mode = 2
+        case default
+          write(6,*) "ERROR: Invalid nlocal = ",nlocal
+          stop -1
+      end select
+  end select
+  
   ! estimate grid spacing for scale aware MF
   dx(:) = ds/em(js:je)
      
@@ -363,6 +333,49 @@ do tile = 1,ntiles
   do k = 1,kl
     rhs(:,k) = t(js:je,k)*sigkap(k) ! theta
   end do
+
+  ! default ocean data in case ocean is disabled  
+  w_e = 0.
+  deptho_max = 0.
+  d_zcr = 1.
+  deptho_depth = 0.
+  deptho_depth_hl = 0.
+  deptho_dz = 0.
+  deptho_dz_hl = 0.
+  w_t = 0.
+  w_s = 0.
+  w_u = 0.
+  w_v = 0.
+  dwdx_o = 0.
+  dwdy_o = 0.
+  ibot = ol
+  ubot_o = 0.
+  vbot_o = 0.
+  utop_o = 0.
+  vtop_o = 0.
+  cd_water = 0.
+  cdh_water = 0.
+  cdbot_water = 0.
+  wt0_o = 0.
+  wt0rad_o = 0.
+  wt0melt_o = 0.
+  wt0eg_o = 0.
+  wt0fb_o = 0.
+  ws0_o = 0.
+  ws0subsurf_o = 0.
+  wu0_o = 0.
+  wv0_o = 0.
+  zo_o = 0. 
+  rad_o = 0.
+  w_tke = 1.e-8
+  w_eps = 1.e-11
+  i_u = 0.
+  i_v = 0.
+  icefg_a = 0.
+  imass = 100.
+  cd_ice = 0.
+  cdbot_ice = 0.
+  
   
   if ( nlocal_mode==2 .or. nlocal_mode==3 ) then
     ! export ocean data before mixing  
@@ -490,6 +503,7 @@ do tile = 1,ntiles
   end if
   
 end do ! tile = 1,ntiles
+!$omp end do nowait
 
 return
 end subroutine tkeeps_work

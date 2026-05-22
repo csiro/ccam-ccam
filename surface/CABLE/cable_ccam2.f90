@@ -197,6 +197,12 @@ type(soil_snow_type) :: lssnow
 type(sum_flux_type) :: lsum_flux
 type(veg_parameter_type) :: lveg
 
+!$omp do schedule(static) private(is,ie,js,je,ltind,ltmap,lmaxnb,ico2,igas,x,k,iyr,imo,iday),                  &
+!$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
+!$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
+!$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,latmco2),                         &
+!$omp private(lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,lsoil,lssnow,lsum_flux,lveg),  &
+!$omp private(lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -256,8 +262,8 @@ do tile = 1,ntiles
     ! host: atmospheric co2 follows that from CCAM radiation scheme
     ! interactive: atmospheric co2 taken from tracer (usually cable+fos+ocean)
     latmco2 = 1.E6*rrvco2          ! from radiative CO2 forcings
-    ico2 = 0
     if ( ngas>0 ) then
+      ico2 = 0
       do igas = 1,ngas
         if ( trim(tractype(igas))=='online' .and. trim(tracname(igas))=='cbmnep' ) then
           ico2 = igas
@@ -340,6 +346,7 @@ do tile = 1,ntiles
   end if ! mp>0
 
 end do
+!$omp end do nowait
 
 return
 end subroutine sib4

@@ -109,6 +109,7 @@ module cc_mpi
    public :: cloud_begin, cloud_end
    public :: radnet_begin, radnet_end
    public :: radinit_begin, radinit_end
+   public :: radCLD_begin, radCLD_end
    public :: radSW_begin, radSW_end
    public :: radLW_begin, radLW_end
    public :: sfluxnet_begin, sfluxnet_end
@@ -117,7 +118,7 @@ module cc_mpi
    public :: sfluxurban_begin, sfluxurban_end
    public :: vertmix_begin, vertmix_end
    public :: aerosol_begin, aerosol_end
-   public :: cape_begin, cape_end
+   public :: diag_begin, diag_end
    public :: maincalc_begin, maincalc_end
    public :: precon_begin, precon_end
    public :: waterdynamics_begin, waterdynamics_end
@@ -193,9 +194,10 @@ module cc_mpi
    public :: fileneighnum
 
    ! Imported from cc_mpi_point
-   public :: bounds, boundsuv, bounds_colour_send, bounds_colour_recv,      &
-             bounds_send, bounds_recv, boundsr8, deptsync, intssync_send,   &
-             intssync_recv
+   public :: bounds, bounds_colour_send, bounds_colour_recv,      &
+             bounds_send, bounds_recv, boundsr8
+   public :: boundsuv, boundsuv_send, boundsuv_recv
+   public :: deptsync, intssync_send, intssync_recv
    public :: drlen, dpoints, sextra
    public :: neighlist, neighnum
 
@@ -515,6 +517,9 @@ contains
    end subroutine ccmpi_setup
    
    subroutine ccmpi_init
+#ifdef _OPENMP
+      use cc_omp
+#endif
       integer(kind=4) :: lerr, lproc, lid
       integer(kind=8) :: begin_time, end_time, count_rate, count_max
 #ifdef _OPENMP
@@ -524,7 +529,17 @@ contains
       call system_clock( begin_time, count_rate, count_max )
 
       ! Global communicator
+#ifdef _OPENMP
+      call MPI_Init_Thread(MPI_THREAD_FUNNELED, lprovided, lerr)
+      !call MPI_Init_Thread(MPI_THREAD_MULTIPLE, lprovided, lerr) ! recommended for DUG system
+      if ( lprovided < MPI_THREAD_FUNNELED ) then
+         write(6,*) "ERROR: MPI does not support MPI_THREAD_FUNNELED"
+         write(6,*) "       Unable to support hybrid MPI+OpenMP"
+         call ccmpi_abort(-1)
+      end if
+#else
       call MPI_Init(lerr)
+#endif
       call MPI_Comm_size(MPI_COMM_WORLD, lproc, lerr) ! Find number of processes
       call MPI_Comm_rank(MPI_COMM_WORLD, lid, lerr)   ! Find local process id
       nproc      = lproc
@@ -716,6 +731,7 @@ contains
    end subroutine ccmpi_finalize
    
    subroutine ccmpi_procformat_init(localhist,procmode)
+      use cc_omp
       ! define commuication handle to support procformat parallel output
       integer, intent(inout) :: procmode
       logical, intent(in) :: localhist
@@ -723,6 +739,8 @@ contains
       integer(kind=4) :: colour, lcomm, lrank
       integer(kind=4) :: lcommout, lerr, lsize
 #endif
+
+      if ( ccomp_get_thread_num() /= 0 ) return
 
       if ( localhist ) then
 #ifdef usempi3

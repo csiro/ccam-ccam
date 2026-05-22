@@ -52,6 +52,12 @@ real, dimension(imax,kl) :: lrkhsave
 real, dimension(imax) :: lfnee, lfpn, lfrp, lfrs, lmcfdep
 real tmnht, dz, gt, rlogs1, rlogs2, rlogh1, rlog12, rong
 
+!$omp do schedule(static) private(is,ie,iq,k),      &
+!$omp private(lt,lat,lct),                          &
+!$omp private(ltr,lco2em,loh,lstrloss,ljmcf),       &
+!$omp private(lrkhsave,rong,rlogs1,rlogs2),         &
+!$omp private(rlogh1,rlog12,tmnht,dz,gt,lfnee),     &
+!$omp private(lfpn,lfrp,lfrs,lmcfdep)
 do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
@@ -102,6 +108,7 @@ do tile = 1,ntiles
   tr(is:ie,:,:) = ltr
 
 end do ! tile = 1,ntiles
+!$omp end do nowait
 
 return
 end subroutine tracervmix

@@ -140,19 +140,25 @@ if ( aero_update==aero_split ) then
     
   ! update 10m wind speed (avoids impact of diagnostic output)
   if ( aerosol_u10==0 ) then
+    !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       u10_l(js:je) = u10(js:je)
     end do
+    !$omp end do nowait
   else
+    !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
       je = tile*imax
       call update_u10m(js,je,u10_l(js:je))
     end do
+    !$omp end do nowait
   end if
 
+  !$omp do schedule(static) private(js,je,k,kinv),                       &
+  !$omp private(dhr,fjd,r1,dlt,alp,slag,lclcon)  
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
@@ -190,6 +196,7 @@ if ( aero_update==aero_split ) then
     locean(js:je) = isoilm_in(js:je) == 0 ! excludes lakes
 
   end do
+  !$omp end do nowait
   
   ! update prognostic aerosols
   call aldrcalc(dt,sig,dz,wg,pblh,ps,tss,t,condc,snowd,taudar,fg,      &
@@ -201,6 +208,7 @@ if ( aero_update==aero_split ) then
   
   ! store sulfate for LH+SF radiation scheme.  SEA-ESF radiation scheme imports prognostic aerosols in seaesfrad.f90.
   ! Factor 1.e3 to convert to gS/m2, x 3 to get sulfate from sulfur
+  !$omp do schedule(static) private(js,je,k)
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
@@ -210,6 +218,7 @@ if ( aero_update==aero_split ) then
       so4t(js:je) = so4t(js:je) + 3.e3*xtg(js:je,k,3)*rhoa(js:je,k)*dz(js:je,k)
     end do
   end do
+  !$omp end do nowait
 
 end if ! aero_update==aero_split
      
@@ -217,8 +226,9 @@ end if ! aero_update==aero_split
 if ( aero_update==1 ) then
    
   ! Aerosol mixing
-  !$acc parallel loop copy(xtg) copyin(rkhsave,t,sig,sigmh,dsig,ratha,rathb) &
-  !$acc   private(at,ct)
+  !$omp do schedule(static) private(js,je,i,iq,k,ntr) &
+  !$omp private(rong,rlogs1,rlogs2)                   &
+  !$omp private(rlogh1,rlog12,tmnht,dzz,gt,lxtg)    
   do tile = 1,ntiles
     js = (tile-1)*imax + 1
     je = tile*imax
@@ -259,7 +269,7 @@ if ( aero_update==1 ) then
     end do  
     
   end do ! tile = 1,ntiles
-  !$acc end parallel loop
+  !$omp end do nowait
   
 end if
 

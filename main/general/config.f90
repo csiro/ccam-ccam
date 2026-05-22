@@ -39,6 +39,7 @@ use arrays_m                               ! Atmosphere dyamics prognostic array
 use bigxy4_m                               ! Grid interpolation
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
+use cc_omp
 use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use darcdf_m                               ! Netcdf data
@@ -575,6 +576,7 @@ call ccacc_init(node_myid,ngpus)
 #else
 call ccacc_init(myid,ngpus)
 #endif
+call ccomp_init()
 
 ! Display model configuration information in log file
 if ( myid==0 ) then
@@ -593,6 +595,9 @@ if ( myid==0 ) then
 #endif
 #ifdef _OPENACC
   write(6,*) 'Using OpenACC with GPUs per node         = ',ngpus  
+#endif
+#ifdef _OPENMP
+  write(6,*) 'Using OpenMP with number of threads      = ',maxthreads
 #endif
   write(6,*) 'Reading namelist from ',trim(nmlfile)
   write(6,*) 'rlong0,rlat0,schmidt ',rlong0,rlat0,schmidt

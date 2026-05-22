@@ -175,11 +175,20 @@ if ( intsch==1 ) then
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
+      !$omp parallel
       do nn = 1,nlen
+#ifdef _OPENACC
         np = nn - 1 + nstart  
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
         !$acc   present(sx,xg,yg,nface) async(async_counter)
+#else
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)                                &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
+#endif
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
             idel = int(xg(iq,k))
@@ -218,12 +227,17 @@ if ( intsch==1 ) then
             rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
                      sx_11*cmul_3 + sx_21*cmul_4
             rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-            s(iq,k,np) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+            s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
+#ifdef _OPENACC
         !$acc end parallel loop
+#else
+        !$omp end do nowait
+#endif
       end do           ! nn loop
       !$acc wait
+      !$omp end parallel
     
     else              ! (nfield<mh_bs)
 
@@ -279,11 +293,20 @@ if ( intsch==1 ) then
       ! the messages to return, thereby overlapping computation with communication.
       call intssync_send(nlen)
 
+      !$omp parallel
       do nn = 1,nlen
-        np = nn - 1 + nstart  
+#ifdef _OPENACC
+        np = nn - 1 + nstart
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
         !$acc   present(sx,xg,yg,nface) async(async_counter)
+#else
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)                      &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
+#endif
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
             idel = int(xg(iq,k))
@@ -324,13 +347,18 @@ if ( intsch==1 ) then
             rmul_3 = sx_m1*cmul_1 + sx_01*cmul_2 + &
                      sx_11*cmul_3 + sx_21*cmul_4
             rmul_4 = sx_02*dmul_2 + sx_12*dmul_3
-            s(iq,k,np) = min( max( cmin, &
+            s(iq,k,nn-1+nstart) = min( max( cmin, &
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do      ! iq loop
         end do        ! k loop
+#ifdef _OPENACC
         !$acc end parallel loop
+#else
+        !$omp end do nowait
+#endif
       end do          ! nn loop  
       !$acc wait
+      !$omp end parallel
 
     end if            ! (nfield<mh_bs)  .. else ..
   
@@ -440,11 +468,20 @@ else     ! if(intsch==1)then
     
       call intssync_send(nlen)
 
+      !$omp parallel
       do nn = 1,nlen
+#ifdef _OPENACC
         np = nn - 1 + nstart   
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
         !$acc   present(sx,xg,yg,nface) async(async_counter)
+#else
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4)                                &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
+#endif
         do k = 1,kl
           do iq = 1,ifull    ! non Berm-Stan option
             ! Convert face index from 0:npanels to array indices
@@ -484,12 +521,17 @@ else     ! if(intsch==1)then
             rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
                      sx_11*cmul_3 + sx_12*cmul_4
             rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
-            s(iq,k,np) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
+            s(iq,k,nn-1+nstart) = rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4
           end do       ! iq loop
         end do         ! k loop
+#ifdef _OPENACC
         !$acc end parallel loop
+#else
+        !$omp end do nowait
+#endif
       end do           ! nn loop  
       !$acc wait
+      !$omp end parallel
     
     else                 ! (nfield<mh_bs)
 
@@ -544,11 +586,20 @@ else     ! if(intsch==1)then
   
       call intssync_send(nlen)
 
+      !$omp parallel
       do nn = 1,nlen
+#ifdef _OPENACC
         np = nn - 1 + nstart  
         async_counter = mod(nn-1, async_length)
         !$acc parallel loop collapse(2) copyout(s(:,:,np))        &
         !$acc   present(sx,xg,yg,nface) async(async_counter)
+#else
+        !$omp do schedule(static) private(k,iq,idel,xxg,jdel,yyg)                        &
+        !$omp private(n,cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3)  &
+        !$omp private(emul_4,rmul_1,rmul_2,rmul_3,rmul_4,cmax,cmin)                      &
+        !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01)                   &
+        !$omp private(sx_11,sx_21,sx_02,sx_12)
+#endif
         do k = 1,kl
           do iq = 1,ifull    ! Berm-Stan option here e.g. qg & gases
             idel = int(xg(iq,k))
@@ -589,13 +640,18 @@ else     ! if(intsch==1)then
             rmul_3 = sx_1m*cmul_1 + sx_10*cmul_2 + &
                      sx_11*cmul_3 + sx_12*cmul_4
             rmul_4 = sx_20*dmul_2 + sx_21*dmul_3
-            s(iq,k,np) = min( max( cmin, &
+            s(iq,k,nn-1+nstart) = min( max( cmin, &
                 rmul_1*emul_1 + rmul_2*emul_2 + rmul_3*emul_3 + rmul_4*emul_4 ), cmax ) ! Bermejo & Staniforth
           end do       ! iq loop
         end do         ! k loop
+#ifdef _OPENACC
         !$acc end parallel loop
+#else
+        !$omp end do nowait
+#endif
       end do           ! nn loop  
       !$acc wait
+      !$omp end parallel
     
     end if            ! (nfield<mh_bs)  .. else ..
 
@@ -684,7 +740,11 @@ end do
 
 call intssync_send
 
+#ifdef _OPENACC
 !$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
+#else
+!$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
+#endif
 do k = 1,kl
   do iq = 1,ifull
     ! Convert face index from 0:npanels to array indices
@@ -699,7 +759,11 @@ do k = 1,kl
             + (1.-yyg)*(xxg*sx(idel+1,  jdel,n,k)+(1.-xxg)*sx(idel,  jdel,n,k))
   end do                  ! iq loop
 end do                    ! k
+#ifdef _OPENACC
 !$acc end parallel loop
+#else
+!$omp end parallel do
+#endif
 
 call intssync_recv(s)
 

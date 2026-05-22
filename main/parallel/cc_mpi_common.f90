@@ -194,6 +194,7 @@ module cc_mpi_common
    integer, save :: cloud_begin, cloud_end
    integer, save :: radnet_begin, radnet_end
    integer, save :: radinit_begin, radinit_end
+   integer, save :: radCLD_begin, radCLD_end     
    integer, save :: radSW_begin, radSW_end
    integer, save :: radLW_begin, radLW_end
    integer, save :: sfluxnet_begin, sfluxnet_end
@@ -202,7 +203,7 @@ module cc_mpi_common
    integer, save :: sfluxurban_begin, sfluxurban_end
    integer, save :: vertmix_begin, vertmix_end
    integer, save :: aerosol_begin, aerosol_end
-   integer, save :: cape_begin, cape_end
+   integer, save :: diag_begin, diag_end
    integer, save :: maincalc_begin, maincalc_end
    integer, save :: precon_begin, precon_end
    integer, save :: waterdynamics_begin, waterdynamics_end
@@ -252,7 +253,7 @@ module cc_mpi_common
    integer, save :: p20_begin, p20_end
    integer, save :: p21_begin, p21_end
    integer, save :: p22_begin, p22_end
-   integer, parameter :: nevents = 88
+   integer, parameter :: nevents = 89
    real(kind=8), dimension(nevents), save, private :: tot_time = 0._8, start_time
    real(kind=8), save :: mpiinit_time, total_time
    character(len=15), dimension(nevents), save, private :: event_name
@@ -670,8 +671,10 @@ contains
    end subroutine proc_region_uniform
 
    subroutine start_log ( event )
+      use cc_omp
       integer, intent(in) :: event
       integer(kind=8) :: begin_time, count_rate, count_max
+      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_START(event_name(event))
 #endif
@@ -680,8 +683,10 @@ contains
    end subroutine start_log
 
    subroutine end_log ( event )
+      use cc_omp
       integer, intent(in) :: event
       integer(kind=8) :: end_time, count_rate, count_max
+      if ( ccomp_get_thread_num() /= 0 ) return
 #ifdef vampir
       VT_USER_END(event_name(event))
 #endif
@@ -754,6 +759,7 @@ contains
       call add_event(cloud_begin,         cloud_end,         "Cloud")
       call add_event(radnet_begin,        radnet_end,        "Rad")
       call add_event(radinit_begin,       radinit_end,       "Rad_init")
+      call add_event(radcld_begin,        radcld_end,        "Rad_CLD")
       call add_event(radsw_begin,         radsw_end,         "Rad_SW")
       call add_event(radlw_begin,         radlw_end,         "Rad_LW")
       call add_event(sfluxnet_begin,      sfluxnet_end,      "Sflux")
@@ -762,7 +768,7 @@ contains
       call add_event(sfluxurban_begin,    sfluxurban_end,    "Sflux_urban")
       call add_event(vertmix_begin,       vertmix_end,       "Vertmix")
       call add_event(aerosol_begin,       aerosol_end,       "Aerosol")
-      call add_event(cape_begin,          cape_end,          "CAPE")
+      call add_event(diag_begin,          diag_end,          "Diagnostic")
       call add_event(precon_begin,        precon_end,        "Precon")
       call add_event(bcast_begin,         bcast_end,         "MPI_Bcast")
       call add_event(alltoall_begin,      alltoall_end,      "MPI_AlltoAll")

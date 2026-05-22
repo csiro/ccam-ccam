@@ -113,6 +113,7 @@ implicit none
 integer, dimension(8) :: tvals1, tvals2, nper3hr
 integer, dimension(8) :: times_total_a, times_total_b
 integer iq, k
+integer tile, js, je
 integer mins_gmt, mspeca, mtimer_in
 integer nlx, nmaxprsav, n3hr
 integer nwtsav, mtimer_sav
@@ -147,6 +148,14 @@ end if
 #ifdef share_ifullg
 #ifndef usempi3
 write(6,*) "ERROR: Compiling CCAM with -Dshare_ifullg requires -Dusempi3"
+stop
+#endif
+#endif
+
+#ifdef _OPENACC
+#ifdef _OPENMP
+write(6,*) "ERROR: OpenACC and OpenMP are not supported at the same time"
+stop
 #endif
 #endif
 
@@ -578,6 +587,9 @@ do ktau = 1,ntau   ! ****** start of main time loop
   call nantest("start of physics",1,ifull,"all")
 
   
+  !$omp parallel  
+  
+  
   ! GWDRAG ----------------------------------------------------------------
   if ( nsib>0 ) then
     call START_LOG(gwdrag_begin)
@@ -585,23 +597,41 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call gwdrag  ! <0 for split - only one now allowed
     end if
     call END_LOG(gwdrag_end)
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      call nantest("after gravity wave drag",js,je,"gwdrag")
+    end do  
+    !$omp end do nowait
   end if
-  call nantest("after gravity wave drag",1,ifull,"gwdrag")
 
 
   ! CONVECTION ------------------------------------------------------------
-  do k = 1,kl  
-    do iq = 1,ifull
-      convh_ave(iq,k) = convh_ave(iq,k) - t(iq,k)*real(nperday)/real(nperavg)
-    end do  
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    do k = 1,kl  
+      do iq = js,je
+        convh_ave(iq,k) = convh_ave(iq,k) - t(iq,k)*real(nperday)/real(nperavg)
+      end do  
+    end do
   end do
+  !$omp end do nowait
   if ( nsib>0 ) then
     call START_LOG(convection_begin)
     call ctrl_convection 
     call END_LOG(convection_end)
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      call fixqg(js,je)
+      call nantest("after convection",js,je,"conv")
+    end do  
+    !$omp end do nowait
   end if
-  call fixqg(1,ifull)
-  call nantest("after convection",1,ifull,"conv")
 
 
   ! CLOUD MICROPHYSICS ----------------------------------------------------
@@ -609,24 +639,50 @@ do ktau = 1,ntau   ! ****** start of main time loop
     call START_LOG(cloud_begin)
     call ctrl_microphysics
     call END_LOG(cloud_end)
-  end if
-  do k = 1,kl  
-    do iq = 1,ifull
-      convh_ave(iq,k) = convh_ave(iq,k) + t(iq,k)*real(nperday)/real(nperavg)
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      call nantest("after cloud microphysics",js,je,"cloud") 
     end do  
-  end do
-  call nantest("after cloud microphysics",1,ifull,"cloud") 
+    !$omp end do nowait
+  end if
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    do k = 1,kl  
+      do iq = js,je
+        convh_ave(iq,k) = convh_ave(iq,k) + t(iq,k)*real(nperday)/real(nperavg)
+      end do  
+    end do
+  end do  
+  !$omp end do nowait
   
   
   ! RADIATION -------------------------------------------------------------
   ! calculate MSE before radiation
-  call calculate_dhdt_mse(1,ifull,mse_t1)  
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax
+    call calculate_dhdt_mse(js,je,mse_t1)  
+  end do
+  !$omp end do nowait
   if ( nsib>0 ) then
     call START_LOG(radnet_begin)
-    rad_tend(1:ifull,1:kl) = rad_tend(1:ifull,1:kl) - t(1:ifull,1:kl)/dt
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      rad_tend(js:je,1:kl) = rad_tend(js:je,1:kl) - t(js:je,1:kl)/dt
+    end do
+    !$omp end do nowait
     select case ( nrad )
       case(4)
         ! Fels-Schwarzkopf radiation
+        !$omp barrier  
+        !$omp single          
         if ( nhstest<0 ) then    ! aquaplanet test -1 to -8  
           mtimer_sav = mtimer
           mtimer     = mins_gmt  ! so radn scheme repeatedly works thru same day
@@ -635,26 +691,44 @@ do ktau = 1,ntau   ! ****** start of main time loop
         else
           call radrive(il*nrows_rad)  
         end if    ! (nhstest<0)
+        !$omp end single
       case(5)
         ! GFDL SEA-EFS radiation
         call seaesfrad(koundiag)
       case DEFAULT
         ! use preset slwa array (use +ve nrad)
-        slwa(1:ifull) = -real(10*nrad)
+        !$omp do schedule(static) private(js,je)
+        do tile = 1,ntiles
+          js = (tile-1)*imax + 1
+          je = tile*imax
+          slwa(js:je) = -real(10*nrad)
+        end do
+        !$omp end do nowait
     end select
     call END_LOG(radnet_end)
+    !$omp do schedule(static) private(js,je)  
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      do k = 1,kl
+        t(js:je,k) = t(js:je,k) - max( dt*(sw_tend(js:je,k)+lw_tend(js:je,k)), &
+                                       min(t(js:je,k)-tradmax,0.) )
+        rad_tend(js:je,k) = rad_tend(js:je,k) + t(js:je,k)/dt
+      end do
+      call nantest("after radiation",js,je,"radiation")    
+    end do
+    !$omp end do nowait    
   end if ! ( nsib>0 )  
-  do k = 1,kl
-    ! tradmax limits maximum warming in case  
-    t(1:ifull,k) = t(1:ifull,k) - max( dt*(sw_tend(1:ifull,k)+lw_tend(1:ifull,k)), &
-                                       min(t(1:ifull,k)-tradmax,0.) )
-    rad_tend(1:ifull,k) = rad_tend(1:ifull,k) + t(1:ifull,k)/dt
-  end do
   ! calculate MSE after radiation
-  call calculate_dhdt_mse(1,ifull,mse_t2)
-  dmsedt_rad(:,:) = (mse_t2 (:,:) - mse_t1(:,:))/dt  
-  call nantest("after radiation",1,ifull,"radiation")
-    
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call calculate_dhdt_mse(js,je,mse_t2)
+    dmsedt_rad(js:je,1:kl) = (mse_t2(js:je,1:kl) - mse_t1(js:je,1:kl))/dt  
+  end do
+  !$omp end do nowait
+      
   
   ! HELD & SUAREZ ---------------------------------------------------------
   if ( nhstest==2 ) then
@@ -679,9 +753,15 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call sflux
     endif   ! (ntsur>1)    
     call END_LOG(sfluxnet_end)
+    !$omp do schedule(static) private(js,je)  
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax 
+      call nantest("after surface fluxes",js,je,"surface")
+    end do  
+    !$omp end do nowait    
   end if
-  call nantest("after surface fluxes",1,ifull,"surface")
-
+  
   
   ! AEROSOLS --------------------------------------------------------------
   ! Old time-split with aero_split=0.
@@ -692,14 +772,26 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call aerocalc(mins,0)
     end if
     call END_LOG(aerosol_end)
-    call nantest("after aerosols",1,ifull,"aerosols (old)")
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("after aerosols",js,je,"aerosols")
+    end do
+    !$omp end do nowait
   end if  
   
 
   ! VERTICAL MIXING ------------------------------------------------------
   ! Turbulent mixing of atmosphere and optionally combined with ocean
   ! calculate MSE before vertical mixing
-  call calculate_dhdt_mse(1,ifull,mse_t1)  
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call calculate_dhdt_mse(js,je,mse_t1)  
+  end do
+  !$omp end do nowait
   if ( nsib>0 ) then
     call START_LOG(vertmix_begin)
     if ( nmaxpr==1 ) then
@@ -707,26 +799,50 @@ do ktau = 1,ntau   ! ****** start of main time loop
         write (6,"('pre-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
       end if
     end if
-    trb_tend(1:ifull,1:kl) = trb_tend(1:ifull,1:kl) - t(1:ifull,1:kl)/dt
-    trb_qend(1:ifull,1:kl) = trb_qend(1:ifull,1:kl) - qg(1:ifull,1:kl)/dt - qlg(1:ifull,1:kl)/dt - qfg(1:ifull,1:kl)/dt
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      trb_tend(js:je,1:kl) = trb_tend(js:je,1:kl) - t(js:je,1:kl)/dt
+      trb_qend(js:je,1:kl) = trb_qend(js:je,1:kl) - qg(js:je,1:kl)/dt - qlg(js:je,1:kl)/dt - qfg(js:je,1:kl)/dt
+    end do
+    !$omp end do nowait
     if ( ntsur>=1 ) then
       call turbmix
     end if  ! (ntsur>=1)
-    trb_tend(1:ifull,1:kl) = trb_tend(1:ifull,1:kl) + t(1:ifull,1:kl)/dt
-    trb_qend(1:ifull,1:kl) = trb_qend(1:ifull,1:kl) + qg(1:ifull,1:kl)/dt + qlg(1:ifull,1:kl)/dt + qfg(1:ifull,1:kl)/dt
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax
+      trb_tend(js:je,1:kl) = trb_tend(js:je,1:kl) + t(js:je,1:kl)/dt
+      trb_qend(js:je,1:kl) = trb_qend(js:je,1:kl) + qg(js:je,1:kl)/dt + qlg(js:je,1:kl)/dt + qfg(js:je,1:kl)/dt
+    end do
+    !$omp end do nowait
     if ( nmaxpr==1 ) then
       if ( mydiag .and. ntiles==1 ) then
         write (6,"('aft-vertmix t',9f8.3/13x,9f8.3)") t(idjd,:)
       end if
     end if
     call END_LOG(vertmix_end)
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call fixqg(js,je)
+      call nantest("after PBL mixing",js,je,"vmixing")
+    end do  
+    !$omp end do nowait  
   end if
-  call fixqg(1,ifull)
   ! calculate MSE after vertical mixing
-  call calculate_dhdt_mse(1,ifull,mse_t2)
-  dmsedt_pbl(:,:) = (mse_t2(:,:) - mse_t1(:,:))/dt  
-  call nantest("after PBL mixing",1,ifull,"vmixing")
-
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call calculate_dhdt_mse(js,je,mse_t2)
+    dmsedt_pbl(js:je,1:kl) = (mse_t2(js:je,1:kl) - mse_t1(js:je,1:kl))/dt  
+  end do
+  !$omp end do nowait
+  
   
   ! AEROSOLS --------------------------------------------------------------
   ! New time-split with aero_split=1
@@ -737,7 +853,13 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call aerocalc(mins,1)
     end if
     call END_LOG(aerosol_end)
-    call nantest("after aerosols",1,ifull,"aerosols")
+    !$omp do schedule(static) private(js,je)
+    do tile = 1,ntiles
+      js = (tile-1)*imax + 1
+      je = tile*imax  
+      call nantest("after aerosols",js,je,"aerosols")
+    end do  
+    !$omp end do nowait
   end if
 
   
@@ -751,46 +873,67 @@ do ktau = 1,ntau   ! ****** start of main time loop
 
   
   ! MISC ------------------------------------------------------------------
-  ! Update diagnostics for consistancy in history file
-  call fixsat(1,ifull) ! if qg_fix>1, then removes supersaturated qg
-  call nantest("after fixsat",1,ifull,"cloud")
-  ! Convection diagnostic output
-  cbas_ave(1:ifull) = cbas_ave(1:ifull) + condc(1:ifull)*(1.1-sig(kbsav(1:ifull)))      ! diagnostic
-  ctop_ave(1:ifull) = ctop_ave(1:ifull) + condc(1:ifull)*(1.1-sig(abs(ktsav(1:ifull)))) ! diagnostic
-  ! Microphysics diagnostic output
-  rnd_3hr(1:ifull,8) = rnd_3hr(1:ifull,8) + real(condx(1:ifull),8)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+  !$omp do schedule(static) private(js,je)
+  do tile = 1,ntiles
+    js = (tile-1)*imax + 1
+    je = tile*imax  
+    call fixsat(js,je) ! if qg_fix>1, then removes supersaturated qg
+    call nantest("after fixsat",js,je,"cloud")
+    ! Convection diagnostic output
+    cbas_ave(js:je) = cbas_ave(js:je) + condc(js:je)*(1.1-sig(kbsav(js:je)))      ! diagnostic
+    ctop_ave(js:je) = ctop_ave(js:je) + condc(js:je)*(1.1-sig(abs(ktsav(js:je)))) ! diagnostic
+    ! Microphysics diagnostic output
+    rnd_3hr(js:je,8) = rnd_3hr(js:je,8) + real(condx(js:je),8)  ! i.e. rnd24(:)=rnd24(:)+condx(:)
+  end do
+  !$omp end do nowait
+  
+  
+  !$omp end parallel
+
+  
+  ! Update aerosol timer
+  if ( oxidant_update ) then
+    oxidant_timer = mins
+  end if  
+  
+  
+  call END_LOG(phys_end)
+  
+
+  ! ***********************************************************************
+  ! DIAGNOSTICS AND OUTPUT
+  ! ***********************************************************************
+
+  call START_LOG(diag_begin)  
+  
+  ! for updraft helicity calculation below
+  call boundsuv_send(u,v,allvec=.true.) 
+ 
+  ! SCRN -------------------------------------------------------  
   if ( rescrn>0 ) then
     call autoscrn(1,ifull)
   end if
 
-  call END_LOG(phys_end)
-
-  
-  ! Diagnose CAPE, CIN and LI for cordex output  
-  ! pcc2hist can calculate CAPE for standard output
+  ! Diagnose CAPE, CIN and LI ----------------------------------
+  ! pcc2hist can calculate CAPE if 3D temperature and moisture is avaliable
+  ! in output file (e.g., standard output)
   ltest = .false.
   if ( surfile/=' ' ) then
     ltest = ltest .or. ( mod(ktau,tbave)==0 .and. .not.ml_cordex )
   end if
   if ( freqfile/=' ' ) then
-    ltest = ltest .or. ( mod(ktau,tbave10)==0 .and. .not.ml_freq )  
+    ltest = ltest .or. ( mod(ktau,tbave10)==0 .and. shep_cordex>0 .and. .not.ml_freq )  
   end if  
   if ( ltest ) then
-    call START_LOG(cape_begin)  
     call capecalc
-    call END_LOG(cape_end)
   end if  
-  ! Calculate updraft helicity
+
+  ! Calculate updraft helicity ---------------------------------
+  call boundsuv_recv(u,v,allvec=.true.)
   call uh_calc
-  ! Update aerosol timer
-  if ( oxidant_update ) then
-    oxidant_timer = mins
-  end if
-  
-  
-  ! ***********************************************************************
-  ! DIAGNOSTICS AND OUTPUT
-  ! ***********************************************************************
+
+  call END_LOG(diag_end)
+
 
   ! TIME AVERAGED OUTPUT ---------------------------------------
   ! update diag_averages and daily max and min screen temps 
@@ -2188,7 +2331,7 @@ if ( t_check ) then
     posmax(1) = iq2iqg(posmax(1))
     write(6,*) "minloc,maxloc ",posmin,posmax
     call ccmpi_abort(-1)
-  end if
+  end if   
 end if  
 
 if ( uv_check ) then

@@ -75,17 +75,30 @@ if (its_g>500) then
 end if
 
 
+!$omp parallel
+!$omp sections
+
+
 !$acc data create(its,dtnew,ww,depdum,dzdum,ee)
 !$acc update device(its,dtnew,ww,depdum,dzdum,ee)
 
+!$omp section
 call mlotvd(its,dtnew,ww,uu,depdum,dzdum,ee)
+!$omp section
 call mlotvd(its,dtnew,ww,vv,depdum,dzdum,ee)
+!$omp section
 call mlotvd(its,dtnew,ww,ss,depdum,dzdum,ee)
+!$omp section
 call mlotvd(its,dtnew,ww,tt,depdum,dzdum,ee)
+!$omp section
 call mlotvd(its,dtnew,ww,mm,depdum,dzdum,ee)
 
 !$acc wait
 !$acc end data
+
+
+!$omp end sections
+!$omp end parallel
 
 
 ss(1:ifull,:)=max(ss(1:ifull,:),0.)

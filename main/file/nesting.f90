@@ -99,9 +99,9 @@ integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, kdhour, kdmin, kddate
 integer khour_r, kmin_r, khour, kmin
 integer :: num=0
-real, dimension(ifull,ol,4) :: dumaa
-real, dimension(ifull,ms,3) :: dumg
-real, dimension(ifull,3,3) :: dums
+real, dimension(:,:,:), allocatable :: dumaa
+real, dimension(:,:,:), allocatable :: dumg
+real, dimension(:,:,:), allocatable :: dums
 real, dimension(ifull,3) :: duma
 real, dimension(ifull) :: zsb, timelt
 real, dimension(2) :: depthcheck
@@ -131,6 +131,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
 
     if ( abs(io_in)==1 ) then
       call START_LOG(nestotf_begin)
+      allocate( dumg(ifull,ms,3), dums(ifull,3,3) )
       call onthefly(1,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -138,6 +139,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                     duma(:,2),duma(:,3),dumm,                     & !unused
                     sssb,ocndep,xtghostb)
+      deallocate( dumg, dums )
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
       !qb = max(qb,0.)
@@ -176,6 +178,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
   ! Read host atmospheric and ocean data for nudging      
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
+    allocate( dumg(ifull,ms,3), dums(ifull,3,3) )
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -183,6 +186,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
                   dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                   duma(:,2),duma(:,3),dumm,                     & !unused
                   sssb,ocndep,xtghostb)
+    deallocate( dumg, dums )
     call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Nudging requires abs(io_in)=1'
@@ -295,6 +299,7 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
   else
     if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
       ! nudge mlo
+      allocate( dumaa(ifull,ol,4) )
       dumaa = cona*sssa(:,:,1:4) + conb*sssb(:,:,1:4)
       if ( wl<1 ) then
         ! determine if multiple levels of ocean data exist in host
@@ -314,6 +319,7 @@ if ( namip==0 ) then     ! namip SSTs/sea-ice take precedence
         dumaa(:,1,1) = dumaa(:,1,1) - wrtemp
       end if
       call mlonudge(dumaa(:,:,1),dumaa(:,:,2),dumaa(:,:,3:4),ocndep(:,2),wl)
+      deallocate( dumaa )
     end if  ! nud_sst/=0.or.nud_sss/=0.or.nud_ouv/=0.or.nud_sfh/=0
   endif     ! nmlo==0 ..else..
 endif       ! namip==0
@@ -352,11 +358,11 @@ use stime_m                      ! File date data
 integer, dimension(ifull) :: dumm
 integer kdate_r, ktime_r, ntr
 integer kdhour, kdmin, kddate, khour_r, khour, kmin_r, kmin
-real, dimension(ifull,kl,naero) :: xtghostc
-real, dimension(ifull,ol,4) :: sssc
-real, dimension(ifull,ms,3) :: dumg
-real, dimension(ifull,3,3) :: dums
-real, dimension(ifull,kl) :: tc, uc, vc, qc
+real, dimension(:,:,:), allocatable :: xtghostc
+real, dimension(:,:,:), allocatable :: sssc
+real, dimension(:,:,:), allocatable :: dumg
+real, dimension(:,:,:), allocatable :: dums
+real, dimension(:,:), allocatable :: tc, uc, vc, qc
 real, dimension(ifull,3) :: duma
 real, dimension(ifull) :: pslc
 real, dimension(ifull) :: zsb, timelt
@@ -388,6 +394,7 @@ if ( mtimer>mtimeb ) then
     xtghostb = 0.
     if ( abs(io_in)==1 ) then
       call START_LOG(nestotf_begin)
+      allocate( dumg(ifull,ms,3), dums(ifull,3,3) )
       call onthefly(1,kdate_r,ktime_r,                            &
                     pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                     dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -395,6 +402,7 @@ if ( mtimer>mtimeb ) then
                     dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                     duma(:,2),duma(:,3),dumm,                     & !unused
                     sssb,ocndep,xtghostb)
+      deallocate( dumg, dums )
       call END_LOG(nestotf_end)
       tssb(:) = abs(tssb(:))
     else
@@ -434,6 +442,7 @@ if ( mtimer>mtimeb ) then
   ! read tb etc  - for globpea, straight into tb etc
   if ( abs(io_in)==1 ) then
     call START_LOG(nestotf_begin)
+    allocate( dumg(ifull,ms,3), dums(ifull,3,3) )
     call onthefly(1,kdate_r,ktime_r,                            &
                   pslb,zsb,tssb,sicedepb,fraciceb,tb,ub,vb,qb,  &
                   dumg(:,:,1),dumg(:,:,2),dumg(:,:,3),          & !unused
@@ -441,6 +450,7 @@ if ( mtimer>mtimeb ) then
                   dums(:,:,1),dums(:,:,2),dums(:,:,3),          & !unused
                   duma(:,2),duma(:,3),dumm,                     & !unused
                   sssb,ocndep,xtghostb)
+    deallocate( dumg, dums )
     call END_LOG(nestotf_end)
   else
     write(6,*) 'ERROR: Scale-selective filter requires abs(io_in)=1'
@@ -490,6 +500,8 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
   ! atmospheric nudging if required
   if ( mbd/=0 ) then
     if ( nud_p/=0 .or. nud_t/=0 .or. nud_uv/=0 .or. nud_q/=0 .or. nud_aero/=0 ) then
+      allocate( tc(ifull,kl), qc(ifull,kl), uc(ifull,kl), vc(ifull,kl) )
+      allocate( xtghostc(ifull,kl,naero) )
       pslc(:) = cona*psla(:) + (1.-cona)*pslb(:) - psl(1:ifull)
       uc(:,:) = cona*ua(:,:) + (1.-cona)*ub(:,:) - u(1:ifull,:)
       vc(:,:) = cona*va(:,:) + (1.-cona)*vb(:,:) - v(1:ifull,:)
@@ -501,6 +513,8 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
         end do
       end if
       call getspecdata(pslc,uc,vc,tc,qc,xtghostc)
+      deallocate( tc, qc, uc, vc )
+      deallocate( xtghostc )
     end if
   end if  
 
@@ -523,6 +537,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
       ! nudge Mixed-Layer-Ocean
       if ( mbd_mlo/=0 ) then  
         if ( nud_sst/=0 .or. nud_sss/=0 .or. nud_ouv/=0 .or. nud_sfh/=0 ) then
+          allocate( sssc(ifull,ol,4) )
           sssc(:,:,1:4) = cona*sssa(:,:,1:4) + (1.-cona)*sssb(:,:,1:4)  
           ! check host for 2D or 3D data
           if ( wl<1 ) then
@@ -542,6 +557,7 @@ if ( mtimer>=mtimec .and. mod(nint(ktau*dt),60)==0 ) then
             sssc(:,1,1) = sssc(:,1,1) - wrtemp
           end if
           call mlofilterhub(sssc(:,:,1),sssc(:,:,2),sssc(:,:,3:4),ocndep(:,2),wl)
+          deallocate( sssc )
         end if
       end if  
     end if ! (nmlo==0) ..else..
@@ -1152,6 +1168,7 @@ do ipass = 0,2
 
 #else
 
+  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,ibase,k,local_sum)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
@@ -1162,6 +1179,7 @@ do ipass = 0,2
       end do  
     end do 
   end do 
+  !$omp end parallel do
 
 #endif
 
@@ -1275,6 +1293,7 @@ end do
 #else
 
 ! CPU version
+!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
@@ -1282,6 +1301,7 @@ do j = 1,ipan
     qt(j+ipan*(n-1),1:klt) = local_sum(1:klt)/local_sum(kltp1) ! = dot_product(ra(1:me)*at(1:me,k))/dot_product(ra(1:me)*asum(1:me))
   end do
 end do
+!$omp end parallel do
 
 #endif
 
@@ -1384,6 +1404,7 @@ do ipass = 0,2
 #else
 
   ! CPU version
+  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
@@ -1393,6 +1414,7 @@ do ipass = 0,2
       end do  
     end do
   end do
+  !$omp end parallel do
 
 #endif
 
@@ -1508,6 +1530,7 @@ end do
 #else
 
 ! CPU version
+!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
@@ -1515,6 +1538,7 @@ do j = 1,jpan
     qt(n+ipan*(j-1),1:klt) = local_sum(1:klt)/local_sum(klt+1)
   end do
 end do
+!$omp end parallel do
 
 #endif
 
@@ -2361,6 +2385,7 @@ do ipass = 0,2
 
 #else
 
+  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,jpan
     do n = 1,ipan
       nn = n + os - 1
@@ -2370,6 +2395,7 @@ do ipass = 0,2
       end do  
     end do
   end do
+  !$omp end parallel do
 
 #endif
 
@@ -2482,6 +2508,7 @@ end do
 
 #else
 
+!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,ipan
   do n = 1,jpan
     nn = n + os - 1
@@ -2489,6 +2516,7 @@ do j = 1,ipan
     qp(j+ipan*(n-1),1:kd) = local_sum(1:kd)/max(local_sum(kd+1),1.e-8)
   end do
 end do
+!$omp end parallel do
 
 #endif
 
@@ -2587,6 +2615,7 @@ do ipass = 0,2
 #else
 
   ! CPU version
+  !$omp parallel do collapse(2) schedule(static) private(j,n,nn,k,local_sum)
   do j = 1,ipan
     do n = 1,jpan
       nn = n + os - 1
@@ -2597,6 +2626,7 @@ do ipass = 0,2
       end do  
     end do    
   end do
+  !$omp end parallel do
 
 #endif
 
@@ -2712,6 +2742,7 @@ end do
 #else
 
 ! CPU version
+!$omp parallel do collapse(2) schedule(static) private(j,n,nn,local_sum)
 do j = 1,jpan
   do n = 1,ipan
     nn = n + os - 1
@@ -2719,6 +2750,7 @@ do j = 1,jpan
     qp(n+ipan*(j-1),1:kd) = local_sum(1:kd)/max(local_sum(kd+1), 1.e-8)  
   end do  
 end do
+!$omp end parallel do
 
 #endif
 

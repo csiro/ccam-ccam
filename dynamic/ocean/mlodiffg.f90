@@ -237,15 +237,32 @@ if ( mlodiff>=10 .and. mlodiff<20 ) then
       ssl(:,:) = dumb(:,:,2)
     end if
     
+    !$omp parallel
+    !$omp sections
+    
+    !$omp section
     if ( mlodiff==10 .or. mlodiff==12 ) then
       call mlodiffcalc1(duma(:,:,1),xfact,yfact,emi,hdif)
+    end if
+    !$omp section
+    if ( mlodiff==10 .or. mlodiff==12 ) then
       call mlodiffcalc1(duma(:,:,2),xfact,yfact,emi,hdif)
+    end if
+    !$omp section
+    if ( mlodiff==10 .or. mlodiff==12 ) then
       call mlodiffcalc1(duma(:,:,3),xfact,yfact,emi,hdif)
     end if
+    !$omp section
     if ( mlodiff==10 .or. mlodiff==11 ) then
       call mlodiffcalc1(ttl,xfact,yfact,emi,hdif)
+    end if
+    !$omp section
+    if ( mlodiff==10 .or. mlodiff==11 ) then
       call mlodiffcalc1(ssl,xfact,yfact,emi,hdif)
     end if
+    
+    !$omp end sections
+    !$omp end parallel
 
     if ( mlodiff==10 .or. mlodiff==12 ) then
       call bounds(duma(:,:,1:3))
@@ -258,15 +275,32 @@ if ( mlodiff>=10 .and. mlodiff<20 ) then
       ssl(:,:) = dumb(:,:,2)
     end if
     
+    !$omp parallel
+    !$omp sections
+    
+    !$omp section
     if ( mlodiff==10 .or. mlodiff==12 ) then
       call mlodiffcalc2(duma(:,:,1),duma_save(:,:,1),xfact,yfact,emi,ee,hdif)
+    end if
+    !$omp section
+    if ( mlodiff==10 .or. mlodiff==12 ) then
       call mlodiffcalc2(duma(:,:,2),duma_save(:,:,2),xfact,yfact,emi,ee,hdif)
+    end if
+    !$omp section
+    if ( mlodiff==10 .or. mlodiff==12 ) then
       call mlodiffcalc2(duma(:,:,3),duma_save(:,:,3),xfact,yfact,emi,ee,hdif)
     end if
+    !$omp section
     if ( mlodiff==10 .or. mlodiff==11 ) then
       call mlodiffcalc2(ttl,ttl_save,xfact,yfact,emi,ee,hdif)
+    end if
+    !$omp section
+    if ( mlodiff==10 .or. mlodiff==11 ) then
       call mlodiffcalc2(ssl,ssl_save,xfact,yfact,emi,ee,hdif)
     end if
+    
+    !$omp end sections
+    !$omp end parallel
     
   end do  
   
@@ -285,22 +319,39 @@ else if ( mlodiff>=0 .and. mlodiff<10 ) then
     ttl(:,:) = dumb(:,:,1)
     ssl(:,:) = dumb(:,:,2)
   end if
+  
+  !$omp parallel
+  !$omp sections
 
   !$acc data create(xfact,yfact,emi,ee,iwu,isv,in,is,ie,iw)
   !$acc update device(xfact,yfact,emi,ee,iwu,isv,in,is,ie,iw)
   
+  !$omp section
   if ( mlodiff==0 .or. mlodiff==2 ) then
     call mlodifflap(duma(:,:,1),xfact,yfact,emi,ee,hdif)
+  end if
+  !$omp section
+  if ( mlodiff==0 .or. mlodiff==2 ) then
     call mlodifflap(duma(:,:,2),xfact,yfact,emi,ee,hdif)
+  end if
+  !$omp section
+  if ( mlodiff==0 .or. mlodiff==2 ) then
     call mlodifflap(duma(:,:,3),xfact,yfact,emi,ee,hdif)
   end if
+  !$omp section
   if ( mlodiff==0 .or. mlodiff==1 ) then
     call mlodifflap(ttl,xfact,yfact,emi,ee,hdif)
+  end if
+  !$omp section
+  if ( mlodiff==0 .or. mlodiff==1 ) then
     call mlodifflap(ssl,xfact,yfact,emi,ee,hdif)
   end if
 
   !$acc wait
   !$acc end data
+
+  !$omp end sections
+  !$omp end parallel
   
 else  
   write(6,*) "ERROR: Unknown mlodiff option mlodiff=",mlodiff
