@@ -491,7 +491,7 @@ do tile = 1,ntiles
                 lpfsnow,lpfsubl,pcfcover,pmiwc,lpmaccr,lpfmelt,             & !Inputs
                 lpqfsedice,lplambs,lprscav,lprfreeze,lpfevap,pclcon,fracc,  & !Inputs
                 lpccw,pfconv,xtu,                                           & !Inputs
-                lxte, so2oh(js:je), so2h2(js:je), so2o3(js:js),             & !Output
+                lxte, so2oh(js:je), so2h2(js:je), so2o3(js:je),             & !Output
                 dmsoh(js:je), dmsn3(js:je),                                 & !Output
                 lzoxidant_g,so2wd(js:je),so4wd(js:je),bcwd(js:je),          & !Output
                 ocwd(js:je),ldustwd,saltwd(js:je))
