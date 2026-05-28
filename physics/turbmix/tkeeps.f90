@@ -270,6 +270,7 @@ real, dimension(imax,kl+ol+1) :: uu, yy, yyu ! working
 cm12 = 1./sqrt(cm0)
 cm34 = sqrt(sqrt(cm0**3))
 use_ocean = mode==2 .or. mode==3
+use_ocean = use_ocean .and. any(.not.land(1:imax))
 
 !!$acc update device(maxsal)
 

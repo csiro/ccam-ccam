@@ -322,9 +322,6 @@ else if ( mlodiff>=0 .and. mlodiff<10 ) then
   
   !$omp parallel
   !$omp sections
-
-  !$acc data create(xfact,yfact,emi,ee,iwu,isv,in,is,ie,iw)
-  !$acc update device(xfact,yfact,emi,ee,iwu,isv,in,is,ie,iw)
   
   !$omp section
   if ( mlodiff==0 .or. mlodiff==2 ) then
@@ -346,9 +343,6 @@ else if ( mlodiff>=0 .and. mlodiff<10 ) then
   if ( mlodiff==0 .or. mlodiff==1 ) then
     call mlodifflap(ssl,xfact,yfact,emi,ee,hdif)
   end if
-
-  !$acc wait
-  !$acc end data
 
   !$omp end sections
   !$omp end parallel
@@ -482,7 +476,6 @@ end subroutine mlodiffcalc2
 
 subroutine mlodifflap(work,xfact,yfact,emi,ee,ldif)
 
-use cc_acc, only : async_length
 use indices_m
 use mlo_ctrl
 use newmpar_m
@@ -490,48 +483,35 @@ use newmpar_m
 implicit none
 
 integer k, iq
-integer, save :: async_counter = -1
 real, dimension(ifull+iextra,ol), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(:,:), intent(inout) :: work
 real, dimension(:,:), intent(in) :: ee
-real, dimension(ifull,ol) :: ans
+real, dimension(ifull) :: ans
 real, intent(in) :: ldif
 real base, xfact_iwu, yfact_isv
 
 ! Laplacian diffusion
 
-async_counter = mod(async_counter+1, async_length)
-
-!$acc enter data create(work,ans) async(async_counter)
-!$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi) &
-!$acc   present(iwu,isv,in,is,ie,iw) async(async_counter)
 do k = 1,ol
   do iq = 1,ifull
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
     base = emi(iq)+ldif*xfact(iq,k)**2+ldif*xfact_iwu**2  &
                   +ldif*yfact(iq,k)**2+ldif*yfact_isv**2
-    ans(iq,k) = ( emi(iq)*work(iq,k) +                     &
-                  ldif*xfact(iq,k)**2*work(ie(iq),k) +     &
-                  ldif*xfact_iwu**2*work(iw(iq),k) +       &
-                  ldif*yfact(iq,k)**2*work(in(iq),k) +     &
-                  ldif*yfact_isv**2*work(is(iq),k) )       &
-                / base
+    ans(iq) = ( emi(iq)*work(iq,k) +                     &
+                ldif*xfact(iq,k)**2*work(ie(iq),k) +     &
+                ldif*xfact_iwu**2*work(iw(iq),k) +       &
+                ldif*yfact(iq,k)**2*work(in(iq),k) +     &
+                ldif*yfact_isv**2*work(is(iq),k) )       &
+              / base
   end do
-end do
-!$acc end parallel loop
-!$acc parallel loop collapse(2) copyout(work) present(ans,ee) async(async_counter)
-do k = 1,ol
   do iq = 1,ifull
     if ( ee(iq,k)>0.5 ) then
-      work(iq,k) = ans(iq,k)
+      work(iq,k) = ans(iq)
     end if
   end do
 end do  
-!$acc end parallel do
-!$acc exit data delete(work,ans) async(async_counter)
 
 return
 end subroutine mlodifflap

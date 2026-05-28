@@ -1301,8 +1301,10 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   ! Normalisation factor for conserving ice flow in and out of gridbox
   call boundsuv(niu,niv,stag=-9)  
-  spnet(1:ifull) = (-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.)     &
-                    -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
+  if ( mloiceadv==0 ) then
+    spnet(1:ifull) = (-min(niu(iwu)*emu(iwu),0.)+max(niu(1:ifull)*emu(1:ifull),0.)     &
+                      -min(niv(isv)*emv(isv),0.)+max(niv(1:ifull)*emv(1:ifull),0.))/ds
+  end if  
 
   ! ADVECT ICE ------------------------------------------------------
   ! use simple upwind scheme
@@ -1572,7 +1574,12 @@ real vec2x,vec2y,vec2z,vecdot
 real vec3x,vec3y,vec3z,vdot1,vdot2
 real(kind=8), dimension(ifull,size(cou,2)), intent(in) :: x3d,y3d,z3d
 
+#ifdef _OPENACC
 !$acc parallel loop collapse(2) copyin(x3d,y3d,z3d,x,y,z) copy(cou,cov,cow)
+#else
+!$omp parallel do schedule(static) private(vec1x,vec1y,vec1z,denb,vecdot) &
+!$omp   private(vec2x,vec2y,vec2z,vec3x,vec3y,vec3z,vdot1,vdot2)
+#endif
 do k = 1,ol
   do iq = 1,ifull
     !         cross product n1xn2 into vec1
@@ -1598,7 +1605,11 @@ do k = 1,ol
     end if
   end do ! iq
 end do   ! k
+#ifdef _OPENACC
 !$acc end parallel loop
+#else
+!$omp end parallel do
+#endif
 
 return
 end subroutine mlorot
@@ -1671,13 +1682,8 @@ else
 
   ! rhobar = int_0^sigma rho dsigma / sigma
 
-#ifdef _OPENACC
-  !$acc parallel loop collapse(2) copyin(alpha,beta,ie,in,is,iw,ine,ise,ien,iwn,nt_l,ns_l,emu,emv) &
-  !$acc   copyout(drhodxu,drhodxv,drhodyu,drhodyv)
-#else
   !$omp parallel do schedule(static) private(ii,iq,absu,bbsu,absv,bbsv)            &
   !$omp   private(dnadxu1,dnadyu1,dnadyv1,dnadxv1,dnadxu2,dnadyu2,dnadyv2,dnadxv2)
-#endif
   do ii = 1,ol
     do iq = 1,ifull
       absu = 0.5*(alpha(iq,ii)+alpha(ie(iq),ii))
@@ -1707,11 +1713,7 @@ else
       drhodyv(iq,ii) = -absv*dnadyv1 + bbsv*dnadyv2
     end do
   end do
-#ifdef _OPENACC
-  !$acc end parallel loop
-#else
   !$omp end parallel do
-#endif
 
   ! integrate density gradient  
   drhobardxu(:,1) = drhodxu(:,1)*godsigu(1:ifull,1)

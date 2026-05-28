@@ -1162,13 +1162,19 @@ CONTAINS
 
       !!!  CALCULATE THE TOTAL MASS CHANGE 
       DGM=DGMW+DGMI+DGMV
+      
+      DENSELI = 700. ! MJT suggestion
+      DENSELW = 700. ! MJT suggestion
+      
       !!! CALCULATE DENSITY OF NEW LAYER, DEPENDS ON FW AND ITYPE
       IF (ITYPE.EQ.1) THEN !DRY GROWTH
           !If hailstone encountered supercooled water, calculate new layer density 
           ! using Macklin form
           IF ((DGMW.GT.0).OR.(DGMV.GT.0)) THEN
              !MEAN CLOUD DROPLET RADIUS, ASSUME CLOUD DROPLET CONC OF 3E8 M-3 (300 CM-3)
-             DC = (0.74*XW / (3.14159*1000.*3.E8))**0.33333333 * 1.E6 !MICRONS
+             !DC = (0.74*XW / (3.14159*1000.*3.E8))**0.33333333 * 1.E6 !MICRONS
+             ! MJT suggestion 
+             DC = (0.74*max(XW,0.) / (3.14159*3.))**0.33333333 * 215.44347 !MICRONS
              !!! FIND THE STOKES NUMBER  (rasmussen heymsfield 1985)
              NS = 2.*VT*100.*(DC*1.E-4)**2. / (9*ANU*D*50)  !need hail radius in cm
              !!! FIND IMPACT VELOCITY (rasmussen heymsfield 1985)

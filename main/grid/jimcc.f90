@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2025 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -320,13 +320,13 @@ do j = 1,np
   do i = 1,np
    y = real(j-1)*d  + yadd   ! jlm allows staggered v
    y = .5+(y-.5)*(stretch+stretchm*(2.*y-1.)**2)   !jlm
-   x = real(i-1)*d + xadd   ! jlm allows staggered u
+   x = real(i-1)*d + xadd    ! jlm allows staggered u
    x = .5+(x-.5)*(stretch+stretchm*(2.*x-1.)**2)   !jlm
    call vmtoc(x,y,ipanel,xe(i,j),ye(i,j),ze(i,j))
    call vmtocd(x,y,ipanel,xc,em4(i,j))
    ! return dxa etc as unit vectors
-   den=sqrt(xc(1)**2+xc(2)**2+xc(3)**2)
-   if (den<1.e-6) then
+   den = sqrt(xc(1)**2+xc(2)**2+xc(3)**2)
+   if ( den<1.e-6 ) then
      den = 1.
    end if
    dxa(i,j) = xc(1)/den   ! the three components of a vector along dx
@@ -338,6 +338,7 @@ end do
 
 #else
 
+!$omp parallel do private(jp,y,i,x,xvec,xc,den)
 do j = 0,np-1
  jp = j + 1
  y = real(j)*d  + yadd   ! jlm allows staggered v
@@ -359,6 +360,7 @@ do j = 0,np-1
    dxc(i,jp) = xc(i,3)/den
  end do
 end do
+!$omp end parallel do
 
 #endif
 

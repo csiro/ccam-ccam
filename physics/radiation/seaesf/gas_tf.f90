@@ -1046,6 +1046,7 @@ type(atmos_input_type), intent(in)    :: Atmos_input
         alogps8 = LOG(pstd*0.8E+00)
         palog8 = -LOG(0.8E+00)
         Gas_tf%a1(:,:) = (LOG(press(:,:,KERAD+1)) - alogps8)/palog8
+        Gas_tf%a1(:,:) = min( Gas_tf%a1(:,:), 1.9 ) ! MJT suggestion
         Gas_tf%a2(:,:) = 1.0E+00 - Gas_tf%a1(:,:)
       else 
         !call error_mesg ('gas_tf_mod', &
@@ -4413,6 +4414,7 @@ type(gas_tf_type), intent(inout) :: Gas_tf
                                     co215nb, co2dt15nb, co2d2t15nb
 
       integer    ::  inb, k
+      integer :: i, j
 
 !---------------------------------------------------------------------
 !  local variables:

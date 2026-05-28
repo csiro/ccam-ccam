@@ -28,6 +28,10 @@ module vadv
 private
 public vadvtvd
       
+interface vadv_work
+  module procedure vadv_work3, vadv_work4
+end interface
+
 contains
 
 subroutine vadvtvd(tarr,uarr,varr,nvadh_inv_pass,nits)
@@ -57,6 +61,9 @@ integer, dimension(ifull), intent(in) :: nits
 integer, save :: num = 0
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
+#ifdef GPU
+real, dimension(:,:,:), allocatable :: tdum, qdum, edum
+#endif
 
 call START_LOG(vadv_begin)
 
@@ -67,14 +74,117 @@ if ( num==0 ) then
   end if
 end if
 
-
-!$omp parallel
-!$omp sections
-
+#ifdef GPU
 
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
 !$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
 
+allocate( tdum(ifull,kl,5) )
+
+tdum(1:ifull,1:kl,1) = tarr(1:ifull,1:kl)
+tdum(1:ifull,1:kl,2) = uarr(1:ifull,1:kl)
+tdum(1:ifull,1:kl,3) = varr(1:ifull,1:kl)
+tdum(1:ifull,1:kl,4) = pslx(1:ifull,1:kl)
+if ( nh/=0 ) then
+  tdum(1:ifull,1:kl,5) = h_nh(1:ifull,1:kl)
+end if  
+
+if ( mspec==1 ) then
+    
+  allocate( qdum(ifull,kl,5) )
+
+  qdum(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
+  if ( ldr/=0 ) then
+    qdum(1:ifull,1:kl,2) = qlg(1:ifull,1:kl)
+    qdum(1:ifull,1:kl,3) = qfg(1:ifull,1:kl)
+    qdum(1:ifull,1:kl,4) = stratcloud(1:ifull,1:kl)
+    if ( ncloud>=100 .and. ncloud<200 ) then
+      qdum(1:ifull,1:kl,5) = ni(1:ifull,1:kl)
+    end if  
+  end if  
+  
+  allocate( edum(ifull,kl,2) )
+
+  if ( nvmix==6 .or. nvmix==9 ) then
+    edum(1:ifull,1:kl,1) = eps(1:ifull,1:kl)
+    edum(1:ifull,1:kl,2) = tke(1:ifull,1:kl)
+  end if  
+
+end if
+
+if ( nh/=0 ) then
+  call vadv_work(tdum(:,:,1:5),nvadh_inv_pass,nits)
+else
+  call vadv_work(tdum(:,:,1:4),nvadh_inv_pass,nits)  
+end if
+
+if ( mspec==1 ) then   ! advect qg and gases after preliminary step
+
+  if ( ldr/=0 .and. ncloud>=100 .and. ncloud<200 ) then  
+    ! Lin microphysics  
+    call vadv_work(qdum(:,:,1:5),nvadh_inv_pass,nits)
+  else if ( ldr/=0 ) then
+    ! Leon microphysics  
+    call vadv_work(qdum(:,:,1:4),nvadh_inv_pass,nits)  
+  else
+    ! diagnostic  
+    call vadv_work(qdum(:,:,1:1),nvadh_inv_pass,nits)
+  end if  
+
+  if ( nvmix==6 .or. nvmix==9 ) then
+    call vadv_work(edum(:,:,1:2),nvadh_inv_pass,nits)
+  end if      ! if(nvmix==6 .or. nvmix==9 )
+
+  if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+    call vadv_work(xtg(:,:,1:naero),nvadh_inv_pass,nits)
+  end if   ! abs(iaero)>=2
+  
+  if ( ntrac>0 ) then
+    call vadv_work(tr(:,:,1:ntrac),nvadh_inv_pass,nits)
+  end if        ! (nextout>=4)
+
+end if          ! if(mspec==1)
+
+!$acc wait
+!$acc end data
+
+tarr(1:ifull,1:kl) = tdum(1:ifull,1:kl,1)
+uarr(1:ifull,1:kl) = tdum(1:ifull,1:kl,2)
+varr(1:ifull,1:kl) = tdum(1:ifull,1:kl,3)
+pslx(1:ifull,1:kl) = tdum(1:ifull,1:kl,4)
+if ( nh/=0 ) then
+  h_nh(1:ifull,1:kl) = tdum(1:ifull,1:kl,5)
+end if  
+
+deallocate( tdum )
+
+if ( mspec==1 ) then
+
+  qg(1:ifull,1:kl) = qdum(1:ifull,1:kl,1)
+  if ( ldr/=0 ) then
+    qlg(1:ifull,1:kl) = qdum(1:ifull,1:kl,2)
+    qfg(1:ifull,1:kl) = qdum(1:ifull,1:kl,3)
+    stratcloud(1:ifull,1:kl) = qdum(1:ifull,1:kl,4)
+    if ( ncloud>=100 .and. ncloud<200 ) then
+      ni(1:ifull,1:kl) = qdum(1:ifull,1:kl,5)
+    end if
+  end if  
+  
+  deallocate( qdum )
+
+  if ( nvmix==6 .or. nvmix==9 ) then
+    eps(1:ifull,1:kl) = edum(1:ifull,1:kl,1)
+    tke(1:ifull,1:kl) = edum(1:ifull,1:kl,2)
+  end if
+  
+  deallocate( edum )
+
+end if  
+
+#else
+
+!$omp parallel
+!$omp sections
 
 !$omp section
 call vadv_work(tarr,nvadh_inv_pass,nits)
@@ -161,13 +271,9 @@ if ( ntrac>0 ) then
   !$omp end do nowait
 end if        ! (nextout>=4)
 
-
-!$acc wait
-!$acc end data
-
-
 !$omp end parallel
 
+#endif
 
 call END_LOG(vadv_end)
  
@@ -175,9 +281,8 @@ return
 end subroutine vadvtvd
       
 ! Subroutine to perform generic TVD advection
-subroutine vadv_work(tarr,nvadh_inv_pass,nits)
+subroutine vadv_work3(tarr,nvadh_inv_pass,nits)
 
-use cc_acc, only : async_length
 use cc_mpi, only : ccmpi_abort
 use newmpar_m
 use parmvert_m
@@ -188,36 +293,26 @@ implicit none
       
 integer, dimension(ifull), intent(in) :: nits
 integer i, k, iq, kp, kx
-integer, save :: async_counter = -1
 real, dimension(:,:), intent(inout) :: tarr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
 real, dimension(ifull,0:kl) :: delt, fluxh
 real rat, phitvd, fluxhi, fluxlo
 
-async_counter = mod(async_counter+1, async_length)
-
 ! The first sub-step is vectorised for all points.
 
-!$acc enter data create(tarr,delt,fluxh) async(async_counter)
-!$acc update device(tarr) async(async_counter)
 do i = 1,maxval(nits(1:ifull))
-  !$acc parallel loop collapse(2) present(delt,tarr) async(async_counter)
   do k = 1,kl-1
     do iq = 1,ifull
       delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
     end do
   end do
-  !$acc end parallel loop
-  !$acc parallel loop present(fluxh,delt) async(async_counter)
   do iq = 1,ifull
     fluxh(iq,0)  = 0.
     fluxh(iq,kl) = 0.
     delt(iq,kl)  = 0.     ! for T,u,v
     delt(iq,0)   = 0.
   end do
-  !$acc end parallel loop
   if ( ntvd==2 ) then ! MC
-    !$acc parallel loop collapse(2) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
       do iq = 1,ifull      
         kp = nint(sign(1.,sdot(iq,k+1)))
@@ -230,9 +325,7 @@ do i = 1,maxval(nits(1:ifull))
         fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
       end do
     end do      ! k loop
-    !$acc end parallel loop
   else if ( ntvd==3 ) then ! Superbee
-    !$acc parallel loop collapse(2) present(delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
     do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
       do iq = 1,ifull  
         kp = nint(sign(1.,sdot(iq,k+1)))
@@ -245,12 +338,10 @@ do i = 1,maxval(nits(1:ifull))
         fluxh(iq,k) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
       end do  
     end do ! k
-    !$acc end parallel loop
   else
     write(6,*) "ERROR: Unknown option ntvd = ",ntvd
     call ccmpi_abort(-1)
   end if
-  !$acc parallel loop collapse(2) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
   do k = 1,kl
     do iq = 1,ifull
       if ( i<=nits(iq) ) then
@@ -259,12 +350,112 @@ do i = 1,maxval(nits(1:ifull))
       end if  
     end do
   end do
+end do ! i=1,nits
+
+return
+end subroutine vadv_work3
+
+subroutine vadv_work4(tarr,nvadh_inv_pass,nits)
+
+use cc_acc, only : async_length
+use cc_mpi, only : ccmpi_abort
+use newmpar_m
+use parmvert_m
+use sigs_m
+use vvel_m
+      
+implicit none
+      
+integer, dimension(ifull), intent(in) :: nits
+integer i, k, iq, kp, kx, n, ntr
+integer, save :: async_counter = -1
+real, dimension(:,:,:), intent(inout) :: tarr
+real, dimension(ifull), intent(in) :: nvadh_inv_pass
+real, dimension(ifull,0:kl,size(tarr,3)) :: delt, fluxh
+real rat, phitvd, fluxhi, fluxlo
+
+async_counter = mod(async_counter+1, async_length)
+ntr = size(tarr,3)
+
+! The first sub-step is vectorised for all points.
+
+!$acc enter data create(tarr,delt,fluxh) async(async_counter)
+!$acc update device(tarr) async(async_counter)
+do i = 1,maxval(nits(1:ifull))
+  !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
+  do n = 1,ntr
+    do k = 1,kl-1
+      do iq = 1,ifull
+        delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
+      end do
+    end do
+  end do
+  !$acc end parallel loop
+  !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
+  do n = 1,ntr
+    do iq = 1,ifull
+      fluxh(iq,0,n)  = 0.
+      fluxh(iq,kl,n) = 0.
+      delt(iq,kl,n)  = 0.     ! for T,u,v
+      delt(iq,0,n)   = 0.
+    end do
+  end do
+  !$acc end parallel loop
+  if ( ntvd==2 ) then ! MC
+    !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
+    do n = 1,ntr
+      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        do iq = 1,ifull      
+          kp = nint(sign(1.,sdot(iq,k+1)))
+          kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+          rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+          phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
+          fluxlo = tarr(iq,kx,n)
+          ! higher order scheme
+          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
+          fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+        end do
+      end do
+    end do      ! k loop
+    !$acc end parallel loop
+  else if ( ntvd==3 ) then ! Superbee
+    !$acc parallel loop collapse(3) present(delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
+    do n = 1,ntr
+      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+        do iq = 1,ifull  
+          kp = nint(sign(1.,sdot(iq,k+1)))
+          kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+          rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+          phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+          fluxlo = tarr(iq,kx,n)
+          ! higher order scheme
+          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
+          fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+        end do  
+      end do ! k
+    end do
+    !$acc end parallel loop
+  else
+    write(6,*) "ERROR: Unknown option ntvd = ",ntvd
+    call ccmpi_abort(-1)
+  end if
+  !$acc parallel loop collapse(3) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
+  do n = 1,ntr
+    do k = 1,kl
+      do iq = 1,ifull
+        if ( i<=nits(iq) ) then
+          tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
+                             +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+        end if  
+      end do
+    end do
+  end do
   !$acc end parallel loop
 end do ! i=1,nits
 !$acc update self(tarr) async(async_counter)
 !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
 
 return
-end subroutine vadv_work
+end subroutine vadv_work4
 
 end module vadv

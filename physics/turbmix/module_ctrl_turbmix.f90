@@ -254,7 +254,6 @@ real, dimension(imax) :: ws0_o, ws0subsurf_o
 real, dimension(imax) :: wu0_o, wv0_o, zo_o
 real, dimension(imax) :: i_u, i_v
 real, dimension(imax) :: icefg_a, imass, cd_ice, cdbot_ice
-logical use_ocean
 
 !$omp do schedule(static) private(js,je,k,rong,delh,sigkap,nlocal_mode,dx,zg,zh) &
 !$omp   private(rhos,lqg,lqfg,lqlg,lni,lstratcloud,ltke,leps,lshear,lu,lv,rhs)   &

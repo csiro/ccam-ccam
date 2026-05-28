@@ -985,14 +985,12 @@ do itr = 1,itr_mg
   
   ! For when the inital grid cannot be upscaled
   if ( itr==1 ) then
-    !$omp parallel do schedule(static) private(k,iq)  
     do k = 1,kl
       do iq = 1,ifull
         ! also include ihelm weights for upscaled grid
         w(iq,k+kl) = ihelm(iq,k)
       end do  
     end do
-    !$omp end parallel do
     call mgcollect(1,w(:,1:2*kl),smaxmin_g(1:2*kl,1:2))
   else
     call mgcollect(1,w(:,1:klim),dsolmax_g(1:klim),klim=klim)
@@ -1083,7 +1081,7 @@ do itr = 1,itr_mg
       end do
       
       if ( itr==1 ) then
-        ng4 = mg(g)%ifull_fine  
+        ng4 = mg(g)%ifull_fine
         do k = 1,kl
           do iq = 1,ng4
             ! restriction helm weights
@@ -1167,7 +1165,7 @@ do itr = 1,itr_mg
       end if  
 
       ng = mg(g)%ifull 
-      
+    
       do k = 1,klim
         ! interpolation
         do iq = 1,ng
@@ -1304,13 +1302,11 @@ do itr = 1,itr_mg
       iv(:,k) = iv(:,k) - savg(k)
     end do
     ! re-pack colour arrays at fine level to remove offsets
-    !$omp parallel do schedule(static) private(nc,k,iq)
     do nc = 1,maxcolour
       do k = 1,kl  
         irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)  
       end do ! k loop
     end do 
-    !$omp end parallel do
   else
     ! test for convergence.  Test lags by one iteration, due to combining
     ! multi-grid and convergence communications.
@@ -1578,11 +1574,12 @@ do itr = 1,itr_mgice
   if ( mg_maxlevel_local>0 ) then
   
     call START_LOG(mgfine_begin)  
-  
+
+    ng4 = mg(1)%ifull_fine
+    
     ! restriction
     ! (since this always operates within a panel, then ine = ien is always true)
-    ng4 = mg(1)%ifull_fine
-    rhs(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,1)+w(mg(1)%fine_n(1:ng4) ,1)       &
+    rhs(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,1)+w(mg(1)%fine_n(1:ng4) ,1)        &
                       +w(mg(1)%fine_e(1:ng4),1)+w(mg(1)%fine_ne(1:ng4),1))
     zz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,2)+w(mg(1)%fine_n(1:ng4) ,2)   &
                            +w(mg(1)%fine_e(1:ng4),2)+w(mg(1)%fine_ne(1:ng4),2))
@@ -1622,7 +1619,7 @@ do itr = 1,itr_mgice
       zziw(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,18)+w(mg(1)%fine_n(1:ng4) ,18)  &
                                +w(mg(1)%fine_e(1:ng4),18)+w(mg(1)%fine_ne(1:ng4),18))
     end if
-
+    
     ! merge grids if insufficent points on this processor
     if ( mg(2)%merge_len>1 ) then
       w(1:ng4,1) = rhs(1:ng4,2)
@@ -1715,6 +1712,7 @@ do itr = 1,itr_mgice
                        + rhsi(iq,g) ) / zzi(iq,g)
         end do
         v(1:ng,2,g) = vnew(1:ng)
+        
         call mgbounds(g,v(:,1:2,g))
       end do
     
@@ -1778,7 +1776,6 @@ do itr = 1,itr_mgice
                        +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
       end do  
  
-      
       ! ice residual
       do iq = 1,ng
         ws(iq,2) = -zzin(iq,g)*v(mg(g)%in(iq),2,g)-zzis(iq,g)*v(mg(g)%is(iq),2,g) &
@@ -1864,9 +1861,9 @@ do itr = 1,itr_mgice
       do itrc = 1,itr_mgice
         ! store previous guess for convegence test
         ws(1:ng,1:2) = v(1:ng,1:2,g)
+
+        ! ocean
         do nc = 1,maxcolour
-        
-          ! ocean
           do iql = 1,mg(g)%ifull_colour(nc)  
             iq = mg(g)%iqx(iql,nc)  
             bu = yyn(iq,g)*v(mg(g)%in(iq),1,g) + yys(iq,g)*v(mg(g)%is(iq),1,g) &
@@ -1881,8 +1878,10 @@ do itr = 1,itr_mgice
             iq = mg(g)%iqx(iql,nc)  
             v(iq,1,g) = vnew(iq) 
           end do  
+        end do  
       
-          ! ice
+        ! ice
+        do nc = 1,maxcolour
           do iql = 1,mg(g)%ifull_colour(nc)  
             iq = mg(g)%iqx(iql,nc)
             vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g)     &
@@ -1893,8 +1892,8 @@ do itr = 1,itr_mgice
             iq = mg(g)%iqx(iql,nc)  
             v(iq,2,g) = vnew(iq)
           end do
-          
         end do
+        
         ! test for convergence
         dsolmax(1:2) = maxval( abs( v(1:ng,1:2,g) - ws(1:ng,1:2) ) )
         if ( dsolmax(1)<tol .and. dsolmax(2)<itol ) exit
@@ -1933,7 +1932,7 @@ do itr = 1,itr_mgice
       v(1:ng,1:2,g) = v(1:ng,1:2,g) + ws(1:ng,1:2)
 
       do i = 1,itrend
-        call mgbounds(g,v(:,1:2,g))  
+        call mgbounds(g,v(:,1:2,g))
         ! ocean - post smoothing
         do iq = 1,ng
           bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &

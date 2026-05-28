@@ -172,7 +172,8 @@ endif
 FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
-FFLAGS += -Minfo=accel -acc -gpu=cuda12.8,fastmath,flushz -DGPU
+#FFLAGS += -Minfo=accel -acc -gpu=cuda12.8,fastmath,flushz -DGPU
+FFLAGS += -Minfo=accel -acc -gpu=cuda13.1,fastmath,flushz -DGPU
 endif
 FOVERRIDE =
 ZMM =

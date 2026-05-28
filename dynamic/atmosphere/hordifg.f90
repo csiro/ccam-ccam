@@ -371,9 +371,6 @@ deallocate( bb )
 !$omp parallel
 !$omp sections
 
-!$acc data create(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-!$acc update device(xfact,yfact,emi,iwu,isv,in,is,ie,iw)
-
 ! momentum U, V, W - bounds updated above
 !$omp section
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
@@ -439,9 +436,6 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   !$omp end do nowait
 end if  ! (nhorps==-4.and.abs(iaero)>=2)  
 
-!$acc wait
-!$acc end data
-
 !$omp end parallel
 
 if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
@@ -479,49 +473,35 @@ end subroutine hordifgt
 
 subroutine hordifgt_work(work,xfact,yfact,emi)
 
-use cc_acc, only : async_length
 use indices_m
 use newmpar_m
 
 implicit none
 
 integer k, iq
-integer, save :: async_counter = -1
 real, dimension(ifull+iextra,kl), intent(in) :: xfact, yfact
 real, dimension(ifull), intent(in) :: emi
 real, dimension(ifull+iextra,kl), intent(inout) :: work
-real, dimension(ifull,kl) :: ans
+real, dimension(ifull) :: ans
 real base, xfact_iwu, yfact_isv
 
-async_counter = mod(async_counter+1, async_length)
-
-!$acc enter data create(work,ans) async(async_counter)
-!$acc update device(work) async(async_counter)
-!$acc parallel loop collapse(2) present(work,ans,xfact,yfact,emi) &
-!$acc   present(iwu,isv,in,is,ie,iw) async(async_counter)
 do k = 1,kl
   do iq = 1,ifull  
     xfact_iwu = xfact(iwu(iq),k)
     yfact_isv = yfact(isv(iq),k)
     base = emi(iq)+xfact(iq,k)+xfact_iwu  &
                   +yfact(iq,k)+yfact_isv
-    ans(iq,k) = ( emi(iq)*work(iq,k) +               &
-                  xfact(iq,k)*work(ie(iq),k) +       &
-                  xfact_iwu*work(iw(iq),k) +         &
-                  yfact(iq,k)*work(in(iq),k) +       &
-                  yfact_isv*work(is(iq),k) )         &
-               / base 
+    ans(iq) = ( emi(iq)*work(iq,k) +               &
+                xfact(iq,k)*work(ie(iq),k) +       &
+                xfact_iwu*work(iw(iq),k) +         &
+                yfact(iq,k)*work(in(iq),k) +       &
+                yfact_isv*work(is(iq),k) )         &
+             / base 
   end do
-end do
-!$acc end parallel loop
-!$acc parallel loop collapse(2) copyout(work) present(ans) async(async_counter)
-do k = 1,kl
   do iq = 1,ifull
-    work(iq,k) = ans(iq,k)
+    work(iq,k) = ans(iq)
   end do
 end do
-!$acc end parallel do
-!$acc exit data delete(work,ans) async(async_counter)
 
 return
 end subroutine hordifgt_work
