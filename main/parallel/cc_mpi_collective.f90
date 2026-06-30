@@ -763,6 +763,13 @@ contains
       
       ! use shared memory to transfer messages within a node
       
+      ! wait until all processes have extracted data from shared memory before
+      ! allowing it to be used for new messages
+      call START_LOG(mpibarrier_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpibarrier_end)
+
       if ( nreq > 0 ) then
           
          ! Unpack incomming messages into shared memory (nodepack)
@@ -831,13 +838,6 @@ contains
             end do
          end do   
       end do 
-
-      ! wait until all processes have extracted data from shared memory before
-      ! allowing it to be used for new messages
-      call START_LOG(mpibarrier_begin) 
-      lcomm = comm_node
-      call MPI_Barrier( lcomm, ierr )
-      call END_LOG(mpibarrier_end)
       
    end subroutine ccmpi_gathermap_recv3
     

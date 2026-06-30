@@ -23,31 +23,107 @@
     
 module cable_ccam_common
 
-use cable_air_module
-use cable_albedo_module
-use cable_canopy_module
+use cable_air_module, only : define_air
+use cable_canopy_module, only : define_canopy
 use cable_ccam3
 use cable_ccam4
 use cable_common_module
-use cable_data_module
-use cable_def_types_mod, cbm_ms => ms
-use cable_gw_hydro_module
-use cable_optimise_JV_module, only : optimise_JV
-use cable_radiation_module
-use cable_roughness_module
-use cable_soil_snow_module
+use cable_def_types_mod, cbm_ms => ms, cbm_nrb => nrb
+use cable_math_constants_mod, cbm_pi => pi, cbm_pi180 => pi180
+use cable_other_constants_mod
+use cable_phys_constants_mod
+use cable_roughness_module, only : ruff_resist
+use sli_main_mod, only : sli_main
+use cable_surface_types_mod
+use casa_rplant_module, only : casa_rplant
 use casa_cnp_module
 use casadimension
 use casaparm, xroot => froot
 use casavariable
+use cbl_albedo_mod, only : albedo
+use cbl_init_radiation_module, only : init_radiation
+use cbl_masks_mod, only : fveg_mask, fsunlit_mask, fsunlit_veg_mask
+use cbl_soil_snow_main_module, only : soil_snow
+use grid_constants_mod_cbl, only : ice_soiltype, grid_mp => mp
 use newmpar_m, only : mxvt
 use phenvariable
-use pop_constants, only : NPATCH, NLAYER, NCOHORT_MAX, HEIGHT_BINS, NDISTURB, AGEMAX
+use pop_constants, only : POP_NPATCH => NPATCH, POP_NLAYER => NLAYER, &
+    POP_NCOHORT => NCOHORT_MAX, POP_HEIGHT_BINS => HEIGHT_BINS,       &
+    POP_NDISTURB => NDISTURB, POP_AGEMAX => AGEMAX
 use popmodule, only : pop_init, popstep
 use pop_types
-use sli_main_mod
+use snow_aging_mod, only : snow_aging
+!use cable_data_module
+!use cable_gw_hydro_module
+!use cable_optimise_JV_module, only : optimise_JV
+!use sli_main_mod
 
 implicit none
+
+private
+
+! parameters
+public soil_struc, fwsoil_switch, cable_litter, gs_switch, smrf_switch, strf_switch
+public cable_gw_model, cable_roughness, cable_potev, cable_enablefao
+public ccycle, proglai, progvcmax, cable_pop
+public coldest_day_nhemisphere, coldest_day_shemisphere
+public maxtile, maxnb, cveg, sv, vl2
+public cleaf, cwood, cfroot, cmet, cstr, ccwd, cmic, cslow, cpass
+public nleaf, nwood, nfroot, nmet, nstr, ncwd, nmic, nslow, npass
+public xpleaf, xpwood, xpfroot, xpmet, xpstr, xpcwd, xpmic, xpslow, xppass, xroot
+public emleaf, emsoil, sboltz
+
+! cable parameters
+public npatch, icycle, mp_global, grid_mp
+public mplant, mlitter, msoil, mso, mvtype, mstype
+public forest, shrub, wood, cwd, leaf, froot, metb, str, mic, slow, pass
+public cbm_ms, mp, ktau_gl, kend_gl, kwidth_gl, cbm_nrb
+public deltcasa, deltpool, ratioNCstrfix, ratioNPstrfix
+public pop_npatch, pop_nlayer, pop_ncohort, pop_height_bins
+public pop_ndisturb, pop_agemax
+public lai_thresh, rad_thresh, umin, coszen_tols, gauss_w
+public cbm_pi, cbm_pi180
+public ice_soiltype, lakes_cable, icewater
+
+! structure definitions
+public veg_parameter_type, soil_parameter_type, air_type, balances_type
+public climate_type, canopy_type, met_type, radiation_type
+public roughness_type, soil_snow_type, sum_flux_type
+public casa_biome, casa_pool, casa_flux, casa_met, phen_variable
+public casa_balance
+public pop_type
+
+! integer and real definitions
+public dp, i4b
+
+public cable_user
+
+! cable subroutines
+public ruff_resist, define_air, fveg_mask, fsunlit_mask, fsunlit_veg_mask
+public init_radiation, albedo, define_canopy, soil_snow, snow_aging
+public alloc_cbm_var
+public phenology, avgsoil, casa_rplant, casa_allocation, casa_xrateplant
+public casa_cnpbal, casa_ndummy, casa_pdummy, casa_cnpcycle
+public casa_delplant, casa_delsoil, casa_puptake, casa_nuptake
+public casa_xkn, casa_coeffsoil, casa_xratesoil, casa_xnp, casa_coeffplant
+public alloc_casavariable, alloc_phenvariable
+public pop_init, popstep
+public sli_main
+
+! subroutines and functions
+public setlai
+
+! from cable_ccam3
+public air, bgc, met, bal, rad, rough, ssnow
+public sum_flux, climate, veg, soil, canopy
+public casabal, casabiome, casaflux, casamet
+public casapool, phen, pop
+
+! from cable_ccam4
+public tdata
+public cable_pack, cable_unpack, pop_pack, pop_unpack
+public setp, cpyin, cpyout
+
 
 ! CABLE biophysical options
 integer, save :: soil_struc      = 0          ! 0 default, 1 SLI soil model
@@ -71,18 +147,18 @@ integer, save :: cable_pop       = 0          ! 0 off, 1 on
 ! CABLE POP parameters
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
-integer, save :: POP_NPATCH      = -1
-integer, save :: POP_NLAYER      = -1
-integer, save :: POP_NCOHORT     = -1
-integer, save :: POP_HEIGHT_BINS = -1
-integer, save :: POP_NDISTURB    = -1
-integer, save :: POP_AGEMAX      = -1
+!integer, save :: POP_NPATCH      = -1
+!integer, save :: POP_NLAYER      = -1
+!integer, save :: POP_NCOHORT     = -1
+!integer, save :: POP_HEIGHT_BINS = -1
+!integer, save :: POP_NDISTURB    = -1
+!integer, save :: POP_AGEMAX      = -1
 
 ! Number of tiles, number of gridpoints and fraction of gridbox
-integer, parameter :: maxtile    = 9          ! maximum possible number of tiles in a grid box
-                                              ! (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
-integer, save :: maxnb                        ! maximum number of tiles within a gridbox
-integer, save :: mp_global                    ! maximum number of points on this process (sum of all land tiles)
+integer, parameter :: maxtile = 7          ! maximum possible number of tiles in a grid box
+                                           ! (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
+integer, save :: maxnb                     ! maximum number of tiles within a gridbox
+integer, save :: mp_global                 ! maximum number of points on this process (sum of all land tiles)
 
 integer, dimension(:), allocatable, target, save :: cveg ! CABLE vegetation index for each point
 real, dimension(:), allocatable, target, save :: sv      ! area fraction for each point
@@ -174,25 +250,14 @@ real(kind=8), dimension(mxvt), save :: xppass =(/ 38.35343_8, 114.4157_8, 44.042
 contains
     
 ! *************************************************************************************
-subroutine setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl2,casamet,veg,imax,tind,tmap,maxnb)
+subroutine setlai(sv,vl2,casamet,veg,mp)
 
 use cc_mpi
 use dates_m
 use parm_m
   
-integer, intent(in) :: jmonth,jday,jhour,jmin,mp
-integer, intent(in) :: imax
-integer, optional :: maxnb
-integer monthstart, nb, is, ie
-integer, dimension(12), parameter :: imonth = (/ 31,28,31,30,31,30,31,31,30,31,30,31 /)
-integer, dimension(maxtile,2), intent(in), optional :: tind
+integer, intent(in) :: mp
 real, dimension(mp), intent(in) :: sv, vl2
-real, parameter :: vextkn = 0.4
-real, dimension(imax), intent(out) :: sigmf
-real, dimension(mp) :: a0, a1, a2, aa, bb, cc, mp1, mp2, c2, c3, c4
-real, dimension(mp) :: dummy_unpack
-real x
-logical, dimension(imax,maxtile), intent(in), optional :: tmap
 type(casa_met), intent(in) :: casamet
 type(veg_parameter_type), intent(inout) :: veg
 
@@ -222,21 +287,6 @@ select case( proglai )
     write(6,*) "ERROR: Unknown proglai option ",proglai
     call ccmpi_abort(-1)
 end select
-
-! diagnose greeness fraction (e.g., for aerosols)  
-sigmf(:) = 0.
-if ( present(tind) .and. present(tmap) .and. present(maxnb) ) then
-  !inside OpenMP region
-  do nb = 1,maxnb
-    is = tind(nb,1)
-    ie = tind(nb,2)
-    sigmf(:) = sigmf(:) + unpack(sv(is:ie)*(1.-exp(-vextkn*real(veg%vlai(is:ie)))),tmap(:,nb),0.)
-  end do
-else
-  dummy_unpack = sv*(1.-exp(-vextkn*real(veg%vlai)))  
-  call cable_unpack(dummy_unpack,sigmf)
-endif
-sigmf = min( sigmf, 1. )
   
 return
 end subroutine setlai

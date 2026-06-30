@@ -164,12 +164,9 @@ logical, dimension(:), intent(in) :: land   ! land/water mask (t=land).  Water i
 logical, dimension(:), intent(in) :: locean ! sea mask without lakes (t=ocean)
 integer nt,k,iq,tile,js,je,i
 #ifdef GPU
-real, dimension(ifull,kl,naero) :: xte
-real, dimension(ifull,kl,naero) :: xtm1, xtu
+real, dimension(ifull,kl,naero) :: xte, xtu
 real, dimension(ifull,kl) :: aphp2, pclcover, pcfcover
-real, dimension(ifull,kl) :: pmlwc, pmiwc, prhop1
-real, dimension(ifull,kl) :: ptp1, pclcon, pfconv
-real, dimension(ifull) :: fracc
+real, dimension(ifull,kl) :: pfconv
 #else
 real, dimension(imax,kl,naero) :: xtm1, xtu
 real, dimension(imax,kl,4) :: lzoxidant_g
@@ -184,8 +181,7 @@ real, dimension(imax,ndust) :: ldustwd
 real, dimension(imax) :: fracc
 #endif
 
-
-!$omp do schedule(static) private(js,je)
+!$omp do schedule(static) private(js,je,iq,thetav,wstar3,rrate)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -193,14 +189,7 @@ do tile = 1,ntiles
     write(6,*) "xtg out-of-range at start of aldrcalc"
     write(6,*) "xtg maxval,maxloc ",maxval(xtg(js:je,:,:)),maxloc(xtg(js:je,:,:))
   end if
-end do  
-!$omp end do nowait
 
-
-!$omp do schedule(static) private(js,je,iq,thetav,wstar3,rrate)
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
 
   cgssnowd(js:je) = 1.E-3*snowd(js:je)
 
@@ -256,7 +245,8 @@ select case(enhanceu10)
 end select
 
 ! Emission and dry deposition (sulfur cycle and carbonaceous aerosols)
-!$omp do schedule(static) private(js,je,nt,k,lrhoa,ldz,lemissfield,lxtg)
+!$omp do schedule(static) private(js,je,nt,k,lrhoa,ldz,lemissfield,lxtg) &
+!$omp   private(aphp1,lttg,lerod,oldduste,lduste,dcola,dcolb,oldsalte)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -273,38 +263,22 @@ do tile = 1,ntiles
   !xtem(js:je,:) = lxtem
   do nt = 1,naero
     do k = 1,kl
-      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,k,nt)*dt, 0. )
+      lxtg(:,k,nt) = max( lxtg(:,k,nt)+lxte(:,k,nt)*dt, 0. )
     end do
   end do
-end do
-!$omp end do nowait
 
-
-!$omp do schedule(static) private(js,je)
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
-  if ( maxval(xtg(js:je,:,:))>2.e-3 ) then
+  
+  if ( maxval(lxtg(:,:,:))>2.e-3 ) then
     write(6,*) "xtg out-of-range after xtemiss"
-    write(6,*) "xtg maxval,maxloc ",maxval(xtg(js:je,:,:)),maxloc(xtg(js:je,:,:))
+    write(6,*) "xtg maxval,maxloc ",maxval(lxtg(:,:,:)),maxloc(lxtg(:,:,:))
   end if
-end do
-!$omp end do nowait
 
-
-!$omp do schedule(static) private(js,je,k,nt,aphp1,lrhoa,ldz,lttg,lxtg,lerod,oldduste,lduste) &
-!$omp   private(dcola,dcolb,oldsalte)
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
+  
   ! Emission and dry deposition of dust
   do k = 1,kl
     ! calculate air pressure
     aphp1(:,k) = prf(js:je)*sig(k)*0.01 ! hPa
   end do
-  lrhoa = rhoa(js:je,:)
-  lxtg = xtg(js:je,:,:)
-  ldz = dz(js:je,:)
   lttg = ttg(js:je,:)
   
   lerod = erod(js:je,:)
@@ -356,14 +330,8 @@ do tile = 1,ntiles
   ! Calculate deposition flux to surface
   saltdd(js:je) = saltdd(js:je) + (dcola(:,1)-dcolb(:,1))/dt + salte(js:je) - oldsalte(:)  
   xtg(js:je,:,:) = lxtg
-end do
-!$omp end do nowait
 
-
-!$omp do schedule(static) private(js,je)
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
+  
   if ( maxval(xtg(js:je,:,:))>2.e-3 ) then
     write(6,*) "xtg out-of-range after settling, xtsink and em"
     write(6,*) "xtg maxval,maxloc ",maxval(xtg(js:je,:,:)),maxloc(xtg(js:je,:,:))
@@ -371,62 +339,50 @@ do tile = 1,ntiles
 end do
 !$omp end do nowait
 
-
 #ifdef GPU
 ! GPU version
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
-  
-  ! Aerosol chemistry and wet deposition
-  ! Need to invert vertical levels for ECHAM code... Don't you hate that?
-  do nt = 1,naero
-    do k = 1,kl
-      xtm1(js:je,kl+1-k,nt) = xtg(js:je,k,nt)
+! Aerosol chemistry and wet deposition
+do nt = 1,naero
+  do k = 1,kl
+    do iq = 1,ifull
       ! Convert from aerosol concentration outside convective cloud (used by CCAM)
       ! to aerosol concentration inside convective cloud
-      xtu(js:je,kl+1-k,nt) = max(xtg(js:je,k,nt)-(1.-clcon(js:je,k))*xtosav(js:je,k,nt),0.)/max(clcon(js:je,k),1.E-8)
-    end do
+      xtu(iq,k,nt) = max(xtg(iq,k,nt)-(1.-clcon(iq,k))*xtosav(iq,k,nt),0.)/max(clcon(iq,k),1.E-8)
+    end do  
   end do
-  do k = 1,kl
-    do iq = js,je
-      aphp2(iq,kl+1-k)  = rhoa(iq,k)*dz(iq,k)                       ! density * thickness
-      prhop1(iq,kl+1-k) = rhoa(iq,k)                                ! air density
-      ptp1(iq,kl+1-k)   = ttg(iq,k)                                 ! air temperature
-      pclcon(iq,kl+1-k) = min(max(clcon(iq,k),0.),1.)               ! convective cloud fraction
-      qtot = qlg(iq,k) + qfg(iq,k)                                  ! total liquid and ice mixing ratio
-      pclcover(iq,kl+1-k) = stratcloud(iq,k)*qlg(iq,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
-      pcfcover(iq,kl+1-k) = stratcloud(iq,k)*qfg(iq,k)/max(qtot,1.E-8) ! Ice-cloud fraction
-      pmlwc(iq,kl+1-k) = qlg(iq,k)
-      pmiwc(iq,kl+1-k) = qfg(iq,k)
-      if ( k<=kbsav(iq) ) then
-        pfconv(iq,kl+1-k) = condc(iq)/dt
-      else
-        pfconv(iq,kl+1-k) = 0.
-      end if
-      fracc(iq) = cldcon(iq)
-    end do
+end do
+do k = 1,kl
+  do iq = 1,ifull
+    aphp2(iq,k)  = rhoa(iq,k)*dz(iq,k)                          ! density * thickness
+    qtot = qlg(iq,k) + qfg(iq,k)                                ! total liquid and ice mixing ratio
+    pcfcover(iq,k) = stratcloud(iq,k)*qfg(iq,k)/max(qtot,1.E-8) ! Ice-cloud fraction
+    pclcover(iq,k) = max(stratcloud(iq,k)-pcfcover(iq,k),0.)    ! Liquid-cloud fraction
+    if ( k<=kbsav(iq) ) then
+      pfconv(iq,k) = condc(iq)/dt
+    else
+      pfconv(iq,k) = 0.
+    end if
   end do
-end do ! tile
+end do
 
 call xtchemie(ifull, 2, dt, zdayfac, aphp2, pmrate, pfprec,          & !Inputs
-              pclcover, pmlwc, prhop1, ptp1, taudar, xtm1,           & !Inputs
-              pfsnow,pfsubl,pcfcover,pmiwc,pmaccr,pfmelt,            & !Inputs
-              pqfsedice,plambs,prscav,prfreeze,pfevap,pclcon,fracc,  & !Inputs
+              pclcover, qlg, rhoa, ttg, taudar, xtg,                 & !Inputs
+              pfsnow,pfsubl,pcfcover,qfg,pmaccr,pfmelt,              & !Inputs
+              pqfsedice,plambs,prscav,prfreeze,pfevap,clcon,cldcon,  & !Inputs
               pccw,pfconv,xtu,                                       & !Inputs
               xte, so2oh, so2h2, so2o3, dmsoh, dmsn3,                & !Output
               zoxidant_g,so2wd,so4wd,bcwd,ocwd,dustwd,saltwd)
 
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax  
-  do nt = 1,naero
-    do k = 1,kl
-      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+xte(js:je,kl+1-k,nt)*dt, 0. )
+do nt = 1,naero
+  do k = 1,kl
+    do iq = 1,ifull  
+      xtg(iq,k,nt) = max( xtg(iq,k,nt)+xte(iq,k,nt)*dt, 0. )
     end do
   enddo
-  dmsso2o(js:je) = dmsso2o(js:je) + dmsoh(js:je) + dmsn3(js:je)          ! oxidation of DMS to SO2
-  so2so4o(js:je) = so2so4o(js:je) + so2oh(js:je) + so2h2(js:je) + so2o3(js:je)  ! oxidation of SO2 to SO4
+end do
+do iq = 1,ifull
+  dmsso2o(iq) = dmsso2o(iq) + dmsoh(iq) + dmsn3(iq)              ! oxidation of DMS to SO2
+  so2so4o(iq) = so2so4o(iq) + so2oh(iq) + so2h2(iq) + so2o3(iq)  ! oxidation of SO2 to SO4
 end do
 
 #else
@@ -444,16 +400,16 @@ do tile = 1,ntiles
   ! Need to invert vertical levels for ECHAM code... Don't you hate that?
   do nt = 1,naero
     do k = 1,kl
-      xtm1(:,kl+1-k,nt) = xtg(js:je,k,nt)
+      xtm1(:,k,nt) = xtg(js:je,k,nt)
       ! Convert from aerosol concentration outside convective cloud (used by CCAM)
       ! to aerosol concentration inside convective cloud
-      xtu(:,kl+1-k,nt) = max(xtg(js:je,k,nt)-(1.-clcon(js:je,k))*xtosav(js:je,k,nt),0.)/max(clcon(js:je,k),1.E-8)
+      xtu(:,k,nt) = max(xtg(js:je,k,nt)-(1.-clcon(js:je,k))*xtosav(js:je,k,nt),0.)/max(clcon(js:je,k),1.E-8)
     end do
   end do
   do k = 1,kl
     do i = 1,imax
       iq = i + js - 1
-      aphp1(i,kl+1-k)  = rhoa(iq,k)*dz(iq,k)                       ! density * thickness
+      aphp1(i,k)  = rhoa(iq,k)*dz(iq,k)                       ! density * thickness
       lpmrate(i,k)     = pmrate(iq,k)
       lpfprec(i,k)     = pfprec(iq,k)
       lpfsnow(i,k)     = pfsnow(iq,k)
@@ -466,18 +422,18 @@ do tile = 1,ntiles
       lprfreeze(i,k)   = prfreeze(iq,k)
       lpfevap(i,k)     = pfevap(iq,k)
       lpccw(i,k)       = pccw(iq,k)
-      prhop1(i,kl+1-k) = rhoa(iq,k)                                ! air density
-      ptp1(i,kl+1-k)   = ttg(iq,k)                                 ! air temperature
-      pclcon(i,kl+1-k) = min(max(clcon(iq,k),0.),1.)               ! convective cloud fraction
+      prhop1(i,k) = rhoa(iq,k)                                ! air density
+      ptp1(i,k)   = ttg(iq,k)                                 ! air temperature
+      pclcon(i,k) = min(max(clcon(iq,k),0.),1.)               ! convective cloud fraction
       qtot = qlg(iq,k) + qfg(iq,k)                                 ! total liquid and ice mixing ratio
-      pclcover(i,kl+1-k) = stratcloud(iq,k)*qlg(iq,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
-      pcfcover(i,kl+1-k) = stratcloud(iq,k)*qfg(iq,k)/max(qtot,1.E-8) ! Ice-cloud fraction
-      pmlwc(i,kl+1-k) = qlg(iq,k)
-      pmiwc(i,kl+1-k) = qfg(iq,k)
+      pclcover(i,k) = stratcloud(iq,k)*qlg(iq,k)/max(qtot,1.E-8) ! Liquid-cloud fraction
+      pcfcover(i,k) = stratcloud(iq,k)*qfg(iq,k)/max(qtot,1.E-8) ! Ice-cloud fraction
+      pmlwc(i,k) = qlg(iq,k)
+      pmiwc(i,k) = qfg(iq,k)
       if ( k<=kbsav(iq) ) then
-        pfconv(i,kl+1-k) = condc(iq)/dt
+        pfconv(i,k) = condc(iq)/dt
       else
-        pfconv(i,kl+1-k) = 0.
+        pfconv(i,k) = 0.
       end if
       fracc(i) = cldcon(iq)
     end do
@@ -486,7 +442,7 @@ do tile = 1,ntiles
   lzoxidant_g(:,:,:) = zoxidant_g(js:je,:,:)
   ldustwd(:,:) = dustwd(js:je,:)
   
-  call xtchemie(imax, 2, dt, zdayfac(js:je), aphp1, lpmrate, lpfprec,       & !Inputs
+  call xtchemie(imax, kl-1, dt, zdayfac(js:je), aphp1, lpmrate, lpfprec,    & !Inputs
                 pclcover, pmlwc, prhop1, ptp1, taudar(js:je), xtm1,         & !Inputs
                 lpfsnow,lpfsubl,pcfcover,pmiwc,lpmaccr,lpfmelt,             & !Inputs
                 lpqfsedice,lplambs,lprscav,lprfreeze,lpfevap,pclcon,fracc,  & !Inputs
@@ -500,7 +456,7 @@ do tile = 1,ntiles
 
   do nt = 1,naero
     do k = 1,kl
-      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,kl+1-k,nt)*dt, 0. )
+      xtg(js:je,k,nt) = max( xtg(js:je,k,nt)+lxte(:,k,nt)*dt, 0. )
     end do
   enddo
   dmsso2o(js:je) = dmsso2o(js:je) + dmsoh(js:je) + dmsn3(js:je)          ! oxidation of DMS to SO2
@@ -509,8 +465,7 @@ end do
 !$omp end do nowait
 #endif
 
-
-!$omp do schedule(static) private(js,je)
+!$omp do schedule(static) private(js,je,nt,iq,k,burden)
 do tile = 1,ntiles
   js = (tile-1)*imax + 1
   je = tile*imax
@@ -518,15 +473,8 @@ do tile = 1,ntiles
     write(6,*) "xtg out-of-range after xtchemie"
     write(6,*) "xtg maxval,maxloc ",maxval(xtg(js:je,:,:)),maxloc(xtg(js:je,:,:))
   end if
-end do
-!$omp end do nowait
 
-
-!$omp do schedule(static) private(js,je,nt,iq,k,burden)
-do tile = 1,ntiles
-  js = (tile-1)*imax + 1
-  je = tile*imax
-
+  
   burden(:,:) = 0.
   do k = 1,kl
     do nt = 1,naero
@@ -1223,17 +1171,10 @@ end if
 !$acc   zxtp1con,zsolub,xte,xto,wd,zdepr,zdeps,         &
 !$acc   dmsoh,dmsn3,so2oh,so2h2,so2o3,                  &
 !$acc   pclcon,pclcover,pcfcover,pmlwc,pmiwc,           &
-!$acc   pqfsedice,pmaccr,plambs,pfsnow,pfsubl,pfmelt,   &
-!$acc   pmratep,prscav,pfevap,pfprec,prfreeze,fracc,    &
-!$acc   pfconv,pccw,zdayfac,taudar)
-!$acc update device(prhop1,ptp1,rhodz,xtm1,xtu,zoxidant)
-!$acc update device(pclcon,pclcover,pcfcover,pmlwc,pmiwc)
-!$acc update device(pqfsedice,pmaccr,plambs,pfsnow,pfsubl)
-!$acc update device(pfmelt,pmratep,prscav,pfevap,pfprec)
-!$acc update device(prfreeze,fracc,pfconv,pccw)
-!$acc update device(zdayfac,taudar)
+!$acc   pccw,zdayfac,taudar)
 
-  
+!$acc update device(xtm1,xtu,pclcon)
+
 !$acc parallel loop collapse(3) present(xtm1,xtu,xto,xte,pclcon)
 do jt = 1,naero
   do jk = 1,kl
@@ -1248,7 +1189,6 @@ do jt = 1,naero
 end do
 !$acc end parallel loop
 
-  
 !$acc parallel loop collapse(3) present(zxtp10,zxtp1c,zxtp1con,zsolub)
 do jt = 2,naero
   do jk = 1,kl
@@ -1261,36 +1201,36 @@ do jt = 2,naero
   end do
 end do
 !$acc end parallel loop
-  
- 
-!$acc parallel loop collapse(2) present(zso4,zso4i,zso4c,zhenry,zxtp1con,xtu,xto)
-do jk = 1,kl
-  do iq = 1,imax
-    zhenry(iq,jk)=0.
-    !zhenryc(iq,jk)=0
-    !   PROCESSES WHICH ARE DIFERENT INSIDE AND OUTSIDE OF CLOUDS
-    ZXTP1CON(iq,jk,ITRACSO2)=max(XTU(iq,jk,ITRACSO2),0.)
-    ZSO4(iq,jk)=max(XTO(iq,jk,ITRACSO4),0.)
-    ZSO4i(iq,jk)=max(XTO(iq,jk,ITRACSO4),0.)
-    ZSO4C(iq,jk)=max(XTU(iq,jk,ITRACSO4),0.)
-  end do  
-end do  
-!$acc end parallel loop
 
-  
-!$acc parallel loop present(so2h2,so2o3)
+!$acc parallel loop present(so2h2,so2o3,dmsoh,dmsn3,so2oh)
 do iq = 1,imax
   so2h2(iq) = 0.
   so2o3(iq) = 0.
+  dmsoh(iq) = 0.
+  dmsn3(iq) = 0.
+  so2oh(iq) = 0.    
 end do
 !$acc end parallel loop
 
+!$acc update device(prhop1,ptp1,rhodz,zoxidant,pclcover,pcfcover)
+!$acc update device(pmlwc,pmiwc,pccw)
 
-!$acc parallel loop collapse(2) present(xto,so2h2,so2o3,zso4,zso4c) &
-!$acc   present(zhenry,zxtp10,zxtp1c,prhop1,ptp1,rhodz)             &
-!$acc   present(xtm1,xte,zoxidant,pclcover,pcfcover,pmlwc,pmiwc)
-do jk = ktop,kl
+!$acc parallel loop collapse(2) present(zso4,zso4i,zso4c,zhenry,zxtp1con,xtu,xto) &
+!$acc   present(so2h2,so2o3,zxtp10,zxtp1c,prhop1,ptp1,rhodz)                      &
+!$acc   present(xtm1,xte,zoxidant,pclcover,pcfcover,pmlwc,pmiwc,pccw,pclcon)
+do jk = 1,kl
   do iq = 1,imax
+
+    zhenry(iq,jk) = 0.
+    !zhenryc(iq,jk)=0
+    !   PROCESSES WHICH ARE DIFERENT INSIDE AND OUTSIDE OF CLOUDS
+    ZXTP1CON(iq,jk,ITRACSO2) = max(XTU(iq,jk,ITRACSO2),0.)
+    ZSO4(iq,jk) = max(XTO(iq,jk,ITRACSO4),0.)
+    ZSO4i(iq,jk) = max(XTO(iq,jk,ITRACSO4),0.)
+    ZSO4C(iq,jk) = max(XTU(iq,jk,ITRACSO4),0.)
+  
+
+
     !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
     ! -- levels are already inverted --
     ZZH2O2 = ZOXIDANT(iq,jk,2)*PRHOP1(iq,jk)*1.e-3
@@ -1413,17 +1353,13 @@ do jk = ktop,kl
       so2h2(iq)=so2h2(iq)+ZSUMH2O2*ZFAC1
       so2o3(iq)=so2o3(iq)+ZSUMO3*ZFAC1
     END IF
-  end do
-end do
-!$acc end parallel loop
 
 
 ! Repeat the aqueous oxidation calculation for ice clouds.
 
 !******************************************************************************
 !   CALCULATE THE REACTION-RATES FOR SO2-H2O2
-!DO JK=KTOP,KL
-!  DO iq=1,imax
+!
 !    IF(ziwcic(iq,JK).GT.ZMIN) THEN
 !      ZLWCL(iq)=ziwcic(iq,JK)*PRHOP1(iq,JK)*1.E-06
 !      ZLWCV(iq)=ziwcic(iq,JK)*PRHOP1(iq,JK)*1.E-03
@@ -1533,17 +1469,11 @@ end do
 !      so2h2(iq)=so2h2(iq)+ZSUMH2O2*ZFAC1
 !      so2o3(iq)=so2o3(iq)+ZSUMO3*ZFAC1
 !    ENDIF
-!  ENDDO
-!ENDDO
 !******************************************************************************
 
 
 ! Repeat the aqueous oxidation calculation for convective clouds.
 
-!$acc parallel loop collapse(2) present(pccw,so2h2,so2o3,zxtp1con,zso4c) &
-!$acc   present(prhop1,ptp1,rhodz,xtm1,xte,zoxidant)
-do jk = ktop,kl
-  do iq = 1,imax
     !  OXIDANT CONCENTRATIONS IN MOLECULE/CM**3
     ! -- levels are already inverted --
     ZZH2O2 = ZOXIDANT(iq,jk,2)*PRHOP1(iq,jk)*1.e-3
@@ -1651,10 +1581,11 @@ do jk = ktop,kl
       so2h2(iq)=so2h2(iq)+ZSUMH2O2*ZFAC1
       so2o3(iq)=so2o3(iq)+ZSUMO3*ZFAC1
     END IF
+
   END DO
 END DO
 !$acc end parallel loop
-
+!$acc update self(so2h2,so2o3)
 
 !*******************************************************************************
 !
@@ -1690,32 +1621,30 @@ do jk = 1,kl
     zxtp1c(iq,jk,ITRACOC+1)=xto(iq,jk,ITRACOC+1)
     zxtp1con(iq,jk,ITRACOC+1)=xtu(iq,jk,ITRACOC+1)
     zsolub(iq,jk,ITRACOC+1)=0.2
-  end do
-end do
-!$acc end parallel loop
-  
-!$acc parallel loop collapse(3) present(zxtp10,zxtp1c,zxtp1con,zsolub,xto,xtu)
-DO JT=ITRACDU,ITRACDU+NDUST-1
-  do jk = 1,kl
-    do iq = 1,imax
-      zxtp10(iq,jk,jt)=xto(iq,jk,jt)
-      zxtp1c(iq,jk,jt)=xto(iq,jk,jt)
-      zxtp1con(iq,jk,jt)=xtu(iq,jk,jt)
-      zsolub(iq,jk,jt)=0.05
-    end do
-  end do
-end do
-!$acc end parallel loop
-
-!$acc parallel loop collapse(3) present(zxtp10,zxtp1c,zxtp1con,zsolub,xto,xtu)
-DO JT=ITRACSA,ITRACSA+NSALT-1
-  do jk = 1,kl
-    do iq = 1,imax
-      zxtp10(iq,jk,jt)=xto(iq,jk,jt)
-      zxtp1c(iq,jk,jt)=xto(iq,jk,jt)
-      zxtp1con(iq,jk,jt)=xtu(iq,jk,jt)
-      zsolub(iq,jk,jt)=0.05
-    end do
+    zxtp10(iq,jk,ITRACDU)=xto(iq,jk,ITRACDU)
+    zxtp1c(iq,jk,ITRACDU)=xto(iq,jk,ITRACDU)
+    zxtp1con(iq,jk,ITRACDU)=xtu(iq,jk,ITRACDU)
+    zsolub(iq,jk,ITRACDU)=0.05
+    zxtp10(iq,jk,ITRACDU+1)=xto(iq,jk,ITRACDU+1)
+    zxtp1c(iq,jk,ITRACDU+1)=xto(iq,jk,ITRACDU+1)
+    zxtp1con(iq,jk,ITRACDU+1)=xtu(iq,jk,ITRACDU+1)
+    zsolub(iq,jk,ITRACDU+1)=0.05
+    zxtp10(iq,jk,ITRACDU+2)=xto(iq,jk,ITRACDU+2)
+    zxtp1c(iq,jk,ITRACDU+2)=xto(iq,jk,ITRACDU+2)
+    zxtp1con(iq,jk,ITRACDU+2)=xtu(iq,jk,ITRACDU+2)
+    zsolub(iq,jk,ITRACDU+2)=0.05
+    zxtp10(iq,jk,ITRACDU+3)=xto(iq,jk,ITRACDU+3)
+    zxtp1c(iq,jk,ITRACDU+3)=xto(iq,jk,ITRACDU+3)
+    zxtp1con(iq,jk,ITRACDU+3)=xtu(iq,jk,ITRACDU+3)
+    zsolub(iq,jk,ITRACDU+3)=0.05
+    zxtp10(iq,jk,ITRACSA)=xto(iq,jk,ITRACSA)
+    zxtp1c(iq,jk,ITRACSA)=xto(iq,jk,ITRACSA)
+    zxtp1con(iq,jk,ITRACSA)=xtu(iq,jk,ITRACSA)
+    zsolub(iq,jk,ITRACSA)=0.05
+    zxtp10(iq,jk,ITRACSA+1)=xto(iq,jk,ITRACSA+1)
+    zxtp1c(iq,jk,ITRACSA+1)=xto(iq,jk,ITRACSA+1)
+    zxtp1con(iq,jk,ITRACSA+1)=xtu(iq,jk,ITRACSA+1)
+    zsolub(iq,jk,ITRACSA+1)=0.05
   end do
 end do
 !$acc end parallel loop
@@ -1738,17 +1667,23 @@ end do
 !    kbase(:) = k
 !  end where
 !enddo
-  
-  
+
+#ifdef GPU  
+!$acc parallel loop collapse(2) copyin(pqfsedice,pmaccr,plambs,pfsnow,pfsubl)     &
+!$acc   copyin(pfmelt,pmratep,prscav,pfevap,pfprec)                               &
+!$acc   copyin(prfreeze,fracc,pfconv)                                             &
+!$acc   present(pclcover,pcfcover,pmlwc,pmiwc,pclcon)                             &
+!$acc   present(wd,zdepr,zdeps,zxtp10,zxtp1c,zxtp1con,zsolub,rhodz,xte,ptp1,xtm1)
+do ktrac = 2,naero
+  do iq = 1,imax
+    !     BEGIN OF VERTICAL LOOP
+    do JK = KTOP,1,-1
+#else
 !     BEGIN OF VERTICAL LOOP
-do JK = KTOP,kl
-  
-  !$acc parallel loop collapse(2) present(pqfsedice,pmaccr,plambs,pfsnow,pfsubl)    &
-  !$acc   present(pfmelt,pmratep,prscav,pfevap,pfprec,prfreeze,fracc,pfconv)        &
-  !$acc   present(pclcover,pcfcover,pmlwc,pmiwc,pclcon)                             &
-  !$acc   present(wd,zdepr,zdeps,zxtp10,zxtp1c,zxtp1con,zsolub,rhodz,xte,ptp1,xtm1)
-  do ktrac = 2,naero
+do ktrac = 2,naero
+  do JK = KTOP,1,-1
     do iq = 1,imax
+#endif
         
       pdep = 0.  
       
@@ -1892,7 +1827,7 @@ do JK = KTOP,kl
 
       ! Below-cloud scavenging by convective precipitation
       if ( fracc(iq)>zmin ) then
-        Frc = max( 0., pfconv(iq,jk-1)/fracc(iq) )
+        Frc = max( 0., pfconv(iq,jk+1)/fracc(iq) )
         zbcscav = zcollefc*fracc(iq)*0.24*ptmst*sqrt(Frc*sqrt(Frc))
         !zbcscav = min( 1., zbcscav/(1.+0.5*zbcscav) ) !Time-centred
         zbcscav = max( min( 1., zbcscav ), 0. ) ! MJT suggestion
@@ -1932,33 +1867,32 @@ do JK = KTOP,kl
       xte(iq,jk,ktrac) = xte(iq,jk,ktrac) + zdxte
       wd(iq,ktrac) = wd(iq,ktrac) + pqtmst*pdep*rhodz(iq,jk)
 
+#ifdef GPU
+    end do   ! jk  
+  end do  ! iq
+end do ! ktrac  
+!$acc end parallel loop
+#else
     end do  ! iq
-  end do ! ktrac  
-  !$acc end parallel loop
-    
-end do   ! jk  
+  end do   ! jk  
+end do ! ktrac
+#endif
   
-!$acc update self(wd)    
-  
+!$acc parallel loop copy(so2wd,so4wd,bcwd,ocwd,dustwd,saltwd) present(wd)
 do iq = 1,imax
   so2wd(iq) = so2wd(iq) + wd(iq,ITRACSO2) 
   so4wd(iq) = so4wd(iq) + wd(iq,ITRACSO4)
   bcwd(iq) = bcwd(iq) + wd(iq,ITRACBC) + wd(iq,ITRACBC+1)
   ocwd(iq) = ocwd(iq) + wd(iq,ITRACOC) + wd(iq,ITRACOC+1)
-end do
 
-DO JT=ITRACDU,ITRACDU+NDUST-1
-  do iq = 1,imax
-    dustwd(iq,jt-itracdu+1) = dustwd(iq,jt-itracdu+1) + wd(iq,jt)
-  end do  
-end do
+  dustwd(iq,1) = dustwd(iq,1) + wd(iq,itracdu)
+  dustwd(iq,2) = dustwd(iq,2) + wd(iq,itracdu+1)
+  dustwd(iq,3) = dustwd(iq,3) + wd(iq,itracdu+2)
+  dustwd(iq,4) = dustwd(iq,4) + wd(iq,itracdu+3)
 
-do jt = ITRACSA,ITRACSA+NSALT-1
-  do iq = 1,imax
-    saltwd(iq) = saltwd(iq) + wd(iq,jt)
-  end do  
+  saltwd(iq) = saltwd(iq) + wd(iq,itracsa) + wd(iq,itracsa+1)
 end do
-
+!$acc end parallel loop
   
 #ifndef GPU
 !!$acc update self(xte)
@@ -1969,17 +1903,8 @@ if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-5 ) then
 end if
 #endif
 
-
-!$acc parallel loop present(dmsoh,dmsn3,so2oh)
-do iq = 1,imax
-  dmsoh(iq)=0.
-  dmsn3(iq)=0.
-  so2oh(iq)=0.    
-end do  
-!$acc end parallel loop
-
-!$acc parallel loop collapse(2) present(zdayfac,taudar) &
-!$acc   present(dmsoh,dmsn3,so2oh)                      &
+!$acc parallel loop collapse(2) copyin(zdayfac,taudar) &
+!$acc   present(dmsoh,dmsn3,so2oh)                     &
 !$acc   present(prhop1,ptp1,rhodz,xtm1,xte,zoxidant)
 do jk = 1,kl
   do iq = 1,imax
@@ -2056,11 +1981,9 @@ do jk = 1,kl
 end do
 !$acc end parallel loop
 
-
 !$acc update self(xte)
-!$acc update self(so2h2,so2o3,dmsoh,dmsn3,so2oh)
+!$acc update self(dmsoh,dmsn3,so2oh)
 !$acc end data
-
 
 if ( maxval(xtm1(1:imax,:,:)+xte(1:imax,:,:)*PTMST)>6.5e-5 ) then
   write(6,*) "xtg is out-of-range at end of xtchemie"

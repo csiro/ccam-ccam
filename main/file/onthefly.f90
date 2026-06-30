@@ -45,7 +45,6 @@ integer fwsize                                                ! size of temporar
 integer, save :: nemi = -1                                    ! land-sea mask method (3=soilt, 2=zht, 1=ocndepth, -1=fail)
 integer, save :: fill_land = 0                                ! number of iterations required for land fill
 integer, save :: fill_floor = 0                               ! number of iterations required for floor fill (3d ocean)
-integer, save :: fill_floorlake = 0                           ! number of iterations required for floor+lake fill (3d ocean)
 integer, save :: fill_sea = 0                                 ! number of iterations required for ocean fill
 integer, save :: fill_nourban = 0                             ! number of iterations required for urban fill
 integer, save :: native_ccam = 0                              ! is host CCAM (native_ccam=1) or cdfivdar (native_ccam=0)
@@ -55,6 +54,7 @@ integer, parameter :: ncarbon = 11                            ! Number of CASA-C
 integer, dimension(3), save :: xx4save_win, yy4save_win       ! store old memory windows for later deallocation
 integer, dimension(:,:), allocatable, save :: nface4          ! interpolation panel index
 real, save :: rlong0x, rlat0x, schmidtx                       ! input grid coordinates
+real, dimension(:,:,:,:), allocatable :: sx                   ! working array for doints interpolation
 real, dimension(3,3), save :: rotpoles, rotpole               ! vector rotation data
 real, dimension(:,:), allocatable, save :: xg4, yg4           ! interpolation coordinate indices
 real, dimension(:), allocatable, save :: axs_a, ays_a, azs_a  ! vector rotation data (single file)
@@ -322,6 +322,7 @@ subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
 use cc_mpi                                     ! CC MPI routines
+use cc_omp                                     ! CC OpenMP routines
 use cfrac_m                                    ! Cloud fraction
 use const_phys                                 ! Physical constants
 use darcdf_m                                   ! Netcdf data
@@ -385,7 +386,7 @@ real, dimension(:,:), intent(inout) :: tggsn, smass, ssdn
 real, dimension(:,:), intent(inout) :: t, u, v, qg
 real, dimension(:), intent(inout) :: psl, zss, tss, fracice
 real, dimension(:), intent(inout) :: snowd, sicedep, ssdnn, snage
-real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth
+real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth, bathymetry
 real, dimension(ifull) :: duma
 real, dimension(ifull,6) :: udum6
 real, dimension(ifull,ol) :: oo
@@ -409,9 +410,8 @@ logical mixr_found, siced_found, fracice_found, soilt_found
 logical u10_found, carbon_found, mlo_found, mlo2_found, mloice_found
 logical zht_needed, zht_found, urban1_found, urban2_found
 logical aero_found, nllp_found, carbon2_found
-logical, dimension(:), allocatable, save :: land_a, landlake_a, sea_a, nourban_a
+logical, dimension(:), allocatable, save :: land_a, sea_a, nourban_a
 logical, dimension(:,:), allocatable, save :: land_3d
-logical, dimension(:,:), allocatable, save :: landlake_3d
 
 ! iotest      indicates no interpolation required
 ! ptest       indicates the grid decomposition of the mesonest file is the same as the model, including the same number of processes
@@ -474,22 +474,19 @@ if ( .not.allocated(nface4) ) then
 end if
 if ( newfile ) then
   if ( allocated(sigin) ) then
-    deallocate( sigin, gosig_1, land_a, landlake_a, land_3d, landlake_3d, sea_a, nourban_a )
+    deallocate( sigin, gosig_1, land_a, land_3d, sea_a, nourban_a )
   end if
-  allocate( sigin(kk), gosig_1(ok), land_a(fwsize), landlake_a(fwsize), land_3d(fwsize,ok) )
-  allocate( landlake_3d(fwsize,ok), sea_a(fwsize), nourban_a(fwsize) )
+  allocate( sigin(kk), gosig_1(ok), land_a(fwsize), land_3d(fwsize,ok) )
+  allocate( sea_a(fwsize), nourban_a(fwsize) )
   sigin       = 1.
   gosig_1     = 1.
   land_a      = .false.
-  landlake_a  = .false.
   land_3d     = .false.
-  landlake_3d = .false.
   sea_a       = .true.
   nourban_a   = .false.
   ! reset fill counters
   fill_land      = 0
   fill_floor     = 0
-  fill_floorlake = 0
   fill_sea       = 0
   fill_nourban   = 0
   ! reset land-sea mask search
@@ -598,6 +595,7 @@ if ( newfile .and. .not.iotest ) then
 end if ! newfile .and. .not.iotest
 
 ! allocate working arrays
+allocate( sx(-1:pil_g+2,-1:pil_g+2,0:npanels,0:maxthreads-1) )
 allocate( ucc(fwsize), tss_a(fwsize), ucc6(fwsize,6) )
 
 ! -------------------------------------------------------------------
@@ -774,7 +772,6 @@ if ( newfile ) then
         if ( fwsize>0 ) then
           nemi = 2  
           land_a = zss_a>0. ! 2nd guess for land-sea mask
-          landlake_a = land_a
         end if
       end if
     else
@@ -787,7 +784,6 @@ if ( newfile ) then
           zss_a = 0.  ! ocean everywhere
           nemi = 2  
           land_a = zss_a>0. ! 2nd guess for land-sea mask
-          landlake_a = land_a
         end if
       end if
     end if
@@ -801,7 +797,6 @@ if ( newfile ) then
       if ( fwsize>0 ) then
         nemi = 3
         land_a = nint(ucc)>0 ! 1st guess for land-sea mask
-        landlake_a = nint(ucc)/=0
       end if  
     end if
   end if  
@@ -819,7 +814,6 @@ if ( newfile ) then
         if ( nemi==-1 ) then
           nemi = 2  
           land_a = ocndep_a<0.1 ! 3rd guess for land-sea mask
-          landlake_a = land_a
         end if  
       end if
     end if
@@ -846,9 +840,6 @@ if ( newfile ) then
       end if  ! any(gosig_1>1.)..else..      
     end if    ! mlo_found
     sea_a = .not.land_a
-    do k = 1,ok
-      landlake_3d(:,k) = land_3d(:,k) .or. landlake_a
-    end do  
   end if ! fwsize>0
   
   ! check that land-sea mask is definied
@@ -1005,7 +996,8 @@ if ( tss_test ) then ! tss_test includes iotest=.true.
   end if
   if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
     if ( mlo_found ) then
-      ocndwn(1:ifull,1) = ocndep_a(1:ifull)
+      bathymetry(1:ifull) = ocndep_a(1:ifull)
+      ocndwn(1:ifull,1) = bathymetry(1:ifull)
     end if
   end if    
 
@@ -1090,7 +1082,8 @@ else
   call doints4(ucc6(:,1:6),udum6(:,1:6))
   zss      = udum6(:,1)
   if ( abs(nmlo)>0 .and. abs(nmlo)<=9 ) then
-    ocndwn(1:ifull,1) = udum6(1:ifull,2)
+    bathymetry(1:ifull) = udum6(1:ifull,2)  
+    ocndwn(1:ifull,1) = bathymetry(1:ifull)
   end if  
   tss_l    = udum6(:,3)
   tss_s    = udum6(:,4)
@@ -1207,9 +1200,9 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     ! as no fractional land or sea cover is allowed in CCAM
     if ( (nested/=1.or.nud_sst/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
-        call fillhist4o('thetao',mlodwn(:,:,1),land_3d,fill_floor,ocndwn(:,1))
+        call fillhist4o('thetao',mlodwn(:,:,1),land_3d,fill_floor,bathymetry)
       else
-        call fillhist4o('tgg',mlodwn(:,:,1),land_3d,fill_floor,ocndwn(:,1))
+        call fillhist4o('tgg',mlodwn(:,:,1),land_3d,fill_floor,bathymetry)
       end if  
       where ( mlodwn(1:ifull,1:ol,1)>100. )
         mlodwn(1:ifull,1:ol,1) = mlodwn(1:ifull,1:ol,1) - wrtemp ! remove temperature offset for precision
@@ -1218,9 +1211,9 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     ! ocean salinity
     if ( (nested/=1.or.nud_sss/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
-        call fillhist4o('so',mlodwn(:,:,2),land_3d,fill_floorlake,ocndwn(:,1))  
+        call fillhist4o('so',mlodwn(:,:,2),land_3d,fill_floor,bathymetry)  
       else    
-        call fillhist4o('sal',mlodwn(:,:,2),land_3d,fill_floorlake,ocndwn(:,1))
+        call fillhist4o('sal',mlodwn(:,:,2),land_3d,fill_floor,bathymetry)
       end if  
       do k = 1,ol
         where ( isoilm_in == -1 )
@@ -1232,9 +1225,9 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
     ! ocean currents
     if ( (nested/=1.or.nud_ouv/=0) .and. ok>0 ) then
       if ( mlo2_found ) then
-        call fillhistuv4o('uo','vo',mlodwn(:,:,3),mlodwn(:,:,4),land_3d,fill_floor,ocndwn(:,1))  
+        call fillhistuv4o('uo','vo',mlodwn(:,:,3),mlodwn(:,:,4),land_3d,fill_floor,bathymetry)  
       else    
-        call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_3d,fill_floor,ocndwn(:,1))
+        call fillhistuv4o('uoc','voc',mlodwn(:,:,3),mlodwn(:,:,4),land_3d,fill_floor,bathymetry)
       end if  
     end if ! (nestesd/=1.or.nud_ouv/=0) ..else..
   end if   ! mlo_found
@@ -1932,11 +1925,11 @@ if ( nested/=1 .and. nested/=3 ) then
     oo = 0.
     if ( mlo2_found ) then
       if ( oclosure==1 ) then
-        call fillhist4o('tkeo',oo,land_3d,fill_floor,ocndwn(:,1))  
+        call fillhist4o('tkeo',oo,land_3d,fill_floor,bathymetry)  
         do k = 1,ol
           call mloimpturb("tke",oo(:,k),k,0,ifull,imax)
         end do  
-        call fillhist4o('epso',oo,land_3d,fill_floor,ocndwn(:,1))
+        call fillhist4o('epso',oo,land_3d,fill_floor,bathymetry)
         do k = 1,ol
           call mloimpturb("eps",oo(:,k),k,0,ifull,imax)
         end do  
@@ -2140,6 +2133,7 @@ endif    ! (nested/=1.and.nested/=3)
 ! This is the end of reading the initial arrays
 !**************************************************************  
 
+deallocate( sx )
 deallocate( ucc, tss_a, ucc6 )
 
 ! -------------------------------------------------------------------
@@ -2193,14 +2187,15 @@ end subroutine doints1
 subroutine doints4(s,sout)
       
 use cc_mpi                 ! CC MPI routines
+use cc_omp                 ! CC OpenMP routines
 use infile                 ! Input file routines
 use newmpar_m              ! Grid parameters
 use parm_m                 ! Model configuration
 
 integer k, kx, kb, ke, kn, n, iq, mm, idel, jdel
+integer mythread
 real, dimension(:,:), intent(in) :: s
 real, dimension(:,:), intent(inout) :: sout
-real, dimension(:,:,:), allocatable :: sx
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -2209,8 +2204,6 @@ real sx_11, sx_21, sx_02, sx_12
 
 call START_LOG(otf_ints_begin)
 
-allocate( sx(-1:pil_g+2,-1:pil_g+2,0:npanels) )
-
 kx = size(sout,2)
     
 do kb = 1,kx,kblock
@@ -2218,11 +2211,17 @@ do kb = 1,kx,kblock
   kn = ke - kb + 1
   ! This version distributes multi-file data
   call ccmpi_filewinget(s(:,kb:ke))
+
+  !$omp parallel do schedule(static) private(mythread,iq,mm,n,idel,jdel,xxg,yyg)  &
+  !$omp   private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3) &
+  !$omp   private(emul_4,sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11)   &
+  !$omp   private(sx_21,sx_02,sx_12,cmin,cmax,rmul_1,rmul_2,rmul_3,rmul_4)  
   do k = 1,kn
+    mythread = ccomp_get_thread_num()  
     do iq = 1,ifull
       sout(iq,k+kb-1) = 0.
     end do
-    call ccmpi_filewinunpack(k,sx)  
+    call ccmpi_filewinunpack(k,sx(:,:,:,mythread))  
     do mm = 1,m_fly       !  was 4, now may be 1
       do iq = 1,ifull
         ! target point
@@ -2242,18 +2241,18 @@ do kb = 1,kx,kblock
         emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
         emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        sx_0m = sx(idel,  jdel-1,n)
-        sx_1m = sx(idel+1,jdel-1,n)
-        sx_m0 = sx(idel-1,jdel,  n)
-        sx_00 = sx(idel,  jdel,  n)
-        sx_10 = sx(idel+1,jdel,  n)
-        sx_20 = sx(idel+2,jdel,  n)
-        sx_m1 = sx(idel-1,jdel+1,n)
-        sx_01 = sx(idel,  jdel+1,n)
-        sx_11 = sx(idel+1,jdel+1,n)
-        sx_21 = sx(idel+2,jdel+1,n)
-        sx_02 = sx(idel,  jdel+2,n)
-        sx_12 = sx(idel+1,jdel+2,n)
+        sx_0m = sx(idel,  jdel-1,n,mythread)
+        sx_1m = sx(idel+1,jdel-1,n,mythread)
+        sx_m0 = sx(idel-1,jdel,  n,mythread)
+        sx_00 = sx(idel,  jdel,  n,mythread)
+        sx_10 = sx(idel+1,jdel,  n,mythread)
+        sx_20 = sx(idel+2,jdel,  n,mythread)
+        sx_m1 = sx(idel-1,jdel+1,n,mythread)
+        sx_01 = sx(idel,  jdel+1,n,mythread)
+        sx_11 = sx(idel+1,jdel+1,n,mythread)
+        sx_21 = sx(idel+2,jdel+1,n,mythread)
+        sx_02 = sx(idel,  jdel+2,n,mythread)
+        sx_12 = sx(idel+1,jdel+2,n,mythread)
         cmin = min(sx_00,sx_01,sx_10,sx_11)
         cmax = max(sx_00,sx_01,sx_10,sx_11)
         rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
@@ -2266,10 +2265,8 @@ do kb = 1,kx,kblock
       end do    ! iq loop
     end do      ! mm loop
   end do        ! k loop
-  call ccmpi_filewinwait
+  !$omp end parallel do
 end do ! kb
-
-deallocate( sx )
 
 call END_LOG(otf_ints_end)
 

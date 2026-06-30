@@ -28,7 +28,7 @@ use cable_def_types_mod, only : air_type, balances_type, canopy_type, climate_ty
                                 roughness_type, soil_parameter_type, soil_snow_type, sum_flux_type,           &
                                 veg_parameter_type, mp, r_2
 use casavariable, only : casa_balance, casa_biome, casa_flux, casa_met, casa_pool
-use newmpar_m, only : ntiles,imax,ifull
+use newmpar_m, only : ntiles, imax, ifull
 use phenvariable, only : phen_variable
 use pop_types, only : pop_type, dp
 
@@ -36,7 +36,8 @@ implicit none
 
 private
 public tdata
-public :: cable_pack, cable_unpack, pop_pack, pop_unpack, setp
+public cable_pack, cable_unpack, pop_pack, pop_unpack, setp
+public cpyin, cpyout
     
 type tiledata
   integer, dimension(:,:), allocatable :: tind
@@ -91,9 +92,18 @@ end interface
 
 interface setp
   module procedure setp_air, setp_bal, setp_canopy, setp_casabal,            &
-                   setp_casaflux, setp_casamet, setp_casapool, setp_climate, &
-                   setp_met, setp_phen, setp_pop, setp_rad, setp_rough,      &
+                   setp_casaflux, setp_casamet, setp_casapool,               &
+                   setp_met, setp_phen, setp_rad, setp_rough,                &
                    setp_soil, setp_ssnow, setp_sumflux, setp_veg
+                   !setp_climate
+end interface
+
+interface cpyin
+  module procedure cpyin_pop
+end interface
+
+interface cpyout
+  module procedure cpyout_pop
 end interface
 
 contains
@@ -902,10 +912,10 @@ subroutine setp_bal(bal,lbal,tile)
     lbal%drybal => bal%drybal(is:ie)
     lbal%ebal => bal%ebal(is:ie)
     lbal%ebal_tot => bal%ebal_tot(is:ie)
-    lbal%ebal_cncheck => bal%ebal_cncheck(is:ie)
-    lbal%ebal_tot_cncheck => bal%ebal_tot_cncheck(is:ie)
     lbal%ebaltr => bal%ebaltr(is:ie)
     lbal%ebal_tottr => bal%ebal_tottr(is:ie)
+    lbal%ebal_cncheck => bal%ebal_cncheck(is:ie)
+    lbal%ebal_tot_cncheck => bal%ebal_tot_cncheck(is:ie)
     lbal%evap_tot => bal%evap_tot(is:ie)
     lbal%osnowd0 => bal%osnowd0(is:ie)
     lbal%precip_tot => bal%precip_tot(is:ie)
@@ -915,17 +925,18 @@ subroutine setp_bal(bal,lbal,tile)
     lbal%wbtot0 => bal%wbtot0(is:ie)
     lbal%wetbal => bal%wetbal(is:ie)
     lbal%cansto0 => bal%cansto0(is:ie)
-    lbal%owbtot => bal%owbtot(is:ie)
     lbal%evapc_tot => bal%evapc_tot(is:ie)
     lbal%evaps_tot => bal%evaps_tot(is:ie)
     lbal%rnof1_tot => bal%rnof1_tot(is:ie)
     lbal%rnof2_tot => bal%rnof2_tot(is:ie)
     lbal%snowdc_tot => bal%snowdc_tot(is:ie)
     lbal%wbal_tot1 => bal%wbal_tot1(is:ie)
+    lbal%owbtot => bal%owbtot(is:ie)
     lbal%delwc_tot => bal%delwc_tot(is:ie)
     lbal%qasrf_tot => bal%qasrf_tot(is:ie)
     lbal%qfsrf_tot => bal%qfsrf_tot(is:ie)
     lbal%qssrf_tot => bal%qssrf_tot(is:ie)
+
     lbal%Radbal => bal%Radbal(is:ie)
     lbal%EbalSoil => bal%EbalSoil(is:ie)
     lbal%Ebalveg => bal%Ebalveg(is:ie)
@@ -945,7 +956,7 @@ subroutine setp_canopy(canopy,lcanopy,tile)
   ie = tdata(tile)%toffset + tdata(tile)%mp
 
   if ( is<=ie ) then
-  
+
     lcanopy%cansto => canopy%cansto(is:ie)
     lcanopy%cduv => canopy%cduv(is:ie)
     lcanopy%delwc => canopy%delwc(is:ie)
@@ -983,6 +994,7 @@ subroutine setp_canopy(canopy,lcanopy,tile)
     lcanopy%segg => canopy%segg(is:ie)
     lcanopy%sghflux => canopy%sghflux(is:ie)
     lcanopy%through => canopy%through(is:ie)
+    lcanopy%through_sn => canopy%through_sn(is:ie)
     lcanopy%spill => canopy%spill(is:ie)
     lcanopy%tscrn => canopy%tscrn(is:ie)
     lcanopy%wcint => canopy%wcint(is:ie)
@@ -993,6 +1005,9 @@ subroutine setp_canopy(canopy,lcanopy,tile)
     lcanopy%rghlai => canopy%rghlai(is:ie)
     lcanopy%fwet => canopy%fwet(is:ie)
 
+    lcanopy%fns_cor => canopy%fns_cor(is:ie)
+    lcanopy%ga_cor => canopy%ga_cor(is:ie)    
+
     lcanopy%evapfbl => canopy%evapfbl(is:ie,:)
     lcanopy%gswx => canopy%gswx(is:ie,:)
     lcanopy%zetar => canopy%zetar(is:ie,:)
@@ -1000,25 +1015,13 @@ subroutine setp_canopy(canopy,lcanopy,tile)
 
     lcanopy%fess => canopy%fess(is:ie)
     lcanopy%fesp => canopy%fesp(is:ie)
-    lcanopy%dgdtg => canopy%dgdtg(is:ie)
+    lcanopy%dgdtg => canopy%dgdtg(is:ie)    
     lcanopy%fes => canopy%fes(is:ie)
     lcanopy%fes_cor => canopy%fes_cor(is:ie)
     lcanopy%fevc => canopy%fevc(is:ie)
     lcanopy%ofes => canopy%ofes(is:ie)
-  
-    !lcanopy%A_sh => canopy%A_sh(is:ie)
-    !lcanopy%A_sl => canopy%A_sl(is:ie)
-    lcanopy%A_slC => canopy%A_slC(is:ie)
-    lcanopy%A_shC => canopy%A_shC(is:ie)
-    lcanopy%A_slJ => canopy%A_slJ(is:ie)
-    lcanopy%A_shJ => canopy%A_shJ(is:ie)
-    !lcanopy%eta_A_cs => canopy%eta_A_cs(is:ie)
-    !lcanopy%dAdcs => canopy%dAdcs(is:ie)
-    !lcanopy%cs => canopy%cs(is:ie)
-    lcanopy%cs_sl => canopy%cs_sl(is:ie)
-    lcanopy%cs_sh => canopy%cs_sh(is:ie)
-    lcanopy%tlf => canopy%tlf(is:ie)
-    lcanopy%dlf => canopy%dlf(is:ie)
+
+    lcanopy%sublayer_dz => canopy%sublayer_dz(is:ie)
 
     lcanopy%gw => canopy%gw(is:ie,:)
     lcanopy%ancj => canopy%ancj(is:ie,:,:)
@@ -1027,12 +1030,10 @@ subroutine setp_canopy(canopy,lcanopy,tile)
     lcanopy%ecx => canopy%ecx(is:ie,:)
     lcanopy%ci => canopy%ci(is:ie,:,:)
     lcanopy%fwsoil => canopy%fwsoil(is:ie)
+
     lcanopy%kthLitt => canopy%kthLitt(is:ie)
     lcanopy%DvLitt => canopy%DvLitt(is:ie)
-    
-    lcanopy%fns_cor => canopy%fns_cor(is:ie)
-    lcanopy%ga_cor => canopy%ga_cor(is:ie)
-    
+        
   end if  
 
 end subroutine setp_canopy
@@ -1258,7 +1259,7 @@ subroutine setp_casapool(casapool,lcasapool,tile)
   ie = tdata(tile)%toffset + tdata(tile)%mp
 
   if ( is<=ie ) then
-  
+
     lcasapool%Clabile => casapool%Clabile(is:ie)
     lcasapool%dClabiledt => casapool%dClabiledt(is:ie)
     lcasapool%Ctot => casapool%Ctot(is:ie)
@@ -1305,87 +1306,91 @@ subroutine setp_casapool(casapool,lcasapool,tile)
     lcasapool%ratioPcsoil => casapool%ratioPcsoil(is:ie,:)
     lcasapool%ratioPcplant => casapool%ratioPcplant(is:ie,:)
     lcasapool%ratioPclitter => casapool%ratioPclitter(is:ie,:)
-    
+
+    lcasapool%cwoodprod => casapool%cwoodprod(is:ie,:)
+    lcasapool%nwoodprod => casapool%nwoodprod(is:ie,:)
+    lcasapool%pwoodprod => casapool%pwoodprod(is:ie,:)
+
   end if  
 
 end subroutine setp_casapool
 
-subroutine setp_climate(climate,lclimate,tile)
-  type(climate_type), intent(in) :: climate
-  type(climate_type), intent(inout) :: lclimate
-  integer, intent(in) :: tile
-  integer :: is, ie
-
-  is = tdata(tile)%toffset + 1
-  ie = tdata(tile)%toffset + tdata(tile)%mp
-  
-  lclimate%nyear_average = climate%nyear_average
-  lclimate%nday_average = climate%nday_average
-  lclimate%nyears = climate%nyears
-  lclimate%doy = climate%doy
-
-  if ( is<=ie ) then
-  
-    lclimate%chilldays => climate%chilldays(is:ie)
-    lclimate%iveg => climate%iveg(is:ie)
-    lclimate%biome => climate%biome(is:ie)
-
-    lclimate%dtemp => climate%dtemp(is:ie)
-    lclimate%dmoist => climate%dmoist(is:ie)
-    lclimate%mtemp => climate%mtemp(is:ie)
-    lclimate%qtemp => climate%qtemp(is:ie)
-    lclimate%mmoist => climate%mmoist(is:ie)
-    lclimate%mtemp_min => climate%mtemp_min(is:ie)
-    lclimate%mtemp_max => climate%mtemp_max(is:ie)
-    lclimate%qtemp_max => climate%qtemp_max(is:ie)
-    lclimate%qtemp_max_last_year => climate%qtemp_max_last_year(is:ie)
-    lclimate%mtemp_min20 => climate%mtemp_min20(is:ie)
-    lclimate%mtemp_max20 => climate%mtemp_max20(is:ie)
-    lclimate%atemp_mean => climate%atemp_mean(is:ie)
-    lclimate%dmoist_min => climate%dmoist_min(is:ie)
-    lclimate%dmoist_max => climate%dmoist_max(is:ie)
-    lclimate%dmoist_min20 => climate%dmoist_min20(is:ie)
-    lclimate%dmoist_max20 => climate%dmoist_max20(is:ie)
-    lclimate%AGDD5 => climate%AGDD5(is:ie)
-    lclimate%GDD5 => climate%GDD5(is:ie)
-    lclimate%AGDD0 => climate%AGDD0(is:ie)
-    lclimate%GDD0 => climate%GDD0(is:ie)
-    lclimate%gdd0_rec => climate%gdd0_rec(is:ie)
-    lclimate%alpha_PT => climate%alpha_PT(is:ie)
-    lclimate%evap_PT => climate%evap_PT(is:ie)
-    lclimate%aevap => climate%aevap(is:ie)
-    lclimate%alpha_PT20 => climate%alpha_PT20(is:ie)
-    lclimate%dtemp_min => climate%dtemp_min(is:ie)
-    lclimate%fdorm => climate%fdorm(is:ie)
-    lclimate%frec => climate%frec(is:ie)
-    lclimate%gmd => climate%gmd(is:ie)
-    lclimate%fapar_ann_max => climate%fapar_ann_max(is:ie)
-    lclimate%fapar_ann_max_last_year => climate%fapar_ann_max_last_year(is:ie)
-  
-    lclimate%mtemp_min_20 => climate%mtemp_min_20(is:ie,:)
-    lclimate%mtemp_max_20 => climate%mtemp_max_20(is:ie,:)
-    lclimate%dmoist_min_20 => climate%dmoist_min_20(is:ie,:)
-    lclimate%dmoist_max_20 => climate%dmoist_max_20(is:ie,:)
-    lclimate%dtemp_31 => climate%dtemp_31(is:ie,:)
-    lclimate%dmoist_31 => climate%dmoist_31(is:ie,:)
-    lclimate%alpha_PT_20 => climate%alpha_PT_20(is:ie,:)
-    lclimate%dtemp_91 => climate%dtemp_91(is:ie,:)
-  
-    lclimate%APAR_leaf_sun => climate%APAR_leaf_sun(is:ie,:)
-    lclimate%APAR_leaf_shade => climate%APAR_leaf_shade(is:ie,:)
-    lclimate%Dleaf_sun => climate%Dleaf_sun(is:ie,:)
-    lclimate%fwsoil => climate%fwsoil(is:ie,:)
-    lclimate%Dleaf_shade => climate%Dleaf_shade(is:ie,:)
-    lclimate%Tleaf_sun => climate%Tleaf_sun(is:ie,:)
-    lclimate%Tleaf_shade => climate%Tleaf_shade(is:ie,:)
-    lclimate%cs_sun => climate%cs_sun(is:ie,:)
-    lclimate%cs_shade => climate%cs_shade(is:ie,:)
-    lclimate%scalex_sun => climate%scalex_sun(is:ie,:)
-    lclimate%scalex_shade => climate%scalex_shade(is:ie,:)
-     
-  end if  
-  
-end subroutine setp_climate
+!subroutine setp_climate(climate,lclimate,tile)
+!  type(climate_type), intent(in) :: climate
+!  type(climate_type), intent(inout) :: lclimate
+!  integer, intent(in) :: tile
+!  integer :: is, ie
+!
+!  is = tdata(tile)%toffset + 1
+!  ie = tdata(tile)%toffset + tdata(tile)%mp
+!  
+!  lclimate%nyear_average = climate%nyear_average
+!  lclimate%nday_average = climate%nday_average
+!  lclimate%nyears = climate%nyears
+!  lclimate%doy = climate%doy
+!
+!  if ( is<=ie ) then
+!  
+!    lclimate%chilldays => climate%chilldays(is:ie)
+!    lclimate%iveg => climate%iveg(is:ie)
+!    lclimate%biome => climate%biome(is:ie)
+!
+!    lclimate%dtemp => climate%dtemp(is:ie)
+!    lclimate%dmoist => climate%dmoist(is:ie)
+!    lclimate%mtemp => climate%mtemp(is:ie)
+!    lclimate%qtemp => climate%qtemp(is:ie)
+!    lclimate%mmoist => climate%mmoist(is:ie)
+!    lclimate%mtemp_min => climate%mtemp_min(is:ie)
+!    lclimate%mtemp_max => climate%mtemp_max(is:ie)
+!    lclimate%qtemp_max => climate%qtemp_max(is:ie)
+!    lclimate%qtemp_max_last_year => climate%qtemp_max_last_year(is:ie)
+!    lclimate%mtemp_min20 => climate%mtemp_min20(is:ie)
+!    lclimate%mtemp_max20 => climate%mtemp_max20(is:ie)
+!    lclimate%atemp_mean => climate%atemp_mean(is:ie)
+!    lclimate%dmoist_min => climate%dmoist_min(is:ie)
+!    lclimate%dmoist_max => climate%dmoist_max(is:ie)
+!    lclimate%dmoist_min20 => climate%dmoist_min20(is:ie)
+!    lclimate%dmoist_max20 => climate%dmoist_max20(is:ie)
+!    lclimate%AGDD5 => climate%AGDD5(is:ie)
+!    lclimate%GDD5 => climate%GDD5(is:ie)
+!    lclimate%AGDD0 => climate%AGDD0(is:ie)
+!    lclimate%GDD0 => climate%GDD0(is:ie)
+!    lclimate%gdd0_rec => climate%gdd0_rec(is:ie)
+!    lclimate%alpha_PT => climate%alpha_PT(is:ie)
+!    lclimate%evap_PT => climate%evap_PT(is:ie)
+!    lclimate%aevap => climate%aevap(is:ie)
+!    lclimate%alpha_PT20 => climate%alpha_PT20(is:ie)
+!    lclimate%dtemp_min => climate%dtemp_min(is:ie)
+!    lclimate%fdorm => climate%fdorm(is:ie)
+!    lclimate%frec => climate%frec(is:ie)
+!    lclimate%gmd => climate%gmd(is:ie)
+!    lclimate%fapar_ann_max => climate%fapar_ann_max(is:ie)
+!    lclimate%fapar_ann_max_last_year => climate%fapar_ann_max_last_year(is:ie)
+!  
+!    lclimate%mtemp_min_20 => climate%mtemp_min_20(is:ie,:)
+!    lclimate%mtemp_max_20 => climate%mtemp_max_20(is:ie,:)
+!    lclimate%dmoist_min_20 => climate%dmoist_min_20(is:ie,:)
+!    lclimate%dmoist_max_20 => climate%dmoist_max_20(is:ie,:)
+!    lclimate%dtemp_31 => climate%dtemp_31(is:ie,:)
+!    lclimate%dmoist_31 => climate%dmoist_31(is:ie,:)
+!    lclimate%alpha_PT_20 => climate%alpha_PT_20(is:ie,:)
+!    lclimate%dtemp_91 => climate%dtemp_91(is:ie,:)
+!  
+!    lclimate%APAR_leaf_sun => climate%APAR_leaf_sun(is:ie,:)
+!    lclimate%APAR_leaf_shade => climate%APAR_leaf_shade(is:ie,:)
+!    lclimate%Dleaf_sun => climate%Dleaf_sun(is:ie,:)
+!    lclimate%fwsoil => climate%fwsoil(is:ie,:)
+!    lclimate%Dleaf_shade => climate%Dleaf_shade(is:ie,:)
+!    lclimate%Tleaf_sun => climate%Tleaf_sun(is:ie,:)
+!    lclimate%Tleaf_shade => climate%Tleaf_shade(is:ie,:)
+!    lclimate%cs_sun => climate%cs_sun(is:ie,:)
+!    lclimate%cs_shade => climate%cs_shade(is:ie,:)
+!    lclimate%scalex_sun => climate%scalex_sun(is:ie,:)
+!    lclimate%scalex_shade => climate%scalex_shade(is:ie,:)
+!     
+!  end if  
+!  
+!end subroutine setp_climate
 
 subroutine setp_met(met,lmet,tile)
   type(met_type), intent(in) :: met
@@ -1398,12 +1403,12 @@ subroutine setp_met(met,lmet,tile)
 
   if ( is<=ie ) then
   
+    lmet%ca => met%ca(is:ie)      
     lmet%year => met%year(is:ie)
     lmet%moy => met%moy(is:ie)
-
-    lmet%ca => met%ca(is:ie)
     lmet%doy => met%doy(is:ie)
     lmet%hod => met%hod(is:ie)
+    lmet%fsd => met%fsd(is:ie,:)    
     lmet%ofsd => met%ofsd(is:ie)
     lmet%fld => met%fld(is:ie)
     lmet%precip => met%precip(is:ie)
@@ -1419,8 +1424,7 @@ subroutine setp_met(met,lmet,tile)
     lmet%dva => met%dva(is:ie)
     lmet%coszen => met%coszen(is:ie)
     lmet%Ndep => met%Ndep(is:ie)
-
-    lmet%fsd => met%fsd(is:ie,:)
+    lmet%Pdep => met%Pdep(is:ie)
     
   end if  
 
@@ -1454,24 +1458,6 @@ subroutine setp_phen(phen,lphen,tile)
 
 end subroutine setp_phen
 
-subroutine setp_pop(pop,lpop,tile)
-  type(pop_type), intent(in) :: pop
-  type(pop_type), intent(inout) :: lpop
-  integer, intent(in) :: tile
-  integer :: is, ie
-
-  is = tdata(tile)%poffset + 1
-  ie = tdata(tile)%poffset + tdata(tile)%np
-
-  if ( is<=ie ) then
-    lpop%pop_grid => pop%pop_grid(is:ie)
-    lpop%it_pop => pop%it_pop(is:ie)
-    lpop%np = tdata(tile)%np
-    lpop%Iwood => pop%Iwood(is:ie)
-  end if  
-
-end subroutine setp_pop
-
 subroutine setp_rad(rad,lrad,tile)
   type(radiation_type), intent(in) :: rad
   type(radiation_type), intent(inout) :: lrad
@@ -1482,7 +1468,7 @@ subroutine setp_rad(rad,lrad,tile)
   ie = tdata(tile)%toffset + tdata(tile)%mp
 
   if ( is<=ie ) then
-  
+
     lrad%transb => rad%transb(is:ie)
     lrad%albedo_T => rad%albedo_T(is:ie)
     lrad%longitude => rad%longitude(is:ie)
@@ -1498,6 +1484,7 @@ subroutine setp_rad(rad,lrad,tile)
     lrad%qssabs => rad%qssabs(is:ie)
     lrad%transd => rad%transd(is:ie)
     lrad%trad => rad%trad(is:ie)
+    lrad%otrad => rad%otrad(is:ie)
 
     lrad%fvlai => rad%fvlai(is:ie,:)
     lrad%rhocdf => rad%rhocdf(is:ie,:)
@@ -1511,8 +1498,8 @@ subroutine setp_rad(rad,lrad,tile)
     lrad%fbeam => rad%fbeam(is:ie,:)
     lrad%cexpkbm => rad%cexpkbm(is:ie,:)
     lrad%cexpkdm => rad%cexpkdm(is:ie,:)
-    lrad%rhocbm => rad%rhocbm(is:ie,:)
-    lrad%gradis => rad%gradis(is:ie,:)
+    lrad%rhocbm => rad%rhocbm(is:ie,:)      
+    lrad%gradis => rad%gradis(is:ie,:)    
 
     lrad%qcan => rad%qcan(is:ie,:,:)
     
@@ -1530,7 +1517,8 @@ subroutine setp_rough(rough,lrough,tile)
   ie = tdata(tile)%toffset + tdata(tile)%mp
 
   if ( is<=ie ) then
-  
+
+    lrough%coexp => rough%coexp(is:ie)
     lrough%disp => rough%disp(is:ie)
     lrough%hruff => rough%hruff(is:ie)
     lrough%hruff_grmx => rough%hruff_grmx(is:ie)
@@ -1538,6 +1526,12 @@ subroutine setp_rough(rough,lrough,tile)
     lrough%rt1usa => rough%rt1usa(is:ie)
     lrough%rt1usb => rough%rt1usb(is:ie)
     lrough%rt1 => rough%rt1(is:ie)
+    lrough%term2 => rough%term2(is:ie)
+    lrough%term3 => rough%term3(is:ie)
+    lrough%term5 => rough%term5(is:ie)
+    lrough%term6 => rough%term6(is:ie)
+    lrough%term6a => rough%term6a(is:ie)
+    lrough%usuh => rough%usuh(is:ie)
     lrough%za_uv => rough%za_uv(is:ie)
     lrough%za_tq => rough%za_tq(is:ie)
     lrough%z0m => rough%z0m(is:ie)
@@ -1547,16 +1541,6 @@ subroutine setp_rough(rough,lrough,tile)
     lrough%z0soilsn => rough%z0soilsn(is:ie)
     lrough%z0soil => rough%z0soil(is:ie)
 
-    lrough%coexp => rough%coexp(is:ie)
-
-    lrough%usuh => rough%usuh(is:ie)
-
-    lrough%term2 => rough%term2(is:ie)
-    lrough%term3 => rough%term3(is:ie)
-    lrough%term5 => rough%term5(is:ie)
-    lrough%term6 => rough%term6(is:ie)
-    lrough%term6a => rough%term6a(is:ie)
-    
   end if  
 
 end subroutine setp_rough
@@ -1572,7 +1556,6 @@ subroutine setp_soil(soil,lsoil,tile)
 
   if ( is<=ie ) then
   
-    lsoil%isoilm => soil%isoilm(is:ie)
 
     lsoil%bch => soil%bch(is:ie)
     lsoil%c3 => soil%c3(is:ie)
@@ -1582,6 +1565,7 @@ subroutine setp_soil(soil,lsoil,tile)
     lsoil%hyds => soil%hyds(is:ie)
     lsoil%i2bp3 => soil%i2bp3(is:ie)
     lsoil%ibp2 => soil%ibp2(is:ie)
+    lsoil%isoilm => soil%isoilm(is:ie)    
     lsoil%rhosoil => soil%rhosoil(is:ie)
     lsoil%sand => soil%sand(is:ie)
     lsoil%sfc => soil%sfc(is:ie)
@@ -1591,12 +1575,52 @@ subroutine setp_soil(soil,lsoil,tile)
     lsoil%swilt => soil%swilt(is:ie)
     lsoil%zse => soil%zse !ms
     lsoil%zshh => soil%zshh !ms
-    lsoil%soilcol => soil%soilcol(is:ie)
-    lsoil%albsoilf => soil%albsoilf(is:ie)
     lsoil%cnsd => soil%cnsd(is:ie)
-    lsoil%pwb_min => soil%pwb_min(is:ie)
     lsoil%albsoil => soil%albsoil(is:ie,:)
+    lsoil%pwb_min => soil%pwb_min(is:ie)
+    lsoil%albsoilf => soil%albsoilf(is:ie)    
+    lsoil%soilcol => soil%soilcol(is:ie)
 
+    lsoil%GWhyds_vec => soil%GWhyds_vec(is:ie)
+    lsoil%GWsucs_vec => soil%GWsucs_vec(is:ie)
+    lsoil%GWbch_vec => soil%GWbch_vec(is:ie)
+    lsoil%GWssat_vec => soil%GWssat_vec(is:ie)
+    lsoil%GWwatr => soil%GWwatr(is:ie)
+    lsoil%GWz => soil%GWz(is:ie)
+    lsoil%GWdz => soil%GWdz(is:ie)
+    lsoil%GWrhosoil_vec => soil%GWrhosoil_vec(is:ie)
+
+    lsoil%zse_vec => soil%zse_vec(is:ie,:)
+    lsoil%heat_cap_lower_limit => soil%heat_cap_lower_limit(is:ie,:)
+    lsoil%css_vec => soil%css_vec(is:ie,:)
+    lsoil%cnsd_vec => soil%cnsd_vec(is:ie,:)
+    lsoil%hyds_vec => soil%hyds_vec(is:ie,:)
+    lsoil%sucs_vec => soil%sucs_vec(is:ie,:)
+    lsoil%bch_vec => soil%bch_vec(is:ie,:)
+    lsoil%ssat_vec => soil%ssat_vec(is:ie,:)
+    lsoil%watr => soil%watr(is:ie,:)
+    lsoil%wbc_GW => soil%wbc_GW(is:ie)
+    lsoil%smpc_GW => soil%smpc_GW(is:ie)
+    lsoil%sfc_vec => soil%sfc_vec(is:ie,:)
+    lsoil%swilt_vec => soil%swilt_vec(is:ie,:)
+    lsoil%sand_vec => soil%sand_vec(is:ie,:)
+    lsoil%clay_vec => soil%clay_vec(is:ie,:)
+    lsoil%silt_vec => soil%silt_vec(is:ie,:)
+    lsoil%org_vec => soil%org_vec(is:ie,:)
+    lsoil%rhosoil_vec => soil%rhosoil_vec(is:ie,:)
+    
+    lsoil%drain_dens => soil%drain_dens(is:ie)
+    lsoil%hkrz => soil%hkrz(is:ie)
+    lsoil%zdepth => soil%zdepth(is:ie)
+    lsoil%srf_frac_ma => soil%srf_frac_ma(is:ie)
+    lsoil%edepth_ma => soil%edepth_ma(is:ie)
+    lsoil%qhz_max => soil%qhz_max(is:ie)
+    lsoil%qhz_efold => soil%qhz_efold(is:ie)
+    lsoil%elev => soil%elev(is:ie)
+    lsoil%elev_std => soil%elev_std(is:ie)
+    lsoil%slope => soil%slope(is:ie)
+    lsoil%slope_std => soil%slope_std(is:ie)    
+    
     lsoil%nhorizons => soil%nhorizons(is:ie)
     lsoil%ishorizon => soil%ishorizon(is:ie,:)
     lsoil%clitt => soil%clitt(is:ie)
@@ -1606,30 +1630,6 @@ subroutine setp_soil(soil,lsoil,tile)
     lsoil%swilt_vec => soil%swilt_vec(is:ie,:)
     lsoil%ssat_vec => soil%ssat_vec(is:ie,:)
     lsoil%sfc_vec => soil%sfc_vec(is:ie,:)
-    lsoil%rhosoil_vec => soil%rhosoil_vec(is:ie,:)
-    lsoil%sucs_vec => soil%sucs_vec(is:ie,:)
-    lsoil%bch_vec => soil%bch_vec(is:ie,:)
-    lsoil%hyds_vec => soil%hyds_vec(is:ie,:)
-    lsoil%watr => soil%watr(is:ie,:)
-    lsoil%cnsd_vec => soil%cnsd_vec(is:ie,:)
-    lsoil%clay_vec => soil%clay_vec(is:ie,:)
-    lsoil%sand_vec => soil%sand_vec(is:ie,:)
-    lsoil%silt_vec => soil%silt_vec(is:ie,:)
-    lsoil%zse_vec => soil%zse_vec(is:ie,:)
-    lsoil%css_vec => soil%css_vec(is:ie,:)
-
-    lsoil%GWsucs_vec => soil%GWsucs_vec(is:ie)
-    lsoil%GWhyds_vec => soil%GWhyds_vec(is:ie)
-    lsoil%GWbch_vec => soil%GWbch_vec(is:ie)
-    lsoil%GWrhosoil_vec => soil%GWrhosoil_vec(is:ie)
-    lsoil%GWssat_vec => soil%GWssat_vec(is:ie)
-    lsoil%GWwatr => soil%GWwatr(is:ie)
-    lsoil%GWdz => soil%GWdz(is:ie)
-    lsoil%slope => soil%slope(is:ie)
-    lsoil%slope_std => soil%slope_std(is:ie)
-    lsoil%drain_dens => soil%drain_dens(is:ie)
-    
-    lsoil%heat_cap_lower_limit => soil%heat_cap_lower_limit(is:ie,:)
     
   end if  
 
@@ -1645,7 +1645,7 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
   ie = tdata(tile)%toffset + tdata(tile)%mp
 
   if ( is<=ie ) then
-  
+
     lssnow%isflag => ssnow%isflag(is:ie)
 
     lssnow%iantrct => ssnow%iantrct(is:ie)
@@ -1656,6 +1656,7 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
     lssnow%dfh_dtg => ssnow%dfh_dtg(is:ie)
     lssnow%dfe_ddq => ssnow%dfe_ddq(is:ie)
     lssnow%ddq_dtg => ssnow%ddq_dtg(is:ie)
+    lssnow%dfe_dtg => ssnow%dfe_dtg(is:ie)
     lssnow%evapsn => ssnow%evapsn(is:ie)
     lssnow%fwtop => ssnow%fwtop(is:ie)
     lssnow%fwtop1 => ssnow%fwtop1(is:ie)
@@ -1670,13 +1671,14 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
     lssnow%wbtot1 => ssnow%wbtot1(is:ie)
     lssnow%wbtot2 => ssnow%wbtot2(is:ie)
     lssnow%wb_lake => ssnow%wb_lake(is:ie)
+    lssnow%totwblake => ssnow%totwblake(is:ie)
     lssnow%sinfil => ssnow%sinfil(is:ie)
     lssnow%qstss => ssnow%qstss(is:ie)
     lssnow%wetfac => ssnow%wetfac(is:ie)
     lssnow%owetfac => ssnow%owetfac(is:ie)
     lssnow%t_snwlr => ssnow%t_snwlr(is:ie)
     lssnow%tggav => ssnow%tggav(is:ie)
-    lssnow%otgg => ssnow%otgg(is:ie)
+    lssnow%otgg => ssnow%otgg(is:ie,:)
     lssnow%otss => ssnow%otss(is:ie)
     lssnow%otss_0 => ssnow%otss_0(is:ie)
     lssnow%tprecip => ssnow%tprecip(is:ie)
@@ -1702,6 +1704,7 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
     lssnow%sdepth => ssnow%sdepth(is:ie,:)
     lssnow%smass => ssnow%smass(is:ie,:)
     lssnow%ssdn => ssnow%ssdn(is:ie,:)
+    lssnow%otgg => ssnow%otgg(is:ie,:)
     lssnow%tgg => ssnow%tgg(is:ie,:)
     lssnow%tggsn => ssnow%tggsn(is:ie,:)
     lssnow%dtmlt => ssnow%dtmlt(is:ie,:)
@@ -1709,19 +1712,50 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
     lssnow%evapfbl => ssnow%evapfbl(is:ie,:)
     lssnow%tilefrac => ssnow%tilefrac(is:ie,:)
 
-    lssnow%gammzz => ssnow%gammzz(is:ie,:)
-    
+    lssnow%wbtot => ssnow%wbtot(is:ie)    
+
+    lssnow%gammzz => ssnow%gammzz(is:ie,:)    
     lssnow%wb => ssnow%wb(is:ie,:)
     lssnow%wbice => ssnow%wbice(is:ie,:)
     lssnow%wblf => ssnow%wblf(is:ie,:)
-    lssnow%wbfice => ssnow%wbfice(is:ie,:)
-    lssnow%wbliq => ssnow%wbliq(is:ie,:)
+    lssnow%wbfice => ssnow%wbfice(is:ie,:)    
+
+    lssnow%GWwb => ssnow%GWwb(is:ie)
+    lssnow%GWhk => ssnow%GWhk(is:ie)
+    lssnow%GWdhkdw => ssnow%GWdhkdw(is:ie)
+    lssnow%GWdsmpdw => ssnow%GWdsmpdw(is:ie)
+    lssnow%wtd => ssnow%wtd(is:ie)
+    lssnow%GWsmp => ssnow%GWsmp(is:ie)
+    lssnow%GWwbeq => ssnow%GWwbeq(is:ie)
+    lssnow%GWzq => ssnow%GWzq(is:ie)
+    lssnow%qhz => ssnow%qhz(is:ie)
+    lssnow%satfrac => ssnow%satfrac(is:ie)
+    lssnow%Qrecharge => ssnow%Qrecharge(is:ie)
+    lssnow%rh_srf => ssnow%rh_srf(is:ie)
+    lssnow%rtevap_sat => ssnow%rtevap_sat(is:ie)
+    lssnow%rtevap_unsat => ssnow%rtevap_unsat(is:ie)
+    lssnow%rt_qh_sublayer => ssnow%rt_qh_sublayer(is:ie)
+  
     lssnow%wbeq => ssnow%wbeq(is:ie,:)
-    lssnow%wbtot => ssnow%wbtot(is:ie)
-    
-    lssnow%wmice => ssnow%wmice(is:ie,:)
+    lssnow%zq => ssnow%zq(is:ie,:)
+    lssnow%icefrac => ssnow%icefrac(is:ie,:)
+    lssnow%fracice => ssnow%fracice(is:ie,:)
+    lssnow%hk => ssnow%hk(is:ie,:)
+    lssnow%smp => ssnow%smp(is:ie,:)
+    lssnow%dhkdw => ssnow%dhkdw(is:ie,:)
+    lssnow%dsmpdw => ssnow%dsmpdw(is:ie,:)
+    lssnow%wbliq => ssnow%wbliq(is:ie,:)
     lssnow%wmliq => ssnow%wmliq(is:ie,:)
+    lssnow%wmice => ssnow%wmice(is:ie,:)
     lssnow%wmtot => ssnow%wmtot(is:ie,:)
+    lssnow%qhlev => ssnow%qhlev(is:ie,:)
+    lssnow%smp_hys => ssnow%smp_hys(is:ie,:)    
+    lssnow%wb_hys => ssnow%wb_hys(is:ie,:)
+    lssnow%sucs_hys => ssnow%sucs_hys(is:ie,:)
+    lssnow%ssat_hys => ssnow%ssat_hys(is:ie,:)
+    lssnow%watr_hys => ssnow%watr_hys(is:ie,:)
+    lssnow%hys_fac => ssnow%hys_fac(is:ie,:)
+    lssnow%wbliq_old => ssnow%wbliq_old(is:ie,:)
 
     lssnow%S => ssnow%S(is:ie,:)
     lssnow%Tsoil => ssnow%Tsoil(is:ie,:)
@@ -1744,38 +1778,12 @@ subroutine setp_ssnow(ssnow,lssnow,tile)
     lssnow%nsteps => ssnow%nsteps(is:ie)
     lssnow%TsurfaceFR => ssnow%TsurfaceFR(is:ie)
     lssnow%Ta_daily => ssnow%Ta_daily(is:ie,:)
-    lssnow%nsnow => ssnow%nsnow(is:ie)
+    lssnow%nsnow => ssnow%nsnow(is:ie)    
     lssnow%Qadv_daily => ssnow%Qadv_daily(is:ie)
     lssnow%G0_daily => ssnow%G0_daily(is:ie)
     lssnow%Qevap_daily => ssnow%Qevap_daily(is:ie)
     lssnow%Qprec_daily => ssnow%Qprec_daily(is:ie)
     lssnow%Qprec_snow_daily => ssnow%Qprec_snow_daily(is:ie)
-    
-    lssnow%GWwb => ssnow%GWwb(is:ie)
-    lssnow%GWhk => ssnow%GWhk(is:ie)
-    lssnow%GWdhkdw => ssnow%GWdhkdw(is:ie)
-    lssnow%GWdsmpdw => ssnow%GWdsmpdw(is:ie)
-    lssnow%wtd => ssnow%wtd(is:ie)
-    lssnow%GWsmp => ssnow%GWsmp(is:ie)
-    lssnow%GWwbeq => ssnow%GWwbeq(is:ie)
-    lssnow%GWzq => ssnow%GWzq(is:ie)
-    lssnow%qhz => ssnow%qhz(is:ie)
-    lssnow%qhlev => ssnow%qhlev(is:ie,:)
-    lssnow%satfrac => ssnow%satfrac(is:ie)
-    lssnow%Qrecharge => ssnow%Qrecharge(is:ie)
-    lssnow%rh_srf => ssnow%rh_srf(is:ie)
-    lssnow%rtevap_unsat => ssnow%rtevap_unsat(is:ie)
-    lssnow%rtevap_sat => ssnow%rtevap_sat(is:ie)
-    lssnow%rt_qh_sublayer => ssnow%rt_qh_sublayer(is:ie)
-    lssnow%hk => ssnow%hk(is:ie,:)
-    lssnow%smp => ssnow%smp(is:ie,:)
-    lssnow%zq => ssnow%zq(is:ie,:)
-    lssnow%icefrac => ssnow%icefrac(is:ie,:)
-    lssnow%fracice => ssnow%fracice(is:ie,:)
-    lssnow%dsmpdw => ssnow%dsmpdw(is:ie,:)
-    lssnow%dhkdw => ssnow%dhkdw(is:ie,:)
-    
-    lssnow%dfe_dtg => ssnow%dfe_dtg(is:ie)
     
   end if  
 
@@ -1820,11 +1828,11 @@ subroutine setp_veg(veg,lveg,tile)
 
   if ( is<=ie ) then
   
-    lveg%iveg => veg%iveg(is:ie)
-    lveg%iLU => veg%iLU(is:ie)
     lveg%canst1 => veg%canst1(is:ie)
     lveg%dleaf => veg%dleaf(is:ie)
-    lveg%ejmax => veg%ejmax(is:ie)
+    lveg%ejmax => veg%ejmax(is:ie)      
+    lveg%iveg => veg%iveg(is:ie)
+    lveg%iLU => veg%iLU(is:ie)
     lveg%meth => veg%meth(is:ie)
     lveg%frac4 => veg%frac4(is:ie)
     lveg%hc => veg%hc(is:ie)
@@ -1842,8 +1850,12 @@ subroutine setp_veg(veg,lveg,tile)
     lveg%vcmax => veg%vcmax(is:ie)
     lveg%xfang => veg%xfang(is:ie)
     lveg%extkn => veg%extkn(is:ie)
-    lveg%vlaimax => veg%vlaimax(is:ie)
     lveg%wai => veg%wai(is:ie)
+    lveg%deciduous => veg%deciduous(is:ie)
+    lveg%froot => veg%froot(is:ie,:)
+    lveg%refl => veg%refl(is:ie,:)
+    lveg%taul => veg%taul(is:ie,:)
+    lveg%vlaimax => veg%vlaimax(is:ie)
     lveg%a1gs => veg%a1gs(is:ie)
     lveg%d0gs => veg%d0gs(is:ie)
     lveg%alpha => veg%alpha(is:ie)
@@ -1857,29 +1869,58 @@ subroutine setp_veg(veg,lveg,tile)
     lveg%g0 => veg%g0(is:ie)
     lveg%g1 => veg%g1(is:ie)
 
-    lveg%deciduous => veg%deciduous(is:ie)
-
-    lveg%refl => veg%refl(is:ie,:)
-    lveg%taul => veg%taul(is:ie,:)
-    lveg%froot => veg%froot(is:ie,:)
-
     lveg%rootbeta => veg%rootbeta(is:ie)
     lveg%gamma => veg%gamma(is:ie)
-    lveg%ZR => veg%ZR(is:ie)
     lveg%F10 => veg%F10(is:ie)
-
+    lveg%ZR => veg%ZR(is:ie)
     lveg%clitt => veg%clitt(is:ie)
-
     lveg%disturbance_interval => veg%disturbance_interval(is:ie,:)
     lveg%disturbance_intensity => veg%disturbance_intensity(is:ie,:)
-  
-    lveg%vcmax_shade => veg%vcmax_shade(is:ie)
-    lveg%ejmax_shade => veg%ejmax_shade(is:ie)
-    lveg%vcmax_sun => veg%vcmax_sun(is:ie)
-    lveg%ejmax_sun => veg%ejmax_sun(is:ie)
-    
+
   end if  
 
 end subroutine setp_veg
+
+subroutine cpyin_pop(pop,lpop,tile)
+  type(pop_type), intent(in) :: pop
+  type(pop_type), intent(inout) :: lpop
+  integer, intent(in) :: tile
+  integer :: is, ie
+
+  is = tdata(tile)%poffset + 1
+  ie = tdata(tile)%poffset + tdata(tile)%np
+
+  if ( is<=ie ) then
+    allocate( lpop%pop_grid(tdata(tile)%np) )
+    allocate( lpop%it_pop(tdata(tile)%np) )  
+    allocate( lpop%iwood(tdata(tile)%np) )  
+    lpop%pop_grid = pop%pop_grid(is:ie)
+    lpop%it_pop = pop%it_pop(is:ie)
+    lpop%np = tdata(tile)%np
+    lpop%Iwood = pop%Iwood(is:ie)
+  end if  
+
+end subroutine cpyin_pop
+
+subroutine cpyout_pop(pop,lpop,tile)
+  type(pop_type), intent(inout) :: pop
+  type(pop_type), intent(inout) :: lpop
+  integer, intent(in) :: tile
+  integer :: is, ie
+
+  is = tdata(tile)%poffset + 1
+  ie = tdata(tile)%poffset + tdata(tile)%np
+
+  if ( is<=ie ) then
+    pop%pop_grid(is:ie) = lpop%pop_grid 
+    pop%it_pop(is:ie) = lpop%it_pop 
+    pop%Iwood(is:ie) = lpop%Iwood 
+    deallocate( lpop%pop_grid )
+    deallocate( lpop%it_pop )
+    deallocate( lpop%iwood )
+  end if  
+
+end subroutine cpyout_pop
+
 
 end module cable_ccam4

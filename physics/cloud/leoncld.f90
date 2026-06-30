@@ -224,28 +224,28 @@ end if
 ! MJT notes - invert levels for aerosol code
 if ( abs(iaero)>=2 ) then
   invdt = 1./dt
-  ppfprec(:,1) = 0.   !At TOA
-  ppfmelt(:,1) = 0.   !At TOA
-  ppfsnow(:,1) = 0.   !At TOA
-  pprfreeze(:,1) = 0. !At TOA
+  ppfprec(:,kl) = 0.   !At TOA
+  ppfmelt(:,kl) = 0.   !At TOA
+  ppfsnow(:,kl) = 0.   !At TOA
+  pprfreeze(:,kl) = 0. !At TOA
   do k = 1,kl-1
     do iq = 1,imax
-      ppfprec(iq,kl-k+1) = (fluxr(iq,k+1)+fluxm(iq,k)-fluxf(iq,k))*invdt     !flux *entering* layer k
-      ppfmelt(iq,kl-k+1) = fluxm(iq,k)*invdt                                 !flux melting in layer k
-      ppfsnow(iq,kl-k+1) = (fluxi(iq,k+1)+fluxs(iq,k+1)+fluxg(iq,k+1) &
+      ppfprec(iq,k) = (fluxr(iq,k+1)+fluxm(iq,k)-fluxf(iq,k))*invdt     !flux *entering* layer k
+      ppfmelt(iq,k) = fluxm(iq,k)*invdt                                 !flux melting in layer k
+      ppfsnow(iq,k) = (fluxi(iq,k+1)+fluxs(iq,k+1)+fluxg(iq,k+1) &
                           -fluxm(iq,k)+fluxf(iq,k))*invdt                    !flux *entering* layer k
-      pprfreeze(iq,kl-k+1) = fluxf(iq,k)*invdt                               !flux freezing in layer k
+      pprfreeze(iq,k) = fluxf(iq,k)*invdt                               !flux freezing in layer k
     end do
   end do
   do k = 1,kl
     do iq = 1,imax
-      ppfevap(iq,kl-k+1)    = qevap(iq,k)*rhoa(iq,k)*dz(iq,k)*invdt
-      ppfsubl(iq,kl-k+1)    = qsubl(iq,k)*rhoa(iq,k)*dz(iq,k)*invdt !flux sublimating or staying in k
-      pplambs(iq,kl-k+1)    = pslopes(iq,k)
-      ppmrate(iq,kl-k+1)    = (qauto(iq,k)+qcoll(iq,k))*invdt
-      ppmaccr(iq,kl-k+1)    = qaccr(iq,k)*invdt
-      ppqfsedice(iq,kl-k+1) = pqfsedice(iq,k)
-      pprscav(iq,kl-k+1)    = prscav(iq,k)
+      ppfevap(iq,k)    = qevap(iq,k)*rhoa(iq,k)*dz(iq,k)*invdt
+      ppfsubl(iq,k)    = qsubl(iq,k)*rhoa(iq,k)*dz(iq,k)*invdt !flux sublimating or staying in k
+      pplambs(iq,k)    = pslopes(iq,k)
+      ppmrate(iq,k)    = (qauto(iq,k)+qcoll(iq,k))*invdt
+      ppmaccr(iq,k)    = qaccr(iq,k)*invdt
+      ppqfsedice(iq,k) = pqfsedice(iq,k)
+      pprscav(iq,k)    = prscav(iq,k)
     end do
   end do
 end if

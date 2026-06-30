@@ -711,8 +711,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       js = (tile-1)*imax + 1
       je = tile*imax
       do k = 1,kl
-        t(js:je,k) = t(js:je,k) - max( dt*(sw_tend(js:je,k)+lw_tend(js:je,k)), &
-                                       min(t(js:je,k)-tradmax,0.) )
+        t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
         rad_tend(js:je,k) = rad_tend(js:je,k) + t(js:je,k)/dt
       end do
       call nantest("after radiation",js,je,"radiation")    
@@ -905,9 +904,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   ! ***********************************************************************
 
   call START_LOG(diag_begin)  
-  
-  ! for updraft helicity calculation below
-  call boundsuv_send(u,v,allvec=.true.) 
  
   ! SCRN -------------------------------------------------------  
   if ( rescrn>0 ) then
@@ -927,10 +923,6 @@ do ktau = 1,ntau   ! ****** start of main time loop
   if ( ltest ) then
     call capecalc
   end if  
-
-  ! Calculate updraft helicity ---------------------------------
-  call boundsuv_recv(u,v,allvec=.true.)
-  call uh_calc
 
   call END_LOG(diag_end)
 

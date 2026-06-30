@@ -105,7 +105,7 @@
 
 module cable_ccam
 
-use cable_ccam_common
+use cable_ccam_common, cbm_mp => mp
 use cable_ccam_file
 use cable_ccam_setup
 
@@ -120,7 +120,7 @@ public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
-public mplant,mlitter,msoil
+public mplant, mlitter, msoil
 
 ! Imported from cable_ccam_file
 public loadtile, defaulttile, savetiledef, savetile
@@ -164,10 +164,10 @@ use work2_m, only : qsttg,zo,zoh,zoq,theta,vmod,wetfac
 use work3_m, only : ga
 use zenith_m
 
-integer, dimension(maxtile,2) :: ltind
-integer :: lmaxnb, tile, is, ie, js, je
-integer :: ico2, igas
-integer :: iyr, imo, iday, mdays, k
+integer ico2, igas
+integer iyr, imo, iday, mdays, k
+real x
+integer tile, is, ie, js, je
 real, dimension(imax,mlitter) :: lclitter, lnilitter, lplitter
 real, dimension(imax,mplant) :: lcplant, lniplant, lpplant
 real, dimension(imax,msoil) :: lcsoil, lnisoil, lpsoil
@@ -176,9 +176,7 @@ real, dimension(imax,ms) :: lwb_clim
 real, dimension(imax,3) :: lsmass, lssdn, ltggsn
 real, dimension(imax) :: lcnbp, lcnpp, lfnee, lfpn, lfrd, lfrp, lfrpr, lfrpw, lfrs
 real, dimension(imax) :: latmco2
-real, dimension(imax) :: lfevc,lplant_turnover,lplant_turnover_wood
-real :: x
-logical, dimension(imax,maxtile) :: ltmap
+real, dimension(imax) :: lfevc, lplant_turnover, lplant_turnover_wood
 type(air_type) :: lair
 type(balances_type) :: lbal
 type(canopy_type) :: lcanopy
@@ -197,7 +195,7 @@ type(soil_snow_type) :: lssnow
 type(sum_flux_type) :: lsum_flux
 type(veg_parameter_type) :: lveg
 
-!$omp do schedule(static) private(is,ie,js,je,ltind,ltmap,lmaxnb,ico2,igas,x,k,iyr,imo,iday),                  &
+!$omp do schedule(static) private(is,ie,js,je,ico2,igas,x,k,iyr,imo,iday),                                     &
 !$omp private(lclitter,lcnbp,lcnpp,lcplant,lcsoil,lfnee,lfpn),                                                 &
 !$omp private(lfrd,lfrp,lfrpr,lfrpw,lfrs,lnilitter,lniplant,lnisoil,lplitter,lpplant,lpsoil),                  &
 !$omp private(lsmass,lssdn,ltgg,ltggsn,lwb,lwbice,lair,lbal,lcanopy,lcasabal,latmco2),                         &
@@ -207,16 +205,13 @@ do tile = 1,ntiles
   is = (tile-1)*imax + 1
   ie = tile*imax
 
-  mp = tdata(tile)%mp
-  lmaxnb = tdata(tile)%maxnb
+  cbm_mp = tdata(tile)%mp
+  grid_mp = cbm_mp
   
   js = tdata(tile)%toffset + 1
   je = tdata(tile)%toffset + tdata(tile)%mp
 
-  ltind = tdata(tile)%tind - tdata(tile)%toffset
-
-  if ( mp>0 ) then
-    ltmap = tdata(tile)%tmap       
+  if ( cbm_mp>0 ) then
     lsmass = smass(is:ie,:)
     lssdn = ssdn(is:ie,:)
     ltgg = tgg(is:ie,:)
@@ -271,7 +266,7 @@ do tile = 1,ntiles
         end if
       end do
       if ( ico2>0 ) then
-        latmco2 = tr(1:imax,1,ico2) ! use interactive tracers
+        latmco2 = tr(is:ie,1,ico2) ! use interactive tracers
       end if
     end if  
     
@@ -293,7 +288,7 @@ do tile = 1,ntiles
       call setp(casapool,lcasapool,tile)
       call setp(phen,lphen,tile)
       if ( cable_pop==1 ) then
-        call setp(pop,lpop,tile)  
+        call cpyin(pop,lpop,tile)  
       end if    
     end if
     !call setp(climate,lclimate,tile)  ! disable climate
@@ -302,16 +297,22 @@ do tile = 1,ntiles
                    albvissav(is:ie),cansto(is:ie),cdtq(is:ie),cduv(is:ie),lclitter,lcnbp,                                &
                    lcnpp,condg(is:ie),conds(is:ie),condx(is:ie),lcplant,lcsoil,eg(is:ie),epot(is:ie),fbeamnir(is:ie),    &
                    fbeamvis(is:ie),fg(is:ie),lfnee,lfpn,lfrd,lfrp,                                                       &
-                   lfrpr,lfrpw,lfrs,fwet(is:ie),ga(is:ie),isflag(is:ie),land(is:ie),lmaxnb,mp,lnilitter,lniplant,        &
+                   lfrpr,lfrpw,lfrs,fwet(is:ie),ga(is:ie),isflag(is:ie),land(is:ie),lnilitter,lniplant,                  &
                    lnisoil,lplitter,lpplant,ps(is:ie),lpsoil,qg(is:ie,1),qsttg(is:ie),rgsave(is:ie),                     &
                    rlatt(is:ie),rlongg(is:ie),rnet(is:ie),rsmin(is:ie),runoff(is:ie),runoff_surface(is:ie),              &
                    sigmf(is:ie),lsmass,snage(is:ie),snowd(is:ie),snowmelt(is:ie),lssdn,ssdnn(is:ie),                     &
-                   sv(js:je),sgdn(is:ie),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),ltind,ltmap,                 &
+                   sv(js:je),sgdn(is:ie),swrsave(is:ie),t(is:ie,1),ltgg,ltggsn,theta(is:ie),                             &
                    latmco2,tss(is:ie),ustar(is:ie),vlai(is:ie),vl2(js:je),vmod(is:ie),                                   &
                    lwb,lwbice,wetfac(is:ie),zo(is:ie),zoh(is:ie),zoq(is:ie),evspsbl(is:ie),sbl(is:ie),wtd(is:ie),lair,   &
-                   lbal,c,lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,  &
-                   lsoil,lssnow,lsum_flux,lveg,lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim,imax)
+                   lbal,lcanopy,lcasabal,casabiome,lcasaflux,lcasamet,lcasapool,lclimate,lmet,lphen,lpop,lrad,lrough,    &
+                   lsoil,lssnow,lsum_flux,lveg,lfevc,lplant_turnover,lplant_turnover_wood,lwb_clim,imax,tile)
 
+    if ( ccycle/=0 ) then
+      if ( cable_pop==1 ) then
+        call cpyout(pop,lpop,tile)  
+      end if    
+    end if
+    
     smass(is:ie,:) = lsmass
     ssdn(is:ie,:) = lssdn
     tgg(is:ie,:) = ltgg
@@ -354,67 +355,75 @@ end subroutine sib4
 ! CABLE-CCAM interface
 subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav,cansto,cdtq,cduv,clitter,cnbp, &
                      cnpp,condg,conds,condx,cplant,csoil,eg,epot,fbeamnir,fbeamvis,fg,fnee,fpn,frd,frp,frpr,    &
-                     frpw,frs,fwet,ga,isflag,land,maxnb,mp,nilitter,niplant,nisoil,plitter,pplant,ps,           &
+                     frpw,frs,fwet,ga,isflag,land,nilitter,niplant,nisoil,plitter,pplant,ps,                    &
                      psoil,qg,qsttg,rgsave,rlatt,rlongg,rnet,rsmin,runoff,runoff_surface,sigmf,smass,           &
-                     snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,tind,tmap,atmco2,tss,    &
-                     ustar,vlai,vl2,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,sbl,wtd,air,bal,c,canopy,           &
+                     snage,snowd,snowmelt,ssdn,ssdnn,sv,sgdn,swrsave,t,tgg,tggsn,theta,atmco2,tss,              &
+                     ustar,vlai,vl2,vmod,wb,wbice,wetfac,zo,zoh,zoq,evspsbl,sbl,wtd,air,bal,canopy,             &
                      casabal,casabiome,casaflux,casamet,casapool,climate,met,phen,pop,rad,rough,soil,ssnow,     &
-                     sum_flux,veg,fevc,plant_turnover,plant_turnover_wood,wb_clim,imax)
+                     sum_flux,veg,fevc,plant_turnover,plant_turnover_wood,wb_clim,ifull,tile)
 
 use const_phys
 use dates_m
 use estab, only : qsat
 use infile, only : getzinp
+use newmpar_m, only : ms, imax
 use parm_m
 use sigs_m
 use soil_m, only : zmin
 use zenith_m, only : solargh, zenith
-  
-integer, intent(in) :: imax, maxnb, mp
+
+integer, intent(in) :: ifull, tile
 integer jyear, jmonth, jday, jhour, jmin, idoy
 integer k, mins, nb, j
 integer is, ie, casaperiod, npercasa
 integer lalloc
 integer mp_POP
-integer, dimension(maxtile,2), intent(in) :: tind
-integer, dimension(imax), intent(inout) :: isflag
+integer js, je
+integer, dimension(ifull), intent(inout) :: isflag
+integer, dimension(cbm_mp) :: i_doy
 real fjd, r1, dlt, slag, dhr, alp
-real, dimension(imax), intent(in) :: atmco2
-real, dimension(imax), intent(in) :: qg, t
-real, dimension(imax,mplant), intent(inout) :: cplant, niplant, pplant
-real, dimension(imax,mlitter), intent(inout) :: clitter, nilitter, plitter
-real, dimension(imax,msoil), intent(inout) :: csoil, nisoil, psoil
-real, dimension(imax,ms), intent(inout) :: tgg, wb, wbice
-real, dimension(imax,ms), intent(in) :: wb_clim
-real, dimension(imax,3), intent(inout) :: smass, ssdn, tggsn
-real, dimension(imax), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisdif, albvisdir, albvissav
-real, dimension(imax), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd
-real, dimension(imax), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin
-real, dimension(imax), intent(inout) :: sigmf, snage, snowd, ssdnn, tss, ustar
-real, dimension(imax), intent(inout) :: vlai, wetfac, zo, zoh, zoq
-real, dimension(imax), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
-real, dimension(imax), intent(inout) :: wtd
-real, dimension(imax), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
-real, dimension(imax), intent(in) :: sgdn, swrsave, theta, vmod
-real, dimension(imax) :: coszro2, taudar2, tmps, qsttg_land
-real, dimension(imax) :: evspsbl_l, sbl_l
-real, dimension(mp), intent(in) :: sv, vl2
-real, dimension(mp) :: cc1, cc2, dumt, dump, qsatfvar, ssnowpotev
-real, dimension(mp) :: wbclim_pack
-real, dimension(imax), intent(inout) :: runoff, runoff_surface, snowmelt
-real, dimension(imax), intent(inout) :: evspsbl, sbl
+real, dimension(ifull), intent(in) :: atmco2
+real, dimension(ifull), intent(in) :: qg, t
+real, dimension(ifull,mplant), intent(inout) :: cplant, niplant, pplant
+real, dimension(ifull,mlitter), intent(inout) :: clitter, nilitter, plitter
+real, dimension(ifull,msoil), intent(inout) :: csoil, nisoil, psoil
+real, dimension(ifull,ms), intent(inout) :: tgg, wb, wbice
+real, dimension(ifull,ms), intent(in) :: wb_clim
+real, dimension(ifull,3), intent(inout) :: smass, ssdn, tggsn
+real, dimension(ifull), intent(inout) :: albnirdif, albnirdir, albnirsav, albvisdif, albvisdir, albvissav
+real, dimension(ifull), intent(inout) :: cansto, cdtq, cduv, cnbp, cnpp, eg, epot, fg, fnee, fpn, frd
+real, dimension(ifull), intent(inout) :: frp, frpr, frpw, frs, fwet, ga, qsttg, rnet, rsmin
+real, dimension(ifull), intent(inout) :: sigmf, snage, snowd, ssdnn, tss, ustar
+real, dimension(ifull), intent(inout) :: vlai, wetfac, zo, zoh, zoq
+real, dimension(ifull), intent(inout) :: fevc, plant_turnover, plant_turnover_wood
+real, dimension(ifull), intent(inout) :: wtd
+real, dimension(ifull), intent(in) :: condg, conds, condx, fbeamnir, fbeamvis, ps, rgsave, rlatt, rlongg
+real, dimension(ifull), intent(in) :: sgdn, swrsave, theta, vmod
+real, dimension(ifull) :: coszro2, taudar2, tmps, qsttg_land
+real, dimension(ifull) :: evspsbl_l, sbl_l
+real, dimension(cbm_mp), intent(in) :: sv, vl2
+real, dimension(cbm_mp) :: cc1, cc2, dumt, dump, qsatfvar, ssnowpotev
+real, dimension(cbm_mp) :: wbclim_pack
+real, dimension(ifull), intent(inout) :: runoff, runoff_surface, snowmelt
+real, dimension(ifull), intent(inout) :: evspsbl, sbl
 real(kind=8) :: dtr8
-real(kind=8), dimension(mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
-real(kind=8), dimension(mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
-real(kind=8), dimension(mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
-real(r_2), dimension(mp) :: xKNlimiting, xkleafcold, xkleafdry
-real(r_2), dimension(mp) :: xkleaf, xnplimit, xNPuptake, xklitter
-real(r_2), dimension(mp) :: xksoil
-logical, dimension(imax,maxtile), intent(in) :: tmap
-logical, dimension(imax), intent(in) :: land
+real(kind=8), dimension(cbm_mp) :: cleaf2met, cleaf2str, croot2met, croot2str, cwood2cwd
+real(kind=8), dimension(cbm_mp) :: nleaf2met, nleaf2str, nroot2met, nroot2str, nwood2cwd
+real(kind=8), dimension(cbm_mp) :: pleaf2met, pleaf2str, proot2met, proot2str, pwood2cwd
+real(kind=8), dimension(cbm_mp) :: xKNlimiting, xkleafcold, xkleafdry
+real(kind=8), dimension(cbm_mp) :: xkleaf, xnplimit, xNPuptake, xklitter
+real(kind=8), dimension(cbm_mp) :: xksoil
+real(kind=8), dimension(cbm_mp) :: tmp
+real(kind=8), dimension(cbm_mp) :: veg_wt, veg_trad, soil_wt, soil_trad, trad_corr
+real(kind=8), dimension(cbm_mp,cbm_nrb) :: c1, rhoch, xk
+logical, dimension(ifull), intent(in) :: land
+logical, dimension(cbm_mp) :: veg_mask, sunlit_mask, sunlit_veg_mask
+logical :: cbl_standalone = .false.
+logical :: jls_standalone = .false.
+logical :: jls_radiation  = .false.
+character(len=4), parameter :: subr_name = "ccam"
 type(air_type), intent(inout) :: air
 type(balances_type), intent(inout) :: bal
-type(physical_constants), intent(in) :: c
 type(canopy_type), intent(inout) :: canopy
 type(casa_balance), intent(inout) :: casabal
 type(casa_biome), intent(inout) :: casabiome
@@ -456,7 +465,7 @@ else
   stop
 end if
 call solargh(fjd,bpyear,r1,dlt,alp,slag)
-call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,imax,coszro2,taudar2)
+call zenith(fjd,r1,dlt,slag,rlatt,rlongg,dhr,ifull,coszro2,taudar2)
 
 !! store soil temperature and moisture for budget calculation
 !bwb(:,:) = ssnow%wb(:,:)
@@ -475,55 +484,61 @@ end if
 ! set meteorological forcing
 albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
 albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4
-do nb = 1,maxnb
-  is = tind(nb,1)
-  ie = tind(nb,2)
-  met%tk(is:ie)        = real(pack(theta,      tmap(:,nb)), 8)
-  met%ua(is:ie)        = real(pack(vmod,       tmap(:,nb)), 8)
-  met%ca(is:ie)        = real(pack(atmco2,     tmap(:,nb))*1.e-6, 8)
-  met%coszen(is:ie)    = real(pack(coszro2,    tmap(:,nb)), 8)        ! use instantaneous value
-  met%qv(is:ie)        = real(pack(qg(1:imax), tmap(:,nb)), 8)        ! specific humidity in kg/kg
-  met%pmb(is:ie)       = real(pack(ps(1:imax), tmap(:,nb))*0.01, 8)   ! pressure in mb at ref height
-  met%precip(is:ie)    = real(pack(condx,      tmap(:,nb)), 8)        ! in mm not mm/sec
-  met%precip_sn(is:ie) = real(pack(conds+condg,tmap(:,nb)), 8)        ! in mm not mm/sec
+js = 1
+je = imax
+do nb = 1,tdata(tile)%maxnb
+  is = tdata(tile)%tind(nb,1) - tdata(tile)%toffset
+  ie = tdata(tile)%tind(nb,2) - tdata(tile)%toffset
+  met%tk(is:ie)        = real(pack(theta(js:je),             tdata(tile)%tmap(:,nb)), 8)
+  met%ua(is:ie)        = real(pack(vmod(js:je),              tdata(tile)%tmap(:,nb)), 8)
+  met%ca(is:ie)        = real(pack(atmco2(js:je),            tdata(tile)%tmap(:,nb))*1.e-6, 8)
+  met%coszen(is:ie)    = real(pack(coszro2(js:je),           tdata(tile)%tmap(:,nb)), 8)        ! use instantaneous value
+  met%qv(is:ie)        = real(pack(qg(js:je),                tdata(tile)%tmap(:,nb)), 8)        ! specific humidity in kg/kg
+  met%pmb(is:ie)       = real(pack(ps(js:je),                tdata(tile)%tmap(:,nb))*0.01, 8)   ! pressure in mb at ref height
+  met%precip(is:ie)    = real(pack(condx(js:je),             tdata(tile)%tmap(:,nb)), 8)        ! in mm not mm/sec
+  met%precip_sn(is:ie) = real(pack(conds(js:je)+condg(js:je),tdata(tile)%tmap(:,nb)), 8)        ! in mm not mm/sec
   ! swrsave indicates the fraction of net VIS radiation (compared to NIR)
   ! fbeamvis indicates the beam fraction of downwelling direct radiation (compared to diffuse) for VIS
   ! fbeamnir indicates the beam fraction of downwelling direct radiation (compared to diffuse) for NIR
-  met%fsd(is:ie,1)     = real(pack(swrsave*sgdn,     tmap(:,nb)), 8)
-  met%fsd(is:ie,2)     = real(pack((1.-swrsave)*sgdn,tmap(:,nb)), 8)
-  met%fld(is:ie)       = real(pack(-rgsave,          tmap(:,nb)), 8)      ! long wave down (positive) W/m^2
-  rad%fbeam(is:ie,1)   = real(pack(fbeamvis,         tmap(:,nb)), 8)
-  rad%fbeam(is:ie,2)   = real(pack(fbeamnir,         tmap(:,nb)), 8)
-  rough%za_tq(is:ie)   = real(pack(bet(1)*t(1:imax), tmap(:,nb))/grav, 8) ! reference height
+  met%fsd(is:ie,1)     = real(pack(swrsave(js:je)*sgdn(js:je),     tdata(tile)%tmap(:,nb)), 8)
+  met%fsd(is:ie,2)     = real(pack((1.-swrsave(js:je))*sgdn(js:je),tdata(tile)%tmap(:,nb)), 8)
+  met%fld(is:ie)       = real(pack(-rgsave(js:je),                 tdata(tile)%tmap(:,nb)), 8)  ! long wave down (positive) W/m^2
+  rad%fbeam(is:ie,1)   = real(pack(fbeamvis(js:je),                tdata(tile)%tmap(:,nb)), 8)
+  rad%fbeam(is:ie,2)   = real(pack(fbeamnir(js:je),                tdata(tile)%tmap(:,nb)), 8)
+  rad%fbeam(is:ie,3)   = 0._8 ! dummy for now
+  rough%za_tq(is:ie)   = real(pack(bet(1)*t(js:je),                tdata(tile)%tmap(:,nb))/grav, 8) ! reference height
   rough%za_tq(is:ie)   = max( rough%za_tq(is:ie), veg%hc(is:ie)+1._8 )
-end do
-met%doy        = real(fjd, 8)
-met%hod        = (met%doy-int(met%doy))*24._8 + rad%longitude/15._8
-met%hod        = mod(met%hod, 24._8)
-met%tvair      = met%tk
-met%tvrad      = met%tk
-met%qvair      = met%qv
-met%ua         = max(met%ua, c%umin)
-met%coszen     = max(met%coszen, 1.e-8_8) 
-rough%za_uv    = rough%za_tq
-rad%fbeam(:,3) = 0._8            ! dummy for now
+end do  
+met%doy     = real(fjd, 8)
+i_doy       = int(met%doy)
+met%hod     = (met%doy-int(met%doy))*24._8 + rad%longitude/15._8
+met%hod     = mod(met%hod, 24._8)
+met%tvair   = met%tk
+met%tvrad   = met%tk
+met%qvair   = met%qv
+met%ua      = max(met%ua, umin)
+met%coszen  = max(met%coszen, 1.e-8_8) 
+rough%za_uv = rough%za_tq
 
 if ( cable_gw_model==1 ) then
-  do nb = 1,maxnb
-    is = tind(nb,1)
-    ie = tind(nb,2)
-    ssnow%wtd(is:ie) = real( pack(wtd, tmap(:,nb))*1000., 8)
+  js = 1
+  je = imax
+  do nb = 1,tdata(tile)%maxnb
+    is = tdata(tile)%tind(nb,1) - tdata(tile)%toffset
+    ie = tdata(tile)%tind(nb,2) - tdata(tile)%toffset
+    ssnow%wtd(is:ie) = real( pack(wtd(js:je), tdata(tile)%tmap(:,nb))*1000., 8)
   end do  
 end if
 
 ! Interpolate LAI.  Also need sigmf for LDR prognostic aerosols.
-call setlai(sigmf,jmonth,jday,jhour,jmin,mp,sv,vl2,casamet,veg,imax,tind,tmap,maxnb)
+call setlai(sv,vl2,casamet,veg,cbm_mp)
 
 ! Calculate vcmax
 call vcmax_feedback(casabiome,casamet,casapool,veg,climate,ktau)
 
 !--------------------------------------------------------------
 ! CABLE
+
 canopy%fev       = 0._8
 canopy%fes       = 0._8
 canopy%fhv       = 0._8
@@ -531,21 +546,49 @@ canopy%fhs       = 0._8
 met%ofsd         = met%fsd(:,1) + met%fsd(:,2)
 ssnow%owetfac    = ssnow%wetfac
 canopy%oldcansto = canopy%cansto
-call ruff_resist(veg,rough,ssnow,canopy)
+
+! CCAM does not use cable lakes
+!WHERE( veg%iveg == lakes_cable .AND. ssnow%wb(:,1) < soil%sfc ) 
+!  ssnow%wbtot1(:)  = REAL( ssnow%wb(:,1) ) * density_liq * soil%zse(1)
+!  ssnow%wb(:,1) = soil%sfc
+!  ssnow%wbtot2  = REAL( ssnow%wb(:,1) ) * density_liq * soil%zse(1)
+!ENDWHERE
+!ssnow%wb_lake = ssnow%wb_lake + MAX( ssnow%wbtot2 - ssnow%wbtot1, 0.)
+
+call ruff_resist(veg,rough,ssnow,canopy,veg%vlai,veg%hc,canopy%vlaiw)
 call define_air(met,air)
-call init_radiation(met,rad,veg,canopy)
-call surface_albedo(ssnow,veg,met,rad,soil,canopy)
-call define_canopy(bal,rad,rough,air,met,dtr8,ssnow,soil,veg,canopy,climate)
-ssnow%otss_0  = ssnow%otss
-ssnow%otss    = ssnow%tss
+call fveg_mask(veg_mask,cbm_mp,lai_thresh,canopy%vlaiw)
+tmp(:) = met%fsd(:,1) + met%fsd(:,2)
+call fsunlit_mask(sunlit_mask,cbm_mp,rad_thresh,tmp)
+call fsunlit_veg_mask(sunlit_veg_mask,veg_mask,sunlit_mask,cbm_mp)
+call init_radiation(rad%extkb,rad%extkd,rad%extkbm,rad%extkdm,Rad%Fbeam,        &
+                    c1,rhoch,xk,cbm_mp,cbm_nrb,lai_thresh,coszen_tols,Gauss_w,  &
+                    cbm_pi,cbm_pi180,cbl_standalone,jls_standalone,             &
+                    jls_radiation,subr_name,veg_mask,veg%Xfang,                 &
+                    veg%taul,veg%refl,met%coszen,i_doy,met%fsd,                 &
+                    canopy%vlaiw)
+call albedo(ssnow%AlbSoilsn,soil%AlbSoil,cbm_mp,cbm_nrb,ICE_SoilType,lakes_cable,  &
+            jls_radiation,veg_mask,coszen_tols,GAUSS_W,veg%iveg,                   &
+            soil%isoilm,veg%refl,veg%taul,met%coszen,canopy%vlaiw,                 &
+            ssnow%snowd,ssnow%ssdnn,ssnow%tgg(:,1),ssnow%snage,                    &
+            xk,c1,rhoch,rad%fbeam,rad%albedo,rad%extkb,rad%extkd,                  &
+            rad%extkbm,rad%extkdm,rad%rhocbm,rad%rhocdf,                           &
+            rad%cexpkbm,rad%cexpkdm,rad%reffbm,rad%reffdf)
+!rad%albedo_T = (rad%albedo(:, 1) + rad%albedo(:, 2)) * 0.5
+call define_canopy(bal,rad,rough,air,met,dtr8,ssnow,soil,veg,canopy,climate, &
+                   sunlit_veg_mask,canopy%vlaiw)
+ssnow%otss_0 = ssnow%otss
+ssnow%otss = ssnow%tss
 ssnow%owetfac = ssnow%wetfac
 select case ( soil_struc )
   case(0)  
-    if ( cable_gw_model==1 ) then
-      call soil_snow_gw(dtr8,soil,ssnow,canopy,met,bal,veg)        
-    else    
-      call soil_snow(dtr8,soil,ssnow,canopy,met,bal,veg)
-    end if  
+!    if ( cable_gw_model==1 ) then
+!      call soil_snow_gw(dtr8,soil,ssnow,canopy,met,bal,veg)        
+!    else
+       call soil_snow(dtr8,soil,ssnow,canopy,met,bal,veg)
+       call snow_aging(ssnow%snage,cbm_mp,dtr8,ssnow%snowd,ssnow%osnowd,ssnow%tggsn(:,1), &
+                ssnow%tgg(:,1),ssnow%isflag,veg%iveg,soil%isoilm) 
+!    end if  
   case(1)
     call sli_main(999,dtr8,veg,soil,ssnow,met,canopy,air,rad,0)   
   case default
@@ -553,21 +596,42 @@ select case ( soil_struc )
     stop
 end select
 ! adjust for new soil temperature
-ssnow%deltss     = ssnow%tss - ssnow%otss
-if ( soil_struc==0 ) then
-  canopy%fhs       = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
-  canopy%fes       = canopy%fes + ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg
-  canopy%fns       = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
-  canopy%ga        = canopy%ga  + ssnow%deltss*canopy%dgdtg
-  ! MJT fix
-  ssnow%wb(:,ms) = ssnow%wb(:,ms) - (ssnow%deltss*ssnow%dfe_ddq*ssnow%ddq_dtg)*dtr8 &
-                                   /(ssnow%cls*air%rlam*soil%zse(ms)*1000._8) 
-end if
-canopy%fh        = canopy%fhv + canopy%fhs
-canopy%fev       = canopy%fevc + canopy%fevw
-canopy%fe        = canopy%fev + canopy%fes
-canopy%rnet      = canopy%fns + canopy%fnv
-rad%trad         = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
+ssnow%deltss = ssnow%tss - ssnow%otss
+!if ( soil_struc==0 ) then
+  canopy%fhs = canopy%fhs + ssnow%deltss*ssnow%dfh_dtg
+  canopy%fes = canopy%fes + ssnow%deltss*ssnow%dfe_dtg
+  canopy%fess = canopy%fess + ssnow%deltss*ssnow%dfe_dtg
+  canopy%fns = canopy%fns + ssnow%deltss*ssnow%dfn_dtg
+  canopy%ga  = canopy%ga  + ssnow%deltss*canopy%dgdtg
+  !! MJT fix
+  !ssnow%wb(:,cbm_ms) = ssnow%wb(:,cbm_ms) - (ssnow%deltss*ssnow%dfe_dtg)*dtr8 &
+  !                                 /(ssnow%cls*air%rlam*soil%zse(cbm_ms)*1000._8) 
+!end if
+canopy%fh   = canopy%fhv + canopy%fhs
+canopy%fev  = canopy%fevc + canopy%fevw
+canopy%fe   = canopy%fev + canopy%fes
+canopy%rnet = canopy%fns + canopy%fnv
+
+
+! Calculate radiative/skin temperature:
+!Jan 2018: UM assumes a single emissivity for the surface in the radiation scheme
+!To accommodate this a single value of is 1. is assumed in ACCESS
+! any leaf/soil emissivity /=1 must be incorporated into rad%trad.  
+! check that emissivities (pft and nvg) set = 1 within the UM i/o configuration
+! CM2 - further adapted to pass the correction term onto %trad correctly
+!rad%trad = ( ( 1.-rad%transd ) * Cemleaf * canopy%tv**4 +                      &
+!       rad%transd * Cemsoil * ssnow%otss**4 + canopy%fns_cor/CSBOLTZ )**0.25
+
+veg_wt    = 1._8 - rad%transd
+veg_trad  = emleaf * canopy%tv**4
+soil_wt   = rad%transd 
+soil_trad = emsoil * ssnow%otss**4
+trad_corr = canopy%fns_cor/SBOLTZ
+
+rad%trad = ( veg_wt * veg_trad )  + ( soil_wt * soil_trad ) + trad_corr  
+rad%trad = rad%trad**0.25_8
+
+!rad%trad    = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
 
 ! note that conservation is still preserved at this point
 ! canopy%ga    = canopy%rnet - canopy%fh - canopy%fe
@@ -579,7 +643,7 @@ ssnow%wbice = max( ssnow%wbice, 0._8 )
 
 ! change in soil temperature
 !deltgg(:) = 0._8
-!do k = 1,ms
+!do k = 1,cbm_ms
 !  deltgg(:) = deltgg(:) + (ssnow%tgg(:,k)-btgg(:,k))*ssnow%gammzz(:,k)/dtr8
 !end do  
 !! energy balance
@@ -587,7 +651,7 @@ ssnow%wbice = max( ssnow%wbice, 0._8 )
 !write(6,*) "energy ",minval(tbal),maxval(tbal)
 !! change in soil moisture
 !delwb(:) = 0._8
-!do k = 1,ms
+!do k = 1,cbm_ms
 !  delwb(:) = delwb(:) + (ssnow%wb(:,k)-bwb(:,k))*soil%zse(k)*1000.
 !end do  
 !! net water into soil
@@ -634,7 +698,13 @@ end if
 ! CASA CNP
 select case (ccycle)
   case(0) ! off
-
+    !call plantcarb(veg,bgc,met,canopy)
+    !call soilcarb(soil, ssnow, veg, bgc, met, canopy)
+    !call carbon_pl(dtr8, soil, ssnow, veg, canopy, bgc)
+    !canopy%fnpp = -1.0 * canopy%fpn - canopy%frp
+    !canopy%fgpp = -1.0 * canopy%fpn + canopy%frday
+    !canopy%fnee = canopy%fpn + canopy%frs + canopy%frp
+    !canopy%fra = canopy%frp + canopy%frday
   case(1,2,3) ! C, C+N, C+N+P
     ! update casamet
     if ( cable_pop==1 ) then
@@ -662,16 +732,20 @@ select case (ccycle)
       call casa_coeffplant(xkleafcold,xkleafdry,xkleaf,veg,casabiome,casapool,casaflux,casamet,phen)
       call casa_xnp(xnplimit,xNPuptake,veg,casabiome,casapool,casaflux,casamet)
       if ( cable_pop==1 ) then
-        call casa_pop_firstcall(lalloc,casabiome,casaflux,casamet,casapool,phen,pop,soil,veg)  
+        call casa_pop_firstcall(lalloc,casabiome,casaflux,casamet,casapool,phen,pop,soil,veg)
       end if  
       call casa_xratesoil(xklitter,xksoil,veg,soil,casamet,casabiome)
       call casa_coeffsoil(xklitter,xksoil,veg,soil,casabiome,casaflux,casamet)
-      call casa_xkN(xkNlimiting,casapool,casaflux,casamet,casabiome,veg)
-      do j = 1,mlitter
-        casaflux%klitter(:,j) = casaflux%klitter(:,j)*xkNlimiting
-      end do
-      call casa_nuptake(veg,xkNlimiting,casabiome,casapool,casaflux,casamet)
-      call casa_puptake(veg,xkNlimiting,casabiome,casapool,casaflux,casamet)
+      if ( ccycle>1 ) then
+        call casa_xkN(xkNlimiting,casapool,casaflux,casamet,casabiome,veg)
+        do j = 1,mlitter
+          casaflux%klitter(:,j) = casaflux%klitter(:,j)*xkNlimiting
+        end do
+        call casa_nuptake(veg,xkNlimiting,casabiome,casapool,casaflux,casamet)
+        if ( ccycle>2 ) then
+          call casa_puptake(veg,xkNlimiting,casabiome,casapool,casaflux,casamet)
+        end if  
+      end if  
       call casa_delplant(veg,casabiome,casapool,casaflux,casamet, &
              cleaf2met,cleaf2str,croot2met,croot2str,cwood2cwd,   &
              nleaf2met,nleaf2str,nroot2met,nroot2str,nwood2cwd,   &
@@ -684,10 +758,10 @@ select case (ccycle)
         call casa_pop_secondcall(mp_POP,casaflux,pop)  
       end if
       call casa_delsoil(veg,casapool,casaflux,casamet,casabiome)
-      call casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet,lalloc)
-      if ( ccycle<2 ) call casa_ndummy(casapool)
-      if ( ccycle<3 ) call casa_pdummy(casapool)
-      call casa_cnpbal(casapool,casaflux,casabal)
+      call casa_cnpcycle(veg,casabiome,casapool,casaflux,casamet,casabal,lalloc)
+      if ( ccycle<2 ) call casa_ndummy(casamet,casabal,casapool)
+      if ( ccycle<3 ) call casa_pdummy(casamet,casabal,casaflux,casapool)
+      call casa_cnpbal(veg,casamet,casapool,casaflux,casabal)
       casabal%FCgppyear = casabal%FCgppyear + casaflux%Cgpp*deltpool
       casabal%FCrpyear  = casabal%FCrpyear  + casaflux%Crp*deltpool
       casabal%FCrmleafyear = casabal%FCrmleafyear + casaflux%Crmplant(:,leaf)*deltpool
@@ -777,11 +851,13 @@ end if
 ! Special
 if ( nspecial==51 ) then
   ! reset soil moisture to prescribed climatology  
-  do k = 1,ms
-    do nb = 1,maxnb  
-      is = tind(nb,1)
-      ie = tind(nb,2)        
-      wbclim_pack(is:ie) = pack(wb_clim(:,k),tmap(:,nb))
+  do k = 1,cbm_ms
+    js = 1
+    je = imax
+    do nb = 1,tdata(tile)%maxnb
+      is = tdata(tile)%tind(nb,1) - tdata(tile)%toffset
+      ie = tdata(tile)%tind(nb,2) - tdata(tile)%toffset     
+      wbclim_pack(is:ie) = pack(wb_clim(js:je,k),tdata(tile)%tmap(:,nb))
     end do  
     ! 0 >= rad%longitude >= 360 and -90 >= rad%latitude >= 90
     where( rad%longitude>=wbclim_lonn .and. rad%longitude<=wbclim_lonx .and. &
@@ -796,21 +872,22 @@ end if
 ! Unpack tiles into grid point averages.
 ! Note that albsav and albnirsav are the VIS and NIR albedo output from CABLE to
 ! be used by the radiadiation scheme at the next time step.
-do k = 1,ms
-  where ( land(1:imax) )
+do k = 1,cbm_ms
+  where ( land(:) )
     tgg(:,k) = 0.
     wb(:,k) = 0.
     wbice(:,k) = 0.
   end where
 end do
 do k = 1,3
-  where ( land(1:imax) )
+  where ( land(:) )
     tggsn(:,k) = 0.
     smass(:,k) = 0.
     ssdn(:,k) = 0.
   end where
 end do
-where ( land(1:imax) )
+where ( land(:) )
+  sigmf = 0.  
   albvisdir = 0.
   albvisdif = 0.
   albnirdir = 0.
@@ -837,50 +914,58 @@ evspsbl_l = 0.
 sbl_l = 0.
 tmps = 0. ! average isflag
 
-do nb = 1,maxnb
-  is = tind(nb,1)
-  ie = tind(nb,2)
+js = 1
+je = imax
+do nb = 1,tdata(tile)%maxnb
+  is = tdata(tile)%tind(nb,1) - tdata(tile)%toffset
+  ie = tdata(tile)%tind(nb,2) - tdata(tile)%toffset
+  ! veg fraction
+  sigmf(js:je) = sigmf(js:je) + unpack(sv(is:ie)*real(1.-exp(-0.4*veg%vlai(is:ie))),tdata(tile)%tmap(:,nb),0.)
   ! albedo
-  albvisdir = albvisdir + unpack(sv(is:ie)*real(rad%reffbm(is:ie,1)),tmap(:,nb),0.)
-  albnirdir = albnirdir + unpack(sv(is:ie)*real(rad%reffbm(is:ie,2)),tmap(:,nb),0.)
-  albvisdif = albvisdif + unpack(sv(is:ie)*real(rad%reffdf(is:ie,1)),tmap(:,nb),0.)
-  albnirdif = albnirdif + unpack(sv(is:ie)*real(rad%reffdf(is:ie,2)),tmap(:,nb),0.)
+  albvisdir(js:je) = albvisdir(js:je) + unpack(sv(is:ie)*real(rad%reffbm(is:ie,1)),tdata(tile)%tmap(:,nb),0.)
+  albnirdir(js:je) = albnirdir(js:je) + unpack(sv(is:ie)*real(rad%reffbm(is:ie,2)),tdata(tile)%tmap(:,nb),0.)
+  albvisdif(js:je) = albvisdif(js:je) + unpack(sv(is:ie)*real(rad%reffdf(is:ie,1)),tdata(tile)%tmap(:,nb),0.)
+  albnirdif(js:je) = albnirdif(js:je) + unpack(sv(is:ie)*real(rad%reffdf(is:ie,2)),tdata(tile)%tmap(:,nb),0.)
   ! fluxes
-  fg = fg + unpack(sv(is:ie)*real(canopy%fh(is:ie)),tmap(:,nb),0.)
-  eg = eg + unpack(sv(is:ie)*real(canopy%fe(is:ie)),tmap(:,nb),0.)
-  ga = ga + unpack(sv(is:ie)*real(canopy%ga(is:ie)),tmap(:,nb),0.)
-  rnet = rnet + unpack(sv(is:ie)*real(canopy%rnet(is:ie)),tmap(:,nb),0.)
-  tss = tss + unpack(sv(is:ie)*real(rad%trad(is:ie)**4),tmap(:,nb),0.) ! ave longwave radiation
+  fg(js:je) = fg(js:je) + unpack(sv(is:ie)*real(canopy%fh(is:ie)),tdata(tile)%tmap(:,nb),0.)
+  eg(js:je) = eg(js:je) + unpack(sv(is:ie)*real(canopy%fe(is:ie)),tdata(tile)%tmap(:,nb),0.)
+  ga(js:je) = ga(js:je) + unpack(sv(is:ie)*real(canopy%ga(is:ie)),tdata(tile)%tmap(:,nb),0.)
+  rnet(js:je) = rnet(js:je) + unpack(sv(is:ie)*real(canopy%rnet(is:ie)),tdata(tile)%tmap(:,nb),0.)
+  tss(js:je) = tss(js:je) + unpack(sv(is:ie)*real(rad%trad(is:ie)**4),tdata(tile)%tmap(:,nb),0.) ! ave longwave radiation
   ! drag and mixing
-  zo   = zo   + unpack(sv(is:ie)/real(log(real(zmin,8)/rough%z0m(is:ie))**2),tmap(:,nb),0.)
-  cduv = cduv + unpack(sv(is:ie)*real(canopy%cduv(is:ie)),tmap(:,nb),0.)
-  cdtq = cdtq + unpack(sv(is:ie)*real(canopy%cdtq(is:ie)),tmap(:,nb),0.)
+  zo(js:je)   = zo(js:je)   + unpack(sv(is:ie)/real(log(real(zmin,8)/rough%z0m(is:ie))**2),tdata(tile)%tmap(:,nb),0.)
+  cduv(js:je) = cduv(js:je) + unpack(sv(is:ie)*real(canopy%cduv(is:ie)),tdata(tile)%tmap(:,nb),0.)
+  cdtq(js:je) = cdtq(js:je) + unpack(sv(is:ie)*real(canopy%cdtq(is:ie)),tdata(tile)%tmap(:,nb),0.)
   ! soil
-  do k = 1,ms
-    tgg(:,k)   = tgg(:,k)   + unpack(sv(is:ie)*real(ssnow%tgg(is:ie,k)),  tmap(:,nb),0.)
-    wb(:,k)    = wb(:,k)    + unpack(sv(is:ie)*real(ssnow%wb(is:ie,k)),   tmap(:,nb),0.)
-    wbice(:,k) = wbice(:,k) + unpack(sv(is:ie)*real(ssnow%wbice(is:ie,k)),tmap(:,nb),0.)
+  do k = 1,cbm_ms
+    tgg(js:je,k)   = tgg(js:je,k)   + unpack(sv(is:ie)*real(ssnow%tgg(is:ie,k)),  tdata(tile)%tmap(:,nb),0.)
+    wb(js:je,k)    = wb(js:je,k)    + unpack(sv(is:ie)*real(ssnow%wb(is:ie,k)),   tdata(tile)%tmap(:,nb),0.)
+    wbice(js:je,k) = wbice(js:je,k) + unpack(sv(is:ie)*real(ssnow%wbice(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
   end do
   ! hydrology
-  runoff = runoff + unpack(sv(is:ie)*real(ssnow%runoff(is:ie)*dtr8),tmap(:,nb),0.) ! convert mm/s to mm
-  runoff_surface = runoff_surface + unpack(sv(is:ie)*real(ssnow%rnof1(is:ie)*dtr8),tmap(:,nb),0.) ! convert mm/s to mm
-  fwet = fwet + unpack(sv(is:ie)*real(canopy%fwet(is:ie)),tmap(:,nb),0.)         ! used for aerosols
-  wetfac = wetfac + unpack(sv(is:ie)*real(ssnow%wetfac(is:ie)),tmap(:,nb),0.)    ! used for aerosols
-  cansto = cansto + unpack(sv(is:ie)*real(canopy%cansto(is:ie)),tmap(:,nb),0.)   ! not used
+  runoff(js:je) = runoff(js:je) + unpack(sv(is:ie)*real(ssnow%runoff(is:ie)*dtr8),tdata(tile)%tmap(:,nb),0.) ! convert mm/s to mm
+  runoff_surface(js:je) = runoff_surface(js:je) + &
+      unpack(sv(is:ie)*real(ssnow%rnof1(is:ie)*dtr8),tdata(tile)%tmap(:,nb),0.) ! convert mm/s to mm
+  fwet(js:je) = fwet(js:je) + unpack(sv(is:ie)*real(canopy%fwet(is:ie)),tdata(tile)%tmap(:,nb),0.)         ! used for aerosols
+  wetfac(js:je) = wetfac(js:je) + unpack(sv(is:ie)*real(ssnow%wetfac(is:ie)),tdata(tile)%tmap(:,nb),0.)    ! used for aerosols
+  cansto(js:je) = cansto(js:je) + unpack(sv(is:ie)*real(canopy%cansto(is:ie)),tdata(tile)%tmap(:,nb),0.)   ! not used
   ! snow
-  tmps = tmps + unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tmap(:,nb),0.)  ! used in radiation (for nsib==3)
+  tmps(js:je) = tmps(js:je) + &
+      unpack(sv(is:ie)*real(ssnow%isflag(is:ie)),tdata(tile)%tmap(:,nb),0.)  ! used in radiation (for nsib==3)
   do k = 1,3
-    tggsn(:,k) = tggsn(:,k) + unpack(sv(is:ie)*real(ssnow%tggsn(is:ie,k)),tmap(:,nb),0.) ! for restart file
-    smass(:,k) = smass(:,k) + unpack(sv(is:ie)*real(ssnow%smass(is:ie,k)),tmap(:,nb),0.) ! for restart file
-    ssdn(:,k)  = ssdn(:,k)  + unpack(sv(is:ie)*real(ssnow%ssdn(is:ie,k)),tmap(:,nb),0.)  ! for restart file
+    tggsn(js:je,k) = tggsn(js:je,k) + unpack(sv(is:ie)*real(ssnow%tggsn(is:ie,k)),tdata(tile)%tmap(:,nb),0.) ! for restart file
+    smass(js:je,k) = smass(js:je,k) + unpack(sv(is:ie)*real(ssnow%smass(is:ie,k)),tdata(tile)%tmap(:,nb),0.) ! for restart file
+    ssdn(js:je,k)  = ssdn(js:je,k)  + unpack(sv(is:ie)*real(ssnow%ssdn(is:ie,k)),tdata(tile)%tmap(:,nb),0.)  ! for restart file
   end do
-  ssdnn = ssdnn + unpack(sv(is:ie)*real(ssnow%ssdnn(is:ie)),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
-  snage = snage + unpack(sv(is:ie)*real(ssnow%snage(is:ie)),tmap(:,nb),0.)      ! used in radiation (for nsib==3)
-  snowd = snowd + unpack(sv(is:ie)*real(ssnow%snowd(is:ie)),tmap(:,nb),0.)
-  snowmelt = snowmelt + unpack(sv(is:ie)*real(ssnow%smelt(is:ie)),tmap(:,nb),0.)
-  evspsbl_l = evspsbl_l + unpack(sv(is:ie)*real((canopy%fev(is:ie)+canopy%fesp(is:ie) &
-                                +canopy%fess(is:ie)/ssnow%cls(is:ie))/C%HL),tmap(:,nb),0.)
-  sbl_l = sbl_l + unpack(sv(is:ie)*real(ssnow%evapsn(is:ie)/dtr8),tmap(:,nb),0.)
+  ssdnn(js:je) = ssdnn(js:je) + &
+      unpack(sv(is:ie)*real(ssnow%ssdnn(is:ie)),tdata(tile)%tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snage(js:je) = snage(js:je) + &
+      unpack(sv(is:ie)*real(ssnow%snage(is:ie)),tdata(tile)%tmap(:,nb),0.)      ! used in radiation (for nsib==3)
+  snowd(js:je) = snowd(js:je) + unpack(sv(is:ie)*real(ssnow%snowd(is:ie)),tdata(tile)%tmap(:,nb),0.)
+  snowmelt(js:je) = snowmelt(js:je) + unpack(sv(is:ie)*real(ssnow%smelt(is:ie)),tdata(tile)%tmap(:,nb),0.)
+  evspsbl_l(js:je) = evspsbl_l(js:je) + unpack(sv(is:ie)*real((canopy%fev(is:ie)+canopy%fesp(is:ie) &
+                              +canopy%fess(is:ie)/ssnow%cls(is:ie))/hl),tdata(tile)%tmap(:,nb),0.)
+  sbl_l(js:je) = sbl_l(js:je) + unpack(sv(is:ie)*real(ssnow%evapsn(is:ie)/dtr8),tdata(tile)%tmap(:,nb),0.)
   ! Replace potev with Penman_Monteith
   if ( cable_potev==1 .and. cable_enablefao==1 ) then
     dumt(is:ie) = real( met%tvair(is:ie) )
@@ -891,20 +976,25 @@ do nb = 1,maxnb
     ssnowpotev(is:ie) = cc1(is:ie) * real(canopy%fns(is:ie) - canopy%ga(is:ie)) +            &
                         cc2(is:ie) * real(air%rho(is:ie) * air%rlam(is:ie))*(qsatfvar(is:ie) &
                         - real(met%qvair(is:ie)))/real(ssnow%rtsoil(is:ie))
-    epot = epot + unpack(sv(is:ie)*ssnowpotev(is:ie),tmap(:,nb),0.)             ! diagnostic
+    epot(js:je) = epot(js:je) + &
+        unpack(sv(is:ie)*ssnowpotev(is:ie),tdata(tile)%tmap(:,nb),0.) ! diagnostic
   else
-    epot = epot + unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tmap(:,nb),0.)      ! diagnostic in history file
+    epot(js:je) = epot(js:je) + &
+        unpack(sv(is:ie)*real(ssnow%potev(is:ie)),tdata(tile)%tmap(:,nb),0.) ! diagnostic in history file
   end if
-  vlai = vlai + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tmap(:,nb),0.)
-  rsmin = rsmin + unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tmap(:,nb),0.)    ! diagnostic in history file  
+  vlai(js:je) = vlai(js:je) + unpack(sv(is:ie)*real(veg%vlai(is:ie)),tdata(tile)%tmap(:,nb),0.)
+  rsmin(js:je) = rsmin(js:je) + &
+      unpack(sv(is:ie)*real(canopy%gswx_T(is:ie)),tdata(tile)%tmap(:,nb),0.) ! diagnostic in history file  
 end do
 
 if ( cable_gw_model==1 ) then
   wtd = 0.    
-  do nb = 1,maxnb
-    is = tind(nb,1)
-    ie = tind(nb,2)
-    wtd = wtd + unpack(sv(is:ie)*real(ssnow%wtd(is:ie))/1000.,tmap(:,nb),0.)  
+  js = 1
+  je = imax
+  do nb = 1,tdata(tile)%maxnb
+    is = tdata(tile)%tind(nb,1) - tdata(tile)%toffset
+    ie = tdata(tile)%tind(nb,2) - tdata(tile)%toffset
+    wtd(js:je) = wtd(js:je) + unpack(sv(is:ie)*real(ssnow%wtd(is:ie))/1000.,tdata(tile)%tmap(:,nb),0.)
   end do  
 end if ! wt_transport==1
 
@@ -932,42 +1022,44 @@ if ( ccycle/=0 ) then
     plant_turnover = 0.
     plant_turnover_wood = 0.
   end if
-  do nb = 1,maxnb
-    is = tind(nb,1)
-    ie = tind(nb,2)
+  js = 1
+  je = imax
+  do nb = 1,tdata(tile)%maxnb
+    is = tdata(tile)%tind(nb,1) - tdata(tile)%toffset
+    ie = tdata(tile)%tind(nb,2) - tdata(tile)%toffset
     do k = 1,mplant
-      cplant(:,k)  = cplant(:,k)  + unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tmap(:,nb),0.)
-      niplant(:,k) = niplant(:,k) + unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tmap(:,nb),0.)
-      pplant(:,k)  = pplant(:,k)  + unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tmap(:,nb),0.)
+      cplant(js:je,k)  = cplant(js:je,k)  + unpack(sv(is:ie)*real(casapool%cplant(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
+      niplant(js:je,k) = niplant(js:je,k) + unpack(sv(is:ie)*real(casapool%nplant(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
+      pplant(js:je,k)  = pplant(js:je,k)  + unpack(sv(is:ie)*real(casapool%pplant(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
     end do
     do k = 1,mlitter
-      clitter(:,k)  = clitter(:,k)  + unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tmap(:,nb),0.)
-      nilitter(:,k) = nilitter(:,k) + unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tmap(:,nb),0.)
-      plitter(:,k)  = plitter(:,k)  + unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tmap(:,nb),0.)
+      clitter(js:je,k)  = clitter(js:je,k)  + unpack(sv(is:ie)*real(casapool%clitter(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
+      nilitter(js:je,k) = nilitter(js:je,k) + unpack(sv(is:ie)*real(casapool%nlitter(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
+      plitter(js:je,k)  = plitter(js:je,k)  + unpack(sv(is:ie)*real(casapool%plitter(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
     end do
     do k = 1,msoil
-      csoil(:,k)  = csoil(:,k)  + unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tmap(:,nb),0.)
-      nisoil(:,k) = nisoil(:,k) + unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tmap(:,nb),0.)
-      psoil(:,k)  = psoil(:,k)  + unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tmap(:,nb),0.)
+      csoil(js:je,k)  = csoil(js:je,k)  + unpack(sv(is:ie)*real(casapool%csoil(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
+      nisoil(js:je,k) = nisoil(js:je,k) + unpack(sv(is:ie)*real(casapool%nsoil(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
+      psoil(js:je,k)  = psoil(js:je,k)  + unpack(sv(is:ie)*real(casapool%psoil(is:ie,k)),tdata(tile)%tmap(:,nb),0.)
     end do
-    !glai = glai + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tmap(:,nb),0.)
+    !glai(js:je) = glai(js:je) + unpack(sv(is:ie)*real(casamet%glai(is:ie)),tdata(tile)%tmap(:,nb),0.)
     ! carbon cycle
-    fnee = fnee + unpack(sv(is:ie)*real(canopy%fnee(is:ie)),  tmap(:,nb),0.)
-    fpn  = fpn  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),   tmap(:,nb),0.)
-    frd  = frd  + unpack(sv(is:ie)*real(canopy%frday(is:ie)), tmap(:,nb),0.)
-    frp  = frp  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),   tmap(:,nb),0.)
-    frpw = frpw + unpack(sv(is:ie)*real(canopy%frpw(is:ie)),  tmap(:,nb),0.)
-    frpr = frpr + unpack(sv(is:ie)*real(canopy%frpr(is:ie)),  tmap(:,nb),0.)
-    frs  = frs  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),   tmap(:,nb),0.)
-    cnpp = cnpp + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie))/real(casaperiod),tmap(:,nb),0.)
-    cnbp = cnbp + unpack(sv(is:ie)*real(casaflux%Crsoil(is:ie)-casaflux%cnpp(is:ie)-casapool%dClabiledt(is:ie)) &
-        /real(casaperiod),tmap(:,nb),0.)
+    fnee(js:je) = fnee(js:je) + unpack(sv(is:ie)*real(canopy%fnee(is:ie)),  tdata(tile)%tmap(:,nb),0.)
+    fpn(js:je)  = fpn(js:je)  + unpack(sv(is:ie)*real(canopy%fpn(is:ie)),   tdata(tile)%tmap(:,nb),0.)
+    frd(js:je)  = frd(js:je)  + unpack(sv(is:ie)*real(canopy%frday(is:ie)), tdata(tile)%tmap(:,nb),0.)
+    frp(js:je)  = frp(js:je)  + unpack(sv(is:ie)*real(canopy%frp(is:ie)),   tdata(tile)%tmap(:,nb),0.)
+    frpw(js:je) = frpw(js:je) + unpack(sv(is:ie)*real(canopy%frpw(is:ie)),  tdata(tile)%tmap(:,nb),0.)
+    frpr(js:je) = frpr(js:je) + unpack(sv(is:ie)*real(canopy%frpr(is:ie)),  tdata(tile)%tmap(:,nb),0.)
+    frs(js:je)  = frs(js:je)  + unpack(sv(is:ie)*real(canopy%frs(is:ie)),   tdata(tile)%tmap(:,nb),0.)
+    cnpp(js:je) = cnpp(js:je) + unpack(sv(is:ie)*real(casaflux%cnpp(is:ie))/real(casaperiod),tdata(tile)%tmap(:,nb),0.)
+    cnbp(js:je) = cnbp(js:je) + unpack(sv(is:ie)*real(casaflux%Crsoil(is:ie)-casaflux%cnpp(is:ie)-casapool%dClabiledt(is:ie)) &
+        /real(casaperiod),tdata(tile)%tmap(:,nb),0.)
     if ( diaglevel_carbon > 0 ) then
-      fevc = fevc + unpack(sv(is:ie)*real(canopy%fevc(is:ie)),  tmap(:,nb),0.)
-      plant_turnover      = plant_turnover      + unpack(sv(is:ie)* &
-                            real(sum(casaflux%Cplant_turnover(is:ie,:),2))/real(casaperiod),  tmap(:,nb),0.)
-      plant_turnover_wood = plant_turnover_wood + unpack(sv(is:ie)* &
-                            real(casaflux%Cplant_turnover(is:ie,2))/real(casaperiod),         tmap(:,nb),0.)
+      fevc(js:je) = fevc(js:je) + unpack(sv(is:ie)*real(canopy%fevc(is:ie)),  tdata(tile)%tmap(:,nb),0.)
+      plant_turnover(js:je)      = plant_turnover(js:je)      + unpack(sv(is:ie)* &
+                            real(sum(casaflux%Cplant_turnover(is:ie,:),2))/real(casaperiod),  tdata(tile)%tmap(:,nb),0.)
+      plant_turnover_wood(js:je) = plant_turnover_wood(js:je) + unpack(sv(is:ie)* &
+                            real(casaflux%Cplant_turnover(is:ie,2))/real(casaperiod),         tdata(tile)%tmap(:,nb),0.)
     end if
   end do
 end if
@@ -977,7 +1069,7 @@ end if
 ! zoh, zoq and zo are passed to the scrnout diagnostics routines
 ! rsmin is typically used by CTM
 
-where ( land(1:imax) )
+where ( land(:) )
   zo      = zmin*exp(-1./sqrt(zo))
   zoh     = zo/7.4
   zoq     = zoh
@@ -994,7 +1086,7 @@ where ( land(1:imax) )
   isflag(:) = nint(tmps(:)) ! tmps is average isflag
 end where
 qsttg_land(:) = qsat(ps,tss) ! must wait for tss to be updated first
-where ( land(1:imax) )
+where ( land(:) )
   qsttg(:)  = qsttg_land(:)
 end where
 
@@ -1079,7 +1171,7 @@ type(climate_type), intent(in) :: climate
 integer, intent(in) :: ktau
 integer np, ivt
 real(kind=8) bjvref
-real(kind=8), dimension(mp) :: ncleafx, npleafx, pleafx, nleafx
+real(kind=8), dimension(cbm_mp) :: ncleafx, npleafx, pleafx, nleafx
 real(kind=8), dimension(mxvt), parameter :: xnslope = (/ 0.8,1.,2.,1.,1.,1.,0.5,1.,0.34,1.,1.,1.,1.,1.,1.,1.,1. /)
 
 if ( progvcmax>0 .and. ccycle>=2 ) then
@@ -1088,7 +1180,7 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
   ncleafx(:) = casabiome%ratioNCplantmax(veg%iveg(:),leaf)
   npleafx(:) = casabiome%ratioNPplantmin(veg%iveg(:),leaf)
 
-  do np = 1,mp
+  do np = 1,cbm_mp
     ivt = veg%iveg(np)
     if ( casamet%iveg2(np)/=icewater .and. casamet%glai(np)>casabiome%glaimin(ivt) .and. &
          casapool%cplant(np,leaf)>0._8 ) then
@@ -1107,7 +1199,7 @@ if ( progvcmax>0 .and. ccycle>=2 ) then
   ! method for prognostic vcmax
   select case ( progvcmax )
     case(1)
-      do np = 1,mp
+      do np = 1,cbm_mp
         ivt = veg%iveg(np)  
         if ( casamet%glai(np)>casabiome%glaimin(ivt) ) then
           if ( ivt/=2 ) then
@@ -1269,7 +1361,7 @@ integer, dimension(POP%np) :: Iw
 integer(kind=i4b), dimension(POP%np,2) :: disturbance_interval_tmp
 real(kind=dp), dimension(POP%np,2) :: disturbance_intensity_tmp, stemNPP_tmp
 real(kind=dp), dimension(POP%np) :: LAImax_tmp, Cleafmean_tmp, Crootmean_tmp, NPPtoGPP_tmp
-real(kind=dp), dimension(mp) :: NPPtoGPP
+real(kind=dp), dimension(cbm_mp) :: NPPtoGPP
 
 if ( cable_pop==1 .and. POP%np>0 ) then ! CALL_POP
   Iw = POP%Iwood
@@ -1303,7 +1395,7 @@ use soilsnow_m
 integer k
 
 if ( mp_global>0 ) then
-  do k = 1,ms
+  do k = 1,cbm_ms
     call cable_pack(wb(:,k),ssnow%wb(:,k))
   end do
 end if

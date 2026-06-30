@@ -145,6 +145,12 @@ do k = 1,kl
   vav(1:ifull,k) = av_vmod*v(1:ifull,k) + (1.-av_vmod)*savv(1:ifull,k)
 end do
 
+! *****************************************************************************
+! DIAGNOSTICS
+! *****************************************************************************
+
+call boundsuv(uav,vav,allvec=.true.)
+
 ! calculate vertical velocity in m/s - used in hordifg and later in CCAM code
 ! omega = ps*dpsldt
 ! wvel = -R/g * (T+Tnhs) * dpsldt/sig
@@ -155,6 +161,9 @@ do k = 1,kl
     wvel(iq,k) = (-rdry/grav)*t(iq,k)*dpsldt(iq,k)/sig(k)
   end do  
 end do
+
+! calculate updraft helicity
+call uh_calc(uav,vav,t)
 
 ! Calculate shear for tke
 if ( nvmix==6 .or. nvmix==9 ) then
@@ -216,6 +225,11 @@ if ( nvmix==6 .or. nvmix==9 ) then
   end do
   
 end if ! nvmix=6 .or. nvmix==9
+
+
+! *****************************************************************************
+! HORIZONAL DIFFUSION
+! *****************************************************************************
       
 ! usual deformation for nhorjlm=1 or nhorjlm=2
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
@@ -239,7 +253,6 @@ select case(nhorjlm)
     ! More recently (21/9/00) I think original Smag has khdif=0.8
     ! Smag's actual diffusion also differentiated Dt and Ds
     ! t_kh is kh at t points
-    call boundsuv(uav,vav,allvec=.true.)
     do k = 1,kl
       hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1  
       do iq = 1,ifull
@@ -283,7 +296,6 @@ select case(nhorjlm)
 
   case(3)
     ! K-eps model + Smag
-    call boundsuv(uav,vav,allvec=.true.)
     do k = 1,kl
       hdif = dt*hdiff(k) ! N.B.  hdiff(k)=khdif*.1
       do iq = 1,ifull
@@ -319,9 +331,11 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
                                    ! only update iwu and isv values
 
 
-allocate( bb(ifull+iextra,kl,4) )
+! *****************************************************************************
+! UPDATE PROGNOSTIC VARIABLES
+! *****************************************************************************
 
-! perform diffusion ---------------------------------------------------
+allocate( bb(ifull+iextra,kl,4) )
 
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
   do k = 1,kl
@@ -505,5 +519,85 @@ end do
 
 return
 end subroutine hordifgt_work
+
+! Calculate updraft helicity    
+subroutine uh_calc(ua,va,ta)
+
+use const_phys
+use indices_m
+use liqwpar_m
+use map_m
+use newmpar_m
+use parm_m
+use sigs_m
+use vvel_m
+
+implicit none
+
+integer iq, k
+real, parameter :: min_zg = 2000.
+real, parameter :: max_zg = 5000.
+real dvdx, dudy, dz, z1, z2
+real, dimension(ifull+iextra,kl), intent(in) :: ua, va, ta
+real, dimension(kl) :: delh
+real, dimension(ifull,0:kl) :: zg_h
+
+! bounds for ua and va should be updated prior to calling uh_calc
+
+do k = 1,kl
+  delh(k) = -(rdry/grav)*dsig(k)/sig(k)
+end do
+
+do iq = 1,ifull
+  updraft_helicity(iq) = 0.
+end do
+
+do iq = 1,ifull  
+  zg_h(iq,0) = 0.  
+  zg_h(iq,1) = ta(iq,1)*delh(1)
+end do
+do k = 2,kl
+  do iq = 1,ifull
+    zg_h(iq,k) = zg_h(iq,k-1) + ta(iq,k)*delh(k)
+  end do
+end do
+
+do k = 1,kl
+  do iq = 1,ifull  
+
+    z1 = zg_h(iq,k-1)
+    z2 = zg_h(iq,k)
+    
+    if ( z2>min_zg .and. z1<=max_zg ) then
+
+      ! overlap
+      if ( z1<=min_zg .and. z2>max_zg ) then
+        !dz is larger than max_zg-min_zg
+        dz = max_zg - min_zg
+      else if ( z1>min_zg .and. z2<=max_zg ) then
+        ! dz is within max_zg-min_zg
+        dz = z2 - z1
+      else if ( z1>min_zg ) then
+        ! z2 is above max_zg
+        dz = max_zg - z1
+      else ! z2<=max_zg
+        ! z1 is below min_zg
+        dz = z2 - min_zg
+      end if
+      
+      dvdx = 0.5*(va(iev(iq),k)-va(iq,k))*emu(iq)/ds + &
+             0.5*(va(iq,k)-va(iwv(iq),k))*emu(iwu(iq))/ds
+      dudy = 0.5*(ua(inu(iq),k)-ua(iq,k))*emv(iq)/ds + &
+             0.5*(ua(iq,k)-ua(isu(iq),k))*emv(isv(iq))/ds
+      
+      updraft_helicity(iq) = updraft_helicity(iq) + wvel(iq,k)*(dvdx-dudy)*dz
+
+    end if ! z2>min_zg .and. z1<=max_zg
+    
+  end do  ! iq
+end do    ! k
+  
+return
+end subroutine uh_calc
 
 end module hordifg_m

@@ -39,13 +39,13 @@ MODULE casadimension
   INTEGER, PARAMETER :: mdweek=7           ! days per week
   INTEGER, PARAMETER :: mmyear=12          ! month per year
   INTEGER, PARAMETER :: mt=36500           ! integration time step
-  INTEGER, PARAMETER :: mpftmax=2          ! max. PFT/cell
   INTEGER, PARAMETER :: mplant = 3         ! plant pools
   INTEGER, PARAMETER :: mlitter= 3         ! litter pools
   INTEGER, PARAMETER :: msoil  = 3         ! soil pools
   INTEGER, PARAMETER :: mso    = 12        ! soil order number
-  INTEGER, PARAMETER :: mhwp  = 1         ! harvested wood pools
-  INTEGER, PARAMETER :: mclear  = 1         ! forest clearing pools
+  INTEGER, PARAMETER :: mhwp  = 1          ! harvested wood pools
+  INTEGER, PARAMETER :: mwood  = 3         ! wood product pools
+  INTEGER, PARAMETER :: mclear  = 1        ! forest clearing pools
   ! BP put icycle into namelist file
   INTEGER            :: icycle
   !  INTEGER, PARAMETER :: icycle=3           ! =1 for C, =2 for C+N; =3 for C+N+P

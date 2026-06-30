@@ -60,21 +60,21 @@ real, save :: ce0      = 0.69      ! Hurley (2007) 0.69, Duynkerke (1988) 0.42, 
 real, save :: ce1      = 1.46
 real, save :: ce2      = 1.83
 real, save :: ce3      = 0.45      ! Hurley (2007) 0.45, Duynkerke 1987 0.35
-real, save :: mintke   = 1.e-8     ! min value for tke (1.5e-4 in TAPM)
-real, save :: mineps   = 1.e-11    ! min value for eps (1.0e-6 in TAPM)
-real, save :: minl     = 1.        ! min value for L   (5. in TAPM)
-real, save :: maxl     = 1000.     ! max value for L   (500. in TAPM)
+real, save :: mintke   = 1.5e-4    ! min value for tke (1.5e-4 in TAPM)
+real, save :: mineps   = 1.e-6     ! min value for eps (1.0e-6 in TAPM)
+real, save :: minl     = 5.        ! min value for L   (5. in TAPM)
+real, save :: maxl     = 500.      ! max value for L   (500. in TAPM)
 ! model MF constants
-real, save :: be       = 0.1       ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
-real, save :: ent0     = 0.25      ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
-real, save :: ent1     = 0.25
-real, save :: ent_min  = 0.        ! Minimum entrainment
-real, save :: ezmin    = 100.      ! Limits entrainment at plume top
+real, save :: be       = 1.        ! Surface boundary condition (Hurley (2007) 1., Soares et al (2004) 0.3)
+real, save :: ent0     = 0.5       ! Entrainment constant (Controls height of boundary layer) (Hurley (2007) 0.5)
+real, save :: ent1     = 0.  
+real, save :: ent_min  = 0.001     ! Minimum entrainment
+real, save :: ezmin    = 10.       ! Limits entrainment at plume top
 real, save :: entc0    = 2.e-3     ! Saturated entrainment constant for mass flux
 real, save :: dtrc0    = 3.e-3     ! Saturated detrainment constant for mass flux
 real, save :: m0       = 0.1       ! Mass flux area constant (Hurley (2007) 0.1)
 real, save :: b1       = 2.        ! Updraft entrainment coeff (Soares et al (2004) 1., Siebesma et al (2003) 2.)
-real, save :: b2       = 1./3.     ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
+real, save :: b2       = 0.3333    ! Updraft buoyancy coeff (Soares et al (2004) 2., Siebesma et al (2003) 1./3.)
 real, save :: qcmf     = 1.e-4     ! Critical mixing ratio of liquid water before autoconversion
 real, save :: mfbeta   = 0.15      ! Horizontal scale factor
 ! generic constants
@@ -236,6 +236,9 @@ integer k, i, kcount, mcount
 real, dimension(imax,kl) :: km, rhoa, pps, ppb
 real, dimension(imax,kl) :: thetav
 real, dimension(imax,kl) :: mflx, tlup, qvup, qlup, qfup, niup, cfup
+real, dimension(imax,kl) :: thetal
+real, dimension(imax,kl) :: idzm
+real, dimension(imax,kl-1) :: dz_hl, idzp, fzzh
 real, dimension(imax) :: z_on_l, phim, pres, wt0, wq0, wtv0
 real, dimension(imax) :: cgmap, templ, fice, qc, qt, temp, zi_save
 real, dimension(imax) :: wstar, qsat, ustar, fg_ave
@@ -245,34 +248,22 @@ real tff, cm12, cm34, ddts, zturb
 real rhoahl, rhoahlm1
 real wdash_sq, l_on_kz
 real lx, dqsdt, al
-logical use_ocean
 logical, dimension(imax) :: mask
 
 real, dimension(imax,ol) :: pps_o, ppb_o, n2_o
 real, dimension(imax,ol) :: km_o, ks_o
 real, dimension(imax,ol) :: kmo_hl, kso_hl
+real, dimension(imax,ol) :: fdeptho_hl
 real ustar_o, uoave, voave, umag, zrough
 real, parameter :: cu0 = 0.5562
 real, parameter :: utide   = 0.05    ! Tide velocity for bottom drag (m/s)
 real, parameter :: cdbot   = 2.4e-3  ! bottom drag coefficent
-
-real, dimension(imax,kl) :: thetal
-real, dimension(imax,kl) :: idzm
-real, dimension(imax,kl-1) :: dz_hl, idzp, fzzh
-
-real, dimension(imax,ol) :: fdeptho_hl
-
-real, dimension(imax,2:kl+ol+1) :: aad       ! working
-real, dimension(imax,kl+ol+1) :: bbd, ddd    ! working
-real, dimension(imax,kl+ol) :: ccd           ! working
-real, dimension(imax,kl+ol+1) :: uu, yy, yyu ! working
+logical use_ocean
 
 cm12 = 1./sqrt(cm0)
 cm34 = sqrt(sqrt(cm0**3))
 use_ocean = mode==2 .or. mode==3
 use_ocean = use_ocean .and. any(.not.land(1:imax))
-
-!!$acc update device(maxsal)
 
 ! Here TKE and eps are on full levels to use CCAM advection routines
 ! Idealy we would reversibly stagger to vertical half-levels for this
@@ -507,7 +498,6 @@ do kcount = 1,mcount
 
   call update_tkeeps(tke,eps,pps,ppb,wstar,zi(:), &
                      km,zz,dz_hl,idzm,idzp,fzzh,  &
-                     aad,bbd,ccd,ddd,             & ! working
                      ddts,cm34,imax,kl)
     
   !=============================================================================
@@ -556,7 +546,7 @@ do kcount = 1,mcount
       end if
     end do
         
-    call mlo_limit_tke(w_tke,w_eps,km_o,ks_o,n2_o,omink,omineps,omaxL, &
+    call mlo_limit_tke(w_tke,w_eps,km_o,ks_o,n2_o,omink,omineps,omaxL,  &
                        ominL,limitL,fixedstabfunc,cu0,imax,ol)
 
     call mlo_update_buoyancy(pps_o,ppb_o,km_o,ks_o,w_u,w_v,             &
@@ -577,11 +567,10 @@ do kcount = 1,mcount
       
     call mlo_update_keps(kmo_hl,kso_hl,w_tke,w_eps,pps_o,ppb_o,   &
                          deptho_depth,deptho_depth_hl,deptho_dz,  &
-                         deptho_dz_hl,ibot(:),                    &
-                         aad,bbd,ccd,ddd,                         & ! working
+                         deptho_dz_hl,ibot,                       &
                          ddts,fixedce3,eps_mode,k_mode,imax,ol)      
       
-    call mlo_limit_tke(w_tke,w_eps,km_o,ks_o,n2_o,omink,omineps,omaxL, &
+    call mlo_limit_tke(w_tke,w_eps,km_o,ks_o,n2_o,omink,omineps,omaxL,  &
                        ominL,limitL,fixedstabfunc,cu0,imax,ol)
 
     !km & ks at half levels
@@ -631,10 +620,13 @@ do kcount = 1,mcount
                       imass(:),fracice(:),cd_ice(:),             &
                       cdbot_ice(:),ibot(:),land(:),wu0_o(:),     &
                       wv0_o(:),wt0_o(:),kmo_hl,kso_hl,sigkap,    &
-                      aad,bbd,ccd,ddd,uu,yy,yyu,                 & ! working
                       ddts,minsfc,cp0,wrtemp,wrtrho,use_ocean,   &
                       imax,kl,ol)
-    
+
+  !=============================================================================
+  ! End: update_coupled
+  !=============================================================================
+  
     
   do i = 1,imax
     ustar_ave(i) = ustar_ave(i) + ustar(i)/real(mcount)
@@ -774,7 +766,6 @@ subroutine plumerise(thetal,qvg,qlg,qfg,ni,cf,ua,va,     &
                      sig,sigkap,                         &
                      mflx,tlup,qvup,qlup,qfup,niup,cfup, &
                      cm12,imax,kl)
-!!$acc routine vector
 
 implicit none
 
@@ -801,9 +792,7 @@ real, parameter :: fac = 10. ! originally fac=100.
 real, parameter :: ricr = 0.3
 
 ! Initialise updraft
-!$acc loop seq
 do k = 1,kl
-  !$acc loop vector  
   do i = 1,imax  
     mflx(i,k) = 0.  
     tlup(i,k) = thetal(i,k)
@@ -817,7 +806,6 @@ do k = 1,kl
   end do  
 end do
 
-!$acc loop vector
 do i = 1,imax
   tke(i,1) = cm12*ustar(i)**2 + ce3*wstar(i)**2
   tke(i,1) = max(tke(i,1), mintke)
@@ -826,7 +814,6 @@ end do
 
 ! first level -----------------
 
-!$acc loop vector
 do i = 1,imax
     
   ! Entrainment rates  
@@ -857,10 +844,8 @@ do i = 1,imax
 end do ! i loop
 
 ! updraft with condensation
-!$acc loop seq
 do k = 2,kl
 
-  !$acc loop vector  
   do i = 1,imax  
     templ(i) = tlup(i,k)/sigkap(k)     ! templ,up
     pres(i) = ps(i)*sig(k)
@@ -873,7 +858,6 @@ do k = 2,kl
   
   qupsat(:) = getqsat(templ(:),pres(:),fice(:))
   
-  !$acc loop vector
   do i = 1,imax
     ! Entrainment rates
     !ent(:) = entfn(zz(:,k), zi(:), imax)
@@ -932,14 +916,11 @@ do k = 2,kl
 end do   ! k loop
   
 ! update mass flux
-!$acc loop vector
 do i = 1,imax
   mflx(i,1) = m0*sqrt(max(w2up(i,1), 0.))
 end do  
   
-!$scc loop seq
 do k = 2,kl
-  !$acc loop vector  
   do i = 1,imax
     dzht = dz_hl(i,k-1)
     mflx(i,k) = (1.-cxup(i,k))*m0*sqrt(max(w2up(i,k), 0.))         &
@@ -958,7 +939,6 @@ end subroutine plumerise
 subroutine calculate_buoyancy(ppb,thetal,qvg,qlg,qfg,cf,    &
                               theta,thetav,km,zz,zzh,fzzh,  &
                               sigkap,imax,kl)
-!!$acc routine vector
 
 implicit none
 
@@ -977,7 +957,6 @@ real dz_fl
 
 
 ! set top boundary condition for TKE-eps source terms
-!$acc loop vector
 do i = 1,imax
   ppb(i,kl) = 0.
 end do
@@ -1032,9 +1011,7 @@ select case(buoymeth)
   !  end do
 
   case(1) ! Marquet and Geleyn QJRMS (2012) for partially saturated
-    !$acc loop seq
     do k = 1,kl-1
-      !$acc loop vector  
       do i = 1,imax
         thetalhl(i,k) = thetal(i,k) + fzzh(i,k)*(thetal(i,k+1)-thetal(i,k))
         ! calculate qtot at half levels
@@ -1044,9 +1021,7 @@ select case(buoymeth)
         thetav(i,k) = theta(i,k)*(1.+0.61*qvg(i,k)-qlg(i,k)-qfg(i,k)) 
       end do  
     end do
-    !$acc loop seq
     do k = 2,kl-1
-      !$acc loop vector
       do i = 1,imax
         dz_fl = zzh(i,k) - zzh(i,k-1)
         tempt = thetal(i,k)/sigkap(k) + (lv*qlg(i,k)+ls*qfg(i,k))/cp
@@ -1060,7 +1035,6 @@ select case(buoymeth)
         ppb(i,k) = -km(i,k)*bvf
       end do
     end do
-    !$acc loop vector
     do i = 1,imax
       tempt = thetal(i,1)/sigkap(1) + (lv*qlg(i,1)+ls*qfg(i,1))/cp
       tempv = thetav(i,1)/sigkap(1)
@@ -1075,30 +1049,23 @@ select case(buoymeth)
     end do
       
   case(2) ! dry convection from Hurley 2007
-    !$acc loop seq
     do k = 1,kl
-      !$acc loop vector
       do i = 1,imax
         thetav(i,k) = theta(i,k)*(1.+0.61*qvg(i,k)-qlg(i,k)-qfg(i,k))
       end do  
     end do
-    !$acc loop seq  
     do k = 1,kl-1
-      !$acc loop vector  
       do i = 1,imax  
         thetavhl(i,k) = thetav(i,k) + fzzh(i,k)*(thetav(i,k+1)-thetav(i,k))
       end do
     end do
-    !$acc loop seq
     do k = 2,kl-1
-      !$acc loop vector
       do i = 1,imax
         dz_fl = zzh(i,k) - zzh(i,k-1)
         tcc = -grav*km(i,k)*(thetavhl(i,k)-thetavhl(i,k-1))/(thetav(i,k)*dz_fl)
         ppb(i,k) = tcc
       end do
     end do
-    !$acc loop vector
     do i = 1,imax
       tcc = -grav*km(i,1)*(thetavhl(i,1)-thetav(i,1))/(thetav(i,1)*(zzh(i,1)-zz(i,1)))
       ppb(i,1) = tcc 
@@ -1113,9 +1080,7 @@ end subroutine calculate_buoyancy
 ! update_tkeeps
          
 subroutine update_tkeeps(tke,eps,pps,ppb,wstar,zi,km,zz,dz_hl,idzm,idzp,fzzh, &
-                         aad,bbd,ccd,ddd,                                     & ! working
                          ddts,cm34,imax,kl)
-!!$acc routine vector
 
 implicit none
 
@@ -1130,21 +1095,18 @@ real, dimension(imax), intent(in) :: wstar, zi
 integer i, k
 real, dimension(imax,kl) :: kmo, rr
 real, dimension(imax,2:kl) :: qq
-real, dimension(imax,kl-1), intent(inout) :: ccd    ! working
-real, dimension(imax,kl), intent(inout) :: bbd, ddd ! working
-real, dimension(imax,2:kl), intent(inout) :: aad    ! working
+real, dimension(imax,kl-1) :: ccd    ! working
+real, dimension(imax,kl) :: bbd, ddd ! working
+real, dimension(imax,2:kl) :: aad    ! working
 real ppt, tbb, tff
 
-!$acc loop seq
 do k = 1,kl-1
-  !$acc loop vector
   do i = 1,imax
     kmo(i,k) = km(i,k) + fzzh(i,k)*(km(i,k+1)-km(i,k))
   end do
 end do  
 
 ! top boundary condition to avoid unphysical behaviour at the top of the model
-!$acc loop vector
 do i = 1,imax
   tke(i,kl) = mintke
   eps(i,kl) = mineps
@@ -1152,9 +1114,7 @@ end do
   
 ! Pre-calculate eddy diffusivity mixing terms
 ! -ve because gradient is calculated at t+1
-!$acc loop seq
 do k = 2,kl-1
-  !$acc loop vector  
   do i = 1,imax
     qq(i,k) = -ddts*idzm(i,k)/dz_hl(i,k-1)
     rr(i,k) = -ddts*idzp(i,k)/dz_hl(i,k)
@@ -1162,9 +1122,7 @@ do k = 2,kl-1
 end do
   
 ! eps vertical mixing
-!$acc loop seq
 do k = 2,kl-1
-  !$acc loop vector
   do i = 1,imax
     ! Calculate transport source term on full levels
     ppt = kmo(i,k)*idzp(i,k)*(tke(i,k+1)-tke(i,k))/dz_hl(i,k)  &
@@ -1178,7 +1136,6 @@ do k = 2,kl-1
               *ce1*(pps(i,k)+max(ppb(i,k),0.)+max(ppt,0.))
   end do  
 end do
-!$acc loop vector
 do i = 1,imax
   ddd(i,2)    = ddd(i,2)    - aad(i,2)*eps(i,1)
   ddd(i,kl-1) = ddd(i,kl-1) - ccd(i,kl-1)*mineps
@@ -1186,9 +1143,7 @@ end do
 call thomas(eps(:,2:kl-1),aad(:,3:kl-1),bbd(:,2:kl-1),ccd(:,2:kl-2),ddd(:,2:kl-1))
   
 ! TKE vertical mixing
-!$acc loop seq
 do k = 2,kl-1
-  !$acc loop vector
   do i = 1,imax
     aad(i,k) = kmo(i,k-1)*qq(i,k)
     ccd(i,k) = kmo(i,k)*rr(i,k)
@@ -1196,7 +1151,6 @@ do k = 2,kl-1
     ddd(i,k) = tke(i,k) + ddts*(pps(i,k)+ppb(i,k)-eps(i,k))
   end do
 end do
-!$acc loop vector
 do i = 1,imax
   ddd(i,2)    = ddd(i,2)    - aad(i,2)*tke(i,1)
   ddd(i,kl-1) = ddd(i,kl-1) - ccd(i,kl-1)*mintke
@@ -1205,9 +1159,7 @@ call thomas(tke(:,2:kl-1),aad(:,3:kl-1),bbd(:,2:kl-1),ccd(:,2:kl-2),ddd(:,2:kl-1
   
 ! limit decay of TKE and EPS with coupling to mass flux term
 if ( tkemeth==1 ) then
-  !$acc loop seq
   do k = 2,kl-1
-    !$acc loop vector
     do i = 1,imax
       if ( wstar(i)>0.5 .and. zz(i,k)>0.5*zi(i) .and. zz(i,k)<0.95*zi(i) ) then
         tbb = max(1.-0.05*dz_hl(i,k-1)/250.,0.)        
@@ -1219,9 +1171,7 @@ if ( tkemeth==1 ) then
 end if
 
 ! apply limits and corrections to tke and eps terms
-!$acc loop seq
 do k = 2,kl-1
-  !$acc loop vector
   do i = 1,imax
     tke(i,k) = max(tke(i,k),mintke)
     tff = cm34*tke(i,k)*sqrt(tke(i,k))
@@ -1238,7 +1188,6 @@ end subroutine update_tkeeps
                          
 subroutine mlo_update_n2(n2_o,w_t,w_s,deptho_depth,deptho_depth_hl,deptho_dz, &
                          fdeptho_hl,wrtrho,imax,ol)
-!!$acc routine vector
 
 use mlo_ctrl, only : calcdensity
 
@@ -1259,36 +1208,28 @@ real, dimension(imax,ol) :: rho_hl_o
 real, dimension(imax) :: pxtr_o
 
 ! calculate density
-!$acc loop vector
 do i = 1,imax
   pxtr_o(i) = 0. ! neglect surface pressure as rho is only used for n2 calculation
 end do  
 call calcdensity(rho_o,alpha_o,beta_o,w_t,w_s,deptho_dz,pxtr_o)
 
-!$acc loop vector
 do i = 1,imax
   rho_hl_o(i,1) = 0.  
 end do
-!$acc loop seq
 do k = 2,ol
-  !$acc loop vector  
   do i = 1,imax  
     rho_hl_o(i,k) = rho_o(i,k-1) + fdeptho_hl(i,k)*(rho_o(i,k)-rho_o(i,k-1))
   end do
 end do
       
 !n2 (full levels)
-!$acc loop seq
 do k = 1,ol
-  !$acc loop vector  
   do i = 1,imax  
     n2_o(i,k) = 0.
   end do
 end do
 
-!$acc loop seq
 do k = 2,ol-1
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,k)>1.e-4 ) then
       n2_o(i,k) = -grav/wrtrho*(rho_hl_o(i,k)-rho_hl_o(i,k+1))/deptho_dz(i,k)
@@ -1296,7 +1237,6 @@ do k = 2,ol-1
   end do  
 end do
 
-!$acc loop vector
 do i = 1,imax
   if ( deptho_dz(i,1)>1.e-4 ) then
     n2_o(i,1) = -grav/wrtrho*(rho_o(i,1)-rho_hl_o(i,2))/(deptho_depth_hl(i,2)-deptho_depth(i,1))
@@ -1314,7 +1254,6 @@ end subroutine mlo_update_n2
 
 subroutine mlo_update_buoyancy(pps_o,ppb_o,km_o,ks_o,w_u,w_v,n2_o,dwdx_o,dwdy_o, &
                                deptho_dz,fdeptho_hl,nops,nopb,imax,ol)
-!!$acc routine vector
 
 implicit none
 
@@ -1333,26 +1272,20 @@ real, dimension(imax,ol) :: u_hl_o, v_hl_o
 real dudz, dvdz, shear_o
 
 !shear production
-!$acc loop seq
 do k = 2,ol-1
-  !$acc loop vector
   do i = 1,imax
     pps_o(i,k) = 0.
   end do  
 end do
 
 if ( nops==0 ) then    
-  !$acc loop seq
   do k = 2,ol
-    !$acc loop vector  
     do i = 1,imax  
       u_hl_o(i,k) = w_u(i,k-1) + fdeptho_hl(i,k)*(w_u(i,k)-w_u(i,k-1))
       v_hl_o(i,k) = w_v(i,k-1) + fdeptho_hl(i,k)*(w_v(i,k)-w_v(i,k-1))
     end do
   end do
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       dudz = 0.
       dvdz = 0.
@@ -1368,18 +1301,14 @@ if ( nops==0 ) then
 end if
 
 !buoyancy production
-!$acc loop seq
 do k = 2,ol-1
-  !$acc loop vector
   do i = 1,imax
     ppb_o(i,k) = 0.
   end do  
 end do
 
 if ( nopb==0 ) then
-  !$acc loop seq  
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       ppb_o(i,k) = -ks_o(i,k)*n2_o(i,k)
     end do  
@@ -1394,11 +1323,7 @@ end subroutine mlo_update_buoyancy
                          
 subroutine mlo_update_keps(kmo_hl,kso_hl,w_tke,w_eps,pps_o,ppb_o,deptho_depth, &
                            deptho_depth_hl,deptho_dz,deptho_dz_hl,ibot,        &
-                           aad,bbd,ccd,ddd,                                    & ! working
                            ddts,fixedce3,eps_mode,k_mode,imax,ol)
-!!$acc routine vector
-
-use mlo_ctrl, only : calcdensity
 
 implicit none
 
@@ -1415,9 +1340,9 @@ real, dimension(imax,2:ol), intent(in) :: deptho_dz_hl
 real, dimension(imax,ol), intent(in) :: pps_o, ppb_o
 
 integer i, k
-real, dimension(imax,ol-1), intent(inout) :: ccd    ! working
-real, dimension(imax,ol), intent(inout) :: bbd, ddd ! working
-real, dimension(imax,2:ol), intent(inout) :: aad    ! working
+real, dimension(imax,ol-1) :: ccd    ! working
+real, dimension(imax,ol) :: bbd, ddd ! working
+real, dimension(imax,2:ol) :: aad    ! working
 real, dimension(imax,ol) :: ce3_o
 real, parameter :: ce1 = 1.44        ! eps production coefficient
 real, parameter :: ce2 = 1.92        ! eps sink coefficient
@@ -1427,17 +1352,13 @@ real, parameter :: sigmaeps = 1.08   ! eps Schmidt number
 
 !calculate ce3
 if ( fixedce3==1 ) then
-  !$acc loop seq  
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       ce3_o(i,k) = ce3stable
     end do
   end do
 else if ( fixedce3==0 ) then
-  !$acc loop seq  
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       if ( ppb_o(i,k) < 0. ) then
         ce3_o(i,k) = ce3unstable
@@ -1450,31 +1371,23 @@ end if
 
 !solve eps
 !setup diagonals
-!$acc loop seq
 do k = 2,ol
-  !$acc loop vector
   do i = 1,imax
     aad(i,k) = 0.
   end do
 end do
-!$acc loop seq
 do k = 1,ol-1
-  !$acc loop vector
   do i = 1,imax
     ccd(i,k) = 0.
   end do
 end do
-!$acc loop seq
 do k = 1,ol
-  !$acc loop vector
   do i = 1,imax
     bbd(i,k) = 1.
     ddd(i,k) = w_eps(i,k)
   end do
 end do
-!$acc loop seq
 do k = 2,ol-1
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,k)*deptho_dz(i,k-1)>1.e-4 .and. ibot(i)>k ) then
       aad(i,k) = -ddts*kmo_hl(i,k)/(deptho_dz(i,k)*deptho_dz_hl(i,k)*sigmaeps)
@@ -1486,9 +1399,7 @@ do k = 2,ol-1
   end do  
 end do
 if ( eps_mode==0 ) then !explicit eps
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       if ( deptho_dz(i,k)>1.e-4 .and. ibot(i)>k ) then
         ddd(i,k) = ddd(i,k) + ddts*w_eps(i,k)/w_tke(i,k)*(ce1*pps_o(i,k) &
@@ -1497,9 +1408,7 @@ if ( eps_mode==0 ) then !explicit eps
     end do  
   end do
 else if ( eps_mode==1 ) then !quasi implicit for eps, Patanker (1980)
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       if ( deptho_dz(i,k)>1.e-4 .and. ibot(i)>k ) then
         bbd(i,k) = bbd(i,k) + ddts*ce2*w_eps(i,k)/w_tke(i,k)
@@ -1509,9 +1418,7 @@ else if ( eps_mode==1 ) then !quasi implicit for eps, Patanker (1980)
     end do  
   end do
 else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       if ( deptho_dz(i,k)>1.e-4 .and. (ce1*pps_o(i,k)+ce3_o(i,k)*ppb_o(i,k))>0. .and. &
            ibot(i)>k ) then
@@ -1525,7 +1432,6 @@ else if ( eps_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Bur
     end do  
   end do  
 end if
-!$acc loop vector
 do i = 1,imax
   ddd(i,2) = ddd(i,2) - aad(i,2)*w_eps(i,1)
   ddd(i,ol-1) = ddd(i,ol-1) - ccd(i,ol-1)*w_eps(i,ol)
@@ -1537,30 +1443,23 @@ call thomas(w_eps(:,2:ol-1),aad(:,3:ol-1),bbd(:,2:ol-1),ccd(:,2:ol-2),ddd(:,2:ol
 !solve k
 !setup diagonals
 do k = 2,ol
-  !$acc loop vector
   do i = 1,imax
     aad(i,k) = 0.
   end do
 end do
-!$acc loop seq
 do k = 1,ol-1
-  !$acc loop vector
   do i = 1,imax
     ccd(i,k) = 0.
   end do
 end do
-!$acc loop seq
 do k = 1,ol
-  !$acc loop vector
   do i = 1,imax
     bbd(i,k) = 1.
     ddd(i,k) = w_tke(i,k)
   end do
 end do
 
-!$acc loop seq
 do k = 2,ol-1
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,k)*deptho_dz(i,k-1)>1.e-4 .and. ibot(i)>k ) then
       aad(i,k) = -ddts*kmo_hl(i,k)/(deptho_dz(i,k)*deptho_dz_hl(i,k))
@@ -1572,9 +1471,7 @@ do k = 2,ol-1
   end do  
 end do
 if ( k_mode==0 ) then !explicit eps
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       if ( deptho_dz(i,k)>1.e-4 .and. ibot(i)>k ) then
         ddd(i,k) = ddd(i,k) + ddts*(pps_o(i,k) + ppb_o(i,k) - w_eps(i,k))
@@ -1582,9 +1479,7 @@ if ( k_mode==0 ) then !explicit eps
     end do  
   end do    
 else if ( k_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       if ( deptho_dz(i,k)>1.e-4 .and. ibot(i)>k ) then
         bbd(i,k) = bbd(i,k) + ddts*w_eps(i,k)/w_tke(i,k)
@@ -1593,9 +1488,7 @@ else if ( k_mode==1 ) then !quasi impliciit for eps, Patanker (1980)
     end do  
   end do    
 else if ( k_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burchard et al sect 4 (1998)
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       if ( deptho_dz(i,k)>1.e-4 .and. (pps_o(i,k)+ppb_o(i,k))>0. .and. &
            ibot(i)>k ) then
@@ -1608,7 +1501,6 @@ else if ( k_mode==2 ) then !quasi implicit for eps & pb, Patanker (1980) & Burch
     end do  
   end do
 end if
-!$acc loop vector
 do i = 1,imax
   ddd(i,2) = ddd(i,2) - aad(i,2)*w_tke(i,1)
   ddd(i,ol-1) = ddd(i,ol-1) - ccd(i,ol-1)*w_tke(i,ol)
@@ -1625,7 +1517,6 @@ end subroutine mlo_update_keps
 
 subroutine mlo_limit_tke(w_tke,w_eps,km_o,ks_o,n2_o,omink,omineps,omaxL,ominL, &
                          limitL,fixedstabfunc,cu0,imax,ol)
-!!$acc routine vector
 
 implicit none
 
@@ -1641,9 +1532,7 @@ real minL, alpha, cu, cud
 real, dimension(imax,ol) :: L_o
 
 !limit k & eps
-!$acc loop seq
 do k = 1,ol
-  !$acc loop vector
   do i = 1,imax
     w_tke(i,k) = max( w_tke(i,k), omink )
     w_eps(i,k) = max( w_eps(i,k), omineps )
@@ -1651,18 +1540,14 @@ do k = 1,ol
 end do
 
 !limit length scale
-!$acc loop seq
 do k = 1,ol
-  !$acc loop vector
   do i = 1,imax
     L_o(i,k) = cu0**3*w_tke(i,k)**1.5/w_eps(i,k)
   end do
 end do
 if ( limitL==1 ) then
   minL = cu0**3*omink**1.5/omineps
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector
     do i = 1,imax
       L_o(i,k) = max( L_o(i,k), minL )
       if ( n2_o(i,k) > 0. ) then
@@ -1671,9 +1556,7 @@ if ( limitL==1 ) then
     end do  
   end do
 end if
-!$acc loop seq
 do k = 1,ol
-  !$acc loop vector
   do i = 1,imax
     L_o(i,k) = max( min( L_o(i,k), omaxl), ominl )
   end do
@@ -1684,18 +1567,14 @@ if ( fixedstabfunc==1 ) then
   alpha = 0.
   cu = cu0
   cud = 0.6985
-  !$acc loop seq
   do k = 1,ol
-    !$acc loop vector
     do i = 1,imax
       km_o(i,k) = max( cu*sqrt(w_tke(i,k))*L_o(i,k), 1.e-6 )
       ks_o(i,k) = max( cud*sqrt(w_tke(i,k))*L_o(i,k), 1.e-6 )
     end do
   end do
 else
-  !$acc loop seq
   do k = 1,ol
-    !$acc loop vector
     do i = 1,imax
       alpha = L_o(i,k)**2*n2_o(i,k)/w_tke(i,k)
       alpha = max( min( alpha, 0.56), -0.0466 ) ! SHOC (before eq 6.7.5)
@@ -1724,10 +1603,8 @@ subroutine update_coupled(thetal,qvg,qlg,qfg,ni,cf,                &
                           ws0_o,ws0subsurf_o,i_u,i_v,imass,        &
                           fracice,cd_ice,cdbot_ice,ibot,land,      &
                           wu0_o,wv0_o,wt0_o,km_o,ks_o,sigkap,      &
-                          aad,bbd,ccd,ddd,uu,yy,yyu,               & ! working
                           ddts,minsfc,cp0,wrtemp,wrtrho,use_ocean, &
                           imax,kl,ol)
-!!$acc routine vector
 
 implicit none
 
@@ -1759,10 +1636,10 @@ real, dimension(imax), intent(inout) :: i_u, i_v
 real, intent(in) :: ddts
 real, dimension(imax,kl) :: km_a, rr
 real, dimension(imax,2:kl) :: qq
-real, dimension(imax,2:kl+ol+1), intent(inout) :: aad       ! working
-real, dimension(imax,kl+ol+1), intent(inout) :: bbd, ddd    ! working
-real, dimension(imax,kl+ol), intent(inout) :: ccd           ! working
-real, dimension(imax,kl+ol+1), intent(inout) :: uu, yy, yyu ! working
+real, dimension(imax,2:kl+ol+1) :: aad       ! working
+real, dimension(imax,kl+ol+1) :: bbd, ddd    ! working
+real, dimension(imax,kl+ol) :: ccd           ! working
+real, dimension(imax,kl+ol+1) :: uu, yy, yyu ! working
 real, dimension(imax) :: tmp, tmpu
 real, dimension(imax) :: fulldeptho, targetdeptho
 real, dimension(imax) :: f_ao, f_oa, f_ai, f_ia, f_oi, f_io
@@ -1773,9 +1650,7 @@ logical, dimension(imax), intent(in) :: land
 
 
 ! estimate eddy diffusivity mixing coeff for atmosphere
-!$acc loop seq
 do k = 1,kl
-  !$acc loop vector  
   do i = 1,imax
     km_a(i,k) = cm0*tke(i,k)**2/eps(i,k)
   end do
@@ -1783,9 +1658,7 @@ end do
 
 ! Pre-calculate eddy diffiusivity mixing terms using updated kmo values
 ! -ve because gradient is calculated at t+1
-!$acc loop seq
 do k = 1,kl-1
-  !$acc loop vector  
   do i = 1,imax
     kmo_a = km_a(i,k) + fzzh(i,k)*(km_a(i,k+1)-km_a(i,k))
     qq(i,k+1) = -ddts*kmo_a*idzm(i,k+1)/dz_hl(i,k)
@@ -1794,23 +1667,17 @@ do k = 1,kl-1
 end do
 
 ! default values for working arrays
-!$acc loop seq
 do k = 2,kl+ol+1
-  !$acc loop vector  
   do i = 1,imax
     aad(i,k) = 0.
   end do
 end do
-!$acc loop seq
 do k = 1,kl+ol
-  !$acc loop vector  
   do i = 1,imax
     ccd(i,k) = 0.
   end do
 end do
-!$acc loop seq
 do k = 1,kl+ol+1
-  !$acc loop vector  
   do i = 1,imax
     bbd(i,k) = 1.
     ddd(i,k) = 0.
@@ -1818,7 +1685,6 @@ do k = 1,kl+ol+1
 end do
   
 ! zero coupling terms for land
-!$acc loop vector
 do i = 1,imax
   f_ao(i) = 0.
   f_oa(i) = 0.
@@ -1847,35 +1713,28 @@ end do
 ! [                               aa_o bb_o ] [ t_o ]   [ dd_o ]
     
 ! k=1 is top of atmosphere and k=kl is bottom of atmosphere
-!$acc loop vector
 do i = 1,imax
   ccd(i,1) = qq(i,kl) + ddts*mflx(i,kl-1)*(1.-fzzh(i,kl-1))*idzm(i,kl)
 end do
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     aad(i,k) = rr(i,kn)-ddts*mflx(i,kn+1)*fzzh(i,kn)*idzp(i,kn)
     ccd(i,k) = qq(i,kn)+ddts*mflx(i,kn-1)*(1.-fzzh(i,kn-1))*idzm(i,kn)
   end do  
 end do
-!$acc loop vector
 do i = 1,imax
   aad(i,kl) = rr(i,1) - ddts*mflx(i,2)*fzzh(i,1)*idzp(i,1)
 end do
 
 if ( use_ocean ) then
   ! ocean data at kl+k
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,2)*deptho_dz(i,1)>1.e-4 ) then
       ccd(i,kl+1) = -ddts*ks_o(i,2)/(deptho_dz_hl(i,2)*deptho_dz(i,1))
     end if
   end do
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector  
     do i = 1,imax
       if ( deptho_dz(i,k)*deptho_dz(i,k)>1.e-4 ) then
         aad(i,kl+k) = -ddts*ks_o(i,k)/(deptho_dz_hl(i,k)*deptho_dz(i,k))
@@ -1885,7 +1744,6 @@ if ( use_ocean ) then
       end if
     end do
   end do
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,ol)*deptho_dz(i,ol)>1.e-4 ) then
       aad(i,kl+ol) = -ddts*ks_o(i,ol)/(deptho_dz_hl(i,ol)*deptho_dz(i,ol))
@@ -1895,17 +1753,14 @@ if ( use_ocean ) then
 end if
   
 
-!$acc loop vector
 do i = 1,imax
   ! k=1 is top of atmosphere and k=kl is bottom of atmosphere
   bbd(i,1) = 1.-qq(i,kl)+ddts*mflx(i,kl)*fzzh(i,kl-1)*idzm(i,kl)
   ddd(i,1) = thetal(i,kl)+ddts*(mflx(i,kl-1)*tlup(i,kl-1)*(1.-fzzh(i,kl-1))*idzm(i,kl)   &
                                +mflx(i,kl)*tlup(i,kl)*fzzh(i,kl-1)*idzm(i,kl))
 end do
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     bbd(i,k) = 1.-qq(i,kn)-rr(i,kn)+ddts*(mflx(i,kn)*fzzh(i,kn-1)*idzm(i,kn)     &
                                          -mflx(i,kn)*(1.-fzzh(i,kn))*idzp(i,kn))
@@ -1915,7 +1770,6 @@ do k = 2,kl-1
                                  -mflx(i,kn+1)*tlup(i,kn+1)*fzzh(i,kn)*idzp(i,kn))
   end do
 end do
-!$acc loop vector
 do i = 1,imax
   bbd(i,kl) = 1.-rr(i,1)-ddts*mflx(i,1)*(1.-fzzh(i,1))*idzp(i,1)
   ddd(i,kl) = thetal(i,1)-ddts*(mflx(i,1)*tlup(i,1)*(1.-fzzh(i,1))*idzp(i,1) &
@@ -1925,7 +1779,6 @@ end do
 
 if ( use_ocean ) then
 
-  !$acc loop vector
   do i = 1,imax
     t1(i) = rhos(i)*cdh_water(i)*cp
     if ( land(i) ) then
@@ -1941,7 +1794,6 @@ if ( use_ocean ) then
   end do
     
   ! ocean data at kl+k
-  !$acc loop vector
   do i = 1,imax
     bbd(i,kl+1) = 1. - ccd(i,kl+1)
     ddd(i,kl+1) = w_t(i,1)
@@ -1949,9 +1801,7 @@ if ( use_ocean ) then
       ddd(i,kl+1) = ddd(i,kl+1) - ddts*rad_o(i,1)/deptho_dz(i,1)
     end if
   end do  
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector  
     do i = 1,imax
       bbd(i,kl+k) = 1. - aad(i,kl+k) - ccd(i,kl+k)
       ddd(i,kl+k) = w_t(i,k)
@@ -1960,7 +1810,6 @@ if ( use_ocean ) then
       end if
     end do  
   end do
-  !$acc loop vector
   do i = 1,imax
     bbd(i,kl+ol) = 1. - aad(i,kl+ol)
     ddd(i,kl+ol) = w_t(i,ol)
@@ -1977,7 +1826,6 @@ if ( use_ocean ) then
     end if
   end do  
   
-  !$acc loop vector
   do i = 1,imax
     if ( .not.land(i) ) then
       f_ao(i) = -ddts*t1(i)*(1.-fracice(i))/cp/(rhoa1(i)*dz1(i))
@@ -1990,21 +1838,18 @@ if ( use_ocean ) then
   ! pure tridiagonal matrix for atmosphere and ocean (no sea-ice)
   call thomas(yy(:,1:kl+ol),aad(:,2:kl+ol),bbd(:,1:kl+ol),ccd(:,1:kl+ol-1),ddd(:,1:kl+ol))
 
-  !$acc loop seq
   do k = 1,ol
-    !$acc loop vector  
     do i = 1,imax
       w_t(i,k) = yy(i,kl+k)
     end do
   end do
 
   ! Derive sensible heat flux for water gridpoints
-  !$acc loop vector
   do i = 1,imax
     wt0_o(i) = 0.
     if ( .not.land(i) ) then
       fg(i) = (1.-fracice(i))*t1(i)*(yy(i,kl+1)+wrtemp-yy(i,kl) &
-              -sigkap(1)*(lv*qlg(i,1)+ls*qfg(i,1))/cp)           &
+              -sigkap(1)*(lv*qlg(i,1)+ls*qfg(i,1))/cp)          &
             + fracice(i)*icefg_a(i)
       ! wt0fb_o has already been multiplied by fracice
       wt0_o(i) = wt0rad_o(i) + wt0melt_o(i) + wt0eg_o(i) + wt0fb_o(i)    &
@@ -2016,7 +1861,6 @@ if ( use_ocean ) then
   
 else ! use_ocean ..else.
 
-  !$acc loop vector
   do i = 1,imax
     wt0_a = fg(i)/(rhos(i)*cp)  ! theta flux
     ddd(i,kl) = ddd(i,kl) + ddts*rhos(i)*wt0_a/(rhoa1(i)*dz1(i))
@@ -2028,10 +1872,8 @@ else ! use_ocean ..else.
 end if ! use_ocean ..else..
 
 
-!$acc loop seq
 do k = 1,kl
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     thetal(i,k) = yy(i,kn)
   end do
@@ -2044,15 +1886,12 @@ end do
 !------------------------------------------------------------------------------
 ! set-up decoupled atmosphere matrices (qv, ql, qf, ni, cf)
 
-!$acc loop vector
 do i = 1,imax
   bbd(i,1) = 1.-qq(i,kl)+ddts*mflx(i,kl)*fzzh(i,kl-1)*idzm(i,kl)
   ccd(i,1) = qq(i,kl)+ddts*mflx(i,kl-1)*(1.-fzzh(i,kl-1))*idzm(i,kl)
 end do  
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     aad(i,k) = rr(i,kn)-ddts*mflx(i,kn+1)*fzzh(i,kn)*idzp(i,kn)
     bbd(i,k) = 1.-qq(i,kn)-rr(i,kn)+ddts*(mflx(i,kn)*fzzh(i,kn-1)*idzm(i,kn)      &
@@ -2060,7 +1899,6 @@ do k = 2,kl-1
     ccd(i,k) = qq(i,kn)+ddts*mflx(i,kn-1)*(1.-fzzh(i,kn-1))*idzm(i,kn)
   end do  
 end do
-!$acc loop vector
 do i = 1,imax
   aad(i,kl) = rr(i,1)-ddts*mflx(i,2)*fzzh(i,1)*idzp(i,1)
   bbd(i,kl) = 1.-rr(i,1)-ddts*mflx(i,1)*(1.-fzzh(i,1))*idzp(i,1)
@@ -2071,15 +1909,12 @@ end do
 ! decomposed into qv, ql and qf.
 
 ! qv (part of qtot) - atmosphere
-!$acc loop vector
 do i = 1,imax
   ddd(i,1)=qvg(i,kl)+ddts*(mflx(i,kl-1)*qvup(i,kl-1)*(1.-fzzh(i,kl-1))*idzm(i,kl)     &
                           +mflx(i,kl)*qvup(i,kl)*fzzh(i,kl-1)*idzm(i,kl))
 end do
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     ddd(i,k)=qvg(i,kn)+ddts*(mflx(i,kn-1)*qvup(i,kn-1)*(1.-fzzh(i,kn-1))*idzm(i,kn)   &
                             +mflx(i,kn)*qvup(i,kn)*fzzh(i,kn-1)*idzm(i,kn)            &
@@ -2087,7 +1922,6 @@ do k = 2,kl-1
                             -mflx(i,kn+1)*qvup(i,kn+1)*fzzh(i,kn)*idzp(i,kn))
   end do  
 end do
-!$acc loop vector
 do i = 1,imax
   wq0_a = eg(i)/(rhos(i)*lv)
   ddd(i,kl)=qvg(i,1)-ddts*(mflx(i,1)*qvup(i,1)*(1.-fzzh(i,1))*idzp(i,1) &
@@ -2095,25 +1929,20 @@ do i = 1,imax
                     +ddts*rhos(i)*wq0_a/(rhoa1(i)*dz1(i))
 end do
 call thomas(yy(:,1:kl),aad(:,2:kl),bbd(:,1:kl),ccd(:,1:kl-1),ddd(:,1:kl))
-!$acc loop seq
 do k = 1,kl
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     qvg(i,k) = yy(i,kn)
   end do
 end do
 
 ! ql (part of qtot) - atmosphere
-!$acc loop vector
 do i = 1,imax
   ddd(i,1)=qlg(i,kl)+ddts*(mflx(i,kl-1)*qlup(i,kl-1)*(1.-fzzh(i,kl-1))*idzm(i,kl)     &
                           +mflx(i,kl)*qlup(i,kl)*fzzh(i,kl-1)*idzm(i,kl))
 end do
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     ddd(i,k)=qlg(i,kn)+ddts*(mflx(i,kn-1)*qlup(i,kn-1)*(1.-fzzh(i,kn-1))*idzm(i,kn)  &
                             +mflx(i,kn)*qlup(i,kn)*fzzh(i,kn-1)*idzm(i,kn)           &
@@ -2121,31 +1950,25 @@ do k = 2,kl-1
                             -mflx(i,kn+1)*qlup(i,kn+1)*fzzh(i,kn)*idzp(i,kn))
   end do  
 end do
-!$acc loop vector
 do i = 1,imax
   ddd(i,kl)=qlg(i,1)-ddts*(mflx(i,1)*qlup(i,1)*(1.-fzzh(i,1))*idzp(i,1)         &
                           +mflx(i,2)*qlup(i,2)*fzzh(i,1)*idzp(i,1))
 end do  
 call thomas(yy(:,1:kl),aad(:,2:kl),bbd(:,1:kl),ccd(:,1:kl-1),ddd(:,1:kl))
-!$acc loop seq
 do k = 1,kl
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     qlg(i,k) = yy(i,kn)
   end do  
 end do
 
 ! qf (part of qtot) - atmosphere
-!$acc loop vector
 do i = 1,imax
   ddd(i,1)=qfg(i,kl)+ddts*(mflx(i,kl-1)*qfup(i,kl-1)*(1.-fzzh(i,kl-1))*idzm(i,kl)     &
                           +mflx(i,kl)*qfup(i,kl)*fzzh(i,kl-1)*idzm(i,kl))
 end do  
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     ddd(i,k)=qfg(i,kn)+ddts*(mflx(i,kn-1)*qfup(i,kn-1)*(1.-fzzh(i,kn-1))*idzm(i,kn)   &
                             +mflx(i,kn)*qfup(i,kn)*fzzh(i,kn-1)*idzm(i,kn)            &
@@ -2153,31 +1976,25 @@ do k = 2,kl-1
                             -mflx(i,kn+1)*qfup(i,kn+1)*fzzh(i,kn)*idzp(i,kn))
   end do  
 end do
-!$acc loop vector
 do i = 1,imax
   ddd(i,kl)=qfg(i,1)-ddts*(mflx(i,1)*qfup(i,1)*(1.-fzzh(i,1))*idzp(i,1)         &
                           +mflx(i,2)*qfup(i,2)*fzzh(i,1)*idzp(i,1))
 end do
 call thomas(yy(:,1:kl),aad(:,2:kl),bbd(:,1:kl),ccd(:,1:kl-1),ddd(:,1:kl))
-!$acc loop seq
 do k = 1,kl
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     qfg(i,k) = yy(i,kn)
   end do  
 end do
 
 ! ni - atmosphere
-!$acc loop vector
 do i = 1,imax
   ddd(i,1)=ni(i,kl)+ddts*(mflx(i,kl-1)*niup(i,kl-1)*(1.-fzzh(i,kl-1))*idzm(i,kl)     &
                          +mflx(i,kl)*niup(i,kl)*fzzh(i,kl-1)*idzm(i,kl))
 end do
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     ddd(i,k)=ni(i,kn)+ddts*(mflx(i,kn-1)*niup(i,kn-1)*(1.-fzzh(i,kn-1))*idzm(i,kn)   &
                            +mflx(i,kn)*niup(i,kn)*fzzh(i,kn-1)*idzm(i,kn)            &
@@ -2185,31 +2002,25 @@ do k = 2,kl-1
                            -mflx(i,kn+1)*niup(i,kn+1)*fzzh(i,kn)*idzp(i,kn))
   end do
 end do
-!$acc loop vector
 do i = 1,imax
   ddd(i,kl)=ni(i,1)-ddts*(mflx(i,1)*niup(i,1)*(1.-fzzh(i,1))*idzp(i,1)         &
                          +mflx(i,2)*niup(i,2)*fzzh(i,1)*idzp(i,1))
 end do
 call thomas(yy(:,1:kl),aad(:,2:kl),bbd(:,1:kl),ccd(:,1:kl-1),ddd(:,1:kl))
-!$acc loop seq
 do k = 1,kl
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     ni(i,k) = yy(i,kn)
   end do  
 end do
 
 ! cf - atmosphere
-!$acc loop vector
 do i = 1,imax
   ddd(i,1)=cf(i,kl)+ddts*(mflx(i,kl-1)*cfup(i,kl-1)*(1.-fzzh(i,kl-1))*idzm(i,kl)     &
                          +mflx(i,kl)*cfup(i,kl)*fzzh(i,kl-1)*idzm(i,kl))
 end do
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     ddd(i,k)=cf(i,kn)+ddts*(mflx(i,kn-1)*cfup(i,kn-1)*(1.-fzzh(i,kn-1))*idzm(i,kn)   &
                            +mflx(i,kn)*cfup(i,kn)*fzzh(i,kn-1)*idzm(i,kn)            &
@@ -2217,16 +2028,13 @@ do k = 2,kl-1
                            -mflx(i,kn+1)*cfup(i,kn+1)*fzzh(i,kn)*idzp(i,kn))
   end do
 end do
-!$acc loop vector
 do i = 1,imax
   ddd(i,kl)=cf(i,1)-ddts*(mflx(i,1)*cfup(i,1)*(1.-fzzh(i,1))*idzp(i,1)        &
                          +mflx(i,2)*cfup(i,2)*fzzh(i,1)*idzp(i,1))
 end do
 call thomas(yy(:,1:kl),aad(:,2:kl),bbd(:,1:kl),ccd(:,1:kl-1),ddd(:,1:kl))
-!$acc loop seq
 do k = 1,kl
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     cf(i,k) = min( max( yy(i,kn), 0. ), 1. )
   end do  
@@ -2241,16 +2049,13 @@ if ( use_ocean ) then
   ! set-up decoupled ocean matrices (salinity)
 
   ! ocean data at kl+k
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,2)*deptho_dz(i,1)>1.e-4 ) then
       ccd(i,kl+1) = -ddts*ks_o(i,2)/(deptho_dz_hl(i,2)*deptho_dz(i,1))
     end if
     bbd(i,kl+1) = 1. - ccd(i,kl+1)
   end do
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector  
     do i = 1,imax
       if ( deptho_dz(i,k-1)*deptho_dz(i,k)>1.e-4 ) then
         aad(i,kl+k) = -ddts*ks_o(i,k)/(deptho_dz_hl(i,k)*deptho_dz(i,k))
@@ -2261,7 +2066,6 @@ if ( use_ocean ) then
       bbd(i,kl+k) = 1. - aad(i,kl+k) - ccd(i,kl+k)
     end do
   end do
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,ol-1)*deptho_dz(i,ol)>1.e-4 ) then
       aad(i,kl+ol) = -ddts*ks_o(i,ol)/(deptho_dz_hl(i,ol)*deptho_dz(i,ol))
@@ -2270,22 +2074,17 @@ if ( use_ocean ) then
   end do
 
   ! sal - ocean
-  !$acc loop vector
   do i = 1,imax
     fulldeptho(i) = 0.
     targetdeptho(i) = 0.
   end do
-  !$acc loop seq
   do k = 1,ol
-    !$acc loop vector  
     do i = 1,imax
       targetdeptho(i) = targetdeptho(i) + deptho_dz(i,k)
       targetdeptho(i) = min( minsfc, targetdeptho(i) )
     end do
   end do
-  !$acc loop seq
   do k = 1,ol
-    !$acc loop vector  
     do i = 1,imax
       !ddd(i,kl+k) = w_s(i,k)
       ddd(i,kl+k) = w_s(i,k)
@@ -2297,7 +2096,6 @@ if ( use_ocean ) then
       end if
     end do  
   end do
-  !$acc loop vector
   do i = 1,imax
     if ( .not.land(i) ) then
       !ddd(i,kl+1) = ddd(i,kl+1) - ddts*ws0_o(i)/deptho_dz_t(i,1)
@@ -2354,22 +2152,18 @@ end if ! use_ocean
 ! t = y - {(v^T y)/(1 + (v^T q))} q
   
 
-!$acc loop vector
 do i = 1,imax
   bbd(i,1) = 1.-qq(i,kl)
   ccd(i,1) = qq(i,kl)
 end do
-!$acc loop seq
 do k = 2,kl-1
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     aad(i,k) = rr(i,kn)
     bbd(i,k) = 1.-qq(i,kn)-rr(i,kn)
     ccd(i,k) = qq(i,kn)
   end do
 end do
-!$acc loop vector
 do i = 1,imax
   aad(i,kl) = rr(i,1)
   bbd(i,kl) = 1.-rr(i,1)
@@ -2379,14 +2173,12 @@ end do
 ! coupling terms
 if ( use_ocean ) then
   
-  !$acc loop vector
   do i = 1,imax
     t1(i) = rhos(i)*cd_water(i)
     t3(i) = rhos(i)*cd_ice(i)
     t4(i) = wrtrho*cdbot_ice(i)
   end do
   
-  !$acc loop vector
   do i = 1,imax
     if ( land(i) ) then
       bbd(i,kl) = bbd(i,kl) + ddts*rhos(i)*cduv(i)/(rhoa1(i)*dz1(i)) ! implicit
@@ -2396,7 +2188,6 @@ if ( use_ocean ) then
   end do
 
   ! ocean is kl+k
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,2)*deptho_dz(i,1) > 1.e-4 ) then
       ccd(i,kl+1) = -ddts*km_o(i,2)/(deptho_dz_hl(i,2)*deptho_dz(i,1))
@@ -2407,9 +2198,7 @@ if ( use_ocean ) then
     end if
   end do
   
-  !$acc loop seq
   do k = 2,ol-1
-    !$acc loop vector  
     do i = 1,imax
       if ( deptho_dz(i,k-1)*deptho_dz(i,k) > 1.e-4 ) then
         aad(i,kl+k) = -ddts*km_o(i,k)/(deptho_dz_hl(i,k)*deptho_dz(i,k))
@@ -2420,7 +2209,6 @@ if ( use_ocean ) then
       bbd(i,kl+k) = 1. - aad(i,kl+k) - ccd(i,kl+k)
     end do
   end do
-  !$acc loop vector
   do i = 1,imax
     if ( deptho_dz(i,ol-1)*deptho_dz(i,ol) > 1.e-4 ) then
       aad(i,kl+ol) = -ddts*km_o(i,ol)/(deptho_dz_hl(i,ol)*deptho_dz(i,ol))
@@ -2428,7 +2216,6 @@ if ( use_ocean ) then
     bbd(i,kl+ol) = 1. - aad(i,kl+ol)
   end do  
   ! bottom drag
-  !$acc loop vector
   do i = 1,imax
     if ( .not.land(i) ) then
       k = ibot(i)
@@ -2440,7 +2227,6 @@ if ( use_ocean ) then
   end do
 
   ! sea-ice is kl+ol+k
-  !$acc loop vector
   do i = 1,imax
     bbd(i,kl+ol+1) = 1.
     if ( .not.land(i) ) then
@@ -2448,15 +2234,12 @@ if ( use_ocean ) then
     end if
   end do
   
-  !$acc loop seq
   do k = 1,kl+ol+1
-    !$acc loop vector
     do i = 1,imax  
       uu(i,k) = 0.
       !vv(i,k) = 0.
     end do
   end do
-  !$acc loop vector
   do i = 1,imax
     if ( .not.land(i) ) then
       f_ao(i) = -ddts*t1(i)*(1.-fracice(i))/(rhoa1(i)*dz1(i))
@@ -2484,7 +2267,6 @@ if ( use_ocean ) then
   call thomas(yyu(:,1:kl+ol+1),aad(:,2:kl+ol+1),bbd(:,1:kl+ol+1),ccd(:,1:kl+ol),uu(:,1:kl+ol+1))
   
   ! Solve  v^t q
-  !$acc loop vector
   do i = 1,imax
     !tmp(i) = vv(i,kl)*yyu(i,kl) + vv(i,kl+1)*yyu(i,kl+1) + vv(i,kl+ol+1)*yyu(i,kl+ol+1)
     tmpu(i) = (-f_ia(i))*yyu(i,kl) + (-f_io(i))*yyu(i,kl+1) + (1.)*yyu(i,kl+ol+1)
@@ -2498,10 +2280,8 @@ end if ! use_ocean
 ! ua, uo, ui - coupled ----
 
 ! k=1 is top of atmosphere and k=kl is bottom of atmosphere
-!$acc loop seq
 do k = 1,kl
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     ddd(i,k) = ua(i,kn)
   end do
@@ -2510,14 +2290,11 @@ end do
 
 if ( use_ocean ) then
 
-  !$acc loop seq
   do k = 1,ol ! ocean at kl+k
-    !$acc loop vector  
     do i = 1,imax
       ddd(i,kl+k) = w_u(i,k)
     end do
   end do
-  !$acc loop vector
   do i = 1,imax ! ice at kl+ol+k
     ddd(i,kl+ol+1) = 0.
     if ( .not.land(i) ) then
@@ -2529,44 +2306,35 @@ if ( use_ocean ) then
   call thomas(yy(:,1:kl+ol+1),aad(:,2:kl+ol+1),bbd(:,1:kl+ol+1),ccd(:,1:kl+ol),ddd(:,1:kl+ol+1))
 
   ! Solve  v^t y
-  !$acc loop vector
   do i = 1,imax
     !tmp(i) = vv(i,kl)*yy(i,kl) + vv(i,kl+1)*yy(i,kl+1) + vv(i,kl+ol+1)*yy(i,kl+ol+1)
     tmp(i) = (-f_ia(i))*yy(i,kl) + (-f_io(i))*yy(i,kl+1) + (1.)*yy(i,kl+ol+1)
   end do
 
   ! Solve for x = y - {(v^t y)/(1 + (v^t q))} q
-  !$acc loop seq
   do k = 1,kl
     kn = kl - k + 1
-    !$acc loop vector
     do i = 1,imax
       ua(i,k) = yy(i,kn) - yyu(i,kn)*tmp(i)/(1.+tmpu(i))
     end do  
   end do
-  !$acc loop seq
   do k = 1,ol ! ocean at kl+k
-    !$acc loop vector  
     do i = 1,imax
       w_u(i,k) = yy(i,kl+k) - yyu(i,kl+k)*tmp(i)/(1.+tmpu(i))
     end do  
   end do
-  !$acc loop vector
   do i = 1,imax ! ice at kl+ol+k
     i_u(i) = yy(i,kl+ol+1) - yyu(i,kl+ol+1)*tmp(i)/(1.+tmpu(i))
   end do
 
 else ! use_ocean ..else..
     
-  !$acc loop vector
   do i = 1,imax
     bbd(i,kl) = bbd(i,kl) + ddts*rhos(i)*cduv(i)/(rhoa1(i)*dz1(i)) ! implicit
   end do
   call thomas(yy(:,1:kl),aad(:,2:kl),bbd(:,1:kl),ccd(:,1:kl-1),ddd(:,1:kl))
-  !$acc loop seq
   do k = 1,kl
     kn = kl - k + 1
-    !$acc loop vector
     do i = 1,imax
       ua(i,k) = yy(i,kn)
     end do  
@@ -2580,10 +2348,8 @@ end if ! use_ocean ..else..
 ! va, vo, vi - coupled ----
 
 ! k=1 is top of atmosphere and k=kl is bottom of atmosphere
-!$acc loop seq
 do k = 1,kl
   kn = kl - k + 1
-  !$acc loop vector
   do i = 1,imax
     ddd(i,k) = va(i,kn)
   end do
@@ -2592,14 +2358,11 @@ end do
 
 if ( use_ocean ) then
   
-  !$acc loop seq
   do k = 1,ol ! ocean at kl+k
-    !$acc loop vector  
     do i = 1,imax
       ddd(i,kl+k) = w_v(i,k)
     end do
   end do
-  !$acc loop vector
   do i = 1,imax ! ice at kl+ol+k
     ddd(i,kl+ol+1) = 0.
     if ( .not.land(i) ) then
@@ -2611,29 +2374,23 @@ if ( use_ocean ) then
   call thomas(yy(:,1:kl+ol+1),aad(:,2:kl+ol+1),bbd(:,1:kl+ol+1),ccd(:,1:kl+ol),ddd(:,1:kl+ol+1))
 
   ! Solve  v^t y
-  !$acc loop vector
   do i = 1,imax
     !tmp(i) = vv(i,kl)*yy(i,kl) + vv(i,kl+1)*yy(i,kl+1) + vv(i,kl+ol+1)*yy(i,kl+ol+1)
     tmp(i) = (-f_ia(i))*yy(i,kl) + (-f_io(i))*yy(i,kl+1) + (1.)*yy(i,kl+ol+1)
   end do
 
   ! Solve for x = y - {(v^t y)/(1 + (v^t q))} q
-  !$acc loop seq
   do k = 1,kl
     kn = kl - k + 1
-    !$acc loop vector
     do i = 1,imax
       va(i,k) = yy(i,kn) - yyu(i,kn)*tmp(i)/(1.+tmpu(i))
     end do  
   end do
-  !$acc loop seq
   do k = 1,ol ! ocean at kl+k
-    !$acc loop vector  
     do i = 1,imax
       w_v(i,k) = yy(i,kl+k) - yyu(i,kl+k)*tmp(i)/(1.+tmpu(i))
     end do  
   end do
-  !$acc loop vector
   do i = 1,imax ! ice at kl+ol+k
     i_v(i) = yy(i,kl+ol+1) - yyu(i,kl+ol+1)*tmp(i)/(1.+tmpu(i))
   end do
@@ -2642,10 +2399,8 @@ else ! use_ocean ..else..
 
   ! Solve A' y = d (for u and v) for combined atmosphere, ocean and sea-ice
   call thomas(yy(:,1:kl),aad(:,2:kl),bbd(:,1:kl),ccd(:,1:kl-1),ddd(:,1:kl))
-  !$acc loop seq
   do k = 1,kl
     kn = kl - k + 1
-    !$acc loop vector
     do i = 1,imax
       va(i,k) = yy(i,kn)
     end do  
@@ -2656,7 +2411,6 @@ end if ! use_ocean ..else..
 
 if ( use_ocean ) then
 
-  !$acc loop vector
   do i = 1,imax
     ! update surface momentum flux
     if ( land(i) ) then
@@ -2675,7 +2429,6 @@ if ( use_ocean ) then
   
 else ! use_ocean ..else..
 
-  !$acc loop vector
   do i = 1,imax
     ! update surface momentum flux
     ustar(i) = sqrt(cduv(i)*sqrt(ua(i,1)**2+va(i,1)**2))    
@@ -2691,7 +2444,6 @@ end subroutine update_coupled
 ! Tri-diagonal solver (array version)
 
 pure subroutine thomas(outdat,aai,bbi,cci,ddi)
-!!$acc routine vector
 
 implicit none
 
@@ -2706,15 +2458,12 @@ integer k, iq, nx, kx
 nx = size(bbi,1)
 kx = size(bbi,2)
 
-!$acc loop vector
 do iq = 1,nx
   cc(iq,1) = cci(iq,1)/bbi(iq,1)
   dd(iq,1) = ddi(iq,1)/bbi(iq,1)
 end do
 
-!$acc loop seq
 do k = 2,kx-1
-  !$acc loop vector  
   do iq = 1,nx
     n_s = 1./(bbi(iq,k)-cc(iq,k-1)*aai(iq,k))
     cc(iq,k) = cci(iq,k)*n_s
@@ -2722,15 +2471,12 @@ do k = 2,kx-1
   end do
 end do
 
-!$acc loop vector
 do iq = 1,nx
   n_s = 1./(bbi(iq,kx)-cc(iq,kx-1)*aai(iq,kx))
   outdat(iq,kx) = (ddi(iq,kx)-dd(iq,kx-1)*aai(iq,kx))*n_s
 end do
 
-!$acc loop seq
 do k = kx-1,1,-1
-  !$acc loop vector  
   do iq = 1,nx
     outdat(iq,k) = dd(iq,k)-cc(iq,k)*outdat(iq,k+1)
   end do  
@@ -2743,7 +2489,6 @@ end subroutine thomas
 ! Estimate saturation mixing ratio
 
 pure function getqsat(templ,ps,fice) result(qsat)
-!!$acc routine vector
 
 implicit none
 
@@ -2754,7 +2499,6 @@ real, dimension(size(templ)) :: qsat
 real estafi, tdiff, tdiffx, rx, rxx
 real qsatl, qsati, deles
 
-!$acc loop vector
 do iq = 1,size(templ)
   tdiff = min(max( templ(iq)-123.16, 0.), 219.)
   rx = tdiff - aint(tdiff)

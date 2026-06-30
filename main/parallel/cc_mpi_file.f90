@@ -50,11 +50,13 @@ module cc_mpi_file
    integer, allocatable, dimension(:), save, private :: fileneighlist      ! list of file neighbour processes
    integer, save, public :: fileneighnum                                   ! number of file neighbours
   
+   real, allocatable, dimension(:,:,:), save, private :: bbuf              ! recv buffer for filewinget
+   real, allocatable, dimension(:,:,:), save, private :: cbuf              ! send buffer for filewinget
+
    public :: ccmpi_filewinget, ccmpi_filebounds_setup,                      &
              ccmpi_filebounds, ccmpi_filedistribute, procarray,             &
              ccmpi_filewininit, ccmpi_filewinfinalize,                      &
-             ccmpi_filewinfinalize_exit, ccmpi_filewinunpack,               &
-             ccmpi_filewinwait
+             ccmpi_filewinfinalize_exit, ccmpi_filewinunpack
    
    interface ccmpi_filebounds
       module procedure ccmpi_filebounds2, ccmpi_filebounds3
@@ -85,8 +87,6 @@ contains
    subroutine ccmpi_filewinget3(sinp)
       ! broadcast file data to processes using shared memory for efficent data transfer
       real, dimension(:,:), intent(in) :: sinp
-      real, dimension(:,:,:), allocatable :: bbuf
-      real, dimension(:,:,:), allocatable :: cbuf
       integer :: n, w, nlen, kx, cc, ipf
       integer :: rcount, jproc, kproc
       integer :: k, ip, no, ca, cb
@@ -102,9 +102,6 @@ contains
       lcomm = comm_world
       nrecv = size(filemap_recv)
       nsend = size(filemap_send)
-      
-      allocate( bbuf(nlen,kx,nrecv) )
-      allocate( cbuf(nlen,kx,mynproc) )
       
       !     Set up the buffers to recv
       nreq = 0
@@ -139,6 +136,13 @@ contains
 #endif
       end do
 
+      ! wait for previous messages to be read before using shared memory for new
+      ! messages
+      call START_LOG(mpibarrier_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpibarrier_end)   
+
       ! Unpack incomming messages
       rcount = nreq
       do while ( rcount > 0 )
@@ -161,9 +165,8 @@ contains
          end do
       end do
       
-      deallocate( bbuf )
-      deallocate( cbuf )
-
+      ! wait for all messages to be recieved before allowing shared memory to be
+      ! read
       call START_LOG(mpibarrier_begin) 
       lcomm = comm_node
       call MPI_Barrier( lcomm, ierr )
@@ -250,19 +253,10 @@ contains
       end do       ! n loop
    
    end subroutine ccmpi_filewinunpack3
-   
-   subroutine ccmpi_filewinwait
-      integer(kind=4) :: lcomm, ierr
-   
-      call START_LOG(mpibarrier_begin) 
-      lcomm = comm_node
-      call MPI_Barrier( lcomm, ierr )
-      call END_LOG(mpibarrier_end)
-   
-   end subroutine ccmpi_filewinwait
 
    subroutine ccmpi_filewininit(kblock)
       integer, intent(in) :: kblock
+      integer :: nlen, nrecv
       integer, dimension(5) :: shsize
       
       ! allocated shared memory for internal node buffer
@@ -278,6 +272,11 @@ contains
       allocate( nodefile(pipan,pjpan,pnpan,kblock,filemap_indxlen) )
 #endif
    
+      nlen = pipan*pjpan*pnpan
+      nrecv = size(filemap_recv)
+      allocate( bbuf(nlen,kblock,nrecv) )
+      allocate( cbuf(nlen,kblock,mynproc) )
+
    end subroutine ccmpi_filewininit
    
    subroutine ccmpi_filewinfinalize
@@ -299,6 +298,10 @@ contains
 #endif
       nullify(nodefile)
    
+      if ( allocated( bbuf ) ) then
+         deallocate( bbuf, cbuf )
+      end if  
+
    end subroutine ccmpi_filewinfinalize
    
    subroutine ccmpi_filewinfinalize_exit

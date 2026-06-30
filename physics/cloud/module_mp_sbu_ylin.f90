@@ -191,14 +191,14 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
                                                      zqschg
 #endif  
   real, dimension(1:imax),         intent(inout)  :: pptrain, pptsnow, pptice
-  real, dimension(1:imax,kts:kte), intent(inout)  :: qvz,qlz,qrz,qiz,qsz,thz
-  real, dimension(1:imax,kts:kte), intent(inout)  :: ncz,niz,nrz,nsz
+  real, dimension(:,:), intent(inout)  :: qvz,qlz,qrz,qiz,qsz,thz
+  real, dimension(:,:), intent(inout)  :: ncz,niz,nrz,nsz
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   integer                                        :: k, iq
   ! local vars
   real                                           :: obp4, bp3, bp5, bp6, odp4,         &
                                                     dp3, dp5, dp5o2
-  ! temperary vars
+  ! temporary vars
   real                                           :: tmp, tmp0, tmp1, tmp2,tmp3,        &
                                                     tmp4, tmpa,tmpb,tmpc,tmpd,alpha1,  &
                                                     qic, abi,abr, abg, odtberg,        &
@@ -289,8 +289,27 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
 
   real fout, fthru, nfout, nfthru, alph
   real qnew
+  real vtrold_l, nvtr_l, vtsold_l, nvts_l
   
   !------------------------------------------------------------------------------------
+
+  !$acc data create(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa, &
+  !$acc             gam_ss,gam_bv_ss,gam_bv_s,                                        &
+  !$acc             fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr,      &
+  !$acc             effc1d,effr1d,effs1d,effi1d,                                      &
+  !$acc             fluxin,nfluxin,vtiold,n0_s,                                       &
+  !$acc             qrz,nrz,qsz,nsz,qiz,niz,thz,ncz,qlz,qvz)
+  !$acc update device(prez,tothz,rho,dzw)
+  !$acc update device(qrz,nrz,qsz,nsz,qiz,niz,thz)
+  !$acc update device(qlz,qvz)
+  
+  do k = kts,kte
+    do iq = 1,imax  
+      !ncz(iq,k) = Nt_c/rho(iq,k)  
+      ncz(iq,k) = zdrop(iq,k)/rho(iq,k)  
+    end do
+  end do
+  !$acc update device(ncz)
   
   dt = dt_in/real(njumps)  
   
@@ -349,12 +368,6 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
   lammaxi = 1./1.E-6
   lammini = 1./(2.*dcs+100.E-6)
 
-  !$acc data create(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa, &
-  !$acc             gam_ss,gam_bv_ss,                                                 &
-  !$acc             fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr,      &
-  !$acc             effc1d,effr1d,effs1d,effi1d)
-  !$acc update device(prez,tothz,rho,dzw)
-
   do n = 1,njumps
 
     !     qsw         saturated mixing ratio on water surface
@@ -367,80 +380,78 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     !     qizodt      qi/dt
     !     qszodt      qs/dt
 
+    !$acc parallel loop collapse(2) present(vtiold,qrz,nrz,qsz,nsz,qiz,niz) &
+    !$acc   present(ncz,tem,qlz,qvz,n0_s,viscmu,rho,tothz,thz)
     do k = kts,kte
+      do iq = 1,imax  
 
-      vtrold(:,k) = 0.
-      vtsold(:,k) = 0.
-      vtiold(:,k) = 0.
+        vtiold(iq,k) = 0.
         
-      !ncz(:,k) = Nt_c/rho(:,k)  
-      ncz(:,k) = zdrop(:,k)/rho(:,k)  
-        
-      niz(:,k) = min(niz(:,k),0.3E6/rho(:,k))
-      nrz(:,k) = max( 0.0,nrz(:,k) )
-      nsz(:,k) = max( 0.0,nsz(:,k) )
+        niz(iq,k) = min(niz(iq,k),0.3E6/rho(iq,k))
+        nrz(iq,k) = max( 0.0,nrz(iq,k) )
+        nsz(iq,k) = max( 0.0,nsz(iq,k) )
 
-      qlz(:,k) = max( 0.0,qlz(:,k) )
-      qiz(:,k) = max( 0.0,qiz(:,k) )
-      qvz(:,k) = max( qvmin,qvz(:,k) )
-      qsz(:,k) = max( 0.0,qsz(:,k) )
-      qrz(:,k) = max( 0.0,qrz(:,k) )
-      tem(:,k) = thz(:,k)*tothz(:,k)
+        qlz(iq,k) = max( 0.0,qlz(iq,k) )
+        qiz(iq,k) = max( 0.0,qiz(iq,k) )
+        qvz(iq,k) = max( qvmin,qvz(iq,k) )
+        qsz(iq,k) = max( 0.0,qsz(iq,k) )
+        qrz(iq,k) = max( 0.0,qrz(iq,k) )
+        tem(iq,k) = thz(iq,k)*tothz(iq,k)
 
-      n0_s(:,k) = 0.
+        !***********************************************************************
+        !*****  compute viscosity,difusivity,thermal conductivity, and    ******
+        !*****  Schmidt number                                            ******
+        !***********************************************************************
+        !      viscmu: dynamic viscosity of air kg/m/s
+        !      visc: kinematic viscosity of air = viscmu/rho (m2/s)
+        !      avisc=1.49628e-6 kg/m/s=1.49628e-5 g/cm/s
+        !      viscmu=1.718e-5 kg/m/s in RH
+        !      diffwv: Diffusivity of water vapor in air
+        !      adiffwv = 8.7602e-5 (8.794e-5 in MM5) kgm/s3
+        !              = 8.7602 (8.794 in MM5) gcm/s3
+        !      diffwv(k)=2.26e-5 m2/s
+        !      schmidt: Schmidt number=visc/diffwv
+        !      xka: thermal conductivity of air J/m/s/K (Kgm/s3/K)
+        !      xka(k)=2.43e-2 J/m/s/K in RH
+        !      axka=1.4132e3 (1.414e3 in MM5) m2/s2/k = 1.4132e7 cm2/s2/k
+        !------------------------------------------------------------------
+        viscmu(iq,k) = avisc*tem(iq,k)**1.5/(tem(iq,k)+120.0)
 
-      !qisten(:,k) = 0.
-      !qrsten(:,k) = 0.
-      !qssten(:,k) = 0.
-      !nisten(:,k) = 0.
-      !nrsten(:,k) = 0.
-      !nssten(:,k) = 0.
+        ! ---- YLIN, set snow variables
+        !
+        !---- A+B in depositional growth, the first try just take from Rogers and Yau(1989)
+        !         ab_s(k) = lsub*lsub*orv/(tcond(k)*temp(k))+&
+        !                   rv*temp(k)/(diffu(k)*qvsi(k))
 
-      !***********************************************************************
-      !*****  compute viscosity,difusivity,thermal conductivity, and    ******
-      !*****  Schmidt number                                            ******
-      !***********************************************************************
-      !      viscmu: dynamic viscosity of air kg/m/s
-      !      visc: kinematic viscosity of air = viscmu/rho (m2/s)
-      !      avisc=1.49628e-6 kg/m/s=1.49628e-5 g/cm/s
-      !      viscmu=1.718e-5 kg/m/s in RH
-      !      diffwv: Diffusivity of water vapor in air
-      !      adiffwv = 8.7602e-5 (8.794e-5 in MM5) kgm/s3
-      !              = 8.7602 (8.794 in MM5) gcm/s3
-      !      diffwv(k)=2.26e-5 m2/s
-      !      schmidt: Schmidt number=visc/diffwv
-      !      xka: thermal conductivity of air J/m/s/K (Kgm/s3/K)
-      !      xka(k)=2.43e-2 J/m/s/K in RH
-      !      axka=1.4132e3 (1.414e3 in MM5) m2/s2/k = 1.4132e7 cm2/s2/k
-      !------------------------------------------------------------------
-      viscmu(:,k) = avisc*tem(:,k)**1.5/(tem(:,k)+120.0)
+        !tc0(:)   = tem(:,k)-273.15
+        Ri(iq,k) = 0.
+        if ( rho(iq,k)*qlz(iq,k)>1.e-5 .AND. rho(iq,k)*qsz(iq,k)>1.e-5 ) then
+          Ri(iq,k) = 1.0/(1.0+6e-5/(rho(iq,k)**1.170*qlz(iq,k)*qsz(iq,k)**0.170)) 
+        end if
 
-      ! ---- YLIN, set snow variables
-      !
-      !---- A+B in depositional growth, the first try just take from Rogers and Yau(1989)
-      !         ab_s(k) = lsub*lsub*orv/(tcond(k)*temp(k))+&
-      !                   rv*temp(k)/(diffu(k)*qvsi(k))
-
-      !tc0(:)   = tem(:,k)-273.15
-      where( rho(:,k)*qlz(:,k)>1e-5 .AND. rho(:,k)*qsz(:,k)>1e-5 )
-        Ri(:,k) = 1.0/(1.0+6e-5/(rho(:,k)**1.170*qlz(:,k)*qsz(:,k)**0.170)) 
-      elsewhere
-        Ri(:,k) = 0.
-      end where
-
+      end do  
     end do ! k
+    !$acc end parallel loop
 
     !
     !--- make sure Ri does not decrease downward in a column
     !
+#ifdef GPU
+    !$acc parallel loop private(k) present(Ri)
+    do iq = 1,imax  
+      !$acc loop seq  
+      do k = kte-1,kts,-1
+#else
     do k = kte-1,kts,-1
-      Ri(:,k) = max( Ri(:,k), Ri(:,k+1) )
+      do iq = 1,imax  
+#endif
+        Ri(iq,k) = max( Ri(iq,k), Ri(iq,k+1) )
+      end do  
     end do
+    !$acc end parallel loop
 
-    !$acc update device(Ri,tem,viscmu)
-    !$acc parallel loop collapse(2) copyout(n0_s,gam_bv_s)                    &
-    !$acc   present(tem,rho,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa,gam_ss) &
-    !$acc   present(gam_bv_ss)
+    !$acc parallel loop collapse(2) present(gam_bv_ss,n0_s,gam_bv_s)          &
+    !$acc   present(tem,rho,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s,tmp_sa,gam_ss)
     do k = kts,kte
       do iq = 1,imax
 
@@ -475,9 +486,6 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     end do ! k
     !$acc end parallel loop
 
-    ! The following variables are needed for the calculation of precipitation fluxes
-    !$acc update self(am_s,bm_s,av_s,bv_s,gam_ss,gam_bv_ss)
-
     !***********************************************************************
     ! Calculate precipitation fluxes due to terminal velocities.
     !***********************************************************************
@@ -487,10 +495,12 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       !
       !- Calculate termianl velocity (vt?)  of precipitation q?z
       !- Find maximum vt? to determine the small delta t
-
+        
       !
       !-- rain
       !
+      !$acc parallel loop present(qrz,nrz,fluxin,nfluxin,dzw,rho) &
+      !$acc   copyout(pptrain,vtrold,nvtr) copyin(zz)
       do iq = 1,imax
         notlast = any( qrz(iq,kts:kte)>1.e-8 )
         if ( notlast ) then
@@ -577,10 +587,14 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
           END DO      ! while(notlast)
         end if
       end do ! iq
+      !$acc end parallel loop
  
       !
       !-- snow
       !
+      !$acc parallel loop present(qsz,nsz,fluxin,nfluxin,dzw,rho)      &
+      !$acc   present(gam_ss,bm_s,am_s,n0_s,gam_bv_s,gam_bv_ss,av_s)   &
+      !$acc   present(bv_s) copyout(pptsnow,vtsold,nvts) copyin(zz)      
       do iq = 1,imax
         notlast = any( qsz(iq,kts:kte)>1.e-8 )
         if ( notlast ) then
@@ -673,10 +687,13 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
           END DO       ! while(notlast)
         end if
       end do        ! iq = 1,imax
+      !$acc end parallel loop
  
       !
       !-- cloud ice  (03/21/02) using Heymsfield and Donner (1990) Vi=3.29*qi^0.16
       !
+      !$acc parallel loop present(qiz,niz,fluxin,nfluxin,dzw,rho) &
+      !$acc   copyout(pptice,vtiold) copyin(zz)      
       do iq = 1,imax
         qiz(iq,kts:kte) = qiz(iq,kts:kte)
         notlast=any( qiz(iq,kts:kte)>1.e-8 )
@@ -746,6 +763,7 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
           END DO       ! while(notlast)
         end if
       end do        ! iq = 1,imax
+      !$acc end parallel loop
     
     else ! lin_adv==1
       ! Flux method based on Rotstayn 1997
@@ -753,14 +771,28 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       !
       !-- rain
       !
-      vtrold(:,:) = 0.
-      n0_r = 0.  
-      fluxin(:) = 0.
-      nfluxin(:) = 0.
+      !$acc parallel loop present(nfluxin,qrz,nrz,rho,dzw,fluxin) &
+      !$acc   private(k)
+      do iq = 1,imax  
+        fluxin(iq) = 0.
+        nfluxin(iq) = 0.
+#ifdef GPU
+        !$acc loop seq
+        do k = kte-1,kts,-1
+#else
+      end do
       do k = kte-1,kts,-1
         do iq = 1,imax
+#endif
           ! if no rain, --> minq>maxq --> notlast=False (only case minq>maxq)
           ! if rain --> minq<maxq (always), some vertical points norain--> no lamda, velocity
+          olambdar = 0.
+          vtrold_l = 0.
+          nvtr_l = 0.
+          fout = 0.
+          fthru = 0.
+          nfout = 0.
+          nfthru = 0.
           qnew = qrz(iq,k) + fluxin(iq)/rho(iq,k)  
           if ( qnew > 1.e-8 ) then  
             xlambdar = (pi*rhowater*nrz(iq,k)/qnew)**(1./3.)   !zx
@@ -776,22 +808,14 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             end if
             olambdar = 1./xlambdar
             tmp1 = olambdar**bv_r
-            vtrold(iq,k) = o6*av_r*gambp4*sqrho*tmp1
-            nvtr(iq,k) = av_r*gambvr1*sqrho*tmp1
-            alph = dtb*vtrold(iq,k)/dzw(iq,k)
+            vtrold_l = o6*av_r*gambp4*sqrho*tmp1
+            nvtr_l = av_r*gambvr1*sqrho*tmp1
+            alph = dtb*vtrold_l/dzw(iq,k)
             fout = 1. - exp(-alph)
             fthru = 1. - fout/alph
-            alph = dtb*nvtr(iq,k)/dzw(iq,k)
+            alph = dtb*nvtr_l/dzw(iq,k)
             nfout = 1. - exp(-alph)
             nfthru = 1. - nfout/alph
-          else
-            olambdar = 0.
-            vtrold(iq,k) = 0.
-            nvtr(iq,k) = 0.
-            fout = 0.
-            fthru = 0.
-            nfout = 0.
-            nfthru = 0.
           end if
           fluxout = rho(iq,k)*qrz(iq,k)*fout*dzw(iq,k)
           flux = fluxin(iq)*(1.-fthru) - fluxout
@@ -801,8 +825,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
           nflux = nfluxin(iq)*(1.-nfthru) - nfluxout
           nrz(iq,k) = nrz(iq,k) + nflux/(rho(iq,k)*dzw(iq,k))
           nfluxin(iq) = nfluxout + nfluxin(iq)*nfthru
+#ifdef GPU
+        end do ! k
+      end do ! iq
+      !$acc end parallel loop
+      !$acc update self(fluxin)
+#else
         end do ! iq  
       end do   ! k
+#endif
       do iq = 1,imax
         pptrain(iq) = pptrain(iq) + fluxin(iq)
       end do ! iq
@@ -810,11 +841,27 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       !
       !-- snow
       !
-      vtsold(:,:) = 0.
-      fluxin(:) = 0.
-      nfluxin(:) = 0. ! sny
+      !$acc parallel loop present(nfluxin,qsz,nsz,rho,dzw,fluxin)    &
+      !$acc   present(gam_ss,bm_s,am_s,n0_s,gam_bv_s,gam_bv_ss,av_s) &
+      !$acc   present(bv_s) private(k)
+      do iq = 1,imax  
+        fluxin(iq) = 0.
+        nfluxin(iq) = 0.
+#ifdef GPU      
+        !$acc loop seq
+        do k = kte-1,kts,-1
+#else
+      end do
       do k = kte-1,kts,-1
         do iq = 1,imax
+#endif
+          olambdas = 0.
+          vtsold_l = 0.
+          nvts_l = 0.
+          fout = 0.
+          fthru = 0.
+          nfout = 0.
+          nfthru = 0.
           qnew = qsz(iq,k) + fluxin(iq)/rho(iq,k)  
           if ( qnew > 1.e-8 ) then
             ! Zhao 2022 - Row 2 Table 2 or Lin 2011 - Formula A3
@@ -837,23 +884,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             olambdas = 1./xlambdas
             tmp1 = olambdas**bv_s(iq,k)
             ! Zhao 2022 - Row 3 Table 2
-            vtsold(iq,k)= sqrho*av_s(iq,k)*gam_bv_ss(iq,k)/gam_ss(iq,k)*tmp1
+            vtsold_l = sqrho*av_s(iq,k)*gam_bv_ss(iq,k)/gam_ss(iq,k)*tmp1
             ! Zhao 2022 - Row 4 Table 2
-            nvts(iq,k) = sqrho*av_s(iq,k)*gam_bv_s(iq,k)*tmp1
-            alph = dtb*vtsold(iq,k)/dzw(iq,k)
+            nvts_l = sqrho*av_s(iq,k)*gam_bv_s(iq,k)*tmp1
+            alph = dtb*vtsold_l/dzw(iq,k)
             fout = 1. - exp(-alph)
             fthru = 1. - fout/alph
-            alph = dtb*nvts(iq,k)/dzw(iq,k)
+            alph = dtb*nvts_l/dzw(iq,k)
             nfout = 1. - exp(-alph)
             nfthru = 1. - nfout/alph
-          else
-            olambdas = 0.
-            vtsold(iq,k) = 0.
-            nvts(iq,k) = 0.
-            fout = 0.
-            fthru = 0.
-            nfout = 0.
-            nfthru = 0.  
           endif
           fluxout = rho(iq,k)*qsz(iq,k)*fout*dzw(iq,k)
           flux = fluxin(iq)*(1.-fthru)-fluxout
@@ -864,8 +903,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
           nflux = nfluxin(iq)*(1.-nfthru)-nfluxout
           nsz(iq,k) = nsz(iq,k) + nflux/(rho(iq,k)*dzw(iq,k))
           nfluxin(iq) = nfluxout + nfluxin(iq)*nfthru
+#ifdef GPU
+        end do ! k
+      end do ! iq
+      !$acc end parallel loop
+      !$acc update self(fluxin)
+#else
         end do ! iq  
       end do   ! k
+#endif
       do iq = 1,imax
         pptsnow(iq) = pptsnow(iq) + fluxin(iq)
       end do
@@ -873,11 +919,25 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
       !
       !-- cloud ice  (03/21/02) using Heymsfield and Donner (1990) Vi=3.29*qi^0.16
       !
-      vtiold(:,:) = 0.
-      fluxin(:) = 0.
-      nfluxin(:) = 0.
+      !$acc parallel loop present(nfluxin,qiz,niz,rho,dzw,vtiold,fluxin) &
+      !$acc   private(k)
+      do iq = 1,imax
+        vtiold(iq,kte) = 0.  
+        fluxin(iq) = 0.
+        nfluxin(iq) = 0.
+#ifdef GPU      
+        !$acc loop seq
+        do k = kte-1,kts,-1
+#else
+      end do
       do k = kte-1,kts,-1
         do iq = 1,imax
+#endif
+          vtiold(iq,k) = 0.
+          fout = 0.
+          fthru = 0.
+          nfout = 0.
+          nfthru = 0.
           qnew = qiz(iq,k) + fluxin(iq)/rho(iq,k)  
           if ( qnew > 1.e-8 ) then
             vtiold(iq,k) = 3.29*(rho(iq,k)*qnew)**0.16  ! Heymsfield and Donner
@@ -886,12 +946,6 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
             fthru = 1. - fout/alph
             nfout = fout
             nfthru = fthru
-          else
-            vtiold(iq,k) = 0.
-            fout = 0.
-            fthru = 0.
-            nfout = 0.
-            nfthru = 0.
           end if
           fluxout = rho(iq,k)*qiz(iq,k)*fout*dzw(iq,k)
           flux = fluxin(iq)*(1.-fthru)-fluxout
@@ -904,8 +958,15 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
           niz(iq,k) = max(0.,niz(iq,k))
           !niz(iq,k) = min(niz(iq,k),0.3E6/rho(iq,k))
           nfluxin(iq) = nfluxout + nfluxin(iq)*nfthru
+#ifdef GPU
+        end do ! k
+      end do ! iq
+      !$acc end parallel loop
+      !$acc update self(fluxin,vtiold)
+#else
         end do ! iq  
       end do   ! k
+#endif
       do iq = 1,imax
         pptice(iq) = pptice(iq) + fluxin(iq)
       end do
@@ -916,8 +977,8 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     vi(:,:)    = vtiold(:,:)
     !vs(:,:)    = vtsold(:,:)
 
-    !$acc parallel loop collapse(2) copy(ncz,niz,nrz,nsz,thz,qvz,qlz,qiz,qsz,qrz)  &
-    !$acc   copyin(n0_s)                                                           &
+    !$acc parallel loop collapse(2) present(ncz,thz,qvz,qlz)                       &
+    !$acc   present(qrz,nrz,qsz,nsz,qiz,niz,n0_s)                                  &
     !$acc   present(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)   &
     !$acc   present(effc1d,effr1d,effs1d,effi1d)                                   &
     !$acc   present(tem,prez,tothz,rho,dzw,Ri,viscmu,am_s,bm_s,aa_s,av_s,bv_s)     &
@@ -948,13 +1009,13 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
         nrzodt = max( 0.0,odtb*nrz(iq,k) )
         nszodt = max( 0.0,odtb*nsz(iq,k) )
 
-        qvoqswz  =qvz(iq,k)/qswz
-        qvoqsiz  =qvz(iq,k)/qsiz
-        qvzodt=max( 0.,odtb*qvz(iq,k) )
-        qlzodt=max( 0.,odtb*qlz(iq,k) )
-        qizodt=max( 0.,odtb*qiz(iq,k) )
-        qszodt=max( 0.,odtb*qsz(iq,k) )
-        qrzodt=max( 0.,odtb*qrz(iq,k) )
+        qvoqswz = qvz(iq,k)/qswz
+        qvoqsiz = qvz(iq,k)/qsiz
+        qvzodt = max( 0.,odtb*qvz(iq,k) )
+        qlzodt = max( 0.,odtb*qlz(iq,k) )
+        qizodt = max( 0.,odtb*qiz(iq,k) )
+        qszodt = max( 0.,odtb*qsz(iq,k) )
+        qrzodt = max( 0.,odtb*qrz(iq,k) )
         
         theiz = thz(iq,k)+(xlvocp*qvz(iq,k)-xlfocp*qiz(iq,k))/tothz(iq,k)
         
@@ -2035,7 +2096,9 @@ subroutine clphy1d_ylin(dt_in, imax,                        &
     !$acc end parallel loop
   
   end do ! n = 1,njumps
-  
+
+  !$acc update self(qvz,qlz)
+  !$acc update self(qrz,nrz,qsz,nsz,qiz,niz,thz)
   !$acc update self(Ri)
   !$acc update self(fluxr,fluxi,fluxs,fluxm,fluxf,fevap,fsubl,fauto,fcoll,faccr)
   !$acc update self(effc1d,effr1d,effs1d,effi1d)

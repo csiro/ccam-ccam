@@ -221,15 +221,35 @@ do k = 1,kl
 end do
 
 ! transform p & d to eigenvector space
+!$acc data create (einv)
+!$acc update device(einv)
+!$acc parallel loop collapse(2) copyin(p) copyout(pe) present(einv) &
+!$acc   private(l) async(0)
 do k = 1,kl
-  pe(1:ifull,k) = einv(k,1)*p(1:ifull,1)
-  rhsl(1:ifull,k) = einv(k,1)*d(1:ifull,1)
-  do l = 2,kl
-    pe(1:ifull,k) = pe(1:ifull,k) + einv(k,l)*p(1:ifull,l)     ! xp in eig space
-    rhsl(1:ifull,k) = rhsl(1:ifull,k) + einv(k,l)*d(1:ifull,l) ! xd in eig space
-  end do  ! l loop
+  do iq = 1,ifull  
+    pe(iq,k) = 0.
+    do l = 1,kl
+      pe(iq,k) = pe(iq,k) + p(iq,l)*einv(k,l)     ! xp in eig space
+    end do ! l loop  
+  end do
+end do  
+!$acc end parallel loop
+!$acc parallel loop collapse(2) copyin(d) copyout(rhsl) present(einv) &
+!$acc   private(l) async(1)
+do k = 1,kl
+  do iq = 1,ifull  
+    rhsl(iq,k) = 0.
+    do l = 1,kl
+      rhsl(iq,k) = rhsl(iq,k) + d(iq,l)*einv(k,l) ! xd in eig space
+    end do ! l loop  
+  end do
+end do  
+!$acc end parallel loop
+!$acc wait
+!$acc end data
 
-  ! N.B.   pfact(iq)=4.*( ds/(dt*em(iq)) )**2    
+! N.B.   pfact(iq)=4.*( ds/(dt*em(iq)) )**2    
+do k = 1,kl
   helm(1:ifull,k) = pfact(1:ifull)*tbar(1)/(bam(k)*(1.+epst(1:ifull))*tbar2d(1:ifull))
   rhsl(1:ifull,k) = rhsl(1:ifull,k)/hdtds - helm(1:ifull,k)*pe(1:ifull,k) ! Eq. 161 mult
 end do    ! k loop
@@ -269,13 +289,16 @@ if ( diag .or. nmaxpr==1 ) then   !  only for last k of loop (i.e. 1)
   call printa('pe  ',pe,ktau,1,ia,ib,ja,jb,0.,0.)
 end if
 
+!$acc parallel loop collapse(2) copyin(emat,pe) copyout(p) private(l)
 do k = 1,kl
-  ! first p from pe
-  p(1:ifull,k) = emat(k,1)*pe(1:ifull,1)
-  do l = 2,kl              ! this is the remaining expensive loop
-    p(1:ifull,k) = p(1:ifull,k) + emat(k,l)*pe(1:ifull,l)
-  end do                 !  l loop
+  do iq = 1,ifull  
+    p(iq,k) = 0.
+    do l = 1,kl              ! this is the remaining expensive loop
+      p(iq,k) = p(iq,k) + pe(iq,l)*emat(k,l)
+    end do                 !  l loop
+  end do  
 end do
+!$acc end parallel loop
 
 call bounds(p,corner=.true.)
 

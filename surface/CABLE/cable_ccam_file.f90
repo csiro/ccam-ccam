@@ -51,7 +51,7 @@ integer k
 real, dimension(ifull) :: dummy_pack
 
 if ( mp_global>0 ) then
-  do k = 1,ms
+  do k = 1,cbm_ms
     call cable_pack(tgg(:,k),ssnow%tgg(:,k))
     call cable_pack(wb(:,k),ssnow%wb(:,k))
     call cable_pack(wbice(:,k),ssnow%wbice(:,k))
@@ -92,7 +92,7 @@ if ( mp_global>0 ) then
   canopy%ga_cor = 0._8
   
   ! default value for fwsoil.  Recaculated by cable_canopy or by SLI
-  canopy%fwsoil = max( 1.e-9_8, sum( veg%froot*max(1.e-9_8,min(1._8,ssnow%wb-spread(soil%swilt,2,ms))),2) &
+  canopy%fwsoil = max( 1.e-9_8, sum( veg%froot*max(1.e-9_8,min(1._8,ssnow%wb-spread(soil%swilt,2,cbm_ms))),2) &
       / ( soil%sfc-soil%swilt ) )
   
   call defaulttile_sli
@@ -126,7 +126,7 @@ if ( mp_global>0 ) then
     ssnow%snowliq = 0._8 ! liquid snow
     ssnow%Tsoil = ssnow%tgg - 273.15_8
     ssnow%thetai = ssnow%wbice
-    do k = 1,ms
+    do k = 1,cbm_ms
       ssnow%S(:,k) = ssnow%wb(:,k)/soil%ssat
     end do
     where ( ssnow%snowd>0. )
@@ -176,7 +176,7 @@ integer, dimension(:), allocatable :: dati_out
 real, dimension(ifull) :: datr
 real, dimension(mp_global) :: dummy_unpack, old_sv
 real(kind=8), dimension(ifull) :: dat
-real(kind=8), dimension(ifull,ms) :: datms
+real(kind=8), dimension(ifull,cbm_ms) :: datms
 real(kind=8), dimension(ifull,3) :: dat3
 real(kind=8), dimension(ifull,mplant) :: datmplant
 real(kind=8), dimension(ifull,mlitter) :: datmlitter
@@ -300,8 +300,8 @@ else
       call cable_pack(datr,old_sv,nmp(:,n))
     end if        
     write(vname,'("t",I1.1,"_tgg")') n
-    call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
-    do k = 1,ms
+    call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
+    do k = 1,cbm_ms
       do iq = 1,ifull
         if ( land(iq) .and. (datms(iq,k)<100._8.or.datms(iq,k)>400._8) ) then
           ! change in land-sea mask?
@@ -311,13 +311,13 @@ else
       call cable_pack(datms(:,k),ssnow%tgg(:,k),nmp(:,n))
     end do
     write(vname,'("t",I1.1,"_wb")') n
-    call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
-    do k = 1,ms
+    call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
+    do k = 1,cbm_ms
       call cable_pack(datms(:,k),ssnow%wb(:,k),nmp(:,n))
     end do
     write(vname,'("t",I1.1,"_wbice")') n
-    call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
-    do k = 1,ms
+    call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
+    do k = 1,cbm_ms
       call cable_pack(datms(:,k),ssnow%wbice(:,k),nmp(:,n))
     end do
     write(vname,'("t",I1.1,"_tggsn")') n
@@ -408,18 +408,18 @@ if ( soil_struc==1 ) then
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       call cable_pack(dat,ssnow%h0(:),nmp(:,n))
       write(vname,'("t",I1.1,"_s")') n
-      call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
-      do k = 1,ms
+      call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
+      do k = 1,cbm_ms
         call cable_pack(datms(:,k),ssnow%S(:,k),nmp(:,n))
       end do
       write(vname,'("t",I1.1,"_tsoil")') n
-      call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
-      do k = 1,ms
+      call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
+      do k = 1,cbm_ms
         call cable_pack(datms(:,k),ssnow%tsoil(:,k),nmp(:,n))
       end do
       write(vname,'("t",I1.1,"_thetai")') n
-      call histrd(iarchi-1,ierr,vname,datms(:,1:ms),ifull)
-      do k = 1,ms
+      call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
+      do k = 1,cbm_ms
         call cable_pack(datms(:,k),ssnow%thetai(:,k),nmp(:,n))
       end do
       write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
@@ -1258,10 +1258,11 @@ call fixtile
 vlai(:) = 0.
 sigmf(:) = 0.
 if ( mp_global>0 ) then
-  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jmonth,jday,jhour,jmin,mp_global,sv,vl2,casamet,veg,ifull)
+  call setlai(sv,vl2,casamet,veg,mp_global)
   dummy_unpack = sv*real(veg%vlai)
   call cable_unpack(dummy_unpack,vlai)
+  dummy_unpack = sv*real(1.-exp(-0.4*veg%vlai))
+  call cable_unpack(dummy_unpack,sigmf)
 end if
 
 return
@@ -1313,7 +1314,7 @@ real totdepth
 if ( mp_global>0 ) then
 
   totdepth = 0.
-  do k = 1,ms
+  do k = 1,cbm_ms
     totdepth = totdepth + real(soil%zse(k))*100.
   enddo
   
@@ -1334,7 +1335,7 @@ if ( mp_global>0 ) then
   ssnow%wbtot1 = 0._8
   ssnow%wbtot2 = 0._8
   ssnow%tggav = 0._8
-  do k = 1,ms
+  do k = 1,cbm_ms
     ssnow%wbtot = ssnow%wbtot+ssnow%wb(:,k)*1000._8*soil%zse(k)
     ssnow%tggav = ssnow%tggav+soil%zse(k)*ssnow%tgg(:,k)/real(totdepth/100.,8)
     ssnow%gammzz(:,k) = max((1._8-soil%ssat)*soil%css* soil%rhosoil                         &
@@ -1568,14 +1569,14 @@ if ( mp_global>0 ) then
     end if     
     
     ! assume common soil texture and soil heat capacity
-    do k = 1,ms
+    do k = 1,cbm_ms
       call redistribute_work(old_sv,ssnow%tgg(:,k))
       call redistribute_work(old_sv,ssnow%wb(:,k))
       call redistribute_work(old_sv,ssnow%wbice(:,k))
     end do
     call redistribute_work(old_sv,ssnow%GWwb)
     if ( soil_struc==1 ) then
-      do k = 1,ms
+      do k = 1,cbm_ms
         call redistribute_work(old_sv,ssnow%tsoil(:,k))
       end do
     end if
@@ -1733,17 +1734,17 @@ if (myid==0.or.local) then
       write(lname,'("Veg fraction tile ",I1.1)') n
       write(vname,'("t",I1.1,"_svs")') n
       call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.,any_m,point_m,land_m,double_m)
-      do k = 1,ms
+      do k = 1,cbm_ms
         write(lname,'("Soil temperature tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
         call attrib(idnc,jdim,jsize,vname,lname,'K',100.,400.,any_m,point_m,land_m,double_m)
       end do
-      do k = 1,ms
+      do k = 1,cbm_ms
         write(lname,'("Soil moisture tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_wb",I1.1)') n,k 
         call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,any_m,point_m,land_m,double_m)
       end do
-      do k = 1,ms
+      do k = 1,cbm_ms
         write(lname,'("Soil ice tile ",I1.1," lev ",I1.1)') n,k
         write(vname,'("t",I1.1,"_wbice",I1.1)') n,k 
         call attrib(idnc,jdim,jsize,vname,lname,'m3/m3',0.,2.6,any_m,point_m,land_m,double_m)
@@ -1818,17 +1819,17 @@ if (myid==0.or.local) then
         write(lname,'("hzero tile ",I1.1)') n
         write(vname,'("t",I1.1,"_hzero")') n
         call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
-        do k = 1,ms
+        do k = 1,cbm_ms
           write(lname,'("S tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_s",I1.1)') n,k
           call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
-        do k = 1,ms
+        do k = 1,cbm_ms
           write(lname,'("tsoil tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
           call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
         end do
-        do k = 1,ms
+        do k = 1,cbm_ms
           write(lname,'("thetai tile ",I1.1," lev ",I1.1)') n,k
           write(vname,'("t",I1.1,"_thetai",I1.1)') n,k
           call attrib(idnc,jdim,jsize,vname,lname,'none',0.,65000.,any_m,point_m,land_m,double_m)
@@ -2424,19 +2425,19 @@ if ( itype==-1 ) then !just for restart file
     dat = real( datr, 8 )
     write(vname,'("t",I1.1,"_svs")') n
     call histwrt(dat,vname,idnc,iarch,local,.true.)
-    do k = 1,ms     ! soil layer
+    do k = 1,cbm_ms     ! soil layer
       dat = real(tgg(:,k),8)
       if ( n<=maxnb ) call cable_unpack(ssnow%tgg(:,k),dat,n)
       write(vname,'("t",I1.1,"_tgg",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
-    do k = 1,ms
+    do k = 1,cbm_ms
       dat = real(wb(:,k),8)
       if ( n<=maxnb ) call cable_unpack(ssnow%wb(:,k),dat,n)
       write(vname,'("t",I1.1,"_wb",I1.1)') n,k
       call histwrt(dat,vname,idnc,iarch,local,.true.)
     end do
-    do k = 1,ms
+    do k = 1,cbm_ms
       dat = real(wbice(:,k),8)
       if ( n<=maxnb ) call cable_unpack(ssnow%wbice(:,k),dat,n)
       write(vname,'("t",I1.1,"_wbice",I1.1)') n,k
@@ -2534,19 +2535,19 @@ if ( itype==-1 ) then !just for restart file
       if (n<=maxnb) call cable_unpack(ssnow%h0,dat,n)
       write(vname,'("t",I1.1,"_hzero")') n
       call histwrt(dat,vname,idnc,iarch,local,.true.)   
-      do k = 1,ms     ! soil layer
+      do k = 1,cbm_ms     ! soil layer
         dat=0._8
         if (n<=maxnb) call cable_unpack(ssnow%S(:,k),dat,n)
         write(vname,'("t",I1.1,"_s",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
-      do k = 1,ms
+      do k = 1,cbm_ms
         dat=0._8
         if (n<=maxnb) call cable_unpack(ssnow%tsoil(:,k),dat,n)
         write(vname,'("t",I1.1,"_tsoil",I1.1)') n,k
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
-      do k = 1,ms
+      do k = 1,cbm_ms
         dat=0._8
         if (n<=maxnb) call cable_unpack(ssnow%thetai(:,k),dat,n)
         write(vname,'("t",I1.1,"_thetai",I1.1)') n,k

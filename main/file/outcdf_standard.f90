@@ -489,7 +489,6 @@ if ( myid==0 .or. local ) then
     else
       nuse_rad_year = 0
     end if
-    call ccnf_put_attg(idnc,'tradmax',tradmax)
     call ccnf_put_attg(idnc,'use_rad_year',nuse_rad_year)
     call ccnf_put_attg(idnc,'zvolcemi',zvolcemi)
     

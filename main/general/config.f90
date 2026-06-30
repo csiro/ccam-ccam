@@ -149,6 +149,7 @@ real zimax, mlomaxuv                 ! depreciated namelist options
 real plume_alpha, ocnlap             ! depreciated namelist options
 real tke_timeave_length              ! depreciated namelist options
 real mlo_timeave_length              ! depreciated namelist options
+real tradmax                         ! depreciated namelist options
 logical procformat, unlimitedhist    ! depreciated namelist options
 character(len=MAX_ARGLEN) optarg
 character(len=1024) nmlfile, comm, comment
@@ -192,11 +193,10 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
     do_quench,remain_rayleigh_bug,use_rad_year,rad_year,          &
-    tradmax,                                                      &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,enhanceu10,aerosol_u10,aero_split,               &
     o3_vert_interpolate,                                          & ! ozone
-    o3_time_interpolate                                             ! depreciated
+    o3_time_interpolate,tradmax                                     ! depreciated
 ! file namelist
 namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     o3file,radfile,restfile,rsmfile,so4tfile,soilfile,sstfile,    &
@@ -1905,7 +1905,7 @@ use seaesfrad_m                            ! SEA-ESF radiation
 implicit none
 
 integer, dimension(17) :: dumi
-real, dimension(11) :: dumr
+real, dimension(10) :: dumr
     
 dumr = 0.
 dumi = 0
@@ -1920,7 +1920,6 @@ if ( myid==0 ) then
   dumr(8)  = saltlargemtn
   dumr(9)  = siglow
   dumr(10) = sigmid
-  dumr(11) = tradmax
   dumi(1)  = mins_rad
   dumi(2)  = liqradmethod
   dumi(3)  = iceradmethod
@@ -1955,7 +1954,6 @@ saltsmallmtn        = dumr(7)
 saltlargemtn        = dumr(8)
 siglow              = dumr(9)
 sigmid              = dumr(10)
-tradmax             = dumr(11)
 mins_rad            = dumi(1)
 liqradmethod        = dumi(2)
 iceradmethod        = dumi(3)

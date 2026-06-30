@@ -1636,18 +1636,18 @@ real, dimension(ifull,ol), intent(out) :: drhobardxu, drhobardyu, drhobardxv, dr
 real, dimension(ifull,ol), intent(out) :: rhou_dash, rhov_dash, rho_dash
 real, dimension(ifull,ol) :: drhodxu, drhodyu, drhodxv, drhodyv
 real, dimension(ifull+iextra), intent(in) :: pice
-real, dimension(ifull+iextra,ol) :: nt_l, ns_l
+real, dimension(:,:,:), allocatable :: nts_l
 real, dimension(ifull+iextra,ol) :: alpha, beta, lrho_dash, dzdum_rho
 real absu, bbsu, absv, bbsv
 real dnadxu1, dnadxv1, dnadyu1, dnadyv1
 real dnadxu2, dnadxv2, dnadyu2, dnadyv2
 
-nt_l = 0.
-ns_l = 0.
-nt_l(1:ifull,:) = nti(1:ifull,:)
-ns_l(1:ifull,:) = nsi(1:ifull,:)
-call bounds(nt_l,corner=.true.)
-call bounds(ns_l,corner=.true.)
+allocate( nts_l(ifull+iextra,ol,2) )
+
+nts_l = 0.
+nts_l(1:ifull,:,1) = nti(1:ifull,:)
+nts_l(1:ifull,:,2) = nsi(1:ifull,:)
+call bounds(nts_l,corner=.true.)
 
 ! rho(x) = rho0 + rho_dash(x), where rho0 is a constant equal to wrtrho
 
@@ -1655,13 +1655,13 @@ do ii = 1,ol
   ! neglect neta for calculating density  
   dzdum_rho(1:ifull+iextra,ii) = godsig(1:ifull+iextra,ii)*dd(1:ifull+iextra)
 end do
-call mloexpdensity(lrho_dash,alpha,beta,nt_l,ns_l,dzdum_rho,pice,0,rawrho=.true.)
+call mloexpdensity(lrho_dash,alpha,beta,nts_l(:,:,1),nts_l(:,:,2),dzdum_rho,pice,0,rawrho=.true.)
 
-nt_l(:,:) = min(max(271.-wrtemp,nt_l(:,:)),373.-wrtemp)
-where ( ns_l(:,:)<2. )
-  ns_l(:,:) = 0. ! 34.72 PSU with offset
+nts_l(:,:,1) = min(max(271.-wrtemp,nts_l(:,:,1)),373.-wrtemp)
+where ( nts_l(:,:,2)<2. )
+  nts_l(:,:,2) = 0. ! 34.72 PSU with offset
 elsewhere  
-  ns_l(:,:) = min(max(minsal, ns_l(:,:)),maxsal)-34.72
+  nts_l(:,:,2) = min(max(minsal, nts_l(:,:,2)),maxsal)-34.72
 end where  
 
 if ( mlojacobi==0 ) then !off
@@ -1691,21 +1691,21 @@ else
       absv = 0.5*(alpha(iq,ii)+alpha(in(iq),ii))
       bbsv = 0.5*(beta(iq,ii) +beta(in(iq),ii) )
       ! process staggered u locations  
-      dnadxu1=(nt_l(ie(iq),ii)-nt_l(iq,ii))*emu(iq)/ds
-      dnadyu1=0.25*emu(iq)/ds*(nt_l(in(iq),ii)-nt_l(is(iq),ii) &
-                              +nt_l(ine(iq),ii)-nt_l(ise(iq),ii))
+      dnadxu1=(nts_l(ie(iq),ii,1)-nts_l(iq,ii,1))*emu(iq)/ds
+      dnadyu1=0.25*emu(iq)/ds*(nts_l(in(iq),ii,1)-nts_l(is(iq),ii,1) &
+                              +nts_l(ine(iq),ii,1)-nts_l(ise(iq),ii,1))
       ! process staggered v locations
-      dnadyv1=(nt_l(in(iq),ii)-nt_l(iq,ii))*emv(iq)/ds
-      dnadxv1=0.25*emv(iq)/ds*(nt_l(ie(iq),ii)-nt_l(iw(iq),ii) &
-                              +nt_l(ien(iq),ii)-nt_l(iwn(iq),ii))
+      dnadyv1=(nts_l(in(iq),ii,1)-nts_l(iq,ii,1))*emv(iq)/ds
+      dnadxv1=0.25*emv(iq)/ds*(nts_l(ie(iq),ii,1)-nts_l(iw(iq),ii,1) &
+                              +nts_l(ien(iq),ii,1)-nts_l(iwn(iq),ii,1))
       ! process staggered u locations  
-      dnadxu2=(ns_l(ie(iq),ii)-ns_l(iq,ii))*emu(iq)/ds
-      dnadyu2=0.25*emu(iq)/ds*(ns_l(in(iq),ii)-ns_l(is(iq),ii) &
-                              +ns_l(ine(iq),ii)-ns_l(ise(iq),ii))
+      dnadxu2=(nts_l(ie(iq),ii,2)-nts_l(iq,ii,2))*emu(iq)/ds
+      dnadyu2=0.25*emu(iq)/ds*(nts_l(in(iq),ii,2)-nts_l(is(iq),ii,2) &
+                              +nts_l(ine(iq),ii,2)-nts_l(ise(iq),ii,2))
       ! process staggered v locations
-      dnadyv2=(ns_l(in(iq),ii)-ns_l(iq,ii))*emv(iq)/ds
-      dnadxv2=0.25*emv(iq)/ds*(ns_l(ie(iq),ii)-ns_l(iw(iq),ii) &
-                              +ns_l(ien(iq),ii)-ns_l(iwn(iq),ii))
+      dnadyv2=(nts_l(in(iq),ii,2)-nts_l(iq,ii,2))*emv(iq)/ds
+      dnadxv2=0.25*emv(iq)/ds*(nts_l(ie(iq),ii,2)-nts_l(iw(iq),ii,2) &
+                              +nts_l(ien(iq),ii,2)-nts_l(iwn(iq),ii,2))
       ! This relationship neglects compression effects due to neta from the EOS.
       drhodxu(iq,ii) = -absu*dnadxu1 + bbsu*dnadxu2
       drhodxv(iq,ii) = -absv*dnadxv1 + bbsv*dnadxv2
@@ -1739,6 +1739,8 @@ else
     drhobardyv(:,ii) = drhobardyv(:,ii)/gosighv(:,ii)
   end do
 end if
+
+deallocate( nts_l )
 
 return
 end subroutine tsjacobi

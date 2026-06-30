@@ -21,8 +21,10 @@
 ! Jan 2016: Now includes climate% for use in climate variables required for
 ! prognostic phenology and potential veg type
 ! ==============================================================================
-
+!#define UM_BUILD yes
 MODULE cable_def_types_mod
+
+USE cable_climate_type_mod, ONLY: climate_type
 
   ! Contains all variables which are not subroutine-internal
 
@@ -37,16 +39,22 @@ MODULE cable_def_types_mod
 
   INTEGER :: mp,    & ! # total no of patches/tiles
        mvtype,& ! total # vegetation types,   from input
+#ifdef UM_BUILD 
+       mstype=9,& ! total # soil types, needs to be defined at compile time for now
+#else       
        mstype,& ! total # soil types,         from input
-       mland                           ! # land grid cells
+#endif
+       mland,& !                          ! # land grid cells
+       mpatch  !number of patches   ! mpatch added by rk4417 - phase2
+               !allows for setting this to a const value
 !$omp threadprivate(mp)
-
+       
   INTEGER, PARAMETER ::                                                        &
        i_d  = KIND(9), &
-#ifndef CCAM
+#ifdef UM_BUILD 
+       r_2  = KIND(1.0),&!SELECTED_REAL_KIND(12, 50), &
+#else       
        r_2  = KIND(1.d0),&!SELECTED_REAL_KIND(12, 50), &
-#else
-       r_2  = kind(1._8), &
 #endif
        n_tiles = 17,  & ! # possible no of different
        ncp = 3,       & ! # vegetation carbon stores
@@ -132,7 +140,7 @@ MODULE cable_def_types_mod
           soilcol, & ! keep color for all patches/tiles
           albsoilf   ! soil reflectance
 
-     REAL(r_2), DIMENSION(:,:), POINTER :: &
+     REAL, DIMENSION(:,:), POINTER :: &
           heat_cap_lower_limit
 
      REAL(r_2), DIMENSION(:,:), POINTER :: &
@@ -157,10 +165,19 @@ MODULE cable_def_types_mod
           rhosoil_vec,& !soil density  [kg/m3]
           ssat_vec, & !volumetric water content at saturation [mm3/mm3]
           watr,   & !residual water content of the soil [mm3/mm3]
+          smpc_vec, &  ! Hutson Cass SWC potential cutoff ! 2 lines inserted by rk4417 - phase2
+          wbc_vec,  &  ! Hutson Cass SWC volumetric water cutoff
           sfc_vec, & !field capcacity (hk = 1 mm/day)
           swilt_vec     ! wilting point (hk = 0.02 mm/day)
 
      REAL(r_2), DIMENSION(:), POINTER ::                                      &
+          hkrz,&! rate hyds changes with depth         
+          zdepth,&!  depth [m] where hkrz has zero impact
+          srf_frac_ma,&! fraction of surface with macropores 
+          edepth_ma,&!  e fold depth macropore fraction
+          qhz_max,&!  maximum base flow when fully sat
+          qhz_efold,&!  base flow efold rate dep on wtd, from drain-dens and param
+! block above inserted by rk4417 - phase2
           drain_dens,&!  drainage density ( mean dist to rivers/streams )
           elev, &  !elevation above sea level
           elev_std, &  !elevation above sea level
@@ -175,6 +192,8 @@ MODULE cable_def_types_mod
           GWssat_vec,  & !saturated water content of the aquifer [mm3/mm3]
           GWwatr,    & !residual water content of the aquifer [mm3/mm3]
           GWz,       & !node depth of the aquifer    [m]
+          smpc_GW, &  ! Hutson Cass SWC potential cutoff ! 2 lines inserted by rk4417 - phase2
+          wbc_GW,  &  ! Hutson Cass SWC volumetric water cutoff
           GWdz,      & !thickness of the aquifer   [m]
           GWrhosoil_vec    !density of the aquifer substrate [kg/m3]
 
@@ -228,7 +247,7 @@ MODULE cable_def_types_mod
           owetfac, & ! surface wetness fact. at previous time step
           t_snwlr, & ! top snow layer depth in 3 layer snowpack
           tggav,   & ! mean soil temperature in K
-          otgg,    & ! soil temperature in K
+!          otgg,    & ! soil temperature in K  ! moved below by rk4417 - phase2
           otss,    & ! surface temperature (weighted soil, snow)
           otss_0,  & ! surface temperature (weighted soil, snow)
           tprecip, &
@@ -255,6 +274,7 @@ MODULE cable_def_types_mod
           sdepth,     & ! snow depth
           smass,      & ! snow mass
           ssdn,       & ! snow densities
+          otgg,       & ! soil temperature in K  ! moved here from above by rk4417 - phase2
           tgg,        & ! soil temperature in K
           tggsn,      & ! snow temperature in K
           dtmlt,      & ! water flux to the soil
@@ -305,7 +325,15 @@ MODULE cable_def_types_mod
           wmliq,   &    !water mass [mm] liq
           wmice,   &    !water mass [mm] ice
           wmtot,   &    !water mass [mm] liq+ice ->total
-          qhlev
+          qhlev,   &
+          smp_hys, & !soil swc props dynamic from hysteresis ! from here to end added by rk4417 - phase2
+          wb_hys,  &
+          sucs_hys,&
+          ssat_hys,&
+          watr_hys,&
+          hys_fac, &
+          wbliq_old
+
      ! Additional SLI variables:
      REAL(r_2), DIMENSION(:,:), POINTER :: S         ! moisture content relative to sat value    (edit vh 23/01/08)
      REAL(r_2), DIMENSION(:,:), POINTER :: Tsoil         !     Tsoil (deg C)
@@ -351,10 +379,6 @@ MODULE cable_def_types_mod
           canst1,  & ! max intercepted water by canopy (mm/LAI)
           dleaf,   & ! chararacteristc legnth of leaf (m)
           ejmax,   & ! max pot. electron transp rate top leaf(mol/m2/s)
-#ifdef CCAM
-          ejmax_shade,   & ! max pot. electron transp rate top leaf(mol/m2/s)
-          ejmax_sun,   & ! max pot. electron transp rate top leaf(mol/m2/s)
-#endif
           meth,    & ! method for calculation of canopy fluxes and temp.
           frac4,   & ! fraction of c4 plants
           hc,      & ! roughness height of canopy (veg - snow)
@@ -370,10 +394,6 @@ MODULE cable_def_types_mod
           tmaxvj,  & ! max temperature of the start of photosynthesis
           vbeta,   & !
           vcmax,   & ! max RuBP carboxylation rate top leaf (mol/m2/s)
-#ifdef CCAM
-          vcmax_shade,   & ! max RuBP carboxylation rate top leaf (mol/m2/s)
-          vcmax_sun,   & ! max RuBP carboxylation rate top leaf (mol/m2/s)
-#endif
           xfang,   & ! leaf angle PARAMETER
           extkn,   & ! extinction coef for vertical
           vlaimax, & ! extinction coef for vertical
@@ -477,7 +497,7 @@ MODULE cable_def_types_mod
           evapfbl, &
           gswx,    & ! stom cond for water
           zetar, &   ! stability parameter (ref height)
-                                !! vh_js !!
+                                ! vh_js !
           zetash      ! stability parameter (shear height)
 
      REAL(r_2), DIMENSION(:), POINTER ::                                      &
@@ -488,23 +508,6 @@ MODULE cable_def_types_mod
           fes_cor, & ! latent heatfl from soil (W/m2)
           fevc,     &  ! dry canopy transpiration (W/m2)
           ofes     ! latent heatfl from soil (W/m2)
-
-#ifdef CCAM
-     REAL(r_2), DIMENSION(:), POINTER ::                                      &
-         !A_sh,    & ! gross photosynthesis from shaded leaves
-         !A_sl,    & ! gross photosynthesis from sunlit leaves
-         A_slC,   & ! gross photosynthesis from sunlit leaves (rubisco limited)
-         A_shC,   & ! gross photosynthesis from shaded leaves  (rubisco limited)
-         A_slJ,   & ! gross photosynthesis from sunlit leaves (rubp limited)
-         A_shJ, &     ! gross photosynthesis from shaded leaves  (rubp limited)
-         !eta_A_cs, &      ! elasticity of photosynthesis wrt cs, mulitplied by gross photosythesis
-         !dAdcs, & ! sensitivity of photosynthesis wrt cs, mulitplied by gross photosythesis
-         !cs, &       ! leaf surface CO2 (ppm), mulitplied by gross photosythesis
-         cs_sl, &    !  leaf surface CO2 (ppm) (sunlit)
-         cs_sh, &    !  leaf surface CO2 (ppm) (shaded)
-         tlf, &      ! dry leaf temperature
-         dlf         ! dryleaf vp minus in-canopy vp (Pa)
-#endif
 
      !SSEB - new variables limits on correction terms - for future use
      !REAL(r_2), DIMENSION(:), POINTER ::                                     &
@@ -523,7 +526,7 @@ MODULE cable_def_types_mod
      REAL(r_2), DIMENSION(:,:,:), POINTER :: ci     ! intra-cellular CO2 vh 6/7/09
      REAL(r_2), DIMENSION(:),     POINTER :: fwsoil !
 
-     !! vh_js !! !litter thermal conductivity (Wm-2K-1) and vapour diffusivity (m2s-1)
+     ! vh_js ! !litter thermal conductivity (Wm-2K-1) and vapour diffusivity (m2s-1)
      REAL(r_2), DIMENSION(:), POINTER :: kthLitt, DvLitt
 
 
@@ -665,95 +668,6 @@ MODULE cable_def_types_mod
           fsd  ! downward short-wave radiation (W/m2)
 
   END TYPE met_type
-
-  ! .............................................................................
-
-  ! Climate data:
-  TYPE climate_type
-
-     INTEGER :: nyear_average = 20
-     INTEGER :: nday_average  = 31
-     !      INTEGER, POINTER ::                                                  &
-     INTEGER ::                                                  &
-          nyears, & ! number of years in climate record
-          doy ! day of year
-
-     INTEGER, DIMENSION(:), POINTER ::                                   &
-          chilldays, &   ! length of chilling period (period with T<5deg)
-          iveg, &        ! potential vegetation type based on climatic constraints
-          biome
-
-#ifdef CCAM
-     INTEGER, DIMENSION(:), POINTER ::                                   &
-         GMD            ! growing moisture days (== number days since min moisture threshold)
-#endif
-
-     REAL, DIMENSION(:), POINTER ::                                           &
-          dtemp,        & ! daily temperature
-          dmoist,        & ! daily moisture availability
-          mtemp,       & ! mean temperature over the last 31 days
-          qtemp,       & ! mean temperature over the last 91 days
-          mmoist,        & ! monthly moisture availability
-          mtemp_min,   & ! minimum monthly temperature
-          mtemp_max,   & ! maximum monhtly temperature
-          qtemp_max,   & ! mean temperature of the warmest quarter (so far this year)
-          qtemp_max_last_year,   & ! mean temperature of the warmest quarter (last calendar year)
-          mtemp_min20,   & ! minimum monthly temperature, averaged over 20 y
-          mtemp_max20,   & ! maximum monhtly temperature, averaged over 20 y
-          atemp_mean,  & ! annual average temperature
-          AGDD5,       &
-          GDD5,        & ! growing degree day sum relative to 5deg base temperature
-          AGDD0,        & !
-          GDD0,        & ! growing degree day sum relative to 0deg base temperature
-          alpha_PT,    & ! ratio of annual evap to annual PT evap
-          evap_PT,    & ! annual PT evap [mm]
-          aevap , &       ! annual evap [mm]
-          alpha_PT20
-
-#ifdef CCAM
-     REAL, DIMENSION(:), POINTER ::                                           &
-          dmoist_min,        & ! minimum daily moisture availability over the year
-          dmoist_min20,        & ! min daily moisture avail over the year, averaged over 20 y
-          dmoist_max,        & ! maximum daily moisture availability over the year
-          dmoist_max20         ! max daily moisture avail over the year, averaged 
-
-     REAL, DIMENSION(:), POINTER ::                                           &
-          GDD0_rec, &    ! growing degree day sum related to spring photosynthetic recovery
-          frec, &           ! fractional photosynthetic recovery
-          dtemp_min, &      ! daily minimum temperature
-          fdorm, & ! dormancy fraction (1 prior to first autumn frost; 0 after 10 severe frosts)
-          fapar_ann_max, & ! maximum midday fpar so far this year
-          fapar_ann_max_last_year ! maximum midday fpar last year
-#endif
-
-     REAL, DIMENSION(:,:), POINTER ::                                   &
-          mtemp_min_20, & ! mimimum monthly temperatures for the last 20 y
-          mtemp_max_20, & ! maximum monthly temperatures for the last 20 y
-#ifdef CCAM
-          dmoist_min_20, & ! min daily moisture for the last 20 y
-          dmoist_max_20, & ! max daily moisture for the last 20 y
-#endif  
-          dtemp_31 , &    ! daily temperature for the last 31 days
-          dmoist_31 , &    ! daily moisture availability for the last 31 days
-          alpha_PT_20, &      ! priestley Taylor Coefft for last 20 y
-          dtemp_91        ! daily temperature for the last 91 days
-	  
-#ifdef CCAM
-     REAL, DIMENSION(:,:), POINTER ::                                   &
-          APAR_leaf_sun, &  ! flux of PAR absrobed by sunlit leaves (subdiurnal time-step)
-          APAR_leaf_shade, & ! flux of PAR absrobed by shaded leaves (subdiurnal time-step)
-          Dleaf_sun, & ! leaf-air vapour pressure difference (sun leaves, subdiurnal time-step)
-          Dleaf_shade,  & ! leaf-air vapour pressure difference (shade leaves, subdiurnal time-step)
-          Tleaf_sun, & ! leaf T (sun leaves, subdiurnal time-step)
-          Tleaf_shade, &  ! leaf T  (shade leaves, subdiurnal time-step)
-          cs_sun, &     ! sun leaf cs (ppm CO2)
-          cs_shade, &          ! shade leaf cs (ppm CO2)
-          scalex_sun, & ! canopy depth scaling factor on vcmax and jmax (sun leaves)
-          scalex_shade, & ! canopy depth scaling factor on vcmax and jmax (shade leaves)
-          fwsoil         ! soil-moisture modifier to stomatal conductance
-#endif
-
-  END TYPE climate_type
 
   ! .............................................................................
 
@@ -925,6 +839,10 @@ CONTAINS
     ALLOCATE( var%ssat_vec(mp,ms) )
     ALLOCATE( var%watr(mp,ms) )
     var%watr(:,:) = 0.05
+    ALLOCATE( var%wbc_GW(mp) )  ! block inserted by rk4417 - phase2
+    ALLOCATE( var%smpc_GW(mp) )
+    ALLOCATE( var%wbc_vec(mp,ms) )
+    ALLOCATE( var%smpc_vec(mp,ms) ) ! end - rk4417 - phase
     ALLOCATE( var%sfc_vec(mp,ms) )
     ALLOCATE( var%swilt_vec(mp,ms) )
     ALLOCATE( var%sand_vec(mp,ms) )
@@ -934,6 +852,12 @@ CONTAINS
     ALLOCATE( var%rhosoil_vec(mp,ms) )
 
     ALLOCATE( var%drain_dens(mp) )
+    ALLOCATE( var%hkrz(mp) )  ! block inserted by rk4417 - phase2
+    ALLOCATE( var%zdepth(mp) )
+    ALLOCATE( var%srf_frac_ma(mp) )
+    ALLOCATE( var%edepth_ma(mp) )
+    ALLOCATE( var%qhz_max(mp) )
+    ALLOCATE( var%qhz_efold(mp) ) ! end - rk4417 - phase
     ALLOCATE( var%elev(mp) )
     ALLOCATE( var%elev_std(mp) )
     ALLOCATE( var%slope(mp) )
@@ -1016,7 +940,8 @@ CONTAINS
     ALLOCATE( var%t_snwlr(mp) )
     ALLOCATE( var%wbfice(mp,ms) )
     ALLOCATE( var%tggav(mp) )
-    ALLOCATE( var%otgg(mp) )
+!    ALLOCATE( var%otgg(mp) )  ! replaced by below - rk4417 - phase2
+    ALLOCATE( var%otgg(mp,ms) )
     ALLOCATE( var%otss(mp) )
     ALLOCATE( var%otss_0(mp) )
     ALLOCATE( var%tprecip(mp) )
@@ -1063,7 +988,15 @@ CONTAINS
     ALLOCATE( var%wmliq(mp,ms) )
     ALLOCATE( var%wmice(mp,ms) )
     ALLOCATE( var%wmtot(mp,ms) )
+    ALLOCATE(var % smp_hys(mp,ms) )   !1  ! from here to end added by rk4417 - phase2
+    ALLOCATE(var % wb_hys(mp,ms) )    !2
+    ALLOCATE(var % ssat_hys(mp,ms) )   !3
+    ALLOCATE(var % watr_hys(mp,ms) )   !4
+    ALLOCATE(var % hys_fac(mp,ms) )    !5
+    ALLOCATE(var % sucs_hys(mp,ms) )    !5
+    ALLOCATE(var % wbliq_old(mp,ms) ) 
 
+    
     ! Allocate variables for SLI soil model:
     !IF(cable_user%SOIL_STRUC=='sli') THEN
     ALLOCATE ( var % S(mp,ms) )
@@ -1108,10 +1041,6 @@ CONTAINS
     ALLOCATE( var% canst1(mp) )
     ALLOCATE( var% dleaf(mp) )
     ALLOCATE( var% ejmax(mp) )
-#ifdef CCAM
-    ALLOCATE( var% ejmax_shade(mp) )
-    ALLOCATE( var% ejmax_sun(mp) )
-#endif
     ALLOCATE( var% iveg(mp) )
     ALLOCATE( var% iLU(mp) )
     ALLOCATE( var% meth(mp) )
@@ -1129,18 +1058,19 @@ CONTAINS
     ALLOCATE( var% tmaxvj(mp) )
     ALLOCATE( var% vbeta(mp) )
     ALLOCATE( var% vcmax(mp) )
-#ifdef CCAM
-    ALLOCATE( var% vcmax_shade(mp) )
-    ALLOCATE( var% vcmax_sun(mp) )
-#endif
     ALLOCATE( var% xfang(mp) )
     ALLOCATE( var%extkn(mp) )
     ALLOCATE( var%wai(mp) )
     ALLOCATE( var%deciduous(mp) )
     ALLOCATE( var%froot(mp,ms) )
     !was nrb(=3), but never uses (:,3) in model
+#ifdef UM_BUILD 
+    ALLOCATE( var%refl(mp,nrb) ) !jhan:swb?
+    ALLOCATE( var%taul(mp,nrb) )
+#else
     ALLOCATE( var%refl(mp,2) ) !jhan:swb?
     ALLOCATE( var%taul(mp,2) )
+#endif
     ALLOCATE( var%vlaimax(mp) )
     ALLOCATE( var%a1gs(mp) )
     ALLOCATE( var%d0gs(mp) )
@@ -1218,23 +1148,6 @@ CONTAINS
     ALLOCATE( var% rghlai(mp) )
     ALLOCATE( var% vlaiw(mp) )
     ALLOCATE( var% fwet(mp) )
-    
-#ifdef CCAM
-    !ALLOCATE( var% A_sh(mp) )
-    !ALLOCATE( var% A_sl(mp) )
-    ALLOCATE( var% A_slC(mp) )
-    ALLOCATE( var% A_shC(mp) )
-    ALLOCATE( var% A_slJ(mp) )
-    ALLOCATE( var% A_shJ(mp) )
-    !ALLOCATE( var% eta_A_cs(mp) )
-    !ALLOCATE( var% cs(mp) )
-    !ALLOCATE( var% dAdcs(mp) )
-    ALLOCATE( var% cs_sl(mp) )
-    ALLOCATE( var% cs_sh(mp) )
-    ALLOCATE( var% tlf(mp) )
-    ALLOCATE( var% dlf(mp) )
-#endif   
-    
     ALLOCATE( var% fns_cor(mp) )    !REV_CORR variable
     ALLOCATE( var% ga_cor(mp) )     !REV_CORR variable
     ALLOCATE ( var % evapfbl(mp,ms) )
@@ -1265,11 +1178,9 @@ CONTAINS
     ALLOCATE ( var % ecy(mp,mf) )    ! sunlit and shaded leaf transpiration (dry canopy)
     ALLOCATE ( var % ecx(mp,mf) )    ! sunlit and shaded leaf latent heat flux
     ALLOCATE ( var % ci(mp,mf,3) )   ! intra-cellular CO2 vh 6/7/09
-#ifndef CCAM
     ALLOCATE ( var % fwsoil (mp) )
-#endif
 
-    !! vh_js !! liiter resistances to heat and vapour transfer
+    ! vh_js ! liiter resistances to heat and vapour transfer
     ALLOCATE (var % kthLitt(mp))
     ALLOCATE (var % DvLitt(mp))
 
@@ -1403,12 +1314,12 @@ CONTAINS
 
   ! ------------------------------------------------------------------------------
 
-  SUBROUTINE alloc_climate_type(var, mp, ktauday)
+  SUBROUTINE alloc_climate_type(var, mp)
 
     IMPLICIT NONE
 
     TYPE(climate_type), INTENT(inout) :: var
-    INTEGER, INTENT(in) :: mp, ktauday
+    INTEGER, INTENT(in) :: mp
     INTEGER :: ny, nd
     ny = var%nyear_average
     nd = var%nday_average
@@ -1418,12 +1329,6 @@ CONTAINS
     !   ALLOCATE ( var %  doy )
     ALLOCATE ( var %  dtemp(mp) )
     ALLOCATE ( var %  dmoist(mp) )
-#ifdef CCAM
-    ALLOCATE ( var %  dmoist_min(mp) )
-    ALLOCATE ( var %  dmoist_min20(mp) )
-    ALLOCATE ( var %  dmoist_max(mp) )
-    ALLOCATE ( var %  dmoist_max20(mp) )
-#endif
     ALLOCATE ( var % mtemp(mp) )
     ALLOCATE ( var % qtemp(mp) )
     ALLOCATE ( var % mmoist(mp) )
@@ -1446,37 +1351,12 @@ CONTAINS
     ALLOCATE ( var % evap_PT(mp) )
     ALLOCATE ( var % aevap(mp) )
 
-#ifdef CCAM
-    ALLOCATE ( var % GMD(mp) )
-    
-    ALLOCATE ( var % GDD0_rec(mp) )
-    ALLOCATE ( var % frec(mp) )
-    ALLOCATE ( var % dtemp_min(mp) )
-    ALLOCATE ( var % fdorm(mp) )
-    ALLOCATE ( var % fapar_ann_max(mp) )
-    ALLOCATE ( var % fapar_ann_max_last_year(mp) )
-#endif
-
     ALLOCATE ( var % mtemp_min_20(mp,ny) )
     ALLOCATE ( var %     mtemp_max_20(mp,ny) )
     ALLOCATE ( var %     dtemp_31(mp,nd) )
     ALLOCATE ( var %     dmoist_31(mp,nd) )
     ALLOCATE ( var %     dtemp_91(mp,91) )
     ALLOCATE ( var %     alpha_PT_20(mp,ny) )
-
-#ifdef CCAM
-   ALLOCATE ( var %   APAR_leaf_sun(mp,ktauday*5) )
-   ALLOCATE ( var %   APAR_leaf_shade(mp,ktauday*5) )
-   ALLOCATE ( var %   Dleaf_sun(mp,ktauday*5) )
-   ALLOCATE ( var %   Dleaf_shade(mp,ktauday*5) )
-   ALLOCATE ( var %   Tleaf_sun(mp,ktauday*5) )
-   ALLOCATE ( var %   Tleaf_shade(mp,ktauday*5) )
-   ALLOCATE ( var %   cs_sun(mp,ktauday*5) )
-   ALLOCATE ( var %   cs_shade(mp,ktauday*5) )
-   ALLOCATE ( var %   scalex_sun(mp,ktauday*5) )
-   ALLOCATE ( var %   scalex_shade(mp,ktauday*5) )
-   ALLOCATE ( var %   fwsoil(mp,ktauday*5) )
-#endif
 
   END SUBROUTINE alloc_climate_type
 
@@ -1604,6 +1484,10 @@ CONTAINS
     DEALLOCATE( var% cnsd_vec )
     DEALLOCATE( var%hyds_vec )
     DEALLOCATE( var%sucs_vec )
+    DEALLOCATE( var%wbc_GW )    ! block inserted by rk4417 - phase2 
+    DEALLOCATE( var%smpc_GW )
+    DEALLOCATE( var%wbc_vec )
+    DEALLOCATE( var%smpc_vec ) ! end - rk4417 - phase
     DEALLOCATE( var%bch_vec )
     DEALLOCATE( var%ssat_vec )
     DEALLOCATE( var%watr )
@@ -1619,6 +1503,13 @@ CONTAINS
     DEALLOCATE( var%elev_std )
     DEALLOCATE( var%slope )
     DEALLOCATE( var%slope_std )
+!    DEALLOCATE( var%drain_dens ) ! block inserted by rk4417 - phase2
+    DEALLOCATE( var%hkrz )
+    DEALLOCATE( var%zdepth )
+    DEALLOCATE( var%srf_frac_ma )
+    DEALLOCATE( var%edepth_ma )
+    DEALLOCATE( var%qhz_max )
+    DEALLOCATE( var%qhz_efold ) ! end - rk4417 - phase
     ! Deallocate variables for SLI soil model:
     !IF(cable_user%SOIL_STRUC=='sli') THEN
     DEALLOCATE ( var % nhorizons)
@@ -1742,6 +1633,13 @@ CONTAINS
     DEALLOCATE( var%wmliq )
     DEALLOCATE( var%wmice )
     DEALLOCATE( var%wmtot )
+    DEALLOCATE(var % smp_hys )  ! block inserted by rk4417 - phase2
+    DEALLOCATE(var % wb_hys )
+    DEALLOCATE(var % ssat_hys )
+    DEALLOCATE(var % watr_hys )
+    DEALLOCATE(var % hys_fac )
+    DEALLOCATE(var % sucs_hys )
+    DEALLOCATE(var % wbliq_old ) ! end - rk4417 - phase
 
     !IF(cable_user%SOIL_STRUC=='sli') THEN
     DEALLOCATE ( var % S )
@@ -1785,10 +1683,6 @@ CONTAINS
     DEALLOCATE( var% canst1 )
     DEALLOCATE( var% dleaf )
     DEALLOCATE( var% ejmax )
-#ifdef CCAM
-    DEALLOCATE( var% ejmax_shade )
-    DEALLOCATE( var% ejmax_sun )
-#endif
     DEALLOCATE( var% iveg )
     DEALLOCATE( var% iLU )
     DEALLOCATE( var% meth )
@@ -1806,10 +1700,6 @@ CONTAINS
     DEALLOCATE( var% tmaxvj )
     DEALLOCATE( var% vbeta)
     DEALLOCATE( var% vcmax )
-#ifdef CCAM
-    DEALLOCATE( var% vcmax_shade )
-    DEALLOCATE( var% vcmax_sun )
-#endif    
     DEALLOCATE( var% xfang )
     DEALLOCATE( var%extkn )
     DEALLOCATE( var%wai )
@@ -1915,7 +1805,7 @@ CONTAINS
     DEALLOCATE ( var % ofes )
     DEALLOCATE( var% sublayer_dz )
 
-    !! vh_js !! liiter resistances to heat and vapour transfer
+    ! vh_js ! liiter resistances to heat and vapour transfer
     DEALLOCATE (var % kthLitt)
     DEALLOCATE (var % DvLitt)
 

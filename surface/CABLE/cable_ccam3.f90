@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2022 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -19,7 +19,7 @@
     
 module cable_ccam3
  
-use cable_data_module
+!use cable_data_module
 use cable_def_types_mod
 use casavariable
 use phenvariable
@@ -31,7 +31,8 @@ private
 public air, bgc, met, bal, rad, rough, ssnow
 public sum_flux, climate, veg, soil, canopy
 public casabal, casabiome, casaflux, casamet
-public casapool, phen, pop, c
+public casapool, phen, pop
+!public c
    
 type (air_type), save            :: air
 type (bgc_pool_type), save       :: bgc
@@ -52,6 +53,6 @@ type (casa_met), save            :: casamet
 type (casa_pool), save           :: casapool
 type (phen_variable), save       :: phen
 type (pop_type), save            :: pop
-type (physical_constants), save  :: c
+!type (physical_constants), save  :: c
 
 end module cable_ccam3

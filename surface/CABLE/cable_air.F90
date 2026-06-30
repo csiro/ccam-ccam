@@ -24,15 +24,25 @@
 MODULE cable_air_module
 
   ! local pointers to global constants defined in
-  USE cable_data_module, ONLY : iair_type, point2constants
+
+USE cable_phys_constants_mod, ONLY : CTFRZ   => TFRZ
+USE cable_phys_constants_mod, ONLY : CRMAIR  => RMAIR
+USE cable_phys_constants_mod, ONLY : CRGAS   => RGAS
+USE cable_phys_constants_mod, ONLY : CCAPP   => CAPP
+USE cable_phys_constants_mod, ONLY : CHL     => HL
+USE cable_phys_constants_mod, ONLY : CRMH2O  => RMH2O
+USE cable_phys_constants_mod, ONLY : CTETENA => TETENA
+USE cable_phys_constants_mod, ONLY : CTETENB => TETENB
+USE cable_phys_constants_mod, ONLY : CTETENC => TETENC
+USE cable_phys_constants_mod, ONLY : CTETENA_ICE => TETENA_ICE
+USE cable_phys_constants_mod, ONLY : CTETENB_ICE => TETENB_ICE
+USE cable_phys_constants_mod, ONLY : CTETENC_ICE => TETENC_ICE
+
 
   IMPLICIT NONE
 
   PUBLIC define_air
   PRIVATE
-
-  TYPE( iair_type ) :: C
-!$omp threadprivate(C)
 
 
 CONTAINS
@@ -50,42 +60,39 @@ CONTAINS
 
     ! END header
 
-    ! local ptrs to constants defined in cable_data_module
-    CALL point2constants( C )
-
     ! Calculate saturation vapour pressure
-    es = C%TETENA * EXP( C%TETENB * ( met%tvair - C%TFRZ )                     &
-         / ( C%TETENC + ( met%tvair - C%TFRZ ) ) )
+    es = CTETENA * EXP( CTETENB * ( met%tvair - CTFRZ )                     &
+         / ( CTETENC + ( met%tvair - CTFRZ ) ) )
 
     ! Calculate conversion factor from from m/s to mol/m2/s
-    air%cmolar = met%pmb * 100.0 / (C%RGAS * (met%tvair))
+    air%cmolar = met%pmb * 100.0 / (CRGAS * (met%tvair))
 
     ! Calculate dry air density:
-    air%rho = MIN(1.3,C%RMAIR * air%cmolar)
+    air%rho = MIN(1.3,CRMAIR * air%cmolar)
 
     ! molar volume (m^3/mol)
-    air%volm = C%RGAS * (met%tvair) / (100.0 * met%pmb)
+    air%volm = CRGAS * (met%tvair) / (100.0 * met%pmb)
 
     ! latent heat for water (j/kg)
-    air%rlam= C%HL
+    air%rlam= CHL
 
     ! saturation specific humidity
-    air%qsat = (C%RMH2O / C%RMAIR) * es / met%pmb
+    air%qsat = (CRMH2O / CRMAIR) * es / met%pmb
 
     ! d(qsat)/dT ((kg/kg)/K)
-    air%epsi = (air%rlam / C%CAPP) * (C%RMH2O / C%RMAIR) * es * C%TETENB *     &
-         C%TETENC / ( C%TETENC + (met%tvair - C%TFRZ) ) ** 2 / met%pmb
+    air%epsi = (air%rlam / CCAPP) * (CRMH2O / CRMAIR) * es * CTETENB *     &
+         CTETENC / ( CTETENC + (met%tvair - CTFRZ) ) ** 2 / met%pmb
 
     ! air kinematic viscosity (m^2/s)
-    air%visc = 1e-5 * MAX(1.0, 1.35 + 0.0092 * (met%tvair - C%TFRZ) )
+    air%visc = 1e-5 * MAX(1.0, 1.35 + 0.0092 * (met%tvair - CTFRZ) )
 
     ! psychrometric constant
-    air%psyc = met%pmb * 100.0 * C%CAPP * C%RMAIR / air%rlam / C%RMH2O
+    air%psyc = met%pmb * 100.0 * CCAPP * CRMAIR / air%rlam / CRMH2O
 
     ! d(es)/dT (mb/K)
-    air%dsatdk = 100.0*(C%TETENA*C%TETENB*C%TETENC)/((met%tvair-C%TFRZ) +      &
-         C%TETENC)**2 * EXP( C%TETENB * ( met%tvair-C%TFRZ ) /         &
-         ( (met%tvair-C%TFRZ) + C%TETENC) )
+    air%dsatdk = 100.0*(CTETENA*CTETENB*CTETENC)/((met%tvair-CTFRZ) +      &
+         CTETENC)**2 * EXP( CTETENB * ( met%tvair-CTFRZ ) /         &
+         ( (met%tvair-CTFRZ) + CTETENC) )
 
   END SUBROUTINE define_air
 

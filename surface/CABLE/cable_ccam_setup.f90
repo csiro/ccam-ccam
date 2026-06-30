@@ -292,13 +292,13 @@ do iq = 1,ifull
     n = 0
     ivs(iq,:) = 0
     svs(iq,:) = 0.
-    vlin(iq,:)     = 0.
+    vlin(iq,:) = 0.
     do iv = 1,18
       if ( newgrid(iv)>0. ) then
         n = n + 1
-        ivs(iq,n)      = iv
-        svs(iq,n)      = newgrid(iv)
-        vlin(iq,n)     = newlai(iv)
+        ivs(iq,n)  = iv
+        svs(iq,n)  = newgrid(iv)
+        vlin(iq,n) = newlai(iv)
       end if
     end do
 
@@ -331,7 +331,6 @@ integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer(kind=4), dimension(:), allocatable, save :: Iwood
 integer(kind=4), dimension(:,:), allocatable, save :: disturbance_interval
 integer i,iq,n,k,ipos,ilat,ivp,is,ie
-integer jyear,jmonth,jday,jhour,jmin,mins
 integer landcount
 integer(kind=4) mp_POP
 real ivmax, landsum
@@ -353,12 +352,23 @@ if ( cbm_ms/=ms ) then
   call ccmpi_abort(-1)
 end if
 
-POP_NPATCH = NPATCH
-POP_NLAYER = NLAYER
-POP_NCOHORT = NCOHORT_MAX
-POP_HEIGHT_BINS = HEIGHT_BINS
-POP_NDISTURB = NDISTURB
-POP_AGEMAX = AGEMAX
+!POP_NPATCH = NPATCH
+!POP_NLAYER = NLAYER
+!POP_NCOHORT = NCOHORT_MAX
+!POP_HEIGHT_BINS = HEIGHT_BINS
+!POP_NDISTURB = NDISTURB
+!POP_AGEMAX = AGEMAX
+
+mvtype = mxvt
+mstype = mxst
+icycle = ccycle
+
+if ( cbm_ms /= ms ) then
+  write(6,*) "ERROR: Mismatch in number of soil layers between CABLE and CCAM"
+  write(6,*) "cbm_ms = ",cbm_ms
+  write(6,*) "ms = ",ms
+  call ccmpi_abort(-1)
+end if
 
 if ( myid==0 .and. nmaxpr==1 ) write(6,*) "-> Define CABLE and CASA CNP arrays"
 
@@ -371,8 +381,6 @@ albvisdif = 0.08
 albnirdir = 0.08
 albnirdif = 0.08
 zolnd     = 0.
-mvtype = mxvt
-mstype = mxst
 
 ! calculate CABLE vector length
 allocate( tdata(ntiles) )
@@ -406,7 +414,7 @@ do tile = 2,ntiles
   tdata(tile)%toffset = tdata(tile-1)%toffset + tdata(tile-1)%mp
   tdata(tile)%poffset = 0 ! disable for now
 end do
-mp = 0 ! defined when CABLE model is integrated
+!mp = 0 ! defined when CABLE model is integrated
 
 ktau_gl = 900
 kend_gl = 999
@@ -438,8 +446,6 @@ do tile = 1,ntiles
   tdata(tile)%pind(:,2) = 0
   tdata(tile)%maxnb = 0
 end do
-
-icycle = ccycle
 
 if ( mp_global>0 ) then
 
@@ -486,7 +492,7 @@ if ( mp_global>0 ) then
   cable_user%soil_thermal_fix = .true.
   cable_user%call_climate = .false.
   cable_user%phenology_switch = "MODIS"
-  cable_user%finite_gm = .false.
+  !cable_user%finite_gm = .false.
   select case ( cable_pop )
     case(1)
       cable_user%call_pop = .true.
@@ -564,8 +570,8 @@ if ( mp_global>0 ) then
   ! soil parameters
   soil%zse        = real(zse,8) ! soil layer thickness
   soil%zshh(1)    = 0.5_8 * soil%zse(1)
-  soil%zshh(ms+1) = 0.5_8 * soil%zse(ms)
-  soil%zshh(2:ms) = 0.5_8 * (soil%zse(1:ms-1) + soil%zse(2:ms))
+  soil%zshh(cbm_ms+1) = 0.5_8 * soil%zse(cbm_ms)
+  soil%zshh(2:cbm_ms) = 0.5_8 * (soil%zse(1:cbm_ms-1) + soil%zse(2:cbm_ms))
  
   sv = 0.
   vl2 = 0.
@@ -683,10 +689,10 @@ if ( mp_global>0 ) then
   dummy_pack = rlongg*180./pi
   call cable_pack(dummy_pack,rad%longitude(:))
   
-  veg%vcmax_shade = veg%vcmax
-  veg%ejmax_shade = veg%ejmax
-  veg%vcmax_sun   = veg%vcmax
-  veg%ejmax_sun   = veg%ejmax
+  !veg%vcmax_shade = veg%vcmax
+  !veg%ejmax_shade = veg%ejmax
+  !veg%vcmax_sun   = veg%vcmax
+  !veg%ejmax_sun   = veg%ejmax
  
   ssnow%albsoilsn(:,3)=0.05_8    
   ssnow%t_snwlr=0.05_8
@@ -909,8 +915,7 @@ if ( mp_global>0 ) then
   
   ! Calculate LAI and veg fraction diagnostics
   ! (needs to occur after CASA-CNP in case prognostic LAI is required)
-  call getzinp(jyear,jmonth,jday,jhour,jmin,mins)
-  call setlai(sigmf,jmonth,jday,jhour,jmin,mp_global,sv,vl2,casamet,veg,ifull)
+  call setlai(sv,vl2,casamet,veg,mp_global)
   vlai(:) = 0.
   dummy_unpack(1:mp_global) = sv(1:mp_global)*real(veg%vlai(1:mp_global))
   call cable_unpack(dummy_unpack,vlai)
@@ -1818,7 +1823,7 @@ if ( lncveg_numpft<1 ) then
   allocate( csiropft(lncveg_numpft), hc(lncveg_numpft), xfang(lncveg_numpft), leaf_w(lncveg_numpft), leaf_l(lncveg_numpft) )
   allocate( canst1(lncveg_numpft), shelrb(lncveg_numpft), extkn(lncveg_numpft), refl(lncveg_numpft,2), taul(lncveg_numpft,2) )
   allocate( vcmax(lncveg_numpft), rpcoef(lncveg_numpft), rootbeta(lncveg_numpft), c4frac(lncveg_numpft) )
-  allocate( froot2(lncveg_numpft,ms), vbeta(lncveg_numpft) )
+  allocate( froot2(lncveg_numpft,cbm_ms), vbeta(lncveg_numpft) )
   allocate( a1gs(lncveg_numpft), d0gs(lncveg_numpft), alpha(lncveg_numpft), convex(lncveg_numpft), cfrd(lncveg_numpft) )
   allocate( gswmin(lncveg_numpft), conkc0(lncveg_numpft), conko0(lncveg_numpft), ekc(lncveg_numpft), eko(lncveg_numpft) )
   allocate( g0(lncveg_numpft), g1(lncveg_numpft), zr(lncveg_numpft), clitt(lncveg_numpft) )
@@ -1894,7 +1899,7 @@ else
   allocate( csiropft(lncveg_numpft), hc(lncveg_numpft), xfang(lncveg_numpft), leaf_w(lncveg_numpft), leaf_l(lncveg_numpft) )
   allocate( canst1(lncveg_numpft), shelrb(lncveg_numpft), extkn(lncveg_numpft), refl(lncveg_numpft,2), taul(lncveg_numpft,2) )
   allocate( vcmax(lncveg_numpft), rpcoef(lncveg_numpft), rootbeta(lncveg_numpft), c4frac(lncveg_numpft) )
-  allocate( froot2(lncveg_numpft,ms), vbeta(lncveg_numpft) )
+  allocate( froot2(lncveg_numpft,cbm_ms), vbeta(lncveg_numpft) )
   allocate( a1gs(lncveg_numpft), d0gs(lncveg_numpft), alpha(lncveg_numpft), convex(lncveg_numpft), cfrd(lncveg_numpft) )
   allocate( gswmin(lncveg_numpft), conkc0(lncveg_numpft), conko0(lncveg_numpft), ekc(lncveg_numpft), eko(lncveg_numpft) )
   allocate( g0(lncveg_numpft), g1(lncveg_numpft), zr(lncveg_numpft), clitt(lncveg_numpft) )
@@ -2019,14 +2024,14 @@ if ( mp_global>0 ) then
   ! froot is now calculated from soil depth and the new parameter rootbeta 
   ! according to Jackson et al. 1996, Oceologica, 108:389-411
   totdepth = 0.
-  do k = 1,ms
+  do k = 1,cbm_ms
     totdepth = totdepth + real(soil%zse(k))*100.
     froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
   end do
-  do k = ms-1, 2, -1
+  do k = cbm_ms-1, 2, -1
     froot2(:,k) = froot2(:,k) - froot2(:,k-1)
   end do
-  froot2(:,ms) = 1.-sum(froot2(:,1:ms-1),2)
+  froot2(:,cbm_ms) = 1.-sum(froot2(:,1:cbm_ms-1),2)
   
   ! Eva's method for ACCESS1.3
   !froot2(:,1)=0.05
@@ -2058,7 +2063,7 @@ if ( mp_global>0 ) then
   veg%vcmax     = real(vcmax(cveg),8)
   veg%ejmax     = real(2.*veg%vcmax,8)
   veg%rpcoef    = real(rpcoef(cveg),8)
-  do k = 1,ms
+  do k = 1,cbm_ms
     veg%froot(:,k)=real(froot2(cveg,k),8)
   end do
   veg%frac4     = real(c4frac(cveg),8)
@@ -2277,7 +2282,7 @@ if ( mp_global>0 ) then
   soil%fsatmax   = 0._8
   soil%nhorizons = 1
   soil%ishorizon = 1
-  do k = 1,ms
+  do k = 1,cbm_ms
     soil%swilt_vec(:,k)   = soil%swilt
     soil%ssat_vec(:,k)    = soil%ssat
     soil%sfc_vec(:,k)     = soil%sfc
@@ -2298,7 +2303,7 @@ if ( mp_global>0 ) then
   soil%GWbch_vec     = soil%bch
   soil%GWrhosoil_vec = soil%rhosoil
   soil%GWssat_vec    = soil%ssat
-  soil%GWwatr        = soil%watr(:,ms) !residual water content of the aquifer [mm3/mm3]
+  soil%GWwatr        = soil%watr(:,cbm_ms) !residual water content of the aquifer [mm3/mm3]
   soil%GWdz          = 20._8           !thickness of the aquifer   [m]
   soil%GWdz          = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
   soil%drain_dens    = 0.008_8         !  drainage density ( mean dist to rivers/streams )
@@ -2318,11 +2323,11 @@ if ( mp_global>0 ) then
   !  psi_c(6:17) = -2750000._r_2      
   !    
   !  soil_depth(1) = REAL(soil%zse(1),r_2)
-  !  DO k=2,ms
+  !  DO k=2,cbm_ms
   !     soil_depth(k) = soil_depth(k-1) + REAL(soil%zse(k),r_2)
   !  END DO    
   !  
-  !  do k=1,ms
+  !  do k=1,cbm_ms
   !    soil%hyds_vec(:,k) = 0.0070556_r_2*10.0_r_2**(-0.884_r_2 + 0.0153_r_2*soil%sand_Vec(:,k)*100.0_r_2)* &
   !      EXP(-gw_params%hkrz*(MAX(0._r_2,soil_depth(k)-gw_params%zdepth)))
   !    soil%sucs_vec(:,k) = 10.0_r_2 * 10.0_r_2**(1.88_r_2 -0.0131_r_2*soil%Sand_Vec(:,k)*100.0_r_2)
@@ -2331,11 +2336,11 @@ if ( mp_global>0 ) then
   !    soil%watr(:,k) = 0.02_r_2 + 0.00018_r_2*soil%Clay_Vec(:,k)*100.0_r_2
   !  end do
   !  !aquifer share non-organic with last layer if not found in param file
-  !  soil%GWhyds_vec(:) = soil%hyds_vec(:,ms)
-  !  soil%GWsucs_vec(:) = soil%sucs_vec(:,ms)
-  !  soil%GWbch_vec(:)  = soil%bch_vec(:,ms)
-  !  soil%GWssat_vec(:) = soil%ssat_vec(:,ms)
-  !  soil%GWwatr(:)     = soil%watr(:,ms)
+  !  soil%GWhyds_vec(:) = soil%hyds_vec(:,cbm_ms)
+  !  soil%GWsucs_vec(:) = soil%sucs_vec(:,cbm_ms)
+  !  soil%GWbch_vec(:)  = soil%bch_vec(:,cbm_ms)
+  !  soil%GWssat_vec(:) = soil%ssat_vec(:,cbm_ms)
+  !  soil%GWwatr(:)     = soil%watr(:,cbm_ms)
   !  !include organin impact.  fraction of grid cell where percolation through
   !  !organic macropores dominates
   !  !soil%Org_Vec = MAX(0._r_2,soil%Org_Vec)
@@ -2355,12 +2360,12 @@ if ( mp_global>0 ) then
   !
   !  !vegetation dependent field capacity (point plants get stressed) and
   !  !wilting point
-  !  do k = 1,ms
+  !  do k = 1,cbm_ms
   !    psi_tmp(:,k) = -psi_c(veg%iveg(:))
   ! end do
   ! soil%sfc_vec = (soil%ssat_vec-soil%watr) * (ABS(psi_tmp(:,:)) &
   !    /(ABS(soil%sucs_vec)))**(-1.0/soil%bch_vec)+soil%watr
-  !  do k = 1,ms
+  !  do k = 1,cbm_ms
   !    psi_tmp(:,k) = -psi_c(veg%iveg(:))
   !  end do
   !  soil%swilt_vec = (soil%ssat_vec-soil%watr) * (ABS(psi_tmp(:,:)) &
@@ -2380,14 +2385,14 @@ if ( mp_global>0 ) then
   !end if 
   
   !if ( cable_user%gw_model ) then
-  !  do k = 1,ms
+  !  do k = 1,cbm_ms
   !    soil%hyds_vec(:,k) = soil%hyds_vec(:,k) * exp(-gw_parms%hkrz*(znode(k)-gw_params%zdepth) )
   !  end do
   !  soil%hyds(:) = soil%hyds_vec(:,1)
   !end if
   
   !if ( cable_user%soil_thermal_fix ) then
-  !  do k = 1,ms
+  !  do k = 1,cbm_ms
   !    ssat_bounded = min( ssat_hi, max( ssat_lo, soil%ssat_vec(:,k) ) )  
   !    rho_soil_bulk = min( rhob_hi, max( rhob_lo, (2700.*(1.-ssat_bounded)) ) )
   !    where ( soil%isoilm(:) /= 9 )

@@ -51,7 +51,7 @@ MODULE casaparm
   INTEGER, PARAMETER :: PLAB    = 1
   INTEGER, PARAMETER :: PSORB   = 2
   INTEGER, PARAMETER :: POCC    = 3
-  !! vh_js !! LALLOC moved to bgcdriver to allow for value to be switchable
+  ! vh_js ! LALLOC moved to bgcdriver to allow for value to be switchable
   !INTEGER, PARAMETER :: LALLOC  = 0      !=0 constant; 1 variable
   REAL(r_2), PARAMETER :: z30=0.3
   REAL(r_2), PARAMETER :: R0=0.3
@@ -60,6 +60,7 @@ MODULE casaparm
   REAL(r_2), PARAMETER :: Q10alloc=2.0
   REAL(r_2), PARAMETER :: ratioNCstrfix = 1.0/150.0
   REAL(r_2), PARAMETER :: ratioNPstrfix = 25.0
+  REAL(r_2), PARAMETER :: ratioPCstrfix = ratioNCstrfix/25.0 !ESM15:casa_landuse
   REAL(r_2), PARAMETER :: fracCbiomass = 0.50
   REAL(r_2), PARAMETER :: tsoilrefc=25.0
   REAL(r_2), PARAMETER :: tkzeroc=273.15

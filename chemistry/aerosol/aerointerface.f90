@@ -314,13 +314,19 @@ implicit none
 
 integer, intent(in) :: mins
 integer k, tt, ttx, j
+integer kr
 real dhr, smins, fjd
 real r1, dlt, alp, slag
 real, dimension(ifull) :: coszro, taudar
+real, dimension(ifull,kl) :: dummy
 
 do j = 1,4
   ! note levels are inverted by fieldinterpolate
-  call fieldinterpolate(zoxidant_g(:,:,j),oxidantnow_g(:,1:ilev,j),rlev,ifull,kl,ilev,sig,ps(:),interpmeth=0)
+  call fieldinterpolate(dummy(:,:),oxidantnow_g(:,1:ilev,j),rlev,ifull,kl,ilev,sig,ps(:),interpmeth=0)
+  do k = 1,kl
+    kr = kl - k + 1  
+    zoxidant_g(:,kr,j) = dummy(:,k)
+  end do
 end do
 ! estimate day length (presumably to preturb day-time OH levels)
 ttx = nint(86400./dt)

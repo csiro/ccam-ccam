@@ -300,8 +300,8 @@ endif
 FFLAGS += -DCCAM $(INC)
 
 
-# Object files for dynamical model
-OBJS = adjust5.o amipsst.o convjlm.o convjlm22.o depts.o estab.o gettin.o \
+# oect files for dynamical model
+oS = adjust5.o amipsst.o convjlm.o convjlm22.o depts.o estab.o gettin.o \
 globpe.o config.o gdrag_m.o hordifg.o hs_phys.o indata.o infile.o ints.o \
 helmsolve.o jimcc.o nesting.o nonlin.o ensemble.o \
 radriv90.o scrnout.o setxyz.o sflux.o \
@@ -328,13 +328,24 @@ workglob_m.o work2_m.o work3_m.o work3b_m.o work3f_m.o work3lwr_m.o work3sav_m.o
 xarrs_m.o \
 aerointerface.o aerosolldr.o aerosol_arrays.o \
 cable_ccam2.o cable_ccam3.o cable_ccam4.o \
-cable_ccam_common.o cable_ccam_file.o cable_ccam_setup.o \
-cable_air.o cable_albedo.o cable_canopy.o cable_common.o \
-cable_data.o cable_define_types.o cable_radiation.o cable_roughness.o cable_soilsnow.o \
-cable_optimiseJVratio.o cable_psm.o cable_pft_params.o cable_soil_params.o cable_constants.o \
-cable_gw_hydro.o \
-cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o \
-casa_cnp.o casa_variable.o POP.o casa_dimension.o casa_phenology.o casa_param.o \
+cable_ccam_common.o cable_ccam_setup.o cable_ccam_file.o \
+cable_climate_type_mod.o cable_define_types.o cable_air.o cable_phys_constants_mod.o \
+cable_canopy.o cable_other_constants_mod.o cable_common.o cable_runtime_opts_mod.o \
+cable_photo_constants_mod.o cable_surface_types.o cable_maths_constants_mod.o \
+cable_roughness.o \
+casa_variable.o casa_dimension.o casa_param.o casa_phenology.o casa_cnp.o \
+casa_rplant.o \
+cbl_albedo.o cbl_snow_albedo.o cbl_radiation.o cbl_friction_vel.o cbl_pot_evap_snow.o \
+cbl_qsat.o cbl_zetar.o cbl_latent_heat.o cbl_wetleaf.o cbl_dryLeaf.o cbl_within_canopy.o \
+cbl_SurfaceWetness.o cbl_photosynthesis.o cbl_fwsoil.o cbl_remove_trans.o cbl_soilsnow_data.o \
+cbl_init_wetfac_mod.o cbl_init_radiation.o cbl_rhoch.o cbl_spitter.o cbl_soilsnow_main.o \
+cbl_hyd_redistrib.o cbl_soilfreeze.o cbl_snowDensity.o cbl_snowl_adjust.o cbl_snowMelt.o \
+cbl_stempv.o cbl_surfbv.o cbl_snowAccum.o cbl_snowCheck.o cbl_smoisturev.o cbl_trimb.o \
+cbl_conductivity.o cbl_Oldconductivity.o cbl_snow_aging.o \
+pop_types.o pop_constants.o pop_def.o POP.o \
+cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o \
+cable_sli_utils.o \
+grid_constants_cbl.o roughnessHGT_effLAI_cbl.o landuse_constant.o masks_cbl.o \
 uclem.o uclem_ctrl.o uclem_parameters.o uclem_types.o mlo_ctrl.o mlo.o river.o \
 module_ctrl_turbmix.o trimmix.o vertmix.o tkeeps.o \
 seaesfrad.o rad_utilities.o microphys_rad.o esfsw_driver.o esfsw_parameters.o \
@@ -348,8 +359,8 @@ cu_gf_deep.o module_diag_hailcast.o \
 outcdf.o outcdf_standard.o outcdf_cordex.o outcdf_freq.o outcdf_common.o
 
 
-globpea: $(OBJS)
-	$(FC) -o globpea $(FOPT) $(FFLAGS) $(OBJS) $(LIBS)
+globpea: $(oS)
+	$(FC) -o globpea $(FOPT) $(FFLAGS) $(oS) $(LIBS)
 
 clean:
 	rm *.o *.i *.mod
@@ -361,7 +372,7 @@ netcdf_m.o: netcdf_m.f90
 	$(FC) -c $(PPFLAG90) $(NCFLAG) $<
 esfsw_driver.o esfsw_parameters.o gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_tables.o longwave_params.o lw_gases_stdtf.o microphys_rad.o optical_path.o optical_path_data.o rad_utilities.o sealw99.o: %.o: %.f90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(IPFLAG) $<
-cable_air.o cable_albedo.o cable_canopy.o cable_common.o cable_constants.o cable_data.o cable_define_types.o cable_gw_hydro.o cable_optimiseJVratio.o cable_pft_params.o cable_psm.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o cable_soil_params.o cable_soilsnow.o casa_cnp.o casa_dimension.o casa_param.o casa_phenology.o casa_variable.o POP.o: %.o: %.F90
+cable_climate_type_mod.o cable_define_types.o cable_air.o cable_phys_constants_mod.o cable_canopy.o cable_other_constants_mod.o cable_common.o cable_runtime_opts_mod.o cable_photo_constants_mod.o cable_surface_types.o cable_maths_constants_mod.o cable_roughness.o casa_variable.o casa_dimension.o casa_param.o casa_phenology.o casa_cnp.o casa_rplant.o cbl_albedo.o cbl_snow_albedo.o cbl_radiation.o cbl_friction_vel.o cbl_pot_evap_snow.o cbl_qsat.o cbl_zetar.o cbl_latent_heat.o cbl_wetleaf.o cbl_dryLeaf.o cbl_within_canopy.o cbl_SurfaceWetness.o cbl_photosynthesis.o cbl_fwsoil.o cbl_remove_trans.o cbl_soilsnow_data.o cbl_init_wetfac_mod.o cbl_init_radiation.o cbl_rhoch.o cbl_spitter.o cbl_soilsnow_main.o cbl_hyd_redistrib.o cbl_soilfreeze.o cbl_snowDensity.o cbl_snowl_adjust.o cbl_snowMelt.o cbl_stempv.o cbl_surfbv.o cbl_snowAccum.o cbl_snowCheck.o cbl_smoisturev.o cbl_trimb.o cbl_conductivity.o cbl_Oldconductivity.o cbl_snow_aging.o pop_types.o pop_constants.o pop_def.o POP.o grid_constants_cbl.o roughnessHGT_effLAI_cbl.o landuse_constant.o masks_cbl.o cable_sli_main.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o: %.o: %.F90
 	$(FC) -c $(REAL8FLAG) $(PPFLAG90) $(FOPT) $(FFLAGS) $(IPFLAG) $<
 version.h: FORCE
 	rm -f tmpver
@@ -390,37 +401,60 @@ bett_cuc.o : betts1_m.o newmpar_m.o
 bettinit.o : betts1_m.o newmpar_m.o
 bettrain.o : betts1_m.o newmpar_m.o
 betts.o : betts1_m.o morepbl_m.o newmpar_m.o parm_m.o prec_m.o sigs_m.o
-cable_air.o : cable_common.o cable_data.o cable_define_types.o 
-cable_albedo.o : cable_common.o cable_data.o cable_define_types.o
-cable_canopy.o : cable_air.o cable_common.o cable_data.o cable_define_types.o cable_gw_hydro.o cable_psm.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_sli_utils.o
-cable_ccam_common.o : cable_air.o cable_albedo.o cable_canopy.o cable_ccam3.o cable_ccam4.o cable_common.o cable_define_types.o cable_optimiseJVratio.o cable_radiation.o cable_roughness.o cable_sli_main.o cable_soilsnow.o casa_cnp.o casa_variable.o casa_phenology.o cc_mpi.o dates_m.o newmpar_m.o parm_m.o POP.o
+cable_air.o : cable_phys_constants_mod.o cable_define_types.o
+cable_canopy.o : cbl_dryLeaf.o cbl_friction_vel.o cbl_latent_heat.o cbl_pot_evap_snow.o cbl_qsat.o cbl_radiation.o cbl_SurfaceWetness.o cbl_wetleaf.o cbl_within_canopy.o cbl_zetar.o cable_common.o cable_phys_constants_mod.o cable_photo_constants_mod.o cable_maths_constants_mod.o cable_other_constants_mod.o grid_constants_cbl.o cable_define_types.o cable_air.o cable_roughness.o
+cable_ccam_common.o : cable_air.o cbl_albedo.o cable_canopy.o cable_ccam3.o cable_ccam4.o cable_define_types.o cable_sli_main.o dates_m.o newmpar_m.o parm_m.o cbl_init_radiation.o cable_common.o cbl_soilsnow_main.o casa_cnp.o POP.o casa_dimension.o casa_param.o casa_variable.o casa_phenology.o pop_constants.o pop_types.o masks_cbl.o cable_other_constants_mod.o cable_phys_constants_mod.o cable_maths_constants_mod.o grid_constants_cbl.o cable_surface_types.o cbl_snow_aging.o casa_rplant.o
 cable_ccam_file.o : cable_ccam_common.o cc_mpi.o darcdf_m.o infile.o newmpar_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o soil_m.o soilsnow_m.o vegpar_m.o
 cable_ccam_setup.o : cable_ccam_common.o carbpools_m.o cc_mpi.o const_phys.o darcdf_m.o infile.o latlong_m.o newmpar_m.o parm_m.o pbl_m.o riverarrays_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o vegpar_m.o
 cable_ccam2.o : arrays_m.o cable_ccam_common.o cable_ccam_file.o cable_ccam_setup.o cc_mpi.o const_phys.o darcdf_m.o dates_m.o estab.o extraout_m.o infile.o latlong_m.o liqwpar_m.o morepbl_m.o  nharrs_m.o nsibd_m.o parm_m.o parmgeom_m.o pbl_m.o permsurf_m.o  prec_m.o raddiag_m.o radisw_m.o riverarrays_m.o screen_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o tracers_m.o vegpar_m.o work2_m.o work3_m.o zenith.o
-cable_ccam3.o : cable_data.o cable_define_types.o casa_phenology.o casa_variable.o POP.o
-cable_ccam4.o : cable_ccam3.o cable_data.o cable_define_types.o casa_variable.o newmpar_m.o POP.o
-cable_common.o : cable_define_types.o cable_pft_params.o cable_soil_params.o	
-cable_constants.o : cable_define_types.o
-cable_data.o : cable_constants.o
-cable_gw_hydro.o : cable_define_types.o cable_common.o cable_soilsnow.o cable_data.o
-cable_optimiseJVratio.o : cable_canopy.o cable_data.o cable_define_types.o POP.o
-cable_pft_params.o : cable_define_types.o
-cable_psm.o : cable_common.o cable_define_types.o
-cable_radiation.o : cable_common.o cable_data.o cable_define_types.o
-cable_roughness.o : cable_common.o cable_data.o cable_define_types.o
+cable_ccam3.o : cable_define_types.o casa_variable.o casa_phenology.o pop_types.o
+cable_ccam4.o : cable_define_types.o casa_variable.o casa_phenology.o pop_types.o newmpar_m.o
+cable_common.o : cable_runtime_opts_mod.o
+cable_define_types.o : cable_climate_type_mod.o
+cable_other_constants_mod.o : grid_constants_cbl.o
+cable_roughness.o : cable_surface_types.o cable_phys_constants_mod.o cable_common.o cable_define_types.o roughnessHGT_effLAI_cbl.o cable_other_constants_mod.o
 cable_sli_main.o : cable_common.o cable_define_types.o cable_sli_numbers.o cable_sli_roots.o cable_sli_solve.o cable_sli_utils.o
 cable_sli_numbers.o : cable_define_types.o
 cable_sli_roots.o : cable_define_types.o cable_sli_numbers.o
 cable_sli_solve.o : cable_define_types.o cable_sli_numbers.o cable_sli_utils.o
 cable_sli_utils.o : cable_define_types.o cable_sli_numbers.o
-cable_soil_params.o : cable_define_types.o
-cable_soilsnow.o : cable_common.o cable_data.o cable_define_types.o parm_m.o
 carbpools_m.o : cable_define_types.o casa_variable.o parm_m.o
-casa_cnp.o : cable_common.o cable_define_types.o casa_variable.o
+casa_cnp.o : cable_define_types.o casa_dimension.o casa_param.o casa_variable.o casa_phenology.o cable_common.o landuse_constant.o
 casa_dimension.o : cable_define_types.o
 casa_param.o : casa_dimension.o
 casa_phenology.o : casa_dimension.o
-casa_variable.o : cable_define_types.o casa_dimension.o casa_param.o
+casa_rplant.o : cable_define_types.o casa_dimension.o casa_param.o casa_variable.o casa_phenology.o cable_common.o landuse_constant.o casa_cnp.o
+casa_variable.o : casa_dimension.o casa_param.o
+cbl_albedo.o : cbl_snow_albedo.o
+cbl_dryLeaf.o : cable_common.o cable_define_types.o cbl_photosynthesis.o cbl_fwsoil.o cbl_remove_trans.o cable_surface_types.o cable_other_constants_mod.o cable_phys_constants_mod.o cable_photo_constants_mod.o
+cbl_conductivity.o : cbl_soilsnow_data.o
+cbl_fwsoil.o : cable_define_types.o cable_common.o
+cbl_hyd_redistrib.o : cable_common.o cable_surface_types.o cbl_soilsnow_data.o
+cbl_init_radiation.o : cbl_rhoch.o cbl_spitter.o
+cbl_init_wetfac_mod.o : cable_surface_types.o cable_define_types.o cable_other_constants_mod.o
+cbl_latent_heat.o : cable_define_types.o cable_common.o cable_phys_constants_mod.o
+cbl_Oldconductivity.o : cbl_soilsnow_data.o
+cbl_pot_evap_snow.o : cbl_qsat.o
+cbl_radiation.o : cable_define_types.o cable_other_constants_mod.o
+cbl_remove_trans.o : cable_common.o cbl_soilsnow_data.o
+cbl_smoisturev.o : cbl_soilsnow_data.o cbl_trimb.o cable_common.o
+cbl_snow_albedo.o : cable_phys_constants_mod.o
+cbl_snow_aging.o : cable_phys_constants_mod.o
+cbl_snowAccum.o : cbl_soilsnow_data.o cable_common.o
+cbl_snowCheck.o : cbl_soilsnow_data.o cable_common.o
+cbl_snowDensity.o : cbl_soilsnow_data.o
+cbl_snowl_adjust.o : cbl_soilsnow_data.o
+cbl_snowMelt.o : cbl_soilsnow_data.o cable_common.o
+cbl_soilfreeze.o : cable_common.o cbl_soilsnow_data.o
+cbl_soilsnow_data.o : cable_define_types.o cable_phys_constants_mod.o cable_common.o
+cbl_soilsnow_main.o : cable_common.o cbl_soilsnow_data.o cbl_hyd_redistrib.o cbl_soilfreeze.o cbl_remove_trans.o cbl_snowDensity.o cbl_snowl_adjust.o cbl_snowMelt.o cbl_stempv.o cbl_surfbv.o cbl_snowAccum.o cbl_snowCheck.o cable_phys_constants_mod.o
+cbl_stempv.o : cbl_soilsnow_data.o cable_common.o cbl_trimb.o cbl_conductivity.o cbl_Oldconductivity.o
+cbl_SurfaceWetness.o : cable_common.o cable_define_types.o cable_phys_constants_mod.o cbl_init_wetfac_mod.o
+cbl_surfbv.o : cbl_soilsnow_data.o cbl_smoisturev.o cable_common.o cable_surface_types.o cable_other_constants_mod.o
+cbl_trimb.o : cbl_soilsnow_data.o
+cbl_photosynthesis.o : cable_other_constants_mod.o cable_photo_constants_mod.o
+cbl_wetleaf.o : cable_define_types.o
+cbl_within_canopy.o : cable_common.o cable_define_types.o
 cc_mpi.o : cc_mpi_collective.o cc_mpi_common.o cc_mpi_file.o cc_mpi_multigrid.o cc_mpi_point.o cc_omp.o indices_m.o latlong_m.o map_m.o sumdd_m.o vecsuv_m.o workglob_m.o xyzinfo_m.o
 cc_mpi_collective.o : cc_mpi_common.o sumdd_m.o xyzinfo_m.o
 cc_mpi_common.o : cc_omp.o newmpar_m.o sumdd_m.o
@@ -460,6 +494,7 @@ indata.o : aerointerface.o amipsst.o arrays_m.o bigxy4_m.o cc_mpi.o const_phys.o
 indices_m.o : newmpar_m.o
 infile.o : cc_mpi.o dates_m.o netcdf_m.o newmpar_m.o parm_m.o parmgeom_m.o sigs_m.o
 ints.o : cc_acc.o cc_mpi.o indices_m.o newmpar_m.o parm_m.o parmhor_m.o
+landuse_constant.o : cable_define_types.o casa_dimension.o
 latltoij.o : const_phys.o newmpar_m.o parm_m.o parmdyn_m.o utilities.o 
 leoncld.o : const_phys.o estab.o parm_m.o prec_m.o sigs_m.o
 longwave_clouds.o : rad_utilities.o
@@ -491,6 +526,9 @@ outcdf_cordex.o : aerointerface.o arrays_m.o cc_mpi.o const_phys.o dates_m.o dps
 outcdf_freq.o : arrays_m.o cc_mpi.o const_phys.o dates_m.o extraout_m.o filnames_m.o histave_m.o infile.o kuocom_m.o liqwpar_m.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o outcdf_common.o parm_m.o parmdyn_m.o parmgeom_m.o parmhdff_m.o parmhor_m.o pbl_m.o prec_m.o raddiag_m.o screen_m.o sigs_m.o soilsnow_m.o soilv_m.o tracers_m.o vvel_m.o
 outcdf_standard.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o cloudmod.o const_phys.o dates_m.o daviesnudge.o dpsdt_m.o estab.o extraout_m.o filnames_m.o gdrag_m.o histave_m.o indices_m.o infile.o kuocom_m.o latlong_m.o leoncld.o liqwpar_m.o map_m.o mlodynamics.o module_aux_rad.o module_ctrl_microphysics.o morepbl_m.o newmpar_m.o nharrs_m.o nsibd_m.o outcdf_common.o ozoneread.o parm_m.o parmdyn_m.o parmgeom_m.o parmhdff_m.o parmhor_m.o parmvert_m.o pbl_m.o prec_m.o raddiag_m.o river.o riverarrays_m.o savuvt_m.o savuv1_m.o screen_m.o sflux.o seaesfrad.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o tkeeps.o tracermodule.o tracers_m.o vegpar_m.o vvel_m.o work2_m.o xarrs_m.o
 ozoneread.o : cc_mpi.o const_phys.o dates_m.o filnames_m.o infile.o latlong_m.o newmpar_m.o parm_m.o 
+POP.o : pop_types.o pop_def.o pop_constants.o
+pop_constants.o : pop_def.o
+pop_types.o : pop_constants.o pop_def.o
 radriv90.o : aerointerface.o arrays_m.o cc_mpi.o cfrac_m.o cldcom_m.o co2_read.o co2dta_m.o const_phys.o diag_m.o estab.o extraout_m.o infile.o kdacom_m.o kuocom_m.o latlong_m.o liqwpar_m.o lwout_m.o mlo_ctrl.o newmpar_m.o nharrs_m.o nsibd_m.o ozoneread.o parm_m.o pbl_m.o raddiag_m.o radisw_m.o rdflux_m.o sigs_m.o soil_m.o soilsnow_m.o soilv_m.o srccom_m.o swocom_m.o swr99.o tabcom_m.o tfcom_m.o uclem_ctrl.o work3f_m.o work3lwr_m.o zenith.o rdparm.h hcon.h
 river.o : arrays_m.o cc_mpi.o const_phys.o indices_m.o map_m.o newmpar_m.o nsibd_m.o parm_m.o riverarrays_m.o sflux.o soil_m.o soilsnow_m.o soilv_m.o xyzinfo_m.o 
 riverarrays_m.o : newmpar_m.o
