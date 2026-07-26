@@ -65,7 +65,7 @@ use vvel_m                            ! Additional vertical velocity
       
 implicit none
 
-integer, parameter :: freqvars = 13  ! number of variables to average
+integer, parameter :: freqvars = 21  ! number of variables to average
 integer, dimension(:), allocatable :: vnode_dat
 integer, dimension(:), allocatable :: procnode, procoffset
 integer, dimension(5) :: adim
@@ -252,19 +252,11 @@ if ( first ) then
       call ccnf_put_attg(fncid,'decomp','face')
     end if 
     
-    ! ensemble data
-    if ( driving_model_id /= ' ' ) then
-      call ccnf_put_attg(fncid,'driving_model_id',trim(driving_model_id))
-    end if
-    if ( driving_model_ensemble_number /= ' ' ) then
-      call ccnf_put_attg(fncid,'driving_model_ensemble_number',trim(driving_model_ensemble_number))
-    end if
-    if ( driving_experiment_name /= ' ' ) then
-      call ccnf_put_attg(fncid,'driving_experiment_name',trim(driving_experiment_name))
-    end if 
-    
     ! solar data
     call ccnf_put_attg(fncid,'bpyear',bpyear)
+    
+    ! CCAM parameters
+    call outparam(fncid)
     
     ! define variables
     if ( local ) then
@@ -328,6 +320,8 @@ if ( first ) then
       call attrib(fncid,sdim,ssize,'sgn_ave',lname,'W m-2',-500.,2000.,any_m,tmean_m,amean_m,float_m)
       lname = 'LW net at ground (+ve up)'
       call attrib(fncid,sdim,ssize,'rgn_ave',lname,'W m-2',-500.,1000.,any_m,tmean_m,amean_m,float_m)
+      lname = 'TOA Incident Shortwave Radiation'
+      call attrib(fncid,sdim,ssize,'sint_ave',lname,'W m-2',0.,1600.,any_m,tmean_m,amean_m,float_m)
       lname = 'Surface Upward Latent Heat Flux'
       call attrib(fncid,sdim,ssize,'eg_ave',lname,'W m-2',-3000.,3000.,any_m,tmean_m,amean_m,float_m)
       lname = 'Surface Upward Sensible Heat Flux'
@@ -337,6 +331,10 @@ if ( first ) then
       
       lname = 'Updraft helicity (2-5km)'
       call attrib(fncid,sdim,ssize,'helicity',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,short_m)
+      lname = 'Hail average diameter'
+      call attrib(fncid,sdim,ssize,'hailradave',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,short_m)
+      lname = 'Hail maximum diameter'
+      call attrib(fncid,sdim,ssize,'hailradmax',lname,'m2 s-2',-520.,520.,any_m,point_m,amean_m,short_m)
       
       if ( .not.ml_freq ) then
         lname = 'Convective Available Potential Energy'
@@ -517,6 +515,16 @@ freqstore(1:ifull,10) = freqstore(1:ifull,10) + real(sgsave/real(tbave10),8)
 freqstore(1:ifull,11) = freqstore(1:ifull,11) + real(rgn/real(tbave10),8)
 freqstore(1:ifull,12) = freqstore(1:ifull,12) + real(eg/real(tbave10),8)
 freqstore(1:ifull,13) = freqstore(1:ifull,13) + real(fg/real(tbave10),8)
+freqstore(1:ifull,14) = freqstore(1:ifull,14) + real(sint/real(tbave10),8)
+freqstore(1:ifull,15) = max( freqstore(1:ifull,15), real(dhail1,8) )
+freqstore(1:ifull,16) = max( freqstore(1:ifull,16), real(dhail1,8) )
+freqstore(1:ifull,17) = max( freqstore(1:ifull,17), real(dhail1,8) )
+freqstore(1:ifull,18) = max( freqstore(1:ifull,18), real(dhail1,8) )
+freqstore(1:ifull,19) = max( freqstore(1:ifull,19), real(dhail1,8) )
+freqstore(1:ifull,20) = freqstore(1:ifull,20) + 0.2*( freqstore(1:ifull,15) + freqstore(1:ifull,16) + &
+    freqstore(1:ifull,17) + freqstore(1:ifull,18) + freqstore(1:ifull,19) )
+freqstore(1:ifull,21) = max( freqstore(1:ifull,15), freqstore(1:ifull,16), freqstore(1:ifull,17), &
+    freqstore(1:ifull,18), freqstore(1:ifull,19), freqstore(1:ifull,21) )
 
 fiarch = ktau/tbave10
 
@@ -574,6 +582,8 @@ if ( mod(ktau,tbave10)==0 ) then
     call histwrt(outdata,"sgn_ave",fncid,fiarch,local,.true.)
     outdata = real(freqstore(:,11))
     call histwrt(outdata,"rgn_ave",fncid,fiarch,local,.true.)
+    outdata = real(freqstore(:,14))
+    call histwrt(outdata,"sint_ave",fncid,fiarch,local,.true.)
     outdata = real(freqstore(:,12))
     call histwrt(outdata,"eg_ave",fncid,fiarch,local,.true.)
     outdata = real(freqstore(:,13))
@@ -581,6 +591,10 @@ if ( mod(ktau,tbave10)==0 ) then
     call histwrt(pblh,"pblh",fncid,fiarch,local,.true.)
     
     call histwrt(updraft_helicity,'helicity',fncid,fiarch,local,.true.)    
+    outdata = real(freqstore(:,20))
+    call histwrt(outdata,'hailradave',fncid,fiarch,local,.true.)    
+    outdata = real(freqstore(:,21))
+    call histwrt(outdata,'hailradmax',fncid,fiarch,local,.true.)    
     
     if ( .not.ml_freq ) then
       call histwrt(cape_d,"CAPE",fncid,fiarch,local,.true.)
