@@ -32,27 +32,25 @@ public air, bgc, met, bal, rad, rough, ssnow
 public sum_flux, climate, veg, soil, canopy
 public casabal, casabiome, casaflux, casamet
 public casapool, phen, pop
-!public c
    
-type (air_type), save            :: air
-type (bgc_pool_type), save       :: bgc
-type (met_type), save            :: met
-type (balances_type), save       :: bal
-type (radiation_type), save      :: rad
-type (roughness_type), save      :: rough
-type (soil_snow_type), save      :: ssnow
-type (sum_flux_type), save       :: sum_flux
-type (climate_type), save        :: climate
-type (veg_parameter_type), save  :: veg
-type (soil_parameter_type), save :: soil
-type (canopy_type), save         :: canopy
-type (casa_balance), save        :: casabal
-type (casa_biome), save          :: casabiome
-type (casa_flux), save           :: casaflux
-type (casa_met), save            :: casamet
-type (casa_pool), save           :: casapool
-type (phen_variable), save       :: phen
-type (pop_type), save            :: pop
-!type (physical_constants), save  :: c
+type (air_type), dimension(:), allocatable, save            :: air
+type (bgc_pool_type), dimension(:), allocatable, save       :: bgc
+type (met_type), dimension(:), allocatable, save            :: met
+type (balances_type), dimension(:), allocatable, save       :: bal
+type (radiation_type), dimension(:), allocatable, save      :: rad
+type (roughness_type), dimension(:), allocatable, save      :: rough
+type (soil_snow_type), dimension(:), allocatable, save      :: ssnow
+type (sum_flux_type), dimension(:), allocatable, save       :: sum_flux
+type (climate_type), dimension(:), allocatable, save        :: climate
+type (veg_parameter_type), dimension(:), allocatable, save  :: veg
+type (soil_parameter_type), dimension(:), allocatable, save :: soil
+type (canopy_type), dimension(:), allocatable, save         :: canopy
+type (casa_balance), dimension(:), allocatable, save        :: casabal
+type (casa_biome), dimension(:), allocatable, save          :: casabiome
+type (casa_flux), dimension(:), allocatable, save           :: casaflux
+type (casa_met), dimension(:), allocatable, save            :: casamet
+type (casa_pool), dimension(:), allocatable, save           :: casapool
+type (phen_variable), dimension(:), allocatable, save       :: phen
+type (pop_type), dimension(:), allocatable, save            :: pop
 
 end module cable_ccam3

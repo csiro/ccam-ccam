@@ -37,7 +37,7 @@ public rvrinit, rvrrouter
 integer, dimension(:,:), allocatable, save :: xp
 logical, dimension(:,:), allocatable, save :: river_inflow
 
-integer, save :: basinmd      = 1    ! basin mode (0=soil, 1=redistribute)
+integer, save :: basinmd      = 1    ! basin mode (1=redistribute)
 integer, save :: rivermd      = 0    ! river mode (0=Miller, 1=Manning)
 real, save :: rivercoeff = 0.02      ! river roughness coeff (Miller=0.02, A&B=0.035)
 real, parameter :: rhow = 1000.      ! density of water (kg/m^3)
@@ -345,12 +345,14 @@ tmpry(:) = 0. ! for cray compiler
 
   
 ! move excess ground water to river inflow  
+! MJT notes this should be a function of RC
+! Miguez-Macho et al doi:10.1029/2006JD008112
 if ( wt_transport==1 ) then 
   do iq = 1,ifull  
     if ( land(iq) ) then  
       excess = max( wtd(iq)-zs(iq)/grav, 0. )
       ! add excess above ground level to rivers
-      watbdy(iq) = watbdy(iq) + excess*1000.
+      watbdy(iq) = watbdy(iq) + excess*1000. ! m -> mm
       ! remove excess from ground water
       wtd(iq) = wtd(iq) - excess
     end if
@@ -416,33 +418,35 @@ watbdy(1:ifull) = watbdy(1:ifull) - outflow(1:ifull) + inflow(1:ifull)
 ! Method for land basins
 select case(basinmd)
   case(0)
-    ! add water to soil moisture 
-    where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) ) ! basin
-      tmpry(1:ifull) = watbdy(1:ifull)
-    elsewhere ( watbdy(1:ifull)>1000. .and. land(1:ifull) ) ! water exceeds a threshold
-      tmpry(1:ifull) = max(watbdy(1:ifull)-1000.,0.)
-    elsewhere
-      tmpry(1:ifull) = 0.
-    end where
-    if ( nsib==6 .or. nsib==7 ) then
-      ! CABLE
-      tmprysave(1:ifull) = tmpry(1:ifull)
-      call cableinflow(tmpry)
-      soilsink(1:ifull) = (tmpry(1:ifull)-tmprysave(1:ifull))*(1.-sigmu(1:ifull))
-    else
-      ! Standard land surface model
-      deltmpry(1:ifull) = 0.
-      do k = 1,ms
-        where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) )
-          ll(1:ifull) = max( sfc(isoilm(1:ifull))-wb(1:ifull,k), 0. )*1000.*zse(k)
-          ll(1:ifull) = min( tmpry(1:ifull)+deltmpry(1:ifull), ll(1:ifull) )
-          wb(1:ifull,k) = wb(1:ifull,k) + ll(1:ifull)/(1000.*zse(k))
-          deltmpry(1:ifull) = deltmpry(1:ifull) - ll(1:ifull)
-        end where
-      end do
-      soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
-    end if
-    watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull) ! soilsink is -ve
+    write(6,*) "basinmd=0 is not supported"
+    call ccmpi_abort(-1)
+    !! add water to soil moisture 
+    !where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) ) ! basin
+    !  tmpry(1:ifull) = watbdy(1:ifull)
+    !!elsewhere ( watbdy(1:ifull)>1000. .and. land(1:ifull) ) ! water exceeds a threshold
+    !!  tmpry(1:ifull) = max(watbdy(1:ifull)-1000.,0.)
+    !elsewhere
+    !  tmpry(1:ifull) = 0.
+    !end where
+    !if ( nsib==6 .or. nsib==7 ) then
+    !  ! CABLE
+    !  tmprysave(1:ifull) = tmpry(1:ifull)
+    !  call cableinflow(tmpry)
+    !  soilsink(1:ifull) = (tmpry(1:ifull)-tmprysave(1:ifull))*(1.-sigmu(1:ifull))
+    !else
+    !  ! Standard land surface model
+    !  deltmpry(1:ifull) = 0.
+    !  do k = 1,ms
+    !    where ( river_outdir(1:ifull)==-1 .and. land(1:ifull) )
+    !      ll(1:ifull) = max( sfc(isoilm(1:ifull))-wb(1:ifull,k), 0. )*1000.*zse(k)
+    !      ll(1:ifull) = min( tmpry(1:ifull)+deltmpry(1:ifull), ll(1:ifull) )
+    !      wb(1:ifull,k) = wb(1:ifull,k) + ll(1:ifull)/(1000.*zse(k))
+    !      deltmpry(1:ifull) = deltmpry(1:ifull) - ll(1:ifull)
+    !    end where
+    !  end do
+    !  soilsink(1:ifull) = deltmpry(1:ifull)*(1.-sigmu(1:ifull))
+    !end if
+    !watbdy(1:ifull) = watbdy(1:ifull) + soilsink(1:ifull) ! soilsink is -ve
   case(1)
     ! add water to ocean runoff
     basin_mask(1:ifull) = river_outdir(1:ifull)==-1 .and. land(1:ifull)
@@ -476,6 +480,7 @@ end select
 
 watbdy(1:ifull) = max( watbdy(1:ifull), 0. ) ! for rounding errors
 
+! update ground water transport
 if ( wt_transport==1 ) then 
   call water_table_transport    
 end if
@@ -504,11 +509,6 @@ real, dimension(ifull+iextra,2) :: dumw
 real, dimension(ifull+iextra) :: wth_ave
 real, dimension(ifull) :: flux, wconst
 logical, save :: first_call = .true.
-
-!if ( cable_gw_model==1 ) then
-!  ! calculate average wt height and minimum gw amount
-!  call calc_wt_ave( wth )
-!end if
 
 wth_ave(1:ifull) = wtd(1:ifull)
 
@@ -579,14 +579,9 @@ if ( edge_n .and. edge_w ) then
 end if
 call add_flux(flux,wth_ave,zs,em,wconst,x,y,z,inw)
 
-!if ( cable_gw_model==1 ) then
-!  ! distribute GWwb flux
-!  !call calc_wt_flux( flux, flux_m, flux_c, dt )
-!else
-  where ( land(1:ifull) )
-    wtd(1:ifull) = wtd(1:ifull) + flux(1:ifull)*dt
-  end where  
-!end if
+where ( land(1:ifull) )
+  wtd(1:ifull) = wtd(1:ifull) + flux(1:ifull)*dt
+end where  
   
 return
 end subroutine water_table_transport
@@ -629,12 +624,8 @@ do iq = 1,ifull
     flux_add = w*t*wth_del/dr                     ! m3/s
     area = (ds/em(iq))**2
     flux(iq) = flux(iq) + flux_add/area           ! m/s
-    !flux_m(iq) = flux_m(iq) + w*t/dr/area
-    !flux_c(iq) = flux_c(iq) - w*t*wth(dir(iq))/dr/area
   else
     flux(iq) = 0.
-    !flux_m(iq) = 0.
-    !flux_c(iq) = 0.
   end if
 end do
 
