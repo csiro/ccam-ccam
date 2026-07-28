@@ -145,11 +145,9 @@ real ateb_zocanyon, ateb_zoroof, ateb_energytol
 real cgmap_offset, cgmap_scale       ! depreciated namelist options
 real ateb_ac_smooth, ateb_ac_copmax  ! depreciated namelist options
 real ateb_alpha, cable_version       ! depreciated namelist options 
-real zimax, mlomaxuv                 ! depreciated namelist options
-real plume_alpha, ocnlap             ! depreciated namelist options
-real tke_timeave_length              ! depreciated namelist options
-real mlo_timeave_length              ! depreciated namelist options
-real tradmax                         ! depreciated namelist options
+real zimax, mlomaxuv,plume_alpha     ! depreciated namelist options
+real tke_timeave_length, ocnlap      ! depreciated namelist options
+real mlo_timeave_length, tradmax     ! depreciated namelist options
 logical procformat, unlimitedhist    ! depreciated namelist options
 character(len=MAX_ARGLEN) optarg
 character(len=1024) nmlfile, comm, comment
@@ -192,7 +190,7 @@ namelist/skyin/mins_rad,sw_resolution,sw_diff_streams,            & ! radiation
     liqradmethod,iceradmethod,so4radmethod,carbonradmethod,       &
     dustradmethod,seasaltradmethod,bpyear,qgmin,lwem_form,        & 
     siglow,sigmid,linecatalog_form,continuum_form,do_co2_10um,    &
-    do_quench,remain_rayleigh_bug,use_rad_year,rad_year,          &
+    do_quench,remain_rayleigh_bug,use_rad_year,rad_year,comment,  &
     ch_dust,zvolcemi,aeroindir,so4mtn,carbmtn,saltsmallmtn,       & ! aerosols
     saltlargemtn,enhanceu10,aerosol_u10,aero_split,               &
     o3_vert_interpolate,                                          & ! ozone
@@ -212,7 +210,7 @@ namelist/datafile/ifile,ofile,albfile,eigenv,icefile,mesonest,    &
     diaglevel_radiation,diaglevel_urban,diaglevel_carbon,         &
     diaglevel_river,diaglevel_pop,                                &
     surf_cordex,surf_windfarm,output_windmax,cordex_fix,          &
-    wbclimfile,shep_cordex,ml_cordex,ml_freq,                     &
+    wbclimfile,shep_cordex,ml_cordex,ml_freq,comment,             &
     vegprev,vegnext,vegnext2                                        ! depreciated
 ! convection and cloud microphysics namelist
 namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
@@ -222,7 +220,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
     ncvcloud,ncvmix,nevapcc,nkuo,nrhcrit,                         &
     nstab_cld,nuvconv,rhcv,rhmois,rhsat,sigcb,sigcll,sig_ct,      &
     sigkscb,sigksct,tied_con,tied_over,tied_rh,comm,acon,bcon,    &
-    rcm,nscheme,                                                  &
+    rcm,nscheme,comment,                                          &
     rcrit_l,rcrit_s,ncloud,nclddia,nmr,nevapls,cld_decay,         & ! cloud
     vdeposition_mode,tiedtke_form,cloud_aerosol_mode,             &
     cloud_ice_method,leon_snowmeth,maxlintime,lin_adv,qlg_max,    &
@@ -233,7 +231,7 @@ namelist/kuonml/alflnd,alfsea,cldh_lnd,cldm_lnd,cldl_lnd,         & ! convection
 namelist/turbnml/be,cm0,ce0,ce1,ce2,ce3,cqmix,ent0,ent1,entc0,    & ! EDMF PBL scheme
     dtrc0,m0,b1,b2,buoymeth,maxdts,mintke,mineps,minl,maxl,       &
     stabmeth,tkemeth,qcmf,ezmin,ent_min,mfbeta,                   &
-    plume_alpha,tcalmeth,                                         &
+    plume_alpha,tcalmeth,comment,                                 &
     wg_tau,wg_prob,ugs_meth,                                      & ! wind gusts
     amxlsq,dvmodmin,                                              & ! JH PBL scheme
     ngwd,helim,fc2,sigbot_gwd,alphaj,                             & ! GWdrag
@@ -243,7 +241,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,smrf_switch,strf_switch,                            &
     cable_gw_model,cable_roughness,cable_potev,                   &
-    cable_enablefao,                                              &
+    cable_enablefao,cable_runoff,cable_soilevap,                  &
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
     ateb_acmeth,ateb_nrefl,                                       &
     ateb_wbrelaxc,ateb_wbrelaxr,                                  &
@@ -256,7 +254,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,               &
     ateb_infilmeth,ateb_ac_heatcap,ateb_ac_coolcap,               &
     ateb_ac_deltat,ateb_acfactor,                                 &
-    siburbanfrac,                                                 & ! special options
+    siburbanfrac,comment,                                         & ! special options
     wbclim_lonn,wbclim_lonx,wbclim_latn,wbclim_latx,              & 
     ateb_ac_smooth,ateb_ac_copmax,ateb_conductmeth,               & ! depreciated
     ateb_useonewall,ateb_alpha,cable_version,cable_climate,       &
@@ -268,7 +266,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,       &
     mlo_adjeta,mstagf,mlodps,nxtrrho,mlo_bs,                      &
     mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,delwater,      &
-    mloiceadv,minsal,maxsal,mprecond,mlomfix,                     &
+    mloiceadv,minsal,maxsal,mprecond,mlomfix,comment,             &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     kemaxdt,freshwaterlake_fix,                                   &
@@ -277,7 +275,7 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     calcinloop,mlomaxuv,ocnlap,kmlo,mlo_limitsal,                 & ! Depreciated
     mlo_timeave_length                                              ! Depreciated
 ! tracer namelist
-namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm
+namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm,comment
 
 ! some defaults to avoid confusion
 tblock = 0
@@ -2351,7 +2349,7 @@ use sflux_m                                ! Surface flux routines
 
 implicit none
 
-integer, dimension(29) :: dumi
+integer, dimension(31) :: dumi
 real, dimension(26) :: dumr
     
 dumr = 0.
@@ -2412,6 +2410,8 @@ if ( myid==0 ) then
   dumi(27) = cable_gw_model
   dumi(28) = cable_enablefao
   dumi(29) = ateb_ncyits
+  dumi(30) = cable_runoff
+  dumi(31) = cable_soilevap
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2470,6 +2470,8 @@ cable_potev        = dumi(26)
 cable_gw_model     = dumi(27)
 cable_enablefao    = dumi(28)
 ateb_ncyits        = dumi(29)
+cable_runoff       = dumi(30)
+cable_soilevap     = dumi(31)
 
 return
 end subroutine broadcast_landnml
