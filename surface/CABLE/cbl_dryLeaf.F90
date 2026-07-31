@@ -154,6 +154,7 @@ IMPLICIT NONE
 
 #ifdef CCAM
     real, dimension(mp,mf) :: tmp1, tmp2, tmp3, tmp4
+    real, dimension(ms) :: tmp11, tmp12, tmp13, tmp14, tmp15
 #endif
 
     ! END header
@@ -206,7 +207,13 @@ IMPLICIT NONE
     tlfxx = tlfx
     psycst(:,:) = SPREAD(air%psyc,2,mf)
     canopy%fevc = 0.0
+#ifdef CCAM
+    do k = 1,ms
+      ssnow%evapfbl(:,k) = 0.0
+    end do
+#else
     ssnow%evapfbl = 0.0
+#endif
 
     ghwet = 1.0e-3
     gwwet = 1.0e-3
@@ -515,6 +522,23 @@ IMPLICIT NONE
 
                 canopy%fevc(i) = ecx(i)*(1.0-canopy%fwet(i))
 
+#ifdef CCAM
+                tmp11(:) = ssnow%wbliq(i,:)
+                tmp12(:) = ssnow%rex(i,:)
+                tmp13(:) = REAL(veg%froot(i,:),r_2)
+                tmp14(:) = soil%ssat_vec(i,:)
+                tmp15(:) = soil%swilt_vec(i,:)
+                CALL getrex_1d(tmp11,&
+                     tmp12, &
+                     canopy%fwsoil(i), &
+                     tmp13,&
+                     tmp14, &
+                     tmp15, &
+                     MAX(REAL(canopy%fevc(i)/air%rlam(i)/density_liq,r_2),0.0_r_2), &
+                     REAL(veg%gamma(i),r_2), &
+                     REAL(soil%zse,r_2), REAL(dels,r_2), REAL(veg%zr(i),r_2))
+                ssnow%rex(i,:) = tmp12(:)
+#else
                 CALL getrex_1d(ssnow%wbliq(i,:),&
                      ssnow%rex(i,:), &
                      canopy%fwsoil(i), &
@@ -524,6 +548,7 @@ IMPLICIT NONE
                      MAX(REAL(canopy%fevc(i)/air%rlam(i)/density_liq,r_2),0.0_r_2), &
                      REAL(veg%gamma(i),r_2), &
                      REAL(soil%zse,r_2), REAL(dels,r_2), REAL(veg%zr(i),r_2))
+#endif
 
                 fwsoil(i) = canopy%fwsoil(i)
                 ssnow%evapfbl(i,:) = ssnow%rex(i,:)*dels*density_liq ! mm water &
@@ -646,6 +671,7 @@ IMPLICIT NONE
                 IF( ABS( canopy%fevc(i) - ( SUM( oldevapfbl(i,:)) * air%rlam(i)    &
                      /dels ) ) > 1.0e-4 ) THEN
 
+#ifndef GPU
                    PRINT *, 'Error! oldevapfbl not right.', ktau_gl, i
                    PRINT *, 'ecx, ecy = ', ecx(i), ecy(i)
                    PRINT *, 'or in mm = ', ecx(i) * ( 1.0 - canopy%fwet(i) )       &
@@ -660,6 +686,7 @@ IMPLICIT NONE
                    PRINT *, 'ssnow%evapfbl before rescaling: ',                    &
                         ssnow%evapfbl(i,:)
                    ! STOP
+#endif                   
 
                 ELSE
 

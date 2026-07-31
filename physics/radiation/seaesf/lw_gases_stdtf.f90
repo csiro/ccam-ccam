@@ -5529,7 +5529,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !--------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: &
+      real, dimension(:,:), allocatable :: &
                                            approx_guess1,    &
                                            approxint_guess1, &
                                            approxint_guess2, &
@@ -5538,7 +5538,7 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
                                            errorint_guess2,  &
                                            trans_guess1,     &
                                            trans_guess2
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: &
+      real, dimension(:,:), allocatable :: &
                                            caintv, uexpintv, &
                                            sexpintv, xaintv, &
                                            press_hiv, press_lov
@@ -5551,6 +5551,22 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !
 !---------------------------------------------------------------------
      integer :: k, kp
+     
+      allocate( approx_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( approxint_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( approxint_guess2(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( error_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( errorint_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( errorint_guess2(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( trans_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( trans_guess2(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( caintv(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( uexpintv(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( sexpintv(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( xaintv(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( press_hiv(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( press_lov(NSTDCO2LVLS,NSTDCO2LVLS) )
+     
 !----------------------------------------------------------------------
 !    the first part of the method is to obtain a first guess co2
 !    transmission function for the desired concentration using only the
@@ -5665,8 +5681,8 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 !    only the co2 tf's for the higher standard concentration.
 !    the coeint call and steps (1-2) of part (1) need not be repeated.
 !---------------------------------------------------------------------
-  if (co2_std_lo .GT. 0.0 .or. do_co2_bug) then
- !---------------------------------------------------------------------
+    if (co2_std_lo .GT. 0.0 .or. do_co2_bug) then
+!---------------------------------------------------------------------
 !    3) derive the pressures for interpolation using Eqs. (8a-b)
 !       in Ref.(2).
 !---------------------------------------------------------------------
@@ -5753,7 +5769,14 @@ real,    dimension(:,:), intent(inout) :: trns_vmr
 
 !---------------------------------------------------------------------
        
-
+    deallocate( approx_guess1, approxint_guess1 )
+    deallocate( approxint_guess2, error_guess1 )
+    deallocate( errorint_guess1, errorint_guess2 )
+    deallocate( trans_guess1, trans_guess2 )
+    deallocate( caintv, uexpintv )
+    deallocate( sexpintv, xaintv )
+    deallocate( press_hiv, press_lov )    
+ 
 end subroutine rctrns
 
 

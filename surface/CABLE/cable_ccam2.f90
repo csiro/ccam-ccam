@@ -119,7 +119,7 @@ public newcbmwb, cbmemiss, cable_casatile
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
-public cable_runoff, cable_soilevap
+public cable_runoff, cable_soilevap, cable_thermfix
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 public mplant, mlitter, msoil
 
@@ -413,8 +413,8 @@ if ( any(atmco2(:)<1.) ) then
 end if
 
 ! set meteorological forcing
-albvissav(:) = fbeamvis(:)*albvisdir(:) + (1.-fbeamvis(:))*albvisdif(:) ! for nrad=4
-albnirsav(:) = fbeamnir(:)*albnirdir(:) + (1.-fbeamnir(:))*albnirdif(:) ! for nrad=4
+!albvissav(:) = fbeamvis(:)*albvisdir(:) + (1.-fbeamvis(:))*albvisdif(:) ! for nrad=4
+!albnirsav(:) = fbeamnir(:)*albnirdir(:) + (1.-fbeamnir(:))*albnirdif(:) ! for nrad=4
 call cable_pack(theta(:),met%tk,tile)
 call cable_pack(vmod(:),met%ua,tile)
 dummy_pack(:) = atmco2(:)*1.e-6

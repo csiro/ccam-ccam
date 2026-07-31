@@ -186,11 +186,23 @@ canopy%cansto =  canopy%oldcansto
     CALL surf_wetness_fact( cansat, canopy, ssnow,veg,met, soil, dels )
 
     canopy%fevw_pot = 0.0
+#ifdef CCAM
+    do j = 1,mf
+      canopy%gswx(:,j) = 1.e-3     ! default stomatal conuctance
+      gbhf(:,j) = 1.e-3     ! default free convection boundary layer conductance
+      gbhu(:,j) = 1.e-3     ! default forced convection boundary layer conductance
+    end do  
+    do j = 1,ms
+      ssnow%evapfbl(:,j) = 0.0
+      ssnow%rex(:,j) = 0.0
+    end do  
+#else
     canopy%gswx = 1e-3     ! default stomatal conuctance
     gbhf = 1e-3     ! default free convection boundary layer conductance
     gbhu = 1e-3     ! default forced convection boundary layer conductance
     ssnow%evapfbl = 0.0
     ssnow%rex = 0.0
+#endif
     ! Initialise in-canopy temperatures and humidity:
     csx = SPREAD(met%ca, 2, mf) ! initialise leaf surface CO2 concentration
     met%tvair = met%tk
@@ -380,8 +392,10 @@ CALL radiation( ssnow, veg, air, met, rad, canopy, sunlit_veg_mask, &
 
 
        IF (cable_user%or_evap) THEN
+#ifndef GPU
         write(6,*) "GW or ORevepis not an option right now"
         !H!          call or_soil_evap_resistance(soil,air,met,canopy,ssnow,veg,rough)
+#endif
        END IF
 
        ! Vegetation boundary-layer conductance (mol/m2/s)
@@ -481,9 +495,11 @@ CALL radiation( ssnow, veg, air, met, rad, canopy, sunlit_veg_mask, &
        CALL qsatfjh(mp, ssnow%qstss, CRMH2o, Crmair, CTETENA, CTETENB, CTETENC,ssnow%tss-CTfrz,met%pmb)
 #endif 
 
+#ifndef GPU
       if (cable_user%gw_model .OR.  cable_user%or_evap) & 
       write(6,*) "GW or ORevepis not an option right now"
       !H!        call pore_space_relative_humidity(ssnow,soil,veg)
+#endif      
 
        IF (cable_user%soil_struc=='default') THEN
 

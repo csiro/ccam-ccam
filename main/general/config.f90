@@ -241,7 +241,7 @@ namelist/landnml/proglai,ccycle,soil_struc,cable_pop,             & ! CABLE
     progvcmax,fwsoil_switch,cable_litter,                         &
     gs_switch,smrf_switch,strf_switch,                            &
     cable_gw_model,cable_roughness,cable_potev,                   &
-    cable_enablefao,cable_runoff,cable_soilevap,                  &
+    cable_enablefao,cable_runoff,cable_soilevap,cable_thermfix,   &
     ateb_energytol,ateb_resmeth,ateb_zohmeth,                     & ! urban
     ateb_acmeth,ateb_nrefl,                                       &
     ateb_wbrelaxc,ateb_wbrelaxr,                                  &
@@ -2349,7 +2349,7 @@ use sflux_m                                ! Surface flux routines
 
 implicit none
 
-integer, dimension(31) :: dumi
+integer, dimension(32) :: dumi
 real, dimension(26) :: dumr
     
 dumr = 0.
@@ -2412,6 +2412,7 @@ if ( myid==0 ) then
   dumi(29) = ateb_ncyits
   dumi(30) = cable_runoff
   dumi(31) = cable_soilevap
+  dumi(32) = cable_thermfix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2472,6 +2473,7 @@ cable_enablefao    = dumi(28)
 ateb_ncyits        = dumi(29)
 cable_runoff       = dumi(30)
 cable_soilevap     = dumi(31)
+cable_thermfix     = dumi(32)
 
 return
 end subroutine broadcast_landnml

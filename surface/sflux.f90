@@ -95,7 +95,7 @@ public cbmemiss
 public proglai, progvcmax, maxtile, soil_struc, cable_pop, ccycle, cable_potev
 public fwsoil_switch, cable_litter, gs_switch, cable_enablefao
 public smrf_switch, strf_switch, cable_gw_model, cable_roughness
-public cable_runoff, cable_soilevap
+public cable_runoff, cable_soilevap, cable_thermfix
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 public cable_casatile
 

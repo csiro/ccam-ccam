@@ -32,7 +32,7 @@ public cloud_ice_method, leon_snowmeth, process_rate_mode
 public qlg_max, qfg_max
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
-integer, save :: lin_adv            = 0     ! 0=original, 1=flux
+integer, save :: lin_adv            = 1     ! 0=original, 1=flux
 integer, save :: process_rate_mode  = 0     ! 0=off, 1=microphysics diagnostics
 real, save :: maxlintime            = 120.  ! time-step for Lin microphysics
 real, save :: qlg_max               = 1.e-1 ! maximum value of qlg visible to microphysics
@@ -154,7 +154,7 @@ real, dimension(ifull,kl) :: zqsng_rem
 real tdt, zmaxlintime
 real prf_temp, prf, fcol, fr, alph
 logical mydiag_t
-character(len=8) :: cmode, dmode
+character(len=8) :: cmode
 
 
 !----------------------------------------------------------------------------
@@ -220,14 +220,13 @@ do tile = 1,ntiles
   lrkhsave = rkhsave(js:je,:)
   
   cmode = interp_ncldfrac(ldr,ncloud)
-  dmode = interp_ncloud(ldr,ncloud)
 
-  call update_cloud_fraction(lcfrac,land(js:je),                                &
+  call update_cloud_fraction(lcfrac,kbsav(js:je),ktsav(js:je),land(js:je),      &
               ps(js:je),lqccon,lqfg,lqfrad,lqg,lqlg,lqlrad,lt,                  &
               ldpsldt,lrad_tend,ltrb_tend,ltrb_qend,lstratcloud,lclcon,         &
               em(js:je),pblh(js:je),idjd_t,mydiag_t,nclddia,rcrit_l,            &
               rcrit_s,rcm,cld_decay,vdeposition_mode,                           &
-              tiedtke_form,lrkmsave,lrkhsave,cmode,dmode)
+              tiedtke_form,lrkmsave,lrkhsave,cmode)
 
   ! This configuration allows prognostic condensate variables to be updated 
   cfrac(js:je,:) = lcfrac
@@ -368,7 +367,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     do k = 2,kl
       zlevv(:,k) = zlevv(:,k-1) + (bet(k)*t(:,k)+betm(k)*t(:,k-1))/grav
     end do
-
+      
     ! limit maximum cloud water visible to microphysics
     qlg_rem(:,:) = max( qlg(1:ifull,:)-qlg_max, 0. )
     qlg(1:ifull,:) = qlg(1:ifull,:) - qlg_rem(:,:)
@@ -417,9 +416,11 @@ select case ( interp_ncloud(ldr,ncloud) )
                    zfluxf,zqevap,zqsubl,zqauto,zqcoll, &
                    zqaccr,vi,                          & !aerosol scheme
                    cdrop,lin_adv,njumps)
-    
+          
     t(1:ifull,:) = thz(:,:)*tothz(:,:)
     zqsng(:,:) = zqsng(:,:) + zqsng_rem(:,:)
+
+    !unpack data from imax to ifull.
 
     qsng(1:ifull,:) = zqsng(:,:)*(1.-riz(:,:))    ! qs mixing ratio (snow)
     qgrg(1:ifull,:) = zqsng(:,:)*riz(:,:)         ! qg mixing ratio (graupel)
@@ -474,7 +475,7 @@ select case ( interp_ncloud(ldr,ncloud) )
     condx(:)  = condx(:) + pptrain(:) + pptsnow(:) + pptice(:)
     conds(:)  = conds(:) + pptsnow(:)*(1.-riz(:,1)) + pptice(:)
     condg(:)  = condg(:) + pptsnow(:)*riz(:,1) ! for graupel
-  
+
 #else
     ! CPU version
     !$omp do schedule(static) private(js,je,riz,zlevv,zqg,zqlg,zqrg,zqfg)     &
@@ -762,6 +763,10 @@ if ( abs(iaero)>=2 ) then
     
       ! vi - icefall velocity (m/s)
 
+      ppfprec(js:je,kl)   = 0. !At TOA
+      ppfmelt(js:je,kl)   = 0. !At TOA
+      ppfsnow(js:je,kl)   = 0. !At TOA
+      pprfreeze(js:je,kl) = 0. !At TOA
       do k = 1,kl-1
         do iq = js,je
           ! rainfall flux (entering from above) (kg/m2/s)  
@@ -775,10 +780,6 @@ if ( abs(iaero)>=2 ) then
           pprfreeze(iq,k) = fluxf(iq,k) 
         end do
       end do
-      ppfprec(js:je,kl)   = 0. !At TOA
-      ppfmelt(js:je,kl)   = 0. !At TOA
-      ppfsnow(js:je,kl)   = 0. !At TOA
-      pprfreeze(js:je,kl) = 0. !At TOA
       do k = 1,kl
         do iq = js,je
           ! rainall flux evaporating in layer k  

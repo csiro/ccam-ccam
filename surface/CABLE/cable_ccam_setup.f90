@@ -482,7 +482,8 @@ if ( mp_global>0 ) then
   select case( cable_potev )
     case(0)
       cable_user%ssnow_POTEV = "P-M" ! Penman Monteith
-    case default  
+    case default
+      ! default for offline and ACCESS
       cable_user%ssnow_POTEV = "HDM" ! default Humidity Deficit
   end select    
   cable_user%MetType = "defaul"    ! only 6 characters for "default"
@@ -494,11 +495,12 @@ if ( mp_global>0 ) then
   cable_user%l_new_roughness_soil = cable_roughness==1
   cable_user%l_rev_corr = .true.
   cable_user%gw_model = cable_gw_model==1
-  cable_user%soil_thermal_fix = .true.
+  cable_user%soil_thermal_fix = cable_thermfix==1
   cable_user%call_climate = .false.
   cable_user%phenology_switch = "MODIS"
   !cable_user%finite_gm = .false.
   cable_user%call_pop = cable_pop==1
+  cable_user%or_evap = .false.
   select case ( soil_struc )
     case(1)
       cable_user%soil_struc = "sli"  
@@ -507,18 +509,22 @@ if ( mp_global>0 ) then
   end select
   select case ( fwsoil_switch )
     case(3)
+      ! default for ACCESS  
       cable_user%fwsoil_switch = "Haverd2013"
     case(2)
       cable_user%fwsoil_switch = "Lai and Ktaul 2000"  
     case(1)
       cable_user%fwsoil_switch = "non-linear extrapola" ! only 20 characters for "non-linear extrapolation"
     case default
+      ! default for offline
       cable_user%fwsoil_switch = "standard"      
   end select
   select case ( gs_switch )  
     case(1)
+      ! default for ACCESS  
       cable_user%gs_switch = "medlyn"  
     case default
+      ! default for offline
       cable_user%gs_switch = "leuning"
   end select
   cable_user%litter = cable_litter==1

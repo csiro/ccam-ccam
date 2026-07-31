@@ -66,7 +66,7 @@ private
 ! parameters
 public soil_struc, fwsoil_switch, cable_litter, gs_switch, smrf_switch, strf_switch
 public cable_gw_model, cable_roughness, cable_potev, cable_enablefao
-public ccycle, proglai, progvcmax, cable_pop, cable_runoff, cable_soilevap
+public ccycle, proglai, progvcmax, cable_pop, cable_runoff, cable_soilevap, cable_thermfix
 public coldest_day_nhemisphere, coldest_day_shemisphere
 public maxtile, mp_max, mp_pop_max
 public cleaf, cwood, cfroot, cmet, cstr, ccwd, cmic, cslow, cpass
@@ -140,6 +140,7 @@ integer, save :: cable_potev     = 1          ! 0 Penman Monteith, 1 Humidity De
 integer, save :: cable_enablefao = 1          ! 0 off, 1 on when calculating potential evaporation
 integer, save :: cable_runoff    = 0          ! 0 default, 1 new runoff speed
 integer, save :: cable_soilevap  = 0          ! 0 default, 1 reduced soil evap 
+integer, save :: cable_thermfix  = 0          ! 0 off, 1 on
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai         = 0          ! 0 prescribed, 1 prognostic LAI
