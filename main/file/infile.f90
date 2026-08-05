@@ -836,6 +836,8 @@ if ( present(fileerror) ) then
   ferror = fileerror
 end if
 
+ier = 0
+
 if ( myid==0 ) then
   ! attempt to open single file with myid==0
   ier = nf90_open(ifile,nf90_nowrite,lncid)
