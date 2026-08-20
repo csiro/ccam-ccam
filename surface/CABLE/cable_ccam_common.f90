@@ -111,7 +111,7 @@ public pop_init, popstep
 public sli_main
 
 ! subroutines and functions
-public setlai
+public setlai, cable_check
 
 ! from cable_ccam3
 public air, bgc, met, bal, rad, rough, ssnow
@@ -291,5 +291,26 @@ end select
 return
 end subroutine setlai
     
+subroutine cable_check(rdata,name,sroutine,min_val,max_val)
+
+real, dimension(:), intent(in) :: rdata
+real, intent(in) :: min_val, max_val
+character(len=*), intent(in) :: name
+character(len=*), intent(in) :: sroutine
+
+
+if ( any( rdata/=rdata ) ) then
+  write(6,*) "ERROR: NaN found in after ",trim(sroutine)," with ",trim(name)
+  stop
+end if
+if ( any( rdata<min_val .or. rdata>max_val ) ) then
+  write(6,*) "ERROR: ",trim(name)," is out-of-range after ",trim(sroutine)
+  write(6,*) "xn ",minval(rdata),maxval(rdata)
+  stop
+end if
+
+return
+end subroutine cable_check
+
 end module cable_ccam_common
 

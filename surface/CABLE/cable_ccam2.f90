@@ -482,8 +482,8 @@ if ( any(atmco2<1.) ) then
 end if
 
 ! set meteorological forcing
-albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
-albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4
+!albvissav = fbeamvis*albvisdir + (1.-fbeamvis)*albvisdif ! for nrad=4
+!albnirsav = fbeamnir*albnirdir + (1.-fbeamnir)*albnirdif ! for nrad=4
 js = 1
 je = imax
 do nb = 1,tdata(tile)%maxnb
@@ -623,12 +623,12 @@ canopy%rnet = canopy%fns + canopy%fnv
 !       rad%transd * Cemsoil * ssnow%otss**4 + canopy%fns_cor/CSBOLTZ )**0.25
 
 veg_wt    = 1._8 - rad%transd
-veg_trad  = emleaf * canopy%tv**4
+veg_trad  = emleaf*canopy%tv**4
 soil_wt   = rad%transd 
-soil_trad = emsoil * ssnow%otss**4
+soil_trad = emsoil*ssnow%otss**4
 trad_corr = canopy%fns_cor/SBOLTZ
 
-rad%trad = ( veg_wt * veg_trad )  + ( soil_wt * soil_trad ) + trad_corr  
+rad%trad = veg_wt*veg_trad + soil_wt*soil_trad + trad_corr  
 rad%trad = rad%trad**0.25_8
 
 !rad%trad    = ( (1._8-rad%transd)*canopy%tv**4 + rad%transd*ssnow%tss**4 )**0.25_8
@@ -1090,9 +1090,17 @@ where ( land(:) )
   qsttg(:)  = qsttg_land(:)
 end where
 
+
+! additional tests for errors
+call cable_check(albvisdir,"albvisdir","sib4_work",0.,1.)
+call cable_check(albvisdif,"albvisdif","sib4_work",0.,1.)
+call cable_check(albnirdir,"albnirdir","sib4_work",0.,1.)
+call cable_check(albnirdif,"albnirdif","sib4_work",0.,1.)
+
+
 return
 end subroutine sib4_work
-
+                     
 ! *************************************************************************************
 subroutine cbmemiss(trsrc,mvegt,mode,tile,imax)
   

@@ -5991,7 +5991,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
       npos(3) = ntbnd(nf)
       call ccnf_open(ncname,ncid,ncstatus)
       if ( ncstatus==0 ) then
-        !write(6,*) "Reading ",trim(ncname)
+        write(6,*) "Reading ",trim(ncname)
         call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
         if ( tst ) then
           write(6,*) "trns_std_nf not found in ",trim(ncname)
@@ -6000,7 +6000,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
         call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
         call ccnf_close(ncid)
       else
-        !write(6,*) "Reading ",trim(filename)  
+        write(6,*) "Reading ",trim(filename)  
         open(11,file=filename,access='DIRECT',recl=NSTDCO2LVLS*NSTDCO2LVLS*8,form='UNFORMATTED',action='READ',iostat=ierr)
         if ( ierr/=0 ) then
           write(6,*) "ERROR: Cannot locate ",trim(ncname)," or ",trim(filename)
@@ -6026,7 +6026,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
         npos(3) = ntbnd(nf)
         call ccnf_open(ncname,ncid,ncstatus)
         if ( ncstatus == 0 ) then ! Netcdf file
-          !write(6,*) "Reading ",trim(ncname)
+          write(6,*) "Reading ",trim(ncname)
           call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
           if ( tst ) then
             write(6,*) "trns_std_nf not found in ",trim(ncname)
@@ -6035,7 +6035,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
           call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
           call ccnf_close(ncid)
         else
-          !write(6,*) "Reading ",trim(filename)    
+          write(6,*) "Reading ",trim(filename)    
           open(11,file=filename,access='DIRECT',recl=NSTDCO2LVLS*NSTDCO2LVLS*8,form='UNFORMATTED',action='READ',iostat=ierr)
           if ( ierr/=0 ) then
             write(6,*) "ERROR: Cannot locate ",trim(ncname)," or ",trim(filename)
@@ -6197,7 +6197,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
       npos(3) = ntbnd(nf)
       call ccnf_open(ncname,ncid,ncstatus)
       if ( ncstatus == 0 ) then
-        !write(6,*) "Reading ",trim(ncname)
+        write(6,*) "Reading ",trim(ncname)
         call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
         if ( tst ) then
           write(6,*) "trns_std_nf not found in ",trim(ncname)
@@ -6206,7 +6206,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
         call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_hi_nf(:,:,1:ntbnd(nf)))
         call ccnf_close(ncid)
       else
-        !write(6,*) "Reading ",trim(filename)  
+        write(6,*) "Reading ",trim(filename)  
         open(11,file=filename,access='DIRECT',recl=NSTDCO2LVLS*NSTDCO2LVLS*8,form='UNFORMATTED',action='READ',iostat=ierr)
         if ( ierr/=0 ) then
           write(6,*) "ERROR: Cannot locate ",trim(ncname)," or ",trim(filename)
@@ -6232,7 +6232,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
         npos(3) = ntbnd(nf)
         call ccnf_open(ncname,ncid,ncstatus)
         if ( ncstatus == 0 ) then
-          !write(6,*) "Reading ",trim(ncname)
+          write(6,*) "Reading ",trim(ncname)
           call ccnf_inq_varid(ncid,"trns_std_nf",varid,tst)
           if ( tst ) then
             write(6,*) "trns_std_nf not found in ",trim(ncname)
@@ -6241,7 +6241,7 @@ real,    dimension(NSTDCO2LVLS,NSTDCO2LVLS,3),  intent(out)  :: &
           call ccnf_get_vara(ncid,varid,startpos,npos,trns_std_lo_nf(:,:,1:ntbnd(nf)))
           call ccnf_close(ncid)
       else
-        !write(6,*) "Reading ",trim(filename)  
+        write(6,*) "Reading ",trim(filename)  
         open(11,file=filename,access='DIRECT',recl=NSTDCO2LVLS*NSTDCO2LVLS*8,form='UNFORMATTED',action='READ',iostat=ierr)
         if ( ierr/=0 ) then
           write(6,*) "ERROR: Cannot locate ",trim(ncname)," or ",trim(filename)

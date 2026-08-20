@@ -45,7 +45,9 @@ USE cbl_qsat_module, ONLY: qsatfjh, qsatfjh2
 
   REAL, DIMENSION(mp) ::                                                      &
        rrsw,             & ! recipr. stomatal resistance for water
-       rrbw,             & ! recipr. leaf boundary layer resistance for water
+       rrbw                ! recipr. leaf boundary layer resistance for water
+  
+  real :: &
        dmah,             & ! A_{H} in eq. 3.41 in SCAM, CSIRO tech report 132
        dmbh,             & ! B_{H} in eq. 3.41 in SCAM, CSIRO tech report 132
        dmch,             & ! C_{H} in eq. 3.41 in SCAM, CSIRO tech report 132
@@ -95,34 +97,34 @@ USE cbl_qsat_module, ONLY: qsatfjh, qsatfjh2
         !   (Raupach, Finkele and Zhang 1997, pp 17)
         ! leaf boundary layer resistance for water
         ! A_{H} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-        dmah(j) = (rt0(j)+fix_eqn2(j)*rough%rt1(j))*((1.+air%epsi(j))*rrsw(j) + rrbw(j))  &
+        dmah = (rt0(j)+fix_eqn2(j)*rough%rt1(j))*((1.+air%epsi(j))*rrsw(j) + rrbw(j))  &
              + air%epsi(j) * (rt0(j)*rough%rt1(j))*(rrbw(j)*rrsw(j))
 
         ! B_{H} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-        dmbh(j) = (-air%rlam(j)/CCAPP)*(rt0(j)*rough%rt1(j))*(rrbw(j)*rrsw(j))
+        dmbh = (-air%rlam(j)/CCAPP)*(rt0(j)*rough%rt1(j))*(rrbw(j)*rrsw(j))
 
         ! C_{H} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-        dmch(j) = ((1.+air%epsi(j))*rrsw(j) + rrbw(j))*rt0(j)*rough%rt1(j)*   &
+        dmch = ((1.+air%epsi(j))*rrsw(j) + rrbw(j))*rt0(j)*rough%rt1(j)*   &
              (canopy%fhv(j) + canopy%fhs(j))/(air%rho(j)*CCAPP)
 
         ! A_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-        dmae(j) = (-air%epsi(j)*CCAPP/air%rlam(j))*(rt0(j)*rough%rt1(j)) *   &
+        dmae = (-air%epsi(j)*CCAPP/air%rlam(j))*(rt0(j)*rough%rt1(j)) *   &
              (rrbw(j)*rrsw(j))
 
         ! B_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
-        dmbe(j) = ( rt0(j) + fix_eqn(j) * rough%rt1(j) ) *               &
+        dmbe = ( rt0(j) + fix_eqn(j) * rough%rt1(j) ) *               &
              ( (1.+air%epsi(j) ) * rrsw(j) + rrbw(j) ) +                 &
              ( rt0(j) * rough%rt1(j) ) * ( rrbw(j) * rrsw(j) )
 
         ! C_{E} in eq. 3.41, SCAM manual, CSIRO tech doc 132
         ! INH: includes modifications for %cls
-        dmce(j) = ((1.+air%epsi(j))*rrsw(j) + rrbw(j))*rt0(j)*rough%rt1(j)*   &
+        dmce = ((1.+air%epsi(j))*rrsw(j) + rrbw(j))*rt0(j)*rough%rt1(j)*   &
              (canopy%fev(j) + canopy%fes(j)/ssnow%cls(j)) /                   &
              (air%rho(j)*air%rlam(j))
 
         ! Within canopy air temperature:
-        met%tvair(j) = met%tk(j) + ( dmbe(j) * dmch(j) - dmbh(j) * dmce(j) )  &
-             / (dmah(j)*dmbe(j)-dmae(j)*dmbh(j)+1.0e-12)
+        met%tvair(j) = met%tk(j) + ( dmbe * dmch - dmbh * dmce )  &
+             / (dmah*dmbe-dmae*dmbh+1.0e-12)
 
         !---set limits for comparisson
         lower_limit =  MIN( ssnow%tss(j), met%tk(j)) - 5.0
@@ -133,8 +135,8 @@ USE cbl_qsat_module, ONLY: qsatfjh, qsatfjh2
         met%tvair(j) = MIN(met%tvair(j) , upper_limit)
 
         ! recalculate using canopy within temperature
-        met%qvair(j) = met%qv(j) + (dmah(j)*dmce(j)-dmae(j)*dmch(j)) /        &
-             ( dmah(j)*dmbe(j)-dmae(j)*dmbh(j)+1.0e-12)
+        met%qvair(j) = met%qv(j) + (dmah*dmce-dmae*dmch) /        &
+             ( dmah*dmbe-dmae*dmbh+1.0e-12)
         met%qvair(j) = MAX(0.0,met%qvair(j))
 
         !---set limits for comparisson

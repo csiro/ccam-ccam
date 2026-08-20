@@ -1249,6 +1249,11 @@ if ( ierr==0 ) then
   call histrd(iarchi-1,ierr,vname,albvissav,ifull)
   vname = 'albnir'
   call histrd(iarchi-1,ierr,vname,albnirsav,ifull)
+  
+  call cable_check(albvisdir,"albvisdir","loadtile",0.,1.)
+  call cable_check(albvisdif,"albvisdif","loadtile",0.,1.)
+  call cable_check(albnirdir,"albnirdir","loadtile",0.,1.)
+  call cable_check(albnirdif,"albnirdif","loadtile",0.,1.) 
 end if ! ierr==0  
   
 call redistribute_tile(old_sv)
@@ -2340,14 +2345,6 @@ if (myid==0.or.local) then
     end do  
   end if   
   if ( itype==-1 ) then !just for restart file
-    !do n=1,maxtile
-      !write(lname,'("Sensible correction term ",I1.1)') n
-      !write(vname,'("t",I1.1,"_fhscor")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,any_m,point_m,land_m,double_m)
-      !write(lname,'("Latent correction term ",I1.1)') n
-      !write(vname,'("t",I1.1,"_fescor")') n
-      !call attrib(idnc,jdim,jsize,vname,lname,'W/m2',-3000.,3000.,any_m,point_m,land_m,double_m)
-    !end do
     lname='DIR VIS albedo'
     vname='albvisdir'
     call attrib(idnc,jdim,jsize,vname,lname,'none',0.,1.3,any_m,point_m,land_m,double_m)
@@ -3550,24 +3547,11 @@ if ( cable_pop==1 ) then
   deallocate( dat_in )
 end if    
 if ( itype==-1 ) then !just for restart file
-  !do n = 1,maxtile  ! tile
-    !dat=0._8
-    !if (n<=maxnb) call cable_unpack(canopy%fhs_cor(:),dat,n)
-    !write(vname,'("t",I1.1,"_fhscor")') n
-    !call histwrt(dat,vname,idnc,iarch,local,.true.)
-    !dat=0._8
-    !if (n<=maxnb) call cable_unpack(canopy%fes_cor(:),dat,n)
-    !write(vname,'("t",I1.1,"_fescor")') n
-    !call histwrt(dat,vname,idnc,iarch,local,.true.)
-    !dat=0._8
-    !if (n<=maxnb) call cable_unpack(canopy%fns_cor(:),dat,n)
-    !write(vname,'("t",I1.1,"_fnscor")') n
-    !call histwrt(dat,vname,idnc,iarch,local,.true.)
-    !dat=0._8
-    !if (n<=maxnb) call cable_unpack(canopy%ga_cor(:),dat,n)
-    !write(vname,'("t",I1.1,"_gacor")') n
-    !call histwrt(dat,vname,idnc,iarch,local,.true.)
-  !end do
+  call cable_check(albvisdir,"albvisdir","savetile",0.,1.)
+  call cable_check(albvisdif,"albvisdif","savetile",0.,1.)
+  call cable_check(albnirdir,"albnirdir","savetile",0.,1.)
+  call cable_check(albnirdif,"albnirdif","savetile",0.,1.) 
+    
   vname='albvisdir'
   call histwrt(albvisdir,vname,idnc,iarch,local,.true.)
   vname='albvisdif'

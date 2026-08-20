@@ -97,7 +97,11 @@ REAL(KIND=r_2), INTENT(IN) :: ssnow_wbice(mp)
 REAL, INTENT(IN) :: ssnow_tss(mp)             !! temperature of surface soil/snow layer (K)
 
 REAL, DIMENSION(mp) ::                                                      &
-  frescale,  flower_limit, fupper_limit
+  frescale
+
+REAL ::                                                      &
+  flower_limit, fupper_limit
+
 
 INTEGER :: j
 
@@ -193,16 +197,16 @@ DO j=1,mp
 !       The options differ in the amount of water that remains at the end of the time step.
 !
      IF (.NOT.cable_user_l_new_reduce_soilevp) THEN
-        flower_limit(j) = REAL(ssnow_wb(j))-soil_swilt(j)/2.0
+        flower_limit = REAL(ssnow_wb(j))-soil_swilt(j)/2.0
      ELSE
         ! E.Kowalczyk 2014 - reduces the soil evaporation
-        flower_limit(j) = REAL(ssnow_wb(j))-soil_swilt(j)
+        flower_limit = REAL(ssnow_wb(j))-soil_swilt(j)
      ENDIF
-     fupper_limit(j) = MAX( 0.,                                        &
-          flower_limit(j) * frescale(j)                       &
+     fupper_limit = MAX( 0.,                                        &
+          flower_limit * frescale(j)                       &
           - ssnow_evapfbl(j)*air_rlam(j)/dels)
 
-     canopy_fess(j) = MIN(canopy_fess(j), REAL(fupper_limit(j),r_2))
+     canopy_fess(j) = MIN(canopy_fess(j), REAL(fupper_limit,r_2))
 
 !|     - Limit 2: Additionally for case 3, the evaporation of liquid water
 !        from within the frozen soil column must not reduce the liquid water fraction
@@ -211,11 +215,11 @@ DO j=1,mp
 !        soil latent flux. **WARNING** frozen_limit=0.85 is hard coded - if it is changed
 !        then the corresponding limit in [[cbl_soilsnow]] must also be changed.
 
-     fupper_limit(j) = REAL(ssnow_wb(j)-ssnow_wbice(j)/frozen_limit)*frescale(j)
+     fupper_limit = REAL(ssnow_wb(j)-ssnow_wbice(j)/frozen_limit)*frescale(j)
      
-     fupper_limit(j) = MAX(REAL(fupper_limit(j),r_2),0.)
+     fupper_limit = MAX(REAL(fupper_limit,r_2),0.)
 
-     canopy_fess(j) = MIN(canopy_fess(j), REAL(fupper_limit(j),r_2))
+     canopy_fess(j) = MIN(canopy_fess(j), REAL(fupper_limit,r_2))
 
   END IF   
 !*     - The case of dew fall onto a surface with little/no snow while

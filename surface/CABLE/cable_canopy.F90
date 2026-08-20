@@ -501,12 +501,23 @@ CALL radiation( ssnow, veg, air, met, rad, canopy, sunlit_veg_mask, &
           IF(cable_user%ssnow_POTEV== "P-M") THEN
 
              !--- uses %ga from previous timestep
+#ifdef CCAM
+             tmp1 = REAL(veg%clitt)
+             tmp2 = REAL(canopy%DvLitt)            
              ssnow%potev = Penman_Monteith( mp, Ctfrz, CRMH2o, Crmair, CTETENA, CTETENB,         &
-                          CTETENC, REAL(veg%clitt), cable_user%litter,               &
+                          CTETENC, tmp1, cable_user%litter,               &
+                          air%dsatdk, air%psyc, air%rho, air%rlam,        &
+                          met%tvair, met%pmb, met%qvair,                  &
+                          canopy%ga, canopy%fns, tmp2,                    &
+                          ssnow%rtsoil, ssnow%isflag )
+#else
+             ssnow%potev = Penman_Monteith( mp, Ctfrz, CRMH2o, Crmair, CTETENA, CTETENB,         &
+                          CTETENC, REAL(veg%clitt), cable_user%litter,         &
                           air%dsatdk, air%psyc, air%rho, air%rlam,             &
                           met%tvair, met%pmb, met%qvair,                       &
-                          canopy%ga, canopy%fns, REAL(canopy%DvLitt),                &
+                          canopy%ga, canopy%fns, REAL(canopy%DvLitt),          &
                           ssnow%rtsoil, ssnow%isflag )
+#endif
 
           ELSE !by default assumes Humidity Deficit Method
 
@@ -595,12 +606,23 @@ write(6,*) "SLI is not an option right now"
           IF(cable_user%ssnow_POTEV== "P-M") THEN
 
              !--- uses %ga from previous timestep
+#ifdef CCAM
+             tmp1 = REAL(veg%clitt)
+             tmp2 = REAL(canopy%DvLitt)            
              ssnow%potev = Penman_Monteith( mp, Ctfrz, CRMH2o, Crmair, CTETENA, CTETENB,         &
-                          CTETENC, REAL(veg%clitt), cable_user%litter,               &
+                          CTETENC, tmp1, cable_user%litter,               &
+                          air%dsatdk, air%psyc, air%rho, air%rlam,        &
+                          met%tvair, met%pmb, met%qvair,                  &
+                          canopy%ga, canopy%fns, tmp2,                    &
+                          ssnow%rtsoil, ssnow%isflag )
+#else
+             ssnow%potev = Penman_Monteith( mp, Ctfrz, CRMH2o, Crmair, CTETENA, CTETENB,         &
+                          CTETENC, REAL(veg%clitt), cable_user%litter,         &
                           air%dsatdk, air%psyc, air%rho, air%rlam,             &
                           met%tvair, met%pmb, met%qvair,                       &
-                          canopy%ga, canopy%fns, REAL(canopy%DvLitt),                &
+                          canopy%ga, canopy%fns, REAL(canopy%DvLitt),          &
                           ssnow%rtsoil, ssnow%isflag )
+#endif
 
 
           ELSE !by default assumes Humidity Deficit Method

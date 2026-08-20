@@ -89,28 +89,28 @@ IMPLICIT NONE
          co2cp3 = 0.0,  & ! CO2 compensation pt C3
          jtomol = 4.6e-6  ! Convert from J to Mol for light
 
-    REAL, DIMENSION(mp) ::                                                      &
+    real :: &
          conkct,        & ! Michaelis Menton const.
-         conkot,        & ! Michaelis Menton const.
-         cx1,           & ! "d_{3}" in Wang and Leuning,
-         cx2,           & !     1998, appendix E
-         tdiff,         & ! leaf air temp diff.
-         tlfxx,         & ! leaf temp of current iteration (K)
-         abs_deltlf,    & ! ABS(deltlf)
-         deltlf,        & ! deltlfy of prev iter.
-         deltlfy,       & ! del temp successive iter.
+         conkot,        & ! Michaelis Menton const.    
+         tdiff,         & ! leaf air temp diff.    
          gras,          & ! Grashof coeff
          evapfb,        & !
          gwwet,         & ! cond for water for a wet canopy
          ghrwet,        & ! wet canopy cond: heat & thermal rad
-         sum_gbh,       & !
-         ccfevw,        & ! limitation term for
-                                ! wet canopy evaporation rate
+         ccfevw,        & ! limitation term for wet canopy evaporation rate
          temp             !
+    
+    REAL, DIMENSION(mp) ::                                                      &
+         cx1,           & ! "d_{3}" in Wang and Leuning,
+         cx2,           & !     1998, appendix E
+         tlfxx,         & ! leaf temp of current iteration (K)
+         abs_deltlf,    & ! ABS(deltlf)
+         deltlf,        & ! deltlfy of prev iter.
+         deltlfy,       & ! del temp successive iter.
+         sum_gbh
 
     REAL(r_2), DIMENSION(mp)  ::                                                &
          ecx,        & ! lat. hflux big leaf
-         ecx_t,      & ! lat. hflux big leaf
          hcx,        & ! sens heat fl big leaf prev iteration
          rnx,        & ! net rad prev timestep
          fwsoil_coef   !
@@ -147,13 +147,12 @@ IMPLICIT NONE
 
     INTEGER :: i, j, k, kk  ! iteration count
     REAL :: vpd, g1 ! Ticket #56
-    REAL, DIMENSION(mp,mf)  ::                                                  &
-         xleuning    ! leuning stomatal coeff
 
     REAL :: medlyn_lim  !INH 2018: should be a parameter in long-term
 
 #ifdef CCAM
     real, dimension(mp,mf) :: tmp1, tmp2, tmp3, tmp4
+    real, dimension(ms) :: tmp11, tmp12, tmp13, tmp14, tmp15
 #endif
 
     ! END header
@@ -197,8 +196,7 @@ IMPLICIT NONE
     abs_deltlf = 999.0
 
 
-    gras = 1.0e-6
-    an_y= 0.0
+        an_y= 0.0
     hcx = 0.0              ! init sens heat iteration memory variable
     hcy = 0.0
     rdy = 0.0
@@ -209,8 +207,6 @@ IMPLICIT NONE
     ssnow%evapfbl = 0.0
 
     ghwet = 1.0e-3
-    gwwet = 1.0e-3
-    ghrwet= 1.0e-3
     canopy%fevw = 0.0
     canopy%fhvw = 0.0
     sum_gbh = SUM((gbhu+gbhf),2)
@@ -239,24 +235,28 @@ IMPLICIT NONE
 
           IF (canopy%vlaiw(i) > CLAI_THRESH .AND. abs_deltlf(i) > 0.1) THEN
 
+             gras = 1.0e-6              
+             gwwet = 1.0e-3             
+             ghrwet= 1.0e-3             
+              
              ghwet(i) = 2.0   * sum_gbh(i)
-             gwwet(i) = 1.075 * sum_gbh(i)
-             ghrwet(i) = sum_rad_gradis(i) + ghwet(i)
+             gwwet = 1.075 * sum_gbh(i)
+             ghrwet = sum_rad_gradis(i) + ghwet(i)
 
              ! Calculate lat heat from wet canopy, may be neg.
              ! if dew on wet canopy to avoid excessive evaporation:
-             ccfevw(i) = MIN(canopy%cansto(i) * air%rlam(i) / dels,             &
+             ccfevw = MIN(canopy%cansto(i) * air%rlam(i) / dels,             &
                   2.0 / (1440.0 / (dels/60.0)) * air%rlam(i) )
 
              ! Grashof number (Leuning et al, 1995) eq E4:
-             gras(i) = MAX(1.0e-6,                                              &
+             gras = MAX(1.0e-6,                                              &
                   1.595E8* ABS( tlfx(i)-met%tvair(i))* (veg%dleaf(i)**3.0) )
 
              ! See Appendix E in (Leuning et al, 1995):
              gbhf(i,1) = rad%fvlai(i,1) * air%cmolar(i) * 0.5*Cdheat           &
-                  * ( gras(i)**0.25 ) / veg%dleaf(i)
+                  * ( gras**0.25 ) / veg%dleaf(i)
              gbhf(i,2) = rad%fvlai(i,2) * air%cmolar(i) * 0.5 * Cdheat         &
-                  * ( gras(i)**0.25 ) / veg%dleaf(i)
+                  * ( gras**0.25 ) / veg%dleaf(i)
              gbhf(i,:) = MAX( 1.e-6_r_2, gbhf(i,:) )
 
              ! Conductance for heat:
@@ -267,40 +267,40 @@ IMPLICIT NONE
 
              ! Leuning 2002 (P C & E) equation for temperature response
              ! used for Vcmax for C3 plants:
-             temp(i) =  xvcmxt3(tlfx(i)) * veg%vcmax(i) * (1.0-veg%frac4(i))
+             temp =  xvcmxt3(tlfx(i)) * veg%vcmax(i) * (1.0-veg%frac4(i))
 
-             vcmxt3(i,1) = rad%scalex(i,1) * temp(i)
-             vcmxt3(i,2) = rad%scalex(i,2) * temp(i)
+             vcmxt3(i,1) = rad%scalex(i,1) * temp
+             vcmxt3(i,2) = rad%scalex(i,2) * temp
 
              ! Temperature response Vcmax, C4 plants (Collatz et al 1989):
-             temp(i) = xvcmxt4(tlfx(i)-Ctfrz) * veg%vcmax(i) * veg%frac4(i)
-             vcmxt4(i,1) = rad%scalex(i,1) * temp(i)
-             vcmxt4(i,2) = rad%scalex(i,2) * temp(i)
+             temp = xvcmxt4(tlfx(i)-Ctfrz) * veg%vcmax(i) * veg%frac4(i)
+             vcmxt4(i,1) = rad%scalex(i,1) * temp
+             vcmxt4(i,2) = rad%scalex(i,2) * temp
 
              ! Leuning 2002 (P C & E) equation for temperature response
              ! used for Jmax for C3 plants:
-             temp(i) = xejmxt3(tlfx(i)) * veg%ejmax(i) * (1.0-veg%frac4(i))
-             ejmxt3(i,1) = rad%scalex(i,1) * temp(i)
-             ejmxt3(i,2) = rad%scalex(i,2) * temp(i)
+             temp = xejmxt3(tlfx(i)) * veg%ejmax(i) * (1.0-veg%frac4(i))
+             ejmxt3(i,1) = rad%scalex(i,1) * temp
+             ejmxt3(i,2) = rad%scalex(i,2) * temp
 
              ! Difference between leaf temperature and reference temperature:
-             tdiff(i) = tlfx(i) - CTREFK
+             tdiff = tlfx(i) - CTREFK
 
              ! Michaelis menten constant of Rubisco for CO2:
-             conkct(i) = veg%conkc0(i) * EXP( ( veg%ekc(i) / (Crgas*Ctrefk) ) &
+             conkct = veg%conkc0(i) * EXP( ( veg%ekc(i) / (Crgas*Ctrefk) ) &
                   * ( 1.0 - Ctrefk/tlfx(i) ) )
 
              ! Michaelis menten constant of Rubisco for oxygen:
-             conkot(i) = veg%conko0(i) * EXP( ( veg%eko(i) / (Crgas*Ctrefk) ) &
+             conkot = veg%conko0(i) * EXP( ( veg%eko(i) / (Crgas*Ctrefk) ) &
                   * ( 1.0 - Ctrefk/tlfx(i) ) )
 
              ! Store leaf temperature
              tlfxx(i) = tlfx(i)
 
              ! "d_{3}" in Wang and Leuning, 1998, appendix E:
-             cx1(i) = conkct(i) * (1.0+0.21/conkot(i))
-             cx2(i) = 2.0 * Cgam0 * ( 1.0 + Cgam1 * tdiff(i)                  &
-                  + Cgam2 * tdiff(i) * tdiff(i) )
+             cx1(i) = conkct * (1.0+0.21/conkot)
+             cx2(i) = 2.0 * Cgam0 * ( 1.0 + Cgam1 * tdiff                  &
+                  + Cgam2 * tdiff * tdiff )
 
              ! All equations below in appendix E in Wang and Leuning 1998 are
              ! for calculating anx, csx and gswx for Rubisco limited,
@@ -515,6 +515,23 @@ IMPLICIT NONE
 
                 canopy%fevc(i) = ecx(i)*(1.0-canopy%fwet(i))
 
+#ifdef CCAM
+                tmp11 = ssnow%wbliq(i,:)
+                tmp12 = ssnow%rex(i,:)
+                tmp13 = REAL(veg%froot(i,:),r_2)
+                tmp14 = soil%ssat_vec(i,:)
+                tmp15 = soil%swilt_vec(i,:)
+                CALL getrex_1d(tmp11,&
+                     tmp12, &
+                     canopy%fwsoil(i), &
+                     tmp13,&
+                     tmp14, &
+                     tmp15, &
+                     MAX(REAL(canopy%fevc(i)/air%rlam(i)/density_liq,r_2),0.0_r_2), &
+                     REAL(veg%gamma(i),r_2), &
+                     REAL(soil%zse,r_2), REAL(dels,r_2), REAL(veg%zr(i),r_2))
+                ssnow%rex(i,:) = tmp12
+#else
                 CALL getrex_1d(ssnow%wbliq(i,:),&
                      ssnow%rex(i,:), &
                      canopy%fwsoil(i), &
@@ -524,6 +541,7 @@ IMPLICIT NONE
                      MAX(REAL(canopy%fevc(i)/air%rlam(i)/density_liq,r_2),0.0_r_2), &
                      REAL(veg%gamma(i),r_2), &
                      REAL(soil%zse,r_2), REAL(dels,r_2), REAL(veg%zr(i),r_2))
+#endif
 
                 fwsoil(i) = canopy%fwsoil(i)
                 ssnow%evapfbl(i,:) = ssnow%rex(i,:)*dels*density_liq ! mm water &
@@ -532,12 +550,12 @@ IMPLICIT NONE
              ELSE
 
                 IF (ecx(i) > 0.0 .AND. canopy%fwet(i) < 1.0) THEN
-                   evapfb(i) = ( 1.0 - canopy%fwet(i)) * REAL( ecx(i) ) *dels      &
+                   evapfb = ( 1.0 - canopy%fwet(i)) * REAL( ecx(i) ) *dels      &
                         / air%rlam(i)
 
                    DO kk = 1,ms
 
-                      ssnow%evapfbl(i,kk) = MIN( evapfb(i) * veg%froot(i,kk),      &
+                      ssnow%evapfbl(i,kk) = MIN( evapfb * veg%froot(i,kk),      &
                            MAX( 0.0, REAL( ssnow%wb(i,kk) ) -     &
                            1.1 * soil%swilt(i) ) *                &
                            soil%zse(kk) * density_liq )

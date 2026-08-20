@@ -363,10 +363,10 @@ select case ( interp_ncloud(ldr,ncloud) )
     ! GPU version
     riz(:,:) = 0._8 ! partition between snow and graupel
 
-    zlevv(:,0) = zs(:)/grav
-    zlevv(:,1) = zlevv(:,0) + bet(1)*t(:,1)/grav
+    zlevv(:,0) = zs(1:ifull)/grav
+    zlevv(:,1) = zlevv(:,0) + bet(1)*t(1:ifull,1)/grav
     do k = 2,kl
-      zlevv(:,k) = zlevv(:,k-1) + (bet(k)*t(:,k)+betm(k)*t(:,k-1))/grav
+      zlevv(:,k) = zlevv(:,k-1) + (bet(k)*t(1:ifull,k)+betm(k)*t(1:ifull,k-1))/grav
     end do
 
     ! limit maximum cloud water visible to microphysics
