@@ -1288,41 +1288,23 @@ contains
 
    subroutine ccmpi_bcast1i(ldat,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr, lsize
       integer, intent(inout) :: ldat
+      integer, dimension(1,1) :: ldat_l
 
-      call START_LOG(bcast_begin)
-      
-      lhost = host
-      lcomm = comm
-      lsize = 1
-#ifdef i8r8
-      call MPI_Bcast(ldat,lsize,MPI_INTEGER8,lhost,lcomm,lerr)
-#else
-      call MPI_Bcast(ldat,lsize,MPI_INTEGER,lhost,lcomm,lerr)
-#endif
-
-      call END_LOG(bcast_end)
+      ldat_l(1,1) = ldat
+      call ccmpi_bcast3i(ldat_l,host,comm)
+      ldat = ldat_l(1,1)
       
    end subroutine ccmpi_bcast1i
 
    subroutine ccmpi_bcast2i(ldat,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lhost, lerr, lsize
       integer, dimension(:), intent(inout) :: ldat
+      integer, dimension(size(ldat),1) :: ldat_l
 
-      call START_LOG(bcast_begin)
-      
-      lhost = host
-      lcomm = comm
-      lsize = size(ldat)
-#ifdef i8r8
-      call MPI_Bcast(ldat,lsize,MPI_INTEGER8,lhost,lcomm,lerr)
-#else
-      call MPI_Bcast(ldat,lsize,MPI_INTEGER,lhost,lcomm,lerr)
-#endif
-
-      call END_LOG(bcast_end)
+      ldat_l(:,1) = ldat(:)
+      call ccmpi_bcast3i(ldat_l,host,comm)
+      ldat(:) = ldat_l(:,1)
          
    end subroutine ccmpi_bcast2i
 

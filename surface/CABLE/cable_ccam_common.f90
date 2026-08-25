@@ -31,6 +31,7 @@ use cable_common_module
 use cable_def_types_mod, cbm_ms => ms, cbm_nrb => nrb
 use cable_math_constants_mod, cbm_pi => pi, cbm_pi180 => pi180
 use cable_other_constants_mod
+use cable_photo_constants_mod
 use cable_phys_constants_mod
 use cable_roughness_module, only : ruff_resist
 use sli_main_mod, only : sli_main
@@ -65,9 +66,9 @@ private
 ! parameters
 public soil_struc, fwsoil_switch, cable_litter, gs_switch, smrf_switch, strf_switch
 public cable_gw_model, cable_roughness, cable_potev, cable_enablefao
-public ccycle, proglai, progvcmax, cable_pop
+public ccycle, proglai, progvcmax, cable_pop, cable_runoff, cable_soilevap
 public coldest_day_nhemisphere, coldest_day_shemisphere
-public maxtile, maxnb, cveg, sv, vl2
+public maxtile, mp_max, mp_pop_max
 public cleaf, cwood, cfroot, cmet, cstr, ccwd, cmic, cslow, cpass
 public nleaf, nwood, nfroot, nmet, nstr, ncwd, nmic, nslow, npass
 public xpleaf, xpwood, xpfroot, xpmet, xpstr, xpcwd, xpmic, xpslow, xppass, xroot
@@ -84,6 +85,7 @@ public pop_ndisturb, pop_agemax
 public lai_thresh, rad_thresh, umin, coszen_tols, gauss_w
 public cbm_pi, cbm_pi180
 public ice_soiltype, lakes_cable, icewater
+public cable_user
 
 ! structure definitions
 public veg_parameter_type, soil_parameter_type, air_type, balances_type
@@ -95,8 +97,6 @@ public pop_type
 
 ! integer and real definitions
 public dp, i4b
-
-public cable_user
 
 ! cable subroutines
 public ruff_resist, define_air, fveg_mask, fsunlit_mask, fsunlit_veg_mask
@@ -110,8 +110,8 @@ public alloc_casavariable, alloc_phenvariable
 public pop_init, popstep
 public sli_main
 
-! subroutines and functions
-public setlai, cable_check
+! common subroutines and functions
+public setlai
 
 ! from cable_ccam3
 public air, bgc, met, bal, rad, rough, ssnow
@@ -122,7 +122,7 @@ public casapool, phen, pop
 ! from cable_ccam4
 public tdata
 public cable_pack, cable_unpack, pop_pack, pop_unpack
-public setp, cpyin, cpyout
+public cable_update
 
 
 ! CABLE biophysical options
@@ -135,9 +135,11 @@ integer, save :: smrf_switch     = 4          ! 1 CASA-CNP, 2 SOLIN, 3 TRIFFID, 
 integer, save :: strf_switch     = 4          ! 1 CASA-CNP, 2 K1995, 3 PnET-CN, 4 LT1994(default),
                                               ! 5 DAMM (Soil Temp Respiration Function)
 integer, save :: cable_gw_model  = 0          ! 0 off, 1 GW_Hydro
-integer, save :: cable_roughness = 0          ! 0 default, 1 new
+integer, save :: cable_roughness = 0          ! 0 default, 1 new soil roughness
 integer, save :: cable_potev     = 1          ! 0 Penman Monteith, 1 Humidity Deficit
 integer, save :: cable_enablefao = 1          ! 0 off, 1 on when calculating potential evaporation
+integer, save :: cable_runoff    = 0          ! 0 default, 1 new runoff speed
+integer, save :: cable_soilevap  = 0          ! 0 default, 1 reduced soil evap 
 ! CABLE biochemical options
 integer, save :: ccycle          = 0          ! 0 off, 1 (C), 2 (CN), 3 (CNP)
 integer, save :: proglai         = 0          ! 0 prescribed, 1 prognostic LAI
@@ -147,22 +149,13 @@ integer, save :: cable_pop       = 0          ! 0 off, 1 on
 ! CABLE POP parameters
 integer, parameter :: COLDEST_DAY_NHEMISPHERE = 355
 integer, parameter :: COLDEST_DAY_SHEMISPHERE = 172
-!integer, save :: POP_NPATCH      = -1
-!integer, save :: POP_NLAYER      = -1
-!integer, save :: POP_NCOHORT     = -1
-!integer, save :: POP_HEIGHT_BINS = -1
-!integer, save :: POP_NDISTURB    = -1
-!integer, save :: POP_AGEMAX      = -1
 
 ! Number of tiles, number of gridpoints and fraction of gridbox
 integer, parameter :: maxtile = 7          ! maximum possible number of tiles in a grid box
                                            ! (1-5=natural/secondary, 6-7=pasture/rangeland, 8-9=crops)
-integer, save :: maxnb                     ! maximum number of tiles within a gridbox
-integer, save :: mp_global                 ! maximum number of points on this process (sum of all land tiles)
-
-integer, dimension(:), allocatable, target, save :: cveg ! CABLE vegetation index for each point
-real, dimension(:), allocatable, target, save :: sv      ! area fraction for each point
-real, dimension(:), allocatable, target, save :: vl2     ! prescribed leaf area index (LAI) for point
+integer, save :: mp_global                 ! maximum number of land-points on this process (sum of all land tiles)
+integer, save :: mp_max                    ! largest number of land-points for a CCAM tile
+integer, save :: mp_pop_max                ! largest number of POP-poiints for a CCAM tile
 
 ! Initial values for CNP pools over 3*plant, 3*litter and 3*soil (=27 pools in total)
 real(kind=8), dimension(mxvt), save :: cleaf  =(/ 384.6037_8,     273._8, 96.59814_8, 150.2638_8,      88._8, 137.1714_8, &
@@ -291,26 +284,5 @@ end select
 return
 end subroutine setlai
     
-subroutine cable_check(rdata,name,sroutine,min_val,max_val)
-
-real, dimension(:), intent(in) :: rdata
-real, intent(in) :: min_val, max_val
-character(len=*), intent(in) :: name
-character(len=*), intent(in) :: sroutine
-
-
-if ( any( rdata/=rdata ) ) then
-  write(6,*) "ERROR: NaN found in after ",trim(sroutine)," with ",trim(name)
-  stop
-end if
-if ( any( rdata<min_val .or. rdata>max_val ) ) then
-  write(6,*) "ERROR: ",trim(name)," is out-of-range after ",trim(sroutine)
-  write(6,*) "xn ",minval(rdata),maxval(rdata)
-  stop
-end if
-
-return
-end subroutine cable_check
-
 end module cable_ccam_common
 

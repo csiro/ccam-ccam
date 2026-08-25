@@ -330,18 +330,16 @@ integer, dimension(ifull,maxtile), intent(in) :: ivs
 integer, dimension(271,mxvt), intent(in) :: greenup, fall, phendoy1
 integer(kind=4), dimension(:), allocatable, save :: Iwood
 integer(kind=4), dimension(:,:), allocatable, save :: disturbance_interval
-integer i,iq,n,k,ipos,ilat,ivp,is,ie
+integer i,iq,n,k,ipos,ilat,ivp,is,ie,iis,iie
 integer landcount
 integer(kind=4) mp_POP
 real ivmax, landsum
 real, dimension(ifull,maxtile), intent(in) :: svs,vlin
 real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
-real, dimension(ifull) :: dummy_pack
-real, dimension(ifull) :: albsoil
+real, dimension(ifull) :: dummy_pack, albsoil
 real, dimension(0:maxtile) :: stat_count, global_stat_count
-real, dimension(:), allocatable, save :: dummy_unpack
-logical, dimension(:), allocatable, save :: pmap_temp
+real(kind=8), dimension(:), allocatable :: dummy_unpack
 integer :: tile, popcount
 character(len=*), intent(in) :: fcasapft
 
@@ -384,6 +382,7 @@ zolnd     = 0.
 
 ! calculate CABLE vector length
 allocate( tdata(ntiles) )
+mp_max = 0
 do tile = 1,ntiles
   tdata(tile)%mp = 0
   tdata(tile)%np = 0
@@ -405,16 +404,18 @@ do tile = 1,ntiles
       end if
     end if
   end do
+  
+  if ( tile==1 ) then
+    mp_global = tdata(1)%mp  
+    tdata(1)%toffset = 0
+  else  
+    mp_global = mp_global + tdata(tile)%mp
+    tdata(tile)%toffset = tdata(tile-1)%toffset + tdata(tile-1)%mp
+  end if
+  
+  mp_max = max( mp_max, tdata(tile)%mp )
+  
 end do
-mp_global = tdata(1)%mp
-tdata(1)%toffset = 0
-tdata(1)%poffset = 0
-do tile = 2,ntiles
-  mp_global = mp_global + tdata(tile)%mp
-  tdata(tile)%toffset = tdata(tile-1)%toffset + tdata(tile-1)%mp
-  tdata(tile)%poffset = 0 ! disable for now
-end do
-!mp = 0 ! defined when CABLE model is integrated
 
 ktau_gl = 900
 kend_gl = 999
@@ -435,8 +436,6 @@ if ( myid==0 ) then
   end if
 end if
 
-maxnb = 0
-
 do tile = 1,ntiles
   allocate( tdata(tile)%tind(maxtile,2) )
   tdata(tile)%tind(:,1) = 1
@@ -447,27 +446,38 @@ do tile = 1,ntiles
   tdata(tile)%maxnb = 0
 end do
 
+allocate( air(ntiles), bgc(ntiles), canopy(ntiles), met(ntiles) )
+allocate( bal(ntiles), rad(ntiles), rough(ntiles), soil(ntiles) )
+allocate( ssnow(ntiles), sum_flux(ntiles), veg(ntiles), climate(ntiles) )
+allocate( casabiome(ntiles), casapool(ntiles), casaflux(ntiles), casamet(ntiles) )
+allocate( casabal(ntiles), phen(ntiles) )
+allocate( POP(ntiles) )
+
 if ( mp_global>0 ) then
 
-  climate%nyear_average = 20
-  climate%nday_average = 31
-    
-  allocate( sv(mp_global) )
-  allocate( vl2(mp_global) )
-  allocate( cveg(mp_global) )  
-  call alloc_cbm_var(air, mp_global)
-  call alloc_cbm_var(bgc, mp_global)
-  call alloc_cbm_var(canopy, mp_global)
-  call alloc_cbm_var(met, mp_global)
-  call alloc_cbm_var(bal, mp_global)
-  call alloc_cbm_var(rad, mp_global)
-  call alloc_cbm_var(rough, mp_global)
-  call alloc_cbm_var(soil, mp_global)
-  call alloc_cbm_var(ssnow, mp_global)
-  call alloc_cbm_var(sum_flux, mp_global)
-  call alloc_cbm_var(veg, mp_global)
-  allocate( dummy_unpack(mp_global) )
-  
+  do tile = 1,ntiles
+    if ( tdata(tile)%mp>0 ) then
+      allocate( tdata(tile)%sv(tdata(tile)%mp) )
+      allocate( tdata(tile)%vl2(tdata(tile)%mp) )
+      allocate( tdata(tile)%cveg(tdata(tile)%mp) )
+      allocate( tdata(tile)%old_sv(tdata(tile)%mp) )
+      allocate( tdata(tile)%old_cveg(tdata(tile)%mp) )
+      call alloc_cbm_var(air(tile), tdata(tile)%mp)
+      call alloc_cbm_var(bgc(tile), tdata(tile)%mp)
+      call alloc_cbm_var(canopy(tile), tdata(tile)%mp)
+      call alloc_cbm_var(met(tile), tdata(tile)%mp)
+      call alloc_cbm_var(bal(tile), tdata(tile)%mp)
+      call alloc_cbm_var(rad(tile), tdata(tile)%mp)
+      call alloc_cbm_var(rough(tile), tdata(tile)%mp)
+      call alloc_cbm_var(soil(tile), tdata(tile)%mp)
+      call alloc_cbm_var(ssnow(tile), tdata(tile)%mp)
+      call alloc_cbm_var(sum_flux(tile), tdata(tile)%mp)
+      call alloc_cbm_var(veg(tile), tdata(tile)%mp)
+    end if
+    climate(tile)%nyear_average = 20
+    climate(tile)%nday_average = 31
+  end do ! tile
+
   ! Cable configuration
   select case( cable_potev )
     case(0)
@@ -475,30 +485,20 @@ if ( mp_global>0 ) then
     case default  
       cable_user%ssnow_POTEV = "HDM" ! default Humidity Deficit
   end select    
-  cable_user%MetType = "defa"    ! only 4 characters for "default"
+  cable_user%MetType = "defaul"    ! only 6 characters for "default"
   cable_user%diag_soil_resp = "ON"
   cable_user%leaf_respiration = "ON"
   cable_user%run_diag_level = "NONE"
   cable_user%consistency_check = .false.
   cable_user%logworker = .false.
-  select case ( cable_roughness )
-    case(1)
-      cable_user%l_new_roughness_soil = .true.
-    case default  
-      cable_user%l_new_roughness_soil = .false.
-  end select
+  cable_user%l_new_roughness_soil = cable_roughness==1
   cable_user%l_rev_corr = .true.
   cable_user%gw_model = cable_gw_model==1
   cable_user%soil_thermal_fix = .true.
   cable_user%call_climate = .false.
   cable_user%phenology_switch = "MODIS"
   !cable_user%finite_gm = .false.
-  select case ( cable_pop )
-    case(1)
-      cable_user%call_pop = .true.
-    case default
-      cable_user%call_pop = .false.
-  end select
+  cable_user%call_pop = cable_pop==1
   select case ( soil_struc )
     case(1)
       cable_user%soil_struc = "sli"  
@@ -521,12 +521,7 @@ if ( mp_global>0 ) then
     case default
       cable_user%gs_switch = "leuning"
   end select
-  select case ( cable_litter )
-    case(1)
-      cable_user%litter = .true.  
-    case default
-      cable_user%litter = .false.
-  end select
+  cable_user%litter = cable_litter==1
   select case ( progvcmax )
     case(2)
       cable_user%vcmax = "Walker2014"        
@@ -561,34 +556,32 @@ if ( mp_global>0 ) then
     case default
       cable_user%STRF_NAME = "LT1994"
   end select
-  kwidth_gl = nint(dt) ! MJT notes - what happens when the timestep is less than a second?
-  if ( kwidth_gl==0) then
-    write(6,*) "ERROR: Timestep too small for CABLE"
-    call ccmpi_abort(-1)
-  end if
-  
-  ! soil parameters
-  soil%zse        = real(zse,8) ! soil layer thickness
-  soil%zshh(1)    = 0.5_8 * soil%zse(1)
-  soil%zshh(cbm_ms+1) = 0.5_8 * soil%zse(cbm_ms)
-  soil%zshh(2:cbm_ms) = 0.5_8 * (soil%zse(1:cbm_ms-1) + soil%zse(2:cbm_ms))
- 
-  sv = 0.
-  vl2 = 0.
-  cveg = 0
+  cable_user%l_new_runoff_speed = cable_runoff==1
+  cable_user%l_new_reduce_soilevp = cable_soilevap==1
+  !kwidth_gl = nint(dt) ! MJT notes - what happens when the timestep is less than a second?
+  !if ( kwidth_gl==0) then
+  !  write(6,*) "ERROR: Time-step dt<1 is too small for CABLE"
+  !  call ccmpi_abort(-1)
+  !end if
 
-  ! pack biome data into CABLE vector
-  ! prepare LAI arrays for temporal interpolation (PWCB)  
-  do tile = 1,ntiles
-    ! tile is the spatial decomposition and maxtile is the mosaic of vegetation PFTs  
-    allocate(tdata(tile)%tmap(imax,maxtile))
-    tdata(tile)%tmap = .false.
-  end do
-  
-  ipos = 0
   do tile = 1,ntiles
     is = 1 + (tile-1)*imax
     ie = tile*imax
+      
+    ! soil layer thickness
+    if ( tdata(tile)%mp>0 ) then
+      soil(tile)%zse        = real(zse,8) ! soil layer thickness
+      soil(tile)%zshh(1)    = 0.5_8*soil(tile)%zse(1)
+      soil(tile)%zshh(2:cbm_ms) = 0.5_8*(soil(tile)%zse(1:cbm_ms-1) + soil(tile)%zse(2:cbm_ms))
+      soil(tile)%zshh(cbm_ms+1) = 0.5_8*soil(tile)%zse(cbm_ms)
+    end if  
+
+    ! allocate map between gridbox tile and vegetation tile
+    allocate(tdata(tile)%tmap(imax,maxtile))
+    tdata(tile)%tmap(:,:) = .false.
+  
+    ! define indices for vegetation tiles
+    ipos = 0
     do n = 1,maxtile
       tdata(tile)%tind(n,1) = ipos + 1
       do iq = is,ie
@@ -601,27 +594,40 @@ if ( mp_global>0 ) then
       end do
       tdata(tile)%tind(n,2) = ipos
     end do
-  end do
   
-  if ( ipos/=mp_global ) then
-    write(6,*) "ERROR: Internal memory allocation error for CABLE set-up"
-    call ccmpi_abort(-1)
-  end if
-
-  do n = 1,maxtile
-    call cable_pack(svs(:,n),sv,n)
-    call cable_pack(ivs(:,n),cveg,n)
-    call cable_pack(isoilm,soil%isoilm,n)
-    call cable_pack(slope_ave,soil%slope,n)
-    call cable_pack(slope_std,soil%slope_std,n)
-    dummy_pack = max( vlin(:,n), 0.01 )
-    call cable_pack(dummy_pack,vl2,n)
-  end do
+    if ( ipos/=tdata(tile)%mp ) then
+      write(6,*) "ERROR: Internal memory allocation error for CABLE set-up"
+      call ccmpi_abort(-1)
+    end if
+    
+    ! Maximum number of vegetation tiles in a gridbox tile
+    tdata(tile)%maxnb = 0
+    do n = 1,maxtile
+      if ( tdata(tile)%tind(n,2)>=tdata(tile)%tind(n,1) ) then
+        tdata(tile)%maxnb = n
+      end if
+    end do
+    
+    do n = 1,maxtile
+      call cable_pack(svs(:,n),tdata(tile)%sv,tile,nb=n)
+      call cable_pack(ivs(:,n),tdata(tile)%cveg,tile,nb=n)
+      dummy_pack(is:ie) = max( vlin(is:ie,n), 0.01 )
+      call cable_pack(dummy_pack(is:ie),tdata(tile)%vl2,tile,nb=n)
+    end do
   
-  soil%slope=min(max(soil%slope,1.e-8_8),0.95_8)
-  soil%slope_std=min(max(soil%slope_std,1.e-8_8),0.95_8)
+    call cable_pack(isoilm,soil(tile)%isoilm,tile)
+    call cable_pack(slope_ave,soil(tile)%slope,tile)
+    call cable_pack(slope_std,soil(tile)%slope_std,tile)
 
-  ! Load CABLE biophysical arrays
+    ! slope is used by the gw model
+    if ( tdata(tile)%mp>0 ) then
+      soil(tile)%slope=min(max(soil(tile)%slope,1.e-8_8),0.95_8)
+      soil(tile)%slope_std=min(max(soil(tile)%slope_std,1.e-8_8),0.95_8)
+    end if
+
+  end do ! tile
+
+  ! Create a simple map of dominant land-use
   do iq = 1,ifull
     if ( land(iq) ) then
       ivmax = -1.
@@ -634,33 +640,34 @@ if ( mp_global>0 ) then
     end if
   end do
   
-  call cable_biophysic_parm(cveg)
-  
-  where ( veg%iveg>=14 .and. veg%iveg<=17 )
-    vl2(:) = 1.e-8
-  end where
-  
-  do tile = 1,ntiles
-    tdata(tile)%maxnb = 0
-    do n = 1,maxtile
-      if ( tdata(tile)%tind(n,2)>=tdata(tile)%tind(n,1) ) then
-        tdata(tile)%maxnb = n
-      end if
-    end do
-  end do
+  ! Load canopy parameters
+  call cable_biophysic_parm
 
-  ! calculate actual max tile number
   do tile = 1,ntiles
-    maxnb = max( tdata(tile)%maxnb, maxnb )
-  end do
-  
-  call cable_soil_parm(soil)
-
-  ! store bare soil albedo and define snow free albedo
-  call cable_pack(albvisnir(:,1),soil%albsoil(:,1))
-  call cable_pack(albvisnir(:,2),soil%albsoil(:,2))
-  soil%albsoil(:,3) = 0.05_8
+    ! Fixes for LAI
+    if ( tdata(tile)%mp>0 ) then  
+      where ( veg(tile)%iveg>=14 .and. veg(tile)%iveg<=17 )
+        tdata(tile)%vl2(:) = 1.e-8
+      end where
+    end if
     
+  end do ! tile
+
+  ! Load soil parameters
+  call cable_soil_parm
+  
+  do tile = 1,ntiles
+    is = 1 + (tile-1)*imax
+    ie = tile*imax
+    if ( tdata(tile)%mp>0 ) then
+      ! store bare soil albedo and define snow free albedo
+      call cable_pack(albvisnir(is:ie,1),soil(tile)%albsoil(:,1),tile)
+      call cable_pack(albvisnir(is:ie,2),soil(tile)%albsoil(:,2),tile)
+      soil(tile)%albsoil(:,3) = 0.05_8
+    end if
+  end do
+  
+  ! Average albedo (for radiation)
   where ( land(1:ifull) )
     albsoil(1:ifull) = 0.5*sum(albvisnir(1:ifull,:),2)
   end where
@@ -679,233 +686,226 @@ if ( mp_global>0 ) then
   end where
 
   ! MJT patch
-  call cable_pack(albsoil,soil%albsoil(:,1))
-  call cable_pack(albsoil,soil%albsoil(:,2))
-  call cable_pack(albsoilsn(:,1),ssnow%albsoilsn(:,1)) ! overwritten by CABLE
-  call cable_pack(albsoilsn(:,2),ssnow%albsoilsn(:,2)) ! overwritten by CABLE
-  call cable_pack(albsoil,rad%albedo_T(:))
-  dummy_pack = rlatt*180./pi
-  call cable_pack(dummy_pack,rad%latitude(:))
-  dummy_pack = rlongg*180./pi
-  call cable_pack(dummy_pack,rad%longitude(:))
-  
-  !veg%vcmax_shade = veg%vcmax
-  !veg%ejmax_shade = veg%ejmax
-  !veg%vcmax_sun   = veg%vcmax
-  !veg%ejmax_sun   = veg%ejmax
+  do tile = 1,ntiles
+    is = 1 + (tile-1)*imax
+    ie = tile*imax
+    if ( tdata(tile)%mp>0 ) then
+      call cable_pack(albvisnir(is:ie,1),soil(tile)%albsoil(:,1),tile)
+      call cable_pack(albvisnir(is:ie,2),soil(tile)%albsoil(:,2),tile)
+      call cable_pack(albsoilsn(is:ie,1),ssnow(tile)%albsoilsn(:,1),tile) ! overwritten by CABLE
+      call cable_pack(albsoilsn(is:ie,2),ssnow(tile)%albsoilsn(:,2),tile) ! overwritten by CABLE
+      call cable_pack(albsoil(is:ie),rad(tile)%albedo_T(:),tile)
+      dummy_pack(is:ie) = rlatt(is:ie)*180./pi
+      call cable_pack(dummy_pack(is:ie),rad(tile)%latitude(:),tile)
+      dummy_pack(is:ie) = rlongg(is:ie)*180./pi
+      call cable_pack(dummy_pack(is:ie),rad(tile)%longitude(:),tile)
+
+      !veg(tile)%vcmax_shade = veg(tile)%vcmax
+      !veg(tile)%ejmax_shade = veg(tile)%ejmax
+      !veg(tile)%vcmax_sun   = veg(tile)%vcmax
+      !veg(tile)%ejmax_sun   = veg(tile)%ejmax
  
-  ssnow%albsoilsn(:,3)=0.05_8    
-  ssnow%t_snwlr=0.05_8
-  ssnow%pudsmx=0._8
-  ssnow%zdelta = 0._8
-  ssnow%le = 0._8
+      ssnow(tile)%albsoilsn(:,3)=0.05_8    
+      ssnow(tile)%t_snwlr=0.05_8
+      ssnow(tile)%pudsmx=0._8
+      ssnow(tile)%zdelta = 0._8
+      ssnow(tile)%le = 0._8
   
-  canopy%oldcansto=0._8  
-  canopy%ghflux=0._8
-  canopy%sghflux=0._8
-  canopy%ga=0._8
-  canopy%dgdtg=0._8
-  canopy%fhs_cor=0._8
-  canopy%fes_cor=0._8
-  canopy%fns_cor=0._8
-  canopy%ga_cor=0._8
-  canopy%us=0.01_8
-  ssnow%wb_lake=0._8 ! not used when mlo.f90 is active
-  ssnow%fland=1._8
-  ssnow%ifland=soil%isoilm
+      canopy(tile)%oldcansto=0._8  
+      canopy(tile)%ghflux=0._8
+      canopy(tile)%sghflux=0._8
+      canopy(tile)%ga=0._8
+      canopy(tile)%dgdtg=0._8
+      canopy(tile)%fhs_cor=0._8
+      canopy(tile)%fes_cor=0._8
+      canopy(tile)%fns_cor=0._8
+      canopy(tile)%ga_cor=0._8
+      canopy(tile)%us=0.01_8
+      ssnow(tile)%wb_lake=0._8 ! not used when mlo.f90 is active
+      ssnow(tile)%fland=1._8
+      ssnow(tile)%ifland=soil(tile)%isoilm
     
-  ! Initialise sum flux variables
-  sum_flux%sumpn=0._8
-  sum_flux%sumrp=0._8
-  sum_flux%sumrs=0._8
-  sum_flux%sumrd=0._8
-  sum_flux%sumrpw=0._8
-  sum_flux%sumrpr=0._8
-  sum_flux%dsumpn=0._8
-  sum_flux%dsumrp=0._8
-  sum_flux%dsumrs=0._8
-  sum_flux%dsumrd=0._8
+      ! Initialise sum flux variables
+      sum_flux(tile)%sumpn=0._8
+      sum_flux(tile)%sumrp=0._8
+      sum_flux(tile)%sumrs=0._8
+      sum_flux(tile)%sumrd=0._8
+      sum_flux(tile)%sumrpw=0._8
+      sum_flux(tile)%sumrpr=0._8
+      sum_flux(tile)%dsumpn=0._8
+      sum_flux(tile)%dsumrp=0._8
+      sum_flux(tile)%dsumrs=0._8
+      sum_flux(tile)%dsumrd=0._8
   
-  bal%evap_tot=0._8
-  bal%precip_tot=0._8
-  bal%ebal_tot=0._8
-  bal%rnoff_tot=0._8
+      bal(tile)%evap_tot=0._8
+      bal(tile)%precip_tot=0._8
+      bal(tile)%ebal_tot=0._8
+      bal(tile)%rnoff_tot=0._8
+    end if ! mp>0 
+  end do   ! tile
+
   
+  ! Initialise CABLE carbon pools
   if ( ccycle==0 ) then
-    ! Initialise CABLE carbon pools
     if ( cable_pop==1 ) then
       write(6,*) "ERROR: cable_pop=1 requires ccycle>0"
       call ccmpi_abort(-1)
     end if    
   else if ( ccycle>=1 .and. ccycle<=3 ) then
     ! CASA CNP
-    call alloc_casavariable(casabiome,casapool,casaflux,casamet,casabal,mp_global)
-    call alloc_phenvariable(phen,mp_global)
-    
-    casamet%lat = rad%latitude
-    
-    call cable_pack(casapoint(:,1),casamet%isorder)
-    dummy_pack = casapoint(:,2)/365.*1.E-3
-    call cable_pack(dummy_pack,casaflux%Nmindep)
-    dummy_pack = casapoint(:,3)/365.
-    call cable_pack(dummy_pack,casaflux%Nminfix)
-    dummy_pack = casapoint(:,4)/365.
-    call cable_pack(dummy_pack,casaflux%Pdep)
-    dummy_pack = casapoint(:,5)/365.
-    call cable_pack(dummy_pack,casaflux%Pwea)
+    do tile = 1,ntiles
+      is = 1 + (tile-1)*imax
+      ie = tile*imax
+      if ( tdata(tile)%mp>0 ) then
+        call alloc_casavariable(casabiome(tile),casapool(tile),casaflux(tile),casamet(tile), &
+                                casabal(tile),tdata(tile)%mp)
+        call alloc_phenvariable(phen(tile),tdata(tile)%mp)
+        
+        casamet(tile)%lat = rad(tile)%latitude
+        call cable_pack(casapoint(:,1),casamet(tile)%isorder,tile)
+        dummy_pack(is:ie) = casapoint(is:ie,2)/365.*1.E-3
+        call cable_pack(dummy_pack(is:ie),casaflux(tile)%Nmindep,tile)
+        dummy_pack(is:ie) = casapoint(is:ie,3)/365.
+        call cable_pack(dummy_pack(is:ie),casaflux(tile)%Nminfix,tile)
+        dummy_pack(is:ie) = casapoint(is:ie,4)/365.
+        call cable_pack(dummy_pack(is:ie),casaflux(tile)%Pdep,tile)
+        dummy_pack(is:ie) = casapoint(is:ie,5)/365.
+        call cable_pack(dummy_pack(is:ie),casaflux(tile)%Pwea,tile)
 
-    where ( veg%iveg==9 .or. veg%iveg==10 ) ! crops
-      ! P fertilizer =13 Mt P globally in 1994
-      casaflux%Pdep = casaflux%Pdep + 0.7_8/365._8
-      ! N fertilizer =86 Mt N globally in 1994
-      casaflux%Nminfix = casaflux%Nminfix + 4.3_8/365._8
-    end where
+        where ( veg(tile)%iveg==9 .or. veg(tile)%iveg==10 ) ! crops
+          ! P fertilizer =13 Mt P globally in 1994
+          casaflux(tile)%Pdep = casaflux(tile)%Pdep + 0.7_8/365._8
+          ! N fertilizer =86 Mt N globally in 1994
+          casaflux(tile)%Nminfix = casaflux(tile)%Nminfix + 4.3_8/365._8
+        end where
 
-    if ( any( casamet%isorder<1 .or. casamet%isorder>12 ) ) then
-      write(6,*) "ERROR: Invalid isorder in CASA-CNP"
-      call ccmpi_abort(-1)
-    end if
+        if ( any( casamet(tile)%isorder<1 .or. casamet(tile)%isorder>12 ) ) then
+          write(6,*) "ERROR: Invalid isorder in CASA-CNP"
+          call ccmpi_abort(-1)
+        end if
+        
+      end if ! mp>0
+    end do   ! tile
 
-    call casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
+    ! Load CASA parameters
+    call casa_readbiome(veg,casabiome,casapool,casaflux, &
+                        casamet,phen,fcasapft)
     
-    do n = 1,mp_global
-      ilat = nint((rad%latitude(n)+55.25)*2.) + 1
-      ilat = min( 271, max( 1, ilat ) )
-      ivp = veg%iveg(n)
-      phen%phen(n)       = 1._8
-      phen%aphen(n)      = 0._8
-      phen%phase(n)      = phendoy1(ilat,ivp)
-      phen%doyphase(n,1) = greenup(ilat,ivp)          ! DOY for greenup
-      phen%doyphase(n,2) = phen%doyphase(n,1) + 14    ! DOY for steady LAI
-      phen%doyphase(n,3) = fall(ilat,ivp)             ! DOY for leaf senescence
-      phen%doyphase(n,4) = phen%doyphase(n,3) + 14    ! DOY for minimal LAI season
-      if ( phen%doyphase(n,2) > 365 ) phen%doyphase(n,2) = phen%doyphase(n,2) - 365
-      if ( phen%doyphase(n,4) > 365 ) phen%doyphase(n,4) = phen%doyphase(n,4) - 365
-    end do
-    
-    casamet%tairk         = 0._8
-    casamet%tsoil         = 0._8
-    casamet%moist         = 0._8
-    
-    casaflux%cgpp         = 0._8
-    casaflux%Crsoil       = 0._8
-    casaflux%crgplant     = 0._8
-    casaflux%crmplant     = 0._8
-    casaflux%clabloss     = 0._8
-    casaflux%frac_sapwood = 1._8
-    casaflux%sapwood_area = 0._8
-    casaflux%stemnpp      = 0._8
-    casaflux%Cnpp         = 0._8
-    !casaflux%fHarvest     = 0._8
-    !casaflux%NHarvest     = 0._8
-    !casaflux%CHarvest     = 0._8
-    !casaflux%fcrop        = 0._8
+    do tile = 1,ntiles
+      is = 1 + (tile-1)*imax
+      ie = tile*imax
+      if ( tdata(tile)%mp>0 ) then
+        do i = 1,tdata(tile)%mp
+          ilat = nint((rad(tile)%latitude(i)+55.25)*2.) + 1
+          ilat = min( 271, max( 1, ilat ) )
+          ivp = veg(tile)%iveg(i)
+          phen(tile)%phen(i)       = 1._8
+          phen(tile)%aphen(i)      = 0._8
+          phen(tile)%phase(i)      = phendoy1(ilat,ivp)
+          phen(tile)%doyphase(i,1) = greenup(ilat,ivp)                ! DOY for greenup
+          phen(tile)%doyphase(i,2) = phen(tile)%doyphase(i,1) + 14    ! DOY for steady LAI
+          phen(tile)%doyphase(i,3) = fall(ilat,ivp)                   ! DOY for leaf senescence
+          phen(tile)%doyphase(i,4) = phen(tile)%doyphase(i,3) + 14    ! DOY for minimal LAI season
+          if ( phen(tile)%doyphase(i,2) > 365 ) then
+            phen(tile)%doyphase(i,2) = phen(tile)%doyphase(i,2) - 365
+          end if  
+          if ( phen(tile)%doyphase(i,4) > 365 ) then
+            phen(tile)%doyphase(i,4) = phen(tile)%doyphase(i,4) - 365
+          end if
+        end do ! i = 1,mp
 
-    canopy%fnee = 0._8
-    canopy%fpn = 0._8
-    canopy%frday = 0._8
-    canopy%frp = 0._8
-    canopy%frpw = 0._8
-    canopy%frpr = 0._8
-    canopy%frs = 0._8
+        casamet(tile)%tairk         = 0._8
+        casamet(tile)%tsoil         = 0._8
+        casamet(tile)%moist         = 0._8
+    
+        casaflux(tile)%cgpp         = 0._8
+        casaflux(tile)%Crsoil       = 0._8
+        casaflux(tile)%crgplant     = 0._8
+        casaflux(tile)%crmplant     = 0._8
+        casaflux(tile)%clabloss     = 0._8
+        casaflux(tile)%frac_sapwood = 1._8
+        casaflux(tile)%sapwood_area = 0._8
+        casaflux(tile)%stemnpp      = 0._8
+        casaflux(tile)%Cnpp         = 0._8
+        !casaflux(tile)%fHarvest     = 0._8
+        !casaflux(tile)%NHarvest     = 0._8
+        !casaflux(tile)%CHarvest     = 0._8
+        !casaflux(tile)%fcrop        = 0._8
+
+        canopy(tile)%fnee = 0._8
+        canopy(tile)%fpn = 0._8
+        canopy(tile)%frday = 0._8
+        canopy(tile)%frp = 0._8
+        canopy(tile)%frpw = 0._8
+        canopy(tile)%frpr = 0._8
+        canopy(tile)%frs = 0._8
    
-    casabal%LAImax = 0._8
-    casabal%Cleafmean = 0._8
-    casabal%Crootmean = 0._8
+        casabal(tile)%LAImax = 0._8
+        casabal(tile)%Cleafmean = 0._8
+        casabal(tile)%Crootmean = 0._8
+      end if
+ 
+      ! Update gridbox average carbon pools
+      cplant(is:ie,:)=0.
+      clitter(is:ie,:)=0.
+      csoil(is:ie,:)=0.
+      niplant(is:ie,:)=0.
+      nilitter(is:ie,:)=0.
+      nisoil(is:ie,:)=0.
+      pplant(is:ie,:)=0.
+      plitter(is:ie,:)=0.
+      psoil(is:ie,:)=0.
+      do k = 1,mplant
+        call cable_update(cplant(is:ie,k),casapool(tile)%cplant(:,k),tile)
+        call cable_update(niplant(is:ie,k),casapool(tile)%nplant(:,k),tile)
+        call cable_update(pplant(is:ie,k),casapool(tile)%pplant(:,k),tile)
+      end do
+      do k = 1,mlitter
+        call cable_update(clitter(is:ie,k),casapool(tile)%clitter(:,k),tile)
+        call cable_update(nilitter(is:ie,k),casapool(tile)%nlitter(:,k),tile)
+        call cable_update(plitter(is:ie,k),casapool(tile)%plitter(:,k),tile)
+      end do
+      do k = 1,msoil
+        call cable_update(csoil(is:ie,k),casapool(tile)%csoil(:,k),tile)
+        call cable_update(nisoil(is:ie,k),casapool(tile)%nsoil(:,k),tile)
+        call cable_update(psoil(is:ie,k),casapool(tile)%psoil(:,k),tile)
+      end do
     
-    cplant=0.
-    clitter=0.
-    csoil=0.
-    niplant=0.
-    nilitter=0.
-    nisoil=0.
-    pplant=0.
-    plitter=0.
-    psoil=0.
-    do k = 1,mplant
-      dummy_unpack = sv*real(casapool%cplant(:,k))  
-      call cable_unpack(dummy_unpack,cplant(:,k))
-      dummy_unpack = sv*real(casapool%nplant(:,k))
-      call cable_unpack(dummy_unpack,niplant(:,k))
-      dummy_unpack = sv*real(casapool%pplant(:,k))
-      call cable_unpack(dummy_unpack,pplant(:,k))
-    end do
-    do k = 1,mlitter
-      dummy_unpack = sv*real(casapool%clitter(:,k))  
-      call cable_unpack(dummy_unpack,clitter(:,k))
-      dummy_unpack = sv*real(casapool%nlitter(:,k)) 
-      call cable_unpack(dummy_unpack,nilitter(:,k))
-      dummy_unpack = sv*real(casapool%plitter(:,k))
-      call cable_unpack(dummy_unpack,plitter(:,k))
-    end do
-    do k = 1,msoil
-      dummy_unpack = sv*real(casapool%csoil(:,k))   
-      call cable_unpack(dummy_unpack,csoil(:,k))
-      dummy_unpack = sv*real(casapool%nsoil(:,k))
-      call cable_unpack(dummy_unpack,nisoil(:,k))
-      dummy_unpack = sv*real(casapool%psoil(:,k))
-      call cable_unpack(dummy_unpack,psoil(:,k))
-    end do
-
+    end do ! tile
     
     ! POP
     if ( cable_pop==1 ) then
-      mp_POP = count(casamet%iveg2==forest.or.casamet%iveg2==shrub)
-      allocate( pmap_temp(mp_global) )      
-      allocate( Iwood(mp_POP), disturbance_interval(mp_POP,2) )
-
+        
+      mp_pop_max = 0  
       do tile = 1,ntiles
+        is = 1 + (tile-1)*imax
+        ie = tile*imax
+        mp_POP = count(casamet(tile)%iveg2==forest.or.casamet(tile)%iveg2==shrub)
+        allocate( Iwood(mp_POP), disturbance_interval(mp_POP,2) )
         allocate( tdata(tile)%pmap(imax,maxtile) )
         tdata(tile)%pmap = .false.
-      end do
-      pmap_temp(:) = .false.
-      ipos = 0
-      do tile = 1,ntiles
-        popcount = 0
-        do n = 1,maxtile
-          is = tdata(tile)%tind(n,1)
-          ie = tdata(tile)%tind(n,2)
+        ipos = 0
+        do n = 1,tdata(tile)%maxnb
+          iis = tdata(tile)%tind(n,1)
+          iie = tdata(tile)%tind(n,2)
           tdata(tile)%pind(n,1) = ipos + 1
-          do i = is,ie
-            if ( casamet%iveg2(i)==forest .or. casamet%iveg2(i)==shrub ) then
+          do i = iis,iie
+            if ( casamet(tile)%iveg2(i)==forest .or. casamet(tile)%iveg2(i)==shrub ) then
               ipos = ipos + 1
-              popcount = popcount + 1
               Iwood(ipos) = i
-              pmap_temp(i) = .true.
+              tdata(tile)%pmap(i,n) = .true.
+              disturbance_interval(ipos,:) = veg(tile)%disturbance_interval(i,:)
             end if
-          end do    
+          end do
           tdata(tile)%pind(n,2) = ipos
-          tdata(tile)%pmap(:,n) = unpack(pmap_temp(is:ie),tdata(tile)%tmap(:,n),.false.)
-        end do  
-        tdata(tile)%np = tdata(tile)%np + popcount
-      end do  
-      tdata(1)%poffset = 0
-      do tile=2,ntiles
-        tdata(tile)%poffset=tdata(tile-1)%poffset+tdata(tile-1)%np
-      end do
+        end do
+        tdata(tile)%np = ipos
+        mp_pop_max = max( mp_pop_max, ipos )
+        call POP_init(POP(tile), disturbance_interval(:,:), mp_POP, Iwood(1:mp_POP)) 
+        deallocate( Iwood, disturbance_interval )
+      end do ! tile 
 
-      disturbance_interval(:,:) = veg%disturbance_interval(Iwood(1:mp_POP),:)  
-
-      !Iwood only used inside threaded region from now on, remap so it is relative per tile
-      ipos = 0
-      do tile = 1,ntiles
-        do n = 1,maxtile
-          is = tdata(tile)%tind(n,1)
-          ie = tdata(tile)%tind(n,2)
-          do i = is,ie
-            if ( casamet%iveg2(i)==forest .or. casamet%iveg2(i)==shrub ) then
-              ipos = ipos + 1
-              Iwood(ipos) = i - tdata(tile)%toffset
-            end if
-          end do    
-        end do  
-      end do  
-
-      call POP_init(POP, disturbance_interval, mp_POP, Iwood(1:mp_POP)) 
-      deallocate( pmap_temp )
-      deallocate( Iwood, disturbance_interval )
-
-    end if
+    end if ! cable_pop==1
     
   else  
     write(6,*) "ERROR: Unknown option ccycle ",ccycle
@@ -915,10 +915,18 @@ if ( mp_global>0 ) then
   
   ! Calculate LAI and veg fraction diagnostics
   ! (needs to occur after CASA-CNP in case prognostic LAI is required)
-  call setlai(sv,vl2,casamet,veg,mp_global)
   vlai(:) = 0.
-  dummy_unpack(1:mp_global) = sv(1:mp_global)*real(veg%vlai(1:mp_global))
-  call cable_unpack(dummy_unpack,vlai)
+  sigmf(:) = 0.
+  allocate( dummy_unpack(mp_max) )
+  do tile = 1,ntiles
+    if ( tdata(tile)%mp>0 ) then
+      call setlai(tdata(tile)%sv,tdata(tile)%vl2,casamet(tile),veg(tile),tdata(tile)%mp)
+      call cable_update(vlai(:),veg(tile)%vlai,tile)
+      dummy_unpack(1:tdata(tile)%mp) = 1._8 - exp(-0.4_8*veg(tile)%vlai(:))
+      call cable_update(sigmf(:),dummy_unpack(1:tdata(tile)%mp),tile)
+    end if  
+  end do ! tile   
+  deallocate( dummy_unpack )
 
   ! MJT suggestion to get an approx inital albedo (before cable is called)
   where ( land(1:ifull) )
@@ -929,36 +937,46 @@ if ( mp_global>0 ) then
   albvisdif(:) = albvisnir(:,1) ! To be updated by CABLE
   albnirdir(:) = albvisnir(:,2) ! To be updated by CABLE
   albnirdif(:) = albvisnir(:,2) ! To be updated by CABLE
-
-  deallocate( dummy_unpack )
   
 else
 
-  allocate( cveg(0) )
-  call alloc_cbm_var(air, 0)
-  call alloc_cbm_var(bgc, 0)
-  call alloc_cbm_var(canopy, 0)
-  call alloc_cbm_var(met, 0)
-  call alloc_cbm_var(bal, 0)
-  call alloc_cbm_var(rad, 0)
-  call alloc_cbm_var(rough, 0)
-  call alloc_cbm_var(soil, 0)
-  call alloc_cbm_var(ssnow, 0)
-  call alloc_cbm_var(sum_flux, 0)
-  call alloc_cbm_var(veg, 0)  
-  call cable_biophysic_parm(cveg)
-  call cable_soil_parm(soil)
+  do tile = 1,ntiles
+    allocate( tdata(tile)%sv(0) )
+    allocate( tdata(tile)%vl2(0) )
+    allocate( tdata(tile)%cveg(0) )
+    allocate( tdata(tile)%old_sv(0) )
+    allocate( tdata(tile)%old_cveg(0) )
+    call alloc_cbm_var(air(tile), 0)
+    call alloc_cbm_var(bgc(tile), 0)
+    call alloc_cbm_var(canopy(tile), 0)
+    call alloc_cbm_var(met(tile), 0)
+    call alloc_cbm_var(bal(tile), 0)
+    call alloc_cbm_var(rad(tile), 0)
+    call alloc_cbm_var(rough(tile), 0)
+    call alloc_cbm_var(soil(tile), 0)
+    call alloc_cbm_var(ssnow(tile), 0)
+    call alloc_cbm_var(sum_flux(tile), 0)
+    call alloc_cbm_var(veg(tile), 0)
+    climate(tile)%nyear_average = 20
+    climate(tile)%nday_average = 31
+  end do
+  call cable_biophysic_parm
+  call cable_soil_parm
   if ( ccycle>=1 .and. ccycle<=3 ) then
-    call alloc_casavariable(casabiome,casapool,casaflux,casamet,casabal,0)
-    call alloc_phenvariable(phen,0)
+    do tile = 1,ntiles  
+      call alloc_casavariable(casabiome(tile),casapool(tile),casaflux(tile),casamet(tile), &
+                              casabal(tile),0)
+      call alloc_phenvariable(phen(tile),0)
+    end do  
     call casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
     if ( cable_pop==1 ) then
       mp_POP = 0
-      allocate( pmap_temp(0) )      
-      allocate( Iwood(0), disturbance_interval(0,2) )
-      call POP_init(POP, disturbance_interval, 0, Iwood) 
-      deallocate( pmap_temp )
-      deallocate( Iwood, disturbance_interval )
+      mp_pop_max = 0
+      do tile = 1,ntiles
+        allocate( Iwood(0), disturbance_interval(0,2) )
+        call POP_init(POP(tile), disturbance_interval, 0, Iwood) 
+        deallocate( Iwood, disturbance_interval )
+      end do
     end if
   end if
   
@@ -990,15 +1008,15 @@ end subroutine cbmparm
 
 subroutine casa_readbiome(veg,casabiome,casapool,casaflux,casamet,phen,fcasapft)
 
-use cc_mpi     ! CC MPI routines
+use cc_mpi
 use newmpar_m
 
-type(veg_parameter_type), intent(in) :: veg
-type(casa_biome),         intent(inout) :: casabiome
-type(casa_pool),          intent(inout) :: casapool
-type(casa_flux),          intent(inout) :: casaflux
-type(casa_met),           intent(inout) :: casamet
-type(phen_variable),      intent(inout) :: phen
+type(veg_parameter_type), dimension(ntiles), intent(in) :: veg
+type(casa_biome), dimension(ntiles), intent(inout) :: casabiome
+type(casa_pool), dimension(ntiles), intent(inout) :: casapool
+type(casa_flux), dimension(ntiles), intent(inout) :: casaflux
+type(casa_met), dimension(ntiles), intent(inout) :: casamet
+type(phen_variable), dimension(ntiles), intent(inout) :: phen
 character(len=*), intent(in) :: fcasapft
 
 real(kind=8), dimension(mxvt,mplant) :: ratiocnplant
@@ -1019,9 +1037,10 @@ real(kind=8), dimension(mxvt) :: xDAMM_EnzPool,xDAMM_KMO2,xDAMM_KMcp,xDAMM_Ea,xD
 real(kind=8), dimension(mso) :: xxkplab,xxkpsorb,xxkpocc
 real(kind=8), dimension(mso) :: xkmlabp,xpsorbmax,xfPleach
 
-integer :: i, iso, nv, ierr
-integer :: nv0,nv1,nv2,nv3,nv4,nv5,nv6,nv7,nv8,nv9,nv10,nv11,nv12,nv13
+integer i, iso, nv, ierr
+integer nv0,nv1,nv2,nv3,nv4,nv5,nv6,nv7,nv8,nv9,nv10,nv11,nv12,nv13
 integer :: fflag=0
+integer tile
 
 integer, dimension(mxvt) :: ivt2
 real(kind=8), dimension(mxvt) :: kroot
@@ -1420,27 +1439,30 @@ if ( fflag == 1  ) then
   call ccmpi_bcastr8(xdamm_kmcp,0,comm_world)
   call ccmpi_bcastr8(xdamm_ea,0,comm_world)
   call ccmpi_bcastr8(xdamm_alpha,0,comm_world)
-  if ( mp_global>0 ) then
-    casabiome%ivt2 = ivt2
-    casabiome%kroot = kroot
-    casabiome%rootdepth = rootdepth
-    casabiome%kuptake = kuptake
-    casabiome%krootlen = krootlen
-    casabiome%kminn = kminn
-    casabiome%kuplabp = kuplabp
-    casabiome%fracnpptop = fracnpptop
-    casabiome%rmplant = rmplant
-    casabiome%ftransnptol = ftransnptol
-    casabiome%fracligninplant = fracligninplant
-    casabiome%glaimax = glaimax
-    casabiome%glaimin = glaimin
-    phen%tkshed = tkshed
-    casabiome%xkleafcoldexp = xkleafcoldexp
-    casabiome%xkleafdryexp = xkleafdryexp
-    casabiome%rationcplantmin = rationcplantmin
-    casabiome%rationcplantmax = rationcplantmax
-    casabiome%ftranspptol = ftranspptol
-  end if
+  
+  do tile = 1,ntiles
+    if ( tdata(tile)%mp>0 ) then
+      casabiome(tile)%ivt2 = ivt2
+      casabiome(tile)%kroot = kroot
+      casabiome(tile)%rootdepth = rootdepth
+      casabiome(tile)%kuptake = kuptake
+      casabiome(tile)%krootlen = krootlen
+      casabiome(tile)%kminn = kminn
+      casabiome(tile)%kuplabp = kuplabp
+      casabiome(tile)%fracnpptop = fracnpptop
+      casabiome(tile)%rmplant = rmplant
+      casabiome(tile)%ftransnptol = ftransnptol
+      casabiome(tile)%fracligninplant = fracligninplant
+      casabiome(tile)%glaimax = glaimax
+      casabiome(tile)%glaimin = glaimin
+      phen(tile)%tkshed = tkshed
+      casabiome(tile)%xkleafcoldexp = xkleafcoldexp
+      casabiome(tile)%xkleafdryexp = xkleafdryexp
+      casabiome(tile)%rationcplantmin = rationcplantmin
+      casabiome(tile)%rationcplantmax = rationcplantmax
+      casabiome(tile)%ftranspptol = ftranspptol
+    end if
+  end do  
 else
   if ( myid == 0 ) then
     write(6,*) "Using default CASA PFT parameter tables"
@@ -1573,235 +1595,245 @@ else
                   2.7123327E-05_8, 2.1095921E-05_8 /)
     xxkpocc = 2.73973E-05_8
 
-    casabiome%ivt2     =(/        3,        3,        3,        3,        2,        1,   1,   2, &
-                                  1,        1,        0,        0,        0,        1,   0,   0, &
-                                  0 /)
-    casabiome%kroot    =(/      5.5_8,      3.9_8,      5.5_8,      3.9_8,      2.0_8,      5.5_8, 5.5_8, 5.5_8, &
-                                5.5_8,      5.5_8,      5.5_8,      5.5_8,      5.5_8,      2.0_8, 2.0_8, 5.5_8, &
-                                5.5_8 /)
-    casabiome%rootdepth=(/      1.5_8,      1.5_8,      1.5_8,      1.5_8,      0.5_8,      0.5_8, 0.5_8, 0.5_8, &
-                                0.5_8,      0.5_8,      0.5_8,      0.5_8,      0.5_8,      0.5_8, 0.5_8, 1.5_8, &
-                                0.5_8 /)
-    casabiome%kuptake  =(/      2.0_8,      1.9_8,      2.0_8,      2.0_8,      1.8_8,      2.0_8, 2.0_8, 2.0_8, &
-                                1.6_8,      1.6_8,      1.6_8,      1.8_8,      1.8_8,      1.8_8, 1.8_8, 1.8_8, &
-                                1.8_8 /)
-    casabiome%krootlen =(/ 14.87805_8, 14.38596_8, 14.02597_8, 18.94737_8, 32.30769_8,      84._8, 84._8, 84._8, &
-                              120.5_8,    120.5_8,       0._8,       0._8,       0._8, 30.76923_8,  0._8,  0._8, &
-                                 0._8 /)
-    casabiome%kminN=2.0_8
-    casabiome%kuplabP=0.5_8
-    casabiome%fracnpptoP(:,leaf) =(/ 0.25_8, 0.20_8, 0.40_8, 0.35_8, 0.35_8, 0.35_8, 0.35_8, 0.50_8, 0.50_8, &
-                                     0.50_8, 0.50_8, 0.50_8, 0.50_8, 0.25_8, 0.50_8, 0.60_8, 0.50_8 /)
-    casabiome%fracnpptoP(:,wood) =(/ 0.40_8, 0.35_8, 0.30_8, 0.25_8, 0.25_8, 0.00_8, 0.00_8, 0.10_8, 0.00_8, &
-                                     0.00_8, 0.00_8, 0.00_8, 0.00_8, 0.25_8, 0.00_8, 0.40_8, 0.00_8 /)
-    casabiome%fracnpptoP(:,xroot)=(/ 0.35_8, 0.45_8, 0.30_8, 0.40_8, 0.40_8, 0.65_8, 0.65_8, 0.40_8, 0.50_8, &
-                                     0.50_8, 0.50_8, 0.50_8, 0.50_8, 0.50_8, 0.50_8, 0.00_8, 0.50_8 /)
-    casabiome%rmplant(:,leaf)    =0.1_8
-    casabiome%rmplant(:,wood)    =(/ 2.0_8, 1.0_8, 1.5_8, 0.8_8, 0.5_8, 0.5_8, 0.4_8, 1.8_8, 2.0_8, 1.0_8, &
-                                     1.0_8, 1.0_8, 1.0_8, 2.0_8, 1.0_8, 1.0_8, 1.0_8 /)
-    casabiome%rmplant(:,xroot)   =(/ 10._8, 2.0_8, 7.5_8, 2.5_8, 4.5_8, 4.5_8, 4.0_8, 15._8, 25._8, 10._8, &
-                                     10._8, 10._8, 10._8, 10._8, 10._8, 10._8, 10._8 /)
-    casabiome%ftransNPtoL(:,leaf) =0.5_8
-    casabiome%ftransNPtoL(:,wood) =0.95_8
-    casabiome%ftransNPtoL(:,xroot)=0.9_8
-    casabiome%fracligninplant(:,leaf) =(/ 0.25_8, 0.20_8, 0.20_8, 0.20_8, 0.20_8, 0.10_8, 0.10_8, 0.10_8, &
-                                          0.10_8, 0.10_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.25_8, &
-                                          0.10_8 /)
-    casabiome%fracligninplant(:,wood) =0.4_8
-    casabiome%fracligninplant(:,xroot)=(/ 0.25_8, 0.20_8, 0.20_8, 0.20_8, 0.20_8, 0.10_8, 0.10_8, 0.10_8, &
-                                          0.10_8, 0.10_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.25_8, &
-                                          0.10_8 /)
-    casabiome%glaimax=(/ 10._8, 10._8, 10._8, 10._8, 10._8, 3._8, 3._8, 3._8, 6._8, 6._8,  5._8, 5._8, &
-                          5._8, 1._8,  6._8,   1._8,  0._8 /)
-    casabiome%glaimin=(/ 1._8,  1._8, .5_8,  .5_8, .1_8, .1_8, .1_8, .1_8, .1_8, .1_8, .05_8, .05_8, &
-                        .05_8, .05_8, 0._8, .05_8, 0._8 /)
-    phen%TKshed=(/ 268._8,   260._8, 263.15_8, 268.15_8, 277.15_8, 275.15_8, 275.15_8, 275.15_8, 278.15_8, &
-                 278.15_8, 277.15_8, 277.15_8, 277.15_8, 277.15_8, 277.15_8, 277.15_8, 283.15_8 /)
-    casabiome%xkleafcoldexp=3._8
-    casabiome%xkleafdryexp=3._8
-    casabiome%ratioNCplantmin(:,leaf) =(/     0.02_8,     0.04_8, 0.016667_8, 0.028571_8,    0.025_8,  0.02631_8, &
-                                              0.02_8,     0.02_8,     0.04_8,     0.04_8, 0.033333_8,    0.025_8, &
-                                             0.025_8, 0.018182_8,    0.025_8,    0.025_8,    0.025_8 /)
-    casabiome%ratioNCplantmax(:,leaf) =(/    0.024_8,    0.048_8,     0.02_8, 0.034286_8,     0.03_8, 0.031572_8, &
-                                             0.024_8,    0.024_8,    0.048_8,    0.048_8,     0.04_8,     0.03_8, &
-                                              0.03_8, 0.022222_8,     0.03_8,     0.03_8,     0.03_8 /)
-    casabiome%ratioNCplantmin(:,wood) =(/    0.004_8, 0.006667_8,    0.004_8, 0.005714_8, 0.006667_8, 0.006667_8, &
-                                          0.006667_8, 0.006667_8,    0.008_8,    0.008_8, 0.006667_8, 0.006667_8, &
-                                          0.006667_8, 0.006667_8, 0.006667_8, 0.007307_8, 0.006667_8 /)
-    casabiome%ratioNCplantmax(:,wood) =(/   0.0048_8,    0.008_8,   0.0048_8, 0.006857_8,    0.008_8,    0.008_8, &
-                                             0.008_8,    0.008_8,   0.0096_8,   0.0096_8,    0.008_8,    0.008_8, &
-                                             0.008_8,    0.008_8,    0.008_8, 0.008889_8,    0.008_8 /)
-    casabiome%ratioNCplantmin(:,xroot)=(/ 0.012821_8, 0.014706_8, 0.012821_8, 0.014085_8, 0.014085_8, 0.014085_8, &
-                                          0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8, &
-                                          0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8 /)
-    casabiome%ratioNCplantmax(:,xroot)=(/ 0.015385_8, 0.017647_8, 0.015385_8, 0.016901_8, 0.016901_8, 0.016901_8, &
-                                          0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8, &
-                                          0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8 /)
-    casabiome%ftransPPtoL(:,leaf)=0.5_8
-    casabiome%ftransPPtoL(:,wood)=0.95_8
-    casabiome%ftransPPtoL(:,xroot)=0.9_8
+    do tile = 1,ntiles
+      if ( tdata(tile)%mp>0 ) then
+        casabiome(tile)%ivt2     =(/        3,        3,        3,        3,        2,        1,   1,   2, &
+                                            1,        1,        0,        0,        0,        1,   0,   0, &
+                                            0 /)
+        casabiome(tile)%kroot    =(/      5.5_8,      3.9_8,      5.5_8,      3.9_8,      2.0_8,      5.5_8, 5.5_8, 5.5_8, &
+                                          5.5_8,      5.5_8,      5.5_8,      5.5_8,      5.5_8,      2.0_8, 2.0_8, 5.5_8, &
+                                          5.5_8 /)
+        casabiome(tile)%rootdepth=(/      1.5_8,      1.5_8,      1.5_8,      1.5_8,      0.5_8,      0.5_8, 0.5_8, 0.5_8, &
+                                          0.5_8,      0.5_8,      0.5_8,      0.5_8,      0.5_8,      0.5_8, 0.5_8, 1.5_8, &
+                                          0.5_8 /)
+        casabiome(tile)%kuptake  =(/      2.0_8,      1.9_8,      2.0_8,      2.0_8,      1.8_8,      2.0_8, 2.0_8, 2.0_8, &
+                                          1.6_8,      1.6_8,      1.6_8,      1.8_8,      1.8_8,      1.8_8, 1.8_8, 1.8_8, &
+                                          1.8_8 /)
+        casabiome(tile)%krootlen =(/ 14.87805_8, 14.38596_8, 14.02597_8, 18.94737_8, 32.30769_8,      84._8, 84._8, 84._8, &
+                                        120.5_8,    120.5_8,       0._8,       0._8,       0._8, 30.76923_8,  0._8,  0._8, &
+                                           0._8 /)
+        casabiome(tile)%kminN=2.0_8
+        casabiome(tile)%kuplabP=0.5_8
+        casabiome(tile)%fracnpptoP(:,leaf) =(/ 0.25_8, 0.20_8, 0.40_8, 0.35_8, 0.35_8, 0.35_8, 0.35_8, 0.50_8, 0.50_8, &
+                                               0.50_8, 0.50_8, 0.50_8, 0.50_8, 0.25_8, 0.50_8, 0.60_8, 0.50_8 /)
+        casabiome(tile)%fracnpptoP(:,wood) =(/ 0.40_8, 0.35_8, 0.30_8, 0.25_8, 0.25_8, 0.00_8, 0.00_8, 0.10_8, 0.00_8, &
+                                               0.00_8, 0.00_8, 0.00_8, 0.00_8, 0.25_8, 0.00_8, 0.40_8, 0.00_8 /)
+        casabiome(tile)%fracnpptoP(:,xroot)=(/ 0.35_8, 0.45_8, 0.30_8, 0.40_8, 0.40_8, 0.65_8, 0.65_8, 0.40_8, 0.50_8, &
+                                               0.50_8, 0.50_8, 0.50_8, 0.50_8, 0.50_8, 0.50_8, 0.00_8, 0.50_8 /)
+        casabiome(tile)%rmplant(:,leaf)    =0.1_8
+        casabiome(tile)%rmplant(:,wood)    =(/ 2.0_8, 1.0_8, 1.5_8, 0.8_8, 0.5_8, 0.5_8, 0.4_8, 1.8_8, 2.0_8, 1.0_8, &
+                                               1.0_8, 1.0_8, 1.0_8, 2.0_8, 1.0_8, 1.0_8, 1.0_8 /)
+        casabiome(tile)%rmplant(:,xroot)   =(/ 10._8, 2.0_8, 7.5_8, 2.5_8, 4.5_8, 4.5_8, 4.0_8, 15._8, 25._8, 10._8, &
+                                               10._8, 10._8, 10._8, 10._8, 10._8, 10._8, 10._8 /)
+        casabiome(tile)%ftransNPtoL(:,leaf) =0.5_8
+        casabiome(tile)%ftransNPtoL(:,wood) =0.95_8
+        casabiome(tile)%ftransNPtoL(:,xroot)=0.9_8
+        casabiome(tile)%fracligninplant(:,leaf) =(/ 0.25_8, 0.20_8, 0.20_8, 0.20_8, 0.20_8, 0.10_8, 0.10_8, 0.10_8, &
+                                                    0.10_8, 0.10_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.25_8, &
+                                                    0.10_8 /)
+        casabiome(tile)%fracligninplant(:,wood) =0.4_8
+        casabiome(tile)%fracligninplant(:,xroot)=(/ 0.25_8, 0.20_8, 0.20_8, 0.20_8, 0.20_8, 0.10_8, 0.10_8, 0.10_8, &
+                                                    0.10_8, 0.10_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.15_8, 0.25_8, &
+                                                    0.10_8 /)
+        casabiome(tile)%glaimax=(/ 10._8, 10._8, 10._8, 10._8, 10._8, 3._8, 3._8, 3._8, 6._8, 6._8,  5._8, 5._8, &
+                                    5._8, 1._8,  6._8,   1._8,  0._8 /)
+        casabiome(tile)%glaimin=(/ 1._8,  1._8, .5_8,  .5_8, .1_8, .1_8, .1_8, .1_8, .1_8, .1_8, .05_8, .05_8, &
+                                  .05_8, .05_8, 0._8, .05_8, 0._8 /)
+        phen(tile)%TKshed=(/ 268._8,   260._8, 263.15_8, 268.15_8, 277.15_8, 275.15_8, 275.15_8, 275.15_8, 278.15_8, &
+                           278.15_8, 277.15_8, 277.15_8, 277.15_8, 277.15_8, 277.15_8, 277.15_8, 283.15_8 /)
+        casabiome(tile)%xkleafcoldexp=3._8
+        casabiome(tile)%xkleafdryexp=3._8
+        casabiome(tile)%ratioNCplantmin(:,leaf) =(/     0.02_8,     0.04_8, 0.016667_8, 0.028571_8,    0.025_8,  0.02631_8, &
+                                                        0.02_8,     0.02_8,     0.04_8,     0.04_8, 0.033333_8,    0.025_8, &
+                                                       0.025_8, 0.018182_8,    0.025_8,    0.025_8,    0.025_8 /)
+        casabiome(tile)%ratioNCplantmax(:,leaf) =(/    0.024_8,    0.048_8,     0.02_8, 0.034286_8,     0.03_8, 0.031572_8, &
+                                                       0.024_8,    0.024_8,    0.048_8,    0.048_8,     0.04_8,     0.03_8, &
+                                                        0.03_8, 0.022222_8,     0.03_8,     0.03_8,     0.03_8 /)
+        casabiome(tile)%ratioNCplantmin(:,wood) =(/    0.004_8, 0.006667_8,    0.004_8, 0.005714_8, 0.006667_8, 0.006667_8, &
+                                                    0.006667_8, 0.006667_8,    0.008_8,    0.008_8, 0.006667_8, 0.006667_8, &
+                                                    0.006667_8, 0.006667_8, 0.006667_8, 0.007307_8, 0.006667_8 /)
+        casabiome(tile)%ratioNCplantmax(:,wood) =(/   0.0048_8,    0.008_8,   0.0048_8, 0.006857_8,    0.008_8,    0.008_8, &
+                                                       0.008_8,    0.008_8,   0.0096_8,   0.0096_8,    0.008_8,    0.008_8, &
+                                                       0.008_8,    0.008_8,    0.008_8, 0.008889_8,    0.008_8 /)
+        casabiome(tile)%ratioNCplantmin(:,xroot)=(/ 0.012821_8, 0.014706_8, 0.012821_8, 0.014085_8, 0.014085_8, 0.014085_8, &
+                                                    0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8, &
+                                                    0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8, 0.014085_8 /)
+        casabiome(tile)%ratioNCplantmax(:,xroot)=(/ 0.015385_8, 0.017647_8, 0.015385_8, 0.016901_8, 0.016901_8, 0.016901_8, &
+                                                    0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8, &
+                                                    0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8, 0.016901_8 /)
+        casabiome(tile)%ftransPPtoL(:,leaf)=0.5_8
+        casabiome(tile)%ftransPPtoL(:,wood)=0.95_8
+        casabiome(tile)%ftransPPtoL(:,xroot)=0.9_8
+       
+      end if 
+    end do   
 
   end if
 
 end if
-    
-if ( mp_global>0 ) then
-  casabiome%ratioPcplantmin(:,leaf)  = 1._8/(xratioNPleafmax*ratioCNplant(:,leaf))
-  casabiome%ratioPcplantmax(:,leaf)  = 1._8/(xratioNPleafmin*ratioCNplant(:,leaf))
-  casabiome%ratioPcplantmin(:,wood)  = 1._8/(xratioNPwoodmax*ratioCNplant(:,wood))
-  casabiome%ratioPcplantmax(:,wood)  = 1._8/(xratioNPwoodmin*ratioCNplant(:,wood))
-  casabiome%ratioPcplantmin(:,xroot) = 1._8/(xratioNPfrootmax*ratioCNplant(:,xroot))
-  casabiome%ratioPcplantmax(:,xroot) = 1._8/(xratioNPfrootmin*ratioCNplant(:,xroot))
 
-  casabiome%ratioNPplantmin(:,leaf)  = xratioNPleafmin
-  casabiome%ratioNPplantmax(:,leaf)  = xratioNPleafmax
-  casabiome%ratioNPplantmin(:,wood)  = xratioNPwoodmin
-  casabiome%ratioNPplantmax(:,wood)  = xratioNPwoodmax
-  casabiome%ratioNPplantmin(:,xroot) = xratioNPfrootmin
-  casabiome%ratioNPplantmax(:,xroot) = xratioNPfrootmax    
+do tile = 1,ntiles
+  if ( tdata(tile)%mp>0 ) then
+    casabiome(tile)%ratioPcplantmin(:,leaf)  = 1._8/(xratioNPleafmax*ratioCNplant(:,leaf))
+    casabiome(tile)%ratioPcplantmax(:,leaf)  = 1._8/(xratioNPleafmin*ratioCNplant(:,leaf))
+    casabiome(tile)%ratioPcplantmin(:,wood)  = 1._8/(xratioNPwoodmax*ratioCNplant(:,wood))
+    casabiome(tile)%ratioPcplantmax(:,wood)  = 1._8/(xratioNPwoodmin*ratioCNplant(:,wood))
+    casabiome(tile)%ratioPcplantmin(:,xroot) = 1._8/(xratioNPfrootmax*ratioCNplant(:,xroot))
+    casabiome(tile)%ratioPcplantmax(:,xroot) = 1._8/(xratioNPfrootmin*ratioCNplant(:,xroot))
 
-  casabiome%sla                = slax
-  casabiome%fraclabile(:,leaf) = deltcasa*0.6_8    !1/day
-  casabiome%fraclabile(:,xroot)= deltcasa*0.4_8    !1/day
-  casabiome%fraclabile(:,wood) = 0._8
-  casabiome%plantrate(:,leaf)  = deltcasa/(leafage*(1._8-xfherbivore))
-  casabiome%plantrate(:,xroot) = deltcasa/frootage
-  casabiome%plantrate(:,wood)  = deltcasa/woodage
-  casabiome%litterrate(:,metb) = deltcasa/metage
-  casabiome%litterrate(:,str)  = deltcasa/strage
-  casabiome%litterrate(:,cwd)  = deltcasa/cwdage
-  casabiome%soilrate(:,mic)    = deltcasa/micage
-  casabiome%soilrate(:,slow)   = deltcasa/slowage
-  casabiome%soilrate(:,pass)   = deltcasa/passage
-  casabiome%xkleafcoldmax      = deltcasa*xxkleafcoldmax
-  casabiome%xkleafdrymax       = deltcasa*xxkleafdrymax
-  casabiome%rmplant            = deltcasa*casabiome%rmplant
-  casabiome%kclabrate          = deltcasa/clabileage
+    casabiome(tile)%ratioNPplantmin(:,leaf)  = xratioNPleafmin
+    casabiome(tile)%ratioNPplantmax(:,leaf)  = xratioNPleafmax
+    casabiome(tile)%ratioNPplantmin(:,wood)  = xratioNPwoodmin
+    casabiome(tile)%ratioNPplantmax(:,wood)  = xratioNPwoodmax
+    casabiome(tile)%ratioNPplantmin(:,xroot) = xratioNPfrootmin
+    casabiome(tile)%ratioNPplantmax(:,xroot) = xratioNPfrootmax    
 
-  casabiome%xnpmax(:)          = xxnpmax(:)
-  casabiome%q10soil(:)         = xq10soil(:)
-  casabiome%xkoptlitter(:)     = xxkoptlitter(:)
-  casabiome%xkoptsoil(:)       = xxkoptsoil(:)
-  casabiome%prodptase(:)       = xprodptase(:)/365._8   ! convert from yearly to daily
-  casabiome%costnpup(:)        = xcostnpup(:)
-  casabiome%maxfinelitter(:)   = xmaxfinelitter(:)
-  casabiome%maxcwd(:)          = xmaxcwd(:)
-  casabiome%nintercept(:)      = xnintercept(:)
-  casabiome%nslope(:)          = xnslope(:)    
+    casabiome(tile)%sla                = slax
+    casabiome(tile)%fraclabile(:,leaf) = deltcasa*0.6_8    !1/day
+    casabiome(tile)%fraclabile(:,xroot)= deltcasa*0.4_8    !1/day
+    casabiome(tile)%fraclabile(:,wood) = 0._8
+    casabiome(tile)%plantrate(:,leaf)  = deltcasa/(leafage*(1._8-xfherbivore))
+    casabiome(tile)%plantrate(:,xroot) = deltcasa/frootage
+    casabiome(tile)%plantrate(:,wood)  = deltcasa/woodage
+    casabiome(tile)%litterrate(:,metb) = deltcasa/metage
+    casabiome(tile)%litterrate(:,str)  = deltcasa/strage
+    casabiome(tile)%litterrate(:,cwd)  = deltcasa/cwdage
+    casabiome(tile)%soilrate(:,mic)    = deltcasa/micage
+    casabiome(tile)%soilrate(:,slow)   = deltcasa/slowage
+    casabiome(tile)%soilrate(:,pass)   = deltcasa/passage
+    casabiome(tile)%xkleafcoldmax      = deltcasa*xxkleafcoldmax
+    casabiome(tile)%xkleafdrymax       = deltcasa*xxkleafdrymax
+    casabiome(tile)%rmplant            = deltcasa*casabiome(tile)%rmplant
+    casabiome(tile)%kclabrate          = deltcasa/clabileage
 
-  !casabiome%la_to_sa(:)             = xla_to_sa(:)
-  !casabiome%vcmax_scalar(:)         = xvcmax_scalar(:)
-  !casabiome%disturbance_interval(:) = xdisturbance_interval(:)
-  !casabiome%DAMM_EnzPool(:)         = xDAMM_EnzPool(:)p
-  !casabiome%DAMM_KMO2(:)            = xDAMM_KMO2(:)
-  !casabiome%DAMM_KMcp(:)            = xDAMM_KMcp(:)
-  !casabiome%DAMM_Ea(:)              = xDAMM_Ea(:)
-  !casabiome%DAMM_alpha(:)           = xDAMM_alpha(:)
+    casabiome(tile)%xnpmax(:)          = xxnpmax(:)
+    casabiome(tile)%q10soil(:)         = xq10soil(:)
+    casabiome(tile)%xkoptlitter(:)     = xxkoptlitter(:)
+    casabiome(tile)%xkoptsoil(:)       = xxkoptsoil(:)
+    casabiome(tile)%prodptase(:)       = xprodptase(:)/365._8   ! convert from yearly to daily
+    casabiome(tile)%costnpup(:)        = xcostnpup(:)
+    casabiome(tile)%maxfinelitter(:)   = xmaxfinelitter(:)
+    casabiome(tile)%maxcwd(:)          = xmaxcwd(:)
+    casabiome(tile)%nintercept(:)      = xnintercept(:)
+    casabiome(tile)%nslope(:)          = xnslope(:)    
 
-  casabiome%xkplab = xxkplab
-  casabiome%xkpsorb = xxkpsorb
-  casabiome%xkpocc = xxkpocc
+    !casabiome(tile)%la_to_sa(:)             = xla_to_sa(:)
+    !casabiome(tile)%vcmax_scalar(:)         = xvcmax_scalar(:)
+    !casabiome(tile)%disturbance_interval(:) = xdisturbance_interval(:)
+    !casabiome(tile)%DAMM_EnzPool(:)         = xDAMM_EnzPool(:)p
+    !casabiome(tile)%DAMM_KMO2(:)            = xDAMM_KMO2(:)
+    !casabiome(tile)%DAMM_KMcp(:)            = xDAMM_KMcp(:)
+    !casabiome(tile)%DAMM_Ea(:)              = xDAMM_Ea(:)
+    !casabiome(tile)%DAMM_alpha(:)           = xDAMM_alpha(:)
 
-  casamet%iveg2 = casabiome%ivt2(veg%iveg)
-  where (casamet%iveg2==forest.or.casamet%iveg2==shrub)
-    casamet%lnonwood = 0
-    casapool%cplant(:,wood)  = cwood(veg%iveg) 
-    casapool%clitter(:,cwd)  = ccwd(veg%iveg)
-    casapool%nplant(:,wood)  = nwood(veg%iveg) 
-    casapool%nlitter(:,cwd)  = ncwd(veg%iveg)
-    casapool%pplant(:,wood)  = xpwood(veg%iveg)
-    casapool%plitter(:,cwd)  = xpcwd(veg%iveg)
-  elsewhere
-    casamet%lnonwood = 1
-    casapool%cplant(:,wood)  = 0._8
-    casapool%clitter(:,cwd)  = 0._8
-    casapool%nplant(:,wood)  = 0._8
-    casapool%nlitter(:,cwd)  = 0._8
-    casapool%pplant(:,wood)  = 0._8
-    casapool%plitter(:,cwd)  = 0._8
-  end where
-  if ( cable_pop==1 ) then
-   where (casamet%iveg2==forest.or.casamet%iveg2==shrub)
-      casapool%cplant(:,wood)  = 0.01_8
-      casapool%nplant(:,wood)  = casabiome%ratioNCplantmin(veg%iveg,wood)*casapool%cplant(:,wood)
-      casapool%pplant(:,wood)  = casabiome%ratioPCplantmin(veg%iveg,wood)* casapool%cplant(:,wood)
+    casabiome(tile)%xkplab = xxkplab
+    casabiome(tile)%xkpsorb = xxkpsorb
+    casabiome(tile)%xkpocc = xxkpocc
+
+    casamet(tile)%iveg2 = casabiome(tile)%ivt2(veg(tile)%iveg)
+    where (casamet(tile)%iveg2==forest.or.casamet(tile)%iveg2==shrub)
+      casamet(tile)%lnonwood = 0
+      casapool(tile)%cplant(:,wood)  = cwood(veg(tile)%iveg) 
+      casapool(tile)%clitter(:,cwd)  = ccwd(veg(tile)%iveg)
+      casapool(tile)%nplant(:,wood)  = nwood(veg(tile)%iveg) 
+      casapool(tile)%nlitter(:,cwd)  = ncwd(veg(tile)%iveg)
+      casapool(tile)%pplant(:,wood)  = xpwood(veg(tile)%iveg)
+      casapool(tile)%plitter(:,cwd)  = xpcwd(veg(tile)%iveg)
+    elsewhere
+      casamet(tile)%lnonwood = 1
+      casapool(tile)%cplant(:,wood)  = 0._8
+      casapool(tile)%clitter(:,cwd)  = 0._8
+      casapool(tile)%nplant(:,wood)  = 0._8
+      casapool(tile)%nlitter(:,cwd)  = 0._8
+      casapool(tile)%pplant(:,wood)  = 0._8
+      casapool(tile)%plitter(:,cwd)  = 0._8
     end where
-  end if
-  casapool%cplant(:,leaf)     = cleaf(veg%iveg)
-  casapool%cplant(:,xroot)    = cfroot(veg%iveg)
-  casapool%clabile            = 0._8
-  casapool%clitter(:,metb)    = cmet(veg%iveg)
-  casapool%clitter(:,str)     = cstr(veg%iveg)
-  casapool%csoil(:,mic)       = cmic(veg%iveg)
-  casapool%csoil(:,slow)      = cslow(veg%iveg)
-  casapool%csoil(:,pass)      = cpass(veg%iveg)
-  if ( ccycle==1 ) then
-    casapool%ratioNCplant     = 1._8/ratioCNplant(veg%iveg,:)  
-  end if
-  casapool%dclabiledt         = 0._8
+    if ( cable_pop==1 ) then
+      where (casamet(tile)%iveg2==forest.or.casamet(tile)%iveg2==shrub)
+        casapool(tile)%cplant(:,wood)  = 0.01_8
+        casapool(tile)%nplant(:,wood)  = casabiome(tile)%ratioNCplantmin(veg(tile)%iveg,wood)*casapool(tile)%cplant(:,wood)
+        casapool(tile)%pplant(:,wood)  = casabiome(tile)%ratioPCplantmin(veg(tile)%iveg,wood)*casapool(tile)%cplant(:,wood)
+      end where
+    end if
+    casapool(tile)%cplant(:,leaf)     = cleaf(veg(tile)%iveg)
+    casapool(tile)%cplant(:,xroot)    = cfroot(veg(tile)%iveg)
+    casapool(tile)%clabile            = 0._8
+    casapool(tile)%clitter(:,metb)    = cmet(veg(tile)%iveg)
+    casapool(tile)%clitter(:,str)     = cstr(veg(tile)%iveg)
+    casapool(tile)%csoil(:,mic)       = cmic(veg(tile)%iveg)
+    casapool(tile)%csoil(:,slow)      = cslow(veg(tile)%iveg)
+    casapool(tile)%csoil(:,pass)      = cpass(veg(tile)%iveg)
+    if ( ccycle==1 ) then
+      casapool(tile)%ratioNCplant     = 1._8/ratioCNplant(veg(tile)%iveg,:)  
+    end if
+    casapool(tile)%dclabiledt         = 0._8
 
-  ! initializing glai in case not reading pool file (eg. during spin)
-  casamet%glai = max(casabiome%glaimin(veg%iveg), casabiome%sla(veg%iveg)*casapool%cplant(:,leaf))
-  casaflux%fNminloss   = xfNminloss(veg%iveg)
-  casaflux%fNminleach  = 10._8*xfNminleach(veg%iveg)*deltcasa
-  casapool%nplant(:,leaf) = nleaf(veg%iveg)
-  casapool%nplant(:,xroot)= nfroot(veg%iveg)
-  casapool%nlitter(:,metb)= nmet(veg%iveg)
-  casapool%nlitter(:,str) = cstr(veg%iveg)*ratioNCstrfix
-  casapool%nsoil(:,mic)   = nmic(veg%iveg)
-  casapool%nsoil(:,slow)  = nslow(veg%iveg)
-  casapool%nsoil(:,pass)  = npass(veg%iveg) 
-  casapool%nsoilmin       = xnsoilmin(veg%iveg) 
-  casapool%pplant(:,leaf) = xpleaf(veg%iveg)
-  casapool%pplant(:,xroot)= xpfroot(veg%iveg) 
-  casapool%plitter(:,metb)= xpmet(veg%iveg)
-  casapool%plitter(:,str) = casapool%nlitter(:,str)/ratioNPstrfix
-  casapool%psoil(:,mic)   = xpmic(veg%iveg)
-  casapool%psoil(:,slow)  = xpslow(veg%iveg)
-  casapool%psoil(:,pass)  = xppass(veg%iveg)
-  casapool%psoillab       = xplab(veg%iveg)
-  casapool%psoilsorb      = xpsorb(veg%iveg)
-  casapool%psoilocc       = xpocc(veg%iveg)
-  casaflux%kmlabp         = xkmlabp(casamet%isorder)
-  casaflux%psorbmax       = xpsorbmax(casamet%isorder)
-  casaflux%fpleach        = xfPleach(casamet%isorder)/365._8
+    ! initializing glai in case not reading pool file (eg. during spin)
+    casamet(tile)%glai = max(casabiome(tile)%glaimin(veg(tile)%iveg), &
+        casabiome(tile)%sla(veg(tile)%iveg)*casapool(tile)%cplant(:,leaf))
+    casaflux(tile)%fNminloss   = xfNminloss(veg(tile)%iveg)
+    casaflux(tile)%fNminleach  = 10._8*xfNminleach(veg(tile)%iveg)*deltcasa
+    casapool(tile)%nplant(:,leaf) = nleaf(veg(tile)%iveg)
+    casapool(tile)%nplant(:,xroot)= nfroot(veg(tile)%iveg)
+    casapool(tile)%nlitter(:,metb)= nmet(veg(tile)%iveg)
+    casapool(tile)%nlitter(:,str) = cstr(veg(tile)%iveg)*ratioNCstrfix
+    casapool(tile)%nsoil(:,mic)   = nmic(veg(tile)%iveg)
+    casapool(tile)%nsoil(:,slow)  = nslow(veg(tile)%iveg)
+    casapool(tile)%nsoil(:,pass)  = npass(veg(tile)%iveg) 
+    casapool(tile)%nsoilmin       = xnsoilmin(veg(tile)%iveg) 
+    casapool(tile)%pplant(:,leaf) = xpleaf(veg(tile)%iveg)
+    casapool(tile)%pplant(:,xroot)= xpfroot(veg(tile)%iveg) 
+    casapool(tile)%plitter(:,metb)= xpmet(veg(tile)%iveg)
+    casapool(tile)%plitter(:,str) = casapool(tile)%nlitter(:,str)/ratioNPstrfix
+    casapool(tile)%psoil(:,mic)   = xpmic(veg(tile)%iveg)
+    casapool(tile)%psoil(:,slow)  = xpslow(veg(tile)%iveg)
+    casapool(tile)%psoil(:,pass)  = xppass(veg(tile)%iveg)
+    casapool(tile)%psoillab       = xplab(veg(tile)%iveg)
+    casapool(tile)%psoilsorb      = xpsorb(veg(tile)%iveg)
+    casapool(tile)%psoilocc       = xpocc(veg(tile)%iveg)
+    casaflux(tile)%kmlabp         = xkmlabp(casamet(tile)%isorder)
+    casaflux(tile)%psorbmax       = xpsorbmax(casamet(tile)%isorder)
+    casaflux(tile)%fpleach        = xfPleach(casamet(tile)%isorder)/365._8
 
-  casapool%ratioNCplant   = 1._8/ratioCNplant(veg%iveg,:)
-  casapool%ratioNPplant   = casabiome%ratioNPplantmin(veg%iveg,:)
-  casapool%ratioNClitter  = casapool%nlitter/(casapool%clitter+1.0e-10_8)
-  casapool%ratioNPlitter  = casapool%nlitter/(casapool%plitter+1.0e-10_8)
-  casapool%ratioNCsoil    = 1._8/ratioCNsoil(veg%iveg,:)
-  casapool%ratioNPsoil    = ratioNPsoil(casamet%isorder,:)
-  casapool%ratioNCsoilmin = 1._8/ratioCNsoilmax(veg%iveg,:)
-  casapool%ratioNCsoilmax = 1._8/ratioCNsoilmin(veg%iveg,:)
-  casapool%ratioNCsoilnew = casapool%ratioNCsoilmax
+    casapool(tile)%ratioNCplant   = 1._8/ratioCNplant(veg(tile)%iveg,:)
+    casapool(tile)%ratioNPplant   = casabiome(tile)%ratioNPplantmin(veg(tile)%iveg,:)
+    casapool(tile)%ratioNClitter  = casapool(tile)%nlitter/(casapool(tile)%clitter+1.0e-10_8)
+    casapool(tile)%ratioNPlitter  = casapool(tile)%nlitter/(casapool(tile)%plitter+1.0e-10_8)
+    casapool(tile)%ratioNCsoil    = 1._8/ratioCNsoil(veg(tile)%iveg,:)
+    casapool(tile)%ratioNPsoil    = ratioNPsoil(casamet(tile)%isorder,:)
+    casapool(tile)%ratioNCsoilmin = 1._8/ratioCNsoilmax(veg(tile)%iveg,:)
+    casapool(tile)%ratioNCsoilmax = 1._8/ratioCNsoilmin(veg(tile)%iveg,:)
+    casapool(tile)%ratioNCsoilnew = casapool(tile)%ratioNCsoilmax
 
-  casapool%ratioPCplant   = casabiome%ratioPcplantmax(veg%iveg,:)
-  casapool%ratioPClitter  = casapool%plitter/(casapool%clitter(:,:)+1.0e-10_8)
-  casapool%ratioPCsoil    = 1._8/(ratioCNsoil(veg%iveg,:)*ratioNPsoil(casamet%isorder,:))
+    casapool(tile)%ratioPCplant   = casabiome(tile)%ratioPcplantmax(veg(tile)%iveg,:)
+    casapool(tile)%ratioPClitter  = casapool(tile)%plitter/(casapool(tile)%clitter(:,:)+1.0e-10_8)
+    casapool(tile)%ratioPCsoil    = 1._8/(ratioCNsoil(veg(tile)%iveg,:)*ratioNPsoil(casamet(tile)%isorder,:))
 
-  if ( ccycle<2 ) then
-    casapool%Nplant         = casapool%Cplant*casapool%ratioNCplant
-    casapool%Nsoil          = casapool%ratioNCsoil*casapool%Csoil
+    if ( ccycle<2 ) then
+      casapool(tile)%Nplant         = casapool(tile)%Cplant*casapool(tile)%ratioNCplant
+      casapool(tile)%Nsoil          = casapool(tile)%ratioNCsoil*casapool(tile)%Csoil
+    end if
+    if ( ccycle<3 ) then
+      casapool(tile)%Psoil          = casapool(tile)%Nsoil/casapool(tile)%ratioNPsoil
+      casapool(tile)%psoilsorb      = casaflux(tile)%psorbmax*casapool(tile)%psoillab &
+                              /(casaflux(tile)%kmlabp+casapool(tile)%psoillab)
+    end if
+  
   end if
-  if ( ccycle<3 ) then
-    casapool%Psoil          = casapool%Nsoil/casapool%ratioNPsoil
-    casapool%psoilsorb      = casaflux%psorbmax*casapool%psoillab &
-                            /(casaflux%kmlabp+casapool%psoillab)
-  end if
-end if
+end do  
 
 end subroutine casa_readbiome
 
-subroutine cable_biophysic_parm(cveg)
+subroutine cable_biophysic_parm
 
-use cc_mpi     ! CC MPI routines
-use darcdf_m   ! Netcdf data
-use infile     ! Input file routines
-use nsibd_m    ! Land-surface arrays
+use cc_mpi 
+use darcdf_m
+use infile
+use newmpar_m, only : ntiles
+use nsibd_m
 
 integer k, chid_len
-integer, dimension(mp_global), intent(in) :: cveg
+integer tile
 integer, dimension(2) :: nstart, ncount
 integer, dimension(:), allocatable, save :: csiropft
 real totdepth
@@ -1984,7 +2016,7 @@ else
   call ccmpi_bcast(csiropft,0,comm_world)  
   do k = 1,lncveg_numpft
     if ( myid==0 ) then
-      write(6,*) " -> Found ",trim(ivegt_name(k))
+      write(6,*) "--> Found ",trim(ivegt_name(k))
     end if
     call ccmpi_bcast(ivegt_name(k),0,comm_world)  
   end do
@@ -2019,97 +2051,94 @@ else
   
 end if
 
-if ( mp_global>0 ) then
+do tile = 1,ntiles
+  if ( tdata(tile)%mp>0 ) then  
 
-  ! froot is now calculated from soil depth and the new parameter rootbeta 
-  ! according to Jackson et al. 1996, Oceologica, 108:389-411
-  totdepth = 0.
-  do k = 1,cbm_ms
-    totdepth = totdepth + real(soil%zse(k))*100.
-    froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
-  end do
-  do k = cbm_ms-1, 2, -1
-    froot2(:,k) = froot2(:,k) - froot2(:,k-1)
-  end do
-  froot2(:,cbm_ms) = 1.-sum(froot2(:,1:cbm_ms-1),2)
+    ! froot is now calculated from soil depth and the new parameter rootbeta 
+    ! according to Jackson et al. 1996, Oceologica, 108:389-411
+    totdepth = 0.
+    do k = 1,cbm_ms
+      totdepth = totdepth + real(soil(tile)%zse(k))*100.
+      froot2(:,k) = min(1.,1.-rootbeta(:)**totdepth)
+    end do
+    do k = cbm_ms-1, 2, -1
+      froot2(:,k) = froot2(:,k) - froot2(:,k-1)
+    end do
+    froot2(:,cbm_ms) = 1.-sum(froot2(:,1:cbm_ms-1),2)
   
-  ! Eva's method for ACCESS1.3
-  !froot2(:,1)=0.05
-  !froot2(:,2)=0.20
-  !froot2(:,3)=0.20
-  !froot2(:,4)=0.20
-  !froot2(:,5)=0.20
-  !froot2(:,6)=0.15
+    ! Eva's method for ACCESS1.3
+    !froot2(:,1)=0.05
+    !froot2(:,2)=0.20
+    !froot2(:,3)=0.20
+    !froot2(:,4)=0.20
+    !froot2(:,5)=0.20
+    !froot2(:,6)=0.15
 
-  if ( maxval(cveg)>lncveg_numpft .or. minval(cveg)<1 ) then
-    write(6,*) "ERROR: Invalid range of vegetation classes for CABLE"
-    write(6,*) "cveg min,max           = ",minval(cveg),maxval(cveg)
-    write(6,*) "Expected range min,max = ",1,lncveg_numpft
-    call ccmpi_abort(-1)
-  end if
+    if ( maxval(tdata(tile)%cveg)>lncveg_numpft .or. minval(tdata(tile)%cveg)<1 ) then
+      write(6,*) "ERROR: Invalid range of vegetation classes for CABLE"
+      write(6,*) "cveg min,max           = ",minval(tdata(tile)%cveg),maxval(tdata(tile)%cveg)
+      write(6,*) "Expected range min,max = ",1,lncveg_numpft
+      call ccmpi_abort(-1)
+    end if
 
-  veg%meth      = 1
-  veg%iveg      = csiropft(cveg)
-  veg%hc        = real(hc(cveg),8)
-  veg%xfang     = real(xfang(cveg),8)  
-  veg%dleaf     = real(sqrt(max(leaf_w(cveg)*leaf_l(cveg),1.e-20)),8)
-  veg%canst1    = real(canst1(cveg),8)
-  veg%shelrb    = real(shelrb(cveg),8)
-  veg%extkn     = real(extkn(cveg),8)
-  veg%refl(:,1) = real(refl(cveg,1),8)
-  veg%refl(:,2) = real(refl(cveg,2),8)  
-  veg%taul(:,1) = real(taul(cveg,1),8)
-  veg%taul(:,2) = real(taul(cveg,2),8)  
-  veg%vcmax     = real(vcmax(cveg),8)
-  veg%ejmax     = real(2.*veg%vcmax,8)
-  veg%rpcoef    = real(rpcoef(cveg),8)
-  do k = 1,cbm_ms
-    veg%froot(:,k)=real(froot2(cveg,k),8)
-  end do
-  veg%frac4     = real(c4frac(cveg),8)
-  veg%xalbnir   = 1._8 ! not used
-  veg%vbeta     = real(vbeta(cveg),8)
-  veg%a1gs      = real(a1gs(cveg),8)   
-  veg%d0gs      = real(d0gs(cveg),8)
-  veg%g0        = real(g0(cveg),8)
-  veg%g1        = real(g1(cveg),8)
-  veg%alpha     = real(alpha(cveg),8)
-  veg%convex    = real(convex(cveg),8) 
-  veg%cfrd      = real(cfrd(cveg),8)
-  veg%gswmin    = real(gswmin(cveg),8)
-  veg%conkc0    = real(conkc0(cveg),8)
-  veg%conko0    = real(conko0(cveg),8)
-  veg%ekc       = real(ekc(cveg),8)
-  veg%eko       = real(eko(cveg),8)
-  veg%zr        = real(zr(cveg),8)
-  veg%clitt     = real(clitt(cveg),8)
+    veg(tile)%meth      = 1
+    veg(tile)%iveg      = csiropft(tdata(tile)%cveg)
+    veg(tile)%hc        = real(hc(tdata(tile)%cveg),8)
+    veg(tile)%xfang     = real(xfang(tdata(tile)%cveg),8)  
+    veg(tile)%dleaf     = real(sqrt(max(leaf_w(tdata(tile)%cveg)*leaf_l(tdata(tile)%cveg),1.e-20)),8)
+    veg(tile)%canst1    = real(canst1(tdata(tile)%cveg),8)
+    veg(tile)%shelrb    = real(shelrb(tdata(tile)%cveg),8)
+    veg(tile)%extkn     = real(extkn(tdata(tile)%cveg),8)
+    veg(tile)%refl(:,1) = real(refl(tdata(tile)%cveg,1),8)
+    veg(tile)%refl(:,2) = real(refl(tdata(tile)%cveg,2),8)  
+    veg(tile)%taul(:,1) = real(taul(tdata(tile)%cveg,1),8)
+    veg(tile)%taul(:,2) = real(taul(tdata(tile)%cveg,2),8)  
+    veg(tile)%vcmax     = real(vcmax(tdata(tile)%cveg),8)
+    veg(tile)%ejmax     = real(2.*veg(tile)%vcmax,8)
+    veg(tile)%rpcoef    = real(rpcoef(tdata(tile)%cveg),8)
+    do k = 1,cbm_ms
+      veg(tile)%froot(:,k)=real(froot2(tdata(tile)%cveg,k),8)
+    end do
+    veg(tile)%frac4     = real(c4frac(tdata(tile)%cveg),8)
+    veg(tile)%xalbnir   = 1._8 ! not used
+    veg(tile)%vbeta     = real(vbeta(tdata(tile)%cveg),8)
+    veg(tile)%a1gs      = real(a1gs(tdata(tile)%cveg),8)   
+    veg(tile)%d0gs      = real(d0gs(tdata(tile)%cveg),8)
+    veg(tile)%g0        = real(g0(tdata(tile)%cveg),8)
+    veg(tile)%g1        = real(g1(tdata(tile)%cveg),8)
+    veg(tile)%alpha     = real(alpha(tdata(tile)%cveg),8)
+    veg(tile)%convex    = real(convex(tdata(tile)%cveg),8) 
+    veg(tile)%cfrd      = real(cfrd(tdata(tile)%cveg),8)
+    veg(tile)%gswmin    = real(gswmin(tdata(tile)%cveg),8)
+    veg(tile)%conkc0    = real(conkc0(tdata(tile)%cveg),8)
+    veg(tile)%conko0    = real(conko0(tdata(tile)%cveg),8)
+    veg(tile)%ekc       = real(ekc(tdata(tile)%cveg),8)
+    veg(tile)%eko       = real(eko(tdata(tile)%cveg),8)
+    veg(tile)%zr        = real(zr(tdata(tile)%cveg),8)
+    veg(tile)%clitt     = real(clitt(tdata(tile)%cveg),8)
   
-  veg%gamma     = 3.e-2_8
-  veg%F10       = 0.85_8
-  !veg%ZR        = 5._8
-  veg%disturbance_interval = 100
-  veg%disturbance_intensity = 0._8
+    veg(tile)%gamma     = 3.e-2_8
+    veg(tile)%F10       = 0.85_8
+    !veg(tile)%ZR        = 5._8
+    veg(tile)%disturbance_interval = 100
+    veg(tile)%disturbance_intensity = 0._8
   
-  ! depeciated
-  !veg%tminvj    = real(tminvj(veg%iveg),8)
-  !veg%tmaxvj    = real(tmaxvj(veg%iveg),8)
-  !veg%rp20      = real(rp20(veg%iveg),8)
-  !veg%rs20      = real(rs20(veg%iveg),8)
-  !veg%vegcf     = real(vegcf(veg%iveg),8)
+    ! depeciated
+    !veg(tile)%tminvj    = real(tminvj(veg(tile)%iveg),8)
+    !veg(tile)%tmaxvj    = real(tmaxvj(veg(tile)%iveg),8)
+    !veg(tile)%rp20      = real(rp20(veg(tile)%iveg),8)
+    !veg(tile)%rs20      = real(rs20(veg(tile)%iveg),8)
+    !veg(tile)%vegcf     = real(vegcf(veg(tile)%iveg),8)
   
-  ! patch
-  if ( gs_switch==1 ) then
-    if ( any( veg%g0<1.e-8 ) ) then
-      if ( myid==0 ) then
-        write(6,*) "-> WARN: Replacing g0=0. with g0=0.01 for gs_switch=1"
-      end if  
-      where ( veg%g0<1.e-8 ) 
-        veg%g0 = 0.01
+    ! patch
+    if ( gs_switch==1 ) then
+      where ( veg(tile)%g0<1.e-8_8 ) 
+        veg(tile)%g0 = 0.01_8
       end where
     end if    
-  end if    
-
-end if
+    
+  end if
+end do  
 
 deallocate( csiropft, hc, xfang, leaf_w, leaf_l )
 deallocate( canst1, shelrb, extkn, refl, taul )
@@ -2122,23 +2151,18 @@ deallocate( zr, clitt )
 return
 end subroutine cable_biophysic_parm
                    
-subroutine cable_soil_parm(soil)
+subroutine cable_soil_parm
 
-use cc_mpi     ! CC MPI routines
-use darcdf_m   ! Netcdf data
-use infile     ! Input file routines
+use cc_mpi
+use darcdf_m
+use infile
 use newmpar_m
-use nsibd_m    ! Land-surface arrays
+use nsibd_m
 use parm_m, only : nmaxpr
 use soilv_m
 
-type(soil_parameter_type), intent(inout) :: soil
-!real, dimension(mp_global) :: ssat_bounded, rho_soil_bulk
-!real, parameter :: ssat_hi = 0.65
-!real, parameter :: ssat_lo = 0.15
-!real, parameter :: rhob_hi = 2300.
-!real, parameter :: rhob_lo = 810.
 integer isoil, k, chid_len
+integer tile
 integer, dimension(2) :: nstart, ncount
 
 if ( lncveg_numsoil<1 ) then
@@ -2230,7 +2254,7 @@ else
   end if
   do k = 1,lncveg_numsoil
     if ( myid==0 ) then
-      write(6,*) " -> Found ",trim(isoilm_name(k))
+      write(6,*) "--> Found ",trim(isoilm_name(k))
     end if
     call ccmpi_bcast(isoilm_name(k),0,comm_world)  
   end do     
@@ -2260,56 +2284,61 @@ else
 
 end if
 
-if ( mp_global>0 ) then
-  ! Load CABLE soil data
-  soil%bch       = real(bch(soil%isoilm),8)
-  soil%css       = real(css(soil%isoilm),8)
-  soil%rhosoil   = real(rhos(soil%isoilm),8)
-  soil%cnsd      = real(cnsd(soil%isoilm),8)
-  soil%hyds      = real(hyds(soil%isoilm),8)
-  soil%sucs      = real(sucs(soil%isoilm),8)
-  soil%hsbh      = real(hsbh(soil%isoilm),8)
-  soil%sfc       = real(sfc(soil%isoilm),8)
-  soil%ssat      = real(ssat(soil%isoilm),8)
-  soil%swilt     = real(swilt(soil%isoilm),8)
-  soil%ibp2      = real(ibp2(soil%isoilm),8)
-  soil%i2bp3     = real(i2bp3(soil%isoilm),8)
-  soil%pwb_min   = (soil%swilt/soil%ssat)**soil%ibp2
-  soil%clay      = real(clay(soil%isoilm),8)
-  soil%sand      = real(sand(soil%isoilm),8)
-  soil%silt      = real(silt(soil%isoilm),8)
-  soil%zeta      = 0._8
-  soil%fsatmax   = 0._8
-  soil%nhorizons = 1
-  soil%ishorizon = 1
-  do k = 1,cbm_ms
-    soil%swilt_vec(:,k)   = soil%swilt
-    soil%ssat_vec(:,k)    = soil%ssat
-    soil%sfc_vec(:,k)     = soil%sfc
-    soil%rhosoil_vec(:,k) = soil%rhosoil
-    soil%sucs_vec(:,k)    = 1000._8*abs(soil%sucs)
-    soil%bch_vec(:,k)     = soil%bch
-    soil%hyds_vec(:,k)    = 1000._8*soil%hyds
-    soil%watr(:,k)        = 0.05_8
-    soil%cnsd_vec(:,k)    = soil%cnsd
-    soil%clay_vec(:,k)    = soil%clay
-    soil%sand_vec(:,k)    = soil%sand
-    soil%silt_vec(:,k)    = soil%silt
-    soil%zse_vec(:,k)     = soil%zse(k)
-    soil%css_vec(:,k)     = soil%css
-  end do
-  soil%GWhyds_vec    = soil%hyds*1000._8  
-  soil%GWsucs_vec    = abs(soil%sucs)*1000._8
-  soil%GWbch_vec     = soil%bch
-  soil%GWrhosoil_vec = soil%rhosoil
-  soil%GWssat_vec    = soil%ssat
-  soil%GWwatr        = soil%watr(:,cbm_ms) !residual water content of the aquifer [mm3/mm3]
-  soil%GWdz          = 20._8           !thickness of the aquifer   [m]
-  soil%GWdz          = max( 1._8, min( 20._8, soil%GWdz - sum(soil%zse,dim=1) ) )
-  soil%drain_dens    = 0.008_8         !  drainage density ( mean dist to rivers/streams )
+do tile = 1,ntiles
+  if ( tdata(tile)%mp>0 ) then
+
+    ! Load CABLE soil data
+    soil(tile)%bch       = real(bch(soil(tile)%isoilm),8)
+    soil(tile)%css       = real(css(soil(tile)%isoilm),8)
+    soil(tile)%rhosoil   = real(rhos(soil(tile)%isoilm),8)
+    soil(tile)%cnsd      = real(cnsd(soil(tile)%isoilm),8)
+    soil(tile)%hyds      = real(hyds(soil(tile)%isoilm),8)
+    soil(tile)%sucs      = real(sucs(soil(tile)%isoilm),8)
+    soil(tile)%hsbh      = real(hsbh(soil(tile)%isoilm),8)
+    soil(tile)%sfc       = real(sfc(soil(tile)%isoilm),8)
+    soil(tile)%ssat      = real(ssat(soil(tile)%isoilm),8)
+    soil(tile)%swilt     = real(swilt(soil(tile)%isoilm),8)
+    soil(tile)%ibp2      = real(ibp2(soil(tile)%isoilm),8)
+    soil(tile)%i2bp3     = real(i2bp3(soil(tile)%isoilm),8)
+    soil(tile)%pwb_min   = (soil(tile)%swilt/soil(tile)%ssat)**soil(tile)%ibp2
+    soil(tile)%clay      = real(clay(soil(tile)%isoilm),8)
+    soil(tile)%sand      = real(sand(soil(tile)%isoilm),8)
+    soil(tile)%silt      = real(silt(soil(tile)%isoilm),8)
+    soil(tile)%zeta      = 0._8
+    soil(tile)%fsatmax   = 0._8
+    soil(tile)%nhorizons = 1
+    soil(tile)%ishorizon = 1
+    do k = 1,cbm_ms
+      soil(tile)%swilt_vec(:,k)   = soil(tile)%swilt
+      soil(tile)%ssat_vec(:,k)    = soil(tile)%ssat
+      soil(tile)%sfc_vec(:,k)     = soil(tile)%sfc
+      soil(tile)%rhosoil_vec(:,k) = soil(tile)%rhosoil
+      soil(tile)%sucs_vec(:,k)    = 1000._8*abs(soil(tile)%sucs)
+      soil(tile)%bch_vec(:,k)     = soil(tile)%bch
+      soil(tile)%hyds_vec(:,k)    = 1000._8*soil(tile)%hyds
+      soil(tile)%watr(:,k)        = 0.05_8
+      soil(tile)%cnsd_vec(:,k)    = soil(tile)%cnsd
+      soil(tile)%clay_vec(:,k)    = soil(tile)%clay
+      soil(tile)%sand_vec(:,k)    = soil(tile)%sand
+      soil(tile)%silt_vec(:,k)    = soil(tile)%silt
+      soil(tile)%zse_vec(:,k)     = soil(tile)%zse(k)
+      soil(tile)%css_vec(:,k)     = soil(tile)%css
+    end do
+    soil(tile)%GWhyds_vec    = soil(tile)%hyds*1000._8  
+    soil(tile)%GWsucs_vec    = abs(soil(tile)%sucs)*1000._8
+    soil(tile)%GWbch_vec     = soil(tile)%bch
+    soil(tile)%GWrhosoil_vec = soil(tile)%rhosoil
+    soil(tile)%GWssat_vec    = soil(tile)%ssat
+    soil(tile)%GWwatr        = soil(tile)%watr(:,cbm_ms) !residual water content of the aquifer [mm3/mm3]
+    soil(tile)%GWdz          = 20._8           !thickness of the aquifer   [m]
+    soil(tile)%GWdz          = max( 1._8, min( 20._8, soil(tile)%GWdz - sum(soil(tile)%zse,dim=1) ) )
+    soil(tile)%drain_dens    = 0.008_8         !  drainage density ( mean dist to rivers/streams )
   
-  soil%heat_cap_lower_limit = 0.01 ! recalculated in cable_soilsnow.F90
+    soil(tile)%heat_cap_lower_limit = 0.01 ! recalculated in cable_soilsnow.F90
   
+  end if
+end do
+    
   !if ( cable_gw_model==1 ) then
   !
   !  ! note 17 hard coded vegetation PFTs  
@@ -2406,8 +2435,6 @@ if ( mp_global>0 ) then
   !    soil%cnsd(:) = soil%cnsd_vec(:,1)
   !  end where  
   !end if
-  
-end if
 
 return
 end subroutine cable_soil_parm

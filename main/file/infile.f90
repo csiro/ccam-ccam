@@ -836,8 +836,6 @@ if ( present(fileerror) ) then
   ferror = fileerror
 end if
 
-ier = 0
-
 if ( myid==0 ) then
   ! attempt to open single file with myid==0
   ier = nf90_open(ifile,nf90_nowrite,lncid)
@@ -1073,13 +1071,10 @@ pil_g         = idum(10)     ! global grid size
 pjl_g         = idum(11)     ! global grid size
 dmode         = idum(12)     ! file decomposition
 
-if ( ier/=nf90_noerr ) then
-  write(6,*) "Abort histopen for myid,ier = ",myid,ier  
-  return
-end if  
+if ( ier/=nf90_noerr ) return
 
 if ( myid==0 ) then
-  write(6,*) "-> Opening data files with ier = ",ier
+  write(6,*) "-> Opening data files"
 end if
 
 ! calculate number of files to be read on this processor
