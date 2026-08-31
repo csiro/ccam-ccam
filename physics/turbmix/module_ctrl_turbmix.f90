@@ -38,10 +38,18 @@
     
 module module_ctrl_turbmix
 
+use tkeeps                          ! TKE-EPS boundary layer
+
 implicit none
 
 private
 public turbmix_init, turbmix
+
+! from tkeeps
+public cm0, ce0, ce1, ce2, ce3, be, ent0, ent1, entc0, ezmin, dtrc0
+public m0, b1, b2, qcmf, ent_min, mfbeta
+public buoymeth, maxdts, mintke, mineps, minl, maxl, stabmeth
+public tkemeth, tcalmeth
 
 contains
 
@@ -57,7 +65,6 @@ use newmpar_m                       ! Grid parameters
 use nharrs_m                        ! Non-hydrostatic atmosphere arrays
 use parm_m                          ! Model configuration
 use sigs_m                          ! Atmosphere sigma levels
-use tkeeps                          ! TKE-EPS boundary layer
 use vertmix_m                       ! Local RI boundary layer
 
 implicit none
@@ -114,7 +121,6 @@ use savuvt_m                        ! Saved dynamic arrays
 use screen_m                        ! Screen level diagnostics
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
-use tkeeps                          ! TKE-EPS boundary layer
 use trimmix_m                       ! Tridiagonal solver for turbulent mixing
 use work2_m                         ! Diagnostic arrays
 use vertmix_m                       ! Local RI boundary layer
@@ -221,8 +227,6 @@ use pbl_m                           ! Boundary layer arrays
 use sigs_m                          ! Atmosphere sigma levels
 use soil_m, only : land             ! Soil and surface data
 use soilsnow_m                      ! Soil, snow and surface data
-use tkeeps, only : tkemix, tke, eps, shear
-                                    ! TKE-EPS boundary layer
 
 implicit none
 

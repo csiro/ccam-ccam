@@ -98,126 +98,359 @@ contains
    subroutine host_distribute2(af,a1)
       real, dimension(ifull), intent(out) :: af
       real, dimension(ifull_g), intent(in) :: a1
-      real, dimension(ifull,1,1) :: af_l
-      real, dimension(ifull_g,1,1) :: a1_l
+      real, dimension(:,:), allocatable :: sbuf
+      integer :: j, n, iq, iproc
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen
+      integer(kind=4) :: ierr, lsize, lcomm
       
-      a1_l(1:ifull_g,1,1) = a1(1:ifull_g)
-      call host_distribute4(af_l,a1_l)
-      af(1:ifull) = af_l(1:ifull,1,1)
+      allocate( sbuf(ifull,0:nproc-1) )
+      
+      ! map array in order of process rank
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+            end do
+         end do
+      end do
+
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+#ifdef i8r8      
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_REAL, af, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
+      
+      deallocate( sbuf )
       
    end subroutine host_distribute2
 
    subroutine proc_distribute2(af)
       real, dimension(ifull), intent(out) :: af
-      real, dimension(ifull,1,1) :: af_l
-      
-      call proc_distribute4(af_l)
-      af(1:ifull) = af_l(1:ifull,1,1)
+      real, dimension(1,1) :: sbuf
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+#ifdef i8r8      
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_REAL, af, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
       
    end subroutine proc_distribute2   
    
    subroutine host_distribute2r8(af,a1)
       real(kind=8), dimension(ifull), intent(out) :: af
       real(kind=8), dimension(ifull_g), intent(in) :: a1
-      real(kind=8), dimension(ifull,1,1) :: af_l
-      real(kind=8), dimension(ifull_g,1,1) :: a1_l
+      real(kind=8), dimension(:,:), allocatable :: sbuf
+      integer :: j, n, iq, iproc
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen
+      integer(kind=4) :: ierr, lsize, lcomm
       
-      a1_l(1:ifull_g,1,1) = a1(1:ifull_g)
-      call host_distribute4r8(af_l,a1_l)
-      af(1:ifull) = af_l(1:ifull,1,1)
+      allocate( sbuf(ifull,0:nproc-1) )
+      
+      ! map array in order of process rank
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+            end do
+         end do
+      end do
+
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+      call END_LOG(scatter_end)
+      
+      deallocate( sbuf )
       
    end subroutine host_distribute2r8
 
    subroutine proc_distribute2r8(af)
       real(kind=8), dimension(ifull), intent(out) :: af
-      real(kind=8), dimension(ifull,1,1) :: af_l
-      
-      call proc_distribute4r8(af_l)
-      af(1:ifull) = af_l(1:ifull,1,1)
+      real(kind=8), dimension(1,1) :: sbuf
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
+      call END_LOG(scatter_end)
       
    end subroutine proc_distribute2r8
       
    subroutine host_distribute2i(af,a1)
       integer, dimension(ifull), intent(out) :: af
       integer, dimension(ifull_g), intent(in) :: a1
-      integer, dimension(ifull,1,1) :: af_l
-      integer, dimension(ifull_g,1,1) :: a1_l
+      integer, dimension(:,:), allocatable :: sbuf
+      integer :: j, n, iq, iproc
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen
+      integer(kind=4) :: ierr, lsize, lcomm
+     
+      allocate( sbuf(ifull,0:nproc-1) )
 
-      a1_l(1:ifull_g,1,1) = a1(1:ifull_g)
-      call host_distribute4i(af_l,a1_l)
-      af(1:ifull) = af_l(1:ifull,1,1)
+      ! map array in order of process rank
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+               slen = (j-1)*ipan + (n-1)*ipan*jpan
+               sbuf(slen+1:slen+ipan,iproc) = a1(iq+1:iq+ipan)
+            end do
+         end do
+      end do
+
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+#ifdef i8r8      
+      call MPI_Scatter( sbuf, lsize, MPI_INTEGER8, af, lsize, MPI_INTEGER8, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_INTEGER, af, lsize, MPI_INTEGER, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
+      
+      deallocate( sbuf )
 
    end subroutine host_distribute2i
    
    subroutine proc_distribute2i(af)
       integer, dimension(ifull), intent(out) :: af
-      integer, dimension(ifull,1,1) :: af_l
+      integer, dimension(1,1) :: sbuf
+      integer(kind=4) :: ierr, lsize, lcomm
 
-      call proc_distribute4i(af_l)
-      af(1:ifull) = af_l(1:ifull,1,1)
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+#ifdef i8r8      
+      call MPI_Scatter( sbuf, lsize, MPI_INTEGER8, af, lsize, MPI_INTEGER8, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_INTEGER, af, lsize, MPI_INTEGER, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
 
    end subroutine proc_distribute2i   
 
    subroutine host_distribute3(af,a1)
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in) :: a1
-      real, dimension(ifull,size(af,2),1) :: af_l
-      real, dimension(ifull_g,size(af,2),1) :: a1_l
+      real, dimension(:,:,:), allocatable :: sbuf
+      real, dimension(:,:), allocatable :: aftemp
+      integer :: j, n, k, iq, iproc
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen, kx
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      kx = size(af,2)
       
-      a1_l(1:ifull_g,1:size(af,2),1) = a1(1:ifull_g,1:size(af,2))
-      call host_distribute4(af_l,a1_l)
-      af(1:ifull,:) = af_l(1:ifull,:,1)  
+      allocate( sbuf(ifull,kx,0:nproc-1) )
+      allocate( aftemp(ifull,kx) )
+
+      ! map array in order of process rank
+      do k = 1,kx
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do n = 1,npan
+               do j = 1,jpan
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+                  sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+               end do
+            end do
+         end do
+      end do
+
+      lsize = ifull*kx
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+#ifdef i8r8      
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_REAL, aftemp, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      
+      deallocate( sbuf )
+      deallocate( aftemp )
 
    end subroutine host_distribute3
    
    subroutine proc_distribute3(af)
       real, dimension(:,:), intent(out) :: af
-      real, dimension(ifull,size(af,2),1) :: af_l
+      real, dimension(1,1,1) :: sbuf      
+      real, dimension(:,:), allocatable :: aftemp
+      integer :: kx
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      kx = size(af,2)
       
-      call proc_distribute4(af_l)
-      af(1:ifull,:) = af_l(1:ifull,:,1)  
+      allocate( aftemp(ifull,kx) )
+      
+      lsize = ifull*kx
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+#ifdef i8r8      
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_REAL, aftemp, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx) 
+      
+      deallocate( aftemp )
 
    end subroutine proc_distribute3
 
    subroutine host_distribute3r8(af,a1)
       real(kind=8), dimension(:,:), intent(out) :: af
       real(kind=8), dimension(:,:), intent(in) :: a1
-      real(kind=8), dimension(ifull,size(af,2),1) :: af_l
-      real(kind=8), dimension(ifull_g,size(af,2),1) :: a1_l
+      real(kind=8), dimension(:,:,:), allocatable :: sbuf
+      real(kind=8), dimension(:,:), allocatable :: aftemp
+      integer :: j, n, iq, iproc
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen, kx, k
+      integer(kind=4) :: ierr, lsize, lcomm
       
-      a1_l(1:ifull_g,1:size(af,2),1) = a1(1:ifull_g,1:size(af,2))
-      call host_distribute4r8(af_l,a1_l)
-      af(1:ifull,:) = af_l(1:ifull,:,1)
+      kx = size(af,2)
+      
+      allocate( sbuf(ifull,kx,0:nproc-1) )
+      allocate( aftemp(ifull,kx) )
+      
+      ! map array in order of process rank
+      do k = 1,kx 
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do n = 1,npan
+               do j = 1,jpan
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+                  sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+               end do
+            end do
+         end do
+      end do
+
+      lsize = ifull*kx
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+      call END_LOG(scatter_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      
+      deallocate( sbuf )
+      deallocate( aftemp )
 
    end subroutine host_distribute3r8
    
    subroutine proc_distribute3r8(af)
       real(kind=8), dimension(:,:), intent(out) :: af
-      real(kind=8), dimension(ifull,size(af,2),1) :: af_l
+      real(kind=8), dimension(1,1,1) :: sbuf
+      real(kind=8), dimension(:,:), allocatable :: aftemp
+      integer :: kx
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      kx = size(af,2)
       
-      call proc_distribute4r8(af_l)
-      af(1:ifull,:) = af_l(1:ifull,:,1)
+      allocate( aftemp(ifull,kx) )
+      
+      lsize = ifull*kx
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
+      call END_LOG(scatter_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      
+      deallocate( aftemp )
 
    end subroutine proc_distribute3r8
 
    subroutine host_distribute3i(af,a1)
       integer, dimension(:,:), intent(out) :: af
       integer, dimension(:,:), intent(in) :: a1
-      integer, dimension(ifull,size(af,2),1) :: af_l
-      integer, dimension(ifull_g,size(af,2),1) :: a1_l
+      integer, dimension(:,:,:), allocatable :: sbuf
+      integer, dimension(:,:), allocatable :: aftemp
+      integer :: j, n, k, iq, iproc
+      integer :: npoff, ipoff, jpoff ! Offsets for target
+      integer :: slen, kx
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      kx = size(af,2)
       
-      a1_l(1:ifull_g,1:size(af,2),1) = a1(1:ifull_g,1:size(af,2))
-      call host_distribute4i(af_l,a1_l)
-      af(1:ifull,:) = af_l(1:ifull,:,1)
+      allocate( sbuf(ifull,kx,0:nproc-1) )
+      allocate( aftemp(ifull,kx) )
+
+      ! map array in order of process rank
+      do k = 1,kx
+         do iproc = 0,nproc-1
+            call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+            do n = 1,npan
+               do j = 1,jpan
+                  iq = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g
+                  slen = (j-1)*ipan + (n-1)*ipan*jpan
+                  sbuf(slen+1:slen+ipan,k,iproc) = a1(iq+1:iq+ipan,k)
+               end do
+            end do
+         end do
+      end do
+
+      lsize = ifull*kx
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+#ifdef i8r8      
+      call MPI_Scatter( sbuf, lsize, MPI_INTEGER8, aftemp, lsize, MPI_INTEGER8, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_INTEGER, aftemp, lsize, MPI_INTEGER, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx)
+      
+      deallocate( sbuf )
+      deallocate( aftemp )
 
    end subroutine host_distribute3i
    
    subroutine proc_distribute3i(af)
       integer, dimension(:,:), intent(out) :: af
-      integer, dimension(ifull,size(af,2),1) :: af_l
+      integer, dimension(1,1,1) :: sbuf
+      integer, dimension(:,:), allocatable :: aftemp
+      integer :: kx
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      kx = size(af,2)
       
-      call proc_distribute4i(af_l)
-      af(1:ifull,:) = af_l(1:ifull,:,1)
+      allocate( aftemp(ifull,kx) )
+      
+      lsize = ifull*kx*lx
+      lcomm = comm_world
+      call START_LOG(scatter_begin) 
+#ifdef i8r8      
+      call MPI_Scatter( sbuf, lsize, MPI_INTEGER8, aftemp, lsize, MPI_INTEGER8, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_INTEGER, aftemp, lsize, MPI_INTEGER, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
+      af(1:ifull,1:kx) = aftemp(1:ifull,1:kx) 
+      
+      deallocate( aftemp )
 
    end subroutine proc_distribute3i
   
@@ -227,8 +460,8 @@ contains
       ! the number of levels
       real, dimension(:,:,:), intent(out) :: af
       real, dimension(:,:,:), intent(in) :: a1
-      real, dimension(ifull,size(af,2),size(af,3),0:nproc-1) :: sbuf
-      real, dimension(ifull,size(af,2),size(af,3)) :: aftemp
+      real, dimension(:,:,:,:), allocatable :: sbuf
+      real, dimension(:,:,:), allocatable :: aftemp
       integer :: j, n, k, l, iq, iproc
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx, lx
@@ -236,6 +469,9 @@ contains
 
       kx = size(af,2)
       lx = size(af,3)
+      
+      allocate( sbuf(ifull,kx,lx,0:nproc-1) )
+      allocate( aftemp(ifull,kx,lx) )
 
       ! map array in order of process rank
       do l = 1,lx 
@@ -263,6 +499,9 @@ contains
 #endif
       call END_LOG(scatter_end)
       af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      
+      deallocate( sbuf )
+      deallocate( aftemp )
 
    end subroutine host_distribute4
 
@@ -272,12 +511,15 @@ contains
       ! the number of levels
       real, dimension(:,:,:), intent(out) :: af
       real, dimension(1,1,1,1) :: sbuf
-      real, dimension(ifull,size(af,2),size(af,3)) :: aftemp
+      real, dimension(:,:,:), allocatable :: aftemp
       integer :: kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
 
       kx = size(af,2)
       lx = size(af,3)
+      
+      allocate( aftemp(ifull,kx,lx) )
+      
       lsize = ifull*kx*lx
       lcomm = comm_world
       call START_LOG(scatter_begin) 
@@ -288,6 +530,8 @@ contains
 #endif
       call END_LOG(scatter_end)
       af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx) 
+      
+      deallocate( aftemp )
 
    end subroutine proc_distribute4
 
@@ -295,8 +539,8 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processes
       real(kind=8), dimension(:,:,:), intent(out) :: af
       real(kind=8), dimension(:,:,:), intent(in) :: a1
-      real(kind=8), dimension(ifull,size(af,2),size(af,3),0:nproc-1) :: sbuf
-      real(kind=8), dimension(ifull,size(af,2),size(af,3)) :: aftemp
+      real(kind=8), dimension(:,:,:,:), allocatable :: sbuf
+      real(kind=8), dimension(:,:,:), allocatable :: aftemp
       integer :: j, n, iq, iproc
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx, k, lx, l
@@ -304,6 +548,9 @@ contains
       
       kx = size(af,2)
       lx = size(af,3)
+      
+      allocate( sbuf(ifull,kx,lx,0:nproc-1) )
+      allocate( aftemp(ifull,kx,lx) )
       
       ! map array in order of process rank
       do l = 1,lx  
@@ -327,6 +574,9 @@ contains
       call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
       call END_LOG(scatter_end)
       af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      
+      deallocate( sbuf )
+      deallocate( aftemp )
 
    end subroutine host_distribute4r8
    
@@ -334,18 +584,23 @@ contains
       ! Convert standard 1D arrays to face form and distribute to processes
       real(kind=8), dimension(:,:,:), intent(out) :: af
       real(kind=8), dimension(1,1,1,1) :: sbuf
-      real(kind=8), dimension(ifull,size(af,2),size(af,3)) :: aftemp
+      real(kind=8), dimension(:,:,:), allocatable :: aftemp
       integer :: kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
 
       kx = size(af,2)
       lx = size(af,3)
+      
+      allocate( aftemp(ifull,kx,lx) )
+      
       lsize = ifull*kx*lx
       lcomm = comm_world
       call START_LOG(scatter_begin) 
       call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, aftemp, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr ) 
       call END_LOG(scatter_end)
       af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      
+      deallocate( aftemp )
 
    end subroutine proc_distribute4r8
    
@@ -355,8 +610,8 @@ contains
       ! the number of levels
       integer, dimension(:,:,:), intent(out) :: af
       integer, dimension(:,:,:), intent(in) :: a1
-      integer, dimension(ifull,size(af,2),size(af,3),0:nproc-1) :: sbuf
-      integer, dimension(ifull,size(af,2),size(af,3)) :: aftemp
+      integer, dimension(:,:,:,:), allocatable :: sbuf
+      integer, dimension(:,:,:), allocatable :: aftemp
       integer :: j, n, k, l, iq, iproc
       integer :: npoff, ipoff, jpoff ! Offsets for target
       integer :: slen, kx, lx
@@ -364,6 +619,9 @@ contains
 
       kx = size(af,2)
       lx = size(af,3)
+      
+      allocate( sbuf(ifull,kx,lx,0:nproc-1) )
+      allocate( aftemp(ifull,kx,lx) )
 
       ! map array in order of process rank
       do l = 1,lx 
@@ -391,6 +649,9 @@ contains
 #endif
       call END_LOG(scatter_end)
       af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx)
+      
+      deallocate( sbuf )
+      deallocate( aftemp )
 
    end subroutine host_distribute4i
 
@@ -400,12 +661,15 @@ contains
       ! the number of levels
       integer, dimension(:,:,:), intent(out) :: af
       integer, dimension(1,1,1,1) :: sbuf
-      integer, dimension(ifull,size(af,2),size(af,3)) :: aftemp
+      integer, dimension(:,:,:), allocatable :: aftemp
       integer :: kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
 
       kx = size(af,2)
       lx = size(af,3)
+      
+      allocate( aftemp(ifull,kx,lx) )
+      
       lsize = ifull*kx*lx
       lcomm = comm_world
       call START_LOG(scatter_begin) 
@@ -416,90 +680,242 @@ contains
 #endif
       call END_LOG(scatter_end)
       af(1:ifull,1:kx,1:lx) = aftemp(1:ifull,1:kx,1:lx) 
+      
+      deallocate( aftemp )
 
    end subroutine proc_distribute4i
 
    subroutine host_gather2(a,ag)
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull_g), intent(out) :: ag
-      real, dimension(ifull,1,1) :: a_l
-      real, dimension(ifull_g,1,1) :: ag_l
+      real, dimension(:,:), allocatable :: abuf
+      integer :: iproc, ipoff, jpoff, npoff
+      integer :: j, n, iq, iqg
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      allocate( abuf(ifull,0:nproc-1) )
       
-      a_l(1:ifull,1,1) = a(1:ifull)
-      call host_gather4(a_l,ag_l)
-      ag(1:ifull_g) = ag_l(1:ifull_g,1,1)
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(gather_begin)
+#ifdef i8r8
+      call MPI_Gather( a, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Gather( a, lsize, MPI_REAL, abuf, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(gather_end)
+
+      ! map array in order of process rank
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+            end do
+         end do
+      end do
+      
+      deallocate( abuf )
 
    end subroutine host_gather2
 
    subroutine proc_gather2(a)
       real, dimension(ifull), intent(in) :: a
-      real, dimension(ifull,1,1) :: a_l
+      real, dimension(1,1) :: abuf
+      integer(kind=4) :: ierr, lsize, lcomm
       
-      a_l(1:ifull,1,1) = a(1:ifull)
-      call proc_gather4(a_l) 
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(gather_begin)
+#ifdef i8r8
+      call MPI_Gather( a, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Gather( a, lsize, MPI_REAL, abuf, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(gather_end)
 
    end subroutine proc_gather2
    
    subroutine host_gather2r8(a,ag)
       real(kind=8), dimension(ifull), intent(in) :: a
       real(kind=8), dimension(ifull_g), intent(out) :: ag
-      real(kind=8), dimension(ifull,1,1) :: a_l
-      real(kind=8), dimension(ifull_g,1,1) :: ag_l
+      real(kind=8), dimension(:,:), allocatable :: abuf
+      integer :: iproc, ipoff, jpoff, npoff
+      integer :: j, n, iq, iqg
+      integer(kind=4) :: ierr, lsize, lcomm
       
-      a_l(1:ifull,1,1) = a(1:ifull)
-      call host_gather4r8(a_l,ag_l)
-      ag(1:ifull_g) = ag_l(1:ifull_g,1,1)
+      allocate( abuf(ifull,0:nproc-1) )
+      
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(gather_begin)
+      call MPI_Gather( a, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+      call END_LOG(gather_end)
+
+      ! map array in order of process rank
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+            end do
+         end do
+      end do
+      
+      deallocate( abuf )
       
    end subroutine host_gather2r8
    
    subroutine proc_gather2r8(a)
       real(kind=8), dimension(ifull), intent(in) :: a
-      real(kind=8), dimension(ifull,1,1) :: a_l
-      
-      a_l(1:ifull,1,1) = a(1:ifull)
-      call proc_gather4r8(a_l) 
+      real(kind=8), dimension(1,1) :: abuf
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(gather_begin)
+      call MPI_Gather( a, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+      call END_LOG(gather_end)
       
    end subroutine proc_gather2r8
    
    subroutine host_gather3(a,ag)
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out) :: ag
-      real, dimension(ifull,size(a,2),1) :: a_l
-      real, dimension(ifull_g,size(a,2),1) :: ag_l
+      real, dimension(:,:,:), allocatable :: abuf
+      real, dimension(:,:), allocatable :: atemp
+      integer :: iproc, ipoff, jpoff, npoff
+      integer :: j, n, k, iq, iqg, kx
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      kx = size(a,2)
+
+      allocate( abuf(ifull,kx,0:nproc-1) )
+      allocate( atemp(ifull,kx) )
       
-      a_l(1:ifull,:,1) = a(1:ifull,:)
-      call host_gather4(a_l,ag_l)
-      ag(1:ifull_g,1:size(a,2)) = ag_l(1:ifull_g,1:size(a,2),1)
+      lsize = ifull*kx
+      lcomm = comm_world
+      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+      call START_LOG(gather_begin)
+#ifdef i8r8
+      call MPI_Gather( atemp, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Gather( atemp, lsize, MPI_REAL, abuf, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(gather_end)
+
+      ! map array in order of process rank
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do k = 1,kx
+            do n = 1,npan
+               do j = 1,jpan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+               end do
+            end do
+         end do
+      end do
+      
+      deallocate( abuf )
+      deallocate( atemp )
 
    end subroutine host_gather3
    
    subroutine proc_gather3(a)
       real, dimension(:,:), intent(in) :: a
-      real, dimension(ifull,size(a,2),1) :: a_l
+      real, dimension(1,1,1) :: abuf
+      real, dimension(:,:), allocatable :: atemp
+      integer :: kx
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      kx = size(a,2)
       
-      a_l(1:ifull,:,1) = a(1:ifull,:)
-      call proc_gather4(a_l) 
+      allocate( atemp(ifull,kx) )
+      
+      lsize = ifull*kx
+      lcomm = comm_world
+      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+      call START_LOG(gather_begin)
+#ifdef i8r8
+      call MPI_Gather( atemp, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Gather( atemp, lsize, MPI_REAL, abuf, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(gather_end)
+      
+      deallocate( atemp )
 
    end subroutine proc_gather3   
 
    subroutine host_gather3r8(a,ag)
       real(kind=8), dimension(:,:), intent(in) :: a
       real(kind=8), dimension(:,:), intent(out) :: ag
-      real(kind=8), dimension(ifull,size(a,2),1) :: a_l
-      real(kind=8), dimension(ifull_g,size(a,2),1) :: ag_l
+      real(kind=8), dimension(:,:,:), allocatable :: abuf
+      real(kind=8), dimension(:,:), allocatable :: atemp
+      integer :: iproc, ipoff, jpoff, npoff
+      integer :: j, n, k, iq, iqg, kx
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      kx = size(a,2)
       
-      a_l(1:ifull,:,1) = a(1:ifull,:)
-      call host_gather4r8(a_l,ag_l)
-      ag(1:ifull_g,1:size(a,2)) = ag_l(1:ifull_g,1:size(a,2),1)
+      allocate( abuf(ifull,kx,0:nproc-1) )
+      allocate( atemp(ifull,kx) )
+      
+      lsize = ifull*kx
+      lcomm = comm_world
+      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+      call START_LOG(gather_begin)
+      call MPI_Gather( atemp, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+      call END_LOG(gather_end)
+
+      ! map array in order of process rank
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do k = 1,kx
+            do n = 1,npan
+               do j = 1,jpan
+                  ! Global indices are i+ipoff, j+jpoff, n-npoff
+                  iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+                  iq = (j-1)*ipan + (n-1)*ipan*jpan
+                  ag(iqg+1:iqg+ipan,k) = abuf(iq+1:iq+ipan,k,iproc)
+               end do
+            end do
+         end do
+      end do
+      
+      deallocate( abuf )
+      deallocate( atemp )
 
    end subroutine host_gather3r8
    
    subroutine proc_gather3r8(a)
       real(kind=8), dimension(:,:), intent(in) :: a
-      real(kind=8), dimension(ifull,size(a,2),1) :: a_l
+      real(kind=8), dimension(1,1,1) :: abuf
+      real(kind=8), dimension(:,:), allocatable :: atemp
+      integer :: kx
+      integer(kind=4) :: ierr, lsize, lcomm
       
-      a_l(1:ifull,:,1) = a(1:ifull,:)
-      call proc_gather4r8(a_l) 
+      kx = size(a,2)
+      
+      allocate( atemp(ifull,kx) )
+      
+      lsize = ifull*kx
+      lcomm = comm_world
+      atemp(1:ifull,1:kx) = a(1:ifull,1:kx)
+      call START_LOG(gather_begin)
+      call MPI_Gather( atemp, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+      call END_LOG(gather_end)
+      
+      deallocate( atemp )
 
    end subroutine proc_gather3r8
    
@@ -507,14 +923,18 @@ contains
       ! Collect global arrays.
       real, dimension(:,:,:), intent(in) :: a
       real, dimension(:,:,:), intent(out) :: ag
-      real, dimension(ifull,size(a,2),size(a,3),0:nproc-1) :: abuf
-      real, dimension(ifull,size(a,2),size(a,3)) :: atemp
+      real, dimension(:,:,:,:), allocatable :: abuf
+      real, dimension(:,:,:), allocatable :: atemp
       integer :: iproc, ipoff, jpoff, npoff
       integer :: j, n, k, l, iq, iqg, kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
 
       kx = size(a,2)
       lx = size(a,3)
+
+      allocate( abuf(ifull,kx,lx,0:nproc-1) )
+      allocate( atemp(ifull,kx,lx) )
+      
       lsize = ifull*kx*lx
       lcomm = comm_world
       atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
@@ -542,6 +962,9 @@ contains
             end do
          end do
       end do
+      
+      deallocate( abuf )
+      deallocate( atemp )
 
    end subroutine host_gather4
    
@@ -549,12 +972,15 @@ contains
       ! Collect global arrays.
       real, dimension(:,:,:), intent(in) :: a
       real, dimension(1,1,1,1) :: abuf
-      real, dimension(ifull,size(a,2),size(a,3)) :: atemp
+      real, dimension(:,:,:), allocatable :: atemp
       integer :: kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
 
       kx = size(a,2)
       lx = size(a,3)
+      
+      allocate( atemp(ifull,kx,lx) )
+      
       lsize = ifull*kx*lx
       lcomm = comm_world
       atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
@@ -565,6 +991,8 @@ contains
       call MPI_Gather( atemp, lsize, MPI_REAL, abuf, lsize, MPI_REAL, 0_4, lcomm, ierr )
 #endif
       call END_LOG(gather_end)
+      
+      deallocate( atemp )
 
    end subroutine proc_gather4
 
@@ -572,14 +1000,18 @@ contains
       ! Collect global arrays.
       real(kind=8), dimension(:,:,:), intent(in) :: a
       real(kind=8), dimension(:,:,:), intent(out) :: ag
-      real(kind=8), dimension(ifull,size(a,2),size(a,3),0:nproc-1) :: abuf
-      real(kind=8), dimension(ifull,size(a,2),size(a,3)) :: atemp
+      real(kind=8), dimension(:,:,:,:), allocatable :: abuf
+      real(kind=8), dimension(:,:,:), allocatable :: atemp
       integer :: iproc, ipoff, jpoff, npoff
       integer :: j, n, k, l, iq, iqg, kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
 
       kx = size(a,2)
       lx = size(a,3)
+      
+      allocate( abuf(ifull,kx,lx,0:nproc-1) )
+      allocate( atemp(ifull,kx,lx) )
+      
       lsize = ifull*kx*lx
       lcomm = comm_world
       atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
@@ -603,6 +1035,9 @@ contains
             end do
          end do
       end do
+      
+      deallocate( abuf )
+      deallocate( atemp )
 
    end subroutine host_gather4r8
    
@@ -610,30 +1045,60 @@ contains
       ! Collect global arrays.
       real(kind=8), dimension(:,:,:), intent(in) :: a
       real(kind=8), dimension(1,1,1,1) :: abuf
-      real(kind=8), dimension(ifull,size(a,2),size(a,3)) :: atemp
+      real(kind=8), dimension(:,:,:), allocatable :: atemp
       integer :: kx, lx
       integer(kind=4) :: ierr, lsize, lcomm
       
       kx = size(a,2)
       lx = size(a,3)
+      
+      allocate( atemp(ifull,kx,lx) )
+      
       lsize = ifull*kx*lx
       lcomm = comm_world
       atemp(1:ifull,1:kx,1:lx) = a(1:ifull,1:kx,1:lx)
       call START_LOG(gather_begin)
       call MPI_Gather( atemp, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
       call END_LOG(gather_end)
+      
+      deallocate( atemp )
 
    end subroutine proc_gather4r8
    
    subroutine ccmpi_gatherall2(a,ag)
       real, dimension(ifull), intent(in) :: a
       real, dimension(ifull_g), intent(out) :: ag
-      real, dimension(ifull,1) :: a_l
-      real, dimension(ifull_g,1) :: ag_l
+      real, dimension(:,:), allocatable :: abuf
+      integer :: ipoff, jpoff, npoff
+      integer :: j, n, iq, iqg, iproc
+      integer(kind=4) :: ierr, lsize, lcomm
+
+      allocate( abuf(ifull,0:nproc-1) )
       
-      a_l(1:ifull,1) = a(1:ifull)
-      call ccmpi_gatherall3(a_l,ag_l)
-      ag(1:ifull_g) = ag_l(1:ifull_g,1)
+      lsize = ifull
+      lcomm = comm_world
+      call START_LOG(allgather_begin)
+#ifdef i8r8
+      call MPI_AllGather( a, lsize, MPI_DOUBLE_PRECISION, abuf, lsize, MPI_DOUBLE_PRECISION, lcomm, ierr )
+#else
+      call MPI_AllGather( a, lsize, MPI_REAL, abuf, lsize, MPI_REAL, lcomm, ierr )
+#endif
+      call END_LOG(allgather_end)
+
+      ! map array in order of process rank
+      do iproc = 0,nproc-1
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         do n = 1,npan
+            do j = 1,jpan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iqg = ipoff + (j+jpoff-1)*il_g + (n-npoff)*il_g*il_g ! True global 1D index
+               iq = (j-1)*ipan + (n-1)*ipan*jpan
+               ag(iqg+1:iqg+ipan) = abuf(iq+1:iq+ipan,iproc)
+            end do
+         end do
+      end do
+      
+      deallocate( abuf )
 
    end subroutine ccmpi_gatherall2
    
@@ -641,13 +1106,17 @@ contains
       ! Collect global arrays.
       real, dimension(:,:), intent(in) :: a
       real, dimension(:,:), intent(out) :: ag
-      real, dimension(ifull,size(a,2),0:nproc-1) :: abuf
-      real, dimension(ifull,size(a,2)) :: atemp
+      real, dimension(:,:,:), allocatable :: abuf
+      real, dimension(:,:), allocatable :: atemp
       integer :: ipoff, jpoff, npoff
       integer :: j, n, k, iq, iqg, kx, iproc
       integer(kind=4) :: ierr, lsize, lcomm
 
       kx = size(a,2)
+      
+      allocate( abuf(ifull,kx,0:nproc-1) )
+      allocate( atemp(ifull,kx) )
+      
       lsize = ifull*kx
       lcomm = comm_world
       atemp(:,:) = a(1:ifull,1:kx)
@@ -673,15 +1142,46 @@ contains
             end do
          end do
       end do
+      
+      deallocate( abuf )
+      deallocate( atemp )
 
    end subroutine ccmpi_gatherall3
 
    subroutine ccmpi_gathermap_send2(a)
       real, dimension(ifull), intent(in) :: a
-      real, dimension(ifull,1) :: a_l
+      integer :: w
+      integer(kind=4) :: ierr, lsize, lcomm, itag=52
       
-      a_l(1:ifull,1) = a(1:ifull)
-      call ccmpi_gathermap_send3(a_l)
+      lsize = ifull
+      lcomm = comm_world
+
+      ! Set up the buffers to recv
+      nreq = 0
+      do w = 1,size(specmap_recv)
+         nreq = nreq + 1
+         rlist(nreq) = w
+#ifdef i8r8
+         call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, MPI_DOUBLE_PRECISION, specmap_recv(w), itag, lcomm, &
+                         ireq(nreq), ierr )
+#else
+         call MPI_IRecv( bnds(specmap_recv(w))%rbuf, lsize, MPI_REAL, specmap_recv(w), itag, lcomm, ireq(nreq), &
+                         ierr )
+#endif
+      end do
+      rreq = nreq
+      
+      ! Set up the buffers to send
+      bnds(myid)%sbuf(1:ifull) = a(1:ifull)
+      do w = 1,size(specmap_send)
+         nreq = nreq + 1
+#ifdef i8r8
+         call MPI_ISend( bnds(myid)%sbuf, lsize, MPI_DOUBLE_PRECISION, specmap_send(w), itag, lcomm, ireq(nreq), &
+                         ierr )
+#else
+         call MPI_ISend( bnds(myid)%sbuf, lsize, MPI_REAL, specmap_send(w), itag, lcomm, ireq(nreq), ierr )
+#endif
+      end do
 
    end subroutine ccmpi_gathermap_send2
 
@@ -741,8 +1241,86 @@ contains
    
    subroutine ccmpi_gathermap_recv2(kref)
       integer, intent(in) :: kref
+      integer :: w, iproc, n, iq
+      integer :: ipoff, jpoff, npoff
+      integer :: ipak, jpak
+      integer :: rcount, jproc, kproc, mproc
+      integer(kind=4) :: ierr, ldone, lcomm
+      integer(kind=4), dimension(size(specmap_send)+size(specmap_recv)) :: donelist
+
+      ! kref is where we want to store the message in sparse array (globalpack)
       
-      call ccmpi_gathermap_recv3(1,kref)
+      ! use shared memory to transfer messages within a node
+      
+      ! wait until all processes have extracted data from shared memory before
+      ! allowing it to be used for new messages
+      call START_LOG(mpibarrier_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpibarrier_end)
+
+      if ( nreq > 0 ) then
+          
+         ! Unpack incomming messages into shared memory (nodepack)
+         rcount = nreq
+         do while ( rcount > 0 )
+            call START_LOG(mpiwaitcollect_begin) 
+            call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+            call END_LOG(mpiwaitcollect_end)
+            rcount = rcount - ldone
+            do jproc = 1,ldone
+               mproc = donelist(jproc)
+               if ( mproc <= rreq ) then
+                  w = rlist(mproc)
+                  iproc = specmap_recv(w)
+                  kproc = specmap_indx(iproc)
+                  do n = 1,npan
+                     ! Global indices are i+ipoff, j+jpoff, n-npoff
+                     iq = (n-1)*ipan*jpan
+                     nodepack(:,:,n,1,kproc) = &
+                        reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+                  end do
+               end if
+            end do
+         end do
+         nreq = 0
+      
+      else
+
+         ! Unpack messages that have already been received 
+         ! into shared memory (nodepack) 
+         do w = 1,size(specmap_recv)
+            iproc = specmap_recv(w)
+            kproc = specmap_indx(iproc)
+            do n = 1,npan
+               ! Global indices are i+ipoff, j+jpoff, n-npoff
+               iq = (n-1)*ipan*jpan
+               nodepack(:,:,n,1,kproc) = &
+                 reshape( bnds(iproc)%rbuf(iq+1:iq+ipan*jpan), (/ ipan, jpan /) )
+            end do
+         end do
+          
+      end if ! if nreq>0 ..else..
+
+      ! wait until all messages have been received before extracting data from
+      ! shared memory
+      call START_LOG(mpibarrier_begin) 
+      lcomm = comm_node
+      call MPI_Barrier( lcomm, ierr )
+      call END_LOG(mpibarrier_end)
+
+      ! unpack for process from shared memory (nodepack) into sparse array (globalpack)
+      do w = 1,size(specmap_req)
+         iproc = specmap_req(w)
+         kproc = specmap_indx(iproc)
+         call proc_region_face(iproc,ipoff,jpoff,npoff,nxproc,nyproc,ipan,jpan,npan)
+         ipak = ipoff/ipan
+         jpak = jpoff/jpan
+         do n = 1,npan
+            globalpack(ipak,jpak,n-npoff)%localdata(:,:,kref+1) = &
+               nodepack(:,:,n,1,kproc)
+         end do   
+      end do 
    
    end subroutine ccmpi_gathermap_recv2
 
@@ -1123,45 +1701,105 @@ contains
    end subroutine deallocateglobalpack
    
    subroutine ccglobal_posneg2(array, delpos, delneg)
+      ! Calculate global sums of positive and negative values of array
+      use sumdd_m
+      use xyzinfo_m   
       real, intent(in), dimension(ifull) :: array
       real, intent(out) :: delpos, delneg
-      real, dimension(ifull,1,1) :: array_l
-      real, dimension(1) :: delpos_l, delneg_l
-      real, dimension(1) :: dsig
-      
-      dsig(1) = 1.
-      array_l(1:ifull,1,1) = array(1:ifull)
-      call ccglobal_posneg4(array_l, delpos_l, delneg_l, dsig)
-      delpos = delpos_l(1)
-      delneg = delneg_l(1)
+      real, dimension(:,:), allocatable :: tmparr
+      integer(kind=4) :: ierr, mnum, lcomm
+      complex, dimension(2) :: local_sum, global_sum
+
+      local_sum(1:2) = cmplx(0., 0.)
+      allocate( tmparr(ifull,2) )
+      tmparr(1:ifull,1) = max(0.,array(1:ifull)*wts(1:ifull))
+      tmparr(1:ifull,2) = min(0.,array(1:ifull)*wts(1:ifull))
+      call drpdr_local_v(tmparr(:,:),local_sum(:))
+      deallocate( tmparr )
+      mnum = 2
+      global_sum(1:2) = cmplx(0.,0.)
+      lcomm = comm_world
+      call START_LOG(allreduce_begin)
+#ifdef i8r8
+      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, ierr )
+#else
+      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_COMPLEX, MPI_SUMDR, lcomm, ierr )
+#endif
+      call END_LOG(allreduce_end)
+      delpos = real(global_sum(1))
+      delneg = real(global_sum(2))
 
    end subroutine ccglobal_posneg2
     
    subroutine ccglobal_posneg3(array, delpos, delneg, dsig)
+      ! Calculate global sums of positive and negative values of array
+      use sumdd_m
+      use xyzinfo_m   
       real, intent(in), dimension(:,:) :: array
       real, intent(in), dimension(:) :: dsig
       real, intent(out) :: delpos, delneg
-      real, dimension(ifull,size(array,2),1) :: array_l
-      real, dimension(1) :: delpos_l, delneg_l
-      
-      array_l(1:ifull,:,1) = array(1:ifull,:)
-      call ccglobal_posneg4(array_l, delpos_l, delneg_l, dsig)
-      delpos = delpos_l(1)
-      delneg = delneg_l(1)
+      real, dimension(:,:), allocatable :: tmparr
+      integer :: k, kx
+      integer(kind=4) :: ierr, mnum, lcomm
+      complex, dimension(2) :: local_sum, global_sum
+
+      kx  = size(array,2)
+      local_sum(1:2) = cmplx(0., 0.)
+      allocate( tmparr(ifull,2) )
+      do k = 1,kx
+         tmparr(1:ifull,1) = max(0.,abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull,2) = min(0.,abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
+        call drpdr_local_v(tmparr(:,:),local_sum(:))
+      end do
+      deallocate( tmparr )
+      mnum = 2
+      global_sum(1:2) = cmplx(0.,0.)
+      lcomm = comm_world
+      call START_LOG(allreduce_begin)
+#ifdef i8r8
+      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, ierr )
+#else
+      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_COMPLEX, MPI_SUMDR, lcomm, ierr )
+#endif
+      call END_LOG(allreduce_end)
+      delpos = real(global_sum(1))
+      delneg = real(global_sum(2))
 
    end subroutine ccglobal_posneg3
    
    subroutine ccglobal_posneg3o(array, delpos, delneg, dsig)
+      ! Calculate global sums of positive and negative values of array
+      use sumdd_m
+      use xyzinfo_m
       real, intent(in), dimension(:,:) :: array
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out) :: delpos, delneg
-      real, dimension(ifull,size(array,2),1) :: array_l
-      real, dimension(1) :: delpos_l, delneg_l
-      
-      array_l(1:ifull,:,1) = array(1:ifull,:)
-      call ccglobal_posneg4o(array_l, delpos_l, delneg_l, dsig)
-      delpos = delpos_l(1)
-      delneg = delneg_l(1)
+      real, dimension(:,:), allocatable :: tmparr
+      integer :: k, kx
+      integer(kind=4) :: ierr, mnum, lcomm
+      complex, dimension(2) :: local_sum, global_sum
+
+      kx  = size(array,2)
+      local_sum(1:2) = cmplx(0., 0.)
+      allocate( tmparr(ifull,2) )
+      do k = 1,kx
+         tmparr(1:ifull,1) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull,2) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
+         call drpdr_local_v(tmparr(:,:),local_sum(:))   
+      end do
+      deallocate( tmparr )
+      mnum = 2
+      global_sum(1:2) = cmplx(0.,0.)
+      lcomm = comm_world
+      call START_LOG(allreduce_begin)
+#ifdef i8r8
+      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, ierr )
+#else
+      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_COMPLEX, MPI_SUMDR, lcomm, ierr )
+#endif
+      call END_LOG(allreduce_end)
+      delpos = real(global_sum(1))
+      delneg = real(global_sum(2))
 
    end subroutine ccglobal_posneg3o
 

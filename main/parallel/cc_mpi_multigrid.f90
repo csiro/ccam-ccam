@@ -114,8 +114,11 @@ contains
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
-      real, dimension((msg_len*npanx+1)*kx) :: tdat
-      real, dimension((msg_len*npanx+1)*kx,nmax) :: tdat_g
+      real, dimension(:), allocatable :: tdat
+      real, dimension(:,:), allocatable :: tdat_g
+      
+      allocate( tdat((msg_len*npanx+1)*kx) )
+      allocate( tdat_g((msg_len*npanx+1)*kx,nmax) )
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per process
@@ -157,6 +160,9 @@ contains
          end do
          dsolmax(1:kx) = maxval( tdat_g(hoz_len*kx+1:ilen,1:nmax), dim=2 )
       end if
+      
+      deallocate( tdat )
+      deallocate( tdat_g )
 
    end subroutine mgcollectreduce_work
 
@@ -190,8 +196,11 @@ contains
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
-      real, dimension(msg_len*npanx*kx) :: tdat
-      real, dimension(msg_len*npanx*kx,nmax) :: tdat_g
+      real, dimension(:), allocatable :: tdat
+      real, dimension(:,:), allocatable :: tdat_g
+      
+      allocate( tdat(msg_len*npanx*kx) )
+      allocate( tdat_g(msg_len*npanx*kx,nmax) )
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per process
@@ -230,6 +239,9 @@ contains
             end do   
          end do
       end if
+      
+      deallocate( tdat )
+      deallocate( tdat_g )
 
    end subroutine mgcollect_work
 
@@ -265,8 +277,11 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
-      real, dimension((msg_len*npanx+2)*kx) :: tdat
-      real, dimension((msg_len*npanx+2)*kx,nmax) :: tdat_g
+      real, dimension(:), allocatable :: tdat
+      real, dimension(:,:), allocatable :: tdat_g
+      
+      allocate( tdat((msg_len*npanx+2)*kx) )
+      allocate( tdat_g((msg_len*npanx+2)*kx,nmax) )
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per process
@@ -308,6 +323,9 @@ contains
          smaxmin(1:kx,1) = maxval( tdat_g(hoz_len*kx+1:(hoz_len+1)*kx,1:nmax), dim=2 )
          smaxmin(1:kx,2) = minval( tdat_g((hoz_len+1)*kx+1:ilen,1:nmax), dim=2 )
       end if   
+      
+      deallocate( tdat )
+      deallocate( tdat_g )
   
    end subroutine mgcollectxn_work
 
@@ -339,13 +357,15 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
-      real, dimension((mg(g)%ifull+mg(g)%iextra+1)*size(vdat,2)) :: tdat
+      real, dimension(:), allocatable :: tdat
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
       if ( mg(g)%merge_len <= 1 ) return
-
+      
       kx = size(vdat,2)
+      allocate( tdat((mg(g)%ifull+mg(g)%iextra+1)*kx) )
+      
       dx = size(dsolmax)
       if ( present(klim) ) then
          kx = klim
@@ -380,6 +400,8 @@ contains
       ! extract data from Bcast
       vdat(1:out_len,1:kx) = reshape( tdat(1:out_len*kx), (/ out_len, kx /) )
       dsolmax(1:dx) = tdat(out_len*kx+1:ilen)
+      
+      deallocate( tdat )
    
    end subroutine mgbcast3
 
@@ -407,13 +429,14 @@ contains
       integer :: kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
-      real, dimension((mg(g)%ifull + mg(g)%iextra)*size(vdat,2)) :: tdat
+      real, dimension(:), allocatable :: tdat
       logical, intent(in), optional :: nobounds
       logical :: nbflag
 
       if ( mg(g)%merge_len <= 1 ) return
-
+      
       kx = size(vdat,2)
+      allocate( tdat((mg(g)%ifull + mg(g)%iextra)*kx) )
       
       nbflag = .false.
       if ( present(nobounds) ) then
@@ -441,6 +464,8 @@ contains
 
       ! extract data from Bcast
       vdat(1:out_len,1:kx) = reshape( tdat(1:ilen), (/ out_len, kx /) )
+      
+      deallocate( tdat )
    
    end subroutine mgbcasta3
    
@@ -453,13 +478,14 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
-      real, dimension((mg(g)%ifull+mg(g)%iextra+2)*size(vdat,2)) :: tdat
+      real, dimension(:), allocatable :: tdat
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
       if ( mg(g)%merge_len <= 1 ) return
-
+      
       kx = size(vdat, 2)
+      allocate( tdat((mg(g)%ifull+mg(g)%iextra+2)*kx) )
 
       nbflag = .false.
       if (present(klim)) then
@@ -492,6 +518,8 @@ contains
       ! extract data from Bcast
       vdat(1:out_len,1:kx) = reshape( tdat(1:out_len*kx), (/ out_len, kx /) )
       smaxmin(1:kx,1:2) = reshape( tdat(out_len*kx+1:ilen), (/ kx, 2 /) )
+      
+      deallocate( tdat )
    
    end subroutine mgbcastxn3
    
@@ -499,7 +527,7 @@ contains
    subroutine mg_index(g,mil_g,mipan,mjpan)
       use indices_m
       integer, intent(in) :: g, mil_g, mipan, mjpan
-      integer, dimension(2*(mipan+mjpan+2)*(npanels+1)) :: dum
+      integer, dimension(:), allocatable :: dum
       integer, dimension(:,:), allocatable :: dums, dumr
       integer :: mioff, mjoff
       integer :: i, j, n, iq, iqq, iqg, mfull_g
@@ -511,7 +539,7 @@ contains
       ! size of this grid
       mfull_g = 6*mil_g**2
 
-
+      
       ! calculate process map in iq coordinates
       lglob = .true.
       lflag = .true.
@@ -1176,6 +1204,7 @@ contains
          end if   
 
          ! reduce array size where possible
+         allocate( dum(2*(mipan+mjpan+2)*(npanels+1)) )
          do iproc = 0,nproc-1
             xlen = mg_bnds(iproc,g)%rlenx_fn(maxcolour)
             if ( mg_bnds(iproc,g)%len > xlen ) then
@@ -1212,6 +1241,7 @@ contains
                bnds(iproc)%sbuflen = xlen
             end if
          end do
+         deallocate( dum )
       
          ! calculate colours per level
          allocate( mg(g)%ifull_colour(maxcolour) )

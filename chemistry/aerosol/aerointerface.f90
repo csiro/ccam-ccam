@@ -227,7 +227,7 @@ if ( aero_update==1 ) then
    
   ! Aerosol mixing
   !$omp do schedule(static) private(js,je,i,iq,k,ntr) &
-  !$omp private(rong,rlogs1,rlogs2)                   &
+  !$omp private(rong,rlogs1,rlogs2,at,ct)             &
   !$omp private(rlogh1,rlog12,tmnht,dzz,gt,lxtg)    
   do tile = 1,ntiles
     js = (tile-1)*imax + 1

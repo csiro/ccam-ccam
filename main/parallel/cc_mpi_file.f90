@@ -673,16 +673,96 @@ contains
       real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount), intent(inout) :: sdat
       integer, intent(in) :: comm_ip
       logical, intent(in), optional :: corner
-      real, dimension(0:pipan+1,0:pjpan+1,pnpan,1:fncount,1) :: sdat_l
-      logical :: corner_l
+      integer :: iproc, iq, send_len
+      integer :: myrlen, jproc, mproc, rcount
+      integer, dimension(fileneighnum) :: rslen, sslen
+      integer(kind=4) :: llen, lproc, ierr, lcomm, ldone
+      integer(kind=4) :: itag=41
+      integer(kind=4), dimension(2*fileneighnum) :: donelist
+      logical :: extra
       
-      corner_l = .true.
+      lcomm = comm_ip
+
       if ( present(corner) ) then
-         corner_l = corner
-      end if
-      sdat_l(:,:,:,:,1) = sdat(:,:,:,:)
-      call ccmpi_filebounds3( sdat_l, comm_ip, corner=corner_l )
-      sdat(:,:,:,:) = sdat_l(:,:,:,:,1)
+         extra = corner
+      else
+         extra = .false.
+      end if   
+          
+      if ( extra ) then
+         rslen(:) = filebnds(fileneighlist)%rlenx
+         sslen(:) = filebnds(fileneighlist)%slenx
+      else    
+         rslen(:) = filebnds(fileneighlist)%rlen
+         sslen(:) = filebnds(fileneighlist)%slen
+      end if 
+      myrlen = filebnds(myid)%rlenx
+
+      !     Set up the buffers to send and recv
+      nreq = 0
+      do iproc = 1,fileneighnum
+         if ( rslen(iproc)>0 ) then
+            llen = rslen(iproc)
+            lproc = fileneighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+#ifdef i8r8
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_DOUBLE_PRECISION, lproc, itag, lcomm, ireq(nreq), ierr )
+#else
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_REAL, lproc, itag, lcomm, ireq(nreq), ierr )
+#endif
+         end if   
+      end do
+      rreq = nreq
+      do iproc = fileneighnum,1,-1
+         if ( sslen(iproc) > 0 ) then 
+            send_len = sslen(iproc)
+            llen = send_len
+            lproc = fileneighlist(iproc)  ! Send to
+            do iq = 1,send_len
+               bnds(lproc)%sbuf(iq) =                                                      &
+                  sdat(filebnds(lproc)%send_list(iq,1),filebnds(lproc)%send_list(iq,2),    &
+                       filebnds(lproc)%send_list(iq,3),filebnds(lproc)%send_list(iq,4))
+            end do
+            nreq = nreq + 1
+#ifdef i8r8
+            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_DOUBLE_PRECISION, lproc, itag, lcomm, ireq(nreq), ierr )
+#else
+            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_REAL, lproc, itag, lcomm, ireq(nreq), ierr )
+#endif
+         end if   
+      end do
+
+      ! See if there are any points on my own process that need
+      ! to be fixed up.
+      do iq = 1,myrlen
+         ! request_list is same as send_list in this case
+         sdat(filebnds(myid)%unpack_list(iq,1),filebnds(myid)%unpack_list(iq,2),   &
+              filebnds(myid)%unpack_list(iq,3),filebnds(myid)%unpack_list(iq,4)) = &
+         sdat(filebnds(myid)%request_list(iq,1),filebnds(myid)%request_list(iq,2), &
+              filebnds(myid)%request_list(iq,3),filebnds(myid)%request_list(iq,4))
+      end do
+
+      ! Unpack incomming messages
+      rcount = nreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitpoint_begin)
+         call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitpoint_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            if ( mproc <= rreq ) then
+               iproc = rlist(mproc)  ! Recv from
+               lproc = fileneighlist(iproc)
+               do iq = 1,rslen(iproc)
+                  sdat(filebnds(lproc)%unpack_list(iq,1),filebnds(lproc)%unpack_list(iq,2),   &
+                       filebnds(lproc)%unpack_list(iq,3),filebnds(lproc)%unpack_list(iq,4)) = &
+                  bnds(lproc)%rbuf(iq)
+               end do
+            end if   
+         end do
+      end do
 
    end subroutine ccmpi_filebounds2
    
@@ -795,22 +875,56 @@ contains
       integer, intent(in) :: comm
       real, dimension(pipan*pjpan*pnpan*fncount), intent(out) :: af
       real, dimension(pil_g*pjl_g), intent(in) :: a1
-      real, dimension(pipan*pjpan*pnpan*fncount,1) :: af_l
-      real, dimension(pil_g*pjl_g,1) :: a1_l
+      real, dimension(:,:), allocatable :: sbuf
+      integer :: j, n, iproc, ipf, ip
+      integer :: ca, cb
+      integer(kind=4) :: ierr, lsize, lcomm
       
-      a1_l(:,1) = a1(:)
-      call host_filedistribute3(af_l,a1_l,comm)
-      af(:) = af_l(:,1)
+      allocate( sbuf(size(af,1),0:fnresid-1) )
+      
+      ! map array in order of process rank
+      do iproc = 0,fnresid-1
+         do ipf = 0,fncount-1
+            ip = iproc + ipf*fnresid
+            do n = 0,pnpan-1
+               do j = 1,pjpan
+                  ca = (j-1)*pipan + n*pipan*pjpan + ipf*pipan*pjpan*pnpan
+                  cb = pioff(ip,n) + (j+pjoff(ip,n)-1)*pil_g + (n-pnoff(ip)+1)*pil_g*pil_g
+                  sbuf(1+ca:pipan+ca,iproc) = a1(1+cb:pipan+cb)
+               end do
+            end do
+         end do
+      end do 
+
+      lsize = pipan*pjpan*pnpan*fncount
+      lcomm = comm
+      call START_LOG(scatter_begin)
+#ifdef i8r8
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_REAL, af, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
+      
+      deallocate( sbuf )
       
    end subroutine host_filedistribute2
 
    subroutine proc_filedistribute2(af,comm)
       integer, intent(in) :: comm
       real, dimension(pipan*pjpan*pnpan*fncount), intent(out) :: af
-      real, dimension(pipan*pjpan*pnpan*fncount,1) :: af_l
+      real, dimension(1,1) :: sbuf
+      integer(kind=4) :: ierr, lsize, lcomm
       
-      call proc_filedistribute3(af_l,comm)
-      af(:) = af_l(:,1)
+      lsize = pipan*pjpan*pnpan*fncount
+      lcomm = comm
+      call START_LOG(scatter_begin)
+#ifdef i8r8
+      call MPI_Scatter( sbuf, lsize, MPI_DOUBLE_PRECISION, af, lsize, MPI_DOUBLE_PRECISION, 0_4, lcomm, ierr )
+#else
+      call MPI_Scatter( sbuf, lsize, MPI_REAL, af, lsize, MPI_REAL, 0_4, lcomm, ierr )
+#endif
+      call END_LOG(scatter_end)
       
    end subroutine proc_filedistribute2
 
@@ -819,12 +933,13 @@ contains
       integer, intent(in) :: comm
       real, dimension(:,:), intent(out) :: af
       real, dimension(:,:), intent(in) :: a1
-      real, dimension(size(af,1),size(af,2),0:fnresid-1) :: sbuf
+      real, dimension(:,:,:), allocatable :: sbuf
       integer :: j, n, iproc, k, ipf, ip
       integer :: kx, ca, cb
       integer(kind=4) :: ierr, lsize, lcomm
       
       kx = size(af,2)
+      allocate( sbuf(size(af,1),kx,0:fnresid-1) )
       
       ! map array in order of process rank
       do iproc = 0,fnresid-1
@@ -851,6 +966,8 @@ contains
       call MPI_Scatter( sbuf, lsize, MPI_REAL, af, lsize, MPI_REAL, 0_4, lcomm, ierr )
 #endif
       call END_LOG(scatter_end)
+      
+      deallocate( sbuf )
       
    end subroutine host_filedistribute3
 

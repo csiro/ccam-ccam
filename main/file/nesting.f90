@@ -1094,16 +1094,21 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
-real, dimension(il_g*ipan*(klt+1)*3) :: dd    ! subset of sparse array
-real, dimension(ipan*jpan*(klt+1),0:2) :: ff
-real, dimension(il_g) :: at, asum             ! subset of sparse array
+real, dimension(:), allocatable :: dd    ! subset of sparse array
+real, dimension(:,:), allocatable :: ff
+real, dimension(:), allocatable :: at, asum             ! subset of sparse array
 real, dimension(klt+1) :: local_sum
-real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za ! subset of shared array
-real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l ! subset of sparse array
+real, dimension(:,:), allocatable :: xa, ya, za ! subset of shared array
+real, dimension(:,:,:), allocatable :: at_l ! subset of sparse array
 #ifdef _OPENACC
 integer :: async_counter
 real, dimension(jpan,klt+1,ipan) :: qt_l
 #endif
+
+allocate( dd(il_g*ipan*(klt+1)*3), ff(ipan*jpan*(klt+1),0:2) )
+allocate( at(il_g), asum(il_g) )
+allocate( xa(4*il_g,max(ipan,jpan)), ya(4*il_g,max(ipan,jpan)), za(4*il_g,max(ipan,jpan)) )
+allocate( at_l(4*il_g,klt+1,max(ipan,jpan)) )
  
 ! matched for panels 1,2 and 3
       
@@ -1307,6 +1312,11 @@ end do
 
 call END_LOG(nestcalc_end)
 
+deallocate( dd, ff )
+deallocate( at, asum )
+deallocate( xa, ya, za )
+deallocate( at_l )
+
 return  
 end subroutine speclocal_left
 
@@ -1329,17 +1339,22 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,klt), intent(out) :: qt
-real, dimension(il_g) :: at, asum
-real, dimension(il_g*jpan*(klt+1)*3) :: dd
-real, dimension(ipan*jpan*(klt+1),0:2) :: ff
+real, dimension(:), allocatable :: at, asum
+real, dimension(:), allocatable :: dd
+real, dimension(:,:), allocatable :: ff
 real, dimension(klt+1) :: local_sum
-real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
-real, dimension(4*il_g,klt+1,max(ipan,jpan)) :: at_l
+real, dimension(:,:), allocatable :: xa, ya, za
+real, dimension(:,:,:), allocatable :: at_l
 #ifdef _OPENACC
 integer async_counter
 real, dimension(ipan,klt+1,jpan) :: qt_l
 #endif
-      
+
+allocate( dd(il_g*jpan*(klt+1)*3), ff(ipan*jpan*(klt+1),0:2) )
+allocate( at(il_g), asum(il_g) )
+allocate( xa(4*il_g,max(ipan,jpan)), ya(4*il_g,max(ipan,jpan)), za(4*il_g,max(ipan,jpan)) )
+allocate( at_l(4*il_g,klt+1,max(ipan,jpan)) )
+
 ! matched for panels 0, 4 and 5
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
@@ -1543,6 +1558,11 @@ end do
 #endif
 
 call END_LOG(nestcalc_end)
+
+deallocate( dd, ff )
+deallocate( at, asum )
+deallocate( xa, ya, za )
+deallocate( at_l )
 
 return  
 end subroutine speclocal_right
@@ -2314,16 +2334,21 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
-real, dimension(il_g) :: ap, asum      
-real, dimension(il_g*ipan*(kd+1)*3) :: zz
-real, dimension(ipan*jpan*(kd+1),0:2) :: yy
+real, dimension(:), allocatable :: ap, asum      
+real, dimension(:), allocatable :: zz
+real, dimension(:,:), allocatable :: yy
 real, dimension(kd+1) :: local_sum
-real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
-real, dimension(4*il_g,kd+1,max(ipan,jpan)) :: ap_l
+real, dimension(:,:), allocatable :: xa, ya, za
+real, dimension(:,:,:), allocatable :: ap_l
 #ifdef _OPENACC
 integer async_counter
 real, dimension(jpan,kd+1,ipan) :: qp_l
 #endif
+
+allocate( ap(il_g), asum(il_g) )
+allocate( zz(il_g*ipan*(kd+1)*3), yy(ipan*jpan*(kd+1),0:2) )
+allocate( xa(4*il_g,max(ipan,jpan)), ya(4*il_g,max(ipan,jpan)), za(4*il_g,max(ipan,jpan)) )
+allocate( ap_l(4*il_g,kd+1,max(ipan,jpan)) )
       
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
@@ -2521,7 +2546,12 @@ end do
 #endif
 
 call END_LOG(nestcalc_end)
-      
+
+deallocate( ap, asum )
+deallocate( zz, yy )
+deallocate( xa, ya, za )
+deallocate( ap_l )
+
 return  
 end subroutine mlospeclocal_left
 
@@ -2543,17 +2573,22 @@ integer, dimension(0:3) :: astr, bstr, cstr
 integer, dimension(0:3) :: maps
 real, intent(in) :: cq
 real, dimension(ipan*jpan,kd), intent(out) :: qp
-real, dimension(il_g) :: ap, asum      
-real, dimension(il_g*jpan*(kd+1)*3) :: zz
-real, dimension(ipan*jpan*(kd+1),0:2) :: yy
+real, dimension(:), allocatable :: ap, asum      
+real, dimension(:), allocatable :: zz
+real, dimension(:,:), allocatable :: yy
 real, dimension(kd+1) :: local_sum
-real, dimension(4*il_g,max(ipan,jpan)) :: xa, ya, za
-real, dimension(4*il_g,kd+1,max(ipan,jpan)) :: ap_l
+real, dimension(:,:), allocatable :: xa, ya, za
+real, dimension(:,:,:), allocatable :: ap_l
 #ifdef _OPENACC
 integer async_counter
 real, dimension(ipan,kd+1,jpan) :: qp_l
 #endif
       
+allocate( ap(il_g), asum(il_g) )
+allocate( zz(il_g*jpan*(kd+1)*3), yy(ipan*jpan*(kd+1),0:2) )
+allocate( xa(4*il_g,max(ipan,jpan)), ya(4*il_g,max(ipan,jpan)), za(4*il_g,max(ipan,jpan)) )
+allocate( ap_l(4*il_g,kd+1,max(ipan,jpan)) )
+
 maps = (/ il_g, il_g, 4*il_g, 3*il_g /)
 til = il_g**2
 kdp1 = kd + 1
@@ -2756,6 +2791,11 @@ end do
 
 call END_LOG(nestcalc_end)
       
+deallocate( ap, asum )
+deallocate( zz, yy )
+deallocate( xa, ya, za )
+deallocate( ap_l )
+
 return  
 end subroutine mlospeclocal_right
 

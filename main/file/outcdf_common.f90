@@ -96,7 +96,6 @@ implicit none
 
 integer, save :: lev = -1
 integer, dimension(1) :: pos
-!real c, conr, con
 real, dimension(ifull), intent(out) :: pmsl
 real, dimension(ifull), intent(in) :: psl, zs
 real, dimension(ifull) :: phi1, tsurf, tav,  dlnps
@@ -137,6 +136,7 @@ use kuocom_m                               ! JLM convection
 use mlodynamics                            ! Ocean dynamics
 use module_aux_rad                         ! Additional cloud and radiation routines
 use module_ctrl_microphysics               ! Interface for cloud microphysics
+use module_ctrl_turbmix                    ! Boundary layer turbulent mixing
 use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
@@ -147,7 +147,7 @@ use parmvert_m                             ! Vertical advection parameters
 use river                                  ! River routing
 use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
-use tkeeps                                 ! TKE-EPS boundary layer
+!use tkeeps                                 ! TKE-EPS boundary layer
 
 implicit none
 
