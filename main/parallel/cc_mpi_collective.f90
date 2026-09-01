@@ -439,7 +439,7 @@ contains
       
       allocate( aftemp(ifull,kx) )
       
-      lsize = ifull*kx*lx
+      lsize = ifull*kx
       lcomm = comm_world
       call START_LOG(scatter_begin) 
 #ifdef i8r8      
