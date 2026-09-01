@@ -1340,9 +1340,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%cplant(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,             &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%cplant(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,             &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case("nplant")
     select case(k)
@@ -1356,9 +1358,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%nplant(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,             &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%nplant(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,             &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case("pplant")
     select case(k)
@@ -1372,9 +1376,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%pplant(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,             &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%pplant(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,             &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case("clitter")
     select case(k)
@@ -1388,9 +1394,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%clitter(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,              &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%clitter(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,              &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case("nlitter")
     select case(k)
@@ -1404,9 +1412,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%nlitter(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,              &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%nlitter(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,              &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case("plitter")
     select case(k)
@@ -1420,9 +1430,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%plitter(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,              &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%plitter(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,              &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case("csoil")
     select case(k)
@@ -1436,9 +1448,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%csoil(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,            &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%csoil(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,            &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case("nsoil")
     select case(k)
@@ -1452,9 +1466,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%nsoil(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,            &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%nsoil(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,            &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case("psoil")
     select case(k)
@@ -1468,9 +1484,11 @@ select case(vname)
     do tile = 1,ntiles
       is = (tile-1)*imax + 1
       ie = tile*imax
-      call cable_casatile_work(n,casapool(tile)%psoil(:,k),dat_out(is:ie), &
-                               veg(tile)%iveg,tdata(tile)%tmap,            &
-                               tdata(tile)%maxnb)
+      if ( tdata(tile)%mp>0 ) then
+        call cable_casatile_work(n,casapool(tile)%psoil(:,k),dat_out(is:ie), &
+                                 veg(tile)%iveg,tdata(tile)%tmap,            &
+                                 tdata(tile)%maxnb)
+      end if  
     end do  
   case default
     write(6,*) "ERROR: Unknown option for cable_tile ",trim(vname)

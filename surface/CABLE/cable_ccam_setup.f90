@@ -30,11 +30,6 @@ implicit none
 private
 public loadcbmparm, cbmparm
 
-!! Expected CABLE input data version
-!real, save :: cable_version = 6608. ! expected version id for input data
-!                                    ! 6608 includes update to ice albedo
-!                                    ! 3939 had fixes for soil albedo
-
 contains
 
 subroutine loadcbmparm(fveg,fphen,casafile, &
@@ -846,30 +841,33 @@ if ( mp_global>0 ) then
       end if
  
       ! Update gridbox average carbon pools
-      cplant(is:ie,:)=0.
-      clitter(is:ie,:)=0.
-      csoil(is:ie,:)=0.
-      niplant(is:ie,:)=0.
-      nilitter(is:ie,:)=0.
-      nisoil(is:ie,:)=0.
-      pplant(is:ie,:)=0.
-      plitter(is:ie,:)=0.
-      psoil(is:ie,:)=0.
-      do k = 1,mplant
-        call cable_update(cplant(is:ie,k),casapool(tile)%cplant(:,k),tile)
-        call cable_update(niplant(is:ie,k),casapool(tile)%nplant(:,k),tile)
-        call cable_update(pplant(is:ie,k),casapool(tile)%pplant(:,k),tile)
-      end do
-      do k = 1,mlitter
-        call cable_update(clitter(is:ie,k),casapool(tile)%clitter(:,k),tile)
-        call cable_update(nilitter(is:ie,k),casapool(tile)%nlitter(:,k),tile)
-        call cable_update(plitter(is:ie,k),casapool(tile)%plitter(:,k),tile)
-      end do
-      do k = 1,msoil
-        call cable_update(csoil(is:ie,k),casapool(tile)%csoil(:,k),tile)
-        call cable_update(nisoil(is:ie,k),casapool(tile)%nsoil(:,k),tile)
-        call cable_update(psoil(is:ie,k),casapool(tile)%psoil(:,k),tile)
-      end do
+      cplant(is:ie,:) = 0.
+      clitter(is:ie,:) = 0.
+      csoil(is:ie,:) = 0.
+      niplant(is:ie,:) = 0.
+      nilitter(is:ie,:) = 0.
+      nisoil(is:ie,:) = 0.
+      pplant(is:ie,:) = 0.
+      plitter(is:ie,:) = 0.
+      psoil(is:ie,:) = 0.
+      
+      if ( tdata(tile)%mp>0 ) then
+        do k = 1,mplant
+          call cable_update(cplant(is:ie,k),casapool(tile)%cplant(:,k),tile)
+          call cable_update(niplant(is:ie,k),casapool(tile)%nplant(:,k),tile)
+          call cable_update(pplant(is:ie,k),casapool(tile)%pplant(:,k),tile)
+        end do
+        do k = 1,mlitter
+          call cable_update(clitter(is:ie,k),casapool(tile)%clitter(:,k),tile)
+          call cable_update(nilitter(is:ie,k),casapool(tile)%nlitter(:,k),tile)
+          call cable_update(plitter(is:ie,k),casapool(tile)%plitter(:,k),tile)
+        end do
+        do k = 1,msoil
+          call cable_update(csoil(is:ie,k),casapool(tile)%csoil(:,k),tile)
+          call cable_update(nisoil(is:ie,k),casapool(tile)%nsoil(:,k),tile)
+          call cable_update(psoil(is:ie,k),casapool(tile)%psoil(:,k),tile)
+        end do
+      end if  
     
     end do ! tile
     
