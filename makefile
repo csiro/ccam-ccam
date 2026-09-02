@@ -113,6 +113,9 @@ VTHRESH =
 ifeq ($(GPU),yes)
 FFLAGS += -DGPU -foffload=nvptx-none
 endif
+ifeq ($(OMP),yes)
+FHOST += -fopenmp
+endif
 PPFLAG90 = -x f95-cpp-input
 PPFLAG77 = -x f77-cpp-input
 PPFLAG90F =
