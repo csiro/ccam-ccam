@@ -60,6 +60,7 @@ integer ncidrad, ncidsolar, ncidch4, ncidn2o
 integer ncidcfc11, ncidcfc12, ncidcfc113, ncidhcfc22
 integer cmip_number
 integer, parameter :: lu=15
+character(len=5) :: mip_text
 
 jyear = year_in
 
@@ -75,7 +76,12 @@ if ( nrad==5 ) then
     else
       call ccnf_open(radfile,ncidrad,ierr)
       if ( ierr==0 ) then
-        cmip_number = 6 ! CMIP6
+        call ccnf_get_attg(ncidrad,"mip_era",mip_text,ierr)
+        if ( ierr==0 .and. mip_text=="CMIP7" ) then
+          cmip_number = 7 ! CMIP7
+        else  
+          cmip_number = 6 ! CMIP6
+        end if  
       else
         open(lu,file=radfile,form='formatted',status='old')
         nlev=0
@@ -166,9 +172,6 @@ if ( nrad==5 ) then
         
     case(6) ! CMIP6   
       if ( myid==0 ) then
-        if ( jyear>2500 ) then  
-          write(6,*) 'Extending concentration data from 2500 for year ',jyear  
-        end if
         write(6,*) 'CO2 data read from file ',trim(radfile)  
         ! radfile is already open
         call readrad2d(ncidrad,'mole_fraction_of_carbon_dioxide_in_air',rrvco2,jmax=2500)
@@ -249,9 +252,107 @@ if ( nrad==5 ) then
       endif
       
       if ( myid==mod(7,nproc) ) then
-        if ( jyear>2300 ) then
-          write(6,*) 'Extending solar data from 2300 for year ',jyear   
-        end if              
+        write(6,*) 'Solar data read from file ',trim(solarfile)
+        call ccnf_open(solarfile,ncidsolar,ierr)
+        if ( ierr/=0 ) then
+          write(6,*) "ERROR: Cannot read solar data from file ",trim(solarfile)
+          call ccmpi_abort(-1)
+        end if
+        call readrad1d(ncidsolar,'tsi',csolar,jmax=2300)
+        call ccnf_close(ncidsolar)
+      end if
+      
+      call ccmpi_bcast(rrvco2,0,comm_world)
+      call ccmpi_bcast(rrvch4,mod(1,nproc),comm_world)
+      call ccmpi_bcast(rrvn2o,mod(2,nproc),comm_world)
+      call ccmpi_bcast(rrvf11,mod(3,nproc),comm_world)
+      call ccmpi_bcast(rrvf12,mod(4,nproc),comm_world)
+      call ccmpi_bcast(rrvf113,mod(5,nproc),comm_world)
+      call ccmpi_bcast(rrvf22,mod(6,nproc),comm_world)
+      call ccmpi_bcast(csolar,mod(7,nproc),comm_world)
+
+    case(7) ! CMIP7
+      if ( myid==0 ) then
+        write(6,*) 'CO2 data read from file ',trim(radfile)  
+        ! radfile is already open
+        call readrad1d(ncidrad,'co2',rrvco2,jmax=2500)
+        rrvco2 = rrvco2*1.e-6
+        call ccnf_close(ncidrad)
+      end if
+      
+      if ( myid==mod(1,nproc) ) then
+        write(6,*) 'CH4 data read from file ',trim(ch4file)
+        call ccnf_open(ch4file,ncidch4,ierr)
+        if ( ierr/=0 ) then
+          write(6,*) "ERROR: Cannot read CH4 data from file ",trim(ch4file)
+          call ccmpi_abort(-1)
+        end if
+        call readrad1d(ncidch4,'ch4',rrvch4,jmax=2500)
+        rrvch4 = rrvch4*1.e-9
+        call ccnf_close(ncidch4)
+      end if
+      
+      if ( myid==mod(2,nproc) ) then
+        write(6,*) 'N2O data read from file ',trim(n2ofile)
+        call ccnf_open(n2ofile,ncidn2o,ierr)
+        if ( ierr/=0 ) then
+          write(6,*) "ERROR: Cannot read N2O data from file ",trim(n2ofile)
+          call ccmpi_abort(-1)
+        end if
+        call readrad1d(ncidn2o,'n2o',rrvn2o,jmax=2500)
+        rrvn2o = rrvn2o*1.e-9
+        call ccnf_close(ncidn2o)
+      end if    
+          
+      if ( myid==mod(3,nproc) ) then
+        write(6,*) 'CFC11 data read from file ',trim(cfc11file)
+        call ccnf_open(cfc11file,ncidcfc11,ierr)
+        if ( ierr/=0 ) then
+          write(6,*) "ERROR: Cannot read CFC11 data from file ",trim(cfc11file)
+          call ccmpi_abort(-1)
+        end if
+        call readrad1d(ncidcfc11,'cfc11',rrvf11,jmax=2500)
+        rrvf11 = rrvf11*1.e-12
+        call ccnf_close(ncidcfc11)
+      end if    
+      
+      if ( myid==mod(4,nproc) ) then
+        write(6,*) 'CFC12 data read from file ',trim(cfc12file)
+        call ccnf_open(cfc12file,ncidcfc12,ierr)
+        if ( ierr/=0 ) then
+          write(6,*) "ERROR: Cannot read CFC12 data from file ",trim(cfc12file)
+          call ccmpi_abort(-1)
+        end if
+        call readrad1d(ncidcfc12,'cfc12',rrvf12,jmax=2500)
+        rrvf12 = rrvf12*1.e-12
+        call ccnf_close(ncidcfc12) 
+      end if    
+      
+      if ( myid==mod(5,nproc) ) then
+        write(6,*) 'CFC113 data read from file ',trim(cfc113file)
+        call ccnf_open(cfc113file,ncidcfc113,ierr)
+        if ( ierr/=0 ) then
+          write(6,*) "ERROR: Cannot read CFC113 data from file ",trim(cfc113file)
+          call ccmpi_abort(-1)
+        end if
+        call readrad1d(ncidcfc113,'cfc113',rrvf113,jmax=2500)
+        rrvf113 = rrvf113*1.e-12
+        call ccnf_close(ncidcfc113)  
+      end if
+      
+      if ( myid==mod(6,nproc) ) then
+        write(6,*) 'HCFC22 data read from file ',trim(hcfc22file)
+        call ccnf_open(hcfc22file,ncidhcfc22,ierr)
+        if ( ierr/=0 ) then
+          write(6,*) "ERROR: Cannot read HCFC22 data from file ",trim(hcfc22file)
+          call ccmpi_abort(-1)
+        end if
+        call readrad1d(ncidhcfc22,'hcfc22',rrvf22,jmax=2500)
+        rrvf22 = rrvf22*1.e-12
+        call ccnf_close(ncidhcfc22)
+      endif
+      
+      if ( myid==mod(7,nproc) ) then
         write(6,*) 'Solar data read from file ',trim(solarfile)
         call ccnf_open(solarfile,ncidsolar,ierr)
         if ( ierr/=0 ) then

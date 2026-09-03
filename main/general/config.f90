@@ -1872,6 +1872,10 @@ process_rate_mode = dumi(121)
 chunk_time        = dumi(122)
 estab_bug_fix     = dumi(123)
 if ( nstn>0 ) then
+  if ( nstn>47 ) then
+    write(6,*) "ERROR: nstn must be less than or equal to 47"
+    stop
+  end if
   call ccmpi_bcast(istn(1:nstn),0,comm_world)
   call ccmpi_bcast(jstn(1:nstn),0,comm_world)
   call ccmpi_bcast(iunp(1:nstn),0,comm_world)

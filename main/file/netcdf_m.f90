@@ -72,12 +72,10 @@ public nf_inq, nf_inq_varname, nf_inq_ndims, nf_inq_nvars, nf_inq_libvers, nf_in
 public nf_inq_attname, nf_inq_attid, nf_inq_att, nf_inq_var, nf_inq_attlen
 public nf_get_att_text, nf_get_att_real, nf_get_att_int, nf_get_att_int1, nf_get_att_int2
 public nf_get_att_double
+public nf_get_vara_text
 public nf_get_vara_real, nf_get_vara_int, nf_get_vara_int2, nf_get_vara_double
 public nf_get_var_real, nf_get_var_int, nf_get_var_double
 public nf_get_var1_real, nf_get_var1_int, nf_get_var1_int1, nf_get_var1_int2, nf_get_var1_double
-public nf_get_vars_text, nf_get_vars_int1, nf_get_vars_int2, nf_get_vars_int, nf_get_vars_real
-public nf_get_vars_double
-public nf_get_varm_int1, nf_get_varm_int2, nf_get_varm_int, nf_get_varm_real, nf_get_varm_double
 public nf_def_dim, nf_def_var, nf_def_var_deflate, nf_def_var_chunking
 public nf_rename_dim, nf_rename_att, nf_rename_var
 public nf_put_att_text, nf_put_att_int2, nf_put_att_real, nf_put_att_int, nf_put_att_int1
@@ -86,9 +84,6 @@ public nf_put_vara_real, nf_put_vara_int, nf_put_vara_int2, nf_put_vara_double
 public nf_put_var_real, nf_put_var_int
 public nf_put_var1_int, nf_put_var1_real, nf_put_var1_double, nf_put_var1_text, nf_put_var1_int1
 public nf_put_var1_int2
-public nf_put_vars_text, nf_put_vars_int1, nf_put_vars_int2, nf_put_vars_int, nf_put_vars_real
-public nf_put_vars_double
-public nf_put_varm_int1, nf_put_varm_int2, nf_put_varm_int, nf_put_varm_real, nf_put_varm_double
 public nf_copy_att, nf_del_att
 
 interface
@@ -351,6 +346,14 @@ integer (C_INT) function nc_get_att_double(ncid,varid,name,dp) bind(C, name='nc_
   character, dimension(*) :: name
 end function nc_get_att_double
     
+integer (C_INT) function nc_get_vara_text(ncid,varid,start,ncount,tp) bind(C, name='nc_get_vara_text')
+  use, intrinsic :: ISO_C_BINDING
+  implicit none
+  integer (C_INT), value :: ncid, varid
+  integer (C_SIZE_T), dimension(*) :: start, ncount
+  type (C_PTR), value :: tp
+end function nc_get_vara_text    
+    
 integer (C_INT) function nc_get_vara_float(ncid,varid,start,count,rp) bind(C, name='nc_get_vara_float')
   use, intrinsic :: ISO_C_BINDING
   implicit none
@@ -443,105 +446,6 @@ integer (C_INT) function nc_get_var1_double(ncid,varid,start,dp) bind(C, name='n
   integer (C_SIZE_T), dimension(*) :: start
   type (C_PTR), value :: dp
 end function nc_get_var1_double
-    
-integer (C_INT) function nc_get_vars_text(ncid,varid,start,ncount,stride,tp) bind(C, name='nc_get_vars_text')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: tp
-end function nc_get_vars_text
-
-integer (C_INT) function nc_get_vars_schar(ncid,varid,start,ncount,stride,bp) bind(C, name='nc_get_vars_schar')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: bp
-end function nc_get_vars_schar
-
-integer (C_INT) function nc_get_vars_short(ncid,varid,start,ncount,stride,sp) bind(C, name='nc_get_vars_short')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: sp
-end function nc_get_vars_short 
-
-integer (C_INT) function nc_get_vars_int(ncid,varid,start,ncount,stride,ip) bind(C, name='nc_get_vars_int')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: ip
-end function nc_get_vars_int
-
-integer (C_INT) function nc_get_vars_float(ncid,varid,start,ncount,stride,fp) bind(C, name='nc_get_vars_float')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: fp
-end function nc_get_vars_float    
-
-integer (C_INT) function nc_get_vars_double(ncid,varid,start,ncount,stride,dp) bind(C, name='nc_get_vars_double')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: dp
-end function nc_get_vars_double
-    
-integer (C_INT) function nc_get_varm_schar(ncid,varid,start,ncount,stride,imap,bp) bind(C, name='nc_get_varm_schar')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: bp
-end function nc_get_varm_schar
-
-integer (C_INT) function nc_get_varm_short(ncid,varid,start,ncount,stride,imap,sp) bind(C, name='nc_get_varm_short')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: sp
-end function nc_get_varm_short   
-
-integer (C_INT) function nc_get_varm_int(ncid,varid,start,ncount,stride,imap,ip) bind(C, name='nc_get_varm_int')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: ip
-end function nc_get_varm_int
-
-integer (C_INT) function nc_get_varm_float(ncid,varid,start,ncount,stride,imap,fp) bind(C, name='nc_get_varm_float')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: fp
-end function nc_get_varm_float   
-
-integer (C_INT) function nc_get_varm_double(ncid,varid,start,ncount,stride,imap,dp) bind(C, name='nc_get_varm_double')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: dp
-end function nc_get_varm_double
     
 integer (C_INT) function nc_def_dim(ncid,name,size,dimidp) bind(C, name='nc_def_dim')
   use, intrinsic :: ISO_C_BINDING
@@ -726,8 +630,8 @@ integer (C_INT) function nc_put_var1_text(ncid,varid,start,tp) bind(C, name='nc_
   integer (C_INT), value :: ncid, varid
   integer (C_SIZE_T), dimension(*) :: start
   character, dimension(*) :: tp
-end function nc_put_var1_text
-
+    end function nc_put_var1_text
+    
 integer (C_INT) function nc_put_var1_schar(ncid,varid,start,bp) bind(C, name='nc_put_var1_schar')
   use, intrinsic :: ISO_C_BINDING
   implicit none
@@ -743,105 +647,6 @@ integer (C_INT) function nc_put_var1_short(ncid,varid,start,sp) bind(C, name='nc
   integer (C_SIZE_T), dimension(*) :: start
   type (C_PTR), value :: sp
 end function nc_put_var1_short
-    
-integer (C_INT) function nc_put_vars_text(ncid,varid,start,ncount,stride,tp) bind(C, name='nc_put_vars_text')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, ncount
-  integer (C_INTPTR_T), dimension(*) :: stride
-  character, dimension(*) :: tp
-end function nc_put_vars_text
-
-integer (C_INT) function nc_put_vars_schar(ncid,varid,start,count,stride,bp) bind(C, name='nc_put_vars_schar')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: bp
-end function nc_put_vars_schar
-
-integer (C_INT) function nc_put_vars_short(ncid,varid,start,count,stride,sp) bind(C, name='nc_put_vars_short')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: sp
-end function nc_put_vars_short
-
-integer (C_INT) function nc_put_vars_int(ncid,varid,start,count,stride,ip) bind(C, name='nc_put_vars_int')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: ip
-end function nc_put_vars_int
-   
-integer (C_INT) function nc_put_vars_float(ncid,varid,start,count,stride,fp) bind(C, name='nc_put_vars_float')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: fp
-end function nc_put_vars_float
-
-integer (C_INT) function nc_put_vars_double(ncid,varid,start,count,stride,dp) bind(C, name='nc_put_vars_double')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride
-  type (C_PTR), value :: dp
-end function nc_put_vars_double
-    
-integer (C_INT) function nc_put_varm_schar(ncid,varid,start,count,stride,imap,bp) bind(C, name='nc_put_varm_schar')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: bp
-end function nc_put_varm_schar
-
-integer (C_INT) function nc_put_varm_short(ncid,varid,start,count,stride,imap,sp) bind(C, name='nc_put_varm_short')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: sp
-end function nc_put_varm_short
-
-integer (C_INT) function nc_put_varm_int(ncid,varid,start,count,stride,imap,ip) bind(C, name='nc_put_varm_int')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: ip
-end function nc_put_varm_int
-
-integer (C_INT) function nc_put_varm_float(ncid,varid,start,count,stride,imap,fp) bind(C, name='nc_put_varm_float')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: fp
-end function nc_put_varm_float
-
-integer (C_INT) function nc_put_varm_double(ncid,varid,start,count,stride,imap,dp) bind(C, name='nc_put_varm_double')
-  use, intrinsic :: ISO_C_BINDING
-  implicit none
-  integer (C_INT), value :: ncid, varid
-  integer (C_SIZE_T), dimension(*) :: start, count
-  integer (C_INTPTR_T), dimension(*) :: stride, imap
-  type (C_PTR), value :: dp
-end function nc_put_varm_double
     
 integer (C_INT) function nc_copy_att(ncidin,varidin,name,ncidout,varidout) bind(C, name='nc_copy_att')
   use, intrinsic :: ISO_C_BINDING
@@ -879,21 +684,22 @@ interface nf90_def_var
 end interface nf90_def_var
     
 interface nf90_put_att
-  module procedure nf90_put_att_text, nf90_put_att_int2_s, nf90_put_att_int2_v,      &
-                   nf90_put_att_int_s, nf90_put_att_int_v, nf90_put_att_real_s,      &
-                   nf90_put_att_real_v, nf90_put_att_double_s, nf90_put_att_double_v
+  module procedure nf90_put_att_text
+  module procedure nf90_put_att_int2_s, nf90_put_att_int2_v
+  module procedure nf90_put_att_int_s, nf90_put_att_int_v, nf90_put_att_real_s
+  module procedure nf90_put_att_real_v, nf90_put_att_double_s, nf90_put_att_double_v
 end interface nf90_put_att
 
 interface nf90_put_var
-  module procedure nf90_put_var_text,                                                      &
-                   nf90_put_var_int2_d1, nf90_put_var_int2_d2, nf90_put_var_int2_d3,       &
-                   nf90_put_var_int2_d4,                                                   &
-                   nf90_put_var_int_d0, nf90_put_var_int_d1, nf90_put_var_int_d2,          &
-                   nf90_put_var_int8_d1, nf90_put_var_int8_d2,                             &
-                   nf90_put_var_real_d0, nf90_put_var_real_d1, nf90_put_var_real_d2,       &
-                   nf90_put_var_real_d3, nf90_put_var_real_d4,                             &
-                   nf90_put_var_double_d0, nf90_put_var_double_d1, nf90_put_var_double_d2, &
-                   nf90_put_var_double_d3, nf90_put_var_double_d4
+  module procedure nf90_put_var_text
+  module procedure nf90_put_var_int2_d1, nf90_put_var_int2_d2, nf90_put_var_int2_d3
+  module procedure nf90_put_var_int2_d4
+  module procedure nf90_put_var_int_d0, nf90_put_var_int_d1, nf90_put_var_int_d2
+  module procedure nf90_put_var_int8_d1, nf90_put_var_int8_d2
+  module procedure nf90_put_var_real_d0, nf90_put_var_real_d1, nf90_put_var_real_d2
+  module procedure nf90_put_var_real_d3, nf90_put_var_real_d4
+  module procedure nf90_put_var_double_d0, nf90_put_var_double_d1, nf90_put_var_double_d2
+  module procedure nf90_put_var_double_d3, nf90_put_var_double_d4
 end interface nf90_put_var
     
 interface nf_get_att_real
@@ -972,56 +778,6 @@ interface nf_get_var1_double
   module procedure nf_get_var1_double_s, nf_get_var1_double_v
 end interface nf_get_var1_double
 
-interface nf_get_vars_int1
-  module procedure nf_get_vars_int1_d1, nf_get_vars_int1_d2, nf_get_vars_int1_d3, nf_get_vars_int1_d4, &
-                   nf_get_vars_int1_d5, nf_get_vars_int1_d6, nf_get_vars_int1_d7
-end interface nf_get_vars_int1
-
-interface nf_get_vars_int2
-  module procedure nf_get_vars_int2_d1, nf_get_vars_int2_d2, nf_get_vars_int2_d3, nf_get_vars_int2_d4, &
-                   nf_get_vars_int2_d5, nf_get_vars_int2_d6, nf_get_vars_int2_d7
-end interface nf_get_vars_int2
-
-interface nf_get_vars_int
-  module procedure nf_get_vars_int_d1, nf_get_vars_int_d2, nf_get_vars_int_d3, nf_get_vars_int_d4, &
-                   nf_get_vars_int_d5, nf_get_vars_int_d6, nf_get_vars_int_d7
-end interface nf_get_vars_int    
-
-interface nf_get_vars_real
-  module procedure nf_get_vars_real_d1, nf_get_vars_real_d2, nf_get_vars_real_d3, nf_get_vars_real_d4, &
-                   nf_get_vars_real_d5, nf_get_vars_real_d6, nf_get_vars_real_d7
-end interface nf_get_vars_real
-
-interface nf_get_vars_double
-  module procedure nf_get_vars_double_d1, nf_get_vars_double_d2, nf_get_vars_double_d3, nf_get_vars_double_d4, &
-                   nf_get_vars_double_d5, nf_get_vars_double_d6, nf_get_vars_double_d7
-end interface nf_get_vars_double
-
-interface nf_get_varm_int1
-  module procedure nf_get_varm_int1_d1, nf_get_varm_int1_d2, nf_get_varm_int1_d3, nf_get_varm_int1_d4, &
-                   nf_get_varm_int1_d5, nf_get_varm_int1_d6, nf_get_varm_int1_d7
-end interface nf_get_varm_int1
-
-interface nf_get_varm_int2
-  module procedure nf_get_varm_int2_d1, nf_get_varm_int2_d2, nf_get_varm_int2_d3, nf_get_varm_int2_d4, &
-                   nf_get_varm_int2_d5, nf_get_varm_int2_d6, nf_get_varm_int2_d7
-end interface nf_get_varm_int2
-
-interface nf_get_varm_int
-  module procedure nf_get_varm_int_d1, nf_get_varm_int_d2, nf_get_varm_int_d3, nf_get_varm_int_d4, &
-                   nf_get_varm_int_d5, nf_get_varm_int_d6, nf_get_varm_int_d7
-end interface nf_get_varm_int
-    
-interface nf_get_varm_real
-  module procedure nf_get_varm_real_d1, nf_get_varm_real_d2, nf_get_varm_real_d3, nf_get_varm_real_d4, &
-                   nf_get_varm_real_d5, nf_get_varm_real_d6, nf_get_varm_real_d7
-end interface nf_get_varm_real
-
-interface nf_get_varm_double
-  module procedure nf_get_varm_double_d1, nf_get_varm_double_d2, nf_get_varm_double_d3, nf_get_varm_double_d4, &
-                   nf_get_varm_double_d5, nf_get_varm_double_d6, nf_get_varm_double_d7
-end interface nf_get_varm_double
-    
 interface nf_def_var
   module procedure nf_def_var_s, nf_def_var_v
 end interface nf_def_var
@@ -1074,57 +830,8 @@ end interface nf_put_var_real
 interface nf_put_var_int
   module procedure nf_put_var_int_d1, nf_put_var_int_d2, nf_put_var_int_d3, nf_put_var_int_d4, &
                    nf_put_var_int_d5, nf_put_var_int_d6
-end interface nf_put_var_int    
-    
-interface nf_put_vars_int1
-  module procedure nf_put_vars_int1_d1, nf_put_vars_int1_d2, nf_put_vars_int1_d3, nf_put_vars_int1_d4, &
-                   nf_put_vars_int1_d5, nf_put_vars_int1_d6, nf_put_vars_int1_d7
-end interface nf_put_vars_int1
+end interface nf_put_var_int
 
-interface nf_put_vars_int2
-  module procedure nf_put_vars_int2_d1, nf_put_vars_int2_d2, nf_put_vars_int2_d3, nf_put_vars_int2_d4, &
-                   nf_put_vars_int2_d5, nf_put_vars_int2_d6, nf_put_vars_int2_d7
-end interface nf_put_vars_int2
-
-interface nf_put_vars_int
-  module procedure nf_put_vars_int_d1, nf_put_vars_int_d2, nf_put_vars_int_d3, nf_put_vars_int_d4, &
-                   nf_put_vars_int_d5, nf_put_vars_int_d6, nf_put_vars_int_d7
-end interface nf_put_vars_int
-    
-interface nf_put_vars_real
-  module procedure nf_put_vars_real_d1, nf_put_vars_real_d2, nf_put_vars_real_d3, nf_put_vars_real_d4, &
-                   nf_put_vars_real_d5, nf_put_vars_real_d6, nf_put_vars_real_d7
-end interface nf_put_vars_real
-
-interface nf_put_vars_double
-  module procedure nf_put_vars_double_d1, nf_put_vars_double_d2, nf_put_vars_double_d3, nf_put_vars_double_d4, &
-                   nf_put_vars_double_d5, nf_put_vars_double_d6, nf_put_vars_double_d7
-end interface nf_put_vars_double
-    
-interface nf_put_varm_int1
-  module procedure nf_put_varm_int1_d1, nf_put_varm_int1_d2, nf_put_varm_int1_d3, nf_put_varm_int1_d4, &
-                   nf_put_varm_int1_d5, nf_put_varm_int1_d6, nf_put_varm_int1_d7
-end interface nf_put_varm_int1    
-
-interface nf_put_varm_int2
-  module procedure nf_put_varm_int2_d1, nf_put_varm_int2_d2, nf_put_varm_int2_d3, nf_put_varm_int2_d4, &
-                   nf_put_varm_int2_d5, nf_put_varm_int2_d6, nf_put_varm_int2_d7
-end interface nf_put_varm_int2
-
-interface nf_put_varm_int
-  module procedure nf_put_varm_int_d1, nf_put_varm_int_d2, nf_put_varm_int_d3, nf_put_varm_int_d4, &
-                   nf_put_varm_int_d5, nf_put_varm_int_d6, nf_put_varm_int_d7
-end interface nf_put_varm_int
-
-interface nf_put_varm_real
-  module procedure nf_put_varm_real_d1, nf_put_varm_real_d2, nf_put_varm_real_d3, nf_put_varm_real_d4, &
-                   nf_put_varm_real_d5, nf_put_varm_real_d6, nf_put_varm_real_d7
-end interface nf_put_varm_real
-
-interface nf_put_varm_double
-  module procedure nf_put_varm_double_d1, nf_put_varm_double_d2, nf_put_varm_double_d3, nf_put_varm_double_d4, &
-                   nf_put_varm_double_d5, nf_put_varm_double_d6, nf_put_varm_double_d7
-end interface nf_put_varm_double
     
 integer, parameter :: nf_unlimited = 0
 
@@ -1447,22 +1154,19 @@ integer function nf90_get_att_text(ncid,varid,name,tp) result(ierr)
   ierr = nf_get_att_text(ncid,varid,name,tp)
 end function nf90_get_att_text
 
-integer function nf90_get_var_text(ncid,varid,values,start,stride,count) result(ierr)
+integer function nf90_get_var_text(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   character(len=*), intent(out) :: values
   lstart(:) = 1
   lcount(:) = 1
   lcount(1) = len(values)
-  lstride(:) = 1
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  ierr = nf_get_vars_text(ncid,varid,lstart,lcount,lstride,values)      
+  ierr = nf_get_vara_text(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_text
 
 integer function nf90_get_var_int_d0(ncid,varid,values,start) result(ierr)
@@ -1476,68 +1180,46 @@ integer function nf90_get_var_int_d0(ncid,varid,values,start) result(ierr)
   ierr = nf_get_var1_int(ncid,varid,lstart,values)      
 end function nf90_get_var_int_d0
 
-integer function nf90_get_var_int_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_int_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=4), dimension(:), intent(out) :: values
   lnumdims = size(shape(values(:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_int(ncid,varid,lstart,lcount,lstride,values)      
-  end if
-end function nf90_get_var_int_d1
+  ierr = nf_get_vara_int(ncid,varid,lstart,lcount,values)      
+  end function nf90_get_var_int_d1
 
-integer function nf90_get_var_int_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_int_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=4), dimension(:,:), intent(out) :: values
   lnumdims = size(shape(values(:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_int(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_int(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_int_d2
 
-integer function nf90_get_var_int8_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_int8_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=8), dimension(:), intent(out) :: values
   integer(kind=4), dimension(size(values)) :: lvalues
@@ -1545,28 +1227,18 @@ integer function nf90_get_var_int8_d1(ncid,varid,values,start,count,stride,map) 
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_int(ncid,varid,lstart,lcount,lstride,lmap,lvalues)
-  else
-    ierr = nf_get_vars_int(ncid,varid,lstart,lcount,lstride,lvalues)      
-  end if
+  ierr = nf_get_vara_int(ncid,varid,lstart,lcount,lvalues)      
   values(:) = lvalues(:)
 end function nf90_get_var_int8_d1
 
-integer function nf90_get_var_int8_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_int8_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=8), dimension(:,:), intent(out) :: values
   integer(kind=4), dimension(size(values,1),size(values,2)) :: lvalues
@@ -1574,17 +1246,9 @@ integer function nf90_get_var_int8_d2(ncid,varid,values,start,count,stride,map) 
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_int(ncid,varid,lstart,lcount,lstride,lmap,lvalues)
-  else
-    ierr = nf_get_vars_int(ncid,varid,lstart,lcount,lstride,lvalues)      
-  end if
+  ierr = nf_get_vara_int(ncid,varid,lstart,lcount,lvalues)      
   values(:,:) = lvalues(:,:)
 end function nf90_get_var_int8_d2
 
@@ -1600,221 +1264,140 @@ integer function nf90_get_var_real_d0(ncid,varid,values,start) result(ierr)
   ierr = nf_get_var1_real(ncid,varid,lstart,values)
 end function nf90_get_var_real_d0
 
-
-integer function nf90_get_var_real_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_real_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:), intent(out) :: values
   lnumdims = size(shape(values(:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_real_d1
 
-integer function nf90_get_var_real_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_real_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:,:), intent(out) :: values
   lnumdims = size(shape(values(:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_real_d2
 
-integer function nf90_get_var_real_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_real_d3(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:,:,:), intent(out) :: values
   lnumdims = size(shape(values(:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_real_d3
 
-integer function nf90_get_var_real_d4(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_real_d4(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:,:,:,:), intent(out) :: values
   lnumdims = size(shape(values(:,:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_real_d4
 
-integer function nf90_get_var_real_d5(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_real_d5(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:,:,:,:,:), intent(out) :: values
   lnumdims = size(shape(values(:,:,:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_real_d5
 
-integer function nf90_get_var_double_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_double_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=8), dimension(:), intent(out) :: values
   lnumdims = size(shape(values(:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_double(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_double(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_double_d1
 
-integer function nf90_get_var_double_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_double_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=8), dimension(:,:), intent(out) :: values
   lnumdims = size(shape(values(:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_double(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_double(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_double_d2
 
-integer function nf90_get_var_double_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_get_var_double_d3(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=8), dimension(:,:,:), intent(out) :: values
   lnumdims = size(shape(values(:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_get_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_get_vars_double(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_get_vara_double(ncid,varid,lstart,lcount,values)      
 end function nf90_get_var_double_d3
 
 integer function nf90_def_var_d0(ncid,name,xtype,varid) result(ierr)
@@ -1956,112 +1539,72 @@ integer function nf90_put_var_text(ncid,varid,values) result(ierr)
   end do
 end function nf90_put_var_text
 
-integer function nf90_put_var_int2_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_int2_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=2), dimension(:), intent(in) :: values
   lnumdims = size(shape(values(:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int2(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_int2(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_int2_d1
 
-integer function nf90_put_var_int2_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_int2_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=2), dimension(:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int2(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_int2(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_int2_d2
 
-integer function nf90_put_var_int2_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_int2_d3(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride
   integer lnumdims, lcounter
   integer(kind=2), dimension(:,:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int2(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_int2(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_int2_d3
 
-integer function nf90_put_var_int2_d4(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_int2_d4(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=2), dimension(:,:,:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int2(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_int2(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_int2(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_int2_d4
 
 integer function nf90_put_var_int_d0(ncid,varid,values,start) result(ierr)
@@ -2075,68 +1618,46 @@ integer function nf90_put_var_int_d0(ncid,varid,values,start) result(ierr)
   ierr = nf_put_var1_int(ncid,varid,lstart,values)      
 end function nf90_put_var_int_d0
 
-integer function nf90_put_var_int_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_int_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=4), dimension(:), intent(in) :: values
   lnumdims = size(shape(values(:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_int(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_int(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_int_d1
 
-integer function nf90_put_var_int_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_int_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=4), dimension(:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_int(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_int(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_int_d2
 
-integer function nf90_put_var_int8_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_int8_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=8), dimension(:), intent(in) :: values
   integer(kind=4), dimension(size(values)) :: lvalues
@@ -2144,28 +1665,18 @@ integer function nf90_put_var_int8_d1(ncid,varid,values,start,count,stride,map) 
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
   lvalues(:) = values(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int(ncid,varid,lstart,lcount,lstride,lmap,lvalues)
-  else
-    ierr = nf_put_vars_int(ncid,varid,lstart,lcount,lstride,lvalues)      
-  end if
+  ierr = nf_put_vara_int(ncid,varid,lstart,lcount,lvalues)      
 end function nf90_put_var_int8_d1
 
-integer function nf90_put_var_int8_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_int8_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   integer(kind=8), dimension(:,:), intent(in) :: values
   integer(kind=4), dimension(size(values,1),size(values,2)) :: lvalues
@@ -2173,18 +1684,10 @@ integer function nf90_put_var_int8_d2(ncid,varid,values,start,count,stride,map) 
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
   lvalues(:,:) = values(:,:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_int(ncid,varid,lstart,lcount,lstride,lmap,lvalues)
-  else
-    ierr = nf_put_vars_int(ncid,varid,lstart,lcount,lstride,lvalues)      
-  end if
+  ierr = nf_put_vara_int(ncid,varid,lstart,lcount,lvalues)      
 end function nf90_put_var_int8_d2
 
 integer function nf90_put_var_real_d0(ncid,varid,values,start) result(ierr)
@@ -2199,112 +1702,72 @@ integer function nf90_put_var_real_d0(ncid,varid,values,start) result(ierr)
   ierr = nf_put_var1_real(ncid,varid,lstart,values)      
 end function nf90_put_var_real_d0
 
-integer function nf90_put_var_real_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_real_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:), intent(in) :: values
   lnumdims = size(shape(values(:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_real_d1
 
-integer function nf90_put_var_real_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_real_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_real_d2
 
-integer function nf90_put_var_real_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_real_d3(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:,:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_real_d3
 
-integer function nf90_put_var_real_d4(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_real_d4(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=4), dimension(:,:,:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_real(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_real(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_real(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_real_d4
 
 integer function nf90_put_var_double_d0(ncid,varid,values,start) result(ierr)
@@ -2319,112 +1782,72 @@ integer function nf90_put_var_double_d0(ncid,varid,values,start) result(ierr)
   ierr = nf_put_var1_double(ncid,varid,lstart,values)      
 end function nf90_put_var_double_d0
 
-integer function nf90_put_var_double_d1(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_double_d1(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=8), dimension(:), intent(in) :: values
   lnumdims = size(shape(values(:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_double(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_double(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_double_d1
 
-integer function nf90_put_var_double_d2(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_double_d2(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=8), dimension(:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_double(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_double(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_double_d2
 
-integer function nf90_put_var_double_d3(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_double_d3(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=8), dimension(:,:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_double(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_double(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_double_d3
 
-integer function nf90_put_var_double_d4(ncid,varid,values,start,count,stride,map) result(ierr)
+integer function nf90_put_var_double_d4(ncid,varid,values,start,count) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
   integer, dimension(:), intent(in), optional :: start
   integer, dimension(:), intent(in), optional :: count
-  integer, dimension(:), intent(in), optional :: stride
-  integer, dimension(:), intent(in), optional :: map
-  integer, dimension(nf_max_var_dims) :: lstart, lcount, lstride, lmap
+  integer, dimension(nf_max_var_dims) :: lstart, lcount
   integer lnumdims, lcounter
   real(kind=8), dimension(:,:,:,:), intent(in) :: values
   lnumdims = size(shape(values(:,:,:,:)))
   lstart(:) = 1
   lcount(:) = 1
   lcount(1:lnumdims) = shape(values(:,:,:,:))
-  lstride(:) = 1
-  lmap(1:lnumdims) = (/ 1, (product(lcount(:lcounter)), lcounter=1, lnumdims-1) /)
   if (present(start)) lstart(1:size(start)) = start(:)
   if (present(count)) lcount(1:size(count)) = count(:)
-  if (present(stride)) lstride(1:size(stride)) = stride(:)
-  if (present(map)) then
-    lmap(1:size(map)) = map(:)
-    ierr = nf_put_varm_double(ncid,varid,lstart,lcount,lstride,lmap,values)
-  else
-    ierr = nf_put_vars_double(ncid,varid,lstart,lcount,lstride,values)      
-  end if
+  ierr = nf_put_vara_double(ncid,varid,lstart,lcount,values)      
 end function nf90_put_var_double_d4
 
 integer function nf90_copy_att(ncid_in,varid_in,name,ncid_out,varid_out) result(ierr)
@@ -2686,12 +2109,12 @@ integer function nf_inq_varname(ncid,varid,tp) result(ierr)
   integer, intent(in) :: ncid, varid
   character(len=*), intent(out) :: tp
   integer (C_INT) :: c_ncid, c_varid
-  character, dimension(len(tp)) :: c_tp
+  character, dimension(nf_max_name) :: c_tp
   c_ncid = ncid
   c_varid = varid - 1
   c_tp(:) = ''  
   ierr = nc_inq_varname(c_ncid,c_varid,c_tp)
-  call fc_strcopy(c_tp,tp)
+  call fc_strcopy(c_tp(1:len(tp)),tp(1:len(tp)))
 end function nf_inq_varname
 
 integer function nf_inq_ndims(ncid,ndims) result(ierr)
@@ -2753,14 +2176,14 @@ integer function nf_inq_attname(ncid,varid,attnum,tp) result(ierr)
   integer, intent(in) :: ncid, varid, attnum
   character(len=*), intent(out) :: tp
   integer (C_INT) :: c_ncid, c_varid, c_attnum
-  character, dimension(len(tp)) :: c_tp
+  character, dimension(nf_max_name) :: c_tp
   integer i, ix
   c_ncid = ncid
   c_varid = varid - 1
   c_attnum = attnum - 1
   c_tp(:) = ''  
   ierr = nc_inq_attname(c_ncid,c_varid,c_attnum,c_tp)
-  call fc_strcopy(c_tp,tp)
+  call fc_strcopy(c_tp(1:len(tp)),tp(1:len(tp)))
 end function nf_inq_attname
 
 integer function nf_inq_attid(ncid,varid,name,attnum) result(ierr)
@@ -2803,17 +2226,17 @@ integer function nf_inq_var(ncid,varid,name,xtypep,ndimsp,dimidsp,nattsp) result
   character(len=*), intent(out) :: name
   integer (C_INT) :: c_ncid, c_varid
   integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
-  integer (C_INT), dimension(size(dimidsp)), target :: c_dimidsp
-  character, dimension(len(name)) :: c_name
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp
+  character, dimension(nf_max_name) :: c_name
   integer i
   c_ncid = ncid
   c_varid = varid - 1
   c_name = ''
   ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
-  call fc_strcopy(c_name,name)
+  call fc_strcopy(c_name(1:len(name)),name(1:len(name)))
   xtypep = c_xtypep
   ndimsp = c_ndimsp
-  do i = 1,ndimsp
+  do i = 1,min(ndimsp,size(dimidsp))
     dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
   end do
   nattsp = c_nattsp
@@ -2840,12 +2263,20 @@ integer function nf_get_att_text(ncid,varid,name,tp) result(ierr)
   character(len=*), intent(in) :: name
   character(len=*), intent(out) :: tp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_SIZE_T), target :: c_lenp
+  integer :: lenp
   character, dimension(len(name)+1) :: c_name
   character, dimension(len(tp)), target :: c_tp
   c_ncid = ncid
   c_varid = varid - 1
   call cf_strcopy(name,c_name)
   c_tp(:) = ''
+  ierr = nc_inq_attlen(c_ncid,c_varid,c_name,C_LOC(c_lenp))
+  lenp = c_lenp
+  if ( lenp > len(tp) ) then
+    write(6,*) "ERROR: String length is too small for requested variable"
+    stop
+  end if
   ierr = nc_get_att_text(c_ncid,c_varid,c_name,C_LOC(c_tp))
   call fc_strcopy(c_tp,tp)
 end function nf_get_att_text
@@ -2868,14 +2299,22 @@ end function nf_get_att_real_s
 integer function nf_get_att_real_v(ncid,varid,name,rp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: lenp
   real(kind=4), dimension(:), intent(out) :: rp
   character(len=*), intent(in) :: name
   real (C_FLOAT), dimension(size(rp)), target :: c_rp
+  integer (C_SIZE_T), target :: c_lenp
   integer (C_INT) :: c_ncid, c_varid
   character, dimension(len(name)+1) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
   call cf_strcopy(name,c_name)
+  ierr = nc_inq_attlen(c_ncid,c_varid,c_name,C_LOC(c_lenp))
+  lenp = c_lenp 
+  if ( lenp > size(rp) ) then
+    write(6,*) "ERROR: requested variable is larger than array"
+    stop
+  end if
   ierr = nc_get_att_float(c_ncid,c_varid,c_name,C_LOC(c_rp))
   rp = c_rp  
 end function nf_get_att_real_v
@@ -2898,14 +2337,22 @@ end function nf_get_att_int_s
 integer function nf_get_att_int_v(ncid,varid,name,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: lenp
   integer(kind=4), dimension(:), intent(out) :: ip
   character(len=*), intent(in) :: name
   integer (C_INT), dimension(size(ip)), target :: c_ip
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_SIZE_T), target :: c_lenp
   character, dimension(len(name)+1) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
   call cf_strcopy(name,c_name)
+  ierr = nc_inq_attlen(c_ncid,c_varid,c_name,C_LOC(c_lenp))
+  lenp = c_lenp 
+  if ( lenp > size(ip) ) then
+    write(6,*) "ERROR: requested variable is larger than array"
+    stop
+  end if
   ierr = nc_get_att_int(c_ncid,c_varid,c_name,C_LOC(c_ip))
   ip = c_ip  
 end function nf_get_att_int_v
@@ -2928,14 +2375,22 @@ end function nf_get_att_int1_s
 integer function nf_get_att_int1_v(ncid,varid,name,bp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: lenp
   integer(kind=1), dimension(:), intent(out) :: bp
   character(len=*), intent(in) :: name
   integer (C_SIGNED_CHAR), dimension(size(bp)), target :: c_bp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_SIZE_T), target :: c_lenp
   character, dimension(len(name)+1) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
   call cf_strcopy(name,c_name)
+  ierr = nc_inq_attlen(c_ncid,c_varid,c_name,C_LOC(c_lenp))
+  lenp = c_lenp 
+  if ( lenp > size(bp) ) then
+    write(6,*) "ERROR: requested variable is larger than array"
+    stop
+  end if
   ierr = nc_get_att_schar(c_ncid,c_varid,c_name,C_LOC(c_bp))
   bp = c_bp  
 end function nf_get_att_int1_v
@@ -2958,14 +2413,22 @@ end function nf_get_att_int2_s
 integer function nf_get_att_int2_v(ncid,varid,name,sp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: lenp
   integer(kind=2), dimension(:), intent(out) :: sp
   character(len=*), intent(in) :: name
   integer (C_SHORT), dimension(size(sp)), target :: c_sp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_SIZE_T), target :: c_lenp
   character, dimension(len(name)+1) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
   call cf_strcopy(name,c_name)
+  ierr = nc_inq_attlen(c_ncid,c_varid,c_name,C_LOC(c_lenp))
+  lenp = c_lenp 
+  if ( lenp > size(sp) ) then
+    write(6,*) "ERROR: requested variable is larger than array"
+    stop
+  end if
   ierr = nc_get_att_short(c_ncid,c_varid,c_name,C_LOC(c_sp))
   sp = c_sp  
 end function nf_get_att_int2_v
@@ -2988,17 +2451,52 @@ end function nf_get_att_double_s
 integer function nf_get_att_double_v(ncid,varid,name,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: lenp
   real(kind=8), dimension(:), intent(out) :: dp
   character(len=*), intent(in) :: name
   real (C_DOUBLE), dimension(size(dp)), target :: c_dp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_SIZE_T), target :: c_lenp
   character, dimension(len(name)+1) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
   call cf_strcopy(name,c_name)
+  ierr = nc_inq_attlen(c_ncid,c_varid,c_name,C_LOC(c_lenp))
+  lenp = c_lenp 
+  if ( lenp > size(dp) ) then
+    write(6,*) "ERROR: requested variable is larger than array"
+    stop
+  end if
   ierr = nc_get_att_double(c_ncid,c_varid,c_name,C_LOC(c_dp))
   dp = c_dp  
 end function nf_get_att_double_v
+
+integer function nf_get_vara_text(ncid,varid,start,ncount,tp) result(ierr)
+  implicit none
+  integer, intent(in) :: ncid, varid
+  integer, dimension(:), intent(in) :: start, ncount  
+  character(len=*), intent(out) :: tp
+  integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_ndims
+  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
+  character, dimension(len(tp)), target :: c_tp
+  integer i, ndims
+  c_ncid = ncid
+  c_varid = varid - 1
+  c_ndims = size(start)
+  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
+  ndims = c_ndims
+  do i = 1,ndims
+    c_start(ndims-i+1) = start(i) - 1
+    c_ncount(ndims-i+1) = ncount(i)
+  end do
+  if ( product(ncount(1:ndims)) > len(tp) ) then
+    write(6,*) "ERROR: requested string is larger than array"
+    stop
+  end if
+  ierr = nc_get_vara_text(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_tp))
+  call fc_strcopy(c_tp,tp)
+end function nf_get_vara_text
 
 integer function nf_get_vara_real_d1(ncid,varid,start,ncount,fp) result(ierr)
   implicit none
@@ -3019,6 +2517,10 @@ integer function nf_get_vara_real_d1(ncid,varid,start,ncount,fp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(fp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_vara_real_d1
@@ -3042,6 +2544,10 @@ integer function nf_get_vara_real_d2(ncid,varid,start,ncount,fp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(fp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_vara_real_d2
@@ -3065,6 +2571,10 @@ integer function nf_get_vara_real_d3(ncid,varid,start,ncount,fp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(fp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_vara_real_d3
@@ -3088,6 +2598,10 @@ integer function nf_get_vara_real_d4(ncid,varid,start,ncount,fp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(fp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_vara_real_d4
@@ -3112,6 +2626,10 @@ integer function nf_get_vara_real_d5(ncid,varid,start,ncount,fp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(fp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_vara_real_d5
@@ -3136,6 +2654,10 @@ integer function nf_get_vara_real_d6(ncid,varid,start,ncount,fp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(fp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_float(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_vara_real_d6
@@ -3159,6 +2681,10 @@ integer function nf_get_vara_int_d1(ncid,varid,start,ncount,ip) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(ip) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_vara_int_d1
@@ -3182,6 +2708,10 @@ integer function nf_get_vara_int_d2(ncid,varid,start,ncount,ip) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(ip) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_vara_int_d2
@@ -3205,6 +2735,10 @@ integer function nf_get_vara_int_d3(ncid,varid,start,ncount,ip) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(ip) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_vara_int_d3
@@ -3228,6 +2762,10 @@ integer function nf_get_vara_int_d4(ncid,varid,start,ncount,ip) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(ip) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_vara_int_d4
@@ -3252,6 +2790,10 @@ integer function nf_get_vara_int_d5(ncid,varid,start,ncount,ip) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(ip) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_vara_int_d5
@@ -3276,6 +2818,10 @@ integer function nf_get_vara_int_d6(ncid,varid,start,ncount,ip) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(ip) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_int(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_vara_int_d6
@@ -3299,6 +2845,10 @@ integer function nf_get_vara_int2_d1(ncid,varid,start,ncount,sp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(sp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
   sp = c_sp
 end function nf_get_vara_int2_d1
@@ -3322,6 +2872,10 @@ integer function nf_get_vara_int2_d2(ncid,varid,start,ncount,sp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(sp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
   sp = c_sp
 end function nf_get_vara_int2_d2
@@ -3345,6 +2899,10 @@ integer function nf_get_vara_int2_d3(ncid,varid,start,ncount,sp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(sp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
   sp = c_sp
 end function nf_get_vara_int2_d3
@@ -3368,6 +2926,10 @@ integer function nf_get_vara_int2_d4(ncid,varid,start,ncount,sp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(sp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
   sp = c_sp
 end function nf_get_vara_int2_d4
@@ -3392,6 +2954,10 @@ integer function nf_get_vara_int2_d5(ncid,varid,start,ncount,sp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(sp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
   sp = c_sp
 end function nf_get_vara_int2_d5
@@ -3416,6 +2982,10 @@ integer function nf_get_vara_int2_d6(ncid,varid,start,ncount,sp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(sp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_short(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_sp))
   sp = c_sp
 end function nf_get_vara_int2_d6
@@ -3439,6 +3009,10 @@ integer function nf_get_vara_double_d1(ncid,varid,start,ncount,dp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(dp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_vara_double_d1
@@ -3462,6 +3036,10 @@ integer function nf_get_vara_double_d2(ncid,varid,start,ncount,dp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(dp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_vara_double_d2
@@ -3485,6 +3063,10 @@ integer function nf_get_vara_double_d3(ncid,varid,start,ncount,dp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(dp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_vara_double_d3
@@ -3508,6 +3090,10 @@ integer function nf_get_vara_double_d4(ncid,varid,start,ncount,dp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(dp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_vara_double_d4
@@ -3532,6 +3118,10 @@ integer function nf_get_vara_double_d5(ncid,varid,start,ncount,dp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(dp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_vara_double_d5
@@ -3556,6 +3146,10 @@ integer function nf_get_vara_double_d6(ncid,varid,start,ncount,dp) result(ierr)
     c_start(ndims-i+1) = start(i) - 1
     c_ncount(ndims-i+1) = ncount(i)
   end do
+  if ( product(ncount(1:ndims)) > size(dp) ) then
+    write(6,*) "ERROR: requested slab is larger than array"
+    stop
+  end if
   ierr = nc_get_vara_double(c_ncid,c_varid,c_start,c_ncount,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_vara_double_d6
@@ -3575,11 +3169,25 @@ end function nf_get_var_real_s
 integer function nf_get_var_real_d1(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=4), dimension(:), intent(out) :: fp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_FLOAT), dimension(size(fp)), target :: c_fp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(fp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_var_real_d1
@@ -3587,11 +3195,25 @@ end function nf_get_var_real_d1
 integer function nf_get_var_real_d2(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=4), dimension(:,:), intent(out) :: fp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_FLOAT), dimension(size(fp,1),size(fp,2)), target :: c_fp
+  character(len=nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(fp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_var_real_d2
@@ -3599,11 +3221,25 @@ end function nf_get_var_real_d2
 integer function nf_get_var_real_d3(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=4), dimension(:,:,:), intent(out) :: fp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3)), target :: c_fp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(fp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_var_real_d3
@@ -3611,11 +3247,25 @@ end function nf_get_var_real_d3
 integer function nf_get_var_real_d4(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=4), dimension(:,:,:,:), intent(out) :: fp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4)), target :: c_fp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(fp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_var_real_d4
@@ -3623,12 +3273,26 @@ end function nf_get_var_real_d4
 integer function nf_get_var_real_d5(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=4), dimension(:,:,:,:,:), intent(out) :: fp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5)), &
       target :: c_fp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(fp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_var_real_d5
@@ -3636,12 +3300,26 @@ end function nf_get_var_real_d5
 integer function nf_get_var_real_d6(ncid,varid,fp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=4), dimension(:,:,:,:,:,:), intent(out) :: fp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5),size(fp,6)), &
       target :: c_fp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(fp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_float(c_ncid,c_varid,C_LOC(c_fp))
   fp = c_fp
 end function nf_get_var_real_d6
@@ -3649,11 +3327,25 @@ end function nf_get_var_real_d6
 integer function nf_get_var_int_d1(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   integer(kind=4), dimension(:), intent(out) :: ip
   integer(C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   integer(C_INT), dimension(size(ip)), target :: c_ip
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(ip) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_var_int_d1
@@ -3661,11 +3353,25 @@ end function nf_get_var_int_d1
 integer function nf_get_var_int_d2(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   integer(kind=4), dimension(:,:), intent(out) :: ip
   integer(C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   integer(C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(ip) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_var_int_d2
@@ -3673,11 +3379,25 @@ end function nf_get_var_int_d2
 integer function nf_get_var_int_d3(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   integer(kind=4), dimension(:,:,:), intent(out) :: ip
   integer(C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(ip) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_var_int_d3
@@ -3685,11 +3405,25 @@ end function nf_get_var_int_d3
 integer function nf_get_var_int_d4(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   integer(kind=4), dimension(:,:,:,:), intent(out) :: ip
   integer(C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4)), target :: c_ip
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(ip) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_var_int_d4
@@ -3697,12 +3431,26 @@ end function nf_get_var_int_d4
 integer function nf_get_var_int_d5(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   integer(kind=4), dimension(:,:,:,:,:), intent(out) :: ip
   integer(C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
       target :: c_ip
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(ip) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_var_int_d5
@@ -3710,12 +3458,26 @@ end function nf_get_var_int_d5
 integer function nf_get_var_int_d6(ncid,varid,ip) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   integer(kind=4), dimension(:,:,:,:,:,:), intent(out) :: ip
   integer(C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   integer(C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5),size(ip,6)), &
       target :: c_ip
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(ip) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_int(c_ncid,c_varid,C_LOC(c_ip))
   ip = c_ip
 end function nf_get_var_int_d6
@@ -3723,11 +3485,25 @@ end function nf_get_var_int_d6
 integer function nf_get_var_double_d1(ncid,varid,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=8), dimension(:), intent(out) :: dp
   integer(C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real(C_DOUBLE), dimension(size(dp)), target :: c_dp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(dp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_var_double_d1
@@ -3735,11 +3511,25 @@ end function nf_get_var_double_d1
 integer function nf_get_var_double_d2(ncid,varid,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=8), dimension(:,:), intent(out) :: dp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_DOUBLE), dimension(size(dp,1),size(dp,2)), target :: c_dp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(dp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_var_double_d2
@@ -3747,11 +3537,25 @@ end function nf_get_var_double_d2
 integer function nf_get_var_double_d3(ncid,varid,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=8), dimension(:,:,:), intent(out) :: dp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3)), target :: c_dp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(dp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_var_double_d3
@@ -3759,11 +3563,25 @@ end function nf_get_var_double_d3
 integer function nf_get_var_double_d4(ncid,varid,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=8), dimension(:,:,:,:), intent(out) :: dp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4)), target :: c_dp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(dp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_var_double_d4
@@ -3771,12 +3589,26 @@ end function nf_get_var_double_d4
 integer function nf_get_var_double_d5(ncid,varid,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=8), dimension(:,:,:,:,:), intent(out) :: dp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5)), &
       target :: c_dp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(dp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_var_double_d5
@@ -3784,12 +3616,26 @@ end function nf_get_var_double_d5
 integer function nf_get_var_double_d6(ncid,varid,dp) result(ierr)
   implicit none
   integer, intent(in) :: ncid, varid
+  integer :: ndimsp, i
+  integer, dimension(nf_max_var_dims) :: dimidsp
   real(kind=8), dimension(:,:,:,:,:,:), intent(out) :: dp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep, c_ndimsp, c_nattsp
+  integer (C_INT), dimension(nf_max_var_dims), target :: c_dimidsp  
   real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5),size(dp,6)), &
       target :: c_dp
+  character, dimension(nf_max_name) :: c_name
   c_ncid = ncid
   c_varid = varid - 1
+  ierr = nc_inq_var(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_ndimsp),C_LOC(c_dimidsp),C_LOC(c_nattsp))
+  ndimsp = c_ndimsp
+  do i = 1,ndimsp
+    dimidsp(ndimsp-i+1) = c_dimidsp(i) + 1
+  end do
+  if ( product(dimidsp(1:ndimsp)) > size(dp) ) then
+    write(6,*) "ERROR: size of variable dimensions is greater than requested"
+    stop
+  end if  
   ierr = nc_get_var_double(c_ncid,c_varid,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_var_double_d6
@@ -3978,1951 +3824,6 @@ integer function nf_get_var1_double_v(ncid,varid,start,dp) result(ierr)
   ierr = nc_get_var1_double(c_ncid,c_varid,c_start,C_LOC(c_dp))
   dp = c_dp
 end function nf_get_var1_double_v
-
-integer function nf_get_vars_text(ncid,varid,start,ncount,stride,tp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride  
-  character(len=*), intent(out) :: tp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  character, dimension(len(tp)), target :: c_tp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_text(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_tp))
-  call fc_strcopy(c_tp,tp)
-end function nf_get_vars_text
-
-integer function nf_get_vars_int1_d1(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_vars_int1_d1
-
-integer function nf_get_vars_int1_d2(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_vars_int1_d2
-
-integer function nf_get_vars_int1_d3(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_vars_int1_d3
-
-integer function nf_get_vars_int1_d4(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_vars_int1_d4
-
-integer function nf_get_vars_int1_d5(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5)), &
-      target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_vars_int1_d5
-
-integer function nf_get_vars_int1_d6(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:,:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5), &
-      size(bp,6)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_vars_int1_d6
-
-integer function nf_get_vars_int1_d7(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:,:,:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5), &
-      size(bp,6),size(bp,7)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_vars_int1_d7
-
-integer function nf_get_vars_int2_d1(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_vars_int2_d1
-
-integer function nf_get_vars_int2_d2(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_vars_int2_d2
-
-integer function nf_get_vars_int2_d3(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_vars_int2_d3
-
-integer function nf_get_vars_int2_d4(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_vars_int2_d4
-
-integer function nf_get_vars_int2_d5(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5)), &
-      target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_vars_int2_d5
-
-integer function nf_get_vars_int2_d6(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:,:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5), &
-      size(sp,6)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_vars_int2_d6
-
-integer function nf_get_vars_int2_d7(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:,:,:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5), &
-      size(sp,6),size(sp,7)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_vars_int2_d7
-
-integer function nf_get_vars_int_d1(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_vars_int_d1
-
-integer function nf_get_vars_int_d2(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_vars_int_d2
-
-integer function nf_get_vars_int_d3(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_vars_int_d3
-
-integer function nf_get_vars_int_d4(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_vars_int_d4
-
-integer function nf_get_vars_int_d5(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
-      target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_vars_int_d5
-
-integer function nf_get_vars_int_d6(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5), &
-      size(ip,6)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_vars_int_d6
-
-integer function nf_get_vars_int_d7(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:,:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5), &
-      size(ip,6),size(ip,7)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_vars_int_d7
-
-integer function nf_get_vars_real_d1(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_vars_real_d1
-
-integer function nf_get_vars_real_d2(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_vars_real_d2
-
-integer function nf_get_vars_real_d3(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_vars_real_d3
-
-integer function nf_get_vars_real_d4(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_vars_real_d4
-
-integer function nf_get_vars_real_d5(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5)), &
-      target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_vars_real_d5
-
-integer function nf_get_vars_real_d6(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:,:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5), &
-      size(fp,6)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_vars_real_d6
-
-integer function nf_get_vars_real_d7(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:,:,:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5), &
-      size(fp,6),size(fp,7)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_vars_real_d7
-
-integer function nf_get_vars_double_d1(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_vars_double_d1
-
-integer function nf_get_vars_double_d2(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_vars_double_d2
-
-integer function nf_get_vars_double_d3(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_vars_double_d3
-
-integer function nf_get_vars_double_d4(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_vars_double_d4
-
-integer function nf_get_vars_double_d5(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5)), &
-      target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_vars_double_d5
-
-integer function nf_get_vars_double_d6(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:,:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5), &
-      size(dp,6)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_vars_double_d6
-
-integer function nf_get_vars_double_d7(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:,:,:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5), &
-      size(dp,6),size(dp,7)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  ierr = nc_get_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_vars_double_d7
-
-integer function nf_get_varm_int1_d1(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_varm_int1_d1
-
-integer function nf_get_varm_int1_d2(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_varm_int1_d2
-
-integer function nf_get_varm_int1_d3(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_varm_int1_d3
-
-integer function nf_get_varm_int1_d4(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_varm_int1_d4
-
-integer function nf_get_varm_int1_d5(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5)), &
-      target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_varm_int1_d5
-
-integer function nf_get_varm_int1_d6(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:,:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5), &
-      size(bp,6)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_varm_int1_d6
-
-integer function nf_get_varm_int1_d7(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:,:,:,:,:), intent(out) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5), &
-      size(bp,6),size(bp,7)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-  bp = c_bp
-end function nf_get_varm_int1_d7
-
-integer function nf_get_varm_int2_d1(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_varm_int2_d1
-
-integer function nf_get_varm_int2_d2(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_varm_int2_d2
-
-integer function nf_get_varm_int2_d3(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_varm_int2_d3
-
-integer function nf_get_varm_int2_d4(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_varm_int2_d4
-
-integer function nf_get_varm_int2_d5(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5)), &
-      target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_varm_int2_d5
-
-integer function nf_get_varm_int2_d6(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:,:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5), &
-      size(sp,6)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_varm_int2_d6
-
-integer function nf_get_varm_int2_d7(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:,:,:,:,:), intent(out) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5), &
-      size(sp,6),size(sp,7)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-  sp = c_sp
-end function nf_get_varm_int2_d7
-
-integer function nf_get_varm_int_d1(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_varm_int_d1
-
-integer function nf_get_varm_int_d2(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_varm_int_d2
-
-integer function nf_get_varm_int_d3(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_varm_int_d3
-
-integer function nf_get_varm_int_d4(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_varm_int_d4
-
-integer function nf_get_varm_int_d5(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
-      target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_varm_int_d5
-
-integer function nf_get_varm_int_d6(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5), &
-      size(ip,6)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_varm_int_d6
-
-integer function nf_get_varm_int_d7(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:,:,:,:,:), intent(out) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5), &
-      size(ip,6),size(ip,7)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-  ip = c_ip
-end function nf_get_varm_int_d7
-
-integer function nf_get_varm_real_d1(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_varm_real_d1
-
-integer function nf_get_varm_real_d2(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_varm_real_d2
-
-integer function nf_get_varm_real_d3(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_varm_real_d3
-
-integer function nf_get_varm_real_d4(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_varm_real_d4
-
-integer function nf_get_varm_real_d5(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5)), &
-      target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_varm_real_d5
-
-integer function nf_get_varm_real_d6(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:,:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5), &
-      size(fp,6)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_varm_real_d6
-
-integer function nf_get_varm_real_d7(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:,:,:,:,:), intent(out) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5), &
-      size(fp,6),size(fp,7)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-  fp = c_fp
-end function nf_get_varm_real_d7
-
-integer function nf_get_varm_double_d1(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_varm_double_d1
-
-integer function nf_get_varm_double_d2(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_varm_double_d2
-
-integer function nf_get_varm_double_d3(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_varm_double_d3
-
-integer function nf_get_varm_double_d4(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_varm_double_d4
-
-integer function nf_get_varm_double_d5(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5)), &
-      target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_varm_double_d5
-
-integer function nf_get_varm_double_d6(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:,:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5), &
-      size(dp,6)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_varm_double_d6
-
-integer function nf_get_varm_double_d7(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:,:,:,:,:), intent(out) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5), &
-      size(dp,6),size(dp,7)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  ierr = nc_get_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-  dp = c_dp
-end function nf_get_varm_double_d7
 
 integer function nf_def_dim(ncid,name,size,dimid) result(ierr)
   implicit none
@@ -7079,1951 +4980,6 @@ integer function nf_put_var1_int2(ncid,varid,start,sp) result(ierr)
   c_sp = sp
   ierr = nc_put_var1_short(c_ncid,c_varid,c_start,C_LOC(c_sp))
 end function nf_put_var1_int2
-
-integer function nf_put_vars_text(ncid,varid,start,ncount,stride,tp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride  
-  character(len=*), intent(in) :: tp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start, c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  character, dimension(len(tp)+1) :: c_tp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  call cf_strcopy(tp,c_tp)
-  ierr = nc_put_vars_text(c_ncid,c_varid,c_start,c_ncount,c_stride,c_tp)
-end function nf_put_vars_text
-
-integer function nf_put_vars_int1_d1(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-end function nf_put_vars_int1_d1
-
-integer function nf_put_vars_int1_d2(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-end function nf_put_vars_int1_d2
-
-integer function nf_put_vars_int1_d3(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-end function nf_put_vars_int1_d3
-
-integer function nf_put_vars_int1_d4(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-end function nf_put_vars_int1_d4
-
-integer function nf_put_vars_int1_d5(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5)), &
-      target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-end function nf_put_vars_int1_d5
-
-integer function nf_put_vars_int1_d6(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:,:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5), &
-      size(bp,6)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-end function nf_put_vars_int1_d6
-
-integer function nf_put_vars_int1_d7(ncid,varid,start,ncount,stride,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=1), dimension(:,:,:,:,:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5), &
-      size(bp,6),size(bp,6)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_vars_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_bp))
-end function nf_put_vars_int1_d7
-
-integer function nf_put_vars_int2_d1(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-end function nf_put_vars_int2_d1
-
-integer function nf_put_vars_int2_d2(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-end function nf_put_vars_int2_d2
-
-integer function nf_put_vars_int2_d3(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-end function nf_put_vars_int2_d3
-
-integer function nf_put_vars_int2_d4(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-end function nf_put_vars_int2_d4
-
-integer function nf_put_vars_int2_d5(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5)), &
-      target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-end function nf_put_vars_int2_d5
-
-integer function nf_put_vars_int2_d6(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:,:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5), &
-      size(sp,6)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-end function nf_put_vars_int2_d6
-
-integer function nf_put_vars_int2_d7(ncid,varid,start,ncount,stride,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=2), dimension(:,:,:,:,:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5), &
-      size(sp,6),size(sp,7)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_vars_short(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_sp))
-end function nf_put_vars_int2_d7
-
-integer function nf_put_vars_int_d1(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-end function nf_put_vars_int_d1
-
-integer function nf_put_vars_int_d2(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-end function nf_put_vars_int_d2
-
-integer function nf_put_vars_int_d3(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-end function nf_put_vars_int_d3
-
-integer function nf_put_vars_int_d4(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-end function nf_put_vars_int_d4
-
-integer function nf_put_vars_int_d5(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
-      target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-end function nf_put_vars_int_d5
-
-integer function nf_put_vars_int_d6(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5), &
-      size(ip,6)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-end function nf_put_vars_int_d6
-
-integer function nf_put_vars_int_d7(ncid,varid,start,ncount,stride,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  integer(kind=4), dimension(:,:,:,:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5), &
-      size(ip,6),size(ip,7)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_vars_int(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_ip))
-end function nf_put_vars_int_d7
-
-integer function nf_put_vars_real_d1(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-end function nf_put_vars_real_d1
-
-integer function nf_put_vars_real_d2(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-end function nf_put_vars_real_d2
-
-integer function nf_put_vars_real_d3(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-end function nf_put_vars_real_d3
-
-integer function nf_put_vars_real_d4(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-end function nf_put_vars_real_d4
-
-integer function nf_put_vars_real_d5(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5)), &
-      target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-end function nf_put_vars_real_d5
-
-integer function nf_put_vars_real_d6(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5), &
-      size(fp,6)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-end function nf_put_vars_real_d6
-
-integer function nf_put_vars_real_d7(ncid,varid,start,ncount,stride,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=4), dimension(:,:,:,:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5), &
-      size(fp,6),size(fp,7)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_vars_float(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_fp))
-end function nf_put_vars_real_d7
-
-integer function nf_put_vars_double_d1(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-end function nf_put_vars_double_d1
-
-integer function nf_put_vars_double_d2(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-end function nf_put_vars_double_d2
-
-integer function nf_put_vars_double_d3(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-end function nf_put_vars_double_d3
-
-integer function nf_put_vars_double_d4(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-end function nf_put_vars_double_d4
-
-integer function nf_put_vars_double_d5(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5)), &
-      target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-end function nf_put_vars_double_d5
-
-integer function nf_put_vars_double_d6(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:,:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5), &
-      size(dp,6)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-end function nf_put_vars_double_d6
-
-integer function nf_put_vars_double_d7(ncid,varid,start,ncount,stride,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride
-  real(kind=8), dimension(:,:,:,:,:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5), &
-      size(dp,6),size(dp,7)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_vars_double(c_ncid,c_varid,c_start,c_ncount,c_stride,C_LOC(c_dp))
-end function nf_put_vars_double_d7
-
-integer function nf_put_varm_int1_d1(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-end function nf_put_varm_int1_d1
-
-integer function nf_put_varm_int1_d2(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-end function nf_put_varm_int1_d2
-
-integer function nf_put_varm_int1_d3(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-end function nf_put_varm_int1_d3
-
-integer function nf_put_varm_int1_d4(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-end function nf_put_varm_int1_d4
-
-integer function nf_put_varm_int1_d5(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5)), &
-    target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-end function nf_put_varm_int1_d5
-
-integer function nf_put_varm_int1_d6(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:,:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5), &
-      size(bp,6)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-end function nf_put_varm_int1_d6
-
-integer function nf_put_varm_int1_d7(ncid,varid,start,ncount,stride,imap,bp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=1), dimension(:,:,:,:,:,:,:), intent(in) :: bp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SIGNED_CHAR), dimension(size(bp,1),size(bp,2),size(bp,3),size(bp,4),size(bp,5), &
-      size(bp,6),size(bp,7)), target :: c_bp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_bp = bp
-  ierr = nc_put_varm_schar(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_bp))
-end function nf_put_varm_int1_d7
-
-integer function nf_put_varm_int2_d1(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-end function nf_put_varm_int2_d1
-
-integer function nf_put_varm_int2_d2(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-end function nf_put_varm_int2_d2
-
-integer function nf_put_varm_int2_d3(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-end function nf_put_varm_int2_d3
-
-integer function nf_put_varm_int2_d4(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-end function nf_put_varm_int2_d4
-
-integer function nf_put_varm_int2_d5(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5)), &
-      target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-end function nf_put_varm_int2_d5
-
-integer function nf_put_varm_int2_d6(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:,:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5), &
-      size(sp,6)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-end function nf_put_varm_int2_d6
-
-integer function nf_put_varm_int2_d7(ncid,varid,start,ncount,stride,imap,sp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=2), dimension(:,:,:,:,:,:,:), intent(in) :: sp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_SHORT), dimension(size(sp,1),size(sp,2),size(sp,3),size(sp,4),size(sp,5), &
-      size(sp,6),size(sp,7)), target :: c_sp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_sp = sp
-  ierr = nc_put_varm_short(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_sp))
-end function nf_put_varm_int2_d7
-
-integer function nf_put_varm_int_d1(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-end function nf_put_varm_int_d1
-
-integer function nf_put_varm_int_d2(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-end function nf_put_varm_int_d2
-
-integer function nf_put_varm_int_d3(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-end function nf_put_varm_int_d3
-
-integer function nf_put_varm_int_d4(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-end function nf_put_varm_int_d4
-
-integer function nf_put_varm_int_d5(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5)), &
-      target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-end function nf_put_varm_int_d5
-
-integer function nf_put_varm_int_d6(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5), &
-      size(ip,6)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-end function nf_put_varm_int_d6
-
-integer function nf_put_varm_int_d7(ncid,varid,start,ncount,stride,imap,ip) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  integer(kind=4), dimension(:,:,:,:,:,:,:), intent(in) :: ip
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  integer (C_INT), dimension(size(ip,1),size(ip,2),size(ip,3),size(ip,4),size(ip,5), &
-      size(ip,6),size(ip,7)), target :: c_ip
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_ip = ip
-  ierr = nc_put_varm_int(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_ip))
-end function nf_put_varm_int_d7
-
-integer function nf_put_varm_real_d1(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-end function nf_put_varm_real_d1
-
-integer function nf_put_varm_real_d2(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-end function nf_put_varm_real_d2
-
-integer function nf_put_varm_real_d3(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-end function nf_put_varm_real_d3
-
-integer function nf_put_varm_real_d4(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-end function nf_put_varm_real_d4
-
-integer function nf_put_varm_real_d5(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5)), &
-      target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-end function nf_put_varm_real_d5
-
-integer function nf_put_varm_real_d6(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5), &
-      size(fp,6)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-end function nf_put_varm_real_d6
-
-integer function nf_put_varm_real_d7(ncid,varid,start,ncount,stride,imap,fp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=4), dimension(:,:,:,:,:,:,:), intent(in) :: fp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_FLOAT), dimension(size(fp,1),size(fp,2),size(fp,3),size(fp,4),size(fp,5), &
-      size(fp,6),size(fp,7)), target :: c_fp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_fp = fp
-  ierr = nc_put_varm_float(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_fp))
-end function nf_put_varm_real_d7
-
-integer function nf_put_varm_double_d1(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-end function nf_put_varm_double_d1
-
-integer function nf_put_varm_double_d2(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-end function nf_put_varm_double_d2
-
-integer function nf_put_varm_double_d3(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-end function nf_put_varm_double_d3
-
-integer function nf_put_varm_double_d4(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-end function nf_put_varm_double_d4
-
-integer function nf_put_varm_double_d5(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5)), &
-      target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-end function nf_put_varm_double_d5
-
-integer function nf_put_varm_double_d6(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:,:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5), &
-      size(dp,6)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-end function nf_put_varm_double_d6
-
-integer function nf_put_varm_double_d7(ncid,varid,start,ncount,stride,imap,dp) result(ierr)
-  implicit none
-  integer, intent(in) :: ncid, varid
-  integer, dimension(:), intent(in) :: start, ncount, stride, imap
-  real(kind=8), dimension(:,:,:,:,:,:,:), intent(in) :: dp
-  integer (C_INT) :: c_ncid, c_varid
-  integer (C_INT), target :: c_ndims
-  integer (C_SIZE_T), dimension(size(start)) :: c_start
-  integer (C_SIZE_T), dimension(size(ncount)) :: c_ncount
-  integer (C_INTPTR_T), dimension(size(stride)) :: c_stride
-  integer (C_INTPTR_T), dimension(size(imap)) :: c_imap
-  real (C_DOUBLE), dimension(size(dp,1),size(dp,2),size(dp,3),size(dp,4),size(dp,5), &
-      size(dp,6),size(dp,7)), target :: c_dp
-  integer i, ndims
-  c_ncid = ncid
-  c_varid = varid - 1
-  c_ndims = size(start)
-  ierr = nc_inq_varndims(c_ncid,c_varid,C_LOC(c_ndims))
-  ndims = c_ndims
-  do i = 1,ndims
-    c_start(ndims-i+1) = start(i) - 1
-    c_ncount(ndims-i+1) = ncount(i)
-    c_stride(ndims-i+1) = stride(i)
-    c_imap(ndims-i+1) = imap(i)
-  end do
-  c_dp = dp
-  ierr = nc_put_varm_double(c_ncid,c_varid,c_start,c_ncount,c_stride,c_imap,C_LOC(c_dp))
-end function nf_put_varm_double_d7
 
 integer function nf_copy_att(ncidin,varidin,name,ncidout,varidout) result(ierr)
   implicit none

@@ -101,9 +101,9 @@ if ( myid==0 ) then
   write(6,*) "Reading ozone ",trim(o3file)
   call ccnf_open(o3file,ncid,ncstatus) ! test for netcdf
   if ( ncstatus==0 ) then
-    call ccnf_inq_varid(ncid,'vmro3',valident,tst) ! test for CMIP6
+    call ccnf_inq_varid(ncid,'vmro3',valident,tst) ! test for CMIP6/7
     if ( .not.tst ) then
-      write(6,*) "-> Ozone in NetCDF format (CMIP6)"
+      write(6,*) "-> Ozone in NetCDF format (CMIP6/7)"
       call ccnf_inq_dimlen(ncid,'lon',ii)
       allocate( o3lon(ii) )
       call ccnf_inq_varid(ncid,'lon',valident)
