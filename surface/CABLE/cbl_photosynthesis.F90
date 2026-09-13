@@ -17,9 +17,12 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
 
     REAL(r_2), DIMENSION(mp,mf), INTENT(IN) :: csxz
 
-    REAL, DIMENSION(mp,mf), INTENT(IN) ::                                       &
+    REAL, DIMENSION(mp), INTENT(IN) ::                                          &
          cx1z,       & !
          cx2z,       & !
+         deltlfz       !
+    
+    REAL, DIMENSION(mp,mf), INTENT(IN) ::                                       &
          gswminz,    & !
          rdxz,       & !
          vcmxt3z,    & !
@@ -27,8 +30,7 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
          vx4z,       & !
          vx3z,       & !
          gs_coeffz,  & ! Ticket #56, xleuningz repalced with gs_coeffz
-         vlaiz,      & !
-         deltlfz       !
+         vlaiz         !
 
     REAL, DIMENSION(mp,mf), INTENT(INOUT) :: anxz
 
@@ -49,14 +51,10 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
  
     anxz(:,:) = 0.0    
 
-    DO i=1,mp
+    DO j=1,mf
+       DO i=1,mp
+          IF( vlaiz(i,j) .GT. CLAI_THRESH .AND. deltlfz(i) .GT. 0.1) THEN
 
-       IF (SUM(vlaiz(i,:)) .GT. CLAI_THRESH) THEN
-
-          DO j=1,mf
-
-             IF( vlaiz(i,j) .GT. CLAI_THRESH .AND. deltlfz(i,j) .GT. 0.1) THEN
-                 
                 anrubpz    = 0.0
                 ansinkz    = 0.0    
                 anrubiscoz = 0.0  
@@ -67,15 +65,15 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
 
                 coef1z = (1.0-csxz(i,j)*gs_coeffz(i,j)) *                  &
                      (vcmxt3z(i,j)+vcmxt4z(i,j)-rdxz(i,j))             &
-                     + (gswminz(i,j)*fwsoilz(i)/CRGSWC)*(cx1z(i,j)-csxz(i,j)) &
-                     - gs_coeffz(i,j)*(vcmxt3z(i,j)*cx2z(i,j)/2.0      &
-                     + cx1z(i,j)*(rdxz(i,j)-vcmxt4z(i,j) ) )
+                     + (gswminz(i,j)*fwsoilz(i)/CRGSWC)*(cx1z(i)-csxz(i,j)) &
+                     - gs_coeffz(i,j)*(vcmxt3z(i,j)*cx2z(i)/2.0      &
+                     + cx1z(i)*(rdxz(i,j)-vcmxt4z(i,j) ) )
 
 
                 coef0z = -(1.0-csxz(i,j)*gs_coeffz(i,j)) *                 &
-                     (vcmxt3z(i,j)*cx2z(i,j)/2.0                       &
-                     + cx1z(i,j)*( rdxz(i,j)-vcmxt4z(i,j ) ) )         &
-                     -( gswminz(i,j)*fwsoilz(i)/CRGSWC ) * cx1z(i,j)*csxz(i,j)
+                     (vcmxt3z(i,j)*cx2z(i)/2.0                       &
+                     + cx1z(i)*( rdxz(i,j)-vcmxt4z(i,j ) ) )         &
+                     -( gswminz(i,j)*fwsoilz(i)/CRGSWC ) * cx1z(i)*csxz(i,j)
 
 
                 ! kdcorbin,09/10 - new calculations
@@ -99,8 +97,8 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
 
                    ciz = MAX( 0.0_r_2, ciz )
 
-                   anrubiscoz = vcmxt3z(i,j)*(ciz-cx2z(i,j) / 2.0 ) / &
-                        ( ciz + cx1z(i,j)) + vcmxt4z(i,j) -   &
+                   anrubiscoz = vcmxt3z(i,j)*(ciz-cx2z(i) / 2.0 ) / &
+                        ( ciz + cx1z(i)) + vcmxt4z(i,j) -   &
                         rdxz(i,j)
 
                 ENDIF
@@ -116,8 +114,8 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
 
                    ciz = MAX( 0.0_r_2, ciz )   ! must be positive, why?
 
-                   anrubiscoz = vcmxt3z(i,j) * ( ciz - cx2z(i,j)      &
-                        / 2.0)  / ( ciz + cx1z(i,j) ) +       &
+                   anrubiscoz = vcmxt3z(i,j) * ( ciz - cx2z(i)      &
+                        / 2.0)  / ( ciz + cx1z(i) ) +       &
                         vcmxt4z(i,j) - rdxz(i,j)
 
                 ENDIF
@@ -129,14 +127,14 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
                 coef1z = ( 1.0 - csxz(i,j) * gs_coeffz(i,j) ) *            &
                      ( vx3z(i,j) + vx4z(i,j) - rdxz(i,j) )             &
                      + ( gswminz(i,j)*fwsoilz(i) / CRGSWC ) *          &
-                     ( cx2z(i,j) - csxz(i,j) ) - gs_coeffz(i,j)        &
-                     * ( vx3z(i,j) * cx2z(i,j) / 2.0 + cx2z(i,j) *     &
+                     ( cx2z(i) - csxz(i,j) ) - gs_coeffz(i,j)        &
+                     * ( vx3z(i,j) * cx2z(i) / 2.0 + cx2z(i) *     &
                      ( rdxz(i,j) - vx4z(i,j) ) )
 
                 coef0z = -(1.0-csxz(i,j)*gs_coeffz(i,j)) *   &
-                     (vx3z(i,j)*cx2z(i,j)/2.0                          &
-                     + cx2z(i,j)*(rdxz(i,j)-vx4z(i,j)))                &
-                     - (gswminz(i,j)*fwsoilz(i)/CRGSWC)*cx2z(i,j)*csxz(i,j)
+                     (vx3z(i,j)*cx2z(i)/2.0                          &
+                     + cx2z(i)*(rdxz(i,j)-vx4z(i,j)))                &
+                     - (gswminz(i,j)*fwsoilz(i)/CRGSWC)*cx2z(i)*csxz(i,j)
 
 
                 !Ticket #117 - initialize at all times
@@ -151,8 +149,8 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
 
                    ciz = MAX(0.0_r_2,ciz)
 
-                   anrubpz = vx3z(i,j)*(ciz-cx2z(i,j)/2.0) /          &
-                        (ciz+cx2z(i,j)) +vx4z(i,j)-rdxz(i,j)
+                   anrubpz = vx3z(i,j)*(ciz-cx2z(i)/2.0) /          &
+                        (ciz+cx2z(i)) +vx4z(i,j)-rdxz(i,j)
 
                 ENDIF
 
@@ -166,8 +164,8 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
 
                    ciz = MAX(0.0_r_2,ciz)
 
-                   anrubpz  = vx3z(i,j)*(ciz-cx2z(i,j)/2.0) /         &
-                        (ciz+cx2z(i,j)) +vx4z(i,j)-rdxz(i,j)
+                   anrubpz  = vx3z(i,j)*(ciz-cx2z(i)/2.0) /         &
+                        (ciz+cx2z(i)) +vx4z(i,j)-rdxz(i,j)
 
                 ENDIF
 
@@ -216,13 +214,10 @@ USE cable_photo_constants_mod, ONLY : CRGSWC => RGSWC
                 ! minimal of three limited rates
                 anxz(i,j) = MIN(anrubiscoz,anrubpz,ansinkz)
 
+                
 
-             ENDIF
-
-          ENDDO
-
-       ENDIF
-
+          ENDIF
+       ENDDO
     ENDDO
 
 

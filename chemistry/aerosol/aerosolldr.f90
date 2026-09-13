@@ -1171,7 +1171,7 @@ end if
 !$acc   zxtp1con,zsolub,xte,xto,wd,zdepr,zdeps,         &
 !$acc   dmsoh,dmsn3,so2oh,so2h2,so2o3,                  &
 !$acc   pclcon,pclcover,pcfcover,pmlwc,pmiwc,           &
-!$acc   pccw,zdayfac,taudar)
+!$acc   pccw)
 
 !$acc update device(xtm1,xtu,pclcon)
 
@@ -1217,7 +1217,7 @@ end do
 
 !$acc parallel loop collapse(2) present(zso4,zso4i,zso4c,zhenry,zxtp1con,xtu,xto) &
 !$acc   present(so2h2,so2o3,zxtp10,zxtp1c,prhop1,ptp1,rhodz)                      &
-!$acc   present(xtm1,xte,zoxidant,pclcover,pcfcover,pmlwc,pmiwc,pccw,pclcon)
+!$acc   present(xtm1,zoxidant,pclcover,pcfcover,pmlwc,pmiwc,pccw,pclcon)
 do jk = 1,kl
   do iq = 1,imax
 

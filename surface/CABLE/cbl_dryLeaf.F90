@@ -7,6 +7,7 @@ PRIVATE
 
 CONTAINS
 
+  
   SUBROUTINE dryLeaf( dels, rad, rough, air, met,                                &
        veg, canopy, soil, ssnow, dsx,                             &
        fwsoil, tlfx,  tlfy,  ecy, hcy,                            &
@@ -138,8 +139,11 @@ IMPLICIT NONE
                                 ! xleuning,   & ! leuning stomatal coeff
          gs_coeff,   & ! stom coeff, Ticket #56
          psycst,     & ! modified pych. constant
-         frac42,     & ! 2D frac4
-         temp2
+         frac42        ! 2D frac4
+    
+    REAL :: &
+         temp21,     &
+         temp22
 
     REAL, DIMENSION(:,:), POINTER :: gswmin ! min stomatal conductance
 
@@ -151,7 +155,7 @@ IMPLICIT NONE
     REAL :: medlyn_lim  !INH 2018: should be a parameter in long-term
 
 #ifdef CCAM
-    real, dimension(mp,mf) :: tmp1, tmp2, tmp3, tmp4
+    real, dimension(mp,mf) :: tmp3
     real, dimension(ms) :: tmp11, tmp12, tmp13, tmp14, tmp15
 #endif
 
@@ -184,8 +188,14 @@ IMPLICIT NONE
     ! weight min stomatal conductance by C3 an C4 plant fractions
     frac42 = SPREAD(veg%frac4, 2, mf) ! frac C4 plants
     gsw_term = SPREAD(veg%gswmin,2,mf)
-    lower_limit2 = rad%scalex * gsw_term
-    gswmin = MAX(1.e-6,lower_limit2)
+    IF(cable_user%GS_SWITCH == 'medlyn') THEN
+      do i = 1,mp
+        gswmin(i,:) = veg%g0(i)
+      end do
+    else
+      lower_limit2 = rad%scalex * gsw_term
+      gswmin = MAX(1.e-6,lower_limit2)
+    end if  
 
     gw = 1.0e-3 ! default values of conductance
     gh = 1.0e-3
@@ -196,7 +206,7 @@ IMPLICIT NONE
     abs_deltlf = 999.0
 
 
-        an_y= 0.0
+    an_y= 0.0
     hcx = 0.0              ! init sens heat iteration memory variable
     hcy = 0.0
     rdy = 0.0
@@ -305,14 +315,14 @@ IMPLICIT NONE
              ! All equations below in appendix E in Wang and Leuning 1998 are
              ! for calculating anx, csx and gswx for Rubisco limited,
              ! RuBP limited, sink limited
-             temp2(i,1) = rad%qcan(i,1,1) * jtomol * (1.0-veg%frac4(i))
-             temp2(i,2) = rad%qcan(i,2,1) * jtomol * (1.0-veg%frac4(i))
-             vx3(i,1)  = ej3x(temp2(i,1),veg%alpha(i),veg%convex(i),ejmxt3(i,1))
-             vx3(i,2)  = ej3x(temp2(i,2),veg%alpha(i),veg%convex(i),ejmxt3(i,2))
-             temp2(i,1) = rad%qcan(i,1,1) * jtomol * veg%frac4(i)
-             temp2(i,2) = rad%qcan(i,2,1) * jtomol * veg%frac4(i)
-             vx4(i,1)  = ej4x(temp2(i,1),veg%alpha(i),veg%convex(i),vcmxt4(i,1))
-             vx4(i,2)  = ej4x(temp2(i,2),veg%alpha(i),veg%convex(i),vcmxt4(i,2))
+             temp21 = rad%qcan(i,1,1) * jtomol * (1.0-veg%frac4(i))
+             temp22 = rad%qcan(i,2,1) * jtomol * (1.0-veg%frac4(i))
+             vx3(i,1)  = ej3x(temp21,veg%alpha(i),veg%convex(i),ejmxt3(i,1))
+             vx3(i,2)  = ej3x(temp22,veg%alpha(i),veg%convex(i),ejmxt3(i,2))
+             temp21 = rad%qcan(i,1,1) * jtomol * veg%frac4(i)
+             temp22 = rad%qcan(i,2,1) * jtomol * veg%frac4(i)
+             vx4(i,1)  = ej4x(temp21,veg%alpha(i),veg%convex(i),vcmxt4(i,1))
+             vx4(i,2)  = ej4x(temp22,veg%alpha(i),veg%convex(i),vcmxt4(i,2))
 
              rdx(i,1) = (veg%cfrd(i)*Vcmxt3(i,1) + veg%cfrd(i)*vcmxt4(i,1))
              rdx(i,2) = (veg%cfrd(i)*vcmxt3(i,2) + veg%cfrd(i)*vcmxt4(i,2))
@@ -341,28 +351,32 @@ IMPLICIT NONE
                      veg%iveg(i) .EQ. aust_mesic          .OR.                 &
                      veg%iveg(i) .EQ. aust_xeric       ) THEN 
 
-                   rdx(i,:) = 0.60 * ( 1.2818e-6 + 0.0116 * veg%vcmax(i) -     &
+                   rdx(i,1) = 0.60 * ( 1.2818e-6 + 0.0116 * veg%vcmax(i) -     &
                               0.0334 * climate%qtemp_max_last_year(i) * 1.0e-6 )
+                   rdx(i,2) = rdx(i,1)
 
                 ! needleleaf forest
                 ELSEIF ( veg%iveg(i) .EQ. evergreen_needleleaf .OR.            &
                          veg%iveg(i) .EQ. deciduous_needleleaf ) THEN 
                    
-                   rdx(i,:) = 1.0 * ( 1.2877e-6 + 0.0116 * veg%vcmax(i) -      &
+                   rdx(i,1) = 1.0 * ( 1.2877e-6 + 0.0116 * veg%vcmax(i) -      &
                               0.0334 * climate%qtemp_max_last_year(i) * 1.0e-6 )
+                   rdx(i,2) = rdx(i,1)
 
                 ! C3 grass, tundra , C3 crop
                 ELSEIF ( veg%iveg(i) .EQ. c3_grassland .OR.                    &
                          veg%iveg(i) .EQ. tundra       .OR.                    &
                          veg%iveg(i) .EQ. c3_cropland ) THEN 
 
-                   rdx(i,:) = 0.60 * ( 1.6737e-6 + 0.0116 * veg%vcmax(i) -     &
+                   rdx(i,1) = 0.60 * ( 1.6737e-6 + 0.0116 * veg%vcmax(i) -     &
                               0.0334 * climate%qtemp_max_last_year(i) * 1e-6 )
+                   rdx(i,2) = rdx(i,1)
 
                 ! shrub & other (C4 grass and C4 crop) (wetlands, nveg) TBC
                 ELSE  
-                   rdx(i,:) = 0.60 * ( 1.5758e-6 + 0.0116 * veg%vcmax(i) -     &
+                   rdx(i,1) = 0.60 * ( 1.5758e-6 + 0.0116 * veg%vcmax(i) -     &
                               0.0334 * climate%qtemp_max_last_year(i) * 1.0e-6 )
+                   rdx(i,2) = rdx(i,1)
                 ENDIF
 
                 ! modify for leaf area and instanteous temperature response (Rd25 -> Rd)
@@ -408,7 +422,7 @@ IMPLICIT NONE
                 ! Medlyn BE et al (2011) Global Change Biology 17: 2134-2144.
              ELSEIF(cable_user%GS_SWITCH == 'medlyn') THEN
 
-                gswmin = veg%g0(i)
+                !gswmin(i,:) = veg%g0(i) ! MJT defined above
 
                 IF (dsx(i) < 50.0) THEN
                    vpd  = 0.05 ! kPa
@@ -438,26 +452,23 @@ IMPLICIT NONE
        ENDDO !i=1,mp
 
 #ifdef CCAM
-       tmp1 = SPREAD( cx1(:), 2, mf )
-       tmp2 = SPREAD( cx2(:), 2, mf )
        tmp3 = rad%fvlai(:,:)
-       tmp4 = SPREAD( abs_deltlf, 2, mf )
        CALL photosynthesis( csx(:,:),                           &
-            tmp1, tmp2,                                         &
+            cx1(:), cx2(:),                                     &
             gswmin(:,:), rdx(:,:), vcmxt3(:,:),                 &
             vcmxt4(:,:), vx3(:,:), vx4(:,:),                    &
                                 ! Ticket #56, xleuning replaced with gs_coeff here
-            gs_coeff(:,:), tmp3, tmp4,                          &
+            gs_coeff(:,:), tmp3, abs_deltlf(:),                 &
             anx(:,:), fwsoil(:) )
 #else
        CALL photosynthesis( csx(:,:),                           &
-            SPREAD( cx1(:), 2, mf ),                            &
-            SPREAD( cx2(:), 2, mf ),                            &
+            cx1(:),                                             &
+            cx2(:),                                             &
             gswmin(:,:), rdx(:,:), vcmxt3(:,:),                 &
             vcmxt4(:,:), vx3(:,:), vx4(:,:),                    &
                                 ! Ticket #56, xleuning replaced with gs_coeff here
             gs_coeff(:,:), rad%fvlai(:,:),                      &
-            SPREAD( abs_deltlf, 2, mf ),                        &
+            abs_deltlf,                                         &
             anx(:,:), fwsoil(:) )
 #endif
 

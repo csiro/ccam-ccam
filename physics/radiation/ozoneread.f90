@@ -139,7 +139,8 @@ if ( myid==0 ) then
         mtimer = int(timer,8) ! round down to start of month
         call datefix_month(kdate_r,mtimer)
         year_r = kdate_r/10000
-        iarchi = (jyear - year_r)*12 ! assume 1 value per month
+        !iarchi = (jyear - year_r)*12 ! assume 1 value per month
+        iarchi = 0
         ! search
         ltest = .true.
         do while ( ltest .and. iarchi<maxarchi )
@@ -164,7 +165,8 @@ if ( myid==0 ) then
         mtimer = nint(timer*1440.,8) ! units=days
         call datefix(kdate_r,ktime_r,mtimer,allleap=0,silent=.true.)
         year_r = kdate_r/10000
-        iarchi = (jyear - year_r)*12 ! assume 1 value per month
+        !iarchi = (jyear - year_r)*12 ! assume 1 value per month
+        iarchi = 0
         ! search          
         ltest = .true.
         do while ( ltest .and. iarchi<maxarchi )
@@ -192,7 +194,7 @@ if ( myid==0 ) then
       npos(3) = kk
       npos(4) = 1
       write(6,*) "-> Reading O3"
-      call ccnf_inq_varid(ncid,'vmro3',valident,tst)
+      call ccnf_inq_varid(ncid,'vmro3',valident)
       spos(4) = iarchi
       call ccnf_get_vara(ncid,valident,spos,npos,o3dum)
       call ccnf_close(ncid)

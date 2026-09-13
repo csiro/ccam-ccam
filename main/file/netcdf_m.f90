@@ -1,6 +1,6 @@
 ! Conformal Cubic Atmospheric Model
     
-! Copyright 2015-2019 Commonwealth Scientific Industrial Research Organisation (CSIRO)
+! Copyright 2015-2026 Commonwealth Scientific Industrial Research Organisation (CSIRO)
     
 ! This file is part of the Conformal Cubic Atmospheric Model (CCAM)
 !
@@ -27,7 +27,7 @@
 module netcdf_m
 
 use, intrinsic :: ISO_C_BINDING, only: C_SHORT, C_INT, C_FLOAT, C_DOUBLE, C_SIZE_T, C_LOC, C_NULL_CHAR, C_PTR, &
-                                       C_SIGNED_CHAR, C_F_POINTER, C_INTPTR_T
+                                       C_SIGNED_CHAR, C_F_POINTER, C_INTPTR_T, C_CHAR
 
 implicit none
 
@@ -305,6 +305,20 @@ integer (C_INT) function nc_get_att_text(ncid,varid,name,tp) bind(C, name='nc_ge
   character, dimension(*) :: name
   type (C_PTR), value :: tp
 end function nc_get_att_text
+    
+integer (C_INT) function nc_get_att_string(ncid,varid,name,tp) bind(C, name='nc_get_att_string')
+  use, intrinsic :: ISO_C_BINDING
+  implicit none
+  integer (C_INT), value :: ncid, varid
+  character(kind=c_char) , intent(in) :: name
+  type(c_ptr), intent(out) :: tp  
+end function nc_get_att_string
+    
+integer(c_size_t) function strlen(cs) bind(c, name='strlen')
+  use, intrinsic :: ISO_C_BINDING
+  implicit none
+  type(c_ptr), intent(in), value :: cs
+end function strlen    
 
 integer (C_INT) function nc_get_att_float(ncid,varid,name,rp) bind(C, name='nc_get_att_float')
   use, intrinsic :: ISO_C_BINDING
@@ -895,6 +909,7 @@ integer, parameter :: nf_int = 4
 integer, parameter :: nf_float = 5
 integer, parameter :: nf_real = nf_float
 integer, parameter :: nf_double = 6
+integer, parameter :: nf_string = 12
 
 integer, parameter :: nf_fill_byte = -127
 integer, parameter :: nf_fill_int1 = nf_fill_byte
@@ -938,6 +953,7 @@ integer, parameter :: nf90_enotatt = nf_enotatt
 integer, parameter :: nf90_max_name = nf_max_name
 integer, parameter :: nf90_max_var_dims = nf_max_var_dims
 integer, parameter :: nf90_fill_short = nf_fill_short
+integer, parameter :: nf90_string = nf_string
 real, parameter :: nf90_fill_float = nf_fill_float
 
 integer, parameter :: charsize = 80
@@ -2263,22 +2279,42 @@ integer function nf_get_att_text(ncid,varid,name,tp) result(ierr)
   character(len=*), intent(in) :: name
   character(len=*), intent(out) :: tp
   integer (C_INT) :: c_ncid, c_varid
+  integer (C_INT), target :: c_xtypep
   integer (C_SIZE_T), target :: c_lenp
-  integer :: lenp
+  integer :: lenp, xtypep, i
   character, dimension(len(name)+1) :: c_name
   character, dimension(len(tp)), target :: c_tp
+  character , pointer :: f_str(:)
+  character(len_trim(name)+1) :: c_aname
+  type(c_ptr) :: c_str
   c_ncid = ncid
   c_varid = varid - 1
   call cf_strcopy(name,c_name)
   c_tp(:) = ''
-  ierr = nc_inq_attlen(c_ncid,c_varid,c_name,C_LOC(c_lenp))
+  ierr = nc_inq_att(c_ncid,c_varid,c_name,C_LOC(c_xtypep),C_LOC(c_lenp))
+  if ( ierr /= nf_noerr ) return
+  xtypep = c_xtypep
   lenp = c_lenp
-  if ( lenp > len(tp) ) then
-    write(6,*) "ERROR: String length is too small for requested variable"
-    stop
-  end if
-  ierr = nc_get_att_text(c_ncid,c_varid,c_name,C_LOC(c_tp))
-  call fc_strcopy(c_tp,tp)
+  if ( xtypep==nf_string .and. lenp==1 ) then
+    c_aname = name//char(0)  
+    ierr = nc_get_att_string(c_ncid, c_varid, c_aname, c_str)
+    call c_f_pointer(c_str,f_str,[strlen(c_str)])
+    if ( size(f_str)>len(tp) ) then
+      write(6,*) "ERROR: String length is too small for requested variable"
+      stop
+    end if
+    tp = ""
+    do i = 1, size(f_str)
+      tp(i:i) = f_str(i)
+    end do    
+  else    
+    if ( lenp > len(tp) ) then
+      write(6,*) "ERROR: String length is too small for requested variable"
+      stop
+    end if
+    ierr = nc_get_att_text(c_ncid,c_varid,c_name,C_LOC(c_tp))
+    call fc_strcopy(c_tp,tp)
+  end if  
 end function nf_get_att_text
 
 integer function nf_get_att_real_s(ncid,varid,name,rp) result(ierr)
