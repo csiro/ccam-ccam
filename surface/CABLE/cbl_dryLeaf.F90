@@ -156,7 +156,7 @@ IMPLICIT NONE
 
 #ifdef CCAM
     real, dimension(mp,mf) :: tmp3
-    real, dimension(ms) :: tmp11, tmp12, tmp13, tmp14, tmp15
+    real(r_2), dimension(ms) :: tmp11, tmp12, tmp13, tmp14, tmp15
 #endif
 
     ! END header
@@ -241,8 +241,8 @@ IMPLICIT NONE
     !kdcorbin, 08/10 - doing all points all the time
     DO WHILE (k < CMAXITER)
        k = k + 1
-       DO i=1,mp
 
+       DO i=1,mp
           IF (canopy%vlaiw(i) > CLAI_THRESH .AND. abs_deltlf(i) > 0.1) THEN
 
              gras = 1.0e-6              
@@ -265,15 +265,18 @@ IMPLICIT NONE
              ! See Appendix E in (Leuning et al, 1995):
              gbhf(i,1) = rad%fvlai(i,1) * air%cmolar(i) * 0.5*Cdheat           &
                   * ( gras**0.25 ) / veg%dleaf(i)
+             gbhf(i,1) = MAX( 1.e-6_r_2, gbhf(i,1) )
              gbhf(i,2) = rad%fvlai(i,2) * air%cmolar(i) * 0.5 * Cdheat         &
                   * ( gras**0.25 ) / veg%dleaf(i)
-             gbhf(i,:) = MAX( 1.e-6_r_2, gbhf(i,:) )
+             gbhf(i,2) = MAX( 1.e-6_r_2, gbhf(i,2) )
 
              ! Conductance for heat:
-             gh(i,:) = 2.0 * (gbhu(i,:) + gbhf(i,:))
+             gh(i,1) = 2.0 * (gbhu(i,1) + gbhf(i,1))
+             gh(i,2) = 2.0 * (gbhu(i,2) + gbhf(i,2))
 
              ! Conductance for heat and longwave radiation:
-             ghr(i,:) = rad%gradis(i,:)+gh(i,:)
+             ghr(i,1) = rad%gradis(i,1)+gh(i,1)
+             ghr(i,2) = rad%gradis(i,2)+gh(i,2)
 
              ! Leuning 2002 (P C & E) equation for temperature response
              ! used for Vcmax for C3 plants:
@@ -333,7 +336,7 @@ IMPLICIT NONE
              !default side of this condition is to use trunk version
 
              IF (cable_user%CALL_climate) THEN
-
+           
                 ! Atkins et al. 2015, Table S4,
                 ! modified by saling factor to reduce leaf respiration to
                 ! expected proportion of GPP
@@ -402,26 +405,26 @@ IMPLICIT NONE
                 IF (jtomol*1.0e6*rad%qcan(i,1,2).GT.10.0) &
                      rdx(i,2) = rdx(i,2) * &
                      (0.5 - 0.05*LOG(jtomol*1.0e6*rad%qcan(i,1,2)))
-
+                
              ELSE !cable_user%call_climate
-
-
+           
                 rdx(i,1) = (veg%cfrd(i)*vcmxt3(i,1) + veg%cfrd(i)*vcmxt4(i,1))
                 rdx(i,2) = (veg%cfrd(i)*vcmxt3(i,2) + veg%cfrd(i)*vcmxt4(i,2))
-
+                
              ENDIF !cable_user%call_climate
 
              ! Ticket #56 added switch for Belinda Medlyn's model
              IF (cable_user%GS_SWITCH == 'leuning') THEN
+           
                 gs_coeff(i,1) = ( fwsoil(i) / ( csx(i,1) - co2cp3 ) )              &
                      * ( veg%a1gs(i) / ( 1.0 + dsx(i)/veg%d0gs(i)))
 
                 gs_coeff(i,2) = ( fwsoil(i) / ( csx(i,2) - co2cp3 ) )              &
                      * ( veg%a1gs(i) / ( 1.0 + dsx(i)/veg%d0gs(i)))
-
-                ! Medlyn BE et al (2011) Global Change Biology 17: 2134-2144.
+                
+             ! Medlyn BE et al (2011) Global Change Biology 17: 2134-2144.
              ELSEIF(cable_user%GS_SWITCH == 'medlyn') THEN
-
+           
                 !gswmin(i,:) = veg%g0(i) ! MJT defined above
 
                 IF (dsx(i) < 50.0) THEN
@@ -448,9 +451,8 @@ IMPLICIT NONE
              ENDIF ! IF (cable_user%GS_SWITCH == 'leuning') THEN
 
           ENDIF !IF (canopy%vlaiw(i) > CLAI_THRESH .AND. abs_deltlf(i) > 0.1)
-
        ENDDO !i=1,mp
-
+             
 #ifdef CCAM
        tmp3 = rad%fvlai(:,:)
        CALL photosynthesis( csx(:,:),                           &
@@ -473,41 +475,33 @@ IMPLICIT NONE
 #endif
 
        DO i=1,mp
-
-
-          IF (canopy%vlaiw(i) > CLAI_THRESH .AND. abs_deltlf(i) > 0.1 ) THEN
+          IF (rad%fvlai(i,kk)>CLAI_THRESH .AND. abs_deltlf(i) > 0.1 ) THEN
 
              DO kk=1,mf
 
-                IF(rad%fvlai(i,kk)>CLAI_THRESH) THEN
-
-                   csx(i,kk) = met%ca(i) - CRGBWC*anx(i,kk) / (                &
-                        gbhu(i,kk) + gbhf(i,kk) )
-                   csx(i,kk) = MAX( 1.0e-4_r_2, csx(i,kk) )
+                csx(i,kk) = met%ca(i) - CRGBWC*anx(i,kk) / (                &
+                     gbhu(i,kk) + gbhf(i,kk) )
+                csx(i,kk) = MAX( 1.0e-4_r_2, csx(i,kk) )
 
 
-                   ! Ticket #56, xleuning replaced with gs_coeff here
-                   canopy%gswx(i,kk) = MAX( 1.e-3, gswmin(i,kk)*fwsoil(i) +     &
-                        MAX( 0.0, CRGSWC * gs_coeff(i,kk) *     &
-                        anx(i,kk) ) )
+                ! Ticket #56, xleuning replaced with gs_coeff here
+                canopy%gswx(i,kk) = MAX( 1.e-3, gswmin(i,kk)*fwsoil(i) +     &
+                     MAX( 0.0, CRGSWC * gs_coeff(i,kk) *     &
+                     anx(i,kk) ) )
 
 
-                   !Recalculate conductance for water:
-                   gw(i,kk) = 1.0 / ( 1.0 / canopy%gswx(i,kk) +                 &
-                        1.0 / ( 1.075 * ( gbhu(i,kk) + gbhf(i,kk) ) ) )
+                !Recalculate conductance for water:
+                gw(i,kk) = 1.0 / ( 1.0 / canopy%gswx(i,kk) +                 &
+                     1.0 / ( 1.075 * ( gbhu(i,kk) + gbhf(i,kk) ) ) )
 
+                gw(i,kk) = MAX( gw(i,kk), 0.00001 )
 
+                ! Modified psychrometric constant
+                ! (Monteith and Unsworth, 1990)
+                psycst(i,kk) = air%psyc(i) * REAL( ghr(i,kk) / gw(i,kk) )
 
-                   gw(i,kk) = MAX( gw(i,kk), 0.00001 )
-
-                   ! Modified psychrometric constant
-                   ! (Monteith and Unsworth, 1990)
-                   psycst(i,kk) = air%psyc(i) * REAL( ghr(i,kk) / gw(i,kk) )
-
-                ENDIF
-
-             ENDDO
-
+             ENDDO  
+       
              ecx(i) = ( air%dsatdk(i) * ( rad%rniso(i,1) - Ccapp * Crmair     &
                   * ( met%tvair(i) - met%tk(i) ) * rad%gradis(i,1) )        &
                   + Ccapp * Crmair * met%dva(i) * ghr(i,1) )              &
@@ -518,6 +512,7 @@ IMPLICIT NONE
                   ( air%dsatdk(i) + psycst(i,2) )
 
              IF (cable_user%fwsoil_switch=='Haverd2013') THEN
+           
                 ! avoid root-water extraction when fwsoil is zero
                 IF (fwsoil(i).LT.1e-6) THEN
                    anx(i,:) =  - rdx(i,:)
@@ -557,9 +552,9 @@ IMPLICIT NONE
                 fwsoil(i) = canopy%fwsoil(i)
                 ssnow%evapfbl(i,:) = ssnow%rex(i,:)*dels*density_liq ! mm water &
                 !(root water extraction) per time step
-
+                    
              ELSE
-
+                 
                 IF (ecx(i) > 0.0 .AND. canopy%fwet(i) < 1.0) THEN
                    evapfb = ( 1.0 - canopy%fwet(i)) * REAL( ecx(i) ) *dels      &
                         / air%rlam(i)
@@ -580,8 +575,9 @@ IMPLICIT NONE
                    ENDIF
 
                 ENDIF
-
+                
              ENDIF
+       
              ! Update canopy sensible heat flux:
              hcx(i) = (sum_rad_rniso(i)-ecx(i)                               &
                   - Ccapp*Crmair*(met%tvair(i)-met%tk(i))                       &
@@ -606,14 +602,10 @@ IMPLICIT NONE
 
           ENDIF !lai/abs_deltlf
 
-       ENDDO !i=1,mp
-       ! Where leaf temp change b/w iterations is significant, and
-       ! difference is smaller than the previous iteration, store results:
-
-       DO i=1,mp
-
+          ! Where leaf temp change b/w iterations is significant, and
+          ! difference is smaller than the previous iteration, store results:
+          
           IF ( abs_deltlf(i) < ABS( deltlfy(i) ) ) THEN
-
              deltlfy(i) = deltlf(i)
              tlfy(i) = tlfx(i)
              rny(i) = rnx(i)
@@ -623,11 +615,9 @@ IMPLICIT NONE
              rdy(i,2) = rdx(i,2)
              an_y(i,1) = anx(i,1)
              an_y(i,2) = anx(i,2)
-
              ! save last values calculated for ssnow%evapfbl
              oldevapfbl(i,:) = ssnow%evapfbl(i,:)
-
-          ENDIF
+          END IF
 
           IF( abs_deltlf(i) > 0.1 )                                             &
 
@@ -636,23 +626,22 @@ IMPLICIT NONE
                tlfx(i) = ( 0.5 * ( MAX( 0, k-5 ) / ( k - 4.9999 ) ) ) *tlfxx(i) + &
                ( 1.0 - ( 0.5 * ( MAX( 0, k-5 ) / ( k - 4.9999 ) ) ) )   &
                * tlfx(i)
-
+          
           IF(k==1) THEN
-
              ! take the first iterated estimates as the defaults
              tlfy(i) = tlfx(i)
              rny(i) = rnx(i)
              hcy(i) = hcx(i)
              ecy(i) = ecx(i)
-             rdy(i,:) = rdx(i,:)
-             an_y(i,:) = anx(i,:)
+             rdy(i,1) = rdx(i,1)
+             rdy(i,2) = rdx(i,2)
+             an_y(i,1) = anx(i,1)
+             an_y(i,2) = anx(i,2)
              ! save last values calculated for ssnow%evapfbl
              oldevapfbl(i,:) = ssnow%evapfbl(i,:)
-
           END IF
-
+          
        END DO !over mp
-
 
     END DO  ! DO WHILE (ANY(abs_deltlf > 0.1) .AND.  k < CMAXITER)
 
@@ -811,7 +800,7 @@ IMPLICIT NONE
   END SUBROUTINE getrex_1d
 
 
-  FUNCTION ej3x(parx,alpha,convex,x) RESULT(z)
+  ELEMENTAL FUNCTION ej3x(parx,alpha,convex,x) RESULT(z)
 
     REAL, INTENT(IN)     :: parx
     REAL, INTENT(IN)     :: alpha
@@ -825,7 +814,7 @@ IMPLICIT NONE
   END FUNCTION ej3x
 
 
-  FUNCTION ej4x(parx,alpha,convex,x) RESULT(z)
+  ELEMENTAL FUNCTION ej4x(parx,alpha,convex,x) RESULT(z)
 
     REAL, INTENT(IN)     :: parx
     REAL, INTENT(IN)     :: alpha
@@ -840,7 +829,7 @@ IMPLICIT NONE
   END FUNCTION ej4x
 
   ! Explicit array dimensions as temporary work around for NEC inlining problem
-  FUNCTION xvcmxt4(x) RESULT(z)
+  ELEMENTAL FUNCTION xvcmxt4(x) RESULT(z)
 
     REAL, PARAMETER      :: q10c4 = 2.0
     REAL, INTENT(IN) :: x
@@ -853,7 +842,7 @@ IMPLICIT NONE
 
   ! ------------------------------------------------------------------------------
 
-  FUNCTION xvcmxt3(x) RESULT(z)
+  ELEMENTAL FUNCTION xvcmxt3(x) RESULT(z)
 
 USE cable_phys_constants_mod, ONLY : CRGAS   => RGAS
 USE cable_photo_constants_mod, ONLY : CTREFK => TREFK
@@ -875,22 +864,23 @@ USE cable_photo_constants_mod, ONLY : CTREFK => TREFK
   END FUNCTION xvcmxt3
 
   ! ------------------------------------------------------------------------------
-  REAL FUNCTION xrdt(x)
+  ELEMENTAL FUNCTION xrdt(x) RESULT(z)
 
     !  Atkins et al. (Eq 1, New Phytologist (2015) 206: 614–636)
     !variable Q10 temperature of dark respiration
     ! Originally from Tjoelker et al. 2001
 
     REAL, INTENT(IN) :: x
+    REAL :: z
 
 
-    xrdt = (3.09 - 0.043*((x-273.15)+25.)/2.0)**((x-273.15 -25.0)/10.0)
+    z = (3.09 - 0.043*((x-273.15)+25.)/2.0)**((x-273.15 -25.0)/10.0)
 
   END FUNCTION xrdt
 
   ! ------------------------------------------------------------------------------
 
-  FUNCTION xejmxt3(x) RESULT(z)
+  ELEMENTAL FUNCTION xejmxt3(x) RESULT(z)
 USE cable_phys_constants_mod, ONLY : CRGAS   => RGAS
 USE cable_photo_constants_mod, ONLY : CTREFK => TREFK
 
