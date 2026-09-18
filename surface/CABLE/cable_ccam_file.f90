@@ -311,7 +311,9 @@ else
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       datr = real( dat )
       do tile = 1,ntiles
-        call cable_pack(datr,tdata(tile)%old_sv,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(datr,tdata(tile)%old_sv,tile,nmp(:,n))
+        end if  
       end do  
     end if        
     write(vname,'("t",I1.1,"_tgg")') n
@@ -324,123 +326,165 @@ else
         end if
       end do  
       do tile = 1,ntiles
-        call cable_pack(datms(:,k),ssnow(tile)%tgg(:,k),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(datms(:,k),ssnow(tile)%tgg(:,k),tile,nmp(:,n))
+        end if  
       end do  
     end do
     write(vname,'("t",I1.1,"_wb")') n
     call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
     do k = 1,cbm_ms
       do tile = 1,ntiles
-        call cable_pack(datms(:,k),ssnow(tile)%wb(:,k),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(datms(:,k),ssnow(tile)%wb(:,k),tile,nmp(:,n))
+        end if  
       end do  
     end do
     write(vname,'("t",I1.1,"_wbice")') n
     call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
     do k = 1,cbm_ms
       do tile = 1,ntiles
-        call cable_pack(datms(:,k),ssnow(tile)%wbice(:,k),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(datms(:,k),ssnow(tile)%wbice(:,k),tile,nmp(:,n))
+        end if  
       end do  
     end do
     write(vname,'("t",I1.1,"_tggsn")') n
     call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     do k = 1,3
       do tile = 1,ntiles
-        call cable_pack(dat3(:,k),ssnow(tile)%tggsn(:,k),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat3(:,k),ssnow(tile)%tggsn(:,k),tile,nmp(:,n))
+        end if  
       end do  
     end do
     write(vname,'("t",I1.1,"_smass")') n
     call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     do k = 1,3
       do tile = 1,ntiles
-        call cable_pack(dat3(:,k),ssnow(tile)%smass(:,k),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat3(:,k),ssnow(tile)%smass(:,k),tile,nmp(:,n))
+        end if  
       end do  
     end do
     write(vname,'("t",I1.1,"_ssdn")') n
     call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     do k = 1,3
       do tile = 1,ntiles
-        call cable_pack(dat3(:,k),ssnow(tile)%ssdn(:,k),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat3(:,k),ssnow(tile)%ssdn(:,k),tile,nmp(:,n))
+        end if  
       end do  
     end do
     write(vname,'("t",I1.1,"_sdepth",I1.1)') n
     call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     do k = 1,3
       do tile = 1,ntiles
-        call cable_pack(dat3(:,k),ssnow(tile)%sdepth(:,k),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat3(:,k),ssnow(tile)%sdepth(:,k),tile,nmp(:,n))
+        end if  
       end do
     end do
     write(vname,'("t",I1.1,"_sconds")') n
     call histrd(iarchi-1,ierr,vname,dat3(:,1:3),ifull)
     do k = 1,3
       do tile = 1,ntiles
-        call cable_pack(dat3(:,k),ssnow(tile)%sconds(:,k),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat3(:,k),ssnow(tile)%sconds(:,k),tile,nmp(:,n))
+        end if  
       end do  
     end do
     write(vname,'("t",I1.1,"_ssdnn")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%ssdnn(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%ssdnn(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_sflag")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     dati = nint(dat)
     do tile = 1,ntiles
-      call cable_pack(dati,ssnow(tile)%isflag(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dati,ssnow(tile)%isflag(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_snd")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%snowd(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%snowd(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_osnd")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%osnowd(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%osnowd(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_snage")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%snage(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%snage(:),tile,nmp(:,n))
+      end if  
     end do
     write(vname,'("t",I1.1,"_rtsoil")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%rtsoil(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%rtsoil(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_GWwb")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%GWwb(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%GWwb(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_wtd")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%wtd(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%wtd(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_cansto")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,canopy(tile)%cansto(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,canopy(tile)%cansto(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_us")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,canopy(tile)%us(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,canopy(tile)%us(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_pudsto")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%pudsto(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%pudsto(:),tile,nmp(:,n))
+      end if  
     end do
     write(vname,'("t",I1.1,"_wetfac")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,ssnow(tile)%wetfac(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,ssnow(tile)%wetfac(:),tile,nmp(:,n))
+      end if  
     end do  
     write(vname,'("t",I1.1,"_ga")') n
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     do tile = 1,ntiles
-      call cable_pack(dat,canopy(tile)%ga(:),tile,nmp(:,n))
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dat,canopy(tile)%ga(:),tile,nmp(:,n))
+      end if  
     end do  
   end do
   
@@ -466,49 +510,65 @@ if ( soil_struc==1 ) then
       write(vname,'("t",I1.1,"_hzero")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,ssnow(tile)%h0(:),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,ssnow(tile)%h0(:),tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_s")') n
       call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
       do k = 1,cbm_ms
         do tile = 1,ntiles
-          call cable_pack(datms(:,k),ssnow(tile)%S(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datms(:,k),ssnow(tile)%S(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_tsoil")') n
       call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
       do k = 1,cbm_ms
         do tile = 1,ntiles 
-          call cable_pack(datms(:,k),ssnow(tile)%tsoil(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datms(:,k),ssnow(tile)%tsoil(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_thetai")') n
       call histrd(iarchi-1,ierr,vname,datms(:,1:cbm_ms),ifull)
       do k = 1,cbm_ms
         do tile = 1,ntiles  
-          call cable_pack(datms(:,k),ssnow(tile)%thetai(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datms(:,k),ssnow(tile)%thetai(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_snowliq",I1.1)') n,1
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,ssnow(tile)%snowliq(:,1),tile,nmp(:,n)) ! currently nsnow_max=1
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,ssnow(tile)%snowliq(:,1),tile,nmp(:,n)) ! currently nsnow_max=1
+        end if  
       end do  
       write(vname,'("t",I1.1,"_tsurface")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,ssnow(tile)%tsurface(:),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,ssnow(tile)%tsurface(:),tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_nsnow")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       dati = nint(dat)
       do tile = 1,ntiles
-        call cable_pack(dati,ssnow(tile)%nsnow(:),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dati,ssnow(tile)%nsnow(:),tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_fwsoil")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,canopy(tile)%fwsoil(:),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,canopy(tile)%fwsoil(:),tile,nmp(:,n))
+        end if  
       end do
     end do
   end if ! ierr_sli/=0 ..else..
@@ -522,28 +582,32 @@ if ( ccycle/=0 ) then
       if ( myid==0 ) write(6,*) "-> Use interpolated tiled data to initialise CASA-CNP"
       do m = 1,10
         do tile = 1,ntiles
-          call loadtile_carbonpools(carb_plant(:,:,1,m),casapool(tile)%cplant(:,:),tile,m)
-          call loadtile_carbonpools(carb_plant(:,:,2,m),casapool(tile)%nplant(:,:),tile,m)
-          call loadtile_carbonpools(carb_plant(:,:,3,m),casapool(tile)%pplant(:,:),tile,m)
-          call loadtile_carbonpools(carb_litter(:,:,1,m),casapool(tile)%clitter(:,:),tile,m)
-          call loadtile_carbonpools(carb_litter(:,:,2,m),casapool(tile)%nlitter(:,:),tile,m)
-          call loadtile_carbonpools(carb_litter(:,:,3,m),casapool(tile)%plitter(:,:),tile,m)
-          call loadtile_carbonpools(carb_soil(:,:,1,m),casapool(tile)%csoil(:,:),tile,m)
-          call loadtile_carbonpools(carb_soil(:,:,2,m),casapool(tile)%nsoil(:,:),tile,m)
-          call loadtile_carbonpools(carb_soil(:,:,3,m),casapool(tile)%psoil(:,:),tile,m)
+          if ( tdata(tile)%mp>0 ) then  
+            call loadtile_carbonpools(carb_plant(:,:,1,m),casapool(tile)%cplant(:,:),tile,m)
+            call loadtile_carbonpools(carb_plant(:,:,2,m),casapool(tile)%nplant(:,:),tile,m)
+            call loadtile_carbonpools(carb_plant(:,:,3,m),casapool(tile)%pplant(:,:),tile,m)
+            call loadtile_carbonpools(carb_litter(:,:,1,m),casapool(tile)%clitter(:,:),tile,m)
+            call loadtile_carbonpools(carb_litter(:,:,2,m),casapool(tile)%nlitter(:,:),tile,m)
+            call loadtile_carbonpools(carb_litter(:,:,3,m),casapool(tile)%plitter(:,:),tile,m)
+            call loadtile_carbonpools(carb_soil(:,:,1,m),casapool(tile)%csoil(:,:),tile,m)
+            call loadtile_carbonpools(carb_soil(:,:,2,m),casapool(tile)%nsoil(:,:),tile,m)
+            call loadtile_carbonpools(carb_soil(:,:,3,m),casapool(tile)%psoil(:,:),tile,m)
+          end if  
         end do  
       end do   ! mm = 1,10
       m = 14 ! use index 11 to store pft 14
       do tile = 1,ntiles
-        call loadtile_carbonpools(carb_plant(:,:,1,11),casapool(tile)%cplant(:,:),tile,m)
-        call loadtile_carbonpools(carb_plant(:,:,2,11),casapool(tile)%nplant(:,:),tile,m)
-        call loadtile_carbonpools(carb_plant(:,:,3,11),casapool(tile)%pplant(:,:),tile,m)
-        call loadtile_carbonpools(carb_litter(:,:,1,11),casapool(tile)%clitter(:,:),tile,m)
-        call loadtile_carbonpools(carb_litter(:,:,2,11),casapool(tile)%nlitter(:,:),tile,m)
-        call loadtile_carbonpools(carb_litter(:,:,3,11),casapool(tile)%plitter(:,:),tile,m)
-        call loadtile_carbonpools(carb_soil(:,:,1,11),casapool(tile)%csoil(:,:),tile,m)
-        call loadtile_carbonpools(carb_soil(:,:,2,11),casapool(tile)%nsoil(:,:),tile,m)
-        call loadtile_carbonpools(carb_soil(:,:,3,11),casapool(tile)%psoil(:,:),tile,m)
+        if ( tdata(tile)%mp>0 ) then  
+          call loadtile_carbonpools(carb_plant(:,:,1,11),casapool(tile)%cplant(:,:),tile,m)
+          call loadtile_carbonpools(carb_plant(:,:,2,11),casapool(tile)%nplant(:,:),tile,m)
+          call loadtile_carbonpools(carb_plant(:,:,3,11),casapool(tile)%pplant(:,:),tile,m)
+          call loadtile_carbonpools(carb_litter(:,:,1,11),casapool(tile)%clitter(:,:),tile,m)
+          call loadtile_carbonpools(carb_litter(:,:,2,11),casapool(tile)%nlitter(:,:),tile,m)
+          call loadtile_carbonpools(carb_litter(:,:,3,11),casapool(tile)%plitter(:,:),tile,m)
+          call loadtile_carbonpools(carb_soil(:,:,1,11),casapool(tile)%csoil(:,:),tile,m)
+          call loadtile_carbonpools(carb_soil(:,:,2,11),casapool(tile)%nsoil(:,:),tile,m)
+          call loadtile_carbonpools(carb_soil(:,:,3,11),casapool(tile)%psoil(:,:),tile,m)
+        end if  
       end do  
       deallocate( carb_plant, carb_litter, carb_soil )
     end if  
@@ -554,183 +618,247 @@ if ( ccycle/=0 ) then
       call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
       do k = 1,mplant
         do tile = 1,ntiles 
-          call cable_pack(datmplant(:,k),casapool(tile)%cplant(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmplant(:,k),casapool(tile)%cplant(:,k),tile,nmp(:,n))
+          end if  
         end do
       end do
       write(vname,'("t",I1.1,"_nplant")') n
       call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
       do k = 1,mplant
         do tile = 1,ntiles 
-          call cable_pack(datmplant(:,k),casapool(tile)%nplant(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmplant(:,k),casapool(tile)%nplant(:,k),tile,nmp(:,n))
+          end if
         end do  
       end do
       write(vname,'("t",I1.1,"_pplant")') n
       call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
       do k = 1,mplant
         do tile = 1,ntiles  
-          call cable_pack(datmplant(:,k),casapool(tile)%pplant(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmplant(:,k),casapool(tile)%pplant(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_clitter")') n
       call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
       do k = 1,mlitter
         do tile = 1,ntiles  
-          call cable_pack(datmlitter(:,k),casapool(tile)%clitter(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmlitter(:,k),casapool(tile)%clitter(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_nlitter")') n
       call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
       do k = 1,mlitter
         do tile = 1,ntiles  
-          call cable_pack(datmlitter(:,k),casapool(tile)%nlitter(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmlitter(:,k),casapool(tile)%nlitter(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_plitter")') n
       call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
       do k = 1,mlitter
         do tile = 1,ntiles  
-          call cable_pack(datmlitter(:,k),casapool(tile)%plitter(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmlitter(:,k),casapool(tile)%plitter(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_csoil")') n
       call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
       do k = 1,msoil
         do tile = 1,ntiles  
-          call cable_pack(datmsoil(:,k),casapool(tile)%csoil(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmsoil(:,k),casapool(tile)%csoil(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_nsoil")') n
       call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
       do k = 1,msoil
         do tile = 1,ntiles  
-          call cable_pack(datmsoil(:,k),casapool(tile)%nsoil(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmsoil(:,k),casapool(tile)%nsoil(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_psoil")') n
       call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
       do k = 1,msoil
         do tile = 1,ntiles  
-          call cable_pack(datmsoil(:,k),casapool(tile)%psoil(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmsoil(:,k),casapool(tile)%psoil(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_glai")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casamet(tile)%glai,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casamet(tile)%glai,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_phen")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,phen(tile)%phen,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,phen(tile)%phen,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_aphen")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,phen(tile)%aphen,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,phen(tile)%aphen,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_phenphase")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       dati = nint(dat)
       do tile = 1,ntiles
-        call cable_pack(dati,phen(tile)%phase,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dati,phen(tile)%phase,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_doyphase3")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       dati = nint(dat)
       do tile = 1,ntiles
-        call cable_pack(dati,phen(tile)%doyphase(:,3),tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dati,phen(tile)%doyphase(:,3),tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_clabile")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casapool(tile)%clabile,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casapool(tile)%clabile,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_nsoilmin")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casapool(tile)%nsoilmin,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casapool(tile)%nsoilmin,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_psoillab")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casapool(tile)%psoillab,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casapool(tile)%psoillab,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_psoilsorb")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casapool(tile)%psoilsorb,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casapool(tile)%psoilsorb,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_psoilocc")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casapool(tile)%psoilocc,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casapool(tile)%psoilocc,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_crmplant")') n
       call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
       do k = 1,mplant
         do tile = 1,ntiles
-          call cable_pack(datmplant(:,k),casaflux(tile)%crmplant(:,k),tile,nmp(:,n))
+          if ( tdata(tile)%mp>0 ) then  
+            call cable_pack(datmplant(:,k),casaflux(tile)%crmplant(:,k),tile,nmp(:,n))
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_fracsapwood")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casaflux(tile)%frac_sapwood,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casaflux(tile)%frac_sapwood,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_sapwoodarea")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casaflux(tile)%sapwood_area,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casaflux(tile)%sapwood_area,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_crsoil")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casaflux(tile)%crsoil,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casaflux(tile)%crsoil,tile,nmp(:,n))
+        end if  
       end do  
       write(vname,'("t",I1.1,"_cnpp")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casaflux(tile)%cnpp,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casaflux(tile)%cnpp,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_clabloss")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casaflux(tile)%clabloss,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casaflux(tile)%clabloss,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_crgplant")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casaflux(tile)%crgplant,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casaflux(tile)%crgplant,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_stemnpp")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casaflux(tile)%stemnpp,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casaflux(tile)%stemnpp,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_LAImax")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casabal(tile)%laimax,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casabal(tile)%laimax,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_Cleafmean")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casabal(tile)%cleafmean,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casabal(tile)%cleafmean,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_Crootmean")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,casabal(tile)%crootmean,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,casabal(tile)%crootmean,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_fpn")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,canopy(tile)%fpn,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,canopy(tile)%fpn,tile,nmp(:,n))
+        end if  
       end do
       write(vname,'("t",I1.1,"_frday")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
-        call cable_pack(dat,canopy(tile)%frday,tile,nmp(:,n))
+        if ( tdata(tile)%mp>0 ) then  
+          call cable_pack(dat,canopy(tile)%frday,tile,nmp(:,n))
+        end if  
       end do
     end do
   end if ! ierr_casa/=0 ..else..
@@ -755,177 +883,227 @@ if ( cable_pop==1 ) then
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np  
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%cmass_sum = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%cmass_sum = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_cmass_sum_old")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np  
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%cmass_sum_old = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%cmass_sum_old = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_cheartwood_sum")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np  
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%cheartwood_sum = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%cheartwood_sum = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_csapwood_sum")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np  
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%csapwood_sum = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%csapwood_sum = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_csapwood_sum_old")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np  
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%csapwood_sum_old = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%csapwood_sum_old = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_densindiv")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np  
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%densindiv = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%densindiv = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_height_mean")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np  
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%height_mean = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%height_mean = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_height_max")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np  
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%height_max = dat_out(1:np_pop) 
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%height_max = dat_out(1:np_pop) 
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_basal_area")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%basal_area = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%basal_area = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_sapwood_loss")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%sapwood_loss = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%sapwood_loss = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_sapwood_area_loss")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%sapwood_area_loss = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%sapwood_area_loss = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_stress_mortality")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%stress_mortality = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%stress_mortality = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_crowding_mortality")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%crowding_mortality = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%crowding_mortality = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_fire_mortality")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%fire_mortality = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%fire_mortality = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_cat_mortality")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%cat_mortality = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%cat_mortality = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_res_mortality")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%res_mortality = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%res_mortality = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_growth")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%growth = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%growth = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_area_growth")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%area_growth = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%area_growth = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_crown_cover")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%crown_cover = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%crown_cover = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_crown_area")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%crown_area = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%crown_area = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_crown_volume")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%crown_volume = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%crown_volume = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_sapwood_area")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%sapwood_area = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%sapwood_area = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_sapwood_area_old")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%sapwood_area_old = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%sapwood_area_old = dat_out(1:np_pop)
+        end if
       end do  
       write(vname,'("t",I1.1,"_pop_grid_KClump")') n  
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       do tile = 1,ntiles
         np_pop = tdata(tile)%np 
-        call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-        pop(tile)%pop_grid(:)%KClump = dat_out(1:np_pop)
+        if ( np_pop>0 ) then
+          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+          pop(tile)%pop_grid(:)%KClump = dat_out(1:np_pop)
+        end if  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_freq_age")') n
       call histrd(iarchi-1,ierr,vname,datage,ifull)
       do k = 1,POP_AGEMAX
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(datage(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%freq_age(k) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datage(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%freq_age(k) = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_biomass_age")') n
@@ -933,8 +1111,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_AGEMAX
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(datage(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%biomass_age(k) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datage(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%biomass_age(k) = dat_out(1:np_pop)
+          end if  
         end do
       end do
       do ll = 1,POP_NLAYER
@@ -942,8 +1122,10 @@ if ( cable_pop==1 ) then
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%biomass(ll) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%biomass(ll) = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       do ll = 1,POP_NLAYER
@@ -951,8 +1133,10 @@ if ( cable_pop==1 ) then
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%density(ll) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%density(ll) = dat_out(1:np_pop)
+          end if  
         end do  
       end do  
       do ll = 1,POP_NLAYER
@@ -960,8 +1144,10 @@ if ( cable_pop==1 ) then
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%hmean(ll) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%hmean(ll) = dat_out(1:np_pop)
+          end if  
         end do  
       end do  
       do ll = 1,POP_NLAYER
@@ -969,8 +1155,10 @@ if ( cable_pop==1 ) then
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%hmax(ll) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%hmax(ll) = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       do hh = 1,POP_HEIGHT_BINS
@@ -978,8 +1166,10 @@ if ( cable_pop==1 ) then
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n)) 
-          pop(tile)%pop_grid(:)%cmass_stem_bin(hh) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n)) 
+            pop(tile)%pop_grid(:)%cmass_stem_bin(hh) = dat_out(1:np_pop)
+          end if  
         end do  
       end do  
       do hh = 1,POP_HEIGHT_BINS
@@ -987,8 +1177,10 @@ if ( cable_pop==1 ) then
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%densindiv_bin(hh) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%densindiv_bin(hh) = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       do hh = 1,POP_HEIGHT_BINS
@@ -996,8 +1188,10 @@ if ( cable_pop==1 ) then
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%height_bin(hh) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%height_bin(hh) = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       do hh = 1,POP_HEIGHT_BINS
@@ -1005,8 +1199,10 @@ if ( cable_pop==1 ) then
         call histrd(iarchi-1,ierr,vname,dat,ifull)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%diameter_bin(hh) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dat,dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%diameter_bin(hh) = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       do dd = 1,POP_NDISTURB
@@ -1015,8 +1211,10 @@ if ( cable_pop==1 ) then
         dati = nint(dat)
         do tile = 1,ntiles
           np_pop = tdata(tile)%np 
-          call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%n_age(dd) = dati_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%n_age(dd) = dati_out(1:np_pop)
+          end if  
         end do  
       end do  
       write(vname,'("t",I1.1,"_pop_grid_patch_id")') n
@@ -1025,8 +1223,10 @@ if ( cable_pop==1 ) then
         dati = nint(datpatch(:,k))  
         do tile = 1,ntiles
           np_pop = tdata(tile)%np        
-          call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%id = dati_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%id = dati_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_freq")') n
@@ -1034,8 +1234,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%freq(k) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%freq(k) = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_freq_old")') n
@@ -1043,8 +1245,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%freq_old(k) = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%freq_old(k) = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_factor_recruit")') n
@@ -1052,8 +1256,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%factor_recruit = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%factor_recruit = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_pgap")') n
@@ -1061,8 +1267,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%pgap = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%pgap = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_lai")') n
@@ -1070,17 +1278,21 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%lai = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%lai = dat_out(1:np_pop)
+          end if  
         end do
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_biomass")') n
       call histrd(iarchi-1,ierr,vname,datpatch,ifull)
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
-          np_pop = tdata(tile)%np          
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%biomass = dat_out(1:np_pop)
+          np_pop = tdata(tile)%np
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%biomass = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_biomass_old")') n
@@ -1088,8 +1300,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np          
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%biomass_old = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%biomass_old = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood")') n
@@ -1097,8 +1311,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%sapwood = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%sapwood = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_heartwood")') n
@@ -1106,8 +1322,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np          
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%heartwood = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%heartwood = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_old")') n
@@ -1115,8 +1333,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%sapwood_old = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%sapwood_old = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area")') n
@@ -1124,8 +1344,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%sapwood_area = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%sapwood_area = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_old")') n
@@ -1133,8 +1355,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%sapwood_area_old = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%sapwood_area_old = dat_out(1:np_pop)
+          end if  
         end do
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_stress_mortality")') n
@@ -1142,8 +1366,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%stress_mortality = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%stress_mortality = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_fire_mortality")') n
@@ -1151,8 +1377,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%fire_mortality = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%fire_mortality = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_cat_mortality")') n
@@ -1160,8 +1388,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%cat_mortality = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%cat_mortality = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_crowding_mortality")') n
@@ -1169,8 +1399,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%crowding_mortality = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%crowding_mortality = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_cpc")') n
@@ -1178,17 +1410,21 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%cpc = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%cpc = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_mortality")') n
       call histrd(iarchi-1,ierr,vname,datpatch,ifull)
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
-          np_pop = tdata(tile)%np          
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%mortality = dat_out(1:np_pop)
+          np_pop = tdata(tile)%np
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%mortality = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_loss")') n
@@ -1196,17 +1432,21 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%sapwood_loss = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%sapwood_loss = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_sapwood_area_loss")') n
       call histrd(iarchi-1,ierr,vname,datpatch,ifull)
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
-          np_pop = tdata(tile)%np          
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%sapwood_area_loss = dat_out(1:np_pop)
+          np_pop = tdata(tile)%np 
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%sapwood_area_loss = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_growth")') n
@@ -1214,26 +1454,32 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%growth = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%growth = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_area_growth")') n
       call histrd(iarchi-1,ierr,vname,datpatch,ifull)
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
-          np_pop = tdata(tile)%np          
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%area_growth = dat_out(1:np_pop)
+          np_pop = tdata(tile)%np
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%area_growth = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_frac_NPP")') n
       call histrd(iarchi-1,ierr,vname,datpatch,ifull)
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
-          np_pop = tdata(tile)%np          
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%frac_NPP = dat_out(1:np_pop)
+          np_pop = tdata(tile)%np
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%frac_NPP = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_frac_respiration")') n
@@ -1241,8 +1487,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%frac_respiration = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%frac_respiration = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       write(vname,'("t",I1.1,"_pop_grid_patch_frac_light_uptake")') n
@@ -1250,8 +1498,10 @@ if ( cable_pop==1 ) then
       do k = 1,POP_NPATCH
         do tile = 1,ntiles
           np_pop = tdata(tile)%np
-          call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-          pop(tile)%pop_grid(:)%patch(k)%frac_light_uptake = dat_out(1:np_pop)
+          if ( np_pop>0 ) then
+            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+            pop(tile)%pop_grid(:)%patch(k)%frac_light_uptake = dat_out(1:np_pop)
+          end if  
         end do  
       end do
       do dd = 1,POP_NDISTURB
@@ -1261,8 +1511,10 @@ if ( cable_pop==1 ) then
           dati = nint(datpatch(:,k))  
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%patch(k)%disturbance_interval(dd) = dati_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%patch(k)%disturbance_interval(dd) = dati_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1273,8 +1525,10 @@ if ( cable_pop==1 ) then
           dati = nint(datpatch(:,k))   
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%patch(k)%first_disturbance_year(dd) = dati_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%patch(k)%first_disturbance_year(dd) = dati_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1285,8 +1539,10 @@ if ( cable_pop==1 ) then
           dati = nint(datpatch(:,k)) 
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%patch(k)%age(dd) = dati_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%patch(k)%age(dd) = dati_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1297,8 +1553,10 @@ if ( cable_pop==1 ) then
           dati = nint(datpatch(:,k))  
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%ranked_age_unique(k,dd) = dati_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%ranked_age_unique(k,dd) = dati_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1308,8 +1566,10 @@ if ( cable_pop==1 ) then
         do k = 1,POP_NPATCH
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%freq_ranked_age_unique(k,dd) = dat_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%freq_ranked_age_unique(k,dd) = dat_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1320,8 +1580,10 @@ if ( cable_pop==1 ) then
           dati = nint(datpatch(:,k))  
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%patch(k)%layer(ll)%ncohort = dati_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%ncohort = dati_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1331,8 +1593,10 @@ if ( cable_pop==1 ) then
         do k = 1,POP_NPATCH  
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%patch(k)%layer(ll)%biomass = dat_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%biomass = dat_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1342,8 +1606,10 @@ if ( cable_pop==1 ) then
         do k = 1,POP_NPATCH  
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%patch(k)%layer(ll)%density = dat_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%density = dat_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1353,8 +1619,10 @@ if ( cable_pop==1 ) then
         do k = 1,POP_NPATCH  
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%patch(k)%layer(ll)%hmean = dat_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%hmean = dat_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1364,8 +1632,10 @@ if ( cable_pop==1 ) then
         do k = 1,POP_NPATCH  
           do tile = 1,ntiles
             np_pop = tdata(tile)%np
-            call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
-            pop(tile)%pop_grid(:)%patch(k)%layer(ll)%hmax = dat_out(1:np_pop)
+            if ( np_pop>0 ) then
+              call pop_pack(datpatch(:,k),dat_out(1:np_pop),tile,nmp(:,n))
+              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%hmax = dat_out(1:np_pop)
+            end if  
           end do  
         end do
       end do  
@@ -1377,8 +1647,10 @@ if ( cable_pop==1 ) then
             dati = nint(datpc(:,k,cc))  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age = dati_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%age = dati_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1391,8 +1663,10 @@ if ( cable_pop==1 ) then
             dati = nint(datpc(:,k,cc))  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id = dati_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(dati,dati_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%id = dati_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1404,8 +1678,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%biomass = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1417,8 +1693,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%density = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1430,8 +1708,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_resource_uptake = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1443,8 +1723,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_light_uptake = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1456,8 +1738,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_interception = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1469,8 +1753,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_respiration = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1482,8 +1768,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%frac_NPP = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1494,9 +1782,11 @@ if ( cable_pop==1 ) then
         do cc = 1,POP_NCOHORT
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
-              np_pop = tdata(tile)%np              
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar = dat_out(1:np_pop)
+              np_pop = tdata(tile)%np
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%respiration_scalar = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1508,8 +1798,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%crown_area = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1521,8 +1813,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Pgap = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1534,8 +1828,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%height = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1547,8 +1843,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%diameter = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1560,8 +1858,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1573,8 +1873,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%heartwood = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1585,9 +1887,11 @@ if ( cable_pop==1 ) then
         do cc = 1,POP_NCOHORT
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
-              np_pop = tdata(tile)%np              
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area = dat_out(1:np_pop)
+              np_pop = tdata(tile)%np
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%sapwood_area = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1599,8 +1903,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%basal_area = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1612,8 +1918,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%LAI = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1625,8 +1933,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Cleaf = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do
@@ -1638,8 +1948,10 @@ if ( cable_pop==1 ) then
           do k = 1,POP_NPATCH  
             do tile = 1,ntiles
               np_pop = tdata(tile)%np
-              call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
-              pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot = dat_out(1:np_pop)
+              if ( np_pop>0 ) then
+                call pop_pack(datpc(:,k,cc),dat_out(1:np_pop),tile,nmp(:,n))
+                pop(tile)%pop_grid(:)%patch(k)%layer(ll)%cohort(cc)%Croot = dat_out(1:np_pop)
+              end if  
             end do  
           end do  
         end do

@@ -59,8 +59,13 @@ integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
 real, dimension(ifull) :: nvadh_inv_pass
+#ifdef faststack
+real, dimension(ifull+iextra,kl,5) :: bb
+real, dimension(ifull+iextra,kl,3) :: uvw
+#else
 real, dimension(:,:,:), allocatable :: bb
 real, dimension(:,:,:), allocatable :: uvw
+#endif
 real, dimension(ifull+iextra,kl) :: dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
@@ -190,8 +195,10 @@ if ( nmaxpr==1 .and. nproc==1 ) then
 end if
 
 
+#ifndef faststack
 allocate( bb(ifull+iextra,kl,5) )
 allocate( uvw(ifull+iextra,kl,3) )
+#endif
 
 
 ! call bounds before calling ints
@@ -428,8 +435,10 @@ end if     ! mspec==1
 
 !$acc end data
 
+#ifndef faststack
 deallocate( bb )
 deallocate( uvw )
+#endif
 
 
 do k = 2,kl

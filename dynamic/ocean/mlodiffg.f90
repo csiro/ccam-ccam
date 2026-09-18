@@ -87,14 +87,20 @@ use vecsuv_m
 implicit none
 
 integer iq, k, its
+#ifdef faststack
+real, dimension(ifull+iextra,ol,3) :: duma
+real, dimension(ifull+iextra,ol,2) :: dumb
+real, dimension(ifull,ol,3) :: duma_save
+#else
 real, dimension(:,:,:), allocatable :: duma
 real, dimension(:,:,:), allocatable :: dumb
+real, dimension(:,:,:), allocatable :: duma_save
+#endif
 real, dimension(ifull+iextra,ol) :: ttl, ssl
 real, dimension(ifull+iextra,ol) :: uau,uav
 real, dimension(ifull+iextra,ol) :: xfact, yfact, dep
 real, dimension(ifull+iextra,ol) :: w_o
 real, dimension(ifull+iextra,ol+1) :: t_kh
-real, dimension(:,:,:), allocatable :: duma_save
 real, dimension(ifull,ol) :: ttl_save, ssl_save
 real, dimension(ifull,ol), intent(inout) :: u,v,tt,ss
 real, dimension(ifull,ol) :: workdata2
@@ -124,7 +130,7 @@ if ( mlodiff>=0 .and. mlodiff<=9 ) then
   ! Laplacian only (redefine ocnsmag)
   hdif = dt*(ocnsmag/pi)**2
 else if ( mlodiff>=10 .and. mlodiff<=19 ) then
-  ! Biharmonic and Laplacian
+  ! Biharmonic
   hdif = sqrt(0.125)*ocnsmag/pi
 else
   write(6,*) "ERROR: Unknown option mlodiff = ",mlodiff
@@ -182,7 +188,9 @@ end if
 call boundsuv(xfact,yfact,stag=-9)
 
 
+#ifndef faststack
 allocate( duma(ifull+iextra,ol,3) )
+#endif
 
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   ! UX, VX, WX
@@ -207,14 +215,18 @@ if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
 end if
 
 
+#ifndef faststack
 allocate( dumb(ifull+iextra,ol,2) )
+#endif
 
 ! perform diffusion
 
 if ( mlodiff>=10 .and. mlodiff<20 ) then
   !Biharmonic version
     
+#ifndef faststack
   allocate( duma_save(ifull,ol,3) )
+#endif
 
   if ( mlodiff==10 .or. mlodiff==12 ) then
     duma_save(1:ifull,:,1:3) = duma(1:ifull,:,1:3)  
@@ -304,7 +316,9 @@ if ( mlodiff>=10 .and. mlodiff<20 ) then
     
   end do  
   
+#ifndef faststack
   deallocate( duma_save )
+#endif  
 
 else if ( mlodiff>=0 .and. mlodiff<10 ) then
   ! Laplacian version
@@ -352,7 +366,9 @@ else
   call ccmpi_abort(-1)
 end if  
 
+#ifndef faststack
 deallocate( dumb )
+#endif
 
 
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
@@ -363,7 +379,9 @@ if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     end do
   end do
 end if
+#ifndef faststack
 deallocate( duma )
+#endif
 
 if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
   do k = 1,ol

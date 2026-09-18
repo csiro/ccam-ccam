@@ -48,7 +48,7 @@ module cc_mpi_common
                                                                    ! for the global grid
    integer, save :: node_nx, node_ny                               ! number of processes in the x and y directions
                                                                    ! on a node
-   integer, save :: nagg = 8                                       ! maximum number of levels to aggregate
+   integer, save :: nagg = 8                                       ! maximum number of variables to aggregate
    integer, save :: maxcolour = 2                                  ! maximum number of colours for iterative solvers
    
    integer, save :: maxbuflen, maxvertlen                          ! bounds buffer size   
@@ -71,6 +71,7 @@ module cc_mpi_common
    integer, allocatable, dimension(:), save :: rlist               ! map of process index from requested message index
    
    interface ccmpi_reduce
+      module procedure ccmpi_reduce1i, ccmpi_reduce2i
       module procedure ccmpi_reduce1r, ccmpi_reduce2r, ccmpi_reduce3r
       module procedure ccmpi_reduce1c, ccmpi_reduce2c
    end interface
@@ -874,6 +875,61 @@ contains
         
    end subroutine simple_timer_finalize
 
+   subroutine ccmpi_reduce1i(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host, comm
+      integer, intent(in) :: ldat
+      integer, intent(out) :: gdat
+      character(len=*), intent(in) :: op
+      integer, dimension(1) :: ldat_l
+      integer, dimension(1) :: gdat_l
+      
+      ldat_l(1) = ldat
+      gdat_l(:) = 0
+      call ccmpi_reduce2i(ldat_l,gdat_l,op,host,comm)
+      gdat = gdat_l(1)
+   
+   end subroutine ccmpi_reduce1i
+   
+   subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
+      integer, intent(in) :: host, comm
+      integer(kind=4) :: lcomm, lerr, lsize
+      integer, dimension(:), intent(in) :: ldat
+      integer, dimension(:), intent(out) :: gdat
+      character(len=*), intent(in) :: op
+
+      call START_LOG(reduce_begin)
+      
+      lcomm = comm
+      lsize = size(ldat)
+      
+      select case( op )
+         case( "max" )
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_MAX, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_MAX, lcomm, lerr )
+#endif 
+         case( "min" )
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_MIN, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_MIN, lcomm, lerr )
+#endif 
+         case( "sum" )
+#ifdef i8r8
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_SUM, lcomm, lerr )
+#else
+            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_SUM, lcomm, lerr )
+#endif 
+         case default
+            write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op
+            call ccmpi_abort(-1)
+      end select
+      
+      call END_LOG(reduce_end)
+   
+   end subroutine ccmpi_reduce2i   
+   
    subroutine ccmpi_reduce1r(ldat,gdat,op,host,comm)
       integer, intent(in) :: host, comm
       real, intent(in) :: ldat

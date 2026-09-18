@@ -62,12 +62,12 @@ IMPLICIT NONE
          tlfx,       & ! leaf temp prev. iter (K)
          tlfy          ! leaf temp (K)
 
-    REAL(R_2),INTENT(INOUT), DIMENSION(:) ::                                    &
+    REAL(r_2),INTENT(INOUT), DIMENSION(:) ::                                    &
          ecy,        & ! lat heat fl dry big leaf
          hcy,        & ! veg. sens heat
-         rny         !& !
+         rny           !
 
-    REAL(R_2),INTENT(INOUT), DIMENSION(:,:) ::                                  &
+    REAL(r_2),INTENT(INOUT), DIMENSION(:,:) ::                                  &
          gbhu,       & ! forcedConvectionBndryLayerCond
          gbhf,       & ! freeConvectionBndryLayerCond
          csx           ! leaf surface CO2 concentration
@@ -475,7 +475,7 @@ IMPLICIT NONE
 #endif
 
        DO i=1,mp
-          IF (rad%fvlai(i,kk)>CLAI_THRESH .AND. abs_deltlf(i) > 0.1 ) THEN
+          IF ( canopy%vlaiw(i)>CLAI_THRESH .AND. abs_deltlf(i) > 0.1 ) THEN
 
              DO kk=1,mf
 

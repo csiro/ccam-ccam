@@ -56,7 +56,11 @@ integer async_counter
 integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordinates
 real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
 real, dimension(ifull+iextra,kl,ntr), intent(inout) :: s  ! array of tracers
+#ifdef faststack
+real, dimension(-1:ipan+2,-1:jpan+2,npan,kl,nagg) :: sx   ! unpacked tracer array
+#else
 real, dimension(:,:,:,:,:), allocatable :: sx ! unpacked tracer array
+#endif
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -66,7 +70,9 @@ call START_LOG(ints_begin)
 
 ! now call bounds before calling ints
 
+#ifndef faststack
 allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,kl,nagg) )
+#endif
 
 !$acc enter data create(sx)
 
@@ -665,7 +671,9 @@ end if               ! (intsch==1) .. else ..
 
 !$acc exit data delete(sx)
 
+#ifndef faststack
 deallocate( sx )
+#endif
 
 call END_LOG(ints_end)
 

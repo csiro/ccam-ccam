@@ -70,14 +70,22 @@ integer async_counter
 integer, dimension(ifull,ol), intent(in) :: nface
 real, dimension(ifull,ol), intent(in) :: xg, yg
 real, dimension(:,:,:), intent(inout) :: s
+#ifdef faststack
+real, dimension(-1:ipan+2,-1:jpan+2,npan,ol,size(s,3)) :: sx
+#else
 real, dimension(:,:,:,:,:), allocatable :: sx
+#endif
 real xxg, yyg
 real cmul_1, cmul_2, cmul_3, cmul_4, dmul_2, dmul_3, emul_1, emul_2, emul_3, emul_4
 real rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real sx_ans, cmin, cmax
 logical, dimension(ifull+iextra,ol), intent(in) :: wtr
+#ifdef fasttrack
+logical, dimension(-1:ipan+2,-1:jpan+2,npan,ol) :: wx
+#else
 logical, dimension(:,:,:,:), allocatable :: wx
+#endif
 logical, intent(in) :: bs_test
 logical bcub_water, blin_test
 
@@ -85,8 +93,10 @@ call START_LOG(waterints_begin)
 
 ntr = size(s,3)
 
+#ifndef faststack
 allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,ol,ntr) )
 allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,ol) )
+#endif
 
 if ( mlointschf==0 ) then
   intsch = 0
@@ -919,8 +929,10 @@ end if                     ! (intsch==1) .. else ..
 
 !$acc exit data delete(wx,sx)
 
+#ifndef faststack
 deallocate( sx )
 deallocate( wx )
+#endif
 
 call END_LOG(waterints_end)
 
@@ -960,7 +972,11 @@ implicit none
 integer, intent(in) :: bc_test
 integer ntr, nn, k, ii, iq
 real, dimension(:,:,:), intent(inout) :: s
+#ifdef faststack
+real, dimension(ifull+iextra,ol,size(s,3)) :: s_old
+#else
 real, dimension(:,:,:), allocatable :: s_old
+#endif
 real s_tot, s_count
 logical, dimension(ifull+iextra,ol), intent(in) :: wtr
 logical need_fill
@@ -1002,7 +1018,9 @@ end select
 
 ! fill
 if ( need_fill ) then
-  allocate( s_old(ifull+iextra,ol,ntr) )  
+#ifndef faststack
+  allocate( s_old(ifull+iextra,ol,ntr) )
+#endif
   do ii = 1,6 ! 6 iterations of fill should be enough
     s_old(1:ifull,:,:) = s(1:ifull,:,:)
     call bounds(s_old)
@@ -1038,7 +1056,9 @@ if ( need_fill ) then
     end do      ! nn loop
     !$omp end parallel do
   end do ! ii loop
+#ifndef faststack
   deallocate( s_old )
+#endif
 end if   ! need_fill
 
 call bounds(s,nrows=2)

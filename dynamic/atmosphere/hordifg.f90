@@ -78,8 +78,13 @@ use vvel_m
 
 implicit none
 
+#ifdef faststack
+real, dimension(ifull+iextra,kl,4) :: bb
+real, dimension(ifull+iextra,kl,3) :: uvwc
+#else
 real, dimension(:,:,:), allocatable :: bb
 real, dimension(:,:,:), allocatable :: uvwc
+#endif
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: dwdx, dwdy
@@ -233,7 +238,9 @@ end if ! nvmix=6 .or. nvmix==9
       
 ! usual deformation for nhorjlm=1 or nhorjlm=2
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
+#ifndef faststack
   allocate( uvwc(ifull+iextra,kl,3) )
+#endif
   do k = 1,kl
     ! in hordifgt, need to calculate Cartesian components 
     uvwc(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
@@ -335,7 +342,9 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 ! UPDATE PROGNOSTIC VARIABLES
 ! *****************************************************************************
 
+#ifndef faststack
 allocate( bb(ifull+iextra,kl,4) )
+#endif
 
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
   do k = 1,kl
@@ -380,7 +389,9 @@ if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   call bounds(xtg)  
 end if
 
+#ifndef faststack
 deallocate( bb )
+#endif
 
 !$omp parallel
 !$omp sections
@@ -462,9 +473,11 @@ if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
                  + bz(1:ifull)*uvwc(1:ifull,k,3)
   end do
 end if  
+#ifndef faststack
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
   deallocate( uvwc )
 end if  
+#endif
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   do k = 1,kl
     t(1:ifull,k) = t(1:ifull,k)*ptemp(1:ifull)  

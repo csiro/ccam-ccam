@@ -82,7 +82,7 @@ ifeq ($(OMP),yes)
 FHOST += -qopenmp
 endif
 # Default intel compiler options
-FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG)
+FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) -Dfaststack
 LIBS = -L $(NETCDF_ROOT)/lib -lnetcdf
 PPFLAG90 = -fpp
 PPFLAG77 = -fpp
@@ -170,7 +170,7 @@ endif
 ifeq ($(NOMPI3),yes)
 MPIFLAG =
 else
-MPIFLAG = -Dusempi3 -Dshare_ifullg
+MPIFLAG = -Dusempi3 -Dshare_ifullg -Dfaststack
 endif
 FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(GPU),yes)

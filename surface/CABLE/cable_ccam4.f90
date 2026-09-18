@@ -182,7 +182,7 @@ subroutine cable_pack_r4_2_r4_map(indata,outdata,tile,nmp)
   real, dimension(:), intent(in) :: indata
   real(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: tile
-  integer, dimension(imax), intent(in) :: nmp
+  integer, dimension(:), intent(in) :: nmp
   integer nb, is, ie, iqt, iq, js, je, iqx
 
   if ( size(indata)==ifull ) then
@@ -221,7 +221,7 @@ subroutine cable_pack_r4_2_r8_map(indata,outdata,tile,nmp)
   real, dimension(:), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: tile
-  integer, dimension(imax), intent(in) :: nmp
+  integer, dimension(:), intent(in) :: nmp
   integer nb, is, ie, iqt, iq, js, je, iqx
 
   if ( size(indata)==ifull ) then
@@ -301,7 +301,7 @@ subroutine cable_pack_r8_2_r8_map(indata,outdata,tile,nmp)
   real(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: tile
-  integer, dimension(imax), intent(in) :: nmp
+  integer, dimension(:), intent(in) :: nmp
   integer nb, is, ie, iqt, iq, js, je, iqx
 
   if ( size(indata)==ifull ) then
@@ -381,7 +381,7 @@ subroutine cable_pack_i4_2_i4_map(indata,outdata,tile,nmp)
   integer, dimension(:), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: tile
-  integer, dimension(imax), intent(in) :: nmp
+  integer, dimension(:), intent(in) :: nmp
   integer nb, is, ie, iqt, iq, js, je, iqx
 
   if ( size(indata)==ifull ) then
@@ -420,7 +420,7 @@ subroutine cable_pack_i4_2_i8_map(indata,outdata,tile,nmp)
   integer, dimension(:), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: tile
-  integer, dimension(imax), intent(in) :: nmp
+  integer, dimension(:), intent(in) :: nmp
   integer nb, is, ie, iqt, iq, js, je, iqx
 
   if ( size(indata)==ifull ) then
@@ -821,7 +821,7 @@ subroutine pop_pack_r8_2_r8_map(indata,outdata,tile,nmp)
   real(kind=8), dimension(:), intent(in) :: indata
   real(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: tile
-  integer, dimension(ifull), intent(in) :: nmp
+  integer, dimension(:), intent(in) :: nmp
   integer nb, is, ie, js, je, iqx, iqt, iq
 
   if ( size(indata)==ifull ) then
@@ -900,7 +900,7 @@ subroutine pop_pack_i4_2_i4_map(indata,outdata,tile,nmp)
   integer, dimension(:), intent(in) :: indata
   integer(kind=4), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: tile
-  integer, dimension(ifull), intent(in) :: nmp
+  integer, dimension(:), intent(in) :: nmp
   integer nb, is, ie, js, je, iqx, iqt, iq
 
   if ( size(indata)==ifull ) then
@@ -980,7 +980,7 @@ subroutine pop_pack_i4_2_i8_map(indata,outdata,tile,nmp)
   integer, dimension(:), intent(in) :: indata
   integer(kind=8), dimension(:), intent(inout) :: outdata
   integer, intent(in) :: tile
-  integer, dimension(ifull), intent(in) :: nmp
+  integer, dimension(:), intent(in) :: nmp
   integer nb, is, ie, js, je, iqx, iqt, iq
 
   if ( size(indata)==ifull ) then
@@ -1178,7 +1178,7 @@ end subroutine cable_update_r8_2_r4
 
 #ifndef i8r8
 subroutine cable_update_r8_2_r8(outdata,indata,tile,nb)
-  real(kind=8), dimension(imax), intent(inout) :: outdata
+  real(kind=8), dimension(:), intent(inout) :: outdata
   real(kind=8), dimension(:), intent(in) :: indata
   integer, intent(in) :: tile
   integer, intent(in), optional :: nb

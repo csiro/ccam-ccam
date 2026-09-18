@@ -54,7 +54,7 @@ USE cable_climate_type_mod, ONLY: climate_type
 #ifdef UM_BUILD 
        r_2  = KIND(1.0),&!SELECTED_REAL_KIND(12, 50), &
 #else       
-       r_2  = KIND(1.d0),&!SELECTED_REAL_KIND(12, 50), &
+       r_2  = KIND(1.0_8),&!SELECTED_REAL_KIND(12, 50), &
 #endif
        n_tiles = 17,  & ! # possible no of different
        ncp = 3,       & ! # vegetation carbon stores

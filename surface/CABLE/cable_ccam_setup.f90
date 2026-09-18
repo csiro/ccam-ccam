@@ -333,8 +333,9 @@ real, dimension(ifull,maxtile), intent(in) :: svs,vlin
 real, dimension(ifull,5), intent(in) :: casapoint
 real, dimension(ifull,2) :: albsoilsn
 real, dimension(ifull) :: dummy_pack, albsoil
-real, dimension(0:maxtile) :: stat_count, global_stat_count
+integer, dimension(0:maxtile) :: stat_count, global_stat_count
 real(kind=8), dimension(:), allocatable :: dummy_unpack
+real(kind=8) :: valr8
 integer :: tile, popcount
 character(len=*), intent(in) :: fcasapft
 
@@ -981,21 +982,21 @@ else
 end if
   
 ! statistics
-stat_count(:) = 0.
-global_stat_count(:) = 0.
+stat_count(:) = 0
+global_stat_count(:) = 0
 do iq = 1,ifull
   if ( land(iq) ) then  
     landcount = count( svs(iq,:)>0. )
-    stat_count(landcount) = stat_count(landcount) + 1.
-    stat_count(0) = stat_count(0) + 1.
+    stat_count(landcount) = stat_count(landcount) + 1
+    stat_count(0) = stat_count(0) + 1
   end if  
 end do  
 call ccmpi_reduce(stat_count,global_stat_count,"sum",0,comm_world)
 if ( myid==0 ) then
   write(6,*) "CABLE statistics:"
   do n = 1,maxtile
-    write(6,'(A,I1.1,A,F5.1,A)') "   Percentage of gridpoints with ",n," tile(s) is ", &
-        100.*global_stat_count(n)/global_stat_count(0),"%"
+    valr8 = 100._8*real(global_stat_count(n),8)/real(global_stat_count(0),8)  
+    write(6,'(A,I1.1,A,F5.1,A)') "   Percentage of gridpoints with ",n," tile(s) is ",real(valr8),"%"
   end do  
 end if
   

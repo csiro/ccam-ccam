@@ -304,9 +304,15 @@ real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull) :: sdiv, imu, imv
 real, dimension(ifull) :: oeu_iwu, oev_isv
 real, dimension(ifull) :: bu, bv, cu, cv
+#ifdef faststack
+real, dimension(ifull,ol,6) :: s_store
+real, dimension(ifull+iextra,ol,4) :: s_work
+real, dimension(ifull+iextra,ol,3) :: cou
+#else
 real, dimension(:,:,:), allocatable :: s_store
 real, dimension(:,:,:), allocatable :: s_work
 real, dimension(:,:,:), allocatable :: cou
+#endif
 real, dimension(ifull+iextra,ol) :: cc
 real, dimension(ifull+iextra,ol) :: eou, eov, ccu, ccv
 real, dimension(ifull+iextra,ol) :: nu, nv, nt, ns, mps
@@ -764,9 +770,11 @@ do mspec_mlo = mspeca_mlo,1,-1
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
 
   
+#ifndef faststack  
   allocate( cou(ifull+iextra,ol,3) )
   allocate( s_store(ifull,ol,6) )
   allocate( s_work(ifull+iextra,ol,4) )
+#endif
   
   
   do ii = 1,ol
@@ -841,9 +849,11 @@ do mspec_mlo = mspeca_mlo,1,-1
     ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )
   end do
 
+#ifndef faststack
   deallocate( cou )
   deallocate( s_store )
   deallocate( s_work )
+#endif
   
   
   workdata = nt(1:ifull,:)

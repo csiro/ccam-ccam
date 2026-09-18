@@ -820,17 +820,17 @@ if ( newfile ) then
   end if
   
  
-  ! set-up 3d-depth, land_3d mask for z* ocean
-  ! and set-up sea_a array
-  if ( fwsize>0 ) then
+  if ( fwsize>0 .and. .not.tss_test ) then ! tss_test includes iotest=.true.
+
+    ! set-up 3d-depth, land_3d mask for z* ocean
+    ! and set-up sea_a array
     if ( mlo_found ) then
       ! land_3d mask
       if ( any(gosig_1>1.) ) then
         ! found z* ocean levels  
-        land_3d(:,:) = .false.  
         do k = 1,ok
-          ! include +0.1 to avoid rounding issues  
-          land_3d(:,k) = ( land_a .or. gosig_1(k)+0.1>=ocndep_a ) 
+          ! include +0.1 to avoid rounding issues   
+          land_3d(:,k) = land_a(:) .or. gosig_1(k)+0.1>=ocndep_a(:)
         end do
       else
         ! found sigma ocean levels - to be depreciated
@@ -840,10 +840,8 @@ if ( newfile ) then
       end if  ! any(gosig_1>1.)..else..      
     end if    ! mlo_found
     sea_a = .not.land_a
-  end if ! fwsize>0
   
-  ! check that land-sea mask is definied
-  if ( fwsize>0 .and. .not.tss_test ) then ! tss_test includes iotest=.true.
+    ! check that land-sea mask is definied
     if ( nemi==-1 ) then
       write(6,*) "ERROR: Cannot determine land-sea mask"
       write(6,*) "CCAM requires zht or soilt or ocndepth in input file"
@@ -852,6 +850,7 @@ if ( newfile ) then
     if ( myid==0 .and. nmaxpr==1 ) then
       write(6,*) "-> Land-sea mask using nemi = ",nemi
     end if
+
   end if  
   
   ! read urban data mask
@@ -877,7 +876,7 @@ if ( newfile ) then
     
 else
     
-  ! use saved metadata  
+  ! use saved metadata
   mixr_found    = iers(1)==0
   siced_found   = iers(2)==0
   fracice_found = iers(3)==0
