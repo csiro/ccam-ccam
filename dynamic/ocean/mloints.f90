@@ -81,7 +81,7 @@ real rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real sx_ans, cmin, cmax
 logical, dimension(ifull+iextra,ol), intent(in) :: wtr
-#ifdef fasttrack
+#ifdef faststack
 logical, dimension(-1:ipan+2,-1:jpan+2,npan,ol) :: wx
 #else
 logical, dimension(:,:,:,:), allocatable :: wx
