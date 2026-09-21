@@ -709,6 +709,8 @@ call START_LOG(ints_begin)
 ! now call bounds before calling ints_bl
 !call bounds(s,corner=.true.)
 
+!$acc enter data create(sx)
+
 sx(1:ipan,1:jpan,1:npan,1:kl) = reshape(s(1:ipan*jpan*npan,1:kl), (/ipan,jpan,npan,kl/))
 do k = 1,kl
   do n = 1,npan
@@ -728,6 +730,7 @@ do k = 1,kl
     sx(ipan+1,jpan+1,n,k) = s(ien(n*ipan*jpan),k)
   end do                 ! n loop
 end do                   ! k loop
+!$acc update device(sx) async(0)
 
 ! Loop over points that need to be calculated for other processes
 do ii = 1,neighnum
@@ -749,7 +752,8 @@ end do
 call intssync_send
 
 #ifdef _OPENACC
-!$acc parallel loop collapse(2) copyin(sx) copyout(s) present(xg,yg,nface)
+!$acc wait(0)
+!$acc parallel loop collapse(2) copyout(s) present(sx,xg,yg,nface)
 #else
 !$omp parallel do schedule(static) private(k,iq,idel,xxg,jdel,yyg,n)
 #endif
@@ -774,6 +778,8 @@ end do                    ! k
 #endif
 
 call intssync_recv(s)
+
+!$acc exit data delete(sx)
 
 call END_LOG(ints_end)
 

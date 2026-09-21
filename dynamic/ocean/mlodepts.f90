@@ -59,23 +59,34 @@ real, dimension(ifull,ol), intent(in) :: ubar,vbar
 real, dimension(ifull,ol), intent(out) :: xg,yg
 real(kind=8), dimension(ifull,ol), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,ol) :: uc,vc,wc
+#ifdef faststack
+real, dimension(ifull+iextra,ol,3) :: s, s_old
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,ol,3) :: sx
+#else
 real, dimension(:,:,:), allocatable :: s, s_old
 real, dimension(:,:,:,:,:), allocatable :: sx
+#endif
 real s_tot, s_count
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real xxg, yyg
 logical, dimension(ifull+iextra,ol), intent(in) :: wtr
+#ifdef faststack
+logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,ol) :: wx
+#else
 logical, dimension(:,:,:,:), allocatable :: wx
+#endif
 logical bcub_water, blin_test
 
 call START_LOG(waterdeps_begin)
 
+#ifndef faststack
 allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,ol,3) )
 allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,ol) )
 allocate( s(ifull+iextra,ol,3) )
 allocate( s_old(ifull+iextra,ol,3) )
+#endif
 
 !$acc data create(xg,yg,nface,xx4,yy4,wx,sx)
 !$acc update device(xx4,yy4) async(0)
@@ -332,11 +343,8 @@ else
     end do             ! k loop
     !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
   end do               ! nn loop
-
-  
+ 
 end if
-
-!$acc update device(wx)
 
 do itr = 1,2
 
@@ -416,7 +424,7 @@ do itr = 1,2
       !$acc parallel loop collapse(2) copyout(s(:,:,nn))      &
       !$acc   present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-      !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                &
+      !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
       !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
       !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
       !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
@@ -563,9 +571,9 @@ do itr = 1,2
     do nn = 1,3  
 #ifdef _OPENACC
       !$acc parallel loop collapse(2) copyout(s(:,:,nn))             &
-      !$acc   present(sx,wx,xg,yg,nface) async(mod(nn,async_length))
+      !$acc   present(sx,wx,xg,yg,nface) async(async_counter)
 #else
-      !$omp do collapse(2) schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                &
+      !$omp do schedule(static) private(k,iq,idel,jdel,n,xxg,yyg)                            &
       !$omp private(sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12) &
       !$omp private(cmul_1,cmul_2,cmul_3,cmul_4,dmul_2,dmul_3,emul_1,emul_2,emul_3,emul_4)   &
       !$omp private(rmul_1,rmul_2,rmul_3,rmul_4,bcub_water,blin_test)
@@ -666,10 +674,12 @@ end do ! itr
 
 !$acc end data
 
+#ifndef faststack
 deallocate( sx )
 deallocate( wx )
 deallocate( s )
 deallocate( s_old )
+#endif
 
 call END_LOG(waterdeps_end)
 

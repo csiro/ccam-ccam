@@ -19,7 +19,18 @@ For documentation, see our website at
 
 CCAM requires NetCDF and Message Passing Interface (MPI) libraries.
 Although CCAM is written in Fortran, it links with the NetCDF C library.
+https://www.unidata.ucar.edu/software/netcdf
+https://www.open-mpi.org/
 
+Furthermore, CCAM requires the following scripts, preprocessing and postprocessing software.
+https://github.com/csiro/ccam-scripts
+https://github.com/csiro/ccam-cdfvidar
+https://github.com/csiro/ccam-terread
+https://github.com/csiro/ccam-igbpveg
+https://github.com/csiro/ccam-ocnbath
+https://github.com/csiro/ccam-casafield
+https://github.com/csiro/ccam-aeroemiss
+https://github.com/csiro/ccam-pcc2hist
 
 ## Building CCAM
 
