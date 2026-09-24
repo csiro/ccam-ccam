@@ -78,7 +78,6 @@ integer i,j,n,fiarch,k,iq
 integer idnp, idgpn, idgpo
 integer press_level, tlenhf
 integer d4, ssize, fsize, asize
-integer nout, kout
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -99,7 +98,6 @@ real press_level_pa, xx, sig_level
 logical, save :: first = .true.
 logical local
 logical freq_core, freq_standard, freq_shep
-logical syncstag
 character(len=1024) ffile
 character(len=80) lname
 character(len=40) vname
@@ -655,15 +653,6 @@ if ( mod(ktau,tbave10)==0 ) then
   freqstore(:,:) = 0._8
 
   ! flush output buffers
-  nout = ntau/tbave10 ! number of writes
-  kout = ktau/tbave10 ! current write
-  if ( vleader_nproc > nout ) then
-    ! number of processes writing is greater than the number of writes to the output file  
-    syncstag = mod(vleader_myid,nout) == kout
-  else
-    ! number of processes writing is smaller or equal to the number of writes to the output file  
-    syncstag = mod(kout,vleader_nproc) == vleader_myid    
-  end if
   if ( synchist ) then
     if ( myid==0 .or. local ) then
       call ccnf_sync(fncid)
