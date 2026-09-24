@@ -174,11 +174,11 @@ use soilsnow_m
 use vegpar_m
   
 logical, intent(in), optional :: usedefault
-integer k, n, ierr, idv, ierr_casa, ierr_sli, ierr_pop, ierr_svs, ierr_cvc
+integer k, n, ierr, idv, ierr_casa, ierr_sli, ierr_pop, ierr_cvc
 integer jyear,jmonth,jday,jhour,jmin,mins, ll, cc, hh, dd
 integer np_pop, iq, m
 integer tile
-integer, dimension(6) :: ierr_check
+integer, dimension(5) :: ierr_check
 integer, dimension(ifull) :: dati
 integer, dimension(ifull,maxtile) :: nmp
 integer, dimension(:), allocatable :: dati_out
@@ -215,7 +215,6 @@ ierr = 1
 ierr_casa = 1
 ierr_sli = 1
 ierr_pop = 1
-ierr_svs = 1
 ierr_cvc = 1
 
 ! io_in==1 ensures no interpolation is required
@@ -241,11 +240,6 @@ if ( io_in==1 .and. .not.defaultmode ) then
     if ( .not.tst ) then
       ierr_pop = 0
     end if
-    write(testname,'("t",I1.1,"_svs")') maxtile  
-    call ccnf_inq_varid(ncid,testname,idv,tst)
-    if ( .not.tst ) then
-      ierr_svs = 0
-    end if
     write(testname,'("t",I1.1,"_cvc")') maxtile  
     call ccnf_inq_varid(ncid,testname,idv,tst)
     if ( .not.tst ) then
@@ -260,20 +254,18 @@ if ( .not.pfall ) then
   ierr_check(2) = ierr_casa
   ierr_check(3) = ierr_sli
   ierr_check(4) = ierr_pop
-  ierr_check(5) = ierr_svs
-  ierr_check(6) = ierr_cvc
-  call ccmpi_bcast(ierr_check(1:6),0,comm_world)
+  ierr_check(5) = ierr_cvc
+  call ccmpi_bcast(ierr_check(1:5),0,comm_world)
   ierr       = ierr_check(1)
   ierr_casa  = ierr_check(2)
   ierr_sli   = ierr_check(3)
   ierr_pop   = ierr_check(4)
-  ierr_svs   = ierr_check(5)
-  ierr_cvc   = ierr_check(6)
+  ierr_cvc   = ierr_check(5)
 end if
 
 if ( myid==0 ) then
   write(6,*) "-> Found ierr,ierr_casa_ierr_sli ",ierr,ierr_casa,ierr_sli
-  write(6,*) "->    ierr_pop,ierr_svs,ierr_cvc ",ierr_pop,ierr_svs,ierr_cvc
+  write(6,*) "->    ierr_pop,ierr_cvc          ",ierr_pop,ierr_cvc
 end if
   
 call defaulttile ! initially use default values before overwriting
@@ -306,7 +298,7 @@ else
   ! read tile data
   if ( myid==0 ) write(6,*) "-> Use tiled data to initialise CABLE"  
   do n = 1,maxtile
-    if ( ierr_svs == 0 ) then
+    if ( ierr_cvc == 0 ) then
       write(vname,'("t",I1.1,"_svs")') n
       call histrd(iarchi-1,ierr,vname,dat,ifull)
       datr = real( dat )
