@@ -36,19 +36,11 @@ subroutine cdfout(itype,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
 
 use cc_mpi                                 ! CC MPI routines
 use dates_m                                ! Date data
-!use estab                                  ! Liquid saturation function
 use infile                                 ! Input file routines
-!use module_aux_rad                         ! Additional cloud and radiation routines
 use newmpar_m                              ! Grid parameters
-!use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
 use parmgeom_m                             ! Coordinate data
-!use parmhdff_m                             ! Horizontal diffusion parameters
-!use parmhor_m                              ! Horizontal advection parameters
-!use parmvert_m                             ! Vertical advection parameters
-!use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
-!use staguvmod                              ! Reversible grid staggering   
 use tracers_m                              ! Tracer data
 
 implicit none
@@ -63,11 +55,12 @@ integer ixp, iyp, idlev, idnt, idms, idoc, idproc, idgpnode, idgpoff
 integer xdim, ydim, zdim, pdim, gpdim, tdim, msdim, ocdim, ubdim
 integer cpdim, c2pdim, cadim, cpftdim
 integer icy, icm, icd, ich, icmi, ics, idv
-integer, save :: idnc_hist=0, iarch_hist=0
 integer idnc, iarch, tlen
+integer kout, nout
+integer, save :: idnc_hist=0, iarch_hist=0
 real, dimension(:), intent(in) :: psl_in
 real, dimension(:,:), intent(in) :: u_in, v_in, t_in, q_in
-logical local
+logical local, syncstag
 character(len=*), intent(in) :: cdffile_in
 character(len=1024) cdffile
 character(len=33) grdtim
@@ -311,7 +304,16 @@ call openhist(iarch,itype,iout,dima,dimo,dimc,local,idnc,ixp,iyp,idlev,idms, &
 
 
 ! flush output buffers
-if ( synchist ) then
+nout = ntau/nwt ! number of writes
+kout = ktau/nwt ! current write
+if ( vleader_nproc > nout ) then
+  ! number of processes writing is greater than the number of writes to the output file  
+  syncstag = mod(vleader_myid,nout) == kout
+else
+  ! number of processes writing is smaller or equal to the number of writes to the output file  
+  syncstag = mod(kout,vleader_nproc) == vleader_myid    
+end if
+if ( synchist .or. syncstag ) then
   if ( myid==0 .or. local ) then
     call ccnf_sync(idnc)
   end if

@@ -90,6 +90,7 @@ integer idnp, idgpn, idgpo
 integer press_level, height_level
 integer d4, ssize, fsize, asize
 integer sixhr_t ! emulator for sixhr_m when ml_cordex=.false.
+integer nout, kout
 integer, save :: fncid = -1
 integer, save :: idnt = 0
 integer, save :: idkdate = 0
@@ -115,6 +116,7 @@ logical, save :: first = .true.
 logical local, lday, l6hr
 logical cordex_core, cordex_tier1, cordex_tier2, cordex_urbrcc
 logical cordex_tier2b
+logical syncstag
 character(len=1024) ffile
 character(len=80) lname
 character(len=40) vname
@@ -135,9 +137,11 @@ call START_LOG(outfile_begin)
 local = localhist .and. vnode_myid==0
 lday  = mod(ktau,nperday)==0.or.ktau==ntau
 if ( ml_cordex ) then
+  ! disable compression and store all levels at tbave frequency  
   l6hr = .true.  
   sixhr_t = any_m  
 else
+  ! compress cordex file using multiple frequencies (1hour, 6hour, daily)  
   l6hr  = mod(ktau,nper6hr)==0.or.ktau==ntau
   sixhr_t = sixhr_m
 end if
@@ -1278,7 +1282,16 @@ if ( mod(ktau,tbave)==0 ) then
   freqstore(:,39:45) = 0._8
   
   ! flush output buffers
-  if ( synchist ) then
+  nout = ntau/tbave ! number of writes
+  kout = ktau/tbave ! current write
+  if ( vleader_nproc > nout ) then
+    ! number of processes writing is greater than the number of writes to the output file  
+    syncstag = mod(vleader_myid,nout) == kout
+  else
+    ! number of processes writing is smaller or equal to the number of writes to the output file  
+    syncstag = mod(kout,vleader_nproc) == vleader_myid    
+  end if
+  if ( synchist .or. syncstag ) then
     if ( myid==0 .or. local ) then
       call ccnf_sync(fncid)
     end if
