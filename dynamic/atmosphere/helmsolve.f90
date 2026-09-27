@@ -856,10 +856,14 @@ real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
 real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
 real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
 real, dimension(mg_maxsize,2*kl) :: w
+real, dimension(ifull_maxcolour,kl,maxcolour) :: helmc, rhsc
+real, dimension(ifull_maxcolour,maxcolour) :: zznc, zzec, zzwc, zzsc, zzc
 #else
 real, dimension(:,:,:), allocatable :: rhs
 real, dimension(:,:,:), allocatable :: v, helm
 real, dimension(:,:), allocatable :: w
+real, dimension(:,:,:) :: helmc, rhsc
+real, dimension(:,:) :: zznc, zzec, zzwc, zzsc, zzc
 #endif
 real, dimension(mg_minsize) :: vsavc
 real, dimension(2*kl,2) :: smaxmin_g
@@ -885,6 +889,13 @@ allocate( rhs(mg_maxsize,2*kl,2:gmax+1) )
 allocate( v(mg_maxsize,kl,gmax+1) )
 allocate( helm(mg_maxsize,kl,gmax+1) )
 allocate( w(mg_maxsize,2*kl) )
+allocate( helmc(ifull_maxcolour,kl,maxcolour) )
+allocate( rhsc(ifull_maxcolour,kl,maxcolour) )
+allocate( zznc(ifull_maxcolour,maxcolour) )
+allocate( zzec(ifull_maxcolour,maxcolour) )
+allocate( zzwc(ifull_maxcolour,maxcolour) )
+allocate( zzsc(ifull_maxcolour,maxcolour) )
+allocate( zzc(ifull_maxcolour,maxcolour) )
 #endif
 
 ng  = 0
@@ -908,9 +919,30 @@ do k = 1,kl
   end do
 end do
 
+call bounds_send(iv)
+
+! pack colour arrays at fine level
+! note that the packing reorders the calculation to update the border points first
+do nc = 1,maxcolour
+  do k = 1,kl
+    do iql = 1,ifull_colour(nc)
+      iq = iqx(iql,nc)  
+      helmc(iql,k,nc) = ihelm(iq,k)
+      rhsc(iql,k,nc)   = irhs(iq,k)
+    end do  
+  end do
+  do iql = 1,ifull_colour(nc)
+    iq = iqx(iql,nc)  
+    zznc(iql,nc) = izzn(iq)
+    zzwc(iql,nc) = izzw(iq)
+    zzec(iql,nc) = izze(iq)
+    zzsc(iql,nc) = izzs(iq)
+    zzc(iql,nc) = izz(iq)
+  end do  
+end do
 
 ! solver assumes boundaries have been updated
-call bounds(iv)
+call bounds_recv(iv)
 
 ! Before sending convegence testing data in smaxmin_g and ihelm weights, we perform one iteration of the solver
 ! that can be updated with the smaxmin_g and ihelm arrays
@@ -939,12 +971,13 @@ do itr = 1,itr_mg
       do k = 1,klim
         do iql = 1,ifull_colour_border(nc)
           iq = iqx(iql,nc)  
-          iv_new(iq,k) = ( izzn(iq)*iv(in(iq),k)      &
-                         + izzw(iq)*iv(iw(iq),k)      &
-                         + izze(iq)*iv(ie(iq),k)      &
-                         + izzs(iq)*iv(is(iq),k)      &
-                         - irhs(iq,k) )/(ihelm(iq,k)-izz(iq))
-        end do  
+          iv_new(iq,k) = ( zznc(iql,nc)*iv(iqnx(iql,nc),k)      &
+                         + zzwc(iql,nc)*iv(iqwx(iql,nc),k)      &
+                         + zzec(iql,nc)*iv(iqex(iql,nc),k)      &
+                         + zzsc(iql,nc)*iv(iqsx(iql,nc),k)      &
+                         - rhsc(iql,k,nc) )                     &
+                         /(helmc(iql,k,nc)-zzc(iql,nc))
+        end do
       end do
       call bounds_colour_send(iv_new,nc,klim=klim)
       ! calculate non-boundary grid points while waiting for halo to update
@@ -953,16 +986,13 @@ do itr = 1,itr_mg
       do k = 1,klim
         do iql = ifull_colour_border(nc)+1,ifull_colour(nc)
           iq = iqx(iql,nc)  
-          iv_new(iq,k) = ( izzn(iq)*iv(in(iq),k)      &
-                         + izzw(iq)*iv(iw(iq),k)      &
-                         + izze(iq)*iv(ie(iq),k)      &
-                         + izzs(iq)*iv(is(iq),k)      &
-                         - irhs(iq,k) )/(ihelm(iq,k)-izz(iq))
+          iv_new(iq,k) = ( zznc(iql,nc)*iv(iqnx(iql,nc),k)      &
+                         + zzwc(iql,nc)*iv(iqwx(iql,nc),k)      &
+                         + zzec(iql,nc)*iv(iqex(iql,nc),k)      &
+                         + zzsc(iql,nc)*iv(iqsx(iql,nc),k)      &
+                         - rhsc(iql,k,nc) )                     &
+                         /(helmc(iql,k,nc)-zzc(iql,nc))
         end do
-      end do
-      !$omp end do nowait
-      !$omp do schedule(static) private(k,iq,iql)      
-      do k = 1,klim
         do iql = 1,ifull_colour(nc)
           iq = iqx(iql,nc)    
           iv(iq,k) = iv_new(iq,k)
@@ -1264,11 +1294,12 @@ do itr = 1,itr_mg
       do k = 1,klim
         do iql = 1,ifull_colour_border(nc)
           iq = iqx(iql,nc)  
-          iv_new(iq,k) = ( izzn(iq)*iv(in(iq),k)      &
-                         + izzw(iq)*iv(iw(iq),k)      &
-                         + izze(iq)*iv(ie(iq),k)      &
-                         + izzs(iq)*iv(is(iq),k)      &
-                         - irhs(iq,k) )/(ihelm(iq,k)-izz(iq))
+          iv_new(iq,k) = ( zznc(iql,nc)*iv(iqnx(iql,nc),k)      &
+                         + zzwc(iql,nc)*iv(iqwx(iql,nc),k)      &
+                         + zzec(iql,nc)*iv(iqex(iql,nc),k)      &
+                         + zzsc(iql,nc)*iv(iqsx(iql,nc),k)      &
+                         - rhsc(iql,k,nc) )                     &
+                         /(helmc(iql,k,nc)-zzc(iql,nc))
         end do  
       end do
       call bounds_colour_send(iv_new,nc,klim=klim)
@@ -1277,16 +1308,13 @@ do itr = 1,itr_mg
       do k = 1,klim
         do iql = ifull_colour_border(nc) + 1,ifull_colour(nc)
           iq = iqx(iql,nc)  
-          iv_new(iq,k) = ( izzn(iq)*iv(in(iq),k)      &
-                         + izzw(iq)*iv(iw(iq),k)      &
-                         + izze(iq)*iv(ie(iq),k)      &
-                         + izzs(iq)*iv(is(iq),k)      &
-                         - irhs(iq,k) )/(ihelm(iq,k)-izz(iq))
+          iv_new(iq,k) = ( zznc(iql,nc)*iv(iqnx(iql,nc),k)      &
+                         + zzwc(iql,nc)*iv(iqwx(iql,nc),k)      &
+                         + zzec(iql,nc)*iv(iqex(iql,nc),k)      &
+                         + zzsc(iql,nc)*iv(iqsx(iql,nc),k)      &
+                         - rhsc(iql,k,nc) )                     &
+                         /(helmc(iql,k,nc)-zzc(iql,nc))
         end do  
-      end do
-      !$omp end do nowait
-      !$omp do schedule(static) private(k,iq,iql)      
-      do k = 1,klim
         do iql = 1,ifull_colour(nc)
           iq = iqx(iql,nc)  
           iv(iq,k) = iv_new(iq,k)
@@ -1309,7 +1337,10 @@ do itr = 1,itr_mg
     ! re-pack colour arrays at fine level to remove offsets
     do nc = 1,maxcolour
       do k = 1,kl  
-        irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)  
+        irhs(:,k) = jrhs(:,k) + (ihelm(:,k)-izz(:)-izzn(:)-izzs(:)-izze(:)-izzw(:))*savg(k)
+        do iql = 1,ifull_colour(nc)
+          rhsc(iql,k,nc) = irhs(iqx(iql,nc),k)
+        end do      
       end do ! k loop
     end do 
   else
@@ -1347,6 +1378,13 @@ deallocate( rhs )
 deallocate( v )
 deallocate( helm )
 deallocate( w )
+deallocate( helmc )
+deallocate( rhsc )
+deallocate( zznc )
+deallocate( zzec )
+deallocate( zzwc )
+deallocate( zzsc )
+deallocate( zzc )
 #endif
 
 call END_LOG(helm_end)
@@ -1384,6 +1422,10 @@ real, dimension(ifull), intent(in) :: iyy, iyyn, iyys, iyye, iyyw
 real, dimension(ifull+iextra,2) :: dumc
 real, dimension(ifull+iextra,2) :: vduma
 real, dimension(ifull,2) :: dumc_n, dumc_s, dumc_e, dumc_w
+real, dimension(ifull_maxcolour,maxcolour) :: rhsc, rhscice, ddc, eec, ipmaxc
+real, dimension(ifull_maxcolour,maxcolour) :: zzhhc, zznc, zzsc, zzec, zzwc
+real, dimension(ifull_maxcolour,maxcolour) :: zzcice, zzncice, zzscice, zzecice, zzwcice
+real, dimension(ifull_maxcolour,maxcolour) :: yyc, yync, yysc, yyec, yywc
 real, dimension(mg_maxsize,2,gmax+1) :: v
 real, dimension(mg_maxsize,2:gmax+1) :: zz, zzn, zzs, zze, zzw
 real, dimension(mg_maxsize,2:gmax+1) :: yyn, yys, yye, yyw, yyz
@@ -1426,10 +1468,38 @@ dumc = 0.
 dsolmax = 0.
 dsolmax_g = 0.
 
-! solver requires bounds to be updated
 dumc(1:ifull,1) = neta(1:ifull)
 dumc(1:ifull,2) = ipice(1:ifull)
-call bounds(dumc(:,1:2))
+call bounds_send(dumc(:,1:2))
+
+do nc = 1,maxcolour
+  do iql = 1,ifull_colour(nc)
+    iq = iqx(iql,nc)  
+    yyc(iql,nc)      = iyy(iq)
+    yync(iql,nc)     = iyyn(iq)
+    yysc(iql,nc)     = iyys(iq)
+    yyec(iql,nc)     = iyye(iq)
+    yywc(iql,nc)     = iyyw(iq)
+    zzhhc(iql,nc)    = izz(iq,1) + ihh(iq)
+    zznc(iql,nc)     = izzn(iq,1)
+    zzsc(iql,nc)     = izzs(iq,1)
+    zzec(iql,nc)     = izze(iq,1)
+    zzwc(iql,nc)     = izzw(iq,1)
+    rhsc(iql,nc)     = irhs(iq,1)
+    zzcice(iql,nc)   = izz(iq,2)
+    zzncice(iql,nc)  = izzn(iq,2)
+    zzscice(iql,nc)  = izzs(iq,2)
+    zzecice(iql,nc)  = izze(iq,2)
+    zzwcice(iql,nc)  = izzw(iq,2)
+    rhscice(iql,nc)  = irhs(iq,2)
+    ddc(iql,nc)      = dd(iq)
+    eec(iql,nc)      = ee(iq)
+    ipmaxc(iql,nc)   = ipmax(iq)
+  end do  
+end do
+
+! solver requires bounds to be updated
+call bounds_recv(dumc(:,1:2))
 
 
 ! Main loop
@@ -1450,37 +1520,37 @@ do itr = 1,itr_mgice
       ! ocean
       do iql = 1,ifull_colour(nc)  
         iq = iqx(iql,nc)  
-        dumc_n(iq,1) = dumc(in(iq),1)
-        dumc_s(iq,1) = dumc(is(iq),1)
-        dumc_e(iq,1) = dumc(ie(iq),1)
-        dumc_w(iq,1) = dumc(iw(iq),1)
+        dumc_n(iql,1) = dumc(iqnx(iql,nc),1)
+        dumc_s(iql,1) = dumc(iqsx(iql,nc),1)
+        dumc_e(iql,1) = dumc(iqex(iql,nc),1)
+        dumc_w(iql,1) = dumc(iqwx(iql,nc),1)
       end do  
       do iql = 1,ifull_colour_border(nc)
         iq = iqx(iql,nc)  
-        bu = iyyn(iq)*dumc_n(iq,1) + iyys(iq)*dumc_s(iq,1) &
-           + iyye(iq)*dumc_e(iq,1) + iyyw(iq)*dumc_w(iq,1) &
-           + izz(iq,1) + ihh(iq)
-        cu = izzn(iq,1)*dumc_n(iq,1) + izzs(iq,1)*dumc_s(iq,1) &
-           + izze(iq,1)*dumc_e(iq,1) + izzw(iq,1)*dumc_w(iq,1) &
-           - irhs(iq,1)   
-        dumc(iq,1) = ee(iq)*max( -dd(iq),        &
-           -2.*cu/(bu+sqrt(max(bu**2-4.*iyy(iq)*cu,0.01))) )
+        bu = yync(iql,nc)*dumc_n(iql,1) + yysc(iql,nc)*dumc_s(iql,1) &
+           + yyec(iql,nc)*dumc_e(iql,1) + yywc(iql,nc)*dumc_w(iql,1) &
+           + zzhhc(iql,nc)
+        cu = zznc(iql,nc)*dumc_n(iql,1) + zzsc(iql,nc)*dumc_s(iql,1) &
+           + zzec(iql,nc)*dumc_e(iql,1) + zzwc(iql,nc)*dumc_w(iql,1) &
+           - rhsc(iql,nc)   
+        dumc(iq,1) = eec(iql,nc)*max( -ddc(iql,nc),                  &
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iql,nc)*cu,0.01))) )
       end do
         
       ! ice (cavitating fluid)
       do iql = 1,ifull_colour(nc)  
         iq = iqx(iql,nc)  
-        dumc_n(iq,2) = dumc(in(iq),2)
-        dumc_s(iq,2) = dumc(is(iq),2)
-        dumc_e(iq,2) = dumc(ie(iq),2)
-        dumc_w(iq,2) = dumc(iw(iq),2)
+        dumc_n(iql,2) = dumc(iqnx(iql,nc),2)
+        dumc_s(iql,2) = dumc(iqsx(iql,nc),2)
+        dumc_e(iql,2) = dumc(iqex(iql,nc),2)
+        dumc_w(iql,2) = dumc(iqwx(iql,nc),2)
       end do  
       do iql = 1,ifull_colour_border(nc)
         iq = iqx(iql,nc)  
-        dumc(iq,2) = max(0.,min(ipmax(iq),                       &
-           ( -izzn(iq,2)*dumc_n(iq,2) - izzs(iq,2)*dumc_s(iq,2)      &
-             -izze(iq,2)*dumc_e(iq,2) - izzw(iq,2)*dumc_w(iq,2)      &
-            + irhs(iq,2) ) / izz(iq,2) ))
+        dumc(iq,2) = max(0.,min(ipmaxc(iql,nc),                                  &
+           ( -zzncice(iql,nc)*dumc_n(iql,2) - zzscice(iql,nc)*dumc_s(iql,2)      &
+             -zzecice(iql,nc)*dumc_e(iql,2) - zzwcice(iql,nc)*dumc_w(iql,2)      &
+            + rhscice(iql,nc) ) / zzcice(iql,nc) ))
       end do  
       
       call bounds_colour_send(dumc(:,1:2),nc)
@@ -1493,24 +1563,24 @@ do itr = 1,itr_mgice
       ! ocean
       do iql = ifull_colour_border(nc)+1,ifull_colour(nc)
         iq = iqx(iql,nc)  
-        bu=iyyn(iq)*dumc_n(iq,1) + iyys(iq)*dumc_s(iq,1) &
-         + iyye(iq)*dumc_e(iq,1) + iyyw(iq)*dumc_w(iq,1) &
-         + izz(iq,1)+ ihh(iq)
-        cu=izzn(iq,1)*dumc_n(iq,1)+izzs(iq,1)*dumc_s(iq,1)   &
-          +izze(iq,1)*dumc_e(iq,1)+izzw(iq,1)*dumc_w(iq,1)   &
-          -irhs(iq,1)
-        dumc(iq,1) = ee(iq)*max( -dd(iq),      &
-           -2.*cu/(bu+sqrt(max(bu**2-4.*iyy(iq)*cu,0.01))) )
+        bu=yync(iql,nc)*dumc_n(iql,1) + yysc(iql,nc)*dumc_s(iql,1) &
+         + yyec(iql,nc)*dumc_e(iql,1) + yywc(iql,nc)*dumc_w(iql,1) &
+         + zzhhc(iql,nc)
+        cu=zznc(iql,nc)*dumc_n(iql,1)+zzsc(iql,nc)*dumc_s(iql,1)   &
+          +zzec(iql,nc)*dumc_e(iql,1)+zzwc(iql,nc)*dumc_w(iql,1)   &
+          -rhsc(iql,nc)
+        dumc(iq,1) = eec(iql,nc)*max( -ddc(iql,nc),                &
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iql,nc)*cu,0.01))) )
       end do
         
       !$omp section
       ! ice (cavitating fluid)
       do iql = ifull_colour_border(nc)+1,ifull_colour(nc)
         iq = iqx(iql,nc)  
-        dumc(iq,2) = max(0.,min(ipmax(iq),                       &
-           ( -izzn(iq,2)*dumc_n(iq,2) - izzs(iq,2)*dumc_s(iq,2)      &
-             -izze(iq,2)*dumc_e(iq,2) - izzw(iq,2)*dumc_w(iq,2)      &
-            + irhs(iq,2) ) / izz(iq,2) ))
+        dumc(iq,2) = max(0.,min(ipmaxc(iql,nc),                                  &
+           ( -zzncice(iql,nc)*dumc_n(iql,2) - zzscice(iql,nc)*dumc_s(iql,2)      &
+             -zzecice(iql,nc)*dumc_e(iql,2) - zzwcice(iql,nc)*dumc_w(iql,2)      &
+            + rhscice(iql,nc) ) / zzcice(iql,nc) ))
       end do  
       
       !$omp end parallel sections
@@ -2027,37 +2097,37 @@ do itr = 1,itr_mgice
       ! ocean
       do iql = 1,ifull_colour(nc)  
         iq = iqx(iql,nc)  
-        dumc_n(iq,1) = dumc(in(iq),1)
-        dumc_s(iq,1) = dumc(is(iq),1)
-        dumc_e(iq,1) = dumc(ie(iq),1)
-        dumc_w(iq,1) = dumc(iw(iq),1)
+        dumc_n(iql,1) = dumc(iqnx(iql,nc),1)
+        dumc_s(iql,1) = dumc(iqsx(iql,nc),1)
+        dumc_e(iql,1) = dumc(iqex(iql,nc),1)
+        dumc_w(iql,1) = dumc(iqwx(iql,nc),1)
       end do  
       do iql = 1,ifull_colour_border(nc)
         iq = iqx(iql,nc)  
-        bu=iyyn(iq)*dumc_n(iq,1)+iyys(iq)*dumc_s(iq,1)      &
-          +iyye(iq)*dumc_e(iq,1)+iyyw(iq)*dumc_w(iq,1)      &
-          +izz(iq,1)+ihh(iq)
-        cu=izzn(iq,1)*dumc_n(iq,1)+izzs(iq,1)*dumc_s(iq,1)      &
-          +izze(iq,1)*dumc_e(iq,1)+izzw(iq,1)*dumc_w(iq,1)      &
-          -irhs(iq,1)    
-        dumc(iq,1) = ee(iq)*max( -dd(iq),         &
-           -2.*cu/(bu+sqrt(max(bu**2-4.*iyy(iq)*cu,0.01))) )
+        bu=yync(iql,nc)*dumc_n(iql,1)+yysc(iql,nc)*dumc_s(iql,1)      &
+          +yyec(iql,nc)*dumc_e(iql,1)+yywc(iql,nc)*dumc_w(iql,1)      &
+          +zzhhc(iql,nc)
+        cu=zznc(iql,nc)*dumc_n(iql,1)+zzsc(iql,nc)*dumc_s(iql,1)      &
+          +zzec(iql,nc)*dumc_e(iql,1)+zzwc(iql,nc)*dumc_w(iql,1)      &
+          -rhsc(iql,nc)    
+        dumc(iq,1) = eec(iql,nc)*max( -ddc(iql,nc),                   &
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iql,nc)*cu,0.01))) )
       end do  
 
       ! ice (cavitating fluid)
       do iql = 1,ifull_colour(nc)  
         iq = iqx(iql,nc)  
-        dumc_n(iq,2) = dumc(in(iq),2)
-        dumc_s(iq,2) = dumc(is(iq),2)
-        dumc_e(iq,2) = dumc(ie(iq),2)
-        dumc_w(iq,2) = dumc(iw(iq),2)
+        dumc_n(iql,2) = dumc(iqnx(iql,nc),2)
+        dumc_s(iql,2) = dumc(iqsx(iql,nc),2)
+        dumc_e(iql,2) = dumc(iqex(iql,nc),2)
+        dumc_w(iql,2) = dumc(iqwx(iql,nc),2)
       end do  
       do iql = 1,ifull_colour_border(nc)
         iq = iqx(iql,nc)  
-        dumc(iq,2) = max(0.,min(ipmax(iq),                           &
-           ( -izzn(iq,2)*dumc_n(iq,2) - izzs(iq,2)*dumc_s(iq,2)      &
-             -izze(iq,2)*dumc_e(iq,2) - izzw(iq,2)*dumc_w(iq,2)      &
-            + irhs(iq,2) ) / izz(iq,2) ))
+        dumc(iq,2) = max(0.,min(ipmaxc(iql,nc),                                  &
+           ( -zzncice(iql,nc)*dumc_n(iql,2) - zzscice(iql,nc)*dumc_s(iql,2)      &
+             -zzecice(iql,nc)*dumc_e(iql,2) - zzwcice(iql,nc)*dumc_w(iql,2)      &
+            + rhscice(iql,nc) ) / zzcice(iql,nc) ))
       end do  
             
       call bounds_colour_send(dumc,nc)
@@ -2070,24 +2140,24 @@ do itr = 1,itr_mgice
       ! ocean
       do iql = ifull_colour_border(nc) + 1,ifull_colour(nc)
         iq = iqx(iql,nc)  
-        bu=iyyn(iq)*dumc_n(iq,1)+iyys(iq)*dumc_s(iq,1)      &
-          +iyye(iq)*dumc_e(iq,1)+iyyw(iq)*dumc_w(iq,1)      &
-          +izz(iq,1)+ihh(iq)
-        cu=izzn(iq,1)*dumc_n(iq,1)+izzs(iq,1)*dumc_s(iq,1)      &
-          +izze(iq,1)*dumc_e(iq,1)+izzw(iq,1)*dumc_w(iq,1)      &
-          -irhs(iq,1)   
-        dumc(iq,1) = ee(iq)*max( -dd(iq),         &
-           -2.*cu/(bu+sqrt(max(bu**2-4.*iyy(iq)*cu,0.01))) )
+        bu=yync(iql,nc)*dumc_n(iql,1)+yysc(iql,nc)*dumc_s(iql,1)      &
+          +yyec(iql,nc)*dumc_e(iql,1)+yywc(iql,nc)*dumc_w(iql,1)      &
+          +zzhhc(iql,nc)
+        cu=zznc(iql,nc)*dumc_n(iql,1)+zzsc(iql,nc)*dumc_s(iql,1)      &
+          +zzec(iql,nc)*dumc_e(iql,1)+zzwc(iql,nc)*dumc_w(iql,1)      &
+          -rhsc(iql,nc)   
+        dumc(iq,1) = eec(iql,nc)*max( -ddc(iql,nc),                   &
+           -2.*cu/(bu+sqrt(max(bu**2-4.*yyc(iql,nc)*cu,0.01))) )
       end do
  
       !$omp section
       ! ice (cavitating fluid)
       do iql = ifull_colour_border(nc) + 1,ifull_colour(nc)
         iq = iqx(iql,nc)  
-        dumc(iq,2) = max(0.,min(ipmax(iq),                           &
-           ( -izzn(iq,2)*dumc_n(iq,2) - izzs(iq,2)*dumc_s(iq,2)      &
-             -izze(iq,2)*dumc_e(iq,2) - izzw(iq,2)*dumc_w(iq,2)      &
-            + irhs(iq,2) ) / izz(iq,2) ))
+        dumc(iq,2) = max(0.,min(ipmaxc(iql,nc),                                  &
+           ( -zzncice(iql,nc)*dumc_n(iql,2) - zzscice(iql,nc)*dumc_s(iql,2)      &
+             -zzecice(iql,nc)*dumc_e(iql,2) - zzwcice(iql,nc)*dumc_w(iql,2)      &
+            + rhscice(iql,nc) ) / zzcice(iql,nc) ))
       end do
       
       !$omp end parallel sections

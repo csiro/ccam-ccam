@@ -78,6 +78,7 @@ module cc_mpi
              ccmpi_commsplit, ccmpi_commfree, ccmpi_alltoall
    public :: edge_w, edge_n, edge_s, edge_e
    public :: ifull_maxcolour, iqx, ifull_colour, ifull_colour_border
+   public :: iqnx, iqsx, iqex, iqwx
    public :: simple_timer_finalize      
    public :: ints_begin, ints_end
    public :: nonlin_begin, nonlin_end
@@ -237,18 +238,10 @@ contains
       allocate( bnds(0:nproc-1) )
       ! index=0 is for all coloured grid points
       do n = 0,nproc-1
-         allocate( bnds(n)%rlenh_bg(0:maxcolour) )
-         allocate( bnds(n)%rlenh_fn(0:maxcolour) )
-         allocate( bnds(n)%slenh_bg(0:maxcolour) )
-         allocate( bnds(n)%slenh_fn(0:maxcolour) )
          allocate( bnds(n)%rlen_bg(0:maxcolour) )
          allocate( bnds(n)%rlen_fn(0:maxcolour) )
          allocate( bnds(n)%slen_bg(0:maxcolour) )
          allocate( bnds(n)%slen_fn(0:maxcolour) )
-         allocate( bnds(n)%rlenx_bg(0:maxcolour) )
-         allocate( bnds(n)%rlenx_fn(0:maxcolour) )
-         allocate( bnds(n)%slenx_bg(0:maxcolour) )
-         allocate( bnds(n)%slenx_fn(0:maxcolour) )
       end do  
 
 
@@ -423,6 +416,8 @@ contains
 
       ! order points to allow border only updating
       allocate( ifull_colour_border(maxcolour), iqx(ifull_maxcolour,maxcolour) )
+      allocate( iqnx(ifull_maxcolour,maxcolour), iqsx(ifull_maxcolour,maxcolour) ) 
+      allocate( iqex(ifull_maxcolour,maxcolour), iqwx(ifull_maxcolour,maxcolour) ) 
       ifull_colour(:) = 0
       ! first process border
       do n = 1,npan
@@ -433,6 +428,10 @@ contains
             colourmask = findcolour(iqg,il_g)
             ifull_colour(colourmask) = ifull_colour(colourmask) + 1
             iqx(ifull_colour(colourmask),colourmask) = iq
+            iqnx(ifull_colour(colourmask),colourmask) = in(iq)
+            iqsx(ifull_colour(colourmask),colourmask) = is(iq)
+            iqex(ifull_colour(colourmask),colourmask) = ie(iq)
+            iqwx(ifull_colour(colourmask),colourmask) = iw(iq)
          end do
          do j = 2,jpan-1
             i = 1  
@@ -441,12 +440,20 @@ contains
             colourmask = findcolour(iqg,il_g)
             ifull_colour(colourmask) = ifull_colour(colourmask) + 1
             iqx(ifull_colour(colourmask),colourmask) = iq
+            iqnx(ifull_colour(colourmask),colourmask) = in(iq)
+            iqsx(ifull_colour(colourmask),colourmask) = is(iq)
+            iqex(ifull_colour(colourmask),colourmask) = ie(iq)
+            iqwx(ifull_colour(colourmask),colourmask) = iw(iq)
             i = ipan
             iq  = indp(i,j,n)  ! Local
             iqg = indg(i,j,n)  ! Global
             colourmask = findcolour(iqg,il_g)
             ifull_colour(colourmask) = ifull_colour(colourmask) + 1
             iqx(ifull_colour(colourmask),colourmask) = iq
+            iqnx(ifull_colour(colourmask),colourmask) = in(iq)
+            iqsx(ifull_colour(colourmask),colourmask) = is(iq)
+            iqex(ifull_colour(colourmask),colourmask) = ie(iq)
+            iqwx(ifull_colour(colourmask),colourmask) = iw(iq)
          end do
          j = jpan
          do i = 1,ipan
@@ -455,6 +462,10 @@ contains
             colourmask = findcolour(iqg,il_g)
             ifull_colour(colourmask) = ifull_colour(colourmask) + 1
             iqx(ifull_colour(colourmask),colourmask) = iq
+            iqnx(ifull_colour(colourmask),colourmask) = in(iq)
+            iqsx(ifull_colour(colourmask),colourmask) = is(iq)
+            iqex(ifull_colour(colourmask),colourmask) = ie(iq)
+            iqwx(ifull_colour(colourmask),colourmask) = iw(iq)
          end do
       end do
       ifull_colour_border(1:maxcolour) = ifull_colour(1:maxcolour)
@@ -467,6 +478,10 @@ contains
                colourmask = findcolour(iqg,il_g)
                ifull_colour(colourmask) = ifull_colour(colourmask) + 1
                iqx(ifull_colour(colourmask),colourmask) = iq
+               iqnx(ifull_colour(colourmask),colourmask) = in(iq)
+               iqsx(ifull_colour(colourmask),colourmask) = is(iq)
+               iqex(ifull_colour(colourmask),colourmask) = ie(iq)
+               iqwx(ifull_colour(colourmask),colourmask) = iw(iq)
             end do
          end do
       end do
@@ -764,11 +779,13 @@ contains
             ! user specified procmode>0 
             procmode = max(procmode, 1)
             if ( procmode >= node_nx ) then
+               ! optimise procmode as a factor of node_nproc and for the minimum chunksize of node_nx in infile.f90
                do while ( mod(node_nproc,procmode)/=0 .and. mod(procmode,node_nx)/=0 .and. procmode>=node_nx )
                   procmode = procmode - 1 ! can be different on different nodes
                end do  
             end if    
             if ( procmode < node_nx ) then
+               ! optimise procmode as a factor for node_nproc
                do while ( mod(node_nproc,procmode)/=0 .and. mod(node_nx,procmode)/=0 .and. procmode>0 )
                   procmode = procmode - 1 ! can be different on different nodes
                end do  

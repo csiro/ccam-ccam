@@ -125,7 +125,7 @@ module cc_mpi_common
            swap_s = (/ .true., .false., .true., .false., .true., .false. /)
 
    ! partition indices into colours
-   integer, dimension(:,:), allocatable, save :: iqx
+   integer, dimension(:,:), allocatable, save :: iqx, iqnx, iqsx, iqex, iqwx
    integer, save :: ifull_maxcolour
    integer, dimension(:), allocatable, save :: ifull_colour, ifull_colour_border
 
@@ -147,11 +147,9 @@ module cc_mpi_common
       ! Buffer length
       integer :: len, sbuflen, rbuflen
       ! Number of points for each process. Also double row versions.
-      ! lenx is first row plux corner points.  lenh is just the ne side.
-      integer :: slen2, rlen2
-      integer, dimension(:), allocatable :: rlenh_bg, rlenh_fn, slenh_bg, slenh_fn
+      ! lenx is first row plux corner points. First row is divided into colours.
+      integer :: slen2, rlen2, slenx, rlenx
       integer, dimension(:), allocatable :: rlen_bg, rlen_fn, slen_bg, slen_fn
-      integer, dimension(:), allocatable :: rlenx_bg, rlenx_fn, slenx_bg, slenx_fn
       ! Vector groups
       integer :: rlen_su_bg, rlen_ev_fn
       integer :: rlen_sv_bg, rlen_wu_fn, rlen_nv_bg, rlen_eu_fn

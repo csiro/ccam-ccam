@@ -325,7 +325,7 @@ select case(nhorjlm)
 end select
 
 
-call bounds(t_kh,nehalf=.true.)
+call bounds(t_kh)
 do k = 1,kl
   xfact(1:ifull,k) = (t_kh(ie,k)+t_kh(1:ifull,k))*.5
   yfact(1:ifull,k) = (t_kh(in,k)+t_kh(1:ifull,k))*.5

@@ -171,7 +171,7 @@ do k = 1,ol
     t_kh(iq,k) = sqrt(dudx**2+dvdy**2+0.5*(dudy+dvdx)**2)*emi(iq)*ee(iq,k)
   end do
 end do
-call bounds(t_kh(:,1:ol),nehalf=.true.)
+call bounds(t_kh(:,1:ol))
 
 
 ! reduce diffusion errors where bathymetry gradients are steep

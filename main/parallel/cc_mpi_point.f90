@@ -272,14 +272,14 @@ contains
 
       ! Correct within the same face only (not necessarily the same
       ! process, but will be corrected later).
-      ieu = ie
-      iwu = iw
-      inv = in
-      isv = is
-      iev = ie
-      iwv = iw
-      inu = in
-      isu = is
+      ieu(:) = ie(:)
+      iwu(:) = iw(:)
+      inv(:) = in(:)
+      isv(:) = is(:)
+      iev(:) = ie(:)
+      iwv(:) = iw(:)
+      inu(:) = in(:)
+      isu(:) = is(:)
 
       ! Initialise the edge variables
       edge_w = ioff == 0
@@ -292,18 +292,12 @@ contains
          bnds(n)%rbuflen = 0
          bnds(n)%sbuflen = 0
          ! index=0 is for all coloured grid points
-         bnds(n)%rlenh_bg(0:maxcolour) = 0
-         bnds(n)%rlenh_fn(0:maxcolour) = 0
-         bnds(n)%slenh_bg(0:maxcolour) = 0
-         bnds(n)%slenh_fn(0:maxcolour) = 0
          bnds(n)%rlen_bg(0:maxcolour) = 0
          bnds(n)%rlen_fn(0:maxcolour) = 0
          bnds(n)%slen_bg(0:maxcolour) = 0
          bnds(n)%slen_fn(0:maxcolour) = 0
-         bnds(n)%rlenx_bg(0:maxcolour) = 0
-         bnds(n)%rlenx_fn(0:maxcolour) = 0
-         bnds(n)%slenx_bg(0:maxcolour) = 0
-         bnds(n)%slenx_fn(0:maxcolour) = 0
+         bnds(n)%rlenx = 0
+         bnds(n)%slenx = 0
          bnds(n)%rlen2 = 0
          bnds(n)%slen2 = 0
          bnds(n)%rlen_su_bg = 0
@@ -338,7 +332,7 @@ contains
       iext = 0
  
       do n = 0,nproc-1
-         bnds(n)%rlenh_bg(1) = 1
+         bnds(n)%rlen_bg(1) = 1
       end do   
       
       do icol = 1,maxcolour
@@ -357,12 +351,12 @@ contains
                   if ( mycol == icol ) then
                      iql = indp(i,j,n)  !  Local index
                      ! Add this point to request list
-                     bnds(rproc)%rlenh_fn(icol) = bnds(rproc)%rlenh_fn(icol) + 1
+                     bnds(rproc)%rlen_fn(icol) = bnds(rproc)%rlen_fn(icol) + 1
                      call check_bnds_alloc(rproc, iext)
-                     bnds(rproc)%request_list(bnds(rproc)%rlenh_fn(icol)) = iqq
+                     bnds(rproc)%request_list(bnds(rproc)%rlen_fn(icol)) = iqq
                      ! Increment extended region index
                      iext = iext + 1
-                     bnds(rproc)%unpack_list(bnds(rproc)%rlenh_fn(icol)) = iext
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlen_fn(icol)) = iext
                      in(iql) = ifull + iext
                   end if
                end if   
@@ -380,33 +374,17 @@ contains
                   if ( mycol == icol ) then
                      iql = indp(i,j,n)  !  Local index
                      ! Add this point to request list
-                     bnds(rproc)%rlenh_fn(icol) = bnds(rproc)%rlenh_fn(icol) + 1
+                     bnds(rproc)%rlen_fn(icol) = bnds(rproc)%rlen_fn(icol) + 1
                      call check_bnds_alloc(rproc, iext)
-                     bnds(rproc)%request_list(bnds(rproc)%rlenh_fn(icol)) = iqq
+                     bnds(rproc)%request_list(bnds(rproc)%rlen_fn(icol)) = iqq
                      ! Increment extended region index
                      iext = iext + 1
-                     bnds(rproc)%unpack_list(bnds(rproc)%rlenh_fn(icol)) = iext
+                     bnds(rproc)%unpack_list(bnds(rproc)%rlen_fn(icol)) = iext
                      ie(iql) = ifull + iext
                   end if
                end if   
             end do
          end do ! n=1,npan
-         
-         if ( icol < maxcolour ) then
-            do n = 0,nproc-1 
-               bnds(n)%rlenh_bg(min(icol+1,maxcolour)) = bnds(n)%rlenh_fn(icol) + 1
-               bnds(n)%rlenh_fn(min(icol+1,maxcolour)) = bnds(n)%rlenh_fn(icol)
-            end do   
-         end if
-      
-      end do ! icol=1,maxcolour
-
-      do n = 0,nproc-1
-         bnds(n)%rlen_bg(1) = bnds(n)%rlenh_fn(maxcolour) + 1
-         bnds(n)%rlen_fn(1) = bnds(n)%rlenh_fn(maxcolour)
-      end do   
-      
-      do icol = 1,maxcolour
       
          do n = 1,npan
 
@@ -469,196 +447,160 @@ contains
       end do ! icol=1,maxcolour
       
       do n = 0,nproc-1
-         bnds(n)%rlenx_bg(1) = bnds(n)%rlen_fn(maxcolour) + 1
-         bnds(n)%rlenx_fn(1) = bnds(n)%rlen_fn(maxcolour)
+         bnds(n)%rlenx = bnds(n)%rlen_fn(maxcolour)
       end do   
-      
-      do icol = 1,maxcolour
-      
-         do n = 1,npan
-            ! NE, EN
-            iql = indp(ipan,jpan,n)
-            iqg = indg(ipan,jpan,n)
-            iqq = ine_g(iqg)
-            ! Which process has this point
-            rproc = qproc(iqq)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq,il_g)
-               if ( mycol == icol ) then
-                  ! Add this point to request list
-                  bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                  call check_bnds_alloc(rproc, iext)
-                  bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                  ine(iql) = ifull + iext
-                end if
-            end if
-            iqq = ien_g(iqg)
-            ! Which process has this point
-            rproc = qproc(iqq)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq,il_g)
-               if ( mycol == icol ) then
-                  if ( ien_g(iqg) == ine_g(iqg) ) then
-                     ! Avoid duplicate 
-                     ien(iql) = ine(iql)
-                  else
-                     ! Add this point to request list
-                     bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                     call check_bnds_alloc(rproc, iext)
-                     bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                     ! Increment extended region index
-                     iext = iext + 1
-                     bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                     ien(iql) = ifull + iext
-                  end if   
-               end if
-            end if
-         end do
-
-         do n = 1,npan
-            ! SE, ES
-            iql = indp(ipan,1,n)
-            iqg = indg(ipan,1,n)
-            iqq = ise_g(iqg)
-            ! Which process has this point
-            rproc = qproc(iqq)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq,il_g)
-               if ( mycol == icol ) then
-                  ! Add this point to request list
-                  bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                  call check_bnds_alloc(rproc, iext)
-                  bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                  ise(iql) = ifull + iext
-                end if
-            end if
-            iqq = ies_g(iqg)
-            ! Which process has this point
-            rproc = qproc(iqq)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq,il_g)
-               if ( mycol == icol ) then
-                  if ( ies_g(iqg) == ise_g(iqg) ) then
-                     ! Avoid duplicate
-                     ies(iql) = ise(iql)
-                  else
-                     ! Add this point to request list    
-                     bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                     call check_bnds_alloc(rproc, iext)
-                     bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                     ! Increment extended region index
-                     iext = iext + 1
-                     bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                     ies(iql) = ifull + iext
-                  end if   
-               end if
-            end if
-         end do
-         
-         do n = 1,npan
-            ! NW, WN
-            iql = indp(1,jpan,n)
-            iqg = indg(1,jpan,n)
-            iqq = inw_g(iqg)
-            ! Which process has this point
-            rproc = qproc(iqq)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq,il_g)
-               if ( mycol == icol ) then
-                  ! Add this point to request list
-                  bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                  call check_bnds_alloc(rproc, iext)
-                  bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                  inw(iql) = ifull + iext
-               end if
-            end if
-            iqq = iwn_g(iqg)
-            ! Which process has this point
-            rproc = qproc(iqq)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq,il_g)
-               if ( mycol == icol ) then
-                  if ( iwn_g(iqg) == inw_g(iqg) ) then
-                     ! Avoid duplicate 
-                     iwn(iql) = inw(iql)
-                  else
-                     ! Add this point to request list
-                     bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                     call check_bnds_alloc(rproc, iext)
-                     bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                     ! Increment extended region index
-                     iext = iext + 1
-                     bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                     iwn(iql) = ifull + iext
-                  end if   
-               end if
-            end if
-         end do
-
-         do n = 1,npan
-            ! SW, WS
-            iql = indp(1,1,n)
-            iqg = indg(1,1,n)
-            iqq = isw_g(iqg)
-            ! Which process has this point
-            rproc = qproc(iqq)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq,il_g)
-               if ( mycol == icol ) then
-                  ! Add this point to request list
-                  bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                  call check_bnds_alloc(rproc, iext)
-                  bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                  ! Increment extended region index
-                  iext = iext + 1
-                  bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                  isw(iql) = ifull + iext
-               end if
-            end if
-            iqq = iws_g(iqg)
-            ! Which process has this point
-            rproc = qproc(iqq)
-            if ( rproc /= myid ) then ! Don't add points already on this proc.
-               mycol = findcolour(iqq,il_g)
-               if ( mycol == icol ) then
-                  if ( iws_g(iqg) == isw_g(iqg) ) then
-                     ! Avoid duplicate 
-                     iws(iql) = isw(iql)
-                  else
-                     ! Add this point to request list
-                     bnds(rproc)%rlenx_fn(icol) = bnds(rproc)%rlenx_fn(icol) + 1
-                     call check_bnds_alloc(rproc, iext)
-                     bnds(rproc)%request_list(bnds(rproc)%rlenx_fn(icol)) = iqq
-                     ! Increment extended region index
-                     iext = iext + 1
-                     bnds(rproc)%unpack_list(bnds(rproc)%rlenx_fn(icol)) = iext
-                     iws(iql) = ifull + iext
-                  end if   
-               end if
-            end if
-         end do
-         
-         if ( icol < maxcolour ) then
-            do n = 0,nproc-1 
-               bnds(n)%rlenx_bg(min(icol+1,maxcolour)) = bnds(n)%rlenx_fn(icol) + 1
-               bnds(n)%rlenx_fn(min(icol+1,maxcolour)) = bnds(n)%rlenx_fn(icol)
-            end do   
+            
+      do n = 1,npan
+         ! NE, EN
+         iql = indp(ipan,jpan,n)
+         iqg = indg(ipan,jpan,n)
+         iqq = ine_g(iqg)
+         ! Which process has this point
+         rproc = qproc(iqq)
+         if ( rproc /= myid ) then ! Don't add points already on this proc.
+            ! Add this point to request list
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+            ine(iql) = ifull + iext
          end if
+         iqq = ien_g(iqg)
+         ! Which process has this point
+         rproc = qproc(iqq)
+         if ( rproc /= myid ) then ! Don't add points already on this proc.
+            if ( ien_g(iqg) == ine_g(iqg) ) then
+               ! Avoid duplicate 
+               ien(iql) = ine(iql)
+            else
+               ! Add this point to request list
+               bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+               ien(iql) = ifull + iext
+            end if   
+         end if
+      end do
+
+      do n = 1,npan
+         ! SE, ES
+         iql = indp(ipan,1,n)
+         iqg = indg(ipan,1,n)
+         iqq = ise_g(iqg)
+         ! Which process has this point
+         rproc = qproc(iqq)
+         if ( rproc /= myid ) then ! Don't add points already on this proc.
+            ! Add this point to request list
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+            ise(iql) = ifull + iext
+         end if
+         iqq = ies_g(iqg)
+         ! Which process has this point
+         rproc = qproc(iqq)
+         if ( rproc /= myid ) then ! Don't add points already on this proc.
+            if ( ies_g(iqg) == ise_g(iqg) ) then
+               ! Avoid duplicate
+               ies(iql) = ise(iql)
+            else
+               ! Add this point to request list    
+               bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+               ies(iql) = ifull + iext
+            end if   
+         end if
+      end do
          
-      end do ! icol=1,maxcolour
+      do n = 1,npan
+         ! NW, WN
+         iql = indp(1,jpan,n)
+         iqg = indg(1,jpan,n)
+         iqq = inw_g(iqg)
+         ! Which process has this point
+         rproc = qproc(iqq)
+         if ( rproc /= myid ) then ! Don't add points already on this proc.
+            ! Add this point to request list
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+            inw(iql) = ifull + iext
+         end if
+         iqq = iwn_g(iqg)
+         ! Which process has this point
+         rproc = qproc(iqq)
+         if ( rproc /= myid ) then ! Don't add points already on this proc.
+            if ( iwn_g(iqg) == inw_g(iqg) ) then
+               ! Avoid duplicate 
+               iwn(iql) = inw(iql)
+            else
+               ! Add this point to request list
+               bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+               iwn(iql) = ifull + iext
+            end if   
+         end if
+      end do
+
+      do n = 1,npan
+         ! SW, WS
+         iql = indp(1,1,n)
+         iqg = indg(1,1,n)
+         iqq = isw_g(iqg)
+         ! Which process has this point
+         rproc = qproc(iqq)
+         if ( rproc /= myid ) then ! Don't add points already on this proc.
+            ! Add this point to request list
+            bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+            call check_bnds_alloc(rproc, iext)
+            bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+            ! Increment extended region index
+            iext = iext + 1
+            bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+            isw(iql) = ifull + iext
+         end if
+         iqq = iws_g(iqg)
+         ! Which process has this point
+         rproc = qproc(iqq)
+         if ( rproc /= myid ) then ! Don't add points already on this proc.
+            if ( iws_g(iqg) == isw_g(iqg) ) then
+               ! Avoid duplicate 
+               iws(iql) = isw(iql)
+            else
+               ! Add this point to request list
+               bnds(rproc)%rlenx = bnds(rproc)%rlenx + 1
+               call check_bnds_alloc(rproc, iext)
+               bnds(rproc)%request_list(bnds(rproc)%rlenx) = iqq
+               ! Increment extended region index
+               iext = iext + 1
+               bnds(rproc)%unpack_list(bnds(rproc)%rlenx) = iext
+               iws(iql) = ifull + iext
+            end if
+         end if
+      end do
 
       ! Now set up the second row
       do n = 0,nproc-1
-         bnds(n)%rlen2 = bnds(n)%rlenx_fn(maxcolour)  ! so that they're appended.
+         bnds(n)%rlen2 = bnds(n)%rlenx  ! so that they're appended.
       end do   
 
       do n = 1,npan
@@ -958,7 +900,7 @@ contains
       ! allocate arrays that depend on neighnum
       ! ireq needs 1 point for the MPI_Waitall which can use ireq(rreq+1)
       allocate( ireq(max(2*neighnum,1)), rlist(max(neighnum,1)) )
-      allocate( dums(3*maxcolour+1,neighnum), dumr(3*maxcolour+1,neighnum) )
+      allocate( dums(maxcolour+2,neighnum), dumr(maxcolour+2,neighnum) )
 
       
       ! Communicate lengths for rlenh, rlen, rlenx and rlen2
@@ -986,15 +928,14 @@ contains
          if ( bnds(sproc)%rlen2 > 0 ) then
             nreq = nreq + 1
             dums(1,iproc) = bnds(sproc)%rlen2
-            dums(2:maxcolour+1,iproc) = bnds(sproc)%rlenh_fn(1:maxcolour)
-            dums(maxcolour+2:2*maxcolour+1,iproc) = bnds(sproc)%rlen_fn(1:maxcolour)
-            dums(2*maxcolour+2:3*maxcolour+1,iproc) = bnds(sproc)%rlenx_fn(1:maxcolour)
+            dums(2,iproc) = bnds(sproc)%rlenx
+            dums(3:maxcolour+2,iproc) = bnds(sproc)%rlen_fn(1:maxcolour)
             lproc = sproc
 #ifdef i8r8
-            call MPI_ISend( dums(:,iproc), int(3*maxcolour+1,4), MPI_INTEGER8, lproc, &
+            call MPI_ISend( dums(:,iproc), int(maxcolour+2,4), MPI_INTEGER8, lproc, &
                             itag, lcomm, ireq(nreq), ierr )
 #else
-            call MPI_ISend( dums(:,iproc), int(3*maxcolour+1,4), MPI_INTEGER, lproc,  &
+            call MPI_ISend( dums(:,iproc), int(maxcolour+2,4), MPI_INTEGER, lproc,  &
                             itag, lcomm, ireq(nreq), ierr )
 #endif
          end if
@@ -1004,40 +945,23 @@ contains
          rproc = neighlist(iproc)
          if ( bnds(rproc)%rlen2 > 0 ) then
             bnds(rproc)%slen2 = dumr(1,iproc)
-            bnds(rproc)%slenh_fn(1:maxcolour) = dumr(2:maxcolour+1,iproc)
-            bnds(rproc)%slen_fn(1:maxcolour)  = dumr(maxcolour+2:2*maxcolour+1,iproc)
-            bnds(rproc)%slenx_fn(1:maxcolour) = dumr(2*maxcolour+2:3*maxcolour+1,iproc)
+            bnds(rproc)%slenx = dumr(2,iproc)
+            bnds(rproc)%slen_fn(1:maxcolour)  = dumr(3:maxcolour+2,iproc)
          end if
       end do
       do n = 0,nproc-1
-         bnds(n)%slenh_bg(1) = 1
-         do i = 2,maxcolour
-            bnds(n)%slenh_bg(i) = bnds(n)%slenh_fn(i-1) + 1
-         end do
-         bnds(n)%slen_bg(1)  = bnds(n)%slenh_fn(maxcolour) + 1
+         bnds(n)%slen_bg(1)  = 1
          do i = 2,maxcolour
             bnds(n)%slen_bg(i)  = bnds(n)%slen_fn(i-1) + 1
-         end do
-         bnds(n)%slenx_bg(1) = bnds(n)%slen_fn(maxcolour) + 1
-         do i = 2,maxcolour
-            bnds(n)%slenx_bg(i) = bnds(n)%slenx_fn(i-1) + 1
          end do
       end do
       
       ! define index=0 for all coloured grid points
       do n = 0,nproc-1
-         bnds(n)%rlenh_bg(0) = bnds(n)%rlenh_bg(1)
-         bnds(n)%rlenh_fn(0) = bnds(n)%rlenh_fn(maxcolour)
-         bnds(n)%slenh_bg(0) = bnds(n)%slenh_bg(1)
-         bnds(n)%slenh_fn(0) = bnds(n)%slenh_fn(maxcolour)
          bnds(n)%rlen_bg(0) = bnds(n)%rlen_bg(1)
          bnds(n)%rlen_fn(0) = bnds(n)%rlen_fn(maxcolour)
          bnds(n)%slen_bg(0) = bnds(n)%slen_bg(1)
          bnds(n)%slen_fn(0) = bnds(n)%slen_fn(maxcolour)
-         bnds(n)%rlenx_bg(0) = bnds(n)%rlenx_bg(1)
-         bnds(n)%rlenx_fn(0) = bnds(n)%rlenx_fn(maxcolour)
-         bnds(n)%slenx_bg(0) = bnds(n)%slenx_bg(1)
-         bnds(n)%slenx_fn(0) = bnds(n)%slenx_fn(maxcolour)
       end do
       
       deallocate( dums, dumr )
@@ -1831,19 +1755,17 @@ contains
          bnds(rproc)%len = maxbuflen*maxvertlen
       else
          ! Just check length
-         testlen = 0 
+         testlen = 0
          do i = 1,maxcolour 
-            testlen = max( bnds(rproc)%rlenh_fn(i), bnds(rproc)%rlen_fn(i), &
-                           bnds(rproc)%rlenx_fn(i), bnds(rproc)%rlen2,      &
-                           testlen )
+            testlen = max( bnds(rproc)%rlen_fn(i), testlen )
          end do   
-         testlen = testlen*maxvertlen   
+         testlen = max( bnds(rproc)%rlenx, bnds(rproc)%rlen2, testlen )
+         testlen = testlen*maxvertlen
          if ( testlen >  bnds(rproc)%len ) then
             write(6,*) "Error, maximum length error in check_bnds_alloc"
             write(6,*) myid, rproc, testlen,  bnds(rproc)%len, maxvertlen
-            write(6,*) bnds(rproc)%rlenh_fn(1:maxcolour)
             write(6,*) bnds(rproc)%rlen_fn(1:maxcolour)
-            write(6,*) bnds(rproc)%rlenx_fn(1:maxcolour)
+            write(6,*) bnds(rproc)%rlenx
             write(6,*) bnds(rproc)%rlen2
             call ccmpi_abort(-1)
          end if
@@ -1922,13 +1844,13 @@ contains
       end if
    end subroutine check_set
 
-   subroutine bounds2(t, nrows, corner, nehalf)
+   subroutine bounds2(t, nrows, corner)
       real, dimension(ifull+iextra), intent(inout) :: t
-      real, dimension(size(t,1),1,1) :: t_l
+      real, dimension(size(t,1),1) :: t_l
       integer, intent(in), optional :: nrows
-      logical, intent(in), optional :: corner, nehalf
+      logical, intent(in), optional :: corner
       integer :: nrows_l
-      logical :: corner_l, nehalf_l
+      logical :: corner_l
       
       nrows_l = 1
       if ( present(nrows) ) then
@@ -1938,26 +1860,22 @@ contains
       if ( present(corner) ) then
          corner_l = corner
       end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf 
-      end if
 
       ! colour=0 is for all grid points
-      t_l(:,1,1) = t(:)
-      call bounds_colour_send4( t_l, 0, nrows=nrows_l, corner=corner_l, nehalf=nehalf_l )
-      call bounds_colour_recv4( t_l, 0, nrows=nrows_l, corner=corner_l, nehalf=nehalf_l )
-      t(:) = t_l(:,1,1)      
+      t_l(:,1) = t(:)
+      call bounds_send3( t_l, nrows=nrows_l, corner=corner_l )
+      call bounds_recv3( t_l, nrows=nrows_l, corner=corner_l )
+      t(:) = t_l(:,1)      
 
    end subroutine bounds2
    
-   subroutine bounds2r8(t, nrows, corner, nehalf)
+   subroutine bounds2r8(t, nrows, corner)
       real(kind=8), dimension(ifull+iextra), intent(inout) :: t
-      real(kind=8), dimension(size(t,1),1,1) :: t_l
+      real(kind=8), dimension(size(t,1),1) :: t_l
       integer, intent(in), optional :: nrows
-      logical, intent(in), optional :: corner, nehalf
+      logical, intent(in), optional :: corner
       integer :: nrows_l
-      logical :: corner_l, nehalf_l
+      logical :: corner_l
       
       nrows_l = 1
       if ( present(nrows) ) then
@@ -1967,24 +1885,19 @@ contains
       if ( present(corner) ) then
          corner_l = corner
       end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf 
-      end if
 
-      t_l(:,1,1) = t(:)
-      call bounds4r8( t_l, nrows=nrows_l, corner=corner_l, nehalf=nehalf_l )
-      t(:) = t_l(:,1,1)      
+      t_l(:,1) = t(:)
+      call bounds3r8( t_l, nrows=nrows_l, corner=corner_l )
+      t(:) = t_l(:,1)      
 
    end subroutine bounds2r8   
 
-   subroutine bounds3(t, nrows, klim, corner, nehalf)
+   subroutine bounds3(t, nrows, klim, corner)
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      real, dimension(size(t,1),size(t,2),1) :: t_l
+      logical, intent(in), optional :: corner
       integer :: nrows_l, klim_l
-      logical :: corner_l, nehalf_l
+      logical :: corner_l
       
       klim_l = size(t,2)
       if ( present(klim) ) then
@@ -1998,57 +1911,128 @@ contains
       if ( present(corner) ) then
          corner_l = corner
       end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf 
-      end if
 
-      ! colour=0 is for all grid points
-      t_l(:,:,1) = t(:,:)
-      call bounds_colour_send4( t_l, 0, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
-      call bounds_colour_recv4( t_l, 0, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
-      t(:,:) = t_l(:,:,1)
+      call bounds_send3( t, nrows=nrows_l, klim=klim_l, corner=corner_l )
+      call bounds_recv3( t, nrows=nrows_l, klim=klim_l, corner=corner_l )
 
    end subroutine bounds3
 
-   subroutine bounds3r8(t, nrows, klim, corner, nehalf)
+   subroutine bounds3r8(t, nrows, klim, corner)
+      use cc_omp
+      ! Copy the boundary regions.
       real(kind=8), dimension(:,:), intent(inout) :: t
-      real(kind=8), dimension(size(t,1),size(t,2),1) :: t_l
       integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      integer :: nrows_l, klim_l
-      logical :: corner_l, nehalf_l
+      logical, intent(in), optional :: corner
+      integer :: iproc, kx, send_len, recv_len
+      integer :: rcount, jproc, mproc, ntr, iq, k, n
+      integer, dimension(neighnum) :: rslen, sslen
+      integer(kind=4), save :: itag=3
+      integer(kind=4) :: ierr, llen, lproc, ldone, lcomm
+      integer(kind=4), dimension(2*neighnum) :: donelist
+      logical :: extra, double
+
+      if ( ccomp_get_thread_num() /= 0 ) return
       
-      klim_l = size(t,2)
+      kx = size(t, 2)
+      double = .false.
+      extra  = .false.
       if ( present(klim) ) then
-         klim_l = klim
+         kx = klim
       end if
-      nrows_l = 1
       if ( present(nrows) ) then
-         nrows_l = nrows 
+         if ( nrows == 2 ) then
+            double = .true.
+         end if
       end if
-      corner_l = .false.
-      if ( present(corner) ) then
-         corner_l = corner
-      end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf 
+      if ( .not. double ) then
+         if ( present(corner) ) then
+            extra = corner
+         end if
       end if
 
-      t_l(:,:,1) = t(:,:)
-      call bounds4r8( t_l, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
-      t(:,:) = t_l(:,:,1)
+      ! Split messages into corner and non-corner processes
+      if ( double ) then
+         do n = 1,neighnum  
+            rslen(n) = bnds(neighlist(n))%rlen2
+            sslen(n) = bnds(neighlist(n))%slen2
+         end do
+      else if ( extra ) then
+         do n = 1,neighnum     
+            rslen(n) = bnds(neighlist(n))%rlenx
+            sslen(n) = bnds(neighlist(n))%slenx
+         end do
+      else
+         do n = 1,neighnum     
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+            sslen(n) = bnds(neighlist(n))%slen_fn(maxcolour)
+         end do
+      end if
+            
+      itag = mod(itag + 1, 10000)
+      
+      ! Set up the buffers to send
+      lcomm = comm_world
+      nreq = 0
+      do iproc = 1,neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx
+            call MPI_IRecv( bnds(lproc)%r8buf, llen, MPI_DOUBLE_PRECISION, lproc, &
+                 itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+      rreq = nreq
+      do iproc = neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = neighlist(iproc)  ! Send to
+            do k = 1,kx
+               do iq = 1,send_len
+                  bnds(lproc)%s8buf(iq+(k-1)*send_len) = &
+                    t(bnds(lproc)%send_list(iq),k)
+               end do
+            end do
+            nreq = nreq + 1
+            llen = send_len*kx
+            call MPI_ISend( bnds(lproc)%s8buf, llen, MPI_DOUBLE_PRECISION, lproc, &
+                 itag, lcomm, ireq(nreq), ierr )
+         end if
+      end do
+
+      ! Unpack incomming messages
+      rcount = nreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitpoint_begin)
+         call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitpoint_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            if ( mproc <= rreq ) then
+               iproc = rlist(mproc)  ! Recv from
+               lproc = neighlist(iproc)
+               do k=1,kx
+                  do iq = 1,rslen(iproc)
+                     t(ifull+bnds(lproc)%unpack_list(iq),k)              &
+                          = bnds(lproc)%r8buf(iq+(k-1)*rslen(iproc))
+                  end do   
+               end do
+            end if
+         end do
+      end do
 
    end subroutine bounds3r8
    
-   subroutine bounds4(t, nrows, klim, corner, nehalf)
+   subroutine bounds4(t, nrows, klim, corner)
       real, dimension(:,:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
+      logical, intent(in), optional :: corner
       integer :: nrows_l, klim_l
       integer :: istart, iend
-      logical :: corner_l, nehalf_l
+      logical :: corner_l
       
       klim_l = size(t, 2)
       if ( present(klim) ) then
@@ -2062,27 +2046,21 @@ contains
       if ( present(corner) ) then
          corner_l = corner
       end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf 
-      end if
 
       do istart = 1,size(t,3),nagg
          iend = min( istart + nagg - 1, size(t,3) )
-         ! colour=0 should send all grid points
-         call bounds_colour_send4( t(:,:,istart:iend), 0, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
-         call bounds_colour_recv4( t(:,:,istart:iend), 0, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
+         call bounds_send4( t(:,:,istart:iend), nrows=nrows_l, klim=klim_l, corner=corner_l )
+         call bounds_recv4( t(:,:,istart:iend), nrows=nrows_l, klim=klim_l, corner=corner_l )
       end do   
-      
+
    end subroutine bounds4
    
-   subroutine bounds4r8(t, nrows, klim, corner, nehalf)
+   subroutine bounds4r8(t, nrows, klim, corner)
       use cc_omp
       ! Copy the boundary regions.
       real(kind=8), dimension(:,:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      logical :: extra, single, double
+      logical, intent(in), optional :: corner
       integer :: iproc, kx, send_len, recv_len
       integer :: rcount, jproc, mproc, ntr, iq, k, l, n
       integer :: nstart, nend, ntot
@@ -2090,6 +2068,7 @@ contains
       integer(kind=4), save :: itag=3
       integer(kind=4) :: ierr, llen, lproc, ldone, lcomm
       integer(kind=4), dimension(2*neighnum) :: donelist
+      logical :: extra, double
 
       if ( ccomp_get_thread_num() /= 0 ) return
       
@@ -2097,7 +2076,6 @@ contains
       ntr = size(t, 3)
       double = .false.
       extra  = .false.
-      single = .true.
       if ( present(klim) ) then
          kx = klim
       end if
@@ -2110,11 +2088,6 @@ contains
          if ( present(corner) ) then
             extra = corner
          end if
-         if ( .not. extra ) then
-            if ( present(nehalf) ) then
-               single = .not. nehalf
-            end if
-         end if
       end if
 
       ! Split messages into corner and non-corner processes
@@ -2125,18 +2098,13 @@ contains
          end do
       else if ( extra ) then
          do n = 1,neighnum     
-            rslen(n) = bnds(neighlist(n))%rlenx_fn(maxcolour)
-            sslen(n) = bnds(neighlist(n))%slenx_fn(maxcolour)
+            rslen(n) = bnds(neighlist(n))%rlenx
+            sslen(n) = bnds(neighlist(n))%slenx
          end do
-      else if ( single ) then
+      else
          do n = 1,neighnum     
             rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
             sslen(n) = bnds(neighlist(n))%slen_fn(maxcolour)
-         end do
-      else
-         do n = 1,neighnum 
-            rslen(n) = bnds(neighlist(n))%rlenh_fn(maxcolour)
-            sslen(n) = bnds(neighlist(n))%slenh_fn(maxcolour)
          end do
       end if
 
@@ -2209,48 +2177,14 @@ contains
       
    end subroutine bounds4r8
    
-   subroutine bounds_colour_send3(t, colour, nrows, klim, corner, nehalf)
-      real, dimension(:,:), intent(in) :: t
-      integer, intent(in) :: colour
-      integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      real, dimension(size(t,1),size(t,2),1) :: t_l
-      integer :: nrows_l, klim_l
-      logical :: corner_l, nehalf_l
-      
-      klim_l = size(t, 2)
-      if ( present(klim) ) then
-         klim_l = klim
-      end if
-      nrows_l = 1
-      if ( present(nrows) ) then
-         nrows_l = nrows 
-      end if
-      corner_l = .false.
-      if ( present(corner) ) then
-         corner_l = corner
-      end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf 
-      end if
-      
-      t_l(:,:,1) = t(:,:)
-      call bounds_colour_send4( t_l, colour, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
-
-   end subroutine bounds_colour_send3
-   
-   subroutine bounds_colour_send4(t, colour, nrows, klim, corner, nehalf)
+   subroutine bounds_colour_send3(t, colour, klim)
       use cc_omp
       ! Copy the boundary regions. This version allows supports updating
       ! different gridpoint colours
-      real, dimension(:,:,:), intent(in) :: t
+      real, dimension(:,:), intent(in) :: t
       integer, intent(in) :: colour
-      integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      logical :: extra, single, double
+      integer, intent(in), optional :: klim
       integer :: iproc, kx, recv_len, iqq, ibeg, iend, iq, k
-      integer :: l, ntr
       integer(kind=4), save :: itag=4
       integer(kind=4) :: ierr, llen, lproc, lcomm
 
@@ -2262,37 +2196,11 @@ contains
       end if   
       
       kx = size(t, 2)
-      ntr = size(t, 3)
-      single = .true.
-      extra = .false.
-      double = .false.
       if ( present(klim) ) then
          kx = klim
       end if
-      if ( present(nehalf) ) then
-        single = .not.nehalf
-      end if
-      if ( present(corner) ) then
-         extra = corner
-      end if
-      if ( present(nrows) ) then
-         double = nrows==2
-      end if
-      
-      if ( double ) then
-         extra = .true.
-         single = .true.
-      else if ( extra ) then
-         single = .true.
-      end if
       
       itag = mod(itag + 1, 10000)
-      
-      if ( ntr > nagg ) then
-         write(6,*) "ERROR: bounds_colour_send4 can only send nagg tracers"
-         write(6,*) "ntr, nagg ",ntr, nagg
-         call ccmpi_abort(-1)
-      end if
 
 !     Set up the buffers to send and recv
       lcomm = comm_world
@@ -2300,32 +2208,11 @@ contains
       do iproc = 1,neighnum
          lproc = neighlist(iproc)  ! Recv from
          recv_len = 0
-         ibeg = bnds(lproc)%rlenh_bg(colour)
-         iend = bnds(lproc)%rlenh_fn(colour)
+         ibeg = bnds(lproc)%rlen_bg(colour)
+         iend = bnds(lproc)%rlen_fn(colour)       
          if ( iend >= ibeg ) then
-            recv_len = recv_len + (iend-ibeg+1)*kx*ntr
+            recv_len = recv_len + (iend-ibeg+1)*kx
          end if   
-         if ( single ) then
-            ibeg = bnds(lproc)%rlen_bg(colour)
-            iend = bnds(lproc)%rlen_fn(colour)       
-            if ( iend >= ibeg ) then
-               recv_len = recv_len + (iend-ibeg+1)*kx*ntr
-            end if   
-         end if
-         if ( extra ) then
-            ibeg = bnds(lproc)%rlenx_bg(colour)
-            iend = bnds(lproc)%rlenx_fn(colour)       
-            if ( iend >= ibeg ) then
-               recv_len = recv_len + (iend-ibeg+1)*kx*ntr
-            end if   
-         end if
-         if ( double ) then
-            ibeg = bnds(lproc)%rlenx_fn(maxcolour) + 1
-            iend = bnds(lproc)%rlen2       
-            if ( iend >= ibeg ) then
-               recv_len = recv_len + (iend-ibeg+1)*kx*ntr
-            end if   
-         end if
          if ( recv_len > 0 ) then
             nreq = nreq + 1
             rlist(nreq) = iproc
@@ -2343,64 +2230,106 @@ contains
       do iproc = neighnum,1,-1
          lproc = neighlist(iproc)  ! Send to
          iqq = 0
-         ibeg = bnds(lproc)%slenh_bg(colour)
-         iend = bnds(lproc)%slenh_fn(colour)
+         ibeg = bnds(lproc)%slen_bg(colour)
+         iend = bnds(lproc)%slen_fn(colour)
+         if ( iend >= ibeg ) then
+            do k = 1,kx
+               do iq = 1,iend-ibeg+1
+                  bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1))  &
+                      = t(bnds(lproc)%send_list(iq+ibeg-1),k)
+               end do
+            end do   
+         end if   
+         iqq = iqq + (iend-ibeg+1)*kx
+         if ( iqq > 0 ) then
+            nreq = nreq + 1
+            llen = iqq
+#ifdef i8r8
+            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_DOUBLE_PRECISION, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#else
+            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_REAL, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#endif
+         end if
+      end do
+      
+   end subroutine bounds_colour_send3
+   
+   subroutine bounds_colour_send4(t, colour, klim)
+      use cc_omp
+      ! Copy the boundary regions. This version allows supports updating
+      ! different gridpoint colours
+      real, dimension(:,:,:), intent(in) :: t
+      integer, intent(in) :: colour
+      integer, intent(in), optional :: klim
+      integer :: iproc, kx, recv_len, iqq, ibeg, iend, iq, k
+      integer :: l, ntr
+      integer(kind=4), save :: itag=4
+      integer(kind=4) :: ierr, llen, lproc, lcomm
+
+      if ( ccomp_get_thread_num() /= 0 ) return      
+      
+      if ( colour<0 .or. colour>maxcolour ) then
+         write(6,*) "ERROR: Invalid colour for bounds_colour_send"
+         call ccmpi_abort(-1)
+      end if   
+      
+      kx = size(t, 2)
+      ntr = size(t, 3)
+      if ( present(klim) ) then
+         kx = klim
+      end if
+            
+      itag = mod(itag + 1, 10000)
+      
+      if ( ntr > nagg ) then
+         write(6,*) "ERROR: bounds_colour_send4 can only send nagg tracers"
+         write(6,*) "ntr, nagg ",ntr, nagg
+         call ccmpi_abort(-1)
+      end if
+
+!     Set up the buffers to send and recv
+      lcomm = comm_world
+      nreq = 0
+      do iproc = 1,neighnum
+         lproc = neighlist(iproc)  ! Recv from
+         recv_len = 0
+         ibeg = bnds(lproc)%rlen_bg(colour)
+         iend = bnds(lproc)%rlen_fn(colour)       
+         if ( iend >= ibeg ) then
+            recv_len = recv_len + (iend-ibeg+1)*kx*ntr
+         end if   
+         if ( recv_len > 0 ) then
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len
+#ifdef i8r8
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_DOUBLE_PRECISION, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#else
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_REAL, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#endif
+         end if
+      end do
+      rreq = nreq
+      do iproc = neighnum,1,-1
+         lproc = neighlist(iproc)  ! Send to
+         iqq = 0
+         ibeg = bnds(lproc)%slen_bg(colour)
+         iend = bnds(lproc)%slen_fn(colour)
          if ( iend >= ibeg ) then
             do l = 1,ntr
-               do k = 1,kx 
+               do k = 1,kx
                   do iq = 1,iend-ibeg+1
                      bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)  &
                          = t(bnds(lproc)%send_list(iq+ibeg-1),k,l)
                   end do   
                end do
             end do   
-         end if
-         iqq = iqq + (iend-ibeg+1)*kx*ntr
-         if ( single ) then
-            ibeg = bnds(lproc)%slen_bg(colour)
-            iend = bnds(lproc)%slen_fn(colour)
-            if ( iend >= ibeg ) then
-               do l = 1,ntr
-                  do k = 1,kx
-                     do iq = 1,iend-ibeg+1
-                        bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)  &
-                            = t(bnds(lproc)%send_list(iq+ibeg-1),k,l)
-                     end do   
-                  end do
-               end do   
-            end if   
-            iqq = iqq + (iend-ibeg+1)*kx*ntr
          end if   
-         if ( extra ) then
-            ibeg = bnds(lproc)%slenx_bg(colour)
-            iend = bnds(lproc)%slenx_fn(colour)
-            if ( iend >= ibeg ) then
-               do l = 1,ntr
-                  do k = 1,kx 
-                     do iq = 1,iend-ibeg+1
-                        bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)  &
-                            = t(bnds(lproc)%send_list(iq+ibeg-1),k,l)
-                     end do   
-                  end do
-               end do   
-            end if   
-            iqq = iqq + (iend-ibeg+1)*kx*ntr
-         end if
-         if ( double ) then
-            ibeg = bnds(lproc)%slenx_fn(maxcolour) + 1
-            iend = bnds(lproc)%slen2
-            if ( iend >= ibeg ) then
-               do l = 1,ntr
-                  do k = 1,kx 
-                     do iq = 1,iend-ibeg+1
-                        bnds(lproc)%sbuf(iqq+iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)  &
-                            = t(bnds(lproc)%send_list(iq+ibeg-1),k,l)
-                     end do   
-                  end do
-               end do   
-            end if   
-            iqq = iqq + (iend-ibeg+1)*kx*ntr
-         end if
+         iqq = iqq + (iend-ibeg+1)*kx*ntr
          if ( iqq > 0 ) then
             nreq = nreq + 1
             llen = iqq
@@ -2416,54 +2345,70 @@ contains
 
    end subroutine bounds_colour_send4
    
-   subroutine bounds_colour_recv3(t, colour, nrows, klim, corner, nehalf)
+   subroutine bounds_colour_recv3(t, colour, klim)
       use cc_omp
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in) :: colour
-      integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      real, dimension(size(t,1),size(t,2),1) :: t_l
-      integer :: nrows_l, klim_l
-      logical :: corner_l, nehalf_l
+      integer, intent(in), optional :: klim
+      integer :: iproc, kx, ibeg, iend
+      integer :: rcount, jproc, mproc, iq, k
+      integer(kind=4) :: ierr, lproc, ldone
+      integer(kind=4), dimension(2*neighnum) :: donelist
       
       if ( ccomp_get_thread_num() /= 0 ) return      
       
-      klim_l = size(t, 2)
-      if ( present(klim) ) then
-         klim_l = klim
-      end if
-      nrows_l = 1
-      if ( present(nrows) ) then
-         nrows_l = nrows 
-      end if
-      corner_l = .false.
-      if ( present(corner) ) then
-         corner_l = corner
-      end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf 
+      if ( colour<0 .or. colour>maxcolour ) then
+         write(6,*) "ERROR: Invalid colour for bounds_colour_recv"
+         call ccmpi_abort(-1)
       end if
       
-      t_l(:,:,1) = t(:,:)
-      call bounds_colour_recv4( t_l, colour, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
-      t(:,:) = t_l(:,:,1)
+      kx = size(t, 2)
+      if ( present(klim) ) then
+         kx = klim
+      end if
+            
+      ! Unpack incomming messages
+      rcount = nreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitpoint_begin)
+         call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitpoint_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            if ( mproc <= rreq ) then
+               iproc = rlist(mproc)  ! Recv from
+               lproc = neighlist(iproc)
+               ibeg = bnds(lproc)%rlen_bg(colour)
+               iend = bnds(lproc)%rlen_fn(colour)
+               if ( iend >= ibeg ) then
+                  do k = 1,kx
+                     do iq = 1,iend-ibeg+1
+                        t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k)  &
+                            = bnds(lproc)%rbuf(iq+(k-1)*(iend-ibeg+1))
+                     end do   
+                  end do
+               end if   
+            end if ! mproc <= rreq  
+         end do    ! jproc = 1,ldone
+      end do       ! while( rcount > 0 )
 
    end subroutine bounds_colour_recv3
 
-   subroutine bounds_colour_recv4(t, colour, nrows, klim, corner, nehalf)
+   subroutine bounds_colour_recv4(t, colour, klim)
+      use cc_omp
       ! Copy the boundary regions. This version allows supports updating
       ! different gridpoint colours
       real, dimension(:,:,:), intent(inout) :: t
       integer, intent(in) :: colour
-      integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      logical :: extra, single, double
-      integer :: iproc, kx, iqq, ibeg, iend
+      integer, intent(in), optional :: klim
+      integer :: iproc, kx, ibeg, iend
       integer :: rcount, jproc, mproc, iq, k
       integer :: l, ntr
       integer(kind=4) :: ierr, lproc, ldone
       integer(kind=4), dimension(2*neighnum) :: donelist
+      
+      if ( ccomp_get_thread_num() /= 0 ) return      
       
       if ( colour<0 .or. colour>maxcolour ) then
          write(6,*) "ERROR: Invalid colour for bounds_colour_recv"
@@ -2472,27 +2417,8 @@ contains
       
       kx = size(t, 2)
       ntr = size(t, 3)
-      single = .true.
-      extra = .false.
-      double = .false.
       if ( present(klim) ) then
          kx = klim
-      end if
-      if ( present(nehalf) ) then
-         single = .not.nehalf
-      end if
-      if ( present(corner) ) then
-         extra = corner
-      end if
-      if ( present(nrows) ) then
-         double = nrows==2
-      end if
-      
-      if ( double ) then
-         extra = .true.
-         single = .true.
-      else if ( extra ) then
-         single = .true.
       end if
       
       if ( ntr > nagg ) then
@@ -2513,187 +2439,365 @@ contains
             if ( mproc <= rreq ) then
                iproc = rlist(mproc)  ! Recv from
                lproc = neighlist(iproc)
-               iqq = 0
-               ibeg = bnds(lproc)%rlenh_bg(colour)
-               iend = bnds(lproc)%rlenh_fn(colour)
+               ibeg = bnds(lproc)%rlen_bg(colour)
+               iend = bnds(lproc)%rlen_fn(colour)
                if ( iend >= ibeg ) then
                   do l = 1,ntr
                      do k = 1,kx
                         do iq = 1,iend-ibeg+1
                            t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k,l)  &
-                               = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)
+                               = bnds(lproc)%rbuf(iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)
                         end do   
                      end do   
                   end do
-                  iqq = iqq + (iend-ibeg+1)*kx*ntr
                end if   
-               if ( single ) then
-                  ibeg = bnds(lproc)%rlen_bg(colour)
-                  iend = bnds(lproc)%rlen_fn(colour)
-                  if ( iend >= ibeg ) then
-                     do l = 1,ntr
-                        do k = 1,kx
-                           do iq = 1,iend-ibeg+1
-                              t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k,l)  &
-                                  = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)
-                           end do   
-                        end do   
-                     end do
-                     iqq = iqq + (iend-ibeg+1)*kx*ntr
-                  end if   
-               end if   
-               if ( extra ) then
-                  ibeg = bnds(lproc)%rlenx_bg(colour)
-                  iend = bnds(lproc)%rlenx_fn(colour)
-                  if ( iend >= ibeg ) then
-                     do l = 1,ntr
-                        do k = 1,kx
-                           do iq = 1,iend-ibeg+1
-                              t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k,l)  &
-                                  = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)
-                           end do   
-                        end do   
-                     end do
-                     iqq = iqq + (iend-ibeg+1)*kx*ntr
-                  end if   
-               end if
-               if ( double ) then
-                  ibeg = bnds(lproc)%rlenx_fn(maxcolour) + 1
-                  iend = bnds(lproc)%rlen2
-                  if ( iend >= ibeg ) then
-                     do l = 1,ntr
-                        do k = 1,kx
-                           do iq = 1,iend-ibeg+1
-                              t(ifull+bnds(lproc)%unpack_list(iq+ibeg-1),k,l)  &
-                                  = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1)+(l-1)*(iend-ibeg+1)*kx)
-                           end do   
-                        end do   
-                     end do
-                     iqq = iqq + (iend-ibeg+1)*kx*ntr
-                  end if   
-               end if
             end if ! mproc <= rreq  
          end do    ! jproc = 1,ldone
       end do       ! while( rcount > 0 )
 
    end subroutine bounds_colour_recv4
    
-   subroutine bounds_send3(t, nrows, klim, corner, nehalf)
+   subroutine bounds_send3(t, nrows, klim, corner)
+      use cc_omp
+      ! Copy the boundary regions. This version allows supports updating
+      ! different gridpoint colours
       real, dimension(:,:), intent(in) :: t
       integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      real, dimension(size(t,1),size(t,2),1) :: t_l
-      integer :: nrows_l, klim_l
-      logical :: corner_l, nehalf_l
-      
-      nrows_l = 1
-      if ( present(nrows) ) then
-         nrows_l = nrows
-      end if
-      klim_l = size(t,2)
-      if ( present(klim) ) then
-         klim_l = klim
-      end if
-      corner_l = .false.
-      if ( present(corner) ) then
-         corner_l = corner
-      end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf
-      end if
-      
-      t_l(:,:,1) = t(:,:)
-      call bounds_colour_send4( t_l, 0, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
+      logical, intent(in), optional :: corner
+      integer :: iproc, kx, iq, k
+      integer :: send_len, recv_len
+      integer, dimension(neighnum) :: rslen, sslen
+      integer(kind=4), save :: itag=4
+      integer(kind=4) :: ierr, llen, lproc, lcomm
+      logical :: extra, double
 
+      if ( ccomp_get_thread_num() /= 0 ) return      
+      
+      kx = size(t, 2)
+      extra = .false.
+      double = .false.
+      if ( present(klim) ) then
+         kx = klim
+      end if
+      if ( present(corner) ) then
+         extra = corner
+      end if
+      if ( present(nrows) ) then
+         double = nrows==2
+      end if
+            
+      ! Split messages into corner and non-corner processors
+      if ( double ) then
+         do iproc = 1,neighnum 
+            rslen(iproc) = bnds(neighlist(iproc))%rlen2
+            sslen(iproc) = bnds(neighlist(iproc))%slen2
+         end do  
+      else if ( extra ) then
+         do iproc = 1,neighnum 
+            rslen(iproc) = bnds(neighlist(iproc))%rlenx
+            sslen(iproc) = bnds(neighlist(iproc))%slenx
+         end do   
+      else
+         do iproc = 1,neighnum
+            rslen(iproc) = bnds(neighlist(iproc))%rlen_fn(maxcolour)
+            sslen(iproc) = bnds(neighlist(iproc))%slen_fn(maxcolour)
+         end do
+      end if
+
+      itag = mod(itag + 1, 10000)
+      
+!     Set up the buffers to send and recv
+      lcomm = comm_world
+      nreq = 0
+      do iproc = 1,neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx
+#ifdef i8r8
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_DOUBLE_PRECISION, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#else
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_REAL, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#endif
+         end if
+      end do
+      rreq = nreq
+      do iproc = neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = neighlist(iproc)  ! Send to
+            do k = 1,kx 
+               do iq = 1,send_len
+                  bnds(lproc)%sbuf(iq+(k-1)*send_len)  &
+                      = t(bnds(lproc)%send_list(iq),k)
+               end do
+            end do   
+            nreq = nreq + 1
+            llen = send_len*kx
+#ifdef i8r8
+            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_DOUBLE_PRECISION, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#else
+            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_REAL, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#endif
+         end if
+      end do
+      
    end subroutine bounds_send3
 
-   subroutine bounds_send4(t, nrows, klim, corner, nehalf)
+   subroutine bounds_send4(t, nrows, klim, corner)
+      use cc_omp
+      ! Copy the boundary regions. This version allows supports updating
+      ! different gridpoint colours
       real, dimension(:,:,:), intent(in) :: t
       integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      integer :: nrows_l, klim_l
-      logical :: corner_l, nehalf_l
+      logical, intent(in), optional :: corner
+      integer :: iproc, kx, iq, k
+      integer :: l, ntr
+      integer :: send_len, recv_len
+      integer, dimension(neighnum) :: rslen, sslen
+      integer(kind=4), save :: itag=4
+      integer(kind=4) :: ierr, llen, lproc, lcomm
+      logical :: extra, double
+
+      if ( ccomp_get_thread_num() /= 0 ) return
       
-      nrows_l = 1
-      if ( present(nrows) ) then
-         nrows_l = nrows
-      end if
-      klim_l = size(t,2)
+      kx = size(t, 2)
+      ntr = size(t, 3)
+      extra = .false.
+      double = .false.
       if ( present(klim) ) then
-         klim_l = klim
+         kx = klim
       end if
-      corner_l = .false.
       if ( present(corner) ) then
-         corner_l = corner
+         extra = corner
       end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf
+      if ( present(nrows) ) then
+         double = nrows==2
       end if
       
-      ! colour=0 sends all grid points
-      call bounds_colour_send4( t, 0, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
+      ! Split messages into corner and non-corner processors
+      if ( double ) then
+         do iproc = 1,neighnum 
+            rslen(iproc) = bnds(neighlist(iproc))%rlen2
+            sslen(iproc) = bnds(neighlist(iproc))%slen2
+         end do  
+      else if ( extra ) then
+         do iproc = 1,neighnum 
+            rslen(iproc) = bnds(neighlist(iproc))%rlenx
+            sslen(iproc) = bnds(neighlist(iproc))%slenx
+         end do   
+      else
+         do iproc = 1,neighnum
+            rslen(iproc) = bnds(neighlist(iproc))%rlen_fn(maxcolour)
+            sslen(iproc) = bnds(neighlist(iproc))%slen_fn(maxcolour)
+         end do
+      end if
+      
+      itag = mod(itag + 1, 10000)
+      
+      if ( ntr > nagg ) then
+         write(6,*) "ERROR: bounds_send4 can only send nagg tracers"
+         write(6,*) "ntr, nagg ",ntr, nagg
+         call ccmpi_abort(-1)
+      end if
+
+!     Set up the buffers to send and recv
+      lcomm = comm_world
+      nreq = 0
+      do iproc = 1,neighnum
+         recv_len = rslen(iproc)
+         if ( recv_len > 0 ) then
+            lproc = neighlist(iproc)  ! Recv from
+            nreq = nreq + 1
+            rlist(nreq) = iproc
+            llen = recv_len*kx*ntr
+#ifdef i8r8
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_DOUBLE_PRECISION, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#else
+            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_REAL, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#endif
+         end if
+      end do
+      rreq = nreq
+      do iproc = neighnum,1,-1
+         send_len = sslen(iproc)
+         if ( send_len > 0 ) then
+            lproc = neighlist(iproc)  ! Send to
+            do l = 1,ntr
+               do k = 1,kx 
+                  do iq = 1,send_len
+                     bnds(lproc)%sbuf(iq+(k-1)*send_len+(l-1)*send_len*kx)  &
+                         = t(bnds(lproc)%send_list(iq),k,l)
+                  end do   
+               end do
+            end do   
+            nreq = nreq + 1
+            llen = send_len*kx*ntr
+#ifdef i8r8
+            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_DOUBLE_PRECISION, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#else
+            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_REAL, lproc, &
+                            itag, lcomm, ireq(nreq), ierr )
+#endif
+         end if
+      end do
 
    end subroutine bounds_send4
    
-   subroutine bounds_recv3(t, nrows, klim, corner, nehalf)
+   subroutine bounds_recv3(t, nrows, klim, corner)
+      use cc_omp
       real, dimension(:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      real, dimension(size(t,1),size(t,2),1) :: t_l
-      integer :: nrows_l, klim_l
-      logical :: corner_l, nehalf_l
+      logical, intent(in), optional :: corner
+      integer :: iproc, kx
+      integer :: rcount, jproc, mproc, iq, k, n
+      integer :: recv_len
+      integer, dimension(neighnum) :: rslen
+      integer(kind=4) :: ierr, lproc, ldone
+      integer(kind=4), dimension(2*neighnum) :: donelist
+      logical :: extra, double
       
-      nrows_l = 1
-      if ( present(nrows) ) then
-         nrows_l = nrows
-      end if
-      klim_l = size(t,2)
+      if ( ccomp_get_thread_num() /= 0 ) return
+      
+      kx = size(t, 2)
+      extra = .false.
+      double = .false.
       if ( present(klim) ) then
-         klim_l = klim
+         kx = klim
       end if
-      corner_l = .false.
       if ( present(corner) ) then
-         corner_l = corner
+         extra = corner
       end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf
+      if ( present(nrows) ) then
+         double = nrows==2
       end if
       
-      t_l(:,:,1) = t(:,:)
-      call bounds_colour_recv4( t_l, 0, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
-      t(:,:) = t_l(:,:,1)
+      ! Split messages into corner and non-corner processors
+      if ( double ) then
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen2
+         end do   
+      else if ( extra ) then
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlenx
+         end do   
+      else
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+         end do   
+      end if
+      
+      ! Unpack incomming messages
+      rcount = nreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitpoint_begin)
+         call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitpoint_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            if ( mproc <= rreq ) then
+               iproc = rlist(mproc)  ! Recv from
+               lproc = neighlist(iproc)
+               recv_len = rslen(iproc)
+               do k = 1,kx
+                  do iq = 1,recv_len
+                     t(ifull+bnds(lproc)%unpack_list(iq),k)  &
+                         = bnds(lproc)%rbuf(iq+(k-1)*recv_len)
+                  end do   
+               end do
+            end if ! mproc <= rreq  
+         end do    ! jproc = 1,ldone
+      end do       ! while( rcount > 0 )
 
    end subroutine bounds_recv3
 
-   subroutine bounds_recv4(t, nrows, klim, corner, nehalf)
+   subroutine bounds_recv4(t, nrows, klim, corner)
+      use cc_omp
+      ! Copy the boundary regions. This version allows supports updating
+      ! different gridpoint colours
       real, dimension(:,:,:), intent(inout) :: t
       integer, intent(in), optional :: nrows, klim
-      logical, intent(in), optional :: corner, nehalf
-      integer :: nrows_l, klim_l
-      logical :: corner_l, nehalf_l
+      logical, intent(in), optional :: corner
+      integer :: iproc, kx
+      integer :: rcount, jproc, mproc, iq, k, n
+      integer :: l, ntr
+      integer :: recv_len
+      integer, dimension(neighnum) :: rslen
+      integer(kind=4) :: ierr, lproc, ldone
+      integer(kind=4), dimension(2*neighnum) :: donelist
+      logical :: extra, double
       
-      nrows_l = 1
-      if ( present(nrows) ) then
-         nrows_l = nrows
-      end if
-      klim_l = size(t,2)
+      if ( ccomp_get_thread_num() /= 0 ) return      
+      
+      kx = size(t, 2)
+      ntr = size(t, 3)
+      extra = .false.
+      double = .false.
       if ( present(klim) ) then
-         klim_l = klim
+         kx = klim
       end if
-      corner_l = .false.
       if ( present(corner) ) then
-         corner_l = corner
+         extra = corner
       end if
-      nehalf_l = .false.
-      if ( present(nehalf) ) then
-         nehalf_l = nehalf
+      if ( present(nrows) ) then
+         double = nrows==2
       end if
       
-      ! colour=0 receives all grid points
-      call bounds_colour_recv4( t, 0, nrows=nrows_l, klim=klim_l, corner=corner_l, nehalf=nehalf_l )
+      ! Split messages into corner and non-corner processors
+      if ( double ) then
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen2
+         end do   
+      else if ( extra ) then
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlenx
+         end do   
+      else
+         do n = 1,neighnum 
+            rslen(n) = bnds(neighlist(n))%rlen_fn(maxcolour)
+         end do   
+      end if
+      
+      if ( ntr > nagg ) then
+         write(6,*) "ERROR: bounds_colour_recv4 can only send nagg tracers"
+         write(6,*) "ntr, nagg ",ntr, nagg
+         call ccmpi_abort(-1)
+      end if
+      
+      ! Unpack incomming messages
+      rcount = nreq
+      do while ( rcount > 0 )
+         call START_LOG(mpiwaitpoint_begin)
+         call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call END_LOG(mpiwaitpoint_end)
+         rcount = rcount - ldone
+         do jproc = 1,ldone
+            mproc = donelist(jproc)
+            if ( mproc <= rreq ) then
+               iproc = rlist(mproc)  ! Recv from
+               lproc = neighlist(iproc)
+               recv_len = rslen(iproc)
+               do l = 1,ntr
+                  do k = 1,kx
+                     do iq = 1,recv_len
+                        t(ifull+bnds(lproc)%unpack_list(iq),k,l)  &
+                            = bnds(lproc)%rbuf(iq+(k-1)*recv_len+(l-1)*recv_len*kx)
+                     end do   
+                  end do   
+               end do
+            end if ! mproc <= rreq  
+         end do    ! jproc = 1,ldone
+      end do       ! while( rcount > 0 )
 
    end subroutine bounds_recv4
    

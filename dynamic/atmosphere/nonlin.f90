@@ -58,9 +58,13 @@ integer, save :: num = 0
 real invconst_nh, contv
 real, dimension(ifull,kl) :: aa, bb
 real, dimension(ifull+iextra,kl) :: p, tv, phiv
-real, dimension(ifull+iextra,kl+1) :: duma
-real, dimension(ifull+iextra,kl,2) :: dumb
+#ifdef faststack
+real, dimension(ifull+iextra,3*kl+1) :: duma
 real, dimension(ifull+iextra,2*kl) :: dumu, dumv
+#else
+real, dimension(:,:), allocatable :: duma
+real, dimension(:,:), allocatable :: dumu, dumv
+#endif
 real, dimension(ifull) :: t_nh, spmax2, termlin
 real, allocatable, save, dimension(:) :: epstsav
       
@@ -295,21 +299,26 @@ do k = 1,kl
 end do
 
 
+#ifndef faststack
+allocate( duma(ifull+iextra,3*kl+1) )
+#endif
+
 ! MJT notes - This is the first bounds call after the physics
 ! routines, so load balance is a significant issue
-dumb(ifull+1:ifull+iextra,:,:) = 0.
-dumb(1:ifull,:,1) = p(1:ifull,:)
-dumb(1:ifull,:,2) = tv(1:ifull,:)
-call bounds(dumb(:,:,1:2),nehalf=.true.)
-p(ifull+1:ifull+iextra,:) = dumb(ifull+1:ifull+iextra,:,1)
-tv(ifull+1:ifull+iextra,:) = dumb(ifull+1:ifull+iextra,:,2)
-
 duma(ifull+1:ifull+iextra,:) = 0. ! avoids float invalid errors
 duma(1:ifull,1:kl) = phiv(1:ifull,:)
-duma(1:ifull,kl+1) = psl(1:ifull)
+duma(1:ifull,kl+1:2*kl) = p(1:ifull,:)
+duma(1:ifull,2*kl+1:3*kl) = tv(1:ifull,:)
+duma(1:ifull,3*kl+1) = psl(1:ifull)
 call bounds(duma)
 phiv(ifull+1:ifull+iextra,1:kl) = duma(ifull+1:ifull+iextra,1:kl)
-psl(ifull+1:ifull+iextra)       = duma(ifull+1:ifull+iextra,kl+1)
+p(ifull+1:ifull+iextra,1:kl)    = duma(ifull+1:ifull+iextra,kl+1:2*kl)
+tv(ifull+1:ifull+iextra,1:kl)   = duma(ifull+1:ifull+iextra,2*kl+1:3*kl)
+psl(ifull+1:ifull+iextra)       = duma(ifull+1:ifull+iextra,3*kl+1)
+
+#ifndef faststack
+deallocate( duma )
+#endif
 
 
 do k = 1,kl
@@ -334,6 +343,10 @@ if ( diag ) then
 end if                     ! (diag)
 
 
+#ifndef faststack
+allocate( dumu(ifull+iextra,2*kl), dumv(ifull+iextra,2*kl) )
+#endif
+
 ! Bounds call for unstaggering winds
 dumu(1:ifull,1:kl) = aa(1:ifull,1:kl)
 dumv(1:ifull,1:kl) = bb(1:ifull,1:kl)
@@ -344,6 +357,10 @@ ux(1:ifull,1:kl) = dumu(1:ifull,1:kl)
 vx(1:ifull,1:kl) = dumv(1:ifull,1:kl)
 un(1:ifull,1:kl) = dumu(1:ifull,kl+1:2*kl)
 vn(1:ifull,1:kl) = dumv(1:ifull,kl+1:2*kl)
+
+#ifndef faststack
+deallocate( dumu, dumv )
+#endif
 
 
 if ( diag ) then
