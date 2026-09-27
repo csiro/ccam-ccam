@@ -114,11 +114,18 @@ contains
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
+#ifdef faststack
+      real, dimension((msg_len*npanx+1)*kx) :: tdat
+      real, dimension((msg_len*npanx+1)*kx,nmax) :: tdat_g
+#else
       real, dimension(:), allocatable :: tdat
       real, dimension(:,:), allocatable :: tdat_g
+#endif
       
+#ifndef faststack
       allocate( tdat((msg_len*npanx+1)*kx) )
       allocate( tdat_g((msg_len*npanx+1)*kx,nmax) )
+#endif      
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per process
@@ -161,8 +168,10 @@ contains
          dsolmax(1:kx) = maxval( tdat_g(hoz_len*kx+1:ilen,1:nmax), dim=2 )
       end if
       
+#ifndef faststack
       deallocate( tdat )
       deallocate( tdat_g )
+#endif
 
    end subroutine mgcollectreduce_work
 
@@ -196,11 +205,18 @@ contains
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
+#ifdef faststack
+      real, dimension(msg_len*npanx*kx) :: tdat
+      real, dimension(msg_len*npanx*kx,nmax) :: tdat_g
+#else
       real, dimension(:), allocatable :: tdat
       real, dimension(:,:), allocatable :: tdat_g
+#endif
       
+#ifndef faststack
       allocate( tdat(msg_len*npanx*kx) )
       allocate( tdat_g(msg_len*npanx*kx,nmax) )
+#endif
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per process
@@ -240,8 +256,10 @@ contains
          end do
       end if
       
+#ifndef faststack
       deallocate( tdat )
       deallocate( tdat_g )
+#endif
 
    end subroutine mgcollect_work
 
@@ -277,11 +295,18 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
+#ifdef faststack
+      real, dimension((msg_len*npanx+2)*kx) :: tdat
+      real, dimension((msg_len*npanx+2)*kx,nmax) :: tdat_g
+#else
       real, dimension(:), allocatable :: tdat
       real, dimension(:,:), allocatable :: tdat_g
+#endif
       
+#ifndef faststack
       allocate( tdat((msg_len*npanx+2)*kx) )
       allocate( tdat_g((msg_len*npanx+2)*kx,nmax) )
+#endif
 
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per process
@@ -324,8 +349,10 @@ contains
          smaxmin(1:kx,2) = minval( tdat_g((hoz_len+1)*kx+1:ilen,1:nmax), dim=2 )
       end if   
       
+#ifndef faststack
       deallocate( tdat )
       deallocate( tdat_g )
+#endif
   
    end subroutine mgcollectxn_work
 
@@ -357,14 +384,20 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
+#ifdef faststack
+      real, dimension((mg(g)%ifull+mg(g)%iextra+1)*size(vdat,2)) :: tdat
+#else
       real, dimension(:), allocatable :: tdat
+#endif
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat,2)
+#ifndef faststack
       allocate( tdat((mg(g)%ifull+mg(g)%iextra+1)*kx) )
+#endif
       
       dx = size(dsolmax)
       if ( present(klim) ) then
@@ -401,7 +434,9 @@ contains
       vdat(1:out_len,1:kx) = reshape( tdat(1:out_len*kx), (/ out_len, kx /) )
       dsolmax(1:dx) = tdat(out_len*kx+1:ilen)
       
+#ifndef faststack
       deallocate( tdat )
+#endif
    
    end subroutine mgbcast3
 
@@ -429,14 +464,20 @@ contains
       integer :: kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
+#ifdef faststack
+      real, dimension((mg(g)%ifull+mg(g)%iextra)*size(vdat,2)) :: tdat
+#else
       real, dimension(:), allocatable :: tdat
+#endif
       logical, intent(in), optional :: nobounds
       logical :: nbflag
 
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat,2)
-      allocate( tdat((mg(g)%ifull + mg(g)%iextra)*kx) )
+#ifndef faststack
+      allocate( tdat((mg(g)%ifull+mg(g)%iextra)*kx) )
+#endif
       
       nbflag = .false.
       if ( present(nobounds) ) then
@@ -465,7 +506,9 @@ contains
       ! extract data from Bcast
       vdat(1:out_len,1:kx) = reshape( tdat(1:ilen), (/ out_len, kx /) )
       
+#ifndef faststack
       deallocate( tdat )
+#endif
    
    end subroutine mgbcasta3
    
@@ -478,14 +521,20 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
+#ifdef faststack
+      real, dimension((mg(g)%ifull+mg(g)%iextra+2)*size(vdat,2)) :: tdat
+#else
       real, dimension(:), allocatable :: tdat
+#endif
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat, 2)
+#ifndef faststack
       allocate( tdat((mg(g)%ifull+mg(g)%iextra+2)*kx) )
+#endif
 
       nbflag = .false.
       if (present(klim)) then
@@ -519,7 +568,9 @@ contains
       vdat(1:out_len,1:kx) = reshape( tdat(1:out_len*kx), (/ out_len, kx /) )
       smaxmin(1:kx,1:2) = reshape( tdat(out_len*kx+1:ilen), (/ kx, 2 /) )
       
+#ifndef faststack
       deallocate( tdat )
+#endif
    
    end subroutine mgbcastxn3
    
@@ -1353,27 +1404,32 @@ contains
          end if
       end do
 
-      rcount = nreq
+      rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitpoint_begin)
-         call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitpoint_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
-            if ( mproc <= rreq ) then
-               iproc = rlist(mproc)  ! Recv from
-               lproc = mg(g)%neighlist(iproc)
-               recv_len = rslen(iproc)
-               do k = 1,kx
-                  do iq = 1,recv_len
-                     vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq),k) &
-                         = bnds(lproc)%rbuf(iq+(k-1)*recv_len)
-                  end do
+            iproc = rlist(mproc)  ! Recv from
+            lproc = mg(g)%neighlist(iproc)
+            recv_len = rslen(iproc)
+            do k = 1,kx
+               do iq = 1,recv_len
+                  vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq),k) &
+                      = bnds(lproc)%rbuf(iq+(k-1)*recv_len)
                end do
-            end if    ! mproc <= rreq
+            end do
          end do
       end do
+      
+      rcount = nreq - rreq
+      if ( rcount > 0 ) then
+         call START_LOG(mpiwaitpoint_begin)
+         call MPI_Waitall( rcount, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr)
+         call END_LOG(mpiwaitpoint_end)
+      end if
 
    end subroutine mgbounds3
 
@@ -1450,30 +1506,33 @@ contains
          end if
       end do
 
-      rcount = nreq
+      rcount = rreq
       do while ( rcount > 0 )
          call START_LOG(mpiwaitpoint_begin)
-         call MPI_Waitsome( nreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
+         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
          call END_LOG(mpiwaitpoint_end)
          rcount = rcount - ldone
          do jproc = 1,ldone
             mproc = donelist(jproc)
-            if ( mproc <= rreq ) then
-               iproc = rlist(mproc)  ! Recv from
-               lproc = mg(g)%neighlist(iproc)
-               iqq = 0
-               ibeg = mg_bnds(lproc,g)%rlen_bg(colour)
-               iend = mg_bnds(lproc,g)%rlen_fn(colour)               
-               do k = 1,kx
-                  do iq = 1,iend-ibeg+1
-                     vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq+ibeg-1),k) &
-                         = bnds(lproc)%rbuf(iqq+iq+(k-1)*(iend-ibeg+1))
-                  end do
+            iproc = rlist(mproc)  ! Recv from
+            lproc = mg(g)%neighlist(iproc)
+            ibeg = mg_bnds(lproc,g)%rlen_bg(colour)
+            iend = mg_bnds(lproc,g)%rlen_fn(colour)               
+            do k = 1,kx
+               do iq = 1,iend-ibeg+1
+                  vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq+ibeg-1),k) &
+                      = bnds(lproc)%rbuf(iq+(k-1)*(iend-ibeg+1))
                end do
-               iqq = iqq + (iend-ibeg+1)*kx
-            end if    ! mproc <= rreq
+            end do
          end do
       end do
+      
+      rcount = nreq - rreq
+      if ( rcount > 0 ) then
+         call START_LOG(mpiwaitpoint_begin)
+         call MPI_Waitall( rcount, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr)
+         call END_LOG(mpiwaitpoint_end)
+      end if
 
    end subroutine mgbounds_colour3
    
