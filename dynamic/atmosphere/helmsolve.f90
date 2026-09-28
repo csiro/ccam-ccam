@@ -3116,18 +3116,18 @@ do g = 1,mg_maxlevel
       end if
       
       ! check for gather16 which has larger messages but less parallel calculations
-      if ( mod(mxpr,4)==0 .and. mod(mypr,4)==0 .and. g<mg_maxlevel-1 ) then
-        mg(g)%merge_len = 16
-        mg(g)%merge_row = 4
-        mg(g)%nmax = 16
-        mxpr = mxpr/4
-        mypr = mypr/4
-        mipan = 4*mipan
-        mjpan = 4*mjpan
-        if ( myid==0 ) then
-          write(6,*) "-> Multi-grid gather16 at level          ",g,mipan,mjpan
-        end if
-      else    
+      !if ( mod(mxpr,4)==0 .and. mod(mypr,4)==0 .and. g<mg_maxlevel-1 ) then
+      !  mg(g)%merge_len = 16
+      !  mg(g)%merge_row = 4
+      !  mg(g)%nmax = 16
+      !  mxpr = mxpr/4
+      !  mypr = mypr/4
+      !  mipan = 4*mipan
+      !  mjpan = 4*mjpan
+      !  if ( myid==0 ) then
+      !    write(6,*) "-> Multi-grid gather16 at level          ",g,mipan,mjpan
+      !  end if
+      !else    
         mg(g)%merge_len = 4
         mg(g)%merge_row = 2
         mg(g)%nmax = 4
@@ -3138,7 +3138,7 @@ do g = 1,mg_maxlevel
         if ( myid==0 ) then
           write(6,*) "-> Multi-grid gather4 at level           ",g,mipan,mjpan
         end if
-      end if  
+      !end if  
 
       allocate( mg(g)%merge_list(mg(g)%merge_len) )
       

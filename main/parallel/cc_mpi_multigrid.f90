@@ -182,7 +182,6 @@ contains
       integer :: kx, msg_len, ipanx, jpanx
       real, dimension(:,:), intent(inout) :: vdat
 
-      ! merge length
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat, 2)
@@ -271,7 +270,6 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
 
-      ! merge length
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat, 2)
@@ -385,7 +383,7 @@ contains
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 #ifdef faststack
-      real, dimension((mg(g)%ifull+mg(g)%iextra+1)*size(vdat,2)) :: tdat
+      real, dimension((mg(g)%ifull+mg(g)%iextra)*size(vdat,2)+size(dsolmax)) :: tdat
 #else
       real, dimension(:), allocatable :: tdat
 #endif
@@ -395,10 +393,6 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat,2)
-#ifndef faststack
-      allocate( tdat((mg(g)%ifull+mg(g)%iextra+1)*kx) )
-#endif
-      
       dx = size(dsolmax)
       if ( present(klim) ) then
          kx = klim
@@ -416,6 +410,10 @@ contains
          out_len = mg(g)%ifull + mg(g)%iextra
       end if  
       ilen = out_len*kx + dx
+
+#ifndef faststack
+      allocate( tdat(ilen) )
+#endif
       
       ! pack contiguous buffer
       tdat(1:out_len*kx) = reshape( vdat(1:out_len,1:kx), (/ out_len*kx /) )
