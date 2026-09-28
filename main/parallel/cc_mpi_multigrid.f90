@@ -378,12 +378,12 @@ contains
       ! This version also updates the convergence (dsolmax)
       integer, intent(in) :: g
       integer, intent(in), optional :: klim
-      integer :: kx, out_len, dx
+      integer :: kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
 #ifdef faststack
-      real, dimension((mg(g)%ifull+mg(g)%iextra)*size(vdat,2)+size(dsolmax)) :: tdat
+      real, dimension((mg(g)%ifull+mg(g)%iextra+1)*size(vdat,2)) :: tdat
 #else
       real, dimension(:), allocatable :: tdat
 #endif
@@ -393,10 +393,8 @@ contains
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat,2)
-      dx = size(dsolmax)
       if ( present(klim) ) then
          kx = klim
-         dx = min( dx, kx )
       end if
       
       nbflag = .false.
@@ -409,7 +407,7 @@ contains
       else   
          out_len = mg(g)%ifull + mg(g)%iextra
       end if  
-      ilen = out_len*kx + dx
+      ilen = (out_len+1)*kx
 
 #ifndef faststack
       allocate( tdat(ilen) )
@@ -417,7 +415,7 @@ contains
       
       ! pack contiguous buffer
       tdat(1:out_len*kx) = reshape( vdat(1:out_len,1:kx), (/ out_len*kx /) )
-      tdat(out_len*kx+1:ilen) = dsolmax(1:dx)
+      tdat(out_len*kx+1:ilen) = dsolmax(1:kx)
 
       lcomm = mg(g)%comm_merge
       call START_LOG(bcast_begin)
@@ -430,7 +428,7 @@ contains
 
       ! extract data from Bcast
       vdat(1:out_len,1:kx) = reshape( tdat(1:out_len*kx), (/ out_len, kx /) )
-      dsolmax(1:dx) = tdat(out_len*kx+1:ilen)
+      dsolmax(1:kx) = tdat(out_len*kx+1:ilen)
       
 #ifndef faststack
       deallocate( tdat )
