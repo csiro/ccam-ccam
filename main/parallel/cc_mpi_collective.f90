@@ -1701,33 +1701,14 @@ contains
    end subroutine deallocateglobalpack
    
    subroutine ccglobal_posneg2(array, delpos, delneg)
-      ! Calculate global sums of positive and negative values of array
-      use sumdd_m
-      use xyzinfo_m   
       real, intent(in), dimension(ifull) :: array
       real, intent(out) :: delpos, delneg
-      real, dimension(:,:), allocatable :: tmparr
-      integer(kind=4) :: ierr, mnum, lcomm
-      complex, dimension(2) :: local_sum, global_sum
+      real, dimension(1) :: dsig
+      real, dimension(ifull,1) :: array_t
 
-      local_sum(1:2) = cmplx(0., 0.)
-      allocate( tmparr(ifull,2) )
-      tmparr(1:ifull,1) = max(0.,array(1:ifull)*wts(1:ifull))
-      tmparr(1:ifull,2) = min(0.,array(1:ifull)*wts(1:ifull))
-      call drpdr_local_v(tmparr(:,:),local_sum(:))
-      deallocate( tmparr )
-      mnum = 2
-      global_sum(1:2) = cmplx(0.,0.)
-      lcomm = comm_world
-      call START_LOG(allreduce_begin)
-#ifdef i8r8
-      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, ierr )
-#else
-      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_COMPLEX, MPI_SUMDR, lcomm, ierr )
-#endif
-      call END_LOG(allreduce_end)
-      delpos = real(global_sum(1))
-      delneg = real(global_sum(2))
+      array_t(:,1) = array(:)
+      dsig(1) = 1.
+      call ccglobal_posneg3(array_t, delpos, delneg, dsig)
 
    end subroutine ccglobal_posneg2
     
@@ -1738,20 +1719,28 @@ contains
       real, intent(in), dimension(:,:) :: array
       real, intent(in), dimension(:) :: dsig
       real, intent(out) :: delpos, delneg
+#ifdef faststack
+      real, dimension(ifull,2) :: tmparr
+#else
       real, dimension(:,:), allocatable :: tmparr
+#endif
       integer :: k, kx
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2) :: local_sum, global_sum
 
       kx  = size(array,2)
       local_sum(1:2) = cmplx(0., 0.)
+#ifndef faststack
       allocate( tmparr(ifull,2) )
+#endif
       do k = 1,kx
          tmparr(1:ifull,1) = max(0.,abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
          tmparr(1:ifull,2) = min(0.,abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
         call drpdr_local_v(tmparr(:,:),local_sum(:))
       end do
+#ifndef faststack
       deallocate( tmparr )
+#endif
       mnum = 2
       global_sum(1:2) = cmplx(0.,0.)
       lcomm = comm_world
@@ -1774,20 +1763,28 @@ contains
       real, intent(in), dimension(:,:) :: array
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out) :: delpos, delneg
+#ifdef faststack
+      real, dimension(ifull,2) :: tmparr
+#else
       real, dimension(:,:), allocatable :: tmparr
+#endif      
       integer :: k, kx
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2) :: local_sum, global_sum
 
       kx  = size(array,2)
       local_sum(1:2) = cmplx(0., 0.)
+#ifndef faststack
       allocate( tmparr(ifull,2) )
+#endif
       do k = 1,kx
          tmparr(1:ifull,1) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
          tmparr(1:ifull,2) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
          call drpdr_local_v(tmparr(:,:),local_sum(:))   
       end do
+#ifndef faststack
       deallocate( tmparr )
+#endif
       mnum = 2
       global_sum(1:2) = cmplx(0.,0.)
       lcomm = comm_world
@@ -1810,7 +1807,11 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
+#ifdef faststack
+      real, dimension(ifull,2*size(array,3)) :: tmparr
+#else
       real, dimension(:,:), allocatable :: tmparr
+#endif
       integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
@@ -1818,7 +1819,9 @@ contains
       kx  = size(array,2)
       ntr = size(array,3)
       local_sum(1:2*ntr) = cmplx(0., 0.)
+#ifndef faststack
       allocate( tmparr(ifull,2*ntr) )
+#endif
       do k = 1,kx
         do i = 1,ntr
             tmparr(1:ifull,i) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
@@ -1826,7 +1829,9 @@ contains
         end do ! i loop
         call drpdr_local_v(tmparr(:,:),local_sum(:))
       end do
+#ifndef faststack
       deallocate( tmparr )
+#endif
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
       lcomm = comm_world
@@ -1849,7 +1854,11 @@ contains
       real, intent(in), dimension(:,:,:) :: array
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
+#ifdef faststack
+      real, dimension(ifull,2*size(array,3)) :: tmparr
+#else
       real, dimension(:,:), allocatable :: tmparr
+#endif
       integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
@@ -1857,7 +1866,9 @@ contains
       kx  = size(array,2)
       ntr = size(array,3)
       local_sum(1:2*ntr) = cmplx(0., 0.)
+#ifndef faststack
       allocate( tmparr(ifull,2*ntr) )
+#endif
       do k = 1,kx
          do i = 1,ntr
             tmparr(1:ifull,i) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
@@ -1865,7 +1876,9 @@ contains
          end do ! i loop
          call drpdr_local_v(tmparr(:,:),local_sum(:))   
       end do
+#ifndef faststack
       deallocate( tmparr )
+#endif
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
       lcomm = comm_world
