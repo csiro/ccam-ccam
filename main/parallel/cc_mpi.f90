@@ -179,6 +179,8 @@ module cc_mpi
    public :: mgbounds, mgcollect, mgbcast, mg_index, mg_fproc, mg_fproc_1,  &
              mgbounds_colour
    public :: mg, mg_bnds, mg_maxlevel_local, mg_maxlevel
+   public :: mg_ifull_maxcolour
+   public :: col_iq
 
    ! Imported from cc_mpi_file
    public :: ccmpi_filewinget, ccmpi_filebounds_setup,                      &

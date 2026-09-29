@@ -3317,7 +3317,7 @@ contains
       integer :: iproc, jproc, dproc
       integer :: ip, jp, xn, kx
       integer :: iq, k
-      integer :: rcount, nmaxsize
+      integer :: rcount
       integer(kind=4), save :: itag=99
       integer(kind=4) :: ierr, llen, ncount, lproc
       integer(kind=4) :: ldone, lcomm
@@ -3326,6 +3326,7 @@ contains
 #ifdef faststack
       real, dimension(4,maxbuflen*maxvertlen,neighnum) :: buf_dpoints, buf_dbuf 
 #else
+      integer :: nmaxsize
       real, dimension(:,:,:), allocatable :: buf_dpoints, buf_dbuf 
 #endif
 
@@ -3416,8 +3417,8 @@ contains
          end if
       end do
       
-      nmaxsize = maxval( dslen(1:neighnum) )
 #ifndef faststack
+      nmaxsize = maxval( dslen(1:neighnum) )
       allocate( buf_dbuf(4,nmaxsize,neighnum) )
 #endif
 

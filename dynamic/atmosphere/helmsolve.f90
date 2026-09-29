@@ -1156,19 +1156,15 @@ do itr = 1,itr_mg
       do itrc = 1,itr_mg
         do k = 1,klimc  
           vsavc(1:ng) = v(1:ng,k,g)
-          do nc = 1,maxcolour
-            do iql = 1,mg(g)%ifull_colour(nc)  
-              iq = mg(g)%iqx(iql,nc)  
-              w(iq,k) = ( mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) &
-                        + mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) &
-                        + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
-                        + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
-                        - rhs(iq,k,g) )/(helm(iq,k,g)-mg(g)%zz(iq))
+          do nc = 1,3
+            do iql = 1,mg_ifull_maxcolour  
+              iq = col_iq(iql,nc) 
+              v(iq,k,g) = ( mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) &
+                          + mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) &
+                          + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
+                          + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
+                          - rhs(iq,k,g) )/(helm(iq,k,g)-mg(g)%zz(iq))
             end do  
-            do iql = 1,mg(g)%ifull_colour(nc)  
-              iq = mg(g)%iqx(iql,nc)  
-              v(iq,k,g) = w(iq,k)
-            end do
           end do ! nc = 1,maxcolour  
           dsolmaxc(k) = maxval( abs( v(1:ng,k,g) - vsavc(1:ng) ) )
         end do
@@ -1260,7 +1256,7 @@ do itr = 1,itr_mg
   ! multi-grid solver bounds indices do not match standard iextra indicies, so we need to remap the halo
   if ( mg(1)%merge_len>1 ) then
     if ( itr==1 ) then
-      call mgbcast(1,w(:,1:kl),smaxmin_g(:,:),nobounds=.true.)  
+      call mgbcast(1,w(:,1:kl),smaxmin_g(:,1:2),nobounds=.true.)  
     else
       call mgbcast(1,w(:,1:klim),dsolmax_g(:),klim=klim,nobounds=.true.)
     end if  
@@ -1941,33 +1937,25 @@ do itr = 1,itr_mgice
 
         ! ocean
         do nc = 1,maxcolour
-          do iql = 1,mg(g)%ifull_colour(nc)  
-            iq = mg(g)%iqx(iql,nc)  
+          do iql = 1,mg_ifull_maxcolour  
+            iq = col_iq(iql,nc)  
             bu = yyn(iq,g)*v(mg(g)%in(iq),1,g) + yys(iq,g)*v(mg(g)%is(iq),1,g) &
                + yye(iq,g)*v(mg(g)%ie(iq),1,g) + yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
                + zz(iq,g) + hh(iq,g)
             cu = zzn(iq,g)*v(mg(g)%in(iq),1,g) + zzs(iq,g)*v(mg(g)%is(iq),1,g) &
                + zze(iq,g)*v(mg(g)%ie(iq),1,g) + zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
                - rhs(iq,g)
-            vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01))) 
-          end do  
-          do iql = 1,mg(g)%ifull_colour(nc)  
-            iq = mg(g)%iqx(iql,nc)  
-            v(iq,1,g) = vnew(iq) 
+            v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01))) 
           end do  
         end do  
       
         ! ice
         do nc = 1,maxcolour
-          do iql = 1,mg(g)%ifull_colour(nc)  
-            iq = mg(g)%iqx(iql,nc)
-            vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g)     &
-                         - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g)     &
-                         + rhsi(iq,g) ) / zzi(iq,g)
-          end do
-          do iql = 1,mg(g)%ifull_colour(nc)  
-            iq = mg(g)%iqx(iql,nc)  
-            v(iq,2,g) = vnew(iq)
+          do iql = 1,mg_ifull_maxcolour  
+            iq = col_iq(iql,nc)
+            v(iq,2,g) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g)     &
+                          - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g)     &
+                          + rhsi(iq,g) ) / zzi(iq,g)
           end do
         end do
         
@@ -3333,8 +3321,6 @@ do g = 1,mg_maxlevel
   
   np = mg(g)%ifull
   allocate( mg(g)%in(np), mg(g)%ie(np), mg(g)%is(np), mg(g)%iw(np) )
-  allocate( mg(g)%ine(np), mg(g)%ien(np), mg(g)%inw(np), mg(g)%iwn(np) )
-  allocate( mg(g)%ise(np), mg(g)%ies(np), mg(g)%isw(np), mg(g)%iws(np) )
   
   call mg_index(g,mil_g,mipan,mjpan)
 
@@ -3427,9 +3413,6 @@ do g = 1,mg_maxlevel
   ! free some memory
   if ( g>=gmax+2 ) then
     deallocate( mg(g)%in, mg(g)%ie, mg(g)%is, mg(g)%iw )
-    deallocate( mg(g)%ine, mg(g)%ien, mg(g)%inw, mg(g)%iwn )
-    deallocate( mg(g)%ise, mg(g)%ies, mg(g)%isw, mg(g)%iws )
-    deallocate( mg(g)%ifull_colour, mg(g)%iqx )
   end if
   
 end do

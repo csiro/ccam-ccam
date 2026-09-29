@@ -1720,35 +1720,45 @@ contains
       real, intent(in), dimension(:) :: dsig
       real, intent(out) :: delpos, delneg
 #ifdef faststack
-      real, dimension(ifull,2) :: tmparr
+      real, dimension(ifull,2*size(array,2)) :: tmparr
 #else
       real, dimension(:,:), allocatable :: tmparr
 #endif
       integer :: k, kx
-      integer(kind=4) :: ierr, mnum, lcomm
+      integer(kind=4) :: ierr, lcomm
       complex, dimension(2) :: local_sum, global_sum
+      complex, dimension(2*size(array,2)) :: local_sum_k
 
       kx  = size(array,2)
-      local_sum(1:2) = cmplx(0., 0.)
 #ifndef faststack
-      allocate( tmparr(ifull,2) )
+      allocate( tmparr(ifull,2*kx) )
 #endif
       do k = 1,kx
-         tmparr(1:ifull,1) = max(0.,abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
-         tmparr(1:ifull,2) = min(0.,abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
-        call drpdr_local_v(tmparr(:,:),local_sum(:))
+         tmparr(1:ifull,k)    = max(0.,abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull,k+kx) = min(0.,abs(dsig(k))*array(1:ifull,k)*wts(1:ifull))
       end do
+      local_sum_k(1:2*kx) = cmplx(0., 0.)
+      call drpdr_local_v(tmparr,local_sum_k)
 #ifndef faststack
       deallocate( tmparr )
 #endif
-      mnum = 2
+      local_sum(1:2) = cmplx(0., 0.)
+      do k = 1,kx
+#ifdef i8r8
+         call drpdr(local_sum_k(k:k),local_sum(1:1),1,MPI_DOUBLE_COMPLEX)
+         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,MPI_DOUBLE_COMPLEX)
+#else
+         call drpdr(local_sum_k(k:k),local_sum(1:1),1,MPI_COMPLEX)
+         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,MPI_COMPLEX)
+#endif
+      end do
       global_sum(1:2) = cmplx(0.,0.)
       lcomm = comm_world
       call START_LOG(allreduce_begin)
 #ifdef i8r8
-      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, ierr )
+      call MPI_Allreduce( local_sum, global_sum, 2_4, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, ierr )
 #else
-      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_COMPLEX, MPI_SUMDR, lcomm, ierr )
+      call MPI_Allreduce( local_sum, global_sum, 2_4, MPI_COMPLEX, MPI_SUMDR, lcomm, ierr )
 #endif
       call END_LOG(allreduce_end)
       delpos = real(global_sum(1))
@@ -1764,35 +1774,45 @@ contains
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out) :: delpos, delneg
 #ifdef faststack
-      real, dimension(ifull,2) :: tmparr
+      real, dimension(ifull,2*size(array,2)) :: tmparr
 #else
       real, dimension(:,:), allocatable :: tmparr
 #endif      
       integer :: k, kx
-      integer(kind=4) :: ierr, mnum, lcomm
+      integer(kind=4) :: ierr, lcomm
       complex, dimension(2) :: local_sum, global_sum
+      complex, dimension(2*size(array,2)) :: local_sum_k
 
       kx  = size(array,2)
-      local_sum(1:2) = cmplx(0., 0.)
 #ifndef faststack
-      allocate( tmparr(ifull,2) )
+      allocate( tmparr(ifull,2*kx) )
 #endif
       do k = 1,kx
-         tmparr(1:ifull,1) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
-         tmparr(1:ifull,2) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
-         call drpdr_local_v(tmparr(:,:),local_sum(:))   
+         tmparr(1:ifull,k) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
+         tmparr(1:ifull,k+kx) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k)*wts(1:ifull))
       end do
 #ifndef faststack
       deallocate( tmparr )
 #endif
-      mnum = 2
+      local_sum_k(1:2*kx) = cmplx(0., 0.)
+      call drpdr_local_v(tmparr,local_sum_k)
+      local_sum(1:2) = cmplx(0., 0.)
+      do k = 1,kx
+#ifdef i8r8
+        call drpdr(local_sum_k(k:k),local_sum(1:1),1,MPI_DOUBLE_COMPLEX)
+        call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,MPI_DOUBLE_COMPLEX)  
+#ekse
+        call drpdr(local_sum_k(k:k),local_sum(1:1),1,MPI_COMPLEX)
+        call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,MPI_COMPLEX)  
+#endif
+      end do
       global_sum(1:2) = cmplx(0.,0.)
       lcomm = comm_world
       call START_LOG(allreduce_begin)
 #ifdef i8r8
-      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, ierr )
+      call MPI_Allreduce( local_sum, global_sum, 2_4, MPI_DOUBLE_COMPLEX, MPI_SUMDR, lcomm, ierr )
 #else
-      call MPI_Allreduce( local_sum, global_sum, mnum, MPI_COMPLEX, MPI_SUMDR, lcomm, ierr )
+      call MPI_Allreduce( local_sum, global_sum, 2_4, MPI_COMPLEX, MPI_SUMDR, lcomm, ierr )
 #endif
       call END_LOG(allreduce_end)
       delpos = real(global_sum(1))
@@ -1808,30 +1828,43 @@ contains
       real, intent(in), dimension(:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
 #ifdef faststack
-      real, dimension(ifull,2*size(array,3)) :: tmparr
+      real, dimension(ifull,2*size(array,2)) :: tmparr
 #else
       real, dimension(:,:), allocatable :: tmparr
 #endif
       integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
+      complex, dimension(2*size(array,2),size(array,3)) :: local_sum_ki
 
       kx  = size(array,2)
       ntr = size(array,3)
-      local_sum(1:2*ntr) = cmplx(0., 0.)
 #ifndef faststack
-      allocate( tmparr(ifull,2*ntr) )
+      allocate( tmparr(ifull,2*kx) )
 #endif
-      do k = 1,kx
-        do i = 1,ntr
-            tmparr(1:ifull,i) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
-            tmparr(1:ifull,i+ntr) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
-        end do ! i loop
-        call drpdr_local_v(tmparr(:,:),local_sum(:))
-      end do
+      local_sum_ki(1:2*kx,1:ntr) = cmplx(0., 0.)
+      do i = 1,ntr
+         do k = 1,kx
+            tmparr(1:ifull,k) = max(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull,k+kx) = min(0.,abs(dsig(k))*array(1:ifull,k,i)*wts(1:ifull))
+         end do ! k loop
+         call drpdr_local_v(tmparr,local_sum_ki(:,i))
+      end do    ! i loop
 #ifndef faststack
       deallocate( tmparr )
 #endif
+      local_sum(1:2*ntr) = cmplx(0., 0.)
+      do i = 1,ntr
+         do k = 1,kx
+#ifdef i8r8
+            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1,MPI_DOUBLE_COMPLEX)
+            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1,MPI_DOUBLE_COMPLEX)
+#else
+            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1,MPI_COMPLEX)
+            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1,MPI_COMPLEX)
+#endif
+         end do
+      end do
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
       lcomm = comm_world
@@ -1855,30 +1888,42 @@ contains
       real, intent(in), dimension(:,:) :: dsig
       real, intent(out), dimension(:) :: delpos, delneg
 #ifdef faststack
-      real, dimension(ifull,2*size(array,3)) :: tmparr
+      real, dimension(ifull,2*size(array,2)) :: tmparr
 #else
       real, dimension(:,:), allocatable :: tmparr
 #endif
       integer :: i, k, kx, ntr
       integer(kind=4) :: ierr, mnum, lcomm
       complex, dimension(2*size(array,3)) :: local_sum, global_sum
+      complex, dimension(2*size(array,2),size(array,3)) :: local_sum_ki
 
       kx  = size(array,2)
       ntr = size(array,3)
-      local_sum(1:2*ntr) = cmplx(0., 0.)
 #ifndef faststack
-      allocate( tmparr(ifull,2*ntr) )
+      allocate( tmparr(ifull,2*kx) )
 #endif
-      do k = 1,kx
-         do i = 1,ntr
-            tmparr(1:ifull,i) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
-            tmparr(1:ifull,i+ntr) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
-         end do ! i loop
-         call drpdr_local_v(tmparr(:,:),local_sum(:))   
+      do i = 1,ntr
+         do k = 1,kx      
+            tmparr(1:ifull,k) = max(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
+            tmparr(1:ifull,k+kx) = min(0.,abs(dsig(1:ifull,k))*array(1:ifull,k,i)*wts(1:ifull))
+         end do ! k loop
+         call drpdr_local_v(tmparr,local_sum_ki(:,i))   
       end do
 #ifndef faststack
       deallocate( tmparr )
 #endif
+      local_sum(1:2*ntr) = cmplx(0., 0.)
+      do i = 1,ntr
+         do k = 1,kx
+#ifdef i8r8
+            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1,MPI_DOUBLE_COMPLEX)
+            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1,MPI_DOUBLE_COMPLEX)
+#else
+            call drpdr(local_sum_ki(k:k,i),local_sum(i:i),1,MPI_COMPLEX)
+            call drpdr(local_sum_ki(k+kx:k+kx,i),local_sum(i+ntr:i+ntr),1,MPI_COMPLEX)
+#endif
+         end do
+      end do      
       mnum = 2*ntr
       global_sum(1:2*ntr) = cmplx(0.,0.)
       lcomm = comm_world
