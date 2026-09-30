@@ -29,14 +29,10 @@ module cc_mpi_multigrid
 
    private
 
-   public :: mgbounds, mgcollect, mgbcast, mg_index, mg_fproc, mg_fproc_1,  &
-             mgbounds_colour
+   public :: mgbounds, mgcollect, mgbcast, mg_index, mg_fproc, mg_fproc_1
    
    interface mgbounds
       module procedure mgbounds2, mgbounds3
-   end interface
-   interface mgbounds_colour
-      module procedure mgbounds_colour3
    end interface
    interface mgbcast
       module procedure mgbcast2, mgbcast3
@@ -1113,98 +1109,6 @@ contains
 
    end subroutine mgbounds3
 
-   subroutine mgbounds_colour3(g,vdat,colour,klim)
-      ! update halo for specified colour with multi-grid level g
-      integer, intent(in) :: g, colour
-      real, dimension(:,:), intent(inout) :: vdat
-      integer, intent(in), optional :: klim
-      integer :: kx, iproc, recv_len
-      integer :: rcount, jproc, mproc, iq, k, iqq, ibeg, iend
-      integer(kind=4) :: ierr, itag=20, llen, lproc
-      integer(kind=4) :: ldone, lcomm
-      integer(kind=4), dimension(2*mg(g)%neighnum) :: donelist
-
-      kx = size(vdat,2)
-      if (present(klim)) then
-         kx = klim
-      end if
-      
-      if ( colour<0 .or. colour>maxcolour ) then
-         write(6,*) "ERROR: Invalid colour for mgbounds_colour"
-         call ccmpi_abort(-1)
-      end if
-
-      !     Set up the buffers to send and recv
-      lcomm = comm_world
-      nreq = 0
-      do iproc = 1,mg(g)%neighnum
-         lproc = mg(g)%neighlist(iproc)  ! Recv from
-         recv_len = mg_bnds(lproc,g)%rlen
-         if ( recv_len > 0 ) then
-            nreq = nreq + 1
-            rlist(nreq) = iproc
-            llen = recv_len*kx
-#ifdef i8r8
-            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_DOUBLE_PRECISION, lproc, &
-                            itag, lcomm, ireq(nreq), ierr )
-#else
-            call MPI_IRecv( bnds(lproc)%rbuf, llen, MPI_REAL, lproc, &
-                            itag, lcomm, ireq(nreq), ierr )
-#endif
-         end if
-      end do
-      rreq = nreq
-      do iproc = mg(g)%neighnum,1,-1
-         lproc = mg(g)%neighlist(iproc)  ! Send to
-         iqq = mg_bnds(lproc,g)%slen
-         if ( iqq > 0 ) then
-            do k = 1,kx
-               do iq = 1,iqq
-                  bnds(lproc)%sbuf(iq+(k-1)*iqq) = &
-                      vdat(mg_bnds(lproc,g)%send_list(iq),k)
-               end do
-            end do   
-            nreq = nreq + 1
-            llen = iqq*kx
-#ifdef i8r8
-            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_DOUBLE_PRECISION, lproc, &
-                            itag, lcomm, ireq(nreq), ierr )
-#else
-            call MPI_ISend( bnds(lproc)%sbuf, llen, MPI_REAL, lproc, &
-                            itag, lcomm, ireq(nreq), ierr )
-#endif
-         end if
-      end do
-
-      rcount = rreq
-      do while ( rcount > 0 )
-         call START_LOG(mpiwaitpoint_begin)
-         call MPI_Waitsome( rreq, ireq, ldone, donelist, MPI_STATUSES_IGNORE, ierr )
-         call END_LOG(mpiwaitpoint_end)
-         rcount = rcount - ldone
-         do jproc = 1,ldone
-            mproc = donelist(jproc)
-            iproc = rlist(mproc)  ! Recv from
-            lproc = mg(g)%neighlist(iproc)
-            iend = mg_bnds(lproc,g)%rlen               
-            do k = 1,kx
-               do iq = 1,iend
-                  vdat(mg(g)%ifull+mg_bnds(lproc,g)%unpack_list(iq),k) &
-                      = bnds(lproc)%rbuf(iq+(k-1)*iend)
-               end do
-            end do
-         end do
-      end do
-      
-      rcount = nreq - rreq
-      if ( rcount > 0 ) then
-         call START_LOG(mpiwaitpoint_begin)
-         call MPI_Waitall( rcount, ireq(rreq+1:nreq), MPI_STATUSES_IGNORE, ierr)
-         call END_LOG(mpiwaitpoint_end)
-      end if
-
-   end subroutine mgbounds_colour3
-   
    pure function mg_fproc_1(g,i,j,n) result(mg_fpout)
      ! locates process that owns a global grid point
      integer, intent(in) :: i, j, n, g

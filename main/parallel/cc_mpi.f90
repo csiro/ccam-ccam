@@ -176,8 +176,7 @@ module cc_mpi
 #endif
 
    ! Imported from cc_mpi_multigrid
-   public :: mgbounds, mgcollect, mgbcast, mg_index, mg_fproc, mg_fproc_1,  &
-             mgbounds_colour
+   public :: mgbounds, mgcollect, mgbcast, mg_index, mg_fproc, mg_fproc_1
    public :: mg, mg_bnds, mg_maxlevel_local, mg_maxlevel
    public :: mg_ifull_maxcolour
    public :: col_iq
