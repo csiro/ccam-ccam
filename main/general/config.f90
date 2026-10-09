@@ -136,6 +136,7 @@ integer cable_climate                ! depreciated namelist options
 integer surf_windfarm, adv_precip    ! depreciated namelist options
 integer lin_aerosolmode              ! depreciated namelist options
 integer ateb_soilunder, mlo_limitsal ! depreciated namelist options
+integer mprecond                     ! deorecuated namelist options
 real, dimension(:,:), allocatable, save :: dums
 real, dimension(:), allocatable, save :: gosig_in
 real, dimension(8) :: temparray
@@ -266,18 +267,18 @@ namelist/mlonml/mlodiff,ocnsmag,ocneps,usetide,zomode,zoseaice,   & ! MLO
     mlontvd,alphavis_seasnw,alphanir_seasnw,mlodiff_numits,       &
     mlo_adjeta,mstagf,mlodps,nxtrrho,mlo_bs,                      &
     mlo_step,mlo_uvcoupl,fluxwgt,mlointschf,ocnepr,delwater,      &
-    mloiceadv,minsal,maxsal,mprecond,mlomfix,comment,             &
+    mloiceadv,minsal,maxsal,mlomfix,comment,                      &
     pdl,pdu,k_mode,eps_mode,limitL,fixedce3,nops,nopb,            & ! k-e
     fixedstabfunc,omink,omineps,oclosure,ominl,omaxl,             &
     kemaxdt,freshwaterlake_fix,                                   &
     rivermd,basinmd,rivercoeff,                                   & ! River
     wt_transport,                                                 & ! Ground water
-    calcinloop,mlomaxuv,ocnlap,kmlo,mlo_limitsal,                 & ! Depreciated
+    calcinloop,mlomaxuv,ocnlap,kmlo,mlo_limitsal,mprecond,        & ! Depreciated
     mlo_timeave_length                                              ! Depreciated
 ! tracer namelist
 namelist/trfiles/tracerlist,sitefile,shipfile,writetrpm,comment
 
-! some defaults to avoid confusion
+! some defaults to avoid confusion with depreciated options
 tblock = 0
 kmlo = 0
 calcinloop = 0
@@ -292,6 +293,7 @@ mlomaxuv = 0.
 ocnlap = 0.
 tke_timeave_length = 0.
 mlo_timeave_length = 0.
+mprecond = 0
 
 !--------------------------------------------------------------
 ! READ COMMAND LINE OPTIONS
@@ -2492,7 +2494,7 @@ use river                                  ! River routing
 
 implicit none
 
-integer, dimension(33) :: dumi
+integer, dimension(32) :: dumi
 real, dimension(24) :: dumr    
 
 dumr = 0.
@@ -2552,9 +2554,8 @@ if ( myid==0 ) then
   dumi(28) = mlointschf
   dumi(29) = nxtrrho
   dumi(30) = mloiceadv
-  dumi(31) = mprecond
-  dumi(32) = wt_transport  
-  dumi(33) = freshwaterlake_fix
+  dumi(31) = wt_transport  
+  dumi(32) = freshwaterlake_fix
 end if
 call ccmpi_bcast(dumr,0,comm_world)
 call ccmpi_bcast(dumi,0,comm_world)
@@ -2612,9 +2613,8 @@ mlo_uvcoupl        = dumi(27)
 mlointschf         = dumi(28)
 nxtrrho            = dumi(29)
 mloiceadv          = dumi(30)
-mprecond           = dumi(31)
-wt_transport       = dumi(32)
-freshwaterlake_fix = dumi(33)
+wt_transport       = dumi(31)
+freshwaterlake_fix = dumi(32)
 
 return
 end subroutine broadcast_mlonml

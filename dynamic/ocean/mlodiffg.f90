@@ -222,7 +222,7 @@ allocate( dumb(ifull+iextra,ol,2) )
 ! perform diffusion
 
 if ( mlodiff>=10 .and. mlodiff<20 ) then
-  !Biharmonic version
+  !Biharmonic version ---------------------------------------------------------
     
 #ifndef faststack
   allocate( duma_save(ifull,ol,3) )
@@ -321,7 +321,7 @@ if ( mlodiff>=10 .and. mlodiff<20 ) then
 #endif  
 
 else if ( mlodiff>=0 .and. mlodiff<10 ) then
-  ! Laplacian version
+  ! Laplacian version ---------------------------------------------------------
 
   if ( mlodiff==0 .or. mlodiff==2 ) then
     call bounds(duma(:,:,1:3))

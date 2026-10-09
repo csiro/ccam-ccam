@@ -517,6 +517,7 @@ end if    !  (mfix==-1)
 if ( mfix/=3 ) then
   ps(1:ifull) = 1.e5*exp(psl(1:ifull))     
 end if
+
 if ( mfix==1 .or. mfix==2 ) then   ! perform conservation fix on ps
   ! fix is on ps (not psl) from 24/1/06      
   ! delpos is the sum of all positive changes over globe

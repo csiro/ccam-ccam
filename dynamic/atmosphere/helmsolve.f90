@@ -951,8 +951,11 @@ call bounds_recv(iv)
 iters(:) = 0
 do itr = 1,itr_mg
     
-  call START_LOG(mgfine_begin)
-  
+  if ( itr==1 ) then
+    call START_LOG(mgsetup_begin)  
+  else    
+    call START_LOG(mgfine_begin)
+  end if
   
   ! update on model grid using colours
   do i = 1,itrbgn
@@ -1013,8 +1016,6 @@ do itr = 1,itr_mg
                 -izze(iq)*iv(ie(iq),k)-izzs(iq)*iv(is(iq),k) &
                 +irhs(iq,k)+iv(iq,k)*(ihelm(iq,k)-izz(iq))
     end do
-    ! test for convergence
-    dsolmax_g(k) = maxval( abs(iv(1:ifull,k)-iv_old(1:ifull,k)) ) ! cannot vectorise with -fp-precise
   end do
   !$omp end parallel do
   
@@ -1028,15 +1029,20 @@ do itr = 1,itr_mg
     end do
     call mgcollect(1,w(:,1:2*kl),smaxmin_g(1:2*kl,1:2))
   else
+    ! test for convergence
+    do k = 1,klim
+      dsolmax_g(k) = maxval( abs(iv(1:ifull,k)-iv_old(1:ifull,k)) ) ! cannot vectorise with -fp-precise
+    end do
     call mgcollect(1,w(:,1:klim),dsolmax_g(1:klim),klim=klim)
+    call END_LOG(mgfine_end)
   end if
-
-  call END_LOG(mgfine_end)
 
   
   if ( mg_maxlevel_local>0 ) then
-    
-    call START_LOG(mgfine_begin)
+  
+    if ( itr>1 ) then  
+      call START_LOG(mgfine_begin)
+    end if  
 
     ! restriction
     ! (since this always operates within a panel, then ine = ien is always true)
@@ -1066,11 +1072,13 @@ do itr = 1,itr_mg
       call mgcollect(2,rhs(:,1:klim,2),dsolmax_g(:),klim=klim)
     end if  
 
-    call END_LOG(mgfine_end)
+    
+    if ( itr>1 ) then
+      call END_LOG(mgfine_end)
+      call START_LOG(mgup_begin)
+    end if  
 
-
-    call START_LOG(mgup_begin)
-
+    
     ! upscale grid
     do g = 2,gmax
 
@@ -1136,14 +1144,18 @@ do itr = 1,itr_mg
 
     end do ! g loop over V levels
   
-    call END_LOG(mgup_end)
+    if ( itr>1 ) then
+      call END_LOG(mgup_end)
+    end if  
   
   
     ! solve for coarse grid
     ! MJT notes - use iterative method in case the coarse grid is still large (e.g., C25)
     if ( mg_maxlevel_local==mg_maxlevel ) then
          
-      call START_LOG(mgcoarse_begin)
+      if ( itr>1 ) then  
+        call START_LOG(mgcoarse_begin)
+      end if  
          
       g = mg_maxlevel
       ng = mg(g)%ifull
@@ -1178,12 +1190,16 @@ do itr = 1,itr_mg
         if ( klimc<1 ) exit
       end do ! itrc = 1,itr_mg
       
-      call END_LOG(mgcoarse_end)
+      if ( itr>1 ) then
+        call END_LOG(mgcoarse_end)
+      end if  
       
     end if
     
 
-    call START_LOG(mgdown_begin)
+    if ( itr>1 ) then
+      call START_LOG(mgdown_begin)
+    end if  
 
     ! downscale grid
     do g = gmax,2,-1
@@ -1245,13 +1261,16 @@ do itr = 1,itr_mg
       end do  
     end do
 
-    
-    call END_LOG(mgdown_end)
+    if ( itr>1 ) then
+      call END_LOG(mgdown_end)
+    end if  
     
   end if
   
   
-  call START_LOG(mgfine_begin)
+  if ( itr>1 ) then
+    call START_LOG(mgfine_begin)
+  end if  
 
   ! multi-grid solver bounds indices do not match standard iextra indicies, so we need to remap the halo
   if ( mg(1)%merge_len>1 ) then
@@ -1322,9 +1341,10 @@ do itr = 1,itr_mg
     end do ! nc (colour) loop
   end do   ! i (itr) loop
  
-  call END_LOG(mgfine_end)
+  
   
   if ( itr==1 ) then
+    call END_LOG(mgsetup_end)  
     do k = 1,kl
       savg(k) = 0.5*(smaxmin_g(k,1)+smaxmin_g(k,2))
       sdif(k) = smaxmin_g(k,1) - smaxmin_g(k,2)
@@ -1340,6 +1360,7 @@ do itr = 1,itr_mg
       end do ! k loop
     end do 
   else
+    call END_LOG(mgfine_end)    
     ! test for convergence.  Test lags by one iteration, due to combining
     ! multi-grid and convergence communications.
     knew = klim
@@ -1501,7 +1522,11 @@ call bounds_recv(dumc(:,1:2))
 ! Main loop
 do itr = 1,itr_mgice
    
-  call START_LOG(mgfine_begin)
+  if ( itr==1 ) then  
+    call START_LOG(mgsetup_begin)
+  else
+    call START_LOG(mgfine_begin)
+  end if  
     
   do i = 1,itrbgn
       
@@ -1638,15 +1663,16 @@ do itr = 1,itr_mgice
   else
     ! For when the inital grid cannot be upscaled
     call mgcollect(1,w(:,1:8),dsolmax_g(1:8))      
+    call END_LOG(mgfine_end)
   end if
     
-  
-  call END_LOG(mgfine_end)
   
   
   if ( mg_maxlevel_local>0 ) then
   
-    call START_LOG(mgfine_begin)  
+    if ( itr>1 ) then  
+      call START_LOG(mgfine_begin)
+    end if  
 
     ng4 = mg(1)%ifull_fine
     
@@ -1743,10 +1769,13 @@ do itr = 1,itr_mgice
       end if  
     end if
     
-    call END_LOG(mgfine_end)
+    
+    if ( itr>1 ) then
+      call END_LOG(mgfine_end)
+      call START_LOG(mgup_begin)
+    end if  
 
-    call START_LOG(mgup_begin)
-
+    
     ! upscale grid
     do g = 2,gmax
   
@@ -1918,12 +1947,16 @@ do itr = 1,itr_mgice
       
     end do
 
-    call END_LOG(mgup_end)
+    if ( itr>1 ) then
+      call END_LOG(mgup_end)
+    end if  
 
     ! solve coarse grid    
     if ( mg_maxlevel==mg_maxlevel_local ) then
 
-      call START_LOG(mgcoarse_begin)  
+      if ( itr>1 ) then  
+        call START_LOG(mgcoarse_begin)
+      end if  
     
       g = mg_maxlevel
       ng = mg(g)%ifull
@@ -1964,12 +1997,16 @@ do itr = 1,itr_mgice
         if ( dsolmax(1)<tol .and. dsolmax(2)<itol ) exit
       end do
       
-      call END_LOG(mgcoarse_end)
+      if ( itr>1 ) then
+        call END_LOG(mgcoarse_end)
+      end if  
       
     end if
   
     
-    call START_LOG(mgdown_begin)
+    if ( itr>1 ) then
+      call START_LOG(mgdown_begin)
+    end if  
     
     ! downscale grid
     do g = gmax,2,-1
@@ -2039,12 +2076,16 @@ do itr = 1,itr_mgice
       end do  
     end do  
     
-    call END_LOG(mgdown_end)
+    if ( itr>1 ) then
+      call END_LOG(mgdown_end)
+    end if  
     
   end if
 
   
-  call START_LOG(mgfine_begin)
+  if ( itr>1 ) then
+    call START_LOG(mgfine_begin)
+  end if  
 
   vduma = 0.
   if ( mg(1)%merge_len>1 ) then
@@ -2155,13 +2196,15 @@ do itr = 1,itr_mgice
     end do
   end do
     
-  call END_LOG(mgfine_end)
- 
-  if ( itr>1 ) then
+  
+  if ( itr==1 ) then
+    call END_LOG(mgsetup_end)
+  else
+    call END_LOG(mgfine_end)
     ! test for convergence
     if ( dsolmax_g(1)<tol .and. dsolmax_g(2)<itol ) exit
-  end if
-  
+  end if  
+   
 end do
 
 neta(1:ifull+iextra)  = dumc(1:ifull+iextra,1)

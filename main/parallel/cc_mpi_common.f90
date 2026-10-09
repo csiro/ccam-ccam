@@ -226,6 +226,7 @@ module cc_mpi_common
    integer, save :: mpiwaitsync_begin, mpiwaitsync_end
    integer, save :: mpiwaitcollect_begin, mpiwaitcollect_end
    integer, save :: mpibarrier_begin, mpibarrier_end
+   integer, save :: mgsetup_begin, mgsetup_end
    integer, save :: mgfine_begin, mgfine_end
    integer, save :: mgup_begin, mgup_end
    integer, save :: mgcoarse_begin, mgcoarse_end
@@ -252,7 +253,7 @@ module cc_mpi_common
    integer, save :: p20_begin, p20_end
    integer, save :: p21_begin, p21_end
    integer, save :: p22_begin, p22_end
-   integer, parameter :: nevents = 89
+   integer, parameter :: nevents = 90
    real(kind=8), dimension(nevents), save, private :: tot_time = 0._8, start_time
    real(kind=8), save :: mpiinit_time, total_time
    character(len=15), dimension(nevents), save, private :: event_name
@@ -737,10 +738,6 @@ contains
       call add_event(watermfix_begin,     watermfix_end,     "Water_Mfix")
       call add_event(ocnstag_begin,       ocnstag_end,       "Water_Stag")
       call add_event(river_begin,         river_end,         "River")
-      call add_event(mgfine_begin,        mgfine_end,        "MG_Fine")
-      call add_event(mgup_begin,          mgup_end,          "MG_Up")
-      call add_event(mgcoarse_begin,      mgcoarse_end,      "MG_Coarse")
-      call add_event(mgdown_begin,        mgdown_end,        "MG_Down")
       call add_event(outfile_begin,       outfile_end,       "Outfile")
       call add_event(onthefly_begin,      onthefly_end,      "Onthefly")
       call add_event(otf_fill_begin,      otf_fill_end,      "OTF_Fill")
@@ -769,6 +766,11 @@ contains
       call add_event(aerosol_begin,       aerosol_end,       "Aerosol")
       call add_event(diag_begin,          diag_end,          "Diagnostic")
       call add_event(precon_begin,        precon_end,        "Precon")
+      call add_event(mgsetup_begin,       mgsetup_end,       "MG_Setup")
+      call add_event(mgfine_begin,        mgfine_end,        "MG_Fine")
+      call add_event(mgup_begin,          mgup_end,          "MG_Up")
+      call add_event(mgcoarse_begin,      mgcoarse_end,      "MG_Coarse")
+      call add_event(mgdown_begin,        mgdown_end,        "MG_Down")
       call add_event(bcast_begin,         bcast_end,         "MPI_Bcast")
       call add_event(alltoall_begin,      alltoall_end,      "MPI_AlltoAll")
       call add_event(allgather_begin,     allgather_end,     "MPI_AllGather")

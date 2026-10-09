@@ -69,7 +69,7 @@ public oldrhobar_dash, oldrhobaru_dash, oldrhobarv_dash
 public mlodynamicsarrays_init, mlodynamicsarrays_end
 
 public mlostaguv, mlounstaguv
-public mstagf, koff, nstagoffmlo, mprecond
+public mstagf, koff, nstagoffmlo
 
 public mlontvd
 

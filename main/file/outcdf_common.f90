@@ -147,7 +147,6 @@ use parmvert_m                             ! Vertical advection parameters
 use river                                  ! River routing
 use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
-!use tkeeps                                 ! TKE-EPS boundary layer
 
 implicit none
 
@@ -525,7 +524,6 @@ call ccnf_put_attg(idnc,'mlojacobi',mlojacobi)
 call ccnf_put_attg(idnc,'mlomfix',mlomfix)
 call ccnf_put_attg(idnc,'mlosigma',mlosigma)
 call ccnf_put_attg(idnc,'mlontvd',mlontvd)
-call ccnf_put_attg(idnc,'mprecond',mprecond)
 call ccnf_put_attg(idnc,'mstagf',mstagf)
 call ccnf_put_attg(idnc,'mxd',mxd)
 call ccnf_put_attg(idnc,'nodrift',nodrift)

@@ -319,7 +319,7 @@ contains
          bnds(n)%slen_ssv_bg = 0
          bnds(n)%slen_wwu_fn = 0
          bnds(n)%slen_nnv_bg = 0
-         bnds(n)%slen_eeu_fn = 0    
+         bnds(n)%slen_eeu_fn = 0  
       end do   
 
       if ( myid==0 ) then
@@ -1764,9 +1764,6 @@ contains
          if ( testlen >  bnds(rproc)%len ) then
             write(6,*) "Error, maximum length error in check_bnds_alloc"
             write(6,*) myid, rproc, testlen,  bnds(rproc)%len, maxvertlen
-            write(6,*) bnds(rproc)%rlen_fn(1:maxcolour)
-            write(6,*) bnds(rproc)%rlenx
-            write(6,*) bnds(rproc)%rlen2
             call ccmpi_abort(-1)
          end if
          if ( iext >= iextra ) then
@@ -1777,6 +1774,46 @@ contains
       end if
       
    end subroutine check_bnds_alloc
+   
+      subroutine check_bnds_alloc_uv(rproc, iext)
+      integer, intent(in) :: rproc
+      integer, intent(in) :: iext
+      integer :: testlen
+
+!     Allocate the components of the bnds array. It's too much work to
+!     get the exact sizes, so allocate a fixed size for each case where
+!     there's an interaction.
+      if ( bnds(rproc)%len == 0 ) then
+         ! Not allocated yet.
+         if ( rproc /= myid ) then
+            allocate ( bnds(rproc)%request_list(maxbuflen) )
+            allocate ( bnds(rproc)%unpack_list(maxbuflen) )
+         end if
+         allocate( bnds(rproc)%request_list_uv(maxbuflen) )
+         allocate( bnds(rproc)%unpack_list_uv(maxbuflen) )
+         allocate( bnds(rproc)%uv_swap(maxbuflen) )
+         allocate( bnds(rproc)%uv_neg(maxbuflen) )
+         bnds(rproc)%uv_neg = 1.
+         bnds(rproc)%len = maxbuflen*maxvertlen
+      else
+         ! Just check length
+         testlen = max( bnds(rproc)%rlen_wu_fn, bnds(rproc)%rlen_eu_fn )
+         testlen = max( bnds(rproc)%rlen_wwu_fn, bnds(rproc)%rlen_eeu_fn, testlen )
+         testlen = max( bnds(rproc)%rlen_ev_fn, testlen )
+         testlen = testlen*maxvertlen
+         if ( testlen >  bnds(rproc)%len ) then
+            write(6,*) "Error, maximum length error in check_bnds_alloc_uv"
+            write(6,*) myid, rproc, testlen,  bnds(rproc)%len, maxvertlen
+            call ccmpi_abort(-1)
+         end if
+         if ( iext >= iextra ) then
+            write(6,*) "Error, iext maximum length error in check_bnds_alloc_uv"
+            write(6,*) myid, iext, iextra
+            call ccmpi_abort(-1)
+         end if
+      end if
+      
+   end subroutine check_bnds_alloc_uv
    
    subroutine checkdistance(iqq,maxdis,neigharray_g)
 
@@ -3416,7 +3453,7 @@ contains
             call checksize( dslen(dproc), bnds(iproc)%len, "Deptsync" )
          end if
       end do
-      
+
 #ifndef faststack
       nmaxsize = maxval( dslen(1:neighnum) )
       allocate( buf_dbuf(4,nmaxsize,neighnum) )

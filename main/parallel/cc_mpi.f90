@@ -143,6 +143,7 @@ module cc_mpi
    public :: mpiwaitsync_begin, mpiwaitsync_end
    public :: mpiwaitcollect_begin, mpiwaitcollect_end
    public :: mpibarrier_begin, mpibarrier_end
+   public :: mgsetup_begin, mgsetup_end
    public :: mgfine_begin, mgfine_end
    public :: mgup_begin, mgup_end
    public :: mgcoarse_begin, mgcoarse_end
@@ -487,7 +488,7 @@ contains
          end do
       end do
 
-
+      
       ! Create MPI_SUMDR for calculating global sums with high precision
       if ( myid==0 ) then
          write(6,*) "-> Create MPI_SUMDR"

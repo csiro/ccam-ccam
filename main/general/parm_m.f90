@@ -84,11 +84,7 @@ integer, save :: ensemble_mode=0, ensemble_period=720
 integer, save :: diaglevel_aerosols=0, diaglevel_pbl=0, diaglevel_cloud=0, diaglevel_land=0, diaglevel_maxmin=0
 integer, save :: diaglevel_ocean=0, diaglevel_radiation=0, diaglevel_urban=0, diaglevel_carbon=0, diaglevel_river=0
 integer, save :: diaglevel_pop=0
-#ifdef GPU
-integer, save :: maxtilesize=32
-#else
 integer, save :: maxtilesize=48
-#endif 
 real, save :: qgmin=1.e-6, zo_clearing=0.
 real, save :: av_vmod=0.7, vmodmin=0.2, snmin=0.11, tss_sh=1., charnock=0.018, chn10=0.00125, zobgin=0.02
 real, save :: rlongdn=0., rlongdx=0., rlatdn=0., rlatdx=0., ds=0., dt=0., dtin=0., panfg=4., panzo=0.001

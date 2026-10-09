@@ -21,8 +21,6 @@ MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
 FOPT = -O3
 FHOST = -xHost
-FOVERRIDE =
-ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
@@ -31,50 +29,36 @@ FHOST = -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
 FHOST = -xCORE-AVX2 -align array32byte
-FOVERRIDE = -qoverride-limits
-ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(SKYLAKE),yes)
 FHOST = -xSKYLAKE-AVX512 -align array64byte
-FOVERRIDE = -qoverride-limits
-ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(CASCADELAKE),yes)
 FHOST = -xCASCADELAKE -align array64byte
-FOVERRIDE = -qoverride-limits
-ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(SAPPHIRERAPIDS),yes)
 FHOST = -xSAPPHIRERAPIDS -align array64byte
-FOVERRIDE = -qoverride-limits
-ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(ZEN3),yes)
 FHOST = -axCORE-AVX2 -align array32byte
-FOVERRIDE = -qoverride-limits
-ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
 ifeq ($(MAGNUS),yes)
 FC = ftn
 FHOST = -xHost
-FOVERRIDE = -qoverride-limits
-ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 endif
 ifeq ($(CASCADE),yes)
 FHOST = -O3 -march=core-avx2 -align array32byte -qoverride-limits -vec-threshold0
-FOVERRIDE = -qoverride-limits
-ZMM = -qopt-zmm-usage=high
 VTHRESH = -vec-threshold0
 IPFLAG =
 endif
@@ -105,8 +89,6 @@ else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
 FFLAGS = -ftree-vectorize -fstack-arrays -lmvec $(FHOST) -fbacktrace $(MPIFLAG) -Wl,--as-needed -Wl,--disable-new-dtags  -Wl,--rpath -Wl,${LD_RUN_PATH}
-FOVERRIDE =
-ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
@@ -142,8 +124,6 @@ ifeq ($(GPU),yes)
 FFLAGS += -DGPU -fopenacc
 endif
 LIB = -lnetcdf
-FOVERRIDE =
-ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
@@ -178,8 +158,6 @@ ifeq ($(GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cuda12.8,fastmath,flushz -DGPU
 FFLAGS += -Minfo=accel -acc -gpu=cuda13.1,fastmath,flushz -DGPU
 endif
-FOVERRIDE =
-ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
@@ -195,8 +173,6 @@ endif
 ifeq ($(CRAY),yes)
 FC = ftn
 FFLAGS = -h noomp -h noacc
-FOVERRIDE =
-ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
@@ -222,8 +198,6 @@ endif
 #FOPT = -O3
 #FHOST = -xSKYLAKE-AVX512
 #FFLAGS = $(FHOST) -assume byterecl -ftz -fp-model precise -no-fma -traceback $(MPIFLAG) $(NCFLAG)
-#FOVERRIDE = -qoverride-limits
-#ZMM =
 #IPFLAG =
 #IPOFLAG =
 #VTHRESH = -vec-threshold0
@@ -248,8 +222,6 @@ else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
 FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG)
-FOVERRIDE =
-ZMM =
 IPFLAG =
 IPOFLAG =
 VTHRESH =
