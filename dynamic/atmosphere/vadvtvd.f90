@@ -147,13 +147,13 @@ if ( mspec==1 ) then   ! advect qg and gases after preliminary step
     call vadv_work(edum(:,:,1:2),nvadh_inv_pass,nits)
   end if      ! if(nvmix==6 .or. nvmix==9 )
 
+  if ( ntrac>0 ) then
+    call vadv_work(tr(:,:,1:ntrac),nvadh_inv_pass,nits)
+  end if        ! (nextout>=4)  
+  
   if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     call vadv_work(xtg(:,:,1:naero),nvadh_inv_pass,nits)
   end if   ! abs(iaero)>=2
-  
-  if ( ntrac>0 ) then
-    call vadv_work(tr(:,:,1:ntrac),nvadh_inv_pass,nits)
-  end if        ! (nextout>=4)
 
 end if          ! if(mspec==1)
 
@@ -273,14 +273,6 @@ end if
 
 !$omp end sections nowait
 
-if ( abs(iaero)>=2 .and. nhstest>=0 ) then
-  !$omp do schedule(static)  
-  do n = 1,naero
-    call vadv_work(xtg(:,:,n),nvadh_inv_pass,nits)
-  end do  
-  !$omp end do nowait
-end if   ! abs(iaero)>=2
-  
 if ( ntrac>0 ) then
   !$omp do schedule(static)
   do n = 1,ntrac
@@ -288,6 +280,14 @@ if ( ntrac>0 ) then
   end do  
   !$omp end do nowait
 end if        ! (nextout>=4)
+
+if ( abs(iaero)>=2 .and. nhstest>=0 ) then
+  !$omp do schedule(static)  
+  do n = 1,naero
+    call vadv_work(xtg(:,:,n),nvadh_inv_pass,nits)
+  end do  
+  !$omp end do nowait
+end if   ! abs(iaero)>=2
 
 !$omp end parallel
 
@@ -385,7 +385,7 @@ use vvel_m
 implicit none
       
 integer, dimension(ifull), intent(in) :: nits
-integer i, k, iq, kp, kx, n, ntr
+integer i, k, iq, kp, kx, n, ntr,maxits
 integer, save :: async_counter = -1
 real, dimension(:,:,:), intent(inout) :: tarr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
@@ -394,82 +394,93 @@ real rat, phitvd, fluxhi, fluxlo
 
 async_counter = mod(async_counter+1, async_length)
 ntr = size(tarr,3)
+maxits = maxval(nits(1:ifull))
 
 ! The first sub-step is vectorised for all points.
 
 !$acc enter data create(tarr,delt,fluxh) async(async_counter)
 !$acc update device(tarr) async(async_counter)
-do i = 1,maxval(nits(1:ifull))
-  !$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
-  do n = 1,ntr
-    do k = 1,kl-1
-      do iq = 1,ifull
+!$acc parallel loop collapse(3) present(delt,tarr) async(async_counter)
+do n = 1,ntr
+  do k = 1,kl-1
+    do iq = 1,ifull
+      delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
+    end do
+  end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
+do n = 1,ntr
+  do iq = 1,ifull
+    fluxh(iq,0,n)  = 0.
+    fluxh(iq,kl,n) = 0.
+    delt(iq,kl,n)  = 0.     ! for T,u,v
+    delt(iq,0,n)   = 0.
+  end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
+do n = 1,ntr
+  do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
+    do iq = 1,ifull
+      kp = nint(sign(1.,sdot(iq,k+1)))
+      kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+      rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+      if ( ntvd==2 ) then ! MC
+        phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
+      else
+        phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
+      end if    
+      fluxlo = tarr(iq,kx,n)
+      ! higher order scheme
+      fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
+      fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
+    end do
+  end do
+end do      ! k loop
+!$acc end parallel loop
+!$acc parallel loop collapse(3) present(fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
+do n = 1,ntr
+  do k = 1,kl
+    do iq = 1,ifull
+      tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
+                         +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+    end do
+  end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(delt,tarr,fluxh,sdot,ratha,rathb,nvadh_inv_pass,nits) &
+!$acc   async(async_counter)
+do n = 1,ntr
+  do iq = 1,ifull
+    do i = 2,maxits
+      do k = 1,kl-1
         delt(iq,k,n) = tarr(iq,k+1,n) - tarr(iq,k,n)
       end do
-    end do
-  end do
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(fluxh,delt) async(async_counter)
-  do n = 1,ntr
-    do iq = 1,ifull
-      fluxh(iq,0,n)  = 0.
-      fluxh(iq,kl,n) = 0.
-      delt(iq,kl,n)  = 0.     ! for T,u,v
-      delt(iq,0,n)   = 0.
-    end do
-  end do
-  !$acc end parallel loop
-  if ( ntvd==2 ) then ! MC
-    !$acc parallel loop collapse(3) present(sdot,delt,tarr,ratha,rathb,nvadh_inv_pass,fluxh) async(async_counter)
-    do n = 1,ntr
       do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-        do iq = 1,ifull      
-          kp = nint(sign(1.,sdot(iq,k+1)))
-          kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-          rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+        kp = nint(sign(1.,sdot(iq,k+1)))
+        kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
+        rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
+        if ( ntvd==2 ) then ! MC
           phitvd = max(0., min(2.*rat,.5+.5*rat, 2.))    ! 0 for -ve rat
-          fluxlo = tarr(iq,kx,n)
-          ! higher order scheme
-          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
-          fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-        end do
+        else
+          phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat            
+        endif
+        fluxlo = tarr(iq,kx,n)
+        ! higher order scheme
+        fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
+        fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
       end do
-    end do      ! k loop
-    !$acc end parallel loop
-  else if ( ntvd==3 ) then ! Superbee
-    !$acc parallel loop collapse(3) present(delt,tarr,sdot,rathb,ratha,nvadh_inv_pass,fluxh) async(async_counter)
-    do n = 1,ntr
-      do k = 1,kl-1  ! for fluxh at interior (k + 1/2)  half-levels
-        do iq = 1,ifull  
-          kp = nint(sign(1.,sdot(iq,k+1)))
-          kx = k + (1-kp)/2 !  k for sdot +ve,  k+1 for sdot -ve
-          rat = delt(iq,k-kp,n)/(delt(iq,k,n)+sign(1.e-20,delt(iq,k,n)))
-          phitvd = max(0.,min(1.,2.*rat),min(2.,rat)) ! 0 for -ve rat
-          fluxlo = tarr(iq,kx,n)
-          ! higher order scheme
-          fluxhi = rathb(k)*tarr(iq,k,n) + ratha(k)*tarr(iq,k+1,n) - .5*delt(iq,k,n)*sdot(iq,k+1)*nvadh_inv_pass(iq)
-          fluxh(iq,k,n) = sdot(iq,k+1)*(fluxlo+phitvd*(fluxhi-fluxlo))
-        end do  
-      end do ! k
-    end do
-    !$acc end parallel loop
-  else
-    write(6,*) "ERROR: Unknown option ntvd = ",ntvd
-    call ccmpi_abort(-1)
-  end if
-  !$acc parallel loop collapse(3) present(nits,fluxh,tarr,sdot,nvadh_inv_pass) async(async_counter)
-  do n = 1,ntr
-    do k = 1,kl
-      do iq = 1,ifull
-        if ( i<=nits(iq) ) then
+      if ( i<=nits(iq) ) then
+        do k = 1,kl
           tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
                              +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
-        end if  
-      end do
-    end do
+        end do  
+      end if  
+    end do ! i=1,nits
   end do
-  !$acc end parallel loop
-end do ! i=1,nits
+end do
+!$acc end parallel loop
 !$acc update self(tarr) async(async_counter)
 !$acc exit data delete(tarr,delt,fluxh) async(async_counter)
 

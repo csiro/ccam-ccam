@@ -240,7 +240,7 @@ use newmpar_m
 
 implicit none
 
-integer ii,i,iq,kp,kx,n,ntr
+integer ii,i,iq,kp,kx,n,ntr,maxits
 integer, save :: async_counter = -1
 integer, dimension(ifull), intent(in) :: its
 real, dimension(ifull), intent(in) :: dtnew
@@ -257,90 +257,105 @@ real fl,fh,cc,rr
 
 async_counter = mod( async_counter+1, async_length )
 ntr = size(uu,3)
+maxits = maxval(its(1:ifull))
 
 !$acc enter data create(uu,delu,ff) async(async_counter)
 !$acc update device(uu) async(async_counter)
-do i = 1,maxval(its(1:ifull))
-  !$acc parallel loop collapse(3) present(delu,uu,dzdum,ee) async(async_counter)
-  do n = 1,ntr
-    do ii = 1,ol-1
-      do iq = 1,ifull
+!$acc parallel loop collapse(3) present(delu,uu,dzdum,ee) async(async_counter)
+do n = 1,ntr
+  do ii = 1,ol-1
+    do iq = 1,ifull
+      delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
+    end do
+  end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
+do n = 1,ntr
+  do iq = 1,ifull
+    ff(iq,0,n) = 0.
+    ff(iq,ol,n) = 0.
+    delu(iq,0,n) = 0.
+    delu(iq,ol,n) = 0.
+  end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
+do n = 1,ntr
+  do ii = 1,ol-1
+    do iq = 1,ifull
+      ! +ve ww is downwards to the ocean floor
+      kp = nint(sign(1.,ww(iq,ii)))
+      kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
+      rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
+      fl = ww(iq,ii)*uu(iq,kx,n)
+      if ( mlontvd==0 ) then ! MC
+        cc = max(0.,min(2.*rr, 0.5+0.5*rr,2.)) ! MC
+      else
+        cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee          
+      end if    
+      fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
+        - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
+        /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
+      ff(iq,ii,n) = fl + cc*(fh-fl)
+      !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit        
+      ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
+    end do
+  end do
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(3) present(ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
+do n = 1,ntr
+  do ii = 1,ol
+    do iq = 1,ifull
+      if ( ee(iq,ii)>0.5 ) then 
+        uu(iq,ii,n) = uu(iq,ii,n) + dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
+                           -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)  
+      end if
+    end do  
+  end do  
+end do
+!$acc end parallel loop
+!$acc parallel loop collapse(2) present(delu,uu,dzdum,ee,ff,ww,dtnew,depdum,dzdum,its) &
+!$acc   async(async_counter)
+do n = 1,ntr
+  do iq = 1,ifull
+    do i = 2,maxits
+      do ii = 1,ol-1
         delu(iq,ii,n) = (uu(iq,ii+1,n) - uu(iq,ii,n))*ee(iq,ii)*ee(iq,ii+1)
       end do
-    end do
-  end do
-  !$acc end parallel loop
-  !$acc parallel loop collapse(2) present(ff,delu) async(async_counter)
-  do n = 1,ntr
-    do iq = 1,ifull
-      ff(iq,0,n) = 0.
-      ff(iq,ol,n) = 0.
-      delu(iq,0,n) = 0.
-      delu(iq,ol,n) = 0.
-    end do
-  end do
-  !$acc end parallel loop
-  if ( mlontvd==0 ) then ! MC
-    !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
-    do n = 1,ntr
       do ii = 1,ol-1
-        do iq = 1,ifull
-          ! +ve ww is downwards to the ocean floor
-          kp = nint(sign(1.,ww(iq,ii)))
-          kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-          rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
-          fl = ww(iq,ii)*uu(iq,kx,n)
+        ! +ve ww is downwards to the ocean floor
+        kp = nint(sign(1.,ww(iq,ii)))
+        kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
+        rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
+        fl = ww(iq,ii)*uu(iq,kx,n)
+        if ( mlontvd==0 ) then ! MC
           cc = max(0.,min(2.*rr, 0.5+0.5*rr,2.)) ! MC
-          fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
-            - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
-            /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-          ff(iq,ii,n) = fl + cc*(fh-fl)
-          !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit        
-          ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
-        end do
-      end do
-    end do
-    !$acc end parallel loop
-  else if ( mlontvd==1 ) then ! Superbee
-    !$acc parallel loop collapse(3) present(ff,ww,delu,uu,dtnew,depdum,dzdum,ee) async(async_counter)
-    do n = 1,ntr
-      do ii = 1,ol-1
-        do iq = 1,ifull
-          ! +ve ww is downwards to the ocean floor
-          kp = nint(sign(1.,ww(iq,ii)))
-          kx = ii+(1-kp)/2 !  k for ww +ve,  k+1 for ww -ve
-          rr = delu(iq,ii-kp,n)/(delu(iq,ii,n)+sign(1.E-20,delu(iq,ii,n)))
-          fl = ww(iq,ii)*uu(iq,kx,n)
-          cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee
-          fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
-            - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
-            /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
-          ff(iq,ii,n) = fl + cc*(fh-fl)
-          !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit
-          ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
-        end do
-      end do
-    end do
-    !$acc end parallel loop
-  else
-    write(6,*) "ERROR: Unknown option mlontvd = ",mlontvd  
-    call ccmpi_abort(-1)
-  end if
-  !$acc parallel loop collapse(3) present(its,ff,uu,ww,dtnew,dzdum,ee) async(async_counter)
-  do n = 1,ntr
-    do ii = 1,ol
-      do iq = 1,ifull
-        if ( ee(iq,ii)>0.5 .and. i<=its(iq) ) then 
-          uu(iq,ii,n) = uu(iq,ii,n) + dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
-                             -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)  
+        else
+          cc = max(0.,min(1.,2.*rr),min(2.,rr)) ! superbee            
         end if
-      end do  
-    end do  
-  end do
-  !$acc end parallel loop
-  end do ! i = 1,nits
-  !$acc update self(uu) async(async_counter)
-  !$acc exit data delete(uu,delu,ff) async(async_counter)
+        fh = ww(iq,ii)*0.5*(uu(iq,ii,n)+uu(iq,ii+1,n))             &
+          - 0.5*(uu(iq,ii+1,n)-uu(iq,ii,n))*ww(iq,ii)**2*dtnew(iq) &
+          /max(depdum(iq,ii+1)-depdum(iq,ii),1.E-10)
+        ff(iq,ii,n) = fl + cc*(fh-fl)
+        !ff(iq,ii)=ww(iq,ii)*0.5*(uu(iq,ii)+uu(iq,ii+1)) ! explicit        
+        ff(iq,ii,n) = ff(iq,ii,n)*ee(iq,ii)*ee(iq,ii+1)
+      end do
+      if ( i<=its(iq) ) then
+        do ii = 1,ol
+          if ( ee(iq,ii)>0.5 ) then 
+            uu(iq,ii,n) = uu(iq,ii,n) + dtnew(iq)*(uu(iq,ii,n)*(ww(iq,ii)-ww(iq,ii-1))   &
+                             -ff(iq,ii,n)+ff(iq,ii-1,n))/dzdum(iq,ii)  
+          end if
+        end do
+      end if
+    end do ! i = 1,nits      
+  end do  
+end do
+!$acc end parallel loop
+!$acc update self(uu) async(async_counter)
+!$acc exit data delete(uu,delu,ff) async(async_counter)
 
 return
 end subroutine mlotvd4

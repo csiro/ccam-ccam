@@ -1801,7 +1801,7 @@ contains
 #ifdef i8r8
         call drpdr(local_sum_k(k:k),local_sum(1:1),1,MPI_DOUBLE_COMPLEX)
         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,MPI_DOUBLE_COMPLEX)  
-#ekse
+#else
         call drpdr(local_sum_k(k:k),local_sum(1:1),1,MPI_COMPLEX)
         call drpdr(local_sum_k(k+kx:k+kx),local_sum(2:2),1,MPI_COMPLEX)  
 #endif

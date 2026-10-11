@@ -36,19 +36,11 @@ subroutine cdfout(itype,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
 
 use cc_mpi                                 ! CC MPI routines
 use dates_m                                ! Date data
-!use estab                                  ! Liquid saturation function
 use infile                                 ! Input file routines
-!use module_aux_rad                         ! Additional cloud and radiation routines
 use newmpar_m                              ! Grid parameters
-!use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
 use parmgeom_m                             ! Coordinate data
-!use parmhdff_m                             ! Horizontal diffusion parameters
-!use parmhor_m                              ! Horizontal advection parameters
-!use parmvert_m                             ! Vertical advection parameters
-!use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
-!use staguvmod                              ! Reversible grid staggering   
 use tracers_m                              ! Tracer data
 
 implicit none
@@ -424,6 +416,7 @@ integer, intent(in) :: iarch, itype, iout, idnc
 integer, intent(in) :: ixp, iyp, idlev, idms, idoc, idproc, idgpnode, idgpoff
 integer i, idkdate, idktau, idktime, idmtimer, idnteg, idnter
 integer idv, iq, j, k, n, igas, idum, cptype, ifrac, d4, asize, osize, jsize, ksize
+integer nsx
 integer, dimension(4), intent(in) :: idc
 integer, dimension(5), intent(in) :: dima, dimo
 integer, dimension(6,4), intent(in) :: dimc
@@ -2065,13 +2058,15 @@ if ( iarch==1 ) then
         do i = 1,POP_NPATCH
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc(1),1,POP_NPATCH,cabledata)
+        nsx = int(POP_NPATCH) ! convert to integer
+        call ccnf_put_vara(idnc,idc(1),1,nsx,cabledata)
         deallocate( cabledata )
         allocate( cabledata(POP_NCOHORT) )
         do i = 1,POP_NCOHORT
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc(2),1,POP_NCOHORT,cabledata)
+        nsx = int(POP_NCOHORT) ! convert to integer
+        call ccnf_put_vara(idnc,idc(2),1,nsx,cabledata)
         deallocate( cabledata )
       end if
     end if
@@ -2081,7 +2076,8 @@ if ( iarch==1 ) then
         do i = 1,POP_AGEMAX
           cabledata(i) = real(i)
         end do  
-        call ccnf_put_vara(idnc,idc(3),1,POP_AGEMAX,cabledata)
+        nsx = int(POP_AGEMAX) ! convert to integer
+        call ccnf_put_vara(idnc,idc(3),1,nsx,cabledata)
         deallocate( cabledata )
       end if
     end if
