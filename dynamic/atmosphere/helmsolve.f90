@@ -862,8 +862,8 @@ real, dimension(ifull_maxcolour,maxcolour) :: zznc, zzec, zzwc, zzsc, zzc
 real, dimension(:,:,:), allocatable :: rhs
 real, dimension(:,:,:), allocatable :: v, helm
 real, dimension(:,:), allocatable :: w
-real, dimension(:,:,:) :: helmc, rhsc
-real, dimension(:,:) :: zznc, zzec, zzwc, zzsc, zzc
+real, dimension(:,:,:), allocatable :: helmc, rhsc
+real, dimension(:,:), allocatable :: zznc, zzec, zzwc, zzsc, zzc
 #endif
 real, dimension(mg_minsize) :: vsavc
 real, dimension(2*kl,2) :: smaxmin_g
