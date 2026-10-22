@@ -19,11 +19,33 @@
     
 module module_ctrl_convection
 
+use kuocom_m                               ! JLM convection
+
 implicit none
 
 private
 public ctrl_convection, ctrl_convection_init
+public convection_arrays_init, convection_arrays_end
 public calculate_dhdt_mse
+
+! kuocom
+public iterconv,ksc,kscmom,kscsea,kuocb,ldr,mbase
+public mdelay,methdetr,methprec,nbase,nclddia,ncvcloud,ncvmix
+public nevapcc,nevapls,nkuo,nrhcrit,nstab_cld,nuvconv,ncloud
+public alflnd,alfsea ,cldh_lnd,cldm_lnd,cldl_lnd,cldh_sea,cldm_sea
+public cldl_sea,convfact,convtime
+public detrain,detrainx,dsig2,dsig4,entrain
+public fldown,rhcv,rhmois,rhsat,shaltime
+public sigcb,sigcll,sigkscb,sig_ct,sigksct
+public tied_con,tied_over,tied_rh
+public nscheme
+public acon,bcon,rcm,rcrit_l,rcrit_s,cld_decay
+public vdeposition_mode,tiedtke_form
+public gf_imid
+public kbsav,ktsav
+public convpsav,fluxtot
+public mse_t1, mse_t2
+public dmsedt_adv, dmsedt_rad, dmsedt_pbl
 
 contains
     
@@ -33,7 +55,6 @@ use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use cc_mpi                        ! CC MPI routines
 use convjlm_m                     ! Convection
 use convjlm22_m                   ! Convection v2
-use kuocom_m                      ! JLM convection
 use nlin_m                        ! Atmosphere non-linear dynamics
 use soil_m                        ! Soil and surface data
 
@@ -67,7 +88,6 @@ use aerointerface                 ! Aerosol interface
 use arrays_m                      ! Atmosphere dyamics prognostic arrays
 use const_phys                    ! Physical constants
 use cu_gf_deep                    ! Grell convection
-use kuocom_m                      ! JLM convection
 use liqwpar_m                     ! Cloud water mixing ratios
 use map_m                         ! Grid map arrays
 use morepbl_m                     ! Additional boundary layer diagnostics
@@ -541,7 +561,6 @@ subroutine ctrl_convection_init
 
 use convjlm_m                     ! Convection
 use convjlm22_m                   ! Convection v2
-use kuocom_m                      ! JLM convection
 
 implicit none
 
@@ -555,6 +574,25 @@ end select
 return
 end subroutine ctrl_convection_init
 
+subroutine convection_arrays_init(ifull,kl)
+
+implicit none
+
+integer, intent(in) :: ifull, kl
+
+call kuocom_init(ifull,kl)
+
+return
+end subroutine convection_arrays_init
+
+subroutine convection_arrays_end
+
+implicit none
+
+call kuocom_end
+
+return
+end subroutine convection_arrays_end
 
 !====================================================================================================
 ! SUBROUTINE interp_nconvection

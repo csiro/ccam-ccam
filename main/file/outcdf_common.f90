@@ -128,24 +128,18 @@ end subroutine mslp
 
 subroutine outparam(idnc)
 
-use aerointerface                          ! Aerosol interface 
+use aerointerface                          ! Aerosol interface
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
 use estab                                  ! Liquid saturation function
 use infile                                 ! Input file routines
-use kuocom_m                               ! JLM convection
 use mlodynamics                            ! Ocean dynamics
-use module_aux_rad                         ! Additional cloud and radiation routines
+use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
+use module_ctrl_radiation                  ! Interface for radiation
 use module_ctrl_turbmix                    ! Boundary layer turbulent mixing
-use nharrs_m                               ! Non-hydrostatic atmosphere arrays
-use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
-use parmdyn_m                              ! Dynamics parameters
-use parmhdff_m                             ! Horizontal diffusion parameters
-use parmhor_m                              ! Horizontal advection parameters
-use parmvert_m                             ! Vertical advection parameters
 use river                                  ! River routing
-use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
 
 implicit none

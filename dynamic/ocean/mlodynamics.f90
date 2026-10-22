@@ -262,7 +262,7 @@ subroutine mlohadv
 use arrays_m
 use cc_mpi
 use const_phys
-use infile
+use dates_m
 use indices_m
 use latlong_m
 use map_m

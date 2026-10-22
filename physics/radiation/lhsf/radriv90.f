@@ -41,10 +41,10 @@
       use co2_read_m
       use co2dta_m, only : co2dta_init
       use const_phys
+      use dates_m
       use diag_m
       use estab
       use extraout_m ! sintsave, etc
-      use infile
       use kdacom_m, only : kdacom_init
       use kuocom_m
       use latlong_m

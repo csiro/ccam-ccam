@@ -43,16 +43,30 @@ use tkeeps                          ! TKE-EPS boundary layer
 implicit none
 
 private
-public turbmix_init, turbmix
+public turbmix_init, turbmix, turbmix_arrays_init
 
 ! from tkeeps
 public cm0, ce0, ce1, ce2, ce3, be, ent0, ent1, entc0, ezmin, dtrc0
 public m0, b1, b2, qcmf, ent_min, mfbeta
 public buoymeth, maxdts, mintke, mineps, minl, maxl, stabmeth
 public tkemeth, tcalmeth
+public tke, eps
 
 contains
 
+subroutine turbmix_arrays_init(ifull,iextra,kl,nvmix)
+
+implicit none
+
+integer, intent(in) :: ifull, iextra, kl, nvmix
+
+if ( nvmix==6 .or. nvmix==9 ) then
+  call tkeinit(ifull,iextra,kl)
+end if
+
+return
+end subroutine turbmix_arrays_init
+    
 subroutine turbmix_init
 
 use arrays_m                        ! Atmosphere dyamics prognostic arrays

@@ -29,7 +29,7 @@
 module indata
 
 private
-public indataf
+public indataf, indataf_mesonest_close
 public nstnmax, nstn, istn, jstn, iunp, io_nest
 public slat, slon, zstn, mystn, name_stn
 
@@ -51,54 +51,43 @@ subroutine indataf(lapsbot,isoth,nsig,nmlfile)
      
 use aerointerface                                ! Aerosol interface
 use amipsst_m                                    ! AMIP SSTs
-use arrays_m                                     ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m                          ! Collection of atmosphere data
 use bigxy4_m                                     ! Grid interpolation
 use cc_mpi                                       ! CC MPI routines
 use const_phys                                   ! Physical constants
 use darcdf_m                                     ! Netcdf data
 use dates_m                                      ! Date data
-use daviesnudge                                  ! Far-field nudging
 use diag_m                                       ! Diagnostic routines
 use eig_m                                        ! Eigenvector routines
 use ensemble                                     ! Ensemble
-use epst_m                                       ! Off-centre terms
 use extraout_m                                   ! Additional diagnostics
 use filnames_m                                   ! Filenames
 use gdrag_m                                      ! Gravity wave drag
+use histave_m                                    ! Time average arrays
 use indices_m                                    ! Grid index arrays
 use infile                                       ! Input file routines
-use kuocom_m                                     ! JLM convection
 use latlong_m                                    ! Lat/lon coordinates
 use latltoij_m                                   ! Lat/Lon to cubic ij conversion
-use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
 use mlodynamics                                  ! Ocean dynamics
 use module_ctrl_convection                       ! Interface for convection
+use module_ctrl_radiation                        ! Interface for radiation
 use module_ctrl_turbmix                          ! Boundary layer turbulent mixing
-use morepbl_m                                    ! Additional boundary layer diagnostics
+use nesting                                      ! Nesting and assimilation
 use newmpar_m                                    ! Grid parameters
-use nharrs_m, only : lrestart                    ! Non-hydrostatic atmosphere arrays
 use nsibd_m                                      ! Land-surface arrays
 use onthefly_m                                   ! Input interpolation routines
 use parm_m                                       ! Model configuration
-use parmdyn_m                                    ! Dynamics parmaters
 use parmgeom_m                                   ! Coordinate data
-use pbl_m                                        ! Boundary layer arrays
 use permsurf_m                                   ! Fixed surface arrays
 use river                                        ! River routing
-use seaesfrad_m                                  ! SEA-ESF radiation
 use sflux_m                                      ! Surface flux routines
 use sigs_m                                       ! Atmosphere sigma levels
-use soil_m                                       ! Soil and surface data
-use soilsnow_m                                   ! Soil, snow and surface data
-use soilv_m                                      ! Soil parameters
 use stime_m                                      ! File date data
 use timeseries, only : init_ts                   ! Tracer time series
 use tracermodule, only : readtracerflux          ! Tracer routines
 use tracers_m                                    ! Tracer data
-use vecs_m                                       ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                                     ! Map to cartesian coordinates
-use vegpar_m                                     ! Vegetation arrays
 use xyzinfo_m                                    ! Grid coordinate arrays
       
 #ifdef csircoupled
@@ -118,7 +107,7 @@ real, parameter :: rkappa   = 2./7.
 
 integer ii, imo, indexi, indexl, indexs, ip, iq, isoil, isoth
 integer iveg, iyr, jj, k, kdate_sav, ktime_sav, l
-integer nface, nn, nsig, i, j, n
+integer nface_l, nn, nsig, i, j, n
 integer ierr, ic, jc, iqg, ig, jg, jdf, nd
 integer isav, jsav, ier, lapsbot, idv
 integer lncriver, iernc, ateb_len, chid_len
@@ -2198,15 +2187,12 @@ call ctrl_convection_init
   
 !-----------------------------------------------------------------
 ! UPDATE RADIATION
-select case(nrad)
-  case(5)
-    call seaesfrad_init
-end select
+call ctrl_radiation_init(nrad)
 
 
 !-----------------------------------------------------------------
 ! UPDATE SURFACE FLUXES
-call sflux_init
+call ctrl_sflux_init
 
   
 !-----------------------------------------------------------------
@@ -2326,11 +2312,11 @@ if(nstn>0)then
   end if
   call ccmpi_barrier(comm_world)
   do n = 1,nstn
-    call latltoij(slon(n),slat(n),rlong0,rlat0,schmidt,ri,rj,nface,xx4,yy4,il_g)
+    call latltoij(slon(n),slat(n),rlong0,rlat0,schmidt,ri,rj,nface_l,xx4,yy4,il_g)
     ! These are global indices
     ig=nint(ri)
-    jg=nint(rj) + nface*il_g
-    mystn(n) = fproc(ig,nint(rj),nface) == myid
+    jg=nint(rj) + nface_l*il_g
+    mystn(n) = fproc(ig,nint(rj),nface_l) == myid
     if ( mystn(n) ) then
       iqg = ig + (jg-1)*il_g
       deli = nint(ri) - ri
@@ -2473,7 +2459,7 @@ end subroutine indataf
 ! READ BIOSPHERIC FILES
 subroutine rdnsib
 
-use arrays_m                 ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m      ! Collection of atmosphere data
 use cc_mpi                   ! CC MPI routines
 use const_phys               ! Physical constants
 use darcdf_m                 ! Netcdf data
@@ -2483,12 +2469,8 @@ use map_m                    ! Grid map arrays
 use newmpar_m                ! Grid parameters
 use nsibd_m                  ! Land-surface arrays
 use parm_m                   ! Model configuration
-use pbl_m                    ! Boundary layer arrays
-use soil_m                   ! Soil and surface data
-use soilsnow_m               ! Soil, snow and surface data
-use soilv_m                  ! Soil parameters
+use sflux_m                  ! Surface flux routines
 use tracers_m                ! Tracer data
-use vegpar_m                 ! Vegetation arrays
 
 implicit none
 
@@ -2946,7 +2928,8 @@ subroutine insoil
 use cc_mpi, only : myid ! CC MPI routines
 use newmpar_m           ! Grid parameters
 use parm_m, only : nsib ! Model configuration
-use soilv_m             ! Soil parameters
+use sflux_m             ! Surface flux routines
+!use soilv_m             ! Soil parameters
       
 implicit none
 
@@ -2978,14 +2961,16 @@ end subroutine insoil
 !--------------------------------------------------------------
 ! CALCULATE ROUGHNESS LENGTH
 subroutine calczo
-      
-use arrays_m        ! Atmosphere dyamics prognostic arrays
-use map_m           ! Grid map arrays
-use newmpar_m       ! Grid parameters
-use nsibd_m         ! Land-surface arrays
-use parm_m          ! Model configuration
-use soil_m          ! Soil and surface data
-use soilsnow_m      ! Soil, snow and surface data
+     
+use atmosphere_arrays_m  ! Collection of atmosphere data
+!use arrays_m        ! Atmosphere dyamics prognostic arrays
+use map_m                ! Grid map arrays
+use newmpar_m            ! Grid parameters
+use nsibd_m              ! Land-surface arrays
+use parm_m               ! Model configuration
+use sflux_m              ! Surface flux routines
+!use soil_m          ! Soil and surface data
+!use soilsnow_m      ! Soil, snow and surface data
       
 implicit none
       
@@ -3240,8 +3225,9 @@ use infile
 use newmpar_m
 use nsibd_m
 use parmgeom_m
-use soilsnow_m, only : wb_clim
-use soilv_m
+use sflux_m             ! Surface flux routines
+!use soilsnow_m, only : wb_clim
+!use soilv_m
 
 implicit none
 
@@ -3497,5 +3483,21 @@ do imo_r = 1,5
 end do  
 
 end subroutine load_sm_clim
+
+subroutine indataf_mesonest_close
+
+use infile                                       ! Input file routines
+use parm_m                                       ! Model configuration
+
+implicit none
+
+! close mesonest files
+if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) then
+  call histclose
+end if
+
+return
+end subroutine indataf_mesonest_close
+
 
 end module indata

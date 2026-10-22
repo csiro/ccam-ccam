@@ -50,11 +50,21 @@
 
 module nesting
 
+use daviesnudge                            ! Far-field nudging
+
 implicit none
 
 private
 public nestin, nestinb, mlofilterhub, mlonudge, specinit
 public mtimea, mtimeb, nestin_exit
+
+! daviesnudge
+public davies, davset
+public dav_init, dav_end
+public davt, davu
+public psls, qgg, tt, uu, vv
+public xtgdav
+public vertwgt
 
 integer, save :: mtimea = -1  ! previous mesonest time (mins)
 integer, save :: mtimeb = -1  ! next mesonest time (mins)
@@ -79,20 +89,16 @@ contains
 subroutine nestin
       
 use aerointerface                ! Aerosol interface
-use arrays_m                     ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m          ! Collection of atmosphere data
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
-use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
-use mlo_ctrl                     ! Ocean physics control layer
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
-use pbl_m                        ! Boundary layer arrays
-use soil_m                       ! Soil and surface data
-use soilsnow_m                   ! Soil, snow and surface data
+use sflux_m                      ! Surface flux routines
 use stime_m                      ! File date data
       
 integer, dimension(ifull) :: dumm
@@ -162,6 +168,7 @@ if( mtimer>mtimeb ) then  ! allows for dt<1 minute
     if ( myid==0 ) then
       write(6,*) "Starting mtimea at ",mtimeb  
     end if
+    call retopo(pslb,zsb,zs(1:ifull),tb,qb)
   endif       ! (.not.allocated(ta))
       
 ! transfer mtimeb fields to mtimea and update sice variables
@@ -338,21 +345,16 @@ end subroutine nestin
 subroutine nestinb
 
 use aerointerface                ! Aerosol interface
-use arrays_m                     ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m          ! Collection of atmosphere data
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
-use daviesnudge                  ! Far-field nudging
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
-use mlo_ctrl                     ! Ocean physics control layer
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
-use pbl_m                        ! Boundary layer arrays
-use savuvt_m                     ! Saved dynamic arrays
-use soil_m                       ! Soil and surface data
-use soilsnow_m                   ! Soil, snow and surface data
+use sflux_m                      ! Surface flux routines
 use stime_m                      ! File date data
  
 integer, dimension(ifull) :: dumm
@@ -426,7 +428,10 @@ if ( mtimer>mtimeb ) then
     if ( myid==0 ) then
       write(6,*) "Starting mtimea at ",mtimeb  
     end if
-  end if
+    
+    ! adjust input data for change in orography
+    call retopo(pslb,zsb,zs,tb,qb)
+  end if ! .not.allocated(tb)  - first call
   
   mtimea = mtimeb
   psla(:) = pslb(:)
@@ -574,22 +579,15 @@ end subroutine nestinb
 subroutine getspecdata(pslbb,ubb,vbb,tbb,qbb,xtgbb)
 
 use aerointerface                ! Aerosol interface
-use arrays_m                     ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m          ! Collection of atmosphere data
 use cc_mpi                       ! CC MPI routines
 use const_phys                   ! Physical constants
-use daviesnudge                  ! Far-field nudging
-use kuocom_m                     ! JLM convection
-use liqwpar_m                    ! Cloud water mixing ratios
 use newmpar_m                    ! Grid parameters
-use nharrs_m                     ! Non-hydrostatic atmosphere arrays
 use parm_m                       ! Model configuration
-use parmdyn_m                    ! Dynamics parameters
 use parmgeom_m                   ! Coordinate data
-use savuvt_m                     ! Saved dynamic arrays
-use savuv1_m                     ! Saved dynamic arrays
+use sflux_m                      ! Surface flux routines
 use sigs_m                       ! Atmosphere sigma levels
 use vecsuv_m                     ! Map to cartesian coordinates
-use work3sav_m                   ! Water and tracer saved arrays
 use xyzinfo_m, only : x,y,z      ! Grid coordinate arrays
       
 integer iq, k, ntr, kb, kln, klx, klt
@@ -1759,11 +1757,10 @@ end subroutine getiqa
 subroutine mlofilterhub(sstb,sssb,suvb,sfh,wl)
 
 use cc_mpi                                          ! CC MPI routines
-use mlo_ctrl                                        ! Ocean physics control layer
 use mlodynamics                                     ! Ocean dynamics
 use newmpar_m                                       ! Grid parameters
 use parm_m                                          ! Model configuration
-use soil_m                                          ! Soil and surface data
+use sflux_m                                         ! Surface flux routines
 use vecsuv_m                                        ! Map to cartesian coordinates
 
 integer, intent(in) :: wl

@@ -892,34 +892,35 @@ contains
    
    subroutine ccmpi_reduce2i(ldat,gdat,op,host,comm)
       integer, intent(in) :: host, comm
-      integer(kind=4) :: lcomm, lerr, lsize
+      integer(kind=4) :: lcomm, lerr, lsize, lhost
       integer, dimension(:), intent(in) :: ldat
       integer, dimension(:), intent(out) :: gdat
       character(len=*), intent(in) :: op
 
       call START_LOG(reduce_begin)
       
+      lhost = host
       lcomm = comm
       lsize = size(ldat)
       
       select case( op )
          case( "max" )
 #ifdef i8r8
-            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_MAX, lcomm, lerr )
+            call MPI_Reduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_MAX, lhost, lcomm, lerr )
 #else
-            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_MAX, lcomm, lerr )
+            call MPI_Reduce(ldat, gdat, lsize, MPI_INTEGER, MPI_MAX, lhost, lcomm, lerr )
 #endif 
          case( "min" )
 #ifdef i8r8
-            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_MIN, lcomm, lerr )
+            call MPI_Reduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_MIN, lhost, lcomm, lerr )
 #else
-            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_MIN, lcomm, lerr )
+            call MPI_Reduce(ldat, gdat, lsize, MPI_INTEGER, MPI_MIN, lhost, lcomm, lerr )
 #endif 
          case( "sum" )
 #ifdef i8r8
-            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_SUM, lcomm, lerr )
+            call MPI_Reduce(ldat, gdat, lsize, MPI_INTEGER8, MPI_SUM, lhost, lcomm, lerr )
 #else
-            call MPI_AllReduce(ldat, gdat, lsize, MPI_INTEGER, MPI_SUM, lcomm, lerr )
+            call MPI_Reduce(ldat, gdat, lsize, MPI_INTEGER, MPI_SUM, lhost, lcomm, lerr )
 #endif 
          case default
             write(6,*) "ERROR: Unknown option for ccmpi_reduce ",op

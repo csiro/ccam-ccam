@@ -352,63 +352,31 @@ subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                            
                     idc,psl_in,u_in,v_in,t_in,q_in)
 
 use aerointerface                                ! Aerosol interface
-use arrays_m                                     ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m                          ! Collection of atmosphere data
 use cc_mpi                                       ! CC MPI routines
-use cfrac_m                                      ! Cloud fraction
 use const_phys                                   ! Physical constants
 use dates_m                                      ! Date data
-use daviesnudge                                  ! Far-field nudging
-use dpsdt_m                                      ! Vertical velocity
 use extraout_m                                   ! Additional diagnostics
 use filnames_m                                   ! Filenames
 use gdrag_m                                      ! Gravity wave drag
 use histave_m                                    ! Time average arrays
 use infile                                       ! Input file routines
-use kuocom_m                                     ! JLM convection
 use latlong_m                                    ! Lat/lon coordinates
-use liqwpar_m                                    ! Cloud water mixing ratios
 use map_m                                        ! Grid map arrays
-use mlo_ctrl                                     ! Ocean physics control layer
 use mlodynamics                                  ! Ocean dynamics
-use module_aux_cosp, only : clp_lmht,             &
-    clp_phse_ice,clp_phse_liq,clp_ice,clp_liq,    &
-    ncolumns,cls_db_b01,cls_db_b02,cls_db_b03,    &
-    cls_db_b04,cls_db_b05,cls_db_b06,cls_db_b07,  &
-    cls_db_b08,cls_db_b09,cls_db_b10,cls_db_b11,  &
-    cls_db_b12,cls_db_b13,cls_db_b14,cls_db_b15,  & 
-    clp_sr_b01,clp_sr_b02,clp_sr_b03,clp_sr_b04,  &
-    clp_sr_b05,clp_sr_b06,clp_sr_b07,clp_sr_b08,  &
-    clp_sr_b09,clp_sr_b10,clp_sr_b11,clp_sr_b12,  &
-    clp_sr_b13,clp_sr_b14,clp_sr_b15,             &
-    cloud_simulator_ready
+use module_ctrl_convection                       ! Interface for convection
 use module_ctrl_microphysics                     ! Interface for cloud microphysics
-use morepbl_m                                    ! Additional boundary layer diagnostics
+use module_ctrl_radiation                        ! Interface for radiation
+use module_ctrl_turbmix                          ! Boundary layer turbulent mixing
+use nesting                                      ! Nesting and assimilation
 use newmpar_m                                    ! Grid parameters
-use nharrs_m                                     ! Non-hydrostatic atmosphere arrays
-use nsibd_m                                      ! Land-surface arrays
 use parm_m                                       ! Model configuration
-use parmdyn_m                                    ! Dynamics parameters
-use pbl_m                                        ! Boundary layer arrays
-use prec_m                                       ! Precipitation
-use raddiag_m                                    ! Radiation diagnostic
 use riverarrays_m                                ! River data
-use savuvt_m                                     ! Saved dynamic arrays
-use savuv1_m                                     ! Saved dynamic arrays
 use screen_m                                     ! Screen level diagnostics
 use sigs_m                                       ! Atmosphere sigma levels
 use sflux_m                                      ! Surface flux routines
-use soil_m                                       ! Soil and surface data
-use soilsnow_m                                   ! Soil, snow and surface data
-use soilv_m                                      ! Soil parameters
-use tkeeps, only : tke,eps                       ! TKE-EPS boundary layer
 use tracermodule, only : writetrpm, co2em        ! Tracer routines
 use tracers_m                                    ! Tracer data
-use uclem_ctrl, only : uclem_saved,            & ! Urban
-    uclem_avetemp,urbtemp,nfrac,uclem_misc
-use vegpar_m                                     ! Vegetation arrays
-use vvel_m                                       ! Additional vertical velocity
-use work2_m                                      ! Diagnostic arrays
-use xarrs_m, only : pslx                         ! Saved dynamic arrays
 
 implicit none
 

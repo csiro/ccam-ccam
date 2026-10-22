@@ -34,7 +34,7 @@ contains
 
 subroutine freqfile_10
 
-use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m               ! Collection of atmosphere data
 use cc_mpi                            ! CC MPI routines
 use const_phys                        ! Physical constants
 use dates_m                           ! Date data
@@ -42,26 +42,16 @@ use extraout_m                        ! Additional diagnostics
 use filnames_m                        ! Filenames
 use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
-use kuocom_m                          ! JLM convection
-use liqwpar_m                         ! Cloud water mixing ratios
-use morepbl_m                         ! Additional boundary layer diagnostics
+use module_ctrl_convection            ! Interface for convection
+use module_ctrl_microphysics          ! Interface for cloud microphysics
+use module_ctrl_radiation             ! Interface for radiation
 use newmpar_m                         ! Grid parameters
-use nharrs_m                          ! Non-hydrostatic atmosphere arrays
-use nsibd_m                           ! Land-surface arrays
 use parm_m                            ! Model configuration
-use parmdyn_m                         ! Dynamics parameters
 use parmgeom_m                        ! Coordinate data
-use parmhdff_m                        ! Horizontal diffusion parameters
-use parmhor_m                         ! Horizontal advection parameters
-use pbl_m                             ! Boundary layer arrays
-use prec_m                            ! Precipitation
-use raddiag_m                         ! Radiation diagnostic
 use screen_m                          ! Screen level diagnostics
+use sflux_m                           ! Surface flux routines
 use sigs_m                            ! Atmosphere sigma levels
-use soilsnow_m                        ! Soil, snow and surface data
-use soilv_m                           ! Soil parameters
 use tracers_m                         ! Tracer data
-use vvel_m                            ! Additional vertical velocity
       
 implicit none
 

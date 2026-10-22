@@ -33,7 +33,7 @@ use netcdf_m
 implicit none
             
 private
-public datefix, datefix_month, getzinp, ncmsg, processdatestring
+public datefix, datefix_month, ncmsg, processdatestring
 public ptest, pfall, ncidold, resprocformat, pncid
 public histopen, histclose, histrd, surfread
 public attrib, histwrt, lsmask
@@ -51,8 +51,6 @@ public driving_institution_id
 
 public any_m, daily_m, sixhr_m, point_m, tmean_m, max_m, min_m, fixed_m, sum_m
 public short_m, double_m, float_m, anotdef_m, amean_m, land_m, sea_m, seaice_m
-
-public time_of_month, time_interpolate
 
 public attrib_soilt, attrib_vegt
 
@@ -75,23 +73,28 @@ character(len=256), save :: driving_model_ensemble_number = ' '
 character(len=256), save :: driving_experiment_name = ' '
 
 ! define configuration for attrib
+!----------------------------------------------------------------------------------------
 integer, parameter :: any_m = 0      ! output is valid at any time-step (usually hourly)
 integer, parameter :: daily_m = 1    ! output is daily only
 integer, parameter :: sixhr_m = 2    ! output is 6-hourly only
+!----------------------------------------------------------------------------------------
 integer, parameter :: point_m = 0    ! output is for a point in time
 integer, parameter :: tmean_m = 1    ! output is averaged in time
 integer, parameter :: max_m = 2      ! output is maximum over a time interval
 integer, parameter :: min_m = 3      ! output is minimum over a time interval
 integer, parameter :: fixed_m = 4    ! output is fixed (independent of time)
 integer, parameter :: sum_m = 5      ! output is a sum over time interval
+!----------------------------------------------------------------------------------------
 integer, parameter :: short_m = 1    ! output is compressed as a short
 integer, parameter :: double_m = 2   ! output is double precision
 integer, parameter :: float_m = -1   ! output is single precision (or default model precision)
+!----------------------------------------------------------------------------------------
 integer, parameter :: anotdef_m = -1 ! output has no area mean (e.g., index)
 integer, parameter :: amean_m = 0    ! output is mean over area
 integer, parameter :: land_m = 1     ! output is mean over land
 integer, parameter :: sea_m = 2      ! output is mean over sea
 integer, parameter :: seaice_m = 3   ! output is mean over sea_ice
+!----------------------------------------------------------------------------------------
 
 interface histrd
   module procedure histrd3r4, histrd4r4, histrd5r4
@@ -1554,63 +1557,6 @@ ktime_rsav = hh*100 + mt
 return
 end subroutine processdatestring
 
-!--------------------------------------------------------------------
-! Set up number of minutes from beginning of year
-subroutine getzinp(jyear,jmonth,jday,jhour,jmin,mins,allleap)
-
-use cc_mpi
-use dates_m
-use parm_m
-
-implicit none
-
-integer, intent(out) :: jyear,jmonth,jday,jhour,jmin ! start date of run
-integer, intent(out) :: mins                         ! elapsed time from start of year
-integer mstart, n1
-integer, dimension(12) :: ndoy
-logical, intent(in), optional :: allleap ! force use of leap days even if leap=0
-logical lleap
-
-if ( present(allleap) ) then
-  lleap = allleap
-else
-  lleap = .false.    
-end if
-
-jyear  = kdate/10000
-jmonth = (kdate-jyear*10000)/100
-jday   = kdate - jyear*10000 - jmonth*100
-jhour  = ktime/100
-jmin   = ktime - jhour*100
-      
-if ( jmonth<1 .or. jmonth>12 ) then
-  write(6,*) "ERROR: Invalid month ",jmonth," for kdate ",kdate
-  call ccmpi_abort(-1)
-end if 
-
-if ( lleap .or. leap==1 ) then ! 365/366 day calendar
-  ndoy(:) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)
-  n1 = 0
-  if ( mod(jyear,4)  ==0 ) n1 = 1
-  if ( mod(jyear,100)==0 ) n1 = 0
-  if ( mod(jyear,400)==0 ) n1 = 1
-  ndoy(3:12)=ndoy(3:12)+n1
-else if ( leap==0 ) then ! 365 day calendar
-  ndoy(:) = (/ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 /)  
-else if ( leap==2 ) then ! 360 day calendar  
-  ndoy(:) = (/ 0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330 /)
-else
-  write(6,*) "ERROR: Unknown option for leap = ",leap
-  call ccmpi_abort(-1)
-end if  
-
-mstart = 1440*(ndoy(jmonth)+jday-1) + 60*jhour + jmin ! mins from start of year
-
-! mtimer contains number of minutes since the start of the run.
-mins = mtimer + mstart
-
-return
-end subroutine getzinp
 
 !--------------------------------------------------------------------
 ! DEFINE ATTRIBUTES
@@ -1656,6 +1602,7 @@ if ( localhist .and. ndim>3 ) then
   ! similar
   lil = int(il,kind=4)
   ljl = int(jl,kind=4)
+  ! limit chunk size to node_nx
   lvnode = int( min(vnode_nproc,node_nx) ,kind=4)
   select case(ndim)
     case(6)
@@ -3400,7 +3347,7 @@ lvid = vid
 lstart = start
 lncount = ncount
 ncstatus = nf90_put_var(lncid,lvid,vdat,start=lstart,count=lncount)
-call ncmsg("put_vara_real2r_s",ncstatus)
+call ncmsg("put_vara_real2r_0",ncstatus)
 
 return
 end subroutine ccnf_put_vara_real2r_0
@@ -3889,158 +3836,6 @@ end where
 
 return
 end subroutine lsmask
-
-subroutine time_of_month(iyr,imo,iday,mdays,kdate,mtimer,leap)
-
-implicit none
-
-integer, intent(in) :: kdate, leap, mtimer
-integer, intent(out) :: iyr, imo, iday, mdays
-integer, dimension(0:13) :: mdays_a
-
-iyr = kdate/10000
-imo = (kdate-10000*iyr)/100
-iday = kdate - 10000*iyr - 100*imo + mtimer/(60*24)
-if ( leap==0 ) then ! 365 day calendar
-  mdays_a = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
-else if ( leap==1 ) then ! 365/366 day calendar
-  mdays_a = (/ 31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31, 31 /)
-  if ( mod(iyr,4)==0 ) mdays_a(2) = 29
-  if ( mod(iyr,100)==0 ) mdays_a(2) = 28
-  if ( mod(iyr,400)==0 ) mdays_a(2) = 29
-else if ( leap==2 ) then ! 360 day calendar
-  mdays_a = (/ 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 /)  
-else
-  write(6,*) "ERROR: Invalid leap = ",leap
-  stop
-end if
-do while ( iday>mdays_a(imo) )
-  iday = iday - mdays_a(imo)
-  imo = imo + 1
-  if ( imo>12 ) then
-    imo = 1
-    iyr = iyr + 1
-    if ( leap==1 ) then
-      if ( mod(iyr,4)==0 ) mdays_a(2) = 29
-      if ( mod(iyr,100)==0 ) mdays_a(2) = 28
-      if ( mod(iyr,400)==0 ) mdays_a(2) = 29
-    end if
-  end if
-end do
-mdays = mdays_a(imo)
-
-return
-end subroutine time_of_month
-
-subroutine time_interpolate(datout,dat_pm,dat_p,dat_c,dat_n,dat_np,x,method,land)
-
-integer, intent(in) :: method
-integer iq
-real, intent(in) :: x
-real a0, a1, a2, aa, bb, cc, mp1, mp2, c2, c3, c4
-real ssta2, ssta3, ssta4
-real, dimension(:), intent(out) :: datout
-real, dimension(:), intent(in) :: dat_pm, dat_p, dat_c, dat_n, dat_np
-logical, dimension(:), intent(in), optional :: land
-logical, dimension(size(datout)) :: land_l
-
-! dat_pm - previous month -1 (current month - 2)
-! dat_p  - previous month (current month - 1)
-! dat_c  - current month
-! dat_n  - next month ( current month + 1)
-! dat_np - next month +1 ( current month + 2 )
-
-land_l = .false.
-if ( present(land) ) then
-  land_l = land
-end if
-
-! method=3,4,5  Use PWCB interpolation
-if ( method==3 .or. method==4 .or. method==5 ) then
-  !--------------------------------------------------------------------------------------------------
-  ! Piece-wise cubic bessel interpolation
-  do iq=1,size(datout)
-    if( .not.land_l(iq) )then
-      c2=dat_p(iq)
-      c3=dat_p(iq)+dat_c(iq)
-      c4=c3+dat_n(iq)          
-      datout(iq)=.5*c3+(4.*c3-5.*c2-c4)*x+1.5*(c4+3.*c2-3.*c3)*x*x
-    endif      ! (.not.land(iq))
-  enddo
-endif
-
-! method=11,13,14,15  Use JMc interpolation
-if ( method==11 .or. method==13 .or. method==14 .or. method==15 ) then
-  !--------------------------------------------------------------------------------------------------
-  ! John McGregor 5-pt, piece-wise, cubic interpolation
-  do iq=1,size(datout)
-    if ( .not.land_l(iq) ) then
-      ssta2=(24.*dat_p(iq)-dat_pm(iq)-dat_c(iq))/22. 
-      ssta3=(24.*dat_c(iq)-dat_p(iq)-dat_n(iq))/22. 
-      ssta4=(24.*dat_n(iq)-dat_c(iq)-dat_np(iq))/22. 
-      c2=(-dat_pm(iq)+9*ssta2+9*ssta3-dat_n(iq))/16.
-      c3=(-dat_p(iq)+9*ssta3+9*ssta4-dat_np(iq))/16.
-      datout(iq)=c2+(6.*dat_c(iq)-4.*c2-2.*c3)*x    &
-                 +(3.*c2+3.*c3-6.*dat_c(iq))*x*x 
-    endif      ! (.not.land(iq))
-  enddo
-end if
-
-! method=21,24,25  Use approx linear AMIP interpolation
-if ( method==21 .or. method==24 .or. method==25 ) then
-  !--------------------------------------------------------------------------------------------------
-  ! Approximation of piece-wise, linear AMIP interpolation
-  if ( x<0.5 ) then
-    do iq = 1,size(datout)
-      if ( .not.land_l(iq) ) then
-        a0 = 0.5*dat_p(iq)
-        a1 = -dat_c(iq)
-        a2 = 0.5*dat_n(iq)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-        a0 = 0.5*dat_c(iq)
-        a1 = -dat_n(iq)
-        a2 = 0.5*dat_np(iq)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-        c4 = 2.*dat_c(iq) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-        c2 = mp1                              ! intercept
-        c3 = 2.*(c4-c2)                       ! gradient
-        datout(iq) = c3*x + c2
-      end if
-    end do
-  else
-    do iq = 1,size(datout)
-      if ( .not.land_l(iq) ) then
-        a0 = 0.5*dat_p(iq)
-        a1 = -dat_c(iq)
-        a2 = 0.5*dat_n(iq)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp1 = 0.25*aa + 0.5*bb + cc ! start of month value
-        a0 = 0.5*dat_c(iq)
-        a1 = -dat_n(iq)
-        a2 = 0.5*dat_np(iq)
-        aa = a0 + a1 + a2
-        bb = -3.*a0 - 2.*a1 - a2
-        cc = 2.*a0
-        mp2 = 0.25*aa + 0.5*bb + cc ! end of month value
-        c4 = 2.*dat_c(iq) - 0.5*mp1 - 0.5*mp2 ! mid-point value
-        c3 = 2.*(mp2 - c4)                    ! gradient
-        c2 = 2.*c4 - mp2                      ! intercept
-        datout(iq) = c3*x + c2
-      end if
-    end do
-  end if
-end if
-
-return
-end subroutine time_interpolate
 
 subroutine attrib_soilt(ncid,isoilm_name)
 

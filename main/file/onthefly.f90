@@ -77,8 +77,8 @@ contains
 ! *****************************************************************************
 ! Main interface for input data that reads grid metadata
     
-subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                    snowd,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+subroutine onthefly(nested,kdate_r,ktime_r,psl,zss,tss_l,sicedep_l,fracice_l,t,u,v,qg,tgg_l,wb_l,wbice_l, &
+                    snowd_l,tggsn_l,smass_l,ssdn_l,ssdnn_l,snage_l,isflag_l,mlodwn,ocndwn,xtgdwn)
 
 use cc_mpi           ! CC MPI routines
 use darcdf_m         ! Netcdf data
@@ -98,17 +98,17 @@ integer, save :: maxarchi
 integer ierx, idvtime
 integer kdate_rsav, ktime_rsav
 integer, dimension(nihead) :: nahead
-integer, dimension(:), intent(inout) :: isflag
+integer, dimension(:), intent(inout) :: isflag_l
 integer(kind=8) mtimer
 real(kind=8) timer
 real, dimension(:,:,:), intent(inout) :: mlodwn
 real, dimension(:,:,:), intent(inout) :: xtgdwn
-real, dimension(:,:), intent(inout) :: wb, wbice, tgg
-real, dimension(:,:), intent(inout) :: tggsn, smass, ssdn
+real, dimension(:,:), intent(inout) :: wb_l, wbice_l, tgg_l
+real, dimension(:,:), intent(inout) :: tggsn_l, smass_l, ssdn_l
 real, dimension(:,:), intent(inout) :: ocndwn
 real, dimension(:,:), intent(inout) :: t, u, v, qg
-real, dimension(:), intent(inout) :: psl, zss, tss, fracice, snowd
-real, dimension(:), intent(inout) :: sicedep, ssdnn, snage
+real, dimension(:), intent(inout) :: psl, zss, tss_l, fracice_l, snowd_l
+real, dimension(:), intent(inout) :: sicedep_l, ssdnn_l, snage_l
 real, dimension(nrhead) :: ahead
 real, dimension(11) :: rdum
 logical, save :: firstcall = .true.
@@ -299,8 +299,8 @@ end if
 ! Note that if histrd fails to find a variable, it returns zero in
 ! the output array
 
-call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                   snowd,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+call onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss_l,sicedep_l,fracice_l,t,u,v,qg,tgg_l,wb_l,wbice_l, &
+                   snowd_l,tggsn_l,smass_l,ssdn_l,ssdnn_l,snage_l,isflag_l,mlodwn,ocndwn,xtgdwn)
 
 if ( myid==0 ) write(6,*) "Leaving onthefly"
 
@@ -317,8 +317,8 @@ end subroutine onthefly
 ! scattered across processes, or multiple input files that are read
 ! by many processes.  In the case of restart files, then there is
 ! no need for message passing.
-subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss,sicedep,fracice,t,u,v,qg,tgg,wb,wbice, &
-                         snowd,tggsn,smass,ssdn,ssdnn,snage,isflag,mlodwn,ocndwn,xtgdwn)
+subroutine onthefly_work(nested,kdate_r,ktime_r,psl,zss,tss_l,sicedep_l,fracice_l,t,u,v,qg,tgg_l,wb_l,wbice_l, &
+                         snowd_l,tggsn_l,smass_l,ssdn_l,ssdnn_l,snage_l,isflag_l,mlodwn,ocndwn,xtgdwn)
       
 use aerointerface, only : opticaldepth         ! Aerosol interface          
 use cc_mpi                                     ! CC MPI routines
@@ -373,7 +373,7 @@ integer, intent(in) :: nested, kdate_r, ktime_r
 integer idv, retopo_test, ktest
 integer levk, levkin, ier, igas
 integer i, j, k, mm, iq, ifrac, n
-integer, dimension(:), intent(inout) :: isflag
+integer, dimension(:), intent(inout) :: isflag_l
 integer, dimension(11+3*ms) :: ierc
 integer, dimension(12), save :: iers
 integer, dimension(2) :: shsize
@@ -381,12 +381,12 @@ real mxd_o, x_o, y_o, al_o, bt_o, depth_hl_xo, depth_hl_yo
 real, dimension(:,:,:), intent(inout) :: mlodwn
 real, dimension(:,:,:), intent(inout) :: xtgdwn
 real, dimension(:,:), intent(inout) :: ocndwn
-real, dimension(:,:), intent(inout) :: wb, wbice, tgg
-real, dimension(:,:), intent(inout) :: tggsn, smass, ssdn
+real, dimension(:,:), intent(inout) :: wb_l, wbice_l, tgg_l
+real, dimension(:,:), intent(inout) :: tggsn_l, smass_l, ssdn_l
 real, dimension(:,:), intent(inout) :: t, u, v, qg
-real, dimension(:), intent(inout) :: psl, zss, tss, fracice
-real, dimension(:), intent(inout) :: snowd, sicedep, ssdnn, snage
-real, dimension(ifull) :: dum6, tss_l, tss_s, pmsl, depth, bathymetry
+real, dimension(:), intent(inout) :: psl, zss, tss_l, fracice_l
+real, dimension(:), intent(inout) :: snowd_l, sicedep_l, ssdnn_l, snage_l
+real, dimension(ifull) :: dum6, tss_lnd, tss_sea, pmsl, depth, bathymetry
 real, dimension(ifull) :: duma
 real, dimension(ifull,6) :: udum6
 real, dimension(ifull,ol) :: oo
@@ -945,9 +945,9 @@ endif
 ! Read surface temperature 
 ! read global tss to diagnose sea-ice or land-sea mask
 if ( tss_test ) then ! tss_test includes iotest=.true.
-  call histrd(iarchi,ier,'tsu',tss,ifull)
-  tss = abs(tss)
-  tss = min( max( tss, 100. ), 425. )
+  call histrd(iarchi,ier,'tsu',tss_l,ifull)
+  tss_l = abs(tss_l)
+  tss_l = min( max( tss_l, 100. ), 425. )
 else
   call histrd(iarchi,ier,'tsu',tss_a,6*ik*ik)
   tss_a = abs(tss_a)
@@ -978,17 +978,17 @@ end if
 ! mixed-layer-ocean
 if ( tss_test ) then ! tss_test includes iotest=.true.
 
-  call histrd(iarchi,ier,'siced',sicedep,ifull)
-  call histrd(iarchi,ier,'fracice',fracice,ifull)
+  call histrd(iarchi,ier,'siced',sicedep_l,ifull)
+  call histrd(iarchi,ier,'fracice',fracice_l,ifull)
   ! check for invalid sea-ice data
-  if ( any(fracice(1:ifull)>1.1) ) then
+  if ( any(fracice_l(1:ifull)>1.1) ) then
     write(6,*) "ERROR: Invalid fracice in input file"
     write(6,*) "Fracice should be between 0 and 1"
-    write(6,*) "maximum fracice ",maxval(fracice(1:ifull))
+    write(6,*) "maximum fracice ",maxval(fracice_l(1:ifull))
     call ccmpi_abort(-1)
   end if
   ! fix rounding errors
-  fracice(1:ifull) = min( fracice(1:ifull), 1. )
+  fracice_l(1:ifull) = min( fracice_l(1:ifull), 1. )
   ! update surface height and ocean depth if required
   if ( zht_needed ) then
     zss(1:ifull) = zss_a(1:ifull) ! use saved zss arrays
@@ -1084,25 +1084,25 @@ else
     bathymetry(1:ifull) = udum6(1:ifull,2)  
     ocndwn(1:ifull,1) = bathymetry(1:ifull)
   end if  
-  tss_l    = udum6(:,3)
-  tss_s    = udum6(:,4)
-  sicedep  = udum6(:,5)
-  fracice  = udum6(:,6)
+  tss_lnd    = udum6(:,3)
+  tss_sea    = udum6(:,4)
+  sicedep_l  = udum6(:,5)
+  fracice_l  = udum6(:,6)
 
   !   incorporate other target land mask effects
   where ( land(1:ifull) )
-    sicedep(1:ifull) = 0.
-    fracice(1:ifull) = 0.
-    tss(1:ifull) = tss_l(1:ifull)
+    sicedep_l(1:ifull) = 0.
+    fracice_l(1:ifull) = 0.
+    tss_l(1:ifull) = tss_lnd(1:ifull)
   elsewhere
-    tss(1:ifull) = tss_s(1:ifull)
+    tss_l(1:ifull) = tss_sea(1:ifull)
   end where
-  where ( sicedep(1:ifull)<0.05 )
-    sicedep(1:ifull) = 0.
-    fracice(1:ifull) = 0.
+  where ( sicedep_l(1:ifull)<0.05 )
+    sicedep_l(1:ifull) = 0.
+    fracice_l(1:ifull) = 0.
   end where
   
-  if ( any(tss(1:ifull)>900.) ) then
+  if ( any(tss_l(1:ifull)>900.) ) then
     write(6,*) "ERROR: Unable to interpolate surface temperature"
     write(6,*) "Possible problem with land-sea mask in input file"
     call ccmpi_abort(-1)
@@ -1180,7 +1180,7 @@ if ( abs(nmlo)>=1 .and. abs(nmlo)<=9 .and. nested/=3 ) then
         - 0.833224666E-14*depth(1:ifull)**5  &
         + 0.136974583E-17*depth(1:ifull)**6  &
         - 0.935923382E-22*depth(1:ifull)**7
-      mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) - wrtemp + tss(1:ifull) - 18.4231944
+      mlodwn(1:ifull,k,1) = mlodwn(1:ifull,k,1) - wrtemp + tss_l(1:ifull) - 18.4231944
       mlodwn(1:ifull,k,1) = max( mlodwn(1:ifull,k,1), 275.16-wrtemp )
     elsewhere
       mlodwn(1:ifull,k,1) = 275.16 - wrtemp
@@ -1554,13 +1554,13 @@ if ( nested/=1 .and. nested/=3 ) then
   
   !------------------------------------------------------------------
   ! Read snow and soil tempertaure
-  call gethist1('snd',snowd)
-  where ( .not.land(1:ifull) .and. (sicedep(1:ifull)<1.e-20 .or. nmlo==0) )
-    snowd(1:ifull) = 0.
+  call gethist1('snd',snowd_l)
+  where ( .not.land(1:ifull) .and. (sicedep_l(1:ifull)<1.e-20 .or. nmlo==0) )
+    snowd_l(1:ifull) = 0.
   end where
   if ( nested/=4 ) then
     if ( all(tgg_found(1:ms)) ) then
-      call fillhist4('tgg',tgg,sea_a,fill_sea)
+      call fillhist4('tgg',tgg_l,sea_a,fill_sea)
     else
       do k = 1,ms 
         if ( tgg_found(k) ) then
@@ -1576,9 +1576,9 @@ if ( nested/=1 .and. nested/=3 ) then
         end if
         if ( iotest ) then
           if ( k==1 .and. .not.tgg_found(1) ) then
-            tgg(1:ifull,k) = tss(1:ifull)
+            tgg_l(1:ifull,k) = tss_l(1:ifull)
           else
-            call histrd(iarchi,ier,vname,tgg(:,k),ifull)
+            call histrd(iarchi,ier,vname,tgg_l(:,k),ifull)
           end if
         else
           if ( k==1 .and. .not.tgg_found(1) ) then
@@ -1587,21 +1587,21 @@ if ( nested/=1 .and. nested/=3 ) then
             call histrd(iarchi,ier,vname,ucc,6*ik*ik)
           end if
           call fill_cc1(ucc,sea_a,fill_sea)
-          call doints1(ucc,tgg(:,k))
+          call doints1(ucc,tgg_l(:,k))
         end if
       end do
     end if
     do k = 1,ms
-      where ( tgg(1:ifull,k)<100. )
-        tgg(1:ifull,k) = tgg(1:ifull,k) + wrtemp ! adjust range of soil temp for compressed history file
+      where ( tgg_l(1:ifull,k)<100. )
+        tgg_l(1:ifull,k) = tgg_l(1:ifull,k) + wrtemp ! adjust range of soil temp for compressed history file
       end where
     end do  
     if ( .not.iotest ) then
-      where ( snowd(1:ifull)>0. .and. land(1:ifull) )
-        tgg(1:ifull,1) = min( tgg(1:ifull,1), 270.1 )
+      where ( snowd_l(1:ifull)>0. .and. land(1:ifull) )
+        tgg_l(1:ifull,1) = min( tgg_l(1:ifull,1), 270.1 )
       endwhere
       do k = 1,ms
-        tgg(1:ifull,k) = max( min( tgg(1:ifull,k), 400. ), 200. )
+        tgg_l(1:ifull,k) = max( min( tgg_l(1:ifull,k), 400. ), 200. )
       end do  
     end if
   end if ! nested/=4  
@@ -1615,9 +1615,9 @@ if ( nested/=1 .and. nested/=3 ) then
       call mloimpice("temp0",udum6(:,2),0,ifull,imax)
       call mloimpice("temp1",udum6(:,3),0,ifull,imax)
       call mloimpice("temp2",udum6(:,4),0,ifull,imax)
-      call mloimpice("fracice",fracice,0,ifull,imax)
-      call mloimpice("thick",sicedep,0,ifull,imax)
-      duma = snowd(1:ifull)*1.e-3
+      call mloimpice("fracice",fracice_l,0,ifull,imax)
+      call mloimpice("thick",sicedep_l,0,ifull,imax)
+      duma = snowd_l(1:ifull)*1.e-3
       call mloimpice("snowd",duma,0,ifull,imax)
       call fillhist1('sto',duma,land_a,fill_land)
       call mloimpice("store",duma,0,ifull,imax)
@@ -1637,10 +1637,10 @@ if ( nested/=1 .and. nested/=3 ) then
   !------------------------------------------------------------------
   ! Read soil moisture
   if ( nested/=4 ) then
-    wb(1:ifull,1:ms) = 20.5
+    wb_l(1:ifull,1:ms) = 20.5
     if ( all(wetfrac_found(1:ms)) ) then
-      call fillhist4('wetfrac',wb,sea_a,fill_sea)
-      wb(1:ifull,1:ms) = wb(1:ifull,1:ms) + 20. ! flag for fraction of field capacity
+      call fillhist4('wetfrac',wb_l,sea_a,fill_sea)
+      wb_l(1:ifull,1:ms) = wb_l(1:ifull,1:ms) + 20. ! flag for fraction of field capacity
     else
       do k = 1,ms
         if ( wetfrac_found(k) ) then
@@ -1657,9 +1657,9 @@ if ( nested/=1 .and. nested/=3 ) then
           vname = "wfb"
         end if
         if ( iotest ) then
-          call histrd(iarchi,ier,vname,wb(:,k),ifull)
+          call histrd(iarchi,ier,vname,wb_l(:,k),ifull)
           if ( wetfrac_found(k) ) then
-            wb(1:ifull,k) = wb(1:ifull,k) + 20. ! flag for fraction of field capacity
+            wb_l(1:ifull,k) = wb_l(1:ifull,k) + 20. ! flag for fraction of field capacity
           end if
         else
           call histrd(iarchi,ier,vname,ucc,6*ik*ik)
@@ -1672,11 +1672,11 @@ if ( nested/=1 .and. nested/=3 ) then
       end do
     end if
     !unpack field capacity into volumetric soil moisture
-    if ( any(wb(1:ifull,1:ms)>10.) ) then
-      wb(1:ifull,1:ms) = wb(1:ifull,1:ms) - 20.
+    if ( any(wb_l(1:ifull,1:ms)>10.) ) then
+      wb_l(1:ifull,1:ms) = wb_l(1:ifull,1:ms) - 20.
       do k = 1,ms
-        wb(1:ifull,k) = (1.-wb(1:ifull,k))*swilt(isoilm(1:ifull)) + wb(1:ifull,k)*sfc(isoilm(1:ifull))
-        wb(1:ifull,k) = max( wb(1:ifull,k), 0.5*swilt(isoilm(1:ifull)) )
+        wb_l(1:ifull,k) = (1.-wb_l(1:ifull,k))*swilt(isoilm(1:ifull)) + wb_l(1:ifull,k)*sfc(isoilm(1:ifull))
+        wb_l(1:ifull,k) = max( wb_l(1:ifull,k), 0.5*swilt(isoilm(1:ifull)) )
       end do
     end if
     call fillhist1('wetfac',wetfac,sea_a,fill_sea)
@@ -2071,24 +2071,24 @@ if ( nested/=1 .and. nested/=3 ) then
   ! -----------------------------------------------------------------
   ! soil ice and snow data
   if ( nested/=4 ) then
-    call gethist4('wbice',wbice) ! SOIL ICE
-    call gethist4('tggsn',tggsn)
-    if ( all(tggsn(1:ifull,1:3)<1.e-20) ) tggsn(1:ifull,1:3) = 270.
-    call gethist4('smass',smass)
-    call gethist4('ssdn',ssdn)
+    call gethist4('wbice',wbice_l) ! SOIL ICE
+    call gethist4('tggsn',tggsn_l)
+    if ( all(tggsn_l(1:ifull,1:3)<1.e-20) ) tggsn_l(1:ifull,1:3) = 270.
+    call gethist4('smass',smass_l)
+    call gethist4('ssdn',ssdn_l)
     do k = 1,3
-      if ( all(ssdn(1:ifull,k)<1.e-20) ) then
-        where ( snowd(1:ifull)>100. )
-          ssdn(1:ifull,k)=240.
+      if ( all(ssdn_l(1:ifull,k)<1.e-20) ) then
+        where ( snowd_l(1:ifull)>100. )
+          ssdn_l(1:ifull,k)=240.
         elsewhere
-          ssdn(1:ifull,k)=140.
+          ssdn_l(1:ifull,k)=140.
         end where
       end if
     end do
-    ssdnn(1:ifull) = ssdn(1:ifull,1)
-    call gethist1('snage',snage)
+    ssdnn_l(1:ifull) = ssdn_l(1:ifull,1)
+    call gethist1('snage',snage_l)
     call gethist1('sflag',dum6)
-    isflag(1:ifull) = nint(dum6(1:ifull))
+    isflag_l(1:ifull) = nint(dum6(1:ifull))
   end if ! nested/=4  
 
   ! -----------------------------------------------------------------
@@ -2139,7 +2139,7 @@ deallocate( ucc, tss_a, ucc6 )
 ! tgg holds file surface temperature when there is no MLO
 if ( nmlo==0 .or. abs(nmlo)>9 ) then
   where ( .not.land(1:ifull) )
-    tgg(1:ifull,1) = tss(1:ifull)
+    tgg_l(1:ifull,1) = tss_l(1:ifull)
   end where
 end if
 

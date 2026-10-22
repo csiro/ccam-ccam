@@ -21,8 +21,13 @@
 
 module config
 
+use indata                                 ! Data initialisation
+
+implicit none
+
 private
-public globpe_init, globpe_finalize
+public globpe_init, globpe_finalize, mesonest_close
+public nstn, mystn, iunp, istn, jstn
 
 contains
 
@@ -35,83 +40,50 @@ use aerointerface, only : aeroindir      & ! Aerosol interface
     ,ch_dust,zvolcemi,so4mtn,carbmtn     &
     ,saltsmallmtn,saltlargemtn           &
     ,enhanceu10,naero
-use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use bigxy4_m                               ! Grid interpolation
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
 use cc_omp                                 ! CC OMP routines
-use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use darcdf_m                               ! Netcdf data
-use daviesnudge                            ! Far-field nudging
 use diag_m                                 ! Diagnostic routines
-use dpsdt_m                                ! Vertical velocity
-use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
 use gdrag_m, only : gdrag_init             ! Gravity wave drag
 use getopt_m                               ! Command option parsing
 use histave_m                              ! Time average arrays
-use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
 use infile                                 ! Input file routines
-use kuocom_m                               ! JLM convection
 use latlong_m                              ! Lat/lon coordinates
-use liqwpar_m                              ! Cloud water mixing ratios
 use map_m                                  ! Grid map arrays
 use mlodynamics                            ! Ocean dynamics
-use module_aux_rad                         ! Additional cloud and radiation routines
+use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
-use morepbl_m                              ! Additional boundary layer diagnostics
+use module_ctrl_radiation                  ! Interface for radiation
+use module_ctrl_turbmix                    ! Boundary layer turbulent mixing
+use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
-use nharrs_m                               ! Non-hydrostatic atmosphere arrays
-use nlin_m                                 ! Atmosphere non-linear dynamics
-use nsibd_m                                ! Land-surface arrays
-use ozoneread                              ! Ozone input routines
 use parm_m                                 ! Model configuration
-use parmdyn_m                              ! Dynamics parameters
 use parmgeom_m                             ! Coordinate data
-use parmhdff_m                             ! Horizontal diffusion parameters
-use parmhor_m                              ! Horizontal advection parameters
-use parmvert_m                             ! Vertical advection parameters
-use pbl_m                                  ! Boundary layer arrays
 use permsurf_m, only : permsurf_init       ! Fixed surface arrays
-use prec_m                                 ! Precipitation
-use raddiag_m                              ! Radiation diagnostic
 use river                                  ! River routing
 use riverarrays_m                          ! River data
-use savuvt_m                               ! Saved dynamic arrays
-use savuv1_m                               ! Saved dynamic arrays
-use sbar_m                                 ! Saved dynamic arrays
 use screen_m                               ! Screen level diagnostics
-use seaesfrad_m                            ! SEA-ESF radiation
 use setxyz_m                               ! Define CCAM grid
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
-use soil_m                                 ! Soil and surface data
-use soilsnow_m                             ! Soil, snow and surface data
 use staguvmod                              ! Reversible grid staggering 
 use stime_m                                ! File date data
-use tbar2d_m, only : tbar2d_init           ! Atmosphere dynamics reference temperature
-use tkeeps                                 ! TKE-EPS boundary layer
 use tracermodule, only : tracerlist      & ! Tracer routines
     ,sitefile,shipfile,writetrpm         &
     ,init_tracer
 use tracers_m                              ! Tracer data
-use unn_m                                  ! Saved dynamic arrays
 use usage_m                                ! Usage message
-use uvbar_m                                ! Saved dynamic arrays
-use vecs_m, only : vecs_init               ! Eigenvectors for atmosphere dynamics
 use vecsuv_m                               ! Map to cartesian coordinates
-use vegpar_m                               ! Vegetation arrays
-use vvel_m                                 ! Additional vertical velocity
-use work2_m                                ! Diagnostic arrays
-use work3_m                                ! Mk3 land-surface diagnostic arrays
 use work3f_m                               ! Grid work arrays
-use work3sav_m                             ! Water and tracer saved arrays
 use workglob_m                             ! Additional grid interpolation
-use xarrs_m                                ! Saved dynamic arrays
 use xyzinfo_m                              ! Grid coordinate arrays
 
 implicit none
@@ -1014,47 +986,22 @@ end if
 !--------------------------------------------------------------
 ! INITIALISE LOCAL ARRAYS
 allocate( dums(ifull,kl) )
-call arrays_init(ifull,iextra,kl)
+call atmosphere_arrays_init(ifull,iextra,kl,nextout,nvmix,epsp)
 call carbpools_init(ifull,nsib,ccycle)
-call cfrac_init(ifull,iextra,kl,ncloud)
-call dpsdt_init(ifull,epsp)
-call epst_init(ifull)
+call convection_arrays_init(ifull,kl)
 call establ_init
 call extraout_init(ifull,nextout)
 call gdrag_init(ifull)
 call histave_init(ifull,kl,ms,ccycle,output_windmax)
-call kuocom_init(ifull,kl)
-call liqwpar_init(ifull,iextra,kl,process_rate_mode)
-call morepbl_init(ifull,kl)
-call nharrs_init(ifull,iextra,kl)
-call nlin_init(ifull,kl)
-call nsibd_init(ifull,nsib)
-call parmhdff_init(kl)
-call pbl_init(ifull)
+call microphysics_init(ifull,iextra,kl,ncloud,process_rate_mode)
 call permsurf_init(ifull)
-call prec_init(ifull)
-call raddiag_init(ifull,kl)
+call radiation_arrays_init(ifull,kl)
 call riverarrays_init(ifull,iextra)
-call savuvt_init(ifull,kl)
-call savuv1_init(ifull,kl)
-call sbar_init(ifull,kl)
 call screen_init(ifull)
+call sflux_arrays_init(ifull,kl,ms,iaero,nsib)
 call sigs_init(kl)
-call soil_init(ifull,iaero,nsib)
-call soilsnow_init(ifull,ms,nsib)
-call tbar2d_init(ifull)
-call unn_init(ifull,kl)
-call uvbar_init(ifull,kl)
-call vecs_init(kl)
-call vegpar_init(ifull)
-call vvel_init(ifull,iextra,kl)
-call work2_init(ifull,nsib)
-call work3_init(ifull,nsib)
+call turbmix_arrays_init(ifull,iextra,kl,nvmix)
 call work3f_init(ifull,kl)
-call xarrs_init(ifull,iextra,kl)
-if ( nvmix==6 .or. nvmix==9 ) then
-  call tkeinit(ifull,iextra,kl)
-end if
 call init_tracer
 call work3sav_init(ifull,kl,ntrac) ! must occur after tracers_init
 if ( nbd/=0 .or. mbd/=0 ) then
@@ -1349,12 +1296,10 @@ end subroutine globpe_init
 ! PREVIOUS VERSION DEFAULT PARAMETERS
 subroutine change_defaults(nversion)
 
-use kuocom_m                ! JLM convection
+use atmosphere_arrays_m     ! Collection of atmosphere data
+use module_ctrl_convection  ! Interface for convection
 use newmpar_m               ! Grid parameters
 use parm_m                  ! Model configuration
-use parmdyn_m               ! Dynamics parmaters
-use parmhor_m               ! Horizontal advection parameters
-use parmhdff_m              ! Horizontal diffusion parameters
 
 implicit none
 
@@ -1529,21 +1474,16 @@ use aerointerface, only : ch_dust        & ! Aerosol arrays
     ,zvolcemi,so4mtn,carbmtn             &
     ,saltsmallmtn,saltlargemtn           &
     ,enhanceu10
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
 use estab                                  ! Liquid saturation function
-use indata                                 ! Data initialisation
 use infile                                 ! Input file routines
-use kuocom_m                               ! JLM convection
-use module_ctrl_microphysics
+use module_ctrl_convection                 ! Interface for convection
+use module_ctrl_microphysics               ! Interface for cloud microphysics
 use newmpar_m                              ! Grid parameters
-use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use parm_m                                 ! Model configuration
-use parmdyn_m                              ! Dynamics parameters
 use parmgeom_m                             ! Coordinate data
-use parmhdff_m                             ! Horizontal diffusion parameters
-use parmhor_m                              ! Horizontal advection parameters
-use parmvert_m                             ! Vertical advection parameters
 use staguvmod                              ! Reversible grid staggering 
 use stime_m                                ! File date data
 
@@ -1899,12 +1839,10 @@ use aerointerface, only : aeroindir      & ! Aerosol interface
     ,ch_dust,zvolcemi                    &
     ,so4mtn,carbmtn,saltsmallmtn         &
     ,saltlargemtn,enhanceu10
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
-use module_aux_rad                         ! Additional cloud and radiation routines
-use ozoneread                              ! Ozone input routines
+use module_ctrl_radiation                  ! Interface for radiation
 use parm_m                                 ! Model configuration
-use raddiag_m                              ! Radiation diagnostic
-use seaesfrad_m                            ! SEA-ESF radiation
 
 implicit none
 
@@ -2095,8 +2033,9 @@ end subroutine broadcast_datafile
 ! Broadcast kuonml namelist
 subroutine broadcast_kuonml
 
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
-use kuocom_m                               ! JLM convection
+use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use parm_m                                 ! Model configuration
 
@@ -2252,8 +2191,8 @@ end subroutine broadcast_kuonml
 subroutine broadcast_turbnml
 
 use cc_mpi                                 ! CC MPI routines
+use module_ctrl_turbmix                    ! Boundary layer turbulent mixing
 use parm_m                                 ! Model configuration
-use tkeeps                                 ! TKE-EPS boundary layer
 
 implicit none
 
@@ -2623,8 +2562,8 @@ end subroutine broadcast_mlonml
 ! Broadcast trfiles namelist
 subroutine broadcast_trfiles
 
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
-use kuocom_m                               ! JLM convection
 use tracermodule, only : tracerlist      & ! Tracer routines
     ,sitefile,shipfile,writetrpm         &
     ,init_tracer
@@ -2736,6 +2675,16 @@ end if
 
 return
 end subroutine proctest_face
+
+subroutine mesonest_close
+
+implicit none
+
+! close mesonest files
+call indataf_mesonest_close
+
+return
+end subroutine mesonest_close
 
 subroutine globpe_finalize
 

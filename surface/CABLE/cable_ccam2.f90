@@ -141,7 +141,6 @@ use const_phys
 use dates_m
 use estab
 use extraout_m
-use infile
 use latlong_m
 use liqwpar_m
 use morepbl_m
@@ -312,7 +311,6 @@ subroutine sib4_work(albnirdif,albnirdir,albnirsav,albvisdif,albvisdir,albvissav
 use const_phys
 use dates_m
 use estab, only : qsat
-use infile, only : getzinp
 use newmpar_m, only : ms, imax, ifull, ntiles
 use parm_m
 use sigs_m
@@ -1241,11 +1239,11 @@ real(kind=dp), dimension(mp_POP) :: tmp
 
 if ( mp_POP>0 ) then
 
-  tmp = (POP%pop_grid(:)%stress_mortality + POP%pop_grid(:)%crowding_mortality &
+  tmp = (POP%pop_grid(:)%stress_mortality + POP%pop_grid(:)%crowding_mortality         &
         +POP%pop_grid(:)%cat_mortality + POP%pop_grid(:)%fire_mortality  )
   where ( tmp>1.e-12_dp )
-    casaflux%Cplant_turnover_disturbance(POP%Iwood) =                         &
-         real( casaflux%Cplant_turnover(POP%Iwood,2)*(POP%pop_grid(:)%cat_mortality &
+    casaflux%Cplant_turnover_disturbance(POP%Iwood) =                                  &
+         real( casaflux%Cplant_turnover(POP%Iwood,2)*(POP%pop_grid(:)%cat_mortality    &
          + POP%pop_grid(:)%fire_mortality  )/tmp, 8)
     casaflux%Cplant_turnover_crowding(POP%Iwood) =                                     &
          real( casaflux%Cplant_turnover(POP%Iwood,2)*POP%pop_grid(:)%crowding_mortality/tmp, 8)
@@ -1280,7 +1278,7 @@ if ( cable_pop==1 .and. POP%np>0 ) then ! CALL_POP
   stemNPP_tmp(:,1) = real(max(casaflux%stemnpp(Iw)/1000._8,0.0001_8),dp)
   stemNPP_tmp(:,2) = 0.0001_dp !PAR to be consistent with original
   disturbance_interval_tmp = int(veg%disturbance_interval(Iw,:), i4b) 
-  disturbance_intensity_tmp = real(veg%disturbance_intensity(Iw,:),8)
+  disturbance_intensity_tmp = real(veg%disturbance_intensity(Iw,:),dp)
   LAImax_tmp = real(max(casabal%LAImax(Iw),0.001_8),dp)
   Cleafmean_tmp = real(casabal%cleafmean(Iw),dp)
   Crootmean_tmp = real(casabal%Crootmean(Iw),dp)

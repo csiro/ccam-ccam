@@ -19,17 +19,63 @@
     
 module module_ctrl_microphysics
 
+use cfrac_m                                   ! Cloud fraction
 use cloudmod                                  ! Prognostic cloud fraction
 use leoncld_mod                               ! Leon cloud microphysics (single moment)
+use liqwpar_m                                 ! Cloud water mixing ratios
+use module_aux_cosp                           ! COSP cloud sat simulator
 use module_mp_sbu_ylin                        ! Lin cloud microphysics (double moment)
+use prec_m                                    ! Precipitation
 
 implicit none
 
 private
-public ctrl_microphysics
+public ctrl_microphysics, microphysics_init, microphysics_end
 public cloud_aerosol_mode, maxlintime, lin_adv
 public cloud_ice_method, leon_snowmeth, process_rate_mode
 public qlg_max, qfg_max
+
+! cfrac
+public cfrac, rfrac
+public sfrac, gfrac
+public stratcloud
+public rad_tend, trb_tend, trb_qend
+
+! liqwpar
+public qlg,qfg ! cloud liquid water, cloud frozen water
+public qrg,qsng,qgrg                  ! rain, snow, graupel
+public nr, ni, ns                     ! 2nd moment terms
+public stras_rliq, stras_rice, stras_rsno, stras_rrai ! droplet radius
+public stras_cliq, stras_cice
+public dhail1, dhail2, dhail3, dhail4, dhail5, wdur
+public hailrad_ave, hailrad_max
+
+public psnow,psaut,psfw,psfi,praci, &
+       piacr,psaci,psacw,psdep,     &
+       pssub,pracs,psacr,psmlt,     &
+       psmltevp,prain,praut,pracw,  &
+       prevp,pgfr,pvapor,pclw,      &
+       pladj,pcli,pimlt,pihom,      &
+       pidw,piadj,pmidep,pqschg
+
+! module_aux_cosp
+public cloud_simulator
+public clp_lmht
+public ncolumns
+public clp_phse_ice,clp_phse_liq 
+public clp_ice,clp_liq 
+public cls_db_b01,cls_db_b02,cls_db_b03,cls_db_b04,cls_db_b05
+public cls_db_b06,cls_db_b07,cls_db_b08,cls_db_b09,cls_db_b10
+public cls_db_b11,cls_db_b12,cls_db_b13,cls_db_b14,cls_db_b15
+public clp_sr_b01,clp_sr_b02,clp_sr_b03,clp_sr_b04,clp_sr_b05
+public clp_sr_b06,clp_sr_b07,clp_sr_b08,clp_sr_b09,clp_sr_b10
+public clp_sr_b11,clp_sr_b12,clp_sr_b13,clp_sr_b14,clp_sr_b15
+public cloud_simulator_ready
+
+! prec
+public precip, precc, rnd_3hr, cape, evspsbl_ave, sbl_ave
+public sno, grpl
+public cape_d, cin_d, li_d
 
 integer, save :: cloud_aerosol_mode = 0     ! 0=original, 1=standard feedback to aerosols
 integer, save :: lin_adv            = 0     ! 0=original, 1=flux
@@ -642,7 +688,7 @@ select case ( interp_ncloud(ldr,ncloud) )
         psaci(js:je,:)   = zpsaci(1:imax,:)
         psacw(js:je,:)   = zpsacw(1:imax,:)
         psdep(js:je,:)   = zpsdep(1:imax,:)
-        pssub(js:je,:)   = zpssub(1:imax,:)
+        pssub(js:je,:)   = -zpssub(1:imax,:) ! flip sign for Lin
         pracs(js:je,:)   = zpracs(1:imax,:)
         psacr(js:je,:)   = zpsacr(1:imax,:)
         psmlt(js:je,:)   = zpsmlt(1:imax,:)
@@ -915,6 +961,31 @@ end do   ! tile
 
 return
 end subroutine calc_hailcast
+
+subroutine microphysics_init(ifull,iextra,kl,ncloud,process_rate_mode)
+
+implicit none
+
+integer, intent(in) :: ifull, iextra, kl
+integer, intent(in) :: ncloud, process_rate_mode
+
+call cfrac_init(ifull,iextra,kl,ncloud)
+call liqwpar_init(ifull,iextra,kl,process_rate_mode)
+call prec_init(ifull)
+
+return
+end subroutine microphysics_init
+
+subroutine microphysics_end
+
+implicit none
+
+call cfrac_end
+call liqwpar_end
+call prec_end
+
+return
+end subroutine microphysics_end
 
 !====================================================================================================
 ! SUBROUTINE interp_ncloud

@@ -43,6 +43,12 @@ module sflux_m
 use cable_ccam                             ! CABLE interface
 use carbpools_m                            ! Carbon pools
 use mlo_ctrl                               ! Ocean physics control layer
+use morepbl_m                              ! Additional boundary layer diagnostics
+use nsibd_m                                ! Land-surface arrays
+use pbl_m                                  ! Boundary layer arrays
+use soil_m                                 ! Soil and surface data
+use soilsnow_m                             ! Soil, snow and surface data
+use soilv_m                                ! Soil parameters
 use uclem_ctrl, only :                   & ! Urban
      energytol                           & 
     ,ateb_resmeth=>resmeth               &
@@ -82,13 +88,20 @@ use uclem_ctrl, only :                   & ! Urban
     ,zoroof                              &
     ,urbtemp,nfrac,uclem_loadd           &
     ,uclem_init,uclem_type               &
-    ,uclem_disable,uclem_deftype
+    ,uclem_disable,uclem_deftype         &
+    ,uclem_saved,uclem_avetemp           &
+    ,uclem_misc
+use vegpar_m                               ! Vegetation arrays
+use work2_m                                ! Diagnostic arrays
+use work3_m                                ! Mk3 land-surface diagnostic arrays
 
 implicit none
 
 private
-public sflux, sflux_init
+public sflux, ctrl_sflux_init, ctrl_sflux_end
+public sflux_arrays_init, sflux_arrays_end
 
+! cable_ccam
 public sib4
 public loadcbmparm, cbmparm, loadtile, defaulttile, savetiledef, savetile, newcbmwb
 public cbmemiss
@@ -99,6 +112,7 @@ public cable_runoff, cable_soilevap
 public POP_NPATCH, POP_NCOHORT, POP_AGEMAX
 public cable_casatile
 
+! carbpools
 public inyear_carb
 public fnee,fpn,frd,frp,frpw,frpr,frs
 public cnpp, cnbp
@@ -106,20 +120,63 @@ public cplant,clitter,csoil,niplant,nisoil,nilitter
 public pplant,plitter,psoil
 public carbpools_init,carbpools_end
 public fevc,plant_turnover,plant_turnover_wood
-
 public mplant,mlitter,msoil
 
+! mlo_ctrl
 public mlovlevels,mlonewice,mloexpice,mlosurf,mloinit,mloload,mloimport,mloexport
-public mloimpturb, mloimpice
-public mloexpdep
+public mloimpturb, mloimpice, mlosave, mlodiag
+public mloexpdep, mloexpmelt
 public minsfc,minsal,maxsal,icemax
 public zomode,wrtemp,wrtrho,mxd,mindep,minwater,zoseaice,factchseaice,otaumode,mlosigma
 public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
 public kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,omink,omineps
 public k_mode,eps_mode,limitL,fixedce3,nops,nopb,fixedstabfunc
 public alphanir_seaice,alphanir_seasnw,alphavis_seaice,alphavis_seasnw
-!public micdwn
 
+! morepbl
+public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan
+public conds,condg
+public anthropogenic_flux, urban_tas, urban_ts, urban_wetfac
+public urban_storage_flux, urban_elecgas_flux
+public urban_heating_flux, urban_cooling_flux
+public urban_zom, urban_zoh, urban_zoq, urban_emiss
+public rkmsave, rkhsave
+public wsgsmax, wsgs
+
+! nsib
+public rsmin,sigmf,tgf,sigmu
+public ivegt,isoilm,isoilm_in,iurbant
+public carb_plant, carb_litter, carb_soil
+public ivegt_name, isoilm_name, iurbant_name
+
+! pbl
+public cduv,cdtq,tss,slwa
+
+! soil
+public zoland,zmin,zolnd,zolog,albvissav,so4t,albnirsav
+public albvisdif,albnirdif,albvisdir,albnirdir
+public land
+public slope_ave, slope_std
+
+! soilsnow
+public tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd 
+public osnowd,snage,gflux,sgflux,snowflx,otgsoil 
+public runoff,albvisnir,snowmelt,runoff_surface
+public fracice,sicedep
+public isflag
+public wb_clim
+public runoff_ave, runoff_surface_ave, snowmelt_ave
+public evspsbl, sbl
+
+! soilv
+public i2bp3, ibp2, cnsd, hsbh
+public swilt, ssat, sfc
+public bch, css, hyds, rhos, sucs, clay, sand, silt
+public rlaim44, rlais44, scveg44, rsunc44, slveg44
+public froot, zse
+public zshh, ww
+
+! uclem_ctrl
 public uclem_init,uclem_type,uclem_disable,uclem_deftype
 public energytol,ateb_resmeth,ateb_zohmeth,ateb_acmeth,ateb_nrefl
 public ateb_scrnmeth,ateb_wbrelaxc,ateb_wbrelaxr,ateb_ncyits,ateb_nfgits,ateb_tol
@@ -130,7 +187,22 @@ public ateb_cvcoeffmeth,ateb_statsmeth,ateb_lwintmeth,ateb_infilmeth,ateb_ac_hea
 public ateb_ac_coolcap,ateb_ac_deltat,ateb_acfactor
 public intairtmeth,intmassmeth,zocanyon,zoroof
 public urbtemp,nfrac,uclem_loadd
+public uclem_saved,uclem_avetemp
+public uclem_misc
 
+! vegpar
+public cansto,vlai,fwet
+
+! work2
+public zoh,zoq,qsttg,wetfac
+public zo,theta
+public vmod,dgdtg
+
+! work3
+public ga,condxpr,condspr,fes
+public fwtop
+
+! sflux
 real, save :: ri_max, zologbgin, ztv, z1onzt, chnsea
 real, save :: srcp
 real, dimension(:), allocatable, save :: taftfh, taftfhg
@@ -144,11 +216,9 @@ real, dimension(:), allocatable :: af, aft, ri
 real, dimension(:), allocatable :: fg_ocn, fg_ice, eg_ocn, eg_ice
 real, dimension(:), allocatable :: taux_ocn, taux_ice, tauy_ocn, tauy_ice
 real(kind=8), dimension(:), allocatable :: oldevspsbl, oldsbl
-#ifdef csircoupled
-real, dimension(:), allocatable :: river_inflow
-#endif
 
 #ifdef csircoupled
+real, dimension(:), allocatable :: river_inflow
 real, dimension(:), allocatable :: dumrg, dumx
 real, dimension(:), allocatable :: dumtaux_ocn, dumtauy_ocn, dumtaux_ice, dumtauy_ice
 real, dimension(:), allocatable :: zonx, zony, zonz, costh, sinth
@@ -156,14 +226,13 @@ real, dimension(:), allocatable :: zonx, zony, zonz, costh, sinth
 
 contains
 
-subroutine sflux_init
+subroutine ctrl_sflux_init
 
 use const_phys                     ! Physical constants
-use newmpar_m, only : ifull        ! Grid parameters
+use newmpar_m, only : ifull, ms    ! Grid parameters
 use parm_m                         ! Model configuration
 use permsurf_m                     ! Fixed surface arrays
 use sigs_m                         ! Atmosphere sigma levels
-use soil_m                         ! Soil and surface data
 
 implicit none
 
@@ -185,6 +254,7 @@ allocate( oldevspsbl(ifull), oldsbl(ifull) )
 allocate( af(ifull), aft(ifull), ri(ifull) )
 allocate( fg_ocn(ifull), fg_ice(ifull), eg_ocn(ifull), eg_ice(ifull) )
 allocate( taux_ocn(ifull), taux_ice(ifull), tauy_ocn(ifull), tauy_ice(ifull) )
+
 #ifdef csircoupled
 allocate( river_inflow(ifull) )
 allocate( dumrg(ifull), dumx(ifull) )
@@ -195,8 +265,67 @@ allocate( costh(ifull), sinth(ifull) )
 #endif
 
 return
-end subroutine sflux_init
+end subroutine ctrl_sflux_init
 
+subroutine sflux_arrays_init(ifull,kl,ms,iaero,nsib)
+
+implicit none
+
+integer, intent(in) :: ifull, kl,ms, iaero, nsib
+
+call morepbl_init(ifull,kl)
+call nsibd_init(ifull,nsib)
+call pbl_init(ifull)
+call soil_init(ifull,iaero,nsib)
+call soilsnow_init(ifull,ms,nsib)
+call vegpar_init(ifull)
+call work2_init(ifull,nsib)
+call work3_init(ifull,nsib)
+
+return
+end subroutine sflux_arrays_init
+
+subroutine ctrl_sflux_end
+
+implicit none
+
+if ( allocated(taftfh) ) then
+  deallocate( taftfh, taftfhg )
+end if
+
+deallocate( vmag, azmin, uav, vav, rho )
+deallocate( oldevspsbl, oldsbl )
+deallocate( af, aft, ri )
+deallocate( fg_ocn, fg_ice, eg_ocn, eg_ice )
+deallocate( taux_ocn, taux_ice, tauy_ocn, tauy_ice )
+
+#ifdef csircoupled
+deallocate( river_inflow )
+deallocate( dumrg, dumx )
+deallocate( dumtaux_ocn, dumtauy_ocn )
+deallocate( dumtaux_ice, dumtauy_ice )
+deallocate( zonx, zony, zonz )
+deallocate( costh, sinth )
+#endif
+
+return
+end subroutine ctrl_sflux_end
+
+subroutine sflux_arrays_end
+
+implicit none
+
+call morepbl_end
+call nsibd_end
+call pbl_end
+call soil_end
+call soilsnow_end
+call vegpar_end
+call work2_end
+call work3_end
+
+return
+end subroutine sflux_arrays_end
 
 subroutine sflux
       
@@ -235,7 +364,6 @@ implicit none
     
 integer is, ie, tile, iq, k
 real, dimension(imax) :: qsat_tmp
-!real, dimension(imax) :: rg_error
 
 !     stability dependent drag coefficients using Louis (1979,blm) f'
 !     n.b. cduv, cdtq are returned as drag coeffs mult by vmod
@@ -1610,12 +1738,7 @@ use pbl_m                        ! Boundary layer arrays
 use permsurf_m                   ! Fixed surface arrays
 use screen_m                     ! Screen level diagnostics
 use sigs_m                       ! Atmosphere sigma levels
-use soil_m                       ! Soil and surface data
-use soilsnow_m                   ! Soil, snow and surface data
-use soilv_m                      ! Soil parameters
-use vegpar_m                     ! Vegetation arrays
 use work2_m                      ! Diagnostic arrays
-use work3_m                      ! Mk3 land-surface diagnostic arrays
 
 implicit none
       

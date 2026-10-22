@@ -43,17 +43,13 @@ program globpe
 
 use aerointerface                          ! Aerosol interface
 use amipsst_m                              ! AMIP SSTs
-use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
-use cfrac_m                                ! Cloud fraction
 use config                                 ! CCAM parameter initialisation
 use const_phys                             ! Physical constants
 use dates_m                                ! Date data
-use daviesnudge                            ! Far-field nudging
 use diag_m                                 ! Diagnostic routines
-use dpsdt_m                                ! Vertical velocity
 use ensemble                               ! Ensemble
-use epst_m                                 ! Off-centre terms
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use filnames_m                             ! Filenames
@@ -61,47 +57,25 @@ use gdrag_m, only : gwdrag                 ! Gravity wave drag
 use histave_m                              ! Time average arrays
 use hordifg_m                              ! Horizontal diffusion
 use hs_phys_m                              ! Held & Suarez
-use indata                                 ! Data initialisation
 use indices_m                              ! Grid index arrays
-use infile                                 ! Input file routines
-use kuocom_m                               ! JLM convection
-use liqwpar_m                              ! Cloud water mixing ratios
 use mlodynamics                            ! Ocean dynamics
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
+use module_ctrl_radiation                  ! Interface for radiation
 use module_ctrl_turbmix                    ! Boundary layer turbulent mixing
-use morepbl_m                              ! Additional boundary layer diagnostics
 use nesting                                ! Nesting and assimilation
 use newmpar_m                              ! Grid parameters
-use nharrs_m                               ! Non-hydrostatic atmosphere arrays
-use nlin_m                                 ! Atmosphere non-linear dynamics
 use outcdf                                 ! Output file routines
 use parm_m                                 ! Model configuration
-use parmdyn_m                              ! Dynamics parameters
-use parmhdff_m                             ! Horizontal diffusion parameters
-use pbl_m                                  ! Boundary layer arrays
-use prec_m                                 ! Precipitation
-use raddiag_m                              ! Radiation diagnostic
 use river                                  ! River routing
-use savuvt_m                               ! Saved dynamic arrays
-use savuv1_m                               ! Saved dynamic arrays
-use sbar_m                                 ! Saved dynamic arrays
 use scrnout_m                              ! Calculate diagnostics
-use seaesfrad_m                            ! SEA-ESF radiation
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
-use soil_m                                 ! Soil and surface data
-use soilsnow_m                             ! Soil, snow and surface data
 use timeseries, only : write_ts            ! Tracer time series
 use tracermodule, only : tracer_mass     & ! Tracer routines
    ,interp_tracerflux
 use tracers_m                              ! Tracer data
 use trvmix                                 ! Tracer mixing routines
-use uvbar_m                                ! Saved dynamic arrays
-use vvel_m                                 ! Additional vertical velocity
-use work2_m                                ! Diagnostic arrays
-use work3f_m                               ! Grid work arrays
-use xarrs_m                                ! Saved dynamic arrays
 use xyzinfo_m                              ! Grid coordinate arrays
 
 #ifdef csircoupled
@@ -667,56 +641,21 @@ do ktau = 1,ntau   ! ****** start of main time loop
     js = (tile-1)*imax + 1
     je = tile*imax
     call calculate_dhdt_mse(js,je,mse_t1)  
+    rad_tend(js:je,1:kl) = rad_tend(js:je,1:kl) - t(js:je,1:kl)/dt
   end do
   !$omp end do nowait
   if ( nsib>0 ) then
     call START_LOG(radnet_begin)
+    ! calculate radiation
+    call radiation_calc(mtimer_sav,mins_gmt,koundiag)
     !$omp do schedule(static) private(js,je)
     do tile = 1,ntiles
       js = (tile-1)*imax + 1
-      je = tile*imax
-      rad_tend(js:je,1:kl) = rad_tend(js:je,1:kl) - t(js:je,1:kl)/dt
-    end do
-    !$omp end do nowait
-    select case ( nrad )
-      case(4)
-        ! Fels-Schwarzkopf radiation
-        !$omp barrier  
-        !$omp single          
-        if ( nhstest<0 ) then    ! aquaplanet test -1 to -8  
-          mtimer_sav = mtimer
-          mtimer     = mins_gmt  ! so radn scheme repeatedly works thru same day
-          call radrive(il*nrows_rad)
-          mtimer = mtimer_sav
-        else
-          call radrive(il*nrows_rad)  
-        end if    ! (nhstest<0)
-        !$omp end single
-      case(5)
-        ! GFDL SEA-EFS radiation
-        call seaesfrad(koundiag)
-      case DEFAULT
-        ! use preset slwa array (use +ve nrad)
-        !$omp do schedule(static) private(js,je)
-        do tile = 1,ntiles
-          js = (tile-1)*imax + 1
-          je = tile*imax
-          slwa(js:je) = -real(10*nrad)
-        end do
-        !$omp end do nowait
-    end select
-    call END_LOG(radnet_end)
-    !$omp do schedule(static) private(js,je)  
-    do tile = 1,ntiles
-      js = (tile-1)*imax + 1
-      je = tile*imax
-      do k = 1,kl
-        t(js:je,k) = t(js:je,k) - dt*(sw_tend(js:je,k)+lw_tend(js:je,k))
-        rad_tend(js:je,k) = rad_tend(js:je,k) + t(js:je,k)/dt
-      end do
+      je = tile*imax  
       call nantest("after radiation",js,je,"radiation")    
     end do
-    !$omp end do nowait    
+    !$omp end do nowait
+    call END_LOG(radnet_end)
   end if ! ( nsib>0 )  
   ! calculate MSE after radiation
   !$omp do schedule(static) private(js,je)
@@ -725,6 +664,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     je = tile*imax  
     call calculate_dhdt_mse(js,je,mse_t2)
     dmsedt_rad(js:je,1:kl) = (mse_t2(js:je,1:kl) - mse_t1(js:je,1:kl))/dt  
+    rad_tend(js:je,k) = rad_tend(js:je,k) + t(js:je,k)/dt
   end do
   !$omp end do nowait
       
@@ -748,6 +688,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
       call maxmin(t,'#t',ktau,1.,kl)
       call maxmin(qg,'qg',ktau,1.e3,kl)     
     end if
+    ! calculate surface fluxes
     if ( ntsur>1 ) then
       call sflux
     endif   ! (ntsur>1)    
@@ -1079,9 +1020,7 @@ if ( myid==0 ) then
 end if
   
 ! close mesonest files
-if ( mbd/=0 .or. nbd/=0 .or. (mbd_mlo/=0.and.namip==0) .or. ensemble_mode>0 ) then
-  call histclose
-end if
+call mesonest_close
 
 #ifdef csircoupled
 ! finalize VCOM
@@ -1138,16 +1077,16 @@ integer, dimension(8), intent(in) :: tcal1, tcal2
 real(kind=8), intent(out) :: t_diff
 real(kind=8) day_diff
 
-t_diff = sum( real(tcal2(5:8)-tcal1(5:8),8)*(/ 3600._8, 60._8, 1._8, 0.001_8 /) )
-
-year = int( tcal1(1) )
-month = int( tcal1(2) )
-day = int( tcal1(3) )
-kdate_l = year*10000 + month*100 + day
-call calendar_function(mdays,kdate_l,cal_leap)
+! Include tcal2(4) to account for changes in daylight savings time
+t_diff = sum( real(tcal2(4:8)-tcal1(4:8),8)*(/ -60._8, 3600._8, 60._8, 1._8, 0.001_8 /) )
 
 day_diff = real(tcal2(3) - tcal1(3),8)
 if ( day_diff < 0._8 ) then
+  year = int( tcal1(1) )
+  month = int( tcal1(2) )
+  day = int( tcal1(3) )
+  kdate_l = year*10000 + month*100 + day
+  call calendar_function(mdays,kdate_l,cal_leap)
   day_diff = day_diff + real(mdays(month),8)
 end if
 t_diff = t_diff + day_diff*86400._8
@@ -1205,33 +1144,25 @@ end subroutine setllp
 ! WRITE STATION DATA
 subroutine stationa
 
-use arrays_m           ! Atmosphere dyamics prognostic arrays
-use cc_mpi             ! CC MPI routines
-use const_phys         ! Physical constants
-use dates_m            ! Date data
-use diag_m             ! Diagnostic routines
-use estab              ! Liquid saturation function
-use extraout_m         ! Additional diagnostics
-use indata             ! Data initialisation
-use map_m              ! Grid map arrays
-use morepbl_m          ! Additional boundary layer diagnostics
-use newmpar_m          ! Grid parameters
-use nsibd_m            ! Land-surface arrays
-use parm_m             ! Model configuration
-use parmgeom_m         ! Coordinate data
-use pbl_m              ! Boundary layer arrays
-use prec_m             ! Precipitation
-use scrnout_m          ! Calculate diagnostics
-use sigs_m             ! Atmosphere sigma levels
-use soil_m             ! Soil and surface data
-use soilsnow_m         ! Soil, snow and surface data
-use soilv_m            ! Soil parameters
-use tracers_m          ! Tracer data
-use vecsuv_m           ! Map to cartesian coordinates
-use vegpar_m           ! Vegetation arrays
-use work2_m            ! Diagnostic arrays
-use work3_m            ! Mk3 land-surface diagnostic arrays
-use xyzinfo_m          ! Grid coordinate arrays
+use atmosphere_arrays_m                    ! Collection of atmosphere data
+use cc_mpi                                 ! CC MPI routines
+use config                                 ! CCAM parameter initialisation
+use const_phys                             ! Physical constants
+use dates_m                                ! Date data
+use diag_m                                 ! Diagnostic routines
+use estab                                  ! Liquid saturation function
+use extraout_m                             ! Additional diagnostics
+use map_m                                  ! Grid map arrays
+use module_ctrl_microphysics               ! Interface for cloud microphysics
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+use parmgeom_m                             ! Coordinate data
+use scrnout_m                              ! Calculate diagnostics
+use sflux_m                                ! Surface flux routines
+use sigs_m                                 ! Atmosphere sigma levels
+use tracers_m                              ! Tracer data
+use vecsuv_m                               ! Map to cartesian coordinates
+use xyzinfo_m                              ! Grid coordinate arrays
 
 implicit none
 
@@ -1311,13 +1242,12 @@ end subroutine stationa
 ! Fix water vapour mixing ratio.  Needed for JLM convection.
 subroutine fixqg(js,je)
 
-use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m               ! Collection of atmosphere data
 use const_phys                        ! Physical constants
 use estab                             ! Liquid saturation function
-use liqwpar_m                         ! Cloud water mixing ratios
+use module_ctrl_microphysics          ! Interface for cloud microphysics
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
-use sigs_m                            ! Atmosphere sigma levels
 
 implicit none
 
@@ -1353,13 +1283,13 @@ end subroutine fixqg
 ! To be depreciated - Limits saturation after turbulent mixing    
 subroutine fixsat(js,je)
 
-use arrays_m                          ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m               ! Collection of atmosphere data
 use const_phys                        ! Physical constants
 use estab                             ! Liquid saturation function
-use liqwpar_m                         ! Cloud water mixing ratios
-use morepbl_m                         ! Additional boundary layer diagnostics
+use module_ctrl_microphysics          ! Interface for cloud microphysics
 use newmpar_m                         ! Grid parameters
 use parm_m                            ! Model configuration
+use sflux_m                           ! Surface flux routines
 use sigs_m                            ! Atmosphere sigma levels
 
 implicit none
@@ -1434,17 +1364,14 @@ use aerointerface, only :                & ! Aerosol interface
     ,so4e,so4wd,so4dd,so4_burden         &
     ,dmsso2o,so2so4o, salte,saltdd       &
     ,saltwd,salt_burden
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
-use liqwpar_m                              ! Cloud water mixing ratios
-use morepbl_m                              ! Additional boundary layer diagnostics
+use module_ctrl_microphysics               ! Interface for cloud microphysics
+use module_ctrl_radiation                  ! Interface for radiation
 use parm_m                                 ! Model configuration
-use prec_m                                 ! Precipitation
-use raddiag_m                              ! Radiation diagnostic
 use sflux_m                                ! Surface flux routines
-use soilsnow_m                             ! Soil, snow and surface data
 use tracers_m                              ! Tracer data
-use vvel_m                                 ! Additional vertical velocity
 
 implicit none
 
@@ -1586,6 +1513,8 @@ end subroutine zero_nperavg
 ! Reset diagnostics for averaging period    
 subroutine zero_nperhour
 
+use atmosphere_arrays_m                    ! Collection of atmosphere data
+use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 
 implicit none
@@ -1600,12 +1529,14 @@ end subroutine zero_nperhour
 ! Reset diagnostics for daily averages    
 subroutine zero_nperday
 
+use atmosphere_arrays_m                    ! Collection of atmosphere data
+use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
-use morepbl_m                              ! Additional boundary layer diagnostics
+use module_ctrl_microphysics               ! Interface for cloud microphysics
+use module_ctrl_radiation                  ! Interface for radiation
 use parm_m                                 ! Model configuration
-use prec_m                                 ! Precipitation
-use raddiag_m                              ! Radiation diagnostic
 use scrnout_m                              ! Calculate diagnostics
+use sflux_m                                ! Surface flux routines
 
 implicit none
 
@@ -1647,28 +1578,21 @@ use aerointerface, only :                & ! Aerosol interface
     ,so4e,so4wd,so4dd,so4_burden         &
     ,dmsso2o,so2so4o,salte,saltdd        &
     ,saltwd,salt_burden
-use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use const_phys                             ! Physical constants
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
-use kuocom_m                               ! JLM convection
-use liqwpar_m                              ! Cloud water mixing ratios
 use mlodynamics                            ! Ocean dynamics
-use morepbl_m                              ! Additional boundary layer diagnostics
+use module_ctrl_convection                 ! Interface for convection
+use module_ctrl_microphysics               ! Interface for cloud microphysics
+use module_ctrl_radiation                  ! Interface for radiation
 use newmpar_m                              ! Grid parameters
-use nharrs_m                               ! Non-hydrostatic atmosphere arrays
 use outcdf                                 ! Output file routines
 use parm_m                                 ! Model configuration
-use pbl_m                                  ! Boundary layer arrays
-use prec_m                                 ! Precipitation
-use raddiag_m                              ! Radiation diagnostic
 use scrnout_m                              ! Calculate diagnostics
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
-use soilsnow_m                             ! Soil, snow and surface data
 use tracers_m                              ! Tracer data
-use vvel_m                                 ! Additional vertical velocity
-use work3_m                                ! Mk3 land-surface diagnostic arrays
 
 implicit none
 
@@ -1960,34 +1884,24 @@ end subroutine calculate_timeaverage
 ! output diagnostics to log file    
 subroutine write_diagnostics(mins_gmt,nmaxprsav)
 
-use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
-use cfrac_m                                ! Cloud fraction
 use const_phys                             ! Physical constants
 use dates_m                                ! Date data
 use diag_m                                 ! Diagnostic routines
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
-use kuocom_m                               ! JLM convection
-use liqwpar_m                              ! Cloud water mixing ratios
-use morepbl_m                              ! Additional boundary layer diagnostics
+use module_ctrl_convection                 ! Interface for convection
+use module_ctrl_microphysics               ! Interface for cloud microphysics
+use module_ctrl_radiation                  ! Interface for radiation
 use newmpar_m                              ! Grid parameters
-use nsibd_m                                ! Land-surface arrays
 use parm_m                                 ! Model configuration
-use pbl_m                                  ! Boundary layer arrays
-use prec_m                                 ! Precipitation
-use raddiag_m                              ! Radiation diagnostic
 use scrnout_m                              ! Calculate diagnostics
+use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
-use soil_m                                 ! Soil and surface data
-use soilsnow_m                             ! Soil, snow and surface data
 use sumdd_m                                ! High precision sum
 use tracers_m                              ! Tracer data
-use vegpar_m                               ! Vegetation arrays
-use vvel_m                                 ! Additional vertical velocity
-use work2_m                                ! Diagnostic arrays
-use work3_m                                ! Mk3 land-surface diagnostic arrays
 use xyzinfo_m                              ! Grid coordinate arrays
 
 implicit none
@@ -2164,16 +2078,12 @@ end subroutine write_diagnostics
 subroutine nantest(message,js,je,mode)
 
 use aerointerface, only : xtg,naero     ! Aerosol interface
-use arrays_m                            ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m                 ! Collection of atmosphere data
 use cc_mpi                              ! CC MPI routines
-use cfrac_m                             ! Cloud fraction
-use extraout_m                          ! Additional diagnostics
-use liqwpar_m                           ! Cloud water mixing ratios
-use morepbl_m                           ! Additional boundary layer diagnostics
 use newmpar_m                           ! Grid parameters
+use module_ctrl_microphysics            ! Interface for cloud microphysics
 use parm_m                              ! Model configuration
-use pbl_m                               ! Boundary layer arrays
-use work2_m                             ! Diagnostic arrays
+use sflux_m                             ! Surface flux routines
 use work3f_m                            ! Grid work arrays
 
 implicit none

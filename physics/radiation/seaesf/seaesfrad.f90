@@ -100,7 +100,8 @@ contains
 
 subroutine seaesfrad_settime
 
-use infile                                          ! Input file routines
+use dates_m                                         ! Date data
+!use infile                                          ! Input file routines
 use nharrs_m                                        ! Non-hydrostatic atmosphere arrays
 use parm_m                                          ! Model configuration
 use raddiag_m                                       ! Radiation diagnostic
@@ -143,7 +144,7 @@ use cfrac_m                                         ! Cloud fraction
 use const_phys                                      ! Physical constants
 use extraout_m                                      ! Additional diagnostics
 use estab                                           ! Liquid saturation function
-use infile                                          ! Input file routines
+!use infile                                          ! Input file routines
 use kuocom_m                                        ! JLM convection
 use latlong_m                                       ! Lat/lon coordinates
 use liqwpar_m, only : stras_rliq,stras_rice,       &      
@@ -1234,8 +1235,9 @@ subroutine seaesfrad_init
 use cc_mpi
 use cc_omp
 use co2_read_m
+use dates_m
 use extraout_m
-use infile
+!use infile
 use kuocom_m
 use newmpar_m
 use ozoneread

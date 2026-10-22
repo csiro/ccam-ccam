@@ -107,20 +107,15 @@ end subroutine amipsst
     
 subroutine amipsst_month
 
-use arrays_m                                      ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m                           ! Collection of atmosphere data
 use cc_mpi                                        ! CC MPI routines
 use dates_m                                       ! Date data
 use infile                                        ! Input file routines
 use latlong_m                                     ! Lat/lon coordinates
-use mlo_ctrl                                      ! Ocean physics control layer
 use nesting                                       ! Nesting and assimilation
 use newmpar_m                                     ! Grid parameters
-use nharrs_m, only : lrestart                     ! Non-hydrostatic atmosphere arrays
 use parm_m                                        ! Model configuration
-use pbl_m                                         ! Boundary layer arrays
-use permsurf_m                                    ! Fixed surface arrays
-use soil_m                                        ! Soil and surface data
-use soilsnow_m                                    ! Soil, snow and surface data
+use sflux_m                                       ! Surface flux routines
 
 implicit none
 
@@ -1038,15 +1033,12 @@ use dates_m                                  ! Date data
 use filnames_m                               ! Filenames
 use infile                                   ! Input file routines
 use latlong_m                                ! Lat/lon coordinates
-use mlo_ctrl                                 ! Ocean physics control layer
 use nesting                                  ! Nesting and assimilation
 use newmpar_m                                ! Grid parameters
 use nharrs_m, only : lrestart                ! Non-hydrostatic atmosphere arrays
 use parm_m                                   ! Model configuration
 use parmgeom_m                               ! Coordinate data
-use pbl_m                                    ! Boundary layer arrays
-use soil_m                                   ! Soil and surface data
-use soilsnow_m                               ! Soil, snow and surface data
+use sflux_m                                  ! Surface flux routines
 
 implicit none
 
