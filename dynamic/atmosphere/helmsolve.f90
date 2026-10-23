@@ -852,19 +852,11 @@ real, dimension(ifull+iextra) :: vdum
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
-#ifdef faststack
-real, dimension(mg_maxsize,2*kl,2:gmax+1) :: rhs
-real, dimension(mg_maxsize,kl,gmax+1) :: v, helm
-real, dimension(mg_maxsize,2*kl) :: w
-real, dimension(ifull_maxcolour,kl,maxcolour) :: helmc, rhsc
-real, dimension(ifull_maxcolour,maxcolour) :: zznc, zzec, zzwc, zzsc, zzc
-#else
 real, dimension(:,:,:), allocatable :: rhs
 real, dimension(:,:,:), allocatable :: v, helm
 real, dimension(:,:), allocatable :: w
 real, dimension(:,:,:), allocatable :: helmc, rhsc
 real, dimension(:,:), allocatable :: zznc, zzec, zzwc, zzsc, zzc
-#endif
 real, dimension(mg_minsize) :: vsavc
 real, dimension(2*kl,2) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g, savg, sdif, dsolmaxc, sdifc
@@ -884,7 +876,6 @@ end if
 
 call START_LOG(helm_begin)
 
-#ifndef faststack
 allocate( rhs(mg_maxsize,2*kl,2:gmax+1) )
 allocate( v(mg_maxsize,kl,gmax+1) )
 allocate( helm(mg_maxsize,kl,gmax+1) )
@@ -896,7 +887,6 @@ allocate( zzec(ifull_maxcolour,maxcolour) )
 allocate( zzwc(ifull_maxcolour,maxcolour) )
 allocate( zzsc(ifull_maxcolour,maxcolour) )
 allocate( zzc(ifull_maxcolour,maxcolour) )
-#endif
 
 ng  = 0
 ng4 = 0
@@ -1390,7 +1380,6 @@ if ( myid==0 ) then
   end if
 end if
 
-#ifndef faststack
 deallocate( rhs )
 deallocate( v )
 deallocate( helm )
@@ -1402,7 +1391,6 @@ deallocate( zzec )
 deallocate( zzwc )
 deallocate( zzsc )
 deallocate( zzc )
-#endif
 
 call END_LOG(helm_end)
 

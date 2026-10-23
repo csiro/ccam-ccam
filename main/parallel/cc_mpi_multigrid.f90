@@ -107,19 +107,9 @@ contains
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
-#ifdef faststack
       real, dimension((msg_len*npanx+1)*kx) :: tdat
       real, dimension((msg_len*npanx+1)*kx,nmax) :: tdat_g
-#else
-      real, dimension(:), allocatable :: tdat
-      real, dimension(:,:), allocatable :: tdat_g
-#endif
       
-#ifndef faststack
-      allocate( tdat((msg_len*npanx+1)*kx) )
-      allocate( tdat_g((msg_len*npanx+1)*kx,nmax) )
-#endif      
-
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per process
       ncol    = msg_len/nrow                ! number of points along a col per process
@@ -161,11 +151,6 @@ contains
          dsolmax(1:kx) = maxval( tdat_g(hoz_len*kx+1:ilen,1:nmax), dim=2 )
       end if
       
-#ifndef faststack
-      deallocate( tdat )
-      deallocate( tdat_g )
-#endif
-
    end subroutine mgcollectreduce_work
 
    subroutine mgcollect1(g,vdat,klim)
@@ -197,19 +182,9 @@ contains
       integer :: yproc, ir, ic, is, js, k, n, j, iq, iqq
       integer :: nrm1, hoz_len
       integer(kind=4) :: ierr, ilen, lcomm
-#ifdef faststack
       real, dimension(msg_len*npanx*kx) :: tdat
       real, dimension(msg_len*npanx*kx,nmax) :: tdat_g
-#else
-      real, dimension(:), allocatable :: tdat
-      real, dimension(:,:), allocatable :: tdat_g
-#endif
       
-#ifndef faststack
-      allocate( tdat(msg_len*npanx*kx) )
-      allocate( tdat_g(msg_len*npanx*kx,nmax) )
-#endif
-
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row       ! number of points along a row per process
       ncol    = msg_len/nrow                     ! number of points along a col per process
@@ -248,11 +223,6 @@ contains
          end do
       end if
       
-#ifndef faststack
-      deallocate( tdat )
-      deallocate( tdat_g )
-#endif
-
    end subroutine mgcollect_work
 
    subroutine mgcollectxn(g,vdat,smaxmin,klim)
@@ -286,19 +256,9 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
-#ifdef faststack
       real, dimension((msg_len*npanx+2)*kx) :: tdat
       real, dimension((msg_len*npanx+2)*kx,nmax) :: tdat_g
-#else
-      real, dimension(:), allocatable :: tdat
-      real, dimension(:,:), allocatable :: tdat_g
-#endif
       
-#ifndef faststack
-      allocate( tdat((msg_len*npanx+2)*kx) )
-      allocate( tdat_g((msg_len*npanx+2)*kx,nmax) )
-#endif
-
       ! prep data for sending around the merge
       nrow    = mg(g)%ipan/mg(g)%merge_row  ! number of points along a row per process
       ncol    = msg_len/nrow                ! number of points along a col per process
@@ -339,12 +299,7 @@ contains
          smaxmin(1:kx,1) = maxval( tdat_g(hoz_len*kx+1:(hoz_len+1)*kx,1:nmax), dim=2 )
          smaxmin(1:kx,2) = minval( tdat_g((hoz_len+1)*kx+1:ilen,1:nmax), dim=2 )
       end if   
-      
-#ifndef faststack
-      deallocate( tdat )
-      deallocate( tdat_g )
-#endif
-  
+ 
    end subroutine mgcollectxn_work
 
    subroutine mgbcast2(g,vdat,dsolmax,nobounds)
@@ -375,11 +330,7 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:), intent(inout) :: dsolmax
-#ifdef faststack
       real, dimension((mg(g)%ifull+mg(g)%iextra+1)*size(vdat,2)) :: tdat
-#else
-      real, dimension(:), allocatable :: tdat
-#endif
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
@@ -402,10 +353,6 @@ contains
       end if  
       ilen = (out_len+1)*kx
 
-#ifndef faststack
-      allocate( tdat(ilen) )
-#endif
-      
       ! pack contiguous buffer
       tdat(1:out_len*kx) = reshape( vdat(1:out_len,1:kx), (/ out_len*kx /) )
       tdat(out_len*kx+1:ilen) = dsolmax(1:kx)
@@ -423,10 +370,6 @@ contains
       vdat(1:out_len,1:kx) = reshape( tdat(1:out_len*kx), (/ out_len, kx /) )
       dsolmax(1:kx) = tdat(out_len*kx+1:ilen)
       
-#ifndef faststack
-      deallocate( tdat )
-#endif
-   
    end subroutine mgbcast3
 
    subroutine mgbcasta2(g,vdat,nobounds)
@@ -453,20 +396,13 @@ contains
       integer :: kx, out_len
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
-#ifdef faststack
       real, dimension((mg(g)%ifull+mg(g)%iextra)*size(vdat,2)) :: tdat
-#else
-      real, dimension(:), allocatable :: tdat
-#endif
       logical, intent(in), optional :: nobounds
       logical :: nbflag
 
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat,2)
-#ifndef faststack
-      allocate( tdat((mg(g)%ifull+mg(g)%iextra)*kx) )
-#endif
       
       nbflag = .false.
       if ( present(nobounds) ) then
@@ -495,10 +431,6 @@ contains
       ! extract data from Bcast
       vdat(1:out_len,1:kx) = reshape( tdat(1:ilen), (/ out_len, kx /) )
       
-#ifndef faststack
-      deallocate( tdat )
-#endif
-   
    end subroutine mgbcasta3
    
    subroutine mgbcastxn3(g,vdat,smaxmin,klim,nobounds)
@@ -510,21 +442,13 @@ contains
       integer(kind=4) :: ierr, ilen, lcomm
       real, dimension(:,:), intent(inout) :: vdat
       real, dimension(:,:), intent(inout) :: smaxmin
-#ifdef faststack
       real, dimension((mg(g)%ifull+mg(g)%iextra+2)*size(vdat,2)) :: tdat
-#else
-      real, dimension(:), allocatable :: tdat
-#endif
       logical, intent(in), optional :: nobounds
       logical :: nbflag
       
       if ( mg(g)%merge_len <= 1 ) return
       
       kx = size(vdat, 2)
-#ifndef faststack
-      allocate( tdat((mg(g)%ifull+mg(g)%iextra+2)*kx) )
-#endif
-
       nbflag = .false.
       if (present(klim)) then
          kx = klim
@@ -557,10 +481,6 @@ contains
       vdat(1:out_len,1:kx) = reshape( tdat(1:out_len*kx), (/ out_len, kx /) )
       smaxmin(1:kx,1:2) = reshape( tdat(out_len*kx+1:ilen), (/ kx, 2 /) )
       
-#ifndef faststack
-      deallocate( tdat )
-#endif
-   
    end subroutine mgbcastxn3
    
    ! Set up the indices required for the multigrid scheme.
@@ -1108,7 +1028,7 @@ contains
       end if
 
    end subroutine mgbounds3
-
+   
    pure function mg_fproc_1(g,i,j,n) result(mg_fpout)
      ! locates process that owns a global grid point
      integer, intent(in) :: i, j, n, g

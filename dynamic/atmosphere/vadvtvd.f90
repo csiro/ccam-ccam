@@ -62,13 +62,7 @@ integer, save :: num = 0
 real, dimension(:,:), intent(inout) :: tarr,uarr,varr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
 #ifdef GPU
-#ifdef faststack
-real, dimension(ifull,kl,5) :: tdum
-real, dimension(ifull,kl,5) :: qdum
-real, dimension(ifull,kl,2) :: edum
-#else
 real, dimension(:,:,:), allocatable :: tdum, qdum, edum
-#endif
 #endif
 
 call START_LOG(vadv_begin)
@@ -85,9 +79,7 @@ end if
 !$acc data create(sdot,nvadh_inv_pass,nits,ratha,rathb)
 !$acc update device(sdot,nvadh_inv_pass,nits,ratha,rathb)
 
-#ifndef faststack
 allocate( tdum(ifull,kl,5) )
-#endif
 
 tdum(1:ifull,1:kl,1) = tarr(1:ifull,1:kl)
 tdum(1:ifull,1:kl,2) = uarr(1:ifull,1:kl)
@@ -99,9 +91,7 @@ end if
 
 if ( mspec==1 ) then
     
-#ifndef faststack
   allocate( qdum(ifull,kl,5) )
-#endif
 
   qdum(1:ifull,1:kl,1) = qg(1:ifull,1:kl)
   if ( ldr/=0 ) then
@@ -113,9 +103,7 @@ if ( mspec==1 ) then
     end if  
   end if  
   
-#ifndef faststack
   allocate( edum(ifull,kl,2) )
-#endif
 
   if ( nvmix==6 .or. nvmix==9 ) then
     edum(1:ifull,1:kl,1) = eps(1:ifull,1:kl)
@@ -168,9 +156,7 @@ if ( nh/=0 ) then
   h_nh(1:ifull,1:kl) = tdum(1:ifull,1:kl,5)
 end if  
 
-#ifndef faststack
 deallocate( tdum )
-#endif
 
 if ( mspec==1 ) then
 
@@ -184,18 +170,14 @@ if ( mspec==1 ) then
     end if
   end if  
   
-#ifndef faststack
   deallocate( qdum )
-#endif
 
   if ( nvmix==6 .or. nvmix==9 ) then
     eps(1:ifull,1:kl) = edum(1:ifull,1:kl,1)
     tke(1:ifull,1:kl) = edum(1:ifull,1:kl,2)
   end if
   
-#ifndef faststack
   deallocate( edum )
-#endif
 
 end if  
 
@@ -310,15 +292,16 @@ use vvel_m
 implicit none
       
 integer, dimension(ifull), intent(in) :: nits
-integer i, k, iq, kp, kx
+integer i, k, iq, kp, kx, maxits
 real, dimension(:,:), intent(inout) :: tarr
 real, dimension(ifull), intent(in) :: nvadh_inv_pass
 real, dimension(ifull,0:kl) :: delt, fluxh
 real rat, phitvd, fluxhi, fluxlo
 
 ! The first sub-step is vectorised for all points.
+maxits = maxval(nits(1:ifull))
 
-do i = 1,maxval(nits(1:ifull))
+do i = 1,maxits
   do k = 1,kl-1
     do iq = 1,ifull
       delt(iq,k) = tarr(iq,k+1) - tarr(iq,k)
@@ -444,7 +427,7 @@ do n = 1,ntr
   do k = 1,kl
     do iq = 1,ifull
       tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
-                         +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+                    +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
     end do
   end do
 end do
@@ -474,7 +457,7 @@ do n = 1,ntr
       if ( i<=nits(iq) ) then
         do k = 1,kl
           tarr(iq,k,n) = tarr(iq,k,n) + (fluxh(iq,k-1,n)-fluxh(iq,k,n) &
-                             +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
+                        +tarr(iq,k,n)*(sdot(iq,k+1)-sdot(iq,k)))*nvadh_inv_pass(iq)
         end do  
       end if  
     end do ! i=1,nits

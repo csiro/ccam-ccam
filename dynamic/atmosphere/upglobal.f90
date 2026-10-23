@@ -59,13 +59,8 @@ integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
 real, dimension(ifull) :: nvadh_inv_pass
-#ifdef faststack
-real, dimension(ifull+iextra,kl,5) :: bb
-real, dimension(ifull+iextra,kl,3) :: uvw
-#else
 real, dimension(:,:,:), allocatable :: bb
 real, dimension(:,:,:), allocatable :: uvw
-#endif
 real, dimension(ifull+iextra,kl) :: dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
@@ -195,10 +190,8 @@ if ( nmaxpr==1 .and. nproc==1 ) then
 end if
 
 
-#ifndef faststack
 allocate( bb(ifull+iextra,kl,5) )
 allocate( uvw(ifull+iextra,kl,3) )
-#endif
 
 
 ! call bounds before calling ints
@@ -226,8 +219,8 @@ if ( mup/=0 ) then
   call bounds(uvw,nrows=2)
 end if
 if ( mspec==1 .and. mup/=0 ) then
-  bb(:,:,1) = qg(:,:)
   if ( ldr/=0 ) then
+    bb(:,:,1) = qg(:,:)
     bb(:,:,2) = qlg(:,:)
     bb(:,:,3) = qfg(:,:)
     bb(:,:,4) = stratcloud(:,:)
@@ -235,16 +228,17 @@ if ( mspec==1 .and. mup/=0 ) then
       bb(:,:,5) = ni(:,:)
       call bounds(bb(:,:,1:5),nrows=2)
       ni(:,:) = bb(:,:,5)
-    else
+    else                                     ! Leon microphysics
       call bounds(bb(:,:,1:4),nrows=2)  
     end if  
+    qg(:,:) = bb(:,:,1)
     qlg(:,:) = bb(:,:,2)
     qfg(:,:) = bb(:,:,3)
     stratcloud(:,:) = bb(:,:,4)
-  else
-    call bounds(bb(:,:,1:1),nrows=2)
+  else                                       ! Old diagnostic cloud (depreciate)
+    write(6,*) "ERROR: ldr=0 has been depreciated"
+    call ccmpi_abort(-1)
   end if  
-  qg(:,:) = bb(:,:,1)
   if ( ntrac>0 ) then
     call bounds(tr,nrows=2)
   end if
@@ -265,6 +259,7 @@ call END_LOG(ints_end)
 !$acc data create(xg,yg,nface)
 !$acc update device(xg,yg,nface)
 
+! variables for the dynamical core and air temperature ------------------------
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
   bb(:,:,1) = pslx(:,:)
@@ -338,6 +333,7 @@ if ( diag ) then
   if ( mydiag ) write(6,*) 'nface ',nface(idjd,:)
 end if
 
+! Winds -----------------------------------------------------------------------
 if ( mup/=0 ) then
   call ints(uvw,3,intsch,nface,xg,yg,2)
 end if
@@ -399,28 +395,30 @@ if ( diag .and. k==nlv ) then
 end if
 
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
+  ! Cloud microphysics --------------------------------------------------------
+  ! rain, snow and graupel are not advected  
   bb(:,:,1) = qg(:,:)  
-  if ( ldr/=0 ) then
-    bb(:,:,2) = qlg(:,:)
-    bb(:,:,3) = qfg(:,:)
-    bb(:,:,4) = stratcloud(:,:)
-    if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
-      bb(:,:,5) = ni(:,:)
-      call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,4)
-      ni(:,:) = bb(:,:,5)
-    else
-      call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,4)  
-    end if
-    qlg(:,:) = bb(:,:,2)
-    qfg(:,:) = bb(:,:,3)
-    stratcloud(:,:) = bb(:,:,4)
+  bb(:,:,2) = qlg(:,:)
+  bb(:,:,3) = qfg(:,:)
+  bb(:,:,4) = stratcloud(:,:)
+  if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
+    bb(:,:,5) = ni(:,:)
+    call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,4)
+    ni(:,:) = bb(:,:,5)
   else
-    call ints(bb(:,:,1:1),1,intsch,nface,xg,yg,4)    
+    call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,4)  
   end if
   qg(:,:) = bb(:,:,1)
+  qlg(:,:) = bb(:,:,2)
+  qfg(:,:) = bb(:,:,3)
+  stratcloud(:,:) = bb(:,:,4)
+  
+  ! Tracers -------------------------------------------------------------------
   if ( ntrac>0 ) then
     call ints(tr(:,:,1:ntrac),ntrac,intsch,nface,xg,yg,5)
   endif  ! (ntrac>0)
+  
+  ! Turbulent mixing variables ------------------------------------------------
   if ( nvmix==6 .or. nvmix==9 ) then
     bb(:,:,1) = tke(:,:)
     bb(:,:,2) = eps(:,:)
@@ -428,6 +426,8 @@ if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
     tke(:,:) = bb(:,:,1)
     eps(:,:) = bb(:,:,2)
   endif                 ! nvmix==6 .or. nvmix==9
+  
+  ! Aerosols ------------------------------------------------------------------
   if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     call ints(xtg(:,:,1:naero),naero,intsch,nface,xg,yg,5)
   end if
@@ -435,10 +435,8 @@ end if     ! mspec==1
 
 !$acc end data
 
-#ifndef faststack
 deallocate( bb )
 deallocate( uvw )
-#endif
 
 
 do k = 2,kl

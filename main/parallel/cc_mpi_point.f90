@@ -3360,12 +3360,8 @@ contains
       integer(kind=4) :: ldone, lcomm
       integer(kind=4), dimension(MPI_STATUS_SIZE,2*neighnum) :: status
       integer(kind=4), dimension(2*neighnum) :: donelist
-#ifdef faststack
-      real, dimension(4,maxbuflen*maxvertlen,neighnum) :: buf_dpoints, buf_dbuf 
-#else
       integer :: nmaxsize
       real, dimension(:,:,:), allocatable :: buf_dpoints, buf_dbuf 
-#endif
 
       ! This does nothing in the one process case
       if ( neighnum < 1 ) return
@@ -3377,9 +3373,7 @@ contains
       lcomm = comm_world
       itag = mod(itag + 1, 10000)
       
-#ifndef faststack
       allocate( buf_dpoints(4,maxbuflen*maxvertlen,neighnum) )
-#endif
       
       ! In this case the length of each buffer is unknown and will not
       ! be symmetric between processes. Therefore need to get the length
@@ -3454,10 +3448,8 @@ contains
          end if
       end do
 
-#ifndef faststack
       nmaxsize = maxval( dslen(1:neighnum) )
       allocate( buf_dbuf(4,nmaxsize,neighnum) )
-#endif
 
       ! Send request list
       do iproc = 1,neighnum
@@ -3503,10 +3495,8 @@ contains
          call END_LOG(mpiwaitpoint_end)
       end if
       
-#ifndef faststack
       deallocate( buf_dpoints )
       deallocate( buf_dbuf )
-#endif
 
    end subroutine deptsync
 

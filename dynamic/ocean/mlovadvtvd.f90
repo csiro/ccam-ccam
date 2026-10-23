@@ -56,11 +56,7 @@ real, dimension(:,:), intent(inout) :: uu,vv,ss,tt,mm
 real, dimension(:,:), intent(in) :: ee
 real, dimension(ifull,ol) :: dzdum
 #ifdef GPU
-#ifdef faststack
-real, dimension(ifull,ol,5) :: darr
-#else
 real, dimension(:,:,:), allocatable :: darr
-#endif
 #endif
 
 call START_LOG(watervadv_begin)
@@ -88,9 +84,7 @@ end if
 
 #ifdef GPU
 
-#ifndef faststack
 allocate( darr(ifull,ol,5) )
-#endif
 
 darr(1:ifull,1:ol,1) = uu(1:ifull,1:ol)
 darr(1:ifull,1:ol,2) = vv(1:ifull,1:ol)
@@ -112,9 +106,7 @@ ss(1:ifull,1:ol) = darr(1:ifull,1:ol,3)
 tt(1:ifull,1:ol) = darr(1:ifull,1:ol,4)
 mm(1:ifull,1:ol) = darr(1:ifull,1:ol,5)
 
-#ifndef faststack
 deallocate( darr )
-#endif
 
 #else
 
@@ -154,7 +146,7 @@ use newmpar_m
 
 implicit none
 
-integer ii, i, iq, kp, kx
+integer ii, i, iq, kp, kx, maxits
 integer, dimension(ifull), intent(in) :: its
 real, dimension(ifull), intent(in) :: dtnew
 real, dimension(ifull,0:ol), intent(in) :: ww
@@ -167,8 +159,9 @@ real fl, fh, cc, rr
 
 ! f=(w*u) at half levels
 ! du/dt = u*dw/dz-df/dz = -w*du/dz
+maxits = maxval(its(1:ifull))
 
-do i = 1,maxval(its(1:ifull))
+do i = 1,maxits
   do ii = 1,ol-1
     do iq = 1,ifull
       delu(iq,ii) = (uu(iq,ii+1) - uu(iq,ii))*ee(iq,ii)*ee(iq,ii+1)

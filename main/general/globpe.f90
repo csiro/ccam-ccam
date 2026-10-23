@@ -664,7 +664,7 @@ do ktau = 1,ntau   ! ****** start of main time loop
     je = tile*imax  
     call calculate_dhdt_mse(js,je,mse_t2)
     dmsedt_rad(js:je,1:kl) = (mse_t2(js:je,1:kl) - mse_t1(js:je,1:kl))/dt  
-    rad_tend(js:je,k) = rad_tend(js:je,k) + t(js:je,k)/dt
+    rad_tend(js:je,1:kl) = rad_tend(js:je,1:kl) + t(js:je,1:kl)/dt
   end do
   !$omp end do nowait
       

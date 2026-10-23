@@ -58,13 +58,8 @@ integer, save :: num = 0
 real invconst_nh, contv
 real, dimension(ifull,kl) :: aa, bb
 real, dimension(ifull+iextra,kl) :: p, tv, phiv
-#ifdef faststack
-real, dimension(ifull+iextra,3*kl+1) :: duma
-real, dimension(ifull+iextra,2*kl) :: dumu, dumv
-#else
 real, dimension(:,:), allocatable :: duma
 real, dimension(:,:), allocatable :: dumu, dumv
-#endif
 real, dimension(ifull) :: t_nh, spmax2, termlin
 real, allocatable, save, dimension(:) :: epstsav
       
@@ -299,9 +294,7 @@ do k = 1,kl
 end do
 
 
-#ifndef faststack
 allocate( duma(ifull+iextra,3*kl+1) )
-#endif
 
 ! MJT notes - This is the first bounds call after the physics
 ! routines, so load balance is a significant issue
@@ -316,9 +309,7 @@ p(ifull+1:ifull+iextra,1:kl)    = duma(ifull+1:ifull+iextra,kl+1:2*kl)
 tv(ifull+1:ifull+iextra,1:kl)   = duma(ifull+1:ifull+iextra,2*kl+1:3*kl)
 psl(ifull+1:ifull+iextra)       = duma(ifull+1:ifull+iextra,3*kl+1)
 
-#ifndef faststack
 deallocate( duma )
-#endif
 
 
 do k = 1,kl
@@ -343,9 +334,7 @@ if ( diag ) then
 end if                     ! (diag)
 
 
-#ifndef faststack
 allocate( dumu(ifull+iextra,2*kl), dumv(ifull+iextra,2*kl) )
-#endif
 
 ! Bounds call for unstaggering winds
 dumu(1:ifull,1:kl) = aa(1:ifull,1:kl)
@@ -358,9 +347,7 @@ vx(1:ifull,1:kl) = dumv(1:ifull,1:kl)
 un(1:ifull,1:kl) = dumu(1:ifull,kl+1:2*kl)
 vn(1:ifull,1:kl) = dumv(1:ifull,kl+1:2*kl)
 
-#ifndef faststack
 deallocate( dumu, dumv )
-#endif
 
 
 if ( diag ) then

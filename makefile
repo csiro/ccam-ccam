@@ -22,29 +22,29 @@ endif
 FOPT = -O3
 FHOST = -xHost
 ifeq ($(XEONPHI),yes)
-FHOST = -xMIC-AVX512 -Dfaststack
+FHOST = -xMIC-AVX512
 endif
 ifeq ($(BROADWELL),yes)
-FHOST = -xCORE-AVX2 -align array32byte -Dfaststack
+FHOST = -xCORE-AVX2 -align array32byte
 endif
 ifeq ($(SKYLAKE),yes)
-FHOST = -xSKYLAKE-AVX512 -align array64byte -Dfaststack
+FHOST = -xSKYLAKE-AVX512 -align array64byte
 endif
 ifeq ($(CASCADELAKE),yes)
-FHOST = -xCASCADELAKE -align array64byte -Dfaststack
+FHOST = -xCASCADELAKE -align array64byte
 endif
 ifeq ($(SAPPHIRERAPIDS),yes)
-FHOST = -xSAPPHIRERAPIDS -align array64byte -Dfaststack
+FHOST = -xSAPPHIRERAPIDS -align array64byte
 endif
 ifeq ($(ZEN3),yes)
-FHOST = -axCORE-AVX2 -align array32byte -Dfaststack
+FHOST = -axCORE-AVX2 -align array32byte
 endif
 ifeq ($(MAGNUS),yes)
 FC = ftn
-FHOST = -xHost -Dfaststack
+FHOST = -xHost
 endif
 ifeq ($(CASCADE),yes)
-FHOST = -O3 -march=core-avx2 -align array32byte -vec-threshold0 -Dfaststack
+FHOST = -O3 -march=core-avx2 -align array32byte -vec-threshold0
 endif
 ifeq ($(OMP),yes)
 FHOST += -qopenmp
@@ -100,7 +100,7 @@ else
 MPIFLAG = -Dusempi3
 endif
 NCFLAG =
-FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -I /opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1/include -Dfaststack
+FFLAGS = -mtune=native $(FHOST) -fbacktrace $(MPIFLAG) $(NCFLAG) -fallow-argument-mismatch -I /opt/cray/pe/mpich/8.1.27/ofi/gnu/9.1/include
 ifeq ($(GPU),yes)
 FFLAGS += -DGPU -fopenacc
 endif
@@ -130,7 +130,7 @@ MPIFLAG =
 else
 MPIFLAG = -Dusempi3 -Dshare_ifullg
 endif
-FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG) -Dfaststack
+FFLAGS = $(FHOST) -traceback $(MPIFLAG) $(NCFLAG)
 ifeq ($(GPU),yes)
 #FFLAGS += -Minfo=accel -acc -gpu=cc60,cc70,cc80,fastmath,flushz -DGPU
 #FFLAGS += -Minfo=accel -acc -gpu=cuda12.8,fastmath,flushz -DGPU
@@ -235,10 +235,6 @@ ifeq ($(COSP),yes)
 VPATH = ../../program/COSPv2.0/build
 FFLAGS += -DCOSP -I $(VPATH)
 LIBS += -lcosp -lsubcol -L $(VPATH)
-endif
-
-ifeq ($(FASTSTACK),yes)
-FFLAGS += -Dfaststack
 endif
 
 # CABLE, MLO, aTEB, etc
