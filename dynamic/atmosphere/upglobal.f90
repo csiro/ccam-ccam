@@ -21,35 +21,25 @@
     
 subroutine upglobal
 
-use aerointerface          ! Aerosol interface
-use arrays_m               ! Atmosphere dyamics prognostic arrays
-use cc_mpi                 ! CC MPI routines
-use cfrac_m                ! Cloud fraction
-use const_phys             ! Physical constants
-use diag_m                 ! Diagnostic routines
-use epst_m                 ! Off-centre terms
-use indices_m              ! Grid index arrays
-use kuocom_m               ! JLM convection
-use liqwpar_m              ! Cloud water mixing ratios
-use map_m                  ! Grid map arrays
-use newmpar_m              ! Grid parameters
-use nharrs_m               ! Non-hydrostatic atmosphere arrays
-use nlin_m                 ! Atmosphere non-linear dynamics
-use parm_m                 ! Model configuration
-use parmdyn_m              ! Dynamics parameters
-use parmhor_m              ! Horizontal advection parameters
-use sbar_m                 ! Saved dynamic arrays
-use sigs_m                 ! Atmosphere sigma levels
-use staguvmod              ! Reversible grid staggering
-use tkeeps, only : tke,eps ! TKE-EPS boundary layer
-use tracers_m              ! Tracer data
-use unn_m                  ! Saved dynamic arrays
-use vadv                   ! Vertical advection
-use vecsuv_m               ! Map to cartesian coordinates
-use vvel_m                 ! Additional vertical velocity
-use work3f_m               ! Grid work arrays
-use xarrs_m                ! Saved dynamic arrays
-use xyzinfo_m              ! Grid coordinate arrays
+use atmosphere_arrays_m         ! Collection of atmosphere data
+use cc_mpi                      ! CC MPI routines
+use const_phys                  ! Physical constants
+use diag_m                      ! Diagnostic routines
+use indices_m                   ! Grid index arrays
+use ints_m                      ! Horizontal transport
+use map_m                       ! Grid map arrays
+use module_ctrl_chemistry       ! Interface for aerosols/chemistry/tracers
+use module_ctrl_convection      ! Interface for convection
+use module_ctrl_microphysics    ! Interface for cloud microphysics
+use module_ctrl_turbmix         ! Boundary layer turbulent mixing
+use newmpar_m                   ! Grid parameters
+use parm_m                      ! Model configuration
+use sigs_m                      ! Atmosphere sigma levels
+use staguvmod                   ! Reversible grid staggering
+use vadv                        ! Vertical advection
+use vecsuv_m                    ! Map to cartesian coordinates
+use work3f_m                    ! Grid work arrays
+use xyzinfo_m                   ! Grid coordinate arrays
 
 implicit none
 
@@ -59,8 +49,7 @@ integer idjdd, nstart
 integer, save :: numunstab = 0
 integer, dimension(ifull) :: nits
 real, dimension(ifull) :: nvadh_inv_pass
-real, dimension(:,:,:), allocatable :: bb
-real, dimension(:,:,:), allocatable :: uvw
+real, dimension(ifull+iextra,kl,3) :: uvw
 real, dimension(ifull+iextra,kl) :: dd
 real, dimension(ifull+iextra) :: aa
 real, dimension(ifull,kl) :: theta
@@ -190,25 +179,16 @@ if ( nmaxpr==1 .and. nproc==1 ) then
 end if
 
 
-allocate( bb(ifull+iextra,kl,5) )
-allocate( uvw(ifull+iextra,kl,3) )
-
-
 ! call bounds before calling ints
 call START_LOG(ints_begin)
 if ( mup/=0 ) then
   call bounds(dd,corner=.true.)
-  bb(:,:,1) = pslx(:,:)
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    bb(:,:,2) = h_nh(:,:)
-    call bounds(bb(:,:,1:2),nrows=2)
-    h_nh(:,:) = bb(:,:,2)
+    call bounds(ta=pslx,tb=h_nh,tc=tx,nrows=2)
   else
-    call bounds(bb(:,:,1:1),nrows=2)  
-  end if ! nh/=0
-  pslx(:,:) = bb(:,:,1)
-  call bounds(tx,nrows=2)
+    call bounds(ta=pslx,tb=tx,nrows=2)
+  end if  ! nh/=0  
 end if    ! mup/=0
 do k = 1,kl
   uvw(1:ifull,k,1) = ax(1:ifull)*ux(1:ifull,k) + bx(1:ifull)*vx(1:ifull,k)
@@ -220,22 +200,12 @@ if ( mup/=0 ) then
 end if
 if ( mspec==1 .and. mup/=0 ) then
   if ( ldr/=0 ) then
-    bb(:,:,1) = qg(:,:)
-    bb(:,:,2) = qlg(:,:)
-    bb(:,:,3) = qfg(:,:)
-    bb(:,:,4) = stratcloud(:,:)
     if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics
-      bb(:,:,5) = ni(:,:)
-      call bounds(bb(:,:,1:5),nrows=2)
-      ni(:,:) = bb(:,:,5)
+      call bounds(ta=qg,tb=qlg,tc=qfg,td=stratcloud,te=ni,nrows=2)
     else                                     ! Leon microphysics
-      call bounds(bb(:,:,1:4),nrows=2)  
+      call bounds(ta=qg,tb=qlg,tc=qfg,td=stratcloud,nrows=2)
     end if  
-    qg(:,:) = bb(:,:,1)
-    qlg(:,:) = bb(:,:,2)
-    qfg(:,:) = bb(:,:,3)
-    stratcloud(:,:) = bb(:,:,4)
-  else                                       ! Old diagnostic cloud (depreciate)
+  else     ! Old diagnostic cloud (depreciate)
     write(6,*) "ERROR: ldr=0 has been depreciated"
     call ccmpi_abort(-1)
   end if  
@@ -243,12 +213,8 @@ if ( mspec==1 .and. mup/=0 ) then
     call bounds(tr,nrows=2)
   end if
   if ( nvmix==6 .or. nvmix==9 ) then
-    bb(:,:,1) = tke(:,:)
-    bb(:,:,2) = eps(:,:)
-    call bounds(bb(:,:,1:2),nrows=2)
-    tke(:,:) = bb(:,:,1)
-    eps(:,:) = bb(:,:,2)
-  endif                 ! nvmix==6 .or. nvmix==9
+    call bounds(ta=tke,tb=eps,nrows=2)
+  end if   ! nvmix==6 .or. nvmix==9
   if ( abs(iaero)>=2 .and. nhstest>=0 ) then
     call bounds(xtg,nrows=2)
   end if
@@ -262,17 +228,13 @@ call END_LOG(ints_end)
 ! variables for the dynamical core and air temperature ------------------------
 if ( mup/=0 ) then
   call ints_bl(dd,intsch,nface,xg,yg)  ! advection on all levels
-  bb(:,:,1) = pslx(:,:)
   if ( nh/=0 ) then
     ! non-hydrostatic version
-    bb(:,:,2) = h_nh(:,:)
-    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,1)
-    h_nh(:,:) = bb(:,:,2)
+    call ints(sa=pslx,sb=h_nh,intsch=intsch,nface=nface,xg=xg,yg=yg,nfield=1)
   else
-    call ints(bb(:,:,1:1),1,intsch,nface,xg,yg,1)
+    call ints(sa=pslx,intsch=intsch,nface=nface,xg=xg,yg=yg,nfield=1)
   end if    
-  pslx(:,:) = bb(:,:,1)
-  call ints(tx,1,intsch,nface,xg,yg,3)
+  call ints(sa=pslx,intsch=intsch,nface=nface,xg=xg,yg=yg,nfield=3)
 end if    ! mup/=0
 
 do k = 1,kl
@@ -335,7 +297,7 @@ end if
 
 ! Winds -----------------------------------------------------------------------
 if ( mup/=0 ) then
-  call ints(uvw,3,intsch,nface,xg,yg,2)
+  call ints(uvw(:,:,1:3),intsch,nface,xg,yg,2)
 end if
 
 if ( diag ) then
@@ -397,46 +359,31 @@ end if
 if ( mspec==1 .and. mup/=0 ) then   ! advect qg after preliminary step
   ! Cloud microphysics --------------------------------------------------------
   ! rain, snow and graupel are not advected  
-  bb(:,:,1) = qg(:,:)  
-  bb(:,:,2) = qlg(:,:)
-  bb(:,:,3) = qfg(:,:)
-  bb(:,:,4) = stratcloud(:,:)
-  if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics  
-    bb(:,:,5) = ni(:,:)
-    call ints(bb(:,:,1:5),5,intsch,nface,xg,yg,4)
-    ni(:,:) = bb(:,:,5)
+  if ( ncloud>=100 .and. ncloud<200 ) then ! Lin microphysics 
+    call ints(sa=qg,sb=qlg,sc=qfg,sd=stratcloud,se=ni,intsch=intsch,nface=nface, &
+              xg=xg,yg=yg,nfield=4)  
   else
-    call ints(bb(:,:,1:4),4,intsch,nface,xg,yg,4)  
+    call ints(sa=qg,sb=qlg,sc=qfg,sd=stratcloud,intsch=intsch,nface=nface,xg=xg, &
+              yg=yg,nfield=4)
   end if
-  qg(:,:) = bb(:,:,1)
-  qlg(:,:) = bb(:,:,2)
-  qfg(:,:) = bb(:,:,3)
-  stratcloud(:,:) = bb(:,:,4)
   
   ! Tracers -------------------------------------------------------------------
   if ( ntrac>0 ) then
-    call ints(tr(:,:,1:ntrac),ntrac,intsch,nface,xg,yg,5)
+    call ints(tr(:,:,1:ntrac),intsch,nface,xg,yg,5)
   endif  ! (ntrac>0)
   
   ! Turbulent mixing variables ------------------------------------------------
   if ( nvmix==6 .or. nvmix==9 ) then
-    bb(:,:,1) = tke(:,:)
-    bb(:,:,2) = eps(:,:)
-    call ints(bb(:,:,1:2),2,intsch,nface,xg,yg,4)
-    tke(:,:) = bb(:,:,1)
-    eps(:,:) = bb(:,:,2)
+    call ints(sa=tke,sb=eps,intsch=intsch,nface=nface,xg=xg,yg=yg,nfield=4)
   endif                 ! nvmix==6 .or. nvmix==9
   
   ! Aerosols ------------------------------------------------------------------
   if ( abs(iaero)>=2 .and. nhstest>=0 ) then
-    call ints(xtg(:,:,1:naero),naero,intsch,nface,xg,yg,5)
+    call ints(xtg(:,:,1:naero),intsch,nface,xg,yg,5)
   end if
 end if     ! mspec==1
 
 !$acc end data
-
-deallocate( bb )
-deallocate( uvw )
 
 
 do k = 2,kl

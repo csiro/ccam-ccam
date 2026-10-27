@@ -22,36 +22,22 @@
 
 subroutine adjust5
 
-use aerointerface          ! Aerosol interface
-use arrays_m               ! Atmosphere dyamics prognostic arrays
-use cc_mpi                 ! CC MPI routines
-use cfrac_m                ! Cloud fraction
-use const_phys             ! Physical constants
-use diag_m                 ! Diagnostic routines
-use dpsdt_m                ! Vertical velocity
-use epst_m                 ! Off-centre terms
-use helmsolve              ! Implicit solver for Helmholtz equation
-use indices_m              ! Grid index arrays
-use kuocom_m               ! JLM convection
-use liqwpar_m              ! Cloud water mixing ratios
-use map_m                  ! Grid map arrays
-use morepbl_m              ! Additional boundary layer diagnostics
-use newmpar_m              ! Grid parameters
-use nharrs_m               ! Non-hydrostatic atmosphere arrays
-use nlin_m                 ! Atmosphere non-linear dynamics
-use parm_m                 ! Model configuration
-use parmdyn_m              ! Dynamics parameters
-use pbl_m                  ! Boundary layer arrays
-use sigs_m                 ! Atmosphere sigma levels
-use staguvmod              ! Reversible grid staggering
-use tbar2d_m               ! Atmosphere dynamics reference temperature
-use tracers_m              ! Tracer data
-use vecsuv_m               ! Map to cartesian coordinates
-use vecs_m                 ! Eigenvectors for atmosphere dynamics
-use vvel_m                 ! Additional vertical velocity
-use work3sav_m             ! Water and tracer saved arrays
-use xarrs_m                ! Saved dynamic arrays
-use xyzinfo_m              ! Grid coordinate arrays
+use atmosphere_arrays_m      ! Collection of atmosphere data
+use cc_mpi                   ! CC MPI routines
+use const_phys               ! Physical constants
+use diag_m                   ! Diagnostic routines
+use helmsolve                ! Implicit solver for Helmholtz equation
+use indices_m                ! Grid index arrays
+use map_m                    ! Grid map arrays
+use module_ctrl_chemistry    ! Interface for aerosols/chemistry/tracers
+use module_ctrl_convection   ! Interface for convection
+use module_ctrl_microphysics ! Interface for cloud microphysics
+use newmpar_m                ! Grid parameters
+use parm_m                   ! Model configuration
+use sigs_m                   ! Atmosphere sigma levels
+use staguvmod                ! Reversible grid staggering
+use vecsuv_m                 ! Map to cartesian coordinates
+use xyzinfo_m                ! Grid coordinate arrays
 
 implicit none
 

@@ -603,22 +603,24 @@ if ( mp_global>0 ) then
         tdata(tile)%maxnb = n
       end if
     end do
-    
-    do n = 1,maxtile
-      call cable_pack(svs(:,n),tdata(tile)%sv,tile,nb=n)
-      call cable_pack(ivs(:,n),tdata(tile)%cveg,tile,nb=n)
-      dummy_pack(is:ie) = max( vlin(is:ie,n), 0.01 )
-      call cable_pack(dummy_pack(is:ie),tdata(tile)%vl2,tile,nb=n)
-    end do
-  
-    call cable_pack(isoilm,soil(tile)%isoilm,tile)
-    call cable_pack(slope_ave,soil(tile)%slope,tile)
-    call cable_pack(slope_std,soil(tile)%slope_std,tile)
 
-    ! slope is used by the gw model
     if ( tdata(tile)%mp>0 ) then
+
+      do n = 1,maxtile
+        call cable_pack(svs(:,n),tdata(tile)%sv,tile,nb=n)
+        call cable_pack(ivs(:,n),tdata(tile)%cveg,tile,nb=n)
+        dummy_pack(is:ie) = max( vlin(is:ie,n), 0.01 )
+        call cable_pack(dummy_pack(is:ie),tdata(tile)%vl2,tile,nb=n)
+      end do
+  
+      call cable_pack(isoilm,soil(tile)%isoilm,tile)
+      call cable_pack(slope_ave,soil(tile)%slope,tile)
+      call cable_pack(slope_std,soil(tile)%slope_std,tile)
+
+      ! slope is used by the gw model
       soil(tile)%slope=min(max(soil(tile)%slope,1.e-8_8),0.95_8)
       soil(tile)%slope_std=min(max(soil(tile)%slope_std,1.e-8_8),0.95_8)
+
     end if
 
   end do ! tile

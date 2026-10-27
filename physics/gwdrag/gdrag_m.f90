@@ -78,8 +78,8 @@ end subroutine gdrag_end
 
 subroutine gwdrag
 
+use atmosphere_arrays_m
 use cc_mpi, only : mydiag
-use arrays_m
 use newmpar_m
 use parm_m, only : idjd
 use pbl_m

@@ -71,15 +71,13 @@ subroutine helmsor(zz,zzn,zze,zzw,zzs,helm,s,irhs)
 !     Solve Helmholtz equation - experimental jlm version
 !     e.g. use  -2540, -2335, -2635, -2425 (in decr. order)
 
+use atmosphere_arrays_m
 use cc_mpi
 use diag_m
 use indices_m
 use newmpar_m
 use parm_m
-use parmdyn_m
 use parmgeom_m
-use sumdd_m
-use vecs_m
 
 implicit none
 
@@ -365,12 +363,11 @@ subroutine helmsol(zz,zzn,zze,zzw,zzs,helm,s,rhs)
 !     Note that the ILU preconditioner is expensive to set up. This code 
 !     works best with ntbar=0 so the matrix doesn't change in time.
 
+use atmosphere_arrays_m
 use cc_mpi
 use indices_m
 use newmpar_m
 use parm_m
-use parmdyn_m
-use sumdd_m
 
 implicit none
 
@@ -382,7 +379,7 @@ real, intent(in), dimension(ifull) :: zz,zzn,zze,zzw,zzs
 real, intent(in) :: helm(ifull,kl)             ! Helmholtz coefficients
 real, intent(inout) :: s(ifull+iextra,kl)      ! Solution
 real, intent(in) :: rhs(ifull,kl)              ! RHS
-real, dimension(ifull,kl) :: fac, invfac, v, sx
+real, dimension(ifull,kl) :: fac, invfac, vv, sx
 real, dimension(ifull+iextra,kl) :: d, r, h
 
 real, dimension(kl) :: alpha, beta, smag, &
@@ -452,18 +449,18 @@ gamma_1 = 0.
 do k=1,klim
    if ( k <= precon ) then
       do iq=1,ifull
-         v(iq,k) = zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
-                   zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) + &
+         vv(iq,k) = zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
+                    zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) + &
                     d(iq,k)*fac(iq,k) 
-         tmparr(iq) = d(iq,k)*v(iq,k)
+         tmparr(iq) = d(iq,k)*vv(iq,k)
          tmparr2(iq) = r(iq,k)*h(iq,k)
       end do
    else
       do iq=1,ifull
-         v(iq,k) = ( zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
-                     zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) ) *  &
-                     invfac(iq,k) + d(iq,k)
-         tmparr(iq) = d(iq,k)*v(iq,k)
+         vv(iq,k) = ( zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
+                      zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) ) *  &
+                      invfac(iq,k) + d(iq,k)
+         tmparr(iq) = d(iq,k)*vv(iq,k)
          tmparr2(iq) = r(iq,k)*r(iq,k)
       end do
    end if
@@ -479,7 +476,7 @@ local_sum(1:2*klim) = (0.,0.) ! Still need the later part.
 alpha(1:klim) = ggamma_1(1:klim) / gsigma(1:klim)
 do k=1,klim
    s(1:ifull,k) = s(1:ifull,k) + alpha(k) * d(1:ifull,k)
-   r(1:ifull,k) = r(1:ifull,k) - alpha(k) * v(1:ifull,k)
+   r(1:ifull,k) = r(1:ifull,k) - alpha(k) * vv(1:ifull,k)
    if ( k <= precon) then
       call ilusolve(h,r,k)
    else
@@ -549,7 +546,7 @@ select case (helmmeth)
                   d(iq,k) = h(iq,k) + beta(k) * d(iq,k)
                   v(iq,k) = sx(iq,k) + beta(k) * v(iq,k)
                   s(iq,k) = s(iq,k) + alpha(k) * d(iq,k)
-                  r(iq,k) = r(iq,k) - alpha(k) * v(iq,k)
+                  r(iq,k) = r(iq,k) - alpha(k) * vv(iq,k)
                   tmparr(iq) = s(iq,k)*s(iq,k)
                end do
                call ilusolve(h,r,k)
@@ -559,7 +556,7 @@ select case (helmmeth)
                   d(iq,k) = h(iq,k) + beta(k) * d(iq,k)
                   v(iq,k) = sx(iq,k) + beta(k) * v(iq,k)
                   s(iq,k) = s(iq,k) + alpha(k) * d(iq,k)
-                  h(iq,k) = h(iq,k) - alpha(k) * v(iq,k)
+                  h(iq,k) = h(iq,k) - alpha(k) * vv(iq,k)
                   tmparr(iq) = s(iq,k)*s(iq,k)
                end do
             end if
@@ -626,17 +623,17 @@ select case (helmmeth)
          do k=1,klim
             if ( k <= precon) then
                do iq=1,ifull
-                  v(iq,k) = zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
-                            zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) + &
-                            d(iq,k)*fac(iq,k)
-                  tmparr(iq) = d(iq,k)*v(iq,k)
+                  vv(iq,k) = zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
+                             zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) + &
+                             d(iq,k)*fac(iq,k)
+                  tmparr(iq) = d(iq,k)*vv(iq,k)
                end do
             else
                do iq=1,ifull
-                  v(iq,k) = ( zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
-                              zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) ) *  &
-                              invfac(iq,k) + d(iq,k)
-                  tmparr(iq) = d(iq,k)*v(iq,k)
+                  vv(iq,k) = ( zze(iq)*d(ie(iq),k) + zzw(iq)*d(iw(iq),k) + &
+                               zzn(iq)*d(in(iq),k) + zzs(iq)*d(is(iq),k) ) *  &
+                               invfac(iq,k) + d(iq,k)
+                  tmparr(iq) = d(iq,k)*vv(iq,k)
                end do
             end if
             call drpdr_local(tmparr, local_sum(k))
@@ -653,7 +650,7 @@ select case (helmmeth)
             if ( k <= precon) then
                do iq=1,ifull
                   s(iq,k) = s(iq,k) + alpha(k) * d(iq,k)
-                  r(iq,k) = r(iq,k) - alpha(k) * v(iq,k)
+                  r(iq,k) = r(iq,k) - alpha(k) * vv(iq,k)
                   tmparr(iq) = s(iq,k)*s(iq,k)
                end do
                call ilusolve(h,r,k)
@@ -661,7 +658,7 @@ select case (helmmeth)
                do iq=1,ifull
                   ! Use h in place of r
                   s(iq,k) = s(iq,k) + alpha(k) * d(iq,k)
-                  h(iq,k) = h(iq,k) - alpha(k) * v(iq,k)
+                  h(iq,k) = h(iq,k) - alpha(k) * vv(iq,k)
                   tmparr(iq) = s(iq,k)*s(iq,k)
                end do
             end if
@@ -835,11 +832,11 @@ end subroutine ilusolve
 ! This version of the geometric multigrid solver is for the atmosphere
 subroutine mghelm(izz,izzn,izze,izzw,izzs,ihelm,iv,jrhs)
 
+use atmosphere_arrays_m
 use cc_mpi
 use indices_m
 use newmpar_m
 use parm_m
-use parmdyn_m
 
 implicit none
 
@@ -853,10 +850,10 @@ real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
 real, dimension(:,:,:), allocatable :: rhs
-real, dimension(:,:,:), allocatable :: v, helm
-real, dimension(:,:), allocatable :: w
-real, dimension(:,:,:), allocatable :: helmc, rhsc
-real, dimension(:,:), allocatable :: zznc, zzec, zzwc, zzsc, zzc
+real, dimension(:,:,:), allocatable :: vv, helm
+real, dimension(mg_maxsize,2*kl) :: w
+real, dimension(ifull_maxcolour,kl,maxcolour):: helmc, rhsc
+real, dimension(ifull_maxcolour,maxcolour) :: zznc, zzec, zzwc, zzsc, zzc
 real, dimension(mg_minsize) :: vsavc
 real, dimension(2*kl,2) :: smaxmin_g
 real, dimension(kl) :: dsolmax_g, savg, sdif, dsolmaxc, sdifc
@@ -877,16 +874,8 @@ end if
 call START_LOG(helm_begin)
 
 allocate( rhs(mg_maxsize,2*kl,2:gmax+1) )
-allocate( v(mg_maxsize,kl,gmax+1) )
+allocate( vv(mg_maxsize,kl,gmax+1) )
 allocate( helm(mg_maxsize,kl,gmax+1) )
-allocate( w(mg_maxsize,2*kl) )
-allocate( helmc(ifull_maxcolour,kl,maxcolour) )
-allocate( rhsc(ifull_maxcolour,kl,maxcolour) )
-allocate( zznc(ifull_maxcolour,maxcolour) )
-allocate( zzec(ifull_maxcolour,maxcolour) )
-allocate( zzwc(ifull_maxcolour,maxcolour) )
-allocate( zzsc(ifull_maxcolour,maxcolour) )
-allocate( zzc(ifull_maxcolour,maxcolour) )
 
 ng  = 0
 ng4 = 0
@@ -1077,9 +1066,9 @@ do itr = 1,itr_mg
       ! update scalar field
       ! assume zero for first guess of residual (also avoids additional bounds call)
       do k = 1,klim
-        v(1:ng,k,g) = -rhs(1:ng,k,g)/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
+        vv(1:ng,k,g) = -rhs(1:ng,k,g)/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
       end do
-      call mgbounds(g,v(:,1:klim,g),klim=klim)
+      call mgbounds(g,vv(:,1:klim,g),klim=klim)
       
       ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
       ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
@@ -1088,13 +1077,13 @@ do itr = 1,itr_mg
         do k = 1,klim
           ! pre smoothing
           do iq = 1,ng
-            w(iq,k) = ( mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
-                      + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
+            w(iq,k) = ( mg(g)%zze(iq)*vv(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*vv(mg(g)%iw(iq),k,g) &
+                      + mg(g)%zzn(iq)*vv(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*vv(mg(g)%is(iq),k,g) &
                       - rhs(iq,k,g) )/( helm(iq,k,g) - mg(g)%zz(iq) )
           end do
         end do
-        v(1:ng,1:klim,g) = w(1:ng,1:klim)
-        call mgbounds(g,v(:,1:klim,g),klim=klim)
+        vv(1:ng,1:klim,g) = w(1:ng,1:klim)
+        call mgbounds(g,vv(:,1:klim,g),klim=klim)
       end do
     
       ng4 = mg(g)%ifull_fine
@@ -1102,9 +1091,9 @@ do itr = 1,itr_mg
       do k = 1,klim
         ! residual
         do iq = 1,ng
-          w(iq,k) = -mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g)-mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g)   &
-                    -mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g)-mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g)   &
-                    +rhs(iq,k,g)+(helm(iq,k,g)-mg(g)%zz(iq))*v(iq,k,g)
+          w(iq,k) = -mg(g)%zze(iq)*vv(mg(g)%ie(iq),k,g)-mg(g)%zzw(iq)*vv(mg(g)%iw(iq),k,g)   &
+                    -mg(g)%zzn(iq)*vv(mg(g)%in(iq),k,g)-mg(g)%zzs(iq)*vv(mg(g)%is(iq),k,g)   &
+                    +rhs(iq,k,g)+(helm(iq,k,g)-mg(g)%zz(iq))*vv(iq,k,g)
         end do
         ! restriction
         do iq = 1,ng4
@@ -1150,25 +1139,25 @@ do itr = 1,itr_mg
       g = mg_maxlevel
       ng = mg(g)%ifull
       do k = 1,klim
-        v(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-        sdifc(k) = max( maxval(v(1:ng,k,g)) - minval(v(1:ng,k,g)), 1.e-20 )        
+        vv(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
+        sdifc(k) = max( maxval(vv(1:ng,k,g)) - minval(vv(1:ng,k,g)), 1.e-20 )        
       end do
       ! usually it takes 6 iterations for the following to converge with 35 eigenvectors
       klimc = klim
       do itrc = 1,itr_mg
         do k = 1,klimc  
-          vsavc(1:ng) = v(1:ng,k,g)
+          vsavc(1:ng) = vv(1:ng,k,g)
           do nc = 1,3
             do iql = 1,mg_ifull_maxcolour  
               iq = col_iq(iql,nc) 
-              v(iq,k,g) = ( mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g) &
-                          + mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g) &
-                          + mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
-                          + mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
+              vv(iq,k,g) = ( mg(g)%zzn(iq)*vv(mg(g)%in(iq),k,g) &
+                           + mg(g)%zze(iq)*vv(mg(g)%ie(iq),k,g) &
+                           + mg(g)%zzs(iq)*vv(mg(g)%is(iq),k,g) &
+                            + mg(g)%zzw(iq)*vv(mg(g)%iw(iq),k,g) &
                           - rhs(iq,k,g) )/(helm(iq,k,g)-mg(g)%zz(iq))
             end do  
           end do ! nc = 1,maxcolour  
-          dsolmaxc(k) = maxval( abs( v(1:ng,k,g) - vsavc(1:ng) ) )
+          dsolmaxc(k) = maxval( abs( vv(1:ng,k,g) - vsavc(1:ng) ) )
         end do
         ! test for convergence
         knew = klimc
@@ -1196,9 +1185,9 @@ do itr = 1,itr_mg
 
       ! send coarse grid solution to processors and also bcast global smaxmin_g
       if ( itr==1 ) then
-        call mgbcast(g+1,v(:,1:kl,g+1),smaxmin_g(:,1:2))
+        call mgbcast(g+1,vv(:,1:kl,g+1),smaxmin_g(:,1:2))
       else
-        call mgbcast(g+1,v(:,1:klim,g+1),dsolmax_g(:),klim=klim)
+        call mgbcast(g+1,vv(:,1:klim,g+1),dsolmax_g(:),klim=klim)
       end if  
 
       ng = mg(g)%ifull 
@@ -1206,29 +1195,29 @@ do itr = 1,itr_mg
       do k = 1,klim
         ! interpolation
         do iq = 1,ng
-          w(iq,k) = 0.5*v(mg(g+1)%coarse_a(iq),k,g+1)  &
-                  + 0.25*v(mg(g+1)%coarse_b(iq),k,g+1) &
-                  + 0.25*v(mg(g+1)%coarse_c(iq),k,g+1)
+          w(iq,k) = 0.5*vv(mg(g+1)%coarse_a(iq),k,g+1)  &
+                  + 0.25*vv(mg(g+1)%coarse_b(iq),k,g+1) &
+                  + 0.25*vv(mg(g+1)%coarse_c(iq),k,g+1)
         end do  
         ! extension
         ! No mgbounds as the v halo has already been updated and
         ! the coarse interpolation also updates the w halo
-        v(1:ng,k,g) = v(1:ng,k,g) + w(1:ng,k)
+        vv(1:ng,k,g) = vv(1:ng,k,g) + w(1:ng,k)
       end do
     
       do i = 1,itrend
-        call mgbounds(g,v(:,1:klim,g),klim=klim)
+        call mgbounds(g,vv(:,1:klim,g),klim=klim)
         do k = 1,klim
           ! post smoothing - all iterations except final iteration
           do iq = 1,ng
-            w(iq,k) = (mg(g)%zze(iq)*v(mg(g)%ie(iq),k,g)+mg(g)%zzw(iq)*v(mg(g)%iw(iq),k,g) &
-                     + mg(g)%zzn(iq)*v(mg(g)%in(iq),k,g)+mg(g)%zzs(iq)*v(mg(g)%is(iq),k,g) &
+            w(iq,k) = (mg(g)%zze(iq)*vv(mg(g)%ie(iq),k,g)+mg(g)%zzw(iq)*vv(mg(g)%iw(iq),k,g) &
+                     + mg(g)%zzn(iq)*vv(mg(g)%in(iq),k,g)+mg(g)%zzs(iq)*vv(mg(g)%is(iq),k,g) &
                      - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
           end do
         end do
-        v(1:ng,1:klim,g) = w(1:ng,1:klim)
+        vv(1:ng,1:klim,g) = w(1:ng,1:klim)
       end do
-      call mgbounds(g,v(:,1:klim,g),klim=klim) ! for next mgbcast
+      call mgbounds(g,vv(:,1:klim,g),klim=klim) ! for next mgbcast
 
     end do ! g loop over V levels
   
@@ -1236,18 +1225,18 @@ do itr = 1,itr_mg
     ! broadcast coarse solution to fine grid, as well as global smaxmin_g
     ! or convergence test dsolmax_g
     if ( itr==1 ) then
-      call mgbcast(2,v(:,1:kl,2),smaxmin_g(:,1:2))
+      call mgbcast(2,vv(:,1:kl,2),smaxmin_g(:,1:2))
     else
-      call mgbcast(2,v(:,1:klim,2),dsolmax_g(:),klim=klim)
+      call mgbcast(2,vv(:,1:klim,2),dsolmax_g(:),klim=klim)
     end if  
 
     ! interpolation
     ng = mg(1)%ifull
     do k = 1,klim
       do iq = 1,ng 
-        w(iq,k) = 0.5*v(mg(2)%coarse_a(iq),k,2)  &
-                + 0.25*v(mg(2)%coarse_b(iq),k,2) &
-                + 0.25*v(mg(2)%coarse_c(iq),k,2)
+        w(iq,k) = 0.5*vv(mg(2)%coarse_a(iq),k,2)  &
+                + 0.25*vv(mg(2)%coarse_b(iq),k,2) &
+                + 0.25*vv(mg(2)%coarse_c(iq),k,2)
       end do  
     end do
 
@@ -1381,16 +1370,8 @@ if ( myid==0 ) then
 end if
 
 deallocate( rhs )
-deallocate( v )
+deallocate( vv )
 deallocate( helm )
-deallocate( w )
-deallocate( helmc )
-deallocate( rhsc )
-deallocate( zznc )
-deallocate( zzec )
-deallocate( zzwc )
-deallocate( zzsc )
-deallocate( zzc )
 
 call END_LOG(helm_end)
 
@@ -3043,10 +3024,10 @@ end subroutine optmx
 ! Initialise multi-grid arrays
 subroutine mgsor_init
 
+use atmosphere_arrays_m
 use cc_mpi
 use newmpar_m
 use parm_m
-use parmdyn_m
 
 implicit none
 

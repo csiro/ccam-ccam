@@ -49,7 +49,6 @@ contains
     
 subroutine indataf(lapsbot,isoth,nsig,nmlfile)
      
-use aerointerface                                ! Aerosol interface
 use amipsst_m                                    ! AMIP SSTs
 use atmosphere_arrays_m                          ! Collection of atmosphere data
 use bigxy4_m                                     ! Grid interpolation
@@ -70,6 +69,7 @@ use latlong_m                                    ! Lat/lon coordinates
 use latltoij_m                                   ! Lat/Lon to cubic ij conversion
 use map_m                                        ! Grid map arrays
 use mlodynamics                                  ! Ocean dynamics
+use module_ctrl_chemistry                        ! Interface for aerosols/chemistry/tracers
 use module_ctrl_convection                       ! Interface for convection
 use module_ctrl_radiation                        ! Interface for radiation
 use module_ctrl_turbmix                          ! Boundary layer turbulent mixing
@@ -84,9 +84,6 @@ use river                                        ! River routing
 use sflux_m                                      ! Surface flux routines
 use sigs_m                                       ! Atmosphere sigma levels
 use stime_m                                      ! File date data
-use timeseries, only : init_ts                   ! Tracer time series
-use tracermodule, only : readtracerflux          ! Tracer routines
-use tracers_m                                    ! Tracer data
 use vecsuv_m                                     ! Map to cartesian coordinates
 use xyzinfo_m                                    ! Grid coordinate arrays
       
@@ -2466,11 +2463,11 @@ use darcdf_m                 ! Netcdf data
 use filnames_m               ! Filenames
 use infile                   ! Input file routines
 use map_m                    ! Grid map arrays
+use module_ctrl_chemistry    ! Interface for aerosols/chemistry/tracers
 use newmpar_m                ! Grid parameters
 use nsibd_m                  ! Land-surface arrays
 use parm_m                   ! Model configuration
 use sflux_m                  ! Surface flux routines
-use tracers_m                ! Tracer data
 
 implicit none
 
@@ -2929,7 +2926,6 @@ use cc_mpi, only : myid ! CC MPI routines
 use newmpar_m           ! Grid parameters
 use parm_m, only : nsib ! Model configuration
 use sflux_m             ! Surface flux routines
-!use soilv_m             ! Soil parameters
       
 implicit none
 
@@ -2963,14 +2959,11 @@ end subroutine insoil
 subroutine calczo
      
 use atmosphere_arrays_m  ! Collection of atmosphere data
-!use arrays_m        ! Atmosphere dyamics prognostic arrays
 use map_m                ! Grid map arrays
 use newmpar_m            ! Grid parameters
 use nsibd_m              ! Land-surface arrays
 use parm_m               ! Model configuration
 use sflux_m              ! Surface flux routines
-!use soil_m          ! Soil and surface data
-!use soilsnow_m      ! Soil, snow and surface data
       
 implicit none
       
@@ -3226,8 +3219,6 @@ use newmpar_m
 use nsibd_m
 use parmgeom_m
 use sflux_m             ! Surface flux routines
-!use soilsnow_m, only : wb_clim
-!use soilv_m
 
 implicit none
 

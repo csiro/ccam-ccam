@@ -21,35 +21,24 @@
 
 subroutine nonlin
 
-use aerointerface       ! Aerosol interface
-use arrays_m            ! Atmosphere dyamics prognostic arrays
-use cc_mpi              ! CC MPI routines
-use const_phys          ! Physical constants
-use diag_m              ! Diagnostic routines
-use epst_m              ! Off-centre terms
-use hs_phys_m           ! Held & Suarez
-use indices_m           ! Grid index arrays
-use kuocom_m            ! JLM convection
-use latlong_m           ! Lat/lon coordinates
-use liqwpar_m           ! Cloud water mixing ratios
-use map_m               ! Grid map arrays
-use morepbl_m           ! Additional boundary layer diagnostics
-use newmpar_m           ! Grid parameters
-use nharrs_m            ! Non-hydrostatic atmosphere arrays
-use nlin_m              ! Atmosphere non-linear dynamics
-use parm_m              ! Model configuration
-use parmdyn_m           ! Dynamics parameters
-use savuvt_m            ! Saved dynamic arrays
-use sigs_m              ! Atmosphere sigma levels
-use staguvmod           ! Reversible grid staggering
-use tbar2d_m            ! Atmosphere dynamics reference temperature
-use tracers_m           ! Tracer data
-use unn_m               ! Saved dynamic arrays
-use vecsuv_m            ! Map to cartesian coordinates
-use vvel_m              ! Additional vertical velocity
-use work3sav_m          ! Water and tracer saved arrays
-use xarrs_m             ! Saved dynamic arrays
-use xyzinfo_m           ! Grid coordinate arrays
+use atmosphere_arrays_m                    ! Collection of atmosphere data
+use cc_mpi                                 ! CC MPI routines
+use const_phys                             ! Physical constants
+use diag_m                                 ! Diagnostic routines
+use epst_m                                 ! Off-centre terms
+use hs_phys_m                              ! Held & Suarez
+use indices_m                              ! Grid index arrays
+use latlong_m                              ! Lat/lon coordinates
+use map_m                                  ! Grid map arrays
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
+use module_ctrl_convection                 ! Interface for convection
+use module_ctrl_microphysics               ! Interface for cloud microphysics
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+use sigs_m                                 ! Atmosphere sigma levels
+use staguvmod                              ! Reversible grid staggering
+use vecsuv_m                               ! Map to cartesian coordinates
+use xyzinfo_m                              ! Grid coordinate arrays
 
 implicit none
 
@@ -58,8 +47,7 @@ integer, save :: num = 0
 real invconst_nh, contv
 real, dimension(ifull,kl) :: aa, bb
 real, dimension(ifull+iextra,kl) :: p, tv, phiv
-real, dimension(:,:), allocatable :: duma
-real, dimension(:,:), allocatable :: dumu, dumv
+real, dimension(ifull+iextra,kl+1) :: duma
 real, dimension(ifull) :: t_nh, spmax2, termlin
 real, allocatable, save, dimension(:) :: epstsav
       
@@ -294,22 +282,14 @@ do k = 1,kl
 end do
 
 
-allocate( duma(ifull+iextra,3*kl+1) )
-
 ! MJT notes - This is the first bounds call after the physics
 ! routines, so load balance is a significant issue
 duma(ifull+1:ifull+iextra,:) = 0. ! avoids float invalid errors
-duma(1:ifull,1:kl) = phiv(1:ifull,:)
-duma(1:ifull,kl+1:2*kl) = p(1:ifull,:)
-duma(1:ifull,2*kl+1:3*kl) = tv(1:ifull,:)
-duma(1:ifull,3*kl+1) = psl(1:ifull)
-call bounds(duma)
+duma(1:ifull,1:kl) = phiv(1:ifull,1:kl)
+duma(1:ifull,kl+1) = psl(1:ifull)
+call bounds(ta=duma,tb=p,tc=tv) ! send/recv 3 arrays at once
 phiv(ifull+1:ifull+iextra,1:kl) = duma(ifull+1:ifull+iextra,1:kl)
-p(ifull+1:ifull+iextra,1:kl)    = duma(ifull+1:ifull+iextra,kl+1:2*kl)
-tv(ifull+1:ifull+iextra,1:kl)   = duma(ifull+1:ifull+iextra,2*kl+1:3*kl)
-psl(ifull+1:ifull+iextra)       = duma(ifull+1:ifull+iextra,3*kl+1)
-
-deallocate( duma )
+psl(ifull+1:ifull+iextra)       = duma(ifull+1:ifull+iextra,kl+1)
 
 
 do k = 1,kl
@@ -334,20 +314,8 @@ if ( diag ) then
 end if                     ! (diag)
 
 
-allocate( dumu(ifull+iextra,2*kl), dumv(ifull+iextra,2*kl) )
-
 ! Bounds call for unstaggering winds
-dumu(1:ifull,1:kl) = aa(1:ifull,1:kl)
-dumv(1:ifull,1:kl) = bb(1:ifull,1:kl)
-dumu(1:ifull,kl+1:2*kl) = un(1:ifull,1:kl)
-dumv(1:ifull,kl+1:2*kl) = vn(1:ifull,1:kl)
-call unstaguv(dumu,dumv,dumu,dumv) ! convert to unstaggered positions
-ux(1:ifull,1:kl) = dumu(1:ifull,1:kl)
-vx(1:ifull,1:kl) = dumv(1:ifull,1:kl)
-un(1:ifull,1:kl) = dumu(1:ifull,kl+1:2*kl)
-vn(1:ifull,1:kl) = dumv(1:ifull,kl+1:2*kl)
-
-deallocate( dumu, dumv )
+call unstaguv(u1=aa,v1=bb,u2=un,v2=vn,uout1=ux,vout1=vx,uout2=un,vout2=vn) ! convert to unstaggered positions
 
 
 if ( diag ) then

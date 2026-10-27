@@ -285,7 +285,9 @@ if ( ierr_cvc==0 ) then
     call histrd(iarchi-1,ierr,vname,dat,ifull)
     dati = nint(dat)
     do tile = 1,ntiles
-      call cable_pack(dati,tdata(tile)%old_cveg,tile,nb=n)
+      if ( tdata(tile)%mp>0 ) then  
+        call cable_pack(dati,tdata(tile)%old_cveg,tile,nb=n)
+      end if  
     end do  
   end do
 end if
@@ -609,6 +611,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_cplant")') n
       call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
       do k = 1,mplant
+        ! check for errors -------------------------------------  
+        if ( any( datmplant(:,k)/=datmplant(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------
         do tile = 1,ntiles 
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmplant(:,k),casapool(tile)%cplant(:,k),tile,nmp(:,n))
@@ -618,6 +626,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_nplant")') n
       call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
       do k = 1,mplant
+        ! check for errors -------------------------------------  
+        if ( any( datmplant(:,k)/=datmplant(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------          
         do tile = 1,ntiles 
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmplant(:,k),casapool(tile)%nplant(:,k),tile,nmp(:,n))
@@ -627,6 +641,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_pplant")') n
       call histrd(iarchi-1,ierr,vname,datmplant(:,1:mplant),ifull)
       do k = 1,mplant
+        ! check for errors -------------------------------------  
+        if ( any( datmplant(:,k)/=datmplant(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------          
         do tile = 1,ntiles  
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmplant(:,k),casapool(tile)%pplant(:,k),tile,nmp(:,n))
@@ -636,6 +656,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_clitter")') n
       call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
       do k = 1,mlitter
+        ! check for errors -------------------------------------  
+        if ( any( datmlitter(:,k)/=datmlitter(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------          
         do tile = 1,ntiles  
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmlitter(:,k),casapool(tile)%clitter(:,k),tile,nmp(:,n))
@@ -645,6 +671,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_nlitter")') n
       call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
       do k = 1,mlitter
+        ! check for errors -------------------------------------  
+        if ( any( datmlitter(:,k)/=datmlitter(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------          
         do tile = 1,ntiles  
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmlitter(:,k),casapool(tile)%nlitter(:,k),tile,nmp(:,n))
@@ -654,6 +686,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_plitter")') n
       call histrd(iarchi-1,ierr,vname,datmlitter(:,1:mlitter),ifull)
       do k = 1,mlitter
+        ! check for errors -------------------------------------  
+        if ( any( datmlitter(:,k)/=datmlitter(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------          
         do tile = 1,ntiles  
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmlitter(:,k),casapool(tile)%plitter(:,k),tile,nmp(:,n))
@@ -663,6 +701,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_csoil")') n
       call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
       do k = 1,msoil
+        ! check for errors -------------------------------------  
+        if ( any( datmsoil(:,k)/=datmsoil(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------          
         do tile = 1,ntiles  
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmsoil(:,k),casapool(tile)%csoil(:,k),tile,nmp(:,n))
@@ -672,6 +716,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_nsoil")') n
       call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
       do k = 1,msoil
+        ! check for errors -------------------------------------  
+        if ( any( datmsoil(:,k)/=datmsoil(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------
         do tile = 1,ntiles  
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmsoil(:,k),casapool(tile)%nsoil(:,k),tile,nmp(:,n))
@@ -681,6 +731,12 @@ if ( ccycle/=0 ) then
       write(vname,'("t",I1.1,"_psoil")') n
       call histrd(iarchi-1,ierr,vname,datmsoil(:,1:msoil),ifull)
       do k = 1,msoil
+        ! check for errors -------------------------------------  
+        if ( any( datmsoil(:,k)/=datmsoil(:,k) ) ) then
+          write(6,*) "ERROR: Bad data found in ",trim(vname)
+          call ccmpi_abort(-1)
+        end if  
+        ! -------------------------------------------------------
         do tile = 1,ntiles  
           if ( tdata(tile)%mp>0 ) then  
             call cable_pack(datmsoil(:,k),casapool(tile)%psoil(:,k),tile,nmp(:,n))
@@ -2030,6 +2086,8 @@ use soil_m
 use soilsnow_m
 use vegpar_m
   
+implicit none
+
 integer k, tile
 real totdepth
  
@@ -3451,6 +3509,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do  
         write(vname,'("t",I1.1,"_cplant",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mplant
@@ -3461,6 +3525,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do
         write(vname,'("t",I1.1,"_nplant",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------        
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mplant
@@ -3471,6 +3541,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do  
         write(vname,'("t",I1.1,"_pplant",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------        
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mlitter
@@ -3481,6 +3557,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do
         write(vname,'("t",I1.1,"_clitter",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------        
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,mlitter
@@ -3491,6 +3573,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do  
         write(vname,'("t",I1.1,"_nlitter",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------        
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do  
       do k = 1,mlitter
@@ -3501,6 +3589,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do  
         write(vname,'("t",I1.1,"_plitter",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------        
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
@@ -3511,6 +3605,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do  
         write(vname,'("t",I1.1,"_csoil",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------        
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
@@ -3521,6 +3621,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do
         write(vname,'("t",I1.1,"_nsoil",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------        
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       do k = 1,msoil
@@ -3531,6 +3637,12 @@ if ( itype==-1 ) then !just for restart file
           end if
         end do  
         write(vname,'("t",I1.1,"_psoil",I1.1)') n,k
+        ! check for errors ---------------------------------
+        if ( any( dat/=dat ) ) then
+          write(6,*) "ERROR: Invalid carbon pool data ",trim(vname)
+          call ccmpi_abort(-1)
+        end if
+        !---------------------------------------------------        
         call histwrt(dat,vname,idnc,iarch,local,.true.)
       end do
       dat=0._8

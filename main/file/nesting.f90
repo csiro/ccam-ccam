@@ -88,13 +88,13 @@ contains
 ! Called for nbd/=0
 subroutine nestin
       
-use aerointerface                ! Aerosol interface
 use atmosphere_arrays_m          ! Collection of atmosphere data
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
+use module_ctrl_chemistry        ! Interface for aerosols/chemistry/tracers
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
@@ -344,13 +344,13 @@ end subroutine nestin
 ! Called for mbd/=0
 subroutine nestinb
 
-use aerointerface                ! Aerosol interface
 use atmosphere_arrays_m          ! Collection of atmosphere data
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
 use diag_m                       ! Diagnostic routines
 use indices_m                    ! Grid index arrays
 use latlong_m                    ! Lat/lon coordinates
+use module_ctrl_chemistry        ! Interface for aerosols/chemistry/tracers
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
@@ -425,12 +425,14 @@ if ( mtimer>mtimeb ) then
     kdmin  = kmin_r - kmin
     kddate = iabsdate(kdate_r,kdate) - iabsdate(kdate,kdate)
     mtimeb = 1440*kddate + 60*kdhour + kdmin
+    
     if ( myid==0 ) then
       write(6,*) "Starting mtimea at ",mtimeb  
     end if
     
     ! adjust input data for change in orography
     call retopo(pslb,zsb,zs,tb,qb)
+
   end if ! .not.allocated(tb)  - first call
   
   mtimea = mtimeb
@@ -578,10 +580,10 @@ end subroutine nestinb
 ! scale-selective filter
 subroutine getspecdata(pslbb,ubb,vbb,tbb,qbb,xtgbb)
 
-use aerointerface                ! Aerosol interface
 use atmosphere_arrays_m          ! Collection of atmosphere data
 use cc_mpi                       ! CC MPI routines
 use const_phys                   ! Physical constants
+use module_ctrl_chemistry        ! Interface for aerosols/chemistry/tracers
 use newmpar_m                    ! Grid parameters
 use parm_m                       ! Model configuration
 use parmgeom_m                   ! Coordinate data
@@ -706,11 +708,11 @@ end subroutine getspecdata
 ! This option is an exact treatment of the filter
 subroutine slowspecmpi(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-use aerointerface     ! Aerosol interface
-use cc_mpi            ! CC MPI routines
-use newmpar_m         ! Grid parameters
-use parm_m            ! Model configuration
-use vecsuv_m          ! Map to cartesian coordinates
+use cc_mpi                                 ! CC MPI routines
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+use vecsuv_m                               ! Map to cartesian coordinates
       
 integer, intent(in) :: klt, kln, klx
 integer k, n
@@ -864,11 +866,11 @@ end subroutine slowspecmpi_work
 ! (see spechost_n for a reduced memory version)
 subroutine specfastmpi(cin,pslbb,ubb,vbb,tbb,qbb,xtgbb,lblock,klt,kln,klx)
 
-use aerointerface      ! Aerosol interface
-use cc_mpi             ! CC MPI routines
-use newmpar_m          ! Grid parameters
-use parm_m             ! Model configuration
-use vecsuv_m           ! Map to cartesian coordinates
+use cc_mpi                                 ! CC MPI routines
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
+use newmpar_m                              ! Grid parameters
+use parm_m                                 ! Model configuration
+use vecsuv_m                               ! Map to cartesian coordinates
       
 integer, intent(in) :: klt, kln, klx
 integer i, k, ppass, ibase

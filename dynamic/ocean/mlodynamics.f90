@@ -304,9 +304,8 @@ real, dimension(ifull) :: dnetadx, dnetady, ddddx, ddddy
 real, dimension(ifull) :: sdiv, imu, imv
 real, dimension(ifull) :: oeu_iwu, oev_isv
 real, dimension(ifull) :: bu, bv, cu, cv
-real, dimension(:,:,:), allocatable :: s_store
-real, dimension(:,:,:), allocatable :: s_work
-real, dimension(:,:,:), allocatable :: cou
+real, dimension(ifull,ol,4) :: s_store
+real, dimension(ifull+iextra,ol,3) :: cou
 real, dimension(ifull+iextra,ol) :: cc
 real, dimension(ifull+iextra,ol) :: eou, eov, ccu, ccv
 real, dimension(ifull+iextra,ol) :: nu, nv, nt, ns, mps
@@ -762,11 +761,6 @@ do mspec_mlo = mspeca_mlo,1,-1
   end do
 
   call mlodeps(nuh,nvh,nface,xg,yg,x3d,y3d,z3d,wtr,mlointschf)
-
-  
-  allocate( cou(ifull+iextra,ol,3) )
-  allocate( s_store(ifull,ol,6) )
-  allocate( s_work(ifull+iextra,ol,4) )
   
   
   do ii = 1,ol
@@ -782,46 +776,44 @@ do mspec_mlo = mspeca_mlo,1,-1
   
   s_store(1:ifull,1:ol,1) = mps(1:ifull,1:ol)
   s_store(1:ifull,1:ol,2:4) = cou(1:ifull,1:ol,1:3)
-  s_store(1:ifull,1:ol,5) = nt(1:ifull,1:ol)
-  s_store(1:ifull,1:ol,6) = ns(1:ifull,1:ol)
   
   call mlofill(mps,wtr,mlo_zero)
-  call mlofill(cou(:,:,1:3),wtr,mlo_fill)
-  call mlofill(nt,wtr,mlo_fill)
-  call mlofill(ns,wtr,mlo_sal)
+  call mlofill(cou(:,:,1:3),wtr,mlo_miss)
   
   ! Horizontal advection for U, V, W, T, continuity and S
   if ( mlo_bs<=1 .or. mlo_bs>2 ) then
     bs_test = mlo_bs<=2
-    s_work(:,:,1) = mps(:,:)
-    s_work(:,:,2:4) = cou(:,:,1:3)
-    call mlob2ints_bs(s_work(:,:,1:4),nface,xg,yg,wtr,bs_test,mlointschf)
-    mps(:,:) = s_work(:,:,1)
-    cou(:,:,1:3) = s_work(:,:,2:4)
+    call mlob2ints_bs(sa=mps,sb=cou(:,:,1),sc=cou(:,:,2),sd=cou(:,:,3),nface=nface, &
+                      xg=xg,yg=yg,wtr=wtr,bs_test=bs_test,mlointschf=mlointschf)
   else
     bs_test = mlo_bs<=1
-    call mlob2ints_bs(mps,nface,xg,yg,wtr,bs_test,mlointschf)
+    call mlob2ints_bs(sa=mps,nface=nface,xg=xg,yg=yg,wtr=wtr,bs_test=bs_test,mlointschf=mlointschf)
     bs_test = mlo_bs<=2
     call mlob2ints_bs(cou(:,:,1:3),nface,xg,yg,wtr,bs_test,mlointschf)
   end if
+
+  call mloclean(mps,s_store(:,:,1),wtr,mlo_zero)
+  call mloclean(cou(:,:,1:3),s_store(:,:,2:4),wtr,mlo_miss)
+
+  s_store(1:ifull,1:ol,1) = nt(1:ifull,1:ol)
+  s_store(1:ifull,1:ol,2) = ns(1:ifull,1:ol)
+
+  call mlofill(nt,wtr,mlo_miss)
+  call mlofill(ns,wtr,mlo_sal)
+  
   if ( mlo_bs<=3 .or. mlo_bs>4 ) then
     bs_test = mlo_bs<=4
-    s_work(:,:,1) = nt(:,:)
-    s_work(:,:,2) = ns(:,:)
-    call mlob2ints_bs(s_work(:,:,1:2),nface,xg,yg,wtr,bs_test,mlointschf)
-    nt(:,:) = s_work(:,:,1)
-    ns(:,:) = s_work(:,:,2)
+    call mlob2ints_bs(sa=nt,sb=ns,nface=nface,xg=xg,yg=yg,wtr=wtr,bs_test=bs_test, &
+                      mlointschf=mlointschf)
   else
     bs_test = mlo_bs<=3
-    call mlob2ints_bs(nt,nface,xg,yg,wtr,bs_test,mlointschf)
+    call mlob2ints_bs(sa=nt,nface=nface,xg=xg,yg=yg,wtr=wtr,bs_test=bs_test,mlointschf=mlointschf)
     bs_test = mlo_bs<=4
-    call mlob2ints_bs(ns,nface,xg,yg,wtr,bs_test,mlointschf)
+    call mlob2ints_bs(sa=ns,nface=nface,xg=xg,yg=yg,wtr=wtr,bs_test=bs_test,mlointschf=mlointschf)
   end if
   
-  call mloclean(mps,s_store(:,:,1),wtr,mlo_zero)
-  call mloclean(cou(:,:,1:3),s_store(:,:,2:4),wtr,mlo_fill)
-  call mloclean(nt,s_store(:,:,5),wtr,mlo_fill)
-  call mloclean(ns,s_store(:,:,6),wtr,mlo_sal)
+  call mloclean(nt,s_store(:,:,1),wtr,mlo_miss)
+  call mloclean(ns,s_store(:,:,2),wtr,mlo_sal)
   
   !$acc end data
 
@@ -840,11 +832,6 @@ do mspec_mlo = mspeca_mlo,1,-1
     ! MJT notes - only advect salinity for salt water
     ns(1:ifull,ii) = max( ns(1:ifull,ii), 0. )
   end do
-
-  
-  deallocate( cou )
-  deallocate( s_store )
-  deallocate( s_work )
   
   
   workdata = nt(1:ifull,:)

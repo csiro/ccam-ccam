@@ -40,8 +40,8 @@ contains
 subroutine mlodiffusion
 
 use cc_mpi, only : ccmpi_abort
-use mlo_ctrl
 use newmpar_m
+use sflux_m
 
 implicit none
 
@@ -72,23 +72,21 @@ end subroutine mlodiffusion
 ! and McGregor's hordifg.f routines for CCAM.
 subroutine mlodiffusion_work(u,v,tt,ss)
 
+use atmosphere_arrays_m, only : lrestart
 use cc_mpi
 use const_phys
 use indices_m
 use map_m
-use mlo_ctrl
 use mlodynamicsarrays_m
-use nharrs_m, only : lrestart
 use newmpar_m
 use parm_m
-use soil_m
+use sflux_m
 use vecsuv_m
 
 implicit none
 
 integer iq, k, its
-real, dimension(:,:,:), allocatable :: duma
-real, dimension(:,:,:), allocatable :: dumb
+real, dimension(ifull+iextra,ol,3) :: duma
 real, dimension(:,:,:), allocatable :: duma_save
 real, dimension(ifull+iextra,ol) :: ttl, ssl
 real, dimension(ifull+iextra,ol) :: uau,uav
@@ -182,8 +180,6 @@ end if
 call boundsuv(xfact,yfact,stag=-9)
 
 
-allocate( duma(ifull+iextra,ol,3) )
-
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   ! UX, VX, WX
   ! Laplacian diffusion terms (closure #1)
@@ -207,8 +203,6 @@ if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
 end if
 
 
-allocate( dumb(ifull+iextra,ol,2) )
-
 ! perform diffusion
 
 if ( mlodiff>=10 .and. mlodiff<20 ) then
@@ -230,11 +224,7 @@ if ( mlodiff>=10 .and. mlodiff<20 ) then
       call bounds(duma(:,:,1:3))
     end if
     if ( mlodiff==10 .or. mlodiff==11 ) then
-      dumb(:,:,1) = ttl(:,:)
-      dumb(:,:,2) = ssl(:,:)
-      call bounds(dumb(:,:,1:2))
-      ttl(:,:) = dumb(:,:,1)
-      ssl(:,:) = dumb(:,:,2)
+      call bounds(ta=ttl,tb=ssl)
     end if
     
     !$omp parallel
@@ -268,11 +258,7 @@ if ( mlodiff>=10 .and. mlodiff<20 ) then
       call bounds(duma(:,:,1:3))
     end if
     if ( mlodiff==10 .or. mlodiff==11 ) then
-      dumb(:,:,1) = ttl(:,:)
-      dumb(:,:,2) = ssl(:,:)
-      call bounds(dumb(:,:,1:2))
-      ttl(:,:) = dumb(:,:,1)
-      ssl(:,:) = dumb(:,:,2)
+      call bounds(ta=ttl,tb=ssl)
     end if
     
     !$omp parallel
@@ -313,11 +299,7 @@ else if ( mlodiff>=0 .and. mlodiff<10 ) then
     call bounds(duma(:,:,1:3))
   end if
   if ( mlodiff==0 .or. mlodiff==1 ) then
-    dumb(:,:,1) = ttl(:,:)
-    dumb(:,:,2) = ssl(:,:)
-    call bounds(dumb(:,:,1:2))
-    ttl(:,:) = dumb(:,:,1)
-    ssl(:,:) = dumb(:,:,2)
+    call bounds(ta=ttl,tb=ssl)
   end if
   
   !$omp parallel
@@ -352,8 +334,6 @@ else
   call ccmpi_abort(-1)
 end if  
 
-deallocate( dumb )
-
 
 if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
   do k = 1,ol
@@ -363,7 +343,6 @@ if ( mlodiff==0 .or. mlodiff==2 .or. mlodiff==10 .or. mlodiff==12 ) then
     end do
   end do
 end if
-deallocate( duma )
 
 if ( mlodiff==0 .or. mlodiff==1 .or. mlodiff==10 .or. mlodiff==11 ) then
   do k = 1,ol
@@ -387,8 +366,8 @@ subroutine mlodiffcalc1(work,xfact,yfact,emi,hdif)
 
 use cc_mpi, only : bounds, ccmpi_abort
 use indices_m
-use mlo_ctrl
 use newmpar_m
+use sflux_m
 
 implicit none
 
@@ -429,9 +408,9 @@ subroutine mlodiffcalc2(work,work_save,xfact,yfact,emi,ee,hdif)
 
 use cc_mpi, only : bounds, ccmpi_abort
 use indices_m
-use mlo_ctrl
 use newmpar_m
 use parm_m, only : dt
+use sflux_m
 
 implicit none
 
@@ -477,8 +456,8 @@ end subroutine mlodiffcalc2
 subroutine mlodifflap(work,xfact,yfact,emi,ee,ldif)
 
 use indices_m
-use mlo_ctrl
 use newmpar_m
+use sflux_m
 
 implicit none
 

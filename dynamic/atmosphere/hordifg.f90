@@ -55,31 +55,23 @@ contains
     
 subroutine hordifgt
 
-use aerointerface
-use arrays_m
+use atmosphere_arrays_m
 use cc_mpi
-use cfrac_m
 use const_phys
-use dpsdt_m
 use indices_m
-use kuocom_m
-use liqwpar_m
 use map_m
+use module_ctrl_chemistry
+use module_ctrl_convection
+use module_ctrl_microphysics
+use module_ctrl_turbmix
 use newmpar_m
-use nharrs_m
 use parm_m
-use parmdyn_m
-use parmhdff_m
-use savuvt_m
 use sigs_m
-use tkeeps, only : tke,eps,shear,mintke,mineps,cm0,minl,maxl
 use vecsuv_m
-use vvel_m
 
 implicit none
 
-real, dimension(:,:,:), allocatable :: bb
-real, dimension(:,:,:), allocatable :: uvwc
+real, dimension(ifull+iextra,kl,3) :: uvwc
 real, dimension(ifull+iextra,kl) :: uav, vav
 real, dimension(ifull+iextra,kl) :: xfact, yfact, t_kh
 real, dimension(ifull,kl) :: dwdx, dwdy
@@ -233,7 +225,6 @@ end if ! nvmix=6 .or. nvmix==9
       
 ! usual deformation for nhorjlm=1 or nhorjlm=2
 if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
-  allocate( uvwc(ifull+iextra,kl,3) )
   do k = 1,kl
     ! in hordifgt, need to calculate Cartesian components 
     uvwc(1:ifull,k,1) = ax(1:ifull)*u(1:ifull,k) + bx(1:ifull)*v(1:ifull,k)
@@ -335,17 +326,11 @@ call boundsuv(xfact,yfact,stag=-9) ! MJT - can use stag=-9 option that will
 ! UPDATE PROGNOSTIC VARIABLES
 ! *****************************************************************************
 
-allocate( bb(ifull+iextra,kl,4) )
-
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-6 ) then
   do k = 1,kl
     t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull)
   end do
-  bb(:,:,1) = t(:,:)
-  bb(:,:,2) = qg(:,:)
-  call bounds(bb(:,:,1:2))  
-  t(:,:) = bb(:,:,1)
-  qg(:,:) = bb(:,:,2)
+  call bounds(ta=t,tb=qg)  
 else if ( nhorps==-5 ) then
   do k = 1,kl
     t(1:ifull,k) = t(1:ifull,k)/ptemp(1:ifull)
@@ -355,32 +340,18 @@ else if ( nhorps==-3 ) then
   call bounds(qg)
 end if
 if ( nhorps==-4 .and. ldr/=0 ) then
-  bb(:,:,1) = qlg(:,:)
-  bb(:,:,2) = qfg(:,:)
-  bb(:,:,3) = stratcloud(:,:)
   if ( ncloud>=100 .and. ncloud<200 ) then
-    bb(:,:,4) = ni(:,:)
-    call bounds(bb(:,:,1:4))
-    ni(:,:) = bb(:,:,4)
+    call bounds(ta=qlg,tb=qfg,tc=stratcloud,td=ni)
   else
-    call bounds(bb(:,:,1:3))  
+    call bounds(ta=qlg,tb=qfg,tc=stratcloud)  
   end if
-  qlg(:,:) = bb(:,:,1)
-  qfg(:,:) = bb(:,:,2)
-  stratcloud(:,:) = bb(:,:,3)
 end if
 if ( (nhorps==0.or.nhorps==-1.or.nhorps==-4) .and. (nvmix==6.or.nvmix==9) ) then
-  bb(:,:,1) = eps(:,:)
-  bb(:,:,2) = tke(:,:)
-  call bounds(bb(:,:,1:2))
-  eps(:,:) = bb(:,:,1)
-  tke(:,:) = bb(:,:,2)
+  call bounds(ta=tke,tb=eps)
 end if
 if ( nhorps==-4 .and. abs(iaero)>=2 ) then
   call bounds(xtg)  
 end if
-
-deallocate( bb )
 
 !$omp parallel
 !$omp sections
@@ -461,9 +432,6 @@ if ( nhorps==0 .or. nhorps==-2 ) then ! for nhorps=-1,-3,-4 don't diffuse u,v
                  + by(1:ifull)*uvwc(1:ifull,k,2) &
                  + bz(1:ifull)*uvwc(1:ifull,k,3)
   end do
-end if  
-if ( nhorjlm==1 .or. nhorjlm==2 .or. nhorps==0 .or. nhorps==-2 ) then 
-  deallocate( uvwc )
 end if  
 if ( nhorps==0 .or. nhorps==-1 .or. nhorps==-4 .or. nhorps==-5 .or. nhorps==-6 ) then
   do k = 1,kl

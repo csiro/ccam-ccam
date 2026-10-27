@@ -49,16 +49,15 @@ contains
 !
 subroutine rvrinit(river_accin)
 
-use arrays_m
+use atmosphere_arrays_m
 use cc_mpi
 use const_phys
 use indices_m
 use map_m
 use newmpar_m
-use nsibd_m
 use parm_m
 use riverarrays_m
-use soil_m
+use sflux_m
 use xyzinfo_m
 
 integer, dimension(ifull), intent(in) :: river_accin
@@ -297,19 +296,15 @@ end subroutine rvrinit
 !
 subroutine rvrrouter
 
-use arrays_m
+use atmosphere_arrays_m
 use cc_mpi
 use const_phys
 use indices_m
 use map_m
 use newmpar_m
-use nsibd_m
 use parm_m
 use riverarrays_m
 use sflux_m
-use soil_m
-use soilsnow_m
-use soilv_m
 
 integer i, k, iq, iqout
 real alph_p, delpos, delneg
@@ -490,18 +485,15 @@ end subroutine rvrrouter
 
 subroutine water_table_transport
 
-use arrays_m                               ! Atmosphere dyamics prognostic arrays
-use cable_ccam                             ! CABLE interface
+use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
 use const_phys                             ! Physical constants
 use indices_m                              ! Grid index arrays
 use map_m                                  ! Grid map arrays
 use newmpar_m                              ! Grid parameters
-use nsibd_m                                ! Land-surface arrays
 use parm_m                                 ! Model configuration
-use soil_m                                 ! Soil and surface data
-use soilv_m                                ! Soil parameters
 use riverarrays_m                          ! River rarrays
+use sflux_m                                ! Surface flux routines
 use xyzinfo_m                              ! Grid coordinate arrays
 
 integer iq, n

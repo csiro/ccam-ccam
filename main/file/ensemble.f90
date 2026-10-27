@@ -64,17 +64,14 @@ contains
     
 subroutine update_ensemble
 
-use aerointerface                ! Aerosol interface
-use arrays_m                     ! Atmosphere dyamics prognostic arrays
+use atmosphere_arrays_m          ! Collection of atmosphere data
 use cc_mpi                       ! CC MPI routines
 use dates_m                      ! Date data
-use mlo_ctrl                     ! Ocean physics control layer
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use newmpar_m                    ! Grid parameters
 use onthefly_m                   ! Input interpolation routines
 use parm_m                       ! Model configuration
-use pbl_m                        ! Boundary layer arrays
-use soil_m                       ! Soil and surface data
-use soilsnow_m                   ! Soil, snow and surface data
+use sflux_m                      ! Surface flux routines
 
 implicit none
 

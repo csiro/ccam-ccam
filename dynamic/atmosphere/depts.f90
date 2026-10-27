@@ -21,6 +21,7 @@
     
 subroutine depts1(x3d,y3d,z3d,intsch)  ! input ubar,vbar are unstaggered vels for level k
 
+use atmosphere_arrays_m
 use bigxy4_m
 use cc_acc
 use cc_mpi
@@ -29,8 +30,6 @@ use indices_m
 use map_m
 use newmpar_m
 use parm_m
-use parmhor_m
-use uvbar_m
 use vecsuv_m
 use work3f_m
 use xyzinfo_m
@@ -43,8 +42,8 @@ integer i, j, n, ii
 integer async_counter
 real xxg, yyg
 real, dimension(ifull,kl) :: uc, vc, wc
-real, dimension(:,:,:), allocatable :: s
-real, dimension(:,:,:,:,:), allocatable :: sx
+real, dimension(ifull+iextra,kl,3) :: s
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,kl,3) :: sx
 real(kind=8), dimension(ifull,kl), intent(out) :: x3d, y3d, z3d   ! upglobal depts 
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -55,9 +54,6 @@ real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 ! the bi-cubic interpolation.
 
 call START_LOG(depts_begin)
-
-allocate( s(ifull+iextra,kl,3) )
-allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,kl,3) )
 
 !$acc data create(xg,yg,nface,xx4,yy4,sx)
 !$acc update device(xx4,yy4) async(0)
@@ -458,9 +454,6 @@ do itr = 1,2
 end do ! itr
 
 !$acc end data
-
-deallocate( s )
-deallocate( sx )
 
 call END_LOG(depts_end)
       

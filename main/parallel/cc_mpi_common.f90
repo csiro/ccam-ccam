@@ -48,7 +48,7 @@ module cc_mpi_common
                                                                    ! for the global grid
    integer, save :: node_nx, node_ny                               ! number of processes in the x and y directions
                                                                    ! on a node
-   integer, save :: nagg = 8                                       ! maximum number of variables to aggregate
+   integer, save :: nagg = 4                                       ! maximum number of variables to aggregate
    integer, save :: maxcolour = 2                                  ! maximum number of colours for iterative solvers
    
    integer, save :: maxbuflen, maxvertlen                          ! bounds buffer size   

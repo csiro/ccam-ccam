@@ -35,11 +35,6 @@ contains
 ! INITIALISE CCAM
 subroutine globpe_init
 
-use aerointerface, only : aeroindir      & ! Aerosol interface
-    ,aero_split,aerosol_u10              &
-    ,ch_dust,zvolcemi,so4mtn,carbmtn     &
-    ,saltsmallmtn,saltlargemtn           &
-    ,enhanceu10,naero
 use atmosphere_arrays_m                    ! Collection of atmosphere data
 use bigxy4_m                               ! Grid interpolation
 use cc_acc                                 ! CC ACC routines
@@ -59,6 +54,7 @@ use infile                                 ! Input file routines
 use latlong_m                              ! Lat/lon coordinates
 use map_m                                  ! Grid map arrays
 use mlodynamics                            ! Ocean dynamics
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use module_ctrl_radiation                  ! Interface for radiation
@@ -76,10 +72,6 @@ use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
 use staguvmod                              ! Reversible grid staggering 
 use stime_m                                ! File date data
-use tracermodule, only : tracerlist      & ! Tracer routines
-    ,sitefile,shipfile,writetrpm         &
-    ,init_tracer
-use tracers_m                              ! Tracer data
 use usage_m                                ! Usage message
 use vecsuv_m                               ! Map to cartesian coordinates
 use work3f_m                               ! Grid work arrays
@@ -404,7 +396,11 @@ if ( nvmix==9 .and. (nmlo==0.or.nhstest<0) ) then
   write(6,*) "ERROR: nvmix=9 requires nmlo/=0 and nhstest>=0"
   call ccmpi_abort(-1)
 end if
-nagg = max( nagg, 4 ) ! use 4 for two staguv u & v arrays
+if ( nagg < 4 ) then
+  ! use 4 for two staguv u & v arrays  
+  write(6,*) "ERROR: nagg must be greater or equal to 4"
+  call ccmpi_abort(-1)
+end if
 nperday = nint(24.*3600./dt)           ! time-steps in one day
 nperhr  = nint(3600./dt)               ! time-steps in one hour
 nper6hr = nint(6.*3600./dt)            ! time-steps in six hours
@@ -873,6 +869,7 @@ if ( myid==0 ) then
   write(6,*)' nud_sst nud_sss nud_ouv nud_sfh ktopmlo kbotmlo mloalpha'
   write(6,'(6i8,i9)') nud_sst,nud_sss,nud_ouv,nud_sfh,ktopmlo,kbotmlo,mloalpha
   write(6,*)' sigramplow sigramphigh nud_period'
+  write(6,'(2f8.4,i8)') sigramplow, sigramphigh, nud_period
   write(6,*)'Ensemble options:'
   write(6,*)' ensemble_mode ensemble_period ensemble_rsfactor'
   write(6,'(2i5,f8.4)') ensemble_mode,ensemble_period,ensemble_rsfactor
@@ -1219,7 +1216,7 @@ elseif ( khor<0 ) then ! following needed +hdiff() (JLM 29/6/15)
       hdiff(k) = .1*max(1.,(1.-sig(k)/.15)*abs(khor)) + hdiff(k)
     end if
   end do
-  if ( myid==0 ) write(6,*)'khor,hdiff: ',khor,hdiff
+  if ( myid==0 ) write(6,*) 'khor,hdiff: ',khor,hdiff
 end if
 
 ! nudging
@@ -1470,15 +1467,12 @@ end subroutine change_defaults
 ! Broadcast cardin namelist
 subroutine broadcast_cardin
 
-use aerointerface, only : ch_dust        & ! Aerosol arrays
-    ,zvolcemi,so4mtn,carbmtn             &
-    ,saltsmallmtn,saltlargemtn           &
-    ,enhanceu10
 use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_acc                                 ! CC ACC routines
 use cc_mpi                                 ! CC MPI routines
 use estab                                  ! Liquid saturation function
 use infile                                 ! Input file routines
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use newmpar_m                              ! Grid parameters
@@ -1834,13 +1828,9 @@ end subroutine broadcast_cardin
 ! Broadcast skyin namelist
 subroutine broadcast_skyin
 
-use aerointerface, only : aeroindir      & ! Aerosol interface
-    ,aero_split,aerosol_u10              &
-    ,ch_dust,zvolcemi                    &
-    ,so4mtn,carbmtn,saltsmallmtn         &
-    ,saltlargemtn,enhanceu10
 use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use module_ctrl_radiation                  ! Interface for radiation
 use parm_m                                 ! Model configuration
 
@@ -2564,9 +2554,7 @@ subroutine broadcast_trfiles
 
 use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
-use tracermodule, only : tracerlist      & ! Tracer routines
-    ,sitefile,shipfile,writetrpm         &
-    ,init_tracer
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 
 implicit none
 

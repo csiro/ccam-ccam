@@ -132,6 +132,7 @@ public oclosure,pdl,pdu,usepice,minicemass,cdbot,cp0,ominl,omaxl,mlo_adjeta
 public kemaxdt,mlo_step,mlo_uvcoupl,fluxwgt,delwater,omink,omineps
 public k_mode,eps_mode,limitL,fixedce3,nops,nopb,fixedstabfunc
 public alphanir_seaice,alphanir_seasnw,alphavis_seaice,alphavis_seasnw
+public mlocheck, mloexpdensity, mloexport3d, mloimport3d, mloexpgamm
 
 ! morepbl
 public condx,fg,eg,epot,condc,rnet,pblh,epan,tpan

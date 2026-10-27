@@ -41,10 +41,10 @@ subroutine mlostaguv(u,v,uout,vout)
 
 use cc_mpi
 use indices_m
-use mlo_ctrl
 use mlodynamicsarrays_m
 use newmpar_m
 use parm_m
+use sflux_m
 
 implicit none
 
@@ -571,10 +571,10 @@ subroutine mlounstaguv(u,v,uout,vout,toff)
 
 use cc_mpi
 use indices_m
-use mlo_ctrl
 use mlodynamicsarrays_m
 use newmpar_m
 use parm_m
+use sflux_m
 
 implicit none
 

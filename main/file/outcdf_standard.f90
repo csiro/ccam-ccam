@@ -37,11 +37,11 @@ subroutine cdfout(itype,iout,cdffile_in,psl_in,u_in,v_in,t_in,q_in)
 use cc_mpi                                 ! CC MPI routines
 use dates_m                                ! Date data
 use infile                                 ! Input file routines
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use newmpar_m                              ! Grid parameters
 use parm_m                                 ! Model configuration
 use parmgeom_m                             ! Coordinate data
 use sflux_m                                ! Surface flux routines
-use tracers_m                              ! Tracer data
 
 implicit none
 
@@ -351,7 +351,6 @@ subroutine openhist(iarch,itype,iout,dima,dimo,dimc,                            
                     local,idnc,ixp,iyp,idlev,idms,idoc,idproc,idgpnode,idgpoff,  &
                     idc,psl_in,u_in,v_in,t_in,q_in)
 
-use aerointerface                                ! Aerosol interface
 use atmosphere_arrays_m                          ! Collection of atmosphere data
 use cc_mpi                                       ! CC MPI routines
 use const_phys                                   ! Physical constants
@@ -364,19 +363,18 @@ use infile                                       ! Input file routines
 use latlong_m                                    ! Lat/lon coordinates
 use map_m                                        ! Grid map arrays
 use mlodynamics                                  ! Ocean dynamics
+use module_ctrl_chemistry                        ! Interface for aerosols/chemistry/tracers
 use module_ctrl_convection                       ! Interface for convection
 use module_ctrl_microphysics                     ! Interface for cloud microphysics
 use module_ctrl_radiation                        ! Interface for radiation
 use module_ctrl_turbmix                          ! Boundary layer turbulent mixing
-use nesting                                      ! Nesting and assimilation
+!use nesting                                      ! Nesting and assimilation
 use newmpar_m                                    ! Grid parameters
 use parm_m                                       ! Model configuration
 use riverarrays_m                                ! River data
 use screen_m                                     ! Screen level diagnostics
 use sigs_m                                       ! Atmosphere sigma levels
 use sflux_m                                      ! Surface flux routines
-use tracermodule, only : writetrpm, co2em        ! Tracer routines
-use tracers_m                                    ! Tracer data
 
 implicit none
 

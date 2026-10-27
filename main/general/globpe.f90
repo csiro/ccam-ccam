@@ -38,10 +38,30 @@
 !   usempi3      - optimse communication with MPI shared memory (preferred)
 !   share_ifullg - use shared memory with MPI, but requires usempi3 directive
 !   vampir       - enable vampir profiling
-
+    
+   
+! Code dependencies (lower depends on higher):
+!
+! ---------------------------------------------------------------------------
+!                               Variable data                                  Data/Switches
+! ---------------------------------------------------------------------------
+!            netcdf_m     sumdd     cc_acc    cc_omp    establ                 File/Parallel/Utils
+!            infile       cc_mpi                        scrnout
+!            ozoneread
+! ---------------------------------------------------------------------------
+!     GWdrag   Convection   Cloud   Radiation   Surface  Turbmix   Chemistry   Parameterisations
+! ---------------------------------------------------------------------------
+!     Atmosphere_Dynamics   Ocean_Dynamics   River/Ground_Water_Dynamics       Dynamical Core
+! ---------------------------------------------------------------------------
+!                 <---------Onthefly------------------->                       Initial/Nudging/Output
+!                 Indata    Nesting   Ensemble   AMIPSST    Outcdf  
+!                 Config
+! ---------------------------------------------------------------------------
+!                                  Globpea                                     Control
+! ---------------------------------------------------------------------------
+    
 program globpe
 
-use aerointerface                          ! Aerosol interface
 use amipsst_m                              ! AMIP SSTs
 use atmosphere_arrays_m                    ! Collection of atmosphere data
 use cc_mpi                                 ! CC MPI routines
@@ -59,6 +79,7 @@ use hordifg_m                              ! Horizontal diffusion
 use hs_phys_m                              ! Held & Suarez
 use indices_m                              ! Grid index arrays
 use mlodynamics                            ! Ocean dynamics
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use module_ctrl_radiation                  ! Interface for radiation
@@ -71,11 +92,6 @@ use river                                  ! River routing
 use scrnout_m                              ! Calculate diagnostics
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
-use timeseries, only : write_ts            ! Tracer time series
-use tracermodule, only : tracer_mass     & ! Tracer routines
-   ,interp_tracerflux
-use tracers_m                              ! Tracer data
-use trvmix                                 ! Tracer mixing routines
 use xyzinfo_m                              ! Grid coordinate arrays
 
 #ifdef csircoupled
@@ -1099,13 +1115,13 @@ end subroutine time_diff
 ! sets tr arrays for lat, long, pressure if nextout>=4 &(nllp>=3)
 subroutine setllp
       
-use arrays_m           ! Atmosphere dyamics prognostic arrays
-use cc_mpi             ! CC MPI routines
-use const_phys         ! Physical constants
-use latlong_m          ! Lat/lon coordinates
-use newmpar_m          ! Grid parameters
-use sigs_m             ! Atmosphere sigma levels
-use tracers_m          ! Tracer data
+use arrays_m                               ! Atmosphere dyamics prognostic arrays
+use cc_mpi                                 ! CC MPI routines
+use const_phys                             ! Physical constants
+use latlong_m                              ! Lat/lon coordinates
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
+use newmpar_m                              ! Grid parameters
+use sigs_m                                 ! Atmosphere sigma levels
       
 implicit none
       
@@ -1153,6 +1169,7 @@ use diag_m                                 ! Diagnostic routines
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use map_m                                  ! Grid map arrays
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use newmpar_m                              ! Grid parameters
 use parm_m                                 ! Model configuration
@@ -1160,7 +1177,6 @@ use parmgeom_m                             ! Coordinate data
 use scrnout_m                              ! Calculate diagnostics
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
-use tracers_m                              ! Tracer data
 use vecsuv_m                               ! Map to cartesian coordinates
 use xyzinfo_m                              ! Grid coordinate arrays
 
@@ -1355,23 +1371,14 @@ end subroutine fixsat
 ! Reset diagnostics for averaging period    
 subroutine zero_nperavg(koundiag)
 
-use aerointerface, only :                & ! Aerosol interface
-     duste,dustwd,dustdd,dust_burden     &
-    ,bce,bcwd,bcdd,bc_burden             &
-    ,oce,ocwd,ocdd,oc_burden             &
-    ,dmse,dms_burden                     &
-    ,so2e,so2wd,so2dd,so2_burden         &
-    ,so4e,so4wd,so4dd,so4_burden         &
-    ,dmsso2o,so2so4o, salte,saltdd       &
-    ,saltwd,salt_burden
 use atmosphere_arrays_m                    ! Collection of atmosphere data
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use module_ctrl_radiation                  ! Interface for radiation
 use parm_m                                 ! Model configuration
 use sflux_m                                ! Surface flux routines
-use tracers_m                              ! Tracer data
 
 implicit none
 
@@ -1569,20 +1576,12 @@ end subroutine zero_nperday
 ! Update diagnostics for averaging period    
 subroutine calculate_timeaverage(koundiag)
 
-use aerointerface, only :                & ! Aerosol interface
-     duste,dustwd,dustdd,dust_burden     &
-    ,bce,bcwd,bcdd,bc_burden             &
-    ,oce,ocwd,ocdd,oc_burden             &
-    ,dmse,dms_burden                     &
-    ,so2e,so2wd,so2dd,so2_burden         &
-    ,so4e,so4wd,so4dd,so4_burden         &
-    ,dmsso2o,so2so4o,salte,saltdd        &
-    ,saltwd,salt_burden
 use atmosphere_arrays_m                    ! Collection of atmosphere data
 use const_phys                             ! Physical constants
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
 use mlodynamics                            ! Ocean dynamics
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use module_ctrl_radiation                  ! Interface for radiation
@@ -1592,7 +1591,6 @@ use parm_m                                 ! Model configuration
 use scrnout_m                              ! Calculate diagnostics
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
-use tracers_m                              ! Tracer data
 
 implicit none
 
@@ -1892,6 +1890,7 @@ use diag_m                                 ! Diagnostic routines
 use estab                                  ! Liquid saturation function
 use extraout_m                             ! Additional diagnostics
 use histave_m                              ! Time average arrays
+use module_ctrl_chemistry                  ! Interface for aerosols/chemistry/tracers
 use module_ctrl_convection                 ! Interface for convection
 use module_ctrl_microphysics               ! Interface for cloud microphysics
 use module_ctrl_radiation                  ! Interface for radiation
@@ -1900,8 +1899,6 @@ use parm_m                                 ! Model configuration
 use scrnout_m                              ! Calculate diagnostics
 use sflux_m                                ! Surface flux routines
 use sigs_m                                 ! Atmosphere sigma levels
-use sumdd_m                                ! High precision sum
-use tracers_m                              ! Tracer data
 use xyzinfo_m                              ! Grid coordinate arrays
 
 implicit none
@@ -2077,10 +2074,10 @@ end subroutine write_diagnostics
 ! Check for NaN errors
 subroutine nantest(message,js,je,mode)
 
-use aerointerface, only : xtg,naero     ! Aerosol interface
 use atmosphere_arrays_m                 ! Collection of atmosphere data
 use cc_mpi                              ! CC MPI routines
 use newmpar_m                           ! Grid parameters
+use module_ctrl_chemistry               ! Interface for aerosols/chemistry/tracers
 use module_ctrl_microphysics            ! Interface for cloud microphysics
 use parm_m                              ! Model configuration
 use sflux_m                             ! Surface flux routines

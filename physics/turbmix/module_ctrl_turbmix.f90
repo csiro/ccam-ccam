@@ -50,7 +50,7 @@ public cm0, ce0, ce1, ce2, ce3, be, ent0, ent1, entc0, ezmin, dtrc0
 public m0, b1, b2, qcmf, ent_min, mfbeta
 public buoymeth, maxdts, mintke, mineps, minl, maxl, stabmeth
 public tkemeth, tcalmeth
-public tke, eps
+public tke, eps, shear
 
 contains
 

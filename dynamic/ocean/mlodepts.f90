@@ -42,10 +42,9 @@ use cc_acc
 use cc_mpi
 use const_phys
 use indices_m
-use mlo_ctrl
 use newmpar_m
 use parm_m
-use parmhor_m
+use sflux_m
 use vecsuv_m
 use xyzinfo_m
 
@@ -59,23 +58,18 @@ real, dimension(ifull,ol), intent(in) :: ubar,vbar
 real, dimension(ifull,ol), intent(out) :: xg,yg
 real(kind=8), dimension(ifull,ol), intent(out) :: x3d,y3d,z3d
 real, dimension(ifull,ol) :: uc,vc,wc
-real, dimension(:,:,:), allocatable :: s, s_old
-real, dimension(:,:,:,:,:), allocatable :: sx
+real, dimension(ifull+iextra,ol,3) :: s, s_old
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,ol,3) :: sx
 real s_tot, s_count
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
 real sx_0m,sx_1m,sx_m0,sx_00,sx_10,sx_20,sx_m1,sx_01,sx_11,sx_21,sx_02,sx_12
 real xxg, yyg
 logical, dimension(ifull+iextra,ol), intent(in) :: wtr
-logical, dimension(:,:,:,:), allocatable :: wx
+logical, dimension(-1:ipan+2,-1:jpan+2,1:npan,ol) :: wx
 logical bcub_water, blin_test
 
 call START_LOG(waterdeps_begin)
-
-allocate( sx(-1:ipan+2,-1:jpan+2,1:npan,ol,3) )
-allocate( wx(-1:ipan+2,-1:jpan+2,1:npan,ol) )
-allocate( s(ifull+iextra,ol,3) )
-allocate( s_old(ifull+iextra,ol,3) )
 
 !$acc data create(xg,yg,nface,xx4,yy4,wx,sx)
 !$acc update device(xx4,yy4) async(0)
@@ -663,11 +657,6 @@ end do ! itr
 
 !$acc end data
 
-deallocate( sx )
-deallocate( wx )
-deallocate( s )
-deallocate( s_old )
-
 call END_LOG(waterdeps_end)
 
 return
@@ -681,10 +670,10 @@ subroutine mlotoij5(x3d,y3d,z3d,nface,xg,yg)
 
 use bigxy4_m
 use cc_mpi
-use mlo_ctrl
 use newmpar_m
 use parm_m
 use parmgeom_m
+use sflux_m
 use xyzinfo_m
 
 implicit none

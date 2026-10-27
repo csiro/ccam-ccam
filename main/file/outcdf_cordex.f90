@@ -37,7 +37,6 @@ contains
       
 subroutine freqfile_cordex
 
-use aerointerface                     ! Aerosol interface
 use atmosphere_arrays_m               ! Collection of atmosphere data
 use cc_mpi                            ! CC MPI routines
 use const_phys                        ! Physical constants
@@ -46,6 +45,7 @@ use extraout_m                        ! Additional diagnostics
 use filnames_m                        ! Filenames
 use histave_m                         ! Time average arrays
 use infile                            ! Input file routines
+use module_ctrl_chemistry             ! Interface for aerosols/chemistry/tracers
 use module_ctrl_convection            ! Interface for convection
 use module_ctrl_microphysics          ! Interface for cloud microphysics
 use module_ctrl_radiation             ! Interface for radiation
@@ -55,9 +55,6 @@ use parmgeom_m                        ! Coordinate data
 use screen_m                          ! Screen level diagnostics
 use sflux_m                           ! Surface flux routines
 use sigs_m                            ! Atmosphere sigma levels
-use tracers_m                         ! Tracer data
-use uclem_ctrl, only :              & ! Urban
-    uclem_avetemp, uclem_misc
       
 implicit none
 

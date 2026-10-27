@@ -39,6 +39,7 @@ module cc_mpi
    use cc_mpi_file
    use cc_mpi_multigrid
    use cc_mpi_point
+   use sumdd_m
   
    implicit none
    
@@ -202,6 +203,9 @@ module cc_mpi
    public :: deptsync, intssync_send, intssync_recv
    public :: drlen, dpoints, sextra
    public :: neighlist, neighnum
+   
+   ! Imported from sumdd
+   public drpdr, drpdr_v, drpdr_local, drpdr_local_v
 
 contains
 
@@ -209,7 +213,6 @@ contains
       use indices_m
       use latlong_m
       use map_m
-      use sumdd_m
       use vecsuv_m
       use workglob_m
       use xyzinfo_m
