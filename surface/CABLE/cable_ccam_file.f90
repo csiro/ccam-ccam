@@ -2483,7 +2483,7 @@ do i = 1,imax
   if ( land(iq) .and. any( abs(new_svs(1:tdata(tile)%maxnb)-old_svs(1:tdata(tile)%maxnb))>1.e-8 ) .and. &
        adj_neg_frac_sum>1.e-8 ) then 
     do nb = 1,tdata(tile)%maxnb  
-      old_vdata(nb) = up_vdata(iq,nb)
+      old_vdata(nb) = up_vdata(i,nb)
     end do  
     ! summarise tiles with decreasing area fraction with an average value
     ave_neg_vdata = sum( adj_neg_frac(1:tdata(tile)%maxnb)*old_vdata(1:tdata(tile)%maxnb) ) &
