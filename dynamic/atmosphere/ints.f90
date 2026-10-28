@@ -57,7 +57,7 @@ implicit none
 
 integer, intent(in) :: intsch  ! method to interpolate panel corners
 integer, intent(in) :: nfield  ! use B&S if nfield>=mh_bs
-integer nstart, nend, nlen, np, nn, ntr
+integer nstart, nend, nlen, nn, ntr
 integer async_counter
 integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordinates
 real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
@@ -79,15 +79,14 @@ do nstart = 1,ntr,nagg
   nlen = nend - nstart + 1
     
   do nn = 1,nlen
-    np = nn - 1 + nstart
     async_counter = mod(nn-1, async_length)
-    call setsx(sx(:,:,:,:,nn),s(:,:,np),intsch)
+    call setsx(sx(:,:,:,:,nn),s(:,:,nn-1+nstart),intsch)
     !$acc update device(sx(:,:,:,:,nn)) async(async_counter)      
   end do              ! nn loop  
     
   ! Loop over points that need to be calculated for other processes
   do nn = 1,nlen
-    call calcdepproc(sx(:,:,:,:,nn),nface,xg,yg,nn,nfield,intsch)
+    call calcdepproc(sx,nface,xg,yg,nn,nfield,intsch)
   end do  
     
   ! Send messages to other processors.  We then start the calculation for this processor while waiting for
@@ -97,9 +96,8 @@ do nstart = 1,ntr,nagg
   ! Loop over points that need to be calculated for this process
   !$omp parallel
   do nn = 1,nlen
-    np = nn - 1 + nstart
     async_counter = mod(nn-1, async_length)        
-    call calcdephost(sx(:,:,:,:,nn),s(:,:,np),nface,xg,yg,nn,nfield,intsch,async_counter)
+    call calcdephost(sx,s(:,:,nn-1+nstart),nface,xg,yg,nn,nfield,intsch,async_counter)
   end do
   !$acc wait
   !$omp end parallel
@@ -145,49 +143,49 @@ call START_LOG(ints_begin)
 
 
 ! pack data into sx
-async_counter = 0
 nn = 1
+async_counter = mod(nn-1, async_length)
 call setsx(sx(:,:,:,:,nn),sa,intsch)
 !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
 
 if ( present(sb) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
+  async_counter = mod(nn-1, async_length)
   call setsx(sx(:,:,:,:,nn),sb,intsch)
   !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
 end if  
 
 if ( present(sc) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
+  async_counter = mod(nn-1, async_length)
   call setsx(sx(:,:,:,:,nn),sc,intsch)
   !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
 end if  
 
 if ( present(sd) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
+  async_counter = mod(nn-1, async_length)
   call setsx(sx(:,:,:,:,nn),sd,intsch)
   !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
 end if  
 
 ! Loop over points that need to be calculated for other processes
 nn = 1
-call calcdepproc(sx(:,:,:,:,nn),nface,xg,yg,nn,nfield,intsch)
+call calcdepproc(sx,nface,xg,yg,nn,nfield,intsch)
 
 if ( present(sb) ) then
   nn = nn + 1
-  call calcdepproc(sx(:,:,:,:,nn),nface,xg,yg,nn,nfield,intsch)    
+  call calcdepproc(sx,nface,xg,yg,nn,nfield,intsch)    
 end if
 
 if ( present(sc) ) then
   nn = nn + 1
-  call calcdepproc(sx(:,:,:,:,nn),nface,xg,yg,nn,nfield,intsch)    
+  call calcdepproc(sx,nface,xg,yg,nn,nfield,intsch)    
 end if
 
 if ( present(sd) ) then
   nn = nn + 1
-  call calcdepproc(sx(:,:,:,:,nn),nface,xg,yg,nn,nfield,intsch)    
+  call calcdepproc(sx,nface,xg,yg,nn,nfield,intsch)    
 end if
 
 ! Send messages to other processors.  We then start the calculation for this processor while waiting for
@@ -198,26 +196,26 @@ call intssync_send(nlen)
 !$omp parallel
 
 ! Loop over points that need to be calculated for this process
-async_counter = 0
 nn = 1
-call calcdephost(sx(:,:,:,:,nn),sa,nface,xg,yg,nn,nfield,intsch,async_counter)
+async_counter = mod(nn-1, async_length)
+call calcdephost(sx,sa,nface,xg,yg,nn,nfield,intsch,async_counter)
 
 if ( present(sb) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
-  call calcdephost(sx(:,:,:,:,nn),sb,nface,xg,yg,nn,nfield,intsch,async_counter)    
+  async_counter = mod(nn-1, async_length)
+  call calcdephost(sx,sb,nface,xg,yg,nn,nfield,intsch,async_counter)    
 end if
 
 if ( present(sc) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
-  call calcdephost(sx(:,:,:,:,nn),sc,nface,xg,yg,nn,nfield,intsch,async_counter)    
+  async_counter = mod(nn-1, async_length)
+  call calcdephost(sx,sc,nface,xg,yg,nn,nfield,intsch,async_counter)    
 end if
 
 if ( present(sd) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
-  call calcdephost(sx(:,:,:,:,nn),sd,nface,xg,yg,nn,nfield,intsch,async_counter)    
+  async_counter = mod(nn-1, async_length)
+  call calcdephost(sx,sd,nface,xg,yg,nn,nfield,intsch,async_counter)    
 end if
 
 !$acc wait
@@ -237,14 +235,14 @@ end if
 if ( present(se) ) then
 
   ! pack data into sx
-  async_counter = 0
   nn = 1
+  async_counter = mod(nn-1, async_length)
   call setsx(sx(:,:,:,:,nn),se,intsch)
   !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
 
   ! Loop over points that need to be calculated for other processes
   nn = 1
-  call calcdepproc(sx(:,:,:,:,nn),nface,xg,yg,nn,nfield,intsch)
+  call calcdepproc(sx,nface,xg,yg,nn,nfield,intsch)
 
   ! Send messages to other processors.  We then start the calculation for this processor while waiting for
   ! the messages to return, thereby overlapping computation with communication.
@@ -254,9 +252,9 @@ if ( present(se) ) then
   !$omp parallel
 
   ! Loop over points that need to be calculated for this process
-  async_counter = 0
   nn = 1
-  call calcdephost(sx(:,:,:,:,nn),se,nface,xg,yg,nn,nfield,intsch,async_counter)
+  async_counter = mod(nn-1, async_length)
+  call calcdephost(sx,se,nface,xg,yg,nn,nfield,intsch,async_counter)
 
   !$acc wait
   !$omp end parallel
@@ -496,7 +494,7 @@ implicit none
 integer, intent(in) :: nn, nfield, intsch
 integer ii, iq, n, idel, jdel, k
 integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordinates
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,1:kl), intent(in) :: sx
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,1:kl,nagg), intent(in) :: sx
 real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
@@ -531,18 +529,18 @@ if ( intsch==1 ) then
         emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
         emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel,  n,k)
-        sx_00 = sx(idel,  jdel,  n,k)
-        sx_10 = sx(idel+1,jdel,  n,k)
-        sx_20 = sx(idel+2,jdel,  n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel,  n,k,nn)
+        sx_00 = sx(idel,  jdel,  n,k,nn)
+        sx_10 = sx(idel+1,jdel,  n,k,nn)
+        sx_20 = sx(idel+2,jdel,  n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
         rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
         rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
                  sx_10*cmul_3 + sx_20*cmul_4
@@ -576,18 +574,18 @@ if ( intsch==1 ) then
         emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
         emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel,  n,k)
-        sx_00 = sx(idel,  jdel,  n,k)
-        sx_10 = sx(idel+1,jdel,  n,k)
-        sx_20 = sx(idel+2,jdel,  n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel,  n,k,nn)
+        sx_00 = sx(idel,  jdel,  n,k,nn)
+        sx_10 = sx(idel+1,jdel,  n,k,nn)
+        sx_20 = sx(idel+2,jdel,  n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
         cmin = min(sx_00,sx_01,sx_10,sx_11)
         cmax = max(sx_00,sx_01,sx_10,sx_11)
         rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
@@ -631,18 +629,18 @@ else     ! if(intsch==1)then
         emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
         emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
         emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel,  n,k)
-        sx_00 = sx(idel,  jdel,  n,k)
-        sx_10 = sx(idel+1,jdel,  n,k)
-        sx_20 = sx(idel+2,jdel,  n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel,  n,k,nn)
+        sx_00 = sx(idel,  jdel,  n,k,nn)
+        sx_10 = sx(idel+1,jdel,  n,k,nn)
+        sx_20 = sx(idel+2,jdel,  n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
         rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
         rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
                  sx_01*cmul_3 + sx_02*cmul_4
@@ -677,18 +675,18 @@ else     ! if(intsch==1)then
         emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
         emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
         emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel,  n,k)
-        sx_00 = sx(idel,  jdel,  n,k)
-        sx_10 = sx(idel+1,jdel,  n,k)
-        sx_20 = sx(idel+2,jdel,  n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel,  n,k,nn)
+        sx_00 = sx(idel,  jdel,  n,k,nn)
+        sx_10 = sx(idel+1,jdel,  n,k,nn)
+        sx_20 = sx(idel+2,jdel,  n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
         cmin = min(sx_00,sx_01,sx_10,sx_11)
         cmax = max(sx_00,sx_01,sx_10,sx_11)
         rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
@@ -723,7 +721,7 @@ integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordi
 integer, intent(in) :: nn, nfield, intsch,async_counter
 integer iq, n, idel, jdel, k
 real, dimension(:,:), intent(inout) :: s
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,1:kl), intent(in) :: sx
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,1:kl,nagg), intent(in) :: sx
 real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
 real xxg, yyg, cmin, cmax
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
@@ -765,18 +763,18 @@ if ( intsch==1 ) then
         emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
         emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel,  n,k)
-        sx_00 = sx(idel,  jdel,  n,k)
-        sx_10 = sx(idel+1,jdel,  n,k)
-        sx_20 = sx(idel+2,jdel,  n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel,  n,k,nn)
+        sx_00 = sx(idel,  jdel,  n,k,nn)
+        sx_10 = sx(idel+1,jdel,  n,k,nn)
+        sx_20 = sx(idel+2,jdel,  n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
         rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
         rmul_2 = sx_m0*cmul_1 + sx_00*cmul_2 + &
                  sx_10*cmul_3 + sx_20*cmul_4
@@ -823,18 +821,18 @@ if ( intsch==1 ) then
         emul_2 = (1.-yyg)*(2.-yyg)*(1.+yyg)/2.
         emul_3 = yyg*(1.+yyg)*(2.-yyg)/2.
         emul_4 = (1.-yyg)*(-yyg)*(1.+yyg)/6.
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel,  n,k)
-        sx_00 = sx(idel,  jdel,  n,k)
-        sx_10 = sx(idel+1,jdel,  n,k)
-        sx_20 = sx(idel+2,jdel,  n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel,  n,k,nn)
+        sx_00 = sx(idel,  jdel,  n,k,nn)
+        sx_10 = sx(idel+1,jdel,  n,k,nn)
+        sx_20 = sx(idel+2,jdel,  n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
         cmin = min(sx_00,sx_01,sx_10,sx_11)
         cmax = max(sx_00,sx_01,sx_10,sx_11)
         rmul_1 = sx_0m*dmul_2 + sx_1m*dmul_3
@@ -891,18 +889,18 @@ else     ! if(intsch==1)then
             emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
             emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
             emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-            sx_0m = sx(idel,  jdel-1,n,k)
-            sx_1m = sx(idel+1,jdel-1,n,k)
-            sx_m0 = sx(idel-1,jdel,  n,k)
-            sx_00 = sx(idel,  jdel,  n,k)
-            sx_10 = sx(idel+1,jdel,  n,k)
-            sx_20 = sx(idel+2,jdel,  n,k)
-            sx_m1 = sx(idel-1,jdel+1,n,k)
-            sx_01 = sx(idel,  jdel+1,n,k)
-            sx_11 = sx(idel+1,jdel+1,n,k)
-            sx_21 = sx(idel+2,jdel+1,n,k)
-            sx_02 = sx(idel,  jdel+2,n,k)
-            sx_12 = sx(idel+1,jdel+2,n,k)
+            sx_0m = sx(idel,  jdel-1,n,k,nn)
+            sx_1m = sx(idel+1,jdel-1,n,k,nn)
+            sx_m0 = sx(idel-1,jdel,  n,k,nn)
+            sx_00 = sx(idel,  jdel,  n,k,nn)
+            sx_10 = sx(idel+1,jdel,  n,k,nn)
+            sx_20 = sx(idel+2,jdel,  n,k,nn)
+            sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+            sx_01 = sx(idel,  jdel+1,n,k,nn)
+            sx_11 = sx(idel+1,jdel+1,n,k,nn)
+            sx_21 = sx(idel+2,jdel+1,n,k,nn)
+            sx_02 = sx(idel,  jdel+2,n,k,nn)
+            sx_12 = sx(idel+1,jdel+2,n,k,nn)
             rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3
             rmul_2 = sx_0m*cmul_1 + sx_00*cmul_2 + &
                      sx_01*cmul_3 + sx_02*cmul_4
@@ -949,18 +947,18 @@ else     ! if(intsch==1)then
         emul_2 = (1.-xxg)*(2.-xxg)*(1.+xxg)/2.
         emul_3 = xxg*(1.+xxg)*(2.-xxg)/2.
         emul_4 = (1.-xxg)*(-xxg)*(1.+xxg)/6.
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel,  n,k)
-        sx_00 = sx(idel,  jdel,  n,k)
-        sx_10 = sx(idel+1,jdel,  n,k)
-        sx_20 = sx(idel+2,jdel,  n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel,  n,k,nn)
+        sx_00 = sx(idel,  jdel,  n,k,nn)
+        sx_10 = sx(idel+1,jdel,  n,k,nn)
+        sx_20 = sx(idel+2,jdel,  n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
         cmin = min(sx_00,sx_01,sx_10,sx_11)
         cmax = max(sx_00,sx_01,sx_10,sx_11)
         rmul_1 = sx_m0*dmul_2 + sx_m1*dmul_3

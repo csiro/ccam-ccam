@@ -849,8 +849,6 @@ real, dimension(ifull+iextra) :: vdum
 real, dimension(ifull,kl), intent(in) :: ihelm, jrhs
 real, dimension(ifull,kl) :: iv_new, iv_old, irhs
 real, dimension(ifull), intent(in) :: izz, izzn, izze, izzw, izzs
-real, dimension(:,:,:), allocatable :: rhs
-real, dimension(:,:,:), allocatable :: vv, helm
 real, dimension(mg_maxsize,2*kl) :: w
 real, dimension(ifull_maxcolour,kl,maxcolour):: helmc, rhsc
 real, dimension(ifull_maxcolour,maxcolour) :: zznc, zzec, zzwc, zzsc, zzc
@@ -872,10 +870,6 @@ end if
 ! stage also becomes the first iteration of the solution.
 
 call START_LOG(helm_begin)
-
-allocate( rhs(mg_maxsize,2*kl,2:gmax+1) )
-allocate( vv(mg_maxsize,kl,gmax+1) )
-allocate( helm(mg_maxsize,kl,gmax+1) )
 
 ng  = 0
 ng4 = 0
@@ -1028,8 +1022,8 @@ do itr = 1,itr_mg
     ng4 = mg(1)%ifull_fine
     do k = 1,klim
       do iq = 1,ng4
-        rhs(iq,k,2) = 0.25*(w(mg(1)%fine(iq)  ,k) + w(mg(1)%fine_n(iq) ,k)  &
-                          + w(mg(1)%fine_e(iq),k) + w(mg(1)%fine_ne(iq),k))
+        mg(2)%rhs(iq,k) = 0.25*(w(mg(1)%fine(iq)  ,k) + w(mg(1)%fine_n(iq) ,k)  &
+                              + w(mg(1)%fine_e(iq),k) + w(mg(1)%fine_ne(iq),k))
       end do
     end do
 
@@ -1037,18 +1031,18 @@ do itr = 1,itr_mg
       ng4 = mg(1)%ifull_fine  
       do k = kl+1,2*kl
         do iq = 1,ng4
-          rhs(iq,k,2) = 0.25*(w(mg(1)%fine(iq)  ,k) + w(mg(1)%fine_n(iq) ,k)  &
-                            + w(mg(1)%fine_e(iq),k) + w(mg(1)%fine_ne(iq),k))
+          mg(2)%rhs(iq,k) = 0.25*(w(mg(1)%fine(iq)  ,k) + w(mg(1)%fine_n(iq) ,k)  &
+                                + w(mg(1)%fine_e(iq),k) + w(mg(1)%fine_ne(iq),k))
         end do  
       end do  
       ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
-      call mgcollect(2,rhs(:,1:2*kl,2),smaxmin_g(1:2*kl,1:2))
+      call mgcollect(2,mg(2)%rhs(:,1:2*kl),smaxmin_g(1:2*kl,1:2))
       if ( 2<=mg_maxlevel_local ) then
-        helm(1:mg(2)%ifull,1:kl,2) = rhs(1:mg(2)%ifull,kl+1:2*kl,2)
+        mg(2)%helm(1:mg(2)%ifull,1:kl) = mg(2)%rhs(1:mg(2)%ifull,kl+1:2*kl)
       end if  
     else
       ! merge grids if insufficent points on this processor
-      call mgcollect(2,rhs(:,1:klim,2),dsolmax_g(:),klim=klim)
+      call mgcollect(2,mg(2)%rhs(:,1:klim),dsolmax_g(:),klim=klim)
     end if  
 
     
@@ -1066,9 +1060,9 @@ do itr = 1,itr_mg
       ! update scalar field
       ! assume zero for first guess of residual (also avoids additional bounds call)
       do k = 1,klim
-        vv(1:ng,k,g) = -rhs(1:ng,k,g)/( helm(1:ng,k,g) - mg(g)%zz(1:ng) )
+        mg(g)%v(1:ng,k) = -mg(g)%rhs(1:ng,k)/( mg(g)%helm(1:ng,k) - mg(g)%zz(1:ng) )
       end do
-      call mgbounds(g,vv(:,1:klim,g),klim=klim)
+      call mgbounds(g,mg(g)%v(:,1:klim),klim=klim)
       
       ! MJT notes - As the grid size per processor becomes small with continual upscaling, this part
       ! of the code becomes dominated by communications.  We then neglect to decompose this iteration
@@ -1077,13 +1071,13 @@ do itr = 1,itr_mg
         do k = 1,klim
           ! pre smoothing
           do iq = 1,ng
-            w(iq,k) = ( mg(g)%zze(iq)*vv(mg(g)%ie(iq),k,g) + mg(g)%zzw(iq)*vv(mg(g)%iw(iq),k,g) &
-                      + mg(g)%zzn(iq)*vv(mg(g)%in(iq),k,g) + mg(g)%zzs(iq)*vv(mg(g)%is(iq),k,g) &
-                      - rhs(iq,k,g) )/( helm(iq,k,g) - mg(g)%zz(iq) )
+            w(iq,k) = ( mg(g)%zze(iq)*mg(g)%v(mg(g)%ie(iq),k) + mg(g)%zzw(iq)*mg(g)%v(mg(g)%iw(iq),k) &
+                      + mg(g)%zzn(iq)*mg(g)%v(mg(g)%in(iq),k) + mg(g)%zzs(iq)*mg(g)%v(mg(g)%is(iq),k) &
+                      - mg(g)%rhs(iq,k) )/( mg(g)%helm(iq,k) - mg(g)%zz(iq) )
           end do
         end do
-        vv(1:ng,1:klim,g) = w(1:ng,1:klim)
-        call mgbounds(g,vv(:,1:klim,g),klim=klim)
+        mg(g)%v(1:ng,1:klim) = w(1:ng,1:klim)
+        call mgbounds(g,mg(g)%v(:,1:klim),klim=klim)
       end do
     
       ng4 = mg(g)%ifull_fine
@@ -1091,14 +1085,14 @@ do itr = 1,itr_mg
       do k = 1,klim
         ! residual
         do iq = 1,ng
-          w(iq,k) = -mg(g)%zze(iq)*vv(mg(g)%ie(iq),k,g)-mg(g)%zzw(iq)*vv(mg(g)%iw(iq),k,g)   &
-                    -mg(g)%zzn(iq)*vv(mg(g)%in(iq),k,g)-mg(g)%zzs(iq)*vv(mg(g)%is(iq),k,g)   &
-                    +rhs(iq,k,g)+(helm(iq,k,g)-mg(g)%zz(iq))*vv(iq,k,g)
+          w(iq,k) = -mg(g)%zze(iq)*mg(g)%v(mg(g)%ie(iq),k)-mg(g)%zzw(iq)*mg(g)%v(mg(g)%iw(iq),k)   &
+                    -mg(g)%zzn(iq)*mg(g)%v(mg(g)%in(iq),k)-mg(g)%zzs(iq)*mg(g)%v(mg(g)%is(iq),k)   &
+                    +mg(g)%rhs(iq,k)+(mg(g)%helm(iq,k)-mg(g)%zz(iq))*mg(g)%v(iq,k)
         end do
         ! restriction
         do iq = 1,ng4
-          rhs(iq,k,g+1) = 0.25*( w(mg(g)%fine(iq)  ,k) + w(mg(g)%fine_n(iq) ,k)   &
-                               + w(mg(g)%fine_e(iq),k) + w(mg(g)%fine_ne(iq),k) )
+          mg(g+1)%rhs(iq,k) = 0.25*( w(mg(g)%fine(iq)  ,k) + w(mg(g)%fine_n(iq) ,k)   &
+                                   + w(mg(g)%fine_e(iq),k) + w(mg(g)%fine_ne(iq),k) )
         end do
       end do
       
@@ -1107,18 +1101,18 @@ do itr = 1,itr_mg
         do k = 1,kl
           do iq = 1,ng4
             ! restriction helm weights
-            rhs(iq,k+kl,g+1) = 0.25*(helm(mg(g)%fine(iq)  ,k,g) + helm(mg(g)%fine_n(iq) ,k,g)   &
-                                   + helm(mg(g)%fine_e(iq),k,g) + helm(mg(g)%fine_ne(iq),k,g))
+            mg(g+1)%rhs(iq,k+kl) = 0.25*(mg(g)%helm(mg(g)%fine(iq)  ,k) + mg(g)%helm(mg(g)%fine_n(iq) ,k)   &
+                                       + mg(g)%helm(mg(g)%fine_e(iq),k) + mg(g)%helm(mg(g)%fine_ne(iq),k))
           end do  
         end do
         ! merge grids if insufficent points on this processor - note helm and smaxmin_g are also included
-        call mgcollect(g+1,rhs(:,1:2*kl,g+1),smaxmin_g(1:2*kl,1:2))
+        call mgcollect(g+1,mg(g+1)%rhs(:,1:2*kl),smaxmin_g(1:2*kl,1:2))
         if ( g+1<=mg_maxlevel_local ) then
-          helm(1:mg(g+1)%ifull,1:kl,g+1) = rhs(1:mg(g+1)%ifull,kl+1:2*kl,g+1)
+          mg(g+1)%helm(1:mg(g+1)%ifull,1:kl) = mg(g+1)%rhs(1:mg(g+1)%ifull,kl+1:2*kl)
         end if  
       else
         ! merge grids if insufficent points on this processor
-        call mgcollect(g+1,rhs(:,1:klim,g+1),dsolmax_g(1:klim),klim=klim)
+        call mgcollect(g+1,mg(g+1)%rhs(:,1:klim),dsolmax_g(1:klim),klim=klim)
       end if  
 
     end do ! g loop over V levels
@@ -1139,25 +1133,25 @@ do itr = 1,itr_mg
       g = mg_maxlevel
       ng = mg(g)%ifull
       do k = 1,klim
-        vv(1:ng,k,g) = -rhs(1:ng,k,g)/(helm(1:ng,k,g)-mg(g)%zz(1:ng))
-        sdifc(k) = max( maxval(vv(1:ng,k,g)) - minval(vv(1:ng,k,g)), 1.e-20 )        
+        mg(g)%v(1:ng,k) = -mg(g)%rhs(1:ng,k)/(mg(g)%helm(1:ng,k)-mg(g)%zz(1:ng))
+        sdifc(k) = max( maxval(mg(g)%v(1:ng,k)) - minval(mg(g)%v(1:ng,k)), 1.e-20 )        
       end do
       ! usually it takes 6 iterations for the following to converge with 35 eigenvectors
       klimc = klim
       do itrc = 1,itr_mg
         do k = 1,klimc  
-          vsavc(1:ng) = vv(1:ng,k,g)
+          vsavc(1:ng) = mg(g)%v(1:ng,k)
           do nc = 1,3
             do iql = 1,mg_ifull_maxcolour  
               iq = col_iq(iql,nc) 
-              vv(iq,k,g) = ( mg(g)%zzn(iq)*vv(mg(g)%in(iq),k,g) &
-                           + mg(g)%zze(iq)*vv(mg(g)%ie(iq),k,g) &
-                           + mg(g)%zzs(iq)*vv(mg(g)%is(iq),k,g) &
-                            + mg(g)%zzw(iq)*vv(mg(g)%iw(iq),k,g) &
-                          - rhs(iq,k,g) )/(helm(iq,k,g)-mg(g)%zz(iq))
-            end do  
+              mg(g)%v(iq,k) = ( mg(g)%zzn(iq)*mg(g)%v(mg(g)%in(iq),k) &
+                              + mg(g)%zze(iq)*mg(g)%v(mg(g)%ie(iq),k) &
+                              + mg(g)%zzs(iq)*mg(g)%v(mg(g)%is(iq),k) &
+                              + mg(g)%zzw(iq)*mg(g)%v(mg(g)%iw(iq),k) &
+                              - mg(g)%rhs(iq,k) )/(mg(g)%helm(iq,k)-mg(g)%zz(iq))
+            end do
           end do ! nc = 1,maxcolour  
-          dsolmaxc(k) = maxval( abs( vv(1:ng,k,g) - vsavc(1:ng) ) )
+          dsolmaxc(k) = maxval( abs( mg(g)%v(1:ng,k) - vsavc(1:ng) ) )
         end do
         ! test for convergence
         knew = klimc
@@ -1185,9 +1179,9 @@ do itr = 1,itr_mg
 
       ! send coarse grid solution to processors and also bcast global smaxmin_g
       if ( itr==1 ) then
-        call mgbcast(g+1,vv(:,1:kl,g+1),smaxmin_g(:,1:2))
+        call mgbcast(g+1,mg(g+1)%v(:,1:kl),smaxmin_g(:,1:2))
       else
-        call mgbcast(g+1,vv(:,1:klim,g+1),dsolmax_g(:),klim=klim)
+        call mgbcast(g+1,mg(g+1)%v(:,1:klim),dsolmax_g(:),klim=klim)
       end if  
 
       ng = mg(g)%ifull 
@@ -1195,29 +1189,29 @@ do itr = 1,itr_mg
       do k = 1,klim
         ! interpolation
         do iq = 1,ng
-          w(iq,k) = 0.5*vv(mg(g+1)%coarse_a(iq),k,g+1)  &
-                  + 0.25*vv(mg(g+1)%coarse_b(iq),k,g+1) &
-                  + 0.25*vv(mg(g+1)%coarse_c(iq),k,g+1)
-        end do  
+          w(iq,k) = 0.5*mg(g+1)%v(mg(g+1)%coarse_a(iq),k)  &
+                  + 0.25*mg(g+1)%v(mg(g+1)%coarse_b(iq),k) &
+                  + 0.25*mg(g+1)%v(mg(g+1)%coarse_c(iq),k)
+        end do
         ! extension
         ! No mgbounds as the v halo has already been updated and
         ! the coarse interpolation also updates the w halo
-        vv(1:ng,k,g) = vv(1:ng,k,g) + w(1:ng,k)
+        mg(g)%v(1:ng,k) = mg(g)%v(1:ng,k) + w(1:ng,k)
       end do
     
       do i = 1,itrend
-        call mgbounds(g,vv(:,1:klim,g),klim=klim)
+        call mgbounds(g,mg(g)%v(:,1:klim),klim=klim)
         do k = 1,klim
           ! post smoothing - all iterations except final iteration
           do iq = 1,ng
-            w(iq,k) = (mg(g)%zze(iq)*vv(mg(g)%ie(iq),k,g)+mg(g)%zzw(iq)*vv(mg(g)%iw(iq),k,g) &
-                     + mg(g)%zzn(iq)*vv(mg(g)%in(iq),k,g)+mg(g)%zzs(iq)*vv(mg(g)%is(iq),k,g) &
-                     - rhs(iq,k,g))/(helm(iq,k,g)-mg(g)%zz(iq))
+            w(iq,k) = (mg(g)%zze(iq)*mg(g)%v(mg(g)%ie(iq),k)+mg(g)%zzw(iq)*mg(g)%v(mg(g)%iw(iq),k) &
+                     + mg(g)%zzn(iq)*mg(g)%v(mg(g)%in(iq),k)+mg(g)%zzs(iq)*mg(g)%v(mg(g)%is(iq),k) &
+                     - mg(g)%rhs(iq,k))/(mg(g)%helm(iq,k)-mg(g)%zz(iq))
           end do
         end do
-        vv(1:ng,1:klim,g) = w(1:ng,1:klim)
+        mg(g)%v(1:ng,1:klim) = w(1:ng,1:klim)
       end do
-      call mgbounds(g,vv(:,1:klim,g),klim=klim) ! for next mgbcast
+      call mgbounds(g,mg(g)%v(:,1:klim),klim=klim) ! for next mgbcast
 
     end do ! g loop over V levels
   
@@ -1225,18 +1219,18 @@ do itr = 1,itr_mg
     ! broadcast coarse solution to fine grid, as well as global smaxmin_g
     ! or convergence test dsolmax_g
     if ( itr==1 ) then
-      call mgbcast(2,vv(:,1:kl,2),smaxmin_g(:,1:2))
+      call mgbcast(2,mg(2)%v(:,1:kl),smaxmin_g(:,1:2))
     else
-      call mgbcast(2,vv(:,1:klim,2),dsolmax_g(:),klim=klim)
+      call mgbcast(2,mg(2)%v(:,1:klim),dsolmax_g(:),klim=klim)
     end if  
 
     ! interpolation
     ng = mg(1)%ifull
     do k = 1,klim
       do iq = 1,ng 
-        w(iq,k) = 0.5*vv(mg(2)%coarse_a(iq),k,2)  &
-                + 0.25*vv(mg(2)%coarse_b(iq),k,2) &
-                + 0.25*vv(mg(2)%coarse_c(iq),k,2)
+        w(iq,k) = 0.5*mg(2)%v(mg(2)%coarse_a(iq),k)  &
+                + 0.25*mg(2)%v(mg(2)%coarse_b(iq),k) &
+                + 0.25*mg(2)%v(mg(2)%coarse_c(iq),k)
       end do  
     end do
 
@@ -1369,10 +1363,6 @@ if ( myid==0 ) then
   end if
 end if
 
-deallocate( rhs )
-deallocate( vv )
-deallocate( helm )
-
 call END_LOG(helm_end)
 
 return
@@ -1393,7 +1383,7 @@ implicit none
 
 integer, intent(out) :: totits
 integer itr, itrc, g, ng, ng4, n, i, j, ir, ic, iq
-integer iq_a, iq_c
+integer iq_a, iq_c, nx
 integer nc, k, iql
 real, intent(in) :: tol, itol
 real, intent(out) :: maxglobseta, maxglobip
@@ -1412,17 +1402,12 @@ real, dimension(ifull_maxcolour,maxcolour) :: rhsc, rhscice, ddc, eec, ipmaxc
 real, dimension(ifull_maxcolour,maxcolour) :: zzhhc, zznc, zzsc, zzec, zzwc
 real, dimension(ifull_maxcolour,maxcolour) :: zzcice, zzncice, zzscice, zzecice, zzwcice
 real, dimension(ifull_maxcolour,maxcolour) :: yyc, yync, yysc, yyec, yywc
-real, dimension(mg_maxsize,2,gmax+1) :: v
-real, dimension(mg_maxsize,2:gmax+1) :: zz, zzn, zzs, zze, zzw
-real, dimension(mg_maxsize,2:gmax+1) :: yyn, yys, yye, yyw, yyz
-real, dimension(mg_maxsize,2:gmax+1) :: hh
-real, dimension(mg_maxsize,2:gmax+1) :: zzi, zzin, zzis, zzie, zziw
-real, dimension(mg_maxsize,2:gmax+1) :: rhs, rhsi
 real, dimension(mg_maxsize,18) :: w
 real, dimension(mg_maxsize,2) :: ws
 real, dimension(mg_maxsize) :: vnew
 real, dimension(2) :: dsolmax
 real, dimension(8) :: dsolmax_g
+logical, save :: zzfirst = .true.
 
 if ( sorfirst ) then
   write(6,*) "ERROR: mgsormlo requires mgsor_init to be called first"
@@ -1483,6 +1468,18 @@ do nc = 1,maxcolour
     ipmaxc(iql,nc)   = ipmax(iq)
   end do  
 end do
+
+if ( zzfirst ) then
+  do g = 1,gmax+1
+    ng = mg(g)%ifull
+    nx = mg(g)%iextra
+    allocate( mg(g)%zzon(ng), mg(g)%zzoe(ng), mg(g)%zzos(ng), mg(g)%zzow(ng), mg(g)%zzo(ng) )
+    allocate( mg(g)%yyon(ng), mg(g)%yyoe(ng), mg(g)%yyos(ng), mg(g)%yyow(ng), mg(g)%yyo(ng) )
+    allocate( mg(g)%hho(ng) )    
+    allocate( mg(g)%zzin(ng),mg(g)%zzie(ng), mg(g)%zzis(ng),mg(g)%zziw(ng), mg(g)%zzi(ng) )    
+  end do
+  zzfirst = .false.
+end if
 
 ! solver requires bounds to be updated
 call bounds_recv(dumc(:,1:2))
@@ -1647,93 +1644,93 @@ do itr = 1,itr_mgice
     
     ! restriction
     ! (since this always operates within a panel, then ine = ien is always true)
-    rhs(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,1)+w(mg(1)%fine_n(1:ng4) ,1)        &
-                      +w(mg(1)%fine_e(1:ng4),1)+w(mg(1)%fine_ne(1:ng4),1))
-    zz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,2)+w(mg(1)%fine_n(1:ng4) ,2)   &
-                           +w(mg(1)%fine_e(1:ng4),2)+w(mg(1)%fine_ne(1:ng4),2))
-    zzn(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,3)+w(mg(1)%fine_n(1:ng4) ,3)   &
-                           +w(mg(1)%fine_e(1:ng4),3)+w(mg(1)%fine_ne(1:ng4),3))
-    zzs(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,4)+w(mg(1)%fine_n(1:ng4) ,4)   &
-                           +w(mg(1)%fine_e(1:ng4),4)+w(mg(1)%fine_ne(1:ng4),4))
-    zze(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,5)+w(mg(1)%fine_n(1:ng4) ,5)   &
-                           +w(mg(1)%fine_e(1:ng4),5)+w(mg(1)%fine_ne(1:ng4),5))
-    zzw(1:ng4,2)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,6)+w(mg(1)%fine_n(1:ng4) ,6)   &
-                           +w(mg(1)%fine_e(1:ng4),6)+w(mg(1)%fine_ne(1:ng4),6))
-    hh(1:ng4,2)    =0.25*(w(mg(1)%fine(1:ng4)  ,7)+w(mg(1)%fine_n(1:ng4) ,7)     &
-                         +w(mg(1)%fine_e(1:ng4),7)+w(mg(1)%fine_ne(1:ng4),7))
+    mg(2)%rhs(1:ng4,1)=0.25*(w(mg(1)%fine(1:ng4)  ,1)+w(mg(1)%fine_n(1:ng4) ,1)       &
+                            +w(mg(1)%fine_e(1:ng4),1)+w(mg(1)%fine_ne(1:ng4),1))
+    mg(2)%zzo(1:ng4) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,2)+w(mg(1)%fine_n(1:ng4) ,2)   &
+                                +w(mg(1)%fine_e(1:ng4),2)+w(mg(1)%fine_ne(1:ng4),2))
+    mg(2)%zzon(1:ng4)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,3)+w(mg(1)%fine_n(1:ng4) ,3)   &
+                                +w(mg(1)%fine_e(1:ng4),3)+w(mg(1)%fine_ne(1:ng4),3))
+    mg(2)%zzos(1:ng4)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,4)+w(mg(1)%fine_n(1:ng4) ,4)   &
+                                +w(mg(1)%fine_e(1:ng4),4)+w(mg(1)%fine_ne(1:ng4),4))
+    mg(2)%zzoe(1:ng4)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,5)+w(mg(1)%fine_n(1:ng4) ,5)   &
+                                +w(mg(1)%fine_e(1:ng4),5)+w(mg(1)%fine_ne(1:ng4),5))
+    mg(2)%zzow(1:ng4)=0.25*dfac*(w(mg(1)%fine(1:ng4)  ,6)+w(mg(1)%fine_n(1:ng4) ,6)   &
+                                +w(mg(1)%fine_e(1:ng4),6)+w(mg(1)%fine_ne(1:ng4),6))
+    mg(2)%hho(1:ng4)    =0.25*(w(mg(1)%fine(1:ng4)  ,7)+w(mg(1)%fine_n(1:ng4) ,7)      &
+                              +w(mg(1)%fine_e(1:ng4),7)+w(mg(1)%fine_ne(1:ng4),7))
       
-    rhsi(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,8)+w(mg(1)%fine_n(1:ng4) ,8)      &
-                       +w(mg(1)%fine_e(1:ng4),8)+w(mg(1)%fine_ne(1:ng4),8))
+    mg(2)%rhs(1:ng4,2)=0.25*(w(mg(1)%fine(1:ng4)  ,8)+w(mg(1)%fine_n(1:ng4) ,8)       &
+                            +w(mg(1)%fine_e(1:ng4),8)+w(mg(1)%fine_ne(1:ng4),8))
     
     if ( itr==1 ) then
-      yyz(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,9)+w(mg(1)%fine_n(1:ng4) ,9)     &
-                              +w(mg(1)%fine_e(1:ng4),9)+w(mg(1)%fine_ne(1:ng4),9))
-      yyn(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,10)+w(mg(1)%fine_n(1:ng4) ,10)     &
-                              +w(mg(1)%fine_e(1:ng4),10)+w(mg(1)%fine_ne(1:ng4),10))
-      yys(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,11)+w(mg(1)%fine_n(1:ng4) ,11)     &
-                              +w(mg(1)%fine_e(1:ng4),11)+w(mg(1)%fine_ne(1:ng4),11))
-      yye(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,12)+w(mg(1)%fine_n(1:ng4) ,12)     &
-                              +w(mg(1)%fine_e(1:ng4),12)+w(mg(1)%fine_ne(1:ng4),12))
-      yyw(1:ng4,2) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,13)+w(mg(1)%fine_n(1:ng4) ,13)     &
-                              +w(mg(1)%fine_e(1:ng4),13)+w(mg(1)%fine_ne(1:ng4),13))
-      zzi(1:ng4,2) =0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,14)+w(mg(1)%fine_n(1:ng4) ,14)  &
-                               +w(mg(1)%fine_e(1:ng4),14)+w(mg(1)%fine_ne(1:ng4),14))
-      zzin(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,15)+w(mg(1)%fine_n(1:ng4) ,15)  &
-                               +w(mg(1)%fine_e(1:ng4),15)+w(mg(1)%fine_ne(1:ng4),15))
-      zzis(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,16)+w(mg(1)%fine_n(1:ng4) ,16)  &
-                               +w(mg(1)%fine_e(1:ng4),16)+w(mg(1)%fine_ne(1:ng4),16))
-      zzie(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,17)+w(mg(1)%fine_n(1:ng4) ,17)  &
-                               +w(mg(1)%fine_e(1:ng4),17)+w(mg(1)%fine_ne(1:ng4),17))
-      zziw(1:ng4,2)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,18)+w(mg(1)%fine_n(1:ng4) ,18)  &
-                               +w(mg(1)%fine_e(1:ng4),18)+w(mg(1)%fine_ne(1:ng4),18))
+      mg(2)%yyo(1:ng4) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,9)+w(mg(1)%fine_n(1:ng4) ,9)      &
+                                  +w(mg(1)%fine_e(1:ng4),9)+w(mg(1)%fine_ne(1:ng4),9))
+      mg(2)%yyon(1:ng4) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,10)+w(mg(1)%fine_n(1:ng4) ,10)   &
+                                   +w(mg(1)%fine_e(1:ng4),10)+w(mg(1)%fine_ne(1:ng4),10))
+      mg(2)%yyos(1:ng4) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,11)+w(mg(1)%fine_n(1:ng4) ,11)   &
+                                   +w(mg(1)%fine_e(1:ng4),11)+w(mg(1)%fine_ne(1:ng4),11))
+      mg(2)%yyoe(1:ng4) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,12)+w(mg(1)%fine_n(1:ng4) ,12)   &
+                                   +w(mg(1)%fine_e(1:ng4),12)+w(mg(1)%fine_ne(1:ng4),12))
+      mg(2)%yyow(1:ng4) =0.25*dfac*(w(mg(1)%fine(1:ng4)  ,13)+w(mg(1)%fine_n(1:ng4) ,13)   &
+                                   +w(mg(1)%fine_e(1:ng4),13)+w(mg(1)%fine_ne(1:ng4),13))
+      mg(2)%zzi(1:ng4) =0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,14)+w(mg(1)%fine_n(1:ng4) ,14)   &
+                                   +w(mg(1)%fine_e(1:ng4),14)+w(mg(1)%fine_ne(1:ng4),14))
+      mg(2)%zzin(1:ng4)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,15)+w(mg(1)%fine_n(1:ng4) ,15)   &
+                                   +w(mg(1)%fine_e(1:ng4),15)+w(mg(1)%fine_ne(1:ng4),15))
+      mg(2)%zzis(1:ng4)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,16)+w(mg(1)%fine_n(1:ng4) ,16)   &
+                                   +w(mg(1)%fine_e(1:ng4),16)+w(mg(1)%fine_ne(1:ng4),16))
+      mg(2)%zzie(1:ng4)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,17)+w(mg(1)%fine_n(1:ng4) ,17)   &
+                                   +w(mg(1)%fine_e(1:ng4),17)+w(mg(1)%fine_ne(1:ng4),17))
+      mg(2)%zziw(1:ng4)=0.25*dfaci*(w(mg(1)%fine(1:ng4)  ,18)+w(mg(1)%fine_n(1:ng4) ,18)   &
+                                   +w(mg(1)%fine_e(1:ng4),18)+w(mg(1)%fine_ne(1:ng4),18))
     end if
     
     ! merge grids if insufficent points on this processor
     if ( mg(2)%merge_len>1 ) then
-      w(1:ng4,1) = rhs(1:ng4,2)
-      w(1:ng4,2) = zz(1:ng4,2)
-      w(1:ng4,3) = zzn(1:ng4,2)
-      w(1:ng4,4) = zzs(1:ng4,2)
-      w(1:ng4,5) = zze(1:ng4,2)
-      w(1:ng4,6) = zzw(1:ng4,2)
-      w(1:ng4,7) = hh(1:ng4,2)
-      w(1:ng4,8) = rhsi(1:ng4,2)
+      w(1:ng4,1) = mg(2)%rhs(1:ng4,1) ! ocean
+      w(1:ng4,2) = mg(2)%zzo(1:ng4)
+      w(1:ng4,3) = mg(2)%zzon(1:ng4)
+      w(1:ng4,4) = mg(2)%zzos(1:ng4)
+      w(1:ng4,5) = mg(2)%zzoe(1:ng4)
+      w(1:ng4,6) = mg(2)%zzow(1:ng4)
+      w(1:ng4,7) = mg(2)%hho(1:ng4)
+      w(1:ng4,8) = mg(2)%rhs(1:ng4,2) ! ice
       if ( itr==1 ) then
-        w(1:ng4,9)  = yyz(1:ng4,2)
-        w(1:ng4,10) = yyn(1:ng4,2)
-        w(1:ng4,11) = yys(1:ng4,2)
-        w(1:ng4,12) = yye(1:ng4,2)
-        w(1:ng4,13) = yyw(1:ng4,2)
-        w(1:ng4,14) = zzi(1:ng4,2)
-        w(1:ng4,15) = zzin(1:ng4,2)
-        w(1:ng4,16) = zzis(1:ng4,2)
-        w(1:ng4,17) = zzie(1:ng4,2)
-        w(1:ng4,18) = zziw(1:ng4,2)
+        w(1:ng4,9)  = mg(2)%yyo(1:ng4)
+        w(1:ng4,10) = mg(2)%yyon(1:ng4)
+        w(1:ng4,11) = mg(2)%yyos(1:ng4)
+        w(1:ng4,12) = mg(2)%yyoe(1:ng4)
+        w(1:ng4,13) = mg(2)%yyow(1:ng4)
+        w(1:ng4,14) = mg(2)%zzi(1:ng4)
+        w(1:ng4,15) = mg(2)%zzin(1:ng4)
+        w(1:ng4,16) = mg(2)%zzis(1:ng4)
+        w(1:ng4,17) = mg(2)%zzie(1:ng4)
+        w(1:ng4,18) = mg(2)%zziw(1:ng4)
         call mgcollect(2,w(:,1:18))
       else
         call mgcollect(2,w(:,1:8),dsolmax_g(1:8))        
       end if
       if ( 2<=mg_maxlevel_local ) then
         ng = mg(2)%ifull
-        rhs(1:ng,2)  = w(1:ng,1)
-        zz(1:ng,2)   = w(1:ng,2)
-        zzn(1:ng,2)  = w(1:ng,3)
-        zzs(1:ng,2)  = w(1:ng,4)
-        zze(1:ng,2)  = w(1:ng,5)
-        zzw(1:ng,2)  = w(1:ng,6)
-        hh(1:ng,2)   = w(1:ng,7)
-        rhsi(1:ng,2) = w(1:ng,8)
+        mg(2)%rhs(1:ng,1) = w(1:ng,1) ! ocean
+        mg(2)%zzo(1:ng)   = w(1:ng,2)
+        mg(2)%zzon(1:ng)  = w(1:ng,3)
+        mg(2)%zzos(1:ng)  = w(1:ng,4)
+        mg(2)%zzoe(1:ng)  = w(1:ng,5)
+        mg(2)%zzow(1:ng)  = w(1:ng,6)
+        mg(2)%hho(1:ng)   = w(1:ng,7)
+        mg(2)%rhs(1:ng,2) = w(1:ng,8) ! ice
         if ( itr==1 ) then
-          yyz(1:ng,2)   = w(1:ng,9)
-          yyn(1:ng,2)   = w(1:ng,10)
-          yys(1:ng,2)   = w(1:ng,11)
-          yye(1:ng,2)   = w(1:ng,12)
-          yyw(1:ng,2)   = w(1:ng,13)
-          zzi(1:ng,2)   = w(1:ng,14)
-          zzin(1:ng,2)  = w(1:ng,15)
-          zzis(1:ng,2)  = w(1:ng,16)
-          zzie(1:ng,2)  = w(1:ng,17)
-          zziw(1:ng,2)  = w(1:ng,18) 
+          mg(2)%yyo(1:ng)    = w(1:ng,9)
+          mg(2)%yyon(1:ng)   = w(1:ng,10)
+          mg(2)%yyos(1:ng)   = w(1:ng,11)
+          mg(2)%yyoe(1:ng)   = w(1:ng,12)
+          mg(2)%yyow(1:ng)   = w(1:ng,13)
+          mg(2)%zzi(1:ng)   = w(1:ng,14)
+          mg(2)%zzin(1:ng)  = w(1:ng,15)
+          mg(2)%zzis(1:ng)  = w(1:ng,16)
+          mg(2)%zzie(1:ng)  = w(1:ng,17)
+          mg(2)%zziw(1:ng)  = w(1:ng,18) 
         end if
       end if  
     end if
@@ -1753,38 +1750,38 @@ do itr = 1,itr_mgice
       ! update
       ! possibly use colours here, although v is reset to zero every iteration
       ! assume zero for first guess of residual (also avoids additional bounds call)
-      v(:,1:2,g) = 0.
+      mg(g)%v(:,1:2) = 0.
       
       do iq = 1,ng
-        bu = zz(iq,g) + hh(iq,g)
-        cu = -rhs(iq,g)
-        v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
+        bu = mg(g)%zzo(iq) + mg(g)%hho(iq)
+        cu = -mg(g)%rhs(iq,1) ! ocean
+        mg(g)%v(iq,1) = -2.*cu/(bu+sqrt(max(bu**2-4.*mg(g)%yyo(iq)*cu,0.01)))
       end do  
-      v(1:ng,2,g) = rhsi(1:ng,g) / zzi(1:ng,g)
-      call mgbounds(g,v(:,1:2,g))
+      mg(g)%v(1:ng,2) = mg(g)%rhs(1:ng,2) / mg(g)%zzi(1:ng) ! ice
+      call mgbounds(g,mg(g)%v(:,1:2))
       
       do i = 2,itrbgn
         ! ocean - post smoothing
         do iq = 1,ng
-          bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-             + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-             + zz(iq,g) + hh(iq,g)
-          cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-             + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-             - rhs(iq,g)
-          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
+          bu = mg(g)%yyon(iq)*mg(g)%v(mg(g)%in(iq),1)+mg(g)%yyos(iq)*mg(g)%v(mg(g)%is(iq),1) &
+             + mg(g)%yyoe(iq)*mg(g)%v(mg(g)%ie(iq),1)+mg(g)%yyow(iq)*mg(g)%v(mg(g)%iw(iq),1) &
+             + mg(g)%zzo(iq) + mg(g)%hho(iq)
+          cu = mg(g)%zzon(iq)*mg(g)%v(mg(g)%in(iq),1)+mg(g)%zzos(iq)*mg(g)%v(mg(g)%is(iq),1) &
+             + mg(g)%zzoe(iq)*mg(g)%v(mg(g)%ie(iq),1)+mg(g)%zzow(iq)*mg(g)%v(mg(g)%iw(iq),1) &
+             - mg(g)%rhs(iq,1) ! ocean
+          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*mg(g)%yyo(iq)*cu,0.01)))
         end do
-        v(1:ng,1,g) = vnew(1:ng)
+        mg(g)%v(1:ng,1) = vnew(1:ng)
         
         ! ice - post smoothing
         do iq = 1,ng
-          vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                       - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                       + rhsi(iq,g) ) / zzi(iq,g)
+          vnew(iq) = ( - mg(g)%zzin(iq)*mg(g)%v(mg(g)%in(iq),2) - mg(g)%zzis(iq)*mg(g)%v(mg(g)%is(iq),2) &
+                       - mg(g)%zzie(iq)*mg(g)%v(mg(g)%ie(iq),2) - mg(g)%zziw(iq)*mg(g)%v(mg(g)%iw(iq),2) &
+                       + mg(g)%rhs(iq,2) ) / mg(g)%zzi(iq) ! ice
         end do
-        v(1:ng,2,g) = vnew(1:ng)
+        mg(g)%v(1:ng,2) = vnew(1:ng)
         
-        call mgbounds(g,v(:,1:2,g))
+        call mgbounds(g,mg(g)%v(:,1:2))
       end do
     
       ! restriction
@@ -1795,53 +1792,53 @@ do itr = 1,itr_mgice
 
       ! ocean residual
       do iq = 1,ng
-        ws(iq,1)=-v(iq,1,g)*(yyz(iq,g)*v(iq,1,g)+yyn(iq,g)*v(mg(g)%in(iq),1,g)  &
-                                                +yys(iq,g)*v(mg(g)%is(iq),1,g)  &
-                                                +yye(iq,g)*v(mg(g)%ie(iq),1,g)  &
-                                                +yyw(iq,g)*v(mg(g)%iw(iq),1,g)) &
-                 -(zz(iq,g)*v(iq,1,g)+zzn(iq,g)*v(mg(g)%in(iq),1,g)             &
-                                     +zzs(iq,g)*v(mg(g)%is(iq),1,g)             &
-                                     +zze(iq,g)*v(mg(g)%ie(iq),1,g)             &
-                                     +zzw(iq,g)*v(mg(g)%iw(iq),1,g))            &
-                 -hh(iq,g)*v(iq,1,g)+rhs(iq,g)
+        ws(iq,1)=-mg(g)%v(iq,1)*(mg(g)%yyo(iq)*mg(g)%v(iq,1)+mg(g)%yyon(iq)*mg(g)%v(mg(g)%in(iq),1)  &
+                                                            +mg(g)%yyos(iq)*mg(g)%v(mg(g)%is(iq),1)  &
+                                                            +mg(g)%yyoe(iq)*mg(g)%v(mg(g)%ie(iq),1)  &
+                                                            +mg(g)%yyow(iq)*mg(g)%v(mg(g)%iw(iq),1)) &
+                    -(mg(g)%zzo(iq)*mg(g)%v(iq,1)+mg(g)%zzon(iq)*mg(g)%v(mg(g)%in(iq),1)             &
+                                                 +mg(g)%zzos(iq)*mg(g)%v(mg(g)%is(iq),1)             &
+                                                 +mg(g)%zzoe(iq)*mg(g)%v(mg(g)%ie(iq),1)             &
+                                                 +mg(g)%zzow(iq)*mg(g)%v(mg(g)%iw(iq),1))            &
+                    -mg(g)%hho(iq)*mg(g)%v(iq,1)+mg(g)%rhs(iq,1) ! ocean
       end do
       w(1:ng4,1)=0.25*(ws(mg(g)%fine  ,1)+ws(mg(g)%fine_n ,1) &
                       +ws(mg(g)%fine_e,1)+ws(mg(g)%fine_ne,1))
       
-      ws(1:ng,1) = zz(1:ng,g) + yyz(1:ng,g)*v(1:ng,1,g)
+      ws(1:ng,1) = mg(g)%zzo(1:ng) + mg(g)%yyo(1:ng)*mg(g)%v(1:ng,1)
       do iq = 1,ng4
         w(iq,2) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
       end do
       
-      ws(1:ng,1) = zzn(1:ng,g) + yyn(1:ng,g)*v(1:ng,1,g)
+      ws(1:ng,1) = mg(g)%zzon(1:ng) + mg(g)%yyon(1:ng)*mg(g)%v(1:ng,1)
       do iq = 1,ng4
         w(iq,3) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
       end do
       
-      ws(1:ng,1) = zzs(1:ng,g) + yys(1:ng,g)*v(1:ng,1,g)
+      ws(1:ng,1) = mg(g)%zzos(1:ng) + mg(g)%yyos(1:ng)*mg(g)%v(1:ng,1)
       do iq = 1,ng4
         w(iq,4) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
       end do
       
-      ws(1:ng,1) = zze(1:ng,g) + yye(1:ng,g)*v(1:ng,1,g)
+      ws(1:ng,1) = mg(g)%zzoe(1:ng) + mg(g)%yyoe(1:ng)*mg(g)%v(1:ng,1)
       do iq = 1,ng4
         w(iq,5) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
       end do
       
-      ws(1:ng,1) = zzw(1:ng,g) + yyw(1:ng,g)*v(1:ng,1,g)
+      ws(1:ng,1) = mg(g)%zzow(1:ng) + mg(g)%yyow(1:ng)*mg(g)%v(1:ng,1)
       do iq = 1,ng4
         w(iq,6) = 0.25*dfac*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
                             +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
       end do
       
       
-      ws(1:ng,1) = yyn(1:ng,g)*v(mg(g)%in(1:ng),1,g)+yys(1:ng,g)*v(mg(g)%is(1:ng),1,g)   &
-                  +yye(1:ng,g)*v(mg(g)%ie(1:ng),1,g)+yyw(1:ng,g)*v(mg(g)%iw(1:ng),1,g)   &
-                  +yyz(1:ng,g)*v(1:ng,1,g) + hh(1:ng,g)
+      ws(1:ng,1) = mg(g)%yyon(1:ng)*mg(g)%v(mg(g)%in(1:ng),1)+mg(g)%yyos(1:ng)*mg(g)%v(mg(g)%is(1:ng),1)   &
+                  +mg(g)%yyoe(1:ng)*mg(g)%v(mg(g)%ie(1:ng),1)+mg(g)%yyow(1:ng)*mg(g)%v(mg(g)%iw(1:ng),1)   &
+                  +mg(g)%yyo(1:ng)*mg(g)%v(1:ng,1) + mg(g)%hho(1:ng)
       do iq = 1,ng4
         w(iq,7) = 0.25*(ws(mg(g)%fine(iq)  ,1)+ws(mg(g)%fine_n(iq) ,1) &
                        +ws(mg(g)%fine_e(iq),1)+ws(mg(g)%fine_ne(iq),1))
@@ -1849,9 +1846,9 @@ do itr = 1,itr_mgice
  
       ! ice residual
       do iq = 1,ng
-        ws(iq,2) = -zzin(iq,g)*v(mg(g)%in(iq),2,g)-zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                   -zzie(iq,g)*v(mg(g)%ie(iq),2,g)-zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                   -zzi(iq,g)*v(iq,2,g)+rhsi(iq,g)
+        ws(iq,2) = -mg(g)%zzin(iq)*mg(g)%v(mg(g)%in(iq),2)-mg(g)%zzis(iq)*mg(g)%v(mg(g)%is(iq),2) &
+                   -mg(g)%zzie(iq)*mg(g)%v(mg(g)%ie(iq),2)-mg(g)%zziw(iq)*mg(g)%v(mg(g)%iw(iq),2) &
+                   -mg(g)%zzi(iq)*mg(g)%v(iq,2)+mg(g)%rhs(iq,2) ! ice
       end do
       do iq = 1,ng4
         w(iq,8)=0.25*(ws(mg(g)%fine(iq)  ,2)+ws(mg(g)%fine_n(iq) ,2)  &
@@ -1859,26 +1856,26 @@ do itr = 1,itr_mgice
       end do
       
       if ( itr==1 ) then
-        w(1:ng4,9) = 0.25*dfac*(yyz(mg(g)%fine(1:ng4)  ,g)+yyz(mg(g)%fine_n(1:ng4) ,g)  &
-                               +yyz(mg(g)%fine_e(1:ng4),g)+yyz(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,10) = 0.25*dfac*(yyn(mg(g)%fine(1:ng4)  ,g)+yyn(mg(g)%fine_n(1:ng4) ,g) &
-                                +yyn(mg(g)%fine_e(1:ng4),g)+yyn(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,11) = 0.25*dfac*(yys(mg(g)%fine(1:ng4)  ,g)+yys(mg(g)%fine_n(1:ng4) ,g) &
-                                +yys(mg(g)%fine_e(1:ng4),g)+yys(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,12) = 0.25*dfac*(yye(mg(g)%fine(1:ng4)  ,g)+yye(mg(g)%fine_n(1:ng4) ,g) &
-                                +yye(mg(g)%fine_e(1:ng4),g)+yye(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,13) = 0.25*dfac*(yyw(mg(g)%fine(1:ng4)  ,g)+yyw(mg(g)%fine_n(1:ng4) ,g) &
-                                +yyw(mg(g)%fine_e(1:ng4),g)+yyw(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,14) = 0.25*dfaci*(zzi(mg(g)%fine(1:ng4)  ,g)+zzi(mg(g)%fine_n(1:ng4) ,g)   &
-                                 +zzi(mg(g)%fine_e(1:ng4),g)+zzi(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,15) = 0.25*dfaci*(zzin(mg(g)%fine(1:ng4)  ,g)+zzin(mg(g)%fine_n(1:ng4) ,g) &
-                                 +zzin(mg(g)%fine_e(1:ng4),g)+zzin(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,16) = 0.25*dfaci*(zzis(mg(g)%fine(1:ng4)  ,g)+zzis(mg(g)%fine_n(1:ng4) ,g) &
-                                 +zzis(mg(g)%fine_e(1:ng4),g)+zzis(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,17) = 0.25*dfaci*(zzie(mg(g)%fine(1:ng4)  ,g)+zzie(mg(g)%fine_n(1:ng4) ,g) &
-                                 +zzie(mg(g)%fine_e(1:ng4),g)+zzie(mg(g)%fine_ne(1:ng4),g))
-        w(1:ng4,18) = 0.25*dfaci*(zziw(mg(g)%fine(1:ng4)  ,g)+zziw(mg(g)%fine_n(1:ng4) ,g) &
-                                 +zziw(mg(g)%fine_e(1:ng4),g)+zziw(mg(g)%fine_ne(1:ng4),g))
+        w(1:ng4,9) = 0.25*dfac*(mg(g)%yyo(mg(g)%fine(1:ng4)  )+mg(g)%yyo(mg(g)%fine_n(1:ng4) )    &
+                               +mg(g)%yyo(mg(g)%fine_e(1:ng4))+mg(g)%yyo(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,10) = 0.25*dfac*(mg(g)%yyon(mg(g)%fine(1:ng4)  )+mg(g)%yyon(mg(g)%fine_n(1:ng4) ) &
+                                +mg(g)%yyon(mg(g)%fine_e(1:ng4))+mg(g)%yyon(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,11) = 0.25*dfac*(mg(g)%yyos(mg(g)%fine(1:ng4)  )+mg(g)%yyos(mg(g)%fine_n(1:ng4) ) &
+                                +mg(g)%yyos(mg(g)%fine_e(1:ng4))+mg(g)%yyos(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,12) = 0.25*dfac*(mg(g)%yyoe(mg(g)%fine(1:ng4)  )+mg(g)%yyoe(mg(g)%fine_n(1:ng4) ) &
+                                +mg(g)%yyoe(mg(g)%fine_e(1:ng4))+mg(g)%yyoe(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,13) = 0.25*dfac*(mg(g)%yyow(mg(g)%fine(1:ng4)  )+mg(g)%yyow(mg(g)%fine_n(1:ng4) ) &
+                                +mg(g)%yyow(mg(g)%fine_e(1:ng4))+mg(g)%yyow(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,14) = 0.25*dfaci*(mg(g)%zzi(mg(g)%fine(1:ng4)  )+mg(g)%zzi(mg(g)%fine_n(1:ng4) )   &
+                                 +mg(g)%zzi(mg(g)%fine_e(1:ng4))+mg(g)%zzi(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,15) = 0.25*dfaci*(mg(g)%zzin(mg(g)%fine(1:ng4)  )+mg(g)%zzin(mg(g)%fine_n(1:ng4) ) &
+                                 +mg(g)%zzin(mg(g)%fine_e(1:ng4))+mg(g)%zzin(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,16) = 0.25*dfaci*(mg(g)%zzis(mg(g)%fine(1:ng4)  )+mg(g)%zzis(mg(g)%fine_n(1:ng4) ) &
+                                 +mg(g)%zzis(mg(g)%fine_e(1:ng4))+mg(g)%zzis(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,17) = 0.25*dfaci*(mg(g)%zzie(mg(g)%fine(1:ng4)  )+mg(g)%zzie(mg(g)%fine_n(1:ng4) ) &
+                                 +mg(g)%zzie(mg(g)%fine_e(1:ng4))+mg(g)%zzie(mg(g)%fine_ne(1:ng4)))
+        w(1:ng4,18) = 0.25*dfaci*(mg(g)%zziw(mg(g)%fine(1:ng4)  )+mg(g)%zziw(mg(g)%fine_n(1:ng4) ) &
+                                 +mg(g)%zziw(mg(g)%fine_e(1:ng4))+mg(g)%zziw(mg(g)%fine_ne(1:ng4)))
         ! merge grids if insufficent points on this processor
         if ( mg(g+1)%merge_len>1 ) then
           call mgcollect(g+1,w(:,1:18)) 
@@ -1892,25 +1889,25 @@ do itr = 1,itr_mgice
 
       if ( g+1<=mg_maxlevel_local ) then
         ng = mg(g+1)%ifull
-        rhs(1:ng,g+1)  = w(1:ng,1)
-        zz(1:ng,g+1)   = w(1:ng,2)
-        zzn(1:ng,g+1)  = w(1:ng,3)
-        zzs(1:ng,g+1)  = w(1:ng,4)
-        zze(1:ng,g+1)  = w(1:ng,5)
-        zzw(1:ng,g+1)  = w(1:ng,6)
-        hh(1:ng,g+1)   = w(1:ng,7)
-        rhsi(1:ng,g+1) = w(1:ng,8)
+        mg(g+1)%rhs(1:ng,1) = w(1:ng,1) ! ocean
+        mg(g+1)%zzo(1:ng)   = w(1:ng,2)
+        mg(g+1)%zzon(1:ng)  = w(1:ng,3)
+        mg(g+1)%zzos(1:ng)  = w(1:ng,4)
+        mg(g+1)%zzoe(1:ng)  = w(1:ng,5)
+        mg(g+1)%zzow(1:ng)  = w(1:ng,6)
+        mg(g+1)%hho(1:ng)   = w(1:ng,7)
+        mg(g+1)%rhs(1:ng,2) = w(1:ng,8) ! ice
         if ( itr==1 ) then
-          yyz(1:ng,g+1)  = w(1:ng,9)
-          yyn(1:ng,g+1)  = w(1:ng,10)
-          yys(1:ng,g+1)  = w(1:ng,11)
-          yye(1:ng,g+1)  = w(1:ng,12)
-          yyw(1:ng,g+1)  = w(1:ng,13)
-          zzi(1:ng,g+1)  = w(1:ng,14)
-          zzin(1:ng,g+1) = w(1:ng,15)
-          zzis(1:ng,g+1) = w(1:ng,16)
-          zzie(1:ng,g+1) = w(1:ng,17)
-          zziw(1:ng,g+1) = w(1:ng,18)
+          mg(g+1)%yyo(1:ng)   = w(1:ng,9)
+          mg(g+1)%yyon(1:ng)  = w(1:ng,10)
+          mg(g+1)%yyos(1:ng)  = w(1:ng,11)
+          mg(g+1)%yyoe(1:ng)  = w(1:ng,12)
+          mg(g+1)%yyow(1:ng)  = w(1:ng,13)
+          mg(g+1)%zzi(1:ng)  = w(1:ng,14)
+          mg(g+1)%zzin(1:ng) = w(1:ng,15)
+          mg(g+1)%zzis(1:ng) = w(1:ng,16)
+          mg(g+1)%zzie(1:ng) = w(1:ng,17)
+          mg(g+1)%zziw(1:ng) = w(1:ng,18)
         end if
       end if  
       
@@ -1932,22 +1929,22 @@ do itr = 1,itr_mgice
 
       ! solve non-linear water free surface and solve for ice with coloured SOR
       ! first guess
-      v(:,1:2,g) = 0.
+      mg(g)%v(:,1:2) = 0.
       do itrc = 1,itr_mgice
         ! store previous guess for convegence test
-        ws(1:ng,1:2) = v(1:ng,1:2,g)
+        ws(1:ng,1:2) = mg(g)%v(1:ng,1:2)
 
         ! ocean
         do nc = 1,maxcolour
           do iql = 1,mg_ifull_maxcolour  
             iq = col_iq(iql,nc)  
-            bu = yyn(iq,g)*v(mg(g)%in(iq),1,g) + yys(iq,g)*v(mg(g)%is(iq),1,g) &
-               + yye(iq,g)*v(mg(g)%ie(iq),1,g) + yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               + zz(iq,g) + hh(iq,g)
-            cu = zzn(iq,g)*v(mg(g)%in(iq),1,g) + zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-               + zze(iq,g)*v(mg(g)%ie(iq),1,g) + zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-               - rhs(iq,g)
-            v(iq,1,g) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01))) 
+            bu = mg(g)%yyon(iq)*mg(g)%v(mg(g)%in(iq),1) + mg(g)%yyos(iq)*mg(g)%v(mg(g)%is(iq),1) &
+               + mg(g)%yyoe(iq)*mg(g)%v(mg(g)%ie(iq),1) + mg(g)%yyow(iq)*mg(g)%v(mg(g)%iw(iq),1) &
+               + mg(g)%zzo(iq) + mg(g)%hho(iq)
+            cu = mg(g)%zzon(iq)*mg(g)%v(mg(g)%in(iq),1) + mg(g)%zzos(iq)*mg(g)%v(mg(g)%is(iq),1) &
+               + mg(g)%zzoe(iq)*mg(g)%v(mg(g)%ie(iq),1) + mg(g)%zzow(iq)*mg(g)%v(mg(g)%iw(iq),1) &
+               - mg(g)%rhs(iq,1) ! ocean
+            mg(g)%v(iq,1) = -2.*cu/(bu+sqrt(max(bu**2-4.*mg(g)%yyo(iq)*cu,0.01))) 
           end do  
         end do  
       
@@ -1955,14 +1952,14 @@ do itr = 1,itr_mgice
         do nc = 1,maxcolour
           do iql = 1,mg_ifull_maxcolour  
             iq = col_iq(iql,nc)
-            v(iq,2,g) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g)     &
-                          - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g)     &
-                          + rhsi(iq,g) ) / zzi(iq,g)
+            mg(g)%v(iq,2) = ( - mg(g)%zzin(iq)*mg(g)%v(mg(g)%in(iq),2) - mg(g)%zzis(iq)*mg(g)%v(mg(g)%is(iq),2) &
+                              - mg(g)%zzie(iq)*mg(g)%v(mg(g)%ie(iq),2) - mg(g)%zziw(iq)*mg(g)%v(mg(g)%iw(iq),2) &
+                              + mg(g)%rhs(iq,2) ) / mg(g)%zzi(iq) ! ice
           end do
         end do
         
         ! test for convergence
-        dsolmax(1:2) = maxval( abs( v(1:ng,1:2,g) - ws(1:ng,1:2) ) )
+        dsolmax(1:2) = maxval( abs( mg(g)%v(1:ng,1:2) - ws(1:ng,1:2) ) )
         if ( dsolmax(1)<tol .and. dsolmax(2)<itol ) exit
       end do
       
@@ -1981,18 +1978,18 @@ do itr = 1,itr_mgice
     do g = gmax,2,-1
 
       if ( itr==1 ) then
-        call mgbcast(g+1,v(:,1:2,g+1))  
+        call mgbcast(g+1,mg(g+1)%v(:,1:2))  
       else
-        call mgbcast(g+1,v(:,1:2,g+1),dsolmax_g(1:2))
+        call mgbcast(g+1,mg(g+1)%v(:,1:2),dsolmax_g(1:2))
       end if
 
       ! interpolation
       ng = mg(g)%ifull
       do k = 1,2
         do iq = 1,ng
-          ws(iq,k) =  0.5*v(mg(g+1)%coarse_a(iq),k,g+1)   &
-                    + 0.25*v(mg(g+1)%coarse_b(iq),k,g+1)  &
-                    + 0.25*v(mg(g+1)%coarse_c(iq),k,g+1)
+          ws(iq,k) =  0.5*mg(g+1)%v(mg(g+1)%coarse_a(iq),k)   &
+                    + 0.25*mg(g+1)%v(mg(g+1)%coarse_b(iq),k)  &
+                    + 0.25*mg(g+1)%v(mg(g+1)%coarse_c(iq),k)
         end do  
       end do  
 
@@ -2000,48 +1997,48 @@ do itr = 1,itr_mgice
       ! extension
       ! No mgbounds as the v halo has already been updated and
       ! the coarse interpolation also updates the w halo
-      v(1:ng,1:2,g) = v(1:ng,1:2,g) + ws(1:ng,1:2)
+      mg(g)%v(1:ng,1:2) = mg(g)%v(1:ng,1:2) + ws(1:ng,1:2)
 
       do i = 1,itrend
-        call mgbounds(g,v(:,1:2,g))
+        call mgbounds(g,mg(g)%v(:,1:2))
         ! ocean - post smoothing
         do iq = 1,ng
-          bu = yyn(iq,g)*v(mg(g)%in(iq),1,g)+yys(iq,g)*v(mg(g)%is(iq),1,g) &
-             + yye(iq,g)*v(mg(g)%ie(iq),1,g)+yyw(iq,g)*v(mg(g)%iw(iq),1,g) &
-             + zz(iq,g) + hh(iq,g)
-          cu = zzn(iq,g)*v(mg(g)%in(iq),1,g)+zzs(iq,g)*v(mg(g)%is(iq),1,g) &
-             + zze(iq,g)*v(mg(g)%ie(iq),1,g)+zzw(iq,g)*v(mg(g)%iw(iq),1,g) &
-             - rhs(iq,g)
-          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*yyz(iq,g)*cu,0.01)))
+          bu = mg(g)%yyon(iq)*mg(g)%v(mg(g)%in(iq),1)+mg(g)%yyos(iq)*mg(g)%v(mg(g)%is(iq),1) &
+             + mg(g)%yyoe(iq)*mg(g)%v(mg(g)%ie(iq),1)+mg(g)%yyow(iq)*mg(g)%v(mg(g)%iw(iq),1) &
+             + mg(g)%zzo(iq) + mg(g)%hho(iq)
+          cu = mg(g)%zzon(iq)*mg(g)%v(mg(g)%in(iq),1)+mg(g)%zzos(iq)*mg(g)%v(mg(g)%is(iq),1) &
+             + mg(g)%zzoe(iq)*mg(g)%v(mg(g)%ie(iq),1)+mg(g)%zzow(iq)*mg(g)%v(mg(g)%iw(iq),1) &
+             - mg(g)%rhs(iq,1) ! ocean
+          vnew(iq) = -2.*cu/(bu+sqrt(max(bu**2-4.*mg(g)%yyo(iq)*cu,0.01)))
         end do
-        v(1:ng,1,g) = vnew(1:ng)
+        mg(g)%v(1:ng,1) = vnew(1:ng)
         ! ice - post smoothing
         do iq = 1,ng
-          vnew(iq) = ( - zzin(iq,g)*v(mg(g)%in(iq),2,g) - zzis(iq,g)*v(mg(g)%is(iq),2,g) &
-                       - zzie(iq,g)*v(mg(g)%ie(iq),2,g) - zziw(iq,g)*v(mg(g)%iw(iq),2,g) &
-                       + rhsi(iq,g) ) / zzi(iq,g)
+          vnew(iq) = ( - mg(g)%zzin(iq)*mg(g)%v(mg(g)%in(iq),2) - mg(g)%zzis(iq)*mg(g)%v(mg(g)%is(iq),2) &
+                       - mg(g)%zzie(iq)*mg(g)%v(mg(g)%ie(iq),2) - mg(g)%zziw(iq)*mg(g)%v(mg(g)%iw(iq),2) &
+                       + mg(g)%rhs(iq,2) ) / mg(g)%zzi(iq)
         end do
-        v(1:ng,2,g) = vnew(1:ng)
+        mg(g)%v(1:ng,2) = vnew(1:ng)
       end do
-      call mgbounds(g,v(:,1:2,g)) ! for next mgbcast
+      call mgbounds(g,mg(g)%v(:,1:2)) ! for next mgbcast
       
     end do
 
     
     ! fine grid
     if ( itr==1 ) then
-      call mgbcast(2,v(:,1:2,2))  
+      call mgbcast(2,mg(2)%v(:,1:2))  
     else
-      call mgbcast(2,v(:,1:2,2),dsolmax_g(1:2))
+      call mgbcast(2,mg(2)%v(:,1:2),dsolmax_g(1:2))
     end if
 
     ! interpolation
     ng = mg(1)%ifull
     do k = 1,2
       do iq = 1,ng
-        ws(iq,k) = 0.5*v(mg(2)%coarse_a(iq),k,2)  &
-                 + 0.25*v(mg(2)%coarse_b(iq),k,2) &
-                 + 0.25*v(mg(2)%coarse_c(iq),k,2)
+        ws(iq,k) = 0.5*mg(2)%v(mg(2)%coarse_a(iq),k)  &
+                 + 0.25*mg(2)%v(mg(2)%coarse_b(iq),k) &
+                 + 0.25*mg(2)%v(mg(2)%coarse_c(iq),k)
       end do  
     end do  
     
@@ -3453,7 +3450,7 @@ use newmpar_m
 
 implicit none
 
-integer g, np
+integer g, ng, nx, nl
 real, dimension(ifull), intent(in) :: zz, zzn, zze, zzw, zzs
 real, dimension(mg_maxsize,5) :: dum
 
@@ -3468,8 +3465,11 @@ end if
 
 if ( zzfirst ) then
   do g = 1,gmax+1
-    np = mg(g)%ifull
-    allocate( mg(g)%zzn(np),mg(g)%zze(np), mg(g)%zzs(np),mg(g)%zzw(np),mg(g)%zz(np) )
+    ng = mg(g)%ifull
+    nx = mg(g)%iextra
+    nl = max( kl, 2 ) ! maximum of atmosphere levels or 2 ocean levels
+    allocate( mg(g)%zzn(ng), mg(g)%zze(ng), mg(g)%zzs(ng),mg(g)%zzw(ng), mg(g)%zz(ng) )
+    allocate( mg(g)%rhs(ng,2*nl), mg(g)%helm(ng,nl), mg(g)%v(ng+nx,nl) ) 
   end do
   zzfirst = .false.
 end if
@@ -3483,32 +3483,32 @@ dum(1:ifull,3) = zze(1:ifull)
 dum(1:ifull,4) = zzw(1:ifull)
 dum(1:ifull,5) = zz(1:ifull)
 call mgcollect(1,dum)
-np = mg(1)%ifull
-mg(1)%zzn(1:np) = dum(1:np,1)
-mg(1)%zzs(1:np) = dum(1:np,2)
-mg(1)%zze(1:np) = dum(1:np,3)
-mg(1)%zzw(1:np) = dum(1:np,4)
-mg(1)%zz(1:np)  = dum(1:np,5)
+ng = mg(1)%ifull
+mg(1)%zzn(1:ng) = dum(1:ng,1)
+mg(1)%zzs(1:ng) = dum(1:ng,2)
+mg(1)%zze(1:ng) = dum(1:ng,3)
+mg(1)%zzw(1:ng) = dum(1:ng,4)
+mg(1)%zz(1:ng)  = dum(1:ng,5)
 
 do g = 2,gmax+1
-  np = mg(g-1)%ifull_fine
-  dum(1:np,1) = 0.25*dfac*(mg(g-1)%zzn(mg(g-1)%fine(1:np)  )+mg(g-1)%zzn(mg(g-1)%fine_n(1:np)) &
-                          +mg(g-1)%zzn(mg(g-1)%fine_e(1:np))+mg(g-1)%zzn(mg(g-1)%fine_ne(1:np)))
-  dum(1:np,2) = 0.25*dfac*(mg(g-1)%zzs(mg(g-1)%fine(1:np)  )+mg(g-1)%zzs(mg(g-1)%fine_n(1:np)) &
-                          +mg(g-1)%zzs(mg(g-1)%fine_e(1:np))+mg(g-1)%zzs(mg(g-1)%fine_ne(1:np)))
-  dum(1:np,3) = 0.25*dfac*(mg(g-1)%zze(mg(g-1)%fine(1:np)  )+mg(g-1)%zze(mg(g-1)%fine_n(1:np)) &
-                          +mg(g-1)%zze(mg(g-1)%fine_e(1:np))+mg(g-1)%zze(mg(g-1)%fine_ne(1:np)))
-  dum(1:np,4) = 0.25*dfac*(mg(g-1)%zzw(mg(g-1)%fine(1:np)  )+mg(g-1)%zzw(mg(g-1)%fine_n(1:np)) &
-                          +mg(g-1)%zzw(mg(g-1)%fine_e(1:np))+mg(g-1)%zzw(mg(g-1)%fine_ne(1:np)))
-  dum(1:np,5) = 0.25*dfac*(mg(g-1)%zz(mg(g-1)%fine(1:np)  ) +mg(g-1)%zz(mg(g-1)%fine_n(1:np))  &
-                          +mg(g-1)%zz(mg(g-1)%fine_e(1:np)) +mg(g-1)%zz(mg(g-1)%fine_ne(1:np)))
+  ng = mg(g-1)%ifull_fine
+  dum(1:ng,1) = 0.25*dfac*(mg(g-1)%zzn(mg(g-1)%fine(1:ng)  )+mg(g-1)%zzn(mg(g-1)%fine_n(1:ng)) &
+                          +mg(g-1)%zzn(mg(g-1)%fine_e(1:ng))+mg(g-1)%zzn(mg(g-1)%fine_ne(1:ng)))
+  dum(1:ng,2) = 0.25*dfac*(mg(g-1)%zzs(mg(g-1)%fine(1:ng)  )+mg(g-1)%zzs(mg(g-1)%fine_n(1:ng)) &
+                          +mg(g-1)%zzs(mg(g-1)%fine_e(1:ng))+mg(g-1)%zzs(mg(g-1)%fine_ne(1:ng)))
+  dum(1:ng,3) = 0.25*dfac*(mg(g-1)%zze(mg(g-1)%fine(1:ng)  )+mg(g-1)%zze(mg(g-1)%fine_n(1:ng)) &
+                          +mg(g-1)%zze(mg(g-1)%fine_e(1:ng))+mg(g-1)%zze(mg(g-1)%fine_ne(1:ng)))
+  dum(1:ng,4) = 0.25*dfac*(mg(g-1)%zzw(mg(g-1)%fine(1:ng)  )+mg(g-1)%zzw(mg(g-1)%fine_n(1:ng)) &
+                          +mg(g-1)%zzw(mg(g-1)%fine_e(1:ng))+mg(g-1)%zzw(mg(g-1)%fine_ne(1:ng)))
+  dum(1:ng,5) = 0.25*dfac*(mg(g-1)%zz(mg(g-1)%fine(1:ng)  ) +mg(g-1)%zz(mg(g-1)%fine_n(1:ng))  &
+                          +mg(g-1)%zz(mg(g-1)%fine_e(1:ng)) +mg(g-1)%zz(mg(g-1)%fine_ne(1:ng)))
   call mgcollect(g,dum)
-  np = mg(g)%ifull
-  mg(g)%zzn(1:np) = dum(1:np,1)
-  mg(g)%zzs(1:np) = dum(1:np,2)
-  mg(g)%zze(1:np) = dum(1:np,3)
-  mg(g)%zzw(1:np) = dum(1:np,4)
-  mg(g)%zz(1:np)  = dum(1:np,5)
+  ng = mg(g)%ifull
+  mg(g)%zzn(1:ng) = dum(1:ng,1)
+  mg(g)%zzs(1:ng) = dum(1:ng,2)
+  mg(g)%zze(1:ng) = dum(1:ng,3)
+  mg(g)%zzw(1:ng) = dum(1:ng,4)
+  mg(g)%zz(1:ng)  = dum(1:ng,5)
 end do
 
 return

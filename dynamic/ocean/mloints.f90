@@ -105,7 +105,7 @@ do nstart = 1,ntr,nagg
 
   ! Loop over points that need to be calculated for other processes
   do nn = 1,nlen
-    call calcdepproc(sx(:,:,:,:,nn),wx,nface,xg,yg,nn,bs_test,intsch)
+    call calcdepproc(sx,wx,nface,xg,yg,nn,bs_test,intsch)
   end do  
 
   ! Send messages to other processes.  We then start the calculation for this processor
@@ -117,7 +117,7 @@ do nstart = 1,ntr,nagg
   !$omp parallel
   do nn = 1,nlen
     async_counter = mod(nn-1, async_length)
-    call calcdephost(sx(:,:,:,:,nn),wx,s(:,:,nn-1+nstart),nface,xg,yg,nn,bs_test,intsch,async_counter)
+    call calcdephost(sx,wx,s(:,:,nn-1+nstart),nface,xg,yg,nn,bs_test,intsch,async_counter)
   end do
   !$acc wait
   !$omp end parallel
@@ -175,49 +175,49 @@ end if
 call setwx(wx,wtr,intsch)
 !$acc update device(wx)
   
-async_counter = 0
 nn = 1
+async_counter = mod(nn-1, async_length)
 call setsx(sx(:,:,:,:,nn),sa,intsch)      
 !$acc update device(sx(:,:,:,:,nn)) async(async_counter)
 
 if ( present(sb) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
+  async_counter = mod(nn-1, async_length)
   call setsx(sx(:,:,:,:,nn),sb,intsch)      
   !$acc update device(sx(:,:,:,:,nn)) async(async_counter)    
 end if
 
 if ( present(sc) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
+  async_counter = mod(nn-1, async_length)
   call setsx(sx(:,:,:,:,nn),sc,intsch)      
   !$acc update device(sx(:,:,:,:,nn)) async(async_counter)    
 end if
 
 if ( present(sd) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
+  async_counter = mod(nn-1, async_length)
   call setsx(sx(:,:,:,:,nn),sd,intsch)      
   !$acc update device(sx(:,:,:,:,nn)) async(async_counter)    
 end if
 
 ! Loop over points that need to be calculated for other processes
 nn = 1
-call calcdepproc(sx(:,:,:,:,nn),wx,nface,xg,yg,nn,bs_test,intsch)
+call calcdepproc(sx,wx,nface,xg,yg,nn,bs_test,intsch)
 
 if ( present(sb) ) then
   nn = nn + 1
-  call calcdepproc(sx(:,:,:,:,nn),wx,nface,xg,yg,nn,bs_test,intsch)   
+  call calcdepproc(sx,wx,nface,xg,yg,nn,bs_test,intsch)   
 end if
 
 if ( present(sc) ) then
   nn = nn + 1
-  call calcdepproc(sx(:,:,:,:,nn),wx,nface,xg,yg,nn,bs_test,intsch)   
+  call calcdepproc(sx,wx,nface,xg,yg,nn,bs_test,intsch)   
 end if
 
 if ( present(sd) ) then
   nn = nn + 1
-  call calcdepproc(sx(:,:,:,:,nn),wx,nface,xg,yg,nn,bs_test,intsch)   
+  call calcdepproc(sx,wx,nface,xg,yg,nn,bs_test,intsch)   
 end if
 
 ! Send messages to other processes.  We then start the calculation for this processor
@@ -229,26 +229,26 @@ call intssync_send(nlen)
 !$omp parallel
 
 ! Loop over points that need to be calculated for this process
-async_counter = 0
 nn = 1
-call calcdephost(sx(:,:,:,:,nn),wx,sa,nface,xg,yg,nn,bs_test,intsch,async_counter)
+async_counter = mod(nn-1, async_length)
+call calcdephost(sx,wx,sa,nface,xg,yg,nn,bs_test,intsch,async_counter)
 
 if ( present(sb) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
-  call calcdephost(sx(:,:,:,:,nn),wx,sb,nface,xg,yg,nn,bs_test,intsch,async_counter)    
+  async_counter = mod(nn-1, async_length)
+  call calcdephost(sx,wx,sb,nface,xg,yg,nn,bs_test,intsch,async_counter)    
 end if
 
 if ( present(sc) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
-  call calcdephost(sx(:,:,:,:,nn),wx,sc,nface,xg,yg,nn,bs_test,intsch,async_counter)    
+  async_counter = mod(nn-1, async_length)
+  call calcdephost(sx,wx,sc,nface,xg,yg,nn,bs_test,intsch,async_counter)    
 end if
 
 if ( present(sd) ) then
-  async_counter = mod(async_counter + 1, async_length)
   nn = nn + 1
-  call calcdephost(sx(:,:,:,:,nn),wx,sd,nface,xg,yg,nn,bs_test,intsch,async_counter)    
+  async_counter = mod(nn-1, async_length)
+  call calcdephost(sx,wx,sd,nface,xg,yg,nn,bs_test,intsch,async_counter)    
 end if
 
 !$acc wait
@@ -676,9 +676,9 @@ implicit none
 
 integer, intent(in) :: nn, intsch
 integer ii, iq, n, k, idel, jdel
-integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordinates
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,1:ol), intent(in) :: sx
-real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
+integer, dimension(ifull,ol), intent(in) :: nface         ! interpolation coordinates
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,1:ol,nagg), intent(in) :: sx
+real, dimension(ifull,ol), intent(in) :: xg, yg           ! interpolation coordinates
 real xxg, yyg, cmin, cmax, sx_ans
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -705,18 +705,18 @@ if ( intsch==1 ) then
         idel = idel - ioff
         jdel = jdel - joff
             
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel  ,n,k)
-        sx_00 = sx(idel,  jdel  ,n,k)
-        sx_10 = sx(idel+1,jdel  ,n,k)
-        sx_20 = sx(idel+2,jdel  ,n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
 
         bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
                      wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
@@ -771,18 +771,18 @@ if ( intsch==1 ) then
         idel = idel - ioff
         jdel = jdel - joff
 
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel  ,n,k)
-        sx_00 = sx(idel,  jdel  ,n,k)
-        sx_10 = sx(idel+1,jdel  ,n,k)
-        sx_20 = sx(idel+2,jdel  ,n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
 
         bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
                      wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
@@ -842,18 +842,18 @@ else     ! if(intsch==1)then
         idel = idel - ioff
         jdel = jdel - joff
             
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel  ,n,k)
-        sx_00 = sx(idel,  jdel  ,n,k)
-        sx_10 = sx(idel+1,jdel  ,n,k)
-        sx_20 = sx(idel+2,jdel  ,n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
 
         bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
                      wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
@@ -908,18 +908,18 @@ else     ! if(intsch==1)then
         idel = idel - ioff
         jdel = jdel - joff
             
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel  ,n,k)
-        sx_00 = sx(idel,  jdel  ,n,k)
-        sx_10 = sx(idel+1,jdel  ,n,k)
-        sx_20 = sx(idel+2,jdel  ,n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
 
         bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
                      wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
@@ -974,12 +974,12 @@ use parm_m             ! Model configuration
 
 implicit none
 
-integer, dimension(ifull,kl), intent(in) :: nface         ! interpolation coordinates
+integer, dimension(ifull,ol), intent(in) :: nface         ! interpolation coordinates
 integer, intent(in) :: nn, intsch, async_counter
 integer iq, n, idel, jdel, k
 real, dimension(:,:), intent(inout) :: s
-real, dimension(-1:ipan+2,-1:jpan+2,1:npan,1:ol), intent(in) :: sx
-real, dimension(ifull,kl), intent(in) :: xg, yg           ! interpolation coordinates
+real, dimension(-1:ipan+2,-1:jpan+2,1:npan,1:ol,nagg), intent(in) :: sx
+real, dimension(ifull,ol), intent(in) :: xg, yg           ! interpolation coordinates
 real xxg, yyg, cmin, cmax, sx_ans
 real dmul_2, dmul_3, cmul_1, cmul_2, cmul_3, cmul_4
 real emul_1, emul_2, emul_3, emul_4, rmul_1, rmul_2, rmul_3, rmul_4
@@ -1011,18 +1011,18 @@ if ( intsch==1 ) then
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
 
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel  ,n,k)
-        sx_00 = sx(idel,  jdel  ,n,k)
-        sx_10 = sx(idel+1,jdel  ,n,k)
-        sx_20 = sx(idel+2,jdel  ,n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
 
         bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
                      wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
@@ -1088,18 +1088,18 @@ if ( intsch==1 ) then
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
             
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel  ,n,k)
-        sx_00 = sx(idel,  jdel  ,n,k)
-        sx_10 = sx(idel+1,jdel  ,n,k)
-        sx_20 = sx(idel+2,jdel  ,n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
 
         bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
                      wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
@@ -1171,18 +1171,18 @@ else     ! if(intsch==1)then
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
             
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel  ,n,k)
-        sx_00 = sx(idel,  jdel  ,n,k)
-        sx_10 = sx(idel+1,jdel  ,n,k)
-        sx_20 = sx(idel+2,jdel  ,n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
 
         bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
                      wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &
@@ -1249,18 +1249,18 @@ else     ! if(intsch==1)then
         jdel = min( max(jdel - joff, 0), jpan)
         n = min( max(nface(iq,k) + noff, 1), npan)
 
-        sx_0m = sx(idel,  jdel-1,n,k)
-        sx_1m = sx(idel+1,jdel-1,n,k)
-        sx_m0 = sx(idel-1,jdel  ,n,k)
-        sx_00 = sx(idel,  jdel  ,n,k)
-        sx_10 = sx(idel+1,jdel  ,n,k)
-        sx_20 = sx(idel+2,jdel  ,n,k)
-        sx_m1 = sx(idel-1,jdel+1,n,k)
-        sx_01 = sx(idel,  jdel+1,n,k)
-        sx_11 = sx(idel+1,jdel+1,n,k)
-        sx_21 = sx(idel+2,jdel+1,n,k)
-        sx_02 = sx(idel,  jdel+2,n,k)
-        sx_12 = sx(idel+1,jdel+2,n,k)
+        sx_0m = sx(idel,  jdel-1,n,k,nn)
+        sx_1m = sx(idel+1,jdel-1,n,k,nn)
+        sx_m0 = sx(idel-1,jdel  ,n,k,nn)
+        sx_00 = sx(idel,  jdel  ,n,k,nn)
+        sx_10 = sx(idel+1,jdel  ,n,k,nn)
+        sx_20 = sx(idel+2,jdel  ,n,k,nn)
+        sx_m1 = sx(idel-1,jdel+1,n,k,nn)
+        sx_01 = sx(idel,  jdel+1,n,k,nn)
+        sx_11 = sx(idel+1,jdel+1,n,k,nn)
+        sx_21 = sx(idel+2,jdel+1,n,k,nn)
+        sx_02 = sx(idel,  jdel+2,n,k,nn)
+        sx_12 = sx(idel+1,jdel+2,n,k,nn)
 
         bcub_water = wx(idel,jdel-1,n,k) .and. wx(idel+1,jdel-1,n,k) .and.   &
                      wx(idel-1,jdel,n,k) .and. wx(idel,jdel,n,k) .and.       &

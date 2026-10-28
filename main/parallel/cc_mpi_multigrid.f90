@@ -56,8 +56,13 @@ module cc_mpi_multigrid
       integer, dimension(:), allocatable :: neighlist
       integer, dimension(:), allocatable :: procmap
       real, dimension(:), allocatable :: zzn, zze, zzs, zzw, zz
+      real, dimension(:,:), allocatable :: rhs, v, helm
+      real, dimension(:), allocatable :: zzon, zzoe, zzos, zzow, zzo
+      real, dimension(:), allocatable :: yyon, yyos, yyoe, yyow, yyo
+      real, dimension(:), allocatable :: hho
+      real, dimension(:), allocatable :: zzi, zzin, zzis, zzie, zziw
    end type mgtype
-
+   
    type mgbndtype
       integer :: len, rlen, slen
       integer, dimension(:), allocatable :: send_list
