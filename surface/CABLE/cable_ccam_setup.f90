@@ -614,12 +614,12 @@ if ( mp_global>0 ) then
       end do
   
       call cable_pack(isoilm,soil(tile)%isoilm,tile)
-      call cable_pack(slope_ave,soil(tile)%slope,tile)
-      call cable_pack(slope_std,soil(tile)%slope_std,tile)
 
       ! slope is used by the gw model
-      soil(tile)%slope=min(max(soil(tile)%slope,1.e-8_8),0.95_8)
-      soil(tile)%slope_std=min(max(soil(tile)%slope_std,1.e-8_8),0.95_8)
+      !call cable_pack(slope_ave,soil(tile)%slope,tile)
+      !call cable_pack(slope_std,soil(tile)%slope_std,tile)
+      !soil(tile)%slope=min(max(soil(tile)%slope,1.e-8_8),0.95_8)
+      !soil(tile)%slope_std=min(max(soil(tile)%slope_std,1.e-8_8),0.95_8)
 
     end if
 

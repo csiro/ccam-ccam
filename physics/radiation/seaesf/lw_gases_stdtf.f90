@@ -2531,7 +2531,7 @@ real, dimension(:,:), intent(out)   :: approx
 !--------------------------------------------------------------------
 !  local variables
       
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: upathv
+      real :: upathv
       integer         :: k, kp, kp0, NSTDCO2LVLS_loop
 
 !--------------------------------------------------------------------
@@ -2569,14 +2569,14 @@ real, dimension(:,:), intent(out)   :: approx
 !                             (sexp_app(kp,k)/uexp_app(kp,k))
 !---------------------------------------------------------------------
             
-          upathv(kp,k) = EXP((1.0/sexp_app(kp,k))* log(  &
-                        (press_hi_pa(kp,k) - press_lo_pa(kp,k))))* &
-                        (press_hi_pa(kp,k) + press_lo_pa(kp,k) +  &
-                         dop_core)
-          upathv(kp,k) = EXP(uexp_app(kp,k)*log(upathv(kp,k)))
+          upathv = EXP((1.0/sexp_app(kp,k))* log(  &
+                  (press_hi_pa(kp,k) - press_lo_pa(kp,k))))* &
+                  (press_hi_pa(kp,k) + press_lo_pa(kp,k) +  &
+                   dop_core)
+          upathv = EXP(uexp_app(kp,k)*log(upathv))
           approx(kp,k) = EXP( ((sexp_app(kp,k)/uexp_app(kp,k)) *  &
                          log( ca_app(kp,k)*   &
-                         LOG(1.0 + xa_app(kp,k)*upathv(kp,k)))))
+                         LOG(1.0 + xa_app(kp,k)*upathv))))
         enddo
       enddo
 
@@ -3200,40 +3200,66 @@ character(len=*),     intent(in)  ::  gas_type
 !--------------------------------------------------------------------
 !  local variables
 
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: trns_vmr,      &
-                                                  approx_guess1, &
-                                                  error_guess1,  &
-                                                  press_hiv,     &
-                                                  press_lov
+      real, dimension(:,:), allocatable :: trns_vmr,      &
+                                           approx_guess1, &
+                                           error_guess1,  &
+                                           press_hiv,     &
+                                           press_lov
 
-      real, dimension(KSRAD:KERAD+1,KSRAD:KERAD+1) :: &
-                                                  approxint_guess1, &
-                                                  errorint_guess1,  &
-                                                  pressint_lov,     &
-                                                  pressint_hiv
+      real, dimension(:,:), allocatable :: &
+                                           approxint_guess1, &
+                                           errorint_guess1,  &
+                                           pressint_lov,     &
+                                           pressint_hiv
 
-      integer, dimension(KSRAD:KERAD+1,KSRAD:KERAD+1) :: &
-                                                  indx_pressint_hiv, &
-                                                  indx_pressint_lov
+      integer, dimension(:,:), allocatable :: &
+                                              indx_pressint_hiv, &
+                                              indx_pressint_lov
 
       real,    dimension(:,:), allocatable :: caintv, uexpintv, &
                                               sexpintv, xaintv
 
-      real,    dimension(51,KERAD+1) :: sexpnblv, uexpnblv,  &
-                                        canblv, xanblv,      &
-                                        pressnbl_lov,        &
-                                        pressnbl_hiv,        &
-                                        approxnbl_guess1,    &
-                                        errornbl_guess1
+      real,    dimension(:,:), allocatable :: sexpnblv, uexpnblv,  &
+                                              canblv, xanblv,      &
+                                              pressnbl_lov,        &
+                                              pressnbl_hiv,        &
+                                              approxnbl_guess1,    &
+                                              errornbl_guess1
 
-      integer, dimension(51,KERAD+1) :: indx_pressnbl_hiv, &
-                                        indx_pressnbl_lov
+      integer, dimension(:,:), allocatable :: indx_pressnbl_hiv, &
+                                              indx_pressnbl_lov
  
       real, dimension(7)    ::  wgt_lyr
       real, dimension(51)   ::  wgt_nearby_lyr
       logical               ::  do_triangle
       integer               ::  n, k, kp, nklo, nkhi, nkplo, nkphi,   &
                                 nq, nprofile
+      
+      allocate( trns_vmr(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( approx_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( error_guess1(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( press_hiv(NSTDCO2LVLS,NSTDCO2LVLS) )
+      allocate( press_lov(NSTDCO2LVLS,NSTDCO2LVLS) )
+      
+      allocate( approxint_guess1(KSRAD:KERAD+1,KSRAD:KERAD+1) )
+      allocate( errorint_guess1(KSRAD:KERAD+1,KSRAD:KERAD+1) )
+      allocate( pressint_lov(KSRAD:KERAD+1,KSRAD:KERAD+1) )
+      allocate( pressint_hiv(KSRAD:KERAD+1,KSRAD:KERAD+1) )
+      
+      allocate( indx_pressint_hiv(KSRAD:KERAD+1,KSRAD:KERAD+1) )
+      allocate( indx_pressint_lov(KSRAD:KERAD+1,KSRAD:KERAD+1) )
+      
+      allocate( sexpnblv(51,KERAD+1) )
+      allocate( uexpnblv(51,KERAD+1) )
+      allocate( canblv(51,KERAD+1) )
+      allocate( xanblv(51,KERAD+1) )
+      allocate( pressnbl_lov(51,KERAD+1) )
+      allocate( pressnbl_hiv(51,KERAD+1) )
+      allocate( approxnbl_guess1(51,KERAD+1) )
+      allocate( errornbl_guess1(51,KERAD+1) )
+      
+      allocate( indx_pressnbl_hiv(51,KERAD+1) )
+      allocate( indx_pressnbl_lov(51,KERAD+1) )
 
 !--------------------------------------------------------------------
 !    compute the layer weights for transmissivities. used only if
@@ -3826,6 +3852,31 @@ character(len=*),     intent(in)  ::  gas_type
 
 !---------------------------------------------------------------------
 
+      deallocate( trns_vmr )
+      deallocate( approx_guess1 )
+      deallocate( error_guess1 )
+      deallocate( press_hiv )
+      deallocate( press_lov )
+      
+      deallocate( approxint_guess1 )
+      deallocate( errorint_guess1 )
+      deallocate( pressint_lov )
+      deallocate( pressint_hiv )
+      
+      deallocate( indx_pressint_hiv )
+      deallocate( indx_pressint_lov )
+      
+      deallocate( sexpnblv )
+      deallocate( uexpnblv )
+      deallocate( canblv )
+      deallocate( xanblv )
+      deallocate( pressnbl_lov )
+      deallocate( pressnbl_hiv )
+      deallocate( approxnbl_guess1 )
+      deallocate( errornbl_guess1 )
+      
+      deallocate( indx_pressnbl_hiv )
+      deallocate( indx_pressnbl_lov )
 
 end subroutine gasint
 
@@ -3918,7 +3969,10 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
       integer     :: k, ll
       integer     :: llmax
       real        :: check
-      real, dimension(size(trns_val,1), size(trns_val,2)) :: abs_val
+      real, dimension(:,:), allocatable :: abs_val
+      
+      allocate( abs_val(size(trns_val,1), size(trns_val,2)) )
+      
 !-----------------------------------------------------------------
 !   local variables
 ! 
@@ -4156,6 +4210,7 @@ real, dimension(:),     intent(out) :: ca, xa, sexp, uexp
 
 !--------------------------------------------------------------------
 
+      deallocate( abs_val )
 
 end subroutine coeint
 
@@ -4354,10 +4409,10 @@ logical,                 intent(in)  :: do_triangle
 !  local variables:
 
       real, dimension(NSTDCO2LVLS) :: caxa
-      real, dimension(size(press_hiv,1),size(press_hiv,2)) :: &
-                                  sexp_hiv, uexp_hiv, ca_hiv, &
-                                  prod_hiv, xa_hiv, d1kp,     &
-                                  d2kp, bkp, akp, delp_hi
+      real, dimension(:,:), allocatable :: &
+                                           sexp_hiv, uexp_hiv, ca_hiv, &
+                                           prod_hiv, xa_hiv, d1kp,     &
+                                           d2kp, bkp, akp, delp_hi
 
       integer    :: k, kp, kp0, kpp
 
@@ -4367,6 +4422,18 @@ logical,                 intent(in)  :: do_triangle
 !      caxa
 !
 !---------------------------------------------------------------------
+      
+      allocate( sexp_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( uexp_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( ca_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( prod_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( xa_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( d1kp(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( d2kp(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( bkp(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( akp(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( delp_hi(size(press_hiv,1),size(press_hiv,2)) )      
+      
 !---------------------------------------------------------------------
 !    compute the index of the inputted pressures (press_hiv,
 !    press_lov) corresponding to the standard (pa) pressures.
@@ -4543,6 +4610,17 @@ logical,                 intent(in)  :: do_triangle
 
 !--------------------------------------------------------------------- 
 
+      deallocate( sexp_hiv )
+      deallocate( uexp_hiv )
+      deallocate( ca_hiv )
+      deallocate( prod_hiv )
+      deallocate( xa_hiv )
+      deallocate( d1kp )
+      deallocate( d2kp )
+      deallocate( bkp )
+      deallocate( akp )
+      deallocate( delp_hi )      
+      
 end subroutine intcoef_2d
 
 subroutine intcoef_2d_10um (press_hiv, press_lov, do_triangle,  &
@@ -4572,10 +4650,10 @@ logical,                 intent(in)  :: do_triangle
 !  local variables:
 
       real, dimension(NSTDCO2LVLS) :: caxa
-      real, dimension(size(press_hiv,1),size(press_hiv,2)) :: &
-                                  sexp_hiv, uexp_hiv, ca_hiv, &
-                                  prod_hiv, xa_hiv, d1kp,     &
-                                  d2kp, bkp, akp, delp_hi
+      real, dimension(:,:), allocatable :: &
+                                           sexp_hiv, uexp_hiv, ca_hiv, &
+                                           prod_hiv, xa_hiv, d1kp,     &
+                                           d2kp, bkp, akp, delp_hi
 
       integer    :: k, kp, kp0, kpp
       integer    :: k1, k2
@@ -4586,6 +4664,18 @@ logical,                 intent(in)  :: do_triangle
 !      caxa
 !
 !---------------------------------------------------------------------
+      
+      allocate( sexp_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( uexp_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( ca_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( prod_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( xa_hiv(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( d1kp(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( d2kp(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( bkp(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( akp(size(press_hiv,1),size(press_hiv,2)) )
+      allocate( delp_hi(size(press_hiv,1),size(press_hiv,2)) )
+      
 !---------------------------------------------------------------------
 !    compute the index of the inputted pressures (press_hiv,
 !    press_lov) corresponding to the standard (pa) pressures.
@@ -4708,6 +4798,17 @@ logical,                 intent(in)  :: do_triangle
 
 !---------------------------------------------------------------------
 
+      deallocate( sexp_hiv )
+      deallocate( uexp_hiv )
+      deallocate( ca_hiv )
+      deallocate( prod_hiv )
+      deallocate( xa_hiv )
+      deallocate( d1kp )
+      deallocate( d2kp )
+      deallocate( bkp )
+      deallocate( akp )
+      deallocate( delp_hi )
+      
 end subroutine intcoef_2d_10um                       
 
 !#####################################################################
@@ -4772,7 +4873,7 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
 !--------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(NSTDCO2LVLS,NSTDCO2LVLS) :: prod_hiv
+      real, dimension(:,:), allocatable :: prod_hiv
       real, dimension(NSTDCO2LVLS) :: d1kp, d2kp, bkp, akp, &
                                       delp_hi, caxa
       integer         :: k, kp, kp0, kpp
@@ -4783,6 +4884,9 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
 !     prod_hiv
 !
 !--------------------------------------------------------------------
+      
+     allocate( prod_hiv(NSTDCO2LVLS,NSTDCO2LVLS) )
+      
      indx_hiv = 0   
       
 !--------------------------------------------------------------------
@@ -4947,6 +5051,7 @@ integer, dimension(:,:), intent(out)  :: indx_hiv, indx_lov
  
 !---------------------------------------------------------------------
 
+      deallocate( prod_hiv ) 
 
 end subroutine intcoef_2d_std
 
@@ -5021,10 +5126,10 @@ real,    dimension(:,:), intent(out)  :: errorint
 !---------------------------------------------------------------------
 !  local variables:
 
-      real, dimension(size(pressint_hiv,1),size(pressint_hiv,2)) :: &
-                                         delp_lo, delp_hi,          &
-                                         d1kp, d2kp, bkp, akp, fkp, &
-                                         fkp1, fkp2
+      real, dimension(:,:), allocatable :: &
+                                           delp_lo, delp_hi,          &
+                                           d1kp, d2kp, bkp, akp, fkp, &
+                                           fkp1, fkp2
       integer        :: k, kp, kp0
 
 !---------------------------------------------------------------------
@@ -5033,6 +5138,17 @@ real,    dimension(:,:), intent(out)  :: errorint
 !    delp_lo
 !
 !---------------------------------------------------------------------
+      
+      allocate( delp_lo(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      allocate( delp_hi(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      allocate( d1kp(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      allocate( d2kp(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      allocate( bkp(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      allocate( akp(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      allocate( fkp(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      allocate( fkp1(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      allocate( fkp2(size(pressint_hiv,1),size(pressint_hiv,2)) )
+      
 !---------------------------------------------------------------------
  
       do k=nklo,nkhi
@@ -5180,6 +5296,15 @@ real,    dimension(:,:), intent(out)  :: errorint
 
 !---------------------------------------------------------------------
 
+      deallocate( delp_lo )
+      deallocate( delp_hi )
+      deallocate( d1kp )
+      deallocate( d2kp )
+      deallocate( bkp )
+      deallocate( akp )
+      deallocate( fkp )
+      deallocate( fkp1 )
+      deallocate( fkp2 )
 
 end subroutine interp_error
 

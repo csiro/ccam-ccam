@@ -122,7 +122,7 @@ real, dimension(:,:,:), allocatable :: xtgdwn
 real, dimension(:,:,:), allocatable :: dumb
 real, dimension(:,:), allocatable, save :: global2d, local2d
 real, dimension(:), allocatable, save :: davt_g
-real, dimension(3*kl+8) :: dumc
+real, dimension(3*kl+7) :: dumc
 real, dimension(9) :: swilt_diag, sfc_diag
 real, dimension(ms) :: wb_tmpry
 real, dimension(ifull,maxtile) :: svs,vlin
@@ -234,14 +234,14 @@ if ( myid==0 ) then
     write(6,*) 'bam:  ',bam
   end if  
   
-  ! test netcdf for topography input
-  dumc(3*kl+8)=-1.      ! lncslope
-  if ( lnctopo==1 ) then
-    call ccnf_inq_varid(ncidtopo,'slope',idv,tst)
-    if ( .not.tst ) then
-      dumc(3*kl+8) = 1. ! lncslope
-    end if
-  end if
+  !! test netcdf for topography input
+  !dumc(3*kl+8)=-1.      ! lncslope
+  !if ( lnctopo==1 ) then
+  !  call ccnf_inq_varid(ncidtopo,'slope',idv,tst)
+  !  if ( .not.tst ) then
+  !    dumc(3*kl+8) = 1. ! lncslope
+  !  end if
+  !end if
   
   if ( vegfile==" " ) then
     write(6,*) "ERROR: vegfile has not been specified"
@@ -295,8 +295,8 @@ end if ! (myid==0)
 ! dumc(1:kl)   = sig,           dumc(kl+1:2*kl) = sigmh,      dumc(2*kl+1:3*kl) = tbar
 ! dumc(3*kl+1) = lncveg,        dumc(3*kl+2)    = lncbath,    dumc(3*kl+3)      = lncriver
 ! dumc(3*kl+4) = urbanformat,   dumc(3*kl+5)    = urbantypes, dumc(3*kl+6)      = lncveg_numpft
-! dumc(3*kl+7) = lncveg_numsoil dumc(3*kl+8)    = lncslope
-call ccmpi_bcast(dumc(1:3*kl+8),0,comm_world)
+! dumc(3*kl+7) = lncveg_numsoil
+call ccmpi_bcast(dumc(1:3*kl+7),0,comm_world)
 sig            = dumc(1:kl)
 sigmh          = dumc(kl+1:2*kl)
 tbar           = dumc(2*kl+1:3*kl)
@@ -307,11 +307,11 @@ urbanformat    = dumc(3*kl+4)
 ateb_len       = nint(dumc(3*kl+5))
 lncveg_numpft  = nint(dumc(3*kl+6))
 lncveg_numsoil = nint(dumc(3*kl+7))
-lncslope       = nint(dumc(3*kl+8))
+!lncslope       = nint(dumc(3*kl+8))
 if ( myid==0 ) then
   write(6,*) "Testing for NetCDF surface files"
   write(6,*) "-> lncveg,lncbath,lncriver=",lncveg,lncbath,lncriver
-  write(6,*) "-> lncslope=               ",lncslope
+  !write(6,*) "-> lncslope=               ",lncslope
   write(6,*) "Processing vertical levels"
 end if
 
@@ -430,6 +430,12 @@ if ( io_in<=4 .and. nhstest>=0 ) then
         call ccmpi_abort(-1)
       end if
       close(66)
+      !if ( lncslope==1 ) then
+      !  write(6,*) "read slope from topofile"
+      !  call surfread(global2d(:,4),'slope',netcdfid=ncidtopo)
+      !  write(6,*) "read slope_std from topofile"
+      !  call surfread(global2d(:,5),'slope_std',netcdfid=ncidtopo)
+      !end if
     end if
     call ccmpi_distribute(local2d(:,1:3),global2d(:,1:3))
     deallocate( global2d )
@@ -439,31 +445,14 @@ if ( io_in<=4 .and. nhstest>=0 ) then
   zs(1:ifull)     = local2d(1:ifull,1)
   zsmask(1:ifull) = local2d(1:ifull,2)
   he(1:ifull)     = local2d(1:ifull,3)
+  !slope_ave(1:ifull) = local2d(1:ifull,4)
+  !slope_std(1:ifull) = local2d(1:ifull,5)
   deallocate( local2d )
   if ( minval(zsmask(1:ifull))<0. .or. maxval(zsmask(1:ifull))>1. ) then
     write(6,*) "ERROR: Invalid land/sea mask ",minval(zsmask(1:ifull)),maxval(zsmask(1:ifull))
     call ccmpi_abort(-1)
   end if
   if ( mydiag ) write(6,*) 'zs,zsmask,he read in from topofile',zs(idjd),zsmask(idjd),he(idjd)
-
-  ! read slope data
-  if ( lncslope==1 ) then
-    allocate( local2d(ifull,2) )    
-    if ( myid==0 ) then
-      allocate( global2d(ifull_g,2) )  
-      write(6,*) "read slope from topofile"
-      call surfread(global2d(:,1),'slope',netcdfid=ncidtopo)
-      write(6,*) "read slope_std from topofile"
-      call surfread(global2d(:,2),'slope_std',netcdfid=ncidtopo)
-      call ccmpi_distribute(local2d(:,1:2),global2d(:,1:2))
-      deallocate( global2d )
-    else
-      call ccmpi_distribute(local2d(:,1:2))  
-    end if
-    slope_ave(1:ifull) = local2d(1:ifull,1)
-    slope_std(1:ifull) = local2d(1:ifull,2)
-    deallocate( local2d )
-  end if
   
   ! special options for orography         
   if ( nspecial==2 ) then  ! to flood Madagascar, or similar 
@@ -2662,6 +2651,8 @@ else if ( nsib>=6 ) then
     call ccmpi_distribute(local2d(:,1:3))
   end if
   isoilm_in(1:ifull)     = nint( local2d(1:ifull,1) )
+  albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
+  deallocate( local2d )
   ! define freshwater lakes for water bodies above sea-level
   ! MJT notes - should this be part of igbpveg preprocessing?
   !if ( freshwaterlake_fix==1 ) then
@@ -2669,8 +2660,6 @@ else if ( nsib>=6 ) then
   !    isoilm_in(1:ifull) = -1 ! lake
   !  end where
   !end if  
-  albvisnir(1:ifull,1:2) = local2d(1:ifull,2:3)
-  deallocate( local2d )
   isoilm = max( isoilm_in, 0 )
   zolnd = zobgin ! updated in cable_ccam2.f90
   ivegt = 1      ! updated in cable_ccam2.f90

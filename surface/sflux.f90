@@ -157,7 +157,7 @@ public cduv,cdtq,tss,slwa
 public zoland,zmin,zolnd,zolog,albvissav,so4t,albnirsav
 public albvisdif,albnirdif,albvisdir,albnirdir
 public land
-public slope_ave, slope_std
+!public slope_ave, slope_std
 
 ! soilsnow
 public tggsn,tgg,wb,wbice,smass,ssdn,ssdnn,snowd 
