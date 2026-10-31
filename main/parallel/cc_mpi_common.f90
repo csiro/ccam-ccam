@@ -23,22 +23,12 @@
     
 module cc_mpi_common
 
-#ifdef usempimod
-#ifdef usempimod_f08
-   use mpi_f08
-#else   
-   use mpi
-#endif   
-#endif
+   use mpif_m
    use newmpar_m
 
    implicit none
 
    public
-
-#ifndef usempimod
-   include 'mpif.h'
-#endif
    
    integer, save :: comm_world                                     ! global communication group
    integer, save :: myid                                           ! process rank for comm_world

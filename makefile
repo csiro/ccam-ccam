@@ -253,7 +253,7 @@ cldblk.o clddia.o clo89.o cloud.o cloud2.o co2_read.o e1e288.o \
 e3v88.o fst88.o hconst.o lwr88.o ozoneread.o spa88.o \
 swr99.o table.o zenith.o diag_m.o sumdd_m.o daviesnudge.o \
 cc_acc.o cc_mpi.o cc_mpi_collective.o cc_mpi_common.o cc_mpi_file.o \
-cc_mpi_multigrid.o cc_mpi_point.o cc_omp.o \
+cc_mpi_multigrid.o cc_mpi_point.o cc_omp.o mpif_m.o \
 utilities.o onthefly.o tracermodule.o timeseries.o \
 trvmix.o getopt_m.o usage_m.o const_phys.o \
 betts.o bett_cuc.o bettinit.o bettrain.o bettspli.o \
@@ -309,6 +309,8 @@ clean:
 .SUFFIXES:.f90 .F90
 
 
+mpif_m.o: mpif_m.f90
+	$(FC) -c $(PPFLAG90) $(MPIFLAG) $<
 netcdf_m.o: netcdf_m.f90
 	$(FC) -c $(PPFLAG90) $(NCFLAG) $<
 esfsw_driver.o esfsw_parameters.o gas_tf.o longwave_clouds.o longwave_fluxes.o longwave_tables.o longwave_params.o lw_gases_stdtf.o microphys_rad.o optical_path.o optical_path_data.o rad_utilities.o sealw99.o: %.o: %.f90
@@ -399,7 +401,7 @@ cbl_wetleaf.o : cable_define_types.o
 cbl_within_canopy.o : cable_common.o cable_define_types.o
 cc_mpi.o : cc_mpi_collective.o cc_mpi_common.o cc_mpi_file.o cc_mpi_multigrid.o cc_mpi_point.o cc_omp.o indices_m.o latlong_m.o map_m.o sumdd_m.o vecsuv_m.o workglob_m.o xyzinfo_m.o
 cc_mpi_collective.o : cc_mpi_common.o sumdd_m.o xyzinfo_m.o
-cc_mpi_common.o : cc_omp.o newmpar_m.o sumdd_m.o
+cc_mpi_common.o : cc_omp.o mpif_m.o newmpar_m.o sumdd_m.o
 cc_mpi_file.o : cc_mpi_common.o
 cc_mpi_multigrid.o : cc_mpi_common.o indices_m.o
 cc_mpi_point.o : cc_mpi_common.o cc_omp.o const_phys.o indices_m.o xyzinfo_m.o
