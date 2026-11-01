@@ -234,7 +234,7 @@ if ( mup/=0 ) then
   else
     call ints(sa=pslx,intsch=intsch,nface=nface,xg=xg,yg=yg,nfield=1)
   end if    
-  call ints(sa=pslx,intsch=intsch,nface=nface,xg=xg,yg=yg,nfield=3)
+  call ints(sa=tx,intsch=intsch,nface=nface,xg=xg,yg=yg,nfield=3)
 end if    ! mup/=0
 
 do k = 1,kl
